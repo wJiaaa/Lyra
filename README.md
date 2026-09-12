@@ -8,21 +8,41 @@
   <a href=".nvmrc"><img src="https://img.shields.io/badge/node-%E2%89%A524-brightgreen.svg" alt="Node ≥ 24"></a>
 </p>
 
-一个自带模型配置的独立通用型agent。桌面端用 Electron，移动端用 React Native，两端共用同一份会话数据。
+一个自带模型配置的独立通用型 agent。桌面端用 Electron，手机端用 React Native，两端共用同一份会话数据。
 
-不是 Claude Code 或 Codex 等的前端壳 —— agent 内核、工具集、skill 与 MCP 全部从零开始实现，模型完全由你自己配， 随性所欲配置插件， 扩展能力。
+不是 Claude Code 或 Codex 的前端壳——agent 内核、工具集、skill 与 MCP 全部从零实现，模型由你自己配，
+插件和技能也由你自己装。
 
-## 快速开始
+## 下载
 
-```bash
-pnpm install
-pnpm dev
-```
+装好的包在 [Releases](https://github.com/kittors/Lyra/releases/latest)，每个版本都带全部系统和
+架构。挑你这台机器的那一个：
 
-首次启动后在「设置 → 模型设置」里加一个供应商，填 Base URL 和 API Key，然后添加模型。
+| 系统 | 架构 | 下载 |
+| --- | --- | --- |
+| macOS | Apple 芯片 | `Lyra-<版本>-arm64.dmg` |
+| macOS | Intel | `Lyra-<版本>-x64.dmg` |
+| Windows | x64 | `Lyra-<版本>-x64.exe` |
+| Windows | Arm（骁龙笔记本、Surface Pro X） | `Lyra-<版本>-arm64.exe` |
+| Linux | x64 | `Lyra-<版本>-x86_64.AppImage` 或 `Lyra-<版本>-amd64.deb` |
+| Linux | arm64（树莓派、Ampere、Mac 上的 Linux 虚拟机） | `Lyra-<版本>-arm64.AppImage` 或 `Lyra-<版本>-arm64.deb` |
+| Android | 通用 | `Lyra-<版本>-android.apk` |
+| iOS | 通用 | `Lyra-<版本>-ios-unsigned.ipa`（要自己签名，见下） |
 
-想参与开发看 [CONTRIBUTING.md](CONTRIBUTING.md)；如果你是被叫来改这份代码的 agent，
-看 [AGENTS.md](AGENTS.md)。
+不知道自己是哪个架构：macOS 看「关于本机」的芯片一行，Windows 看「设置 → 系统 → 系统信息」的
+「系统类型」，Linux 跑 `uname -m`（`x86_64` 取 x64，`aarch64` 取 arm64）。
+
+AppImage 和 deb 二选一：AppImage 不用装，`chmod +x` 之后直接运行，哪个发行版都行；deb 是
+Debian、Ubuntu 这一系的包管理器格式，`sudo apt install ./Lyra-<版本>-amd64.deb`。
+
+剩下四个文件一般用不上：两个 `.zip` 是 macOS 应用内更新用的（更新时在原地换掉 app，不用你再拖
+一次），`Lyra-<版本>.exe` 是 x64 与 arm64 合一的 Windows 安装包（两百多 MB，上面那两个各一百多
+MB，能确定架构就别下它），`SHA256SUMS` 是全部文件的校验值。装好之后应用会自己检查更新，而且只
+安装校验对得上的包——校验值读不到就不装，宁可不更新。
+
+## 第一次打开
+
+安装包没有花钱买来的证书，所以三个系统都会先拦一下。每种拦法的放行方式不一样：
 
 ### macOS 首次打开
 
@@ -84,38 +104,51 @@ Windows 安装包同样没有代码签名。第一次运行会撞上 SmartScreen
 手机端只是个壳，它连的是你自己电脑上的 Lyra——会话、模型、密钥都在电脑上。装完在桌面端
 「设置 → 移动端同步」里开服务，扫码配对。
 
+## 先配一个模型
+
+Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置 → 模型设置」添加供应商：填 Base URL、
+选 API 格式（**Responses** 或 **Anthropic Messages**，不支持 Chat Completions）、填 API Key，
+再添加至少一个模型。
+
 ## 能力
 
 - **自定义模型**：任意数量的供应商，每个供应商挂任意数量的模型。只对接 **Responses**（`/v1/responses`）和 **Anthropic Messages**（`/v1/messages`）两种格式，不支持 Chat Completions。
-- **12 个内置工具**：`read` `write` `edit` `ls` `glob` `grep` `bash` `bash_output` `todo_write` `task` `skill` `web_fetch`
+- **20 个内置工具**，按代码里的分组：
+  - 文件与代码：`read` `write` `edit` `ls` `glob` `grep` `symbol` `lsp`
+  - 执行命令：`bash` `bash_output`
+  - 会话与记忆：`todo_write` `task` `skill` `rule` `recall` `learn` `ask_user`
+  - 网络与预览：`web_fetch` `web_search` `preview`
 - **Skill**：`SKILL.md` + YAML frontmatter。只有名称和描述进系统提示，正文在模型调用 `skill` 工具时才注入 —— 装几十个技能也不烧上下文。
 - **MCP**：stdio / Streamable HTTP / SSE 三种传输，工具以 `mcp__<服务>__<工具>` 命名注入，不会和内置工具撞名。
-- **子智能体**：`task` 工具把工作交给拥有独立上下文窗口的子 agent，只把结论带回主对话。内置 `general` / `explore` / `review`，可用 `.lyra/agents/*.md` 扩展。
+- **子智能体**：`task` 工具把工作交给拥有独立上下文窗口的子 agent，只把结论带回主对话。内置七个——`general` `explore` `review` `verify` `plan` `simple` `reason`，可用 `.lyra/agents/*.md` 扩展。
 - **侧边聊天**：在当前会话旁边再开一个临时对话。它读得到主会话聊了什么，但一个字也不写进去；需要动手的事交给主会话排队执行。
-- **右侧面板**：文件、终端、审阅改动、侧边聊天四个标签页，可同时开着来回切。文件带语法高亮编辑器，终端是真的 pty。
-- **移动端同步**：桌面端跑局域网服务，手机重放同一份会话日志，可以查看进行中的回合、批准操作、继续追问。
+- **右侧面板**：文件、文件内容、终端、Git、侧边聊天、子 Agent、任务、轨迹、浏览器九个标签页，可同时开着来回拖。文件带语法高亮编辑器，终端是真的 pty。
+- **移动端同步**：手机重放同一份会话日志，可以查看进行中的回合、批准操作、继续追问。三条路径——同一个 Wi-Fi 下直连、经你自己的域名和 TLS、或者两端各自往外拨到中转服务碰头。
 
 ## 结构
 
 ```
 packages/
-  core/      agent 内核：provider 适配、agent loop、工具、skill、MCP、会话存储
-  desktop/   Electron 应用（主进程 + preload + React 渲染进程）
-  mobile/    Expo / React Native 应用
+  core/              agent 内核：provider 适配、agent loop、工具、skill、MCP、会话存储
+  desktop/           Electron 应用（主进程 + preload + React 渲染进程）
+  mobile/            Expo / React Native 应用
+  contract/          两个进程之间那条线，199 个方法写在一处
+  relay/             公网中转服务，手机不在同一个局域网时走它。单文件，零依赖
+  agent-cli/         命令行入口
+  registry-shared/   插件目录的索引格式，桌面端与目录服务共用
 ```
 
 `core` 与平台无关，桌面主进程和同步服务共用同一个 `AgentSession`，所以手机和电脑不会看到两份不同的状态。
+包与包之间的依赖方向有五条规则，`pnpm arch` 守着，见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
-## 跑起来
+## 从源码跑
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-首次启动进入「设置 → 模型设置」添加供应商：填 Base URL、选 API 格式、填 API Key，再添加至少一个模型。
-
-移动端：
+手机端另开一个：
 
 ```bash
 pnpm dev:mobile
@@ -123,16 +156,23 @@ pnpm dev:mobile
 
 在桌面端「设置 → 移动端同步」启用服务，把地址和令牌填进手机端的配对页。
 
+想参与开发看 [CONTRIBUTING.md](CONTRIBUTING.md)；如果你是被叫来改这份代码的 agent，
+看 [AGENTS.md](AGENTS.md)。
+
 ## 配置位置
 
 | 路径 | 内容 |
 | --- | --- |
 | `~/.lyra/settings.json` | 供应商、模型、MCP、权限模式 |
+| `~/.lyra/credentials.json` | API Key，加密存放；密钥本体在 `~/.lyra/vault.key` |
 | `~/.lyra/sessions/` | 会话日志（JSONL，一行一条记录） |
-| `~/.lyra/skills/` | 用户级技能 |
-| `<项目>/.lyra/skills/` | 项目级技能（优先级更高） |
-| `<项目>/.lyra/agents/` | 项目级子智能体 |
+| `~/.lyra/skills/`、`plugins/`、`rules/`、`commands/` | 用户级的技能、插件、规则、斜杠命令 |
+| `~/.lyra/memory.json` | `learn` 工具记下来的东西 |
+| `<项目>/.lyra/skills/`、`agents/`、`commands/`、`plugins/` | 项目级的同一套，优先级高于用户级 |
 | `<项目>/LYRA.md`、`AGENTS.md`、`CLAUDE.md` | 项目指令，按此优先级取第一个存在的 |
+
+换机器只需要拷 `~/.lyra`。拷之前想清楚 `credentials.json` 和 `vault.key` 要不要一起走——两个都在
+才解得开，只拷一个等于把 Key 丢了。
 
 ## 扩展与机制
 
@@ -185,14 +225,19 @@ Current working directory: …
 
 ## 面板
 
-右侧面板是一条标签栏，四样东西可以同时开着：
+右侧面板是一条标签栏，九样东西可以同时开着、来回拖：
 
 | 标签 | 快捷键 | 内容 |
 | --- | --- | --- |
-| 文件 | ⌘P | 文件树 + 编辑器。树和文件是两张卡片，窄时上下堆叠，宽时左右并排 |
+| 文件 | ⌘P | 文件树。点一个文件就把「文件内容」带出来 |
+| 文件内容 | ⌥⌘P | 语法高亮编辑器。标题显示的是文件名，不是「文件内容」 |
 | 终端 | ⌃` | 真实的 pty，不是命令回显 |
-| 审阅改动 | ⌘⇧R | 工作区 diff，单列手风琴，可直接提交 |
+| Git | ⌘⇧R | 工作区 diff，单列手风琴，可直接提交 |
 | 侧边聊天 | ⌥⌘S | 见上 |
+| 子 Agent | ⌥⌘A | `task` 派出去的子 agent 各自在干什么 |
+| 任务 | ⌘J | 当前的 todo 清单 |
+| 轨迹 | ⌘L | 这一轮到底发了什么给模型：工具、技能、注入的上下文 |
+| 浏览器 | ⌘T | 内置浏览器，边界见[内置能力](docs/guide/capabilities.md) |
 
 - **宽度可拖**：侧边栏和面板的边缘都能拖，双击回到默认，方向键微调。宽度记在本地，重启还在。
 - **全屏**：面板可以铺满整个对话列。此时文件标签变成左树右文件；侧边栏收起的话，窗口那三个按钮会移进标签栏里，而不是浮在面板上。
@@ -246,9 +291,20 @@ Current working directory: …
 
 ## 开发
 
+改完一遍跑完：
+
 ```bash
-pnpm typecheck              # 全部包类型检查
-pnpm -r test                # core 与 desktop 的测试
-pnpm --filter @lyra/desktop build
-pnpm --filter @lyra/mobile exec expo export --platform web
+pnpm check     # lint + style + i18n + typecheck + arch + test，一条顶六条
 ```
+
+单独跑某一条：
+
+```bash
+pnpm lint          # oxlint，--deny-warnings：警告等于失败
+pnpm typecheck     # 7 个包
+pnpm test          # 单元测试，含组件测试。用的是 node:test，不是 vitest/jest
+pnpm arch          # 依赖方向，两秒
+pnpm package       # 打出本机架构的安装包，release 之外唯一会跑 electron-builder 的地方
+```
+
+更细的约定在 [CONTRIBUTING.md](CONTRIBUTING.md)，包与包的边界在 [ARCHITECTURE.md](ARCHITECTURE.md)。

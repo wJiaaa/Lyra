@@ -79,9 +79,9 @@ pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
 ## 发版
 
 打 tag 就是发版：推 `v*` 触发 `release.yml`，六个 runner 各自构建，汇总成一个 release 并**直接发布**。
-一个 release 里 13 个文件：桌面端 10 个（macOS 的 dmg 与 zip 各 arm64/x64、Windows 的 exe
-x64/arm64、Linux 的 AppImage 与 deb 各 x64/arm64），手机端 2 个（`Lyra-x.y.z-android.apk` 签名的、
-`Lyra-x.y.z-ios-unsigned.ipa` 未签名的），加一份 `SHA256SUMS`。
+一个 release 里 14 个文件：桌面端 11 个（macOS 的 dmg 与 zip 各 arm64/x64、Windows 的 exe
+x64/arm64 加一个两架构合一的、Linux 的 AppImage 与 deb 各 x64/arm64），手机端 2 个
+（`Lyra-x.y.z-android.apk` 签名的、`Lyra-x.y.z-ios-unsigned.ipa` 未签名的），加一份 `SHA256SUMS`。
 怎么打包、为什么 iOS 不签名、Android 的钥匙为什么是一次性的决定，见
 [docs/architecture/mobile-packaging.md](docs/architecture/mobile-packaging.md)。
 
