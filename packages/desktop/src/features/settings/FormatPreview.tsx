@@ -22,14 +22,16 @@ import { translate } from "../../i18n/translate.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import { macKeyboard } from "../../ui/keyboard.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, RotateCcw, Wand2 } from "lucide-react";
+import { ChevronDown, RotateCcw, Wand2 } from "lucide-react";
+
+import { LanguageIcon, preloadLanguageMarks } from "../../ui/primitives/LanguageIcon.tsx";
 import type { FormattingSettings } from "@lyra/core";
 import { useApp } from "../../store/index.ts";
 import { findCodeTheme, type CodeThemeSpec } from "../../lib/code/themes.ts";
 import { MenuBody, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
-import { formatCode } from "../editor/index.ts";
+import { formatFile } from "../editor/index.ts";
 import { highlightPieces, type Piece } from "./preview-highlight.ts";
 import { LANGUAGES, searchLanguages, type LanguageEntry } from "./format-catalog.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -82,21 +84,37 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 	};
 
 	const format = useCallback(async () => {
-		if (entry.formatter !== "prettier") return;
 		try {
-			const printed = await formatCode(`sample.${entry.aliases[0]}`, code, options);
-			if (printed !== null) {
-				setCode(printed);
+			/*
+			 * The same door the editor uses, not Prettier directly.
+			 *
+			 * `formatFile` tries Prettier and falls through to the language's own binary, so every
+			 * language in the catalog can actually be tried here. Calling `formatCode` meant this
+			 * button was dead for two thirds of the list — the page that exists to let you try the
+			 * formatter could only try one of them.
+			 */
+			const outcome = await formatFile(`sample.${entry.aliases[0]}`, code, options);
+			if (outcome.ok) {
+				setCode(outcome.text);
 				setEdited(true);
+				setFailure(null);
+				return;
 			}
-			setFailure(null);
+			// A tool that is not installed is not a failure of the file: say which one and how.
+			setFailure(
+				outcome.kind === "missing"
+					? t("formatPreview.missingTool", { tool: outcome.tool, install: outcome.install })
+					: outcome.kind === "failed"
+						? outcome.message.split("\n")[0]
+						: t("formatPreview.noTool", { label: entry.label }),
+			);
 		} catch (thrown) {
 			// The formatter's own message, which names the line. Replacing it with 「格式化失败」
 			// would throw away the only useful part — and on a box people paste into, a syntax
 			// error is the ordinary case rather than the exceptional one.
 			setFailure(thrown instanceof Error ? thrown.message.split("\n")[0] : String(thrown));
 		}
-	}, [entry, code, options]);
+	}, [entry, code, options, t]);
 
 	/* Colouring follows the text; formatting does not. Debounced against typing. */
 	useEffect(() => {
@@ -144,7 +162,7 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 			 * read as this box's own — the same arrangement 代码外观's specimens use.
 			 */}
 			<div
-				className="flex items-center justify-between gap-2 border-b px-2 py-1.5"
+				className="flex items-center justify-between gap-2 px-2 py-1.5"
 				style={{ borderColor: "color-mix(in srgb, var(--ly-code-fg) 10%, transparent)" }}
 			>
 				<LanguagePicker entry={entry} onPick={pick} />
@@ -157,13 +175,16 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 					)}
 					<CodeButton
 						onClick={() => void format()}
-						disabled={entry.formatter !== "prettier"}
+						/*
+						 * Live for every language in the list, because every language in the list now
+						 * has something that will print it — Prettier for sixteen of them, the
+						 * language's own tool for the rest. A tool that is missing from the machine
+						 * says so when pressed, which is more use than a button that cannot be pressed.
+						 */
 						tip={
 							entry.formatter === "prettier"
 								? t("formatPreview.run")
-								: entry.formatter === "external"
-									? t("formatPreview.tool", { label: entry.label, tool: entry.tool ?? "", shortcut: macKeyboard() ? "⇧⌘F" : "Shift+Alt+F" })
-									: t("formatPreview.noTool", { label: entry.label })
+								: t("formatPreview.tool", { label: entry.label, tool: entry.tool ?? "", shortcut: macKeyboard() ? "⇧⌘F" : "Shift+Alt+F" })
 						}
 						primary
 					>
@@ -307,6 +328,8 @@ function LanguagePicker({ entry, onPick }: { entry: LanguageEntry; onPick: (next
 			<button
 				type="button"
 				onClick={menu.toggle}
+				// Warm the marks on the press, so the list paints with them rather than filling in after.
+				onPointerDown={preloadLanguageMarks}
 				className="flex h-[24px] shrink-0 items-center gap-1.5 rounded-md px-1.5 text-label transition-colors"
 				style={{
 					color: "color-mix(in srgb, var(--ly-code-fg) 92%, var(--ly-code-bg))",
@@ -321,6 +344,7 @@ function LanguagePicker({ entry, onPick }: { entry: LanguageEntry; onPick: (next
 						: "";
 				}}
 			>
+				<LanguageIcon language={entry.key} size={14} />
 				<span className="max-w-[180px] truncate">{entry.label}</span>
 				<span
 					className="font-mono text-caption"
@@ -372,23 +396,26 @@ function LanguagePicker({ entry, onPick }: { entry: LanguageEntry; onPick: (next
 										menu.close();
 										setQuery("");
 									}}
-									className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-card-hover"
+									/*
+									 * The current one is said with colour, not with a tick in a column.
+									 *
+									 * A tick needs a column whether or not it is showing one, so every row in the
+									 * list was indented past a blank the width of a glyph. The mark that replaces
+									 * it is on every row, so it costs the same space and says something.
+									 */
+									className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-card-hover ${
+										candidate.key === entry.key ? "bg-card-hover" : ""
+									}`}
 								>
-									<Check
-										size={13}
-										strokeWidth={2}
-										className={candidate.key === entry.key ? "shrink-0 text-accent" : "shrink-0 opacity-0"}
-									/>
-									<span className="min-w-0 flex-1 truncate text-label text-ink">{candidate.label}</span>
-									{/* Which engine owns it, so the list answers the question people open it to
-									    ask rather than making them try each one. */}
-									<span className="shrink-0 font-mono text-caption text-ink-faint">
-										{candidate.formatter === "prettier"
-											? "Prettier"
-											: candidate.formatter === "external"
-												? candidate.tool
-												: "—"}
+									<LanguageIcon language={candidate.key} size={14} />
+									<span
+										className={`min-w-0 flex-1 truncate text-label ${
+											candidate.key === entry.key ? "font-medium text-accent" : "text-ink"
+										}`}
+									>
+										{candidate.label}
 									</span>
+									<span className="shrink-0 font-mono text-caption text-ink-faint">.{candidate.aliases[0]}</span>
 								</button>
 							))
 						)}

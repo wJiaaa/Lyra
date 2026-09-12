@@ -60,7 +60,14 @@ export function Segmented<T extends string>({
 }: {
 	value: T;
 	onChange: (value: T) => void;
-	options: { value: T; label: string }[];
+	/**
+	 * `icon` turns a segment into a glyph, with `label` becoming its tooltip and accessible name.
+	 *
+	 * Label stays required either way — the same bargain `IconButton` makes, and for the same
+	 * reason: an icon-only control without one is unreadable to a screen reader and unguessable to
+	 * everyone else.
+	 */
+	options: { value: T; label: string; icon?: React.ReactNode }[];
 }) {
 	const box = useRef<HTMLDivElement>(null);
 	const [rail, setRail] = useState<{ left: number; width: number } | null>(null);
@@ -87,14 +94,17 @@ export function Segmented<T extends string>({
 					key={option.value}
 					type="button"
 					data-segment={option.value}
+					data-ly-tip={option.icon ? option.label : undefined}
+					aria-label={option.icon ? option.label : undefined}
 					aria-pressed={value === option.value}
 					onClick={() => onChange(option.value)}
 					// `relative` 把字提到那块底上面；没有它，滑过去的底会盖住它正要标出的那个词。
-					className={`relative h-[26px] rounded-md px-3 text-label transition-[color,transform] duration-[var(--ly-t-quick)] active:scale-[0.97] ${
-						value === option.value ? "text-ink" : "text-ink-muted hover:text-ink"
-					}`}
+					className={`relative h-[26px] rounded-md text-label transition-[color,transform] duration-[var(--ly-t-quick)] active:scale-[0.97] ${
+						// A glyph wants a square; a word wants room either side of it.
+						option.icon ? "grid w-[30px] place-items-center" : "px-3"
+					} ${value === option.value ? "text-ink" : "text-ink-muted hover:text-ink"}`}
 				>
-					{option.label}
+					{option.icon ?? option.label}
 				</button>
 			))}
 		</div>

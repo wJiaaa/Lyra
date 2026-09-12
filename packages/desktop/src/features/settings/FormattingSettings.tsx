@@ -5,7 +5,7 @@ import { useApp } from "../../store/index.ts";
 import { Card, Row, SectionTitle } from "./layout.tsx";
 import { Segmented, Toggle, GhostButton } from "./controls.tsx";
 import { NumberField } from "./pickers.tsx";
-import { RotateCcw } from "lucide-react";
+import { ArrowRightToLine, RotateCcw, Space } from "lucide-react";
 import { FormatPreview } from "./FormatPreview.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -81,9 +81,23 @@ export function FormattingSettings() {
 								<Segmented
 									value={formatting.useTabs ? "tab" : "space"}
 									onChange={(value) => patch({ useTabs: value === "tab" })}
+									/*
+									 * Glyphs rather than the words, with the words as tooltips.
+									 *
+									 * `ArrowRightToLine` is what a tab key does — travel to the next stop — and
+									 * the space bar's own symbol is what a space is. Neither needs reading.
+									 */
 									options={[
-										{ value: "tab", label: t("format.tabs") },
-										{ value: "space", label: t("format.spaces") },
+										{
+											value: "tab",
+											label: t("format.tabs"),
+											icon: <ArrowRightToLine size={14} strokeWidth={1.9} />,
+										},
+										{
+											value: "space",
+											label: t("format.spaces"),
+											icon: <Space size={14} strokeWidth={1.9} />,
+										},
 									]}
 								/>
 								<NumberField
