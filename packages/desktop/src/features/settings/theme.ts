@@ -116,6 +116,20 @@ export function applyAppearance(input: AppearanceSettings): void {
 		"--color-float": float_,
 		"--color-line": rule(0.075),
 		"--color-line-soft": rule(0.05),
+		/*
+		 * The hairline for things that float: menus, popovers, anything over its own surface.
+		 *
+		 * `rule()` steps from the *page* background toward the foreground, which is right for a line
+		 * drawn on the page and wrong for one drawn on a menu. A menu is `surface(0.1)` and the soft
+		 * rule is `rule(0.05)` — so the separator was a step *darker* than the card it sat on, which
+		 * in a dark theme is a line you cannot see at all. It was not a missing dark variant; it was
+		 * the wrong frame of reference.
+		 *
+		 * A veil instead, like `--color-elevated` above: a wash of the foreground at a fixed opacity,
+		 * which lands the same distance above whatever it is over. Slightly stronger than `elevated`
+		 * because a hairline has one pixel to make its case.
+		 */
+		"--color-line-float": veil(dark ? 0.14 : 0.12),
 		"--color-ink": toHex(foreground),
 		"--color-ink-muted": text(0.62),
 		"--color-ink-faint": text(0.4),

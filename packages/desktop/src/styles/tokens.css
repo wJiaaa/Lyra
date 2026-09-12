@@ -19,6 +19,11 @@
 
   --color-line: #2e2e2e;
   --color-line-soft: #262626;
+  /*
+   * Declared here as well as at runtime, for the same reason as `--color-float` above: without
+   * this line Tailwind never emits `bg-line-float` and anything using it comes out transparent.
+   */
+  --color-line-float: #3a3a3a;
 
   --color-ink: #ededed;
   --color-ink-muted: #9a9a9a;

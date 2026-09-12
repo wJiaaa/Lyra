@@ -136,7 +136,11 @@ export function MenuItem({
 
 /** Separates groups of items inside a menu. */
 export function MenuSeparator() {
-	return <div className="my-1 h-px bg-line-soft" />;
+	/*
+	 * `line-float`, not `line-soft`: a menu is a surface of its own, and the soft rule is measured
+	 * from the page behind it — which made this line darker than the menu it divides.
+	 */
+	return <div className="my-1 h-px bg-line-float" />;
 }
 
 /** Small label above a group of items. */
