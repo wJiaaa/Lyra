@@ -14,7 +14,6 @@ import {
 import { useState } from "react";
 import type { SessionMeta } from "@lyra/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
-import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge, onPhone } from "../../services/index.ts";
@@ -23,20 +22,28 @@ export function SessionMenu({
 	anchor,
 	session,
 	onClose,
+	onRequestDelete,
 }: {
 	anchor: Anchor;
 	session: SessionMeta;
 	onClose: () => void;
+	/**
+	 * Ask to delete this session — the confirmation belongs to whoever opened this menu.
+	 *
+	 * It cannot live here. A confirmation is rendered by the component that asks for it, and this
+	 * component is unmounted the instant it is asked: the delete item closes the menu, `SessionRow`
+	 * drops it from the tree, and the dialog goes with it. So the click reported nothing, showed
+	 * nothing, and deleted nothing — see `SessionRow`, which outlives the menu and holds it instead.
+	 */
+	onRequestDelete: () => void;
 }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const setSessionPinned = useApp((s) => s.setSessionPinned);
 	const setSessionArchived = useApp((s) => s.setSessionArchived);
-	const deleteSession = useApp((s) => s.deleteSession);
 	const renameSession = useApp((s) => s.renameSession);
 	const moveSessionProject = useApp((s) => s.moveSessionProject);
 	const notify = useApp((s) => s.notify);
-	const confirm = useConfirmer();
 
 	const [mode, setMode] = useState<"menu" | "rename" | "projects" | "copy">("menu");
 	const [draft, setDraft] = useState(session.title);
@@ -230,12 +237,7 @@ export function SessionMenu({
 							icon={<Trash2 size={13} strokeWidth={1.8} className="text-danger" />}
 							onClick={() => {
 								onClose();
-								confirm.ask({
-									title: t("sidebarList.deleteConfirm"),
-									detail: t("sidebarList.deleteDetail", { title: session.title, n: session.messageCount }),
-									confirmLabel: t("common.delete"),
-									onConfirm: () => void deleteSession(session),
-								});
+								onRequestDelete();
 							}}
 						>
 							<span className="text-danger">{t("common.delete")}</span>
@@ -264,7 +266,6 @@ export function SessionMenu({
 					</MenuItem>}
 				</MenuBody>
 			</Popover>
-			{confirm.element}
 		</>
 	);
 }

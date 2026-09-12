@@ -23,6 +23,7 @@ import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";
 import { SessionCard, useSessionCard } from "./SessionCard.tsx";
 import { SessionMenu } from "../modals/index.ts";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { SessionStatus } from "../conversation/index.ts";
@@ -106,6 +107,13 @@ export function SessionRow({
 	const activity = useApp((s) => s.activity[session.id] ?? null);
 	const settings = useApp((s) => s.settings);
 	const setSessionPinned = useApp((s) => s.setSessionPinned);
+	const deleteSession = useApp((s) => s.deleteSession);
+	/*
+	 * The delete confirmation, held by the row rather than by the menu that asks for it.
+	 *
+	 * `useState(null)` per row, which is what this costs — nothing renders until something is asked.
+	 */
+	const confirm = useConfirmer();
 	const isPinned = settings?.pinnedSessionIds?.includes(session.id) ?? false;
 	const { compact } = useLayout();
 	const menu = usePopover();
@@ -173,7 +181,27 @@ export function SessionRow({
 		>
 			{isTargetThisSession && <DropLineIndicator placement={reorder!.dropTarget!.placement} />}
 			{card.anchor && <SessionCard session={session} anchor={card.anchor} project={project} leaving={card.leaving} />}
-			{menu.open && <SessionMenu anchor={menu.anchor} session={session} onClose={menu.close} />}
+			{menu.open && (
+				<SessionMenu
+					anchor={menu.anchor}
+					session={session}
+					onClose={menu.close}
+					/*
+					 * Asked by the menu, answered here, because the menu is gone by the time the
+					 * question needs an answer — it closes itself on the way out. A dialog owned by
+					 * something that unmounts on click is a dialog that never renders.
+					 */
+					onRequestDelete={() =>
+						confirm.ask({
+							title: t("sidebarList.deleteConfirm"),
+							detail: t("sidebarList.deleteDetail", { title: session.title, n: session.messageCount }),
+							confirmLabel: t("common.delete"),
+							onConfirm: () => void deleteSession(session),
+						})
+					}
+				/>
+			)}
+			{confirm.element}
 			<button
 				onPointerDown={(event) => {
 					card.dismiss();
