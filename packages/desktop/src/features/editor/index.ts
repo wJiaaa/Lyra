@@ -9,3 +9,4 @@
 
 export { CodeEditor } from "./CodeEditor.tsx";
 export { formatCode } from "./format.ts";
+export { formatFile, type FormatOutcome } from "./format-file.ts";

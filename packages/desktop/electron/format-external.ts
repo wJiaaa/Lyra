@@ -61,6 +61,41 @@ const EXTERNAL: Record<string, ExternalFormatter[]> = {
 	sql: [{ command: "sql-formatter", args: [], install: "npm i -g sql-formatter" }],
 	tf: [{ command: "terraform", args: ["fmt", "-"], install: "brew install terraform" }],
 	dart: [{ command: "dart", args: ["format"], install: "随 Dart SDK 一起安装" }],
+
+	/*
+	 * Languages that used to be listed as unformattable, and were not — they just had no entry.
+	 *
+	 * Every one of these reads stdin and writes stdout, which is the only bar for being here. The
+	 * ones still absent fail it for a real reason rather than for want of trying: `dotnet format`
+	 * and `mix format` need a project on disk, not a buffer; R's `styler`, Julia's `JuliaFormatter`
+	 * and PowerShell's `Invoke-Formatter` are libraries that need their language's runtime started
+	 * around them. Guessing at those would be running a build system behind someone's back.
+	 */
+	m: [{ command: "clang-format", args: ["--assume-filename=x.m"], install: "brew install clang-format" }],
+	mm: [{ command: "clang-format", args: ["--assume-filename=x.mm"], install: "brew install clang-format" }],
+	proto: [
+		{ command: "buf", args: ["format", "-"], install: "brew install bufbuild/buf/buf" },
+		{ command: "clang-format", args: ["--assume-filename=x.proto"], install: "brew install clang-format" },
+	],
+	cs: [{ command: "csharpier", args: ["format", "--write-stdout"], install: "dotnet tool install -g csharpier" }],
+	scala: [{ command: "scalafmt", args: ["--stdin", "--stdout"], install: "brew install scalafmt" }],
+	hs: [
+		{ command: "ormolu", args: ["--stdin-input-file", "x.hs"], install: "brew install ormolu" },
+		{ command: "fourmolu", args: ["--stdin-input-file", "x.hs"], install: "cabal install fourmolu" },
+	],
+	clj: [
+		{ command: "zprint", args: [], install: "brew install zprint" },
+		{ command: "cljfmt", args: ["fix", "-"], install: "brew install cljfmt" },
+	],
+	cljs: [{ command: "zprint", args: [], install: "brew install zprint" }],
+	erl: [{ command: "erlfmt", args: ["-"], install: "rebar3 as fmt escriptize" }],
+	perl: [{ command: "perltidy", args: ["-st", "-q"], install: "cpan Perl::Tidy" }],
+	pl: [{ command: "perltidy", args: ["-st", "-q"], install: "cpan Perl::Tidy" }],
+	tex: [{ command: "latexindent", args: ["-"], install: "随 TeX Live 一起安装" }],
+	cmake: [
+		{ command: "gersemi", args: ["-"], install: "pip install gersemi" },
+		{ command: "cmake-format", args: ["-"], install: "pip install cmakelang" },
+	],
 };
 
 /**

@@ -674,6 +674,7 @@ export const ru = {
 	"formatPreview.restore": "Вернуть пример кода",
 	"formatPreview.run": "Отформатировать по настройкам ниже",
 	"formatPreview.tool": "{label} обрабатывает {tool}; нажмите {shortcut} в редакторе, чтобы запустить",
+	"formatPreview.missingTool": "{tool} не найден на этом компьютере. Установка: {install}",
 	"formatPreview.noTool": "Для {label} пока нет доступного форматтера",
 	"formatPreview.tryIt": "Вставьте код и отформатируйте",
 	"formatPreview.pickLanguage": "Выберите язык",

@@ -846,6 +846,7 @@ export const zhCN = {
 	"formatPreview.restore": "把示例代码放回来",
 	"formatPreview.run": "用下面的设置格式化一遍",
 	"formatPreview.tool": "{label} 交给 {tool}，在编辑器里按 {shortcut} 用它格式化",
+	"formatPreview.missingTool": "需要 {tool}，本机没有找到。安装：{install}",
 	"formatPreview.noTool": "{label} 还没有可用的格式化工具",
 	"formatPreview.tryIt": "试一段代码，然后按格式化",
 	"formatPreview.pickLanguage": "选择语言",

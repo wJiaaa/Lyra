@@ -211,7 +211,7 @@ button { border-radius: 6px; }
 		key: "svelte",
 		label: "Svelte",
 		aliases: ["svelte"],
-		formatter: "none",
+		formatter: "prettier",
 		sample: `<script lang="ts">
 	let count = 0;
 	$: doubled = count * 2;
@@ -223,7 +223,7 @@ button { border-radius: 6px; }
 		key: "xml",
 		label: "XML / SVG",
 		aliases: ["xml", "svg"],
-		formatter: "none",
+		formatter: "prettier",
 		sample: `<!-- 一个圆 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
 	<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" />
@@ -343,7 +343,8 @@ struct User {
 		key: "cs",
 		label: "C#",
 		aliases: ["cs"],
-		formatter: "none",
+		formatter: "external",
+		tool: "csharpier",
 		sample: `namespace Lyra;
 
 // 一个用户
@@ -449,27 +450,6 @@ version = "0.1.0"
 serde = { version = "1", features = ["derive"] }`,
 	},
 	{
-		key: "ini",
-		label: "INI / Properties",
-		aliases: ["ini", "cfg", "conf", "properties", "editorconfig"],
-		formatter: "none",
-		sample: `; 缩进用制表符
-[*]
-indent_style = tab
-indent_size = 2
-end_of_line = lf`,
-	},
-	{
-		key: "env",
-		label: ".env",
-		aliases: ["env"],
-		formatter: "none",
-		sample: `# 别把这个文件提交上去
-NODE_ENV=production
-DATABASE_URL=postgres://localhost:5432/lyra
-API_KEY="不要写真的"`,
-	},
-	{
 		key: "sh",
 		label: "Shell",
 		aliases: ["sh", "bash", "zsh", "fish"],
@@ -483,51 +463,6 @@ for name in api web; do
 	docker build -t "registry/\${name}:latest" "./\${name}"
 	docker push "registry/\${name}:latest"
 done`,
-	},
-	{
-		key: "ps1",
-		label: "PowerShell",
-		aliases: ["ps1", "psm1", "powershell"],
-		formatter: "none",
-		sample: `# 打个招呼
-function Get-Greeting {
-	param([string]$Name = "匿名")
-	"你好，$Name"
-}`,
-	},
-	{
-		key: "dockerfile",
-		label: "Dockerfile",
-		aliases: ["dockerfile"],
-		formatter: "none",
-		sample: `# 构建阶段
-FROM node:24-alpine AS build
-WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm i --frozen-lockfile
-CMD ["node", "server.js"]`,
-	},
-	{
-		key: "nginx",
-		label: "nginx",
-		aliases: ["nginx"],
-		formatter: "none",
-		sample: `# 反向代理
-upstream api {
-	server 127.0.0.1:8080 weight=3;
-}
-
-server {
-	listen 80;
-	server_name example.com;
-	gzip on;
-
-	location /api/ {
-		proxy_pass http://api;
-		proxy_set_header Host $host;
-		proxy_read_timeout 60s;
-	}
-}`,
 	},
 	{
 		key: "graphql",
@@ -547,7 +482,8 @@ query User($id: ID!) {
 		key: "proto",
 		label: "Protocol Buffers",
 		aliases: ["proto", "protobuf"],
-		formatter: "none",
+		formatter: "external",
+		tool: "buf",
 		sample: `syntax = "proto3";
 
 // 一个用户
@@ -572,32 +508,11 @@ end
 return { greet = greet }`,
 	},
 	{
-		key: "r",
-		label: "R",
-		aliases: ["r"],
-		formatter: "none",
-		sample: `# 打个招呼
-greet <- function(name = "匿名") {
-  sprintf("你好，%s", name)
-}
-
-print(greet("世界"))`,
-	},
-	{
-		key: "jl",
-		label: "Julia",
-		aliases: ["jl"],
-		formatter: "none",
-		sample: `# 打个招呼
-function greet(name::String = "匿名")::String
-    return "你好，$(name)"
-end`,
-	},
-	{
 		key: "scala",
 		label: "Scala",
 		aliases: ["scala", "sc"],
-		formatter: "none",
+		formatter: "external",
+		tool: "scalafmt",
 		sample: `// 一个用户
 final case class User(id: String, name: String = "匿名"):
   def greet: String = s"你好，$name"`,
@@ -606,7 +521,8 @@ final case class User(id: String, name: String = "匿名"):
 		key: "hs",
 		label: "Haskell",
 		aliases: ["hs", "haskell"],
-		formatter: "none",
+		formatter: "external",
+		tool: "ormolu",
 		sample: `-- 打个招呼
 greet :: Maybe String -> String
 greet (Just name) = "你好，" ++ name
@@ -616,32 +532,19 @@ greet Nothing     = "你好"`,
 		key: "clj",
 		label: "Clojure",
 		aliases: ["clj", "cljs", "clojure"],
-		formatter: "none",
+		formatter: "external",
+		tool: "zprint",
 		sample: `;; 打个招呼
 (defn greet
   ([] (greet "匿名"))
   ([name] (str "你好，" name)))`,
 	},
 	{
-		key: "ex",
-		label: "Elixir",
-		aliases: ["ex", "exs"],
-		formatter: "none",
-		sample: `defmodule Greeter do
-  # 打招呼用的
-  @moduledoc "对外只有一个函数。"
-
-  @spec greet(String.t(), pos_integer()) :: String.t()
-  def greet(name \\\\ "匿名", times \\\\ 1) do
-    Enum.map_join(1..times, "、", fn _ -> "你好，#{name}" end)
-  end
-end`,
-	},
-	{
 		key: "erl",
 		label: "Erlang",
 		aliases: ["erl"],
-		formatter: "none",
+		formatter: "external",
+		tool: "erlfmt",
 		sample: `%% 打个招呼
 -module(greeter).
 -export([greet/1]).
@@ -666,28 +569,11 @@ class User {
 }`,
 	},
 	{
-		key: "groovy",
-		label: "Groovy",
-		aliases: ["groovy", "gradle"],
-		formatter: "none",
-		sample: `// 构建脚本
-plugins { id 'java' }
-
-def env = System.getenv('CI') ? 'ci' : 'local'
-
-class Version {
-	static final String CURRENT = '0.8.32'
-}
-
-dependencies {
-	implementation 'com.google.guava:guava:33.0.0-jre'
-}`,
-	},
-	{
 		key: "m",
 		label: "Objective-C",
 		aliases: ["m", "mm"],
-		formatter: "none",
+		formatter: "external",
+		tool: "clang-format",
 		sample: `// 一个用户
 @interface User : NSObject
 @property (nonatomic, copy) NSString *name;
@@ -698,7 +584,8 @@ dependencies {
 		key: "perl",
 		label: "Perl",
 		aliases: ["perl", "pl", "pm"],
-		formatter: "none",
+		formatter: "external",
+		tool: "perltidy",
 		sample: `# 打个招呼
 sub greet {
 	my ($name) = @_;
@@ -710,7 +597,8 @@ sub greet {
 		key: "cmake",
 		label: "CMake",
 		aliases: ["cmake"],
-		formatter: "none",
+		formatter: "external",
+		tool: "gersemi",
 		sample: `# 最低版本
 cmake_minimum_required(VERSION 3.20)
 project(demo LANGUAGES CXX)
@@ -722,38 +610,13 @@ target_compile_features(demo PRIVATE cxx_std_20)`,
 		key: "tex",
 		label: "LaTeX",
 		aliases: ["tex", "latex"],
-		formatter: "none",
+		formatter: "external",
+		tool: "latexindent",
 		sample: `% 一份文档
 \\documentclass{article}
 \\begin{document}
 	你好，世界。
 \\end{document}`,
-	},
-	{
-		key: "diff",
-		label: "Diff / Patch",
-		aliases: ["diff", "patch"],
-		formatter: "none",
-		sample: `--- a/src/main.ts
-+++ b/src/main.ts
-@@ -1,4 +1,4 @@
- export function greet(name: string) {
--  return "Hello, " + name;
-+  return \`你好，\${name}\`;
- }`,
-	},
-	{
-		key: "gitignore",
-		label: ".gitignore",
-		aliases: ["gitignore", "dockerignore", "npmignore"],
-		formatter: "none",
-		sample: `# 构建产物，不进仓库
-node_modules/
-dist/
-*.log
-
-# 但这个要留着：它是资产，不是产物
-!build/icon.icns`,
 	},
 ];
 

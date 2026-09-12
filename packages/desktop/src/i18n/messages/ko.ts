@@ -674,6 +674,7 @@ export const ko = {
 	"formatPreview.restore": "예시 코드 되돌리기",
 	"formatPreview.run": "아래 설정으로 서식 적용",
 	"formatPreview.tool": "{label}은 {tool}이 맡습니다. 편집기에서 {shortcut}을 누르면 실행됩니다",
+	"formatPreview.missingTool": "{tool}을(를) 찾을 수 없습니다. 설치: {install}",
 	"formatPreview.noTool": "{label}에 쓸 수 있는 서식 도구가 아직 없습니다",
 	"formatPreview.tryIt": "코드를 넣고 서식을 적용해 보세요",
 	"formatPreview.pickLanguage": "언어 고르기",

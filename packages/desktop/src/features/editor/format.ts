@@ -76,6 +76,15 @@ const PARSERS: Record<string, { parser: string; plugins: string[] }> = {
 	markdown: { parser: "markdown", plugins: ["markdown"] },
 	graphql: { parser: "graphql", plugins: ["graphql"] },
 	gql: { parser: "graphql", plugins: ["graphql"] },
+	/*
+	 * Svelte and XML are plugins rather than built-ins, and both are Prettier's own.
+	 *
+	 * A Svelte component is markup with script and style inside it, so the plugin hands those
+	 * blocks on the same way the HTML one does — which is why it keeps the same company.
+	 */
+	svelte: { parser: "svelte", plugins: ["svelte", "typescript", "babel", "estree", "postcss"] },
+	xml: { parser: "xml", plugins: ["xml"] },
+	svg: { parser: "xml", plugins: ["xml"] },
 };
 
 /** Files whose name decides the parser, the same way `highlight.ts` handles its own. */
@@ -119,6 +128,11 @@ function loadPlugin(name: string): Promise<unknown> {
 					return import("prettier/plugins/markdown");
 				case "graphql":
 					return import("prettier/plugins/graphql");
+				// Not under `prettier/plugins`: these ship as packages of their own.
+				case "svelte":
+					return import("prettier-plugin-svelte");
+				case "xml":
+					return import("@prettier/plugin-xml");
 				default:
 					return Promise.reject(new Error(translate("format.unknownPlugin", { name })));
 			}

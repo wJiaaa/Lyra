@@ -674,6 +674,7 @@ export const ja = {
 	"formatPreview.restore": "サンプルコードを戻す",
 	"formatPreview.run": "下の設定で整形してみる",
 	"formatPreview.tool": "{label} は {tool} が担当します。エディタで {shortcut} を押すと実行できます",
+	"formatPreview.missingTool": "{tool} が見つかりません。インストール：{install}",
 	"formatPreview.noTool": "{label} に使える整形ツールはまだありません",
 	"formatPreview.tryIt": "コードを入れて、整形してみてください",
 	"formatPreview.pickLanguage": "言語を選ぶ",

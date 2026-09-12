@@ -674,6 +674,7 @@ export const fr = {
 	"formatPreview.restore": "Rétablir l'exemple de code",
 	"formatPreview.run": "Formater avec les réglages ci-dessous",
 	"formatPreview.tool": "{label} passe par {tool} ; appuyez sur {shortcut} dans l'éditeur pour l'exécuter",
+	"formatPreview.missingTool": "{tool} est introuvable sur cette machine. Installation : {install}",
 	"formatPreview.noTool": "Aucun formateur disponible pour {label}",
 	"formatPreview.tryIt": "Collez du code, puis formatez-le",
 	"formatPreview.pickLanguage": "Choisir un langage",

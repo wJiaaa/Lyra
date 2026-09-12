@@ -674,6 +674,7 @@ export const zhTW = {
 	"formatPreview.restore": "把範例程式碼放回來",
 	"formatPreview.run": "用下面的設定格式化一遍",
 	"formatPreview.tool": "{label} 交給 {tool}，在編輯器裡按 {shortcut} 用它格式化",
+	"formatPreview.missingTool": "需要 {tool}，本機找不到。安裝：{install}",
 	"formatPreview.noTool": "{label} 還沒有可用的格式化工具",
 	"formatPreview.tryIt": "試一段程式碼，然後按格式化",
 	"formatPreview.pickLanguage": "選擇語言",
