@@ -70,6 +70,37 @@ interface Held {
 const paneOf = (kind: PaneKind): HTMLElement | null =>
 	document.querySelector<HTMLElement>(`[data-dock-pane="${kind}"]`);
 
+/**
+ * The carried pane's offset, held so the pane itself never leaves the window.
+ *
+ * The pointer may go wherever it likes — off the bottom edge, onto another screen — and it takes
+ * the pane with it, because the offset is the raw distance travelled. The pane is `fixed`, so it is
+ * positioned against the viewport, and a pane pushed past the viewport is simply clipped away: the
+ * card you are holding disappears, the layout has already closed over the space it left, and the
+ * window now shows one pane fewer with nothing to say where it went. Letting go put it back, but
+ * you had no way of knowing that while you were holding it.
+ *
+ * So the pointer is free and the pane is not. Past the edge the two come apart — the card stops
+ * against the window and the pointer carries on — which is the honest picture of what is happening:
+ * out there is not a place a pane can be put.
+ *
+ * Only what is *drawn* is clamped. The drop test still reads the real pointer, so "released outside
+ * the window" still means "no landing place", and the pane still flies home. See `onMove` below.
+ *
+ * A pane larger than the window clamps to the origin rather than to a negative bound, which keeps
+ * its header — the part you are holding it by — on screen.
+ */
+function keptOnScreen(raw: { x: number; y: number }, from: Rect): { x: number; y: number } {
+	const held = (start: number, length: number, viewport: number, moved: number): number => {
+		const room = Math.max(0, viewport - length);
+		return Math.min(Math.max(start + moved, 0), room) - start;
+	};
+	return {
+		x: held(from.left, from.width, window.innerWidth, raw.x),
+		y: held(from.top, from.height, window.innerHeight, raw.y),
+	};
+}
+
 export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): {
 	carried: Carried | null;
 	start: (kind: PaneKind, event: React.PointerEvent<HTMLElement>) => void;
@@ -340,10 +371,13 @@ export function useDockDrag(containerRef: React.RefObject<HTMLElement | null>): 
 			 * pointer only ever changes one composited property on one element. Nothing else in the
 			 * app hears about it.
 			 */
-			offset.current = {
-				x: event.clientX - grabbed.grip.x - grabbed.from.left,
-				y: event.clientY - grabbed.grip.y - grabbed.from.top,
-			};
+			offset.current = keptOnScreen(
+				{
+					x: event.clientX - grabbed.grip.x - grabbed.from.left,
+					y: event.clientY - grabbed.grip.y - grabbed.from.top,
+				},
+				grabbed.from,
+			);
 			const flying = paneOf(grabbed.kind);
 			if (flying) flying.style.transform = `translate3d(${offset.current.x}px, ${offset.current.y}px, 0)`;
 
