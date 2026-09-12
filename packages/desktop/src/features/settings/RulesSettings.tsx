@@ -23,7 +23,7 @@
 import { useI18n } from "../../i18n/index.ts";
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import type { RuleEntry } from "@lyra/core";
-import { FileText, TriangleAlert, Zap } from "lucide-react";
+import { FileText, Play, TriangleAlert, Zap } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
@@ -183,8 +183,10 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 												data-rule-try-fill={rule.name}
 												onClick={() => setTryPatterns([...(rule.condition ?? [])])}
 												className="text-caption text-ink-faint underline-offset-2 transition-colors duration-[var(--ly-t-quick)] hover:text-ink hover:underline"
-											>
-												{t("rules.tryIt")}
+
+							data-ly-tip={t("rules.tryIt")}
+							aria-label={t("rules.tryIt")}>
+												<Play size={13} strokeWidth={1.8} />
 											</button>
 										)}
 										<Badge tone="muted">{t(bucket.label)}</Badge>

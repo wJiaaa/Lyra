@@ -1,3 +1,4 @@
+import { RefreshCw } from "lucide-react";
 import { activeLocale, translate } from "../../i18n/translate.ts";
 import { MODEL_CATALOG_PROVIDERS, MODEL_CATALOG_SOURCE, type CatalogMatch } from "@lyra/core/model-catalog";
 import { useMemo, useState } from "react";
@@ -27,7 +28,9 @@ export function ModelCatalog({ match, onApply }: { match: CatalogMatch | null; o
 						{match ? `${match.provider.name} · ${match.model.id}` : t("catalog.bindDetail")}
 					</div>
 				</div>
-				{match && <button type="button" onClick={() => onApply(match)} className="shrink-0 rounded-lg px-2.5 py-1.5 text-label font-medium text-accent hover:bg-accent/10">{t("catalog.sync")}</button>}
+				{match && <button type="button" onClick={() => onApply(match)} className="shrink-0 rounded-lg px-2.5 py-1.5 text-label font-medium text-accent hover:bg-accent/10"
+							data-ly-tip={t("catalog.sync")}
+							aria-label={t("catalog.sync")}><RefreshCw size={13} strokeWidth={1.8} /></button>}
 			</div>
 			<TextInput value={query} onChange={setQuery} aria-label={t("catalog.search")} placeholder={t("catalog.searchPlaceholder")} />
 			{query.trim() && <div className="max-h-48 overflow-y-auto" aria-label={t("catalog.results")}>

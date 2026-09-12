@@ -1,3 +1,4 @@
+import { RotateCcw } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
 import type { AppearanceSettings as Appearance } from "@lyra/core";
 import { useState } from "react";
@@ -193,10 +194,7 @@ export function AppearanceSettings() {
 				<GhostButton
 					onClick={() =>
 						patch({ ...CODE_DEFAULTS })
-					}
-				>
-					{t("appearance.resetDefaults")}
-				</GhostButton>
+					} icon={<RotateCcw size={13} strokeWidth={1.8} />} title={t("appearance.resetDefaults")} />
 			</div>
 			<Card className="mb-8 p-4 space-y-4">
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -544,7 +542,7 @@ export function AppearanceSettings() {
 					title={t("appearance.resetDefaults")}
 					detail={t("appearance.resetDefaultsDetail")}
 					control={
-						<GhostButton onClick={() => patch(FACTORY_APPEARANCE)}>{t("common.restore")}</GhostButton>
+						<GhostButton onClick={() => patch(FACTORY_APPEARANCE)} icon={<RotateCcw size={13} strokeWidth={1.8} />} title={t("common.restore")} />
 					}
 				/>
 			</Card>

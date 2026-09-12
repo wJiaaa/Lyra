@@ -1,7 +1,7 @@
 import type { ModelConfig, ProviderConfig } from "@lyra/core";
 import { catalogModelFor, catalogPricing, withCatalogDefaults, type CatalogMatch } from "@lyra/core/model-catalog";
 import { ModelCatalog } from "./ModelCatalog.tsx";
-import { Box } from "lucide-react";
+import { Box, Check, X } from "lucide-react";
 import { useState } from "react";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -203,8 +203,8 @@ export function ModelEditor({
 					</Scroller>
 
 					<div className="flex justify-end gap-2 border-t border-line px-5 py-3">
-						<GhostButton onClick={() => dismiss()}>{t("common.cancel")}</GhostButton>
-						<PrimaryButton onClick={() => dismiss(submit)} disabled={!valid}>{t("common.save")}</PrimaryButton>
+						<GhostButton onClick={() => dismiss()} icon={<X size={13} strokeWidth={1.8} />} title={t("common.cancel")} />
+						<PrimaryButton onClick={() => dismiss(submit)} disabled={!valid} icon={<Check size={13} strokeWidth={1.8} />} title={t("common.save")} />
 					</div>
 				</>
 			)}

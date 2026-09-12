@@ -9,7 +9,7 @@ import type { ScheduledTask } from "@lyra/core";
  * cost nothing; values have to come from an entry that is browser-safe on its own.
  */
 import { nextRunAt } from "@lyra/core/schedule";
-import { Clock, Play, Plus, Trash2 } from "lucide-react";
+import { Clock, ExternalLink, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -263,8 +263,10 @@ function TaskCard({
 							</span>
 						)}
 					{task.lastSessionId && lastSessionTitle && (
-						<button type="button" onClick={onOpenLast} className="text-ink-muted transition-colors hover:text-ink">
-							{t("scheduled.openLast")}
+						<button type="button" onClick={onOpenLast} className="text-ink-muted transition-colors hover:text-ink"
+							data-ly-tip={t("scheduled.openLast")}
+							aria-label={t("scheduled.openLast")}>
+							<ExternalLink size={13} strokeWidth={1.8} />
 						</button>
 					)}
 					{task.lastError && <span className="text-danger">{task.lastError}</span>}

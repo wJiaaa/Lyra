@@ -170,9 +170,7 @@ export function ModelSettings() {
                 <p className="text-label text-ink-muted">
                   {t("modelSettings.noProviders")}
                 </p>
-                <GhostButton onClick={() => void p.add()}>
-                  {t("modelSettings.addFirst")}
-                </GhostButton>
+                <GhostButton onClick={() => void p.add()} icon={<Plus size={13} strokeWidth={1.8} />} title={t("modelSettings.addFirst")} />
               </div>
             ) : (
               /*

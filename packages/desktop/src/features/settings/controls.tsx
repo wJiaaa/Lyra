@@ -168,17 +168,23 @@ export function GhostButton({
 
 export function PrimaryButton({
 	children,
+	icon,
 	onClick,
 	disabled,
+	title,
 	className = "",
 }: {
-	children: React.ReactNode;
+	children?: React.ReactNode;
+	/** Give this and drop `children` to make it icon-only; `title` then carries the words. */
+	icon?: React.ReactNode;
 	onClick: () => void;
 	disabled?: boolean;
+	/** Tooltip and accessible name. Required in practice for an icon-only button. */
+	title?: string;
 	className?: string;
 }) {
 	return (
-		<Button variant="primary" onClick={onClick} disabled={disabled} className={className}>
+		<Button variant="primary" icon={icon} onClick={onClick} disabled={disabled} label={title} className={className}>
 			{children}
 		</Button>
 	);

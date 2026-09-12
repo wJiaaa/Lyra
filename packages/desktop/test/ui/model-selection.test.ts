@@ -71,7 +71,9 @@ test("editing a model retains its explicit thinking capabilities and unrelated p
 	let saved: typeof models[number] | undefined;
 	const view = await mount(h(ModelEditor, { model, provider: { id: "qa", baseUrl: "http://localhost" }, onSave: (next) => { saved = next; }, onCancel: () => {} }));
 	try {
-		const save = [...document.querySelectorAll("button")].find((button) => button.textContent === "保存"); assert.ok(save);
+		// By name, not by visible text: the button is a glyph now, and its name is its aria-label.
+		const named = (name: string) => [...document.querySelectorAll("button")].find((button) => button.getAttribute("aria-label") === name || button.textContent === name);
+		const save = named("保存"); assert.ok(save);
 		await click(save);
 		// The real dialog commits on its exit animation; happy-dom has no animation clock.
 		const overlay = document.querySelector("[data-ly-modal]");

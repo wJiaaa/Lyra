@@ -211,10 +211,7 @@ export function FetchModelsModal({
 						{t("fetchModels.selected", { n: selected.size })}
 					</span>
 					<div className="flex items-center gap-2">
-						<GhostButton onClick={() => dismiss()}>
-							<X size={13} strokeWidth={2} />
-							<span>{t("common.cancel")}</span>
-						</GhostButton>
+						<GhostButton onClick={() => dismiss()} icon={<X size={13} strokeWidth={2} />} title={t("common.cancel")} />
 						<button
 							type="button"
 							disabled={selected.size === 0}

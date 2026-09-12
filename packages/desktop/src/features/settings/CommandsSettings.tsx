@@ -154,10 +154,7 @@ function SlashCommands() {
 								</button>
 							))}
 						</div>
-						<PrimaryButton disabled={!name.trim()} onClick={() => void create()}>
-							<Plus size={14} strokeWidth={2} />
-							<span>{t("commands.createAndEdit")}</span>
-						</PrimaryButton>
+						<PrimaryButton disabled={!name.trim()} onClick={() => void create()} icon={<Plus size={14} strokeWidth={2} />} title={t("commands.createAndEdit")} />
 					</div>
 					<p className="text-detail text-ink-faint">
 						{scope === "workspace"

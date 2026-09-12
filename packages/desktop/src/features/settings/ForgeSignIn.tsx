@@ -15,7 +15,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { useState } from "react";
 import type { ForgeKind, ForgeKindInfo } from "../../../electron/ipc-types.ts";
 import { useAccountActions } from "../pull-requests/index.ts";
@@ -153,7 +153,7 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 				<PrimaryButton onClick={() => void save()} disabled={busy || !token.trim() || !baseUrl.trim()}>
 					{busy ? t("forge.verifying") : t("forge.verifyAndSave")}
 				</PrimaryButton>
-				<GhostButton onClick={onCancel}>{t("common.cancel")}</GhostButton>
+				<GhostButton onClick={onCancel} icon={<X size={13} strokeWidth={1.8} />} title={t("common.cancel")} />
 			</div>
 		</div>
 	);

@@ -6,7 +6,7 @@
  */
 
 import { shortcutLabel } from "../../ui/keyboard.ts";
-import { Camera, FolderOpen } from "lucide-react";
+import { Camera, Eraser, FolderOpen, RotateCcw } from "lucide-react";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import {
@@ -76,9 +76,7 @@ export function ScreenshotSettings() {
 								onChange={(val) => patch({ shortcut: val })}
 							/>
 							{config.shortcut && (
-								<GhostButton onClick={() => patch({ shortcut: "" })}>
-									{t("common.clear")}
-								</GhostButton>
+								<GhostButton onClick={() => patch({ shortcut: "" })} icon={<Eraser size={13} strokeWidth={1.8} />} title={t("common.clear")} />
 							)}
 						</div>
 					}
@@ -116,9 +114,7 @@ export function ScreenshotSettings() {
 					control={
 						<div className="flex items-center gap-2">
 							{config.saveLocation?.trim() && (
-								<GhostButton onClick={() => patch({ saveLocation: "" })}>
-									{t("common.clear")}
-								</GhostButton>
+								<GhostButton onClick={() => patch({ saveLocation: "" })} icon={<Eraser size={13} strokeWidth={1.8} />} title={t("common.clear")} />
 							)}
 							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("saveLocation")}>
 								{config.saveLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseSaveDirectory")}
@@ -144,9 +140,7 @@ export function ScreenshotSettings() {
 					control={
 						<div className="flex items-center gap-2">
 							{config.downloadLocation?.trim() && (
-								<GhostButton onClick={() => patch({ downloadLocation: "" })}>
-									{t("common.restoreDefault")}
-								</GhostButton>
+								<GhostButton onClick={() => patch({ downloadLocation: "" })} icon={<RotateCcw size={13} strokeWidth={1.8} />} title={t("common.restoreDefault")} />
 							)}
 							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("downloadLocation")}>
 								{config.downloadLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseDownloadDirectory")}

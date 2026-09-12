@@ -116,10 +116,7 @@ export function AccessSettings() {
 							}
 						}}
 					/>
-					<GhostButton onClick={addHost} disabled={!host.trim()}>
-						<Plus size={13} strokeWidth={2} />
-						{t("mcp.add")}
-					</GhostButton>
+					<GhostButton onClick={addHost} disabled={!host.trim()} icon={<Plus size={13} strokeWidth={2} />} title={t("mcp.add")} />
 				</div>
 
 				{hosts.length > 0 && (

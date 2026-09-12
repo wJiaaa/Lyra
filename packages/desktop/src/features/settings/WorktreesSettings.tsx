@@ -1,6 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
-import { FolderGit2, RefreshCw, Trash2 } from "lucide-react";
+import { FolderGit2, FolderOpen, RefreshCw, Trash2 } from "lucide-react";
 import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
@@ -223,8 +223,10 @@ export function WorktreesSettings() {
 									type="button"
 									onClick={() => void bridge.workspace.reveal(tree.path)}
 									className="rounded-md px-2 py-1 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-								>
-									{translate("worktrees.revealInFinder")}
+
+							data-ly-tip={translate("worktrees.revealInFinder")}
+							aria-label={translate("worktrees.revealInFinder")}>
+									<FolderOpen size={13} strokeWidth={1.8} />
 								</button>
 								<button
 									type="button"

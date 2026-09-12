@@ -207,8 +207,10 @@ export function PersonalizationSettings() {
 							type="button"
 							onClick={handleClearAllMemory}
 							className="rounded-lg px-2.5 py-1 text-caption text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
-						>
-							{t("personalization.clearMemory")}
+
+							data-ly-tip={t("personalization.clearMemory")}
+							aria-label={t("personalization.clearMemory")}>
+							<Trash2 size={13} strokeWidth={1.8} />
 						</button>
 					)}
 				</div>
@@ -267,10 +269,7 @@ export function PersonalizationSettings() {
 								placeholder={t("memory.addPlaceholder")}
 								className="h-[32px] flex-1 rounded-lg border border-line bg-input px-3 text-label text-ink placeholder:text-ink-faint focus:border-ink-faint"
 							/>
-							<PrimaryButton disabled={!newMemory.trim()} onClick={handleAddMemory}>
-								<Plus size={14} strokeWidth={2} />
-								<span>{t("memory.add")}</span>
-							</PrimaryButton>
+							<PrimaryButton disabled={!newMemory.trim()} onClick={handleAddMemory} icon={<Plus size={14} strokeWidth={2} />} title={t("memory.add")} />
 						</div>
 
 						{memoryEntries.length > 0 ? (
