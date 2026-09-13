@@ -16,7 +16,7 @@
  * 跑：node --experimental-strip-types e2e/chart-switch-probe.ts
  */
 
-import { cp, mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
@@ -83,6 +83,32 @@ const app = await startApp({
 	},
 });
 
+const FRAMES = join(OUT, "frames");
+let frame = 0;
+let recorder: ReturnType<typeof setInterval> | null = null;
+const stamps: number[] = [];
+
+/** 逐帧落盘，JPEG——PNG 在这个尺寸下一帧要几百毫秒，录出来是一叠幻灯片。 */
+const record = () => {
+	let busy = false;
+	recorder = setInterval(() => {
+		if (busy) return;
+		busy = true;
+		const at = Date.now();
+		app
+			.send<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality: 62 })
+			.then((s) => writeFile(join(FRAMES, `${String(frame++).padStart(5, "0")}.jpg`), Buffer.from(s.data, "base64")))
+			.then(() => void stamps.push(at))
+			.catch(() => {})
+			.finally(() => { busy = false; });
+	}, 40);
+};
+
+const stopRecording = () => {
+	if (recorder) clearInterval(recorder);
+	recorder = null;
+};
+
 const shot = async (name: string) => {
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(OUT, `${name}.png`), Buffer.from(result.data, "base64"));
@@ -101,6 +127,8 @@ const click = async (x: number, y: number) => {
 
 try {
 	await mkdir(OUT, { recursive: true });
+	await rm(FRAMES, { recursive: true, force: true });
+	await mkdir(FRAMES, { recursive: true });
 	await pause(3_500);
 	await app.evaluate(`(async () => {
 		const wait = (ms) => new Promise(r => setTimeout(r, ms));
@@ -116,6 +144,7 @@ try {
 		return true;
 	})()`);
 	await pause(1_400);
+	record();
 
 	// ── 1. 每日趋势：费用 ↔ Token ────────────────────────────────────────────────────────────
 	console.log("\n[1] 使用统计 → 每日趋势，切「费用 / Token」");
@@ -295,12 +324,16 @@ try {
 		await shot("03-toggle");
 	}
 
+	stopRecording();
+	await writeFile(join(OUT, "frames.json"), JSON.stringify({ stamps }));
+	console.log(`\n帧 ${frame} 张`);
 	console.log(`\n截图写到 ${OUT}`);
 	console.log(failures.length === 0 ? "\n全部通过" : `\n${failures.length} 条没过：\n- ${failures.join("\n- ")}`);
 } catch (error) {
 	console.error("\n探针自己出错了:", error);
 	failures.push(String(error));
 } finally {
+	stopRecording();
 	await app.stop();
 }
 
