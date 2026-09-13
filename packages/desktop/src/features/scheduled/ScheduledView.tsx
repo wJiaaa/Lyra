@@ -69,11 +69,10 @@ export function ScheduledView() {
 					<button
 						type="button"
 						onClick={add}
-						className="flex h-7 items-center gap-1.5 rounded-lg border border-line px-2.5 text-detail text-ink-muted transition-colors hover:border-ink-faint hover:text-ink"
-					>
-						<Plus size={12} strokeWidth={2} />
-						{t("common.new")}
-					</button>
+						className="grid place-items-center h-7 rounded-lg border border-line text-detail text-ink-muted transition-colors hover:border-ink-faint hover:text-ink w-7"
+			data-ly-tip={t("common.new")}
+			aria-label={t("common.new")}
+		><Plus size={12} strokeWidth={2} /></button>
 				</header>
 
 				{tasks.length === 0 && (

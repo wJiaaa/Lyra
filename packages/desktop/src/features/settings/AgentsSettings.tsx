@@ -3,7 +3,7 @@ import { BUILTIN_AGENTS } from "@lyra/core/agents-builtin";
 import type { Settings } from "@lyra/core";
 import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@lyra/core/model-roles";
 import { resolveModelThinkingOptions } from "@lyra/core/thinking-options";
-import { AlertCircle, Bot, Brain, Plus, Ellipsis, Copy, RotateCcw, Trash2 } from "lucide-react";
+import { AlertCircle, Bot, Brain, Pencil, Plus, Ellipsis, Copy, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";
@@ -77,13 +77,13 @@ export function AgentsSettings() {
 	if (editor) return <AgentDefinitionEditor record={editor.record} copy={editor.copy} projectId={editor.projectId} projectName={catalogue.projectName} tools={catalogue.tools} onClose={() => setEditor(null)} onSaved={(name, warning) => { setEditor(null); setHighlight(name); setNotice(warning ?? t("agents.savedForNext")); void catalogue.refresh(); }} />;
 	return (
 		<div className="pt-8">
-			<div className="flex items-center justify-between gap-3"><h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("agents.title")}</h1>{catalogue.enabled && <button type="button" className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-label text-white" onClick={() => setEditor({ projectId: catalogue.projectId })}><Plus size={16} />{t("agents.add")}</button>}</div>
+			<div className="flex items-center justify-between gap-3"><h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("agents.title")}</h1>{catalogue.enabled && <button type="button" data-ly-tip={t("agents.add")} aria-label={t("agents.add")} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-white" onClick={() => setEditor({ projectId: catalogue.projectId })}><Plus size={16} aria-hidden /></button>}</div>
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">
 				{translate("agentsSettings.intro")}
 			</p>
 			<SectionTitle>{translate("agents.availableCount", { n: agents.length })}</SectionTitle>
-			{catalogue.error && <p role="alert" className="mb-3 text-label text-danger">{catalogue.error} <button type="button" onClick={() => void catalogue.refresh()}>{t("common.reload")}</button></p>}
-			{notice && <p role="status" className="mb-3 text-label text-ink-muted">{notice} {undo && <button type="button" className="text-info" onClick={() => { void bridge.agentDefinitions.restore(undo.projectId, undo.token).then(() => { setUndo(null); setNotice(t("agents.restored")); return catalogue.refresh(); }).catch(cause => setError(String(cause))); }}>{t("common.undo")}</button>}</p>}
+			{catalogue.error && <p role="alert" className="mb-3 text-label text-danger">{catalogue.error} <button type="button" data-ly-tip={t("common.reload")} aria-label={t("common.reload")} className="inline-grid h-5 w-5 translate-y-[3px] place-items-center rounded hover:bg-hover" onClick={() => void catalogue.refresh()}><RotateCw size={12} strokeWidth={2} aria-hidden /></button></p>}
+			{notice && <p role="status" className="mb-3 text-label text-ink-muted">{notice} {undo && <button type="button" data-ly-tip={t("common.undo")} aria-label={t("common.undo")} className="inline-grid h-5 w-5 translate-y-[3px] place-items-center rounded text-info hover:bg-hover" onClick={() => { void bridge.agentDefinitions.restore(undo.projectId, undo.token).then(() => { setUndo(null); setNotice(t("agents.restored")); return catalogue.refresh(); }).catch(cause => setError(String(cause))); }}><Undo2 size={12} strokeWidth={2} aria-hidden /></button>}</p>}
 			{error && <p role="alert" className="mb-3 text-label text-danger">{error}</p>}
 			<Card className="mb-6">
 				{agents.map((agent) => (
@@ -157,7 +157,7 @@ function DefinitionActions({ record, disabled, edit, copy, remove }: { record: A
 	const { t } = useI18n();
 	const menu = usePopover();
 	return <div className="flex shrink-0 items-center gap-1">
-		{record.editable && <button type="button" aria-label={t("agents.editNamed", { name: record.definition.name })} disabled={disabled} className="rounded-lg px-2 py-1.5 text-label text-info hover:bg-hover" onClick={edit}>{t("common.edit")}</button>}
+		{record.editable && <button type="button" data-ly-tip={t("agents.editNamed", { name: record.definition.name })} aria-label={t("agents.editNamed", { name: record.definition.name })} disabled={disabled} className="grid h-[30px] w-[30px] place-items-center rounded-lg text-info hover:bg-hover" onClick={edit}><Pencil size={14} strokeWidth={1.9} aria-hidden /></button>}
 		<button type="button" aria-label={t("agents.moreFor", { name: record.definition.name })} aria-haspopup="menu" aria-expanded={menu.open} disabled={disabled} className="rounded-lg p-1.5 text-ink-muted hover:bg-hover" onClick={menu.toggle}><Ellipsis size={16} /></button>
 		{menu.open && <Popover anchor={menu.anchor} onClose={menu.close} label={t("agents.actions")}><MenuBody>
 			<MenuItem icon={<Copy size={14} />} onClick={() => { menu.close(); copy(); }}>{t("agents.duplicate")}</MenuItem>

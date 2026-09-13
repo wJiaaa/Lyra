@@ -5,6 +5,7 @@ import { Folder, Terminal, Globe,
 	Hand,
 	SquareTerminal,
 	TriangleAlert,
+	X,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -150,19 +151,23 @@ export function PermissionPicker({
 						<div className="mt-5 flex items-center justify-end gap-2">
 							<button
 								type="button"
+								data-ly-tip={t("common.cancel")}
+								aria-label={t("common.cancel")}
 								onClick={() => dismiss()}
-								className="ly-dialog-action ly-dialog-action-secondary"
+								className="ly-dialog-action ly-dialog-action-icon ly-dialog-action-secondary"
 							>
-								{t("common.cancel")}
+								<X size={15} strokeWidth={2} aria-hidden />
 							</button>
 							<button
 								type="button"
+								data-ly-tip={t("permission.confirmEnable")}
+								aria-label={t("permission.confirmEnable")}
 								onClick={() => {
 									dismiss(() => { setConfirming(false); choose("full"); });
 								}}
-								className="ly-dialog-action ly-dialog-action-danger font-medium"
+								className="ly-dialog-action ly-dialog-action-icon ly-dialog-action-danger"
 							>
-								{t("permission.confirmEnable")}
+								<Check size={15} strokeWidth={2.4} aria-hidden />
 							</button>
 						</div>
 					</Scroller>

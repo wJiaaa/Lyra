@@ -18,7 +18,7 @@
 
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import { useEffect, useState } from "react";
-import { ChevronDown, Sparkles } from "lucide-react";
+import { ChevronDown, FolderCheck, Pencil, Sparkles, UserCheck, X } from "lucide-react";
 import { bridge } from "../../services/host.ts";
 import { useApp } from "../../store/index.ts";
 import { translate, useI18n } from "../../i18n/index.ts";
@@ -135,39 +135,52 @@ export function RuleSuggestion() {
         )}
 
         <div className="mt-1 flex flex-wrap items-center gap-2">
+          {/*
+            * 三个去向、一个拒绝，四个图标。
+            *
+            * 两个「保存」的区别是**存到哪儿**，不是存不存，所以两枚图标的差别也落在容器上：一个
+            * 文件夹，一个人。勾是它们共有的部分，单独看不出是哪一个——这也正是 tooltip 存在的
+            * 理由，图标负责区分，文字负责说全。
+            */}
           <button
             type="button"
-            data-ly-tip={t("rule.scopeProject")}
+            data-ly-tip={`${t("ruleSuggestion.saveToProject")} · ${t("rule.scopeProject")}`}
+            aria-label={t("ruleSuggestion.saveToProject")}
             disabled={!draft || saving}
             onClick={() => keep("project")}
-            className="flex h-7 items-center rounded-lg bg-ink px-3 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity hover:opacity-90 disabled:opacity-40"
           >
-            {t("ruleSuggestion.saveToProject")}
+            <FolderCheck size={13} strokeWidth={1.9} aria-hidden />
           </button>
           <button
             type="button"
-            data-ly-tip={t("rule.scopePersonal")}
+            data-ly-tip={`${t("ruleSuggestion.saveToMine")} · ${t("rule.scopePersonal")}`}
+            aria-label={t("ruleSuggestion.saveToMine")}
             disabled={!draft || saving}
             onClick={() => keep("user")}
-            className="h-7 rounded-lg border border-line px-3 text-detail text-ink-muted transition-colors hover:border-ink-faint hover:text-ink disabled:opacity-40"
+            className="grid h-7 w-7 place-items-center rounded-lg border border-line text-ink-muted transition-colors hover:border-ink-faint hover:text-ink disabled:opacity-40"
           >
-            {t("ruleSuggestion.saveToMine")}
+            <UserCheck size={13} strokeWidth={1.9} aria-hidden />
           </button>
           <button
             type="button"
+            data-ly-tip={t("common.edit")}
+            aria-label={t("common.edit")}
             onClick={() => setOpen((was) => !was)}
             aria-expanded={open}
-            className="flex h-7 items-center gap-1 rounded-lg px-2 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+            className="flex h-7 items-center gap-0.5 rounded-lg px-1.5 text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
           >
-            {t("common.edit")}
+            <Pencil size={12} strokeWidth={1.9} aria-hidden />
             <ChevronDown size={11} aria-hidden className={`transition-transform${open ? " rotate-180" : ""}`} />
           </button>
           <button
             type="button"
+            data-ly-tip={t("ruleSuggestion.reject")}
+            aria-label={t("ruleSuggestion.reject")}
             onClick={dismiss}
-            className="ml-auto h-7 rounded-lg px-2 text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
+            className="ml-auto grid h-7 w-7 place-items-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
           >
-            {t("ruleSuggestion.reject")}
+            <X size={13} strokeWidth={1.9} aria-hidden />
           </button>
         </div>
       </div>

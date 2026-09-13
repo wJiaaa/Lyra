@@ -1,3 +1,4 @@
+import { Play, RotateCcw } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
 import { useSide } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
@@ -137,19 +138,19 @@ export function ResumeRow() {
 					 */
 					void send([{ type: "text", text: carryOn }], { synthetic: true, carryOn: true });
 				}}
-				className="rounded px-1 text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
+				aria-label={translate("resume.continueLabel")}
+				className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 				/*
 				 * A hook that does not move with the language.
 				 *
-				 * The suite used to reach for this button as `[aria-label="继续"]`, which never matched
-				 * anything: the button has no `aria-label` — its accessible name is the word inside it,
-				 * and an attribute selector cannot see that. Naming it here rather than adding the
-				 * attribute, because an `aria-label` would be a second copy of the label that has to
-				 * be translated too, and then the same assertion breaks again on an English machine.
+				 * The button does now carry an `aria-label` — an icon has no accessible name without
+				 * one — but the suite still reaches for it by this attribute rather than by that label,
+				 * for the reason it always did: the label is translated, so `[aria-label="继续"]` stops
+				 * matching the moment the app is run in English.
 				 */
 				data-resume-continue
 			>
-				{translate("resume.continueLabel")}
+				<Play size={11} strokeWidth={2} fill="currentColor" aria-hidden />
 			</button>
 			{/*
 			 * Not a second kind of "carry on": this one throws the reply away and asks again.
@@ -189,9 +190,10 @@ export function ResumeRow() {
 							onConfirm: () => void retryFrom(messages.length - 1),
 						})
 					}
-					className="rounded px-1 text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
+					aria-label={translate("common.retry2")}
+					className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 				>
-					{translate("common.retry2")}
+					<RotateCcw size={11} strokeWidth={2} aria-hidden />
 				</button>
 			)}
 			{confirm.element}

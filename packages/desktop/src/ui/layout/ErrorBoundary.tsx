@@ -15,6 +15,7 @@
  * codebase and this is the reason.
  */
 
+import { RotateCw } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Disclosure } from "./Disclosure.tsx";
@@ -73,10 +74,12 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 					<div className="mt-5 flex items-center gap-2">
 						<button
 							type="button"
+							data-ly-tip={translate("errorBoundary.reload")}
+							aria-label={translate("errorBoundary.reload")}
 							onClick={() => window.location.reload()}
-							className="h-8 rounded-lg bg-ink px-3.5 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
+							className="grid h-8 w-8 place-items-center rounded-lg bg-ink text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
 						>
-							{translate("errorBoundary.reload")}
+							<RotateCw size={14} strokeWidth={2} aria-hidden />
 						</button>
 						{/*
 						 * Worth saying out loud, because it is the answer surprisingly often during

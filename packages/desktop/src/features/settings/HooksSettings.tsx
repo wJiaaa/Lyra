@@ -99,12 +99,9 @@ export function HooksSettings() {
                 blocking: false,
               })
             }
-          >
-            <span className="flex items-center gap-1.5">
-              <Plus size={12} strokeWidth={2} />
-              {t("common.new")}
-            </span>
-          </GhostButton>
+            title={t("common.new")}
+            icon={<Plus size={12} strokeWidth={2} />}
+          />
         </div>
       </header>
 

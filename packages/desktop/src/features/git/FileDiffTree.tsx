@@ -1,5 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
-import { ChevronDown, ChevronRight, Folder, FolderOpen } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen } from "lucide-react";
+import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useMemo, useState } from "react";
 import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";
 import { BinaryDiff } from "./BinaryDiff.tsx";
@@ -115,11 +116,7 @@ export function FileDiffTree({
 							style={{ paddingLeft: `${Math.max(4, depth * 14)}px` }}
 							className="flex w-full items-center gap-1.5 rounded-md py-1 pr-1 text-left text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
-							{isExpanded ? (
-								<ChevronDown size={11} strokeWidth={2} className="shrink-0 text-ink-faint" />
-							) : (
-								<ChevronRight size={11} strokeWidth={2} className="shrink-0 text-ink-faint" />
-							)}
+							<Caret open={isExpanded} from="right" size={11} strokeWidth={2} className="text-ink-faint" />
 							{isExpanded ? (
 								<FolderOpen size={13} strokeWidth={1.8} className="shrink-0 text-accent/80" />
 							) : (

@@ -229,6 +229,13 @@ export function ShortcutRecorder({
 	return (
 		<button
 			type="button"
+			/*
+			 * 框里的字是**现在绑的那组键**，不是这个控件叫什么。
+			 *
+			 * 「⌥ A」对读屏来说是两个符号，听不出这是一个能改的快捷键；名字得另外给。给了之后，
+			 * 「这颗按钮上的字要不要换成图标」也就有了答案——它根本不是标签，换掉就没内容了。
+			 */
+			aria-label={translate("shortcut.press")}
 			onClick={() => setRecording(true)}
 			onBlur={() => setRecording(false)}
 			onKeyDown={handleKeyDown}

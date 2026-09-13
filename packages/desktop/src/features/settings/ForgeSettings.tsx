@@ -142,9 +142,7 @@ export function ForgeSettings() {
 			{adding ? (
 				<ForgeSignIn kinds={kinds} onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
 			) : (
-				<GhostButton icon={<Plus size={14} strokeWidth={2} />} onClick={() => setAdding(true)}>
-					{translate("prList.addAccount")}
-				</GhostButton>
+				<GhostButton icon={<Plus size={14} strokeWidth={2} />} title={translate("prList.addAccount")} onClick={() => setAdding(true)} />
 			)}
 
 			{/*

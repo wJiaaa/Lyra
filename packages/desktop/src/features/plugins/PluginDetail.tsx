@@ -25,6 +25,7 @@ import {
 	Download,
 	ExternalLink,
 	FolderOpen,
+	Power,
 	Sparkles,
 	Trash2,
 } from "lucide-react";
@@ -187,20 +188,21 @@ export function PluginDetail({
 									{plugin ? (
 										<button
 											type="button"
+											data-ly-tip={plugin.enabled ? t("common.disable") : t("common.enable")}
+											aria-label={plugin.enabled ? t("common.disable") : t("common.enable")}
 											onClick={toggleEnabled}
-											className="flex h-[30px] items-center rounded-lg border border-line px-3 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
+											className="grid h-[30px] w-[30px] place-items-center rounded-lg border border-line text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
 										>
-											{plugin.enabled ? t("common.disable") : t("common.enable")}
+											<Power size={13} strokeWidth={1.9} aria-hidden />
 										</button>
 									) : (
 										<button
 											type="button"
 											onClick={onManageServers}
-											className="flex h-[30px] items-center gap-1.5 rounded-lg border border-line px-3 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
-										>
-											<Cable size={12.5} strokeWidth={1.8} />
-											{item.servers.some((server) => server.enabled) ? t("pluginDetail.manageInSettings") : t("pluginDetail.enableInSettings")}
-										</button>
+											className="grid place-items-center h-[30px] rounded-lg border border-line text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink w-[30px]"
+			data-ly-tip={item.servers.some((server) => server.enabled) ? t("pluginDetail.manageInSettings") : t("pluginDetail.enableInSettings")}
+			aria-label={item.servers.some((server) => server.enabled) ? t("pluginDetail.manageInSettings") : t("pluginDetail.enableInSettings")}
+		><Cable size={12.5} strokeWidth={1.8} /></button>
 									)}
 									<button
 										type="button"
@@ -232,15 +234,14 @@ export function PluginDetail({
 										type="button"
 										disabled={busy !== null}
 										onClick={() => void install()}
-										className="flex h-[30px] items-center gap-1.5 rounded-lg bg-ink px-3.5 text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:opacity-50"
-									>
-										{busy === "install" ? (
+										className="grid place-items-center h-[30px] rounded-lg bg-ink text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:opacity-50 w-[30px]"
+			data-ly-tip={t("common.install")}
+			aria-label={t("common.install")}
+		>{busy === "install" ? (
 											<Spinner size={12.5} />
 										) : (
 											<Download size={12.5} strokeWidth={1.9} />
-										)}
-										{t("common.install")}
-									</button>
+										)}</button>
 								)
 							)}
 						</div>

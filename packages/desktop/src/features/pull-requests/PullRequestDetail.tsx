@@ -7,7 +7,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { ExternalLink, GitPullRequest, Maximize2, MessagesSquare, Minimize2, RefreshCw } from "lucide-react";
+import { Bot, ExternalLink, GitPullRequest, Maximize2, MessagesSquare, Minimize2, RefreshCw } from "lucide-react";
 import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
@@ -150,18 +150,21 @@ export function PullRequestDetail({
 					 */}
 					<button
 						type="button"
+						data-ly-tip={t("prDetail.chat")}
+						aria-label={t("prDetail.chat")}
 						onClick={() => onOpenChat(detail, "ask")}
-						className="ml-1 flex h-[26px] items-center gap-1.5 rounded-lg px-2.5 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+						className="ml-1 grid h-[26px] w-[26px] place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 					>
-						<MessagesSquare size={12.5} strokeWidth={1.8} />
-						{t("prDetail.chat")}
+						<MessagesSquare size={12.5} strokeWidth={1.8} aria-hidden />
 					</button>
 					<button
 						type="button"
+						data-ly-tip={t("prDetail.askAgent")}
+						aria-label={t("prDetail.askAgent")}
 						onClick={() => onOpenChat(detail, "review")}
-						className="flex h-[26px] items-center gap-1.5 rounded-lg border border-line px-2.5 text-detail text-ink-muted transition-colors hover:border-ink-faint hover:text-ink"
+						className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-line text-ink-muted transition-colors hover:border-ink-faint hover:text-ink"
 					>
-						{t("prDetail.askAgent")}
+						<Bot size={12.5} strokeWidth={1.8} aria-hidden />
 					</button>
 					<IconAction label={t(expanded ? "prDetail.showList" : "prDetail.fillWidth")} onClick={onToggleExpanded}>
 						{expanded ? <Minimize2 size={13} strokeWidth={1.9} /> : <Maximize2 size={13} strokeWidth={1.9} />}

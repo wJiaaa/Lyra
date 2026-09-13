@@ -95,9 +95,7 @@ export function ScreenshotSettings() {
 					title={t("shot.test")}
 					detail={t("shot.testDetail")}
 					control={
-						<GhostButton disabled={config.enabled === false} icon={<Camera size={14} />} onClick={() => void bridge.screenshot.start().catch((error: unknown) => useApp.getState().notify(String(error), "error"))}>
-							{t("screenshot.now")}
-						</GhostButton>
+						<GhostButton disabled={config.enabled === false} icon={<Camera size={14} />} onClick={() => void bridge.screenshot.start().catch((error: unknown) => useApp.getState().notify(String(error), "error"))} title={t("screenshot.now")} />
 					}
 				/>
 			</Card>
@@ -116,9 +114,7 @@ export function ScreenshotSettings() {
 							{config.saveLocation?.trim() && (
 								<GhostButton onClick={() => patch({ saveLocation: "" })} icon={<Eraser size={13} strokeWidth={1.8} />} title={t("common.clear")} />
 							)}
-							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("saveLocation")}>
-								{config.saveLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseSaveDirectory")}
-							</GhostButton>
+							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("saveLocation")} title={config.saveLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseSaveDirectory")} />
 						</div>
 					}
 				/>
@@ -142,9 +138,7 @@ export function ScreenshotSettings() {
 							{config.downloadLocation?.trim() && (
 								<GhostButton onClick={() => patch({ downloadLocation: "" })} icon={<RotateCcw size={13} strokeWidth={1.8} />} title={t("common.restoreDefault")} />
 							)}
-							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("downloadLocation")}>
-								{config.downloadLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseDownloadDirectory")}
-							</GhostButton>
+							<GhostButton icon={<FolderOpen size={14} />} onClick={() => void pickDirectory("downloadLocation")} title={config.downloadLocation?.trim() ? t("common.chooseDirectory") : t("shot.chooseDownloadDirectory")} />
 						</div>
 					}
 				/>

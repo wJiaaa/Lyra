@@ -54,8 +54,10 @@ export function BackToLatest({ show, unread, onClick }: { show: boolean; unread:
 				/* Stated on the element so a probe can read the count while the button is hidden —
 				   asking the label is no good, because a hidden button says nothing either way. */
 				data-unread={unread}
+				data-ly-tip={translate(unread > 0 ? "backToLatest.unread" : "backToLatest.latest")}
+				aria-label={translate(unread > 0 ? "backToLatest.unread" : "backToLatest.latest")}
 				onClick={onClick}
-				className={`ly-composer flex h-8 items-center gap-1.5 rounded-full border border-line-soft bg-float px-3.5 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:text-ink ${
+				className={`ly-composer relative grid h-8 w-8 place-items-center rounded-full border border-line-soft bg-float text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:text-ink ${
 					show ? "pointer-events-auto" : ""
 				}`}
 			>
@@ -63,9 +65,8 @@ export function BackToLatest({ show, unread, onClick }: { show: boolean; unread:
 				 * Says "new" only when something actually arrived while you were up here. Otherwise
 				 * this is navigation, not a notification, and a dot on it would be crying wolf.
 				 */}
-				{unread > 0 && <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-accent" />}
-				<ArrowDown size={13} strokeWidth={2} />
-				{translate(unread > 0 ? "backToLatest.unread" : "backToLatest.latest")}
+				{unread > 0 && <span aria-hidden className="absolute top-[5px] right-[5px] h-[6px] w-[6px] rounded-full bg-accent" />}
+				<ArrowDown size={14} strokeWidth={2} aria-hidden />
 			</button>
 		</div>
 	);

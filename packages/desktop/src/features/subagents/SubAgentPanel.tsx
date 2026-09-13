@@ -16,7 +16,7 @@
  * for, and choosing between them *is* the title.
  */
 
-import { Bot, CircleStop, FileText, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
+import { Bot, Check, CircleStop, FileText, Plus, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import type { SubAgentSummary } from "@lyra/core";
@@ -277,10 +277,11 @@ function Redispatch({ agent }: { agent: SubAgentSummary }) {
 					);
 				setAsked(true);
 			}}
-			className="mt-2 flex items-center gap-1.5 rounded-lg border border-line-soft px-2.5 py-1.5 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-50"
+			aria-label={asked ? t("subAgent.drafted") : t("subAgent.redispatch")}
+			className="mt-2 grid h-7 w-7 place-items-center rounded-lg border border-line-soft text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-50"
 		>
-			<RotateCcw size={11.5} strokeWidth={1.9} />
-			{asked ? t("subAgent.drafted") : t("subAgent.redispatch")}
+			{/* 派过之后变成一个勾：草稿已经在输入框里了，再按一次不会有第二份。 */}
+			{asked ? <Check size={11.5} strokeWidth={2.2} aria-hidden /> : <RotateCcw size={11.5} strokeWidth={1.9} aria-hidden />}
 		</button>
 	);
 }

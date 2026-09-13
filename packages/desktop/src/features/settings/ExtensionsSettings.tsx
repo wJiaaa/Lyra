@@ -1,4 +1,5 @@
-import { Blocks, Cable, ChevronDown, FolderOpen, MoreHorizontal, Plus, Puzzle, Scale, Sparkles, Store } from "lucide-react";
+import { Blocks, Cable, FolderOpen, MoreHorizontal, Plus, Puzzle, Scale, Sparkles, Store } from "lucide-react";
+import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useEffect, useState } from "react";
 
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
@@ -129,20 +130,20 @@ export function ExtensionsSettings() {
 					<button
 						type="button"
 						onClick={browse}
-						className="flex h-[30px] items-center gap-1.5 rounded-lg border border-line px-3 text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
-					>
-						<Store size={13} strokeWidth={1.8} />
-						{t("extensions.browseMarket")}
-					</button>
+						className="grid place-items-center h-[30px] rounded-lg border border-line text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink w-[30px]"
+			data-ly-tip={t("extensions.browseMarket")}
+			aria-label={t("extensions.browseMarket")}
+		><Store size={13} strokeWidth={1.8} /></button>
+					{/* 同插件页那颗：开单子的入口留字，箭头跟着开合转身。 */}
 					<button
 						type="button"
 						onClick={add.toggle}
 						aria-haspopup="menu"
 						aria-expanded={add.open}
-						className="flex h-[30px] items-center gap-1.5 rounded-lg bg-ink px-3 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
+						className="flex h-[30px] items-center gap-1 rounded-lg bg-ink px-3 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
 					>
 						{t("mcp.add")}
-						<ChevronDown size={13} strokeWidth={2} />
+						<Caret open={add.open} size={13} />
 					</button>
 				</div>
 			</header>

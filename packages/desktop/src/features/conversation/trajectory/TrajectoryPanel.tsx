@@ -1,5 +1,5 @@
 import { translate } from "../../../i18n/translate.ts";
-import { History, Coins, Terminal, Zap } from "lucide-react";
+import { History, Coins, Crosshair, Terminal, Zap } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { freshTokens } from "@lyra/core/tokens";
 import { countBySource, entryKey, filterTrajectory, type Entry, type Source, type TrajectoryFilter } from "@lyra/core/trajectory-view";
@@ -105,7 +105,7 @@ function SessionTrajectory() {
 		</div>
 		{error && <p role="alert" className="px-3 py-1 text-caption text-danger">{translate("trajectory.readFailedWith", { reason: error })}</p>}
 		{loading ? <p role="status" className="px-3 py-2 text-caption text-ink-faint">{t("trajectory.loading")}</p> : !entries.length && <p className="px-3 py-2 text-caption text-ink-faint">{all.length ? t("trajectory.noMatch") : t("trajectory.empty")}</p>}
-		{picked && !matches.has(entryKey(picked)) && <div className="px-3 py-1 text-caption text-ink-muted">{t("trajectory.filteredOut")} <button type="button" className="text-info" onClick={() => { setSources([]); setQuery(""); setStatus(undefined); navigate(picked); }}>{t("trajectory.locateAndClear")}</button></div>}
+		{picked && !matches.has(entryKey(picked)) && <div className="px-3 py-1 text-caption text-ink-muted">{t("trajectory.filteredOut")} <button type="button" data-ly-tip={t("trajectory.locateAndClear")} aria-label={t("trajectory.locateAndClear")} className="ml-0.5 inline-grid h-4 w-4 translate-y-[2px] place-items-center rounded text-info hover:bg-hover" onClick={() => { setSources([]); setQuery(""); setStatus(undefined); navigate(picked); }}><Crosshair size={11} strokeWidth={2} aria-hidden /></button></div>}
 		<div className="ly-trace-body" data-has-detail={Boolean(picked)}>
 			<div className="ly-trace-ledger">
 				<TraceList entries={entries} selected={selected} onSelect={select} resetKey={JSON.stringify([sources, deferredQuery, status])} collapsed={collapsed} onCollapse={collapse} target={target} focused={focused} paused={Boolean(picked || time)} onFollowing={setFollowing} />

@@ -13,7 +13,7 @@
 import { useI18n } from "../../i18n/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import type { ApiFormat, ModelConfig, ProviderConfig } from "@lyra/core";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Power, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -180,9 +180,18 @@ function ProviderHeading({
 			<Badge tone={provider.enabled ? "ok" : "muted"}>
 				<RollingText>{t(provider.enabled ? "common.enabled" : "common.disabled")}</RollingText>
 			</Badge>
-			<GhostButton onClick={() => onChange({ enabled: !provider.enabled })}>
-				<RollingText>{t(provider.enabled ? "provider.disable" : "provider.enable")}</RollingText>
-			</GhostButton>
+			{/*
+			 * 开关那颗按钮变成一个电源符号，字进 tooltip。
+			 *
+			 * 旁边那枚 Badge 还在滚——「已启用」／「已停用」是**现在是什么状态**，那句话该留着；
+			 * 按钮说的是**按下去会变成什么**，两句话方向相反，摆在一起本来就容易读反。现在一个说
+			 * 状态、一个是符号，悬停才给出动词。
+			 */}
+			<GhostButton
+				icon={<Power size={13} strokeWidth={1.9} />}
+				title={t(provider.enabled ? "provider.disable" : "provider.enable")}
+				onClick={() => onChange({ enabled: !provider.enabled })}
+			/>
 
 			<div className="flex-1" />
 			<button

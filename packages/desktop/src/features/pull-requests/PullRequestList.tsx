@@ -326,11 +326,10 @@ function SignedOut({ onAddAccount }: { onAddAccount: () => void }) {
 				<button
 					type="button"
 					onClick={onAddAccount}
-					className="mt-5 flex h-[30px] items-center gap-1.5 rounded-lg border border-line px-3 text-label text-ink-muted transition-colors hover:border-ink-faint hover:bg-card-hover hover:text-ink"
-				>
-					<UserPlus size={13} strokeWidth={1.8} />
-					{t("prList.addAccount")}
-				</button>
+					className="grid place-items-center mt-5 h-[30px] rounded-lg border border-line text-label text-ink-muted transition-colors hover:border-ink-faint hover:bg-card-hover hover:text-ink w-[30px]"
+			data-ly-tip={t("prList.addAccount")}
+			aria-label={t("prList.addAccount")}
+		><UserPlus size={13} strokeWidth={1.8} /></button>
 			</div>
 		</div>
 	);

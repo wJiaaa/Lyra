@@ -124,8 +124,10 @@ export function FetchModelsModal({
 					/>
 					<button
 						type="button"
+						data-ly-tip={allSelected ? t("common.deselectAll") : t("common.selectAll")}
+						aria-label={allSelected ? t("common.deselectAll") : t("common.selectAll")}
 						onClick={toggleAll}
-						className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-card px-2.5 text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink cursor-pointer"
+						className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-card text-ink-muted transition-colors hover:bg-card-hover hover:text-ink cursor-pointer"
 					>
 						{allSelected ? (
 							<CheckSquare size={14} className="text-accent" strokeWidth={2} />
@@ -136,7 +138,6 @@ export function FetchModelsModal({
 						) : (
 							<Square size={14} className="text-ink-faint" strokeWidth={1.8} />
 						)}
-						<span>{allSelected ? t("common.deselectAll") : t("common.selectAll")}</span>
 					</button>
 				</div>
 
@@ -214,14 +215,17 @@ export function FetchModelsModal({
 						<GhostButton onClick={() => dismiss()} icon={<X size={13} strokeWidth={2} />} title={t("common.cancel")} />
 						<button
 							type="button"
+							data-ly-tip={translate("fetchModels.importSelected", { n: selected.size })}
+							aria-label={translate("fetchModels.importSelected", { n: selected.size })}
 							disabled={selected.size === 0}
 							// Through `dismiss`, so the import runs on the way out rather than under a dialog
 							// that is still on screen — see the completion note in `Overlay`.
 							onClick={() => dismiss(() => onImport(Array.from(selected)))}
-							className="flex h-8 items-center gap-1.5 rounded-lg bg-ink px-3.5 text-caption font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40 cursor-pointer"
+							className="flex h-8 items-center gap-1.5 rounded-lg bg-ink px-2.5 text-caption font-medium text-shell tabular-nums transition-opacity hover:opacity-90 disabled:opacity-40 cursor-pointer"
 						>
-							<Check size={13} strokeWidth={2.2} />
-							<span>{translate("fetchModels.importSelected", { n: selected.size })}</span>
+							{/* 数字留下：这一按会导入几个，不是这颗按钮叫什么。 */}
+							<Check size={13} strokeWidth={2.2} aria-hidden />
+							{selected.size}
 						</button>
 					</div>
 				</div>

@@ -1,5 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
-import { ChevronDown, FileDiff, Files, FileText, Undo2 } from "lucide-react";
+import { FileDiff, Files, FileText, Undo2 } from "lucide-react";
+import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { DeliveryFile, TurnDelivery } from "../../../electron/turn-delivery.ts";
 import { bridge, onPhone } from "../../services/index.ts";
@@ -171,9 +172,11 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 					{data.files.slice(0, PREVIEW_FILES).map(row)}
 					{remaining > 0 && <>
 						<div id={"delivery-" + timestamp + "-more"} className="ly-reveal" data-open={expanded} aria-hidden={!expanded} inert={!expanded}><div>{data.files.slice(PREVIEW_FILES).map(row)}</div></div>
-						<button type="button" aria-expanded={expanded} aria-controls={"delivery-" + timestamp + "-more"} onClick={() => { hideHover(); setExpanded(!expanded); }} className="flex h-9 items-center gap-2 rounded-md px-3 text-ink-muted hover:bg-card-hover hover:text-ink">
-							{expanded ? t("delivery.collapse") : t("delivery.showMore", { n: remaining })}<ChevronDown size={14} className="transition-transform duration-[var(--ly-t-quick)]" style={{ transform: expanded ? "rotate(180deg)" : undefined }} />
-						</button>
+						{/* 展开的是一串文件，还有几个是这行唯一的信息——留字，箭头跟着开合转身。 */}
+					<button type="button" aria-expanded={expanded} aria-controls={"delivery-" + timestamp + "-more"} onClick={() => { hideHover(); setExpanded(!expanded); }} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md text-detail text-ink-muted hover:bg-card-hover hover:text-ink">
+			{expanded ? t("delivery.collapse") : t("delivery.showMore", { n: remaining })}
+			<Caret open={expanded} size={14} />
+		</button>
 					</>}
 				</div>
 			</section>

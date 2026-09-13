@@ -29,12 +29,11 @@ export function QuestionChoices({ options, allowCustomInput, answer }: {
 	return <div className="pt-3 pb-1" aria-busy={pending}>
 		<div className="flex flex-wrap items-center justify-end gap-1.5">
 			<button type="button" disabled={pending} onClick={() => void submit("reject")}
-				className="flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-label text-ink-muted transition-colors hover:bg-card-hover active:bg-elevated disabled:opacity-50"><X size={14} className="shrink-0" />
-				{translate("common.cancel")}
-			</button>
-			{allowCustomInput && options.length > 0 && <button type="button" aria-label={translate("question.custom")} aria-expanded={custom} disabled={pending} onClick={() => setCustom(value => !value)} className={`flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 text-label transition-colors hover:bg-card-hover active:bg-elevated disabled:opacity-50 ${custom ? "bg-card-hover text-ink" : "text-ink-muted"}`}><PencilLine size={14} className="shrink-0" />
-					{translate("question.otherThought")}
-				</button>}
+				className="grid place-items-center min-h-8 rounded-lg text-label text-ink-muted transition-colors hover:bg-card-hover active:bg-elevated disabled:opacity-50 w-8"
+			data-ly-tip={translate("common.cancel")}
+			aria-label={translate("common.cancel")}
+		><X size={14} className="shrink-0" /></button>
+			{allowCustomInput && options.length > 0 && <button type="button" data-ly-tip={translate("question.otherThought")} aria-label={translate("question.custom")} aria-expanded={custom} disabled={pending} onClick={() => setCustom(value => !value)} className={`grid min-h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-card-hover active:bg-elevated disabled:opacity-50 ${custom ? "bg-card-hover text-ink" : "text-ink-muted"}`}><PencilLine size={14} className="shrink-0" aria-hidden /></button>}
 			{options.map((option) => <button key={option} type="button" disabled={pending}
 				onClick={() => void submit({ answer: option })}
 				className="flex min-h-8 max-w-full items-center gap-1.5 rounded-lg bg-card px-2.5 py-1.5 text-left text-label text-ink transition-colors hover:bg-card-hover active:bg-elevated disabled:opacity-50"><ArrowUpRight size={14} className="shrink-0 text-ink-muted" /><span className="min-w-0 break-words">{option}</span></button>)}

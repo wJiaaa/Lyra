@@ -83,11 +83,9 @@ export function ChangeBar() {
         type="button"
         data-ly-tip={translate("changeBar.openGit")}
         onClick={() => openPane("review")}
-        className="flex h-[26px] shrink-0 items-center gap-1.5 rounded-md px-2 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-      >
-        <GitCommitVertical size={13} strokeWidth={1.8} className="shrink-0" />
-        {translate("commit.commit")}
-      </button>
+        className="grid place-items-center h-[26px] shrink-0 rounded-md text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink w-[26px]"
+			aria-label={translate("commit.commit")}
+		><GitCommitVertical size={13} strokeWidth={1.8} className="shrink-0" /></button>
     </>
   );
 }

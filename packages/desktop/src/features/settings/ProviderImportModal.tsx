@@ -64,15 +64,14 @@ export function ProviderImportModal({
 							onClick={() => {
 								setSelected(allSelected ? new Set() : new Set(entries.map((entry) => entry.provider.id)));
 							}}
-							className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-						>
-							{allSelected ? (
+							className="grid place-items-center h-7 rounded-lg text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink w-7"
+			data-ly-tip={t(allSelected ? "common.deselectAll" : "common.selectAll")}
+			aria-label={t(allSelected ? "common.deselectAll" : "common.selectAll")}
+		>{allSelected ? (
 								<CheckSquare size={14} className="text-accent" strokeWidth={2} />
 							) : (
 								<Square size={14} className="text-ink-faint" strokeWidth={1.8} />
-							)}
-							{t(allSelected ? "common.deselectAll" : "common.selectAll")}
-						</button>
+							)}</button>
 					</div>
 
 					<Scroller className="max-h-[56vh]" contentClassName="space-y-1.5 px-5 py-4">
@@ -101,12 +100,15 @@ export function ProviderImportModal({
 							<GhostButton onClick={() => dismiss()} icon={<X size={13} strokeWidth={2} />} title={t("common.cancel")} />
 							<button
 								type="button"
+								data-ly-tip={t("providerTransfer.importAction", { n: chosen.length })}
+								aria-label={t("providerTransfer.importAction", { n: chosen.length })}
 								disabled={chosen.length === 0}
 								onClick={() => dismiss(() => onImport(chosen.map((entry) => entry.provider)))}
-								className="flex h-8 items-center gap-1.5 rounded-lg bg-ink px-3.5 text-caption font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40"
+								className="flex h-8 items-center gap-1.5 rounded-lg bg-ink px-2.5 text-caption font-medium text-shell tabular-nums transition-opacity hover:opacity-90 disabled:opacity-40"
 							>
-								<Check size={13} strokeWidth={2.2} />
-								<span>{t("providerTransfer.importAction", { n: chosen.length })}</span>
+								{/* 数字留下：这一按会导入几个，不是这颗按钮叫什么。 */}
+								<Check size={13} strokeWidth={2.2} aria-hidden />
+								{chosen.length}
 							</button>
 						</div>
 					</div>

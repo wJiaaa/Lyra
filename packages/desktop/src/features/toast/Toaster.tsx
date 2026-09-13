@@ -20,7 +20,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { CircleAlert, Info, MessageCirclePlus, TriangleAlert, X } from "lucide-react";
+import { ArrowRight, CircleAlert, Info, MessageCirclePlus, TriangleAlert, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useApp } from "../../store/index.ts";
@@ -222,11 +222,11 @@ export function Toaster() {
 								onClick={() => {
 									if (group.sessionId) void openSessionById(group.sessionId).then((opened) => { if (opened) dismiss(group); });
 								}}
-								className="flex h-[18px] shrink-0 items-center gap-1 rounded px-1 text-caption text-accent transition-colors hover:bg-card-hover"
+								className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded text-accent transition-colors hover:bg-card-hover"
 								data-ly-tip={t("toaster.goToSession")}
 								aria-label={t("toaster.goToSession")}
 							>
-								<span>{t("common.look")}</span>
+								<ArrowRight size={12} strokeWidth={2} aria-hidden />
 							</button>
 						)}
 						{/*

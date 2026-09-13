@@ -15,6 +15,7 @@ import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import {
 	ArrowUpRight,
+	Check,
 	Delete,
 	Circle,
 	Download,
@@ -127,11 +128,11 @@ const METRICS: Record<"compact" | "large", ToolbarMetrics> = {
 		icon: 14,
 		divider: "mx-1.5 h-4",
 		action: "h-6 px-2",
-		confirm: "h-6 px-2.5 text-detail",
+		confirm: "h-6 w-6",
 		step: 26,
 		inset: 18,
 		bubble: "gap-1 rounded-lg px-2 py-1",
-		weight: "h-5 px-1.5 text-caption",
+		weight: "h-5 w-5",
 		swatch: "h-[14px] w-[14px]",
 		bubbleDivider: "mx-0.5 h-3.5",
 	},
@@ -141,12 +142,12 @@ const METRICS: Record<"compact" | "large", ToolbarMetrics> = {
 		icon: 18,
 		divider: "mx-1.5 h-5",
 		action: "h-9 px-2.5",
-		confirm: "h-9 px-3.5 text-label",
+		confirm: "h-9 w-9",
 		// 36pt button + 4pt gap, and 8pt of padding before the first button's own half-width.
 		step: 40,
 		inset: 26,
 		bubble: "gap-1.5 rounded-xl px-2.5 py-1.5",
-		weight: "h-7 px-2.5 text-detail",
+		weight: "h-7 w-7",
 		swatch: "h-[18px] w-[18px]",
 		bubbleDivider: "mx-1 h-4",
 	},
@@ -503,9 +504,11 @@ export function AnnotateToolbar({
 				// `whitespace-nowrap` because the label is four characters and the button is sized by
 				// its padding: without it "保存副本" wrapped to two lines and took the whole bar's
 				// height with it.
-				className={`flex cursor-pointer items-center whitespace-nowrap rounded-md bg-white font-medium text-[#1c1c1e] transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35 ${metrics.confirm}`}
+				aria-label={saveLabel ?? translate(canReplace ? "common.save" : "annotate.saveCopy")}
+				className={`grid cursor-pointer place-items-center rounded-md bg-white text-[#1c1c1e] transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35 ${metrics.confirm}`}
 			>
-				{saveLabel ?? translate(canReplace ? "common.save" : "annotate.saveCopy")}
+				{/* 覆盖原图是一个勾，另存一份是一枚下载箭头——存到哪儿，形状上就分开了。 */}
+				{canReplace ? <Check size={metrics.icon - 1} strokeWidth={2.4} aria-hidden /> : <Download size={metrics.icon - 1} strokeWidth={2} aria-hidden />}
 			</button>
 		</div>
 	);
@@ -589,21 +592,29 @@ function ToolProperties({
 			}`}
 			style={{ left: anchor, transform: "translateX(-50%)" }}
 		>
-			{WEIGHT_LEVELS.map(([value, label]) => (
+			{/*
+			 * 「细中粗」三个字换成三个大小不同的点。
+			 *
+			 * 每一档的直径早就在 `WEIGHT_LEVELS` 的第三位上了，只是一直没人用——它本来就是为这个
+			 * 准备的。画粗细的控件用字说粗细，本身是绕了一圈：点的大小就是这一档画出来的线的
+			 * 粗细，看一眼就知道，而「中」和「粗」哪个更粗要想一下。
+			 */}
+			{WEIGHT_LEVELS.map(([value, label, dot]) => (
 				<button
 					key={label}
 					type="button"
 					onClick={() => annotator.setWeight(value)}
+					data-ly-tip={translate(label)}
 					aria-label={translate("annotate.sizeIs", {
 						what: translate(SIZE_LABEL[annotator.tool] ?? "annotate.weight"),
 						label: translate(label),
 					})}
 					aria-pressed={annotator.weight === value}
-					className={`flex cursor-pointer items-center rounded transition-colors ${metrics.weight} ${
+					className={`flex cursor-pointer items-center justify-center rounded transition-colors ${metrics.weight} ${
 						annotator.weight === value ? "bg-white/20 text-white" : "text-white/55 hover:bg-white/10 hover:text-white"
 					}`}
 				>
-					{translate(label)}
+					<span aria-hidden className="rounded-full bg-current" style={{ width: dot, height: dot }} />
 				</button>
 			))}
 

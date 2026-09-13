@@ -189,12 +189,13 @@ export function WorktreesSettings() {
 				<SectionTitle>{t("worktrees.active")}</SectionTitle>
 				<button
 					type="button"
+					data-ly-tip={translate("common.refresh")}
+					aria-label={translate("common.refresh")}
 					onClick={() => void refreshList()}
 					disabled={refreshing}
-					className="flex items-center gap-1 text-detail text-ink-muted hover:text-ink"
+					className="grid h-6 w-6 place-items-center rounded text-ink-muted hover:text-ink"
 				>
-					{refreshing ? <Spinner size={12} /> : <RefreshCw size={12} />}
-					{translate("common.refresh")}
+					{refreshing ? <Spinner size={12} /> : <RefreshCw size={12} aria-hidden />}
 				</button>
 			</div>
 			{worktrees.length === 0 ? (

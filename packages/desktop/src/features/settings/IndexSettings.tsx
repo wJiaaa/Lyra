@@ -77,12 +77,9 @@ export function IndexSettings() {
 											setBuilding(false);
 										}
 									}}
-								>
-									<span className="flex items-center gap-1.5">
-										{building ? <Spinner size={11} /> : <RefreshCw size={11} strokeWidth={2} />}
-										{building ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
-									</span>
-								</GhostButton>
+									title={building ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
+									icon={building ? <Spinner size={11} /> : <RefreshCw size={11} strokeWidth={2} />}
+								/>
 							}
 						/>
 						<Row

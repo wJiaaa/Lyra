@@ -49,7 +49,7 @@ test("Confirm: 焦点在取消上，不在那个不可逆的按钮上", async ()
 	assert.equal(buttons.length, 2, "两个出口：取消与执行");
 	const [cancel, confirm] = buttons;
 
-	assert.equal(cancel!.textContent, "取消");
+	assert.equal(cancel!.getAttribute("aria-label"), "取消");
 	// The shell owns focus so short dialogs do not scroll past their title at mount.
 	assert.equal(document.activeElement, cancel, "取消必须持有焦点");
 	assert.notEqual(document.activeElement, confirm, "焦点不能落在不可逆的那一半上");
@@ -101,7 +101,7 @@ test("Confirm: 没有 detail 时不留空段落", async () => {
 test("Confirm: 已经按下的确认，不会被卸载改判", async () => {
 	let done = 0;
 	const view = await mount(h(Confirm, { title: "删掉？", confirmLabel: "删", onConfirm: () => { done++; }, onCancel: () => {} }));
-	const confirm = [...document.querySelectorAll("[data-ly-modal] button")].find((each) => each.textContent === "删");
+	const confirm = [...document.querySelectorAll("[data-ly-modal] button")].find((each) => (each.getAttribute("aria-label") ?? each.textContent) === "删");
 	assert.ok(confirm);
 	await click(confirm);
 	assert.equal(done, 0, "动画还在播，还没轮到它");
@@ -138,7 +138,7 @@ async function askThroughGate() {
 
 test("useConfirmGate: 按下确认后被卸载，await 拿到的是 true", async () => {
 	const { view, box } = await askThroughGate();
-	const confirm = [...document.querySelectorAll("[data-ly-modal] button")].find((each) => each.textContent === "删");
+	const confirm = [...document.querySelectorAll("[data-ly-modal] button")].find((each) => (each.getAttribute("aria-label") ?? each.textContent) === "删");
 	assert.ok(confirm);
 
 	await click(confirm);

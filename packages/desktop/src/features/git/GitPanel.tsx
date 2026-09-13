@@ -515,11 +515,10 @@ export function GitPanel() {
                 true,
               );
           }}
-          className="mt-3 flex h-[28px] items-center gap-1.5 rounded-md bg-ink px-3 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40"
-        >
-          <Sparkles size={13} strokeWidth={2} />
-          {t("gitPanel.diagnose")}
-        </button>
+          className="grid place-items-center mt-3 h-[28px] rounded-md bg-ink text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40 w-[28px]"
+			data-ly-tip={t("gitPanel.diagnose")}
+			aria-label={t("gitPanel.diagnose")}
+		><Sparkles size={13} strokeWidth={2} /></button>
       </PanelEmpty>
     );
   }
@@ -538,11 +537,10 @@ export function GitPanel() {
                 if (ok) setRescan((n) => n + 1);
               });
             }}
-            className="flex h-[28px] items-center gap-1.5 rounded-md bg-ink px-3 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40"
-          >
-            <GitBranch size={13} strokeWidth={1.8} />
-            {t("gitPanel.initRepo")}
-          </button>
+            className="grid place-items-center h-[28px] rounded-md bg-ink text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-40 w-[28px]"
+			data-ly-tip={t("gitPanel.initRepo")}
+			aria-label={t("gitPanel.initRepo")}
+		><GitBranch size={13} strokeWidth={1.8} /></button>
           <button
             type="button"
             disabled={busy}
@@ -554,11 +552,10 @@ export function GitPanel() {
                   true,
                 );
             }}
-            className="flex h-[28px] items-center gap-1.5 rounded-md border border-line bg-card px-3 text-detail font-medium text-ink transition-colors hover:bg-card-hover disabled:opacity-40"
-          >
-            <Sparkles size={13} strokeWidth={2} className="text-accent" />
-            {t("gitPanel.letAgent")}
-          </button>
+            className="grid place-items-center h-[28px] rounded-md border border-line bg-card text-detail font-medium text-ink transition-colors hover:bg-card-hover disabled:opacity-40 w-[28px]"
+			data-ly-tip={t("gitPanel.letAgent")}
+			aria-label={t("gitPanel.letAgent")}
+		><Sparkles size={13} strokeWidth={2} className="text-accent" /></button>
         </div>
       </PanelEmpty>
     );

@@ -1,6 +1,6 @@
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import type { McpServerConfig } from "@lyra/core";
-import { Cable } from "lucide-react";
+import { Cable, Check, Plus } from "lucide-react";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { useEffect, useState } from "react";
@@ -119,9 +119,9 @@ export function McpSettings({ filter = "" }: { filter?: string }) {
 							<GhostButton
 								disabled={installed}
 								onClick={() => void saveSettings({ ...settings, mcpServers: [...settings.mcpServers, entry.server] })}
-							>
-								{installed ? t("mcp.added") : t("mcp.add")}
-							</GhostButton>
+								title={installed ? t("mcp.added") : t("mcp.add")}
+								icon={installed ? <Check size={13} strokeWidth={2.2} /> : <Plus size={13} strokeWidth={2} />}
+							/>
 						</div>
 					);
 				})}

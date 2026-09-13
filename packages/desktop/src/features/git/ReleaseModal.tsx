@@ -2,13 +2,13 @@ import { Input, Textarea } from "../../ui/inputs/NativeField.tsx";
 import {
 	Check,
 	CheckCircle2,
-	ChevronRight,
 	Edit3,
 	Eye,
 	ExternalLink,
 	Globe,
 	Play,
 	RefreshCw,
+	Rocket,
 	Tag,
 	Info,
 	X,
@@ -219,10 +219,12 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 							</p>
 							<button
 								type="button"
+								data-ly-tip={t("common.done")}
+								aria-label={t("common.done")}
 								onClick={() => dismiss()}
-								className="mt-2 rounded-lg bg-ink px-4 py-1.5 text-detail font-medium text-shell hover:opacity-90 cursor-pointer"
+								className="mt-2 grid h-8 w-8 place-items-center rounded-lg bg-ink text-shell hover:opacity-90 cursor-pointer mx-auto"
 							>
-								{t("common.done")}
+								<Check size={14} strokeWidth={2.2} aria-hidden />
 							</button>
 						</div>
 					)}
@@ -370,22 +372,17 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 									</div>
 									<button
 										type="button"
+										data-ly-tip={triggeringDryRun ? t("release.triggering") : dryRunStatus?.status === "in_progress" ? t("release.building") : t("release.triggerDryRun")}
+										aria-label={triggeringDryRun ? t("release.triggering") : dryRunStatus?.status === "in_progress" ? t("release.building") : t("release.triggerDryRun")}
 										onClick={handleTriggerDryRun}
 										disabled={triggeringDryRun || dryRunStatus?.status === "in_progress"}
-										className="flex h-6 items-center gap-1.5 rounded-md border border-line bg-card px-2.5 text-micro font-medium text-ink hover:bg-card-hover transition-colors cursor-pointer disabled:opacity-50"
+										className="grid h-6 w-6 place-items-center rounded-md border border-line bg-card text-ink hover:bg-card-hover transition-colors cursor-pointer disabled:opacity-50"
 									>
 										{triggeringDryRun ? (
 											<Spinner size={11} className="text-ink-muted" />
 										) : (
-											<Play size={11} strokeWidth={2.2} className="text-accent" />
+											<Play size={11} strokeWidth={2.2} className="text-accent" aria-hidden />
 										)}
-										<span>
-											{triggeringDryRun
-												? t("release.triggering")
-												: dryRunStatus?.status === "in_progress"
-													? t("release.building")
-													: t("release.triggerDryRun")}
-										</span>
 									</button>
 								</div>
 
@@ -462,27 +459,25 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 						<div className="flex items-center gap-2">
 							<button
 								type="button"
+								data-ly-tip={t("common.cancel")}
+								aria-label={t("common.cancel")}
 								onClick={() => dismiss()}
-								className="rounded-lg px-3 py-1.5 text-detail text-ink-muted hover:bg-card-hover hover:text-ink transition-colors cursor-pointer"
+								className="grid h-8 w-8 place-items-center rounded-lg text-ink-muted hover:bg-card-hover hover:text-ink transition-colors cursor-pointer"
 							>
-								{t("common.cancel")}
+								<X size={14} strokeWidth={2} aria-hidden />
 							</button>
 							<button
 								type="button"
+								data-ly-tip={publishing ? t("release.publishing") : t("release.publish")}
+								aria-label={publishing ? t("release.publishing") : t("release.publish")}
 								onClick={handlePublish}
 								disabled={publishing || !currentTargetVersion}
-								className="flex items-center gap-1.5 rounded-lg bg-ink px-4 py-1.5 text-detail font-medium text-shell hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+								className="grid h-8 w-8 place-items-center rounded-lg bg-ink text-shell hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
 							>
 								{publishing ? (
-									<>
-										<Spinner size={13} />
-										<span>{t("release.publishing")}</span>
-									</>
+									<Spinner size={13} />
 								) : (
-									<>
-										<span>{t("release.publish")}</span>
-										<ChevronRight size={13} />
-									</>
+									<Rocket size={14} strokeWidth={1.9} aria-hidden />
 								)}
 							</button>
 						</div>

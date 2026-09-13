@@ -22,7 +22,7 @@ test("delete targets its own row, cancel is inert, and failure keeps the definit
 	const view = await mount(h(Example));
 	const button = () => view.find<HTMLButtonElement>('[aria-label="删除命令 same"]');
 	const modalButton = (text: string) => {
-		const button = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === text);
+		const button = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => (button.getAttribute("aria-label") ?? button.textContent) === text);
 		assert.ok(button); return button;
 	};
 	try {

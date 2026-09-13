@@ -187,11 +187,10 @@ export function PullRequestsView() {
 						<button
 							type="button"
 							onClick={pr.clearSelection}
-							className="ly-item flex h-9 shrink-0 items-center gap-1.5 px-3 text-label text-ink-muted"
-						>
-							<ArrowLeft size={13.5} strokeWidth={1.9} />
-							{translate("prView.all")}
-						</button>
+							className="grid place-items-center ly-item h-9 shrink-0 text-label text-ink-muted w-9"
+			data-ly-tip={translate("prView.all")}
+			aria-label={translate("prView.all")}
+		><ArrowLeft size={13.5} strokeWidth={1.9} /></button>
 						{detail}
 					</>
 				) : (

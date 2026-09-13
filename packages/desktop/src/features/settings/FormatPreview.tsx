@@ -22,7 +22,8 @@ import { translate } from "../../i18n/translate.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import { macKeyboard } from "../../ui/keyboard.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, RotateCcw, Wand2 } from "lucide-react";
+import { RotateCcw, Wand2 } from "lucide-react";
+import { Caret } from "../../ui/primitives/Caret.tsx";
 
 import { LanguageIcon, preloadLanguageMarks } from "../../ui/primitives/LanguageIcon.tsx";
 import { pairWords, travels, type Spot } from "./magic-move.ts";
@@ -250,9 +251,8 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 				<LanguagePicker entry={entry} onPick={pick} />
 				<div className="flex shrink-0 items-center gap-1">
 					{edited && (
-						<CodeButton onClick={restore} tip={t("formatPreview.restore")}>
+						<CodeButton onClick={restore} tip={`${translate("formatPreview.revert")} · ${t("formatPreview.restore")}`}>
 							<RotateCcw size={11} strokeWidth={2} />
-							{translate("formatPreview.revert")}
 						</CodeButton>
 					)}
 					<CodeButton
@@ -263,15 +263,14 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 						 * language's own tool for the rest. A tool that is missing from the machine
 						 * says so when pressed, which is more use than a button that cannot be pressed.
 						 */
-						tip={
+						tip={`${translate("common.format")} · ${
 							entry.formatter === "prettier"
 								? t("formatPreview.run")
 								: t("formatPreview.tool", { label: entry.label, tool: entry.tool ?? "", shortcut: macKeyboard() ? "⇧⌘F" : "Shift+Alt+F" })
-						}
+						}`}
 						primary
 					>
 						<Wand2 size={11} strokeWidth={2} />
-						{translate("common.format")}
 					</CodeButton>
 				</div>
 			</div>
@@ -374,7 +373,7 @@ function CodeButton({
 			onClick={onClick}
 			disabled={disabled}
 			data-ly-tip={tip}
-			className="flex h-[22px] items-center gap-1 rounded-md px-1.5 text-detail transition-colors disabled:cursor-default"
+			className="grid h-[22px] w-[22px] place-items-center rounded-md transition-colors disabled:cursor-default"
 			style={{
 				color: disabled
 					? "color-mix(in srgb, var(--ly-code-fg) 34%, var(--ly-code-bg))"
@@ -415,6 +414,16 @@ function LanguagePicker({ entry, onPick }: { entry: LanguageEntry; onPick: (next
 			<button
 				type="button"
 				onClick={menu.toggle}
+				/*
+				 * 它开的是一张单子，说出来。
+				 *
+				 * 按钮上写的是**当前**这门语言，不是它叫什么——读屏读到「TypeScript .ts」，听不出
+				 * 按下去会怎样。`aria-haspopup` 加上 `aria-label` 才把两件事分开：名字是「选择
+				 * 语言」，内容是现在选的那个。
+				 */
+				aria-haspopup="listbox"
+				aria-expanded={menu.open}
+				aria-label={t("formatPreview.pickLanguage")}
 				// Warm the marks on the press, so the list paints with them rather than filling in after.
 				onPointerDown={preloadLanguageMarks}
 				className="flex h-[24px] shrink-0 items-center gap-1.5 rounded-md px-1.5 text-label transition-colors"
@@ -439,7 +448,7 @@ function LanguagePicker({ entry, onPick }: { entry: LanguageEntry; onPick: (next
 				>
 					.{entry.aliases[0]}
 				</span>
-				<ChevronDown size={13} strokeWidth={1.8} style={{ color: "color-mix(in srgb, var(--ly-code-fg) 50%, var(--ly-code-bg))" }} />
+				<Caret open={menu.open} size={13} strokeWidth={1.8} style={{ color: "color-mix(in srgb, var(--ly-code-fg) 50%, var(--ly-code-bg))" }} />
 			</button>
 
 			{menu.open && (

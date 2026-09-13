@@ -13,7 +13,6 @@ import {
 	AlertCircle,
 	ArrowLeft,
 	CheckCircle2,
-	ChevronDown,
 	ChevronRight,
 	Clock,
 	ExternalLink,
@@ -23,6 +22,7 @@ import {
 	Tag,
 	XCircle,
 } from "lucide-react";
+import { Caret } from "../../ui/primitives/Caret.tsx";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkflowRunStatus, WorkflowRunSummary } from "../../../electron/ipc-types.ts";
@@ -379,7 +379,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 													)}
 													{hasSteps && (
 														<span className="text-ink-faint">
-															{isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+															<Caret open={isExpanded} from="right" size={14} strokeWidth={2} />
 														</span>
 													)}
 												</div>

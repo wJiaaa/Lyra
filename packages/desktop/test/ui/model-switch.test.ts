@@ -101,7 +101,7 @@ test("会话中途确认切换，模型真的换掉", async () => {
 		assert.ok(dialog, "中途换模型要先问一句");
 		assert.match(dialog.textContent ?? "", /确定要中途切换模型吗？/);
 
-		const confirm = [...dialog.querySelectorAll("button")].find((each) => each.textContent === "确认切换");
+		const confirm = [...dialog.querySelectorAll("button")].find((each) => (each.getAttribute("aria-label") ?? each.textContent) === "确认切换");
 		assert.ok(confirm, "确认框上应该有「确认切换」");
 
 		// 完整回放：按下、菜单那 120ms 的卸载定时器跑完、确认框的退场动画播完。
@@ -136,7 +136,7 @@ test("菜单在退场动画播完前就消失，确认过的切换照样发生",
 
 	try {
 		await pressButton(document.querySelector('[data-model="qa/1"] button')!);
-		const confirm = [...document.querySelectorAll("[data-ly-modal] button")].find((each) => each.textContent === "确认切换");
+		const confirm = [...document.querySelectorAll("[data-ly-modal] button")].find((each) => (each.getAttribute("aria-label") ?? each.textContent) === "确认切换");
 		assert.ok(confirm);
 		await pressButton(confirm);
 		assert.deepEqual(picked, [], "动画还在播的时候还没轮到它");
@@ -187,7 +187,7 @@ test("取消不换模型，也不留下没答完的问题", async () => {
 		await pressButton(document.querySelector('[data-model="qa/1"] button')!);
 		const dialog = document.querySelector("[data-ly-modal]");
 		assert.ok(dialog);
-		const cancel = [...dialog.querySelectorAll("button")].find((each) => each.textContent === "取消");
+		const cancel = [...dialog.querySelectorAll("button")].find((each) => (each.getAttribute("aria-label") ?? each.textContent) === "取消");
 		assert.ok(cancel);
 		await pressButton(cancel);
 		await new Promise((resolve) => setTimeout(resolve, 200));
@@ -215,7 +215,7 @@ test("换模型失败要说出来，而不是静悄悄退回去", async () => {
 
 	try {
 		await pressButton(document.querySelector('[data-model="qa/1"] button')!);
-		const confirm = [...document.querySelectorAll("[data-ly-modal] button")].find((each) => each.textContent === "确认切换");
+		const confirm = [...document.querySelectorAll("[data-ly-modal] button")].find((each) => (each.getAttribute("aria-label") ?? each.textContent) === "确认切换");
 		assert.ok(confirm);
 		await pressButton(confirm);
 		await new Promise((resolve) => setTimeout(resolve, 200));
@@ -255,7 +255,7 @@ test("确认框被卸载时，已经答应的那次确认照样兑现", async ()
 	// `Overlay` 自己的保证，与菜单无关：任何「按下确认后组件就消失」的地方都靠它兜底。
 	let done = 0;
 	const view = await mount(h(Confirm, { title: "删掉？", confirmLabel: "删", onConfirm: () => { done++; }, onCancel: () => {} }));
-	const confirm = [...document.querySelectorAll("[data-ly-modal] button")].find((each) => each.textContent === "删");
+	const confirm = [...document.querySelectorAll("[data-ly-modal] button")].find((each) => (each.getAttribute("aria-label") ?? each.textContent) === "删");
 	assert.ok(confirm);
 	await fire(confirm, new MouseEvent("click", { bubbles: true, cancelable: true }));
 	assert.equal(done, 0, "动画还在播的时候不该已经做完");

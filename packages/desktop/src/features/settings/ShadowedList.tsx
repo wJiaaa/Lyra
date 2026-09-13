@@ -14,7 +14,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import type { DiffHunk } from "@lyra/core";
-import { Layers } from "lucide-react";
+import { ArrowLeftRight, Eye, EyeOff, Layers } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Card } from "./controls.tsx";
@@ -137,12 +137,12 @@ function Row({
 					<span className="font-mono">{entry.path}</span> {t("shadowed.byPrefix", { where: entry.byLabel })}{" "}
 						<span className="font-mono">{entry.by}</span> {t("shadowed.bySuffix")}
 				</span>
-				<button type="button" data-shadowed-diff onClick={() => void toggle()} className={link}>
-					{t(open ? "shadowed.hideDiff" : "shadowed.showDiff")}
+				<button type="button" data-shadowed-diff data-ly-tip={t(open ? "shadowed.hideDiff" : "shadowed.showDiff")} aria-label={t(open ? "shadowed.hideDiff" : "shadowed.showDiff")} onClick={() => void toggle()} className={`${link} inline-grid h-5 w-5 place-items-center rounded`}>
+					{open ? <EyeOff size={12} strokeWidth={1.9} aria-hidden /> : <Eye size={12} strokeWidth={1.9} aria-hidden />}
 				</button>
 				{/* Still offered after a switch: by then this row is the other file, and this is the way back. */}
-				<button type="button" data-shadowed-prefer disabled={busy} onClick={() => void switchTo()} className={link}>
-					{t("shadowed.useThat")}
+				<button type="button" data-shadowed-prefer data-ly-tip={t("shadowed.useThat")} aria-label={t("shadowed.useThat")} disabled={busy} onClick={() => void switchTo()} className={`${link} inline-grid h-5 w-5 place-items-center rounded`}>
+					<ArrowLeftRight size={12} strokeWidth={1.9} aria-hidden />
 				</button>
 			</div>
 			{/* Where it went, so it can be found again — and undone, which is the same button, now on this row. */}

@@ -11,7 +11,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { ChevronsDownUp, FilePlus2, FolderPlus, X } from "lucide-react";
+import { ChevronsDownUp, FilePlus2, Filter, FolderPlus, X } from "lucide-react";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
@@ -309,11 +309,20 @@ export function FileTree({
 			{tree.scope && (
 				<button
 					type="button"
+					data-ly-tip={t("fileTree.onlyThis", { name: baseName(tree.scope) })}
+					aria-label={t("fileTree.onlyThis", { name: baseName(tree.scope) })}
 					onClick={() => tree.setScope(null)}
 					className="mx-1 mb-1 flex h-[20px] shrink-0 items-center gap-1 rounded-md bg-accent/12 px-1.5 text-caption text-accent transition-colors hover:bg-accent/20"
 				>
-					<span className="min-w-0 truncate">{t("fileTree.onlyThis", { name: baseName(tree.scope) })}</span>
-					<X size={9.5} strokeWidth={2.4} className="shrink-0" />
+					{/*
+					 * 文件夹名留着，「只看…」那三个字进 tooltip。
+					 *
+					 * 这一行说的是两件事：**范围缩到哪儿了**，和**怎么退出来**。后者是叉，前者是名字——
+					 * 而名字不是这颗按钮的标签，是它此刻的内容，换成图标就等于不说了。
+					 */}
+					<Filter size={9.5} strokeWidth={2.2} className="shrink-0" aria-hidden />
+					<span className="min-w-0 truncate">{baseName(tree.scope)}</span>
+					<X size={9.5} strokeWidth={2.4} className="shrink-0" aria-hidden />
 				</button>
 			)}
 

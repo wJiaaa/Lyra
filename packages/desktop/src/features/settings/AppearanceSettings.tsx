@@ -108,6 +108,14 @@ export function AppearanceSettings() {
 					<button
 						key={theme}
 						type="button"
+						/*
+						 * 三张卡片是一组互斥的选择，说出来。
+						 *
+						 * 选中的那张只靠一圈描边表示，读屏读到的是三个一模一样的按钮，听不出哪张是
+						 * 现在这张。`aria-pressed` 是这一组本来就欠着的标记——顺带也让「按钮该不该
+						 * 图标化」这个问题有了答案：它不是按钮，是一排单选。
+						 */
+						aria-pressed={appearance.theme === theme}
 						onClick={() => patch({ theme })}
 						className={`rounded-[12px] border p-1.5 text-center transition-all duration-[var(--ly-t-base)] ${
 							appearance.theme === theme

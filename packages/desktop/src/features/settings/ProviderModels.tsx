@@ -11,7 +11,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Check, CircleAlert, CloudDownload, Link2, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { Activity, Check, CircleAlert, CloudDownload, Link2, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { Spinner } from "../../ui/motion/loaders.tsx";
 import type { ModelConfig } from "@lyra/core";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
@@ -72,20 +72,23 @@ export function ProviderModels({
 							type="button"
 							onClick={onFetchModels}
 							disabled={fetchingModels || testing}
-							data-ly-tip={t("providerModels.fetchDetail")}
-							className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50 cursor-pointer"
+							data-ly-tip={`${fetchingModels ? t("providerModels.fetching") : t("providerModels.fetch")} · ${t("providerModels.fetchDetail")}`}
+							aria-label={fetchingModels ? t("providerModels.fetching") : t("providerModels.fetch")}
+							className="grid h-7 w-7 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50 cursor-pointer"
 						>
 							{fetchingModels ? (
 								<Spinner size={13} className="text-accent" />
 							) : (
-								<CloudDownload size={13.5} strokeWidth={1.8} />
+								<CloudDownload size={13.5} strokeWidth={1.8} aria-hidden />
 							)}
-							<span>{fetchingModels ? t("providerModels.fetching") : t("providerModels.fetch")}</span>
 						</button>
 					)}
-					<GhostButton onClick={onTest} disabled={testing || !!testingModelId || fetchingModels}>
-						<span>{testing ? t("providerModels.testing") : t("providerModels.testAll")}</span>
-					</GhostButton>
+					<GhostButton
+						onClick={onTest}
+						disabled={testing || !!testingModelId || fetchingModels}
+						title={testing ? t("providerModels.testing") : t("providerModels.testAll")}
+						icon={testing ? <Spinner size={13} /> : <Activity size={13} strokeWidth={1.9} />}
+					/>
 				</div>
 			</div>
 
@@ -114,11 +117,10 @@ export function ProviderModels({
 				<button
 					type="button"
 					onClick={() => onEdit(null)}
-					className="flex h-[38px] items-center gap-2 rounded-[10px] border border-line px-3 text-label text-ink-muted transition-colors hover:border-ink-faint hover:text-ink cursor-pointer"
-				>
-					<Plus size={14} strokeWidth={1.9} />
-					{translate("providerModels.add")}
-				</button>
+					className="grid place-items-center h-[38px] rounded-[10px] border border-line text-label text-ink-muted transition-colors hover:border-ink-faint hover:text-ink cursor-pointer w-[38px]"
+			data-ly-tip={translate("providerModels.add")}
+			aria-label={translate("providerModels.add")}
+		><Plus size={14} strokeWidth={1.9} /></button>
 			</div>
 
 			{testResult && <TestOutcome result={testResult} />}

@@ -23,6 +23,6 @@ test("a failed definition save retains the draft across navigation and never rep
 		await view.rerender(null); await view.rerender(h(AgentDefinitionEditor, props));
 		assert.equal(view.find<HTMLTextAreaElement>('[aria-label="智能体指令"]').value, "Unsaved instructions");
 		await click(view.find('[aria-label="返回智能体"]'));
-		const discard = view.all("button").find(button => button.textContent === "放弃修改"); assert.ok(discard); await click(discard);
+		const discard = view.all("button").find(button => (button.getAttribute("aria-label") ?? button.textContent) === "放弃修改"); assert.ok(discard); await click(discard);
 	} finally { await view.unmount(); if (previous) Object.defineProperty(window, "lyra", previous); else Reflect.deleteProperty(window, "lyra"); }
 });

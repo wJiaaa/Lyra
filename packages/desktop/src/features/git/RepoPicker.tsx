@@ -1,7 +1,8 @@
 /**
  * Which repository the panel is looking at.
  */
-import { Check, ChevronDown, Folder, GitBranchPlus } from "lucide-react";
+import { Check, Folder, GitBranchPlus } from "lucide-react";
+import { Caret } from "../../ui/primitives/Caret.tsx";
 
 import type { RepoRef } from "../../../electron/git.ts";
 
@@ -68,7 +69,7 @@ export function RepoPicker({
           {repos.length}
           {total > repos.length && <span className="pl-1">+{total - repos.length}</span>}
         </Text>
-        <ChevronDown size={12} strokeWidth={1.9} className="shrink-0 text-ink-faint" />
+        <Caret open={menu.open} size={12} strokeWidth={1.9} className="text-ink-faint" />
       </button>
 
       {menu.open && (

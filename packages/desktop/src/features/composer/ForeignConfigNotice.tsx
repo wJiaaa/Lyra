@@ -17,7 +17,8 @@
 import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { ForeignConfigLine } from "@lyra/core";
-import { Blocks, ChevronDown, X } from "lucide-react";
+import { Blocks, X } from "lucide-react";
+import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useEffect, useState } from "react";
 import { joinPath } from "../../lib/paths.ts";
 import { bridge } from "../../services/index.ts";
@@ -164,10 +165,17 @@ export function ForeignConfigBanner({
 				data-foreign-config-look
 				aria-haspopup={places > 1 ? "menu" : undefined}
 				aria-expanded={places > 1 ? menu.open : undefined}
-				className="flex shrink-0 items-center gap-0.5 text-caption text-ink-muted underline-offset-2 transition-colors duration-[var(--ly-t-quick)] hover:text-ink hover:underline"
+				className="flex h-5 shrink-0 items-center gap-0.5 rounded px-1 text-caption text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 			>
+				{/*
+				 * 这颗在句子末尾，留字。
+				 *
+				 * 几个地方用着别人的配置——后面跟一个「查看」。换成一枚眼睛图标之后，那句话的结尾
+				 * 突然变成一个符号，读起来像话说了一半；而它多数时候还会展开一张单子，那就更该
+				 * 说清楚按下去会发生什么。箭头只在真有单子可展开时出现，并跟着开合转身。
+				 */}
 				{t("common.look")}
-				{places > 1 && <ChevronDown size={11} strokeWidth={2} className="opacity-70" />}
+				{places > 1 && <Caret open={menu.open} size={11} className="opacity-70" />}
 			</button>
 			<button
 				type="button"

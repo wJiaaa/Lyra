@@ -20,7 +20,8 @@
  */
 
 import type { BundleKind, Skill } from "@lyra/core";
-import { Blocks, Cable, ChevronDown, RefreshCw, Settings as SettingsIcon, Sparkles, Store } from "lucide-react";
+import { Blocks, Cable, Plus, RefreshCw, Settings as SettingsIcon, Sparkles, Store } from "lucide-react";
+import { Caret } from "../../ui/primitives/Caret.tsx";
 import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useMemo, useState } from "react";
 
@@ -219,7 +220,14 @@ export function PluginsView() {
 			<header
 				className="relative z-50 flex h-11 shrink-0 items-center gap-1 px-3"
 			>
-				<div className="no-drag flex items-center gap-1">
+				{/*
+				 * 三个 tab，说出来它们是三个 tab。
+				 *
+				 * 光看样式已经是一条 tab 条了——选中的那个有底色——但 DOM 上是三个平的按钮，读屏读到
+				 * 三个名字，听不出它们互斥、也听不出现在在哪一个。补上 `tablist`/`tab` 之后，键盘和
+				 * 读屏才拿到这层结构。
+				 */}
+				<div className="no-drag flex items-center gap-1" role="tablist" aria-label={t("common.plugins")}>
 					{(
 						[
 							{ id: "plugins" as const, label: t("common.plugins"), icon: Blocks },
@@ -230,6 +238,8 @@ export function PluginsView() {
 						<button
 							key={entry.id}
 							type="button"
+							role="tab"
+							aria-selected={tab === entry.id}
 							onClick={() => {
 								setTab(entry.id);
 								// The two scopes are counted per kind, so a choice made under one tab
@@ -258,15 +268,23 @@ export function PluginsView() {
 					>
 						<SettingsIcon size={13.5} strokeWidth={1.8} />
 					</HeaderButton>
+					{/*
+					 * 这颗留着字。
+					 *
+					 * 它不做事，它开一张单子——单子里有三四个去处，按钮本身只是入口。剩一个光箭头的
+					 * 话，入口通向哪儿要按下去才知道；而箭头这时也就只剩装饰，因为「有东西会展开」
+					 * 这件事已经由那张单子自己说了。字在左、箭头在右，开的时候箭头转过去，这一下
+					 * 转身就是它和普通按钮的全部区别。
+					 */}
 					<button
 						type="button"
 						onClick={add.toggle}
 						aria-haspopup="menu"
 						aria-expanded={add.open}
-						className="ml-1 flex h-[26px] items-center gap-1.5 rounded-lg bg-ink px-2.5 text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
+						className="ml-1 flex h-[26px] items-center gap-1 rounded-lg bg-ink px-2.5 text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
 					>
 						{t("mcp.add")}
-						<ChevronDown size={12} strokeWidth={2} />
+						<Caret open={add.open} size={12} />
 					</button>
 				</div>
 			</header>
@@ -610,10 +628,12 @@ function Empty({
 			</p>
 			<button
 				type="button"
+				data-ly-tip={sources === 0 ? t("market.addRegistry") : t("market.manageRegistry")}
+				aria-label={sources === 0 ? t("market.addRegistry") : t("market.manageRegistry")}
 				onClick={onAddSource}
-				className="mt-4 h-8 rounded-lg bg-ink px-3.5 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
+				className="mx-auto mt-4 grid h-8 w-8 place-items-center rounded-lg bg-ink text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
 			>
-				<RollingText>{sources === 0 ? t("market.addRegistry") : t("market.manageRegistry")}</RollingText>
+				{sources === 0 ? <Plus size={15} strokeWidth={2} aria-hidden /> : <SettingsIcon size={15} strokeWidth={1.9} aria-hidden />}
 			</button>
 		</div>
 	);

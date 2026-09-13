@@ -1,4 +1,4 @@
-import { Check, Copy, QrCode, RotateCw, Smartphone } from "lucide-react";
+import { Check, Copy, Globe, QrCode, RotateCw, Smartphone } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useMemo, useState } from "react";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
@@ -158,10 +158,12 @@ export function SyncSettings() {
 									<div className="text-detail text-ink-faint">{t("sync.addressSource")}</div>
 									<button
 										type="button"
+										data-ly-tip={t("sync.useRemote")}
+										aria-label={t("sync.useRemote")}
 										onClick={() => setRemoteOpen((open) => !open)}
-										className="shrink-0 cursor-pointer text-detail text-info transition-opacity hover:opacity-80"
+										className="grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded text-info transition-opacity hover:opacity-80"
 									>
-										{t("sync.useRemote")}
+										<Globe size={13} strokeWidth={1.9} aria-hidden />
 									</button>
 								</div>
 
@@ -243,12 +245,9 @@ export function SyncSettings() {
 												onClick={() => {
 													void bridge.sync.rotateToken().then(() => void refreshSync());
 												}}
-											>
-												<span className="flex items-center gap-1.5">
-													<RotateCw size={11} strokeWidth={2} />
-													{t("common.reset")}
-												</span>
-											</GhostButton>
+												title={t("common.reset")}
+												icon={<RotateCw size={11} strokeWidth={2} />}
+											/>
 										</div>
 										<div className="flex items-center gap-2 rounded-[10px] border border-line bg-input px-3.5 py-2.5">
 											<span className="min-w-0 flex-1 truncate font-mono text-label text-ink">{sync?.token}</span>

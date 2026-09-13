@@ -2,6 +2,7 @@ import { Input } from "../../ui/inputs/NativeField.tsx";
 import {
 	Archive,
 	ArchiveRestore,
+	Check,
 	Copy,
 	ExternalLink,
 	Folder,
@@ -10,6 +11,7 @@ import {
 	Pin,
 	PinOff,
 	Trash2,
+	X,
 } from "lucide-react";
 import { useState } from "react";
 import type { SessionMeta } from "@lyra/core";
@@ -79,17 +81,21 @@ export function SessionMenu({
 					<div className="flex justify-end gap-1.5 pt-2.5">
 						<button
 							type="button"
+							data-ly-tip={t("common.cancel")}
+							aria-label={t("common.cancel")}
 							onClick={() => setMode("menu")}
-							className="h-7 rounded-lg px-2.5 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+							className="grid h-7 w-7 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
-							{t("common.cancel")}
+							<X size={13} strokeWidth={2} aria-hidden />
 						</button>
 						<button
 							type="submit"
+							data-ly-tip={t("common.save")}
+							aria-label={t("common.save")}
 							disabled={!draft.trim()}
-							className="h-7 rounded-lg bg-ink px-2.5 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-45"
+							className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity hover:opacity-90 disabled:opacity-45"
 						>
-							{t("common.save")}
+							<Check size={13} strokeWidth={2.2} aria-hidden />
 						</button>
 					</div>
 				</form>

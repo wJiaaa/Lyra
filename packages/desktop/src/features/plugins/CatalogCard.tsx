@@ -158,15 +158,13 @@ export function CatalogCard({
 												: t("catalogCard.updateToLatest")
 										}
 									onClick={() => void act.update()}
-									className="pointer-events-auto flex h-[26px] items-center gap-1 rounded-lg bg-accent/12 px-2 text-detail font-medium text-accent transition-opacity duration-[var(--ly-t-quick)] hover:opacity-80 disabled:opacity-50"
-								>
-									{act.busy === "update" ? (
+									className="grid place-items-center pointer-events-auto h-[26px] rounded-lg bg-accent/12 text-detail font-medium text-accent transition-opacity duration-[var(--ly-t-quick)] hover:opacity-80 disabled:opacity-50 w-[26px]"
+			aria-label={t("common.update")}
+		>{act.busy === "update" ? (
 										<Spinner size={11.5} />
 									) : (
 										<ArrowUp size={11.5} strokeWidth={2.2} />
-									)}
-									{t("common.update")}
-								</button>
+									)}</button>
 							)}
 
 							{switchable && <Switch on={isEnabled(item)} label={item.name} onChange={(next) => onToggle(next)} />}
@@ -192,15 +190,14 @@ export function CatalogCard({
 										type="button"
 										disabled={act.busy !== null}
 										onClick={() => void act.install()}
-										className="pointer-events-auto flex h-[26px] items-center gap-1.5 rounded-lg border border-line bg-shell/80 px-2.5 text-detail text-ink-muted transition-[color,border-color,opacity] duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink disabled:opacity-50"
-									>
-										{act.busy === "install" ? (
+										className="grid place-items-center pointer-events-auto h-[26px] rounded-lg border border-line bg-shell/80 text-detail text-ink-muted transition-[color,border-color,opacity] duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink disabled:opacity-50 w-[26px]"
+			data-ly-tip={t("common.install")}
+			aria-label={t("common.install")}
+		>{act.busy === "install" ? (
 											<Spinner size={11.5} />
 										) : (
 											<Download size={11.5} strokeWidth={1.9} />
-										)}
-										{t("common.install")}
-									</button>
+										)}</button>
 								)
 							)}
 						</div>
@@ -325,8 +322,9 @@ function Switch({ on, label, onChange }: { on: boolean; label: string; onChange:
 				on ? "bg-ok" : "bg-line"
 			}`}
 		>
+			{/* 跟设置页那颗开关同一条曲线、同一个时长——两处是同一个手势，不该有两种手感。 */}
 			<span
-				className={`h-[12px] w-[12px] rounded-full bg-shell transition-transform duration-[var(--ly-t-quick)] ${
+				className={`h-[12px] w-[12px] rounded-full bg-shell transition-transform duration-[var(--ly-t-base)] ease-[var(--ly-e-out)] ${
 					on ? "translate-x-[12px]" : "translate-x-0"
 				}`}
 			/>

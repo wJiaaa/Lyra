@@ -15,7 +15,8 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ExternalLink, X } from "lucide-react";
+import { ExternalLink, ShieldCheck, X } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useState } from "react";
 import type { ForgeKind, ForgeKindInfo } from "../../../electron/ipc-types.ts";
 import { useAccountActions } from "../pull-requests/index.ts";
@@ -126,11 +127,12 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 						{help && (
 							<button
 								type="button"
+								data-ly-tip={translate("forgeSignIn.create")}
+								aria-label={translate("forgeSignIn.create")}
 								onClick={() => void bridge.system.openExternal(help)}
-								className="flex items-center gap-0.5 text-caption text-ink-faint transition-colors hover:text-ink"
+								className="grid h-5 w-5 place-items-center rounded text-ink-faint transition-colors hover:text-ink"
 							>
-								{translate("forgeSignIn.create")}
-								<ExternalLink size={10} strokeWidth={2} />
+								<ExternalLink size={11} strokeWidth={2} aria-hidden />
 							</button>
 						)}
 						{info?.scopes && <span className="text-caption text-ink-faint">{translate("forgeSignIn.needsScopes")} {info.scopes}</span>}
@@ -150,9 +152,12 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 			)}
 
 			<div className="mt-4 flex items-center gap-2">
-				<PrimaryButton onClick={() => void save()} disabled={busy || !token.trim() || !baseUrl.trim()}>
-					{busy ? t("forge.verifying") : t("forge.verifyAndSave")}
-				</PrimaryButton>
+				<PrimaryButton
+					onClick={() => void save()}
+					disabled={busy || !token.trim() || !baseUrl.trim()}
+					title={busy ? t("forge.verifying") : t("forge.verifyAndSave")}
+					icon={busy ? <Spinner size={13} /> : <ShieldCheck size={13} strokeWidth={1.9} />}
+				/>
 				<GhostButton onClick={onCancel} icon={<X size={13} strokeWidth={1.8} />} title={t("common.cancel")} />
 			</div>
 		</div>

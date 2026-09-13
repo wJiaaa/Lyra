@@ -1,5 +1,6 @@
 import { Input } from "../../ui/inputs/NativeField.tsx";
-import { Archive, ArrowRight, FolderOpen, GitBranch, Pencil, PinOff, Pin, SquarePen, X } from "lucide-react";
+import { Archive, ArrowRight, Check, FolderOpen, GitBranch, Pencil, PinOff, Pin, SquarePen, X } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useState } from "react";
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
@@ -135,20 +136,31 @@ export function ProjectMenu({
 					<div className="flex justify-end gap-1.5 pt-2.5">
 						<button
 							type="button"
+							data-ly-tip={t("common.cancel")}
+							aria-label={t("common.cancel")}
 							onClick={() => {
 								setMode("menu");
 								setDraft(name);
 							}}
-							className="h-7 rounded-lg px-2.5 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+							className="grid h-7 w-7 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 						>
-							{t("common.cancel")}
+							<X size={13} strokeWidth={2} aria-hidden />
 						</button>
+						{/*
+						 * 正在创建的时候按钮上转一个圈，而不是写「创建中…」。
+						 *
+						 * 进行时是三个字里最难画的一种，但也是最不需要画的一种：转圈本身就只在事情
+						 * 没做完的时候出现。字仍然在——在 tooltip 和 `aria-label` 上，并且跟着状态
+						 * 一起变，所以悬停和读屏读到的都还是「创建中…」。
+						 */}
 						<button
 							type="submit"
+							data-ly-tip={busy ? t("common.creating") : worktree ? t("common.create") : t("common.save")}
+							aria-label={busy ? t("common.creating") : worktree ? t("common.create") : t("common.save")}
 							disabled={busy || !draft.trim()}
-							className="h-7 rounded-lg bg-ink px-2.5 text-detail font-medium text-shell transition-opacity hover:opacity-90 disabled:opacity-45"
+							className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity hover:opacity-90 disabled:opacity-45"
 						>
-							{busy ? t("common.creating") : worktree ? t("common.create") : t("common.save")}
+							{busy ? <Spinner size={12} /> : worktree ? <GitBranch size={13} strokeWidth={2} aria-hidden /> : <Check size={13} strokeWidth={2.2} aria-hidden />}
 						</button>
 					</div>
 				</form>

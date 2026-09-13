@@ -153,11 +153,10 @@ export function SettingsShell() {
 								setSection("models");
 								dismissNav();
 							}}
-							className="flex h-[36px] w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated"
-						>
-							<Rocket size={14} strokeWidth={1.8} />
-							{t("app.guide")}
-						</button>
+							className="grid place-items-center h-[36px] w-full rounded-lg border border-dashed border-line text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated"
+			data-ly-tip={t("app.guide")}
+			aria-label={t("app.guide")}
+		><Rocket size={14} strokeWidth={1.8} /></button>
 					</div>
 				</nav>
 			</NavPane>

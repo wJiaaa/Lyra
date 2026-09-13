@@ -1,5 +1,5 @@
 import type { Skill, SkillCandidate } from "@lyra/core";
-import { Sparkles, TriangleAlert } from "lucide-react";
+import { Check, Sparkles, TriangleAlert, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useDefinitionRemoval } from "./useDefinitionRemoval.tsx";
@@ -117,17 +117,21 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 							<div className="mt-2 flex items-center gap-2">
 								<button
 									type="button"
+									data-ly-tip={t("common.enable")}
+									aria-label={t("common.enable")}
 									onClick={() => void decide(candidate.name, true)}
-									className="flex h-7 items-center rounded-lg bg-ink px-3 text-detail font-medium text-shell transition-opacity hover:opacity-90"
+									className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity hover:opacity-90"
 								>
-									{t("common.enable")}
+									<Check size={13} strokeWidth={2.2} aria-hidden />
 								</button>
 								<button
 									type="button"
+									data-ly-tip={t("skillsSettings.reject")}
+									aria-label={t("skillsSettings.reject")}
 									onClick={() => void decide(candidate.name, false)}
-									className="h-7 rounded-lg px-2 text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
+									className="grid h-7 w-7 place-items-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
 								>
-									{t("skillsSettings.reject")}
+									<X size={13} strokeWidth={2} aria-hidden />
 								</button>
 							</div>
 						</div>

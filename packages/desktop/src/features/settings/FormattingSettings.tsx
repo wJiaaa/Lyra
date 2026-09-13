@@ -58,9 +58,7 @@ export function FormattingSettings() {
 			<div>
 				<div className="mb-2 flex items-center justify-between px-1">
 					<SectionTitle>{t("common.preview")}</SectionTitle>
-					<GhostButton onClick={() => patch(DEFAULTS)} icon={<RotateCcw size={13} strokeWidth={1.6} />}>
-						{translate("common.restoreDefault")}
-					</GhostButton>
+					<GhostButton onClick={() => patch(DEFAULTS)} icon={<RotateCcw size={13} strokeWidth={1.6} />} title={translate("common.restoreDefault")} />
 				</div>
 				<FormatPreview options={formatting} />
 			</div>

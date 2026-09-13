@@ -83,21 +83,17 @@ function Verdicts({
 				disabled={busy || disabled}
 				onClick={() => onSend("approve")}
 				data-ly-tip={translate("reviewBar.approveTip")}
-				className="flex h-[26px] items-center gap-1 rounded-lg px-2 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ok disabled:opacity-45"
-			>
-				<Check size={12.5} strokeWidth={2} />
-				{translate("reviewBar.approve")}
-			</button>
+				className="grid place-items-center h-[26px] rounded-lg text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ok disabled:opacity-45 w-[26px]"
+			aria-label={translate("reviewBar.approve")}
+		><Check size={12.5} strokeWidth={2} /></button>
 			<button
 				type="button"
 				disabled={busy || disabled}
 				onClick={() => onSend("request-changes")}
 				data-ly-tip={translate("reviewBar.requestTip")}
-				className="flex h-[26px] items-center gap-1 rounded-lg px-2 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-danger disabled:opacity-45"
-			>
-				<X size={12.5} strokeWidth={2} />
-				{translate("reviewBar.requestChanges")}
-			</button>
+				className="grid place-items-center h-[26px] rounded-lg text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-danger disabled:opacity-45 w-[26px]"
+			aria-label={translate("reviewBar.requestChanges")}
+		><X size={12.5} strokeWidth={2} /></button>
 		</>
 	);
 }

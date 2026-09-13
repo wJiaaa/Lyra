@@ -1,5 +1,5 @@
 import { useI18n } from "../../i18n/index.ts";
-import { ArrowLeft, ArrowRight, Bookmark, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Link2, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { BrowserCommand, BrowserSelection } from "../../../shared/browser.ts";
 import { bridge } from "../../services/index.ts";
@@ -90,15 +90,15 @@ export function BrowserPanel() {
 		{tab?.error && <p role="status" className="px-3 py-2 text-detail text-danger">{tab.error}</p>}
 		<div className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-shell">
 			{mounted.map((entry) => <BrowserPage key={entry.id} tab={entry} active={entry.id === tab?.id} />)}
-			{blank && <div className="absolute inset-0 flex flex-col bg-shell" data-browser-empty><PanelEmpty icon={Globe} title={t("browser.openPage")}>{t("browser.addressHint")}<button type="button" className="mx-auto mt-3 block rounded px-3 py-1 text-info hover:bg-hover" onClick={() => addressInput.current?.focus()}>{t("browser.addressPlaceholder")}</button></PanelEmpty></div>}
+			{blank && <div className="absolute inset-0 flex flex-col bg-shell" data-browser-empty><PanelEmpty icon={Globe} title={t("browser.openPage")}>{t("browser.addressHint")}<button type="button" data-ly-tip={t("browser.addressPlaceholder")} aria-label={t("browser.addressPlaceholder")} className="mx-auto mt-3 grid h-8 w-8 place-items-center rounded text-info hover:bg-hover" onClick={() => addressInput.current?.focus()}><Link2 size={15} strokeWidth={1.9} aria-hidden /></button></PanelEmpty></div>}
 		</div>
 		{selection && <BrowserSelectionCard selection={selection} onClose={() => setSelection(null)} />}
 		{options.open && <Popover anchor={options.anchor} onClose={options.close} placement="bottom" width="default" maxHeight={340} label={t("browser.menu")}
-			header={menu !== "actions" && <button type="button" onClick={() => setMenu("actions")} className="flex h-9 w-full items-center gap-2 px-3 text-detail text-ink-muted"><ChevronLeft size={13} />{t(menu === "bookmarks" ? "browser.bookmarks" : "browser.viewport")}</button>}
+			header={menu !== "actions" && <button type="button" onClick={() => setMenu("actions")} className="flex h-9 w-full items-center gap-2 px-3 text-detail text-ink-muted hover:text-ink"><ChevronLeft size={13} aria-hidden />{t(menu === "bookmarks" ? "browser.bookmarks" : "browser.viewport")}</button>}
 			footer={menu === "viewport" && tab && <form className="flex items-center gap-1.5 p-2" onSubmit={(event) => { event.preventDefault(); void commandBrowser({ type: "viewport", id: tab.id, viewport: { width: Number(width), height: Number(height) } }); options.close(); }}>
 				<Input aria-label={t("browser.viewportWidth")} type="number" min={240} max={3840} required value={width} onChange={(event) => setWidth(event.target.value)} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-center text-detail tabular-nums" />×
 				<Input aria-label={t("browser.viewportHeight")} type="number" min={240} max={2160} required value={height} onChange={(event) => setHeight(event.target.value)} className="min-w-0 flex-1 rounded bg-input px-1.5 py-1 text-center text-detail tabular-nums" />
-				<button type="submit" className="shrink-0 rounded px-2 py-1 text-detail text-ink-muted hover:bg-card-hover">{t("browser.apply")}</button>
+				<button type="submit" data-ly-tip={t("browser.apply")} aria-label={t("browser.apply")} className="grid h-6 w-6 shrink-0 place-items-center rounded text-ink-muted hover:bg-card-hover"><Check size={13} strokeWidth={2.2} aria-hidden /></button>
 			</form>}>
 			<MenuBody>
 				{menu === "actions" && <>

@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { ExternalLink, Maximize2, Minimize2, RotateCw } from "lucide-react";
+import { ChevronsDown, ExternalLink, Maximize2, Minimize2, RotateCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -249,6 +249,8 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			{overflowing && !tall && (
 				<button
 					type="button"
+					data-ly-tip={translate("preview.longer")}
+					aria-label={translate("preview.longer")}
 					onClick={() => {
 						openPreview(preview);
 						openPane("browser");
@@ -257,8 +259,8 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 				>
 					{/* Solid, not frosted: this card scrolls inside the transcript, and a masked scroller
 					    is a backdrop root — the blur would never arrive. See `.ly-glass-solid`. */}
-					<span className="ly-glass-solid rounded-full px-2.5 py-1 text-detail text-ink-muted transition-colors hover:text-ink">
-						{translate("preview.longer")}
+					<span className="ly-glass-solid grid h-6 w-6 place-items-center rounded-full text-ink-muted transition-colors hover:text-ink">
+						<ChevronsDown size={13} strokeWidth={2} aria-hidden />
 					</span>
 				</button>
 			)}

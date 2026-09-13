@@ -13,7 +13,8 @@
  * what belongs on screen is the one or two things that make sense to do right now.
  */
 
-import { Pause, Play, Sparkles, X } from "lucide-react";
+import { Download, ExternalLink, Pause, Play, RotateCcw, Sparkles, X } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 
 import { useApp } from "../../store/index.ts";
 import type { Info } from "../update/index.ts";
@@ -23,6 +24,20 @@ import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Markdown } from "../conversation/index.ts";
 import { bridge } from "../../services/index.ts";
+
+/**
+ * 主按钮在每个阶段的图标，和 `confirmLabel` 的每个分支一一对应。
+ *
+ * 分开写而不是合进 `view.ts`：那边是纯的，有自己的测试，返回一段 JSX 会把渲染拖进去。缺的那
+ * 一档（还没开始下载）落到 `Download`，正好是默认分支的那个词。
+ */
+const CONFIRM_GLYPH: Partial<Record<Phase["at"], React.ReactNode>> = {
+	downloading: <Spinner size={13} />,
+	preparing: <Spinner size={13} />,
+	paused: <Play size={13} strokeWidth={2.2} fill="currentColor" aria-hidden />,
+	ready: <RotateCcw size={13} strokeWidth={2} aria-hidden />,
+	failed: <RotateCcw size={13} strokeWidth={2} aria-hidden />,
+};
 
 export function UpdateDialog({
 	info,
@@ -160,11 +175,10 @@ export function UpdateDialog({
 						<button
 							type="button"
 							onClick={() => void bridge.updates.cancel()}
-							className="flex h-[32px] items-center gap-1.5 rounded-lg px-2.5 text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-						>
-							<X size={13} strokeWidth={2} />
-							{t("updateDialog.cancel")}
-						</button>
+							className="grid place-items-center h-[32px] rounded-lg text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink w-[32px]"
+			data-ly-tip={t("updateDialog.cancel")}
+			aria-label={t("updateDialog.cancel")}
+		><X size={13} strokeWidth={2} /></button>
 					)}
 
 					<div className="flex-1" />
@@ -172,19 +186,22 @@ export function UpdateDialog({
 					{controls.pause ? (
 						<button
 							type="button"
+							data-ly-tip={t("updateDialog.pause")}
+							aria-label={t("updateDialog.pause")}
 							onClick={() => void bridge.updates.pause()}
-							className="flex h-[32px] items-center gap-1.5 rounded-lg border border-line px-3 text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
+							className="grid h-[32px] w-[32px] place-items-center rounded-lg border border-line text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
 						>
-							<Pause size={12} strokeWidth={2.2} fill="currentColor" />
-							{t("updateDialog.pause")}
+							<Pause size={12} strokeWidth={2.2} fill="currentColor" aria-hidden />
 						</button>
 					) : (
 						<button
 							type="button"
+							data-ly-tip={t("common.close")}
+							aria-label={t("common.close")}
 							onClick={() => dismiss()}
-							className="h-[32px] rounded-lg border border-line px-3 text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
+							className="grid h-[32px] w-[32px] place-items-center rounded-lg border border-line text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
 						>
-							{t("common.close")}
+							<X size={14} strokeWidth={2} aria-hidden />
 						</button>
 					)}
 
@@ -195,26 +212,29 @@ export function UpdateDialog({
 					{info.asset ? (
 						<button
 							type="button"
+							data-ly-tip={confirmLabel(phase)}
+							aria-label={confirmLabel(phase)}
 							// Only while it is genuinely working. Paused and failed are both actionable, and
 							// disabling them was the old dialog's way of saying "wait", which it then never
 							// stopped saying if the download had quietly died.
 							disabled={controls.confirmDisabled}
 							onClick={() => void confirm()}
-							className="flex h-[32px] items-center gap-1.5 rounded-lg bg-ink px-3.5 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:opacity-50"
+							className="grid h-[32px] w-[32px] place-items-center rounded-lg bg-ink text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:opacity-50"
 						>
-							{phase.at === "paused" && <Play size={12} strokeWidth={2.2} fill="currentColor" />}
-							{confirmLabel(phase)}
+							{CONFIRM_GLYPH[phase.at] ?? <Download size={13} strokeWidth={2} aria-hidden />}
 						</button>
 					) : (
 						<button
 							type="button"
+							data-ly-tip={t("updateDialog.releasePage")}
+							aria-label={t("updateDialog.releasePage")}
 							onClick={() => {
 								void bridge.updates.open(info.url);
 								dismiss();
 							}}
-							className="h-[32px] rounded-lg bg-ink px-3.5 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
+							className="grid h-[32px] w-[32px] place-items-center rounded-lg bg-ink text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
 						>
-							{t("updateDialog.releasePage")}
+							<ExternalLink size={13} strokeWidth={2} aria-hidden />
 						</button>
 					)}
 				</div>

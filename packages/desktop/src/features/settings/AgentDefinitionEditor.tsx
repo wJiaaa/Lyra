@@ -1,4 +1,5 @@
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, PenLine, Save, Trash2 } from "lucide-react";
+import { Spinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import type { AgentDefinitionRecord, AgentDefinitionSave, AgentDraft } from "@lyra/core";
 import { Input, Textarea } from "../../ui/inputs/NativeField.tsx";
@@ -49,9 +50,16 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 		<div className="sticky top-0 z-10 flex items-center gap-3 bg-shell py-3">
 			<button type="button" aria-label={t("agentEditor.back")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded hover:bg-hover" disabled={busy} onClick={() => dirty ? setLeaving(true) : onClose()}><ArrowLeft size={18} /></button>
 			<h1 className="min-w-0 flex-1 truncate text-title leading-9 font-semibold">{record && !copy ? t("agentEditor.editNamed", { name: record.definition.name }) : t("agents.add")}</h1>
-			<button type="submit" disabled={busy} className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-label text-white disabled:opacity-50"><Save size={15} />{busy ? t("common.saving") : t("common.save")}</button>
+			<button type="submit" disabled={busy} data-ly-tip={busy ? t("common.saving") : t("common.save")} aria-label={busy ? t("common.saving") : t("common.save")} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-white disabled:opacity-50">{busy ? <Spinner size={15} /> : <Save size={15} aria-hidden />}</button>
 		</div>
-		{leaving && <div role="alert" className="my-3 flex flex-wrap items-center gap-3 rounded-lg border border-line p-3 text-label">{t("agentEditor.unsaved")}<button type="button" className="text-info" onClick={() => setLeaving(false)}>{t("agentEditor.keepEditing")}</button><button type="button" className="text-danger" onClick={discard}>{t("agentEditor.discard")}</button></div>}
+		{/*
+		 * 「有改动没保存」，后面跟一支笔和一个垃圾桶。
+		 *
+		 * 这两颗是全app里最需要看清楚的一对：一个回到编辑，一个把刚写的东西扔掉。所以它们不靠
+		 * 形状之外的东西区分——笔和桶本来就长得完全不一样，颜色再补一层（info 对 danger），
+		 * 具体那句「丢弃改动」留在 tooltip 和读屏上。
+		 */}
+		{leaving && <div role="alert" className="my-3 flex flex-wrap items-center gap-3 rounded-lg border border-line p-3 text-label">{t("agentEditor.unsaved")}<button type="button" data-ly-tip={t("agentEditor.keepEditing")} aria-label={t("agentEditor.keepEditing")} className="grid h-7 w-7 place-items-center rounded-lg text-info hover:bg-hover" onClick={() => setLeaving(false)}><PenLine size={14} strokeWidth={1.9} aria-hidden /></button><button type="button" data-ly-tip={t("agentEditor.discard")} aria-label={t("agentEditor.discard")} className="grid h-7 w-7 place-items-center rounded-lg text-danger hover:bg-hover" onClick={discard}><Trash2 size={14} strokeWidth={1.9} aria-hidden /></button></div>}
 		{error && <p role="alert" className="my-3 text-label text-danger">{error}</p>}
 		<p className="mb-5 text-label text-ink-muted">{record?.scope === "builtin" && !copy ? t("agentEditor.saveAsCustom") : t("agentEditor.intro")}</p>
 		<fieldset disabled={busy} className="space-y-5 border-0 p-0 disabled:opacity-60">

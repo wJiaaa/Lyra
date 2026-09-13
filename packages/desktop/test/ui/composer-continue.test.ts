@@ -217,7 +217,7 @@ test("the button and the row under the transcript never disagree", async () => {
 		try {
 			const where = `stopped=${stopped}, ${todos.length} 项待办`;
 			const button = view.find("[data-composer-send]").getAttribute("data-composer-send");
-			const row = view.all("button").some((el) => (el.textContent ?? "").includes("继续"));
+			const row = view.all("button").some((el) => ((el.getAttribute("aria-label") ?? el.textContent) ?? "").includes("继续"));
 			assert.equal(button === "continue", carryOn, `按钮该是 ${carryOn ? "continue" : "send"}（${where}）`);
 			assert.equal(row, carryOn, `转录下面那行该${carryOn ? "出现" : "消失"}（${where}）`);
 		} finally {

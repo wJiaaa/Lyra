@@ -15,6 +15,7 @@
  * is fixed here on purpose — a size prop would be an invitation for them to drift again.
  */
 
+import { Check, X } from "lucide-react";
 import { translate } from "../../../i18n/translate.ts";
 import { Textarea } from "../../../ui/inputs/NativeField.tsx";
 import { useEffect, useRef } from "react";
@@ -78,20 +79,30 @@ export function MessageEditor({
 				<OverlayScrollbar viewport={box} orientation="vertical" />
 			</div>
 			<div className="flex items-center justify-end gap-2 pt-2">
+				{/*
+				 * 一个叉一个勾，分别是取消和确认——两颗按钮的差别不再靠读字。
+				 *
+				 * 形状之外还有第二层区分：确认那颗是实心的，取消那颗是描边的。两个图标万一都没看清，
+				 * 深浅也已经说明了哪颗是「就这么办」。
+				 */}
 				<button
 					type="button"
+					data-ly-tip={translate("common.cancel")}
+					aria-label={translate("common.cancel")}
 					onClick={onCancel}
-					className="h-7 rounded-lg border border-line px-3 text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+					className="grid h-7 w-7 place-items-center rounded-lg border border-line text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 				>
-					{translate("common.cancel")}
+					<X size={13} strokeWidth={2} aria-hidden />
 				</button>
 				<button
 					type="button"
+					data-ly-tip={confirmLabel}
+					aria-label={confirmLabel}
 					disabled={!value.trim()}
 					onClick={onSubmit}
-					className="h-7 rounded-lg bg-ink px-3 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:opacity-45"
+					className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:opacity-45"
 				>
-					{confirmLabel}
+					<Check size={13} strokeWidth={2.2} aria-hidden />
 				</button>
 			</div>
 		</div>

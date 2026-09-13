@@ -15,7 +15,7 @@
 import { CARRY_ON_PROMPTS, carryOnPrompt } from "../../store/derive.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useEffect, useState } from "react";
-import { ChevronRight, CircleAlert, CircleCheck } from "lucide-react";
+import { ChevronRight, CircleAlert, CircleCheck, Play, Settings2 } from "lucide-react";
 import { Spinner } from "../../ui/motion/loaders.tsx";
 import { describeHiccup, hiccupTip, type Hiccup } from "../../lib/hiccup.ts";
 import { useApp } from "../../store/index.ts";
@@ -99,12 +99,13 @@ export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
 				{hiccup.detail && hiccup.detail !== hiccup.summary && (
 					<button
 						type="button"
+						data-ly-tip={translate(open ? "common.collapse" : "common.details")}
+						aria-label={translate(open ? "common.collapse" : "common.details")}
 						onClick={() => setOpen((was) => !was)}
 						aria-expanded={open}
-						className="flex shrink-0 items-center gap-0.5 rounded text-detail text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
+						className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
 					>
-						<ChevronRight size={10} strokeWidth={2} className={`transition-transform duration-[var(--ly-t-quick)] ${open ? "rotate-90" : ""}`} />
-						{translate(open ? "common.collapse" : "common.details")}
+						<ChevronRight size={10} strokeWidth={2} aria-hidden className={`transition-transform duration-[var(--ly-t-quick)] ${open ? "rotate-90" : ""}`} />
 					</button>
 				)}
 				{failed && <Next hint={hiccup.hint} />}
@@ -159,13 +160,15 @@ function Next({ hint }: { hint?: string }) {
 		return (
 			<button
 				type="button"
+				data-ly-tip={translate("common.goSettings")}
+				aria-label={translate("common.goSettings")}
 				onClick={() => {
 					setView("settings");
 					setSettingsSection("models");
 				}}
-				className="shrink-0 rounded px-1 text-detail text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
+				className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 			>
-				{translate("common.goSettings")}
+				<Settings2 size={11.5} strokeWidth={1.9} aria-hidden />
 			</button>
 		);
 	}
@@ -187,9 +190,10 @@ function Next({ hint }: { hint?: string }) {
 			 * leg. `ResumeRow` has always sent the constant; this row is the same act and was not.
 			 */
 			onClick={() => void send([{ type: "text", text: carryOnPrompt("error", 0) ?? CARRY_ON_PROMPTS[1] }], { synthetic: true, carryOn: true })}
-			className="shrink-0 rounded px-1 text-detail text-ink-muted underline decoration-line underline-offset-2 transition-colors hover:text-ink"
+			aria-label={translate("common.continue")}
+			className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 		>
-			{translate("common.continue")}
+			<Play size={11} strokeWidth={2} fill="currentColor" aria-hidden />
 		</button>
 	);
 }

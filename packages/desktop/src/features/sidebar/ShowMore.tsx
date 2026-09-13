@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
@@ -42,21 +43,31 @@ export function ShowMore({
 			{hidden > 0 && (
 				<button
 					type="button"
+					data-ly-tip={translate("showMore.expand", { n: hidden })}
+					aria-label={translate("showMore.expand", { n: hidden })}
 					onClick={onShowMore}
-					className="text-left text-label text-ink-faint transition-colors hover:text-ink-muted"
+					className="flex items-center gap-1 text-left text-label text-ink-faint transition-colors hover:text-ink-muted"
 				>
-					{/* The count is the part that changes on each press, and it is what the roll is for:
-					    five more rows appeared, and this is the line that says how many are left. */}
-					<RollingText>{translate("showMore.expand", { n: hidden })}</RollingText>
+					{/*
+					 * 数字留着，「还有…条」进 tooltip。
+					 *
+					 * 剩几条是这一行存在的理由——一个光秃秃的箭头说不出「还有 37 条」和「还有 2 条」
+					 * 的差别，而那正是决定要不要按的东西。滚动效果也留在数字上，它本来就是为数字做的：
+					 * 按一下，37 滚成 32。
+					 */}
+					<ChevronDown size={12} strokeWidth={2} aria-hidden />
+					<RollingText>{String(hidden)}</RollingText>
 				</button>
 			)}
 			{canCollapse && (
 				<button
 					type="button"
+					data-ly-tip={translate("common.collapse")}
+					aria-label={translate("common.collapse")}
 					onClick={onCollapse}
-					className="text-left text-label text-ink-faint transition-colors hover:text-ink-muted"
+					className="grid h-[18px] w-[18px] place-items-center rounded text-ink-faint transition-colors hover:text-ink-muted"
 				>
-					{translate("common.collapse")}
+					<ChevronUp size={12} strokeWidth={2} aria-hidden />
 				</button>
 			)}
 		</div>

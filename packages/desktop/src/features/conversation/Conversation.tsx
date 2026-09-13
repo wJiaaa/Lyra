@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ApprovalOverlay } from "./ApprovalOverlay.tsx";
@@ -305,10 +306,14 @@ export const Conversation = memo(function Conversation() {
           {hidden > 0 && (
             <button
               type="button"
+              data-ly-tip={translate("conversation.showEarlier", { n: Math.min(hidden, WINDOW_STEP), total: hidden })}
+              aria-label={translate("conversation.showEarlier", { n: Math.min(hidden, WINDOW_STEP), total: hidden })}
               onClick={range.earlier}
-              className="mb-4 flex h-7 w-full items-center justify-center rounded-md text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
+              className="mb-4 flex h-7 w-full items-center justify-center gap-1 rounded-md text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
             >
-              {translate("conversation.showEarlier", { n: Math.min(hidden, WINDOW_STEP), total: hidden })}
+              {/* 数字留在按钮上：它是这一按会拿回多少条，不是这颗按钮叫什么。 */}
+              <ChevronUp size={12} strokeWidth={2} aria-hidden />
+              <span className="tabular-nums">{Math.min(hidden, WINDOW_STEP)}</span>
             </button>
           )}
 
@@ -401,7 +406,7 @@ export const Conversation = memo(function Conversation() {
            * Folded rather than removed, so the height goes continuously — which is the whole
            * reason it was made to stay put in the first place.
            */}
-          {range.end < allRuns.length && <button type="button" onClick={range.later} className="my-3 flex h-7 w-full items-center justify-center rounded-md text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted">{translate("conversation.showLaterN", { n: Math.min(WINDOW_STEP, allRuns.length - range.end) })}</button>}
+          {range.end < allRuns.length && <button type="button" data-ly-tip={translate("conversation.showLaterN", { n: Math.min(WINDOW_STEP, allRuns.length - range.end) })} aria-label={translate("conversation.showLaterN", { n: Math.min(WINDOW_STEP, allRuns.length - range.end) })} onClick={range.later} className="my-3 flex h-7 w-full items-center justify-center gap-1 rounded-md text-detail text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"><ChevronDown size={12} strokeWidth={2} aria-hidden /><span className="tabular-nums">{Math.min(WINDOW_STEP, allRuns.length - range.end)}</span></button>}
           {range.end === allRuns.length && <>
           <div className="ly-reveal" data-open={running && !answering && !compacting} aria-hidden={!running || answering || compacting}>
             <div>

@@ -5,7 +5,7 @@
 import { useI18n } from "../../i18n/index.ts";
 import { Textarea, Input } from "../../ui/inputs/NativeField.tsx";
 import { useEffect, useState } from "react";
-import { Brain, Check, Info, Plus, Trash2 } from "lucide-react";
+import { Brain, Check, Info, Plus, Save, Trash2 } from "lucide-react";
 import { useApp } from "../../store/index.ts";
 import { Card, GhostButton, InlineSelect, PrimaryButton, Row, SectionTitle, Toggle } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
@@ -163,19 +163,18 @@ export function PersonalizationSettings() {
 							{t("personalization.globalRules")}
 						</p>
 					</div>
+					{/*
+					 * 存完那一下变绿，不再多写一个「已保存」。
+					 *
+					 * 原来是同一颗按钮上换一句话，而那句话本身是短暂的——过一会儿又变回「保存」。
+					 * 勾加绿色说的是同一件事，且按钮不必跟着两句话的长短宽一次窄一次。
+					 */}
 					<GhostButton
 						onClick={handleSaveInstructions}
 						disabled={customInstructions === (personalization.customInstructions ?? "")}
-					>
-						{savedNotice ? (
-							<>
-								<Check size={13} className="text-emerald-500" strokeWidth={2.2} />
-								<span className="text-emerald-500">{t("common.saved")}</span>
-							</>
-						) : (
-							<span>{t("common.save")}</span>
-						)}
-					</GhostButton>
+						title={savedNotice ? t("common.saved") : t("common.save")}
+						icon={savedNotice ? <Check size={13} className="text-emerald-500" strokeWidth={2.2} /> : <Save size={13} strokeWidth={1.9} />}
+					/>
 				</div>
 
 				<Card className="p-3.5 space-y-2">

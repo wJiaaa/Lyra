@@ -78,15 +78,15 @@ export function AboutSettings() {
 							<GhostButton
 								onClick={() => void check(true)}
 								disabled={checking}
+								title={checking ? t("about.checking") : t("about.checkUpdate")}
 								icon={checking ? <Spinner size={13} /> : <RefreshCw size={13} strokeWidth={2} />}
-							>
-								{checking ? t("about.checking") : t("about.checkUpdate")}
-							</GhostButton>
+							/>
 							{available && (
-								<PrimaryButton onClick={() => setOpenDialog(true)}>
-									<DownloadCloud size={13} className="mr-1.5 inline" />
-									{t("about.updateNow", { version: info?.latest ?? "" })}
-								</PrimaryButton>
+								<PrimaryButton
+									onClick={() => setOpenDialog(true)}
+									title={t("about.updateNow", { version: info?.latest ?? "" })}
+									icon={<DownloadCloud size={13} />}
+								/>
 							)}
 						</div>
 					}
@@ -149,10 +149,7 @@ export function AboutSettings() {
 					control={
 						<GhostButton
 							onClick={() => void bridge.system.openExternal("https://github.com/kittors/Lyra")}
-							icon={<ArrowUpRight size={13} />}
-						>
-							{t("about.repo")}
-						</GhostButton>
+							icon={<ArrowUpRight size={13} />} title={t("about.repo")} />
 					}
 				/>
 				<Row
@@ -163,10 +160,7 @@ export function AboutSettings() {
 							onClick={() =>
 								void bridge.system.openExternal(info?.url || "https://github.com/kittors/Lyra/releases")
 							}
-							icon={<ArrowUpRight size={13} />}
-						>
-							{t("about.releases")}
-						</GhostButton>
+							icon={<ArrowUpRight size={13} />} title={t("about.releases")} />
 					}
 				/>
 			</Card>

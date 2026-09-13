@@ -3,7 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import type { FontWeight } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { SquareTerminal } from "lucide-react";
+import { Plus, SquareTerminal } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { useSide } from "../dock/index.ts";
@@ -481,9 +481,11 @@ export function TerminalPane() {
 								useTerminals.getState().add({ id: opened.id, title: opened.title });
 							});
 						}}
-						className="rounded-lg border border-hairline px-3 py-1.5 text-label text-ink transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
+						data-ly-tip={translate("terminal.new")}
+						aria-label={translate("terminal.new")}
+						className="grid h-9 w-9 place-items-center rounded-lg border border-hairline text-ink transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
 					>
-						{translate("terminal.new")}
+						<Plus size={16} strokeWidth={1.9} aria-hidden />
 					</button>
 				</div>
 			)}

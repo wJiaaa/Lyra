@@ -95,9 +95,7 @@ export function RegistrySources({
 							mono
 							className="h-[30px] flex-1 text-detail"
 						/>
-						<GhostButton onClick={add} icon={<Plus size={12} strokeWidth={2} />}>
-							{t("mcp.add")}
-						</GhostButton>
+						<GhostButton onClick={add} icon={<Plus size={12} strokeWidth={2} />} title={t("mcp.add")} />
 					</div>
 
 					{confirm.element}
