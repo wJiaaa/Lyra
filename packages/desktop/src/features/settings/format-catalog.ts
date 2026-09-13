@@ -71,13 +71,11 @@ export async function findUser(id: string): Promise<User> {
 		label: "JavaScript",
 		aliases: ["js", "mjs", "cjs"],
 		formatter: "prettier",
-		sample: `// 防抖：安静下来之后才真的执行
-export function debounce(fn, wait = 200) {
-	let timer = null;
-	return (...args) => {
-		clearTimeout(timer);
-		timer = setTimeout(() => fn(...args), wait);
-	};
+		sample: `// 取一个用户，取不到就报错
+export async function findUser(id) {
+	const found = await db.users.findOne({ id });
+	if (!found) throw new Error(\`没有这个用户：\${id}\`);
+	return found;
 }`,
 	},
 	{
@@ -208,18 +206,6 @@ button { border-radius: 6px; }
 </style>`,
 	},
 	{
-		key: "svelte",
-		label: "Svelte",
-		aliases: ["svelte"],
-		formatter: "prettier",
-		sample: `<script lang="ts">
-	let count = 0;
-	$: doubled = count * 2;
-</script>
-
-<button on:click={() => count++}>点了 {count} 次</button>`,
-	},
-	{
 		key: "xml",
 		label: "XML / SVG",
 		aliases: ["xml", "svg"],
@@ -235,20 +221,12 @@ button { border-radius: 6px; }
 		aliases: ["py", "pyi", "python"],
 		formatter: "external",
 		tool: "ruff / black",
-		sample: `# 一个用户，以及打招呼的方式
-from dataclasses import dataclass
-
-
-@dataclass
-class User:
-    """带默认值的用户记录。"""
-
-    id: str
-    name: str = "匿名"
-    tags: list[str] = ()
-
-    def greet(self, times: int = 1) -> str:
-        return "、".join(f"你好，{self.name}" for _ in range(times))`,
+		sample: `# 取一个用户，取不到就报错
+async def find_user(id: str) -> User:
+    found = await db.users.find_one({"id": id})
+    if not found:
+        raise LookupError(f"没有这个用户：{id}")
+    return found`,
 	},
 	{
 		key: "go",
@@ -260,12 +238,13 @@ class User:
 
 import "fmt"
 
-// Greet 打个招呼。
-func Greet(name string) string {
-	if name == "" {
-		name = "匿名"
+// findUser 取一个用户，取不到就报错。
+func findUser(id string) (*User, error) {
+	found, err := db.users.FindOne(id)
+	if err != nil {
+		return nil, fmt.Errorf("没有这个用户：%s", id)
 	}
-	return fmt.Sprintf("你好，%s", name)
+	return found, nil
 }`,
 	},
 	{
@@ -274,11 +253,12 @@ func Greet(name string) string {
 		aliases: ["rs"],
 		formatter: "external",
 		tool: "rustfmt",
-		sample: `/// 打个招呼。
-pub fn greet(name: Option<&str>) -> String {
-    match name {
-        Some(n) => format!("你好，{n}"),
-        None => "你好".to_string(),
+		sample: `/// 取一个用户，取不到就报错。
+pub async fn find_user(id: &str) -> Result<User, Error> {
+    let found = db.users.find_one(id).await?;
+    match found {
+        Some(user) => Ok(user),
+        None => Err(Error::NotFound(format!("没有这个用户：{id}"))),
     }
 }`,
 	},

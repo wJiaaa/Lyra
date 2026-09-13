@@ -77,12 +77,12 @@ const PARSERS: Record<string, { parser: string; plugins: string[] }> = {
 	graphql: { parser: "graphql", plugins: ["graphql"] },
 	gql: { parser: "graphql", plugins: ["graphql"] },
 	/*
-	 * Svelte and XML are plugins rather than built-ins, and both are Prettier's own.
+	 * XML is a plugin rather than a built-in, and it is Prettier's own.
 	 *
-	 * A Svelte component is markup with script and style inside it, so the plugin hands those
-	 * blocks on the same way the HTML one does — which is why it keeps the same company.
+	 * Svelte's is not here, and not for want of trying: `prettier-plugin-svelte` is CommonJS and
+	 * takes the Svelte compiler as a peer, so it pulls Prettier's CJS entry into an ESM bundle and
+	 * fails the build outright — and would need the whole compiler shipped to run at all.
 	 */
-	svelte: { parser: "svelte", plugins: ["svelte", "typescript", "babel", "estree", "postcss"] },
 	xml: { parser: "xml", plugins: ["xml"] },
 	svg: { parser: "xml", plugins: ["xml"] },
 };
@@ -128,9 +128,7 @@ function loadPlugin(name: string): Promise<unknown> {
 					return import("prettier/plugins/markdown");
 				case "graphql":
 					return import("prettier/plugins/graphql");
-				// Not under `prettier/plugins`: these ship as packages of their own.
-				case "svelte":
-					return import("prettier-plugin-svelte");
+				// Not under `prettier/plugins`: this ships as a package of its own.
 				case "xml":
 					return import("@prettier/plugin-xml");
 				default:

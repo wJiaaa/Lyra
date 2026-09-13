@@ -21,10 +21,11 @@
 import { translate } from "../../i18n/translate.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import { macKeyboard } from "../../ui/keyboard.ts";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, RotateCcw, Wand2 } from "lucide-react";
 
 import { LanguageIcon, preloadLanguageMarks } from "../../ui/primitives/LanguageIcon.tsx";
+import { pairWords, travels, type Spot } from "./magic-move.ts";
 import type { FormattingSettings } from "@lyra/core";
 import { useApp } from "../../store/index.ts";
 import { findCodeTheme, type CodeThemeSpec } from "../../lib/code/themes.ts";
@@ -43,6 +44,14 @@ import { useI18n } from "../../i18n/index.ts";
  * would move every control below it while you were still holding the arrow key on the one that
  * caused it. Anything longer scrolls, on this app's own thumb.
  */
+/**
+ * How long a word takes to reach its new place.
+ *
+ * Long enough to be followed with the eye, short enough that a language switch still feels like a
+ * switch rather than a scene change. Anything past about 400ms and the panel reads as slow.
+ */
+const MOVE_MS = 320;
+
 const BOX_HEIGHT = 260;
 
 export function FormatPreview({ options }: { options: FormattingSettings }) {
@@ -72,6 +81,7 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 
 	/** Switching language throws away an untouched sample and keeps anything typed. */
 	const pick = (next: LanguageEntry) => {
+		if (next.key !== entry.key) leaving.current = snapshot();
 		setEntry(next);
 		setFailure(null);
 		if (!edited) setCode(next.sample);
@@ -131,6 +141,78 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 	}, [code, entry.key]);
 
 	const lines = useMemo(() => splitLines(pieces), [pieces]);
+
+	/*
+	 * Switching language moves the words that survived, rather than cutting to the new sample.
+	 *
+	 * A cut reads as the panel blinking. What the eye wants is to see that `Counter` is still
+	 * `Counter` and has merely moved — so the two token streams are paired (`pairWords`), the pairs
+	 * travel from where they were, and everything else simply arrives.
+	 *
+	 * The snapshot has to be taken while the *old* spans are still on screen, which is why `pick`
+	 * takes it rather than the effect below: by the time an effect runs, React has already replaced
+	 * them.
+	 */
+	const leaving = useRef<{ words: { text: string }[]; spots: Map<number, Spot> } | null>(null);
+
+	const snapshot = useCallback(() => {
+		const host = body.current;
+		if (!host) return null;
+		const spans = [...host.querySelectorAll<HTMLElement>("[data-mm]")];
+		if (spans.length === 0) return null;
+		const origin = host.getBoundingClientRect();
+		const words: { text: string }[] = [];
+		const spots = new Map<number, Spot>();
+		spans.forEach((span, index) => {
+			const box = span.getBoundingClientRect();
+			words.push({ text: span.textContent ?? "" });
+			// Relative to the scroller's content, so a scrolled panel does not report movement
+			// that is really the viewport having shifted under it.
+			spots.set(index, { left: box.left - origin.left + host.scrollLeft, top: box.top - origin.top + host.scrollTop });
+		});
+		return { words, spots };
+	}, []);
+
+	useLayoutEffect(() => {
+		const was = leaving.current;
+		leaving.current = null;
+		if (!was) return;
+		// Someone who has asked for less motion gets the cut, which is the honest version of it.
+		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+		const host = body.current;
+		const now = snapshot();
+		if (!host || !now) return;
+
+		/*
+		 * Every measurement first, then every write.
+		 *
+		 * `getBoundingClientRect` after a style change is not a read — it is the browser laying the
+		 * document out again to answer. Interleaved, that is one full layout per token; batched, it
+		 * is one for the whole switch.
+		 */
+		const moves = travels(pairWords(was.words, now.words), was.spots, now.spots);
+		if (moves.size === 0) return;
+
+		const spans = [...host.querySelectorAll<HTMLElement>("[data-mm]")];
+		for (const [index, { dx, dy }] of moves) {
+			const span = spans[index];
+			if (!span) continue;
+			span.style.transition = "none";
+			// Transform only: composited, so the travelling words never touch layout again.
+			span.style.transform = `translate(${dx}px, ${dy}px)`;
+		}
+
+		const frame = requestAnimationFrame(() => {
+			for (const [index] of moves) {
+				const span = spans[index];
+				if (!span) continue;
+				span.style.transition = `transform ${MOVE_MS}ms var(--ly-e-soft)`;
+				span.style.transform = "";
+			}
+		});
+		return () => cancelAnimationFrame(frame);
+	}, [lines, snapshot]);
 
 	/*
 	 * One set of metrics for both layers.
@@ -210,7 +292,12 @@ export function FormatPreview({ options }: { options: FormattingSettings }) {
 								) : (
 									line.map((piece, at) => (
 										// noArrayIndexKey 在这里不适用（本仓库用 oxlint，不认 biome 的抑制注释，所以这只是一句说明）: same.
-										<span key={at} style={piece.token ? { color: theme.tokens[piece.token] } : undefined}>
+										<span
+											key={at}
+											// Its place in the flat stream, which is how the switch finds it again.
+											data-mm={piece.at}
+											style={piece.token ? { color: theme.tokens[piece.token] } : undefined}
+										>
 											{piece.text}
 										</span>
 									))
@@ -427,13 +514,23 @@ function LanguagePicker({ entry, onPick }: { entry: LanguageEntry; onPick: (next
 }
 
 /** The runs, cut at line breaks — a comment or a template literal can span them. */
-function splitLines(pieces: Piece[]): Piece[][] {
-	const lines: Piece[][] = [[]];
+/** A piece plus where it sits in the flat stream, which the switching animation needs. */
+type Placed = Piece & { at: number };
+
+function splitLines(pieces: Piece[]): Placed[][] {
+	const lines: Placed[][] = [[]];
+	/*
+	 * Counted across the whole stream rather than per line.
+	 *
+	 * A line break splits one piece into two, and both halves need their own identity — the switch
+	 * pairs spans, not pieces, and a span that exists on screen has to be findable.
+	 */
+	let at = 0;
 	for (const piece of pieces) {
 		const parts = piece.text.split("\n");
 		for (const [index, part] of parts.entries()) {
 			if (index > 0) lines.push([]);
-			if (part) lines[lines.length - 1].push({ text: part, token: piece.token });
+			if (part) lines[lines.length - 1].push({ text: part, token: piece.token, at: at++ });
 		}
 	}
 	return lines;
