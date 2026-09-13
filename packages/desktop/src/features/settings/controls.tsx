@@ -34,9 +34,19 @@ export function Toggle({ checked, onChange, ariaLabel }: { checked: boolean; onC
 				checked ? "bg-accent" : "bg-line"
 			}`}
 		>
+			{/*
+			 * 圆点靠 transform 走，不靠 left。
+			 *
+			 * 两件事。`left` 每一帧都要重新布局一次，而 `transform` 是合成器自己的事——同样的
+			 * 220ms，前者在忙的时候会掉帧，后者不会。以及缓动：原先没写，浏览器给的是默认的
+			 * `ease`，两头都慢、中间快，看起来是圆点「挪」了一下；`--ly-e-out` 是这个应用里所有
+			 * 东西落位时用的那条曲线——快起、末段收住，落下去是停稳而不是停住。
+			 *
+			 * 16px 就是原先那两个 left 的差（19 − 3）。
+			 */}
 			<span
-				className="ly-knob absolute top-[3px] h-4 w-4 rounded-full border transition-[left] duration-[var(--ly-t-base)]"
-				style={{ left: checked ? 19 : 3 }}
+				className="ly-knob absolute top-[3px] left-[3px] h-4 w-4 rounded-full border transition-transform duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
+				style={{ transform: checked ? "translateX(16px)" : "translateX(0)" }}
 			/>
 		</button>
 	);

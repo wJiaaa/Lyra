@@ -1,7 +1,6 @@
 import { useI18n } from "../../i18n/index.ts";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { portal } from "../../ui/overlay/portal.ts";
-import { DURATION } from "../../ui/motion/tokens.ts";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { useCountUp } from "../../ui/primitives/useCountUp.ts";
 import type { ProviderTrend } from "./usage-aggregate.ts";
@@ -26,6 +25,18 @@ export { trendColor, type TrendMetric };
 
 /** 一个共用的空集合，好过每次渲染新建一个——它只被读。 */
 const NONE_HIDDEN: ReadonlySet<string> = new Set();
+
+/**
+ * 曲线走完一次形变要多久。
+ *
+ * 比 `--ly-t-base` 的 220ms 长。那一档是给「一个东西移动或者改尺寸」定的——一块滑过去的底、一
+ * 条被拖动的分隔线，走过的距离最多几十像素。这里动的是一条横穿整张卡片的曲线，它的每一个点都
+ * 在走，而人眼要跟住的是**形状**，不是某一个点。同样的 220ms 放在这个尺度上，看到的是起点和终
+ * 点，中间那段太短，来不及被读成一次形变——于是「有动画」和「没动画」在屏幕上是一回事。
+ *
+ * 420ms 是能看清形状怎么变过去、又不至于让人等的那一档。再长就开始像在演示动画本身了。
+ */
+const MORPH_MS = 420;
 
 /**
  * 一条线按比例拉到另一个点数，好让两条长度不同的线还能逐点相减。
@@ -104,7 +115,7 @@ function useMorphedY(target: number[][], shape: string, baseline: number): numbe
 		const started = performance.now();
 		let frame = 0;
 		const step = (now: number) => {
-			const t = Math.min(1, (now - started) / DURATION.base);
+			const t = Math.min(1, (now - started) / MORPH_MS);
 			// 与 --ly-e-out 同一个意思：末段减速，落位看起来是停稳而不是停住。
 			const eased = 1 - (1 - t) ** 3;
 			const next = target.map((series, trendIndex) =>
@@ -190,7 +201,7 @@ export function UsageTrendChart({
 	 * 让刻度自己也从旧的走到新的，这一段就重新自洽了：线在长高，旁边的数也在长。坐标本身仍然用
 	 * 真实的 `maximum` 算，动的只是写在轴上的那几个字。
 	 */
-	const axisMax = useCountUp(maximum, DURATION.base, { bidirectional: true });
+	const axisMax = useCountUp(maximum, MORPH_MS, { bidirectional: true });
 	const x = (index: number) => pointAtX(index, count);
 	const ticks = [1, 0.75, 0.5, 0.25, 0];
 
