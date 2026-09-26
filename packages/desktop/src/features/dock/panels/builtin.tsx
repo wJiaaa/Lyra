@@ -180,7 +180,6 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		label: "common.files",
 		icon: Folder,
 		shortcut: "⌘P",
-		mobile: true,
 		unavailable: needsWorkspace,
 		/*
 		 * To the left of the file, and narrower than it.
@@ -211,7 +210,6 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		label: "dock.fileContents",
 		icon: FileText,
 		shortcut: "⌥⌘P",
-		mobile: true,
 		unavailable: needsWorkspace,
 		/*
 		 * Under the tree, not beside it.
@@ -252,7 +250,6 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		label: "subAgent.title",
 		icon: Bot,
 		shortcut: "⌥⌘A",
-		mobile: true,
 		unavailable: needsSession,
 		render: SubAgentPanel,
 	},
@@ -261,7 +258,6 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		label: "dock.sideChat",
 		icon: MessageCirclePlus,
 		shortcut: "⌥⌘S",
-		mobile: true,
 		unavailable: needsSession,
 		render: SideChat,
 		actions: SideChatActions,
@@ -280,13 +276,12 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		render: TerminalPane,
 		header: TerminalTabs,
 	},
-	{ kind: "tasks", label: "common.tasks", icon: ListTodo, shortcut: "⌘J", mobile: true, render: TaskPanel },
+	{ kind: "tasks", label: "common.tasks", icon: ListTodo, shortcut: "⌘J", render: TaskPanel },
 	{
 		kind: "trajectory",
 		label: "trajectory.title",
 		icon: History,
 		shortcut: "⌘L",
-		mobile: true,
 		unavailable: needsSession,
 		render: TrajectoryPanel,
 	},

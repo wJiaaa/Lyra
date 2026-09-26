@@ -1,12 +1,12 @@
 # 给在这个仓库里干活的 agent
 
-这份文件写给自动化——包括本仓库自带的那个 agent，以及任何被叫来改这份代码的模型。
+这份文件写给被叫来修改本仓库代码的自动化 agent。
 人要看的东西在 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 一句话
 
-Lyra 是一个 agent 运行时加两个前端。`packages/core` 平台无关，桌面端（Electron）
-和移动端（Expo）驱动同一个 `AgentSession`。
+Lyra 是一个 agent 运行时加一个桌面端。`packages/core` 平台无关，桌面端（Electron）
+驱动它的 `AgentSession`。
 
 ## 第一原则
 
@@ -107,7 +107,7 @@ pnpm install
 
 ```bash
 pnpm lint        # oxlint，--deny-warnings：警告等于失败
-pnpm typecheck   # 7 个包
+pnpm typecheck   # 4 个包
 pnpm test        # 单元测试，含组件测试
 node scripts/audit-regression.mjs   # 修过的每个 bug，各自的守卫跑一遍
 pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
@@ -172,26 +172,17 @@ pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
 
 ## 发版
 
-打 tag 就是发版：推 `v*` 触发 `release.yml`，六个 runner 各自构建，汇总成一个 release 并**直接发布**。
-一个 release 里 14 个文件：桌面端 11 个（macOS 的 dmg 与 zip 各 arm64/x64、Windows 的 exe
-x64/arm64 加一个两架构合一的、Linux 的 AppImage 与 deb 各 x64/arm64），手机端 2 个
-（`Lyra-x.y.z-android.apk` 签名的、`Lyra-x.y.z-ios-unsigned.ipa` 未签名的），加一份 `SHA256SUMS`。
-怎么打包、为什么 iOS 不签名、Android 的钥匙为什么是一次性的决定，见
-[docs/architecture/mobile-packaging.md](docs/architecture/mobile-packaging.md)。
+打 tag 就是发版：推 `v*` 触发 `release.yml`，四个 runner 各自构建，汇总成一个 release 并**直接发布**。
+一个 release 里 12 个文件：桌面端 11 个（macOS 的 dmg 与 zip 各 arm64/x64、Windows 的 exe
+x64/arm64 加一个两架构合一的、Linux 的 AppImage 与 deb 各 x64/arm64），加一份 `SHA256SUMS`。
 
 **打 tag 之前要跑一次 `Release dry run`**（`pnpm release:rehearse`，`pnpm release` 会验证它跑过）。 它跑的东西和 release
-一模一样（六个 runner 的 lint/typecheck/test + `pnpm package` + `expo prebuild` 与两端原生构建），
+一模一样（四个 runner 的 lint/typecheck/test + `pnpm package`），
 只是不创建 release。绿了再打 tag。
 
 为什么必须这一步：日常的 CI 不打包，而 `pnpm package` 是唯一会执行 electron-builder 的地
 方。0.2.0 第一次发版就栽在这里——`executableName` 在 Linux 上不合法，这个配置错误在仓库里
-待了很久，因为在此之前没有任何一条流程构建过 Linux 包。手机端是同一类：`android/` 和 `ios/`
-不在仓库里，每次都由 `expo prebuild` 从 `app.json` 生成，所以插件参数、权限文案、SDK 版本的问题
-只有原生构建才会报出来。
-
-Android 的签名要四个 secret（`ANDROID_KEYSTORE_BASE64` 等，`packages/mobile/scripts/make-release-keystore.sh`
-一次生成并打印）。没配的话 `pnpm release` 在推 tag 之前就会停下——排练不会因此变红，而 release
-会在签名那一步死掉，留下一个没有 release 的 tag。
+待了很久，因为在此之前没有任何一条流程构建过 Linux 包。
 
 发版是一条命令：
 
@@ -201,12 +192,12 @@ pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、
 ```
 
 `pnpm release` 会自己检查「这个提交有没有绿色的 dry run」，没有就停下来——这一步以前靠记性。
-版本号写在 9 个地方（根目录和 7 个包的 `package.json` 加手机的 `app.json`），脚本一起改，`test/version-sync.test.ts`
+版本号写在 5 个地方（根目录和 4 个包的 `package.json`），脚本一起改，`test/version-sync.test.ts`
 守着它们不跑偏；新加一个包而忘了登记，那条测试会红。
 
 以前汇总成草稿，要再手动 Publish 一次——结果 0.4.0、0.4.1、0.5.0、0.6.1 全都躺在草稿里：产
 物齐全，客户端一个都收不到（更新检查跳过草稿和预发布）。手动的最后一步就是会被忘的一步。现
-在 tag 一推、六个 runner 绿了就直接发布，release notes 事后还能改，收不到的版本事后改不了。
+在 tag 一推、四个 runner 绿了就直接发布，release notes 事后还能改，收不到的版本事后改不了。
 
 ### 发版文案是手写的，七种语言一种都不能少
 
@@ -294,16 +285,14 @@ CI 的单元测试跑 Linux 和 Windows；macOS 只在 PR、tag 和手动触发�
 | `packages/core/src/runtime/` | 会话、日志、审批、任务队列、压缩 |
 | `packages/core/src/tools/` | 内置工具。`risk*.ts` 判定哪些命令需要人来点头 |
 | `packages/core/src/kernel/` | 插件内核：服务、事件、十条缝 |
-| `packages/desktop/electron/` | 主进程：IPC、窗口、Git、同步服务 |
-| `packages/desktop/src/` | 渲染进程。10 个目录，见 ARCHITECTURE.md |
+| `packages/desktop/electron/` | 主进程：IPC、窗口、Git |
+| `packages/desktop/src/` | 渲染进程。9 个目录，见 ARCHITECTURE.md |
 | `packages/desktop/src/features/` | 23 个功能域，跨域只经对方的 index |
 | `packages/desktop/src/ui/` | 基础组件，不读 store 不调 service |
 | `packages/desktop/src/lib/` | 纯逻辑，没有 React |
 | `packages/desktop/src/services/` | 跟主进程说话的唯一出口 |
-| `packages/contract/` | 渲染进程与主进程之间那条线，218 个方法写在一处 |
+| `packages/contract/` | 渲染进程与主进程之间那条线，214 个方法写在一处 |
 | `packages/desktop/shared/` | 两个进程共有的判断，谁也不依赖 |
-| `packages/mobile/` | Expo 外壳：配对、扫码、承载桌面端界面的 WebView |
-| `packages/relay/` | 中转服务。单文件，零依赖 |
 
 ## 提交
 
@@ -318,5 +307,5 @@ CI 的单元测试跑 Linux 和 Windows；macOS 只在 PR、tag 和手动触发�
 ```
 
 type 取 `feat` `fix` `perf` `refactor` `docs` `test` `chore` `ci` `build` `revert`；
-scope 取 `core` `desktop` `electron` `ui` `mobile` `relay` `cli` `registry` `sync` `release` `deps`，
+scope 取 `core` `desktop` `electron` `ui` `cli` `registry` `release` `deps`，
 写错只警告不拦。前四个 type 会进 CHANGELOG，其余不进。

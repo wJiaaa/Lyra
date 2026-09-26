@@ -10,7 +10,7 @@ assert.equal(process.platform, "darwin", "this probe measures real macOS window 
 const exec = promisify(execFile);
 const app = await startApp({ port: 9596, seed: async (home) => {
 	await writeFile(join(home, "settings.json"), JSON.stringify({
-		providers: [], mcpServers: [], hooks: [], sync: { enabled: false }, appearance: { theme: "dark" },
+		providers: [], mcpServers: [], hooks: [], appearance: { theme: "dark" },
 	}));
 } });
 try {

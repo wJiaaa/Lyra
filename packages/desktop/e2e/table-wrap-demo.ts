@@ -108,7 +108,6 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4579, token: null },
 			appearance: { contentWidth: 480 },
 		}),
 	);

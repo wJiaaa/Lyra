@@ -83,7 +83,6 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4531, token: null },
 			screenshot: { enabled: true, shortcut: "", saveLocation: "", downloadLocation: "", openEditor: true, copyToClipboard: false, insertIntoComposer: false, showInComposer: false },
 		}),
 	);

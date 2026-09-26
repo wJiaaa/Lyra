@@ -80,7 +80,6 @@ const app = await startApp({
 				skillRegistries: [],
 				alwaysAllow: [],
 				// 开着，同步页才画得出那几颗按钮——关掉的时候整页只有一个开关。
-				sync: { enabled: true, port: 4519, token: "demo-token-0000" },
 				appearance: { theme: "dark" },
 			}),
 		);

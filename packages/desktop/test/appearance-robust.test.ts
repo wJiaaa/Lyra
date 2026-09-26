@@ -1,15 +1,13 @@
 /**
  * Applying a theme that arrived with pieces missing.
  *
- * Settings used to reach the renderer one way — read off disk, where they are merged with the
- * defaults on the way in. Now a phone receives them over a socket instead, and that path has no
- * such merge: whatever the desktop broadcasts is applied as it stands.
+ * Settings read off disk are merged with the defaults on the way in, but a field that slips past
+ * that merge is applied as it stands.
  *
- * So one absent field became a blank screen. `parseHex(undefined)` throws, the throw happens inside
+ * One absent field used to be a blank screen. `parseHex(undefined)` throws, the throw happens inside
  * a render, and the error boundary replaces the entire interface with a message about the renderer
- * — found on a real phone, which showed 「这个界面崩了」 and `hex.trim` where a light theme should
- * have been. Losing the app over a colour is the wrong trade at any time; over a colour that
- * arrived across a network, it is one a version mismatch could cause on its own.
+ * — 「这个界面崩了」 and `hex.trim` where a light theme should have been. Losing the app over a
+ * colour is the wrong trade at any time.
  */
 
 import assert from "node:assert/strict";

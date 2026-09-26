@@ -47,7 +47,6 @@ async function seed(home: string): Promise<void> {
 			pluginRegistries: [REGISTRY],
 			skillRegistries: [`${REGISTRY}?kind=skill`],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4517, token: null },
 			// `LYRA_SHOT_THEME=light` — the marks tint themselves from a declared brand colour, and a
 			// mix that reads well on #171717 is not automatically one that reads on white.
 			appearance: { theme: process.env.LYRA_SHOT_THEME === "light" ? "light" : "dark" },

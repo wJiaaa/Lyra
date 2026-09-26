@@ -327,14 +327,14 @@ const SCENES: { name: string; setup: () => Promise<void>; expect?: string }[] = 
 const PATCHES: { file: string; from: string; to: string }[] = [
 	{
 		file: "src/app/layout.tsx",
-		from: 'const headerBar = hasHeaderBar(bridge.platform ?? "darwin", !onPhone());',
-		to: 'const headerBar = hasHeaderBar("win32", !onPhone());',
+		from: 'const headerBar = hasHeaderBar(bridge.platform ?? "darwin");',
+		to: 'const headerBar = hasHeaderBar("win32");',
 	},
 	{
 		file: "src/app/layout.tsx",
-		from: '() => titlebarInsets(bridge.platform ?? "darwin", nativeFullScreen, reserved, !onPhone()),',
+		from: '() => titlebarInsets(bridge.platform ?? "darwin", nativeFullScreen, reserved),',
 		// Windows' own buttons sit at the right end only; see `overlayReserved`.
-		to: `() => titlebarInsets("win32", nativeFullScreen, { start: 0, end: ${WIN_OVERLAY_PX} }, !onPhone()),`,
+		to: `() => titlebarInsets("win32", nativeFullScreen, { start: 0, end: ${WIN_OVERLAY_PX} }),`,
 	},
 	{
 		file: "electron/window.ts",

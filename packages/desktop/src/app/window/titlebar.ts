@@ -59,11 +59,9 @@ export interface TitlebarInsets {
  * Windows 和 Linux 要。那里的最小化/最大化/关闭在**右上角**，正压在面板自己的控件上——让开之后
  * 面板的标题栏右端被系统切掉一块，而左上角只剩一个孤零零浮着的侧边栏开关。一条横贯的 header 把
  * 这两头收进同一条带子里：开关在左端，系统按钮在右端，面板整体下移，不再和窗口抢那一行。
- *
- * 手机上不是窗口，没有任何一端需要让。
  */
-export function hasHeaderBar(platform: string, windowed = true): boolean {
-	return windowed && platform !== "darwin";
+export function hasHeaderBar(platform: string): boolean {
+	return platform !== "darwin";
 }
 
 export function titlebarInsets(
@@ -71,17 +69,7 @@ export function titlebarInsets(
 	nativeFullScreen: boolean,
 	/** What the system's own buttons take at each end; see `overlayReserved`. */
 	overlay: OverlayReserve,
-	/**
-	 * Whether this is a window at all.
-	 *
-	 * On a phone it is not: the interface fills the screen, there are no traffic lights and no
-	 * minimise button, and the notch is handled outside the page. Reserving for controls that do
-	 * not exist left 78px of nothing at the top left — the toggle sat marooned in the middle of the
-	 * row instead of at the edge where every other mark below it lines up.
-	 */
-	windowed = true,
 ): TitlebarInsets {
-	if (!windowed) return { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE };
 	// macOS keeps its controls at the leading end and puts nothing at the other one.
 	if (platform === "darwin") {
 		return { start: nativeFullScreen ? TOOLBAR_EDGE : TRAFFIC_LIGHTS_WIDTH, end: 0 };

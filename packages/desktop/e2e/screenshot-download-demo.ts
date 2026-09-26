@@ -6,7 +6,7 @@ import { startApp, type AppWindow } from "./app.ts";
 import { encode, pause, type Frame } from "./record.ts";
 
 const app = await startApp({ port: 9833, inspectPort: 9834, seed: async home => {
-	await writeFile(join(home, "settings.json"), JSON.stringify({ uiLocale: "zh-CN", providers: [], mcpServers: [], hooks: [], sync: {enabled:false}, screenshot:{shortcut:"",copyToClipboard:false} }));
+	await writeFile(join(home, "settings.json"), JSON.stringify({ uiLocale: "zh-CN", providers: [], mcpServers: [], hooks: [], screenshot:{shortcut:"",copyToClipboard:false} }));
 } });
 const frames: Frame[] = [];
 const checks: {name:string;ok:boolean;measured:unknown}[] = [];

@@ -116,7 +116,6 @@ async function main() {
 					thinking: "off",
 					mcpServers: [],
 					hooks: [],
-					sync: { enabled: false },
 					// 动画关掉，两次跑之间的截图才比得了。
 					appearance: { reduceMotion: "on" },
 					projects: [{ path: cwd, name: "弹窗验收", pinned: true, lastOpenedAt: Date.now() }],

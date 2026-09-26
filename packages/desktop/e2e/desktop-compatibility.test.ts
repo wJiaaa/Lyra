@@ -102,7 +102,7 @@ for (const [scale, width, height, theme] of [
 			await mkdir(project);
 			await writeFile(join(home, "window.json"), JSON.stringify({ width, height }));
 			await writeFile(join(home, "settings.json"), JSON.stringify({
-				providers: [], mcpServers: [], hooks: [], sync: { enabled: false },
+				providers: [], mcpServers: [], hooks: [],
 				appearance: { theme },
 				projects: [{ id: "compatibility", path: project, name: "Windows 布局检查", pinned: true, lastOpenedAt: 1 }],
 			}));
@@ -199,7 +199,7 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 	const app = await startApp({ port: 9598, seed: async (home) => {
 		const project = join(home, "project"); await mkdir(project);
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1200, height: 800 }));
-		await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [], mcpServers: [], hooks: [], sync: { enabled: false },
+		await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [], mcpServers: [], hooks: [],
 			projects: [{ id: "responsive", path: project, name: "布局恢复验证", pinned: true, lastOpenedAt: 1 }] }));
 	} });
 	try {

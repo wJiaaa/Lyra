@@ -2,9 +2,9 @@
  * What a conversation is doing right now, as one word.
  *
  * The sidebar lists conversations that are not on screen, and several of them can be live at
- * once — a scheduled task runs in one, the phone drives another, an agent in a third has stopped
- * to ask permission and will wait indefinitely for an answer nobody knows it needs. From the
- * list, all of these look exactly like a conversation somebody finished last Tuesday.
+ * once — a scheduled task runs in one, an agent in another has stopped to ask permission and will
+ * wait indefinitely for an answer nobody knows it needs. From the list, all of these look exactly
+ * like a conversation somebody finished last Tuesday.
  *
  * Derived from the event stream rather than stored: the events already say everything, and a
  * second source of truth would be a second thing to get wrong. Kept here, away from the window,

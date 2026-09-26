@@ -57,7 +57,6 @@ export interface TreeDrag {
 
 export function useTreeDrag({
 	root,
-	disabled = false,
 	pathsFor,
 	expand,
 	isExpanded,
@@ -66,7 +65,6 @@ export function useTreeDrag({
 }: {
 	/** Where a drop on the background goes. */
 	root: string;
-	disabled?: boolean;
 	/** The rows a drag starting on this one should carry: the selection, or just this row. */
 	pathsFor(entry: FileEntry): string[];
 	expand(path: string): void;
@@ -112,7 +110,6 @@ export function useTreeDrag({
 
 	const accept = useCallback(
 		(event: React.DragEvent, dir: string) => {
-			if (disabled) return false;
 			const external = event.dataTransfer.types.includes("Files") && !event.dataTransfer.types.includes(PATHS);
 			if (!allows(dir, external)) {
 				event.dataTransfer.dropEffect = "none";
@@ -125,12 +122,11 @@ export function useTreeDrag({
 			setDropTarget(dir);
 			return true;
 		},
-		[allows, disabled],
+		[allows],
 	);
 
 	const finish = useCallback(
 		(event: React.DragEvent, dir: string) => {
-			if (disabled) return;
 			event.preventDefault();
 			event.stopPropagation();
 			cancelSpring();
@@ -148,16 +144,12 @@ export function useTreeDrag({
 			const sources = [...event.dataTransfer.files].map((file) => bridge.files.pathForDrop(file)).filter(Boolean);
 			if (sources.length > 0) onImport(sources, dir);
 		},
-		[allows, cancelSpring, disabled, onImport, onTransfer],
+		[allows, cancelSpring, onImport, onTransfer],
 	);
 
 	const rowProps = useCallback(
 		(entry: FileEntry) => ({
 			onDragStart: (event: React.DragEvent) => {
-				if (disabled) {
-					event.preventDefault();
-					return;
-				}
 				const paths = pathsFor(entry);
 				setDragging(paths);
 				event.dataTransfer.setData(PATHS, JSON.stringify(paths));
@@ -179,7 +171,7 @@ export function useTreeDrag({
 			onDragLeave: cancelSpring,
 			onDrop: (event: React.DragEvent) => finish(event, entry.isDirectory ? entry.path : dirName(entry.path)),
 		}),
-		[accept, cancelSpring, disabled, finish, pathsFor, springOpen],
+		[accept, cancelSpring, finish, pathsFor, springOpen],
 	);
 
 	const backgroundProps = useCallback(

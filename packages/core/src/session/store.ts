@@ -3,7 +3,7 @@
  *
  * Sessions are append-only JSONL logs. Every record carries a monotonic `seq`, which is what
  * makes cross-device sync cheap: a client that has seen up to seq N asks for everything after
- * N and replays it. Nothing is ever rewritten in place, so a phone reconnecting mid-turn
+ * N and replays it. Nothing is ever rewritten in place, so a client reconnecting mid-turn
  * cannot miss or duplicate events.
  */
 
@@ -91,8 +91,8 @@ export type SessionRecord =
 	| { seq: number; ts: number; type: "usage"; source: "title-summary" | "side-chat" | (string & {}); providerId: string; modelId: string; usage: Usage }
 	/**
 	 * Its own record type rather than a `meta` write: archiving must not touch `updatedAt`,
-	 * and a `meta` record always refreshes it. Sending it through the log also means a phone
-	 * syncing with `?since=N` learns the session was archived, same as any other change.
+	 * and a `meta` record always refreshes it. Sending it through the log also means a client
+	 * catching up from seq N learns the session was archived, same as any other change.
 	 */
 	| { seq: number; ts: number; type: "archive"; archived: boolean }
 	/**

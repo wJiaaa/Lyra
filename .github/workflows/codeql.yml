@@ -3,9 +3,6 @@
 # Free for a public repository, and it looks for a different class of thing than oxlint does: oxlint
 # is about how the code reads, CodeQL is about how data flows through it — a value from a request
 # reaching a shell, a path from a message reaching the filesystem.
-#
-# `packages/relay` is the reason the schedule matters. It is the one part of this repository meant
-# to be deployed on a server facing the internet, and it is the part nobody runs locally.
 name: CodeQL
 
 on:

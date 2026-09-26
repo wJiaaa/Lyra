@@ -3,8 +3,8 @@ import type { SubAgentSummary } from "../runtime/sub-agents.ts";
 import type { Failure } from "../ai/failure.ts";
 
 /**
- * Everything the UI needs to render a live session. The desktop renderer, the mobile app
- * and the session log all consume this one event type.
+ * Everything the UI needs to render a live session. The desktop renderer and the session log
+ * both consume this one event type.
  */
 export interface CommandRun {
 	id: string;

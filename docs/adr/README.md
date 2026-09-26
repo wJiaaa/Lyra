@@ -7,8 +7,8 @@
 
 | # | 决定 |
 | --- | --- |
-| [0001](0001-mobile-hosts-the-desktop-renderer.md) | 手机跑桌面端的界面，不自己画一套 |
-| [0002](0002-relay-knows-nothing.md) | 中转服务不知道令牌，房间号是它的哈希 |
+| [0001](0001-mobile-hosts-the-desktop-renderer.md) | 手机跑桌面端的界面，不自己画一套（已被 0026 取代） |
+| [0002](0002-relay-knows-nothing.md) | 中转服务不知道令牌，房间号是它的哈希（已被 0026 取代） |
 | [0003](0003-secrets-in-a-file-not-the-keychain.md) | 密钥存加密文件，不用系统钥匙串 |
 | [0004](0004-sandbox-fails-closed.md) | 沙箱拿不到约束就拒绝执行，绝不退回无保护 |
 | [0005](0005-tags-publish-directly.md) | 打 tag 直接发布，不留草稿 |
@@ -32,5 +32,6 @@
 | [0023](0023-containers-belong-to-sessions.md) | 面板只属于会话，单屏是只有一屏的分屏，窗口本身没有面板 |
 | [0024](0024-sub-agents-stop-at-checkpoints.md) | 子代理停在检查点而不是终点，上下文留着，可以续跑 |
 | [0025](0025-model-switch-applies-from-next-request.md) | 一轮之内换模型从下一个请求起就换，卡在重试上的请求当场放手 |
+| [0026](0026-remove-mobile-and-relay.md) | 移除移动端与中转服务，只保留桌面端 |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。

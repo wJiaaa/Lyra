@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AgentDefinitionRecord } from "@lyra/core";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 
 export function useAgentDefinitions() {
@@ -13,9 +13,7 @@ export function useAgentDefinitions() {
 	const [error, setError] = useState("");
 	const [busy, setBusy] = useState(false);
 	const generation = useRef(0);
-	const enabled = available("agentDefinitions", "list");
 	const refresh = useCallback(async () => {
-		if (!enabled) return;
 		const current = ++generation.current;
 		setBusy(true); setError("");
 		try {
@@ -23,10 +21,10 @@ export function useAgentDefinitions() {
 			if (current === generation.current) { setRecords(result.records); setTools(result.tools); }
 		} catch (cause) { if (current === generation.current) setError(String(cause)); }
 		finally { if (current === generation.current) setBusy(false); }
-	}, [projectId, enabled]);
+	}, [projectId]);
 	useEffect(() => {
 		const invalidate = () => { generation.current++; };
 		setRecords(null); void refresh(); return invalidate;
 	}, [refresh]);
-	return { records, tools, error, busy, refresh, enabled, projectId, projectName: project?.name };
+	return { records, tools, error, busy, refresh, projectId, projectName: project?.name };
 }

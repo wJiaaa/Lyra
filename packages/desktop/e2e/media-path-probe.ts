@@ -44,7 +44,6 @@ const app = await startApp({
 				scheduledTasks: [],
 				disabledPlugins: [],
 				alwaysAllow: [],
-				sync: { enabled: false, port: 4517, token: null },
 			}),
 		);
 	},

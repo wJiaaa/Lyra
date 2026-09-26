@@ -51,7 +51,6 @@ const app = await startApp({
 				pluginRegistries: [],
 				skillRegistries: [],
 				alwaysAllow: [],
-				sync: { enabled: false, port: 4519, token: null },
 				appearance: { theme: "dark" },
 			}),
 		);

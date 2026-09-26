@@ -151,7 +151,6 @@ const app = await startApp({
 				pluginRegistries: [],
 				skillRegistries: [],
 				alwaysAllow: [],
-				sync: { enabled: false, port: 4519, token: null },
 				appearance: { theme: "dark" },
 			}),
 		);
@@ -173,7 +172,7 @@ const check = (ok: boolean, what: string) => {
 const SECTIONS = [
 	"常规", "外观", "代码格式化", "个性化", "模型设置", "代码托管", "屏幕截图",
 	"浏览器", "插件", "智能体", "子智能体调度", "命令", "钩子", "网页搜索",
-	"访问授权", "索引库", "移动端同步", "使用统计", "Worktrees", "关于", "已归档的聊天",
+	"访问授权", "索引库", "使用统计", "Worktrees", "关于", "已归档的聊天",
 ];
 
 try {

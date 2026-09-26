@@ -10,7 +10,6 @@
 
 import { AtSign, Clock, GitPullRequest } from "lucide-react";
 import { useApp } from "../../store/index.ts";
-import { onPhone } from "../../services/host.ts";
 import { NavItem } from "./NavItem.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -18,7 +17,6 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 	const { t } = useI18n();
 	const view = useApp((s) => s.view);
 	const setView = useApp((s) => s.setView);
-	if (onPhone()) return null;
 	const go = (next: Parameters<typeof setView>[0]) => () => {
 		setView(next);
 		onNavigate();

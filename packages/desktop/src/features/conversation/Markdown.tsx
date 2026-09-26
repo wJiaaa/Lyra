@@ -24,7 +24,7 @@ import { groupTokens, HUGE_BLOCK } from "../../lib/markdown/slice.ts";
 import { type Inline, parseInline } from "../../lib/markdown/inline.ts";
 import { renderMath } from "../../lib/markdown/math.ts";
 import { stripEmoji } from "../../lib/markdown/strip-emoji.ts";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
@@ -329,7 +329,7 @@ function renderToken(token: Inline): ReactNode {
  * 更让人不敢点。
  *
  * 只在悬停时显形，理由和 `MessageActions` 那一排一样：它们重复出现在整页的每一个文件名旁边，常驻的话
- * 会和正文抢注意力。手机上没有悬停，`data-ly-hover-reveal` 让样式表那边把它们常驻出来。
+ * 会和正文抢注意力。
  */
 function textOf(node: ReactNode): string {
 	if (node == null || typeof node === "boolean") return "";
@@ -341,8 +341,6 @@ function textOf(node: ReactNode): string {
 
 function FileLink({ href, path, children }: { href: string; path: string; children: ReactNode }) {
 	const revealLabel = useRevealLabel();
-	const canOpen = available("system", "openPath");
-	const canReveal = available("system", "openIn");
 	const caption = fileLinkCaption(textOf(children), path);
 	const openFile = () => {
 		const name = path.split(/[/\\]/).pop() || path;
@@ -364,29 +362,17 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 				<FileText size={13} />
 				<span data-ly-file-name>{caption.text}</span>
 			</a>
-			{/*
-			 * 按能力画，不按平台画。
-			 *
-			 * 手机上这两个 API 根本不存在——画出来是两个按下去什么都不会发生的图标，比没有更糟。
-			 * `available()` 问的正是这件事，所以这里不需要知道自己跑在什么上面。
-			 */}
-			{(canOpen || canReveal) && (
-				<span data-ly-file-actions>
-					{canOpen && (
-						<FileLinkAction
-							tip={translate("openTarget.defaultApp")}
-							onClick={() => void bridge.system.openPath(path).catch(fail)}
-						>
-							<ExternalLink size={11.5} strokeWidth={1.9} />
-						</FileLinkAction>
-					)}
-					{canReveal && (
-						<FileLinkAction tip={revealLabel} onClick={() => void bridge.system.openIn("reveal", path).catch(fail)}>
-							<FolderOpen size={11.5} strokeWidth={1.9} />
-						</FileLinkAction>
-					)}
-				</span>
-			)}
+			<span data-ly-file-actions>
+				<FileLinkAction
+					tip={translate("openTarget.defaultApp")}
+					onClick={() => void bridge.system.openPath(path).catch(fail)}
+				>
+					<ExternalLink size={11.5} strokeWidth={1.9} />
+				</FileLinkAction>
+				<FileLinkAction tip={revealLabel} onClick={() => void bridge.system.openIn("reveal", path).catch(fail)}>
+					<FolderOpen size={11.5} strokeWidth={1.9} />
+				</FileLinkAction>
+			</span>
 		</span>
 	);
 }

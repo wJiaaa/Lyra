@@ -55,6 +55,6 @@ export async function seedInteractions(home: string, modelPort?: number): Promis
 	await writeFile(join(pending, "portable-release-verification.md"), `---\nname: portable-release-verification\ndescription: 验证发布流程前，先发现当前仓库的实际脚本与门禁。\nstatus: pending\nscope: portable\nsourceSessions: ["qa-long", "qa-short"]\n---\n\n## 适用范围\n适用于声明了发布脚本的项目。\n\n## 输入与前置检查\n读取当前的 AGENTS.md、package.json 和工作区清单。\n\n## 执行步骤\n${Array.from({ length: 35 }, (_, i) => `${i + 1}. 发现当前项目的验证命令并核对结果，保留失败日志。`).join("\n")}\n\n## 验证与失败处理\n门禁未通过则停止，不推送任何版本。\n`);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1200, height: 800 }));
 	await writeFile(join(home, "settings.json"), JSON.stringify({ providers: modelPort ? [{ id: "qa", name: "隔离测试模型", api: "anthropic-messages", baseUrl: `http://127.0.0.1:${modelPort}`, apiKey: "test", enabled: true,
-		models: [{ id: "qa/model", providerId: "qa", modelId: "model", name: "QA", contextWindow: 128000, maxOutputTokens: 4096, supportsImages: true, supportsTools: true, supportsThinking: false }] }] : [], defaultModelId: "qa/model", mcpServers: [], hooks: [], sync: { enabled: false },
+		models: [{ id: "qa/model", providerId: "qa", modelId: "model", name: "QA", contextWindow: 128000, maxOutputTokens: 4096, supportsImages: true, supportsTools: true, supportsThinking: false }] }] : [], defaultModelId: "qa/model", mcpServers: [], hooks: [],
 		projects: [{ id: projectId, path: cwd, name: "交互验证", pinned: true, lastOpenedAt: 1 }] }));
 }

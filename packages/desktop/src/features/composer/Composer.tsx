@@ -660,9 +660,8 @@ export function Composer() {
 
 	return (
 		/*
-		 * `ly-composer-dock`: the strip along the bottom of the conversation, named so the phone can
-		 * find it. It is the one thing that has to move when a keyboard slides over the window —
-		 * the transcript above it stays put and keeps its scroll position. See `--ly-keyboard`.
+		 * `ly-composer-dock`: the strip along the bottom of the conversation, named so the stylesheet
+		 * can find it — see `composer.css`.
 		 */
 		<div className="ly-composer-dock shrink-0" data-compact={compact || undefined}>
 			<div className="mx-auto w-full max-w-[var(--ly-content)]">

@@ -77,7 +77,7 @@ export function AgentsSettings() {
 	if (editor) return <AgentDefinitionEditor record={editor.record} copy={editor.copy} projectId={editor.projectId} projectName={catalogue.projectName} tools={catalogue.tools} onClose={() => setEditor(null)} onSaved={(name, warning) => { setEditor(null); setHighlight(name); setNotice(warning ?? t("agents.savedForNext")); void catalogue.refresh(); }} />;
 	return (
 		<div className="pt-8">
-			<div className="flex items-center justify-between gap-3"><h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("agents.title")}</h1>{catalogue.enabled && <button type="button" data-ly-tip={t("agents.add")} aria-label={t("agents.add")} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-white" onClick={() => setEditor({ projectId: catalogue.projectId })}><Plus size={16} aria-hidden /></button>}</div>
+			<div className="flex items-center justify-between gap-3"><h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("agents.title")}</h1><button type="button" data-ly-tip={t("agents.add")} aria-label={t("agents.add")} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-white" onClick={() => setEditor({ projectId: catalogue.projectId })}><Plus size={16} aria-hidden /></button></div>
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">
 				{translate("agentsSettings.intro")}
 			</p>

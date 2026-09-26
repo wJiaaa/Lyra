@@ -49,7 +49,6 @@ async function seed(home: string): Promise<void> {
 			defaultModelId: null,
 			projects: [{ id: projectId, path: cwd, name: "验收工程", pinned: true, lastOpenedAt: Date.now() }],
 			pinnedSessionIds: [],
-			sync: { enabled: false },
 		}),
 	);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1400, height: 900 }));

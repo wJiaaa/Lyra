@@ -3,7 +3,6 @@ import { ArrowLeft, Rocket } from "lucide-react";
 import { useEffect } from "react";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";
-import { sectionFor } from "./sections-for.ts";
 import { settingsGroups } from "./settings-navigation.ts";
 import { SettingsNav } from "./SettingsNav.tsx";
 import type { SettingsSection } from "../../store/index.ts";
@@ -32,11 +31,10 @@ import { SkillsSettings } from "./SkillsSettings.tsx";
 import { AccessSettings } from "./AccessSettings.tsx";
 import { ForgeSettings } from "./ForgeSettings.tsx";
 import { SearchSettings } from "./SearchSettings.tsx";
-import { SyncSettings } from "./SyncSettings.tsx";
 import { StorageSettings } from "./StorageSettings.tsx";
 import { UsageSettings } from "./UsageSettings.tsx";
 import { WorktreesSettings } from "./WorktreesSettings.tsx";
-import { bridge, onPhone } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
 /**
@@ -54,17 +52,14 @@ const SELF_SCROLLING = new Set<SettingsSection>(["models", "plugins"]);
 export function SettingsShell() {
 	const { t } = useI18n();
 	const workspaceKey = useApp((state) => state.workspace?.path ?? "");
-	const wanted = useApp((s) => s.settingsSection);
+	const section = useApp((s) => s.settingsSection);
 	const setSection = useApp((s) => s.setSettingsSection);
 	const setView = useApp((s) => s.setView);
 	const { compact, navOpen, headerBar, toggleNav, dismissNav, sidebarWidth, titlebar } = useLayout();
 	// Synchronous, from the preload: waiting for `system.platform()` drew the first frame as macOS.
 	const platform = bridge.platform ?? "darwin";
 
-	const phone = onPhone();
-
-	const groups = settingsGroups(platform, phone);
-	const section = sectionFor(groups, wanted, phone);
+	const groups = settingsGroups(platform);
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -264,8 +259,6 @@ function SectionBody({ section }: { section: SettingsSection }) {
 			return <AccessSettings />;
 		case "forges":
 			return <ForgeSettings />;
-		case "sync":
-			return <SyncSettings />;
 		case "usage":
 			return <UsageSettings />;
 		case "storage":

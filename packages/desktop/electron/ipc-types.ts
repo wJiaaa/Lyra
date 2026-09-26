@@ -101,7 +101,6 @@ import type {
 	RefDiff,
 	SessionSnapshot,
 	SideChatSnapshot,
-	SyncStatus,
 	WorkspaceDiffFile,
 	WorkspaceInfo,
 } from "./ipc-shapes.ts";
@@ -189,7 +188,7 @@ export interface LyraApi {
 	 * The operating system's own version, `process.getSystemVersion()` — "10.0.22631" on Windows 11.
 	 *
 	 * Read by the terminal, which has to tell xterm which build of ConPTY it is drawing for (see
-	 * `windowsPtyFor`). Optional because a phone's bridge has no such thing to report.
+	 * `windowsPtyFor`).
 	 */
 	systemVersion?: string;
 	/**
@@ -229,19 +228,6 @@ export interface LyraApi {
 		onClosePanel(handler: () => void): () => void;
 		onFilePanelState(handler: (input: FilePanelVersion & { previous?: FilePanelState }) => void): () => void;
 	};
-	/**
-	 * What is displaying this interface.
-	 *
-	 * `"desktop"` — the Electron window, which has traffic lights, a mouse and a keyboard with
-	 * modifiers. `"mobile"` — a WebView on a phone, which has none of those and a thumb instead.
-	 * Absent means desktop, so nothing outside the phone has to be changed to read it.
-	 *
-	 * Deliberately not derived from the viewport. A narrow desktop window is still a desktop
-	 * window: it keeps its window controls and its hover states, and treating it as a phone would
-	 * take away both. This says which *device* is holding the app, which is a different question
-	 * from how much room it has.
-	 */
-	host?: "desktop" | "mobile";
 	settings: {
 		get(): Promise<Settings>;
 		save(settings: Settings): Promise<Settings>;
@@ -255,10 +241,10 @@ export interface LyraApi {
 		 * Settings changed on the other side of the boundary.
 		 *
 		 * The renderer is not the only thing that writes them: installing an MCP bundle adds its
-		 * servers, uninstalling takes them away, sync rotates its token, an approval appends to
-		 * `alwaysAllow`. The main process has always broadcast this and nothing has ever listened,
-		 * so the window went on showing the settings it last saved itself — install a server from
-		 * the catalogue and the MCP page did not have it until the app was restarted.
+		 * servers, uninstalling takes them away, an approval appends to `alwaysAllow`. The main
+		 * process has always broadcast this and nothing has ever listened, so the window went on
+		 * showing the settings it last saved itself — install a server from the catalogue and the
+		 * MCP page did not have it until the app was restarted.
 		 */
 		onChanged(handler: (settings: Settings) => void): () => void;
 	};
@@ -616,12 +602,6 @@ export interface LyraApi {
 	providers: {
 		test(providerId: string, modelId?: string): Promise<ProviderTestResult>;
 		fetchModels(providerId: string): Promise<{ ok: boolean; models: string[]; error?: string }>;
-	};
-	sync: {
-		status(): Promise<SyncStatus>;
-		start(): Promise<SyncStatus>;
-		stop(): Promise<SyncStatus>;
-		rotateToken(): Promise<SyncStatus>;
 	};
 	commands: {
 		/**

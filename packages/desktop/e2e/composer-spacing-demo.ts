@@ -46,7 +46,6 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4579, token: null },
 		}),
 	);
 	const projectId = createHash("sha256").update(project).digest("hex").slice(0, 16);

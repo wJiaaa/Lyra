@@ -17,7 +17,6 @@ import type { TodoItem } from "@lyra/core";
 import { create } from "zustand";
 import type {
   AgentCapabilities,
-  SyncStatus,
   WorkspaceInfo,
 } from "../../electron/ipc-types.ts";
 /*
@@ -79,7 +78,6 @@ export type SettingsSection =
   | "forges"
   | "usage"
   | "storage"
-  | "sync"
   | "worktrees"
   | "about"
   | "archived";
@@ -230,7 +228,7 @@ export interface AppState extends QueueSlice {
   /**
    * Transcripts already read this run, keyed by session id.
    *
-   * Re-opening a session still re-reads its log — that is how a turn driven from the phone
+   * Re-opening a session still re-reads its log — that is how a turn driven from elsewhere
    * shows up — but the cached copy goes on screen straight away, so switching back to
    * somewhere you have already been does not flash a skeleton at you.
    */
@@ -352,7 +350,6 @@ export interface AppState extends QueueSlice {
    */
   ruleOffer: { name: string; body: string; condition?: string; scope?: string } | null;
   capabilities: AgentCapabilities | null;
-  sync: SyncStatus | null;
 
   bootstrap(): Promise<void>;
   setView(view: View): void;
@@ -485,7 +482,6 @@ export interface AppState extends QueueSlice {
   setModel(modelId: string, options?: { asDefault?: boolean }): Promise<void>;
   /** How hard this conversation asks the model to think. Falls back to the app default. */
   setThinking(thinking: ThinkingLevel): Promise<void>;
-  refreshSync(): Promise<void>;
   dismissNotice(id: string): void;
   notify(message: string, level?: "info" | "warn" | "error", sessionId?: string): void;
   /**
@@ -544,7 +540,6 @@ export const useApp = create<AppState>((set, get) => ({
   notices: [],
   ruleOffer: null,
   capabilities: null,
-  sync: null,
 
   async bootstrap() {
     /*
@@ -570,9 +565,21 @@ export const useApp = create<AppState>((set, get) => ({
 		 * Subscribe before the first reads.
 		 *
 		 * A fast agent event can arrive between reading a transcript and attaching the event listener.
-		 * That gap leaves the phone one token behind until the next full refresh, which is most visible
-		 * after foregrounding on a weak network. The local bridge queues the reads already, so there is
-		 * no reason to postpone the listeners until after they answer.
+		 * That gap leaves the window one token behind until the next full refresh. The local bridge
+		 * queues the reads already, so there is no reason to postpone the listeners until after they
+		 * answer.
+		 */
+		/*
+		 * Settings the window did not write itself.
+		 *
+		 * Installing an MCP bundle adds its servers, uninstalling one takes them away, an approval
+		 * appends to `alwaysAllow` — all of that happens in the main process, which has always
+		 * broadcast the result. Nothing listened, so the window kept showing the settings it last
+		 * saved: a server installed from the catalogue simply was not on the MCP page, and the two
+		 * halves of the same subject disagreed until the app was restarted.
+		 *
+		 * Also bumps `extensionsNonce`, because a change to `mcpServers` usually means a directory
+		 * appeared or vanished as well, and the lists that scan disk have no other way to hear it.
 		 */
 		bridge.settings.onChanged((next) =>
 			set((state) => ({
@@ -618,20 +625,6 @@ export const useApp = create<AppState>((set, get) => ({
 		initialComplete = true;
 		for (const change of initialChanges) applySessionChange(change, set, get);
 		initialChanges.length = 0;
-
-    /*
-     * Settings the window did not write itself.
-     *
-     * Installing an MCP bundle adds its servers, uninstalling one takes them away, an approval
-     * appends to `alwaysAllow`, sync rotates its token — all of that happens in the main process,
-     * which has always broadcast the result. Nothing listened, so the window kept showing the
-     * settings it last saved: a server installed from the catalogue simply was not on the MCP
-     * page, and the two halves of the same subject disagreed until the app was restarted.
-     *
-     * Also bumps `extensionsNonce`, because a change to `mcpServers` usually means a directory
-     * appeared or vanished as well, and the lists that scan disk have no other way to hear it.
-     */
-    void get().refreshSync();
   },
 
   setView: (view) => set({ view }),

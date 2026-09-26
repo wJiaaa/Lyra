@@ -11,7 +11,7 @@
  *
  * **The import order is the original order and has to stay that way.** It is the cascade: two rules
  * of equal specificity are decided by which came last, so moving a line here can change the page
- * without changing a single declaration. `phone.css` is last on purpose — it overrides.
+ * without changing a single declaration.
  *
  * Checked rather than trusted: `scripts/css-equivalence.mjs` compares the built stylesheet before
  * and after as sets of rules. The first attempt at this split lost exactly one rule, to a cut that
@@ -58,6 +58,3 @@
 @import "./styles/dock.css";
 @import "./styles/pull-requests.css";
 @import "./styles/trajectory.css";
-
-/* Last, so it can override anything above when the interface is on a phone. */
-@import "./styles/phone.css";

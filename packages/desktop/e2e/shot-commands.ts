@@ -47,7 +47,6 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4525, token: null },
 			/*
 			 * The font stack as Appearance actually writes it, not the stylesheet's own default.
 			 *

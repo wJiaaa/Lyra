@@ -42,9 +42,6 @@ import { useBrowserWorkspace } from "../features/browser/index.ts";
  * `lazy` rather than a hand-rolled dynamic import: React already knows how to hold the tree still
  * while a chunk arrives, and doing it by hand means a second state machine that has to agree with
  * the first about what "loading" means.
- *
- * The phone is why this is worth doing at all. It loads the same bundle over the network, and
- * through a relay that crosses the public internet twice.
  */
 /*
  * Pointed at the component file, not at the domain's `index.ts`.
@@ -251,8 +248,7 @@ function Shell() {
  * the pane keeps its old contents until the chunk lands, so clicking 「插件」 would leave the
  * conversation on screen and look like the click was missed. A skeleton says the click was heard.
  *
- * Usually invisible — the chunk is on the same disk and arrives within a frame or two. It is the
- * phone, loading the same bundle across a relay, that this is for.
+ * Usually invisible — the chunk is on the same disk and arrives within a frame or two.
  */
 function LazyScreen({ children, shape = "list" }: { children: React.ReactNode; shape?: "settings" | "list" | "grid" }) {
 	const { t } = useI18n();

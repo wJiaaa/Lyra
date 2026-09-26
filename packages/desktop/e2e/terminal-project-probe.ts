@@ -31,7 +31,7 @@ async function seed(home: string): Promise<void> {
 	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));
 	await writeFile(
 		join(home, "settings.json"),
-		JSON.stringify({ ...real, projects, pinnedSessionIds: [], sync: { enabled: false } }),
+		JSON.stringify({ ...real, projects, pinnedSessionIds: [] }),
 	);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1400, height: 900 }));
 }

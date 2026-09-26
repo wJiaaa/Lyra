@@ -88,7 +88,6 @@ const app = await startApp({
 				skillRegistries: [],
 				alwaysAllow: [],
 				uiLocale: LOCALE,
-				sync: { enabled: false, port: 4519, token: null },
 				appearance: { theme: "dark" },
 			}),
 		);

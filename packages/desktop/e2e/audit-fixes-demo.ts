@@ -97,7 +97,6 @@ async function seed(home: string): Promise<void> {
 			// 自定义那一档，`browser.searchUrl` 的输入框只在它下面才画出来——要验的正是那个
 			// `aria-label`，它曾经是一句写死的中文。
 			browser: { searchEngine: "custom", searchUrl: "https://example.com/search?q=%s" },
-			sync: { enabled: false, port: 4531, token: null },
 		}),
 	);
 }

@@ -64,23 +64,6 @@ test("a rect wider than the window never reserves a negative amount", () => {
 	assert.deepEqual(overlayReserved(overlay, 1200), NONE);
 });
 
-test("a phone has no window controls, so nothing is held open for them", () => {
-	/*
-	 * The phone reports `darwin` — it is describing the machine the session runs on, which is what
-	 * the renderer uses `platform` for. Left at that, it also inherited macOS's geometry: 78px at
-	 * the top left for traffic lights that are not there, which left the sidebar toggle marooned in
-	 * the middle of the row instead of at the edge where every mark below it lines up.
-	 */
-	assert.deepEqual(titlebarInsets("darwin", false, NONE, false), { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE });
-	assert.deepEqual(titlebarInsets("win32", false, { start: 0, end: 138 }, false), { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE });
-});
-
-test("a desktop window keeps its controls, whatever the platform", () => {
-	// The default is `windowed`, so nothing outside the phone had to be changed to read this.
-	assert.equal(titlebarInsets("darwin", false, NONE).start, TRAFFIC_LIGHTS_WIDTH);
-	assert.equal(titlebarInsets("win32", false, { start: 0, end: 138 }).end, 138);
-});
-
 test("Linux with its window buttons on the left: the row starts past them", () => {
 	/*
 	 * GNOME's button-layout can put close/minimise/maximise at the leading end (elementary does by

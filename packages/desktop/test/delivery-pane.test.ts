@@ -12,7 +12,6 @@ test("the delivery pane is registered, hidden from the chooser, and not persiste
 	assert.match(source, /listed: false/);
 	assert.match(source, /ephemeral: true/);
 	assert.match(source, /DeliveryPanel/);
-	assert.doesNotMatch(source, /kind: "delivery"[\s\S]*mobile: true/);
 });
 
 test("the chooser skips unlisted panes and storage skips ephemeral ones", async () => {

@@ -36,7 +36,7 @@ before(async () => {
 		]) { await mkdir(dirname(path), { recursive: true }); await writeFile(path, body); }
 		await writeFile(join(dirname(skill), "resource.txt"), "skill resource");
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1200, height: 800 }));
-		await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [], sync: { enabled: false },
+		await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [],
 			// This test measures animation frames independently of the runner's accessibility settings.
 			appearance: { reduceMotion: "off" },
 			mcpServers: [{ id: "qa", name: "QA 服务", command: "unused", args: [], transport: "stdio", enabled: false }],

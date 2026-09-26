@@ -45,7 +45,7 @@ const architecture = read("ARCHITECTURE.md");
 
 test("包的数目", () => {
 	const actual = dirsIn("packages").length;
-	assert.equal(actual, 7, "先确认现数是多少，再看文档");
+	assert.equal(actual, 4, "先确认现数是多少，再看文档");
 	for (const written of counts(agents, "个包")) {
 		assert.equal(written, actual, "AGENTS.md 里写的包数和 packages/ 下的目录数对不上");
 	}
@@ -63,7 +63,7 @@ test("功能域的数目", () => {
 
 test("渲染进程顶层目录的数目", () => {
 	const actual = dirsIn("packages/desktop/src").length;
-	assert.equal(actual, 10);
+	assert.equal(actual, 9);
 	for (const source of [agents, architecture, read("docs/adr/0011-renderer-is-nine-directories.md")]) {
 		for (const written of counts(source, "个目录").concat(counts(source, "个顶层目录"))) {
 			assert.equal(written, actual);
@@ -74,7 +74,7 @@ test("渲染进程顶层目录的数目", () => {
 test("契约方法的数目", () => {
 	// 数的是 `channel:` 而不是导出的常量：这个文件是一张表，表的行数就是方法数。
 	const actual = (read("packages/contract/src/methods.ts").match(/channel: "/g) ?? []).length;
-	assert.equal(actual, 218);
+	assert.equal(actual, 214);
 	for (const source of [agents, read("docs/adr/0012-one-contract-not-three.md")]) {
 		for (const written of counts(source, "个方法").concat(counts(source, "个 invoke"))) {
 			assert.equal(written, actual);

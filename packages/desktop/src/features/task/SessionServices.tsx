@@ -2,7 +2,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { Copy, ExternalLink, Globe, Server, Square, X, CircleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { SessionServices as Services } from "../../../shared/session-services.ts";
-import { bridge, onPhone } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -20,7 +20,7 @@ export function SessionServices() {
 	const root = useRef<HTMLDivElement>(null);
 	const confirm = useConfirmer();
 	useEffect(() => {
-		if (!sessionId || onPhone()) return;
+		if (!sessionId) return;
 		let live = true, timer: ReturnType<typeof setTimeout>, seen = 0;
 		const refresh = async () => {
 			clearTimeout(timer);

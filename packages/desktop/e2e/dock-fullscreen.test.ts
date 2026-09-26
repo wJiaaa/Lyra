@@ -32,7 +32,7 @@ async function seed(home: string) {
 	await writeFile(join(home, "sessions", projectId, "fullscreen.jsonl"), [JSON.stringify({ type: "meta", meta, seq: 0, ts: 1 }), ...messages.map((message, i) => JSON.stringify({ type: "message", message, seq: i + 1, ts: 1 })), JSON.stringify({ type: "meta", meta, seq: meta.seq, ts: 2 })].join("\n") + "\n");
 	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta]));
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900 }));
-	await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [], mcpServers: [], hooks: [], sync: { enabled: false }, projects: [{ id: projectId, name: "性能验证", path: cwd, pinned: true, lastOpenedAt: 1 }] }));
+	await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [], mcpServers: [], hooks: [], projects: [{ id: projectId, name: "性能验证", path: cwd, pinned: true, lastOpenedAt: 1 }] }));
 }
 
 before(async () => {

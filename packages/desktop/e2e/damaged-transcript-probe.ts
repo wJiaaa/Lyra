@@ -67,7 +67,7 @@ async function seed(home: string): Promise<void> {
 		JSON.stringify({
 			...real, permissionMode: "full",
 			projects: [{ id: projectId, path: cwd, name: "演示工程", pinned: true, lastOpenedAt: now }],
-			pinnedSessionIds: [], sync: { enabled: false },
+			pinnedSessionIds: [],
 		}),
 	);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 820 }));

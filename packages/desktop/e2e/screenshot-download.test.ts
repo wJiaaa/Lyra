@@ -6,7 +6,7 @@ import { startApp, type AppWindow } from "./app.ts";
 
 test("screenshot downloads use the chosen directory and survive an unavailable clipboard", async (t) => {
 	const app = await startApp({ port: 9831, inspectPort: 9832, seed: async home => {
-		await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [], mcpServers: [], hooks: [], sync: { enabled: false }, screenshot: { shortcut: "", downloadLocation: join(home, "下载 甲"), copyToClipboard: false } }));
+		await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [], mcpServers: [], hooks: [], screenshot: { shortcut: "", downloadLocation: join(home, "下载 甲"), copyToClipboard: false } }));
 	} });
 	try {
 		// The fixture is a real app-window screenshot; no desktop or other applications are captured.
@@ -50,7 +50,7 @@ test("screenshot downloads use the chosen directory and survive an unavailable c
 
 test("the visible download arrow saves to Desktop or the selected directory and shows the colour-copy toast", async (t) => {
 	const app = await startApp({ port: 9831, inspectPort: 9832, seed: async home => {
-		await writeFile(join(home, "settings.json"), JSON.stringify({ uiLocale: "zh-CN", providers: [], mcpServers: [], hooks: [], sync: { enabled: false }, screenshot: { enabled: true, shortcut: "", downloadLocation: "", saveLocation: "", copyToClipboard: false, openEditor: true } }));
+		await writeFile(join(home, "settings.json"), JSON.stringify({ uiLocale: "zh-CN", providers: [], mcpServers: [], hooks: [], screenshot: { enabled: true, shortcut: "", downloadLocation: "", saveLocation: "", copyToClipboard: false, openEditor: true } }));
 	} });
 	const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 	const frames: { at: number; data: Buffer }[] = [];

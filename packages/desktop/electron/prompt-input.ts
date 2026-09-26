@@ -6,7 +6,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 export function promptContent(value: unknown): UserContent[] {
-	// The remote contract also accepts plain text from older paired clients.
+	// Plain text is accepted as a single text block.
 	if (typeof value === "string" && value.trim()) return [{ type: "text", text: value }];
 	if (!Array.isArray(value) || value.length === 0) throw new Error("content must be a non-empty array");
 	return value.map((block: unknown) => {
@@ -19,24 +19,8 @@ export function promptContent(value: unknown): UserContent[] {
 	});
 }
 
-/**
- * 这份输入是谁递进来的。
- *
- * 只有 `attachments[].path` 在乎这件事，而它在乎得厉害：那个字段进了会话之后会被
- * `runtime/session-turn.ts` 的 `collectAllowedPaths` 收成一份「这一轮可以读的工作区外文件」，也就是
- * 说，**它是一张写在消息里的通行证**。本机递进来的是用户自己在输入框里拖的文件，那正是它的用途；
- * 远端递进来的是一串可以随便编的字符串。
- *
- * 手机那一侧本来是关着的：`files.write/bytes/document` 在契约里刻意标了 `remote: false`，
- * `phoneProjectPath` 还用 realpath 把它锁在已打开的项目里。附件的 `path` 是从侧门绕过那道锁的一条
- * 路——同一个形状在 `sync.ts` 里已经犯过一次（手机可在任意目录建会话，等价拿回被白名单挡掉的
- * terminal 能力），那次的注释还在。
- */
-type PromptOrigin = "local" | "remote";
-
 function presentation(
 	value: Record<string, unknown>,
-	origin: PromptOrigin = "local",
 ): Pick<InitialPrompt, "displayText" | "skillRef" | "sessionRefs" | "attachments"> {
 	const result: Pick<InitialPrompt, "displayText" | "skillRef" | "sessionRefs" | "attachments"> = {};
 	if (value.displayText !== undefined) {
@@ -80,8 +64,7 @@ function presentation(
 				name: file.name,
 				...(file.kind === undefined ? {} : { kind: file.kind }),
 				...(file.mimeType === undefined ? {} : { mimeType: file.mimeType }),
-				// 远端给的 `path` 丢掉，理由见 `PromptOrigin`。丢掉只损失气泡上的右键菜单，留着是放行任意文件。
-				...(file.path === undefined || origin === "remote" ? {} : { path: file.path }),
+				...(file.path === undefined ? {} : { path: file.path }),
 				...(file.label === undefined ? {} : { label: file.label }),
 			};
 		});
@@ -89,20 +72,19 @@ function presentation(
 	return result;
 }
 
-export function initialPrompt(value: unknown, origin: PromptOrigin = "local"): InitialPrompt | undefined {
+export function initialPrompt(value: unknown): InitialPrompt | undefined {
 	if (value === undefined) return undefined;
 	if (!object(value)) throw new Error("initial must be an object");
 	if (value.synthetic !== undefined && typeof value.synthetic !== "boolean") throw new Error("synthetic must be boolean");
 	return {
 		content: promptContent(value.content),
 		...(value.synthetic === undefined ? {} : { synthetic: value.synthetic }),
-		...presentation(value, origin),
+		...presentation(value),
 	};
 }
 
 export function promptOptions(
 	value: unknown,
-	origin: PromptOrigin = "local",
 ): Omit<InitialPrompt, "content"> & {
 	deliver?: "steer" | "followUp";
 	resumePending?: boolean;
@@ -117,6 +99,6 @@ export function promptOptions(
 		...(synthetic === undefined ? {} : { synthetic }),
 		...(deliver === undefined ? {} : { deliver }),
 		...(resumePending === undefined ? {} : { resumePending }),
-		...presentation(value, origin),
+		...presentation(value),
 	};
 }

@@ -57,7 +57,6 @@ export async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4588, token: null },
 			uiLocale: "zh-CN",
 			appearance: { theme: "dark" },
 		}),

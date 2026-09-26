@@ -99,7 +99,6 @@ try {
 					permissionMode: "full",
 					projectMemory: false,
 					thinking: "off",
-					sync: { enabled: false },
 					projects: [{ id: projectId, path: cwd, name: "撤回演示", pinned: true, lastOpenedAt: 1 }],
 				}),
 			);

@@ -508,7 +508,7 @@ export function registerUpdateIpc(): void {
 			// `exit`, not `quit`: quitting runs the window-close handlers, and on macOS the swap script
 			// is waiting on this pid.
 			exit: () => app.exit(0),
-			// Windows: `quit`, so `before-quit` shuts sessions, shells and sync down before the
+			// Windows: `quit`, so `before-quit` shuts sessions and shells down before the
 			// installer would have killed the process outright.
 			quit: () => app.quit(),
 		});

@@ -72,7 +72,7 @@ jobs:
 
   e2e-scope:
     # Dependabot opens several PRs at once. Desktop e2e is the expensive job (real Electron on
-    # macOS, 10×). An Expo bump does not need it; an Electron bump does. This job is the cheap
+    # macOS, 10×). A lint-tool bump does not need it; an Electron bump does. This job is the cheap
     # filter so the macOS runner is not even requested. A hang here used to burn six hours per
     # PR because the e2e job had no timeout of its own.
     if: github.event_name != 'push'
@@ -202,7 +202,7 @@ jobs:
     # The dependency rules, checked. `.dependency-cruiser.cjs` says what each one is for.
     #
     # The rules that are `error` are the ones with no violations today: core stays platform-free, the
-    # renderer does not link against the main process, `shared/` belongs to neither, the relay stays
+    # renderer does not link against the main process, `shared/` belongs to neither, the contract stays
     # dependency-free. Those cannot regress without this going red.
     #
     # Circular imports are `warn` — there are fifty-odd, the application works, and turning them red
@@ -236,42 +236,6 @@ jobs:
           path: packages/desktop/out
           retention-days: 7
 
-  mobile-bundle:
-    # Does the phone app still bundle?
-    #
-    # `pnpm build` covers core and desktop; mobile had only a typecheck, and a typecheck cannot see
-    # the thing that actually breaks there. A React Native bump to 0.87 passed lint, typecheck and
-    # the tests on all three platforms, and `expo export` failed outright on it — `@expo/metro-config`
-    # still requires `react-native/rn-get-polyfills`, which 0.87 removed. Nothing in the package
-    # manager objects either: `expo`'s peer range for react-native is `*`, so the SDK's real version
-    # pairing is enforced by neither npm nor tsc. Only bundling says so.
-    #
-    # A bundle, not a simulator: no Xcode and no Android SDK, so it runs on the cheap platform in
-    # about a minute. The output is thrown away — the question is whether Metro can resolve and
-    # transform the whole graph.
-    #
-    # `export:embed` rather than `export`, and both platforms, because those are the words the
-    # native build uses. Xcode's and Gradle's bundle phases both shell out to `export:embed`, and
-    # it resolves Babel plugins named as strings from the project root while `export` lets the
-    # preset require them from its own directory. So `expo export` was green on a tree where the
-    # iOS archive died at the JavaScript step with "Cannot find module
-    # '@babel/plugin-transform-react-jsx'" — a dependency the phone app uses and had never
-    # declared. This job now fails on that, in a minute, instead of a release doing it in twenty.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - name: Bundle the way the native build does
-        run: |
-          set -euo pipefail
-          for platform in ios android; do
-            pnpm --filter @lyra/mobile exec expo export:embed \
-              --platform "$platform" \
-              --dev false \
-              --bundle-output "/tmp/mobile-bundle/$platform.jsbundle" \
-              --assets-dest "/tmp/mobile-bundle/$platform-assets"
-          done
-
   # The single required check. Every job that can fail a change belongs here.
   #
   # `dead-code` used to be left out: knip was still noisy then, and a red job that
@@ -279,7 +243,7 @@ jobs:
   # out of this list is how unused exports reach main while all-green stays green.
   all-green:
     if: always()
-    needs: [lint, typecheck, test, build, e2e, e2e-scope, windows-ui, mobile-bundle, arch, audit, pr-title, dead-code]
+    needs: [lint, typecheck, test, build, e2e, e2e-scope, windows-ui, arch, audit, pr-title, dead-code]
     runs-on: ubuntu-latest
     steps:
       - name: Verdict
@@ -289,6 +253,6 @@ jobs:
           echo "lint=${{ needs.lint.result }} typecheck=${{ needs.typecheck.result }}"
           echo "test=${{ needs.test.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }} e2e-scope=${{ needs.e2e-scope.result }}"
           echo "windows-ui=${{ needs.windows-ui.result }} dead-code=${{ needs.dead-code.result }}"
-          echo "mobile-bundle=${{ needs.mobile-bundle.result }} arch=${{ needs.arch.result }}"
+          echo "arch=${{ needs.arch.result }}"
           echo "audit=${{ needs.audit.result }} pr-title=${{ needs.pr-title.result }}"
           [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "false" ]

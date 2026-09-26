@@ -81,11 +81,6 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/sandbox-bash.test.ts"]],
 	},
 	{
-		id: "H3",
-		what: "七条 HTTP 写路由绕过手机白名单，sessions.create 的 cwd 不限项目",
-		run: ["node", ["--test", "--import", "./packages/desktop/test/setup.ts", "--experimental-strip-types", "packages/desktop/test/sync-rpc.test.ts"]],
-	},
-	{
 		id: "S3",
 		what: "Anthropic 把半截流当完整回答；空闲闸只挂在一条链上",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/anthropic-truncated-stream.test.ts", "packages/core/test/anthropic-wire-stream.test.ts"]],
@@ -94,11 +89,6 @@ const CHECKS = [
 		id: "I3",
 		what: "YAML 解析失败时把解析器的原话丢了",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/skill-frontmatter.test.ts"]],
-	},
-	{
-		id: "I4-relay",
-		what: "中转单连接内存无上限（超大帧头让缓冲永不清空）",
-		run: ["node", ["--experimental-strip-types", "--test", "packages/relay/test/relay-security.test.ts"]],
 	},
 	{
 		id: "I4-worktree",

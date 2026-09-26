@@ -83,7 +83,6 @@ const seed = async (home: string) => {
 				pluginRegistries: [],
 				skillRegistries: [],
 				alwaysAllow: [],
-				sync: { enabled: false, port: 4517, token: null },
 				appearance: { theme: "dark" },
 			}),
 		);

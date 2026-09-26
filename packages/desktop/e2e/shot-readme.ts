@@ -41,7 +41,6 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4517, token: null },
 			appearance: { theme: process.env.LYRA_SHOT_THEME === "dark" ? "dark" : "light" },
 		}),
 	);

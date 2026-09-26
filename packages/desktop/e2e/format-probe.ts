@@ -46,7 +46,6 @@ async function seed(home: string): Promise<void> {
 			pluginRegistries: [],
 			skillRegistries: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4519, token: null },
 			editor: { defaultOpenTarget: "Zed", showBottomPanel: true },
 			appearance: { theme: "dark", codeFontSize: 12, codeFontWeight: 400, codeLineHeight: 1.6, codeLetterSpacing: 0 },
 		}),

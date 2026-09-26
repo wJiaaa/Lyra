@@ -21,7 +21,6 @@ async function seed(home: string): Promise<void> {
 			providers: [],
 			mcpServers: [],
 			hooks: [],
-			sync: { enabled: false },
 			projects: [{ id: projectId, path: cwd, name: "Scroll QA", pinned: true, lastOpenedAt: 1 }],
 		}),
 	);

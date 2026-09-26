@@ -107,7 +107,6 @@ async function seed(home: string): Promise<void> {
 			pluginRegistries: [],
 			skillRegistries: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4517, token: null },
 			appearance: { theme: "dark" },
 		}),
 	);

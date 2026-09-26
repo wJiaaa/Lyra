@@ -169,7 +169,6 @@ async function seed(home: string): Promise<void> {
 			thinking: "off",
 			mcpServers: [],
 			hooks: [],
-			sync: { enabled: false },
 			appearance: { reduceMotion: "off" },
 			projects: [
 				{ path: from, name: FROM.name, pinned: true, lastOpenedAt: Date.now() },

@@ -1,5 +1,5 @@
 /**
- * The services that hang off a workspace: providers, sync, the symbol index, the scheduler.
+ * The services that hang off a workspace: providers, the symbol index, the scheduler.
  *
  * None of them belong to a conversation, which is why they are here rather than with the session
  * handlers — they answer questions about the machine and the project, and they answer them whether
@@ -8,7 +8,7 @@
 
 import { addMemoryEntry, annotateInjected, buildIndex, clearAllMemory, indexStats, loadIndex, loadMemory, readInjected, removeMemoryEntry, saveIndex, searchIndex, userInjectedPath } from "@lyra/core";
 import { ipcMain } from "electron";
-import type { ProviderTestResult, SyncStatus } from "../ipc-types.ts";
+import type { ProviderTestResult } from "../ipc-types.ts";
 import { applySettings, settings } from "../app-settings.ts";
 import { registerCommandsIpc } from "./commands.ts";
 import { registerPluginsIpc } from "./plugins.ts";
@@ -23,15 +23,11 @@ export interface ServicesIpcDeps {
 	fetchEndpointModels?(
 		provider: ReturnType<typeof settings>["providers"][number],
 	): Promise<{ ok: boolean; models: string[]; error?: string }>;
-	sync(): { status(): SyncStatus; stop(): Promise<void>; running: boolean } | null;
-	startSync(): Promise<SyncStatus>;
-	idleSyncStatus(): SyncStatus;
 	scheduler(): { tick(): Promise<void> } | null;
 }
 
 export function registerServicesIpc(deps: ServicesIpcDeps): void {
-	const { testProvider, fetchEndpointModels, idleSyncStatus, startSync } = deps;
-	const syncServer = () => deps.sync();
+	const { testProvider, fetchEndpointModels } = deps;
 	const scheduler = () => deps.scheduler();
 
 	ipcMain.handle(
@@ -52,23 +48,6 @@ export function registerServicesIpc(deps: ServicesIpcDeps): void {
 			return fetchEndpointModels(provider);
 		},
 	);
-
-	ipcMain.handle("sync:status", async () => syncServer()?.status() ?? idleSyncStatus());
-	ipcMain.handle("sync:start", async () => {
-		await applySettings({ ...settings(), sync: { ...settings().sync, enabled: true } });
-		return startSync();
-	});
-	ipcMain.handle("sync:stop", async () => {
-		await applySettings({ ...settings(), sync: { ...settings().sync, enabled: false } });
-		await syncServer()?.stop();
-		return syncServer()?.status() ?? idleSyncStatus();
-	});
-	ipcMain.handle("sync:rotateToken", async () => {
-		const token = crypto.randomUUID().replace(/-/g, "");
-		await applySettings({ ...settings(), sync: { ...settings().sync, token } });
-		await syncServer()?.stop();
-		return startSync();
-	});
 
 	// Scanning does not need a live session: the settings pages are usually opened before
 	// any conversation exists, and an empty plugin list there reads as "nothing installed".

@@ -37,8 +37,6 @@ export interface PanelDefinition {
 	label: MessageKey;
 	icon: typeof GitCompare;
 	shortcut: string;
-	/** Expose this panel in the phone renderer. Absent stays desktop-only. */
-	mobile?: boolean;
 	/**
 	 * Offer this panel in the + menu. Absent is listed.
 	 *
@@ -157,9 +155,4 @@ export function allPanels(): PanelDefinition[] {
  */
 export function detachOf(kind: PaneKind): "self" | "handoff" | "none" {
 	return allPanels().find((panel) => panel.kind === kind)?.detach ?? "self";
-}
-
-/** Mobile gets only panels whose complete data and actions cross the sync boundary. */
-export function panelsForHost(panels: PanelDefinition[], phone: boolean): PanelDefinition[] {
-	return phone ? panels.filter((panel) => panel.mobile) : panels;
 }

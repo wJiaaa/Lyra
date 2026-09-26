@@ -90,7 +90,6 @@ async function seed(home: string) {
 		thinking: "off",
 		mcpServers: [],
 		hooks: [],
-		sync: { enabled: false },
 		appearance: { reduceMotion: "off" },
 		pinnedSessionIds: ["issue-pin"],
 		projects: [

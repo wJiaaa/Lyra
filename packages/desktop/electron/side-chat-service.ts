@@ -1,4 +1,4 @@
-/** Shared side-chat operations used by Electron IPC and the mobile sync transport. */
+/** Side-chat operations behind the Electron IPC handlers. */
 
 import { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatEvent, type UserContent } from "@lyra/core";
 import { settings } from "./app-settings.ts";

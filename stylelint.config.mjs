@@ -152,17 +152,6 @@ export default {
 		},
 		{
 			/*
-			 * The one file that reaches Tailwind's own class names.
-			 *
-			 * `.hover\:bg-card` is a utility the markup carries, and this file cancels it on a phone
-			 * — a device with no pointer leaves hover states stuck on. Reaching a utility by name is
-			 * unusual and deliberate; the naming rule is about *our* classes.
-			 */
-			files: ["**/styles/phone.css"],
-			rules: { "selector-class-pattern": null },
-		},
-		{
-			/*
 			 * Masks, where `#000` and `#fff` are an alpha channel rather than a colour.
 			 *
 			 * A `mask-image` gradient reads only the alpha of each stop; `#000` there means "keep
@@ -178,7 +167,6 @@ export default {
 				"**/styles/tabs.css",
 				"**/styles/base.css",
 				"**/styles/misc.css",
-				"**/styles/phone.css",
 			],
 			rules: { "color-no-hex": null },
 		},

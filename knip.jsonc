@@ -1,8 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
 
-  // Every package, including the four that had no entry here at all — `contract`, `relay`,
-  // `agent-cli` and `registry-shared`. A workspace knip does not know about is a workspace whose
+  // Every package needs an entry: a workspace knip does not know about is a workspace whose
   // dead code it cannot see, which is the opposite of what this file is for.
   //
   // Tests are entry points. They are a legitimate consumer: a helper exported so a test can drive
@@ -29,22 +28,6 @@
         "scripts/*.mjs"
       ],
       "project": ["src/**/*.{ts,tsx}", "electron/**/*.ts", "shared/**/*.ts"]
-    },
-    "packages/mobile": {
-      "entry": ["app/**/*.tsx", "test/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx}", "app/**/*.{ts,tsx}"],
-      // Off because knip loads `metro.config.js` to read it, and `withNativeWind` resolves
-      // `tailwind.config` by bare name from a directory knip is not in — so the run reported a
-      // module-not-found error that had nothing to do with this repository's code.
-      "metro": false
-    },
-    "packages/relay": {
-      "entry": ["server.mjs", "test/**/*.test.ts"],
-      "project": ["*.mjs"]
-    },
-    "packages/agent-cli": {
-      "entry": ["src/index.ts", "src/cli.ts", "test/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
     },
     "packages/registry-shared": {
       "entry": ["src/index.ts", "test/**/*.test.ts"],
@@ -82,22 +65,8 @@
     // different version mid-release.
     "git-cliff",
 
-    // Named as a string by the Babel config the native build assembles, never imported by us.
-    //
-    // `expo export` does not need it declared: `babel-preset-expo` requires the plugin from its
-    // own directory. The native build takes another path — Xcode's bundle phase runs
-    // `expo export:embed`, which resolves that plugin by name from the project root, where pnpm
-    // puts only what the package declares. Without this line `pnpm knip` calls it unused and
-    // without the dependency the iOS archive fails at the JavaScript bundle with
-    // "Cannot find module '@babel/plugin-transform-react-jsx'" — green everywhere else, because
-    // nothing but a native build ever runs that command.
-    "@babel/plugin-transform-react-jsx",
-
     "tailwindcss",
     "@electron/rebuild",
-    "expo-updates",
-    "expo-system-ui",
-    "react-native-css-interop",
     "@modelcontextprotocol/sdk",
     // Built-in formatter engines and plugins dynamically imported in `format-builtin-engines.ts`
     "@prettier/plugin-php",

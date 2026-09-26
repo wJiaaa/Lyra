@@ -33,7 +33,6 @@ export interface TreeRowProps {
 	/** A drag is over this row and would land inside it. */
 	dropping: boolean;
 	renaming: boolean;
-	draggable?: boolean;
 	onRename(name: string): void;
 	onRenameCancel(): void;
 	onClick(event: React.MouseEvent): void;
@@ -55,7 +54,6 @@ export function TreeRow({
 	cut,
 	dropping,
 	renaming,
-	draggable = true,
 	onRename,
 	onRenameCancel,
 	onClick,
@@ -78,7 +76,7 @@ export function TreeRow({
 			data-path={entry.path}
 			tabIndex={-1}
 			// Not while renaming: starting a drag would take the field's own text selection with it.
-			draggable={draggable && !renaming}
+			draggable={!renaming}
 			data-ly-tip={renaming ? undefined : entry.path}
 			onClick={onClick}
 			onContextMenu={onContextMenu}

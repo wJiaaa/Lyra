@@ -2,7 +2,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { useEffect } from "react";
-import { bridge } from "../../services/host.ts";
+import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 
 /** 一轮结束之后，等多久算「空闲」。 */

@@ -5,10 +5,9 @@
  * reaches the filesystem, the shell and the model keys. These rules exist so that surface only ever
  * hosts our own page, and so the pages we *do* host cannot ask for more than they need.
  *
- * Kept apart from `window-security.ts`, which attaches them to Electron, for the reason
- * `mobile/drawer-gesture.ts` is kept apart from the hook that binds it: what is worth arguing with
- * is the rule, and a rule that imports `electron` cannot be argued with outside Electron. It
- * matters more than usual here — every one of these functions exists to *refuse* something, and a
+ * Kept apart from `window-security.ts`, which attaches them to Electron, because what is worth
+ * arguing with is the rule, and a rule that imports `electron` cannot be argued with outside
+ * Electron. It matters more than usual here — every one of these functions exists to *refuse* something, and a
  * refusal that quietly stopped working looks exactly like one that was never reached.
  */
 

@@ -58,7 +58,7 @@ const app = await startApp({
 				projects: [{ path: root, name: "project", pinned: false, lastOpenedAt: Date.now() }],
 				defaultModelId: null, permissionMode: "auto", thinking: "medium", retryAttempts: 3,
 				hooks: [], scheduledTasks: [], disabledPlugins: [], pluginRegistries: [], skillRegistries: [],
-				alwaysAllow: [], sync: { enabled: false, port: 4519, token: null },
+				alwaysAllow: [],
 				personalization: { customInstructions: "", enableMemory: true, enableProjectMemory: true, enableToolAssistedMemory: true, tone: "friendly" },
 			}),
 		);

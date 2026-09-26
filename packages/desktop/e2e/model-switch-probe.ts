@@ -51,7 +51,6 @@ async function seed(home: string): Promise<void> {
 			defaultModelId: "qa/alpha",
 			mcpServers: [],
 			hooks: [],
-			sync: { enabled: false },
 			projects: [{ id: projectId, path: cwd, name: "换模型验证", pinned: true, lastOpenedAt: 1 }],
 		}),
 	);

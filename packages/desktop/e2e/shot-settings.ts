@@ -55,7 +55,6 @@ async function seed(home: string): Promise<void> {
 			pluginRegistries: [],
 			skillRegistries: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4517, token: null },
 			editor: { defaultOpenTarget: "Zed", showBottomPanel: true },
 			appearance: { theme: process.env.LYRA_SHOT_THEME === "light" ? "light" : "dark" },
 		}),

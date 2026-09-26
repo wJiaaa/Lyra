@@ -95,7 +95,7 @@ const app = await startApp({
 			projects: [{ id: "e2e", name: "demo-project", path: project, pinned: true, lastOpenedAt: Date.now() }],
 			defaultModelId: null, permissionMode: "auto", thinking: "medium", retryAttempts: 1,
 			hooks: [], scheduledTasks: [], disabledPlugins: [], pluginRegistries: [], skillRegistries: [],
-			alwaysAllow: [], sync: { enabled: false, port: 4521, token: null }, appearance: { theme: "light" },
+			alwaysAllow: [], appearance: { theme: "light" },
 		}));
 	},
 });

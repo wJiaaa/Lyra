@@ -58,7 +58,6 @@ async function seed(home: string): Promise<void> {
 			projects: [{ id: "e2e", name: "project", path: project, pinned: true, lastOpenedAt: 1 }],
 			defaultModelId: `relay/${MODEL}`, permissionMode: "full", thinking: "high", retryAttempts: 1,
 			hooks: [], scheduledTasks: [], disabledPlugins: [], alwaysAllow: [],
-			sync: { enabled: false, port: 4525, token: null },
 		}),
 	);
 }

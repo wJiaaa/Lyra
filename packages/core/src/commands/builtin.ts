@@ -1,19 +1,7 @@
 /**
- * 内建命令：名字和说明在这里，做什么由宿主实现。
- *
- * 这三条（`/compact` `/clear` `/commands`）此前写在 `Composer.tsx` 里——一个 React 组件。
- * 后果不是难看，是**只有那一个界面知道它们存在**：
- *
- *   `agent-cli` 里 `/compact` 不存在，而 CLI 会话同样会撑满上下文；
- *   设置 › 命令 那一页列不出它们，所以「有哪些命令可以用」这个问题，那一页给的是错的答案；
- *   任何第三个入口（脚本、ACP）想调用它们，得去读一个组件的源码。
- *
- * **名单在 core，执行在宿主。** `/clear` 在桌面端是开一个新窗口标签，在 CLI 里是清屏重来，
- * 而「有一个叫 clear 的命令、它的意思是开一个新对话」在两边是同一件事。所以这里给的是
- * `action` —— 一个宿主无关的动词，各自去实现它。
- *
- * 换个说法：core 拥有**词汇表**，宿主拥有**动作**。一个宿主没实现某个 action，那个命令在
- * 那里就不出现，而不是出现了按下去没反应。
+ * Keep command metadata in core so settings and hosts share one list without importing a UI component.
+ * Hosts implement the actions and expose only those they support, so an unavailable action never
+ * appears as a command that does nothing.
  */
 
 /** 宿主要实现的那几个动作。加一个之前先问：它在没有窗口的地方是什么意思？ */

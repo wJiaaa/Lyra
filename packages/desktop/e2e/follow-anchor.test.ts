@@ -26,7 +26,6 @@ async function seed(home: string): Promise<void> {
 		projects: [{ id: "e2e", name: "p", path: root, pinned: true, lastOpenedAt: 1 }],
 		defaultModelId: null, permissionMode: "auto", thinking: "medium", retryAttempts: 3,
 		hooks: [], scheduledTasks: [], disabledPlugins: [], alwaysAllow: [],
-		sync: { enabled: false, port: 4526, token: null },
 	}));
 
 	// 一段够长的对话，好让文稿区真的能滚起来——不能滚就没有「跟随」可言。

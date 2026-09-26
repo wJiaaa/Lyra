@@ -35,8 +35,8 @@ import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
  * How recently a conversation must have been created for its row to drop in.
  *
  * The row appears the instant the first message is sent, so in the case this is for the gap is
- * a few milliseconds. The allowance is for the other way a row can be new — a turn started on
- * the phone, arriving with the next session list — and it has to stay short, or scrolling a
+ * a few milliseconds. The allowance is for the other way a row can be new — a turn started
+ * elsewhere, arriving with the next session list — and it has to stay short, or scrolling a
  * long sidebar would replay the entrance for whatever happens to have been made a minute ago.
  */
 const JUST_CREATED_MS = 1500;

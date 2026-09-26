@@ -9,7 +9,6 @@ build/
 # existed only on the machine that made them — every CI build shipped Electron's default icon and
 # nobody could see why, because locally it always looked right.
 !packages/desktop/build/
-.expo/
 .turbo/
 *.log
 .DS_Store

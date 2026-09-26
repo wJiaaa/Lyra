@@ -81,8 +81,7 @@ import { registerWorkspaceIpc } from "./ipc/workspace.ts";
 import { workspaceInfo } from "./workspace-info.ts";
 import { observeSessionStorage } from "./session-storage.ts";
 import { broadcastSessionChange } from "./session-hub.ts";
-import { configureSync, startSync, stopSync, syncStatusSource } from "./sync.ts";
-import { fetchEndpointModels, idleSyncStatus, testProvider } from "./providers.ts";
+import { fetchEndpointModels, testProvider } from "./providers.ts";
 import { registerSessionsIpc } from "./ipc/sessions.ts";
 import {
 	appIconPath,
@@ -165,8 +164,8 @@ if (process.platform === "win32") app.setAppUserModelId("dev.lyra.app");
  * of which belong to processes nobody can see and which therefore answer no clicks at all.
  *
  * The icons are the visible half. Underneath, two copies share one `~/.lyra`: two schedulers firing
- * the same task twice, two sync servers fighting over one port, and two processes appending to the
- * same session log — which is how a transcript ends up interleaved with itself.
+ * the same task twice, and two processes appending to the same session log — which is how a
+ * transcript ends up interleaved with itself.
  *
  * `exit` rather than `quit` for the loser: it has initialised nothing yet, there is nothing to shut
  * down, and `quit` would let the rest of this file run first. The winner hears `second-instance`
@@ -584,16 +583,13 @@ function bindScreenshotShortcut(): void {
 		bindScreenshotShortcut();
 		for (const session of sessions.values()) session.updateSettings(next);
 		for (const chat of sideChats.values()) chat.updateSettings(next);
-		if (next.sync.enabled && !syncStatusSource()?.running) await startSync();
-		else if (!next.sync.enabled && syncStatusSource()?.running) await stopSync();
 		const win = getWindow();
 		if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
 			win.webContents.send("settings:changed", next);
 		}
 	});
 	useSettingsSource(() => settings);
-	configureHub({ store: () => store, settings: () => settings, window: getWindow, sync: syncStatusSource });
-	configureSync(() => store);
+	configureHub({ store: () => store, settings: () => settings, window: getWindow });
 	// Before the window exists, so its very first frame gets the right material.
 	applyNativeAppearance();
 
@@ -601,7 +597,7 @@ function bindScreenshotShortcut(): void {
 	 * 「别让电脑睡」那个开关，开机时按设置摆好，之后跟着设置走。
 	 *
 	 * 放在这里而不是等窗口起来：设置里开着的话，它该从进程活着的那一刻就生效——启动过程本身也可能
-	 * 很慢（扫插件、起同步服务），那段时间正是没人碰键盘的时候。
+	 * 很慢（扫插件），那段时间正是没人碰键盘的时候。
 	 */
 	installKeepAwake(
 		createKeepAwake({
@@ -691,7 +687,6 @@ function bindScreenshotShortcut(): void {
 	 * nothing during startup.
 	 */
 	setTimeout(warmScreenshotOverlay, 3000);
-	if (settings.sync.enabled) await startSync();
 
 	scheduler = new Scheduler({
 		getSettings: () => settings,
@@ -852,7 +847,6 @@ app.on("before-quit", async () => {
 	for (const terminal of terminals.values()) terminal.pty.kill();
 	terminals.clear();
 	await Promise.all([...sessions.values()].map((s) => s.dispose()));
-	await stopSync();
 	// Unwinds every capability the plugins installed, in the reverse of the order they arrived.
 	useLlmRegistry(null);
 	useToolRegistry(null);
@@ -894,9 +888,6 @@ function registerIpc(): void {
 	registerServicesIpc({
 		testProvider,
 		fetchEndpointModels,
-		sync: syncStatusSource,
-		startSync,
-		idleSyncStatus,
 		scheduler: () => scheduler,
 	});
 

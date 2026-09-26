@@ -92,7 +92,6 @@ async function main() {
 				thinking: "medium",
 				mcpServers: [],
 				hooks: [],
-				sync: { enabled: false },
 				appearance: { reduceMotion: "on" },
 				projects: [{ path: cwd, name: "推理强度验收", pinned: true, lastOpenedAt: Date.now() }],
 				defaultModelId: "qa/model",

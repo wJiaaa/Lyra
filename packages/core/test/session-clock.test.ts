@@ -73,7 +73,7 @@ test("reading a log that an append has since overtaken does not wind the numberi
 		/*
 		 * `load` reads the file, then seeds the append queue's view with what it read. An append that
 		 * lands in between has already moved that view on — and putting the older one back makes the
-		 * next append reuse a sequence number, which a phone syncing with `?since=N` then skips. The
+		 * next append reuse a sequence number, which a client catching up from seq N then skips. The
 		 * file is cut back to its first record here to stand for "what the read saw".
 		 */
 		const log = join(root, created.projectId, `${created.id}.jsonl`);

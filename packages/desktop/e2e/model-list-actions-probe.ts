@@ -52,7 +52,6 @@ async function seed(home: string) {
 		defaultModelId: "probe/claude-sonnet-4-6",
 		permissionMode: "auto", thinking: "off", retryAttempts: 3,
 		hooks: [], scheduledTasks: [], disabledPlugins: [], alwaysAllow: [],
-		sync: { enabled: false, port: 4578, token: null },
 		appearance: { theme: "light", reduceMotion: "on" },
 	}));
 }

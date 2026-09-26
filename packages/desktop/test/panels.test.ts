@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { allPanels, panelsForHost, registerPanels, type PanelDefinition } from "../src/features/dock/panels/registry.ts";
+import { allPanels, registerPanels, type PanelDefinition } from "../src/features/dock/panels/registry.ts";
 
 const stub = (kind: string, label: string): PanelDefinition =>
 	({ kind, label, icon: (() => null) as never, shortcut: "⌘0", render: () => null }) as unknown as PanelDefinition;
@@ -49,11 +49,4 @@ test("an unlisted ephemeral panel stays registered for code to open", () => {
 	assert.equal(panel?.listed, false);
 	assert.equal(panel?.ephemeral, true);
 	remove();
-});
-
-test("the phone receives only panels that declare a complete mobile capability", () => {
-	const desktopOnly = stub("terminal", "终端");
-	const mobile = { ...stub("tasks", "任务"), mobile: true };
-	assert.deepEqual(panelsForHost([desktopOnly, mobile], true), [mobile]);
-	assert.deepEqual(panelsForHost([desktopOnly, mobile], false), [desktopOnly, mobile]);
 });

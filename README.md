@@ -12,7 +12,7 @@
   <strong>English</strong> · <a href="./README.zh-CN.md">中文</a>
 </p>
 
-A standalone agent with its own model settings. The desktop app is Electron, the phone app is React Native, and they share one session log.
+A standalone agent with its own model settings, as an Electron desktop app.
 
 This is not a shell around Claude Code or Codex. The agent loop, tools, skills, and MCP are implemented here. You bring the models, plugins, and skills.
 
@@ -28,8 +28,6 @@ Installers live on [Releases](https://github.com/kittors/Lyra/releases/latest). 
 | Windows | Arm (Snapdragon laptops, Surface Pro X) | `Lyra-<version>-arm64.exe` |
 | Linux | x64 | `Lyra-<version>-x86_64.AppImage` or `Lyra-<version>-amd64.deb` |
 | Linux | arm64 (Raspberry Pi, Ampere, a Linux VM on a Mac) | `Lyra-<version>-arm64.AppImage` or `Lyra-<version>-arm64.deb` |
-| Android | universal | `Lyra-<version>-android.apk` |
-| iOS | universal | `Lyra-<version>-ios-unsigned.ipa` (you sign it; see below) |
 
 If you are not sure which architecture you have: on macOS look at the chip line in About This Mac, on Windows look at System type under Settings → System → About, on Linux run `uname -m` (`x86_64` is x64, `aarch64` is arm64).
 
@@ -78,15 +76,6 @@ In-app updates take the same path. Defender also stops the file being written un
 
 The installed app is always named `Lyra.exe` and is a couple of hundred MB. If the install folder also has `Lyra-<version>-<arch>.exe`, about 100 MB, that is the installer itself, not the app. That happens when the destination folder is the folder the installer was downloaded into. `Uninstall Lyra.exe` is a few hundred KB and only uninstalls. Neither of those launches the app.
 
-### Installing on a phone
-
-The same release carries two phone files:
-
-- `Lyra-<version>-android.apk`: install it. The first time, the phone asks whether to allow apps from unknown sources.
-- `Lyra-<version>-ios-unsigned.ipa`: **unsigned**. Double-clicking it does nothing useful. Sign it with Sideloadly, AltStore, or Xcode's Devices and Simulators, then install. A free Apple ID is enough. A signed IPA that only the developer can install is worse than an IPA anyone can sign themselves.
-
-The phone app is a shell. It talks to Lyra on your computer. Sessions, models, and keys stay on the computer. After install, turn on the service under Settings → Mobile sync on desktop and scan the pairing code.
-
 ## Add a model first
 
 Lyra does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model. The API format is **Responses** or **Anthropic Messages**. Chat Completions is not supported.
@@ -109,7 +98,6 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 - **Replies render what the model wrote.** User bubbles and assistant text render clean Markdown. A `mermaid` fence becomes a diagram. A path to a local file becomes a one-line chip with the filename; the full path sits on the tooltip. Side chat separates model-bound attachment payloads from display bubbles and edit inputs.
 - **Built-in formatters.** Saving a file can run Prettier, or the language's own formatter shipped in the app (Go, Rust/Python via Ruff, C/C++, Dart, Swift, PHP, and others). You do not have to install those toolchains first.
 - **Keep the computer awake while a task runs.** A switch in General settings. Closing the lid still sleeps.
-- **Mobile sync.** The phone replays the same session log: watch a turn, approve actions, keep asking. Three paths: LAN when you share a Wi-Fi, your own domain and TLS, or both ends dial out to the relay.
 
 ## Layout
 
@@ -117,14 +105,11 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 packages/
   core/              agent kernel: providers, loop, tools, skills, MCP, session store
   desktop/           Electron app (main process + preload + React renderer)
-  mobile/            Expo / React Native app
-  contract/          the line between the two processes; 215 methods in one place
-  relay/             public relay for when the phone is not on the same LAN. one file, no dependencies
-  agent-cli/         command-line entry
+  contract/          the line between the two processes; 214 methods in one place
   registry-shared/   plugin catalog index format, shared by desktop and the catalog service
 ```
 
-`core` is platform-neutral. The desktop main process and the sync service share one `AgentSession`, so the phone and the computer do not drift. Five rules govern which package may import which. `pnpm arch` enforces them. See [ARCHITECTURE.md](ARCHITECTURE.md).
+`core` is platform-neutral; the desktop main process drives its `AgentSession`. A set of boundary rules governs which package may import which. `pnpm arch` enforces them. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Run from source
 
@@ -132,14 +117,6 @@ packages/
 pnpm install
 pnpm dev
 ```
-
-The phone app is a second process:
-
-```bash
-pnpm dev:mobile
-```
-
-Enable the service under Settings → Mobile sync on desktop, then enter the address and token on the phone's pairing page.
 
 Contributing is in [CONTRIBUTING.md](CONTRIBUTING.md). An agent asked to change this repository should read [AGENTS.md](AGENTS.md).
 
@@ -159,11 +136,11 @@ Moving machines is a copy of `~/.lyra`. Copy `credentials.json` and `vault.key` 
 
 ## Extensions
 
-How plugins, skills, MCP, and sub-agents are laid out, and how the browser, the index, hooks, and mobile sync work:
+How plugins, skills, MCP, and sub-agents are laid out, and how the browser, the index, and hooks work:
 
 - [Extending Lyra](docs/guide/extending.md): plugin directories, `SKILL.md`, MCP servers, sub-agent definitions
-- [Built-in capabilities](docs/guide/capabilities.md): the browser and its boundary, the index, hooks, the three mobile-sync paths
-- [Architecture](ARCHITECTURE.md): package graph, the five boundary rules, decision records
+- [Built-in capabilities](docs/guide/capabilities.md): the browser and its boundary, the index, hooks
+- [Architecture](ARCHITECTURE.md): package graph, the boundary rules, decision records
 
 A plugin is a bundle of skills. It does not contain MCP servers. A directory that only has `.mcp.json` is an MCP server, not a plugin. The catalog lists them separately. Installing an MCP server writes its declaration into Settings → MCP, which is the one place on the machine for every MCP server, whether you typed it or installed it.
 
@@ -268,7 +245,7 @@ Each session is an append-only JSONL file. Every record has a monotonically incr
 {"seq":3,"ts":1786230000000,"type":"message","message":{"role":"user",...}}
 ```
 
-The phone pulls a delta with `?since=N`. Concurrent tool results get their `seq` from a write queue in the store, so numbers never collide. A collision would drop messages on the phone with no error (`packages/core/test/store.test.ts` covers that regression).
+A reader can resume after a given `seq` (`sinceSeq`). Concurrent tool results get their `seq` from a write queue in the store, so numbers never collide. A collision would make such a reader drop messages with no error (`packages/core/test/store.test.ts` covers that regression).
 
 ## Development
 
@@ -282,7 +259,7 @@ Or one piece:
 
 ```bash
 pnpm lint          # oxlint, --deny-warnings: a warning is a failure
-pnpm typecheck     # 7 packages
+pnpm typecheck     # 4 packages
 pnpm test          # unit tests, including component tests. node:test, not vitest or jest
 pnpm arch          # dependency direction, a couple of seconds
 pnpm package       # this machine's installer. the only place besides a release that runs electron-builder

@@ -61,7 +61,7 @@ const app = await startApp({
 			mcpServers: [], projects: [{ path: root, name: "project", pinned: false, lastOpenedAt: Date.now() }],
 			defaultModelId: "relay/gemini-3-0", permissionMode: "auto", thinking: "medium", retryAttempts: 3,
 			hooks: [], scheduledTasks: [], disabledPlugins: [], pluginRegistries: [], skillRegistries: [],
-			alwaysAllow: [], sync: { enabled: false, port: 4519, token: null }, appearance: { theme: "dark" },
+			alwaysAllow: [], appearance: { theme: "dark" },
 		}));
 	},
 });

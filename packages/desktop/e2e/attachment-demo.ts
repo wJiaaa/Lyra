@@ -76,7 +76,6 @@ async function seed(home: string): Promise<void> {
 			appearance: { theme: process.env.LYRA_THEME === "dark" ? "dark" : "light" },
 			defaultModelId: `relay/${MODEL}`, permissionMode: "full", thinking: "high", retryAttempts: 1,
 			hooks: [], scheduledTasks: [], disabledPlugins: [], alwaysAllow: [],
-			sync: { enabled: false, port: 4525, token: null },
 		}),
 	);
 }

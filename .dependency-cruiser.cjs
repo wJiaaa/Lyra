@@ -51,12 +51,12 @@ module.exports = {
 		{
 			name: "core-stays-platform-free",
 			comment:
-				"`core` is the agent runtime that both the desktop and the phone drive. The moment it " +
-				"imports either of them it stops being that, and the mobile bundle starts pulling in " +
-				"Electron. AGENTS.md states this; this enforces it.",
+				"`core` is the platform-free agent runtime the desktop drives. The moment it imports " +
+				"the desktop it stops being that and starts pulling in Electron. AGENTS.md states " +
+				"this; this enforces it.",
 			severity: "error",
 			from: { path: "^packages/core/src" },
-			to: { path: "^packages/(desktop|mobile|agent-cli|relay)/" },
+			to: { path: "^packages/desktop/" },
 		},
 
 		{
@@ -102,28 +102,6 @@ module.exports = {
 		},
 
 		{
-			name: "mobile-stays-off-node",
-			comment:
-				"Metro has no `node:` builtins. An import that reaches one fails at bundle time on a good " +
-				"day and at launch on a bad one — `src/protocol.ts` exists as a hand-copy precisely to " +
-				"avoid dragging core's `node:fs` into the phone.",
-			severity: "error",
-			from: { path: "^packages/mobile/(src|app)" },
-			to: { path: "^packages/(core|desktop)/", dependencyTypesNot: ["type-only"] },
-		},
-
-		{
-			name: "relay-has-no-dependencies",
-			comment:
-				"The relay is a single file with no runtime dependencies, deployed on someone's server. " +
-				"That is its whole security story: it forwards bytes between two sockets and knows " +
-				"nothing else. An import from the workspace would end that.",
-			severity: "error",
-			from: { path: "^packages/relay/" },
-			to: { path: "^packages/(core|desktop|mobile|agent-cli)/" },
-		},
-
-		{
 			name: "shared-belongs-to-neither",
 			comment:
 				"`shared/` is what both processes own — the tables they have to agree on. It reaches " +
@@ -138,9 +116,8 @@ module.exports = {
 		{
 			name: "contract-is-a-leaf",
 			comment:
-				"`@lyra/contract` has three consumers — the main process registers by it, the preload " +
-				"builds from it, and `sync-rpc` decides what the phone may call by it. Whatever it " +
-				"imports is dragged into all three builds, including the phone's. It depends on " +
+				"`@lyra/contract` has two consumers — the main process registers by it and the preload " +
+				"builds from it. Whatever it imports is dragged into both builds. It depends on " +
 				"nothing, and that is the point of it being a package rather than a directory.",
 			severity: "error",
 			from: { path: "^packages/contract/src" },
@@ -199,11 +176,11 @@ module.exports = {
 				"文件——而那同样让「内部文件」这件事不存在。检查不到的规则不是规则。" +
 				"壳不在这条规则里：`app/` 与 `main.tsx` 的职责就是装配，它们 `lazy()` 各域的整屏视图，" +
 				"而把那些视图放进域的出口反而会让打包器把整个域并回主 chunk（见上一条规则的注释，实测 " +
-				"差 630KB）。这条管的是底层——`store`/`ui`/`lib`/`services`/`i18n`/`mobile` 都在 features " +
+				"差 630KB）。这条管的是底层——`store`/`ui`/`lib`/`services`/`i18n` 都在 features " +
 				"之下，它们伸上去拿一个内部文件没有任何打包上的理由。",
 			severity: "error",
 			from: {
-				path: "^packages/desktop/src/(store|ui|lib|services|i18n|mobile)/",
+				path: "^packages/desktop/src/(store|ui|lib|services|i18n)/",
 			},
 			to: {
 				path: "^packages/desktop/src/features/[^/]+/",
@@ -222,7 +199,6 @@ module.exports = {
 					"(^|/)(index|main|preload)\\.tsx?$",
 					"^packages/[^/]+/(test|e2e)/",
 					"^packages/desktop/(electron\\.vite\\.config|scripts)",
-					"^packages/mobile/app/",
 					"^scripts/",
 					"\\.(config|conf)\\.(ts|js|cjs|mjs)$",
 				],
@@ -247,8 +223,8 @@ module.exports = {
 		},
 		exclude: { path: "node_modules|\\.d\\.ts$|packages/desktop/out/" },
 		reporterOptions: {
-			dot: { collapsePattern: "^packages/[^/]+/(src|electron|app)/[^/]+" },
-			archi: { collapsePattern: "^packages/[^/]+/(src|electron|app)/[^/]+" },
+			dot: { collapsePattern: "^packages/[^/]+/(src|electron)/[^/]+" },
+			archi: { collapsePattern: "^packages/[^/]+/(src|electron)/[^/]+" },
 		},
 	},
 };

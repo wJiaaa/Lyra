@@ -105,7 +105,6 @@ async function seed(home: string, modelPort: number): Promise<void> {
 		projectMemory: false,
 		appearance: { theme: "light", reduceMotion: "off" },
 		projects: [{ id: projectId, path: cwd, name: "提问卡", pinned: true, lastOpenedAt: 1 }],
-		sync: { enabled: false },
 	}));
 }
 

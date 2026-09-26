@@ -2,8 +2,7 @@
  * Secrets, and getting them out of the file everyone shares.
  *
  * The bug these are written against is not a crash: it is that `settings.json` held every API key
- * in plaintext at 0644, and that file is synced to the phone, copied between machines and pasted
- * into bug reports. The move has to be invisible — nobody should have to re-enter a key to
+ * in plaintext at 0644, and that file is copied between machines and pasted into bug reports. The move has to be invisible — nobody should have to re-enter a key to
  * complete it — so most of what is checked here is the migration rather than the cryptography.
  *
  * Each test gets a home of its own. `lyraHome()` reads `LYRA_HOME` on every call, so pointing it

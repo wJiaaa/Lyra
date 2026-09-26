@@ -71,9 +71,9 @@ markWindowKind();
  * The invoke half of `window.lyra`, built from the contract.
  *
  * One line per method used to live here — 156 of them, each spelling out a channel name that also
- * appears in the main process's handler and, for the ones a phone may call, a third time in
- * `sync-rpc`. Three spellings of one string, and a typo in any of them fails differently: a wrong
- * channel here is `undefined is not a function`, a wrong one there is a call that never returns.
+ * appears in the main process's handler. Two spellings of one string, and a typo in either fails
+ * differently: a wrong channel here is `undefined is not a function`, a wrong one there is a call
+ * that never returns.
  *
  * Now the name exists once, in `@lyra/contract`, and this walks it. A method cannot be missing
  * from the preload, and a channel cannot be misspelt, because neither is written twice.
@@ -359,11 +359,8 @@ type Provided<G> =
 	| (G extends keyof typeof extras ? keyof NonNullable<(typeof extras)[G]> : never);
 
 /**
- * Optional members are exempt.
- *
- * `host` is the one that matters: it says whether a phone or the desktop is holding the app, and
- * the phone's WebView sets it on the object after this bridge is built. An optional member is a
- * declaration that absence is a state, so requiring the preload to supply it would be wrong.
+ * Optional members are exempt: an optional member is a declaration that absence is a state, so
+ * requiring the preload to supply it would be wrong.
  */
 type IsRequired<T, K extends keyof T> = {} extends Pick<T, K> ? false : true;
 

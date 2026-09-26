@@ -5,26 +5,8 @@
  * whether a real request would work, and only a real request answers that.
  */
 
-import type { ProviderTestResult, SyncStatus } from "./ipc-types.ts";
+import type { ProviderTestResult } from "./ipc-types.ts";
 import { type Settings } from "@lyra/core";
-import { getSettings } from "./app-settings.ts";
-
-/** What sync looks like when it is not running: the port it would use, and nothing else. */
-export function idleSyncStatus(): SyncStatus {
-	const settings = getSettings();
-	return {
-		running: false,
-		port: settings?.sync.port ?? 4517,
-		token: settings?.sync.token ?? null,
-		addresses: [],
-		clients: 0,
-		pairingUrl: null,
-		// Configured rather than discovered, so they are known even while the server is stopped —
-		// the settings page shows the fields either way.
-		publicUrl: settings?.sync.publicUrl?.trim() || null,
-		relayUrl: settings?.sync.relayUrl?.trim() || null,
-	};
-}
 
 /**
  * Probe a provider with a one-token request. A models listing is attempted first because it

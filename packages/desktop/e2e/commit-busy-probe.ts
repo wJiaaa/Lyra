@@ -129,7 +129,6 @@ async function seed(home: string, modelPort: number): Promise<void> {
 			disabledPlugins: [],
 			alwaysAllow: [],
 			appearance: { theme: "light", reduceMotion: "off" },
-			sync: { enabled: false, port: 4528, token: null },
 		}),
 	);
 }

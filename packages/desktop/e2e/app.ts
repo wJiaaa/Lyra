@@ -467,7 +467,7 @@ async function waitForShell(evaluate: <T>(expression: string) => Promise<T>): Pr
 	throw new Error(`the shell never rendered. What was on screen:\n${last}`);
 }
 
-/** Desktop and mobile evaluations share the same remote-handle lifetime. */
+/** Every evaluation shares the same remote-handle lifetime. */
 export function evaluateRenderer<T>(target: string, expression: string): Promise<T> {
 	return withConnection(target, async (send) => {
 		type Answer = { exceptionDetails?: { exception?: { description?: string }; text: string }; result?: { value: T; objectId?: string; subtype?: string } };
@@ -501,7 +501,7 @@ export function evaluateRenderer<T>(target: string, expression: string): Promise
 	});
 }
 
-/** A raw protocol call, also used by the mobile renderer without the desktop preload. */
+/** A raw protocol call. */
 export function call<T>(target: string, method: string, params: Record<string, unknown>): Promise<T> {
 	return withConnection(target, (send) => send<T>(method, params));
 }

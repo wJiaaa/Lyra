@@ -103,7 +103,6 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4523, token: null },
 			appearance: { theme: "dark", codeFontSize: 12, codeFontWeight: 400, codeLetterSpacing: 0 },
 		}),
 	);

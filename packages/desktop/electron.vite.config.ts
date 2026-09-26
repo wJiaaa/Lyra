@@ -123,11 +123,8 @@ export default defineConfig({
 					/*
 					 * What goes in its own file, and why any of it should.
 					 *
-					 * Everything used to land in one 4.4MB chunk. On a desktop that is a slow first
-					 * paint and nothing worse — the file is on the same disk. On a phone it is the
-					 * whole story: the interface is served over the network now, and through a relay
-					 * it crosses the public internet twice, so those megabytes are the difference
-					 * between an app that opens and one that appears not to.
+					 * Everything used to land in one 4.4MB chunk, which is a slow first paint: every
+					 * byte of it is parsed before anything is drawn.
 					 *
 					 * Split by *when it is needed* rather than by size. Each of these is either
 					 * something the first screen cannot do without (react), or something a whole

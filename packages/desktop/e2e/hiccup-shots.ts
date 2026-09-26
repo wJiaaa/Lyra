@@ -100,7 +100,6 @@ async function seed(home: string): Promise<void> {
 				upstream: { retries: 3, strategy: "fixed", intervalMs: 3000, maxIntervalMs: 3000 },
 			},
 			hooks: [], scheduledTasks: [], disabledPlugins: [], alwaysAllow: [],
-			sync: { enabled: false, port: 4523, token: null },
 			appearance: { theme: "dark" },
 		}),
 	);

@@ -82,9 +82,6 @@ test("哪些平台有那条 header", () => {
 	// Windows 和 Linux 有：它们的系统按钮在右上角，正压在面板自己的控件上。
 	assert.equal(hasHeaderBar("win32"), true);
 	assert.equal(hasHeaderBar("linux"), true);
-	// 手机上不是窗口，两端都没有要让的东西。
-	assert.equal(hasHeaderBar("win32", false), false);
-	assert.equal(hasHeaderBar("darwin", false), false);
 });
 
 test("Windows 和 Linux 的角上只有开关，没有系统控件", () => {

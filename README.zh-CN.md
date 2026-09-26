@@ -12,7 +12,7 @@
   <a href="./README.md">English</a> · <strong>中文</strong>
 </p>
 
-一个自带模型配置的独立通用型 agent。桌面端用 Electron，手机端用 React Native，两端共用同一份会话数据。
+一个自带模型配置的独立通用型 agent，桌面端用 Electron。
 
 不是 Claude Code 或 Codex 的前端壳。agent 内核、工具集、skill 与 MCP 全部从零实现，模型由你自己配，
 插件和技能也由你自己装。
@@ -30,8 +30,6 @@
 | Windows | Arm（骁龙笔记本、Surface Pro X） | `Lyra-<版本>-arm64.exe` |
 | Linux | x64 | `Lyra-<版本>-x86_64.AppImage` 或 `Lyra-<版本>-amd64.deb` |
 | Linux | arm64（树莓派、Ampere、Mac 上的 Linux 虚拟机） | `Lyra-<版本>-arm64.AppImage` 或 `Lyra-<版本>-arm64.deb` |
-| Android | 通用 | `Lyra-<版本>-android.apk` |
-| iOS | 通用 | `Lyra-<版本>-ios-unsigned.ipa`（要自己签名，见下） |
 
 不知道自己是哪个架构：macOS 看「关于本机」的芯片一行，Windows 看「设置 → 系统 → 系统信息」的
 「系统类型」，Linux 跑 `uname -m`（`x86_64` 取 x64，`aarch64` 取 arm64）。
@@ -100,18 +98,6 @@ Windows 安装包同样没有代码签名。第一次运行会撞上 SmartScreen
 `Lyra-<版本>-<架构>.exe`，一百多 MB，那是安装包**自己**，不是主程序。通常是安装时把目标目录选成了
 安装包所在的文件夹。而只有几百 KB 的 `Uninstall Lyra.exe` 是卸载程序。这两个都不是用来启动应用的。
 
-### 手机端装包
-
-同一个 release 里，手机端两个文件：
-
-- `Lyra-<版本>-android.apk`：直接装，第一次会问「是否允许安装未知来源的应用」。
-- `Lyra-<版本>-ios-unsigned.ipa`：**未签名**，双击装不上。用 Sideloadly、AltStore 或 Xcode 的
-  「Devices and Simulators」自己签一遍再装，免费 Apple ID 就够。这样发的原因是：签名装到别人手机
-  上要 Apple 开发者账号，而一个谁都装不上的 `.ipa` 比没有更糟。
-
-手机端只是个壳，它连的是你自己电脑上的 Lyra。会话、模型、密钥都在电脑上。装完在桌面端
-「设置 → 移动端同步」里开服务，扫码配对。
-
 ## 先配一个模型
 
 Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置 → 模型设置」添加供应商：填 Base URL、
@@ -136,7 +122,6 @@ Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置
 - **回复按模型写的来画。** 用户气泡与回答均支持完整 Markdown 排版。mermaid 围栏会画成图。指向本地文件的链接收成单行胶囊，只显示文件名，完整路径在悬停提示里。一条十二兆的消息也能在一帧里画完。侧边聊天分离显示文本与底层模型附件记号，重新编辑时不回填附件代码。
 - **内置格式化。** 保存文件可以走 Prettier，或应用里自带的那门语言的格式化器（Go、Ruff、C/C++、Dart、Swift、PHP 等），不用先装那些工具链。
 - **运行期间不让电脑休眠。** 通用设置里的开关。合盖仍然会睡。
-- **移动端同步**：手机重放同一份会话日志，可以查看进行中的回合、批准操作、继续追问。三条路径：同一个 Wi-Fi 下直连、经你自己的域名和 TLS、或者两端各自往外拨到中转服务碰头。
 
 ## 结构
 
@@ -144,15 +129,12 @@ Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置
 packages/
   core/              agent 内核：provider 适配、agent loop、工具、skill、MCP、会话存储
   desktop/           Electron 应用（主进程 + preload + React 渲染进程）
-  mobile/            Expo / React Native 应用
-  contract/          两个进程之间那条线，215 个方法写在一处
-  relay/             公网中转服务，手机不在同一个局域网时走它。单文件，零依赖
-  agent-cli/         命令行入口
+  contract/          两个进程之间那条线，214 个方法写在一处
   registry-shared/   插件目录的索引格式，桌面端与目录服务共用
 ```
 
-`core` 与平台无关，桌面主进程和同步服务共用同一个 `AgentSession`，所以手机和电脑不会看到两份不同的状态。
-包与包之间的依赖方向有五条规则，`pnpm arch` 守着，见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+`core` 与平台无关，桌面主进程驱动它的 `AgentSession`。
+包与包之间的依赖方向由边界规则约束，`pnpm arch` 守着，见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ## 从源码跑
 
@@ -160,14 +142,6 @@ packages/
 pnpm install
 pnpm dev
 ```
-
-手机端另开一个：
-
-```bash
-pnpm dev:mobile
-```
-
-在桌面端「设置 → 移动端同步」启用服务，把地址和令牌填进手机端的配对页。
 
 想参与开发看 [CONTRIBUTING.md](CONTRIBUTING.md)；如果你是被叫来改这份代码的 agent，
 看 [AGENTS.md](AGENTS.md)。
@@ -189,12 +163,11 @@ pnpm dev:mobile
 
 ## 扩展与机制
 
-插件、技能、MCP、子智能体的目录结构与文件格式，以及浏览器、索引库、钩子、移动端同步
-的工作方式：
+插件、技能、MCP、子智能体的目录结构与文件格式，以及浏览器、索引库、钩子的工作方式：
 
 - [扩展 Lyra](docs/guide/extending.md)：插件目录结构、`SKILL.md` 格式、MCP 服务、子智能体定义
-- [内置能力](docs/guide/capabilities.md)：浏览器与其安全边界、索引库、钩子、移动端同步的三条路径
-- [架构](ARCHITECTURE.md)：包与包的关系、五条边界规则、决策记录
+- [内置能力](docs/guide/capabilities.md)：浏览器与其安全边界、索引库、钩子
+- [架构](ARCHITECTURE.md)：包与包的关系、边界规则、决策记录
 
 要点：**插件是一组技能的打包，不含 MCP 服务。** 一个只有 `.mcp.json` 的目录不是插件，它是
 一个 MCP 服务。目录页把两者分开列，装 MCP 服务会把它的声明写进「设置 › MCP」，那里是这台
@@ -301,7 +274,7 @@ Current working directory: …
 {"seq":3,"ts":1786230000000,"type":"message","message":{"role":"user",...}}
 ```
 
-移动端按 `?since=N` 拉增量。并发的工具结果通过存储层的写队列串行分配 `seq`，不会出现重号。否则手机同步时会静默丢消息（`packages/core/test/store.test.ts` 覆盖了这个回归）。
+读取方可以从某个 `seq` 之后接着读（`sinceSeq`）。并发的工具结果通过存储层的写队列串行分配 `seq`，不会出现重号。否则这样的读取方会静默丢消息（`packages/core/test/store.test.ts` 覆盖了这个回归）。
 
 ## 开发
 
@@ -315,7 +288,7 @@ pnpm check     # lint + style + i18n + typecheck + arch + test，一条顶六条
 
 ```bash
 pnpm lint          # oxlint，--deny-warnings：警告等于失败
-pnpm typecheck     # 7 个包
+pnpm typecheck     # 4 个包
 pnpm test          # 单元测试，含组件测试。用的是 node:test，不是 vitest/jest
 pnpm arch          # 依赖方向，两秒
 pnpm package       # 打出本机架构的安装包，release 之外唯一会跑 electron-builder 的地方

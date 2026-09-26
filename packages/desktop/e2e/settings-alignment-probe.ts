@@ -43,7 +43,6 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4531, token: null },
 			// 三把假 key：填了 key 的那几条才会显示「已填 key」，也才量得到输入框的行为。
 			searchApiKeys: { tavily: "tv-probe", brave: "bs-probe", exa: "ex-probe" },
 		}),

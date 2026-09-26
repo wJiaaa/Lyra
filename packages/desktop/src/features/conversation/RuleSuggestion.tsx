@@ -19,7 +19,7 @@
 import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import { useEffect, useState } from "react";
 import { ChevronDown, FolderCheck, Pencil, Sparkles, UserCheck, X } from "lucide-react";
-import { bridge } from "../../services/host.ts";
+import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { translate, useI18n } from "../../i18n/index.ts";
 

@@ -74,7 +74,6 @@ async function settingsSeed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4557, token: null },
 			appearance: { theme: "light" },
 		}),
 	);

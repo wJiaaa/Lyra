@@ -79,7 +79,6 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			sync: { enabled: false, port: 4525, token: null },
 			// Light, and the theme the report is about.
 			appearance: { theme: "light", codeLightTheme: "solarized-light", codeDarkTheme: "github-dark" },
 		}),

@@ -27,7 +27,7 @@ import { NewRow, TreeRow } from "./TreeRow.tsx";
 import { useFileActions } from "./useFileActions.ts";
 import { useFileTree } from "./useFileTree.ts";
 import { useTreeDrag } from "./useTreeDrag.ts";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { macKeyboard, shortcutLetter } from "../../ui/keyboard.ts";
 
 export function FileTree({
@@ -59,7 +59,6 @@ export function FileTree({
 	const actions = useFileActions({ root, refresh: tree.refresh, onMoved, onRemoved });
 	const openWith = useOpenTarget();
 	const runInTerminal = useSide((s) => s.runInTerminal);
-	const readOnly = !available("files", "write");
 
 	/** Ordered, so ⇧-click has an anchor and the last one decides where 新建 lands. */
 	const [selection, setSelection] = useState<string[]>([]);
@@ -175,7 +174,6 @@ export function FileTree({
 
 	const drag = useTreeDrag({
 		root: home,
-		disabled: readOnly,
 		pathsFor: (entry) => (chosen.has(entry.path) ? selection : [entry.path]),
 		expand: tree.expand,
 		isExpanded: (path) => tree.expanded.has(path),
@@ -218,9 +216,9 @@ export function FileTree({
 		 */
 		const letter = shortcutLetter(event);
 		const plain = mod && !event.altKey && !event.shiftKey;
-		if (!readOnly && plain && letter === "c") return run(() => actions.copy(acted()));
-		if (!readOnly && plain && letter === "x") return run(() => actions.cut(acted()));
-		if (!readOnly && plain && letter === "v") return run(() => void actions.paste(targetDir));
+		if (plain && letter === "c") return run(() => actions.copy(acted()));
+		if (plain && letter === "x") return run(() => actions.cut(acted()));
+		if (plain && letter === "v") return run(() => void actions.paste(targetDir));
 		if (mod && event.altKey && letter === "c") return run(() => void actions.copyPath(acted(), event.shiftKey));
 		/*
 		 * Deleting, in each system's own words; Shift makes it permanent on all of them.
@@ -233,7 +231,7 @@ export function FileTree({
 		const deleting = macKeyboard()
 			? mod && (event.key === "Backspace" || event.key === "Delete")
 			: event.key === "Delete" || (mod && event.key === "Backspace");
-		if (!readOnly && deleting) {
+		if (deleting) {
 			return run(() => void removeSelected(event.shiftKey));
 		}
 
@@ -267,7 +265,7 @@ export function FileTree({
 				if (row) return run(() => activate(row.entry));
 				return;
 			case "F2":
-				if (!readOnly && row) return run(() => setRenaming(row.entry.path));
+				if (row) return run(() => setRenaming(row.entry.path));
 				return;
 			case "Escape":
 				if (creating) return run(() => setCreating(null));
@@ -307,22 +305,18 @@ export function FileTree({
 					className="min-w-0 flex-1"
 					onEscape={() => tree.setScope(null)}
 				/>
-				{!readOnly && (
-					<>
-						<IconButton
-							size="sm"
-							label={t("fileMenu.newFile")}
-							icon={<FilePlus2 size={12.5} strokeWidth={1.8} />}
-							onClick={() => startCreate(targetDir, "file")}
-						/>
-						<IconButton
-							size="sm"
-							label={t("fileMenu.newFolder")}
-							icon={<FolderPlus size={12.5} strokeWidth={1.8} />}
-							onClick={() => startCreate(targetDir, "directory")}
-						/>
-					</>
-				)}
+				<IconButton
+					size="sm"
+					label={t("fileMenu.newFile")}
+					icon={<FilePlus2 size={12.5} strokeWidth={1.8} />}
+					onClick={() => startCreate(targetDir, "file")}
+				/>
+				<IconButton
+					size="sm"
+					label={t("fileMenu.newFolder")}
+					icon={<FolderPlus size={12.5} strokeWidth={1.8} />}
+					onClick={() => startCreate(targetDir, "directory")}
+				/>
 				{tree.expanded.size > 0 && (
 					<IconButton
 						size="sm"
@@ -363,7 +357,7 @@ export function FileTree({
 					tabIndex={0}
 					data-ly-tree
 					onKeyDown={onKeyDown}
-					onContextMenu={readOnly ? undefined : (event) => menu.show(event, null)}
+					onContextMenu={(event) => menu.show(event, null)}
 					{...drag.backgroundProps()}
 					className={`flex min-h-full flex-col rounded-md outline-none ${
 						drag.dropTarget === home ? "bg-accent/8 ring-1 ring-accent ring-inset" : ""
@@ -390,7 +384,6 @@ export function FileTree({
 								cut={cutSet.has(entry.path)}
 								dropping={entry.isDirectory && drag.dropTarget === entry.path}
 								renaming={renaming === entry.path}
-								draggable={!readOnly}
 								onRename={(name) => void commitRename(entry.path, name)}
 								onRenameCancel={() => setRenaming(null)}
 								onClick={(event) => onRowClick(event, entry, index)}
@@ -421,7 +414,7 @@ export function FileTree({
 				</div>
 			</Scroller>
 
-			{menu.open && !readOnly && (
+			{menu.open && (
 				<FileMenu
 					anchor={menu.anchor}
 					onClose={menu.close}

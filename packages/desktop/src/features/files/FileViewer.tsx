@@ -12,7 +12,7 @@ import { directoryOf } from "../../lib/markdown/assets.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 
 const IMAGE = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "ico", "svg"]);
 const VIDEO = new Set(["mp4", "webm", "mov", "mkv", "m4v"]);
@@ -103,7 +103,6 @@ export function FileViewer({
 	const text = draft ?? contents.text;
 	// Truncated files must not be saved: writing back the head would delete the rest.
 	const readOnly = contents.truncated || contents.readOnly === true;
-	const richPreview = available("files", "bytes");
 
 	const media = bridge.files.mediaUrl(path);
 
@@ -112,13 +111,7 @@ export function FileViewer({
 			{/* Where the toolbar was: the files this pane has had open. */}
 			<FileTabs />
 
-			{!richPreview && ["image", "video", "audio", "sheet", "pdf", "document"].includes(kind) ? (
-				<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-					<FileWarning size={26} strokeWidth={1.4} className="text-ink-faint" />
-					<p className="text-label text-ink-muted">{translate("fileViewer.mobileNoPreview")}</p>
-					<p className="text-detail text-ink-faint">{translate("fileViewer.textAndCode")}</p>
-				</div>
-			) : kind === "image" ? (
+			{kind === "image" ? (
 				// Zoom and pan, because an icon and a screenshot are both images and neither is
 				// legible at "whatever fits the pane" — see `ImagePane`.
 				<ImagePane key={path} src={media} name={name} />
