@@ -115,7 +115,7 @@ export function SidebarTabs({
 			 * same control was a different size in every window. Its size is a property of what is
 			 * written on it. The buttons go to the far end on their own; see `ml-auto` below.
 			 */}
-			<div role="tablist" aria-label={t("sidebar.sections")} className="ly-tabs relative flex min-w-0 rounded-lg p-[3px]">
+			<div role="tablist" aria-label={t("sidebar.sections")} className="ly-tabs relative flex min-w-0 rounded-full p-[3px]">
 				{/*
 				 * One fill that moves, rather than a fill per tab that appears and disappears.
 				 *
@@ -128,7 +128,7 @@ export function SidebarTabs({
 					aria-hidden
 					// `ly-freeze`: the knob's offset is a fraction of the sidebar's width, so dragging
 					// that edge moves it every frame — see the freeze rule in `styles.css`.
-					className="ly-tabs-knob ly-freeze absolute inset-y-[3px] left-[3px] rounded-md transition-transform duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
+					className="ly-tabs-knob ly-freeze absolute inset-y-[3px] left-[3px] rounded-full transition-transform duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
 					style={{ width: "calc(50% - 3px)", transform: `translateX(${index * 100}%)` }}
 				/>
 				{SIDEBAR_TABS.map(({ value, labelKey, Icon }) => {
@@ -144,7 +144,7 @@ export function SidebarTabs({
 							onClick={() => onChange(value)}
 							/* Equal padding on both, and both labels are two characters, so the two come
 							   out the same width — which is what lets the knob be exactly half. */
-							className={`relative z-10 flex items-center justify-center gap-1.5 rounded-md transition-colors duration-[var(--ly-t-quick)] ${
+							className={`relative z-10 flex items-center justify-center gap-1.5 rounded-full transition-colors duration-[var(--ly-t-quick)] ${
 								compact ? "h-[32px] px-3.5 text-body" : "h-[26px] px-3 text-label"
 							} ${current ? "font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
 						>
