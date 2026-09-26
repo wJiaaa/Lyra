@@ -38,7 +38,7 @@ test("built-in profiles are configurable before a session exists and while a col
 });
 
 test("project changes reload the catalogue without reopening settings", async () => {
-	setup({ ...settings, projects: [{ id: "project", name: "Project", path: "/qa-project", pinned: false, lastOpenedAt: 0 }] }, async next => next);
+	setup({ ...settings, projects: [{ id: "project", name: "Project", path: "/qa-project", lastOpenedAt: 0 }] }, async next => next);
 	Object.defineProperty(window, "lyra", { configurable: true, value: { agentDefinitions: { list: async (projectId: string | null) => ({ records: [{ definition: { ...BUILTIN_AGENTS[0], description: projectId ? "Project exploration policy" : "Global policy" }, id: "definition", scope: "user", editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] }], tools: [] }) } } });
 	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(AgentsSettings) }));
 	try {

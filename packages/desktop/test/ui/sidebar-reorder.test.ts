@@ -14,7 +14,7 @@ import { fire, mount, press } from "../helpers/mount.ts";
 const usage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 } };
 const session = (id: string, updatedAt: number, createdAt = updatedAt): SessionMeta => ({ id, title: id, cwd: "/a", projectId: "a", projectName: "A", createdAt, updatedAt, modelId: "", messageCount: 1, seq: 2, usage });
 const sessions = [session("a", 30, 10), session("b", 20, 30), session("c", 10, 20)];
-const projects = ["a", "b"].map((id) => ({ id, path: `/${id}`, name: id.toUpperCase(), pinned: false, lastOpenedAt: 0 }));
+const projects = ["a", "b"].map((id) => ({ id, path: `/${id}`, name: id.toUpperCase(), lastOpenedAt: 0 }));
 let saves: Settings[];
 let opened: number;
 let reordered: number;
@@ -64,8 +64,6 @@ test("store refuses cross-project, pinned, archived and missing drop targets", a
 	useApp.setState({ sessions, settings: { ...DEFAULT_SETTINGS, projects, pinnedSessionIds: ["b"] } });
 	await useApp.getState().reorderProjectSessions("/a", "a", "b", "after", "updatedAt");
 	await useApp.getState().reorderProjects("/a", "/missing", "after");
-	useApp.setState({ settings: { ...DEFAULT_SETTINGS, projects: [projects[0], { ...projects[1], pinned: true }] } });
-	await useApp.getState().reorderProjects("/a", "/b", "after");
 	assert.equal(saves.length, 0);
 });
 

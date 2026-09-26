@@ -1,11 +1,9 @@
 /**
- * The 「项目」 half of the sidebar: pinned projects, the rest, and the conversations filed under
- * neither.
+ * The 「项目」 half of the sidebar: pinned conversations, the projects, and the conversations filed
+ * under neither.
  *
  * Lifted out of `Sidebar` when the pane grew a second half. Nothing about the arrangement changed —
- * this is the list that was always there — but it now has to be able to say which of its rows pin,
- * because a project inside a folded 「置顶」 section is still in the DOM and still has a box, and
- * measuring it would put a heading nobody can see at the top of the pane.
+ * this is the list that was always there. Only conversations pin; projects keep their list order.
  */
 
 import { translate } from "../../i18n/translate.ts";
@@ -55,7 +53,7 @@ export function ProjectList({
 	collapsed: string[];
 	onToggleCollapsed: (key: string) => void;
 	/** Everything a `ProjectGroup` needs that is per-project state rather than per-project data. */
-	groupProps: (path: string) => Omit<React.ComponentProps<typeof ProjectGroup>, "group" | "active" | "pins">;
+	groupProps: (path: string) => Omit<React.ComponentProps<typeof ProjectGroup>, "group" | "active">;
 	looseShown: number;
 	onLooseMore: () => void;
 	onLooseCollapse: () => void;
@@ -69,8 +67,7 @@ export function ProjectList({
 	const reorder = useSidebarReorder(groups, sort, onReordered);
 	const [creating, setCreating] = useState(false);
 	const pinnedShut = collapsed.includes(PINNED);
-	const hasPinned = (groups.pinnedSessions?.length ?? 0) > 0 || groups.pinned.length > 0;
-	const pinnedCount = (groups.pinnedSessions?.length ?? 0) + groups.pinned.length;
+	const hasPinned = (groups.pinnedSessions?.length ?? 0) > 0;
 
 	if (!hasPinned && groups.projects.length === 0 && groups.loose.length === 0) {
 		return <>{empty}</>;
@@ -82,7 +79,7 @@ export function ProjectList({
 			{creating && <ProjectDialog onClose={() => setCreating(false)} />}
 			{hasPinned && (
 				<>
-					<SectionLabel first section="pinned" sessions={[...groups.pinnedSessions, ...groups.pinned.flatMap((group) => group.sessions)]} count={pinnedCount} collapsed={pinnedShut} onToggle={() => onToggleCollapsed(PINNED)}>
+					<SectionLabel first section="pinned" sessions={groups.pinnedSessions} count={groups.pinnedSessions.length} collapsed={pinnedShut} onToggle={() => onToggleCollapsed(PINNED)}>
 						{translate("projectList.pinned")}
 					</SectionLabel>
 					<Collapsible open={!pinnedShut}>
@@ -96,15 +93,6 @@ export function ProjectList({
 								/>
 							))}
 						</div>
-						{groups.pinned.map((group) => (
-							<ProjectGroup
-								key={group.path}
-								group={group}
-								active={activePath === group.path}
-								pins={!pinnedShut}
-								{...groupProps(group.path)}
-							/>
-						))}
 					</Collapsible>
 				</>
 			)}

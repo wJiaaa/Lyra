@@ -32,7 +32,7 @@ beforeEach(() => {
 	saveSettings = async settings => settings;
 	saves = [];
 	useApp.setState({
-		settings: { ...DEFAULT_SETTINGS, projects: [{ id: "/root", path: "/root", name: "Root", pinned: true, lastOpenedAt: 1 }] },
+		settings: { ...DEFAULT_SETTINGS, projects: [{ id: "/root", path: "/root", name: "Root", lastOpenedAt: 1 }] },
 		workspace: workspace("/worktree"), scratchCwd: null, scratchRoots: [], selectionEpoch: 0,
 		activeSessionId: previous.meta.id, meta: previous.meta, messages: previous.messages, sessions: [previous.meta],
 		sessionCache: {}, toolRuns: {}, running: false, todos: [], compactions: [], commandRuns: [], approvals: [],

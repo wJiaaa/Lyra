@@ -19,8 +19,7 @@ export function Collapsible({ open, children }: { open: boolean; children: React
 	 * `overflow: hidden` is what makes the fold visible — the grid track is what shrinks, and the
 	 * child has to be willing to be smaller than its content for that to show. But it is also what
 	 * breaks `position: sticky` for everything inside, and a section here holds project names that
-	 * are meant to pin. A pinned project in 「置顶」 simply scrolled away with the list, and it did
-	 * so only when the section existed at all, which is what took a while to see.
+	 * are meant to pin. A project name inside a clipped section simply scrolled away with the list.
 	 *
 	 * An open section has nothing to clip, so it does not need to.
 	 *

@@ -42,7 +42,6 @@ export interface ProjectEntry {
 	id: string;
 	name: string;
 	path: string;
-	pinned: boolean;
 	lastOpenedAt: number;
 	/**
 	 * Every source folder this project is made of, `path` first.

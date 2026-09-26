@@ -39,9 +39,8 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 
 	const eligible = useCallback((kind: "project" | "session", id: string, projectPath?: string) => {
 		if (!onReordered) return false;
-		const all = [...groups.pinned, ...groups.projects];
-		if (kind === "session") return all.some((group) => group.path === projectPath && group.sessions.some((session) => session.id === id));
-		return all.some((group) => group.path === id) && Boolean(useApp.getState().settings?.projects.some((project) => project.path === id));
+		if (kind === "session") return groups.projects.some((group) => group.path === projectPath && group.sessions.some((session) => session.id === id));
+		return groups.projects.some((group) => group.path === id) && Boolean(useApp.getState().settings?.projects.some((project) => project.path === id));
 	}, [groups, onReordered]);
 
 	const reset = useCallback(() => {
@@ -63,7 +62,6 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 		const active = draggingRef.current;
 		if (!active || active.kind !== kind || active.id === id || !eligible(kind, id, projectPath)) return;
 		if (kind === "session" && active.projectPath !== projectPath) return;
-		if (kind === "project" && groups.pinned.some((group) => group.path === active.id) !== groups.pinned.some((group) => group.path === id)) return;
 		const placement = clientY < rect.top + rect.height / 2 ? "before" : "after";
 		const current = dropTargetRef.current;
 		if (!current || current.id !== id || current.placement !== placement) {
@@ -71,7 +69,7 @@ export function useSidebarReorder(groups: Grouped, sort: SortKey, onReordered?: 
 			dropTargetRef.current = next;
 			setDropTarget(next);
 		}
-	}, [eligible, groups.pinned]);
+	}, [eligible]);
 
 	const clearTarget = useCallback((id: string) => {
 		if (dropTargetRef.current?.id === id) {

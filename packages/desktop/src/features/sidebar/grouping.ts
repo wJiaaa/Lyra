@@ -2,9 +2,8 @@
  * Turning a flat list of sessions into the sidebar's three lists.
  *
  * Pure, and separate from the pane that renders it, because the rules are the sort you want to be
- * able to state and check: a project keeps its configured order, a project with no sessions is
- * only worth a row when it was pinned, and searching filters sessions without dissolving the
- * projects they belong to.
+ * able to state and check: a project keeps its configured order, a project that never had a session
+ * takes no row, and searching filters sessions without dissolving the projects they belong to.
  */
 
 import { translate } from "../../i18n/translate.ts";
@@ -22,18 +21,15 @@ export interface Group {
 export interface ProjectRef {
 	path: string;
 	name: string;
-	pinned: boolean;
 	lastOpenedAt: number;
 	/** Extra source folders, if this project was configured with more than one; see `projectFolders`. */
 	folders?: string[];
 }
 
 export interface Grouped {
-	/** Pinned individual sessions (shown at the top of the sidebar under 置顶). */
+	/** Pinned individual sessions (shown at the top of the sidebar under 置顶). Only sessions pin; projects do not. */
 	pinnedSessions: SessionMeta[];
-	/** Pinned projects, in configured order. */
-	pinned: Group[];
-	/** Everything else that is a project, in configured order, unknown ones last. */
+	/** Every project, in configured order, unknown ones last. */
 	projects: Group[];
 	/**
 	 * Conversations that belong to no project, flat and newest first.
@@ -125,7 +121,6 @@ export function groupSessions(
 		group.sessions = orderedSessions(group.sessions, sortKey, sessionOrder?.[group.path]);
 	}
 
-	const pinnedPaths = new Set(projects.filter((p) => p.pinned).map((p) => p.path));
 	const order = new Map(projects.map((p, i) => [p.path, i]));
 	const all = [...byPath.values()]
 		.filter((group) => {
@@ -137,18 +132,16 @@ export function groupSessions(
 			 * `hideEmptiedProjects`；默认不打开，因为一个登记过的项目突然从侧边栏消失，比多留
 			 * 一行更让人找不着北。
 			 *
-			 * 另一种是「一条会话都没有过」，那是刚加进列表的项目，藏起来就没地方点着开第一条了。
-			 * 这一条按老规矩：只有置顶的才值得占一行。
+			 * 另一种是「一条会话都没有过」，不占行：有了第一条会话它才出现。
 			 */
 			if (emptied.has(group.path)) return !hideEmptied;
-			return pinnedPaths.has(group.path);
+			return false;
 		})
 		.sort((a, b) => (order.get(a.path) ?? 999) - (order.get(b.path) ?? 999));
 
 	return {
 		pinnedSessions: pinnedSessions.sort((a, b) => b.updatedAt - a.updatedAt),
-		pinned: all.filter((g) => pinnedPaths.has(g.path)),
-		projects: all.filter((g) => !pinnedPaths.has(g.path)),
+		projects: all,
 		loose: loose.sort((a, b) => b.updatedAt - a.updatedAt),
 	};
 }

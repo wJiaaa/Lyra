@@ -3,7 +3,7 @@ import { rowActivity } from "../../lib/row-activity.ts";
 
 const PRIORITY: SessionActivity[] = ["waiting", "running", "failed", "done"];
 
-/** Count identities once, including sessions inside nested pinned projects. */
+/** Count identities once, so a session listed twice is not counted twice. */
 export function groupActivity(
 	ids: readonly string[],
 	activity: Readonly<Record<string, SessionActivity>>,

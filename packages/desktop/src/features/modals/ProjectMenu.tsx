@@ -1,4 +1,4 @@
-import { Archive, FolderOpen, Pencil, PinOff, Pin, SquarePen, X } from "lucide-react";
+import { Archive, FolderOpen, Pencil, SquarePen, X } from "lucide-react";
 import { useState } from "react";
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
@@ -38,16 +38,13 @@ export function ProjectMenu({
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const sessions = useApp((s) => s.sessions);
-	const setPinned = useApp((s) => s.setProjectPinned);
 	const removeProject = useApp((s) => s.removeProject);
 	const archiveProjectSessions = useApp((s) => s.archiveProjectSessions);
-	const notify = useApp((s) => s.notify);
 	const reveal = useRevealLabel();
 
 	const [mode, setMode] = useState<"menu" | "edit" | "remove">("menu");
 
 	const entry = settings?.projects.find((project) => project.path === path);
-	const pinned = entry?.pinned ?? false;
 	const liveSessions = sessions.filter((s) => s.cwd === path && !s.archived).length;
 
 	/*
@@ -104,16 +101,6 @@ export function ProjectMenu({
 
 				<MenuSeparator />
 
-				<MenuItem
-					icon={pinned ? <PinOff size={13} strokeWidth={1.8} /> : <Pin size={13} strokeWidth={1.8} />}
-					onClick={() => {
-						void setPinned(path, !pinned);
-						notify(pinned ? t("projectMenu.unpinned") : t("projectMenu.pinned"));
-						onClose();
-					}}
-				>
-					{pinned ? t("projectMenu.unpin") : t("projectMenu.pin")}
-				</MenuItem>
 				<MenuItem icon={<Pencil size={13} strokeWidth={1.8} />} onClick={() => setMode("edit")}>
 					{t("projectMenu.editProject")}
 				</MenuItem>

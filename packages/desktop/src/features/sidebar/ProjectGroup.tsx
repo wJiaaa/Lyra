@@ -32,7 +32,6 @@ export const SESSION_PAGE = COLLAPSED_SESSION_COUNT;
 export function ProjectGroup({
 	group,
 	active,
-	pins = true,
 	shown,
 	collapsed,
 	onToggleCollapsed,
@@ -42,13 +41,6 @@ export function ProjectGroup({
 }: {
 	group: Group;
 	active: boolean;
-	/**
-	 * Whether this heading takes part in pinning.
-	 *
-	 * False for a project inside a folded 「置顶」 section: it is still mounted and still has a box,
-	 * so it would still measure, and a heading nobody can see would pin at the top of the pane.
-	 */
-	pins?: boolean;
 	/** How many rows this group is currently showing. */
 	shown: number;
 	/** Folded shut, hiding its sessions. Remembered across launches. */
@@ -86,7 +78,7 @@ export function ProjectGroup({
 			 * `data-ly-head` is what the fade measures against so the list softens below it rather
 			 * than through it.
 			 */}
-			<div data-ly-head={pins ? "" : undefined} className="ly-pin sticky top-[var(--ly-rail)] z-20">
+			<div data-ly-head className="ly-pin sticky top-[var(--ly-rail)] z-20">
 				<ProjectHead group={group} active={active} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
 			</div>
 

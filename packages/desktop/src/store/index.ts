@@ -409,7 +409,6 @@ export interface AppState extends QueueSlice {
    * project records, and moving it is `moveSessionProject`'s business.
    */
   updateProject(path: string, patch: { name?: string; folders?: string[] }): Promise<void>;
-  setProjectPinned(path: string, pinned: boolean): Promise<void>;
   setSessionPinned(sessionId: string, pinned: boolean): Promise<void>;
   reorderProjects(sourcePath: string, targetPath: string, placement: "before" | "after"): Promise<boolean>;
   reorderProjectSessions(projectPath: string, sourceId: string, targetId: string, placement: "before" | "after", sort: "updatedAt" | "createdAt" | "manual"): Promise<boolean>;

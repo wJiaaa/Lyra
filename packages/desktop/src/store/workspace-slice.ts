@@ -88,7 +88,7 @@ export function workspaceSlice(set: Set, get: Get) {
     const entry = {
       ...previous,
       id: previous?.id ?? path, name: previous?.name ?? workspace.name, path,
-      pinned: previous?.pinned ?? false, lastOpenedAt: Date.now(),
+      lastOpenedAt: Date.now(),
     };
     await get().saveSettings({
       ...settings,
@@ -196,7 +196,6 @@ export function workspaceSlice(set: Set, get: Get) {
       id: existing?.id ?? main,
       name: trimmed || existing?.name || baseName(main),
       path: main,
-      pinned: existing?.pinned ?? false,
       lastOpenedAt: Date.now(),
       folders: rest.length > 0 ? [main, ...rest] : undefined,
     };
@@ -242,17 +241,6 @@ export function workspaceSlice(set: Set, get: Get) {
     if (trimmed && workspace?.path === path) set({ workspace: { ...workspace, name: trimmed } });
   },
 
-  async setProjectPinned(path: string, pinned: boolean) {
-    const settings = get().settings;
-    if (!settings) return;
-    await get().saveSettings({
-      ...settings,
-      projects: settings.projects.map((p) =>
-        p.path === path ? { ...p, pinned } : p,
-      ),
-    });
-  },
-
   async setSessionPinned(sessionId: string, pinned: boolean) {
     const settings = get().settings;
     if (!settings) return;
@@ -272,8 +260,7 @@ export function workspaceSlice(set: Set, get: Get) {
 		if (!settings) return false;
 		const source = settings.projects.find((project) => project.path === sourcePath);
 		const target = settings.projects.find((project) => project.path === targetPath);
-		// Pinned and ordinary projects are separate visible lists.
-		if (!source || !target || source.pinned !== target.pinned) return false;
+		if (!source || !target) return false;
 		const projects = moveBeforeOrAfter(settings.projects, source, target, placement);
 		if (!projects) return false;
 		await get().saveSettings({ ...settings, projects });

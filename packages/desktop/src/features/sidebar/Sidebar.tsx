@@ -175,7 +175,7 @@ export function Sidebar() {
 	 * see — so the menu asks the question the list is already answering rather than listing both
 	 * directions and making you work out which one applies.
 	 */
-	const foldable = [...groups.pinned, ...groups.projects].map((group) => group.path);
+	const foldable = groups.projects.map((group) => group.path);
 	const allFolded = foldable.length > 0 && foldable.every((path) => collapsed.includes(path));
 	const foldAll = (folded: boolean) =>
 		setCollapsed((current) =>

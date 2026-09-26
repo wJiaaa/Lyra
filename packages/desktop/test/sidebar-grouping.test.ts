@@ -2,7 +2,7 @@
  * The sidebar's list, as rules rather than as a rendering.
  *
  * These were four conditions buried in a 474-line component, and each one is the kind that is only
- * noticed when it is wrong: a pinned project vanishing because it has no sessions yet, a search
+ * noticed when it is wrong: an emptied project vanishing when it should have stayed, a search
  * dissolving the projects it filtered within, a half-started conversation disappearing out from
  * under the message being sent in it.
  */
@@ -28,8 +28,8 @@ function session(over: Partial<Session>): Session {
 }
 
 const projects = [
-	{ path: "/pinned", name: "置顶项目", pinned: true, lastOpenedAt: 2 },
-	{ path: "/a", name: "a", pinned: false, lastOpenedAt: 1 },
+	{ path: "/c", name: "c", lastOpenedAt: 2 },
+	{ path: "/a", name: "a", lastOpenedAt: 1 },
 ];
 
 test("archived sessions are not listed; they live in settings", () => {
@@ -73,12 +73,8 @@ test("a conversation that has just been sent to stays listed after you click awa
 	);
 });
 
-test("a pinned project keeps its row with no sessions; an unpinned one does not", () => {
-	const { pinned, projects: rest } = groupSessions([], projects, "");
-	assert.deepEqual(
-		pinned.map((g) => g.path),
-		["/pinned"],
-	);
+test("a project that never had a session takes no row", () => {
+	const { projects: rest } = groupSessions([], projects, "");
 	assert.deepEqual(rest, []);
 });
 
@@ -89,41 +85,38 @@ test("a pinned project keeps its row with no sessions; an unpinned one does not"
  * 消失，也是让人找不着自己活儿的一种方式。所以默认留着，想收起来的自己去开。
  */
 test("an emptied project keeps its row by default", () => {
-	const emptied = new Set(["/pinned", "/a"]);
-	const { pinned } = groupSessions([], projects, "", [], [], undefined, "updatedAt", emptied, false);
+	const emptied = new Set(["/c", "/a"]);
+	const { projects: rest } = groupSessions([], projects, "", [], [], undefined, "updatedAt", emptied, false);
 	assert.deepEqual(
-		pinned.map((g) => g.path),
-		["/pinned"],
+		rest.map((g) => g.path),
+		["/c", "/a"],
 		"默认不消失",
 	);
 });
 
-test("with hideEmptiedProjects on, an emptied project folds away — pinned or not", () => {
-	const emptied = new Set(["/pinned", "/a"]);
-	const { pinned, projects: rest } = groupSessions([], projects, "", [], [], undefined, "updatedAt", emptied, true);
-	assert.deepEqual(pinned, [], "置顶也挡不住——它空了");
+test("with hideEmptiedProjects on, an emptied project folds away", () => {
+	const emptied = new Set(["/c", "/a"]);
+	const { projects: rest } = groupSessions([], projects, "", [], [], undefined, "updatedAt", emptied, true);
 	assert.deepEqual(rest, []);
 });
 
 test("a project that never had a session is unaffected by the setting", () => {
 	/*
-	 * 「一条都没有过」和「都归档了」是两回事。前者是刚加进列表的项目，藏起来就没地方点着开第一
-	 * 条了——不管那个开关开没开，它都按老规矩来：只有置顶的才值得占一行。
+	 * 「一条都没有过」和「都归档了」是两回事。前者不管那个开关开没开，都不占行。
 	 */
 	for (const hide of [false, true]) {
-		const { pinned, projects: rest } = groupSessions([], projects, "", [], [], undefined, "updatedAt", new Set(), hide);
-		assert.deepEqual(pinned.map((g) => g.path), ["/pinned"], `hideEmptied=${hide}`);
+		const { projects: rest } = groupSessions([], projects, "", [], [], undefined, "updatedAt", new Set(), hide);
 		assert.deepEqual(rest, [], `hideEmptied=${hide}`);
 	}
 });
 
 test("a project still holding one live session is never folded away", () => {
-	const live = session({ id: "alive", cwd: "/pinned" });
+	const live = session({ id: "alive", cwd: "/c" });
 	// 归档了一条、还剩一条：项目还在进行中，开关开着也得留着。
-	const { pinned } = groupSessions([live], projects, "", [], [], undefined, "updatedAt", new Set(["/a"]), true);
+	const { projects: rest } = groupSessions([live], projects, "", [], [], undefined, "updatedAt", new Set(["/c"]), true);
 	assert.deepEqual(
-		pinned.map((g) => g.path),
-		["/pinned"],
+		rest.map((g) => g.path),
+		["/c"],
 	);
 });
 
@@ -160,7 +153,7 @@ test("project sessions follow custom sessionOrder only in manual sort mode", () 
 	// In manual sort mode
 	const { projects: manualRes } = groupSessions(
 		[s1, s2, s3, sNew],
-		[{ id: "p1", name: "A", path: "/a", pinned: false, lastOpenedAt: 0 }],
+		[{ id: "p1", name: "A", path: "/a", lastOpenedAt: 0 }],
 		"",
 		[],
 		[],
@@ -175,7 +168,7 @@ test("project sessions follow custom sessionOrder only in manual sort mode", () 
 	// In updatedAt mode, sessionOrder should be bypassed and sorted by updatedAt desc
 	const { projects: updateRes } = groupSessions(
 		[s1, s2, s3, sNew],
-		[{ id: "p1", name: "A", path: "/a", pinned: false, lastOpenedAt: 0 }],
+		[{ id: "p1", name: "A", path: "/a", lastOpenedAt: 0 }],
 		"",
 		[],
 		[],
@@ -190,7 +183,7 @@ test("project sessions follow custom sessionOrder only in manual sort mode", () 
 	// In createdAt mode, sorted by createdAt desc
 	const { projects: createdRes } = groupSessions(
 		[s1, s2, s3, sNew],
-		[{ id: "p1", name: "A", path: "/a", pinned: false, lastOpenedAt: 0 }],
+		[{ id: "p1", name: "A", path: "/a", lastOpenedAt: 0 }],
 		"",
 		[],
 		[],
@@ -321,7 +314,7 @@ test("with no roots known yet, nothing is treated as project-less", () => {
  * 或者是一堆没归属的会话——合进来之后它们要跟着走，否则列表上会同时出现「这个项目」和
  * 「这个项目的一半」。
  */
-const multi = [{ path: "/app", name: "app", pinned: false, lastOpenedAt: 1, folders: ["/app", "/api"] }];
+const multi = [{ path: "/app", name: "app", lastOpenedAt: 1, folders: ["/app", "/api"] }];
 
 test("一个会话开在附加源文件夹里，归到这个项目下", () => {
 	const sessions = [session({ id: "in-app", cwd: "/app" }), session({ id: "in-api", cwd: "/api" })];
@@ -345,7 +338,7 @@ test("一个会话开在附加源文件夹里，归到这个项目下", () => {
 test("附加文件夹的子目录还是自成一组，跟主文件夹的子目录一个待遇", () => {
 	const sessions = [session({ id: "deep-api", cwd: "/api/src" }), session({ id: "deep-app", cwd: "/app/packages" })];
 	const { projects: rest } = groupSessions(sessions, multi, "");
-	// `/app` itself is absent because it has no sessions of its own and is not pinned — the
+	// `/app` itself is absent because it has no sessions of its own — the
 	// existing rule, unchanged. The point here is that neither subdirectory was folded into it.
 	assert.deepEqual(
 		rest.map((g) => g.path).sort(),

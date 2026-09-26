@@ -19,13 +19,20 @@ before(async () => {
 		const metas: SessionMeta[] = JSON.parse(await readFile(index, "utf8"));
 		projectPath = metas[0].cwd;
 		const third = { ...metas[1], id: "qa-third", title: "qa-third", updatedAt: 0 };
+		/*
+		 * 第二个项目只有一条归档会话：没有会话的项目不占行，会话全归档的项目默认保留一行，
+		 * 这样它在列表里有标题可拖，又不多出一条会话行打乱下面对行序的断言。
+		 */
+		const secondArchived = { ...metas[1], id: "qa-second", title: "qa-second", cwd: join(home, "second"), projectId: "second", projectName: "第二项目", archived: true };
 		metas[0].updatedAt = 30; metas[1].updatedAt = 20;
 		const log = await readFile(join(home, "sessions", third.projectId, "qa-short.jsonl"), "utf8");
 		await writeFile(join(home, "sessions", third.projectId, "qa-third.jsonl"), log.replaceAll("qa-short", "qa-third"));
-		await writeFile(index, JSON.stringify([...metas, third]));
+		await mkdir(join(home, "sessions", "second"));
+		await writeFile(join(home, "sessions", "second", "qa-second.jsonl"), log.replaceAll("qa-short", "qa-second"));
+		await writeFile(index, JSON.stringify([...metas, third, secondArchived]));
 		const file = join(home, "settings.json");
 		const settings = JSON.parse(await readFile(file, "utf8"));
-		settings.projects.push({ id: "second", path: join(home, "second"), name: "第二项目", pinned: true, lastOpenedAt: 0 });
+		settings.projects.push({ id: "second", path: join(home, "second"), name: "第二项目", lastOpenedAt: 0 });
 		await mkdir(join(home, "second"));
 		settings.appearance = { theme: "light", reduceMotion: "off" };
 		await writeFile(file, JSON.stringify(settings));
