@@ -37,17 +37,17 @@ export interface ParseResult {
 export class PatchError extends Error {}
 
 /** Split so a trailing newline round-trips instead of being invented or lost. */
-function toLines(content: string): { lines: string[]; trailingNewline: boolean } {
-	const trailingNewline = content.endsWith("\n");
-	return { lines: (trailingNewline ? content.slice(0, -1) : content).split("\n"), trailingNewline };
+function toLines(content: string): { lines: string[]; trailingNewline: boolean; newline: string } {
+	const newline = content.includes("\r\n") && !/(?<!\r)\n/.test(content) ? "\r\n" : "\n";
+	const trailingNewline = content.endsWith(newline);
+	return { lines: content === "" ? [] : (trailingNewline ? content.slice(0, -newline.length) : content).split(newline), trailingNewline, newline };
 }
 
 /**
  * A 4-hex fingerprint of the file, FNV-1a.
  *
- * Not a security primitive. Its whole job is to make "you are editing a file that changed since
- * you read it" a rejection instead of a silent overwrite — the case where a formatter, another
- * agent, or the user touched the file between the read and the edit.
+ * A compact handle for the model, not a security primitive. Read state separately keeps the
+ * full content digest, so a collision or a tag copied from an error cannot bypass a stale read.
  */
 export function snapshotTag(content: string): string {
 	let h = 0x811c9dc5;
@@ -215,15 +215,18 @@ function diffDeletionMarker(hunk: Hunk, lines: string[]): string | null {
  * intent, and guessing at it is how a patch quietly does the wrong thing.
  */
 export function applyHunks(hunks: Hunk[], content: string): string {
-	const { lines, trailingNewline } = toLines(content);
+	const { lines, trailingNewline, newline } = toLines(content);
 	const total = lines.length;
 
 	const touched = new Set<number>();
+	const insertions = new Set<number>();
 	for (const hunk of hunks) {
 		if (hunk.op === "insert") {
 			if (hunk.after < 0 || hunk.after > total) {
 				throw new PatchError(`INSERT AFTER ${hunk.after} is out of range: the file has ${total} lines. Use 0 to insert at the top.`);
 			}
+			if (insertions.has(hunk.after)) throw new PatchError(`Multiple insertions after line ${hunk.after}. Combine them into one operation.`);
+			insertions.add(hunk.after);
 			continue;
 		}
 		if (hunk.start < 1 || hunk.end > total) {
@@ -243,6 +246,12 @@ export function applyHunks(hunks: Hunk[], content: string): string {
 			touched.add(n);
 		}
 	}
+	// Inserts at the end of a range are safe; inserts inside it would be consumed by splice.
+	for (const hunk of hunks) {
+		if (hunk.op !== "insert" && [...insertions].some((at) => at >= hunk.start && at < hunk.end)) {
+			throw new PatchError(`An insertion is inside lines ${hunk.start}-${hunk.end}. Operations must not overlap.`);
+		}
+	}
 
 	// An insert sits between lines, so it sorts just after the line it follows.
 	const anchorOf = (h: Hunk) => (h.op === "insert" ? h.after + 0.5 : h.start);
@@ -254,7 +263,7 @@ export function applyHunks(hunks: Hunk[], content: string): string {
 		else if (hunk.op === "delete") out.splice(hunk.start - 1, hunk.end - hunk.start + 1);
 		else out.splice(hunk.start - 1, hunk.end - hunk.start + 1, ...hunk.lines);
 	}
-	return out.join("\n") + (trailingNewline ? "\n" : "");
+	return out.join(newline) + (trailingNewline && out.length ? newline : "");
 }
 
 /**
@@ -288,5 +297,7 @@ Rules:
 - The range names the original lines you are replacing; the payload may be longer or shorter.
 - NEVER widen a range to retype lines you are keeping — use INSERT AFTER instead.
 - To remove lines use DELETE, never REPLACE with an empty payload.
-- Ranges must not overlap. One line is REPLACE 7-7.
+- Ranges must not overlap. An insertion cannot sit inside a replaced/deleted range, and each
+  insertion anchor may occur only once. Inserting after the range's final line is allowed.
+  One line is REPLACE 7-7.
 - Several operations in one call is normal and preferred over several calls.`;

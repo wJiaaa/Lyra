@@ -1,11 +1,9 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolResult } from "../types.ts";
-import { recordFileChange } from "./file-changes.ts";
+import { withTextFile } from "./file-write.ts";
 import { computeDiff, formatDiff } from "./diff.ts";
-import { displayPath, exists, resolveWorkspacePath } from "./paths.ts";
-import { hasRead, markRead } from "./read.ts";
+import { displayPath, resolveWorkspacePath } from "./paths.ts";
+import { markRead, readRecord, readVersion } from "./read-state.ts";
 import { decodeInput, decodeText, encodeText } from "./text-layout.ts";
 
 interface WriteArgs {
@@ -75,69 +73,54 @@ export const writeTool: Tool<WriteArgs> = {
 		 *
 		 * 读那一侧留着（`read.ts`、`ls.ts`），那是附件本来的用途。
 		 */
-		let absolute: string;
 		try {
-			absolute = resolveWorkspacePath(ctx.cwd, args.path);
+			return await withTextFile(ctx, args.path, async ({ path: absolute, before, write }) => {
+				const alreadyExists = before !== null;
+				const previous = alreadyExists ? decodeText(before) : null;
+				if (previous && readRecord(ctx, absolute)?.version !== readVersion(previous.text)) {
+					return errorResult(`Read the current text of ${args.path} before overwriting it.`);
+				}
+				const content = previous ? decodeInput(args.content.replace(/^\uFEFF/, ""), previous.layout) : args.content;
+				const written = previous ? encodeText(content, previous.layout) : content;
+				const after = decodeText(written).text;
+				const diff = computeDiff(previous?.text ?? "", after);
+				const shown = displayPath(ctx.cwd, resolveWorkspacePath(ctx.cwd, args.path));
+
+				if (ctx.requestApproval) {
+					const decision = await ctx.requestApproval({
+						kind: "write",
+						title: alreadyExists ? `Overwrite ${shown}` : `Create ${shown}`,
+						detail: formatDiff(diff, shown),
+						subject: absolute,
+					});
+					if (decision !== "once" && decision !== "always") return errorResult("The user rejected this write.");
+				}
+
+				const changeId = await write(written);
+				const lines = after === "" ? 0 : after.split("\n").length;
+				if (lines > 0) markRead(ctx, absolute, after, 1, lines);
+				else markRead(ctx, absolute, after);
+
+				return {
+					content: [
+						{
+							type: "text",
+							text: `${alreadyExists ? "Updated" : "Created"} ${shown} (${lines} lines).`,
+						},
+					],
+					details: {
+						kind: "write",
+						changeId,
+						path: shown,
+						created: !alreadyExists,
+						added: diff.added,
+						removed: diff.removed,
+						hunks: diff.hunks,
+					},
+				};
+			});
 		} catch (error) {
 			return errorResult(error instanceof Error ? error.message : String(error));
 		}
-
-		const alreadyExists = await exists(absolute);
-		// Overwriting a file the agent has not read is how unrelated work gets destroyed.
-		if (alreadyExists && !hasRead(ctx, absolute)) {
-			return errorResult(`Read ${args.path} before overwriting it, so you do not discard content you have not seen.`);
-		}
-
-		const previousRaw = alreadyExists ? await readFile(absolute, "utf8") : "";
-		/*
-		 * Overwriting keeps the file's BOM and line break. The model writes `\n`, and taken literally
-		 * that turned every line of a CRLF file into a change; a BOM at the head of the content is the
-		 * old file's to decide, not the text's. A new file is written exactly as given.
-		 */
-		const previous = alreadyExists ? decodeText(previousRaw) : null;
-		const content = previous ? decodeInput(args.content.replace(/^\uFEFF/, ""), previous.layout) : args.content;
-		const written = previous ? encodeText(content, previous.layout) : content;
-		// What `read` will show of it from now on: the diff, the line count and the fingerprint are taken from this.
-		const before = previous?.text ?? "";
-		const after = decodeText(written).text;
-		// Once: the approval prompt and the result describe the same pair, and a whole-file diff is not free.
-		const diff = computeDiff(before, after);
-
-		if (ctx.requestApproval) {
-			const decision = await ctx.requestApproval({
-				kind: "write",
-				title: alreadyExists ? `Overwrite ${displayPath(ctx.cwd, absolute)}` : `Create ${displayPath(ctx.cwd, absolute)}`,
-				detail: formatDiff(diff, displayPath(ctx.cwd, absolute)),
-				subject: absolute,
-			});
-			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this write.");
-		}
-
-		if ((await exists(absolute)) !== alreadyExists || (alreadyExists && await readFile(absolute, "utf8") !== previousRaw)) return errorResult("The file changed while awaiting approval. Read it again before writing.");
-		const changeId = await recordFileChange(ctx, absolute, alreadyExists ? previousRaw : null, written);
-		await mkdir(dirname(absolute), { recursive: true });
-		await writeFile(absolute, written, "utf8");
-		const lines = after === "" ? 0 : after.split("\n").length;
-		// The bytes just written are what the model has seen. An empty markRead left ranges
-		// blank, so the very next edit of this file was refused as unread.
-		if (lines > 0) markRead(ctx, absolute, after, 1, lines);
-		else markRead(ctx, absolute, after);
-		return {
-			content: [
-				{
-					type: "text",
-					text: `${alreadyExists ? "Updated" : "Created"} ${displayPath(ctx.cwd, absolute)} (${lines} lines).`,
-				},
-			],
-			details: {
-				kind: "write",
-				changeId,
-				path: displayPath(ctx.cwd, absolute),
-				created: !alreadyExists,
-				added: diff.added,
-				removed: diff.removed,
-				hunks: diff.hunks,
-			},
-		};
 	},
 };

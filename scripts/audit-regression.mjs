@@ -31,6 +31,16 @@ const withWindow = process.argv.includes("--window");
  */
 const CHECKS = [
 	{
+		id: "edit-safety",
+		what: "重叠操作吞内容、编辑开放未读行、过期版本绕过、文本保真与并发写入保护",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/edit-safety.test.ts"]],
+	},
+	{
+		id: "edit-diff",
+		what: "相隔很远的两处修改分配全文件矩阵，造成耗时与内存膨胀",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/diff.test.ts"]],
+	},
+	{
 		id: "ISSUE-cost-loop",
 		what: "大结果无限携带、未完成清单强制续跑、技能重复注入及空回复重试重置",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/aged-prune.test.ts", "packages/core/test/stale-results.test.ts", "packages/core/test/prune-timing.test.ts", "packages/core/test/prune-live-session.test.ts", "packages/core/test/read-long-line.test.ts", "packages/core/test/long-line.test.ts", "packages/core/test/context.test.ts", "packages/core/test/grep-literal.test.ts", "packages/core/test/nudge.test.ts", "packages/core/test/repetition.test.ts", "packages/core/test/translated-tools.test.ts", "packages/core/test/skill-allowed-tools.test.ts", "packages/core/test/session-log.test.ts", "packages/core/test/resume.test.ts"]],

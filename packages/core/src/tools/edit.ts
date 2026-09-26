@@ -19,15 +19,14 @@
  * single trivially-unique replacement is a shape it handles fine.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolResult } from "../types.ts";
-import { recordFileChange } from "./file-changes.ts";
+import { withTextFile } from "./file-write.ts";
 import { computeDiff, formatDiff } from "./diff.ts";
-import { applyHunks, parsePatch, PATCH_SYNTAX, PatchError, snapshotTag } from "./hunk.ts";
-import { displayPath, resolveWorkspacePath } from "./paths.ts";
+import { applyHunks, parsePatch, PATCH_SYNTAX, PatchError, snapshotTag, type Hunk } from "./hunk.ts";
 import { indexToLineCol } from "./long-line.ts";
-import { hasRead, markRead, readRecord, wasShown, wasShownChars } from "./read.ts";
+import { displayPath, resolveWorkspacePath } from "./paths.ts";
+import { markEdited, readRecord, readVersion, wasShown, wasShownChars } from "./read-state.ts";
 import { decodeInput, decodeText, encodeText, type TextLayout } from "./text-layout.ts";
 
 interface EditArgs {
@@ -81,13 +80,6 @@ export const editTool: Tool<EditArgs> = {
 
 	async execute(args, ctx): Promise<ToolResult> {
 		// 不吃 `ctx.allowedPaths`，理由见 `write.ts` 里同一处的注释：附件是「给你看」，不是「可以改」。
-		let absolute: string;
-		try {
-			absolute = resolveWorkspacePath(ctx.cwd, args.path);
-		} catch (error) {
-			return errorResult(error instanceof Error ? error.message : String(error));
-		}
-
 		const usesPatch = typeof args.patch === "string" && args.patch.trim() !== "";
 		const usesStrings = typeof args.old_string === "string" || typeof args.new_string === "string";
 		if (usesPatch && usesStrings) {
@@ -96,76 +88,63 @@ export const editTool: Tool<EditArgs> = {
 		if (!usesPatch && !usesStrings) {
 			return errorResult("Nothing to do: supply `tag` + `patch`, or `old_string` + `new_string`.");
 		}
-		if (!hasRead(ctx, absolute)) {
-			return errorResult(`Read ${args.path} before editing it.`);
-		}
-
-		let raw: string;
 		try {
-			raw = await readFile(absolute, "utf8");
-		} catch {
-			return errorResult(`File not found: ${args.path}`);
-		}
-		/*
-		 * Everything below works on the decoded text — the form `read` showed and fingerprinted — and
-		 * only what is written is re-encoded. `raw` is what the change record keeps, so an undo puts the
-		 * file back byte for byte, BOM and CRLF included.
-		 */
-		const { text: before, layout } = decodeText(raw);
+			return await withTextFile(ctx, args.path, async ({ path: absolute, before: raw, write }) => {
+				const record = readRecord(ctx, absolute);
+				if (!record?.version) return errorResult(`Read ${args.path} as text before editing it.`);
+				if (raw === null) return errorResult(`File not found: ${args.path}`);
+				const { text: before, layout } = decodeText(raw);
+				if (record.version !== readVersion(before)) return errorResult(`The file changed since you read it (it is now ${snapshotTag(before)}). Re-read ${args.path} before editing.`);
 
-		const outcome = usesPatch ? applyPatchForm(args, before, ctx, absolute) : applyStringForm(args, before, layout, ctx, absolute);
-		if ("error" in outcome) return errorResult(outcome.error);
-		const { after, summary } = outcome;
+				const outcome = usesPatch ? applyPatchForm(args, before, ctx, absolute) : applyStringForm(args, before, layout, ctx, absolute);
+				if ("error" in outcome) return errorResult(outcome.error);
+				const { after, summary, hunks } = outcome;
 
-		if (after === before) return errorResult("That edit would leave the file unchanged.");
+				if (after === before) return errorResult("That edit would leave the file unchanged.");
 
-		const diff = computeDiff(before, after);
-		const shown = displayPath(ctx.cwd, absolute);
+				const diff = computeDiff(before, after);
+				const shown = displayPath(ctx.cwd, resolveWorkspacePath(ctx.cwd, args.path));
 
-		if (ctx.requestApproval) {
-			const decision = await ctx.requestApproval({
-				kind: "edit",
-				title: `Edit ${shown}`,
-				detail: formatDiff(diff, shown),
-				subject: absolute,
+				if (ctx.requestApproval) {
+					const decision = await ctx.requestApproval({
+						kind: "edit",
+						title: `Edit ${shown}`,
+						detail: formatDiff(diff, shown),
+						subject: absolute,
+					});
+					if (decision !== "once" && decision !== "always") return errorResult("The user rejected this edit.");
+				}
+
+				const changeId = await write(encodeText(after, layout));
+				markEdited(ctx, absolute, before, after, hunks);
+
+				return {
+					content: [
+						{
+							type: "text",
+							// The new tag is the one the model needs if it edits this file again this turn.
+							text: `Edited ${shown}: ${summary}, +${diff.added} -${diff.removed}. New tag: ${snapshotTag(after)}`,
+						},
+					],
+					details: {
+						kind: "edit",
+						changeId,
+						path: shown,
+						added: diff.added,
+						removed: diff.removed,
+						hunks: diff.hunks,
+					},
+				};
 			});
-			if (decision !== "once" && decision !== "always") return errorResult("The user rejected this edit.");
+		} catch (error) {
+			return errorResult(error instanceof Error ? error.message : String(error));
 		}
-
-		if (await readFile(absolute, "utf8") !== raw) return errorResult("The file changed while awaiting approval. Read it again before editing.");
-		const written = encodeText(after, layout);
-		const changeId = await recordFileChange(ctx, absolute, raw, written);
-		await writeFile(absolute, written, "utf8");
-		/*
-		 * Re-record against the file as it now is, so a follow-up edit in the same turn quotes the
-		 * new fingerprint. Without this every second edit would be rejected as stale — by us.
-		 */
-		const afterLines = after.split("\n").length;
-		markRead(ctx, absolute, after, 1, afterLines);
-
-		return {
-			content: [
-				{
-					type: "text",
-					// The new tag is the one the model needs if it edits this file again this turn.
-					text: `Edited ${shown}: ${summary}, +${diff.added} -${diff.removed}. New tag: ${snapshotTag(after)}`,
-				},
-			],
-			details: {
-				kind: "edit",
-				changeId,
-				path: shown,
-				added: diff.added,
-				removed: diff.removed,
-				hunks: diff.hunks,
-			},
-		};
 	},
 };
 
-type Outcome = { after: string; summary: string } | { error: string };
+type Outcome = { after: string; summary: string; hunks?: Hunk[] } | { error: string };
 
-function applyPatchForm(args: EditArgs, before: string, ctx: Parameters<typeof hasRead>[0], absolute: string): Outcome {
+function applyPatchForm(args: EditArgs, before: string, ctx: Parameters<typeof readRecord>[0], absolute: string): Outcome {
 	const actual = snapshotTag(before);
 	if (typeof args.tag !== "string" || args.tag.trim() === "") {
 		return { error: `\`tag\` is required. Copy it from the \`[path#TAG]\` header of the read output — this file is currently ${actual}.` };
@@ -188,14 +167,14 @@ function applyPatchForm(args: EditArgs, before: string, ctx: Parameters<typeof h
 	/*
 	 * Refuse to touch lines that were never displayed.
 	 *
-	 * The tag proves the file has not moved; it says nothing about whether the model has seen the
+	 * The stored version proves the file has not moved; it says nothing about whether the model has seen the
 	 * region it is editing. After a paged read of lines 1-200, line 700 is a guess.
 	 *
 	 * Out-of-range is checked first, and deliberately: "you have not read line 9" sends the model
 	 * off to read a line that does not exist, while "the file has 5 lines" ends the confusion.
 	 * Both errors were true; only one is useful.
 	 */
-	const totalLines = before.endsWith("\n") ? before.slice(0, -1).split("\n").length : before.split("\n").length;
+	const totalLines = before === "" ? 0 : before.endsWith("\n") ? before.slice(0, -1).split("\n").length : before.split("\n").length;
 	for (const hunk of parsed.hunks) {
 		const highest = hunk.op === "insert" ? hunk.after : hunk.end;
 		if (highest > totalLines) {
@@ -204,23 +183,19 @@ function applyPatchForm(args: EditArgs, before: string, ctx: Parameters<typeof h
 	}
 
 	const record = readRecord(ctx, absolute);
-	if (record && record.ranges.length > 0) {
+	if (record) {
 		const lines = before.endsWith("\n") ? before.slice(0, -1).split("\n") : before.split("\n");
 		for (const hunk of parsed.hunks) {
 			const from = hunk.op === "insert" ? Math.max(1, hunk.after) : hunk.start;
 			const to = hunk.op === "insert" ? Math.max(1, hunk.after) : hunk.end;
-			if (!wasShown(record, from, to)) {
+			if (totalLines > 0 && !wasShown(record, from, to)) {
 				return { error: `Lines ${from}-${to} were not in what you read. Read that part of ${args.path} before editing it.` };
 			}
 			if (hunk.op === "insert") continue;
 			for (let line = from; line <= to; line++) {
 				const length = lines[line - 1]?.length ?? 0;
 				if (!wasShownChars(record, line, 1, Math.max(1, length))) {
-					return {
-						error:
-							`Line ${line} is ${length} characters; you have not seen all of it. ` +
-							`Read ${args.path} with char_offset to page the line, or use old_string for a span you have seen.`,
-					};
+					return { error: `Line ${line} is ${length} characters; read it with char_offset before editing it.` };
 				}
 			}
 		}
@@ -229,32 +204,24 @@ function applyPatchForm(args: EditArgs, before: string, ctx: Parameters<typeof h
 	try {
 		const after = applyHunks(parsed.hunks, before);
 		const ops = parsed.hunks.length;
-		return { after, summary: `${ops} operation${ops === 1 ? "" : "s"}` };
+		return { after, summary: `${ops} operation${ops === 1 ? "" : "s"}`, hunks: parsed.hunks };
 	} catch (error) {
 		return { error: error instanceof PatchError ? error.message : String(error) };
 	}
 }
 
-function applyStringForm(
-	args: EditArgs,
-	before: string,
-	layout: TextLayout,
-	ctx: Parameters<typeof hasRead>[0],
-	absolute: string,
-): Outcome {
+function applyStringForm(args: EditArgs, before: string, layout: TextLayout, ctx: Parameters<typeof readRecord>[0], absolute: string): Outcome {
 	const path = args.path;
 	if (typeof args.old_string !== "string" || typeof args.new_string !== "string") {
 		return { error: "`old_string` and `new_string` must both be strings." };
 	}
-	// In the file's decoded form: a multi-line `old_string` written with `\n` has to be found in a CRLF
-	// file (it never was), and `new_string` takes on the file's breaks when it is written back.
 	const oldString = decodeInput(args.old_string, layout);
 	const newString = decodeInput(args.new_string, layout);
 	if (oldString === newString) {
 		return { error: "`old_string` and `new_string` are identical, so this edit would do nothing." };
 	}
 
-	const occurrences = countOccurrences(before, oldString);
+	const occurrences = countOccurrences(before, oldString, !!args.replace_all);
 	if (occurrences === 0) {
 		return {
 			error:
@@ -272,18 +239,8 @@ function applyStringForm(
 
 	const record = readRecord(ctx, absolute);
 	if (record && !stringSpanShown(record, before, oldString, Boolean(args.replace_all))) {
-		return {
-			error:
-				`\`old_string\` sits in a part of ${path} you have not read. ` +
-				`Read that span with char_offset before replacing it.`,
-		};
+		return { error: `\`old_string\` sits in a part of ${path} you have not read. Read that span with char_offset before replacing it.` };
 	}
-
-	/*
-	 * A function, not the string itself, as the replacement: a string replacement reads `$$`, `$&`,
-	 * `` $` `` and `$'` as patterns, so shell and template code in `new_string` was rewritten on the
-	 * way in (`$$` lost a dollar, `$&` turned into the matched text).
-	 */
 	const after = args.replace_all ? before.split(oldString).join(newString) : before.replace(oldString, () => newString);
 	const count = args.replace_all ? occurrences : 1;
 	return { after, summary: `${count} replacement${count === 1 ? "" : "s"}` };
@@ -303,13 +260,14 @@ function stringSpanShown(record: NonNullable<ReturnType<typeof readRecord>>, bef
 	return all ? hits.every(shown) : hits.some(shown);
 }
 
-function countOccurrences(haystack: string, needle: string): number {
+function countOccurrences(haystack: string, needle: string, replaceAll: boolean): number {
 	if (needle === "") return 0;
 	let count = 0;
 	let index = haystack.indexOf(needle);
 	while (index !== -1) {
 		count++;
-		index = haystack.indexOf(needle, index + needle.length);
+		// Uniqueness includes overlapping matches; replace_all consumes non-overlapping matches.
+		index = haystack.indexOf(needle, index + (replaceAll ? needle.length : 1));
 	}
 	return count;
 }

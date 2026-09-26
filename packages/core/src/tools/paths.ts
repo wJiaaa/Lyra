@@ -1,6 +1,5 @@
-import { constants } from "node:fs";
-import { access } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { scratchHome } from "../runtime/previews.ts";
 import { lyraHome } from "../session/store.ts";
 import { home } from "../platform.ts";
@@ -37,18 +36,30 @@ export function resolveWorkspacePath(cwd: string, input: string): string {
 	throw new Error(`Path escapes the workspace root (${cwd}): ${input}`);
 }
 
+/** Canonicalize existing parents too, so aliases share a lock and a missing leaf cannot hide an escape. */
+export async function resolveFilePath(
+	cwd: string,
+	input: string,
+): Promise<string> {
+	const absolute = resolveWorkspacePath(cwd, input);
+	const canonical = async (path: string): Promise<string> => {
+		try { return await realpath(path); }
+		catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT" || dirname(path) === path) throw error;
+			return resolve(await canonical(dirname(path)), basename(path));
+		}
+	};
+	const target = await canonical(absolute);
+	const roots = await Promise.all([canonical(cwd), canonical(scratchHome(lyraHome()))]);
+	if (!roots.some((root) => contains(root, target))) {
+		throw new Error(`Path escapes the workspace root through a symbolic link: ${input}`);
+	}
+	return target;
+}
+
 export function displayPath(cwd: string, absolute: string): string {
 	const rel = relative(cwd, absolute);
 	return rel === "" ? "." : rel.startsWith("..") ? absolute : rel;
-}
-
-export async function exists(path: string): Promise<boolean> {
-	try {
-		await access(path, constants.F_OK);
-		return true;
-	} catch {
-		return false;
-	}
 }
 
 const IMAGE_EXTENSIONS: Record<string, string> = {

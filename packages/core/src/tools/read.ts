@@ -1,12 +1,14 @@
 import type { Stats } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, realpath, stat } from "node:fs/promises";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { snapshotTag } from "./hunk.ts";
-import { charWindow, coversChars, formatCharWindow, longLineFooter, MAX_LINE_CHARS, mergeCharRanges } from "./long-line.ts";
+import { charWindow, formatCharWindow, longLineFooter, MAX_LINE_CHARS } from "./long-line.ts";
 import { outline, outlineFooter } from "./outline.ts";
 import { displayPath, imageMimeType, looksBinary } from "./paths.ts";
-import { authorizeRead } from "./read-access.ts";
+import { authorizeRead, toAbsolute } from "./read-access.ts";
+import { markRead, markReadChars, markReadRanges } from "./read-state.ts";
+export { hasRead, markRead } from "./read-state.ts";
 import { decodeText } from "./text-layout.ts";
 import { EXTRACTABLE, extractDocumentText } from "../files/document-text.ts";
 
@@ -18,103 +20,6 @@ interface ReadArgs {
 	offset?: number;
 	limit?: number;
 	char_offset?: number;
-}
-
-/**
- * What the agent has seen of each file: the fingerprint it saw, and which lines.
- *
- * This used to be a `Set<string>` answering only "was this read at all", which is enough to stop
- * a blind edit and not enough for anything else. Two things need more:
- *
- *   - The fingerprint turns "the file changed since you looked at it" from a silent overwrite into
- *     a rejection. A formatter, another agent, or the user can touch a file between the read and
- *     the edit, and a byte anchor would happily match anyway.
- *   - The ranges stop an edit to lines that were never displayed. Reading lines 1–200 of a
- *     900-line file says nothing about line 700.
- */
-const READ_FILES_KEY = "readFiles";
-
-export interface ReadRecord {
-	/** Fingerprint of the whole file at the moment it was read. */
-	tag: string;
-	/** Inclusive 1-indexed line ranges actually shown. */
-	ranges: [number, number][];
-	/**
-	 * Inclusive 1-indexed character ranges shown on a long line.
-	 *
-	 * Absent for a line means the whole line was on screen (it fit in the cap).
-	 * Present means only those spans were displayed — an edit of the rest is a guess.
-	 */
-	chars?: Map<number, [number, number][]>;
-}
-
-type ReadState = Map<string, ReadRecord>;
-
-function readState(ctx: ToolContext): ReadState {
-	const existing = ctx.state.get(READ_FILES_KEY);
-	if (existing instanceof Map) return existing as ReadState;
-	const fresh: ReadState = new Map();
-	ctx.state.set(READ_FILES_KEY, fresh);
-	return fresh;
-}
-
-export function markRead(ctx: ToolContext, absolute: string, content?: string, from = 1, to?: number): void {
-	markReadRanges(ctx, absolute, content, to === undefined ? [] : [[from, to]]);
-}
-
-/**
- * Record several disjoint ranges at once.
- *
- * The outline view shows scattered lines rather than one window, and the ranges have to reflect
- * that: an edit to a folded body must be refused, and it can only be refused if we remember that
- * the body was never on screen.
- */
-function markReadRanges(ctx: ToolContext, absolute: string, content: string | undefined, added: [number, number][]): void {
-	const state = readState(ctx);
-	const previous = state.get(absolute);
-	const tag = content === undefined ? (previous?.tag ?? "") : snapshotTag(content);
-	// A changed file invalidates what was shown before: the old line numbers no longer mean anything.
-	const same = previous && previous.tag === tag;
-	const ranges = same ? [...previous.ranges, ...added] : [...added];
-	state.set(absolute, { tag, ranges, chars: same ? previous.chars : undefined });
-}
-
-function markReadChars(ctx: ToolContext, absolute: string, line: number, from: number, to: number, lineLength: number): void {
-	const state = readState(ctx);
-	const record = state.get(absolute);
-	if (!record) return;
-	if (from <= 1 && to >= lineLength) {
-		if (record.chars) record.chars.delete(line);
-		return;
-	}
-	const chars = record.chars ?? new Map<number, [number, number][]>();
-	chars.set(line, mergeCharRanges([...(chars.get(line) ?? []), [from, to]]));
-	record.chars = chars;
-}
-
-export function hasRead(ctx: ToolContext, absolute: string): boolean {
-	return readState(ctx).has(absolute);
-}
-
-/** What the agent last saw of this file, or undefined if it has not read it. */
-export function readRecord(ctx: ToolContext, absolute: string): ReadRecord | undefined {
-	return readState(ctx).get(absolute);
-}
-
-/** Whether every line in `[from, to]` was actually displayed. */
-export function wasShown(record: ReadRecord, from: number, to: number): boolean {
-	for (let line = from; line <= to; line++) {
-		if (!record.ranges.some(([a, b]) => line >= a && line <= b)) return false;
-	}
-	return true;
-}
-
-/** Whether characters `[from, to]` of `line` (1-indexed) were on screen. */
-export function wasShownChars(record: ReadRecord, line: number, from: number, to: number): boolean {
-	if (!wasShown(record, line, line)) return false;
-	const windows = record.chars?.get(line);
-	if (!windows) return true;
-	return coversChars(windows, from, to);
 }
 
 /** The extension, lowercased — which of the two decisions below applies is keyed on it. */
@@ -188,10 +93,16 @@ export const readTool: Tool<ReadArgs> = {
 		 */
 		const resourceResult = await tryResource(path, ctx);
 		if (resourceResult) return resourceResult;
+		const shownPath = displayPath(ctx.cwd, toAbsolute(ctx.cwd, path));
 
-		const authorized = await authorizeRead(ctx, path, { allowSkillReads: true });
+		let absolute: string;
+		try {
+			absolute = await realpath(toAbsolute(ctx.cwd, path));
+		} catch {
+			return errorResult(`File not found: ${path}`);
+		}
+		const authorized = await authorizeRead(ctx, absolute, { allowSkillReads: true });
 		if (!authorized.ok) return errorResult(authorized.message);
-		const absolute = authorized.absolute;
 
 		let info: Stats;
 		try {
@@ -210,7 +121,7 @@ export const readTool: Tool<ReadArgs> = {
 			markRead(ctx, absolute);
 			return {
 				content: [{ type: "image", data: data.toString("base64"), mimeType: mime }],
-				details: { kind: "image", path: displayPath(ctx.cwd, absolute), bytes: info.size, mimeType: mime },
+				details: { kind: "image", path: shownPath, bytes: info.size, mimeType: mime },
 			};
 		}
 
@@ -237,13 +148,13 @@ export const readTool: Tool<ReadArgs> = {
 			 * exactly how somebody ends up believing their scan was read.
 			 */
 			const body = extracted.imageOnly
-				? `[${displayPath(ctx.cwd, absolute)} has no text layer — it is a scan or an image-only document. Reading it needs OCR.]`
+				? `[${shownPath} has no text layer — it is a scan or an image-only document. Reading it needs OCR.]`
 				: extracted.text;
 			return {
 				content: [{ type: "text", text: body }],
 				details: {
 					kind: "document",
-					path: displayPath(ctx.cwd, absolute),
+					path: shownPath,
 					bytes: info.size,
 					characters: extracted.fullLength,
 					truncated: extracted.truncated,
@@ -262,7 +173,6 @@ export const readTool: Tool<ReadArgs> = {
 		// A trailing newline produces a final empty element that is not a real line.
 		if (allLines.length > 1 && allLines[allLines.length - 1] === "") allLines.pop();
 
-		const shownPath = displayPath(ctx.cwd, absolute);
 		const tag = snapshotTag(text);
 		const charOffset = Math.max(1, numberArg(raw.char_offset ?? raw.charOffset) ?? 1);
 		const askedWindow = args.offset !== undefined || args.limit !== undefined || charOffset > 1;

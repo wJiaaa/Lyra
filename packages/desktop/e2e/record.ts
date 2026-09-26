@@ -183,7 +183,7 @@ export async function encode(frames: Frame[], out: string, fps?: number, maxHold
 			"ffmpeg",
 			[
 				"-y", "-f", "concat", "-safe", "0", "-i", list,
-				...(fps ? ["-vsync", "cfr", "-r", String(fps)] : ["-vsync", "vfr"]),
+				...(fps ? ["-fps_mode", "cfr", "-r", String(fps)] : ["-fps_mode", "vfr"]),
 				// yuv420p + 偶数边长，否则 QuickTime 和多数播放器不认。
 				"-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p",
 				"-c:v", "libx264", "-preset", "slow", "-crf", "18",
