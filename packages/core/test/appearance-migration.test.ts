@@ -32,6 +32,11 @@ test("and it is dropped whatever it was set to", () => {
 	}
 });
 
+test("the removed UI font weight is dropped too", () => {
+	const next = migrateAppearance({ ...DEFAULT_APPEARANCE, uiFontWeight: 500 } as never) as Record<string, unknown>;
+	assert.ok(!("uiFontWeight" in next));
+});
+
 test("a file that never had it is unchanged", () => {
 	assert.deepEqual(migrateAppearance({ ...DEFAULT_APPEARANCE }), { ...DEFAULT_APPEARANCE });
 });
@@ -60,7 +65,6 @@ test("曾经的默认 Inter 跟着换成现在的默认", () => {
 		uiFont: '"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
 	});
 	assert.equal(next.uiFont, DEFAULT_APPEARANCE.uiFont);
-	assert.match(next.uiFont, /PingFang SC/);
 	assert.doesNotMatch(next.uiFont, /Inter Variable|IBM Plex Sans Variable/);
 });
 
@@ -70,7 +74,16 @@ test("曾经的默认 IBM Plex 跟着换成现在的默认", () => {
 		uiFont: '"IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
 	});
 	assert.equal(next.uiFont, DEFAULT_APPEARANCE.uiFont);
-	assert.match(next.uiFont, /PingFang SC/);
+});
+
+test("曾经的默认苹方和 JetBrains Mono 跟着换成现在的系统字体", () => {
+	const next = migrateAppearance({
+		...DEFAULT_APPEARANCE,
+		uiFont: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
+		codeFont: '"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
+	});
+	assert.equal(next.uiFont, DEFAULT_APPEARANCE.uiFont);
+	assert.equal(next.codeFont, DEFAULT_APPEARANCE.codeFont);
 });
 
 test("自己写过的字体栈不动", () => {

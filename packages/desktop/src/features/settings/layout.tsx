@@ -12,7 +12,7 @@ import { Text } from "../../ui/primitives/Text.tsx";
 /** Section heading above a card group, as used by the reference settings pages. */
 export function SectionTitle({ children }: { children: React.ReactNode }) {
 	return (
-		<Text as="h2" size="title" weight="medium" className="mb-3">
+		<Text as="h2" size="title" weight="semibold" className="mb-3">
 			{children}
 		</Text>
 	);
@@ -63,7 +63,7 @@ export function Row({
 			 */}
 			<div data-settings-row className="flex flex-col gap-2 @md:flex-row @md:items-center @md:gap-4">
 				<div className="min-w-0 flex-1">
-					<Text as="div" size="body">
+					<Text as="div" size="label" weight="medium">
 						{title}
 					</Text>
 					{detail && (

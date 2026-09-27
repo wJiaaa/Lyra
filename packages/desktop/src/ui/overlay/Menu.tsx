@@ -160,7 +160,7 @@ export function MenuSeparator() {
 
 /** Small label above a group of items. */
 export function MenuLabel({ children }: { children: React.ReactNode }) {
-	return <div className="px-3 pt-1.5 pb-1 text-caption text-ink-faint">{children}</div>;
+	return <div className="px-3 pt-1.5 pb-1 text-label font-medium text-ink-faint">{children}</div>;
 }
 
 /**

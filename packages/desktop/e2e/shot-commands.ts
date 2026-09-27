@@ -47,18 +47,8 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			/*
-			 * The font stack as Appearance actually writes it, not the stylesheet's own default.
-			 *
-			 * These two differ, and the difference is a bug's hiding place: `--font-sans` lists
-			 * `Lyra CJK` and this does not, so seeding without them exercises a code path no real
-			 * install is on.
-			 */
 			appearance: {
 				theme: process.argv[4] === "dark" ? "dark" : "light",
-				uiFont: '"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
-				codeFont:
-					'"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
 			},
 		}),
 	);

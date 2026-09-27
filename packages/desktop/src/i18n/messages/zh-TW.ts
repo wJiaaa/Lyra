@@ -111,8 +111,6 @@ export const zhTW = {
 	"appearance.reduceMotionDetail": "減少動畫效果或比照系統設定",
 	"appearance.uiScale": "UI 字級",
 	"appearance.uiScaleDetail": "調整 Lyra 介面使用的基準字級",
-	"appearance.uiWeight": "UI 字重",
-	"appearance.uiWeightDetail": "介面文字的基準字重，標題會跟著一起變",
 	"appearance.chatWidth": "對話寬度",
 	"appearance.chatWidthDetail": "正文和輸入框的最大寬度。視窗很寬時，加寬可以少一些兩側留白",
 	"appearance.wide": "寬",

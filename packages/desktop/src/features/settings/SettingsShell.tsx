@@ -134,18 +134,18 @@ export function SettingsShell() {
 					 * here before highlighted its border instead, which made the one button you
 					 * press most often behave unlike everything around it.
 					 */}
-					<div className={`pb-2 ${compact ? "px-3" : "px-2.5"}`}>
+					<div className={`pb-3 ${compact ? "px-3" : "px-2"}`}>
 						<button
 							type="button"
 							onClick={() => {
 								setView("chat");
 								dismissNav();
 							}}
-							className={`flex w-full items-center gap-2.5 rounded-lg px-2 text-left text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated ${
+							className={`m-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-xl px-1.5 text-left text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated ${
 								compact ? "h-[40px]" : "h-[32px]"
 							}`}
 						>
-							<ArrowLeft size={15} strokeWidth={1.8} className="shrink-0" />
+							<ArrowLeft size={16} className="shrink-0" />
 							{t("app.backWorkspace")}
 						</button>
 					</div>

@@ -3,7 +3,7 @@
  *
  * The setting is a CSS font stack and always has been — it has to be, because the first choice may
  * not be installed and something has to catch that. What was wrong was making people *type* one:
- * getting `"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace`
+ * getting `"JetBrains Mono", ui-monospace, Menlo, "PingFang SC", monospace`
  * right by hand, quotes and all, to change a font.
  *
  * So each entry is a whole stack with its own sensible fallbacks, chosen by the name at the front.
@@ -31,22 +31,20 @@ export interface CodeFontOption {
 	 */
 	labelKey?: MessageKey;
 	family: string;
-	/**
-	 * Shipped with the app, so it is always there.
-	 *
-	 * Checked rather than probed. `document.fonts.check` answers for faces the page has *used*; a
-	 * bundled `@font-face` that nothing has rendered yet reports as missing, and the menu was
-	 * labelling the app's own default 「未安装」.
-	 */
-	bundled?: boolean;
 }
 
 export const CODE_FONTS: CodeFontOption[] = [
+	// The default, and the same stack ZCode uses; see `CODE_DEFAULTS.codeFont`.
+	{
+		label: "System monospace",
+		labelKey: "codeFonts.systemMono",
+		family: "ui-monospace",
+		stack: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace',
+	},
 	{
 		label: "JetBrains Mono",
-		family: "JetBrains Mono Variable",
-		bundled: true,
-		stack: '"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
+		family: "JetBrains Mono",
+		stack: '"JetBrains Mono", ui-monospace, Menlo, "PingFang SC", monospace',
 	},
 	{
 		label: "SF Mono",
@@ -58,7 +56,6 @@ export const CODE_FONTS: CodeFontOption[] = [
 	{
 		label: "Fira Code",
 		family: "Fira Code",
-		bundled: true,
 		stack: '"Fira Code", "Fira Mono", ui-monospace, Menlo, "PingFang SC", monospace',
 	},
 	{
@@ -69,13 +66,11 @@ export const CODE_FONTS: CodeFontOption[] = [
 	{
 		label: "Source Code Pro",
 		family: "Source Code Pro",
-		bundled: true,
 		stack: '"Source Code Pro", ui-monospace, Menlo, "PingFang SC", monospace',
 	},
 	{
 		label: "IBM Plex Mono",
 		family: "IBM Plex Mono",
-		bundled: true,
 		stack: '"IBM Plex Mono", ui-monospace, Menlo, "PingFang SC", monospace',
 	},
 	{
@@ -84,12 +79,6 @@ export const CODE_FONTS: CodeFontOption[] = [
 		stack: '"Roboto Mono", ui-monospace, Menlo, "PingFang SC", monospace',
 	},
 	{ label: "Consolas", family: "Consolas", stack: 'Consolas, ui-monospace, Menlo, "PingFang SC", monospace' },
-	{
-		label: "System monospace",
-		labelKey: "codeFonts.systemMono",
-		family: "ui-monospace",
-		stack: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "PingFang SC", monospace',
-	},
 ];
 
 /**
@@ -100,8 +89,6 @@ export const CODE_FONTS: CodeFontOption[] = [
  * answer: that entry cannot be missing.
  */
 export function fontAvailable(option: CodeFontOption): boolean {
-	// Bundled faces are present by definition; see the note on `bundled`.
-	if (option.bundled) return true;
 	// A generic keyword always resolves to something, and quoting it would break the check.
 	if (!option.family.includes(" ") && option.family.startsWith("ui-")) return true;
 	try {

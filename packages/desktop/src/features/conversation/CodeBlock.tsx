@@ -91,7 +91,7 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 	return (
 		<div className="group relative">
 			{lang && (
-				<span className="absolute top-2.5 left-3.5 font-mono text-caption tracking-wide text-ink-faint select-none">
+				<span className="absolute top-2.5 left-3.5 font-mono text-caption lowercase text-ink-faint select-none">
 					{lang}
 				</span>
 			)}

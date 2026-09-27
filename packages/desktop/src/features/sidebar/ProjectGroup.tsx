@@ -31,7 +31,6 @@ export const SESSION_PAGE = COLLAPSED_SESSION_COUNT;
 
 export function ProjectGroup({
 	group,
-	active,
 	shown,
 	collapsed,
 	onToggleCollapsed,
@@ -40,7 +39,6 @@ export function ProjectGroup({
 	actions,
 }: {
 	group: Group;
-	active: boolean;
 	/** How many rows this group is currently showing. */
 	shown: number;
 	/** Folded shut, hiding its sessions. Remembered across launches. */
@@ -79,7 +77,7 @@ export function ProjectGroup({
 			 * than through it.
 			 */}
 			<div data-ly-head className="ly-pin sticky top-[var(--ly-rail)] z-20">
-				<ProjectHead group={group} active={active} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
+				<ProjectHead group={group} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
 			</div>
 
 			<Collapsible open={!collapsed}>

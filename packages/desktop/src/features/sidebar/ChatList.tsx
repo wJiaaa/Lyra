@@ -32,8 +32,8 @@ function BandHead({ label }: { label: string }) {
 	const { compact } = useLayout();
 	return (
 		<div
-			className={`flex items-center px-2 text-detail font-medium text-ink-faint ${
-				compact ? "h-[30px]" : "h-[24px]"
+			className={`flex items-center px-2.5 text-label font-medium text-ink-faint ${
+				compact ? "h-[30px]" : "h-[28px]"
 			}`}
 		>
 			{label}

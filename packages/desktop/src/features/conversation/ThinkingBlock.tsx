@@ -91,7 +91,7 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
 				{...(redacted ? {} : { onToggle: () => { setOpen((v) => !v); } })}
 				label={translate("thinking.process")}
 			/>
-			<Collapse open={open && !redacted} bodyClassName="mt-1.5 border-l-2 border-line pl-3" keepMounted><Markdown text={text} className="text-label text-ink-muted" /></Collapse>
+			<Collapse open={open && !redacted} bodyClassName="mt-1.5 border-l-2 border-line pl-3" keepMounted><Markdown text={text} className="text-label text-ink-faint" /></Collapse>
 		</div>
 	);
 }

@@ -919,7 +919,7 @@ export function Composer() {
 								data-ly-tip={t("composer.addAttachment")}
 								aria-label={t("composer.addAttachment")}
 								onClick={() => fileRef.current?.click()}
-								className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+								className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink transition-colors hover:bg-card-hover"
 							>
 								<Plus size={16} strokeWidth={1.9} />
 							</button>
@@ -929,7 +929,7 @@ export function Composer() {
 									data-ly-tip={`${t("composer.screenshot")} ${settings?.screenshot?.shortcut ? `(${settings.screenshot.shortcut.replace("CommandOrControl", "⌘").replace("Shift", "⇧").replace("Alt", "⌥").replace(/\+/g, "")})` : ""}`}
 									aria-label={t("composer.screenshot")}
 									onClick={() => void takeScreenshot()}
-									className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+									className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink transition-colors hover:bg-card-hover"
 								>
 									<Camera size={15} strokeWidth={1.9} />
 								</button>
@@ -961,7 +961,7 @@ export function Composer() {
 											`text-danger ${permissionMenu.open ? "bg-danger/10" : "hover:bg-danger/10"}`
 										: permissionMenu.open
 											? "bg-card-hover text-ink"
-											: "text-ink-muted hover:bg-card-hover hover:text-ink"
+											: "text-ink hover:bg-card-hover"
 								}`}
 							>
 								<CircleAlert size={13.5} strokeWidth={1.9} className="shrink-0" />
@@ -1099,7 +1099,7 @@ function Chip({
 			/* Dimmed while it is being changed, so the name reads as "still this, for now". */
 			className={`ly-composer-control ly-scroll flex h-[26px] min-w-0 items-center gap-1.5 rounded-md px-2 text-label transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] ${
 				busy ? "opacity-60" : ""
-			} ${active ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"}`}
+			} text-ink ${active ? "bg-card-hover" : "hover:bg-card-hover"}`}
 		>
 			<span className="shrink-0 text-ink-faint">{icon}</span>
 			{/* Keyed on the label so switching project or branch rolls the new one in. `ScrollText`

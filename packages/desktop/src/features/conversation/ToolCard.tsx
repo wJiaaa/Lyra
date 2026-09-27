@@ -109,7 +109,7 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 				<ToolMark mark={mcpMark} Icon={Icon} running={running} />
 				<span
 					className={`min-w-0 flex-1 truncate text-label transition-colors duration-[var(--ly-t-base)] ${
-						running ? "text-ink" : "text-ink-muted"
+						running ? "text-ink" : "text-ink-faint"
 					}`}
 				>
 					{summary}

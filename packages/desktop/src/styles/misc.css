@@ -495,8 +495,9 @@
 /* Identical metrics keep the decoration and the native caret in the same place. */
 .ly-composer-text {
 	padding: var(--ly-composer-in) var(--ly-composer-x);
-	font-size: var(--text-body);
-	line-height: 1.625;
+	/* ZCode 输入框的 14px / 20px。 */
+	font-size: var(--text-label);
+	line-height: 20px;
 	color: var(--color-ink);
 	overflow-wrap: break-word;
 	tab-size: 8;
@@ -524,7 +525,7 @@
 }
 
 textarea.ly-composer-text {
-	min-height: calc(var(--ly-composer-lines, 1) * 1.625em + var(--ly-composer-in) * 2);
+	min-height: calc(var(--ly-composer-lines, 1) * 20px + var(--ly-composer-in) * 2);
 }
 
 textarea.ly-composer-text[data-highlighted="true"] {
@@ -625,6 +626,12 @@ textarea.ly-composer-text[data-highlighted="true"] {
 
 .ly-token-body > .ly-token-bracket:last-child {
   margin-left: calc(var(--ly-token-inset) * -1);
+}
+
+/* ZCode 的用户输入是 14px / 24px、不加字距；气泡里的 Markdown 跟着它，不跟回复正文。 */
+.ly-user-bubble .prose-dw {
+  line-height: 24px;
+  letter-spacing: 0;
 }
 
 .ly-user-bubble .ly-attachment-token {

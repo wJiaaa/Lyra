@@ -30,13 +30,13 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 			{viewAvailable("pull-requests") && (
 				<NavItem
 					active={view === "pull-requests"}
-					icon={<GitPullRequest size={15} strokeWidth={1.8} />}
+					icon={<GitPullRequest size={16} />}
 					label={t("sidebar.pullRequests")}
 					onClick={go("pull-requests")}
 				/>
 			)}
 			{viewAvailable("scheduled") && (
-				<NavItem active={view === "scheduled"} icon={<Clock size={15} strokeWidth={1.8} />} label={t("sidebar.scheduled")} onClick={go("scheduled")} />
+				<NavItem active={view === "scheduled"} icon={<Clock size={16} />} label={t("sidebar.scheduled")} onClick={go("scheduled")} />
 			)}
 			{/*
 			 * The catalogue, not the settings pane it used to open.
@@ -47,7 +47,7 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 			 * in this view's header is the way across.
 			 */}
 			{viewAvailable("plugins") && (
-				<NavItem active={view === "plugins"} icon={<AtSign size={15} strokeWidth={1.8} />} label={t("sidebar.plugins")} onClick={go("plugins")} />
+				<NavItem active={view === "plugins"} icon={<AtSign size={16} />} label={t("sidebar.plugins")} onClick={go("plugins")} />
 			)}
 		</div>
 	);

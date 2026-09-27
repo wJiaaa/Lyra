@@ -130,8 +130,10 @@
    * still wraps anything too long, which `pre` would not.
    */
   white-space: pre-line;
-  background: color-mix(in srgb, var(--color-ink) 92%, transparent);
-  color: var(--color-shell);
+  /* 和 ZCode 一样不反色：跟随主题的浮层底色，加一圈细边。 */
+  border: 1px solid var(--color-line-float);
+  background: var(--color-float);
+  color: var(--color-ink);
   box-shadow: 0 4px 14px -4px rgb(0 0 0 / 0.3);
   /*
    * Two animations, because leaving is not entering played backwards.

@@ -55,19 +55,8 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			/*
-			 * The font stack exactly as the Appearance page writes it.
-			 *
-			 * Not the same as the stylesheet's `--font-sans`, and the difference is where a bug hid:
-			 * that variable lists `Lyra CJK` and this does not. Seeding without these values leaves
-			 * `--ly-ui-font` unset, the `var()` fallback runs, and the test exercises a path no real
-			 * install is ever on.
-			 */
 			appearance: {
 				theme: "dark",
-				uiFont: '"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
-				codeFont:
-					'"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
 			},
 		}),
 	);
@@ -221,22 +210,4 @@ test("a space after the name closes the list, because the name is settled", asyn
 	await type("/compact ");
 	assert.deepEqual(await menu(), [], "now typing arguments, not choosing a command");
 	await type("");
-});
-
-test("CJK punctuation is drawn by the CJK face, whatever font is configured", async () => {
-	/*
-	 * `，` sat at mid-height instead of at the bottom-left of its box, but only after a latin run:
-	 * 「…128930， 123」 rendered it floating, 「…克拉斯，123」 did not.
-	 *
-	 * The cause is which face claims U+FF0C. Inter declares a latin-only `unicode-range` so it
-	 * passes, and the next entry in the configured stack is `-apple-system` — a western face that
-	 * does carry CJK punctuation and sets it the Japanese way, a circle at mid-height. `Lyra Punct`
-	 * (and behind it `Lyra CJK`) have to lead, or that western face wins.
-	 *
-	 * Asserted on the resolved stack rather than on pixels: the rule is "the punctuation face is
-	 * consulted first", and that is a fact about the cascade, not about a screenshot.
-	 */
-	const family = await app.evaluate<string>(`getComputedStyle(document.body).fontFamily`);
-	assert.match(family, /^["']?Lyra Punct/, `the punctuation face leads the stack (${family})`);
-	assert.match(family, /Lyra CJK/, `Han still follows (${family})`);
 });

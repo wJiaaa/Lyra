@@ -60,7 +60,7 @@ export function FlowRow({
 		<>
 			{/* 图标一直在：它说的是这一行是什么（在想 / 在动手 / 在跑命令），不该被别的东西顶掉。 */}
 			<span className="ly-flow-lead">{icon}</span>
-			{title && <span className="ly-flow-title text-ink-muted">{title}</span>}
+			{title && <span className="ly-flow-title font-medium text-ink-faint">{title}</span>}
 			{title && summary ? <span className="ly-flow-dot" aria-hidden /> : null}
 			{/*
 			 * 扫光挂在外层，字挂在内层，而且 key 在内层——这一条是踩出来的。

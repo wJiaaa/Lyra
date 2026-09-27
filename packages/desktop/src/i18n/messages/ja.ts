@@ -111,8 +111,6 @@ export const ja = {
 	"appearance.reduceMotionDetail": "アニメーションを減らす、またはシステム設定に従います",
 	"appearance.uiScale": "UI の文字サイズ",
 	"appearance.uiScaleDetail": "Lyra の画面が基準にする文字サイズです",
-	"appearance.uiWeight": "UI の文字の太さ",
-	"appearance.uiWeightDetail": "インターフェースの基準となる太さ。見出しも一緒に変わります",
 	"appearance.chatWidth": "会話の幅",
 	"appearance.chatWidthDetail": "本文と入力欄の最大幅です。ウィンドウが広いときは、広げると左右の余白が減ります",
 	"appearance.wide": "広い",

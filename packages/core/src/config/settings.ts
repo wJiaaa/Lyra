@@ -77,23 +77,6 @@ export interface AppearanceSettings {
 	/** Syntax highlighting theme for dark mode. */
 	codeDarkTheme?: string;
 	uiFontSize: number;
-	/**
-	 * 界面文字的基准字重。
-	 *
-	 * 字号一直是可调的，字重不是——而这两件事在中文界面上是一回事：PingFang 的 Regular 在深色底
-	 * 上会发虚，同一个界面在浅色底上又嫌它重。屏幕、字体、视力各不相同，「多粗才读得舒服」没有
-	 * 一个对所有人成立的答案。
-	 *
-	 * 是*基准*而不是唯一那个值：界面上的层级由「比基准重一档」「重两档」搭出来（见 `tokens.css`
-	 * 里的 `--font-weight-*`），所以调这一个数会把整套层级一起搬走，标题始终比正文重。层级不会
-	 * 因为调了字重就塌掉，这是它和「把所有文字设成同一个字重」的区别。
-	 *
-	 * 代码有它自己的 `codeFontWeight`，不跟这个走：等宽字体的字重是另一个判断（见那条注释）。
-	 *
-	 * 可选。没有这一项的老配置文件跟着新默认走，不是停在 400——界面一直偏细是要修的那个问题，
-	 * 而不是要保住的那个现状。见 `DEFAULT_APPEARANCE` 那条。
-	 */
-	uiFontWeight?: number;
 	codeFontSize: number;
 	/**
 	 * How code is set, beyond which family it is in.
@@ -207,40 +190,23 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	theme: "system",
 	accent: "#339CFF",
 	lightBackground: "#FFFFFF",
-	lightForeground: "#1A1C1F",
+	// ZCode 实际生效的 zai-light / zai-dark 主题：neutral-800 / neutral-300。
+	lightForeground: "#262626",
 	darkBackground: "#171717",
-	darkForeground: "#EDEDED",
+	darkForeground: "#D4D4D4",
 	/*
-	 * Same-family Chinese UI, not a shipped Latin face in front of PingFang.
-	 *
-	 * Doubao has no public UI webfont. What reads as "豆包字体" on a Mac is PingFang drawing
-	 * both Han and Latin. `-apple-system` first would split that again (SF Pro + PingFang),
-	 * which is the mix people just asked to leave. Inter / IBM Plex stay bundled for anyone
-	 * who types them; they are no longer the factory stack.
+	 * 和 ZCode 一致，不打包字体：界面是 Tailwind 默认的系统字体栈，代码是系统等宽字体，
+	 * 中文回退写在 `monospace` 前面，因为 Windows 的 Consolas 没有中文字形。
 	 */
-	uiFont: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
-	codeFont: '"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
+	uiFont: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
+	codeFont:
+		'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace',
 	// Lyra's own — see `lyra-light` in `code-themes.ts`. It takes the app's background rather than
 	// bringing one, so a fresh install looks like Lyra and picking any other theme is a real choice.
 	codeLightTheme: "lyra-light",
 	codeDarkTheme: "lyra-dark",
 	// 14 reads next to Mail / native Mac apps. 13 was a size down from that and looked slight.
 	uiFontSize: 14,
-	/*
-	 * 500，不是 Regular。
-	 *
-	 * 界面一直是 400 画的，而在这个字体和这套渲染下它偏细：默认字体栈是 PingFang，加上 `body` 上
-	 * 那句 `-webkit-font-smoothing: antialiased`——macOS 上那是把字画细的那个开关，Mail 和系统自己
-	 * 也这么画，代价就是 Regular 在深色底上发虚。
-	 *
-	 * 换成 Medium 之后层级会挤一挤：PingFang 只到 Semibold，600 就是天花板，所以标题那两档
-	 * （+100、+200）在它上面都落到 600，正文和标题之间只剩一档而不是两档。这是认过的账，不是漏掉
-	 * 的——层级本来就不只靠字重扛：字号有七档，墨色有三级，这两样一点没动。装了可变字体的人则真能
-	 * 吃到 600 和 700。
-	 *
-	 * 嫌重的人把它调回 400 就是原来的样子，一项设置的事。
-	 */
-	uiFontWeight: 500,
 	codeFontSize: 12,
 	codeFontWeight: 400,
 	codeLineHeight: 1.6,
@@ -269,7 +235,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	diffMarkers: "color",
 	// Compact by default: the common failure is transient, and its wording is JSON.
 	errorDetail: "compact",
-	fontSmoothing: true,
+	// ZCode 不设 `-webkit-font-smoothing`，字按系统默认的粗细画。
+	fontSmoothing: false,
 };
 
 /**
@@ -1035,8 +1002,18 @@ const SUPERSEDED_FONTS: Record<"uiFont" | "codeFont", string[]> = {
 		'-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif',
 		'"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
 		'"IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
+		'"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
 	],
-	codeFont: ['ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace'],
+	codeFont: [
+		'ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace',
+		'"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
+	],
+};
+
+/** Foreground colours that were once the default; same reasoning as `SUPERSEDED_FONTS`. */
+const SUPERSEDED_FOREGROUNDS: Record<"lightForeground" | "darkForeground", string[]> = {
+	lightForeground: ["#1A1C1F", "#404040"],
+	darkForeground: ["#EDEDED", "#E5E5E5"],
 };
 
 /**
@@ -1050,13 +1027,19 @@ const SUPERSEDED_FONTS: Record<"uiFont" | "codeFont", string[]> = {
  * pane cannot be matched by anything opaque drawn on top of it: a pinned row has to hide the list
  * going under it, and no colour CSS can name is the colour of a pane showing the desktop through.
  * Every held row was a visible slab, and which shade of wrong depended on the wallpaper.
+ *
+ * `uiFontWeight` was a base weight the whole UI hierarchy was derived from. Weights are now fixed
+ * at Tailwind's 400 / 500 / 600 / 700, as in ZCode, so a stored value would mean nothing.
  */
-const REMOVED_APPEARANCE = ["translucentSidebar"] as const;
+const REMOVED_APPEARANCE = ["translucentSidebar", "uiFontWeight"] as const;
 
 export function migrateAppearance(appearance: AppearanceSettings): AppearanceSettings {
 	const next = { ...appearance };
 	for (const key of ["uiFont", "codeFont"] as const) {
 		if (SUPERSEDED_FONTS[key].includes(next[key])) next[key] = DEFAULT_APPEARANCE[key];
+	}
+	for (const key of ["lightForeground", "darkForeground"] as const) {
+		if (SUPERSEDED_FOREGROUNDS[key].includes(next[key].toUpperCase())) next[key] = DEFAULT_APPEARANCE[key];
 	}
 	for (const key of REMOVED_APPEARANCE) delete (next as Record<string, unknown>)[key];
 	return next;

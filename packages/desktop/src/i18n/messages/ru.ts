@@ -111,8 +111,6 @@ export const ru = {
 	"appearance.reduceMotionDetail": "Меньше анимации или как в системе",
 	"appearance.uiScale": "Размер текста интерфейса",
 	"appearance.uiScaleDetail": "Базовый размер, от которого считается весь интерфейс Lyra",
-	"appearance.uiWeight": "Насыщенность текста",
-	"appearance.uiWeightDetail": "Базовая насыщенность текста интерфейса; заголовки меняются вместе с ней",
 	"appearance.chatWidth": "Ширина беседы",
 	"appearance.chatWidthDetail": "Максимальная ширина текста и поля ввода. На широком окне больше ширины — меньше пустых полей",
 	"appearance.wide": "Широко",

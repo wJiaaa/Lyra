@@ -111,8 +111,6 @@ export const ko = {
 	"appearance.reduceMotionDetail": "애니메이션을 줄이거나 시스템 설정을 따릅니다",
 	"appearance.uiScale": "UI 글자 크기",
 	"appearance.uiScaleDetail": "Lyra 화면이 기준으로 삼는 글자 크기입니다",
-	"appearance.uiWeight": "UI 글자 굵기",
-	"appearance.uiWeightDetail": "인터페이스 글자의 기준 굵기. 제목도 함께 움직입니다",
 	"appearance.chatWidth": "대화 너비",
 	"appearance.chatWidthDetail": "본문과 입력창의 최대 너비입니다. 창이 넓을 때 늘리면 양옆 여백이 줄어듭니다",
 	"appearance.wide": "넓게",

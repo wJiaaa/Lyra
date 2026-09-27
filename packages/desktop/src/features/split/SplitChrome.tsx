@@ -57,7 +57,7 @@ export function SplitChrome({
 			}}
 			className="drag-region flex shrink-0 items-center gap-1.5"
 		>
-			<span className="min-w-0 flex-1 truncate text-detail font-medium text-ink select-none">{title}</span>
+			<span className="min-w-0 flex-1 truncate text-label font-semibold text-ink select-none">{title}</span>
 			<div data-ly-split-tools data-dock-actions className="no-drag relative z-[1] ml-auto flex shrink-0 items-center gap-0.5">
 				<PanelMenu
 					scope={paneKey(sessionId)}

@@ -171,7 +171,7 @@ function bootTheme(): { dark: boolean; background: string; foreground: string; a
 	return {
 		dark,
 		background: dark ? (appearance?.darkBackground ?? "#171717") : (appearance?.lightBackground ?? "#ffffff"),
-		foreground: dark ? (appearance?.darkForeground ?? "#ededed") : (appearance?.lightForeground ?? "#1a1a1a"),
+		foreground: dark ? (appearance?.darkForeground ?? "#d4d4d4") : (appearance?.lightForeground ?? "#262626"),
 		accent: appearance?.accent ?? "#339cff",
 	};
 }

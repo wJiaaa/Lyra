@@ -4,7 +4,7 @@
  * `node --experimental-strip-types e2e/appearance-inline-code-demo.ts [目录]`
  *
  * 断言归 `appearance-inline-code-probe.ts`，这个文件只管产物：同一句话在三种配色下各一张，
- * 界面字重轻重各一张，外观页上新增的那几行一张，代码托管页收拾完一张。
+ * 外观页上新增的那几行一张，代码托管页收拾完一张。
  *
  * 分成两个文件而不是给探针加个截图参数，是因为两者失败的含义不同——探针红了是功能坏了，这里
  * 少一张图只是少一张图。混在一起，一次截图失败会读成一次功能回归。
@@ -188,24 +188,8 @@ try {
 	await patchAppearance({ inlineCodeLightBg: "#FFFFFF", inlineCodeLightFg: "#C2410C" });
 	await shot("5-行内代码-只要字色不要底色，靠描边分界");
 
-	/*
-	 * 字重的对照拍在设置页上，不拍在对话里。
-	 *
-	 * 那一页上四级层次同时在场：页标题（display + semibold）、分节标题、每行的名字（medium）、
-	 * 名字底下那行小字。要看的正是「基准提上去之后这四级还分不分得开」——PingFang 只到 600，
-	 * 基准 500 时 +100 和 +200 会落到同一档，这是认过的账，但得看得见它到底像什么样。
-	 */
-	process.stdout.write("界面字重：\n");
 	await patchAppearance({ inlineCode: "app", inlineCodeBorder: false });
 	await openSettings("外观");
-	await settle(1200);
-	await patchAppearance({ uiFontWeight: 400 });
-	await shot("6-界面字重-400（改动前的默认，偏细）");
-	await patchAppearance({ uiFontWeight: 500 });
-	await shot("7-界面字重-500（新默认）");
-	await patchAppearance({ uiFontWeight: 300 });
-	await shot("8-界面字重-300（最细那一档）");
-	await patchAppearance({ uiFontWeight: 500 });
 
 	process.stdout.write("设置页：\n");
 	await settle(1000);
@@ -263,15 +247,6 @@ try {
 	await shot("10b-底色改成深的，字色自动翻到浅的那头");
 	await typeInto("字色", "#4ADE80");
 	await shot("10c-手动指定字色之后，它就固定了");
-
-	await app.evaluate(`(async () => {
-		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-		[...document.querySelectorAll("div")]
-			.find((d) => d.innerText?.trim().startsWith("UI 字重"))
-			?.scrollIntoView({ block: "center" });
-		await wait(900);
-	})()`);
-	await shot("11-外观设置-UI 字重");
 
 	await openSettings("代码托管");
 	await settle(1100);

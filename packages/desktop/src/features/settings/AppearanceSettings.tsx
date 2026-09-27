@@ -24,7 +24,7 @@ const CUSTOM_FONT = "__custom__";
 
 
 const PRESETS: { id: string; label: string; patch: Partial<Appearance> }[] = [
-	{ id: "lyra", label: "Lyra", patch: { accent: "#339CFF", darkBackground: "#171717", darkForeground: "#EDEDED" } },
+	{ id: "lyra", label: "Lyra", patch: { accent: "#339CFF", darkBackground: "#171717", darkForeground: "#D4D4D4" } },
 	{ id: "graphite", label: "Graphite", patch: { accent: "#8E8E93", darkBackground: "#1C1C1E", darkForeground: "#F2F2F7" } },
 	{ id: "moss", label: "Moss", patch: { accent: "#3ECF8E", darkBackground: "#121614", darkForeground: "#E6F2EC" } },
 	{ id: "ember", label: "Ember", patch: { accent: "#FF8B3D", darkBackground: "#1A1412", darkForeground: "#F5E9E2" } },
@@ -526,44 +526,6 @@ export function AppearanceSettings() {
 							label={t("appearance.uiScale")}
 							name="uiFontSize"
 						/>
-					}
-				/>
-				{/*
-				 * 字重，紧跟着字号。
-				 *
-				 * 两个控件和代码外观那边的字重一模一样——预设加一个输入框，同样的四档、同样的
-				 * 100–900——因为它们是同一个问题问了两遍，只是一次问界面、一次问代码。两处长得不一样
-				 * 才是要解释的事。
-				 *
-				 * 这里调的是*基准*：标题会跟着一起变重，它和正文之间的差保持不变（见 `tokens.css` 里
-				 * 的 `--font-weight-*`）。所以往细里调不会把标题抹平，往粗里调也不会让正文追上标题。
-				 */}
-				<Row
-					title={t("appearance.uiWeight")}
-					detail={t("appearance.uiWeightDetail")}
-					control={
-						<div className="flex items-center gap-2">
-							<Segmented
-								value={String(appearance.uiFontWeight ?? 400)}
-								onChange={(weight) => patch({ uiFontWeight: Number(weight) })}
-								options={[
-									{ value: "300", label: t("appearance.thin") },
-									{ value: "400", label: t("appearance.regular") },
-									{ value: "500", label: t("appearance.medium") },
-									{ value: "600", label: t("appearance.bold") },
-								]}
-							/>
-							<NumberField
-								value={appearance.uiFontWeight ?? 400}
-								min={100}
-								max={900}
-								step={50}
-								width={72}
-								label={t("appearance.weight")}
-								name="uiFontWeight"
-								onChange={(uiFontWeight) => patch({ uiFontWeight })}
-							/>
-						</div>
 					}
 				/>
 				{/*

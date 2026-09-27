@@ -27,10 +27,7 @@
  */
 @import "katex/dist/katex.min.css";
 
-/* Faces first: `@font-face` has to be seen before anything asks for the family. */
-@import "./styles/fonts.css";
-
-/* Then the vocabulary the rest is written in. */
+/* The vocabulary the rest is written in. */
 @import "./styles/tokens.css";
 @import "./styles/base.css";
 @import "./styles/markdown.css";

@@ -295,8 +295,6 @@ export const zhCN = {
 	"appearance.reduceMotionDetail": "减少动画效果或匹配系统设置",
 	"appearance.uiScale": "UI 字号",
 	"appearance.uiScaleDetail": "调整 Lyra 界面使用的基准字号",
-	"appearance.uiWeight": "UI 字重",
-	"appearance.uiWeightDetail": "界面文字的基准字重，标题会跟着一起变",
 	"appearance.chatWidth": "对话宽度",
 	"appearance.chatWidthDetail": "正文和输入框的最大宽度。窗口很宽时，加宽可以少一些两侧留白",
 	"appearance.wide": "宽",

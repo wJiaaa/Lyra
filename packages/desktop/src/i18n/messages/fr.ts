@@ -111,8 +111,6 @@ export const fr = {
 	"appearance.reduceMotionDetail": "Jouer moins d'animations, ou suivre le réglage système",
 	"appearance.uiScale": "Taille du texte de l'interface",
 	"appearance.uiScaleDetail": "La taille de référence de toute l'interface de Lyra",
-	"appearance.uiWeight": "Graisse de l'interface",
-	"appearance.uiWeightDetail": "La graisse de référence du texte de l'interface ; les titres suivent",
 	"appearance.chatWidth": "Largeur de la conversation",
 	"appearance.chatWidthDetail": "La largeur maximale du texte et du champ de saisie. Sur une fenêtre large, l'élargir réduit les marges vides",
 	"appearance.wide": "Large",

@@ -36,7 +36,6 @@ const RECENT = "§recent";
 
 export function ProjectList({
 	groups,
-	activePath,
 	collapsed,
 	onToggleCollapsed,
 	groupProps,
@@ -49,8 +48,6 @@ export function ProjectList({
 	empty,
 }: {
 	groups: Grouped;
-	/** The project the workspace is currently on, which is drawn as open. */
-	activePath: string | undefined;
 	collapsed: string[];
 	onToggleCollapsed: (key: string) => void;
 	/** Everything a `ProjectGroup` needs that is per-project state rather than per-project data. */
@@ -139,7 +136,7 @@ export function ProjectList({
 					</SectionLabel>
 					<Collapsible open={!collapsed.includes(PROJECTS)}>
 						{groups.projects.map((group) => (
-							<ProjectGroup key={group.path} group={group} active={activePath === group.path} {...groupProps(group.path)} />
+							<ProjectGroup key={group.path} group={group} {...groupProps(group.path)} />
 						))}
 					</Collapsible>
 				</>

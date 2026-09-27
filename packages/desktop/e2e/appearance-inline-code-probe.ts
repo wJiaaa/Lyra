@@ -10,11 +10,11 @@
  * 要防的那种「代码在、功能不在」。所以：
  *
  *   配色   `.prose-dw code` 真实画出来的底色和字色，三种来源各量一次
- *   字重   `body` 的字重，以及一个 `font-semibold` 的标题——后者是重点：Tailwind 那几个字重是
- *          写死的 500/600，不接过来的话调基准只会拉大层级而不是搬走层级
+ *   字重   `body` 的字重，以及一个 `font-semibold` 的标题：界面字重不再可调，老配置里残留的
+ *          `uiFontWeight` 要被丢掉，画出来的是和 ZCode 一样的 400 / 600
  *   主题   按一下整页恢复默认，看「系统」那张卡片是不是被选中的那张
  *
- * 启动时的设置直接写成「自定义 + 描边 + 字重 500」，所以第一次测量就回答了「设置能不能变成画面」；
+ * 启动时的设置直接写成「自定义 + 描边 + 残留字重 300」，所以第一次测量就回答了「设置能不能变成画面」；
  * 之后两档改由点击那排分段控件驱动，回答「界面能不能改设置」。两个方向都得验，一个方向对另一个
  * 方向不成立——这两条接线是分开的。
  */
@@ -34,14 +34,9 @@ const CUSTOM_BG_RGB = "rgb(255, 232, 204)";
 const CUSTOM_FG_RGB = "rgb(179, 71, 0)";
 
 /**
- * 基准字重，故意既不是默认值也不是 400。
- *
- * 默认现在是 500，用 500 来测就测不出东西了：设置压根没接上，量到的也会是 500。要让「这个数从
- * 设置走到了屏幕上」这句话有内容，它就得是屏幕上不会自己出现的那个数。往细里挑而不是往粗里，
- * 是因为 PingFang 只到 600：基准 500 时 `font-semibold` 该算到 700，而字体那边给不出 700，
- * 量 computed 值看不出来，量渲染又不是这条探针的事。300 下面两档都在字体有的范围里。
+ * 老版本写进设置文件的界面字重。故意不是 400：它要是还在起作用，量到的就不会是 400。
  */
-const WEIGHT = 300;
+const LEGACY_WEIGHT = 300;
 
 async function seed(home: string): Promise<void> {
 	await mkdir(project, { recursive: true });
@@ -65,7 +60,7 @@ async function seed(home: string): Promise<void> {
 				theme: "light",
 				codeLightTheme: "solarized-light",
 				codeDarkTheme: "github-dark",
-				uiFontWeight: WEIGHT,
+				uiFontWeight: LEGACY_WEIGHT,
 				inlineCode: "custom",
 				inlineCodeLightBg: CUSTOM_BG,
 				inlineCodeLightFg: CUSTOM_FG,
@@ -178,8 +173,7 @@ const readPaint = `(() => {
 	 * 字重量两处，互相佐证。
 	 *
 	 * 页面上真有的那个 \`.font-semibold\`（会话页不一定有，设置页一定有），和一个当场挂上这个类的
-	 * 空 span。后者回答的是「这一页上 font-semibold 解析成几」——也就是 \`--font-weight-semibold\`
-	 * 那条 clamp 到底算没算出数；直接读变量读到的是 clamp 的原文，不是结果。
+	 * 空 span。后者回答的是「这一页上 font-semibold 解析成几」。
 	 */
 	const probe = document.createElement("span");
 	probe.className = "font-semibold";
@@ -286,17 +280,13 @@ try {
 		`块内 bg=${custom.blockCodeBg} ring=${custom.blockCodeRing}`,
 	);
 
-	/* ---- 二、界面字重：正文跟着走，层级也跟着走 ---- */
-	check("正文字重跟着设置", custom.bodyWeight === String(WEIGHT), `body=${custom.bodyWeight}，设的是 ${WEIGHT}`);
-	check(
-		"font-semibold 跟着基准搬，而不是钉在 600",
-		custom.headingWeight === String(WEIGHT + 200),
-		`标题=${custom.headingWeight}，期望 ${WEIGHT + 200}（基准 ${WEIGHT} + 两档）`,
-	);
+	/* ---- 二、界面字重：固定值，老配置里残留的字重不起作用 ---- */
+	check("正文字重固定 400", custom.bodyWeight === "400", `body=${custom.bodyWeight}，残留设置是 ${LEGACY_WEIGHT}`);
+	check("font-semibold 固定 600", custom.headingWeight === "600", `标题=${custom.headingWeight}`);
 	check(
 		"回答里的 h4 仍然比它脚下的正文重",
 		Number(custom.h4Weight) > Number(custom.paraWeight),
-		`h4=${custom.h4Weight}，正文=${custom.paraWeight}（写死 500 的那版在基准 500 下会相等）`,
+		`h4=${custom.h4Weight}，正文=${custom.paraWeight}`,
 	);
 
 	/* ---- 三、界面上切档，画面跟不跟 ---- */
@@ -470,9 +460,9 @@ try {
 	await openSettings("外观");
 	const onSettings = await app.evaluate<Paint>(readPaint);
 	check(
-		"设置页上真有的那个 semibold 标题，也是基准加两档",
-		onSettings.realHeadingWeight === String(WEIGHT + 200),
-		`页面上的标题=${onSettings.realHeadingWeight}，当场挂类的=${onSettings.headingWeight}，期望 ${WEIGHT + 200}`,
+		"设置页上真有的那个 semibold 标题是 600",
+		onSettings.realHeadingWeight === "600",
+		`页面上的标题=${onSettings.realHeadingWeight}，当场挂类的=${onSettings.headingWeight}`,
 	);
 
 	/*

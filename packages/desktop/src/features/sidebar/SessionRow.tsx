@@ -237,10 +237,8 @@ export function SessionRow({
 				 * Title fills the row. Icons overlay. Growing padding on hover used to shrink
 				 * ScrollText and jitter a long name.
 				 */
-				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pr-1.5 pl-2 text-left text-label ${
+				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pr-1.5 pl-2.5 text-left text-label text-ink ${
 					compact ? "h-[34px]" : "h-[32px]"
-				} ${
-					active ? "text-ink" : "text-ink-muted group-hover/row:text-ink"
 				}`}
 			>
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}

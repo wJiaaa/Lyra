@@ -111,8 +111,6 @@ export const en = {
 	"appearance.reduceMotionDetail": "Play fewer animations, or follow the system setting",
 	"appearance.uiScale": "UI text size",
 	"appearance.uiScaleDetail": "The base size everything in Lyra's interface is measured from",
-	"appearance.uiWeight": "UI text weight",
-	"appearance.uiWeightDetail": "The base weight interface text is set in; headings move with it",
 	"appearance.chatWidth": "Conversation width",
 	"appearance.chatWidthDetail": "How wide the prose and the composer are allowed to get. On a wide window, more width means less empty margin",
 	"appearance.wide": "Wide",

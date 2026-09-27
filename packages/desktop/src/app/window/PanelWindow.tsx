@@ -105,7 +105,7 @@ export function PanelWindow() {
 			>
 				<div
 					data-ly-panel-window-title
-					className="min-w-0 flex-1 truncate text-detail font-medium text-ink select-none"
+					className="min-w-0 flex-1 truncate text-label font-semibold text-ink select-none"
 				>
 					<SessionScope.Provider value={sessionId}>{kind ? renderPanelHeader(kind) ?? title : title}</SessionScope.Provider>
 				</div>

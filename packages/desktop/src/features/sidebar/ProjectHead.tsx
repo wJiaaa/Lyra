@@ -15,7 +15,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ChevronRight, Folder, MoreHorizontal, SquarePen } from "lucide-react";
+import { Folder, FolderOpen, MoreHorizontal, SquarePen } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectMenu } from "../modals/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
@@ -28,12 +28,10 @@ import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
 
 export function ProjectHead({
 	group,
-	active,
 	collapsed,
 	onToggleCollapsed,
 }: {
 	group: Group;
-	active: boolean;
 	collapsed: boolean;
 	onToggleCollapsed: () => void;
 }) {
@@ -85,31 +83,12 @@ export function ProjectHead({
 				type="button"
 				aria-expanded={!collapsed}
 				onClick={onToggleCollapsed}
-				className={`flex w-full items-center gap-2.5 rounded-lg pr-2 pl-2 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${
+				className={`flex w-full items-center gap-2 rounded-lg pr-2 pl-2.5 text-left text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] ${
 					compact ? "h-[40px]" : "h-[32px]"
-				} ${active ? "font-medium text-ink" : "text-ink group-hover/row:text-ink"}`}
+				}`}
 			>
-				{/*
-				 * The folder turns into a chevron under the pointer.
-				 *
-				 * At rest the icon says what the row is; reaching for it, it says what pressing
-				 * will do. Two marks in one place, neither of them a permanent extra control —
-				 * and the rotation carries the open/shut state without a third element.
-				 */}
-				<span className={`relative h-[15px] w-[15px] shrink-0 ${active ? "text-accent" : "text-ink-muted"}`}>
-					<Folder
-						size={15}
-						strokeWidth={1.8}
-						className="absolute inset-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0"
-					/>
-					<ChevronRight
-						size={15}
-						strokeWidth={2}
-						className={`absolute inset-0 opacity-0 transition-[opacity,transform] duration-[var(--ly-t-quick)] group-hover/row:opacity-100 ${
-							collapsed ? "" : "rotate-90"
-						}`}
-					/>
-				</span>
+				{/* 和 ZCode 一样：只用文件夹本身表示开合，不在悬停时换成箭头。 */}
+				<span className="shrink-0">{collapsed ? <Folder size={16} /> : <FolderOpen size={16} />}</span>
 				<ScrollText text={group.name} className="ly-fade-tail min-w-0 flex-1" />
 				{/*
 				 * How many are folded away, so a shut project is not indistinguishable from an

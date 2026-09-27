@@ -100,7 +100,7 @@ export function DialogFrame({
 			{...rest}
 		>
 			<div className="shrink-0 px-5 pt-5">
-				<h2 className="flex items-center gap-2.5 text-body font-semibold text-ink" data-dialog-title>
+				<h2 className="flex items-center gap-2.5 text-label font-medium text-ink" data-dialog-title>
 					{icon}
 					{title}
 				</h2>

@@ -43,7 +43,6 @@ const SORT_KEY = "ly-sidebar-sort";
 
 export function Sidebar() {
 	const { t } = useI18n();
-	const workspace = useApp((s) => s.workspace);
 	const scratchRoots = useApp((s) => s.scratchRoots);
 	const newSession = useApp((s) => s.newSession);
 	const adoptSidebarTab = useApp((s) => s.adoptSidebarTab);
@@ -263,7 +262,7 @@ export function Sidebar() {
 			    are not. */}
 			<nav className={`flex flex-col pb-1 ${pad}`}>
 				<NavItem
-					icon={<SquarePen size={15} strokeWidth={1.8} />}
+					icon={<SquarePen size={16} />}
 					label={t("sidebar.newChat")}
 					onClick={() => {
 						void newSession();
@@ -337,7 +336,6 @@ export function Sidebar() {
 					{tab === "projects" ? (
 						<ProjectList
 							groups={groups}
-							activePath={workspace?.path}
 							collapsed={collapsed}
 							onToggleCollapsed={toggleCollapsed}
 							groupProps={(path) => ({

@@ -16,7 +16,6 @@ import { sharedHighlightStyle } from "../../lib/code/highlight.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
 import { contentMeasure } from "../../lib/content-width.ts";
 import { bridge } from "../../services/index.ts";
-import { drawnUiFont } from "./appearance-defaults.ts";
 
 interface Rgb {
 	r: number;
@@ -159,21 +158,14 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 */
 		"--color-line-float": veil(dark ? 0.14 : 0.12),
 		"--color-ink": toHex(foreground),
-		"--color-ink-muted": text(0.62),
-		"--color-ink-faint": text(0.4),
+		// ZCode（zai 主题）的 foreground-subtle / subtlest：正文色的 60%，最浅那档浅色 40%、深色 30%。
+		"--color-ink-muted": text(0.6),
+		"--color-ink-faint": text(dark ? 0.3 : 0.4),
 		"--color-accent": accent,
 		"--color-info": accent,
-		// The default widened with the faces Windows and Linux need for three weights; see `drawnUiFont`.
-		"--ly-ui-font": drawnUiFont(appearance.uiFont),
+		"--ly-ui-font": appearance.uiFont,
 		"--ly-code-font": appearance.codeFont,
 		"--ly-ui-size": `${appearance.uiFontSize}px`,
-		/*
-		 * 界面的基准字重。层级比它重一档、两档，那几档在 `tokens.css` 里从这个数推出来。
-		 *
-		 * 和字号一样的回退理由：这一项是后加的，之前写下的设置文件里没有它，而那些界面一直是
-		 * 400 画出来的。
-		 */
-		"--ly-ui-weight": String(appearance.uiFontWeight ?? 500),
 		"--ly-code-size": `${appearance.codeFontSize}px`,
 		/*
 		 * The conversation's measure, read by every column that is part of it.
@@ -273,9 +265,6 @@ export function applyAppearance(input: AppearanceSettings): void {
 		/*
 		 * 行内代码那几项也在名单里：它们换的是屏幕上一批小方块的底色和字色，正是「两拨颜色分头到
 		 * 达」会被看出来的地方——一段回答里的行内代码往往有十几处，慢慢爬的那 150ms 里它们参差不齐。
-		 *
-		 * `uiFontWeight` 不在名单里，和字号、字体、宽度、行数一样：字重改的是字的形状，形状没有
-		 * 过渡，按住它只会在改的那一下把整个界面的过渡一起冻掉。
 		 */
 		appearance.inlineCode,
 		appearance.inlineCodeLightBg,
@@ -309,7 +298,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	bridge.setWindowTheme?.({
 		color: toHex(background),
 		headerColor: tokens["--color-sidebar"],
-		symbolColor: text(0.62),
+		symbolColor: text(0.6),
 	});
 
 	root.classList.toggle("dark", dark);
