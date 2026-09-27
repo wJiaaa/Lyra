@@ -396,6 +396,8 @@ interface RawMcpTool {
 	name: string;
 	description?: string;
 	inputSchema?: unknown;
+	/** MCP tool annotations. Hints from the server, not guarantees; see `toAgentTool`. */
+	annotations?: { readOnlyHint?: unknown };
 }
 
 /** 各家函数名的共同约束：OpenAI、Anthropic、Bedrock 都是 `^[a-zA-Z0-9_-]{1,64}$`，Gemini 也是 64。 */
@@ -416,6 +418,13 @@ export function qualifiedToolName(serverId: string, toolName: string, taken: Rea
 function toAgentTool(server: McpServerConfig, client: Client, raw: RawMcpTool, qualifiedName: string): Tool {
 
 	const description = raw.description ?? `${raw.name} (from MCP server ${server.name})`;
+	/*
+	 * The server's word that this tool changes nothing. The spec calls annotations untrusted, so the
+	 * word buys only what a wrong answer can afford: running beside other calls, and not asking in
+	 * `auto` mode — a server the user installed that lies about a read is not a risk `auto` guards.
+	 * `ask` mode still asks.
+	 */
+	const readOnly = raw.annotations?.readOnlyHint === true;
 
 	return {
 		name: qualifiedName,
@@ -423,7 +432,8 @@ function toAgentTool(server: McpServerConfig, client: Client, raw: RawMcpTool, q
 		// The prompt's tool list gets one line each; MCP descriptions are often paragraphs.
 		snippet: `${firstSentence(description)} (via ${server.name})`,
 		parameters: normalizeSchema(raw.inputSchema),
-		mutating: true,
+		mutating: !readOnly,
+		executionMode: readOnly ? "parallel" : "sequential",
 		summarize: () => `${server.name}: ${raw.name}`,
 
 		async execute(args, ctx): Promise<ToolResult> {
@@ -433,6 +443,7 @@ function toAgentTool(server: McpServerConfig, client: Client, raw: RawMcpTool, q
 					title: `${server.name} → ${raw.name}`,
 					detail: JSON.stringify(args, null, 2).slice(0, 2000),
 					subject: qualifiedName,
+					...(readOnly ? { readOnly: true } : {}),
 				});
 				if (decision !== "once" && decision !== "always") return { content: [{ type: "text", text: "The user rejected this MCP call." }], isError: true };
 			}

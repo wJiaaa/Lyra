@@ -156,7 +156,10 @@ export function parseToolArguments(text: string): Record<string, unknown> | null
 	const trimmed = text.trim();
 	if (!trimmed) return {};
 	try {
-		const parsed = JSON.parse(trimmed);
+		let parsed: unknown = JSON.parse(trimmed);
+		// Encoded twice — `"{\"path\":…}"` — by some relays and weaker models. The object inside is
+		// what was meant; treating it as broken JSON would refuse a call that said everything.
+		if (typeof parsed === "string") parsed = JSON.parse(parsed);
 		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
 			? (parsed as Record<string, unknown>)
 			: null;

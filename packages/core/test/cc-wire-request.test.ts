@@ -186,7 +186,26 @@ test("CC：打断提示和图片占位符能同时出现，顺序不乱", () => 
 	assert.match(last, /这张图里是什么？\n\[image omitted: model does not support vision\]$/);
 });
 
-test("CC：工具结果里的图片走的是另一条路，这次改动没动它", () => {
+test("CC：工具结果里的图片挪到紧跟着的一条 user 消息里，能看图的模型看得到", () => {
+	const imageResult: ToolResultMessage = {
+		role: "toolResult",
+		toolCallId: "call_9xKpLm2QsRtVwYz",
+		toolName: "read",
+		content: [{ type: "text", text: "a.png" }, { type: "image", data: PNG_1PX, mimeType: "image/png" }],
+		isError: false,
+		timestamp: 3,
+	};
+	const wire = wireOf([user("读那张图"), toolCallAssistant(), imageResult], "replay", { supportsImages: true });
+	const toolAt = wire.findIndex((m) => m.role === "tool");
+	assert.equal(wire[toolAt].content, "a.png\n[image image/png: attached in the next message]");
+	const lifted = wire[toolAt + 1];
+	assert.equal(lifted.role, "user");
+	const parts = lifted.content as Array<Record<string, any>>;
+	assert.equal(parts[1].type, "image_url");
+	assert.equal(parts[1].image_url.url, `data:image/png;base64,${PNG_1PX}`);
+});
+
+test("CC：看不了图的模型，工具结果里的图片换成一句话，base64 不出现在请求里", () => {
 	const imageResult: ToolResultMessage = {
 		role: "toolResult",
 		toolCallId: "call_9xKpLm2QsRtVwYz",
@@ -195,10 +214,8 @@ test("CC：工具结果里的图片走的是另一条路，这次改动没动它
 		isError: false,
 		timestamp: 3,
 	};
-	for (const caps of [{ supportsImages: true }, { supportsImages: false }]) {
-		const wire = wireOf([user("读那张图"), toolCallAssistant(), imageResult], "replay", caps);
-		const tool = wire.find((m) => m.role === "tool");
-		assert.equal(tool?.content, `[image ${"image/png"}, ${PNG_1PX.length} base64 chars]`);
-		assert.equal(JSON.stringify(wire).includes(PNG_1PX), false);
-	}
+	const wire = wireOf([user("读那张图"), toolCallAssistant(), imageResult], "replay", { supportsImages: false });
+	assert.equal(wire.find((m) => m.role === "tool")?.content, "[image omitted: model does not support vision]");
+	assert.equal(wire[wire.length - 1].role, "tool");
+	assert.equal(JSON.stringify(wire).includes(PNG_1PX), false);
 });

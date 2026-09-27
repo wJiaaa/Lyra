@@ -10,7 +10,7 @@ import { assessCommand, assessWrite } from "../tools/risk.ts";
 import { assessNetwork } from "../tools/risk-network.ts";
 
 const BUILT_IN: ApprovalPolicy = {
-	assess(kind, subject, cwd) {
+	assess(kind, subject, cwd, request) {
 		if (kind === "bash") return assessCommand(subject, cwd);
 		if (kind === "edit" || kind === "write") return assessWrite(subject, cwd);
 		/*
@@ -39,6 +39,8 @@ const BUILT_IN: ApprovalPolicy = {
 				const verdict = assessNetwork({ url: subject });
 				return verdict.decision === "allow" ? { risky: false } : { risky: true, reason: verdict.reason };
 			}
+		// An MCP tool its server marks read-only; why that is enough here is in `mcp/client.ts`.
+		if (kind === "mcp") return { risky: request?.readOnly !== true };
 		// An unfamiliar kind is one this policy was not written for, so it defers to a person.
 		return { risky: true };
 	},

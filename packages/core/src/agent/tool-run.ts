@@ -9,6 +9,7 @@
 
 import type { AgentEventSink } from "./events.ts";
 import type { AgentRunConfig } from "./loop.ts";
+import { coerceArguments, resolveTool, unknownToolMessage, withParameterHint } from "./tool-args.ts";
 import { runTool } from "./tool-pipeline.ts";
 import { skillRefusal } from "../skills/tool.ts";
 import { translatedShellCommand, TOOL_NAMES_KEY } from "../tools/reroute.ts";
@@ -33,11 +34,20 @@ export async function runTools(
 	emit: AgentEventSink,
 ): Promise<ToolResultMessage[]> {
 	const byName = new Map(config.tools.map((t) => [t.name, t]));
-	const forceSequential = toolCalls.some((call) => byName.get(call.name)?.executionMode === "sequential");
 
-	const execute = async (call: ToolCall): Promise<ToolResultMessage> => {
+	/*
+	 * Normalised before anything looks at the call — scheduling, hooks, approval and the tool all
+	 * see the same arguments, so what a person approves is what runs.
+	 */
+	const planned = toolCalls.map((call) => {
+		const tool = resolveTool(byName, call.name);
+		if (!tool) return { call, tool };
+		const args = coerceArguments(call.arguments, tool.parameters);
+		return { call: tool.name === call.name && args === call.arguments ? call : { ...call, name: tool.name, arguments: args }, tool };
+	});
+
+	const execute = async ({ call, tool }: (typeof planned)[number]): Promise<ToolResultMessage> => {
 		const startedAt = Date.now();
-		const tool = byName.get(call.name);
 		await emit({
 			type: "tool_start",
 			toolCallId: call.id,
@@ -84,15 +94,47 @@ export async function runTools(
 		return message;
 	};
 
-	if (forceSequential) {
-		const results: ToolResultMessage[] = [];
-		for (const call of toolCalls) {
-			results.push(await execute(call));
-			if (config.signal?.aborted) break;
+	const results: ToolResultMessage[] = [];
+	const groups = batches(planned, (entry) => entry.tool !== undefined && executionMode(entry.tool, entry.call.arguments) === "parallel");
+	for (const [index, group] of groups.entries()) {
+		if (config.signal?.aborted) {
+			// Every call still gets its answer; none of these ever started.
+			const rest = groups.slice(index).flat().map((entry) => entry.call);
+			results.push(...(await failTruncatedCalls(rest, emit, "the turn was stopped before it could run")));
+			break;
 		}
-		return results;
+		results.push(...(await Promise.all(group.map(execute))));
 	}
-	return Promise.all(toolCalls.map(execute));
+	return results;
+}
+
+function executionMode(tool: Tool, args: Record<string, unknown>): "parallel" | "sequential" {
+	if (!tool.executionModeFor) return tool.executionMode ?? "parallel";
+	try {
+		return tool.executionModeFor(args);
+	} catch {
+		// Arguments the tool cannot even classify are not ones to run beside anything else.
+		return "sequential";
+	}
+}
+
+/**
+ * Split calls into runs that can share a moment, keeping call order.
+ *
+ * Neighbouring parallel calls form one run; a sequential call is a run of its own. The old rule —
+ * one sequential call anywhere made the whole batch sequential — held five reads hostage to an edit,
+ * while two writing commands side by side still ran at once because `bash` never said anything.
+ */
+export function batches<T>(items: readonly T[], parallel: (item: T) => boolean): T[][] {
+	const out: T[][] = [];
+	let open = false;
+	for (const item of items) {
+		const shared = parallel(item);
+		if (shared && open) out[out.length - 1].push(item);
+		else out.push([item]);
+		open = shared;
+	}
+	return out;
 }
 
 /**
@@ -110,7 +152,7 @@ function cancelled(signal: AbortSignal | undefined): Promise<ToolResult> {
 }
 
 function cancelledResult(): ToolResult {
-	return { ...errorResult("Tool execution was cancelled."), details: { cancelled: true } };
+	return { ...errorResult("Tool execution was cancelled. Anything it had already done may have taken effect."), details: { cancelled: true } };
 }
 
 async function executeOne(
@@ -120,7 +162,7 @@ async function executeOne(
 	state: Map<string, unknown>,
 	emit: AgentEventSink,
 ): Promise<ToolResult> {
-	if (!tool) return errorResult(`Tool "${call.name}" is not available in this session.`);
+	if (!tool) return errorResult(unknownToolMessage(call.name, config.tools));
 
 	/*
 	 * A loaded skill's `allowed-tools`, enforced.
@@ -182,7 +224,10 @@ async function executeOne(
 				const blocked = errorResult(decision.reason || `A hook blocked "${call.name}".`);
 				return appendHookContexts(blocked, hookContexts)?.result ?? blocked;
 			}
-			if (decision?.args) call = { ...call, arguments: decision.args, argumentsText: JSON.stringify(decision.args) };
+			if (decision?.args) {
+				const args = coerceArguments(decision.args, tool.parameters);
+				call = { ...call, arguments: args, argumentsText: JSON.stringify(args) };
+			}
 			if (decision?.approval === "allow") preApproved = true;
 			if (decision?.approval === "ask" && requestApproval) {
 				const answer = await requestApproval(hookApprovalRequest(call.name, call.arguments, decision.approvalReason));
@@ -246,6 +291,7 @@ async function executeOne(
 		return errorResult(error instanceof Error ? error.message : String(error));
 	}
 	if (rerouted) result = { ...result, content: [...result.content, { type: "text", text: `[Executed with ${rerouted}; use that tool directly next time.]` }] };
+	else result = withParameterHint(result, tool, call.arguments);
 
 	if (config.afterToolCall) {
 		try {

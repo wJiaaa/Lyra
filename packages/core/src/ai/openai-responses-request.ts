@@ -45,13 +45,26 @@ function fromHome(message: AssistantMessage, home: ResponsesHome | undefined): b
 /**
  * One tool result, in the shape Responses wants.
  *
- * Responses only accepts a string output, so images are described rather than attached.
+ * `output` is a string or a list of `input_text` / `input_image` parts; images go as parts so a
+ * vision model sees what the tool saw. Text-only results stay a string — the shape every endpoint
+ * has always accepted — and a model that cannot read images gets the same line the user branch uses.
  */
-function functionCallOutput(message: ToolResultMessage): unknown {
-	const text = message.content
-		.map((c) => (c.type === "text" ? c.text : `[image ${c.mimeType}, ${c.data.length} base64 chars]`))
-		.join("\n");
-	return { type: "function_call_output", call_id: message.toolCallId, output: text };
+function functionCallOutput(message: ToolResultMessage, blind: boolean): unknown {
+	const hasImages = message.content.some((c) => c.type === "image");
+	if (!hasImages || blind) {
+		const text = message.content
+			.map((c) => (c.type === "text" ? c.text : blindImage(c.mimeType, c.data.length)))
+			.join("\n");
+		return { type: "function_call_output", call_id: message.toolCallId, output: text };
+	}
+	const output = message.content.map((c) =>
+		c.type === "text" ? { type: "input_text", text: c.text } : { type: "input_image", image_url: `data:${c.mimeType};base64,${c.data}` },
+	);
+	return { type: "function_call_output", call_id: message.toolCallId, output };
+}
+
+function blindImage(mimeType: string, length: number): string {
+	return `[图片未发送：这个模型不支持读图（${mimeType}，${length} base64 字符）]`;
 }
 
 /**
@@ -135,7 +148,7 @@ export function toResponsesInput(
 								 *
 								 * 说明里带上格式和大小，模型至少知道这里本来有个东西、以及它为什么看不到。
 								 */
-								{ type: "input_text", text: `[图片未发送：这个模型不支持读图（${c.mimeType}，${c.data.length} base64 字符）]` }
+								{ type: "input_text", text: blindImage(c.mimeType, c.data.length) }
 							: {
 									type: "input_image",
 									image_url: `data:${c.mimeType};base64,${c.data}`,
@@ -317,8 +330,8 @@ export function toResponsesInput(
 					if (!answer) continue;
 					paired.add(answer);
 					// 交错：结果紧跟着它自己的调用。成组：先攒着，这一轮的调用全排完再一起放。
-					if (pairing === "interleaved") input.push(functionCallOutput(answer));
-					else grouped.push(functionCallOutput(answer));
+					if (pairing === "interleaved") input.push(functionCallOutput(answer, blind));
+					else grouped.push(functionCallOutput(answer, blind));
 				}
 			}
 
@@ -364,14 +377,14 @@ export function toResponsesInput(
 			// Anything in that run which answered no call here, in the order it was recorded.
 			for (let at = index + 1; at < after; at++) {
 				const result = messages[at] as ToolResultMessage;
-				if (!paired.has(result)) input.push(functionCallOutput(result));
+				if (!paired.has(result)) input.push(functionCallOutput(result, blind));
 			}
 			index = after - 1;
 			continue;
 		}
 
 		// A result with no assistant message before it — the head of a truncated history.
-		input.push(functionCallOutput(message));
+		input.push(functionCallOutput(message, blind));
 	}
 
 	/*

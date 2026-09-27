@@ -15,6 +15,11 @@ const MAX_TEXT = 40_000;
 const MAX_URL_LENGTH = 2048;
 /** Redirect hops. Three is generous for `http → https → www → canonical`; a chain longer than that is a loop or a game. */
 const MAX_REDIRECTS = 3;
+/**
+ * Per hop, covering connect, headers and body. Started after the hop's address check, so time a
+ * person spends on a network prompt is not counted against the server.
+ */
+const HOP_TIMEOUT_MS = 30_000;
 
 interface FetchArgs {
 	url: string;
@@ -80,14 +85,22 @@ export const webFetchTool: Tool<FetchArgs> = {
 		let current = first.url;
 		let addresses = first.addresses;
 		let response: IncomingMessage;
+		let deadline: AbortSignal;
+		// A server that accepts the connection and never answers would otherwise hold the call open
+		// until the user presses stop.
+		const failure = (error: unknown) =>
+			deadline.aborted && !ctx.signal?.aborted
+				? `Timed out after ${HOP_TIMEOUT_MS / 1000}s waiting for ${current.href}`
+				: error instanceof Error ? error.message : String(error);
 		for (let hop = 0; ; hop++) {
+			deadline = AbortSignal.timeout(HOP_TIMEOUT_MS);
 			try {
 				// Followed by hand, one hop at a time. Following automatically would let the runtime
 				// walk a chain nobody checked — which is a hole shaped exactly like this tool's
 				// one real rule, since the address that matters is the last one, not the first.
-				response = await get(current, addresses, ctx.signal);
+				response = await get(current, addresses, ctx.signal ? AbortSignal.any([ctx.signal, deadline]) : deadline);
 			} catch (error) {
-				return errorResult(`Request failed: ${error instanceof Error ? error.message : String(error)}`);
+				return errorResult(`Request failed: ${failure(error)}`);
 			}
 
 			const status = response.statusCode ?? 0;
@@ -141,7 +154,7 @@ export const webFetchTool: Tool<FetchArgs> = {
 		try {
 			buffer = await readBody(response, MAX_BYTES);
 		} catch (error) {
-			return errorResult(error instanceof Error ? error.message : String(error));
+			return errorResult(failure(error));
 		}
 
 		let raw: string;

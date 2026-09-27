@@ -5,7 +5,7 @@ import type { Compaction } from "../runtime/compaction.ts";
 import type { ArtifactSink } from "../runtime/prune.ts";
 import type { TurnMiddleware } from "../runtime/turn.ts";
 import type { Skill } from "../skills/loader.ts";
-import type { Message, ModelConfig, Provider, ProviderConfig, Tool } from "../types.ts";
+import type { ApprovalRequest, Message, ModelConfig, Provider, ProviderConfig, Tool } from "../types.ts";
 import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
 import type { CommandShell } from "../platform.ts";
 
@@ -62,7 +62,7 @@ export interface ApprovalPolicy {
 	 * `subject` is the command, path or URL — the thing the decision is actually about, rather
 	 * than the prose the model wrapped it in.
 	 */
-	assess(kind: string, subject: string, cwd: string): ApprovalVerdict;
+	assess(kind: string, subject: string, cwd: string, request?: ApprovalRequest): ApprovalVerdict;
 }
 
 /** `ctx.skills` — the procedures the agent knows how to follow. */

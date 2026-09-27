@@ -30,15 +30,38 @@ export function toChatCompletionsTools(tools: ToolSpec[]): unknown[] {
 	}));
 }
 
-function toolResultMessage(result: ToolResultMessage): unknown {
+/**
+ * One tool result as a `tool` message, which can only carry text.
+ *
+ * Images are not dropped: `liftedImages` carries them in a user message right after the run of tool
+ * messages, the only place Chat Completions accepts one. The marker left here is what ties the
+ * picture back to the call that produced it.
+ */
+function toolResultMessage(result: ToolResultMessage, supportsImages: boolean): unknown {
 	const content = result.content
-		.map((c) => (c.type === "text" ? c.text : `[image ${c.mimeType}, ${c.data.length} base64 chars]`))
+		.map((c) => (c.type === "text" ? c.text : supportsImages ? `[image ${c.mimeType}: attached in the next message]` : NO_VISION_PLACEHOLDER))
 		.join("\n");
 	return {
 		role: "tool",
 		tool_call_id: result.toolCallId,
 		content,
 	};
+}
+
+/**
+ * The images a run of tool results returned, as one user message — or nothing.
+ *
+ * Without this a vision model never saw a screenshot, a `read` of a png or an MCP image on this
+ * protocol: the result reached it as a line describing the base64. Same move as pi
+ * (`packages/ai/src/api/openai-completions.ts`, "Attached image(s) from tool result").
+ */
+function liftedImages(results: ToolResultMessage[], supportsImages: boolean): unknown[] {
+	if (!supportsImages) return [];
+	const images = results.flatMap((result) =>
+		result.content.flatMap((c) => (c.type === "image" ? [{ type: "image_url", image_url: { url: `data:${c.mimeType};base64,${c.data}` } }] : [])),
+	);
+	if (images.length === 0) return [];
+	return [{ role: "user", content: [{ type: "text", text: "Image(s) returned by the tool results above:" }, ...images] }];
 }
 
 /**
@@ -113,8 +136,8 @@ export function toChatCompletionsMessages(
 			 * `isOpenAICompletionsVisionSupported(model)`，不支持就走 `vision-guard.ts:39-43` 把图片整组
 			 * 丢掉、接一句 `NON_VISION_IMAGE_PLACEHOLDER`。
 			 *
-			 * 工具结果那一路不用管：`toolResultMessage` 早就把图片降级成一行说明，所以 `read` 读一张 png
-			 * 不会走到这里来。会走到这里的是人手动贴进对话的图。
+			 * 工具结果里的图不走这里：`toolResultMessage` 与 `liftedImages` 按同一个 `supportsImages`
+			 * 处理它们。会走到这里的是人手动贴进对话的图。
 			 */
 			if (!hasImages || !supportsImages) {
 				let text = message.content
@@ -243,19 +266,22 @@ export function toChatCompletionsMessages(
 			out.push(msg);
 
 			// Interleave / follow directly with tool messages responding to tool calls
+			const answered: ToolResultMessage[] = [];
 			for (const tc of toolCalls as { id: string }[]) {
 				const answer = answers.get(tc.id);
 				if (answer) {
-					out.push(toolResultMessage(answer));
+					out.push(toolResultMessage(answer, supportsImages));
+					answered.push(answer);
 				}
 			}
+			out.push(...liftedImages(answered, supportsImages));
 			index = after - 1;
 			continue;
 		}
 
 		if (message.role === "toolResult") {
 			// A standalone tool result with no prior assistant message (e.g. truncated history head)
-			out.push(toolResultMessage(message));
+			out.push(toolResultMessage(message, supportsImages), ...liftedImages([message], supportsImages));
 		}
 	}
 

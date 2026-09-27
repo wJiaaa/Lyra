@@ -165,8 +165,8 @@ export const bashTool: Tool<BashArgs> = {
 		"Quote paths that may contain spaces.",
 	],
 	description:
-		"Run a shell command in the workspace. The working directory persists between calls but shell state " +
-		"(variables, functions) does not. Use `run_in_background: true` for long-running processes such as dev servers, " +
+		"Run a shell command in the workspace. Every call starts fresh in the workspace root: a `cd`, variables " +
+		"and functions do not carry over, so chain dependent steps in one command (`cd sub && make`). Use `run_in_background: true` for long-running processes such as dev servers, " +
 		"then read their output with `bash_output`. A command still running when the default timeout passes is moved " +
 		"to the background instead of being killed; an explicit `timeout` is a hard limit. " +
 		"Commands may run under a file sandbox. A blocked write is reported as a policy denial, not a bug in the " +
@@ -201,6 +201,11 @@ export const bashTool: Tool<BashArgs> = {
 		additionalProperties: false,
 	},
 	mutating: true,
+	/*
+	 * Only a command that provably writes nothing may overlap others. Two writers at once race on
+	 * the files, and each one's before/after git snapshot would claim the other's changes as its own.
+	 */
+	executionModeFor: (args) => (typeof args.command === "string" && !args.escalate && isReadOnlyCommand(args.command) ? "parallel" : "sequential"),
 	summarize: (args) => args.description ?? args.command.split("\n")[0].slice(0, 80),
 
 	async execute(args, ctx): Promise<ToolResult> {

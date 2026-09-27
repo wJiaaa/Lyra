@@ -187,6 +187,11 @@ export interface ApprovalRequest extends QuestionFields {
 	reason?: string;
 	/** Command / path the approval applies to, used for "always allow" rules. */
 	subject: string;
+	/**
+	 * The asker says this action changes nothing. Only a hint for a policy to weigh — today an MCP
+	 * tool's `readOnlyHint`, which `auto` mode takes and `ask` mode does not.
+	 */
+	readOnly?: boolean;
 }
 export type ApprovalDecision = "once" | "always" | "reject" | "skip" | { answer: string | string[]; skipped?: boolean };
 
@@ -215,8 +220,15 @@ export interface Tool<TArgs = Record<string, unknown>> extends ToolSpec {
 	 * next to the tool means a tool that is not loaded cannot leave stale advice behind.
 	 */
 	guidelines?: string[];
-	/** "sequential" forces the loop to run this tool alone, in call order. */
+	/**
+	 * Whether a call may overlap its neighbours in the same batch. Absent means "parallel".
+	 *
+	 * A "sequential" call runs alone, after everything before it and before everything after; the
+	 * parallel calls between two of them still run together.
+	 */
 	executionMode?: "parallel" | "sequential";
+	/** The same decision made per call, when the arguments settle it — a read-only `bash` command. */
+	executionModeFor?(args: TArgs): "parallel" | "sequential";
 	/** Tools that mutate the workspace go through the approval flow. */
 	mutating?: boolean;
 	execute(args: TArgs, ctx: ToolContext): Promise<ToolResult>;

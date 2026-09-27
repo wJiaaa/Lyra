@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { openaiResponsesProvider } from "../src/ai/openai-responses.ts";
 import { toResponsesInput } from "../src/ai/openai-responses-request.ts";
+import { emptyUsage } from "../src/types.ts";
 import type { AssistantMessage, Message } from "../src/types.ts";
 
 /** 一段只有 `done`、没有 `added` 的流。每个 `done` 里带着这一项的全部内容。 */
@@ -192,6 +193,40 @@ test("不知道支不支持时按「能读」算——把不知道当成不收�
 	);
 
 	assert.ok(JSON.stringify(input).includes("input_image"));
+});
+
+test("工具结果里的图片：能读图时作为 input_image 放进 output，读不了时换成一行说明", () => {
+	const history = (): Message[] => [
+		{
+			role: "assistant",
+			content: [{ type: "toolCall", id: "call_1", name: "read", arguments: { path: "a.png" } }],
+			api: "openai-responses",
+			provider: "qa",
+			model: "vision",
+			usage: emptyUsage(),
+			stopReason: "toolUse",
+			timestamp: 0,
+		} as Message,
+		{
+			role: "toolResult",
+			toolCallId: "call_1",
+			toolName: "read",
+			content: [{ type: "text", text: "a.png" }, { type: "image", mimeType: "image/png", data: "AAAABBBB" }],
+			isError: false,
+			timestamp: 1,
+		} as Message,
+	];
+	const outputOf = (input: unknown[]) => (input as Array<Record<string, unknown>>).find((item) => item.type === "function_call_output")?.output;
+
+	const seen = outputOf(toResponsesInput(history(), { provider: "qa", model: "vision", supportsImages: true }));
+	assert.deepEqual(seen, [
+		{ type: "input_text", text: "a.png" },
+		{ type: "input_image", image_url: "data:image/png;base64,AAAABBBB" },
+	]);
+
+	const blind = outputOf(toResponsesInput(history(), { provider: "qa", model: "vision", supportsImages: false }));
+	assert.equal(typeof blind, "string");
+	assert.match(String(blind), /^a\.png\n\[图片未发送：这个模型不支持读图（image\/png/);
 });
 
 /*

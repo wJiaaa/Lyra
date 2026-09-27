@@ -51,7 +51,11 @@ export function sanitizeToolPairing(messages: Message[]): Message[] {
 				role: "toolResult",
 				toolCallId: call.id,
 				toolName: call.name,
-				content: [{ type: "text", text: "[Turn was interrupted before tool execution could complete]" }],
+				/*
+				 * Nothing here says whether the call started, so the model must not assume it did not:
+				 * re-running an edit or a command that already landed does the work twice.
+				 */
+				content: [{ type: "text", text: "[Turn was interrupted before this call returned. It may or may not have taken effect; check the current state before re-running it.]" }],
 				isError: true,
 				timestamp: message.timestamp,
 			});

@@ -120,7 +120,7 @@ export class ApprovalGate {
 			if (this.allowList.has(request.subject)) return "once";
 
 			if (mode === "auto") {
-				const verdict = approvalPolicy().assess(request.kind, request.subject, this.options.cwd());
+				const verdict = approvalPolicy().assess(request.kind, request.subject, this.options.cwd(), request);
 				if (!verdict.risky) return "once";
 				if (verdict.reason) request.detail = `${verdict.reason}\n\n${request.detail ?? ""}`.trim();
 			}

@@ -30,6 +30,7 @@ interface SearchArgs {
  * rather than a page.
  */
 const MAX_RESULTS = 8;
+const SEARCH_TIMEOUT_MS = 30_000;
 
 export const webSearchTool: Tool<SearchArgs> = {
 	name: "web_search",
@@ -73,9 +74,11 @@ export const webSearchTool: Tool<SearchArgs> = {
 		}
 
 		const cleanedQuery = query.trim();
+		// Providers are plain fetches; one that never answers would hold the call until stop.
+		const deadline = AbortSignal.timeout(SEARCH_TIMEOUT_MS);
 
 		try {
-			const result = await search({ query: cleanedQuery, maxResults: MAX_RESULTS, signal: ctx.signal }, ctx.searchProviderId);
+			const result = await search({ query: cleanedQuery, maxResults: MAX_RESULTS, signal: ctx.signal ? AbortSignal.any([ctx.signal, deadline]) : deadline }, ctx.searchProviderId);
 			if (result.sources.length === 0) {
 				// An empty list is an answer, and saying so beats returning an empty block the model
 				// has to interpret.
@@ -101,6 +104,7 @@ export const webSearchTool: Tool<SearchArgs> = {
 			// A search failure is usually configuration — no provider, no key, two providers and no
 			// choice made — and the message says which, because the model can relay it and the user
 			// can act on it.
+			if (deadline.aborted && !ctx.signal?.aborted) return errorResult(`搜索超时（${SEARCH_TIMEOUT_MS / 1000} 秒没有响应）`);
 			if (error instanceof SearchError) return errorResult(`搜索失败（${error.code}）：${error.message}`);
 			return errorResult(`搜索失败：${error instanceof Error ? error.message : String(error)}`);
 		}
