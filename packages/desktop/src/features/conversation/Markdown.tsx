@@ -405,7 +405,7 @@ function FileLinkAction({ tip, onClick, children }: { tip: string; onClick: () =
 				event.stopPropagation();
 				onClick();
 			}}
-			className="flex h-[17px] w-[17px] items-center justify-center rounded text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-ink/[0.06] hover:text-ink"
+			className="flex h-[17px] w-[17px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-ink/[0.06] hover:text-ink"
 		>
 			{children}
 		</button>

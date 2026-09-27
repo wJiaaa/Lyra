@@ -103,7 +103,7 @@ export function ToolbarButton({
 			aria-label={shortcutLabel(label)}
 			aria-pressed={active}
 			onClick={onClick}
-			className={`no-drag flex h-7 w-7 items-center justify-center rounded-md transition-all duration-[var(--ly-t-quick)] ${
+			className={`no-drag flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-[var(--ly-t-quick)] ${
 				active ? "bg-card-hover text-ink" : "text-ink-faint hover:bg-card-hover hover:text-ink"
 			}`}
 		>

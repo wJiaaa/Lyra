@@ -567,7 +567,7 @@ function HeaderButton({
 			data-ly-tip={label}
 			aria-label={label}
 			onClick={onClick}
-			className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+			className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 		>
 			{children}
 		</button>

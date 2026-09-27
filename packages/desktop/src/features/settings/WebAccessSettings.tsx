@@ -207,7 +207,7 @@ function LinkAction({
 			aria-label={label}
 			aria-pressed={active || undefined}
 			onClick={onClick}
-			className={`grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-md transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover ${
+			className={`grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover ${
 				active ? "text-info" : "text-ink-faint hover:text-ink"
 			}`}
 		>

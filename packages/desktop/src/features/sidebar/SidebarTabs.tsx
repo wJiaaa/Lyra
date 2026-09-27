@@ -61,7 +61,7 @@ export function StripButton({
 			aria-pressed={active}
 			onClick={onClick}
 			className={`relative flex shrink-0 items-center justify-center transition-colors duration-[var(--ly-t-quick)] ${
-				compact ? "h-[38px] w-[38px] rounded-lg" : "h-[24px] w-[24px] rounded-md"
+				compact ? "h-[38px] w-[38px] rounded-lg" : "h-[24px] w-[24px] rounded-lg"
 			} ${active ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"}`}
 		>
 			{children}

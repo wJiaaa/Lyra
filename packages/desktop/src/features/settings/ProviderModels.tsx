@@ -206,7 +206,7 @@ function ModelRow({
 					aria-label={t("providerModels.testOne")}
 					disabled={testing}
 					onClick={onTest}
-					className={`flex h-7 w-7 items-center justify-center rounded-md text-ink-faint transition-all hover:bg-card hover:text-ink active:scale-95 ${
+					className={`flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-all hover:bg-card hover:text-ink active:scale-95 ${
 						testing ? "text-accent" : ""
 					}`}
 				>
@@ -222,7 +222,7 @@ function ModelRow({
 					data-ly-tip={t("providerModels.makeDefault")}
 					aria-label={t("providerModels.makeDefault")}
 					onClick={onSetDefault}
-					className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card hover:text-ink"
+					className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card hover:text-ink"
 				>
 					<Link2 size={14} strokeWidth={1.8} />
 				</button>
@@ -231,7 +231,7 @@ function ModelRow({
 					data-ly-tip={t("common.edit")}
 					aria-label={t("providerModels.editOne")}
 					onClick={onEdit}
-					className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card hover:text-ink"
+					className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card hover:text-ink"
 				>
 					<Pencil size={14} strokeWidth={1.8} />
 				</button>
@@ -247,7 +247,7 @@ function ModelRow({
 							onConfirm: onRemove,
 						})
 					}
-					className="flex h-7 w-7 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card hover:text-danger"
+					className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card hover:text-danger"
 				>
 					<Trash2 size={14} strokeWidth={1.8} />
 				</button>

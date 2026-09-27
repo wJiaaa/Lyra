@@ -147,7 +147,7 @@ export function PluginDetail({
 							data-ly-tip={t("pluginDetail.homepage")}
 							aria-label={t("pluginDetail.homepage")}
 							onClick={() => void bridge.system.openExternal(website)}
-							className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+							className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 						>
 							<ExternalLink size={13.5} strokeWidth={1.8} />
 						</button>

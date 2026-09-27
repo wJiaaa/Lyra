@@ -140,7 +140,7 @@ function Dismiss({ agent }: { agent: SubAgentSummary }) {
 				// second press. Saying so beats a click that appears to do nothing.
 				if (what === "stopping") useApp.getState().notify(t("subAgent.stopping"), "info");
 			}}
-			className="rounded p-0.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/subtab:opacity-60 hover:!opacity-100 hover:bg-elevated"
+			className="rounded-md p-0.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/subtab:opacity-60 hover:!opacity-100 hover:bg-elevated"
 		>
 			<X size={11} strokeWidth={2.2} />
 		</button>

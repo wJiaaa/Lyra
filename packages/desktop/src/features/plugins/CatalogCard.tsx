@@ -186,7 +186,7 @@ export function CatalogCard({
 									aria-haspopup="menu"
 									aria-expanded={menu.open}
 									onClick={menu.toggle}
-									className="pointer-events-auto flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint opacity-0 transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] group-hover/card:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 aria-expanded:opacity-100"
+									className="pointer-events-auto flex h-[26px] w-[26px] items-center justify-center rounded-lg text-ink-faint opacity-0 transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] group-hover/card:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 aria-expanded:opacity-100"
 								>
 									{act.busy === "uninstall" ? (
 										<ActionSpinner size={13} />

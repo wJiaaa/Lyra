@@ -122,7 +122,7 @@ function FieldLabel({ children }: { children: string }) {
 /** ZCode 的工具勾选：整格是按钮，勾上是前景色实底。能改文件、跑命令的几样右边一个红点。 */
 function ToolCheckbox({ name, checked, onChange }: { name: string; checked: boolean; onChange: (checked: boolean) => void }) {
 	return <button type="button" role="checkbox" aria-checked={checked} onClick={() => onChange(!checked)}
-		className="flex min-w-0 items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-[var(--ly-agent-line)]">
+		className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-[var(--ly-agent-line)]">
 		<span className="flex size-6 shrink-0 items-center justify-center">
 			<span className={`flex size-4 items-center justify-center rounded-sm border transition-colors duration-[var(--ly-t-quick)] ${checked ? "border-ink bg-ink text-shell" : "border-[var(--ly-agent-line)] bg-float text-transparent"}`}><Check size={14} strokeWidth={2.4} aria-hidden /></span>
 		</span>
