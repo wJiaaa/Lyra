@@ -3,18 +3,17 @@ import { bridge } from "../services/index.ts";
 import { useOpenFile } from "./openFile.ts";
 
 export function filePanelSnapshot(): FilePanelState {
-	const { path, opening, tabs, drafts, wrap, showSource } = useOpenFile.getState();
-	return { path: opening ?? path, tabs, drafts, wrap, showSource };
+	const { path, opening, tabs, wrap, showSource } = useOpenFile.getState();
+	return { path: opening ?? path, tabs, wrap, showSource };
 }
 
 /** Load through the normal file boundary rather than trusting transferred contents or permissions. */
 export async function applyFilePanelState(state: FilePanelState, update = (apply: () => void) => apply()): Promise<void> {
 	const current = useOpenFile.getState();
 	const tab = state.tabs.find((entry) => entry.path === state.path);
-	const saved = state.path !== null && current.drafts[state.path] !== undefined && state.drafts[state.path] === undefined;
-	const needsRead = state.path !== current.path || !current.contents || saved;
+	const needsRead = state.path !== current.path || !current.contents;
 	update(() => useOpenFile.setState({
-		tabs: state.tabs, drafts: state.drafts, wrap: state.wrap, showSource: state.showSource,
+		tabs: state.tabs, wrap: state.wrap, showSource: state.showSource,
 		...(tab && needsRead ? { opening: tab.path, loading: true } : {}),
 		...(!tab ? { path: null, name: null, contents: null, opening: null, loading: false } : {}),
 	}));
@@ -31,7 +30,7 @@ export async function applyFilePanelState(state: FilePanelState, update = (apply
 
 let flushPending: () => Promise<void> = async () => {};
 
-/** The return button waits for the last edit's acknowledgement before requesting its handoff. */
+/** The return button waits for the last change's acknowledgement before requesting its handoff. */
 export function flushFilePanelState(): Promise<void> {
 	return flushPending();
 }

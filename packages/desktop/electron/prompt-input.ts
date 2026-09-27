@@ -27,7 +27,7 @@ export function promptContent(value: unknown): UserContent[] {
  * 说，**它是一张写在消息里的通行证**。本机递进来的是用户自己在输入框里拖的文件，那正是它的用途；
  * 远端递进来的是一串可以随便编的字符串。
  *
- * Web 访问那一侧本来是关着的：`files.write/bytes/document` 不在 `WEB_METHODS` 里，
+ * Web 访问那一侧本来是关着的：`files.bytes/document` 不在 `WEB_METHODS` 里，
  * `insideOpenProjects` 还用 realpath 把读文件锁在已打开的项目里。附件的 `path` 是从侧门绕过那道锁的
  * 一条路——同一个形状当年在手机同步里已经犯过一次（手机可在任意目录建会话，等价拿回被白名单挡掉的
  * terminal 能力），见 `web-access.ts` 的 `create`。

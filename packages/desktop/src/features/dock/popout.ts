@@ -378,12 +378,12 @@ export function watchPanelWindows(): () => void {
 			if (fileState) {
 				const current = filePanelSnapshot();
 				const paths = new Set(fileState.tabs.map((tab) => tab.path));
-				await applyFilePanelState({ ...fileState, tabs: [...current.tabs.filter((tab) => !paths.has(tab.path)), ...fileState.tabs], drafts: { ...Object.fromEntries(Object.entries(current.drafts).filter(([path]) => !paths.has(path))), ...fileState.drafts } });
+				await applyFilePanelState({ ...fileState, tabs: [...current.tabs.filter((tab) => !paths.has(tab.path)), ...fileState.tabs] });
 			}
 			await bridge.windows.closePanel({ kind, scope });
 		};
 		void restore().catch((error: unknown) => {
-			// oxlint-disable-next-line no-console -- a failed handoff must keep the native editor and its draft alive.
+			// oxlint-disable-next-line no-console -- a failed handoff must keep the detached panel alive.
 			console.error("Failed to restore panel", error);
 		});
 	});

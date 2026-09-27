@@ -145,13 +145,6 @@ interface AttachedTerminal {
 	replay: string;
 }
 
-/** What `format.external` can come back with. Mirrors `electron/format-external.ts`. */
-type ExternalFormatResult =
-	| { ok: true; text: string; tool: string }
-	| { ok: false; reason: "unsupported" }
-	| { ok: false; reason: "failed"; message: string; tool: string }
-	| { ok: false; reason: "missing"; tool: string; install: string };
-
 export interface LyraApi {
 	agentDefinitions: {
 		list(projectId: string | null): Promise<{ records: AgentDefinitionRecord[]; tools: string[] }>;
@@ -453,39 +446,6 @@ export interface LyraApi {
 	 * looking at what you are working on, and a file picker that can wander into the rest of
 	 * the disk is a different, riskier thing than what was asked for.
 	 */
-	/**
-	 * Formatting that the window cannot do alone.
-	 *
-	 * Prettier runs in the renderer — see `src/components/editor/format.ts`. What is here is the
-	 * half that needs the machine: the language-owned binaries (`gofmt` and friends), and the
-	 * project's own committed style, which outranks anything set in this app's settings.
-	 */
-	format: {
-		/** Format via the language's own tool. See `electron/format-external.ts` for the outcomes. */
-		/**
-		 * 用内置引擎排这门语言，内置引擎没有的才去找这台机器上的二进制。
-		 */
-		external(
-			extension: string,
-			source: string,
-			options?: {
-				tabWidth: number;
-				useTabs: boolean;
-				printWidth: number;
-				semi?: boolean;
-				singleQuote?: boolean;
-			},
-		): Promise<ExternalFormatResult>;
-		/** Whether any external tool is even conceivable for this extension. */
-		available(extension: string): Promise<boolean>;
-		/**
-		 * `.prettierrc` / `.editorconfig` / `package.json#prettier`, nearest first.
-		 *
-		 * Null when the file is outside every open project, or when the project says nothing —
-		 * in both cases the app's own settings apply.
-		 */
-		config(file: string): Promise<(Record<string, unknown> & { __source?: string }) | null>;
-	};
 	files: {
 		list(dir: string): Promise<FileEntry[]>;
 		read(path: string): Promise<FileContents | null>;
@@ -512,8 +472,6 @@ export interface LyraApi {
 		 * `imageOnly` 回来（扫描版 PDF 就是这样）。调用方要分开说，见 `Composer.addFiles`。
 		 */
 		documentText(name: string, bytes: Uint8Array): Promise<ExtractedText | null>;
-		/** Overwrite a file. Refused outside the open project, same as reading. */
-		write(path: string, text: string): Promise<{ ok: boolean; error?: string }>;
 		/**
 		 * A URL the renderer can put in `src` for images, video and audio.
 		 *

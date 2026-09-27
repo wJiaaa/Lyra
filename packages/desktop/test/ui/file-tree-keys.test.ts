@@ -66,7 +66,6 @@ async function showTree(): Promise<Mounted> {
 			children: h(FileTree, {
 				roots: ["/p"],
 				openPath: null,
-				dirtyPaths: new Set<string>(),
 				onOpen() {},
 				onMoved() {},
 				onRemoved() {},

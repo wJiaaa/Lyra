@@ -50,7 +50,6 @@ async function seed(home: string): Promise<void> {
 				codeLineHeight: 1.6,
 				codeLetterSpacing: 0,
 			},
-			formatting: { tabWidth: 2, printWidth: 120 },
 		}),
 	);
 }
@@ -201,18 +200,6 @@ try {
 	check("tracking keeps -0.05", tracking.value === "-0.05", tracking);
 	await hold(900);
 
-	await openSettings("代码格式化");
-	await until(`Boolean(document.querySelector('[data-ly-number="printWidth"]'))`);
-	await focusNumber("printWidth");
-	await app.send("Input.insertText", { text: "1" });
-	await pause(160);
-	const printOne = await readNumber("printWidth");
-	check("print width keeps 1 on the way to 120", printOne.value === "1", printOne);
-	await app.send("Input.insertText", { text: "20" });
-	await pause(200);
-	const printWidth = await readNumber("printWidth");
-	check("print width becomes 120", printWidth.value === "120", printWidth);
-	await hold(1100);
 } catch (error) {
 	check("verification script completed", false, String(error));
 	throw error;

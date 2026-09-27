@@ -65,7 +65,6 @@ test("the things that would hand over the machine are all absent", () => {
 	for (const method of [
 		"terminal.attach",
 		"terminal.write",
-		"files.write",
 		"files.bytes",
 		"screenshot.start",
 		"system.openPath",
@@ -117,7 +116,7 @@ test("read-only project files cross the web RPC without exposing write operation
 	assert.deepEqual(read.value, { text: "# Lyra\n", readOnly: true, truncated: false, bytes: 7, modifiedAt: 1 });
 	assert.deepEqual(calls, [["list", "/project"], ["read", "/project/README.md"]]);
 
-	for (const method of ["files.write", "files.remove", "files.rename", "files.importInto"]) {
+	for (const method of ["files.remove", "files.rename", "files.importInto"]) {
 		assert.deepEqual(await callRpc(remote, method, []), { ok: false, error: "method-not-allowed" });
 	}
 });

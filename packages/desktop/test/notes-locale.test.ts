@@ -26,29 +26,17 @@ const MULTI = [
 test("挑出读的人那一段，标记本身不出现在结果里", () => {
 	assert.equal(notesForLocale(MULTI, "zh-CN"), "## 修好了什么\n文件预览的滚动条。");
 	assert.equal(notesForLocale(MULTI, "en"), "## What's fixed\nThe file preview scrollbars.");
-	assert.equal(notesForLocale(MULTI, "ja"), "## 修正内容\nファイルプレビューのスクロールバー。");
 	assert.ok(!notesForLocale(MULTI, "en").includes("lyra:notes"));
 });
 
-test("没写的语言退到英文，而不是留白", () => {
-	// 法语、俄语、韩语这一版都没写；英文是这群人的第二语言。
-	for (const locale of ["fr", "ru", "ko"] as const) {
-		assert.equal(notesForLocale(MULTI, locale), "## What's fixed\nThe file preview scrollbars.");
-	}
-});
-
-test("繁体先退简体，两种中文之间比退英文近", () => {
-	assert.equal(notesForLocale(MULTI, "zh-TW"), "## 修好了什么\n文件预览的滚动条。");
-});
-
-test("简体缺席时退繁体", () => {
-	const onlyTraditional = "<!-- lyra:notes zh-TW -->\n## 修好了什麼\n檔案預覽的捲軸。";
-	assert.equal(notesForLocale(onlyTraditional, "zh-CN"), "## 修好了什麼\n檔案預覽的捲軸。");
+test("中文段没写时退到英文，而不是留白", () => {
+	const onlyEnglish = "<!-- lyra:notes en -->\n## What's fixed\nThe file preview scrollbars.";
+	assert.equal(notesForLocale(onlyEnglish, "zh-CN"), "## What's fixed\nThe file preview scrollbars.");
 });
 
 test("没有标记的正文原样返回——历史上每一个 release 都是这个形状", () => {
 	const plain = "## 0.9.2\n\n- 修好了一些东西";
-	assert.equal(notesForLocale(plain, "ja"), plain);
+	assert.equal(notesForLocale(plain, "en"), plain);
 	assert.equal(notesForLocale(plain, "zh-CN"), plain);
 });
 
@@ -59,7 +47,7 @@ test("空正文就是空的，不去编一段出来", () => {
 
 test("标记齐全但一个都对不上时，给第一段而不是空白", () => {
 	const german = "<!-- lyra:notes de -->\n## Behoben\nDie Bildlaufleisten.";
-	assert.equal(notesForLocale(german, "ja"), "## Behoben\nDie Bildlaufleisten.");
+	assert.equal(notesForLocale(german, "zh-CN"), "## Behoben\nDie Bildlaufleisten.");
 });
 
 test("同一个语言码写了两次，留先到的那一段", () => {
@@ -88,7 +76,7 @@ test("没有标记时切出空表，让调用方自己决定怎么办", () => {
 	assert.equal(splitNotesByLocale("## 0.9.2\n- 修好了一些东西").size, 0);
 });
 
-test("0.9.14 那种七段正文，关于页每种语言只拿到自己那一段", () => {
+test("0.9.14 那种七段正文，关于页中英文各只拿到自己那一段", () => {
 	const body = [
 		"<!-- lyra:notes en -->",
 		"",
@@ -121,13 +109,7 @@ test("0.9.14 那种七段正文，关于页每种语言只拿到自己那一段"
 	assert.equal(chinese.includes("运行期间不让电脑休眠"), true);
 	assert.equal(chinese.includes("### New"), false);
 	assert.equal(chinese.includes("スリープ"), false);
-
-	const traditional = notesForLocale(body, "zh-TW");
-	assert.equal(traditional.includes("執行期間不讓電腦休眠"), true);
-	assert.equal(traditional.includes("### New"), false);
-
-	assert.equal(notesForLocale(body, "fr").includes("### New"), true, "没写过的语言退回英文");
-	assert.equal(notesForLocale(body, "fr").includes("### 新功能"), false);
+	assert.equal(chinese.includes("執行期間"), false);
 });
 
 test("GitHub 上收起的非英文段，进应用时只剩正文", () => {

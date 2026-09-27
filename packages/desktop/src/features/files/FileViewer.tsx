@@ -10,7 +10,6 @@ import { SheetView } from "./SheetView.tsx";
 import { Markdown } from "../conversation/index.ts";
 import { directoryOf } from "../../lib/markdown/assets.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { available, bridge } from "../../services/index.ts";
 
@@ -40,8 +39,8 @@ export type FileKind =
 /**
  * What kind of thing this file is, for anything deciding how to treat it.
  *
- * Exported because the pane's header asks the same question — 「格式化」 is for JSON and nothing
- * else — and two answers to it would drift.
+ * Exported because the pane's header asks the same question — which kinds get 「自动换行」 — and
+ * two answers to it would drift.
  */
 export function fileKind(name: string, contents: FileContents | null): FileKind {
 	const ext = extensionOf(name);
@@ -73,23 +72,16 @@ export function fileKind(name: string, contents: FileContents | null): FileKind 
  * A single "file contents" pane that renders everything as text is wrong for most of what is
  * actually in a project: an image becomes a wall of mojibake, a video becomes nothing at all,
  * and Markdown becomes the one thing it is least useful as. Each kind gets the treatment that
- * makes it legible, and the text kinds all get a real editor rather than a read-only dump.
+ * makes it legible, and the text kinds all get a highlighted, searchable preview rather than a dump.
  */
 export function FileViewer({
 	path,
 	name,
 	contents,
-	draft,
-	onDraft,
-	onSaved,
 }: {
 	path: string;
 	name: string;
 	contents: FileContents;
-	/** Unsaved edits, held by the browser so switching files does not discard them. */
-	draft: string | undefined;
-	onDraft: (text: string | undefined) => void;
-	onSaved: () => void;
 }) {
 	const kind = fileKind(name, contents);
 	/*
@@ -100,10 +92,7 @@ export function FileViewer({
 	const wrap = useOpenFile((s) => s.wrap);
 	const showSource = useOpenFile((s) => s.showSource);
 
-	const text = draft ?? contents.text;
-	// Truncated files must not be saved: writing back the head would delete the rest.
-	// And in a browser through Web access, which may read the project but not write to it.
-	const readOnly = contents.truncated || contents.readOnly === true || !available("files", "write");
+	const text = contents.text;
 	const richPreview = available("files", "bytes");
 
 	const media = bridge.files.mediaUrl(path);
@@ -160,33 +149,7 @@ export function FileViewer({
 					</div>
 				</Scroller>
 			) : (
-				<CodeEditor
-					path={path}
-					text={text}
-					readOnly={readOnly}
-					wrap={wrap}
-					/*
-					 * Read-only is checked here too, not left to the editor: CodeMirror's read-only
-					 * stops the user, not a transaction dispatched from code, and a CRLF file used to
-					 * dirty itself that way on open — a draft of a file that cannot be saved.
-					 */
-					onChange={(next) => {
-						if (!readOnly) onDraft(next === contents.text ? undefined : next);
-					}}
-					/*
-					 * ⌘S and the header's button are the same save, so it lives in the store rather
-					 * than in either of them — see `useOpenFile.save`.
-					 */
-					onSave={() =>
-						void useOpenFile
-							.getState()
-							.save()
-							.then((error) => {
-								if (error) useApp.getState().notify(error, "error");
-								else onSaved();
-							})
-					}
-				/>
+				<CodeEditor path={path} text={text} wrap={wrap} />
 			)}
 		</div>
 	);

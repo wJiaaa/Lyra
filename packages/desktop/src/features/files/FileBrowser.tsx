@@ -23,7 +23,6 @@ import { useOpenFile } from "../../store/openFile.ts";
 export function FileBrowser() {
 	const workspace = useApp((s) => s.workspace);
 	const openPath = useOpenFile((s) => s.path);
-	const dirty = useOpenFile((s) => s.drafts);
 	// Every folder the project names, not only the one sessions run in — see `useProjectFolders`.
 	const folders = useProjectFolders();
 
@@ -45,7 +44,6 @@ export function FileBrowser() {
 		<FileTree
 			roots={folders}
 			openPath={openPath}
-			dirtyPaths={new Set(Object.keys(dirty))}
 			onOpen={(entry) => {
 				void useOpenFile.getState().open(entry);
 				/*

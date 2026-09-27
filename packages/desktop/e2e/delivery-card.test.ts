@@ -245,10 +245,10 @@ test("real file changes produce one temporary card with internal expansion and s
 	await screenshot("delivery-turn-review");
 });
 
-test("local material readers and writes reject links outside an opened project", async () => {
+test("local material readers reject links outside an opened project", async () => {
 	const path = join(app.home, "project", "outside", "outside.txt");
-	const result = await app.evaluate(`(async()=>({read:await window.lyra.files.read(${JSON.stringify(path)}),bytes:await window.lyra.files.bytes(${JSON.stringify(path)}),document:await window.lyra.files.document(${JSON.stringify(path)}),write:await window.lyra.files.write(${JSON.stringify(path)},'overwritten')}))()`);
-	assert.deepEqual(result, { read: null, bytes: null, document: null, write: { ok: false, error: "该路径不在已打开的项目内" } });
+	const result = await app.evaluate(`(async()=>({read:await window.lyra.files.read(${JSON.stringify(path)}),bytes:await window.lyra.files.bytes(${JSON.stringify(path)}),document:await window.lyra.files.document(${JSON.stringify(path)})}))()`);
+	assert.deepEqual(result, { read: null, bytes: null, document: null });
 	assert.equal(await readFile(join(app.home, "private", "outside.txt"), "utf8"), "PRIVATE_FIXTURE");
 });
 

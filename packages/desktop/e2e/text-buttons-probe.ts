@@ -170,7 +170,7 @@ const check = (ok: boolean, what: string) => {
 
 /** Every settings page, by the label in its sidebar — the buttons differ on every one of them. */
 const SECTIONS = [
-	"常规", "外观", "代码格式化", "个性化", "模型设置", "代码托管", "屏幕截图",
+	"常规", "外观", "个性化", "模型设置", "代码托管", "屏幕截图",
 	"浏览器", "插件", "智能体", "子智能体调度", "命令", "钩子", "网页搜索",
 	"访问授权", "索引库", "使用统计", "Worktrees", "关于", "已归档的聊天",
 ];

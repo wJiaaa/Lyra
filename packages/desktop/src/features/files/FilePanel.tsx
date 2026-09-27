@@ -22,7 +22,6 @@ export function FilePanel() {
 	const contents = useOpenFile((s) => s.contents);
 	const loading = useOpenFile((s) => s.loading);
 	const opening = useOpenFile((s) => s.opening);
-	const draft = useOpenFile((s) => (s.path ? s.drafts[s.path] : undefined));
 
 	if (!path && !opening) {
 		return (
@@ -49,21 +48,17 @@ export function FilePanel() {
 			 * Deliberately not keyed on the path.
 			 *
 			 * It used to be, to give each file a fresh editor rather than one inheriting the last
-			 * file's undo history — and that is a real requirement, but this was the wrong place to
-			 * meet it. Re-keying here unmounts the *whole pane* on every tab click: the header, the
+			 * file's state — and that is a real requirement, but this was the wrong place to meet it. Re-keying here unmounts the *whole pane* on every tab click: the header, the
 			 * tab strip and the viewer all torn down and rebuilt, which is a visible blank frame
 			 * between two files. Measured at six unmounts for six switches.
 			 *
 			 * `CodeEditor` already rebuilds its own state when `path` changes — see the effect keyed
-			 * `[path, readOnly]` — so the undo history resets without anything leaving the document.
+			 * `[path]` — so nothing carries over without anything leaving the document.
 			 * The viewers that genuinely need a reset (zoom, sheet scroll) carry their own key.
 			 */
 			path={path}
 			name={name ?? path}
 			contents={contents}
-			draft={draft}
-			onDraft={(text) => useOpenFile.getState().setDraft(path, text)}
-			onSaved={() => void useOpenFile.getState().reread(path)}
 		/>
 	);
 }

@@ -23,7 +23,7 @@ import { isDescendantPath } from "../../../lib/paths.ts";
  * 拖进来和选进来的文件不在此列：`report.pdf` 是人自己起的名字，换成「PDF 1」是把信息换成了废话。
  *
  * `regionShot` 由调用方传进来，因为它是**翻译过的**——窗口语言换一种，那个名字就换一种，写死
- * 在这里的任何一份清单都会在第七种语言上漏掉。
+ * 在这里的任何一份清单都会在新增的语言上漏掉。
  */
 export function isPlaceholderName(name: string, regionShot?: string): boolean {
 	const trimmed = name.trim();

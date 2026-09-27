@@ -27,14 +27,6 @@ const SEARCH_ICONS: Record<string, string> = {
 	next: icon('<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>'),
 	prev: icon('<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>'),
 	select: icon('<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>'),
-	replace: icon(
-		'<path d="M14 4a1 1 0 0 1 1-1"/><path d="M15 10a1 1 0 0 1-1-1"/><path d="M21 4a1 1 0 0 0-1-1"/><path d="M21 9a1 1 0 0 1-1 1"/><path d="m3 7 3 3 3-3"/><path d="M6 10V5a2 2 0 0 1 2-2h2"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
-		14.5,
-	),
-	replaceAll: icon(
-		'<path d="M14 14a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1"/><path d="M14 4a1 1 0 0 1 1-1"/><path d="M15 10a1 1 0 0 1-1-1"/><path d="M19 14a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1"/><path d="M21 4a1 1 0 0 0-1-1"/><path d="M21 9a1 1 0 0 1-1 1"/><path d="m3 7 3 3 3-3"/><path d="M6 10V5a2 2 0 0 1 2-2h2"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
-		14.5,
-	),
 	close: icon('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
 };
 
@@ -51,9 +43,6 @@ const OPTION_ICONS = [
 	),
 ];
 
-const CHEVRON_RIGHT = icon('<path d="m9 18 6-6-6-6"/>');
-const CHEVRON_DOWN = icon('<path d="m6 9 6 6 6-6"/>');
-
 /**
  * The find bar's own words, looked up when the bar is built rather than when this file loads.
  *
@@ -69,8 +58,6 @@ function searchTips(): Record<string, string> {
 		next: translate("common.next"),
 		prev: translate("common.previous"),
 		select: translate("find.selectAll"),
-		replace: translate("find.replaceOne"),
-		replaceAll: translate("find.replaceAll"),
 		close: translate("find.closeEsc"),
 	};
 }
@@ -84,33 +71,9 @@ function searchTips(): Record<string, string> {
  * every mutation under the editor, and each step checks whether it has already been done.
  */
 export function labelSearchPanel(element: HTMLElement): void {
-	/*
-	 * Replace starts folded, behind a disclosure of its own.
-	 *
-	 * Eleven controls is more than a narrow pane can hold on one line, and unfolded they
-	 * wrapped to three rows with the close button stranded on one by itself. Most finds
-	 * never replace anything, so the second row is the part that should be asked for —
-	 * which is what every editor with a find bar does.
-	 */
 	const panel = element.querySelector<HTMLElement>(".cm-panel.cm-search");
 	// The app's floating surface, so the find card matches every menu and popover in it.
 	panel?.classList.add("ly-glass", "ly-pop-in");
-	if (panel && !panel.querySelector("[name=ly-replace-toggle]")) {
-		const toggle = document.createElement("button");
-		toggle.setAttribute("name", "ly-replace-toggle");
-		toggle.setAttribute("type", "button");
-		toggle.setAttribute("aria-label", translate("find.showReplace"));
-		toggle.dataset.lyTip = translate("find.showReplace");
-		toggle.innerHTML = CHEVRON_RIGHT;
-		toggle.addEventListener("click", () => {
-			const open = panel.classList.toggle("ly-replace-open");
-			toggle.setAttribute("aria-label", translate(open ? "find.hideReplace" : "find.showReplace"));
-			toggle.dataset.lyTip = translate(open ? "find.hideReplace" : "find.showReplace");
-			toggle.innerHTML = open ? CHEVRON_DOWN : CHEVRON_RIGHT;
-			if (open) panel.querySelector<HTMLInputElement>("input[name=replace]")?.focus();
-		});
-		panel.prepend(toggle);
-	}
 
 	for (const [name, hint] of Object.entries(searchTips())) {
 		const button = element.querySelector<HTMLElement>(`.cm-search button[name=${name}]`);
@@ -137,19 +100,14 @@ export function labelSearchPanel(element: HTMLElement): void {
 export function searchPhrases(): Record<string, string> {
 	return {
 		Find: translate("find.find"),
-		Replace: translate("find.replace"),
 		next: translate("common.next"),
 		previous: translate("common.previous"),
 		all: translate("common.all"),
 		"match case": translate("find.matchCase"),
 		"by word": translate("find.wholeWord"),
 		regexp: translate("find.regex"),
-		replace: translate("find.replace"),
-		"replace all": translate("find.replaceAll"),
 		close: translate("common.close"),
 		"current match": translate("find.currentMatch"),
-		"replaced $ matches": translate("find.replacedN"),
-		"replaced match on line $": translate("find.replacedOnLine"),
 		"on line": translate("common.line"),
 	};
 }

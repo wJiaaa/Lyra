@@ -19,7 +19,6 @@ import {
 	ShieldCheck,
 	Sparkles,
 	SquareTerminal,
-	Wand2,
 	Workflow,
 } from "lucide-react";
 import type { SettingsSection } from "../../store/index.ts";
@@ -39,9 +38,6 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 		items: [
 			{ id: "general", labelKey: "settings.general", icon: Settings2 },
 			{ id: "appearance", labelKey: "settings.appearance", icon: Palette },
-			// Next to 外观 because they are asked about together, and separate because one changes
-			// how code is drawn and the other changes what is written to disk.
-			{ id: "formatting", labelKey: "settings.formatting", icon: Wand2 },
 			{ id: "personalization", labelKey: "settings.personalization", icon: Sparkles },
 			{ id: "models", labelKey: "settings.models", icon: Layers },
 			{ id: "forges", labelKey: "settings.forges", icon: GitPullRequest },

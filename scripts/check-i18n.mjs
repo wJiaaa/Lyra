@@ -40,11 +40,6 @@ const HAN = /[一-鿿]/;
  * `i18n/messages` is the translations themselves — the one place the words are supposed to be in
  * seven languages at once.
  *
- * `format-catalog` is code samples. Each entry exists to put something on every colour a syntax
- * theme declares, so its strings are `"你好"` inside a Go function and `"匿名"` inside a Python
- * dataclass. Those are the sample's subject matter, not labels: translating them would leave the
- * samples doing the same job in a different alphabet, and nobody reads them as sentences.
- *
  * `release-notes` writes the changelog, and its `lang` is the language of the *release* — the user
  * picks it in the release panel with a control of its own, separately from the interface. Wiring it
  * to the window's language would mean an English window could no longer publish Chinese notes,
@@ -70,7 +65,6 @@ const HAN = /[一-鿿]/;
 const EXEMPT = [
 	"i18n/messages/",
 	"i18n/translate.ts",
-	"features/settings/format-catalog.ts",
 	"features/git/release-notes.ts",
 	"features/git/commit-language.ts",
 	"i18n/locales.ts",
@@ -337,7 +331,7 @@ if (grown.length > 0) {
 	console.error(
 		`\n✖ 这些文件里的硬编码中文变多了：\n${grown.join("\n")}\n\n` +
 		`界面文案要走 i18n：组件里用 useI18n() 的 t()，别处用 translate()，key 加进\n` +
-		`packages/desktop/src/i18n/messages/ 的七个目录里（zh-CN.ts 是源，其余 satisfies 它，\n` +
+		`packages/desktop/src/i18n/messages/ 的两个目录里（zh-CN.ts 是源，en.ts satisfies 它，\n` +
 		`所以漏掉一种语言是类型错误）。\n\n` +
 		`看清单：  node scripts/check-i18n.mjs --list\n` +
 		`清完之后：node scripts/check-i18n.mjs --update\n`,

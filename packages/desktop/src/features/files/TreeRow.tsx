@@ -7,7 +7,6 @@
  * where the browser's own text-drag keeps trying to take over.
  */
 
-import { translate } from "../../i18n/translate.ts";
 import { ChevronRight } from "lucide-react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
@@ -26,8 +25,6 @@ export interface TreeRowProps {
 	selected: boolean;
 	/** The keyboard cursor, which is not always the selection: ⌘-clicking moves one, not the other. */
 	focused: boolean;
-	/** Has unsaved edits held by the browser. */
-	dirty: boolean;
 	/** Waiting on a paste, so it reads as already half gone — the same as the Finder does. */
 	cut: boolean;
 	/** A drag is over this row and would land inside it. */
@@ -51,7 +48,6 @@ export function TreeRow({
 	expanded,
 	selected,
 	focused,
-	dirty,
 	cut,
 	dropping,
 	renaming,
@@ -114,11 +110,6 @@ export function TreeRow({
 				<NameEditor initial={entry.name} onCommit={onRename} onCancel={onRenameCancel} />
 			) : (
 				<ScrollText text={entry.name} className="min-w-0 flex-1" />
-			)}
-
-			{dirty && !renaming && (
-				// The dot is the only trace an unsaved file leaves in the tree.
-				<span data-ly-tip={translate("treeRow.unsaved")} className="h-[5px] w-[5px] shrink-0 rounded-full bg-info" />
 			)}
 		</div>
 	);

@@ -7,7 +7,7 @@ import { readFilePanelState, requestFilePanel } from "../shared/file-panel-state
 const reads: string[] = [];
 const a = { path: "/project/alpha.ts", name: "alpha.ts" };
 const b = { path: "/project/beta.ts", name: "beta.ts" };
-const initial: FilePanelState = { path: b.path, tabs: [a, b], drafts: { [a.path]: "alpha draft", [b.path]: "beta draft" }, wrap: true, showSource: true };
+const initial: FilePanelState = { path: b.path, tabs: [a, b], wrap: true, showSource: true };
 let listener: ((input: FilePanelVersion & { previous?: FilePanelState }) => void) | null = null;
 let remote: FilePanelVersion = { version: 1, state: initial };
 let delay: Promise<void> | null = null;
@@ -46,28 +46,27 @@ beforeEach(() => {
 	readDelay = null;
 });
 
-test("a new renderer restores active file, both tabs, drafts and view options through a normal read", async () => {
+test("a new renderer restores active file, both tabs and view options through a normal read", async () => {
 	await applyFilePanelState(initial);
 	assert.deepEqual(reads, [b.path]);
 	assert.deepEqual(filePanelSnapshot(), initial);
 	assert.equal(useOpenFile.getState().contents?.text, "disk baseline");
-	assert.equal(useOpenFile.getState().drafts[b.path], "beta draft");
 });
 
-test("every detached edit reaches the main-process snapshot before a return or close completes", async () => {
+test("every detached change reaches the main-process snapshot before a return or close completes", async () => {
 	detached = true;
 	const errors: unknown[] = [];
 	const stop = watchFilePanelState((error) => errors.push(error));
 	try {
 		await settled();
-		useOpenFile.getState().setDraft(b.path, "latest native edit");
+		useOpenFile.getState().setWrap(false);
 		await flushFilePanelState();
-		assert.equal(remote.state.drafts[b.path], "latest native edit");
+		assert.equal(remote.state.wrap, false);
 		assert.deepEqual(errors, []);
 	} finally { stop(); }
 });
 
-test("closing waits for the last keystroke, including one typed while an earlier update is pending", async () => {
+test("closing waits for the last change, including one made while an earlier update is pending", async () => {
 	detached = true;
 	const errors: unknown[] = [];
 	const stop = watchFilePanelState((error) => errors.push(error));
@@ -75,8 +74,8 @@ test("closing waits for the last keystroke, including one typed while an earlier
 		await settled();
 		let resume = () => {};
 		delay = new Promise<void>((resolve) => { resume = resolve; });
-		useOpenFile.getState().setDraft(b.path, "first pending edit");
-		useOpenFile.getState().setDraft(b.path, "last keystroke before close");
+		useOpenFile.getState().setWrap(false);
+		useOpenFile.getState().setShowSource(false);
 		let closed = false;
 		const close = flushFilePanelState().then(() => { closed = true; });
 		await settled();
@@ -84,26 +83,14 @@ test("closing waits for the last keystroke, including one typed while an earlier
 		delay = null;
 		resume();
 		await close;
-		assert.equal(remote.state.drafts[b.path], "last keystroke before close");
+		assert.equal(remote.state.wrap, false);
+		assert.equal(remote.state.showSource, false);
 		assert.equal(closed, true);
 		assert.deepEqual(errors, []);
 	} finally { stop(); }
 });
 
-test("saving in the detached window rereads the source's same-path disk baseline", async () => {
-	await applyFilePanelState(initial);
-	const stop = watchFilePanelState((error) => { throw error; });
-	try {
-		diskText = "saved in detached window";
-		listener?.({ version: 2, previous: initial, state: { ...initial, drafts: { [a.path]: "alpha draft" } } });
-		await settled();
-		assert.equal(useOpenFile.getState().contents?.text, diskText);
-		assert.equal(useOpenFile.getState().drafts[b.path], undefined);
-		assert.deepEqual(reads, [b.path, b.path]);
-	} finally { stop(); }
-});
-
-test("a source open racing a pending edit preserves the last keystroke and new active file", async () => {
+test("a source open racing a pending change preserves that change and the new active file", async () => {
 	detached = true;
 	const errors: unknown[] = [];
 	const stop = watchFilePanelState((error) => errors.push(error));
@@ -111,7 +98,7 @@ test("a source open racing a pending edit preserves the last keystroke and new a
 		await settled();
 		let resume = () => {};
 		delay = new Promise<void>((resolve) => { resume = resolve; });
-		useOpenFile.getState().setDraft(b.path, "racing keystroke");
+		useOpenFile.getState().setWrap(false);
 		const c = { path: "/project/new.ts", name: "new.ts" };
 		remote = { version: remote.version + 1, state: requestFilePanel(remote.state, { ...initial, path: c.path, tabs: [...initial.tabs, c] }) };
 		listener?.(remote);
@@ -120,24 +107,22 @@ test("a source open racing a pending edit preserves the last keystroke and new a
 		await settled();
 		await flushFilePanelState();
 		assert.equal(remote.state.path, c.path);
-		assert.equal(remote.state.drafts[b.path], "racing keystroke");
+		assert.equal(remote.state.wrap, false);
 		assert.deepEqual(remote.state.tabs, [a, b, c]);
 		assert.deepEqual(errors, []);
 	} finally { stop(); }
 });
 
-test("background draft updates preserve the source's different active project", async () => {
+test("background view changes preserve the source's different active project", async () => {
 	await applyFilePanelState(initial);
 	const c = { path: "/other/work.ts", name: "work.ts" };
 	await useOpenFile.getState().open(c);
-	useOpenFile.getState().setDraft(c.path, "source draft");
 	const stop = watchFilePanelState((error) => { throw error; });
 	try {
-		listener?.({ version: 2, previous: initial, state: { ...initial, drafts: { ...initial.drafts, [b.path]: "native draft" } } });
+		listener?.({ version: 2, previous: initial, state: { ...initial, wrap: false } });
 		await settled();
 		assert.equal(useOpenFile.getState().path, c.path);
-		assert.equal(useOpenFile.getState().drafts[c.path], "source draft");
-		assert.equal(useOpenFile.getState().drafts[b.path], "native draft");
+		assert.equal(useOpenFile.getState().wrap, false);
 	} finally { stop(); }
 });
 
@@ -155,7 +140,6 @@ test("closing the final detached tab and moving an active file never publish an 
 		await flushFilePanelState();
 		assert.equal(remote.state.path, null);
 		assert.deepEqual(remote.state.tabs, []);
-		assert.deepEqual(remote.state.drafts, {});
 		assert.deepEqual(errors, []);
 		assert.ok(writes.every((input) => readFilePanelState(input.state) !== null));
 	} finally { stop(); }

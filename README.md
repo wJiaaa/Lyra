@@ -92,11 +92,10 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 - **MCP.** stdio, Streamable HTTP, and SSE. Tools are named `mcp__<server>__<tool>`, so they never collide with built-ins.
 - **Sub-agents.** `task` hands work to an agent with its own context window and brings back the conclusion. Seven built-ins: `general` `explore` `review` `verify` `plan` `simple` `reason`. Add more with `.lyra/agents/*.md`.
 - **Side chat.** A temporary conversation beside the current session. It can read the main chat. It writes nothing into it. Work that needs tools is queued on the main session.
-- **Right-hand dock.** Nine panes, all open at once if you want: Files, File contents, Terminal, Git, Side chat, Sub-agents, Tasks, Trace, Browser. The file pane is a syntax-highlighted editor. The terminal is a real pty.
+- **Right-hand dock.** Nine panes, all open at once if you want: Files, File contents, Terminal, Git, Side chat, Sub-agents, Tasks, Trace, Browser. The file pane is a read-only, syntax-highlighted preview. The terminal is a real pty.
 - **Split workspace.** Keep up to four conversations side-by-side in one window. Each conversation slot owns its tools dock (at least 420 px for chat, 300 px for tools), and panels render squeezed rather than unexpectedly detaching into floating windows when narrow.
 - **Centered Git commit modal & branch workflows.** Commit changes through a focused dialog styled after the composer with matching border radius, breathing room, and in-place branch switching/creation. Changes support toggling between flat list and hierarchical tree view with persistent preference.
 - **Replies render what the model wrote.** User bubbles and assistant text render clean Markdown. A `mermaid` fence becomes a diagram. A path to a local file becomes a one-line chip with the filename; the full path sits on the tooltip. Side chat separates model-bound attachment payloads from display bubbles and edit inputs.
-- **Built-in formatters.** Saving a file can run Prettier, or the language's own formatter shipped in the app (Go, Rust/Python via Ruff, C/C++, Dart, Swift, PHP, and others). You do not have to install those toolchains first.
 - **Keep the computer awake while a task runs.** A switch in General settings. Closing the lid still sleeps.
 
 ## Layout
@@ -187,7 +186,7 @@ The right-hand dock is a tab strip. Nine panes can stay open:
 | Pane | Shortcut | What it is |
 | --- | --- | --- |
 | Files | ⌘P | File tree. Clicking a file opens File contents |
-| File contents | ⌥⌘P | Syntax-highlighted editor. The title is the file name, not "File contents" |
+| File contents | ⌥⌘P | Read-only, syntax-highlighted preview. The title is the file name, not "File contents" |
 | Terminal | ⌃` | A real pty, not echoed commands |
 | Git | ⌘⇧R | Workspace diff (flat or tree view), centered commit modal with branch switching & creation |
 | Side chat | ⌥⌘S | See above |
@@ -199,7 +198,7 @@ The right-hand dock is a tab strip. Nine panes can stay open:
 - **Width is draggable.** Sidebar and pane edges drag, double-click restores the default, arrow keys nudge. Widths persist.
 - **Split layout & screen capacity.** A window can host up to four tiled conversations side-by-side. Each conversation slot owns its tools dock (at least 420 px for chat and 300 px for panels). If the workspace becomes narrow, panels are drawn squeezed rather than unexpectedly detaching into orphaned windows.
 - **Full screen.** A pane can fill the conversation column. Files then becomes tree on the left and file on the right. If the sidebar is collapsed, the window buttons move into the tab strip instead of floating on the pane.
-- **Editor.** Syntax highlight, wrap toggle (off by default), both scrollbars. The scrollbars paint over the content and take no width.
+- **File preview.** Read-only. Syntax highlight, find (⌘F), wrap toggle (off by default), both scrollbars. The scrollbars paint over the content and take no width.
 
 ## Context use
 

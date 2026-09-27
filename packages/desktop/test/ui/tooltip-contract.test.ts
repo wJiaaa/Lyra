@@ -107,7 +107,8 @@ test("查找面板：每个图标控件都挂着 tooltip.ts 读得到的提示",
 	const { labelSearchPanel } = await import("../../src/features/editor/chrome.ts");
 
 	const parent = document.body.appendChild(document.createElement("div"));
-	const view = new EditorView({ state: EditorState.create({ doc: "abc", extensions: [search({ top: true })] }), parent });
+	// Read-only, like the file preview: no replace row.
+	const view = new EditorView({ state: EditorState.create({ doc: "abc", extensions: [search({ top: true }), EditorState.readOnly.of(true)] }), parent });
 	try {
 		openSearchPanel(view);
 		labelSearchPanel(parent);
@@ -116,7 +117,7 @@ test("查找面板：每个图标控件都挂着 tooltip.ts 读得到的提示",
 		assert.ok(panel, "openSearchPanel 之后应该有查找面板");
 		// Every control whose word was swapped for a glyph: the icon is all a sighted user gets.
 		const iconic = [...panel.querySelectorAll<HTMLElement>("button, label")].filter((el) => el.querySelector("svg"));
-		assert.ok(iconic.length >= 10, `换成图标的控件应有十来个（6 个按钮 + 3 个选项 + 展开替换），实际 ${iconic.length}`);
+		assert.ok(iconic.length >= 7, `换成图标的控件应有七个（4 个按钮 + 3 个选项），实际 ${iconic.length}`);
 		for (const el of iconic) {
 			const name = el.getAttribute("aria-label") ?? el.getAttribute("name") ?? el.outerHTML.slice(0, 60);
 			const found = el.closest<HTMLElement>(LISTENER_SELECTOR);
@@ -124,13 +125,6 @@ test("查找面板：每个图标控件都挂着 tooltip.ts 读得到的提示",
 			assert.ok(found.dataset[LISTENER_PROPERTY], `「${name}」的 dataset.${LISTENER_PROPERTY} 不能为空`);
 		}
 
-		// The disclosure rewrites its tip on every toggle; that path wrote the old key too.
-		const toggle = panel.querySelector<HTMLElement>("[name=ly-replace-toggle]");
-		assert.ok(toggle, "展开替换的按钮应该已经加上");
-		const before = toggle.dataset[LISTENER_PROPERTY];
-		toggle.click();
-		const after = toggle.dataset[LISTENER_PROPERTY];
-		assert.ok(before && after && before !== after, `展开前后提示应该换一句，实际「${before}」→「${after}」`);
 	} finally {
 		view.destroy();
 		parent.remove();

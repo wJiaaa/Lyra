@@ -16,7 +16,6 @@ import { DelegationSettings } from "./DelegationSettings.tsx";
 import { ArchivedSettings } from "./ArchivedSettings.tsx";
 import { AboutSettings } from "./AboutSettings.tsx";
 import { AppearanceSettings } from "./AppearanceSettings.tsx";
-import { FormattingSettings } from "./FormattingSettings.tsx";
 import { CommandsSettings } from "./CommandsSettings.tsx";
 import { GeneralSettings } from "./GeneralSettings.tsx";
 import { PersonalizationSettings } from "./PersonalizationSettings.tsx";
@@ -228,8 +227,6 @@ function SectionBody({ section }: { section: SettingsSection }) {
 			return <GeneralSettings />;
 		case "appearance":
 			return <AppearanceSettings />;
-		case "formatting":
-			return <FormattingSettings />;
 		case "personalization":
 			return <PersonalizationSettings />;
 		case "models":

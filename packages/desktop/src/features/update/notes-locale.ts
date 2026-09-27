@@ -1,8 +1,8 @@
 /**
  * 「当前版本更新内容」只显示一种语言。
  *
- * GitHub Release 正文里七种语言写在一起，注释在发布页上是隐形的。关于页和更新对话框不是发布页：
- * 界面是英文就只出英文，是中文就只出中文，没有写过的语言退回英文。不能把整份正文一股脑铺出来。
+ * GitHub Release 正文里中英两种语言写在一起，注释在发布页上是隐形的。关于页和更新对话框不是发布页：
+ * 界面是英文就只出英文，是中文就只出中文，中文段没写时退回英文。不能把整份正文一股脑铺出来。
  *
  *     <!-- lyra:notes en -->
  *     ### New
@@ -14,23 +14,8 @@
 
 import type { ResolvedUiLocale } from "../../i18n/index.ts";
 
-/** 行首的分段标记，语言码取 `ResolvedUiLocale`（`zh-CN`、`zh-TW`、`en`…）。 */
+/** 行首的分段标记，语言码取 `ResolvedUiLocale`（`zh-CN`、`en`）。 */
 const MARKER = /^[ \t]*<!--[ \t]*lyra:notes[ \t]+([A-Za-z-]+)[ \t]*-->[ \t]*$/gm;
-
-/**
- * 当前语言没有自己那一段时，往哪退。
- *
- * 两种中文互相看得懂，先试对面再试英文。日语、韩语、法语、俄语没写过就直接英文。
- */
-const FALLBACKS: Record<ResolvedUiLocale, readonly ResolvedUiLocale[]> = {
-	"zh-CN": ["zh-TW", "en"],
-	"zh-TW": ["zh-CN", "en"],
-	en: [],
-	fr: ["en"],
-	ru: ["en"],
-	ko: ["en"],
-	ja: ["en"],
-};
 
 /** 正文切成「语言 → 那一段」。没有任何标记时返回空表，交给调用方原样处理。 */
 export function splitNotesByLocale(notes: string): Map<string, string> {
@@ -72,7 +57,7 @@ function unwrapReleaseFold(body: string): string {
  * 关于页 / 更新对话框要用的那一段：一种语言，换界面语言就换这一段。
  *
  * 没有分段标记的旧 release 仍整段返回，免得历史上那些只有一种语言的说明变成空白。
- * 一旦写了标记，就绝不再把七种语言一起交出去。
+ * 一旦写了标记，就绝不再把几种语言一起交出去。
  */
 export function notesForLocale(notes: string, locale: ResolvedUiLocale): string {
 	const trimmed = notes.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
@@ -81,7 +66,7 @@ export function notesForLocale(notes: string, locale: ResolvedUiLocale): string 
 	const sections = splitNotesByLocale(trimmed);
 	if (sections.size === 0) return trimmed;
 
-	for (const candidate of [locale, ...(FALLBACKS[locale] ?? []), "en"]) {
+	for (const candidate of [locale, "en"]) {
 		const body = sections.get(candidate);
 		if (body) return body;
 	}

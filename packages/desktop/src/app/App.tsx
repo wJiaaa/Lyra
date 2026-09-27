@@ -566,9 +566,8 @@ function ChatShell({ settings }: { settings: boolean }) {
  *
  * Both halves of the file browser are panes that can be closed, and neither of them is the right
  * place to decide this: the tree used to do it in an effect of its own, so closing the tree and
- * then changing projects left the editor showing a file — and holding unsaved edits for it — from
- * a project that is no longer open. The paths mean nothing here, and the drafts belong to a file
- * this project does not have.
+ * then changing projects left the preview showing a file from a project that is no longer open.
+ * The paths mean nothing here.
  *
  * Mounted at the root, which is the one place guaranteed to be watching.
  */
@@ -583,7 +582,7 @@ function useProjectFiles(): void {
 	 * Adding a folder in 编辑项目 has to put it in the tree; removing one has to take it out. Kept
 	 * apart from the effect below because those two want opposite things from the open file: a
 	 * different project means the file on screen belongs to something else, while a folder added to
-	 * this one means nothing about the file you are in the middle of editing.
+	 * this one means nothing about the file you are reading.
 	 */
 	useEffect(() => {
 		useFileTreeStore.getState().setRoots(key ? key.split("\0") : []);

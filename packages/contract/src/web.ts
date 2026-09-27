@@ -3,7 +3,7 @@
  *
  * The browser runs the desktop's own renderer, and that renderer reaches for every method in
  * `METHODS`. Most of them cannot be offered over the network: `terminal.*` hands out a shell,
- * `files.write` writes anywhere the user can, `settings.save` rewrites the whole configuration,
+ * `files.remove` deletes from the project, `settings.save` rewrites the whole configuration,
  * `windows.*` and `screenshot.*` are about this machine's screen. What is left is the conversation
  * — read it, send to it, stop it, approve what it asks.
  *

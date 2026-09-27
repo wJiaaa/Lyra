@@ -1,5 +1,5 @@
 /**
- * Which file is open, and what has been typed into it.
+ * Which file is open, and which files the pane has had open.
  *
  * Its own store because the file and the tree are two panes now, and a pane cannot hold state its
  * sibling needs. It used to live inside the file browser, which was the right place while the
@@ -7,16 +7,14 @@
  * the pair. Splitting them into panes that can be moved, resized and closed independently means
  * the thing they share has to sit outside both.
  *
- * Memory only, like the terminal's scrollback. Restoring an editor full of unsaved edits from a
- * previous launch is a promise this cannot keep — the file may have changed underneath it — so the
- * dock remembers that the pane was open and the pane comes back empty.
+ * Memory only, like the terminal's scrollback: the dock remembers that the pane was open and the
+ * pane comes back empty.
  */
 
-import { translate } from "../i18n/translate.ts";
 import { create } from "zustand";
 import type { FileContents, FileEntry } from "../../electron/ipc-types.ts";
 import { baseName, isDescendantPath } from "../lib/paths.ts";
-import { available, bridge } from "../services/index.ts";
+import { bridge } from "../services/index.ts";
 
 /** One file the pane has had open, as its tab strip lists it. */
 export interface OpenFileTab {
@@ -29,8 +27,7 @@ export interface OpenFileTab {
  *
  * Enough to hold an afternoon's worth of jumping between the same handful of files, and small
  * enough that the strip stays a row you read rather than one you scroll. Reaching it retires the
- * one used longest ago — never the one on screen, and never one holding unsaved edits, since
- * dropping either would be losing work to make room for a tab.
+ * one used longest ago — never the one on screen.
  */
 const MAX_TABS = 12;
 
@@ -54,14 +51,6 @@ interface OpenFileState {
 	 */
 	opening: string | null;
 	loading: boolean;
-	/**
-	 * Unsaved edits, by path.
-	 *
-	 * Kept for every file touched, not just the open one: the editor is remounted whenever a
-	 * different file is opened, so anything held inside it would be silently discarded on every
-	 * click through the tree.
-	 */
-	drafts: Record<string, string>;
 	/**
 	 * Every file opened in this pane, oldest first — the tab strip.
 	 *
@@ -87,30 +76,13 @@ interface OpenFileState {
 	open(entry: FileEntry | OpenFileTab): Promise<void>;
 	/** Close one tab. The pane moves to a neighbour, the way a terminal's strip does. */
 	closeTab(path: string): void;
-	/**
-	 * Close several at once — 关闭其他, 关闭右侧, 全部关闭.
-	 *
-	 * Unlike `closeTab`, a tab holding unsaved edits is kept rather than closed, and the count of
-	 * those is returned so the caller can say so. Closing one tab is aimed at that tab; closing
-	 * "the others" is aimed at a set nobody looked through, and silently dropping an edit somewhere
-	 * inside it is the one outcome that cannot be undone. Reopening a tab costs a click.
-	 */
-	closeTabs(paths: string[]): number;
-	/**
-	 * Write the open file back, and clear its draft.
-	 *
-	 * Here rather than in the viewer because more than one thing saves now: ⌘S in the editor, and
-	 * the button in the pane header. Returns the error so whichever one asked can say what happened.
-	 */
-	save(): Promise<string | null>;
-	/** Re-read after a save, so the editor's "saved" baseline matches what is on disk. */
-	reread(path: string): Promise<void>;
-	setDraft(path: string, text: string | undefined): void;
+	/** Close several at once — 关闭其他, 关闭右侧, 全部关闭. */
+	closeTabs(paths: string[]): void;
 	/**
 	 * A rename or a move the open file has to survive.
 	 *
 	 * By path, and silently wrong if ignored: the pane would go on showing a file at an address
-	 * that no longer exists, and saving it would recreate the old one. Folders count too —
+	 * that no longer exists. Folders count too —
 	 * renaming `src` moves everything under it, including whatever is open.
 	 */
 	moved(from: string, to: string): void;
@@ -123,7 +95,6 @@ const EMPTY = { path: null, name: null, contents: null, loading: false, opening:
 
 export const useOpenFile = create<OpenFileState>((set, get) => ({
 	...EMPTY,
-	drafts: {},
 	tabs: [],
 	wrap: false,
 	showSource: false,
@@ -152,33 +123,16 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		}
 	},
 
-	async reread(path) {
-		const read = await bridge.files.read(path);
-		if (read && get().path === path) set({ contents: read });
-	},
-
-	setDraft(path, text) {
-		const drafts = get().drafts;
-		if (text === undefined) {
-			if (!(path in drafts)) return;
-			const { [path]: _gone, ...rest } = drafts;
-			set({ drafts: rest });
-			return;
-		}
-		set({ drafts: { ...drafts, [path]: text } });
-	},
-
 	moved(from, to) {
 		const follow = (path: string) =>
 			path === from ? to : isDescendantPath(from, path) ? to + path.slice(from.length) : path;
 
-		const { path, opening, drafts, tabs } = get();
+		const { path, opening, tabs } = get();
 		const next = path ? follow(path) : null;
 		const nextOpening = opening ? follow(opening) : null;
 		set({
 			...(next !== path && next ? { path: next, name: next.split(/[\\/]/).pop() ?? next } : {}),
 			opening: nextOpening,
-			drafts: Object.fromEntries(Object.entries(drafts).map(([at, text]) => [follow(at), text])),
 			// Renaming a file renames its tab; renaming a folder moves every tab beneath it.
 			tabs: tabs.map((tab) => {
 				const next = follow(tab.path);
@@ -190,10 +144,9 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 
 	removed(paths) {
 		const gone = (path: string) => paths.some((each) => path === each || isDescendantPath(each, path));
-		const { path, opening, drafts, tabs } = get();
+		const { path, opening, tabs } = get();
 		set({
 			...(path && gone(path) ? EMPTY : opening && gone(opening) ? { opening: null, loading: false } : {}),
-			drafts: Object.fromEntries(Object.entries(drafts).filter(([at]) => !gone(at))),
 			// A tab for a file that no longer exists is a tab that opens onto an error.
 			tabs: tabs.filter((tab) => !gone(tab.path)),
 		});
@@ -204,10 +157,8 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		const at = tabs.findIndex((tab) => tab.path === path);
 		if (at === -1) return;
 		const rest = tabs.filter((tab) => tab.path !== path);
-		// The draft goes with the tab: keeping it would hold an edit for a file with no way back to it.
-		const { [path]: _gone, ...drafts } = get().drafts;
 		if (open !== path && get().opening !== path) {
-			set({ tabs: rest, drafts });
+			set({ tabs: rest });
 			return;
 		}
 		/*
@@ -218,24 +169,20 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		 */
 		const next = rest[at] ?? rest[rest.length - 1];
 		// Subscribers must never see an active path whose tab has already been removed.
-		set({ tabs: rest, drafts, ...(next ? { opening: next.path, loading: true } : EMPTY) });
+		set({ tabs: rest, ...(next ? { opening: next.path, loading: true } : EMPTY) });
 		if (next) void get().open({ name: next.name, path: next.path, isDirectory: false, size: 0 });
 	},
 
 	closeTabs(paths) {
-		const { tabs, path: open, opening, drafts } = get();
-		const asked = new Set(paths);
-		const kept = tabs.filter((tab) => asked.has(tab.path) && tab.path in drafts).length;
-		const gone = new Set(
-			tabs.filter((tab) => asked.has(tab.path) && !(tab.path in drafts)).map((tab) => tab.path),
-		);
-		if (gone.size === 0) return kept;
+		const { tabs, path: open, opening } = get();
+		const gone = new Set(paths.filter((path) => tabs.some((tab) => tab.path === path)));
+		if (gone.size === 0) return;
 
 		const openAt = tabs.findIndex((tab) => tab.path === open);
 		const rest = tabs.filter((tab) => !gone.has(tab.path));
 		if ((open === null || !gone.has(open)) && (opening === null || !gone.has(opening))) {
 			set({ tabs: rest });
-			return kept;
+			return;
 		}
 
 		/*
@@ -249,39 +196,21 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		const next = tabs.slice(openAt + 1).find((tab) => !gone.has(tab.path)) ?? rest[rest.length - 1];
 		set({ tabs: rest, ...(next ? { opening: next.path, loading: true } : EMPTY) });
 		if (next) void get().open({ name: next.name, path: next.path, isDirectory: false, size: 0 });
-		return kept;
 	},
 
-	async save() {
-		const { path, contents, drafts } = get();
-		if (!path || !contents) return null;
-		const text = drafts[path];
-		if (text === undefined || text === contents.text) return null;
-		// Truncated files must not be saved: writing back the head would delete the rest.
-		if (contents.truncated) return translate("fileActions.tooBig");
-		if (contents.readOnly) return translate("fileActions.contextReadOnly");
-		if (!available("files", "write")) return null;
-		const result = await bridge.files.write(path, text);
-		if (!result.ok) return result.error ?? translate("openFile.writeFailed");
-		get().setDraft(path, undefined);
-		await get().reread(path);
-		return null;
-	},
-
-	clear: () => set({ ...EMPTY, drafts: {}, tabs: [] }),
+	clear: () => set({ ...EMPTY, tabs: [] }),
 }));
 
 /**
  * The tab strip after opening this file: the one already there, or a new one at the end.
  *
- * Retiring, when the strip is full, is deliberately fussy about what it will take: never the file
- * being opened, and never one with unsaved edits. A tab is cheap to lose and an edit is not.
+ * Retiring, when the strip is full, never takes the file being opened.
  */
 function withTab(state: OpenFileState, entry: Pick<FileEntry, "path" | "name">): OpenFileTab[] {
 	const tabs = state.tabs;
 	if (tabs.some((tab) => tab.path === entry.path)) return tabs;
 	const next = [...tabs, { path: entry.path, name: entry.name }];
 	if (next.length <= MAX_TABS) return next;
-	const spare = next.findIndex((tab) => tab.path !== entry.path && !(tab.path in state.drafts));
+	const spare = next.findIndex((tab) => tab.path !== entry.path);
 	return spare === -1 ? next : next.filter((_, at) => at !== spare);
 }

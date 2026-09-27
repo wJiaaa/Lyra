@@ -54,8 +54,8 @@ const BOX_HEIGHT = 168;
  * a sample that exercises four of them makes two themes look more alike than they are.
  *
  * i18n-exempt: the comment in it is the specimen's subject matter, not a label — it is there so the
- * comment colour has something to tint. Same reasoning as `format-catalog.ts`, which is exempt as a
- * whole; this file is not, because the rest of it is real interface text.
+ * comment colour has something to tint. The file is not exempt as a whole, because the rest of it is
+ * real interface text.
  */
 const SAMPLE = `// 把名字招呼一下
 function greet(name: string): string {

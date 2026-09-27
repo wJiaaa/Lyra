@@ -1,5 +1,5 @@
 /**
- * Every language in the picker, actually highlighted.
+ * Every language with a sample, actually highlighted.
  *
  * The failure this guards against is silent by construction: a grammar that does not load, or one
  * whose tags nothing in the mapping claims, still renders the code. It just renders all of it in
@@ -12,12 +12,12 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { LANGUAGES } from "../src/features/settings/format-catalog.ts";
+import { LANGUAGE_SAMPLES } from "./language-samples.ts";
 import { highlightPieces } from "../src/features/settings/preview-highlight.ts";
 
 /** Everything measured once, because parsing fifty grammars is the slow part. */
 const measured = await Promise.all(
-	LANGUAGES.map(async (entry) => {
+	LANGUAGE_SAMPLES.map(async (entry) => {
 		const pieces = await highlightPieces(entry.sample, entry.key);
 		const kinds = new Set(pieces.map((p) => p.token).filter(Boolean));
 		const printable = entry.sample.replace(/\s/g, "").length;

@@ -4,7 +4,7 @@
  * The browser runs the desktop's own renderer — the same React app, the same components — and that
  * renderer talks to `window.lyra`, an interface of some 200 methods. On the desktop those are
  * Electron IPC channels. Over the network they cannot all be: `terminal.*` hands out a shell,
- * `files.write` writes anywhere the user can, `screenshot.*` reads the display.
+ * `files.remove` deletes from the project, `screenshot.*` reads the display.
  *
  * So this is an allowlist rather than a bridge. A method that is not named here does not exist for
  * the browser, and the renderer degrades on its own (`available()` in `services/host.ts` reads the
@@ -118,8 +118,8 @@ const said = (value: unknown): string | UserContent[] => (typeof value === "stri
  *
  * Grouped by why each one is here rather than alphabetically — the interesting question about any
  * of these is "should a browser be able to do this", and grouping by answer makes the omissions
- * visible. What is deliberately absent: `settings.save`, `terminal` (a shell), `files.write`
- * (arbitrary writes), `screenshot` (reads the display), `git` beyond reading, `plugins`, `updates`,
+ * visible. What is deliberately absent: `settings.save`, `terminal` (a shell), `files.remove` and
+ * the other file mutations, `screenshot` (reads the display), `git` beyond reading, `plugins`, `updates`,
  * `system.openPath`.
  */
 export const RPC: Record<string, Handler> = {

@@ -28,8 +28,8 @@ export function AboutSettings() {
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	/*
-	 * 「当前版本更新内容」跟着界面语言走：英文只出英文，中文只出中文，没写过的语言出英文。
-	 * 正文在 GitHub 上可以七种语言写在一起，这一屏不能一股脑铺开，见 `notesForLocale`。
+	 * 「当前版本更新内容」跟着界面语言走：英文只出英文，中文只出中文，中文段没写时出英文。
+	 * 正文在 GitHub 上是中英两种语言写在一起，这一屏不能一股脑铺开，见 `notesForLocale`。
 	 */
 	const notes = info?.notes ? notesForLocale(info.notes, resolvedLocale) : "";
 

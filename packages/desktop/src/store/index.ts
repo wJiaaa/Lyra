@@ -81,7 +81,6 @@ export function viewAvailable(view: View): boolean {
 export type SettingsSection =
   | "general"
   | "appearance"
-  | "formatting"
   | "personalization"
   | "models"
   | "browser"

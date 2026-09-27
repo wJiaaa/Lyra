@@ -2,7 +2,7 @@
  * Finding a program on PATH the way the platform itself would, without running a program to ask.
  *
  * This used to be done three ways: `which`/`where` in `open-targets.ts`, a hand-rolled loop in
- * `format-external.ts`, and not at all in the terminal. Each had its own gap. `which` is not
+ * the (since removed) formatter, and not at all in the terminal. Each had its own gap. `which` is not
  * installed on a minimal Arch system, so no editor or terminal was ever offered there. The loop
  * joined `gofmt` onto each directory and asked whether that file existed — on Windows it is
  * `gofmt.exe`, so every formatter read as 「未安装」 however it had been installed.

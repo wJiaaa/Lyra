@@ -1,14 +1,7 @@
-import { translate } from "../../i18n/translate.ts";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import {
-	bracketMatching,
-	foldGutter,
-	foldKeymap,
-	indentOnInput,
-	syntaxHighlighting,
-} from "@codemirror/language";
+import { defaultKeymap } from "@codemirror/commands";
+import { bracketMatching, foldGutter, foldKeymap, syntaxHighlighting } from "@codemirror/language";
 import { closeSearchPanel, highlightSelectionMatches, openSearchPanel, search, searchKeymap, searchPanelOpen } from "@codemirror/search";
-import { Annotation, Compartment, EditorState, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
 	EditorView,
 	drawSelection,
@@ -23,91 +16,16 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { GRAMMARS, grammarKeyFor, highlightStyle } from "../../lib/code/highlight.ts";
 import { editorTheme } from "./theme.ts";
-import { applyFormat } from "./apply-format.ts";
-import { FORMAT_DEFAULTS } from "./format.ts";
 import { labelSearchPanel, searchPhrases } from "./chrome.ts";
 import { EditorMenu } from "./EditorMenu.tsx";
 import { useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 
-/** Keep both the document model and its DOM semantics read-only. */
-export function editorAccess(readOnly: boolean): Extension[] {
-	return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)];
-}
-
 /**
- * The line break a file is written with, so the text the editor hands back is written the same way.
+ * 只读的代码预览。
  *
- * CodeMirror splits on every kind of line break and joins with `\n`, so a CRLF file came back
- * different on every line: opening one counted as an edit, and saving it rewrote the whole file as
- * LF. Only a file that is CRLF throughout is joined back with `\r\n`; a mixed one has no single
- * answer and keeps CodeMirror's `\n`.
- *
- * Applied where text leaves the editor, not through `EditorState.lineSeparator`, which looks like
- * the tool for this: that facet also decides how text coming *in* is split, and paste, the context
- * menu's paste and the formatter all go through it — with `\r\n` set, pasting the clipboard's usual
- * LF text landed as one line with a raw `\n` inside it.
- */
-function lineBreakOf(text: string): "\n" | "\r\n" {
-	return text.includes("\r\n") && !/\r(?!\n)|(?<!\r)\n/.test(text) ? "\r\n" : "\n";
-}
-
-/** Marks the editor taking on text from outside, which is not an edit and must not be reported as one. */
-const adopted = Annotation.define<boolean>();
-
-function contentOf(state: EditorState, lineBreak: string): string {
-	return state.doc.sliceString(0, state.doc.length, lineBreak);
-}
-
-/**
- * Format the buffer and say what happened, in one line.
- *
- * Every outcome gets a word. A shortcut that silently does nothing cannot be told from a broken
- * one, and the three ways formatting legitimately does nothing — already tidy, no formatter for
- * this language, the tool is not installed — call for three different answers. Only the first is
- * routine, which is why `quiet` suppresses that one and nothing else: on 保存时格式化 it would fire
- * on every ⌘S of an already-formatted file, which is most of them.
- */
-async function formatNow(view: EditorView, path: string, options?: { quiet?: boolean }): Promise<void> {
-	const { notify, settings } = useApp.getState();
-	const result = await applyFormat(view, path, { ...FORMAT_DEFAULTS, ...settings?.formatting });
-
-	switch (result.kind) {
-		case "formatted":
-			// Named, because which engine ran is the thing people are unsure about — and when a
-			// project config decided the style, that outranked the settings page and should say so.
-			if (!options?.quiet)
-				notify(
-					result.config
-						? translate("format.byConfig", { config: result.config, by: result.by })
-						: translate("format.by", { by: result.by }),
-					"info",
-				);
-			return;
-		case "unchanged":
-			if (!options?.quiet) notify(translate("format.alreadyClean"), "info");
-			return;
-		case "unsupported":
-			if (!options?.quiet) notify(translate("format.noFormatter"), "info");
-			return;
-		case "missing":
-			// Always shown, even on save: this is the one the user can act on.
-			notify(translate("format.needsTool", { tool: result.tool, install: result.install }), "error");
-			return;
-		case "failed":
-			// Always shown. The message is the formatter's own and names the line that will not parse,
-			// which is the most useful thing formatting does on a broken file.
-			notify(translate("format.failed", { reason: result.message.split("\n")[0] }), "error");
-	}
-}
-
-/**
- * A real editor, not a `<pre>` with colours.
- *
- * CodeMirror rather than a highlighter: highlighting a string is the easy half, and the half
- * that stops mattering the moment you want to change a line. Selection, undo, bracket matching,
- * find, and an indent key that does the right thing are the difference between reading a file
- * here and copying it somewhere else to work on it.
+ * 用 CodeMirror 而不是一个上了色的 `<pre>`：行号、折叠、括号配对、⌘F 查找和跳到行，读长文件时
+ * 都用得上。改文件交给 Agent 或者外部编辑器，这里不提供编辑、保存和格式化。
  *
  * Languages load on demand. Bundling twenty grammars for the one file you opened would put
  * megabytes into the initial payload to support a panel that is usually closed.
@@ -115,19 +33,13 @@ async function formatNow(view: EditorView, path: string, options?: { quiet?: boo
 export function CodeEditor({
 	path,
 	text,
-	readOnly,
 	wrap,
-	onChange,
-	onSave,
 }: {
-	/** Identity of the document; changing it rebuilds the state, which resets undo history. */
+	/** Identity of the document; changing it rebuilds the state. */
 	path: string;
 	text: string;
-	readOnly?: boolean;
 	/** Soft-wrap long lines instead of scrolling sideways. */
 	wrap?: boolean;
-	onChange: (next: string) => void;
-	onSave: () => void;
 }) {
 	const host = useRef<HTMLDivElement>(null);
 	/*
@@ -145,32 +57,13 @@ export function CodeEditor({
 	 * Wrapping is reconfigured, not rebuilt.
 	 *
 	 * Putting `wrap` in the effect that builds the state would throw the document away and take
-	 * the undo history, the selection and the scroll position with it — for a setting you toggle
-	 * precisely to look at the line you are already on.
+	 * the selection and the scroll position with it — for a setting you toggle precisely to look
+	 * at the line you are already on.
 	 */
 	const wrapping = useRef(new Compartment());
-	/** Held in refs so the editor is never rebuilt just because a callback identity changed. */
-	const onChangeRef = useRef(onChange);
-	const onSaveRef = useRef(onSave);
-	/*
-	 * The path, in a ref, because the keymap closes over it once.
-	 *
-	 * The extension decides which formatter runs, so reading a stale one would format a `.go` file
-	 * with the rules for whatever was open when the editor was built.
-	 */
-	const pathRef = useRef(path);
-	pathRef.current = path;
-	onChangeRef.current = onChange;
-	onSaveRef.current = onSave;
-	/*
-	 * The file's own line break, and the text the document was last brought in line with — both
-	 * reset whenever the state is rebuilt, and read by the listener, which is built once.
-	 */
-	const lineBreak = useRef(lineBreakOf(text));
-	const synced = useRef(text);
+	/** The text the document was last seeded with, so a re-read that changed nothing is not a reload. */
+	const seeded = useRef(text);
 	const menu = useContextMenu();
-	/** Assigned below; held in a ref so the keymap built once can reach the current one. */
-	const openFindRef = useRef<(withReplace: boolean) => void>(() => {});
 
 	const appearance = useApp((s) => s.settings?.appearance);
 	const codeLightTheme = appearance?.codeLightTheme;
@@ -181,8 +74,7 @@ export function CodeEditor({
 		const element = host.current;
 		if (!element) return;
 
-		lineBreak.current = lineBreakOf(text);
-		synced.current = text;
+		seeded.current = text;
 		const state = EditorState.create({
 			doc: text,
 			extensions: [
@@ -191,9 +83,7 @@ export function CodeEditor({
 				highlightActiveLine(),
 				drawSelection(),
 				rectangularSelection(),
-				history(),
 				foldGutter(),
-				indentOnInput(),
 				bracketMatching(),
 				highlightSelectionMatches(),
 				/*
@@ -214,7 +104,16 @@ export function CodeEditor({
 				 */
 				EditorState.phrases.of(searchPhrases()),
 				highlightCompartment.current.of(syntaxHighlighting(highlightStyle(codeLightTheme, codeDarkTheme))),
-				...editorAccess(Boolean(readOnly)),
+				/*
+				 * 只读，两层都要。
+				 *
+				 * `readOnly` 拦的是命令，`editable` 拦的是 DOM：只设前者，内容区仍是 contentEditable，
+				 * 输入法和拖放照样能把字塞进去。不可编辑的内容区默认拿不到焦点，⌘F 这些快捷键
+				 * 就无处可按，所以补一个 `tabindex`。
+				 */
+				EditorState.readOnly.of(true),
+				EditorView.editable.of(false),
+				EditorView.contentAttributes.of({ tabindex: "0" }),
 				wrapping.current.of(wrap ? EditorView.lineWrapping : []),
 				language.current.of([]),
 				keymap.of([
@@ -230,71 +129,11 @@ export function CodeEditor({
 						preventDefault: true,
 						run: (view) => (searchPanelOpen(view.state) ? closeSearchPanel(view) : openSearchPanel(view)),
 					},
-					// The replace half, which is folded away until it is asked for — same as the
-					// context menu's 替换 item, so the two cannot say different things.
-					{
-						key: "Mod-Alt-f",
-						preventDefault: true,
-						run: () => {
-							openFindRef.current(true);
-							return true;
-						},
-					},
-					// Before the defaults, so ⌘S is ours rather than the browser's.
-					{
-						key: "Mod-s",
-						preventDefault: true,
-						run: (view) => {
-							/*
-							 * Tidy first, then write — when that has been asked for.
-							 *
-							 * Awaited rather than fired alongside, or the save races the format and which
-							 * of the two versions reaches disk depends on how long Prettier took. Off by
-							 * default: ⌘S should be the cheapest, most predictable key in the app.
-							 */
-							if (!useApp.getState().settings?.formatting?.onSave) {
-								onSaveRef.current();
-								return true;
-							}
-							void formatNow(view, pathRef.current, { quiet: true }).then(() => onSaveRef.current());
-							return true;
-						},
-					},
-				/*
-					 * ⇧⌥F, the way every other editor spells it — except on macOS, where it cannot work.
-					 *
-					 * CodeMirror deliberately refuses to resolve a plain Alt combination there: on a Mac
-					 * ⌥ composes characters, so ⌥F arrives as `ƒ` and ⇧⌥F as `Ï`, and treating those as
-					 * the letter would break typing them. Its keymap skips the physical-key fallback for
-					 * exactly this case (`!(browser.mac && event.altKey && ...)` in `runHandlers`), so
-					 * the binding is unreachable rather than merely inconvenient — measured, not assumed:
-					 * the keydown arrived at `.cm-content` with `keyCode: 70` and came back out with
-					 * `defaultPrevented: false`.
-					 *
-					 * So ⌘⇧F there, which is free — the find bar is ⌘F and replace is ⌥⌘F.
-					 */
-					{
-						key: "Shift-Alt-f",
-						mac: "Mod-Shift-f",
-						preventDefault: true,
-						run: (view) => {
-							void formatNow(view, pathRef.current);
-							return true;
-						},
-					},
-					indentWithTab,
 					...defaultKeymap,
-					...historyKeymap,
 					...searchKeymap,
 					...foldKeymap,
 				]),
 				editorTheme(),
-				EditorView.updateListener.of((update) => {
-					if (!update.docChanged) return;
-					// Taking on outside text is not an edit: reported back, a discard or a reload came back as a draft.
-					if (update.transactions.some((tr) => tr.annotation(adopted))) return;
-					onChangeRef.current(contentOf(update.state, lineBreak.current));
-				}),
 			],
 		});
 
@@ -318,11 +157,11 @@ export function CodeEditor({
 			view.current = null;
 			setScroller(null);
 		};
-		// `text` is deliberately absent: it seeds the document, and re-seeding on every
-		// keystroke would fight the editor for control of its own content. `wrap` likewise —
-		// it seeds the compartment above and is reconfigured, never rebuilt.
+		// `text` is deliberately absent: a re-read of the same file is adopted below without
+		// losing the scroll position. `wrap` likewise — it seeds the compartment above and is
+		// reconfigured, never rebuilt.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [path, readOnly]);
+	}, [path]);
 
 	useEffect(() => {
 		view.current?.dispatch({
@@ -338,49 +177,17 @@ export function CodeEditor({
 		});
 	}, [codeLightTheme, codeDarkTheme]);
 
-	/*
-	 * Adopt an outside change without disturbing the caret.
-	 *
-	 * Only when the incoming text genuinely differs from what is on screen — otherwise this
-	 * fires on every keystroke, since our own `onChange` is what produced the new value.
-	 *
-	 * Checked against the text last seeded first, because a file with mixed line breaks never
-	 * equals what the editor hands back: comparing only against the document rewrote it on open,
-	 * and the rewrite was reported as an edit. `to` is the document's length, not the string's —
-	 * joined with `\r\n` the two differ by a character a line.
-	 */
+	/** The file changed on disk and was read again: show the new text in the same view. */
 	useEffect(() => {
 		const instance = view.current;
-		if (!instance || text === synced.current) return;
-		synced.current = text;
-		if (contentOf(instance.state, lineBreak.current) === text) return;
-		lineBreak.current = lineBreakOf(text);
-		instance.dispatch({
-			changes: { from: 0, to: instance.state.doc.length, insert: text },
-			annotations: adopted.of(true),
-		});
+		if (!instance || text === seeded.current) return;
+		seeded.current = text;
+		instance.dispatch({ changes: { from: 0, to: instance.state.doc.length, insert: text } });
 	}, [text]);
 
-	/**
-	 * Open the find bar, unfolding the replace half when that is what was asked for.
-	 *
-	 * The toggle is a button this component adds to CodeMirror's own panel (see `labelPanel`), so
-	 * pressing it is how "replace" is reached from anywhere else. The panel is built on first open,
-	 * hence the frame's wait: on the very first ⌥⌘F there is nothing to click yet.
-	 */
-	openFindRef.current = openFind;
-
-	function openFind(withReplace: boolean) {
+	function openFind() {
 		const instance = view.current;
-		if (!instance) return;
-		if (!searchPanelOpen(instance.state)) openSearchPanel(instance);
-		if (!withReplace) return;
-		requestAnimationFrame(() => {
-			const panel = host.current?.querySelector<HTMLElement>(".cm-panel.cm-search");
-			if (panel && !panel.classList.contains("ly-replace-open")) {
-				panel.querySelector<HTMLButtonElement>("[name=ly-replace-toggle]")?.click();
-			}
-		});
+		if (instance && !searchPanelOpen(instance.state)) openSearchPanel(instance);
 	}
 
 	return (
@@ -404,11 +211,7 @@ export function CodeEditor({
 					onClose={menu.close}
 					view={view.current}
 					path={path}
-					readOnly={Boolean(readOnly)}
 					onFind={openFind}
-					onFormat={async () => {
-						if (view.current) await formatNow(view.current, path);
-					}}
 				/>
 			)}
 		</div>

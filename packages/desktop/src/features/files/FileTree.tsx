@@ -33,7 +33,6 @@ import { macKeyboard, shortcutLetter } from "../../ui/keyboard.ts";
 export function FileTree({
 	roots,
 	openPath,
-	dirtyPaths,
 	onOpen,
 	onMoved,
 	onRemoved,
@@ -48,7 +47,6 @@ export function FileTree({
 	roots: string[];
 	/** The file the pane beside this one is showing, so the tree can mark it. */
 	openPath: string | null;
-	dirtyPaths: Set<string>;
 	onOpen(entry: FileEntry): void;
 	onMoved(from: string, to: string): void;
 	onRemoved(paths: string[]): void;
@@ -59,7 +57,7 @@ export function FileTree({
 	const actions = useFileActions({ root, refresh: tree.refresh, onMoved, onRemoved });
 	const openWith = useOpenTarget();
 	const runInTerminal = useSide((s) => s.runInTerminal);
-	const readOnly = !available("files", "write");
+	const readOnly = !available("files", "create");
 
 	/** Ordered, so ⇧-click has an anchor and the last one decides where 新建 lands. */
 	const [selection, setSelection] = useState<string[]>([]);
@@ -386,7 +384,6 @@ export function FileTree({
 								expanded={tree.expanded.has(entry.path)}
 								selected={chosen.has(entry.path) || openPath === entry.path}
 								focused={focus === entry.path && selection.length > 1}
-								dirty={dirtyPaths.has(entry.path)}
 								cut={cutSet.has(entry.path)}
 								dropping={entry.isDirectory && drag.dropTarget === entry.path}
 								renaming={renaming === entry.path}

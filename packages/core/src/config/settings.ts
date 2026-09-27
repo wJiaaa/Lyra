@@ -21,17 +21,9 @@ export type PermissionMode =
 	| "full";
 
 /** The language used by Lyra's own interface. */
-export type UiLocale =
-	| "system"
-	| "zh-CN"
-	| "zh-TW"
-	| "en"
-	| "fr"
-	| "ru"
-	| "ko"
-	| "ja";
+export type UiLocale = "system" | "zh-CN" | "en";
 
-export const UI_LOCALES = ["system", "zh-CN", "zh-TW", "en", "fr", "ru", "ko", "ja"] as const satisfies readonly UiLocale[];
+export const UI_LOCALES = ["system", "zh-CN", "en"] as const satisfies readonly UiLocale[];
 
 function normalizeUiLocale(value: unknown): UiLocale {
 	if (typeof value !== "string") return "system";
@@ -237,42 +229,6 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	errorDetail: "compact",
 	// ZCode 不设 `-webkit-font-smoothing`，字按系统默认的粗细画。
 	fontSmoothing: false,
-};
-
-/**
- * How code is printed when you ask for it to be tidied.
- *
- * Its own section rather than part of 代码外观, because the two look alike and are opposites:
- * appearance changes how the bytes on disk are drawn, and this changes the bytes. One is a
- * preference, the other edits your files.
- *
- * Every value here is a fallback. A project with a `.prettierrc` or an `.editorconfig` has
- * settled its own style, and that wins outright — see `electron/ipc/format.ts`. Otherwise a
- * personal preference set on one machine would rewrite a shared repository on every save.
- */
-export interface FormattingSettings {
-	/** Format on ⌘S as well as on the explicit shortcut. Off by default: saving should be cheap and predictable. */
-	onSave: boolean;
-	tabWidth: number;
-	useTabs: boolean;
-	printWidth: number;
-	semi: boolean;
-	singleQuote: boolean;
-	trailingComma: "none" | "es5" | "all";
-	bracketSpacing: boolean;
-	arrowParens: "always" | "avoid";
-}
-
-export const DEFAULT_FORMATTING: FormattingSettings = {
-	onSave: false,
-	tabWidth: 2,
-	useTabs: true,
-	printWidth: 120,
-	semi: true,
-	singleQuote: false,
-	trailingComma: "all",
-	bracketSpacing: true,
-	arrowParens: "always",
 };
 
 export interface HookConfig {
@@ -481,7 +437,6 @@ export interface Settings {
 	 */
 	commitLanguage?: string;
 	appearance: AppearanceSettings;
-	formatting: FormattingSettings;
 	hooks: HookConfig[];
 	scheduledTasks: ScheduledTask[];
 	/**
@@ -715,7 +670,6 @@ export const DEFAULT_SETTINGS: Settings = {
 	retryAttempts: 11,
 	retryPolicy: DEFAULT_RETRY_POLICY,
 	appearance: DEFAULT_APPEARANCE,
-	formatting: DEFAULT_FORMATTING,
 	hooks: [],
 	scheduledTasks: [],
 	disabledPlugins: [],
@@ -928,9 +882,6 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			screenshot: { ...DEFAULT_SCREENSHOT_SETTINGS, ...parsed.screenshot },
 			personalization: { ...DEFAULT_SETTINGS.personalization, ...parsed.personalization },
 			appearance: migrateAppearance({ ...DEFAULT_APPEARANCE, ...parsed.appearance }),
-			// Merged rather than taken whole, so a settings file written before this section existed
-			// gains the new keys instead of arriving with `undefined` where a number is expected.
-			formatting: { ...DEFAULT_FORMATTING, ...parsed.formatting },
 			hooks: parsed.hooks ?? [],
 			scheduledTasks: parsed.scheduledTasks ?? [],
 			disabledPlugins: parsed.disabledPlugins ?? [],

@@ -46,12 +46,7 @@ test("switching every bundled locale updates visible UI without reloading or los
 
 	const locales = [
 		["zh-CN", "新对话"],
-		["zh-TW", "新對話"],
 		["en", "New chat"],
-		["fr", "Nouvelle discussion"],
-		["ru", "Новая беседа"],
-		["ko", "새 대화"],
-		["ja", "新しい会話"],
 	] as const;
 
 	for (const [locale, expected] of locales) {
@@ -68,7 +63,7 @@ test("switching every bundled locale updates visible UI without reloading or los
 	}
 });
 
-test("the language menu exposes eight aligned choices and long locales do not overflow", async () => {
+test("the language menu exposes three aligned choices and English labels do not overflow", async () => {
 	await app.evaluate(`(async()=>{const settings=await window.lyra.settings.get();await window.lyra.settings.save({...settings,uiLocale:'zh-CN'});await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()`);
 	await app.evaluate(`document.querySelector('.ly-sidebar-foot button').click()`);
 	await frames(20);
@@ -83,21 +78,21 @@ test("the language menu exposes eight aligned choices and long locales do not ov
 		const rows=[...popup.querySelectorAll('button')];
 		return {count:rows.length,marks:rows.map((row)=>row.firstElementChild?.textContent?.trim()??''),maxHeight:popup.getBoundingClientRect().height};
 	})()`);
-	assert.equal(menu.count, 8);
-	assert.deepEqual(menu.marks, ["", "中", "繁", "EN", "FR", "РУ", "한", "日"]);
+	assert.equal(menu.count, 3);
+	assert.deepEqual(menu.marks, ["", "中", "EN"]);
 	assert.ok(menu.maxHeight <= 360, `language menu is ${menu.maxHeight}px high`);
 
 	await app.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 760, height: 900, deviceScaleFactor: 1, mobile: false });
-	const wide = await switchAndMeasure("fr");
+	const wide = await switchAndMeasure("en");
 	assert.ok(wide.documentWidth <= 760, JSON.stringify(wide));
 	assert.equal(wide.clippedButtons, 0, JSON.stringify(wide));
 
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
-	const narrow = await switchAndMeasure("ru");
+	const narrow = await switchAndMeasure("en");
 	assert.ok(narrow.documentWidth <= 375, JSON.stringify(narrow));
 	assert.equal(narrow.clippedButtons, 0, JSON.stringify(narrow));
-	await capture("i18n-russian-375");
+	await capture("i18n-english-375");
 });
 
 async function switchAndMeasure(locale: string) {

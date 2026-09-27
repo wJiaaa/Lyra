@@ -121,18 +121,12 @@ export const METHODS = {
 		dismiss: { channel: "tasks:dismiss" },
 		resume: { channel: "tasks:resume" },
 	},
-	format: {
-		external: { channel: "format:external" },
-		available: { channel: "format:available" },
-		config: { channel: "format:config" },
-	},
 	files: {
 		list: { channel: "files:list" },
 		read: { channel: "files:read" },
 		document: { channel: "files:document" },
 		documentText: { channel: "files:documentText" },
 		bytes: { channel: "files:bytes" },
-		write: { channel: "files:write" },
 		create: { channel: "files:create" },
 		rename: { channel: "files:rename" },
 		copy: { channel: "files:copy" },

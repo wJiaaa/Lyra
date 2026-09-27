@@ -2,36 +2,25 @@
  * Right-clicking inside the code editor.
  *
  * Electron ships no default context menu, so until now right-clicking in a file did nothing —
- * not even copy. Everything here is a CodeMirror command driven from the outside, except the three
- * clipboard entries: the browser will not let a script cut or paste on its own, so those go through
- * the main process (`bridge.clipboard`) and edit the document by dispatching a transaction.
- *
- * Items that would change a read-only file are disabled rather than hidden. A menu whose shape
- * changes with the file is a menu you have to read every time; one where the same item is greyed
- * says why nothing happened.
+ * not even copy. Everything here is a CodeMirror command driven from the outside, except copy,
+ * which goes through the main process (`bridge.clipboard`). The editor is a read-only preview, so
+ * nothing here changes the document.
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { macKeyboard } from "../../ui/keyboard.ts";
-import { redo, selectAll, undo } from "@codemirror/commands";
+import { selectAll } from "@codemirror/commands";
 import { foldAll, unfoldAll } from "@codemirror/language";
 import { gotoLine } from "@codemirror/search";
 import type { EditorView } from "@codemirror/view";
 import {
 	ChevronsDownUp,
 	ChevronsUpDown,
-	ClipboardPaste,
 	Copy,
 	CornerUpRight,
 	Link2,
 	ListOrdered,
-	Redo2,
-	Replace,
-	Scissors,
 	Search,
 	TextSelect,
-	Undo2,
-	Wand2,
 } from "lucide-react";
 
 import { useRevealLabel } from "../../store/open-targets.ts";
@@ -46,19 +35,14 @@ export function EditorMenu({
 	onClose,
 	view,
 	path,
-	readOnly,
-	/** Opens CodeMirror's find bar, optionally with the replace half already unfolded. */
+	/** Opens CodeMirror's find bar. */
 	onFind,
-	/** Runs the formatter and reports the outcome. Lives in the editor, which owns the settings. */
-	onFormat,
 }: {
 	anchor: { x: number; y: number } | null;
 	onClose: () => void;
 	view: EditorView | null;
 	path: string;
-	readOnly: boolean;
-	onFind: (withReplace: boolean) => void;
-	onFormat: () => Promise<void>;
+	onFind: () => void;
 }) {
 	const { t } = useI18n();
 	// Before the early return: a hook that only sometimes runs is a hook that runs out of order.
@@ -69,30 +53,9 @@ export function EditorMenu({
 	const selected = view.state.sliceDoc(selection.from, selection.to);
 	const hasSelection = selected.length > 0;
 
-	/** Put the selection on the clipboard, and take it out of the document if this was a cut. */
-	const take = async (remove: boolean) => {
+	const copy = async () => {
 		if (!hasSelection) return;
 		await bridge.clipboard.write(selected);
-		if (remove && !readOnly) {
-			view.dispatch({ changes: { from: selection.from, to: selection.to, insert: "" } });
-		}
-		view.focus();
-	};
-
-	const paste = async () => {
-		const text = await bridge.clipboard.read();
-		if (!text) return;
-		/*
-		 * Measured the way the document measures it. A line break is one position in the document
-		 * however the clipboard spelled it, so a CRLF paste — anything copied on Windows — counted
-		 * one too many per line, put the cursor past the end, and CodeMirror threw.
-		 */
-		const inserted = view.state.toText(text);
-		// Replaces the selection when there is one, which is what pasting over a selection means.
-		view.dispatch({
-			changes: { from: selection.from, to: selection.to, insert: inserted },
-			selection: { anchor: selection.from + inserted.length },
-		});
 		view.focus();
 	};
 
@@ -104,28 +67,8 @@ export function EditorMenu({
 
 	return (
 		<ContextMenu anchor={anchor} onClose={onClose} width="default">
-			<MenuItem icon={<Undo2 {...ICON} />} hint="⌘Z" disabled={readOnly} onClick={() => run(undo)}>
-				{t("common.undo")}
-			</MenuItem>
-			<MenuItem icon={<Redo2 {...ICON} />} hint={macKeyboard() ? "⇧⌘Z" : "Ctrl+Y"} disabled={readOnly} onClick={() => run(redo)}>
-				{t("common.redo")}
-			</MenuItem>
-
-			<MenuSeparator />
-
-			<MenuItem
-				icon={<Scissors {...ICON} />}
-				hint="⌘X"
-				disabled={!hasSelection || readOnly}
-				onClick={() => void take(true)}
-			>
-				{t("common.cut")}
-			</MenuItem>
-			<MenuItem icon={<Copy {...ICON} />} hint="⌘C" disabled={!hasSelection} onClick={() => void take(false)}>
+			<MenuItem icon={<Copy {...ICON} />} hint="⌘C" disabled={!hasSelection} onClick={() => void copy()}>
 				{t("common.copy")}
-			</MenuItem>
-			<MenuItem icon={<ClipboardPaste {...ICON} />} hint="⌘V" disabled={readOnly} onClick={() => void paste()}>
-				{t("common.paste")}
 			</MenuItem>
 			<MenuItem icon={<TextSelect {...ICON} />} hint="⌘A" onClick={() => run(selectAll)}>
 				{t("common.selectAll")}
@@ -133,24 +76,8 @@ export function EditorMenu({
 
 			<MenuSeparator />
 
-			{/*
-			 * Offered on every file, not only the ones with a formatter.
-			 *
-			 * Hiding it would mean the menu quietly answers "no formatter for this" by omission,
-			 * which reads as the feature being missing rather than the language being unsupported.
-			 * Pressing it says which — see `formatNow` in `CodeEditor.tsx`.
-			 */}
-			<MenuItem icon={<Wand2 {...ICON} />} hint={macKeyboard() ? "⇧⌘F" : "Shift+Alt+F"} disabled={readOnly} onClick={() => void onFormat()}>
-				{t("common.format")}
-			</MenuItem>
-
-			<MenuSeparator />
-
-			<MenuItem icon={<Search {...ICON} />} hint="⌘F" onClick={() => onFind(false)}>
+			<MenuItem icon={<Search {...ICON} />} hint="⌘F" onClick={onFind}>
 				{t("find.find")}
-			</MenuItem>
-			<MenuItem icon={<Replace {...ICON} />} hint="⌥⌘F" disabled={readOnly} onClick={() => onFind(true)}>
-				{t("find.replace")}
 			</MenuItem>
 			{/* ⌥⌘G is CodeMirror's own binding for this, from `searchKeymap`. */}
 			<MenuItem icon={<ListOrdered {...ICON} />} hint="⌥⌘G" onClick={() => run(gotoLine)}>

@@ -28,8 +28,7 @@ Dock 按扣除侧栏后的真实空间适配。当前排列方向放不下各面
 使用 Ctrl、Alt、Shift，Mac 保持符号表示。设置里的 Electron accelerator 保留 Control、
 Command 和 Super 的区别，录制时使用物理字母键避免 Option 改写字符。
 
-工具栏、菜单和 tooltip 共用格式化规则；编辑器的重做与格式化提示分别对应它实际使用的
-CodeMirror 键位，Windows 是 Ctrl+Y 与 Shift+Alt+F。
+工具栏、菜单和 tooltip 共用格式化规则。
 
 工作区和设置的全局快捷键跳过已消费事件、重复 keydown、输入法组合态和 AltGr，避免
 编辑文字时重复切换布局。面板菜单中已经公布的浏览器、任务和子 Agent 快捷键均接到对应

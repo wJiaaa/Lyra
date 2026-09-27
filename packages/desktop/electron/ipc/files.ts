@@ -12,7 +12,7 @@ import { referenceFile } from "../reference-files.ts";
 
 import { readableArtifact } from "../readable-artifacts.ts";
 import { dialog, ipcMain } from "electron";
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { getWindow } from "../window.ts";
 import { documentKind } from "../../shared/document-kind.ts";
 import { readDatabase, readWorkbook, type DocumentData } from "../documents.ts";
@@ -111,16 +111,5 @@ export function registerFilesIpc({ projectRoots }: FilesIpcDeps): void {
 		const writable = await projectPath(raw);
 		const path = writable ?? readableArtifact(raw) ?? await referenceFile(raw);
 		return readReadableFile(path, !writable);
-	});
-
-	ipcMain.handle("files:write", async (_event, raw: string, text: string) => {
-		const path = await projectPath(raw);
-		if (!path) return { ok: false, error: "该路径不在已打开的项目内" };
-		try {
-			await writeFile(path, text, "utf8");
-			return { ok: true };
-		} catch (error) {
-			return { ok: false, error: error instanceof Error ? error.message : String(error) };
-		}
 	});
 }

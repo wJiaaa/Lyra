@@ -90,7 +90,7 @@ export function editorTheme(): Extension {
 		},
 		".cm-selectionMatch": { backgroundColor: "color-mix(in srgb, var(--color-info) 12%, transparent)" },
 		/*
-		 * The find/replace panel, restyled to the app's controls.
+		 * The find panel, restyled to the app's controls.
 		 *
 		 * CodeMirror ships a functional panel that looks like a browser dialogue from 2005 —
 		 * beige buttons, a 1px inset border, its own font. Everything here maps it onto the
@@ -135,8 +135,7 @@ export function editorTheme(): Extension {
 		 *
 		 * `fit-content` on a wrapping flex row resolves towards max-content — the width every
 		 * control would need on a single line — which left a stretch of empty card between the
-		 * last button and the close corner. A stated width makes both rows end at the same edge,
-		 * which is what lets the replace actions line up under the navigation.
+		 * last button and the close corner.
 		 */
 		".cm-panel.cm-search": {
 			// The card grows from the corner it is pinned to, not from its own centre.
@@ -154,59 +153,21 @@ export function editorTheme(): Extension {
 			fontSize: "var(--text-detail)",
 		},
 		/*
-		 * One zero-height full-width pseudo-element, used as a line break.
-		 *
-		 * The standard trick for forcing a break in a wrapping flex row. CodeMirror's own `<br>`
-		 * sits at roughly the right point in the source but will not take a `flex-basis` — a
-		 * replaced element ignores it — so it is hidden and this takes over.
-		 */
-		".cm-panel.cm-search br": { display: "none" },
-		".cm-panel.cm-search::before": { content: '""', flex: "0 0 100%", height: 0, order: 5 },
-		/*
-		 * Reordered, because the source order is not the reading order.
-		 *
-		 * CodeMirror emits find, its buttons, the option checkboxes, close, then replace and its
-		 * buttons — so laid out plainly the replace field lands in the middle of the checkboxes.
-		 * This puts each row with its own controls: find with its options and navigation, then
-		 * replace with the two things you can replace.
-		 */
-		/*
 		 * The fields have a width, rather than taking whatever is going.
 		 *
 		 * Left to grow they filled the pane — in a wide panel that meant a 1,100px box to type a
 		 * word into, with its buttons stranded at the far end and nothing in between. A find bar
 		 * is a compact group of controls, so it stays one and sits at the left edge whatever the
-		 * pane is doing. Both fields get the same cap, so in any pane wide enough to reach it the
-		 * two rows line up without a spacer propping them apart.
+		 * pane is doing.
 		 *
 		 * A cap rather than a basis: `flex-wrap` breaks the line before it shrinks anything, so a
 		 * 240px basis in a narrow pane put each field on a row of its own and made the panel
 		 * taller instead of narrower. Growing up to a limit collapses gracefully instead.
 		 */
-		".cm-panel.cm-search button[name=ly-replace-toggle]": {
-			order: 0,
-			width: "18px",
-			height: "22px",
-			padding: 0,
-			border: "none",
-			background: "transparent",
-			color: "var(--color-ink-faint)",
-			fontSize: "var(--text-caption)",
-			lineHeight: "22px",
-		},
-		".cm-panel.cm-search button[name=ly-replace-toggle]:hover": { color: "var(--color-ink)" },
-		".cm-panel.cm-search input[name=replace], .cm-panel.cm-search button[name=replace], .cm-panel.cm-search button[name=replaceAll], .cm-panel.cm-search::before":
-			{ display: "none" },
-		".cm-panel.cm-search.ly-replace-open input[name=replace], .cm-panel.cm-search.ly-replace-open button[name=replace], .cm-panel.cm-search.ly-replace-open button[name=replaceAll]":
-			{ display: "inline-flex" },
-		".cm-panel.cm-search.ly-replace-open::before": { display: "block" },
 		".cm-panel.cm-search input[name=search]": { order: 1, flex: "1 1 36px", minWidth: "36px", maxWidth: "236px" },
 		".cm-panel.cm-search [name=next], .cm-panel.cm-search [name=prev], .cm-panel.cm-search [name=select]": {
 			order: 3,
 		},
-		".cm-panel.cm-search input[name=replace]": { order: 6, flex: "1 1 36px", minWidth: "36px", maxWidth: "236px", marginLeft: "23px" },
-		".cm-panel.cm-search [name=replace], .cm-panel.cm-search [name=replaceAll]": { order: 7 },
-		".cm-panel.cm-search button[name=replace]": { marginLeft: "auto" },
 		".cm-textfield": {
 			// Otherwise the flex basis is the content box and each field silently occupies 24px
 			// more than it claims — enough, in a narrow pane, to push the close button off the row.

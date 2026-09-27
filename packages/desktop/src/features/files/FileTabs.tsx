@@ -50,26 +50,14 @@ export function FileTabs() {
 	 * read landed. The strip answers immediately; the content area answers when it has something.
 	 */
 	const open = useOpenFile((s) => s.opening ?? s.path);
-	const drafts = useOpenFile((s) => s.drafts);
 	const strip = useRef<HTMLDivElement>(null);
 	const menu = useContextMenu<OpenFileTab>();
-	const notify = useApp((s) => s.notify);
 
-	/**
-	 * Close a set, and say what was spared.
-	 *
-	 * A bulk close keeps tabs with unsaved edits (see `closeTabs`), and a strip that quietly
-	 * refuses to obey 全部关闭 looks broken. The notice is the difference between "it did not
-	 * work" and "it kept the two files you were editing".
-	 */
-	const closeMany = useCallback(
-		(paths: string[]) => {
-			const kept = useOpenFile.getState().closeTabs(paths);
-			if (kept > 0) notify(t("tabs.keptUnsaved", { n: kept }));
-			retire();
-		},
-		[notify, t],
-	);
+	/** Close a set, with the same clean-up as closing one. */
+	const closeMany = useCallback((paths: string[]) => {
+		useOpenFile.getState().closeTabs(paths);
+		retire();
+	}, []);
 
 	/** One tab, by its ✕ or by 关闭 — same landing rule, and the same clean-up if it was the last. */
 	const closeOne = useCallback((path: string) => {
@@ -113,7 +101,6 @@ export function FileTabs() {
 			>
 				{tabs.map((tab) => {
 					const current = tab.path === open;
-					const unsaved = tab.path in drafts;
 					return (
 						<div
 							key={tab.path}
@@ -140,19 +127,6 @@ export function FileTabs() {
 							>
 								{tab.name}
 							</button>
-							{/*
-							 * Unsaved edits, in the place the ✕ would be.
-							 *
-							 * Swapped rather than shown beside it: a dot and a cross on a 22px tab is two
-							 * marks fighting over four pixels, and pointing at the tab is what you do when
-							 * you mean to close it — which is the moment the dot has to be a cross.
-							 */}
-							{unsaved ? (
-								<span
-									aria-label={t("tabs.unsaved")}
-									className="mr-1 size-[5px] shrink-0 rounded-full bg-accent group-hover/tab:hidden"
-								/>
-							) : null}
 							<button
 								type="button"
 								data-ly-hover-reveal
@@ -160,7 +134,7 @@ export function FileTabs() {
 								onClick={() => closeOne(tab.path)}
 								className={`rounded p-0.5 transition-opacity duration-[var(--ly-t-quick)] hover:bg-elevated ${
 									current ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover/tab:opacity-60"
-								} ${unsaved ? "hidden group-hover/tab:block" : ""}`}
+								}`}
 							>
 								<X size={11} strokeWidth={2.2} />
 							</button>

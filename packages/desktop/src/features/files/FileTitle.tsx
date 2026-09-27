@@ -47,11 +47,8 @@ export function FileTitle() {
 	const folders = useProjectFolders();
 	const path = useOpenFile((s) => s.path);
 	const name = useOpenFile((s) => s.name);
-	const dirty = useOpenFile((s) => s.drafts);
 	const menu = usePopover();
 	const treeOnScreen = useTreeOnScreen();
-
-	const unsaved = path !== null && path in dirty;
 
 	/*
 	 * A name, and nothing more, while the tree is beside it.
@@ -65,7 +62,6 @@ export function FileTitle() {
 			<span className="flex min-w-0 items-center gap-1 py-0.5 pl-1 text-detail" data-ly-tip={path ?? undefined}>
 				<FileText size={12.5} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
 				<span className={`min-w-0 truncate ${path ? "text-ink" : "text-ink-muted"}`}>{name ?? t("dock.fileContents")}</span>
-				{unsaved && <span aria-label={t("tabs.unsaved")} className="size-[5px] shrink-0 rounded-full bg-accent" />}
 			</span>
 		);
 	}
@@ -83,13 +79,6 @@ export function FileTitle() {
 			>
 				<FileText size={12.5} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
 				<span className={`min-w-0 truncate ${path ? "text-ink" : "text-ink-muted"}`}>{name ?? t("dock.fileContents")}</span>
-				{/*
-				 * Unsaved edits, as the dot the tree uses for the same thing.
-				 *
-				 * The name is the only place this pane says which file it is, so it is the only place
-				 * that can say the file has changed since it was read.
-				 */}
-				{unsaved && <span aria-label={t("tabs.unsaved")} className="size-[5px] shrink-0 rounded-full bg-accent" />}
 				<ChevronDown
 					size={11}
 					strokeWidth={2}
@@ -141,7 +130,6 @@ export function FileTitle() {
 							<FileTree
 								roots={folders}
 								openPath={path}
-								dirtyPaths={new Set(Object.keys(dirty))}
 								onOpen={(entry) => {
 									void useOpenFile.getState().open(entry);
 									/*

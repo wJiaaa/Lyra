@@ -61,13 +61,12 @@ import {
 	sideChats,
 } from "./session-hub.ts";
 import { canonicalPath } from "./canonical-path.ts";
-import { containingRoot, resolveInside } from "./file-ops.ts";
+import { resolveInside } from "./file-ops.ts";
 import { resolveReadablePath } from "./file-read-service.ts";
 import { loadUserImagesAt } from "./display-image.ts";
 import { captureLog } from "./screenshot-debug.ts";
 import { registerFilesIpc } from "./ipc/files.ts";
 import { registerFileOpsIpc } from "./ipc/file-ops.ts";
-import { registerFormatIpc } from "./ipc/format.ts";
 import { rescueLegacyWorkspaces, scratchRoots } from "./scratch.ts";
 import { resolveWorktreesRoot } from "./git-worktrees.ts";
 import { applySettings, loadAppSettings, onSettingsChanged } from "./app-settings.ts";
@@ -234,17 +233,6 @@ function allowedRoots(): string[] {
 
 function projectPath(target: string): string | null {
 	return resolveInside(canonicalPath(target), allowedRoots().map((root) => canonicalPath(root)));
-}
-
-/**
- * Which workspace root a path belongs to, or null if none of them.
- *
- * `projectPath` answers whether a path is allowed; this answers where it lives, which is what
- * anything walking upward through directories needs in order to know when to stop.
- */
-function projectRoot(target: string): string | null {
-	const roots = allowedRoots().map((root) => canonicalPath(root));
-	return containingRoot(canonicalPath(target), roots);
 }
 
 /** The predicate form, for the doorways that only need a yes or no. */
@@ -884,7 +872,6 @@ function registerIpc(): void {
 
 	registerFilesIpc({ projectRoots: () => allowedRoots() });
 	registerFileOpsIpc({ projectPath });
-	registerFormatIpc({ projectPath, projectRoot });
 
 	registerTerminalIpc({ terminals, spawnPty, projectPath, insideAProject, eachWindow: eachAppWindow });
 	registerUpdateIpc();

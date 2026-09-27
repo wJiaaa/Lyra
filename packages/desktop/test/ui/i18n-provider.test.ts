@@ -14,9 +14,9 @@ test("changing locale updates visible text and the document language without rem
 	try {
 		assert.equal(view.text(), "What would you like to build in Lyra?");
 		assert.equal(document.documentElement.lang, "en");
-		await view.rerender(h(I18nProvider, { locale: "ja", children: h(Probe) }));
-		assert.equal(view.text(), "Lyra で何を作りますか？");
-		assert.equal(document.documentElement.lang, "ja");
+		await view.rerender(h(I18nProvider, { locale: "zh-CN", children: h(Probe) }));
+		assert.equal(view.text(), "要在 Lyra 内开发什么？");
+		assert.equal(document.documentElement.lang, "zh-CN");
 	} finally {
 		await view.unmount();
 	}

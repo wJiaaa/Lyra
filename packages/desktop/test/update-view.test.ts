@@ -262,5 +262,5 @@ test("the release day follows the interface language, not a hard-coded Chinese l
 	const at = Date.parse("2026-09-17T03:39:53Z");
 	assert.match(publishedOn(at, "zh-CN"), /2026/);
 	assert.match(publishedOn(at, "en"), /2026/);
-	assert.notEqual(publishedOn(at, "fr"), publishedOn(at, "zh-CN"));
+	assert.notEqual(publishedOn(at, "en"), publishedOn(at, "zh-CN"));
 });
