@@ -121,6 +121,36 @@ export type { ForgeAccount, ForgeKind, ForgeKindInfo } from "./forge/types.ts";
 
 /** One shell in a directory, as the tab strip lists it. */
 /** What `settings.layers` answers; see there. */
+/** 设置页上的一条钩子，摊平了的样子。`id` 是位置，任何一次改动之后都要换成新列表里的。 */
+export interface HookView {
+	id: string;
+	scope: import("@lyra/core").HookScope;
+	event: import("@lyra/core").HookEventName;
+	matcher?: string;
+	type: "command" | "process";
+	command: string;
+	args?: string[];
+	async?: boolean;
+	shell?: true | string;
+	statusMessage?: string;
+	/** 秒。 */
+	timeout?: number;
+	enabled: boolean;
+	/** 认不出的字段，原样保留。 */
+	custom?: Record<string, unknown>;
+	/** 只有项目钩子有：这一条的内容是否已被这台机器信任过。没信任的在会话里不运行。 */
+	trusted?: boolean;
+}
+
+export interface HooksView {
+	user: HookView[];
+	/** 没有打开项目时为 null。 */
+	project: HookView[] | null;
+	projectPath?: string;
+	/** 项目的 `.lyra/config.json` 读不出来时，为什么。 */
+	projectError?: string;
+}
+
 export interface ProjectLayerView {
 	path: string;
 	exists: boolean;
@@ -256,6 +286,15 @@ export interface LyraApi {
 		 * MCP page did not have it until the app was restarted.
 		 */
 		onChanged(handler: (settings: Settings) => void): () => void;
+	};
+	/** 钩子：用户级和项目级，外加项目钩子的信任。每个写操作都回一份新的完整列表。 */
+	hooks: {
+		list(cwd: string | null): Promise<HooksView>;
+		/** `id` 为 null 是新建。 */
+		save(scope: import("@lyra/core").HookScope, cwd: string | null, id: string | null, draft: import("@lyra/core").HookDraft): Promise<HooksView>;
+		remove(scope: import("@lyra/core").HookScope, cwd: string | null, id: string): Promise<HooksView>;
+		setEnabled(scope: import("@lyra/core").HookScope, cwd: string | null, id: string, enabled: boolean): Promise<HooksView>;
+		trust(cwd: string, ids: string[]): Promise<HooksView>;
 	};
 	usage: {
 		/**

@@ -71,7 +71,7 @@ export { registeredSkills, useSkillRegistry } from "./skills/registry.ts";
 export { backgroundJobs, type BackgroundJob } from "./tools/background-jobs.ts";
 export { loadCapabilityPlugins, type LoadedCapabilityPlugins } from "./plugins/capability.ts";
 export { API_FORMATS, getProvider, streamAssistant, useLlmRegistry } from "./ai/index.ts";
-export type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "./agent/events.ts";
+export type { AgentEvent, AgentEventSink, CommandRun, HookRun, QueuedTask } from "./agent/events.ts";
 export type { TodoItem } from "./tools/todo.ts";
 export { runAgent, type AgentRunConfig, type AgentRunResult } from "./agent/loop.ts";
 export { errorResult, textResult } from "./agent/tool-run.ts";
@@ -89,7 +89,6 @@ export {
 	saveSettings,
 	settingsPath,
 	type AppearanceSettings,
-	type HookConfig,
 	type PermissionMode,
 	type ScheduledTask,
 	type ProjectEntry,
@@ -167,7 +166,24 @@ export { compactIfNeeded, compactWith, useCompaction } from "./runtime/compactio
 export type { ContextBreakdown, ContextSegment, ContextSegmentKey, MemoryFileItem } from "./runtime/context.ts";
 export { estimateTokens } from "./tokens.ts";
 export { computeCost, costAtRates, selectPricingRates, type SelectedPricingRates } from "./utils/pricing.ts";
-export { hooksFor, makeAfterToolCall, makeBeforeToolCall, runHook } from "./runtime/hooks.ts";
+export {
+	HOOK_EVENTS,
+	addHook,
+	hookEntries,
+	readProjectHooks,
+	removeHook,
+	setHookEnabled,
+	updateHook,
+	writeProjectHooks,
+	type HookDefinition,
+	type HookDraft,
+	type HookEntry,
+	type HookEventName,
+	type HookScope,
+	type HooksConfig,
+} from "./hooks/config.ts";
+export { trustHookDigests, trustedHookDigests } from "./hooks/trust.ts";
+export { hookCommandDisplay } from "./hooks/runner.ts";
 export type { SessionStatus } from "./runtime/reporting.ts";
 export { AgentSession, type AgentSessionOptions,  } from "./runtime/session.ts";
 export { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatOptions, type SideChatState, type SideChatEvent, type SideChatUpdate } from "./runtime/sidechat.ts";

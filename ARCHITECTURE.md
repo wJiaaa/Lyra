@@ -17,6 +17,7 @@ Lyra 是一个 agent 运行时加一个桌面端。`packages/core` 平台无关�
 
 界面语言的来源、进程边界与不翻译的内容见 [界面国际化](docs/architecture/i18n.md)。
 缓存、骨架屏与空结果在视图切换时的约定见 [视图切换与加载](docs/architecture/view-loading.md)。
+模型请求的来源分段、固定预算和用量统计见 [上下文组装与统计](docs/architecture/context-assembly.md)。
 浏览器怎么拿到界面、能调哪些方法、令牌怎么用，见 [Web 访问](docs/architecture/web-access.md) 与
 [ADR-0027](docs/adr/0027-web-access.md)；移动端与中转已移除，见 [ADR-0026](docs/adr/0026-remove-mobile-and-relay.md)。
 

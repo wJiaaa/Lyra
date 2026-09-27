@@ -22,7 +22,17 @@ export * from "./layout.tsx";
  * which is the same treatment the appearance sliders use: white with a hairline and a shadow so
  * it stays visible on a pale track, lightened on dark so it does not glare.
  */
-export function Toggle({ checked, onChange, ariaLabel }: { checked: boolean; onChange: (checked: boolean) => void; ariaLabel?: string }) {
+export function Toggle({
+	checked,
+	onChange,
+	ariaLabel,
+	disabled,
+}: {
+	checked: boolean;
+	onChange: (checked: boolean) => void;
+	ariaLabel?: string;
+	disabled?: boolean;
+}) {
 	return (
 		<button
 			type="button"
@@ -30,8 +40,9 @@ export function Toggle({ checked, onChange, ariaLabel }: { checked: boolean; onC
 			aria-checked={checked}
 			// For the switches whose own label is not beside them, or is not unique on the page.
 			aria-label={ariaLabel}
+			disabled={disabled}
 			onClick={() => onChange(!checked)}
-			className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors duration-[var(--ly-t-base)] ${
+			className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors duration-[var(--ly-t-base)] disabled:cursor-not-allowed disabled:opacity-45 ${
 				checked ? "bg-accent" : "bg-line"
 			}`}
 		>

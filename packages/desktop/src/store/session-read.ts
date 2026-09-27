@@ -49,6 +49,7 @@ function stashInCache(
 		state: {
 			running: intactSnapshot.running,
 			commandRuns: intactSnapshot.commandRuns ?? [],
+			hookRuns: intactSnapshot.hookRuns ?? [],
 			todos: todosFrom(intactSnapshot.messages),
 			compactions: (intactSnapshot.compactions ?? []).map((at) => ({ at, before: 0, after: 0 })),
 			approvals: intactSnapshot.pendingApprovals,
@@ -136,7 +137,7 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 	if ((before.loadingSession || resync) && events.length) {
 		let merged: Cache[string] = {
 			meta: snapshot.meta, messages: snapshot.messages, toolRuns: rebuildToolRuns(snapshot.messages),
-			state: { running: snapshot.running, commandRuns: snapshot.commandRuns ?? [], todos: todosFrom(snapshot.messages), compactions: (snapshot.compactions ?? []).map((at) => ({ at, before: 0, after: 0 })),
+			state: { running: snapshot.running, commandRuns: snapshot.commandRuns ?? [], hookRuns: snapshot.hookRuns ?? [], todos: todosFrom(snapshot.messages), compactions: (snapshot.compactions ?? []).map((at) => ({ at, before: 0, after: 0 })),
 				approvals: snapshot.pendingApprovals, stopped: howItStopped(snapshot.messages), retrying: null, capabilities: null, pendingUserMessage: null },
 		};
 		for (const event of events) {
@@ -164,6 +165,7 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 			current.todos !== before.todos ||
 			current.compactions !== before.compactions ||
 			current.commandRuns !== before.commandRuns ||
+			current.hookRuns !== before.hookRuns ||
 			current.meta !== before.meta);
 	const unchanged =
 		cached &&
@@ -188,6 +190,7 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 		stopped: advanced ? current.stopped : snapshot.running ? null : howItStopped(messages),
 		running: advanced ? current.running : snapshot.running,
 		commandRuns: advanced ? current.commandRuns : snapshot.commandRuns ?? [],
+		hookRuns: advanced ? current.hookRuns : snapshot.hookRuns ?? [],
 		approvals: advanced ? current.approvals : snapshot.pendingApprovals,
 		toolRuns,
 		loadingSession: false,
@@ -201,6 +204,7 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 					state: {
 						running: advanced ? current.running : snapshot.running,
 						commandRuns: advanced ? current.commandRuns : snapshot.commandRuns ?? [],
+						hookRuns: advanced ? current.hookRuns : snapshot.hookRuns ?? [],
 						todos: advanced ? current.todos : todosFrom(messages),
 						compactions: advanced ? current.compactions : (snapshot.compactions ?? []).map((at) => ({ at, before: 0, after: 0 })),
 						approvals: advanced ? current.approvals : snapshot.pendingApprovals,

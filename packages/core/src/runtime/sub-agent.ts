@@ -41,7 +41,7 @@ import {
 	type DelegationDecision,
 } from "./delegation.ts";
 import { textTokens, toolTokens } from "./context.ts";
-import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
+import { loadHookRunner, makeAfterToolCall, makeBeforeToolCall, makePermissionRequest, type TurnHooks } from "./hooks.ts";
 import { writePreview } from "./previews.ts";
 import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutcome } from "./yield-tool.ts";
 import type { Skill } from "../skills/loader.ts";
@@ -464,6 +464,18 @@ export async function runSubAgent(
 			skills: options.skills.map(skill => skill.name),
 			schemas: allowed.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters })),
 		} });
+		/*
+		 * 工具钩子跟着委派下去——同一个 `bash` 调用，主对话里被审计、下一层就不被审计，那钩子就形同虚设。
+		 * 一轮开始和收尾的钩子不跟：那是这场对话的开头和结尾，不是这个子代理的。
+		 */
+		const hooks: TurnHooks = {
+			runner: await loadHookRunner({ settings: options.settings, cwd: options.cwd }),
+			cwd: options.cwd,
+			sessionId: options.sessionId,
+			agentName: definition.name,
+			permissionMode: options.settings.permissionMode,
+			signal: controller.signal,
+		};
 		const runConfig: AgentRunConfig = {
 				sessionId: id,
 				cwd: options.cwd,
@@ -561,8 +573,9 @@ export async function runSubAgent(
 				// across the project's folders exactly as the conversation that dispatched it does.
 				projectRoots: projectRootsFor(options.settings.projects, options.cwd),
 				scratchDir: join(lyraHome(), "scratch", options.sessionId),
-				beforeToolCall: makeBeforeToolCall(options.settings.hooks, options.cwd, controller.signal),
-				afterToolCall: makeAfterToolCall(options.settings.hooks, options.cwd, controller.signal),
+				beforeToolCall: makeBeforeToolCall(hooks),
+				afterToolCall: makeAfterToolCall(hooks),
+				permissionRequest: makePermissionRequest(hooks),
 				/*
 				 * Previews go under the parent's session, not this run's own id.
 				 *

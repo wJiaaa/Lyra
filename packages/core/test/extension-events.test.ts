@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { ALL_EXTENSION_EVENTS } from "../src/extensions/types.ts";
+import { HookRunner } from "../src/hooks/runner.ts";
 import { makeAfterToolCall } from "../src/runtime/hooks.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
@@ -85,10 +86,10 @@ test("tool_result 是观察，不是拦截", async () => {
 	 * 能凭空编造事实的扩展是同一个东西。要改结果得在清单里声明 `intercepts`，那是调用**之前**。
 	 */
 	const watcher = spy();
-	const after = makeAfterToolCall([], root, undefined, watcher.host as never);
+	const after = makeAfterToolCall({ runner: new HookRunner({ hooks: [] }), cwd: root, sessionId: "s1" }, watcher.host as never);
 	const result: ToolResult = { content: [{ type: "text", text: "跑完了" }] } as ToolResult;
 
-	const out = await after({ toolName: "bash", args: {}, result });
+	const out = await after({ toolName: "bash", args: {}, result, toolCallId: "c1" });
 	await new Promise((r) => setTimeout(r, 10));
 
 	assert.deepEqual(watcher.seen, ["tool_result"]);

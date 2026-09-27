@@ -11,10 +11,16 @@
  */
 
 import { completedCompaction, interruptedCompaction } from "./compaction-lifecycle.ts";
-import type { AgentEvent, AgentEventSink, CommandRun } from "../agent/events.ts";
+import type { AgentEvent, AgentEventSink, CommandRun, HookRun } from "../agent/events.ts";
 import type { SessionMeta, SessionRecordInput } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
-import type { Message } from "../types.ts";
+import type { LlmContext, Message, ModelConfig } from "../types.ts";
+
+export type RecordedContext = Extract<AgentEvent, { type: "context" }>;
+export interface RequestContext {
+	context: LlmContext;
+	model: ModelConfig;
+}
 
 /**
  * Events that outlive the window they were shown in.
@@ -36,6 +42,8 @@ export class SessionLog {
 	 */
 	messages: Message[] = [];
 	commandRuns: CommandRun[] = [];
+	/** 钩子的执行记录，和 `commandRuns` 同理：运行中的会话从内存读，`store.load` 从日志重建同一份。 */
+	hookRuns: HookRun[] = [];
 	meta!: SessionMeta;
 
 	/**
@@ -79,6 +87,10 @@ export class SessionLog {
 
 	/** What the last recorded context looked like, so an unchanged one is not written twice. */
 	private lastContext: string | null = null;
+	private recordedContext: RecordedContext | null = null;
+	private contextLoaded = false;
+	private contextRevision = 0;
+	requestContext: RequestContext | null = null;
 
 	private readonly store: SessionStorage;
 	private readonly sink: AgentEventSink;
@@ -97,6 +109,7 @@ export class SessionLog {
 		this.committed.add(message);
 		this.messages.push(message);
 		this.meta = await this.store.append(this.meta, { type: "message", message });
+		if (this.requestContext && !this.requestContext.context.messages.includes(message)) this.requestContext.context.messages.push(message);
 	}
 
 	/**
@@ -121,9 +134,19 @@ export class SessionLog {
 			const command = event.command;
 			event = { ...event, command: { ...command, at: this.commandRuns.find(run => run.id === command.id)?.at ?? this.messages.length } };
 		}
+		if (event.type === "hook_run") {
+			const run = event.run;
+			const at = this.hookRuns.findIndex((known) => known.id === run.id);
+			const stamped = { ...run, at: at >= 0 ? this.hookRuns[at].at : this.messages.length };
+			event = { ...event, run: stamped };
+			if (at < 0) this.hookRuns.push(stamped); else this.hookRuns[at] = stamped;
+			// 只落终态：「开始了」对一份事后读的记录没有信息量，终态才说得出它拦没拦、为什么。
+			if (stamped.status !== "running" && this.meta) this.meta = await this.store.append(this.meta, { type: "event", event });
+		}
 		if (PERSISTED_EVENTS.has(event.type) && this.meta) {
 			this.meta = await this.store.append(this.meta, { type: "event", event });
 		}
+		if (event.type === "context") { this.recordedContext = event; this.contextLoaded = true; }
 		if (event.type === "command_status") {
 			const at = this.commandRuns.findIndex((run) => run.id === event.command.id);
 			if (at < 0) this.commandRuns.push(event.command); else this.commandRuns[at] = event.command;
@@ -131,6 +154,7 @@ export class SessionLog {
 		if (event.type === "agent_end") this.commandRuns = this.commandRuns.map(run => run.automatic && run.status === "running" ? interruptedCompaction(run) : run);
 		// A failed append must leave the last durable model view in force.
 		if (event.type === "compacted" && event.kept !== undefined) {
+			this.requestContext = null;
 			this.markCompaction(event.summary ?? "", event.kept);
 			const at = this.commandRuns.findIndex((run) => run.id === event.commandId);
 			if (at >= 0) this.commandRuns[at] = event.command ?? completedCompaction(this.commandRuns[at], event.before, event.after);
@@ -145,14 +169,37 @@ export class SessionLog {
 	 * way to build a prompt and forget to record it. Unchanged context is not re-recorded: a
 	 * hundred-turn run would otherwise carry a hundred copies of the same system prompt.
 	 */
-	async recordContext(systemPrompt: string, toolNames: string[], skillNames: string[], schemas?: import("../types/tool.ts").ToolSpec[]): Promise<string> {
+	async recordContext(systemPrompt: string, toolNames: string[], skillNames: string[], schemas?: import("../types/tool.ts").ToolSpec[], details?: Pick<RecordedContext, "sections" | "mcpTools">): Promise<string> {
 		const tools = [...toolNames].sort();
 		const skills = [...skillNames].sort();
-		const fingerprint = `${systemPrompt}\0${tools.join(",")}\0${skills.join(",")}\0${JSON.stringify(schemas)}`;
+		const fingerprint = `${systemPrompt}\0${tools.join(",")}\0${skills.join(",")}\0${JSON.stringify(schemas)}\0${JSON.stringify(details)}`;
 		if (fingerprint === this.lastContext) return systemPrompt;
+		await this.emit({ type: "context", systemPrompt, tools, skills, ...(schemas ? { schemas } : {}), ...details });
 		this.lastContext = fingerprint;
-		await this.emit({ type: "context", systemPrompt, tools, skills, ...(schemas ? { schemas } : {}) });
 		return systemPrompt;
+	}
+
+	captureRequest(context: LlmContext, model: ModelConfig): void {
+		// Messages are immutable once committed; copy the array before the loop appends to it.
+		this.requestContext = { context: { ...context, messages: [...context.messages], tools: structuredClone(context.tools) }, model };
+	}
+
+	/** Reuse the durable prompt after restart, including sources that have since changed on disk. */
+	async readContext(): Promise<RecordedContext | null> {
+		if (this.contextLoaded) return this.recordedContext;
+		const revision = this.contextRevision;
+		const contexts: { seq: number; event: RecordedContext }[] = [];
+		for await (const record of this.store.read(this.meta.projectId, this.meta.id)) {
+			if (record.type === "event" && record.event.type === "context") contexts.push({ seq: record.seq, event: record.event });
+			if (record.type === "truncate") {
+				while (contexts.length && contexts.at(-1)!.seq > record.afterSeq) contexts.pop();
+			}
+		}
+		// A rewind may invalidate the disk read even when no newer request has finished yet.
+		if (revision !== this.contextRevision) return this.readContext();
+		// A request can finish while disk history is being read; its newer snapshot wins.
+		if (!this.contextLoaded) { this.recordedContext = contexts.at(-1)?.event ?? null; this.contextLoaded = true; }
+		return this.recordedContext;
 	}
 
 	/**
@@ -189,6 +236,11 @@ export class SessionLog {
 	 * committed again, and nothing here is written.
 	 */
 	restore(messages: Message[], compaction: { summary: string; keptFrom: number; at?: number } | null = null, compactions: number[] = []): void {
+		this.requestContext = null;
+		this.recordedContext = null;
+		this.contextLoaded = false;
+		this.contextRevision++;
+		this.lastContext = null;
 		this.messages = messages;
 		this.committed = new WeakSet(messages);
 		this.compaction = compaction;
@@ -218,6 +270,7 @@ export class SessionLog {
 		 */
 		const boundary = this.compaction && index > this.compaction.keptFrom ? this.compaction : null;
 		this.commandRuns = this.commandRuns.filter((run) => run.at <= index);
+		this.hookRuns = this.hookRuns.filter((run) => run.at <= index);
 		// The marks live at positions too, so a cut tail takes the ones inside it — same rule as the runs above.
 		this.restore(truncated.messages, boundary, this.compactions.filter((at) => at <= index));
 		return true;

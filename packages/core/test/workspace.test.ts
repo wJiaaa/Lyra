@@ -146,16 +146,19 @@ test("every place that builds a system prompt says which kind of workspace it is
 		return out;
 	};
 
-	let sites = 0;
+	const sites = new Set<string>();
 	for (const file of await walk(root)) {
 		const source = await readFile(file, "utf8");
 		// 类型声明本身不算调用点。
 		if (file.replaceAll("\\", "/").endsWith("prompt/system.ts")) continue;
-		const declares = (source.match(/^\s*isGitRepo:/gm) ?? []).length;
+		const declares = (source.match(/^\s*isGitRepo[:,]/gm) ?? []).length;
 		if (declares === 0) continue;
-		const isolated = (source.match(/^\s*isolatedWorktree:/gm) ?? []).length;
+		const isolated = (source.match(/^\s*isolatedWorktree[:,]/gm) ?? []).length;
 		assert.equal(isolated, declares, `${file} 说了自己是不是 git 仓库，却没说是不是隔离副本`);
-		sites += declares;
+		sites.add(file.replaceAll("\\", "/").slice(root.replaceAll("\\", "/").length));
 	}
-	assert.ok(sites >= 3, `只找到 ${sites} 个组装点，这条测试大概没在查它以为在查的东西`);
+	// Execution and reporting share a loader; dispatch still assembles its own workspace context.
+	for (const file of ["runtime/prompt-context.ts", "runtime/sub-agent.ts"]) {
+		assert.ok(sites.has(file), `${file} 的组装入口没有声明工作区类型`);
+	}
 });

@@ -74,6 +74,8 @@ export interface TurnConfigDeps {
 	artifacts?: ArtifactSink;
 	beforeToolCall: AgentRunConfig["beforeToolCall"];
 	afterToolCall: AgentRunConfig["afterToolCall"];
+	permissionRequest?: AgentRunConfig["permissionRequest"];
+	onStop?: AgentRunConfig["onStop"];
 	drainSteering: AgentRunConfig["drainSteering"];
 	/**
 	 * Watches the stream for rule violations. Session-scoped, not per turn: repeat policy is
@@ -209,6 +211,8 @@ export function buildTurnConfig(
 			rules: deps.ruleMonitor?.active ? ruleHooks(deps.ruleMonitor) : undefined,
 			beforeToolCall: deps.beforeToolCall,
 			afterToolCall: deps.afterToolCall,
+			permissionRequest: deps.permissionRequest,
+			onStop: deps.onStop,
 			// The session's own stream override applies here too; summarising is a model call.
 			/*
 			 * The session's own stream override applies here too; summarising is a model call.

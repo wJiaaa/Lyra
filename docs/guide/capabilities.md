@@ -80,19 +80,39 @@ Agent 光标由面板覆盖层绘制，采用圆润的黑色箭头、白色描�
 
 ## 钩子
 
-每个钩子是一条在工具调用前后运行的 shell 命令。工具名和参数**既作为环境变量、也作为 JSON 从
-标准输入**送进去，所以钩子可以是一行，也可以是一个真正的脚本。
+钩子是在特定事件发生时自动运行的命令，协议与 Claude Code / ZCode 的 hooks 一致。在设置 › 钩子
+里管理，分两个范围：
 
-| 环境变量 | 内容 |
-| --- | --- |
-| `DW_TOOL` | 工具名 |
-| `DW_EVENT` | `before-tool` 或 `after-tool` |
-| `DW_ARGS` | 参数，JSON |
-| `DW_CWD` | 工作目录 |
+- **用户**：存在设置文件的 `hooks` 里，对所有项目生效。
+- **项目**：存在项目的 `.lyra/config.json` 的 `hooks` 里，只对这个项目生效。项目钩子可能是别人
+  提交进来的，所以**信任之前不会运行**：会话里跑到它只记一笔「已阻止」，输入框上方提示待审核，
+  在设置页逐条点「信任」。信任按内容指纹记在 `~/.lyra/hook-trust.json`，改过的钩子要重新信任；
+  在设置页里亲手新建或修改的项目钩子自动信任。
 
-（前缀是 `DW_` 而不是 `LYRA_`，是改名之前留下的。改掉会让已有的钩子脚本失效，所以留着。）
+七个事件：`SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、
+`PostToolUseFailure`、`Stop`。
 
-配置项：`command`、`tools`（留空则每个工具都触发）、`event`、`enabled`、`blocking`。
+```json
+{
+  "hooks": {
+    "events": {
+      "PreToolUse": [
+        { "matcher": "Bash|Write", "hooks": [{ "type": "command", "command": "./scripts/guard.sh", "timeout": 30 }] }
+      ]
+    }
+  }
+}
+```
 
-**`blocking` 是钩子从「日志」变成「护栏」的那一项**：一个 `before-tool` 钩子非零退出会把这次
-调用变成一个错误结果，模型能看到并作出反应。
+- **运行方式**：`command` 交给 shell 执行（可指定 `shell`，`async: true` 后台运行、不等结果）；
+  `process` 直接起进程，`args` 是 argv 数组，超时用 `timeoutMs`。默认超时 60 秒。
+- **匹配器**：留空或 `*` 匹配全部；只含字母数字、`_` 和 `|` 时按名字精确匹配（工具名同时认
+  `bash` / `Bash` 两种写法）；其余按正则。
+- **输入**：事件的 JSON 从标准输入送进去（字段同时给 camelCase 和 snake_case，如 `tool_name`、
+  `tool_input`）；环境变量有 `CLAUDE_PROJECT_DIR`、`LYRA_PROJECT_DIR`、`CLAUDE_SESSION_ID` 等。
+- **输出**：退出码 0 时读标准输出里的 JSON（`decision`、`reason`、`additionalContext`、
+  `hookSpecificOutput.permissionDecision` 等，不是 JSON 就忽略）；退出码 2 表示阻止，原因取
+  标准错误；其他退出码记为失败但不阻止。多个钩子的权限结论取最严的一个（deny > ask > allow）。
+- `Stop` 钩子要求继续并给出原因时，这一轮会接着跑，最多连续三次。
+
+每一轮跑过哪些钩子、结果如何，在回复下方的操作栏里点钩子图标查看。

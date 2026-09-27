@@ -47,9 +47,13 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 			toolRuns = rebuildToolRuns(messages);
 			state = { ...state, todos: todosFrom(messages), pendingUserMessage: null,
 				commandRuns: state.commandRuns?.filter((run) => run.at <= event.messageCount),
+				hookRuns: state.hookRuns?.filter((run) => run.at <= event.messageCount),
 				compactions: state.compactions.filter((run) => run.at <= event.messageCount),
 				// 见 `apply-event.ts` 里的同一处：记录跟着它说明的那一段一起走。
 				hiccups: state.hiccups?.filter((one) => one.at <= event.messageCount) };
+			break;
+		case "hook_run":
+			state = { ...state, hookRuns: [...(state.hookRuns ?? []).filter((run) => run.id !== event.run.id), event.run] };
 			break;
 		case "command_status":
 			state = { ...state, ...(event.command.automatic ? {} : { running: event.command.status === "running" }), commandRuns: [...(state.commandRuns ?? []).filter((run) => run.id !== event.command.id), event.command] };

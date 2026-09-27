@@ -17,6 +17,7 @@ import { isNudge, runs, runKey, turnBlocks, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
 import { ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
+import { HookTrustBanner } from "./HookTrustBanner.tsx";
 import { QuestionNav } from "./QuestionNav.tsx";
 import { questionsIn, timeSeparators } from "./question-navigation.ts";
 import { MessageRow } from "./rows.tsx";
@@ -581,6 +582,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
        */}
       <div className="relative shrink-0">
         <ApprovalOverlay />
+        <HookTrustBanner className={`${gutter} pb-1.5`} />
         {!roomToFloat && (
           <div className={`${gutter} pb-1.5`}>
             <div className="mx-auto w-full max-w-[var(--ly-content)]">

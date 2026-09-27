@@ -1,290 +1,264 @@
-import type { HookConfig } from "@lyra/core";
-import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { Anchor, Plus, Info } from "lucide-react";
-import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
-import { useState } from "react";
-import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
-import { DialogAction } from "../../ui/overlay/Dialog.tsx";
-import { useApp } from "../../store/index.ts";
-import {
-  Badge,
-  Card,
-  EmptyHint,
-  Field,
-  SectionTitle,
-  Select,
-  TextInput,
-  Toggle,
-} from "./controls.tsx";
-import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
-import { useI18n, type MessageKey } from "../../i18n/index.ts";
+/**
+ * 钩子：用户级的存在设置文件里，项目级的存在当前项目的 `.lyra/config.json` 里。
+ *
+ * 布局照 ZCode：顶上一行是范围、数量和搜索，下面「已安装」一段，每条一行，点开是表单。项目钩子
+ * 来自项目目录——可能是别人提交进来的——所以没信任过的那几条开关是灰的，旁边给一个「信任」。
+ */
 
-/* 预设表在模块加载时成型，那会儿还不知道窗口是哪种语言——所以存 key，渲染时才译。 */
-const PRESETS: { labelKey: MessageKey; hook: Omit<HookConfig, "id"> }[] = [
-  {
-    labelKey: "hooks.presetLog",
-    hook: {
-      command:
-        'echo "$(date -u +%FT%TZ) $DW_TOOL $DW_ARGS" >> .lyra/tool-audit.log',
-      tools: ["bash"],
-      event: "after-tool",
-      enabled: true,
-      blocking: false,
-    },
-  },
-  {
-    labelKey: "hooks.presetLockfile",
-    hook: {
-      command:
-        'case "$DW_ARGS" in *lock*) echo t("hooks.lockfileProtected") >&2; exit 1 ;; esac',
-      tools: ["edit", "write"],
-      event: "before-tool",
-      enabled: true,
-      blocking: true,
-    },
-  },
-  {
-    labelKey: "hooks.presetFormat",
-    hook: {
-      command:
-        "command -v prettier >/dev/null && prettier --write . >/dev/null 2>&1 || true",
-      tools: ["write", "edit"],
-      event: "after-tool",
-      enabled: false,
-      blocking: false,
-    },
-  },
-];
+import type { HookDraft, HookScope } from "@lyra/core";
+import { Anchor, Plus, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { HookView, HooksView } from "../../../electron/ipc-types.ts";
+import { useI18n } from "../../i18n/index.ts";
+import { baseName } from "../../lib/paths.ts";
+import { bridge } from "../../services/index.ts";
+import { useApp } from "../../store/index.ts";
+import { SearchField } from "../../ui/inputs/SearchField.tsx";
+import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { Toggle } from "./controls.tsx";
+import { HookForm } from "./HookForm.tsx";
+import { InlineSelect } from "./inputs.tsx";
+import { Card } from "./layout.tsx";
+
+function matchesQuery(hook: HookView, query: string): boolean {
+	if (!query) return true;
+	return [hook.event, hook.type, hook.matcher, hook.command, ...(hook.args ?? [])].some((value) => value?.toLowerCase().includes(query));
+}
 
 export function HooksSettings() {
 	const { t } = useI18n();
-  const settings = useApp((s) => s.settings);
-  const saveSettings = useApp((s) => s.saveSettings);
-  if (!settings) return null;
+	const cwd = useApp((s) => s.workspace?.path) ?? null;
+	const [view, setView] = useState<HooksView | null>(null);
+	const [scope, setScope] = useState<HookScope>("user");
+	const [query, setQuery] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	const [busy, setBusy] = useState<string | null>(null);
+	/** `undefined` 是列表；`null` 是新建；一条钩子是在编辑它。 */
+	const [editing, setEditing] = useState<HookView | null | undefined>(undefined);
+	const confirm = useConfirmer();
 
-  const hooks = settings.hooks;
-  const update = (id: string, patch: Partial<HookConfig>) =>
-    void saveSettings({
-      ...settings,
-      hooks: hooks.map((h) => (h.id === id ? { ...h, ...patch } : h)),
-    });
-  const add = (hook: Omit<HookConfig, "id">) =>
-    void saveSettings({
-      ...settings,
-      hooks: [...hooks, { ...hook, id: `hook-${Date.now().toString(36)}` }],
-    });
-  const remove = (id: string) =>
-    void saveSettings({ ...settings, hooks: hooks.filter((h) => h.id !== id) });
+	const refresh = useCallback(() => {
+		void bridge.hooks
+			.list(cwd)
+			.then((next) => {
+				setView(next);
+				setError(null);
+			})
+			.catch((reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
+	}, [cwd]);
 
-  return (
-    <div className="pt-8">
-      <header className="flex items-start justify-between pb-7">
-        <div>
-          <h1 className="text-display leading-tight font-semibold tracking-tight text-ink">
-            {t("hooks.title")}
-          </h1>
-          <p className="mt-2 max-w-[580px] text-label leading-relaxed text-ink-muted">
-            {t("hooks.intro")}
-          </p>
-        </div>
-        <div className="shrink-0 pt-1">
-          <DialogAction
-            onClick={() =>
-              add({
-                command: "echo $DW_TOOL",
-                tools: [],
-                event: "before-tool",
-                enabled: true,
-                blocking: false,
-              })
-            }
-            label={t("common.new")}
-          >
-            <Plus size={13} strokeWidth={2} aria-hidden />
-            {t("common.new")}
-          </DialogAction>
-        </div>
-      </header>
+	useEffect(refresh, [refresh]);
+	// 项目钩子写在项目目录的文件里，拉一次代码就可能变了。回到窗口时重读，不留一份过期的列表。
+	useEffect(() => {
+		window.addEventListener("focus", refresh);
+		return () => window.removeEventListener("focus", refresh);
+	}, [refresh]);
+	useEffect(() => {
+		if (!cwd) setScope("user");
+	}, [cwd]);
 
-      <ProjectOverrideNotice keys={["hooks"]} />
-      <SectionTitle>{t("hooks.quickAdd")}</SectionTitle>
-      <Card className="mb-7">
-        {PRESETS.map((preset) => (
-          /*
-           * The badges and the button drop below the command when the row runs out.
-           *
-           * They are `shrink-0` — correctly, a badge that has been squeezed says
-           * nothing — so on a narrow pane the truncating command had no width left to
-           * truncate *to* and pushed the whole row past the edge instead.
-           */
-          <div
-            key={t(preset.labelKey)}
-            data-row-actions
-            className="@container border-b border-line-soft px-4 py-3 last:border-b-0"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <Anchor
-                  size={14}
-                  strokeWidth={1.8}
-                  className="shrink-0 text-ink-muted"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="text-label text-ink">{t(preset.labelKey)}</div>
-                  <ScrollText text={preset.hook.command} className="mt-0.5 font-mono text-detail text-ink-faint" />
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <span data-ly-tip={`${preset.hook.event === "before-tool" ? t("hooks.beforeTool") : t("hooks.afterTool")}${preset.hook.blocking ? t("hooks.blockingSuffix") : ""}`} className="text-ink-faint"><Info size={13} /></span>
-                <IconButton className="ly-row-action" label={t("hooks.addPreset", { label: t(preset.labelKey) })} icon={<Plus size={14} />} onClick={() => add(preset.hook)} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </Card>
+	/*
+	 * 从会话里「去审核」点过来的，直接落在项目那一栏。
+	 *
+	 * 只在首次拿到列表时看一眼：之后切回「用户」是用户自己的选择，不该被抢回去。
+	 */
+	const [landed, setLanded] = useState(false);
+	useEffect(() => {
+		if (landed || !view) return;
+		setLanded(true);
+		if (view.project?.some((hook) => hook.trusted === false)) setScope("project");
+	}, [landed, view]);
 
-      <SectionTitle>{t("hooks.configured", { n: hooks.length })}</SectionTitle>
-      {hooks.length === 0 ? (
-        <Card>
-          <EmptyHint>{t("hooks.empty")}</EmptyHint>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {hooks.map((hook) => (
-            <HookCard
-              key={hook.id}
-              hook={hook}
-              onChange={(patch) => update(hook.id, patch)}
-              onRemove={() => remove(hook.id)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+	async function run(id: string, action: () => Promise<HooksView>) {
+		setBusy(id);
+		try {
+			setView(await action());
+			setError(null);
+		} catch (reason) {
+			setError(reason instanceof Error ? reason.message : String(reason));
+		} finally {
+			setBusy(null);
+		}
+	}
+
+	const scopes = useMemo(
+		() => [{ value: "user" as const, label: t("common.user") }, ...(cwd ? [{ value: "project" as const, label: baseName(cwd) }] : [])],
+		[cwd, t],
+	);
+
+	if (editing !== undefined) {
+		const target = editing;
+		return (
+			<>
+				<HookForm
+					key={target?.id ?? "new"}
+					hook={target ?? undefined}
+					scopes={scopes}
+					defaultScope={scope}
+					onCancel={() => setEditing(undefined)}
+					onSave={async (saveScope: HookScope, draft: HookDraft) => {
+						try {
+							setView(await bridge.hooks.save(saveScope, cwd, target?.id ?? null, draft));
+							setError(null);
+							setScope(saveScope);
+							setEditing(undefined);
+						} catch (reason) {
+							setError(reason instanceof Error ? reason.message : String(reason));
+						}
+					}}
+					onDelete={
+						target
+							? () =>
+									confirm.ask({
+										title: t("hooks.delete"),
+										detail: t("hooks.deleteDetail", { event: target.event }),
+										confirmLabel: t("common.delete"),
+										onConfirm: () => {
+											void run(target.id, () => bridge.hooks.remove(target.scope, cwd, target.id)).then(() => setEditing(undefined));
+										},
+									})
+							: undefined
+					}
+				/>
+				{error && <p className="mt-3 text-detail text-danger">{error}</p>}
+				{confirm.element}
+			</>
+		);
+	}
+
+	const hooks = (scope === "project" ? view?.project : view?.user) ?? [];
+	const needle = query.trim().toLowerCase();
+	const visible = hooks.filter((hook) => matchesQuery(hook, needle));
+	const untrusted = scope === "project" && hooks.some((hook) => hook.trusted === false);
+
+	return (
+		<div className="pt-8" data-ly-hooks-settings="">
+			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("hooks.title")}</h1>
+			<p className="mt-2 text-label text-ink-muted">{t("hooks.intro")}</p>
+
+			<div className="mt-6 flex min-w-0 flex-wrap items-center gap-3">
+				<InlineSelect value={scope} onChange={setScope} options={scopes} ariaLabel={t("hooks.scope")} />
+				<div className="h-4 w-px bg-line" aria-hidden />
+				<div className="flex items-center gap-1 text-label font-medium text-ink">
+					{t("hooks.title")}
+					<span className="text-detail font-normal text-ink-faint">{visible.length}</span>
+				</div>
+				<SearchField value={query} onChange={setQuery} placeholder={t("hooks.searchPlaceholder")} className="ml-auto w-64" />
+			</div>
+
+			{untrusted && view?.projectPath && (
+				<div className="mt-5 flex items-start gap-2 rounded-[10px] border border-accent/35 bg-accent/6 px-3.5 py-2.5 text-detail text-ink-muted">
+					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-accent" aria-hidden />
+					<span>{t("hooks.trustNotice", { path: view.projectPath })}</span>
+				</div>
+			)}
+			{scope === "project" && view?.projectError && (
+				<p className="mt-5 rounded-[10px] border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger">
+					{t("hooks.projectError", { error: view.projectError })}
+				</p>
+			)}
+			{error && <p className="mt-5 rounded-[10px] border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger">{error}</p>}
+
+			<section className="mt-6">
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<h2 className="flex h-7 items-center gap-1.5 text-label font-medium text-ink">
+						{t("hooks.installed")}
+						<span className="text-detail font-normal text-ink-faint">{hooks.length}</span>
+					</h2>
+					<div className="flex items-center gap-1.5">
+						<Button variant="subtle" size="sm" icon={<RefreshCw size={13} aria-hidden />} label={t("common.refresh")} onClick={refresh} />
+						<Button size="sm" icon={<Plus size={13} aria-hidden />} onClick={() => setEditing(null)}>
+							{t("common.new")}
+						</Button>
+					</div>
+				</div>
+
+				{hooks.length === 0 ? (
+					<Card>
+						<div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+							<div className="text-label font-medium text-ink">{t("hooks.emptyTitle")}</div>
+							<p className="max-w-[360px] text-detail text-ink-faint">{t("hooks.emptyDetail")}</p>
+							<Button variant="primary" className="mt-2" icon={<Plus size={13} aria-hidden />} onClick={() => setEditing(null)}>
+								{t("hooks.add")}
+							</Button>
+						</div>
+					</Card>
+				) : visible.length === 0 ? (
+					<Card>
+						<p className="px-6 py-10 text-center text-label text-ink-faint">{t("hooks.searchEmpty")}</p>
+					</Card>
+				) : (
+					<Card className="divide-y divide-line-soft">
+						{visible.map((hook) => (
+							<HookRow
+								key={hook.id}
+								hook={hook}
+								busy={busy === hook.id}
+								onEdit={() => setEditing(hook)}
+								onTrust={() => cwd && void run(hook.id, () => bridge.hooks.trust(cwd, [hook.id]))}
+								onToggle={(enabled) => void run(hook.id, () => bridge.hooks.setEnabled(hook.scope, cwd, hook.id, enabled))}
+							/>
+						))}
+					</Card>
+				)}
+			</section>
+		</div>
+	);
 }
 
-function HookCard({
-  hook,
-  onChange,
-  onRemove,
+function HookRow({
+	hook,
+	busy,
+	onEdit,
+	onTrust,
+	onToggle,
 }: {
-  hook: HookConfig;
-  onChange: (patch: Partial<HookConfig>) => void;
-  onRemove: () => void;
+	hook: HookView;
+	busy: boolean;
+	onEdit: () => void;
+	onTrust: () => void;
+	onToggle: (enabled: boolean) => void;
 }) {
 	const { t } = useI18n();
-  const [command, setCommand] = useState(hook.command);
-  const confirm = useConfirmer();
+	const untrusted = hook.trusted === false;
+	const command = [hook.command, ...(hook.args ?? [])].join(" ");
 
-  return (
-    <Card>
-			<div data-row-actions className="flex items-center gap-2.5 border-b border-line-soft px-4 py-3">
-        <Anchor
-          size={15}
-          strokeWidth={1.8}
-          className="shrink-0 text-ink-muted"
-        />
-        <Badge tone="muted">
-          {hook.event === "before-tool" ? t("hooks.before") : t("hooks.after")}
-        </Badge>
-        {hook.blocking && <Badge tone="accent">{t("hooks.blocking")}</Badge>}
-        <ScrollText
-          text={hook.command}
-          className="min-w-0 flex-1 font-mono text-detail text-ink-muted"
-        />
-        <Toggle
-          checked={hook.enabled}
-          onChange={(enabled) => onChange({ enabled })}
-        />
-				<RowDeleteButton
-					label={t("hooks.deleteOne")}
-          onClick={() =>
-            confirm.ask({
-              title: t("hooks.deleteConfirm"),
-              detail: hook.command,
-              confirmLabel: t("common.delete"),
-              onConfirm: onRemove,
-            })
-          }
-				/>
-
-        {confirm.element}
-      </div>
-
-      <div className="space-y-3 px-4 py-3.5">
-        {/*
-         * An empty command is not saved.
-         *
-         * Blurring an empty field used to persist it, and a hook whose command is the empty
-         * string still runs — the shell exits 0, so a *blocking* hook silently turns into
-         * one that approves everything. The field keeps what you typed and says why.
-         */}
-        <Field
-          label={t("commands.title")}
-          hint={
-            command.trim() ? t("hooks.commandDetail") : t("hooks.required")
-          }
-        >
-          <TextInput
-            value={command}
-            onChange={setCommand}
-            onBlur={() => {
-              if (!command.trim()) return;
-              if (command !== hook.command) onChange({ command });
-            }}
-            invalid={!command.trim()}
-            mono
-          />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={t("hooks.when")}>
-            <Select
-              value={hook.event}
-              onChange={(event) => onChange({ event })}
-              options={[
-                { value: "before-tool", label: t("hooks.beforeTool") },
-                { value: "after-tool", label: t("hooks.afterTool") },
-              ]}
-            />
-          </Field>
-          <Field label={t("hooks.limitTools")} hint={t("hooks.limitToolsDetail")}>
-            <TextInput
-              value={hook.tools.join(", ")}
-              onChange={(value) =>
-                onChange({
-                  tools: value
-                    .split(",")
-                    .map((t) => t.trim())
-                    .filter(Boolean),
-                })
-              }
-              mono
-              placeholder="bash, write, edit"
-            />
-          </Field>
-        </div>
-
-        {hook.event === "before-tool" && (
-          <label className="flex items-center justify-between rounded-[10px] border border-line px-3.5 py-2.5">
-            <span className="min-w-0 flex-1">
-              <span className="block text-label text-ink">
-                {t("hooks.blockOnNonZero")}
-              </span>
-              <span className="block text-detail text-ink-muted">
-                {t("hooks.nonZeroCode")}
-                {t("hooks.blockDetail")}
-              </span>
-            </span>
-            <Toggle
-              checked={hook.blocking}
-              onChange={(blocking) => onChange({ blocking })}
-            />
-          </label>
-        )}
-      </div>
-    </Card>
-  );
+	return (
+		<div
+			role="button"
+			tabIndex={0}
+			data-ly-hook-row=""
+			onClick={busy ? undefined : onEdit}
+			onKeyDown={(event) => {
+				if (event.target !== event.currentTarget || busy) return;
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onEdit();
+				}
+			}}
+			className="flex cursor-default items-center gap-3 px-4 py-3 transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
+		>
+			<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-shell text-ink-faint" aria-hidden>
+				<Anchor size={16} strokeWidth={1.8} />
+			</div>
+			<div className="min-w-0 flex-1">
+				<div className="flex min-w-0 items-center gap-2">
+					<span className="truncate text-label font-medium text-ink">{hook.event}</span>
+					{hook.matcher && <span className="truncate font-mono text-detail text-ink-faint">{hook.matcher}</span>}
+				</div>
+				<p className="mt-1 truncate font-mono text-detail text-ink-faint">{command}</p>
+			</div>
+			{/* 行上的控件不冒泡：点「信任」或开关不该顺便打开编辑表单。 */}
+			<div className="flex shrink-0 items-center gap-2" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+				{untrusted && (
+					<Button size="sm" disabled={busy} icon={<ShieldCheck size={13} aria-hidden />} onClick={onTrust}>
+						{t("hooks.trust")}
+					</Button>
+				)}
+				{/* 没信任的强制显示为关、并且不能开：先审，再用。 */}
+				<Toggle checked={untrusted ? false : hook.enabled} onChange={onToggle} disabled={busy || untrusted} ariaLabel={hook.event} />
+			</div>
+		</div>
+	);
 }

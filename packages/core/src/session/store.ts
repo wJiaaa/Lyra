@@ -14,7 +14,7 @@ import { appendFile, mkdir, readdir, readFile, rename, stat, unlink } from "node
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
-import type { AgentEvent, CommandRun } from "../agent/events.ts";
+import type { AgentEvent, CommandRun, HookRun } from "../agent/events.ts";
 import type { Message, ThinkingLevel, Usage } from "../types.ts";
 import type { SessionStorage } from "./storage.ts";
 import { addUsage, emptyUsage } from "../types.ts";
@@ -222,6 +222,7 @@ export class SessionStore implements SessionStorage {
 				entries: { seq: number; message: Message }[];
 				compactions: number[];
 				commandRuns?: CommandRun[];
+				hookRuns?: HookRun[];
 				compaction: Boundary | null;
 			};
 			if (parsed.v !== 2 || parsed.seq !== expected || !parsed.meta || !Array.isArray(parsed.messages)) return null;
@@ -241,6 +242,7 @@ export class SessionStore implements SessionStorage {
 			entries: { seq: number; message: Message }[];
 			compactions: number[];
 			commandRuns?: CommandRun[];
+			hookRuns?: HookRun[];
 			compaction: Boundary | null;
 		},
 	): Promise<void> {
@@ -449,6 +451,7 @@ export class SessionStore implements SessionStorage {
 		entries: { seq: number; message: Message }[];
 		compactions: number[];
 		commandRuns?: CommandRun[];
+		hookRuns?: HookRun[];
 		compaction: Boundary | null;
 	} | null> {
 		if (options?.display) {
@@ -468,6 +471,7 @@ export class SessionStore implements SessionStorage {
 		 */
 		const compactions: number[] = [];
 		const commandRuns = new Map<string, { seq: number; run: CommandRun }>();
+		const hookRuns = new Map<string, { seq: number; run: HookRun }>();
 		let subagentEntries: { seq: number; usage: Usage }[] = [];
 		/*
 		 * And the newest of them in full, which is what the *model* is given.
@@ -483,6 +487,9 @@ export class SessionStore implements SessionStorage {
 			else if (record.type === "event" && record.event.type === "command_status") {
 				const run = record.event.command;
 				commandRuns.set(run.id, { seq: record.seq, run });
+			}
+			else if (record.type === "event" && record.event.type === "hook_run") {
+				hookRuns.set(record.event.run.id, { seq: record.seq, run: record.event.run });
 			}
 			else if (record.type === "event" && record.event.type === "compacted") {
 				compactions.push(entries.length);
@@ -520,6 +527,7 @@ export class SessionStore implements SessionStorage {
 				entries = entries.filter((e) => e.seq <= record.afterSeq);
 				subagentEntries = subagentEntries.filter((e) => e.seq <= record.afterSeq);
 				for (const [id, entry] of commandRuns) if (entry.seq > record.afterSeq) commandRuns.delete(id);
+				for (const [id, entry] of hookRuns) if (entry.seq > record.afterSeq) hookRuns.delete(id);
 				while (compactions.length && compactions[compactions.length - 1] > entries.length) compactions.pop();
 				// A rewind past the boundary retires it: the tail it was paired with is gone.
 				if (compaction && compaction.keptFrom > entries.length) compaction = null;
@@ -576,6 +584,7 @@ export class SessionStore implements SessionStorage {
 			compactions,
 			compaction,
 			commandRuns: [...commandRuns.values()].map(({ run }) => run.status === "running" ? interruptedCompaction(run) : run),
+			hookRuns: [...hookRuns.values()].map(({ run }) => run),
 		};
 		if (options?.display) await this.writeDisplayCache(projectId, sessionId, loaded);
 		return loaded;

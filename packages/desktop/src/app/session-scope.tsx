@@ -100,6 +100,16 @@ export function useScopedCommandRuns() {
 	});
 }
 
+const EMPTY_HOOK_RUNS: AppState["hookRuns"] = [];
+
+export function useScopedHookRuns() {
+	const id = useScopedSessionId();
+	return useApp((s) => {
+		if (!id || s.activeSessionId === id) return s.hookRuns;
+		return s.sessionCache[id]?.state?.hookRuns ?? EMPTY_HOOK_RUNS;
+	});
+}
+
 export function useScopedHiccups() {
 	const id = useScopedSessionId();
 	return useApp((s) => {

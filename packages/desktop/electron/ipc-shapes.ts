@@ -68,6 +68,8 @@ export interface SessionSnapshot {
 	/** Message positions where history was summarised, so the mark survives a reload. */
 	compactions?: number[];
 	commandRuns?: CommandRun[];
+	/** 钩子的执行记录，会话里每一轮那个锚点按钮读的就是它。 */
+	hookRuns?: import("@lyra/core").HookRun[];
 }
 
 /**

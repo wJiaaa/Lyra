@@ -140,6 +140,7 @@ export function registerSessionsIpc({
 				pendingApprovals: [],
 				compactions: loaded.compactions,
 				commandRuns: loaded.commandRuns,
+				hookRuns: loaded.hookRuns,
 			});
 		},
 	);

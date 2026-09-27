@@ -152,6 +152,7 @@ export const RPC: Record<string, Handler> = {
 			pendingApprovals: [],
 			compactions: loaded.compactions,
 			commandRuns: loaded.commandRuns,
+			hookRuns: loaded.hookRuns,
 		});
 	},
 	"sessions.open": async (deps, [projectId, sessionId]) => {

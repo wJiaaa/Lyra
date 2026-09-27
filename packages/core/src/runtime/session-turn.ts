@@ -11,17 +11,12 @@
  */
 
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
-import { gatherMemory } from "./memory-inject.ts";
-import { platform } from "node:os";
-import { access } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import type { AgentEvent } from "../agent/events.ts";
 import type { AgentRunConfig } from "../agent/loop.ts";
 import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
-import { projectRootsFor } from "../config/project-roots.ts";
-import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
 import type {
@@ -36,27 +31,18 @@ import type {
 } from "../types.ts";
 import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction.ts";
 import { taskContextFromHistory } from "./task-context.ts";
-import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
+import { hookContextMessage, loadHookRunner, makeAfterToolCall, makeBeforeToolCall, makeOnStop, makePermissionRequest, runSessionStartHooks, runUserPromptSubmitHooks, type TurnHooks } from "./hooks.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
-import { DEFAULT_MAX_DEPTH } from "./dispatch-guard.ts";
-import {
-	DELEGATION_KEY,
-	delegationConcurrency,
-	delegationTier,
-	mentionedAgents,
-	normalizeDelegationPolicy,
-	type DelegationDecision,
-} from "./delegation.ts";
-import { RENAMED_AGENTS, resolveAgentName } from "../agents-builtin.ts";
+import { DELEGATION_KEY } from "./delegation.ts";
 import { withEnvironment } from "../prompt/environment.ts";
-import { readPromptOverride } from "../prompt/overrides.ts";
 import { offerRuleFromCorrection } from "./rule-offer.ts";
 import { prepareTurn } from "./turn.ts";
+import { loadPromptContext, promptCapabilities } from "./prompt-context.ts";
+import { reconcilePrompt } from "../prompt/context.ts";
 import { buildTurnConfig } from "./turn-config.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
-import { isIsolatedWorktree } from "./workspace.ts";
 
 export interface TurnInputs {
 	cwd: string;
@@ -101,7 +87,15 @@ export interface TurnInputs {
 export async function driveTurn(input: TurnInputs): Promise<void> {
 	const { cwd, can, log } = input;
 	const onEvent = (event: AgentEvent) => recordTurnEvent(input.log, event);
-	const { config, systemPrompt } = await assembleTurn(input);
+	const hooks: TurnHooks = {
+		runner: await loadHookRunner({ settings: input.settings, cwd, emit: input.emit }),
+		cwd,
+		sessionId: log.meta.id,
+		permissionMode: input.settings.permissionMode,
+		signal: input.signal,
+	};
+	if (!(await runPromptHooks(input, hooks))) return;
+	const { config, systemPrompt } = await assembleTurn(input, hooks);
 
 	/*
 	 * 扩展的 `turn_start` / `turn_end`。
@@ -166,6 +160,49 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 	});
 }
 
+/** 这个会话的 SessionStart 钩子跑过没有。存在会话的 state 里：会话活多久，它就只跑一次。 */
+const SESSION_START_KEY = "hooks:sessionStartRan";
+
+/**
+ * 一轮开始前的两个钩子：会话里的第一轮先跑 SessionStart，每一轮都跑 UserPromptSubmit。
+ *
+ * 它们给的附加上下文作为一条模型看得见、界面不画的消息，接在人刚发的那句后面。UserPromptSubmit
+ * 拦下的那句话从记录里撤掉——拦它往往就是因为它不该进上下文（里面有口令、有不该发出去的东西），
+ * 留在历史里等于下一轮照样发给模型。返回 false 表示这一轮不跑了。
+ */
+async function runPromptHooks(input: TurnInputs, hooks: TurnHooks): Promise<boolean> {
+	const { can, log } = input;
+	const inject = async (message: Message | null) => {
+		if (!message) return;
+		await log.commit(message);
+		await input.emit({ type: "message_start", message });
+		await input.emit({ type: "message_end", message });
+	};
+
+	if (!can.state.get(SESSION_START_KEY)) {
+		can.state.set(SESSION_START_KEY, true);
+		const resumed = log.messages.some((message) => message.role === "assistant");
+		const started = await runSessionStartHooks(hooks, resumed ? "resume" : "startup", `${input.provider.name}/${input.model.id}`);
+		await inject(hookContextMessage("SessionStart", started.additionalContexts));
+	}
+
+	let index = log.messages.length - 1;
+	while (index >= 0 && log.messages[index].role !== "user") index--;
+	const prompt = index >= 0 ? log.messages[index] : null;
+	if (!prompt || prompt.role !== "user") return true;
+	const text = prompt.displayText || prompt.content.map((part) => (part.type === "text" ? part.text : "")).join("");
+	const attachments = prompt.attachments?.map((attachment, at) => `${at + 1}:${attachment.name}`).join("\n");
+	const submitted = await runUserPromptSubmitHooks(hooks, text, attachments);
+	if (submitted.preventContinuation) {
+		if (await log.truncateFrom(index)) await input.emit({ type: "rewound", messageCount: log.messages.length });
+		await input.emit({ type: "notice", level: "warn", message: `UserPromptSubmit 钩子拦下了这条消息：${submitted.stopReason ?? "未说明原因"}` });
+		await input.emit({ type: "agent_end", reason: "done" });
+		return false;
+	}
+	await inject(hookContextMessage("UserPromptSubmit", submitted.additionalContexts));
+	return true;
+}
+
 /**
  * Every event on its way out of the loop, with the two things that must happen as it passes.
  *
@@ -213,45 +250,6 @@ export function modelHistory(log: SessionLog, provider: ProviderConfig, model: M
 }
 
 /**
- * 这一轮到底派不派、派谁。
- *
- * 只在 `off` 档下才去读用户写了什么——其余四档的答案跟消息内容无关，而扫一遍历史找 `@` 是白花的
- * 工夫。这也让「关掉」成为唯一一个会因为用户措辞而改变工具表的档位，那正是它的定义。
- *
- * 看的是「上一条助手消息之后的所有用户消息」，而不是最后一条。用户常常分两次说完一件事——先
- * 「@explore 看看这个」，再补一句「先别改代码」——只读最后一条会把点名读丢，而那一条恰恰是他
- * 唯一一次明确表示要派活。
- *
- * 已知的边界：中途插话（steering）到达时这一轮的工具表已经定了，所以插话里的点名要等下一轮才
- * 算数。改成每次请求前重算是可以的，但那意味着一轮之内工具表会变，模型看到的世界在自己说话的
- * 过程中被换掉——那个代价比等一轮大。
- */
-function delegationDecision(input: TurnInputs): DelegationDecision {
-	const policy = normalizeDelegationPolicy(input.settings.subAgentDelegation);
-	const tier = delegationTier(input.thinking ?? input.settings.thinking, policy);
-	if (tier !== "off") return { tier, mentioned: [] };
-
-	const messages = input.log.messages;
-	const lastReply = messages.findLastIndex((message) => message.role === "assistant");
-	// 旧名也认：三天前的会话里那句 `@fast` 指的人还在，见 `RENAMED_AGENTS`。
-	const known = [...input.can.agents.map((agent) => agent.name), ...Object.keys(RENAMED_AGENTS)];
-	const mentioned = new Set<string>();
-	for (const message of messages.slice(lastReply + 1)) {
-		// 运行时自己注入的那些（环境说明、规则纠正）不算点名——它们不是用户说的话。
-		if (message.role !== "user" || message.synthetic) continue;
-		const text = message.content
-			.filter((part): part is Extract<typeof part, { type: "text" }> => part.type === "text")
-			.map((part) => part.text)
-			.join("\n");
-		for (const name of mentionedAgents(text, known)) {
-			const resolved = resolveAgentName(name, input.can.agents);
-			// 旧名指向一个已经不存在的定义时不放行：留着它只会让 `task` 拿一个查无此人的名字去派。
-			if (input.can.agents.some((agent) => agent.name === resolved)) mentioned.add(resolved);
-		}
-	}
-	return { tier, mentioned: [...mentioned] };
-}
-/**
  * 用户拖进来的、工作区之外的文件——这一轮可以读它们。
  *
  * 只喂给读的那一侧（`read`、`ls`）。写和改不吃这份集合，理由写在 `tools/write.ts` 里：拖一个文件
@@ -276,8 +274,7 @@ function collectAllowedPaths(messages: readonly Message[]): Set<string> | undefi
 	return paths;
 }
 
-
-async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig; systemPrompt: string }> {
+async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ config: AgentRunConfig; systemPrompt: string }> {
 	const { cwd, can, log, settings } = input;
 	const memoryEnabled = projectMemoryEnabled(settings);
 	can.state.set(PROJECT_MEMORY_ENABLED_KEY, memoryEnabled);
@@ -290,13 +287,8 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 	 * 输入框里只是一段纯文本，模型读到它之后走的仍然是 `task`，所以一刀摘掉会把用户自己点的名
 	 * 一起摘掉。于是按轮决定——认出点名就把工具留下，认不出就收走。见 `delegation.ts`。
 	 */
-	const delegation = delegationDecision(input);
+	const { tools, delegation, dispatchLimits } = promptCapabilities({ settings, thinking: input.thinking, messages: log.messages, agents: can.agents, tools: can.tools });
 	can.state.set(DELEGATION_KEY, delegation);
-	const tools = can.tools.filter(
-		(tool) =>
-			(tool.name !== "learn" || memoryEnabled) &&
-			(tool.name !== "task" || delegation.tier !== "off" || delegation.mentioned.length > 0),
-	);
 
 	/*
 	 * Where `agent://` finds the sub-agents this session dispatched.
@@ -308,66 +300,26 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 	 */
 	if (input.subAgents) can.state.set(SUBAGENTS_KEY, input.subAgents);
 
-	// Both memories, read from disk this turn, and each entry stamped as having reached the model.
-	const { memorySnippet, projectMemory } = await gatherMemory(cwd, settings.personalization?.enableMemory !== false, Date.now(), memoryEnabled);
-
-	const turn = await prepareTurn({
-		cwd,
-		tools,
-		/*
-		 * 日期接在末尾，而不是写在 system prompt 里。
-		 *
-		 * 前缀缓存从最前面逐段匹配，system prompt 正是最前面那一段——里面放一个每天变一次的
-		 * 字符串，等于每天头一次请求要为整个对话重付一次全额。放末尾，跨天时只失效这一小块。
-		 * 见 `prompt/environment.ts`。
-		 */
-		messages: withEnvironment(modelHistory(log, input.provider, input.model)),
-		systemPrompt: await buildSystemPrompt({
-			cwd,
-			projectRoots: projectRootsFor(settings.projects, cwd),
-			tools,
-			skills: can.skills,
-			agents: can.agents,
-			projectInstructions: await loadProjectInstructions(cwd),
-			customInstructions: settings.personalization?.customInstructions,
-			tone: settings.personalization?.tone,
-			memorySnippet,
-			projectMemory,
-			platform: platform(),
-			modelName: input.model.name,
-			isGitRepo: await pathExists(join(cwd, ".git")),
-			isolatedWorktree: await isIsolatedWorktree(cwd),
-			scratchDir: input.scratchDir,
-				rules: can.rules,
-				resources: can.resources.schemes(),
-				/*
-				 * 说出去的数字必须跟真正拦人的那个一样。
-				 *
-				 * 闸门按推理等级收窄（见 `delegation.ts`），提示词却照着设置里的天花板说，那就是
-				 * 把「派八个会排队」换成了「派四个会排队」——同一个看不见的队列，只是这次是提示词
-				 * 自己告诉模型的一个假数。
-				 */
-				thinking: input.thinking ?? settings.thinking,
-				// 这一轮的档位和点名，提示词那一段照着它写。见 `delegationDecision`。
-				delegation,
-				dispatchLimits: {
-					maxConcurrent: delegationConcurrency(
-						settings.maxConcurrentSubAgents,
-						input.thinking ?? settings.thinking,
-						normalizeDelegationPolicy(settings.subAgentDelegation),
-					),
-					maxDepth: DEFAULT_MAX_DEPTH,
-				},
-				identityOverride: await readPromptOverride(cwd, "identity"),
-				guidelinesOverride: await readPromptOverride(cwd, "guidelines"),
-		}),
+	const prompt = await loadPromptContext({
+		cwd, settings, tools, skills: can.skills, agents: can.agents,
+		modelName: input.model.name, scratchDir: input.scratchDir,
+		rules: can.rules, resources: can.resources.schemes(),
+		thinking: input.thinking ?? settings.thinking,
+		delegation,
+		dispatchLimits,
 	});
+	const turn = await prepareTurn({
+		cwd, tools, systemPrompt: prompt.systemPrompt,
+		messages: withEnvironment(modelHistory(log, input.provider, input.model)),
+	});
+	const assembled = reconcilePrompt(prompt, turn.systemPrompt);
 
 	const systemPrompt = await log.recordContext(
 		turn.systemPrompt,
 		turn.tools.map((tool) => tool.name),
 		can.skills.map((skill) => skill.name),
 		turn.tools.map(({ name, description, parameters }) => ({ name, description, parameters })),
+		{ sections: assembled.sections, mcpTools: can.mcp.allTools().map(tool => tool.name) },
 	);
 
 	const config = buildTurnConfig(
@@ -396,8 +348,10 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 			summaryStream: summaryStream(input.streamFn, { sessionId: log.meta.id, cwd, retryPolicy: () => (input.getSettings?.() ?? input.settings).retryPolicy, signal: input.signal }),
 			// 压缩剪掉的大块输出存进会话，占位标记里给出 `artifact://` 地址。
 			artifacts: { keep: (tool, content) => can.keepArtifact(tool, content) },
-			beforeToolCall: makeBeforeToolCall(settings.hooks, cwd, input.signal, can.extensions),
-			afterToolCall: makeAfterToolCall(settings.hooks, cwd, input.signal, can.extensions),
+			beforeToolCall: makeBeforeToolCall(hooks, can.extensions),
+			afterToolCall: makeAfterToolCall(hooks, can.extensions),
+			permissionRequest: makePermissionRequest(hooks),
+			onStop: makeOnStop(hooks),
 			drainSteering: input.drainSteering,
 		},
 		turn,
@@ -405,6 +359,7 @@ async function assembleTurn(input: TurnInputs): Promise<{ config: AgentRunConfig
 		input.thinking,
 	);
 
+	config.onContext = (context, model) => log.captureRequest(context, model);
 	return { config, systemPrompt };
 }
 
@@ -435,13 +390,4 @@ export function summaryStream(
 		}
 		return once();
 	};
-}
-
-async function pathExists(path: string): Promise<boolean> {
-	try {
-		await access(path);
-		return true;
-	} catch {
-		return false;
-	}
 }

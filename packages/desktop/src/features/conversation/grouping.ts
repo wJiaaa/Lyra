@@ -113,6 +113,8 @@ export type TurnStats = {
 	sseDurationMs: number;
 	outputTokens: number;
 	requestCount: number;
+	/** 这一轮从哪一条消息开始（人开口的那条）。钩子的运行记录按它和回复的位置归到这一轮。 */
+	startIndex: number;
 };
 
 /**
@@ -140,11 +142,12 @@ type Clock = {
 	sseDurationMs: number;
 	outputTokens: number;
 	requestCount: number;
+	start: number;
 };
 
 /** 一轮还什么都没发生。 */
-function newClock(): Clock {
-	return { from: null, to: 0, closedMs: 0, halted: false, requestMs: 0, sseDurationMs: 0, outputTokens: 0, requestCount: 0 };
+function newClock(start = 0): Clock {
+	return { from: null, to: 0, closedMs: 0, halted: false, requestMs: 0, sseDurationMs: 0, outputTokens: 0, requestCount: 0, start };
 }
 
 /**
@@ -206,6 +209,7 @@ function snapshot(clock: Clock): TurnStats {
 		sseDurationMs: clock.sseDurationMs,
 		outputTokens: clock.outputTokens,
 		requestCount: clock.requestCount,
+		startIndex: clock.start,
 	};
 }
 
@@ -279,7 +283,7 @@ export function computeTurnStats(messages: Message[], endMessageIndex: number): 
 		}
 	}
 
-	const clock = newClock();
+	const clock = newClock(startIndex);
 	let currentTodos: ReturnType<typeof todosFrom> = [];
 	for (let i = startIndex; i <= endMessageIndex && i < messages.length; i++) {
 		const msg = messages[i];
@@ -504,7 +508,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		}
 
 		// A person speaking starts a new turn; the runtime's own messages continue the one running.
-		if (opensTurn(message) && !resumesTurn(messages, index)) clock = newClock();
+		if (opensTurn(message) && !resumesTurn(messages, index)) clock = newClock(index);
 		if (message.role === "toolResult" && message.toolName === "todo_write" && !message.isError) {
 			const details = message.details as { kind?: string; todos?: ReturnType<typeof todosFrom> } | undefined;
 			if (details?.kind === "todo" && Array.isArray(details.todos)) currentTodos = details.todos;

@@ -105,6 +105,8 @@ export interface AgentRunConfig {
 	 * checked without a network round trip.
 	 */
 	streamFn?: (context: LlmContext, config: AgentRunConfig) => Promise<AssistantMessage>;
+	/** Observe the effective request after pruning, compaction and overflow recovery. */
+	onContext?: (context: LlmContext, model: ModelConfig) => void;
 	/**
 	 * Runs before a tool executes. Returning `block` turns the call into an error result the
 	 * model can react to, without ending the turn.
@@ -131,13 +133,39 @@ export interface AgentRunConfig {
 	beforeToolCall?: (call: {
 		toolName: string;
 		args: Record<string, unknown>;
-	}) => Promise<{ block?: boolean; reason?: string } | void>;
+		toolCallId: string;
+	}) => Promise<{
+		block?: boolean;
+		reason?: string;
+		/** Replacement arguments the call runs with instead. */
+		args?: Record<string, unknown>;
+		/** `allow` answers the tool's own approval prompt in advance; `ask` asks even when the tool would not. */
+		approval?: "allow" | "ask";
+		approvalReason?: string;
+		/** Hook context for the model, appended to this call's result. */
+		contexts?: string[];
+	} | void>;
 	/** Runs after a tool executes; may replace the result the model sees. */
 	afterToolCall?: (call: {
 		toolName: string;
 		args: Record<string, unknown>;
 		result: ToolResult;
+		toolCallId: string;
+		contexts?: string[];
 	}) => Promise<{ result?: ToolResult } | void>;
+	/**
+	 * Answers a tool's approval prompt before a person is asked. `undefined` leaves it to the person.
+	 * Never consulted for `interactive` requests: those are questions, not permissions.
+	 */
+	permissionRequest?: (
+		call: { toolName: string; args: Record<string, unknown>; toolCallId: string },
+		request: ApprovalRequest,
+	) => Promise<ApprovalDecision | undefined>;
+	/**
+	 * Asked when the model is about to finish. A message returned is injected and the loop goes on —
+	 * the Stop hook saying the work is not done yet, and why.
+	 */
+	onStop?: (info: { responseText: string; toolCallCount: number }) => Promise<Message | undefined>;
 }
 
 /**
@@ -496,9 +524,20 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 				await emit({ type: "message_end", message: nudge });
 				continue;
 			}
-			return saidNothing
-				? finish("error", "模型连续返回空回复，请重试或更换模型。")
-				: finish("done");
+			if (saidNothing) return finish("error", "模型连续返回空回复，请重试或更换模型。");
+			if (config.onStop && !config.signal?.aborted) {
+				const responseText = assistant.content.filter((part) => part.type === "text").map((part) => part.text).join("");
+				const toolCallCount = produced.filter((message) => message.role === "toolResult").length;
+				const resume = await config.onStop({ responseText, toolCallCount }).catch(() => undefined);
+				if (resume && !config.signal?.aborted) {
+					messages.push(resume);
+					produced.push(resume);
+					await emit({ type: "message_start", message: resume });
+					await emit({ type: "message_end", message: resume });
+					continue;
+				}
+			}
+			return finish("done");
 		}
 
 		syncSkillContext(state, messages);
@@ -665,6 +704,7 @@ interface TurnResult {
 }
 
 async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: AgentEventSink): Promise<TurnResult> {
+	config.onContext?.(context, config.model);
 	// Recalculate after compaction, model switches and payload recovery, for injected streams too.
 	config = { ...config, maxTokens: contextMaxTokens(config.model, context, config.maxTokens) };
 	await emit({ type: "request", provider: config.provider.id, model: config.model.modelId, thinking: config.thinking, messageCount: context.messages.length });

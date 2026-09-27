@@ -22,6 +22,9 @@ import type { AgentDefinition } from "../tools/task.ts";
 import { shellGuidance } from "../tools/shell-guidance.ts";
 import type { CommandShell } from "../platform.ts";
 import type { ThinkingLevel, Tool } from "../types.ts";
+import { PromptBuilder, type PromptContext } from "./context.ts";
+import { budgetInstructions } from "./budget.ts";
+import { formatSkills } from "./skills.ts";
 
 export interface SystemPromptInput {
 	cwd: string;
@@ -60,6 +63,8 @@ export interface SystemPromptInput {
 	 * them would apply "this repository uses pnpm" to every other repository on the machine.
 	 */
 	projectMemory?: string;
+	/** The exact rendered fragments, with their source paths, when memory was loaded from disk. */
+	projectMemoryFiles?: { path: string; content: string }[];
 	/** Preferred personality tone. */
 	tone?: string;
 	platform: string;
@@ -212,6 +217,10 @@ const BOUNDARIES = [
 ];
 
 export async function buildSystemPrompt(input: SystemPromptInput): Promise<string> {
+	return (await buildPromptContext(input)).systemPrompt;
+}
+
+export async function buildPromptContext(input: SystemPromptInput): Promise<PromptContext> {
 	const cwd = input.cwd.replace(/\\/g, "/");
 
 	const toolList =
@@ -253,25 +262,20 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<strin
 		? renderTemplate(input.identityOverride, { tools: input.tools.map((tool) => tool.name), cwd, model: input.modelName })
 		: IDENTITY;
 
-	let prompt = `${identity}
-
-Available tools:
+	const prompt = new PromptBuilder();
+	prompt.add("identity", identity, { cacheHint: "stable" });
+	prompt.add("tools", `\n\nAvailable tools:
 ${toolList}
 
-The project may make additional tools available beyond the ones listed above.
-
-Guidelines:
-${guidelines.map((g) => `- ${g}`).join("\n")}
-
-Boundaries:
-${BOUNDARIES.map((b) => `- ${b}`).join("\n")}
-
-Environment:
+The project may make additional tools available beyond the ones listed above.`);
+	prompt.add("guidelines", `\n\nGuidelines:\n${guidelines.map((g) => `- ${g}`).join("\n")}`);
+	prompt.add("boundaries", `\n\nBoundaries:\n${BOUNDARIES.map((b) => `- ${b}`).join("\n")}`, { cacheHint: "stable" });
+	prompt.add("environment", `\n\nEnvironment:
 - Platform: ${input.platform}${input.shell ? `\n- Shell: ${input.shell.label}` : ""}
 - Git repository: ${input.isGitRepo ? "yes" : "no"}
-- Model: ${input.modelName}`;
+- Model: ${input.modelName}`);
 
-	if (input.appendSystemPrompt) prompt += `\n\n${input.appendSystemPrompt}`;
+	if (input.appendSystemPrompt) prompt.add("custom", `\n\n${input.appendSystemPrompt}`, { cacheHint: "stable" });
 
 	if (input.tone && input.tone !== "professional") {
 		const TONE_RULES: Record<string, string> = {
@@ -281,22 +285,26 @@ Environment:
 			humorous: "Tone and Style: Be witty and subtly humorous while solving complex engineering problems effectively.",
 		};
 		if (TONE_RULES[input.tone]) {
-			prompt += `\n\n${TONE_RULES[input.tone]}`;
+			prompt.add("tone", `\n\n${TONE_RULES[input.tone]}`);
 		}
 	}
 
 	if (input.customInstructions?.trim()) {
-		prompt += `\n\n<global_user_instructions>\nUser's global personal instructions across all projects and chats:\n${input.customInstructions.trim()}\n</global_user_instructions>`;
+		prompt.add("userInstructions", `\n\n<global_user_instructions>\nUser's global personal instructions across all projects and chats:\n${input.customInstructions.trim()}\n</global_user_instructions>`);
 	}
 
 	if (input.memorySnippet?.trim()) {
-		prompt += `\n\n${input.memorySnippet.trim()}`;
+		prompt.add("userMemory", `\n\n${input.memorySnippet.trim()}`);
 	}
 
-	if (input.projectMemory?.trim()) prompt += input.projectMemory;
+	if (input.projectMemory?.trim()) {
+		if (input.projectMemoryFiles?.map(file => file.content).join("") === input.projectMemory) {
+			for (const file of input.projectMemoryFiles) prompt.add("projectMemory", file.content, { path: file.path });
+		} else prompt.add("projectMemory", input.projectMemory);
+	}
 
-	prompt += formatSkills(input.skills);
-	if (input.rules) prompt += formatRules(input.rules);
+	prompt.add("skills", formatSkills(input.skills));
+	if (input.rules) prompt.add("rules", formatRules(input.rules));
 	/*
 	 * Only worth listing when task is actually loaded — otherwise the model cannot dispatch.
 	 *
@@ -308,17 +316,18 @@ Environment:
 	 * 没有 `task` 是因为深度或者定义不许，而它也没有一个可以去点名的用户。
 	 */
 	if (input.tools.some((tool) => tool.name === "task") || input.delegation?.tier === "off")
-		prompt += formatSubagents(input.agents ?? [], input.dispatchLimits, input.thinking, input.delegation);
+		prompt.add("agents", formatSubagents(input.agents ?? [], input.dispatchLimits, input.thinking, input.delegation));
 
 	if (input.projectInstructions.length > 0) {
-		prompt += "\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n";
+		prompt.add("projectInstructions", "\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n");
 		for (const { path, content } of input.projectInstructions) {
-			prompt += `<project_instructions path="${escapeXml(path)}">\n${content}\n</project_instructions>\n\n`;
+			const bounded = budgetInstructions(content, path);
+			prompt.add("projectInstructions", `<project_instructions path="${escapeXml(path)}">\n${bounded.content}\n</project_instructions>\n\n`, { path, truncated: bounded.truncated });
 		}
-		prompt += "</project_context>";
+		prompt.add("projectInstructions", "</project_context>");
 	}
 
-	prompt += `\n\nCurrent working directory: ${cwd}`;
+	prompt.add("workspace", `\n\nCurrent working directory: ${cwd}`);
 	/*
 	 * Only the folders that are not the cwd, and only when there are any.
 	 *
@@ -336,50 +345,20 @@ Environment:
 		 * failure the read rule was written to stop it reacting to: try, get refused, reach for
 		 * `sed` in a shell. Naming the asymmetry up front is cheaper than the detour.
 		 */
-		prompt += `\n\nThis project also covers these folders, and they are as much a part of it as the working directory — read, search and list them without asking:\n${otherRoots
+		prompt.add("workspace", `\n\nThis project also covers these folders, and they are as much a part of it as the working directory — read, search and list them without asking:\n${otherRoots
 			.map((root) => `- ${root}`)
-			.join("\n")}\nUse absolute paths there; a relative path resolves against the working directory. These folders are readable, not writable: \`write\` and \`edit\` only work inside the working directory, and that is a rule rather than a fault. If a change is needed in one of them, say so instead of reaching for a shell.`;
+			.join("\n")}\nUse absolute paths there; a relative path resolves against the working directory. These folders are readable, not writable: \`write\` and \`edit\` only work inside the working directory, and that is a rule rather than a fault. If a change is needed in one of them, say so instead of reaching for a shell.`);
 	}
 	if (input.scratchDir) {
-		prompt += `\n\nScratch directory: ${input.scratchDir.replace(/\\/g, "/")}
+		prompt.add("workspace", `\n\nScratch directory: ${input.scratchDir.replace(/\\/g, "/")}
 This is where anything that is not part of the project goes. It is removed with the conversation, so nothing accumulates and nothing shows up in the user's \`git status\`.
 
-Decide by asking who the file is for. Something the user will keep, run or commit — source, tests, config, documentation they asked for — goes in the working directory. Something that exists only to get this answer written — a script to check a hypothesis, downloaded sample data, a converted file, output you needed to read once — goes here, whether or not the user thought to say so. When a demo is the answer itself, prefer the \`preview\` tool over writing files at all.`;
+Decide by asking who the file is for. Something the user will keep, run or commit — source, tests, config, documentation they asked for — goes in the working directory. Something that exists only to get this answer written — a script to check a hypothesis, downloaded sample data, a converted file, output you needed to read once — goes here, whether or not the user thought to say so. When a demo is the answer itself, prefer the \`preview\` tool over writing files at all.`);
 	}
 
-	prompt += formatAddresses(input.resources);
+	prompt.add("resources", formatAddresses(input.resources));
 
-	return prompt;
-}
-
-/**
- * Only names, descriptions and locations go in the prompt. The body is loaded on demand by the
- * `skill` tool, which is what keeps dozens of installed skills affordable.
- */
-function formatSkills(skills: Skill[]): string {
-	const visible = skills.filter((skill) => !skill.disableModelInvocation);
-	if (visible.length === 0) return "";
-
-	const lines = [
-		"",
-		"",
-		"The following skills provide specialized instructions for specific tasks.",
-		"When a task matches a skill's description, call the `skill` tool with its name before starting your own approach — the skill's instructions replace your default plan for that task.",
-		"When a skill references a relative path, resolve it against the skill's directory and use that absolute path in tool calls.",
-		"",
-		"<available_skills>",
-	];
-
-	for (const skill of visible) {
-		lines.push("  <skill>");
-		lines.push(`    <name>${escapeXml(skill.name)}</name>`);
-		lines.push(`    <description>${escapeXml(skill.description)}</description>`);
-		lines.push(`    <location>${escapeXml(skill.dir)}</location>`);
-		lines.push("  </skill>");
-	}
-
-	lines.push("</available_skills>");
-	return lines.join("\n");
+	return prompt.build();
 }
 
 /**

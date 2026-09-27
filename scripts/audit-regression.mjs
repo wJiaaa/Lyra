@@ -31,6 +31,11 @@ const withWindow = process.argv.includes("--window");
  */
 const CHECKS = [
 	{
+		id: "context-assembly",
+		what: "上下文统计偏离实际请求、重启后重读已变更规则、固定前缀缺少预算",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/context-assembly.test.ts"]],
+	},
+	{
 		id: "edit-safety",
 		what: "重叠操作吞内容、编辑开放未读行、过期版本绕过、文本保真与并发写入保护",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/edit-safety.test.ts"]],

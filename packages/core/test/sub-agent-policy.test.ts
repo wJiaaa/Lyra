@@ -126,7 +126,7 @@ test("previews from a delegated run are filed under the session, not the sub-age
 
 test("configured hooks see a delegated tool call", async () => {
 	/*
-	 * The one with teeth. A `before-tool` hook that blocks a command is a policy decision, and a
+	 * The one with teeth. A `PreToolUse` hook that blocks a command is a policy decision, and a
 	 * delegated call that never reaches it is that policy silently not applying — the same command
 	 * refused in the main conversation and allowed one level down.
 	 */

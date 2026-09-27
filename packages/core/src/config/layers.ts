@@ -95,6 +95,16 @@ export function layerOverrides(global: Plain, project: Plain, prefix = ""): Laye
 	return out;
 }
 
+/**
+ * Keys a project file may set but that are not merged over the global settings.
+ *
+ * `hooks` runs commands on this machine, outside the sandbox, from a file anyone who commits to the
+ * repository can edit. Merged like any other key it would run the moment the project was opened —
+ * and, arrays replacing arrays, it would silently switch off every hook the user set up globally.
+ * Project hooks are read on their own and only run once trusted; see `hooks/config.ts`.
+ */
+const PROJECT_SEPARATE = ["hooks"] as const;
+
 /** Strip what a project file is not allowed to carry, reporting what was taken out. */
 export function sanitizeProjectConfig(config: Plain): { config: Plain; refused: string[] } {
 	const refused: string[] = [];
@@ -104,6 +114,7 @@ export function sanitizeProjectConfig(config: Plain): { config: Plain; refused: 
 			refused.push(key);
 			continue;
 		}
+		if ((PROJECT_SEPARATE as readonly string[]).includes(key)) continue;
 		out[key] = value;
 	}
 	return { config: out, refused };

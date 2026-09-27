@@ -187,13 +187,13 @@ test("the settings a browser sees drop keys, commands and the token", () => {
 	const settings: Settings = {
 		...DEFAULT_SETTINGS,
 		providers: [{ ...(DEFAULT_SETTINGS.providers[0] ?? ({} as never)), apiKey: "sk-secret", headers: { authorization: "x" } } as never],
-		hooks: [{ command: "rm -rf ~" } as never],
+		hooks: { events: { PreToolUse: [{ hooks: [{ type: "command", command: "rm -rf ~" }] }] } },
 		webAccess: { enabled: true, port: 1, token: "secret-token" },
 	};
 	const seen = settingsForWeb(settings);
 	assert.equal(seen.providers[0]?.apiKey, "");
 	assert.equal(seen.providers[0]?.headers, undefined);
-	assert.deepEqual(seen.hooks, []);
+	assert.deepEqual(seen.hooks, { events: {} });
 	assert.deepEqual(seen.mcpServers, []);
 	assert.deepEqual(seen.scheduledTasks, []);
 	assert.equal(seen.webAccess.token, null);

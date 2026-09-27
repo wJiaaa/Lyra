@@ -1,5 +1,5 @@
 import { translate } from "../i18n/translate.ts";
-import type { CommandRun } from "@lyra/core";
+import type { CommandRun, HookRun } from "@lyra/core";
 /**
  * Reading state back out of a transcript.
  *
@@ -16,7 +16,7 @@ import { summarizeToolCall } from "../lib/tool-summary.ts";
 import type { AppState } from "./index.ts";
 import type { ToolRun } from "./tool-run.ts";
 
-export type CachedSessionState = Pick<AppState, "running" | "todos" | "compactions" | "approvals" | "stopped" | "retrying" | "capabilities" | "pendingUserMessage"> & { commandRuns?: CommandRun[]; hiccups?: AppState["hiccups"] };
+export type CachedSessionState = Pick<AppState, "running" | "todos" | "compactions" | "approvals" | "stopped" | "retrying" | "capabilities" | "pendingUserMessage"> & { commandRuns?: CommandRun[]; hookRuns?: HookRun[]; hiccups?: AppState["hiccups"] };
 
 export type Cache = Record<
   string,

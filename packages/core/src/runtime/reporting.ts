@@ -9,24 +9,19 @@
  * nothing that could change one.
  */
 
-import { projectMemoryEnabled } from "./project-memory.ts";
-import { gatherMemory } from "./memory-inject.ts";
-import { access } from "node:fs/promises";
-import { platform } from "node:os";
-import { commandShell } from "../platform.ts";
-import { sandboxModeFor } from "../sandbox/mode-for.ts";
-import { join } from "node:path";
 import type { Settings } from "../config/settings.ts";
 import { resolveModel } from "../config/settings.ts";
 import type { McpManager, McpServerStatus } from "../mcp/client.ts";
 import type { Plugin, PluginDiagnostic } from "../plugins/loader.ts";
-import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
-import { formatSkillCatalogue, type Skill, type SkillDiagnostic } from "../skills/loader.ts";
+import type { Skill, SkillDiagnostic } from "../skills/loader.ts";
 import type { SessionMeta } from "../session/store.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type { Message, Tool } from "../types.ts";
 import { buildContextBreakdown, type ContextBreakdown } from "./context.ts";
-import { isIsolatedWorktree } from "./workspace.ts";
+import { loadPromptContext, promptCapabilities } from "./prompt-context.ts";
+import { reconcilePrompt } from "../prompt/context.ts";
+import type { SystemPromptInput } from "../prompt/system.ts";
+import type { RecordedContext, RequestContext } from "./session-log.ts";
 
 export interface SessionStatus {
 	meta: SessionMeta;
@@ -55,6 +50,10 @@ export interface SessionFacts {
 	readonly mcpStatuses: McpServerStatus[];
 	readonly agents: AgentDefinition[];
 	readonly mcp: McpManager;
+	readonly rules: SystemPromptInput["rules"];
+	readonly resources: SystemPromptInput["resources"];
+	readonly requestContext: RequestContext | null;
+	readContext(): Promise<RecordedContext | null>;
 	scratchDir(): string;
 }
 
@@ -72,53 +71,42 @@ export async function describeSession(session: SessionFacts): Promise<SessionSta
 	};
 }
 
-/**
- * Where this session's context window is going, by segment.
- *
- * Built here rather than in the UI because only the session holds the inputs: the assembled
- * prompt, the tool schemas as the provider will receive them, and which of those tools came
- * from an MCP server rather than from the kernel. Rebuilding the prompt to measure it is
- * cheap next to a request, and it is the only way for the figure to be the real one.
- */
+/** Report the captured request; only sessions without a recorded prompt need a source preview. */
 export async function describeContext(session: SessionFacts): Promise<ContextBreakdown | null> {
 	const resolved = resolveModel(session.settings, session.meta.modelId || session.settings.defaultModelId);
 	if (!resolved) return null;
-
-	const { memorySnippet, projectMemory, projectMemoryFiles } = await gatherMemory(session.cwd, session.settings.personalization?.enableMemory !== false, Date.now(), projectMemoryEnabled(session.settings), false);
-	const projectInstructions = await loadProjectInstructions(session.cwd);
-	const tools = session.tools.filter((tool) => tool.name !== "learn" || projectMemoryEnabled(session.settings));
-	const mcpNames = new Set(session.mcp.allTools().map((tool) => tool.name));
-
+	const recorded = await session.readContext();
+	const request = session.requestContext;
+	let prompt;
+	let schemas;
+	let mcpNames;
+	if (recorded) {
+		prompt = recorded.sections
+			? { systemPrompt: recorded.systemPrompt, sections: recorded.sections }
+			: reconcilePrompt({ systemPrompt: "", sections: [] }, recorded.systemPrompt);
+		schemas = recorded.schemas ?? [];
+		mcpNames = new Set(recorded.mcpTools ?? schemas.filter(tool => tool.name.startsWith("mcp__")).map(tool => tool.name));
+	} else {
+		const capabilities = promptCapabilities({ settings: session.settings, thinking: session.meta.thinking, messages: session.messages, agents: session.agents, tools: session.tools });
+		prompt = await loadPromptContext({
+			cwd: session.cwd, settings: session.settings, ...capabilities,
+			skills: session.skills, agents: session.agents, rules: session.rules, resources: session.resources,
+			modelName: resolved.model.name, thinking: session.meta.thinking ?? session.settings.thinking,
+			scratchDir: session.scratchDir(), recordInjection: false,
+		});
+		schemas = capabilities.tools;
+		mcpNames = new Set(session.mcp.allTools().map(tool => tool.name));
+	}
+	if (request) {
+		prompt = reconcilePrompt(prompt, request.context.systemPrompt);
+		schemas = request.context.tools;
+	}
 	return buildContextBreakdown({
-		model: resolved.model,
-		messages: session.messages,
-		systemPrompt: await buildSystemPrompt({
-			cwd: session.cwd,
-			tools,
-			skills: session.skills,
-			agents: session.agents,
-			projectInstructions,
-			memorySnippet,
-			projectMemory,
-			customInstructions: session.settings.personalization?.customInstructions,
-			tone: session.settings.personalization?.tone,
-			platform: platform(),
-			shell: commandShell(sandboxModeFor(session.settings.permissionMode)),
-			modelName: resolved.model.name,
-			isGitRepo: await pathExists(join(session.cwd, ".git")),
-			isolatedWorktree: await isIsolatedWorktree(session.cwd),
-			scratchDir: session.scratchDir(),
-		}),
-		builtinTools: tools.filter((tool) => !mcpNames.has(tool.name)),
-		mcpTools: tools.filter((tool) => mcpNames.has(tool.name)),
-		skillCatalogue: formatSkillCatalogue(session.skills),
-		projectInstructions,
-		projectMemory,
-		projectMemoryFiles,
+		model: request?.model ?? resolved.model,
+		messages: request?.context.messages ?? session.messages,
+		systemPrompt: prompt.systemPrompt, sections: prompt.sections,
+		builtinTools: schemas.filter(tool => !mcpNames.has(tool.name)),
+		mcpTools: schemas.filter(tool => mcpNames.has(tool.name)),
+		skillCatalogue: "", projectInstructions: [],
 	});
-}
-
-/** Whether a path is there, without caring why it is not. */
-async function pathExists(path: string): Promise<boolean> {
-	return access(path).then(() => true).catch(() => false);
 }

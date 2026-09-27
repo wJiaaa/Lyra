@@ -40,7 +40,7 @@ before(async () => {
 			// This test measures animation frames independently of the runner's accessibility settings.
 			appearance: { reduceMotion: "off" },
 			mcpServers: [{ id: "qa", name: "QA 服务", command: "unused", args: [], transport: "stdio", enabled: false }],
-			hooks: [{ id: "qa", command: "echo isolated", tools: [], event: "before-tool", enabled: false, blocking: false }],
+			hooks: { events: { PreToolUse: [{ hooks: [{ type: "command", command: "echo isolated", enabled: false }] }] } },
 			projects: [{ id: "qa-project", path: cwd, name: "行操作验证", pinned: true, lastOpenedAt: 1 }],
 		}));
 	} });

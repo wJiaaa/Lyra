@@ -13,6 +13,8 @@ import { runTool } from "./tool-pipeline.ts";
 import { skillRefusal } from "../skills/tool.ts";
 import { translatedShellCommand, TOOL_NAMES_KEY } from "../tools/reroute.ts";
 import type {
+	ApprovalDecision,
+	ApprovalRequest,
 	AssistantContent,
 	Tool,
 	ToolContext,
@@ -137,12 +139,28 @@ async function executeOne(
 		);
 	}
 
+	/*
+	 * 钩子围着这一次调用的三件事：PreToolUse 可以改参数、预先放行或要求确认；工具自己要确认时，
+	 * PermissionRequest 钩子先答；它们给模型的附加上下文，最后接在结果后面。
+	 */
+	let preApproved = false;
+	let hookContexts: string[] = [];
+	const requestApproval = config.requestApproval;
 	const ctx: ToolContext = {
 		cwd: config.cwd,
 		sessionId: config.sessionId,
 		signal: config.signal,
 		state,
-		requestApproval: config.requestApproval,
+		requestApproval: requestApproval
+			? async (request) => {
+				if (request.kind !== "interactive") {
+					if (preApproved) return "once";
+					const answered = await config.permissionRequest?.({ toolName: call.name, args: call.arguments, toolCallId: call.id }, request).catch(() => undefined);
+					if (answered) return answered;
+				}
+				return requestApproval(request);
+			}
+			: undefined,
 		sandboxMode: config.sandboxMode,
 		sandboxNetwork: config.sandboxNetwork,
 		allowedHosts: config.allowedHosts,
@@ -157,16 +175,25 @@ async function executeOne(
 
 	if (config.beforeToolCall) {
 		try {
-			const decision = await config.beforeToolCall({ toolName: call.name, args: call.arguments });
+			const decision = await config.beforeToolCall({ toolName: call.name, args: call.arguments, toolCallId: call.id });
+			hookContexts = decision?.contexts ?? [];
 			if (decision?.block) {
-				return errorResult(decision.reason || `A hook blocked "${call.name}".`);
+				const blocked = errorResult(decision.reason || `A hook blocked "${call.name}".`);
+				return appendHookContexts(blocked, hookContexts)?.result ?? blocked;
+			}
+			if (decision?.args) call = { ...call, arguments: decision.args, argumentsText: JSON.stringify(decision.args) };
+			if (decision?.approval === "allow") preApproved = true;
+			if (decision?.approval === "ask" && requestApproval) {
+				const answer = await requestApproval(hookApprovalRequest(call.name, call.arguments, decision.approvalReason));
+				if (!approved(answer)) return errorResult(`The user declined "${call.name}".`);
+				preApproved = true;
 			}
 		} catch (error) {
 			// A broken hook must not take the tool down with it.
 			void emit({
 				type: "notice",
 				level: "warn",
-				message: `before-tool hook failed: ${error instanceof Error ? error.message : String(error)}`,
+				message: `PreToolUse handling failed: ${error instanceof Error ? error.message : String(error)}`,
 			});
 		}
 	}
@@ -202,13 +229,13 @@ async function executeOne(
 
 	if (config.afterToolCall) {
 		try {
-			const patched = await config.afterToolCall({ toolName: call.name, args: call.arguments, result });
+			const patched = await config.afterToolCall({ toolName: call.name, args: call.arguments, result, toolCallId: call.id, contexts: hookContexts });
 			if (patched?.result) result = patched.result;
 		} catch (error) {
 			void emit({
 				type: "notice",
 				level: "warn",
-				message: `after-tool hook failed: ${error instanceof Error ? error.message : String(error)}`,
+				message: `PostToolUse handling failed: ${error instanceof Error ? error.message : String(error)}`,
 			});
 		}
 	}
@@ -263,4 +290,32 @@ export function errorResult(text: string): ToolResult {
 export function textResult(text: string, details?: unknown): ToolResult {
 	const content: UserContent[] = [{ type: "text", text }];
 	return { content, details };
+}
+
+export function appendHookContexts(result: ToolResult, contexts: readonly string[]): { result: ToolResult } | undefined {
+	if (contexts.length === 0) return undefined;
+	const text = ["[Hook additional context]", ...contexts.map((context, index) => `#${index + 1}\n${context}`)].join("\n");
+	return { result: { ...result, content: [...result.content, { type: "text" as const, text: `\n${text}` }] } };
+}
+
+/** PreToolUse 说「要问」时，替它向人要一次确认。 */
+function hookApprovalRequest(toolName: string, args: Record<string, unknown>, reason?: string): ApprovalRequest {
+	const kind: ApprovalRequest["kind"] =
+		toolName === "bash" ? "bash"
+		: toolName === "write" ? "write"
+		: toolName === "edit" ? "edit"
+		: ["read", "ls", "grep", "glob"].includes(toolName) ? "read"
+		: toolName === "web_fetch" || toolName === "web_search" ? "network"
+		: "mcp";
+	return {
+		kind,
+		title: toolName,
+		detail: JSON.stringify(args, null, 2).slice(0, 4000),
+		reason: reason ?? "PreToolUse 钩子要求确认这次调用",
+		subject: toolName,
+	};
+}
+
+function approved(decision: ApprovalDecision): boolean {
+	return decision === "once" || decision === "always";
 }

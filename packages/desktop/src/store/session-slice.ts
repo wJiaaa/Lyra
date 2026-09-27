@@ -80,6 +80,7 @@ export function sessionSlice(set: Set, get: Get) {
       todos: [],
       compactions: [],
 			commandRuns: [],
+			hookRuns: [],
       turnStartedAt: null,
       turnTokens: 0,
       // Belongs to the turn being left behind; carrying it over would report this conversation's
@@ -265,6 +266,7 @@ export function sessionSlice(set: Set, get: Get) {
       todos: cached?.state?.todos ?? [],
       compactions: cached?.state?.compactions ?? [],
 			commandRuns: cached?.state?.commandRuns ?? [],
+			hookRuns: cached?.state?.hookRuns ?? [],
       capabilities: cached?.state?.capabilities ?? null,
       /*
        * This conversation's own meter, not whichever one last started a turn.
@@ -430,7 +432,7 @@ function readOutcome(
 
 function cachedState(state: AppState): CachedSessionState {
   return {
-    running: state.running, todos: state.todos, compactions: state.compactions, commandRuns: state.commandRuns,
+    running: state.running, todos: state.todos, compactions: state.compactions, commandRuns: state.commandRuns, hookRuns: state.hookRuns,
     approvals: state.approvals, stopped: state.stopped, retrying: state.retrying, hiccups: state.hiccups,
 		capabilities: state.capabilities, pendingUserMessage: state.pendingUserMessage,
   };

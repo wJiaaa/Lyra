@@ -45,6 +45,7 @@ export async function warmSession(meta: SessionMeta): Promise<void> {
 						state: {
 							running: snapshot.running,
 							commandRuns: snapshot.commandRuns ?? [],
+							hookRuns: snapshot.hookRuns ?? [],
 							todos: todosFrom(messages),
 							compactions: (snapshot.compactions ?? []).map((at) => ({ at, before: 0, after: 0 })),
 							approvals: snapshot.pendingApprovals,

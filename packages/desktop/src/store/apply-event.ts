@@ -380,6 +380,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       // from the messages that arrive next.
 			set({ messages: get().messages.slice(0, event.messageCount),
 				commandRuns: get().commandRuns.filter((run) => run.at <= event.messageCount),
+				hookRuns: get().hookRuns.filter((run) => run.at <= event.messageCount),
 				compactions: get().compactions.filter((run) => run.at <= event.messageCount),
 				// 抖动记录也按位置活着（见 `lib/hiccup.ts` 的 `at`），所以被丢掉的那一截里发生过的
 				// 事情跟着一起走——留下来的话它会滑到转录末尾，说给一段已经不存在的工作。
@@ -460,6 +461,11 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
     case "retry_settled":
       set({ hiccups: settleHiccups(get().hiccups, event, get().messages.length), retrying: null });
       break;
+
+		// 同一条钩子先报「开始」再报结局，按 id 替换，位置（`at`）以第一次为准——`SessionLog` 已经盖好了。
+		case "hook_run":
+			set({ hookRuns: [...get().hookRuns.filter((run) => run.id !== event.run.id), event.run] });
+			break;
 
 		case "command_status":
 			set({ ...(event.command.automatic ? {} : { running: event.command.status === "running" }), commandRuns: [...get().commandRuns.filter((run) => run.id !== event.command.id), event.command] });

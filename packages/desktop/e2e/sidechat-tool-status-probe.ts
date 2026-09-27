@@ -122,13 +122,13 @@ async function seed(home: string) {
 	const path = join(home, "settings.json");
 	const settings = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
 	/*
-	 * 一个 before-tool 钩子，把那个窗口按住 1.2 秒。
+	 * 一个 PreToolUse 钩子，把那个窗口按住 1.2 秒。
 	 *
-	 * 这是产品自带的功能，不是改代码：钩子跑在 `tool-run.ts:157`，而 `tool_start` 在 238 行才发出去。
+	 * 这是产品自带的功能，不是改代码：钩子跑在 `tool-run.ts:178`，而 `tool_start` 在 266 行才发出去。
 	 * 于是「消息已定稿、运行记录还没建立」这段被原样拉长——闪现的那一帧和它慢放之后是同一件事，
 	 * 只是终于看得见了。谁都能在设置里配一个钩子，那时看到的就是这个。
 	 */
-	const hooks = [{ id: "slowmo", command: "sleep 1.2", tools: [], event: "before-tool", enabled: true, blocking: false }];
+	const hooks = { events: { PreToolUse: [{ hooks: [{ type: "command", command: "sleep 1.2" }] }] } };
 	await writeFile(path, JSON.stringify({ ...settings, hooks, thinking: "off", projectMemory: false, permissionMode: "full", appearance: { theme: "light", reduceMotion: "off" } }));
 }
 

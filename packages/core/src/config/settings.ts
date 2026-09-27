@@ -5,6 +5,7 @@ import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-pro
 import { constants, copyFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { McpServerConfig } from "../mcp/client.ts";
+import { EMPTY_HOOKS_CONFIG, normalizeHooksConfig, type HooksConfig } from "../hooks/config.ts";
 import { lyraHome } from "../session/store.ts";
 import type { ProviderConfig, ThinkingLevel } from "../types.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
@@ -203,18 +204,6 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	fontSmoothing: false,
 };
 
-export interface HookConfig {
-	id: string;
-	/** Shell command run at the hook point. */
-	command: string;
-	/** Only fire for these tool names; empty means every tool. */
-	tools: string[];
-	event: "before-tool" | "after-tool";
-	enabled: boolean;
-	/** A non-zero exit from a before-tool hook blocks the call. */
-	blocking: boolean;
-}
-
 /** A prompt the app sends on its own schedule, in a fresh session each time. */
 export interface ScheduledTask {
 	id: string;
@@ -409,7 +398,8 @@ export interface Settings {
 	 */
 	commitLanguage?: string;
 	appearance: AppearanceSettings;
-	hooks: HookConfig[];
+	/** 用户级钩子。项目级的在 `.lyra/config.json`，不走设置合并，见 `hooks/config.ts`。 */
+	hooks: HooksConfig;
 	scheduledTasks: ScheduledTask[];
 	/**
 	 * Plugin ids that are switched off; everything found on disk is on by default.
@@ -642,7 +632,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	retryAttempts: 11,
 	retryPolicy: DEFAULT_RETRY_POLICY,
 	appearance: DEFAULT_APPEARANCE,
-	hooks: [],
+	hooks: EMPTY_HOOKS_CONFIG,
 	scheduledTasks: [],
 	disabledPlugins: [],
 	disabledRules: [],
@@ -854,7 +844,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			screenshot: { ...DEFAULT_SCREENSHOT_SETTINGS, ...parsed.screenshot },
 			personalization: { ...DEFAULT_SETTINGS.personalization, ...parsed.personalization },
 			appearance: migrateAppearance({ ...DEFAULT_APPEARANCE, ...parsed.appearance }),
-			hooks: parsed.hooks ?? [],
+			hooks: normalizeHooksConfig(parsed.hooks),
 			scheduledTasks: parsed.scheduledTasks ?? [],
 			disabledPlugins: parsed.disabledPlugins ?? [],
 			disabledRules: parsed.disabledRules ?? [],

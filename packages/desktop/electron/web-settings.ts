@@ -23,7 +23,7 @@ export function settingsForWeb(settings: Settings): Settings {
 			headers: undefined,
 		})),
 		mcpServers: [],
-		hooks: [],
+		hooks: { events: {} },
 		scheduledTasks: [],
 		searchApiKeys: {},
 		webAccess: { ...settings.webAccess, token: null },

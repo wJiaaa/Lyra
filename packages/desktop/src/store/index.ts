@@ -3,7 +3,7 @@ import type { QuestionFields } from "@lyra/core";
 import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
 import type { SessionChange } from "../../electron/ipc-types.ts";
-import type { AgentEvent, ApprovalDecision, CommandRun, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent } from "@lyra/core";
+import type { AgentEvent, ApprovalDecision, CommandRun, HookRun, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent } from "@lyra/core";
 import { type SessionActivity } from "@lyra/core/activity";
 import { applyAgentEvent } from "./apply-event.ts";
 import type { Cache, TurnStop } from "./derive.ts";
@@ -361,6 +361,8 @@ export interface AppState extends QueueSlice {
   /** Where history was summarised, by position in the transcript. */
   compactions: { at: number; before: number; after: number }[];
 	commandRuns: CommandRun[];
+	/** 钩子的执行记录；`at` 是它发生时转录里的消息数，据此归到那一轮。 */
+	hookRuns: HookRun[];
   notices: { id: string; level: "info" | "warn" | "error"; message: string; sessionId?: string }[];
   /**
    * A correction the runtime thinks could become a rule, waiting to be answered.
@@ -557,6 +559,7 @@ export const useApp = create<AppState>((set, get) => ({
   stopped: null,
   compactions: [],
 	commandRuns: [],
+	hookRuns: [],
   todos: [],
   notices: [],
   ruleOffer: null,

@@ -14,6 +14,7 @@
 
 import type { LlmContext, Message, ModelConfig, ToolSpec } from "../types.ts";
 import { estimateTokens } from "../tokens.ts";
+import type { PromptSection } from "../prompt/context.ts";
 
 export type ContextSegmentKey = "messages" | "systemTools" | "mcpTools" | "skills" | "systemPrompt" | "memory" | "projectMemory";
 
@@ -39,6 +40,8 @@ export interface ContextBreakdown {
 	memoryFiles?: MemoryFileItem[];
 	projectMemory?: string;
 	projectMemoryFiles?: MemoryFileItem[];
+	/** Provenance and estimated size of the sections in the actual assembled prompt. */
+	sources?: (PromptSection & { tokens: number })[];
 }
 
 /** What a tool costs on the wire: the schema the provider is given, every single request. */
@@ -78,14 +81,21 @@ export function buildContextBreakdown(input: {
 	projectInstructions: { path: string; content: string }[];
 	projectMemory?: string;
 	projectMemoryFiles?: { path: string; content: string }[];
+	sections?: PromptSection[];
 }): ContextBreakdown {
-	const projectMemory = textTokens(input.projectMemory ?? "");
-	const skills = textTokens(input.skillCatalogue);
-	const memoryFiles: MemoryFileItem[] = input.projectInstructions.map((file) => ({
+	const sources = input.sections?.map(section => ({
+		...section,
+		// Allocate rounding along the contiguous prompt so every token belongs to exactly one section.
+		tokens: textTokens(input.systemPrompt.slice(0, section.end)) - textTokens(input.systemPrompt.slice(0, section.start)),
+	}));
+	const sourceTokens = (source: PromptSection["source"]) => sources?.filter(section => section.source === source).reduce((sum, section) => sum + section.tokens, 0) ?? 0;
+	const projectMemory = sources ? sourceTokens("projectMemory") : textTokens(input.projectMemory ?? "");
+	const skills = sources ? sourceTokens("skills") : textTokens(input.skillCatalogue);
+	const memoryFiles: MemoryFileItem[] = sources ? sources.filter(section => section.source === "projectInstructions" && section.path).map(section => ({ path: section.path!, tokens: section.tokens })) : input.projectInstructions.map((file) => ({
 		path: file.path,
 		tokens: textTokens(file.content),
 	}));
-	const memory = memoryFiles.reduce((acc, f) => acc + f.tokens, 0);
+	const memory = sources ? sourceTokens("projectInstructions") : memoryFiles.reduce((acc, f) => acc + f.tokens, 0);
 	/*
 	 * The prompt minus the parts listed separately.
 	 *
@@ -123,8 +133,9 @@ export function buildContextBreakdown(input: {
 		.sort((a, b) => b.tokens - a.tokens);
 
 	return {
-		projectMemory: input.projectMemory,
-		projectMemoryFiles: input.projectMemoryFiles?.map((file) => ({ path: file.path, tokens: textTokens(file.content) })),
+		sources,
+		projectMemory: sources ? sources.filter(section => section.source === "projectMemory").map(section => input.systemPrompt.slice(section.start, section.end)).join("") || undefined : input.projectMemory,
+		projectMemoryFiles: sources ? sources.filter(section => section.source === "projectMemory" && section.path).map(section => ({ path: section.path!, tokens: section.tokens })) : input.projectMemoryFiles?.map((file) => ({ path: file.path, tokens: textTokens(file.content) })),
 		limit: input.model.contextWindow,
 		segments,
 		used: messages + overhead,

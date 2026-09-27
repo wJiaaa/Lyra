@@ -19,8 +19,33 @@ export interface CommandRun {
 	automatic?: AutoCompactionState;
 }
 
+/**
+ * 一条钩子的一次执行，从开始到结局——同一个 `id` 先发 `running`，再发终态。
+ *
+ * 只装能给人看的东西：命令已经盖掉了口令，stdout 不在里面。
+ */
+export interface HookRun {
+	id: string;
+	/** 同一个事件上一起跑的那几条共用一个。 */
+	invocationId: string;
+	event: import("../hooks/config.ts").HookEventName;
+	source: import("../hooks/config.ts").HookScope;
+	command: string;
+	matcher?: string;
+	toolName?: string;
+	statusMessage?: string;
+	status: "running" | "success" | "blocked" | "failed" | "timed_out" | "cancelled";
+	/** 被拦下的原因，或者失败的原因。 */
+	reason?: string;
+	startedAt: number;
+	durationMs?: number;
+	/** 发生时转录里已有多少条消息，由 `SessionLog` 盖上；界面据此把它归到那一轮。 */
+	at: number;
+}
+
 export type AgentEvent =
 	| { type: "command_status"; command: CommandRun }
+	| { type: "hook_run"; run: HookRun }
 	| { type: "agent_start"; sessionId: string }
 	| { type: "turn_start"; turn: number }
 	| { type: "request"; provider: string; model: string; thinking?: string; messageCount: number }
@@ -127,7 +152,7 @@ export type AgentEvent =
 	 * Written when it changes rather than every turn, because it rarely changes and a log that
 	 * repeats itself is one nobody reads.
 	 */
-	| { type: "context"; systemPrompt: string; tools: string[]; skills: string[]; schemas?: import("../types/tool.ts").ToolSpec[] }
+	| { type: "context"; systemPrompt: string; tools: string[]; skills: string[]; schemas?: import("../types/tool.ts").ToolSpec[]; sections?: import("../prompt/context.ts").PromptSection[]; mcpTools?: string[] }
 	/**
 	 * A sub-agent was dispatched, and what came back.
 	 *

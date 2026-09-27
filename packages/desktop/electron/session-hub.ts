@@ -216,6 +216,7 @@ export async function snapshot(session: AgentSession): Promise<SessionSnapshot> 
 		 */
 		compactions: session.log.compactions,
 		commandRuns: session.log.commandRuns,
+		hookRuns: session.log.hookRuns,
 		running: session.running || submitted.has(session.meta.id),
 		pendingApprovals: session.listPendingApprovals().map(({ id, request, expiresAt }) => ({
 			id,
@@ -268,6 +269,7 @@ async function startStoredSession(projectId: string, sessionId: string): Promise
 		session = stageSession({ meta: loaded.meta, messages: loaded.messages, running: false, pendingApprovals: [] });
 		session.restore(loaded.messages, loaded.compaction, loaded.compactions);
 		session.log.commandRuns = loaded.commandRuns ?? [];
+		session.log.hookRuns = loaded.hookRuns ?? [];
 	}
 	try {
 		await ensureSessionWorkspace(session.cwd);

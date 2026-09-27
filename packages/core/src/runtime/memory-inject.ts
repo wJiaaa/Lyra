@@ -13,7 +13,7 @@
 import { readExtractedMemory } from "./memory-extract.ts";
 import { EXTRACTED_KEY, markInjected, projectInjectedPath, userInjectedPath } from "./memory-injected.ts";
 import { formatMemoryForPrompt, loadMemory } from "./memory.ts";
-import { formatProjectMemory, projectMemoryDir, readLessons } from "./project-memory.ts";
+import { formatProjectMemorySources, projectMemoryDir, readLessons } from "./project-memory.ts";
 import { join } from "node:path";
 
 export interface GatheredMemory {
@@ -39,12 +39,10 @@ export async function gatherMemory(cwd: string, enabled: boolean, now = Date.now
 
 	const lessons = projectEnabled ? await readLessons(cwd).catch(() => []) : [];
 	const extracted = projectEnabled ? await readExtractedMemory(cwd).catch(() => "") : "";
-	const projectMemory = formatProjectMemory(lessons, extracted, now);
-	const learned = formatProjectMemory(lessons, "", now);
-	const projectMemoryFiles = [
-		...(learned ? [{ path: join(projectMemoryDir(cwd), "learned.md"), content: learned }] : []),
-		...(extracted.trim() ? [{ path: join(projectMemoryDir(cwd), "MEMORY.md"), content: extracted.trim() }] : []),
-	];
+	const projectMemoryFiles = formatProjectMemorySources(lessons, extracted, now).map(part => ({
+		path: join(projectMemoryDir(cwd), part.file), content: part.content,
+	}));
+	const projectMemory = projectMemoryFiles.map(file => file.content).join("");
 	const projectKeys = [...lessons.map((lesson) => lesson.text), ...(extracted.trim() ? [EXTRACTED_KEY] : [])];
 
 	// Recorded, not awaited for correctness: a failed timestamp must not cost the turn.

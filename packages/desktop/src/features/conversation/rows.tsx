@@ -12,6 +12,7 @@ import type { AssistantMessage, Message } from "@lyra/core";
 import { TurnDeliveryCard } from "./TurnDelivery.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
+import { HookRunsAction } from "./HookRunsAction.tsx";
 import { ThinkingBlock } from "./ThinkingBlock.tsx";
 import { RuleCard } from "./RuleCard.tsx";
 import { conversationTime } from "./question-navigation.ts";
@@ -126,12 +127,13 @@ export const MessageRow = memo(function MessageRow({
   if (message.role === "toolResult") return null;
 
   return (
-    <AssistantRow message={message} upTo={upTo} from={from} lead={lead} newest={newest} continued={continued} turnStats={turnStats} viewKey={viewKey} />
+    <AssistantRow message={message} index={index} upTo={upTo} from={from} lead={lead} newest={newest} continued={continued} turnStats={turnStats} viewKey={viewKey} />
   );
 });
 
 function AssistantRow({
   message,
+  index,
   upTo,
   from = 0,
   lead,
@@ -141,6 +143,7 @@ function AssistantRow({
   viewKey,
 }: {
   message: AssistantMessage;
+  index: number;
   upTo: number;
   from?: number;
   lead?: boolean;
@@ -239,7 +242,9 @@ function AssistantRow({
           sseDurationMs={turnStats?.sseDurationMs ?? message.sseDurationMs}
           tokens={turnStats?.outputTokens ?? message.usage?.output}
           requests={turnStats?.requestCount}
-        />
+        >
+          <HookRunsAction from={turnStats?.startIndex ?? index} to={index + 1} />
+        </MessageActions>
       )}
     </div>
   );

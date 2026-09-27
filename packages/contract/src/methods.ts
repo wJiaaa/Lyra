@@ -52,6 +52,13 @@ export const METHODS = {
 		save: { channel: "settings:save" },
 		layers: { channel: "settings:layers" },
 	},
+	hooks: {
+		list: { channel: "hooks:list" },
+		save: { channel: "hooks:save" },
+		remove: { channel: "hooks:remove" },
+		setEnabled: { channel: "hooks:setEnabled" },
+		trust: { channel: "hooks:trust" },
+	},
 	web: {
 		status: { channel: "web:status" },
 		start: { channel: "web:start" },

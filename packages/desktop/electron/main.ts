@@ -106,6 +106,7 @@ import { registerAgentDefinitionsIpc } from "./ipc/agent-definitions.ts";
 import { registerCapabilitiesIpc } from "./ipc/capabilities.ts";
 import { registerExtensionsIpc } from "./ipc/extensions.ts";
 import { registerLayersIpc } from "./ipc/layers.ts";
+import { registerHooksIpc } from "./ipc/hooks.ts";
 import { registerForeignConfigsIpc } from "./ipc/foreign-configs.ts";
 import { registerProjectMemoryIpc } from "./ipc/project-memory.ts";
 import { registerSideChatIpc } from "./ipc/side-chat.ts";
@@ -895,6 +896,7 @@ function registerIpc(): void {
 	registerCapabilitiesIpc();
 	registerExtensionsIpc();
 	registerLayersIpc();
+	registerHooksIpc();
 	registerForeignConfigsIpc();
 	registerProjectMemoryIpc({ store: () => store });
 }

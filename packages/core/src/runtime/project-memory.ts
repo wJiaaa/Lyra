@@ -23,6 +23,7 @@ import type { Settings } from "../config/settings.ts";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { lyraHome, projectIdFor } from "../session/store.ts";
+import { budgetMemory } from "../prompt/budget.ts";
 
 /** One remembered lesson. */
 export interface Lesson {
@@ -265,29 +266,29 @@ function lessonAge(at: number, now = Date.now()): string {
 }
 
 export function formatProjectMemory(lessons: Lesson[], extracted = "", now = Date.now()): string {
-	if (lessons.length === 0 && !extracted.trim()) return "";
-	const lines = lessons.map((lesson) => `- ${lesson.text}${lesson.context ? `（${lesson.context}）` : ""} · ${lessonAge(lesson.at, now)}`);
-	const parts = [
-		"",
-		"",
-		"<project_memory>",
+	return formatProjectMemorySources(lessons, extracted, now).map(part => part.content).join("");
+}
+
+/** Attribute the bounded bytes to their files while preserving one shared memory wrapper. */
+export function formatProjectMemorySources(lessons: Lesson[], extracted = "", now = Date.now()): { file: string; content: string }[] {
+	if (lessons.length === 0 && !extracted.trim()) return [];
+	const learned = lessons.map(lesson => `- ${lesson.text}${lesson.context ? `（${lesson.context}）` : ""} · ${lessonAge(lesson.at, now)}`).join("\n");
+	// Inferred memory must remain less authoritative than deliberately recorded lessons.
+	const inferred = extracted.trim()
+		? `\n\n从过去的会话里推断出来的（可信度低于上面几条，与代码冲突时以代码为准）：\n${extracted.trim()}` : "";
+	// With no lessons the old format has one empty line before the inferred-memory heading.
+	const raw = learned ? learned + inferred : inferred.slice(1);
+	const body = budgetMemory(raw);
+	const prefix = "\n\n<project_memory>\n" +
 		"以前在这个项目里学到的，按新旧排，每条标了记下的时间。它们说的是当时，不一定是现在：" +
-			"凡是能从仓库里核实的（配置文件、lockfile、脚本、README），动手前先看一眼再用；" +
-			"和你看到的代码或文件矛盾时，以代码为准，并考虑用 `learn` 更新它。",
-		...lines,
+		"凡是能从仓库里核实的（配置文件、lockfile、脚本、README），动手前先看一眼再用；" +
+		"和你看到的代码或文件矛盾时，以代码为准，并考虑用 `learn` 更新它。\n";
+	const suffix = "\n</project_memory>";
+	if (learned && inferred && body.startsWith(learned + "\n\n")) return [
+		{ file: "learned.md", content: prefix + learned },
+		{ file: "MEMORY.md", content: body.slice(learned.length) + suffix },
 	];
-	/*
-	 * The extracted half is marked as inferred, because it was.
-	 *
-	 * `learned.md` is what somebody wrote on purpose; this is what a model concluded from reading
-	 * old sessions, and it is wrong more often. Presenting both at the same confidence would let a
-	 * guess from three weeks ago outrank something a person typed yesterday.
-	 */
-	if (extracted.trim()) {
-		parts.push("", "从过去的会话里推断出来的（可信度低于上面几条，与代码冲突时以代码为准）：", extracted.trim());
-	}
-	parts.push("</project_memory>");
-	return parts.join("\n");
+	return [{ file: learned ? "learned.md" : "MEMORY.md", content: prefix + body + suffix }];
 }
 
 /** Kept in the session state so changing the setting also gates an already-running tool call. */

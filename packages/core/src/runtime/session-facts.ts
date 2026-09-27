@@ -35,6 +35,10 @@ export function sessionFacts(input: {
 		mcpStatuses: can.mcpStatuses,
 		agents: can.agents,
 		mcp: can.mcp,
+		rules: can.rules,
+		resources: can.resources.schemes(),
+		requestContext: log.requestContext,
+		readContext: () => log.readContext(),
 		scratchDir: () => scratchDir(log.meta?.id),
 	};
 }

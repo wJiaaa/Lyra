@@ -291,6 +291,7 @@ export function turnSlice(set: Set, get: Get) {
       toolRuns: {},
       approvals: [],
       commandRuns: get().commandRuns.filter((run) => run.at <= index),
+      hookRuns: get().hookRuns.filter((run) => run.at <= index),
       compactions: get().compactions.filter((run) => run.at <= index),
       hiccups: get().hiccups.filter((one) => one.at <= index),
       /*
@@ -333,6 +334,7 @@ export function turnSlice(set: Set, get: Get) {
           toolRuns: before.toolRuns,
           approvals: before.approvals,
           commandRuns: before.commandRuns,
+          hookRuns: before.hookRuns,
           compactions: before.compactions,
           hiccups: before.hiccups,
           // 上面那次乐观更新把它们算成了撤回后的样子；撤回没成，它们也要跟着回来。
