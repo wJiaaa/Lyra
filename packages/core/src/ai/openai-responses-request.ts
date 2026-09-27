@@ -9,6 +9,7 @@
 import type { AssistantMessage, Message, ToolResultMessage, ToolSpec } from "../types.ts";
 import type { ReasoningReplay } from "./reasoning-compat.ts";
 import type { ToolPairing } from "./tool-pairing-compat.ts";
+import type { ToolResultImages } from "./tool-result-images-compat.ts";
 
 /**
  * Who this request is going to, so a handle from someone else can be told apart from our own.
@@ -28,6 +29,8 @@ export interface ResponsesHome {
 	 * 现状。
 	 */
 	supportsImages?: boolean;
+	/** Where a tool result's image goes; see `tool-result-images-compat.ts`. Omitted means inline. */
+	toolImages?: ToolResultImages;
 }
 
 /**
@@ -48,12 +51,20 @@ function fromHome(message: AssistantMessage, home: ResponsesHome | undefined): b
  * `output` is a string or a list of `input_text` / `input_image` parts; images go as parts so a
  * vision model sees what the tool saw. Text-only results stay a string — the shape every endpoint
  * has always accepted — and a model that cannot read images gets the same line the user branch uses.
+ *
+ * Given `lifted`, the images are collected there instead, for a user message after the results
+ * (`liftedImages`); the output keeps a marker in each image's place.
  */
-function functionCallOutput(message: ToolResultMessage, blind: boolean): unknown {
+function functionCallOutput(message: ToolResultMessage, blind: boolean, lifted?: unknown[]): unknown {
 	const hasImages = message.content.some((c) => c.type === "image");
-	if (!hasImages || blind) {
+	if (!hasImages || blind || lifted) {
 		const text = message.content
-			.map((c) => (c.type === "text" ? c.text : blindImage(c.mimeType, c.data.length)))
+			.map((c) => {
+				if (c.type === "text") return c.text;
+				if (blind || !lifted) return blindImage(c.mimeType, c.data.length);
+				lifted.push({ type: "input_image", image_url: `data:${c.mimeType};base64,${c.data}` });
+				return `[image ${c.mimeType}: attached in the next message]`;
+			})
 			.join("\n");
 		return { type: "function_call_output", call_id: message.toolCallId, output: text };
 	}
@@ -65,6 +76,13 @@ function functionCallOutput(message: ToolResultMessage, blind: boolean): unknown
 
 function blindImage(mimeType: string, length: number): string {
 	return `[图片未发送：这个模型不支持读图（${mimeType}，${length} base64 字符）]`;
+}
+
+/** The images `functionCallOutput` set aside, as one user message — or nothing. Empties `lifted`. */
+function liftedImages(lifted: unknown[] | undefined): unknown[] {
+	if (!lifted || lifted.length === 0) return [];
+	const images = lifted.splice(0);
+	return [{ type: "message", role: "user", content: [{ type: "input_text", text: "Image(s) returned by the tool results above:" }, ...images] }];
 }
 
 /**
@@ -128,6 +146,8 @@ export function toResponsesInput(
 	const input: unknown[] = [];
 	/** 这个模型读不了图——见 `ResponsesHome.supportsImages`，不知道时按「能读」算。 */
 	const blind = home?.supportsImages === false;
+	/** Set when this endpoint refused images inside a tool result; see `ResponsesHome.toolImages`. */
+	const lifted = home?.toolImages === "lifted" && !blind ? [] : undefined;
 
 	for (let index = 0; index < messages.length; index++) {
 		const message = messages[index];
@@ -330,8 +350,8 @@ export function toResponsesInput(
 					if (!answer) continue;
 					paired.add(answer);
 					// 交错：结果紧跟着它自己的调用。成组：先攒着，这一轮的调用全排完再一起放。
-					if (pairing === "interleaved") input.push(functionCallOutput(answer, blind));
-					else grouped.push(functionCallOutput(answer, blind));
+					if (pairing === "interleaved") input.push(functionCallOutput(answer, blind, lifted));
+					else grouped.push(functionCallOutput(answer, blind, lifted));
 				}
 			}
 
@@ -377,14 +397,15 @@ export function toResponsesInput(
 			// Anything in that run which answered no call here, in the order it was recorded.
 			for (let at = index + 1; at < after; at++) {
 				const result = messages[at] as ToolResultMessage;
-				if (!paired.has(result)) input.push(functionCallOutput(result, blind));
+				if (!paired.has(result)) input.push(functionCallOutput(result, blind, lifted));
 			}
+			input.push(...liftedImages(lifted));
 			index = after - 1;
 			continue;
 		}
 
 		// A result with no assistant message before it — the head of a truncated history.
-		input.push(functionCallOutput(message, blind));
+		input.push(functionCallOutput(message, blind, lifted), ...liftedImages(lifted));
 	}
 
 	/*

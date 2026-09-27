@@ -27,6 +27,7 @@ import { failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { learnToolPairing, toolPairing } from "./tool-pairing-compat.ts";
+import { learnToolResultImages, toolResultImages } from "./tool-result-images-compat.ts";
 import { droppedParams, learnDroppedParam } from "./request-params-compat.ts";
 import { compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
@@ -79,7 +80,7 @@ async function* streamResponses(
 			// than replayed to one that will reject it. See `fromHome`.
 			input: toResponsesInput(
 				sanitizeToolPairing(context.messages),
-				{ provider: provider.id, model: model.modelId, supportsImages: model.supportsImages },
+				{ provider: provider.id, model: model.modelId, supportsImages: model.supportsImages, toolImages: toolResultImages(scope.providerId, scope.modelId) },
 				replay,
 				toolPairing(scope.providerId, scope.modelId),
 			),
@@ -205,6 +206,7 @@ async function* streamResponses(
 		 */
 		yield* withReasoningRetry(scope.providerId, scope.modelId, reset, (providerId, modelId, said) =>
 			learnToolPairing(providerId, modelId, said) ||
+			learnToolResultImages(providerId, modelId, said) ||
 			// 告诉参数轴这次到底发没发 `effort: "none"`，见 `learnDroppedParam` 的 `sent`。
 			learnDroppedParam(providerId, modelId, said, { reasoningOff: (body.reasoning as { effort?: string } | undefined)?.effort === "none" }), async function* (replay) {
 			body = buildBody(replay);

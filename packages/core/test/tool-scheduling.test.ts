@@ -8,7 +8,9 @@ import { test } from "node:test";
 import type { AgentRunConfig } from "../src/agent/loop.ts";
 import { coerceArguments, resolveTool, withParameterHint } from "../src/agent/tool-args.ts";
 import { batches, runTools } from "../src/agent/tool-run.ts";
-import { approvalPolicy } from "../src/runtime/approval-policy.ts";
+import type { Context } from "../src/kernel/context.ts";
+import { approvalPlugin } from "../src/kernel/plugins/approval.ts";
+import { approvalPolicy, builtInApprovalPolicy } from "../src/runtime/approval-policy.ts";
 import { bashTool } from "../src/tools/bash.ts";
 import type { Tool, ToolResult } from "../src/types.ts";
 import { parseToolArguments } from "../src/utils/sse.ts";
@@ -185,4 +187,11 @@ test("auto mode lets through an MCP tool its server marks read-only, and nothing
 	const request = { kind: "mcp" as const, title: "t", detail: "", subject: "mcp__s__t" };
 	assert.equal(approvalPolicy().assess("mcp", "mcp__s__t", "/tmp", { ...request, readOnly: true }).risky, false);
 	assert.equal(approvalPolicy().assess("mcp", "mcp__s__t", "/tmp", request).risky, true);
+});
+
+test("the app's approval plugin serves the same policy the runtime falls back to", () => {
+	// Two copies drifted once: the MCP rule above reached tests and not the app.
+	let provided: unknown;
+	approvalPlugin.apply({ provide: (_name: string, value: unknown) => void (provided = value) } as unknown as Context);
+	assert.equal(provided, builtInApprovalPolicy);
 });

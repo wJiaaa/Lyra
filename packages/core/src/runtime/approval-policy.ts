@@ -9,7 +9,8 @@ import type { ApprovalPolicy } from "../kernel/services.ts";
 import { assessCommand, assessWrite } from "../tools/risk.ts";
 import { assessNetwork } from "../tools/risk-network.ts";
 
-const BUILT_IN: ApprovalPolicy = {
+/** Also what the kernel's `approval` plugin provides, so the app and a bare runtime judge alike. */
+export const builtInApprovalPolicy: ApprovalPolicy = {
 	assess(kind, subject, cwd, request) {
 		if (kind === "bash") return assessCommand(subject, cwd);
 		if (kind === "edit" || kind === "write") return assessWrite(subject, cwd);
@@ -53,5 +54,5 @@ export function useApprovalPolicy(next: ApprovalPolicy | null): void {
 }
 
 export function approvalPolicy(): ApprovalPolicy {
-	return bound ?? BUILT_IN;
+	return bound ?? builtInApprovalPolicy;
 }
