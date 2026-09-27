@@ -17,7 +17,7 @@
  * beside a row would be cut off at the pane's edge — which is exactly where it needs to be.
  */
 
-import { translate } from "../../i18n/translate.ts";
+import { activeLocale, translate } from "../../i18n/translate.ts";
 import { Coins, FolderOpen, MessagesSquare, Zap } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -59,11 +59,11 @@ const CARD_Z = 210;
 function when(at: number): string {
 	const days = Math.floor((Date.now() - at) / 86_400_000);
 	if (days === 0) {
-		return new Date(at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+		return new Date(at).toLocaleTimeString(activeLocale(), { hour: "2-digit", minute: "2-digit" });
 	}
 	if (days === 1) return translate("sessionCard.yesterday");
 	if (days < 30) return translate("sessionCard.daysAgo", { n: days });
-	return new Date(at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
+	return new Date(at).toLocaleDateString(activeLocale(), { month: "numeric", day: "numeric" });
 }
 
 /**

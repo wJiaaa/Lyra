@@ -26,6 +26,7 @@ import { Card, Row, SectionTitle } from "./layout.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { EmptyHint, Toggle } from "./controls.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function AccessSettings() {
 	const { t } = useI18n();
@@ -81,17 +82,16 @@ export function AccessSettings() {
 							{/* The whole subject, wrapped rather than cut: these are commands and origins, and
 							    the end of one is often the part that tells you what it was. */}
 							<span className="min-w-0 flex-1 font-mono text-detail leading-relaxed break-all text-ink">{subject}</span>
-							<button
-								type="button"
-								data-ly-tip={t("access.stopAuto")}
-								aria-label={t("access.stopAutoFor", { subject })}
+							<IconButton
+								size="sm"
+								tone="danger"
+								label={t("access.stopAutoFor", { subject })}
 								onClick={() =>
 									void saveSettings({ ...settings, alwaysAllow: allowed.filter((entry) => entry !== subject) })
 								}
-								className="shrink-0 rounded-md p-1 text-ink-faint opacity-0 transition-all group-hover/row:opacity-100 hover:text-danger focus-visible:opacity-100"
-							>
-								<Trash2 size={13} strokeWidth={1.8} />
-							</button>
+								className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
+								icon={<Trash2 size={13} strokeWidth={1.8} />}
+							/>
 						</div>
 					))
 				)}

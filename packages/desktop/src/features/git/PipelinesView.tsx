@@ -285,14 +285,7 @@ export function PipelinesView({ cwd, onOpenRelease, toolbar, active = true }: Pi
 				{/* Top Header Bar */}
 				<div className="flex items-center justify-between px-3.5 py-2.5">
 					<div className="ly-scroll flex items-center gap-2 min-w-0">
-						<button
-							type="button"
-							onClick={() => setInspectRun(null)}
-							className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted hover:bg-card-hover hover:text-ink transition-colors cursor-pointer"
-							data-ly-tip={t("pipelines.back")}
-						>
-							<ArrowLeft size={15} />
-						</button>
+						<IconButton label={t("pipelines.back")} onClick={() => setInspectRun(null)} icon={<ArrowLeft size={15} />} />
 						<ScrollText
 							text={inspectRun.name || t("pipelines.workflowDetail")}
 							className="text-ui font-medium text-ink"

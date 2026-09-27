@@ -128,7 +128,7 @@ Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置
 packages/
   core/              agent 内核：provider 适配、agent loop、工具、skill、MCP、会话存储
   desktop/           Electron 应用（主进程 + preload + React 渲染进程）
-  contract/          两个进程之间那条线，219 个方法写在一处
+  contract/          两个进程之间那条线，221 个方法写在一处
   registry-shared/   插件目录的索引格式，桌面端与目录服务共用
 ```
 
@@ -184,24 +184,21 @@ pnpm dev
 
 ## 系统提示词
 
-结构学自 [pi](https://github.com/earendil-works/pi)：
-
 ```
 身份（一句话）
-Available tools:      每个工具一行 snippet
-Guidelines:           基础规则 + 已加载工具各自贡献的规则
+Guidelines:           怎么说话、怎么做事，对整个会话都成立的规则
 Boundaries:           不可越过的边界
-Environment:          平台、是否 git 仓库、日期、模型
+Environment:          平台、shell、是否 git 仓库、模型
 <available_skills>    名称 / 描述 / 目录，不含正文
-<available_subagents> 名称 / 描述 / 可用工具
+<available_subagents> 名称 / 描述 / 可用工具，只在加载了 `task` 时出现
 <project_context>     AGENTS.md 等项目指令，用 XML 标签包裹
 Current working directory: …
 ```
 
 要点：
 
-- 规则挂在贡献它的工具上（`Tool.guidelines`）。没加载 `bash` 的会话就不会看到关于 shell 命令的建议，也不会留下过时的指导。
-- 提示里只放 `snippet`（一行），完整的 `description` 走供应商的 tool schema。同一份信息不重复占两次上下文。
+- 提示里不列工具。一个工具怎么用只写一处：它自己的 `description`，随供应商的 tool schema 发出——没加载的工具不会留下任何话。
+- 不变的在前，随机器、项目、会话变化的在后，能缓存的前缀尽量长。
 - 技能只列名称、描述和目录，正文在模型调用 `skill` 工具时才注入。
 - 子智能体清单是必要的：没有它，模型不知道 `subagent_type` 有哪些取值，即使用户点名 `explore` 也会退回 `general`（这是实测发现的）。
 - 技能描述里的 `<` `&` 会被转义，一个恶意的 `description` 不能提前闭合 XML 标签往提示里塞指令。

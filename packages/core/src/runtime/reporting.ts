@@ -87,11 +87,11 @@ export async function describeContext(session: SessionFacts): Promise<ContextBre
 		schemas = recorded.schemas ?? [];
 		mcpNames = new Set(recorded.mcpTools ?? schemas.filter(tool => tool.name.startsWith("mcp__")).map(tool => tool.name));
 	} else {
-		const capabilities = promptCapabilities({ settings: session.settings, thinking: session.meta.thinking, messages: session.messages, agents: session.agents, tools: session.tools });
+		const capabilities = promptCapabilities({ settings: session.settings, tools: session.tools });
 		prompt = await loadPromptContext({
 			cwd: session.cwd, settings: session.settings, ...capabilities,
 			skills: session.skills, agents: session.agents, rules: session.rules, resources: session.resources,
-			modelName: resolved.model.name, thinking: session.meta.thinking ?? session.settings.thinking,
+			modelName: resolved.model.name,
 			scratchDir: session.scratchDir(), recordInjection: false,
 		});
 		schemas = capabilities.tools;

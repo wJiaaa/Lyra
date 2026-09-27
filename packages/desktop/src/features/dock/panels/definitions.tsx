@@ -9,16 +9,16 @@
 import type { MessageKey } from "../../../i18n/messages/index.ts";
 import { allPanels, type PanelDefinition } from "./registry.ts";
 import type { PanelKind } from "../sideStore.ts";
-import { useApp } from "../../../store/index.ts";
+import { useScopedSessionId, useScopedWorkspace } from "../../../app/session-scope.tsx";
 import "./builtin.tsx";
 
 /** A panel with its availability already decided, which is all a view needs. */
 export type ResolvedPanel = Omit<PanelDefinition, "unavailable"> & { unavailable?: MessageKey };
 
 export function usePanelDefinitions(): ResolvedPanel[] {
-	const workspace = useApp((s) => s.workspace);
-	const scratchCwd = useApp((s) => s.scratchCwd);
-	const activeSessionId = useApp((s) => s.activeSessionId);
+	// What this screen's conversation has, which in a split is not the focused one's.
+	const { workspace, scratchCwd } = useScopedWorkspace();
+	const activeSessionId = useScopedSessionId();
 	const state = {
 		workspace: Boolean(workspace),
 		cwd: Boolean(workspace ?? scratchCwd),

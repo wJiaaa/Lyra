@@ -124,7 +124,16 @@ function SlashCommands() {
 	const needle = query.trim().toLowerCase();
 	const visible = commands.filter((command) => matchesQuery(command, needle));
 	const builtins = (list?.builtins ?? []).filter((command) => matchesQuery(command, needle));
-	const diagnostics = list?.diagnostics ?? [];
+	/*
+	 * Split by whether the file loaded, which the command list already says: a misspelt field or a
+	 * `---` never closed still leaves the command in the list, and counting it as failed to load
+	 * contradicted its own row. Both headers count files.
+	 */
+	const loaded = new Set((list?.commands ?? []).map((command) => command.path));
+	const diagnostics = (list?.diagnostics ?? []).filter((diagnostic) => !loaded.has(diagnostic.path));
+	const warnings = (list?.diagnostics ?? []).filter((diagnostic) => loaded.has(diagnostic.path));
+	const failed = new Set(diagnostics.map((diagnostic) => diagnostic.path)).size;
+	const warned = new Set(warnings.map((warning) => warning.path)).size;
 
 	return (
 		<div data-ly-commands-settings="">
@@ -142,10 +151,25 @@ function SlashCommands() {
 				<div className="mt-5 flex items-start gap-2 rounded-[10px] border border-accent/35 bg-accent/6 px-3.5 py-2.5 text-detail text-ink-muted">
 					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-accent" aria-hidden />
 					<div className="min-w-0">
-						<div className="text-accent">{t("commandsSettings.failedToLoad", { n: diagnostics.length })}</div>
-						{diagnostics.map((diagnostic) => (
-							<div key={diagnostic.path} className="mt-0.5">
+						<div className="text-accent">{t("commandsSettings.failedToLoad", { n: failed })}</div>
+						{/* By position: a path repeats when one file has two lines, and these rows hold no state. */}
+						{diagnostics.map((diagnostic, index) => (
+							<div key={index} className="mt-0.5">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+
+			{warnings.length > 0 && (
+				<div className="mt-5 flex items-start gap-2 rounded-[10px] border border-line px-3.5 py-2.5 text-detail text-ink-faint">
+					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden />
+					<div className="min-w-0">
+						<div className="text-ink-muted">{t("commandsSettings.warnings", { n: warned })}</div>
+						{warnings.map((warning, index) => (
+							<div key={index} className="mt-0.5">
+								<span className="font-mono">{warning.path}</span> — {warning.message}
 							</div>
 						))}
 					</div>

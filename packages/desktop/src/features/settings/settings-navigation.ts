@@ -19,7 +19,6 @@ import {
 	ShieldCheck,
 	Sparkles,
 	SquareTerminal,
-	Workflow,
 	Wrench,
 } from "lucide-react";
 import type { SettingsSection } from "../../store/index.ts";
@@ -51,8 +50,6 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 		items: [
 			{ id: "plugins", labelKey: "settings.extensions", icon: Blocks },
 			{ id: "agents", labelKey: "settings.agents", icon: Bot },
-			// 紧挨着智能体，因为它们是同一件事的两半：那一页说有谁，这一页说什么时候派他们出去。
-			{ id: "delegation", labelKey: "settings.delegation", icon: Workflow },
 			{ id: "commands", labelKey: "settings.commands", icon: SquareTerminal },
 			{ id: "tools", labelKey: "settings.tools", icon: Wrench },
 			{ id: "hooks", labelKey: "settings.hooks", icon: Anchor },

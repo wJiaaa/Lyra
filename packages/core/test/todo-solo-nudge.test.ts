@@ -76,5 +76,5 @@ test("a lone todo_write gets the note in its own result; one batched with real w
 
 test("the note names the cost, and the tool's own guidance already says never to do this", () => {
 	assert.match(SOLO_TODO_NOTE, /往返/);
-	assert.ok(todoTool.guidelines?.some((line) => /only tool call/i.test(line)), "the rule is in the description too — the note is for the model that skimmed it");
+	assert.match(todoTool.description, /only tool call/i, "the rule is in the description too — the note is for the model that skimmed it");
 });

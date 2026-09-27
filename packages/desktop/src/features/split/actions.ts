@@ -73,7 +73,19 @@ export function revealSession(meta: SessionMeta): void {
 
 export function focusPane(sessionId: string | null): void {
 	useSplit.getState().focus(sessionId);
-	if (!sessionId) return;
+	if (!sessionId) {
+		/*
+		 * A blank screen takes the live slot too.
+		 *
+		 * It used to only take the focus, leaving the conversation beside it live: the blank screen's
+		 * composer, stop button and project row then acted on that conversation, and what was typed
+		 * there was sent to it. Not when there is nowhere to run yet: `newSession` would ask for a
+		 * project, and a press or a keystroke is not that request — sending is, and `send` makes it.
+		 */
+		const { activeSessionId, workspace, scratchCwd } = useApp.getState();
+		if (activeSessionId !== null && (workspace || scratchCwd)) void useApp.getState().newSession({ keepView: true });
+		return;
+	}
 	if (useApp.getState().activeSessionId === sessionId && useApp.getState().pendingSessionId == null) return;
 	const meta = useApp.getState().sessions.find((session) => session.id === sessionId);
 	if (meta) revealSession(meta);

@@ -16,15 +16,16 @@ import { Folder } from "lucide-react";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { FileTree } from "./FileTree.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
-import { useApp } from "../../store/index.ts";
+import { useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useProjectFolders } from "../../store/project-folders.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 
 export function FileBrowser() {
-	const workspace = useApp((s) => s.workspace);
+	// This screen's project: a split shows several, and the tree is the one beside this conversation.
+	const { workspace } = useScopedWorkspace();
 	const openPath = useOpenFile((s) => s.path);
 	// Every folder the project names, not only the one sessions run in — see `useProjectFolders`.
-	const folders = useProjectFolders();
+	const folders = useProjectFolders(workspace);
 
 	/*
 	 * Letting go of the last project's file is not this pane's job — see `useProjectFiles` in

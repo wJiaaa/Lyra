@@ -7,6 +7,7 @@ import { commitDraft, isLegalDraft } from "../../lib/number-draft.ts";
 import { Badge, Card, GhostButton, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 const PORT = { min: 1, max: 65535, step: 1 };
 
@@ -103,7 +104,7 @@ export function WebAccessSettings() {
 						status?.error
 							? t("webAccess.failed", { reason: status.error })
 							: running
-								? t("webAccess.clients", { count: status?.clients ?? 0 })
+								? t("webAccess.clients", { n: status?.clients ?? 0 })
 								: t("webAccess.notRunning")
 					}
 					control={
@@ -140,15 +141,22 @@ export function WebAccessSettings() {
 						{urls.map((url) => (
 							<div key={url} className="flex items-center gap-2 px-4 py-3">
 								<code className="min-w-0 flex-1 truncate font-mono text-detail text-ink">{url}</code>
-								<LinkAction label={copied === url ? t("common.copied") : t("common.copy")} onClick={() => copy(url)}>
-									{copied === url ? <Check size={14} strokeWidth={2} className="text-ok" /> : <Copy size={14} strokeWidth={1.8} />}
-								</LinkAction>
-								<LinkAction label={t("webAccess.qr")} active={qr === url} onClick={() => setShown(qr === url ? null : url)}>
-									<QrCode size={14} strokeWidth={1.8} />
-								</LinkAction>
-								<LinkAction label={t("webAccess.open")} onClick={() => void bridge.system.openExternal(url)}>
-									<ExternalLink size={14} strokeWidth={1.8} />
-								</LinkAction>
+								<IconButton
+									label={copied === url ? t("common.copied") : t("common.copy")}
+									onClick={() => copy(url)}
+									icon={copied === url ? <Check size={14} strokeWidth={2} className="text-ok" /> : <Copy size={14} strokeWidth={1.8} />}
+								/>
+								<IconButton
+									label={t("webAccess.qr")}
+									active={qr === url || undefined}
+									onClick={() => setShown(qr === url ? null : url)}
+									icon={<QrCode size={14} strokeWidth={1.8} />}
+								/>
+								<IconButton
+									label={t("webAccess.open")}
+									onClick={() => void bridge.system.openExternal(url)}
+									icon={<ExternalLink size={14} strokeWidth={1.8} />}
+								/>
 							</div>
 						))}
 						{qr && (
@@ -186,32 +194,5 @@ export function WebAccessSettings() {
 				/>
 			</Card>
 		</div>
-	);
-}
-
-function LinkAction({
-	label,
-	active = false,
-	onClick,
-	children,
-}: {
-	label: string;
-	active?: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			data-ly-tip={label}
-			aria-label={label}
-			aria-pressed={active || undefined}
-			onClick={onClick}
-			className={`grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover ${
-				active ? "text-info" : "text-ink-faint hover:text-ink"
-			}`}
-		>
-			{children}
-		</button>
 	);
 }

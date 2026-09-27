@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
+import { THINKING_LEVELS, thinkingOptionsFor } from "@lyra/core";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
@@ -37,7 +38,8 @@ async function seed(home: string) {
 	await seedInteractions(home, port);
 	const path = join(home, "settings.json"); const settings = JSON.parse(await readFile(path, "utf8"));
 	settings.providers[0].name = "主供应商";
-	const model = { ...settings.providers[0].models[0], modelId: "gpt-5.6-sol", name: "同名模型", supportsThinking: true };
+	// 档位不再按模型名推断，要测「极致」就得在模型上配出来。
+	const model = { ...settings.providers[0].models[0], modelId: "gpt-5.6-sol", name: "同名模型", supportsThinking: true, thinkingOptions: thinkingOptionsFor(THINKING_LEVELS) };
 	settings.providers[0].models = [model];
 	settings.providers.push({ ...settings.providers[0], id: "secondary", name: "第二供应商", api: "openai-responses", baseUrl: `http://127.0.0.1:${port}/secondary`, models: [{ ...model, providerId: "secondary", id: "secondary/model" }] });
 	settings.thinking = "off";

@@ -12,6 +12,8 @@ import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { bridge } from "../../services/index.ts";
 import { MemoryMeta, type MemorySource } from "./MemoryMeta.tsx";
 import { SidebarMotto } from "./SidebarMotto.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function PersonalizationSettings() {
 	const { t } = useI18n();
@@ -236,15 +238,13 @@ export function PersonalizationSettings() {
 						</p>
 					</div>
 					{memoryEntries.length > 0 && (
-						<button
-							type="button"
+						<Button
+							variant="danger"
+							size="sm"
+							label={t("personalization.clearMemory")}
 							onClick={handleClearAllMemory}
-							className="rounded-lg px-2.5 py-1 text-caption text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
-
-							data-ly-tip={t("personalization.clearMemory")}
-							aria-label={t("personalization.clearMemory")}>
-							<Trash2 size={13} strokeWidth={1.8} />
-						</button>
+							icon={<Trash2 size={13} strokeWidth={1.8} />}
+						/>
 					)}
 				</div>
 
@@ -325,14 +325,12 @@ export function PersonalizationSettings() {
 												<MemoryMeta source={m.source ?? "user"} createdAt={m.createdAt} lastInjectedAt={m.lastInjectedAt} />
 											</div>
 										</div>
-										<button
-											type="button"
+										<IconButton
+											tone="danger"
+											label={t("memory.deleteOne")}
 											onClick={() => handleDeleteMemory(m.id)}
-											data-ly-tip={t("memory.deleteOne")}
-											className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-faint hover:bg-rose-500/10 hover:text-rose-500 transition-colors cursor-pointer"
-										>
-											<Trash2 size={13.5} strokeWidth={1.8} />
-										</button>
+											icon={<Trash2 size={13.5} strokeWidth={1.8} />}
+										/>
 									</div>
 								))}
 							</div>
@@ -355,14 +353,9 @@ export function PersonalizationSettings() {
 							 * 逐条删是在修一条错的；全部忘掉是「这个项目我重新开始」——多半发生在
 							 * 抽取跑歪了、或者仓库整个换了方向之后。一条条点二十下不是同一件事。
 							 */}
-							<button
-								type="button"
-								onClick={() => void forgetAllProjectMemory()}
-								data-project-memory-clear
-								className="shrink-0 rounded-lg px-2 py-1 text-caption text-ink-faint transition-colors hover:bg-rose-500/10 hover:text-rose-500 cursor-pointer"
-							>
+							<Button variant="danger" size="sm" onClick={() => void forgetAllProjectMemory()} data-project-memory-clear>
 								{t("memory.forgetAllProject")}
-							</button>
+							</Button>
 						</div>
 						<div className="space-y-1.5">
 							{/*
@@ -380,16 +373,13 @@ export function PersonalizationSettings() {
 										{lesson.context && <span className="block text-caption text-ink-muted">{t("personalization.appliesTo", { context: lesson.context })}</span>}
 										<MemoryMeta source="learn" createdAt={lesson.at} lastInjectedAt={lesson.lastInjectedAt} />
 									</div>
-									<button
-										type="button"
+									<IconButton
+										tone="danger"
+										label={t("memory.deleteOne")}
 										onClick={() => void forgetLesson(lesson.at)}
-										data-ly-tip={t("memory.deleteOne")}
-										aria-label={t("memory.deleteOne")}
 										data-project-lesson-delete
-										className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-faint hover:bg-rose-500/10 hover:text-rose-500 transition-colors cursor-pointer"
-									>
-										<Trash2 size={13.5} strokeWidth={1.8} />
-									</button>
+										icon={<Trash2 size={13.5} strokeWidth={1.8} />}
+									/>
 								</div>
 							))}
 							{projectMemory.extracted && (
@@ -403,16 +393,13 @@ export function PersonalizationSettings() {
 										/>
 									</div>
 									{/* 抽取出来的那一份是整体重写的，所以它只有「整份丢掉」这一个动作。下次抽取会重新写。 */}
-									<button
-										type="button"
+									<IconButton
+										tone="danger"
+										label={t("memory.deleteExtracted")}
 										onClick={() => void forgetExtracted()}
-										data-ly-tip={t("memory.deleteExtracted")}
-										aria-label={t("memory.deleteExtracted")}
 										data-project-extracted-delete
-										className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-ink-faint hover:bg-rose-500/10 hover:text-rose-500 transition-colors cursor-pointer"
-									>
-										<Trash2 size={13.5} strokeWidth={1.8} />
-									</button>
+										icon={<Trash2 size={13.5} strokeWidth={1.8} />}
+									/>
 								</div>
 							)}
 						</div>

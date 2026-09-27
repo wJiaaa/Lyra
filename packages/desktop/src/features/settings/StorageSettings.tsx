@@ -26,6 +26,7 @@ import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import type { StorageUse } from "../../../electron/session-cleanup.ts";
 import { Card, Row, SectionTitle } from "./controls.tsx";
 import { formatBytes } from "./usage-format.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 /** 清完之后要说的那句话。 */
 interface Done {
@@ -158,16 +159,16 @@ export function StorageSettings() {
 						</>
 					}
 					control={
-						<button
-							type="button"
+						<Button
+							variant="danger"
+							size="sm"
 							onClick={ask}
 							disabled={busy || use === null || empty || nothing}
 							data-usage-clear="true"
-							className="flex h-[26px] shrink-0 items-center gap-1.5 rounded-full px-2.5 text-detail text-danger transition-colors duration-[var(--ly-t-quick)] hover:bg-danger/10 disabled:pointer-events-none disabled:opacity-40"
+							icon={busy ? <ActionSpinner size={12} /> : <Trash2 size={12} strokeWidth={1.9} aria-hidden />}
 						>
-							{busy ? <ActionSpinner size={12} /> : <Trash2 size={12} strokeWidth={1.9} aria-hidden />}
 							{busy ? t("cleanup.clearing") : t("cleanup.clear")}
-						</button>
+						</Button>
 					}
 				/>
 			</Card>

@@ -1,5 +1,5 @@
 import { DEFAULT_RETRY_POLICY, normalizeRetryPolicy, type RetryPolicy } from "./retry-policy.ts";
-import { normalizeDelegationPolicy, normalizeMaxConcurrentSubAgents, type DelegationPolicy } from "../runtime/delegation.ts";
+import { normalizeMaxConcurrentSubAgents } from "../runtime/dispatch-guard.ts";
 import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
 import { constants, copyFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -450,22 +450,9 @@ export interface Settings {
 	 * calls. The number reaches the prompt too: a queue is invisible from the inside, and a model
 	 * that reads the wait as slowness responds by dispatching more.
 	 *
-	 * 这是天花板，不是每一轮实际的宽度：推理等级会在它底下再收一道（中档减半，低档只放一个），
-	 * 因为「派一个子代理划不划算」本来就取决于这一轮值多少钱。只收不放——把等级拉满也不会越过
-	 * 这里写的数字。见 `runtime/delegation.ts`。
+	 * 设置页不再展示它，只在配置文件里可调。见 `runtime/dispatch-guard.ts`。
 	 */
 	maxConcurrentSubAgents: number;
-	/**
-	 * 派活的积极程度：跟着推理等级走，还是钉死一档。
-	 *
-	 * 默认 `auto`，也就是这个字段出现之前唯一的行为——等级越高越爱派。存在的理由是那个推断只是
-	 * 一个很好的猜测：把等级开满的人可能只是想让模型自己多想一会儿，并不想要一棵子代理树，而在
-	 * 此之前他没有任何地方可以说出这件事。
-	 *
-	 * `off` 挡的是模型自作主张，不是这个功能本身——用户在消息里 `@` 点名的那次照派。见
-	 * `runtime/delegation.ts` 里的 `mentionedAgents`。
-	 */
-	subAgentDelegation?: DelegationPolicy;
 	/**
 	 * Which model answers to `@compact`, `@fast`, `@deep` and `@review`.
 	 *
@@ -594,7 +581,6 @@ export const DEFAULT_SETTINGS: Settings = {
 	autoSummarizeTitle: true,
 	hideEmptiedProjects: false,
 	maxConcurrentSubAgents: 4,
-	subAgentDelegation: "auto",
 	modelRoles: {},
 	/*
 	 * `memoryExtraction` is deliberately absent rather than `undefined`.
@@ -805,7 +791,6 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			// Off unless asked for: a project disappearing from the sidebar is the worse surprise.
 			hideEmptiedProjects: parsed.hideEmptiedProjects === true,
 			maxConcurrentSubAgents: normalizeMaxConcurrentSubAgents(parsed.maxConcurrentSubAgents),
-			subAgentDelegation: normalizeDelegationPolicy(parsed.subAgentDelegation),
 			/*
 			 * Spread rather than assigned, so "never asked" is an absent key rather than a present
 			 * one holding `undefined`.

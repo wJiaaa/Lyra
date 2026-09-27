@@ -73,6 +73,9 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 	 */
 	const diagnostics = (scan?.skillDiagnostics ?? []).filter((d) => d.severity !== "warning");
 	const warnings = (scan?.skillDiagnostics ?? []).filter((d) => d.severity === "warning");
+	// Headers that say "skills" count skills: one file can fail for two reasons, or carry two warnings.
+	const failed = new Set(diagnostics.map((d) => d.path)).size;
+	const warned = new Set(warnings.map((d) => d.path)).size;
 	const shadowed = scan?.shadowedSkills ?? [];
 
 	const decide = async (name: string, keep: boolean) => {
@@ -140,10 +143,11 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{t("skillsSettings.failedToLoad", { n: diagnostics.length })}
+							{t("skillsSettings.failedToLoad", { n: failed })}
 						</div>
-						{diagnostics.map((diagnostic) => (
-							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
+						{/* By position: a path repeats when one file has two diagnostics, and these rows hold no state. */}
+						{diagnostics.map((diagnostic, index) => (
+							<div key={index} className="py-0.5 text-detail text-accent/85">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
 							</div>
 						))}
@@ -156,10 +160,10 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{t("skillsSettings.shortDescriptions", { n: warnings.length })}
+							{t("skillsSettings.shortDescriptions", { n: warned })}
 						</div>
-						{warnings.map((warning) => (
-							<div key={warning.path} className="py-0.5 text-detail text-ink-faint">
+						{warnings.map((warning, index) => (
+							<div key={index} className="py-0.5 text-detail text-ink-faint">
 								<span className="font-mono">{warning.path}</span> — {warning.message}
 							</div>
 						))}

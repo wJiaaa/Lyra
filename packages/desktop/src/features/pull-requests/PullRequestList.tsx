@@ -24,6 +24,8 @@ import { rowId } from "./pr-cache.ts";
 import { PullRequestRow } from "./PullRequestRow.tsx";
 import { ListSkeleton } from "./PullRequestSkeleton.tsx";
 import type { Filter, Group } from "./usePullRequests.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /** The three lists, by key. Labels are looked up per render — see `translate`. */
 const FILTERS: { key: Filter; label: MessageKey }[] = [
@@ -169,15 +171,12 @@ export function PullRequestList({
 				</div>
 
 				<div className="flex-1" />
-				<button
-					type="button"
-					data-ly-tip={t("common.refresh")}
-					aria-label={t("common.refresh")}
+				<IconButton
+					label={t("common.refresh")}
 					onClick={onRefresh}
-					className="no-drag flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
-				>
-					{loading ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={1.8} />}
-				</button>
+					className="no-drag"
+					icon={loading ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={1.8} />}
+				/>
 			</div>
 
 			{/*
@@ -330,13 +329,7 @@ function SignedOut({ onAddAccount }: { onAddAccount: () => void }) {
 				<p className="mt-2 max-w-[240px] text-detail leading-relaxed text-ink-faint">
 					{t("prList.hostsSupported")}
 				</p>
-				<button
-					type="button"
-					onClick={onAddAccount}
-					className="grid place-items-center mt-5 h-[30px] rounded-lg border border-line text-label text-ink-muted transition-colors hover:border-ink-faint hover:bg-card-hover hover:text-ink w-[30px]"
-			data-ly-tip={t("prList.addAccount")}
-			aria-label={t("prList.addAccount")}
-		><UserPlus size={13} strokeWidth={1.8} /></button>
+				<Button label={t("prList.addAccount")} onClick={onAddAccount} className="mt-5" icon={<UserPlus size={13} strokeWidth={1.8} />} />
 			</div>
 		</div>
 	);

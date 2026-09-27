@@ -91,7 +91,7 @@ try {
 	await click('[data-approval-card] label:nth-of-type(2)'); await pause();
 	const selectedCount = await app.evaluate("document.querySelectorAll('[data-approval-card] input:checked').length");
 	check("two choices remain selected until confirmation", selectedCount === 2, selectedCount);
-	await click('button[aria-label="确认选择"]');
+	await click('[data-ly-question-footer] button[type="submit"]');
 	await until("!document.querySelector('[data-approval-card]')&&!document.querySelector('[data-composer-send=stop]')"); await pause();
 	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.lyra.sessions.list()).find(s=>s.id==='issue-demo');const t=await window.lyra.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
 	check("multiple answers reach the model once", results.length === 2 && results[1].includes("保留现有行为") && results[1].includes("更新实现"), results);

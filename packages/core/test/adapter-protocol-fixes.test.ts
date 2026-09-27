@@ -324,20 +324,16 @@ test("Anthropic：思考回放降了一格还是失败，这一格不留给别�
 	resetThinkingReplay();
 });
 
-test("Anthropic：滚动缓存断点跳过末尾的 <env> 日期块，落在下一次会复用的前缀上", () => {
+test("Anthropic：<env> 日期块留在原位，滚动缓存断点照常可以落在它上面", () => {
+	// 它跟在所属的用户消息后面、每次渲染都一样（见 `prompt/environment.ts`），以它结尾的前缀下一次照样复用。
 	const env: Message = { role: "user", content: [{ type: "text", text: "<env>\n今天是 2026-09-27。这是环境信息，不是用户的请求。\n</env>" }], timestamp: 9, synthetic: true };
 	const assistant: AssistantMessage = {
 		role: "assistant", api: "anthropic-messages", provider: "qa", model: "m", usage: emptyUsage(), stopReason: "stop", timestamp: 1,
 		content: [{ type: "text", text: "答" }],
 	};
-	const wire = toAnthropicMessages([userSays("问"), assistant, userSays("再问"), env], { cacheBreakpoints: 2 });
+	const wire = toAnthropicMessages([userSays("问"), env, assistant, userSays("再问")], { cacheBreakpoints: 2 });
 	const marked = wire.map((message) => message.content.some((block) => block.cache_control != null));
-	assert.deepEqual(marked, [false, true, true, false], "两个断点都在 env 之前");
-
-	// 别的 synthetic 消息会留在历史里，照常可以放断点。
-	const note: Message = { role: "user", content: [{ type: "text", text: "请换个办法" }], timestamp: 9, synthetic: true };
-	const withNote = toAnthropicMessages([userSays("问"), assistant, note], { cacheBreakpoints: 2 });
-	assert.equal(withNote[2].content[0].cache_control != null, true);
+	assert.deepEqual(marked, [false, false, true, true]);
 });
 
 // ---------------------------------------------------------------------------

@@ -22,11 +22,9 @@ interface RuleArgs {
 
 export const ruleTool: Tool<RuleArgs> = {
 	name: "rule",
-	snippet: "Read a project rule's full text",
-	guidelines: ["When a task matches a rule listed in <rulebook>, read it before starting — it is the project's decision, not a suggestion."],
 	description:
-		"Read the full text of a project rule. Call this when the task matches one of the rules listed in the " +
-		"`<rulebook>` section of your instructions. The body comes back as the tool result.",
+		"Read the full text of a project rule. When the task matches one of the rules listed in the " +
+		"`<rulebook>` section of your instructions, read it before starting — it is the project's decision, not a suggestion. The body comes back as the tool result.",
 	parameters: {
 		type: "object",
 		properties: { name: { type: "string", description: "Exact rule name from the rulebook listing." } },

@@ -23,6 +23,7 @@ import { useSidebarReorder } from "./useSidebarReorder.ts";
 import { SidebarReorderContext } from "./reorder-context.ts";
 import type { SortKey } from "./ListMenu.tsx";
 import { CarriedPill } from "./DropIndicator.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
  * Fold keys for the two sections, which are not projects and have no path.
@@ -121,15 +122,12 @@ export function ProjectList({
 						 */
 						// A project is a settings entry, which a browser through Web access cannot write.
 						action={
-							available("settings", "save") && <button
-								type="button"
+							available("settings", "save") && <IconButton
+								size="sm"
+								label={translate("project.new")}
 								onClick={() => setCreating(true)}
-								data-ly-tip={translate("project.new")}
-								aria-label={translate("project.new")}
-								className="rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-							>
-								<Plus size={13} strokeWidth={2} aria-hidden />
-							</button>
+								icon={<Plus size={13} strokeWidth={2} aria-hidden />}
+							/>
 						}
 					>
 						{translate("projectList.projects")}

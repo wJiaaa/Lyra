@@ -32,7 +32,10 @@ const cost = (input: number, output: number, cacheRead = 0, cacheWrite = 0) => (
 /** 一份合成的 pi 原始目录：数值是编的，只为让断言不随上游快照变化。 */
 const PI_RAW = {
 	openai: {
-		"gpt-5.2": { id: "gpt-5.2", name: "GPT-5.2", baseUrl: "https://api.openai.com/v1", reasoning: true, input: ["text", "image"], cost: cost(1.75, 14, 0.175), contextWindow: 400_000, maxTokens: 128_000 },
+		"gpt-5.2": {
+			id: "gpt-5.2", name: "GPT-5.2", baseUrl: "https://api.openai.com/v1", reasoning: true, input: ["text", "image"], cost: cost(1.75, 14, 0.175), contextWindow: 400_000, maxTokens: 128_000,
+			thinkingLevelMap: { off: "none", minimal: "low", xhigh: "xhigh", max: null },
+		},
 	},
 	zai: {
 		"glm-5.3": { id: "glm-5.3", name: "GLM-5.3", baseUrl: "https://api.z.ai/api/coding/paas/v4", reasoning: true, input: ["text"], cost: cost(1, 3.2), contextWindow: 200_000, maxTokens: 128_000 },
@@ -80,6 +83,14 @@ describe("pi catalogue format", () => {
 		assert.deepEqual(catalog.providers.find((entry) => entry.id === "openrouter")!.models.map((model) => model.id), ["tencent/hy3-preview"]);
 	});
 
+	it("reads thinking levels the way pi does: null drops a level, xhigh and max need an explicit value", () => {
+		const models = new Map(fixture().providers.flatMap((entry) => entry.models.map((model) => [`${entry.id}/${model.id}`, model] as const)));
+		// `minimal` 在这个条目上实际发 `low`，和「低」一模一样，不单列一档。
+		assert.deepEqual(models.get("openai/gpt-5.2")!.thinkingLevels, ["off", "low", "medium", "high", "xhigh"]);
+		assert.deepEqual(models.get("zai/glm-5.3")!.thinkingLevels, ["off", "minimal", "low", "medium", "high"]);
+		assert.equal(models.get("openrouter/tencent/hy3-preview")!.thinkingLevels, undefined, "不支持思考就没有档位");
+	});
+
 	it("rejects a catalogue without a revision or with an invalid entry as a whole", () => {
 		assert.throws(() => parseModelCatalog({ ...fixture(), source: { name: "pi.dev" } }));
 		const broken = structuredClone(fixture());
@@ -96,8 +107,10 @@ describe("catalogue matching", () => {
 		const go = provider("https://opencode.ai/zen/go");
 		assert.equal(catalogModelFor(go, "glm-5.3")?.provider.id, "opencode-go");
 		assert.equal(catalogModelFor(provider("https://OPENCODE.ai/zen/go/v1/"), "glm-5.3")?.match, "exact");
-		const { pricing, ...values } = filled(go, "glm-5.3")!;
+		const { pricing, thinkingOptions, ...values } = filled(go, "glm-5.3")!;
 		assert.deepEqual(values, { contextWindow: 1_000_000, maxOutputTokens: 131_072, supportsThinking: true, supportsImages: false, supportsTools: true });
+		assert.deepEqual(thinkingOptions?.map((option) => option.id), ["off", "minimal", "low", "medium", "high"]);
+		assert.equal(thinkingOptions?.find((option) => option.isDefault)?.id, "medium");
 		assert.equal(pricing, undefined, "an all-zero subscription price is unpriced, not free");
 	});
 
@@ -119,6 +132,8 @@ describe("catalogue matching", () => {
 			{ context: 400_000, images: true, input: 1.75, cacheRead: 0.175, source: "catalog", version: "pi:rev-fixture" },
 		);
 		assert.equal(filled(relay, "hy3-preview")?.maxOutputTokens, 256_000);
+		assert.deepEqual(gpt.thinkingOptions?.map((option) => option.id), ["off", "low", "medium", "high", "xhigh"]);
+		assert.equal(filled(relay, "hy3-preview")?.thinkingOptions, undefined);
 		assert.deepEqual(filled(provider("https://generativelanguage.googleapis.com/v1beta"), "gemini-2.5-pro")?.pricing?.tiers, [{ aboveTokens: 200_000, input: 2.5, output: 15, cacheRead: undefined, cacheWrite: undefined }]);
 	});
 

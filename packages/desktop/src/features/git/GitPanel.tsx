@@ -13,6 +13,7 @@ import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 
 import { Text } from "../../ui/primitives/Text.tsx";
 import { useApp } from "../../store/index.ts";
+import { useScopedRunning, useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
 
 import { RetainedViews } from "../../ui/layout/RetainedViews.tsx";
 import { BranchesView } from "./BranchesView.tsx";
@@ -190,6 +191,7 @@ const VIEWS: { id: View; labelKey: MessageKey; icon: typeof GitCompare }[] = [
  */
 export function GitPanel() {
 	const { t } = useI18n();
+	const sessionId = useScopedSessionId();
   /*
    * 操作失败走 toast，不在面板顶上挂一块红的。
    *
@@ -201,8 +203,9 @@ export function GitPanel() {
    * 那些换成 toast 会在原地留下一块没人解释的空白。
    */
   const notify = useApp((s) => s.notify);
-  const workspace = useApp((s) => s.workspace);
-  const running = useApp((s) => s.running);
+  // This screen's project and turn, not the focused screen's.
+  const { workspace } = useScopedWorkspace();
+  const running = useScopedRunning();
   const [view, setView] = useState<View>("changes");
 	const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   /*
@@ -564,6 +567,7 @@ export function GitPanel() {
                 .setComposerDraft(
                   t("git.brokenRepoPrompt", { error: workspace.gitProblem ?? "" }),
                   true,
+                  { target: sessionId },
                 );
             }}
           >
@@ -604,6 +608,7 @@ export function GitPanel() {
                 .setComposerDraft(
                   t("git.noRepoPrompt", { path: workspace.path }),
                   true,
+                  { target: sessionId },
                 );
             }}
           >

@@ -26,10 +26,8 @@ interface GlobArgs {
 
 export const globTool: Tool<GlobArgs> = {
 	name: "glob",
-	snippet: "Find files by glob pattern, newest first",
-	guidelines: ["Use glob to locate files by name; use grep to locate them by content."],
 	description:
-		"Find files by glob pattern, newest first. Put the glob in `pattern` (aliases: `query`, `search`). " +
+		"Find files by name with a glob pattern, newest first; to find them by content, use grep. Put the glob in `pattern` (aliases: `query`, `search`). " +
 		"Supports `*`, `?`, `**` and `{a,b}` alternation — for example `src/**/*.{ts,tsx}`. Build and dependency directories are skipped automatically.",
 	parameters: {
 		type: "object",

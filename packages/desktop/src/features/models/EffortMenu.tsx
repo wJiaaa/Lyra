@@ -8,7 +8,7 @@ import type { ModelConfig, ThinkingLevel, ThinkingOption } from "@lyra/core";
  * free (they vanish at compile time); a *value* is not. `thinking-options.ts` has one type import
  * and nothing else.
  */
-import { resolveModelThinkingOptions } from "@lyra/core/thinking-options";
+import { resolveModelThinkingOptions, resolveThinkingOption } from "@lyra/core/thinking-options";
 import { CircleHelp } from "lucide-react";
 import { useState } from "react";
 import { Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
@@ -16,16 +16,14 @@ import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 type Translate = (key: MessageKey) => string;
 
 export function effortLabel(level: ThinkingLevel, model?: ModelConfig | null, t?: Translate): string {
-	const options = resolveModelThinkingOptions(model);
-	if (options.length === 0 || level === "off") return t?.("thinking.off") ?? translate("common.close");
-	const selected = options.find((option: ThinkingOption) => option.id === level)
-		?? options.find((option: ThinkingOption) => option.isDefault)
-		?? options[0];
-	return localizeThinkingOption(selected, model?.thinkingOptions === undefined, t).label;
+	const selected = resolveThinkingOption(level, model);
+	if (!selected) return t?.("thinking.off") ?? translate("common.close");
+	return localizeThinkingOption(selected, t).label;
 }
 
 /**
@@ -53,20 +51,13 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 		.find((m) => m.id === (selection ? selection.modelId : meta?.modelId ?? settings.defaultModelId));
 	const supported = model?.supportsThinking !== false;
 
-	const options: ThinkingOption[] = resolveModelThinkingOptions(model).map((option) =>
-		localizeThinkingOption(option, model?.thinkingOptions === undefined, t),
-	);
+	const options: ThinkingOption[] = resolveModelThinkingOptions(model).map((option) => localizeThinkingOption(option, t));
 	const level = selection ? selection.value : sessionThinking(meta, settings);
 
-	let index = options.findIndex((l) => l.id === level);
-	if (index === -1) {
-		const defaultIdx = options.findIndex((l) => l.isDefault);
-		index = defaultIdx !== -1 ? defaultIdx : 0;
-	}
-
-	const current = options.length > 0 && level === "off"
-		? options.find((option) => option.id === "off") ?? { id: "off", label: t("thinking.off"), detail: t("thinking.disabledDetail") }
-		: options[index];
+	// 模型没有这一档时显示的是就近落到的那档，和实际发出去的一致。
+	const effective = resolveThinkingOption(level, model)?.id;
+	const index = Math.max(0, options.findIndex((l) => l.id === effective));
+	const current = options[index];
 	const atMax = options.length > 0 && index === options.length - 1;
 
 	const set = (nextIndex: number) => {
@@ -96,14 +87,13 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 						<RollingText>{supported && current ? current.label : t("thinking.unsupported")}</RollingText>
 					</span>
 					<div className="flex-1" />
-					<button
-						type="button"
-						data-ly-tip={t("thinking.help")}
+					<IconButton
+						size="sm"
+						label={t("thinking.help")}
+						active={showHelp}
 						onClick={() => setShowHelp((v) => !v)}
-						className={`transition-colors ${showHelp ? "text-ink" : "text-ink-faint hover:text-ink"}`}
-					>
-						<CircleHelp size={13} strokeWidth={1.8} />
-					</button>
+						icon={<CircleHelp size={13} strokeWidth={1.8} />}
+					/>
 				</div>
 
 				<div className="mt-2 mb-1.5 flex items-center justify-between text-detail text-ink-faint">
@@ -148,7 +138,7 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 						<div className="mt-2.5 space-y-1 border-t border-line-soft pt-2.5 text-caption leading-relaxed text-ink-faint">
 							{options.map((entry) => (
 								<div key={entry.id} className="flex gap-2">
-									<span className={`w-7 shrink-0 transition-colors ${entry.id === level ? "text-ink" : ""}`}>
+									<span className={`w-7 shrink-0 transition-colors ${entry.id === effective ? "text-ink" : ""}`}>
 										{entry.label}
 									</span>
 									<span className="flex-1">{entry.detail}</span>
@@ -163,8 +153,9 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 	);
 }
 
-function localizeThinkingOption(option: ThinkingOption, builtin: boolean, t?: Translate): ThinkingOption {
-	if (!builtin || !t) return option;
+/** 标准档位的文字跟着界面语言走；自定义档位名用配置里写的。 */
+function localizeThinkingOption(option: ThinkingOption, t?: Translate): ThinkingOption {
+	if (!t) return option;
 	const labelKey = thinkingLabelKey(option.id);
 	const detailKey = thinkingDetailKey(option.id);
 	return {

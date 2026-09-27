@@ -32,6 +32,7 @@ import { homedir } from "node:os";
 import { win32 } from "node:path";
 import type { IPty } from "node-pty";
 import { envValue, findExecutable } from "./find-executable.ts";
+import { nativeText } from "./i18n.ts";
 
 /**
  * One shell, and enough of what it has said to redraw it.
@@ -433,7 +434,8 @@ function inertPty(): IPty {
 }
 
 /**
- * `终端 1`, `终端 2`, … never reusing a number a live tab still has.
+ * `终端 1`, `终端 2`, … never reusing a number a live tab still has. Named in the interface language
+ * at creation; a tab opened before a language switch keeps the name it was given.
  *
  * Across every shell, not per directory. The strip shows all of them side by side, so numbering
  * within a directory produced two tabs both called 「终端 1」 the moment a shell was started
@@ -442,7 +444,7 @@ function inertPty(): IPty {
 function nextTitle(terminals: Map<string, LiveTerminal>): string {
 	const taken = new Set([...terminals.values()].map((live) => live.title));
 	for (let n = 1; ; n++) {
-		const title = `终端 ${n}`;
+		const title = nativeText("terminal.tab", { n });
 		if (!taken.has(title)) return title;
 	}
 }

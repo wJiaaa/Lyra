@@ -55,7 +55,7 @@ for (let index = 0; index < 130; index++) {
 const model = { id: "fixture/context", providerId: "fixture", modelId: "context", name: "上下文验收模型", contextWindow: 1_000_000, maxOutputTokens: 4096, supportsImages: false, supportsTools: true, supportsThinking: false };
 await writeFile(join(profile, "settings.json"), JSON.stringify({
 	providers: [{ id: "fixture", name: "隔离测试", api: "anthropic-messages", baseUrl: `http://127.0.0.1:${modelPort}`, apiKey: "fixture", enabled: true, models: [model] }],
-	defaultModelId: model.id, permissionMode: "full", thinking: "off", subAgentDelegation: "off", personalization: { enableMemory: false }, mcpServers: [], hooks: [],
+	defaultModelId: model.id, permissionMode: "full", thinking: "off", personalization: { enableMemory: false }, mcpServers: [], hooks: [],
 	projects: [{ id: projectId, path: cwd, name: "上下文组装验收", pinned: true, lastOpenedAt: Date.now() }], appearance: { theme: "light" }, uiLocale: "zh-CN",
 }));
 await writeFile(join(profile, "window.json"), JSON.stringify({ width: 1400, height: 960 }));

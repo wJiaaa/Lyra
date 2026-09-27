@@ -192,6 +192,14 @@ export interface ApprovalRequest extends QuestionFields {
 	 * tool's `readOnlyHint`, which `auto` mode takes and `ask` mode does not.
 	 */
 	readOnly?: boolean;
+	/**
+	 * The wider sandbox mode this asks to run under, set only on an escalation.
+	 *
+	 * A field rather than something read out of `subject`, because the gate has to know it for
+	 * certain: neither the approval policy nor an "always" rule answers an escalation
+	 * (see `ApprovalGate.request`).
+	 */
+	escalation?: SandboxMode;
 }
 export type ApprovalDecision = "once" | "always" | "reject" | "skip" | { answer: string | string[]; skipped?: boolean };
 
@@ -210,16 +218,6 @@ export interface SubAgentInput {
 }
 
 export interface Tool<TArgs = Record<string, unknown>> extends ToolSpec {
-	/**
-	 * One line for the system prompt's tool list. The full `description` goes to the provider's
-	 * tool schema; this is what the model reads when scanning what it has available.
-	 */
-	snippet: string;
-	/**
-	 * Behavioural rules this tool contributes to the prompt's Guidelines section. Keeping them
-	 * next to the tool means a tool that is not loaded cannot leave stale advice behind.
-	 */
-	guidelines?: string[];
 	/**
 	 * Whether a call may overlap its neighbours in the same batch. Absent means "parallel".
 	 *

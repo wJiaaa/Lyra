@@ -152,20 +152,16 @@ function gitConfigReads(args: string[]): boolean {
 
 export const bashTool: Tool<BashArgs> = {
 	name: "bash",
-	snippet: "Run shell commands",
 	/*
 	 * What the model has to know about the shell itself is not here: it depends on the session's
 	 * permission mode (a confined command on Windows runs in PowerShell — see `commandShell`), which
-	 * a tool shared by every session cannot know. The system prompt adds it beside these, from the
-	 * shell it names; see `shellGuidance`.
+	 * a tool shared by every session cannot know. The system prompt names it in the environment;
+	 * see `shellGuidance`.
 	 */
-	// 后台运行与 `bash_output`、专用工具优先，各只说一处：描述和 guidelines 每轮都发。
-	guidelines: [
-		"Use the dedicated tools instead of their shell equivalents: read over `cat`, edit over `sed`, glob over `find`, grep over shell `grep`.",
-		"Quote paths that may contain spaces.",
-	],
 	description:
-		"Run a shell command in the workspace. Every call starts fresh in the workspace root: a `cd`, variables " +
+		"Run a shell command in the workspace. Prefer the dedicated tools over their shell equivalents: read over `cat`/`head`/`tail`, " +
+		"edit over `sed`, glob over `find`, grep over shell `grep`. Quote paths that may contain spaces. " +
+		"Every call starts fresh in the workspace root: a `cd`, variables " +
 		"and functions do not carry over, so chain dependent steps in one command (`cd sub && make`). Use `run_in_background: true` for long-running processes such as dev servers, " +
 		"then read their output with `bash_output`. A command still running when the default timeout passes is moved " +
 		"to the background instead of being killed; an explicit `timeout` is a hard limit. " +
@@ -251,13 +247,14 @@ export const bashTool: Tool<BashArgs> = {
 						subject: "命令",
 					},
 					ctx.requestApproval
-						? async (reason) =>
+						? async (reason, target) =>
 								(await ctx.requestApproval!({
 									kind: "bash",
 									title: `提权运行：${args.description ?? args.command.split("\n")[0].slice(0, 60)}`,
 									detail: args.command,
 									subject: `escalate:${args.escalate}:${args.command}`,
 									reason,
+									escalation: target,
 								})) === "reject"
 									? "reject"
 									: "once"
@@ -609,7 +606,6 @@ interface BashOutputArgs {
 
 export const bashOutputTool: Tool<BashOutputArgs> = {
 	name: "bash_output",
-	snippet: "Read output from a background job",
 	description: "Read a background job's new output since your last bash_output call (the first call returns everything so far), and optionally kill it.",
 	parameters: {
 		type: "object",

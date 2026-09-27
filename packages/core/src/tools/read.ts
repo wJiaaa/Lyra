@@ -34,18 +34,12 @@ function extensionOf(path: string): string {
 
 export const readTool: Tool<ReadArgs> = {
 	name: "read",
-	snippet: "Read a file, or its structure",
-	guidelines: [
-		"Use read to examine files instead of `cat`, `head`, `sed` or `tail`.",
-		"Read a file before editing it, and read enough of it to understand the surrounding code.",
-		// 大纲、长行窗口怎么读，描述里已经说了；这里只留描述里没有的规矩。两处都每轮发送。
-		"NEVER guess at folded bodies or omitted characters, and NEVER edit a line or span you have not seen — the edit will be refused.",
-	],
 	description:
-		"Read a file from the workspace. Text files come back with a `[path#TAG]` header — quote that TAG when you " +
+		"Read a file from the workspace. Read a file before editing it, and enough of it to understand the surrounding code. " +
+		"Text files come back with a `[path#TAG]` header — quote that TAG when you " +
 		"edit — and 1-indexed line numbers in `NNNN→content` form.\n\n" +
 		"Reading a long source file with no `offset`/`limit` returns its STRUCTURE: imports, declarations and their " +
-		"doc comments, with each body replaced by `⋯ N lines (from-to)`. To see a folded body, read that range. " +
+		"doc comments, with each body replaced by `⋯ N lines (from-to)`. To see a folded body, read that range — never guess at it. " +
 		"Short files, data files and explicit `offset`/`limit` windows always come back verbatim.\n\n" +
 		"A line longer than 2000 characters is a window, not the line head. Continue with `char_offset` (1-indexed). " +
 		"grep names that offset when a match sits past the first window.\n\n" +

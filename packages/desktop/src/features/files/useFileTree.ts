@@ -17,7 +17,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { baseName } from "../../lib/paths.ts";
-import { useApp } from "../../store/index.ts";
 import { useFileTreeStore } from "../../store/fileTree.ts";
 
 export interface TreeNode {
@@ -120,7 +119,8 @@ export function treeRows({
 	return out;
 }
 
-export function useFileTree(roots: string[]): FileTree {
+/** `running` is this screen's turn — handed in by the view, which knows which screen it is on. */
+export function useFileTree(roots: string[], running: boolean): FileTree {
 	const children = useFileTreeStore((s) => s.children);
 	const expanded = useFileTreeStore((s) => s.expanded);
 	const [filter, setFilter] = useState("");
@@ -149,7 +149,6 @@ export function useFileTree(roots: string[]): FileTree {
 	 * several minutes ago: files it had just created were simply absent. Every directory that is
 	 * open gets re-read, since those are the ones being looked at.
 	 */
-	const running = useApp((s) => s.running);
 	useEffect(() => {
 		if (running || !key) return;
 		void useFileTreeStore.getState().refreshOpen();

@@ -24,6 +24,7 @@ import { PullRequestCode } from "./PullRequestCode.tsx";
 import { PullRequestMeta } from "./PullRequestMeta.tsx";
 import { DetailSkeleton } from "./PullRequestSkeleton.tsx";
 import { bridge } from "../../services/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export type PrTab = "summary" | "code";
 
@@ -150,15 +151,7 @@ export function PullRequestDetail({
 					{/*
 					 * 让 Agent 审查: opens conversation with the review prompt pre-filled in composer.
 					 */}
-					<button
-						type="button"
-						data-ly-tip={t("prDetail.askAgent")}
-						aria-label={t("prDetail.askAgent")}
-						onClick={() => onOpenChat(detail, "review")}
-						className="ml-1 grid h-[26px] w-[26px] place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-					>
-						<Bot size={13} strokeWidth={1.8} aria-hidden />
-					</button>
+					<IconButton label={t("prDetail.askAgent")} onClick={() => onOpenChat(detail, "review")} className="ml-1" icon={<Bot size={13} strokeWidth={1.8} aria-hidden />} />
 					<IconAction label={t(expanded ? "prDetail.showList" : "prDetail.fillWidth")} onClick={onToggleExpanded}>
 						{expanded ? <Minimize2 size={13} strokeWidth={1.9} /> : <Maximize2 size={13} strokeWidth={1.9} />}
 					</IconAction>
@@ -258,18 +251,8 @@ function IconAction({
 	spinning?: boolean;
 	children: React.ReactNode;
 }) {
-	return (
-		<button
-			type="button"
-			data-ly-tip={label}
-			aria-label={label}
-			onClick={onClick}
-			className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
-		>
-			{/* 忙的时候整个换成那个亮弧，而不是把这个按钮自己的图标转起来。 */}
-			{spinning ? <ActionSpinner size={13.5} /> : children}
-		</button>
-	);
+	// 忙的时候整个换成那个亮弧，而不是把这个按钮自己的图标转起来。
+	return <IconButton label={label} onClick={onClick} icon={spinning ? <ActionSpinner size={13.5} /> : children} />;
 }
 
 function Centered({ children }: { children: React.ReactNode }) {

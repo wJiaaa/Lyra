@@ -45,7 +45,6 @@ interface RecallArgs {
 
 export const recallTool: Tool<RecallArgs> = {
 	name: "recall",
-	snippet: "Search this session's earlier history",
 	description:
 		"Search the full transcript of this session, including messages that context compaction has since removed from view. Use it to recover the exact wording of an earlier request, a file's earlier contents, a command's exact output, or any detail a summary condensed. Matching is case-insensitive; every space-separated term must appear in the message. Images cannot be replayed — a match that carried one says so, and the only way to see it again is to ask the user to resend it.",
 	parameters: {

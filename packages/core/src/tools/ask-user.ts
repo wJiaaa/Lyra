@@ -15,12 +15,7 @@ function validOption(value: unknown): value is string | AskUserOption {
 
 export const askUserTool: Tool<AskUserArgs> = {
 	name: "ask_user",
-	snippet: "Ask the user for a decision with single or multiple choices",
-	guidelines: [
-		"Use ask_user for clarification or a decision; full access grants permissions, not answers to questions.",
-		"Mark a recommendation when useful. Skipping is not consent: without an explicit default, continue only work that does not depend on the missing answer.",
-	],
-	description: "Ask the user a question. Choices may have descriptions and a recommended badge. The user selects choices, writes an answer, or skips without authorizing anything. Full access still waits for their answer.",
+	description: "Ask the user a question when you need a clarification or a decision. Choices may have descriptions and a recommended badge; mark a recommendation when useful. The user selects choices, writes an answer, or skips. Skipping is not consent: without an explicit default, continue only work that does not depend on the missing answer. Full access grants permissions, not answers — it still waits for theirs.",
 	parameters: {
 		type: "object",
 		properties: {

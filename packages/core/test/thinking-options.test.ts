@@ -1,22 +1,29 @@
 /**
  * Which thinking levels a model is offered, and what gets sent when one is picked.
  *
- * The rule that matters is the order the rules are tried in. Vendor first, because the vendor is
- * whose API rejects the request: Google's returns HTTP 400 for `minimal`, and a rule matching a
- * bare `ultra` anywhere in an id used to reach past the Google check and hand `gemini-ultra` — a
- * real model — the GPT-5.6-sol set, `minimal` included.
+ * Levels are no longer guessed from the model name. The hard-coded tables disagreed with what the
+ * vendors actually accept (`minimal` on models that reject it, 「关闭」 on models that cannot stop
+ * thinking), and a wrong guess never errors. A model's levels come from the catalogue (pi's
+ * `thinkingLevelMap`) or from the model editor; anything else gets the four levels every reasoning
+ * API accepts.
  *
- * Nothing ever reached the wire wrong, because the effort mapping clamps as well. What was wrong
- * was the menu: 极简 and 低 both sent `low`, and 超高/最高/极致 all sent `high`. Four controls that
- * could not affect the thing they named.
+ * A level the model does not have lands on the nearest one — deeper first, then shallower, the
+ * same rule as pi's `clampThinkingLevel`. It used to fall back to the default, so a conversation
+ * left on 最高 dropped to 中 after switching models, and 极简 was raised to 中.
  */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveModelThinkingOptions, resolveReasoningEffort } from "../src/ai/thinking-options.ts";
-import type { ModelConfig } from "../src/types/provider.ts";
+import {
+	DEFAULT_THINKING_OPTIONS,
+	resolveModelThinkingOptions,
+	resolveReasoningEffort,
+	resolveThinkingOption,
+	thinkingOptionsFor,
+} from "../src/ai/thinking-options.ts";
+import type { ModelConfig, ThinkingLevel } from "../src/types/provider.ts";
 
-const model = (modelId: string): ModelConfig => ({
+const model = (modelId: string, levels?: ThinkingLevel[]): ModelConfig => ({
 	id: modelId,
 	providerId: "p",
 	modelId,
@@ -24,13 +31,38 @@ const model = (modelId: string): ModelConfig => ({
 	contextWindow: 200_000,
 	maxOutputTokens: 8192,
 	supportsThinking: true,
+	...(levels ? { thinkingOptions: thinkingOptionsFor(levels) } : {}),
 });
 
-const ids = (modelId: string) => resolveModelThinkingOptions(model(modelId)).map((option) => option.id);
+const ids = (config: ModelConfig) => resolveModelThinkingOptions(config).map((option) => option.id);
 
-test("every offered level reaches the wire unchanged, including explicit provider levels", () => {
-	for (const config of [model("gpt-5.6-terra"), model("gpt-5.4-mini"), {
-		...model("gemini-custom"), thinkingOptions: [{ id: "adaptive", label: "自适应", isDefault: true }],
+test("a model without configured levels gets the conservative four, whatever its name", () => {
+	for (const id of ["gpt-5.6-sol", "gpt-6-astra", "gemini-ultra", "claude-opus-5-5", "some-relay-alias"]) {
+		assert.deepEqual(ids(model(id)), ["off", "low", "medium", "high"], id);
+	}
+	assert.equal(DEFAULT_THINKING_OPTIONS.find((option) => option.isDefault)?.id, "medium");
+});
+
+test("configured levels are taken at their word, in canonical order, with one default", () => {
+	const sol = model("gpt-5.6-sol", ["max", "off", "low", "medium", "high", "xhigh"]);
+	assert.deepEqual(ids(sol), ["off", "low", "medium", "high", "xhigh", "max"]);
+	assert.equal(resolveModelThinkingOptions(sol).filter((option) => option.isDefault).length, 1);
+	assert.deepEqual(ids({ ...model("x"), thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "" }] }), ["adaptive"]);
+	assert.deepEqual(resolveModelThinkingOptions({ ...model("x"), thinkingOptions: [] }), []);
+});
+
+test("the default is medium, or the level nearest to it", () => {
+	const fallback = (levels: ThinkingLevel[]) => thinkingOptionsFor(levels).find((option) => option.isDefault)?.id;
+	assert.equal(fallback(["low", "medium", "high"]), "medium");
+	assert.equal(fallback(["off", "low", "high", "max"]), "high", "先往深找");
+	assert.equal(fallback(["off", "max"]), "max");
+	assert.equal(fallback(["off", "minimal", "low"]), "low", "深处没有再往浅找");
+	assert.equal(thinkingOptionsFor(["low", "medium", "high"], "low").find((option) => option.isDefault)?.id, "low", "编辑器保留原来的默认档");
+});
+
+test("every configured level reaches the wire unchanged", () => {
+	for (const config of [model("a", ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]), {
+		...model("b"), thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "", isDefault: true }],
 	}]) {
 		for (const option of resolveModelThinkingOptions(config)) {
 			assert.equal(resolveReasoningEffort(option.id, config), option.id === "off" ? undefined : option.id);
@@ -38,122 +70,38 @@ test("every offered level reaches the wire unchanged, including explicit provide
 	}
 });
 
-test("stale effort falls back to the displayed model default; disabled models send none", () => {
-	assert.equal(resolveReasoningEffort("ultra", model("unknown-relay-model")), "medium");
-	assert.equal(resolveReasoningEffort("high", { ...model("x"), supportsThinking: false }), undefined);
-	assert.deepEqual(resolveModelThinkingOptions({ ...model("x"), thinkingOptions: [] }), []);
+test("a level the model lacks lands on the nearest one, not on the default", () => {
+	const four = model("gemini-3-pro");
+	assert.equal(resolveReasoningEffort("xhigh", four), "high");
+	assert.equal(resolveReasoningEffort("max", four), "high");
+	assert.equal(resolveReasoningEffort("ultra", four), "high");
+	assert.equal(resolveReasoningEffort("minimal", four), "low");
+	const five = model("gpt-5.5", ["off", "low", "medium", "high", "xhigh"]);
+	assert.equal(resolveReasoningEffort("max", five), "xhigh");
+	assert.equal(resolveReasoningEffort("minimal", five), "low");
+	assert.equal(resolveReasoningEffort("medium", model("deepseek", ["off", "low", "high", "max"])), "high");
+	// 不在标准序列里的名字没有「就近」可言，落回模型的默认档。
+	assert.equal(resolveReasoningEffort("deep-custom", five), "medium");
+	// 要的是思考，就近不能落到「关闭」：只有关闭和自定义档位时用默认档。
+	const custom = { ...model("relay"), thinkingOptions: [{ id: "off", label: "关闭", detail: "" }, { id: "adaptive", label: "自适应", detail: "", isDefault: true }] };
+	assert.equal(resolveReasoningEffort("medium", custom), "adaptive");
+	assert.equal(resolveReasoningEffort("off", custom), undefined);
 });
 
-/** What Google's API accepts, and nothing else. */
-const GEMINI_SAFE = ["off", "low", "medium", "high"];
-
-test("every Gemini variant is offered exactly the levels Google accepts", () => {
-	for (const id of ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-3.0-pro", "gemini-ultra", "gemini-3.0-ultra", "gemma-3"]) {
-		assert.deepEqual(ids(id), GEMINI_SAFE, `${id} 的档位不对`);
-	}
-});
-
-test("no Gemini model is ever offered a level its API rejects", () => {
-	// The specific failure this is here for: `minimal` on a Google endpoint is an HTTP 400.
-	for (const id of ["gemini-ultra", "gemini-3.0-ultra", "gemma-3-ultra"]) {
-		const offered = ids(id);
-		for (const forbidden of ["minimal", "xhigh", "max", "ultra"]) {
-			assert.ok(!offered.includes(forbidden), `${id} 竟然给了 ${forbidden}`);
-		}
-	}
-});
-
-test("whatever is picked on a Gemini model, what goes out is one of three values", () => {
-	// The clamp, which is the second line of defence and must keep working.
-	const sent = new Set(
-		["minimal", "low", "medium", "high", "xhigh", "max", "ultra"].map((level) =>
-			resolveReasoningEffort(level, model("gemini-ultra")),
-		),
-	);
-	assert.deepEqual([...sent].sort(), ["high", "low", "medium"]);
-});
-
-test("GPT-5.6 and its ultra tier keep the levels they actually have", () => {
-	assert.ok(ids("gpt-5.6").includes("max"), "GPT-5.6 应该有 max");
-	assert.ok(!ids("gpt-5.6").includes("ultra"), "标准 GPT-5.6 没有 ultra");
-	assert.ok(ids("gpt-5.6-sol").includes("ultra"), "sol 应该有 ultra");
-	assert.ok(ids("gpt-5.6-ultra").includes("ultra"), "ultra 变体应该有 ultra");
-});
-
-test("GPT-6-astra 拿到它自己那六档，而不是兜底的四档", () => {
-	/*
-	 * 上线那天它落在最后那条兜底规则上，于是一个有六档的模型被画成了四档——`xhigh`、`max`、
-	 * `ultra` 在菜单里根本不存在，而 `medium` 被当成了默认，比厂商自己的默认高一档。
-	 */
-	for (const id of ["gpt-6-astra", "gpt-6-astra-pro", "gpt-6-astra-fast", "openai/gpt-6-astra", "azure/gpt-6-astra", "openai-gpt-6-astra-pro"]) {
-		assert.deepEqual(ids(id), ["off", "low", "medium", "high", "xhigh", "max", "ultra"], `${id} 的档位不对`);
-	}
-});
-
-test("GPT-6-astra 的默认是低，不是中", () => {
-	// 厂商自己的选择：这一族的 low 已经相当于别家的 medium，上面几档是要额外花钱的。
-	const options = resolveModelThinkingOptions(model("gpt-6-astra"));
-	assert.equal(options.find((option) => option.isDefault)?.id, "low");
-	assert.equal(options.filter((option) => option.isDefault).length, 1, "只能有一个默认");
-	// 一个过期的选择要落回这个默认，而不是别的集合的默认。
-	assert.equal(resolveReasoningEffort("nonexistent-level", model("gpt-6-astra")), "low");
-});
-
-test("GPT-6-astra 不给 minimal——它的接口没有这一档", () => {
-	assert.ok(!ids("gpt-6-astra").includes("minimal"));
-	assert.equal(resolveReasoningEffort("minimal", model("gpt-6-astra")), "low", "选了不存在的档要落回默认");
-});
-
-test("每一档 GPT-6-astra 都原样送到线上", () => {
-	for (const option of resolveModelThinkingOptions(model("gpt-6-astra"))) {
-		assert.equal(resolveReasoningEffort(option.id, model("gpt-6-astra")), option.id === "off" ? undefined : option.id);
-	}
-});
-
-test("GPT-6 家族里没见过的成员仍然走保守那一组", () => {
-	// 只认已经发版、档位已知的那一支；凭版本号猜能力，正是 `minimal` 当年跑到 Gemini 上的原因。
-	assert.deepEqual(ids("gpt-6-nebula"), GEMINI_SAFE);
-});
-
-test("a bare version number in some other model's name is not a GPT match", () => {
-	// `id.includes("5.6")` matched this and handed it GPT-5.6's levels.
-	assert.ok(!ids("llama-5.6b").includes("max"), "llama-5.6b 不该被当成 GPT-5.6");
-});
-
-test("a model nobody recognises is offered the levels everything supports", () => {
-	/*
-	 * The fallback used to be GPT-5.6's seven, so an unknown model was offered `minimal`, `xhigh`
-	 * and `max` — and the effort mapping passes those through unchanged for an id it cannot place.
-	 * Picking one sent a string the endpoint may reject, which is the exact failure this file is
-	 * supposed to prevent.
-	 */
-	for (const id of ["llama-5.6b", "deepseek-v4", "some-model-nobody-has-heard-of"]) {
-		assert.deepEqual(ids(id), GEMINI_SAFE, `${id} 应该拿到最保守的一组`);
-	}
-});
-
-test("a conservative default does not silently downgrade a model that declares more", () => {
-	// The escape hatch: configuration outranks inference, so nothing is capped that said otherwise.
-	const rich = {
-		...model("some-model-nobody-has-heard-of"),
-		thinkingOptions: [{ id: "low" as const, label: "低" }, { id: "max" as const, label: "最高" }],
-	};
-	assert.deepEqual(resolveModelThinkingOptions(rich).map((o) => o.id), ["low", "max"]);
-});
-
-test("a model that declares its own levels is taken at its word", () => {
-	const custom = { ...model("anything"), thinkingOptions: [{ id: "low" as const, label: "低" }] };
-	assert.deepEqual(resolveModelThinkingOptions(custom).map((o) => o.id), ["low"]);
-});
-
-test("a model that cannot think is offered nothing", () => {
-	assert.deepEqual(resolveModelThinkingOptions({ ...model("x"), supportsThinking: false }), []);
-	assert.deepEqual(resolveModelThinkingOptions(null), []);
-});
-
-test("off means no effort parameter at all, not the string 'off'", () => {
+test("off without an off level means the model cannot stop thinking: it gets the shallowest level", () => {
+	const astra = model("gpt-6-astra", ["low", "medium", "high", "xhigh", "max"]);
+	assert.equal(resolveThinkingOption("off", astra)?.id, "low");
+	assert.equal(resolveReasoningEffort("off", astra), "low");
+	assert.equal(resolveReasoningEffort("off", model("kimi-k3", ["max"])), "max");
 	assert.equal(resolveReasoningEffort("off", model("gpt-5.6")), undefined);
 	assert.equal(resolveReasoningEffort(undefined, model("gpt-5.6")), undefined);
+});
+
+test("a model that cannot think is offered nothing and sends nothing", () => {
+	assert.deepEqual(resolveModelThinkingOptions({ ...model("x"), supportsThinking: false }), []);
+	assert.deepEqual(resolveModelThinkingOptions(null), []);
+	assert.equal(resolveReasoningEffort("high", { ...model("x"), supportsThinking: false }), undefined);
+	assert.equal(resolveThinkingOption("high", { ...model("x", ["low"]), supportsThinking: false }), undefined);
 });
 
 test("Gemini models never receive effort none when thinking is off in openai-responses adapter", async () => {

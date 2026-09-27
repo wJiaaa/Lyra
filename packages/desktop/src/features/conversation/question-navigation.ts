@@ -1,4 +1,4 @@
-import { translate } from "../../i18n/translate.ts";
+import { activeLocale, translate } from "../../i18n/translate.ts";
 import type { Message } from "@lyra/core";
 import { stripPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { isNudge } from "./grouping.ts";
@@ -97,6 +97,6 @@ export function conversationTime(timestamp: number, now = Date.now()) {
 	const today = new Date(now);
 	const yesterday = new Date(now);
 	yesterday.setDate(yesterday.getDate() - 1);
-	const day = date.toDateString() === today.toDateString() ? translate("recency.today") : date.toDateString() === yesterday.toDateString() ? translate("recency.yesterday") : date.toLocaleDateString("zh-CN", { month: "long", day: "numeric", ...(date.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}) });
-	return `${day} ${date.toLocaleTimeString("zh-CN", { hour: "numeric", minute: "2-digit", hour12: false })}`;
+	const day = date.toDateString() === today.toDateString() ? translate("recency.today") : date.toDateString() === yesterday.toDateString() ? translate("recency.yesterday") : date.toLocaleDateString(activeLocale(), { month: "long", day: "numeric", ...(date.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}) });
+	return `${day} ${date.toLocaleTimeString(activeLocale(), { hour: "numeric", minute: "2-digit", hour12: false })}`;
 }

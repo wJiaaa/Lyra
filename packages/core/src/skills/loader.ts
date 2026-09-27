@@ -119,6 +119,13 @@ export async function loadSkills(
 			}
 
 			seen.add(name);
+			/*
+			 * Both spellings, the hyphenated one first. `normalizeKeys` only copies `allowed-tools` to
+			 * `allowedTools`, so a skill written with the camelCase key the guide documents was read as
+			 * "no limit" — the one failure a limit must not have. When an author writes both, each key
+			 * keeps its own value and the hyphenated form, shared with SKILL.md elsewhere, decides.
+			 */
+			const tools = frontmatter["allowed-tools"] ?? frontmatter.allowedTools;
 			skills.push({
 				name,
 				description,
@@ -126,9 +133,7 @@ export async function loadSkills(
 				path: file,
 				dir: skillDir,
 				source,
-				allowedTools: Array.isArray(frontmatter["allowed-tools"])
-					? (frontmatter["allowed-tools"] as unknown[]).filter((t): t is string => typeof t === "string")
-					: undefined,
+				allowedTools: Array.isArray(tools) ? (tools as unknown[]).filter((t): t is string => typeof t === "string") : undefined,
 				disableModelInvocation: frontmatter["disable-model-invocation"] === true || frontmatter.disableModelInvocation === true,
 			});
 		}

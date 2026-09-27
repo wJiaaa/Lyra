@@ -25,6 +25,7 @@ import type { Group } from "../../lib/sidebar-grouping.ts";
 import { startProjectSession } from "../../store/project-session.ts";
 import { useSidebarReorderContext } from "./reorder-context.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function ProjectHead({
 	group,
@@ -106,25 +107,23 @@ export function ProjectHead({
 			</button>
 
 			<HoverRowReveal className="gap-0.5 rounded-r-lg">
-				<button
-					type="button"
-					data-ly-tip={translate("projectHead.newSession")}
-					aria-label={translate("projectHead.newSessionIn", { name: group.name })}
+				<IconButton
+					size="sm"
+					label={translate("projectHead.newSession")}
+					ariaLabel={translate("projectHead.newSessionIn", { name: group.name })}
 					onClick={() => void startProjectSession(group.path, collapsed ? onToggleCollapsed : undefined)}
-					className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-				>
-					<SquarePen size={13} strokeWidth={1.8} />
-				</button>
-				<button
-					type="button"
-					data-ly-tip={translate("projectHead.actions")}
-					aria-label={translate("projectHead.actionsFor", { name: group.name })}
-					aria-haspopup="menu"
+					className="pointer-events-auto"
+					icon={<SquarePen size={13} strokeWidth={1.8} />}
+				/>
+				<IconButton
+					size="sm"
+					label={translate("projectHead.actions")}
+					ariaLabel={translate("projectHead.actionsFor", { name: group.name })}
+					menu={menu.open}
 					onClick={menu.toggle}
-					className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-				>
-					<MoreHorizontal size={13} strokeWidth={1.8} />
-				</button>
+					className="pointer-events-auto"
+					icon={<MoreHorizontal size={13} strokeWidth={1.8} />}
+				/>
 			</HoverRowReveal>
 
 			{menu.open && <ProjectMenu anchor={menu.anchor} path={group.path} name={group.name} onClose={menu.close} />}

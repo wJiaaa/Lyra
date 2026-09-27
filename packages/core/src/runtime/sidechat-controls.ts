@@ -15,7 +15,6 @@ export function dispatchTaskTool(main: AgentSession): Tool<{ instruction: string
 		description:
 			"把一件需要动手的事交给主会话执行（改文件、跑命令、查代码等）。主会话会在完成当前工作后按顺序执行。" +
 			"instruction 必须是一条完整、可独立执行的指令——主会话看不到侧边聊天的上下文。",
-		snippet: "dispatch_task — 把需要动手的工作交给主会话排队执行",
 		parameters: {
 			type: "object",
 			properties: {
@@ -63,7 +62,6 @@ export function controlMainTool(main: AgentSession): Tool<{ action: string; disc
 			"resume：让它接着做——如果有被暂停时中断的派出任务，会把那个任务重新排上，否则让它从中断处继续。" +
 			"status：查主会话现在是在忙还是空着，以及队列里还剩什么。" +
 			"需要它去『做』一件新的事，用 dispatch_task，不要用这个。",
-		snippet: "control_main — 直接暂停 / 继续主会话，或看它在忙什么",
 		parameters: {
 			type: "object",
 			properties: {

@@ -40,6 +40,8 @@ import { PluginIcon, safeColour } from "../settings/index.ts";
 import { isEnabled, isInstalled, type CatalogItem } from "./useCatalog.ts";
 import { bridge } from "../../services/index.ts";
 import { tildeHome } from "../../lib/paths.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function PluginDetail({
 	item,
@@ -142,15 +144,11 @@ export function PluginDetail({
 
 				{website && (
 					<div className="no-drag flex items-center gap-1">
-						<button
-							type="button"
-							data-ly-tip={t("pluginDetail.homepage")}
-							aria-label={t("pluginDetail.homepage")}
+						<IconButton
+							label={t("pluginDetail.homepage")}
 							onClick={() => void bridge.system.openExternal(website)}
-							className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-						>
-							<ExternalLink size={13.5} strokeWidth={1.8} />
-						</button>
+							icon={<ExternalLink size={13.5} strokeWidth={1.8} />}
+						/>
 					</div>
 				)}
 			</header>
@@ -187,28 +185,21 @@ export function PluginDetail({
 									 * the state underneath it.
 									 */}
 									{plugin ? (
-										<button
-											type="button"
-											data-ly-tip={plugin.enabled ? t("common.disable") : t("common.enable")}
-											aria-label={plugin.enabled ? t("common.disable") : t("common.enable")}
+										<Button
+											label={plugin.enabled ? t("common.disable") : t("common.enable")}
 											onClick={toggleEnabled}
-											className="grid h-[30px] w-[30px] place-items-center rounded-lg border border-line text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink"
-										>
-											<Power size={13} strokeWidth={1.9} aria-hidden />
-										</button>
+											icon={<Power size={13} strokeWidth={1.9} aria-hidden />}
+										/>
 									) : (
-										<button
-											type="button"
+										<Button
+											label={item.servers.some((server) => server.enabled) ? t("pluginDetail.manageInSettings") : t("pluginDetail.enableInSettings")}
 											onClick={onManageServers}
-											className="grid place-items-center h-[30px] rounded-lg border border-line text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink w-[30px]"
-			data-ly-tip={item.servers.some((server) => server.enabled) ? t("pluginDetail.manageInSettings") : t("pluginDetail.enableInSettings")}
-			aria-label={item.servers.some((server) => server.enabled) ? t("pluginDetail.manageInSettings") : t("pluginDetail.enableInSettings")}
-		><Cable size={12.5} strokeWidth={1.8} /></button>
+											icon={<Cable size={12.5} strokeWidth={1.8} />}
+										/>
 									)}
-									<button
-										type="button"
-										data-ly-tip={workspaceOwned ? t("pluginDetail.projectScoped") : t("mcp.uninstall")}
-										aria-label={t("mcp.uninstall")}
+									<Button
+										variant="danger"
+										label={workspaceOwned ? t("pluginDetail.projectScoped") : t("mcp.uninstall")}
 										disabled={busy !== null || workspaceOwned}
 										onClick={() =>
 											confirm.ask({
@@ -220,29 +211,18 @@ export function PluginDetail({
 												onConfirm: () => void uninstall(),
 											})
 										}
-										className="flex h-[30px] w-[30px] items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-danger/10 hover:text-danger disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-faint"
-									>
-										{busy === "uninstall" ? (
-											<ActionSpinner size={13} />
-										) : (
-											<Trash2 size={13} strokeWidth={1.8} />
-										)}
-									</button>
+										icon={busy === "uninstall" ? <ActionSpinner size={13} /> : <Trash2 size={13} strokeWidth={1.8} />}
+									/>
 								</>
 							) : (
 								item.entry && (
-									<button
-										type="button"
+									<Button
+										variant="primary"
+										label={t("common.install")}
 										disabled={busy !== null}
 										onClick={() => void install()}
-										className="grid place-items-center h-[30px] rounded-lg bg-ink text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:opacity-50 w-[30px]"
-			data-ly-tip={t("common.install")}
-			aria-label={t("common.install")}
-		>{busy === "install" ? (
-											<ActionSpinner size={12.5} onFill />
-										) : (
-											<Download size={12.5} strokeWidth={1.9} />
-										)}</button>
+										icon={busy === "install" ? <ActionSpinner size={12.5} onFill /> : <Download size={12.5} strokeWidth={1.9} />}
+									/>
 								)
 							)}
 						</div>

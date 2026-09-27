@@ -22,6 +22,7 @@ import { relativeTime } from "../../lib/relative-time.ts";
 import { type ActivityEntry, firstLine } from "./activity.ts";
 import { Avatar } from "./Avatar.tsx";
 import { bridge } from "../../services/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function PullRequestActivity({ accountId, entries }: { accountId: string; entries: ActivityEntry[] }) {
 	/*
@@ -136,14 +137,11 @@ function ProseRow({
 /** A link out, for the header of the section. */
 export function ActivityLink({ url }: { url: string }) {
 	return (
-		<button
-			type="button"
-			data-ly-tip={translate("prActivity.allInBrowser")}
-			aria-label={translate("prActivity.allInBrowserLong")}
+		<IconButton
+			size="sm"
+			label={translate("prActivity.allInBrowser")}
 			onClick={() => void bridge.system.openExternal(url)}
-			className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-		>
-			<ExternalLink size={12.5} strokeWidth={1.8} />
-		</button>
+			icon={<ExternalLink size={12.5} strokeWidth={1.8} />}
+		/>
 	);
 }

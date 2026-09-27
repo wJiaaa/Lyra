@@ -429,8 +429,6 @@ function toAgentTool(server: McpServerConfig, client: Client, raw: RawMcpTool, q
 	return {
 		name: qualifiedName,
 		description,
-		// The prompt's tool list gets one line each; MCP descriptions are often paragraphs.
-		snippet: `${firstSentence(description)} (via ${server.name})`,
 		parameters: normalizeSchema(raw.inputSchema),
 		mutating: !readOnly,
 		executionMode: readOnly ? "parallel" : "sequential",
@@ -531,13 +529,6 @@ function normalizeSchema(schema: unknown): JsonSchema {
 
 function sanitize(value: string): string {
 	return value.replace(/[^a-zA-Z0-9_-]/g, "_");
-}
-
-function firstSentence(text: string): string {
-	const line = text.split("\n")[0].trim();
-	const stop = line.search(/[.。](\s|$)/);
-	const sentence = stop === -1 ? line : line.slice(0, stop);
-	return sentence.length > 110 ? `${sentence.slice(0, 110)}…` : sentence;
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {

@@ -80,8 +80,14 @@ async function fixture() {
 		return reply();
 	};
 	const sessions: AgentSession[] = [];
+	let current = settings;
+	// 改设置对已开的会话即时生效，之后重开的会话也读到同一份。
+	const configure = (next: Settings) => {
+		current = next;
+		for (const session of sessions) session.updateSettings(next);
+	};
 	const open = async (meta?: Awaited<ReturnType<SessionStore["load"]>>) => {
-		const session = new AgentSession({ cwd: root, store, settings, meta: meta?.meta, emit: () => {}, streamFn });
+		const session = new AgentSession({ cwd: root, store, settings: current, meta: meta?.meta, emit: () => {}, streamFn });
 		sessions.push(session);
 		if (meta) session.restore(meta.messages, meta.compaction, meta.compactions);
 		await session.initialize();
@@ -92,7 +98,7 @@ async function fixture() {
 		for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	};
-	return { root, store, sent, open, cleanup, last: () => sent.at(-1)! };
+	return { root, store, sent, open, configure, cleanup, last: () => sent.at(-1)! };
 }
 
 test("mid-session changes arrive as one logged update; the head keeps its bytes through restart and refreshes on compaction", async () => {
@@ -100,7 +106,6 @@ test("mid-session changes arrive as one logged update; the head keeps its bytes 
 	try {
 		await writeFile(join(f.root, "AGENTS.md"), "RULES_ONE");
 		const session = await f.open();
-		await session.setThinking("high");
 		await session.prompt([{ type: "text", text: "one" }]);
 		const head = f.last().systemPrompt;
 		assert.match(head, /RULES_ONE/);
@@ -108,7 +113,7 @@ test("mid-session changes arrive as one logged update; the head keeps its bytes 
 		assert.equal(updates(f.last().messages).length, 0, "the first turn has nothing to update");
 
 		await writeFile(join(f.root, "AGENTS.md"), "RULES_TWO");
-		await session.setThinking("low");
+		f.configure({ ...settings, maxConcurrentSubAgents: 1 });
 		await session.prompt([{ type: "text", text: "two" }]);
 		assert.equal(f.last().systemPrompt, head, "the head is byte-for-byte the frozen one");
 		const [update] = updates(f.last().messages);

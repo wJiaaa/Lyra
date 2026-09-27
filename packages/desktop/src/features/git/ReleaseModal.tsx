@@ -27,6 +27,7 @@ import { Popover } from "../../ui/overlay/Popover.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner, StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { bridge } from "../../services/index.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 interface ReleaseModalProps {
 	cwd: string;
@@ -379,20 +380,13 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 											{t("release.dryRun")}
 										</span>
 									</div>
-									<button
-										type="button"
-										data-ly-tip={triggeringDryRun ? t("release.triggering") : dryRunStatus?.status === "in_progress" ? t("release.building") : t("release.triggerDryRun")}
-										aria-label={triggeringDryRun ? t("release.triggering") : dryRunStatus?.status === "in_progress" ? t("release.building") : t("release.triggerDryRun")}
+									<Button
+										size="sm"
+										label={triggeringDryRun ? t("release.triggering") : dryRunStatus?.status === "in_progress" ? t("release.building") : t("release.triggerDryRun")}
 										onClick={handleTriggerDryRun}
 										disabled={triggeringDryRun || dryRunStatus?.status === "in_progress"}
-										className="grid h-6 w-6 place-items-center rounded-lg border border-line bg-card text-ink hover:bg-card-hover transition-colors cursor-pointer disabled:opacity-50"
-									>
-										{triggeringDryRun ? (
-											<ActionSpinner size={11} className="text-ink-muted" />
-										) : (
-											<Play size={11} strokeWidth={2.2} className="text-accent" aria-hidden />
-										)}
-									</button>
+										icon={triggeringDryRun ? <ActionSpinner size={11} className="text-ink-muted" /> : <Play size={11} strokeWidth={2.2} className="text-accent" aria-hidden />}
+									/>
 								</div>
 
 								{dryRunNotice && !dryRunStatus && (

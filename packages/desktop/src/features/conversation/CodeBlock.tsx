@@ -1,10 +1,12 @@
 import { translate } from "../../i18n/translate.ts";
 import type { Language } from "@codemirror/language";
-import { Check, Copy, Play } from "lucide-react";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { Check, Copy, Play, WrapText } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { highlightGeneration, loadFenceLanguage, onHighlightChange, sharedHighlightStyle, tokenize } from "../../lib/code/highlight.ts";
+import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 import { useSide, openScopedPanel } from "../dock/index.ts";
+import { useScopedSessionId } from "../../app/session-scope.tsx";
 
 /**
  * Fences that are commands rather than code.
@@ -14,6 +16,25 @@ import { useSide, openScopedPanel } from "../dock/index.ts";
  * button — offering to "run" a TypeScript block would be offering something that cannot happen.
  */
 const SHELL = new Set(["bash", "sh", "zsh", "shell", "console", "terminal"]);
+
+/** 围栏语言名到扩展名，只为给标题栏挑一个和文件树同款的图标；不在表里的按原样当扩展名。 */
+const LANG_EXTENSION: Record<string, string> = {
+	typescript: "ts",
+	javascript: "js",
+	python: "py",
+	rust: "rs",
+	golang: "go",
+	ruby: "rb",
+	kotlin: "kt",
+	csharp: "cs",
+	"c++": "cpp",
+	markdown: "md",
+	shell: "sh",
+	console: "sh",
+	terminal: "sh",
+	text: "txt",
+	plaintext: "txt",
+};
 
 /**
  * 超过这么多字符就不高亮了。
@@ -33,7 +54,12 @@ function commandFrom(code: string): string {
 }
 
 export function CodeBlock({ lang, code }: { lang: string; code: string }) {
+	// The screen this block is on, by the key its dock uses: its session id, or `@draft`.
+	const screen = useScopedSessionId() ?? "@draft";
 	const [copied, setCopied] = useState(false);
+	const [wrap, setWrap] = useState(false);
+	const label = lang.toLowerCase() || "text";
+	const look = lookFor(`code.${LANG_EXTENSION[label] ?? label}`, false);
 	const [language, setLanguage] = useState<Language | null>(null);
 
 	/*
@@ -89,39 +115,38 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 	}, [code, language, generation]);
 
 	return (
-		<div className="group relative">
-			{lang && (
-				<span className="absolute top-2.5 left-3.5 font-mono text-caption lowercase text-ink-faint select-none">
-					{lang}
-				</span>
-			)}
-			{SHELL.has(lang.toLowerCase()) && commandFrom(code) && (
-				<button
-					type="button"
-					data-ly-tip={translate("codeBlock.runInTerminal")}
+		<div className="ly-code-block" data-wrap={wrap || undefined}>
+			<div className="ly-code-head">
+				<look.Icon size={14} strokeWidth={1.9} className="shrink-0" style={{ color: iconColour(look) }} />
+				<span className="min-w-0 flex-1 truncate">{label}</span>
+				{SHELL.has(label) && commandFrom(code) && (
+					<CodeAction
+						tip={translate("codeBlock.runInTerminal")}
+						onClick={() => {
+							// 这一屏的终端来接，不是焦点屏的——见 `pendingFor`。
+							useSide.getState().runInTerminal(commandFrom(code), screen);
+							// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
+							openScopedPanel("terminal", undefined, screen);
+						}}
+					>
+						<Play size={14} strokeWidth={1.9} />
+					</CodeAction>
+				)}
+				<CodeAction tip={translate("fileActions.wrap")} active={wrap} onClick={() => setWrap(!wrap)}>
+					<WrapText size={14} strokeWidth={1.9} />
+				</CodeAction>
+				<CodeAction
+					tip={translate("common.copy")}
 					onClick={() => {
-						useSide.getState().runInTerminal(commandFrom(code));
-						// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
-						openScopedPanel("terminal");
+						void navigator.clipboard.writeText(code);
+						setCopied(true);
+						setTimeout(() => setCopied(false), 1400);
 					}}
-					className="absolute top-2 right-8 hidden p-1 text-ink-muted transition-colors group-hover:block hover:text-ink"
 				>
-					<Play size={13} strokeWidth={1.9} />
-				</button>
-			)}
-			<button
-				type="button"
-				data-ly-tip={translate("common.copy")}
-				onClick={() => {
-					void navigator.clipboard.writeText(code);
-					setCopied(true);
-					setTimeout(() => setCopied(false), 1400);
-				}}
-				className="absolute top-2 right-2 hidden p-1 text-ink-muted transition-colors group-hover:block hover:text-ink"
-			>
-				{copied ? <Check size={13} strokeWidth={2} className="text-ok" /> : <Copy size={13} strokeWidth={1.9} />}
-			</button>
-			<pre className={lang ? "pt-7" : undefined}>
+					{copied ? <Check size={14} strokeWidth={2} className="text-ok" /> : <Copy size={14} strokeWidth={1.9} />}
+				</CodeAction>
+			</div>
+			<pre>
 				<code>
 					{tokens
 						? tokens.map((token, index) =>
@@ -137,5 +162,20 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 				</code>
 			</pre>
 		</div>
+	);
+}
+
+function CodeAction({ tip, active, onClick, children }: { tip: string; active?: boolean; onClick: () => void; children: ReactNode }) {
+	return (
+		<button
+			type="button"
+			data-ly-tip={tip}
+			aria-label={tip}
+			aria-pressed={active}
+			onClick={onClick}
+			className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors duration-[var(--ly-t-quick)] hover:bg-ink/[0.06] hover:text-ink ${active ? "text-ink" : "text-ink-muted"}`}
+		>
+			{children}
+		</button>
 	);
 }

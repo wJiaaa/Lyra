@@ -22,6 +22,8 @@ import { useApp } from "../../store/index.ts";
 import { Toggle } from "../settings/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { bridge } from "../../services/index.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function ScheduledView() {
 	const { t } = useI18n();
@@ -67,13 +69,7 @@ export function ScheduledView() {
 							{t("scheduled.intro")}
 						</p>
 					</div>
-					<button
-						type="button"
-						onClick={add}
-						className="grid place-items-center h-7 rounded-lg border border-line text-detail text-ink-muted transition-colors hover:border-ink-faint hover:text-ink w-7"
-			data-ly-tip={t("common.new")}
-			aria-label={t("common.new")}
-		><Plus size={12} strokeWidth={2} /></button>
+					<Button size="sm" label={t("common.new")} onClick={add} icon={<Plus size={12} strokeWidth={2} />} />
 				</header>
 
 				{tasks.length === 0 && (
@@ -141,6 +137,7 @@ function TaskCard({
 	const [name, setName] = useState(task.name);
 	const [running, setRunning] = useState(false);
 	const confirm = useConfirmer();
+	const next = describeNext(task);
 
 	return (
 		<div className="ly-enter overflow-hidden rounded-[10px] border border-line bg-card/40">
@@ -152,9 +149,8 @@ function TaskCard({
 					onBlur={() => name !== task.name && onChange({ name })}
 					className="min-w-0 flex-1 bg-transparent text-body text-ink focus:outline-none"
 				/>
-				<button
-					type="button"
-					data-ly-tip={t("scheduled.runNow")}
+				<IconButton
+					label={t("scheduled.runNow")}
 					disabled={running}
 					onClick={async () => {
 						setRunning(true);
@@ -164,15 +160,13 @@ function TaskCard({
 							setTimeout(() => setRunning(false), 1500);
 						}
 					}}
-					className="flex h-6 w-6 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
-				>
-					<Play size={12} strokeWidth={2} />
-				</button>
+					icon={<Play size={12} strokeWidth={2} />}
+				/>
 				<Toggle checked={task.enabled} onChange={(enabled) => onChange({ enabled })} />
-				<button
-					type="button"
-					data-ly-tip={t("common.delete")}
-					aria-label={t("scheduled.deleteOne", { name: task.name })}
+				<IconButton
+					size="sm"
+					tone="danger"
+					label={t("scheduled.deleteOne", { name: task.name })}
 					onClick={() =>
 						confirm.ask({
 							title: t("scheduled.deleteConfirm", { name: task.name }),
@@ -181,10 +175,8 @@ function TaskCard({
 							onConfirm: onRemove,
 						})
 					}
-					className="text-ink-faint transition-colors hover:text-danger"
-				>
-					<Trash2 size={13} strokeWidth={1.8} />
-				</button>
+					icon={<Trash2 size={13} strokeWidth={1.8} />}
+				/>
 
 				{confirm.element}
 			</div>
@@ -246,21 +238,18 @@ function TaskCard({
 				</div>
 
 				<div className="flex flex-wrap items-center gap-x-3 text-detail text-ink-faint">
+					{/* The time goes into the sentence: whether a space follows the colon is the language's call. */}
 					<span>
-							{t("scheduled.lastRun")}
-							{task.lastRunAt ? new Date(task.lastRunAt).toLocaleString(activeLocale()) : t("common.never")}
-						</span>
+						{t("scheduled.lastRun", {
+							time: task.lastRunAt ? new Date(task.lastRunAt).toLocaleString(activeLocale()) : t("common.never"),
+						})}
+					</span>
 					{/*
 					 * Computed from the same rules the scheduler runs on, not from a second copy of
 					 * them: `nextRunAt` lives in core precisely so the badge and the run cannot
 					 * disagree about when 09:00 is.
 					 */}
-					{describeNext(task) && (
-							<span>
-								{t("scheduled.nextRun")}
-								{describeNext(task)}
-							</span>
-						)}
+					{next && <span>{t("scheduled.nextRun", { time: next })}</span>}
 					{task.lastSessionId && lastSessionTitle && (
 						<button type="button" onClick={onOpenLast} className="text-ink-muted transition-colors hover:text-ink"
 							data-ly-tip={t("scheduled.openLast")}

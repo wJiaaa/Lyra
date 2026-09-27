@@ -54,6 +54,7 @@ import { SubAgentRoster } from "./SubAgentRoster.tsx";
 import { StructuredOutput } from "./StructuredOutput.tsx";
 import { SubAgentTranscript } from "./SubAgentMessageRow.tsx";
 import { bridge } from "../../services/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 interface SubAgentAttachment {
 	id: string;
@@ -125,7 +126,8 @@ export function SubAgentPanel() {
 
 function Dismiss({ agent }: { agent: SubAgentSummary }) {
 	const { t } = useI18n();
-	const sessionId = useApp((s) => s.activeSessionId);
+	// The conversation this panel's roster belongs to, not whichever screen has focus.
+	const sessionId = useScopedSessionId();
 	const running = agent.status === "running";
 	return (
 		<button
@@ -296,6 +298,7 @@ function Transcript({ agent, sessionId }: { agent: SubAgentSummary; sessionId: s
  */
 function Resume({ agent }: { agent: SubAgentSummary }) {
 	const { t } = useI18n();
+	const sessionId = useScopedSessionId();
 	const [asked, setAsked] = useState(false);
 	return (
 		<button
@@ -304,7 +307,7 @@ function Resume({ agent }: { agent: SubAgentSummary }) {
 			data-sub-resume
 			data-ly-tip={t("subAgent.resumeTip")}
 			onClick={() => {
-				useApp.getState().setComposerDraft(t("subAgent.resumeDraft", { name: agent.description, id: agent.id }), true);
+				useApp.getState().setComposerDraft(t("subAgent.resumeDraft", { name: agent.description, id: agent.id }), true, { target: sessionId });
 				setAsked(true);
 			}}
 			aria-label={asked ? t("subAgent.drafted") : t("subAgent.resume")}
@@ -317,6 +320,7 @@ function Resume({ agent }: { agent: SubAgentSummary }) {
 
 function Redispatch({ agent }: { agent: SubAgentSummary }) {
 	const { t } = useI18n();
+	const sessionId = useScopedSessionId();
 	const [asked, setAsked] = useState(false);
 	return (
 		<button
@@ -338,6 +342,7 @@ function Redispatch({ agent }: { agent: SubAgentSummary }) {
 							name: agent.description,
 						}),
 						true,
+						{ target: sessionId },
 					);
 				setAsked(true);
 			}}
@@ -398,15 +403,13 @@ function Header({ agent, sessionId }: { agent: SubAgentSummary; sessionId: strin
 			)}
 			<span className="min-w-2 flex-1" />
 			{agent.status === "running" && sessionId && (
-				<button
-					type="button"
-					data-ly-tip={t("subAgent.stopTip")}
-					aria-label={t("subAgent.stop")}
+				<IconButton
+					size="sm"
+					tone="danger"
+					label={t("subAgent.stopTip")}
 					onClick={() => void bridge.subAgents.abort(sessionId, agent.id)}
-					className="flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-danger"
-				>
-					<CircleStop size={12} strokeWidth={1.9} />
-				</button>
+					icon={<CircleStop size={12} strokeWidth={1.9} />}
+				/>
 			)}
 		</div>
 	);

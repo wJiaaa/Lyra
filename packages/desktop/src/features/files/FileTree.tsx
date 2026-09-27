@@ -17,6 +17,7 @@ import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { useOpenTarget } from "../../store/open-targets.ts";
 import { useSide, openScopedPanel } from "../dock/index.ts";
+import { useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
@@ -53,10 +54,13 @@ export function FileTree({
 }) {
 	const { t } = useI18n();
 	const root = roots[0];
-	const tree = useFileTree(roots);
+	// This screen's turn: in a split the focused one is another conversation, in another project.
+	const tree = useFileTree(roots, useScopedRunning());
 	const actions = useFileActions({ root, refresh: tree.refresh, onMoved, onRemoved });
 	const openWith = useOpenTarget();
 	const runInTerminal = useSide((s) => s.runInTerminal);
+	// The screen this tree is on, whose terminal should take the `cd` — see `pendingFor`.
+	const screen = useScopedSessionId() ?? "@draft";
 	const readOnly = !available("files", "create");
 
 	/** Ordered, so ⇧-click has an anchor and the last one decides where 新建 lands. */
@@ -432,9 +436,9 @@ export function FileTree({
 						reveal: (path) => void bridge.workspace.reveal(path),
 						// Single-quoted so a space or a bracket in the path cannot become shell syntax.
 						openInTerminal: (dir) => {
-							runInTerminal(`cd '${dir.replaceAll("'", "'\\''")}'`);
+							runInTerminal(`cd '${dir.replaceAll("'", "'\\''")}'`, screen);
 							// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
-							openScopedPanel("terminal");
+							openScopedPanel("terminal", undefined, screen);
 						},
 						newFile: (dir) => startCreate(dir, "file"),
 						newFolder: (dir) => startCreate(dir, "directory"),

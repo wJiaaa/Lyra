@@ -23,3 +23,13 @@ test("a bare filename is left alone", () => {
 		tip: "README.md",
 	});
 });
+
+test("inline code that names a file is recognised, with its line suffix kept", async () => {
+	const { filePathInCode } = await import("../src/lib/markdown/file-link.ts");
+	for (const path of ["src/runBatch.js", "test/runBatch.test.js", "README.md", "packages/core/src/prompt/system.ts:148", "/Users/me/app/index.ts:3-9"]) {
+		assert.equal(filePathInCode(path), path);
+	}
+	for (const code of ["runBatch", "node:test", "npm test", '"type": "module"', "console.log", "process.env", "foo.bar()", "src/", "/Users/me/app/", "origin/main", "feature/v1.2", "https://example.com/a.js"]) {
+		assert.equal(filePathInCode(code), null, code);
+	}
+});

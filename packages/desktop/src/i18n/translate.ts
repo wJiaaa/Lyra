@@ -13,8 +13,9 @@
  * language the window is set to. So the language lives here instead, and `I18nProvider` keeps it in
  * step; see `setActiveLocale`.
  *
- * The catalogue is the same one the hook reads, so a key cannot mean two different things depending
- * on which of the two found it, and `MessageKey` still makes a missing translation a type error.
+ * The catalogue is the same one the hook reads, and both come down to `translateIn`, so a key cannot
+ * mean two different things depending on which of the two found it, and `MessageKey` still makes a
+ * missing translation a type error.
  *
  * **Import this file directly from a `.ts` module — not `i18n/index.ts`.** The barrel re-exports
  * `context.tsx`, and a plain-TypeScript module that pulls it in stops being loadable by
@@ -24,6 +25,7 @@
  */
 
 import { MESSAGE_CATALOGS, type MessageKey, type ResolvedUiLocale } from "./messages/index.ts";
+import { pluralForm } from "./plural.ts";
 
 export type MessageVariables = Readonly<Record<string, string | number>>;
 
@@ -52,7 +54,16 @@ export function activeLocale(): ResolvedUiLocale {
  * would be the right answer anyway: a sentence in the wrong language beats a key printed at a person.
  */
 export function translate(key: MessageKey, variables?: MessageVariables): string {
-	const template = MESSAGE_CATALOGS[active][key] ?? MESSAGE_CATALOGS["zh-CN"][key];
+	return translateIn(active, key, variables);
+}
+
+/**
+ * One message in a language named by the caller — what `translate` and `useI18n().t` both call, so
+ * the plural form a count takes is picked the same way on both paths.
+ */
+export function translateIn(locale: ResolvedUiLocale, key: MessageKey, variables?: MessageVariables): string {
+	const message = MESSAGE_CATALOGS[locale][key] ?? MESSAGE_CATALOGS["zh-CN"][key];
+	const template = pluralForm(locale, message, variables?.n);
 	if (!variables) return template;
 	return template.replace(/\{([^}]+)\}/g, (match, name: string) => {
 		const value = variables[name];

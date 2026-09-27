@@ -14,7 +14,7 @@ import { uniqueProviderName } from "./provider-transfer.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { ModelConfig, ProviderConfig } from "@lyra/core";
 import { activeModelCatalog } from "@lyra/core/model-catalog";
-import { pullModelCatalog } from "../../lib/model-catalog.ts";
+import { pullModelCatalog } from "../../store/model-catalog.ts";
 import type { CatalogSyncResult } from "@lyra/core/model-catalog-sync";
 import { importedModel } from "./model-defaults.ts";
 import { useEffect, useMemo, useState } from "react";
@@ -44,7 +44,7 @@ export function useProviders() {
 		if (!selected && providers.length > 0) setSelectedId(providers[0].id);
 	}, [providers, selected]);
 
-	// 目录由 store 跟主进程对齐（`lib/model-catalog.ts`）；订阅版本号，换了就按新目录重新渲染。
+	// 目录由 store 跟主进程对齐（`store/model-catalog.ts`）；订阅版本号，换了就按新目录重新渲染。
 	// 主进程每小时会自己更新目录，打开这一页时对齐一次，搜索和导入用的就是最新的；版本没变只是一次空问。
 	useApp((s) => s.catalogRevision);
 	useEffect(() => {

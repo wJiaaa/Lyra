@@ -22,6 +22,7 @@ import { figuresOf, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
 import { useScopedSessionId, useScopedSubAgents } from "../../app/session-scope.tsx";
 import { elapsedSince, figuresWord, statusWord } from "./format.ts";
 import { bridge } from "../../services/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 	const { t } = useI18n();
@@ -113,20 +114,17 @@ export function SubAgentBar({ onOpen }: { onOpen: () => void }) {
 			 * useful yet.
 			 */}
 			{running === 0 && (
-				<button
-					type="button"
-					data-ly-tip={t("subAgentBar.clear")}
-					aria-label={t("subAgentBar.clearFinished")}
+				<IconButton
+					size="sm"
+					label={t("subAgentBar.clear")}
 					onClick={() => {
 						if (!sessionId) return;
 						void bridge.subAgents.dismissFinished(sessionId);
 						useSubAgents.getState().forgetFinished(sessionId);
 						if (useApp.getState().activeSessionId === sessionId) useSubAgents.getState().clear();
 					}}
-					className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-				>
-					<X size={12} strokeWidth={2} />
-				</button>
+					icon={<X size={12} strokeWidth={2} />}
+				/>
 			)}
 		</div>
 	);

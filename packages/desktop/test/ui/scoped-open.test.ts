@@ -114,7 +114,8 @@ test("面板窗口：请求转给主窗口，不动本地的树", () => {
 	});
 	try {
 		openScopedPanel("file", { kind: "files", side: "bottom" });
-		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" } }]);
+		// 带上弹出它的那一屏：主窗口的焦点常常在别的屏上。
+		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-a" }]);
 		assert.deepEqual(usePaneDock.getState().trees, {}, "面板窗口里的树是没人画的，往里写等于把点击吞掉");
 	} finally {
 		Reflect.deleteProperty(window, "lyra");

@@ -21,7 +21,10 @@ import { useEffect, useState } from "react";
 import { ChevronDown, FolderCheck, Pencil, Sparkles, UserCheck, X } from "lucide-react";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
+import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { translate, useI18n } from "../../i18n/index.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /** 触发条件说的是「在哪儿看」，把 scope 翻成人话。 */
 function where(scope: string | undefined): string {
@@ -34,8 +37,14 @@ function where(scope: string | undefined): string {
 
 export function RuleSuggestion() {
 	const { t } = useI18n();
-  const offer = useApp((s) => s.ruleOffer);
-  const sessionId = useApp((s) => s.activeSessionId);
+  /*
+   * `ruleOffer` belongs to the live slot's conversation and is cleared when another is opened. In a
+   * split every screen drew it, so it showed — and could be saved or turned down — under a transcript
+   * it was not about.
+   */
+  const scoped = useScopedSessionId();
+  const offer = useApp((s) => (scoped === s.activeSessionId ? s.ruleOffer : null));
+  const sessionId = scoped;
   const notify = useApp((s) => s.notify);
 
   const [open, setOpen] = useState(false);
@@ -145,26 +154,21 @@ export function RuleSuggestion() {
             * 文件夹，一个人。勾是它们共有的部分，单独看不出是哪一个——这也正是 tooltip 存在的
             * 理由，图标负责区分，文字负责说全。
             */}
-          <button
-            type="button"
-            data-ly-tip={`${t("ruleSuggestion.saveToProject")} · ${t("rule.scopeProject")}`}
-            aria-label={t("ruleSuggestion.saveToProject")}
+          <Button
+            variant="primary"
+            size="sm"
+            label={`${t("ruleSuggestion.saveToProject")} · ${t("rule.scopeProject")}`}
             disabled={!draft || saving}
             onClick={() => keep("project")}
-            className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity hover:opacity-90 disabled:opacity-40"
-          >
-            <FolderCheck size={13} strokeWidth={1.9} aria-hidden />
-          </button>
-          <button
-            type="button"
-            data-ly-tip={`${t("ruleSuggestion.saveToMine")} · ${t("rule.scopePersonal")}`}
-            aria-label={t("ruleSuggestion.saveToMine")}
+            icon={<FolderCheck size={13} strokeWidth={1.9} aria-hidden />}
+          />
+          <Button
+            size="sm"
+            label={`${t("ruleSuggestion.saveToMine")} · ${t("rule.scopePersonal")}`}
             disabled={!draft || saving}
             onClick={() => keep("user")}
-            className="grid h-7 w-7 place-items-center rounded-lg border border-line text-ink-muted transition-colors hover:border-ink-faint hover:text-ink disabled:opacity-40"
-          >
-            <UserCheck size={13} strokeWidth={1.9} aria-hidden />
-          </button>
+            icon={<UserCheck size={13} strokeWidth={1.9} aria-hidden />}
+          />
           <button
             type="button"
             data-ly-tip={t("common.edit")}
@@ -176,15 +180,12 @@ export function RuleSuggestion() {
             <Pencil size={12} strokeWidth={1.9} aria-hidden />
             <ChevronDown size={11} aria-hidden className={`transition-transform${open ? " rotate-180" : ""}`} />
           </button>
-          <button
-            type="button"
-            data-ly-tip={t("ruleSuggestion.reject")}
-            aria-label={t("ruleSuggestion.reject")}
+          <IconButton
+            label={t("ruleSuggestion.reject")}
             onClick={dismiss}
-            className="ml-auto grid h-7 w-7 place-items-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink-muted"
-          >
-            <X size={13} strokeWidth={1.9} aria-hidden />
-          </button>
+            className="ml-auto"
+            icon={<X size={13} strokeWidth={1.9} aria-hidden />}
+          />
         </div>
       </div>
     </div>

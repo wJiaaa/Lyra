@@ -23,6 +23,7 @@ import { Badge } from "./controls.tsx";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { useI18n } from "../../i18n/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function ProviderModels({
 	models,
@@ -200,45 +201,19 @@ function ModelRow({
 					{formatWindow(model.contextWindow)}
 				</span>
 
-				<button
-					type="button"
-					data-ly-tip={testing ? t("providerModels.connecting") : t("providerModels.testOne")}
-					aria-label={t("providerModels.testOne")}
+				<IconButton
+					label={testing ? t("providerModels.connecting") : t("providerModels.testOne")}
 					disabled={testing}
+					explainDisabled
 					onClick={onTest}
-					className={`flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-all hover:bg-card hover:text-ink active:scale-95 ${
-						testing ? "text-accent" : ""
-					}`}
-				>
-					{testing ? (
-						<ActionSpinner size={13} className="text-accent" />
-					) : (
-						<Play size={13} strokeWidth={1.9} className="ml-0.5" />
-					)}
-				</button>
+					icon={testing ? <ActionSpinner size={13} className="text-accent" /> : <Play size={13} strokeWidth={1.9} className="ml-0.5" />}
+				/>
 
-				<button
-					type="button"
-					data-ly-tip={t("providerModels.makeDefault")}
-					aria-label={t("providerModels.makeDefault")}
-					onClick={onSetDefault}
-					className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card hover:text-ink"
-				>
-					<Link2 size={14} strokeWidth={1.8} />
-				</button>
-				<button
-					type="button"
-					data-ly-tip={t("common.edit")}
-					aria-label={t("providerModels.editOne")}
-					onClick={onEdit}
-					className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card hover:text-ink"
-				>
-					<Pencil size={14} strokeWidth={1.8} />
-				</button>
-				<button
-					type="button"
-					data-ly-tip={t("common.delete")}
-					aria-label={t("providerModels.deleteOne")}
+				<IconButton label={t("providerModels.makeDefault")} onClick={onSetDefault} icon={<Link2 size={14} strokeWidth={1.8} />} />
+				<IconButton label={t("providerModels.editOne")} onClick={onEdit} icon={<Pencil size={14} strokeWidth={1.8} />} />
+				<IconButton
+					tone="danger"
+					label={t("common.delete")}
 					onClick={() =>
 						confirm.ask({
 							title: t("providerModels.deleteConfirm", { id: model.modelId }),
@@ -247,10 +222,8 @@ function ModelRow({
 							onConfirm: onRemove,
 						})
 					}
-					className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card hover:text-danger"
-				>
-					<Trash2 size={14} strokeWidth={1.8} />
-				</button>
+					icon={<Trash2 size={14} strokeWidth={1.8} />}
+				/>
 			</div>
 
 			{/* If the individual test had an error, show a quiet informative line below the row */}

@@ -21,8 +21,35 @@ type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>
 export function turnSlice(set: Set, get: Get) {
 	const creating = new Map<number, ReturnType<typeof bridge.sessions.create>>();
 	const prompting = new Map<string, symbol>();
+	/*
+	 * 指名的会话不在台上，先把它请上台；没请上来就返回 false。
+	 *
+	 * 编辑、撤回、重试都只改台上那一份转录。分屏时非焦点那一屏的按钮用键盘按下去不经过
+	 * pointerdown，焦点不会先切过来——不先请上台，被改写的就是焦点那一屏的对话。请上台在分屏里
+	 * 就是把焦点切到那一屏，和鼠标按下时一样。
+	 */
+	const onStage = async (sessionId: string | undefined): Promise<boolean> => {
+		if (!sessionId || sessionId === get().activeSessionId) return true;
+		const meta = get().sessions.find((session) => session.id === sessionId);
+		if (!meta) return false;
+		await get().openSession(meta);
+		// 等待期间人又点开了别的对话：那是更新的选择，这次操作不再作数。
+		return get().activeSessionId === sessionId;
+	};
 	return {
-	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string } = {}) {
+	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null } = {}) {
+		/*
+		 * `null` names the blank conversation, which is not the same as naming none.
+		 *
+		 * Naming none means "the live one". In a split a blank screen can sit beside a conversation
+		 * that holds the live slot, and leaving the id out sent what was typed on the blank screen to
+		 * that conversation. The blank one is put in the live slot first — what pressing on its
+		 * screen does — and if that did not happen, nothing is sent rather than sent to the wrong place.
+		 */
+		if (options.sessionId === null && get().activeSessionId !== null) {
+			await get().newSession({ keepView: true });
+			if (get().activeSessionId !== null) return false;
+		}
 		const { workspace, settings, scratchCwd, selectionEpoch: epoch } = get();
 		let sessionId = options.sessionId ?? get().activeSessionId;
 		const cwd = workspace?.path ?? scratchCwd;
@@ -185,20 +212,7 @@ export function turnSlice(set: Set, get: Get) {
    * for the same reason it does when the wording changes.
    */
   async retryFrom(index: number, sessionId?: string) {
-    /*
-     * 指名的会话不在台上，先把它请上台。
-     *
-     * `editMessage` 只会改台上那一份转录。分屏时非焦点那一屏的「重试」用键盘按下去不经过
-     * pointerdown，焦点不会先切过来——不先请上台，被丢掉重答的就是焦点那一屏的对话，一次要再花
-     * 整轮 token 的操作落在了别人头上。请上台在分屏里就是把焦点切到那一屏，和鼠标按下时一样。
-     */
-    if (sessionId && sessionId !== get().activeSessionId) {
-      const meta = get().sessions.find((session) => session.id === sessionId);
-      if (!meta) return;
-      await get().openSession(meta);
-      // 等待期间人又点开了别的对话：那是更新的选择，这次重试不再作数。
-      if (get().activeSessionId !== sessionId) return;
-    }
+    if (!(await onStage(sessionId))) return;
     const messages = get().messages;
     for (let i = Math.min(index, messages.length - 1); i >= 0; i--) {
       const message = messages[i];
@@ -217,7 +231,9 @@ export function turnSlice(set: Set, get: Get) {
     index: number,
     content: UserContent[],
     meta: { displayText?: string; attachments?: MessageAttachment[] } = {},
+    target?: string,
   ) {
+    if (!(await onStage(target))) return;
     const sessionId = get().activeSessionId;
     if (!sessionId || get().running) return;
     const before = get();
@@ -278,7 +294,8 @@ export function turnSlice(set: Set, get: Get) {
 		}
   },
 
-  async revertMessage(index: number) {
+  async revertMessage(index: number, target?: string) {
+    if (!(await onStage(target))) return;
     const sessionId = get().activeSessionId;
     if (!sessionId || get().running) return;
     const messages = get().messages;
@@ -325,6 +342,7 @@ export function turnSlice(set: Set, get: Get) {
       get().setComposerDraft(draft.text, false, {
         attachments: draft.attachments,
         sessionRefs: draft.sessionRefs,
+        target: sessionId,
       });
     } catch (cause) {
       const current = get();

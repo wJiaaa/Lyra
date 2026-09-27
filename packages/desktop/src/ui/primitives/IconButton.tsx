@@ -1,5 +1,6 @@
 import { Tooltip } from "../overlay/Tooltip.tsx";
 import { shortcutLabel } from "../keyboard.ts";
+import type { DataAttributes } from "./Button.tsx";
 
 /**
  * A button whose label is an icon.
@@ -15,6 +16,7 @@ import { shortcutLabel } from "../keyboard.ts";
  */
 export function IconButton({
 	label,
+	ariaLabel,
 	icon,
 	onClick,
 	active,
@@ -25,9 +27,19 @@ export function IconButton({
 	tone = "default",
 	size = "md",
 	tipSide = "bottom",
+	menu,
 	className = "",
-}: {
+	...data
+}: DataAttributes & {
 	label: string;
+	/**
+	 * The accessible name, when it has to say more than the tooltip.
+	 *
+	 * A row of identical buttons reads to a screen reader as the same word over and over; the name
+	 * carries which row (`归档会话「a」`) while the tooltip stays short beside the pointer that is
+	 * already on that row. Omit it and `label` is both, which is the ordinary case.
+	 */
+	ariaLabel?: string;
 	icon: React.ReactNode;
 	onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 	/** Held down / currently on, for toggles like "match case". */
@@ -55,14 +67,19 @@ export function IconButton({
 	tone?: "default" | "danger";
 	size?: "sm" | "md";
 	tipSide?: "top" | "bottom";
+	/** Opens a menu; the value is whether it is open now. Same as `Button`'s. */
+	menu?: boolean;
 	className?: string;
 }) {
 	const showBadge = typeof badge === "number" && badge > 0;
 	const button = (
 		<button
+			{...data}
 			type="button"
-			aria-label={shortcutLabel(label)}
+			aria-label={ariaLabel ?? shortcutLabel(label)}
 			aria-pressed={active}
+			aria-haspopup={menu === undefined ? undefined : "menu"}
+			aria-expanded={menu}
 			disabled={disabled}
 			onClick={onClick}
 			// The count, readable without knowing how it is drawn — a badge in the corner here, part

@@ -23,7 +23,7 @@ import { basename, join } from "node:path";
 import { after, test, type TestContext } from "node:test";
 import type { AddressInfo } from "node:net";
 
-import { describe, downloadDir, partialPath, resumePlan, staleDownloads, sweepDownloads, UpdateDownload, type DownloadPhase } from "../electron/ipc/update-download.ts";
+import { describe, DownloadError, downloadDir, partialPath, resumePlan, staleDownloads, sweepDownloads, UpdateDownload, type DownloadPhase } from "../electron/ipc/update-download.ts";
 
 /** The payload every test downloads: big enough to arrive in several chunks, small enough to be quick. */
 const BODY = Buffer.from(Array.from({ length: 200_000 }, (_, i) => i % 251));
@@ -612,8 +612,9 @@ test("a connection that never opened points at the network, not at the download"
 });
 
 test("our own messages are already specific and are passed through", () => {
-	const mine = "下载不完整：拿到 100 字节，应为 200";
-	assert.equal(describe(new Error(mine), 100), mine);
+	// Recognised by type, not by wording, so it holds in every interface language.
+	const mine = "Download incomplete: got 100 bytes, expected 200";
+	assert.equal(describe(new DownloadError(mine), 100), mine);
 });
 
 test("an unknown Windows write failure does not guess which program blocked it", () => {

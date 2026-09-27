@@ -110,16 +110,28 @@ export class ApprovalGate {
 	 *
 	 * For permissions, `full` never asks; `auto` asks only about what cannot be taken back, judged by the
 	 * approval policy rather than here — that judgement is a matter of where the agent is running,
-	 * and a plugin can replace it. Anything else asks.
+	 * and a plugin can replace it. An escalation is never that policy's to judge. Anything else asks.
 	 */
 	async request(request: ApprovalRequest): Promise<ApprovalDecision> {
 		const mode = this.options.mode();
+		const escalation = request.escalation !== undefined;
 		// A permission grant cannot answer a question, even in unattended/full-access mode.
 		if (request.kind !== "interactive") {
 			if (mode === "full") return "once";
-			if (this.allowList.has(request.subject)) return "once";
+			if (!escalation && this.allowList.has(request.subject)) return "once";
 
-			if (mode === "auto") {
+			/*
+			 * An escalation skips the policy and goes to a person.
+			 *
+			 * `auto` can let the policy wave commands through because they still run confined. An
+			 * escalation asks to run one without that, so the policy's guess cannot answer it — and
+			 * it was not even judging the command: to `assessCommand` the subject
+			 * `escalate:danger-full-access:rm -rf ~` names a program called
+			 * `escalate:danger-full-access:rm`. Here rather than in the policy, because a plugin can
+			 * replace the policy and this has to hold whichever one is loaded. The allow-list is
+			 * skipped for the same reason `approveEscalation` keeps a grant to one call.
+			 */
+			if (mode === "auto" && !escalation) {
 				const verdict = approvalPolicy().assess(request.kind, request.subject, this.options.cwd(), request);
 				if (!verdict.risky) return "once";
 				if (verdict.reason) request.detail = `${verdict.reason}\n\n${request.detail ?? ""}`.trim();
@@ -151,7 +163,8 @@ export class ApprovalGate {
 				resolve: (decision) => {
 					if (timer) clearTimeout(timer);
 					this.pending.delete(id);
-					if (decision === "always") {
+					// An escalation's "always" still covers only this call; see above.
+					if (decision === "always" && !escalation) {
 						this.allowList.add(request.subject);
 						this.options.remember(request.subject);
 					}

@@ -56,3 +56,16 @@ test("unsafe schemes and malformed encoded paths never become clickable file lin
 	try { assert.equal(view.host.querySelector("a"), null); assert.match(view.text(), /unsafe.*broken/); }
 	finally { await view.unmount(); }
 });
+
+test("inline code naming a workspace file becomes a file link; other inline code stays code", async () => {
+	const view = await mount(h(Markdown, { text: "`src/runBatch.js` 与 `node:test`", baseDir: "/project" }));
+	try {
+		const wrap = view.find("[data-ly-file-link]");
+		assert.equal(wrap.querySelector("[data-ly-file-name]")?.textContent, "runBatch.js");
+		assert.equal(wrap.querySelector("a")?.getAttribute("data-ly-tip"), "src/runBatch.js");
+		assert.equal(view.all("[data-ly-file-link]").length, 1);
+		assert.equal(view.find("code").textContent, "node:test");
+	} finally {
+		await view.unmount();
+	}
+});

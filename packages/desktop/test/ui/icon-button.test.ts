@@ -65,3 +65,24 @@ test("IconButton: badge 为 0 或 null 时不画，正数才画", async () => {
 	assert.match(view.text(), /3/);
 	await view.unmount();
 });
+
+test("IconButton: ariaLabel 只改可访问名，tooltip 仍是 label", async () => {
+	const view = await mount(h(IconButton, { label: "归档会话", ariaLabel: "归档会话「a」", icon: ICON, onClick: () => {} }));
+	const button = view.find<HTMLButtonElement>("button");
+	assert.equal(button.getAttribute("aria-label"), "归档会话「a」");
+	assert.equal(button.dataset.lyTip, "归档会话");
+	await view.unmount();
+});
+
+test("IconButton: data-* 原样透传，menu 给出弹出类型和开合状态", async () => {
+	const view = await mount(h(IconButton, { label: "更多", icon: ICON, menu: false, "data-queue-more": "", onClick: () => {} }));
+	const button = view.find<HTMLButtonElement>("button");
+	assert.ok(button.hasAttribute("data-queue-more"));
+	assert.equal(button.getAttribute("aria-haspopup"), "menu");
+	assert.equal(button.getAttribute("aria-expanded"), "false");
+	await view.unmount();
+
+	const plain = await mount(h(IconButton, { label: "复制", icon: ICON, onClick: () => {} }));
+	assert.equal(plain.find("button").getAttribute("aria-haspopup"), null);
+	await plain.unmount();
+});

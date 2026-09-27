@@ -1,9 +1,9 @@
 /**
- * 日期放在前缀末尾，而不是 system prompt 里。
+ * 日期跟在它所属的用户消息后面，既不在 system prompt 里，也不在请求的最末尾。
  *
- * 这条测的是**位置**，而位置就是全部的意义。前缀缓存从最前面逐段匹配，system prompt 正是最
- * 前面那一段——里面放一个每天变一次的字符串，等于每天头一次请求要为整个对话重付一次全额。
- * 一个几十万 token 的长会话，为了一句「今天是几号」。
+ * 这条测的是**位置**，而位置就是全部的意义。放 system prompt，每天头一次请求要为整个对话重付
+ * 一次全额；放最末尾，它永远是「最后一条用户消息」，DeepSeek 会丢掉它之前所有助手轮的推理，
+ * 上一轮的输出也进不了缓存。
  */
 
 import assert from "node:assert/strict";
@@ -14,7 +14,12 @@ import { runAgent } from "../src/agent/loop.ts";
 import type { AssistantMessage, Message } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
-const user = (text: string): Message => ({ role: "user", content: [{ type: "text", text }], timestamp: 0 });
+const DAY1 = new Date(2026, 8, 4, 10).getTime();
+const DAY2 = new Date(2026, 8, 5, 10).getTime();
+const user = (text: string, timestamp = DAY1): Message => ({ role: "user", content: [{ type: "text", text }], timestamp });
+const assistant = (text: string): Message =>
+	({ role: "assistant", content: [{ type: "text", text }], api: "openai-responses", provider: "fake", model: "model", usage: emptyUsage(), stopReason: "stop", timestamp: 1 }) as AssistantMessage;
+const textOf = (message: Message | undefined) => message?.content.map((c) => (c.type === "text" ? c.text : "")).join("") ?? "";
 
 const PROMPT_INPUT = {
 	cwd: "/tmp/p",
@@ -36,13 +41,13 @@ test("system prompt 里没有日期", async () => {
 	assert.ok(!/Today's date/i.test(prompt));
 });
 
-test("日期接在消息末尾", async () => {
-	const messages = withEnvironment([user("你好"), user("再问一句")]);
-	const last = messages.at(-1);
+test("日期跟在第一条用户消息后面，取那条消息自己的日期", () => {
+	const messages = withEnvironment([user("你好"), assistant("好"), user("再问一句")]);
 
-	assert.equal(messages.length, 3);
-	assert.equal(last?.role, "user");
-	assert.match(last?.content[0].type === "text" ? last.content[0].text : "", new RegExp(today()));
+	assert.equal(messages.length, 4, "同一天只说一次");
+	assert.equal(textOf(messages[0]), "你好");
+	assert.match(textOf(messages[1]), /<env>[\s\S]*2026-09-04/);
+	assert.equal(textOf(messages.at(-1)), "再问一句", "最后一条是人说的话，不是日期块");
 });
 
 test("标成 synthetic，因为不是人说的", () => {
@@ -69,24 +74,32 @@ test("空历史不加——没有可缓存的前缀，也没有对话", () => {
 	assert.deepEqual(withEnvironment([]), []);
 });
 
-test("同一天里两次拼装出的前缀一模一样", () => {
-	/*
-	 * 缓存要的就是这个。日期以外的东西（`Date.now()` 的时间戳）不能进到模型看得见的文本里，
-	 * 否则每一轮的末尾都不同，而这块又在前缀里——那就比放在 system prompt 里还糟。
-	 */
-	const a = withEnvironment([user("你好")]);
-	const b = withEnvironment([user("你好")]);
-	const textOf = (messages: Message[]) => messages.map((m) => m.content.map((c) => (c.type === "text" ? c.text : "")).join()).join("|");
-
-	assert.equal(textOf(a), textOf(b));
+test("压缩后只剩合成消息时，接在第一条用户消息后面", () => {
+	const summary: Message = { ...user("<session-summary>…</session-summary>"), synthetic: true };
+	const messages = withEnvironment([summary, assistant("好")]);
+	assert.match(textOf(messages[1]), /<env>/);
 });
 
-test("跨天时变的只有末尾这一块", () => {
-	const yesterday = withEnvironment([user("你好")], "2026-09-04");
-	const todayOne = withEnvironment([user("你好")], "2026-09-05");
+test("同一份历史每次渲染出同样的字节", () => {
+	/*
+	 * 缓存要的就是这个。日期只从消息自己的时间戳来，不看现在几点——否则跨天那一刻整段历史都会变。
+	 */
+	const history = [user("你好"), assistant("好"), user("再问一句", DAY2)];
+	assert.deepEqual(withEnvironment(history), withEnvironment(history));
+});
 
-	assert.deepEqual(yesterday.slice(0, -1), todayOne.slice(0, -1), "前面的历史一个字节都没动");
-	assert.notDeepEqual(yesterday.at(-1), todayOne.at(-1));
+test("跨天只在新日期的那条消息后面多一块，前面一个字节不动", () => {
+	const before = withEnvironment([user("你好"), assistant("好")]);
+	const after = withEnvironment([user("你好"), assistant("好"), user("第二天再问", DAY2)]);
+
+	assert.deepEqual(after.slice(0, before.length), before, "前面的历史一个字节都没动");
+	assert.equal(textOf(after.at(-2)), "第二天再问");
+	assert.match(textOf(after.at(-1)), /2026-09-05/);
+});
+
+test("历史里已有的日期块原样保留，不重复接", () => {
+	const once = withEnvironment([user("你好")]);
+	assert.deepEqual(withEnvironment(once), once);
 });
 
 test("today 用本地时区，不是 UTC", () => {
@@ -98,10 +111,11 @@ test("today 用本地时区，不是 UTC", () => {
 	assert.equal(today(newYearEveEvening), "2026-01-01");
 });
 
-test("一轮之内每次请求都把日期块接在最末尾，回复不会排在它后面", async () => {
+test("一轮之内日期块留在用户消息后面，回复排在它后面，请求之间前缀接得上", async () => {
 	/*
-	 * 主会话的日志里没有这条。只在一轮开头接一次的话，这一轮的工具往返都排在它后面，下一轮从日志
-	 * 重建时它不在原位了——前缀从那里断开，上一轮整段重写缓存。
+	 * 主会话的日志里没有这条，每次请求重新渲染。它必须每次都落在同一个位置：上一次请求整个是这一次
+	 * 的前缀，服务端缓存的「上次输入＋上次输出」才用得上；最后一条也不能是它，否则 DeepSeek 会丢掉
+	 * 之前各轮的推理。
 	 */
 	const model = { id: "fake/model", providerId: "fake", modelId: "model", name: "Fake", contextWindow: 200_000, maxOutputTokens: 4096, supportsThinking: false, supportsImages: false, supportsTools: true };
 	const reply = (content: AssistantMessage["content"], stopReason: AssistantMessage["stopReason"]): AssistantMessage =>
@@ -126,9 +140,10 @@ test("一轮之内每次请求都把日期块接在最末尾，回复不会排�
 	assert.equal(sent.length, 2);
 	const isEnv = (message: Message) => message.synthetic === true && message.content.some((c) => c.type === "text" && c.text.includes("<env>"));
 	for (const request of sent) {
-		assert.ok(isEnv(request.at(-1)!), "每次请求的最后一条都是日期块");
+		assert.ok(isEnv(request[1]), "日期块紧跟在用户消息后面");
 		assert.equal(request.filter(isEnv).length, 1, "而且只有这一条");
 	}
-	assert.deepEqual(sent[1].slice(0, sent[0].length - 1), sent[0].slice(0, -1), "上一次请求去掉日期块后是这一次的前缀");
+	assert.ok(!isEnv(sent[1].at(-1)!), "有了回复之后，最后一条不是日期块");
+	assert.deepEqual(sent[1].slice(0, sent[0].length), sent[0], "上一次请求整个是这一次的前缀");
 	assert.ok(!result.messages.some(isEnv), "日期块不进这一轮产出的消息，也就不进日志");
 });

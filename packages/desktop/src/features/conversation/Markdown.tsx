@@ -10,7 +10,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { FileText, ExternalLink, FolderOpen } from "lucide-react";
+import { ExternalLink, FolderOpen } from "lucide-react";
 import { createContext, Fragment, isValidElement, memo, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
 import { isMermaid, MermaidBlock } from "./MermaidBlock.tsx";
@@ -19,16 +19,18 @@ import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import type { Block, ListItem } from "../../lib/markdown/blocks.ts";
 import { parseMarkdown } from "../../lib/markdown/blocks.ts";
 import { resolveAsset, isAbsolutePath } from "../../lib/markdown/assets.ts";
-import { fileLinkCaption } from "../../lib/markdown/file-link.ts";
+import { fileLinkCaption, filePathInCode } from "../../lib/markdown/file-link.ts";
 import { groupTokens, HUGE_BLOCK } from "../../lib/markdown/slice.ts";
 import { type Inline, parseInline } from "../../lib/markdown/inline.ts";
 import { renderMath } from "../../lib/markdown/math.ts";
 import { stripEmoji } from "../../lib/markdown/strip-emoji.ts";
 import { available, bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
+import { useScopedProjectPath } from "../../app/session-scope.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
+import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 
 /**
  * What this text is, beyond the characters in it.
@@ -288,8 +290,12 @@ function renderToken(token: Inline): ReactNode {
 	switch (token.kind) {
 		case "text":
 			return token.text;
-		case "code":
-			return <code className="[box-decoration-break:clone] [-webkit-box-decoration-break:clone]">{token.text}</code>;
+		case "code": {
+			const code = <code className="[box-decoration-break:clone] [-webkit-box-decoration-break:clone]">{token.text}</code>;
+			// 提示词让模型把路径写成 `path/to/file.ts:42` 以便点击；解析不到本机路径时 `Link` 原样还给这枚代码。
+			const path = filePathInCode(token.text);
+			return path ? <Link href={path}>{code}</Link> : code;
+		}
 		case "break":
 			return <br />;
 		case "strong":
@@ -344,6 +350,7 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 	const canOpen = available("system", "openPath");
 	const canReveal = available("system", "openIn");
 	const caption = fileLinkCaption(textOf(children), path);
+	const look = lookFor(path.split(/[/\\]/).pop() || path, false);
 	const openFile = () => {
 		const name = path.split(/[/\\]/).pop() || path;
 		void useOpenFile
@@ -361,7 +368,7 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 		 */
 		<span data-ly-file-link>
 			<a href={href} data-ly-tip={caption.tip} onClick={(event) => { event.preventDefault(); openFile(); }}>
-				<FileText size={13} />
+				<look.Icon size={13} strokeWidth={1.9} style={{ color: iconColour(look) }} />
 				<span data-ly-file-name>{caption.text}</span>
 			</a>
 			{/*
@@ -414,7 +421,8 @@ function FileLinkAction({ tip, onClick, children }: { tip: string; onClick: () =
 
 function Link({ href, children }: { href: string; children: ReactNode }) {
 	const { baseDir, preview } = useContext(Doc);
-	const workspace = useApp((state) => state.workspace?.path);
+	// This screen's project: in a split, the focused screen's could be another repository.
+	const workspace = useScopedProjectPath();
 	const safe = href.startsWith("http://") || href.startsWith("https://");
 	const path = safe ? null : resolveAsset(baseDir ?? workspace ?? (isAbsolutePath(href) ? "/" : undefined), href.replace(/:\d+(?:-\d+)?$/, ""));
 	if (preview || (!safe && !path)) return <>{children}</>;

@@ -129,7 +129,15 @@ export function SplitWorkspace() {
 		 * thing typed belongs alone on the screen. Booting with `activeSessionId === null`
 		 * is not the same fact — a saved tiling would be thrown away before the list arrived.
 		 */
-		if (previousSession.current && activeSessionId === null) resetSplit(null);
+		/*
+		 * A blank screen already on the tree is where that blank conversation is. Pressing on it, or
+		 * sending from it, puts it in the live slot — which is also `activeSessionId` going to null, and
+		 * must not throw away the conversations beside it.
+		 */
+		if (previousSession.current && activeSessionId === null) {
+			if (contains(useSplit.getState().tree, null)) useSplit.getState().focus(null);
+			else resetSplit(null);
+		}
 		previousSession.current = activeSessionId;
 		if (!activeSessionId) return;
 		const split = useSplit.getState();

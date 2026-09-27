@@ -19,10 +19,10 @@ const targets = {
 	otherSession: '[data-ly-row="qa-short"] > button',
 	composer: 'main textarea',
 	input: 'input[aria-label="自定义回答"]',
-	submit: 'button[aria-label="发送回答"]',
+	submit: '[data-ly-question-footer] button[type="submit"]',
 	thumb: '.ly-approval-scroll .ly-thumb',
 	lastChoice: '[data-ly-question-option]:last-of-type',
-	confirm: 'button[aria-label="确认选择"]',
+	confirm: '[data-ly-question-footer] button[type="submit"]',
 };
 
 before(async () => {

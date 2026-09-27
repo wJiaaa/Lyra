@@ -71,10 +71,8 @@ export { sanitizeChatCompletionsHistory, toChatCompletionsMessages, toChatComple
 export {
 	resolveModelThinkingOptions,
 	resolveReasoningEffort,
-	STANDARD_3_LEVEL_OPTIONS,
-	STANDARD_5_LEVEL_OPTIONS,
-	GPT_5_6_STANDARD_OPTIONS,
-	GPT_5_6_SOL_OPTIONS,
-	GPT_6_ASTRA_OPTIONS,
-	FAST_3_LEVEL_OPTIONS,
+	resolveThinkingOption,
+	thinkingOptionsFor,
+	DEFAULT_THINKING_OPTIONS,
+	THINKING_LEVELS,
 } from "./thinking-options.ts";

@@ -68,7 +68,6 @@ interface GrepArgs {
 
 export const grepTool: Tool<GrepArgs> = {
 	name: "grep",
-	snippet: "Search file contents by regular expression",
 	description:
 		"Search file contents with a regular expression. Uses ripgrep when it is installed and falls back to a built-in " +
 		"scanner otherwise. Put the regex in `pattern` (aliases: `query`, `search`). Narrow the search with `glob` (e.g. `*.ts`) and use `context` to include surrounding lines. " +

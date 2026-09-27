@@ -1,8 +1,9 @@
-import { translate } from "../../i18n/translate.ts";
+import { activeLocale, translate } from "../../i18n/translate.ts";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Text } from "../../ui/primitives/Text.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
  * The row under a message: when it was written, and what you can do with it.
@@ -93,17 +94,13 @@ export function MessageActions({
 					{durationBadge}
 				</span>
 			)}
-			<button
-				type="button"
-				data-ly-tip={translate("common.copy")}
-				aria-label={translate("messageActions.copyThis")}
+			<IconButton
+				label={translate("messageActions.copyThis")}
 				onClick={() => {
 					void navigator.clipboard.writeText(text).then(() => setCopied(true));
 				}}
-				className="flex h-6 w-6 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-			>
-				{copied ? <Check size={12.5} strokeWidth={2.2} className="ly-pop text-ok" /> : <Copy size={12.5} strokeWidth={1.8} />}
-			</button>
+				icon={copied ? <Check size={12.5} strokeWidth={2.2} className="ly-pop text-ok" /> : <Copy size={12.5} strokeWidth={1.8} />}
+			/>
 			{children}
 		</div>
 	);
@@ -158,18 +155,18 @@ function formatDurationTip(
 			translate("messageActions.spanTip", {
 				total: formatSpan(durationMs),
 				model: formatSpan(requestMs),
-				requests: String(requests),
+				n: requests,
 			}),
 		);
 	}
 	if (tokens && tokens > 0 && sseDurationMs && sseDurationMs > 0) {
-		lines.push(translate("messageActions.rateTip", { tokens: String(tokens), decode: formatSpan(sseDurationMs) }));
+		lines.push(translate("messageActions.rateTip", { n: tokens, decode: formatSpan(sseDurationMs) }));
 	}
 	return lines.join("\n");
 }
 
 function formatTimestampTip(timestamp: number): string {
-	return new Date(timestamp).toLocaleString("zh-CN", {
+	return new Date(timestamp).toLocaleString(activeLocale(), {
 		year: "numeric",
 		month: "2-digit",
 		day: "2-digit",
@@ -183,7 +180,7 @@ function formatTimestampTip(timestamp: number): string {
 function formatSentAt(timestamp: number): string {
 	const sent = new Date(timestamp);
 	const sameYear = sent.getFullYear() === new Date().getFullYear();
-	return sent.toLocaleString("zh-CN", {
+	return sent.toLocaleString(activeLocale(), {
 		...(sameYear ? {} : { year: "numeric" }),
 		month: "long",
 		day: "numeric",

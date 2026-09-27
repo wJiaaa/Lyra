@@ -113,8 +113,8 @@ function parse(source: string): Node[] {
 				/*
 				 * `{{#has tools "bash"}}` is the one helper this exists for: behaviour advice that
 				 * only appears when the tool it is about is loaded. A session without `bash` seeing
-				 * shell guidance is the failure it prevents, and it is the same idea the current
-				 * `tool.guidelines` field already encodes — this just makes it expressible in a file.
+				 * shell guidance is the failure it prevents — the same reason tool advice lives in
+				 * each tool's own description.
 				 */
 				const negate = tag.startsWith("#hasAny ");
 				const rest = tag.slice(negate ? 8 : 5).trim();

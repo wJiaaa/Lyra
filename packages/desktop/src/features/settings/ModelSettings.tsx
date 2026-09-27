@@ -22,6 +22,7 @@ import { ProviderEditor } from "./ProviderEditor.tsx";
 import { ProviderImportModal } from "./ProviderImportModal.tsx";
 import { useProviders } from "./useProviders.ts";
 import { useProviderTransfer } from "./useProviderTransfer.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function ModelSettings() {
 	const { t } = useI18n();
@@ -76,19 +77,13 @@ export function ModelSettings() {
           * different jobs, so the rule between them rather than four identical icons in a row.
           */}
         <div className="mt-1 flex items-center gap-0.5">
-          <button
-            type="button"
-            data-ly-tip={t("providerTransfer.importTip")}
-            aria-label={t("providerTransfer.importTip")}
+          <IconButton
+            label={t("providerTransfer.importTip")}
             onClick={() => fileRef.current?.click()}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-          >
-            <Upload size={16} strokeWidth={1.8} />
-          </button>
-          <button
-            type="button"
-            data-ly-tip={t("providerTransfer.exportTip")}
-            aria-label={t("providerTransfer.exportTip")}
+            icon={<Upload size={16} strokeWidth={1.8} />}
+          />
+          <IconButton
+            label={t("providerTransfer.exportTip")}
             disabled={!transfer.canExport}
             onClick={() =>
               confirm.ask({
@@ -98,26 +93,22 @@ export function ModelSettings() {
                 onConfirm: transfer.exportAll,
               })
             }
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:pointer-events-none disabled:opacity-40"
-          >
-            <Download size={16} strokeWidth={1.8} />
-          </button>
+            icon={<Download size={16} strokeWidth={1.8} />}
+          />
 
           <span aria-hidden className="mx-1 h-4 w-px bg-line" />
 
-          <button
-            type="button"
-            data-ly-tip={t("modelSettings.testConnection")}
-            aria-label={t("modelSettings.testConnection")}
+          <IconButton
+            label={t("modelSettings.testConnection")}
             onClick={() => void p.test()}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-          >
-            <RefreshCw
-              size={16}
-              strokeWidth={1.8}
-              className={p.testing ? "ly-pulse" : undefined}
-            />
-          </button>
+            icon={
+              <RefreshCw
+                size={16}
+                strokeWidth={1.8}
+                className={p.testing ? "ly-pulse" : undefined}
+              />
+            }
+          />
 
           {/* 添加供应商放在页面右上角：列表底部那颗会被一长串供应商挤出视野。 */}
           <DialogAction className="ml-2" onClick={() => void p.add()} label={t("modelSettings.addProvider")} data-ly-add-provider="">

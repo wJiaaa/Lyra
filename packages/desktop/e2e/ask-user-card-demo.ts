@@ -264,7 +264,7 @@ try {
 	check("digit 0 focuses Other", otherOn.checked && otherOn.focused, otherOn);
 	await app.send("Input.insertText", { text: "我自己写一套 Web Components" });
 	await hold(900);
-	await click('button[aria-label="发送回答"]');
+	await click('[data-ly-question-footer] button[type="submit"]');
 	await idle();
 
 	await ask("ASK_MANY");
@@ -285,7 +285,7 @@ try {
 	check("end of the list fades only the top", manyEnd.fade.top > 0 && manyEnd.fade.bottom === 0 && !manyEnd.footer.covered, manyEnd.fade);
 	await click("[data-ly-question-option]:last-of-type");
 	await hold(600);
-	await click('button[aria-label="确认选择"]');
+	await click('[data-ly-question-footer] button[type="submit"]');
 	await idle();
 
 	await ask("ASK_LONG");
@@ -298,7 +298,7 @@ try {
 	await until("innerWidth===1280");
 	await hold(700);
 	await click("[data-ly-question-option]");
-	await click('button[aria-label="确认选择"]');
+	await click('[data-ly-question-footer] button[type="submit"]');
 	await idle();
 
 	await ask("ASK_MULTI");
@@ -310,7 +310,7 @@ try {
 	await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:"dark"}});})()`);
 	await until("document.documentElement.style.colorScheme==='dark'");
 	await hold(1200);
-	await click('button[aria-label="确认选择"]');
+	await click('[data-ly-question-footer] button[type="submit"]');
 	await idle();
 } catch (error) {
 	check("verification script completed", false, String(error));

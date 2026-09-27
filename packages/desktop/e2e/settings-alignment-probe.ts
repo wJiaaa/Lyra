@@ -1,16 +1,14 @@
 /* oxlint-disable no-console -- a probe CLI whose entire output is what it printed */
 
 /**
- * 四处对齐和一处动效，在真窗口里量出来。
+ * 对齐和动效，在真窗口里量出来。
  *
- * 用户拿着截图报的四件事，每一件都是「看上去不对」——而看上去不对的东西，只有在真窗口里量才有
+ * 用户拿着截图报的几件事，每一件都是「看上去不对」——而看上去不对的东西，只有在真窗口里量才有
  * 意义：jsdom 里没有布局，`items-center` 和 `items-start` 在那里是同一段字符串。
  *
- *   1. 并发上限那个数字要在框的正中间（还有别处同类的数字框）；
- *   2. 子智能体调度那五档的记号要落在整条的中线上，不是贴着标题那一行；
- *   3. 网页搜索那五条的圈同上，而且鼠标移上去之后圈还要看得见——原来的圈是 #2e2e2e，
- *      hover 底色是 #2a2a2a，差四级灰，等于消失；
- *   4. 使用统计换区间时，数字是走过去的而不是跳过去的。
+ *   1. 网页搜索那五条的圈要落在整条的中线上，而且鼠标移上去之后圈还要看得见——原来的圈是
+ *      #2e2e2e，hover 底色是 #2a2a2a，差四级灰，等于消失；
+ *   2. 使用统计换区间时，数字是走过去的而不是跳过去的。
  *
  * 用法：node --experimental-strip-types e2e/settings-alignment-probe.ts
  */
@@ -108,7 +106,7 @@ async function openPane(label: string): Promise<boolean> {
 
 try {
 	await pause(2600);
-	// 侧边栏最底下那个入口，跟 `delegation-settings-probe.ts` 走同一条路。
+	// 侧边栏最底下那个入口。
 	const entered = await app.evaluate<boolean>(`(() => {
 		const entry = document.querySelector(".ly-sidebar-foot button");
 		if (!entry) return false;
@@ -118,57 +116,8 @@ try {
 	check(entered, "侧边栏底部没找到设置入口");
 	await pause(1400);
 
-	// ---- 1. 数字框里的数字居中 -------------------------------------------
-	note("\n【1】数字站在框的正中间");
-	const opened = await openPane("子智能体调度");
-	check(opened, "导航里点不到「子智能体调度」");
-
-	const field = await app.evaluate<{ align: string; boxOffset: number; rowOffset: number } | null>(`(() => {
-		const el = document.querySelector('[aria-label="最多同时运行的子智能体数量"]');
-		if (!el) return null;
-		const row = el.closest("[data-settings-row]");
-		const r = el.getBoundingClientRect(), rr = row ? row.getBoundingClientRect() : r;
-		/*
-		 * 「字在框里居不居中」量不到字本身的盒子——input 里的文字没有自己的节点。所以量的是声明：
-		 * text-align 是不是 center。旁边再量一道框在它那一行里的垂直位置，那是同一批改动里的另一
-		 * 条，顺手一起看。
-		 */
-		return {
-			align: getComputedStyle(el).textAlign,
-			boxOffset: Math.round(r.y + r.height / 2 - (rr.y + rr.height / 2)),
-			rowOffset: Math.round(rr.height),
-		};
-	})()`);
-	note(`  并发上限输入框 → text-align: ${field?.align ?? "?"}，离行中线 ${field?.boxOffset ?? "?"}pt`);
-	check(field?.align === "center", `并发上限里的数字没有居中：${field?.align}`);
-	check(Math.abs(field?.boxOffset ?? 99) <= 1, `并发上限输入框没落在行的中线上：偏 ${field?.boxOffset}pt`);
-
-	// ---- 2. 五档的记号落在整条的中线上 -----------------------------------
-	note("\n【2】五档的记号落在整条的中线上");
-	const tiers = await app.evaluate<{ tier: string; markOffset: number; levelOffset: number; height: number }[]>(`(() => {
-		return [...document.querySelectorAll("[data-delegation-tier]")].map((row) => {
-			const r = row.getBoundingClientRect();
-			const mark = row.querySelector("svg");
-			const level = row.lastElementChild && row.lastElementChild.tagName === "SPAN" ? row.lastElementChild : null;
-			const mid = r.y + r.height / 2;
-			const centre = (el) => { const b = el.getBoundingClientRect(); return Math.round(b.y + b.height / 2 - mid); };
-			return {
-				tier: row.dataset.delegationTier,
-				markOffset: mark ? centre(mark) : 999,
-				levelOffset: level ? centre(level) : 999,
-				height: Math.round(r.height),
-			};
-		});
-	})()`);
-	for (const row of tiers) {
-		note(`  ${row.tier.padEnd(10)} 高 ${row.height}pt，记号偏 ${row.markOffset}pt，等级偏 ${row.levelOffset}pt`);
-		check(Math.abs(row.markOffset) <= 1, `「${row.tier}」的记号没落在整条的中线上：偏 ${row.markOffset}pt`);
-		check(row.levelOffset === 999 || Math.abs(row.levelOffset) <= 1, `「${row.tier}」右边的等级没落在中线上：偏 ${row.levelOffset}pt`);
-	}
-	check(tiers.length === 5, `档位不是五条，是 ${tiers.length} 条`);
-
-	// ---- 3. 网页搜索：圈居中，而且 hover 之后还看得见 ---------------------
-	note("\n【3】网页搜索那五条：圈居中，鼠标移上去还看得见");
+	// ---- 1. 网页搜索：圈居中，而且 hover 之后还看得见 ---------------------
+	note("\n【1】网页搜索那五条：圈居中，鼠标移上去还看得见");
 	check(await openPane("网页搜索"), "导航里点不到「网页搜索」");
 
 	const rings = await app.evaluate<{ id: string; offset: number; height: number; border: string; hoverBorder: string; hoverBg: string }[]>(`(() => {
@@ -220,8 +169,8 @@ try {
 	}
 	check(rings.length === 5, `搜索服务商不是五条，是 ${rings.length} 条`);
 
-	// ---- 4. API key 输入不再显示「已保存」，也不再每敲一下就落盘 -----------
-	note("\n【4】填 key 的时候不弹「已保存」");
+	// ---- 2. API key 输入不再显示「已保存」，也不再每敲一下就落盘 -----------
+	note("\n【2】填 key 的时候不弹「已保存」");
 	const typed = await app.evaluate<{ saidSaved: boolean; value: string } | null>(`(async () => {
 		const box = [...document.querySelectorAll('input[type="password"]')][0];
 		if (!box) return null;
@@ -242,8 +191,8 @@ try {
 		check(typed.value.length > 8, "输入框吃掉了输入——受控组件的本地草稿没接上");
 	}
 
-	// ---- 5. 使用统计换区间时数字是走过去的 --------------------------------
-	note("\n【5】使用统计换区间：数字走过去，不是跳过去");
+	// ---- 3. 使用统计换区间时数字是走过去的 --------------------------------
+	note("\n【3】使用统计换区间：数字走过去，不是跳过去");
 	check(await openPane("使用统计"), "导航里点不到「使用统计」");
 	await pause(1500);
 

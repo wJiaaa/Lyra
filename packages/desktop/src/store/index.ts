@@ -34,7 +34,7 @@ import { useSide } from "../features/dock/sideStore.ts";
 import { sideChatRunning } from "../lib/row-activity.ts";
 import { available, bridge } from "../services/index.ts";
 import { activeModelCatalog } from "@lyra/core/model-catalog";
-import { pullModelCatalog } from "../lib/model-catalog.ts";
+import { pullModelCatalog } from "./model-catalog.ts";
 import type { ToolRun } from "./tool-run.ts";
 export type { ToolRun } from "./tool-run.ts";
 import type { Hiccup } from "../lib/hiccup.ts";
@@ -90,7 +90,6 @@ export type SettingsSection =
   | "plugins"
   | "skills"
   | "agents"
-  | "delegation"
   | "mcp"
   | "commands"
   | "tools"
@@ -198,12 +197,17 @@ export interface AppState extends QueueSlice {
    * discarding that would lose work — those append. A suggestion card is a choice between four
    * alternatives, so pressing a second one means "that one instead": appending there stacks three
    * unrelated requests into one message nobody wrote.
+   *
+   * `target` is whose composer: a conversation's id, null for the blank one, absent for the live
+   * slot's. A split mounts a composer per screen, and a draft that named none was taken by all of
+   * them — a suggestion card pressed on one screen typed itself into every other.
    */
   composerDraft: {
     text: string;
     replace: boolean;
     attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
     sessionRefs?: Array<{ id: string; title: string }>;
+    target?: string | null;
   };
   browserAttachment: { text: string; dataUrl: string; draftKey: string } | null;
   setComposerDraft(
@@ -212,6 +216,7 @@ export interface AppState extends QueueSlice {
     extras?: {
       attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
       sessionRefs?: Array<{ id: string; title: string }>;
+      target?: string | null;
     },
   ): void;
 
@@ -477,19 +482,19 @@ export interface AppState extends QueueSlice {
    * 队列才需要它：排队的消息等的是「那一轮结束」，而那一轮结束时人可能已经切到别的对话去了——
    * 没有它，出队要么发错对话，要么只能等人切回来。
    */
-	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string }): Promise<boolean>;
+	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null }): Promise<boolean>;
   /**
    * Replace a message and re-run from there; everything after it is discarded.
    *
    * `meta` 是这条消息除措辞之外的样子——附了哪几个文件，气泡里该显示哪一份文本。编辑改的是
    * 措辞，这两样得原样带过去，否则每编辑一次就把附件从界面上抹掉一次。
    */
-  editMessage(index: number, content: UserContent[], meta?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
+  editMessage(index: number, content: UserContent[], meta?: { displayText?: string; attachments?: MessageAttachment[] }, target?: string): Promise<void>;
   /**
    * Take a user message back: cut it and everything after, then put the wording in the composer.
    * Does not start another turn.
    */
-  revertMessage(index: number): Promise<void>;
+  revertMessage(index: number, target?: string): Promise<void>;
   /**
    * Re-send the user message that produced the reply at `index`. Given `sessionId`, in that
    * conversation, which is made the live one first if it is not already.
@@ -668,6 +673,7 @@ export const useApp = create<AppState>((set, get) => ({
         replace,
         attachments: extras?.attachments ?? [],
         sessionRefs: extras?.sessionRefs ?? [],
+        ...(extras?.target !== undefined ? { target: extras.target } : {}),
       },
     }),
   setDraft: (key, draft) =>

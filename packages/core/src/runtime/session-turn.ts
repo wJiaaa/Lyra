@@ -35,7 +35,6 @@ import { hookContextMessage, loadHookRunner, makeAfterToolCall, makeBeforeToolCa
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
-import { DELEGATION_KEY } from "./delegation.ts";
 import { offerRuleFromCorrection } from "./rule-offer.ts";
 import { prepareTurn } from "./turn.ts";
 import { loadPromptContext, promptCapabilities } from "./prompt-context.ts";
@@ -294,15 +293,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 	const memoryEnabled = projectMemoryEnabled(settings);
 	can.state.set(PROJECT_MEMORY_ENABLED_KEY, memoryEnabled);
 
-	/*
-	 * 派活关掉的时候，`task` 仍在工具表里，放不放行在执行时按用户这一轮有没有点名决定。
-	 *
-	 * 曾经按轮摘掉工具：模型不会想要一个没见过的工具。但工具表在缓存前缀的最前面，点名的那一轮加上、
-	 * 下一轮收走，整个会话的缓存要失效两次。「关掉」的意思是「别自作主张」，不是「这个功能没了」，
-	 * 所以留着工具、由 `task` 按 `DELEGATION_KEY` 拦下没人点名的派发。见 `prompt-context.ts`、`delegation.ts`。
-	 */
-	const { tools, delegation, dispatchLimits } = promptCapabilities({ settings, thinking: input.thinking, messages: log.messages, agents: can.agents, tools: can.tools });
-	can.state.set(DELEGATION_KEY, delegation);
+	const { tools, dispatchLimits } = promptCapabilities({ settings, tools: can.tools });
 
 	/*
 	 * Where `agent://` finds the sub-agents this session dispatched.
@@ -318,8 +309,6 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 		cwd, settings, tools, skills: can.skills, agents: can.agents,
 		modelName: input.model.name, scratchDir: input.scratchDir,
 		rules: can.rules, resources: can.resources.schemes(),
-		thinking: input.thinking ?? settings.thinking,
-		delegation,
 		dispatchLimits,
 	}));
 	const turn = await prepareTurn({
@@ -381,10 +370,10 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 /**
  * 这一轮发哪份 system prompt：会话里冻结的那份，不是刚才按磁盘现状生成的 `fresh`。
  *
- * 两份在段落上有出入时——项目指令改了、推理档位让派活说明和并发上限变了、换了模型——把改动作为
+ * 两份在段落上有出入时——项目指令改了、并发上限改了、换了模型——把改动作为
  * 一条增量接在历史末尾并写进日志，开头不动。比的是模型此刻看到的各段（冻结那份叠上历史里已发
- * 过的增量），所以同一处改动只发一次。增量里的并发数和这一轮闸门的宽度都由 `delegationConcurrency`
- * 按这一轮的档位算出，说的数和拦的数一致。见 `prompt/update.ts`。
+ * 过的增量），所以同一处改动只发一次。增量里的并发数和闸门的宽度读的是同一个设置，说的数和拦的
+ * 数一致。见 `prompt/update.ts`。
  */
 async function settlePrompt(input: TurnInputs, fresh: PromptContext): Promise<PromptContext> {
 	const { log } = input;

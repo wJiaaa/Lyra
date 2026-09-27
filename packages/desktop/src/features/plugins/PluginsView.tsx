@@ -42,6 +42,7 @@ import { settingsAfterToggle } from "./toggle.ts";
 import { groupByCategory, isEnabled, isInstalled, UNFILED, useCatalog, type CatalogItem } from "./useCatalog.ts";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { bridge } from "../../services/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
  * Which of the three the page is showing.
@@ -287,16 +288,10 @@ export function PluginsView() {
 					 * 这件事已经由那张单子自己说了。字在左、箭头在右，开的时候箭头转过去，这一下
 					 * 转身就是它和普通按钮的全部区别。
 					 */}
-					<button
-						type="button"
-						onClick={add.toggle}
-						aria-haspopup="menu"
-						aria-expanded={add.open}
-						className="ml-1 flex h-[26px] items-center gap-1 rounded-lg bg-ink px-2.5 text-detail font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
-					>
+					<Button variant="primary" size="sm" menu={add.open} onClick={add.toggle} className="ml-1">
 						{t("mcp.add")}
 						<Caret open={add.open} size={12} />
-					</button>
+					</Button>
 				</div>
 			</header>
 
@@ -561,17 +556,7 @@ function HeaderButton({
 	onClick: () => void;
 	children: React.ReactNode;
 }) {
-	return (
-		<button
-			type="button"
-			data-ly-tip={label}
-			aria-label={label}
-			onClick={onClick}
-			className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-		>
-			{children}
-		</button>
-	);
+	return <IconButton label={label} onClick={onClick} icon={children} />;
 }
 
 function ScopeTab({

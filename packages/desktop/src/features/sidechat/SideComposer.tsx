@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { findModel } from "../models/index.ts";
 import { useSide, sideChatOf, openScopedPanel } from "../dock/index.ts";
 import { useSideSessionId } from "./scope.ts";
+import { useScopedMeta } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { openFromEvent } from "../image/index.ts";
@@ -66,7 +67,11 @@ export function SideComposer({
 }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
-	const meta = useApp((s) => s.meta);
+	/*
+	 * The conversation this side chat is beside, which is what 「跟随主会话」 follows. Not the live
+	 * slot's `meta`: under another screen that named the focused conversation's model and effort.
+	 */
+	const meta = useScopedMeta();
 	const sessionId = useSideSessionId();
 	const modelId = useSide((s) => sideChatOf(s, sessionId).modelId);
 	const loading = useSide((s) => sideChatOf(s, sessionId).loading);

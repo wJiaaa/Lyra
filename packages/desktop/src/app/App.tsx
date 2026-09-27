@@ -115,6 +115,9 @@ export function App() {
 		[],
 	);
 
+	// What the scheduler says as its tasks run, sent since its first version and never listened to.
+	useEffect(() => bridge.scheduler.onNotice(({ message, level }) => useApp.getState().notify(message, level)), []);
+
 	// Before the `ready` gate below, so a command sent to a window that is still booting is not
 	// dropped for the one or two frames the boot screen is up.
 	useTrayCommands();

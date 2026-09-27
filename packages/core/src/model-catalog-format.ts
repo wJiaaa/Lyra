@@ -5,7 +5,7 @@
  * 不能依赖一份可能还是旧格式的快照。这里没有状态，也不碰文件系统和网络。
  */
 
-import type { ModelPricingTier } from "./types/provider.ts";
+import type { ModelPricingTier, ThinkingLevel } from "./types/provider.ts";
 
 /** 唯一的目录来源：pi 的公开模型目录。 */
 export const MODEL_CATALOG_URL = "https://pi.dev/api/models";
@@ -18,6 +18,8 @@ export interface CatalogModel {
 	contextWindow: number;
 	maxOutputTokens: number;
 	supportsThinking: boolean;
+	/** 可选的思考档位，按 pi 的 `thinkingLevelMap` 折算（见 `thinkingLevels`）。只在支持思考时有。 */
+	thinkingLevels?: ThinkingLevel[];
 	supportsImages: boolean;
 	inputPrice?: number;
 	outputPrice?: number;
@@ -32,7 +34,8 @@ export interface CatalogProvider {
 }
 
 export interface ModelCatalogDocument {
-	schema: 2;
+	/** 3：条目带上思考档位。旧格式的缓存整份不认，下次同步重新拉。 */
+	schema: 3;
 	source: {
 		name: string;
 		url: string;
@@ -53,7 +56,7 @@ const price = (value: unknown) => value === undefined || (typeof value === "numb
 
 /** 校验一份目录。远程拉来的内容走同一道校验，不合法就整份拒绝，不会半套生效。 */
 export function parseModelCatalog(value: unknown): ModelCatalogDocument {
-	if (!isRecord(value) || value.schema !== 2) throw new Error("不支持的模型目录格式");
+	if (!isRecord(value) || value.schema !== 3) throw new Error("不支持的模型目录格式");
 	const source = value.source;
 	if (!isRecord(source) || typeof source.revision !== "string" || typeof source.updatedAt !== "string" || Number.isNaN(Date.parse(source.updatedAt))) {
 		throw new Error("模型目录缺少版本信息");
@@ -65,6 +68,7 @@ export function parseModelCatalog(value: unknown): ModelCatalogDocument {
 			const ok = isRecord(model) && typeof model.id === "string" && typeof model.name === "string" && typeof model.baseUrl === "string" &&
 				positive(model.contextWindow) && positive(model.maxOutputTokens) &&
 				typeof model.supportsThinking === "boolean" && typeof model.supportsImages === "boolean" &&
+				(model.thinkingLevels === undefined || (Array.isArray(model.thinkingLevels) && model.thinkingLevels.every((level) => typeof level === "string"))) &&
 				[model.inputPrice, model.outputPrice, model.cacheReadPrice, model.cacheWritePrice].every(price);
 			if (!ok) throw new Error(`模型条目不合法：${provider.id}/${isRecord(model) ? String(model.id) : "?"}`);
 		}
@@ -89,8 +93,29 @@ function tiers(value: unknown): ModelPricingTier[] | undefined {
 	return result.length > 0 ? result.sort((a, b) => a.aboveTokens - b.aboveTokens) : undefined;
 }
 
+/** pi 认的档位，从浅到深。 */
+const PI_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+
 /**
- * pi 目录（`{ 供应商 id: { 模型 id: 条目 } }`）压成 Lyra 的目录格式，只留上限、思考、图片、端点和价格。
+ * pi 条目的 `thinkingLevelMap` 折算成可选档位，规则照 pi 自己的 `getSupportedThinkingLevels`：
+ * 值为 `null` 是不支持；缺省时 `xhigh`/`max` 不支持、其余支持；字符串是实际发给接口的值。
+ *
+ * Lyra 按档位名原样发送，所以只收接口值就是档位名本身的那些。映射到别的档位的（Copilot 上
+ * `minimal` 实际发 `low`）去掉：留着它只是菜单里多一档和相邻档一模一样的。`off` 例外，关思考
+ * 怎么发是适配器的事，这里只关心它能不能关。
+ */
+function thinkingLevels(entry: Record<string, unknown>): ThinkingLevel[] {
+	const map = isRecord(entry.thinkingLevelMap) ? entry.thinkingLevelMap : {};
+	return PI_LEVELS.filter((level) => {
+		const mapped = map[level];
+		if (mapped === null) return false;
+		if (mapped === undefined) return level !== "xhigh" && level !== "max";
+		return level === "off" || (typeof mapped === "string" && mapped.toLowerCase() === level);
+	});
+}
+
+/**
+ * pi 目录（`{ 供应商 id: { 模型 id: 条目 } }`）压成 Lyra 的目录格式，只留上限、思考与档位、图片、端点和价格。
  * 字段不全的条目跳过，不猜。
  */
 export function compactPiCatalog(raw: unknown, source: ModelCatalogDocument["source"]): ModelCatalogDocument {
@@ -109,6 +134,7 @@ export function compactPiCatalog(raw: unknown, source: ModelCatalogDocument["sou
 				contextWindow: contextWindow as number,
 				maxOutputTokens: maxTokens as number,
 				supportsThinking: entry.reasoning === true,
+				...(entry.reasoning === true ? { thinkingLevels: thinkingLevels(entry) } : {}),
 				supportsImages: Array.isArray(entry.input) && entry.input.includes("image"),
 			};
 			const prices = { inputPrice: rate(cost.input), outputPrice: rate(cost.output), cacheReadPrice: rate(cost.cacheRead), cacheWritePrice: rate(cost.cacheWrite), tiers: tiers(cost.tiers) };
@@ -117,5 +143,5 @@ export function compactPiCatalog(raw: unknown, source: ModelCatalogDocument["sou
 		});
 		return models.length > 0 ? [{ id, models }] : [];
 	});
-	return parseModelCatalog({ schema: 2, source, providers });
+	return parseModelCatalog({ schema: 3, source, providers });
 }

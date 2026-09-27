@@ -1,5 +1,6 @@
-import type { ModelConfig, ModelPricing, ProviderConfig } from "@lyra/core";
+import type { ModelConfig, ModelPricing, ProviderConfig, ThinkingLevel, ThinkingOption } from "@lyra/core";
 import { catalogFill, catalogModelFor, DEFAULT_MODEL_LIMITS, type CatalogModel } from "@lyra/core/model-catalog";
+import { DEFAULT_THINKING_OPTIONS, THINKING_LEVELS, thinkingOptionsFor } from "@lyra/core/thinking-options";
 import { ModelCatalog } from "./ModelCatalog.tsx";
 import { Box } from "lucide-react";
 import { useState } from "react";
@@ -7,7 +8,7 @@ import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { isLegalDraft } from "../../lib/number-draft.ts";
 import { Field, TextInput, Toggle } from "./controls.tsx";
-import { useI18n } from "../../i18n/index.ts";
+import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
 const CONTEXT = { min: 1, max: 100_000_000, step: 1 };
 const OUTPUT = { min: 1, max: 100_000_000, step: 1 };
@@ -39,6 +40,7 @@ export function ModelEditor({
 	const [contextWindow, setContextWindow] = useState(String(initial.contextWindow));
 	const [maxOutput, setMaxOutput] = useState(String(initial.maxOutputTokens));
 	const [supportsThinking, setSupportsThinking] = useState(initial.supportsThinking);
+	const [thinkingOptions, setThinkingOptions] = useState(model?.thinkingOptions);
 	const [supportsImages, setSupportsImages] = useState(initial.supportsImages);
 	const [supportsTools, setSupportsTools] = useState(initial.supportsTools);
 	const [prices, setPrices] = useState(() => pricesOf(model?.pricing));
@@ -71,6 +73,7 @@ export function ModelEditor({
 		setContextWindow(String(values.contextWindow));
 		setMaxOutput(String(values.maxOutputTokens));
 		setSupportsThinking(values.supportsThinking);
+		setThinkingOptions(values.thinkingOptions);
 		setSupportsImages(values.supportsImages);
 		setSupportsTools(values.supportsTools);
 		setPrices(pricesOf(values.pricing));
@@ -91,8 +94,10 @@ export function ModelEditor({
 	function submit() {
 		if (!valid) return;
 		const [parsedIn, parsedOut, parsedCacheRead, parsedCacheWrite] = parsed;
+		// 档位以表单为准：从一个不支持思考的目录条目填过值后，原来的档位不该留下来。
+		const { thinkingOptions: _replaced, ...base } = model ?? {};
 		onSave({
-			...model,
+			...base,
 			id: `${provider.id}/${trimmedId}`,
 			providerId: provider.id,
 			modelId: trimmedId,
@@ -100,6 +105,7 @@ export function ModelEditor({
 			contextWindow: window_,
 			maxOutputTokens: output,
 			supportsThinking,
+			...(thinkingOptions ? { thinkingOptions } : {}),
 			supportsImages,
 			supportsTools,
 			pricing: storedPricing
@@ -155,6 +161,7 @@ export function ModelEditor({
 
 						<div className="space-y-3 rounded-[10px] border border-line px-3.5 py-3">
 							<Capability label={t("modelEditor.thinking")} checked={supportsThinking} onChange={setSupportsThinking} />
+							{supportsThinking && <ThinkingLevels options={thinkingOptions} onChange={setThinkingOptions} />}
 							<Capability label={t("modelEditor.images")} checked={supportsImages} onChange={setSupportsImages} />
 							<Capability label={t("modelEditor.toolCalls")} checked={supportsTools} onChange={setSupportsTools} />
 						</div>
@@ -177,6 +184,47 @@ export function ModelEditor({
 				</DialogFrame>
 			)}
 		</Overlay>
+	);
+}
+
+/**
+ * 模型可选的思考档位，每档单独开关。
+ *
+ * 没配置过时勾着的是默认那一组，动了任何一档才写进配置。自定义档位名（导入的配置里可能有）不在
+ * 这里显示，原样保留。至少留一档：一档都没有，推理强度菜单就没东西可选了。
+ */
+function ThinkingLevels({ options, onChange }: { options: ThinkingOption[] | undefined; onChange: (options: ThinkingOption[]) => void }) {
+	const { t } = useI18n();
+	const current = options ?? DEFAULT_THINKING_OPTIONS;
+	const selected = current.filter((option) => THINKING_LEVELS.includes(option.id)).map((option) => option.id);
+	const custom = current.filter((option) => !THINKING_LEVELS.includes(option.id));
+
+	function toggle(level: ThinkingLevel) {
+		const next = selected.includes(level) ? selected.filter((id) => id !== level) : [...selected, level];
+		if (next.length + custom.length === 0) return;
+		onChange([...thinkingOptionsFor(next, current.find((option) => option.isDefault)?.id), ...custom]);
+	}
+
+	return (
+		<div className="space-y-1.5">
+			<span className="text-label text-ink">{t("modelEditor.thinkingLevels")}</span>
+			<div className="flex flex-wrap gap-0.5 rounded-[10px] bg-card p-0.5">
+				{THINKING_LEVELS.map((level) => (
+					<button
+						key={level}
+						type="button"
+						aria-pressed={selected.includes(level)}
+						onClick={() => toggle(level)}
+						className={`h-[26px] rounded-[8px] px-3 text-label transition-colors duration-[var(--ly-t-quick)] ${
+							selected.includes(level) ? "bg-elevated text-ink" : "text-ink-faint hover:text-ink"
+						}`}
+					>
+						{t(`thinking.${level}` as MessageKey)}
+					</button>
+				))}
+			</div>
+			<p className="text-detail text-ink-faint">{t("modelEditor.thinkingLevelsDetail")}</p>
+		</div>
 	);
 }
 

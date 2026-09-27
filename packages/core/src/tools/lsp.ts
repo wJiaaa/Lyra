@@ -34,7 +34,6 @@ const SEARCHABLE = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"
 
 export const lspTool: Tool<LspArgs> = {
 	name: "lsp",
-	snippet: "Find references, definitions and type errors",
 	/*
 	 * Worded as a replacement for grep, not as an addition to the toolbox.
 	 *
@@ -44,12 +43,10 @@ export const lspTool: Tool<LspArgs> = {
 	 * real one it is the silent-miss failure with extra steps. Naming the tool it should be used
 	 * *instead of* is what makes the choice concrete.
 	 */
-	guidelines: [
-		"To find who uses a symbol, use `lsp references` — not `grep`. Grep cannot see aliased imports (`import { a as b }`, then `b(...)`) or re-export chains, so a rename driven by grep looks complete and leaves callers broken with no error.",
-	],
 	description:
 		"Ask the language server about a symbol.\n\n" +
-		"- `references` — every place a symbol is used, including aliased imports and re-exports that a text search cannot see. Use this before changing anything exported.\n" +
+		"- `references` — every place a symbol is used, including aliased imports (`import { a as b }`) and re-export chains that `grep` cannot see. " +
+		"Use this, not `grep`, to find who uses a symbol before changing or renaming it: a rename driven by grep looks complete and leaves callers broken with no error.\n" +
 		"- `definition` — where a symbol comes from, following re-export chains.\n" +
 		"- `diagnostics` — type errors in one file, without running a full build.\n" +
 		"- `rename` — every edit needed to rename a symbol across the project, computed by the server.\n\n" +

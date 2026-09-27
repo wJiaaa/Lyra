@@ -121,7 +121,7 @@ import { destroyPinnedShots, isPinnedShot } from "./screenshot-pin.ts";
 import { configureNotify } from "./notify.ts";
 import { applicationMenuTemplate } from "./app-menu.ts";
 import { shortcutFailureKey } from "./accelerator.ts";
-import { nativeTranslator } from "./i18n.ts";
+import { nativeTranslator, resolveNativeLocale, setInterfaceLocaleSource } from "./i18n.ts";
 import { lazyPty } from "./pty-loader.ts";
 
 /*
@@ -791,6 +791,12 @@ configureNotify({
 	appIcon: () => appIconPath(),
 	createNotification: (options) => new Notification(options),
 });
+/*
+ * The language the rest of the main process writes in — notifications, the scheduler's notices, the
+ * errors the file tree, the pull request panel and the update dialog show. Read for each message, so
+ * a language change needs nothing re-wired.
+ */
+setInterfaceLocaleSource(() => resolveNativeLocale(settings?.uiLocale ?? "system", app.getLocale()));
 
 app.on("window-all-closed", () => {
 	/*

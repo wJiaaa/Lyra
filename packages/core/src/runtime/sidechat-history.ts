@@ -49,7 +49,6 @@ export function readMainChatTool(sessionId: string, messages: Message[], model: 
 	return {
 		name: "read_main_chat",
 		description: "只读查询当前主会话在本次提问时的完整原始历史，包括压缩前内容、工具调用和工具结果。start 为消息索引，offset 为该消息文字偏移；next 非空则按其参数继续。query 为不区分大小写的字面关键词；搜索命中会给出附近文字。读取图片时指定 start 和 imageBlock（content 中的索引）。不会读取其他会话或工作区文件。",
-		snippet: "read_main_chat — 查阅主会话原始记录",
 		parameters: { type: "object", properties: {
 			start: { type: "integer", minimum: 0 }, offset: { type: "integer", minimum: 0 },
 			limit: { type: "integer", minimum: 1, maximum: 30 }, maxChars: { type: "integer", minimum: 1, maximum: charLimit },

@@ -2,6 +2,7 @@ import { Check, ChevronRight, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { AgentDefinitionRecord, AgentDefinitionSave, AgentDraft } from "@lyra/core";
 import { TextArea } from "../../ui/inputs/TextArea.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { InlineSelect, TextInput } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
@@ -11,9 +12,6 @@ import { useI18n } from "../../i18n/index.ts";
 const drafts = new Map<string, { draft: AgentDraft; scope: "user" | "project" }>();
 const DEFAULT_TOOLS = ["read", "glob", "grep", "ls"];
 
-/** ZCode 的主按钮：前景色实底，字用页面色——暗色下白底黑字，浅色下反过来。列表页也用它。 */
-export const AGENT_PRIMARY_BUTTON = "inline-flex shrink-0 items-center justify-center gap-1 rounded-lg bg-ink text-label text-shell transition-colors duration-[var(--ly-t-quick)] hover:bg-ink/80 disabled:pointer-events-none disabled:opacity-50";
-const GHOST_BUTTON = "inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg px-2.5 text-label text-ink transition-colors duration-[var(--ly-t-quick)] hover:bg-[var(--ly-agent-hover)] disabled:pointer-events-none disabled:opacity-50";
 
 /*
  * 编辑页照 ZCode 的子智能体表单：面包屑、标题和一句说明，下面一整块描边的表单，
@@ -66,8 +64,8 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 			{leaving && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--ly-agent-line)] px-3 py-2 text-label text-ink">
 				{t("agentEditor.unsaved")}
 				<div className="flex items-center gap-2">
-					<button type="button" className={`${GHOST_BUTTON} h-7 px-2`} onClick={() => setLeaving(false)}>{t("agentEditor.keepEditing")}</button>
-					<button type="button" className={`${GHOST_BUTTON} h-7 px-2 text-danger`} onClick={discard}>{t("agentEditor.discard")}</button>
+					<Button variant="subtle" size="sm" onClick={() => setLeaving(false)}>{t("agentEditor.keepEditing")}</Button>
+					<Button variant="danger" size="sm" onClick={discard}>{t("agentEditor.discard")}</Button>
 				</div>
 			</div>}
 			{error && <div role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-label text-danger">{error}</div>}
@@ -104,10 +102,10 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 				{definition && <div className="text-label"><Disclosure variant="framed" title={t("agentEditor.advanced")}><p className="mb-2 text-detail text-ink-muted">{t("agentEditor.advancedNote")}</p><pre className="overflow-auto whitespace-pre-wrap break-words text-caption">{JSON.stringify({ model: definition.model, output: definition.output, schemaMode: definition.schemaMode, spawns: definition.spawns }, null, 2)}</pre></Disclosure></div>}
 				<p className="text-caption text-ink-muted">{t("agentEditor.draftNote")}</p>
 				<div className="flex flex-col gap-2 pt-1 @sm:flex-row @sm:items-center">
-					{onDelete && <button type="button" className="inline-flex h-8 items-center gap-1 self-start text-label text-danger underline-offset-4 hover:underline" onClick={onDelete}><Trash2 size={14} aria-hidden />{t("common.delete")}</button>}
+					{onDelete && <Button variant="danger" icon={<Trash2 size={14} aria-hidden />} className="self-start" onClick={onDelete}>{t("common.delete")}</Button>}
 					<div className="flex items-center justify-end gap-2 @sm:ml-auto">
-						<button type="submit" className={`${AGENT_PRIMARY_BUTTON} h-8 px-2.5`}>{busy ? t("common.saving") : t("common.save")}</button>
-						<button type="button" className={GHOST_BUTTON} onClick={leave}>{t("common.cancel")}</button>
+						<Button type="submit" variant="primary" loading={busy}>{busy ? t("common.saving") : t("common.save")}</Button>
+						<Button onClick={leave}>{t("common.cancel")}</Button>
 					</div>
 				</div>
 			</fieldset>

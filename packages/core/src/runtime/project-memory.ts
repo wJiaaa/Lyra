@@ -274,7 +274,7 @@ export function parseLessons(raw: string, untimedAt = 0): Lesson[] {
  * then".
  *
  * 写日期而不是「3 天前」：这段进 system prompt，相对年龄在每条记下的那个时刻各自跳一次，一天之内
- * 能让前缀变好几回，整段对话的缓存跟着作废。今天是几号由末尾的 `<env>` 给出，间隔模型自己算。
+ * 能让前缀变好几回，整段对话的缓存跟着作废。今天是几号由 `<env>` 日期块给出，间隔模型自己算。
  */
 function lessonDate(at: number): string {
 	return `${today(new Date(at))} 记下`;

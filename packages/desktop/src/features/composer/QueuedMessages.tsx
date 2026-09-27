@@ -25,6 +25,7 @@ import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popove
 import { companionOf, useSide, openScopedPanel } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /** 空列表用同一个，否则每次取值都是一个新数组，订阅它的组件每一帧都要重渲染一次。 */
 const NONE: QueuedMessage[] = [];
@@ -343,38 +344,26 @@ function Row({
 					 * 事，而它们正是这个功能存在的理由。淡到不抢，指过去才亮，比藏起来诚实。
 					 */}
 					<div className="flex shrink-0 items-center gap-1 text-ink-faint">
-						<button
-							type="button"
+						<IconButton
 							data-queue-steer
-							data-ly-tip={t("composer.queueSteer")}
-							aria-label={t("composer.queueSteer")}
+							label={t("composer.queueSteer")}
 							onClick={() => void steerQueued(sessionId, entry.id)}
-							className="flex h-6 w-6 items-center justify-center transition-colors hover:text-ink"
-						>
-							<CornerDownLeft size={13.5} strokeWidth={1.9} />
-						</button>
-						<button
-							type="button"
+							icon={<CornerDownLeft size={13.5} strokeWidth={1.9} />}
+						/>
+						<IconButton
 							data-queue-remove
-							data-ly-tip={t("composer.queueRemove")}
-							aria-label={t("composer.queueRemove")}
+							tone="danger"
+							label={t("composer.queueRemove")}
 							onClick={remove}
-							className="flex h-6 w-6 items-center justify-center transition-colors hover:text-danger"
-						>
-							<Trash2 size={13.5} strokeWidth={1.9} />
-						</button>
-						<button
-							type="button"
+							icon={<Trash2 size={13.5} strokeWidth={1.9} />}
+						/>
+						<IconButton
 							data-queue-more
-							data-ly-tip={t("composer.queueMore")}
-							aria-label={t("composer.queueMore")}
-							aria-haspopup="menu"
-							aria-expanded={more.open}
+							label={t("composer.queueMore")}
+							menu={more.open}
 							onClick={more.toggle}
-							className="flex h-6 w-6 items-center justify-center transition-colors hover:text-ink"
-						>
-							<MoreHorizontal size={14} strokeWidth={1.9} />
-						</button>
+							icon={<MoreHorizontal size={14} strokeWidth={1.9} />}
+						/>
 					</div>
 				</div>
 			</div>

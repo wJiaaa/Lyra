@@ -25,16 +25,12 @@ const MAX_TOTAL_BYTES = 2_000_000;
  */
 export const previewTool: Tool<PreviewArgs> = {
 	name: "preview",
-	snippet: "Show a live web preview",
-	guidelines: [
-		"Use it when the answer is something to look at or interact with: a demo, a game, a chart, a layout put up for approval, a visualisation that makes an abstract idea concrete.",
-		"Everything must be self-contained — inline the CSS and JS, or pass them as extra files. There is no network and no build step.",
-		"Do not use it to display code for reading; a fenced block is better for that.",
-	],
 	description:
 		"Render a self-contained web page for the user, shown inline in the conversation and openable in the side panel. " +
-		"Pass `html` for a single file, or `files` for several (the entry defaults to index.html). " +
-		"The page runs sandboxed, with no network access and no access to the user's machine.",
+		"Use it when the answer is something to look at or interact with — a demo, a game, a chart, a layout put up for approval, " +
+		"a visualisation that makes an abstract idea concrete — not to display code for reading, where a fenced block is better. " +
+		"Pass `html` for a single file, or `files` for several (the entry defaults to index.html); inline the CSS and JS or pass them as extra files. " +
+		"The page runs sandboxed, with no network access, no build step and no access to the user's machine.",
 	parameters: {
 		type: "object",
 		properties: {

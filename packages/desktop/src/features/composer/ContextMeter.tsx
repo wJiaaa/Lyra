@@ -4,7 +4,7 @@ import type { Message, Settings } from "@lyra/core";
 import { useEffect, useState } from "react";
 
 import type { ContextBreakdown, ContextSegmentKey } from "../../../electron/ipc-types.ts";
-import { useApp } from "../../store/index.ts";
+import { useScopedCompactions, useScopedRunning } from "../../app/session-scope.tsx";
 import { findModel } from "../models/index.ts";
 import { Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { formatTokens } from "../conversation/index.ts";
@@ -41,8 +41,9 @@ export function ContextMeter({
 	const current = snapshot?.sessionId === sessionId && snapshot.modelId === modelId ? snapshot : null;
 	const detail = current?.detail;
 	const hasMessages = messages.length > 0;
-	const compacted = useApp((s) => s.compactions.length);
-	const running = useApp((s) => s.running);
+	// This composer's conversation, which in a split is not always the focused one.
+	const compacted = useScopedCompactions().length;
+	const running = useScopedRunning();
 	const open = popover.open;
 	const revision = open || !running ? messages.length : 0;
 

@@ -23,6 +23,7 @@ import { BubbleText, Markdown } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
 import { ToolCard } from "../conversation/index.ts";
 import { toolCardFallback } from "../conversation/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function MessageRow({ message, index }: { message: Message; index: number }) {
 	if (message.role === "toolResult") return null;
@@ -183,19 +184,16 @@ function UserRow({
 			 * three actions.
 			 */}
 			<MessageActions timestamp={timestamp} text={text} className="pr-1">
-				<button
-					type="button"
-					data-ly-tip={translate(running ? "sideMessage.busy" : "sideMessage.editAndReask")}
-					aria-label={translate("sideMessage.editAndReask")}
+				<IconButton
+					label={translate(running ? "sideMessage.busy" : "sideMessage.editAndReask")}
 					disabled={running}
+					explainDisabled
 					onClick={() => {
 						setDraft(text);
 						setEditing(true);
 					}}
-					className="flex h-6 w-6 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
-				>
-					<Pencil size={12.5} strokeWidth={1.8} />
-				</button>
+					icon={<Pencil size={12.5} strokeWidth={1.8} />}
+				/>
 			</MessageActions>
 		</div>
 	);

@@ -356,3 +356,15 @@ test("a file just written can be edited in the same turn without a dummy read", 
 	assert.equal(edited.isError, undefined, edited.content[0].type === "text" ? edited.content[0].text : "");
 	assert.equal(await readFile(join(dir, "Sample.ts"), "utf8"), "export const answer = 2;\n");
 });
+
+test("the write result hands back the tag, so the patch form works right after writing", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "lyra-write-tag-"));
+	const ctx: ToolContext = { cwd: dir, sessionId: "write-tag", state: new Map() };
+	const created = await writeTool.execute({ path: "sample.txt", content: FIVE } as never, ctx);
+	const match = /Tag: ([0-9A-F]{4})/.exec(created.content[0].type === "text" ? created.content[0].text : "");
+	assert.ok(match, "写入结果里必须给出标签");
+
+	const edited = await editTool.execute({ path: "sample.txt", tag: match[1], patch: "REPLACE 2-2\n+BRAVO" }, ctx);
+	assert.equal(edited.isError, undefined, edited.content[0].type === "text" ? edited.content[0].text : "");
+	assert.equal(await readFile(join(dir, "sample.txt"), "utf8"), "alpha\nBRAVO\ncharlie\ndelta\necho\n");
+});

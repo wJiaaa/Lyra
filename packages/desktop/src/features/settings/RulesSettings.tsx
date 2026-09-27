@@ -35,6 +35,7 @@ import { ShadowedList } from "./ShadowedList.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useDefinitionRemoval } from "./useDefinitionRemoval.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /** 三种规则，三种代价。名字和说明是 key——这张表在模块加载时就建好，语言那时还没定。 */
 const BUCKETS = {
@@ -77,7 +78,15 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 	 */
 	const live = all.filter((rule) => !rule.shadowedBy);
 	const shadowed = all.filter((rule) => rule.shadowedBy);
-	const diagnostics = data?.diagnostics ?? [];
+	/*
+	 * Errors and warnings apart, each counted by file. Only an error is a file that could not be
+	 * read; a warning — a description cut short, a condition dropped — counted as unreadable sent
+	 * people looking for a broken file.
+	 */
+	const diagnostics = (data?.diagnostics ?? []).filter((diagnostic) => diagnostic.severity !== "warning");
+	const warnings = (data?.diagnostics ?? []).filter((diagnostic) => diagnostic.severity === "warning");
+	const unreadable = new Set(diagnostics.map((diagnostic) => diagnostic.path)).size;
+	const warned = new Set(warnings.map((warning) => warning.path)).size;
 	const enabled = new Set(data?.enabledForeignUserRules ?? []);
 
 	const toggle = async (rule: RuleEntry, on: boolean) => {
@@ -93,11 +102,28 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{t("rules.unreadable", { n: diagnostics.length })}
+							{t("rules.unreadable", { n: unreadable })}
 						</div>
-						{diagnostics.map((diagnostic) => (
-							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
+						{/* By position: a path repeats when one file has two lines, and these rows hold no state. */}
+						{diagnostics.map((diagnostic, index) => (
+							<div key={index} className="py-0.5 text-detail text-accent/85">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
+							</div>
+						))}
+					</div>
+				</Card>
+			)}
+
+			{warnings.length > 0 && (
+				<Card className="mb-6">
+					<div className="px-4 py-3">
+						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
+							<TriangleAlert size={13} strokeWidth={1.9} />
+							{t("rules.warnings", { n: warned })}
+						</div>
+						{warnings.map((warning, index) => (
+							<div key={index} className="py-0.5 text-detail text-ink-faint">
+								<span className="font-mono">{warning.path}</span> — {warning.message}
 							</div>
 						))}
 					</div>
@@ -178,16 +204,7 @@ export function RulesSettings({ filter = "" }: { filter?: string }) {
 									/* 路径在提示里，不在行上：它很长，而且只在你打算去改它的时候才需要。 */
 									<span className="flex items-center gap-1.5" data-ly-tip={rule.path}>
 										{rule.condition && rule.condition.length > 0 && (
-											<button
-												type="button"
-												data-rule-try-fill={rule.name}
-												onClick={() => setTryPatterns([...(rule.condition ?? [])])}
-												className="text-caption text-ink-faint underline-offset-2 transition-colors duration-[var(--ly-t-quick)] hover:text-ink hover:underline"
-
-							data-ly-tip={t("rules.tryIt")}
-							aria-label={t("rules.tryIt")}>
-												<Play size={13} strokeWidth={1.8} />
-											</button>
+											<IconButton size="sm" label={t("rules.tryIt")} onClick={() => setTryPatterns([...(rule.condition ?? [])])} icon={<Play size={13} strokeWidth={1.8} />} />
 										)}
 										<Badge tone="muted">{t(bucket.label)}</Badge>
 										<Badge tone="muted">{rule.sourceLabel}</Badge>

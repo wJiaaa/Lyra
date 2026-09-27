@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ApprovalDecision, QuestionFields } from "@lyra/core";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 const EMPTY_OPTIONS: NonNullable<QuestionFields["options"]> = [];
 
@@ -103,9 +104,9 @@ export function QuestionChoices({ options = EMPTY_OPTIONS, allowCustomInput, sel
 		</div>}
 		<div data-ly-question-footer className="shrink-0 px-4 pb-3 pt-1">
 			<div className="flex flex-wrap items-center justify-end gap-2">
-				{allowSkip && <button type="button" disabled={pending} onClick={() => void submit("skip")} className="mr-auto flex h-8 items-center gap-1.5 rounded-lg px-2 text-label text-ink-muted hover:bg-card-hover disabled:opacity-50"><SkipForward size={14} />{translate("question.skip")}</button>}
-				<button type="button" disabled={pending} onClick={() => void submit("reject")} className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-label text-ink-muted hover:bg-card-hover disabled:opacity-50"><X size={14} />{translate("common.cancel")}</button>
-				<button type="submit" aria-label={translate(otherOn ? "question.sendAnswer" : "question.confirm")} disabled={pending || !canSubmit} className="flex h-8 items-center gap-1.5 rounded-lg bg-ink px-3 text-label text-shell disabled:opacity-40"><Check size={14} />{translate(otherOn ? "question.sendAnswer" : "question.confirm")}</button>
+				{allowSkip && <Button variant="subtle" disabled={pending} onClick={() => void submit("skip")} className="mr-auto" icon={<SkipForward size={14} />}>{translate("question.skip")}</Button>}
+				<Button variant="subtle" disabled={pending} onClick={() => void submit("reject")} icon={<X size={14} />}>{translate("common.cancel")}</Button>
+				<Button type="submit" variant="primary" disabled={pending || !canSubmit} icon={<Check size={14} />}>{translate(otherOn ? "question.sendAnswer" : "question.confirm")}</Button>
 			</div>
 			{defaultOptionIndex !== undefined && allowSkip && <p className="mt-2 text-caption text-ink-muted">{translate("question.skipDefault", { choice: choices[defaultOptionIndex]?.label ?? "" })}</p>}
 			{error && <p role="alert" className="mt-2 break-words text-caption text-danger">{error}</p>}

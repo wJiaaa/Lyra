@@ -23,6 +23,7 @@ import { useAccountActions } from "../pull-requests/index.ts";
 import { Field, GhostButton, PrimaryButton, SecretInput, TextInput } from "./controls.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
  * Where a host keeps its token page, for the instance actually being signed in to.
@@ -125,15 +126,12 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 					<div className="mb-1.5 flex items-center gap-2">
 						<span className="text-label text-ink-muted">{t("forge.token")}</span>
 						{help && (
-							<button
-								type="button"
-								data-ly-tip={translate("forgeSignIn.create")}
-								aria-label={translate("forgeSignIn.create")}
+							<IconButton
+								size="sm"
+								label={translate("forgeSignIn.create")}
 								onClick={() => void bridge.system.openExternal(help)}
-								className="grid h-5 w-5 place-items-center rounded-md text-ink-faint transition-colors hover:text-ink"
-							>
-								<ExternalLink size={11} strokeWidth={2} aria-hidden />
-							</button>
+								icon={<ExternalLink size={11} strokeWidth={2} aria-hidden />}
+							/>
 						)}
 						{info?.scopes && <span className="text-caption text-ink-faint">{translate("forgeSignIn.needsScopes")} {info.scopes}</span>}
 					</div>

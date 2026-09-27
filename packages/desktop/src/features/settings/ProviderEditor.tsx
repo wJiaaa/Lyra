@@ -20,6 +20,7 @@ import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Badge, Field, SecretInput, Select, TextInput } from "./controls.tsx";
 import { ProviderModels } from "./ProviderModels.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 const API_OPTIONS: { value: ApiFormat; label: string }[] = [
 	{ value: "openai-responses", label: "Responses (/responses)" },
@@ -185,15 +186,7 @@ function ProviderHeading({
 			) : (
 				<>
 					<h2 className="text-title font-semibold tracking-tight text-ink">{provider.name}</h2>
-					<button
-						type="button"
-						data-ly-tip={t("common.rename")}
-						aria-label={t("provider.rename")}
-						onClick={() => setRenaming(true)}
-						className="text-ink-faint transition-colors hover:text-ink"
-					>
-						<Pencil size={13.5} strokeWidth={1.8} />
-					</button>
+					<IconButton size="sm" label={t("common.rename")} onClick={() => setRenaming(true)} icon={<Pencil size={13.5} strokeWidth={1.8} />} />
 				</>
 			)}
 
@@ -207,21 +200,17 @@ function ProviderHeading({
 			 * 按钮说的是**按下去会变成什么**，两句话方向相反，摆在一起本来就容易读反。现在一个说
 			 * 状态、一个是符号，悬停才给出动词。
 			 */}
-			<button
-				type="button"
-				data-ly-tip={t(provider.enabled ? "provider.disable" : "provider.enable")}
-				aria-label={t(provider.enabled ? "provider.disable" : "provider.enable")}
+			<IconButton
+				label={t(provider.enabled ? "provider.disable" : "provider.enable")}
 				onClick={() => onChange({ enabled: !provider.enabled })}
-				className="grid h-[26px] w-[26px] place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink cursor-pointer"
-			>
-				<Power size={13} strokeWidth={1.9} />
-			</button>
+				icon={<Power size={13} strokeWidth={1.9} />}
+			/>
 
 			<div className="flex-1" />
-			<button
-				type="button"
-				data-ly-tip={t("provider.delete")}
-				aria-label={t("provider.delete")}
+			<IconButton
+				size="sm"
+				tone="danger"
+				label={t("provider.delete")}
 				onClick={() =>
 					confirm.ask({
 						title: t("provider.deleteConfirm", { name: provider.name }),
@@ -230,10 +219,8 @@ function ProviderHeading({
 						onConfirm: onRemove,
 					})
 				}
-				className="text-ink-faint transition-colors hover:text-danger"
-			>
-				<Trash2 size={15} strokeWidth={1.8} />
-			</button>
+				icon={<Trash2 size={15} strokeWidth={1.8} />}
+			/>
 
 			{confirm.element}
 		</div>

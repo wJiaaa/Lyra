@@ -86,7 +86,13 @@ interface SideState {
 	 * same command is never run twice.
 	 */
 	pendingCommand: string | null;
-	runInTerminal(command: string): void;
+	/**
+	 * Whose terminal takes it: the screen the button was on — its session id, or `@draft` — or null
+	 * for the focused screen's. A split has a terminal per screen, and one that went by focus alone
+	 * ran a command from one screen's transcript in the shell beside it.
+	 */
+	pendingFor: string | null;
+	runInTerminal(command: string, screen?: string | null): void;
 	commandTaken(): void;
 	/**
 	 * What the browser tab is showing.
@@ -183,6 +189,7 @@ export const useSide = create<SideState>((set, get) => {
 		openPreview: (preview) => set({ browserTarget: { kind: "preview", preview } }),
 		openUrl: (url) => set({ browserTarget: { kind: "url", url } }),
 		pendingCommand: null,
+		pendingFor: null,
 		/*
 		 * 只记下这条命令，开终端是调用方的事。
 		 *
@@ -192,10 +199,10 @@ export const useSide = create<SideState>((set, get) => {
 		 *
 		 * 两个调用方（文件树的「在终端打开」、代码块的「在终端运行」）各自负责叫出一个终端来接。
 		 */
-		runInTerminal: (command) => {
-			set({ pendingCommand: command });
+		runInTerminal: (command, screen = null) => {
+			set({ pendingCommand: command, pendingFor: screen });
 		},
-		commandTaken: () => set({ pendingCommand: null }),
+		commandTaken: () => set({ pendingCommand: null, pendingFor: null }),
 
 		/**
 		 * 把这个会话的侧边对话拉过来。

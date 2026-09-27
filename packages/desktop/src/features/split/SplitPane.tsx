@@ -108,6 +108,13 @@ export const SplitPane = memo(function SplitPane({
 			data-ly-split-pane={key}
 			data-ly-split-focused={focused ? "" : undefined}
 			onPointerDown={() => focusPane(pane.sessionId)}
+			/*
+			 * The keyboard's press. Tab reaches another screen's controls without the pointerdown that
+			 * would have focused it, and Enter or Space on one of them then acted on the focused screen's
+			 * conversation — its model, its rule card, its panels. The swap of the live slot is
+			 * synchronous, so the click that Enter fires next already sees this screen's conversation.
+			 */
+			onKeyDownCapture={() => focusPane(pane.sessionId)}
 			style={{
 				left: pct(pane.left),
 				top: pct(pane.top),

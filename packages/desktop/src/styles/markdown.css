@@ -205,6 +205,46 @@
     word-break: normal;
   }
 
+  /*
+   * 围栏代码块：标题栏（图标、语言、运行 / 换行 / 复制）和代码同在一个框里，对齐 ZCode。
+   *
+   * 框画在外层，里面的 `pre` 把自己那套底色、描边、圆角撤掉，否则标题栏和代码是两块拼起来的。
+   * 按钮常驻：它们一块只出现一次，不像文件链接那样满页重复。
+   */
+  .prose-dw .ly-code-block {
+    background: var(--ly-code-bg, var(--color-card));
+    color: var(--ly-code-fg, var(--color-ink));
+    border: 1px solid color-mix(in srgb, var(--ly-code-fg, var(--color-ink)) 12%, transparent);
+    border-radius: 10px;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .prose-dw .ly-code-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px 0 14px;
+    font-family: var(--ly-code-font, var(--font-mono));
+    font-size: var(--text-code);
+    line-height: 24px;
+    color: color-mix(in srgb, var(--ly-code-fg, var(--color-ink)) 80%, transparent);
+    user-select: none;
+  }
+
+  .prose-dw .ly-code-block > pre {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 6px 14px 12px;
+  }
+
+  .prose-dw .ly-code-block[data-wrap] pre code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   .prose-dw code {
     font-family: var(--ly-code-font, var(--font-mono));
     font-size: var(--text-code);
@@ -569,7 +609,7 @@
  * ------------------------------------------------------------------------- */
 
 /*
- * 文件链接只有一种形态：单行胶囊。短的跟着字走，长的到上限就省略，永不折行。
+ * 文件链接只有一种形态：单行，类型图标加链接色的名字，悬停才托出胶囊底色。短的跟着字走，长的到上限就省略，永不折行。
  *
  * `--ly-file-chip-max` 是宽栏里的封顶，免得文件名把整行铺成一条横幅；窄栏再和行宽取小。
  * 整枚是原子行盒，行末放不下就整枚换到下一行，不会图标在上行、名字在下行。
@@ -583,9 +623,8 @@
   display: inline-flex;
   align-items: center;
   max-width: min(100%, var(--ly-file-chip-max));
-  padding: 1.5px 6px;
+  padding: 1.5px 4px;
   border-radius: 5px;
-  background: var(--color-card-hover);
   vertical-align: middle;
   line-height: 1;
   white-space: nowrap;
@@ -597,8 +636,13 @@
   min-width: 0;
   max-width: 100%;
   gap: 0.3em;
-  color: var(--color-ink);
+  color: var(--color-info);
   text-decoration: none;
+}
+
+/* 平时只是一行带类型图标的链接，悬停才托出底色，好让右沿那两个出口有东西垫着。 */
+[data-ly-file-link]:hover {
+  background: var(--color-card-hover);
 }
 
 [data-ly-file-link] > a:hover {
@@ -640,6 +684,11 @@
   gap: 1px;
   padding-left: 14px;
   pointer-events: none;
+}
+
+/* 渐变托底和胶囊底色同时出现：平时链接没有底色，这块渐变常驻的话会在文件名末尾留一块深色补丁。 */
+[data-ly-file-link]:hover [data-ly-file-actions],
+[data-ly-file-actions]:focus-within {
   background: linear-gradient(to right, transparent, var(--color-card-hover) 12px);
 }
 

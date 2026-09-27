@@ -4,6 +4,7 @@ import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { bridge } from "../../services/index.ts";
 import { baseName } from "../../lib/paths.ts";
 import { useApp } from "../../store/index.ts";
+import { useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useProjectFolders } from "../../store/project-folders.ts";
 import {
 	findMentionRanges,
@@ -34,7 +35,8 @@ export function useMention(
 	const [sessions, setSessions] = useState<SessionMeta[]>([]);
 	const [workspaceFiles, setWorkspaceFiles] = useState<MentionFile[]>([]);
 	// Every folder the project is made of; usually just the working directory.
-	const folders = useProjectFolders();
+	// The project of this composer's screen, which in a split need not be the focused one.
+	const folders = useProjectFolders(useScopedWorkspace().workspace);
 	const folderKey = folders.join("\0");
 
 	const nonce = useApp((state) => state.extensionsNonce);

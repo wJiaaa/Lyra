@@ -13,6 +13,7 @@ import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { carryOnPrompt, hasRetryPoint } from "../../store/derive.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
  * The turn stopped somewhere short of the end, and here is how to pick it up.
@@ -124,9 +125,10 @@ export function ResumeRow() {
 		<div className="ly-enter mt-2.5 flex items-center gap-2 text-detail text-ink-faint">
 			<span className="shrink-0 whitespace-nowrap">{note}</span>
 			<span className="shrink-0 text-line">·</span>
-			<button
-				type="button"
-				data-ly-tip={interrupted ? t("resume.requeue") : t("resume.carryOn")}
+			<IconButton
+				size="sm"
+				label={interrupted ? t("resume.requeue") : t("resume.carryOn")}
+				ariaLabel={translate("resume.continueLabel")}
 				/*
 				 * Sent as the app's own message, not as something you typed.
 				 *
@@ -167,8 +169,6 @@ export function ResumeRow() {
 					 */
 					void send([{ type: "text", text: carryOn }], { synthetic: true, carryOn: true, sessionId: sessionId ?? undefined });
 				}}
-				aria-label={translate("resume.continueLabel")}
-				className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
 				/*
 				 * A hook that does not move with the language.
 				 *
@@ -178,9 +178,8 @@ export function ResumeRow() {
 				 * matching the moment the app is run in English.
 				 */
 				data-resume-continue
-			>
-				<Play size={11} strokeWidth={2} fill="currentColor" aria-hidden />
-			</button>
+				icon={<Play size={11} strokeWidth={2} fill="currentColor" aria-hidden />}
+			/>
 			{/*
 			 * Not a second kind of "carry on": this one throws the reply away and asks again.
 			 *
@@ -191,9 +190,10 @@ export function ResumeRow() {
 			 * two is destructive.
 			 */}
 			{hasRetryPoint(messages) && (
-				<button
-					type="button"
-					data-ly-tip={t("resume.regenerateHint")}
+				<IconButton
+					size="sm"
+					label={t("resume.regenerateHint")}
+					ariaLabel={translate("common.retry2")}
 					/*
 					 * Asked first, because this one is the expensive mistake.
 					 *
@@ -219,11 +219,8 @@ export function ResumeRow() {
 							onConfirm: () => void retryFrom(messages.length - 1, sessionId ?? undefined),
 						})
 					}
-					aria-label={translate("common.retry2")}
-					className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-				>
-					<RotateCcw size={11} strokeWidth={2} aria-hidden />
-				</button>
+					icon={<RotateCcw size={11} strokeWidth={2} aria-hidden />}
+				/>
 			)}
 			{confirm.element}
 		</div>

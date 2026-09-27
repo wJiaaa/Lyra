@@ -7,6 +7,7 @@
  */
 
 import type { AgentEvent } from "@lyra/core";
+import { nativeText } from "./i18n.ts";
 
 export interface NotificationInstance {
 	show(): void;
@@ -84,7 +85,7 @@ export function notifyTaskDone(details: TaskDoneDetails): void {
 	if (isWindowActive(deps.window())) return;
 
 	const sessionTitle = details.title?.trim();
-	const body = sessionTitle ? `「${sessionTitle}」已完成` : "任务已完成";
+	const body = sessionTitle ? nativeText("notification.done", { title: sessionTitle }) : nativeText("notification.doneUntitled");
 	const icon = deps.appIcon();
 
 	const notification = deps.createNotification({
@@ -114,8 +115,11 @@ export function notifyNeedAssistance(details: NeedAssistanceDetails): void {
 	const question = details.question?.trim().replace(/\s+/g, " ");
 	const questionSummary = question ? (question.length > 80 ? `${question.slice(0, 77)}...` : question) : undefined;
 
-	const action = details.kind === "approval" ? "等待批准" : "等待回复";
-	const body = `${sessionTitle ? `「${sessionTitle}」` : ""}${action}${questionSummary ? `：${questionSummary}` : ""}`;
+	const approval = details.kind === "approval";
+	const status = sessionTitle
+		? nativeText(approval ? "notification.approval" : "notification.reply", { title: sessionTitle })
+		: nativeText(approval ? "notification.approvalUntitled" : "notification.replyUntitled");
+	const body = questionSummary ? nativeText("notification.detail", { status, detail: questionSummary }) : status;
 
 	const icon = deps.appIcon();
 	const notification = deps.createNotification({

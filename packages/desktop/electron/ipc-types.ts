@@ -121,6 +121,20 @@ import type { SkillEntry } from "./ipc/commands.ts";
  */
 export type { ForgeAccount, ForgeKind, ForgeKindInfo } from "./forge/types.ts";
 
+/**
+ * A panel window asking the main window to open a panel: what `windows:openPanelInMain` takes and
+ * `windows:open-panel` hands over. The main process rebuilds it field by field in between.
+ */
+interface PanelInMain {
+	kind: string;
+	/** A pane to sit next to, and on which side — a layout hint, validated before it reaches a dock. */
+	beside?: { kind: string; side: string; share?: number };
+	/** The screen the panel was popped out of, where the request was made. */
+	scope?: string;
+	/** For the file pane: the file to open. */
+	file?: { path: string; name: string };
+}
+
 /** One shell in a directory, as the tab strip lists it. */
 /** What `settings.layers` answers; see there. */
 /** 设置页上的一条钩子，摊平了的样子。`id` 是位置，任何一次改动之后都要换成新列表里的。 */
@@ -242,7 +256,7 @@ export interface LyraApi {
 		 * A panel window is one panel. Clicking a file in a detached file tree still means "show me
 		 * this file" — it just cannot mean "here". The request goes where the docks are.
 		 */
-		openPanelInMain(input: { kind: string; beside?: { kind: string; side: string; share?: number } }): Promise<{ ok: boolean }>;
+		openPanelInMain(input: PanelInMain): Promise<{ ok: boolean }>;
 		filePanelState(input?: FilePanelVersion): Promise<FilePanelVersion | null>;
 		restorePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
 		closePanel(input: { kind: string; scope: string }): Promise<{ ok: boolean }>;
@@ -250,7 +264,7 @@ export interface LyraApi {
 		onShowSession(handler: (state: { sessionId: string }) => void): () => void;
 		onRestorePanel(handler: (state: { kind: string; scope: string; fileState?: FilePanelState }) => void): () => void;
 		/** The primary window's half of `openPanelInMain`. */
-		onOpenPanel(handler: (state: { kind: string; beside?: { kind: string; side: string; share?: number } }) => void): () => void;
+		onOpenPanel(handler: (state: PanelInMain) => void): () => void;
 		onClosePanel(handler: () => void): () => void;
 		onFilePanelState(handler: (input: FilePanelVersion & { previous?: FilePanelState }) => void): () => void;
 	};
@@ -957,6 +971,8 @@ export interface LyraApi {
 	scheduler: {
 		/** Run a scheduled task immediately, through the same path the timer uses. */
 		runNow(taskId: string): Promise<{ ok: boolean; error?: string }>;
+		/** What a task says as it runs: started, failed, could not start. Sent to the main window only. */
+		onNotice(handler: (notice: { message: string; level: "info" | "warn" | "error" }) => void): () => void;
 	};
 	/**
 	 * Answering the card that offers to turn a correction into a rule.
@@ -991,7 +1007,8 @@ export interface LyraApi {
 		/** 这个项目现在有哪些规则，包括被关掉的和被同名文件盖掉的。 */
 		list(cwd: string): Promise<{
 			rules: RuleEntry[];
-			diagnostics: { path: string; message: string }[];
+			/** A warning is a rule to look at again; only an error is a file that could not be read. */
+			diagnostics: { path: string; message: string; severity: "error" | "warning" }[];
 			/** 有个人级规则可以勾的外部工具。 */
 			foreignUserSources: { id: string; label: string; describe: string }[];
 			/** 已经勾上的那些。 */

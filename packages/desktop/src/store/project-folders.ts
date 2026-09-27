@@ -16,8 +16,10 @@ import { useMemo } from "react";
 import { projectFolders } from "@lyra/core/project-folders";
 import { useApp } from "./index.ts";
 
-export function useProjectFolders(): string[] {
-	const workspace = useApp((s) => s.workspace);
+/** `scoped` is a screen's own project (see `useScopedWorkspace`); without it, the live slot's. */
+export function useProjectFolders(scoped?: { path: string } | null): string[] {
+	const live = useApp((s) => s.workspace);
+	const workspace = scoped === undefined ? live : scoped;
 	const projects = useApp((s) => s.settings?.projects);
 	return useMemo(() => {
 		if (!workspace) return [];

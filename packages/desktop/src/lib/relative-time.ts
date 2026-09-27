@@ -2,7 +2,7 @@
  * How long ago, in the units a person would use.
  */
 
-import { translate } from "../i18n/translate.ts";
+import { activeLocale, translate } from "../i18n/translate.ts";
 
 /** Coarse on purpose: the exact minute of a commit is never the question in a list. */
 export function relativeTime(iso: string, now = Date.now()): string {
@@ -30,7 +30,7 @@ export function shortRelativeTime(iso: string, now = Date.now()): string {
 export function exactTime(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  return at.toLocaleString("zh-CN", {
+  return at.toLocaleString(activeLocale(), {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

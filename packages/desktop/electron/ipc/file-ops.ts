@@ -16,13 +16,17 @@ import { cp, mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promise
 import { basename, join } from "node:path";
 import { isDescendant, uniqueName, validateName } from "../file-ops.ts";
 import type { FileOpResult } from "../ipc-types.ts";
+import { nativeText } from "../i18n.ts";
 
 export interface FileOpsIpcDeps {
 	/** The path, normalised, if it lies in an open project — otherwise null. */
 	projectPath(target: string): string | null;
 }
 
-const OUTSIDE = "该路径不在已打开的项目内";
+/** Worded when it is said — a constant would keep whatever language the app started in. */
+function outside(): FileOpResult {
+	return { ok: false, error: nativeText("files.outsideProject"), code: "denied" };
+}
 
 function failed(error: unknown): FileOpResult {
 	return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -49,7 +53,7 @@ async function exists(path: string): Promise<boolean> {
 async function clearDestination(from: string, to: string, overwrite: boolean): Promise<FileOpResult | null> {
 	if (!(await exists(to))) return null;
 	if (await sameFile(from, to)) return null;
-	if (!overwrite) return { ok: false, code: "exists", error: `「${basename(to)}」已存在` };
+	if (!overwrite) return { ok: false, code: "exists", error: nativeText("files.exists", { name: basename(to) }) };
 	await rm(to, { recursive: true, force: true });
 	return null;
 }
@@ -65,12 +69,12 @@ export function registerFileOpsIpc({ projectPath }: FileOpsIpcDeps): void {
 		"files:create",
 		async (_event, rawDir: string, name: string, kind: "file" | "directory"): Promise<FileOpResult> => {
 			const dir = projectPath(rawDir);
-			if (!dir) return { ok: false, error: OUTSIDE, code: "denied" };
+			if (!dir) return outside();
 			const invalid = validateName(name);
 			if (invalid) return { ok: false, error: invalid, code: "invalid" };
 
 			const path = join(dir, name);
-			if (await exists(path)) return { ok: false, code: "exists", error: `「${name}」已存在` };
+			if (await exists(path)) return { ok: false, code: "exists", error: nativeText("files.exists", { name }) };
 			try {
 				if (kind === "directory") await mkdir(path);
 				else await writeFile(path, "", { flag: "wx" });
@@ -93,11 +97,11 @@ export function registerFileOpsIpc({ projectPath }: FileOpsIpcDeps): void {
 		async (_event, rawFrom: string, rawTo: string, overwrite = false): Promise<FileOpResult> => {
 			const from = projectPath(rawFrom);
 			const to = projectPath(rawTo);
-			if (!from || !to) return { ok: false, error: OUTSIDE, code: "denied" };
+			if (!from || !to) return outside();
 			const invalid = validateName(basename(to));
 			if (invalid) return { ok: false, error: invalid, code: "invalid" };
 			if (from === to) return { ok: true, path: to };
-			if (isDescendant(from, to)) return { ok: false, code: "descendant", error: "不能把文件夹移动到它自己里面" };
+			if (isDescendant(from, to)) return { ok: false, code: "descendant", error: nativeText("files.moveIntoItself") };
 
 			try {
 				const blocked = await clearDestination(from, to, overwrite);
@@ -116,12 +120,12 @@ export function registerFileOpsIpc({ projectPath }: FileOpsIpcDeps): void {
 		async (_event, rawFrom: string, rawTo: string, overwrite = false): Promise<FileOpResult> => {
 			const from = projectPath(rawFrom);
 			const to = projectPath(rawTo);
-			if (!from || !to) return { ok: false, error: OUTSIDE, code: "denied" };
+			if (!from || !to) return outside();
 			const invalid = validateName(basename(to));
 			if (invalid) return { ok: false, error: invalid, code: "invalid" };
 			// Copying a directory into itself would recurse until the disk filled.
 			if (from === to || isDescendant(from, to)) {
-				return { ok: false, code: "descendant", error: "不能把文件夹复制到它自己里面" };
+				return { ok: false, code: "descendant", error: nativeText("files.copyIntoItself") };
 			}
 
 			try {
@@ -143,13 +147,13 @@ export function registerFileOpsIpc({ projectPath }: FileOpsIpcDeps): void {
 	 */
 	ipcMain.handle("files:trash", async (_event, rawPaths: string[]): Promise<FileOpResult> => {
 		const paths = rawPaths.map((raw) => projectPath(raw));
-		if (paths.some((path) => path === null)) return { ok: false, error: OUTSIDE, code: "denied" };
+		if (paths.some((path) => path === null)) return outside();
 
 		for (const path of paths as string[]) {
 			try {
 				await shell.trashItem(path);
 			} catch (error) {
-				return { ok: false, error: `「${basename(path)}」删除失败：${failed(error).error}` };
+				return { ok: false, error: nativeText("files.deleteFailed", { name: basename(path), reason: failed(error).error ?? "" }) };
 			}
 		}
 		return { ok: true };
@@ -158,13 +162,13 @@ export function registerFileOpsIpc({ projectPath }: FileOpsIpcDeps): void {
 	/** Gone for good. Separate from `files:trash` so nothing can reach it by passing a flag. */
 	ipcMain.handle("files:remove", async (_event, rawPaths: string[]): Promise<FileOpResult> => {
 		const paths = rawPaths.map((raw) => projectPath(raw));
-		if (paths.some((path) => path === null)) return { ok: false, error: OUTSIDE, code: "denied" };
+		if (paths.some((path) => path === null)) return outside();
 
 		for (const path of paths as string[]) {
 			try {
 				await rm(path, { recursive: true, force: true });
 			} catch (error) {
-				return { ok: false, error: `「${basename(path)}」删除失败：${failed(error).error}` };
+				return { ok: false, error: nativeText("files.deleteFailed", { name: basename(path), reason: failed(error).error ?? "" }) };
 			}
 		}
 		return { ok: true };
@@ -178,7 +182,7 @@ export function registerFileOpsIpc({ projectPath }: FileOpsIpcDeps): void {
 	 */
 	ipcMain.handle("files:uniquePath", async (_event, rawDir: string, name: string): Promise<FileOpResult> => {
 		const dir = projectPath(rawDir);
-		if (!dir) return { ok: false, error: OUTSIDE, code: "denied" };
+		if (!dir) return outside();
 		const invalid = validateName(name);
 		if (invalid) return { ok: false, error: invalid, code: "invalid" };
 
@@ -201,13 +205,13 @@ export function registerFileOpsIpc({ projectPath }: FileOpsIpcDeps): void {
 	 */
 	ipcMain.handle("files:import", async (_event, sources: string[], rawDir: string): Promise<FileOpResult> => {
 		const dir = projectPath(rawDir);
-		if (!dir) return { ok: false, error: OUTSIDE, code: "denied" };
+		if (!dir) return outside();
 
 		let last = "";
 		for (const source of sources) {
 			// Dropping a folder onto something inside it would copy the destination into itself.
 			if (dir === source || isDescendant(source, dir)) {
-				return { ok: false, code: "descendant", error: "不能把文件夹复制到它自己里面" };
+				return { ok: false, code: "descendant", error: nativeText("files.copyIntoItself") };
 			}
 			try {
 				const taken = await readdir(dir).catch(() => [] as string[]);

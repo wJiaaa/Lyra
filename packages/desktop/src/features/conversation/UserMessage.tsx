@@ -15,6 +15,7 @@ import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
+import { useScopedMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
 import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
@@ -23,6 +24,7 @@ import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { lastUserMessageIndex } from "../../lib/revert-draft.ts";
 import { afterPaint } from "../../lib/after-paint.ts";
 import { SESSION_THUMB_EDGE, sessionMediaUrl } from "../../../shared/session-image.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 /**
  * A message you sent, with the two things you want from one afterwards: to copy it, and to
  * take it back.
@@ -80,7 +82,12 @@ function attachmentsOf(
     seen.set(kind, kindIndex);
     const block = kind === "image" ? images[at] : undefined;
     if (block) at++;
-    const refs = imageSrc(block, file.path);
+    /*
+     * Only a picture is drawn from its path. Any other file given a `src` became a picture to
+     * everything downstream, and its press went to the image viewer, which found nothing to show —
+     * so a sent document never opened.
+     */
+    const refs = imageSrc(block, kind === "image" ? file.path : undefined);
     files.push({
       key: `${index}-${file.name}`,
       name: file.name,
@@ -128,10 +135,17 @@ export function UserMessage({
   index: number;
 }) {
 	const { t } = useI18n();
-	const running = useApp((s) => s.running);
+	/*
+	 * 这一屏的会话：按钮显示什么、作用到谁，都按它来。
+	 *
+	 * 读台上那份（焦点屏的会话）时，鼠标按下会先切焦点，碰巧对；键盘按非焦点屏的撤回、编辑，
+	 * 改的是旁边那一屏的对话，而且落盘。
+	 */
+	const sessionId = useScopedSessionId();
+	const running = useScopedRunning();
 	const editMessage = useApp((s) => s.editMessage);
 	const revertMessage = useApp((s) => s.revertMessage);
-	const lastUser = useApp((s) => lastUserMessageIndex(s.messages));
+	const lastUser = lastUserMessageIndex(useScopedMessages());
 	const confirm = useConfirmer();
   const attachmentActions = useAttachmentActions();
   /** 从句子里那枚标记打开查看器。起点取气泡外那一排里对应的格子，没有就从点击/右键的位置长。 */
@@ -275,7 +289,7 @@ export function UserMessage({
     void editMessage(index, [...images, ...bodies, { type: "text", text: trimmed }], {
       displayText: trimmed,
       ...(message.attachments?.length ? { attachments: message.attachments } : {}),
-    });
+    }, sessionId ?? undefined);
   }
 
   if (editing) {
@@ -495,15 +509,15 @@ export function UserMessage({
         text={text}
         className="pr-1"
       >
-        <button
-          type="button"
+        <IconButton
           data-message-undo=""
-          data-ly-tip={running ? t("userMessage.undoRunning") : t("userMessage.undo")}
-          aria-label={t("userMessage.undo")}
+          label={running ? t("userMessage.undoRunning") : t("userMessage.undo")}
+          ariaLabel={t("userMessage.undo")}
+          explainDisabled
           disabled={running}
           onClick={() => {
             if (running) return;
-            const run = () => void revertMessage(index);
+            const run = () => void revertMessage(index, sessionId ?? undefined);
             if (index === lastUser) {
               run();
               return;
@@ -515,23 +529,18 @@ export function UserMessage({
               onConfirm: run,
             });
           }}
-          className="flex h-6 w-6 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
-        >
-          <Undo2 size={12.5} strokeWidth={1.8} />
-        </button>
-        <button
-          type="button"
-          data-ly-tip={running ? t("userMessage.turnRunning") : t("userMessage.editResend")}
-          aria-label={t("userMessage.editResend")}
+          icon={<Undo2 size={12.5} strokeWidth={1.8} />}
+        />
+        <IconButton
+          label={running ? t("userMessage.turnRunning") : t("userMessage.editResend")}
+          explainDisabled
           disabled={running}
           onClick={() => {
             setDraft(text);
             setEditing(true);
           }}
-          className="flex h-6 w-6 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
-        >
-          <Pencil size={12.5} strokeWidth={1.8} />
-        </button>
+          icon={<Pencil size={12.5} strokeWidth={1.8} />}
+        />
       </MessageActions>
       {confirm.element}
     </div>

@@ -42,18 +42,10 @@ interface EditArgs {
 
 export const editTool: Tool<EditArgs> = {
 	name: "edit",
-	snippet: "Edit a file by line number",
-	/*
-	 * 只放描述和参数说明里没有的：「用 tag + patch、只写替换行、别重打保留的行」「一个文件的改动放进
-	 * 一个 patch」都在 `PATCH_SYNTAX` 里，从哪里拿 tag 在 `tag` 的参数说明里。三处都每轮发送。
-	 */
-	guidelines: [
-		"If the file changed since you read it the edit is rejected — re-read and redo it.",
-		"You may only edit lines you have actually seen. If `read` folded the region away as `⋯`, read that range first.",
-	],
 	description:
 		"Edit a file. Preferred form: `tag` + `patch`, naming the ORIGINAL line numbers from the read output " +
-		"and giving only the replacement lines.\n\n" +
+		"and giving only the replacement lines. You may only edit lines you have actually seen: if `read` folded a region " +
+		"away as `⋯`, read that range first. If the file changed since you read it the edit is rejected — re-read and redo it.\n\n" +
 		PATCH_SYNTAX +
 		"\n\nLegacy form: `old_string` + `new_string` replaces an exact, unique byte sequence. " +
 		"Prefer the patch form — it does not require reproducing existing bytes, it can make several " +

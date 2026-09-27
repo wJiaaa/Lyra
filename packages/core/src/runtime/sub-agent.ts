@@ -34,13 +34,7 @@ import { sessionPruner } from "./aged-prune.ts";
 import { compactWith } from "./compaction.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
 import { stripStaleHandles } from "./model-switch.ts";
-import { childDispatch, DEFAULT_MAX_DEPTH, DISPATCH_KEY, DispatchGate, rootDispatch, type DispatchContext } from "./dispatch-guard.ts";
-import {
-	DELEGATION_KEY,
-	delegationConcurrency,
-	normalizeDelegationPolicy,
-	type DelegationDecision,
-} from "./delegation.ts";
+import { childDispatch, DEFAULT_MAX_DEPTH, DISPATCH_KEY, DispatchGate, normalizeMaxConcurrentSubAgents, rootDispatch, type DispatchContext } from "./dispatch-guard.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { loadHookRunner, makeAfterToolCall, makeBeforeToolCall, makePermissionRequest, type TurnHooks } from "./hooks.ts";
 import { writePreview } from "./previews.ts";
@@ -214,18 +208,7 @@ export async function runSubAgent(
 	const here = childDispatch(options.dispatch ?? rootDispatch(), definition.name, id);
 	const maySpawn = definition.spawns === "*" || (Array.isArray(definition.spawns) && definition.spawns.length > 0);
 	const deepEnough = here.depth < DEFAULT_MAX_DEPTH;
-	/*
-	 * 用户把派活关掉时，这一层也到头了。
-	 *
-	 * 走到这里的子代理是用户自己点名派的——他点的是**它**，不是它到时候想拉来的一串。一个
-	 * `spawns: "*"` 的编排型定义，在关掉的设置下仍然能铺开一整棵树，那这个开关就只挡住了第一层，
-	 * 而第一层恰恰是最便宜的那一层。
-	 *
-	 * 只看 policy 不看等级：`off` 是用户钉死的档，跟这个子代理自己用什么推理等级跑无关。
-	 */
-	const delegationOff = normalizeDelegationPolicy((options.getSettings?.() ?? options.settings).subAgentDelegation) === "off";
-	const withoutTask =
-		maySpawn && deepEnough && !delegationOff ? fromSession : fromSession.filter((tool) => tool.name !== "task");
+	const withoutTask = maySpawn && deepEnough ? fromSession : fromSession.filter((tool) => tool.name !== "task");
 
 	/*
 	 * A declared output shape turns the reply into an object.
@@ -252,16 +235,6 @@ export async function runSubAgent(
 	subState.set(DISPATCH_KEY, here);
 	// 上一段交的东西说的是上一段。这一段要交，就得自己再交一次——否则一次什么都没交的续跑会把旧的那份当成新结论。
 	subState.delete(YIELD_KEY);
-	/*
-	 * 状态图是新建的，所以这一条要自己带下去。
-	 *
-	 * 上面已经把 `task` 从工具表里摘了，这是同一件事的第二道——挡的是别的路子把工具放回去的情况
-	 * （`definition.output` 拼 `allowed` 时、插件改工具表时）。`mentioned` 是空的：点名放行的是
-	 * 这个子代理本身，那次已经用掉了，它不继承任何人的通行证。
-	 */
-	if (delegationOff) subState.set(DELEGATION_KEY, { tier: "off", mentioned: [] } satisfies DelegationDecision);
-	// 续跑时设置可能已经改回来了；上一段留下的「关掉」不能跟着过来。
-	else subState.delete(DELEGATION_KEY);
 
 	// The sub-agent gets its own message list and its own state map, so its file reads and
 	// todo list cannot leak into the parent's.
@@ -339,30 +312,21 @@ export async function runSubAgent(
 		 * 行为准则跟着走，身份不跟。
 		 *
 		 * 「注释一律中文」「匹配周围代码风格」对子代理写的代码同样成立——这些约定管的是产出，
-		 * 而子代理的产出最后进的是同一个仓库。而 `identity` 不读：子代理的身份由它自己的定义
-		 * 写着（「你是一个只读的代码审查者」），用项目的身份段盖掉它，等于把派它出去的理由抹掉。
+		 * 而子代理的产出最后进的是同一个仓库。身份则由它自己的定义写着（「你是一个只读的代码审查者」），
+		 * 放在最前面；项目的身份段和 Lyra 的默认身份都不用，否则等于把派它出去的理由抹掉。
 		 */
+		identity: definition.systemPrompt,
 		guidelinesOverride: await readPromptOverride(options.cwd, "guidelines"),
-		/*
-		 * 它自己的等级，不是派它出来的那个会话的。
-		 *
-		 * 这个值只用来决定「它该有多想再往下派」（见 `delegation.ts`），而一个编排者被配成
-		 * `@fast:low` 就是有人明说过这一层不值得慢慢想——那正是它也不该在下面铺开摊子的时候。
-		 * 用父会话的等级，等于把父亲那一次「值得」的决定，乘上它派出去的份数。
-		 */
-		thinking: chosen.thinking,
 		platform: platform(),
 		// Its own mode decides its shell, exactly as `sandboxMode` below is decided for its tools.
 		shell: commandShell(sandboxModeFor(options.settings.permissionMode)),
 		modelName: runModel.name,
 		isGitRepo: await pathExists(join(options.cwd, ".git")),
 			isolatedWorktree: await isIsolatedWorktree(options.cwd),
-		appendSystemPrompt: definition.output
-			? `${definition.systemPrompt}\n${yieldInstruction(definition.output)}`
-			: definition.systemPrompt,
+		...(definition.output ? { appendSystemPrompt: yieldInstruction(definition.output).trim() } : {}),
 	});
 
-	// 子代理也要知道今天几号，同样接在末尾——理由见 `prompt/environment.ts`。
+	// 子代理也要知道今天几号，接在开场那条消息后面——理由见 `prompt/environment.ts`。
 	let envDate = earlier?.conversation.envDate ?? today();
 	/*
 	 * 续跑时换了模型（父会话中途换过、或者设置里给它改了模型），留下的历史全出自旧模型：供应商
@@ -385,9 +349,9 @@ export async function runSubAgent(
 		 */
 		history = [...earlierView, opening];
 	} else {
-		// 隔了天再续：旧的日期块留在原位（前缀不动），新的一条接在末尾，模型读到的「今天」是对的。
+		// 隔了天再续：旧的日期块留在原位（前缀不动），新的一条跟在这次的开场消息后面，模型读到的「今天」是对的。
 		envDate = today();
-		history = withEnvironment([...earlierView, opening]);
+		history = [...earlierView, ...withEnvironment([opening])];
 	}
 
 	/*
@@ -558,20 +522,11 @@ export async function runSubAgent(
 							 * 它现在不在跑，它在等这个孩子。占着位置等同一道闸门里的位置，就是一个死锁——
 							 * 闸门收到 1 的时候必然发生，收到 4 的时候四路各派一个也一样。见 `DispatchGate.nested`。
 							 *
-							 * 兜底的那道闸门也要按等级收窄。正常路径下 `options.gate` 一定在（整棵派生树
-							 * 共用一道），走到 `??` 右边的是没有会话的宿主——CLI、测试。那里同样是这一层的
-							 * 等级在决定划不划算，用天花板开一道全宽的闸门，等于在唯一没人看着的地方把这个
-							 * 设置关掉。
+							 * 正常路径下 `options.gate` 一定在（整棵派生树共用一道），走到 `??` 右边的是没有
+							 * 会话的宿主——CLI、测试，按设置里的上限开一道。
 							 */
 							return (
-								options.gate ??
-								new DispatchGate(
-									delegationConcurrency(
-										options.settings.maxConcurrentSubAgents,
-										chosen.thinking,
-										normalizeDelegationPolicy(options.settings.subAgentDelegation),
-									),
-								)
+								options.gate ?? new DispatchGate(normalizeMaxConcurrentSubAgents(options.settings.maxConcurrentSubAgents))
 							).nested(
 								/*
 								 * 孙代理挂在这个子代理自己的控制器上，不是会话那根：面板上单独停掉这个子代理时，

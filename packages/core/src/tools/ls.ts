@@ -15,7 +15,6 @@ interface LsArgs {
 
 export const lsTool: Tool<LsArgs> = {
 	name: "ls",
-	snippet: "List directory contents",
 	description: "List the contents of a directory, with directories first and file sizes shown.",
 	parameters: {
 		type: "object",

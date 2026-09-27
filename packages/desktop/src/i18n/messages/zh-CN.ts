@@ -7,7 +7,7 @@ export const zhCN = {
 	"compact.autoFallbackDone": "摘要失败，已本地整理：{before} → {after} 条消息",
 	"compact.autoFailed": "压缩失败，保留最近已保存的上下文",
 	"compact.autoInterrupted": "压缩中断，保留最近已保存的上下文；未自动重试",
-	"compact.autoRetries": "重试 {count} 次",
+	"compact.autoRetries": "重试 {n} 次",
 
 	"tools.run": "工具调用",
 	"process.turn": "本轮过程",	"question.title": "需要你的意见",
@@ -62,7 +62,6 @@ export const zhCN = {
 	"settings.browser": "浏览器",
 	"settings.extensions": "插件",
 	"settings.agents": "智能体",
-	"settings.delegation": "子智能体调度",
 	"settings.commands": "命令",
 	"settings.tools": "工具",
 	"settings.hooks": "钩子",
@@ -79,7 +78,7 @@ export const zhCN = {
 	"general.alwaysEnabled": "始终开启",
 	"general.autoReview": "自动审核",
 	"general.autoReviewDetail": "只读命令（git status、ls、grep 等）自动放行，写入和未知命令仍会请求批准。",
-	"general.fullAccess": "完整访问权限",
+	"general.fullAccess": "完全访问",
 	"general.fullAccessDetail": "开启后 Lyra 无需批准即可修改文件、执行命令并访问网络。这会显著提高数据丢失或意外行为的风险。",
 	"general.section": "常规",
 	"general.fileTarget": "默认文件打开目标",
@@ -116,7 +115,6 @@ export const zhCN = {
 	"thinking.currentOnly": "只作用于当前会话",
 	"thinking.newDefault": "作为新会话的默认档位",
 	"thinking.providerSupport": "供应商对推理档位的支持不一；「关闭」始终显式要求不要推理。",
-	"thinking.disabledDetail": "已关闭推理，可在模型菜单中重新开启。",
 	"thinking.unsupportedDetail": "当前模型不支持推理，这项设置不会生效。",
 	"retry.none": "不重试",
 	"retry.count": "重试 {count} 次",
@@ -188,7 +186,7 @@ export const zhCN = {
 	"permission.askDetail": "编辑文件和访问网络时始终询问",
 	"permission.autoDetail": "仅对检测到的风险操作请求批准",
 	"permission.fullDetail": "可不受限制地访问网络和你电脑上的任何文件",
-	"permission.confirmTitle": "开启完全访问权限？",
+	"permission.confirmTitle": "开启完全访问？",
 	"permission.confirmSummary": "Lyra 将直接执行操作，不再逐项请求批准。",
 	"permission.files": "文件和文件夹",
 	"permission.filesDetail": "读写、上传或删除此电脑上的文件，不限于当前项目。",
@@ -459,33 +457,8 @@ export const zhCN = {
 	"usage.reading": "正在读取会话日志",
 	"usage.less": "少",
 	"usage.more": "多",
-	"delegation.never": "从不派",
-	"delegation.neverDetail": "所有活自己做完。你在消息里 @ 点名的那一个仍然会派，只派那一个。",
-	"delegation.customOnly": "仅自定义",
-	"delegation.sparing": "省着派",
-	"delegation.sparingDetail": "除非你点名要求，或者要读的东西明显装不进上下文，否则自己做完。",
-	"delegation.sparingLevels": "关 · 极简 · 低",
-	"delegation.selective": "挑着派",
-	"delegation.selectiveDetail": "只把中间过程你用不上的活派出去——翻几十个文件找一个答案这种。",
-	"delegation.active": "主动派",
-	"delegation.activeDetail": "互相独立的子任务并行派出去，自己留着做拆分、串联和收口。",
-	"delegation.max": "放开派",
-	"delegation.maxDetail": "能拆就拆，把并发用满，自己专心做编排和最后的验证。",
-	"delegation.maxLevels": "超高 · 最高 · 极致",
-	"delegation.followThinking": "跟随思考等级",
-	"delegation.followThinkingDetail": "思考等级越高越主动派活——这一轮是「{level}」，落在下面标着「当前」的那一档。",
-	"delegation.pinnedDetail": "已关闭。派活的积极程度由你在下面钉死，思考等级不再影响它。",
-	"delegation.eagerness": "调用积极性",
-	"delegation.concurrency": "最多同时运行",
-	"common.current": "当前",
-	"common.countUnit": "个",
-	"delegation.title": "子智能体调度",
-	"delegation.concurrencyLimit": "并发上限",
-	"delegation.concurrencyAria": "最多同时运行的子智能体数量",
-	"delegation.overflowDetail": "超出的排队，不会被拒绝——一次派十个不会更快，只会更晚到齐。积极性低的档位会在这个上限底下再收一道。",
-	"usage.dayUsed": "{date} · {sessions} 个会话 · {tokens} token{cost}",
+	"usage.dayUsed": "{date} · {n} 个会话 · {tokens} token{cost}",
 	"usage.range": "{from} 至 {to}",
-	"delegation.intro": "决定什么时候派子智能体、一次最多派几个。对所有会话生效，改动立即生效。",
 	"usage.activeDays": "{n} 个活跃日",
 	"usage.sessionDays": "{n} 个会话日",
 	"usage.messages": "{n} 条消息",
@@ -636,6 +609,8 @@ export const zhCN = {
 	"modelEditor.catalogPrice": "价格从 pi.dev 模型目录填入（参考估算）",
 	"modelEditor.manualPrice": "当前使用手动填写的价格",
 	"modelEditor.thinking": "支持思考 / 推理",
+	"modelEditor.thinkingLevels": "推理档位",
+	"modelEditor.thinkingLevelsDetail": "推理强度菜单里可选的档位。从模型目录选中时自动勾好；不勾「关」表示这个模型关不掉思考。",
 	"modelEditor.images": "支持图片输入",
 	"modelEditor.toolCalls": "支持工具调用",
 	"modelEditor.catalogTiers": "，含 {n} 档长上下文价格",
@@ -1025,7 +1000,7 @@ export const zhCN = {
 	"trajectory.forkFailed": "分叉失败",
 	"trajectory.toolbar": "轨迹工具栏",
 	"trajectory.search": "搜索轨迹",
-	"trajectory.countOf": "{shown}/{total} 条记录",
+	"trajectory.countOf": "{shown}/{n} 条记录",
 	"trajectory.focused": "聚焦 {n} 条",
 	"trajectory.toolCalls": "{n} 次工具",
 	"trajectory.estimatedCost": "估算费用 ${cost}",
@@ -1097,14 +1072,14 @@ export const zhCN = {
 	"sync.publishTo": "发布到 {remote}",
 	"sync.pushTo": "推送到 {remote}/{branch}",
 	"sync.notPublished": "这个分支还没有发布到 {remote}",
-	"sync.unpushedTo": "{count} 个提交尚未推送到 {remote}/{branch}",
+	"sync.unpushedTo": "{n} 个提交尚未推送到 {remote}/{branch}",
 	"sync.publishBranch": "发布分支",
-	"sync.pullFf": "拉取 {behind} 个提交（--ff-only）",
+	"sync.pullFf": "拉取 {n} 个提交（--ff-only）",
 	"sync.upToDate": "已与 {upstream} 同步",
 	"sync.pushToUpstream": "推送到 {upstream}",
 	"sync.diverged": "本地超前 {ahead}，远端领先 {behind}",
-	"sync.unpushed": "{ahead} 个提交尚未推送到 {upstream}",
-	"sync.behindBy": "远端领先 {behind} 个提交",
+	"sync.unpushed": "{n} 个提交尚未推送到 {upstream}",
+	"sync.behindBy": "远端领先 {n} 个提交",
 	"changes.reading": "正在读取改动",
 	"changes.clean": "工作区干净",
 	"changes.staged": "已暂存",
@@ -1344,8 +1319,8 @@ export const zhCN = {
 	"scheduled.dailyTime": "每天运行时间",
 	"scheduled.intervalMinutes": "间隔分钟数",
 	"scheduled.noWorkspace": "（未设置工作区）",
-	"scheduled.lastRun": "上次运行：",
-	"scheduled.nextRun": "下次运行：",
+	"scheduled.lastRun": "上次运行：{time}",
+	"scheduled.nextRun": "下次运行：{time}",
 	"scheduled.openLast": "打开上次会话",
 	"modelMenu.favourite": "收藏",
 	"modelMenu.unfavourite": "取消收藏",
@@ -1628,6 +1603,7 @@ export const zhCN = {
 	"rules.foreignPersonal": "也读别家工具的个人规则",
 	"rules.foreignPersonalDetail": "项目里的那些一直都读。这里勾的是你自己主目录下的那份——它会跟着你进每一个仓库。",
 	"rules.reading": "正在读取规则",
+	"rules.warnings": "{n} 条规则需要留意",
 	"rules.noMatch": "没有匹配的规则",
 	"rules.empty": "暂无可用规则",
 	"rules.tryIt": "试一下",
@@ -2139,6 +2115,7 @@ export const zhCN = {
 	"access.denyCommandNetworkDetail": "能不能联网和能不能改文件是两件事，所以单独一个开关。打开之后 pnpm install、git push 这类会失败，本机 localhost 不受影响。判断命令文本总会漏掉某种写法，断掉网络不会。",
 	"access.denyCommandNetworkUnsupported": "这台机器上的沙箱只能拦文件写入，断不了网。保证不了的事不给开。",
 	"commandsSettings.failedToLoad": "{n} 个命令没能加载",
+	"commandsSettings.warnings": "{n} 个命令需要留意",
 	"toolsSettings.intro": "Agent 手上的全部工具：内置的，以及已连接的 MCP 服务提供的。",
 	"commandsSettings.builtinTools": "内置工具（{n}）",
 	"commandsSettings.mcpTools": "MCP 工具（{n}）",
@@ -2195,7 +2172,7 @@ export const zhCN = {
 	"traceText.prevPage": "{title}上一页",
 	"traceText.nextPage": "{title}下一页",
 	"traceText.copyAll": "复制完整{title}",
-	"traceText.charCount": "{count} 字符",
+	"traceText.charCount": "{n} 字符",
 	"questionNav.imageMessage": "图片消息",
 	"document.unreadable": "读不到这个文件",
 	"document.cannotOpen": "打不开这个文档：{error}",
@@ -2247,8 +2224,8 @@ export const zhCN = {
 	"memoryFiles.none": "当前未加载项目指令或项目记忆",
 	"codeBlock.runInTerminal": "在终端运行",
 	"messageActions.copyThis": "复制这条消息",
-	"messageActions.spanTip": "这一轮 {total}，模型应答 {model}，{requests} 次请求",
-	"messageActions.rateTip": "{tokens} tokens ÷ 纯出字 {decode}",
+	"messageActions.spanTip": "这一轮 {total}，模型应答 {model}，{n} 次请求",
+	"messageActions.rateTip": "{n} tokens ÷ 纯出字 {decode}",
 	"question.otherThought": "其他想法",
 	"grouping.autoContinue": "（自动继续）",
 	"fileBrowser.needProject": "先打开一个项目",
@@ -2435,7 +2412,7 @@ export const zhCN = {
 	"webAccess.enableDetail": "在本机开启一个网页服务，用下面的链接访问",
 	"webAccess.status": "服务状态",
 	"webAccess.failed": "启动失败：{reason}",
-	"webAccess.clients": "{count} 个浏览器已连接",
+	"webAccess.clients": "{n} 个浏览器已连接",
 	"webAccess.notRunning": "未运行",
 	"webAccess.running": "运行中",
 	"webAccess.stopped": "已停止",
@@ -2461,4 +2438,25 @@ export const zhCN = {
 } as const;
 
 export type MessageKey = keyof typeof zhCN;
-export type MessageCatalog = Record<MessageKey, string>;
+
+/**
+ * A sentence that changes with the number it counts: one form per CLDR plural category the language
+ * uses, picked with `Intl.PluralRules` (`i18n/plural.ts`). English gives `one` and `other`; Chinese
+ * only has `other`, so this source catalogue stays plain strings and `MessageKey` stays readable off it.
+ */
+export interface PluralForms {
+	readonly zero?: string;
+	readonly one?: string;
+	readonly two?: string;
+	readonly few?: string;
+	readonly many?: string;
+	readonly other: string;
+}
+
+/**
+ * The keys that count something: the source sentence has an `{n}`. Only these may take plural
+ * forms — on any other key nothing passes a count, so a form there could never be picked.
+ */
+type CountedKey = { [K in MessageKey]: (typeof zhCN)[K] extends `${string}{n}${string}` ? K : never }[MessageKey];
+
+export type MessageCatalog = { readonly [K in MessageKey]: K extends CountedKey ? string | PluralForms : string };

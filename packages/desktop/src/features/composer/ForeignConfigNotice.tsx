@@ -13,6 +13,7 @@ import { Blocks, X } from "lucide-react";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { type ExtensionsTab, type SettingsSection } from "../../store/index.ts";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
  * Where one place is shown in this app: a settings page (a tab on it, something in its search
@@ -115,16 +116,7 @@ export function ForeignConfigBanner({
 				{t("common.look")}
 				{places > 1 && <Caret open={menu.open} size={11} className="opacity-70" />}
 			</button>
-			<button
-				type="button"
-				onClick={onOk}
-				data-foreign-config-ok
-				data-ly-tip={t("foreign.dismiss")}
-				aria-label={t("foreign.dismiss")}
-				className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-			>
-				<X size={12} strokeWidth={2} />
-			</button>
+			<IconButton size="sm" label={t("foreign.dismiss")} onClick={onOk} data-foreign-config-ok icon={<X size={12} strokeWidth={2} />} />
 			{menu.open && (
 				/* Wider than a menu: a path on the left and what it holds on the right must not meet. */
 				<Popover anchor={menu.anchor} onClose={menu.close} placement="top" align="end" width={360} role="menu" label={t("foreign.configInUse")}>

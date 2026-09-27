@@ -69,7 +69,10 @@ export interface ModelConfig {
 	supportsImages: boolean;
 	supportsTools: boolean;
 	pricing?: ModelPricing;
-	/** Custom thinking options supported by this specific model. */
+	/**
+	 * 这个模型可选的思考档位，从模型目录填入或在模型编辑器里勾选；不填用默认四档。
+	 * 列表里没有 `off` 表示关不掉思考：选「关闭」时落到最浅的一档。
+	 */
 	thinkingOptions?: ThinkingOption[];
 	/** Extra sampling parameters merged verbatim into the request body. */
 	samplingParams?: Record<string, unknown>;

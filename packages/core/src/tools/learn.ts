@@ -22,13 +22,9 @@ interface LearnArgs {
 
 export const learnTool: Tool<LearnArgs> = {
 	name: "learn",
-	snippet: "Remember a lesson for next time",
-	guidelines: [
-		"When the user corrects your approach in a way that will apply again in this repository, record it with `learn`.",
-	],
 	description:
 		"Record something about this project that will be useful in a future session. It is injected into the prompt " +
-		"from the next session onwards.\n\n" +
+		"from the next session onwards. When the user corrects your approach in a way that will apply again in this repository, record it here.\n\n" +
 		"Record:\n" +
 		"- a correction the user made that will apply again in this repository\n" +
 		"- a convention that is not visible from the code (the build command, why something is done an odd way)\n" +

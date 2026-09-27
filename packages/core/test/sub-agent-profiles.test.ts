@@ -3,10 +3,11 @@ import { test } from "node:test";
 import { DEFAULT_SETTINGS, normalizeSettings } from "../src/config/settings.ts";
 import { normalizeSubAgentProfiles, parseModelRef, resolveSubAgentModel } from "../src/config/model-roles.ts";
 import { runSubAgent } from "../src/runtime/sub-agent.ts";
+import { THINKING_LEVELS, thinkingOptionsFor } from "../src/ai/thinking-options.ts";
 import { BUILTIN_AGENTS, taskTool } from "../src/tools/task.ts";
 import { emptyUsage, type AssistantMessage, type ModelConfig, type ProviderConfig, type Settings } from "../src/types.ts";
 
-const model: ModelConfig = { id: "a/same", providerId: "a", modelId: "gpt-5.6-sol", name: "Same name", contextWindow: 128000, maxOutputTokens: 4096, supportsThinking: true, supportsImages: false, supportsTools: true };
+const model: ModelConfig = { id: "a/same", providerId: "a", modelId: "gpt-5.6-sol", name: "Same name", contextWindow: 128000, maxOutputTokens: 4096, supportsThinking: true, thinkingOptions: thinkingOptionsFor(THINKING_LEVELS), supportsImages: false, supportsTools: true };
 const provider: ProviderConfig = { id: "a", name: "A", api: "openai-responses", apiKey: "test", baseUrl: "http://localhost", enabled: true, models: [model] };
 const second: ProviderConfig = { ...provider, id: "b", name: "B", models: [{ ...model, providerId: "b", id: "b/same" }] };
 const settings: Settings = { ...DEFAULT_SETTINGS, providers: [provider, second], defaultModelId: model.id, thinking: "low", modelRoles: { fast: model.id } };
@@ -30,9 +31,10 @@ test("disabled and deleted explicit models fail visibly rather than using a diff
 });
 
 test("thinking follows model capability, including custom levels and non-reasoning models", () => {
-	const basic: ModelConfig = { ...model, modelId: "gemini-3" };
+	const basic: ModelConfig = { ...model, modelId: "gemini-3", thinkingOptions: undefined };
 	const basicSettings = { ...settings, thinking: "ultra", providers: [{ ...provider, models: [basic] }] };
-	assert.equal(resolveSubAgentModel(basicSettings, explore, { provider, model: basic }).thinking, "medium");
+	// 继承来的档位模型没有时就近取，「极致」落到默认四档里最深的那档。
+	assert.equal(resolveSubAgentModel(basicSettings, explore, { provider, model: basic }).thinking, "high");
 	assert.throws(() => resolveSubAgentModel({ ...basicSettings, subAgentProfiles: { explore: { thinking: "ultra" } } }, explore, fallback), /不支持思考等级/);
 	const custom = { ...model, thinkingOptions: [{ id: "deep-custom", label: "Custom", detail: "Custom effort" }] };
 	assert.equal(resolveSubAgentModel({ ...settings, providers: [{ ...provider, models: [custom] }], subAgentProfiles: { explore: { thinking: "deep-custom" } } }, explore, fallback).thinking, "deep-custom");

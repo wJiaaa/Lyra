@@ -123,3 +123,27 @@ test("两种拼写的 disable-model-invocation 都算数", async () => {
 		await rm(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}
 });
+
+test("两种拼写的 allowed-tools 都算数，两个都写时按连字符的", async () => {
+	/*
+	 * 指南写的是 `allowedTools`，加载器原来只读 `allowed-tools`。读不到就是「不限制」——一条限制
+	 * 最不该有的失败方式：技能照常加载，写明的工具边界一条都不生效。
+	 */
+	const dir = await mkdtemp(join(tmpdir(), "ly-skill-tools-"));
+	try {
+		for (const [name, lines] of [
+			["hyphen", "allowed-tools: [read]"],
+			["camel", "allowedTools: [read]"],
+			["both", "allowed-tools: [read]\nallowedTools: [bash]"],
+		]) {
+			await mkdir(join(dir, name), { recursive: true });
+			await writeFile(join(dir, name, "SKILL.md"), `---\nname: ${name}\ndescription: 一个技能\n${lines}\n---\n正文\n`, "utf8");
+		}
+
+		const { skills } = await loadSkills([{ dir, source: "workspace" }]);
+		assert.equal(skills.length, 3);
+		for (const skill of skills) assert.deepEqual(skill.allowedTools, ["read"], `${skill.name} 的限制该生效`);
+	} finally {
+		await rm(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
+});

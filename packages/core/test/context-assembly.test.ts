@@ -119,7 +119,7 @@ test("runtime statistics reuse filtered requests and recorded sources through re
 	const root = await mkdtemp(join(tmpdir(), "lyra-context-"));
 	const previous = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, LYRA_HOME: process.env.LYRA_HOME };
 	Object.assign(process.env, { HOME: root, USERPROFILE: root, LYRA_HOME: join(root, "home") });
-	const settings = { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, subAgentDelegation: "off" as const, mcpServers: [], personalization: { enableMemory: false } };
+	const settings = { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, mcpServers: [], personalization: { enableMemory: false } };
 	const store = new SessionStore(join(root, "sessions"));
 	let sent!: LlmContext;
 	let answer!: AssistantMessage;

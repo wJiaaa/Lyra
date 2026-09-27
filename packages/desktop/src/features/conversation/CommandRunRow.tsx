@@ -23,7 +23,7 @@ export function CommandRunRow({ command }: { command: CommandRun }) {
 		return <div data-command-run={command.id} data-command-status={command.status} data-auto-compaction={auto.phase}>
 			<FlowRow icon={<Icon size={13} strokeWidth={1.8} />} title={t("compact.autoTitle")}
 				summary={t(key, { before: auto.before ?? 0, after: auto.after ?? 0, count: auto.retries })}
-				trailing={!running && auto.retries > 0 ? t("compact.autoRetries", { count: auto.retries }) : undefined}
+				trailing={!running && auto.retries > 0 ? t("compact.autoRetries", { n: auto.retries }) : undefined}
 				running={running} className={command.status === "failed" ? "text-danger hover:text-danger" : ""} />
 		</div>;
 	}

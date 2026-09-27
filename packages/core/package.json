@@ -17,7 +17,6 @@
 		"./model-roles": "./src/config/model-roles.ts",
 		"./project-folders": "./src/config/project-folders.ts",
 		"./retry-policy": "./src/config/retry-policy.ts",
-		"./delegation": "./src/runtime/delegation.ts",
 		"./agents-builtin": "./src/agents-builtin.ts",
 		"./model-catalog": "./src/model-catalog.ts",
 		"./model-catalog-sync": "./src/model-catalog-sync.ts",

@@ -16,6 +16,14 @@
 
 import type { ReactNode, MouseEvent } from "react";
 
+/**
+ * `data-*` passed straight through to the `<button>`.
+ *
+ * The tests find controls by these rather than by their words, so a label can be reworded without
+ * breaking a suite. Nothing else passes through: no style, no class of events — see the top of this file.
+ */
+export type DataAttributes = { [key: `data-${string}`]: string | boolean | undefined };
+
 export type ButtonVariant = "primary" | "ghost" | "subtle" | "danger";
 export type ButtonSize = "md" | "sm";
 
@@ -55,9 +63,11 @@ export function Button({
 	disabled,
 	loading,
 	label,
+	menu,
 	className = "",
 	type = "button",
-}: {
+	...data
+}: DataAttributes & {
 	/**
 	 * Omit it for an icon-only button.
 	 *
@@ -82,6 +92,8 @@ export function Button({
 	loading?: boolean;
 	/** Tooltip, and the accessible name when there is no visible text. */
 	label?: string;
+	/** Opens a menu; the value is whether it is open now. Omit it for an ordinary button. */
+	menu?: boolean;
 	className?: string;
 	type?: "button" | "submit";
 }) {
@@ -90,10 +102,13 @@ export function Button({
 
 	return (
 		<button
+			{...data}
 			type={type}
 			disabled={inert}
 			onClick={onClick}
 			aria-busy={loading || undefined}
+			aria-haspopup={menu === undefined ? undefined : "menu"}
+			aria-expanded={menu}
 			data-ly-tip={label}
 			aria-label={bare ? label : undefined}
 			data-variant={variant}

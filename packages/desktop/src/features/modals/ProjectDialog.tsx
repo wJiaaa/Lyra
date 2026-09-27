@@ -21,6 +21,7 @@ import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Dialog, DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /** Wide enough for two columns of path, narrow enough to stay a form rather than a page. */
 const PROJECT_DIALOG_WIDTH = 520;
@@ -90,15 +91,12 @@ function SourceFolders({
 										{t("project.mainFolder")}
 									</span>
 								) : (
-									<button
-										type="button"
+									<IconButton
+										size="sm"
+										label={t("project.removeFolderNamed", { name: baseName(folder) })}
 										onClick={() => onRemove(folder)}
-										data-ly-tip={t("project.removeFolder")}
-										aria-label={t("project.removeFolderNamed", { name: baseName(folder) })}
-										className="shrink-0 rounded-lg p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-									>
-										<X size={14} strokeWidth={2} aria-hidden />
-									</button>
+										icon={<X size={14} strokeWidth={2} aria-hidden />}
+									/>
 								)}
 							</div>
 						))}

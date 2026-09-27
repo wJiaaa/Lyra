@@ -12,7 +12,7 @@ import { ToolCard } from "./ToolCard.tsx";
 import { describeRun } from "./ToolGroup.tsx";
 import { ToolGroup } from "./ToolGroup.tsx";
 import { useApp, type ToolRun as ToolRunState } from "../../store/index.ts";
-import { useScopedRunning } from "../../app/session-scope.tsx";
+import { scopedToolRuns, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { toolCardFallback } from "./tool-status.ts";
 import { sameRun, type Call } from "./grouping.ts";
 import { baseName } from "../../lib/paths.ts";
@@ -85,7 +85,9 @@ export function LiveToolCard({
    */
   runs?: Record<string, ToolRunState>;
 }) {
-  const stored = useApp((s) => s.toolRuns[block.id]);
+  // This screen's records: the live ones are the focused conversation's, where this card has none.
+  const scope = useScopedSessionId();
+  const stored = useApp((s) => scopedToolRuns(s, scope)[block.id]);
   const run = runs ? runs[block.id] : stored;
   /*
    * 这一轮还在不在跑，决定没有记录的卡片怎么说话——见 `tool-status.ts`。
@@ -170,8 +172,9 @@ const ToolRunGroup = function ToolRun({
    */
   const summary = describeRun(calls.map(({ block }) => ({ toolName: block.name, subject: subjectOf(block) })));
   // Totals across the run, so a fold does not hide how much changed.
-  const added = useApp((s) => calls.reduce((n, { block }) => n + diffOf((runs ?? s.toolRuns)[block.id], "added"), 0));
-  const removed = useApp((s) => calls.reduce((n, { block }) => n + diffOf((runs ?? s.toolRuns)[block.id], "removed"), 0));
+  const scope = useScopedSessionId();
+  const added = useApp((s) => calls.reduce((n, { block }) => n + diffOf((runs ?? scopedToolRuns(s, scope))[block.id], "added"), 0));
+  const removed = useApp((s) => calls.reduce((n, { block }) => n + diffOf((runs ?? scopedToolRuns(s, scope))[block.id], "removed"), 0));
 
   const cards = calls.map(({ block, stopReason }) => (
     <LiveToolCard key={block.id} block={block} stopReason={stopReason} runs={runs} />

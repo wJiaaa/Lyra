@@ -21,6 +21,7 @@ import { Textarea } from "../../../ui/inputs/NativeField.tsx";
 import { useFieldFade } from "../../../ui/inputs/useFieldFade.ts";
 import { useEffect, useRef } from "react";
 import { OverlayScrollbar } from "../../../ui/scroll/OverlayScrollbar.tsx";
+import { Button } from "../../../ui/primitives/Button.tsx";
 
 export function MessageEditor({
 	value,
@@ -88,25 +89,15 @@ export function MessageEditor({
 				 * 形状之外还有第二层区分：确认那颗是实心的，取消那颗是描边的。两个图标万一都没看清，
 				 * 深浅也已经说明了哪颗是「就这么办」。
 				 */}
-				<button
-					type="button"
-					data-ly-tip={translate("common.cancel")}
-					aria-label={translate("common.cancel")}
-					onClick={onCancel}
-					className="grid h-7 w-7 place-items-center rounded-lg border border-line text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-				>
-					<X size={13} strokeWidth={2} aria-hidden />
-				</button>
-				<button
-					type="button"
-					data-ly-tip={confirmLabel}
-					aria-label={confirmLabel}
+				<Button size="sm" label={translate("common.cancel")} onClick={onCancel} icon={<X size={13} strokeWidth={2} aria-hidden />} />
+				<Button
+					variant="primary"
+					size="sm"
+					label={confirmLabel}
 					disabled={!value.trim()}
 					onClick={onSubmit}
-					className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:opacity-45"
-				>
-					<Check size={13} strokeWidth={2.2} aria-hidden />
-				</button>
+					icon={<Check size={13} strokeWidth={2.2} aria-hidden />}
+				/>
 			</div>
 		</div>
 	);

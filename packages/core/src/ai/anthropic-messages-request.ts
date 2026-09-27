@@ -9,7 +9,6 @@
  */
 
 import type { AssistantMessage, Message, ToolResultMessage, ToolSpec, UserContent } from "../types.ts";
-import { isEnvironmentMessage } from "../prompt/environment.ts";
 
 /**
  * One block of content, in the wire shape.
@@ -90,8 +89,6 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 	 */
 	let run: AnthropicMessage | undefined;
 	let runHoist: AnthropicBlock[] = [];
-	/** 每次请求都不一样、下一次也不会原样出现的消息——缓存断点不放在它们上面。见 `applyPromptCaching`。 */
-	const volatile = new Set<AnthropicMessage>();
 	const closeRun = (): void => {
 		if (run && runHoist.length > 0) run.content.push(...runHoist);
 		run = undefined;
@@ -104,11 +101,7 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 			closeRun();
 			const blocks = toContentBlocks(message.content, vision);
 			if (blocks.length > 0) {
-				const wire: AnthropicMessage = { role: "user", content: blocks };
-				out.push(wire);
-				// 末尾的 `<env>` 日期块不进日志，下一次请求时已不在原位：断点放在它上面，写进缓存的前缀
-				// 下一次永远匹配不上，两个滚动断点白白废掉一个。
-				if (isEnvironmentMessage(message)) volatile.add(wire);
+				out.push({ role: "user", content: blocks });
 			}
 			continue;
 		}
@@ -155,7 +148,7 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 	}
 	closeRun();
 
-	applyPromptCaching(out, options.cacheBreakpoints ?? 0, volatile);
+	applyPromptCaching(out, options.cacheBreakpoints ?? 0);
 	return out;
 }
 
@@ -264,12 +257,10 @@ function untrustedSignatures(message: AssistantMessage, isLatest: boolean): "non
  * 放的块，找不到就跳过这条消息，而不是硬放在最后一个块上。（`fallback` / `tool_addition` /
  * `tool_removal` 我们不会编出来，一起列上是因为块类型是开放的，将来多一种不该被这里悄悄放坏。）
  */
-function applyPromptCaching(messages: AnthropicMessage[], breakpoints: number, volatile: ReadonlySet<AnthropicMessage>): void {
+function applyPromptCaching(messages: AnthropicMessage[], breakpoints: number): void {
 	if (breakpoints <= 0) return;
 	let placed = 0;
 	for (let at = messages.length - 1; at >= 0 && placed < breakpoints; at--) {
-		// 每次都变的末尾消息跳过：以它结尾的前缀下一次用不上。见 `isEnvironmentMessage`。
-		if (volatile.has(messages[at])) continue;
 		const blocks = messages[at].content;
 		for (let i = blocks.length - 1; i >= 0; i--) {
 			const block = blocks[i];

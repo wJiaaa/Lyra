@@ -104,7 +104,7 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 packages/
   core/              agent kernel: providers, loop, tools, skills, MCP, session store
   desktop/           Electron app (main process + preload + React renderer)
-  contract/          the line between the two processes; 219 methods in one place
+  contract/          the line between the two processes; 221 methods in one place
   registry-shared/   plugin catalog index format, shared by desktop and the catalog service
 ```
 
@@ -155,24 +155,21 @@ Every control under Settings → Appearance actually changes the UI, by overridi
 
 ## System prompt
 
-The structure follows [pi](https://github.com/earendil-works/pi):
-
 ```
 identity (one sentence)
-Available tools:      one-line snippet per tool
-Guidelines:           base rules plus each loaded tool's own rules
+Guidelines:           how to talk and work, true for the whole session
 Boundaries:           lines that must not be crossed
-Environment:          platform, whether this is a git repo, date, model
+Environment:          platform, shell, whether this is a git repo, model
 <available_skills>    name / description / directory, no body
-<available_subagents> name / description / tools
+<available_subagents> name / description / tools, only when `task` is loaded
 <project_context>     AGENTS.md and the other project files, wrapped in XML
 Current working directory: …
 ```
 
 What matters:
 
-- Rules hang off the tool that contributed them (`Tool.guidelines`). A session without `bash` never sees shell advice, and never keeps stale advice around.
-- The prompt only carries the one-line `snippet`. The full `description` goes out as the provider's tool schema, so the same text is not paid for twice.
+- Tools are not listed in the prompt. How to use a tool is written once, in that tool's `description`, which goes out with the provider's tool schema — a tool that is not loaded leaves nothing behind.
+- What never changes comes first and what changes per machine, project or session comes later, so the cached prefix is as long as it can be.
 - Skills list name, description, and directory. The body arrives when the model calls `skill`.
 - The sub-agent list is required. Without it the model does not know the values of `subagent_type`, and a request for `explore` falls back to `general` (measured).
 - `<` and `&` in a skill description are escaped, so a hostile `description` cannot close an XML tag and inject instructions.

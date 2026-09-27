@@ -24,6 +24,7 @@ import { useTerminals } from "../../store/terminals.ts";
 import { bridge } from "../../services/index.ts";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
 import { useTerminalScope } from "./scope.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function TerminalTabs() {
 	const tabs = useTerminals((s) => s.tabs);
@@ -115,15 +116,7 @@ export function TerminalTabs() {
 			</Sideways>
 
 			{/* Outside the scroller: "open another" must not be the thing that scrolls out of reach. */}
-			<button
-				type="button"
-				aria-label={translate("terminal.new")}
-				data-ly-tip={translate("terminal.new")}
-				onClick={() => void openAnother()}
-				className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-			>
-				<Plus size={13} strokeWidth={2} />
-			</button>
+			<IconButton size="sm" label={translate("terminal.new")} onClick={() => void openAnother()} icon={<Plus size={13} strokeWidth={2} />} />
 		</div>
 	);
 }

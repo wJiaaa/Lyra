@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "../../i18n/index.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
  * 忽略过的，按「项目 + 待审的那几条」记，活在这次运行里。
@@ -65,18 +66,15 @@ export function HookTrustBanner({ className = "" }: { className?: string }) {
 					>
 						{t("hooks.review")}
 					</button>
-					<button
-						type="button"
+					<IconButton
+						size="sm"
+						label={t("hooks.dismiss")}
 						onClick={() => {
 							dismissed.add(pending.key);
 							setPending({ ...pending });
 						}}
-						data-ly-tip={t("hooks.dismiss")}
-						aria-label={t("hooks.dismiss")}
-						className="shrink-0 rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-					>
-						<X size={12} strokeWidth={2} />
-					</button>
+						icon={<X size={12} strokeWidth={2} />}
+					/>
 				</div>
 			</div>
 		</div>

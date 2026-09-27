@@ -15,6 +15,8 @@ import { RulesSettings } from "./RulesSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 type Tab = ExtensionsTab;
 
@@ -130,24 +132,12 @@ export function ExtensionsSettings() {
 				</div>
 
 				<div className="flex shrink-0 items-center gap-2 pt-1">
-					<button
-						type="button"
-						onClick={browse}
-						className="grid place-items-center h-[30px] rounded-lg border border-line text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:border-ink-faint hover:text-ink w-[30px]"
-			data-ly-tip={t("extensions.browseMarket")}
-			aria-label={t("extensions.browseMarket")}
-		><Store size={13} strokeWidth={1.8} /></button>
+					<Button label={t("extensions.browseMarket")} onClick={browse} icon={<Store size={13} strokeWidth={1.8} />} />
 					{/* 同插件页那颗：开单子的入口留字，箭头跟着开合转身。 */}
-					<button
-						type="button"
-						onClick={add.toggle}
-						aria-haspopup="menu"
-						aria-expanded={add.open}
-						className="flex h-[30px] items-center gap-1 rounded-lg bg-ink px-3 text-label font-medium text-shell transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90"
-					>
+					<Button variant="primary" menu={add.open} onClick={add.toggle}>
 						{t("mcp.add")}
 						<Caret open={add.open} size={13} />
-					</button>
+					</Button>
 				</div>
 			</header>
 
@@ -215,16 +205,13 @@ export function ExtensionsSettings() {
 				 * thing (act on the tab, not on a row), and one ⋯ that changes contents is where that
 				 * kind of thing goes.
 				 */}
-				<button
-					type="button"
-					aria-label={t("common.more")}
-					aria-haspopup="menu"
-					aria-expanded={more.open}
+				<IconButton
+					label={t("common.more")}
+					menu={more.open}
 					onClick={more.toggle}
-					className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink aria-expanded:bg-card-hover aria-expanded:text-ink"
-				>
-					<MoreHorizontal size={15} strokeWidth={1.9} />
-				</button>
+					className="aria-expanded:bg-card-hover aria-expanded:text-ink"
+					icon={<MoreHorizontal size={15} strokeWidth={1.9} />}
+				/>
 			</div>
 
 			{more.open && (

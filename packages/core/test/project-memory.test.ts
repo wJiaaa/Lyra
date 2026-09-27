@@ -177,7 +177,7 @@ test("the injected block tells the model what to do when memory and code disagre
 test("each lesson carries the date it was written — age is what lets a model discount it", () => {
 	/*
 	 * 日期而不是「3 天前」：这段在 system prompt 里，相对年龄会随时间自己变，每变一次整段对话的缓存
-	 * 就作废一次。今天几号由末尾的 `<env>` 给。
+	 * 就作废一次。今天几号由 `<env>` 日期块给。
 	 */
 	const block = formatProjectMemory([
 		{ text: "用 pnpm", at: new Date(2026, 5, 7, 9).getTime() },

@@ -242,8 +242,13 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 		},
 		source: "builtin",
 	},
+	/*
+	 * 描述是模型挑人时读的原文。以前写「边界清楚的小改动」，等于邀请它把一两步就能做完的活也派出去
+	 * ——派一次的成本是一整轮从零开始的运行，小活自己做永远更便宜。它值得存在的场合是量大而机械的活，
+	 * 交给便宜的模型批量做完。
+	 */
 	{
-		name: "simple", description: "边界清楚的小改动，直接做完", model: "@fast", tools: "*", source: "builtin",
+		name: "simple", description: "量大但机械、边界清楚的改动，交给便宜模型批量做完", model: "@fast", tools: "*", source: "builtin",
 		systemPrompt: "Complete the delegated task efficiently. Read the necessary context, make only requested changes, verify them and report the result concisely.",
 	},
 	{

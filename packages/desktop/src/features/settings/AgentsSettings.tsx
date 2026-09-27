@@ -1,19 +1,21 @@
 import { BUILTIN_AGENTS } from "@lyra/core/agents-builtin";
 import type { Settings } from "@lyra/core";
 import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@lyra/core/model-roles";
-import { resolveModelThinkingOptions } from "@lyra/core/thinking-options";
+import { resolveModelThinkingOptions, resolveThinkingOption } from "@lyra/core/thinking-options";
 import { AlertCircle, Bot, Brain, Plus, Copy, RefreshCcw, RotateCcw, Search, Trash2, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";
 import { InlineSelect } from "./controls.tsx";
 import { ModelSelect } from "../models/index.ts";
-import { AGENT_PRIMARY_BUTTON, AgentDefinitionEditor } from "./AgentDefinitionEditor.tsx";
+import { AgentDefinitionEditor } from "./AgentDefinitionEditor.tsx";
 import { useAgentDefinitions } from "./useAgentDefinitions.ts";
 import type { AgentDefinitionRecord } from "@lyra/core";
 import { bridge } from "../../services/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -24,9 +26,6 @@ type Agent = AgentCapabilities["agents"][number];
  * 没有描边的浅面，行与行之间一道半透明的线，点一行进编辑。颜色取自 `[data-agent-settings]`
  * 上的几个变量，见 `styles/fields.css`。
  */
-
-/** ZCode 的 ghost 图标按钮：28px、8px 圆角，悬停垫一层薄纱。 */
-const ICON_BUTTON = "grid size-7 shrink-0 place-items-center rounded-lg text-ink transition-colors duration-[var(--ly-t-quick)] hover:bg-[var(--ly-agent-hover)] disabled:pointer-events-none disabled:opacity-50";
 
 export function AgentsSettings() {
 	const { t } = useI18n();
@@ -134,7 +133,7 @@ export function AgentsSettings() {
 						<Input type="search" value={query} aria-label={t("agents.search")} placeholder={t("agents.search")} onChange={(event) => setQuery(event.target.value)}
 							onKeyDown={(event) => { if (event.key === "Escape" && query) { event.stopPropagation(); setQuery(""); } }}
 							className={`h-9 w-full rounded-xl border border-[var(--ly-agent-line)] bg-float pl-9 text-label text-ink outline-none transition-colors placeholder:text-ink-faint hover:border-[var(--ly-agent-line-hover)] focus:border-[var(--ly-agent-line-hover)] [&::-webkit-search-cancel-button]:appearance-none ${query ? "pr-9" : "pr-3"}`} />
-						{query && <button type="button" aria-label={t("common.clearSearch")} data-ly-tip={t("common.clear")} className="absolute top-1/2 right-1 grid size-6 -translate-y-1/2 place-items-center rounded-full text-ink-muted transition-colors hover:bg-[var(--ly-agent-hover)]" onClick={() => setQuery("")}><X size={14} aria-hidden /></button>}
+						{query && <span className="absolute top-1/2 right-1 -translate-y-1/2"><IconButton label={t("common.clear")} onClick={() => setQuery("")} icon={<X size={14} aria-hidden />} /></span>}
 					</div>
 				</div>
 
@@ -146,17 +145,15 @@ export function AgentsSettings() {
 					<section className={needle && installed.length === 0 ? "hidden" : "space-y-4"}>
 						<GroupHeader title={t("agents.groupInstalled")} count={installed.length}>
 							<div className="flex flex-wrap items-center gap-2">
-								<button type="button" aria-label={t("common.refresh")} data-ly-tip={t("common.refresh")} disabled={catalogue.busy} onClick={() => void catalogue.refresh()}
-									className="grid size-7 place-items-center rounded-lg border border-[var(--ly-agent-line)] text-ink transition-colors duration-[var(--ly-t-quick)] hover:border-[var(--ly-agent-line-hover)] hover:bg-float/50 disabled:pointer-events-none disabled:opacity-50">
-									{catalogue.busy ? <ActionSpinner size={14} /> : <RefreshCcw size={16} aria-hidden />}
-								</button>
-								<button type="button" className={`${AGENT_PRIMARY_BUTTON} h-7 pr-2 pl-1.5`} onClick={create}><Plus size={14} aria-hidden />{t("common.new")}</button>
+								<Button size="sm" label={t("common.refresh")} disabled={catalogue.busy} onClick={() => void catalogue.refresh()}
+									icon={catalogue.busy ? <ActionSpinner size={14} /> : <RefreshCcw size={16} aria-hidden />} />
+								<Button variant="primary" size="sm" icon={<Plus size={14} aria-hidden />} onClick={create}>{t("common.new")}</Button>
 							</div>
 						</GroupHeader>
 						{installed.length > 0 ? <AgentList>{installed.map(row)}</AgentList> : <EmptyBox>
 							<span className="text-label font-medium text-ink">{t("agents.empty")}</span>
 							<span className="text-caption text-ink-muted">{t("agents.emptyDetail")}</span>
-							<button type="button" className={`${AGENT_PRIMARY_BUTTON} h-8 pr-2.5 pl-2`} onClick={create}><Plus size={16} aria-hidden />{t("common.new")}</button>
+							<Button variant="primary" icon={<Plus size={16} aria-hidden />} onClick={create}>{t("common.new")}</Button>
 						</EmptyBox>}
 					</section>
 					{builtin.length > 0 && <section className="space-y-4">
@@ -239,10 +236,9 @@ function AgentRow({ agent, record, highlighted, disabled, controls, edit, copy, 
 			<div className="pointer-events-none relative col-span-2 flex min-w-0 flex-wrap items-center justify-end gap-2 @2xl:col-span-1 [&>*]:pointer-events-auto">
 				{controls}
 				<div className="flex items-center gap-1">
-					{copy && <button type="button" aria-label={t("agents.duplicateFor", { name })} data-ly-tip={t("agents.duplicateFor", { name })} disabled={disabled} className={ICON_BUTTON} onClick={copy}><Copy size={14} aria-hidden /></button>}
-					{remove && record && <button type="button" aria-label={record.customized ? t(record.scope === "project" ? "agents.removeOverrideFor" : "agents.restoreFor", { name }) : t("agents.deleteFor", { name })}
-						data-ly-tip={record.customized ? t(record.scope === "project" ? "agents.removeOverrideFor" : "agents.restoreFor", { name }) : t("agents.deleteFor", { name })}
-						disabled={disabled} className={ICON_BUTTON} onClick={remove}>{record.customized ? <RotateCcw size={14} aria-hidden /> : <Trash2 size={14} aria-hidden />}</button>}
+					{copy && <IconButton label={t("agents.duplicateFor", { name })} disabled={disabled} onClick={copy} icon={<Copy size={14} aria-hidden />} />}
+					{remove && record && <IconButton label={record.customized ? t(record.scope === "project" ? "agents.removeOverrideFor" : "agents.restoreFor", { name }) : t("agents.deleteFor", { name })}
+						disabled={disabled} onClick={remove} icon={record.customized ? <RotateCcw size={14} aria-hidden /> : <Trash2 size={14} aria-hidden />} />}
 				</div>
 			</div>
 		</div>
@@ -274,7 +270,7 @@ function AgentModelControls({ agent, settings, mainModelId, disabled, onChange }
 	const invalid = profile.modelId && !selected;
 	const invalidThinking = profile.thinking && levels.length > 0 && !levels.some((level) => level.id === profile.thinking);
 	const inheritedThinking = profile.modelId ? settings.thinking : inherited?.thinking ?? settings.thinking;
-	const defaultThinking = levels.find((level) => level.id === inheritedThinking) ?? levels.find((level) => level.isDefault) ?? levels[0];
+	const defaultThinking = resolveThinkingOption(inheritedThinking, current?.model);
 
 	return (
 		<fieldset disabled={disabled} aria-label={t("agents.runConfig", { name: agent.name })} className="m-0 flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2 border-0 p-0 disabled:opacity-60 [&>button]:max-w-full">

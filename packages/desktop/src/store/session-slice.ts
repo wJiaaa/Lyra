@@ -29,7 +29,7 @@ type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>
  * under the app's home. Neither is a project, and the difference has to be made here because by the
  * time you are looking at a session all you have is a path.
  */
-function isProjectLess(cwd: string, scratchRoots: string[]): boolean {
+export function isProjectLess(cwd: string, scratchRoots: string[]): boolean {
 	return scratchRoots.some((root) => root !== "" && isDescendantPath(root, cwd));
 }
 

@@ -4,6 +4,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Composer } from "../composer/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
+import { useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
 /*
@@ -22,8 +23,8 @@ const MARK_BLOCK = { compact: 104 + 24, regular: 132 + 24 };
 
 export function EmptyState() {
 	const { t } = useI18n();
-	const scratchCwd = useApp((s) => s.scratchCwd);
-	const workspace = useApp((s) => s.workspace);
+	const sessionId = useScopedSessionId();
+	const { workspace, scratchCwd } = useScopedWorkspace();
 	const { compact } = useLayout();
 
 	/** No project behind this conversation, and that was the choice — see the composer's chip. */
@@ -102,7 +103,7 @@ export function EmptyState() {
 								 * message asking for an architecture tour, a new feature and a code
 								 * review at once.
 								 */
-								onClick={() => useApp.getState().setComposerDraft(t(prompt.promptKey), true)}
+								onClick={() => useApp.getState().setComposerDraft(t(prompt.promptKey), true, { target: sessionId })}
 								style={{ animationDelay: `${index * 65}ms` }}
 								className="ly-draft-chip group flex h-8 min-w-0 items-center gap-1.5 overflow-hidden rounded-lg border px-3 text-left"
 							>

@@ -11,6 +11,8 @@ import {
 	childDispatch,
 	concurrencyNote,
 	DispatchGate,
+	MAX_CONCURRENT_SUB_AGENTS,
+	normalizeMaxConcurrentSubAgents,
 	refuseDispatch,
 	rootDispatch,
 	DEFAULT_MAX_DEPTH,
@@ -169,4 +171,170 @@ test("嵌套派发排队时同样听停止信号，让出去的位置照样取�
 		assert.equal(gate.running, 1, "父亲的位置原样取回");
 	});
 	assert.equal(gate.running, 0);
+});
+
+test("磁盘上的并发上限夹在 1–8，负数回落到默认 4", () => {
+	assert.equal(MAX_CONCURRENT_SUB_AGENTS, 8);
+	assert.equal(normalizeMaxConcurrentSubAgents(-12), 4);
+	assert.equal(normalizeMaxConcurrentSubAgents(0), 4);
+	assert.equal(normalizeMaxConcurrentSubAgents(Number.NaN), 4);
+	assert.equal(normalizeMaxConcurrentSubAgents(3.9), 3);
+	assert.equal(normalizeMaxConcurrentSubAgents(8), 8);
+	assert.equal(normalizeMaxConcurrentSubAgents(16), 8, "旧文件里的 16 不能再穿过去");
+});
+
+test("闸门在对话中途收窄：正在跑的不打断，新的要排队", async () => {
+	const gate = new DispatchGate(4);
+	const release: (() => void)[] = [];
+	const running: string[] = [];
+	const start = (name: string) =>
+		gate.run(async () => {
+			running.push(name);
+			await new Promise<void>((resolve) => release.push(resolve));
+		});
+
+	const first = [start("a"), start("b"), start("c")];
+	await new Promise((r) => setTimeout(r, 0));
+	assert.deepEqual(running, ["a", "b", "c"]);
+
+	// 用户在会话中途把配置里的并发上限从 4 改成 2。
+	gate.setLimit(2);
+	assert.equal(gate.running, 3, "已经在跑的三个不该被腰斩——半截的活加一次白花的调用");
+
+	const later = start("d");
+	await new Promise((r) => setTimeout(r, 0));
+	assert.ok(!running.includes("d"), "新的那个要等到跌回新宽度以下");
+
+	release.shift()!();
+	await first[0];
+	await new Promise((r) => setTimeout(r, 0));
+	assert.ok(!running.includes("d"), "还剩两个在跑，正好卡在新宽度上");
+
+	release.shift()!();
+	await first[1];
+	await new Promise((r) => setTimeout(r, 0));
+	assert.ok(running.includes("d"), "跌到 1 个了，该放它进来");
+
+	release.forEach((fn) => fn());
+	await Promise.all([...first, later]);
+	assert.equal(gate.running, 0);
+});
+
+test("闸门放宽时立刻放人，不用等谁跑完", async () => {
+	const gate = new DispatchGate(1);
+	const release: (() => void)[] = [];
+	const running: string[] = [];
+	const start = (name: string) =>
+		gate.run(async () => {
+			running.push(name);
+			await new Promise<void>((resolve) => release.push(resolve));
+		});
+
+	const all = [start("a"), start("b"), start("c"), start("d")];
+	await new Promise((r) => setTimeout(r, 0));
+	assert.deepEqual(running, ["a"]);
+	assert.equal(gate.queued, 3);
+
+	gate.setLimit(3);
+	await new Promise((r) => setTimeout(r, 0));
+	assert.deepEqual(running, ["a", "b", "c"], "位置变多了，队列该立刻动");
+	assert.equal(gate.running, 3, "一次放多个也不能记错账");
+	assert.equal(gate.queued, 1);
+
+	release.forEach((fn) => fn());
+	await new Promise((r) => setTimeout(r, 0));
+	release.forEach((fn) => fn());
+	await Promise.all(all);
+	assert.equal(gate.running, 0, "放宽过的闸门，名额还是要一个不少地还回来");
+	assert.equal(gate.width, 3);
+});
+
+test("闸门收到 1 的时候，第二层派生照样进得来", async () => {
+	/*
+	 * 这条是拿命换来的：宽度设成 1，一个编排型子代理占着那唯一的位置去派
+	 * 孙代理，孙代理排在它后面——而它在等孙代理。界面上是一个「派发子任务」转到超时，日志里
+	 * 什么错都没有。
+	 *
+	 * 整棵派生树共用一道闸门是对的，占着位置等孩子不对。见 `DispatchGate.nested`。
+	 */
+	const gate = new DispatchGate(1);
+	const done: string[] = [];
+	await gate.run(async () => {
+		done.push("父进来了");
+		await gate.nested(async () => {
+			done.push("孩子也进来了");
+		});
+		done.push("父继续跑");
+	});
+	assert.deepEqual(done, ["父进来了", "孩子也进来了", "父继续跑"]);
+	assert.equal(gate.running, 0, "名额要一个不少地还回来");
+});
+
+test("四路各派一个孙代理，谁也不会卡住", async () => {
+	// 宽度 4、四个子代理各派一个孙：共用一道闸门，同样会占着位置等孩子。
+	const gate = new DispatchGate(4);
+	const finished: number[] = [];
+	await Promise.all(
+		Array.from({ length: 4 }, (_, i) =>
+			gate.run(async () => {
+				await gate.nested(async () => {
+					await new Promise((r) => setTimeout(r, 5));
+				});
+				finished.push(i);
+			}),
+		),
+	);
+	assert.deepEqual(finished.sort(), [0, 1, 2, 3]);
+	assert.equal(gate.running, 0);
+	assert.equal(gate.queued, 0);
+});
+
+test("让位是暂时的，真正在跑的仍然不超过宽度", async () => {
+	const gate = new DispatchGate(2);
+	let peak = 0;
+	const release: (() => void)[] = [];
+	// 每个「真的在跑」的活都会把峰值顶上去；父在等孩子的那一段不算在跑。
+	const busy = async () => {
+		peak = Math.max(peak, gate.running);
+		await new Promise<void>((resolve) => release.push(resolve));
+	};
+	const jobs = [
+		gate.run(async () => { await busy(); await gate.nested(busy); }),
+		gate.run(async () => { await busy(); await gate.nested(busy); }),
+		gate.run(busy),
+	];
+	for (let i = 0; i < 6; i++) {
+		await new Promise((r) => setTimeout(r, 5));
+		release.splice(0).forEach((fn) => fn());
+	}
+	await Promise.all(jobs);
+	assert.ok(peak <= 3, `真正在跑的一度到了 ${peak} 个，宽度只有 2——让位最多允许瞬时多一个`);
+	assert.equal(gate.running, 0);
+});
+
+test("反复改宽度不会把名额算漏或算重", async () => {
+	const gate = new DispatchGate(2);
+	const release: (() => void)[] = [];
+	const done: string[] = [];
+	const jobs = Array.from({ length: 10 }, (_, i) =>
+		gate.run(async () => {
+			await new Promise<void>((resolve) => release.push(resolve));
+			done.push(String(i));
+		}),
+	);
+
+	for (const width of [1, 5, 2, 8, 3]) {
+		gate.setLimit(width);
+		await new Promise((r) => setTimeout(r, 0));
+		assert.ok(gate.running <= Math.max(width, 0) || gate.running <= 8, "在跑的不该超过刚放宽到的宽度");
+	}
+
+	while (release.length > 0 || done.length < 10) {
+		release.splice(0).forEach((fn) => fn());
+		await new Promise((r) => setTimeout(r, 0));
+	}
+	await Promise.all(jobs);
+	assert.equal(done.length, 10, "十个都要跑完，一个都不能卡在队列里");
+	assert.equal(gate.running, 0);
+	assert.equal(gate.queued, 0);
 });

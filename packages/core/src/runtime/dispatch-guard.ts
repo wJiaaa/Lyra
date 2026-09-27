@@ -22,6 +22,28 @@
 
 /** How many sub-agents may run at once. Beyond this they queue. */
 const DEFAULT_MAX_CONCURRENT = 4;
+
+/**
+ * Hard ceiling on how many sub-agents may run at once.
+ *
+ * Eight is already a lot: each one is a full model run with its own context. Sixteen used to be
+ * the stored cap, and a setting that means "how many at once" should not become a number nobody
+ * would pick on purpose. The gate and the settings file both read this same constant.
+ */
+export const MAX_CONCURRENT_SUB_AGENTS = 8;
+
+/**
+ * What the settings file is allowed to mean by `maxConcurrentSubAgents`.
+ *
+ * Anything below 1 is not a concurrency, so it falls back to the default rather than being stored
+ * as 0 or a negative. Anything above the ceiling is cut down to it, including a 16 that an older
+ * build would have accepted.
+ */
+export function normalizeMaxConcurrentSubAgents(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) && value >= 1
+		? Math.min(MAX_CONCURRENT_SUB_AGENTS, Math.floor(value))
+		: DEFAULT_MAX_CONCURRENT;
+}
 /** How deep dispatch may nest. The main conversation is 0. */
 export const DEFAULT_MAX_DEPTH = 2;
 
@@ -108,9 +130,9 @@ export class DispatchGate {
 	/**
 	 * 改宽度，因为这个数字会在会话中途变。
 	 *
-	 * 闸门是会话级的（见 `turn-config.ts` 里的 `dispatchGate`），而决定它多宽的东西是每一轮的
-	 * 推理等级——用户在对话进行到一半时把等级从高调到中，如果闸门还是开会话那一刻的宽度，那次
-	 * 调整就只改了提示词里的一句话，没改它管的那件事。
+	 * 闸门是会话级的（见 `turn-config.ts` 里的 `dispatchGate`），而决定它多宽的 `maxConcurrentSubAgents`
+	 * 可能在对话进行到一半时被改掉——如果闸门还是开会话那一刻的宽度，那次调整就只改了提示词里的
+	 * 一句话，没改它管的那件事。
 	 *
 	 * 收窄不打断已经在跑的：一个跑到一半的子代理被腰斩，换来的只是一份半截的工作和一次白花的
 	 * 调用。新的宽度从下一个想进来的开始生效，这也是排队本来的语义。放宽要主动放人进来，否则
@@ -181,9 +203,7 @@ export class DispatchGate {
 	 * 一个死锁：闸门开到 1 的时候，第二层永远进不来，整棵树停在那里，界面上是一个「派发子任务」
 	 * 转到超时。
 	 *
-	 * 这个坑一直都在——四个子代理各派一个孙代理，`limit` 是 4，同样谁也进不去。以前很少撞上，
-	 * 是因为默认宽度是 4 而模型很少真的铺开两层。推理等级把宽度收到 1 之后，它从「很少」变成了
-	 * 「必然」。
+	 * 四个子代理各派一个孙代理、`limit` 是 4，同样谁也进不去；宽度设成 1 时则是必然。
 	 *
 	 * 让出的位置不主动放给队列，是留给孩子的：它下一行就要进来，而这个位置本来就是它父亲的。
 	 * 取回的时候不排队，无条件加回去——排队等的可能正是自己刚让出去的那个位置，而那个位置上的人

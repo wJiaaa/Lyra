@@ -19,6 +19,7 @@ import { ArrowLeftRight, ChevronRight, CircleAlert, CircleCheck, Play, Settings2
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { describeHiccup, hiccupTip, type Hiccup } from "../../lib/hiccup.ts";
 import { useApp } from "../../store/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /** 等待时每秒重画一次，就为了那个数字；不等待时一次都不用。 */
 function useTick(active: boolean): number {
@@ -161,25 +162,23 @@ function Next({ hint }: { hint?: string }) {
 
 	if (hint === "check-key" || hint === "check-model") {
 		return (
-			<button
-				type="button"
-				data-ly-tip={translate("common.goSettings")}
-				aria-label={translate("common.goSettings")}
+			<IconButton
+				size="sm"
+				label={translate("common.goSettings")}
 				onClick={() => {
 					setView("settings");
 					setSettingsSection("models");
 				}}
-				className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-			>
-				<Settings2 size={11.5} strokeWidth={1.9} aria-hidden />
-			</button>
+				icon={<Settings2 size={11.5} strokeWidth={1.9} aria-hidden />}
+			/>
 		);
 	}
 	if (hint) return null;
 	return (
-		<button
-			type="button"
-			data-ly-tip={translate("composer.finishUnfinished")}
+		<IconButton
+			size="sm"
+			label={translate("composer.finishUnfinished")}
+			ariaLabel={translate("common.continue")}
 			/* Same hook as `ResumeRow`'s: these two are one entry point wearing two rows, and which
 			   of them is on screen depends on whether the failure was already reported above. */
 			data-resume-continue
@@ -193,10 +192,7 @@ function Next({ hint }: { hint?: string }) {
 			 * leg. `ResumeRow` has always sent the constant; this row is the same act and was not.
 			 */
 			onClick={() => void send([{ type: "text", text: carryOnPrompt("error", 0) ?? CARRY_ON_PROMPTS[1] }], { synthetic: true, carryOn: true })}
-			aria-label={translate("common.continue")}
-			className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-		>
-			<Play size={11} strokeWidth={2} fill="currentColor" aria-hidden />
-		</button>
+			icon={<Play size={11} strokeWidth={2} fill="currentColor" aria-hidden />}
+		/>
 	);
 }

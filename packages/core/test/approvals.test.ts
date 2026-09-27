@@ -178,3 +178,38 @@ test("full 模式不问读取，和它从不问 bash 是同一件事", async () 
 	assert.equal(await full.request({ ...readRequest }), "once");
 	assert.equal(asked.length, 0);
 });
+
+test("auto 模式下提权请求一律问人，「总是允许」也只管这一次", async () => {
+	/*
+	 * 策略看到的 subject 是 `escalate:danger-full-access:ls`，它把整串当成一个没见过的程序名，
+	 * 以前会判成不 risky 直接放行——模型给自己批了一次不受沙箱约束的运行。
+	 */
+	const remembered: string[] = [];
+	const asked: string[] = [];
+	const instance = new ApprovalGate({
+		mode: () => "auto",
+		cwd: () => "/Users/me/project",
+		ask: async (pending) => void asked.push(pending.id),
+		remember: (subject) => void remembered.push(subject),
+		unattendedTimeoutMs: 5_000,
+	});
+	const escalation: ApprovalRequest = {
+		kind: "bash",
+		title: "提权运行：ls",
+		detail: "ls",
+		subject: "escalate:danger-full-access:ls",
+		escalation: "danger-full-access",
+	};
+	const first = instance.request({ ...escalation });
+	await new Promise((r) => setTimeout(r, 10));
+	assert.equal(asked.length, 1, "策略替人答了提权");
+	instance.resolve(instance.list()[0].id, "always");
+	assert.equal(await first, "once");
+	assert.deepEqual(remembered, [], "提权的批准不能被记下来");
+
+	const second = instance.request({ ...escalation });
+	await new Promise((r) => setTimeout(r, 10));
+	assert.equal(asked.length, 2, "同一条提权下次还要再问");
+	instance.resolve(instance.list()[0].id, "reject");
+	assert.equal(await second, "reject");
+});

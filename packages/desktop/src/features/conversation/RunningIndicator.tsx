@@ -5,7 +5,7 @@ import { useCountUp } from "../../ui/primitives/useCountUp.ts";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
 import { useApp } from "../../store/index.ts";
-import { useScopedApprovals } from "../../app/session-scope.tsx";
+import { useScopedApprovals, useScopedMessages, useScopedSessionId, useScopedToolRuns } from "../../app/session-scope.tsx";
 import { freshTokens } from "@lyra/core/tokens";
 import { formatTokens } from "../../lib/format-tokens.ts";
 import { useLiveRate, useProducedChars } from "./useLiveRate.ts";
@@ -34,11 +34,19 @@ const TOOL_HOLD_MS = 2000;
 const COMPACTED_NOTICE_MS = 8000;
 
 export function RunningIndicator() {
-	const startedAt = useApp((s) => s.turnStartedAt);
-	const tokens = useApp((s) => s.turnTokens);
-	const messages = useApp((s) => s.messages);
-	const retrying = useApp((s) => s.retrying);
-	const compactedAt = useApp((s) => s.compactedAt);
+	/*
+	 * This screen's turn. The live fields are the focused conversation's, and a second screen whose
+	 * conversation was also running showed that one's clock, tokens and tool under its own transcript.
+	 * Another screen's turn is read from `turns`, which `apply-event` keeps for every session.
+	 */
+	const id = useScopedSessionId();
+	const onStage = useApp((s) => id === s.activeSessionId);
+	const startedAt = useApp((s) => (onStage ? s.turnStartedAt : id ? (s.turns[id]?.startedAt ?? null) : null));
+	const tokens = useApp((s) => (onStage ? s.turnTokens : id ? (s.turns[id]?.tokens ?? 0) : 0));
+	const messages = useScopedMessages();
+	const retrying = useApp((s) => (onStage ? s.retrying : id ? (s.sessionCache[id]?.state?.retrying ?? null) : null));
+	const compactedAt = useApp((s) => (onStage ? s.compactedAt : null));
+	const toolRuns = useScopedToolRuns();
 	const waiting = useScopedApprovals()[0];
 	const waitingKind = !waiting ? null : waiting.kind === "interactive" ? "question" : "approval";
 	const [now, setNow] = useState(() => Date.now());
@@ -59,15 +67,15 @@ export function RunningIndicator() {
 	 * running" answer. The window is applied in the component rather than here: a selector only
 	 * re-runs when the store changes, and nothing changes when a hold quietly expires.
 	 */
-	const doing = useApp((s) => {
-		const runs = Object.values(s.toolRuns);
+	const doing = (() => {
+		const runs = Object.values(toolRuns);
 		const running = runs.filter((run) => run.status === "running").sort((a, b) => b.startedAt - a.startedAt)[0];
 		if (running) return `${running.toolName}\u0000${running.summary}\u0000`;
 		const finished = runs
 			.filter((run) => run.finishedAt !== undefined)
 			.sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))[0];
 		return finished ? `${finished.toolName}\u0000${finished.summary}\u0000${finished.finishedAt}` : "";
-	});
+	})();
 	/**
 	 * Whether the answer is being typed out, as opposed to being thought about.
 	 *
@@ -75,12 +83,12 @@ export function RunningIndicator() {
 	 * `text` is the reply arriving. From the outside both look like "no tool is running", and they
 	 * are the two halves the silence is actually made of.
 	 */
-	const writing = useApp((s) => {
-		const last = s.messages[s.messages.length - 1];
+	const writing = (() => {
+		const last = messages[messages.length - 1];
 		if (last?.role !== "assistant" || last.stopReason !== "pending") return false;
 		const block = last.content[last.content.length - 1];
 		return block?.type === "text" && block.text.length > 0;
-	});
+	})();
 	// 这一轮此刻产出了多少字——主 Agent 的加上委派出去的。抽在 `useLiveRate.ts` 里，那里说明了为什么。
 	const producedChars = useProducedChars();
 

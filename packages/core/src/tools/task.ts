@@ -1,6 +1,5 @@
 import { errorResult } from "../agent/tool-run.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
-import { DELEGATION_KEY, dispatchAllowed, type DelegationDecision } from "../runtime/delegation.ts";
 import { DISPATCH_KEY, refuseDispatch, rootDispatch, type DispatchContext } from "../runtime/dispatch-guard.ts";
 import type { SubAgentRegistry } from "../runtime/sub-agents.ts";
 import type { SubAgentAnswer, Tool, ToolResult } from "../types.ts";
@@ -22,21 +21,26 @@ interface TaskArgs {
  *
  * The point is context isolation: a search that reads forty files returns one paragraph to
  * the parent instead of forty file dumps.
+ *
+ * 什么活值得派，写在描述里，而且是固定的一段：不随推理等级、设置或这一轮说了什么变化。以前这件事
+ * 放在系统提示里按推理等级换五种说法，档位变一次，提示词就要补发一次增量；而高档那几句「可以主动
+ * 派」「放开编排」只说了倾向、没说标准，量到的是主代理把「给刚写的函数补测试」也派了出去——为了派，
+ * 先在推理里把接口约定一条条写死，子代理从零开始又设计一遍。
  */
 export const taskTool: Tool<TaskArgs> = {
 	name: "task",
-	snippet: "Delegate work to a sub-agent with its own context",
-	guidelines: [
-		"Use task for open-ended searches across many files, so their contents never enter your own context.",
-		"The sub-agent cannot ask you questions; put everything it needs in the prompt.",
-		"A sub-agent that stopped before finishing keeps its context. Continue it with `resume` instead of dispatching the same work again — a new one starts from zero and re-reads everything.",
-	],
 	description:
 		"Run a sub-agent with its own context window and report back only its final answer. " +
-		"Use it for open-ended searches across many files, or for work whose intermediate output you do not need. " +
+		"A sub-agent starts from nothing: it cannot see your context, the prompt you write is all it knows, and what it reads and thinks never reaches you — only its conclusion does. " +
+		"So two kinds of work are worth delegating: work whose intermediate output is large and whose conclusion is all you need (sweeping dozens of files for one answer, running something with long output to get its failures), " +
+		"and a sizeable piece of work that does not depend on what you are doing. " +
+		"Do everything else yourself: a change you can make in a step or two, part of what you are writing right now (such as tests for the function you just wrote), " +
+		"or work you could only hand off after spelling out its interfaces and conventions — spelling those out costs as much as doing it. " +
+		"When you run several at once, have each skip builds, lints and tests and verify once yourself at the end; pieces that need a shared interface which does not exist yet are not independent — write the interface first, or do not split. " +
 		"The sub-agent cannot ask you questions, so put everything it needs in `prompt`. " +
 		"Each call starts a fresh sub-agent with an empty context, unless you pass `resume` with the id of one you dispatched earlier: " +
-		"then that same sub-agent continues with everything it already read and did, and `prompt` is what you tell it next.",
+		"then that same sub-agent continues with everything it already read and did, and `prompt` is what you tell it next. " +
+		"A sub-agent that stopped before finishing keeps its context: continue it with `resume` rather than dispatching the same work again.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -88,7 +92,7 @@ export const taskTool: Tool<TaskArgs> = {
 			const available = agents.length > 0 ? agents.map((a) => a.name).join(", ") : "none are defined in this session";
 			return errorResult(`Unknown subagent_type "${requested}". Available: ${available}.`);
 		}
-		// 名字只在认出来的时候可信；没认出来的续跑，下面两道按名字的关卡交给 `runSubAgent`。
+		// 名字只在认出来的时候可信；没认出来的续跑，下面按名字的那道关卡交给 `runSubAgent`。
 		const named = !resuming || found !== undefined;
 
 		/*
@@ -102,26 +106,6 @@ export const taskTool: Tool<TaskArgs> = {
 		 */
 		const refusal = named ? refuseDispatch((ctx.state.get(DISPATCH_KEY) as DispatchContext | undefined) ?? rootDispatch(), requested) : null;
 		if (refusal) return errorResult(refusal);
-
-		/*
-		 * 关掉派活的那一档，唯一的一道闸。
-		 *
-		 * `task` 一直在工具表里（按轮增减会让缓存前缀失效，见 `prompt-context.ts`），所以没人点名的
-		 * 派发、以及用户点名了 `@explore` 而模型顺手又派了两个没人点过的，都在这里拦。没有这道，
-		 * 「只派点名的那个」就只是提示词里的一句请求，而这一档的用户恰恰是最不希望它只是一句请求
-		 * 的人。
-		 *
-		 * 没登记过决定的会话（CLI、测试）一律放行：`undefined` 在这里的意思是「这个宿主不管这件
-		 * 事」，不是「什么都不许派」。
-		 */
-		const decision = ctx.state.get(DELEGATION_KEY) as DelegationDecision | undefined;
-		if (named && !dispatchAllowed(decision, requested)) {
-			const named = decision?.mentioned ?? [];
-			return errorResult(
-				`用户把子代理关掉了，这一轮只放行他自己点名的${named.length > 0 ? `（${named.map((name) => `\`${name}\``).join("、")}）` : "那些，而这一轮他一个也没点"}。` +
-					`\`${requested}\` 不在其中——这件事自己做完，或者告诉用户为什么需要它，让他写 \`@${requested}\`。`,
-			);
-		}
 
 		try {
 			const answer = await ctx.spawnSubAgent({

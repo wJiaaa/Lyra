@@ -408,10 +408,9 @@ macOS 跳过；桌面构建、Markdown 链接检查和 `git diff --check` 通过
 失效模型保留失效提示，保存失败可见。模型菜单上限 420px，设置中的普通下拉上限 340px，
 并受可用视口约束；不同供应商的同名模型在菜单与已选控件中都带供应商名。
 
-推理选项优先使用 ModelConfig.thinkingOptions（显式空数组表示没有选项），其次使用项目已有
-模型规则，未知 relay 别名使用兼容兜底。请求参数与界面读取同一能力列表，支持的档位保持原值，
-过期档位回到界面显示的模型默认值；修复了 terra 的 ultra 在请求中变成 max、自定义 Gemini
-档位被另一套推断规则覆盖，以及未知模型发送界面未提供档位的问题。编辑模型保留自定义等级、
+推理选项使用 ModelConfig.thinkingOptions（显式空数组表示没有选项），没有配置时用 off/low/medium/high
+四档（2026-09-27 起不再按模型名推断，见下文「pi 模型目录」）。请求参数与界面读取同一能力列表，支持的
+档位保持原值，模型没有的档位就近取。编辑模型保留自定义等级、
 采样参数、工具支持和缓存价格。Anthropic 的非标准档位可通过 ThinkingOption.budgetTokens
 声明预算；缺少有效预算时在请求前报配置错误，避免发送 NaN/null。没有对真实中转商的所有别名
 做能力探测，兼容兜底不等于这些供应商对各档位的支持承诺。
@@ -619,6 +618,15 @@ pi 目录按供应商端点列出模型，同一型号在不同端点的上限�
 与智谱官方。`core/src/model-catalog-format.ts` 把原始目录压成 Lyra 用到的几项并整份校验；四项价格全为
 0 的是订阅制端点，当作没有价格而不是免费。pi 目录只收编码代理用的对话模型，没有工具调用字段，
 填入时一律视为支持工具。
+
+思考档位来自 pi 条目的 `thinkingLevelMap`，按 pi 自己的 `getSupportedThinkingLevels` 折算：值为 `null`
+是不支持，缺省时 `xhigh`/`max` 不支持、其余支持；接口值和档位名不同的（Copilot 上 `minimal` 实际发
+`low`）不单列。填入时写成模型的 `thinkingOptions`，默认档是 medium 或离它最近的一档；编辑器里可以逐档
+勾选。列表里没有 `off` 表示这个模型关不掉思考。选中的档位模型没有时就近取（`thinking-options.ts` 的
+`resolveThinkingOption`），先往深找再往浅找，往浅不落到「关闭」，与 pi 的 `clampThinkingLevel` 一致；
+原先退回模型默认档，换模型后「最高」会降成「中」。原先按模型名写死的几张档位表与厂商实际能力对不上
+（给 gpt-5.6-sol 不存在的 `minimal`/`ultra`、给关不掉思考的 gpt-6-astra「关闭」），已删除。目录格式因此
+升到 schema 3，旧格式的缓存整份不认，下次同步重新拉取。
 
 自动匹配（`core/src/model-catalog.ts`，用于导入和编辑器里的建议条目）先找与 Base URL 相同端点下的
 同名模型（带不带 `/v1` 都能命中），再按型号家族找厂商官方条目和 OpenRouter 的参考值。完整型号优先于

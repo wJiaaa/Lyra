@@ -112,11 +112,11 @@ export interface AgentRunConfig {
 	/** Observe the effective request after pruning, compaction and overflow recovery. */
 	onContext?: (context: LlmContext, model: ModelConfig) => void;
 	/**
-	 * 每次请求都把 `<env>` 日期块接在最末尾，不放进 `messages`。
+	 * 每次请求都按历史渲染 `<env>` 日期块，跟在它所属的用户消息后面，不放进 `messages`。
 	 *
-	 * 给主会话用：它的历史每轮从日志重建，而日志里没有这条。只在一轮开头接一次的话，这一轮的回复
-	 * 都排在它后面，下一轮重建时它又不在了——前缀从那里断开，上一轮整段要重写缓存。子代理不开：
-	 * 它把带日期块的 `view` 原样存下来续跑，前缀本来就一致（见 `runtime/sub-agent.ts`）。
+	 * 给主会话用：它的历史每轮从日志重建，而日志里没有这条。渲染只看消息自己的时间戳，同一份历史
+	 * 每次得到同样的字节，前缀接得上（见 `prompt/environment.ts`）。子代理不开：它把带日期块的
+	 * `view` 原样存下来续跑，前缀本来就一致（见 `runtime/sub-agent.ts`）。
 	 */
 	environment?: boolean;
 	/**

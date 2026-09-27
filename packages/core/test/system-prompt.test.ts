@@ -4,7 +4,6 @@ import { buildSystemPrompt } from "../src/prompt/system.ts";
 import type { Skill } from "../src/skills/loader.ts";
 import { builtinTools } from "../src/tools/index.ts";
 import { BUILTIN_AGENTS } from "../src/tools/task.ts";
-import type { Tool } from "../src/types.ts";
 
 const BASE = {
 	cwd: "/tmp/project",
@@ -16,42 +15,22 @@ const BASE = {
 	today: "2026-08-09",
 };
 
-test("the tool inventory is one snippet line per tool", async () => {
+test("tools are not listed in the prompt: each tool describes itself in its schema", async () => {
 	const prompt = await buildSystemPrompt({ ...BASE, tools: builtinTools() });
 
+	assert.doesNotMatch(prompt, /Available tools/);
 	for (const tool of builtinTools()) {
-		assert.ok(prompt.includes(`- ${tool.name}: ${tool.snippet}`), `missing inventory line for ${tool.name}`);
-		// Full descriptions belong in the provider tool schema, not the prompt.
-		assert.ok(!prompt.includes(tool.description), `${tool.name} leaked its full description into the prompt`);
+		assert.ok(!prompt.includes(tool.description), `${tool.name} leaked its description into the prompt`);
 	}
 });
 
-test("guidelines come only from the tools that are loaded", async () => {
-	const withBash = await buildSystemPrompt({ ...BASE, tools: builtinTools() });
-	assert.match(withBash, /read over `cat`/);
+test("advice about a tool lives in that tool's description, not in the guidelines", async () => {
+	const prompt = await buildSystemPrompt({ ...BASE, tools: builtinTools() });
+	const bash = builtinTools().find((t) => t.name === "bash")!;
 
-	// A session without bash must not carry advice about shell commands.
-	const withoutBash = await buildSystemPrompt({
-		...BASE,
-		tools: builtinTools().filter((t) => t.name !== "bash"),
-	});
-	assert.doesNotMatch(withoutBash, /read over `cat`/);
-	assert.match(withoutBash, /Be concise/, "base guidelines still apply");
-});
-
-test("duplicate guidelines from different tools appear once", async () => {
-	const shared = "Shared rule that two tools both contribute.";
-	const fake = (name: string): Tool => ({
-		name,
-		snippet: `${name} snippet`,
-		guidelines: [shared],
-		description: `${name} description`,
-		parameters: { type: "object", properties: {} },
-		execute: async () => ({ content: [] }),
-	});
-
-	const prompt = await buildSystemPrompt({ ...BASE, tools: [fake("alpha"), fake("beta")] });
-	assert.equal(prompt.split(shared).length - 1, 1);
+	assert.match(bash.description, /read over `cat`/);
+	assert.doesNotMatch(prompt, /read over `cat`/);
+	assert.match(prompt, /Be concise/, "base guidelines still apply");
 });
 
 test("skills contribute names and locations, never their bodies", async () => {
@@ -167,15 +146,15 @@ test("in the main repository it is told to open a copy", async () => {
 	const prompt = await buildSystemPrompt({ ...BASE, isGitRepo: true, tools: builtinTools() });
 
 	assert.match(prompt, /git worktree add/, "主仓库里得把开副本这条路指出来");
-	assert.match(prompt, /working tree never sees it/i, "得回答用户真正担心的那件事");
-	assert.ok(!/already working in an isolated copy/i.test(prompt), "不在副本里，不能说已经在了");
+	assert.match(prompt, /outside the repository/i, "副本要开在用户的工作树外面");
+	assert.ok(!/already an isolated copy/i.test(prompt), "不在副本里，不能说已经在了");
 });
 
 test("inside an isolated copy it is told to just do it here", async () => {
 	const prompt = await buildSystemPrompt({ ...BASE, isGitRepo: true, isolatedWorktree: true, tools: builtinTools() });
 
-	assert.match(prompt, /already working in an isolated copy/i, "已经在副本里，就该直接动手");
-	assert.match(prompt, /main working tree does not see this directory/i, "要说清楚为什么这里可以随便改");
+	assert.match(prompt, /already an isolated copy/i, "已经在副本里，就该直接动手");
+	assert.match(prompt, /main working tree does not see/i, "要说清楚为什么这里可以随便改");
 	assert.ok(!/git worktree add/.test(prompt), "已经在副本里还叫它再开一个，是套娃");
 });
 
@@ -184,7 +163,6 @@ test("outside a repository it is not sent after a worktree that cannot exist", a
 
 	assert.ok(!/git worktree add/.test(prompt), "不是 git 仓库，这条命令必然失败，不能教它去试");
 	assert.match(prompt, /outside the project/i, "出路还是要给，只是换个地方");
-	assert.match(prompt, /not a git repository/i, "要说清楚为什么这里不开 worktree");
 });
 
 test("an unknown workspace counts as not isolated", async () => {
@@ -196,7 +174,7 @@ test("an unknown workspace counts as not isolated", async () => {
 	 */
 	const prompt = await buildSystemPrompt({ ...BASE, isGitRepo: true, tools: builtinTools() });
 
-	assert.ok(!/already working in an isolated copy/i.test(prompt), "字段没给就不能当成在副本里");
+	assert.ok(!/already an isolated copy/i.test(prompt), "字段没给就不能当成在副本里");
 	assert.match(prompt, /git worktree add/, "拿不准时按「不在副本里」说话");
 });
 

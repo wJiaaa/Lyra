@@ -25,6 +25,7 @@ import { Card, ListRow, Toggle } from "./controls.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { bridge } from "../../services/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function PluginsSettings({ filter = "" }: { filter?: string }) {
 	const { t } = useI18n();
@@ -67,6 +68,8 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 	 */
 	const diagnostics = (scan?.pluginDiagnostics ?? []).filter((diagnostic) => diagnostic.severity !== "warning");
 	const warnings = (scan?.pluginDiagnostics ?? []).filter((diagnostic) => diagnostic.severity === "warning");
+	// Warnings are counted by skill, since one file can carry several; problems stay one per line.
+	const warned = new Set(warnings.map((warning) => warning.path)).size;
 
 	/* `*` means "none of them" and is still shown to the user below; the rule for clearing it lives
 	   in `settingsAfterToggle`, because the catalogue card switches plugins too. */
@@ -92,8 +95,9 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 							<TriangleAlert size={13} strokeWidth={1.9} />
 							{t("pluginsSettings.problems", { n: diagnostics.length })}
 						</div>
-						{diagnostics.map((diagnostic) => (
-							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
+						{/* By position: a path repeats when one file has two diagnostics, and these rows hold no state. */}
+						{diagnostics.map((diagnostic, index) => (
+							<div key={index} className="py-0.5 text-detail text-accent/85">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
 							</div>
 						))}
@@ -106,10 +110,10 @@ export function PluginsSettings({ filter = "" }: { filter?: string }) {
 					<div className="px-4 py-3">
 						<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
 							<TriangleAlert size={13} strokeWidth={1.9} />
-							{t("pluginsSettings.shortDescriptions", { n: warnings.length })}
+							{t("pluginsSettings.shortDescriptions", { n: warned })}
 						</div>
-						{warnings.map((warning) => (
-							<div key={warning.path} className="py-0.5 text-detail text-ink-faint">
+						{warnings.map((warning, index) => (
+							<div key={index} className="py-0.5 text-detail text-ink-faint">
 								<span className="font-mono">{warning.path}</span> — {warning.message}
 							</div>
 						))}
@@ -201,16 +205,14 @@ function PluginRow({
 				onOpen={onManage}
 				openLabel={t("plugins.openNamed", { name })}
 				actions={
-					<button
-						type="button"
-						aria-label={t("plugins.moreFor", { name })}
-						aria-haspopup="menu"
-						aria-expanded={menu.open}
+					<IconButton
+						label={t("common.more")}
+						ariaLabel={t("plugins.moreFor", { name })}
+						menu={menu.open}
 						onClick={menu.toggle}
-						className="flex h-[26px] w-[26px] items-center justify-center rounded-lg text-ink-faint opacity-0 transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] group-hover/row:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 aria-expanded:opacity-100"
-					>
-						<MoreHorizontal size={15} strokeWidth={1.9} />
-					</button>
+						className="opacity-0 transition-[color,background-color,opacity] group-hover/row:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
+						icon={<MoreHorizontal size={15} strokeWidth={1.9} />}
+					/>
 				}
 				control={<Toggle checked={plugin.enabled} onChange={onToggle} />}
 			/>

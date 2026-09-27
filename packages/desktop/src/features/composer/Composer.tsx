@@ -46,6 +46,7 @@ import {
 	useScopedSessionId,
 	useScopedStopped,
 	useScopedTodos,
+	useScopedWorkspace,
 } from "../../app/session-scope.tsx";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { available, bridge } from "../../services/index.ts";
@@ -101,8 +102,8 @@ export function Composer({ centered = false }: {
 	centered?: boolean;
 } = {}) {
 	const { t } = useI18n();
-	const workspace = useApp((s) => s.workspace);
-	const scratchCwd = useApp((s) => s.scratchCwd);
+	// This screen's project, not the focused conversation's: a split shows several at once.
+	const { workspace, scratchCwd } = useScopedWorkspace();
 	const settings = useApp((s) => s.settings);
 	const meta = useScopedMeta();
 	const messages = useScopedMessages();
@@ -284,6 +285,9 @@ export function Composer({ centered = false }: {
 		const files = draft.attachments ?? [];
 		const refs = draft.sessionRefs ?? [];
 		if (!draft.text && !files.length && !refs.length) return;
+		// Only the screen the draft names; the rest leave it for that one to take.
+		const owner = draft.target === undefined ? useApp.getState().activeSessionId : draft.target;
+		if (owner !== activeSessionId) return;
 		if (draft.text) {
 			setText((current) =>
 				draft.replace || !current.trim() ? draft.text : `${current.trimEnd()}\n\n${draft.text}`,
@@ -313,7 +317,7 @@ export function Composer({ centered = false }: {
 		void shell.offsetWidth;
 		shell.classList.add("ly-composer-catch");
 		shell.addEventListener("animationend", () => shell.classList.remove("ly-composer-catch"), { once: true });
-	}, [draft]);
+	}, [draft, activeSessionId]);
 
 
 	const commandCwd = workspace?.path ?? scratchCwd ?? "";
@@ -471,7 +475,8 @@ export function Composer({ centered = false }: {
 			...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
 			...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
 			...(outgoing.attachments?.length ? { attachments: outgoing.attachments } : {}),
-			...(activeSessionId ? { sessionId: activeSessionId } : {}),
+			// Null for a blank screen, which is not "whichever is live" — see `send`.
+			sessionId: activeSessionId,
 		});
 		if (!accepted) {
 			// A transport rejection must preserve the original files and command text for retry.

@@ -30,7 +30,7 @@ const clickTargets = {
 	secondReference: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('.ly-mention-menu [role="option"][data-index="1"]'))?.checkVisibility())`,
 	choice: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('[data-question-choice]'))?.checkVisibility())`,
 	custom: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('input[aria-label="自定义回答"]'))?.checkVisibility())`,
-	submitCustom: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('button[aria-label="发送回答"]'))?.checkVisibility())`,
+	submitCustom: `Boolean((globalThis.__lyraMentionTarget=[...document.querySelectorAll('[data-ly-question-footer] button[type="submit"]')].find(b=>b.textContent.trim()==='发送回答'))?.checkVisibility())`,
 };
 
 before(async () => {
@@ -184,7 +184,7 @@ test("real ask_user returns choices and custom answers to their own pending sess
 	await until(`[...document.querySelectorAll('[data-ly-question-label]')].some(e=>e.textContent==='更新实现')`);
 	await app.evaluate(`[...document.querySelectorAll('[data-ly-question-option]')].find(e=>e.querySelector('[data-ly-question-label]')?.textContent==='更新实现').setAttribute('data-question-choice','')`);
 	await click("choice");
-	await app.evaluate(`document.querySelector('button[aria-label="确认选择"]').click()`);
+	await app.evaluate(`document.querySelector('[data-ly-question-footer] button[type="submit"]').click()`);
 	await session("qa-short");
 	await until(`Boolean(document.querySelector('input[aria-label="自定义回答"]'))`);
 	const custom = "先保留草稿，完成验证再更新。";

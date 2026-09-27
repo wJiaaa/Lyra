@@ -80,7 +80,8 @@ export function sessionIds(node: SplitNode): string[] {
 	return out;
 }
 
-export function contains(node: SplitNode, sessionId: string): boolean {
+/** `null` asks whether a blank screen is on the tree. */
+export function contains(node: SplitNode, sessionId: string | null): boolean {
 	if (node.type === "leaf") return node.sessionId === sessionId;
 	return node.children.some((child) => contains(child, sessionId));
 }

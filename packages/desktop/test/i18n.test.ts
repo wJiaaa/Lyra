@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resolveUiLocale } from "../src/i18n/locales.ts";
-import { MESSAGE_CATALOGS } from "../src/i18n/messages/index.ts";
+import { MESSAGE_CATALOGS, type MessageKey, type PluralForms } from "../src/i18n/messages/index.ts";
 
 test("system languages resolve by BCP 47 family, with every Chinese region on simplified Chinese", () => {
 	assert.equal(resolveUiLocale("system", ["zh-Hant-HK"]), "zh-CN");
@@ -30,8 +30,39 @@ test("no message spells a character as an HTML reference", () => {
 	 * 要换行就写 `\n`——原生 textarea 的占位符认它。
 	 */
 	for (const [locale, catalog] of Object.entries(MESSAGE_CATALOGS)) {
-		for (const [key, text] of Object.entries(catalog)) {
-			assert.doesNotMatch(text, /&(#\d+|#x[\da-f]+|[a-z]+);/i, `${locale} ${key}`);
+		for (const [key, entry] of Object.entries(catalog)) {
+			for (const text of forms(entry)) assert.doesNotMatch(text, /&(#\d+|#x[\da-f]+|[a-z]+);/i, `${locale} ${key}`);
 		}
 	}
+});
+
+/** Every sentence an entry can say: the string itself, or each of its plural forms. */
+function forms(entry: string | PluralForms): string[] {
+	return typeof entry === "string" ? [entry] : Object.values(entry).filter((text): text is string => typeof text === "string");
+}
+
+test("English plural forms give one and other, with the same slots as the source", () => {
+	const slots = (text: string) => [...new Set(Array.from(text.matchAll(/\{(\w+)\}/g), (match) => match[1]))].sort();
+	for (const [key, entry] of Object.entries(MESSAGE_CATALOGS.en)) {
+		if (typeof entry === "string") continue;
+		assert.ok(entry.one && entry.other, `en ${key} 缺少 one 或 other`);
+		const source = slots(MESSAGE_CATALOGS["zh-CN"][key as MessageKey] as string);
+		for (const text of forms(entry)) assert.deepEqual(slots(text), source, `en ${key} 占位符与源句不一致`);
+	}
+});
+
+test("an English count followed by a plural noun has a singular form", () => {
+	/*
+	 * "{n} conversations" as a plain string reads "1 conversations". A plain string of that shape
+	 * is a missing `one`; the exceptions say why they are not.
+	 */
+	const exempt: Record<string, string> = {
+		"sheet.rowsOf": "only shown once a sheet passes MAX_ROWS, so the total is never 1",
+		"ruleTry.intro": "the count is the fixed RECENT_LIMIT",
+		"ruleTry.noHits": "“matches” is the verb here",
+	};
+	const missing = Object.entries(MESSAGE_CATALOGS.en).filter(
+		([key, entry]) => typeof entry === "string" && !(key in exempt) && /\{n\} (?:[a-z-]+ )?[a-z-]+(?:s\b|\(s\))/i.test(entry),
+	);
+	assert.deepEqual(missing.map(([key]) => key), []);
 });

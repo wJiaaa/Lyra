@@ -29,6 +29,7 @@ import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { shortcutLabel } from "../../ui/keyboard.ts";
 import { COMMIT_LANGUAGES, commitLanguageLabel, resolveCommitLanguage } from "./commit-language.ts";
 import type { CommitWork } from "./commit-work.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export interface CommitPushDialogProps {
 	cwd: string;
@@ -273,14 +274,7 @@ export function CommitPushDialog({
 									}
 								}}
 							/>
-							<button
-								type="button"
-								aria-label={t("common.cancel")}
-								onClick={() => setTarget({ kind: "current" })}
-								className="flex size-5 shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
-							>
-								<X size={12} strokeWidth={2} />
-							</button>
+							<IconButton size="sm" label={t("common.cancel")} onClick={() => setTarget({ kind: "current" })} icon={<X size={12} strokeWidth={2} />} />
 						</div>
 					) : (
 						<button

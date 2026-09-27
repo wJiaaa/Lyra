@@ -15,6 +15,7 @@ import { heatLevel, heatmapWeeks, monthLabels, type DayUsage } from "./usage-hea
 import { trendColor, UsageTrendChart, type TrendMetric } from "./usage-charts.tsx";
 import { formatCompact, formatCost } from "./usage-format.ts";
 import { translate, useI18n, type MessageKey } from "../../i18n/index.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 const WEEKS = 52;
 
@@ -121,16 +122,12 @@ export function UsageSettings() {
 							{ value: "0", label: t("common.all") },
 						]}
 					/>
-					<button
-						type="button"
-						aria-label={t("usage.refresh")}
-						data-ly-tip={t("usage.refreshDetail")}
+					<Button
+						label={t("usage.refresh")}
 						onClick={() => void load(true)}
 						disabled={refreshing}
-						className="flex h-[30px] w-[30px] items-center justify-center rounded-lg border border-line text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50"
-					>
-						{refreshing ? <ActionSpinner size={14} /> : <RefreshCw size={14} strokeWidth={1.8} />}
-					</button>
+						icon={refreshing ? <ActionSpinner size={14} /> : <RefreshCw size={14} strokeWidth={1.8} />}
+					/>
 				</div>
 			</header>
 
@@ -613,7 +610,7 @@ function heatTip(day: DayUsage): string {
 	if (day.messages === 0) return translate("usage.dayIdle", { date });
 	return translate("usage.dayUsed", {
 		date,
-		sessions: day.sessions,
+		n: day.sessions,
 		tokens: day.tokens.toLocaleString(),
 		cost: day.cost > 0 ? ` · ${costLabel(day.cost)}` : "",
 	});

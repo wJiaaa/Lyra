@@ -2,6 +2,7 @@ import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { withTextFile } from "./file-write.ts";
 import { computeDiff, formatDiff } from "./diff.ts";
+import { snapshotTag } from "./hunk.ts";
 import { displayPath, resolveWorkspacePath } from "./paths.ts";
 import { markRead, readRecord, readVersion } from "./read-state.ts";
 import { decodeInput, decodeText, encodeText } from "./text-layout.ts";
@@ -13,11 +14,6 @@ interface WriteArgs {
 
 export const writeTool: Tool<WriteArgs> = {
 	name: "write",
-	snippet: "Create or overwrite whole files",
-	guidelines: [
-		"Prefer edit over write for changes to an existing file; write replaces the entire contents.",
-		"Never create documentation, README or example files unless the user asked for them.",
-	],
 	description:
 		"Write a file, creating parent directories as needed. Overwrites the whole file. " +
 		"To modify part of an existing file, prefer `edit` — it is safer and cheaper. " +
@@ -105,7 +101,8 @@ export const writeTool: Tool<WriteArgs> = {
 					content: [
 						{
 							type: "text",
-							text: `${alreadyExists ? "Updated" : "Created"} ${shown} (${lines} lines).`,
+							// 带上标签，接着 `edit` 的补丁形式才有得填；没有它，模型只能填个 UNKNOWN 被拒，再读一遍。
+							text: `${alreadyExists ? "Updated" : "Created"} ${shown} (${lines} lines). Tag: ${snapshotTag(after)}`,
 						},
 					],
 					details: {

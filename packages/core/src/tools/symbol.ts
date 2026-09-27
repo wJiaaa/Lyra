@@ -29,10 +29,6 @@ async function getIndex(ctx: ToolContext): Promise<SymbolIndex> {
 
 export const symbolTool: Tool<SymbolArgs> = {
 	name: "symbol",
-	snippet: "Find where a function, class or type is defined",
-	guidelines: [
-		"Use symbol to locate a definition, and grep to find its call sites — grep on a common name returns every usage.",
-	],
 	description:
 		"Look up where a symbol is defined. Searches an index of function, class, interface, type and constant " +
 		"declarations across the workspace and returns file:line for each match, best match first. " +

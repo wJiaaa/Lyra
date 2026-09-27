@@ -1,11 +1,11 @@
 /**
- * 模型目录：一个模型的上下文窗口、最大输出、思考与图片能力，以及参考价格，都从这里查。
+ * 模型目录：一个模型的上下文窗口、最大输出、思考能力与档位、图片能力，以及参考价格，都从这里查。
  *
  * 数据来自 pi 的公开模型目录（https://pi.dev/api/models）。仓库里打包一份压缩过的快照
  * `catalog/model-catalog.json`，桌面主进程运行时定期拉最新的换上（`model-catalog-sync.ts`），
  * 所以离线也能用，联网时自动更新。这个文件不碰文件系统和网络——渲染进程也要用它。
  *
- * 目录只是参考：导入模型、在编辑器里搜索选中时，把条目的上限、能力和价格一次性填进模型配置，
+ * 目录只是参考：导入模型、在编辑器里搜索选中时，把条目的上限、能力、思考档位和价格一次性填进模型配置，
  * 之后配置归用户，目录更新不会改动它。用量页给没有配置价格的历史记录估算费用时也查这里。
  *
  * 自动匹配顺序：同一端点（Base URL）下的同名模型 → 按型号家族找厂商官方条目和 OpenRouter 的参考值。
@@ -13,6 +13,7 @@
  */
 
 import snapshotJson from "./catalog/model-catalog.json" with { type: "json" };
+import { thinkingOptionsFor } from "./ai/thinking-options.ts";
 import { parseModelCatalog, type CatalogModel, type CatalogProvider, type ModelCatalogDocument } from "./model-catalog-format.ts";
 import type { ModelConfig, ModelPricing, ProviderConfig } from "./types/provider.ts";
 
@@ -25,7 +26,7 @@ export interface CatalogMatch {
 }
 
 /** 从目录填进模型配置的那几项。 */
-export type CatalogFill = Pick<ModelConfig, "contextWindow" | "maxOutputTokens" | "supportsThinking" | "supportsImages" | "supportsTools" | "pricing">;
+export type CatalogFill = Pick<ModelConfig, "contextWindow" | "maxOutputTokens" | "supportsThinking" | "thinkingOptions" | "supportsImages" | "supportsTools" | "pricing">;
 
 /**
  * 目录里找不到时的初始值：新建模型和导入时没匹配上的模型用它。
@@ -204,6 +205,7 @@ export function catalogFill(providerId: string, model: CatalogModel): CatalogFil
 		contextWindow: model.contextWindow,
 		maxOutputTokens: Math.min(model.maxOutputTokens, model.contextWindow),
 		supportsThinking: model.supportsThinking,
+		...(model.supportsThinking && model.thinkingLevels ? { thinkingOptions: thinkingOptionsFor(model.thinkingLevels) } : {}),
 		supportsImages: model.supportsImages,
 		// pi 的目录只收编码代理用的对话模型，都能调工具，所以没有这一项。
 		supportsTools: true,

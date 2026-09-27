@@ -4,8 +4,9 @@ import { useCallback, useState } from "react";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { openScopedPanel } from "../dock/index.ts";
-import { useApp } from "../../store/index.ts";
+import { useScopedRunning, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { available, bridge } from "../../services/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
  * How much is uncommitted, always in view.
@@ -21,8 +22,9 @@ import { available, bridge } from "../../services/index.ts";
  * they belong in the one place that can show both.
  */
 export function ChangeBar() {
-  const workspace = useApp((s) => s.workspace);
-  const running = useApp((s) => s.running);
+  // This screen's project and turn, not the focused screen's.
+  const { workspace } = useScopedWorkspace();
+  const running = useScopedRunning();
 
   const [stat, setStat] = useState<{
     added: number;
@@ -78,13 +80,11 @@ export function ChangeBar() {
         />
       </button>
 
-      <button
-        type="button"
-        data-ly-tip={translate("changeBar.openGit")}
+      <IconButton
+        label={translate("changeBar.openGit")}
         onClick={() => openScopedPanel("review")}
-        className="grid place-items-center h-[26px] shrink-0 rounded-lg text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink w-[26px]"
-			aria-label={translate("commit.commit")}
-		><GitCommitVertical size={13} strokeWidth={1.8} className="shrink-0" /></button>
+        icon={<GitCommitVertical size={13} strokeWidth={1.8} className="shrink-0" />}
+      />
     </>
   );
 }

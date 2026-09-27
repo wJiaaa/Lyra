@@ -4,10 +4,11 @@ import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
-import { Card, Row, SectionTitle, TextInput } from "./controls.tsx";
+import { Card, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { NumberField } from "./pickers.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function WorktreesSettings() {
 	const { t } = useI18n();
@@ -114,63 +115,21 @@ export function WorktreesSettings() {
 					title={t("worktrees.autoCreate")}
 					detail={t("worktrees.autoCreateDetail")}
 					control={
-						<button
-							type="button"
-							role="switch"
-							aria-checked={autoCreate}
-							onClick={() => update({ autoCreateOnNewSession: !autoCreate })}
-							className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-[var(--ly-t-quick)] ${
-								autoCreate ? "bg-accent" : "bg-card-hover"
-							}`}
-						>
-							<span
-								className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-[var(--ly-t-quick)] ${
-									autoCreate ? "translate-x-4" : "translate-x-0"
-								}`}
-							/>
-						</button>
+						<Toggle checked={autoCreate} onChange={(next) => update({ autoCreateOnNewSession: next })} />
 					}
 				/>
 				<Row
 					title={t("worktrees.fetchFirst")}
 					detail={t("worktrees.fetchFirstDetail")}
 					control={
-						<button
-							type="button"
-							role="switch"
-							aria-checked={fetchUpstream}
-							onClick={() => update({ fetchUpstreamBeforeCreate: !fetchUpstream })}
-							className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-[var(--ly-t-quick)] ${
-								fetchUpstream ? "bg-accent" : "bg-card-hover"
-							}`}
-						>
-							<span
-								className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-[var(--ly-t-quick)] ${
-									fetchUpstream ? "translate-x-4" : "translate-x-0"
-								}`}
-							/>
-						</button>
+						<Toggle checked={fetchUpstream} onChange={(next) => update({ fetchUpstreamBeforeCreate: next })} />
 					}
 				/>
 				<Row
 					title={t("worktrees.autoPrune")}
 					detail={t("worktrees.autoPruneDetail")}
 					control={
-						<button
-							type="button"
-							role="switch"
-							aria-checked={autoClean}
-							onClick={() => update({ autoCleanOld: !autoClean })}
-							className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-[var(--ly-t-quick)] ${
-								autoClean ? "bg-accent" : "bg-card-hover"
-							}`}
-						>
-							<span
-								className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-[var(--ly-t-quick)] ${
-									autoClean ? "translate-x-4" : "translate-x-0"
-								}`}
-							/>
-						</button>
+						<Toggle checked={autoClean} onChange={(next) => update({ autoCleanOld: next })} />
 					}
 				/>
 				<Row
@@ -192,16 +151,12 @@ export function WorktreesSettings() {
 
 			<div className="mb-3 flex items-center justify-between">
 				<SectionTitle>{t("worktrees.active")}</SectionTitle>
-				<button
-					type="button"
-					data-ly-tip={translate("common.refresh")}
-					aria-label={translate("common.refresh")}
+				<IconButton
+					label={translate("common.refresh")}
 					onClick={() => void refreshList()}
 					disabled={refreshing}
-					className="grid h-6 w-6 place-items-center rounded-lg text-ink-muted hover:text-ink"
-				>
-					{refreshing ? <ActionSpinner size={12} /> : <RefreshCw size={12} aria-hidden />}
-				</button>
+					icon={refreshing ? <ActionSpinner size={12} /> : <RefreshCw size={12} aria-hidden />}
+				/>
 			</div>
 			{worktrees.length === 0 ? (
 				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-line py-10 text-center">
@@ -225,24 +180,18 @@ export function WorktreesSettings() {
 								<div className="truncate text-caption text-ink-faint font-mono">{tree.path}</div>
 							</div>
 							<div className="flex items-center gap-2">
-								<button
-									type="button"
+								<IconButton
+									label={revealLabel}
 									onClick={() => void bridge.workspace.reveal(tree.path)}
-									className="rounded-lg px-2 py-1 text-detail text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-									data-ly-tip={revealLabel}
-									aria-label={revealLabel}>
-									<FolderOpen size={13} strokeWidth={1.8} />
-								</button>
-								<button
-									type="button"
+									icon={<FolderOpen size={13} strokeWidth={1.8} />}
+								/>
+								<IconButton
+									tone="danger"
+									label={t("worktrees.delete")}
 									disabled={deletingPath === tree.path}
 									onClick={() => void removeTree(tree.repoPath, tree.path)}
-									className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-card-hover hover:text-red-500 disabled:opacity-50"
-									aria-label={t("worktrees.delete")}
-									data-ly-tip={t("worktrees.delete")}
-								>
-									<Trash2 size={14} />
-								</button>
+									icon={<Trash2 size={14} />}
+								/>
 							</div>
 						</div>
 					))}

@@ -30,6 +30,7 @@ import { offerSessionDrag } from "../split/index.ts";
 import { DropLineIndicator } from "./DropIndicator.tsx";
 import { useRowLit } from "./use-row-lit.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
  * How recently a conversation must have been created for its row to drop in.
@@ -250,52 +251,48 @@ export function SessionRow({
 				{inArchive ? (
 					<>
 						{onRestore && (
-							<button
-								type="button"
-								data-ly-tip={t("sessionRow.unarchive")}
-								aria-label={t("sessionRow.unarchiveOne", { title: sessionTitle(session.title) })}
+							<IconButton
+								size="sm"
+								label={t("sessionRow.unarchive")}
+								ariaLabel={t("sessionRow.unarchiveOne", { title: sessionTitle(session.title) })}
 								onClick={onRestore}
-								className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-							>
-								<ArchiveRestore size={12.5} strokeWidth={1.8} />
-							</button>
+								className="pointer-events-auto"
+								icon={<ArchiveRestore size={12.5} strokeWidth={1.8} />}
+							/>
 						)}
 						{onDelete && (
-							<button
-								type="button"
-								data-ly-tip={t("common.delete")}
-								aria-label={t("sessionRow.deleteOne", { title: sessionTitle(session.title) })}
+							<IconButton
+								size="sm"
+								tone="danger"
+								label={t("common.delete")}
+								ariaLabel={t("sessionRow.deleteOne", { title: sessionTitle(session.title) })}
 								onClick={onDelete}
-								className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-danger"
-							>
-								<Trash2 size={12.5} strokeWidth={1.8} />
-							</button>
+								className="pointer-events-auto"
+								icon={<Trash2 size={12.5} strokeWidth={1.8} />}
+							/>
 						)}
 					</>
 				) : (
 					<>
-						<button
-							type="button"
-							data-ly-tip={t(isPinned ? "sessionRow.unpin" : "sessionRow.pin")}
-							aria-label={t(isPinned ? "sessionRow.unpin" : "sessionRow.pin")}
+						<IconButton
+							size="sm"
+							label={t(isPinned ? "sessionRow.unpin" : "sessionRow.pin")}
 							onClick={() => void setSessionPinned(session.id, !isPinned)}
-							className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-						>
-							{isPinned ? <PinOff size={12.5} strokeWidth={1.8} /> : <Pin size={12.5} strokeWidth={1.8} />}
-						</button>
+							className="pointer-events-auto"
+							icon={isPinned ? <PinOff size={12.5} strokeWidth={1.8} /> : <Pin size={12.5} strokeWidth={1.8} />}
+						/>
 						{onArchive && (
-							<button
-								type="button"
-								data-ly-tip={t("sessionRow.archive")}
-								aria-label={t("sessionRow.fileOne", {
+							<IconButton
+								size="sm"
+								label={t("sessionRow.archive")}
+								ariaLabel={t("sessionRow.fileOne", {
 									what: t("sessionRow.archive"),
 									title: sessionTitle(session.title),
 								})}
 								onClick={onArchive}
-								className="pointer-events-auto rounded-md p-1 text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-							>
-								<Archive size={12.5} strokeWidth={1.8} />
-							</button>
+								className="pointer-events-auto"
+								icon={<Archive size={12.5} strokeWidth={1.8} />}
+							/>
 						)}
 					</>
 				)}

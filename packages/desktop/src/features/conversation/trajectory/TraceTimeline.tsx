@@ -125,7 +125,7 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 			</>}
 		</div>
 		<div hidden={!visible}>
-		<div className="flex h-6 items-center justify-between text-caption text-ink-muted"><span>{brush ? t("timeline.focusRange", { from: offset(brush.start - domain.start), to: offset(brush.end - domain.start) }) : t("timeline.clickHint")}</span>{brush && <button type="button" data-ly-tip={t("timeline.clearRange")} aria-label={t("timeline.clearRange")} className="grid h-5 w-5 place-items-center rounded-md hover:bg-hover" onClick={() => { setDraft(null); onRange(null); }}><X size={11} strokeWidth={2} aria-hidden /></button>}</div>
+		<div className="flex h-6 items-center justify-between text-caption text-ink-muted"><span>{brush ? t("timeline.focusRange", { from: offset(brush.start - domain.start), to: offset(brush.end - domain.start) }) : t("timeline.clickHint")}</span>{brush && <IconButton size="sm" label={t("timeline.clearRange")} icon={<X size={11} strokeWidth={2} aria-hidden />} onClick={() => { setDraft(null); onRange(null); }} />}</div>
 
 		<div className="flex items-start gap-2">
 			<div aria-hidden className="flex w-7 shrink-0 flex-col text-caption text-ink-faint" style={{ lineHeight: `${LANE_HEIGHT}px` }}><span>{t("common.model")}</span><span>{t("common.tools")}</span><span>{t("timeline.collab")}</span></div>

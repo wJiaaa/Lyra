@@ -22,6 +22,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { available } from "../../services/index.ts";
 import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 export function SessionMenu({
 	anchor,
@@ -93,24 +94,15 @@ export function SessionMenu({
 						className="h-8 w-full rounded-lg border border-line bg-input px-2.5 text-label text-ink placeholder:text-ink-faint focus:border-ink-faint"
 					/>
 					<div className="flex justify-end gap-1.5 pt-2.5">
-						<button
-							type="button"
-							data-ly-tip={t("common.cancel")}
-							aria-label={t("common.cancel")}
-							onClick={() => setMode("menu")}
-							className="grid h-7 w-7 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-						>
-							<X size={13} strokeWidth={2} aria-hidden />
-						</button>
-						<button
+						<Button variant="subtle" size="sm" label={t("common.cancel")} onClick={() => setMode("menu")} icon={<X size={13} strokeWidth={2} aria-hidden />} />
+						<Button
 							type="submit"
-							data-ly-tip={t("common.save")}
-							aria-label={t("common.save")}
+							variant="primary"
+							size="sm"
+							label={t("common.save")}
 							disabled={!draft.trim()}
-							className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-shell transition-opacity hover:opacity-90 disabled:opacity-45"
-						>
-							<Check size={13} strokeWidth={2.2} aria-hidden />
-						</button>
+							icon={<Check size={13} strokeWidth={2.2} aria-hidden />}
+						/>
 					</div>
 				</form>
 			</Popover>

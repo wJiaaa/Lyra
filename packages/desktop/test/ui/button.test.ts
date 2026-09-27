@@ -104,3 +104,28 @@ test("Button: disabled 与 loading 是两回事", async () => {
 	assert.equal(off.find<HTMLButtonElement>("button").getAttribute("aria-busy"), null, "禁用不是忙碌");
 	await off.unmount();
 });
+
+test("Button: menu 给出弹出类型和开合状态，普通按钮不带", async () => {
+	const closed = await mount(h(Button, { menu: false, children: "添加" }));
+	const button = closed.find<HTMLButtonElement>("button");
+	assert.equal(button.getAttribute("aria-haspopup"), "menu");
+	assert.equal(button.getAttribute("aria-expanded"), "false");
+	await closed.unmount();
+
+	const open = await mount(h(Button, { menu: true, children: "添加" }));
+	assert.equal(open.find<HTMLButtonElement>("button").getAttribute("aria-expanded"), "true");
+	await open.unmount();
+
+	const plain = await mount(h(Button, { children: "确定" }));
+	assert.equal(plain.find<HTMLButtonElement>("button").getAttribute("aria-haspopup"), null);
+	assert.equal(plain.find<HTMLButtonElement>("button").getAttribute("aria-expanded"), null);
+	await plain.unmount();
+});
+
+test("Button: data-* 原样透传，但盖不掉组件自己的 data-variant", async () => {
+	const view = await mount(h(Button, { "data-usage-clear": "true", "data-variant": "x", variant: "danger", children: "清理" }));
+	const button = view.find<HTMLButtonElement>("button");
+	assert.equal(button.getAttribute("data-usage-clear"), "true");
+	assert.equal(button.dataset.variant, "danger");
+	await view.unmount();
+});

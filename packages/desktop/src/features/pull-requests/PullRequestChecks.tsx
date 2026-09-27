@@ -16,6 +16,7 @@ import { translate } from "../../i18n/translate.ts";
 import { Check, CircleDashed, ExternalLink, X } from "lucide-react";
 import type { PullRequestCheck } from "../../../electron/ipc-types.ts";
 import { bridge } from "../../services/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 const RANK: Record<PullRequestCheck["state"], number> = { fail: 0, pending: 1, pass: 2 };
 
@@ -55,15 +56,13 @@ export function PullRequestChecks({ checks }: { checks: PullRequestCheck[] | und
 						 * column of icons competing with the names, and the name is what is being read.
 						 */}
 						{check.url && (
-							<button
-								type="button"
-								data-ly-tip={translate("prChecks.viewOne")}
-								aria-label={translate("prChecks.viewNamed", { name: check.name })}
+							<IconButton
+								size="sm"
+								label={translate("prChecks.viewNamed", { name: check.name })}
 								onClick={() => void bridge.system.openExternal(check.url as string)}
-								className="shrink-0 text-ink-faint opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/check:opacity-100 hover:text-ink"
-							>
-								<ExternalLink size={12} strokeWidth={1.9} />
-							</button>
+								className="opacity-0 group-hover/check:opacity-100"
+								icon={<ExternalLink size={12} strokeWidth={1.9} />}
+							/>
 						)}
 
 						<span className={`shrink-0 text-detail ${check.state === "pass" ? "text-ink-faint" : look.tone}`}>

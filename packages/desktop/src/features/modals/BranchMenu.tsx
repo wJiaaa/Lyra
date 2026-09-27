@@ -5,6 +5,7 @@ import type { BranchList } from "../../../electron/ipc-types.ts";
 import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuLabel, MenuSearch, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { useApp } from "../../store/index.ts";
+import { rereadWorkspace, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { bridge } from "../../services/index.ts";
 
 /**
@@ -24,7 +25,15 @@ const lastSeen = new Map<string, BranchList>();
  * being replaced with a generic failure.
  */
 export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () => void }) {
-	const workspace = useApp((s) => s.workspace);
+	/*
+	 * The project of the screen this menu opened on.
+	 *
+	 * The live slot's project could be another screen's — or, for a second after a press on this screen,
+	 * still the last one, since the project is read behind the transcript. Switching from there checked
+	 * out a branch in the wrong repository.
+	 */
+	const { workspace } = useScopedWorkspace();
+	const liveWorkspace = useApp((s) => s.workspace);
 	const refreshWorkspace = useApp((s) => s.refreshWorkspace);
 	const setSwitching = useApp((s) => s.setSwitchingBranch);
 	const notify = useApp((s) => s.notify);
@@ -93,7 +102,8 @@ export function BranchMenu({ anchor, onClose }: { anchor: Anchor; onClose: () =>
 				notify(result.error ?? translate("branchMenu.switchFailed"), "error");
 				return;
 			}
-			await refreshWorkspace();
+			if (liveWorkspace?.path === workspace.path) await refreshWorkspace();
+			else rereadWorkspace(workspace.path);
 		} finally {
 			setSwitching(null);
 		}

@@ -105,13 +105,9 @@ export function makeYieldTool(
 
 	return {
 		name: YIELD_TOOL_NAME,
-		snippet: "Submit your result",
 		description:
-			"Submit your finished result. This is the ONLY way the work reaches whoever dispatched you — " +
+			"Submit your finished result when the task is done. This is the ONLY way the work reaches whoever dispatched you — " +
 			"anything you write outside this call is not delivered. Fill in every required field.",
-		guidelines: [
-			"When the task is done, call `yield` with the result. A reply that does not call it delivers nothing.",
-		],
 		parameters: schema,
 		summarize: () => "Submitting result",
 

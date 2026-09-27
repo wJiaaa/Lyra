@@ -25,6 +25,7 @@ import { ChevronDown, FileText, PanelLeft } from "lucide-react";
 import { openScopedPanel, usePaneOnScreen } from "../dock/index.ts";
 import { companionOf } from "../dock/index.ts";
 import { useProjectFolders } from "../../store/project-folders.ts";
+import { useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
 import { MENU_MAX_HEIGHT, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { FileTree } from "./FileTree.tsx";
@@ -44,7 +45,7 @@ const TREE_WIDTH = 320;
 export function FileTitle() {
 	const { t } = useI18n();
 	// Every source folder of the project, so this tree and the one in the file pane agree.
-	const folders = useProjectFolders();
+	const folders = useProjectFolders(useScopedWorkspace().workspace);
 	const path = useOpenFile((s) => s.path);
 	const name = useOpenFile((s) => s.name);
 	const menu = usePopover();
