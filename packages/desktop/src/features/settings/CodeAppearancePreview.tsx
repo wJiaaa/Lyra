@@ -33,7 +33,6 @@ import { useI18n } from "../../i18n/index.ts";
 export interface CodeTypography {
 	fontFamily?: string;
 	fontSize?: number;
-	fontWeight?: number;
 	lineHeight?: number;
 	/** In `em`, so it tracks the size. */
 	letterSpacing?: number;
@@ -170,7 +169,7 @@ function CodeSnippetBox({
 	const metrics = {
 		fontFamily: type.fontFamily || "var(--ly-code-font)",
 		fontSize: `${type.fontSize ?? 12}px`,
-		fontWeight: type.fontWeight ?? 400,
+		fontWeight: 400,
 		lineHeight: type.lineHeight ?? 1.65,
 		letterSpacing: `${type.letterSpacing ?? 0}em`,
 		whiteSpace: "pre" as const,

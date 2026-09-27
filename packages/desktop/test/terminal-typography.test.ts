@@ -9,14 +9,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { TERMINAL_LINE_HEIGHT, terminalTypography } from "../src/features/terminal/typography.ts";
 
-const FALLBACK = { font: "Menlo", size: 12, weight: 400 };
+const FALLBACK = { font: "Menlo", size: 12 };
 
-test("font, size and weight follow 代码外观; line height and tracking do not", () => {
+test("font and size follow 代码外观; line height and tracking do not", () => {
 	const options = terminalTypography(
-		{ codeFont: "JetBrains Mono", codeFontSize: 14, codeFontWeight: 500, codeLineHeight: 2.3, codeLetterSpacing: 0.09 },
+		{ codeFont: "JetBrains Mono", codeFontSize: 14, codeLineHeight: 2.3, codeLetterSpacing: 0.09 },
 		FALLBACK,
 	);
-	assert.deepEqual(options, { fontFamily: "JetBrains Mono", fontSize: 14, fontWeight: 500, lineHeight: TERMINAL_LINE_HEIGHT, letterSpacing: 0 });
+	assert.deepEqual(options, { fontFamily: "JetBrains Mono", fontSize: 14, lineHeight: TERMINAL_LINE_HEIGHT, letterSpacing: 0 });
 });
 
 test("the grid is tighter than any code block and has no tracking", () => {
@@ -26,7 +26,7 @@ test("the grid is tighter than any code block and has no tracking", () => {
 
 test("without settings, the live CSS values stand in", () => {
 	assert.deepEqual(terminalTypography(undefined, FALLBACK), {
-		fontFamily: "Menlo", fontSize: 12, fontWeight: 400, lineHeight: TERMINAL_LINE_HEIGHT, letterSpacing: 0,
+		fontFamily: "Menlo", fontSize: 12, lineHeight: TERMINAL_LINE_HEIGHT, letterSpacing: 0,
 	});
 	// An empty font string is "not set", not a font called nothing.
 	assert.equal(terminalTypography({ codeFont: "" }, FALLBACK).fontFamily, "Menlo");

@@ -22,13 +22,12 @@ export const CODE_DEFAULTS = {
 	codeFont:
 		'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace',
 	codeFontSize: 12,
-	codeFontWeight: 400,
 	codeLineHeight: 1.6,
 	codeLetterSpacing: 0,
 	/*
 	 * 行内代码也在这一节里，所以也归这颗按钮管。
 	 *
-	 * 配色调花了想回到原样，和字重调过头想回到原样是同一件事，不该是两颗按钮——尤其是自定义模式
+	 * 配色调花了想回到原样，和行高调过头想回到原样是同一件事，不该是两颗按钮——尤其是自定义模式
 	 * 下有四个颜色要一个个记。
 	 */
 	inlineCode: "app",

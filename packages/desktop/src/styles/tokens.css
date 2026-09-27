@@ -209,13 +209,13 @@
   /*
    * Set from 外观 → 代码外观, with the long-standing values as the fallback.
    *
-   * These are variables rather than constants because they are settings now: weight matters most on
-   * a dark theme, where a light face thins out; line height is the difference between a diff you can
-   * scan and a wall; tracking is the one people with a particular face in mind ask for. The
-   * fallbacks are exactly what the app rendered before any of them existed, so a settings file
-   * written earlier looks unchanged.
+   * These are variables rather than constants because they are settings now: line height is the
+   * difference between a diff you can scan and a wall; tracking is the one people with a particular
+   * face in mind ask for. The fallbacks are exactly what the app rendered before any of them existed,
+   * so a settings file written earlier looks unchanged. Weight is not a setting: code is set at the
+   * body's 400, as in ZCode.
    */
   --text-code--line-height: var(--ly-code-line-height, 1.6);
-  --text-code--weight: var(--ly-code-weight, 400);
+  --text-code--weight: 400;
   --text-code--tracking: var(--ly-code-tracking, 0em);
 }

@@ -32,9 +32,8 @@ export function editorTheme(): Extension {
 			/*
 			 * The other two halves of 代码外观, which this rule was missing.
 			 *
-			 * Family, size and line height were here; weight and tracking were not, so two of the
-			 * five controls in the settings panel moved the preview and changed nothing in the
-			 * editor. Same variables the diff viewer and the Markdown blocks read, so all three
+			 * Family, size and line height were here; weight and tracking were not, so the tracking
+			 * control in the settings panel moved the preview and changed nothing in the editor. Same variables the diff viewer and the Markdown blocks read, so all three
 			 * agree — and because CodeMirror emits real CSS, `var()` means a settings change
 			 * repaints rather than rebuilds.
 			 */

@@ -1,7 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import type { FontWeight } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { Plus, SquareTerminal } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -587,20 +586,18 @@ function readVar(name: string): string {
 
 /**
  * 代码外观, translated into the options xterm understands — see `typography.ts` for which of the
- * five settings the terminal follows and which it must not.
+ * four settings the terminal follows and which it must not.
  *
  * One function for both uses — building the terminal and updating it — because they had drifted
- * apart in exactly the way two copies do: the constructor hard-coded `lineHeight: 1.35` and knew
- * nothing about weight, so the settings had no path here at all. The fallbacks come from the live
+ * apart in exactly the way two copies do: the constructor hard-coded `lineHeight: 1.35`, so the
+ * settings had no path here at all. The fallbacks come from the live
  * CSS variables, which is what the rest of the app renders with before settings have loaded.
  */
 function typography(appearance: CodeTypography | undefined) {
-	const options = terminalTypography(appearance, {
+	return terminalTypography(appearance, {
 		font: readVar("--ly-code-font") || CODE_DEFAULTS.codeFont,
 		size: Number.parseFloat(readVar("--text-code")) || CODE_DEFAULTS.codeFontSize,
-		weight: CODE_DEFAULTS.codeFontWeight,
 	});
-	return { ...options, fontWeight: options.fontWeight as FontWeight };
 }
 
 /**

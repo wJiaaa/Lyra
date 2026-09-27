@@ -1,7 +1,7 @@
 /**
- * Which of the five 代码外观 settings the terminal follows.
+ * Which of the four 代码外观 settings the terminal follows.
  *
- * Font, size and weight: yes. A face chosen for the editor should be the face in the shell beside
+ * Font and size: yes. A face chosen for the editor should be the face in the shell beside
  * it, and 「用于文件预览、代码编辑器与终端的等宽字体」 is what the setting promises.
  *
  * Line height and tracking: no. Those are reading settings — a fenced block in prose sits at 1.6
@@ -19,7 +19,6 @@ export const TERMINAL_LINE_HEIGHT = 1.2;
 export interface CodeTypography {
 	codeFont?: string;
 	codeFontSize?: number;
-	codeFontWeight?: number;
 	codeLineHeight?: number;
 	codeLetterSpacing?: number;
 }
@@ -27,19 +26,17 @@ export interface CodeTypography {
 export interface TerminalTypography {
 	fontFamily: string;
 	fontSize: number;
-	fontWeight: number;
 	lineHeight: number;
 	letterSpacing: number;
 }
 
 export function terminalTypography(
 	appearance: CodeTypography | undefined,
-	fallback: { font: string; size: number; weight: number },
+	fallback: { font: string; size: number },
 ): TerminalTypography {
 	return {
 		fontFamily: appearance?.codeFont || fallback.font,
 		fontSize: appearance?.codeFontSize ?? fallback.size,
-		fontWeight: appearance?.codeFontWeight ?? fallback.weight,
 		lineHeight: TERMINAL_LINE_HEIGHT,
 		letterSpacing: 0,
 	};

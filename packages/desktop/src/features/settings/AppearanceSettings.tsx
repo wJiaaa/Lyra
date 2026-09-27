@@ -295,7 +295,7 @@ export function AppearanceSettings() {
 				<InlineCodeSpecimen />
 
 				<div className="pt-2">
-					{/* Everything below feeds this: change a weight or a line height and both specimens
+					{/* Everything below feeds this: change a size or a line height and both specimens
 					    redraw on the keystroke. */}
 					<CodeAppearancePreview
 						lightTheme={findCodeTheme(appearance.codeLightTheme, "light")}
@@ -303,7 +303,6 @@ export function AppearanceSettings() {
 						type={{
 							fontFamily: appearance.codeFont,
 							fontSize: appearance.codeFontSize,
-							fontWeight: appearance.codeFontWeight,
 							lineHeight: appearance.codeLineHeight,
 							letterSpacing: appearance.codeLetterSpacing,
 						}}
@@ -375,37 +374,6 @@ export function AppearanceSettings() {
 						label={t("appearance.codeFontSize")}
 						name="codeFontSize"
 					/>
-				</div>
-
-				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
-					<div className="flex-1 min-w-0">
-						<span className="block text-label font-medium text-ink">{t("appearance.weightSection")}</span>
-						<span className="block text-caption text-ink-muted">{t("appearance.weightDetail")}</span>
-					</div>
-					{/* Presets for the common answers, a field for the one you actually want. The two
-					    stay in step: typing 550 leaves every preset unselected, which is honest. */}
-					<div className="flex items-center gap-2">
-						<Segmented
-							value={String(appearance.codeFontWeight ?? 400)}
-							onChange={(weight) => patch({ codeFontWeight: Number(weight) })}
-							options={[
-								{ value: "300", label: t("appearance.thin") },
-								{ value: "400", label: t("appearance.regular") },
-								{ value: "500", label: t("appearance.medium") },
-								{ value: "600", label: t("appearance.bold") },
-							]}
-						/>
-						<NumberField
-							value={appearance.codeFontWeight ?? 400}
-							min={100}
-							max={900}
-							step={50}
-							width={72}
-							label={t("appearance.weight")}
-							name="codeFontWeight"
-							onChange={(codeFontWeight) => patch({ codeFontWeight })}
-						/>
-					</div>
 				</div>
 
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">

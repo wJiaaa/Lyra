@@ -185,7 +185,6 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * Fallbacks rather than `??` on the settings object: these fields were added after the fact,
 		 * and a settings file written before they existed has to keep rendering the way it did.
 		 */
-		"--ly-code-weight": String(appearance.codeFontWeight ?? 400),
 		"--ly-code-line-height": String(appearance.codeLineHeight ?? 1.6),
 		"--ly-code-tracking": `${appearance.codeLetterSpacing ?? 0}em`,
 		/*

@@ -45,7 +45,6 @@ async function seed(home: string): Promise<void> {
 			appearance: {
 				uiFontSize: 14,
 				codeFontSize: 12,
-				codeFontWeight: 400,
 				codeLineHeight: 1.6,
 				codeLetterSpacing: 0,
 			},

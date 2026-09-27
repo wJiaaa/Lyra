@@ -103,7 +103,7 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			appearance: { theme: "dark", codeFontSize: 12, codeFontWeight: 400, codeLetterSpacing: 0 },
+			appearance: { theme: "dark", codeFontSize: 12, codeLetterSpacing: 0 },
 		}),
 	);
 }
@@ -214,8 +214,6 @@ try {
 		})()`);
 	await setNumber("代码字体大小", 18);
 	await settle(400);
-	await setNumber("字重", 600);
-	await settle(400);
 	await setNumber("字距", 0.06);
 	await settle(1200);
 	await app.evaluate(`(() => {
@@ -236,7 +234,7 @@ try {
 
 	if (before && after[0]) {
 		check("代码块的字号跟着设置走", before.size !== after[0].size, `${before.size} → ${after[0].size}`);
-		check("代码块的字重跟着设置走", before.weight !== after[0].weight, `${before.weight} → ${after[0].weight}`);
+		check("代码块的字重固定 400", after[0].weight === "400", `${before.weight} → ${after[0].weight}`);
 		check("代码块的字间距跟着设置走", before.tracking !== after[0].tracking, `${before.tracking} → ${after[0].tracking}`);
 	} else {
 		check("改设置后代码块还在", false, `before=${JSON.stringify(before)} after=${JSON.stringify(after)}`);

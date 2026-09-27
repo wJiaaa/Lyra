@@ -75,16 +75,14 @@ export interface AppearanceSettings {
 	 * How code is set, beyond which family it is in.
 	 *
 	 * A monospace face is only half of what makes code readable; the rest is how tightly it is
-	 * packed. Weight matters most on a dark theme, where a light face thins out and a 500 reads as
-	 * the 400 does on white. Line height is the difference between a diff you can scan and a wall.
-	 * Tracking is the smallest of the three and the one people with a particular face in mind ask
-	 * for first.
+	 * packed. Line height is the difference between a diff you can scan and a wall. Tracking is the
+	 * smaller of the two and the one people with a particular face in mind ask for first.
 	 *
 	 * Optional, so an existing settings file keeps the values it never had — the defaults below are
 	 * what the app has been rendering all along.
+	 *
+	 * A multiplier, not pixels: it has to hold at every one of the font sizes above.
 	 */
-	codeFontWeight?: number;
-	/** A multiplier, not pixels: it has to hold at every one of the font sizes above. */
 	codeLineHeight?: number;
 	/** In `em`, so it tracks the font size rather than fighting it. */
 	codeLetterSpacing?: number;
@@ -177,7 +175,6 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	// 14 reads next to Mail / native Mac apps. 13 was a size down from that and looked slight.
 	uiFontSize: 14,
 	codeFontSize: 12,
-	codeFontWeight: 400,
 	codeLineHeight: 1.6,
 	codeLetterSpacing: 0,
 	// 跟界面走，也就是行内代码一直以来的样子；见 `inlineCode`。
@@ -943,8 +940,10 @@ const SUPERSEDED_FOREGROUNDS: Record<"lightForeground" | "darkForeground", strin
  *
  * `uiFontWeight` was a base weight the whole UI hierarchy was derived from. Weights are now fixed
  * at Tailwind's 400 / 500 / 600 / 700, as in ZCode, so a stored value would mean nothing.
+ *
+ * `codeFontWeight` did the same for code. ZCode sets code at the body's 400 and so does Lyra now.
  */
-const REMOVED_APPEARANCE = ["translucentSidebar", "uiFontWeight"] as const;
+const REMOVED_APPEARANCE = ["translucentSidebar", "uiFontWeight", "codeFontWeight"] as const;
 
 export function migrateAppearance(appearance: AppearanceSettings): AppearanceSettings {
 	const next = { ...appearance };

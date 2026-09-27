@@ -128,7 +128,7 @@
     font-variant-ligatures: none;
     font-feature-settings: normal;
     /* The typography settings reach the editor and the terminal too, not only prose code blocks —
-       they are the same text set the same way, and a weight that applied to one and not the others
+       they are the same text set the same way, and tracking that applied to one and not the others
        would look like a rendering bug. */
     font-weight: var(--text-code--weight);
     letter-spacing: var(--text-code--tracking);

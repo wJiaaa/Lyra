@@ -37,6 +37,11 @@ test("the removed UI font weight is dropped too", () => {
 	assert.ok(!("uiFontWeight" in next));
 });
 
+test("and so is the removed code font weight", () => {
+	const next = migrateAppearance({ ...DEFAULT_APPEARANCE, codeFontWeight: 500 } as never) as Record<string, unknown>;
+	assert.ok(!("codeFontWeight" in next));
+});
+
 test("a file that never had it is unchanged", () => {
 	assert.deepEqual(migrateAppearance({ ...DEFAULT_APPEARANCE }), { ...DEFAULT_APPEARANCE });
 });

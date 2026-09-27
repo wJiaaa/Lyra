@@ -389,7 +389,6 @@ const LONG_SETTINGS = `export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	codeDarkTheme: "lyra-dark",
 	uiFontSize: 14,
 	codeFontSize: 12,
-	codeFontWeight: 400,
 	codeLineHeight: 1.6,
 	codeLetterSpacing: 0,
 	contrast: 60,
