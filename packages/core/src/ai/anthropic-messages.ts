@@ -26,7 +26,7 @@ import { resolveReasoningEffort } from "./thinking-options.ts";
 import { failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
 import { compatKey, compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
-import { providerHeaders } from "./cache-routing.ts";
+import { sessionHeaders } from "./cache-routing.ts";
 
 const THINKING_BUDGET: Record<string, number> = {
 	minimal: 1024,
@@ -334,8 +334,8 @@ async function* streamAnthropic(
 	const inventedIds = new Map<number, string>();
 
 	const doFetch = options.fetch ?? globalThis.fetch;
-	// 占位符在这里换一次，重试沿用同一个会话 id。
-	const customHeaders = providerHeaders(provider.headers, options.cacheKey);
+	// 在这里算一次，重试沿用同一个会话 id。
+	const requiredHeaders = sessionHeaders(provider.baseUrl, options.cacheKey);
 
 	let firstTokenTime: number | null = null;
 	const blocks = new Map<
@@ -431,9 +431,9 @@ async function* streamAnthropic(
 							"anthropic-version": "2023-06-01",
 							/*
 							 * 不再带 `anthropic-beta: prompt-caching-2024-07-31`：提示缓存早已 GA，`cache_control`
-							 * 不需要这个头。个别端点真要某个 beta 头，用 `provider.headers` 自己加。
+							 * 不需要这个头。
 							 */
-							...customHeaders,
+							...requiredHeaders,
 						},
 						body: JSON.stringify(body),
 						signal: options.signal,

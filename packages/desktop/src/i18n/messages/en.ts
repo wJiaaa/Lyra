@@ -1499,8 +1499,6 @@ export const en = {
 	"provider.apiFormat": "API format",
 	"provider.apiFormatDetail": "Lyra speaks Responses and Anthropic Messages only — not Chat Completions.",
 	"provider.baseUrlHint": "For example https://relay.example.com, or https://relay.example.com/v1",
-	"provider.headers": "Custom headers",
-	"provider.headersHint": "One \"Name: value\" per line, sent with every request. {{sessionId}} in a value becomes the current session's ID — for example the x-opencode-session that OpenCode Go asks for.",
 	"provider.cacheRouting": "Cache routing",
 	"provider.cacheRoutingHint": "Sends a session's requests to the same cache at the provider, so more of the prefix is a hit. Auto picks by address; a body field the endpoint rejects is dropped automatically.",
 	"provider.cacheRoutingAuto": "Auto",

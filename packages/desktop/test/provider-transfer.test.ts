@@ -60,7 +60,7 @@ function roundTrip(providers: ProviderConfig[]) {
 }
 
 test("a file written here reads back as the same providers", () => {
-	const providers = [provider("glm"), provider("deer", { enabled: false, headers: { "x-tenant": "acme" } })];
+	const providers = [provider("glm"), provider("deer", { enabled: false })];
 	const parsed = roundTrip(providers);
 
 	assert.deepEqual(parsed.bundle.providers, providers);

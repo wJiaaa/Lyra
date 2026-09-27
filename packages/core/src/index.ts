@@ -71,7 +71,7 @@ export { registeredSkills, useSkillRegistry } from "./skills/registry.ts";
 export { backgroundJobs, type BackgroundJob } from "./tools/background-jobs.ts";
 export { loadCapabilityPlugins, type LoadedCapabilityPlugins } from "./plugins/capability.ts";
 export { API_FORMATS, getProvider, streamAssistant, useLlmRegistry } from "./ai/index.ts";
-export { providerHeaders } from "./ai/cache-routing.ts";
+export { sessionHeaders } from "./ai/cache-routing.ts";
 export type { AgentEvent, AgentEventSink, CommandRun, HookRun, QueuedTask } from "./agent/events.ts";
 export type { TodoItem } from "./tools/todo.ts";
 export { runAgent, type AgentRunConfig, type AgentRunResult } from "./agent/loop.ts";

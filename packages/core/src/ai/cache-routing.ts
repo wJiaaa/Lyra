@@ -12,8 +12,8 @@
  *
  * Anthropic 协议没有对应字段（它的缓存由 `cache_control` 断点显式声明），那条链不调 `cacheRouting`。
  *
- * 表里没有的服务商要求专门的会话头（例如 OpenCode Go 的 `x-opencode-session`，缺了直接 400），
- * 不在这里加专属规则，由用户在自定义请求头里写 `{{sessionId}}` 占位符，见 `providerHeaders`。
+ * 端点硬性要求的会话头（例如 OpenCode Go 的 `x-opencode-session`，缺了直接 400）不进这两张表，
+ * 三种协议都要带、也不受 `cacheRouting: off` 影响，见 `sessionHeaders`。
  */
 
 import { randomUUID } from "node:crypto";
@@ -174,25 +174,27 @@ export function cacheRouting(
 	return routing;
 }
 
-/** 自定义请求头值里的会话 id 占位符。 */
-const SESSION_ID_PLACEHOLDER = "{{sessionId}}";
+/** OpenCode Go 的地址：目录里 `/zen/go` 和 `/zen/go/v1` 两种写法都有。Zen（`/zen/v1`）不要求会话头。 */
+function isOpenCodeGo(baseUrl: string): boolean {
+	try {
+		const url = new URL(baseUrl);
+		const host = url.hostname.toLowerCase();
+		const path = url.pathname.replace(/\/+$/, "").toLowerCase();
+		return (host === "opencode.ai" || host.endsWith(".opencode.ai")) && (path === "/zen/go" || path === "/zen/go/v1");
+	} catch {
+		return false;
+	}
+}
 
 /**
- * 用户自配的请求头，占位符换成这次请求的会话 id。三种协议都走这里，Anthropic 协议也不例外。
+ * 端点硬性要求的会话头。三种协议都走这里，Anthropic 协议也不例外，也不看 `cacheRouting`——
+ * 这不是可选的路由提示，缺了请求就发不出去。
  *
- * 没有 `cacheKey`（压缩、测试连接这类一次性请求）时换成一个随机 id 而不是删掉这个头：要求会话头的
- * 服务商缺头直接 400，随机 id 只是失去路由，请求照样能发。调用方每次请求算一次，重试沿用同一个结果。
+ * 目前只有 OpenCode Go 的 `x-opencode-session`（缺了直接 400），写死同 ZCode `opencode-session.ts`。
+ * 没有 `cacheKey`（压缩、测试连接这类一次性请求）时换成一个随机 id 而不是不带：随机 id 只是失去路由，
+ * 请求照样能发。调用方每次请求算一次，重试沿用同一个结果。
  */
-export function providerHeaders(headers: Record<string, string> | undefined, cacheKey: string | undefined): Record<string, string> {
-	const resolved: Record<string, string> = {};
-	let session: string | undefined;
-	for (const [name, value] of Object.entries(headers ?? {})) {
-		if (value.includes(SESSION_ID_PLACEHOLDER)) {
-			session ??= fitKey(cacheKey || randomUUID(), 256);
-			resolved[name] = value.replaceAll(SESSION_ID_PLACEHOLDER, session);
-		} else {
-			resolved[name] = value;
-		}
-	}
-	return resolved;
+export function sessionHeaders(baseUrl: string, cacheKey: string | undefined): Record<string, string> {
+	if (!isOpenCodeGo(baseUrl)) return {};
+	return { "x-opencode-session": fitKey(cacheKey || randomUUID(), 256) };
 }

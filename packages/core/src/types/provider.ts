@@ -93,8 +93,6 @@ export interface ProviderConfig {
 	api: ApiFormat;
 	apiKey: string;
 	enabled: boolean;
-	/** Extra headers merged into every request. */
-	headers?: Record<string, string>;
 	/**
 	 * 缓存路由键（`RequestOptions.cacheKey`）怎么带。缺省等于 `auto`：按端点自动选，见 `ai/cache-routing.ts`。
 	 * `off` 给那种拒绝未知字段、错误里又不点名字段的严格端点——自动学习认不出它，只能手动关。

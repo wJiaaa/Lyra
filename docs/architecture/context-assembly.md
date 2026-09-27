@@ -110,10 +110,10 @@ token 和多花的钱，用来验收上面这些前缀修复、并定位前缀�
   `cache-key`，撤掉重发一次，本进程内这个模型不再带。请求头不参与学习：未知请求头几乎都被忽略。
 - **拒了却不点名字段**的端点学不到，只能在配置里关（设置页服务商的「缓存路由」）：`ProviderConfig.cacheRouting` 取 `off`；也可以
   点名一种方式（`prompt_cache_key` / `x-session-id`），给表里没有、但已知认什么的中转用。缺省为 `auto`。
-- **要求专门会话头的服务商**（如 OpenCode Go 的 `x-opencode-session`，缺了直接 400）不进路由表，
-  由用户在自定义请求头（`ProviderConfig.headers`，设置页「自定义请求头」）里写 `{{sessionId}}`
-  占位符，`providerHeaders` 在三种协议上都把它换成 `cacheKey`。没有 `cacheKey` 的一次性请求（压缩、
-  测试连接）换成随机 id 而不是删掉这个头；同名时用户的头覆盖路由表生成的头。
+- **要求专门会话头的服务商**不进路由表，由 `sessionHeaders` 按地址写死：目前只有 OpenCode Go
+  （`opencode.ai/zen/go`）的 `x-opencode-session`，缺了直接 400，做法同 ZCode `opencode-session.ts`。
+  三种协议都带，不受 `cacheRouting: off` 影响；没有 `cacheKey` 的一次性请求（压缩、测试连接）给随机
+  id 而不是不带。
 - **超长或含非 ASCII 的键**压成「可读前缀-摘要」，不截断：pi 截到 64 字符，共享长前缀的主会话与
   子代理键会变成同一个。请求头只能是可见 ASCII，否则 `fetch` 直接抛错。
 - 没照抄的：pi 在 Chat 链只对 `api.openai.com` 发 `prompt_cache_key`、在 Responses 链对所有端点发，

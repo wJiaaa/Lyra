@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cacheRouting, defaultCarriers, fitKey, providerHeaders } from "../src/ai/cache-routing.ts";
+import { cacheRouting, defaultCarriers, fitKey, sessionHeaders } from "../src/ai/cache-routing.ts";
 import { openaiChatCompletionsProvider, resetChatCompletionsCompat } from "../src/ai/openai-chat-completions.ts";
 import { openaiResponsesProvider } from "../src/ai/openai-responses.ts";
 import { anthropicMessagesProvider } from "../src/ai/anthropic-messages.ts";
@@ -60,18 +60,16 @@ test("fitKey：放得下原样用；超长的压成定长摘要，共享长前�
 	assert.notEqual(unicode, fitKey("会话-2", 256));
 });
 
-test("providerHeaders：{{sessionId}} 换成会话 id，没有会话时换成随机 id，其余原样", () => {
-	assert.deepEqual(providerHeaders(undefined, "s1"), {});
-	assert.deepEqual(providerHeaders({ "x-opencode-session": "{{sessionId}}", "x-tag": "lyra-{{sessionId}}", "x-plain": "a" }, "s1"), {
-		"x-opencode-session": "s1",
-		"x-tag": "lyra-s1",
-		"x-plain": "a",
-	});
-	const probe = providerHeaders({ a: "{{sessionId}}", b: "{{sessionId}}" }, undefined);
-	assert.match(probe.a, /^[0-9a-f-]{36}$/, "缺会话头会被拒，所以不删而是给一个随机 id");
-	assert.equal(probe.a, probe.b, "同一次请求里只生成一个");
-	assert.notEqual(providerHeaders({ a: "{{sessionId}}" }, undefined).a, probe.a);
-	assert.match(providerHeaders({ a: "{{sessionId}}" }, "会话-1").a, /^[\x21-\x7e]+$/, "请求头只能是可见 ASCII");
+test("sessionHeaders：只有 OpenCode Go 带 x-opencode-session，没有会话时给随机 id", () => {
+	assert.deepEqual(sessionHeaders("https://opencode.ai/zen/go", "s1"), { "x-opencode-session": "s1" });
+	assert.deepEqual(sessionHeaders("https://opencode.ai/zen/go/v1/", "s1"), { "x-opencode-session": "s1" });
+	assert.deepEqual(sessionHeaders("https://opencode.ai/zen/v1", "s1"), {}, "Zen 不要求");
+	assert.deepEqual(sessionHeaders("https://relay.example.com/zen/go", "s1"), {});
+	assert.deepEqual(sessionHeaders("not a url", "s1"), {});
+	const probe = sessionHeaders("https://opencode.ai/zen/go", undefined)["x-opencode-session"];
+	assert.match(probe, /^[0-9a-f-]{36}$/, "缺会话头会被拒，所以不删而是给一个随机 id");
+	assert.notEqual(sessionHeaders("https://opencode.ai/zen/go", undefined)["x-opencode-session"], probe);
+	assert.match(sessionHeaders("https://opencode.ai/zen/go", "会话-1")["x-opencode-session"], /^[\x21-\x7e]+$/, "请求头只能是可见 ASCII");
 });
 
 // ---------------------------------------------------------------------------
@@ -199,12 +197,6 @@ for (const api of ["openai-chat-completions", "openai-responses"] as const) {
 		assert.equal("prompt_cache_key" in sent[0].body, false);
 	});
 
-	test(`${api}：用户自配的同名头优先`, async () => {
-		resetAll();
-		const { sent } = await run(api, { id: `or2-${api}`, baseUrl: "https://openrouter.ai/api/v1", headers: { "x-session-id": "mine" } }, "sess-1");
-		assert.equal(sent[0].headers["x-session-id"], "mine");
-	});
-
 	test(`${api}：DeepSeek 什么都不带`, async () => {
 		resetAll();
 		const { sent } = await run(api, { id: `ds-${api}`, baseUrl: "https://api.deepseek.com" }, "sess-1");
@@ -242,12 +234,12 @@ test("anthropic-messages：协议没有路由字段，请求体和请求头都�
 });
 
 for (const api of ["openai-chat-completions", "openai-responses", "anthropic-messages"] as const) {
-	test(`${api}：自定义请求头里的 {{sessionId}} 换成会话 id`, async () => {
+	test(`${api}：OpenCode Go 带 x-opencode-session，关掉缓存路由也照带`, async () => {
 		resetAll();
-		const headers = { "x-opencode-session": "{{sessionId}}" };
-		const { sent } = await run(api, { id: `oc-${api}`, baseUrl: "https://opencode.ai/zen/go", headers }, "sess-1");
+		const provider = { id: `oc-${api}`, baseUrl: "https://opencode.ai/zen/go", cacheRouting: "off" as const };
+		const { sent } = await run(api, provider, "sess-1");
 		assert.equal(sent[0].headers["x-opencode-session"], "sess-1");
-		const bare = await run(api, { id: `oc-${api}`, baseUrl: "https://opencode.ai/zen/go", headers }, undefined);
+		const bare = await run(api, provider, undefined);
 		assert.match(bare.sent[0].headers["x-opencode-session"], /^[0-9a-f-]{36}$/);
 	});
 }

@@ -30,7 +30,7 @@ import { learnToolPairing, toolPairing } from "./tool-pairing-compat.ts";
 import { droppedParams, learnDroppedParam } from "./request-params-compat.ts";
 import { compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
-import { cacheRouting, providerHeaders } from "./cache-routing.ts";
+import { cacheRouting, sessionHeaders } from "./cache-routing.ts";
 
 export const openaiResponsesProvider: Provider = {
 	api: "openai-responses",
@@ -139,8 +139,8 @@ async function* streamResponses(
 	options.onPayload?.(body);
 
 	const doFetch = options.fetch ?? globalThis.fetch;
-	// 占位符在这里换一次，重试沿用同一个会话 id。
-	const customHeaders = providerHeaders(provider.headers, options.cacheKey);
+	// 在这里算一次，重试沿用同一个会话 id。
+	const requiredHeaders = sessionHeaders(provider.baseUrl, options.cacheKey);
 
 	let firstTokenTime: number | null = null;
 	/** output_index -> position in partial.content, so deltas can find their block. */
@@ -219,9 +219,8 @@ async function* streamResponses(
 						headers: {
 							"content-type": "application/json",
 							authorization: `Bearer ${provider.apiKey}`,
-							// 请求头放在用户自配的 headers 前面，用户手写的同名头优先。
 							...cacheRouting(provider, "openai-responses", options.cacheKey, droppedParams(scope.providerId, scope.modelId)).headers,
-							...customHeaders,
+							...requiredHeaders,
 						},
 						body: JSON.stringify(body),
 						signal: options.signal,

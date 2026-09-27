@@ -26,7 +26,7 @@ import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./rea
 import { droppedParams, learnDroppedParam, type SentParams } from "./request-params-compat.ts";
 import { compatKey, compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
-import { cacheRouting, providerHeaders } from "./cache-routing.ts";
+import { cacheRouting, sessionHeaders } from "./cache-routing.ts";
 
 export const openaiChatCompletionsProvider: Provider = {
 	api: "openai-chat-completions",
@@ -475,8 +475,8 @@ async function* streamChatCompletions(
 	options.onPayload?.(body);
 
 	const doFetch = options.fetch ?? globalThis.fetch;
-	// 占位符在这里换一次，重试沿用同一个会话 id。
-	const customHeaders = providerHeaders(provider.headers, options.cacheKey);
+	// 在这里算一次，重试沿用同一个会话 id。
+	const requiredHeaders = sessionHeaders(provider.baseUrl, options.cacheKey);
 	let firstTokenTime: number | null = null;
 	const inventedIds = new Map<number, string>();
 	/** 收到过几个能看懂的事件——用来分辨「模型没话说」和「中转发来一团别的东西」。 */
@@ -535,9 +535,8 @@ async function* streamChatCompletions(
 						headers: {
 							"content-type": "application/json",
 							authorization: `Bearer ${provider.apiKey}`,
-							// 请求头放在用户自配的 headers 前面，用户手写的同名头优先。
 							...cacheRouting(provider, "openai-chat-completions", options.cacheKey, droppedParams(scope.providerId, scope.modelId)).headers,
-							...customHeaders,
+							...requiredHeaders,
 						},
 						body: JSON.stringify(body),
 						signal: options.signal,

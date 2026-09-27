@@ -264,15 +264,11 @@ test("Anthropic：上下文窗口满和 pause_turn 都不冒充说完了", async
 	}
 });
 
-test("Anthropic：不再带过时的 prompt-caching beta 头，用户自己配的头照发", async () => {
+test("Anthropic：不再带过时的 prompt-caching beta 头", async () => {
 	const { provider, model } = modelOf("anthropic-messages", { supportsThinking: false });
-	provider.headers = { "anthropic-beta": "some-beta" };
 	const context: LlmContext = { systemPrompt: "", messages: [userSays("hi")], tools: [] };
 	const { headers } = await drive((fetch) => anthropicMessagesProvider.stream(provider, model, context, { fetch }), [anthropicReply("end_turn")]);
-	assert.equal(headers[0]["anthropic-beta"], "some-beta");
-	delete provider.headers;
-	const bare = await drive((fetch) => anthropicMessagesProvider.stream(provider, model, context, { fetch }), [anthropicReply("end_turn")]);
-	assert.equal("anthropic-beta" in bare.headers[0], false);
+	assert.equal("anthropic-beta" in headers[0], false);
 });
 
 test("Anthropic：默认发 budget_tokens；端点要 adaptive 时学会改写法重发，effort 按档位映射", async () => {

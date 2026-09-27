@@ -6,19 +6,18 @@
  */
 
 import type { ProviderTestResult } from "./ipc-types.ts";
-import { providerHeaders, type Settings } from "@lyra/core";
+import { sessionHeaders, type Settings } from "@lyra/core";
 
 /**
- * Auth plus the provider's own headers, in the order the real requests send them. A probe has no
- * session, so a `{{sessionId}}` in them becomes a throwaway id — some endpoints refuse a request
- * that carries no session header at all.
+ * Auth plus the session header the endpoint insists on, as the real requests send them. A probe has
+ * no session, so it gets a throwaway id — some endpoints refuse a request without one.
  */
 function requestHeaders(provider: Settings["providers"][number]): Record<string, string> {
 	return {
 		...(provider.api === "anthropic-messages"
 			? { "x-api-key": provider.apiKey, "anthropic-version": "2023-06-01" }
 			: { authorization: `Bearer ${provider.apiKey}` }),
-		...providerHeaders(provider.headers, undefined),
+		...sessionHeaders(provider.baseUrl, undefined),
 	};
 }
 

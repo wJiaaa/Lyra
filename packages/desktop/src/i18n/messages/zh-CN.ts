@@ -1678,8 +1678,6 @@ export const zhCN = {
 	"provider.apiFormat": "API 格式",
 	"provider.apiFormatDetail": "Lyra 只对接 Responses 与 Anthropic Messages，不支持 Chat Completions。",
 	"provider.baseUrlHint": "例如 https://relay.example.com 或 https://relay.example.com/v1",
-	"provider.headers": "自定义请求头",
-	"provider.headersHint": "每行一个「名字: 值」，随每次请求发出。值里的 {{sessionId}} 会换成当前会话 ID，例如 OpenCode Go 要求的 x-opencode-session。",
 	"provider.cacheRouting": "缓存路由",
 	"provider.cacheRoutingHint": "把同一会话的请求送到服务商的同一处缓存，前缀命中率更高。自动模式按地址选择；端点拒绝请求体字段时会自动停发。",
 	"provider.cacheRoutingAuto": "自动",
