@@ -7,15 +7,12 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { editTool } from "../src/tools/edit.ts";
 import { snapshotTag } from "../src/tools/hunk.ts";
 import { readTool } from "../src/tools/read.ts";
 import type { ToolContext } from "../src/types.ts";
 
-const ROOT = join(fileURLToPath(import.meta.url), "..", "..", "..", "..");
-const CATALOG = join(ROOT, "packages/core/src/catalog/model-catalog.json");
 const NAME = "Qwen3-LiveTranslate Flash Realtime";
 
 function textOf(res: { content: { type: string; text?: string }[] }): string {
@@ -44,16 +41,18 @@ test("a default read of a long line does not pretend the rest is gone", async ()
 	assert.ok(second.length < 8_000, `window was ${second.length} characters`);
 });
 
-test("the live model-catalog.json mid-line name is reachable via char_offset", async () => {
-	const ctx: ToolContext = { cwd: ROOT, sessionId: "live-read", state: new Map() };
-	const head = textOf(await readTool.execute({ path: CATALOG } as never, ctx));
+test("a mid-line name in a one-line model catalogue is reachable via char_offset", async () => {
+	const entries = Array.from({ length: 12_000 }, (_, index) => `{"id":"model-${index}","name":"Model ${index}","limit":{"context":200000,"output":32000}}`);
+	entries.splice(6_000, 0, `{"id":"qwen3-livetranslate-flash-realtime","name":"${NAME}"}`);
+	const content = `{"schema":1,"providers":[{"id":"p","models":[${entries.join(",")}]}]}`;
+	const { file, ctx } = await workspace(content, "model-catalog.json");
+	const head = textOf(await readTool.execute({ path: file } as never, ctx));
 	assert.doesNotMatch(head, new RegExp(NAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 	assert.match(head, /char_offset=/);
 
-	const { readFile } = await import("node:fs/promises");
-	const at = (await readFile(CATALOG, "utf8")).indexOf(NAME);
+	const at = content.indexOf(NAME);
 	assert.ok(at > 2000, `name was at ${at}`);
-	const window = textOf(await readTool.execute({ path: CATALOG, char_offset: Math.max(1, at - 80) } as never, ctx));
+	const window = textOf(await readTool.execute({ path: file, char_offset: Math.max(1, at - 80) } as never, ctx));
 	assert.ok(window.includes(NAME), "the named window must include the name");
 	assert.ok(window.includes("qwen3-livetranslate-flash-realtime"));
 	assert.ok(window.length < 8_000);

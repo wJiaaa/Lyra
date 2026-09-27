@@ -1,114 +1,143 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import {
+	activeModelCatalog,
+	catalogFill,
 	catalogModelFor,
-	catalogProviderFor,
-	MODEL_CATALOG_SOURCE,
-	MODEL_CATALOG_PROVIDERS,
-	withCatalogPricing,
+	installModelCatalog,
+	modelCatalogVersion,
+	resetModelCatalog,
 } from "../src/model-catalog.ts";
-import { withSmartConfig } from "../src/model-rules.ts";
+import { compactPiCatalog, MODEL_CATALOG_URL, parseModelCatalog, type ModelCatalogDocument } from "../src/model-catalog-format.ts";
 import { normalizeSettings } from "../src/config/settings.ts";
-import { computeCost } from "../src/utils/pricing.ts";
 import type { ModelConfig, ProviderConfig } from "../src/types/provider.ts";
 
 function provider(baseUrl: string, id = "provider-local"): ProviderConfig {
 	return { id, name: "Configured endpoint", baseUrl, api: "openai-responses", apiKey: "", enabled: true, models: [] };
 }
 
-/** A model row whose limits are deliberately meaningless, so a test sees what the catalogue changes. */
+/** A model row whose limits are deliberately meaningless, so a test sees whether anything changes them. */
 function bare(endpoint: ProviderConfig, modelId: string): ModelConfig {
 	return { id: `${endpoint.id}/${modelId}`, providerId: endpoint.id, modelId, name: modelId, contextWindow: 1, maxOutputTokens: 1, supportsThinking: false, supportsImages: false, supportsTools: false };
 }
 
-describe("offline model catalogue", () => {
-	it("is stamped with a reproducible MIT-licensed upstream version", () => {
-		assert.equal(MODEL_CATALOG_SOURCE.license, "MIT");
-		assert.match(MODEL_CATALOG_SOURCE.commit, /^[a-f0-9]{40}$/);
-		assert.equal(MODEL_CATALOG_SOURCE.repository, "https://github.com/anomalyco/models.dev");
+/** What a match fills in. */
+function filled(endpoint: ProviderConfig, modelId: string) {
+	const found = catalogModelFor(endpoint, modelId);
+	return found ? catalogFill(found.provider.id, found.model) : null;
+}
+
+const cost = (input: number, output: number, cacheRead = 0, cacheWrite = 0) => ({ input, output, cacheRead, cacheWrite });
+
+/** 一份合成的 pi 原始目录：数值是编的，只为让断言不随上游快照变化。 */
+const PI_RAW = {
+	openai: {
+		"gpt-5.2": { id: "gpt-5.2", name: "GPT-5.2", baseUrl: "https://api.openai.com/v1", reasoning: true, input: ["text", "image"], cost: cost(1.75, 14, 0.175), contextWindow: 400_000, maxTokens: 128_000 },
+	},
+	zai: {
+		"glm-5.3": { id: "glm-5.3", name: "GLM-5.3", baseUrl: "https://api.z.ai/api/coding/paas/v4", reasoning: true, input: ["text"], cost: cost(1, 3.2), contextWindow: 200_000, maxTokens: 128_000 },
+	},
+	"opencode-go": {
+		"glm-5.3": { id: "glm-5.3", name: "GLM-5.3", baseUrl: "https://opencode.ai/zen/go/v1", reasoning: true, input: ["text"], cost: cost(0, 0), contextWindow: 1_000_000, maxTokens: 131_072 },
+	},
+	google: {
+		"gemini-2.5-pro": {
+			id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", baseUrl: "https://generativelanguage.googleapis.com/v1beta", reasoning: true, input: ["text", "image"],
+			cost: { ...cost(1.25, 10, 0.31), tiers: [{ inputTokensAbove: 200_000, input: 2.5, output: 15 }] }, contextWindow: 1_048_576, maxTokens: 65_536,
+		},
+	},
+	openrouter: {
+		"tencent/hy3-preview": { id: "tencent/hy3-preview", name: "HY3", baseUrl: "https://openrouter.ai/api/v1", reasoning: false, input: ["text"], cost: cost(0.18, 0.7), contextWindow: 256_000, maxTokens: 300_000 },
+		broken: { id: "broken", name: "No limits", baseUrl: "https://openrouter.ai/api/v1", cost: cost(1, 1) },
+	},
+	empty: {},
+};
+
+function fixture(revision = "rev-fixture", updatedAt = "2099-01-01T00:00:00.000Z"): ModelCatalogDocument {
+	return compactPiCatalog(PI_RAW, { name: "pi.dev", url: MODEL_CATALOG_URL, revision, updatedAt });
+}
+
+describe("bundled model catalogue", () => {
+	it("is a pi snapshot that passes the same validation as a remote one", () => {
+		resetModelCatalog();
+		const catalog = activeModelCatalog();
+		assert.equal(catalog.source.url, "https://pi.dev/api/models");
+		assert.doesNotThrow(() => parseModelCatalog(catalog));
+		assert.ok(catalog.providers.length > 10);
+		assert.match(modelCatalogVersion(), /^pi:/);
+	});
+});
+
+describe("pi catalogue format", () => {
+	it("keeps limits, thinking, images and prices, and skips entries without limits or models", () => {
+		const catalog = fixture();
+		assert.deepEqual(catalog.providers.map((entry) => entry.id), ["openai", "zai", "opencode-go", "google", "openrouter"]);
+		const gemini = catalog.providers.find((entry) => entry.id === "google")!.models[0];
+		assert.deepEqual(
+			{ context: gemini.contextWindow, output: gemini.maxOutputTokens, thinking: gemini.supportsThinking, images: gemini.supportsImages, tiers: gemini.tiers },
+			{ context: 1_048_576, output: 65_536, thinking: true, images: true, tiers: [{ aboveTokens: 200_000, input: 2.5, output: 15, cacheRead: undefined, cacheWrite: undefined }] },
+		);
+		assert.deepEqual(catalog.providers.find((entry) => entry.id === "openrouter")!.models.map((model) => model.id), ["tencent/hy3-preview"]);
 	});
 
-	it("identifies a custom local id from the official endpoint host", () => {
-		assert.equal(catalogProviderFor(provider("https://api.openai.com/v1"))?.id, "openai");
-		assert.equal(catalogProviderFor(provider("https://eastus.openai.azure.com/openai/v1"))?.id, "azure");
+	it("rejects a catalogue without a revision or with an invalid entry as a whole", () => {
+		assert.throws(() => parseModelCatalog({ ...fixture(), source: { name: "pi.dev" } }));
+		const broken = structuredClone(fixture());
+		broken.providers[0].models[0].contextWindow = 0;
+		assert.throws(() => parseModelCatalog(broken));
+	});
+});
+
+describe("catalogue matching", () => {
+	beforeEach(() => assert.equal(installModelCatalog(fixture()), true));
+	afterEach(() => resetModelCatalog());
+
+	it("prefers the entry at the same endpoint, with or without a trailing /v1", () => {
+		const go = provider("https://opencode.ai/zen/go");
+		assert.equal(catalogModelFor(go, "glm-5.3")?.provider.id, "opencode-go");
+		assert.equal(catalogModelFor(provider("https://OPENCODE.ai/zen/go/v1/"), "glm-5.3")?.match, "exact");
+		const { pricing, ...values } = filled(go, "glm-5.3")!;
+		assert.deepEqual(values, { contextWindow: 1_000_000, maxOutputTokens: 131_072, supportsThinking: true, supportsImages: false, supportsTools: true });
+		assert.equal(pricing, undefined, "an all-zero subscription price is unpriced, not free");
 	});
 
-	it("uses upstream reference prices for an unknown relay without changing its wire id", () => {
-		const relay = provider("https://relay.example/v1", "openai");
-		assert.equal(catalogProviderFor(relay), null);
-		assert.equal(catalogModelFor(relay, "gpt-5.2")?.model.inputPrice, 1.75);
-		const priced = withCatalogPricing(relay, { ...bare(relay, "gpt-5.2-high") });
-		assert.equal(priced.modelId, "gpt-5.2-high");
-		assert.equal(priced.pricing?.input, 1.75);
-	});
-
-	it("matches exact model ids and fills in only the price", () => {
-		const openai = provider("https://api.openai.com/v1");
-		const found = catalogModelFor(openai, "gpt-5.2");
-		assert.equal(found?.model.inputPrice, 1.75);
-		assert.equal(catalogModelFor(openai, "GPT-5.2")?.model.id, "gpt-5.2");
-
-		const model = withCatalogPricing(openai, bare(openai, "gpt-5.2"));
-		assert.equal(model.pricing?.cacheRead, 0.175);
-		assert.equal(model.pricing?.source, "catalog");
-		assert.equal(model.contextWindow, 1, "limits are the smart config's, not the catalogue's");
-		const manual = withCatalogPricing(openai, { ...bare(openai, "gpt-5.2"), pricing: { input: 9, output: 10 } });
-		assert.equal(manual.pricing?.input, 9, "a manual price always wins");
-	});
-
-	it("recognises versioned relay suffixes across model families without guessing unknown versions", () => {
+	it("falls back to the family vendor, then OpenRouter, for a relay, stripping only known suffixes", () => {
 		const relay = provider("https://relay.example/v1");
-		for (const [id, expected] of [
-			["gemini-3.7-flash-high", "gemini-3.7-flash"],
-			["gemini-3.8-flash-preview-high", "gemini-3.8-flash"],
-			["gemini-3.1-pro-high", "gemini-3.1-pro-preview"],
-			["claude-opus-4-6-thinking", "claude-opus-4-6"],
-			["command/deepseek-v4-flash:0731", "deepseek-v4-flash"],
-			["kimi-k3-high", "kimi-k3"],
-			["qwen3.8-max-preview-high", "qwen3.8-max"],
-			["glm-5.3-high", "glm-5.3"],
-			["hy3-preview-high", "tencent/hy3-preview"],
-		]) assert.equal(catalogModelFor(relay, id)?.model.id, expected, id);
-		for (const id of ["gemini-pro-agent", "gemini-99-pro", "gpt-5.2-unrecognised", "qwen-unknown", "gpt-5.2:free"]) {
-			assert.equal(catalogModelFor(relay, id), null, id);
-		}
+		assert.equal(catalogModelFor(relay, "glm-5.3")?.provider.id, "zai");
+		assert.equal(catalogModelFor(relay, "gpt-5.2-high")?.model.id, "gpt-5.2");
+		assert.equal(catalogModelFor(relay, "command/gpt-5.2:20260101")?.model.id, "gpt-5.2");
+		assert.equal(catalogModelFor(relay, "hy3-preview-high")?.model.id, "tencent/hy3-preview");
+		assert.equal(catalogModelFor(relay, "gpt-5.2-high")?.match, "reference");
+		for (const id of ["gpt-5.2-unrecognised", "gpt-5.2:free", "gemini-pro-agent", "some-private-model-v9"]) assert.equal(catalogModelFor(relay, id), null, id);
 	});
-	it("distinguishes regional endpoints instead of applying international prices in China", () => {
-		assert.equal(catalogProviderFor(provider("https://api.moonshot.cn/v1"))?.id, "moonshotai-cn");
-		assert.equal(catalogProviderFor(provider("https://dashscope.aliyuncs.com/compatible-mode/v1"))?.id, "alibaba-cn");
-		assert.equal(catalogProviderFor(provider("https://open.bigmodel.cn/api/paas/v4"))?.id, "zhipuai");
-	});
-	it("keeps the complete text-model catalogue, including HY and metadata without a tariff", () => {
-		assert.ok(MODEL_CATALOG_PROVIDERS.length > 100);
-		assert.ok(MODEL_CATALOG_PROVIDERS.flatMap((p) => p.models).length > 5000);
-		assert.ok(MODEL_CATALOG_PROVIDERS.some((p) => p.models.some((m) => m.inputPrice === undefined)));
+
+	it("fills limits, capabilities and a stamped catalogue price, clamping output to the window", () => {
 		const relay = provider("https://relay.example/v1");
-		assert.equal(withCatalogPricing(relay, bare(relay, "hy3-preview-high")).pricing?.input, 0.18);
+		const gpt = filled(relay, "gpt-5.2-high")!;
+		assert.deepEqual(
+			{ context: gpt.contextWindow, images: gpt.supportsImages, input: gpt.pricing?.input, cacheRead: gpt.pricing?.cacheRead, source: gpt.pricing?.source, version: gpt.pricing?.catalogVersion },
+			{ context: 400_000, images: true, input: 1.75, cacheRead: 0.175, source: "catalog", version: "pi:rev-fixture" },
+		);
+		assert.equal(filled(relay, "hy3-preview")?.maxOutputTokens, 256_000);
+		assert.deepEqual(filled(provider("https://generativelanguage.googleapis.com/v1beta"), "gemini-2.5-pro")?.pricing?.tiers, [{ aboveTokens: 200_000, input: 2.5, output: 15, cacheRead: undefined, cacheWrite: undefined }]);
 	});
-	it("repairs old imports at settings load so live requests use the same prices as the editor", () => {
+
+	it("never rewrites a configured model at settings load, and drops the retired follow-the-catalogue keys", () => {
 		const relay = provider("https://relay.example/v1");
-		const legacy = { id: "local", providerId: relay.id, modelId: "deepseek-v4-flash:0731", name: "Custom name", contextWindow: 200000, maxOutputTokens: 16384, supportsThinking: true, supportsImages: true, supportsTools: true };
-		const settings = normalizeSettings({ providers: [{ ...relay, models: [legacy] }] });
-		const model = settings.providers[0].models[0];
-		assert.equal(model.supportsImages, false, "the old import signature now follows the smart config");
-		assert.equal(model.modelId, legacy.modelId);
-		assert.equal(model.name, legacy.name);
-		assert.equal(model.metadataSource, "smart");
-		assert.ok(model.pricing);
-		const usage = computeCost({ input: 1000000, output: 0, cacheRead: 0, cacheWrite: 0, total: 1000000 }, model);
-		assert.equal(usage.cost?.source, "catalog");
-		assert.equal(usage.cost?.total, model.pricing.input);
-		const manual = withCatalogPricing(relay, withSmartConfig(relay, { ...legacy, contextWindow: 500000, metadataSource: "manual", pricing: { input: 9, output: 10 } }));
-		assert.equal(manual.contextWindow, 500000);
-		assert.equal(manual.supportsImages, true);
-		assert.equal(manual.pricing?.input, 9);
+		const legacy = { ...bare(relay, "gpt-5.2-high"), contextWindow: 200000, maxOutputTokens: 16384, metadataSource: "smart", overrides: ["contextWindow"], catalogRef: { providerId: "openai", modelId: "gpt-5.2" } };
+		const settings = normalizeSettings({ providers: [{ ...relay, models: [legacy as ModelConfig] }] });
+		assert.deepEqual(settings.providers[0].models[0], { ...bare(relay, "gpt-5.2-high"), contextWindow: 200000, maxOutputTokens: 16384 });
 	});
-	it("binds opaque relay aliases explicitly and does not substitute for a broken binding", () => {
-		const relay = provider("https://relay.example/v1");
-		assert.equal(catalogModelFor(relay, "gemini-pro-agent"), null);
-		const bound = catalogModelFor(relay, "gemini-pro-agent", { providerId: "google", modelId: "gemini-2.5-pro" });
-		assert.equal(bound?.model.id, "gemini-2.5-pro");
-		assert.equal(bound?.match, "binding");
-		assert.equal(catalogModelFor(relay, "gpt-5.2", { providerId: "google", modelId: "missing" }), null);
+});
+
+describe("installing a catalogue", () => {
+	afterEach(() => resetModelCatalog());
+
+	it("only replaces the active one with a different, not older revision", () => {
+		assert.equal(installModelCatalog(fixture("rev-a", "2099-01-01T00:00:00.000Z")), true);
+		assert.equal(installModelCatalog(fixture("rev-a", "2099-02-01T00:00:00.000Z")), false, "same revision");
+		assert.equal(installModelCatalog(fixture("rev-old", "2098-01-01T00:00:00.000Z")), false, "older");
+		assert.equal(activeModelCatalog().source.revision, "rev-a");
+		assert.equal(modelCatalogVersion(), "pi:rev-a");
 	});
 });

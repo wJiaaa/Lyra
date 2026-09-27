@@ -13,7 +13,9 @@
 import { uniqueProviderName } from "./provider-transfer.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { ModelConfig, ProviderConfig } from "@lyra/core";
-import { installModelRules } from "@lyra/core/model-rules";
+import { activeModelCatalog } from "@lyra/core/model-catalog";
+import { pullModelCatalog } from "../../lib/model-catalog.ts";
+import type { CatalogSyncResult } from "@lyra/core/model-catalog-sync";
 import { importedModel } from "./model-defaults.ts";
 import { useEffect, useMemo, useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
@@ -42,15 +44,30 @@ export function useProviders() {
 		if (!selected && providers.length > 0) setSelectedId(providers[0].id);
 	}, [providers, selected]);
 
-	/*
-	 * 主进程的规则可能已经从远程更新过，编辑器预览和导入都在这一页算推荐值，要和保存时主进程套的
-	 * 是同一份。拿不到（网页端没有这个方法）就用打包的那份——保存后主进程还会再套一遍。
-	 */
+	// 目录由 store 跟主进程对齐（`lib/model-catalog.ts`）；订阅版本号，换了就按新目录重新渲染。
+	// 主进程每小时会自己更新目录，打开这一页时对齐一次，搜索和导入用的就是最新的；版本没变只是一次空问。
+	useApp((s) => s.catalogRevision);
 	useEffect(() => {
-		Promise.resolve()
-			.then(() => bridge.providers.modelRules())
-			.then(installModelRules, () => undefined);
+		void pullModelCatalog().then((catalogRevision) => useApp.setState({ catalogRevision }));
 	}, []);
+	const catalog = activeModelCatalog().source;
+	const catalogModels = activeModelCatalog().providers.reduce((sum, provider) => sum + provider.models.length, 0);
+	const [updatingCatalog, setUpdatingCatalog] = useState(false);
+	const [catalogResult, setCatalogResult] = useState<CatalogSyncResult | null>(null);
+
+	async function updateCatalog() {
+		setUpdatingCatalog(true);
+		setCatalogResult(null);
+		try {
+			const result = await bridge.providers.updateModelCatalog();
+			useApp.setState({ catalogRevision: await pullModelCatalog() });
+			setCatalogResult(result);
+		} catch (error) {
+			setCatalogResult({ status: "failed", error: error instanceof Error ? error.message : String(error), source: catalog });
+		} finally {
+			setUpdatingCatalog(false);
+		}
+	}
 
 	function select(id: string) {
 		setSelectedId(id);
@@ -220,5 +237,10 @@ export function useProviders() {
 		removeModel,
 		setDefaultModel,
 		test,
+		catalog,
+		catalogModels,
+		updatingCatalog,
+		catalogResult,
+		updateCatalog,
 	};
 }

@@ -237,7 +237,7 @@ test("the dashboard paints a skeleton, then shows priced, cached and unpriced us
 	assert.match(seen.text, /估算费用/);
 	assert.match(seen.text, /缓存写入/);
 	assert.match(seen.text, /推理/);
-	assert.match(seen.text, /离线目录/);
+	assert.match(seen.text, /模型目录/);
 	assert.match(seen.text, /未计价/);
 	assert.ok(seen.paths >= 4, JSON.stringify(seen));
 	assert.ok(seen.chartHeight >= 150, JSON.stringify(seen));
@@ -735,7 +735,7 @@ test("the chart fills the height the spend list gives it, instead of leaving a b
 	await shot("usage-dashboard-top-three");
 });
 
-test("the model editor synchronises offline catalogue values and offers upstream references for relays", async () => {
+test("the model editor follows catalogue values and offers upstream references for relays", async () => {
 	const expected = catalogModelFor({ id: "openai", baseUrl: "https://api.openai.com/v1" }, "gpt-5.2");
 	assert.ok(expected);
 	const values = await ui<{ context: string; output: string; input: string; outputPrice: string; cacheRead: string; cacheWrite: string; source: string; manualSource: string; relayMatched: boolean }>(`
@@ -749,9 +749,9 @@ test("the model editor synchronises offline catalogue values and offers upstream
 		const modelInput = field("模型 ID").querySelector("input");
 		typeValue(modelInput, "gpt-5.2");
 		await wait(150);
-		const matched = [...document.querySelectorAll("div")].some((element) => label(element).startsWith("离线模型目录已匹配"));
-		if (!matched) throw new Error("catalogue did not match gpt-5.2");
-		click(byText("button", "同步目录信息"));
+		const suggested = [...document.querySelectorAll('[aria-label="模型目录搜索结果"] button')].find((element) => label(element).startsWith("按模型 ID 找到"));
+		if (!suggested) throw new Error("catalogue did not suggest gpt-5.2");
+		click(suggested);
 		await wait(100);
 		const read = (text) => field(text).querySelector("input").value;
 		const result = {
@@ -761,11 +761,11 @@ test("the model editor synchronises offline catalogue values and offers upstream
 			outputPrice: read("输出价格"),
 			cacheRead: read("缓存命中价格"),
 			cacheWrite: read("缓存写入价格"),
-			source: [...document.querySelectorAll("p")].find((element) => label(element).includes("价格来自 models.dev"))?.innerText || "",
+			source: [...document.querySelectorAll("p")].find((element) => label(element).includes("价格从 pi.dev"))?.innerText || "",
 		};
 		typeValue(field("输入价格").querySelector("input"), "9.9");
 		await wait(100);
-		const manualSource = [...document.querySelectorAll("p")].find((element) => label(element).includes("当前使用手动价格"))?.innerText || "";
+		const manualSource = [...document.querySelectorAll("p")].find((element) => label(element).includes("当前使用手动填写的价格"))?.innerText || "";
 		click(byText("button", "取消"));
 		await wait(150);
 		click(byText("button", "Relay"));
@@ -775,7 +775,7 @@ test("the model editor synchronises offline catalogue values and offers upstream
 		const relayInput = field("模型 ID").querySelector("input");
 		typeValue(relayInput, "gpt-5.2");
 		await wait(100);
-		return { ...result, manualSource, relayMatched: [...document.querySelectorAll("div")].some((element) => label(element).startsWith("离线模型目录已匹配")) };
+		return { ...result, manualSource, relayMatched: [...document.querySelectorAll('[aria-label="模型目录搜索结果"] button')].some((element) => label(element).startsWith("按模型 ID 找到")) };
 	`);
 
 	assert.equal(values.context, String(expected.model.contextWindow));
@@ -784,7 +784,7 @@ test("the model editor synchronises offline catalogue values and offers upstream
 	assert.equal(values.outputPrice, String(expected.model.outputPrice));
 	assert.equal(values.cacheRead, expected.model.cacheReadPrice === undefined ? "" : String(expected.model.cacheReadPrice));
 	assert.equal(values.cacheWrite, expected.model.cacheWritePrice === undefined ? "" : String(expected.model.cacheWritePrice));
-	assert.match(values.source, /models\.dev/);
-	assert.match(values.manualSource, /手动价格/);
+	assert.match(values.source, /pi\.dev/);
+	assert.match(values.manualSource, /手动填写的价格/);
 	assert.equal(values.relayMatched, true);
 });

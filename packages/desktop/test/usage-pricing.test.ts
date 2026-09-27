@@ -16,18 +16,17 @@ describe("historical usage pricing", () => {
 		assert.equal(priced.cost.total, 0);
 		assert.equal(priced.source, "provider");
 	});
-	it("changing an opaque alias binding invalidates cached history and selects the bound tariff", () => {
+	it("uses a configured price as stored and estimates only unpriced models from the catalogue", () => {
 		const settings: Settings = { ...DEFAULT_SETTINGS, providers: [{
 			id: "relay", name: "Relay", baseUrl: "https://relay.example/v1", api: "openai-responses", apiKey: "", enabled: true,
-			models: [{ id: "relay/private-alias", modelId: "private-alias", providerId: "relay", name: "Alias", contextWindow: 200000, maxOutputTokens: 16384, supportsThinking: true, supportsImages: true, supportsTools: true }],
+			models: [{ id: "relay/gpt-5.2", modelId: "gpt-5.2", providerId: "relay", name: "GPT", contextWindow: 200000, maxOutputTokens: 16384, supportsThinking: true, supportsImages: true, supportsTools: true }],
 		}] };
+		const million = { input: 1000000, output: 0, cacheRead: 0, cacheWrite: 0 };
+		assert.equal(priceUsage(million, null, settings.providers, "relay", "gpt-5.2").cost.total, 1.75);
 		const before = usagePricingKey(settings.providers);
-		settings.providers[0].models[0].catalogRef = { providerId: "openai", modelId: "gpt-5.2" };
+		settings.providers[0].models[0].pricing = { input: 9, output: 10, source: "catalog" };
 		assert.notEqual(usagePricingKey(settings.providers), before);
-		const priced = priceUsage({ input: 1000000, output: 0, cacheRead: 0, cacheWrite: 0 }, null, settings.providers, "relay", "private-alias");
-		assert.equal(priced.cost.total, 1.75);
-		settings.providers[0].models[0].pricing = { input: 9, output: 10 };
-		assert.equal(priceUsage({ input: 1000000, output: 0, cacheRead: 0, cacheWrite: 0 }, null, settings.providers, "relay", "private-alias").cost.total, 9);
+		assert.equal(priceUsage(million, null, settings.providers, "relay", "gpt-5.2").cost.total, 9, "a price filled from the catalogue is not looked up again");
 	});
 	it("preserves recorded zero cost fields instead of replacing them with recalculated values", () => {
 		const priced = priceUsage(usage, {

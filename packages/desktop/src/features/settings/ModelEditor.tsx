@@ -1,6 +1,5 @@
-import type { ModelConfig, ProviderConfig, SmartField } from "@lyra/core";
-import { catalogModelFor, catalogPricing, type CatalogMatch } from "@lyra/core/model-catalog";
-import { resolveModelRules, SMART_FIELDS, withSmartConfig } from "@lyra/core/model-rules";
+import type { ModelConfig, ModelPricing, ProviderConfig } from "@lyra/core";
+import { catalogFill, catalogModelFor, DEFAULT_MODEL_LIMITS, type CatalogModel } from "@lyra/core/model-catalog";
 import { ModelCatalog } from "./ModelCatalog.tsx";
 import { Box } from "lucide-react";
 import { useState } from "react";
@@ -14,121 +13,84 @@ const CONTEXT = { min: 1, max: 100_000_000, step: 1 };
 const OUTPUT = { min: 1, max: 100_000_000, step: 1 };
 const PRICE = { min: 0, max: 1_000_000, step: 0.000001 };
 
+type PriceKey = "input" | "output" | "cacheRead" | "cacheWrite";
+type Prices = Record<PriceKey, string>;
+
+function pricesOf(pricing: ModelPricing | undefined): Prices {
+	const text = (value: number | undefined) => (value === undefined ? "" : String(value));
+	return { input: text(pricing?.input), output: text(pricing?.output), cacheRead: text(pricing?.cacheRead), cacheWrite: text(pricing?.cacheWrite) };
+}
+
 export function ModelEditor({
 	provider,
-	model: savedModel,
+	model,
 	onSave,
 	onCancel,
 }: {
-	provider: Pick<ProviderConfig, "id" | "baseUrl" | "api">;
+	provider: Pick<ProviderConfig, "id" | "baseUrl">;
 	model: ModelConfig | null;
 	onSave: (model: ModelConfig) => void;
 	onCancel: () => void;
 }) {
 	const { t } = useI18n();
-	const model = savedModel ? withSmartConfig(provider, savedModel) : null;
-	const [catalogRef, setCatalogRef] = useState(model?.catalogRef);
-	const initialCatalog = model ? catalogModelFor(provider, model.modelId, model.catalogRef) : null;
-	const initialPricing = model?.pricing ?? (initialCatalog ? catalogPricing(initialCatalog.provider.id, initialCatalog.model) : undefined);
 	const [modelId, setModelId] = useState(model?.modelId ?? "");
 	const [name, setName] = useState(model?.name ?? "");
+	const initial = model ?? DEFAULT_MODEL_LIMITS;
+	const [contextWindow, setContextWindow] = useState(String(initial.contextWindow));
+	const [maxOutput, setMaxOutput] = useState(String(initial.maxOutputTokens));
+	const [supportsThinking, setSupportsThinking] = useState(initial.supportsThinking);
+	const [supportsImages, setSupportsImages] = useState(initial.supportsImages);
+	const [supportsTools, setSupportsTools] = useState(initial.supportsTools);
+	const [prices, setPrices] = useState(() => pricesOf(model?.pricing));
 	/*
-	 * 智能配置：新模型默认开着。开着时没被改过的字段显示推荐值，改了哪一项，哪一项就记进
-	 * `overrides`、不再跟随推荐；关掉则把当前看到的值整份冻结成手动。旧数据里没有标记的模型是人手
-	 * 定的值，打开时仍是手动。
+	 * 表单里这组价格对应的完整价格记录——从目录填入的（带长上下文阶梯和来源），或者已保存的。改了任何
+	 * 一项价格它就作废，保存时按表单里的数字存成手动价格。
 	 */
-	const [smart, setSmart] = useState(model ? model.metadataSource === "smart" : true);
-	const [overrides, setOverrides] = useState<ReadonlySet<SmartField>>(new Set(model?.overrides ?? []));
-	const [own, setOwn] = useState(() => ({
-		contextWindow: String(model?.contextWindow ?? ""),
-		maxOutputTokens: String(model?.maxOutputTokens ?? ""),
-		supportsThinking: model?.supportsThinking ?? true,
-		supportsImages: model?.supportsImages ?? true,
-		supportsTools: model?.supportsTools ?? true,
-	}));
-	const trimmedId = modelId.trim();
-	const recommended = resolveModelRules(provider, trimmedId);
-	const follows = (field: SmartField) => smart && !overrides.has(field);
-	const contextWindow = follows("contextWindow") ? String(recommended.config.contextWindow) : own.contextWindow;
-	const maxOutput = follows("maxOutputTokens")
-		? String(Math.min(recommended.config.maxOutputTokens, Number(contextWindow) || recommended.config.maxOutputTokens))
-		: own.maxOutputTokens;
-	const supportsThinking = follows("supportsThinking") ? recommended.config.supportsThinking : own.supportsThinking;
-	const supportsImages = follows("supportsImages") ? recommended.config.supportsImages : own.supportsImages;
-	const supportsTools = follows("supportsTools") ? recommended.config.supportsTools : own.supportsTools;
-	const [priceIn, setPriceIn] = useState(String(initialPricing?.input ?? ""));
-	const [priceOut, setPriceOut] = useState(String(initialPricing?.output ?? ""));
-	const [priceCacheRead, setPriceCacheRead] = useState(String(initialPricing?.cacheRead ?? ""));
-	const [priceCacheWrite, setPriceCacheWrite] = useState(String(initialPricing?.cacheWrite ?? ""));
-	const [pricingSource, setPricingSource] = useState<"manual" | "catalog" | null>(
-		initialPricing ? initialPricing.source ?? (model?.pricing ? "manual" : "catalog") : null,
-	);
+	const [storedPricing, setStoredPricing] = useState(model?.pricing);
 
+	const trimmedId = modelId.trim();
+	const suggestion = trimmedId ? catalogModelFor(provider, trimmedId) : null;
 	const window_ = Number(contextWindow);
 	const output = Number(maxOutput);
 	const windowOk = Number.isInteger(window_) && window_ > 0 && window_ <= 100_000_000;
 	const outputOk = Number.isInteger(output) && output > 0 && output <= window_;
-	const catalog = catalogModelFor(provider, trimmedId, catalogRef);
 	const parsePrice = (value: string) => {
 		if (!value.trim()) return null;
 		const parsed = Number(value);
 		return Number.isFinite(parsed) && parsed >= 0 ? parsed : Number.NaN;
 	};
-	const prices = [priceIn, priceOut, priceCacheRead, priceCacheWrite].map(parsePrice);
-	const pricingComplete = prices[0] !== null && prices[1] !== null;
-	const pricingEmpty = prices.every((price) => price === null);
-	const pricingOk = prices.every((price) => price === null || Number.isFinite(price)) && (pricingComplete || pricingEmpty);
+	const parsed = [prices.input, prices.output, prices.cacheRead, prices.cacheWrite].map(parsePrice);
+	const pricingComplete = parsed[0] !== null && parsed[1] !== null;
+	const pricingEmpty = parsed.every((price) => price === null);
+	const pricingOk = parsed.every((price) => price === null || Number.isFinite(price)) && (pricingComplete || pricingEmpty);
 	const valid = trimmedId.length > 0 && windowOk && outputOk && pricingOk;
 
-	function changePrice(setter: (value: string) => void, value: string) {
-		setter(value);
-		setPricingSource("manual");
+	/** 把一个目录条目的值填进表单。只是填一次，之后怎么改都行。 */
+	function fill(entry: { provider: { id: string }; model: CatalogModel }) {
+		const values = catalogFill(entry.provider.id, entry.model);
+		setContextWindow(String(values.contextWindow));
+		setMaxOutput(String(values.maxOutputTokens));
+		setSupportsThinking(values.supportsThinking);
+		setSupportsImages(values.supportsImages);
+		setSupportsTools(values.supportsTools);
+		setPrices(pricesOf(values.pricing));
+		setStoredPricing(values.pricing);
 	}
 
-	/** The catalogue is only consulted for price; limits and capabilities are the smart config's. */
-	function applyCatalog(found: CatalogMatch) {
-		const entry = found.model;
-		setCatalogRef(found.match === "binding" ? { providerId: found.provider.id, modelId: entry.id } : undefined);
-		setPriceIn(String(entry.inputPrice ?? ""));
-		setPriceOut(String(entry.outputPrice ?? ""));
-		setPriceCacheRead(entry.cacheReadPrice === undefined ? "" : String(entry.cacheReadPrice));
-		setPriceCacheWrite(entry.cacheWritePrice === undefined ? "" : String(entry.cacheWritePrice));
-		setPricingSource("catalog");
+	function changePrice(key: PriceKey, value: string) {
+		setPrices((current) => ({ ...current, [key]: value }));
+		setStoredPricing(undefined);
 	}
 
 	function changeModelId(value: string) {
 		// 显示名称还跟着模型 ID 走（没人改过）时一起变。
 		if (!name.trim() || name === modelId) setName(value);
 		setModelId(value);
-		setCatalogRef(undefined);
-		if (pricingSource === "manual") return;
-		const found = catalogModelFor(provider, value);
-		if (found) applyCatalog(found);
-		else {
-			setPricingSource(null);
-			setPriceIn(""); setPriceOut(""); setPriceCacheRead(""); setPriceCacheWrite("");
-		}
-	}
-
-	/** 手动改一项：智能模式下这一项从此不再跟随推荐。 */
-	function changeField<K extends SmartField>(field: K, value: (typeof own)[K]) {
-		setOwn((current) => ({ ...current, [field]: value }));
-		if (smart) setOverrides((current) => new Set(current).add(field));
-	}
-
-	function changeSmart(next: boolean) {
-		if (!next) {
-			// 关掉时把眼前的值整份接过来，看到什么就存什么。
-			setOwn({ contextWindow, maxOutputTokens: maxOutput, supportsThinking, supportsImages, supportsTools });
-		}
-		setOverrides(new Set());
-		setSmart(next);
 	}
 
 	function submit() {
 		if (!valid) return;
-		const [parsedIn, parsedOut, parsedCacheRead, parsedCacheWrite] = prices;
-		const cataloguePricing = pricingSource === "catalog" && catalog ? catalogPricing(catalog.provider.id, catalog.model) : null;
+		const [parsedIn, parsedOut, parsedCacheRead, parsedCacheWrite] = parsed;
 		onSave({
 			...model,
 			id: `${provider.id}/${trimmedId}`,
@@ -140,25 +102,18 @@ export function ModelEditor({
 			supportsThinking,
 			supportsImages,
 			supportsTools,
-			catalogRef,
-			metadataSource: smart ? "smart" : "manual",
-			overrides: smart && overrides.size > 0 ? SMART_FIELDS.filter((field) => overrides.has(field)) : undefined,
-			pricing:
-				parsedIn !== null && parsedOut !== null
-					? {
-						...cataloguePricing,
-						input: parsedIn,
-						output: parsedOut,
-						cacheRead: parsedCacheRead ?? undefined,
-						cacheWrite: parsedCacheWrite ?? undefined,
-						source: cataloguePricing ? "catalog" : "manual",
-					}
-					: undefined,
+			pricing: storedPricing
+				?? (parsedIn !== null && parsedOut !== null
+					? { input: parsedIn, output: parsedOut, cacheRead: parsedCacheRead ?? undefined, cacheWrite: parsedCacheWrite ?? undefined, source: "manual" }
+					: undefined),
 		});
 	}
 
-	/** 智能模式下手动定过的字段，在标签上标出来。 */
-	const fieldLabel = (field: SmartField, label: string) => (smart && overrides.has(field) ? `${label} · ${t("modelEditor.pinned")}` : label);
+	const priceField = (key: PriceKey, label: string) => (
+		<Field label={label}>
+			<TextInput value={prices[key]} onChange={(value) => { if (isLegalDraft(value, PRICE)) changePrice(key, value); }} placeholder={t("common.notSet")} mono inputMode="decimal" />
+		</Field>
+	);
 
 	return (
 		<Overlay onClose={onCancel} width={560}>
@@ -187,59 +142,34 @@ export function ModelEditor({
 							<TextInput value={name} onChange={setName} placeholder="DeepSeek V4 Flash" />
 						</Field>
 
-						<div className="space-y-1.5 rounded-[10px] border border-line px-3.5 py-3">
-							<label className="flex items-center justify-between">
-								<span className="text-label font-medium text-ink">{t("modelEditor.smart")}</span>
-								<Toggle checked={smart} onChange={changeSmart} />
-							</label>
-							<p className="text-detail text-ink-faint">{t("modelEditor.smartDetail")}</p>
-							{smart && overrides.size > 0 && (
-								<div className="flex items-center justify-between gap-3">
-									<span className="text-detail text-ink-muted">{t("modelEditor.pinnedCount", { n: overrides.size })}</span>
-									<button type="button" onClick={() => changeSmart(true)} className="shrink-0 rounded-lg px-2 py-1 text-label font-medium text-accent hover:bg-accent/10">
-										{t("modelEditor.restoreSmart")}
-									</button>
-								</div>
-							)}
-							{smart && !recommended.specific && <p className="text-detail text-ink-muted">{t("modelEditor.unverified")}</p>}
-						</div>
+						<ModelCatalog suggestion={suggestion} onPick={fill} />
 
 						<div className="grid grid-cols-2 gap-3">
-							<Field label={fieldLabel("contextWindow", t("modelEditor.context"))}>
-								<TextInput value={contextWindow} onChange={(value) => { if (isLegalDraft(value, CONTEXT)) changeField("contextWindow", value); }} mono inputMode="numeric" />
+							<Field label={t("modelEditor.context")}>
+								<TextInput value={contextWindow} onChange={(value) => { if (isLegalDraft(value, CONTEXT)) setContextWindow(value); }} mono inputMode="numeric" />
 							</Field>
-							<Field label={fieldLabel("maxOutputTokens", t("modelEditor.maxOutput"))}>
-								<TextInput value={maxOutput} onChange={(value) => { if (isLegalDraft(value, OUTPUT)) changeField("maxOutputTokens", value); }} mono inputMode="numeric" />
+							<Field label={t("modelEditor.maxOutput")}>
+								<TextInput value={maxOutput} onChange={(value) => { if (isLegalDraft(value, OUTPUT)) setMaxOutput(value); }} mono inputMode="numeric" />
 							</Field>
 						</div>
 
 						<div className="space-y-3 rounded-[10px] border border-line px-3.5 py-3">
-							<Capability label={fieldLabel("supportsThinking", t("modelEditor.thinking"))} checked={supportsThinking} onChange={(value) => changeField("supportsThinking", value)} />
-							<Capability label={fieldLabel("supportsImages", t("modelEditor.images"))} checked={supportsImages} onChange={(value) => changeField("supportsImages", value)} />
-							<Capability label={fieldLabel("supportsTools", t("modelEditor.toolCalls"))} checked={supportsTools} onChange={(value) => changeField("supportsTools", value)} />
+							<Capability label={t("modelEditor.thinking")} checked={supportsThinking} onChange={setSupportsThinking} />
+							<Capability label={t("modelEditor.images")} checked={supportsImages} onChange={setSupportsImages} />
+							<Capability label={t("modelEditor.toolCalls")} checked={supportsTools} onChange={setSupportsTools} />
 						</div>
 
-						<ModelCatalog match={catalog} onApply={applyCatalog} />
-
 						<div className="grid grid-cols-2 gap-3">
-							<Field label={t("modelEditor.inputPrice")}>
-								<TextInput value={priceIn} onChange={(value) => { if (isLegalDraft(value, PRICE)) changePrice(setPriceIn, value); }} placeholder={t("common.notSet")} mono inputMode="decimal" />
-							</Field>
-							<Field label={t("modelEditor.outputPrice")}>
-								<TextInput value={priceOut} onChange={(value) => { if (isLegalDraft(value, PRICE)) changePrice(setPriceOut, value); }} placeholder={t("common.notSet")} mono inputMode="decimal" />
-							</Field>
-							<Field label={t("modelEditor.cacheReadPrice")}>
-								<TextInput value={priceCacheRead} onChange={(value) => { if (isLegalDraft(value, PRICE)) changePrice(setPriceCacheRead, value); }} placeholder={t("common.notSet")} mono inputMode="decimal" />
-							</Field>
-							<Field label={t("modelEditor.cacheWritePrice")}>
-								<TextInput value={priceCacheWrite} onChange={(value) => { if (isLegalDraft(value, PRICE)) changePrice(setPriceCacheWrite, value); }} placeholder={t("common.notSet")} mono inputMode="decimal" />
-							</Field>
+							{priceField("input", t("modelEditor.inputPrice"))}
+							{priceField("output", t("modelEditor.outputPrice"))}
+							{priceField("cacheRead", t("modelEditor.cacheReadPrice"))}
+							{priceField("cacheWrite", t("modelEditor.cacheWritePrice"))}
 						</div>
 						<p className="-mt-2 text-detail text-ink-faint">
 							{pricingEmpty
 								? t("modelEditor.noPriceDetail")
-								: pricingSource === "catalog"
-									? `${t("modelEditor.catalogPrice")}${catalog?.model.tiers?.length ? t("modelEditor.catalogTiers", { n: catalog.model.tiers.length }) : ""}`
+								: storedPricing?.source === "catalog"
+									? `${t("modelEditor.catalogPrice")}${storedPricing.tiers?.length ? t("modelEditor.catalogTiers", { n: storedPricing.tiers.length }) : ""}`
 									: t("modelEditor.manualPrice")}
 						</p>
 

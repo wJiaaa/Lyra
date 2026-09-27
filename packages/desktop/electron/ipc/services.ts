@@ -7,7 +7,8 @@
  */
 
 import { addMemoryEntry, annotateInjected, buildIndex, clearAllMemory, indexStats, loadIndex, loadMemory, readInjected, removeMemoryEntry, saveIndex, searchIndex, userInjectedPath } from "@lyra/core";
-import { activeModelRules } from "@lyra/core/model-rules";
+import { activeModelCatalog } from "@lyra/core/model-catalog";
+import { syncModelCatalog } from "@lyra/core/model-catalog-sync";
 import { ipcMain } from "electron";
 import type { ProviderTestResult } from "../ipc-types.ts";
 import { applySettings, settings } from "../app-settings.ts";
@@ -50,7 +51,11 @@ export function registerServicesIpc(deps: ServicesIpcDeps): void {
 		},
 	);
 
-	ipcMain.handle("providers:modelRules", () => activeModelRules());
+	// 版本相同就不传整份目录：渲染进程每次设置变化都会来问一句。
+	ipcMain.handle("providers:modelCatalog", (_event, knownRevision?: string) =>
+		activeModelCatalog().source.revision === knownRevision ? null : activeModelCatalog(),
+	);
+	ipcMain.handle("providers:updateModelCatalog", () => syncModelCatalog());
 
 	// Scanning does not need a live session: the settings pages are usually opened before
 	// any conversation exists, and an empty plugin list there reads as "nothing installed".

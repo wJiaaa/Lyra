@@ -69,7 +69,7 @@ test("editing a model retains its explicit thinking capabilities and unrelated p
 	assert.equal(effortLabel("off", { ...models[0], thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "" }] }), "关闭");
 	const model = { ...models[0], supportsTools: false, thinkingOptions: [{ id: "adaptive", label: "自适应", detail: "Provider-defined", budgetTokens: 4096 }], samplingParams: { top_p: 0.9 } };
 	let saved: typeof models[number] | undefined;
-	const view = await mount(h(ModelEditor, { model, provider: { id: "qa", baseUrl: "http://localhost", api: "openai-responses" }, onSave: (next) => { saved = next; }, onCancel: () => {} }));
+	const view = await mount(h(ModelEditor, { model, provider: { id: "qa", baseUrl: "http://localhost" }, onSave: (next) => { saved = next; }, onCancel: () => {} }));
 	try {
 		// By name, not by visible text: the button is a glyph now, and its name is its aria-label.
 		const named = (name: string) => [...document.querySelectorAll("button")].find((button) => button.getAttribute("aria-label") === name || button.textContent === name);
@@ -78,6 +78,6 @@ test("editing a model retains its explicit thinking capabilities and unrelated p
 		// The real dialog commits on its exit animation; happy-dom has no animation clock.
 		const overlay = document.querySelector("[data-ly-modal]");
 		if (overlay) await fire(overlay, new Event("animationend", { bubbles: true }));
-		assert.deepEqual(saved, { ...model, id: "qa/model-0", pricing: undefined, catalogRef: undefined, metadataSource: "manual", overrides: undefined });
+		assert.deepEqual(saved, { ...model, id: "qa/model-0", pricing: undefined });
 	} finally { await view.unmount(); }
 });

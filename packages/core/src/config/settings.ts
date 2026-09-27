@@ -1,6 +1,4 @@
 import { DEFAULT_RETRY_POLICY, normalizeRetryPolicy, type RetryPolicy } from "./retry-policy.ts";
-import { withCatalogPricing } from "../model-catalog.ts";
-import { withSmartConfig } from "../model-rules.ts";
 import { normalizeDelegationPolicy, normalizeMaxConcurrentSubAgents, type DelegationPolicy } from "../runtime/delegation.ts";
 import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
 import { constants, copyFile, mkdir, readFile } from "node:fs/promises";
@@ -8,7 +6,7 @@ import { join } from "node:path";
 import type { McpServerConfig } from "../mcp/client.ts";
 import { EMPTY_HOOKS_CONFIG, normalizeHooksConfig, type HooksConfig } from "../hooks/config.ts";
 import { lyraHome } from "../session/store.ts";
-import type { ProviderConfig, ThinkingLevel } from "../types.ts";
+import type { ModelConfig, ProviderConfig, ThinkingLevel } from "../types.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { withoutBom } from "../utils/bom.ts";
 import { keepSecrets, putSecrets, secret } from "./vault.ts";
@@ -768,6 +766,15 @@ async function keepUnreadable(path: string): Promise<void> {
 }
 
 /**
+ * 去掉旧版本让模型跟随目录的标记。现在目录只在导入和选中时填一次值，之后配置归用户；这些键留着
+ * 只会让人以为它们还起作用。
+ */
+function withoutCatalogLinks(model: ModelConfig): ModelConfig {
+	const { metadataSource: _source, overrides: _overrides, catalogRef: _ref, ...rest } = model as ModelConfig & Record<"metadataSource" | "overrides" | "catalogRef", unknown>;
+	return rest;
+}
+
+/**
  * A settings object as written, brought up to the shape the app expects.
  *
  * Split out of `readSettingsFile` so that every layer goes through it. A project's
@@ -826,7 +833,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			 */
 			pluginRegistries: parsed.pluginRegistries ?? [DEFAULT_PLUGIN_REGISTRY],
 			skillRegistries: parsed.skillRegistries ?? [DEFAULT_SKILL_REGISTRY],
-			providers: (parsed.providers ?? []).map((provider) => ({ ...provider, models: provider.models.map((model) => withCatalogPricing(provider, withSmartConfig(provider, model))) })),
+			providers: (parsed.providers ?? []).map((provider) => ({ ...provider, models: provider.models.map(withoutCatalogLinks) })),
 			// 只留 id→非空字符串那些行：这张表会被直接印到用量页上，一行 `undefined` 比没有那一行更糟。
 			providerNames: Object.fromEntries(
 				Object.entries(parsed.providerNames ?? {}).filter(([id, name]) => id && typeof name === "string" && name.trim()),

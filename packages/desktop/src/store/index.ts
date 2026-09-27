@@ -33,6 +33,8 @@ import type {
 import { useSide } from "../features/dock/sideStore.ts";
 import { sideChatRunning } from "../lib/row-activity.ts";
 import { available, bridge } from "../services/index.ts";
+import { activeModelCatalog } from "@lyra/core/model-catalog";
+import { pullModelCatalog } from "../lib/model-catalog.ts";
 import type { ToolRun } from "./tool-run.ts";
 export type { ToolRun } from "./tool-run.ts";
 import type { Hiccup } from "../lib/hiccup.ts";
@@ -160,6 +162,8 @@ export interface AppState extends QueueSlice {
    * that changes those directories is this app, and it knows when it did.
    */
   extensionsNonce: number;
+  /** 渲染进程当前模型目录的版本；主进程的目录换上之后它跟着变，查目录的页面据此重新渲染。 */
+  catalogRevision: string;
 
   settings: Settings | null;
   sessions: SessionMeta[];
@@ -527,6 +531,7 @@ export const useApp = create<AppState>((set, get) => ({
   pluginFocus: null,
   extensionsFocus: null,
   extensionsNonce: 0,
+  catalogRevision: activeModelCatalog().source.revision,
   settings: null,
   sessions: [],
   workspace: null,
@@ -606,12 +611,12 @@ export const useApp = create<AppState>((set, get) => ({
 		 * Also bumps `extensionsNonce`, because a change to `mcpServers` usually means a directory
 		 * appeared or vanished as well, and the lists that scan disk have no other way to hear it.
 		 */
-		bridge.settings.onChanged((next) =>
+		bridge.settings.onChanged((next) => {
 			set((state) => ({
 				settings: next,
 				extensionsNonce: state.extensionsNonce + (scanKey(state.settings) === scanKey(next) ? 0 : 1),
-			})),
-		);
+			}));
+		});
 		bridge.agent.onEvent(({ sessionId, event }) =>
 			get().applyEvent(sessionId, event),
 		);
@@ -647,6 +652,7 @@ export const useApp = create<AppState>((set, get) => ({
     // boot: it is derived from the app's home and cannot change while running.
     const scratchRoots = await bridge.git.scratchRoots().catch(() => []);
     set({ settings, sessions, workspace, scratchRoots, ready: true });
+    void pullModelCatalog().then((catalogRevision) => set({ catalogRevision }));
 		initialComplete = true;
 		for (const change of initialChanges) applySessionChange(change, set, get);
 		initialChanges.length = 0;

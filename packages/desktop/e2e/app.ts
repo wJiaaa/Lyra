@@ -324,7 +324,7 @@ export async function startApp({
 	 * Launch the binary directly: Windows cannot spawn a pnpm.cmd shim without a shell, and
 	 * electron-vite preview silently rebuilds per suite instead of testing the requested build.
 	 */
-	const childEnv: NodeJS.ProcessEnv = { ...process.env, LYRA_HOME: home, ELECTRON_ENABLE_LOGGING: "1" };
+	const childEnv: NodeJS.ProcessEnv = { ...process.env, LYRA_HOME: home, ELECTRON_ENABLE_LOGGING: "1", LYRA_E2E_OFFLINE_CATALOG: "1" };
 	// The app may run node --test itself; inheriting this suppresses every nested test.
 	delete childEnv.NODE_TEST_CONTEXT;
 	const app: ChildProcess = spawn(executable, argv, {

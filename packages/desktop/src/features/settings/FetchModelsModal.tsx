@@ -34,8 +34,8 @@ export function FetchModelsModal({
 	onImport,
 }: {
 	open: boolean;
-	/** The endpoint the models come from; the smart-config rules need it for each row's window. */
-	provider: Pick<ProviderConfig, "baseUrl" | "api">;
+	/** The endpoint the models come from; the catalogue needs it for each row's window. */
+	provider: Pick<ProviderConfig, "baseUrl">;
 	models: string[];
 	existingModelIds: Set<string>;
 	onClose: () => void;
@@ -216,7 +216,7 @@ export function FetchModelsModal({
 											</div>
 										</div>
 									</div>
-									{/* What the import will actually write, from the same rules it writes it from — see `model-defaults.ts`. */}
+									{/* What the import will actually write, from the same lookup it writes it from — see `model-defaults.ts`. */}
 									<span className="shrink-0 text-caption text-ink-faint font-mono">{windowLabel(provider, modelId)}</span>
 								</label>
 							);

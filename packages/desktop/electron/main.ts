@@ -70,7 +70,7 @@ import { registerFileOpsIpc } from "./ipc/file-ops.ts";
 import { rescueLegacyWorkspaces, scratchRoots } from "./scratch.ts";
 import { resolveWorktreesRoot } from "./git-worktrees.ts";
 import { applySettings, loadAppSettings, onSettingsChanged } from "./app-settings.ts";
-import { loadCachedModelRules, MODEL_RULES_SYNC_INTERVAL_MS, syncModelRules } from "@lyra/core/model-rules-sync";
+import { loadCachedModelCatalog, MODEL_CATALOG_SYNC_INTERVAL_MS, syncModelCatalog } from "@lyra/core/model-catalog-sync";
 import { createKeepAwake, installKeepAwake } from "./keep-awake.ts";
 import { registerServicesIpc } from "./ipc/services.ts";
 import { registerDeliveryIpc } from "./ipc/delivery.ts";
@@ -509,8 +509,8 @@ app.whenReady().then(async () => {
 	 * afterwards. A bundle that fails to load is recorded and skipped — someone else's broken
 	 * plugin must not be why the app will not start.
 	 */
-	// 先换上缓存的远程规则，读设置时套的推荐值才是最新的一份。
-	await loadCachedModelRules();
+	// 先换上缓存的模型目录，读设置时套的目录值才是最新的一份。
+	await loadCachedModelCatalog();
 	settings = await loadAppSettings();
 	const bundles = await loadPlugins(
 		[{ dir: join(lyraHome(), "plugins"), source: "user" as const }],
@@ -582,15 +582,12 @@ function bindScreenshotShortcut(): void {
 			win.webContents.send("settings:changed", next);
 		}
 	});
-	/*
-	 * 智能配置规则：启动后拉一次，之后每小时一次。换上了新规则就把设置重新存一遍——`applySettings`
-	 * 会给跟随推荐的模型套上新值，写盘，并通知窗口和会话。
-	 */
-	const refreshModelRules = async () => {
-		if (await syncModelRules()) await applySettings(settings);
-	};
-	void refreshModelRules();
-	setInterval(() => void refreshModelRules(), MODEL_RULES_SYNC_INTERVAL_MS).unref();
+	// 模型目录：启动后拉一次，之后每小时一次；设置页也能手动更新。目录只是填值的参考，换了不动已有配置。
+	// E2E 关掉自动同步：测试不访问外网，断言的目录值也不能随上游变。
+	if (!process.env.LYRA_E2E_OFFLINE_CATALOG) {
+		void syncModelCatalog();
+		setInterval(() => void syncModelCatalog(), MODEL_CATALOG_SYNC_INTERVAL_MS).unref();
+	}
 	useSettingsSource(() => settings);
 	configureHub({ store: () => store, settings: () => settings, window: getWindow, web: webServer });
 	// Before the window exists, so its very first frame gets the right material.

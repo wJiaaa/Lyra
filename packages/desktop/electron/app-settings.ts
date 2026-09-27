@@ -1,7 +1,5 @@
 import { normalizeRetryPolicy } from "@lyra/core";
 import { normalizeSubAgentProfiles } from "@lyra/core/model-roles";
-import { withCatalogPricing } from "@lyra/core/model-catalog";
-import { withSmartConfig } from "@lyra/core/model-rules";
 /**
  * The app's settings, in one place that owns them.
  *
@@ -89,7 +87,6 @@ export async function applySettings(next: Settings): Promise<Settings> {
 		 * 认得出它是谁，而不是等到下次启动重新读盘。同一个纯函数调两次，幂等。
 		 */
 		providerNames: rememberProviderNames(next),
-		providers: next.providers.map((provider) => ({ ...provider, models: provider.models.map((model) => withCatalogPricing(provider, withSmartConfig(provider, model))) })),
 	};
 	await persist(next);
 	current = next;

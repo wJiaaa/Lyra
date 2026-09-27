@@ -1,10 +1,10 @@
 /**
- * Production-path checks against the real blow-up file and the live session, not fixtures.
+ * Production-path checks against a file shaped like the blow-up one and the live session.
  */
 
 import assert from "node:assert/strict";
-import { readdir } from "node:fs/promises";
-import { homedir } from "node:os";
+import { mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
@@ -14,7 +14,20 @@ import { grepTool } from "../src/tools/grep.ts";
 import { emptyUsage, type Message } from "../src/types.ts";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..", "..", "..");
-const CATALOG = "packages/core/src/catalog/model-catalog.json";
+const CATALOG = "model-catalog.json";
+const NAME = "Qwen3-LiveTranslate Flash Realtime";
+
+/**
+ * The file that blew a session up was the old bundled model catalogue: one 1.7 MB JSON line. That
+ * snapshot is gone, so rebuild the same shape — a single line past 1.6 MB with a name far from its head.
+ */
+async function blowupCatalog(): Promise<string> {
+	const entries = Array.from({ length: 16_000 }, (_, index) => `{"id":"model-${index}","name":"Model ${index}","limit":{"context":200000,"output":32000},"cost":{"input":1,"output":2}}`);
+	entries.splice(6_000, 0, `{"id":"qwen3-livetranslate-flash-realtime","name":"${NAME}"}`);
+	const dir = await mkdtemp(join(tmpdir(), "lyra-blowup-"));
+	await writeFile(join(dir, CATALOG), `{"schema":1,"providers":[{"id":"p","models":[${entries.join(",")}]}]}`, "utf8");
+	return dir;
+}
 
 function textOf(message: Message): string {
 	return message.role === "toolResult" ? message.content.filter((part) => part.type === "text").map((part) => part.text).join("") : "";
@@ -23,10 +36,11 @@ function textOf(message: Message): string {
 const model = { id: "m", modelId: "m", providerId: "p", name: "m", contextWindow: 200000, maxOutputTokens: 100, supportsThinking: false, supportsImages: false, supportsTools: true };
 const provider = { id: "p", name: "p", api: "openai-responses" as const, baseUrl: "http://localhost", apiKey: "", enabled: true, models: [model] };
 
-test("ripgrep on the real 1.7 MB model-catalog.json stays inside the 12 000-character gate", async () => {
-	const result = await grepTool.execute({ pattern: "schema", path: CATALOG }, { cwd: ROOT, sessionId: "live-grep", state: new Map() });
+test("ripgrep on a 1.7 MB one-line model-catalog.json stays inside the 12 000-character gate", async () => {
+	const dir = await blowupCatalog();
+	const result = await grepTool.execute({ pattern: "schema", path: CATALOG }, { cwd: dir, sessionId: "live-grep", state: new Map() });
 	const text = result.content.map((part) => part.text).join("");
-	const catalog = (await import("node:fs/promises")).stat(join(ROOT, CATALOG));
+	const catalog = (await import("node:fs/promises")).stat(join(dir, CATALOG));
 	const size = (await catalog).size;
 	assert.ok(size > 1_600_000, `catalog was ${size} bytes; this is not the blow-up file`);
 	assert.ok(text.length <= 12_000, `live grep returned ${text.length} characters`);
@@ -37,10 +51,9 @@ test("ripgrep on the real 1.7 MB model-catalog.json stays inside the 12 000-char
 });
 
 test("a name past the first 2000 characters of model-catalog.json is still returned", async () => {
-	const name = "Qwen3-LiveTranslate Flash Realtime";
-	const result = await grepTool.execute({ pattern: name, path: CATALOG }, { cwd: ROOT, sessionId: "live-grep-mid", state: new Map() });
+	const result = await grepTool.execute({ pattern: NAME, path: CATALOG }, { cwd: await blowupCatalog(), sessionId: "live-grep-mid", state: new Map() });
 	const text = result.content.map((part) => part.text).join("");
-	assert.ok(text.includes(name), "the match window must include the name, not only the line head");
+	assert.ok(text.includes("qwen3-livetranslate-flash-realtime"), "the match window must include the entry, not only the line head");
 	assert.ok(text.length <= 12_000, `live mid-line grep returned ${text.length} characters`);
 });
 

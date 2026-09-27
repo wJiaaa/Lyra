@@ -71,8 +71,6 @@ test("what is expensive to derive again travels with the model", () => {
 	// A relay alias has no catalogue entry, so pricing worked out here is not recoverable there.
 	const priced = model("relay", "gpt-5.6-terra", {
 		pricing: { input: 1.25, output: 10, source: "manual" },
-		catalogRef: { providerId: "openai", modelId: "gpt-5.6" },
-		metadataSource: "manual",
 		samplingParams: { top_p: 0.95 },
 	});
 	const parsed = roundTrip([provider("relay", { models: [priced] })]);

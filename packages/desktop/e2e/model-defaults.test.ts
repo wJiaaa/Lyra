@@ -133,16 +133,25 @@ test("all built-in agents can be configured before any session is created", asyn
 	t.diagnostic(JSON.stringify(visible)); await shot("builtin-agents");
 });
 
-test("old relay imports follow the smart config for limits and capabilities and keep catalogue prices", async (t) => {
+const suggestion = `[...document.querySelectorAll('[aria-label="模型目录搜索结果"] button')].find(e=>e.textContent.startsWith('按模型 ID 找到'))`;
+
+test("configured models keep their values; the suggested catalogue entry fills them in once", async (t) => {
 	await editor("gemini-3.7-flash-high");
+	const before = await app.evaluate<{ context: string; output: string; input: string }>(readFields);
+	assert.deepEqual({ context: before.context, output: before.output, input: before.input }, { context: "200000", output: "16384", input: "" }, "nothing rewrites a configured model");
+	// An unknown relay: the suffix is stripped and Google's own entry is suggested.
+	await until(`${suggestion}?.textContent.includes('gemini-3.7-flash')`);
+	await app.evaluate(`${suggestion}.setAttribute('data-fill-qa','')`);
+	await click("[data-fill-qa]");
 	const values = await app.evaluate<{ id: string; context: string; output: string; input: string; priceOut: string; cache: string; text: string }>(readFields);
-	// The smart-config rules have nothing specific for this relay alias, so its limits are the general default.
-	assert.equal(values.id, "gemini-3.7-flash-high"); assert.equal(values.context, "200000"); assert.equal(values.output, "32000");
+	assert.equal(values.id, "gemini-3.7-flash-high"); assert.equal(values.context, "1048576"); assert.equal(values.output, "65536");
 	assert.equal(values.input, "0.75"); assert.equal(values.priceOut, "3.75"); assert.equal(values.cache, "0.075");
 	assert.match(values.text, /参考估算/); t.diagnostic(JSON.stringify(values)); await shot("relay-model-prices");
 	await label("取消"); await until(`!document.querySelector('[data-ly-modal]')`);
 	await editor("deepseek-v4-flash:0731");
-	await until(`document.querySelector('[data-ly-modal]')?.innerText.includes('deepseek-v4-flash')`);
+	await until(`${suggestion}?.textContent.includes('deepseek-v4-flash')`);
+	await app.evaluate(`${suggestion}.setAttribute('data-fill-qa','')`);
+	await click("[data-fill-qa]");
 	const images = await app.evaluate<string>(`[...document.querySelectorAll('[data-ly-modal] label')].find(e=>e.textContent.startsWith('支持图片输入')).querySelector('[role="switch"]').getAttribute('aria-checked')`);
 	assert.equal(images, "false");
 	await app.evaluate(`document.querySelector('[data-ly-modal] [role="switch"]').scrollIntoView({block:'center',behavior:'instant'})`);
@@ -150,29 +159,30 @@ test("old relay imports follow the smart config for limits and capabilities and 
 	await label("取消"); await until(`!document.querySelector('[data-ly-modal]')`);
 });
 
-test("an unknown alias has no fake prices and can be bound without rewriting the request id", async () => {
+test("an unknown alias has no fake prices and can be filled from a searched entry without rewriting the request id", async () => {
 	await editor("gemini-pro-agent");
 	const initial = await app.evaluate<{ input: string; text: string }>(readFields);
-	assert.equal(initial.input, ""); assert.match(initial.text, /尚未识别上游模型/);
+	assert.equal(initial.input, ""); assert.match(initial.text, /从模型目录填入/);
+	assert.equal(await app.evaluate<boolean>(`Boolean(${suggestion})`), false);
 	await input('[aria-label="搜索模型目录"]', "google gemini-2.5-pro");
 	await until(`document.querySelector('[aria-label="模型目录搜索结果"] button')`);
-	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[aria-label="模型目录搜索结果"] button')].find(e=>e.querySelector('span').textContent==='gemini-2.5-pro'&&e.textContent.includes('Google'));e.setAttribute('data-bind-qa','');})()`);
+	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[aria-label="模型目录搜索结果"] button')].find(e=>e.querySelector('span').textContent==='gemini-2.5-pro'&&e.textContent.includes('google'));e.setAttribute('data-bind-qa','');})()`);
 	await click("[data-bind-qa]");
-	await until(`document.querySelector('[data-ly-modal]')?.innerText.includes('google')||document.querySelector('[data-ly-modal]')?.innerText.includes('Google')`);
+	await until(`document.querySelector('[data-ly-modal] label input[inputmode="decimal"]')?.value==='1.25'`);
 	const fields = await app.evaluate<{ id: string; input: string }>(readFields);
 	assert.equal(fields.id, "gemini-pro-agent"); assert.equal(fields.input, "1.25");
 	await label("保存"); await until(`!document.querySelector('[data-ly-modal]')`);
 	const saved = await app.evaluate<Settings>("window.lyra.settings.get()");
-	const bound = saved.providers[0].models.find((model) => model.modelId === "gemini-pro-agent");
-	assert.deepEqual(bound?.catalogRef, { providerId: "google", modelId: "gemini-2.5-pro" });
-	assert.equal(bound?.pricing?.input, 1.25);
+	const filled = saved.providers[0].models.find((model) => model.modelId === "gemini-pro-agent");
+	assert.equal(filled?.pricing?.input, 1.25);
+	assert.equal(filled && "catalogRef" in filled, false, "filling in is a one-off, not a link");
 });
 
 test("historical relay usage produces a nonzero bill and catalogue coverage", async (t) => {
 	await label("使用统计", "nav button");
 	await until(`document.querySelector('[data-usage-dashboard="true"]')`);
 	const visible = await app.evaluate<string>(`document.querySelector('[data-usage-dashboard="true"]').innerText`);
-	assert.match(visible, /\$1\.93/); assert.match(visible, /离线目录\s*100\.0%/);
+	assert.match(visible, /\$1\.93/); assert.match(visible, /模型目录\s*100\.0%/);
 	assert.doesNotMatch(visible, /暂无价格/);
 	t.diagnostic(visible); await shot("relay-history-cost");
 });

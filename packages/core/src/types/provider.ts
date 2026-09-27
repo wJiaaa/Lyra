@@ -20,9 +20,6 @@ import type { ToolSpec } from "./tool.ts";
  */
 export type ApiFormat = "openai-responses" | "anthropic-messages" | "openai-chat-completions";
 
-/** 智能配置管理的模型字段，见 `model-rules.ts`。 */
-export type SmartField = "contextWindow" | "maxOutputTokens" | "supportsThinking" | "supportsImages" | "supportsTools";
-
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra" | (string & {});
 
 export interface ThinkingOption {
@@ -72,15 +69,6 @@ export interface ModelConfig {
 	supportsImages: boolean;
 	supportsTools: boolean;
 	pricing?: ModelPricing;
-	/** Explicit upstream identity for opaque relay aliases, used only for catalogue pricing; never changes the wire modelId. */
-	catalogRef?: { providerId: string; modelId: string };
-	/**
-	 * 智能配置：`smart` 时上限和能力跟随推荐规则（`model-rules.ts`），`overrides` 里的字段除外；
-	 * `manual` 整份由用户决定。缺省是旧数据，按 `withSmartConfig` 的迁移规则处理。
-	 */
-	metadataSource?: "smart" | "manual";
-	/** 智能模式下用户手动定过的字段，它们保留自己的值，不再跟随推荐。 */
-	overrides?: SmartField[];
 	/** Custom thinking options supported by this specific model. */
 	thinkingOptions?: ThinkingOption[];
 	/** Extra sampling parameters merged verbatim into the request body. */

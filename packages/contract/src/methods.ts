@@ -158,7 +158,8 @@ export const METHODS = {
 	providers: {
 		test: { channel: "providers:test" },
 		fetchModels: { channel: "providers:fetchModels" },
-		modelRules: { channel: "providers:modelRules" },
+		modelCatalog: { channel: "providers:modelCatalog" },
+		updateModelCatalog: { channel: "providers:updateModelCatalog" },
 	},
 	commands: {
 		list: { channel: "commands:list" },

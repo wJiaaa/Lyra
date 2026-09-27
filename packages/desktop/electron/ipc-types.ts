@@ -49,7 +49,8 @@ import type { TrayCommand } from "./tray-menu.ts";
 export type { DocumentData } from "./documents.ts";
 import type { DocumentData } from "./documents.ts";
 import type { ExtractedText } from "@lyra/core";
-import type { ModelRulesDocument } from "@lyra/core/model-rules";
+import type { ModelCatalogDocument } from "@lyra/core/model-catalog";
+import type { CatalogSyncResult } from "@lyra/core/model-catalog-sync";
 import type { ClearRange, ClearResult, StorageUse } from "./session-cleanup.ts";
 import type { UsageScan } from "./usage-scan.ts";
 export type { OpenTarget } from "./open-targets.ts";
@@ -616,8 +617,13 @@ export interface LyraApi {
 	providers: {
 		test(providerId: string, modelId?: string): Promise<ProviderTestResult>;
 		fetchModels(providerId: string): Promise<{ ok: boolean; models: string[]; error?: string }>;
-		/** 主进程当前生效的智能配置规则（可能比渲染进程打包的那份新），让编辑器预览的推荐值和保存后的一致。 */
-		modelRules(): Promise<ModelRulesDocument>;
+		/**
+		 * 主进程当前生效的模型目录（可能比渲染进程打包的那份新），让编辑器预览的值和保存后的一致。
+		 * 版本与 `knownRevision` 相同时返回 `null`。
+		 */
+		modelCatalog(knownRevision?: string): Promise<ModelCatalogDocument | null>;
+		/** 立即从 pi 拉一次模型目录；换上了新目录，设置会随之重新保存。 */
+		updateModelCatalog(): Promise<CatalogSyncResult>;
 	};
 	commands: {
 		/**

@@ -1,4 +1,4 @@
-import { MODEL_CATALOG_SOURCE } from "@lyra/core/model-catalog";
+import { activeModelCatalog } from "@lyra/core/model-catalog";
 import { Boxes, CalendarDays, ChartLine, Layers, RefreshCw } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -170,6 +170,9 @@ function Dashboard({
 	grid: DayUsage[][];
 	busiestDay: number;
 }) {
+	// 订阅目录版本号：主进程换了目录，这里标的版本跟着换。
+	useApp((state) => state.catalogRevision);
+	const catalog = activeModelCatalog().source;
 	const { t } = useI18n();
 	const totals = view.totals;
 	const pricedTokens = totals.tokens - totals.quality.unpriced;
@@ -344,7 +347,7 @@ function Dashboard({
 						<QualityRow label={t("usage.cacheSaving")} value={totals.cacheSavings} format={signedCost} />
 					</div>
 					<div className="mt-3 text-detail leading-relaxed text-ink-faint">
-						{t("usage.catalogVersion")} {MODEL_CATALOG_SOURCE.commit.slice(0, 8)} · {new Date(MODEL_CATALOG_SOURCE.updatedAt).toLocaleDateString()}
+						{t("usage.catalogVersion")} {catalog.revision.replace(/^sha256-/, "").slice(0, 8)} · {new Date(catalog.updatedAt).toLocaleDateString()}
 					</div>
 				</Card>
 			</div>

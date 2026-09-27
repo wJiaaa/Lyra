@@ -7,6 +7,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
+import { activeLocale } from "../../i18n/translate.ts";
 import type { ModelConfig } from "@lyra/core";
 import { Box, Download, Plus, RefreshCw, Upload } from "lucide-react";
 import { useRef, useState } from "react";
@@ -43,6 +44,31 @@ export function ModelSettings() {
           </h1>
           <p className="mt-2 text-label text-ink-muted">
             {t("modelSettings.intro")}
+          </p>
+          {/* 上限、能力和价格都从这份目录来；它会自动更新，这里给个看得见的版本和手动更新的入口。 */}
+          <p className="mt-1 text-detail text-ink-faint" data-ly-model-catalog="">
+            {t("modelSettings.catalogStatus", {
+              source: p.catalog.name,
+              date: new Date(p.catalog.updatedAt).toLocaleDateString(activeLocale()),
+              count: p.catalogModels,
+            })}
+            {" · "}
+            <button
+              type="button"
+              disabled={p.updatingCatalog}
+              onClick={() => void p.updateCatalog()}
+              className="text-ink-muted underline-offset-2 transition-colors hover:text-ink hover:underline disabled:pointer-events-none disabled:opacity-60"
+            >
+              {p.updatingCatalog ? t("modelSettings.catalogUpdating") : t("modelSettings.catalogUpdate")}
+            </button>
+            {p.catalogResult && !p.updatingCatalog && (
+              <span className={p.catalogResult.status === "failed" ? "text-danger" : undefined}>
+                {" · "}
+                {p.catalogResult.status === "failed"
+                  ? t("modelSettings.catalogFailed", { error: p.catalogResult.error ?? "" })
+                  : t(p.catalogResult.status === "updated" ? "modelSettings.catalogUpdated" : "modelSettings.catalogUnchanged")}
+              </span>
+            )}
           </p>
         </div>
         {/*
@@ -218,7 +244,6 @@ export function ModelSettings() {
             p.providers.find((provider) => provider.id === editingModel.providerId) ?? {
               id: editingModel.providerId,
               baseUrl: "",
-              api: "openai-responses",
             }
           }
           model={editingModel.model}
@@ -233,7 +258,7 @@ export function ModelSettings() {
       {p.discoveredModels && (
         <FetchModelsModal
           open={Boolean(p.discoveredModels)}
-          provider={p.selected ?? { baseUrl: "", api: "openai-responses" }}
+          provider={p.selected ?? { baseUrl: "" }}
           models={p.discoveredModels}
           existingModelIds={new Set(p.selected?.models.map((m) => m.modelId) ?? [])}
           onClose={p.closeDiscoveredModal}

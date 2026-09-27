@@ -8,7 +8,7 @@ import {
 	type ProviderConfig,
 	type SelectedPricingRates,
 } from "@lyra/core";
-import { catalogModelFor, catalogPricing, MODEL_CATALOG_VERSION } from "@lyra/core/model-catalog";
+import { catalogModelFor, catalogPricing, modelCatalogVersion } from "@lyra/core/model-catalog";
 
 export interface TokenUsage {
 	input: number;
@@ -71,11 +71,11 @@ function configuredPricing(
 ): { pricing: ModelPricing; source: "catalog" | "manual" } | null {
 	const provider = providers.find((candidate) => candidate.id === providerId);
 	const configured = provider?.models.find((candidate) => candidate.modelId === modelId);
-	if (configured?.pricing && configured.pricing.source !== "catalog") {
-		return { pricing: configured.pricing, source: "manual" };
-	}
-	const catalog = catalogModelFor(provider ?? { id: providerId, baseUrl: "" }, modelId, configured?.catalogRef);
-	const pricing = catalog ? catalogPricing(catalog.provider.id, catalog.model) : configured?.pricing;
+	// 配置里有价格就用配置的：从目录填进来的也是一份存下来的值，之后目录怎么变都不跟。
+	if (configured?.pricing) return { pricing: configured.pricing, source: configured.pricing.source === "catalog" ? "catalog" : "manual" };
+	// 没配价格（或供应商已删除）的历史记录，按目录估一个参考价。
+	const catalog = catalogModelFor(provider ?? { baseUrl: "" }, modelId);
+	const pricing = catalog ? catalogPricing(catalog.provider.id, catalog.model) : undefined;
 	return pricing ? { pricing, source: "catalog" } : null;
 }
 
@@ -140,7 +140,7 @@ export function usagePricingKey(providers: ProviderConfig[]): string {
 	const pricing = providers.map((provider) => ({
 		id: provider.id,
 		baseUrl: provider.baseUrl,
-		models: provider.models.map((model) => ({ id: model.modelId, pricing: model.pricing, catalogRef: model.catalogRef })),
+		models: provider.models.map((model) => ({ id: model.modelId, pricing: model.pricing })),
 	}));
-	return createHash("sha256").update(JSON.stringify({ catalog: MODEL_CATALOG_VERSION, pricing })).digest("hex");
+	return createHash("sha256").update(JSON.stringify({ catalog: modelCatalogVersion(), pricing })).digest("hex");
 }

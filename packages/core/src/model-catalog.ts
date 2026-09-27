@@ -1,164 +1,144 @@
 /**
- * The offline model catalogue, used only for price estimates.
+ * 模型目录：一个模型的上下文窗口、最大输出、思考与图片能力，以及参考价格，都从这里查。
  *
- * Limits and capabilities come from the smart-config rules in `model-rules.ts`; this snapshot of
- * models.dev answers one question — what a model costs — for the model editor and usage accounting.
- * Endpoint rates take priority; relays use an identified upstream reference price.
- * Opaque aliases require an explicit binding, and the wire model id is never rewritten.
+ * 数据来自 pi 的公开模型目录（https://pi.dev/api/models）。仓库里打包一份压缩过的快照
+ * `catalog/model-catalog.json`，桌面主进程运行时定期拉最新的换上（`model-catalog-sync.ts`），
+ * 所以离线也能用，联网时自动更新。这个文件不碰文件系统和网络——渲染进程也要用它。
+ *
+ * 目录只是参考：导入模型、在编辑器里搜索选中时，把条目的上限、能力和价格一次性填进模型配置，
+ * 之后配置归用户，目录更新不会改动它。用量页给没有配置价格的历史记录估算费用时也查这里。
+ *
+ * 自动匹配顺序：同一端点（Base URL）下的同名模型 → 按型号家族找厂商官方条目和 OpenRouter 的参考值。
+ * 发送给供应商的模型 ID 从不改写。
  */
 
 import snapshotJson from "./catalog/model-catalog.json" with { type: "json" };
-import type { ModelConfig, ModelPricing, ModelPricingTier, ProviderConfig } from "./types/provider.ts";
+import { parseModelCatalog, type CatalogModel, type CatalogProvider, type ModelCatalogDocument } from "./model-catalog-format.ts";
+import type { ModelConfig, ModelPricing, ProviderConfig } from "./types/provider.ts";
 
-export interface CatalogModel {
-	id: string;
-	name: string;
-	contextWindow: number;
-	maxOutputTokens: number;
-	inputPrice?: number;
-	outputPrice?: number;
-	cacheReadPrice?: number;
-	cacheWritePrice?: number;
-	tiers?: ModelPricingTier[];
-	supportsThinking: boolean;
-	supportsImages: boolean;
-	supportsTools: boolean;
+export type { CatalogModel, CatalogProvider, ModelCatalogDocument } from "./model-catalog-format.ts";
+
+export interface CatalogMatch {
+	provider: CatalogProvider;
+	model: CatalogModel;
+	match: "exact" | "alias" | "reference";
 }
 
-export interface CatalogProvider {
-	id: string;
-	name: string;
-	api?: string;
-	doc?: string;
-	models: CatalogModel[];
-}
+/** 从目录填进模型配置的那几项。 */
+export type CatalogFill = Pick<ModelConfig, "contextWindow" | "maxOutputTokens" | "supportsThinking" | "supportsImages" | "supportsTools" | "pricing">;
 
-interface ModelCatalogSnapshot {
-	schema: 1;
-	source: {
-		name: string;
-		url: string;
-		repository: string;
-		commit: string;
-		updatedAt: string;
-		license: "MIT";
-	};
-	providers: CatalogProvider[];
-}
-
-function schemaVersion(value: number): 1 {
-	if (value !== 1) throw new Error(`Unsupported model catalogue schema: ${value}`);
-	return value;
-}
-
-function catalogueLicense(value: string): "MIT" {
-	if (value !== "MIT") throw new Error(`Unsupported model catalogue license: ${value}`);
-	return value;
-}
-
-const snapshot: ModelCatalogSnapshot = {
-	...snapshotJson,
-	schema: schemaVersion(snapshotJson.schema),
-	source: {
-		...snapshotJson.source,
-		license: catalogueLicense(snapshotJson.source.license),
-	},
-};
-const providers = new Map(snapshot.providers.map((provider) => [provider.id, provider]));
-
-export const MODEL_CATALOG_SOURCE = snapshot.source;
-export const MODEL_CATALOG_VERSION = `2:${snapshot.source.commit.slice(0, 12)}`;
-export const MODEL_CATALOG_PROVIDERS = snapshot.providers;
-
-const EXACT_HOSTS: Record<string, string> = {
-	"api.openai.com": "openai",
-	"api.anthropic.com": "anthropic",
-	"generativelanguage.googleapis.com": "google",
-	"api.deepseek.com": "deepseek",
-	"api.x.ai": "xai",
-	"api.mistral.ai": "mistral",
-	"api.groq.com": "groq",
-	"openrouter.ai": "openrouter",
-	"api.openrouter.ai": "openrouter",
-	"api.githubcopilot.com": "github-copilot",
-	"api.fireworks.ai": "fireworks-ai",
-	"api.together.xyz": "togetherai",
-	"api.cerebras.ai": "cerebras",
-	"api.perplexity.ai": "perplexity",
-	"api.moonshot.ai": "moonshotai",
-	"api.moonshot.cn": "moonshotai-cn",
-	"dashscope.aliyuncs.com": "alibaba-cn",
-	"dashscope-intl.aliyuncs.com": "alibaba",
-	"open.bigmodel.cn": "zhipuai",
-	"api.z.ai": "zai",
-	"api.minimax.chat": "minimax-cn",
-	"api.minimax.io": "minimax",
-	"api.minimaxi.com": "minimax-cn",
-	"api.deepinfra.com": "deepinfra",
-	"api.cloudflare.com": "cloudflare-workers-ai",
+/**
+ * 目录里找不到时的初始值：新建模型和导入时没匹配上的模型用它。
+ *
+ * 能力全开：这一档接的是中转起的私有名字、刚发布的型号、自建端点，如今几乎都会思考、看图、调工具。
+ * 猜错的代价不对等——开着而不支持，供应商回一个说得清楚的错；关着而支持，是能力凭空少一块还不报错。
+ */
+export const DEFAULT_MODEL_LIMITS: Omit<CatalogFill, "pricing"> = {
+	contextWindow: 200_000,
+	maxOutputTokens: 32_000,
+	supportsThinking: true,
+	supportsImages: true,
+	supportsTools: true,
 };
 
-function providerIdFromHost(hostname: string): string | null {
-	const exact = EXACT_HOSTS[hostname];
-	if (exact) return exact;
-	if (hostname.endsWith(".openai.azure.com")) return "azure";
-	if (hostname === "aiplatform.googleapis.com" || hostname.endsWith("-aiplatform.googleapis.com")) return "google-vertex";
-	if (/^bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com$/.test(hostname)) return "amazon-bedrock";
-	return null;
+interface Indexed {
+	document: ModelCatalogDocument;
+	providers: Map<string, CatalogProvider>;
+	/** 每个供应商：小写 ID → 条目，另收一份去掉 `vendor/` 前缀的写法（OpenRouter 等聚合商）。 */
+	byProvider: Map<string, Map<string, CatalogModel>>;
+	/** 规整后的端点地址 → 该端点下的模型索引。 */
+	byEndpoint: Map<string, { provider: CatalogProvider; models: Map<string, CatalogModel> }[]>;
 }
 
-function configuredHostname(baseUrl: string): string | null {
+function index(document: ModelCatalogDocument): Indexed {
+	const byProvider = new Map<string, Map<string, CatalogModel>>();
+	const byEndpoint: Indexed["byEndpoint"] = new Map();
+	for (const provider of document.providers) {
+		const models = new Map<string, CatalogModel>();
+		const endpoints = new Map<string, Map<string, CatalogModel>>();
+		for (const model of provider.models) {
+			const id = model.id.toLowerCase();
+			const bare = id.replace(/^~/, "").split("/").at(-1) ?? id;
+			if (!models.has(id)) models.set(id, model);
+			if (!models.has(bare)) models.set(bare, model);
+			const endpoint = normalizeEndpoint(model.baseUrl);
+			if (!endpoint) continue;
+			const local = endpoints.get(endpoint) ?? new Map<string, CatalogModel>();
+			if (!local.has(id)) local.set(id, model);
+			endpoints.set(endpoint, local);
+		}
+		byProvider.set(provider.id, models);
+		for (const [endpoint, local] of endpoints) {
+			byEndpoint.set(endpoint, [...(byEndpoint.get(endpoint) ?? []), { provider, models: local }]);
+		}
+	}
+	return { document, providers: new Map(document.providers.map((provider) => [provider.id, provider])), byProvider, byEndpoint };
+}
+
+const BUNDLED = parseModelCatalog(snapshotJson);
+let active = index(BUNDLED);
+
+/** 当前生效的目录：打包的那份，或更新过的远程版本。 */
+export function activeModelCatalog(): ModelCatalogDocument {
+	return active.document;
+}
+
+/** 目录版本，进计价缓存的 key 和价格快照：目录一换，旧的估价重算。 */
+export function modelCatalogVersion(): string {
+	return `pi:${active.document.source.revision.replace(/^sha256-/, "").slice(0, 12)}`;
+}
+
+/**
+ * 换上一份目录，只在它比当前的新时生效。返回是否真的换了。
+ *
+ * 按 `updatedAt` 比而不是无条件替换：应用升级后打包的快照可能比本地缓存的远程版本还新。
+ */
+export function installModelCatalog(document: ModelCatalogDocument): boolean {
+	const current = active.document.source;
+	if (document.source.revision === current.revision || Date.parse(document.source.updatedAt) < Date.parse(current.updatedAt)) return false;
+	active = index(document);
+	return true;
+}
+
+/** 测试用：回到打包的快照。 */
+export function resetModelCatalog(): void {
+	active = index(BUNDLED);
+}
+
+/**
+ * 把端点地址规整成可比较的形式：小写主机、去掉查询和尾斜杠，再去掉末尾的 `/v1`。
+ *
+ * Lyra 的请求地址是 `baseUrl` 再补 `/v1/...`（已经以 `/v1` 结尾就不重复），所以 `https://x/v1`
+ * 和 `https://x` 是同一个端点；目录里 Anthropic 系不带 `/v1`、OpenAI 系带，统一去掉再比。
+ */
+function normalizeEndpoint(baseUrl: string): string | null {
+	if (!baseUrl || baseUrl.includes("{")) return null;
 	try {
-		return new URL(baseUrl).hostname.toLowerCase().replace(/^www\./, "");
+		const url = new URL(baseUrl);
+		return `${url.origin}${url.pathname}`.replace(/\/+$/, "").replace(/\/v1$/, "");
 	} catch {
 		return null;
 	}
 }
 
-/** Resolve a configured endpoint to one catalogue provider, without guessing from its model ids. */
-export function catalogProviderFor(provider: Pick<ProviderConfig, "id" | "baseUrl">): CatalogProvider | null {
-	const hostname = configuredHostname(provider.baseUrl);
-	if (hostname) {
-		const endpoint = new URL(provider.baseUrl);
-		const candidates = snapshot.providers.filter((entry) => {
-			if (!entry.api || configuredHostname(entry.api) !== hostname) return false;
-			const path = new URL(entry.api).pathname.replace(/\/$/, "");
-			return endpoint.pathname === path || endpoint.pathname.startsWith(`${path}/`);
-		}).sort((a, b) => (b.api?.length ?? 0) - (a.api?.length ?? 0));
-		if (candidates[0]) return candidates[0];
-		const id = providerIdFromHost(hostname);
-		return id ? providers.get(id) ?? null : null;
-	}
-	return providers.get(provider.id.toLowerCase()) ?? null;
-}
-
-export interface CatalogMatch {
-	provider: CatalogProvider;
-	model: CatalogModel;
-	match: "exact" | "alias" | "reference" | "binding";
-}
-
+/** 型号家族的厂商官方供应商，中转上的同名模型按它取参考值。 */
 function familyProvider(id: string): string | undefined {
 	if (/^(gpt-|o[134](?:-|$))/.test(id)) return "openai";
 	if (id.startsWith("claude-")) return "anthropic";
 	if (id.startsWith("gemini-")) return "google";
 	if (/^(kimi-|moonshot-)/.test(id)) return "moonshotai";
-	if (/^(qwen|qwq|qvq)/.test(id)) return "alibaba";
 	if (id.startsWith("glm-")) return "zai";
 	if (id.startsWith("deepseek-")) return "deepseek";
 	if (id.startsWith("grok-")) return "xai";
 	if (id.startsWith("minimax-")) return "minimax";
+	if (id.startsWith("mimo-")) return "xiaomi";
 	if (/^(mistral|magistral|codestral|devstral|ministral)/.test(id)) return "mistral";
 	return undefined;
 }
 
-const modelIndexes = new Map(snapshot.providers.map((provider) => [provider.id,
-	new Map(provider.models.flatMap((model) => [[model.id.toLowerCase(), model], [model.id.toLowerCase().split("/").at(-1) ?? model.id, model]])),
-]));
-
 /** Only recognised decorations may be removed; unknown versions and paid/free variants stay distinct. */
 function modelCandidates(id: string): string[] {
-	let current = id.trim().toLowerCase().replace(/claude-(opus|sonnet|haiku)-(\d+)\.(\d+)/, "claude-$1-$2-$3");
+	let current = id.trim().toLowerCase().replace(/claude-(opus|sonnet|haiku|fable)-(\d+)\.(\d+)/, "claude-$1-$2-$3");
 	const candidates = [current];
 	const bare = current.split("/").at(-1);
 	if (bare && bare !== current) candidates.push(bare);
@@ -171,34 +151,32 @@ function modelCandidates(id: string): string[] {
 	return candidates;
 }
 
+/** 四项价格全是 0 的是订阅制端点，不按次计费——当作没有价格，而不是「免费」。 */
+function priced(model: CatalogModel): boolean {
+	return model.inputPrice !== undefined && model.outputPrice !== undefined &&
+		[model.inputPrice, model.outputPrice, model.cacheReadPrice ?? 0, model.cacheWritePrice ?? 0].some((value) => value > 0);
+}
+
 export function catalogModelFor(
-	provider: Pick<ProviderConfig, "id" | "baseUrl">,
+	provider: Pick<ProviderConfig, "baseUrl">,
 	modelId: string,
-	binding?: ModelConfig["catalogRef"],
 ): CatalogMatch | null {
-	if (binding) {
-		const source = providers.get(binding.providerId);
-		const model = source?.models.find((entry) => entry.id === binding.modelId);
-		return source && model ? { provider: source, model, match: "binding" } : null;
-	}
-	const endpoint = catalogProviderFor(provider);
 	const candidates = modelCandidates(modelId);
-	const bare = modelId.trim().toLowerCase().split("/").at(-1) ?? modelId;
-	const family = familyProvider(bare);
-	// OpenRouter supplies reference prices for open-weight families without an upstream API tariff.
-	const sources = [...new Set([endpoint?.id, family, "openrouter"])].filter((id) => id !== undefined);
+	const endpoint = normalizeEndpoint(provider.baseUrl);
+	const local = endpoint ? active.byEndpoint.get(endpoint) ?? [] : [];
 	for (const candidate of candidates) {
-		for (const sourceId of sources) {
-			const source = providers.get(sourceId);
-			const model = modelIndexes.get(sourceId)?.get(candidate);
-			if (source && model) return { provider: source, model, match: source === endpoint ? (candidate === modelId ? "exact" : "alias") : "reference" };
+		for (const entry of local) {
+			const model = entry.models.get(candidate);
+			if (model) return { provider: entry.provider, model, match: candidate === modelId.trim().toLowerCase() ? "exact" : "alias" };
 		}
 	}
-	// Some versioned APIs only publish a preview id. Never choose a version for an opaque alias.
-	if (/\d/.test(bare)) {
-		const source = family ? providers.get(family) : undefined;
-		for (const candidate of candidates) {
-			const model = source && modelIndexes.get(source.id)?.get(`${candidate}-preview`);
+	const bare = modelId.trim().toLowerCase().split("/").at(-1) ?? modelId;
+	// OpenRouter supplies reference values for families without an upstream API entry.
+	const sources = [...new Set([familyProvider(bare), "openrouter"])].filter((id) => id !== undefined);
+	for (const candidate of candidates) {
+		for (const sourceId of sources) {
+			const source = active.providers.get(sourceId);
+			const model = active.byProvider.get(sourceId)?.get(candidate);
 			if (source && model) return { provider: source, model, match: "reference" };
 		}
 	}
@@ -206,23 +184,29 @@ export function catalogModelFor(
 }
 
 export function catalogPricing(providerId: string, model: CatalogModel): ModelPricing | undefined {
-	if (model.inputPrice === undefined || model.outputPrice === undefined) return undefined;
+	if (!priced(model)) return undefined;
 	return {
-		input: model.inputPrice,
-		output: model.outputPrice,
+		input: model.inputPrice!,
+		output: model.outputPrice!,
 		cacheRead: model.cacheReadPrice,
 		cacheWrite: model.cacheWritePrice,
 		tiers: model.tiers,
 		source: "catalog",
 		catalogProvider: providerId,
 		catalogModel: model.id,
-		catalogVersion: MODEL_CATALOG_VERSION,
+		catalogVersion: modelCatalogVersion(),
 	};
 }
 
-/** Fill in the catalogue price; a manual price always wins. Idempotent — settings run it on every read and write. */
-export function withCatalogPricing(provider: Pick<ProviderConfig, "id" | "baseUrl">, model: ModelConfig): ModelConfig {
-	if (model.pricing && model.pricing.source !== "catalog") return model;
-	const found = catalogModelFor(provider, model.modelId, model.catalogRef);
-	return found ? { ...model, pricing: catalogPricing(found.provider.id, found.model) } : model;
+/** 一个目录条目要填进模型配置的值。输出上限不超过窗口；全零价格的订阅制条目不填价格。 */
+export function catalogFill(providerId: string, model: CatalogModel): CatalogFill {
+	return {
+		contextWindow: model.contextWindow,
+		maxOutputTokens: Math.min(model.maxOutputTokens, model.contextWindow),
+		supportsThinking: model.supportsThinking,
+		supportsImages: model.supportsImages,
+		// pi 的目录只收编码代理用的对话模型，都能调工具，所以没有这一项。
+		supportsTools: true,
+		pricing: catalogPricing(providerId, model),
+	};
 }
