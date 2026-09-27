@@ -219,7 +219,7 @@ export function buildTurnConfig(
 			 * paper when the conversation is cut, and the result lands over the line it was aiming
 			 * for. That is a conversation which compacts on every single turn.
 			 */
-			compact: (messages, model) => {
+			compact: (messages, model, observer) => {
 				const summarizer = resolveModelRef(deps.settings, "@compact", { provider: deps.provider, model });
 				return compactWith({
 					messages,
@@ -230,6 +230,7 @@ export function buildTurnConfig(
 					// 自动压缩剪掉的原文也存下来——它剪掉的量比手动压缩多得多。
 					artifacts: deps.artifacts,
 					summarizer,
+					observer,
 				});
 			},
 			streamFn: deps.streamFn,

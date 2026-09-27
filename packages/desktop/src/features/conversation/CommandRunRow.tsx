@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n/index.ts";
 import type { CommandRun } from "@lyra/core";
 import { Check, CircleAlert, Minus, Terminal } from "lucide-react";
 import { FlowRow } from "./FlowRow.tsx";
@@ -13,8 +14,19 @@ import { MessageActions } from "./MessageActions.tsx";
  * 说这是一条命令，以及它最后是成了还是败了。
  */
 export function CommandRunRow({ command }: { command: CommandRun }) {
+	const { t } = useI18n();
 	const running = command.status === "running";
 	const Icon = running ? Terminal : command.status === "done" ? Check : command.status === "failed" ? CircleAlert : Minus;
+	if (command.automatic) {
+		const auto = command.automatic;
+		const key = command.status === "done" ? (auto.outcome === "fallback" ? "compact.autoFallbackDone" : "compact.autoDone") : command.status === "cancelled" ? "compact.autoInterrupted" : command.status === "failed" ? "compact.autoFailed" : auto.phase === "retrying" ? "compact.autoRetrying" : auto.phase === "fallback" ? "compact.autoFallback" : "compact.autoSummarizing";
+		return <div data-command-run={command.id} data-command-status={command.status} data-auto-compaction={auto.phase}>
+			<FlowRow icon={<Icon size={13} strokeWidth={1.8} />} title={t("compact.autoTitle")}
+				summary={t(key, { before: auto.before ?? 0, after: auto.after ?? 0, count: auto.retries })}
+				trailing={!running && auto.retries > 0 ? t("compact.autoRetries", { count: auto.retries }) : undefined}
+				running={running} className={command.status === "failed" ? "text-danger hover:text-danger" : ""} />
+		</div>;
+	}
 	return <div className="group/msg" data-command-run={command.id} data-command-status={command.status}>
 		<div className="flex justify-end">
 			<p className="max-w-[85%] whitespace-pre-wrap break-words rounded-[16px] rounded-br-[6px] bg-card px-4 py-2.5 text-body leading-relaxed">

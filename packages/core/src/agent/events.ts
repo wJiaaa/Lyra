@@ -1,3 +1,4 @@
+import type { AutoCompactionState } from "../types/compaction.ts";
 import type { AssistantMessage, Message, StreamEvent, ToolResult, ToolResultMessage } from "../types.ts";
 import type { SubAgentSummary } from "../runtime/sub-agents.ts";
 import type { Failure } from "../ai/failure.ts";
@@ -14,6 +15,8 @@ export interface CommandRun {
 	at: number;
 	status: "running" | "done" | "skipped" | "failed" | "cancelled";
 	detail: string;
+	/** Present only for automatic maintenance; it does not own the agent turn. */
+	automatic?: AutoCompactionState;
 }
 
 export type AgentEvent =
@@ -29,7 +32,7 @@ export type AgentEvent =
 	 * 比不显示还糟。
 	 */
 	// `notice` 是检查点上那句「清单还有 N 项，接着跑」——子代理自己的事，留在它自己的流里。
-	| { type: "subagent_event"; id: string; event: Extract<AgentEvent, { type: "tool_start" | "tool_end" | "request" | "retry" | "retry_settled" | "agent_end" | "turn_start" | "context" | "compacted" | "notice" }> }
+	| { type: "subagent_event"; id: string; event: Extract<AgentEvent, { type: "tool_start" | "tool_end" | "request" | "retry" | "retry_settled" | "agent_end" | "turn_start" | "context" | "compacted" | "command_status" | "notice" }> }
 	| { type: "message_start"; message: Message }
 	| { type: "message_update"; message: AssistantMessage; delta: StreamEvent }
 	| { type: "message_end"; message: Message }
@@ -177,7 +180,7 @@ export type AgentEvent =
 	 * against the log rather than against the loop's array — the two are not the same once a run
 	 * has compacted, and an index into one is meaningless in the other.
 	 */
-	| { type: "compacted"; before: number; after: number; summary?: string; kept?: number }
+	| { type: "compacted"; before: number; after: number; summary?: string; kept?: number; commandId?: string; command?: CommandRun }
 	/**
 	 * The connection dropped and the turn is being retried.
 	 *

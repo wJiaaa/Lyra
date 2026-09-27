@@ -39,7 +39,7 @@ export function NavItem({
 			onClick={onClick}
 			aria-current={active ? "page" : undefined}
 			className={`flex w-full items-center gap-2.5 rounded-lg px-2 text-left transition-colors ${tone} ${
-				compact ? "h-[40px] text-body" : "h-[31px] text-label"
+				compact ? "h-[40px] text-body" : "h-[32px] text-label"
 			}`}
 		>
 			<span className={`shrink-0 ${active ? "text-ink" : "text-ink-muted"}`}>{icon}</span>

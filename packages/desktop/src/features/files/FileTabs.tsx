@@ -20,7 +20,7 @@ import { useApp } from "../../store/index.ts";
 import { ContextMenu, useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
 import { useRevealLabel } from "../../store/open-targets.ts";
-import { bridge } from "../../services/index.ts";
+import { available, bridge } from "../../services/index.ts";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
@@ -246,9 +246,11 @@ function TabMenu({
 			>
 				{t("fileMenu.copyPath")}
 			</MenuItem>
-			<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => void bridge.workspace.reveal(tab.path)}>
-				{reveal}
-			</MenuItem>
+			{available("workspace", "reveal") && (
+				<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => void bridge.workspace.reveal(tab.path)}>
+					{reveal}
+				</MenuItem>
+			)}
 		</ContextMenu>
 	);
 }

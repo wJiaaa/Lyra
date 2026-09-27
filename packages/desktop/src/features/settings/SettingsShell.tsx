@@ -1,7 +1,7 @@
 import { composingKey, shortcutLetter } from "../../ui/keyboard.ts";
 import { ArrowLeft, Rocket } from "lucide-react";
 import { useEffect } from "react";
-import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
+import { MAIN_WINDOW_ROW_OFFSET, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";
 import { settingsGroups } from "./settings-navigation.ts";
 import { SettingsNav } from "./SettingsNav.tsx";
@@ -33,6 +33,7 @@ import { ForgeSettings } from "./ForgeSettings.tsx";
 import { SearchSettings } from "./SearchSettings.tsx";
 import { StorageSettings } from "./StorageSettings.tsx";
 import { UsageSettings } from "./UsageSettings.tsx";
+import { WebAccessSettings } from "./WebAccessSettings.tsx";
 import { WorktreesSettings } from "./WorktreesSettings.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -212,7 +213,7 @@ export function SettingsShell() {
 			{/* Last child, for the same DOM-order reason as the chat shell's toolbar. */}
 			{!headerBar && (
 				<div className="drag-region absolute inset-x-0 top-0 z-40" style={{ height: WINDOW_HEADER_HEIGHT }}>
-					<div className="no-drag absolute top-0 flex items-center gap-0.5" style={{ left: titlebar.start, height: WINDOW_HEADER_HEIGHT }}>
+					<div className="no-drag absolute flex items-center gap-0.5" style={{ left: titlebar.start, top: MAIN_WINDOW_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}>
 						{navToggle}
 					</div>
 				</div>
@@ -247,6 +248,8 @@ function SectionBody({ section }: { section: SettingsSection }) {
 			return <HooksSettings />;
 		case "index":
 			return <IndexSettings />;
+		case "web":
+			return <WebAccessSettings />;
 		case "browser":
 			return <BrowserSettings />;
 		case "screenshot":

@@ -78,6 +78,14 @@ test("no files, no section", () => {
 	assert.ok(!/files-already-seen/.test((without[0].content[0] as { text: string }).text), "不给这个参数时也不该出现");
 });
 
+test("another compaction retains file references and newer changes override read-only status", () => {
+	const first = summaryMessages("summary", null, PROVIDER, MODEL, { read: ["a.ts", "b.ts"], changed: ["c.ts"] });
+	const seen = filesSeen([...first, calls({ name: "edit", path: "a.ts" })]);
+	assert.deepEqual(seen, { read: ["b.ts"], changed: ["c.ts", "a.ts"] });
+	const second = summaryMessages("another summary", null, PROVIDER, MODEL, seen);
+	assert.deepEqual(filesSeen(second), seen);
+});
+
 test("both places that rebuild a compaction head pass the list", async () => {
 	/*
 	 * 接线守卫。

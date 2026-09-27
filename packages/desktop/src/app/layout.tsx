@@ -19,7 +19,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, storedWidth } from "./layout-widths.ts";
 import { freezeMotion } from "../ui/motion/freeze.ts";
 import { hasHeaderBar, overlayReserved, titlebarInsets, type TitlebarInsets } from "./window/titlebar.ts";
-import { bridge } from "../services/index.ts";
+import { bridge, onWeb } from "../services/index.ts";
 
 /** Below this the sidebar and a readable content column no longer fit side by side. */
 const COMPACT_MAX = 760;
@@ -184,7 +184,7 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
 	useEffect(() => bridge.onFullScreenChange?.(setNativeFullScreen), []);
 
 	const titlebar = useTitlebar(nativeFullScreen);
-	const headerBar = hasHeaderBar(bridge.platform ?? "darwin");
+	const headerBar = hasHeaderBar(bridge.platform ?? "darwin", !onWeb());
 
 	// Crossing the breakpoint in either direction dismisses the drawer; it is a transient
 	// overlay, and carrying it across a reflow leaves it stranded over the wrong layout.
@@ -285,7 +285,7 @@ function useTitlebar(nativeFullScreen: boolean): TitlebarInsets {
 	}, [overlay]);
 
 	return useMemo(
-		() => titlebarInsets(bridge.platform ?? "darwin", nativeFullScreen, reserved),
+		() => titlebarInsets(bridge.platform ?? "darwin", nativeFullScreen, reserved, !onWeb()),
 		[nativeFullScreen, reserved],
 	);
 }

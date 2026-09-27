@@ -6,11 +6,14 @@
  * unanswerable without searching all of them: what does this window actually call, and what would
  * have to change to test any of it.
  *
- * `oxlint` enforces the rule (`no-restricted-properties` on `window.lyra`), with this file and
- * `host.ts` exempted. A lint rule rather than a convention because the convention held for exactly
+ * `oxlint` enforces the rule (`no-restricted-properties` on `window.lyra`), with this file,
+ * `host.ts` and `web-bridge.ts` exempted. A lint rule rather than a convention because the convention held for exactly
  * as long as somebody was watching.
  *
- * The object itself is built by the preload out of IPC channels.
+ * In an Electron window the object is built by the preload out of IPC channels. In a browser that
+ * opened this interface through Web access there is no preload, and `web-bridge.ts` builds it out
+ * of one WebSocket instead — the renderer cannot tell the difference, and that is the design. What
+ * *does* differ is which methods answer: see `host.ts`.
  */
 
 import { translate } from "../i18n/translate.ts";

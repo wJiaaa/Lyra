@@ -15,6 +15,7 @@ import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { FetchModelsModal } from "./FetchModelsModal.tsx";
+import { Card } from "./layout.tsx";
 import { ModelEditor } from "./ModelEditor.tsx";
 import { ProviderEditor } from "./ProviderEditor.tsx";
 import { ProviderImportModal } from "./ProviderImportModal.tsx";
@@ -119,7 +120,7 @@ export function ModelSettings() {
       {/* The query element and the queried element cannot be the same one: a container is
 				    sized by its contents, so it is only ever asked about by its descendants. */}
       <div className="@container flex min-h-[340px] flex-1">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-line bg-card/30 @2xl:flex-row">
+        <Card className="flex min-h-0 flex-1 flex-col @2xl:flex-row">
           {/* Each pane scrolls on its own, so a long provider list never moves the editor. */}
           <Scroller
             className="max-h-[168px] shrink-0 border-b border-line @2xl:max-h-none @2xl:w-[268px] @2xl:border-r @2xl:border-b-0"
@@ -133,10 +134,11 @@ export function ModelSettings() {
                 key={provider.id}
                 type="button"
                 onClick={() => p.select(provider.id)}
-                className={`ly-scroll flex h-[38px] w-full items-center gap-2.5 rounded-lg px-2.5 text-left transition-colors ${
+                // 选中靠一圈线标出，不垫底色，和 ZCode 一样：这一栏坐在卡片上，垫一块灰就又多了一层面。
+                className={`ly-scroll flex h-[38px] w-full items-center gap-2.5 rounded-lg px-2.5 text-left transition-shadow ${
                   p.selected?.id === provider.id
-                    ? "bg-card-hover"
-                    : "hover:bg-card-hover/60"
+                    ? "shadow-[inset_0_0_0_1px_var(--color-line)]"
+                    : "hover:shadow-[inset_0_0_0_1px_var(--color-line-soft)]"
                 }`}
               >
                 <Box
@@ -208,7 +210,7 @@ export function ModelSettings() {
               />
             )}
           </Scroller>
-        </div>
+        </Card>
       </div>
 
       {editingModel && (

@@ -2,8 +2,8 @@
  * The neutral message shape, and what a reply costs.
  *
  * One shape flows through the whole system. Provider adapters translate it into their wire format
- * on the way out and back on the way in, so the agent loop, the session store, the desktop UI and
- * the mobile app never see provider-specific JSON.
+ * on the way out and back on the way in, so the agent loop, the session store and the desktop UI
+ * never see provider-specific JSON.
  */
 
 // A reply records which wire format produced it, so it can be replayed to the right adapter.
@@ -203,12 +203,25 @@ export interface MessageAttachment {
 	label?: string;
 }
 
+/** Runtime-owned facts carried beside a lossy summary, never extracted from summary text. */
+export interface CompactionContext {
+	originalRequest?: string;
+	latestRequest?: string;
+	/** Ordered excerpts of real user messages; rendering has its own window budget. */
+	requests?: { ordinal: number; text: string; timestamp: number }[];
+	todos?: { content: string; status: "pending" | "in_progress" | "completed" }[];
+}
+
 export interface UserMessage {
 	role: "user";
 	content: UserContent[];
 	timestamp: number;
 	/** Set when the message was injected by the runtime rather than typed by a human. */
 	synthetic?: boolean;
+	/** Only runtime-generated compaction heads carry this snapshot. */
+	compactionContext?: CompactionContext;
+	/** File references survive another compaction without parsing model-written summaries. */
+	compactionFiles?: { read: string[]; changed: string[] };
 	/** An explicit runtime control discarded the old plan; it did not mark work completed. */
 	clearsTaskPlan?: boolean;
 	/**

@@ -619,12 +619,13 @@ export function Popover({
 				 * unless a `no-drag` one is laid over it: the items there were drawn and unpressable.
 				 * The hole goes when the popover does, so the strip drags again once it closes.
 				 */
-				className={`${surface} ly-menu-card no-drag fixed z-[60] flex flex-col overflow-hidden border border-line ${
+				// `line-float` 而不是 `line`：`line` 是按页面算的，画在比页面亮的浮层上是一圈暗边。
+				className={`${surface} ly-menu-card no-drag fixed z-[60] flex flex-col overflow-hidden border border-line-float ${
 					leaving ? "ly-pop-out" : placed ? "ly-pop-in" : ""
 				} ${className}`}
 			>
 				{header && (
-					<div className="shrink-0 border-b border-line-soft">{header}</div>
+					<div className="shrink-0 border-b border-line-float">{header}</div>
 				)}
 
 				{/*
@@ -651,7 +652,7 @@ export function Popover({
 				</Scroller>
 
 				{footer && (
-					<div className="shrink-0 border-t border-line-soft">{footer}</div>
+					<div className="shrink-0 border-t border-line-float">{footer}</div>
 				)}
 			</div>
 		</PopoverChain.Provider>);

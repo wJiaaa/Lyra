@@ -13,8 +13,9 @@ import { ChevronRight, Plus } from "lucide-react";
 import { useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectDialog } from "../modals/index.ts";
+import { available } from "../../services/index.ts";
 import { Collapsible } from "./Collapsible.tsx";
-import type { Grouped } from "./grouping.ts";
+import type { Grouped } from "../../lib/sidebar-grouping.ts";
 import { ProjectGroup, SESSION_PAGE } from "./ProjectGroup.tsx";
 import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
 import { ShowMore } from "./ShowMore.tsx";
@@ -83,7 +84,7 @@ export function ProjectList({
 						{translate("projectList.pinned")}
 					</SectionLabel>
 					<Collapsible open={!pinnedShut}>
-						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[4px]"}`}>
+						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
 							{groups.pinnedSessions?.map((session) => (
 								<SessionRow
 									key={session.id}
@@ -121,8 +122,9 @@ export function ProjectList({
 						 * other intent — adding one — and the list of them is where you are when
 						 * you have it.
 						 */
+						// A project is a settings entry, which a browser through Web access cannot write.
 						action={
-							<button
+							available("settings", "save") && <button
 								type="button"
 								onClick={() => setCreating(true)}
 								data-ly-tip={translate("project.new")}
@@ -158,7 +160,7 @@ export function ProjectList({
 					{/* Flat rows, the same ones a project shows — the section is what differs, not the
 					    conversation. Same gap as inside a project, so the two read as one list. */}
 					<Collapsible open={!collapsed.includes(RECENT)}>
-						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[4px]"}`}>
+						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
 							{groups.loose.slice(0, looseShown).map((session) => (
 								<SessionRow
 									key={session.id}

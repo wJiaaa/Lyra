@@ -38,7 +38,8 @@ const SIDEBAR_TABS: { value: SidebarTab; labelKey: MessageKey; Icon: typeof Fold
  *
  * Shared so the two cannot drift apart, which they already had once: two buttons of two heights
  * either side of a control that is a third height reads as three unrelated things rather than one
- * row. The height is the strip's, exactly, so the row has one baseline.
+ * row. Sized as ZCode's `icon-sm` (24px) — the strip's own tabs are 24px too, so the buttons line
+ * up with them rather than with the strip's outer edge.
  */
 export function StripButton({
 	label,
@@ -59,8 +60,8 @@ export function StripButton({
 			aria-label={label}
 			aria-pressed={active}
 			onClick={onClick}
-			className={`relative flex shrink-0 items-center justify-center rounded-lg transition-colors duration-[var(--ly-t-quick)] ${
-				compact ? "h-[38px] w-[38px]" : "h-[32px] w-[32px]"
+			className={`relative flex shrink-0 items-center justify-center transition-colors duration-[var(--ly-t-quick)] ${
+				compact ? "h-[38px] w-[38px] rounded-lg" : "h-[24px] w-[24px] rounded-md"
 			} ${active ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"}`}
 		>
 			{children}
@@ -87,6 +88,8 @@ export function SidebarTabs({
 	const { compact } = useLayout();
 	const { t } = useI18n();
 	const index = Math.max(0, SIDEBAR_TABS.findIndex((option) => option.value === tab));
+	// ZCode 的胶囊是 28px：2px 内边距包 24px 标签；抽屉模式保留原来的 3px 内边距，整条仍是 38px。
+	const pad = compact ? 3 : 2;
 
 	return (
 		/*
@@ -115,12 +118,12 @@ export function SidebarTabs({
 			 * same control was a different size in every window. Its size is a property of what is
 			 * written on it. The buttons go to the far end on their own; see `ml-auto` below.
 			 */}
-			<div role="tablist" aria-label={t("sidebar.sections")} className="ly-tabs relative flex min-w-0 rounded-full p-[3px]">
+			<div role="tablist" aria-label={t("sidebar.sections")} className="ly-tabs relative flex min-w-0 rounded-full" style={{ padding: pad }}>
 				{/*
 				 * One fill that moves, rather than a fill per tab that appears and disappears.
 				 *
 				 * `translateX(100%)` is exactly one tab's width because the fill is one tab wide — half
-				 * the strip less the padding it sits inside, which is what `calc(50% - 3px)` says. Two
+				 * the strip less the padding it sits inside, which is what `calc(50% - pad)` says. Two
 				 * tabs only; a third would need the width divided rather than halved, and this control
 				 * is the sidebar's two halves rather than a general segmented picker.
 				 */}
@@ -128,8 +131,8 @@ export function SidebarTabs({
 					aria-hidden
 					// `ly-freeze`: the knob's offset is a fraction of the sidebar's width, so dragging
 					// that edge moves it every frame — see the freeze rule in `styles.css`.
-					className="ly-tabs-knob ly-freeze absolute inset-y-[3px] left-[3px] rounded-full transition-transform duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
-					style={{ width: "calc(50% - 3px)", transform: `translateX(${index * 100}%)` }}
+					className="ly-tabs-knob ly-freeze absolute rounded-full transition-transform duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
+					style={{ top: pad, bottom: pad, left: pad, width: `calc(50% - ${pad}px)`, transform: `translateX(${index * 100}%)` }}
 				/>
 				{SIDEBAR_TABS.map(({ value, labelKey, Icon }) => {
 					const current = value === tab;
@@ -144,13 +147,13 @@ export function SidebarTabs({
 							onClick={() => onChange(value)}
 							/* Equal padding on both, and both labels are two characters, so the two come
 							   out the same width — which is what lets the knob be exactly half. */
-							className={`relative z-10 flex items-center justify-center gap-1.5 rounded-full transition-colors duration-[var(--ly-t-quick)] ${
-								compact ? "h-[32px] px-3.5 text-body" : "h-[26px] px-3 text-label"
-							} ${current ? "font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
+							className={`relative z-10 flex items-center justify-center rounded-full font-medium transition-colors duration-[var(--ly-t-quick)] ${
+								compact ? "h-[32px] gap-1.5 px-3.5 text-body" : "h-[24px] gap-1 pr-2 pl-1.5 text-caption"
+							} ${current ? "text-ink" : "text-ink-muted hover:text-ink"}`}
 						>
 							{/* A step below the label's weight. The mark is there to be recognised at a
 							    glance, not read, and at the same strength it competes with the word. */}
-							<Icon size={13} strokeWidth={current ? 2 : 1.8} className="shrink-0" />
+							<Icon size={compact ? 13 : 12} strokeWidth={current ? 2 : 1.8} className="shrink-0" />
 							{/* The word is what yields when the row runs out of room; the mark beside it
 							    still says which tab this is. */}
 							<span className="truncate">{label}</span>
@@ -161,7 +164,7 @@ export function SidebarTabs({
 			{/* At the far end, and tighter between themselves than between them and the strip: they
 			    are one group of controls acting on the list, and the strip is the list's own
 			    switch. Even spacing read as four unrelated things in a row. */}
-			{trailing && <div className="ml-auto flex shrink-0 items-center gap-0.5">{trailing}</div>}
+			{trailing && <div className="ml-auto flex shrink-0 items-center gap-1">{trailing}</div>}
 		</div>
 	);
 }

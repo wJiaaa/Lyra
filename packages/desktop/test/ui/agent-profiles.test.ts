@@ -55,7 +55,6 @@ test("switching to a non-reasoning model clears the incompatible saved effort an
 	try {
 		await click(view.find('[aria-label="explore 模型"]')); await choose("Fast");
 		assert.deepEqual(saved?.subAgentProfiles?.explore, { modelId: "qa/fast" });
-		assert.match(view.text(), /不支持思考/);
 		assert.equal(view.host.querySelector('[aria-label="explore 思考等级"]'), null);
 		await click(view.find('[aria-label="explore 模型"]')); await choose("跟随主会话");
 		assert.deepEqual(saved?.subAgentProfiles, {});

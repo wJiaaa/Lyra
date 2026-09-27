@@ -3,8 +3,9 @@
  *
  * One import for callers: `import { bridge } from "@/services"`. The two files behind it answer
  * different questions — `bridge.ts` is *how* (and the only place `window.lyra` is named),
- * `host.ts` is *where* (which system the desktop runs, readable during render without a bridge).
+ * `host.ts` is *where* (an Electron window or a browser through Web access, which methods answer
+ * there, and which system the desktop runs).
  */
 
 export { bridge } from "./bridge.ts";
-export { hostPlatform } from "./host.ts";
+export { available, hostPlatform, onWeb } from "./host.ts";

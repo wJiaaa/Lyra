@@ -47,7 +47,7 @@ import {
 	useScopedTodos,
 } from "../../app/session-scope.tsx";
 import { carryOnPrompt } from "../../store/derive.ts";
-import { bridge } from "../../services/index.ts";
+import { available, bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
 interface Attachment {
@@ -286,6 +286,8 @@ export function Composer() {
 	const commandCwd = workspace?.path ?? scratchCwd ?? "";
 	const slash = useCommands(text, commandCwd, field, setText);
 	const pickFileForMention = useCallback(async (actionId: string) => {
+		// The picker is a dialog on the desktop's screen, not this one.
+		if (!available("files", "pick")) return null;
 		try {
 			const paths = await bridge.files.pick({ directory: actionId === "action:pick-directory", multiple: false });
 			if (!paths.length || draftKeyRef.current !== draftKey) return null;
@@ -921,7 +923,7 @@ export function Composer() {
 							>
 								<Plus size={16} strokeWidth={1.9} />
 							</button>
-							{settings?.screenshot?.enabled !== false && settings?.screenshot?.showInComposer && (
+							{settings?.screenshot?.enabled !== false && settings?.screenshot?.showInComposer && available("screenshot", "start") && (
 								<button
 									type="button"
 									data-ly-tip={`${t("composer.screenshot")} ${settings?.screenshot?.shortcut ? `(${settings.screenshot.shortcut.replace("CommandOrControl", "⌘").replace("Shift", "⇧").replace("Alt", "⌥").replace(/\+/g, "")})` : ""}`}
@@ -1026,7 +1028,7 @@ export function Composer() {
 
 			{permissionMenu.open && <PermissionPicker anchor={permissionMenu.anchor} onClose={permissionMenu.close} />}
 			{projectMenu.open && <ProjectPicker anchor={projectMenu.anchor} onClose={projectMenu.close} />}
-			{branchMenu.open && <BranchMenu anchor={branchMenu.anchor} onClose={branchMenu.close} />}
+			{branchMenu.open && available("git", "branches") && <BranchMenu anchor={branchMenu.anchor} onClose={branchMenu.close} />}
 			{/*
 			 * 句子里那一枚被右键点中时，弹的是和附件条上同一份菜单。
 			 *

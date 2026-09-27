@@ -12,6 +12,7 @@ import {
 	HardDrive,
 	Info,
 	Layers,
+	MonitorSmartphone,
 	Palette,
 	Search,
 	Settings2,
@@ -65,6 +66,7 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 		labelKey: "settings.group.data",
 		items: [
 			{ id: "index", labelKey: "settings.index", icon: Database },
+			{ id: "web", labelKey: "settings.web", icon: MonitorSmartphone },
 			{ id: "usage", labelKey: "settings.usage", icon: BarChart3 },
 			{ id: "storage", labelKey: "settings.storage", icon: HardDrive },
 		],

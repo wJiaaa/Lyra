@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUp, ArrowUpLeft, ArrowUpRight, Columns2, ExternalLink } from "lucide-react";
 import { useI18n } from "../../i18n/index.ts";
+import { available } from "../../services/index.ts";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Popover.tsx";
 import { openInNewWindow } from "./actions.ts";
 import { splitMoves } from "./moves.ts";
@@ -16,7 +17,7 @@ export function SplitMoveItems({ sessionId, onClose, includeWindow = false }: {
 	const tree = useSplit((state) => state.tree);
 	const moves = splitMoves(tree, sessionId);
 	return <>
-		{includeWindow && <>
+		{includeWindow && available("windows", "open") && <>
 			<MenuSeparator />
 			<MenuItem icon={<ExternalLink size={13} />} onClick={() => { onClose(); void openInNewWindow(sessionId); }}>
 				{t("sessionMenu.newWindow")}

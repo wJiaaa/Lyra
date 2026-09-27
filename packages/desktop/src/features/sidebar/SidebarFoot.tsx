@@ -12,15 +12,19 @@
 
 import { Settings as SettingsIcon } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
-import { useApp } from "../../store/index.ts";
+import { useApp, viewAvailable } from "../../store/index.ts";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { UpdateBadge } from "../update/index.ts";
-import { activeProviderLabel } from "./grouping.ts";
+import { activeProviderLabel } from "../../lib/sidebar-grouping.ts";
 
 export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 	const settings = useApp((s) => s.settings);
 	const setView = useApp((s) => s.setView);
 	const { compact } = useLayout();
+
+	// The whole strip is the way into settings and the app's own updates, neither of which a browser
+	// through Web access has.
+	if (!viewAvailable("settings")) return null;
 
 	return (
 		<div className={`ly-sidebar-foot flex shrink-0 items-center gap-2 border-t border-line ${compact ? "p-3" : "p-2.5"}`}>

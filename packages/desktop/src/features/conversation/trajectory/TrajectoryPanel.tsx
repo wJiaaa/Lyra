@@ -17,7 +17,7 @@ import { TraceList } from "./TraceList.tsx";
 import { TraceInspector } from "./TraceInspector.tsx";
 import { TraceTimeline, type TimeRange } from "./TraceTimeline.tsx";
 import { consumeTraceFocus, useTraceFocus } from "./navigation.ts";
-import { bridge } from "../../../services/index.ts";
+import { available, bridge } from "../../../services/index.ts";
 import { useI18n } from "../../../i18n/index.ts";
 
 export function TrajectoryPanel() {
@@ -96,7 +96,7 @@ function SessionTrajectory() {
 		<div ref={controls} className="flex shrink-0 items-center gap-1 px-2 pt-1.5 pb-1" role="toolbar" aria-label={t("trajectory.toolbar")}>
 			<SearchField value={query} onChange={setQuery} placeholder={t("trajectory.search")} className="min-w-0 flex-1" />
 			<SourceFilter selected={sources} counts={counts} status={status} onStatus={setStatus} onToggle={source => setSources(current => current.includes(source) ? current.filter(value => value !== source) : [...current, source])} onClear={() => setSources([])} />
-			<TraceActions refreshing={refreshing} collapsed={collapsed.size > 0} onRefresh={refresh} onExport={format => void exportFile(format)} onCollapse={() => setCollapsed(collapsed.size ? new Set() : new Set(all.flatMap(entry => entry.turn === undefined ? [] : [entry.turn])))} />
+			<TraceActions refreshing={refreshing} collapsed={collapsed.size > 0} onRefresh={refresh} onExport={available("sessions", "exportTrajectory") ? format => void exportFile(format) : undefined} onCollapse={() => setCollapsed(collapsed.size ? new Set() : new Set(all.flatMap(entry => entry.turn === undefined ? [] : [entry.turn])))} />
 		</div>
 		<TraceTimeline entries={all} range={time} selected={selected} onRange={setTime} onSelect={navigate} matches={matches} paused={!following || Boolean(picked)} />
 		<div className="flex shrink-0 items-center gap-2 whitespace-nowrap px-3 text-caption text-ink-faint tabular-nums" data-trace-count aria-live="polite">

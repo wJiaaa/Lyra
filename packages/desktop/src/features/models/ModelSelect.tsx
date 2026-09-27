@@ -9,7 +9,8 @@ import { ModelMenu, type ModelSelection } from "./ModelMenu.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
 /** Configuration picks share the model catalogue without changing the active conversation. */
-export function ModelSelect({ ariaLabel, disabled, inheritedModelId, inheritedSource, ...selection }: ModelSelection & { ariaLabel: string; disabled?: boolean; inheritedModelId?: string; inheritedSource?: string }) {
+/** `showIcon` 关掉触发器前面的模型记号——智能体页照 ZCode 只写模型名。 */
+export function ModelSelect({ ariaLabel, disabled, inheritedModelId, inheritedSource, showIcon = true, ...selection }: ModelSelection & { ariaLabel: string; disabled?: boolean; inheritedModelId?: string; inheritedSource?: string; showIcon?: boolean }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const menu = usePopover();
@@ -21,7 +22,7 @@ export function ModelSelect({ ariaLabel, disabled, inheritedModelId, inheritedSo
 		<button type="button" aria-label={ariaLabel} aria-haspopup="menu" aria-expanded={menu.open} disabled={disabled}
 			onClick={menu.toggle} data-ly-select="" data-ly-tip={selected ? `${selected.provider.name} · ${selected.model.name}${!selection.value ? ` · ${selection.inheritDetail ?? selection.inheritLabel}` : ""}` : selection.value || selection.inheritDetail}
 			className="ly-field ly-scroll max-w-[240px] justify-between gap-2 disabled:opacity-60">
-			{selected ? <ModelIcon model={selected.model.modelId} name={selected.model.name} size={14} /> : <Box size={14} className="shrink-0 text-ink-muted" />}
+			{showIcon && (selected ? <ModelIcon model={selected.model.modelId} name={selected.model.name} size={14} /> : <Box size={14} className="shrink-0 text-ink-muted" />)}
 			<span className="min-w-0 flex-1 text-left"><ScrollText text={label} /></span>
 			{!selection.value && inheritedSource && <span className="shrink-0 text-caption text-ink-muted">{inheritedSource}</span>}
 			<ChevronDown size={12} className={`shrink-0 text-ink-faint transition-transform duration-[var(--ly-t-quick)] ${menu.open ? "rotate-180" : ""}`} />

@@ -4,6 +4,7 @@ import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuSearch, Popover, type Anchor }
 import { ProjectDialog } from "./ProjectDialog.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
+import { useListedProjects } from "../../store/listed-projects.ts";
 import { useI18n } from "../../i18n/index.ts";
 
 /**
@@ -15,7 +16,6 @@ import { useI18n } from "../../i18n/index.ts";
  */
 export function ProjectPicker({ anchor, onClose }: { anchor: Anchor; onClose: () => void }) {
 	const { t } = useI18n();
-	const settings = useApp((s) => s.settings);
 	const workspace = useApp((s) => s.workspace);
 	const openWorkspace = useApp((s) => s.openWorkspace);
 	const clearWorkspace = useApp((s) => s.clearWorkspace);
@@ -24,9 +24,9 @@ export function ProjectPicker({ anchor, onClose }: { anchor: Anchor; onClose: ()
 	const [query, setQuery] = useState("");
 	const [creating, setCreating] = useState(false);
 
-	const projects = (settings?.projects ?? [])
-		.filter((p) => !query || p.name.toLowerCase().includes(query.toLowerCase()) || p.path.includes(query))
-		.sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
+	const projects = useListedProjects().filter(
+		(p) => !query || p.name.toLowerCase().includes(query.toLowerCase()) || p.path.includes(query),
+	);
 
 	const choose = (action: () => void) => {
 		action();
@@ -56,8 +56,9 @@ export function ProjectPicker({ anchor, onClose }: { anchor: Anchor; onClose: ()
 			header={<MenuSearch value={query} onChange={setQuery} placeholder={t("project.search")} />}
 			// The two ways out of the list stay put while it scrolls: neither is about a project
 			// you are looking at, and both are what you reach for when none of them is the one.
+			// 和上面的列表同一圈内衬，悬停的底色才不会一直铺到卡片边上。
 			footer={
-				<MenuBody>
+				<MenuBody className="p-[var(--ly-menu-inset)]">
 					<MenuItem icon={<Plus size={13} strokeWidth={1.9} />} onClick={() => setCreating(true)}>
 						{t("project.new")}
 					</MenuItem>

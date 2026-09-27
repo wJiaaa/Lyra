@@ -10,6 +10,7 @@
  * arrives twice by design rather than by accident.
  */
 
+import { completedCompaction, interruptedCompaction } from "./compaction-lifecycle.ts";
 import type { AgentEvent, AgentEventSink, CommandRun } from "../agent/events.ts";
 import type { SessionMeta, SessionRecordInput } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
@@ -111,12 +112,28 @@ export class SessionLog {
 			if (seen.has(event.message)) return;
 			seen.add(event.message);
 		}
+		// Automatic operations use the full transcript position, not the already compacted window.
+		if (event.type === "command_status" && event.command.automatic) {
+			const command = event.command;
+			event = { ...event, command: { ...command, at: this.commandRuns.find(run => run.id === command.id)?.at ?? this.messages.length } };
+		}
+		if (event.type === "compacted" && event.command) {
+			const command = event.command;
+			event = { ...event, command: { ...command, at: this.commandRuns.find(run => run.id === command.id)?.at ?? this.messages.length } };
+		}
+		if (PERSISTED_EVENTS.has(event.type) && this.meta) {
+			this.meta = await this.store.append(this.meta, { type: "event", event });
+		}
 		if (event.type === "command_status") {
 			const at = this.commandRuns.findIndex((run) => run.id === event.command.id);
 			if (at < 0) this.commandRuns.push(event.command); else this.commandRuns[at] = event.command;
 		}
-		if (PERSISTED_EVENTS.has(event.type) && this.meta) {
-			this.meta = await this.store.append(this.meta, { type: "event", event });
+		if (event.type === "agent_end") this.commandRuns = this.commandRuns.map(run => run.automatic && run.status === "running" ? interruptedCompaction(run) : run);
+		// A failed append must leave the last durable model view in force.
+		if (event.type === "compacted" && event.kept !== undefined) {
+			this.markCompaction(event.summary ?? "", event.kept);
+			const at = this.commandRuns.findIndex((run) => run.id === event.commandId);
+			if (at >= 0) this.commandRuns[at] = event.command ?? completedCompaction(this.commandRuns[at], event.before, event.after);
 		}
 		await this.sink(event);
 	}
@@ -155,10 +172,10 @@ export class SessionLog {
 	 * which holds every original message. "The last N still apply" is the one statement that means
 	 * the same thing in both.
 	 */
-	markCompaction(summary: string, kept: number): void {
+	private markCompaction(summary: string, kept: number): void {
 		this.compaction = { at: Date.now(), summary, keptFrom: Math.max(0, this.messages.length - kept) };
 		/*
-		 * Counted before the `compacted` event is written, which is what keeps this in step with the
+		 * Counted when the `compacted` event is written, which is what keeps this in step with the
 		 * list `store.load` builds while replaying: there the mark is `entries.length` at the moment
 		 * the event is read back, and every message committed before it is already in both.
 		 */

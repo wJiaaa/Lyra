@@ -9,7 +9,7 @@
  */
 
 import { AtSign, Clock, GitPullRequest } from "lucide-react";
-import { useApp } from "../../store/index.ts";
+import { useApp, viewAvailable } from "../../store/index.ts";
 import { NavItem } from "./NavItem.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -22,15 +22,22 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 		onNavigate();
 	};
 
+	// In a browser through Web access none of the three can be reached; see `viewAvailable`.
+	if (!viewAvailable("pull-requests") && !viewAvailable("scheduled") && !viewAvailable("plugins")) return null;
+
 	return (
-		<div className="flex flex-col gap-[2px] pb-1">
-			<NavItem
-				active={view === "pull-requests"}
-				icon={<GitPullRequest size={15} strokeWidth={1.8} />}
-				label={t("sidebar.pullRequests")}
-				onClick={go("pull-requests")}
-			/>
-			<NavItem active={view === "scheduled"} icon={<Clock size={15} strokeWidth={1.8} />} label={t("sidebar.scheduled")} onClick={go("scheduled")} />
+		<div className="flex flex-col gap-[4px] pb-1">
+			{viewAvailable("pull-requests") && (
+				<NavItem
+					active={view === "pull-requests"}
+					icon={<GitPullRequest size={15} strokeWidth={1.8} />}
+					label={t("sidebar.pullRequests")}
+					onClick={go("pull-requests")}
+				/>
+			)}
+			{viewAvailable("scheduled") && (
+				<NavItem active={view === "scheduled"} icon={<Clock size={15} strokeWidth={1.8} />} label={t("sidebar.scheduled")} onClick={go("scheduled")} />
+			)}
 			{/*
 			 * The catalogue, not the settings pane it used to open.
 			 *
@@ -39,7 +46,9 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 			 * now split along that line: here to browse and install, settings to configure. The gear
 			 * in this view's header is the way across.
 			 */}
-			<NavItem active={view === "plugins"} icon={<AtSign size={15} strokeWidth={1.8} />} label={t("sidebar.plugins")} onClick={go("plugins")} />
+			{viewAvailable("plugins") && (
+				<NavItem active={view === "plugins"} icon={<AtSign size={15} strokeWidth={1.8} />} label={t("sidebar.plugins")} onClick={go("plugins")} />
+			)}
 		</div>
 	);
 }

@@ -3,7 +3,7 @@ import { FileDiff, Files, FileText, Undo2 } from "lucide-react";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { DeliveryFile, TurnDelivery } from "../../../electron/turn-delivery.ts";
-import { bridge } from "../../services/index.ts";
+import { available, bridge } from "../../services/index.ts";
 import { relativeTo } from "../../lib/paths.ts";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
@@ -58,7 +58,7 @@ export function TurnDeliveryCard({ timestamp }: { timestamp: number }) {
 	const messages = useScopedMessages();
 	const running = useScopedRunning();
 	const latest = latestDeliveryTimestamp(messages, running);
-	if (!sessionId || latest !== timestamp) return null;
+	if (!sessionId || latest !== timestamp || !available("delivery", "get")) return null;
 	return <Delivery key={sessionId + ":" + timestamp} sessionId={sessionId} timestamp={timestamp} />;
 }
 

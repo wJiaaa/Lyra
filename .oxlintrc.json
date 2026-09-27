@@ -180,7 +180,7 @@
           {
             "object": "window",
             "property": "lyra",
-            "message": "经 @/services 的 bridge 访问主进程。window.lyra 只在 services/bridge.ts 与 services/host.ts 里出现——87 个文件各自直接调用它时，「这个窗口到底调了什么」无法回答。"
+            "message": "经 @/services 的 bridge 访问主进程。window.lyra 只在 services/bridge.ts、services/host.ts 与 services/web-bridge.ts 里出现——87 个文件各自直接调用它时，「这个窗口到底调了什么」无法回答。"
           }
         ]
       }
@@ -188,7 +188,8 @@
     {
       "files": [
         "packages/desktop/src/services/bridge.ts",
-        "packages/desktop/src/services/host.ts"
+        "packages/desktop/src/services/host.ts",
+        "packages/desktop/src/services/web-bridge.ts"
       ],
       "rules": {
         "no-restricted-properties": "off"

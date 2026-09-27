@@ -80,8 +80,11 @@
  * Menus only. List rows in the inspector keep the 6px default. The menu
  * hover is the card radius minus the inset, so the active fill follows
  * the card instead of turning into a pill inside it.
+ *
+ * 挂在卡片上而不是滚动区上：钉在底部的那几行（「新建项目」之类）不在滚动区里，
+ * 之前拿的是 6px 的默认值，和上面列表里的行不是一个弧度。
  */
-.ly-menu-scroll .ly-item {
+.ly-menu-card .ly-item {
   border-radius: var(--radius-item);
 }
 

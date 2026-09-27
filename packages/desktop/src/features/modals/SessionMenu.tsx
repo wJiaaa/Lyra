@@ -20,6 +20,7 @@ import type { SessionMeta } from "@lyra/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
+import { available } from "../../services/index.ts";
 import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
 
 export function SessionMenu({
@@ -310,15 +311,17 @@ export function SessionMenu({
 									>
 										{t("sessionMenu.splitView")}
 									</MenuItem>
-									<MenuItem
-										icon={<ExternalLink size={13} strokeWidth={1.8} />}
-										onClick={() => {
-											void openInNewWindow(session.id);
-											onClose();
-										}}
-									>
-										{t("sessionMenu.newWindow")}
-									</MenuItem>
+									{available("windows", "open") && (
+										<MenuItem
+											icon={<ExternalLink size={13} strokeWidth={1.8} />}
+											onClick={() => {
+												void openInNewWindow(session.id);
+												onClose();
+											}}
+										>
+											{t("sessionMenu.newWindow")}
+										</MenuItem>
+									)}
 								</MenuBody>
 							</Popover>
 						)}

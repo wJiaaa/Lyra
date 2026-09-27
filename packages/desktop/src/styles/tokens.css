@@ -79,16 +79,18 @@
   /*
    * Floating menus are a soft card, and the hover follows the card.
    *
-   * 16px stays a card at one row and at ten. The inset is the same on every
-   * side so a hover fill is not closer to the left edge than the right. The
-   * row radius is that leftover (16 − 6): an active row and the card share
-   * one curve instead of a pill sitting inside a box. 999 was the other
-   * language, and it read as two menus glued together.
+   * The inset is the same on every side so a hover fill is not closer to the
+   * left edge than the right. The row radius is that leftover (12 − 4): an
+   * active row and the card share one curve instead of a pill sitting inside
+   * a box. 999 was the other language, and it read as two menus glued together.
+   *
+   * 数值对齐 ZCode：12px 的卡、4px 的内衬、32px 的行。之前是 16 / 6 / 36，一张菜单
+   * 圆得像气泡，行也松，同样几个项目要多占三分之一的高度。
    */
-  --radius-menu: 16px;
-  --ly-menu-inset: 6px;
-  --radius-item: 10px;
-  --ly-menu-row: 36px;
+  --radius-menu: 12px;
+  --ly-menu-inset: 4px;
+  --radius-item: 8px;
+  --ly-menu-row: 32px;
   /*
    * Composer chrome. Three numbers, used by every field that looks like the
    * main one: conversation, side chat, sub-agent, commit, the in-place editor.

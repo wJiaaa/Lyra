@@ -23,14 +23,18 @@
  * writes both down.
  */
 
+import { failureOf, classifyFailure } from "../ai/failure.ts";
+import type { CompactionObserver, CompactionFault } from "../types/compaction.ts";
 import type { CompactionRequest, CompactionStrategy } from "../kernel/services.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { estimateTokens } from "../tokens.ts";
 import { dropUneventful, pruneToolResults, type ArtifactSink } from "./prune.ts";
 import { dropStaleResults } from "./stale-results.ts";
-import { measureTotal } from "./context.ts";
+import { contextMaxTokens, measureTotal } from "./context.ts";
 import { stripStaleHandles } from "./model-switch.ts";
-import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../types.ts";
+import { formatTaskContext, taskContextFromHistory } from "./task-context.ts";
+import type { CompactionContext } from "../types/message.ts";
+import type { AssistantMessage, LlmContext, Message, ModelConfig, ProviderConfig } from "../types.ts";
 
 /** Start compacting at this fraction of the context window. */
 export const COMPACTION_RATIO = 0.8;
@@ -238,6 +242,7 @@ export function compactWith(request: CompactionRequest): Promise<Compaction | nu
 		request.artifacts,
 		request.manual,
 		request.summarizer,
+		request.observer,
 	);
 }
 
@@ -282,6 +287,7 @@ export async function compactIfNeeded(
 	 * Selects the summarizer without changing the active model's compaction threshold or tail budget.
 	 */
 	summarizer?: { provider: ProviderConfig; model: ModelConfig },
+	observer?: CompactionObserver,
 ): Promise<Compaction | null> {
 	/*
 	 * The provider's own count, not our estimate of it.
@@ -295,7 +301,9 @@ export async function compactIfNeeded(
 	 * landed, which is the only point at which there is nothing measured to use.
 	 */
 	const measured = measureTotal(messages);
-	const used = measured.tokens;
+	const originalMessages = messages;
+	// Before the first measured reply (and after compaction), schemas and instructions still count.
+	const used = measured.tokens + (measured.measured ? 0 : overhead);
 	if (!force && used < compactionTriggerTokens(model.contextWindow)) return null;
 
 	/*
@@ -346,7 +354,7 @@ export async function compactIfNeeded(
 
 	// Too short to have a past worth summarising, whatever it weighs.
 	if (messages.length <= KEEP_MIN + 2) {
-		return pruned === messages ? { messages: pruned, summary: "" } : null;
+		return pruned !== originalMessages ? { messages: pruned, summary: "" } : null;
 	}
 
 	/*
@@ -386,7 +394,9 @@ export async function compactIfNeeded(
 	const summaryHistory = summaryModel.id !== model.id || summaryProvider.id !== provider.id
 		? stripStaleHandles(older, older.length)
 		: older;
-	let summary = await summarize(summaryHistory, summaryModel, summaryProvider, streamFn, force ? manual ?? {} : undefined);
+	await observer?.progress({ phase: "summarizing", provider: summaryProvider.id, model: summaryModel.id });
+	let summary = await summarize(summaryHistory, summaryModel, summaryProvider, streamFn, force ? manual ?? {} : undefined, observer);
+	if (observer?.signal?.aborted) return null;
 	if (!summary) {
 		summary = fallbackSummary(older);
 	}
@@ -406,15 +416,18 @@ export async function compactIfNeeded(
 	 */
 	const target = Math.max(0, model.contextWindow * SAFE_AFTER - overhead);
 	const scaled = (list: Message[]) => estimateTokens(list) * scale;
-	const head = summaryMessages(summary, lastRequest(older), provider, model, filesSeen(older));
-
 	let tail = recent;
-	let compacted = [...head, ...tail];
+	const withHead = () => {
+		// Tail trimming can retire another request or plan update; keep its facts outside the summary too.
+		const retired = messages.slice(0, messages.length - tail.length);
+		return [...summaryMessages(summary, lastRequest(retired), provider, model, filesSeen(retired), taskContextFromHistory(retired)), ...tail];
+	};
+	let compacted = withHead();
 	while (scaled(compacted) > target && tail.length > 1) {
 		let drop = 1;
 		while (drop < tail.length && tail[drop].role === "toolResult") drop++;
 		tail = tail.slice(drop);
-		compacted = [...head, ...tail];
+		compacted = withHead();
 	}
 
 	/*
@@ -448,6 +461,10 @@ export function filesSeen(messages: Message[]): { read: string[]; changed: strin
 	const read = new Set<string>();
 	const changed = new Set<string>();
 	for (const message of messages) {
+		if (message.role === "user" && message.synthetic && message.compactionFiles) {
+			for (const path of message.compactionFiles.read) read.add(path);
+			for (const path of message.compactionFiles.changed) changed.add(path);
+		}
 		if (message.role !== "assistant") continue;
 		for (const part of message.content) {
 			if (part.type !== "toolCall") continue;
@@ -493,7 +510,9 @@ export function summaryMessages(
 	model: ModelConfig,
 	/** 被折叠掉那段里碰过的文件；省略时这一段不出现（旧调用点、测试）。 */
 	seen?: { read: string[]; changed: string[] },
+	taskContext?: CompactionContext,
 ): Message[] {
+	standing = taskContext?.latestRequest ?? standing;
 	const seenBlock =
 		seen && (seen.read.length > 0 || seen.changed.length > 0)
 			? `<files-already-seen>\n` +
@@ -505,8 +524,9 @@ export function summaryMessages(
 			: null;
 	const text = [
 		`<session-summary>\n${summary}\n</session-summary>`,
+		taskContext ? formatTaskContext(taskContext, Math.min(6000, Math.floor(model.contextWindow * 0.05 * 3.5))) : null,
 		standing
-			? `<standing-request>\nThis is the most recent thing the user asked for, quoted exactly. It is current, and it supersedes anything above that disagrees with it.\n\n${standing}\n</standing-request>`
+			? `<standing-request>\nLatest user request (possibly excerpted). It supersedes conflicting summary claims; compatible earlier constraints still apply. Do not restart completed or cancelled work.\n\n${standing}\n</standing-request>`
 			: null,
 		seenBlock,
 		RECALL_NOTE,
@@ -518,6 +538,8 @@ export function summaryMessages(
 		content: [{ type: "text", text }],
 		timestamp: Date.now(),
 		synthetic: true,
+		...(taskContext ? { compactionContext: taskContext } : {}),
+		...(seen ? { compactionFiles: seen } : {}),
 	};
 	const acknowledgement: AssistantMessage = {
 		role: "assistant",
@@ -588,6 +610,7 @@ async function summarize(
 	provider: ProviderConfig,
 	streamFn: typeof streamAssistant,
 	manual?: { instructions?: string; signal?: AbortSignal },
+	observer?: CompactionObserver,
 ): Promise<string | null> {
 	/*
 	 * Which instruction to use depends on whether there is already a summary in there.
@@ -602,52 +625,50 @@ async function summarize(
 			message.content.some((block) => block.type === "text" && block.text.includes("<session-summary>")),
 	);
 
-	const stream = streamFn(
-		provider,
-		model,
-		{
-			systemPrompt: SUMMARY_SYSTEM,
-			messages: [
-				...condense(messages, model.contextWindow * SUMMARY_INPUT),
-				{
-					role: "user",
-					content: [{ type: "text", text: [iterative ? UPDATE_SUMMARY : FIRST_SUMMARY,
-						manual?.instructions?.trim() ? `User-requested summary focus (preserve the required handover structure and outstanding tasks):\n${manual.instructions.trim()}` : ""].filter(Boolean).join("\n\n") }],
-					timestamp: Date.now(),
-				},
-			],
-			tools: [],
-		},
-		{ thinking: "off", maxTokens: Math.min(8000, model.maxOutputTokens), signal: manual?.signal },
-	);
-
-	/*
-	 * A failed request here is a declined summary, not a failed turn.
-	 *
-	 * The stream throws on a dropped socket and on an HTTP error, and nothing caught it — so a
-	 * relay answering 503 did not merely leave the conversation uncompacted, it took the whole turn
-	 * down from inside the step that was trying to make the turn possible.
-	 *
-	 * The caller's answer to `null` is to drop the oldest turns instead, which needs no request at
-	 * all. That is the right outcome when the summariser is unreachable: less history, but a turn
-	 * that can be sent.
-	 */
-	let final: Awaited<ReturnType<typeof stream.next>>;
-	try {
-		do {
-			final = await stream.next();
-		} while (!final.done);
-	} catch (cause) {
-		// Manual commands report failure; automatic compaction may still salvage an overfull turn.
-		if (manual) throw cause;
+	const context: LlmContext = {
+		systemPrompt: SUMMARY_SYSTEM,
+		messages: [
+			...condense(messages, model.contextWindow * SUMMARY_INPUT),
+			{
+				role: "user",
+				content: [{ type: "text", text: [iterative ? UPDATE_SUMMARY : FIRST_SUMMARY,
+					manual?.instructions?.trim() ? `User-requested summary focus (preserve the required handover structure and outstanding tasks):\n${manual.instructions.trim()}` : ""].filter(Boolean).join("\n\n") }],
+				timestamp: Date.now(),
+			},
+		],
+		tools: [],
+	};
+	// Provider callbacks are synchronous; serialize their durable records and drain before completion.
+	let pending = Promise.resolve();
+	let recordError: unknown;
+	const faultOf = (failure: ReturnType<typeof failureOf>): CompactionFault => ({ kind: failure.kind, hint: failure.hint });
+	const decline = async (fault: CompactionFault) => {
+		if (!observer?.signal?.aborted) await observer?.progress({ phase: "fallback", fault });
 		return null;
+	};
+	let final: IteratorResult<import("../types.ts").StreamEvent, AssistantMessage>;
+	try {
+		const stream = streamFn(provider, model, context, {
+			thinking: "off", maxTokens: contextMaxTokens(model, context, Math.min(8000, model.maxOutputTokens), true), signal: manual?.signal ?? observer?.signal,
+			onRetry: observer ? ({ delayMs, failure }) => {
+				pending = pending.then(() => observer.progress({ phase: "retrying", delayMs, fault: failure ? faultOf(failure) : { kind: "unknown" } })).catch((error: unknown) => { recordError = error; });
+			} : undefined,
+		});
+		do { final = await stream.next(); } while (!final.done);
+	} catch (cause) {
+		await pending;
+		if (recordError) throw recordError;
+		if (manual) throw cause;
+		return decline(faultOf(failureOf(cause)));
 	}
+	await pending;
+	if (recordError) throw recordError;
 
 	const message = final.value;
 	if (manual?.signal?.aborted) throw new Error("压缩已取消。");
 	if (message.stopReason === "error" || message.stopReason === "aborted") {
 		if (manual) throw new Error(message.errorMessage || "摘要生成失败，请检查模型连接后重试。");
-		return null;
+		return decline(faultOf(message.failure ?? classifyFailure({ from: "stream", message: message.errorMessage })));
 	}
 	const text = message.content
 		.filter((c) => c.type === "text")
@@ -655,7 +676,7 @@ async function summarize(
 		.join("\n")
 		.trim();
 	if (manual && !text) throw new Error("模型返回的摘要为空，原上下文保持不变。");
-	return text || null;
+	return text || decline({ kind: "empty" });
 }
 
 /**
@@ -845,7 +866,7 @@ function dropOldest(messages: Message[], model: ModelConfig, overhead: number, s
 	const older = messages.slice(0, start);
 	const tail = messages.slice(start);
 	const standing = lastRequest(older) ?? lastRequest(messages);
-	return { messages: [droppedMessage(standing), ...tail], summary: "", kept: tail.length };
+	return { messages: [droppedMessage(standing, taskContextFromHistory(older)), ...tail], summary: "", kept: tail.length };
 }
 
 /**
@@ -859,11 +880,13 @@ function dropOldest(messages: Message[], model: ModelConfig, overhead: number, s
  * drop rather than a summary, because it means nobody read what went: the model should trust
  * nothing about the earlier work except what it recalls for itself.
  */
-export function droppedMessage(standing: string | null = null): Message {
+export function droppedMessage(standing: string | null = null, taskContext?: CompactionContext): Message {
+	standing = taskContext?.latestRequest ?? standing;
 	const text = [
 		`<dropped-history>\nEarlier turns were removed to fit the context window. Summarising them was not possible, so they are gone from this conversation rather than condensed — do not assume anything about what came before.`,
+		taskContext ? formatTaskContext(taskContext) : null,
 		standing
-			? `<standing-request>\nThis is the most recent thing the user asked for, quoted exactly. It remains active and must be fulfilled directly without greeting or asking what to do:\n\n${standing}\n</standing-request>`
+			? `<standing-request>\nLatest user request (possibly excerpted). It supersedes conflicting summary claims; compatible earlier constraints still apply. Do not restart completed or cancelled work.\n\n${standing}\n</standing-request>`
 			: null,
 		RECALL_NOTE + "\n</dropped-history>",
 	]
@@ -880,5 +903,6 @@ export function droppedMessage(standing: string | null = null): Message {
 		],
 		timestamp: Date.now(),
 		synthetic: true,
+		...(taskContext ? { compactionContext: taskContext } : {}),
 	};
 }

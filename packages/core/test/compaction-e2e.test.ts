@@ -246,15 +246,17 @@ test("reopening a compacted session does not hand the model its whole history ba
 });
 test("session.compact() uses @compact model when configured", async () => {
 	const root = await mkdtemp(join(tmpdir(), "ly-compact-role-"));
+	// Keep automatic pressure out of a test for explicit model routing, including prompt/schema overhead.
+	const manualModel = { ...MODEL, contextWindow: 200_000 };
 	const compactModel: ModelConfig = {
-		...MODEL,
+		...manualModel,
 		id: "fake/compact-model",
 		modelId: "compact-model",
 		name: "Compact Spec",
 	};
 	const providerWithCompact: ProviderConfig = {
 		...PROVIDER,
-		models: [MODEL, compactModel],
+		models: [manualModel, compactModel],
 	};
 	const settingsWithCompact: Settings = {
 		...SETTINGS,
@@ -277,12 +279,12 @@ test("session.compact() uses @compact model when configured", async () => {
 	await session.initialize();
 
 	try {
-		for (let i = 0; i < 6; i++) {
+		for (let i = 0; i < 12; i++) {
 			await session.prompt([{ type: "text", text: `问题 ${i}: ${"详细说明系统设计与边界要求".repeat(30)}` }]);
 		}
 
 		const res = await session.compact();
-		assert.ok(res.ok, "session compact should succeed");
+		assert.ok(res.ok, `session compact should succeed: ${JSON.stringify(res)}`);
 		assert.equal(calledConfig?.model, "compact-model", "compact() should ask the @compact model");
 		assert.equal(calledConfig?.provider, "fake");
 	} finally {
@@ -292,11 +294,12 @@ test("session.compact() uses @compact model when configured", async () => {
 
 test("session.compact() falls back to session model when @compact is not configured", async () => {
 	const root = await mkdtemp(join(tmpdir(), "ly-compact-fallback-"));
+	const manualSettings = { ...SETTINGS, providers: [{ ...PROVIDER, models: [{ ...MODEL, contextWindow: 200_000 }] }] };
 	let calledConfig: { provider: string; model: string } | undefined;
 
 	const session = new AgentSession({
 		cwd: root,
-		settings: SETTINGS,
+		settings: manualSettings,
 		store: new SessionStore(join(root, "sessions")),
 		emit: () => {},
 		streamFn: async (_context, config) => {
@@ -307,12 +310,12 @@ test("session.compact() falls back to session model when @compact is not configu
 	await session.initialize();
 
 	try {
-		for (let i = 0; i < 6; i++) {
+		for (let i = 0; i < 12; i++) {
 			await session.prompt([{ type: "text", text: `问题 ${i}: ${"详细说明系统设计与边界要求".repeat(30)}` }]);
 		}
 
 		const res = await session.compact();
-		assert.ok(res.ok, "session compact should succeed");
+		assert.ok(res.ok, `session compact should succeed: ${JSON.stringify(res)}`);
 		assert.equal(calledConfig?.model, MODEL.modelId, "should fall back to current session model");
 	} finally {
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });

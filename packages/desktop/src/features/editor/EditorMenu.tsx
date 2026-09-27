@@ -37,7 +37,7 @@ import {
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { ContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
-import { bridge } from "../../services/index.ts";
+import { available, bridge } from "../../services/index.ts";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
 
@@ -171,9 +171,11 @@ export function EditorMenu({
 			<MenuItem icon={<Link2 {...ICON} />} onClick={() => void bridge.clipboard.write(path)}>
 				{t("fileMenu.copyPath")}
 			</MenuItem>
-			<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => void bridge.workspace.reveal(path)}>
-				{reveal}
-			</MenuItem>
+			{available("workspace", "reveal") && (
+				<MenuItem icon={<CornerUpRight {...ICON} />} onClick={() => void bridge.workspace.reveal(path)}>
+					{reveal}
+				</MenuItem>
+			)}
 		</ContextMenu>
 	);
 }

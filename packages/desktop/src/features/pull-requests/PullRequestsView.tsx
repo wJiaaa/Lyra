@@ -66,15 +66,6 @@ export function prInsets({
 export function PullRequestsView() {
 	const { compact, navOpen, headerBar, titlebar } = useLayout();
 	/*
-	 * No allowance for a toolbar above this view any more.
-	 *
-	 * It used to start its content past the traffic lights and the sidebar toggle, because it drew
-	 * its own controls into the window's top 44px. It is a pane in the dock now: the pane's title
-	 * bar owns that row and makes whatever room the lights need, and this begins below it. The
-	 * allowance left behind would have been a hundred-odd pixels of blank left margin.
-	 */
-	const listWidth = LIST_WIDTH;
-	/*
 	 * Reviewing happens in two postures, and the list is only wanted in one of them.
 	 *
 	 * Choosing what to review needs the list; reading a diff needs the width — a 300px column of
@@ -198,6 +189,8 @@ export function PullRequestsView() {
 	 *   - 其余情况：**谁在窗口最左边谁让**——列表滑走了就是详情，否则是列表
 	 */
 	const { list: listInset, detail: detailInset } = prInsets({ navOpen, headerBar, compact, expanded, selected: !!pr.selected, start: titlebar.start });
+	// 让出去的那段从列表栏外面加，不从 300 里扣——扣掉之后三个筛选挤不下，「由我创建」被截掉一半。
+	const listWidth = LIST_WIDTH + listInset;
 
 	const list = (
 		<PullRequestList

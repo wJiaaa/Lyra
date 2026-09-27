@@ -11,6 +11,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+	hasHeaderBar,
 	OVERLAY_FALLBACK,
 	overlayReserved,
 	titlebarInsets,
@@ -27,6 +28,25 @@ test("macOS holds the corner open for its traffic lights, and nothing at the oth
 
 test("native full screen takes the lights away, so the inset goes with them", () => {
 	assert.deepEqual(titlebarInsets("darwin", true, NONE), { start: TOOLBAR_EDGE, end: 0 });
+});
+
+test("a browser through Web access has no window controls, so nothing is held open for them", () => {
+	/*
+	 * The page reports the viewer's platform, and a Mac viewer is `darwin`. Left at that it would
+	 * inherit macOS's geometry: 78px at the top left for traffic lights that are not there, the
+	 * sidebar toggle marooned in the middle of the row.
+	 */
+	assert.deepEqual(titlebarInsets("darwin", false, NONE, false), { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE });
+	assert.deepEqual(titlebarInsets("win32", false, { start: 0, end: 138 }, false), { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE });
+	assert.equal(hasHeaderBar("win32", false), false, "no strip across the top for system buttons that do not exist");
+});
+
+test("a desktop window keeps its controls, whatever the platform", () => {
+	// The default is `windowed`, so nothing outside Web access had to change to read this.
+	assert.equal(titlebarInsets("darwin", false, NONE).start, TRAFFIC_LIGHTS_WIDTH);
+	assert.equal(titlebarInsets("win32", false, { start: 0, end: 138 }).end, 138);
+	assert.equal(hasHeaderBar("win32"), true);
+	assert.equal(hasHeaderBar("darwin"), false);
 });
 
 test("Windows starts at the window's own margin and clears its buttons at the far end", () => {

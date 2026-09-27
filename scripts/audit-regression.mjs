@@ -63,7 +63,7 @@ const CHECKS = [
 	{
 		id: "S2",
 		what: "压缩缝只转四个参数，桌面端丢了 overhead/artifacts/summarizer",
-		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/compaction-seam.test.ts", "packages/core/test/compaction-outline.test.ts"]],
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/compaction-seam.test.ts", "packages/core/test/compaction-outline.test.ts", "packages/core/test/task-context.test.ts", "packages/core/test/context-budget.test.ts", "packages/core/test/compaction-recovery.test.ts", "packages/core/test/auto-compaction.test.ts", "packages/core/test/files-already-seen.test.ts"]],
 	},
 	{
 		id: "S1",

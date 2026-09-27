@@ -451,18 +451,20 @@ export class AgentSession {
 			at: this.messages.length, status: "running", detail: "正在压缩会话…" };
 		await this.emit({ type: "command_status", command });
 		try {
-			const result = await this.compactHistory(instructions, signal);
+			const result = await this.compactHistory(instructions, signal, command.id);
 			await this.emit({ type: "command_status", command: { ...command, status: result.ok ? "done" : "skipped",
 				detail: result.ok ? `已压缩上下文：${result.before} 条消息整理为 ${result.after} 条，完整对话仍可查看。` : result.reason ?? "无需进一步压缩。" } });
 			return result;
 		} catch (cause) {
+			// A committed boundary remains successful even if delivery of the completion event failed.
+			if (this.log.commandRuns.some((run) => run.id === command.id && run.status === "done")) return { ok: true };
 			const reason = signal.aborted ? "压缩已取消，原上下文保持不变。" : `压缩失败：${cause instanceof Error ? cause.message : String(cause)}`;
 			await this.emit({ type: "command_status", command: { ...command, status: signal.aborted ? "cancelled" : "failed", detail: reason } });
 			return { ok: false, reason };
 		}
 	}
 
-	private async compactHistory(instructions: string, signal: AbortSignal): Promise<{ ok: boolean; reason?: string; before?: number; after?: number }> {
+	private async compactHistory(instructions: string, signal: AbortSignal, commandId: string): Promise<{ ok: boolean; reason?: string; before?: number; after?: number }> {
 
 		const resolved = resolveModel(this.settings, this.log.meta.modelId || this.settings.defaultModelId);
 		if (!resolved) return { ok: false, reason: "还没有配置模型。" };
@@ -506,9 +508,9 @@ export class AgentSession {
 		if (compaction.kept === undefined) return { ok: false, reason: "只裁掉了几段过长的工具输出，没有需要总结的历史。" };
 
 		if (signal.aborted) throw new Error("压缩已取消。");
-		this.log.markCompaction(compaction.summary, compaction.kept);
 		await this.emit({
 			type: "compacted",
+			commandId,
 			before: history.length,
 			after: compaction.messages.length,
 			summary: compaction.summary,

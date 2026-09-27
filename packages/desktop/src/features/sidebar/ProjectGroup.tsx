@@ -10,7 +10,7 @@
 
 import { useLayout } from "../../app/layout.tsx";
 import { Collapsible } from "./Collapsible.tsx";
-import type { Group } from "./grouping.ts";
+import type { Group } from "../../lib/sidebar-grouping.ts";
 import { ProjectHead } from "./ProjectHead.tsx";
 import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
 import { ShowMore } from "./ShowMore.tsx";
@@ -85,7 +85,7 @@ export function ProjectGroup({
 			<Collapsible open={!collapsed}>
 				{/* The gap lives here rather than on the outer column, or a folded project would keep
 				    the space between rows it no longer has. */}
-				<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[4px] pt-[4px]"}`}>
+				<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[2px] pt-[4px]"}`}>
 					{visible.map((session) => (
 						<SessionRow
 							key={session.id}

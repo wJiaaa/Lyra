@@ -16,7 +16,7 @@ import { translate } from "../i18n/translate.ts";
 import { create } from "zustand";
 import type { FileContents, FileEntry } from "../../electron/ipc-types.ts";
 import { baseName, isDescendantPath } from "../lib/paths.ts";
-import { bridge } from "../services/index.ts";
+import { available, bridge } from "../services/index.ts";
 
 /** One file the pane has had open, as its tab strip lists it. */
 export interface OpenFileTab {
@@ -260,6 +260,7 @@ export const useOpenFile = create<OpenFileState>((set, get) => ({
 		// Truncated files must not be saved: writing back the head would delete the rest.
 		if (contents.truncated) return translate("fileActions.tooBig");
 		if (contents.readOnly) return translate("fileActions.contextReadOnly");
+		if (!available("files", "write")) return null;
 		const result = await bridge.files.write(path, text);
 		if (!result.ok) return result.error ?? translate("openFile.writeFailed");
 		get().setDraft(path, undefined);

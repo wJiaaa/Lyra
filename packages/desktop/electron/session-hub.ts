@@ -28,6 +28,12 @@ export interface HubDeps {
 	store(): SessionStorage;
 	settings(): Settings;
 	window(): BrowserWindow | null;
+	/** Events also go to connected browsers, while Web access is on. */
+	web?(): {
+		broadcast(sessionId: string, event: AgentEvent): void;
+		broadcastSideChat(sessionId: string, event: import("@lyra/core").SideChatUpdate): void;
+		broadcastSessionChange(change: SessionChange): void;
+	} | null;
 }
 
 let deps: HubDeps = {
@@ -122,18 +128,21 @@ export async function revertSessionMessage(sessionId: string, index: number): Pr
 
 export function broadcastSessionChange(change: SessionChange): void {
 	eachAppWindow((win) => win.webContents.send("sessions:changed", change));
+	deps.web?.()?.broadcastSessionChange(change);
 }
 
 export function broadcast(sessionId: string, event: AgentEvent): void {
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
+	deps.web?.()?.broadcast(sessionId, event);
 	notifyAgentEvent(sessionId, event, sessions.get(sessionId)?.meta.title);
 }
 
 /**
- * Side-chat events have their own channel so they cannot enter the main thread.
+ * Side-chat events have their own channel on both transports so they cannot enter the main thread.
  */
 export function broadcastSideChat(sessionId: string, event: import("@lyra/core").SideChatUpdate): void {
 	eachAppWindow((win) => win.webContents.send("sidechat:event", { sessionId, event }));
+	deps.web?.()?.broadcastSideChat(sessionId, event);
 }
 
 export async function getOrCreateSession(cwd: string, _modelId: string): Promise<AgentSession> {

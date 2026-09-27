@@ -5,7 +5,7 @@
 ## 一句话
 
 Lyra 是一个 agent 运行时加一个桌面端。`packages/core` 平台无关，桌面端（Electron）驱动它的
-`AgentSession`。
+`AgentSession`。打开 Web 访问后，局域网里的浏览器加载同一份界面、跟进同一批会话。
 
 ## 包
 
@@ -17,7 +17,8 @@ Lyra 是一个 agent 运行时加一个桌面端。`packages/core` 平台无关�
 
 界面语言的来源、进程边界与不翻译的内容见 [界面国际化](docs/architecture/i18n.md)。
 缓存、骨架屏与空结果在视图切换时的约定见 [视图切换与加载](docs/architecture/view-loading.md)。
-移动端与中转已移除，见 [ADR-0026](docs/adr/0026-remove-mobile-and-relay.md)。
+浏览器怎么拿到界面、能调哪些方法、令牌怎么用，见 [Web 访问](docs/architecture/web-access.md) 与
+[ADR-0027](docs/adr/0027-web-access.md)；移动端与中转已移除，见 [ADR-0026](docs/adr/0026-remove-mobile-and-relay.md)。
 
 ## 渲染进程的 9 个目录
 
@@ -64,10 +65,10 @@ CI 里都是必过项：
    模块链进了这个包。
 4. **`shared/` 谁也不依赖。** 它是两个进程共有的判断（比如「这个文件该用哪种查看器」），
    偏向任何一端就有一端用不了它。
-5. **`@lyra/contract` 零依赖。** 它有两个消费者——主进程按它注册、preload 按它生成——
-   依赖谁就把谁拖进另一个的构建里。
+5. **`@lyra/contract` 零依赖。** 它有三个消费者——主进程按它注册、preload 按它生成、
+   渲染进程按 `WEB_METHODS` 决定浏览器里画什么——依赖谁就把谁拖进另外两个的构建里。
 6. **`ui/` 与 `lib/` 是叶子。** 见上一节。
-7. **`window.lyra` 只在 `services/bridge.ts`。** 由 oxlint 守。
+7. **`window.lyra` 只在 `services/bridge.ts`。** 由 oxlint 守；`host.ts` 读宿主、`web-bridge.ts` 在浏览器里搭它，是仅有的两处例外。
 8. **`store`/`ui`/`lib`/`services` 不伸进某个功能域里点名文件。** 第 6 条的另一半：
    那一条只管域与域之间，从下面伸上去它看不见。壳（`app/`、`main.tsx`）不在此列——
    它们 `lazy()` 各域的整屏视图，而把那些视图放进域的出口会让打包器把整个域并回主 chunk。
@@ -86,7 +87,7 @@ CI 里都是必过项：
 
 | 想做的 | 去 |
 | --- | --- |
-| 加一个 IPC | `packages/contract/src/methods.ts` 登记 → `electron/ipc/<域>.ts` 注册 → `electron/preload.ts` 暴露；契约的测试会检查三处一致 |
+| 加一个 IPC | `packages/contract/src/methods.ts` 登记 → `electron/ipc/<域>.ts` 注册 → `electron/preload.ts` 暴露；契约的测试会检查三处一致。浏览器默认调不到；要开放就加进 `contract/src/web.ts` 并在 `electron/web-rpc.ts` 实现 |
 | 加一个内置工具 | `core/src/tools/`，经 `useToolRegistry` 那条缝 |
 | 加一个右侧面板 | `src/panels/registry.ts` 注册一条记录 |
 | 维护模型价格、能力和中转别名 | `core/src/model-catalog.ts` 与 `scripts/update-model-catalog.mjs`；`pnpm catalog:update` 更新离线数据 |

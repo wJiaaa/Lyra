@@ -32,7 +32,7 @@ import type {
  */
 import { useSide } from "../features/dock/sideStore.ts";
 import { sideChatRunning } from "../lib/row-activity.ts";
-import { bridge } from "../services/index.ts";
+import { available, bridge } from "../services/index.ts";
 import type { ToolRun } from "./tool-run.ts";
 export type { ToolRun } from "./tool-run.ts";
 import type { Hiccup } from "../lib/hiccup.ts";
@@ -57,6 +57,27 @@ export function useSideChatRunningKey(ids: readonly string[]): string {
  */
 type View = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins";
 
+/**
+ * The method each view cannot work without, for a host where not every method answers.
+ *
+ * A browser opened through Web access may not save settings, list pull requests, run schedules or
+ * manage plugins, and a dozen places call `setView` to go to one of them — a model menu's "manage",
+ * a hiccup's "open settings", the plugins view's gear. Refusing here is one check where they all
+ * meet, rather than one at each of them.
+ */
+const VIEW_NEEDS: Partial<Record<View, [group: string, method: string]>> = {
+  settings: ["settings", "save"],
+  "pull-requests": ["git", "myPullRequests"],
+  scheduled: ["scheduler", "runNow"],
+  plugins: ["plugins", "list"],
+};
+
+/** Whether this host can show a view at all. */
+export function viewAvailable(view: View): boolean {
+  const needs = VIEW_NEEDS[view];
+  return !needs || available(...needs);
+}
+
 export type SettingsSection =
   | "general"
   | "appearance"
@@ -73,6 +94,7 @@ export type SettingsSection =
   | "commands"
   | "hooks"
   | "index"
+  | "web"
   | "search"
   | "access"
   | "forges"
@@ -627,7 +649,9 @@ export const useApp = create<AppState>((set, get) => ({
 		initialChanges.length = 0;
   },
 
-  setView: (view) => set({ view }),
+  setView: (view) => {
+    if (viewAvailable(view)) set({ view });
+  },
   setComposerDraft: (text, replace = false, extras) =>
     set({
       composerDraft: {
@@ -662,6 +686,15 @@ export const useApp = create<AppState>((set, get) => ({
   bumpExtensions: () => set((state) => ({ extensionsNonce: state.extensionsNonce + 1 })),
 
   async saveSettings(settings) {
+    /*
+     * A browser through Web access may not write settings. What it changes — a collapsed group, a
+     * favourite model — holds on this page and is not saved; the next change broadcast from the
+     * desktop replaces it. Writing the refusal's null into the store instead emptied `settings`.
+     */
+    if (!available("settings", "save")) {
+      set({ settings });
+      return;
+    }
     const saved = await bridge.settings.save(settings);
     set({ settings: saved });
   },

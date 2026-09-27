@@ -464,10 +464,11 @@ test("a pinned row does not move while a real wheel scrolls the list under it", 
 });
 
 test("the strip is the size of what is written on it, not of the pane", async () => {
-	const measured = await app.evaluate<{ strip: number; tabs: number[]; content: number }>(`(() => {
+	const measured = await app.evaluate<{ strip: number; padding: number; tabs: number[]; content: number }>(`(() => {
 		const list = document.querySelector(".ly-sidebar-fill [data-ly-rail] [role='tablist']");
 		return {
 			strip: list.getBoundingClientRect().width,
+			padding: parseFloat(getComputedStyle(list).paddingLeft) + parseFloat(getComputedStyle(list).paddingRight),
 			tabs: [...list.querySelectorAll("[role='tab']")].map((el) => el.getBoundingClientRect().width),
 			content: ${VIEW}.clientWidth,
 		};
@@ -475,10 +476,10 @@ test("the strip is the size of what is written on it, not of the pane", async ()
 
 	const [first, second] = measured.tabs;
 	assert.ok(Math.abs(first - second) < 1, `both tabs are the same width, so the knob can be half (${first}, ${second})`);
-	// The 6px is the track's own padding. Anything beyond that is the strip having been stretched.
+	// Beyond the track's own padding, any width is the strip having been stretched.
 	assert.ok(
-		Math.abs(measured.strip - (first + second + 6)) < 1.5,
-		`the strip is exactly its two tabs plus its padding (${measured.strip} vs ${first + second + 6})`,
+		Math.abs(measured.strip - (first + second + measured.padding)) < 1.5,
+		`the strip is exactly its two tabs plus its padding (${measured.strip} vs ${first + second + measured.padding})`,
 	);
 	assert.ok(
 		measured.strip < measured.content - 40,

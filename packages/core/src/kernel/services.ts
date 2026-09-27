@@ -1,3 +1,4 @@
+import type { CompactionObserver } from "../types/compaction.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import type { QueuedTask } from "../agent/events.ts";
 import type { Compaction } from "../runtime/compaction.ts";
@@ -185,6 +186,7 @@ export const COMPACTION = "compaction";
  * A field added here now reaches every implementation or fails to compile.
  */
 export interface CompactionRequest {
+	observer?: CompactionObserver;
 	messages: Message[];
 	model: ModelConfig;
 	provider: ProviderConfig;

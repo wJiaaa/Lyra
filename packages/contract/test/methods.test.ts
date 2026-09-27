@@ -135,3 +135,9 @@ test("数量对得上", () => {
 	assert.equal(CHANNELS.length, everyMethod().length, "每个方法一个 channel");
 	assert.ok(CHANNELS.length > 100, "这个应用的 IPC 面本来就大，少于一百说明清单丢了东西");
 });
+
+test("浏览器白名单里的方法都在契约里", async () => {
+	const { WEB_METHODS } = await import("../src/web.ts");
+	const known = new Set(everyMethod());
+	assert.deepEqual([...WEB_METHODS].filter((name) => !known.has(name)), [], "白名单写了契约里没有的方法——多半是拼错或方法已改名");
+});

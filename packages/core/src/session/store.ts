@@ -7,6 +7,7 @@
  * cannot miss or duplicate events.
  */
 
+import { completedCompaction, interruptedCompaction } from "../runtime/compaction-lifecycle.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { appendFile, mkdir, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
@@ -481,7 +482,7 @@ export class SessionStore implements SessionStorage {
 			if (record.type === "meta") meta = record.meta;
 			else if (record.type === "event" && record.event.type === "command_status") {
 				const run = record.event.command;
-				commandRuns.set(run.id, { seq: record.seq, run: run.status === "running" ? { ...run, status: "cancelled", detail: "压缩中断，未完成的操作没有自动重试。" } : run });
+				commandRuns.set(run.id, { seq: record.seq, run });
 			}
 			else if (record.type === "event" && record.event.type === "compacted") {
 				compactions.push(entries.length);
@@ -493,6 +494,12 @@ export class SessionStore implements SessionStorage {
 				const { summary, kept } = record.event;
 				if (kept !== undefined) {
 					compaction = { at: record.ts, summary: summary ?? "", keptFrom: Math.max(0, entries.length - kept) };
+					// The boundary is the commit record; the UI completion event may not have reached disk.
+					const entry = record.event.commandId ? commandRuns.get(record.event.commandId) : undefined;
+					if (entry?.run.status === "running") {
+						entry.seq = record.seq;
+						entry.run = record.event.command ?? completedCompaction(entry.run, record.event.before, record.event.after);
+					}
 				}
 			// A message record with no message in it leaves a hole in the transcript; see `messages` above.
 			} else if (record.type === "event" && record.event.type === "subagent_message" && record.event.message.role === "assistant") {
@@ -568,7 +575,7 @@ export class SessionStore implements SessionStorage {
 			entries,
 			compactions,
 			compaction,
-			commandRuns: [...commandRuns.values()].map((entry) => entry.run),
+			commandRuns: [...commandRuns.values()].map(({ run }) => run.status === "running" ? interruptedCompaction(run) : run),
 		};
 		if (options?.display) await this.writeDisplayCache(projectId, sessionId, loaded);
 		return loaded;

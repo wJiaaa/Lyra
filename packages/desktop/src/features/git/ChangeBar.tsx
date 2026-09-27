@@ -5,7 +5,7 @@ import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { openScopedPanel } from "../dock/index.ts";
 import { useApp } from "../../store/index.ts";
-import { bridge } from "../../services/index.ts";
+import { available, bridge } from "../../services/index.ts";
 
 /**
  * How much is uncommitted, always in view.
@@ -34,7 +34,7 @@ export function ChangeBar() {
   const isRepo = workspace?.isGitRepo ?? false;
 
   const refresh = useCallback(async () => {
-    if (!cwd || !isRepo) {
+    if (!cwd || !isRepo || !available("git", "stat")) {
       setStat(null);
       return;
     }

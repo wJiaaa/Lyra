@@ -1,3 +1,4 @@
+import { translate } from "../i18n/translate.ts";
 import type { AgentEvent } from "@lyra/core";
 import { settleTail } from "../lib/transcript.ts";
 import { applyToolEvent } from "./apply-tool.ts";
@@ -34,7 +35,7 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 			break;
 		case "agent_end":
 			messages = settleTail(messages, event);
-			state = { ...state, running: false, approvals: [], pendingUserMessage: null, retrying: null, stopped: howItStopped(messages, event.reason) };
+			state = { ...state, commandRuns: state.commandRuns?.map(run => run.automatic && run.status === "running" ? { ...run, status: "cancelled", detail: translate("compact.autoInterrupted") } : run), running: false, approvals: [], pendingUserMessage: null, retrying: null, stopped: howItStopped(messages, event.reason) };
 			break;
 		case "approval_request":
 			// The second field-by-field rebuild of this event; `apply-event.ts` has the other one.
@@ -51,10 +52,10 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 				hiccups: state.hiccups?.filter((one) => one.at <= event.messageCount) };
 			break;
 		case "command_status":
-			state = { ...state, running: event.command.status === "running", commandRuns: [...(state.commandRuns ?? []).filter((run) => run.id !== event.command.id), event.command] };
+			state = { ...state, ...(event.command.automatic ? {} : { running: event.command.status === "running" }), commandRuns: [...(state.commandRuns ?? []).filter((run) => run.id !== event.command.id), event.command] };
 			break;
 		case "compacted":
-			state = { ...state, compactions: [...state.compactions, { at: messages.length, before: event.before, after: event.after }] };
+			state = { ...state, ...(event.command ? { commandRuns: [...(state.commandRuns ?? []).filter(run => run.id !== event.commandId), event.command] } : {}), compactions: [...state.compactions, { at: messages.length, before: event.before, after: event.after }] };
 			break;
 		case "retry":
 			state = { ...state, running: state.running || event.resume === true, retrying: { attempt: event.attempt, until: Date.now() + event.delayMs, reason: event.reason, resume: event.resume === true }, hiccups: foldRetry(state.hiccups ?? [], event, Date.now(), messages.length) };

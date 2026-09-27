@@ -13,11 +13,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
 import {
+	MAC_MAIN_TRAFFIC_LIGHT_POSITION,
 	MAC_TRAFFIC_LIGHT_POSITION,
+	MAIN_WINDOW_ROW_OFFSET,
 	NATIVE_HEADER_HEIGHT,
 	WINDOW_HEADER_HEIGHT,
 } from "../../shared/window-chrome.ts";
-import { HEADER_HEIGHT } from "../../src/features/dock/geometry.ts";
+import { FRAME_PAD, HEADER_HEIGHT, PANE_INSET } from "../../src/features/dock/geometry.ts";
 import { PanelWindow } from "../../src/app/window/PanelWindow.tsx";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { mount } from "../helpers/mount.ts";
@@ -29,6 +31,13 @@ test("macOS 那一侧一个像素都没动", () => {
 	assert.equal(MAC_TRAFFIC_LIGHT_POSITION.x, 16);
 	// dock 里每个面板的标题栏跟着它——在 macOS 上第一行面板的标题就是窗口的顶行。
 	assert.equal(HEADER_HEIGHT, WINDOW_HEADER_HEIGHT);
+});
+
+test("主窗口的红绿灯跟着卡片里的顶行下移，下移量就是卡片离窗口顶的距离", () => {
+	// 工作区内边距 + 卡片内缩 + 描边。卡片的几何一改，红绿灯就和卡片里的标题栏错开。
+	assert.equal(MAIN_WINDOW_ROW_OFFSET, FRAME_PAD + PANE_INSET + 1);
+	assert.equal(MAC_MAIN_TRAFFIC_LIGHT_POSITION.y, MAC_TRAFFIC_LIGHT_POSITION.y + MAIN_WINDOW_ROW_OFFSET);
+	assert.equal(MAC_MAIN_TRAFFIC_LIGHT_POSITION.x, MAC_TRAFFIC_LIGHT_POSITION.x);
 });
 
 test("原生那一档是 Windows 标准的 32，且确实和 44 分开了", () => {

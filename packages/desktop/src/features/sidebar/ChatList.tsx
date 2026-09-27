@@ -12,7 +12,7 @@
 import { useRef } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { useReflow } from "./useReflow.ts";
-import { isScratch } from "./grouping.ts";
+import { isScratch } from "../../lib/sidebar-grouping.ts";
 import type { RecencyBand } from "./recency.ts";
 import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
 import { ShowMore } from "./ShowMore.tsx";
@@ -88,7 +88,7 @@ export function ChatList({
 					<div data-ly-head className="ly-pin sticky top-[var(--ly-rail)] z-20">
 						<BandHead label={band.label} />
 					</div>
-					<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[4px] pt-[4px]"}`}>
+					<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[2px] pt-[4px]"}`}>
 						{band.sessions.map((session) => (
 							<SessionRow
 								key={session.id}

@@ -462,7 +462,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       break;
 
 		case "command_status":
-			set({ running: event.command.status === "running", commandRuns: [...get().commandRuns.filter((run) => run.id !== event.command.id), event.command] });
+			set({ ...(event.command.automatic ? {} : { running: event.command.status === "running" }), commandRuns: [...get().commandRuns.filter((run) => run.id !== event.command.id), event.command] });
 			break;
 
     case "compacted":
@@ -474,6 +474,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        * take the explanation away with it.
        */
       set({
+        ...(event.command ? { commandRuns: [...get().commandRuns.filter(run => run.id !== event.commandId), event.command] } : {}),
         compactions: [
           ...get().compactions,
           { at: get().messages.length, before: event.before, after: event.after },
@@ -545,6 +546,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
         pendingUserMessage: null,
         turnStartedAt: null,
         messages: settled,
+        commandRuns: get().commandRuns.map(run => run.automatic && run.status === "running" ? { ...run, status: "cancelled", detail: translate("compact.autoInterrupted") } : run),
         stopped: howItStopped(settled, event.reason),
       });
       void bridge.sessions

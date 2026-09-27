@@ -18,9 +18,16 @@ export function SectionTitle({ children }: { children: React.ReactNode }) {
 	);
 }
 
-/** Rest props are forwarded so a card can carry a `data-` hook for tests to measure it by. */
+/**
+ * Rest props are forwarded so a card can carry a `data-` hook for tests to measure it by.
+ *
+ * 卡片用 `float` 那张纸，不用 `card/40`：对齐 ZCode，它的设置卡片和弹出菜单是同一个颜色——
+ * 两个主题下都比页面亮一档的实底。`card/40` 叠在暗色页面上只比页面亮三四级灰，卡片化进了背景。
+ * 边框随之换成 `line-float`，那是给「画在自己那张纸上」的线准备的；卡片里面的线和控件怎么跟着
+ * 换，见 `overlay.css` 的 `.ly-settings-card`。
+ */
 export function Card({ children, className = "", ...rest }: React.ComponentProps<"div">) {
-	return <div {...rest} className={`overflow-hidden rounded-[12px] border border-line bg-card/40 ${className}`}>{children}</div>;
+	return <div {...rest} className={`ly-settings-card overflow-hidden rounded-[12px] border border-line-float bg-float ${className}`}>{children}</div>;
 }
 
 /** One labelled row inside a card, with the control right-aligned. */

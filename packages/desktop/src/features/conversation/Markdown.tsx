@@ -24,7 +24,7 @@ import { groupTokens, HUGE_BLOCK } from "../../lib/markdown/slice.ts";
 import { type Inline, parseInline } from "../../lib/markdown/inline.ts";
 import { renderMath } from "../../lib/markdown/math.ts";
 import { stripEmoji } from "../../lib/markdown/strip-emoji.ts";
-import { bridge } from "../../services/index.ts";
+import { available, bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { companionOf, openScopedPanel } from "../dock/index.ts";
@@ -341,6 +341,8 @@ function textOf(node: ReactNode): string {
 
 function FileLink({ href, path, children }: { href: string; path: string; children: ReactNode }) {
 	const revealLabel = useRevealLabel();
+	const canOpen = available("system", "openPath");
+	const canReveal = available("system", "openIn");
 	const caption = fileLinkCaption(textOf(children), path);
 	const openFile = () => {
 		const name = path.split(/[/\\]/).pop() || path;
@@ -362,17 +364,30 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 				<FileText size={13} />
 				<span data-ly-file-name>{caption.text}</span>
 			</a>
-			<span data-ly-file-actions>
-				<FileLinkAction
-					tip={translate("openTarget.defaultApp")}
-					onClick={() => void bridge.system.openPath(path).catch(fail)}
-				>
-					<ExternalLink size={11.5} strokeWidth={1.9} />
-				</FileLinkAction>
-				<FileLinkAction tip={revealLabel} onClick={() => void bridge.system.openIn("reveal", path).catch(fail)}>
-					<FolderOpen size={11.5} strokeWidth={1.9} />
-				</FileLinkAction>
-			</span>
+			{/*
+			 * 按能力画，不按平台画。
+			 *
+			 * 浏览器里（Web 访问）这两个 API 不存在——打开的会是桌面那台机器上的文件，画出来是两个按下去
+			 * 什么都不会发生的图标，比没有更糟。
+			 * `available()` 问的正是这件事，所以这里不需要知道自己跑在什么上面。
+			 */}
+			{(canOpen || canReveal) && (
+				<span data-ly-file-actions>
+					{canOpen && (
+						<FileLinkAction
+							tip={translate("openTarget.defaultApp")}
+							onClick={() => void bridge.system.openPath(path).catch(fail)}
+						>
+							<ExternalLink size={11.5} strokeWidth={1.9} />
+						</FileLinkAction>
+					)}
+					{canReveal && (
+						<FileLinkAction tip={revealLabel} onClick={() => void bridge.system.openIn("reveal", path).catch(fail)}>
+							<FolderOpen size={11.5} strokeWidth={1.9} />
+						</FileLinkAction>
+					)}
+				</span>
+			)}
 		</span>
 	);
 }

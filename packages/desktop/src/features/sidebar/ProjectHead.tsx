@@ -21,7 +21,7 @@ import { ProjectMenu } from "../modals/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { GroupActivity } from "./GroupActivity.tsx";
-import type { Group } from "./grouping.ts";
+import type { Group } from "../../lib/sidebar-grouping.ts";
 import { startProjectSession } from "../../store/project-session.ts";
 import { useSidebarReorderContext } from "./reorder-context.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
@@ -86,7 +86,7 @@ export function ProjectHead({
 				aria-expanded={!collapsed}
 				onClick={onToggleCollapsed}
 				className={`flex w-full items-center gap-2.5 rounded-lg pr-2 pl-2 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${
-					compact ? "h-[40px]" : "h-[31px]"
+					compact ? "h-[40px]" : "h-[32px]"
 				} ${active ? "font-medium text-ink" : "text-ink group-hover/row:text-ink"}`}
 			>
 				{/*

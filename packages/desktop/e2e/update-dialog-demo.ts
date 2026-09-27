@@ -228,7 +228,7 @@ async function main(): Promise<void> {
 		const headerBorder = await app.evaluate<string>(`getComputedStyle(document.querySelector("[data-ly-update-dialog] > div")).borderTopWidth`);
 		const footerBorder = await app.evaluate<string>(`getComputedStyle(document.querySelector("[data-ly-dialog-actions]")).borderTopWidth`);
 		check("空闲时弹窗是固定高度", idleH === 480, `${idleH}px`);
-		check("外壳圆角是 22px", radius.startsWith("22px"), radius);
+		check("外壳圆角是 16px", radius.startsWith("16px"), radius);
 		check("没有顶部分割线", headerBorder === "0px" && footerBorder === "0px", `header ${headerBorder} / footer ${footerBorder}`);
 		const idleNotes = await notesMetrics();
 		check("说明超出一屏", idleNotes.overflow > 80, `多出 ${idleNotes.overflow}px`);

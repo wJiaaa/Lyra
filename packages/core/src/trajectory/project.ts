@@ -1,3 +1,4 @@
+import { completedCompaction } from "../runtime/compaction-lifecycle.ts";
 import type { AgentEvent } from "../agent/events.ts";
 import type { SessionRecord } from "../session/store.ts";
 import { entriesFor, fromMessage } from "./entries.ts";
@@ -89,17 +90,18 @@ export function projectTrajectory(records: SessionRecord[], live = false): Entry
 			const command = data.command;
 			let entry = commands.get(command.id);
 			if (!entry) {
-				entry = basic("compaction", command.input);
+				entry = basic("compaction", command.automatic ? "自动压缩" : command.input);
 				entry.correlationId = command.id;
 				entry.command = command.input;
 				entry.input = command.input;
 				entry.startedAt = command.timestamp;
 				// Manual maintenance between turns must not look like another model step.
-				entry.turn = undefined; entry.step = undefined;
+				if (!command.automatic) { entry.turn = undefined; entry.step = undefined; }
 				commands.set(command.id, entry);
 			}
 			entry.status = command.status === "failed" ? "error" : command.status;
-			entry.summary = `${command.input} · ${STATUS_LABEL[entry.status]}`;
+			entry.summary = `${command.automatic ? "自动压缩" : command.input} · ${STATUS_LABEL[entry.status]}`;
+			if (command.automatic) entry.metadata = { ...object(entry.metadata), ...command.automatic };
 			entry.detail = entry.output ? `${command.detail}\n\n${entry.output}` : command.detail;
 			entry.linkedSeqs = [...new Set([...(entry.linkedSeqs ?? []), seq])];
 			if (command.status === "running") scope.command = entry;
@@ -109,14 +111,21 @@ export function projectTrajectory(records: SessionRecord[], live = false): Entry
 			}
 			return;
 		}
-		if (data.type === "compacted" && scope.command) {
-			const entry = scope.command;
-			entry.output = `压缩前 ${data.before} 条消息，压缩后 ${data.after} 条。\n\n${data.summary ?? ""}`;
-			entry.detail = entry.output;
-			entry.metadata = { before: data.before, after: data.after, kept: data.kept };
-			entry.linkedSeqs = [...(entry.linkedSeqs ?? []), seq];
-			return;
+		if (data.type === "compacted") {
+			const entry = data.commandId ? commands.get(data.commandId) : scope.command;
+			if (entry) {
+				entry.output = `压缩前 ${data.before} 条消息，压缩后 ${data.after} 条。\n\n${data.summary ?? ""}`;
+				entry.detail = entry.output;
+				entry.metadata = { ...object(entry.metadata), before: data.before, after: data.after, kept: data.kept };
+				entry.linkedSeqs = [...(entry.linkedSeqs ?? []), seq];
+				if (data.kept !== undefined && data.commandId) {
+					const command = data.command ?? completedCompaction({ id: data.commandId, name: "compact", input: entry.command ?? "/compact", timestamp: entry.startedAt ?? ts, at: 0, status: "running", detail: "" }, data.before, data.after);
+					event(record, { type: "command_status", command }, parentId);
+				}
+				return;
+			}
 		}
+
 		if (data.type === "request") {
 			if (!scope.step) scope.step = 1;
 			scope.request = basic("request", `${data.model} · ${data.messageCount} 条输入消息`, `供应商：${data.provider}\n模型：${data.model}\n思考等级：${data.thinking ?? "默认"}\n输入消息：${data.messageCount}`);

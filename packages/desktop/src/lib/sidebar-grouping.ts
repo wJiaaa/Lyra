@@ -6,11 +6,11 @@
  * takes no row, and searching filters sessions without dissolving the projects they belong to.
  */
 
-import { translate } from "../../i18n/translate.ts";
+import { translate } from "../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
 import { projectFolders } from "@lyra/core/project-folders";
-import { orderedSessions, type SessionSortKey } from "../../lib/sidebar-order.ts";
-import { isDescendantPath } from "../../lib/paths.ts";
+import { orderedSessions, type SessionSortKey } from "./sidebar-order.ts";
+import { isDescendantPath } from "./paths.ts";
 
 export interface Group {
 	path: string;
@@ -144,6 +144,20 @@ export function groupSessions(
 		projects: all,
 		loose: loose.sort((a, b) => b.updatedAt - a.updatedAt),
 	};
+}
+
+/**
+ * Projects whose conversations are all in the archive.
+ *
+ * Takes both halves because the question — "did this project have conversations before they were
+ * archived?" — cannot be answered from either alone: `listable` is what the list shows and
+ * `archived` is what it does not.
+ */
+export function emptiedProjects(listable: SessionMeta[], archived: SessionMeta[]): Set<string> {
+	const live = new Set(listable.map((s) => s.cwd));
+	const out = new Set<string>();
+	for (const session of archived) if (!live.has(session.cwd)) out.add(session.cwd);
+	return out;
 }
 
 /**

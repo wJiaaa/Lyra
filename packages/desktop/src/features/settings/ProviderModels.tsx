@@ -112,21 +112,29 @@ export function ProviderModels({
 				</div>
 			)}
 
-			<div className="space-y-2">
-				{models.map((model) => (
-					<ModelRow
-						key={model.id}
-						model={model}
-						isDefault={defaultModelId === model.id}
-						testing={testingModelId === model.id}
-						testResult={modelTestResults?.[model.id]}
-						onTest={() => onTestModel?.(model.id)}
-						onEdit={() => onEdit(model)}
-						onRemove={() => onRemove(model.id)}
-						onSetDefault={() => onSetDefault(model.id)}
-					/>
-				))}
+			{/*
+			 * 模型是一张列表，不是一摞卡片：一个框，行与行之间一道线，和 ZCode 一样。每行各自一圈边框
+			 * 时，两个模型就是四条横线，框本身在说的「这些属于同一个供应商」反而没人说了。
+			 */}
+			{models.length > 0 && (
+				<div className="divide-y divide-line overflow-hidden rounded-[10px] border border-line">
+					{models.map((model) => (
+						<ModelRow
+							key={model.id}
+							model={model}
+							isDefault={defaultModelId === model.id}
+							testing={testingModelId === model.id}
+							testResult={modelTestResults?.[model.id]}
+							onTest={() => onTestModel?.(model.id)}
+							onEdit={() => onEdit(model)}
+							onRemove={() => onRemove(model.id)}
+							onSetDefault={() => onSetDefault(model.id)}
+						/>
+					))}
+				</div>
+			)}
 
+			<div className={models.length > 0 ? "mt-2" : undefined}>
 				<DialogAction onClick={() => onEdit(null)} label={translate("providerModels.add")} data-ly-add-model="">
 					<Plus size={14} strokeWidth={1.9} aria-hidden />
 					{translate("providerModels.add")}
@@ -161,7 +169,7 @@ function ModelRow({
 	const confirm = useConfirmer();
 
 	return (
-		<div className="group/row flex flex-col rounded-[10px] border border-line bg-input transition-colors duration-150">
+		<div className="group/row flex flex-col">
 			<div className="flex h-[46px] items-center gap-2.5 px-3.5">
 				{/* Tighter than the row's own spacing: the mark belongs to the id beside it, and at the
 				    row's 12px it read as a separate column. */}

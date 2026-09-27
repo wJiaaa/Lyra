@@ -35,6 +35,7 @@ import type {
 	ThinkingLevel,
 } from "../types.ts";
 import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction.ts";
+import { taskContextFromHistory } from "./task-context.ts";
 import { makeAfterToolCall, makeBeforeToolCall } from "./hooks.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
@@ -184,16 +185,6 @@ async function recordTurnEvent(log: SessionLog, event: AgentEvent): Promise<void
 		});
 	}
 	if (event.type === "message_end") await log.commit(event.message);
-	/*
-	 * Compaction is written down here, where the log is in reach and the message count is current.
-	 *
-	 * `kept` is absent when nothing was summarised away — pruning oversized tool results rewrites
-	 * what is sent without moving where history begins, and it is cheap and idempotent enough to
-	 * simply run again next turn.
-	 */
-	if (event.type === "compacted" && event.kept !== undefined) {
-		log.markCompaction(event.summary ?? "", event.kept);
-	}
 	await log.emit(event);
 }
 
@@ -213,10 +204,10 @@ export function modelHistory(log: SessionLog, provider: ProviderConfig, model: M
 	const tail = log.messages.slice(boundary.keptFrom);
 	if (!boundary.summary) {
 		const standing = lastRequest(older) ?? lastRequest(log.messages);
-		return [droppedMessage(standing), ...tail];
+		return [droppedMessage(standing, taskContextFromHistory(older)), ...tail];
 	}
 
-	const head = summaryMessages(boundary.summary, lastRequest(older), provider, model, filesSeen(older));
+	const head = summaryMessages(boundary.summary, lastRequest(older), provider, model, filesSeen(older), taskContextFromHistory(older));
 	const at = boundary.at ?? Math.max(0, ...tail.map((message) => message.timestamp));
 	return [...head.map((message) => ({ ...message, timestamp: at })), ...tail];
 }

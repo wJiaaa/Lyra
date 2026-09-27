@@ -33,7 +33,7 @@ export function ShowMore({
 	const { compact } = useLayout();
 	if (hidden <= 0 && !canCollapse) return null;
 
-	const heightClass = compact ? "h-[34px]" : "h-[27px]";
+	const heightClass = compact ? "h-[34px]" : "h-[32px]";
 
 	if (hidden > 0 && !canCollapse) {
 		return (

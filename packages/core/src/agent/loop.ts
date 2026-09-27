@@ -1,3 +1,4 @@
+import { compactStep, type CompactHistory } from "./compact-step.ts";
 import type { RetryPolicySource } from "../config/retry-policy.ts";
 /**
  * The agent loop.
@@ -15,9 +16,9 @@ import { streamAssistant } from "../ai/index.ts";
 import { dropUneventful, stripOversizedToolResults } from "../runtime/prune.ts";
 import type { ArtifactSink } from "../runtime/prune.ts";
 import { AgedToolPruner } from "../runtime/aged-prune.ts";
+import { contextMaxTokens } from "../runtime/context.ts";
 import { stripStaleHandles } from "../runtime/model-switch.ts";
 import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
-import type { Compaction } from "../runtime/compaction.ts";
 import type {
 	ApprovalDecision,
 	ApprovalRequest,
@@ -98,7 +99,7 @@ export interface AgentRunConfig {
 	 * Called before each request. Return a replacement history to compact it when the conversation
 	 * approaches the context window, along with what to record so the compaction outlives this run.
 	 */
-	compact?: (messages: Message[], model: ModelConfig) => Promise<Compaction | null>;
+	compact?: CompactHistory;
 	/**
 	 * Replaces the provider call. Tests script turns through this so loop behaviour can be
 	 * checked without a network round trip.
@@ -325,24 +326,11 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		}
 
 		if (config.compact) {
-			const before = messages.length;
-			const compaction = await config.compact(messages, active.model);
+			const compaction = await compactStep(config, messages, active.model, emit);
+			if (config.signal?.aborted) return finish("aborted");
 			if (compaction) {
 				messages.length = 0;
 				messages.push(...compaction.messages);
-				/*
-				 * The summary and the boundary travel with the event because the event is where they
-				 * are stored. Everything below this line in the loop works on `messages`, which is
-				 * this run's own array and dies with it — so a compaction that went no further than
-				 * here was undone the moment the next prompt rebuilt its history from the log.
-				 */
-				await emit({
-					type: "compacted",
-					before,
-					after: compaction.messages.length,
-					summary: compaction.summary,
-					kept: compaction.kept,
-				});
 			}
 		}
 
@@ -677,6 +665,8 @@ interface TurnResult {
 }
 
 async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: AgentEventSink): Promise<TurnResult> {
+	// Recalculate after compaction, model switches and payload recovery, for injected streams too.
+	config = { ...config, maxTokens: contextMaxTokens(config.model, context, config.maxTokens) };
 	await emit({ type: "request", provider: config.provider.id, model: config.model.modelId, thinking: config.thinking, messageCount: context.messages.length });
 
 	/*

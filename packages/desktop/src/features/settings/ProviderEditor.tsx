@@ -160,7 +160,7 @@ function ProviderHeading({
 						if (name.trim() && name !== provider.name) onChange({ name: name.trim() });
 					}}
 					onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-					className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-input px-2.5 text-title font-semibold text-ink focus:border-ink-faint"
+					className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-transparent px-2.5 text-title font-semibold text-ink focus:border-ink-faint"
 				/>
 			) : (
 				<>

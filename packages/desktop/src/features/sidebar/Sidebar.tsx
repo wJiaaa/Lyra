@@ -10,7 +10,7 @@
  * `sidebar/useStickyFade` and `sidebar/sticky.ts`.
  *
  * Only the pane itself is here. Which conversations are listed and what a row does is
- * `sidebar/useSidebarLists`; the rules underneath it are `sidebar/grouping` and `sidebar/recency`.
+ * `sidebar/useSidebarLists`; the rules underneath it are `lib/sidebar-grouping` and `sidebar/recency`.
  */
 
 import { Archive, ListFilter, SquarePen } from "lucide-react";
@@ -157,7 +157,7 @@ export function Sidebar() {
 	 * The strip's own box includes the space around it — see the padding below — so this is its full
 	 * height, and a heading stopping here lands flush under it with nothing transparent in between.
 	 */
-	const rail = 6 + (compact ? 38 : 32) + 6;
+	const rail = 6 + (compact ? 38 : 28) + 6;
 	useStickyFade(viewport, 0, rail);
 
 	const { archived, groups, matching, bands, actions, confirm } = useSidebarLists({

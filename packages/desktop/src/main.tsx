@@ -1,3 +1,6 @@
+// First, and for its side effect: in a browser opened through Web access this builds `window.lyra`,
+// which everything below reads. In an Electron window it does nothing.
+import "./services/web-bridge.ts";
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 

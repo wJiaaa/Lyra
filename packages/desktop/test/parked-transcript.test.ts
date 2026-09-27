@@ -16,6 +16,7 @@ import { test } from "node:test";
 import type { AgentEvent, CommandRun, Message, SessionMeta } from "@lyra/core";
 import { applyAgentEvent } from "../src/store/apply-event.ts";
 import { cachedEvent } from "../src/store/cached-event.ts";
+import { nextActivity } from "@lyra/core/activity";
 
 const usage = {
 	input: 0,
@@ -38,6 +39,29 @@ const reply: Message = {
 	stopReason: "stop",
 	timestamp: 2,
 };
+
+test("automatic compaction completion and failure never settle the agent turn, in either visible or parked sessions", () => {
+	const command: CommandRun = { id: "auto", name: "compact", input: "", at: 2, timestamp: 2, status: "running", detail: "summary", automatic: { phase: "retrying", retries: 2 } };
+	const meta = { id: "watching" } as SessionMeta;
+	let cached = cachedEvent({ meta, messages: [said("first"), reply], toolRuns: {} }, { type: "agent_start", sessionId: "watching" });
+	const state = { activity: { watching: "running" }, turns: {}, sessions: [], activeSessionId: "watching", messages: [], toolRuns: {}, commandRuns: [], compactions: [], sessionCache: {}, running: true } as Record<string, unknown>;
+	const done: CommandRun = { ...command, status: "done", automatic: { ...command.automatic!, outcome: "fallback" } };
+	const events: AgentEvent[] = [
+		{ type: "command_status", command },
+		{ type: "command_status", command: { ...command, status: "failed" } },
+		{ type: "compacted", before: 24, after: 8, summary: "saved", kept: 6, commandId: command.id, command: done },
+	];
+	for (const event of events) {
+		cached = cachedEvent(cached, event);
+		applyAgentEvent("watching", event, partial => Object.assign(state, typeof partial === "function" ? partial(state as never) : partial), () => state as never);
+		assert.equal(nextActivity(event, "running"), "running");
+		assert.equal(cached.state?.running, true);
+		assert.equal(state.running, true);
+	}
+	assert.equal(cached.state?.commandRuns?.length, 1);
+	assert.deepEqual(cached.state?.commandRuns?.[0], done);
+	assert.deepEqual(state.commandRuns, [done]);
+});
 
 /**
  * Dispatch one event for a conversation that is *not* on screen, and report what survived.

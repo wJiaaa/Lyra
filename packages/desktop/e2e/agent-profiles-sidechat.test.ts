@@ -98,6 +98,19 @@ async function click(selector: string) {
 	const at = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();if(!e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw new Error('Obscured: '+${JSON.stringify(selector)});return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) }); await frames(3);
 }
+/**
+ * 点一行智能体进编辑：整行是编辑入口，点的是名字所在的位置。
+ *
+ * 行中心可能正落在模型下拉上（模型名长的时候），那里点下去是下拉，不是编辑——所以不能用
+ * `click` 的「点元素中心」。先确认名字底下接住点击的就是这一行的编辑按钮，再真按下去。
+ */
+async function editAgent(name: string) {
+	const target = `document.querySelector('[data-agent-profile="${name}"] [aria-label="编辑 ${name}"]')`;
+	await until(`${target}?.checkVisibility()`);
+	await app.evaluate(`${target}.scrollIntoView({block:'nearest',behavior:'instant'})`); await frames(2);
+	const at = await app.evaluate<{ x: number; y: number }>(`(()=>{const label=[...document.querySelectorAll('[data-agent-profile="${name}"] span')].find(e=>e.textContent===${JSON.stringify(name)}),r=label.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.elementFromPoint(x,y)!==${target})throw new Error('Row is not the edit target under its name');return {x,y};})()`);
+	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) }); await frames(3);
+}
 async function label(text: string, scope = "button") {
 	const match = named(text, "starts");
 	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility()&&${match})`);
@@ -159,7 +172,7 @@ async function shot(name: string) {
 
 test("agent definitions can be created without a session, edited, copied, deleted and restored in the real settings", async t => {
 	await click('button:has(svg.lucide-settings)'); await label("智能体", "nav button");
-	await label("新增智能体");
+	await label("新建", "[data-agent-settings] button");
 	async function fill(name: string, text: string) {
 		await click(`[aria-label="${name}"]`);
 		await app.evaluate(`document.querySelector('[aria-label="${name}"]').select()`);
@@ -168,20 +181,20 @@ test("agent definitions can be created without a session, edited, copied, delete
 	await fill("智能体调用名", "qa-editor"); await fill("智能体用途", "真实编辑流程验证"); await fill("智能体指令", "Read the repository before answering.");
 	await label("保存"); await until(`document.querySelector('[data-agent-profile="qa-editor"]')`);
 	const created = await readFile(join(app.home, "agents", "qa-editor.md"), "utf8"); assert.match(created, /Read the repository/);
-	await click('[aria-label="编辑 general"]'); await fill("智能体指令", "Customized builtin instructions."); await label("保存");
+	await editAgent("general"); await fill("智能体指令", "Customized builtin instructions."); await label("保存");
 	await until(`document.querySelector('[data-agent-profile="general"]').innerText.includes('已自定义')`);
 	assert.match(await readFile(join(app.home, "agents", "general.md"), "utf8"), /Customized builtin/);
-	await click('[aria-label="general 更多操作"]'); await label("复制为新智能体", '[role="menuitem"]');
+	await click('[aria-label="将 general 复制为新智能体"]');
 	await until(`document.querySelector('[data-agent-editor]')`);
 	assert.equal(await app.evaluate(`document.querySelector('[aria-label="智能体指令"]').value.trim()`), "Customized builtin instructions.");
 	await fill("智能体调用名", "qa-copy"); await label("保存"); await until(`document.querySelector('[data-agent-profile="qa-copy"]')`);
-	await click('[aria-label="qa-copy 更多操作"]'); await label("删除智能体", '[role="menuitem"]');
+	await click('[aria-label="删除 qa-copy"]'); await label("删除", '[role="dialog"] button');
 	await until(`!document.querySelector('[data-agent-profile="qa-copy"]')`); await label("撤销"); await until(`document.querySelector('[data-agent-profile="qa-copy"]')`);
-	await click('[aria-label="general 更多操作"]'); await label("恢复内置指令", '[role="menuitem"]');
+	await click('[aria-label="恢复 general 的内置指令"]');
 	await until(`!document.querySelector('[data-agent-profile="general"]').innerText.includes('已自定义')`);
 	for (const width of [1280, 375]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
-		await click('[aria-label="编辑 qa-editor"]');
+		await editAgent("qa-editor");
 		const measurement = await app.evaluate(`(()=>{const form=document.querySelector('[data-agent-editor]'),r=form.getBoundingClientRect();return {width:innerWidth,left:r.left,right:r.right,overflow:document.documentElement.scrollWidth-innerWidth,fields:[...form.querySelectorAll('input,textarea')].filter(e=>e.checkVisibility()).map(e=>e.getBoundingClientRect().right)};})()`);
 		assert.ok(measurement.overflow === 0 && measurement.left >= 0 && measurement.right <= width && measurement.fields.every((right: number) => right <= width), JSON.stringify(measurement));
 		t.diagnostic(JSON.stringify(measurement)); await shot(`agent-editor-${width}`); await click('[aria-label="返回智能体"]');
@@ -208,7 +221,7 @@ test("provider and effort controls persist, align, and adapt to narrow settings"
 		assert.deepEqual(saved.subAgentProfiles.explore, { modelId: "secondary/model", thinking: "ultra" });
 		for (const width of [1280, 375]) {
 			await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(30);
-			const controlHeight = await app.evaluate<number>(`parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ly-control'))`);
+			const controlHeight = await app.evaluate<number>(`parseFloat(getComputedStyle(document.querySelector('[data-agent-settings]')).getPropertyValue('--ly-control'))`);
 			assert.ok(Number.isFinite(controlHeight) && controlHeight > 0, `Invalid --ly-control: ${controlHeight}`);
 			const boxes = await app.evaluate<{ x: number; right: number; y: number; height: number }[]>(`[...document.querySelectorAll('[data-agent-profile="explore"] fieldset > button')].map(e=>{const r=e.getBoundingClientRect();return {x:r.x,right:r.right,y:r.y,height:r.height};})`);
 			t.diagnostic(JSON.stringify({ width, controlHeight, boxes })); assert.equal(boxes.length, 2);

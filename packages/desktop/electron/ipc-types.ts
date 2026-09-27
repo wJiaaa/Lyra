@@ -101,6 +101,7 @@ import type {
 	RefDiff,
 	SessionSnapshot,
 	SideChatSnapshot,
+	WebAccessStatus,
 	WorkspaceDiffFile,
 	WorkspaceInfo,
 } from "./ipc-shapes.ts";
@@ -227,6 +228,21 @@ export interface LyraApi {
 		onOpenPanel(handler: (state: { kind: string; beside?: { kind: string; side: string; share?: number } }) => void): () => void;
 		onClosePanel(handler: () => void): () => void;
 		onFilePanelState(handler: (input: FilePanelVersion & { previous?: FilePanelState }) => void): () => void;
+	};
+	/**
+	 * Which kind of page is holding this interface. Absent means an Electron window; `"web"` is a
+	 * browser that opened it through Web access, where only `WEB_METHODS` answer — see
+	 * `services/host.ts`. Optional because the preload never sets it.
+	 */
+	host?: "desktop" | "web";
+	/** Web access: serving this interface to browsers on the local network. */
+	web: {
+		status(): Promise<WebAccessStatus>;
+		/** Turn it on (and remember that), answering with where it can be reached. */
+		start(): Promise<WebAccessStatus>;
+		stop(): Promise<WebAccessStatus>;
+		/** A new token: every link handed out so far stops working, and connected browsers drop. */
+		rotateToken(): Promise<WebAccessStatus>;
 	};
 	settings: {
 		get(): Promise<Settings>;

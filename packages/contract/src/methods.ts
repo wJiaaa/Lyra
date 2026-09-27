@@ -52,6 +52,12 @@ export const METHODS = {
 		save: { channel: "settings:save" },
 		layers: { channel: "settings:layers" },
 	},
+	web: {
+		status: { channel: "web:status" },
+		start: { channel: "web:start" },
+		stop: { channel: "web:stop" },
+		rotateToken: { channel: "web:rotateToken" },
+	},
 	usage: {
 		scan: { channel: "usage:scan" },
 		storage: { channel: "usage:storage" },

@@ -2,7 +2,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { useEffect } from "react";
-import { bridge } from "../../services/index.ts";
+import { available, bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 
 /** 一轮结束之后，等多久算「空闲」。 */
@@ -19,7 +19,8 @@ export function useMemoryPass(): void {
 	const enabled = useApp((s) => s.settings?.memoryExtraction === true && (s.settings?.personalization?.enableProjectMemory ?? s.settings?.personalization?.enableMemory) !== false);
 
 	useEffect(() => {
-		if (!cwd || running || !enabled) return;
+		// The desktop runs its own pass; a browser through Web access has nothing to add to it.
+		if (!cwd || running || !enabled || !available("projectMemory", "status")) return;
 		let cancelled = false;
 
 		const timer = window.setTimeout(async () => {

@@ -12,7 +12,7 @@
  * prompt rather than added to it, which is why the segments sum to the total.
  */
 
-import type { Message, ModelConfig, Tool } from "../types.ts";
+import type { LlmContext, Message, ModelConfig, ToolSpec } from "../types.ts";
 import { estimateTokens } from "../tokens.ts";
 
 export type ContextSegmentKey = "messages" | "systemTools" | "mcpTools" | "skills" | "systemPrompt" | "memory" | "projectMemory";
@@ -42,7 +42,7 @@ export interface ContextBreakdown {
 }
 
 /** What a tool costs on the wire: the schema the provider is given, every single request. */
-export function toolTokens(tools: Tool[]): number {
+export function toolTokens(tools: ToolSpec[]): number {
 	if (tools.length === 0) return 0;
 	const text = tools
 		.map((tool) => `${tool.name}${tool.description}${JSON.stringify(tool.parameters)}`)
@@ -54,12 +54,25 @@ export function textTokens(text: string): number {
 	return text ? Math.ceil(text.length / 3.5) : 0;
 }
 
+/** Model output limits are ceilings, not space that can be spent twice in a shared window. */
+export function contextMaxTokens(model: ModelConfig, context: LlmContext, requested = model.maxOutputTokens, estimateOnly = false): number {
+	const maximum = Math.min(requested, model.maxOutputTokens);
+	// Summary requests have a different prompt and rewritten history; old provider usage is invalid.
+	const total = estimateOnly ? { tokens: estimateTokens(context.messages), measured: false } : measureTotal(context.messages);
+	const input = total.tokens + (total.measured ? 0 : textTokens(context.systemPrompt) + toolTokens(context.tools));
+	// Reserve for estimation/wire overhead without consuming a fixed 1k of a small model's window.
+	const margin = Math.max(1, Math.min(1000, Math.floor(model.contextWindow * 0.01)));
+	const available = Math.floor(model.contextWindow - input - margin);
+	// A local estimate cannot prove overflow. Keep provider rejection/recovery authoritative.
+	return available > 0 ? Math.min(maximum, available) : maximum;
+}
+
 export function buildContextBreakdown(input: {
 	model: ModelConfig;
 	messages: Message[];
 	systemPrompt: string;
-	builtinTools: Tool[];
-	mcpTools: Tool[];
+	builtinTools: ToolSpec[];
+	mcpTools: ToolSpec[];
 	skillCatalogue: string;
 	/** As `buildSystemPrompt` receives them, so the same text is measured that gets embedded. */
 	projectInstructions: { path: string; content: string }[];

@@ -82,6 +82,8 @@ import { workspaceInfo } from "./workspace-info.ts";
 import { observeSessionStorage } from "./session-storage.ts";
 import { broadcastSessionChange } from "./session-hub.ts";
 import { fetchEndpointModels, testProvider } from "./providers.ts";
+import { configureWebAccess, shutdownWebAccess, webServer } from "./web-access.ts";
+import { registerWebIpc } from "./ipc/web.ts";
 import { registerSessionsIpc } from "./ipc/sessions.ts";
 import {
 	appIconPath,
@@ -589,7 +591,7 @@ function bindScreenshotShortcut(): void {
 		}
 	});
 	useSettingsSource(() => settings);
-	configureHub({ store: () => store, settings: () => settings, window: getWindow });
+	configureHub({ store: () => store, settings: () => settings, window: getWindow, web: webServer });
 	// Before the window exists, so its very first frame gets the right material.
 	applyNativeAppearance();
 
@@ -687,6 +689,7 @@ function bindScreenshotShortcut(): void {
 	 * nothing during startup.
 	 */
 	setTimeout(warmScreenshotOverlay, 3000);
+	await configureWebAccess(() => store);
 
 	scheduler = new Scheduler({
 		getSettings: () => settings,
@@ -847,6 +850,7 @@ app.on("before-quit", async () => {
 	for (const terminal of terminals.values()) terminal.pty.kill();
 	terminals.clear();
 	await Promise.all([...sessions.values()].map((s) => s.dispose()));
+	await shutdownWebAccess();
 	// Unwinds every capability the plugins installed, in the reverse of the order they arrived.
 	useLlmRegistry(null);
 	useToolRegistry(null);
@@ -890,6 +894,7 @@ function registerIpc(): void {
 		fetchEndpointModels,
 		scheduler: () => scheduler,
 	});
+	registerWebIpc();
 
 	registerScreenshotIpc({
 		settings: () => settings,

@@ -127,6 +127,21 @@ export interface AgentCapabilities {
 	toolNames: string[];
 }
 
+/** Where Web access stands, as the settings page shows it. */
+export interface WebAccessStatus {
+	running: boolean;
+	port: number;
+	/**
+	 * Links to open in a browser, one per local-network address, best first. Each carries the
+	 * token, so each is a key to this machine; empty while the service is off.
+	 */
+	urls: string[];
+	/** Browsers connected right now. */
+	clients: number;
+	/** Why the last start failed — the port is taken, most often. Null when it did not. */
+	error: string | null;
+}
+
 export interface ProviderTestResult {
 	ok: boolean;
 	latencyMs: number;

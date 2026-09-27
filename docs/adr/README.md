@@ -33,5 +33,6 @@
 | [0024](0024-sub-agents-stop-at-checkpoints.md) | 子代理停在检查点而不是终点，上下文留着，可以续跑 |
 | [0025](0025-model-switch-applies-from-next-request.md) | 一轮之内换模型从下一个请求起就换，卡在重试上的请求当场放手 |
 | [0026](0026-remove-mobile-and-relay.md) | 移除移动端与中转服务，只保留桌面端 |
+| [0027](0027-web-access.md) | Web 访问：桌面端把自己的界面发给局域网里的浏览器，实时同步，对话可操作 |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。

@@ -1,6 +1,6 @@
 # ADR-0026：移除移动端与中转服务
 
-- 状态：已采纳
+- 状态：已采纳；「在电脑之外操作 agent」由 [ADR-0027](0027-web-access.md) 以浏览器的形式补回
 - 日期：2026-09-26
 - 相关：取代 [ADR-0001](0001-mobile-hosts-the-desktop-renderer.md)、[ADR-0002](0002-relay-knows-nothing.md)；修订 [ADR-0012](0012-one-contract-not-three.md)
 

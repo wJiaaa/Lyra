@@ -238,7 +238,7 @@ export function SessionRow({
 				 * ScrollText and jitter a long name.
 				 */
 				className={`flex w-full min-w-0 items-center gap-2 rounded-lg pr-1.5 pl-2 text-left text-label ${
-					compact ? "h-[34px]" : "h-[27px]"
+					compact ? "h-[34px]" : "h-[32px]"
 				} ${
 					active ? "text-ink" : "text-ink-muted group-hover/row:text-ink"
 				}`}

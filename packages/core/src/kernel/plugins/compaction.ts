@@ -31,6 +31,7 @@ class SummaryCompaction implements CompactionStrategy {
 			request.artifacts,
 			request.manual,
 			request.summarizer,
+			request.observer,
 		);
 	}
 }

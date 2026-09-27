@@ -139,10 +139,11 @@ test("something compacted out of the window is still findable in the session", a
 	await session.initialize();
 
 	/*
-	 * A word that appears exactly once, in the first thing said, and never again. Anything the
+	 * A word that appears exactly once in an older update, outside the protected original/latest requests. Anything the
 	 * summary happens to paraphrase would not prove the point — this has to be a detail the summary
 	 * had no reason to keep.
 	 */
+	await session.prompt([{ type: "text", text: "检查历史回查功能。" }]);
 	await session.prompt([{ type: "text", text: `记住这个口令：蜂鸟七号。${"，说详细些".repeat(60)}` }]);
 	for (let i = 0; i < 6; i++) {
 		await session.prompt([{ type: "text", text: `第 ${i} 个问题${"，说详细些".repeat(60)}` }]);

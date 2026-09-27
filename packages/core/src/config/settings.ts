@@ -629,6 +629,17 @@ export interface Settings {
 	skillRegistries: string[];
 	/** Rules the user chose to always allow, keyed by tool kind. */
 	alwaysAllow: string[];
+	/**
+	 * Web access: the desktop serving its own interface to browsers on the local network.
+	 *
+	 * `token` is the secret in the link the settings page hands out; it is kept here so the link
+	 * survives a restart, and never leaves this machine except inside that link.
+	 */
+	webAccess: {
+		enabled: boolean;
+		port: number;
+		token: string | null;
+	};
 	editor: {
 		defaultOpenTarget: string;
 		showBottomPanel: boolean;
@@ -760,6 +771,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	pluginRegistries: [DEFAULT_PLUGIN_REGISTRY],
 	skillRegistries: [DEFAULT_SKILL_REGISTRY],
 	alwaysAllow: [],
+	webAccess: { enabled: false, port: 4517, token: null },
 	editor: { defaultOpenTarget: "Zed", showBottomPanel: true },
 	screenshot: DEFAULT_SCREENSHOT_SETTINGS,
 	searchApiKeys: {},
@@ -944,6 +956,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			...parsed,
 			uiLocale: normalizeUiLocale(parsed.uiLocale),
 			retryPolicy: normalizeRetryPolicy(parsed.retryPolicy, parsed.retryAttempts),
+			webAccess: { ...DEFAULT_SETTINGS.webAccess, ...parsed.webAccess },
 			editor: { ...DEFAULT_SETTINGS.editor, ...parsed.editor },
 			screenshot: { ...DEFAULT_SCREENSHOT_SETTINGS, ...parsed.screenshot },
 			personalization: { ...DEFAULT_SETTINGS.personalization, ...parsed.personalization },

@@ -28,6 +28,8 @@ import { useMemo, useState } from "react";
 
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
+import { useLayout } from "../../app/layout.tsx";
+import { toolbarReserved } from "../../app/window/WindowControls.tsx";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { SkeletonGrid, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
@@ -62,6 +64,13 @@ type Scope = "public" | "personal";
 
 export function PluginsView() {
 	const { t } = useI18n();
+	const { navOpen, headerBar, titlebar } = useLayout();
+	/*
+	 * 侧边栏收起后，红绿灯和侧边栏开关就落在这条顶栏的左端，tab 要从它们后面开始，否则开关压在
+	 * 「MCP 服务」上。规则和 `prInsets` 的同一条：侧边栏开着时开关画在侧边栏上，Windows/Linux 上
+	 * 在那条横贯的 header 里，都不用让。
+	 */
+	const inset = navOpen || headerBar ? 0 : toolbarReserved(titlebar.start);
 	const setView = useApp((s) => s.setView);
 	const setSettingsSection = useApp((s) => s.setSettingsSection);
 	const setComposerDraft = useApp((s) => s.setComposerDraft);
@@ -219,7 +228,8 @@ export function PluginsView() {
 	return (
 		<div className="-mt-11 flex min-h-0 flex-1 flex-col">
 			<header
-				className="relative z-50 flex h-11 shrink-0 items-center gap-1 px-3"
+				className="relative z-50 flex h-11 shrink-0 items-center gap-1 px-3 transition-[padding-left] duration-[var(--ly-t-base)] ease-out"
+				style={{ paddingLeft: inset ? inset + 12 : undefined }}
 			>
 				{/*
 				 * 三个 tab，说出来它们是三个 tab。

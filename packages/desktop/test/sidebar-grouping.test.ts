@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activeProviderLabel, groupSessions, isScratch, listableSessions } from "../src/features/sidebar/grouping.ts";
+import { activeProviderLabel, groupSessions, isScratch, listableSessions } from "../src/lib/sidebar-grouping.ts";
 
 type Session = Parameters<typeof listableSessions>[0][number];
 

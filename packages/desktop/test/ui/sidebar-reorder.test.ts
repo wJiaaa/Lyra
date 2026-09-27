@@ -4,7 +4,7 @@ import { createElement as h } from "react";
 import { DEFAULT_SETTINGS, type SessionMeta, type Settings } from "@lyra/core";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { useApp } from "../../src/store/index.ts";
-import { groupSessions } from "../../src/features/sidebar/grouping.ts";
+import { groupSessions } from "../../src/lib/sidebar-grouping.ts";
 import { ProjectHead } from "../../src/features/sidebar/ProjectHead.tsx";
 import { SessionRow } from "../../src/features/sidebar/SessionRow.tsx";
 import { SidebarReorderContext } from "../../src/features/sidebar/reorder-context.ts";

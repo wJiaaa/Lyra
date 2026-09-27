@@ -387,7 +387,7 @@ export async function runSubAgent(
 	 * The overhead handed over is this run's own: its system prompt and its own subset of the
 	 * tools, which is not what the parent carries.
 	 */
-	const compactHistory: AgentRunConfig["compact"] = (messages, model) => {
+	const compactHistory: AgentRunConfig["compact"] = (messages, model, observer) => {
 		const summarizer = resolveModelRef(options.settings, "@compact", { provider: runProvider, model });
 		return compactWith({
 			messages,
@@ -396,12 +396,13 @@ export async function runSubAgent(
 			streamFn: (provider, summaryModel, context, streamOptions) => (options.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy, signal: controller.signal }),
 			overhead: textTokens(subAgentPrompt) + toolTokens(allowed),
 			summarizer,
+			observer,
 		});
 	};
 
 	/** Everything on its way out of the loop: the pane, the roster, and the step list. */
 	const relay: AgentEventSink = async (event) => {
-		if (event.type === "tool_start" || event.type === "request" || event.type === "retry" || event.type === "retry_settled" || event.type === "agent_end" || event.type === "turn_start" || event.type === "compacted") {
+		if (event.type === "tool_start" || event.type === "request" || event.type === "retry" || event.type === "retry_settled" || event.type === "agent_end" || event.type === "turn_start" || event.type === "compacted" || event.type === "command_status") {
 			await options.emit({ type: "subagent_event", id, event });
 		}
 		// Record activity in registry for live sub-agent status line without toast spamming
