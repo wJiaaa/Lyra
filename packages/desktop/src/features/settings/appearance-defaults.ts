@@ -57,8 +57,6 @@ export const FACTORY_APPEARANCE: Appearance = {
 	uiFontSize: 14,
 	...CODE_DEFAULTS,
 	contrast: 60,
-	contentWidth: 640,
-	composerLines: 1,
 	pointerCursor: false,
 	reduceMotion: "system",
 	diffMarkers: "color",

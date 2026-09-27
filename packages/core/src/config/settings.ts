@@ -128,30 +128,6 @@ export interface AppearanceSettings {
 	inlineCodeBorder?: boolean;
 	/** 0–100. Scales the distance between surface layers and text. */
 	contrast: number;
-	/**
-	 * How wide the conversation column may get, in pixels. `0` means "as wide as the window".
-	 *
-	 * A measure is a reading decision, not a layout constant: 640px is close to the line length
-	 * prose is easiest to read at, and it is also the width at which a wide table in a reply gets
-	 * cut off and a 27" display shows two empty margins wider than the text between them. Which of
-	 * those matters more depends on what someone spends their day reading, so it is theirs to say.
-	 *
-	 * Every column that is part of the conversation reads this — the transcript, the composer, the
-	 * approval card — so they cannot drift apart. Optional: a settings file written before this
-	 * existed keeps the 640 it has always rendered at.
-	 */
-	contentWidth?: number;
-	/**
-	 * 空输入框有多少行高。
-	 *
-	 * 输入框一直是从一行开始、随着打字往下长，这对「跑一下测试」是对的，对写一段带步骤和约束的
-	 * 需求就不是——开头那几行永远挤在一条缝里，写到第四行才看得见自己在写什么。多高算合适跟人
-	 * 写多长的东西有关，所以交给用户定。
-	 *
-	 * 只是下限：超过这个高度照旧继续长，到窗口三分之一处停下来改为滚动。可选，老配置文件保持
-	 * 它一直以来的一行。
-	 */
-	composerLines?: number;
 	pointerCursor: boolean;
 	reduceMotion: "system" | "on" | "off";
 	/** Whether diffs are shown by colour or by leading +/- markers. */
@@ -218,10 +194,6 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	inlineCodeDarkFg: "#EDEDED",
 	inlineCodeBorder: false,
 	contrast: 60,
-	// What the app has always rendered at; see `contentWidth`.
-	contentWidth: 640,
-	// 一行，也是这个输入框一直以来的样子；见 `composerLines`。
-	composerLines: 1,
 	pointerCursor: false,
 	reduceMotion: "system",
 	diffMarkers: "color",

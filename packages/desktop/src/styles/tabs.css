@@ -226,12 +226,11 @@
   /*
    * Max width of the chat column.
    *
-   * Sized to fit the main column at the default window with the sidebar open, so toggling the
-   * sidebar never changes it. Applied as a max — a hard width overflowed the window and cut
-   * the send button in half once the padding was added, and it leaves the column free to
-   * shrink with a compact window instead of running off the edge.
+   * 窄窗格里铺满；窗格宽了以后按 ZCode 的三档收窄，规则写在 `dock.css` 的窗格容器查询里。
+   * Applied as a max — a hard width overflowed the window and cut the send button in half once
+   * the padding was added, and it leaves the column free to shrink with a narrow pane.
    */
-  --ly-content: 640px;
+  --ly-content: 100%;
 }
 
 /*

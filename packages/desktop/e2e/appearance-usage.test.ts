@@ -170,59 +170,16 @@ const UI = `
 		const box = document.querySelector("textarea")?.closest('[class*="max-w-[var(--ly-content)]"]');
 		return box ? Math.round(box.getBoundingClientRect().width) : null;
 	};
-	const declared = () => getComputedStyle(document.documentElement).getPropertyValue("--ly-content").trim();
-	const patchAppearance = async (patch) => {
-		const settings = await window.lyra.settings.get();
-		await window.lyra.settings.save({ ...settings, appearance: { ...settings.appearance, ...patch } });
-		await wait(420);
-	};
 `;
 
 function ui<T>(body: string): Promise<T> {
 	return app.evaluate<T>(`(async () => { ${UI} const P = ${JSON.stringify(project)}; ${body} })()`);
 }
 
-test("the conversation is drawn at the width the setting asks for", async () => {
-	const widths = await ui<{ standard: number; wide: number; extra: number; custom: number; fill: number; fillVar: string; window: number }>(`
-		await patchAppearance({ contentWidth: 640 });
-		const standard = measure();
-		await patchAppearance({ contentWidth: 800 });
-		const wide = measure();
-		await patchAppearance({ contentWidth: 960 });
-		const extra = measure();
-		await patchAppearance({ contentWidth: 870 });
-		const custom = measure();
-		await patchAppearance({ contentWidth: 0 });
-		const fill = measure();
-		const fillVar = declared();
-		await patchAppearance({ contentWidth: 640 });
-		return { standard, wide, extra, custom, fill, fillVar, window: window.innerWidth };
-	`);
-
-	assert.equal(widths.standard, 640, "the default is what the app has always rendered at");
-	assert.equal(widths.wide, 800);
-	assert.equal(widths.extra, 960);
-	assert.equal(widths.custom, 870, "a number typed into the field is used as typed");
-	assert.equal(widths.fillVar, "100%", "「铺满」 lifts the ceiling rather than picking a big number");
-	assert.ok(
-		widths.fill > widths.extra && widths.fill <= widths.window,
-		`and the column really is wider: ${widths.fill} in a ${widths.window}px window`,
-	);
-});
-
-test("a width from a hand-edited settings file is clamped rather than obeyed", async () => {
-	const widths = await ui<{ tiny: number; huge: number }>(`
-		await patchAppearance({ contentWidth: 40 });
-		const tiny = measure();
-		await patchAppearance({ contentWidth: 99999 });
-		const huge = measure();
-		await patchAppearance({ contentWidth: 640 });
-		return { tiny, huge };
-	`);
-
-	assert.equal(widths.tiny, 560, "clamped to the floor, not drawn as a 40px column");
-	// The ceiling is 1600, wider than this window, so what is measured is the window's own limit.
-	assert.ok(widths.huge > 640 && widths.huge <= 1440, `bounded by the window: ${widths.huge}`);
+test("the welcome composer is ZCode's 672px column", async () => {
+	// 宽度不再是设置项：欢迎页照 ZCode 的 `max-w-2xl`，对话里按窗格宽度分三档（见 composer.css）。
+	const width = await ui<number | null>(`return measure();`);
+	assert.equal(width, 672);
 });
 
 test("a tab's menu closes the ones it says it will", async () => {

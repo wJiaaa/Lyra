@@ -11,13 +11,6 @@ import { CodeAppearancePreview } from "./CodeAppearancePreview.tsx";
 import { InlineCodeSpecimen } from "./InlineCodeSpecimen.tsx";
 import { CODE_DEFAULTS, FACTORY_APPEARANCE } from "./appearance-defaults.ts";
 import { CODE_FONTS, fontAvailable, matchCodeFont } from "./code-fonts.ts";
-import {
-	CONTENT_DEFAULT,
-	CONTENT_FILL,
-	CONTENT_MAX,
-	CONTENT_MIN,
-	contentPreset,
-} from "../../lib/content-width.ts";
 
 /** The sentinel the font menu uses for 「自定义…」; never stored as a font stack. */
 const CUSTOM_FONT = "__custom__";
@@ -32,14 +25,11 @@ const PRESETS: { id: string; label: string; patch: Partial<Appearance> }[] = [
 
 import { ColorField, ColorRow, PixelField, ThemePreview } from "./appearance-controls.tsx";
 import { readableInk } from "./theme.ts";
-import { ComposerHeightPreview } from "./ComposerHeightPreview.tsx";
 import { NumberField } from "./pickers.tsx";
 import { Slider } from "./pickers.tsx";
 import { useI18n } from "../../i18n/index.ts";
 
 /** 输入框默认高度的两头。1 行是它一直以来的样子；10 行已经占掉一个矮窗口的三分之一。 */
-const COMPOSER_LINES_MIN = 1;
-const COMPOSER_LINES_MAX = 10;
 
 export function AppearanceSettings() {
 	/*
@@ -50,15 +40,7 @@ export function AppearanceSettings() {
 	 * from before this menu existed is still editable without picking 自定义 first.
 	 */
 	const [customFont, setCustomFont] = useState(false);
-	/*
-	 * 拖动中的行数，还没存进设置里的那个。
-	 *
-	 * 预览和读数要立刻跟着手走，而每存一次设置是一趟主进程：两次原子写盘、重建菜单、重注册全局
-	 * 快捷键、再广播回来重渲一遍。一格一趟，从 1 拖到 10 就是这套东西跑九遍，卡的就是这个。
-	 * 所以拖动期间只动这个草稿，松手时才存——中途那些格子是路过，不是选择。
-	 */
 	const { t } = useI18n();
-	const [linesDraft, setLinesDraft] = useState<number | null>(null);
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	if (!settings) return null;
@@ -68,11 +50,6 @@ export function AppearanceSettings() {
 	const patch = (next: Partial<Appearance>) =>
 		void saveSettings({ ...settings, appearance: { ...appearance, ...next } });
 	const isDark = appearance.theme === "dark" || (appearance.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-
-	/* 设置追上草稿了就把控制权交还——松手之后这两个数必然汇合，不需要另一个作废的时机。 */
-	const savedLines = appearance.composerLines ?? COMPOSER_LINES_MIN;
-	if (linesDraft !== null && linesDraft === savedLines) setLinesDraft(null);
-	const composerLines = linesDraft ?? savedLines;
 
 	/*
 	 * 行内代码此刻这一套颜色，和「字色是不是还跟着底色」。
@@ -528,86 +505,6 @@ export function AppearanceSettings() {
 						/>
 					}
 				/>
-				{/*
-				 * The measure, as four choices and a number.
-				 *
-				 * Presets first because almost nobody wants a specific pixel count — they want
-				 * "wider than this". The field is for the person who does, and it is hidden under
-				 * 铺满 rather than disabled: a number that has no effect is worse than one that is
-				 * not offered.
-				 */}
-				<Row
-					title={t("appearance.chatWidth")}
-					detail={t("appearance.chatWidthDetail")}
-					control={
-						<div className="flex items-center gap-2">
-							<Segmented
-								value={contentPreset(appearance.contentWidth)}
-								onChange={(choice) => patch({ contentWidth: Number(choice) })}
-								options={[
-									{ value: String(CONTENT_DEFAULT), label: t("common.standard") },
-									{ value: "800", label: t("appearance.wide") },
-									{ value: "960", label: t("appearance.extraWide") },
-									{ value: String(CONTENT_FILL), label: t("appearance.full") },
-								]}
-							/>
-							{appearance.contentWidth !== CONTENT_FILL && (
-								<PixelField
-									value={appearance.contentWidth ?? CONTENT_DEFAULT}
-									min={CONTENT_MIN}
-									max={CONTENT_MAX}
-									onChange={(contentWidth) => patch({ contentWidth })}
-									label={t("appearance.chatWidth")}
-									name="contentWidth"
-								/>
-							)}
-						</div>
-					}
-				/>
-				{/*
-				 * 带预览，因为「4 行」这个数没法在脑子里换算成一个框。
-				 *
-				 * 跟这一页上代码外观的那两块specimen是同一个道理：字重和行高也是没人能凭数字想象的
-				 * 东西。滑一格看一眼，比反复退出设置去试要短得多。
-				 */}
-				<Row
-					title={t("appearance.composerLines")}
-					detail={t("appearance.composerLinesDetail")}
-					control={
-						<div className="flex items-center gap-3">
-							<Slider
-								value={composerLines}
-								onChange={setLinesDraft}
-								/*
-								 * 不走 `patch`，为的是那个 `catch`。
-								 *
-								 * 存不下去的时候草稿得作废，否则屏幕上留着一个磁盘上并不存在的行数——只
-								 * 有它自己知道那次保存没成。以前不会这样：值一直来自设置，存不下去就自己
-								 * 弹回去了；把画面交给草稿之后，这条退路得自己铺。
-								 */
-								onCommit={(lines) => {
-									void saveSettings({ ...settings, appearance: { ...appearance, composerLines: lines } })
-										.catch(() => setLinesDraft(null));
-								}}
-								min={COMPOSER_LINES_MIN}
-								max={COMPOSER_LINES_MAX}
-								label={t("appearance.composerLines")}
-							/>
-							{/*
-							 * 宽度按字号算，不按像素算。
-							 *
-							 * 这里原来是 36px，正好够「1 行」，差 0.4px 就装不下「10 行」——于是滑到两位数
-							 * 那一格，数字和「行」被拆到上下两行。写成 em 之后它跟着 UI 字号一起缩放，字号
-							 * 调大也不会重演；`nowrap` 是最后一道，宁可挤出去也不断开。
-							 */}
-							<span className="min-w-[3.6em] shrink-0 text-right font-mono text-label whitespace-nowrap text-ink tabular-nums">
-								{composerLines} {translate("appearance.linesUnit")}
-							</span>
-						</div>
-					}
-				>
-					<ComposerHeightPreview lines={composerLines} />
-				</Row>
 				<Row
 					title={t("appearance.diffMarks")}
 					detail={t("appearance.diffMarksDetail")}

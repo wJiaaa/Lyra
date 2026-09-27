@@ -504,11 +504,11 @@
 }
 
 /*
- * 空框有多高，由设置说了算——外观里的「输入框默认高度」。
+ * 空框两行高（40px），对齐 ZCode 输入区的 `min-h-10`。
  *
  * 写成 `min-height` 而不是 `rows`，是因为自适应高度的那段脚本每次都会把 `height` 覆盖掉，而
  * `min-height` 在 CSS 里永远压得住 `height`：脚本照旧按内容算它的数，框只是不会比这条线更矮。
- * `--ly-composer-in * 2` 是上下 padding 的和，`em` 跟着字号走，所以调 UI 字号时行数的含义不变。
+ * `--ly-composer-in * 2` 是上下 padding 的和。
  */
 /*
  * 标点不许挤压。
@@ -525,7 +525,7 @@
 }
 
 textarea.ly-composer-text {
-	min-height: calc(var(--ly-composer-lines, 1) * 20px + var(--ly-composer-in) * 2);
+	min-height: calc(40px + var(--ly-composer-in) * 2);
 }
 
 textarea.ly-composer-text[data-highlighted="true"] {
@@ -773,17 +773,13 @@ textarea.ly-composer-text[data-highlighted="true"] {
   --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%238d8d8d%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3C%2Fsvg%3E");
 }
 
+/* 「/」和「@」的菜单出现、收起都不做动画，对齐 ZCode：它跟着每一次按键开合，动画只会拖在手后面。 */
 .ly-mention-menu {
-	opacity: 0;
 	visibility: hidden;
-	transform: translateY(4px);
-	transition: opacity var(--ly-t-quick) var(--ly-e-out), transform var(--ly-t-quick) var(--ly-e-out), visibility var(--ly-t-quick);
 }
 
 .ly-mention-menu[data-open="true"] {
-	opacity: 1;
 	visibility: visible;
-	transform: translateY(0);
 }
 
 .ly-mention-option[aria-selected="true"] .ly-marquee-track {
@@ -800,16 +796,11 @@ textarea.ly-composer-text[data-highlighted="true"] {
 }
 
 .ly-command-menu {
-	opacity: 0;
 	visibility: hidden;
-	transform: translateY(4px);
-	transition: opacity var(--ly-t-quick) var(--ly-e-out), transform var(--ly-t-quick) var(--ly-e-out), visibility var(--ly-t-quick);
 }
 
 .ly-command-menu[data-open="true"] {
-	opacity: 1;
 	visibility: visible;
-	transform: translateY(0);
 }
 
 /* Keyboard selection keeps focus in the textarea and still reveals long descriptions. */

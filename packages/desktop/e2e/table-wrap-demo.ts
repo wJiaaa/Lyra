@@ -108,7 +108,6 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			appearance: { contentWidth: 480 },
 		}),
 	);
 	const projectId = createHash("sha256").update(project).digest("hex").slice(0, 16);
