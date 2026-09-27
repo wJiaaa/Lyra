@@ -24,6 +24,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { lyraHome, projectIdFor } from "../session/store.ts";
 import { budgetMemory } from "../prompt/budget.ts";
+import { today } from "../prompt/environment.ts";
 
 /** One remembered lesson. */
 export interface Lesson {
@@ -250,29 +251,28 @@ export function parseLessons(raw: string): Lesson[] {
  * an invitation to wonder what happened to the memory.
  */
 /**
- * How long ago a lesson was written, in the coarsest unit that is still true.
+ * When a lesson was written, as a date.
  *
  * Shown beside each one because age is what lets a model discount it. Measured without it: told
  * "this repository uses npm" three months ago, a model ran `npm install` against a `pnpm-lock.yaml`
  * without looking — memory outranked the files. A date is the cheapest thing that says "this was
  * then".
+ *
+ * 写日期而不是「3 天前」：这段进 system prompt，相对年龄在每条记下的那个时刻各自跳一次，一天之内
+ * 能让前缀变好几回，整段对话的缓存跟着作废。今天是几号由末尾的 `<env>` 给出，间隔模型自己算。
  */
-function lessonAge(at: number, now = Date.now()): string {
-	const days = Math.floor((now - at) / 86_400_000);
-	if (days < 1) return "今天记下";
-	if (days < 30) return `${days} 天前记下`;
-	if (days < 365) return `${Math.floor(days / 30)} 个月前记下`;
-	return `${Math.floor(days / 365)} 年前记下`;
+function lessonDate(at: number): string {
+	return `${today(new Date(at))} 记下`;
 }
 
-export function formatProjectMemory(lessons: Lesson[], extracted = "", now = Date.now()): string {
-	return formatProjectMemorySources(lessons, extracted, now).map(part => part.content).join("");
+export function formatProjectMemory(lessons: Lesson[], extracted = ""): string {
+	return formatProjectMemorySources(lessons, extracted).map(part => part.content).join("");
 }
 
 /** Attribute the bounded bytes to their files while preserving one shared memory wrapper. */
-export function formatProjectMemorySources(lessons: Lesson[], extracted = "", now = Date.now()): { file: string; content: string }[] {
+export function formatProjectMemorySources(lessons: Lesson[], extracted = ""): { file: string; content: string }[] {
 	if (lessons.length === 0 && !extracted.trim()) return [];
-	const learned = lessons.map(lesson => `- ${lesson.text}${lesson.context ? `（${lesson.context}）` : ""} · ${lessonAge(lesson.at, now)}`).join("\n");
+	const learned = lessons.map(lesson => `- ${lesson.text}${lesson.context ? `（${lesson.context}）` : ""} · ${lessonDate(lesson.at)}`).join("\n");
 	// Inferred memory must remain less authoritative than deliberately recorded lessons.
 	const inferred = extracted.trim()
 		? `\n\n从过去的会话里推断出来的（可信度低于上面几条，与代码冲突时以代码为准）：\n${extracted.trim()}` : "";

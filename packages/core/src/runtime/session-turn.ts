@@ -36,7 +36,6 @@ import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
 import { DELEGATION_KEY } from "./delegation.ts";
-import { withEnvironment } from "../prompt/environment.ts";
 import { offerRuleFromCorrection } from "./rule-offer.ts";
 import { prepareTurn } from "./turn.ts";
 import { loadPromptContext, promptCapabilities } from "./prompt-context.ts";
@@ -112,8 +111,8 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 	const first = await runTurn(config, onEvent);
 	await continueWhileWorkRemains(first, {
 		run: (messages) => runTurn({ ...config, messages, systemPrompt }, onEvent),
-		// 续跑重建历史时也要带上——少了末尾那条，前缀就跟上一次不一样，缓存反而白丢一次。
-		messages: () => withEnvironment(modelHistory(input.log, input.provider, input.model)),
+		// 日期块由循环在每次请求末尾接上（`environment`），续跑重建的历史里不带它。
+		messages: () => modelHistory(input.log, input.provider, input.model),
 		todos: () => (input.can.state.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
 		aborted: () => input.signal.aborted,
 		notify: (message) => input.emit({ type: "notice", level: "info", message }),
@@ -310,7 +309,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 	});
 	const turn = await prepareTurn({
 		cwd, tools, systemPrompt: prompt.systemPrompt,
-		messages: withEnvironment(modelHistory(log, input.provider, input.model)),
+		messages: modelHistory(log, input.provider, input.model),
 	});
 	const assembled = reconcilePrompt(prompt, turn.systemPrompt);
 
@@ -360,6 +359,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 	);
 
 	config.onContext = (context, model) => log.captureRequest(context, model);
+	config.environment = true;
 	return { config, systemPrompt };
 }
 

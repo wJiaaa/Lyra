@@ -10,7 +10,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { today, withEnvironment } from "../src/prompt/environment.ts";
 import { buildSystemPrompt } from "../src/prompt/system.ts";
-import type { Message } from "../src/types.ts";
+import { runAgent } from "../src/agent/loop.ts";
+import type { AssistantMessage, Message } from "../src/types.ts";
+import { emptyUsage } from "../src/types.ts";
 
 const user = (text: string): Message => ({ role: "user", content: [{ type: "text", text }], timestamp: 0 });
 
@@ -94,4 +96,39 @@ test("today 用本地时区，不是 UTC", () => {
 	 */
 	const newYearEveEvening = new Date(2026, 0, 1, 2, 0, 0);
 	assert.equal(today(newYearEveEvening), "2026-01-01");
+});
+
+test("一轮之内每次请求都把日期块接在最末尾，回复不会排在它后面", async () => {
+	/*
+	 * 主会话的日志里没有这条。只在一轮开头接一次的话，这一轮的工具往返都排在它后面，下一轮从日志
+	 * 重建时它不在原位了——前缀从那里断开，上一轮整段重写缓存。
+	 */
+	const model = { id: "fake/model", providerId: "fake", modelId: "model", name: "Fake", contextWindow: 200_000, maxOutputTokens: 4096, supportsThinking: false, supportsImages: false, supportsTools: true };
+	const reply = (content: AssistantMessage["content"], stopReason: AssistantMessage["stopReason"]): AssistantMessage =>
+		({ role: "assistant", content, api: "openai-responses", provider: "fake", model: "model", usage: emptyUsage(), stopReason, timestamp: 1 });
+	const replies = [
+		reply([{ type: "toolCall", id: "c1", name: "missing", arguments: {}, argumentsText: "{}" }], "toolUse"),
+		reply([{ type: "text", text: "好" }], "stop"),
+	];
+	const sent: Message[][] = [];
+	const result = await runAgent(
+		{
+			sessionId: "s", cwd: "/tmp", systemPrompt: "", tools: [], messages: [user("你好")], environment: true, model,
+			provider: { id: "fake", name: "Fake", baseUrl: "http://localhost", api: "openai-responses", apiKey: "x", enabled: true, models: [model] },
+			streamFn: async (context) => {
+				sent.push(context.messages);
+				return replies[sent.length - 1];
+			},
+		},
+		async () => {},
+	);
+
+	assert.equal(sent.length, 2);
+	const isEnv = (message: Message) => message.synthetic === true && message.content.some((c) => c.type === "text" && c.text.includes("<env>"));
+	for (const request of sent) {
+		assert.ok(isEnv(request.at(-1)!), "每次请求的最后一条都是日期块");
+		assert.equal(request.filter(isEnv).length, 1, "而且只有这一条");
+	}
+	assert.deepEqual(sent[1].slice(0, sent[0].length - 1), sent[0].slice(0, -1), "上一次请求去掉日期块后是这一次的前缀");
+	assert.ok(!result.messages.some(isEnv), "日期块不进这一轮产出的消息，也就不进日志");
 });

@@ -18,6 +18,7 @@ import type { ArtifactSink } from "../runtime/prune.ts";
 import { AgedToolPruner } from "../runtime/aged-prune.ts";
 import { contextMaxTokens } from "../runtime/context.ts";
 import { stripStaleHandles } from "../runtime/model-switch.ts";
+import { withEnvironment } from "../prompt/environment.ts";
 import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
 import type {
 	ApprovalDecision,
@@ -107,6 +108,14 @@ export interface AgentRunConfig {
 	streamFn?: (context: LlmContext, config: AgentRunConfig) => Promise<AssistantMessage>;
 	/** Observe the effective request after pruning, compaction and overflow recovery. */
 	onContext?: (context: LlmContext, model: ModelConfig) => void;
+	/**
+	 * 每次请求都把 `<env>` 日期块接在最末尾，不放进 `messages`。
+	 *
+	 * 给主会话用：它的历史每轮从日志重建，而日志里没有这条。只在一轮开头接一次的话，这一轮的回复
+	 * 都排在它后面，下一轮重建时它又不在了——前缀从那里断开，上一轮整段要重写缓存。子代理不开：
+	 * 它把带日期块的 `view` 原样存下来续跑，前缀本来就一致（见 `runtime/sub-agent.ts`）。
+	 */
+	environment?: boolean;
 	/**
 	 * Runs before a tool executes. Returning `block` turns the call into an error result the
 	 * model can react to, without ending the turn.
@@ -254,6 +263,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 	/** Watches for a turn that has stopped learning anything; see `repetition.ts`. */
 	const repetition = config.repetition ?? new RepetitionWatch();
 	const pruner = config.pruner ?? new AgedToolPruner();
+	const requestMessages = (history: Message[]): Message[] => (config.environment ? withEnvironment(history) : history);
 	/**
 	 * When the last request went out, for judging whether the provider's prefix cache is still warm.
 	 *
@@ -366,7 +376,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		if (config.signal?.aborted) return finish("aborted");
 		const context: LlmContext = {
 			systemPrompt: config.systemPrompt,
-			messages,
+			messages: requestMessages(messages),
 			tools: config.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
 		};
 
@@ -407,7 +417,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 				});
 				messages.length = 0;
 				messages.push(...stripped);
-				({ message: assistant, ruleMatches, deferredMatches } = await streamTurn(active, { ...context, messages }, emit));
+				({ message: assistant, ruleMatches, deferredMatches } = await streamTurn(active, { ...context, messages: requestMessages(messages) }, emit));
 			}
 		}
 		/*

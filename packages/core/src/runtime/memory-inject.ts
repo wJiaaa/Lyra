@@ -39,7 +39,7 @@ export async function gatherMemory(cwd: string, enabled: boolean, now = Date.now
 
 	const lessons = projectEnabled ? await readLessons(cwd).catch(() => []) : [];
 	const extracted = projectEnabled ? await readExtractedMemory(cwd).catch(() => "") : "";
-	const projectMemoryFiles = formatProjectMemorySources(lessons, extracted, now).map(part => ({
+	const projectMemoryFiles = formatProjectMemorySources(lessons, extracted).map(part => ({
 		path: join(projectMemoryDir(cwd), part.file), content: part.content,
 	}));
 	const projectMemory = projectMemoryFiles.map(file => file.content).join("");

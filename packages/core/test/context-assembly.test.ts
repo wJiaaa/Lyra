@@ -55,7 +55,7 @@ test("skill budgets preserve discoverability, escaping and hidden-skill policy",
 });
 
 test("project memory budgets retain trust framing, closing tag and exact source attribution", async () => {
-	const sources = formatProjectMemorySources([{ text: "deliberate lesson", at: 1 }], "inferred\n".repeat(500), 1);
+	const sources = formatProjectMemorySources([{ text: "deliberate lesson", at: 1 }], "inferred\n".repeat(500));
 	assert.deepEqual(sources.map(source => source.file), ["learned.md", "MEMORY.md"]);
 	const projectMemoryFiles = sources.map(source => ({ path: `/memory/${source.file}`, content: source.content }));
 	const projectMemory = sources.map(source => source.content).join("");
@@ -67,7 +67,7 @@ test("project memory budgets retain trust framing, closing tag and exact source 
 	const detail = buildContextBreakdown({ model, messages: [], ...context, builtinTools: [], mcpTools: [], skillCatalogue: "", projectInstructions: [] });
 	assert.equal(detail.projectMemory, projectMemory);
 	assert.equal(detail.projectMemoryFiles?.reduce((sum, file) => sum + file.tokens, 0), detail.segments.find(segment => segment.key === "projectMemory")?.tokens);
-	const oversized = formatProjectMemorySources([{ text: "x".repeat(30_000), at: 1 }], "inferred", 1);
+	const oversized = formatProjectMemorySources([{ text: "x".repeat(30_000), at: 1 }], "inferred");
 	assert.deepEqual(oversized.map(source => source.file), ["learned.md"]);
 });
 

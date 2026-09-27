@@ -174,20 +174,18 @@ test("the injected block tells the model what to do when memory and code disagre
 	assert.match(block, /先看一眼再用/, "and what can be checked in the repository is checked before it is trusted");
 });
 
-test("each lesson carries how long ago it was written — age is what lets a model discount it", () => {
-	const now = Date.parse("2026-09-05T00:00:00Z");
-	const block = formatProjectMemory(
-		[
-			{ text: "用 pnpm", at: now - 90 * 86_400_000 },
-			{ text: "跑 e2e 前先 build", context: "只在 CI", at: now - 3 * 86_400_000 },
-			{ text: "今天学的", at: now },
-		],
-		"",
-		now,
-	);
-	assert.match(block, /- 用 pnpm · 3 个月前记下/);
-	assert.match(block, /- 跑 e2e 前先 build（只在 CI） · 3 天前记下/);
-	assert.match(block, /- 今天学的 · 今天记下/);
+test("each lesson carries the date it was written — age is what lets a model discount it", () => {
+	/*
+	 * 日期而不是「3 天前」：这段在 system prompt 里，相对年龄会随时间自己变，每变一次整段对话的缓存
+	 * 就作废一次。今天几号由末尾的 `<env>` 给。
+	 */
+	const block = formatProjectMemory([
+		{ text: "用 pnpm", at: new Date(2026, 5, 7, 9).getTime() },
+		{ text: "跑 e2e 前先 build", context: "只在 CI", at: new Date(2026, 8, 2, 23, 59).getTime() },
+	]);
+	assert.match(block, /- 用 pnpm · 2026-06-07 记下/);
+	assert.match(block, /- 跑 e2e 前先 build（只在 CI） · 2026-09-02 记下/);
+	assert.ok(!/天前|个月前|今天记下/.test(block));
 	assert.match(block, /每条标了记下的时间/);
 });
 

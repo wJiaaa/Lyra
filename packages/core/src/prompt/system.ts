@@ -263,19 +263,19 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 		: IDENTITY;
 
 	const prompt = new PromptBuilder();
-	prompt.add("identity", identity, { cacheHint: "stable" });
+	prompt.add("identity", identity);
 	prompt.add("tools", `\n\nAvailable tools:
 ${toolList}
 
 The project may make additional tools available beyond the ones listed above.`);
 	prompt.add("guidelines", `\n\nGuidelines:\n${guidelines.map((g) => `- ${g}`).join("\n")}`);
-	prompt.add("boundaries", `\n\nBoundaries:\n${BOUNDARIES.map((b) => `- ${b}`).join("\n")}`, { cacheHint: "stable" });
+	prompt.add("boundaries", `\n\nBoundaries:\n${BOUNDARIES.map((b) => `- ${b}`).join("\n")}`);
 	prompt.add("environment", `\n\nEnvironment:
 - Platform: ${input.platform}${input.shell ? `\n- Shell: ${input.shell.label}` : ""}
 - Git repository: ${input.isGitRepo ? "yes" : "no"}
 - Model: ${input.modelName}`);
 
-	if (input.appendSystemPrompt) prompt.add("custom", `\n\n${input.appendSystemPrompt}`, { cacheHint: "stable" });
+	if (input.appendSystemPrompt) prompt.add("custom", `\n\n${input.appendSystemPrompt}`);
 
 	if (input.tone && input.tone !== "professional") {
 		const TONE_RULES: Record<string, string> = {

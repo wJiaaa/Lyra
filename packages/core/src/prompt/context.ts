@@ -3,8 +3,6 @@ export type PromptSource = "identity" | "tools" | "guidelines" | "boundaries" | 
 
 export interface PromptSection {
 	source: PromptSource;
-	injectionTarget: "system";
-	cacheHint: "stable" | "dynamic";
 	start: number;
 	end: number;
 	path?: string;
@@ -20,11 +18,11 @@ export class PromptBuilder {
 	private text = "";
 	private sections: PromptSection[] = [];
 
-	add(source: PromptSource, content: string, options: Partial<Pick<PromptSection, "cacheHint" | "path" | "truncated">> = {}): void {
+	add(source: PromptSource, content: string, options: Partial<Pick<PromptSection, "path" | "truncated">> = {}): void {
 		if (!content) return;
 		const start = this.text.length;
 		this.text += content;
-		this.sections.push({ source, injectionTarget: "system", cacheHint: "dynamic", ...options, start, end: this.text.length });
+		this.sections.push({ source, ...options, start, end: this.text.length });
 	}
 
 	build(): PromptContext {
@@ -40,7 +38,7 @@ export function reconcilePrompt(context: PromptContext, systemPrompt: string): P
 		systemPrompt,
 		sections: [
 			...(keepsPrefix ? context.sections : []),
-			{ source: "extension", injectionTarget: "system", cacheHint: "dynamic", start: keepsPrefix ? context.systemPrompt.length : 0, end: systemPrompt.length },
+			{ source: "extension", start: keepsPrefix ? context.systemPrompt.length : 0, end: systemPrompt.length },
 		],
 	};
 }
