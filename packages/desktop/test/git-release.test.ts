@@ -1,6 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { bumpSemver, getRepoInfo } from "../electron/git-release.ts";
+
+const exec = promisify(execFile);
 
 describe("git release bumpSemver", () => {
 	it("bumps patch versions correctly", () => {
@@ -21,10 +28,37 @@ describe("git release bumpSemver", () => {
 		assert.equal(bumpSemver("1.2.9", "major"), "2.0.0");
 	});
 
-	it("resolves repo owner and name correctly for current repo", async () => {
-		const repoInfo = await getRepoInfo(process.cwd());
-		assert.ok(repoInfo);
-		assert.ok(["kittors", "MnanMss"].includes(repoInfo.owner));
-		assert.equal(repoInfo.name, "Lyra");
+	/*
+	 * 在临时仓库里验，不读这份检出自己的 origin：fork 出来的检出 owner 是 fork 的主人，
+	 * 写死一份名单的断言在别人机器上必红，而它要守的只是地址怎么拆。
+	 */
+	it("resolves owner, name and host from each remote URL shape", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "lyra-git-release-"));
+		try {
+			await exec("git", ["init", "-q", dir]);
+			const cases: Array<[string, { owner: string; name: string; host: string }]> = [
+				["https://github.com/kittors/Lyra.git", { host: "github.com", owner: "kittors", name: "Lyra" }],
+				["https://github.com/kittors/Lyra", { host: "github.com", owner: "kittors", name: "Lyra" }],
+				["git@github.com:kittors/Lyra.git", { host: "github.com", owner: "kittors", name: "Lyra" }],
+				["ssh://git@gitlab.example.com/group/Lyra.git", { host: "gitlab.example.com", owner: "group", name: "Lyra" }],
+			];
+			for (const [url, expected] of cases) {
+				await exec("git", ["-C", dir, "remote", "remove", "origin"]).catch(() => {});
+				await exec("git", ["-C", dir, "remote", "add", "origin", url]);
+				assert.deepEqual(await getRepoInfo(dir), expected, url);
+			}
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("is null without an origin", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "lyra-git-release-"));
+		try {
+			await exec("git", ["init", "-q", dir]);
+			assert.equal(await getRepoInfo(dir), null);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 });

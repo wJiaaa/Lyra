@@ -8,6 +8,25 @@
 
 
 
+## 2026-09-27 上下文超长：强制压缩一次再重发
+
+借鉴 pi（`isContextOverflow` 的原话表、恢复前把失败那次从持久历史里拿掉）和 ZCode（按码识别、
+每个模型步最多一次响应式压缩），不照抄 pi 的会话级标记和「命中泛化短语即判超长」，也不引入
+ZCode 的快速回填熔断（没有实测信号支撑，属于「替人做决定」）。
+
+- `ai/failure.ts` 的 `CONTEXT_OVERFLOW` 集中声明各协议、服务商的超长原话（每条注明来源）和
+  只看状态码就能断定的 413；认出来的失败带 `code: "context-overflow"`，`hint` 仍是
+  `check-request`，界面不变。限流原话（`rate limit`、`throttl`、`please wait`）和 429 一律不算。
+  新增一种说法：在表里加一条正则，并在 `test/context-overflow.test.ts` 的样例表里加一行原话。
+- 循环里拒收恢复的顺序：先剪过大的工具输出重发一次；仍是超长（或没东西可剪）且有压缩通道时，
+  经 `compactStep(..., { force: true })` 强制压缩一次再重发。压缩返回空、重发仍超长都照原错误
+  收场。这一段不在循环里，每轮最多一次；重发成功才进入下一轮。剪枝视图持久化、边界事件、
+  重复计数清零与每轮开头的自动压缩一致；界面收到一条 `notice` 和照常的 `compacted`。
+- 被拒的那条回复在决定是否恢复之前不提交：恢复就发 `message_discarded`，放弃才发
+  `message_end`。先提交再重发会让日志比循环多一条，按「最后 N 条」记的压缩边界从日志末尾数就
+  偏一条，下一轮重建的历史与刚发出的不一致。这一条同时修正了原有剪枝重发路径的同一偏差。
+- 子代理和侧聊走同一段循环；子代理的 `notice` 转进它自己的面板。
+
 ## 2026-09-27 上下文交接、压缩提交与请求预算
 
 借鉴 ZCode 的来源区分、落盘结果恢复和请求预算机制，继续使用 Lyra 的日志、裁剪、摘要与回查。
@@ -90,7 +109,7 @@
 | C3 deadline | 不引入无任务时长证据的自动 deadline；网络等待、编译和真实工作都可能很长 | 保留为未完成实验，不用新停止规则换取更低账单 |
 | C4 用量 | 运行行标明本轮 fresh tokens 与缓存占比；会话卡片标明全程用量。分母为 input + cacheRead + cacheWrite，不含 output；续跑与子 agent 保留同一口径 | `turn-meter.test.ts` 与真实 Electron fixture |
 | E1 并行 | 对实际 Gemini 服务做 8 次有界对照请求，独立文件场景均一次 3 个 read，依赖场景均先读 manifest；额外示例没有增益，因此不改生产提示词 | 简单场景证明能力，不足以证明真实复杂任务达到 ≥2.0 调用/轮；该目标未完成 |
-| E2 shell 改道 | 无 shell 组合、变量、glob、升级或后台语义的简单 cat/ls/grep 在同轮执行内置工具；尊重开关、原 bash 与目标工具的 hooks/限制，保留 call id | `translated-tools.test.ts`，不再为这类确定改道支付一次纠错请求 |
+| E2 shell 改道 | 无 shell 组合、变量、glob、升级或后台语义的简单 cat/ls/grep 在同轮执行内置工具；尊重开关；钩子按模型调用的 bash 跑一次，目标工具被技能禁用时不改道；保留 call id | `translated-tools.test.ts`，不再为这类确定改道支付一次纠错请求 |
 | F1/F2 事后审计 | 增加编辑次数 P90 与样本数；F2 把需求重述从挫败词里拆出来单独计数，仍是关键词代理 | `audit:sessions` 现报挫败率与重述率；未经人工校准，不是任务成功率 |
 
 额外修复：未完成 Todo 不再强制正文回复继续。空正文无工具最多纠正 3 次，工具调用不补充额度；
@@ -774,6 +793,9 @@ diff <(jq -S . /tmp/before.json) <(jq -S . /tmp/after.json)
 5. **模型的行为变了吗？** 调用次数、平均每次体积——如果模型开始更频繁地重读，说明裁得太狠。
 6. **`cacheRead` 占比掉了吗？**（第 8 节，基线 92.0%）掉了就是前缀缓存被打断，多半是把裁剪
    写成了「每轮改写历史」。**注意 `cacheWrite` 恒为 0，看它没用。**
+   占比只说明整体；要知道断在哪一次，看第 10 节的「原因不明」：它逐次比较上一次请求的输入与
+   这一次的 cacheRead，列出会话、第几次请求和未命中量。口径见
+   [上下文组装与统计](context-assembly.md#缓存未命中诊断)。
 7. **并行度动了吗？**（第 7 节）做 E 组时它该上升；做其他组时它**不该变**——变了说明你顺手
    改到了提示词，那是另一个变量，会污染这次的归因。
 
@@ -1051,10 +1073,10 @@ curl -s "https://api.github.com/repos/deepseek-ai/deepseek-harness/git/trees/mas
   > 「**只要 `compactIfNeeded` 返回结果就重试**——不予采纳，因为自定义后端可能报告成功却没有
   > 改变模型可见状态。**`replaceGeneration` 才是权威证明。**」
 
-**我们已经有等价守卫，不用改**：[loop.ts:304](../../packages/core/src/agent/loop.ts) 的
-`rejectedContent(assistant)` 分支里 `if (stripped !== messages)` ——没裁掉任何东西就不重试，
-且没有循环（等价于 `maxOverflowRetries = 1`）。一次「什么都没改变的恢复」会用同样的历史问同样的
-问题，被同样地拒绝，那正是一种死循环。
+**我们已经有等价守卫**：`loop.ts` 的 `rejectedContent(assistant)` 分支里 `if (stripped !== messages)`
+——没裁掉任何东西就不重试，且没有循环（等价于 `maxOverflowRetries = 1`）。一次「什么都没改变的
+恢复」会用同样的历史问同样的问题，被同样地拒绝，那正是一种死循环。2026-09-27 起超长报错在剪枝
+之后还会强制压缩一次，同样要求压缩真的返回了新历史才重发（见文首同日条目）。
 
 ### oh-my-pi — `docs/compaction.md`
 

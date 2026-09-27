@@ -1,4 +1,9 @@
 import { lookup } from "node:dns/promises";
+import { request as httpRequest, type IncomingMessage } from "node:http";
+import { request as httpsRequest } from "node:https";
+import type { LookupFunction } from "node:net";
+import { pipeline, type Readable } from "node:stream";
+import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 import { errorResult } from "../agent/tool-run.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { htmlToText } from "./html-text.ts";
@@ -39,6 +44,10 @@ interface FetchArgs {
  * What is left is transport hygiene, and it is enforced rather than delegated: http(s) only, no
  * credentials in the URL, bounded length, bounded hops, no cross-origin redirects, every hop
  * re-checked against DNS, a content-type allow-list, and a declared charset that has to be real.
+ *
+ * 连接固定到校验过的那几个地址（`pinnedLookup`），body 流式读、超过上限当场断开。以前用 `fetch`：
+ * 它连接时会重新解析域名，第一次答公网、第二次答内网的 DNS（rebinding）就绕过了上面的校验；
+ * 它也要先 `arrayBuffer()` 读完整个 body 才能判断大小。
  */
 export const webFetchTool: Tool<FetchArgs> = {
 	name: "web_fetch",
@@ -69,23 +78,22 @@ export const webFetchTool: Tool<FetchArgs> = {
 		const origin = first.url.origin;
 
 		let current = first.url;
-		let response: Response;
+		let addresses = first.addresses;
+		let response: IncomingMessage;
 		for (let hop = 0; ; hop++) {
 			try {
-				response = await fetch(current, {
-					signal: ctx.signal,
-					// Followed by hand, one hop at a time. `redirect: "follow"` would let the runtime
-					// walk a chain nobody checked — which is a hole shaped exactly like this tool's
-					// one real rule, since the address that matters is the last one, not the first.
-					redirect: "manual",
-					headers: { "user-agent": "Lyra/0.1 (+https://github.com/kittors/Lyra)", accept: "text/html,text/plain,*/*" },
-				});
+				// Followed by hand, one hop at a time. Following automatically would let the runtime
+				// walk a chain nobody checked — which is a hole shaped exactly like this tool's
+				// one real rule, since the address that matters is the last one, not the first.
+				response = await get(current, addresses, ctx.signal);
 			} catch (error) {
 				return errorResult(`Request failed: ${error instanceof Error ? error.message : String(error)}`);
 			}
 
-			const location = response.status >= 300 && response.status < 400 ? response.headers.get("location") : null;
+			const status = response.statusCode ?? 0;
+			const location = status >= 300 && status < 400 ? response.headers.location : undefined;
 			if (!location) break;
+			response.destroy();
 			if (hop >= MAX_REDIRECTS) return errorResult(`Too many redirects (more than ${MAX_REDIRECTS}).`);
 
 			let next: URL;
@@ -111,20 +119,30 @@ export const webFetchTool: Tool<FetchArgs> = {
 			const checked = await checkTarget(next.href, ctx);
 			if ("error" in checked) return errorResult(checked.error);
 			current = checked.url;
+			addresses = checked.addresses;
 		}
 
-		if (!response.ok) return errorResult(`HTTP ${response.status} ${response.statusText} for ${current}`);
+		const status = response.statusCode ?? 0;
+		if (status < 200 || status >= 300) {
+			response.destroy();
+			return errorResult(`HTTP ${status} ${response.statusMessage ?? ""} for ${current}`);
+		}
 
-		const contentType = response.headers.get("content-type") ?? "";
+		const contentType = response.headers["content-type"] ?? "";
 		const kind = classifyContentType(contentType);
 		if (!kind) {
+			response.destroy();
 			// Binary would arrive as replacement characters and spend the turn's budget saying
 			// nothing. Refusing names the reason instead.
 			return errorResult(`Unsupported content type "${contentType || "(none)"}" — this tool reads text.`);
 		}
 
-		const buffer = await response.arrayBuffer();
-		if (buffer.byteLength > MAX_BYTES) return errorResult(`Response is ${buffer.byteLength} bytes, above the 2 MB limit.`);
+		let buffer: Buffer;
+		try {
+			buffer = await readBody(response, MAX_BYTES);
+		} catch (error) {
+			return errorResult(error instanceof Error ? error.message : String(error));
+		}
 
 		let raw: string;
 		try {
@@ -138,7 +156,7 @@ export const webFetchTool: Tool<FetchArgs> = {
 
 		return {
 			content: [{ type: "text", text: `<fetched url="${current}" content-type="${contentType}">\n${clipped}\n</fetched>` }],
-			details: { kind: "web_fetch", url: current.toString(), status: response.status, bytes: buffer.byteLength },
+			details: { kind: "web_fetch", url: current.toString(), status, bytes: buffer.byteLength },
 		};
 	},
 };
@@ -153,7 +171,7 @@ export const webFetchTool: Tool<FetchArgs> = {
  * A resolution failure is not treated as a refusal: the request is about to fail anyway, with a
  * message about DNS that says more than a policy refusal would.
  */
-async function checkTarget(input: string, ctx: ToolContext): Promise<{ url: URL } | { error: string }> {
+async function checkTarget(input: string, ctx: ToolContext): Promise<{ url: URL; addresses: string[] } | { error: string }> {
 	let url: URL;
 	try {
 		url = new URL(input.trim());
@@ -177,7 +195,80 @@ async function checkTarget(input: string, ctx: ToolContext): Promise<{ url: URL 
 		});
 		if (decision !== "once" && decision !== "always") return { error: "The user rejected this network request." };
 	}
-	return { url };
+	return { url, addresses };
+}
+
+/**
+ * 连接只去判定过的地址：请求的 `lookup` 不再问 DNS，直接交回 `checkTarget` 解析出的那一组。
+ * 主机名照旧放在请求里，所以 HTTPS 的 SNI、证书校验与 Host 头都还是原域名。字面 IP 不经过
+ * `lookup`，它本身就是被判定的那个地址。解析失败时这里是空的，连接照样失败，不会再解析一次。
+ */
+export function pinnedLookup(addresses: readonly string[]): LookupFunction {
+	return (hostname, options, callback) => {
+		const entries = addresses.map((address) => ({ address, family: address.includes(":") ? 6 : 4 }));
+		const wanted = options.family === 4 || options.family === 6 ? entries.filter((entry) => entry.family === options.family) : entries;
+		if (wanted.length === 0) {
+			callback(Object.assign(new Error(`getaddrinfo ENOTFOUND ${hostname}`), { code: "ENOTFOUND" }), "", 4);
+			return;
+		}
+		if (options.all) (callback as unknown as (error: null, entries: { address: string; family: number }[]) => void)(null, wanted);
+		else callback(null, wanted[0].address, wanted[0].family);
+	};
+}
+
+function get(url: URL, addresses: readonly string[], signal: AbortSignal | undefined): Promise<IncomingMessage> {
+	const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+	return new Promise((resolve, reject) => {
+		const req = request(url, {
+			method: "GET",
+			lookup: pinnedLookup(addresses),
+			// 不复用连接池：池里的连接是按主机名找的，可能连着上一次解析出的地址。
+			agent: false,
+			signal,
+			headers: {
+				"user-agent": "Lyra/0.1 (+https://github.com/kittors/Lyra)",
+				accept: "text/html,text/plain,*/*",
+				"accept-encoding": "gzip, deflate, br",
+			},
+		});
+		req.once("response", resolve);
+		req.once("error", reject);
+		req.end();
+	});
+}
+
+/** 流式读 body，解压后的字节超过上限就断开连接——不先把整个响应读进内存再判断。 */
+async function readBody(response: IncomingMessage, limit: number): Promise<Buffer> {
+	const tooLarge = () => new Error(`Response is larger than the ${limit / 1024 / 1024} MB limit.`);
+	const declared = Number(response.headers["content-length"]);
+	const encoding = String(response.headers["content-encoding"] ?? "identity").trim().toLowerCase();
+	// 声明的长度是压缩后的，只在没压缩时能直接拿来判断。
+	if (encoding === "identity" && Number.isFinite(declared) && declared > limit) {
+		response.destroy();
+		throw tooLarge();
+	}
+	const decoder =
+		encoding === "gzip" || encoding === "x-gzip" ? createGunzip() : encoding === "deflate" ? createInflate() : encoding === "br" ? createBrotliDecompress() : undefined;
+	if (!decoder && encoding !== "identity") {
+		response.destroy();
+		throw new Error(`Unsupported content encoding "${encoding}".`);
+	}
+	const body: Readable = decoder ? pipeline(response, decoder, () => {}) : response;
+	const chunks: Buffer[] = [];
+	let size = 0;
+	try {
+		for await (const chunk of body) {
+			size += (chunk as Buffer).length;
+			if (size > limit) throw tooLarge();
+			chunks.push(chunk as Buffer);
+		}
+	} finally {
+		if (size > limit || !response.complete) {
+			response.destroy();
+			body.destroy();
+		}
+	}
+	return Buffer.concat(chunks);
 }
 
 /** The body kinds this tool can turn into something a model can read. */

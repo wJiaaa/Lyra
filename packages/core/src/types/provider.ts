@@ -20,6 +20,9 @@ import type { ToolSpec } from "./tool.ts";
  */
 export type ApiFormat = "openai-responses" | "anthropic-messages" | "openai-chat-completions";
 
+/** 智能配置管理的模型字段，见 `model-rules.ts`。 */
+export type SmartField = "contextWindow" | "maxOutputTokens" | "supportsThinking" | "supportsImages" | "supportsTools";
+
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra" | (string & {});
 
 export interface ThinkingOption {
@@ -69,15 +72,31 @@ export interface ModelConfig {
 	supportsImages: boolean;
 	supportsTools: boolean;
 	pricing?: ModelPricing;
-	/** Explicit upstream identity for opaque relay aliases; never changes the wire modelId. */
+	/** Explicit upstream identity for opaque relay aliases, used only for catalogue pricing; never changes the wire modelId. */
 	catalogRef?: { providerId: string; modelId: string };
-	/** Whether limits and capabilities follow the catalogue or an intentional local override. */
-	metadataSource?: "catalog" | "manual";
+	/**
+	 * 智能配置：`smart` 时上限和能力跟随推荐规则（`model-rules.ts`），`overrides` 里的字段除外；
+	 * `manual` 整份由用户决定。缺省是旧数据，按 `withSmartConfig` 的迁移规则处理。
+	 */
+	metadataSource?: "smart" | "manual";
+	/** 智能模式下用户手动定过的字段，它们保留自己的值，不再跟随推荐。 */
+	overrides?: SmartField[];
 	/** Custom thinking options supported by this specific model. */
 	thinkingOptions?: ThinkingOption[];
 	/** Extra sampling parameters merged verbatim into the request body. */
 	samplingParams?: Record<string, unknown>;
 }
+
+/**
+ * 缓存路由键的携带方式。每一个都在 `ai/cache-routing.ts` 的 `CACHE_CARRIERS` 里有一行声明——那张表用
+ * `satisfies Record<CacheCarrierId, …>` 约束，这里加了名字而那边没加行，编译不过。
+ *
+ * 名字写在这里而不是从那边推出来：那边要 import 本文件的类型，反过来引就成环了。
+ */
+export type CacheCarrierId = "prompt_cache_key" | "x-session-id";
+
+/** `auto` 按端点自动选；`off` 一律不带；点名一种方式就只用它。 */
+export type CacheRoutingMode = "auto" | "off" | CacheCarrierId;
 
 export interface ProviderConfig {
 	id: string;
@@ -88,6 +107,11 @@ export interface ProviderConfig {
 	enabled: boolean;
 	/** Extra headers merged into every request. */
 	headers?: Record<string, string>;
+	/**
+	 * 缓存路由键（`RequestOptions.cacheKey`）怎么带。缺省等于 `auto`：按端点自动选，见 `ai/cache-routing.ts`。
+	 * `off` 给那种拒绝未知字段、错误里又不点名字段的严格端点——自动学习认不出它，只能手动关。
+	 */
+	cacheRouting?: CacheRoutingMode;
 	models: ModelConfig[];
 }
 
@@ -99,6 +123,14 @@ export interface RequestOptions {
 	/** Merged over `ModelConfig.samplingParams`. */
 	samplingParams?: Record<string, unknown>;
 	fetch?: typeof globalThis.fetch;
+	/**
+	 * 同一条对话前缀的稳定标识，让服务商把这些请求路由到同一处缓存（OpenAI 的 `prompt_cache_key`、
+	 * OpenRouter 的 `x-session-id` 等，按端点选择见 `ai/cache-routing.ts`）。
+	 *
+	 * 前缀不同的对话要用不同的键：主会话传会话 id，子代理传各自区分开的 id——共用一个键会把不相干的
+	 * 前缀挤到同一台机器上，互相顶掉缓存。不传就什么都不带。
+	 */
+	cacheKey?: string;
 	/** Inspect or rewrite the outgoing body — used by the request inspector in the UI. */
 	onPayload?: (payload: unknown) => void;
 	/**

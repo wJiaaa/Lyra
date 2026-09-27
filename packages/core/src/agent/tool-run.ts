@@ -164,6 +164,7 @@ async function executeOne(
 		sandboxMode: config.sandboxMode,
 		sandboxNetwork: config.sandboxNetwork,
 		allowedHosts: config.allowedHosts,
+		searchProviderId: config.searchProviderId,
 		allowedPaths: config.allowedPaths,
 		projectRoots: config.projectRoots,
 		writePreview: config.writePreview,
@@ -198,17 +199,35 @@ async function executeOne(
 		}
 	}
 
-	let result: ToolResult | undefined;
+	/*
+	 * bash 改道成原生工具：只换执行的那一下，钩子仍按模型调用的 `bash` 跑一遍。
+	 *
+	 * 这里曾经是再调一次 `executeOne`，于是扩展拦截、PreToolUse、PostToolUse 各跑两遍（先按
+	 * `bash`、再按改道后的名字），外层 PreToolUse 的放行也传不进里层。按 `bash` 跑，因为转录里、
+	 * 模型眼里、人写钩子时对着的都是那条命令；改道是执行细节，跟「这条命令直接由 bash 跑」应当
+	 * 对钩子毫无区别。PreToolUse 改过的命令也要在改道之前生效——上面已经换进 `call` 了。
+	 *
+	 * 反过来只按原生名字跑不行：守 `Bash` 的钩子是拦命令的那道闸，改道会让 `cat .env` 从它眼皮底下
+	 * 溜走——这是不改道就不存在的缺口。而守 `Read` 的钩子从来挡不住 bash（`cat .env | head` 不改道，
+	 * 照样绕过它），少跑它不打开任何新的口子。
+	 *
+	 * 当前技能不许用的工具不改道：那等于借 bash 的名义绕过技能的 `allowed-tools`。
+	 */
+	let runnable = tool;
+	let runArgs = call.arguments;
+	let rerouted: string | undefined;
 	if (state.has(TOOL_NAMES_KEY) && call.name === "bash" && typeof call.arguments.command === "string" && !call.arguments.escalate && !call.arguments.run_in_background) {
 		const translated = translatedShellCommand(call.arguments.command);
 		const target = translated && config.tools.find((candidate) => candidate.name === translated.name);
-		if (translated && target) {
-			const native = await executeOne(target, { ...call, name: translated.name, arguments: translated.args, argumentsText: JSON.stringify(translated.args) }, config, state, emit);
-			result = { ...native, content: [...native.content, { type: "text", text: `[Executed with ${translated.name}; use that tool directly next time.]` }] };
+		if (translated && target && !skillRefusal(state, translated.name)) {
+			runnable = target;
+			runArgs = translated.args;
+			rerouted = translated.name;
 		}
 	}
 
-	if (!result) try {
+	let result: ToolResult;
+	try {
 		/*
 		 * Stop must not depend on the tool agreeing to stop.
 		 *
@@ -221,11 +240,12 @@ async function executeOne(
 		 * Racing the signal here makes the button mean what it says. Whatever the tool is doing
 		 * carries on in the background and its result is discarded; the turn is over.
 		 */
-		result = await Promise.race([runTool({ tool, args: call.arguments, ctx }), cancelled(config.signal)]);
+		result = await Promise.race([runTool({ tool: runnable, args: runArgs, ctx }), cancelled(config.signal)]);
 	} catch (error) {
 		if (config.signal?.aborted) return cancelledResult();
 		return errorResult(error instanceof Error ? error.message : String(error));
 	}
+	if (rerouted) result = { ...result, content: [...result.content, { type: "text", text: `[Executed with ${rerouted}; use that tool directly next time.]` }] };
 
 	if (config.afterToolCall) {
 		try {

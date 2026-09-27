@@ -400,7 +400,7 @@ async function unreadDoesNotLieAfterASwitch(): Promise<void> {
 	// 「计划任务」 unmounts the transcript entirely, which is the same path as opening a cached
 	// conversation: the surface goes away and comes back with content it already had.
 	await app.evaluate(`(() => {
-		const nav = [...document.querySelectorAll("button, a")].find((b) => (b.textContent || "").includes("已安排"));
+		const nav = [...document.querySelectorAll("button, a")].find((b) => (b.textContent || "").includes("定时任务"));
 		if (nav) nav.click();
 	})()`);
 	await settle(500);

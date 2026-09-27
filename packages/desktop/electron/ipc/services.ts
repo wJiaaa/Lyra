@@ -7,6 +7,7 @@
  */
 
 import { addMemoryEntry, annotateInjected, buildIndex, clearAllMemory, indexStats, loadIndex, loadMemory, readInjected, removeMemoryEntry, saveIndex, searchIndex, userInjectedPath } from "@lyra/core";
+import { activeModelRules } from "@lyra/core/model-rules";
 import { ipcMain } from "electron";
 import type { ProviderTestResult } from "../ipc-types.ts";
 import { applySettings, settings } from "../app-settings.ts";
@@ -48,6 +49,8 @@ export function registerServicesIpc(deps: ServicesIpcDeps): void {
 			return fetchEndpointModels(provider);
 		},
 	);
+
+	ipcMain.handle("providers:modelRules", () => activeModelRules());
 
 	// Scanning does not need a live session: the settings pages are usually opened before
 	// any conversation exists, and an empty plugin list there reads as "nothing installed".

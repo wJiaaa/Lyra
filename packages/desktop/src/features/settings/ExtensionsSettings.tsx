@@ -121,7 +121,7 @@ export function ExtensionsSettings() {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col" data-ly-extensions-page="">
-			<header className={`mx-auto flex w-full max-w-[900px] shrink-0 items-start justify-between pt-8 pb-5 ${gutter}`}>
+			<header className={`mx-auto flex w-full max-w-[900px] shrink-0 items-start justify-between pt-2 pb-5 ${gutter}`}>
 				<div className="min-w-0">
 					<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("common.plugins")}</h1>
 					{/* One line under the title, because the word 插件 is doing three jobs on this page —

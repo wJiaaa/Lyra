@@ -110,7 +110,7 @@ export function DelegationSettings() {
 	};
 
 	return (
-		<div className="pt-8" data-delegation-settings>
+		<div className="pt-2" data-delegation-settings>
 			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("delegation.title")}</h1>
 			{/* 一句话，长度对齐隔壁「智能体」页——为什么值得省着派，档位自己的说明里已经写了。 */}
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">

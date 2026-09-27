@@ -21,17 +21,21 @@ import { ModelIcon } from "../models/index.ts";
 import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
-import { defaultWindowLabel } from "./model-defaults.ts";
+import { windowLabel } from "./model-defaults.ts";
+import type { ProviderConfig } from "@lyra/core";
 import { useI18n } from "../../i18n/index.ts";
 
 export function FetchModelsModal({
 	open,
+	provider,
 	models,
 	existingModelIds,
 	onClose,
 	onImport,
 }: {
 	open: boolean;
+	/** The endpoint the models come from; the smart-config rules need it for each row's window. */
+	provider: Pick<ProviderConfig, "baseUrl" | "api">;
 	models: string[];
 	existingModelIds: Set<string>;
 	onClose: () => void;
@@ -212,9 +216,8 @@ export function FetchModelsModal({
 											</div>
 										</div>
 									</div>
-									{/* What the import will actually write, from the same constant it writes it from.
-									    This used to be the literal string "200K" on every row — see `model-defaults.ts`. */}
-									<span className="shrink-0 text-caption text-ink-faint font-mono">{defaultWindowLabel()}</span>
+									{/* What the import will actually write, from the same rules it writes it from — see `model-defaults.ts`. */}
+									<span className="shrink-0 text-caption text-ink-faint font-mono">{windowLabel(provider, modelId)}</span>
 								</label>
 							);
 						})

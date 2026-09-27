@@ -183,7 +183,12 @@ test("a read-only program with something to run is not read-only", () => {
 	// A subcommand that runs or moves things.
 	assert.equal(isReadOnlyCommand("npm run build"), false);
 	assert.equal(isReadOnlyCommand("git stash"), false);
-	assert.equal(isReadOnlyCommand("git config user.email me@example.test"), true, "赋值形式没有 --add");
+	assert.equal(isReadOnlyCommand("git config core.fsmonitor ./x.sh"), false, "赋值没有旗标，也是写");
+	assert.equal(isReadOnlyCommand("git config set user.email me@example.test"), false);
+	assert.equal(isReadOnlyCommand("git config user.email"), true);
+	assert.equal(isReadOnlyCommand("git config --get user.email"), true);
+	assert.equal(isReadOnlyCommand("git config --global --list"), true);
+	assert.equal(isReadOnlyCommand("git config get user.email"), true);
 	assert.equal(isReadOnlyCommand("git config --unset user.email"), false);
 });
 

@@ -20,6 +20,7 @@ import {
 	Sparkles,
 	SquareTerminal,
 	Workflow,
+	Wrench,
 } from "lucide-react";
 import type { SettingsSection } from "../../store/index.ts";
 import type { MessageKey } from "../../i18n/index.ts";
@@ -53,6 +54,7 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 			// 紧挨着智能体，因为它们是同一件事的两半：那一页说有谁，这一页说什么时候派他们出去。
 			{ id: "delegation", labelKey: "settings.delegation", icon: Workflow },
 			{ id: "commands", labelKey: "settings.commands", icon: SquareTerminal },
+			{ id: "tools", labelKey: "settings.tools", icon: Wrench },
 			{ id: "hooks", labelKey: "settings.hooks", icon: Anchor },
 			{ id: "search", labelKey: "settings.search", icon: Search },
 			{ id: "access", labelKey: "settings.access", icon: ShieldCheck },

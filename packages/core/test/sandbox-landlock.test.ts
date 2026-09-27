@@ -47,6 +47,9 @@ test("the argv contract refuses what it does not recognise", () => {
 	assert.deepEqual(parseLandlockArgs(["--workspace", "/w", "--mode", "read-only", "--", "true"]).command, ["true"]);
 	assert.equal(parseLandlockArgs(["--workspace", "/w", "--mode", "workspace-write", "--network", "deny", "--", "true"]).network, "deny");
 	assert.throws(() => parseLandlockArgs(["--workspace", "/w", "--mode", "full", "--", "true"]), /--mode/);
+	assert.equal(parseLandlockArgs(["--workspace", "/w", "--mode", "danger-full-access", "--network", "deny", "--", "true"]).mode, "danger-full-access");
+	assert.throws(() => parseLandlockArgs(["--workspace", "/w", "--mode", "danger-full-access", "--", "true"]), /network deny/);
+	assert.deepEqual(landlockRules({ workspace: "/w", mode: "danger-full-access" }, 4), [], "只管网络时一条路径规则都不加");
 	assert.throws(() => parseLandlockArgs(["--workspace", "--mode", "read-only", "--", "true"]), /缺少值/);
 	assert.throws(() => parseLandlockArgs(["--workspace", "/w", "--mode", "read-only"]), /--/);
 });

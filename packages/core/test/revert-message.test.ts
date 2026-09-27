@@ -123,6 +123,48 @@ test("revert takes the task plan back with it", async () => {
 	await rm(root, { recursive: true, force: true });
 });
 
+/** 编辑重发截掉的跟撤回一样多，清单也要一样回到截断点——而且在重发的那一轮开跑之前。 */
+test("edit-and-resend takes the task plan back with it too", async () => {
+	const root = await mkdtemp(join(tmpdir(), "ly-edit-plan-"));
+	const { model, provider } = fixtures();
+	const plan = (content: string): TodoItem[] => [{ content, status: "in_progress", activeForm: content }];
+	const script: AssistantMessage[] = [];
+	let seenByResend: TodoItem[] | undefined;
+	const session = new AgentSession({
+		cwd: root,
+		store: new SessionStore(join(root, "sessions")),
+		settings: { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id },
+		emit: async () => {},
+		streamFn: async (): Promise<AssistantMessage> => {
+			const next = script.shift();
+			if (next) return next;
+			seenByResend = readTodos(session.can.state);
+			return reply([{ type: "text", text: "好了。" }], "stop");
+		},
+	});
+
+	function reply(content: AssistantMessage["content"], stopReason: AssistantMessage["stopReason"]): AssistantMessage {
+		return { role: "assistant", content, api: provider.api, provider: provider.id, model: model.modelId, stopReason, usage: emptyUsage(), timestamp: Date.now() };
+	}
+	const writes = (id: string, todos: TodoItem[]): AssistantMessage =>
+		reply([{ type: "toolCall", id, name: "todo_write", arguments: { todos }, argumentsText: "{}" }], "toolUse");
+
+	await session.initialize();
+	script.push(writes("t1", plan("第一份计划")), reply([{ type: "text", text: "记下了。" }], "stop"));
+	await session.prompt([{ type: "text", text: "第一问" }]);
+	const firstRound = session.messages.length;
+	script.push(writes("t2", plan("第二份计划")), reply([{ type: "text", text: "改好了。" }], "stop"));
+	await session.prompt([{ type: "text", text: "第二问" }]);
+	assert.deepEqual(readTodos(session.can.state), plan("第二份计划"), "前提：第二轮改写了它");
+
+	await session.editAndResend(firstRound, [{ type: "text", text: "改过的第二问" }]);
+	assert.deepEqual(seenByResend, plan("第一份计划"), "重发的那一轮看到的是截断点之前那份");
+	assert.deepEqual(readTodos(session.can.state), plan("第一份计划"));
+
+	await session.dispose();
+	await rm(root, { recursive: true, force: true });
+});
+
 test("revert refuses while a turn is still running", async () => {
 	const root = await mkdtemp(join(tmpdir(), "ly-revert-run-"));
 	const { model, provider } = fixtures();

@@ -121,7 +121,7 @@ export function AgentsSettings() {
 	};
 
 	return (
-		<div data-agent-settings className="pt-8 pb-10">
+		<div data-agent-settings className="pt-2 pb-10">
 			<h1 className="pb-8 text-display leading-tight font-semibold tracking-tight text-ink">{t("agents.title")}</h1>
 			<div className="@container space-y-6">
 				<div className="flex min-w-0 flex-wrap items-center gap-3">

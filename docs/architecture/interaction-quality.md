@@ -606,6 +606,25 @@ key，价格变化会废弃旧聚合结果并从日志重新计价。旧成本�
 desktop production build 通过。Windows UI CI 已登记模型菜单和用量页面用例。本机没有 Windows
 系统或硬件，DirectWrite、系统缩放、多显示器 DPI 和 Windows 原生交互仍需 CI 与实机结果确认。
 
+### 模型智能配置（2026-09-27）
+
+模型的上下文窗口、最大输出、思考、图片输入、工具调用改由智能配置规则给出，models.dev 快照只
+用于价格估算。规则移植自 ZCode 的内置推荐配置（Apache-2.0），`pnpm rules:update` 从本地 ZCode
+仓库生成 `packages/core/src/catalog/model-rules.json`，只保留上述五项。解析（`core/src/model-rules.ts`）
+从前往后逐条叠加：只按模型 ID 的规则、限定 API 格式的规则、限定 Base URL 的站点规则，第一条是
+五项齐全的 `.*` 兜底。同一型号在不同端点可以不同，例如 OpenCode Go 上的 `glm-5.3` 与智谱官方。
+Base URL 按 Lyra 补 `/v1` 的约定，带不带 `/v1` 都能命中。
+
+`ModelConfig.metadataSource` 为 `smart` 时，没列在 `overrides` 里的字段在每次读写设置时跟随推荐；
+编辑器里改哪一项，哪一项就进 `overrides`，可一键恢复推荐。关掉智能配置（`manual`）则整份冻结。
+旧数据里的 `catalog` 标记与旧导入签名（200000/16384/能力全开）迁移为 `smart`，其余无标记的旧模型
+视为手动、原样保留。
+
+桌面主进程启动时先读 `~/.lyra/model-rules.json` 缓存，再每小时从仓库 `main` 分支的原始地址拉取
+一次（`core/src/model-rules-sync.ts`）。整份校验通过、且 `updatedAt` 比当前新才换上并缓存，然后
+重新保存设置，让跟随推荐的模型拿到新值；任何失败都保留现有规则。渲染进程通过
+`providers.modelRules` 取主进程生效的那份，编辑器预览与保存后的值一致。
+
 
 ## 浏览器菜单与 Agent 光标
 

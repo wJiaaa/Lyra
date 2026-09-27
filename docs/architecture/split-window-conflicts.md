@@ -37,7 +37,7 @@ primary 窗口
 └── SplitWorkspace           分屏树（1–4 个会话；单屏也是它）
     ├── SplitPane 会话A → DockView scope=A    A 的对话 + A 的面板（dw:panedock:A）
     └── SplitPane 会话B → DockView scope=B    B 的对话 + B 的面板（dw:panedock:B）
-插件 / 拉取请求 / 已安排      SoloScreen，不进分屏，没有面板
+插件 / 拉取请求 / 定时任务      SoloScreen，不进分屏，没有面板
 ```
 
 下文的冲突都出自改之前的样子：

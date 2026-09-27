@@ -18,18 +18,19 @@ import type {
 	ProviderConfig,
 	RequestOptions,
 	StreamEvent,
-	Usage,
 } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";
-import { computeCost } from "../utils/pricing.ts";
 import { classifyFailure, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
-import { failedStreamEvent, joinUrl } from "./endpoint.ts";
+import { failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { learnToolPairing, toolPairing } from "./tool-pairing-compat.ts";
 import { droppedParams, learnDroppedParam } from "./request-params-compat.ts";
+import { compatScope } from "./compat-key.ts";
+import { applyUsage } from "./usage-fields.ts";
+import { cacheRouting, providerHeaders } from "./cache-routing.ts";
 
 export const openaiResponsesProvider: Provider = {
 	api: "openai-responses",
@@ -58,6 +59,8 @@ async function* streamResponses(
 	const thinkingEnabled = reasoningEffort !== undefined;
 	const modelId = (model.modelId || model.id || "").toLowerCase();
 	const isGemini = modelId.includes("gemini") || modelId.includes("gemma");
+	/** 学和查都用这一对 id，见 `compat-key.ts`。排列这一轴曾经查用 `modelId`、学用 `id`，学到的永远查不到。 */
+	const scope = compatScope(provider, model);
 
 	/*
 	 * 每次尝试重新编一遍，因为**形状可能在两次之间变掉**。
@@ -69,7 +72,7 @@ async function* streamResponses(
 	 */
 	const buildBody = (replay: ReasoningReplay): Record<string, unknown> => {
 		/** 这个端点撞过之后要求我们别发的参数，见 `request-params-compat.ts`。 */
-		const dropped = droppedParams(provider.id, model.id);
+		const dropped = droppedParams(scope.providerId, scope.modelId);
 		return {
 			model: model.modelId,
 			// Told who it is going to, so a handle written by a different model is left behind rather
@@ -78,7 +81,7 @@ async function* streamResponses(
 				sanitizeToolPairing(context.messages),
 				{ provider: provider.id, model: model.modelId, supportsImages: model.supportsImages },
 				replay,
-				toolPairing(provider.id, model.modelId),
+				toolPairing(scope.providerId, scope.modelId),
 			),
 			stream: true,
 			// Sessions live in Lyra's own store, not on the provider.
@@ -119,6 +122,8 @@ async function* streamResponses(
 			...(options.temperature !== undefined && !thinkingEnabled && !dropped.has("sampling")
 				? { temperature: options.temperature }
 				: {}),
+			// 缓存路由键：带不带、带在哪由端点决定，被拒过就不再带。见 `cache-routing.ts`。
+			...cacheRouting(provider, "openai-responses", options.cacheKey, dropped).body,
 			/*
 			 * 采样参数最后展开——它们是用户自己配的，覆盖上面算出来的值是有意为之。
 			 *
@@ -129,11 +134,13 @@ async function* streamResponses(
 			...(dropped.has("sampling") ? {} : { ...model.samplingParams, ...options.samplingParams }),
 		};
 	};
-	let body = buildBody(reasoningReplay(provider.id, model.id));
+	let body = buildBody(reasoningReplay(scope.providerId, scope.modelId));
 
 	options.onPayload?.(body);
 
 	const doFetch = options.fetch ?? globalThis.fetch;
+	// 占位符在这里换一次，重试沿用同一个会话 id。
+	const customHeaders = providerHeaders(provider.headers, options.cacheKey);
 
 	let firstTokenTime: number | null = null;
 	/** output_index -> position in partial.content, so deltas can find their block. */
@@ -155,6 +162,37 @@ async function* streamResponses(
 	/** 前几次失败的尝试各自花掉的 token，攒着，最后加进这条消息的用量里。见 `reset`。 */
 	let spentOnRetries = emptyUsage();
 
+	/*
+	 * Everything the last attempt accumulated, cleared.
+	 *
+	 * The message is rebuilt from scratch by the retry, and the window replaces rather
+	 * than appends — each update carries the whole message — so the abandoned half
+	 * disappears the moment the new one starts arriving.
+	 *
+	 * 两层重试共用这一个。各写一份时这一份漏了 `settled`、那一份漏了 `responseId`：上一次收到过
+	 * `response.completed` 的话，下一次断在半路也会被当成说完了。
+	 */
+	const reset = () => {
+		/*
+		 * 已经花掉的不清零。
+		 *
+		 * 内容要清——重试会把整条回答重新写一遍，留着上一半就成了两半拼在一起。可 token
+		 * 是另一回事：上一次尝试吐到一半才失败，那些 token 服务商已经收过钱了，清零只是
+		 * 让账面上看不见。开着无限重试的窗口于是可以安静地烧穿账单，而界面上的用量始终
+		 * 只显示最后成功那一次。按那一次自己的档位计价后再攒，见 `priceAttempt`。
+		 */
+		spentOnRetries = addUsage(spentOnRetries, priceAttempt(partial.usage, model));
+		partial.content = [];
+		partial.usage = emptyUsage();
+		partial.responseId = undefined;
+		items.clear();
+		inventedIds.clear();
+		incompleteReason = undefined;
+		framesSeen = 0;
+		settled = false;
+		firstTokenTime = null;
+	};
+
 	const retryBudget = new RetryBudget(options.retryPolicy, options.retryAttempts);
 	try {
 		/*
@@ -165,17 +203,10 @@ async function* streamResponses(
 		 * of work where losing a turn costs the most. Nothing has happened yet when it dies:
 		 * tools run after a complete reply arrives, so the reply can simply be asked for again.
 		 */
-		yield* withReasoningRetry(provider.id, model.id, () => {
-			spentOnRetries = addUsage(spentOnRetries, partial.usage);
-			partial.content = [];
-			partial.usage = emptyUsage();
-			items.clear();
-			inventedIds.clear();
-			framesSeen = 0;
-			settled = false;
-			firstTokenTime = null;
-			incompleteReason = undefined;
-		}, (providerId, modelId, said) => learnToolPairing(providerId, modelId, said) || learnDroppedParam(providerId, modelId, said), async function* (replay) {
+		yield* withReasoningRetry(scope.providerId, scope.modelId, reset, (providerId, modelId, said) =>
+			learnToolPairing(providerId, modelId, said) ||
+			// 告诉参数轴这次到底发没发 `effort: "none"`，见 `learnDroppedParam` 的 `sent`。
+			learnDroppedParam(providerId, modelId, said, { reasoningOff: (body.reasoning as { effort?: string } | undefined)?.effort === "none" }), async function* (replay) {
 			body = buildBody(replay);
 			options.onPayload?.(body);
 			yield* retryStream(
@@ -188,7 +219,9 @@ async function* streamResponses(
 						headers: {
 							"content-type": "application/json",
 							authorization: `Bearer ${provider.apiKey}`,
-							...provider.headers,
+							// 请求头放在用户自配的 headers 前面，用户手写的同名头优先。
+							...cacheRouting(provider, "openai-responses", options.cacheKey, droppedParams(scope.providerId, scope.modelId)).headers,
+							...customHeaders,
 						},
 						body: JSON.stringify(body),
 						signal: options.signal,
@@ -404,7 +437,7 @@ async function* streamResponses(
 
 						case "response.completed":
 						case "response.incomplete": {
-							applyUsage(partial.usage, event.response?.usage);
+							applyUsage("openai-responses", partial.usage, event.response?.usage);
 							partial.responseId = event.response?.id;
 							incompleteReason = event.response?.incomplete_details?.reason;
 							settled = true;
@@ -522,32 +555,7 @@ async function* streamResponses(
 				budget: retryBudget,
 				signal: options.signal,
 				onRetry: options.onRetry,
-				/*
-				 * Everything the last attempt accumulated, cleared.
-				 *
-				 * The message is rebuilt from scratch by the retry, and the window replaces rather
-				 * than appends — each update carries the whole message — so the abandoned half
-				 * disappears the moment the new one starts arriving.
-				 */
-				reset: () => {
-					/*
-					 * 已经花掉的不清零。
-					 *
-					 * 内容要清——重试会把整条回答重新写一遍，留着上一半就成了两半拼在一起。可 token
-					 * 是另一回事：上一次尝试吐到一半才失败，那些 token 服务商已经收过钱了，清零只是
-					 * 让账面上看不见。开着无限重试的窗口于是可以安静地烧穿账单，而界面上的用量始终
-					 * 只显示最后成功那一次。
-					 */
-					spentOnRetries = addUsage(spentOnRetries, partial.usage);
-					partial.content = [];
-					partial.usage = emptyUsage();
-					partial.responseId = undefined;
-					items.clear();
-					inventedIds.clear();
-					incompleteReason = undefined;
-					framesSeen = 0;
-					firstTokenTime = null;
-				},
+				reset,
 			},
 			);
 		});
@@ -574,26 +582,10 @@ async function* streamResponses(
 			: partial.content.some((c) => c.type === "toolCall")
 				? "toolUse"
 				: "stop";
-	partial.usage.total = partial.usage.input + partial.usage.output + partial.usage.cacheRead + partial.usage.cacheWrite;
-	// 成功了，但失败的那几次也是花过钱的——账上要有。
-	partial.usage = addUsage(partial.usage, spentOnRetries);
-	partial.usage = computeCost(partial.usage, model);
+	// 成功了，但失败的那几次也是花过钱的——账上要有。各按各的档位计价再相加，见 `priceAttempt`。
+	partial.usage = addUsage(priceAttempt(partial.usage, model), spentOnRetries);
 	yield { type: "done", message: { ...partial } };
 	return partial;
-}
-
-function applyUsage(usage: Usage, raw: Record<string, any> | undefined): void {
-	if (!raw) return;
-	if (typeof raw.input_tokens === "number") usage.input = raw.input_tokens;
-	if (typeof raw.output_tokens === "number") usage.output = raw.output_tokens;
-	if (typeof raw.input_tokens_details?.cached_tokens === "number") {
-		usage.cacheRead = raw.input_tokens_details.cached_tokens;
-		// Cached tokens are reported inside input_tokens; keep the two buckets disjoint.
-		usage.input = Math.max(0, usage.input - usage.cacheRead);
-	}
-	if (typeof raw.output_tokens_details?.reasoning_tokens === "number") {
-		usage.reasoning = raw.output_tokens_details.reasoning_tokens;
-	}
 }
 
 // ---------------------------------------------------------------------------

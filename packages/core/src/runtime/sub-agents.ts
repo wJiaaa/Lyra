@@ -135,6 +135,8 @@ export interface SubAgentConversation {
 	state: Map<string, unknown>;
 	/** `view` 里那条日期块写的是哪一天；隔了天续跑要补一条新的。 */
 	envDate: string;
+	/** `view` 是哪个模型说出来的（`ModelConfig.id`）；续跑时换了人，要先摘掉旧供应商的句柄。 */
+	model: string;
 }
 
 /** A summary plus everything it said, for the pane showing one of them. */
@@ -410,6 +412,11 @@ export class SubAgentRegistry {
 		 * it happened to re-read the whole thing. The caller emits it; see `AgentSession.steerSubAgent`.
 		 */
 		return message;
+	}
+
+	/** 还有没送进去的话。只看不取——取的只能是循环，它取的时候会把话写进转录。 */
+	hasSteering(id: string): boolean {
+		return (this.records.get(id)?.steering.length ?? 0) > 0;
 	}
 
 	/** Emptied by the running loop between turns — see `drainSteering`. */

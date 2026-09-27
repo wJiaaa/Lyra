@@ -315,8 +315,14 @@ The project may make additional tools available beyond the ones listed above.`);
 	 * 子代理不受影响：它那边不传 `delegation`（见 `sub-agent.ts`），条件退回原来那半句。它手里
 	 * 没有 `task` 是因为深度或者定义不许，而它也没有一个可以去点名的用户。
 	 */
-	if (input.tools.some((tool) => tool.name === "task") || input.delegation?.tier === "off")
-		prompt.add("agents", formatSubagents(input.agents ?? [], input.dispatchLimits, input.thinking, input.delegation));
+	if ((input.tools.some((tool) => tool.name === "task") || input.delegation?.tier === "off") && input.agents?.length) {
+		prompt.add("agents", formatSubagents(input.agents, input.delegation));
+		/*
+		 * 名单之外单独一段：推理档位在会话中途会变，变的只有这一段。会话内 system prompt 冻结，
+		 * 改动作为增量接在末尾（`update.ts`），拆开之后增量里只重发这几句，而不是连名单一起。
+		 */
+		prompt.add("delegation", formatDelegation(input.dispatchLimits, input.thinking, input.delegation));
+	}
 
 	if (input.projectInstructions.length > 0) {
 		prompt.add("projectInstructions", "\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n");
@@ -365,30 +371,19 @@ Decide by asking who the file is for. Something the user will keep, run or commi
  * Without this list the model has no way to know which `subagent_type` values exist, so it
  * falls back to `general` even when the user names a specific agent.
  */
-function formatSubagents(
-	agents: AgentDefinition[],
-	limits?: { maxConcurrent: number; maxDepth: number },
-	thinking?: ThinkingLevel,
-	delegation?: DelegationDecision,
-): string {
-	if (agents.length === 0) return "";
-
+function formatSubagents(agents: AgentDefinition[], delegation?: DelegationDecision): string {
 	/*
-	 * 关掉且没人点名的那一轮，`task` 不在工具表里——名单却仍然要给。
+	 * 关掉派活时名单仍然要给，开头那句换成「只有被点名才派」。
 	 *
-	 * 因为这一档下唯一的出路是让用户点名，而 `delegationNote` 正是这么告诉模型的：「让他写
-	 * `@智能体名`」。没有名单，那句话就成了一句没法照做的建议——模型既说不出有哪些名字可点，
-	 * 也没法判断用户写下的那个名字存不存在。
-	 *
-	 * 开头那句得换掉。「available to the `task` tool」在工具已经被收走的这一轮里是句假话，而
-	 * 提示词里的假话模型会当真，然后花一次调用去找一个不存在的工具。
+	 * 这一档下唯一的出路是让用户点名，没有名单，模型既说不出有哪些名字可点，也没法判断用户写下的
+	 * 那个名字存不存在。只看档位、不看这一轮点没点名：这段在 system prompt 里，跟着点名变会让
+	 * 点名那一轮和下一轮各发一次增量（见 `runtime/delegation.ts` 的 `DELEGATION_KEY`）。
 	 */
-	const dormant = delegation?.tier === "off" && delegation.mentioned.length === 0;
 	const lines = [
 		"",
 		"",
-		dormant
-			? "These sub-agents exist in this workspace, but the user has switched delegation off, so the `task` tool is not in your list this turn. They are listed only so you can tell the user which names exist — dispatch happens when they name one with @name themselves."
+		delegation?.tier === "off"
+			? "These sub-agents exist in this workspace, but the user has switched delegation off. Dispatch one with the `task` tool only when the user's latest message names it with @name; any other dispatch is refused."
 			: "These sub-agents are available to the `task` tool. Pass the one whose description fits as `subagent_type`. When the user explicitly requests @name from this list, dispatch that named agent for the requested task.",
 		"",
 		"<available_subagents>",
@@ -405,7 +400,15 @@ function formatSubagents(
 	}
 
 	lines.push("</available_subagents>");
+	return lines.join("\n");
+}
 
+/** 这一轮该有多想派、最多同时几个。紧跟在名单后面，字节与拆开之前一致。 */
+function formatDelegation(
+	limits?: { maxConcurrent: number; maxDepth: number },
+	thinking?: ThinkingLevel,
+	delegation?: DelegationDecision,
+): string {
 	/*
 	 * 该有多想派，先于「最多能派几个」。
 	 *
@@ -414,16 +417,16 @@ function formatSubagents(
 	 *
 	 * 跟着推理等级变，理由见 `runtime/delegation.ts`。
 	 */
-	lines.push("", delegationNote(thinking, { policy: delegation?.tier, mentioned: delegation?.mentioned }));
+	const lines = ["", "", delegationNote(thinking, { policy: delegation?.tier })];
 
 	/*
-	 * 一个都派不了的那一轮，不谈上限。
+	 * 关掉派活的档位，不谈上限。
 	 *
-	 * 「最多 1 个同时跑」在这里不是一句收紧的话，而是一句放行的话——它默认了「有得派」，而这一轮
-	 * 的事实是一个都派不了。上面那段刚说完这条路不通，紧接着报一个并发数，等于把刚说清楚的事又
-	 * 打开一条缝。
+	 * 「最多 1 个同时跑」在这里不是一句收紧的话，而是一句放行的话——它默认了「有得派」，而这一档
+	 * 的事实是没点名就一个都不能派。上面那段刚说完这条路不通，紧接着报一个并发数，等于把刚说清楚
+	 * 的事又打开一条缝。
 	 */
-	if (limits && !dormant) {
+	if (limits && delegation?.tier !== "off") {
 		/*
 		 * The limit has to be stated, because a queue is invisible from inside the model.
 		 *
@@ -433,7 +436,9 @@ function formatSubagents(
 		 *
 		 * The number is this turn's, not the setting's — see `delegationConcurrency`. Stating the
 		 * ceiling while the gate enforces something lower is the same invisible queue by another
-		 * route, and a worse one: the model would have been told a number that is not true.
+		 * route, and a worse one: the model would have been told a number that is not true. When the
+		 * number changes mid-session the new one arrives as an update message, not by rewriting the
+		 * head — see `update.ts`.
 		 */
 		lines.push("", concurrencyNote(limits.maxConcurrent, limits.maxDepth));
 	}

@@ -133,10 +133,11 @@ test("all built-in agents can be configured before any session is created", asyn
 	t.diagnostic(JSON.stringify(visible)); await shot("builtin-agents");
 });
 
-test("old relay imports show real prices, limits and text-only model capabilities", async (t) => {
+test("old relay imports follow the smart config for limits and capabilities and keep catalogue prices", async (t) => {
 	await editor("gemini-3.7-flash-high");
 	const values = await app.evaluate<{ id: string; context: string; output: string; input: string; priceOut: string; cache: string; text: string }>(readFields);
-	assert.equal(values.id, "gemini-3.7-flash-high"); assert.equal(values.context, "1048576"); assert.equal(values.output, "65536");
+	// The smart-config rules have nothing specific for this relay alias, so its limits are the general default.
+	assert.equal(values.id, "gemini-3.7-flash-high"); assert.equal(values.context, "200000"); assert.equal(values.output, "32000");
 	assert.equal(values.input, "0.75"); assert.equal(values.priceOut, "3.75"); assert.equal(values.cache, "0.075");
 	assert.match(values.text, /参考估算/); t.diagnostic(JSON.stringify(values)); await shot("relay-model-prices");
 	await label("取消"); await until(`!document.querySelector('[data-ly-modal]')`);

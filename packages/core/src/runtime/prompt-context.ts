@@ -3,7 +3,7 @@ import { RENAMED_AGENTS, resolveAgentName } from "../agents-builtin.ts";
 import { delegationConcurrency, delegationTier, mentionedAgents, normalizeDelegationPolicy, type DelegationDecision } from "./delegation.ts";
 import { access } from "node:fs/promises";
 import { platform } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { Settings } from "../config/settings.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
 import { commandShell } from "../platform.ts";
@@ -15,14 +15,24 @@ import { gatherMemory } from "./memory-inject.ts";
 import { projectMemoryEnabled } from "./project-memory.ts";
 import { isIsolatedWorktree } from "./workspace.ts";
 
-/** Execution and pre-request previews resolve exactly the same sources and budgets. */
+/**
+ * Execution and pre-request previews resolve exactly the same sources and budgets.
+ *
+ * 每轮按磁盘现状生成一份；会话里真正发出去的是冻结的那份，两者在段落上的差别作为增量接在历史
+ * 末尾（`session-turn.ts` 的 `settlePrompt`）。所以这里照旧每轮重读项目指令、规则和技能：改动
+ * 要被发现，只是不再改写开头。
+ */
 export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "tools" | "skills" | "agents" | "modelName" | "rules" | "resources" | "thinking" | "delegation" | "dispatchLimits" | "scratchDir"> & {
 	settings: Settings;
 	recordInjection?: boolean;
 }) {
 	const { cwd, settings } = input;
 	const [memory, projectInstructions, identityOverride, guidelinesOverride, isolatedWorktree, isGitRepo] = await Promise.all([
-		gatherMemory(cwd, settings.personalization?.enableMemory !== false, Date.now(), projectMemoryEnabled(settings), input.recordInjection !== false),
+		/*
+		 * 按会话冻结记忆（见 `memory-inject.ts`）。暂存目录的最后一段就是会话 id（`scratchDir`），
+		 * 是两处调用方（组装一轮、上下文面板预估）都已经传进来的会话标识；没有它的调用方每次重读。
+		 */
+		gatherMemory(cwd, settings.personalization?.enableMemory !== false, Date.now(), projectMemoryEnabled(settings), input.recordInjection !== false, input.scratchDir ? basename(input.scratchDir) : undefined),
 		loadProjectInstructions(cwd),
 		readPromptOverride(cwd, "identity"),
 		readPromptOverride(cwd, "guidelines"),
@@ -57,9 +67,8 @@ interface PromptCapabilitiesInput {
 
 export function promptCapabilities(input: PromptCapabilitiesInput) {
 	const delegation = delegationDecision(input);
-	const tools = input.tools.filter(tool =>
-		(tool.name !== "learn" || projectMemoryEnabled(input.settings)) &&
-		(tool.name !== "task" || delegation.tier !== "off" || delegation.mentioned.length > 0));
+	// `task` 不按点名增减：工具表在缓存前缀最前面，派活关掉时由 `task` 执行时按 `DELEGATION_KEY` 放行。
+	const tools = input.tools.filter(tool => tool.name !== "learn" || projectMemoryEnabled(input.settings));
 	return {
 		tools, delegation,
 		dispatchLimits: {
@@ -73,15 +82,14 @@ export function promptCapabilities(input: PromptCapabilitiesInput) {
  * 这一轮到底派不派、派谁。
  *
  * 只在 `off` 档下才去读用户写了什么——其余四档的答案跟消息内容无关，而扫一遍历史找 `@` 是白花的
- * 工夫。这也让「关掉」成为唯一一个会因为用户措辞而改变工具表的档位，那正是它的定义。
+ * 工夫。结果只进会话状态给 `task` 执行时检查，不改工具表也不改提示词，缓存前缀不跟着点名变。
  *
  * 看的是「上一条助手消息之后的所有用户消息」，而不是最后一条。用户常常分两次说完一件事——先
  * 「@explore 看看这个」，再补一句「先别改代码」——只读最后一条会把点名读丢，而那一条恰恰是他
  * 唯一一次明确表示要派活。
  *
- * 已知的边界：中途插话（steering）到达时这一轮的工具表已经定了，所以插话里的点名要等下一轮才
- * 算数。改成每次请求前重算是可以的，但那意味着一轮之内工具表会变，模型看到的世界在自己说话的
- * 过程中被换掉——那个代价比等一轮大。
+ * 已知的边界：中途插话（steering）到达时这一轮的决定已经定了，所以插话里的点名要等下一轮才
+ * 算数。
  */
 function delegationDecision(input: PromptCapabilitiesInput): DelegationDecision {
 	const policy = normalizeDelegationPolicy(input.settings.subAgentDelegation);

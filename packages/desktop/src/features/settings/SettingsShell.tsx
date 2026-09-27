@@ -17,6 +17,7 @@ import { ArchivedSettings } from "./ArchivedSettings.tsx";
 import { AboutSettings } from "./AboutSettings.tsx";
 import { AppearanceSettings } from "./AppearanceSettings.tsx";
 import { CommandsSettings } from "./CommandsSettings.tsx";
+import { ToolsSettings } from "./ToolsSettings.tsx";
 import { GeneralSettings } from "./GeneralSettings.tsx";
 import { PersonalizationSettings } from "./PersonalizationSettings.tsx";
 import { McpSettings } from "./McpSettings.tsx";
@@ -253,6 +254,8 @@ function SectionBody({ section }: { section: SettingsSection }) {
 			return <ScreenshotSettings />;
 		case "commands":
 			return <CommandsSettings />;
+		case "tools":
+			return <ToolsSettings />;
 		case "search":
 			return <SearchSettings />;
 		case "access":

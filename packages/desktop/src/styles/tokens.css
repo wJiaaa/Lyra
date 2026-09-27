@@ -184,7 +184,7 @@
   --text-heading--line-height: 1.3;
   --text-heading--letter-spacing: -0.015em;
 
-  --text-display: calc(var(--ly-ui-size, 14px) + 13px);
+  --text-display: calc(var(--ly-ui-size, 14px) + 16px);
   --text-display--line-height: 1.2;
   --text-display--letter-spacing: -0.022em;
 

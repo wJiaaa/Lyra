@@ -22,6 +22,35 @@
 import type { Message, ToolResultMessage } from "../types.ts";
 
 /**
+ * 每份剪短的副本是从哪条消息剪出来的。
+ *
+ * 剪枝只改发给模型的副本，日志里是原文；下一轮从日志重建历史时，拿到的又是原文。`AgedToolPruner`
+ * 按原文记住上一次发出去的副本，才能把同一份视图再发一次——前缀不断、实测 usage 也对得上。
+ * 但副本不全是它自己剪的：循环外层的 `dropUneventful`、压缩里的剪枝都产出新对象，它得顺着这条链
+ * 找回原文。只记身份关系，不记决定，所以放在模块级是安全的；弱引用，随消息一起回收。
+ */
+const parents = new WeakMap<Message, Message>();
+
+/** 记下 `view` 是从 `source` 剪出来的，原样返回 `view`。 */
+export function derive<T extends Message>(source: Message, view: T): T {
+	if (view !== source) parents.set(view, source);
+	return view;
+}
+
+/** 顺着剪枝链回到日志里那条原文；本来就是原文的返回它自己。 */
+export function sourceOf(message: Message): Message {
+	let at = message;
+	for (let parent = parents.get(at); parent; parent = parents.get(at)) at = parent;
+	return at;
+}
+
+/** `message` 是否就是 `ancestor`，或是从它进一步剪出来的。 */
+export function descends(message: Message, ancestor: Message): boolean {
+	for (let at: Message | undefined = message; at; at = parents.get(at)) if (at === ancestor) return true;
+	return false;
+}
+
+/**
  * Above this, a result is cut. Below it, nothing happens at all.
  *
  * Roughly 2,300 tokens of prose or code. Large enough that ordinary results — a file read, a test
@@ -127,7 +156,7 @@ function pruneMessage(message: Message, threshold: number, artifacts?: ArtifactS
 		return { ...block, text: pruned };
 	});
 	if (!cut) return message;
-	return { ...message, content } as ToolResultMessage;
+	return derive(message, { ...message, content } as ToolResultMessage);
 }
 
 /**
@@ -172,7 +201,7 @@ export function stripOversizedToolResults(messages: Message[], threshold = PRUNE
 		const size = message.content.reduce((sum, block) => sum + (block.type === "text" ? [...block.text].length : 0), 0);
 		if (size <= threshold) return message;
 		changed = true;
-		return {
+		return derive(message, {
 			...message,
 			content: [
 				{
@@ -183,7 +212,7 @@ export function stripOversizedToolResults(messages: Message[], threshold = PRUNE
 						`run the tool again more narrowly if you need it.]`,
 				},
 			],
-		} as ToolResultMessage;
+		} as ToolResultMessage);
 	});
 	return changed ? next : messages;
 }
@@ -228,8 +257,20 @@ export interface PruneTiming {
  */
 export function sizePruneSaving(chars: number): number {
 	if (chars <= PRUNE_THRESHOLD_CHARS) return 0;
-	return Math.max(0, chars - PRUNE_HEAD_CHARS - PRUNE_TAIL_CHARS - 280);
+	return Math.max(0, chars - PRUNE_HEAD_CHARS - PRUNE_TAIL_CHARS - MARKER_CHARS);
 }
+
+/** 占位标记大约多长，算节省时扣掉。 */
+const MARKER_CHARS = 280;
+
+/**
+ * 一条新结果最多多长，`AgedToolPruner` 才不会在模型看到它之前就剪掉。
+ *
+ * 超过它的节省大于 `CHEAP_SUFFIX_CHARS`，算作「炸开的输出」，不等二十轮就剪成头尾——对 `read`
+ * 这意味着模型只看到前 4k 和后 1k，而工具已把整段记成读过，`edit` 会放行它没见过的行。
+ * 会自己记「已显示」的工具要把输出控制在这以内（见 `tools/read.ts`）。
+ */
+export const FRESH_RESULT_MAX_CHARS = CHEAP_SUFFIX_CHARS + PRUNE_HEAD_CHARS + PRUNE_TAIL_CHARS + MARKER_CHARS;
 
 /**
  * The leftmost rewrite we can afford this request.
@@ -292,7 +333,7 @@ export function dropUneventful(messages: Message[], timing: PruneTiming = {}): M
 		if (size <= PRUNE_FLOOR_CHARS) return message;
 		if (!worthPruning(messages, index, timing)) return message;
 		changed = true;
-		return { ...message, content: [{ type: "text" as const, text: "[无结果]" }] } as ToolResultMessage;
+		return derive(message, { ...message, content: [{ type: "text" as const, text: "[无结果]" }] } as ToolResultMessage);
 	});
 	return changed ? next : messages;
 }

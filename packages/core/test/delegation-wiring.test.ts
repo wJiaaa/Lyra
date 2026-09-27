@@ -17,6 +17,7 @@ import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { DispatchGate } from "../src/runtime/dispatch-guard.ts";
 import { SessionStore } from "../src/session/store.ts";
+import { currentSections } from "../src/prompt/update.ts";
 import { emptyUsage, type AssistantMessage, type ModelConfig, type ProviderConfig, type ThinkingLevel } from "../src/types.ts";
 
 const MODEL: ModelConfig = {
@@ -76,7 +77,12 @@ async function harness(settings: Settings = SETTINGS) {
 		store: new SessionStore(join(root, "sessions")),
 		emit: () => {},
 		streamFn: async (context) => {
-			prompts.push(context.systemPrompt);
+			/*
+			 * 模型此刻读到的各段：会话内冻结的开头，叠上历史里接在末尾的增量（`prompt/update.ts`）。
+			 * 派活说明随档位变时走的是增量，开头的字节不动。
+			 */
+			const frozen = await session.log.frozenPrompt();
+			prompts.push(frozen?.systemPrompt === context.systemPrompt ? [...currentSections(frozen, context.messages).values()].join("") : context.systemPrompt);
 			return reply();
 		},
 	});

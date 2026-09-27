@@ -16,13 +16,22 @@ import { createReadStream } from "node:fs";
 import { readdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { lyraHome, type ProviderConfig } from "@lyra/core";
+import {
+	diagnoseRequest,
+	lyraHome,
+	markCacheBoundary,
+	newCacheDiagnosisState,
+	type AssistantMessage,
+	type CacheCause,
+	type CacheDiagnosisState,
+	type ProviderConfig,
+} from "@lyra/core";
 import { freshTokens } from "@lyra/core/tokens";
 import { readUsageCache, USAGE_CACHE_VERSION, type UsageFileEntry, type UsageFiles } from "./usage-cache.ts";
 import { priceUsage, usagePricingKey, type TokenUsage } from "./usage-pricing.ts";
-import type { UsageBucket, UsageDay, UsageScan } from "./usage-types.ts";
+import type { UsageBucket, UsageCacheMiss, UsageDay, UsageScan } from "./usage-types.ts";
 
-export type { UsageBucket, UsageDay, UsageScan } from "./usage-types.ts";
+export type { UsageBucket, UsageCacheMiss, UsageDay, UsageScan } from "./usage-types.ts";
 
 /** Local date key, deliberately not ISO/UTC. Mirrors `dayKey` in the settings page. */
 function dayKey(ms: number): string {
@@ -42,7 +51,11 @@ function numberAt(record: Record<string, unknown> | null, key: string): number {
 }
 
 function emptyEntry(mtimeMs: number, size: number): UsageFileEntry {
-	return { mtimeMs, size, buckets: [], days: {} };
+	return { mtimeMs, size, buckets: [], days: {}, cacheStreams: {} };
+}
+
+function streamOf(entry: UsageFileEntry, id: string): CacheDiagnosisState {
+	return (entry.cacheStreams[id] ??= newCacheDiagnosisState());
 }
 
 function bucketFor(entry: UsageFileEntry, day: string, key: string, provider: string, model: string): UsageBucket {
@@ -104,7 +117,10 @@ async function readLog(path: string, entry: UsageFileEntry, size: number, provid
 			if (
 				!line.includes('"type":"message"') &&
 				!line.includes('"type":"usage"') &&
-				!line.includes('"subagent_message"')
+				!line.includes('"subagent_message"') &&
+				// 缓存诊断要知道前缀在哪儿被有意改写：压缩（主会话和子代理）与撤回。
+				!line.includes('"compacted"') &&
+				!line.includes('"type":"truncate"')
 			)
 				continue;
 			let parsed: unknown;
@@ -115,6 +131,12 @@ async function readLog(path: string, entry: UsageFileEntry, size: number, provid
 			}
 			const record = asRecord(parsed);
 			if (!record) continue;
+			const event = record.type === "event" ? asRecord(record.event) : null;
+			if (record.type === "truncate") markCacheBoundary(streamOf(entry, "main"), "rewind");
+			if (event?.type === "compacted") markCacheBoundary(streamOf(entry, "main"), "compaction");
+			if (event?.type === "subagent_event" && asRecord(event.event)?.type === "compacted") {
+				markCacheBoundary(streamOf(entry, `sub:${String(event.id)}`), "compaction");
+			}
 			/*
 			 * 三个来源，都是花出去的钱。
 			 *
@@ -126,10 +148,7 @@ async function readLog(path: string, entry: UsageFileEntry, size: number, provid
 			 * 和辅助调用一样按 `auxiliary` 处理，因为它们在「是不是一条对话消息」这件事上是同一类：算钱，
 			 * 不算条数。子 Agent 的往返是委派内部的事，混进日活消息数会让一次委派看起来像聊了几十轮。
 			 */
-			const subagent =
-				record.type === "event" && asRecord(record.event)?.type === "subagent_message"
-					? asRecord(asRecord(record.event)?.message)
-					: null;
+			const subagent = event?.type === "subagent_message" ? asRecord(event.message) : null;
 			const auxiliary = record.type === "usage" || subagent !== null;
 			const message =
 				record.type === "usage"
@@ -176,6 +195,22 @@ async function readLog(path: string, entry: UsageFileEntry, size: number, provid
 			else if (priced.source === "recorded") bucket.recordedPricedTokens += tokenTotal;
 			else bucket.unpricedTokens += tokenTotal;
 			bucket.replies += 1;
+			/*
+			 * 辅助调用（`usage` 记录）不在任何一条请求序列里，不诊断。主会话和每个子代理各是一条序列，
+			 * 前缀互不相干，和 `pnpm audit:sessions` 第 10 节同一个分法。
+			 */
+			if (record.type !== "usage") {
+				const stream = streamOf(entry, subagent ? `sub:${String(event?.id)}` : "main");
+				const request = { ...message, provider, model, timestamp: at, usage: { ...tokens, cost: asRecord(usage?.cost) ?? {} } };
+				const diagnosis = diagnoseRequest(stream, request as unknown as AssistantMessage, 0);
+				if (diagnosis && diagnosis.missed > 0) {
+					const miss = (bucket.cacheMiss ??= { tokens: 0, cost: 0, unpriced: 0, byCause: {} });
+					miss.tokens += diagnosis.missed;
+					if (diagnosis.extraCost === undefined) miss.unpriced += diagnosis.missed;
+					else miss.cost += diagnosis.extraCost;
+					miss.byCause[diagnosis.cause] = (miss.byCause[diagnosis.cause] ?? 0) + diagnosis.missed;
+				}
+			}
 		}
 	} finally {
 		lines.close();
@@ -205,6 +240,15 @@ async function logPaths(root: string): Promise<string[]> {
 			if (file.endsWith(".jsonl")) out.push(join(project.name, file));
 		}
 	}
+	return out;
+}
+
+function addCacheMiss(into: UsageCacheMiss | undefined, add: UsageCacheMiss): UsageCacheMiss {
+	const out = into ?? { tokens: 0, cost: 0, unpriced: 0, byCause: {} };
+	out.tokens += add.tokens;
+	out.cost += add.cost;
+	out.unpriced += add.unpriced;
+	for (const [cause, tokens] of Object.entries(add.byCause) as [CacheCause, number][]) out.byCause[cause] = (out.byCause[cause] ?? 0) + tokens;
 	return out;
 }
 
@@ -244,7 +288,7 @@ export async function scanUsage(home = lyraHome(), providers: ProviderConfig[] =
 		 */
 		const untouched = known !== undefined && known.mtimeMs === info.mtimeMs && known.size === info.size;
 		const grown = known !== undefined && !untouched && info.size > known.size;
-		const entry = untouched || grown ? { ...known, buckets: known.buckets.map((b) => ({ ...b })), days: { ...known.days } } : emptyEntry(info.mtimeMs, 0);
+		const entry = untouched || grown ? structuredClone(known) : emptyEntry(info.mtimeMs, 0);
 
 		if (untouched) cached += 1;
 		else {
@@ -266,7 +310,7 @@ export async function scanUsage(home = lyraHome(), providers: ProviderConfig[] =
 			const id = `${bucket.day}\u0000${bucket.key}`;
 			const seen = totals.get(id);
 			if (!seen) {
-				totals.set(id, { ...bucket });
+				totals.set(id, { ...bucket, cacheMiss: bucket.cacheMiss && addCacheMiss(undefined, bucket.cacheMiss) });
 				continue;
 			}
 			seen.input += bucket.input;
@@ -287,6 +331,7 @@ export async function scanUsage(home = lyraHome(), providers: ProviderConfig[] =
 			seen.recordedPricedTokens += bucket.recordedPricedTokens;
 			seen.unpricedTokens += bucket.unpricedTokens;
 			seen.replies += bucket.replies;
+			if (bucket.cacheMiss) seen.cacheMiss = addCacheMiss(seen.cacheMiss, bucket.cacheMiss);
 		}
 	}
 

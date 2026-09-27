@@ -225,6 +225,13 @@ export interface UserMessage {
 	/** An explicit runtime control discarded the old plan; it did not mark work completed. */
 	clearsTaskPlan?: boolean;
 	/**
+	 * 会话中途改了的 system prompt 段落：段落 id → 新文本，`null` 是这一段没了。
+	 *
+	 * 存成数据而不是让下一轮去解析正文，理由同 `ruleMatch`：正文是写给模型的，措辞会改；而下一轮
+	 * 要据此算出「模型此刻以为各段是什么」，重启后也要从日志算出同一个答案。见 `prompt/update.ts`。
+	 */
+	promptUpdate?: { section: string; text: string | null }[];
+	/**
 	 * Who sent this, when it was not the person looking at the transcript.
 	 *
 	 * A task dispatched from the side chat lands in the main conversation as an ordinary user

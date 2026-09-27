@@ -48,6 +48,25 @@ export async function loadMemory(): Promise<MemoryStore> {
 	}
 }
 
+/**
+ * 会话内冻结的记忆注入快照，键由 `memory-inject.ts` 决定。
+ *
+ * 放在这里而不是 `memory-inject.ts`：人手动改记忆的几条路（这里的 `saveMemory`、
+ * `project-memory.ts` 的几个 forget）要作废快照，而 `memory-inject.ts` 反过来依赖它们，
+ * 放在最底层的这个模块里才不绕成环。
+ */
+export const memorySnapshots = new Map<string, unknown>();
+
+/**
+ * 人在设置里改了记忆：所有会话下一轮重新读。
+ *
+ * 冻结挡的是模型自己 `learn`、后台抽取这类会话中途的写入——那些改动模型已在历史里看到，或本来
+ * 就不急。人删掉一条错的记忆是另一回事：他要的是它立刻不再被注入。
+ */
+export function invalidateMemorySnapshots(): void {
+	memorySnapshots.clear();
+}
+
 export async function saveMemory(store: MemoryStore): Promise<void> {
 	const p = memoryPath();
 	await mkdir(dirname(p), { recursive: true });
@@ -61,6 +80,7 @@ export async function saveMemory(store: MemoryStore): Promise<void> {
 		2,
 	);
 	await writeFile(p, data, "utf8");
+	invalidateMemorySnapshots();
 }
 
 export async function addMemoryEntry(content: string, source: "user" | "auto" | "session" = "user", sessionId?: string): Promise<MemoryEntry> {

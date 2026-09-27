@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { translatedShellCommand, TOOL_NAMES_KEY } from "../src/tools/reroute.ts";
 import { runTools } from "../src/agent/tool-run.ts";
+import { ACTIVE_SKILL_KEY } from "../src/skills/tool.ts";
 import type { AgentRunConfig } from "../src/agent/loop.ts";
 import type { Tool } from "../src/types.ts";
 
@@ -30,18 +31,35 @@ function fixture() {
 	return { config, state, run, executed, hooks };
 }
 
-test("translated calls keep the original result ID and both tool hooks without an extra model round", async () => {
+test("translated calls keep the original result ID and run the hooks once, as the bash the model called", async () => {
+	/*
+	 * 以前是 before:bash、before:read、after:read、after:bash——扩展拦截、PreToolUse、PostToolUse
+	 * 各跑两遍。钩子按模型调用的那条命令跑一遍，理由见 `tool-run.ts` 改道那一段。
+	 */
 	const f = fixture(); const [result] = await f.run();
 	assert.deepEqual(f.executed, ["read"]);
-	assert.deepEqual(f.hooks, ["before:bash", "before:read", "after:read", "after:bash"]);
+	assert.deepEqual(f.hooks, ["before:bash", "after:bash"]);
 	assert.equal(result.toolCallId, "original"); assert.equal(result.toolName, "bash");
 	assert.equal(result.isError, false);
 	assert.match(JSON.stringify(result.content), /a.txt/);
 });
 
-test("native hook rejection cannot be bypassed through bash", async () => {
-	const f = fixture(); f.config.beforeToolCall = async ({ toolName }) => toolName === "read" ? { block: true, reason: "denied" } : undefined;
+test("a bash hook's rejection holds, and its rewritten command is what gets translated", async () => {
+	// 守 bash 的钩子是拦命令的那道闸：改道不能让命令从它眼皮底下溜走。
+	const f = fixture(); f.config.beforeToolCall = async ({ toolName }) => toolName === "bash" ? { block: true, reason: "denied" } : undefined;
 	assert.equal((await f.run())[0].isError, true); assert.deepEqual(f.executed, []);
+
+	const g = fixture(); g.config.beforeToolCall = async () => ({ args: { command: "cat b.txt" } });
+	const [result] = await g.run();
+	assert.deepEqual(g.executed, ["read"]);
+	assert.match(JSON.stringify(result.content), /b\.txt/);
+});
+
+test("a skill that does not allow the native tool keeps the call on bash", async () => {
+	// 改道成技能不许用的工具，等于借 bash 的名义绕过技能的 allowed-tools。
+	const f = fixture(); f.state.set(ACTIVE_SKILL_KEY, { name: "only-bash", allowedTools: ["bash"] });
+	await f.run();
+	assert.deepEqual(f.executed, ["bash"]);
 });
 
 for (const mode of ["disabled", "missing", "escalated", "background"]) test(`translation respects ${mode} execution`, async () => {

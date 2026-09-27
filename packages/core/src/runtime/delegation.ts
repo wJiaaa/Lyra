@@ -119,7 +119,7 @@ export function delegationConcurrency(limit: number, thinking?: ThinkingLevel, p
 		 * 关掉的时候闸门仍然是 1，不是 0。
 		 *
 		 * 0 会把一道排队用的闸门变成一道谁也过不去的墙，而这一档下**仍然有合法的派发**——用户
-		 * 自己点名的那次。挡住模型自作主张的是工具表（见 `session-turn.ts`）和 `task` 里的兜底，
+		 * 自己点名的那次。挡住模型自作主张的是 `task` 执行时的放行检查（`dispatchAllowed`），
 		 * 不是这个数字；这个数字只回答「放进来的那些，一次跑几个」，而「从不派」的人要的显然是
 		 * 一次一个。
 		 */
@@ -147,17 +147,16 @@ const PARALLEL_PRECONDITIONS = [
 	"2. 跨任务的契约（A 实现、B 消费的那个接口）必须在派活之前定好，写进各自的 prompt 里。子代理之间看不见对方，没法协商。",
 ].join("\n");
 
-/** 写进提示词那一段时，除了等级和档位之外还需要知道的东西。 */
+/**
+ * 写进提示词那一段时，除了等级和档位之外还需要知道的东西。
+ *
+ * 不含「这一轮点了谁」。这段在 system prompt 里，而 system prompt 和工具表在缓存前缀的最前面：
+ * 以前按点名换两种说法、再按点名增减 `task`，点名的那一轮和它的下一轮各把整段对话的缓存重写
+ * 一遍。现在 `off` 档下只有一种说法，点名由模型从用户原话里读，`task` 执行时按
+ * `DELEGATION_KEY` 放行（见 `dispatchAllowed`）。
+ */
 export interface DelegationNoteContext {
 	policy?: DelegationPolicy;
-	/**
-	 * 这一轮用户在自己的消息里点名的智能体。只在 `off` 档下有意义。
-	 *
-	 * 关着的时候要说的话有两种，差别不在措辞而在事实：没点名的那一轮模型手里根本没有 `task`，
-	 * 该告诉它的是「这条路这一轮不通，自己做」；点了名的那一轮工具在手里，该告诉它的是
-	 * 「只派这一个，别的不要顺手带上」——后者是这一档最容易漏的那个口子。
-	 */
-	mentioned?: readonly string[];
 }
 
 /**
@@ -168,21 +167,14 @@ export interface DelegationNoteContext {
  */
 export function delegationNote(thinking?: ThinkingLevel, context: DelegationNoteContext = {}): string {
 	switch (delegationTier(thinking, context.policy)) {
-		case "off": {
-			const named = context.mentioned ?? [];
-			if (named.length === 0) {
-				return (
-					"用户把子代理关掉了：这一轮不要派活，`task` 也不在你的工具表里。所有事情自己做完——" +
-					"要翻很多文件就自己 grep、自己读。如果这件事真的必须靠子代理才做得下去，把原因说给" +
-					"用户听，让他点名要派哪一个（在消息里写 `@智能体名`），不要自己想办法绕过去。"
-				);
-			}
+		case "off":
 			return (
-				`用户把子代理关掉了，但这一轮点名要派 ${named.map((name) => `\`${name}\``).join("、")}——` +
-				"派它，只派它。点名之外的一个都不要派，也不要为了「顺便」把一件活拆成好几个子代理；" +
-				"没被点到的部分自己做完。"
+				"用户把子代理关掉了：不要自己决定派活。只有用户在他最新的消息里用 `@智能体名` 点了名，" +
+				"才用 `task` 派被点到的那一个——派它，只派它；点名之外的一个都不要派，也不要为了「顺便」" +
+				"把一件活拆成好几个子代理。点名只管它所在的那一次请求，之前点过的不算。没点名时所有事情" +
+				"自己做完——要翻很多文件就自己 grep、自己读。如果这件事真的必须靠子代理才做得下去，把原因" +
+				"说给用户听，让他点名要派哪一个，不要自己想办法绕过去；没点名就调 `task` 会被拒绝。"
 			);
-		}
 		case "sparing":
 			return (
 				"这一轮的推理等级调得很低，派活也要跟着省着来。除非用户点名要派，或者要读的东西明显" +
@@ -220,7 +212,7 @@ export function delegationNote(thinking?: ThinkingLevel, context: DelegationNote
  * 一个，就是模型自己去调 `task`。所以「关掉自动派、但保留手动点名」没法靠摘掉工具实现：摘掉了，
  * 两条路一起断。
  *
- * 于是反过来做——这一轮的文本里认出点名，认到了就把工具留在桌上，认不到就收走。
+ * 于是 `task` 一直在桌上，这一轮的文本里认出点名，执行时只放行被点到的（`dispatchAllowed`）。
  *
  * 只认一轮，是有意的。点名是一次祈使句，不是一个开关：「@explore 看看这个」说的是现在这件事，
  * 而不是「从此以后你可以随便派 explore」。往后翻历史找点名的话，一次点名会把这场会话剩下的
@@ -250,11 +242,13 @@ export function mentionedAgents(text: string, names: readonly string[]): string[
 export const DELEGATION_KEY = "delegationDecision";
 
 /**
- * 这一轮关于派活的决定，放在会话状态里给 `task` 兜底用。
+ * 这一轮关于派活的决定，放在会话状态里给 `task` 执行时检查。
  *
- * 主路径是工具表——关掉的时候 `task` 根本不在里面，模型不会想要一个没见过的工具。这里是第二道，
- * 挡的是工具**在**桌上的那种情况：用户点名了 `@explore`，工具因此留着，而模型顺手又派了两个
- * 没人点过的。没有这道，「只派点名的那个」就只是提示词里的一句请求。
+ * 以前主路径是工具表：关掉且没点名的那一轮把 `task` 摘掉，理由是模型不会想要一个没见过的工具，
+ * 而事后拒绝要花一次调用才让它发现这条路不通。那个理由的代价算漏了一半：工具表在缓存前缀最前面，
+ * 按轮增减它，点名的那一轮和下一轮各把整段对话（system prompt、工具、全部历史）重写一遍缓存。
+ * 现在工具表在会话内不变，提示词明说「没点名就别派、派了会被拒」，这里是唯一的一道——和技能的
+ * `allowedTools` 一样在执行时拦。被拒一次是一次小调用，远比两次整段缓存重写便宜。
  */
 export interface DelegationDecision {
 	tier: DelegationTier;

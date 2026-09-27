@@ -66,8 +66,8 @@ export function AppearanceSettings() {
 	const inlineFgIsAuto = inlineFg.toUpperCase() === readableInk(inlineBg).toUpperCase();
 
 	return (
-		<div className="pt-8">
-			<h1 className="pb-6 text-display leading-tight font-semibold tracking-tight text-ink">{t("appearance.title")}</h1>
+		<div className="pt-2">
+			<h1 className="pb-8 text-display leading-tight font-semibold tracking-tight text-ink">{t("appearance.title")}</h1>
 
 			<SectionTitle>{t("appearance.theme")}</SectionTitle>
 			<div className="mb-8 grid grid-cols-3 gap-3">

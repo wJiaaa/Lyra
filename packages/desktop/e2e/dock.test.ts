@@ -679,7 +679,7 @@ test("screens that are not a conversation have no panels at all, and leave the c
 			await new Promise((r) => setTimeout(r, 600));
 		})()`);
 
-	for (const screen of ["拉取请求", "已安排", "插件"]) {
+	for (const screen of ["拉取请求", "定时任务", "插件"]) {
 		await visit(screen);
 		const alone = await settledPanes();
 		assert.deepEqual(Object.keys(alone), [], `${screen} is drawn without any pane around it`);

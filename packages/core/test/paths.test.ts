@@ -72,3 +72,10 @@ test("read opens an installed plugin skill file that used to escape the workspac
 	assert.equal(res.isError, undefined);
 	assert.match(res.content[0].text, /mode-audit/);
 });
+
+test("a write accepts the Windows shell spellings a read accepts", { skip: process.platform !== "win32" }, () => {
+	// 读取侧早就认 Git Bash 的 `/c/…` 和 PowerShell 的 `~\`，写入侧只认 `~/`，同一个文件读得到、改不了。
+	const cwd = "C:\\work\\proj";
+	assert.equal(resolveWorkspacePath(cwd, "/c/work/proj/a.ts"), "C:\\work\\proj\\a.ts");
+	assert.throws(() => resolveWorkspacePath(cwd, "~\\notes.txt"), /escapes/);
+});

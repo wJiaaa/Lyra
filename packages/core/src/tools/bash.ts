@@ -13,7 +13,8 @@ import {
 	validateEscalationArgs,
 } from "./escalation.ts";
 import { errorResult } from "../agent/tool-run.ts";
-import { clipOutput } from "./long-line.ts";
+import { OutputBuffer } from "./bash-output.ts";
+import { FRESH_RESULT_MAX_CHARS } from "../runtime/prune.ts";
 import { authorizeCommandReads } from "./read-access.ts";
 import { describeStatus, readExit } from "./exit-status.ts";
 import { commandShell, type CommandShell } from "../platform.ts";
@@ -22,7 +23,15 @@ import type { Tool, ToolContext, ToolResult } from "../types.ts";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_TIMEOUT_MS = 600_000;
+/** 界面上跟随后台任务时显示多少（`job.output`）。不发给模型，所以不受下面那条线约束。 */
 const MAX_OUTPUT_CHARS = 60_000;
+/**
+ * 发给模型的输出上限，压在 `FRESH_RESULT_MAX_CHARS` 以内。
+ *
+ * 超过那条线的新结果会被 `AgedToolPruner` 在模型看到之前剪成前 4k、后 1k，`OutputBuffer` 专门从
+ * 中段摘出来的错误行正好落在被剪掉的那一段。留 2000 字符给续读提示和截断标记。
+ */
+const MODEL_OUTPUT_CHARS = FRESH_RESULT_MAX_CHARS - 2000;
 /** How often streaming output is forwarded to whoever is watching. See `execute`'s ticker. */
 const PROGRESS_INTERVAL_MS = 100;
 
@@ -125,7 +134,20 @@ export function isReadOnlyCommand(command: string): boolean {
 	if (VERSION_ONLY.has(head)) return args.length > 0 && args.every((arg) => INFORMATIONAL.test(arg));
 
 	const sub = READ_ONLY_SUBCOMMANDS[head];
+	if (head === "git" && args[0] === "config") return gitConfigReads(args.slice(1));
 	return sub ? sub.has(args[0] ?? "") : false;
+}
+
+/**
+ * `git config` 只有读的形式算只读：`git config k v` 是赋值，没有任何旗标，`WRITES_ANYWAY` 看不见它。
+ * 这不是无害的赋值——`core.fsmonitor`、`filter.*`、`core.hooksPath` 写进去，之后在沙箱外跑的每一个
+ * git 都会替它执行程序。带值的旗标（`--file x`）会被数成第二个位置参数，按写处理，宁可多问一次。
+ */
+function gitConfigReads(args: string[]): boolean {
+	if (args.some((arg) => /^(--get|--get-all|--get-regexp|--get-urlmatch|--get-color|--get-colorbool|--list|-l)$/.test(arg))) return true;
+	const positional = args.filter((arg) => !arg.startsWith("-"));
+	if (positional[0] === "get" || positional[0] === "list") return true;
+	return positional.length === 1 && !/^(set|unset|edit|rename-section|remove-section)$/.test(positional[0]);
 }
 
 export const bashTool: Tool<BashArgs> = {
@@ -137,17 +159,16 @@ export const bashTool: Tool<BashArgs> = {
 	 * a tool shared by every session cannot know. The system prompt adds it beside these, from the
 	 * shell it names; see `shellGuidance`.
 	 */
+	// 后台运行与 `bash_output`、专用工具优先，各只说一处：描述和 guidelines 每轮都发。
 	guidelines: [
 		"Use the dedicated tools instead of their shell equivalents: read over `cat`, edit over `sed`, glob over `find`, grep over shell `grep`.",
 		"Quote paths that may contain spaces.",
-		"Use run_in_background for long-lived processes such as dev servers, then read them with bash_output.",
 	],
 	description:
 		"Run a shell command in the workspace. The working directory persists between calls but shell state " +
 		"(variables, functions) does not. Use `run_in_background: true` for long-running processes such as dev servers, " +
 		"then read their output with `bash_output`. A command still running when the default timeout passes is moved " +
 		"to the background instead of being killed; an explicit `timeout` is a hard limit. " +
-		"Prefer the dedicated file tools over cat/sed/echo. " +
 		"Commands may run under a file sandbox. A blocked write is reported as a policy denial, not a bug in the " +
 		"command — do not retry it another way. When one is denied and a wider mode would let it through, retry that " +
 		"exact command once with `escalate` and `justification`; the user is asked, and the grant covers only that call. " +
@@ -305,13 +326,15 @@ export const bashTool: Tool<BashArgs> = {
 				return;
 			}
 
-			let output = "";
+			// 累计的原始输出；给模型看的那一份每次都从它截一次，见 `bash-output.ts`。
+			const buffer = new OutputBuffer();
+			const output = () => buffer.render(MODEL_OUTPUT_CHARS);
 			let settled = false;
 			/*
 			 * Progress is coalesced rather than forwarded per chunk.
 			 *
 			 * Every one of these crosses a process boundary and replaces the whole card: the payload
-			 * is the accumulated output, so a command that prints steadily sends `MAX_OUTPUT_CHARS`
+			 * is the accumulated output, so a command that prints steadily sends `MODEL_OUTPUT_CHARS`
 			 * again for each chunk. A build printing its asset list a line at a time — 192 KB over
 			 * 2000 chunks — put 193 MB through the bridge to say 192 KB, a 515× amplification, and
 			 * the window spent it re-rendering 60,000 characters of monospace text two thousand
@@ -327,7 +350,7 @@ export const bashTool: Tool<BashArgs> = {
 			const flush = () => {
 				if (!pending) return;
 				pending = false;
-				ctx.onProgress?.({ content: [{ type: "text", text: output }] });
+				ctx.onProgress?.({ content: [{ type: "text", text: output() }] });
 			};
 			const stopTicking = () => {
 				if (ticker === undefined) return;
@@ -338,7 +361,7 @@ export const bashTool: Tool<BashArgs> = {
 				// Once the call has answered, the output belongs to whatever took the command over.
 				if (settled) return;
 				outputLog?.append(chunk);
-				output = clip(output + chunk);
+				buffer.append(chunk);
 				pending = true;
 				if (ticker === undefined && ctx.onProgress) {
 					ticker = setInterval(flush, PROGRESS_INTERVAL_MS);
@@ -355,19 +378,19 @@ export const bashTool: Tool<BashArgs> = {
 				if (hardLimit) {
 					child.kill();
 					resolve({
-						content: [{ type: "text", text: `${clip(output)}\n\n[timed out after ${timeout}ms]` }],
+						content: [{ type: "text", text: `${output()}${fullLogHint(buffer, outputLog?.path)}\n\n[timed out after ${timeout}ms]` }],
 						details: { kind: "bash", command: args.command, timedOut: true },
 						isError: true,
 					});
 					return;
 				}
 				handedOff = true;
-				const id = adoptJob(ctx, args.command, child, output, outputLog);
+				const id = adoptJob(ctx, args.command, child, outputLog, buffer);
 				resolve({
 					content: [{
 						type: "text",
 						text:
-							`${clip(output).trim() || "(no output yet)"}\n\n[still running after ${Math.round(timeout / 1000)}s — ` +
+							`${output().trim() || "(no output yet)"}${fullLogHint(buffer, outputLog?.path)}\n\n[still running after ${Math.round(timeout / 1000)}s — ` +
 							`now background job ${id}. Read its output with bash_output({ id: "${id}" }); ` +
 							`stop it with bash_output({ id: "${id}", kill: true }).]`,
 					}],
@@ -382,7 +405,7 @@ export const bashTool: Tool<BashArgs> = {
 				stopTicking();
 				child.kill();
 				resolve({
-					content: [{ type: "text", text: `${clip(output)}\n\n[cancelled]` }],
+					content: [{ type: "text", text: `${output()}\n\n[cancelled]` }],
 					details: { kind: "bash", command: args.command, cancelled: true },
 					isError: true,
 				});
@@ -404,7 +427,7 @@ export const bashTool: Tool<BashArgs> = {
 				clearTimeout(timer);
 				stopTicking();
 				ctx.signal?.removeEventListener("abort", onAbort);
-				const text = clip(output).trim();
+				const text = output().trim();
 				/*
 				 * Say when it was the sandbox, not the command.
 				 *
@@ -418,7 +441,7 @@ export const bashTool: Tool<BashArgs> = {
 				const denied =
 					ranUnder !== undefined &&
 					ranUnder !== "danger-full-access" &&
-					looksDenied(output, selectRunner({}, ctx.sandboxNetwork ?? "allow"));
+					looksDenied(output(), selectRunner({}, ctx.sandboxNetwork ?? "allow"));
 				/*
 				 * And the same for the network, which needs it more.
 				 *
@@ -427,7 +450,7 @@ export const bashTool: Tool<BashArgs> = {
 				 * retrying, switching registries and blaming DNS. The policy is what identifies it
 				 * — see `looksNetworkDenied`, which will not answer without being told the policy.
 				 */
-				const cutOff = looksNetworkDenied(output, ctx.sandboxNetwork);
+				const cutOff = looksNetworkDenied(output(), ctx.sandboxNetwork);
 				/*
 				 * Whether it failed, read the way a person reads it — see `exit-status.ts`. `grep`
 				 * finding nothing and `gh pr checks` reporting pending checks are answers.
@@ -437,10 +460,10 @@ export const bashTool: Tool<BashArgs> = {
 				 * so behind an OpenAI-compatible endpoint a failed build and a passing one looked the
 				 * same whenever either printed anything.
 				 */
-				const reading = readExit(args.command, code, output, shell.kind);
+				const reading = readExit(args.command, code, output(), shell.kind);
 				const status =
 					code === 0 ? undefined : `[${describeStatus(code, signal)}${reading.meaning ? ` — ${reading.meaning}; not a failure` : ""}]`;
-				const leftBehind = lingering ? adoptJob(ctx, args.command, lingering, "", undefined) : undefined;
+				const leftBehind = lingering ? adoptJob(ctx, args.command, lingering, undefined) : undefined;
 				const markers = [
 					...(denied ? [sandboxDenialMarker(ranUnder), escalationHint("command")] : []),
 					...(cutOff ? [networkDenialMarker()] : []),
@@ -452,7 +475,7 @@ export const bashTool: Tool<BashArgs> = {
 							]
 						: []),
 				];
-				const body = [text || "(no output)", ...(status ? [status] : []), ...markers].join("\n\n");
+				const body = [`${text || "(no output)"}${fullLogHint(buffer, outputLog?.path)}`, ...(status ? [status] : []), ...markers].join("\n\n");
 				resolve({
 					content: [{ type: "text", text: body }],
 					details: {
@@ -483,13 +506,15 @@ export const bashTool: Tool<BashArgs> = {
  * For a command that outlived the default timeout, and for what a finished command left running
  * with its output still attached. Either way it can be read and stopped like one started with
  * `run_in_background`, and `dispose` stops it with the session.
+ *
+ * `seen` 是模型在这次调用的结果里已经看过的输出：之后 `bash_output` 只给它后面的部分。
  */
 function adoptJob(
 	ctx: ToolContext,
 	command: string,
 	process: SandboxProcess,
-	output: string,
 	outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined,
+	seen?: OutputBuffer,
 ): string {
 	const id = randomUUID();
 	const job: BackgroundJob = {
@@ -497,21 +522,36 @@ function adoptJob(
 		command,
 		startedAt: Date.now(),
 		exitCode: null,
-		output,
+		output: "",
 		outputPath: outputLog?.path,
 		pid: process.pid,
 		status: "running",
 	};
-	track(job, process, outputLog);
+	track(job, process, outputLog, seen);
 	backgroundJobs(ctx.state).add(job, process);
 	return id;
 }
 
+/**
+ * 一个后台任务的两份输出：`all` 是从头累计的（桌面端从里面找服务地址），`unread` 是模型上次
+ * `bash_output` 之后的。以前每次轮询都把 `all` 整份重发，一个开发服务器轮询十次就是十份同样的日志。
+ */
+interface JobStream {
+	all: OutputBuffer;
+	unread: OutputBuffer;
+}
+const streams = new WeakMap<BackgroundJob, JobStream>();
+
 /** Follow a job's output and exit, whoever started it. */
-function track(job: BackgroundJob, process: SandboxProcess, outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined): void {
+function track(job: BackgroundJob, process: SandboxProcess, outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined, seen?: OutputBuffer): void {
+	const all = seen ?? new OutputBuffer();
+	const stream: JobStream = { all, unread: new OutputBuffer(all.end) };
+	streams.set(job, stream);
+	Object.defineProperty(job, "output", { get: () => all.render(MAX_OUTPUT_CHARS), enumerable: true, configurable: true });
 	process.onOutput((chunk) => {
 		outputLog?.append(chunk);
-		job.output = clip(job.output + chunk);
+		stream.all.append(chunk);
+		stream.unread.append(chunk);
 	});
 	process.onExit((code) => {
 		void outputLog?.close().then((details) => Object.assign(job, details));
@@ -565,7 +605,7 @@ interface BashOutputArgs {
 export const bashOutputTool: Tool<BashOutputArgs> = {
 	name: "bash_output",
 	snippet: "Read output from a background job",
-	description: "Read the accumulated output of a background job started by `bash`, and optionally kill it.",
+	description: "Read a background job's new output since your last bash_output call (the first call returns everything so far), and optionally kill it.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -582,13 +622,27 @@ export const bashOutputTool: Tool<BashOutputArgs> = {
 		if (!job) return errorResult(`No background job with id "${args.id}".`);
 		if (args.kill) backgroundJobs(ctx.state).stop(args.id, true);
 		const status = job.finishedAt === undefined ? job.status : job.exitCode === null ? "terminated" : `exited with code ${job.exitCode}`;
+		// 只给上次读过之后的部分；读完游标移到末尾。更早的部分模型已经看过，要回看就读完整日志。
+		const stream = streams.get(job);
+		let text = job.output;
+		let hint = "";
+		if (stream) {
+			text = stream.unread.render(MODEL_OUTPUT_CHARS);
+			hint = fullLogHint(stream.unread, job.outputPath);
+			stream.unread = new OutputBuffer(stream.all.end);
+		}
 		return {
-			content: [{ type: "text", text: `[job ${job.id} ${status}]\n${job.output || "(no output yet)"}` }],
+			content: [{ type: "text", text: `[job ${job.id} ${status}]\n${text || "(no new output)"}${hint}` }],
 			details: { kind: "bash_output", id: job.id, exitCode: job.exitCode, command: job.command, outputPath: job.outputPath, outputComplete: job.outputComplete, outputError: job.outputError },
 		};
 	},
 };
 
-function clip(text: string): string {
-	return clipOutput(text, MAX_OUTPUT_CHARS);
+/**
+ * 输出被截过时，告诉模型完整日志在哪。以前只放在 `details` 里，模型看不到，标记里的 `char_offset`
+ * 于是无处可用。日志在 scratch 下，`read` 不需要授权；标记里的行号就是这个文件的行号。
+ */
+function fullLogHint(buffer: OutputBuffer, path: string | undefined): string {
+	if (!path || !buffer.clipped(MODEL_OUTPUT_CHARS)) return "";
+	return `\n\n[full output: ${path} — read it with offset/char_offset for the omitted lines]`;
 }

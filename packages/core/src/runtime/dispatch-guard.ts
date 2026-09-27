@@ -124,8 +124,15 @@ export class DispatchGate {
 		this.admit();
 	}
 
-	/** Run `body` when a slot is free. The slot is always released, including on a throw. */
-	async run<T>(body: () => Promise<T>): Promise<T> {
+	/**
+	 * Run `body` when a slot is free. The slot is always released, including on a throw.
+	 *
+	 * `signal` 是派它的那一方的停止信号。排队中被停：出队、不占名额、`body` 不跑；放行之后、
+	 * 开跑之前被停：同样不跑，名额当场还回去。以前排队不看信号，停止只停得到已经登记在册的
+	 * 那几个，排在后面的照样一个个被放进来跑完——用户按了停，钱还在花。
+	 */
+	async run<T>(body: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+		signal?.throwIfAborted();
 		if (this.active < this.limit) {
 			this.active += 1;
 		} else {
@@ -136,14 +143,34 @@ export class DispatchGate {
 			 * 一个放行点的时候那样没问题；`setLimit` 一次放三个人，就不行了——三个人的记账都排在
 			 * 循环之后，循环里读到的 `active` 三次都是同一个老数字。
 			 */
-			await new Promise<void>((resolve) => this.waiting.push(resolve));
+			await this.wait(signal);
 		}
 		try {
+			// 放行和醒来之间隔着一个微任务，停止可能正好落在这里：名额已经记上了，交给 finally 还。
+			signal?.throwIfAborted();
 			return await body();
 		} finally {
 			this.active -= 1;
 			this.admit();
 		}
+	}
+
+	/** 排队等放行；被停时把自己从队里摘掉。已经被放行的不摘——名额已记账，由 `run` 的 finally 还。 */
+	private wait(signal: AbortSignal | undefined): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			const admitted = () => {
+				signal?.removeEventListener("abort", leave);
+				resolve();
+			};
+			const leave = () => {
+				const at = this.waiting.indexOf(admitted);
+				if (at === -1) return;
+				this.waiting.splice(at, 1);
+				reject(signal?.reason);
+			};
+			this.waiting.push(admitted);
+			signal?.addEventListener("abort", leave, { once: true });
+		});
 	}
 
 	/**
@@ -162,12 +189,12 @@ export class DispatchGate {
 	 * 取回的时候不排队，无条件加回去——排队等的可能正是自己刚让出去的那个位置，而那个位置上的人
 	 * 在等自己。宁可有那么一瞬多出一个，也不要一个永远解不开的环。
 	 */
-	async nested<T>(body: () => Promise<T>): Promise<T> {
+	async nested<T>(body: () => Promise<T>, signal?: AbortSignal): Promise<T> {
 		// 走到这里的一定是个已经拿到名额的子代理；0 只可能是没有会话的宿主临时开的一道新闸门。
 		const held = this.active > 0;
 		if (held) this.active -= 1;
 		try {
-			return await this.run(body);
+			return await this.run(body, signal);
 		} finally {
 			if (held) this.active += 1;
 		}

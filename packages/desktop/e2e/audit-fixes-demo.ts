@@ -165,22 +165,9 @@ try {
 	await drive.click('[class*="group/session"] button');
 	await pause(1500);
 
-	const opened = await openSettings(drive, "命令");
-	check(opened, "设置导航里有「命令」这一项");
-	await pause(1200);
-
-	// 这一页有两个 tab，默认停在「命令」那个（斜杠命令）；工具清单在第二个后面。
-	const toTools = await app.evaluate<boolean>(`(() => {
-		const tab = [...document.querySelectorAll("button")].find((b) => b.innerText.trim() === "工具");
-		if (!tab) return false;
-		tab.setAttribute("data-probe-tab", "");
-		return true;
-	})()`);
-	check(toTools, "命令页上有「工具」这个 tab");
-	if (toTools) {
-		await drive.click("[data-probe-tab]");
-		await pause(1600);
-	}
+	const opened = await openSettings(drive, "工具");
+	check(opened, "设置导航里有「工具」这一项");
+	await pause(1600);
 
 	/*
 	 * 从「内置工具（N）」那个小节标题往下取，而不是抓整页的 `.font-mono`。

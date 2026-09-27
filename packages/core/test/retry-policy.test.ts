@@ -20,18 +20,40 @@ test("defaults mean ten retries after the first request, always five seconds", a
 	assert.equal(calls, 11); assert.deepEqual(waits, Array(10).fill(5000));
 });
 
-test("linear delays reach the configured ceiling; fixed ignores server hints", async () => {
+test("linear delays reach the configured ceiling; the server's wait is honoured but never shortens the policy", async () => {
 	const policy = { ...DEFAULT_RETRY_RULE, strategy: "linear" as const };
 	assert.deepEqual([1, 2, 3, 6, 100].map(n => policyDelay(policy, n)), [5000, 10000, 15000, 30000, 30000]);
-	const waits: number[] = []; let calls = 0;
+	const budget = () => new RetryBudget({ ...DEFAULT_RETRY_POLICY, upstream: { ...DEFAULT_RETRY_RULE, retries: 2 } });
 	/*
 	 * 预算用尽之后抛出来，而不是把那个 503 交回去——见 `fetchWithRetry` 的说明。
 	 *
-	 * `retry-after: 60` 依然被无视，这条测试的后半句问的就是这个：设置页上写着固定间隔「不受服务端
-	 * 建议或随机抖动影响」，那是用户明确要求的事。
+	 * 服务器说等 60 秒，就等 60 秒：从前配了策略就无视它，默认预算在服务器明说「一分钟内别来」的
+	 * 时候几十秒内撞光。取大值、服务器那一侧封顶 60 秒，见 `withServerDelay`。
 	 */
-	await assert.rejects(fetchWithRetry(async () => { calls++; return new Response("busy", { status: 503, headers: { "retry-after": "60" } }); }, "https://example.test", {}, { budget: new RetryBudget({ ...DEFAULT_RETRY_POLICY, upstream: { ...DEFAULT_RETRY_RULE, retries: 2 } }), sleep: async ms => { waits.push(ms); } }));
-	assert.equal(calls, 3); assert.deepEqual(waits, [5000, 5000]);
+	let waits: number[] = []; let calls = 0;
+	await assert.rejects(fetchWithRetry(async () => { calls++; return new Response("busy", { status: 503, headers: { "retry-after": "60" } }); }, "https://example.test", {}, { budget: budget(), sleep: async ms => { waits.push(ms); } }));
+	assert.equal(calls, 3); assert.deepEqual(waits, [60_000, 60_000]);
+
+	// 服务器要的比用户配的短：用户配的是下限，照旧 5 秒。
+	waits = [];
+	await assert.rejects(fetchWithRetry(async () => new Response("busy", { status: 429, headers: { "retry-after": "2" } }), "https://example.test", {}, { budget: budget(), sleep: async ms => { waits.push(ms); } }));
+	assert.deepEqual(waits, [5000, 5000]);
+
+	// 要求等十分钟的中转封顶一分钟；只写在正文里的 `reset_seconds` 也认。
+	waits = [];
+	await assert.rejects(fetchWithRetry(async () => new Response(JSON.stringify({ error: { reset_seconds: 600 } }), { status: 503 }), "https://example.test", {}, { budget: budget(), sleep: async ms => { waits.push(ms); } }));
+	assert.deepEqual(waits, [60_000, 60_000]);
+});
+
+test("a wait the server wrote into a stream error is honoured by the stream retry too", async () => {
+	const waits: number[] = []; let calls = 0;
+	const stream = retryStream(async function* () {
+		calls++;
+		yield "partial";
+		if (calls === 1) throw new FailureError(classifyFailure({ from: "stream", message: "model_unavailable", raw: JSON.stringify({ error: { message: "model_unavailable", reset_seconds: 12 } }) }));
+	}, { budget: new RetryBudget(DEFAULT_RETRY_POLICY), reset: () => {}, sleep: async ms => { waits.push(ms); } });
+	for await (const value of stream) assert.equal(value, "partial");
+	assert.equal(calls, 2); assert.deepEqual(waits, [12_000]);
 });
 
 test("HTTP and broken streams spend one shared budget without multiplying retries", async () => {

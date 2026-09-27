@@ -155,8 +155,11 @@ test("runtime statistics reuse filtered requests and recorded sources through re
 		assert.deepEqual(restored?.sources, detail.sources);
 		assert.deepEqual(restored?.memoryFiles, detail.memoryFiles);
 		assert.ok(!restored?.segments.some(segment => segment.key === "systemTools"));
+		const frozen = sent.systemPrompt;
 		await session.prompt([{ type: "text", text: "next" }]);
-		assert.match(sent.systemPrompt, /RULES_AFTER/);
+		// 会话内 system prompt 冻结，磁盘上改了的规则作为增量接在末尾（见 `prompt-freeze.test.ts`）。
+		assert.equal(sent.systemPrompt, frozen);
+		assert.ok(sent.messages.some(message => message.role === "user" && message.promptUpdate?.some(change => change.text?.includes("RULES_AFTER"))));
 		await session.log.truncateFrom(session.messages.length - 2);
 		assert.deepEqual((await session.contextBreakdown())?.sources, detail.sources, "rewinding must discard the later prompt and request snapshot");
 	} finally {

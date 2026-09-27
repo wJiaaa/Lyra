@@ -11,8 +11,11 @@ import { markRead, markReadChars, markReadRanges } from "./read-state.ts";
 export { hasRead, markRead } from "./read-state.ts";
 import { decodeText } from "./text-layout.ts";
 import { EXTRACTABLE, extractDocumentText } from "../files/document-text.ts";
+import { FRESH_RESULT_MAX_CHARS } from "../runtime/prune.ts";
 
 const DEFAULT_LIMIT = 2000;
+/** 正文的字数上限：留出头部路径、页脚和长行提示的余量，整条结果落在剪枝不碰新结果的范围内。 */
+const OUTPUT_BUDGET = FRESH_RESULT_MAX_CHARS - 2000;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 interface ReadArgs {
@@ -35,11 +38,8 @@ export const readTool: Tool<ReadArgs> = {
 	guidelines: [
 		"Use read to examine files instead of `cat`, `head`, `sed` or `tail`.",
 		"Read a file before editing it, and read enough of it to understand the surrounding code.",
-		"A long source file comes back as an outline: declarations shown, bodies folded as `⋯ N lines (from-to)`. " +
-			"When you need what is inside one, read that range with offset/limit. NEVER guess at folded content, and " +
-			"NEVER edit a line you have not seen — the edit will be refused.",
-		"A line longer than 2000 characters comes back as a window. The footer names `char_offset` to see the rest. " +
-			"NEVER guess at omitted characters, and NEVER edit a span you have not seen.",
+		// 大纲、长行窗口怎么读，描述里已经说了；这里只留描述里没有的规矩。两处都每轮发送。
+		"NEVER guess at folded bodies or omitted characters, and NEVER edit a line or span you have not seen — the edit will be refused.",
 	],
 	description:
 		"Read a file from the workspace. Text files come back with a `[path#TAG]` header — quote that TAG when you " +
@@ -187,7 +187,8 @@ export const readTool: Tool<ReadArgs> = {
 		 */
 		if (!askedWindow) {
 			const shape = outline(shownPath, text, allLines);
-			if (shape) {
+			// 大纲本身超出单条结果的上限时会被剪成头尾，而它已把显示的范围记成读过——改走下面按字数截断的窗口。
+			if (shape && shape.text.length <= OUTPUT_BUDGET) {
 				markReadRanges(ctx, absolute, text, shape.shownRanges);
 				for (const entry of shape.longLines) {
 					markReadChars(ctx, absolute, entry.line, entry.shownFrom, entry.shownTo, entry.length);
@@ -218,22 +219,32 @@ export const readTool: Tool<ReadArgs> = {
 		const charStart = charOffset - 1;
 		const long: { line: number; length: number; shownFrom: number; shownTo: number }[] = [];
 		const width = String(offset + slice.length - 1).length;
-		const body = slice
-			.map((line, i) => {
-				const lineNo = offset + i;
-				if (line.length <= MAX_LINE_CHARS && charStart <= 0) {
-					return `${String(lineNo).padStart(width, " ")}→${line}`;
-				}
-				const window = charWindow(line, charStart);
-				long.push({ line: lineNo, length: line.length, shownFrom: window.start + 1, shownTo: window.end });
-				return `${String(lineNo).padStart(width, " ")}→${formatCharWindow(line, charStart)}`;
-			})
-			.join("\n");
+		/*
+		 * 按字数截断，只把真正放进结果的行记成读过。
+		 *
+		 * 两千行不设字数上限时，一次读能有几十万字；循环会在模型看到之前把它剪成前 4k 加后 1k，
+		 * 而这里已经把两千行全记成读过，`edit` 于是放行模型从没见过的中段。截在剪枝不碰新结果的
+		 * 上限以内，再告诉它从哪一行接着读——比给一个剪过的头尾加 `artifact://` 地址更省，也更准。
+		 */
+		const rendered: string[] = [];
+		let used = 0;
+		for (const [i, line] of slice.entries()) {
+			const lineNo = offset + i;
+			const inline = line.length <= MAX_LINE_CHARS && charStart <= 0;
+			const window = inline ? null : charWindow(line, charStart);
+			const row = `${String(lineNo).padStart(width, " ")}→${inline ? line : formatCharWindow(line, charStart)}`;
+			if (rendered.length > 0 && used + row.length + 1 > OUTPUT_BUDGET) break;
+			rendered.push(row);
+			used += row.length + 1;
+			if (window) long.push({ line: lineNo, length: line.length, shownFrom: window.start + 1, shownTo: window.end });
+		}
+		const body = rendered.join("\n");
 
-		const shownEnd = offset + slice.length - 1;
+		const shownEnd = offset + rendered.length - 1;
+		const capped = rendered.length < slice.length ? ` (output capped at ${OUTPUT_BUDGET.toLocaleString("en-US")} characters)` : "";
 		const lineFooter =
 			shownEnd < allLines.length
-				? `\n\n[showing lines ${offset}-${shownEnd} of ${allLines.length}; call read again with offset=${shownEnd + 1} for more]`
+				? `\n\n[showing lines ${offset}-${shownEnd} of ${allLines.length}${capped}; call read again with offset=${shownEnd + 1} for more]`
 				: "";
 		const charFooter = longLineFooter(long);
 

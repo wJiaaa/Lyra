@@ -86,69 +86,6 @@ export function utf8ByteOffsetToIndex(text: string, bytes: number): number {
 	return buf.subarray(0, bytes).toString("utf8").length;
 }
 
-/**
- * Bash preview: persist the raw file elsewhere, show a short window here.
- *
- * A one-line dump used to spend the whole 60k budget on the head, so the last
- * tokens (the thing `echo` finished with) never reached the model. Each long
- * line keeps a head and a tail; the file still has the middle, addressed by
- * `char_offset`. Then a total-size clip, still head-and-tail.
- */
-const ERROR_LINE = /✖|✗|× failing|FAIL(?:ING|ED)?\b|AssertionError|Error:|error TS\d+|ELIFECYCLE|oxlint|not ok\b|failed\b/i;
-
-export function clipOutput(text: string, maxTotal: number): string {
-	const capped = text.split("\n").map((line) => formatLineHeadTail(line)).join("\n");
-	if (capped.length <= maxTotal) return capped;
-	const errors = collectErrorSlices(capped, Math.min(24_000, Math.floor(maxTotal * 0.45)));
-	const marker = errors
-		? `\n\n… [error excerpt] …\n\n${errors}\n\n`
-		: `\n\n… [${capped.length - maxTotal} characters omitted] …\n\n`;
-	const leftover = maxTotal - marker.length;
-	if (leftover < 200) return (errors || capped).slice(0, maxTotal);
-	const half = Math.floor(leftover / 2);
-	return `${capped.slice(0, half)}${marker}${capped.slice(-half)}`;
-}
-
-/** Keep the failing assertion, not only the command's head and tail. */
-function collectErrorSlices(text: string, budget: number): string {
-	const lines = text.split("\n");
-	const hits: number[] = [];
-	for (let i = 0; i < lines.length; i++) {
-		if (ERROR_LINE.test(lines[i])) hits.push(i);
-	}
-	if (hits.length === 0) return "";
-	const context = 8;
-	const ranges: [number, number][] = [];
-	for (const i of hits) {
-		const start = Math.max(0, i - context);
-		const end = Math.min(lines.length - 1, i + context);
-		const last = ranges[ranges.length - 1];
-		if (last && start <= last[1] + 1) last[1] = Math.max(last[1], end);
-		else ranges.push([start, end]);
-	}
-	const chunks: string[] = [];
-	let used = 0;
-	for (const [start, end] of ranges) {
-		const chunk = lines.slice(start, end + 1).join("\n");
-		if (used + chunk.length + 8 > budget) {
-			const room = budget - used - 8;
-			if (room > 80) chunks.push(chunk.slice(0, room));
-			break;
-		}
-		chunks.push(chunk);
-		used += chunk.length + 8;
-	}
-	return chunks.join("\n\n…\n\n");
-}
-
-function formatLineHeadTail(line: string, max = MAX_LINE_CHARS): string {
-	if (line.length <= max) return line;
-	const tail = Math.max(1, Math.floor(max / 3));
-	const head = max - tail;
-	const omitted = line.length - max;
-	return `${line.slice(0, head)} … [${omitted} characters omitted; continue with char_offset=${head + 1}] … ${line.slice(-tail)}`;
-}
-
 function matchIndex(text: string, pattern: string | undefined, options?: MatchOptions): number {
 	if (!pattern) return 0;
 	if (options?.literal) {

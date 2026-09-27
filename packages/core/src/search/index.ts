@@ -14,9 +14,10 @@
  * the network. Selection happens on every call, and a selection that made an HTTP request would
  * put a probe in front of every search.
  *
- * Selection never depends on registration order. A configured id wins; with no id and exactly one
- * usable provider, that one wins; with several and no id, it is an error rather than a coin toss.
- * "Whichever plugin loaded first" is not a decision anybody made.
+ * Selection never depends on registration order. A configured id wins; otherwise a provider that
+ * needed a key beats one that did not, a lone keyless default beats nothing at all, and a genuine
+ * tie is an error rather than a coin toss. "Whichever plugin loaded first" is not a decision
+ * anybody made.
  */
 
 export interface SearchSource {
@@ -64,6 +65,14 @@ export interface SearchProvider {
 	 * Local only. No network.
 	 */
 	available(): boolean;
+	/**
+	 * Set on a provider that works with nothing configured, to say how it enters the running.
+	 *
+	 * `"default"` is the one a fresh install searches with. `"optional"` is available the moment
+	 * somebody picks it and is never picked on their behalf. Only a provider that needs no key
+	 * carries this: a key on disk is a decision somebody made, and working without one is not.
+	 */
+	keyless?: "default" | "optional";
 	search(request: SearchRequest): Promise<SearchResult>;
 }
 
@@ -83,6 +92,14 @@ const providers = new Map<string, SearchProvider>();
 export function registerSearchProvider(provider: SearchProvider): () => void {
 	if (providers.has(provider.id)) {
 		throw new SearchError(`搜索提供方 ${provider.id} 已经注册过了`, "SEARCH_DUPLICATE_PROVIDER");
+	}
+	/*
+	 * Two defaults would put selection back where it started: the answer depending on which one
+	 * loaded first. Caught at registration rather than at the first search, because it is a mistake
+	 * in the registration list that nobody can configure their way out of.
+	 */
+	if (provider.keyless === "default" && [...providers.values()].some((known) => known.keyless === "default")) {
+		throw new SearchError(`默认的免配置搜索提供方已经有一个了，${provider.id} 不能也是默认`, "SEARCH_DUPLICATE_DEFAULT");
 	}
 	providers.set(provider.id, provider);
 	return () => {
@@ -104,8 +121,8 @@ export function resetSearchProviders(): void {
  * The provider one search will use.
  *
  * Every failure is its own code, because the fixes are different: a name that is not registered is
- * a typo, a name that is registered but unusable is a missing key, and several usable ones with no
- * choice made is a configuration that has not been finished.
+ * a typo, a name that is registered but unusable is a missing key, and a tie between two things
+ * somebody configured is a choice that has not been made yet.
  */
 export function selectSearchProvider(configuredId?: string | null): SearchProvider {
 	if (configuredId) {
@@ -118,13 +135,34 @@ export function selectSearchProvider(configuredId?: string | null): SearchProvid
 	}
 	const usable = [...providers.values()].filter((provider) => provider.available());
 	if (usable.length === 0) throw new SearchError("没有可用的搜索提供方", "SEARCH_PROVIDER_UNAVAILABLE");
-	if (usable.length > 1) {
-		throw new SearchError(
-			`有多个可用的搜索提供方（${usable.map((p) => p.id).join("、")}），请在设置里指定用哪个`,
-			"SEARCH_PROVIDER_AMBIGUOUS",
-		);
-	}
-	return usable[0];
+	if (usable.length === 1) return usable[0];
+
+	/*
+	 * A key on disk is a decision; a provider that works without one is not.
+	 *
+	 * So the keyed ones are asked about first: somebody who pasted a key without also clicking a
+	 * radio meant to use it, and answering that with the built-in default would quietly ignore what
+	 * they set up. Two pasted keys is a question only they can answer — which is the case this
+	 * branch was written for in the first place.
+	 */
+	const configured = usable.filter((provider) => provider.keyless === undefined);
+	if (configured.length === 1) return configured[0];
+	if (configured.length > 1) throw ambiguous(configured);
+
+	/*
+	 * Nothing was configured here, so no setup is being overruled and the default answers. With no
+	 * default registered there is nothing left to do but ask, which is what a host that registers
+	 * several optional providers gets.
+	 */
+	const fallback = usable.filter((provider) => provider.keyless === "default");
+	if (fallback.length === 1) return fallback[0];
+	throw ambiguous(usable);
+}
+
+/** The one failure whose fix is a decision rather than a setting, and it names the candidates. */
+function ambiguous(candidates: SearchProvider[]): SearchError {
+	const ids = candidates.map((provider) => provider.id).join("、");
+	return new SearchError(`有多个可用的搜索提供方（${ids}），请在设置里指定用哪个`, "SEARCH_PROVIDER_AMBIGUOUS");
 }
 
 /**

@@ -6,6 +6,12 @@ import type { Tool, ToolResult } from "../types.ts";
 import { authorizeRead } from "./read-access.ts";
 
 const MAX_RESULTS = 500;
+/**
+ * 按修改时间排序最多对多少个匹配做 stat。遍历本身一直走完（只 readdir，便宜），所以总数是准的；
+ * 超过这个数时排序只覆盖先找到的这些，结果里明说。以前找到 2000 个就停止遍历，排序和「还有 N 个」
+ * 都只基于这一部分，而结果里看不出来。
+ */
+const SORT_CAP = 10_000;
 const SKIP_DIRS = new Set([
 	"node_modules", ".git", "dist", "build", "out", ".next", ".nuxt", "target",
 	"__pycache__", ".venv", "venv", ".turbo", ".cache", "Pods", ".gradle", ".expo",
@@ -66,10 +72,11 @@ export const globTool: Tool<GlobArgs> = {
 
 		const regex = globToRegExp(pattern);
 		const limit = Math.min(args.limit ?? MAX_RESULTS, MAX_RESULTS);
-		const matches: { path: string; mtime: number }[] = [];
+		const found: string[] = [];
+		let total = 0;
 
 		const walk = async (dir: string): Promise<void> => {
-			if (matches.length >= limit * 4 || ctx.signal?.aborted) return;
+			if (ctx.signal?.aborted) return;
 			let entries: Dirent[];
 			try {
 				entries = await readdir(dir, { withFileTypes: true });
@@ -88,12 +95,18 @@ export const globTool: Tool<GlobArgs> = {
 				if (!entry.isFile()) continue;
 				const rel = relative(root, full).split(sep).join("/");
 				if (!regex.test(rel)) continue;
-				const info = await stat(full).catch(() => null);
-				matches.push({ path: rel, mtime: info?.mtimeMs ?? 0 });
+				total++;
+				if (found.length < SORT_CAP) found.push(rel);
 			}
 		};
 
 		await walk(root);
+		const matches: { path: string; mtime: number }[] = [];
+		for (let at = 0; at < found.length; at += 64) {
+			const batch = found.slice(at, at + 64);
+			const infos = await Promise.all(batch.map((rel) => stat(join(root, rel)).catch(() => null)));
+			batch.forEach((rel, index) => matches.push({ path: rel, mtime: infos[index]?.mtimeMs ?? 0 }));
+		}
 		matches.sort((a, b) => b.mtime - a.mtime);
 		const shown = matches.slice(0, limit);
 
@@ -105,10 +118,15 @@ export const globTool: Tool<GlobArgs> = {
 			};
 		}
 
-		const footer = matches.length > shown.length ? `\n\n[${matches.length - shown.length} more matches not shown]` : "";
+		const footer =
+			total > found.length
+				? `\n\n[${total} matches in total, ${total - shown.length} not shown; newest-first covers only the first ${found.length} found — narrow the pattern or path]`
+				: total > shown.length
+					? `\n\n[${total - shown.length} more matches not shown]`
+					: "";
 		return {
 			content: [{ type: "text", text: shown.map((m) => m.path).join("\n") + footer }],
-			details: { kind: "glob", pattern, count: matches.length, files: shown.map((m) => m.path) },
+			details: { kind: "glob", pattern, count: total, files: shown.map((m) => m.path) },
 		};
 	},
 };

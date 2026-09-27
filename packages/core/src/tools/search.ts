@@ -75,7 +75,7 @@ export const webSearchTool: Tool<SearchArgs> = {
 		const cleanedQuery = query.trim();
 
 		try {
-			const result = await search({ query: cleanedQuery, maxResults: MAX_RESULTS, signal: ctx.signal });
+			const result = await search({ query: cleanedQuery, maxResults: MAX_RESULTS, signal: ctx.signal }, ctx.searchProviderId);
 			if (result.sources.length === 0) {
 				// An empty list is an answer, and saying so beats returning an empty block the model
 				// has to interpret.

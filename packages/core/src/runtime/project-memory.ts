@@ -20,11 +20,12 @@ import type { Settings } from "../config/settings.ts";
  *   wholesale, which is only safe because the deliberate half lives elsewhere.
  */
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { lyraHome, projectIdFor } from "../session/store.ts";
 import { budgetMemory } from "../prompt/budget.ts";
 import { today } from "../prompt/environment.ts";
+import { invalidateMemorySnapshots } from "./memory.ts";
 
 /** One remembered lesson. */
 export interface Lesson {
@@ -101,8 +102,12 @@ export function similar(a: string, b: string, threshold = 0.6): boolean {
 }
 
 export async function readLessons(cwd: string): Promise<Lesson[]> {
-	const raw = await readFile(join(projectMemoryDir(cwd), "learned.md"), "utf8").catch(() => null);
-	return raw === null ? [] : parseLessons(raw);
+	const file = join(projectMemoryDir(cwd), "learned.md");
+	const raw = await readFile(file, "utf8").catch(() => null);
+	if (raw === null) return [];
+	// 手写条目没有时间戳时按文件最后修改时间记：文件不变，读几次都是同一个日期、同一份提示词字节。
+	const modified = await stat(file).then((info) => Math.floor(info.mtimeMs)).catch(() => 0);
+	return parseLessons(raw, modified);
 }
 
 /**
@@ -159,12 +164,14 @@ export async function forgetLesson(cwd: string, at: number): Promise<boolean> {
 	const next = existing.filter((lesson) => lesson.at !== at);
 	if (next.length === existing.length) return false;
 	await writeLessons(cwd, next);
+	invalidateMemorySnapshots();
 	return true;
 }
 
 /** Forget every lesson at once, leaving the extracted file alone. */
 export async function forgetAllLessons(cwd: string): Promise<void> {
 	await writeLessons(cwd, []);
+	invalidateMemorySnapshots();
 }
 
 /**
@@ -183,6 +190,7 @@ export async function forgetAllLessons(cwd: string): Promise<void> {
 export async function forgetExtractedMemory(cwd: string): Promise<boolean> {
 	try {
 		await rm(join(projectMemoryDir(cwd), "MEMORY.md"));
+		invalidateMemorySnapshots();
 		return true;
 	} catch {
 		// Already gone is the outcome the caller wanted; it just did not happen here.
@@ -219,8 +227,15 @@ function renderLessons(lessons: Lesson[]): string {
 	return `${lines.join("\n")}\n`;
 }
 
-/** Read back what `renderLessons` wrote, tolerating hand edits that dropped the timestamps. */
-export function parseLessons(raw: string): Lesson[] {
+/**
+ * Read back what `renderLessons` wrote, tolerating hand edits that dropped the timestamps.
+ *
+ * 没有时间戳的条目记在 `untimedAt`（`readLessons` 传文件修改时间），不能用「现在」：日期进
+ * system prompt，每次读都标成今天，既让手写的旧条目看起来刚记下（与 `lessonDate` 的用意相反），
+ * 又让提示词每天变一次、缓存跟着作废。按位置各减 1 毫秒，`forgetLesson` 按 `at` 删时两条手写
+ * 条目不会撞在一起；下一次 `learn` 重写文件时这些时间戳随之落盘。
+ */
+export function parseLessons(raw: string, untimedAt = 0): Lesson[] {
 	const lessons: Lesson[] = [];
 	let current: Lesson | null = null;
 
@@ -228,7 +243,7 @@ export function parseLessons(raw: string): Lesson[] {
 		const bullet = /^-\s+(.*)$/.exec(line);
 		if (bullet) {
 			if (current) lessons.push(current);
-			current = { text: bullet[1].trim(), at: Date.now() };
+			current = { text: bullet[1].trim(), at: untimedAt - lessons.length };
 			continue;
 		}
 		if (!current) continue;
@@ -272,7 +287,8 @@ export function formatProjectMemory(lessons: Lesson[], extracted = ""): string {
 /** Attribute the bounded bytes to their files while preserving one shared memory wrapper. */
 export function formatProjectMemorySources(lessons: Lesson[], extracted = ""): { file: string; content: string }[] {
 	if (lessons.length === 0 && !extracted.trim()) return [];
-	const learned = lessons.map(lesson => `- ${lesson.text}${lesson.context ? `（${lesson.context}）` : ""} · ${lessonDate(lesson.at)}`).join("\n");
+	// 取不到时间（无时间戳且读不到文件修改时间）就不标，不编一个日期。
+	const learned = lessons.map(lesson => `- ${lesson.text}${lesson.context ? `（${lesson.context}）` : ""}${lesson.at > 0 ? ` · ${lessonDate(lesson.at)}` : ""}`).join("\n");
 	// Inferred memory must remain less authoritative than deliberately recorded lessons.
 	const inferred = extracted.trim()
 		? `\n\n从过去的会话里推断出来的（可信度低于上面几条，与代码冲突时以代码为准）：\n${extracted.trim()}` : "";

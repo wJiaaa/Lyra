@@ -33,6 +33,7 @@ import { resolveSubAgentModel } from "../config/model-roles.ts";
 import { sessionPruner } from "./aged-prune.ts";
 import { compactWith } from "./compaction.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
+import { stripStaleHandles } from "./model-switch.ts";
 import { childDispatch, DEFAULT_MAX_DEPTH, DISPATCH_KEY, DispatchGate, rootDispatch, type DispatchContext } from "./dispatch-guard.ts";
 import {
 	DELEGATION_KEY,
@@ -182,6 +183,11 @@ export async function runSubAgent(
 	 *
 	 * 只能续跑自己派出去的：主会话续跑它派的，子代理续跑它派的。别人的子代理不是你能指挥的。
 	 */
+	/*
+	 * 派它的那一方已经停了，就不开跑：闸门放行之后、这里之前，停止可能已经落下；而下面挂的
+	 * `abort` 监听对已经停了的信号不会触发——不在这里拦，它会登记、开跑、一路跑完。
+	 */
+	options.signal?.throwIfAborted();
 	const earlier = input.resume === undefined ? undefined : resumable(options, input.resume);
 
 	// 旧名在这里也要认：历史记录重放和外部调用都可能带着 `fast`／`deep` 进来。见 `RENAMED_AGENTS`。
@@ -358,6 +364,16 @@ export async function runSubAgent(
 
 	// 子代理也要知道今天几号，同样接在末尾——理由见 `prompt/environment.ts`。
 	let envDate = earlier?.conversation.envDate ?? today();
+	/*
+	 * 续跑时换了模型（父会话中途换过、或者设置里给它改了模型），留下的历史全出自旧模型：供应商
+	 * 句柄交给新模型只会被整条拒掉，跟父会话换模型时 `adopted()` 之前那一步是同一件事（见
+	 * `model-switch.ts`）。整段都剥：切换点就是续跑这一刻。没换的原样不动，缓存前缀要逐字相同。
+	 */
+	const earlierView = earlier
+		? earlier.conversation.model === runModel.id
+			? earlier.conversation.view
+			: stripStaleHandles(earlier.conversation.view, earlier.conversation.view.length)
+		: [];
 	let history: Message[];
 	if (!earlier) history = withEnvironment([opening]);
 	else if (today() === envDate) {
@@ -367,11 +383,11 @@ export async function runSubAgent(
 		 * 不从转录重建：转录里没有压缩边界、没有那条日期块，重建出来的前缀从第二条起就跟上一次
 		 * 请求对不上，缓存整段作废——续跑省下的那部分又花回去了。
 		 */
-		history = [...earlier.conversation.view, opening];
+		history = [...earlierView, opening];
 	} else {
 		// 隔了天再续：旧的日期块留在原位（前缀不动），新的一条接在末尾，模型读到的「今天」是对的。
 		envDate = today();
-		history = withEnvironment([...earlier.conversation.view, opening]);
+		history = withEnvironment([...earlierView, opening]);
 	}
 
 	/*
@@ -387,7 +403,7 @@ export async function runSubAgent(
 	 * The overhead handed over is this run's own: its system prompt and its own subset of the
 	 * tools, which is not what the parent carries.
 	 */
-	const compactHistory: AgentRunConfig["compact"] = (messages, model, observer) => {
+	const compactHistory: AgentRunConfig["compact"] = (messages, model, observer, compactOptions) => {
 		const summarizer = resolveModelRef(options.settings, "@compact", { provider: runProvider, model });
 		return compactWith({
 			messages,
@@ -397,12 +413,14 @@ export async function runSubAgent(
 			overhead: textTokens(subAgentPrompt) + toolTokens(allowed),
 			summarizer,
 			observer,
+			force: compactOptions?.force,
 		});
 	};
 
 	/** Everything on its way out of the loop: the pane, the roster, and the step list. */
 	const relay: AgentEventSink = async (event) => {
-		if (event.type === "tool_start" || event.type === "request" || event.type === "retry" || event.type === "retry_settled" || event.type === "agent_end" || event.type === "turn_start" || event.type === "compacted" || event.type === "command_status") {
+		// `notice` 也转：拒收恢复、超长压缩后重试这类说明是它自己的事，进它自己的面板。
+		if (event.type === "tool_start" || event.type === "request" || event.type === "retry" || event.type === "retry_settled" || event.type === "agent_end" || event.type === "turn_start" || event.type === "compacted" || event.type === "command_status" || event.type === "notice") {
 			await options.emit({ type: "subagent_event", id, event });
 		}
 		// Record activity in registry for live sub-agent status line without toast spamming
@@ -478,6 +496,11 @@ export async function runSubAgent(
 		};
 		const runConfig: AgentRunConfig = {
 				sessionId: id,
+				/*
+				 * 它自己的运行 id：带着父会话 id、又和父会话分开，续跑沿用同一个（见上面 `earlier?.id`）——
+				 * 续跑是接着上一次的 `view` 往后发，前缀逐字相同，同一个 key 才落到那份缓存上。
+				 */
+				cacheKey: id,
 				cwd: options.cwd,
 				provider: runProvider,
 				model: runModel,
@@ -549,8 +572,14 @@ export async function runSubAgent(
 										normalizeDelegationPolicy(options.settings.subAgentDelegation),
 									),
 								)
-							).nested(() =>
-								runSubAgent({ ...options, dispatch: here }, nested, runProvider, runModel, subAgentPrompt),
+							).nested(
+								/*
+								 * 孙代理挂在这个子代理自己的控制器上，不是会话那根：面板上单独停掉这个子代理时，
+								 * 它派出去的也要一起停。`{ ...options }` 带下去的是会话的信号，只有整轮被停才
+								 * 传得到孙代理那一层。
+								 */
+								() => runSubAgent({ ...options, signal: controller.signal, dispatch: here }, nested, runProvider, runModel, subAgentPrompt),
+								controller.signal,
 							);
 						}
 					: undefined,
@@ -567,6 +596,12 @@ export async function runSubAgent(
 				sandboxMode: sandboxModeFor(options.settings.permissionMode),
 				sandboxNetwork: options.settings.denyCommandNetwork ? "deny" : "allow",
 				allowedHosts: options.settings.allowedHosts,
+				/*
+				 * Read here rather than inherited from the parent run, because nothing in this block is
+				 * inherited: a delegated search that fell back to "whichever provider answers" would
+				 * reach a service the user did not pick, from a run they cannot see.
+				 */
+				searchProviderId: options.settings.searchProvider ?? null,
 				allowedPaths: options.allowedPaths,
 				// Derived rather than passed down: same settings, same cwd, same answer — and one
 				// fewer parameter that can be forgotten at a new call site. A delegated run reads
@@ -623,17 +658,30 @@ export async function runSubAgent(
 		 *
 		 * 提示发到它自己的面板上，不进主对话：那是它的事。
 		 */
-		result = await continueWhileWorkRemains(await segment(history), {
+		const checkpoints = {
 			run: segment,
 			messages: () => view,
 			todos: () => (subState.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
 			aborted: () => controller.signal.aborted,
-			notify: (message) => options.emit({ type: "subagent_event", id, event: { type: "notice", level: "info", message } }),
+			notify: (message: string) => options.emit({ type: "subagent_event", id, event: { type: "notice", level: "info", message } }),
 			resuming: () => {},
 			signal: controller.signal,
 			// 请求那一层已经按设置重试过了，外面这层不再加码——理由见 `session-turn.ts` 同一处。
 			requestRetriesHandled: true,
-		});
+		};
+		result = await continueWhileWorkRemains(await segment(history), checkpoints);
+		/*
+		 * 收尾时有人对它说了话，还没送进去。
+		 *
+		 * 循环到了检查点就不再取插话（取了也送不进下一轮），话留在登记簿里；而登记簿收场时会把它
+		 * 清掉——面板上那句话发出去了，它却再也读不到。所以接着跑一段：循环顶上照常取走、写进转录，
+		 * 跟跑到一半时插话是同一条路。停在检查点的也一样：人开了口，是否接着干不该由清单替他决定。
+		 * 主会话的同一件事由 `AgentSession.drainPending` 兜着。
+		 */
+		const heardMore = () => !controller.signal.aborted && registry?.hasSteering(id) === true;
+		while ((result.reason === "done" || result.reason === "max_turns") && heardMore()) {
+			result = await continueWhileWorkRemains(await segment(view), checkpoints);
+		}
 
 		/*
 		 * 停在检查点、还有活没干完时，讨一份交接回来。
@@ -656,6 +704,8 @@ export async function runSubAgent(
 			const salvage = await runTurn(
 				{
 					sessionId: id,
+					// 讨交接这一轮接的也是同一份 `view`，前缀大半相同。
+					cacheKey: id,
 					cwd: options.cwd,
 					provider: runProvider,
 					model: runModel,
@@ -780,7 +830,7 @@ export async function runSubAgent(
 	 * 接着干完、换个方向、服务恢复后再试、追问一句它刚才说的东西。留着的代价是内存里多一份引用
 	 * （消息对象跟转录是同一批），扔掉的代价是下一个从零开始，把它读过的再读一遍。
 	 */
-	registry?.keep(id, { agent: definition.name, view, state: subState, envDate });
+	registry?.keep(id, { agent: definition.name, view, state: subState, envDate, model: runModel.id });
 	await options.emit({
 		type: "subagent_done",
 		id,

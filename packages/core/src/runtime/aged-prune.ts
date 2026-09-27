@@ -1,5 +1,5 @@
 import type { Message, ToolResultMessage } from "../types.ts";
-import { CHEAP_SUFFIX_CHARS, firstAffordableCut, pruneToolResults, sizePruneSaving, type ArtifactSink, type PruneTiming } from "./prune.ts";
+import { CHEAP_SUFFIX_CHARS, derive, descends, firstAffordableCut, pruneToolResults, sizePruneSaving, sourceOf, type ArtifactSink, type PruneTiming } from "./prune.ts";
 import { applyStaleCuts, staleCuts } from "./stale-results.ts";
 
 // Historical carry curves flatten near 20 rounds; batch at that cadence to avoid
@@ -13,16 +13,27 @@ interface SizedCut {
 	current: Message;
 }
 
-/** Batch old output without invalidating the provider's prefix on every request. */
+/**
+ * Batch old output without invalidating the provider's prefix on every request.
+ *
+ * 也是这个会话「发给模型的视图」在进程内的记录：按日志原文记住上一次发出去的副本，下一轮从日志
+ * 重建出原文时换回同一份。不止记自己剪的——外层 `dropUneventful` 的清空、压缩阶段的剪枝（经
+ * `adopt`）都算，否则它们下一轮回弹成原文：前缀从那里断开，而压缩判断读的是上一次剪过之后的
+ * usage，不会再触发，原文照发，隔轮振荡。
+ *
+ * 只在进程内有效。重启后从日志重建的是原文，新的剪枝器第一次请求就是一批（`requests` 从 0 起），
+ * 大多数视图会按同样的规则重新剪出来；要做到跨重启逐字一致，需要把剪枝决定写进日志。
+ */
 export class AgedToolPruner {
 	private requests = 0;
 	private readonly views = new WeakMap<Message, Message>();
 
 	prepare(messages: Message[], timing: PruneTiming = {}, artifacts?: ArtifactSink): Message[] {
-		const viewed = this.withViews(messages);
+		const sources = messages.map(sourceOf);
+		const viewed = this.withViews(messages, sources);
 		const stale = staleCuts(viewed);
 		const batch = this.requests++ % PRUNE_AGE_ROUNDS === 0;
-		const sized = this.sizeCuts(messages, viewed, batch);
+		const sized = this.sizeCuts(sources, viewed, batch);
 		const from = firstAffordableCut(viewed, [...stale, ...sized], timing);
 		if (from === undefined) return viewed === messages ? messages : viewed;
 
@@ -36,8 +47,23 @@ export class AgedToolPruner {
 			if (result === next) result = [...next];
 			result[cut.index] = view;
 		}
-		this.remember(messages, viewed, result);
+		this.remember(sources, viewed, result);
 		return result;
+	}
+
+	/**
+	 * 采纳别处（压缩）对已发视图做的改写，让下一轮从日志重建时换回同一份。
+	 *
+	 * `before` 与 `after` 按末尾对齐：只剪枝时两边等长，摘要时 `after` 的保留尾部就是 `before`
+	 * 的后缀。只认同一个调用的工具结果，换了策略插件、对不上的位置跳过。
+	 */
+	adopt(before: Message[], after: Message[], count = Math.min(before.length, after.length)): void {
+		for (let k = 1; k <= Math.min(count, before.length, after.length); k++) {
+			const was = before[before.length - k];
+			const now = after[after.length - k];
+			if (now === was || now.role !== "toolResult" || was.role !== "toolResult" || now.toolCallId !== was.toolCallId) continue;
+			this.views.set(sourceOf(was), derive(was, now));
+		}
 	}
 
 	private sizeCuts(originals: Message[], viewed: Message[], batch: boolean): SizedCut[] {
@@ -57,21 +83,27 @@ export class AgedToolPruner {
 		return cuts;
 	}
 
-	private withViews(messages: Message[]): Message[] {
+	/*
+	 * 记下的视图优先于从原文重新剪出的副本：上一次发出去的是它，前缀才接得上。只有在它之上
+	 * 进一步剪出来的（同一轮里外层又清空了一次）才替换它。
+	 */
+	private withViews(messages: Message[], sources: Message[]): Message[] {
 		let next = messages;
 		for (let index = 0; index < messages.length; index++) {
-			const view = this.views.get(messages[index]);
-			if (!view || view === messages[index]) continue;
-			if (next === messages) next = [...messages];
-			next[index] = view;
+			const message = messages[index];
+			const stored = this.views.get(sources[index]);
+			if (stored && !descends(message, stored)) {
+				if (next === messages) next = [...messages];
+				next[index] = stored;
+			} else if (message !== sources[index] && message !== stored) this.views.set(sources[index], message);
 		}
 		return next;
 	}
 
-	private remember(originals: Message[], before: Message[], after: Message[]): void {
+	private remember(sources: Message[], before: Message[], after: Message[]): void {
 		if (after === before) return;
-		for (let index = 0; index < originals.length; index++) {
-			if (after[index] !== before[index] && after[index].role === "toolResult") this.views.set(originals[index], after[index] as ToolResultMessage);
+		for (let index = 0; index < sources.length; index++) {
+			if (after[index] !== before[index] && after[index].role === "toolResult") this.views.set(sources[index], derive(before[index], after[index] as ToolResultMessage));
 		}
 	}
 }

@@ -10,6 +10,7 @@
  *   - 省下的量对得上预期吗（第 1、2 节）
  *   - 有没有哪条闸门从「从不触发」变成「频繁触发」，或者反过来（第 4 节）
  *   - 回合结束的原因分布变了吗（第 5 节）
+ *   - 提示缓存的前缀有没有在哪一次请求被打断（第 10 节的「原因不明」）
  *
  * 读的是 `~/.lyra/sessions` 下的真实会话，所以数字会随着你自己的使用而变。**要对照就必须是同
  * 一台机器、同一批会话的前后两次**，不同机器之间的绝对值没有可比性。
@@ -29,6 +30,15 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { RepetitionWatch, REPEAT_WARN, REPEAT_STOP } from "../packages/core/src/agent/repetition.ts";
 import { pruneToolResults, PRUNE_THRESHOLD_CHARS } from "../packages/core/src/runtime/prune.ts";
+import {
+	CACHE_CAUSES,
+	CACHE_NOISE_FLOOR_TOKENS,
+	diagnoseCache,
+	summarizeCacheDiagnoses,
+	type CacheBoundary,
+	type CacheCause,
+	type CacheRequestDiagnosis,
+} from "../packages/core/src/runtime/cache-diagnostics.ts";
 import type { Message } from "../packages/core/src/types.ts";
 
 /** 字符数换算 token 的粗系数。绝对值不重要，前后两次用同一个就行。 */
@@ -63,8 +73,17 @@ interface UserPrompt {
 	synthetic: boolean;
 }
 
+/** 一条独立的请求序列：主会话一条，每个子代理各一条，缓存前缀互不相干。 */
+interface CacheStream {
+	label: string;
+	/** 按日志顺序，含之后被撤回的——它们真的发出过请求。 */
+	messages: Message[];
+	boundaries: CacheBoundary[];
+}
+
 interface Session {
 	id: string;
+	cacheStreams: CacheStream[];
 	rounds: number;
 	calls: Call[];
 	results: Map<string, Message>;
@@ -105,16 +124,37 @@ function loadSessions(): Session[] {
 			const userPrompts: UserPrompt[] = [];
 			let finalTodos: { content: string; status: string }[] | undefined;
 			const fileEdits = new Map<string, number>();
+			const mainStream: CacheStream = { label: file.slice(0, 8), messages: [], boundaries: [] };
+			const subStreams = new Map<string, CacheStream>();
+			const subStream = (id: string) => {
+				let stream = subStreams.get(id);
+				if (!stream) subStreams.set(id, (stream = { label: `${file.slice(0, 8)}:sub:${id.slice(-8)}`, messages: [], boundaries: [] }));
+				return stream;
+			};
 			let round = 0;
 			for (const line of lines) {
-				let entry: { type?: string; message?: Record<string, unknown>; event?: { type?: string; reason?: string } };
+				let entry: {
+					type?: string;
+					message?: Record<string, unknown>;
+					event?: { type?: string; reason?: string; id?: string; message?: Message; event?: { type?: string } };
+				};
 				try {
 					entry = JSON.parse(line);
 				} catch {
 					continue;
 				}
 				if (entry.type === "event" && entry.event?.type === "agent_end" && entry.event.reason) runtimeStops.push(entry.event.reason);
+				// 模型看到的历史被有意改写的地方：压缩（含只剪枝不移边界的那种）与撤回
+				if (entry.type === "event" && entry.event?.type === "compacted") mainStream.boundaries.push({ at: mainStream.messages.length, kind: "compaction" });
+				if (entry.type === "truncate") mainStream.boundaries.push({ at: mainStream.messages.length, kind: "rewind" });
+				if (entry.type === "event" && entry.event?.type === "subagent_message" && entry.event.id && entry.event.message)
+					subStream(entry.event.id).messages.push(entry.event.message);
+				if (entry.type === "event" && entry.event?.type === "subagent_event" && entry.event.id && entry.event.event?.type === "compacted") {
+					const stream = subStream(entry.event.id);
+					stream.boundaries.push({ at: stream.messages.length, kind: "compaction" });
+				}
 				if (entry.type !== "message") continue;
+				if (entry.message) mainStream.messages.push(entry.message as unknown as Message);
 				const message = entry.message;
 				if (message?.role === "user") {
 					const text = ((message.content ?? []) as { type?: string; text?: string }[])
@@ -160,6 +200,7 @@ function loadSessions(): Session[] {
 			if (round > 0)
 				out.push({
 					id: file.slice(0, 8),
+					cacheStreams: [mainStream, ...subStreams.values()],
 					rounds: round,
 					calls,
 					results,
@@ -464,6 +505,53 @@ const smoothAvgEdits = avgMaxEdits(smoothMaxEdits);
 const p90 = (values: number[]) => values.length ? [...values].sort((a, b) => a - b)[Math.ceil(values.length * 0.9) - 1] : 0;
 
 // ---------------------------------------------------------------------------
+// 10. 逐次请求的缓存未命中：本该命中而没命中多少、多花多少、为什么
+//
+// 第 8 节的累计占比只能说「整体还行」；前缀修复的验收要看这里的「原因不明」，它指向前缀被打断
+// 的那一次请求。诊断直接用 core 的 `diagnoseCache`，费率读请求当时存进日志的那份。
+// 默认 TTL 取服务商文档的下限（5 分钟），按小时保留的服务商因此会把个别真打断算成「空闲过期」。
+// ---------------------------------------------------------------------------
+
+const CAUSE_LABELS: Record<CacheCause, string> = {
+	first: "首个请求/冷启动",
+	hit: "命中（噪声线内）",
+	uncached: "服务商未报告缓存",
+	idle: "空闲超过 TTL",
+	model: "换了模型或服务商",
+	compaction: "压缩后前缀重写",
+	rewind: "撤回后重发",
+	unknown: "原因不明（前缀被改动）",
+};
+
+const cacheDiagnoses: { stream: string; diagnosis: CacheRequestDiagnosis }[] = [];
+const cacheBySession: { id: string; streams: number; missed: number; extraCost: number; unknown: number; unknownMissed: number }[] = [];
+let cacheStreamCount = 0;
+for (const session of sessions) {
+	const row = { id: session.id, streams: 0, missed: 0, extraCost: 0, unknown: 0, unknownMissed: 0 };
+	for (const stream of session.cacheStreams) {
+		const diagnoses = diagnoseCache(stream.messages, { boundaries: stream.boundaries });
+		if (diagnoses.length === 0) continue;
+		row.streams++;
+		cacheStreamCount++;
+		for (const diagnosis of diagnoses) {
+			cacheDiagnoses.push({ stream: stream.label, diagnosis });
+			row.missed += diagnosis.missed;
+			row.extraCost += diagnosis.extraCost ?? 0;
+			if (diagnosis.cause === "unknown") {
+				row.unknown++;
+				row.unknownMissed += diagnosis.missed;
+			}
+		}
+	}
+	if (row.streams > 0) cacheBySession.push(row);
+}
+const cacheSummary = summarizeCacheDiagnoses(cacheDiagnoses.map((d) => d.diagnosis));
+const worstUnknown = cacheDiagnoses
+	.filter((d) => d.diagnosis.cause === "unknown")
+	.sort((a, b) => b.diagnosis.missed - a.diagnosis.missed)
+	.slice(0, 10);
+
+// ---------------------------------------------------------------------------
 // 报告
 // ---------------------------------------------------------------------------
 
@@ -518,6 +606,27 @@ if (asJson) {
 					frustP90MaxEdits: p90(frustMaxEdits), smoothP90MaxEdits: p90(smoothMaxEdits),
 					frustSessions: frustMaxEdits.length, smoothSessions: smoothMaxEdits.length,
 					classification: "Uncalibrated keyword proxy, not a task-success metric",
+				},
+				cacheMisses: {
+					streams: cacheStreamCount,
+					requests: cacheSummary.requests,
+					expected: cacheSummary.expected,
+					cacheRead: cacheSummary.cacheRead,
+					missed: cacheSummary.missed,
+					extraCost: +cacheSummary.extraCost.toFixed(4),
+					unpricedMissed: cacheSummary.unpricedMissed,
+					byCause: Object.fromEntries(
+						CACHE_CAUSES.map((cause) => [cause, { ...cacheSummary.byCause[cause], extraCost: +cacheSummary.byCause[cause].extraCost.toFixed(4) }]),
+					),
+					bySession: cacheBySession.map((row) => ({ ...row, extraCost: +row.extraCost.toFixed(4) })),
+					worstUnknown: worstUnknown.map(({ stream, diagnosis: d }) => ({
+						stream,
+						request: d.ordinal,
+						missed: d.missed,
+						expected: d.expected,
+						idleMs: d.idleMs,
+						model: d.model,
+					})),
 				},
 			},
 			null,
@@ -608,3 +717,37 @@ console.log(`  用户发言：真实输入 ${totalUserPrompts} 条，含挫败�
 console.log(`  单文件最大修改均值：顺利组 ${smoothAvgEdits} 次 vs 挫败组 ${frustAvgEdits} 次（纯事后连续观测，严禁在运行时注入打断）`);
 
 console.log(`  Edit-count P90: smooth ${p90(smoothMaxEdits)} (n=${smoothMaxEdits.length}); frustration-proxy ${p90(frustMaxEdits)} (n=${frustMaxEdits.length}). Keyword classification is uncalibrated, not task success.`);
+
+console.log("\n── 10. 逐次请求的缓存未命中（前缀修复验收看这里） ──");
+console.log(
+	`  请求 ${cacheSummary.requests} 次，${cacheStreamCount} 条请求序列（主会话与每个子代理各一条）；` +
+		`按上一次请求的输入算，应命中 ${cacheSummary.expected.toLocaleString()} token`,
+);
+console.log(
+	`  本该命中而没命中：${cacheSummary.missed.toLocaleString()} token (${share(cacheSummary.missed, cacheSummary.expected)})，多花 $${cacheSummary.extraCost.toFixed(4)}` +
+		(cacheSummary.unpricedMissed ? `（另有 ${cacheSummary.unpricedMissed.toLocaleString()} token 的日志没存费率，算不出钱）` : ""),
+);
+console.log("      次数    未命中 token        多花  原因");
+for (const cause of CACHE_CAUSES) {
+	const v = cacheSummary.byCause[cause];
+	if (v.requests === 0) continue;
+	console.log(`  ${pad(v.requests, 8)}  ${pad(v.missed.toLocaleString(), 14)}  ${pad(`$${v.extraCost.toFixed(4)}`, 10)}  ${CAUSE_LABELS[cause]}`);
+}
+console.log(`  （未命中 ≤ ${CACHE_NOISE_FLOOR_TOKENS} token 算粒度噪声、记为命中；只有「原因不明」是前缀被打断的嫌疑）`);
+const sessionsWithMiss = cacheBySession.filter((row) => row.missed > 0).sort((a, b) => b.missed - a.missed);
+if (sessionsWithMiss.length) {
+	console.log("  未命中最多的会话：");
+	for (const row of sessionsWithMiss.slice(0, 8))
+		console.log(
+			`    ${row.id}  未命中 ${pad(row.missed.toLocaleString(), 12)} token  多花 $${row.extraCost.toFixed(4)}  ` +
+				`其中原因不明 ${row.unknown} 次 / ${row.unknownMissed.toLocaleString()} token`,
+		);
+}
+if (worstUnknown.length) {
+	console.log("  原因不明最严重的几次（同一模型、缓存按说还活着、中间没有压缩或撤回，前缀却没读到）：");
+	for (const { stream, diagnosis: d } of worstUnknown)
+		console.log(
+			`    ${stream.padEnd(26)} 第 ${pad(d.ordinal, 4)} 次请求  未命中 ${pad(d.missed.toLocaleString(), 10)} / 应命中 ${pad(d.expected.toLocaleString(), 10)}  ` +
+				`间隔 ${pad(Math.round((d.idleMs ?? 0) / 1000), 5)}s  ${d.model}`,
+		);
+} else console.log("  没有原因不明的未命中。");

@@ -61,6 +61,14 @@ export type AgentEvent =
 	| { type: "message_start"; message: Message }
 	| { type: "message_update"; message: AssistantMessage; delta: StreamEvent }
 	| { type: "message_end"; message: Message }
+	/*
+	 * 开了头（`message_start`）却不收尾的那一条：规则半路打断的回复。
+	 *
+	 * 不发 `message_end`，因为那是提交点——半截违规留在转录里，模型下一轮会接着把它说完，而打断
+	 * 就是为了让那句话不存在。界面上已经画出来的那一截由会话换成 `rewound` 收掉（见
+	 * `session-turn.ts` 的 `recordTurnEvent`）。
+	 */
+	| { type: "message_discarded"; message: AssistantMessage }
 	| { type: "tool_start"; toolCallId: string; toolName: string; args: Record<string, unknown>; summary: string }
 	| { type: "tool_update"; toolCallId: string; partial: ToolResult }
 	| { type: "tool_end"; toolCallId: string; toolName: string; result: ToolResult; isError: boolean }

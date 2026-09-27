@@ -10,7 +10,7 @@
 import { completedCompaction, interruptedCompaction } from "../runtime/compaction-lifecycle.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { appendFile, mkdir, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
+import { appendFile, mkdir, open, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -159,6 +159,49 @@ function byRecent(a: SessionMeta, b: SessionMeta): number {
 	return b.updatedAt - a.updatedAt;
 }
 
+/**
+ * 运行中一轮里成批出现的过程事件：只推进 `seq` 和 `updatedAt`，不改侧栏要的任何东西。
+ *
+ * 索引是一整份文件，每追加一条就整份重写一次（全局串行），一轮里这些事件比消息还多。它们后面
+ * 必然跟着一条消息或 `agent_end`，那一条会把索引补到最新，所以静止时索引与日志一致；运行中与
+ * 崩溃后落后的只有 `seq` 和 `updatedAt`，前者由 `withLoggedSeq` 按日志校正，后者只影响排序的先后。
+ * `agent_end`、摘要、命令状态这类可能是一轮最后一条记录的，不在这里。
+ */
+const IN_RUN_EVENTS = new Set<AgentEvent["type"]>(["turn_start", "tool_start", "request", "context", "retry", "retry_settled", "approval_request", "rule_triggered", "subagent_event", "subagent_message"]);
+
+function indexUnchanged(payload: SessionRecordInput, base: SessionMeta, next: SessionMeta): boolean {
+	if (payload.type !== "event" || !IN_RUN_EVENTS.has(payload.event.type)) return false;
+	// 子代理的助手消息带着用量，那一条要写。
+	return next.usage === base.usage && next.messageCount === base.messageCount;
+}
+
+/** 日志最后一条完整记录的 `seq`；没有文件或读不出来时为 0。从文件尾往前读，不扫整份日志。 */
+async function lastSeq(file: string): Promise<number> {
+	const handle = await open(file, "r").catch(() => null);
+	if (!handle) return 0;
+	try {
+		const { size } = await handle.stat();
+		for (let span = 64 * 1024; ; span *= 4) {
+			const start = Math.max(0, size - span);
+			const buffer = Buffer.alloc(size - start);
+			await handle.read(buffer, 0, buffer.length, start);
+			const lines = buffer.toString("utf8").split("\n");
+			// 从头读起时第一行是完整的；否则它可能是半截，不算。
+			for (let i = lines.length - 1; i >= (start === 0 ? 0 : 1); i--) {
+				try {
+					const record = JSON.parse(lines[i]) as { seq?: unknown };
+					if (typeof record?.seq === "number") return record.seq;
+				} catch {
+					// 空行或崩溃时写了一半的末行，往前找。
+				}
+			}
+			if (start === 0) return 0;
+		}
+	} finally {
+		await handle.close();
+	}
+}
+
 export class SessionStore implements SessionStorage {
 	readonly root: string;
 	/**
@@ -304,7 +347,7 @@ export class SessionStore implements SessionStorage {
 	private async appendExclusive(meta: SessionMeta, payload: SessionRecordInput, now = Date.now()): Promise<SessionMeta> {
 		const key = this.keyFor(meta);
 		// Callers may hold a stale snapshot; the store's own copy is the source of truth.
-		const base = this.latestMeta.get(key) ?? meta;
+		const base = this.latestMeta.get(key) ?? await this.withLoggedSeq(meta);
 		if (payload.type === "title" && payload.source === "auto" && base.titleSetByUser) return base;
 		const next: SessionMeta = { ...base, seq: base.seq + 1, updatedAt: now };
 
@@ -367,8 +410,19 @@ export class SessionStore implements SessionStorage {
 		await appendFile(this.fileFor(meta.projectId, meta.id), `${JSON.stringify(record)}\n`, "utf8");
 		await unlink(this.displayCacheFor(meta.projectId, meta.id)).catch(() => undefined);
 		this.latestMeta.set(key, next);
-		await this.writeIndex(next);
+		if (!indexUnchanged(payload, base, next)) await this.writeIndex(next);
 		return next;
+	}
+
+	/**
+	 * 进程里还没见过这个会话时，`seq` 以日志最后一条为准。
+	 *
+	 * 调用方手里的 meta 可能来自索引，而索引会跳过运行中的过程事件（见 `indexUnchanged`），崩溃后
+	 * 也可能落后一步。拿落后的 `seq` 接着写，会写出重号的记录，按 `?since=N` 同步的客户端会跳过它。
+	 */
+	private async withLoggedSeq(meta: SessionMeta): Promise<SessionMeta> {
+		const logged = await lastSeq(this.fileFor(meta.projectId, meta.id));
+		return logged > meta.seq ? { ...meta, seq: logged } : meta;
 	}
 
 	/** Read the appended tail without rescanning the committed prefix. */
@@ -754,8 +808,8 @@ export class SessionStore implements SessionStorage {
 	async move(projectId: string, sessionId: string, cwd: string, projectName: string): Promise<SessionMeta | null> {
 		const current = (await this.listSessions()).find((s) => s.projectId === projectId && s.id === sessionId);
 		if (!current) return null;
-		// 调用方手里的那份可能是旧的；store 自己记的才是权威，`seq` 尤其。
-		const base = (await this.listSessions()).find((s) => s.projectId === projectId && s.id === sessionId) ?? current;
+		// 调用方手里的那份可能是旧的；store 自己记的才是权威，`seq` 尤其——索引里的可能落后，见 `indexUnchanged`。
+		const base = this.latestMeta.get(this.keyFor(current)) ?? await this.withLoggedSeq(current);
 		const nextProjectId = projectIdFor(cwd);
 
 		/*

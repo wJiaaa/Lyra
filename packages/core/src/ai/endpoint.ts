@@ -25,6 +25,17 @@ export function joinUrl(base: string, path: string): string {
 }
 
 /**
+ * 一次尝试的用量，算好合计和费用。每次尝试各算各的，再用 `addUsage` 相加。
+ *
+ * 不能先加总再计价：`selectPricingRates` 按「这一次请求的上下文有多长」挑长上下文档位，三次 150k
+ * 的尝试加起来是 450k，会被按 >200k 那一档整体计价——每一次都没到那个档，账却按那个档记。
+ * `addUsage` 本来就逐项相加费用，所以先各自 `computeCost` 再加，得到的正是每次各按自己的档位计价之和。
+ */
+export function priceAttempt(usage: Usage, model: ModelConfig): Usage {
+	return computeCost({ ...usage, total: usage.input + usage.output + usage.cacheRead + usage.cacheWrite }, model);
+}
+
+/**
  * 一次 fetch 失败，说成能放进界面的一句话。
  *
  * 不导出：三条链原来各自 import 它，而现在唯一的使用者是下面那个 `failedStreamEvent`——「失败时
@@ -64,7 +75,7 @@ export function failedStreamEvent(
 		error: unknown;
 		signal: AbortSignal | undefined;
 		model: ModelConfig;
-		/** 前几次失败尝试各自花掉的 token，要算进账。 */
+		/** 前几次失败尝试各自花掉的 token，**已经各自计过价**（`priceAttempt`），要算进账。 */
 		spentOnRetries: Usage;
 		startTime: number;
 		/** 第一个 token 到达的时刻，`null` 表示一个都没到。 */
@@ -78,8 +89,8 @@ export function failedStreamEvent(
 	// Recorded here because here is the last place it is knowable; see `errorRetryable`.
 	partial.errorRetryable = failure ? worthRetrying(failure) : false;
 	partial.failure = failure;
-	partial.usage = addUsage(partial.usage, context.spentOnRetries);
-	partial.usage = computeCost(partial.usage, context.model);
+	// 这一次先按自己的档位计价，再加上前几次各自算好的——见 `priceAttempt`。
+	partial.usage = addUsage(priceAttempt(partial.usage, context.model), context.spentOnRetries);
 	partial.durationMs = Math.max(1, Date.now() - context.startTime);
 	if (context.firstTokenTime !== null) {
 		partial.sseDurationMs = Math.max(1, Date.now() - context.firstTokenTime);

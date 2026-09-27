@@ -40,6 +40,14 @@ type FailureKind = "network" | "upstream" | "fatal";
  */
 type FailureHint = "check-key" | "check-model" | "check-billing" | "check-request" | "blocked";
 
+/**
+ * 循环自己能处理的那几种 `fatal`，给程序认的名字。
+ *
+ * `hint` 是给界面挂动作的，粒度按「人该去改哪儿」分；这里按「循环能做什么」分，两者不重合：
+ * 上下文超长和请求体格式错误在界面上都是 `check-request`，而只有前者压缩一次历史就可能过。
+ */
+type FailureCode = "context-overflow";
+
 export interface Failure {
 	kind: FailureKind;
 	/** 一句话，一行放得下，给人看的。 */
@@ -49,6 +57,8 @@ export interface Failure {
 	/** 服务器自己说的等待时间，比任何我们猜的曲线都准。 */
 	retryAfterMs?: number;
 	hint?: FailureHint;
+	/** 见 `FailureCode`。只在认出来时有，缺省不代表「不是」——旧日志里的失败都没有它。 */
+	code?: FailureCode;
 	/**
 	 * 「还是刚才那个错误吗」的答案。
 	 *
@@ -135,14 +145,72 @@ const FATAL_CAUSES = new Set([
  * 认不出来的落进 `upstream` 去重试，再由界面把「一直是同一个错误」说出来。所以这张表宁可短一些
  * 也不要猜：错判成 `fatal` 会让一次本可以自愈的抖动直接终止，那比多重试几次糟得多。
  */
-const FATAL_PHRASES: { match: RegExp; summary: string; hint: FailureHint }[] = [
+const FATAL_PHRASES: { match: Pick<RegExp, "test">; summary: string; hint: FailureHint; code?: FailureCode; notOnRateLimit?: true }[] = [
 	{ match: /insufficient[_\s-]?quota|exceeded your current quota|余额不足|额度不足|欠费/i, summary: "额度不足", hint: "check-billing" },
 	{ match: /invalid[_\s-]?api[_\s-]?key|incorrect api key|unauthorized|api key not valid|密钥无效/i, summary: "密钥被拒绝", hint: "check-key" },
 	{ match: /account[_\s-]?(deactivated|disabled|suspended|banned)|账号已(停用|禁用|封禁)/i, summary: "账号已停用", hint: "check-billing" },
-	{ match: /content[_\s-]?filter|content[_\s-]?policy|safety|违反.{0,6}政策|内容审核/i, summary: "内容被安全策略拒绝", hint: "blocked" },
+	// `stop_reason: refusal` 是 Anthropic 链在模型拒答时自己拼的那句（见 `anthropic-messages.ts` 的 `REFUSAL_MESSAGE`）。
+	{ match: /content[_\s-]?filter|content[_\s-]?policy|safety|违反.{0,6}政策|内容审核|stop_reason:\s*refusal/i, summary: "内容被安全策略拒绝", hint: "blocked" },
 	{ match: /model[_\s-]?not[_\s-]?found|does not exist|no such model|模型不存在/i, summary: "模型或地址不存在", hint: "check-model" },
-	{ match: /context[_\s-]?length[_\s-]?exceeded|maximum context length|too many tokens/i, summary: "上下文超出模型上限", hint: "check-request" },
+	// 上下文超长也是这张表的一条，原话多、还在长，单独放在 `CONTEXT_OVERFLOW`。
+	{ match: { test: isOverflowText }, summary: "上下文超出模型上限", hint: "check-request", code: "context-overflow", notOnRateLimit: true },
 ];
+
+/**
+ * 上下文超出模型窗口：各协议、各服务商的说法都在这里，只在这里。
+ *
+ * 单独认出来，是因为它是 `fatal` 里循环能治的那一种——同一个请求重发一百次还是超长，压缩一次历史
+ * 再发就可能过（`loop.ts` 的超长恢复）。认漏了，会话卡在这一轮；认错了，为一个压缩治不好的错
+ * 多花一次摘要请求、再如实报错。后者代价有上限，所以宁可多收常见说法，但只收**指向「输入超窗」**
+ * 的短语：`max_tokens` 参数本身不合法、限流，都不在这里。
+ *
+ * 新增一种：把原话里稳定的那一段写成正则放进 `phrases`，行尾注明哪家、原话长什么样；再在
+ * `test/context-overflow.test.ts` 的样例表里加一行原话。只看状态码就能断定的，放进 `statuses`。
+ * 来源多数取自 pi（`packages/ai/src/utils/overflow.ts`）和 ZCode（`failure-inspection.ts`）收集的实测原话。
+ */
+const CONTEXT_OVERFLOW = {
+	/** 413：请求体超出服务端上限（Anthropic `request_too_large`、网关的 Payload Too Large），压小历史同样能过。 */
+	statuses: new Set([413]),
+	phrases: [
+		/context[_\s-]?length[_\s-]?exceeded/i, // OpenAI 的 error.code；vLLM、中转常原样转发
+		/(?:model_)?context_(?:window_)?exceeded/i, // ZCode 收集的码：context_window_exceeded、model_context_window_exceeded（z.ai 把 finish_reason 写进错误）
+		/maximum context length/i, // OpenAI / DeepSeek / OpenRouter / vLLM："This model's maximum context length is 65536 tokens. However, you requested …"
+		/exceeds the context window/i, // OpenAI Responses："Your input exceeds the context window of this model."
+		/prompt (?:is )?too long/i, // Anthropic："prompt is too long: 213462 tokens > 200000 maximum"；z.ai "Prompt too long"；Ollama
+		/input length and `?max_tokens`? exceed context limit/i, // Anthropic 兼容端点："input length and `max_tokens` exceed context limit: 188000 + 21333 > 200000"
+		/request_too_large/i, // Anthropic 413 的 error.type
+		/input is too long for requested model/i, // Amazon Bedrock
+		/input token count.{0,40}exceeds the maximum/i, // Gemini："The input token count (1196265) exceeds the maximum number of tokens allowed"
+		/exceeded model token limit/i, // Kimi / Moonshot："Your request exceeded model token limit: 262144"
+		/range of input length should be/i, // 通义 DashScope："Range of input length should be [1, 129024]"
+		/context window exceeds limit/i, // MiniMax："invalid params, context window exceeds limit"
+		/total message token length.{0,60}exceed/i, // ZCode 收集的 OpenAI 兼容服务商："total message token length … exceed model limit"
+		/maximum prompt length is \d+/i, // xAI："This model's maximum prompt length is 131072 but the request contains …"
+		/reduce the length of the messages/i, // Groq；DeepSeek 与 OpenAI 旧文案的结尾
+		/too large for model with \d+ maximum context length/i, // Mistral
+		/longer than the model'?s context length/i, // Together："The input (X tokens) is longer than the model's context length (Y tokens)."
+		/exceeds (?:the )?maximum allowed input length/i, // OpenRouter / Poolside
+		/exceeds the available context size|greater than the context length/i, // llama.cpp / LM Studio
+		/prompt token count of \d+ exceeds the limit/i, // GitHub Copilot
+		/上下文.{0,8}(?:超过|超出|超限)|超出.{0,6}上下文|输入.{0,6}(?:超过|超出).{0,6}(?:上限|限制|最大)/, // 国内中转、自建网关的中文原话
+		/*
+		 * `too many tokens` 两头都有人说：上下文超长，和限流。Bedrock 系的限流原话是
+		 * `Too many tokens, please wait before trying again.`（429 ThrottlingException），中转常把它原样塞进
+		 * 流里。判成超长就是 `fatal`——一次等几秒就好的限流变成永久失败。所以后面跟着「等一等 / 再试 /
+		 * 每分钟」的不算；状态码是 429 时整条都不看（`notOnRateLimit`），429 本身就是限流最确切的信号。
+		 */
+		/too many tokens(?![^.\n]{0,40}(?:wait|try again|retry|per\s+(?:min|minute|second|sec|day|hour)|rate))/i,
+	],
+	/** 同一句话里明说是限流的，哪条短语对上都不算——pi 用同样的排除挡住 Bedrock 的限流原话。 */
+	notOverflow: /rate[_\s-]?limit|too many requests|throttl/i,
+};
+
+function isOverflowText(text: string): boolean {
+	return !CONTEXT_OVERFLOW.notOverflow.test(text) && CONTEXT_OVERFLOW.phrases.some((phrase) => phrase.test(text));
+}
+
+/** 这次失败是不是上下文超长——循环据此决定要不要强制压缩一次再发。 */
+export const isContextOverflow = (failure: Failure | undefined): boolean => failure?.code === "context-overflow";
 
 /**
  * 传输层的老面孔，用来把 `network` 和 `upstream` 分开。
@@ -378,11 +446,18 @@ function fromStatus(status: number, body?: string): Failure {
 	const fatal = FATAL_STATUS.get(status);
 
 	if (fatal) {
+		/*
+		 * 请求体类的拒收里，认出上下文超长。看整个正文而不只是 `said`：OpenAI 把 `context_length_exceeded`
+		 * 写在 `error.code`，`messageFromBody` 挑出来的那句不一定带它。
+		 */
+		const saysOverflow = fatal.hint === "check-request" && isOverflowText(body ?? "");
+		const overflow = saysOverflow || CONTEXT_OVERFLOW.statuses.has(status);
 		return {
 			kind: "fatal",
-			summary: said ? `${fatal.summary}：${shorten(said)}` : fatal.summary,
+			summary: saysOverflow ? "上下文超出模型上限" : said ? `${fatal.summary}：${shorten(said)}` : fatal.summary,
 			detail,
 			hint: fatal.hint,
+			...(overflow ? { code: "context-overflow" as const } : {}),
 			fingerprint: fingerprintOf("fatal", `${status}:${said}`),
 		};
 	}
@@ -392,13 +467,14 @@ function fromStatus(status: number, body?: string): Failure {
 	 *
 	 * 有的中转把欠费答成 503，重试到天荒地老也不会变成有钱。
 	 */
-	const phrase = matchFatalPhrase(said || body || "");
+	const phrase = matchFatalPhrase(said || body || "", status === 429);
 	if (phrase) {
 		return {
 			kind: "fatal",
 			summary: phrase.summary,
 			detail,
 			hint: phrase.hint,
+			...(phrase.code ? { code: phrase.code } : {}),
 			fingerprint: fingerprintOf("fatal", `${status}:${phrase.summary}`),
 		};
 	}
@@ -422,6 +498,7 @@ function fromStream(message: string | undefined, raw: string | undefined, spent:
 			summary: phrase.summary,
 			detail: truncateDetail(raw ?? said),
 			hint: phrase.hint,
+			...(phrase.code ? { code: phrase.code } : {}),
 			fingerprint: fingerprintOf("fatal", phrase.summary),
 			costIncurred: spent || undefined,
 		};
@@ -453,6 +530,7 @@ function fromEmpty(why: "no-content" | "no-frames" | "unparsable", body?: string
 			summary: phrase.summary,
 			detail: truncateDetail(body ?? ""),
 			hint: phrase.hint,
+			...(phrase.code ? { code: phrase.code } : {}),
 			fingerprint: fingerprintOf("fatal", phrase.summary),
 		};
 	}
@@ -492,10 +570,11 @@ function fromEmpty(why: "no-content" | "no-frames" | "unparsable", body?: string
  */
 const EMPTY_REPLY_RETRIES = 4;
 
-function matchFatalPhrase(text: string): { summary: string; hint: FailureHint } | undefined {
+function matchFatalPhrase(text: string, rateLimited = false): { summary: string; hint: FailureHint; code?: FailureCode } | undefined {
 	if (!text) return undefined;
 	for (const rule of FATAL_PHRASES) {
-		if (rule.match.test(text)) return { summary: rule.summary, hint: rule.hint };
+		if (rateLimited && rule.notOnRateLimit) continue;
+		if (rule.match.test(text)) return { summary: rule.summary, hint: rule.hint, ...(rule.code ? { code: rule.code } : {}) };
 	}
 	return undefined;
 }

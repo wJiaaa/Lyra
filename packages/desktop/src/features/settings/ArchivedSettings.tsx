@@ -1,12 +1,13 @@
 import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@lyra/core";
-import { Archive, ArchiveRestore, Folder, Trash2 } from "lucide-react";
+import { Archive, Folder, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Caret } from "../../ui/primitives/Caret.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { InlineSelect } from "./controls.tsx";
 import { groupIsOpen, toggleOpened } from "./archived-groups.ts";
 import { useApp } from "../../store/index.ts";
@@ -63,10 +64,10 @@ export function ArchivedSettings() {
 	}, [archived, query, project]);
 
 	return (
-		<div className="pt-8">
+		<div className="pt-2">
 			<header className="flex flex-wrap items-start justify-between gap-3 pb-6">
 				<div className="min-w-0">
-					<h1 className="text-heading leading-tight font-semibold tracking-tight text-ink">{t("archived.title")}</h1>
+					<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("archived.title")}</h1>
 					<p className="mt-1.5 text-label leading-relaxed text-ink-muted">
 						{translate("archived.intro")}
 					</p>
@@ -207,14 +208,11 @@ function Row({
 				</span>
 			</button>
 
-			<div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-				<DialogAction onClick={onRestore} label={t("common.unarchive")}>
-					<ArchiveRestore size={13} strokeWidth={1.8} aria-hidden />
-					{t("common.unarchive")}
-				</DialogAction>
-				<DialogAction
+			<div className="flex shrink-0 items-center gap-2">
+				<IconButton
 					tone="danger"
 					label={t("archived.deleteNamed", { title: session.title })}
+					icon={<Trash2 size={14} strokeWidth={1.8} />}
 					onClick={() =>
 						confirm.ask({
 							title: t("archived.deleteOneConfirm"),
@@ -223,10 +221,8 @@ function Row({
 							onConfirm: onDelete,
 						})
 					}
-				>
-					<Trash2 size={13.5} strokeWidth={1.8} aria-hidden />
-					{t("common.delete")}
-				</DialogAction>
+				/>
+				<DialogAction onClick={onRestore}>{t("common.unarchive")}</DialogAction>
 			</div>
 
 			{confirm.element}

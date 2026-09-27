@@ -43,10 +43,12 @@ interface EditArgs {
 export const editTool: Tool<EditArgs> = {
 	name: "edit",
 	snippet: "Edit a file by line number",
+	/*
+	 * 只放描述和参数说明里没有的：「用 tag + patch、只写替换行、别重打保留的行」「一个文件的改动放进
+	 * 一个 patch」都在 `PATCH_SYNTAX` 里，从哪里拿 tag 在 `tag` 的参数说明里。三处都每轮发送。
+	 */
 	guidelines: [
-		"Edit with `tag` and `patch`: name the original line numbers and write only the replacement lines. Never retype lines you are keeping.",
-		"Copy `tag` from the `[path#TAG]` header of the read output. If the file changed since you read it the edit is rejected — re-read and redo it.",
-		"Put every change to one file in a single patch. Several operations in one call is normal.",
+		"If the file changed since you read it the edit is rejected — re-read and redo it.",
 		"You may only edit lines you have actually seen. If `read` folded the region away as `⋯`, read that range first.",
 	],
 	description:
@@ -66,7 +68,8 @@ export const editTool: Tool<EditArgs> = {
 				// gemini-2.5-flash-lite copied that literal string in instead of reading the header.
 				description: "Copy the 4-character tag from the `[path#TAG]` header of the read output. Do not invent it.",
 			},
-			patch: { type: "string", description: `Line-anchored patch. ${PATCH_SYNTAX}` },
+			// 语法只在工具描述里写一遍；这里再放一份是每轮多发 1300 字符。
+			patch: { type: "string", description: "Line-anchored patch in the syntax given in the tool description." },
 			old_string: { type: "string", description: "Legacy form: exact text to replace." },
 			new_string: { type: "string", description: "Legacy form: replacement text." },
 			replace_all: { type: "boolean", description: "Legacy form: replace every occurrence instead of requiring uniqueness." },

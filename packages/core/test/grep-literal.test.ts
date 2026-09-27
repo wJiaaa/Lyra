@@ -137,3 +137,20 @@ test("a regular expression that matches nothing is reported as itself", async (t
 	assert.match(res.content[0].text, /No matches for \/class\\s\+Missing\/\./);
 	assert.doesNotMatch(res.content[0].text, /literally/);
 });
+
+for (const fallback of [false, true]) {
+	test(`a search that hits the match limit says more may exist (fallback=${fallback})`, async (t) => {
+		// 内置扫描满 200 条就停，以前结果里一个字都没提，看上去就是全部。
+		const dir = await workspace();
+		t.after(() => rm(dir, { recursive: true, force: true }));
+		await writeFile(join(dir, "many.txt"), Array.from({ length: 450 }, (_, i) => `hit ${i}`).join("\n"));
+		const path = process.env.PATH;
+		if (fallback) process.env.PATH = "";
+		t.after(() => { process.env.PATH = path; });
+		const res = await grepTool.execute({ pattern: "hit" }, ctx(dir));
+		const text = res.content.map((part) => part.text).join("");
+		assert.match(text, /hit the 200-match limit; more matches may exist/);
+		const few = await grepTool.execute({ pattern: "hit 44\\d" }, ctx(dir));
+		assert.doesNotMatch(few.content.map((part) => part.text).join(""), /truncated/);
+	});
+}

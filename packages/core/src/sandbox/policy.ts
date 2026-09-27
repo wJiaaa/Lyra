@@ -29,7 +29,7 @@ import { tmpdir } from "node:os";
  */
 export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 
-/** The modes a backend can actually enforce. `danger-full-access` never reaches one. */
+/** 约束文件的模式。`danger-full-access` 只在断网时到达后端，那时它只约束网络。 */
 export type ConfinedSandboxMode = Exclude<SandboxMode, "danger-full-access">;
 
 /**
@@ -136,15 +136,17 @@ function sbplString(path: string): string {
  * `read-only` sandbox that cannot run `command 2>/dev/null` is not read-only, it is broken.
  */
 export function seatbeltArgs(policy: SandboxPolicy): string[] {
-	const forms = [
-		"(version 1)",
-		"(allow default)",
-		"(deny file-write*)",
-		`(allow file-write* (literal ${sbplString("/dev/null")}))`,
-	];
-	const roots = writableRoots(policy);
-	if (roots.length > 0) {
-		forms.push(`(allow file-write* ${roots.map((root) => `(subpath ${sbplString(root)})`).join(" ")})`);
+	const forms = ["(version 1)", "(allow default)"];
+	/*
+	 * `danger-full-access` 到这里只可能是「文件不限、网络断开」：文件这一半一条都不写。
+	 * 之前不看模式照写 `(deny file-write*)`，而这个模式的可写根是空的，结果成了只读。
+	 */
+	if (policy.mode !== "danger-full-access") {
+		forms.push("(deny file-write*)", `(allow file-write* (literal ${sbplString("/dev/null")}))`);
+		const roots = writableRoots(policy);
+		if (roots.length > 0) {
+			forms.push(`(allow file-write* ${roots.map((root) => `(subpath ${sbplString(root)})`).join(" ")})`);
+		}
 	}
 	/*
 	 * `network-outbound` and `network-bind` by name, not `network*`, and the order matters.
@@ -181,7 +183,8 @@ export function seatbeltArgs(policy: SandboxPolicy): string[] {
  * the Seatbelt profile gives by a different route: this machine yes, anywhere else no.
  */
 export function bwrapArgs(policy: SandboxPolicy): string[] {
-	const args = ["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--die-with-parent"];
+	// `danger-full-access`（只断网）整个根可写绑回去，理由同 `seatbeltArgs`。
+	const args = [policy.mode === "danger-full-access" ? "--bind" : "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--die-with-parent"];
 	for (const root of writableRoots(policy)) args.push("--bind", root, root);
 	if (policy.network === "deny") args.push("--unshare-net");
 	return args;

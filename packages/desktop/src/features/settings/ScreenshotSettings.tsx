@@ -54,8 +54,8 @@ export function ScreenshotSettings() {
 	};
 
 	return (
-		<div className="pt-8">
-			<h1 className="pb-7 text-display leading-tight font-semibold tracking-tight text-ink">
+		<div className="pt-2">
+			<h1 className="pb-8 text-display leading-tight font-semibold tracking-tight text-ink">
 				{t("screenshot.title")}
 			</h1>
 

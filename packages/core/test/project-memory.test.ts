@@ -9,7 +9,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, mkdir, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -202,4 +202,20 @@ test("disabling project memory gates learn before it can touch the repository st
 	const enabled = await learnTool.execute({ lesson: "Inspect package scripts before selecting validation commands." }, { cwd: project, sessionId: "disabled-memory", state });
 	assert.notEqual(enabled.isError, true);
 	assert.match(await readFile(file, "utf8"), /Inspect package scripts/);
+});
+
+test("hand-written lessons without a timestamp read back the same date every time", async () => {
+	const dir = projectMemoryDir(project);
+	await mkdir(dir, { recursive: true });
+	const file = join(dir, "learned.md");
+	await writeFile(file, "# 手写的\n\n- 第一条\n- 第二条\n", "utf8");
+	const past = new Date("2026-01-02T03:04:05Z");
+	await utimes(file, past, past);
+	const first = await readLessons(project);
+	await new Promise((resolve) => setTimeout(resolve, 5));
+	const second = await readLessons(project);
+	assert.deepEqual(second, first, "the same file must produce the same lessons");
+	assert.equal(formatProjectMemory(second), formatProjectMemory(first), "and the same prompt bytes");
+	assert.notEqual(first[0].at, first[1].at, "forgetting one by `at` must not take the other");
+	assert.ok(Math.abs(first[0].at - past.getTime()) < 10, "dated by when the file was last written, not today");
 });

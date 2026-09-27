@@ -1,6 +1,7 @@
 /** Validation for the incremental usage cache. Invalid or old caches are simply rebuilt. */
 
 import { readFile } from "node:fs/promises";
+import type { CacheDiagnosisState } from "@lyra/core";
 import type { UsageBucket } from "./usage-types.ts";
 
 export interface UsageFileEntry {
@@ -8,6 +9,8 @@ export interface UsageFileEntry {
 	size: number;
 	buckets: UsageBucket[];
 	days: Record<string, number>;
+	/** 每条请求序列（主会话 `main`、子代理 `sub:<id>`）的缓存诊断进度，日志长了从这里接着诊断。 */
+	cacheStreams: Record<string, CacheDiagnosisState>;
 }
 
 export type UsageFiles = Record<string, UsageFileEntry>;
@@ -28,11 +31,12 @@ interface UsageCache {
  * 3: 计价 token 从每个桶都算，改成只算新鲜 token。
  * 4: 子 Agent 的用量开始算进来（它的消息落盘成 `type: "event"` 里的 `subagent_message`，从前够不着）。
  *    这一版的漏算不小：用户的一个会话里子 Agent 比主 Agent 还多烧 40%。
+ * 5: 逐次请求的缓存未命中（`UsageBucket.cacheMiss`），要从头诊断每条请求序列。
  *
  * 上面那个 `version: 2` 曾经和这里的 3 对不上——接口写死一个字面量、常量另写一个，两边谁也不管谁。
  * 现在接口直接引常量，只能一起改。
  */
-export const USAGE_CACHE_VERSION = 4 as const;
+export const USAGE_CACHE_VERSION = 5 as const;
 
 const BUCKET_NUMBERS: (keyof UsageBucket)[] = [
 	"input", "output", "cacheRead", "cacheWrite", "reasoning", "cost", "inputCost", "outputCost",
@@ -47,17 +51,36 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function isUsageBucket(value: unknown): value is UsageBucket {
 	const bucket = asRecord(value);
 	if (!bucket || typeof bucket.day !== "string" || typeof bucket.key !== "string" || typeof bucket.provider !== "string" || typeof bucket.model !== "string") return false;
-	return BUCKET_NUMBERS.every((key) => {
-		const field = bucket[key];
-		return typeof field === "number" && Number.isFinite(field);
-	});
+	return (
+		BUCKET_NUMBERS.every((key) => {
+			const field = bucket[key];
+			return typeof field === "number" && Number.isFinite(field);
+		}) &&
+		(bucket.cacheMiss === undefined || isCacheMiss(bucket.cacheMiss))
+	);
+}
+
+function isCacheMiss(value: unknown): boolean {
+	const miss = asRecord(value);
+	const byCause = asRecord(miss?.byCause);
+	return (
+		Boolean(miss && byCause) &&
+		[miss?.tokens, miss?.cost, miss?.unpriced, ...Object.values(byCause ?? {})].every((field) => typeof field === "number" && Number.isFinite(field))
+	);
 }
 
 function isFileEntry(value: unknown): value is UsageFileEntry {
 	const entry = asRecord(value);
 	if (!entry || typeof entry.mtimeMs !== "number" || typeof entry.size !== "number" || !Array.isArray(entry.buckets)) return false;
 	const days = asRecord(entry.days);
-	return Boolean(days) && Object.values(days ?? {}).every((count) => typeof count === "number") && entry.buckets.every(isUsageBucket);
+	const streams = asRecord(entry.cacheStreams);
+	return (
+		Boolean(days) &&
+		Object.values(days ?? {}).every((count) => typeof count === "number") &&
+		entry.buckets.every(isUsageBucket) &&
+		Boolean(streams) &&
+		Object.values(streams ?? {}).every((state) => Array.isArray(asRecord(state)?.reported) && typeof asRecord(state)?.requests === "number")
+	);
 }
 
 function isUsageCache(value: unknown, expectedPricingKey: string): value is UsageCache {

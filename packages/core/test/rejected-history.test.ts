@@ -20,6 +20,7 @@ import { PRUNE_THRESHOLD_CHARS, stripOversizedToolResults } from "../src/runtime
 import type { AgentEvent } from "../src/agent/events.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
+import { classifyFailure } from "../src/ai/failure.ts";
 
 const MODEL: ModelConfig = {
 	id: "fake/model",
@@ -76,8 +77,15 @@ function reply(over: Partial<AssistantMessage>): AssistantMessage {
 	};
 }
 
+// 失败按生产路径分类，和三条协议链出错时带上的 `failure` 一样。
 const rejected = (status: number) =>
-	reply({ content: [], stopReason: "error", errorMessage: `HTTP ${status}: {"error":{"code":${status}}}`, errorRetryable: false });
+	reply({
+		content: [],
+		stopReason: "error",
+		errorMessage: `HTTP ${status}: {"error":{"code":${status}}}`,
+		errorRetryable: false,
+		failure: classifyFailure({ from: "status", status, body: `{"error":{"code":${status}}}` }),
+	});
 
 /** Runs the loop with a scripted provider, and reports what each request carried. */
 async function run(replies: AssistantMessage[]) {

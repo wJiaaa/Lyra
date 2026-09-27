@@ -4,15 +4,14 @@
  *
  * 两件事，客户各报了一条：
  *
- *   问题 5 —— 弹窗里每行都写 200K，导进来却是 1M。写死的假字符串 + 导入把 `metadataSource` 谎报成
- *   `"catalog"`，于是 `withCatalogDefaults` 在每次存/读时把窗口改回目录值。**必须跨一次存盘**才验得出
- *   来：只看导入那一瞬间是 200K，是会漏掉这个 bug 的。
+ *   问题 5 —— 弹窗里每行写的窗口和导进来的不一样。现在两边都来自智能配置规则，弹窗每行显示的就是
+ *   导入会写的值；设置每次存/读都重新套推荐值，**必须跨一次存盘**才验得出两边是否一致。
  *
  *   问题 6 —— 弹窗遮罩只盖住了右侧内容区，左边导航栏还是亮的、还能点。`fixed inset-0` 被祖先
  *   `Scroller` 的 `mask-image` 关进了包含块里。这里量的是遮罩的实际矩形对不对得上整扇窗，
  *   不是「看起来变暗了」。
  *
- * 用真实供应商的模型清单，因为假清单里的名字不在离线目录里，恰好绕开了 1M 那条路径。
+ * 用真实供应商的模型清单，假清单里的名字只会命中兜底规则。
  */
 
 import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -113,8 +112,8 @@ async function main() {
 		})()`);
 		check("拉取弹窗打开并列出模型", pulled.open && pulled.total > 0, `${pulled.total} 行，右侧标签取值：${JSON.stringify(pulled.labels)}`);
 		check(
-			"弹窗上的上下文标签是 200K，且只有这一种取值（问题 5 上半）",
-			pulled.labels.length === 1 && pulled.labels[0] === "200K",
+			"弹窗上每行都有智能配置算出的上下文标签（问题 5 上半）",
+			pulled.labels.length > 0 && pulled.labels.every((label) => /^\d+K$/.test(label)),
 			`实际：${JSON.stringify(pulled.labels)}`,
 		);
 
@@ -148,27 +147,26 @@ async function main() {
 		await app.evaluate(`(()=>{document.querySelector('[data-import-qa]')?.removeAttribute('data-import-qa');[...document.querySelectorAll('[data-ly-modal] button')].find((b)=>/导入所选/.test(b.innerText)).setAttribute('data-import-qa','');})()`);
 		await click("[data-import-qa]");
 		await app.evaluate(`(${WAIT})(3000)`);
-		const imported = await app.evaluate<{ count: number; windows: number[]; outputs: number[]; sources: string[] }>(`(async () => {
+		const imported = await app.evaluate<{ count: number; limits: string; sources: string[] }>(`(async () => {
 			const s = await window.lyra.settings.get();
 			const models = (s.providers ?? []).flatMap((p) => p.models ?? []);
 			return {
 				count: models.length,
-				windows: [...new Set(models.map((m) => m.contextWindow))],
-				outputs: [...new Set(models.map((m) => m.maxOutputTokens))],
+				limits: JSON.stringify(models.map((m) => [m.modelId, m.contextWindow, m.maxOutputTokens])),
 				sources: [...new Set(models.map((m) => m.metadataSource ?? "none"))],
 			};
 		})()`);
 		check(
-			"导入后每个模型都是 200K / 65536（问题 5 下半）",
-			imported.count > 0 && imported.windows.length === 1 && imported.windows[0] === 200_000 && imported.outputs.length === 1 && imported.outputs[0] === 65_536,
-			`${imported.count} 个模型；上下文 ${JSON.stringify(imported.windows)}；最大输出 ${JSON.stringify(imported.outputs)}；来源 ${JSON.stringify(imported.sources)}`,
+			"导入的模型都由智能配置管理（问题 5 下半）",
+			imported.count > 0 && imported.sources.length === 1 && imported.sources[0] === "smart",
+			`${imported.count} 个模型；来源 ${JSON.stringify(imported.sources)}`,
 		);
 
 		/*
 		 * 重启应用再看一遍。
 		 *
-		 * `withCatalogDefaults` 在每次读设置和每次写设置时都跑，标着 `"catalog"` 的行会被目录值覆盖回
-		 * 1M——所以只看导入那一瞬间是验不出这个 bug 的，必须跨一次真正的存盘与重新加载。
+		 * 设置每次读写都会重新套一遍智能配置，读写两边算出的推荐值必须一致——所以只看导入那一瞬间
+		 * 是验不出问题的，必须跨一次真正的存盘与重新加载。
 		 */
 		// `app.stop()` 会把 profile 删掉，所以先留一份副本，再关、再用这份副本开第二次。
 		const staged = await mkdtemp(join(tmpdir(), "lyra-restart-"));
@@ -181,16 +179,16 @@ async function main() {
 				await cp(staged, home, { recursive: true });
 			},
 		});
-		const after = await app.evaluate<{ windows: number[]; outputs: number[] }>(`(async () => {
+		const after = await app.evaluate<string>(`(async () => {
 			const s = await window.lyra.settings.get();
 			const models = (s.providers ?? []).flatMap((p) => p.models ?? []);
-			return { windows: [...new Set(models.map((m) => m.contextWindow))], outputs: [...new Set(models.map((m) => m.maxOutputTokens))] };
-		})()`).catch(() => ({ windows: [-1], outputs: [-1] }));
+			return JSON.stringify(models.map((m) => [m.modelId, m.contextWindow, m.maxOutputTokens]));
+		})()`).catch(() => "unavailable");
 		await rm(staged, { recursive: true, force: true });
 		check(
-			"重启之后仍然是 200K / 65536（目录没把它改回 1M）",
-			after.windows.length === 1 && after.windows[0] === 200_000 && after.outputs[0] === 65_536,
-			`上下文 ${JSON.stringify(after.windows)}；最大输出 ${JSON.stringify(after.outputs)}`,
+			"重启之后上下文和最大输出与导入时一致",
+			after === imported.limits,
+			`导入时 ${imported.limits}；重启后 ${after}`,
 		);
 	} finally {
 		const passed = results.filter((r) => r.ok).length;

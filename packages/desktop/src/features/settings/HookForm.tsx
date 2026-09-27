@@ -87,7 +87,7 @@ export function HookForm({
 	}
 
 	return (
-		<div className="pt-8" data-ly-hook-form="">
+		<div className="pt-2" data-ly-hook-form="">
 			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{hook ? t("hooks.edit") : t("hooks.add")}</h1>
 			<p className="mt-2 text-label text-ink-muted">{t("hooks.intro")}</p>
 

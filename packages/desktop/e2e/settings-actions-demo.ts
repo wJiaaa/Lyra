@@ -177,17 +177,13 @@ try {
 	}
 
 	await openSettings("命令");
-	await until(`Boolean(document.querySelector('[data-ly-open-commands="personal"]'))`);
-	const commands = await app.evaluate<{ personal: string; project: string; create: string; pills: number }>(`(() => {
-		const text = (sel) => (document.querySelector(sel)?.textContent || "").replace(/\\s+/g, " ").trim();
-		const personal = text('[data-ly-open-commands="personal"]');
-		const project = text('[data-ly-open-commands="project"]');
-		const create = text("[data-ly-create-command]");
-		const pills = [...document.querySelectorAll("[data-ly-open-commands], [data-ly-create-command]")].filter((el) => el.classList.contains("ly-dialog-action")).length;
-		return { personal, project, create, pills };
+	await until(`Boolean(document.querySelector("[data-ly-commands-settings] [data-ly-select]"))`);
+	const commands = await app.evaluate<{ search: boolean; actions: string[] }>(`(() => {
+		const page = document.querySelector("[data-ly-commands-settings]");
+		const actions = [...page.querySelectorAll("section:first-of-type h2 + div button")].map((b) => b.getAttribute("data-ly-tip") || (b.textContent || "").trim());
+		return { search: Boolean(page.querySelector("[data-ly-field]:not([data-ly-select])")), actions };
 	})()`);
-	check("two folder buttons have different words", commands.personal !== commands.project && commands.personal.includes("个人") && commands.project.includes("项目"), commands);
-	check("command actions use the dialog button paint", commands.pills === 3 && commands.create.includes("创建并编辑"), commands);
+	check("commands page uses the hooks toolbar", commands.search && commands.actions.length === 3 && commands.actions.includes("新建"), commands);
 	await hold(1200);
 
 	await openSettings("已归档的聊天");

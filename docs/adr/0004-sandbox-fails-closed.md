@@ -57,3 +57,11 @@ Landlock 在 Ubuntu、Fedora、Debian 的内核里默认启用，无特权进程
 `--lyra-sandbox-runner` 当成自己的选项，`bad option`，退出码 9，见 `sandbox/runner-entry.ts`），
 受限令牌也因为结构体偏移写错一直建不起来，默认模式下同样什么都不跑。Windows 上受约束的命令为什么改在 PowerShell 里跑，
 见 [ADR-0022](0022-windows-confined-commands-in-powershell.md)。
+
+## 2026-09-27 补：完全访问 + 禁止联网只断网
+
+「完全访问」加「禁止命令联网」是一个真实的组合：文件不约束，网络断开。以前 Seatbelt 不看模式照写
+`(deny file-write*)`、bwrap 照写 `--ro-bind / /`，而这个模式没有可写根，结果**全部写入被拒**；
+Landlock 则被当成 workspace-write 发过去，只能写工作区——三个后端三种答案。现在三者一致：
+Seatbelt 只写网络规则，bwrap 把根可写地绑回去再 `--unshare-net`，Landlock 只处理网络、不处理任何
+文件权限。Windows 的受限令牌断不了网，这个组合在那里照旧明确拒绝，而不是只约束一半。

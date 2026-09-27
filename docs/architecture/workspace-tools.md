@@ -64,7 +64,8 @@ POSIX 结束进程组，普通停止使用 `SIGTERM`，强制结束使用 `SIGKI
 ### 文件编辑约束
 
 `read`、`edit`、`write` 用规范路径关联文件；写入只允许项目或 scratch 内的符号链接目标，
-读取项目外的符号链接目标仍需经过读取授权。
+读取项目外的符号链接目标仍需经过读取授权。`ls`、`grep`、`glob`、`lsp` 和 `bash` 命令行里的路径同样先解析
+符号链接再判定（`read-access.ts` 的 `resolveForReading`），工作区里指向外面的链接按它指向的位置询问。
 文本读取记录完整内容的 SHA-256 和实际显示的行范围，四位 tag 只供模型引用。编辑前必须匹配
 已读版本；从报错抄到当前 tag 不能绕过重读。图片与文档抽取结果不算可编辑的原始文本。
 
@@ -91,6 +92,10 @@ POSIX 结束进程组，普通停止使用 `SIGTERM`，强制结束使用 `SIGKI
 write/edit 在变更前保存 before/after 快照，并在批准后重新核对基线，避免覆盖等待期间的修改。
 快照按 sessionId 哈希和 UUID 存在私有 `changes` 目录；工具结果只携带变更 ID。foreground bash
 在 Git 仓库记录执行前后的工作区差异，基线包含原有未提交和暂存改动，不能把用户原有改动算给本轮。
+这些 git 调用在宿主进程里跑，而仓库是沙箱可写的，所以它们不读仓库配置（`host-git.ts`）：除了
+`rev-parse` 与 `config --list`，其余在 `~/.lyra/git-views` 下临时生成的 `GIT_DIR` 里执行，配置只带
+换行转换等白名单数据键，没有 filter/diff 驱动、fsmonitor、钩子和 promisor 远端。沙箱内命令写进
+`.git/config` 的程序不会被宿主执行；缺对象时记录失败并提示，不会去拉取。
 
 交付记录从可信 transcript 按回答切分一轮，合并同文件多次修改为净差异。存在文件变化或验证
 命令时生成临时 Markdown，区分用户需求、Agent 说明、实际文件差异、命令输出和退出状态。

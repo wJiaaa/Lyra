@@ -25,7 +25,7 @@ import { RegistrySources } from "../../src/features/plugins/RegistrySources.tsx"
 import { ReleaseModal } from "../../src/features/git/ReleaseModal.tsx";
 import { mount } from "../helpers/mount.ts";
 
-const provider = { id: "relay", baseUrl: "https://relay.example/v1" };
+const provider = { id: "relay", baseUrl: "https://relay.example/v1", api: "openai-responses" as const };
 
 const model = {
 	id: "relay/qa-model", providerId: "relay", modelId: "qa-model", name: "QA Model",
@@ -104,6 +104,7 @@ test("新建模型：同一副外壳，标题换成「添加模型」", async ()
 test("拉取模型：导入按钮带着数字，仍然写得出自己是谁", async () => {
 	const view = await mount(zh(h(FetchModelsModal, {
 		open: true,
+		provider,
 		models: ["alpha", "beta", "gamma"],
 		existingModelIds: new Set(["beta"]),
 		onClose: () => {},

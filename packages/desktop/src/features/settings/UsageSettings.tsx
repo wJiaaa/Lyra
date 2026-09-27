@@ -10,11 +10,11 @@ import { SkeletonBar, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { DURATION } from "../../ui/motion/tokens.ts";
 import { ModelIcon } from "../models/index.ts";
 import { Card, EmptyHint, Segmented, TextInput } from "./controls.tsx";
-import { dayTotals, providerIdentity, providerLabel, summarise, type ModelUse, type ProviderIdentity, type ProviderNaming, type Range } from "./usage-aggregate.ts";
+import { dayTotals, providerIdentity, providerLabel, summarise, type ModelUse, type ProviderIdentity, type ProviderNaming, type Range, type Totals } from "./usage-aggregate.ts";
 import { heatLevel, heatmapWeeks, monthLabels, type DayUsage } from "./usage-heatmap.ts";
 import { trendColor, UsageTrendChart, type TrendMetric } from "./usage-charts.tsx";
 import { formatCompact, formatCost } from "./usage-format.ts";
-import { translate, useI18n } from "../../i18n/index.ts";
+import { translate, useI18n, type MessageKey } from "../../i18n/index.ts";
 
 const WEEKS = 52;
 
@@ -104,7 +104,7 @@ export function UsageSettings() {
 	const busiestDay = useMemo(() => Math.max(0, ...grid.flat().map((day) => day.tokens)), [grid]);
 
 	return (
-		<div className="pt-8">
+		<div className="pt-2">
 			<header className="flex flex-wrap items-start justify-between gap-4 pb-5">
 				<div>
 					<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("usage.title")}</h1>
@@ -356,6 +356,8 @@ function Dashboard({
 			 * 再靠后也改变不了它是一个不可撤销的动作，跟在一屏读数后面等于让每次查账都从「别点错」
 			 * 开始。它问的本来也是另一个问题——这台机器上存着什么、还要留多久。
 			 */}
+			<CacheMissCard totals={totals} />
+
 			<div className="pt-6 pb-4">
 				<div className="mb-3 text-title font-medium text-ink">{t("usage.rhythm")}</div>
 				<Card>{busiestDay === 0 ? <EmptyHint icon={CalendarDays}>{t("usage.noRecords")}</EmptyHint> : <div className="px-4 py-4"><Heatmap grid={grid} busiest={busiestDay} /></div>}</Card>
@@ -535,6 +537,54 @@ function BreakdownTable({ rows, remaining }: { rows: BreakdownRow[]; remaining: 
 function QualityBar({ totals }: { totals: UsageView["totals"] }) {
 	const parts = [totals.quality.provider, totals.quality.catalog, totals.quality.manual, totals.quality.recorded, totals.quality.unpriced];
 	return <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-ink/[0.06]">{parts.map((value, index) => <span key={index} className="transition-[width] duration-[var(--ly-t-slow)] ease-[var(--ly-e-out)] motion-reduce:transition-none" style={{ width: `${(value / Math.max(1, totals.tokens)) * 100}%`, background: index === 4 ? "var(--color-line)" : trendColor(index) }} />)}</div>;
+}
+
+/**
+ * 有未命中的那几种原因，按「要不要去查」排：原因不明的是前缀被改动了，排第一；其余几种是空闲过期、
+ * 有意改写或换模型，付了代价但说得清为什么。
+ */
+const CACHE_MISS_CAUSES: { cause: keyof Totals["cacheMiss"]["byCause"]; label: MessageKey }[] = [
+	{ cause: "unknown", label: "usage.cacheMissUnknown" },
+	{ cause: "idle", label: "usage.cacheMissIdle" },
+	{ cause: "compaction", label: "usage.cacheMissCompaction" },
+	{ cause: "rewind", label: "usage.cacheMissRewind" },
+	{ cause: "model", label: "usage.cacheMissModel" },
+];
+
+/** 本该从缓存读到、却按全价重算的输入，以及各是为什么。算法见 core 的 `runtime/cache-diagnostics.ts`。 */
+function CacheMissCard({ totals }: { totals: Totals }) {
+	const { t } = useI18n();
+	const miss = totals.cacheMiss;
+	const rows = CACHE_MISS_CAUSES.filter(({ cause }) => (miss.byCause[cause] ?? 0) > 0);
+	return (
+		<div className="pt-6">
+			<div className="mb-3 text-title font-medium text-ink">{t("usage.cacheMiss")}</div>
+			<Card className="p-4" data-usage-cache-miss="true">
+				{miss.tokens === 0 ? (
+					<EmptyHint icon={Layers}>{t("usage.cacheMissNone")}</EmptyHint>
+				) : (
+					<div className="grid gap-4 @2xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+						<div>
+							<div className="text-[24px] leading-tight font-semibold tracking-[-0.02em] text-ink tabular-nums">
+								<Figure value={miss.tokens} format={formatCompact} /> <span className="text-label font-normal text-ink-faint">token</span>
+							</div>
+							<div className="mt-1 text-detail text-ink-faint tabular-nums">
+								{t("usage.ofInput", { percent: percent(miss.tokens, totals.input + totals.cacheRead + totals.cacheWrite) })}
+								{miss.cost > 0 && <> · {t("usage.cacheMissCost", { cost: costLabel(miss.cost) })}</>}
+								{miss.unpriced > 0 && <> · {t("usage.cacheMissUnpriced", { n: formatCompact(miss.unpriced) })}</>}
+							</div>
+							<div className="mt-2 text-detail leading-relaxed text-ink-faint">{t("usage.cacheMissDetail")}</div>
+						</div>
+						<div className="divide-y divide-line-soft">
+							{rows.map(({ cause, label }) => (
+								<QualityRow key={cause} label={t(label)} value={miss.byCause[cause] ?? 0} format={formatCompact} />
+							))}
+						</div>
+					</div>
+				)}
+			</Card>
+		</div>
+	);
 }
 
 function QualityRow({ label, value, format }: { label: string; value: number; format: (shown: number) => string }) {

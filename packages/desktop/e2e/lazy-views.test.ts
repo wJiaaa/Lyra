@@ -65,10 +65,10 @@ test("拉取请求页同样", async () => {
 	assert.equal(await appears("拉取请求"), true, "拉取请求页没有渲染出来");
 });
 
-test("已安排页同样", async () => {
-	// 侧边栏上写的是「已安排」；视图内部叫 scheduled。按用户看得见的那个字找。
-	await navigate("已安排");
-	assert.equal(await appears("已安排"), true, "已安排页没有渲染出来");
+test("定时任务页同样", async () => {
+	// 侧边栏上写的是「定时任务」；视图内部叫 scheduled。按用户看得见的那个字找。
+	await navigate("定时任务");
+	assert.equal(await appears("定时任务"), true, "定时任务页没有渲染出来");
 });
 
 test("切回对话，界面完整", async () => {

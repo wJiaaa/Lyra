@@ -28,7 +28,7 @@ import type { CompactionObserver, CompactionFault } from "../types/compaction.ts
 import type { CompactionRequest, CompactionStrategy } from "../kernel/services.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { estimateTokens } from "../tokens.ts";
-import { dropUneventful, pruneToolResults, type ArtifactSink } from "./prune.ts";
+import { dropUneventful, FRESH_RESULT_MAX_CHARS, pruneToolResults, type ArtifactSink } from "./prune.ts";
 import { dropStaleResults } from "./stale-results.ts";
 import { contextMaxTokens, measureTotal } from "./context.ts";
 import { stripStaleHandles } from "./model-switch.ts";
@@ -202,8 +202,9 @@ export interface Compaction {
 	 * other; "the last N still apply" means the same thing in both.
 	 *
 	 * Absent when nothing was summarised away. Pruning oversized tool results rewrites messages
-	 * without removing any, so it changes what is sent and not where history begins — and it is
-	 * cheap and idempotent, so it simply runs again next turn rather than being stored.
+	 * without removing any, so it changes what is sent and not where history begins. 它不能靠
+	 * 「下一轮再剪一次」补回来：下一轮的压缩判断读的是这次剪过之后的 usage，不会再触发，原文
+	 * 就照发了。剪过的副本由 `compactStep` 交给会话的 `AgedToolPruner` 记住，摘要时保留尾部同理。
 	 */
 	kept?: number;
 }
@@ -330,7 +331,17 @@ export async function compactIfNeeded(
 	 */
 	const tidied = dropUneventful(messages, { lastRequestAt: 0, now: Number.MAX_SAFE_INTEGER });
 	const stale = dropStaleResults(tidied, { lastRequestAt: 0, now: Number.MAX_SAFE_INTEGER });
-	const pruned = pruneToolResults(stale, undefined, artifacts);
+	/*
+	 * 模型还没看过的新结果（最后一条助手消息之后）只剪炸开的那种，和循环里的按龄剪枝同一条线。
+	 * `read` 把输出控制在这条线以内，并把返回的行记成读过；这里照常剪到 8k 的话，它记下的又
+	 * 多于模型看到的，`edit` 会放行没见过的行。
+	 */
+	const unseenFrom = stale.findLastIndex((message) => message.role === "assistant") + 1;
+	const seenPart = stale.slice(0, unseenFrom);
+	const unseenPart = stale.slice(unseenFrom);
+	const seenPruned = pruneToolResults(seenPart, undefined, artifacts);
+	const unseenPruned = pruneToolResults(unseenPart, FRESH_RESULT_MAX_CHARS, artifacts);
+	const pruned = seenPruned === seenPart && unseenPruned === unseenPart ? stale : [...seenPruned, ...unseenPruned];
 	if (pruned !== messages) {
 		const rawPruned = estimateTokens(pruned);
 		const factor = measured.measured && rawPruned > 0 ? Math.max(0, used - overhead) / rawPruned : 1;
@@ -395,7 +406,7 @@ export async function compactIfNeeded(
 		? stripStaleHandles(older, older.length)
 		: older;
 	await observer?.progress({ phase: "summarizing", provider: summaryProvider.id, model: summaryModel.id });
-	let summary = await summarize(summaryHistory, summaryModel, summaryProvider, streamFn, force ? manual ?? {} : undefined, observer);
+	let summary = await summarize(summaryHistory, summaryModel, summaryProvider, streamFn, force ? manual ?? {} : undefined, observer, scale);
 	if (observer?.signal?.aborted) return null;
 	if (!summary) {
 		summary = fallbackSummary(older);
@@ -611,6 +622,8 @@ async function summarize(
 	streamFn: typeof streamAssistant,
 	manual?: { instructions?: string; signal?: AbortSignal },
 	observer?: CompactionObserver,
+	/** 实测 usage 与字符估算之比，见 `compactIfNeeded` 里的 `scale`。 */
+	scale = 1,
 ): Promise<string | null> {
 	/*
 	 * Which instruction to use depends on whether there is already a summary in there.
@@ -628,7 +641,12 @@ async function summarize(
 	const context: LlmContext = {
 		systemPrompt: SUMMARY_SYSTEM,
 		messages: [
-			...condense(messages, model.contextWindow * SUMMARY_INPUT),
+			/*
+			 * 预算按实测比例折回字符估算的单位。估算是「字符 / 3.5」，中文和密集 JSON 上会低估到
+			 * 三分之一，不校正的话 40% 的预算实际发出去超过整个窗口，摘要请求被拒，退回机械兜底。
+			 * 只往保守方向校正：摘要模型可能换了分词器，估算偏高时不据此多塞。
+			 */
+			...condense(messages, (model.contextWindow * SUMMARY_INPUT) / Math.max(1, scale)),
 			{
 				role: "user",
 				content: [{ type: "text", text: [iterative ? UPDATE_SUMMARY : FIRST_SUMMARY,
@@ -698,11 +716,39 @@ function condense(messages: Message[], budget: number): Message[] {
 			if (part.type === "text") return { ...part, text: clip(part.text, perMessage) };
 			if (part.type === "thinking") return { ...part, thinking: clip(part.thinking, Math.floor(perMessage / 3)) };
 			if (part.type === "toolCall") {
-				return { ...part, argumentsText: clip(part.argumentsText ?? "", perMessage), arguments: {} };
+				/*
+				 * 剪参数对象里的长字符串，再让原文跟着它重新序列化。
+				 *
+				 * 以前只剪 `argumentsText`、把 `arguments` 置空：OpenAI 两种协议读原文，还看得到路径和
+				 * 命令；Anthropic 只读 `arguments`，摘要模型看到的每一次调用都是 `{}`，写不出改过哪个文件。
+				 * 两份同源，任何协议读到的都是同一份剪短的参数。
+				 */
+				const args = clipValues(part.arguments ?? {}, perMessage) as Record<string, unknown>;
+				if (args !== part.arguments) return { ...part, arguments: args, argumentsText: JSON.stringify(args) };
+				// 参数没解析出来、只剩流式原文（截断 JSON 的抢救稿）时，能剪的只有原文。
+				if (Object.keys(args).length === 0 && part.argumentsText && part.argumentsText.length > perMessage) {
+					return { ...part, argumentsText: clip(part.argumentsText, perMessage) };
+				}
+				return part;
 			}
 			return part;
 		}),
 	})) as Message[];
+}
+
+/** 参数对象里超长的字符串逐个剪短；没有要剪的就原样返回同一个对象。 */
+function clipValues(value: unknown, limit: number): unknown {
+	if (typeof value === "string") return clip(value, limit);
+	if (Array.isArray(value)) {
+		const next = value.map((item) => clipValues(item, limit));
+		return next.some((item, i) => item !== value[i]) ? next : value;
+	}
+	if (value && typeof value === "object") {
+		const entries = Object.entries(value);
+		const next = entries.map(([key, item]) => [key, clipValues(item, limit)] as const);
+		return next.some(([, item], i) => item !== entries[i][1]) ? Object.fromEntries(next) : value;
+	}
+	return value;
 }
 
 function clip(text: string, limit: number): string {

@@ -60,17 +60,17 @@ export class Scheduler {
 			const settings = this.deps.getSettings();
 			const session = await this.deps.createSession(task.cwd, settings.defaultModelId ?? "");
 			sessionId = session.meta.id;
-			this.deps.notify(`已安排任务「${task.name}」开始运行`, "info");
+			this.deps.notify(`定时任务「${task.name}」开始运行`, "info");
 			// Not awaited: the turn can run for minutes and must not block the tick.
 			void session.prompt([{ type: "text", text: task.prompt }]).catch((cause: unknown) => {
 				this.deps.notify(
-					`已安排任务「${task.name}」失败：${cause instanceof Error ? cause.message : String(cause)}`,
+					`定时任务「${task.name}」失败：${cause instanceof Error ? cause.message : String(cause)}`,
 					"error",
 				);
 			});
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : String(cause);
-			this.deps.notify(`已安排任务「${task.name}」无法启动：${error}`, "error");
+			this.deps.notify(`定时任务「${task.name}」无法启动：${error}`, "error");
 		} finally {
 			this.running.delete(task.id);
 			// Record the attempt either way, so a failing task does not retry every minute.

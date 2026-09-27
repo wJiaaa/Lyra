@@ -87,7 +87,8 @@ export function deviceRights(abi: number): bigint {
 /** What the runner is told: the same vocabulary as the other backends. */
 export interface LandlockArgs {
 	workspace: string;
-	mode: "read-only" | "workspace-write";
+	/** `danger-full-access` 只在断网时出现：文件不受约束，只处理网络。 */
+	mode: "read-only" | "workspace-write" | "danger-full-access";
 	network: SandboxNetwork;
 	command: string[];
 }
@@ -106,6 +107,8 @@ export interface LandlockRule {
  * sandbox that grants `/tmp` and not `/dev/shm` breaks them for no reason it could state.
  */
 export function landlockRules(args: Pick<LandlockArgs, "workspace" | "mode">, abi: number): LandlockRule[] {
+	// 不处理文件权限时加任何路径规则都是 EINVAL，也没有意义。
+	if (args.mode === "danger-full-access") return [];
 	const rules: LandlockRule[] = [{ path: "/dev", rights: deviceRights(abi) }];
 	if (args.mode !== "workspace-write") return rules;
 	for (const root of writableRoots({ mode: "workspace-write", workspaceRoot: args.workspace })) {
@@ -150,8 +153,12 @@ export function parseLandlockArgs(argv: readonly string[]): LandlockArgs {
 	const mode = options.get("mode");
 	const network = options.get("network") ?? "allow";
 	if (!workspace) throw new Error("缺少 --workspace");
-	if (mode !== "read-only" && mode !== "workspace-write") throw new Error(`--mode 只能是 read-only 或 workspace-write，收到 ${mode}`);
+	if (mode !== "read-only" && mode !== "workspace-write" && mode !== "danger-full-access") {
+		throw new Error(`--mode 只能是 read-only、workspace-write 或 danger-full-access，收到 ${mode}`);
+	}
 	if (network !== "allow" && network !== "deny") throw new Error(`--network 只能是 allow 或 deny，收到 ${network}`);
+	// 不约束文件又不断网，就没有任何要做的事，不该启动这个 runner。
+	if (mode === "danger-full-access" && network !== "deny") throw new Error("danger-full-access 只在 --network deny 时由这个 runner 执行");
 	return { workspace, mode, network, command };
 }
 
@@ -159,12 +166,14 @@ export function parseLandlockArgs(argv: readonly string[]): LandlockArgs {
 function restrictSelf(args: LandlockArgs): void {
 	const api = libc();
 	const abi = landlockAbi();
-	if (abi < 2) throw new Error(`这个内核的 Landlock ABI 是 ${abi}，不足以约束写入（需要 2 以上）`);
+	const filesHandled = args.mode !== "danger-full-access";
+	if (filesHandled && abi < 2) throw new Error(`这个内核的 Landlock ABI 是 ${abi}，不足以约束写入（需要 2 以上）`);
 	if (args.network === "deny" && abi < 4) throw new Error(`这个内核的 Landlock ABI 是 ${abi}，断不了网络（需要 4 以上）`);
 
 	const netHandled = args.network === "deny" ? NET_CONNECT_TCP : 0n;
 	const attr = Buffer.alloc(netHandled ? 16 : 8);
-	attr.writeBigUInt64LE(writeRights(abi), 0);
+	// 文件权限一项都不处理，就是不限制文件：内核只要求两项里至少处理一项。
+	attr.writeBigUInt64LE(filesHandled ? writeRights(abi) : 0n, 0);
 	if (netHandled) attr.writeBigUInt64LE(netHandled, 8);
 	const ruleset = api.syscall(SYS_LANDLOCK_CREATE_RULESET, attr, attr.length, 0);
 	if (ruleset < 0) throw new Error(`landlock_create_ruleset 失败（errno ${api.errno()}）`);

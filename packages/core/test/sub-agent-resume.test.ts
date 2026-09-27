@@ -508,3 +508,41 @@ test("task routes a resume to the same sub-agent, and turns a refusal into the r
 test("the default checkpoint is still sixty rounds — what changed is what happens there, not where it is", () => {
 	assert.equal(SUB_AGENT_CHECKPOINT_TURNS, 60);
 });
+
+test("resumed on a different model, the old provider's handles are stripped first; on the same model nothing changes", async () => {
+	/*
+	 * 父会话中途换了模型，续跑时子代理跟着新的走（`runSubAgent` 的 provider/model 是派出去那一刻
+	 * 现读的）。留下的历史全出自旧模型——它的供应商句柄交给新模型只会被整条拒掉，跟父会话换模型
+	 * 时 `adopted()` 之前摘句柄是同一件事。
+	 */
+	const OTHER: ModelConfig = { ...MODEL, id: "fake/other", modelId: "other", name: "Other" };
+	const registry = new SubAgentRegistry();
+	const requests: Message[][] = [];
+	const signed = (text: string): AssistantMessage => ({ ...says(text), content: [{ type: "text", text, signature: "msg_from_old_provider" }] });
+	const run = (input: { prompt: string; resume?: string }, model: ModelConfig) =>
+		runSubAgent(
+			{
+				sessionId: "s1", cwd: "/tmp", settings: { thinking: "off", retryAttempts: 0 } as unknown as Settings,
+				tools: [read], skills: [], agents: [GENERAL], registry,
+				requestApproval: async () => "once",
+				emit: async () => {},
+				streamFn: async (context) => {
+					requests.push([...context.messages]);
+					return signed("好");
+				},
+			},
+			{ description: "d", agentType: "general", ...input },
+			{ ...PROVIDER, models: [MODEL, OTHER] },
+			model,
+			"",
+		);
+	const handles = (messages: Message[]) => JSON.stringify(messages).includes("msg_from_old_provider");
+
+	const first = await run({ prompt: "开始" }, MODEL);
+	await run({ prompt: "同一个模型接着来", resume: first.id }, MODEL);
+	assert.ok(handles(requests.at(-1)!), "没换模型：历史原样接上，句柄留着，缓存前缀不动");
+
+	await run({ prompt: "换了模型接着来", resume: first.id }, OTHER);
+	assert.equal(handles(requests.at(-1)!), false, "换了模型：旧句柄一个不剩");
+	assert.match(JSON.stringify(requests.at(-1)), /好/, "话还在，只摘句柄");
+});

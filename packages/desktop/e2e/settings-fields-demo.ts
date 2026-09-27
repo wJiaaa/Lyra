@@ -143,20 +143,20 @@ try {
 	}
 
 	await openSettings("命令");
-	await until(`Boolean(document.querySelector("[data-ly-field]"))`);
-	const commands = await app.evaluate<{ field: ReturnType<typeof capsule>; action: ReturnType<typeof capsule> }>(`(() => {
+	await until(`Boolean(document.querySelector("[data-ly-commands-settings] [data-ly-select]"))`);
+	const commands = await app.evaluate<{ search: ReturnType<typeof capsule>; select: ReturnType<typeof capsule> }>(`(() => {
 		const read = (el) => {
 			if (!el) return { height: 0, radius: 0, border: 0 };
 			const s = getComputedStyle(el);
 			return { height: Math.round(parseFloat(s.height)), radius: parseFloat(s.borderRadius), border: parseFloat(s.borderTopWidth) };
 		};
+		const page = document.querySelector("[data-ly-commands-settings]");
 		return {
-			field: read(document.querySelector("input.ly-field")),
-			action: read(document.querySelector("[data-ly-create-command]")),
+			search: read(page.querySelector("[data-ly-field]:not([data-ly-select])")),
+			select: read(page.querySelector("[data-ly-select]")),
 		};
 	})()`);
-	check("command name field is the dialog capsule", commands.field.height === 34 && commands.field.radius >= 16 && commands.field.border === 0, commands);
-	check("create button matches that height", commands.action.height === commands.field.height, commands);
+	check("command search and scope dropdown share the capsule", commands.search.height === 34 && commands.select.height === 34 && commands.search.border === 0 && commands.select.border === 0, commands);
 	await hold(1100);
 
 	await openSettings("已归档的聊天");

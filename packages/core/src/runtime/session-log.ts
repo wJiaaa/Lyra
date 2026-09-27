@@ -11,6 +11,9 @@
  */
 
 import { completedCompaction, interruptedCompaction } from "./compaction-lifecycle.ts";
+import { refreshMemorySnapshot } from "./memory-inject.ts";
+import type { PromptContext } from "../prompt/context.ts";
+import { promptBase } from "../prompt/update.ts";
 import type { AgentEvent, AgentEventSink, CommandRun, HookRun } from "../agent/events.ts";
 import type { SessionMeta, SessionRecordInput } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
@@ -90,6 +93,12 @@ export class SessionLog {
 	private recordedContext: RecordedContext | null = null;
 	private contextLoaded = false;
 	private contextRevision = 0;
+	/** 最近记录的上下文之后又压缩过：它不再是冻结的那份，下一轮重新生成。 */
+	private contextStale = false;
+	/** 会话内冻结的 system prompt（中间件之前），见 `frozenPrompt`。 */
+	private prompt: PromptContext | null = null;
+	/** 历史是从日志载入的（`restore`）。没载入过的会话，日志里有的都经过这里写下，不必读盘。 */
+	private restored = false;
 	requestContext: RequestContext | null = null;
 
 	private readonly store: SessionStorage;
@@ -146,7 +155,7 @@ export class SessionLog {
 		if (PERSISTED_EVENTS.has(event.type) && this.meta) {
 			this.meta = await this.store.append(this.meta, { type: "event", event });
 		}
-		if (event.type === "context") { this.recordedContext = event; this.contextLoaded = true; }
+		if (event.type === "context") { this.recordedContext = event; this.contextLoaded = true; this.contextStale = false; }
 		if (event.type === "command_status") {
 			const at = this.commandRuns.findIndex((run) => run.id === event.command.id);
 			if (at < 0) this.commandRuns.push(event.command); else this.commandRuns[at] = event.command;
@@ -156,6 +165,13 @@ export class SessionLog {
 		if (event.type === "compacted" && event.kept !== undefined) {
 			this.requestContext = null;
 			this.markCompaction(event.summary ?? "", event.kept);
+			// 压缩反正要重写前缀：冻结的 system prompt 在这里作废，下一轮按当前状态重新生成。
+			this.prompt = null;
+			this.contextStale = true;
+			// 新的那份即使和旧的一字不差也要落一条，重启后才认得出它是压缩之后的。
+			this.lastContext = null;
+			// 摘要可能把 `learn` 的调用和结果一起折叠掉了，冻结的记忆快照在这里补上它。
+			this.refreshMemory();
 			const at = this.commandRuns.findIndex((run) => run.id === event.commandId);
 			if (at >= 0) this.commandRuns[at] = event.command ?? completedCompaction(this.commandRuns[at], event.before, event.after);
 		}
@@ -189,17 +205,47 @@ export class SessionLog {
 		if (this.contextLoaded) return this.recordedContext;
 		const revision = this.contextRevision;
 		const contexts: { seq: number; event: RecordedContext }[] = [];
+		// 压缩边界的位置，和上下文一样按截断回退：被撤回的压缩不算数。
+		const boundaries: number[] = [];
 		for await (const record of this.store.read(this.meta.projectId, this.meta.id)) {
 			if (record.type === "event" && record.event.type === "context") contexts.push({ seq: record.seq, event: record.event });
+			if (record.type === "event" && record.event.type === "compacted" && record.event.kept !== undefined) boundaries.push(record.seq);
 			if (record.type === "truncate") {
 				while (contexts.length && contexts.at(-1)!.seq > record.afterSeq) contexts.pop();
+				while (boundaries.length && boundaries.at(-1)! > record.afterSeq) boundaries.pop();
 			}
 		}
 		// A rewind may invalidate the disk read even when no newer request has finished yet.
 		if (revision !== this.contextRevision) return this.readContext();
 		// A request can finish while disk history is being read; its newer snapshot wins.
-		if (!this.contextLoaded) { this.recordedContext = contexts.at(-1)?.event ?? null; this.contextLoaded = true; }
+		if (!this.contextLoaded) {
+			const latest = contexts.at(-1);
+			this.recordedContext = latest?.event ?? null;
+			// 读盘期间在内存里压缩过的，那一次也算。
+			this.contextStale ||= latest !== undefined && (boundaries.at(-1) ?? -1) > latest.seq;
+			this.contextLoaded = true;
+		}
 		return this.recordedContext;
+	}
+
+	/**
+	 * 会话内冻结的 system prompt；null 表示该重新生成一份（新会话、压缩之后、撤回到它之前）。
+	 *
+	 * 持久化不另开记录：每轮发出去的 system prompt 本来就作为 `context` 事件记在日志里，冻结之后
+	 * 那就是同一份，重启后取最近一条、去掉中间件那部分就是原样的字节（`promptBase`）。撤回截掉的
+	 * 上下文跟着失效，退回更早那条——那条正是截断之后剩下的历史当时配着发的。
+	 */
+	async frozenPrompt(): Promise<PromptContext | null> {
+		if (this.prompt) return this.prompt;
+		const recorded = this.restored ? await this.readContext() : this.recordedContext;
+		if (!recorded || this.contextStale) return null;
+		this.prompt = promptBase(recorded);
+		return this.prompt;
+	}
+
+	/** 从这一轮起冻结 `prompt`，直到下一次压缩或撤回。 */
+	freezePrompt(prompt: PromptContext): void {
+		this.prompt = prompt;
 	}
 
 	/**
@@ -209,6 +255,11 @@ export class SessionLog {
 	 */
 	async append(record: SessionRecordInput): Promise<void> {
 		this.meta = await this.store.append(this.meta, record);
+	}
+
+	/** 快照按会话 id 冻结，见 `memory-inject.ts`。 */
+	private refreshMemory(): void {
+		if (this.meta) refreshMemorySnapshot(this.meta.id);
 	}
 
 	/**
@@ -236,9 +287,15 @@ export class SessionLog {
 	 * committed again, and nothing here is written.
 	 */
 	restore(messages: Message[], compaction: { summary: string; keptFrom: number; at?: number } | null = null, compactions: number[] = []): void {
+		// 载入、撤回、换模型都会换掉历史：历史里的 `learn` 结果可能没了，记忆快照跟着刷新。
+		this.refreshMemory();
 		this.requestContext = null;
 		this.recordedContext = null;
 		this.contextLoaded = false;
+		// 截断可能截掉了冻结那份对应的上下文，从日志重新认一遍。
+		this.contextStale = false;
+		this.prompt = null;
+		this.restored = true;
 		this.contextRevision++;
 		this.lastContext = null;
 		this.messages = messages;

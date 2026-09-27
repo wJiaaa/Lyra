@@ -9,7 +9,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { BackgroundJobs, backgroundJobs, type BackgroundJob } from "../src/tools/background-jobs.ts";
 import type { SandboxProcess } from "../src/kernel/services.ts";
 import { useSandbox } from "../src/sandbox/index.ts";
-import { bashTool } from "../src/tools/bash.ts";
+import { bashOutputTool, bashTool } from "../src/tools/bash.ts";
 import { SessionCapabilities } from "../src/runtime/session-capabilities.ts";
 import { systemShell } from "../src/platform.ts";
 test("a session can stop only its own process handle, and a terminated job cannot target a reused PID", () => {
@@ -51,6 +51,28 @@ test("a signalled command keeps its missing exit code instead of reporting exit 
 		assert.ok(result.details && typeof result.details === "object" && "exitCode" in result.details);
 		assert.equal(result.details.exitCode, null);
 		assert.match(result.content.flatMap((part) => part.type === "text" ? [part.text] : []).join(""), /terminated without an exit code/);
+	} finally { useSandbox(null); }
+});
+
+test("bash_output returns only what arrived since the last read, while the job keeps the whole", async () => {
+	let emit: (chunk: string) => void = () => {};
+	useSandbox({ run: () => ({ onOutput(listener) { emit = listener; }, onError() {}, kill() {}, onExit() {} }) });
+	try {
+		const ctx = { cwd: process.cwd(), sessionId: "poll-test", state: new Map<string, unknown>() };
+		const started = await bashTool.execute({ command: "dev", run_in_background: true }, ctx);
+		const id = (started.details as { id: string }).id;
+		const poll = async () => {
+			const result = await bashOutputTool.execute({ id }, ctx);
+			return result.content.flatMap((part) => part.type === "text" ? [part.text] : []).join("");
+		};
+		emit("first line\n");
+		assert.match(await poll(), /first line/);
+		emit("second line\n");
+		const second = await poll();
+		assert.match(second, /second line/);
+		assert.doesNotMatch(second, /first line/, "每次轮询都重发全部输出");
+		assert.match(await poll(), /\(no new output\)/);
+		assert.equal(backgroundJobs(ctx.state).list()[0].output, "first line\nsecond line\n", "任务本身仍保留全部输出");
 	} finally { useSandbox(null); }
 });
 

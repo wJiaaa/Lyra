@@ -15,6 +15,7 @@
  */
 
 import type { Message, ToolResultMessage } from "../types.ts";
+import { isRepeatNotice } from "../agent/repetition.ts";
 import { MAX_LINE_CHARS } from "../tools/long-line.ts";
 import { firstAffordableCut, PRUNE_FLOOR_CHARS, type PruneTiming } from "./prune.ts";
 
@@ -38,6 +39,11 @@ export function staleCuts(messages: Message[]): StaleCut[] {
 		if (message.role !== "toolResult") continue;
 		const call = calls.get(message.toolCallId);
 		if (!call || PROTECTED.has(call.name) || PROTECTED.has(message.toolName)) continue;
+		/*
+		 * 被循环换成「不再重复贴一遍」的那条不是一次观察，它指向的正是更早的原文。把它当成最新
+		 * 的一份，更早的原文就会被判成重复或被覆盖而剪掉——两处互相指着对方，原文一份不剩。
+		 */
+		if (isRepeatNotice(message)) continue;
 
 		const path = pathOf(call.arguments);
 		const key = path ? intern(latestReads, mutated, path) : "";

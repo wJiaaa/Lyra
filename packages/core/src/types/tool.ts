@@ -101,6 +101,14 @@ export interface ToolContext {
 	sandboxNetwork?: SandboxNetwork;
 	/** Internal hosts the user allowed by name; see `Settings.allowedHosts`. */
 	allowedHosts?: readonly string[];
+	/*
+	 * The search provider the user picked in settings, carried to `web_search`.
+	 *
+	 * The tool cannot read settings, and which service to pay for is the user's call rather
+	 * than the model's — so it travels with the turn like the other per-session decisions.
+	 * Absent or null means none was picked, which is a case `search/index.ts` decides.
+	 */
+	searchProviderId?: string | null;
 	/**
 	 * Specific files outside the workspace explicitly granted to this turn
 	 * (e.g. user-attached files from messages in this session).

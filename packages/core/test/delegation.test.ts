@@ -138,27 +138,18 @@ test("关掉之后并发是 1，不是 0——点名派的那次还得过得去"
 	}
 });
 
-test("关掉时说的话，取决于用户这一轮点没点名", () => {
-	const silent = delegationNote("high", { policy: "off" });
-	assert.match(silent, /不要派活/);
-	assert.match(silent, /`task` 也不在你的工具表里/, "工具确实被摘了，就该说出来——省得它花一轮去找");
-	assert.match(silent, /@智能体名/, "唯一的出路是让用户点名，那就得告诉模型怎么点");
-
-	const named = delegationNote("high", { policy: "off", mentioned: ["explore"] });
-	assert.match(named, /`explore`/);
-	assert.match(named, /只派它/);
-	assert.doesNotMatch(named, /不要派活/, "点了名还劝退，就是自相矛盾");
-
-	// 点了两个就得说两个——只说一个会让模型以为另一个不算数。
-	const two = delegationNote("high", { policy: "off", mentioned: ["explore", "reviewer"] });
-	assert.match(two, /`explore`/);
-	assert.match(two, /`reviewer`/);
+test("关掉时只有一种说法：没点名别派，点了名只派被点到的", () => {
+	// 这段在 system prompt 里，跟着点名变会让点名那一轮和下一轮各重写一遍整段缓存。
+	const note = delegationNote("high", { policy: "off" });
+	assert.match(note, /不要自己决定派活/);
+	assert.match(note, /@智能体名/, "唯一的出路是让用户点名，那就得告诉模型怎么点");
+	assert.match(note, /只派它/);
+	assert.match(note, /会被拒绝/, "工具在桌上，就得说清楚没点名去调会怎样");
 });
 
 test("关掉的那一档不该带上并发的前置条件", () => {
 	// 一次只放一个进去的档位，读到「并发之前要先……」只是一段用不上的字。
 	assert.doesNotMatch(delegationNote("ultra", { policy: "off" }), /并发派活之前/);
-	assert.doesNotMatch(delegationNote("ultra", { policy: "off", mentioned: ["explore"] }), /并发派活之前/);
 });
 
 test("磁盘上的值认不出来就当 auto，绝不当成关掉", () => {

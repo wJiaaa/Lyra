@@ -4,7 +4,7 @@
  * 和另外两个轴（`reasoning-compat.ts` 管推理怎么还、`tool-pairing-compat.ts` 管工具怎么排）是并列的
  * 第三件事，各学各的。压进同一条梯子的代价上一轮付过了：端点说 A、梯子退 B，对不上号时只能靠碰巧。
  *
- * 这里管的四个参数有一个共同点——**它们都不是必需品**。少发一个最多损失一点控制力（思考没关干净、
+ * 这里管的五个参数有一个共同点——**它们都不是必需品**。少发一个最多损失一点控制力（思考没关干净、
  * 采样参数没生效），而多发一个是整个请求被拒。所以默认全发、撞了就撤，方向永远是安全的那边。
  *
  * 为什么是「学」而不是「配」：这四条在作者能测到的两个端点上**全部 200**（2026-09-11，
@@ -20,8 +20,10 @@
  * 记在内存里，不落盘，理由同另外两个轴。
  */
 
+import { compatKey } from "./compat-key.ts";
+
 /** 一个可以在撞墙后撤掉的请求参数。 */
-export type DroppedParam = "reasoning-off" | "tool-choice" | "sampling" | "include-encrypted";
+export type DroppedParam = "reasoning-off" | "tool-choice" | "sampling" | "include-encrypted" | "cache-key";
 
 /**
  * 端点拒绝某个参数时的说法，以及该撤哪个。
@@ -31,9 +33,17 @@ export type DroppedParam = "reasoning-off" | "tool-choice" | "sampling" | "inclu
  */
 const SIGNALS: { pattern: RegExp; drop: DroppedParam; source: string }[] = [
 	{
-		// 实测原话记在 `openai-responses.ts` 关思考那段注释里：Google Gemini/Vertex 拒 `effort: "none"`。
-		// 第二种写法是 OpenAI 系对枚举外取值的通用说法，`'none'` 是 GPT-5.1 之后才加进去的值。
-		pattern: /none is not a valid ThinkingLevel|Invalid value: ['"]none['"]|reasoning\.effort.{0,40}(not|invalid)/i,
+		/*
+		 * 实测原话记在 `openai-responses.ts` 关思考那段注释里：Google Gemini/Vertex 拒 `effort: "none"`。
+		 * 第二种写法是 OpenAI 系对枚举外取值的通用说法，`'none'` 是 GPT-5.1 之后才加进去的值。
+		 *
+		 * 每一种都要求**被拒的那个值就是 `none`**。原先第三条是 `reasoning\.effort.{0,40}(not|invalid)`，
+		 * 开着思考、只是某一档（比如 `xhigh`）不被接受时也会命中——学到 `reasoning-off` 之后重发的是一模
+		 * 一样的请求（开着思考时根本不读这一条），同一个 400 再来一遍，而这个模型往后关思考也被误撤了。
+		 * 调用方还会告诉我们这次到底有没有发 `none`（`learnDroppedParam` 的 `sent`），没发就不认这条。
+		 */
+		pattern:
+			/none is not a valid ThinkingLevel|Invalid value: ['"]none['"]|reasoning[._]effort[^.\n]{0,40}?['"`]none['"`][^.\n]{0,40}?(?:not supported|unsupported|invalid|not a valid|not allowed)/i,
 		drop: "reasoning-off",
 		source: "Gemini/Vertex 实测 + OpenAI 枚举外取值的通用说法",
 	},
@@ -63,12 +73,21 @@ const SIGNALS: { pattern: RegExp; drop: DroppedParam; source: string }[] = [
 		drop: "include-encrypted",
 		source: "我们无条件请求上游回密文；不认识这个 include 值的端点会拒",
 	},
-];
+	{
+		/*
+		 * 缓存路由键（`cache-routing.ts`）。对通用中转默认是发的，而严格端点对未知字段 400 时会点名它：
+		 * Google 系是 `Unknown name "prompt_cache_key"`，pydantic 系（Mistral、vLLM 严格模式）是
+		 * `extra_forbidden` 加一个带字段名的 loc。这个名字只属于它一个，点名即可判定。
+		 */
+		pattern: /prompt_cache_key/i,
+		drop: "cache-key",
+		source: "严格端点拒未知字段时的错误串会点名字段；这个名字是唯一的",
+	},];
 
 /** 学到的结论：`${providerId} ${modelId}` → 这些参数别再发了。 */
 const learned = new Map<string, Set<DroppedParam>>();
 
-const key = (providerId: string, modelId: string) => `${providerId} ${modelId}`;
+const key = compatKey;
 
 const EMPTY: ReadonlySet<DroppedParam> = new Set();
 
@@ -77,13 +96,22 @@ export function droppedParams(providerId: string, modelId: string): ReadonlySet<
 	return learned.get(key(providerId, modelId)) ?? EMPTY;
 }
 
+/** 这次被拒的请求里实际发了什么。给了就用来排除「撤掉它也不会改变请求」的信号。 */
+export interface SentParams {
+	/** 发了「关推理」那个值（`effort: "none"` / `reasoning_effort: "none"`）没有。 */
+	reasoningOff?: boolean;
+}
+
 /**
  * 从一次失败里学点东西。返回「结论变了，值得削掉这个参数重发一次」。
  *
  * 已经撤过同一个参数还被同一句话顶回来，返回 false——再发一次还是同样的结果，只是多烧一次钱。
+ *
+ * `sent` 不给时按从前的行为只看错误串；适配器应当给——请求里根本没有 `none` 时，一句提到 effort 的
+ * 400 说的一定是别的档位，撤「关推理」既改不了这次的请求，还会让这个模型以后关不掉思考。
  */
-export function learnDroppedParam(providerId: string, modelId: string, error: string): boolean {
-	const hit = SIGNALS.find((signal) => signal.pattern.test(error));
+export function learnDroppedParam(providerId: string, modelId: string, error: string, sent?: SentParams): boolean {
+	const hit = SIGNALS.find((signal) => signal.pattern.test(error) && !(signal.drop === "reasoning-off" && sent && !sent.reasoningOff));
 	if (!hit) return false;
 	const id = key(providerId, modelId);
 	const set = learned.get(id) ?? new Set<DroppedParam>();

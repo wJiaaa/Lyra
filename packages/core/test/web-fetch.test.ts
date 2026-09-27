@@ -11,10 +11,13 @@
  */
 
 import assert from "node:assert/strict";
+import dns from "node:dns";
+import { syncBuiltinESMExports } from "node:module";
 import { createServer, type Server } from "node:http";
+import { gzipSync } from "node:zlib";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
-import { classifyContentType, decoderFor, htmlToText, webFetchTool } from "../src/tools/web.ts";
+import { classifyContentType, decoderFor, htmlToText, pinnedLookup, webFetchTool } from "../src/tools/web.ts";
 import type { ToolContext, ToolResult } from "../src/types.ts";
 
 let server: Server;
@@ -131,6 +134,57 @@ test("an HTTP error status is reported as one", async () => {
 	const result = await run(`${base}/missing`);
 	assert.ok(result.isError);
 	assert.match(textOf(result), /404/);
+});
+
+test("a body past the limit is refused while streaming, compressed or not", async () => {
+	respond = () => ({ status: 200, headers: { "content-type": "text/plain", "transfer-encoding": "chunked" }, body: "x".repeat(3 * 1024 * 1024) });
+	const plain = await run(`${base}/big`);
+	assert.ok(plain.isError);
+	assert.match(textOf(plain), /2 MB limit/);
+	// 3 KB 的 gzip 解开是 3 MB：上限按解压后的字节算。
+	respond = () => ({ status: 200, headers: { "content-type": "text/plain", "content-encoding": "gzip" }, body: gzipSync(Buffer.alloc(3 * 1024 * 1024, 0x61)) });
+	const bomb = await run(`${base}/bomb`);
+	assert.ok(bomb.isError);
+	assert.match(textOf(bomb), /2 MB limit/);
+	respond = () => ({ status: 200, headers: { "content-type": "text/plain", "content-encoding": "gzip" }, body: gzipSync("compressed hello") });
+	assert.match(textOf(await run(`${base}/small`)), /compressed hello/);
+});
+
+test("the connection goes to the address that was checked, not to a second DNS answer", async () => {
+	/*
+	 * DNS rebinding：校验时答一个可以去的地址，连接时再解析一次就答另一个。这里校验看到的是
+	 * 127.0.0.1（测试服务器），之后任何一次解析都答一个不可达的内网地址——连接若重新解析就到不了。
+	 */
+	respond = () => ({ status: 200, headers: { "content-type": "text/plain" }, body: "pinned" });
+	const original = { promises: dns.promises.lookup, callback: dns.lookup };
+	let checks = 0;
+	dns.promises.lookup = (async () => (checks++ === 0 ? [{ address: "127.0.0.1", family: 4 }] : [{ address: "10.255.255.1", family: 4 }])) as unknown as typeof dns.promises.lookup;
+	dns.lookup = ((_host: string, options: unknown, callback?: unknown) => {
+		const done = (typeof options === "function" ? options : callback) as (error: null, address: unknown, family?: number) => void;
+		if (typeof options === "object" && options && (options as { all?: boolean }).all) done(null, [{ address: "10.255.255.1", family: 4 }]);
+		else done(null, "10.255.255.1", 4);
+	}) as typeof dns.lookup;
+	syncBuiltinESMExports();
+	try {
+		const result = await run(`${base.replace("127.0.0.1", "localhost")}/`);
+		assert.ok(!result.isError, textOf(result));
+		assert.match(textOf(result), /pinned/);
+		assert.equal(checks, 1, "每一跳只解析一次");
+	} finally {
+		dns.promises.lookup = original.promises;
+		dns.lookup = original.callback;
+		syncBuiltinESMExports();
+	}
+});
+
+test("the pinned lookup answers only with the checked addresses", () => {
+	const lookup = pinnedLookup(["93.184.216.34", "2606:2800:220:1::1"]);
+	lookup("example.com", { all: true }, ((error: unknown, entries: unknown) => {
+		assert.equal(error, null);
+		assert.deepEqual(entries, [{ address: "93.184.216.34", family: 4 }, { address: "2606:2800:220:1::1", family: 6 }]);
+	}) as never);
+	lookup("example.com", { family: 6 }, ((error: unknown, address: unknown) => assert.equal(address, "2606:2800:220:1::1")) as never);
+	pinnedLookup([])("example.com", {}, ((error: NodeJS.ErrnoException | null) => assert.equal(error?.code, "ENOTFOUND")) as never);
 });
 
 test("the fetched body is wrapped so it reads as data, not as instructions", async () => {

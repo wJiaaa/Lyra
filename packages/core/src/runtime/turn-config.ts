@@ -115,6 +115,8 @@ export function buildTurnConfig(
 	return {
 
 			sessionId: deps.sessionId,
+			// 主会话的每个请求共享同一条前缀，续跑、换轮都是它。
+			cacheKey: deps.sessionId,
 			cwd: deps.cwd,
 			provider: deps.provider,
 			model: deps.model,
@@ -148,6 +150,7 @@ export function buildTurnConfig(
 			// The network half, stated rather than derived: no permission mode implies it.
 			sandboxNetwork: deps.settings.denyCommandNetwork ? "deny" : "allow",
 			allowedHosts: deps.settings.allowedHosts,
+			searchProviderId: deps.settings.searchProvider ?? null,
 			/*
 			 * 一只表，一条续跑链。
 			 *
@@ -204,6 +207,8 @@ export function buildTurnConfig(
 						deps.liveModel?.current()?.model ?? deps.model,
 						systemPrompt,
 					),
+					// 排队时会话被停，直接出队，不等放行后再发现。
+					deps.signal,
 				),
 			drainSteering: deps.drainSteering,
 			resources: deps.resources,
@@ -223,7 +228,7 @@ export function buildTurnConfig(
 			 * paper when the conversation is cut, and the result lands over the line it was aiming
 			 * for. That is a conversation which compacts on every single turn.
 			 */
-			compact: (messages, model, observer) => {
+			compact: (messages, model, observer, options) => {
 				const summarizer = resolveModelRef(deps.settings, "@compact", { provider: deps.provider, model });
 				return compactWith({
 					messages,
@@ -235,6 +240,7 @@ export function buildTurnConfig(
 					artifacts: deps.artifacts,
 					summarizer,
 					observer,
+					force: options?.force,
 				});
 			},
 			streamFn: deps.streamFn,

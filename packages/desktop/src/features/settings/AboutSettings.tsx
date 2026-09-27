@@ -48,10 +48,10 @@ export function AboutSettings() {
 	};
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-6 pt-2">
 			<div>
-				<h2 className="text-title font-semibold text-ink">{t("about.title")}</h2>
-				<p className="mt-1 text-label text-ink-muted">
+				<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("about.title")}</h1>
+				<p className="mt-2 text-label text-ink-muted">
 					{t("about.intro")}
 				</p>
 			</div>

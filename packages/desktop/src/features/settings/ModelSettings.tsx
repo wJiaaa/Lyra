@@ -8,7 +8,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import type { ModelConfig } from "@lyra/core";
-import { Box, FileDown, FileUp, Plus, RefreshCw } from "lucide-react";
+import { Box, Download, Plus, RefreshCw, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -36,7 +36,7 @@ export function ModelSettings() {
   return (
 		// Keep the provider editor usable when a short window cannot fit its minimum height.
     <Scroller className="flex-1" contentClassName="flex flex-col">
-      <header className="flex shrink-0 items-start justify-between pt-8 pb-6">
+      <header className="flex shrink-0 items-start justify-between pt-2 pb-6">
         <div>
           <h1 className="text-display leading-tight font-semibold tracking-tight text-ink">
             {t("modelSettings.title")}
@@ -57,7 +57,7 @@ export function ModelSettings() {
             onClick={() => fileRef.current?.click()}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
           >
-            <FileUp size={16} strokeWidth={1.8} />
+            <Upload size={16} strokeWidth={1.8} />
           </button>
           <button
             type="button"
@@ -74,7 +74,7 @@ export function ModelSettings() {
             }
             className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink disabled:pointer-events-none disabled:opacity-40"
           >
-            <FileDown size={16} strokeWidth={1.8} />
+            <Download size={16} strokeWidth={1.8} />
           </button>
 
           <span aria-hidden className="mx-1 h-4 w-px bg-line" />
@@ -92,6 +92,12 @@ export function ModelSettings() {
               className={p.testing ? "ly-pulse" : undefined}
             />
           </button>
+
+          {/* 添加供应商放在页面右上角：列表底部那颗会被一长串供应商挤出视野。 */}
+          <DialogAction className="ml-2" onClick={() => void p.add()} label={t("modelSettings.addProvider")} data-ly-add-provider="">
+            <Plus size={14} strokeWidth={2} aria-hidden />
+            {t("modelSettings.addProvider")}
+          </DialogAction>
         </div>
 
         {/* Reset after every pick, or choosing the same file twice fires no change event. */}
@@ -155,13 +161,6 @@ export function ModelSettings() {
                 />
               </button>
             ))}
-
-            <div className="px-1 pt-1">
-              <DialogAction onClick={() => void p.add()} label={t("modelSettings.addProvider")} data-ly-add-provider="">
-                <Plus size={14} strokeWidth={2} aria-hidden />
-                {t("modelSettings.addProvider")}
-              </DialogAction>
-            </div>
           </Scroller>
 
           <Scroller className="min-w-0 flex-1" contentClassName="p-4 @2xl:p-6">
@@ -219,6 +218,7 @@ export function ModelSettings() {
             p.providers.find((provider) => provider.id === editingModel.providerId) ?? {
               id: editingModel.providerId,
               baseUrl: "",
+              api: "openai-responses",
             }
           }
           model={editingModel.model}
@@ -233,6 +233,7 @@ export function ModelSettings() {
       {p.discoveredModels && (
         <FetchModelsModal
           open={Boolean(p.discoveredModels)}
+          provider={p.selected ?? { baseUrl: "", api: "openai-responses" }}
           models={p.discoveredModels}
           existingModelIds={new Set(p.selected?.models.map((m) => m.modelId) ?? [])}
           onClose={p.closeDiscoveredModal}

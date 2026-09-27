@@ -25,6 +25,7 @@
  */
 
 import { failureOf } from "./failure.ts";
+import { compatKey } from "./compat-key.ts";
 
 /** 推理块在下一轮请求里的去向。 */
 export type ReasoningReplay = "replay" | "handled" | "omit";
@@ -43,7 +44,7 @@ const learned = new Map<string, ReasoningReplay>();
  */
 const retried = new Set<string>();
 
-const key = (providerId: string, modelId: string) => `${providerId} ${modelId}`;
+const key = compatKey;
 
 /** 这个模型该发哪一档。默认顶格——那是绝大多数端点要的，也是没撞过之前唯一有依据的猜测。 */
 export function reasoningReplay(providerId: string, modelId: string): ReasoningReplay {
@@ -165,13 +166,13 @@ export async function* withReasoningRetry<T>(
 	 * 最多重发几次。
 	 *
 	 * 推理轴走完整条梯子的步数，加上 `alsoLearn` 那边所有轴各自能学的步数之和。调用方现在挂着两个轴
-	 * （工具排列 1 步，请求参数最多 4 个字段各 1 步），给 5。
+	 * （工具排列 1 步，请求参数最多 5 个字段各 1 步），给 6。
 	 *
 	 * 这个数字宁可大一点：每一步都要 `learnXxx` 真的返回 true 才会走，学不到东西的循环自己就停了，所以
 	 * 上界偏大只是让「还能学」的情况有机会走完，不会凭空多发请求。反过来偏小才是真的坏——学到了结论却
 	 * 没有配额去用它，等于白学。
 	 */
-	const budget = LADDER.length + 5;
+	const budget = LADDER.length + 6;
 	for (let attempt = 0; attempt < budget; attempt++) {
 		try {
 			yield* run(reasoningReplay(providerId, modelId));

@@ -154,3 +154,57 @@ test("接线：真的往下派了一层之后，第二层指着第一层的 id�
 	assert.equal(child.usage.input, 300, "leaf 只有它自己那一笔");
 	assert.equal(child.usage.cost.total, 0.03);
 });
+
+test("面板上停掉子代理，它派出去的孙代理跟着停", async () => {
+	/*
+	 * 嵌套派发以前带下去的是 `{ ...options }`——会话那根信号，不是这个子代理自己的控制器。
+	 * 单独停掉 boss，leaf 收不到：它照样跑完，钱照样花。
+	 */
+	const registry = new SubAgentRegistry();
+	const boss = { name: "boss", description: "编排者", systemPrompt: "orchestrate", tools: "*", spawns: "*" } as AgentDefinition;
+	const leaf = { name: "leaf", description: "叶子", systemPrompt: "do", tools: "*" } as AgentDefinition;
+	let calls = 0;
+	let leafStopped = false;
+	let checked!: () => void;
+	const leafChecked = new Promise<void>((resolve) => (checked = resolve));
+
+	await runSubAgent(
+		{
+			sessionId: "s1",
+			cwd: "/tmp",
+			settings: SETTINGS,
+			tools: [taskTool as unknown as Tool],
+			skills: [],
+			agents: [boss, leaf],
+			registry,
+			requestApproval: async () => "allow",
+			emit: async () => {},
+			dispatch: rootDispatch(),
+			streamFn: async (_context, config) => {
+				calls += 1;
+				if (calls === 1) return delegatesTo("leaf", 1, 1, 0);
+				if (calls === 2) {
+					// leaf 的第一个请求：人在面板上停掉 boss。
+					const bossId = registry.list().find((row) => row.agent === "boss")!.id;
+					registry.abort(bossId);
+					await new Promise((r) => setTimeout(r, 0));
+					leafStopped = config.signal?.aborted === true;
+					checked();
+				}
+				return priced("说完了", 1, 1, 0);
+			},
+		},
+		{ description: "顶层", prompt: "开始", agentType: "boss" },
+		PROVIDER,
+		MODEL,
+		"# Environment\ncwd: /tmp\n",
+	);
+
+	// boss 那边的 `task` 调用一停就收场了，leaf 在后台自己收尾，等它说完。
+	await leafChecked;
+	for (let i = 0; i < 20 && registry.list().find((row) => row.agent === "leaf")?.status === "running"; i++) {
+		await new Promise((r) => setTimeout(r, 0));
+	}
+	assert.ok(leafStopped, "leaf 的请求信号要随 boss 一起停下");
+	assert.equal(registry.list().find((row) => row.agent === "leaf")?.status, "aborted");
+});

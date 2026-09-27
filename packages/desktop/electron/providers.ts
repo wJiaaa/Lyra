@@ -6,7 +6,21 @@
  */
 
 import type { ProviderTestResult } from "./ipc-types.ts";
-import { type Settings } from "@lyra/core";
+import { providerHeaders, type Settings } from "@lyra/core";
+
+/**
+ * Auth plus the provider's own headers, in the order the real requests send them. A probe has no
+ * session, so a `{{sessionId}}` in them becomes a throwaway id — some endpoints refuse a request
+ * that carries no session header at all.
+ */
+function requestHeaders(provider: Settings["providers"][number]): Record<string, string> {
+	return {
+		...(provider.api === "anthropic-messages"
+			? { "x-api-key": provider.apiKey, "anthropic-version": "2023-06-01" }
+			: { authorization: `Bearer ${provider.apiKey}` }),
+		...providerHeaders(provider.headers, undefined),
+	};
+}
 
 /**
  * Probe a provider with a one-token request. A models listing is attempted first because it
@@ -25,10 +39,7 @@ export async function testProvider(
 	if (!targetModelId) {
 		try {
 			const listed = await fetch(modelsUrl, {
-				headers:
-					provider.api === "anthropic-messages"
-						? { "x-api-key": provider.apiKey, "anthropic-version": "2023-06-01" }
-						: { authorization: `Bearer ${provider.apiKey}` },
+				headers: requestHeaders(provider),
 				signal: AbortSignal.timeout(15_000),
 			});
 			if (listed.ok) {
@@ -57,12 +68,7 @@ export async function testProvider(
 		const isAnthropic = provider.api === "anthropic-messages";
 		const response = await fetch(isAnthropic ? `${base}/v1/messages`.replace("/v1/v1/", "/v1/") : `${base}/v1/responses`.replace("/v1/v1/", "/v1/"), {
 			method: "POST",
-			headers: {
-				"content-type": "application/json",
-				...(isAnthropic
-					? { "x-api-key": provider.apiKey, "anthropic-version": "2023-06-01" }
-					: { authorization: `Bearer ${provider.apiKey}` }),
-			},
+			headers: { "content-type": "application/json", ...requestHeaders(provider) },
 			body: JSON.stringify(
 				isAnthropic
 					? { model: model.modelId, max_tokens: 8, messages: [{ role: "user", content: "hi" }] }
@@ -97,10 +103,7 @@ export async function fetchEndpointModels(
 
 	try {
 		const res = await fetch(modelsUrl, {
-			headers:
-				provider.api === "anthropic-messages"
-					? { "x-api-key": provider.apiKey, "anthropic-version": "2023-06-01" }
-					: { authorization: `Bearer ${provider.apiKey}` },
+			headers: requestHeaders(provider),
 			signal: AbortSignal.timeout(15_000),
 		});
 

@@ -1,5 +1,21 @@
 /** Data returned by the main-process usage scanner. */
 
+import type { CacheCause } from "@lyra/core";
+
+/**
+ * 本该从缓存读到、却按全价重算的那部分，见 core 的 `runtime/cache-diagnostics.ts`。
+ *
+ * 只记有未命中的原因；一次都没漏过的桶不带这一项。
+ */
+export interface UsageCacheMiss {
+	tokens: number;
+	/** 有费率的那部分多花的美元，按请求当时存下的费率算。 */
+	cost: number;
+	/** 没存费率、算不出钱的未命中 token。 */
+	unpriced: number;
+	byCause: Partial<Record<CacheCause, number>>;
+}
+
 /** One day's spend on one model. The unit the page slices every way. */
 export interface UsageBucket {
 	/** `YYYY-MM-DD`, local. A turn at 23:00 belongs to the day you had it. */
@@ -28,6 +44,7 @@ export interface UsageBucket {
 	unpricedTokens: number;
 	/** Replies, which is what token counts belong to. */
 	replies: number;
+	cacheMiss?: UsageCacheMiss;
 }
 
 /** One day, across every model. */

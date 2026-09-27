@@ -181,3 +181,7 @@ Lyra 工具、写入隔离 Git 仓库、启动并结束真实 HTTP 服务。浏�
 离线快照由仓库根目录的 `pnpm catalog:update` 从 models.dev 的公开 MIT 数据生成，JSON 同时记录
 源仓库 commit 和更新时间。更新目录后必须运行目录、计价、扫描单测与用量页面 E2E；目录版本和
 用户模型价格会进入用量缓存 key，任一变化都会使旧聚合缓存失效并从原始会话日志重新计价。
+
+模型的上限与能力来自智能配置规则，不来自这份快照。规则由 `pnpm rules:update` 从本地 ZCode 仓库
+生成；更新后运行 `core/test/model-rules.test.ts`、desktop 的 `model-import-defaults.test.ts` 与
+`ui/model-smart-config.test.ts`，以及 `e2e/model-defaults.test.ts`。

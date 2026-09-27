@@ -12,7 +12,8 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
-import type { ApiFormat, ModelConfig, ProviderConfig } from "@lyra/core";
+import { TextArea } from "../../ui/inputs/TextArea.tsx";
+import type { ApiFormat, CacheRoutingMode, ModelConfig, ProviderConfig } from "@lyra/core";
 import { Pencil, Power, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
@@ -65,6 +66,7 @@ export function ProviderEditor({
 	const { t } = useI18n();
 	const [baseUrl, setBaseUrl] = useState(provider.baseUrl);
 	const [apiKey, setApiKey] = useState(provider.apiKey);
+	const [headers, setHeaders] = useState(() => formatHeaders(provider.headers));
 
 	return (
 		/*
@@ -111,6 +113,31 @@ export function ProviderEditor({
 						placeholder="sk-…"
 					/>
 				</Field>
+
+				<Field label={t("provider.headers")} hint={t("provider.headersHint")}>
+					<TextArea
+						value={headers}
+						onChange={(value) => {
+							setHeaders(value);
+							onChange({ headers: parseHeaders(value) });
+						}}
+						rows={3}
+						className="font-mono"
+						placeholder="x-opencode-session: {{sessionId}}"
+						spellCheck={false}
+					/>
+				</Field>
+
+				{/* Anthropic 协议的缓存靠 `cache_control` 断点，没有路由键可带，见 `ai/cache-routing.ts`。 */}
+				{provider.api !== "anthropic-messages" && (
+					<Field label={t("provider.cacheRouting")} hint={t("provider.cacheRoutingHint")}>
+						<Select
+							value={provider.cacheRouting ?? "auto"}
+							onChange={(cacheRouting) => onChange({ cacheRouting })}
+							options={cacheRoutingOptions(t)}
+						/>
+					</Field>
+				)}
 			</div>
 
 			<ProviderModels
@@ -131,6 +158,39 @@ export function ProviderEditor({
 			/>
 		</div>
 	);
+}
+
+function cacheRoutingOptions(t: ReturnType<typeof useI18n>["t"]): { value: CacheRoutingMode; label: string; detail?: string }[] {
+	return [
+		{ value: "auto", label: t("provider.cacheRoutingAuto"), detail: t("provider.cacheRoutingAutoDetail") },
+		{ value: "prompt_cache_key", label: "prompt_cache_key", detail: t("provider.cacheRoutingBodyDetail") },
+		{ value: "x-session-id", label: "x-session-id", detail: t("provider.cacheRoutingHeaderDetail") },
+		{ value: "off", label: t("provider.cacheRoutingOff"), detail: t("provider.cacheRoutingOffDetail") },
+	];
+}
+
+function formatHeaders(headers: Record<string, string> | undefined): string {
+	return Object.entries(headers ?? {})
+		.map(([name, value]) => `${name}: ${value}`)
+		.join("\n");
+}
+
+/** An RFC 9110 token. A header name outside it makes `fetch` throw, and the request never leaves. */
+const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+
+/**
+ * One `Name: value` per line. Parsed on every keystroke, so a line with no colon yet or a name that
+ * is not a valid token is skipped rather than saved half-typed.
+ */
+function parseHeaders(text: string): Record<string, string> | undefined {
+	const headers: Record<string, string> = {};
+	for (const line of text.split("\n")) {
+		const colon = line.indexOf(":");
+		if (colon < 0) continue;
+		const name = line.slice(0, colon).trim();
+		if (HEADER_NAME.test(name)) headers[name] = line.slice(colon + 1).trim();
+	}
+	return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
 /** The name, its state, and the two things you can do to the provider as a whole. */

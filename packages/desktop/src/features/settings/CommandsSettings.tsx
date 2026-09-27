@@ -1,65 +1,35 @@
 /**
- * Slash commands, and the tool inventory that used to have this page to itself.
+ * 斜杠命令：在输入框里敲 `/` 能用到什么。
  *
- * The page is called 命令 and it now opens on the thing that word means to somebody using the app:
- * what happens when you type `/`. What was here before — every tool the model can call — is real
- * and worth keeping, but it is a debugging view of the agent's capabilities, and it had the most
- * intuitive name in the settings sidebar pointing at it.
- *
- * Two tabs rather than two sidebar entries: they are the same subject asked at two levels, and the
- * sidebar already carries fifteen destinations.
+ * 工具清单以前是这一页的第二个标签，现在单独成了「工具」一项（`ToolsSettings.tsx`）：
+ * 它回答的是另一个问题——模型能调用什么。
  */
 
 import type { BuiltinCommand } from "@lyra/core/commands-builtin";
 import type { SlashCommand } from "@lyra/core/commands-view";
-import { FolderOpen, Plus, SquareTerminal, TriangleAlert, Wrench } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
+import { FolderOpen, Plus, RefreshCw, SquareTerminal, TriangleAlert } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { baseName } from "../../lib/paths.ts";
 import { useApp } from "../../store/index.ts";
-import { EmptyHint } from "./controls.tsx";
-import { TextInput } from "./inputs.tsx";
-import { Card, ListRow, SectionTitle } from "./layout.tsx";
-import { DialogAction } from "../../ui/overlay/Dialog.tsx";
+import { InlineSelect, TextInput } from "./inputs.tsx";
+import { Card } from "./layout.tsx";
+import { SearchField } from "../../ui/inputs/SearchField.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 import { bridge } from "../../services/index.ts";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useDefinitionRemoval } from "./useDefinitionRemoval.tsx";
 import { translate, useI18n } from "../../i18n/index.ts";
 
-type Tab = "commands" | "tools";
-
 export function CommandsSettings() {
 	const { t } = useI18n();
-	const [tab, setTab] = useState<Tab>("commands");
 
 	return (
-		<div className="pt-8">
+		<div className="pt-2">
 			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("commands.title")}</h1>
 			<p className="mt-2 text-label text-ink-muted">{t("commands.intro")}</p>
-
-			<div className="mt-6 mb-6 flex items-center gap-1 border-b border-line-soft">
-				{(
-					[
-						{ id: "commands", label: t("commands.slash"), icon: SquareTerminal },
-						{ id: "tools", label: t("common.tools"), icon: Wrench },
-					] as const
-				).map((entry) => (
-					<button
-						key={entry.id}
-						type="button"
-						onClick={() => setTab(entry.id)}
-						className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-label transition-colors duration-[var(--ly-t-quick)] ${
-							tab === entry.id
-								? "border-ink text-ink"
-								: "border-transparent text-ink-muted hover:text-ink"
-						}`}
-					>
-						<entry.icon size={13} strokeWidth={1.9} />
-						{entry.label}
-					</button>
-				))}
+			<div className="mt-6">
+				<SlashCommands />
 			</div>
-
-			{tab === "commands" ? <SlashCommands /> : <ToolInventory />}
 		</div>
 	);
 }
@@ -71,6 +41,17 @@ function originOf(command: SlashCommand): string {
 	return command.scope === "workspace" ? translate("common.project") : translate("common.personal");
 }
 
+function matchesQuery(command: { name: string; description?: string; argumentHint?: string }, query: string): boolean {
+	if (!query) return true;
+	return [command.name, command.description, command.argumentHint].some((value) => value?.toLowerCase().includes(query));
+}
+
+/*
+ * 布局照钩子页：顶上一行是范围、数量和搜索，下面「已安装」一段，每条一行，点开是编辑器。
+ *
+ * 新建只要一个名字——文件建好就直接进外部编辑器写正文——所以不像钩子那样换成整页表单，
+ * 而是在列表上方展开一行输入，范围跟着顶上选的那个走。
+ */
 function SlashCommands() {
 	const { t } = useI18n();
 	const workspace = useApp((s) => s.workspace);
@@ -78,8 +59,10 @@ function SlashCommands() {
 	const [list, setList] = useState<{ commands: SlashCommand[]; builtins: BuiltinCommand[]; diagnostics: { path: string; message: string }[] } | null>(
 		null,
 	);
-	const [name, setName] = useState("");
 	const [scope, setScope] = useState<"workspace" | "user">("user");
+	const [query, setQuery] = useState("");
+	const [creating, setCreating] = useState(false);
+	const [name, setName] = useState("");
 	const [error, setError] = useState<string | null>(null);
 
 	const refresh = useCallback(() => {
@@ -88,6 +71,9 @@ function SlashCommands() {
 	const removal = useDefinitionRemoval("command", cwd, refresh);
 
 	useEffect(refresh, [refresh]);
+	useEffect(() => {
+		if (!cwd) setScope("user");
+	}, [cwd]);
 
 	/*
 	 * Re-read when the window is focused again.
@@ -101,6 +87,17 @@ function SlashCommands() {
 		return () => window.removeEventListener("focus", refresh);
 	}, [refresh]);
 
+	function startCreate() {
+		setError(null);
+		setCreating(true);
+	}
+
+	function cancelCreate() {
+		setCreating(false);
+		setName("");
+		setError(null);
+	}
+
 	async function create() {
 		setError(null);
 		const result = await bridge.commands.create(scope, name.trim(), cwd);
@@ -108,224 +105,230 @@ function SlashCommands() {
 			setError(result.error);
 			return;
 		}
+		setCreating(false);
 		setName("");
 		refresh();
 		// Straight into the editor: a new command is an empty file until somebody writes the prompt.
 		await bridge.commands.open(result.path);
 	}
 
-	const commands = list?.commands ?? [];
-	const builtins = list?.builtins ?? [];
+	const scopes = useMemo(
+		() => [
+			{ value: "user" as const, label: t("common.personal") },
+			...(cwd ? [{ value: "workspace" as const, label: baseName(cwd) }] : []),
+		],
+		[cwd, t],
+	);
+
+	const commands = (list?.commands ?? []).filter((command) => command.scope === scope);
+	const needle = query.trim().toLowerCase();
+	const visible = commands.filter((command) => matchesQuery(command, needle));
+	const builtins = (list?.builtins ?? []).filter((command) => matchesQuery(command, needle));
 	const diagnostics = list?.diagnostics ?? [];
 
 	return (
-		<div>
-			<SectionTitle>{t("commands.new")}</SectionTitle>
-			<Card className="mb-6">
-				<div className="flex flex-col gap-3 p-4">
-					<div className="flex items-center gap-2">
-						<div className="min-w-0 flex-1">
-							<TextInput
-								value={name}
-								onChange={setName}
-								placeholder={t("commands.namePlaceholder")}
-								onKeyDown={(event) => {
-									if (event.key === "Enter" && name.trim()) void create();
-								}}
-							/>
-						</div>
-						<div className="flex h-[34px] shrink-0 items-center gap-1 rounded-full bg-card p-0.5">
-							{(
-								[
-									{ id: "user", label: t("common.personal") },
-									{ id: "workspace", label: t("common.project") },
-								] as const
-							).map((entry) => (
-								<button
-									key={entry.id}
-									type="button"
-									disabled={entry.id === "workspace" && !cwd}
-									onClick={() => setScope(entry.id)}
-									className={`h-full rounded-full px-3.5 text-label font-medium transition-colors duration-[var(--ly-t-quick)] disabled:opacity-40 cursor-pointer ${
-										scope === entry.id ? "bg-elevated text-ink shadow-xs" : "text-ink-muted hover:text-ink"
-									}`}
-								>
-									{entry.label}
-								</button>
-							))}
-						</div>
-						<DialogAction
-							tone="primary"
-							disabled={!name.trim()}
-							onClick={() => void create()}
-							label={t("commands.createAndEdit")}
-							data-ly-create-command=""
-						>
-							<Plus size={14} strokeWidth={2} aria-hidden />
-							{t("commands.createAndEdit")}
-						</DialogAction>
-					</div>
-					<p className="text-detail text-ink-faint">
-						{scope === "workspace"
-							? t("commands.projectScope")
-							: t("commands.personalScope")}
-						{` ${t("commands.whatIsIt")}`}
-					</p>
-					{error && <p className="text-detail text-accent">{error}</p>}
+		<div data-ly-commands-settings="">
+			<div className="flex min-w-0 flex-wrap items-center gap-3">
+				<InlineSelect value={scope} onChange={setScope} options={scopes} ariaLabel={t("hooks.scope")} />
+				<div className="h-4 w-px bg-line" aria-hidden />
+				<div className="flex items-center gap-1 text-label font-medium text-ink">
+					{t("commands.title")}
+					<span className="text-detail font-normal text-ink-faint">{visible.length}</span>
 				</div>
-			</Card>
+				<SearchField value={query} onChange={setQuery} placeholder={t("commands.searchPlaceholder")} className="ml-auto w-64" />
+			</div>
 
 			{diagnostics.length > 0 && (
-				<Card className="mb-6 border-accent/35 bg-accent/6">
-					<div className="px-4 py-3">
-						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
-							<TriangleAlert size={13} strokeWidth={1.9} />
-							{t("commandsSettings.failedToLoad", { n: diagnostics.length })}
-						</div>
+				<div className="mt-5 flex items-start gap-2 rounded-[10px] border border-accent/35 bg-accent/6 px-3.5 py-2.5 text-detail text-ink-muted">
+					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-accent" aria-hidden />
+					<div className="min-w-0">
+						<div className="text-accent">{t("commandsSettings.failedToLoad", { n: diagnostics.length })}</div>
 						{diagnostics.map((diagnostic) => (
-							<div key={diagnostic.path} className="py-0.5 text-detail text-accent/85">
+							<div key={diagnostic.path} className="mt-0.5">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
 							</div>
 						))}
 					</div>
-				</Card>
+				</div>
 			)}
 
-			<div className="mb-2 flex items-center justify-between">
-				<SectionTitle>{t("commandsSettings.available", { n: commands.length })}</SectionTitle>
-				<div className="flex items-center gap-2">
-					<DialogAction
-						onClick={() => void bridge.commands.reveal("user", cwd)}
-						label={t("commands.openPersonalDir")}
-						data-ly-open-commands="personal"
-					>
-						<FolderOpen size={14} strokeWidth={2} aria-hidden />
-						{t("common.personal")}
-					</DialogAction>
-					{cwd && (
-						<DialogAction
-							onClick={() => void bridge.commands.reveal("workspace", cwd)}
-							label={t("commands.openProjectDir")}
-							data-ly-open-commands="project"
-						>
-							<FolderOpen size={14} strokeWidth={2} aria-hidden />
-							{t("common.project")}
-						</DialogAction>
-					)}
+			<section className="mt-6">
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<h2 className="flex h-7 items-center gap-1.5 text-label font-medium text-ink">
+						{t("hooks.installed")}
+						<span className="text-detail font-normal text-ink-faint">{commands.length}</span>
+					</h2>
+					<div className="flex items-center gap-1.5">
+						<Button
+							variant="subtle"
+							size="sm"
+							icon={<FolderOpen size={13} aria-hidden />}
+							label={scope === "workspace" ? t("commands.openProjectDir") : t("commands.openPersonalDir")}
+							onClick={() => void bridge.commands.reveal(scope, cwd)}
+						/>
+						<Button variant="subtle" size="sm" icon={<RefreshCw size={13} aria-hidden />} label={t("common.refresh")} onClick={refresh} />
+						<Button size="sm" icon={<Plus size={13} aria-hidden />} onClick={startCreate}>
+							{t("common.new")}
+						</Button>
+					</div>
 				</div>
-			</div>
+
+				{creating && (
+					<Card className="mb-3">
+						<div className="flex items-center gap-3 px-4 py-3">
+							<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-shell text-ink-faint" aria-hidden>
+								<SquareTerminal size={16} strokeWidth={1.8} />
+							</div>
+							<div className="min-w-0 flex-1">
+								<TextInput
+									value={name}
+									onChange={setName}
+									placeholder={t("commands.namePlaceholder")}
+									autoFocus
+									onKeyDown={(event) => {
+										if (event.key === "Enter" && name.trim()) void create();
+										if (event.key === "Escape") cancelCreate();
+									}}
+								/>
+							</div>
+							<Button variant="subtle" onClick={cancelCreate}>
+								{t("common.cancel")}
+							</Button>
+							<Button variant="primary" disabled={!name.trim()} onClick={() => void create()}>
+								{t("commands.createAndEdit")}
+							</Button>
+						</div>
+						<p className="px-4 pb-3 text-detail text-ink-faint">
+							{scope === "workspace" ? t("commands.projectScope") : t("commands.personalScope")}
+							{` ${t("commands.whatIsIt")}`}
+						</p>
+						{error && <p className="px-4 pb-3 text-detail text-danger">{error}</p>}
+					</Card>
+				)}
+
+				{commands.length === 0 ? (
+					!creating && (
+						<Card>
+							<div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+								<div className="text-label font-medium text-ink">{t("commands.emptyTitle")}</div>
+								<p className="max-w-[360px] text-detail text-ink-faint">{t("commands.whatIsIt")}</p>
+								<Button variant="primary" className="mt-2" icon={<Plus size={13} aria-hidden />} onClick={startCreate}>
+									{t("commands.new")}
+								</Button>
+							</div>
+						</Card>
+					)
+				) : visible.length === 0 ? (
+					<Card>
+						<p className="px-6 py-10 text-center text-label text-ink-faint">{t("commands.searchEmpty")}</p>
+					</Card>
+				) : (
+					<Card className="divide-y divide-line-soft">
+						{visible.map((command) => (
+							<CommandRow
+								key={command.path}
+								name={command.name}
+								argumentHint={command.argumentHint}
+								detail={command.description || command.path}
+								onOpen={() => void bridge.commands.open(command.path)}
+								openLabel={t("commands.editNamed", { name: command.name })}
+								actions={
+									<>
+										<span className="whitespace-nowrap text-detail text-ink-faint">{originOf(command)}</span>
+										<RowDeleteButton
+											label={t("commands.deleteNamed", { name: command.name })}
+											pending={removal.pending.has(command.path)}
+											onClick={() => removal.ask(command.name, command.path)}
+										/>
+									</>
+								}
+							/>
+						))}
+					</Card>
+				)}
+			</section>
+
 			{/*
-			 * 内建的在最前面，而且不可编辑。
+			 * 内建的单列一段，而且不可编辑。
 			 *
 			 * 这一页回答的是「有哪些命令可以用」，而它此前漏掉了用得最多的三条——那三条写在
 			 * `/` 菜单那个组件里，只有那一个界面知道。一个漏掉三分之一答案的列表，比没有列表
 			 * 更误导人。
 			 *
-			 * 单列一段而不是混进下面：它们没有文件可以打开，而下面每一行点开都是编辑器。
+			 * 不混进「已安装」：它们没有文件可以打开，也不分个人和项目，而上面每一行点开都是编辑器。
 			 */}
 			{builtins.length > 0 && (
-				<Card className="mb-6">
-					<div className="px-4 pt-3 pb-1 text-label text-ink-muted">{t("commands.builtin")}</div>
-					<div className="p-2 pt-0">
+				<section className="mt-8">
+					<h2 className="mb-4 flex h-7 items-center gap-1.5 text-label font-medium text-ink">
+						{t("commands.builtin")}
+						<span className="text-detail font-normal text-ink-faint">{builtins.length}</span>
+					</h2>
+					<Card className="divide-y divide-line-soft">
 						{builtins.map((command) => (
-							<ListRow
-								key={command.name}
-								title={
-									<span className="font-mono">
-										<span className="text-ink-faint">/</span>
-										{command.name}
-									</span>
-								}
-								detail={command.description}
-								actions={<span className="text-detail text-ink-faint">{t("common.builtin")}</span>}
-							/>
+							<CommandRow key={command.name} name={command.name} detail={command.description} />
 						))}
-					</div>
-				</Card>
+					</Card>
+				</section>
 			)}
-
-			<Card>
-				{commands.length === 0 ? (
-					<EmptyHint>{t("commands.empty")}</EmptyHint>
-				) : (
-					<div className="p-2">
-						{commands.map((command) => (
-							<ListRow
-								key={command.path}
-								title={
-									<span className="font-mono">
-										<span className="text-ink-faint">/</span>
-										{command.name}
-										{command.argumentHint && (
-											<span className="ml-1.5 text-detail text-ink-faint">{command.argumentHint}</span>
-										)}
-									</span>
-								}
-								detail={command.description || command.path}
-								actions={<>
-									<span className="text-detail whitespace-nowrap text-ink-faint">{originOf(command)}</span>
-									<RowDeleteButton label={t("commands.deleteNamed", { name: command.name })} pending={removal.pending.has(command.path)} onClick={() => removal.ask(command.name, command.path)} />
-								</>}
-								onOpen={() => void bridge.commands.open(command.path)}
-								openLabel={t("commands.editNamed", { name: command.name })}
-							/>
-						))}
-					</div>
-				)}
-			</Card>
 			{removal.element}
 		</div>
 	);
 }
 
-/** Tool inventory. Useful when debugging why the model did or did not have something available. */
-function ToolInventory() {
-	const { t } = useI18n();
-	const activeSessionId = useApp((s) => s.activeSessionId);
-	// 同 `useFileTree.ts`：`useApp.getState()` 是 zustand store 的静态读法，不是在调 hook。
-	// oxlint-disable-next-line react/hooks
-	const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(useApp.getState().capabilities);
-
-	useEffect(() => {
-		if (!activeSessionId) return;
-		void bridge.sessions.capabilities(activeSessionId).then(setCapabilities);
-	}, [activeSessionId]);
-
-	const tools = capabilities?.toolNames ?? [];
-	const builtin = tools.filter((t) => !t.startsWith("mcp__"));
-	const external = tools.filter((t) => t.startsWith("mcp__"));
-
+/** 一条命令，行的样子跟钩子页的 `HookRow` 一致。 */
+function CommandRow({
+	name,
+	argumentHint,
+	detail,
+	actions,
+	onOpen,
+	openLabel,
+}: {
+	name: string;
+	argumentHint?: string;
+	detail?: string;
+	actions?: React.ReactNode;
+	onOpen?: () => void;
+	openLabel?: string;
+}) {
 	return (
-		<div>
-			<SectionTitle>{t("commandsSettings.builtinTools", { n: builtin.length })}</SectionTitle>
-			<Card className="mb-6">
-				{builtin.length === 0 ? (
-					<EmptyHint>{t("commands.openSessionFirst")}</EmptyHint>
-				) : (
-					<div className="flex flex-wrap gap-2 p-4">
-						{builtin.map((tool) => (
-							<span key={tool} className="rounded-lg bg-card px-2.5 py-1 font-mono text-detail text-ink">
-								{tool}
-							</span>
-						))}
-					</div>
-				)}
-			</Card>
-
-			<SectionTitle>{t("commandsSettings.mcpTools", { n: external.length })}</SectionTitle>
-			<Card>
-				{external.length === 0 ? (
-					<EmptyHint>{t("commands.noMcp")}</EmptyHint>
-				) : (
-					<div className="flex flex-wrap gap-2 p-4">
-						{external.map((tool) => (
-							<span key={tool} className="rounded-lg bg-card px-2.5 py-1 font-mono text-detail text-ink-muted">
-								{tool}
-							</span>
-						))}
-					</div>
-				)}
-			</Card>
+		<div
+			role={onOpen ? "button" : undefined}
+			tabIndex={onOpen ? 0 : undefined}
+			aria-label={openLabel}
+			data-row-actions=""
+			onClick={onOpen}
+			onKeyDown={
+				onOpen
+					? (event) => {
+							if (event.target !== event.currentTarget) return;
+							if (event.key === "Enter" || event.key === " ") {
+								event.preventDefault();
+								onOpen();
+							}
+						}
+					: undefined
+			}
+			className={`flex cursor-default items-center gap-3 px-4 py-3 ${onOpen ? "transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover" : ""}`}
+		>
+			<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-shell text-ink-faint" aria-hidden>
+				<SquareTerminal size={16} strokeWidth={1.8} />
+			</div>
+			<div className="min-w-0 flex-1">
+				<div className="flex min-w-0 items-center gap-2">
+					<span className="truncate font-mono text-label font-medium text-ink">
+						<span className="text-ink-faint">/</span>
+						{name}
+					</span>
+					{argumentHint && <span className="truncate font-mono text-detail text-ink-faint">{argumentHint}</span>}
+				</div>
+				{detail && <p className="mt-1 truncate text-detail text-ink-faint">{detail}</p>}
+			</div>
+			{actions && (
+				<div className="flex shrink-0 items-center gap-2" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+					{actions}
+				</div>
+			)}
 		</div>
 	);
 }

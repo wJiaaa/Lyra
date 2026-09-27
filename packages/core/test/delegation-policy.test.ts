@@ -26,6 +26,7 @@ import { AgentSession } from "../src/runtime/session.ts";
 import { DispatchGate } from "../src/runtime/dispatch-guard.ts";
 import { DELEGATION_KEY, type DelegationDecision } from "../src/runtime/delegation.ts";
 import { SessionStore } from "../src/session/store.ts";
+import { currentSections } from "../src/prompt/update.ts";
 import { taskTool } from "../src/tools/task.ts";
 import { AGENTS_KEY } from "../src/tools/task.ts";
 import { BUILTIN_AGENTS } from "../src/agents-builtin.ts";
@@ -89,7 +90,12 @@ async function harness(settings: Settings = SETTINGS) {
 		store: new SessionStore(join(root, "sessions")),
 		emit: () => {},
 		streamFn: async (context) => {
-			prompts.push(context.systemPrompt);
+			/*
+			 * 模型此刻读到的各段：会话内冻结的开头，叠上历史里接在末尾的增量（`prompt/update.ts`）。
+			 * 派活说明随档位变时走的是增量，开头的字节不动。
+			 */
+			const frozen = await session.log.frozenPrompt();
+			prompts.push(frozen?.systemPrompt === context.systemPrompt ? [...currentSections(frozen, context.messages).values()].join("") : context.systemPrompt);
 			// 送到模型面前的那一份，不是会话手里那一份——中间还隔着插件的 turn pipeline。
 			toolNames.push(context.tools.map((tool) => tool.name));
 			return reply();
@@ -136,39 +142,38 @@ test("默认设置下什么都没变——`task` 在，提示词还是老样子"
 	}
 });
 
-test("关掉之后，没点名的那一轮 `task` 真的不在工具表里", async () => {
+test("关掉之后工具表不变，没点名的这一轮只在执行时拦", async () => {
 	const h = await harness({ ...SETTINGS, subAgentDelegation: "off" });
 	try {
 		await h.say("帮我看看这个函数");
-		assert.ok(!h.hasTask(), "摘掉工具是主路径——模型不会想要一个没见过的工具");
-		assert.ok(h.tools().length > 0, "只该少一个 `task`，不是把工具表清空了");
-		assert.deepEqual(h.decision(), { tier: "off", mentioned: [] });
+		assert.ok(h.hasTask(), "工具表在缓存前缀最前面，不跟着点名增减");
+		assert.deepEqual(h.decision(), { tier: "off", mentioned: [] }, "`task` 执行时据此拒绝");
 
-		// 提示词得说清楚为什么它手里没有这个工具，否则它会花一轮去找。
-		assert.match(h.last(), /不要派活/);
+		// 提示词得说清楚没点名就别派，否则它会花一次调用去碰壁。
+		assert.match(h.last(), /不要自己决定派活/);
+		assert.match(h.last(), /会被拒绝/);
 		assert.match(h.last(), /@智能体名/, "唯一的出路是让用户点名，那就得说怎么点");
 		// 一个都派不了的那一轮，不该再报一个并发数——那是一句放行的话。
 		assert.doesNotMatch(h.last(), /个子代理同时跑/);
 		// 名单仍然要给：模型得说得出有哪些名字可点。
 		assert.match(h.last(), /<available_subagents>/);
-		assert.match(h.last(), /switched delegation off/, "开头那句得换掉——工具已经不在了");
+		assert.match(h.last(), /switched delegation off/, "开头那句得换掉——只有点名才派");
 	} finally {
 		await h.cleanup();
 	}
 });
 
-test("同一个会话里 @ 点名，`task` 当轮就回来", async () => {
+test("同一个会话里 @ 点名，当轮放行，而提示词和工具表一个字节都不变", async () => {
 	const h = await harness({ ...SETTINGS, subAgentDelegation: "off" });
 	try {
 		await h.say("先随便聊聊");
-		assert.ok(!h.hasTask());
+		const before = { prompt: h.last(), tools: h.tools() };
 
 		await h.say("@explore 去把用到这个接口的地方都找出来");
-		assert.ok(h.hasTask(), "用户自己点的名必须能派——这正是「只禁自动派」的全部意思");
-		assert.deepEqual(h.decision(), { tier: "off", mentioned: ["explore"] });
-		assert.match(h.last(), /`explore`/);
+		assert.deepEqual(h.decision(), { tier: "off", mentioned: ["explore"] }, "用户自己点的名必须能派");
+		assert.equal(h.last(), before.prompt, "点名不改 system prompt——否则这一轮和下一轮各重写一遍缓存");
+		assert.deepEqual(h.tools(), before.tools);
 		assert.match(h.last(), /只派它/);
-		assert.doesNotMatch(h.last(), /不要派活/);
 	} finally {
 		await h.cleanup();
 	}
@@ -178,15 +183,14 @@ test("点名只算当轮：下一轮没点，工具必须再消失一次", async
 	const h = await harness({ ...SETTINGS, subAgentDelegation: "off" });
 	try {
 		await h.say("@explore 找一下");
-		assert.ok(h.hasTask());
+		assert.deepEqual(h.decision()?.mentioned, ["explore"]);
 
 		await h.say("好的，那就这样吧");
 		/*
 		 * 这条错了不会有人发现：点名一次就永久放行的话，用户关掉的开关会在他自己点过一次名之后
 		 * 悄悄失效，而界面上什么都看不出来。点名是一次祈使句，不是一个开关。
 		 */
-		assert.ok(!h.hasTask(), "上一轮的点名不该把这一轮也打开");
-		assert.deepEqual(h.decision(), { tier: "off", mentioned: [] });
+		assert.deepEqual(h.decision(), { tier: "off", mentioned: [] }, "上一轮的点名不该把这一轮也打开");
 	} finally {
 		await h.cleanup();
 	}
@@ -197,7 +201,6 @@ test("一句话里点两个，两个都放行", async () => {
 	try {
 		await h.say("让 @explore 和 @review 各看一遍");
 		assert.deepEqual(h.decision()?.mentioned.sort(), ["explore", "review"]);
-		assert.ok(h.hasTask());
 	} finally {
 		await h.cleanup();
 	}
@@ -209,11 +212,9 @@ test("旧名也认，但只认还有人在的那些", async () => {
 		// `fast` 三天前改名叫 `simple` 了，指的人还在。见 `RENAMED_AGENTS`。
 		await h.say("@fast 把这个小改动做了");
 		assert.deepEqual(h.decision()?.mentioned, ["simple"], "旧名要翻译成现在的名字");
-		assert.ok(h.hasTask());
 
 		await h.say("@nobody 来一下");
 		assert.deepEqual(h.decision()?.mentioned, [], "查无此人不该放行——`task` 拿到手也只会报错");
-		assert.ok(!h.hasTask());
 	} finally {
 		await h.cleanup();
 	}
@@ -224,7 +225,6 @@ test("邮箱不是点名——这条错了，一封邮件就能把关掉的开�
 	try {
 		await h.say("回信给 someone@review.example.com，问问他的意见");
 		assert.deepEqual(h.decision()?.mentioned, []);
-		assert.ok(!h.hasTask());
 	} finally {
 		await h.cleanup();
 	}
@@ -282,7 +282,6 @@ test("关掉之后闸门是 1，不是 0——点名派的那次得过得去", a
 	try {
 		await h.say("@explore 找一下");
 		assert.equal(h.width(), 1);
-		assert.match(h.last(), /最多 1 个子代理同时跑/);
 	} finally {
 		await h.cleanup();
 	}
@@ -305,8 +304,8 @@ test("会话跑到一半改设置，下一轮就按新的来——不用重开�
 		 */
 		h.session.updateSettings({ ...SETTINGS, subAgentDelegation: "off" });
 		await h.say("接着说");
-		assert.ok(!h.hasTask(), "改成「从不派」之后，下一轮工具就该没了");
-		assert.equal(h.decision()?.tier, "off");
+		assert.equal(h.decision()?.tier, "off", "改成「从不派」之后，下一轮的放行检查就该跟上");
+		assert.match(h.last(), /不要自己决定派活/);
 
 		h.session.updateSettings({ ...SETTINGS, subAgentDelegation: "eager" });
 		await h.say("再来");

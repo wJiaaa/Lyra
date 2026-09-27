@@ -17,7 +17,7 @@
  */
 
 import { createHash } from "node:crypto";
-import type { Message } from "../types.ts";
+import type { Message, ToolResultMessage } from "../types.ts";
 
 /** Say something. */
 export const REPEAT_WARN = 3;
@@ -144,15 +144,9 @@ export class RepetitionWatch {
 	 * the first; it only cost.
 	 */
 	observe(calls: { name: string; arguments: unknown }[], results: Message[]): RepeatRound {
-		if (calls.some((call, index) => isWorkspaceProgress(call.name, call.arguments, results[index]))) {
-			// A successful workspace mutation invalidates observations made before that change.
-			// Writing another measurement script is not progress — that is the loop this watch is for.
-			this.counts.clear();
-			this.intents.clear();
-			this.warned.clear();
-			this.probes = 0;
-			this.probeWarned = false;
-		}
+		// A successful workspace mutation invalidates observations made before that change.
+		// Writing another measurement script is not progress — that is the loop this watch is for.
+		if (calls.some((call, index) => isWorkspaceProgress(call.name, call.arguments, results[index]))) this.reset();
 		let worst = 0;
 		let warn: string | null = null;
 		let kind: "exact" | "intent" | "probe" | undefined;
@@ -226,6 +220,80 @@ export class RepetitionWatch {
 		for (const seen of this.counts.values()) if (seen >= REPEAT_STOP) return true;
 		return this.probes >= PROBE_STOP;
 	}
+
+	/**
+	 * 之前的观察作废，从头数。
+	 *
+	 * 两种时候：工作区被改过（结果可能变了），以及上下文被压缩过——压缩把早先那几份原文收进了
+	 * 摘要，模型再读一次是在把丢掉的东西拿回来，不是在打转。不清零的话，这次合理的重读会被算成
+	 * 第三次，拿到的是一句「不再重复贴一遍」，而它要的那份原文已经不在它眼前了。
+	 */
+	reset(): void {
+		this.counts.clear();
+		this.intents.clear();
+		this.warned.clear();
+		this.probes = 0;
+		this.probeWarned = false;
+	}
+}
+
+/**
+ * 第三次起替换重复结果的那句话（见 `agent/loop.ts` 用 `repeats` 的那一段）。
+ *
+ * 放在这里，是因为有两处要认得它：循环写它，`runtime/stale-results.ts` 要把它当成「不是原文」。
+ */
+export function repeatNotice(seen: number, tool: string): string {
+	return (
+		`（这是你第 ${seen} 次用同样的参数调用 \`${tool}\`，结果和前几次一字不差，` +
+		`所以这里不再重复贴一遍。它不会因为你再问一次就改变——要么先去动它，要么换个问法。）`
+	);
+}
+
+/**
+ * 这条结果是不是被换成了 `repeatNotice`。
+ *
+ * 整句比对而不是找关键词：读 `loop.ts` 本身的结果里就含着这句话的模板，只比开头会把那份原文
+ * 错认成提示语。
+ */
+export function isRepeatNotice(message: ToolResultMessage): boolean {
+	if (message.content.length !== 1 || message.content[0].type !== "text") return false;
+	const text = message.content[0].text;
+	const found = /^（这是你第 (\d+) 次用同样的参数调用 `([^`]+)`/.exec(text);
+	return found !== null && text === repeatNotice(Number(found[1]), found[2]);
+}
+
+/**
+ * 模型眼前是否还摆着这次结果的一份原文：同一个调用（同工具、同参数），结果一字不差。
+ *
+ * 替换成 `repeatNotice` 之前要先问这一句。那句话的意思是「前面有，去看前面的」——前面那几份
+ * 要是已经被剪枝、压缩收走了，它指向的是空的，模型手里就一份原文都没有了。
+ */
+export function originalInView(
+	messages: readonly Message[],
+	call: { name: string; arguments: unknown },
+	result: ToolResultMessage,
+): boolean {
+	const fingerprint = `${call.name} ${stable(call.arguments)}`;
+	const text = resultText(result);
+	const ids = new Set<string>();
+	for (const message of messages) {
+		if (message.role !== "assistant") continue;
+		for (const part of message.content) {
+			if (part.type === "toolCall" && `${part.name} ${stable(part.arguments)}` === fingerprint) ids.add(part.id);
+		}
+	}
+	return messages.some(
+		(message) =>
+			message !== result &&
+			message.role === "toolResult" &&
+			ids.has(message.toolCallId) &&
+			!message.isError === !result.isError &&
+			resultText(message) === text,
+	);
+}
+
+function resultText(message: ToolResultMessage): string {
+	return message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
 }
 
 /**

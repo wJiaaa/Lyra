@@ -71,6 +71,7 @@ export { registeredSkills, useSkillRegistry } from "./skills/registry.ts";
 export { backgroundJobs, type BackgroundJob } from "./tools/background-jobs.ts";
 export { loadCapabilityPlugins, type LoadedCapabilityPlugins } from "./plugins/capability.ts";
 export { API_FORMATS, getProvider, streamAssistant, useLlmRegistry } from "./ai/index.ts";
+export { providerHeaders } from "./ai/cache-routing.ts";
 export type { AgentEvent, AgentEventSink, CommandRun, HookRun, QueuedTask } from "./agent/events.ts";
 export type { TodoItem } from "./tools/todo.ts";
 export { runAgent, type AgentRunConfig, type AgentRunResult } from "./agent/loop.ts";
@@ -166,6 +167,23 @@ export { compactIfNeeded, compactWith, useCompaction } from "./runtime/compactio
 export type { ContextBreakdown, ContextSegment, ContextSegmentKey, MemoryFileItem } from "./runtime/context.ts";
 export { estimateTokens } from "./tokens.ts";
 export { computeCost, costAtRates, selectPricingRates, type SelectedPricingRates } from "./utils/pricing.ts";
+export {
+	CACHE_CAUSES,
+	CACHE_NOISE_FLOOR_TOKENS,
+	DEFAULT_CACHE_TTL_MS,
+	diagnoseCache,
+	diagnoseRequest,
+	markCacheBoundary,
+	newCacheDiagnosisState,
+	summarizeCacheDiagnoses,
+	type CacheBoundary,
+	type CacheCause,
+	type CacheCauseTotals,
+	type CacheDiagnosisState,
+	type CacheDiagnosticsOptions,
+	type CacheDiagnosticsSummary,
+	type CacheRequestDiagnosis,
+} from "./runtime/cache-diagnostics.ts";
 export {
 	HOOK_EVENTS,
 	addHook,

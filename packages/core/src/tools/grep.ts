@@ -171,6 +171,9 @@ async function runRipgrepJson(args: GrepArgs, root: string, ctx: ToolContext, li
 	if (args.glob) argv.push("--glob", args.glob);
 	argv.push("--", args.pattern, root);
 	let completed = false;
+	// 每个文件的命中数：到了 `--max-count` 的文件被 ripgrep 截住了，总数就只是下限。
+	const perFile = new Map<string, number>();
+	let capped = false;
 	const run = await collectRipgrep(argv, ctx, (line, lines, keep) => {
 		let event: { type?: string; data?: { path?: { text?: string }; lines?: { text?: string }; line_number?: number; submatches?: { start?: number }[] } };
 		try {
@@ -181,8 +184,13 @@ async function runRipgrepJson(args: GrepArgs, root: string, ctx: ToolContext, li
 		// The closing event, written only once a search has actually run — see `ripgrepResult`.
 		if (event.type === "summary") completed = true;
 		if (event.type !== "match" && event.type !== "context") return false;
-		if (!keep) return true;
 		const pathText = event.data?.path?.text ?? "";
+		if (event.type === "match") {
+			const seen = (perFile.get(pathText) ?? 0) + 1;
+			perFile.set(pathText, seen);
+			if (seen >= limit) capped = true;
+		}
+		if (!keep) return true;
 		const raw = (event.data?.lines?.text ?? "").replace(/\r?\n$/, "");
 		const lineNo = event.data?.line_number ?? 0;
 		const rel = pathText.startsWith(`${root}${sep}`) ? pathText.slice(root.length + 1) : pathText;
@@ -191,7 +199,7 @@ async function runRipgrepJson(args: GrepArgs, root: string, ctx: ToolContext, li
 		lines.push(shortenLine(`${rel}:${lineNo}:${raw}`, args.pattern, { literal, ignoreCase: args.case_insensitive }, matchAt));
 		return true;
 	}, limit);
-	return run && ripgrepResult(run, args, limit, literal, completed);
+	return run && ripgrepResult(run, args, limit, literal, completed, capped);
 }
 
 async function runRipgrepText(args: GrepArgs, root: string, ctx: ToolContext, literal: boolean, limit: number, filesOnly: boolean): Promise<ToolResult | null> {
@@ -208,7 +216,8 @@ async function runRipgrepText(args: GrepArgs, root: string, ctx: ToolContext, li
 		lines.push(shortenLine(shown, args.pattern, { literal, ignoreCase: args.case_insensitive }));
 		return true;
 	}, limit);
-	return run && ripgrepResult(run, args, limit, literal);
+	// 文本模式分不清是哪个文件到了上限，保守地按总数判断；`files_only` 每个文件只有一行，没有这个上限。
+	return run && ripgrepResult(run, args, limit, literal, false, !filesOnly && run.count >= limit);
 }
 
 /** What one ripgrep run left behind: its exit code, the collected lines, and a sample of stderr. */
@@ -229,10 +238,10 @@ interface RipgrepRun {
  * used to be thrown away with the first and redone by the slow scanner. Matches, or the JSON
  * stream's closing `summary`, prove the search ran; what it could not read is reported alongside.
  */
-function ripgrepResult(run: RipgrepRun, args: GrepArgs, limit: number, literal: boolean, completed = false): ToolResult | null {
+function ripgrepResult(run: RipgrepRun, args: GrepArgs, limit: number, literal: boolean, completed = false, capped = false): ToolResult | null {
 	const ran = run.code === 0 || run.code === 1 || (run.code === 2 && (run.count > 0 || completed));
 	if (!ran) return null;
-	return formatMatches(run.lines, args, limit, literal, run.count, run.code === 2 ? describeErrors(run.errors) : "");
+	return formatMatches(run.lines, args, limit, literal, run.count, run.code === 2 ? describeErrors(run.errors) : "", capped);
 }
 
 function describeErrors(errors: RipgrepRun["errors"]): string {
@@ -370,7 +379,8 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 
 	if ((await stat(root).catch(() => null))?.isFile()) await scanFile(root);
 	else await walk(root);
-	return formatMatches(lines, args, limit, literal);
+	// 满了就停，没扫完的部分还有多少命中不知道——所以要说「可能还有」，不能当成全部。
+	return formatMatches(lines, args, limit, literal, lines.length, "", lines.length >= limit);
 }
 
 /**
@@ -378,8 +388,9 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
  *   expression. Said in the result rather than left silent: otherwise a search whose metacharacters
  *   were quietly disarmed reads as a search that ran as written and found nothing.
  * @param warning What the search could not cover, appended as is; see `describeErrors`.
+ * @param stopped 搜索在上限处停下了，`count` 只是下限。
  */
-function formatMatches(lines: string[], args: GrepArgs, limit: number, literal = false, count = lines.length, warning = ""): ToolResult {
+function formatMatches(lines: string[], args: GrepArgs, limit: number, literal = false, count = lines.length, warning = "", stopped = false): ToolResult {
 	const note = literal ? `\`${args.pattern}\` is not a valid regular expression, so it was searched for literally.` : "";
 	const trailer = warning ? `\n\n${warning}` : "";
 	if (lines.length === 0) {
@@ -393,10 +404,14 @@ function formatMatches(lines: string[], args: GrepArgs, limit: number, literal =
 	}
 	const shown = boundCollectedLines(lines.slice(0, limit));
 	const header = literal ? `${note}\n\n` : "";
-	const footer = count > shown.length ? `\n\n[truncated: ${count - shown.length} collected matching/context lines omitted; narrow pattern, path or glob]` : "";
+	const footer = stopped
+		? `\n\n[truncated: hit the ${limit}-match limit${count > shown.length ? `, and ${count - shown.length} collected lines are not shown` : ""}; more matches may exist — narrow pattern, path or glob]`
+		: count > shown.length
+			? `\n\n[truncated: ${count - shown.length} collected matching/context lines omitted; narrow pattern, path or glob]`
+			: "";
 	return {
 		content: [{ type: "text", text: header + shown.join("\n") + footer + trailer }],
-		details: { kind: "grep", pattern: args.pattern, count, matches: shown, literal },
+		details: { kind: "grep", pattern: args.pattern, count, matches: shown, literal, ...(stopped ? { stopped: true } : {}) },
 	};
 }
 

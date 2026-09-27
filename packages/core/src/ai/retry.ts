@@ -1,6 +1,6 @@
 /** Shared request/stream budget prevents nested retry loops from multiplying the configured limit. */
 import { normalizeRetryPolicy, policyDelay, type RetryPolicy, type RetryPolicySource, type RetryFailure } from "../config/retry-policy.ts";
-import { classifyFailure, failureOf, FailureError, worthRetrying, type Failure } from "./failure.ts";
+import { classifyFailure, failureOf, FailureError, serverDelayMs, worthRetrying, type Failure } from "./failure.ts";
 
 /** Explicit low-level attempt overrides (e.g. commit titles) retain their bounded lifetime. */
 function resolvePolicy(policy: RetryPolicy | undefined, legacyAttempts: number | undefined): RetryPolicy {
@@ -96,31 +96,31 @@ const MAX_WAIT_MS = 60_000;
  * body would eventually find a model name with digits in it and sleep for that long.
  */
 export function serverDelay(header: string | null, body?: string): number | null {
-	if (header) {
-		const seconds = Number(header);
-		const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(header) - Date.now();
-		if (Number.isFinite(ms) && ms > 0) return ms;
-	}
-	if (!body) return null;
-	/*
-	 * Regex rather than `JSON.parse`, deliberately.
-	 *
-	 * The field is nested — and nested differently per provider — so parsing would mean knowing
-	 * every shape in advance. What is stable is the key next to a number, and an error body is
-	 * small enough that scanning it costs nothing.
-	 */
-	const seconds = body.match(/"(?:reset_seconds|retry_after|retry_after_seconds|retryAfter)"\s*:\s*(\d+(?:\.\d+)?)/);
-	if (seconds) {
-		const ms = Number(seconds[1]) * 1000;
-		if (ms > 0) return ms;
-	}
-	// `"reset_time":"53s"` — the same fact as a string, which some of them send instead.
-	const written = body.match(/"(?:reset_time|retry_after)"\s*:\s*"(\d+(?:\.\d+)?)s"/);
-	if (written) {
-		const ms = Number(written[1]) * 1000;
-		if (ms > 0) return ms;
-	}
-	return null;
+	// 同一件事 `failure.ts` 里也做了一份（它还认 `retry_after_ms`），两份各守一张键名表迟早漂开。
+	return serverDelayMs(header, body) ?? null;
+}
+
+/** 响应头里服务器说的等待时间：标准的 `Retry-After`，和 OpenAI 系额外发的毫秒版 `retry-after-ms`。 */
+function headerDelay(response: Response, body?: string): number | null {
+	const ms = Number(response.headers.get("retry-after-ms"));
+	if (Number.isFinite(ms) && ms > 0) return ms;
+	return serverDelay(response.headers.get("retry-after"), body);
+}
+
+/**
+ * 配了策略时，这一次到底等多久：策略的间隔和服务器要求的，取大的那个。
+ *
+ * 一度只听策略、完全无视服务器（理由是设置页写着固定间隔「不受服务端建议影响」）。代价是：中转回
+ * `reset_seconds: 54` 说一分钟内别来，默认 10 次、每次 5 秒的上游预算在 50 秒里全部撞在同一堵墙上，
+ * 这一轮就此失败——而服务器明明说了再等几秒就好。取大值不会让等待比用户配的更短，只是不在服务器
+ * 明说「还没好」的时候提前回去：用户配的是「最少等多久」，服务器说的是「最早什么时候有用」，两个都守。
+ *
+ * 服务器的数照旧封顶 `MAX_WAIT_MS`，一个要求等十分钟的中转不该让这一轮静默挂住；比封顶更长的用户
+ * 间隔原样生效，那是用户自己的选择。等待仍走 `abortableSleep`，按停止立即醒。
+ */
+function withServerDelay(policyMs: number, serverMs: number | null | undefined): number {
+	if (serverMs === null || serverMs === undefined || !(serverMs > 0)) return policyMs;
+	return Math.max(policyMs, Math.min(serverMs, MAX_WAIT_MS));
 }
 
 /**
@@ -133,7 +133,7 @@ export function serverDelay(header: string | null, body?: string): number | null
  * a server that had just said it was busy.
  */
 export function retryDelay(attempt: number, response?: Response, body?: string): number {
-	const said = serverDelay(response?.headers.get("retry-after") ?? null, body);
+	const said = response ? headerDelay(response, body) : serverDelay(null, body);
 	if (said !== null) return Math.min(said, MAX_WAIT_MS);
 	// 2s, 5s, 12.5s, 31s, 60s — with jitter, so a fleet of clients does not return in lockstep.
 	// The ceiling is applied *after* the jitter: capping first lets the ±25% push the result
@@ -196,6 +196,9 @@ export async function fetchWithRetry(
 			 */
 			const body = await response.clone().text().catch(() => undefined);
 			const failure = classifyFailure({ from: "status", status: response.status, body });
+			// 头里说的等待时间分类器看不见（它只拿到正文），在这里补上，界面和下面的等待都用它。
+			const said = headerDelay(response, body);
+			if (said !== null) failure.retryAfterMs = said;
 			const canRetry = options.budget ? options.budget.available("upstream", failure) : attempt < attempts;
 
 			if (!worthRetrying(failure) || !canRetry) {
@@ -205,15 +208,9 @@ export async function fetchWithRetry(
 				throw new FailureError(failure);
 			}
 
-			/*
-			 * 服务器说的等待时间只在没有配策略时作数。
-			 *
-			 * 一度写成「服务器比我们准，取两者的大值」——那是把设置页上的话当成了建议。那一页写着
-			 * 「每次等待相同时间，不受服务端建议或随机抖动影响」，配了固定间隔的人是在明确要求这
-			 * 件事。`retryDelay` 是没人配置时的兜底曲线，它才该听服务器的；`policyDelay` 是用户说
-			 * 的数，不该被谁覆盖。正文照读不误——分类要用它。
-			 */
-			const retry = options.budget?.next("upstream") ?? { attempt, delayMs: retryDelay(attempt, response, body) };
+			// 配了策略：策略间隔和服务器要求取大，见 `withServerDelay`。没配：兜底曲线本来就听服务器的。
+			const planned = options.budget?.next("upstream");
+			const retry = planned ? { ...planned, delayMs: withServerDelay(planned.delayMs, said) } : { attempt, delayMs: retryDelay(attempt, response, body) };
 			const delay = retry.delayMs;
 			// Release each failed response before an unlimited wait can accumulate connections.
 			await response.body?.cancel().catch(() => undefined);
@@ -328,8 +325,14 @@ export async function* retryStream<T>(
 			const rule = failure.kind === "upstream" ? "upstream" : "network";
 			const last = options.budget ? !options.budget.available(rule, failure) : number === attempts;
 			if (last || options.signal?.aborted || !worthRetrying(failure)) throw error;
-			// 同上：配了策略就按策略的数走，服务器的建议只喂给兜底曲线。
-			const retry = options.budget?.next(rule) ?? { attempt: number, delayMs: retryDelay(number) };
+			/*
+			 * 同上：配了策略时策略间隔和服务器要求取大。流里的错误（中转塞进 error 事件的 `reset_seconds`）
+			 * 由分类器从原文里读成 `retryAfterMs`；没配策略时兜底曲线也要听它，从前这里一律忽略。
+			 */
+			const planned = options.budget?.next(rule);
+			const retry = planned
+				? { ...planned, delayMs: withServerDelay(planned.delayMs, failure.retryAfterMs) }
+				: { attempt: number, delayMs: failure.retryAfterMs ? Math.min(failure.retryAfterMs, MAX_WAIT_MS) : retryDelay(number) };
 			const delayMs = retry.delayMs;
 			options.onRetry?.({ ...retry, delayMs, reason: failure.summary, failure });
 			await abortableSleep(delayMs, options.signal, options.sleep);

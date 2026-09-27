@@ -293,4 +293,34 @@ describe("scanUsage", () => {
 		assert.equal(scan.buckets[0].input, 300);
 		assert.equal(scan.buckets[0].cacheRead, 200);
 	});
+
+	it("cache misses are diagnosed per request, attributed to compaction, and resumed across scans", async () => {
+		const at = (n: number) => AT + n * 1000;
+		const compacted = `${JSON.stringify({ seq: 4, ts: at(2), type: "event", event: { type: "compacted" } })}\n`;
+		await writeFile(
+			log("s1"),
+			replyLine(at(0), { input: 5000 }) +
+				// 前缀全部读到：命中。
+				replyLine(at(1), { input: 200, cacheRead: 5000 }) +
+				compacted +
+				// 压缩之后前缀重写，上一次的 5200 都没读到。
+				replyLine(at(3), { input: 6000 }),
+		);
+		const first = await scanUsage(home);
+		assert.deepEqual(first.buckets[0].cacheMiss, { tokens: 5200, cost: 0, unpriced: 5200, byCause: { compaction: 5200 } });
+
+		// 日志长了，从上次停下的地方接着诊断：上一次的 6000 该读到而没读到，没有边界，原因不明。
+		await appendFile(log("s1"), replyLine(at(4), { input: 7000 }));
+		const next = await scanUsage(home);
+		assert.equal(next.scanned, 1);
+		assert.deepEqual(next.buckets[0].cacheMiss?.byCause, { compaction: 5200, unknown: 6000 });
+	});
+
+	it("a sub-agent is its own request stream, not a continuation of the main one", async () => {
+		const sub = (n: number, input: number) =>
+			`${JSON.stringify({ seq: 5, ts: AT + n, type: "event", event: { type: "subagent_message", id: "a1", message: JSON.parse(replyLine(AT + n, { input })).message } })}\n`;
+		await writeFile(log("s1"), replyLine(AT, { input: 5000, cacheRead: 100 }) + sub(1, 3000) + replyLine(AT + 2, { input: 100, cacheRead: 5100 }));
+		const scan = await scanUsage(home);
+		assert.equal(scan.buckets[0].cacheMiss, undefined, "子代理的第一次请求是冷启动，主会话前后两次都命中");
+	});
 });

@@ -20,10 +20,13 @@ import { computeCost } from "../utils/pricing.ts";
 import { classifyFailure, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
-import { failedStreamEvent, joinUrl } from "./endpoint.ts";
+import { failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
-import { droppedParams, learnDroppedParam } from "./request-params-compat.ts";
+import { droppedParams, learnDroppedParam, type SentParams } from "./request-params-compat.ts";
+import { compatKey, compatScope } from "./compat-key.ts";
+import { applyUsage } from "./usage-fields.ts";
+import { cacheRouting, providerHeaders } from "./cache-routing.ts";
 
 export const openaiChatCompletionsProvider: Provider = {
 	api: "openai-chat-completions",
@@ -57,7 +60,7 @@ export type MaxTokensField = "max_tokens" | "max_completion_tokens";
 /** 学到的结论：`${providerId} ${modelId}` → 用哪个键。键的拼法跟另外几条轴对齐。 */
 const learned = new Map<string, MaxTokensField>();
 
-const key = (providerId: string, modelId: string) => `${providerId} ${modelId}`;
+const key = compatKey;
 
 /** 这个模型该用哪个键。没撞过之前就是这条链一直在发的那个。 */
 export function maxTokensField(providerId: string, modelId: string): MaxTokensField {
@@ -100,7 +103,7 @@ const MAX_TOKENS_UNSUPPORTED = /["'`]?max_tokens["'`]?[^.]{0,40}?(is not support
  * 两个学习器都要问，**不能用 `||` 短路**：一句话可以同时点名两样（`max_tokens` 该换名、`temperature`
  * 不该发），短路会漏掉后一条，然后下一次重发再撞一遍同一句话。
  */
-export function learnChatCompletionsCompat(providerId: string, modelId: string, error: string): boolean {
+export function learnChatCompletionsCompat(providerId: string, modelId: string, error: string, sent?: SentParams): boolean {
 	const learnedField = learnMaxTokensField(providerId, modelId, error);
 	/*
 	 * 共用的那份参数轴（`request-params-compat.ts`）也来看一眼。
@@ -115,9 +118,9 @@ export function learnChatCompletionsCompat(providerId: string, modelId: string, 
 	 * `droppedParams` 返回的是内部那个 Set 的引用，不是副本，所以要先抄一份快照再去学。
 	 */
 	const before = new Set(droppedParams(providerId, modelId));
-	learnDroppedParam(providerId, modelId, error);
+	learnDroppedParam(providerId, modelId, error, sent);
 	const after = droppedParams(providerId, modelId);
-	const readHere = ["sampling", "tool-choice", "reasoning-off"] as const;
+	const readHere = ["sampling", "tool-choice", "reasoning-off", "cache-key"] as const;
 	const droppedHere = readHere.some((param) => after.has(param) && !before.has(param));
 	return learnedField || droppedHere;
 }
@@ -271,6 +274,49 @@ export function mapFinishReason(reason: string): { stopReason?: StopReason; erro
 	}
 }
 
+// ---------------------------------------------------------------------------
+// 入站：一个 tool_calls 分片属于哪个调用
+// ---------------------------------------------------------------------------
+
+/** 流里开过的一个工具调用，和宿主给它的两个标识（都可能缺）。 */
+interface StreamedCall {
+	block: ToolCallContent;
+	index: number | undefined;
+	id: string | undefined;
+}
+
+/**
+ * 这个分片接在哪个已开的调用上；返回 undefined 表示它开了一个新调用。
+ *
+ * 协议里 `index` 是区分并行调用的那个键，后续分片只带 `index` 不带 `id`。从前写的是 `tc.index ?? 0`：
+ * 不带 `index` 的宿主会把几个并行调用全拼进第 0 块——参数串成 `{"a":1}{"b":2}`，解析失败，两次
+ * 调用变成一次参数为空的调用。另一种坏法是 `index` 都给 0、但 `id` 各不相同（把别家协议转成这个
+ * 形状的中转常见）。所以按可靠程度依次看：
+ *
+ *   1. 带着见过的 `id`：就是那个调用。
+ *   2. 带着没见过的 `id`：新调用——哪怕 `index` 和某个已开的撞了，那个调用已经有别的 `id` 了。
+ *   3. 只带 `index`：按 `index` 找。
+ *   4. 两样都没有：接在最近开的那个调用上——没带标识的分片只能是续写。
+ */
+function findToolCall(tc: { index?: unknown; id?: unknown }, calls: StreamedCall[]): ToolCallContent | undefined {
+	const id = typeof tc.id === "string" && tc.id ? tc.id : undefined;
+	const index = typeof tc.index === "number" ? tc.index : undefined;
+	if (id !== undefined) {
+		const byId = calls.find((call) => call.id === id);
+		if (byId) return byId.block;
+		const byIndex = index === undefined ? undefined : calls.findLast((call) => call.index === index);
+		// 同一个 index 上先来的那个没带 id（首个分片只给了 index），这个带 id 的分片就是它的，补上。
+		if (byIndex && byIndex.id === undefined) {
+			byIndex.id = id;
+			return byIndex.block;
+		}
+		return undefined;
+	}
+	// 取最近的那个：共用一个 index 的宿主，续写分片属于同 index 里最后开的那个调用。
+	if (index !== undefined) return calls.findLast((call) => call.index === index)?.block;
+	return calls.at(-1)?.block;
+}
+
 async function* streamChatCompletions(
 	provider: ProviderConfig,
 	model: ModelConfig,
@@ -291,6 +337,8 @@ async function* streamChatCompletions(
 
 	const reasoningEffort = resolveReasoningEffort(options.thinking, model);
 	const thinkingEnabled = reasoningEffort !== undefined;
+	/** 学和查都用这一对 id，见 `compat-key.ts`。 */
+	const scope = compatScope(provider, model);
 
 	/*
 	 * 每次尝试重新编一遍，因为**推理形状可能在两次之间变掉**。
@@ -299,8 +347,8 @@ async function* streamChatCompletions(
 	 * 一次会记下结论、换个形状重发——那就必须能重新编一份请求体，而不是把第一次编好的那份再发一遍。
 	 */
 	const buildBody = (replay: ReasoningReplay): Record<string, unknown> => {
-		const tokensField = maxTokensField(provider.id, model.id);
-		const dropped = droppedParams(provider.id, model.id);
+		const tokensField = maxTokensField(scope.providerId, scope.modelId);
+		const dropped = droppedParams(scope.providerId, scope.modelId);
 		/*
 		 * 采样参数：撞过一次 400 之后就一个都不发，连 `options.temperature` 一起。
 		 *
@@ -417,14 +465,18 @@ async function* streamChatCompletions(
 			...(options.temperature !== undefined && !thinkingEnabled && !dropped.has("sampling")
 				? { temperature: options.temperature }
 				: {}),
+			// 缓存路由键：带不带、带在哪由端点决定，被拒过就不再带。见 `cache-routing.ts`。
+			...cacheRouting(provider, "openai-chat-completions", options.cacheKey, dropped).body,
 			...sampling,
 		};
 	};
-	let body = buildBody(reasoningReplay(provider.id, model.id));
+	let body = buildBody(reasoningReplay(scope.providerId, scope.modelId));
 
 	options.onPayload?.(body);
 
 	const doFetch = options.fetch ?? globalThis.fetch;
+	// 占位符在这里换一次，重试沿用同一个会话 id。
+	const customHeaders = providerHeaders(provider.headers, options.cacheKey);
 	let firstTokenTime: number | null = null;
 	const inventedIds = new Map<number, string>();
 	/** 收到过几个能看懂的事件——用来分辨「模型没话说」和「中转发来一团别的东西」。 */
@@ -432,20 +484,33 @@ async function* streamChatCompletions(
 	/** 前几次失败的尝试各自花掉的 token，攒着，最后加进这条消息的用量里。见 `reset`。 */
 	let spentOnRetries = emptyUsage();
 
+	/*
+	 * 上一次尝试留下的一切清掉，两层重试共用这一个。
+	 *
+	 * `stopReason` 这条原来两份都漏了：它是在流里随 `finish_reason` 直接写到 `partial` 上的，上一次
+	 * 尝试收到过 `length` 而这一次的宿主不发 `finish_reason`（只靠 `[DONE]` 收尾），重试成功的回答
+	 * 就带着上一次的 `length` 交出去——工具调用被当成半截的，一个都不执行。
+	 */
+	const reset = () => {
+		// 已经花掉的 token 不清零，按那一次自己的档位计价后攒着，见 Responses 适配器里同一段和 `priceAttempt`。
+		spentOnRetries = addUsage(spentOnRetries, priceAttempt(partial.usage, model));
+		partial.content = [];
+		partial.usage = emptyUsage();
+		partial.stopReason = "pending";
+		inventedIds.clear();
+		framesSeen = 0;
+		firstTokenTime = null;
+	};
+
 	const retryBudget = new RetryBudget(options.retryPolicy, options.retryAttempts);
 	try {
-		yield* withReasoningRetry(provider.id, model.id, () => {
-			spentOnRetries = addUsage(spentOnRetries, partial.usage);
-			partial.content = [];
-			partial.usage = emptyUsage();
-			inventedIds.clear();
-			framesSeen = 0;
-			firstTokenTime = null;
-			/*
-			 * 这条链没有工具排列这个轴：Chat Completions 协议本身就规定带 `tool_calls` 的助手消息后面必须
-			 * 紧跟回答它的 tool 消息，交错是唯一合法的排法，没什么可学的。可学的是 Responses 那条链。
-			 */
-		}, learnChatCompletionsCompat, async function* (replay) {
+		/*
+		 * 这条链没有工具排列这个轴：Chat Completions 协议本身就规定带 `tool_calls` 的助手消息后面必须
+		 * 紧跟回答它的 tool 消息，交错是唯一合法的排法，没什么可学的。可学的是 Responses 那条链。
+		 */
+		yield* withReasoningRetry(scope.providerId, scope.modelId, reset, (providerId, modelId, said) =>
+			// 告诉参数轴这次到底发没发 `reasoning_effort: "none"`，见 `learnDroppedParam` 的 `sent`。
+			learnChatCompletionsCompat(providerId, modelId, said, { reasoningOff: body.reasoning_effort === "none" }), async function* (replay) {
 			body = buildBody(replay);
 			options.onPayload?.(body);
 			yield* retryStream(
@@ -470,7 +535,9 @@ async function* streamChatCompletions(
 						headers: {
 							"content-type": "application/json",
 							authorization: `Bearer ${provider.apiKey}`,
-							...provider.headers,
+							// 请求头放在用户自配的 headers 前面，用户手写的同名头优先。
+							...cacheRouting(provider, "openai-chat-completions", options.cacheKey, droppedParams(scope.providerId, scope.modelId)).headers,
+							...customHeaders,
 						},
 						body: JSON.stringify(body),
 						signal: options.signal,
@@ -506,6 +573,8 @@ async function* streamChatCompletions(
 				let stripBuffer = "";
 				/** 这条流被空闲闸掉了吗。见 `readSseWithIdleTimeout`。 */
 				const idle = { tripped: false };
+				/** 这次尝试里开过的工具调用，按出现顺序。见 `findToolCall`。 */
+				const calls: StreamedCall[] = [];
 
 				for await (const frame of readSseWithIdleTimeout(response, options.signal, STREAM_IDLE_TIMEOUT_MS, idle)) {
 					if (frame.data === "[DONE]") {
@@ -541,17 +610,8 @@ async function* streamChatCompletions(
 					}
 
 					if (event.usage) {
-						partial.usage.input = event.usage.prompt_tokens ?? 0;
-						partial.usage.output = event.usage.completion_tokens ?? 0;
-						partial.usage.cacheRead = event.usage.prompt_tokens_details?.cached_tokens ?? 0;
-						// OpenAI-compatible APIs report cached tokens inside prompt_tokens. Keep the
-						// buckets disjoint or both the usage page and the price calculator count them twice.
-						partial.usage.input = Math.max(0, partial.usage.input - partial.usage.cacheRead);
-						partial.usage.cacheWrite = 0;
-						if (typeof event.usage.completion_tokens_details?.reasoning_tokens === "number") {
-							partial.usage.reasoning = event.usage.completion_tokens_details.reasoning_tokens;
-						}
-						partial.usage.total = partial.usage.input + partial.usage.output + partial.usage.cacheRead + partial.usage.cacheWrite;
+						// 各家缓存字段的别名和「prompt_tokens 含缓存」的扣除，都在 `usage-fields.ts` 那张表里。
+						applyUsage("openai-chat-completions", partial.usage, event.usage);
 						partial.usage = computeCost(partial.usage, model);
 					}
 
@@ -690,24 +750,16 @@ async function* streamChatCompletions(
 							}
 
 							for (const tc of delta.tool_calls) {
-								const tcIndex = tc.index ?? 0;
-								let block = partial.content.find(
-									(c): c is ToolCallContent => c.type === "toolCall" && (c as any)._tcIndex === tcIndex,
-								);
+								let block = findToolCall(tc, calls);
 
 								if (!block) {
-									const id = toolCallId(tc.id, tcIndex, inventedIds);
-									const name = tc.function?.name || "";
 									const toolCallIndex = partial.content.length;
-									const newBlock: ToolCallContent = {
-										type: "toolCall",
-										id,
-										name,
-										arguments: {},
-										argumentsText: "",
-										...({ _tcIndex: tcIndex } as any),
-									};
+									// 编号按块在 content 里的位置记，不按 `tc.index`——后者可能缺，也可能被几个调用共用。
+									const id = toolCallId(tc.id, toolCallIndex, inventedIds);
+									const name = tc.function?.name || "";
+									const newBlock: ToolCallContent = { type: "toolCall", id, name, arguments: {}, argumentsText: "" };
 									partial.content.push(newBlock);
+									calls.push({ block: newBlock, index: typeof tc.index === "number" ? tc.index : undefined, id: typeof tc.id === "string" && tc.id ? tc.id : undefined });
 									block = newBlock;
 									yield { type: "toolcall_start", index: toolCallIndex, id, name };
 								}
@@ -730,7 +782,7 @@ async function* streamChatCompletions(
 									const blockIndex = partial.content.indexOf(block);
 									yield {
 										type: "toolcall_delta",
-										index: blockIndex >= 0 ? blockIndex : tcIndex,
+										index: blockIndex,
 										delta: fragment,
 										partial: { ...partial },
 									};
@@ -841,7 +893,6 @@ async function* streamChatCompletions(
 					const c = partial.content[i];
 					if (c.type === "toolCall") {
 						c.arguments = parseToolArguments(c.argumentsText || "{}") ?? {};
-						delete (c as any)._tcIndex;
 						yield { type: "toolcall_end", index: i, partial: { ...partial } };
 					}
 				}
@@ -861,15 +912,7 @@ async function* streamChatCompletions(
 				budget: retryBudget,
 				signal: options.signal,
 				onRetry: options.onRetry,
-				reset: () => {
-					// 已经花掉的 token 不清零，见 Responses 适配器里同一段。
-					spentOnRetries = addUsage(spentOnRetries, partial.usage);
-					partial.content = [];
-					partial.usage = emptyUsage();
-					inventedIds.clear();
-					framesSeen = 0;
-					firstTokenTime = null;
-				},
+				reset,
 			},
 			);
 		});
@@ -894,8 +937,8 @@ async function* streamChatCompletions(
 		const hasToolCalls = partial.content.some((c) => c.type === "toolCall");
 		partial.stopReason = hasToolCalls ? "toolUse" : "stop";
 	}
-	// 成功了，但失败的那几次也是花过钱的——账上要有。
-	partial.usage = computeCost(addUsage(partial.usage, spentOnRetries), model);
+	// 成功了，但失败的那几次也是花过钱的——账上要有。各按各的档位计价再相加，见 `priceAttempt`。
+	partial.usage = addUsage(priceAttempt(partial.usage, model), spentOnRetries);
 
 	yield { type: "done", message: partial };
 	return partial;

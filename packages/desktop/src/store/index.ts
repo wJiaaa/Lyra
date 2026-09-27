@@ -91,6 +91,7 @@ export type SettingsSection =
   | "delegation"
   | "mcp"
   | "commands"
+  | "tools"
   | "hooks"
   | "index"
   | "web"

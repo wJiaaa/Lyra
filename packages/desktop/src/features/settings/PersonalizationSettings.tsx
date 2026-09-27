@@ -183,7 +183,8 @@ export function PersonalizationSettings() {
 	};
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-6 pt-2">
+			<h1 className="pb-2 text-display leading-tight font-semibold tracking-tight text-ink">{t("settings.personalization")}</h1>
 			<SidebarMotto />
 			{/* Custom Instructions */}
 			<div>

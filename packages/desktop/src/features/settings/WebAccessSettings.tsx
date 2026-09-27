@@ -78,7 +78,7 @@ export function WebAccessSettings() {
 	};
 
 	return (
-		<div className="pt-8">
+		<div className="pt-2">
 			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("webAccess.title")}</h1>
 			<p className="mt-2 max-w-[600px] pb-7 text-label leading-relaxed text-ink-muted">{t("webAccess.intro")}</p>
 

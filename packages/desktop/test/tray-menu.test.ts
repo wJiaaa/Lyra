@@ -46,7 +46,7 @@ test("the first item names what pressing it will do, not what is true", () => {
 
 test("the things worth doing from cold are all one press away", () => {
 	const all = labels(state());
-	for (const label of ["新对话", "拉取请求", "已安排", "设置…", "检查更新…", "开机时启动"]) {
+	for (const label of ["新对话", "拉取请求", "定时任务", "设置…", "检查更新…", "开机时启动"]) {
 		assert.ok(all.includes(label), `missing ${label}`);
 	}
 });

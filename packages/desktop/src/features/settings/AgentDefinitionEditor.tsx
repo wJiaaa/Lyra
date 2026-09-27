@@ -51,7 +51,7 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 	};
 	const title = editing && record ? t("agentEditor.editNamed", { name: record.definition.name }) : t("agents.add");
 	const selected = draft.tools;
-	return <form data-agent-settings data-agent-editor className="max-w-[800px] space-y-6 pt-8 pb-10" onSubmit={event => { event.preventDefault(); void save(); }}>
+	return <form data-agent-settings data-agent-editor className="max-w-[800px] space-y-6 pt-2 pb-10" onSubmit={event => { event.preventDefault(); void save(); }}>
 		<nav className="-ml-2 flex h-7 min-w-0 items-center text-label">
 			{/* 面包屑的第一段就是返回：ZCode 顶栏里那一段，这里没有顶栏，放在页首。 */}
 			<button type="button" aria-label={t("agentEditor.back")} disabled={busy} className="h-7 min-w-0 shrink rounded-lg px-2 text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-[var(--ly-agent-hover)] hover:text-ink" onClick={leave}>{t("agents.title")}</button>

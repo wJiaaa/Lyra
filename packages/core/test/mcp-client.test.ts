@@ -18,7 +18,7 @@ import { test, type TestContext } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
-import { McpManager, type McpStdioServer } from "../src/mcp/client.ts";
+import { McpManager, qualifiedToolName, type McpStdioServer } from "../src/mcp/client.ts";
 import { SessionCapabilities } from "../src/runtime/session-capabilities.ts";
 import { forgetCommandPath, primeCommandPath } from "../src/sandbox/login-path.ts";
 
@@ -52,8 +52,12 @@ process.stdin.on("data", (chunk) => {
 			const result = { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "fake", version: "0" } };
 			setTimeout(() => send({ id: message.id, result }), delay);
 		} else if (message.method === "tools/list") {
+			const names = process.env.FAKE_MCP_TOOLS ? JSON.parse(process.env.FAKE_MCP_TOOLS) : ["echo"];
 			if (process.env.FAKE_MCP_FAIL_LIST) send({ id: message.id, error: { code: -32603, message: "tools/list is broken" } });
-			else send({ id: message.id, result: { tools: [{ name: "echo", description: "Echo.", inputSchema: { type: "object" } }] } });
+			else send({ id: message.id, result: { tools: names.map((name) => ({ name, description: "Echo.", inputSchema: { type: "object" } })) } });
+		} else if (message.method === "tools/call") {
+			const size = Number(process.env.FAKE_MCP_RESULT_CHARS || 0);
+			send({ id: message.id, result: { content: [{ type: "text", text: size ? "r".repeat(size) : "called " + message.params.name }] } });
 		} else {
 			send({ id: message.id, error: { code: -32601, message: "no such method" } });
 		}
@@ -357,4 +361,39 @@ test("a session stops offering the tools of a server it was disconnected from", 
 	} finally {
 		await can.dispose();
 	}
+});
+
+test("MCP tools come out in name order, whichever server answered first", async (t) => {
+	// 工具表在提示缓存前缀最前面；按连接完成的先后排，每次启动前缀都可能不同。
+	const fx = await fixture(t);
+	const manager = new McpManager();
+	t.after(() => manager.closeAll());
+	await manager.connectAll([fx.server({ FAKE_MCP_INIT_DELAY: "300" }, "a"), fx.server({}, "b")]);
+	assert.deepEqual(manager.allTools().map((tool) => tool.name), ["mcp__a__echo", "mcp__b__echo"]);
+});
+
+test("a tool name too long or colliding gets a stable short name, and still calls the original", async (t) => {
+	const fx = await fixture(t);
+	const manager = new McpManager();
+	t.after(() => manager.closeAll());
+	const long = `query_${"x".repeat(80)}`;
+	await manager.connectAll([fx.server({ FAKE_MCP_TOOLS: JSON.stringify([long, "a.b", "a_b"]) }, "srv")]);
+	const tools = manager.allTools();
+	for (const tool of tools) assert.match(tool.name, /^[a-zA-Z0-9_-]{1,64}$/, tool.name);
+	assert.equal(new Set(tools.map((tool) => tool.name)).size, 3, "撞名的两个工具必须分开");
+	const shortened = tools.find((tool) => tool.name.startsWith("mcp__srv__query_"))!;
+	assert.equal(shortened.name, qualifiedToolName("srv", long), "同一个工具每次得到同一个名字");
+	const result = await shortened.execute({}, { cwd: fx.dir, sessionId: "s", state: new Map() });
+	assert.equal(result.content[0].type === "text" && result.content[0].text, `called ${long}`);
+});
+
+test("an MCP result is capped like a built-in tool's, and says how much was cut", async (t) => {
+	const fx = await fixture(t);
+	const manager = new McpManager();
+	t.after(() => manager.closeAll());
+	await manager.connectAll([fx.server({ FAKE_MCP_RESULT_CHARS: "500000" }, "big")]);
+	const result = await manager.allTools()[0].execute({}, { cwd: fx.dir, sessionId: "s", state: new Map() });
+	const text = result.content.map((part) => (part.type === "text" ? part.text : "")).join("");
+	assert.ok(text.length < 41_000, `${text.length}`);
+	assert.match(text, /\[truncated: 460000 of 500000 characters omitted/);
 });

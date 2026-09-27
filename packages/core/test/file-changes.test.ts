@@ -72,6 +72,77 @@ test("a CRLF checkout's command change is recorded against the file as checked o
 	assert.deepEqual([diff.added, diff.removed], [1, 1], "命令只改了一行，记下来的就是一行");
 });
 
+test("core.autocrlf in the repository's config still reaches the host-side conversion", async () => {
+	// 宿主侧 git 读不到仓库配置，只读白名单键；autocrlf 必须在白名单里，否则又回到整文件改写。
+	const git = (...args: string[]) => execFileSync("git", ["-C", cwd, ...args], {stdio:"pipe"});
+	git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "Test");
+	await writeFile(join(cwd, "a.txt"), "one\ntwo\nthree\n"); git("add", "."); git("commit", "-m", "base");
+	git("config", "core.autocrlf", "true");
+	await writeFile(join(cwd, "a.txt"), "one\r\ntwo\r\nthree\r\n");
+	const snapshot = await beforeCommand(ctx);
+	await writeFile(join(cwd, "a.txt"), "one\r\nTWO\r\nthree\r\n");
+	const ids = await afterCommand(ctx, snapshot); assert.equal(ids.length, 1);
+	const change = await readFileChange(ctx.sessionId, ids[0]);
+	assert.equal(change.before, "one\r\ntwo\r\nthree\r\n");
+});
+
+test("host-side git never runs a program the sandboxed repository configured", { skip: process.platform === "win32" }, async () => {
+	/*
+	 * 沙箱内命令能写 `.git/config` 与 `.gitattributes`。这里把 git 会执行程序的入口全部埋上：
+	 * filter（clean/smudge/process）、fsmonitor、textconv、外部 diff、钩子、partial clone 的惰性拉取。
+	 * 宿主侧的快照一个都不能触发；最后用普通 git 再跑一遍，证明这些埋点确实是活的。
+	 */
+	const git = (...args: string[]) => execFileSync("git", ["-C", cwd, ...args], { stdio: "pipe" });
+	const marks = join(home, "marks"); await mkdir(marks);
+	const mark = (name: string) => `sh -c 'touch "${marks}/${name}"; cat' --`;
+	git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "Test");
+	await writeFile(join(cwd, "a.txt"), "one\n"); await writeFile(join(cwd, "b.txt"), "keep\n"); git("add", "."); git("commit", "-m", "base");
+	await writeFile(join(cwd, ".gitattributes"), "a.txt filter=evil diff=evil\nb.txt filter=proc\n");
+	git("config", "filter.evil.clean", mark("clean")); git("config", "filter.evil.smudge", mark("smudge"));
+	git("config", "filter.proc.process", `sh -c 'touch "${marks}/process"'`);
+	git("config", "diff.evil.textconv", `sh -c 'touch "${marks}/textconv"; cat "$1"' --`);
+	git("config", "diff.external", `sh -c 'touch "${marks}/external"' --`);
+	const hook = join(home, "hook.sh"); await writeFile(hook, `#!/bin/sh\ntouch "${marks}/$(basename "$0")"\n`, { mode: 0o755 });
+	const hooks = join(home, "hooks"); await mkdir(hooks);
+	for (const name of ["post-index-change", "reference-transaction"]) await fs.copyFile(hook, join(hooks, name)).then(() => fs.chmod(join(hooks, name), 0o755));
+	git("config", "core.hooksPath", hooks);
+	const fsmonitor = join(home, "fsmonitor.sh"); await writeFile(fsmonitor, `#!/bin/sh\ntouch "${marks}/fsmonitor"\n`, { mode: 0o755 });
+	git("config", "core.fsmonitor", fsmonitor);
+	await fs.rm(marks, { recursive: true }); await mkdir(marks);
+	// 第一段：命令改了带 filter/diff 驱动的文件，宿主要算差异、要按检出方式还原原文。
+	const first = await beforeCommand(ctx);
+	await writeFile(join(cwd, "a.txt"), "two\n");
+	const ids = await afterCommand(ctx, first);
+	assert.equal(ids.length, 1);
+	assert.equal((await readFileChange(ctx.sessionId, ids[0])).before, "one\n");
+	assert.deepEqual(await fs.readdir(marks), [], "宿主侧 git 执行了仓库配置的程序");
+	const plain = (...args: string[]) => { try { execFileSync("git", ["-C", cwd, ...args], { stdio: "pipe", env: { ...process.env, GIT_PAGER: "cat" } }); } catch { /* 失败也已经执行过了 */ } };
+	const live = async (...names: string[]) => {
+		const fired = await fs.readdir(marks);
+		for (const name of names) assert.ok(fired.includes(name), `埋点 ${name} 没生效，这个测试什么也证明不了：${fired.join(",")}`);
+		await fs.rm(marks, { recursive: true }); await mkdir(marks);
+	};
+	plain("diff", "HEAD"); plain("cat-file", "--filters", "HEAD:a.txt");
+	await live("fsmonitor", "clean", "smudge");
+
+	// 第二段：命令顺手把 a.txt 的原 blob 删掉并声明 promisor：读它就会走 uploadpack。
+	const blob = git("rev-parse", "HEAD:a.txt").toString().trim();
+	await rm(join(cwd, ".git", "objects", blob.slice(0, 2), blob.slice(2)));
+	git("config", "core.repositoryformatversion", "1"); git("config", "extensions.partialClone", "evil");
+	git("config", "remote.evil.url", cwd); git("config", "remote.evil.promisor", "true");
+	git("config", "remote.evil.uploadpack", `sh -c 'touch "${marks}/uploadpack"; exit 1' --`);
+	git("config", "protocol.file.allow", "always");
+	git("config", "--unset", "core.fsmonitor");
+	await fs.rm(marks, { recursive: true }); await mkdir(marks);
+	const second = await beforeCommand(ctx).catch(() => null);
+	await writeFile(join(cwd, "a.txt"), "three\n");
+	// 缺了 blob 读不出来是可以的（记录退化为提示），执行拉取不行。
+	await afterCommand(ctx, second).catch(() => []);
+	assert.deepEqual(await fs.readdir(marks), [], "宿主侧 git 执行了仓库配置的拉取");
+	plain("cat-file", "-p", "HEAD:a.txt");
+	await live("uploadpack");
+});
+
 test("batch undo preflights all files before touching any and preserves existing dirty work", async () => {
 	const a = join(cwd, "a.ts"), b = join(cwd, "b.ts");
 	const aId = await recordFileChange(ctx, a, "user dirty", "agent edit"), bId = await recordFileChange(ctx, b, null, "new file");

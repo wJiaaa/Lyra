@@ -106,3 +106,67 @@ test("the prompt note states the number, because a queue is invisible from insid
 	assert.match(note, /4 个/);
 	assert.match(note, /更晚到/, "it explains the consequence rather than just stating a rule");
 });
+
+test("停止落在排队中的派发上：出队、不跑、不占名额", async () => {
+	/*
+	 * 以前排队不看停止信号：人按了停，只有已经登记在册的那几个被停下，排在后面的照样一个个被
+	 * 放进来、从头跑完。
+	 */
+	const gate = new DispatchGate(1);
+	let release!: () => void;
+	const first = gate.run(() => new Promise<void>((resolve) => (release = resolve)));
+	const stop = new AbortController();
+	let ran = false;
+	const queued = gate.run(async () => {
+		ran = true;
+	}, stop.signal);
+	await new Promise((r) => setTimeout(r, 0));
+	assert.equal(gate.queued, 1);
+
+	stop.abort();
+	await assert.rejects(queued);
+	assert.equal(gate.queued, 0, "停下的那个离开了队列");
+	assert.equal(gate.running, 1, "它从没拿到名额，也就没有名额要还");
+
+	release();
+	await first;
+	assert.equal(ran, false, "前面的跑完放人时，它已经不在队里了");
+	assert.equal(gate.running, 0);
+});
+
+test("已经停了的信号不进闸门；放行之后、开跑之前停下的也不跑，名额当场还回去", async () => {
+	const gate = new DispatchGate(1);
+	const stopped = AbortSignal.abort();
+	await assert.rejects(gate.run(async () => assert.fail("不该开跑"), stopped));
+	assert.equal(gate.running, 0);
+
+	// 放行（记账）和醒来之间隔着一个微任务：`setLimit` 同步放人，紧接着同步停下。
+	let release!: () => void;
+	const first = gate.run(() => new Promise<void>((resolve) => (release = resolve)));
+	const stop = new AbortController();
+	let ran = false;
+	const queued = gate.run(async () => {
+		ran = true;
+	}, stop.signal);
+	await new Promise((r) => setTimeout(r, 0));
+	gate.setLimit(2);
+	assert.equal(gate.running, 2, "已经放行、名额已记账");
+	stop.abort();
+	await assert.rejects(queued);
+	assert.equal(ran, false);
+	assert.equal(gate.running, 1, "被放行又被停下的那个，名额当场还了");
+	release();
+	await first;
+	assert.equal(gate.running, 0);
+});
+
+test("嵌套派发排队时同样听停止信号，让出去的位置照样取回", async () => {
+	const gate = new DispatchGate(1);
+	await gate.run(async () => {
+		const stop = new AbortController();
+		stop.abort();
+		await assert.rejects(gate.nested(async () => assert.fail("不该开跑"), stop.signal));
+		assert.equal(gate.running, 1, "父亲的位置原样取回");
+	});
+	assert.equal(gate.running, 0);
+});

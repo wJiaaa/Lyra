@@ -6,6 +6,11 @@
  * configured Tavily could silently be paying DuckDuckGo's accuracy for it. Every ambiguous case is
  * an error here instead.
  *
+ * "Several usable and nothing chosen" is not one of those cases, though: two of the providers ship
+ * needing no key, so a fresh install would land in it and stay there until somebody opened a page
+ * they have no reason to open yet. One of them is named as the default instead — and it is the one
+ * the seam is allowed to pick without being told.
+ *
  * The parsing tests use real fixture markup and real payload shapes rather than stubs of our own
  * design — a parser tested against the shape it was written for proves nothing.
  */
@@ -36,6 +41,11 @@ function fake(id: string, usable: boolean, sources = 1): SearchProvider {
 	};
 }
 
+/** A provider that needs no key, with the role the seam gives it when nobody has chosen. */
+function keylessFake(id: string, role: "default" | "optional"): SearchProvider {
+	return { ...fake(id, true), keyless: role };
+}
+
 beforeEach(() => resetSearchProviders());
 
 // ---------------------------------------------------------------------------
@@ -52,8 +62,9 @@ test("an unusable provider is not chosen just for being alone", () => {
 	assert.throws(() => selectSearchProvider(), /没有可用/);
 });
 
-test("several usable providers with no choice made is an error, not a coin toss", () => {
-	// "Whichever plugin loaded first" is not a decision anybody made.
+test("several configured providers with no choice made is an error, not a coin toss", () => {
+	// "Whichever plugin loaded first" is not a decision anybody made. Neither is "whichever of the
+	// two keys you pasted" — that one is still a question for whoever pasted them.
 	registerSearchProvider(fake("a", true));
 	registerSearchProvider(fake("b", true));
 	assert.throws(() => selectSearchProvider(), (error: SearchError) => error.code === "SEARCH_PROVIDER_AMBIGUOUS");
@@ -84,6 +95,43 @@ test("a disposer takes the registration back", () => {
 	assert.equal(selectSearchProvider().id, "temp");
 	dispose();
 	assert.throws(() => selectSearchProvider());
+});
+
+test("the keyless default answers when nobody has chosen", () => {
+	// The state every fresh install is in: both keyless providers are usable and the settings file
+	// has never been opened. Asking for a choice here would leave web_search failing until somebody
+	// visited a page they have no reason to visit yet.
+	registerSearchProvider(keylessFake("answers", "default"));
+	registerSearchProvider(keylessFake("scrape", "optional"));
+	assert.equal(selectSearchProvider().id, "answers");
+});
+
+test("a key somebody pasted outranks the keyless default", () => {
+	// Pasting a key without also clicking a radio is easy to do — the page lists the key fields
+	// below the choice. Answering that with the default would quietly ignore what they set up.
+	registerSearchProvider(keylessFake("answers", "default"));
+	registerSearchProvider(fake("tavily", true));
+	assert.equal(selectSearchProvider().id, "tavily");
+});
+
+test("a keyless provider that is not the default is never picked on its own", () => {
+	registerSearchProvider(keylessFake("a", "optional"));
+	registerSearchProvider(keylessFake("b", "optional"));
+	assert.throws(() => selectSearchProvider(), (error: SearchError) => error.code === "SEARCH_PROVIDER_AMBIGUOUS");
+});
+
+test("a keyless provider picked by name runs, default or not", () => {
+	registerSearchProvider(keylessFake("answers", "default"));
+	registerSearchProvider(keylessFake("scrape", "optional"));
+	assert.equal(selectSearchProvider("scrape").id, "scrape");
+});
+
+test("a second keyless default is a programming error", () => {
+	registerSearchProvider(keylessFake("first", "default"));
+	assert.throws(
+		() => registerSearchProvider(keylessFake("second", "default")),
+		(error: SearchError) => error.code === "SEARCH_DUPLICATE_DEFAULT",
+	);
 });
 
 // ---------------------------------------------------------------------------

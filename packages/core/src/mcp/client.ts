@@ -7,6 +7,7 @@
  */
 
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { DEFAULT_INHERITED_ENV_VARS, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -188,7 +189,12 @@ export class McpManager {
 			throw new Error(`MCP server "${server.name}" was disconnected while it was still starting`);
 		}
 
-		const tools = listed.tools.map((tool) => toAgentTool(server, client, tool));
+		const used = new Set<string>();
+		const tools = listed.tools.map((tool) => {
+			const name = qualifiedToolName(server.id, tool.name, used);
+			used.add(name);
+			return toAgentTool(server, client, tool, name);
+		});
 		const connection: McpConnection = {
 			config: server,
 			client,
@@ -205,9 +211,14 @@ export class McpManager {
 		return connection;
 	}
 
-	/** Every tool from every connected server, ready to hand to the agent loop. */
+	/**
+	 * Every tool from every connected server, ready to hand to the agent loop.
+	 *
+	 * 按名字排序，不按连接完成的先后：工具表在提示缓存前缀的最前面，服务器谁先连上每次都可能不同，
+	 * 顺序一变整个前缀就失效。名字以 `mcp__<服务器>__` 开头，所以这也是按服务器、再按工具排。
+	 */
 	allTools(): Tool[] {
-		return [...this.connections.values()].flatMap((c) => c.tools);
+		return [...this.connections.values()].flatMap((c) => c.tools).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 	}
 
 	/**
@@ -387,8 +398,22 @@ interface RawMcpTool {
 	inputSchema?: unknown;
 }
 
-function toAgentTool(server: McpServerConfig, client: Client, raw: RawMcpTool): Tool {
-	const qualifiedName = `mcp__${sanitize(server.id)}__${sanitize(raw.name)}`;
+/** 各家函数名的共同约束：OpenAI、Anthropic、Bedrock 都是 `^[a-zA-Z0-9_-]{1,64}$`，Gemini 也是 64。 */
+const MAX_TOOL_NAME = 64;
+
+/**
+ * 给模型看的工具名。放得下就是原来的 `mcp__<服务器>__<工具>`（已有的「总是允许」记在这个名字上）；
+ * 超过 64 个字符，或同一台服务器里两个工具清洗后撞名，就截短并接上由原名算出的哈希——确定性的，
+ * 同一个工具每次得到同一个名字。执行时用的是闭包里的原名，不从这个名字反解，所以截短不影响调用。
+ */
+export function qualifiedToolName(serverId: string, toolName: string, taken: ReadonlySet<string> = new Set()): string {
+	const plain = `mcp__${sanitize(serverId)}__${sanitize(toolName)}`;
+	if (plain.length <= MAX_TOOL_NAME && !taken.has(plain)) return plain;
+	const hash = createHash("sha256").update(`${serverId}\0${toolName}`).digest("hex").slice(0, 8);
+	return `${plain.slice(0, MAX_TOOL_NAME - hash.length - 1)}_${hash}`;
+}
+
+function toAgentTool(server: McpServerConfig, client: Client, raw: RawMcpTool, qualifiedName: string): Tool {
 
 	const description = raw.description ?? `${raw.name} (from MCP server ${server.name})`;
 
@@ -418,7 +443,7 @@ function toAgentTool(server: McpServerConfig, client: Client, raw: RawMcpTool): 
 					undefined,
 					{ signal: ctx.signal },
 				);
-				const content = normalizeContent(response.content);
+				const content = boundContent(normalizeContent(response.content));
 				return {
 					content: content.length > 0 ? content : [{ type: "text", text: "(the server returned no content)" }],
 					details: { kind: "mcp", server: server.name, tool: raw.name, structured: response.structuredContent },
@@ -449,6 +474,41 @@ function normalizeContent(raw: unknown): UserContent[] {
 			else if (resource?.uri) out.push({ type: "text", text: `[resource ${String(resource.uri)}]` });
 		}
 	}
+	return out;
+}
+
+/** 文本总量上限，与 `web_fetch` 相同：同样是外部来的数据。 */
+const MAX_RESULT_TEXT = 40_000;
+/** 单张图片上限，与 `read` 相同。 */
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * 给结果设上限，并告诉模型截了多少。以前原样进上下文：一个把整张表倒出来的查询就是几十万字，
+ * 而内置工具每一个都有上限。
+ */
+function boundContent(blocks: UserContent[]): UserContent[] {
+	const total = blocks.reduce((sum, block) => sum + (block.type === "text" ? block.text.length : 0), 0);
+	let budget = MAX_RESULT_TEXT;
+	let omittedImages = 0;
+	const out: UserContent[] = [];
+	for (const block of blocks) {
+		if (block.type === "image") {
+			if (Math.floor((block.data.length * 3) / 4) > MAX_IMAGE_BYTES) omittedImages++;
+			else out.push(block);
+			continue;
+		}
+		if (budget <= 0) continue;
+		let text = block.text.length > budget ? block.text.slice(0, budget) : block.text;
+		if (/[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1);
+		budget -= text.length;
+		out.push({ type: "text", text });
+	}
+	const shown = MAX_RESULT_TEXT - budget;
+	const notes = [
+		...(total > shown ? [`${total - shown} of ${total} characters omitted (limit ${MAX_RESULT_TEXT}); ask the tool for less, e.g. a narrower query or a page`] : []),
+		...(omittedImages ? [`${omittedImages} image(s) over ${MAX_IMAGE_BYTES / 1024 / 1024} MB omitted`] : []),
+	];
+	if (notes.length) out.push({ type: "text", text: `[truncated: ${notes.join("; ")}]` });
 	return out;
 }
 

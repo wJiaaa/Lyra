@@ -53,6 +53,15 @@ const LIKELY_PATHS = ["/usr/local/bin", "/opt/homebrew/bin", "/opt/local/bin", "
 export function gitEnvironment(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 	const env = { ...base };
 	for (const name of REDIRECTING) delete env[name];
+	/*
+	 * git 的提示语固定成英文。
+	 *
+	 * `git-errors.ts` 按 git 的英文原话认错误，而 git 跟着 `LANG` 本地化：`zh_CN.UTF-8` 下
+	 * 「unable to access」变成「无法访问」，一条也认不出，中文系统的用户看到的全是原样透传的报错。
+	 * 只动 `LANGUAGE`（gettext 选消息语言时最先看它，`LC_ALL` 也压不过它），不动 `LC_ALL`/`LC_CTYPE`：
+	 * 那两个管字符编码，改了中文路径会被转义。
+	 */
+	env.LANGUAGE = "en";
 
 	// Windows env variables are case-insensitive and typically named `Path` rather than `PATH`.
 	// A spread object `{ ...process.env }` loses the case-insensitive proxy, so find whichever key was used.

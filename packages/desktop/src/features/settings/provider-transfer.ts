@@ -13,6 +13,7 @@
  */
 
 import type { ApiFormat, ModelConfig, ModelPricing, ModelPricingTier, ProviderConfig } from "@lyra/core";
+import { SMART_FIELDS } from "@lyra/core/model-rules";
 
 /** Identifies the file as ours before anything reads what is in it. */
 const BUNDLE_KIND = "lyra.providers";
@@ -260,8 +261,12 @@ function readModel(raw: unknown, providerId: string): ModelConfig | null {
 		supportsTools: raw.supportsTools !== false,
 		...(pricing ? { pricing } : {}),
 		...(catalogRef?.providerId && catalogRef.modelId ? { catalogRef } : {}),
-		...(raw.metadataSource === "manual" || raw.metadataSource === "catalog"
-			? { metadataSource: raw.metadataSource }
+		// 旧版导出的 `catalog` 就是跟随推荐，按智能配置读。
+		...(raw.metadataSource === "manual" ? { metadataSource: "manual" as const }
+			: raw.metadataSource === "smart" || raw.metadataSource === "catalog" ? { metadataSource: "smart" as const }
+			: {}),
+		...(Array.isArray(raw.overrides)
+			? { overrides: SMART_FIELDS.filter((field) => (raw.overrides as unknown[]).includes(field)) }
 			: {}),
 		...(Array.isArray(raw.thinkingOptions) ? { thinkingOptions: raw.thinkingOptions as ModelConfig["thinkingOptions"] } : {}),
 		...(isRecord(raw.samplingParams) ? { samplingParams: raw.samplingParams } : {}),

@@ -9,8 +9,9 @@
  * It is honestly the weakest of the options and says so in its name and its description: the
  * markup is not an API and can change without warning, and the endpoint rate-limits. What it buys
  * is that "search the web" works on day one, and the better providers are an upgrade rather than a
- * prerequisite. When one is configured, `available()` still returns true here — which is exactly
- * why the seam refuses to guess between them and asks for a choice.
+ * prerequisite. It stays `available()` with nothing configured, which is not the same as being a
+ * choice somebody made: a keyed provider outranks it, and the instant provider is what answers when
+ * nobody has chosen — see `keyless` in `search/index.ts`.
  */
 
 import { SearchError, type SearchProvider, type SearchRequest, type SearchResult, type SearchSource } from "./index.ts";
@@ -30,6 +31,12 @@ export function duckDuckGoProvider(fetchImpl: typeof fetch = fetch): SearchProvi
 		name: "DuckDuckGo（免配置，质量有限）",
 		// Nothing to configure, so nothing can be missing.
 		available: () => true,
+		/*
+		 * Registered and usable, but never picked on anybody's behalf: this is the endpoint that
+		 * answers a program with its anti-automation page instead of results, so it runs when
+		 * somebody asks for it by name.
+		 */
+		keyless: "optional",
 		async search(request: SearchRequest): Promise<SearchResult> {
 			const html = await fetchWithBackoff(fetchImpl, request);
 			const sources = parseResults(html);

@@ -45,8 +45,8 @@ export function BrowserSettings() {
 		try { patch({ searchUrl: browserSearchCustom(draft) }); setError(null); }
 		catch (problem) { setError(problem instanceof Error ? problem.message : String(problem)); }
 	};
-	return <div className="pt-8">
-		<h1 className="pb-7 text-display leading-tight font-semibold tracking-tight text-ink">{t("browser.title")}</h1>
+	return <div className="pt-2">
+		<h1 className="pb-8 text-display leading-tight font-semibold tracking-tight text-ink">{t("browser.title")}</h1>
 		<SectionTitle>{t("browser.habits")}</SectionTitle>
 		<Card className="mb-7">
 			<Row title={t("browser.openLinksWith")} control={<InlineSelect value={config.openLinks ?? "system"} options={[{ value: "system", label: t("browser.systemBrowser") }, { value: "builtin", label: t("browser.builtin") }]} onChange={(openLinks) => patch({ openLinks })} />} />

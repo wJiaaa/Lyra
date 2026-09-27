@@ -1,5 +1,11 @@
-/** Sections retain their provenance without storing another copy of the prompt. */
-export type PromptSource = "identity" | "tools" | "guidelines" | "boundaries" | "environment" | "custom" | "tone" | "userInstructions" | "userMemory" | "projectMemory" | "skills" | "rules" | "agents" | "projectInstructions" | "workspace" | "resources" | "extension";
+/**
+ * Sections retain their provenance without storing another copy of the prompt.
+ *
+ * 来源同时是段落 id：会话内冻结与中途增量按它比对（`update.ts`），`add` 一个新来源就自动纳入，
+ * 不用另外接线。同一来源的几块合成一段，所以别给经常变的内容和稳定的内容共用一个来源——变一处，
+ * 增量里就要把整段重发一遍（派活说明从 `agents` 里拆成 `delegation` 就是为此）。
+ */
+export type PromptSource = "identity" | "tools" | "guidelines" | "boundaries" | "environment" | "custom" | "tone" | "userInstructions" | "userMemory" | "projectMemory" | "skills" | "rules" | "agents" | "delegation" | "projectInstructions" | "workspace" | "resources" | "extension";
 
 export interface PromptSection {
 	source: PromptSource;

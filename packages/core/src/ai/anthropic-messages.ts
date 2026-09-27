@@ -17,15 +17,16 @@ import type {
 	ProviderConfig,
 	RequestOptions,
 	StreamEvent,
-	Usage,
 } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";
-import { computeCost } from "../utils/pricing.ts";
 import { classifyFailure, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
-import { failedStreamEvent, joinUrl } from "./endpoint.ts";
+import { failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
+import { compatKey, compatScope } from "./compat-key.ts";
+import { applyUsage } from "./usage-fields.ts";
+import { providerHeaders } from "./cache-routing.ts";
 
 const THINKING_BUDGET: Record<string, number> = {
 	minimal: 1024,
@@ -62,6 +63,14 @@ export const anthropicMessagesProvider: Provider = {
  * 撞了就往下走一格：`unsigned → signed-only → none`。往下走是安全方向——少发一点推理最多让模型接不回
  * 自己那条思维链，多发一格是整个请求被拒。
  *
+ * 但这张表是**进程级、按模型记**的，而触发降级的常常只是某一个会话里的一段坏历史（换过模型的签名、
+ * 半截的块）。只降不升的话，一次降到底就等于这个模型在所有会话里都再也不回放推理——对「要求把推理
+ * 带回来」的非签名端点，那是每一轮都 400、重启进程之前无法恢复。所以有两条回头路：
+ *
+ *   - 端点明说「推理要带回来」（`REQUIRES_THINKING`）时回到默认那一格；
+ *   - 这次请求里降过一格、降完还是失败了，就把这一格撤掉（`restoreThinkingReplay`）——降级没换来
+ *     成功，就不该变成所有会话的结论。
+ *
  * 记在内存里，不落盘，理由和 `reasoning-compat.ts` 里那一段一样。
  */
 
@@ -70,7 +79,7 @@ const learnedThinkingReplay = new Map<string, ThinkingReplay>();
 /** 梯子，从发得最多到发得最少。 */
 const THINKING_LADDER: ThinkingReplay[] = ["unsigned", "signed-only", "none"];
 
-const replayKey = (providerId: string, modelId: string) => `${providerId} ${modelId}`;
+const replayKey = compatKey;
 
 const OFFICIAL_ANTHROPIC = "https://api.anthropic.com";
 
@@ -107,7 +116,8 @@ function defaultThinkingReplay(provider: ProviderConfig, model: ModelConfig): Th
 
 /** 这个模型现在该发哪一档。 */
 export function thinkingReplay(provider: ProviderConfig, model: ModelConfig): ThinkingReplay {
-	return learnedThinkingReplay.get(replayKey(provider.id, model.id)) ?? defaultThinkingReplay(provider, model);
+	const { providerId, modelId } = compatScope(provider, model);
+	return learnedThinkingReplay.get(replayKey(providerId, modelId)) ?? defaultThinkingReplay(provider, model);
 }
 
 /**
@@ -124,8 +134,17 @@ export function thinkingReplay(provider: ProviderConfig, model: ModelConfig): Th
  * 只认这两条。多认一条的代价是把别的原因造成的 400 误判成签名问题，然后拿一个改坏了的请求去重发。
  */
 export function learnThinkingReplay(providerId: string, modelId: string, error: string, from: ThinkingReplay = "unsigned"): boolean {
-	if (!INVALID_THINKING_SIGNATURE.test(error) && !MISSING_THINKING_SIGNATURE.test(error)) return false;
 	const id = replayKey(providerId, modelId);
+	/*
+	 * 「推理要带回来」：降过的回到默认那一格，重发。没降过就不认领——那时这句话说的不是回放档位
+	 * （DeepSeek 在工具排列不对时也这么说，见 `reasoning-compat.ts` 的 `REQUIRES`），交给后面的轴。
+	 */
+	if (REQUIRES_THINKING.test(error)) {
+		if (!learnedThinkingReplay.has(id) || learnedThinkingReplay.get(id) === from) return false;
+		learnedThinkingReplay.delete(id);
+		return true;
+	}
+	if (!INVALID_THINKING_SIGNATURE.test(error) && !MISSING_THINKING_SIGNATURE.test(error)) return false;
 	const now = learnedThinkingReplay.get(id) ?? from;
 	const next = THINKING_LADDER[THINKING_LADDER.indexOf(now) + 1];
 	if (!next) return false;
@@ -135,10 +154,98 @@ export function learnThinkingReplay(providerId: string, modelId: string, error: 
 
 const INVALID_THINKING_SIGNATURE = /invalid\s+`?signature`?\s+in\s+`?thinking`?(?:\s+block)?/i;
 const MISSING_THINKING_SIGNATURE = /thinking\.signature\b[^"\n]{0,32}\brequired\b/i;
+/** 和 `reasoning-compat.ts` 的 `REQUIRES` 同一句话，多认一个 `thinking` 的说法。 */
+const REQUIRES_THINKING = /(?:reasoning(?:_content|_text)?|thinking)\b.{0,40}must be passed back/i;
+
+/**
+ * 把这个模型的档位放回某次请求开始时的样子。`to` 为 undefined 表示那时还没学过。
+ *
+ * 给「降了一格、重发还是失败」用，理由见文件这一段开头。
+ */
+function restoreThinkingReplay(providerId: string, modelId: string, to: ThinkingReplay | undefined): void {
+	const id = replayKey(providerId, modelId);
+	if (to === undefined) learnedThinkingReplay.delete(id);
+	else learnedThinkingReplay.set(id, to);
+}
 
 /** 测试用：把学到的都忘掉。 */
 export function resetThinkingReplay(): void {
 	learnedThinkingReplay.clear();
+	learnedAdaptiveThinking.clear();
+}
+
+// ---------------------------------------------------------------------------
+// 思考参数的形状：budget_tokens 还是 adaptive
+// ---------------------------------------------------------------------------
+
+/*
+ * 协议里开思考有两种写法：`thinking: {type: "enabled", budget_tokens}`，和
+ * `thinking: {type: "adaptive"}` 加 `output_config: {effort}`。新一些的模型只认后一种，给
+ * `budget_tokens` 是 400；而这条链服务的第三方兼容端点多数只认前一种。
+ *
+ * 所以默认不变（budget_tokens），撞上「不认 budget_tokens / 要 adaptive」再学会换写法、重发——和
+ * `request-params-compat.ts` 那一套同一个路子，记在内存里，不落盘。只有一个方向：端点从来不会因为
+ * 我们发了 adaptive 而点名要 budget_tokens（默认就是它），没有反向信号可认。
+ *
+ * 放在这个文件而不是 `request-params-compat.ts`：那份是三条链共用的，两条 OpenAI 链根本不发
+ * `thinking`，学到它对它们只会换来一次原样重发。
+ */
+
+/** 学到要用 adaptive 写法的模型。 */
+const learnedAdaptiveThinking = new Set<string>();
+
+/**
+ * 「别用 budget_tokens」的几种说法。每条都要点名 `budget_tokens` / `thinking.type`，指向明确：
+ *
+ *   - 官方对 4.7 之后的模型的原话点名了替代写法：
+ *     `` `thinking.type.enabled` is not supported for this model. Use `thinking.type.adaptive` and
+ *     `output_config.effort` to control thinking behavior. ``
+ *   - 中转翻译后常见的形状：`budget_tokens` 后面紧跟不支持/已弃用/不允许（**推断**，没有实测样本；
+ *     `[^.\n]` 不跨句，免得把顺口提到 budget_tokens 的长错误也算进来）。
+ */
+const ADAPTIVE_REQUIRED = [
+	/thinking\.type\.adaptive/i,
+	/thinking\.type\.enabled[^.\n]{0,40}not supported/i,
+	/budget_tokens[^.\n]{0,60}(?:not supported|unsupported|deprecated|no longer|not permitted|not allowed|removed)/i,
+];
+
+/** 这个模型开思考时该用 adaptive 写法吗。没撞过就是否。 */
+function usesAdaptiveThinking(providerId: string, modelId: string): boolean {
+	return learnedAdaptiveThinking.has(compatKey(providerId, modelId));
+}
+
+/** 从一次失败里学：端点不认 budget_tokens，改用 adaptive。返回「结论变了，值得换个形状重发」。 */
+function learnAdaptiveThinking(providerId: string, modelId: string, error: string): boolean {
+	if (!ADAPTIVE_REQUIRED.some((pattern) => pattern.test(error))) return false;
+	const id = compatKey(providerId, modelId);
+	if (learnedAdaptiveThinking.has(id)) return false;
+	learnedAdaptiveThinking.add(id);
+	return true;
+}
+
+/**
+ * 我们的档位 → 协议的 `output_config.effort`。协议只认 `low/medium/high/xhigh/max`。
+ *
+ * `minimal` 和 `ultra` 是别家的档位，就近落到两端；表里没有的（模型自定义的档位名）不发
+ * `output_config`，由端点用它自己的默认——发一个协议外的值只会换来一个 400。
+ */
+const ADAPTIVE_EFFORT: Record<string, string> = {
+	minimal: "low",
+	low: "low",
+	medium: "medium",
+	high: "high",
+	xhigh: "xhigh",
+	max: "max",
+	ultra: "max",
+};
+
+/** 开思考时请求体里那一段。 */
+function thinkingParams(adaptive: boolean, effort: string, budget: number | undefined, maxTokens: number): Record<string, unknown> {
+	if (!adaptive) {
+		return { thinking: { type: "enabled", budget_tokens: budget === undefined ? undefined : Math.min(budget, maxTokens - 1) } };
+	}
+	const mapped = ADAPTIVE_EFFORT[effort];
+	return { thinking: { type: "adaptive" }, ...(mapped ? { output_config: { effort: mapped } } : {}) };
 }
 
 /**
@@ -178,6 +285,8 @@ async function* streamAnthropic(
 
 	const effort = resolveReasoningEffort(options.thinking, model);
 	const thinkingEnabled = effort !== undefined;
+	/** 学和查都用这一对 id，见 `compat-key.ts`。 */
+	const scope = compatScope(provider, model);
 	const maxTokens = options.maxTokens ?? model.maxOutputTokens;
 	const budget = effort ? model.thinkingOptions?.find((option) => option.id === effort)?.budgetTokens ?? THINKING_BUDGET[effort] : undefined;
 	if (thinkingEnabled && (!Number.isInteger(budget) || budget === undefined || budget < 1024 || maxTokens <= 1024)) {
@@ -212,14 +321,8 @@ async function* streamAnthropic(
 				}
 			: {}),
 		...(context.tools.length > 0 ? { tools: toAnthropicTools(context.tools) } : {}),
-		...(thinkingEnabled
-			? {
-					thinking: {
-						type: "enabled",
-						budget_tokens: budget === undefined ? undefined : Math.min(budget, maxTokens - 1),
-					},
-				}
-			: {}),
+		// 写法是学出来的，见 `learnAdaptiveThinking`。
+		...(thinkingEnabled && effort ? thinkingParams(usesAdaptiveThinking(scope.providerId, scope.modelId), effort, budget, maxTokens) : {}),
 		...samplingFor(thinkingEnabled, model, options),
 	});
 
@@ -231,6 +334,8 @@ async function* streamAnthropic(
 	const inventedIds = new Map<number, string>();
 
 	const doFetch = options.fetch ?? globalThis.fetch;
+	// 占位符在这里换一次，重试沿用同一个会话 id。
+	const customHeaders = providerHeaders(provider.headers, options.cacheKey);
 
 	let firstTokenTime: number | null = null;
 	const blocks = new Map<
@@ -249,6 +354,43 @@ async function* streamAnthropic(
 	/** 前几次失败的尝试各自花掉的 token，攒着，最后加进这条消息的用量里。见 `reset`。 */
 	let spentOnRetries = emptyUsage();
 
+	/**
+	 * 上一次尝试留下的一切清掉，重新来。两层重试共用这一个——各写一份的时候漏过行（`inventedIds`），
+	 * 漂移就是这么来的。
+	 */
+	const reset = () => {
+		// 已经花掉的 token 不清零，按那一次自己的档位计价后攒着，见 Responses 适配器里同一段和 `priceAttempt`。
+		spentOnRetries = addUsage(spentOnRetries, priceAttempt(partial.usage, model));
+		partial.content = [];
+		partial.usage = emptyUsage();
+		blocks.clear();
+		/*
+		 * `inventedIds` 记的是我们替哪些没带 id 的 toolCall 编过号，作用是同一条流里第二次遇到同一个块时
+		 * 给回同一个 id。重试要的是把上一次整个当没发生过，留着它等于让这一次的编号从上一次的位置接着走
+		 * ——半截流重试正是它最常被触发的场合。
+		 */
+		inventedIds.clear();
+		stopReason = undefined;
+		sawMessageStop = false;
+		framesSeen = 0;
+		firstTokenTime = null;
+	};
+
+	/*
+	 * 思考回放这一轴在这次请求里往哪边动过。见 `learnThinkingReplay` 上面那段：降了一格还是失败，就把
+	 * 这一格撤掉；同一次请求里也不来回拉扯——端点先嫌签名、再嫌推理没带回来，说明这段历史两头都过不去，
+	 * 在两格之间反复重发只是烧钱。
+	 */
+	const replayAtStart = learnedThinkingReplay.get(replayKey(scope.providerId, scope.modelId));
+	let replayMoved: "down" | "up" | undefined;
+	const learnReplay = (providerId: string, modelId: string, said: string): boolean => {
+		const direction = REQUIRES_THINKING.test(said) ? "up" : "down";
+		if (replayMoved && replayMoved !== direction) return false;
+		const moved = learnThinkingReplay(providerId, modelId, said, defaultThinkingReplay(provider, model));
+		if (moved) replayMoved = direction;
+		return moved;
+	};
+
 	const retryBudget = new RetryBudget(options.retryPolicy, options.retryAttempts);
 	try {
 		/*
@@ -263,21 +405,14 @@ async function* streamAnthropic(
 		 * 确的轴先看，误判的机会小得多（见 `reasoning-compat.ts` 里 `alsoLearn` 那段说明）。
 		 */
 		yield* withReasoningRetry(
-			provider.id,
-			model.id,
-			() => {
-				// 已经花掉的 token 不清零，见下面 `retryStream` 的 `reset`。
-				spentOnRetries = addUsage(spentOnRetries, partial.usage);
-				partial.content = [];
-				partial.usage = emptyUsage();
-				blocks.clear();
-				inventedIds.clear();
-				stopReason = undefined;
-				sawMessageStop = false;
-				framesSeen = 0;
-				firstTokenTime = null;
-			},
-			(providerId, modelId, said) => learnThinkingReplay(providerId, modelId, said, defaultThinkingReplay(provider, model)),
+			scope.providerId,
+			scope.modelId,
+			reset,
+			/*
+			 * 思考写法那条排在回放档位前面：它只认点名 `budget_tokens` / `thinking.type` 的话，和签名那两句
+			 * 不会抢同一句。只在开着思考时问它——关着思考时请求里没有 `thinking`，学到了也换不出新形状。
+			 */
+			(providerId, modelId, said) => (thinkingEnabled && learnAdaptiveThinking(providerId, modelId, said)) || learnReplay(providerId, modelId, said),
 			async function* () {
 				body = buildBody(thinkingReplay(provider, model));
 				options.onPayload?.(body);
@@ -294,8 +429,11 @@ async function* streamAnthropic(
 							"content-type": "application/json",
 							"x-api-key": provider.apiKey,
 							"anthropic-version": "2023-06-01",
-							"anthropic-beta": "prompt-caching-2024-07-31",
-							...provider.headers,
+							/*
+							 * 不再带 `anthropic-beta: prompt-caching-2024-07-31`：提示缓存早已 GA，`cache_control`
+							 * 不需要这个头。个别端点真要某个 beta 头，用 `provider.headers` 自己加。
+							 */
+							...customHeaders,
 						},
 						body: JSON.stringify(body),
 						signal: options.signal,
@@ -331,7 +469,7 @@ async function* streamAnthropic(
 
 					switch (event.type) {
 						case "message_start": {
-							applyUsage(partial.usage, event.message?.usage);
+							applyUsage("anthropic-messages", partial.usage, event.message?.usage);
 							break;
 						}
 
@@ -444,7 +582,7 @@ async function* streamAnthropic(
 						}
 
 						case "message_delta": {
-							applyUsage(partial.usage, event.usage);
+							applyUsage("anthropic-messages", partial.usage, event.usage);
 							if (event.delta?.stop_reason) stopReason = event.delta.stop_reason;
 							break;
 						}
@@ -502,6 +640,24 @@ async function* streamAnthropic(
 				 *
 				 * 排在空回答之前，和 idle 之后：没有内容的走下面那条，它的原因说得更准。
 				 */
+				/*
+				 * 模型拒绝作答（`stop_reason: "refusal"`）是一个明确的结局，不是「说完了」也不是空回答。
+				 *
+				 * 从前它落进 `mapStopReason` 的兜底成了 `stop`：有内容时一段被掐断的回答被当成正常结束，
+				 * 没内容时掉进下面的空回答、被当成临时故障重试好几次——同样的输入再问还是同样的拒绝。
+				 * 抛成失败，措辞让 `failure.ts` 判成「内容被安全策略拒绝」（`fatal`，`hint: blocked`），
+				 * 和另外两条链的 `content_filter` 同一个出口。排在截断和空回答之前，它说得最准。
+				 */
+				if (stopReason === "refusal") {
+					throw new FailureError(
+						classifyFailure({
+							from: "stream",
+							message: REFUSAL_MESSAGE,
+							spent: partial.usage.output > 0 || partial.content.length > 0,
+						}),
+					);
+				}
+
 				if (!sawMessageStop && stopReason === undefined && partial.content.length > 0) {
 					throw new FailureError(
 						classifyFailure({
@@ -527,30 +683,14 @@ async function* streamAnthropic(
 				budget: retryBudget,
 				signal: options.signal,
 				onRetry: options.onRetry,
-				reset: () => {
-					// 已经花掉的 token 不清零，见 Responses 适配器里同一段。
-					spentOnRetries = addUsage(spentOnRetries, partial.usage);
-					partial.content = [];
-					partial.usage = emptyUsage();
-					blocks.clear();
-					/*
-					 * 这一行原来不在，另外五处 reset 都有。
-					 *
-					 * `inventedIds` 记的是我们替哪些没带 id 的 toolCall 编过号，作用是同一条流里第二次
-					 * 遇到同一个块时给回同一个 id。重试要的是把上一次整个当没发生过，留着它等于让这一次
-					 * 的编号从上一次的位置接着走——半截流重试正是它最常被触发的场合。
-					 */
-					inventedIds.clear();
-					stopReason = undefined;
-					sawMessageStop = false;
-					framesSeen = 0;
-					firstTokenTime = null;
-				},
+				reset,
 			},
 				);
 			},
 		);
 	} catch (error) {
+		// 降了一格还是没成，这一格不该留给别的会话。见 `learnThinkingReplay` 上面那段。
+		if (replayMoved === "down" && !options.signal?.aborted) restoreThinkingReplay(scope.providerId, scope.modelId, replayAtStart);
 		// 失败时这条消息长什么样，三条链一致——见 `failedStreamEvent`。
 		yield failedStreamEvent(partial, {
 			error,
@@ -568,10 +708,8 @@ async function* streamAnthropic(
 		partial.sseDurationMs = Math.max(1, Date.now() - firstTokenTime);
 	}
 	partial.stopReason = mapStopReason(stopReason, partial.content);
-	partial.usage.total = partial.usage.input + partial.usage.output + partial.usage.cacheRead + partial.usage.cacheWrite;
-	// 成功了，但失败的那几次也是花过钱的——账上要有。
-	partial.usage = addUsage(partial.usage, spentOnRetries);
-	partial.usage = computeCost(partial.usage, model);
+	// 成功了，但失败的那几次也是花过钱的——账上要有。各按各的档位计价再相加，见 `priceAttempt`。
+	partial.usage = addUsage(priceAttempt(partial.usage, model), spentOnRetries);
 	yield { type: "done", message: { ...partial } };
 	return partial;
 }
@@ -589,19 +727,36 @@ export function samplingFor(thinkingEnabled: boolean, model: Pick<ModelConfig, "
 	return merged;
 }
 
-function mapStopReason(raw: string | undefined, content: AssistantContent[]): AssistantMessage["stopReason"] {
-	if (raw === "max_tokens") return "length";
-	if (raw === "tool_use") return "toolUse";
-	if (content.some((c) => c.type === "toolCall")) return "toolUse";
-	return "stop";
-}
+/** 拒绝作答时交给分类器的那句话。带着 `stop_reason: refusal` 原文，`failure.ts` 靠它判成内容策略。 */
+const REFUSAL_MESSAGE = "模型拒绝回答这次请求（stop_reason: refusal）";
 
-function applyUsage(usage: Usage, raw: Record<string, any> | undefined): void {
-	if (!raw) return;
-	if (typeof raw.input_tokens === "number") usage.input = raw.input_tokens;
-	if (typeof raw.output_tokens === "number") usage.output = raw.output_tokens;
-	if (typeof raw.cache_read_input_tokens === "number") usage.cacheRead = raw.cache_read_input_tokens;
-	if (typeof raw.cache_creation_input_tokens === "number") usage.cacheWrite = raw.cache_creation_input_tokens;
+/**
+ * 协议的 `stop_reason` → 我们的 `stopReason`。`refusal` 不经过这里，在流末尾就抛了。
+ *
+ *   - `end_turn` / `stop_sequence`：说完了（带着工具调用时仍算 `toolUse`，见函数末尾）。
+ *   - `max_tokens`：输出上限截断。
+ *   - `model_context_window_exceeded`：上下文窗口满了，生成被截在半路——和 `max_tokens` 是同一个结局
+ *     （回答不完整，工具调用可能是半截），按 `length` 处理，loop 不会去执行半截的调用。
+ *   - `pause_turn`：服务端工具跑得太久、这一轮被暂停，要原样发回去才能续上。我们不发服务端工具，正常
+ *     走不到；兼容端点真发了，这一轮就是没做完的，按 `length` 如实标出来，不冒充说完了。
+ *   - `tool_use`：要调工具。
+ *
+ * 认不出来的（或者没带的）保持从前的兜底：有工具调用算 `toolUse`，否则 `stop`。没像 Chat 链那样把
+ * 未知值判成失败：兼容端点在这个字段上写自家的值并不少见，而这条链「断在半路」已经由收尾信号那条
+ * 判据兜住了。
+ */
+function mapStopReason(raw: string | undefined, content: AssistantContent[]): AssistantMessage["stopReason"] {
+	switch (raw) {
+		case "max_tokens":
+		case "model_context_window_exceeded":
+		case "pause_turn":
+			return "length";
+		case "tool_use":
+			return "toolUse";
+	}
+	// `end_turn` / `stop_sequence` 也走这里：有中转带着工具调用却报 `end_turn`，按字面判成 `stop` 会让
+	// 那些调用静默不执行。
+	return content.some((c) => c.type === "toolCall") ? "toolUse" : "stop";
 }
 
 // ---------------------------------------------------------------------------

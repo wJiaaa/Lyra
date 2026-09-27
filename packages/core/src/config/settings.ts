@@ -1,5 +1,6 @@
 import { DEFAULT_RETRY_POLICY, normalizeRetryPolicy, type RetryPolicy } from "./retry-policy.ts";
-import { withCatalogDefaults } from "../model-catalog.ts";
+import { withCatalogPricing } from "../model-catalog.ts";
+import { withSmartConfig } from "../model-rules.ts";
 import { normalizeDelegationPolicy, normalizeMaxConcurrentSubAgents, type DelegationPolicy } from "../runtime/delegation.ts";
 import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
 import { constants, copyFile, mkdir, readFile } from "node:fs/promises";
@@ -51,8 +52,6 @@ export interface ProjectEntry {
 	 */
 	folders?: string[];
 }
-
-export { projectFolders } from "./project-folders.ts";
 
 /** Everything the appearance page controls. Applied as CSS variables at runtime. */
 export interface AppearanceSettings {
@@ -291,7 +290,7 @@ export interface Settings {
 	 * 写进文件、但**没有任何代码读它**。
 	 *
 	 * 说清楚是因为它看起来像一个版本化迁移的入口，而这里没有版本化迁移：升级靠的是
-	 * `migrateAppearance`、`migrateRegistries`、`migrateSecrets` 这几张「认得旧值就换成新值」的
+	 * `migrateAppearance`、`migrateSecrets` 这几张「认得旧值就换成新值」的
 	 * 表，各自独立、幂等，和这个数字无关。照着它写一个 `if (parsed.version < 2) …` 的人会得到
 	 * 一段永远不跑的代码——因为没有任何地方会把它写成 2，也没有任何地方比较过它。
 	 *
@@ -560,61 +559,19 @@ export interface Settings {
 }
 
 /**
- * Where the preset sources point.
+ * 预置的市场源。
  *
- * The registry is a platform now rather than a JSON file in a git repository, and the difference
- * shows up in three places a user notices: it is not `raw.githubusercontent.com`, which returns 429
- * often enough that the marketplace used to fail to load; its entries carry a built archive and a
- * SHA-256, so installing is a verified download rather than a clone that depends on the upstream
- * being reachable; and it counts what is inside each bundle, so the catalogue can say how many
- * skills something has before it is installed.
- *
- * The path is `/v1/index` because that endpoint answers in the *old* file format. A copy of the app
- * that predates any of this can be pointed here and simply work.
+ * 平台的条目带构建好的包和 SHA-256，安装是一次校验过的下载，不依赖上游仓库可达；每个包里有几个
+ * 技能也事先数好，市场页装之前就能显示。`/v1/index` 一次返回完整清单，形状是 `readIndex` 读的
+ * 那种；`?kind=skill` 取技能集合。
  */
 const REGISTRY_ORIGIN = "https://market.07230805.xyz";
 
-/**
- * Where the platform answered before it had a domain of its own.
- *
- * Still live, and deliberately so: the address is written into every existing user's settings file,
- * and a `workers.dev` subdomain that stops resolving on the day the real one appears would empty
- * their marketplace before their copy of the app has had a chance to rewrite the setting. The
- * Worker serves both; this is only here to move people off it.
- */
-const WORKERS_DEV_ORIGIN = "https://lyra-registry.gj7nrhnb9j.workers.dev";
-
 /** Plugins and MCP servers. */
-export const DEFAULT_PLUGIN_REGISTRY = `${REGISTRY_ORIGIN}/v1/index`;
+const DEFAULT_PLUGIN_REGISTRY = `${REGISTRY_ORIGIN}/v1/index`;
 
 /** The same catalogue's skill collections, which the app configures as a separate source. */
-export const DEFAULT_SKILL_REGISTRY = `${REGISTRY_ORIGIN}/v1/index?kind=skill`;
-
-/**
- * Sources that were preset by an older version and should move with it.
- *
- * A user who never touched the setting is still pointed at wherever that version pointed — leaving
- * them there means an address change ships and nobody gets it. Only these exact strings are
- * replaced; anything a user added themselves is theirs.
- *
- * Two generations of preset are listed. The `raw.githubusercontent.com` pair is the file-based
- * index that used to get rate-limited; the `workers.dev` pair is the platform before it had a
- * domain. Both still resolve, so nothing breaks for someone who never launches the new version —
- * this only spares them from browsing a catalogue at an address that is no longer the real one.
- */
-export const SUPERSEDED_REGISTRIES: Record<string, string> = {
-	"https://raw.githubusercontent.com/kittors/Lyra-Plugins/main/registry.json": DEFAULT_PLUGIN_REGISTRY,
-	"https://raw.githubusercontent.com/kittors/Lyra-Plugins/main/skills.json": DEFAULT_SKILL_REGISTRY,
-	[`${WORKERS_DEV_ORIGIN}/v1/index`]: DEFAULT_PLUGIN_REGISTRY,
-	[`${WORKERS_DEV_ORIGIN}/v1/index?kind=skill`]: DEFAULT_SKILL_REGISTRY,
-};
-
-/** Rewrite the preset sources in a stored list, leaving everything else alone. */
-export function migrateRegistries(urls: string[]): string[] {
-	const moved = urls.map((url) => SUPERSEDED_REGISTRIES[url] ?? url);
-	// A user who had both the old and the new would otherwise end up with the new one twice.
-	return [...new Set(moved)];
-}
+const DEFAULT_SKILL_REGISTRY = `${REGISTRY_ORIGIN}/v1/index?kind=skill`;
 
 export const DEFAULT_SETTINGS: Settings = {
 	version: 1,
@@ -700,25 +657,14 @@ export async function loadSettings(): Promise<Settings> {
 }
 
 /**
- * The settings a particular project sees: the global file with `<cwd>/.lyra/config.json` over it.
+ * The settings a particular project sees: the global settings with `<cwd>/.lyra/config.json` over it.
  *
- * Separate from `loadSettings` rather than folded into it, because most callers have no project —
- * the settings page, a migration, the CLI before a directory is chosen — and giving them a `cwd`
- * they do not have would be inventing one.
+ * Takes settings already in hand rather than reading the file, because a running session gets its
+ * global settings handed to it — the desktop keeps one copy and pushes changes down — and
+ * re-reading the file to apply the project layer would race with whatever change was being pushed.
  *
  * The project layer cannot carry credentials or providers (`sanitizeProjectConfig`): that file is
  * checked into the repository, so anything in it is shared with everyone who clones it.
- */
-export async function loadSettingsFor(cwd: string | null): Promise<{ settings: Settings; refused: string[]; error?: string }> {
-	return layerProjectSettings(await loadSettings(), cwd);
-}
-
-/**
- * Put a project's layer over settings that are already in hand.
- *
- * Split out from `loadSettingsFor` because a running session gets its global settings handed to it
- * — the desktop keeps one copy and pushes changes down — and re-reading the file to apply the
- * project layer would race with whatever change was being pushed.
  */
 export async function layerProjectSettings(
 	global: Settings,
@@ -878,17 +824,9 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			 * the user's: never having been asked, versus having removed every source deliberately.
 			 * `??` distinguishes them exactly.
 			 */
-			/*
-			 * Read through the rename, so an existing install moves off the file-based index.
-			 *
-			 * Anyone who never touched this setting is still pointed at `raw.githubusercontent.com`,
-			 * which is the address that returns 429 — shipping the replacement without this would mean
-			 * the fix reaches only new installs. Only the two strings we ourselves preset are rewritten;
-			 * see `SUPERSEDED_REGISTRIES`.
-			 */
-			pluginRegistries: migrateRegistries(parsed.pluginRegistries ?? [DEFAULT_PLUGIN_REGISTRY]),
-			skillRegistries: migrateRegistries(parsed.skillRegistries ?? [DEFAULT_SKILL_REGISTRY]),
-			providers: (parsed.providers ?? []).map((provider) => ({ ...provider, models: provider.models.map((model) => withCatalogDefaults(provider, model)) })),
+			pluginRegistries: parsed.pluginRegistries ?? [DEFAULT_PLUGIN_REGISTRY],
+			skillRegistries: parsed.skillRegistries ?? [DEFAULT_SKILL_REGISTRY],
+			providers: (parsed.providers ?? []).map((provider) => ({ ...provider, models: provider.models.map((model) => withCatalogPricing(provider, withSmartConfig(provider, model))) })),
 			// 只留 id→非空字符串那些行：这张表会被直接印到用量页上，一行 `undefined` 比没有那一行更糟。
 			providerNames: Object.fromEntries(
 				Object.entries(parsed.providerNames ?? {}).filter(([id, name]) => id && typeof name === "string" && name.trim()),

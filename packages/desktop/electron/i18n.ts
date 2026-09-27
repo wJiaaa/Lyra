@@ -9,7 +9,7 @@ const zhCN = {
 	"tray.recent": "最近会话",
 	"tray.noChats": "还没有会话",
 	"tray.pullRequests": "拉取请求",
-	"tray.scheduled": "已安排",
+	"tray.scheduled": "定时任务",
 	"tray.settings": "设置…",
 	"tray.updates": "检查更新…",
 	"tray.launchAtLogin": "开机时启动",

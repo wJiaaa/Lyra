@@ -348,11 +348,11 @@ export function confine(policy: SandboxPolicy, hooks: BackendHooks = {}): Confin
 	}
 	if (runner === "windows-acl" || runner === "landlock") {
 		/*
-		 * `danger-full-access` with the network denied reaches here as a file mode our runners do
-		 * not know. Landlock can express it — no write rules, only the network — but the vocabulary
-		 * on the wire is the two confined modes, so it is sent as the wider of them.
+		 * `danger-full-access` 带着断网到这里，原样传过去：Landlock 只管网络、一条写规则都不加。
+		 * 以前按「两个受限模式里更宽的那个」发成 workspace-write，于是这台机器上完全访问只能写工作区，
+		 * 和 Seatbelt、bwrap 的回答不一样。Windows 不会走到这里——它断不了网，上面已经拒绝。
 		 */
-		const wrap = runnerArgv(runner, { ...policy, mode: policy.mode === "danger-full-access" ? "workspace-write" : policy.mode });
+		const wrap = runnerArgv(runner, policy);
 		return { command: wrap.command, args: wrap.args, runner, enforcement: enforcementOf(runner), env: wrap.env };
 	}
 	return { command: "bwrap", args: [...bwrapArgs(policy), "--"], runner, enforcement: enforcementOf(runner) };

@@ -104,7 +104,7 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 packages/
   core/              agent kernel: providers, loop, tools, skills, MCP, session store
   desktop/           Electron app (main process + preload + React renderer)
-  contract/          the line between the two processes; 218 methods in one place
+  contract/          the line between the two processes; 219 methods in one place
   registry-shared/   plugin catalog index format, shared by desktop and the catalog service
 ```
 

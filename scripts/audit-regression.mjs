@@ -96,6 +96,51 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/skill-frontmatter.test.ts"]],
 	},
 	{
+		id: "CORE-protocol",
+		what: "三条协议链：自学习查表键错位、服务端等待时间不生效、拒绝/截断的结束原因、计费档位、429 误判、并行工具调用合并",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/adapter-protocol-fixes.test.ts", "packages/core/test/retry-policy.test.ts"]],
+	},
+	{
+		id: "CORE-cache-usage",
+		what: "第三方服务商的缓存命中/写入字段认不出，命中记成 0、按全价计费；缓存路由键不带或被拒后不会撤",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/usage-fields.test.ts", "packages/core/test/cache-routing.test.ts"]],
+	},
+	{
+		id: "CORE-view",
+		what: "发给模型的视图与下一轮重建不一致：剪枝不落盘、摘要丢工具参数、大结果首发被剪而 read 记成已读、重复读取原文消失",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/prune-view-persistence.test.ts", "packages/core/test/compaction-condense.test.ts", "packages/core/test/read-output-budget.test.ts", "packages/core/test/repeat-keeps-original.test.ts"]],
+	},
+	{
+		id: "CORE-overflow",
+		what: "上下文超长只剪大工具输出，没东西可剪时会话卡死；被拒回复先落盘让压缩边界数偏",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/context-overflow.test.ts"]],
+	},
+	{
+		id: "CORE-prompt-freeze",
+		what: "规则/技能/AGENTS.md/推理档位一变就重写 system prompt，整条缓存前缀失效；记忆每次 learn 都改开头",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/prompt-freeze.test.ts", "packages/core/test/memory-snapshot.test.ts"]],
+	},
+	{
+		id: "CORE-lifecycle",
+		what: "停止后排队的子代理照跑、孙代理不停、半截违规回复落盘、第 200 轮插话丢失、任务队列竞态、续跑换模型旧句柄",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/dispatch-guard.test.ts", "packages/core/test/sub-agent-lineage.test.ts", "packages/core/test/sub-agent-resume.test.ts", "packages/core/test/rule-interrupt-discard.test.ts", "packages/core/test/steer-at-turn-cap.test.ts", "packages/core/test/task-queue-between.test.ts", "packages/core/test/revert-message.test.ts"]],
+	},
+	{
+		id: "CORE-tools",
+		what: "宿主 git 执行仓库配置里的程序、bash 输出反复截断、web_fetch 重绑定、搜索截断不告知、MCP 顺序与上限、完全访问加断网变只读",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/file-changes.test.ts", "packages/core/test/bash-output.test.ts", "packages/core/test/web-fetch.test.ts", "packages/core/test/glob-truncation.test.ts", "packages/core/test/mcp-client.test.ts", "packages/core/test/sandbox-policy.test.ts"]],
+	},
+	{
+		id: "CORE-cache-diagnostics",
+		what: "前缀被打断只能人看累计命中率，定位不到是哪一次请求",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/cache-diagnostics.test.ts"]],
+	},
+	{
+		id: "CORE-index-writes",
+		what: "每追加一条记录都整份重写会话索引",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/session-index-writes.test.ts"]],
+	},
+	{
 		id: "I4-worktree",
 		what: "删工作树失败后无条件 rm -rf，而那个 IPC 没有路径守卫",
 		run: ["node", ["--test", "--import", "./packages/desktop/test/setup.ts", "--experimental-strip-types", "packages/desktop/test/git-worktrees.test.ts"]],

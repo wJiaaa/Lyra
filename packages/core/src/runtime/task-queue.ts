@@ -170,12 +170,27 @@ export class TaskQueue {
 		this.draining = true;
 		try {
 			while (true) {
+				/*
+				 * 两个任务之间也要看一眼会话忙不忙，不只是进门那一次。
+				 *
+				 * 上一个任务的回合一结束，会话就空了；人恰好在这时发了话，那一轮就开始了。不看这一眼，
+				 * 下一个任务的 `prompt()` 会撞上正在跑的那一轮、被当成插话塞进去并立刻返回，接着被标成
+				 * 「完成」——一件根本没单独跑过的事。停在这里，等那一轮结束时会话自己再叫一次 `drain`。
+				 */
+				if (this.options.busy()) return;
 				const next = nextTask(this.tasks);
 				if (!next) return;
 
 				next.status = "running";
 				next.startedAt = this.options.now();
 				await this.options.changed();
+				// 通知界面要等一次往返，人也可能正好在这段时间里开了一轮。
+				if (this.options.busy()) {
+					next.status = "queued";
+					delete next.startedAt;
+					await this.options.changed();
+					return;
+				}
 
 				let failure: string | null = null;
 				try {

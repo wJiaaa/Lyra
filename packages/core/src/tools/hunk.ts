@@ -300,4 +300,4 @@ Rules:
 - Ranges must not overlap. An insertion cannot sit inside a replaced/deleted range, and each
   insertion anchor may occur only once. Inserting after the range's final line is allowed.
   One line is REPLACE 7-7.
-- Several operations in one call is normal and preferred over several calls.`;
+- Put every change to one file in one patch: several operations in one call is normal.`;

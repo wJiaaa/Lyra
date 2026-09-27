@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { charWindow, clipOutput, coversChars, formatCharWindow, indexToLineCol, matchWindow, mergeCharRanges, utf8ByteOffsetToIndex } from "../src/tools/long-line.ts";
+import { charWindow, coversChars, formatCharWindow, indexToLineCol, matchWindow, mergeCharRanges, utf8ByteOffsetToIndex } from "../src/tools/long-line.ts";
+import { clipOutput } from "../src/tools/bash-output.ts";
 
 test("a window starting past the first 2000 characters still contains the needle", () => {
 	const needle = "NEEDLE";

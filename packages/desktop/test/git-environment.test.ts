@@ -112,3 +112,17 @@ test("GIT_DIR in the environment no longer decides which repository git answers 
 	});
 	assert.match(scrubbed.stdout.trim(), /project/, "scrubbed, git must answer about the directory it was run in");
 });
+
+/*
+ * `git-errors.ts` 按英文原话认错误；跟着系统语言本地化的 git 一条也认不出。只固定消息语言，
+ * 字符编码（`LC_ALL`/`LANG`）原样留着，否则中文路径会被转义。
+ */
+test("git speaks English whatever the system language, without touching the encoding", async () => {
+	const env = gitEnvironment({ LANG: "zh_CN.UTF-8", LC_ALL: "zh_CN.UTF-8", PATH: process.env.PATH });
+	assert.equal(env.LANGUAGE, "en");
+	assert.equal(env.LC_ALL, "zh_CN.UTF-8");
+	assert.equal(env.LANG, "zh_CN.UTF-8");
+
+	const refused = await exec("git", ["ls-remote", "http://127.0.0.1:9/x.git"], { env }).then(() => "", (error: { stderr?: string }) => error.stderr ?? "");
+	assert.match(refused, /^fatal: unable to access/m);
+});

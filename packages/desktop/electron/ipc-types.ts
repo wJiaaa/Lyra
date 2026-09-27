@@ -49,6 +49,7 @@ import type { TrayCommand } from "./tray-menu.ts";
 export type { DocumentData } from "./documents.ts";
 import type { DocumentData } from "./documents.ts";
 import type { ExtractedText } from "@lyra/core";
+import type { ModelRulesDocument } from "@lyra/core/model-rules";
 import type { ClearRange, ClearResult, StorageUse } from "./session-cleanup.ts";
 import type { UsageScan } from "./usage-scan.ts";
 export type { OpenTarget } from "./open-targets.ts";
@@ -615,6 +616,8 @@ export interface LyraApi {
 	providers: {
 		test(providerId: string, modelId?: string): Promise<ProviderTestResult>;
 		fetchModels(providerId: string): Promise<{ ok: boolean; models: string[]; error?: string }>;
+		/** 主进程当前生效的智能配置规则（可能比渲染进程打包的那份新），让编辑器预览的推荐值和保存后的一致。 */
+		modelRules(): Promise<ModelRulesDocument>;
 	};
 	commands: {
 		/**

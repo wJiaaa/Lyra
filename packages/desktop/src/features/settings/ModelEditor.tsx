@@ -1,5 +1,6 @@
-import type { ModelConfig, ProviderConfig } from "@lyra/core";
-import { catalogModelFor, catalogPricing, withCatalogDefaults, type CatalogMatch } from "@lyra/core/model-catalog";
+import type { ModelConfig, ProviderConfig, SmartField } from "@lyra/core";
+import { catalogModelFor, catalogPricing, type CatalogMatch } from "@lyra/core/model-catalog";
+import { resolveModelRules, SMART_FIELDS, withSmartConfig } from "@lyra/core/model-rules";
 import { ModelCatalog } from "./ModelCatalog.tsx";
 import { Box } from "lucide-react";
 import { useState } from "react";
@@ -19,37 +20,42 @@ export function ModelEditor({
 	onSave,
 	onCancel,
 }: {
-	provider: Pick<ProviderConfig, "id" | "baseUrl">;
+	provider: Pick<ProviderConfig, "id" | "baseUrl" | "api">;
 	model: ModelConfig | null;
 	onSave: (model: ModelConfig) => void;
 	onCancel: () => void;
 }) {
 	const { t } = useI18n();
-	const model = savedModel ? withCatalogDefaults(provider, savedModel) : null;
+	const model = savedModel ? withSmartConfig(provider, savedModel) : null;
 	const [catalogRef, setCatalogRef] = useState(model?.catalogRef);
-	const [metadataSource, setMetadataSource] = useState<ModelConfig["metadataSource"]>(model?.metadataSource ?? "manual");
 	const initialCatalog = model ? catalogModelFor(provider, model.modelId, model.catalogRef) : null;
 	const initialPricing = model?.pricing ?? (initialCatalog ? catalogPricing(initialCatalog.provider.id, initialCatalog.model) : undefined);
 	const [modelId, setModelId] = useState(model?.modelId ?? "");
 	const [name, setName] = useState(model?.name ?? "");
-	const [contextWindow, setContextWindow] = useState(String(model?.contextWindow ?? 200000));
-	const [maxOutput, setMaxOutput] = useState(String(model?.maxOutputTokens ?? 16384));
 	/*
-	 * 新加一个模型时，三样能力默认都开着。
-	 *
-	 * 原本默认全关，理由大概是「不知道就别声称」。可这个默认落在的正是「目录不认识这个名字」的
-	 * 那一档——中转起的私有名字、刚发布的型号、自建的端点，而如今这些几乎都会思考、看图、调工具。
-	 * 于是最常见的一次操作变成了：加完模型，它不会用工具，思考档位是灰的，界面上没有任何一处说
-	 * 明为什么，人得先猜到有这么三个开关、再回来打开。
-	 *
-	 * 猜错的代价也不对等：默认开着而模型其实不支持，会收到一个说得清清楚楚的报错；默认关着而模型
-	 * 支持，是能力凭空少了一块，而且不报错。
-	 *
-	 * 编辑已有模型时走的是它自己存下来的值，这里只管新建。
+	 * 智能配置：新模型默认开着。开着时没被改过的字段显示推荐值，改了哪一项，哪一项就记进
+	 * `overrides`、不再跟随推荐；关掉则把当前看到的值整份冻结成手动。旧数据里没有标记的模型是人手
+	 * 定的值，打开时仍是手动。
 	 */
-	const [supportsThinking, setSupportsThinking] = useState(model?.supportsThinking ?? true);
-	const [supportsImages, setSupportsImages] = useState(model?.supportsImages ?? true);
-	const [supportsTools, setSupportsTools] = useState(model?.supportsTools ?? true);
+	const [smart, setSmart] = useState(model ? model.metadataSource === "smart" : true);
+	const [overrides, setOverrides] = useState<ReadonlySet<SmartField>>(new Set(model?.overrides ?? []));
+	const [own, setOwn] = useState(() => ({
+		contextWindow: String(model?.contextWindow ?? ""),
+		maxOutputTokens: String(model?.maxOutputTokens ?? ""),
+		supportsThinking: model?.supportsThinking ?? true,
+		supportsImages: model?.supportsImages ?? true,
+		supportsTools: model?.supportsTools ?? true,
+	}));
+	const trimmedId = modelId.trim();
+	const recommended = resolveModelRules(provider, trimmedId);
+	const follows = (field: SmartField) => smart && !overrides.has(field);
+	const contextWindow = follows("contextWindow") ? String(recommended.config.contextWindow) : own.contextWindow;
+	const maxOutput = follows("maxOutputTokens")
+		? String(Math.min(recommended.config.maxOutputTokens, Number(contextWindow) || recommended.config.maxOutputTokens))
+		: own.maxOutputTokens;
+	const supportsThinking = follows("supportsThinking") ? recommended.config.supportsThinking : own.supportsThinking;
+	const supportsImages = follows("supportsImages") ? recommended.config.supportsImages : own.supportsImages;
+	const supportsTools = follows("supportsTools") ? recommended.config.supportsTools : own.supportsTools;
 	const [priceIn, setPriceIn] = useState(String(initialPricing?.input ?? ""));
 	const [priceOut, setPriceOut] = useState(String(initialPricing?.output ?? ""));
 	const [priceCacheRead, setPriceCacheRead] = useState(String(initialPricing?.cacheRead ?? ""));
@@ -58,7 +64,6 @@ export function ModelEditor({
 		initialPricing ? initialPricing.source ?? (model?.pricing ? "manual" : "catalog") : null,
 	);
 
-	const trimmedId = modelId.trim();
 	const window_ = Number(contextWindow);
 	const output = Number(maxOutput);
 	const windowOk = Number.isInteger(window_) && window_ > 0 && window_ <= 100_000_000;
@@ -80,16 +85,10 @@ export function ModelEditor({
 		setPricingSource("manual");
 	}
 
+	/** The catalogue is only consulted for price; limits and capabilities are the smart config's. */
 	function applyCatalog(found: CatalogMatch) {
 		const entry = found.model;
 		setCatalogRef(found.match === "binding" ? { providerId: found.provider.id, modelId: entry.id } : undefined);
-		setMetadataSource("catalog");
-		setName(entry.name);
-		setContextWindow(String(entry.contextWindow));
-		setMaxOutput(String(entry.maxOutputTokens));
-		setSupportsThinking(entry.supportsThinking);
-		setSupportsImages(entry.supportsImages);
-		setSupportsTools(entry.supportsTools);
 		setPriceIn(String(entry.inputPrice ?? ""));
 		setPriceOut(String(entry.outputPrice ?? ""));
 		setPriceCacheRead(entry.cacheReadPrice === undefined ? "" : String(entry.cacheReadPrice));
@@ -98,21 +97,32 @@ export function ModelEditor({
 	}
 
 	function changeModelId(value: string) {
+		// 显示名称还跟着模型 ID 走（没人改过）时一起变。
+		if (!name.trim() || name === modelId) setName(value);
 		setModelId(value);
 		setCatalogRef(undefined);
+		if (pricingSource === "manual") return;
 		const found = catalogModelFor(provider, value);
 		if (found) applyCatalog(found);
 		else {
-			setName(value); setContextWindow("200000"); setMaxOutput("16384");
-			setSupportsThinking(false); setSupportsImages(false); setSupportsTools(false);
-			setMetadataSource("manual"); setPricingSource(null);
+			setPricingSource(null);
 			setPriceIn(""); setPriceOut(""); setPriceCacheRead(""); setPriceCacheWrite("");
 		}
 	}
 
-	function changeMetadata<T>(setter: (value: T) => void, value: T) {
-		setter(value);
-		setMetadataSource("manual");
+	/** 手动改一项：智能模式下这一项从此不再跟随推荐。 */
+	function changeField<K extends SmartField>(field: K, value: (typeof own)[K]) {
+		setOwn((current) => ({ ...current, [field]: value }));
+		if (smart) setOverrides((current) => new Set(current).add(field));
+	}
+
+	function changeSmart(next: boolean) {
+		if (!next) {
+			// 关掉时把眼前的值整份接过来，看到什么就存什么。
+			setOwn({ contextWindow, maxOutputTokens: maxOutput, supportsThinking, supportsImages, supportsTools });
+		}
+		setOverrides(new Set());
+		setSmart(next);
 	}
 
 	function submit() {
@@ -131,7 +141,8 @@ export function ModelEditor({
 			supportsImages,
 			supportsTools,
 			catalogRef,
-			metadataSource,
+			metadataSource: smart ? "smart" : "manual",
+			overrides: smart && overrides.size > 0 ? SMART_FIELDS.filter((field) => overrides.has(field)) : undefined,
 			pricing:
 				parsedIn !== null && parsedOut !== null
 					? {
@@ -145,6 +156,9 @@ export function ModelEditor({
 					: undefined,
 		});
 	}
+
+	/** 智能模式下手动定过的字段，在标签上标出来。 */
+	const fieldLabel = (field: SmartField, label: string) => (smart && overrides.has(field) ? `${label} · ${t("modelEditor.pinned")}` : label);
 
 	return (
 		<Overlay onClose={onCancel} width={560}>
@@ -173,16 +187,39 @@ export function ModelEditor({
 							<TextInput value={name} onChange={setName} placeholder="DeepSeek V4 Flash" />
 						</Field>
 
-						<ModelCatalog match={catalog} onApply={applyCatalog} />
+						<div className="space-y-1.5 rounded-[10px] border border-line px-3.5 py-3">
+							<label className="flex items-center justify-between">
+								<span className="text-label font-medium text-ink">{t("modelEditor.smart")}</span>
+								<Toggle checked={smart} onChange={changeSmart} />
+							</label>
+							<p className="text-detail text-ink-faint">{t("modelEditor.smartDetail")}</p>
+							{smart && overrides.size > 0 && (
+								<div className="flex items-center justify-between gap-3">
+									<span className="text-detail text-ink-muted">{t("modelEditor.pinnedCount", { n: overrides.size })}</span>
+									<button type="button" onClick={() => changeSmart(true)} className="shrink-0 rounded-lg px-2 py-1 text-label font-medium text-accent hover:bg-accent/10">
+										{t("modelEditor.restoreSmart")}
+									</button>
+								</div>
+							)}
+							{smart && !recommended.specific && <p className="text-detail text-ink-muted">{t("modelEditor.unverified")}</p>}
+						</div>
 
 						<div className="grid grid-cols-2 gap-3">
-							<Field label={t("modelEditor.context")}>
-								<TextInput value={contextWindow} onChange={(value) => { if (isLegalDraft(value, CONTEXT)) changeMetadata(setContextWindow, value); }} mono inputMode="numeric" />
+							<Field label={fieldLabel("contextWindow", t("modelEditor.context"))}>
+								<TextInput value={contextWindow} onChange={(value) => { if (isLegalDraft(value, CONTEXT)) changeField("contextWindow", value); }} mono inputMode="numeric" />
 							</Field>
-							<Field label={t("modelEditor.maxOutput")}>
-								<TextInput value={maxOutput} onChange={(value) => { if (isLegalDraft(value, OUTPUT)) changeMetadata(setMaxOutput, value); }} mono inputMode="numeric" />
+							<Field label={fieldLabel("maxOutputTokens", t("modelEditor.maxOutput"))}>
+								<TextInput value={maxOutput} onChange={(value) => { if (isLegalDraft(value, OUTPUT)) changeField("maxOutputTokens", value); }} mono inputMode="numeric" />
 							</Field>
 						</div>
+
+						<div className="space-y-3 rounded-[10px] border border-line px-3.5 py-3">
+							<Capability label={fieldLabel("supportsThinking", t("modelEditor.thinking"))} checked={supportsThinking} onChange={(value) => changeField("supportsThinking", value)} />
+							<Capability label={fieldLabel("supportsImages", t("modelEditor.images"))} checked={supportsImages} onChange={(value) => changeField("supportsImages", value)} />
+							<Capability label={fieldLabel("supportsTools", t("modelEditor.toolCalls"))} checked={supportsTools} onChange={(value) => changeField("supportsTools", value)} />
+						</div>
+
+						<ModelCatalog match={catalog} onApply={applyCatalog} />
 
 						<div className="grid grid-cols-2 gap-3">
 							<Field label={t("modelEditor.inputPrice")}>
@@ -206,12 +243,6 @@ export function ModelEditor({
 									: t("modelEditor.manualPrice")}
 						</p>
 
-						{!catalog && <p className="text-detail text-ink-muted">{t("modelEditor.unverified")}</p>}
-						<div className="space-y-3 rounded-[10px] border border-line px-3.5 py-3">
-							<Capability label={t("modelEditor.thinking")} checked={supportsThinking} onChange={(value) => changeMetadata(setSupportsThinking, value)} />
-							<Capability label={t("modelEditor.images")} checked={supportsImages} onChange={(value) => changeMetadata(setSupportsImages, value)} />
-							<Capability label={t("modelEditor.toolCalls")} checked={supportsTools} onChange={(value) => changeMetadata(setSupportsTools, value)} />
-						</div>
 					</div>
 				</DialogFrame>
 			)}

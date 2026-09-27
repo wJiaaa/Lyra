@@ -268,6 +268,11 @@ export class SideChat {
 				? stripStaleHandles([message], 1)[0] : message);
 			await runAgent({
 				sessionId: `${this.mainSessionId}:side`,
+				/*
+				 * 独立一个，不和主会话混用：侧聊的前缀（自己的提示词、主会话快照）跟主会话不同，同一个 key
+				 * 只会把两条互不相干的前缀挤到一处。同一次提问里的多轮工具调用共享前缀，这个 key 管的是它们。
+				 */
+				cacheKey: `${this.mainSessionId}:side`,
 				cwd: this.main.cwd,
 				provider: resolved.provider,
 				model: resolved.model,
@@ -280,9 +285,9 @@ export class SideChat {
 				signal: controller.signal,
 				maxTurns: 24,
 				streamFn: this.streamFn,
-				compact: async (messages, model, observer) => {
+				compact: async (messages, model, observer, compactOptions) => {
 					const summarizer = resolveModelRef(this.settings, "@compact", { provider: resolved.provider, model });
-					const compacted = await compactWith({ observer, messages, model, provider: resolved.provider, streamFn: (provider, summaryModel, context, streamOptions) => (this.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => this.settings.retryPolicy, signal: controller.signal }), overhead: textTokens(systemPrompt) + toolTokens(tools), summarizer });
+					const compacted = await compactWith({ observer, force: compactOptions?.force, messages, model, provider: resolved.provider, streamFn: (provider, summaryModel, context, streamOptions) => (this.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => this.settings.retryPolicy, signal: controller.signal }), overhead: textTokens(systemPrompt) + toolTokens(tools), summarizer });
 					reading = [...(compacted?.messages ?? messages)];
 					return compacted;
 				},

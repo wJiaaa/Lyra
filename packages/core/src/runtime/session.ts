@@ -47,6 +47,7 @@ import { scratchDir, sessionFacts } from "./session-facts.ts";
 import { SessionLog } from "./session-log.ts";
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
 import { compactWith } from "./compaction.ts";
+import { sessionPruner } from "./aged-prune.ts";
 import { driveTurn, modelHistory, summaryStream } from "./session-turn.ts";
 import { SubAgentRegistry } from "./sub-agents.ts";
 import { sessionTaskQueue, type TaskQueue } from "./task-queue.ts";
@@ -505,9 +506,18 @@ export class AgentSession {
 		 * get a little smaller, just not by summarising anything.
 		 */
 		if (!compaction) return { ok: false, reason: "已经够紧凑了，这次压缩不会更小。" };
-		if (compaction.kept === undefined) return { ok: false, reason: "只裁掉了几段过长的工具输出，没有需要总结的历史。" };
-
 		if (signal.aborted) throw new Error("压缩已取消。");
+		/*
+		 * 剪过的工具结果交给会话的剪枝器记住，和循环里的 `compactStep` 同一个做法：边界只记摘要和
+		 * 保留条数，不记的话下一轮从日志重建回原文，这次剪掉的又原样发出去。只剪枝时没有边界可写，
+		 * 这一步就是它生效的唯一途径。
+		 */
+		const adopt = () => sessionPruner(this.can.state).adopt(history, compaction.messages, compaction.kept ?? (compaction.messages.length === history.length ? history.length : 0));
+		if (compaction.kept === undefined) {
+			adopt();
+			return { ok: false, reason: "只裁掉了几段过长的工具输出，没有需要总结的历史。" };
+		}
+
 		await this.emit({
 			type: "compacted",
 			commandId,
@@ -516,6 +526,7 @@ export class AgentSession {
 			summary: compaction.summary,
 			kept: compaction.kept,
 		});
+		adopt();
 		return { ok: true, before: history.length, after: compaction.messages.length };
 	}
 
@@ -1070,6 +1081,8 @@ export class AgentSession {
 		if (!(await this.log.truncateFrom(messageIndex))) {
 			throw new Error(`Failed to truncate message at index ${messageIndex}`);
 		}
+		// 与 `revert` 同一个截断，同一个理由，见 `restorePlanFromLog`。
+		this.restorePlanFromLog();
 
 		await this.emit({ type: "rewound", messageCount: this.log.messages.length });
 		await this.prompt(content, options);
@@ -1092,19 +1105,24 @@ export class AgentSession {
 		if (!(await this.log.truncateFrom(messageIndex))) {
 			throw new Error(`Failed to truncate message at index ${messageIndex}`);
 		}
-		/*
-		 * 手边这份清单也要跟着回到撤回点。
-		 *
-		 * 清单写在两处——日志里那条 `todo_write` 的结果，和这份给这一轮用的状态。截断只动得到
-		 * 前者，后者原样留着，于是一份转录里已经没人写过的计划继续替续跑投票：下一轮撞上步数
-		 * 上限时，`continueWhileWorkRemains` 会照着它说「清单里还有 3 项」，再自花两百步。
-		 *
-		 * 从截断后的日志重新读，而不是一律清空：撤回点之前可能自己就写过一份，那份还算数。
-		 */
+		this.restorePlanFromLog();
+		await this.emit({ type: "rewound", messageCount: this.log.messages.length });
+	}
+
+	/**
+	 * 手边这份清单也要跟着回到截断点——撤回和编辑重发都要。
+	 *
+	 * 清单写在两处——日志里那条 `todo_write` 的结果，和这份给这一轮用的状态。截断只动得到
+	 * 前者，后者原样留着，于是一份转录里已经没人写过的计划继续替续跑投票：下一轮撞上步数
+	 * 上限时，`continueWhileWorkRemains` 会照着它说「清单里还有 3 项」，再自花两百步。编辑
+	 * 重发以前漏了这一步，而它截掉的跟撤回一样多，紧接着还要开跑。
+	 *
+	 * 从截断后的日志重新读，而不是一律清空：截断点之前可能自己就写过一份，那份还算数。
+	 */
+	private restorePlanFromLog(): void {
 		const plan = todosFromLog(this.log.messages);
 		if (plan.length > 0) this.can.state.set(TODOS_KEY, plan);
 		else this.can.state.delete(TODOS_KEY);
-		await this.emit({ type: "rewound", messageCount: this.log.messages.length });
 	}
 
 	/**

@@ -65,6 +65,9 @@ const LIKELY = [
 	`${home()}/.volta/bin`,
 	`${home()}/.nvm/current/bin`,
 	`${home()}/.asdf/shims`,
+	// mise 的默认 shims 目录。它把每个版本装在 `installs/<工具>/<版本>` 下，列表猜不到版本号，
+	// shims 是唯一不随版本变的入口，和上一行 asdf 同理。
+	`${home()}/.local/share/mise/shims`,
 ];
 
 /**

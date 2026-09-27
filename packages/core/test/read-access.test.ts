@@ -11,7 +11,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { after, test } from "node:test";
@@ -352,6 +352,36 @@ test("ls, grep and glob are judged the same way read is", async (t) => {
 	assert.match(textOf(listed), /app\.ts/);
 });
 
+test("a link inside the workspace that points outside is judged where it points, by every tool", { skip: process.platform === "win32" }, async (t) => {
+	// 以前只有 read 解析链接；grep/ls/glob/cat 按字面路径判，链接在工作区里就当成工作区。
+	const ws = await workspace(t);
+	const outside = await mkdtemp(join(HOME, ".lyra-test-linked-"));
+	t.after(() => rm(outside, { recursive: true, force: true }));
+	await writeFile(join(outside, "app.ts"), "const needle = 1;\n", "utf8");
+	await symlink(outside, join(ws, "link"));
+
+	for (const [name, run] of [
+		["ls", (ctx: ToolContext) => lsTool.execute({ path: "link" } as never, ctx)],
+		["grep", (ctx: ToolContext) => grepTool.execute({ pattern: "needle", path: "link" } as never, ctx)],
+		["glob", (ctx: ToolContext) => globTool.execute({ pattern: "**/*.ts", path: "link" } as never, ctx)],
+		["read", (ctx: ToolContext) => readTool.execute({ path: "link/app.ts" } as never, ctx)],
+		["bash", (ctx: ToolContext) => bashTool.execute({ command: "cat link/app.ts", timeout: 5000 } as never, ctx)],
+	] as const) {
+		const approvals = { decisions: ["reject" as const], seen: [] as ApprovalRequest[] };
+		const refused = await run(ctxFor(ws, approvals));
+		assert.equal(readsAsked(approvals.seen).length, 1, `${name} 没有问`);
+		assert.equal(refused.isError, true, name);
+		assert.doesNotMatch(textOf(refused), /needle/, `${name} 读到了链接指向的外部内容`);
+	}
+
+	// 链接指回工作区自己，不问。
+	await symlink(join(ws, "src"), join(ws, "inside-link")).catch(() => {});
+	await mkdir(join(ws, "src"), { recursive: true });
+	const approvals = { decisions: [] as never[], seen: [] as ApprovalRequest[] };
+	await lsTool.execute({ path: "inside-link" } as never, ctxFor(ws, approvals));
+	assert.equal(readsAsked(approvals.seen).length, 0);
+});
+
 test("with nobody to ask, the boundary holds rather than opens", async (t) => {
 	/*
 	 * A host with no approval channel — the CLI, a test, a sub-agent given no way to ask — has not
@@ -475,4 +505,18 @@ test("a substitution in an unquoted heredoc is a read like any other", () => {
 	 * passed in by whoever knows it, and not every grammar there is.
 	 */
 	assert.ok(commandReadTargets(quoted, WS, ["posix", "powershell"]).includes(key));
+});
+
+test("a workspace reached through a link is still the workspace, for read as well", { skip: process.platform === "win32" }, async (t) => {
+	// 工作区本身在链接后面时，解析后的路径不以 cwd 字面开头；不能因此把自己的项目当成外面去问。
+	const real = await workspace(t);
+	await writeFile(join(real, "a.txt"), "inside\n", "utf8");
+	const alias = join(HOME, `.lyra-test-alias-${Date.now()}`);
+	await symlink(real, alias);
+	t.after(() => rm(alias, { force: true }));
+	const approvals = { decisions: [] as never[], seen: [] as ApprovalRequest[] };
+	const result = await readTool.execute({ path: "a.txt" } as never, ctxFor(alias, approvals));
+	assert.match(textOf(result), /inside/);
+	await grepTool.execute({ pattern: "inside", path: "." } as never, ctxFor(alias, approvals));
+	assert.equal(readsAsked(approvals.seen).length, 0);
 });

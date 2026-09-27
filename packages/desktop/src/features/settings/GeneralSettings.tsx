@@ -50,8 +50,8 @@ export function GeneralSettings() {
 	const resolvedName = LOCALE_OPTIONS.find((option) => option.value === resolvedLocale);
 
   return (
-    <div className="pt-8">
-      <h1 className="pb-7 text-display leading-tight font-semibold tracking-tight text-ink">
+    <div className="pt-2">
+      <h1 className="pb-8 text-display leading-tight font-semibold tracking-tight text-ink">
 		{t("settings.general")}
       </h1>
 

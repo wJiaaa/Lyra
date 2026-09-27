@@ -1,4 +1,5 @@
 import { realpath } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { scratchHome } from "../runtime/previews.ts";
 import { lyraHome } from "../session/store.ts";
@@ -30,10 +31,37 @@ function contains(root: string, absolute: string): boolean {
  */
 export function resolveWorkspacePath(cwd: string, input: string): string {
 	if (!input || typeof input !== "string") throw new Error("A path is required.");
-	const expanded = input.startsWith("~/") ? input.replace("~", home()) : input;
-	const absolute = isAbsolute(expanded) ? resolve(expanded) : resolve(cwd, expanded);
+	// 与读取侧同一套写法解析：以前这里只认 `~/`，Windows 上 `/c/…`、`~\` 读得到、写却报越界。
+	const absolute = toAbsolute(cwd, input);
 	if (contains(cwd, absolute) || contains(scratchHome(lyraHome()), absolute)) return absolute;
 	throw new Error(`Path escapes the workspace root (${cwd}): ${input}`);
+}
+
+/** `~/x` as an absolute path, and anything already absolute resolved against the session's cwd. */
+export function toAbsolute(cwd: string, input: string): string {
+	const native = process.platform === "win32" ? windowsSpelling(input, home(), tmpdir()) : input;
+	const expanded = native.startsWith("~/") || native === "~" ? native.replace("~", home()) : native;
+	return isAbsolute(expanded) ? resolve(expanded) : resolve(cwd, expanded);
+}
+
+/**
+ * A path as a Windows shell spelled it, as the Windows path it names.
+ *
+ * On Windows the agent's commands run in Git Bash, which reads `/c/Users/me` as `C:\Users\me` and
+ * `/tmp` as the user's temp directory. Node reads the same strings as `C:\c\Users\me` and `C:\tmp`
+ * — paths that do not exist, and a path that does not exist is not asked about (`worthAsking`).
+ * So `cat /c/Users/me/.ssh/id_ed25519` read the key without a question. `~\` is PowerShell's
+ * spelling of the home directory, which only `~/` was expanded for.
+ *
+ * Pure, with the home and temp directories handed in, so it can be tested on any platform.
+ */
+export function windowsSpelling(input: string, homeDir: string, tempDir: string): string {
+	const drive = /^(?:\/cygdrive)?\/([a-zA-Z])(?=\/|$)(.*)$/.exec(input);
+	if (drive) return `${drive[1].toUpperCase()}:\\${drive[2].replace(/^\//, "").replaceAll("/", "\\")}`;
+	const temp = /^\/tmp(?=\/|$)(.*)$/.exec(input);
+	if (temp) return `${tempDir}${temp[1].replaceAll("/", "\\")}`;
+	if (input === "~" || input.startsWith("~\\")) return `${homeDir}${input.slice(1)}`;
+	return input;
 }
 
 /** Canonicalize existing parents too, so aliases share a lock and a missing leaf cannot hide an escape. */

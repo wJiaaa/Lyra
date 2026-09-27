@@ -41,3 +41,15 @@ export function withEnvironment(messages: Message[], date = today()): Message[] 
 		},
 	];
 }
+
+/**
+ * 认出 `withEnvironment` 接上的那一条，和写法放在一起，改一处不会漏另一处。
+ *
+ * `synthetic` 的用户消息、唯一一块文本、以 `<env>` 开头。别的 synthetic 消息（纠正、技能收尾）
+ * 会留在历史里，所以不能只看 `synthetic`。
+ */
+export function isEnvironmentMessage(message: Message): boolean {
+	if (message.role !== "user" || !message.synthetic) return false;
+	const [only, ...rest] = message.content;
+	return rest.length === 0 && only?.type === "text" && only.text.startsWith("<env>");
+}

@@ -13,6 +13,7 @@
 import { uniqueProviderName } from "./provider-transfer.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { ModelConfig, ProviderConfig } from "@lyra/core";
+import { installModelRules } from "@lyra/core/model-rules";
 import { importedModel } from "./model-defaults.ts";
 import { useEffect, useMemo, useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
@@ -40,6 +41,16 @@ export function useProviders() {
 	useEffect(() => {
 		if (!selected && providers.length > 0) setSelectedId(providers[0].id);
 	}, [providers, selected]);
+
+	/*
+	 * 主进程的规则可能已经从远程更新过，编辑器预览和导入都在这一页算推荐值，要和保存时主进程套的
+	 * 是同一份。拿不到（网页端没有这个方法）就用打包的那份——保存后主进程还会再套一遍。
+	 */
+	useEffect(() => {
+		Promise.resolve()
+			.then(() => bridge.providers.modelRules())
+			.then(installModelRules, () => undefined);
+	}, []);
 
 	function select(id: string) {
 		setSelectedId(id);

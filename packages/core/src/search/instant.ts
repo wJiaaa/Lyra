@@ -48,6 +48,12 @@ export function instantAnswerProvider(fetchImpl: typeof fetch = fetch): SearchPr
 		name: "DuckDuckGo 速答（免配置，只有百科式答案）",
 		// Nothing to configure, and the endpoint does not gate on anything local.
 		available: () => true,
+		/*
+		 * The default, because it is the only keyless one that answers in practice: asked with the
+		 * user agent this app sends, the HTML endpoint replies with its anti-automation page every
+		 * time, while this one answers in a few hundred milliseconds and does not rate-limit.
+		 */
+		keyless: "default",
 		async search(request: SearchRequest): Promise<SearchResult> {
 			const url = new URL(ENDPOINT);
 			url.searchParams.set("q", request.query);

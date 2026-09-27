@@ -31,7 +31,8 @@ test("the bash tool keeps raw output beyond 120k characters and links it from th
 		assert.ok(details && typeof details === "object" && "outputPath" in details && typeof details.outputPath === "string");
 		assert.equal(await readFile(details.outputPath, "utf8"), "x".repeat(150000) + "RAW_OUTPUT_TAIL");
 		const preview = result.content.filter(part => part.type === "text").map(part => part.text).join("");
-		assert.ok(preview.endsWith("RAW_OUTPUT_TAIL"));
+		assert.match(preview, /RAW_OUTPUT_TAIL\n\n\[full output: /);
+		assert.ok(preview.includes(details.outputPath), "被截过的输出要让模型看得到完整日志在哪");
 		assert.ok(preview.length < 61000);
 	} finally { await rm(root, { recursive: true, force: true }); }
 });

@@ -42,13 +42,15 @@
  * 设置迁移，也不必担心一条学错的结论永久粘在用户的配置里。
  */
 
+import { compatKey } from "./compat-key.ts";
+
 /** 一轮里多个工具调用的排法。 */
 export type ToolPairing = "grouped" | "interleaved";
 
 /** 学到的结论：`${providerId} ${modelId}` → 该怎么排。 */
 const learned = new Map<string, ToolPairing>();
 
-const key = (providerId: string, modelId: string) => `${providerId} ${modelId}`;
+const key = compatKey;
 
 /** 这个模型该怎么排。默认成组，理由见文件头。 */
 export function toolPairing(providerId: string, modelId: string): ToolPairing {

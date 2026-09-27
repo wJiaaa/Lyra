@@ -128,7 +128,7 @@ Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置
 packages/
   core/              agent 内核：provider 适配、agent loop、工具、skill、MCP、会话存储
   desktop/           Electron 应用（主进程 + preload + React 渲染进程）
-  contract/          两个进程之间那条线，218 个方法写在一处
+  contract/          两个进程之间那条线，219 个方法写在一处
   registry-shared/   插件目录的索引格式，桌面端与目录服务共用
 ```
 

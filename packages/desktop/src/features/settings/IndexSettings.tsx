@@ -50,7 +50,7 @@ export function IndexSettings() {
 	}, [workspace, query]);
 
 	return (
-		<div className="pt-8">
+		<div className="pt-2">
 			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("index.title")}</h1>
 			<p className="mt-2 max-w-[580px] pb-7 text-label leading-relaxed text-ink-muted">
 				{t("index.recordsWhat")}<strong className="font-medium text-ink">{t("index.definitions")}</strong>{t("index.definitionsDetail")}

@@ -301,6 +301,8 @@
 	padding: 0 16px;
 	border-radius: var(--radius-field);
 	font-size: var(--text-label);
+	/* 中文可在任意字间断行，放进 flex 行会被挤成竖排；不换行后 min-content 即整段文字，flex 压不动它。 */
+	white-space: nowrap;
 	transition: background-color var(--ly-t-quick), color var(--ly-t-quick);
 }
 

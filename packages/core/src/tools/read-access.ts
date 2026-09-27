@@ -30,13 +30,17 @@
  */
 
 import { existsSync, statSync } from "node:fs";
+import { realpath } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { scratchHome } from "../runtime/previews.ts";
 import { lyraHome } from "../session/store.ts";
 import { commandDialects, commandShell, dialectsOf, home } from "../platform.ts";
 import type { ToolContext } from "../types/tool.ts";
-import { displayPath } from "./paths.ts";
+import { displayPath, toAbsolute } from "./paths.ts";
+
+// 路径的各种写法（`~`、Git Bash 的 `/c/…`、PowerShell 的 `~\`）在 `paths.ts` 解析一次，读写两侧共用。
+export { toAbsolute, windowsSpelling } from "./paths.ts";
 import { SECRET_PATH } from "./risk-tables.ts";
 import { splitCommands, splitWords, type Dialect } from "./shell-split.ts";
 
@@ -92,6 +96,8 @@ const SYSTEM_ROOTS = [
 	"/sbin",
 	"/opt",
 	"/etc",
+	// macOS 上 `/etc` 是指向这里的链接，判定看的是解析后的路径（`resolveForReading`）。
+	"/private/etc",
 	"/dev",
 	"/proc",
 	"/sys",
@@ -118,33 +124,6 @@ function isInstalledSkillFile(absolute: string, homeDir: string): boolean {
 	const plugins = join(homeDir, "plugins");
 	if (!contains(plugins, absolute)) return false;
 	return relative(plugins, absolute).split(sep).indexOf("skills") >= 1;
-}
-
-/** `~/x` as an absolute path, and anything already absolute resolved against the session's cwd. */
-export function toAbsolute(cwd: string, input: string): string {
-	const native = process.platform === "win32" ? windowsSpelling(input, home(), tmpdir()) : input;
-	const expanded = native.startsWith("~/") || native === "~" ? native.replace("~", home()) : native;
-	return isAbsolute(expanded) ? resolve(expanded) : resolve(cwd, expanded);
-}
-
-/**
- * A path as a Windows shell spelled it, as the Windows path it names.
- *
- * On Windows the agent's commands run in Git Bash, which reads `/c/Users/me` as `C:\Users\me` and
- * `/tmp` as the user's temp directory. Node reads the same strings as `C:\c\Users\me` and `C:\tmp`
- * — paths that do not exist, and a path that does not exist is not asked about (`worthAsking`).
- * So `cat /c/Users/me/.ssh/id_ed25519` read the key without a question. `~\` is PowerShell's
- * spelling of the home directory, which only `~/` was expanded for.
- *
- * Pure, with the home and temp directories handed in, so it can be tested on any platform.
- */
-export function windowsSpelling(input: string, homeDir: string, tempDir: string): string {
-	const drive = /^(?:\/cygdrive)?\/([a-zA-Z])(?=\/|$)(.*)$/.exec(input);
-	if (drive) return `${drive[1].toUpperCase()}:\\${drive[2].replace(/^\//, "").replaceAll("/", "\\")}`;
-	const temp = /^\/tmp(?=\/|$)(.*)$/.exec(input);
-	if (temp) return `${tempDir}${temp[1].replaceAll("/", "\\")}`;
-	if (input === "~" || input.startsWith("~\\")) return `${homeDir}${input.slice(1)}`;
-	return input;
 }
 
 /**
@@ -318,7 +297,8 @@ export async function authorizeRead(
 	options: { allowSkillReads?: boolean } = {},
 ): Promise<ReadAuthorization> {
 	if (!input || typeof input !== "string") return { ok: false, message: "A path is required." };
-	const absolute = toAbsolute(ctx.cwd, input);
+	const literal = toAbsolute(ctx.cwd, input);
+	const absolute = attached(ctx, literal) ? literal : await resolveForReading(ctx.cwd, literal);
 	const verdict = assessRead(absolute, ctx.cwd, {
 		allowedPaths: ctx.allowedPaths,
 		projectRoots: ctx.projectRoots,
@@ -328,6 +308,32 @@ export async function authorizeRead(
 
 	const approved = await askForRead(ctx, absolute, verdict);
 	return approved.ok ? { ok: true, absolute } : approved;
+}
+
+/**
+ * 判定前先解析符号链接——`read` 一直是这么做的，其余入口按字面路径判，于是工作区里一个指向外面的
+ * 链接，`grep`/`ls`/`glob`/`cat` 都能不经询问读到外面（ADR-0021：读取边界只有一条）。
+ *
+ * 解析后仍在工作区里的，换回 cwd 下的写法：工作区自己在链接后面时（`~/code` 指向另一块盘），
+ * 真实路径不以 cwd 字面开头，按真实路径判会把自己的项目当成外面。不存在的路径原样返回——
+ * 没有东西可读，`worthAsking` 也不会为它问。
+ */
+async function resolveForReading(cwd: string, absolute: string): Promise<string> {
+	let real: string;
+	try {
+		real = await realpath(absolute);
+	} catch {
+		return absolute;
+	}
+	if (contains(cwd, real)) return real;
+	// `read` 传进来的已是真实路径，所以这一步不以「解析前后不同」为前提。
+	const realCwd = await realpath(cwd).catch(() => cwd);
+	return contains(realCwd, real) ? resolve(cwd, relative(realCwd, real)) : real;
+}
+
+/** 用户拖进来的就是用户给的，哪怕它是一个链接——判定照字面，见 `assessRead` 开头。 */
+function attached(ctx: ToolContext, literal: string): boolean {
+	return ctx.allowedPaths?.has(literal) ?? false;
 }
 
 /**
@@ -378,7 +384,9 @@ export async function authorizeCommandReads(command: string, ctx: ToolContext): 
 	 * bash heredoc under Git Bash was read by PowerShell too, which has no heredocs: the inert body
 	 * of `<<'EOF'` became live code, and the user was asked about a file nothing would open.
 	 */
-	for (const absolute of commandReadTargets(command, ctx.cwd, dialectsOf(commandShell(ctx.sandboxMode)))) {
+	for (const literal of commandReadTargets(command, ctx.cwd, dialectsOf(commandShell(ctx.sandboxMode)))) {
+		// 与文件工具同一判定：链接按它指向的地方算，见 `resolveForReading`。
+		const absolute = attached(ctx, literal) ? literal : await resolveForReading(ctx.cwd, literal);
 		/*
 		 * `allowSkillReads` here too, because it is a fact about the file rather than about the
 		 * tool. The system prompt hands the model absolute paths into installed skills; opening one

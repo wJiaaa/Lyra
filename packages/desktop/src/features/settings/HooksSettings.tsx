@@ -133,7 +133,7 @@ export function HooksSettings() {
 	const untrusted = scope === "project" && hooks.some((hook) => hook.trusted === false);
 
 	return (
-		<div className="pt-8" data-ly-hooks-settings="">
+		<div className="pt-2" data-ly-hooks-settings="">
 			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{t("hooks.title")}</h1>
 			<p className="mt-2 text-label text-ink-muted">{t("hooks.intro")}</p>
 

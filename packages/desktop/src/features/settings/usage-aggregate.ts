@@ -1,7 +1,7 @@
 /** Pure definitions behind the usage dashboard. */
 
 import { freshTokens } from "@lyra/core/tokens";
-import type { UsageBucket, UsageDay, UsageScan } from "../../../electron/usage-scan.ts";
+import type { UsageBucket, UsageCacheMiss, UsageDay, UsageScan } from "../../../electron/usage-scan.ts";
 
 export type Range = 7 | 30 | 90 | 0;
 
@@ -32,6 +32,8 @@ export interface Totals {
 	sessionDays: number;
 	activeDays: number;
 	quality: CostQuality;
+	/** 区间内本该命中而没命中的缓存，见 `UsageBucket.cacheMiss`。 */
+	cacheMiss: UsageCacheMiss;
 }
 
 export interface ModelUse {
@@ -164,6 +166,7 @@ export function totalsFor(buckets: UsageBucket[], days: UsageDay[]): Totals {
 		sessionDays: 0,
 		activeDays: 0,
 		quality: { provider: 0, catalog: 0, manual: 0, recorded: 0, unpriced: 0 },
+		cacheMiss: { tokens: 0, cost: 0, unpriced: 0, byCause: {} },
 	};
 	for (const bucket of buckets) {
 		totals.input += bucket.input;
@@ -185,6 +188,14 @@ export function totalsFor(buckets: UsageBucket[], days: UsageDay[]): Totals {
 		totals.quality.manual += bucket.manualPricedTokens;
 		totals.quality.recorded += bucket.recordedPricedTokens;
 		totals.quality.unpriced += bucket.unpricedTokens;
+		if (bucket.cacheMiss) {
+			totals.cacheMiss.tokens += bucket.cacheMiss.tokens;
+			totals.cacheMiss.cost += bucket.cacheMiss.cost;
+			totals.cacheMiss.unpriced += bucket.cacheMiss.unpriced;
+			for (const [cause, tokens] of Object.entries(bucket.cacheMiss.byCause) as [keyof UsageCacheMiss["byCause"], number][]) {
+				totals.cacheMiss.byCause[cause] = (totals.cacheMiss.byCause[cause] ?? 0) + tokens;
+			}
+		}
 	}
 	for (const day of days) {
 		totals.messages += day.messages;

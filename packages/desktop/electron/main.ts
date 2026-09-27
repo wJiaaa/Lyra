@@ -70,6 +70,7 @@ import { registerFileOpsIpc } from "./ipc/file-ops.ts";
 import { rescueLegacyWorkspaces, scratchRoots } from "./scratch.ts";
 import { resolveWorktreesRoot } from "./git-worktrees.ts";
 import { applySettings, loadAppSettings, onSettingsChanged } from "./app-settings.ts";
+import { loadCachedModelRules, MODEL_RULES_SYNC_INTERVAL_MS, syncModelRules } from "@lyra/core/model-rules-sync";
 import { createKeepAwake, installKeepAwake } from "./keep-awake.ts";
 import { registerServicesIpc } from "./ipc/services.ts";
 import { registerDeliveryIpc } from "./ipc/delivery.ts";
@@ -508,6 +509,8 @@ app.whenReady().then(async () => {
 	 * afterwards. A bundle that fails to load is recorded and skipped — someone else's broken
 	 * plugin must not be why the app will not start.
 	 */
+	// 先换上缓存的远程规则，读设置时套的推荐值才是最新的一份。
+	await loadCachedModelRules();
 	settings = await loadAppSettings();
 	const bundles = await loadPlugins(
 		[{ dir: join(lyraHome(), "plugins"), source: "user" as const }],
@@ -579,6 +582,15 @@ function bindScreenshotShortcut(): void {
 			win.webContents.send("settings:changed", next);
 		}
 	});
+	/*
+	 * 智能配置规则：启动后拉一次，之后每小时一次。换上了新规则就把设置重新存一遍——`applySettings`
+	 * 会给跟随推荐的模型套上新值，写盘，并通知窗口和会话。
+	 */
+	const refreshModelRules = async () => {
+		if (await syncModelRules()) await applySettings(settings);
+	};
+	void refreshModelRules();
+	setInterval(() => void refreshModelRules(), MODEL_RULES_SYNC_INTERVAL_MS).unref();
 	useSettingsSource(() => settings);
 	configureHub({ store: () => store, settings: () => settings, window: getWindow, web: webServer });
 	// Before the window exists, so its very first frame gets the right material.
@@ -656,8 +668,8 @@ function bindScreenshotShortcut(): void {
 	 *
 	 * The keyless provider is registered unconditionally so a fresh install can search at all; the
 	 * keyed ones read their key at call time, so they become available the moment one is pasted in
-	 * and stay out of the way until then. With more than one usable, the seam asks which — see
-	 * `selectSearchProvider`.
+	 * and stay out of the way until then. Which of them runs is `selectSearchProvider`'s call: the
+	 * user's pick, or — with none made — a pasted key over the keyless default.
 	 */
 	registerSearchProvider(duckDuckGoProvider());
 	registerSearchProvider(instantAnswerProvider());

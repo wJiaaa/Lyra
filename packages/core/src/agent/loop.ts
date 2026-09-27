@@ -8,11 +8,12 @@ import type { RetryPolicySource } from "../config/retry-policy.ts";
  * can redirect a running agent without cancelling it.
  */
 
-import { REPEAT_WARN, RepetitionWatch } from "./repetition.ts";
+import { originalInView, REPEAT_WARN, repeatNotice, RepetitionWatch } from "./repetition.ts";
 import type { RuleMatch } from "../rules/stream.ts";
 import { extractPaths } from "../rules/stream.ts";
 import { failTruncatedCalls, runTools } from "./tool-run.ts";
 import { streamAssistant } from "../ai/index.ts";
+import { isContextOverflow } from "../ai/failure.ts";
 import { dropUneventful, stripOversizedToolResults } from "../runtime/prune.ts";
 import type { ArtifactSink } from "../runtime/prune.ts";
 import { AgedToolPruner } from "../runtime/aged-prune.ts";
@@ -83,6 +84,8 @@ export interface AgentRunConfig {
 	sandboxNetwork?: ToolContext["sandboxNetwork"];
 	/** Passed through to the tools; see `ToolContext.allowedHosts`. */
 	allowedHosts?: ToolContext["allowedHosts"];
+	/** Passed through to the tools; see `ToolContext.searchProviderId`. */
+	searchProviderId?: ToolContext["searchProviderId"];
 	/** Passed through to the tools; see `ToolContext.allowedPaths`. */
 	allowedPaths?: ToolContext["allowedPaths"];
 	/** Passed through to the tools; see `ToolContext.projectRoots`. */
@@ -116,6 +119,13 @@ export interface AgentRunConfig {
 	 * 它把带日期块的 `view` 原样存下来续跑，前缀本来就一致（见 `runtime/sub-agent.ts`）。
 	 */
 	environment?: boolean;
+	/**
+	 * 这条对话前缀的稳定标识，每次模型请求都带上，协议层据此发 `prompt_cache_key` / 会话亲和头。
+	 *
+	 * 同一个 key 下的请求应当共享前缀：主会话用会话 id，子代理用它自己的运行 id（续跑沿用，才接得上
+	 * 上一段的缓存），侧聊单独一个。一次性请求（摘要、标题）不走循环，也不带。省略就不带。
+	 */
+	cacheKey?: string;
 	/**
 	 * Runs before a tool executes. Returning `block` turns the call into an error result the
 	 * model can react to, without ending the turn.
@@ -238,10 +248,10 @@ function rejectedContent(assistant: AssistantMessage): boolean {
 	 *
 	 * 从前这里读的是 `errorMessage` 的开头像不像 `HTTP 400`——而那行字是给人看的，措辞一变这条
 	 * 判断就悄悄失效。`check-request` 是同一件事被写下来的样子：请求体本身不被接受，值得裁掉历史
-	 * 再试一次。旧会话里没有 `failure`，所以正则留着兜底。
+	 * 再试一次。三条协议链出错时都带 `failure`（`ai/endpoint.ts` 的 `failedStreamEvent`）；没带的
+	 * 不是从它们来的，不猜。
 	 */
-	if (assistant.failure) return assistant.failure.hint === "check-request";
-	return /^HTTP (400|413|422)\b/.test(assistant.errorMessage ?? "");
+	return assistant.failure?.hint === "check-request";
 }
 
 const DEFAULT_MAX_TURNS = 200;
@@ -369,6 +379,8 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			if (compaction) {
 				messages.length = 0;
 				messages.push(...compaction.messages);
+				// 早先的原文进了摘要，再读一次是在拿回来，不是在打转。见 `RepetitionWatch.reset`。
+				repetition.reset();
 			}
 		}
 
@@ -381,7 +393,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		};
 
 		lastRequestAt = Date.now();
-		let { message: assistant, ruleMatches, deferredMatches, switched } = await streamTurn(active, context, emit);
+		let { message: assistant, ruleMatches, deferredMatches, switched, held } = await streamTurn(active, context, emit);
 		/*
 		 * 还没说出一个字就被换下的请求：什么都不留，回到顶上用新模型从同一处重来。
 		 *
@@ -391,6 +403,11 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			turn -= 1;
 			continue;
 		}
+		/** 拒收恢复里的重发：被拒的那条放掉，换一份历史再问。 */
+		const resend = async () => {
+			await held?.discard();
+			({ message: assistant, ruleMatches, deferredMatches, switched, held } = await streamTurn(active, { ...context, messages: requestMessages(messages) }, emit));
+		};
 
 		/*
 		 * The far end refused the request itself. Try once more without the biggest thing in it.
@@ -417,20 +434,54 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 				});
 				messages.length = 0;
 				messages.push(...stripped);
-				({ message: assistant, ruleMatches, deferredMatches } = await streamTurn(active, { ...context, messages: requestMessages(messages) }, emit));
+				await resend();
 			}
 		}
+		/*
+		 * 上下文超出了模型窗口：强制压缩一次，再发一次。
+		 *
+		 * 80% 的自动压缩线挡住的是大多数，挡不住的是估算偏低（中文、密集 JSON）和一次涨太多（一个巨大
+		 * 的工具结果）。剪掉过大的工具输出是便宜的第一步，已经在上面试过；还是超长、或者没东西可剪，
+		 * 就只剩压缩——不压，这段历史下一轮原样再发，会话就卡死在这里。
+		 *
+		 * 每轮最多一次，由结构保证：这一段不在循环里，重发的结果不会再回到这里。压缩失败、没压小、压完
+		 * 还是超长，都照原错误收场——如实报错，不再往下试。压缩走的是顶上那条通道（`compactStep`），剪枝
+		 * 视图的持久化、边界事件、界面的进度都是同一套；重复计数清零的理由也相同。
+		 */
+		if (!switched && assistant.stopReason === "error" && isContextOverflow(assistant.failure) && config.compact) {
+			await emit({ type: "notice", level: "warn", message: "上下文超出了模型的上限，正在压缩历史后重试。" });
+			const compaction = await compactStep(config, messages, active.model, emit, { force: true }).catch(async (cause: unknown) => {
+				// 压缩自己抛了：被拒的那条照实提交再往上抛，转录里要留得下这一轮为什么停。
+				await held?.commit();
+				throw cause;
+			});
+			if (config.signal?.aborted) {
+				await held?.discard();
+				return finish("aborted");
+			}
+			if (compaction) {
+				messages.length = 0;
+				messages.push(...compaction.messages);
+				repetition.reset();
+				await resend();
+			}
+		}
+		if (switched) {
+			turn -= 1;
+			continue;
+		}
+		await held?.commit();
 		/*
 		 * A rule interrupted this turn: drop what was said and say it again, better informed.
 		 *
 		 * The partial output is discarded rather than kept. Leaving half a violation in the
 		 * history invites the model to continue it, and the whole point of interrupting mid-
-		 * sentence was to stop that sentence from existing.
-		 *
-		 * `config.signal` is checked because both signals abort the same stream: if the user
-		 * pressed stop in the same moment a rule fired, the user wins.
+		 * sentence was to stop that sentence from existing. `streamTurn` already withheld its
+		 * `message_end` (the commit point) — which is why "was it interrupted, or did the user
+		 * win" is decided there, once, and not re-checked here: a stop landing in between would
+		 * otherwise send an uncommitted reply down the aborted path below.
 		 */
-		if (ruleMatches.length > 0 && assistant.stopReason === "aborted" && !config.signal?.aborted && config.rules) {
+		if (ruleMatches.length > 0 && config.rules) {
 			const injection = config.rules.render(ruleMatches);
 			config.rules.markFired(ruleMatches);
 			messages.push(injection);
@@ -498,8 +549,14 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		const toolCalls = assistant.content.filter((c) => c.type === "toolCall");
 		if (toolCalls.length === 0) {
 			await emit({ type: "turn_end", message: assistant, toolResults: [] });
-			// A steering message that arrived during the final stream still deserves an answer.
-			carried = config.drainSteering?.() ?? [];
+			/*
+			 * A steering message that arrived during the final stream still deserves an answer.
+			 *
+			 * 到了步数上限就不在这里取：取走之后 `continue`，循环顶上先判上限、直接收场，这句话就
+			 * 既不在转录里、也不在队列里了。留在队列里，由宿主按「没人接走的插话」接着发——会话的
+			 * `drainPending`、子代理的 `runSubAgent` 都认这条路。
+			 */
+			carried = turn < maxTurns ? config.drainSteering?.() ?? [] : [];
 			if (carried.length > 0) continue;
 
 			// A checklist cannot distinguish a question from abandoned work. Text yields to the
@@ -620,14 +677,12 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			if (seen < REPEAT_WARN) continue;
 			const result = toolResults[index];
 			if (!result || result.role !== "toolResult") continue;
-			result.content = [
-				{
-					type: "text",
-					text:
-						`（这是你第 ${seen} 次用同样的参数调用 \`${toolCalls[index].name}\`，结果和前几次一字不差，` +
-						`所以这里不再重复贴一遍。它不会因为你再问一次就改变——要么先去动它，要么换个问法。）`,
-				},
-			];
+			/*
+			 * 「前几次」得真的还在眼前。计数只在改动工作区、压缩时清零，而剪枝会把早先那几份换成
+			 * 回查指针——那时再把这份也换掉，模型手里一份原文都没有了。这份就留着，它就是原文。
+			 */
+			if (!originalInView(messages, toolCalls[index], result)) continue;
+			result.content = [{ type: "text", text: repeatNotice(seen, toolCalls[index].name) }];
 		}
 		if (repeated) {
 			/*
@@ -705,12 +760,25 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
  */
 interface TurnResult {
 	message: AssistantMessage;
-	/** Rules that asked to interrupt: the stream was aborted and the turn should be redone. */
+	/**
+	 * Rules that asked to interrupt: the stream was aborted and the turn should be redone.
+	 *
+	 * 只在真的打断了的时候非空（人同时按了停止的不算，人赢），判定在 `streamTurn` 里做一次：那边
+	 * 据此决定这条回复发不发 `message_end`，循环据此决定重来还是收场，两边不能各判各的。
+	 */
 	ruleMatches: RuleMatch[];
 	/** Rules that matched but did not interrupt: delivered once this turn has finished. */
 	deferredMatches: RuleMatch[];
 	/** 人换了模型，而这个请求还什么都没说出口：它被放手了，调用方该用新模型从同一处重来。 */
 	switched?: boolean;
+	/**
+	 * 请求本身被拒收（`rejectedContent`）的那条错误回复，还没提交（没发 `message_end`）。
+	 *
+	 * 调用方要么恢复后重发、`discard` 掉它，要么放弃恢复、`commit` 它。先提交再重发的话，日志里就多出
+	 * 一条循环眼里没有的失败回复：压缩边界按「最后 N 条」从日志末尾数，数偏一条，下一轮重建出的
+	 * 历史就和刚发出去的不一样，还可能从一对工具调用中间切开。
+	 */
+	held?: { commit(): Promise<void>; discard(): Promise<void> };
 }
 
 async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: AgentEventSink): Promise<TurnResult> {
@@ -739,6 +807,13 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 			// 替身拿到的也是带着「换人」的那根信号，行为跟真实请求一样，才测得到。
 			const message = await config.streamFn(context, { ...config, signal: AbortSignal.any([...(config.signal ? [config.signal] : []), switchAbort.signal]) });
 			if (switched()) return { message, ruleMatches: [], deferredMatches: [], switched: true };
+			if (rejectedContent(message)) {
+				const commit = async () => {
+					await emit({ type: "message_start", message });
+					await emit({ type: "message_end", message });
+				};
+				return { message, ruleMatches: [], deferredMatches: [], held: { commit, discard: async () => {} } };
+			}
 			await emit({ type: "message_start", message });
 			await emit({ type: "message_end", message });
 			return { message, ruleMatches: [], deferredMatches: [] };
@@ -778,6 +853,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 		temperature: config.temperature,
 		retryAttempts: config.retryAttempts,
 		retryPolicy: config.retryPolicy,
+		cacheKey: config.cacheKey,
 		/*
 		 * Said out loud, because the alternative is a turn that appears to hang.
 		 *
@@ -834,13 +910,27 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 		return { message, ruleMatches: [], deferredMatches: [], switched: true };
 	};
 
+	/*
+	 * 规则打断的：开了头的那一截不收尾、不提交，只告诉界面把它收掉。
+	 *
+	 * `config.signal` 要看，因为两根信号掐的是同一个流：人在规则触发的同一刻按了停止，人赢。
+	 */
+	const interruptedByRule = (message: AssistantMessage) =>
+		pendingMatches.length > 0 && message.stopReason === "aborted" && !config.signal?.aborted;
+	const discard = async (message: AssistantMessage): Promise<TurnResult> => {
+		if (started) await emit({ type: "message_discarded", message });
+		await settle(message);
+		return { message, ruleMatches: pendingMatches, deferredMatches };
+	};
+
 	try {
 	while (true) {
 		const next = await stream.next();
 		if (next.done) {
 			if (switched()) return await letGo(next.value);
+			if (interruptedByRule(next.value)) return await discard(next.value);
 			await settle(next.value);
-			return { message: next.value, ruleMatches: pendingMatches, deferredMatches };
+			return { message: next.value, ruleMatches: [], deferredMatches };
 		}
 		const event = next.value;
 
@@ -864,13 +954,41 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 					const tail = await stream.next();
 					return await letGo(tail.done ? tail.value : message);
 				}
+				if (interruptedByRule(message)) {
+					const tail = await stream.next();
+					return await discard(tail.done ? tail.value : message);
+				}
+				if (rejectedContent(message)) {
+					const tail = await stream.next();
+					const settled = tail.done ? tail.value : message;
+					return {
+						message: settled,
+						ruleMatches: [],
+						deferredMatches,
+						held: {
+							commit: async () => {
+								if (!started) await emit({ type: "message_start", message: settled });
+								await emit({ type: "message_end", message: settled });
+								await settle(settled);
+							},
+							/*
+							 * 放掉它：画出来的那一截收掉。重连过的那行「正在重连」也要收场，而这个请求确实
+							 * 没救回来；一次都没重试过的就不再报一条失败——紧接着的重发才是结果。
+							 */
+							discard: async () => {
+								if (started) await emit({ type: "message_discarded", message: settled });
+								if (retries > 0) await settle(settled);
+							},
+						},
+					};
+				}
 				if (!started) await emit({ type: "message_start", message });
 				await emit({ type: "message_end", message });
 				// Drain the generator so its `return` value is the authoritative final message.
 				const tail = await stream.next();
 				const settled = tail.done ? tail.value : message;
 				await settle(settled);
-				return { message: settled, ruleMatches: pendingMatches, deferredMatches };
+				return { message: settled, ruleMatches: [], deferredMatches };
 			}
 			default:
 				break;
