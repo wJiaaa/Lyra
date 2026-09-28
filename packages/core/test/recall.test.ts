@@ -235,6 +235,81 @@ test("a long message is quoted head and tail, not in full", async () => {
 	assert.ok([...text].length < [...long].length / 2, `and it is much shorter than the message (${[...text].length})`);
 });
 
+/** A roomy session holding one user message, for tests that only care how that message is quoted. */
+async function sessionWith(text: string): Promise<ToolContext> {
+	const cwd = await mkdtemp(join(home, "project-"));
+	const session = new AgentSession({
+		cwd,
+		settings: ROOMY,
+		store: new SessionStore(),
+		emit: () => {},
+		streamFn: async () => reply("好"),
+	});
+	await session.initialize();
+	await session.prompt([{ type: "text", text }]);
+	return context(cwd, session.meta.id);
+}
+
+/** The quoted body of the single match, without the count line, the label or the footer. */
+const quotedBody = (answer: string) => answer.split(/^--- message .*---\n/m)[1].split(/\n\n\[/)[0];
+
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+/*
+ * Found and then not shown is worse than not found: the count says the detail is in the log, the
+ * quote says nothing, and the model concludes the summary was right to drop it.
+ */
+test("a match in the middle of a long message is quoted where it matched", async () => {
+	const rule = "审核标记：只有先备份才允许覆盖原文件。";
+	const long = `开头说明这是一份长需求。${"前文".repeat(1000)}${rule}${"后文".repeat(1000)}结尾`;
+	const text = textOf(await recallTool.execute({ query: "审核标记" }, await sessionWith(long)));
+
+	assert.match(text, /^1 match /);
+	assert.ok(text.includes(rule), `the matched sentence comes back whole:\n${text.slice(0, 600)}`);
+	assert.ok(text.includes("开头说明这是一份长需求"), "with the head, so it is clear what the message was");
+	assert.match(text, /characters omitted/, "and the rest accounted for");
+	assert.ok([...quotedBody(text)].length < 1400, `still about as cheap as before (${[...quotedBody(text)].length})`);
+});
+
+test("terms matched far apart in one message are each quoted in place", async () => {
+	const first = "甲约束：接口只读。";
+	const second = "乙约束：日志保留七天。";
+	const long = `${"填充".repeat(600)}${first}${"填充".repeat(800)}${second}${"填充".repeat(600)}`;
+	const text = textOf(await recallTool.execute({ query: "甲约束 乙约束" }, await sessionWith(long)));
+
+	assert.ok(text.includes(first), `the first term's sentence is there:\n${text.slice(0, 600)}`);
+	assert.ok(text.includes(second), "and so is the second's");
+	assert.ok(text.indexOf(first) < text.indexOf(second), "in the order they were written");
+	assert.ok([...quotedBody(text)].length < 1400, `within the same budget (${[...quotedBody(text)].length})`);
+});
+
+test("a match already inside the head or tail keeps the plain head-and-tail quote", async () => {
+	const long = `开头标记 ${"填充".repeat(3000)} 结尾标记`;
+	const ctx = await sessionWith(long);
+	const head = quotedBody(textOf(await recallTool.execute({ query: "开头标记" }, ctx)));
+	const tail = quotedBody(textOf(await recallTool.execute({ query: "结尾标记" }, ctx)));
+
+	const points = [...long];
+	const expected = `${points.slice(0, 900).join("")}\n… [${points.length - 1200} characters omitted] …\n${points.slice(-300).join("")}`;
+	assert.equal(head, expected, "a match at the start quotes exactly as it always did");
+	assert.equal(tail, expected, "and so does a match at the end");
+});
+
+/*
+ * Lower-casing can change a string's length ("İ" becomes two code units), so a position found in the
+ * lower-cased text is not a position in the original. Filling the message with it is what would
+ * make an unmapped offset land thousands of characters away from the match.
+ */
+test("a case-insensitive match is quoted from the original text, without splitting characters", async () => {
+	const rule = "Backup-Before-Overwrite: never replace a file you have not copied.";
+	const long = `${"İ😀".repeat(1500)}${rule}${"😀".repeat(1500)}`;
+	const text = textOf(await recallTool.execute({ query: "backup-before-overwrite" }, await sessionWith(long)));
+
+	assert.match(text, /^1 match /);
+	assert.ok(text.includes(rule), `quoted in its original case, in full:\n${text.slice(0, 600)}`);
+	assert.ok(!LONE_SURROGATE.test(text), "and no emoji is cut in half");
+});
+
 test("a session with nothing written down yet answers instead of throwing", async () => {
 	const cwd = await mkdtemp(join(home, "project-"));
 	const result = await recallTool.execute({ query: "任何东西" }, context(cwd, "no-such-session"));

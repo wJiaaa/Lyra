@@ -46,7 +46,7 @@ interface RecallArgs {
 export const recallTool: Tool<RecallArgs> = {
 	name: "recall",
 	description:
-		"Search the full transcript of this session, including messages that context compaction has since removed from view. Use it to recover the exact wording of an earlier request, a file's earlier contents, a command's exact output, or any detail a summary condensed. Matching is case-insensitive; every space-separated term must appear in the message. Images cannot be replayed — a match that carried one says so, and the only way to see it again is to ask the user to resend it.",
+		"Search the full transcript of this session, including messages that context compaction has since removed from view. Use it to recover the exact wording of an earlier request, a file's earlier contents, a command's exact output, or any detail a summary condensed. Matching is case-insensitive; every space-separated term must appear in the message. A long message is quoted as its opening, the passages around your terms, and its ending; to read another part of it, search again adding a term from that part. Images cannot be replayed — a match that carried one says so, and the only way to see it again is to ask the user to resend it.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -132,7 +132,7 @@ export const recallTool: Tool<RecallArgs> = {
 			};
 		}
 
-		const body = shown.map((hit) => quote(hit.index, hit.message)).join("\n\n");
+		const body = shown.map((hit) => quote(hit.index, hit.message, terms)).join("\n\n");
 
 		/*
 		 * A footer that can be acted on, rather than one that only says no.
@@ -281,22 +281,86 @@ function imageNote(message: Message): string {
 	return `\n[This message carried ${images} image${images === 1 ? "" : "s"}. Images cannot be replayed through recall — if you need to see ${images === 1 ? "it" : "them"} again, ask the user to resend ${images === 1 ? "it" : "them"}.]`;
 }
 
-/**
- * One match, labelled and trimmed.
- *
- * Head and tail rather than head alone: a tool result puts its answer at the top and its totals,
- * its error and its "N more matches" at the bottom, and the middle is the part nobody needs.
- */
-function quote(index: number, message: Message): string {
+/** One match, labelled and trimmed. */
+function quote(index: number, message: Message, terms: string[]): string {
 	const when = new Date(message.timestamp).toISOString().replace("T", " ").slice(0, 16);
 	const who = message.role === "toolResult" ? `tool:${message.toolName}` : message.role;
 	const text = textOf(message).trim();
+	return `--- message ${index} · ${who} · ${when} ---\n${excerpt([...text], terms)}${imageNote(message)}`;
+}
 
-	const points = [...text];
-	const body =
-		points.length <= QUOTE_CHARS
-			? text
-			: `${points.slice(0, Math.floor(QUOTE_CHARS * 0.75)).join("")}\n… [${points.length - QUOTE_CHARS} characters omitted] …\n${points.slice(-Math.floor(QUOTE_CHARS * 0.25)).join("")}`;
+/** What is left of the opening and the ending once a match elsewhere needs the room. */
+const HEAD_CHARS = 240;
+const TAIL_CHARS = 120;
+/** A gap shorter than this is quoted rather than elided: the marker would cost about as much. */
+const MIN_GAP = 40;
 
-	return `--- message ${index} · ${who} · ${when} ---\n${body}${imageNote(message)}`;
+/**
+ * A long message cut down to the parts worth reading, in code points so no character is split.
+ *
+ * Head and tail by default: a tool result puts its answer at the top and its totals, its error and
+ * its "N more matches" at the bottom. But the terms are why this message was returned, and a match
+ * in the middle used to be dropped with the rest of it — the count said the detail was there and
+ * the quote did not show it, which reads as "the summary was right to lose it". So when a term
+ * falls outside the head and tail, the head and tail shrink and the room goes to a window around
+ * each such term. The total stays at `QUOTE_CHARS`, so a recall costs what it always did.
+ */
+function excerpt(points: string[], terms: string[]): string {
+	const length = points.length;
+	if (length <= QUOTE_CHARS) return points.join("");
+
+	const head = Math.floor(QUOTE_CHARS * 0.75);
+	const tail = Math.floor(QUOTE_CHARS * 0.25);
+	const outside = locate(points, terms).filter((hit) => hit.end > head && hit.start < length - tail);
+	if (outside.length === 0) return stitch(points, [[0, head], [length - tail, length]]);
+
+	const share = Math.floor((QUOTE_CHARS - HEAD_CHARS - TAIL_CHARS) / outside.length);
+	const spans: [number, number][] = [[0, HEAD_CHARS], [length - TAIL_CHARS, length]];
+	for (const hit of outside) {
+		const start = Math.max(0, hit.start - Math.floor(Math.max(0, share - (hit.end - hit.start)) / 2));
+		spans.push([start, Math.min(length, Math.max(hit.end, start + share))]);
+	}
+	return stitch(points, spans);
+}
+
+/**
+ * Where each term first appears, as code-point positions in the original text.
+ *
+ * Lower-cased one code point at a time, because lower-casing can change length ("İ" becomes two
+ * code units) and an offset into the lower-cased whole would drift from the original. A term this
+ * misses (the whole-string rules differ for a final sigma) just gets no window of its own.
+ */
+function locate(points: string[], terms: string[]): { start: number; end: number }[] {
+	const lowered: string[] = [];
+	const origin: number[] = [];
+	points.forEach((point, i) => {
+		const lower = point.toLowerCase();
+		lowered.push(lower);
+		for (let unit = 0; unit < lower.length; unit++) origin.push(i);
+	});
+	const haystack = lowered.join("");
+	const hits: { start: number; end: number }[] = [];
+	for (const term of terms) {
+		const at = haystack.indexOf(term);
+		if (at >= 0) hits.push({ start: origin[at], end: origin[at + term.length - 1] + 1 });
+	}
+	return hits;
+}
+
+/** The spans in reading order, overlaps merged, each gap marked with how much it left out. */
+function stitch(points: string[], spans: [number, number][]): string {
+	const merged: [number, number][] = [];
+	for (const [start, end] of spans.sort((a, b) => a[0] - b[0])) {
+		const last = merged.at(-1);
+		if (last && start - last[1] < MIN_GAP) last[1] = Math.max(last[1], end);
+		else merged.push([start, end]);
+	}
+	let out = "";
+	let at = 0;
+	for (const [start, end] of merged) {
+		if (start > at) out += `\n… [${start - at} characters omitted] …\n`;
+		out += points.slice(start, end).join("");
+		at = end;
+	}
+	return out;
 }
