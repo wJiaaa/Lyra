@@ -4,7 +4,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import { CommandText } from "./CommandText.tsx";
 import type { ComposerDecorations } from "./CommandText.tsx";
-import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
+import { droppedFrom, pickedFrom, type PickedFile } from "./attachments/picked.ts";
+import { formatMention } from "./mention-catalog.ts";
+import { DRAGGED_PATHS } from "../../lib/paths.ts";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";
 import { FIT_LEVELS, FIT_PROBE, settle, tight } from "./fit.ts";
 import { ROLL_VALUE } from "../../ui/motion/RollingText.tsx";
@@ -105,6 +107,23 @@ export function ComposerShell({
 	const { t } = useI18n();
   const own = useRef<HTMLTextAreaElement>(null);
   const field = fieldRef ?? own;
+	/*
+	 * 在光标处写下几条 `@` 引用，拖进来的文件夹和文件树里的路径走这里。
+	 *
+	 * 走 `insertText` 而不是拼好字符串交给 `onChange`：那样撤销一下就能撤掉，和 `@` 菜单落引用是同
+	 * 一种手感。前后各补一个空格，免得和紧挨着的字粘成一个词。
+	 */
+	const mention = (paths: string[]) => {
+		const el = field.current;
+		if (!el || paths.length === 0) return;
+		el.focus();
+		const before = el.value[el.selectionStart - 1];
+		const after = el.value[el.selectionEnd];
+		const lead = before && !/\s/.test(before) ? " " : "";
+		const trail = after && /\s/.test(after) ? "" : " ";
+		document.execCommand("insertText", false, `${lead}${paths.map(formatMention).join(" ")}${trail}`);
+		onChange(el.value);
+	};
 	const mirror = useRef<HTMLDivElement>(null);
 	/*
 	 * 两头化开的那两个长度，写在 `.ly-scroll-host` 上。
@@ -252,7 +271,18 @@ export function ComposerShell({
           ? (e) => {
               e.preventDefault();
               // 同步读，就在这儿：事件返回之后 `DataTransfer` 就空了，路径也就无从问起。
-              onFiles(pickedFrom(e.dataTransfer.files));
+              const tree = e.dataTransfer.getData(DRAGGED_PATHS);
+              if (tree) {
+                // 从文件树拖来的，文件和文件夹都是项目里的路径：和 `@` 菜单里选中一样，写成引用。
+                mention(JSON.parse(tree) as string[]);
+                return;
+              }
+              // 该同步取的，`droppedFrom` 在返回之前就取完了；剩下的只是认不准的那几个要读一下。
+              void droppedFrom(e.dataTransfer).then(({ files, folders }) => {
+                // 先落引用：`addFiles` 同步记下的光标就在引用之后，附件标记接着排，不会贴在引用前面。
+                mention(folders);
+                if (files.length > 0) onFiles(files);
+              });
             }
           : undefined
       }

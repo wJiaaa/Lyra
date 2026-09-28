@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
-import { dirName, isDescendantPath } from "../../lib/paths.ts";
+import { DRAGGED_PATHS as PATHS, dirName, isDescendantPath } from "../../lib/paths.ts";
 import { bridge } from "../../services/index.ts";
 import { macKeyboard } from "../../ui/keyboard.ts";
 
@@ -28,9 +28,6 @@ import { macKeyboard } from "../../ui/keyboard.ts";
 function copiesOnDrop(held: { altKey: boolean; ctrlKey: boolean }, platform = navigator.platform): boolean {
 	return macKeyboard(platform) ? held.altKey : held.ctrlKey;
 }
-
-/** Our own type, so a drag from this tree is distinguishable from a drag out of the Finder. */
-const PATHS = "application/x-lyra-paths";
 
 /** How long a collapsed folder has to be hovered before it opens to let you drop inside it. */
 const SPRING_MS = 550;

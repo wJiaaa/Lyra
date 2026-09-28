@@ -58,6 +58,14 @@ export function relativeTo(root: string, path: string): string {
 }
 
 /**
+ * 文件树拖出去的那几条路径，在 `DataTransfer` 里挂的类型。
+ *
+ * 放在这里而不是文件树里，是因为读它的不止文件树：输入框收到它，要把拖来的文件和文件夹写成
+ * `@` 引用。有了自己的类型，才分得清「从树里拖来的路径」和「随便拖来的一段字」。
+ */
+export const DRAGGED_PATHS = "application/x-lyra-paths";
+
+/**
  * Whether `child` sits below `parent`. Strict — a path is not its own descendant.
  *
  * What stops a folder being dragged into itself. The separator is load-bearing: without it

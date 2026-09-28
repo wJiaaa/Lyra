@@ -50,3 +50,36 @@ export function pickedFrom(list: FileList | null | undefined): PickedFile[] {
 		}
 	});
 }
+
+/**
+ * 拖进来的一批，文件夹单独拣出来。
+ *
+ * 文件夹在 `files` 里也是一个 `File`：没有类型、读它的字节会失败。当附件读，结果是一条「无法读取」
+ * 和一个什么都没收下的输入框。它该是一条 `@` 引用——和「@ → 选择文件夹」落下的是同一种东西，所以
+ * 这里只交出它的路径。取不到路径的（浏览器里跑）就没有，不当错报。
+ *
+ * 是不是文件夹只有 `items` 答得出，而且同样只在 drop 事件里答得出。`files` 就是按顺序排的那几个
+ * `kind === "file"` 的 item，所以按下标对得上。这些都在第一个 `await` 之前取完——函数返回时
+ * `DataTransfer` 已经空了，之后只剩手里的 `File` 和路径。
+ *
+ * `webkitGetAsEntry()` 也可能答不上来（返回 null）。那时读一个字节试试：文件夹读不出字节，而一份
+ * 读不出字节、却有路径的东西，当附件只会落一条「无法读取」，写成引用至少还指得到它。
+ */
+export async function droppedFrom(transfer: DataTransfer): Promise<{ files: PickedFile[]; folders: string[] }> {
+	const entries = Array.from(transfer.items).filter((item) => item.kind === "file");
+	const dropped = pickedFrom(transfer.files).map((picked, index) => ({
+		picked,
+		/** `undefined` 是「没答上来」，不是「不是文件夹」。 */
+		directory: entries[index]?.webkitGetAsEntry()?.isDirectory,
+	}));
+
+	const files: PickedFile[] = [];
+	const folders: string[] = [];
+	for (const { picked, directory } of dropped) {
+		const folder =
+			directory ?? (picked.path !== undefined && !(await picked.file.slice(0, 1).arrayBuffer().then(() => true, () => false)));
+		if (!folder) files.push(picked);
+		else if (picked.path) folders.push(picked.path);
+	}
+	return { files, folders };
+}
