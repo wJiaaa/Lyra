@@ -71,7 +71,7 @@ function dateIn(message: Message): string | undefined {
  * `synthetic` 的用户消息、唯一一块文本、以 `<env>` 开头。别的 synthetic 消息（纠正、技能收尾）
  * 会留在历史里，所以不能只看 `synthetic`。
  */
-export function isEnvironmentMessage(message: Message | undefined): boolean {
+function isEnvironmentMessage(message: Message | undefined): boolean {
 	if (message?.role !== "user" || !message.synthetic) return false;
 	const [only, ...rest] = message.content;
 	return rest.length === 0 && only?.type === "text" && only.text.startsWith("<env>");
