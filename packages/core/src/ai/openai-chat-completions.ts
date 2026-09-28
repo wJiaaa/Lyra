@@ -20,7 +20,7 @@ import { computeCost } from "../utils/pricing.ts";
 import { classifyFailure, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
-import { failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
+import { USER_AGENT, failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { droppedParams, learnDroppedParam, type SentParams } from "./request-params-compat.ts";
@@ -534,6 +534,7 @@ async function* streamChatCompletions(
 						method: "POST",
 						headers: {
 							"content-type": "application/json",
+							"user-agent": USER_AGENT,
 							authorization: `Bearer ${provider.apiKey}`,
 							...cacheRouting(options.cacheKey, droppedParams(scope.providerId, scope.modelId)).headers,
 							...requiredHeaders,

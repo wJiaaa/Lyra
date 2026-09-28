@@ -6,7 +6,7 @@
  */
 
 import type { ProviderTestResult } from "./ipc-types.ts";
-import { sessionHeaders, type Settings } from "@lyra/core";
+import { USER_AGENT, sessionHeaders, type Settings } from "@lyra/core";
 
 /**
  * Auth plus the session header the endpoint insists on, as the real requests send them. A probe has
@@ -14,6 +14,7 @@ import { sessionHeaders, type Settings } from "@lyra/core";
  */
 function requestHeaders(provider: Settings["providers"][number]): Record<string, string> {
 	return {
+		"user-agent": USER_AGENT,
 		...(provider.api === "anthropic-messages"
 			? { "x-api-key": provider.apiKey, "anthropic-version": "2023-06-01" }
 			: { authorization: `Bearer ${provider.apiKey}` }),

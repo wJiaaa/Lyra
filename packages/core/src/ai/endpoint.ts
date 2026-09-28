@@ -1,5 +1,5 @@
 /**
- * 三条链都要做、而且必须做得一样的两件小事：拼地址、把 fetch 的失败说成人话。
+ * 三条链都要做、而且必须做得一样的几件小事：拼地址、带上同一个 User-Agent、把 fetch 的失败说成人话。
  *
  * 它们原来住在 `anthropic-messages.ts` 里，被另外两条链跨适配器 import——也就是说「OpenAI 那条链
  * 的 URL 怎么拼」这件事的答案，写在 Anthropic 那个文件的第 619 行。审计把这一条列在「三条链共用
@@ -15,6 +15,9 @@ import type { AssistantMessage, ModelConfig, StreamEvent, Usage } from "../types
 import { addUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
 import { failureOf, worthRetrying } from "./failure.ts";
+
+/** 模型请求的 User-Agent。不写的话 Node 的 fetch 会自己填 `node`，端点那边认不出是谁在调。 */
+export const USER_AGENT = "Lyra";
 
 /** `base` 与 `path` 拼成一个地址，避开 `/v1` 重复。 */
 export function joinUrl(base: string, path: string): string {

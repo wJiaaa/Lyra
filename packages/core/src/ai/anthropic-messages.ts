@@ -23,7 +23,7 @@ import { classifyFailure, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
-import { failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
+import { USER_AGENT, failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
 import { compatKey, compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
 import { anthropicMetadata, sessionHeaders } from "./cache-routing.ts";
@@ -429,6 +429,7 @@ async function* streamAnthropic(
 						method: "POST",
 						headers: {
 							"content-type": "application/json",
+							"user-agent": USER_AGENT,
 							"x-api-key": provider.apiKey,
 							"anthropic-version": "2023-06-01",
 							/*
