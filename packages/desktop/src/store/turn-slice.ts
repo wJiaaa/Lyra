@@ -7,7 +7,7 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import type { ApprovalDecision, Message, MessageAttachment, ThinkingLevel, UserContent, UserMessage } from "@lyra/core";
+import type { ApprovalDecision, Message, MessageAttachment, ThinkingLevel, UserContent, UserMessage } from "@plume/core";
 import { prune, todosFrom, without } from "./derive.ts";
 import { howItStopped } from "./turn-stop.ts";
 import { loadCarried, meterFor, saveCarried } from "./turn-meter.ts";

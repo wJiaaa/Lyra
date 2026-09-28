@@ -17,9 +17,9 @@ const status: GitStatus = {
 };
 
 function fixture(t: TestContext) {
-	const previous = Object.getOwnPropertyDescriptor(window, "lyra");
+	const previous = Object.getOwnPropertyDescriptor(window, "plume");
 	const calls: { operation: string; cwd: string; paths: string[] }[] = [];
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		git: {
 			diffRefs: async () => ({ files: [], added: 0, removed: 0 }),
 			stage: async (cwd: string, paths: string[]) => { calls.push({ operation: "stage", cwd, paths }); return { ok: true }; },
@@ -29,7 +29,7 @@ function fixture(t: TestContext) {
 		diff: { workspaceDiff: async () => ({ files: [], added: 0, removed: 0 }) },
 	} });
 	t.after(() => {
-		if (previous) Object.defineProperty(window, "lyra", previous); else Reflect.deleteProperty(window, "lyra");
+		if (previous) Object.defineProperty(window, "plume", previous); else Reflect.deleteProperty(window, "plume");
 	});
 	return calls;
 }

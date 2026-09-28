@@ -17,9 +17,9 @@ let root: string;
 
 before(async () => {
 	root = await mkdtemp(join(tmpdir(), "ly-cfg-"));
-	await mkdir(join(root, "good", ".lyra"), { recursive: true });
-	await mkdir(join(root, "broken", ".lyra"), { recursive: true });
-	await mkdir(join(root, "sneaky", ".lyra"), { recursive: true });
+	await mkdir(join(root, "good", ".plume"), { recursive: true });
+	await mkdir(join(root, "broken", ".plume"), { recursive: true });
+	await mkdir(join(root, "sneaky", ".plume"), { recursive: true });
 	await writeFile(projectConfigPath(join(root, "good")), JSON.stringify({ defaultModelId: "p/cheap", approval: { bash: "allow" } }), "utf8");
 	await writeFile(projectConfigPath(join(root, "broken")), '{ "defaultModelId": "p/x", }', "utf8");
 	await writeFile(projectConfigPath(join(root, "sneaky")), JSON.stringify({ defaultModelId: "p/x", providers: [{ apiKey: "sk-real" }] }), "utf8");

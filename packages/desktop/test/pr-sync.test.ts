@@ -38,7 +38,7 @@ test("only the row that moved becomes a new object", () => {
 	const merged = mergeLists(before, after);
 	assert.equal(merged.items[0], before[0], "untouched rows keep their identity, so they keep their memo");
 	assert.notEqual(merged.items[1], before[1]);
-	assert.deepEqual([...merged.touched], ["acct-1:kittors/lyra#2"]);
+	assert.deepEqual([...merged.touched], ["acct-1:kittors/plume#2"]);
 });
 
 test("CI finishing counts as a change even though the timestamp does not move", () => {
@@ -46,7 +46,7 @@ test("CI finishing counts as a change even though the timestamp does not move", 
 	const after = [pr({ relation: "authored", checkState: "pass" })];
 
 	const merged = mergeLists(before, after);
-	assert.deepEqual([...merged.touched], ["acct-1:kittors/lyra#1"], "the dot on the row has to redraw");
+	assert.deepEqual([...merged.touched], ["acct-1:kittors/plume#1"], "the dot on the row has to redraw");
 });
 
 test("the first list is not news", () => {
@@ -59,7 +59,7 @@ test("a row that arrived while you were away is highlighted", () => {
 	const before = [pr({ relation: "authored", number: 1 })];
 	const after = [pr({ relation: "authored", number: 1 }), pr({ relation: "reviewing", number: 9 })];
 
-	assert.deepEqual([...mergeLists(before, after).touched], ["acct-1:kittors/lyra#9"]);
+	assert.deepEqual([...mergeLists(before, after).touched], ["acct-1:kittors/plume#9"]);
 });
 
 test("nothing is unread until something has been recorded", () => {
@@ -74,14 +74,14 @@ test("a row is unread when it has moved since it was opened, and only until it i
 	assert.equal(unseenOf([first], seen).size, 0);
 
 	const commented = { ...first, updatedAt: "2026-08-05T00:00:00Z" };
-	assert.deepEqual([...unseenOf([commented], seen)], ["acct-1:kittors/lyra#1"]);
+	assert.deepEqual([...unseenOf([commented], seen)], ["acct-1:kittors/plume#1"]);
 	assert.equal(unseenOf([commented], acknowledge(seen, commented)).size, 0, "opening it settles it");
 });
 
 test("a pull request nobody has ever opened is unread", () => {
 	const known = pr({ relation: "authored", number: 1 });
 	const arrived = pr({ relation: "reviewing", number: 7 });
-	assert.deepEqual([...unseenOf([known, arrived], baseline([known]))], ["acct-1:kittors/lyra#7"]);
+	assert.deepEqual([...unseenOf([known, arrived], baseline([known]))], ["acct-1:kittors/plume#7"]);
 });
 
 test("rows that left the list are forgotten, and only those", () => {
@@ -89,7 +89,7 @@ test("rows that left the list are forgotten, and only those", () => {
 	const merged = pr({ relation: "authored", number: 2 });
 	const seen = baseline([kept, merged]);
 
-	assert.deepEqual(pruneSeen(seen, [kept]), { "acct-1:kittors/lyra#1": kept.updatedAt });
+	assert.deepEqual(pruneSeen(seen, [kept]), { "acct-1:kittors/plume#1": kept.updatedAt });
 });
 
 test("two seen maps that would draw the same marks are the same map", () => {

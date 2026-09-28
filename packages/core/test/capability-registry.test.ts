@@ -17,7 +17,7 @@ interface Named {
 }
 
 function registry(): CapabilityRegistry {
-	return new CapabilityRegistry({ home: "/home/.lyra", userHome: "/home", repoRoot: () => null });
+	return new CapabilityRegistry({ home: "/home/.plume", userHome: "/home", repoRoot: () => null });
 }
 
 /** A provider that hands back the names it was built with. */
@@ -191,7 +191,7 @@ test("a native provider always reads its user-level directory", async () => {
 	const reg = registry();
 	reg.register({
 		id: "native",
-		label: "Lyra",
+		label: "Plume",
 		describe: "x",
 		priority: 100,
 		supplies: ["skill"],
@@ -259,14 +259,14 @@ test("contributors, timings and watched directories come back", async () => {
 	const reg = registry();
 	reg.register({
 		id: "native",
-		label: "Lyra",
+		label: "Plume",
 		describe: "x",
 		priority: 100,
 		supplies: ["skill"],
 		async load() {
 			return {
-				items: [{ name: "a", provenance: { provider: "native", providerLabel: "Lyra", path: "/a", scope: "project" } } as Sourced<Named>],
-				watched: ["/p/.lyra/skills"],
+				items: [{ name: "a", provenance: { provider: "native", providerLabel: "Plume", path: "/a", scope: "project" } } as Sourced<Named>],
+				watched: ["/p/.plume/skills"],
 			};
 		},
 	});
@@ -275,7 +275,7 @@ test("contributors, timings and watched directories come back", async () => {
 	const result = await reg.load<Named>("skill", { cwd: "/p" });
 
 	assert.deepEqual(result.contributors, ["native"], "a provider that found nothing did not contribute");
-	assert.deepEqual(result.watched, ["/p/.lyra/skills"]);
+	assert.deepEqual(result.watched, ["/p/.plume/skills"]);
 	assert.equal(result.timings.length, 2, "both were timed, including the one that found nothing");
 	assert.ok(result.elapsedMs >= 0);
 });

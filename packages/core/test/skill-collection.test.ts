@@ -15,16 +15,16 @@ import { test } from "node:test";
 
 import { bundleRoot, uninstallEntry } from "../src/plugins/registry.ts";
 
-/** A home of our own, so the tests never look at the machine's real `~/.lyra`. */
+/** A home of our own, so the tests never look at the machine's real `~/.plume`. */
 async function withHome(body: (home: string) => Promise<void>): Promise<void> {
-	const home = await mkdtemp(join(tmpdir(), "lyra-collection-"));
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const home = await mkdtemp(join(tmpdir(), "plume-collection-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	try {
 		await body(home);
 	} finally {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 		await rm(home, { recursive: true, force: true });
 	}
 }

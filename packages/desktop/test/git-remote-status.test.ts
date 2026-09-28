@@ -37,7 +37,7 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 
 /** A scratch directory that cleans itself up when the file is done. */
 async function scratch(): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-git-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-git-"));
 	roots.push(dir);
 	return dir;
 }

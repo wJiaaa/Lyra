@@ -1,5 +1,5 @@
 {
-  "name": "@lyra/contract",
+  "name": "@plume/contract",
   "version": "0.9.21",
   "private": true,
   "type": "module",

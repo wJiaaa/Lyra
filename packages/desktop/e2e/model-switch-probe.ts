@@ -86,7 +86,7 @@ async function main() {
 		if (!opened) throw new Error("没能打开那个会话——确认框的前提是它已经有对话记录");
 
 		const before = await app.evaluate<string | null>(
-			`(async () => { const list = await window.lyra.sessions.list(); return (list.find((s) => s.id === "switch-me") ?? {}).modelId ?? null; })()`,
+			`(async () => { const list = await window.plume.sessions.list(); return (list.find((s) => s.id === "switch-me") ?? {}).modelId ?? null; })()`,
 		);
 		log("开始时的模型", before);
 
@@ -172,7 +172,7 @@ async function main() {
 		// 落盘的那一份也要跟着换——不然重开窗口又回去了。
 		const persisted = await app.evaluate<string | null>(`(async () => {
 			await new Promise((r) => setTimeout(r, 400));
-			const list = await window.lyra.sessions.list();
+			const list = await window.plume.sessions.list();
 			return (list.find((each) => each.id === "switch-me") ?? {}).modelId ?? null;
 		})()`);
 		log("会话日志里记的模型", persisted);

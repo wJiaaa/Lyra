@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import { BUILTIN_AGENTS } from "@lyra/core/agents-builtin";
+import { BUILTIN_AGENTS } from "@plume/core/agents-builtin";
 import { MentionMenu } from "../../src/features/composer/MentionMenu.tsx";
 import { rankMentions } from "../../src/features/composer/mention-catalog.ts";
 import { assignAvatars, formatAvatar } from "../../src/lib/agent-avatar.ts";

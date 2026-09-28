@@ -6,7 +6,7 @@
  * 但不卸载——终端的 shell、浏览器的页面切标签不会重来。
  */
 
-import type { AppearanceSettings } from "@lyra/core";
+import type { AppearanceSettings } from "@plume/core";
 import { useApp } from "../../store/index.ts";
 import { kinds, leafOf, type DockNode, type PaneKind } from "./tree.ts";
 

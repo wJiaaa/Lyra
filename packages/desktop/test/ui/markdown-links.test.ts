@@ -7,8 +7,8 @@ import { click, fire, mount } from "../helpers/mount.ts";
 
 test("named local Markdown artifacts open through the file reader and preserve their labels", async () => {
 	const paths: string[] = [];
-	const previous = Object.getOwnPropertyDescriptor(window, "lyra");
-	Object.defineProperty(window, "lyra", { configurable: true, value: { files: { read: async (path: string) => { paths.push(path); return null; } } } });
+	const previous = Object.getOwnPropertyDescriptor(window, "plume");
+	Object.defineProperty(window, "plume", { configurable: true, value: { files: { read: async (path: string) => { paths.push(path); return null; } } } });
 	// 文件开在人所在的那一屏；没有屏的窗口里没有文件面板可开。
 	provideScope(() => "s");
 	const view = await mount(h(Markdown, { text: "[实现说明](/project/docs/result.md:12)", baseDir: "/project" }));
@@ -20,7 +20,7 @@ test("named local Markdown artifacts open through the file reader and preserve t
 	} finally {
 		await view.unmount();
 		provideScope(() => null);
-		if (previous) Object.defineProperty(window, "lyra", previous); else Reflect.deleteProperty(window, "lyra");
+		if (previous) Object.defineProperty(window, "plume", previous); else Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -116,8 +116,8 @@ test("a file link's two exits are the app's small icon buttons, in a bar beside 
 
 test("pressing an exit hands the file to the system and leaves the link alone", async () => {
 	const calls: string[] = [];
-	const previous = Object.getOwnPropertyDescriptor(window, "lyra");
-	Object.defineProperty(window, "lyra", {
+	const previous = Object.getOwnPropertyDescriptor(window, "plume");
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			host: "desktop",
@@ -152,8 +152,8 @@ test("pressing an exit hands the file to the system and leaves the link alone", 
 		);
 	} finally {
 		await view.unmount();
-		if (previous) Object.defineProperty(window, "lyra", previous);
-		else Reflect.deleteProperty(window, "lyra");
+		if (previous) Object.defineProperty(window, "plume", previous);
+		else Reflect.deleteProperty(window, "plume");
 	}
 });
 

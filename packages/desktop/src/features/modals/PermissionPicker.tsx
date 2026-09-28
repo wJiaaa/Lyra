@@ -1,4 +1,4 @@
-import type { PermissionMode } from "@lyra/core";
+import type { PermissionMode } from "@plume/core";
 import { Folder, Terminal, Globe,
 	Check,
 	CircleAlert,

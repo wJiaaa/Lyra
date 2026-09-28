@@ -55,8 +55,8 @@ const problems: string[] = [];
 
 try {
 	await pause(1500);
-	const pids = await appPids("Lyra");
-	console.log(`• LaunchServices 认识的 Lyra 进程：${pids.length ? pids.join(", ") : "(找不到，可能开发版叫别的名字)"}`);
+	const pids = await appPids("Plume");
+	console.log(`• LaunchServices 认识的 Plume 进程：${pids.length ? pids.join(", ") : "(找不到，可能开发版叫别的名字)"}`);
 	if (pids.length === 0) {
 		const electron = await appPids("Electron");
 		console.log(`  按 Electron 找到：${electron.join(", ") || "(也没有)"}`);
@@ -67,10 +67,10 @@ try {
 	const before = await Promise.all(pids.map(async (pid) => [pid, await appType(pid)] as const));
 	console.log(`• 打开浮层前：${before.map(([pid, t]) => `${pid}=${t}`).join("  ")}`);
 
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	await pause(2500);
 
-	const nowPids = [...new Set([...pids, ...(await appPids("Lyra")), ...(await appPids("Electron"))])];
+	const nowPids = [...new Set([...pids, ...(await appPids("Plume")), ...(await appPids("Electron"))])];
 	const during = await Promise.all(nowPids.map(async (pid) => [pid, await appType(pid)] as const));
 	console.log(`• 浮层打开时：${during.map(([pid, t]) => `${pid}=${t}`).join("  ")}`);
 
@@ -82,7 +82,7 @@ try {
 	}
 
 	// And back again, which is the half that decides whether it is merely a flicker or a stuck state.
-	await app.evaluate(`window.lyra.screenshot.cancel?.()`).catch(() => {});
+	await app.evaluate(`window.plume.screenshot.cancel?.()`).catch(() => {});
 	await pause(2000);
 	const after = await Promise.all(nowPids.map(async (pid) => [pid, await appType(pid)] as const));
 	console.log(`• 浮层关闭后：${after.map(([pid, t]) => `${pid}=${t}`).join("  ")}`);

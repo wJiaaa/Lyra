@@ -5,7 +5,7 @@
  * a new window, ask the main process to build one.
  */
 
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { canSplit, contains, type DropSide } from "./tree.ts";

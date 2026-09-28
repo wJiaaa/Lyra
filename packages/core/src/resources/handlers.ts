@@ -145,21 +145,21 @@ async function scratchTarget(url: ParsedUrl, ctx: ResourceContext): Promise<stri
 }
 
 /**
- * `lyra://<topic>` is Lyra's own documentation.
+ * `plume://<topic>` is Plume's own documentation.
  *
  * The case for it: when someone says "write me a skill that handles PDFs", the agent's alternative
  * to reading this is whatever impression of the format survived in its training data — which for a
  * format this app defines is a guess with the shape of a fact. One read produces a skill that
  * actually loads.
  *
- * The prompt has to say **only read this when the question is about Lyra**, or the model will
+ * The prompt has to say **only read this when the question is about Plume**, or the model will
  * consult it in the middle of unrelated work.
  */
 const TOPICS: Record<string, { title: string; body: string }> = {
 	"writing-skills": {
 		title: "怎么写一个技能",
 		body: [
-			"技能是一个目录，里面有一个 `SKILL.md`。放在 `<项目>/.lyra/skills/<名字>/` 或 `~/.lyra/skills/<名字>/`。",
+			"技能是一个目录，里面有一个 `SKILL.md`。放在 `<项目>/.plume/skills/<名字>/` 或 `~/.plume/skills/<名字>/`。",
 			"",
 			"```markdown",
 			"---",
@@ -208,7 +208,7 @@ const TOPICS: Record<string, { title: string; body: string }> = {
 			"",
 			"- `skill://<名字>` 技能正文；`skill://<名字>/<路径>` 技能目录里的文件",
 			"- `scratch://<路径>` 本次会话的临时目录，**可写**，会话结束后消失",
-			"- `lyra://<主题>` 这份文档本身",
+			"- `plume://<主题>` 这份文档本身",
 			"",
 			"末尾可以跟行范围：`read skill://pdf:10-40`。",
 			"只给 scheme（`read skill://`）会列出这个命名空间里有什么。",
@@ -216,9 +216,9 @@ const TOPICS: Record<string, { title: string; body: string }> = {
 	},
 };
 
-const lyraResource: ResourceHandler = {
-	scheme: "lyra",
-	describe: "Lyra 自己的文档。**只在用户问 Lyra 本身时读**",
+const plumeResource: ResourceHandler = {
+	scheme: "plume",
+	describe: "Plume 自己的文档。**只在用户问 Plume 本身时读**",
 
 	async resolve(url: ParsedUrl): Promise<Resource> {
 		const topic = url.segments.join("/");
@@ -231,13 +231,13 @@ const lyraResource: ResourceHandler = {
 			content: `# ${found.title}\n\n${found.body}`,
 			contentType: "text/markdown",
 			immutable: true,
-			label: `Lyra 文档：${found.title}（完整）`,
+			label: `Plume 文档：${found.title}（完整）`,
 			meta: { topic },
 		};
 	},
 
 	async list(): Promise<Completion[]> {
-		return Object.entries(TOPICS).map(([key, value]) => ({ value: `lyra://${key}`, description: value.title }));
+		return Object.entries(TOPICS).map(([key, value]) => ({ value: `plume://${key}`, description: value.title }));
 	},
 };
 
@@ -364,7 +364,7 @@ function pickPath(root: unknown, segments: string[]): unknown {
 export const BUILTIN_RESOURCES: ResourceHandler[] = [
 	skillResource,
 	scratchResource,
-	lyraResource,
+	plumeResource,
 	agentResource,
 	sessionResource,
 	pluginResource,

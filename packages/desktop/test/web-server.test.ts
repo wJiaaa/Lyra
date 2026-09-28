@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { WebSocket } from "ws";
-import { DEFAULT_SETTINGS, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type Settings } from "@plume/core";
 import { WebServer, cookie, webUrls } from "../electron/web-server.ts";
 import { settingsForWeb } from "../electron/web-settings.ts";
 import type { RpcDeps } from "../electron/web-rpc.ts";
@@ -71,7 +71,7 @@ test("the token in the link becomes a cookie, and the address loses the token", 
 	assert.equal(res.status, 302);
 	assert.equal(res.headers.get("location"), "/");
 	const [set] = res.headers.getSetCookie();
-	assert.match(set, new RegExp(`^lyra_web=${TOKEN};`));
+	assert.match(set, new RegExp(`^plume_web=${TOKEN};`));
 	assert.match(set, /HttpOnly/);
 	assert.match(set, /SameSite=Strict/);
 	assert.equal(res.headers.get("referrer-policy"), "no-referrer");
@@ -83,28 +83,28 @@ test("a wrong token, or none, is refused — files included", async () => {
 	assert.equal(wrong.headers.get("set-cookie"), null);
 	const bare = await fetch(`http://127.0.0.1:${PORT}/assets/index.js`);
 	assert.equal(bare.status, 401);
-	const forged = await fetch(`http://127.0.0.1:${PORT}/`, { headers: { cookie: "lyra_web=nope" } });
+	const forged = await fetch(`http://127.0.0.1:${PORT}/`, { headers: { cookie: "plume_web=nope" } });
 	assert.equal(forged.status, 401);
 });
 
 test("with the cookie the app is served, and nothing but reads is", async () => {
-	const page = await fetch(`http://127.0.0.1:${PORT}/`, { headers: { cookie: `lyra_web=${TOKEN}` } });
+	const page = await fetch(`http://127.0.0.1:${PORT}/`, { headers: { cookie: `plume_web=${TOKEN}` } });
 	// 200 once `pnpm build` has run, 503 with instructions before; never a refusal.
 	assert.ok(page.status === 200 || page.status === 503, `got ${page.status}`);
-	const post = await fetch(`http://127.0.0.1:${PORT}/`, { method: "POST", headers: { cookie: `lyra_web=${TOKEN}` } });
+	const post = await fetch(`http://127.0.0.1:${PORT}/`, { method: "POST", headers: { cookie: `plume_web=${TOKEN}` } });
 	assert.equal(post.status, 405);
 });
 
 test("a socket needs the cookie, and needs to come from this server's own page", async () => {
 	await assert.rejects(connect(PORT, {}), /refused 401/);
-	await assert.rejects(connect(PORT, { cookie: `lyra_web=${TOKEN}`, origin: "http://evil.example" }), /refused 401/);
-	const { ws } = await connect(PORT, { cookie: `lyra_web=${TOKEN}`, origin: `http://127.0.0.1:${PORT}` });
+	await assert.rejects(connect(PORT, { cookie: `plume_web=${TOKEN}`, origin: "http://evil.example" }), /refused 401/);
+	const { ws } = await connect(PORT, { cookie: `plume_web=${TOKEN}`, origin: `http://127.0.0.1:${PORT}` });
 	ws.close();
 });
 
 test("calls go through the allowlist, and pushes reach every browser", async () => {
 	const s = running[0];
-	const { ws } = await connect(PORT, { cookie: `lyra_web=${TOKEN}` });
+	const { ws } = await connect(PORT, { cookie: `plume_web=${TOKEN}` });
 
 	ws.send(JSON.stringify({ type: "rpc", id: "1", method: "sessions.list", args: [] }));
 	assert.deepEqual(await next(ws, "rpc_result"), { type: "rpc_result", id: "1", ok: true, value: [{ id: "s1" }] });
@@ -124,7 +124,7 @@ test("calls go through the allowlist, and pushes reach every browser", async () 
 
 test("settings pushed to browsers carry no secrets", async () => {
 	const s = running[0];
-	const { ws } = await connect(PORT, { cookie: `lyra_web=${TOKEN}` });
+	const { ws } = await connect(PORT, { cookie: `plume_web=${TOKEN}` });
 	const pushed = next(ws, "settings_changed");
 	const secret: Settings = {
 		...DEFAULT_SETTINGS,
@@ -141,7 +141,7 @@ test("settings pushed to browsers carry no secrets", async () => {
 
 test("starting twice with the same port and token leaves the first listener alone", async () => {
 	const s = running[0];
-	const { ws } = await connect(PORT, { cookie: `lyra_web=${TOKEN}` });
+	const { ws } = await connect(PORT, { cookie: `plume_web=${TOKEN}` });
 	const again = await s.start(PORT, TOKEN);
 	assert.equal(again.error, null);
 	assert.equal(again.running, true);
@@ -151,13 +151,13 @@ test("starting twice with the same port and token leaves the first listener alon
 
 test("a new token drops every browser holding the old one", async () => {
 	const s = running[0];
-	const { ws } = await connect(PORT, { cookie: `lyra_web=${TOKEN}` });
+	const { ws } = await connect(PORT, { cookie: `plume_web=${TOKEN}` });
 	const closed = new Promise((resolve) => ws.once("close", resolve));
 	const rotated = "fedcba9876543210fedcba9876543210";
 	await s.start(PORT, rotated);
 	await closed;
-	await assert.rejects(connect(PORT, { cookie: `lyra_web=${TOKEN}` }), /refused 401/);
-	const { ws: fresh } = await connect(PORT, { cookie: `lyra_web=${rotated}` });
+	await assert.rejects(connect(PORT, { cookie: `plume_web=${TOKEN}` }), /refused 401/);
+	const { ws: fresh } = await connect(PORT, { cookie: `plume_web=${rotated}` });
 	fresh.close();
 });
 
@@ -178,9 +178,9 @@ test("links carry the token, best address first, then this machine's own name", 
 });
 
 test("the cookie is read by name, not by position", () => {
-	assert.equal(cookie("a=1; lyra_web=abc; b=2", "lyra_web"), "abc");
-	assert.equal(cookie("lyra_web_old=zzz", "lyra_web"), null);
-	assert.equal(cookie(undefined, "lyra_web"), null);
+	assert.equal(cookie("a=1; plume_web=abc; b=2", "plume_web"), "abc");
+	assert.equal(cookie("plume_web_old=zzz", "plume_web"), null);
+	assert.equal(cookie(undefined, "plume_web"), null);
 });
 
 test("the settings a browser sees drop keys, commands and the token", () => {

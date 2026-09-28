@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h, Fragment, type ReactNode } from "react";
-import type { Message, SessionMeta } from "@lyra/core";
+import type { Message, SessionMeta } from "@plume/core";
 import type { WorkspaceInfo } from "../../electron/ipc-types.ts";
 import type { TurnDelivery } from "../../electron/turn-delivery.ts";
 import { LayoutProvider } from "../../src/app/layout.tsx";
@@ -54,7 +54,7 @@ let view: Mounted | undefined;
 
 beforeEach(() => {
 	previous = { app: useApp.getState(), review: useDeliveryReview.getState() };
-	Object.defineProperty(window, "lyra", { configurable: true, value: { delivery: { get: async (sessionId: string) => DELIVERIES[sessionId] } } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { delivery: { get: async (sessionId: string) => DELIVERIES[sessionId] } } });
 	// 甲 holds the live slot in alpha; 乙, beside it, is parked in beta.
 	useApp.setState({
 		activeSessionId: "a", pendingSessionId: null, meta: A, messages: said("a"), toolRuns: {}, running: false,
@@ -72,7 +72,7 @@ afterEach(async () => {
 	view = undefined;
 	useApp.setState(previous.app, true);
 	useDeliveryReview.setState(previous.review, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 const DeliveryPanel = allPanels().find((panel) => panel.kind === "delivery")!.render;

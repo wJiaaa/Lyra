@@ -102,7 +102,7 @@ const WATCH = `(() => {
 	const ping = async () => {
 		while (!out.done) {
 			const at = performance.now();
-			try { await window.lyra.sessions.running('probe-ping'); } catch (e) { /* 存不存在都行，量的是往返 */ }
+			try { await window.plume.sessions.running('probe-ping'); } catch (e) { /* 存不存在都行，量的是往返 */ }
 			out.pings.push(Math.round(performance.now() - at));
 			await new Promise((r) => setTimeout(r, 50));
 		}
@@ -257,7 +257,7 @@ async function main(): Promise<void> {
 			// 落盘单看：数字说图片没画出来，那就得亲眼确认屏幕上那一块是什么。
 			const shot64 = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" }).catch(() => null);
 			if (shot64?.data) {
-				const file = join("/tmp", `lyra-img-${title.slice(0, 8).replace(/[^\w一-龥]/g, "")}.png`);
+				const file = join("/tmp", `plume-img-${title.slice(0, 8).replace(/[^\w一-龥]/g, "")}.png`);
 				await writeFile(file, Buffer.from(shot64.data, "base64"));
 				console.log(`  截图       ${file}`);
 			}

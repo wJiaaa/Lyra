@@ -1,6 +1,6 @@
 import { activeLocale, translate } from "../../i18n/translate.ts";
 import type { ResolvedUiLocale } from "../../i18n/index.ts";
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 import { isNudge, readable } from "../../lib/spoken.ts";
 
 /** Message indices preserve distinct targets for identical questions and attachment-only turns. */

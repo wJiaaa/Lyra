@@ -22,7 +22,7 @@ import { translate } from "../../i18n/translate.ts";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { useAgentAvatars } from "../../store/agent-avatars.ts";
 import { figuresOf, isActive, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
 import { useScopedSessionId, useScopedSubAgents } from "../../app/session-scope.tsx";

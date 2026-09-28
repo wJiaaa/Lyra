@@ -33,14 +33,14 @@ describe("git release bumpSemver", () => {
 	 * 写死一份名单的断言在别人机器上必红，而它要守的只是地址怎么拆。
 	 */
 	it("resolves owner, name and host from each remote URL shape", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "lyra-git-release-"));
+		const dir = await mkdtemp(join(tmpdir(), "plume-git-release-"));
 		try {
 			await exec("git", ["init", "-q", dir]);
 			const cases: Array<[string, { owner: string; name: string; host: string }]> = [
-				["https://github.com/kittors/Lyra.git", { host: "github.com", owner: "kittors", name: "Lyra" }],
-				["https://github.com/kittors/Lyra", { host: "github.com", owner: "kittors", name: "Lyra" }],
-				["git@github.com:kittors/Lyra.git", { host: "github.com", owner: "kittors", name: "Lyra" }],
-				["ssh://git@gitlab.example.com/group/Lyra.git", { host: "gitlab.example.com", owner: "group", name: "Lyra" }],
+				["https://github.com/kittors/Plume.git", { host: "github.com", owner: "kittors", name: "Plume" }],
+				["https://github.com/kittors/Plume", { host: "github.com", owner: "kittors", name: "Plume" }],
+				["git@github.com:kittors/Plume.git", { host: "github.com", owner: "kittors", name: "Plume" }],
+				["ssh://git@gitlab.example.com/group/Plume.git", { host: "gitlab.example.com", owner: "group", name: "Plume" }],
 			];
 			for (const [url, expected] of cases) {
 				await exec("git", ["-C", dir, "remote", "remove", "origin"]).catch(() => {});
@@ -53,7 +53,7 @@ describe("git release bumpSemver", () => {
 	});
 
 	it("is null without an origin", async () => {
-		const dir = await mkdtemp(join(tmpdir(), "lyra-git-release-"));
+		const dir = await mkdtemp(join(tmpdir(), "plume-git-release-"));
 		try {
 			await exec("git", ["init", "-q", dir]);
 			assert.equal(await getRepoInfo(dir), null);

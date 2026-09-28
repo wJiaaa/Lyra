@@ -85,7 +85,7 @@ async function demoEdit(): Promise<void> {
 	console.log(`  ${DIM}  patch: "REPLACE 2-2\\n+const MAX_LINE_LENGTH = 4000;"${OFF}\n`);
 
 	// Actually apply it, so this is not a mock-up.
-	const dir = await mkdtemp(join(tmpdir(), "lyra-demo-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-demo-"));
 	const file = join(dir, "limits.ts");
 	await writeFile(file, before, "utf8");
 	const ctx: ToolContext = { cwd: dir, sessionId: "demo", state: new Map() };
@@ -104,7 +104,7 @@ async function demoEdit(): Promise<void> {
 
 async function main(): Promise<void> {
 	const modelId = process.argv[2] ?? "relay/gemini-3.7-flash-high";
-	console.log(`\n${BOLD}Lyra · feat/tool-quality 的实际效果${OFF}  ${DIM}模型 ${modelId}${OFF}`);
+	console.log(`\n${BOLD}Plume · feat/tool-quality 的实际效果${OFF}  ${DIM}模型 ${modelId}${OFF}`);
 	await demoOutline();
 	await demoEdit();
 	console.log(`\n${DIM}${"─".repeat(74)}${OFF}\n`);

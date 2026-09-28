@@ -18,7 +18,7 @@ import { parse } from "yaml";
 import { compareVersions, declaredGlibcFloor, glibcNeeds, overFloor, staticallyLinked } from "../scripts/check-glibc.mjs";
 
 const OBJDUMP = `
-/opt/Lyra/resources/app.asar.unpacked/node_modules/node-pty/build/Release/pty.node:     file format elf64-x86-64
+/opt/Plume/resources/app.asar.unpacked/node_modules/node-pty/build/Release/pty.node:     file format elf64-x86-64
 
 DYNAMIC SYMBOL TABLE:
 0000000000000000      DF *UND*	0000000000000000 (GLIBC_2.34) forkpty
@@ -48,7 +48,7 @@ test("versions compare numerically, not as strings", () => {
 test("a statically linked program is passed over, and any other unreadable file is not", () => {
 	// What objdump says of prettier-plugin-sh's dockerfmt, a static Go binary, on the release runners.
 	assert.equal(staticallyLinked("objdump: release/linux-unpacked/resources/app.asar.unpacked/node_modules/@reteps/dockerfmt-linux-x64/bin/dockerfmt: not a dynamic object\n"), true);
-	assert.equal(staticallyLinked("objdump: Lyra: file format not recognized\n"), false);
+	assert.equal(staticallyLinked("objdump: Plume: file format not recognized\n"), false);
 	assert.equal(staticallyLinked(""), false);
 	assert.equal(staticallyLinked(undefined), false);
 });

@@ -11,13 +11,13 @@ export async function stopWorkspaceFixture(
 		if (app) {
 			try {
 				diagnostic("workspace teardown: looking up owned services");
-				const jobs = await app.evaluate<{ jobs: { id: string }[] }>("window.lyra.services.list('qa-short')").catch((error: unknown) => {
+				const jobs = await app.evaluate<{ jobs: { id: string }[] }>("window.plume.services.list('qa-short')").catch((error: unknown) => {
 					diagnostic(`workspace teardown: service lookup failed: ${String(error)}`);
 					return { jobs: [] };
 				});
 				for (const job of jobs.jobs) {
 					diagnostic(`workspace teardown: requesting stop for service ${job.id}`);
-					await app.evaluate(`window.lyra.services.stop('qa-short',${JSON.stringify(job.id)},true)`).catch((error: unknown) => {
+					await app.evaluate(`window.plume.services.stop('qa-short',${JSON.stringify(job.id)},true)`).catch((error: unknown) => {
 						diagnostic(`workspace teardown: stopping service ${job.id} failed: ${String(error)}`);
 					});
 				}

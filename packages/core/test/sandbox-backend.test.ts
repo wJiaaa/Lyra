@@ -54,7 +54,7 @@ test("the Windows wrapper re-spawns this executable as a plain Node process", ()
 	assert.ok(wrap);
 	assert.equal(wrap.command, process.execPath);
 	assert.equal(wrap.env?.ELECTRON_RUN_AS_NODE, "1", "without this the runner would start a second copy of the app");
-	assert.ok(wrap.args.includes("--lyra-sandbox-runner"));
+	assert.ok(wrap.args.includes("--plume-sandbox-runner"));
 	assert.equal(wrap.args.at(-1), "--", "the wrapped command follows the separator");
 });
 
@@ -62,7 +62,7 @@ test("the runner's argv starts a script, not an option Node refuses", () => {
 	/*
 	 * The test above passed for the runner's whole broken life: the flag *was* in the arguments.
 	 * What mattered was where. In Node mode the first argument that is not an option of Node's own
-	 * must be the script, and `--lyra-sandbox-runner` in that position was `bad option`, exit 9.
+	 * must be the script, and `--plume-sandbox-runner` in that position was `bad option`, exit 9.
 	 * So this one starts the process for real. On this platform the runner declines to confine —
 	 * which it can only say if it was started at all.
 	 */
@@ -71,7 +71,7 @@ test("the runner's argv starts a script, not an option Node refuses", () => {
 	assert.ok(wrap);
 	const script = wrap.args.findIndex((arg) => /runner-entry\.ts$|sandbox-runner\.js$/.test(arg));
 	assert.ok(script >= 0, wrap.args.join(" "));
-	assert.ok(script < wrap.args.indexOf("--lyra-sandbox-runner"), "the script has to come before the flag");
+	assert.ok(script < wrap.args.indexOf("--plume-sandbox-runner"), "the script has to come before the flag");
 
 	if (process.platform !== "win32" && process.platform !== "linux") {
 		const started = spawnSync(wrap.command, [...wrap.args, "true"], { encoding: "utf8", env: { ...process.env, ...wrap.env } });
@@ -87,7 +87,7 @@ test("workspace-write on Windows brings a private temp directory with an identit
 	assert.ok(wrap);
 	const temp = wrap.args[wrap.args.indexOf("--temp") + 1];
 	const sid = wrap.args[wrap.args.indexOf("--temp-sid") + 1];
-	assert.match(temp, /lyra-sandbox/);
+	assert.match(temp, /plume-sandbox/);
 	assert.match(sid, /^S-1-4-\d+-\d+-1$/, "a temp identity, never the workspace's");
 	assert.notEqual(sid, wrap.args[wrap.args.indexOf("--write-sid") + 1]);
 
@@ -115,7 +115,7 @@ test("Linux falls back to Landlock where bwrap cannot run", () => {
 	assert.ok(wrap);
 	assert.equal(wrap.runner, "landlock");
 	assert.equal(wrap.env?.ELECTRON_RUN_AS_NODE, "1");
-	assert.ok(wrap.args.includes("--lyra-sandbox-runner"));
+	assert.ok(wrap.args.includes("--plume-sandbox-runner"));
 	const denied = confine({ mode: "workspace-write", workspaceRoot: "/work", network: "deny" }, { platform: "linux", probe: (runner) => runner === "landlock" });
 	assert.ok(denied?.args.includes("--network"), "the network half reaches the runner");
 	// 完全访问 + 断网原样传给 runner，而不是被当成 workspace-write：那样文件写入就被约束了。
@@ -241,7 +241,7 @@ test("our own runners' refusals are recognised under those runners only", () => 
 test("Windows: PowerShell's refusal and an MSYS program dying under the token are denials", () => {
 	// What a confined PowerShell prints for a write outside the grant, verbatim from a Windows runner.
 	const powershell =
-		"Set-Content : Access to the path 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\lyra-win-KHRkQe\\ps.txt' is denied.\n" +
+		"Set-Content : Access to the path 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\plume-win-KHRkQe\\ps.txt' is denied.\n" +
 		"    + CategoryInfo          : PermissionDenied: (C:\\Users\\runner...n-KHRkQe\\ps.txt:String) [Set-Content], UnauthorizedAccessException";
 	assert.ok(looksDenied(powershell, "windows-acl"));
 	assert.ok(!looksDenied(powershell, "seatbelt"), "the same words are only ours under our runner");

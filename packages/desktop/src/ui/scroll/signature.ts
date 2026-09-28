@@ -12,7 +12,7 @@
  * finishing and another starting moves the count. A transcript re-read from disk moves neither.
  */
 
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 
 /**
  * How much of a message exists, in whatever unit is cheap and monotonic.

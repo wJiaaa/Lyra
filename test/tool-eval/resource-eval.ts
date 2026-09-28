@@ -70,7 +70,7 @@ const PROBES: Probe[] = [
 		name: "列技能目录再读文件",
 		task: "`pdf-extract` 技能的目录里有一个模板文件，把里面的占位符名字告诉我。",
 		wants: /skill:\/\/pdf-extract\//,
-		detour: /\.lyra\/skills/,
+		detour: /\.plume\/skills/,
 		needle: /\{\{\s*source\s*\}\}|source/i,
 	},
 	{
@@ -90,9 +90,9 @@ const PROBES: Probe[] = [
 		},
 	},
 	{
-		name: "查 Lyra 自己的文档",
-		task: "我想给这个项目写一个技能，教它怎么发版。技能文件的 frontmatter 该怎么写？先查 Lyra 自己的文档，别凭印象答。",
-		wants: /lyra:\/\/writing-skills/,
+		name: "查 Plume 自己的文档",
+		task: "我想给这个项目写一个技能，教它怎么发版。技能文件的 frontmatter 该怎么写？先查 Plume 自己的文档，别凭印象答。",
+		wants: /plume:\/\/writing-skills/,
 		needle: /description/,
 	},
 	{
@@ -119,8 +119,8 @@ async function main(): Promise<void> {
 	const resolved = resolveModel(settings, modelId);
 	if (!resolved) throw new Error(`Model not found: ${modelId}`);
 
-	const cwd = await mkdtemp(join(tmpdir(), "lyra-res-eval-"));
-	const skillDir = join(cwd, ".lyra", "skills", "pdf-extract");
+	const cwd = await mkdtemp(join(tmpdir(), "plume-res-eval-"));
+	const skillDir = join(cwd, ".plume", "skills", "pdf-extract");
 	await mkdir(skillDir, { recursive: true });
 	await writeFile(
 		join(skillDir, "SKILL.md"),

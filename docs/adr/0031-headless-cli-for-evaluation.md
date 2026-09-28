@@ -12,8 +12,8 @@
 
 ## 决定
 
-1. **只有非交互模式。** `lyra [-C 目录] [--json] <任务>`，任务也可以从 stdin 读。stdout 只有回答（`--json` 时是一个含 `status`、`answer`、`error`、`sessionId`、`usage` 的对象），进度（工具调用、失败、拒绝、提示、重试）一行一条写 stderr。退出码 0 跑完、1 没跑完（出错、停止、到轮数上限、卡住）、2 用法或设置有误。
-2. **同一个运行时、同一份设置。** 直接驱动 core 的 `AgentSession`，读 `~/.lyra`：模型、密钥、权限模式、MCP、skill 都在桌面端配。内核启动（插件、能力插件、各个接缝）从 `electron/main.ts` 挪到 core 的 `bootHostKernel`，命令目录（`listCommands`）和 `/命令`、`/skill` 的展开（`resolveInvocation`）也挪进 core，桌面端和命令行各调一次，不各写一份。
+1. **只有非交互模式。** `plume [-C 目录] [--json] <任务>`，任务也可以从 stdin 读。stdout 只有回答（`--json` 时是一个含 `status`、`answer`、`error`、`sessionId`、`usage` 的对象），进度（工具调用、失败、拒绝、提示、重试）一行一条写 stderr。退出码 0 跑完、1 没跑完（出错、停止、到轮数上限、卡住）、2 用法或设置有误。
+2. **同一个运行时、同一份设置。** 直接驱动 core 的 `AgentSession`，读 `~/.plume`：模型、密钥、权限模式、MCP、skill 都在桌面端配。内核启动（插件、能力插件、各个接缝）从 `electron/main.ts` 挪到 core 的 `bootHostKernel`，命令目录（`listCommands`）和 `/命令`、`/skill` 的展开（`resolveInvocation`）也挪进 core，桌面端和命令行各调一次，不各写一份。
 3. **没人能批的就当场拒绝。** 授权请求在事件里立刻以 `reject` 回复（允许跳过的提问用 `skip`），并在 stderr 记一行。等下去只会耗掉评测的时间、最后还是拒绝。一次运行允许做什么，由桌面端的权限模式决定。
 4. **跑在 Node 24 上。** core 本来就能被 Node 直接执行（去类型），不需要打包，也不需要 Bun。
 5. **运行照常存成会话。** 桌面端可以打开看轨迹，和人手动跑的没有区别。

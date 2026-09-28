@@ -5,7 +5,7 @@
  * 从设置域拿它时不该把整张 MCP 设置页一起拉进自己的包里。
  */
 
-import type { McpServerConfig } from "@lyra/core";
+import type { McpServerConfig } from "@plume/core";
 import { translate } from "../../i18n/index.ts";
 
 /**

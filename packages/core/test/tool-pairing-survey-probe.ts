@@ -20,7 +20,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ModelConfig, ProviderConfig } from "../src/types.ts";
 
-const HOME = join(homedir(), ".lyra");
+const HOME = join(homedir(), ".plume");
 const FILTER = process.argv[2] ?? "";
 
 type Item = Record<string, unknown>;

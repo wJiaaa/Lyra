@@ -84,7 +84,7 @@ async function harness() {
 	const root = await mkdtemp(join(tmpdir(), "ly-detach-"));
 	const home = join(root, "home");
 	await mkdir(home, { recursive: true });
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 
 	const finish = deferred();
 	const main: LlmContext[] = [];
@@ -125,7 +125,7 @@ async function harness() {
 		cleanup: async () => {
 			finish.resolve();
 			session.abort();
-			delete process.env.LYRA_HOME;
+			delete process.env.PLUME_HOME;
 			await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 		},
 	};
@@ -211,8 +211,8 @@ test("没人插话的时候，一步都不多：父会话照旧等到结果", as
 test("主会话的请求都带着同一个缓存键，子代理带它自己的", async () => {
 	const keys: { sub: boolean; key?: string }[] = [];
 	const root = await mkdtemp(join(tmpdir(), "ly-cachekey-"));
-	process.env.LYRA_HOME = join(root, "home");
-	await mkdir(process.env.LYRA_HOME, { recursive: true });
+	process.env.PLUME_HOME = join(root, "home");
+	await mkdir(process.env.PLUME_HOME, { recursive: true });
 	const session = new AgentSession({
 		cwd: root,
 		settings: SETTINGS,
@@ -238,7 +238,7 @@ test("主会话的请求都带着同一个缓存键，子代理带它自己的",
 		assert.deepEqual(subs, [session.subAgents.list()[0]?.id], "子代理用它自己的登记 id");
 	} finally {
 		session.abort();
-		delete process.env.LYRA_HOME;
+		delete process.env.PLUME_HOME;
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}
 });
@@ -260,8 +260,8 @@ test("送达消息：几个结果一条消息，失败的说出原因，给界�
 
 test("设置里把并发调大，排着的当场开跑——不等一个永远轮不到的「下一轮」", async () => {
 	const root = await mkdtemp(join(tmpdir(), "ly-gatewidth-"));
-	process.env.LYRA_HOME = join(root, "home");
-	await mkdir(process.env.LYRA_HOME, { recursive: true });
+	process.env.PLUME_HOME = join(root, "home");
+	await mkdir(process.env.PLUME_HOME, { recursive: true });
 	const finish = deferred();
 	const narrow: Settings = { ...SETTINGS, maxConcurrentSubAgents: 1 };
 	const session = new AgentSession({
@@ -300,7 +300,7 @@ test("设置里把并发调大，排着的当场开跑——不等一个永远�
 	} finally {
 		finish.resolve();
 		session.abort();
-		delete process.env.LYRA_HOME;
+		delete process.env.PLUME_HOME;
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}
 });

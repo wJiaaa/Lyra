@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h } from "react";
-import type { Message, SessionMeta, UserContent, UserMessage as UserMessageType } from "@lyra/core";
+import type { Message, SessionMeta, UserContent, UserMessage as UserMessageType } from "@plume/core";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { UserMessage } from "../../src/features/conversation/UserMessage.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";
@@ -45,7 +45,7 @@ beforeEach(() => {
 	reverted = [];
 	edited = [];
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			agent: {
@@ -79,7 +79,7 @@ afterEach(async () => {
 	view = undefined;
 	// The whole state back, stand-in actions included, so nothing leaks into the next test.
 	useApp.setState(previous, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 function onScreen(id: string): Promise<Mounted> {

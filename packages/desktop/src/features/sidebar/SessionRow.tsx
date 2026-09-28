@@ -11,7 +11,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import { rowActivity } from "../../lib/row-activity.ts";
 import { useApp, useSideChatRunning } from "../../store/index.ts";
 import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from "lucide-react";

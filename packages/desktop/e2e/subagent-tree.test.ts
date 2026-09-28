@@ -3,7 +3,7 @@
  *
  * 面板上那棵树的每一环都有自己的测试：`sub-agent-lineage` 证明注册表记下了父子与账单，
  * `subagent-tree` 证明 store 把名单折成树，`ui/subagent-switcher` 证明切换单按层缩进。它们
- * 都碰不到的是这条链本身——`.lyra/agents/boss.md` 里一行 `spawns: "*"` 能不能真的让
+ * 都碰不到的是这条链本身——`.plume/agents/boss.md` 里一行 `spawns: "*"` 能不能真的让
  * 第二层发生、摘要能不能原样穿过 IPC、面板会不会在派发时自己打开。这三样以前各断过一次，
  * 而且断得很安静：树画不出来，看起来跟「没人派过第二层」一模一样。
  *
@@ -90,10 +90,10 @@ function startModel(): Server {
 
 async function seed(home: string): Promise<void> {
 	const project = join(home, "project");
-	await mkdir(join(project, ".lyra", "agents"), { recursive: true });
+	await mkdir(join(project, ".plume", "agents"), { recursive: true });
 	await writeFile(join(project, "auth.ts"), "export const login = 1\n");
 	// 这一行 `spawns` 是整条测试的开关：没有它，boss 拿不到 task 工具，第二层不会发生。
-	await writeFile(join(project, ".lyra", "agents", "boss.md"), '---\nname: boss\ndescription: 编排者，会再派 explore 去找\nspawns: "*"\n---\nBOSS_MARKER 你是编排者，把搜索派给 explore。\n');
+	await writeFile(join(project, ".plume", "agents", "boss.md"), '---\nname: boss\ndescription: 编排者，会再派 explore 去找\nspawns: "*"\n---\nBOSS_MARKER 你是编排者，把搜索派给 explore。\n');
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 900, x: 0, y: 0 }));
 	await writeFile(
 		join(home, "settings.json"),

@@ -13,11 +13,11 @@ import { asWindows, refuseRenames } from "./held-open.ts";
 let home: string, cwd: string, ctx: ToolContext;
 let prior: string | undefined;
 beforeEach(async () => {
-	home = await mkdtemp(join(tmpdir(), "lyra-change-test-")); cwd = join(home, "project"); await mkdir(cwd);
-	prior = process.env.LYRA_HOME; process.env.LYRA_HOME = home;
+	home = await mkdtemp(join(tmpdir(), "plume-change-test-")); cwd = join(home, "project"); await mkdir(cwd);
+	prior = process.env.PLUME_HOME; process.env.PLUME_HOME = home;
 	ctx = { cwd, sessionId: "test-session", state: new Map(), scratchDir: join(home, "scratch") };
 });
-afterEach(async () => { if (prior === undefined) delete process.env.LYRA_HOME; else process.env.LYRA_HOME = prior; await rm(home, { recursive: true, force: true }); });
+afterEach(async () => { if (prior === undefined) delete process.env.PLUME_HOME; else process.env.PLUME_HOME = prior; await rm(home, { recursive: true, force: true }); });
 test("chained edits undo only this turn, preserving the user's initial dirty content", async () => {
 	const path = join(cwd, "main.ts"); const initial = "user work\n";
 	const a = await recordFileChange(ctx, path, initial, "user work\nfirst\n"); assert.ok(a);
@@ -160,7 +160,7 @@ test("an interrupted staged write leaves every original intact and removes tempo
 	const id = await recordFileChange(ctx, path, "before", "after"); assert.ok(id); await writeFile(path, "after");
 	const original = fs.writeFile;
 	t.mock.method(fs, "writeFile", async (...args: Parameters<typeof fs.writeFile>) => {
-		if (String(args[0]).includes(".lyra-undo-")) { await original(args[0], "part"); throw new Error("simulated ENOSPC"); }
+		if (String(args[0]).includes(".plume-undo-")) { await original(args[0], "part"); throw new Error("simulated ENOSPC"); }
 		return original(...args);
 	});
 	await assert.rejects(undoFileChanges(cwd, [await readFileChange(ctx.sessionId, id)]), /ENOSPC/);
@@ -185,7 +185,7 @@ test("nested projects share the same undo transaction lock", async (t) => {
 	const started = Promise.withResolvers<void>(), gate = Promise.withResolvers<void>();
 	const original = fs.writeFile;
 	t.mock.method(fs, "writeFile", async (...args: Parameters<typeof fs.writeFile>) => {
-		if (String(args[0]).includes(".lyra-undo-")) { started.resolve(); await gate.promise; }
+		if (String(args[0]).includes(".plume-undo-")) { started.resolve(); await gate.promise; }
 		return original(...args);
 	});
 	const first = undoFileChanges(cwd, changes); await started.promise;
@@ -206,7 +206,7 @@ test("undo and rollback preserve file modes despite the process umask", { skip: 
 	const aId = await recordFileChange(ctx, a, null, "created"), bId = await recordFileChange(ctx, b, "before", "after"); assert.ok(aId && bId);
 	const original = fs.writeFile; let fail = true;
 	t.mock.method(fs, "writeFile", async (...args: Parameters<typeof fs.writeFile>) => {
-		if (fail && String(args[0]).includes(".lyra-undo-")) { fail = false; throw new Error("simulated ENOSPC"); }
+		if (fail && String(args[0]).includes(".plume-undo-")) { fail = false; throw new Error("simulated ENOSPC"); }
 		return original(...args);
 	});
 	await assert.rejects(undoFileChangeBatches(cwd, await Promise.all([aId, bId].map(async id => [await readFileChange(ctx.sessionId, id)]))), /ENOSPC/);

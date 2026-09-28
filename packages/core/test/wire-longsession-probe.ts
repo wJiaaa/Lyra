@@ -19,7 +19,7 @@ import { streamAssistant } from "../src/ai/index.ts";
 import { stripStaleHandles } from "../src/runtime/model-switch.ts";
 import type { AssistantMessage, LlmContext, Message, ModelConfig, ProviderConfig, ToolSpec } from "../src/types.ts";
 
-const HOME = join(homedir(), ".lyra");
+const HOME = join(homedir(), ".plume");
 const ROUNDS = Number(process.argv[2] ?? 6);
 
 const TOOLS: ToolSpec[] = [{

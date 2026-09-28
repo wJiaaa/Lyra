@@ -1,4 +1,4 @@
-import type { SideChatUpdate, Message } from "@lyra/core";
+import type { SideChatUpdate, Message } from "@plume/core";
 import { summarizeToolCall } from "../../lib/tool-summary.ts";
 import { settleTail } from "../../lib/transcript.ts";
 import type { ToolRun } from "../../store/tool-run.ts";

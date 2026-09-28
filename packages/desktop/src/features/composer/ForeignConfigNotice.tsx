@@ -9,7 +9,7 @@
 import { useI18n } from "../../i18n/index.ts";
 import { formatList } from "../../i18n/list.ts";
 import { translate } from "../../i18n/translate.ts";
-import type { ForeignConfigLine } from "@lyra/core";
+import type { ForeignConfigLine } from "@plume/core";
 import { Blocks, X } from "lucide-react";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { type ExtensionsTab, type SettingsSection } from "../../store/index.ts";

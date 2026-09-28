@@ -7,7 +7,7 @@
  * inside `import()` is opaque to the type checker, and no unit test mounts the app.
  *
  * Driven by clicking the sidebar, not by writing to a store. An earlier version of this file
- * reached for `window.__lyraStore`, which does not exist; every assertion sat behind a check for it
+ * reached for `window.__plumeStore`, which does not exist; every assertion sat behind a check for it
  * and the whole test passed without loading a single chunk. Clicking what a person clicks is both
  * the stronger test and the one that cannot quietly stop testing anything.
  */

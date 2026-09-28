@@ -31,10 +31,10 @@ let target: string;
 const output: string[] = [];
 
 before(async () => {
-	home = await mkdtemp(join(tmpdir(), "lyra-e2e-scroll-"));
+	home = await mkdtemp(join(tmpdir(), "plume-e2e-scroll-"));
 	app = spawn("pnpm", ["exec", "electron-vite", "preview", "--", `--remote-debugging-port=${PORT}`], {
 		cwd: ROOT,
-		env: { ...process.env, LYRA_HOME: home, ELECTRON_ENABLE_LOGGING: "1" },
+		env: { ...process.env, PLUME_HOME: home, ELECTRON_ENABLE_LOGGING: "1" },
 		stdio: "pipe",
 		detached: true,
 	});

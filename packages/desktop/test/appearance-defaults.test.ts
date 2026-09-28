@@ -2,7 +2,7 @@
  * That the settings page's idea of "default" is the real one.
  *
  * 恢复默认 restates the appearance defaults instead of importing them, because importing a value
- * from `@lyra/core` into the renderer pulls the whole package — native modules and all — into
+ * from `@plume/core` into the renderer pulls the whole package — native modules and all — into
  * that bundle, and the build refuses. The copy is safe only while something checks it, which is
  * this: a default changed in core and not here would leave the button putting back numbers that
  * stopped being the defaults, silently and only for the people who pressed it.
@@ -16,7 +16,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFAULT_APPEARANCE } from "@lyra/core";
+import { DEFAULT_APPEARANCE } from "@plume/core";
 import { CODE_DEFAULTS, FACTORY_APPEARANCE } from "../src/features/settings/appearance-defaults.ts";
 
 test("恢复默认 restores what the app actually defaults to", () => {

@@ -12,7 +12,7 @@
  * case that per-line parsing always gets wrong.
  */
 
-import type { DiffHunk } from "@lyra/core";
+import type { DiffHunk } from "@plume/core";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { grammarKeyFor, loadFenceLanguage, highlightGeneration, onHighlightChange, sharedHighlightStyle, type Token, tokenizeLines } from "../../lib/code/highlight.ts";
 

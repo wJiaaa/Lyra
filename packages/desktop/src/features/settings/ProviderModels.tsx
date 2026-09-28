@@ -13,7 +13,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { Activity, Check, CircleAlert, CloudDownload, Link2, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
-import type { ModelConfig } from "@lyra/core";
+import type { ModelConfig } from "@plume/core";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { ModelIcon } from "../models/index.ts";

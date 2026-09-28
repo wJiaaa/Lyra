@@ -23,7 +23,7 @@ const real = createHash("sha256").update(new Uint8Array(await (await fetch(URL_)
 console.log(`上游归档 sha256 = ${real.slice(0, 16)}…\n`);
 
 async function attempt(label: string, entry: Record<string, unknown>) {
-	const dir = mkdtempSync(join(tmpdir(), "lyra-fetch-"));
+	const dir = mkdtempSync(join(tmpdir(), "plume-fetch-"));
 	try {
 		const r = await fetchBundle({ ...base, ...entry } as never, join(dir, "staging"));
 		const files = readdirSync(join(dir, "staging"));

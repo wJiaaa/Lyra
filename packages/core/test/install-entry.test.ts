@@ -23,22 +23,22 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 
-import type { RegistryEntry } from "@lyra/registry-shared";
+import type { RegistryEntry } from "@plume/registry-shared";
 
 import { bundleRoot, installEntry, uninstallEntry } from "../src/plugins/registry.ts";
 
 const run = promisify(execFile);
 
-/** A home of our own, so the tests never look at, or write to, the machine's real `~/.lyra`. */
+/** A home of our own, so the tests never look at, or write to, the machine's real `~/.plume`. */
 async function withHome(body: (home: string) => Promise<void>): Promise<void> {
-	const home = await mkdtemp(join(tmpdir(), "lyra-install-"));
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const home = await mkdtemp(join(tmpdir(), "plume-install-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	try {
 		await body(home);
 	} finally {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 		await rm(home, { recursive: true, force: true });
 	}
 }
@@ -51,7 +51,7 @@ async function withHome(body: (home: string) => Promise<void>): Promise<void> {
  * not a failure, so the code under test runs exactly as it does against GitHub.
  */
 async function repoWith(files: Record<string, string>): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-repo-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-repo-"));
 	for (const [path, content] of Object.entries(files)) {
 		const full = join(dir, path);
 		await mkdir(join(full, ".."), { recursive: true });
@@ -99,7 +99,7 @@ test("a directory of skills installs as a plugin, into the plugins directory", a
 test("the clone's `.git` does not come with it", async () => {
 	await withHome(async () => {
 		/*
-		 * A `.git` inside `~/.lyra/plugins/demo` is a checkout of somebody else's repository sitting
+		 * A `.git` inside `~/.plume/plugins/demo` is a checkout of somebody else's repository sitting
 		 * in the user's home directory: it makes the plugin directory a git working tree, so anything
 		 * that walks upward looking for one — an editor, a status line, `git status` run one directory
 		 * too high — finds it and reports on it.
@@ -187,7 +187,7 @@ test("a collection installed the old way is swept up when it is updated", async 
 			await mkdir(join(bundleRoot("skill"), name), { recursive: true });
 			await writeFile(join(bundleRoot("skill"), name, "SKILL.md"), `---\nname: ${name}\ndescription: 旧版装下的技能。\n---\n`);
 		}
-		await writeFile(join(process.env.LYRA_HOME!, "installs.json"), JSON.stringify({ waza: { id: "waza", skills: ["waza-check", "waza-dropped"], installedAt: "x" } }));
+		await writeFile(join(process.env.PLUME_HOME!, "installs.json"), JSON.stringify({ waza: { id: "waza", skills: ["waza-check", "waza-dropped"], installedAt: "x" } }));
 
 		await assert.rejects(() => installEntry(entryFor("waza", repo, { kind: "skill", path: "skills" })), /已经装过/);
 		await installEntry(entryFor("waza", repo, { kind: "skill", path: "skills" }), undefined, true);
@@ -264,7 +264,7 @@ test("a repository with nothing installable in it says so, and leaves nothing be
 
 		await assert.rejects(() => installEntry(entryFor("demo", repo)), /安装失败/);
 
-		// The staging directory is the debris a failed install would leave in `~/.lyra/plugins`.
+		// The staging directory is the debris a failed install would leave in `~/.plume/plugins`.
 		assert.deepEqual(await readdir(join(home, "plugins")).catch(() => []), []);
 	});
 });
@@ -326,7 +326,7 @@ test("卸载一个技能集只删它自己装下的那些，人自己写的同�
 		await writeFile(join(mine, "SKILL.md"), "---\nname: waza-notes\ndescription: 我自己的笔记技能。\n---\n");
 
 		// 整个装成一个目录，账本上「散落的技能」是空的——卸载按它来，不按前缀猜。
-		const ledger = JSON.parse(await readFile(join(process.env.LYRA_HOME!, "installs.json"), "utf8")) as Record<string, { skills?: string[] }>;
+		const ledger = JSON.parse(await readFile(join(process.env.PLUME_HOME!, "installs.json"), "utf8")) as Record<string, { skills?: string[] }>;
 		assert.deepEqual(ledger.waza?.skills, []);
 
 		await uninstallEntry("waza");
@@ -350,7 +350,7 @@ test("走 git 装下的，账本记的是克隆出来的那个提交，不记没
 				commit: first,
 			}),
 		);
-		const ledger = JSON.parse(await readFile(join(process.env.LYRA_HOME!, "installs.json"), "utf8")) as Record<string, { commit?: string; sha256?: string }>;
+		const ledger = JSON.parse(await readFile(join(process.env.PLUME_HOME!, "installs.json"), "utf8")) as Record<string, { commit?: string; sha256?: string }>;
 		assert.equal(ledger.demo?.commit, first, "对到注册表构建的那个提交上，而不是分支现在指着的");
 		assert.equal(ledger.demo?.sha256, undefined, "包没下载成，它的哈希就不是这次安装的");
 		const skill = await readFile(join(bundleRoot("plugin"), "demo", "skills", "review", "SKILL.md"), "utf8");

@@ -15,8 +15,8 @@
  */
 
 import { create } from "zustand";
-import type { Message, SubAgentSummary } from "@lyra/core";
-import { freshTokens } from "@lyra/core/tokens";
+import type { Message, SubAgentSummary } from "@plume/core";
+import { freshTokens } from "@plume/core/tokens";
 import { bridge } from "../services/index.ts";
 
 interface SubAgentState {

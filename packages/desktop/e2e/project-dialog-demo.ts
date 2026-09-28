@@ -7,7 +7,7 @@
  *
  * 每一步之间留够停顿（一步一秒上下），让人来得及看清。只拍这一个窗口，不抓全屏。
  *
- * 用法：node --experimental-strip-types e2e/project-dialog-demo.ts ~/Desktop/Lyra项目弹窗测试
+ * 用法：node --experimental-strip-types e2e/project-dialog-demo.ts ~/Desktop/Plume项目弹窗测试
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -16,7 +16,7 @@ import { startApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
 const PORT = 9591;
-const out = process.argv[2] ?? "/tmp/lyra-project-demo";
+const out = process.argv[2] ?? "/tmp/plume-project-demo";
 const root = join(out, "演示工作区");
 const web = join(root, "web");
 const api = join(root, "api");

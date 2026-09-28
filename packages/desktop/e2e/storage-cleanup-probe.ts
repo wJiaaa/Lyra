@@ -9,7 +9,7 @@
  *
  * 用临时 home，造 4 条分布在不同日期的会话，删中间那一段，然后数磁盘。
  *
- * Run: LYRA_E2E_ARTIFACTS=~/Desktop/清除统计测试 node --experimental-strip-types e2e/storage-cleanup-probe.ts
+ * Run: PLUME_E2E_ARTIFACTS=~/Desktop/清除统计测试 node --experimental-strip-types e2e/storage-cleanup-probe.ts
  */
 
 import { mkdir, readdir, writeFile } from "node:fs/promises";
@@ -82,7 +82,7 @@ const app = await startApp({
 });
 
 async function shot(name: string): Promise<void> {
-	const directory = process.env.LYRA_E2E_ARTIFACTS;
+	const directory = process.env.PLUME_E2E_ARTIFACTS;
 	if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });

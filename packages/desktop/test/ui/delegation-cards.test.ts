@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import type { AssistantContent, SubAgentSummary } from "@lyra/core";
+import type { AssistantContent, SubAgentSummary } from "@plume/core";
 import { ToolRun } from "../../src/features/conversation/runs.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { useSubAgents } from "../../src/store/subAgents.ts";

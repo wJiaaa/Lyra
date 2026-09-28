@@ -7,7 +7,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import { GroupActivity } from "./GroupActivity.tsx";
 import { ChevronRight, Plus } from "lucide-react";
 import { useState } from "react";

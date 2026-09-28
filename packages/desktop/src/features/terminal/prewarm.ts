@@ -16,7 +16,7 @@ import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 
 /** Where the last measured pane size is kept, so a prediction can be made at the right width. */
-const SIZE_KEY = "lyra.terminal.size";
+const SIZE_KEY = "plume.terminal.size";
 
 /**
  * The size to start a shell at before any pane has been measured.

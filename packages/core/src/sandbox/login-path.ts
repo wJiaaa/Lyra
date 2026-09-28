@@ -89,7 +89,7 @@ export const FALLBACK_DIRS: readonly string[] = LIKELY;
  * the answer produced a `PATH` with a MOTD in it. Bracketing means the answer is found rather than
  * assumed.
  */
-const MARK = "__LYRA_ENV__";
+const MARK = "__PLUME_ENV__";
 
 /**
  * Long enough for a heavy `~/.zshrc`, short enough that the fallback takes over on a wedged one.

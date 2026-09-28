@@ -15,7 +15,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { CornerRightDown } from "lucide-react";
 import { memo, useMemo, useState } from "react";
-import type { Message, UserMessage } from "@lyra/core";
+import type { Message, UserMessage } from "@plume/core";
 import { MessageActions, runs, runKey, segments, SpokenBubble, spokenText, ToolRun } from "../conversation/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";

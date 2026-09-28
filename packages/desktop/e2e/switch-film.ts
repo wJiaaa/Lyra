@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { startApp } from "./app.ts";
 
 const exec = promisify(execFile);
-const out = process.argv[2] ?? "/tmp/lyra-switch-film";
+const out = process.argv[2] ?? "/tmp/plume-switch-film";
 const IDS = ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"];
 
 const usage = {
@@ -33,7 +33,7 @@ const usage = {
 
 /** A dirty repository, because that is the case the whole report is about. */
 async function makeRepo(): Promise<string> {
-	const root = join(tmpdir(), "lyra-film-repo");
+	const root = join(tmpdir(), "plume-film-repo");
 	await rm(root, { recursive: true, force: true });
 	await mkdir(root, { recursive: true });
 	await exec("git", ["init", "-q"], { cwd: root });

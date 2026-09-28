@@ -59,7 +59,7 @@ async function headerOn(platform: string) {
 	 * 一个 webview……），于是一条关于 CSS 类名的断言要先满足十几个 bridge 方法。`null` 时 header
 	 * 照画，内容那一格是空的，正好是这条用例要的范围。
 	 */
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		platform,
 		bootWindow: { kind: "panel", panelKind: null, panelScope: "window", sessionId: null, id: "p1" },
 		windows: { keepOnTop: async () => ({ ok: true, enabled: false }) },
@@ -79,7 +79,7 @@ test("Windows：带子有底色，高度取原生那一档", async () => {
 		assert.equal((header as HTMLElement).style.height, `${NATIVE_HEADER_HEIGHT}px`);
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -91,6 +91,6 @@ test("macOS：不加那条底色，高度仍是红绿灯的 44", async () => {
 		assert.equal((header as HTMLElement).style.height, `${WINDOW_HEADER_HEIGHT}px`);
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });

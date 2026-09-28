@@ -102,14 +102,14 @@ test("every token colour is readable at all, not just comments", () => {
 });
 
 test("the default pair takes the app's surface rather than bringing its own", () => {
-	// The whole point of `inherit`: a fresh install must look like Lyra, not like somebody's
+	// The whole point of `inherit`: a fresh install must look like Plume, not like somebody's
 	// yellow paper. See `--ly-code-bg` in `theme.ts`.
-	const light = LIGHT_CODE_THEMES.find((t) => t.id === "lyra-light");
-	const dark = DARK_CODE_THEMES.find((t) => t.id === "lyra-dark");
-	assert.ok(light?.inherit, "lyra-light 应该继承应用的表面");
-	assert.ok(dark?.inherit, "lyra-dark 应该继承应用的表面");
+	const light = LIGHT_CODE_THEMES.find((t) => t.id === "plume-light");
+	const dark = DARK_CODE_THEMES.find((t) => t.id === "plume-dark");
+	assert.ok(light?.inherit, "plume-light 应该继承应用的表面");
+	assert.ok(dark?.inherit, "plume-dark 应该继承应用的表面");
 	// And nothing else should, or picking a theme would do nothing visible.
-	const others = ALL.filter((t) => t.inherit && !t.id.startsWith("lyra-"));
+	const others = ALL.filter((t) => t.inherit && !t.id.startsWith("plume-"));
 	assert.deepEqual(others.map((t) => t.label), []);
 });
 

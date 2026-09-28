@@ -37,7 +37,7 @@ const run = promisify(execFile);
 const WIN = process.argv.includes("--win");
 const OUT_DIR =
 	process.argv.slice(2).find((a) => !a.startsWith("--")) ??
-	join(homedir(), "Desktop", WIN ? "Lyra窗口-Windows" : "Lyra窗口-macOS");
+	join(homedir(), "Desktop", WIN ? "Plume窗口-Windows" : "Plume窗口-macOS");
 const PORT = 9675;
 const INSPECT_PORT = 9676;
 
@@ -346,7 +346,7 @@ const PATCHES: { file: string; from: string; to: string }[] = [
 async function applyPatches(): Promise<() => Promise<void>> {
 	const backups: { file: string; copy: string }[] = [];
 	for (const file of new Set(PATCHES.map((p) => p.file))) {
-		const copy = join(tmpdir(), `lyra-probe-${file.replace(/\W/g, "_")}`);
+		const copy = join(tmpdir(), `plume-probe-${file.replace(/\W/g, "_")}`);
 		await copyFile(file, copy);
 		backups.push({ file, copy });
 	}

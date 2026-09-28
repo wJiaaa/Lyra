@@ -1,8 +1,8 @@
 import { mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative } from "node:path";
-import { lyraHome, readTrajectory, type SessionStorage } from "@lyra/core";
-import { entryKey, SOURCE_LABEL, STATUS_LABEL } from "@lyra/core/trajectory-view";
+import { plumeHome, readTrajectory, type SessionStorage } from "@plume/core";
+import { entryKey, SOURCE_LABEL, STATUS_LABEL } from "@plume/core/trajectory-view";
 import { grantArtifactRead } from "./readable-artifacts.ts";
 
 /** Export only an authoritative session projection; IPC never supplies a file path or content. */
@@ -16,7 +16,7 @@ export async function exportTrajectory(store: SessionStorage, projectId: string,
 	if (format === "output") {
 		const data = entries.find(entry => entry.metadata && typeof entry.metadata === "object" && "outputPath" in entry.metadata)?.metadata;
 		if (!data || typeof data !== "object" || !("outputPath" in data) || typeof data.outputPath !== "string") throw new Error("这条历史记录没有保存原始输出文件");
-		const root = await realpath(join(lyraHome(), "scratch", meta.id, "tool-output"));
+		const root = await realpath(join(plumeHome(), "scratch", meta.id, "tool-output"));
 		const path = await realpath(data.outputPath);
 		const tail = relative(root, path);
 		if (!tail || tail === ".." || tail.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(tail)) throw new Error("输出文件不属于当前会话");
@@ -31,7 +31,7 @@ export async function exportTrajectory(store: SessionStorage, projectId: string,
 			return `## #${entry.seq} ${SOURCE_LABEL[entry.source]} · ${entry.summary}\n\n${entry.status ? STATUS_LABEL[entry.status] : ""} · ${new Date(entry.ts).toISOString()}${entry.durationMs === undefined ? "" : ` · ${entry.durationMs} ms`}\n\n${fence}text\n${content}\n${fence}\n\n${entry.metadata === undefined ? "" : `详情：\n\n${JSON.stringify(entry.metadata, null, 2)}`}`;
 		}),
 	].join("\n\n");
-	const directory = await mkdtemp(join(tmpdir(), "lyra-trajectory-"));
+	const directory = await mkdtemp(join(tmpdir(), "plume-trajectory-"));
 	const path = join(directory, `trajectory.${format}`);
 	await writeFile(path, text, { mode: 0o600 });
 	grantArtifactRead(path);

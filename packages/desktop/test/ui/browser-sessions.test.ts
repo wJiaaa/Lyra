@@ -23,14 +23,14 @@ import { DockScope, SessionScope } from "../../src/app/session-scope.tsx";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { usePanelWindows } from "../../src/features/dock/popout.ts";
 import { insert, leafOf } from "../../src/features/dock/tree.ts";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 
 beforeEach(() => {
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		bootWindow: { id: "test", kind: "primary", sessionId: null, panelKind: null, panelScope: null },
-	} satisfies Pick<LyraApi, "bootWindow"> });
+	} satisfies Pick<PlumeApi, "bootWindow"> });
 });
-afterEach(() => { Reflect.deleteProperty(window, "lyra"); });
+afterEach(() => { Reflect.deleteProperty(window, "plume"); });
 
 function tab(id: string, sessionId: string | null, extra: Partial<BrowserTab> = {}): BrowserTab {
 	return { id, sessionId, url: `https://${id}.example.com/`, title: id, loading: false, canGoBack: false, canGoForward: false, zoom: 1, viewport: null, ...extra };

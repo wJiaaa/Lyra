@@ -2,7 +2,7 @@
  * Real-provider check: can the agent finish a task whose answer sits past the grep
  * line cap, and does the gated result stay two orders of magnitude smaller than the file?
  *
- * Isolated temp workspace. Credentials come from ~/.lyra and are never printed.
+ * Isolated temp workspace. Credentials come from ~/.plume and are never printed.
  * The temp dir is removed afterwards — nothing is left in the user's home.
  */
 import { randomBytes } from "node:crypto";
@@ -70,7 +70,7 @@ function pickModel(settings: Awaited<ReturnType<typeof loadSettings>>, wanted: s
 			matches.push({ provider, model });
 		}
 	}
-	if (matches.length === 0) throw new Error("No enabled tool-capable model with a key in ~/.lyra");
+	if (matches.length === 0) throw new Error("No enabled tool-capable model with a key in ~/.plume");
 	if (!wanted) {
 		const preferred = settings.defaultModelId;
 		return (preferred && matches.find(({ model }) => model.id === preferred || model.modelId === preferred)) ?? matches[0];
@@ -141,12 +141,12 @@ async function runTask(input: {
 	};
 }
 
-const dir = await mkdtemp(join(tmpdir(), "lyra-prune-accuracy-"));
+const dir = await mkdtemp(join(tmpdir(), "plume-prune-accuracy-"));
 const started = Date.now();
 try {
 	const settings = await loadSettings();
 	const { provider, model } = pickModel(settings, process.argv[2]);
-	const probe = `LYRA-${randomBytes(4).toString("hex").toUpperCase()}`;
+	const probe = `PLUME-${randomBytes(4).toString("hex").toUpperCase()}`;
 	const catalog = (await readFile(CATALOG, "utf8")).replace(
 		'"id":"qwen3-livetranslate-flash-realtime"',
 		`"id":"qwen3-livetranslate-flash-realtime","probe":"${probe}"`,

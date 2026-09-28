@@ -75,7 +75,7 @@ function runQuietly(file: string, args: string[]): Promise<{ stdout: string } | 
 /**
  * Ask the bus, and while it says no, ask again a few times.
  *
- * Launched at login, Lyra can be up before the shell extension that provides the watcher — Ubuntu's
+ * Launched at login, Plume can be up before the shell extension that provides the watcher — Ubuntu's
  * AppIndicator support is one — has registered it. A single early "no" would then make closing the
  * window quit an app whose icon appears moments later. Three more tries over the first minute; the
  * timers do not keep the process alive.
@@ -239,12 +239,12 @@ export function createTray(next: TrayActions): void {
 	 */
 	const image = currentIcon();
 	if (image.isEmpty()) {
-		console.warn(`[lyra] 状态栏图标找不到（appPath=${app.getAppPath()}），跳过。跑 pnpm tray:icons 生成。`);
+		console.warn(`[plume] 状态栏图标找不到（appPath=${app.getAppPath()}），跳过。跑 pnpm tray:icons 生成。`);
 		return;
 	}
 
 	tray = new Tray(image);
-	tray.setToolTip("Lyra");
+	tray.setToolTip("Plume");
 
 	tray.on("click", () => {
 		perform({ kind: "toggle-window" });

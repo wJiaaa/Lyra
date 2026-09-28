@@ -17,7 +17,7 @@
  * 名字、门类都在里面；content 只用来取「数据」这一样东西。
  */
 
-import type { Message, UserContent } from "@lyra/core";
+import type { Message, UserContent } from "@plume/core";
 
 import type { FileKind } from "./file-kind.ts";
 

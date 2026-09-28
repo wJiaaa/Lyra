@@ -22,8 +22,8 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
-const OUT = process.argv[2] ?? join(homedir(), "Downloads", "lyra-ui-fixes.mp4");
+const REAL_HOME = join(homedir(), ".plume");
+const OUT = process.argv[2] ?? join(homedir(), "Downloads", "plume-ui-fixes.mp4");
 const PORT = 9422;
 
 /** 一个想起来要花点功夫的问题——思考那一行得够长，才看得见它在两头化开。 */
@@ -42,7 +42,7 @@ async function seed(home: string): Promise<void> {
 	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	for (const file of ["credentials.json", "vault.key"]) {
 		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
-			throw new Error(`没找到 ~/.lyra/${file}——真实模型调用需要它`);
+			throw new Error(`没找到 ~/.plume/${file}——真实模型调用需要它`);
 		});
 	}
 	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));

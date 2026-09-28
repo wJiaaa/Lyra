@@ -1,5 +1,5 @@
 /**
- * What other tools' configuration this repository carries — and that Lyra is already reading.
+ * What other tools' configuration this repository carries — and that Plume is already reading.
  *
  * The first time a project with a `.claude/skills/` or an `AGENTS.md` is opened, the plan (15 §5)
  * wants one notice, worded as a fact rather than a question: not "import these?" but "these are
@@ -16,7 +16,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, relative, sep } from "node:path";
 import { createRegistry } from "../capability/index.ts";
 import type { CapabilityId } from "../capability/types.ts";
-import { lyraHome, projectIdFor } from "../session/store.ts";
+import { plumeHome, projectIdFor } from "../session/store.ts";
 
 export interface ForeignConfigLine {
 	/** Provider id: `claude`, `agents-dir`... */
@@ -34,7 +34,7 @@ const KINDS: CapabilityId[] = ["skill", "command", "agent", "context-file"];
 
 /**
  * Context files are read by the native provider whichever tool wrote them; the file name says
- * whose convention it is. `LYRA.md` and `AGENTS.md` are ours — AGENTS.md is the project
+ * whose convention it is. `PLUME.md` and `AGENTS.md` are ours — AGENTS.md is the project
  * instruction file this product asks for by default — and are not listed.
  */
 const CONTEXT_OWNERS: Record<string, { provider: string; label: string }> = {
@@ -51,7 +51,7 @@ function whereOf(cwd: string, path: string, kind: CapabilityId): string {
 }
 
 export async function foreignConfigsIn(cwd: string): Promise<ForeignConfigLine[]> {
-	const registry = createRegistry({ home: lyraHome(), userHome: homedir() });
+	const registry = createRegistry({ home: plumeHome(), userHome: homedir() });
 	const lines = new Map<string, ForeignConfigLine>();
 	for (const kind of KINDS) {
 		const result = await registry.load<{ name: string }>(kind, { cwd }).catch(() => null);
@@ -87,7 +87,7 @@ export const FOREIGN_CONFIGS_NOTICE = "foreign-configs";
 
 /** Beside the project's memory, not in the repository: whether you have seen a notice is yours. */
 export function projectNoticesPath(cwd: string): string {
-	return join(lyraHome(), "projects", projectIdFor(cwd), "notices.json");
+	return join(plumeHome(), "projects", projectIdFor(cwd), "notices.json");
 }
 
 async function readNotices(cwd: string): Promise<Record<string, number>> {

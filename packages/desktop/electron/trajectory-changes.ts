@@ -1,4 +1,4 @@
-import { TrajectoryReader, type SessionStorage, type TrajectoryChanges } from "@lyra/core";
+import { TrajectoryReader, type SessionStorage, type TrajectoryChanges } from "@plume/core";
 
 const readers = new WeakMap<SessionStorage, TrajectoryReader>();
 

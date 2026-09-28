@@ -271,8 +271,8 @@ async function seed(home: string, modelPort: number, scene: string): Promise<voi
 			await writeFile(join(home, "previews", one.id, "p1", "index.html"), `<!doctype html><meta charset="utf-8"><body style="margin:0;font:600 20px -apple-system;background:#e8f1ff;color:#1f4fd1;height:180px;display:grid;place-items:center">${CARD_PAGE}</body>`);
 		}
 		if (scene === "skill" && one === B) {
-			await mkdir(join(cwd, ".lyra", "skills", SKILL), { recursive: true });
-			await writeFile(join(cwd, ".lyra", "skills", SKILL, "SKILL.md"), `---\nname: ${SKILL}\ndescription: 只有乙的项目里有的技能\n---\n\n${B.project} 的技能正文。\n`);
+			await mkdir(join(cwd, ".plume", "skills", SKILL), { recursive: true });
+			await writeFile(join(cwd, ".plume", "skills", SKILL, "SKILL.md"), `---\nname: ${SKILL}\ndescription: 只有乙的项目里有的技能\n---\n\n${B.project} 的技能正文。\n`);
 		}
 		const last = messages.length + 2;
 		const updatedAt = at + messages.length;
@@ -493,7 +493,7 @@ async function say(side: Side, text: string): Promise<void> {
 
 /** The conversations as the app lists them from disk. */
 const listed = () =>
-	js<Array<{ id: string; modelId: string; thinking?: string }>>(`window.lyra.sessions.list().then((all) => all.map((one) => ({ id: one.id, modelId: one.modelId, thinking: one.thinking })))`);
+	js<Array<{ id: string; modelId: string; thinking?: string }>>(`window.plume.sessions.list().then((all) => all.map((one) => ({ id: one.id, modelId: one.modelId, thinking: one.thinking })))`);
 
 async function caption(text: string): Promise<void> {
 	await js(`(() => {
@@ -1013,7 +1013,7 @@ async function sceneSkill(): Promise<void> {
 		await within(`[...document.querySelectorAll('[data-dock-pane="file"]')].some((el) => el.checkVisibility())`, 6000);
 		await pause(1500);
 		const opened = { ...(await js<{ inA: boolean; inB: boolean; tabs: string[]; text: string | null }>(FILE_STATE)), focused: await focusedScreen() };
-		const skillFile = join(app!.home, B.project, ".lyra", "skills", SKILL, "SKILL.md");
+		const skillFile = join(app!.home, B.project, ".plume", "skills", SKILL, "SKILL.md");
 		console.log(`     技能胶囊：${JSON.stringify(opened)}`);
 		check(scene, "键盘按乙屏的技能胶囊：打开乙项目里的 SKILL.md", opened.tabs.includes(skillFile), { tabs: opened.tabs, text: opened.text });
 		check(scene, "文件面板开在乙屏，甲屏没有", opened.inB && !opened.inA, opened);

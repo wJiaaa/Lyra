@@ -3,14 +3,14 @@
 /**
  * The two ways out of a capture, which are not the same way.
  *
- * Finishing produces an image that is going somewhere — the clipboard, and the composer — so Lyra
+ * Finishing produces an image that is going somewhere — the clipboard, and the composer — so Plume
  * comes forward to receive it. Cancelling produces nothing: Escape means "never mind", and
  * answering that by throwing the whole application in front of whatever the user was reading is
  * the opposite of never mind. Both were reported broken from the installed app, and neither is
  * visible to a test that only checks the overlay's own DOM.
  *
  * Run against the built bundle:
- *   LYRA_E2E_APP=/Applications/Lyra.app node --experimental-strip-types e2e/screenshot-exit-probe.ts
+ *   PLUME_E2E_APP=/Applications/Plume.app node --experimental-strip-types e2e/screenshot-exit-probe.ts
  */
 
 import { execFile } from "node:child_process";
@@ -111,7 +111,7 @@ try {
 	/*
 	 * Started from somewhere else, which is the case the complaint is about.
 	 *
-	 * Triggered from inside Lyra the foreground is already Lyra, so "did cancelling steal it" has
+	 * Triggered from inside Plume the foreground is already Plume, so "did cancelling steal it" has
 	 * no answer — everything looks correct whatever the code does. The global shortcut fires while
 	 * you are reading something else, and *that* is where pressing Escape must leave you where you
 	 * were. `app.evaluate` drives the window over the debugger without activating the application,
@@ -122,7 +122,7 @@ try {
 	const before = await frontmost();
 	note(`• 从「${before ?? "?"}」里发起截图`);
 
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	const first = await overlayTarget();
 	if (!first?.webSocketDebuggerUrl) throw new Error("截图浮层没有出现");
 	await pause(900);
@@ -142,15 +142,15 @@ try {
 
 	const afterEscape = await frontmost();
 	note(`  取消之后的前台应用 → ${afterEscape ?? "(读不到)"}（发起前是「${before ?? "?"}」）`);
-	if (afterEscape === "Lyra" && before !== "Lyra") {
-		problems.push(`按 Esc 取消之后 Lyra 抢到了最前，而发起截图时前台是「${before}」——取消什么都没产出，不该动前台`);
+	if (afterEscape === "Plume" && before !== "Plume") {
+		problems.push(`按 Esc 取消之后 Plume 抢到了最前，而发起截图时前台是「${before}」——取消什么都没产出，不该动前台`);
 	}
 
 	// ---- 2. Finishing puts the picture on the clipboard -----------------------
-	await execFileAsync("osascript", ["-e", 'set the clipboard to "lyra-probe-placeholder"']);
+	await execFileAsync("osascript", ["-e", 'set the clipboard to "plume-probe-placeholder"']);
 	note(`• 清空后的剪贴板 → ${await clipboardKinds()}`);
 
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	const second = await overlayTarget();
 	if (!second?.webSocketDebuggerUrl) throw new Error("第二次截图浮层没有出现");
 	const socket = second.webSocketDebuggerUrl;
@@ -209,12 +209,12 @@ try {
 /*
  * The main window has to get out of the way for the duration of a capture.
  *
- * Activating the overlay activates Lyra, and macOS raises *every* window of an application it
+ * Activating the overlay activates Plume, and macOS raises *every* window of an application it
  * activates — so the main window ends up above whatever was being screenshotted, invisible under
  * the frozen picture, and revealed the moment that picture goes. A recording caught it: a colour
- * pick ended with the Lyra window in front of the page the colour came from.
+ * pick ended with the Plume window in front of the page the colour came from.
  *
- * Only for captures that did not start from Lyra, which is what this probe drives.
+ * Only for captures that did not start from Plume, which is what this probe drives.
  */
 if (timeline) {
 	if (!timeline.includes("reveal: main window stepped aside")) {

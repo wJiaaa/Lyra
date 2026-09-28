@@ -5,8 +5,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import { DEFAULT_SETTINGS } from "@lyra/core";
-import { activeModelCatalog, resetModelCatalog, type ModelCatalogDocument } from "@lyra/core/model-catalog";
+import { DEFAULT_SETTINGS } from "@plume/core";
+import { activeModelCatalog, resetModelCatalog, type ModelCatalogDocument } from "@plume/core/model-catalog";
 
 import { ModelSettings } from "../../src/features/settings/ModelSettings.tsx";
 import { useApp } from "../../src/store/index.ts";
@@ -22,7 +22,7 @@ test("立即更新：主进程换了目录，页面跟着换版本并报已更�
 	};
 	let result: { status: string; error?: string } = { status: "updated" };
 	let updates = 0;
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		providers: {
 			updateModelCatalog: async () => { updates += 1; return { ...result, source: remote.source }; },
 			modelCatalog: async (known?: string) => (known === remote.source.revision ? null : remote),
@@ -43,7 +43,7 @@ test("立即更新：主进程换了目录，页面跟着换版本并报已更�
 		assert.match(statusLine(), /更新失败：HTTP 503/);
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 		resetModelCatalog();
 		useApp.setState({ settings: null, catalogRevision: activeModelCatalog().source.revision });
 	}

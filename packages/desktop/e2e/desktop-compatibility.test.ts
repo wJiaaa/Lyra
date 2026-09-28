@@ -181,7 +181,7 @@ for (const [scale, width, height, theme] of [
 			await headerAlignment(app);
 		} finally {
 			try {
-				const dir = process.env.LYRA_E2E_ARTIFACTS;
+				const dir = process.env.PLUME_E2E_ARTIFACTS;
 				if (dir) {
 					await mkdir(dir, { recursive: true });
 					const shot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
@@ -227,7 +227,7 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 		const splitter = await app.evaluate<{ x: number; y: number; hit: boolean }>(`(()=>{const e=document.querySelector('.ly-dock [role="separator"]'),r=e.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;return {x,y,hit:e.contains(document.elementFromPoint(x,y))};})()`);
 		assert.equal(splitter.hit, true, "the splitter stays on the responsive boundary and can be hit");
 		assert.ok(Math.abs(splitter.y - narrow.terminal.top) < 1);
-		const directory = process.env.LYRA_E2E_ARTIFACTS;
+		const directory = process.env.PLUME_E2E_ARTIFACTS;
 		if (directory) {
 			await mkdir(directory, { recursive: true });
 			const shot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });

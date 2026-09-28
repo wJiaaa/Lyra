@@ -11,7 +11,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { MessageCirclePlus, RotateCcw } from "lucide-react";
-import type { Message, UserMessage } from "@lyra/core";
+import type { Message, UserMessage } from "@plume/core";
 import { useEffect, useState } from "react";
 import { useSide, sideChatOf } from "../dock/index.ts";
 import { useSideTarget } from "./target.ts";

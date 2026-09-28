@@ -3,13 +3,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { DEFAULT_SETTINGS, SessionStore, AgentSession, type AgentEvent } from "@lyra/core";
+import { DEFAULT_SETTINGS, SessionStore, AgentSession, type AgentEvent } from "@plume/core";
 import { createStoredSession } from "../electron/create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "../electron/prompt-input.ts";
 import { sessionThinking } from "../src/lib/thinking.ts";
 
 test("opening submissions have durable distinct identities before any runtime is initialized", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-create-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-create-"));
 	try {
 		const store = new SessionStore(join(root, "sessions"));
 		const content = promptContent([{ type: "text", text: "同一个问题\n  两个会话" }]);
@@ -29,7 +29,7 @@ test("opening submissions have durable distinct identities before any runtime is
 });
 
 test("a persisted opening message is consumed once and abort can cancel its startup", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-pending-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-pending-"));
 	try {
 		const store = new SessionStore(join(root, "sessions"));
 		const saved = await createStoredSession(store, DEFAULT_SETTINGS, root, "", { content: [{ type: "text", text: "opening" }] });
@@ -118,7 +118,7 @@ test("附件过这道门时，身份留下、字节留不下", () => {
 });
 
 test("a reference-only opening uses its label and persists both same-title targets", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-reference-prompt-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-reference-prompt-"));
 	try {
 		const store = new SessionStore(join(root, "sessions"));
 		const initial = initialPrompt({ content: "reference instructions", displayText: "", sessionRefs: [{ id: "a", title: "同名" }, { id: "b", title: "同名" }] });
@@ -139,7 +139,7 @@ test("a reference-only opening uses its label and persists both same-title targe
  * 这一份在，两处就都对。
  */
 test("the level a new chat started with stays when the next new chat moves the default", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-create-thinking-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-create-thinking-"));
 	try {
 		const store = new SessionStore(join(root, "sessions"));
 		const high = { ...DEFAULT_SETTINGS, thinking: "high" as const };

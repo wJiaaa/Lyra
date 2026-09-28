@@ -1,6 +1,6 @@
-import type { ModelConfig, ModelPricing, ProviderConfig, ThinkingLevel, ThinkingOption } from "@lyra/core";
-import { catalogFill, catalogModelFor, DEFAULT_MODEL_LIMITS, type CatalogModel } from "@lyra/core/model-catalog";
-import { DEFAULT_THINKING_OPTIONS, THINKING_LEVELS, thinkingOptionsFor } from "@lyra/core/thinking-options";
+import type { ModelConfig, ModelPricing, ProviderConfig, ThinkingLevel, ThinkingOption } from "@plume/core";
+import { catalogFill, catalogModelFor, DEFAULT_MODEL_LIMITS, type CatalogModel } from "@plume/core/model-catalog";
+import { DEFAULT_THINKING_OPTIONS, THINKING_LEVELS, thinkingOptionsFor } from "@plume/core/thinking-options";
 import { ModelCatalog } from "./ModelCatalog.tsx";
 import { Box } from "lucide-react";
 import { useState } from "react";

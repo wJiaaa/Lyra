@@ -1,13 +1,13 @@
-# 扩展 Lyra
+# 扩展 Plume
 
 四种扩展方式，各自解决不同的事。
 
 | | 是什么 | 放哪 |
 | --- | --- | --- |
-| 技能 | 一段写给模型的说明，用到时才注入 | `.lyra/skills/<名>/SKILL.md` |
-| 插件 | 一组技能的打包 | 装到 `~/.lyra/plugins/` |
+| 技能 | 一段写给模型的说明，用到时才注入 | `.plume/skills/<名>/SKILL.md` |
+| 插件 | 一组技能的打包 | 装到 `~/.plume/plugins/` |
 | MCP 服务 | 一个提供工具的外部进程 | 设置 › MCP |
-| 子智能体 | 一个有独立上下文的下属 | `.lyra/agents/<名>.md` |
+| 子智能体 | 一个有独立上下文的下属 | `.plume/agents/<名>.md` |
 
 ## 技能
 
@@ -37,15 +37,15 @@ description: 从提交记录整理一份更新说明。要写 release notes 或�
 
 字段名和 Claude Code 的 SKILL.md 一样用短横线。驼峰写法（`allowedTools`）也认，两种都写时听短横线的。
 
-给 Claude Code 写的 `allowed-tools` 照原样能读：`Read`、`WebFetch` 这类名字按 Lyra 的工具认，大小写不论；
-`Bash(git add *)` 这种带范围的按整个 `bash` 放行，Lyra 不按命令或路径细分；对应不到的名字（如
+给 Claude Code 写的 `allowed-tools` 照原样能读：`Read`、`WebFetch` 这类名字按 Plume 的工具认，大小写不论；
+`Bash(git add *)` 这种带范围的按整个 `bash` 放行，Plume 不按命令或路径细分；对应不到的名字（如
 `NotebookEdit`）留在名单里、不放行任何调用，名单不会因此变空而失去限制。这几种加载时都会提示一句。
-两边的意思也不一样：Claude Code 里这个字段是「这几样不用问」，别的工具照常能用；Lyra 里是「只用这几样」。
+两边的意思也不一样：Claude Code 里这个字段是「这几样不用问」，别的工具照常能用；Plume 里是「只用这几样」。
 
 技能目录里可以放 `scripts/`、`assets/` 等资源，正文里的相对路径按技能目录解析——注入时会告诉
 模型这一点。
 
-**优先级，具体的赢**：项目里 `.lyra/skills/` 的散装技能 → 用户级 `~/.lyra/skills/` → 插件带
+**优先级，具体的赢**：项目里 `.plume/skills/` 的散装技能 → 用户级 `~/.plume/skills/` → 插件带
 的 → 代码注册的。同名时前者覆盖后者，所以在插件旁边放一个同名目录就是覆盖它的方式。
 
 ## 插件
@@ -78,7 +78,7 @@ my-plugin/
 `task` 工具把一件事交给拥有**独立上下文窗口**的下属，只把结论带回主对话。适合「读二十个文件
 找出哪里定义了 X」这种——过程很长，结论很短。
 
-内置七个：`general` `explore` `review` `verify` `plan` `simple` `reason`。自定义放在 `.lyra/agents/<名>.md`，格式与技能一样：
+内置七个：`general` `explore` `review` `verify` `plan` `simple` `reason`。自定义放在 `.plume/agents/<名>.md`，格式与技能一样：
 
 ```markdown
 ---
@@ -115,7 +115,7 @@ model: deepseek-v4-flash
 一切，不用从零重派、把同样的文件再读一遍。面板上停下的那一个有「接着跑」按钮，做的是同一件事。
 上下文只留在内存里（最近 24 个），应用重启后就续不上了。设计见 [ADR-0024](../adr/0024-sub-agents-stop-at-checkpoints.md)。
 
-项目级 `.lyra/agents/` 优先于用户级 `~/.lyra/agents/`；同名时先读到的赢。
+项目级 `.plume/agents/` 优先于用户级 `~/.plume/agents/`；同名时先读到的赢。
 
 **清单必须进系统提示**：没有它模型不知道 `subagent_type` 有哪些取值，即使用户点名 `explore`
 也会退回 `general`。这是实测出来的。

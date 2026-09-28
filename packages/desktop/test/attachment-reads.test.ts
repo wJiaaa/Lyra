@@ -14,7 +14,7 @@ import { registerHooks } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 
 const fixtureUrl = `data:text/javascript,${encodeURIComponent(`
 export const handlers = new Map();
@@ -46,7 +46,7 @@ const { slimSnapshot } = await import("../electron/display-transcript.ts");
 const { promptOptions } = await import("../electron/prompt-input.ts");
 hooks.deregister();
 
-const root = await mkdtemp(join(tmpdir(), "lyra-attachment-reads-"));
+const root = await mkdtemp(join(tmpdir(), "plume-attachment-reads-"));
 const project = join(root, "project");
 await mkdir(project);
 after(() => rm(root, { recursive: true, force: true }));

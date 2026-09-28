@@ -115,7 +115,7 @@ export interface TerminalDeps {
  * The shell a new terminal runs.
  *
  * On Windows `SHELL` is set only by something POSIX-flavoured — Git Bash, MSYS2, Cygwin — and it
- * holds that world's path, `/usr/bin/bash`. Launched from Git Bash, Lyra passed that to node-pty,
+ * holds that world's path, `/usr/bin/bash`. Launched from Git Bash, Plume passed that to node-pty,
  * ConPTY could not open it, and no terminal ever started. So on Windows `SHELL` counts only when it
  * is a Windows path to a file that exists; otherwise it is PowerShell 7, then Windows PowerShell
  * (found in System32 even when PATH does not list it), then `%ComSpec%` — which is always there.

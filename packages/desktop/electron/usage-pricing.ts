@@ -7,8 +7,8 @@ import {
 	type ModelPricing,
 	type ProviderConfig,
 	type SelectedPricingRates,
-} from "@lyra/core";
-import { catalogModelFor, catalogPricing, modelCatalogVersion } from "@lyra/core/model-catalog";
+} from "@plume/core";
+import { catalogModelFor, catalogPricing, modelCatalogVersion } from "@plume/core/model-catalog";
 
 export interface TokenUsage {
 	input: number;

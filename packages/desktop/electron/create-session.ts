@@ -1,4 +1,4 @@
-import type { Message, MessageAttachment, SessionStorage, Settings, UserContent } from "@lyra/core";
+import type { Message, MessageAttachment, SessionStorage, Settings, UserContent } from "@plume/core";
 import type { SessionSnapshot } from "./ipc-types.ts";
 
 export interface InitialPrompt {

@@ -158,7 +158,7 @@ export function pinScreenshot(request: PinRequest): { ok: boolean } {
 			nodeIntegration: false,
 			sandbox: false,
 			/*
-			 * Never throttled, because this window's whole job happens while Lyra is in the background.
+			 * Never throttled, because this window's whole job happens while Plume is in the background.
 			 *
 			 * Chromium slows a renderer it believes nobody is looking at — timers drop to a crawl,
 			 * animation frames stop. For an ordinary window that is right. For a picture pinned over

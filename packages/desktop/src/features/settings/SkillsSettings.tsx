@@ -1,4 +1,4 @@
-import type { Plugin, Skill, SkillCandidate } from "@lyra/core";
+import type { Plugin, Skill, SkillCandidate } from "@plume/core";
 import { Sparkles, TriangleAlert, WandSparkles } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
@@ -24,7 +24,7 @@ import { useLocalScan } from "../plugins/index.ts";
  * called `review` behave the same way and live in different places, and which one is yours to edit
  * depends entirely on this. Said once above a group, it is read once; said on every row, eight rows
  * of 「waza」 down the right edge were the loudest thing on the page. A plugin's group goes by the
- * plugin's name, because `~/.lyra/skills` is where a collection flattens its skills too, and 「个人」
+ * plugin's name, because `~/.plume/skills` is where a collection flattens its skills too, and 「个人」
  * there would say "you wrote this" about something that arrives and leaves with the plugin.
  */
 /** 扫描带回来的技能：`where` 是所在目录，`disabledBy` 是关掉它的那条设置。 */
@@ -33,7 +33,7 @@ type ScannedSkill = Skill & { where?: string; disabledBy?: string };
 function groupSkills(skills: ScannedSkill[], plugins: Plugin[]): { key: string; title: string; plugin?: Plugin; skills: ScannedSkill[] }[] {
 	const groups = new Map<string, { key: string; title: string; plugin?: Plugin; rank: number; skills: ScannedSkill[] }>();
 	for (const skill of skills) {
-		// 散装技能再按目录分：「个人」底下的 `~/.lyra/skills` 和 `~/.claude/skills` 是两份不同的东西。
+		// 散装技能再按目录分：「个人」底下的 `~/.plume/skills` 和 `~/.claude/skills` 是两份不同的东西。
 		const key = skill.pluginId ? `plugin:${skill.pluginId}` : `${skill.source}:${skill.where ?? ""}`;
 		let group = groups.get(key);
 		if (!group) {
@@ -117,7 +117,7 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 	 * Errors and warnings are counted apart. The failed-to-load header counts skills that did not
 	 * load, and a warning counted in would send someone looking for a load failure that never
 	 * happened. The warning header names no one problem — a short description, an `allowed-tools`
-	 * entry Lyra cannot honour as written — because each row below it already says which.
+	 * entry Plume cannot honour as written — because each row below it already says which.
 	 *
 	 * Both count files, not lines: one skill can fail for two reasons (a frontmatter never closed,
 	 * then no description) or carry three warnings, and a header that says "skills" means skills.

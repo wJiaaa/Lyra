@@ -45,7 +45,7 @@ test("rapid native fullscreen clicks keep the header sized and anchored without 
 	const failures: string[] = [];
 	for (const theme of ["light", "dark"]) for (const width of [1200, 1024]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
-		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)},reduceMotion:'off'}})})()`);
+		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)},reduceMotion:'off'}})})()`);
 		await until(`document.documentElement.classList.contains(${JSON.stringify(theme)})`);
 		if (!await app.evaluate(`Boolean(document.querySelector('${pane}'))`)) {
 			await until(`document.querySelector('button[aria-label^="Git "]')`);
@@ -85,11 +85,11 @@ test("rapid native fullscreen clicks keep the header sized and anchored without 
 		if (/Win/.test(evidence.nativePlatform) && headerPad <= 6 && !(visible[0] && visible[0].paddingEnd > 6)) {
 			failures.push(`${theme}/${width}: Windows titlebar controls were not reserved`);
 		}
-		if (process.env.LYRA_E2E_ARTIFACTS) {
-			await mkdir(process.env.LYRA_E2E_ARTIFACTS, { recursive: true });
-			await writeFile(join(process.env.LYRA_E2E_ARTIFACTS, `native-header-${theme}-${width}.json`), JSON.stringify(evidence, null, 2));
+		if (process.env.PLUME_E2E_ARTIFACTS) {
+			await mkdir(process.env.PLUME_E2E_ARTIFACTS, { recursive: true });
+			await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, `native-header-${theme}-${width}.json`), JSON.stringify(evidence, null, 2));
 			const shot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-			await writeFile(join(process.env.LYRA_E2E_ARTIFACTS, `native-header-${theme}-${width}.png`), Buffer.from(shot.data, "base64"));
+			await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, `native-header-${theme}-${width}.png`), Buffer.from(shot.data, "base64"));
 		}
 	}
 	assert.deepEqual(failures, [], failures.join("\n"));
@@ -129,7 +129,7 @@ test("translated terminal tabs stay clipped before the fixed controls and revers
 	const reports = [];
 	for (const theme of ["light", "dark"]) for (const width of [1200, 1024]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
-		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}})})()`);
+		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}})})()`);
 		await until(`document.documentElement.classList.contains(${JSON.stringify(theme)})`);
 		await app.evaluate(`document.querySelector('[data-dock-grip="terminal"]').dispatchEvent(new KeyboardEvent('keydown',{key:${JSON.stringify(width === 1200 ? "ArrowRight" : "ArrowLeft")},altKey:true,bubbles:true}))`);
 		await frames(30);
@@ -192,5 +192,5 @@ test("translated terminal tabs stay clipped before the fixed controls and revers
 		assert.ok(report.deltas.every(delta=>delta < 1), "title and grip reverse from their visible positions");
 		assert.equal(report.retained, true);
 	}
-	if (process.env.LYRA_E2E_ARTIFACTS) await writeFile(join(process.env.LYRA_E2E_ARTIFACTS, "terminal-header-motion.json"), JSON.stringify(reports, null, 2));
+	if (process.env.PLUME_E2E_ARTIFACTS) await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, "terminal-header-motion.json"), JSON.stringify(reports, null, 2));
 });

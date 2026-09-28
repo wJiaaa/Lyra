@@ -197,8 +197,8 @@ async function readInk(): Promise<Ink> {
 
 async function setTheme(theme: "dark" | "light"): Promise<void> {
 	await app.evaluate(`(async () => {
-		const s = await window.lyra.settings.get();
-		await window.lyra.settings.save({ ...s, appearance: { ...s.appearance, theme: ${JSON.stringify(theme)} } });
+		const s = await window.plume.settings.get();
+		await window.plume.settings.save({ ...s, appearance: { ...s.appearance, theme: ${JSON.stringify(theme)} } });
 		return true;
 	})()`);
 	// The theme lands through a settings round trip and a repaint; this is past both.

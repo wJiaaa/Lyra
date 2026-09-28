@@ -1,4 +1,4 @@
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 
 /** Only the current completed answer owns the temporary delivery surface. */
 export function latestDeliveryTimestamp(messages: readonly Message[], running: boolean): number | null {

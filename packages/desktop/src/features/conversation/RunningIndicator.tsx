@@ -12,7 +12,7 @@ import {
 	useScopedRetrying,
 	useScopedTurnMeter,
 } from "../../app/session-scope.tsx";
-import { freshTokens } from "@lyra/core/tokens";
+import { freshTokens } from "@plume/core/tokens";
 import { formatTokens } from "../../lib/format-tokens.ts";
 import { useLiveRate, useProducedChars } from "./useLiveRate.ts";
 
@@ -123,7 +123,7 @@ export function RunningIndicator() {
 	 * （`openai-responses.ts` 的 `applyUsage`）。也就是说，回合结束前根本没有真实 token 数可读，而
 	 * 「实时」这个词要求的恰恰是结束前。
 	 *
-	 * 唯一还在动的是文本本身，所以按字符估：`@lyra/core/tokens` 的 3.5 字符/token，和上下文仪表、
+	 * 唯一还在动的是文本本身，所以按字符估：`@plume/core/tokens` 的 3.5 字符/token，和上下文仪表、
 	 * 压缩判断用的是同一把尺，至少全应用口径一致。回合结束后 `MessageActions` 那行显示的是服务商
 	 * 报的真数，两者会有出入——这是估算的代价，不是 bug。
 	 */

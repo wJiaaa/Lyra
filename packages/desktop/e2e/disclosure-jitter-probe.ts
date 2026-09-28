@@ -20,17 +20,17 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { projectIdFor } from "@lyra/core";
+import { projectIdFor } from "@plume/core";
 import { startApp } from "./app.ts";
 import { frameGrabber } from "./record.ts";
 
 const PORT = 9644;
 /** 今天那场会话：904 条消息、452 个工具结果——正是视频里那种规模。 */
-const SOURCE = join(homedir(), ".lyra/sessions/63ca3825cb82944e/aa5eb131-4b20-4e20-8036-6b39cfd77507.jsonl");
+const SOURCE = join(homedir(), ".plume/sessions/63ca3825cb82944e/aa5eb131-4b20-4e20-8036-6b39cfd77507.jsonl");
 const SESSION_ID = "aa5eb131-4b20-4e20-8036-6b39cfd77507";
 const TITLE = "添加文件后布局异常排查";
 const TAG = process.argv.find((a) => a.startsWith("--tag="))?.slice(6) ?? "before";
-const OUT = join(homedir(), ".lyra/scratch/jitter");
+const OUT = join(homedir(), ".plume/scratch/jitter");
 
 const app = await startApp({
 	port: PORT,

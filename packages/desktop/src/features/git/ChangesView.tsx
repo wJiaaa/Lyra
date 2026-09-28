@@ -23,7 +23,7 @@ import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
 /** 平铺还是树，记在本地。 */
-const TREE_VIEW_KEY = "lyra.git.changes.tree";
+const TREE_VIEW_KEY = "plume.git.changes.tree";
 
 /**
  * 人点出来的形状，活得过一次重建。

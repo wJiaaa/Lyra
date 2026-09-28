@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
 import { act } from "react";
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { useLiveRate, useProducedChars } from "../../src/features/conversation/useLiveRate.ts";
 import { useApp } from "../../src/store/index.ts";
 import { useSubAgents } from "../../src/store/subAgents.ts";

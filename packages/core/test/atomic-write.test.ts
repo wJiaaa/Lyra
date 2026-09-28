@@ -24,20 +24,20 @@ import { asWindows, refuseRenames } from "./held-open.ts";
 
 let home: string;
 const made: string[] = [];
-const previous = { home: process.env.LYRA_HOME, userProfile: process.env.USERPROFILE };
+const previous = { home: process.env.PLUME_HOME, userProfile: process.env.USERPROFILE };
 
 beforeEach(async () => {
-	home = await mkdtemp(join(tmpdir(), "lyra-atomic-"));
+	home = await mkdtemp(join(tmpdir(), "plume-atomic-"));
 	made.push(home);
-	// Both, because `os.homedir()` reads `USERPROFILE` on Windows; `LYRA_HOME` outranks either.
-	process.env.LYRA_HOME = home;
+	// Both, because `os.homedir()` reads `USERPROFILE` on Windows; `PLUME_HOME` outranks either.
+	process.env.PLUME_HOME = home;
 	process.env.USERPROFILE = home;
 	resetVault();
 });
 
 after(async () => {
-	if (previous.home === undefined) delete process.env.LYRA_HOME;
-	else process.env.LYRA_HOME = previous.home;
+	if (previous.home === undefined) delete process.env.PLUME_HOME;
+	else process.env.PLUME_HOME = previous.home;
 	if (previous.userProfile === undefined) delete process.env.USERPROFILE;
 	else process.env.USERPROFILE = previous.userProfile;
 	await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })));

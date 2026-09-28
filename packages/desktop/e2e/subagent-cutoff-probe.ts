@@ -17,7 +17,7 @@ import { createServer, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import { closeListeningServer, startApp } from "./app.ts";
 
-const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "lyra-子代理中断");
+const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "plume-子代理中断");
 const MODEL_PORT = 9874;
 const CDP_PORT = 9498;
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

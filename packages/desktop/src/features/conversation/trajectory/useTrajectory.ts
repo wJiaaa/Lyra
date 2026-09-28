@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import type { Entry } from "@lyra/core/trajectory-view";
+import type { Entry } from "@plume/core/trajectory-view";
 import { useScopedMeta } from "../../../app/session-scope.tsx";
 import { bridge } from "../../../services/index.ts";
 
@@ -47,13 +47,13 @@ export function useTrajectory() {
 		// Reconnecting restores transcripts but cannot replay the durable events this panel missed.
 		const onConnection = (event: Event) => { if (event instanceof CustomEvent && event.detail === "connected") void read(); };
 		const onForeground = () => { if (document.visibilityState === "visible") void read(); };
-		window.addEventListener("lyra:connection", onConnection);
+		window.addEventListener("plume:connection", onConnection);
 		window.addEventListener("focus", onForeground);
 		document.addEventListener("visibilitychange", onForeground);
 		void read();
 		return () => {
 			live = false; off();
-			window.removeEventListener("lyra:connection", onConnection);
+			window.removeEventListener("plume:connection", onConnection);
 			window.removeEventListener("focus", onForeground);
 			document.removeEventListener("visibilitychange", onForeground);
 		};

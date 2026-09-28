@@ -16,7 +16,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const HOME = join(homedir(), ".lyra");
+const HOME = join(homedir(), ".plume");
 
 interface Case {
 	name: string;

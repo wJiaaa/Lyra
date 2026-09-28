@@ -1,6 +1,6 @@
 /** Pure definitions behind the usage dashboard. */
 
-import { freshTokens } from "@lyra/core/tokens";
+import { freshTokens } from "@plume/core/tokens";
 import type { UsageBucket, UsageCacheMiss, UsageDay, UsageScan } from "../../../electron/usage-scan.ts";
 
 export type Range = 7 | 30 | 90 | 0;

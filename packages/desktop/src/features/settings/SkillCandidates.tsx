@@ -1,4 +1,4 @@
-import type { SkillCandidate } from "@lyra/core";
+import type { SkillCandidate } from "@plume/core";
 import { Check, ChevronDown, Sparkles } from "lucide-react";
 import { useState } from "react";
 

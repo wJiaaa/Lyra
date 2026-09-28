@@ -50,7 +50,7 @@ beforeEach(() => {
 		queued: {}, activeSessionId: "a", meta, messages: [], sessions: [meta], sessionCache: {},
 		running: true, activity: { a: "running" }, turns: {}, carried: {}, notices: [], pendingUserMessage: null, drafts: {}, workspace: null, scratchCwd: "/test",
 	});
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		agent: { prompt: async (_id: string, content: { type: string; text?: string }[], options?: { deliver?: string }) => {
 			prompted.push({ text: content.map((block) => block.text ?? "").join(""), ...(options?.deliver ? { deliver: options.deliver } : {}) });
 			return meta;

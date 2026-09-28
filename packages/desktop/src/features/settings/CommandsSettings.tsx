@@ -2,8 +2,8 @@
  * 斜杠命令：在输入框里敲 `/` 能用到什么。
  */
 
-import type { BuiltinCommand } from "@lyra/core/commands-builtin";
-import type { SlashCommand } from "@lyra/core/commands-view";
+import type { BuiltinCommand } from "@plume/core/commands-builtin";
+import type { SlashCommand } from "@plume/core/commands-view";
 import { FolderOpen, Plus, RefreshCw, SquareTerminal, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";

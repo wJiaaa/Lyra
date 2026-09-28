@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { startApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-browser-omnibox";
+const dir = process.argv[2] ?? "/tmp/plume-browser-omnibox";
 await mkdir(dir, { recursive: true });
 
 const server: Server = createServer((req, res) => {
@@ -60,7 +60,7 @@ const openSession = async (id: string) => {
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...point });
 	await wait(1200);
 };
-const state = () => app.evaluate<{ tabs: { id: string; sessionId: string | null; url: string }[]; activeId: string | null }>("window.lyra.browser.state()");
+const state = () => app.evaluate<{ tabs: { id: string; sessionId: string | null; url: string }[]; activeId: string | null }>("window.plume.browser.state()");
 /** 面板画出来的页面：谁有 `<webview>`，谁在屏幕上。 */
 const pages = () => app.evaluate<{ mounted: string[]; visible: string[] }>(`(() => {
 	const all = [...document.querySelectorAll('[data-browser-page]')];
@@ -81,7 +81,7 @@ const pressEnter = async () => {
 
 try {
 	await openSession("qa-short");
-	const opened = await app.evaluate<string>(`window.lyra.browser.command({type:'open',url:'${site}/page',sessionId:'qa-short'}).then(()=>'ok',(e)=>e.message)`);
+	const opened = await app.evaluate<string>(`window.plume.browser.command({type:'open',url:'${site}/page',sessionId:'qa-short'}).then(()=>'ok',(e)=>e.message)`);
 	await wait(1500);
 	if (opened !== "ok") {
 		const diagnosis = await app.evaluate(`(() => ({
@@ -127,7 +127,7 @@ try {
 	await shot("01-omnibox-search");
 
 	// 3. 换成本地那台「搜索引擎」，回车真的落在搜索结果页上。
-	await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,browser:{...s.browser,searchEngine:'custom',searchUrl:'${site}/search?q=%s'}}))`);
+	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,browser:{...s.browser,searchEngine:'custom',searchUrl:'${site}/search?q=%s'}}))`);
 	await wait(700);
 	await typeAddress("天气 预报");
 	await pressEnter();
@@ -150,7 +150,7 @@ try {
 	check("新会话的浏览器是空的，不是别人的页面", empty, empty);
 	await shot("03-other-session-empty");
 
-	await app.evaluate(`window.lyra.browser.command({type:'open',url:'${site}/long',sessionId:'qa-long'})`);
+	await app.evaluate(`window.plume.browser.command({type:'open',url:'${site}/long',sessionId:'qa-long'})`);
 	await wait(1500);
 	const both = await pages();
 	const longTab = (await state()).tabs.find((entry) => entry.sessionId === "qa-long");

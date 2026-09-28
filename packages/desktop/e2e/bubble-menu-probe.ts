@@ -10,7 +10,7 @@
  * 此没有路径，而「打开 / 在访达中显示 / 复制路径」三行全靠路径。少了它，菜单空不空根本测不出来。
  *
  * `node e2e/bubble-menu-probe.ts [输出前缀]`，跑 `out/` 里的产物——改完代码要先 `pnpm build`。
- * `LYRA_THEME=dark` 换暗色跑一遍：底色是「色相由门类给、明度由主题给」，只看一张等于只验了一半。
+ * `PLUME_THEME=dark` 换暗色跑一遍：底色是「色相由门类给、明度由主题给」，只看一张等于只验了一半。
  */
 
 import { createServer } from "node:http";
@@ -68,7 +68,7 @@ async function seed(home: string): Promise<void> {
 			],
 			mcpServers: [],
 			projects: [{ id: "e2e", name: "project", path: project, pinned: true, lastOpenedAt: 1 }],
-			appearance: { theme: process.env.LYRA_THEME === "dark" ? "dark" : "light" },
+			appearance: { theme: process.env.PLUME_THEME === "dark" ? "dark" : "light" },
 			defaultModelId: `relay/${MODEL}`, permissionMode: "full", thinking: "high", retryAttempts: 1,
 			hooks: [], scheduledTasks: [], disabledPlugins: [], alwaysAllow: [],
 		}),
@@ -136,7 +136,7 @@ const READ_MENU = `(() => {
 	};
 })()`;
 
-const out = process.argv[2] ?? "/tmp/lyra-bubble";
+const out = process.argv[2] ?? "/tmp/plume-bubble";
 const model = startModel();
 const app = await startApp({ port: PORT, seed });
 const wire = await frameGrabber(PORT);

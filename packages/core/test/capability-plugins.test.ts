@@ -2,7 +2,7 @@
  * Plugins that arrive on disk.
  *
  * The claim this test defends is the strong reading of "everything is a plugin": not merely that
- * the host can assemble a different set, but that dropping a directory into `~/.lyra/plugins`
+ * the host can assemble a different set, but that dropping a directory into `~/.plume/plugins`
  * changes what the agent is made of — including replacing a seam the app ships with.
  */
 

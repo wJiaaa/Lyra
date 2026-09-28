@@ -9,16 +9,16 @@
  *
  * 原生目录选择器在主进程里换掉：`dialog.showOpenDialog` 会弹一张真的 macOS 表单并且一直等，
  * 探针按下去就是挂住。换的是 `electron_browser_dialog` 上的那个方法本身，不是渲染端的
- * `window.lyra`——后者是冻结的，改不动。
+ * `window.plume`——后者是冻结的，改不动。
  *
- * 用法：node --experimental-strip-types e2e/project-dialog-probe.ts ~/Desktop/Lyra项目弹窗测试
+ * 用法：node --experimental-strip-types e2e/project-dialog-probe.ts ~/Desktop/Plume项目弹窗测试
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-project-dialog";
+const dir = process.argv[2] ?? "/tmp/plume-project-dialog";
 const root = join(dir, "工作区");
 const solo = join(root, "solo");
 const web = join(root, "web");

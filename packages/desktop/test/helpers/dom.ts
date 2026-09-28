@@ -23,9 +23,9 @@ const w = new Window({ url: "http://localhost" });
  *
  * 钉在原型上而不是实例上：测 PC 行为的用例用 `withKeyboard` 在实例上遮住它、结束时删掉遮挡
  * （`helpers/keyboard.ts`），删掉之后露出来的仍是这里的 Mac。环境变量给探路用：想看某条用例在别的
- * 系统上会怎样，`LYRA_TEST_KEYBOARD="X11; Linux x86_64"` 跑一遍即可。
+ * 系统上会怎样，`PLUME_TEST_KEYBOARD="X11; Linux x86_64"` 跑一遍即可。
  */
-const pinnedPlatform = process.env.LYRA_TEST_KEYBOARD || "MacIntel";
+const pinnedPlatform = process.env.PLUME_TEST_KEYBOARD || "MacIntel";
 Object.defineProperty(Object.getPrototypeOf(w.navigator), "platform", { get: () => pinnedPlatform, configurable: true });
 
 /*

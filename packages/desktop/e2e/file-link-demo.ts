@@ -23,8 +23,8 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
-const OUT = process.argv[2] ?? join(homedir(), "Downloads", "lyra-file-link.mp4");
+const REAL_HOME = join(homedir(), ".plume");
+const OUT = process.argv[2] ?? join(homedir(), "Downloads", "plume-file-link.mp4");
 const PORT = 9427;
 
 /*
@@ -40,12 +40,12 @@ async function seed(home: string): Promise<void> {
 	await mkdir(cwd, { recursive: true });
 	await writeFile(join(cwd, "README.md"), "# 演示工程\n\n一个用来录制界面的空壳工程。\n");
 	// 一个读不了的二进制，正是这两个出口存在的理由——点开它只会得到「无法以文本显示」。
-	await writeFile(join(cwd, "Lyra-0.9.8-x64.exe"), Buffer.alloc(2048, 7));
+	await writeFile(join(cwd, "Plume-0.9.8-x64.exe"), Buffer.alloc(2048, 7));
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
 	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	for (const file of ["credentials.json", "vault.key"]) {
 		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
-			throw new Error(`没找到 ~/.lyra/${file}——真实模型调用需要它`);
+			throw new Error(`没找到 ~/.plume/${file}——真实模型调用需要它`);
 		});
 	}
 	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));

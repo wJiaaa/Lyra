@@ -2,19 +2,19 @@
 #
 # Without this file electron-builder falls back to defaults — an app named after the package, no
 # entitlements, and every workspace dependency copied in whether it is needed at runtime or not.
-appId: dev.lyra.app
-productName: Lyra
+appId: dev.plume.app
+productName: Plume
 # The binary's own name, which is not always derived from productName.
 #
-# Linux takes it from the package name instead, and this package is called `@lyra/desktop` — so
-# electron-builder produced `@lyradesktop`, refused it as a filename, and failed the AppImage. It
+# Linux takes it from the package name instead, and this package is called `@plume/desktop` — so
+# electron-builder produced `@plumedesktop`, refused it as a filename, and failed the AppImage. It
 # only ever mattered on Linux, and nothing built Linux until the first release.
-executableName: Lyra
+executableName: Plume
 # The filename of every artifact, spelled out.
 #
-# The default is `${name}…`, and `name` is the package's — `@lyra/desktop`. macOS and Windows
+# The default is `${name}…`, and `name` is the package's — `@plume/desktop`. macOS and Windows
 # happen to use `productName` in their defaults and were fine; Linux's .deb used the package name
-# and tried to write `release/@lyra/desktop_0.2.0_amd64.deb`, where that slash is a directory
+# and tried to write `release/@plume/desktop_0.2.0_amd64.deb`, where that slash is a directory
 # separator. It produced no .deb and no error anyone would connect to a package name.
 artifactName: ${productName}-${version}-${arch}.${ext}
 copyright: Copyright © 2026 kittors
@@ -110,7 +110,7 @@ mac:
   # revoked, keychain entries unreadable, everything authorised again. With a certificate the
   # requirement names the certificate instead —
   #
-  #     designated => identifier "dev.lyra.app" and certificate leaf = H"…"
+  #     designated => identifier "dev.plume.app" and certificate leaf = H"…"
   #
   # — and says nothing about the executable, so an update is the same app. Confirmed by signing two
   # unrelated binaries with one certificate: byte-identical requirements. See
@@ -127,7 +127,7 @@ mac:
   #
   #     code has no resources but signature indicates they must be present
   #
-  # Quarantined, Gatekeeper finds a broken signature and reports 「Lyra.app 已损坏，无法打开。」 — a
+  # Quarantined, Gatekeeper finds a broken signature and reports 「Plume.app 已损坏，无法打开。」 — a
   # dead end, that dialog has no 「仍要打开」. Ad-hoc is rejected as merely unidentified instead,
   # which does offer a way through. The entitlements already carry `disable-library-validation`,
   # which ad-hoc signing needs to launch at all.
@@ -169,10 +169,10 @@ linux:
   # Name the installed .desktop file after `desktopName` in package.json.
   #
   # Electron takes the Wayland app_id (and the X11 WM_CLASS the shells match on) from
-  # `desktopName`. There was none, so it derived one from the package name — `@lyra/desktop` — which
+  # `desktopName`. There was none, so it derived one from the package name — `@plume/desktop` — which
   # matches no installed .desktop file: a generic icon in the dock, windows that do not group under
   # their launcher, notifications attributed to nothing, and the GlobalShortcuts portal refusing
-  # every binding without saying so. `desktopName` is `Lyra.desktop`, the same name the file has
+  # every binding without saying so. `desktopName` is `Plume.desktop`, the same name the file has
   # always had (it followed `executableName`), so existing installs keep their launcher and pins;
   # this option ties the two together so they cannot drift. It becomes the default in v27.
   syncDesktopName: true
@@ -241,7 +241,7 @@ toolsets:
 #
 # `electronFuses:` 写进这个文件之后，electron-builder 确实执行了（日志里有
 # `executing @electron/fuses`），但打出来的包用 `@electron/fuses` 的 API 读回去，八个位全是
-# 关——包括配成 `true` 的那三个。而与此同时 `ELECTRON_RUN_AS_NODE=1 ./Lyra` 仍然能起 Node，
+# 关——包括配成 `true` 的那三个。而与此同时 `ELECTRON_RUN_AS_NODE=1 ./Plume` 仍然能起 Node，
 # 说明那些位根本没写进二进制，读到的「全关」是未初始化的默认值，不是生效后的状态。
 #
 # 也就是说：配了它，既得不到保护，也没有办法确认得到了什么。而 fuse 是一次性的——发出去的版本

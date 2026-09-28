@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import type { SessionSnapshot, WorkspaceInfo } from "../../electron/ipc-types.ts";
 import type { BranchList } from "../../electron/git.ts";
 import { LayoutProvider } from "../../src/app/layout.tsx";
@@ -48,7 +48,7 @@ beforeEach(() => {
 	release = null;
 	views = [];
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			git: {
@@ -94,7 +94,7 @@ afterEach(async () => {
 	release?.();
 	for (const view of views) await view.unmount();
 	useApp.setState(previous, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 async function menuIn(id: string): Promise<Mounted> {

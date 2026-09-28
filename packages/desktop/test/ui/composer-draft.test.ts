@@ -17,7 +17,7 @@ for (const switched of [false, true]) {
 			messages: [], running: false, drafts: { a: { text: "恢复这条消息", attachments: [], sessionRefs: refs }, b: { text: "另一份草稿", attachments: [], sessionRefs: [{ id: "other", title: "独立引用" }] } },
 			send: async (_content, options) => { sentRefs = options?.sessionRefs; return new Promise<boolean>((resolve) => { finish = resolve; }); },
 		});
-		Object.defineProperty(window, "lyra", { configurable: true, value: { commands: { list: async () => ({ commands: [], skills: [], agents: [] }) } } });
+		Object.defineProperty(window, "plume", { configurable: true, value: { commands: { list: async () => ({ commands: [], skills: [], agents: [] }) } } });
 		const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(LayoutProvider, { children: h(Composer) }) }));
 		try {
 			await click(view.find('[aria-label="发送"]'));

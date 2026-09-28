@@ -11,7 +11,7 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import type { SessionMeta, SessionStorage } from "@lyra/core";
+import type { SessionMeta, SessionStorage } from "@plume/core";
 import { clearSessions, storageUse, withinRange } from "../electron/session-cleanup.ts";
 
 let home = "";

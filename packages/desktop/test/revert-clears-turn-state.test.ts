@@ -15,7 +15,7 @@
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import type { Message, TodoItem } from "@lyra/core";
+import type { Message, TodoItem } from "@plume/core";
 
 const storage: Record<string, string> = {};
 const reverted: { sessionId: string; index: number }[] = [];
@@ -29,7 +29,7 @@ const reverted: { sessionId: string; index: number }[] = [];
 		removeItem: (k: string) => { delete storage[k]; },
 	},
 	matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
-	lyra: {
+	plume: {
 		sessions: { list: async () => [], running: async () => false },
 		agent: { revertMessage: async (sessionId: string, index: number) => { reverted.push({ sessionId, index }); } },
 	},
@@ -152,9 +152,9 @@ test("撤到中间时，撤回点之前写的那份计划留着", async () => {
 });
 
 test("撤回失败时，连同 stopped、todos 一起回滚", async () => {
-	const lyra = (globalThis as unknown as { window: { lyra: { agent: { revertMessage: unknown } } } }).window.lyra;
-	const good = lyra.agent.revertMessage;
-	lyra.agent.revertMessage = async () => { throw new Error("磁盘满了"); };
+	const plume = (globalThis as unknown as { window: { plume: { agent: { revertMessage: unknown } } } }).window.plume;
+	const good = plume.agent.revertMessage;
+	plume.agent.revertMessage = async () => { throw new Error("磁盘满了"); };
 	try {
 		const todos: TodoItem[] = [{ content: "看过那个目录", status: "in_progress" }];
 		const messages = [user("看看那个目录"), plan(todos, 1), assistant("那里有三个子项目。", "aborted")];
@@ -166,6 +166,6 @@ test("撤回失败时，连同 stopped、todos 一起回滚", async () => {
 		assert.equal(useApp.getState().stopped, "user", "「已暂停」也该退回去——否则那一行会凭空消失");
 		assert.deepEqual(useApp.getState().todos, todos, "那份计划也该退回去——它在转录里还好好的");
 	} finally {
-		lyra.agent.revertMessage = good;
+		plume.agent.revertMessage = good;
 	}
 });

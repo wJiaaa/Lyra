@@ -1,5 +1,5 @@
-import { visibleActivity } from "@lyra/core/activity";
-import type { SessionMeta } from "@lyra/core";
+import { visibleActivity } from "@plume/core/activity";
+import type { SessionMeta } from "@plume/core";
 import { translate } from "../../i18n/translate.ts";
 import { useApp, useSideChatRunningKey } from "../../store/index.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";

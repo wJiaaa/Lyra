@@ -16,7 +16,7 @@ export { WEB_METHODS } from "./web.ts";
 export const DEFAULT_SIDE_CHAT_ID = "default";
 
 /*
- * `args.ts` 不在这里导出，要用它得走 `@lyra/contract/args`。
+ * `args.ts` 不在这里导出，要用它得走 `@plume/contract/args`。
  *
  * 它需要 `node:path` 来判断绝对路径，而这个包入口是**渲染进程也会加载的**：浏览器里跑的是同一份
  * renderer，`services/host.ts` 从这里读 `WEB_METHODS`。一个 `node:` 导入混进来，Vite 会把它

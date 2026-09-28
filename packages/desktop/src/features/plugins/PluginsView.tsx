@@ -1,5 +1,5 @@
 /**
- * 插件市场: what you could add to Lyra, and what you already have.
+ * 插件市场: what you could add to Plume, and what you already have.
  *
  * This is the browsing half of a subject that has two halves. It answers "what is out there" — a
  * shelf of marks and one-line descriptions, laid out to be skimmed, with one action on each. The

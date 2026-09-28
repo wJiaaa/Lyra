@@ -15,7 +15,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const HOME = join(homedir(), ".lyra");
+const HOME = join(homedir(), ".plume");
 const THOUGHT = "先想一下：这是个纯算术问题，直接算就行。";
 
 const TOOL = {

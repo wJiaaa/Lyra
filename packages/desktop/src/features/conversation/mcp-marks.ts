@@ -13,10 +13,10 @@
  * writes — installing Context7 produces the server id `context7__context7`, whose tools are named
  * `mcp__context7__context7__…`, and the first `__` lands in the middle of the id.
  *
- * Kept free of React and of `window.lyra` so a test can call it. The wiring is in `useMcpMark.ts`.
+ * Kept free of React and of `window.plume` so a test can call it. The wiring is in `useMcpMark.ts`.
  */
 
-import type { McpServerConfig } from "@lyra/core";
+import type { McpServerConfig } from "@plume/core";
 
 const MCP_PREFIX = "mcp__";
 

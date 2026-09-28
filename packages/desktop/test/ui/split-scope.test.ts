@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { act, createElement as h, Fragment } from "react";
-import type { UserContent } from "@lyra/core";
+import type { UserContent } from "@plume/core";
 import type { SessionSnapshot } from "../../electron/ipc-types.ts";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { LayoutProvider } from "../../src/app/layout.tsx";
@@ -43,7 +43,7 @@ beforeEach(() => {
 		toolRuns: {}, running: false, pendingUserMessage: null, activity: {}, turns: {}, carried: {}, notices: [], settings: null, loadingSession: false,
 		composerDraft: { text: "", replace: false, attachments: [], sessionRefs: [] },
 	} as never);
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		sessions: {
 			create: async () => { created.push("new"); return snapshot("n"); },
 			capabilities: async () => null,
@@ -78,7 +78,7 @@ test("撤回点名的会话，不是台上那一个", async () => {
 });
 
 test("点名给一屏的草稿只落进那一屏的输入框", async () => {
-	(window.lyra as unknown as Record<string, unknown>).commands = { list: async () => ({ commands: [], skills: [], agents: [] }) };
+	(window.plume as unknown as Record<string, unknown>).commands = { list: async () => ({ commands: [], skills: [], agents: [] }) };
 	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(LayoutProvider, { children: h(Fragment, null,
 		h("div", { "data-screen": "a" }, h(SessionScope.Provider, { value: "a" }, h(Composer))),
 		h("div", { "data-screen": "b" }, h(SessionScope.Provider, { value: "b" }, h(Composer))),

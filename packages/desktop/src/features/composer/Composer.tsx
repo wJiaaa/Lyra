@@ -1,6 +1,6 @@
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
 import { translate } from "../../i18n/translate.ts";
-import { parseInvocation, parseSkillMention } from "@lyra/core/commands-view";
+import { parseInvocation, parseSkillMention } from "@plume/core/commands-view";
 import { Camera, ChevronDown, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motionReduced } from "../../ui/motion/reduced.ts";
@@ -20,7 +20,7 @@ import { ScheduledAlert } from "../scheduled/index.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
 import { companionOf, openFilePane, openScopedPanel, useSide } from "../dock/index.ts";
-import { DEFAULT_SIDE_CHAT_ID } from "@lyra/contract";
+import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { ContextMeter } from "./ContextMeter.tsx";
 import { EffortTrigger } from "../models/index.ts";
 import { useRolled } from "../../ui/motion/RollingText.tsx";

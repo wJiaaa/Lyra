@@ -11,14 +11,14 @@
  * 第三条是这次改动里最容易「看着对、其实错」的一条：菜单里两行都画出来了，插进去的 token
  * 却是同一个相对路径——所以断言读的是 token 本身，不是行数。
  *
- * 用法：node --experimental-strip-types e2e/project-folders-probe.ts ~/Desktop/Lyra项目弹窗测试
+ * 用法：node --experimental-strip-types e2e/project-folders-probe.ts ~/Desktop/Plume项目弹窗测试
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-project-folders";
+const dir = process.argv[2] ?? "/tmp/plume-project-folders";
 const root = join(dir, "多源工作区");
 const solo = join(root, "solo");
 const web = join(root, "web");

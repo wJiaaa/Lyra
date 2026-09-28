@@ -84,7 +84,7 @@ let device: string | undefined;
  * 也不带出任何可读的本机信息。主机名改了它跟着变，代价只是那之后的第一轮缓存路由换一处。
  */
 function deviceId(): string {
-	device ??= createHash("sha256").update(`lyra-device\0${hostname()}\0${homedir()}`).digest("hex");
+	device ??= createHash("sha256").update(`plume-device\0${hostname()}\0${homedir()}`).digest("hex");
 	return device;
 }
 

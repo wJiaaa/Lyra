@@ -9,7 +9,7 @@
  * the renderer's `translate` is not reachable from here.
  */
 
-import type { AgentEvent } from "@lyra/core";
+import type { AgentEvent } from "@plume/core";
 import { nativeText } from "./i18n.ts";
 
 export interface NotificationInstance {
@@ -94,7 +94,7 @@ export function notifyTaskDone(details: TaskDoneDetails): void {
 	const icon = deps.appIcon();
 
 	const notification = deps.createNotification({
-		title: "Lyra",
+		title: "Plume",
 		body,
 		...(icon ? { icon } : {}),
 		silent: false,
@@ -128,7 +128,7 @@ export function notifyNeedAssistance(details: NeedAssistanceDetails): void {
 
 	const icon = deps.appIcon();
 	const notification = deps.createNotification({
-		title: "Lyra",
+		title: "Plume",
 		body,
 		...(icon ? { icon } : {}),
 		silent: false,

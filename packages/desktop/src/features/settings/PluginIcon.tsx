@@ -27,7 +27,7 @@ import { Blocks, FileText, Server } from "lucide-react";
 import { useEffect, useState } from "react";
 import { iconFit, type IconFit } from "./icon-fit.ts";
 
-import type { BundleKind } from "@lyra/core";
+import type { BundleKind } from "@plume/core";
 import { bridge } from "../../services/index.ts";
 
 /**

@@ -21,7 +21,7 @@
  * bundle with one server (which is nearly all of them) was two pages away from being turned on.
  */
 
-import type { McpServerConfig } from "@lyra/core";
+import type { McpServerConfig } from "@plume/core";
 import { ArrowUp, ArrowUpRight, Cable, ChevronRight, Download, ExternalLink, FolderOpen, Globe, MoreHorizontal, Settings2, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -36,15 +36,15 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { SkeletonBar } from "../../ui/primitives/Skeleton.tsx";
 import { TabStrip, type TabStripItem } from "../../ui/primitives/TabStrip.tsx";
 import { TimeAgo } from "../../ui/primitives/TimeAgo.tsx";
-import { CLIENT_LABEL } from "@lyra/registry-shared";
+import { CLIENT_LABEL } from "@plume/registry-shared";
 import { PluginIcon, safeColour, Toggle } from "../settings/index.ts";
 import { isEnabled, isInstalled, UNFILED, type CatalogItem } from "./catalog.ts";
 import { compactCount } from "./format.ts";
 import { McpKeys, missingOf, useEnvironment } from "./McpKeys.tsx";
 import { settingsAfterToggle } from "./toggle.ts";
 import { useInstall, type InstallReports } from "./useInstall.ts";
-import type { Plugin } from "@lyra/core";
-import type { Skill } from "@lyra/core";
+import type { Plugin } from "@plume/core";
+import type { Skill } from "@plume/core";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
 import { bridge } from "../../services/index.ts";
 import { Markdown } from "../conversation/index.ts";

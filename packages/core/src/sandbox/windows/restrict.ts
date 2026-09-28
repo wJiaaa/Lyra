@@ -253,7 +253,7 @@ export function grantWrite(api: Win32, directory: string, capabilitySid: Ptr): v
  * granted the user, and failed wherever it did not. An elevated administrator's names Administrators
  * and SYSTEM — Administrators being deny-only once the token is filtered — so a command could not
  * open its own process object and died in loader initialisation, `0xC0000142`, before its first
- * instruction: every confined command, for anyone running Lyra as administrator. It showed in CI only
+ * instruction: every confined command, for anyone running Plume as administrator. It showed in CI only
  * under a PowerShell step; Git Bash rewrites its own default DACL to grant the user, and everything
  * started beneath it inherits that.
  *

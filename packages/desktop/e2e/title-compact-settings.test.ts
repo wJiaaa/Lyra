@@ -75,8 +75,8 @@ const compactButton = `document.querySelector('[aria-label="compact 模型"]')`;
 async function verifyRow(kind: "title" | "compact"): Promise<void> {
 	for (const theme of ["light", "dark"]) {
 		await app.evaluate(`(async () => {
-			const settings = await window.lyra.settings.get();
-			await window.lyra.settings.save({ ...settings, appearance: { ...settings.appearance, theme: ${theme === "light" ? '"light"' : '"dark"'} } });
+			const settings = await window.plume.settings.get();
+			await window.plume.settings.save({ ...settings, appearance: { ...settings.appearance, theme: ${theme === "light" ? '"light"' : '"dark"'} } });
 		})()`);
 		await waitFor(`document.documentElement.classList.contains(${theme === "light" ? '"light"' : '"dark"'})`);
 		for (const width of [1440, 760]) {
@@ -100,7 +100,7 @@ async function verifyRow(kind: "title" | "compact"): Promise<void> {
 			assert.equal(metrics.visible, true, JSON.stringify(metrics));
 			assert.ok(metrics.controlWidth >= (kind === "title" ? 38 : 100), JSON.stringify(metrics));
 			console.log(JSON.stringify({ kind, theme, width, ...metrics }));
-			const directory = process.env.LYRA_E2E_ARTIFACTS;
+			const directory = process.env.PLUME_E2E_ARTIFACTS;
 			if (directory) {
 				await mkdir(directory, { recursive: true });
 				const shot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });

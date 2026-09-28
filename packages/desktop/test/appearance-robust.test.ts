@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFAULT_APPEARANCE, type AppearanceSettings } from "@lyra/core";
+import { DEFAULT_APPEARANCE, type AppearanceSettings } from "@plume/core";
 import { parseHex, readableInk } from "../src/features/settings/theme.ts";
 
 test("a colour that is not there reads as no colour, rather than throwing", () => {

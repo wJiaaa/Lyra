@@ -9,7 +9,7 @@ import { readRecord, wasShown } from "../src/tools/read-state.ts";
 import type { Message, ToolContext } from "../src/types.ts";
 
 test("a large read is cut by the tool itself and marks only the lines it returned", async () => {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-read-budget-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-read-budget-"));
 	const file = join(dir, "data.txt");
 	await writeFile(file, Array.from({ length: 2000 }, (_, i) => `line ${i + 1} ${"x".repeat(100)}`).join("\n"), "utf8");
 	const ctx: ToolContext = { cwd: dir, sessionId: "t", state: new Map() };

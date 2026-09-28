@@ -9,9 +9,9 @@
 
 import { formatList } from "../i18n/list.ts";
 import { translate } from "../i18n/translate.ts";
-import type { AgentEvent } from "@lyra/core";
+import type { AgentEvent } from "@plume/core";
 import { addTurnUsage, type TurnMeter, type CarriedTurn } from "./turn-meter.ts";
-import { nextActivity } from "@lyra/core/activity";
+import { nextActivity } from "@plume/core/activity";
 import { recordReadEvent } from "./read-events.ts";
 import { cachedEvent } from "./cached-event.ts";
 import { messageEvent } from "./message-event.ts";

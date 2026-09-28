@@ -33,7 +33,7 @@ test("再开的一格终端起一个新 shell，不接手没人看的那个；�
 	const idle = { id: "idle", title: "终端 1" };
 	const opened: string[] = [];
 	const killed: string[] = [];
-	Reflect.set(window, "lyra", { terminal: {
+	Reflect.set(window, "plume", { terminal: {
 		listAll: async () => [idle],
 		list: async () => [idle],
 		open: async () => { const id = `new${opened.length + 1}`; opened.push(id); return { id, title: `终端 ${opened.length + 1}` }; },
@@ -65,6 +65,6 @@ test("再开的一格终端起一个新 shell，不接手没人看的那个；�
 	} finally {
 		await extra.unmount();
 		await first.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });

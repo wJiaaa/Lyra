@@ -3,7 +3,7 @@
  *
  * One HTTP server does three things. It hands out the renderer's built files (`web-app.ts`), so the
  * browser runs the same interface as the window, by construction the same version. It answers one
- * WebSocket per browser, over which the renderer's `window.lyra` calls arrive (`web-rpc.ts` says
+ * WebSocket per browser, over which the renderer's `window.plume` calls arrive (`web-rpc.ts` says
  * which may) and the session events the windows get are pushed out as they happen. And it keeps
  * everyone else out.
  *
@@ -25,13 +25,13 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { networkInterfaces } from "node:os";
 import { timingSafeEqual } from "node:crypto";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { AgentEvent, SideChatUpdate, Settings } from "@lyra/core";
+import type { AgentEvent, SideChatUpdate, Settings } from "@plume/core";
 import type { SessionChange, WebAccessStatus } from "./ipc-shapes.ts";
 import { allowedMethods, callRpc, type RpcDeps } from "./web-rpc.ts";
 import { serveApp } from "./web-app.ts";
 import { settingsForWeb } from "./web-settings.ts";
 
-const COOKIE = "lyra_web";
+const COOKIE = "plume_web";
 
 export class WebServer {
 	private http: Server | null = null;
@@ -263,7 +263,7 @@ function refuse(res: ServerResponse, headers: Record<string, string>): void {
 	res.writeHead(401, { ...headers, "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
 	res.end(
 		'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
-			"<title>Lyra</title><body style=\"font:15px system-ui;margin:3em auto;max-width:32em;padding:0 1em\">" +
+			"<title>Plume</title><body style=\"font:15px system-ui;margin:3em auto;max-width:32em;padding:0 1em\">" +
 			"<h1 style=\"font-size:18px\">链接无效或已失效</h1>" +
 			"<p>请在桌面端「设置 → Web 访问」里重新复制访问链接。</p>" +
 			"<p lang=\"en\" style=\"color:#888\">This link is invalid or has expired. Copy a fresh one from Settings → Web access on the desktop.</p>",

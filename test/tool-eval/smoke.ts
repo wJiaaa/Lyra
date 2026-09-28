@@ -11,7 +11,7 @@ import { streamAssistant } from "../../packages/core/src/ai/index.ts";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
 import type { AssistantMessage, ToolSpec } from "../../packages/core/src/types.ts";
 
-const MODEL_ID = process.env.LYRA_EVAL_MODEL ?? "relay/gemini-3.7-flash-high";
+const MODEL_ID = process.env.PLUME_EVAL_MODEL ?? "relay/gemini-3.7-flash-high";
 
 const ECHO_TOOL: ToolSpec = {
 	name: "echo",

@@ -72,8 +72,8 @@ const snap = (): Promise<Snap> => evaluate<Snap>(SNAP);
 /** 主进程眼里现在开着哪些窗口。 */
 async function windows(): Promise<{ sessions: string[]; panels: { kind: string; scope: string }[] }> {
 	return evaluate(`(async () => {
-		if (!window.lyra?.windows?.list) return { sessions: [], panels: [] };
-		const r = await window.lyra.windows.list();
+		if (!window.plume?.windows?.list) return { sessions: [], panels: [] };
+		const r = await window.plume.windows.list();
 		return { sessions: (r.sessions || []).map((s) => String(s).slice(0, 8)), panels: r.panels || [] };
 	})()`);
 }

@@ -29,7 +29,7 @@ test("a background shell exit drops it without replacing this pane's shell or it
 	const tabs = [{ id: "other", title: "Other" }, { id: "current", title: "Current" }, { id: "last", title: "Last" }];
 	const exits = new Set<(event: { id: string; code: number }) => void>();
 	const detached: string[] = [];
-	Reflect.set(window, "lyra", { terminal: {
+	Reflect.set(window, "plume", { terminal: {
 		listAll: async () => tabs,
 		list: async () => [tabs[1]],
 		attach: async (id: string) => ({ id, epoch: 2, replay: "" }),
@@ -61,6 +61,6 @@ test("a background shell exit drops it without replacing this pane's shell or it
 		assert.ok(view.host.textContent?.includes(translate("terminal.shellExitedCode", { code: 7 })));
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });

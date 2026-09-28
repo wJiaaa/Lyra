@@ -12,7 +12,7 @@
 
 import { createHash } from "node:crypto";
 import { ExtensionHost } from "../extensions/host.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { McpManager, type McpServerConfig, type McpServerStatus } from "../mcp/client.ts";
 import { BUILTIN_RESOURCES } from "../resources/handlers.ts";
@@ -53,7 +53,7 @@ export class SessionCapabilities {
 	 */
 	watched: string[] = [];
 	/**
-	 * The session's address space: `skill://`, `scratch://`, `lyra://`.
+	 * The session's address space: `skill://`, `scratch://`, `plume://`.
 	 *
 	 * One per session, never a module singleton. A sub-agent has its own skill set, and a shared
 	 * router would resolve `skill://x` against whichever session touched it last — a bug that only
@@ -209,7 +209,7 @@ function buildRouter(): ResourceRouter {
 }
 
 /**
- * Where extensions live: `<cwd>/.lyra/extensions/*` and `~/.lyra/extensions/*`.
+ * Where extensions live: `<cwd>/.plume/extensions/*` and `~/.plume/extensions/*`.
  *
  * One directory per extension, each with its own `extension.json`. Missing directories are the
  * normal case and are not reported — most projects have none.
@@ -217,7 +217,7 @@ function buildRouter(): ResourceRouter {
 export async function extensionDirs(cwd: string): Promise<string[]> {
 	const { readdir } = await import("node:fs/promises");
 	const { join } = await import("node:path");
-	const roots = [join(cwd, ".lyra", "extensions"), join(lyraHome(), "extensions")];
+	const roots = [join(cwd, ".plume", "extensions"), join(plumeHome(), "extensions")];
 	const found: string[] = [];
 	for (const root of roots) {
 		const entries = await readdir(root, { withFileTypes: true }).catch(() => []);

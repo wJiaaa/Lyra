@@ -63,8 +63,8 @@ async function shot(): Promise<Shot> {
 		}
 		const tiles = [...document.querySelectorAll('[data-ly-split-pane]')].map((el) => (el.dataset.lySplitPane || '?').slice(0, 8));
 		let panels = [], sessions = [];
-		if (window.lyra && window.lyra.windows && window.lyra.windows.list) {
-			const r = await window.lyra.windows.list();
+		if (window.plume && window.plume.windows && window.plume.windows.list) {
+			const r = await window.plume.windows.list();
 			panels = (r.panels || []).map((p) => p.kind + '@' + String(p.scope).slice(0, 8));
 			sessions = (r.sessions || []).map((s) => String(s).slice(0, 8));
 		}
@@ -221,10 +221,10 @@ async function splitTo(n: number): Promise<number> {
 async function reset(): Promise<void> {
 	await evaluate(`(async () => {
 		document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-		if (window.lyra && window.lyra.windows) {
-			const r = await window.lyra.windows.list();
-			for (const p of r.panels || []) await window.lyra.windows.closePanel({ kind: p.kind, scope: p.scope });
-			for (const s of r.sessions || []) if (window.lyra.windows.closeSession) await window.lyra.windows.closeSession(s);
+		if (window.plume && window.plume.windows) {
+			const r = await window.plume.windows.list();
+			for (const p of r.panels || []) await window.plume.windows.closePanel({ kind: p.kind, scope: p.scope });
+			for (const s of r.sessions || []) if (window.plume.windows.closeSession) await window.plume.windows.closeSession(s);
 		}
 		for (const b of [...document.querySelectorAll('button')]) {
 			const l = b.getAttribute('aria-label') || '';
@@ -278,7 +278,7 @@ async function main(): Promise<void> {
 	 * 这两条报的是 ENOENT settings.json，看起来像重启坏了，其实是探针把自己的地基拆了。
 	 * 自己建、自己 seed、两次都借给 `startApp`，最后自己收拾。
 	 */
-	const home = await mkdtemp(join(tmpdir(), "lyra-e2e-panels-"));
+	const home = await mkdtemp(join(tmpdir(), "plume-e2e-panels-"));
 	await seedFromReal(home);
 	app = await startApp({ port: PORT, reuseHome: home });
 	try {
@@ -344,7 +344,7 @@ async function main(): Promise<void> {
 			if (!win) return ["bad", "点了弹出，面板窗口没开出来"];
 			const before = await shot();
 
-			await evaluate(`(async () => { await window.lyra.windows.closePanel({ kind: 'browser', scope: 'window' }); return true; })()`);
+			await evaluate(`(async () => { await window.plume.windows.closePanel({ kind: 'browser', scope: 'window' }); return true; })()`);
 			await wait(1400);
 			const after = await shot();
 			if (after.panels.length > 0) return ["bad", `窗口没关掉：${after.panels.join(" ")}`];
@@ -375,7 +375,7 @@ async function main(): Promise<void> {
 			const win = await panelWindowOf("browser");
 			if (!win) return ["bad", "点了弹出，面板窗口没开出来"];
 			const scope = win.boot.panelScope ?? "";
-			await evaluate(`(async () => { await window.lyra.windows.closePanel({ kind: 'browser', scope: ${JSON.stringify(scope)} }); return true; })()`);
+			await evaluate(`(async () => { await window.plume.windows.closePanel({ kind: 'browser', scope: ${JSON.stringify(scope)} }); return true; })()`);
 			await wait(1400);
 			const after = await shot();
 			if (after.tiles.length !== 2) return ["bad", `关掉面板窗口之后屏数成了 ${after.tiles.length}`];

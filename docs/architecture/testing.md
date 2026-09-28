@@ -21,7 +21,7 @@
 
 ## 组件测试
 
-在 `packages/desktop/test/ui/`，`pnpm --filter @lyra/desktop test:ui`。用 happy-dom 真的挂载再
+在 `packages/desktop/test/ui/`，`pnpm --filter @plume/desktop test:ui`。用 happy-dom 真的挂载再
 断言，一秒跑完。写法用 `createElement` 而不是 JSX，辅助函数在 `test/helpers/mount.ts`。
 
 断言要对着**用户能观察到的东西**——渲染出的属性、文字、可访问名——而不是内部状态。
@@ -37,7 +37,7 @@
 
 ```bash
 pnpm build
-pnpm --filter @lyra/desktop exec node --test --experimental-strip-types e2e/transcript-stability.test.ts
+pnpm --filter @plume/desktop exec node --test --experimental-strip-types e2e/transcript-stability.test.ts
 ```
 
 `packages/desktop/e2e/`，跑真实的 Electron 窗口，经 DevTools 协议驱动。一次一个应用
@@ -78,14 +78,14 @@ Electron 43 携带的 V8 尚未包含 [536271637 的修复](https://chromium-rev
 - 斜杠命令的原生编辑、撤销、光标补全、参数装饰、长草稿滚动、菜单渐隐，以及压缩的参数传递、取消、结果与跨会话隔离。
 - 模型菜单的收藏置顶、供应商折叠和内部滚动，以及用量页的离线计价、缓存分类、图表切换、模型目录同步和窄窗口重排。
 
-设置 `LYRA_E2E_ARTIFACTS` 可以保存真实应用截图。测试使用临时项目和合成会话
+设置 `PLUME_E2E_ARTIFACTS` 可以保存真实应用截图。测试使用临时项目和合成会话
 日志，经真实应用加载，退出后清理。模型请求只发给测试启动的本地协议服务，不使用用户密钥。
 
 本地聚焦运行：
 
 ```bash
 pnpm build
-pnpm --filter @lyra/desktop exec node --test --test-concurrency=1 --experimental-strip-types e2e/desktop-compatibility.test.ts e2e/transcript-stability.test.ts e2e/interaction-polish.test.ts e2e/session-startup.test.ts e2e/definition-actions.test.ts e2e/command-workflow.test.ts e2e/visual-details.test.ts e2e/agent-profiles-sidechat.test.ts e2e/navigation-models.test.ts e2e/model-menu-polish.test.ts e2e/usage-dashboard.test.ts e2e/workspace-quality.test.ts e2e/browser-workspace.test.ts e2e/menu-scroll.test.ts e2e/cdp-lifetime.test.ts
+pnpm --filter @plume/desktop exec node --test --test-concurrency=1 --experimental-strip-types e2e/desktop-compatibility.test.ts e2e/transcript-stability.test.ts e2e/interaction-polish.test.ts e2e/session-startup.test.ts e2e/definition-actions.test.ts e2e/command-workflow.test.ts e2e/visual-details.test.ts e2e/agent-profiles-sidechat.test.ts e2e/navigation-models.test.ts e2e/model-menu-polish.test.ts e2e/usage-dashboard.test.ts e2e/workspace-quality.test.ts e2e/browser-workspace.test.ts e2e/menu-scroll.test.ts e2e/cdp-lifetime.test.ts
 ```
 
 macOS 上运行这些测试可验证共享 Chromium 布局，不能证明 Windows 的 DirectWrite、GPU 驱动、
@@ -95,9 +95,9 @@ macOS 上运行这些测试可验证共享 Chromium 布局，不能证明 Window
 ### macOS 原生标题栏
 
 CDP 截图不包含原生红绿灯，无法发现它们与 HTML 图标之间的 1pt 偏差。有屏幕录制权限的
-macOS 环境可运行 `pnpm --filter @lyra/desktop exec node --experimental-strip-types e2e/header-native-probe.ts`。
+macOS 环境可运行 `pnpm --filter @plume/desktop exec node --experimental-strip-types e2e/header-native-probe.ts`。
 它启动隔离窗口，用系统截图取原生灯像素，与真实 DOM 图标中心线比较；截图中的灯高度也必须
-落在有效范围，避免截图缺失产生假绿。`LYRA_E2E_ARTIFACTS` 可保留原始截图，临时 profile 自动清理。
+落在有效范围，避免截图缺失产生假绿。`PLUME_E2E_ARTIFACTS` 可保留原始截图，临时 profile 自动清理。
 
 ### 定位端到端失败
 
@@ -155,13 +155,13 @@ Activity 会保留隐藏页面的 DOM。全局 `querySelectorAll` 可能读到�
 同一测试验证角色与子智能体的收藏/搜索菜单、420px 高度上限、375px 布局、明确配置的推理
 等级，以及配置选择不修改当前会话模型。`model-menu.test.ts` 回归聊天侧原有搜索与收藏，
 `agent-profiles-sidechat.test.ts` 检查子智能体实际 HTTP 请求和侧聊历史。各文件仍须串行执行，
-构建完成后才能启动，使用 `LYRA_E2E_ARTIFACTS` 保存真实截图。`thinking-wire.test.ts` 另对
+构建完成后才能启动，使用 `PLUME_E2E_ARTIFACTS` 保存真实截图。`thinking-wire.test.ts` 另对
 Responses、Chat Completions、Anthropic 的出站参数做断言，并覆盖无效自定义预算的请求前拒绝。
 
 ### 工作区交付与浏览器的隔离
 
 [工作区工具](workspace-tools.md)的两组端到端测试启动本地协议服务提供确定的工具调用，实际执行
-Lyra 工具、写入隔离 Git 仓库、启动并结束真实 HTTP 服务。浏览器页面为明确的本地 web fixture，
+Plume 工具、写入隔离 Git 仓库、启动并结束真实 HTTP 服务。浏览器页面为明确的本地 web fixture，
 通过正式 BrowserPanel 渲染，截图不使用替代 UI。测试实例去掉 NODE_TEST_CONTEXT，避免子进程
 中真正执行的 `node --test` 被上层测试环境静默跳过。用户配置、会话与密钥不用于这些测试。
 

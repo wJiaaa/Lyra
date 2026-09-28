@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
 
 let app: RunningApp;
@@ -138,7 +138,7 @@ test("fullscreen and restore retain heavy pane contents and resize each surface 
 			t.diagnostic(JSON.stringify({ kind, restore, motion: result.motion, resizes: result.resizes, retained: result.retained, maxFrame: Math.max(...result.frames.map(f=>f.interval)), longTasks: result.longTasks }));
 		}
 	}
-	const directory = process.env.LYRA_E2E_ARTIFACTS;
+	const directory = process.env.PLUME_E2E_ARTIFACTS;
 	if (directory) {
 		await mkdir(directory, { recursive: true });
 		await writeFile(join(directory, "dock-fullscreen.json"), JSON.stringify(measurements, null, 2));
@@ -227,7 +227,7 @@ test("a large editable file keeps its editor and unsaved text; reduced motion la
 	}
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-dock-pane="file"] .cm-content').innerText`), /retained draft/);
 	assert.doesNotMatch(await readFile(join(app.home, "project", "large.ts"), "utf8"), /retained draft/);
-	await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,appearance:{...s.appearance,reduceMotion:'on'}}))`);
+	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,reduceMotion:'on'}}))`);
 	await until(`document.documentElement.dataset.reduceMotion==='on'`);
 	try {
 		for (const restore of [false, true]) {
@@ -236,6 +236,6 @@ test("a large editable file keeps its editor and unsaved text; reduced motion la
 			assert.equal(new Set(result.frames.map(geometry)).size, 1);
 		}
 	} finally {
-		await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,appearance:{...s.appearance,reduceMotion:'off'}}))`);
+		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,reduceMotion:'off'}}))`);
 	}
 });

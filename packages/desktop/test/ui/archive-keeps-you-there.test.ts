@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import { useApp } from "../../src/store/index.ts";
 import { applySessionChange } from "../../src/store/session-changes.ts";
 

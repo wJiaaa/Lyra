@@ -59,7 +59,7 @@ export function browserUrl(raw: string): string {
 	const text = raw.trim();
 	if (!text) return "about:blank";
 	const url = new URL(/^[a-z][\w+.-]*:/i.test(text) && !/^[\w.-]+:\d/.test(text) ? text : `https://${text}`);
-	if (!["http:", "https:", "ly-preview:"].includes(url.protocol) && url.href !== "about:blank") throw new Error("只允许网页地址或 Lyra 本地预览");
+	if (!["http:", "https:", "ly-preview:"].includes(url.protocol) && url.href !== "about:blank") throw new Error("只允许网页地址或 Plume 本地预览");
 	return url.href;
 }
 
@@ -137,7 +137,7 @@ function browserSearchUrl(query: string, settings?: BrowserSearchSettings): stri
 export function browserSearchCustom(raw: string): string {
 	const text = raw.trim();
 	if (!text.includes("%s")) throw new Error("地址里要有 %s，搜索词填在那个位置");
-	const probe = browserUrl(text.replaceAll("%s", "lyra"));
+	const probe = browserUrl(text.replaceAll("%s", "plume"));
 	if (!probe.startsWith("http:") && !probe.startsWith("https:")) throw new Error("搜索地址只能是 http 或 https");
 	return text;
 }

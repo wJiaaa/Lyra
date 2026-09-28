@@ -8,7 +8,7 @@
  */
 
 import { memo } from "react";
-import type { AssistantMessage, Message } from "@lyra/core";
+import type { AssistantMessage, Message } from "@plume/core";
 import { TurnDeliveryCard } from "./TurnDelivery.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";

@@ -68,9 +68,9 @@ afterEach(async (t) => {
 	if (!t.passed) {
 		t.diagnostic(await app.evaluate<string>("document.body.innerText.slice(-6000)"));
 		t.diagnostic(JSON.stringify({ step, results }, (key, value) => key === "data" && typeof value === "string" ? `[${value.length} bytes]` : value).slice(-16000));
-		t.diagnostic(JSON.stringify(await app.evaluate("window.lyra.browser.state()")));
+		t.diagnostic(JSON.stringify(await app.evaluate("window.plume.browser.state()")));
 		t.diagnostic(JSON.stringify(await app.evaluate("document.querySelector('webview')?.executeJavaScript('window.inputTrace')")));
-		const artifact = process.env.LYRA_E2E_ARTIFACTS;
+		const artifact = process.env.PLUME_E2E_ARTIFACTS;
 		if (artifact) { await mkdir(artifact, { recursive: true }); const screenshot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" }); await writeFile(join(artifact, `browser-failed-${t.name.replace(/\W/g, "-")}.png`), Buffer.from(screenshot.data, "base64")); }
 	}
 });
@@ -97,13 +97,13 @@ test("agent drives the user's actual browser: native input, click, viewport and 
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...point });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...point });
 	await until(`document.querySelector('textarea[aria-label="消息"]')`);
-	await app.evaluate(`window.lyra.agent.prompt('qa-short',[{type:'text',text:'BROWSER_QA 请检查浏览器'}])`);
+	await app.evaluate(`window.plume.agent.prompt('qa-short',[{type:'text',text:'BROWSER_QA 请检查浏览器'}])`);
 	await until(`document.body.innerText.includes('BROWSER_QA_DONE')`);
-	const state = await app.evaluate<{ tabs: { id: string; sessionId: string; viewport: { width: number } }[] }>("window.lyra.browser.state()");
+	const state = await app.evaluate<{ tabs: { id: string; sessionId: string; viewport: { width: number } }[] }>("window.plume.browser.state()");
 	assert.equal(state.tabs.length, 1);
 	assert.equal(state.tabs[0].sessionId, "qa-short");
 	assert.equal(state.tabs[0].viewport.width, 390);
-	const actual = await app.evaluate<{ value: string; count: string; width: number; height: number; cursor: boolean }>(`document.querySelector('webview').executeJavaScript("({value:document.querySelector('#name').value,count:document.querySelector('#count').textContent,width:innerWidth,height:innerHeight,cursor:!!document.getElementById('__lyra_agent_cursor')})")`);
+	const actual = await app.evaluate<{ value: string; count: string; width: number; height: number; cursor: boolean }>(`document.querySelector('webview').executeJavaScript("({value:document.querySelector('#name').value,count:document.querySelector('#count').textContent,width:innerWidth,height:innerHeight,cursor:!!document.getElementById('__plume_agent_cursor')})")`);
 	t.diagnostic(JSON.stringify(actual));
 	assert.deepEqual(actual, { value: "测试输入", count: "3", width: 390, height: 844, cursor: false });
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-browser-cursor]').length`), 1);
@@ -117,18 +117,18 @@ test("agent drives the user's actual browser: native input, click, viewport and 
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-browser-card]')?.innerText ?? ''`), /Browser QA/);
 	await click('[data-browser-card] [data-browser-card-row] button');
 	await until(`!document.querySelector('[data-dock-pane="browser"]').hasAttribute('inert')`);
-	const artifact = process.env.LYRA_E2E_ARTIFACTS;
+	const artifact = process.env.PLUME_E2E_ARTIFACTS;
 	if (artifact) { await mkdir(artifact, { recursive: true }); const screenshot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" }); await writeFile(join(artifact, "browser-agent.png"), Buffer.from(screenshot.data, "base64")); }
 });
 
 test("tabs preserve forms and document identity through switching and closing the panel", async () => {
-	const original = await app.evaluate<string>("window.lyra.browser.state().then(s=>s.activeId)");
+	const original = await app.evaluate<string>("window.plume.browser.state().then(s=>s.activeId)");
 	await app.evaluate(`document.querySelector('webview').executeJavaScript("document.body.dataset.identity='retained'")`);
-	await app.evaluate(`window.lyra.browser.command({type:'open',url:'http://127.0.0.1:${port}/second',sessionId:'qa-short',newTab:true})`);
-	await app.evaluate(`window.lyra.browser.command({type:'select',id:${JSON.stringify(original)}})`);
+	await app.evaluate(`window.plume.browser.command({type:'open',url:'http://127.0.0.1:${port}/second',sessionId:'qa-short',newTab:true})`);
+	await app.evaluate(`window.plume.browser.command({type:'select',id:${JSON.stringify(original)}})`);
 	assert.equal(await app.evaluate(`document.querySelector('[data-browser-page="${original}"]').executeJavaScript("document.body.dataset.identity")`), "retained");
 	await app.evaluate(`document.querySelector('[data-dock-pane="browser"] [aria-label="关闭浏览器"]').click()`);
-	await app.evaluate(`window.lyra.browser.command({type:'select',id:${JSON.stringify(original)}})`);
+	await app.evaluate(`window.plume.browser.command({type:'select',id:${JSON.stringify(original)}})`);
 	assert.equal(await app.evaluate(`document.querySelector('[data-browser-page="${original}"]').executeJavaScript("document.querySelector('#name').value")`), "测试输入");
 });
 
@@ -136,10 +136,10 @@ test("tabs preserve forms and document identity through switching and closing th
 test("element inspection blocks page clicks and sends a real screenshot with DOM context to the composer", async (t) => {
 	await menu("检查元素");
 	await until(`document.querySelector('[aria-label="退出检查"]')`);
-	await app.evaluate(`document.querySelector('webview').executeJavaScript("new Promise(resolve=>{const f=()=>document.getElementById('__lyra_inspect_layer')?resolve():requestAnimationFrame(f);f();})")`);
+	await app.evaluate(`document.querySelector('webview').executeJavaScript("new Promise(resolve=>{const f=()=>document.getElementById('__plume_inspect_layer')?resolve():requestAnimationFrame(f);f();})")`);
 	await app.evaluate(`new Promise(resolve=>{let prior='',same=0;const f=()=>{const r=document.querySelector('webview').getBoundingClientRect();const now=JSON.stringify(r);same=now===prior?same+1:0;prior=now;if(same>=3)resolve();else requestAnimationFrame(f);};f();})`);
 	// Only the host side can be asked: elementFromPoint stops at the webview, and inside it the inspect layer covers every element.
-	const point = await app.evaluate<{x:number;y:number}>(`(async()=>{const page=[...document.querySelectorAll('webview')].find(p=>getComputedStyle(p).visibility==='visible');const r=page.getBoundingClientRect();const state=await window.lyra.browser.state();const tab=state.tabs.find(t=>t.id===state.activeId);const scale=tab.viewport?Math.min(1,r.width/tab.viewport.width,r.height/tab.viewport.height):1;const el=await page.executeJavaScript("(()=>{const r=document.querySelector('#add').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");const x=r.x+el.x*tab.zoom*scale,y=r.y+el.y*tab.zoom*scale;${landsOn("the visible webview", "page")}return {x,y};})()`);
+	const point = await app.evaluate<{x:number;y:number}>(`(async()=>{const page=[...document.querySelectorAll('webview')].find(p=>getComputedStyle(p).visibility==='visible');const r=page.getBoundingClientRect();const state=await window.plume.browser.state();const tab=state.tabs.find(t=>t.id===state.activeId);const scale=tab.viewport?Math.min(1,r.width/tab.viewport.width,r.height/tab.viewport.height):1;const el=await page.executeJavaScript("(()=>{const r=document.querySelector('#add').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");const x=r.x+el.x*tab.zoom*scale,y=r.y+el.y*tab.zoom*scale;${landsOn("the visible webview", "page")}return {x,y};})()`);
 	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",...point});
 	await app.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...point});
 	await app.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...point});
@@ -154,7 +154,7 @@ test("element inspection blocks page clicks and sends a real screenshot with DOM
 
 test("region selection captures the dragged bounds and native DevTools is available", async (t) => {
 	await menu("框选区域");
-	await app.evaluate(`document.querySelector('webview').executeJavaScript("new Promise(resolve=>{const f=()=>document.getElementById('__lyra_inspect_layer')?resolve():requestAnimationFrame(f);f();})")`);
+	await app.evaluate(`document.querySelector('webview').executeJavaScript("new Promise(resolve=>{const f=()=>document.getElementById('__plume_inspect_layer')?resolve():requestAnimationFrame(f);f();})")`);
 	await app.evaluate(`new Promise(resolve=>{let before='',same=0;const f=()=>{const now=JSON.stringify(document.querySelector('webview').getBoundingClientRect());same=now===before?same+1:0;before=now;if(same>=3)resolve();else requestAnimationFrame(f);};f();})`);
 	const area = await app.evaluate<{x:number;y:number;scale:number}>(`(async()=>{const r=document.querySelector('webview').getBoundingClientRect();return {x:r.x,y:r.y,scale:Math.min(1,r.width/390,r.height/844)}})()`);
 	const start = {x:area.x+22*area.scale,y:area.y+22*area.scale}, end = {x:area.x+342*area.scale,y:area.y+212*area.scale};
@@ -174,30 +174,30 @@ test("region selection captures the dragged bounds and native DevTools is availa
 
 test("bookmarks persist, default zoom applies to new tabs and invalid commands leave the page intact", async () => {
 	await menu("收藏网页");
-	await until(`window.lyra && document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`);
+	await until(`window.plume && document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`);
 	await click('[aria-label="浏览器菜单"]');
 	await until(`[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent==='取消收藏网页')`);
 	await click('[aria-label="浏览器菜单"]');
 	const saved=JSON.parse(await readFile(join(app.home,'settings.json'),'utf8'));assert.equal(saved.browser.bookmarks[0].url,`http://127.0.0.1:${port}/page`);
-	await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,browser:{...s.browser,defaultZoom:1.25}}))`);
-	await app.evaluate(`window.lyra.browser.command({type:'open',url:'http://127.0.0.1:${port}/zoom',sessionId:'qa-short',newTab:true})`);
-	const id=await app.evaluate<string>(`window.lyra.browser.state().then(s=>s.activeId)`);
-	assert.equal(await app.evaluate(`window.lyra.browser.state().then(s=>s.tabs.find(t=>t.id===s.activeId).zoom)`),1.25);
-	assert.match(await app.evaluate<string>(`window.lyra.browser.command({type:'viewport',id:${JSON.stringify(id)},viewport:{width:0,height:800}}).then(()=>'',e=>e.message)`),/视口范围/);
-	assert.match(await app.evaluate<string>(`window.lyra.browser.command({type:'open',url:'file:///etc/passwd',sessionId:'qa-short'}).then(()=>'',e=>e.message)`),/只允许/);
+	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,browser:{...s.browser,defaultZoom:1.25}}))`);
+	await app.evaluate(`window.plume.browser.command({type:'open',url:'http://127.0.0.1:${port}/zoom',sessionId:'qa-short',newTab:true})`);
+	const id=await app.evaluate<string>(`window.plume.browser.state().then(s=>s.activeId)`);
+	assert.equal(await app.evaluate(`window.plume.browser.state().then(s=>s.tabs.find(t=>t.id===s.activeId).zoom)`),1.25);
+	assert.match(await app.evaluate<string>(`window.plume.browser.command({type:'viewport',id:${JSON.stringify(id)},viewport:{width:0,height:800}}).then(()=>'',e=>e.message)`),/视口范围/);
+	assert.match(await app.evaluate<string>(`window.plume.browser.command({type:'open',url:'file:///etc/passwd',sessionId:'qa-short'}).then(()=>'',e=>e.message)`),/只允许/);
 	assert.equal(await app.evaluate(`document.querySelector('[data-browser-page="${id}"]').executeJavaScript('document.title')`),'Browser QA');
-	await app.evaluate(`window.lyra.browser.command({type:'close',id:${JSON.stringify(id)}})`);
-	assert.equal(await app.evaluate(`window.lyra.browser.state().then(s=>s.tabs.some(t=>t.id===${JSON.stringify(id)}))`),false);
-	await app.evaluate(`window.lyra.browser.command({type:'resize',id:${JSON.stringify(id)},width:400,height:600})`);
-	const original=await app.evaluate<string>(`window.lyra.browser.state().then(s=>s.tabs[0].id)`);
-	await app.evaluate(`window.lyra.browser.command({type:'select',id:${JSON.stringify(original)}})`);
+	await app.evaluate(`window.plume.browser.command({type:'close',id:${JSON.stringify(id)}})`);
+	assert.equal(await app.evaluate(`window.plume.browser.state().then(s=>s.tabs.some(t=>t.id===${JSON.stringify(id)}))`),false);
+	await app.evaluate(`window.plume.browser.command({type:'resize',id:${JSON.stringify(id)},width:400,height:600})`);
+	const original=await app.evaluate<string>(`window.plume.browser.state().then(s=>s.tabs[0].id)`);
+	await app.evaluate(`window.plume.browser.command({type:'select',id:${JSON.stringify(original)}})`);
 	assert.equal(await app.evaluate(`document.querySelector('[data-browser-page="${original}"]').executeJavaScript('innerWidth')`),390);
 });
 
 test("fullscreen keeps the native browser page and form state, with one viewport resize per direction", async (t) => {
 	const result=await app.evaluate<{same:boolean;identity:string;value:string;resizes:number[]}>(`(async()=>{
 		const pane=document.querySelector('[data-dock-pane="browser"]');
-		const state=await window.lyra.browser.state(),page=document.querySelector('[data-browser-page="'+state.activeId+'"]'),id=page.getWebContentsId();
+		const state=await window.plume.browser.state(),page=document.querySelector('[data-browser-page="'+state.activeId+'"]'),id=page.getWebContentsId();
 		const resizes=[];let count=0;const observer=new ResizeObserver(()=>count++);observer.observe(page);
 		for(const label of ['全屏','退出全屏']) {
 			await new Promise(requestAnimationFrame);count=0;
@@ -213,17 +213,17 @@ test("fullscreen keeps the native browser page and form state, with one viewport
 
 
 test("one navigation row, a compact menu and a icon empty state at wide and 375px widths", async (t) => {
-	await app.evaluate(`window.lyra.browser.state().then(async s=>{for(const tab of s.tabs)await window.lyra.browser.command({type:'close',id:tab.id})})`);
+	await app.evaluate(`window.plume.browser.state().then(async s=>{for(const tab of s.tabs)await window.plume.browser.command({type:'close',id:tab.id})})`);
 	await until(`document.querySelector('[data-browser-empty]')`);
 	for (const theme of ["light", "dark"]) for (const width of [1200, 375]) {
-		await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}}))`);
+		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}}))`);
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
 		await click('[aria-label="浏览器菜单"]');
 		await until(`document.querySelector('[role="menuitem"]')`);
 		await app.evaluate(`Promise.all(document.querySelector('[role="menuitem"]').closest('[role="menu"]').getAnimations({subtree:true}).map(a=>a.finished))`);
 		const metrics = await app.evaluate<{toolbarHeight:number;overflow:number;empty:string;tabs:number;menuWidth:number}>(`(()=>{const toolbar=document.querySelector('[data-browser-toolbar]'),menu=document.querySelector('[role="menuitem"]').closest('[role="menu"]');return {toolbarHeight:toolbar.getBoundingClientRect().height,overflow:toolbar.scrollWidth-toolbar.clientWidth,empty:document.querySelector('[data-browser-empty]').textContent,tabs:document.querySelector('[data-browser-panel]').querySelectorAll('[role="tab"]').length,menuWidth:menu.getBoundingClientRect().width}})()`);
 		assert.equal(metrics.toolbarHeight, 40); assert.equal(metrics.overflow, 0); assert.match(metrics.empty, /打开一个网页/); assert.doesNotMatch(metrics.empty, /输入网址/); assert.equal(metrics.tabs, 0); assert.equal(metrics.menuWidth, 224); t.diagnostic(JSON.stringify({theme,width,...metrics}));
-		const directory=process.env.LYRA_E2E_ARTIFACTS;
+		const directory=process.env.PLUME_E2E_ARTIFACTS;
 		if(directory){await mkdir(directory,{recursive:true});const shot=await app.send<{data:string}>("Page.captureScreenshot",{format:"png"});await writeFile(join(directory,`browser-menu-${theme}-${width}.png`),Buffer.from(shot.data,"base64"));}
 		await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
 		await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});

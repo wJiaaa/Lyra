@@ -1,7 +1,7 @@
 /**
  * Which house made this model.
  *
- * Lyra points at whatever endpoint you give it, so there is no vendor field to read — the only
+ * Plume points at whatever endpoint you give it, so there is no vendor field to read — the only
  * things known about a model are the id you typed and the name you gave it. Both are matched,
  * because neither is reliable alone: a relay exposes `deepseek-v4-flash` with the display name
  * 「DeepSeek V4 Flash」, a gateway prefixes ids with `anthropic/`, and somebody's private proxy

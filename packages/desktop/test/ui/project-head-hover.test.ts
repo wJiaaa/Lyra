@@ -15,7 +15,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test, type TestContext } from "node:test";
 import { act, createElement as h } from "react";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { ProjectHead } from "../../src/features/sidebar/ProjectHead.tsx";
@@ -69,7 +69,7 @@ function resized(target: Element) {
 function layout(t: TestContext) {
 	RecordingObserver.live = [];
 	// LayoutProvider 要问一句平台；桥的其余部分这几条用不到。
-	replace(t, window, "lyra", { value: { platform: "darwin" }, writable: true });
+	replace(t, window, "plume", { value: { platform: "darwin" }, writable: true });
 	replace(t, globalThis, "ResizeObserver", { value: RecordingObserver, writable: true });
 	const rect = (left: number, right: number) => new DOMRect(left, 0, right - left, 31);
 	replace(t, HTMLElement.prototype, "getBoundingClientRect", {

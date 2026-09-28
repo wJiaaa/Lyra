@@ -121,7 +121,7 @@ try {
 	await pause(2600);
 
 	const displays = await app.evaluate<DisplayInfo[]>(`(async () => {
-		const all = await window.lyra.screenshot.displays?.();
+		const all = await window.plume.screenshot.displays?.();
 		return all ?? [];
 	})()`).catch(() => [] as DisplayInfo[]);
 
@@ -171,7 +171,7 @@ try {
 		}
 		await pause(400);
 
-		await app.evaluate(`window.lyra.screenshot.start().catch(() => {})`);
+		await app.evaluate(`window.plume.screenshot.start().catch(() => {})`);
 		await pause(1400);
 
 		const log = await captureLog(app.home);
@@ -181,7 +181,7 @@ try {
 		const chosen = log.find((entry) => entry.what === "display");
 
 		// Escape，把遮罩收掉，好让下一块屏从头来。
-		await app.evaluate(`window.lyra.screenshot.cancel?.()`).catch(() => {});
+		await app.evaluate(`window.plume.screenshot.cancel?.()`).catch(() => {});
 		await pause(700);
 
 		if (!picked || !taken) {

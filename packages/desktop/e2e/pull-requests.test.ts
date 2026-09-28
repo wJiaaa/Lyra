@@ -59,14 +59,14 @@ async function seed(home: string): Promise<void> {
 const CACHED = [
 	{
 		accountId: "acct-one",
-		repo: "kittors/lyra",
+		repo: "kittors/plume",
 		number: 1,
 		title: "fix: 一个足够长的标题，长到需要在这一列里被裁掉",
 		author: "kittors",
 		avatarUrl: null,
 		state: "OPEN",
 		isDraft: false,
-		url: "https://github.com/kittors/lyra/pull/1",
+		url: "https://github.com/kittors/plume/pull/1",
 		createdAt: "2026-08-01T00:00:00Z",
 		updatedAt: "2026-08-02T00:00:00Z",
 		comments: 2,
@@ -79,14 +79,14 @@ const CACHED = [
 	},
 	{
 		accountId: "acct-one",
-		repo: "kittors/lyra",
+		repo: "kittors/plume",
 		number: 2,
 		title: "chore: bump",
 		author: "someone",
 		avatarUrl: null,
 		state: "OPEN",
 		isDraft: true,
-		url: "https://github.com/kittors/lyra/pull/2",
+		url: "https://github.com/kittors/plume/pull/2",
 		createdAt: "2026-07-01T00:00:00Z",
 		updatedAt: "2026-07-02T00:00:00Z",
 		comments: 0,
@@ -127,8 +127,8 @@ before(async () => {
 	// Seeded before the pane is ever opened, so it draws from this on its first frame — which is
 	// also what happens whenever a host is unreachable, and what keeps this test the same either way.
 	await app.evaluate(`(() => {
-		localStorage.setItem("lyra.pull-requests.v3", ${JSON.stringify(JSON.stringify(CACHED))});
-		localStorage.removeItem("lyra.pull-requests.folded.v1");
+		localStorage.setItem("plume.pull-requests.v3", ${JSON.stringify(JSON.stringify(CACHED))});
+		localStorage.removeItem("plume.pull-requests.folded.v1");
 		return true;
 	})()`);
 
@@ -201,7 +201,7 @@ test("a group folds to nothing and remembers that it did", async () => {
 		return {
 			open: body().dataset.open,
 			height: body().getBoundingClientRect().height,
-			stored: localStorage.getItem("lyra.pull-requests.folded.v1"),
+			stored: localStorage.getItem("plume.pull-requests.folded.v1"),
 		};
 	})()`);
 
@@ -290,8 +290,8 @@ test("with no account left, the pane is the sign-in screen rather than an empty 
 	 * with a grey line of text in it, which reads as a feature that is broken.
 	 */
 	const screen = await app.evaluate<{ rows: number; tabs: number; button: boolean; text: string }>(`(async () => {
-		const accounts = await window.lyra.forge.accounts();
-		for (const account of accounts) await window.lyra.forge.signOut(account.id);
+		const accounts = await window.plume.forge.accounts();
+		for (const account of accounts) await window.plume.forge.signOut(account.id);
 		// This page's own: the conversations' screens stay mounted behind it, and a browser panel has
 		// a 刷新 of its own that comes first in the document.
 		const refresh = [...document.querySelectorAll('[data-view="pull-requests"] button')].find((b) => b.getAttribute("aria-label") === "刷新");

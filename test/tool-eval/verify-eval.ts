@@ -25,7 +25,7 @@ const DIM = "\x1b[2m";
 const OFF = "\x1b[0m";
 
 async function fixture(): Promise<string> {
-	const cwd = await mkdtemp(join(tmpdir(), "lyra-verify-"));
+	const cwd = await mkdtemp(join(tmpdir(), "plume-verify-"));
 	await mkdir(join(cwd, "test"), { recursive: true });
 	await writeFile(join(cwd, "package.json"), JSON.stringify({ name: "fixture", type: "module", scripts: { test: "node --test test/" } }));
 	await writeFile(join(cwd, "parser.js"), "export function parseSettings(raw) { return JSON.parse(raw); }\n");

@@ -14,7 +14,7 @@
 
 import { useMemo, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { AssistantContent, AssistantMessage, ToolResult } from "@lyra/core";
+import type { AssistantContent, AssistantMessage, ToolResult } from "@plume/core";
 import { useApp, type ToolRun } from "../../store/index.ts";
 import { useAgentAvatars } from "../../store/agent-avatars.ts";
 import { useSubAgents } from "../../store/subAgents.ts";

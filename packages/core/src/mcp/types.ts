@@ -32,7 +32,7 @@ export interface McpNeed {
  * in two places at once, with two switches that could not see each other.
  */
 export interface McpOrigin {
-	/** Directory name under `~/.lyra/mcp`; also the entry's id in the registry it came from. */
+	/** Directory name under `~/.plume/mcp`; also the entry's id in the registry it came from. */
 	bundle: string;
 	/** Which registry listed it, for telling two entries of the same name apart. */
 	registry?: string;

@@ -10,7 +10,7 @@
  * 顺便量一件看不出来的事：被截断的那些文字有没有挂上提示。`data-ly-tip-when="truncated"` 只在
  * 真写不下的时候才弹，所以「有没有挂」和「会不会弹」是两个问题，这里问前一个。
  *
- * Run: LYRA_E2E_ARTIFACTS=~/Desktop/空状态测试 node --experimental-strip-types e2e/usage-empty-probe.ts
+ * Run: PLUME_E2E_ARTIFACTS=~/Desktop/空状态测试 node --experimental-strip-types e2e/usage-empty-probe.ts
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -43,7 +43,7 @@ const app = await startApp({
 });
 
 async function shot(name: string): Promise<void> {
-	const directory = process.env.LYRA_E2E_ARTIFACTS;
+	const directory = process.env.PLUME_E2E_ARTIFACTS;
 	if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });

@@ -1,4 +1,4 @@
-import { activeModelCatalog, type CatalogModel, type CatalogProvider } from "@lyra/core/model-catalog";
+import { activeModelCatalog, type CatalogModel, type CatalogProvider } from "@plume/core/model-catalog";
 import { useMemo, useState } from "react";
 import { TextInput } from "./inputs.tsx";
 import { useI18n } from "../../i18n/index.ts";

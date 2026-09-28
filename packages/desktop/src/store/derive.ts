@@ -1,5 +1,5 @@
 import { translate } from "../i18n/translate.ts";
-import type { CommandRun, HookRun } from "@lyra/core";
+import type { CommandRun, HookRun } from "@plume/core";
 /**
  * Reading state back out of a transcript.
  *
@@ -10,8 +10,8 @@ import type { CommandRun, HookRun } from "@lyra/core";
  * The session cache lives here too, for the same reason: it is a pure function of transcripts.
  */
 
-import type { Message, TodoItem } from "@lyra/core";
-import type { SessionMeta } from "@lyra/core";
+import type { Message, TodoItem } from "@plume/core";
+import type { SessionMeta } from "@plume/core";
 import { summarizeToolCall } from "../lib/tool-summary.ts";
 import type { AppState } from "./index.ts";
 import type { ToolRun } from "./tool-run.ts";

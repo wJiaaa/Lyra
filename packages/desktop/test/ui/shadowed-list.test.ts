@@ -17,7 +17,7 @@ import { click, mount } from "../helpers/mount.ts";
 const paint = (hunks: { lines: { type: string; text: string }[] }[]) =>
 	h("pre", { "data-painted": true }, hunks.flatMap((hunk) => hunk.lines.map((line) => `${line.type}:${line.text}`)).join("\n"));
 
-const ENTRY = { name: "pdf", path: "/home/me/.claude/skills/pdf/SKILL.md", by: "/repo/.lyra/skills/pdf/SKILL.md", byLabel: "Lyra" };
+const ENTRY = { name: "pdf", path: "/home/me/.claude/skills/pdf/SKILL.md", by: "/repo/.plume/skills/pdf/SKILL.md", byLabel: "Plume" };
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -57,7 +57,7 @@ test("改用那个 writes the preference, says where, and asks the page to reloa
 			diff: async () => ({ added: 0, removed: 0, hunks: [] }),
 			prefer: async (name, path) => {
 				preferred.push([name, path]);
-				return { wroteTo: "/home/me/.lyra/settings.json" };
+				return { wroteTo: "/home/me/.plume/settings.json" };
 			},
 			onChanged: () => void (reloaded += 1),
 			renderDiff: paint as never,

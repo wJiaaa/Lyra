@@ -3,7 +3,7 @@
  * 进程型再加参数，Shell 型再加 shell 和后台运行；超时、状态消息和原样保留的自定义字段收在「高级」里。
  */
 
-import type { HookDraft, HookEventName, HookScope } from "@lyra/core";
+import type { HookDraft, HookEventName, HookScope } from "@plume/core";
 import { ChevronRight, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { HookView } from "../../../electron/ipc-types.ts";

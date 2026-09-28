@@ -13,7 +13,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import type { QueuedTask } from "@lyra/core";
+import type { QueuedTask } from "@plume/core";
 import { Ban, Check, CircleDashed, Clock, OctagonPause, Play, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { useSide, sideTasksOf } from "../dock/index.ts";
@@ -100,7 +100,7 @@ function TaskRow({ task }: { task: QueuedTask }) {
 	 * Whether to offer a way back into this one.
 	 *
 	 * The rule is stated in `TaskQueue.resume`, and this is deliberately a second reading of it
-	 * rather than a call into it: importing a *value* from `@lyra/core` here pulls the whole package
+	 * rather than a call into it: importing a *value* from `@plume/core` here pulls the whole package
 	 * — native modules included — into the renderer bundle, and the build says so.
 	 *
 	 * Safe to duplicate because the queue is the one that decides. It refuses anything that is not

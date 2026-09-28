@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { METHODS } from "@lyra/contract";
-import type { LyraApi } from "./ipc-types.ts";
+import { METHODS } from "@plume/contract";
+import type { PlumeApi } from "./ipc-types.ts";
 
 /**
  * Paint the saved theme onto the document before anything else runs.
@@ -74,14 +74,14 @@ markWindowKind();
  * Every method maps to one named channel so a compromised renderer cannot invoke arbitrary IPC.
  */
 /**
- * The invoke half of `window.lyra`, built from the contract.
+ * The invoke half of `window.plume`, built from the contract.
  *
  * One line per method used to live here — 156 of them, each spelling out a channel name that also
  * appears in the main process's handler. Two spellings of one string, and a typo in either fails
  * differently: a wrong channel here is `undefined is not a function`, a wrong one there is a call
  * that never returns.
  *
- * Now the name exists once, in `@lyra/contract`, and this walks it. A method cannot be missing
+ * Now the name exists once, in `@plume/contract`, and this walks it. A method cannot be missing
  * from the preload, and a channel cannot be misspelt, because neither is written twice.
  *
  * What is *not* generated: anything that subscribes to a push (`ipcRenderer.on`), and the two
@@ -119,9 +119,9 @@ function merge(generated: Record<string, unknown>, extra: Record<string, unknown
 }
 
 /*
- * 手写的那部分，按 `LyraApi` 的形状检查，但每一组都是可选的。
+ * 手写的那部分，按 `PlumeApi` 的形状检查，但每一组都是可选的。
  *
- * 直接标 `LyraApi` 不行——这里只有事件订阅和两三个特例，缺掉的方法由 `invokers()` 补上，
+ * 直接标 `PlumeApi` 不行——这里只有事件订阅和两三个特例，缺掉的方法由 `invokers()` 补上，
  * 而类型系统看不到那次合并。`DeepPartial` 让参数仍然能从接口推断出类型（那正是上一版丢掉的
  * 东西：没有标注时 `handler` 全都成了隐式 any），同时允许这张表是不完整的。
  */
@@ -154,7 +154,7 @@ const extras = {
 	},
 	platform: process.platform,
 	// Read-only, and in the sandboxed preload's `process` subset. The terminal needs the Windows
-	// build to tell xterm how ConPTY behaves; see `LyraApi.systemVersion`.
+	// build to tell xterm how ConPTY behaves; see `PlumeApi.systemVersion`.
 	systemVersion: process.getSystemVersion(),
 	bootWindow: {
 		id: process.argv.find((arg) => arg.startsWith("--ly-window="))?.slice("--ly-window=".length) ?? "primary",
@@ -351,19 +351,19 @@ const extras = {
 		dragMove: (dx: number, dy: number) => ipcRenderer.send("pin:dragMove", dx, dy),
 	},
 	// `satisfies`, not an annotation: the check below needs the names actually written here, and an
-	// annotation of `DeepPartial<LyraApi>` would hand it every name in the interface instead.
-} satisfies DeepPartial<LyraApi>;
+	// annotation of `DeepPartial<PlumeApi>` would hand it every name in the interface instead.
+} satisfies DeepPartial<PlumeApi>;
 
 /**
- * That `window.lyra` really has everything `LyraApi` promises.
+ * That `window.plume` really has everything `PlumeApi` promises.
  *
  * The line below is a double cast, and a double cast is a claim with nothing behind it. What it
  * claims is that the generated half plus the hand-written half add up to the interface — and the
- * failure when they do not is `window.lyra.x.y is not a function` in the renderer, at whatever
+ * failure when they do not is `window.plume.x.y is not a function` in the renderer, at whatever
  * moment the user reaches that button. Nothing checked it: the interface had grown past the
  * contract, and the only evidence either way was that nobody had clicked the wrong thing yet.
  *
- * So it is checked here, at compile time, where it costs nothing to keep. If a name in `LyraApi`
+ * So it is checked here, at compile time, where it costs nothing to keep. If a name in `PlumeApi`
  * is provided by neither `METHODS` nor `extras`, `Missing` stops being `never` and the assignment
  * below fails with that name in the error.
  */
@@ -382,28 +382,28 @@ type IsRequired<T, K extends keyof T> = {} extends Pick<T, K> ? false : true;
  * optional member makes the indexed union include `undefined`, which is not a name and would make
  * the assertion below fail while naming nothing.
  */
-type MissingIn<G extends keyof LyraApi> = {
-	[N in keyof LyraApi[G]]-?: IsRequired<LyraApi[G], N> extends true
+type MissingIn<G extends keyof PlumeApi> = {
+	[N in keyof PlumeApi[G]]-?: IsRequired<PlumeApi[G], N> extends true
 		? N extends Provided<G>
 			? never
 			: `${G & string}.${N & string}`
 		: never;
-}[keyof LyraApi[G]];
+}[keyof PlumeApi[G]];
 
 type Missing = {
-	[G in keyof LyraApi]-?: IsRequired<LyraApi, G> extends false
+	[G in keyof PlumeApi]-?: IsRequired<PlumeApi, G> extends false
 		? never
 		: G extends keyof typeof METHODS | keyof typeof extras
 			? // A function or a plain value at the top level is provided by being present at all.
-				LyraApi[G] extends (...args: never[]) => unknown
+				PlumeApi[G] extends (...args: never[]) => unknown
 				? never
-				: LyraApi[G] extends object
+				: PlumeApi[G] extends object
 					? MissingIn<G>
 					: never
 			: `${G & string}`;
-}[keyof LyraApi];
+}[keyof PlumeApi];
 
 const _bridgeCoversTheInterface: [Missing] extends [never] ? true : Missing = true;
 void _bridgeCoversTheInterface;
 
-contextBridge.exposeInMainWorld("lyra", merge(invokers(), extras) as unknown as LyraApi);
+contextBridge.exposeInMainWorld("plume", merge(invokers(), extras) as unknown as PlumeApi);

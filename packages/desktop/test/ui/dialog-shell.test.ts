@@ -160,7 +160,7 @@ test("插件市场源：一个出口，写着「完成」", async () => {
  * 没有 dry-run id 时根本不会被调到。`notify` 走 store 自己的默认实现。
  */
 test("发版：取消与发布都写着字，头尾两条线都没了", async () => {
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		git: {
 			releaseInfo: async () => ({
 				ok: true,
@@ -179,6 +179,6 @@ test("发版：取消与发布都写着字，头尾两条线都没了", async ()
 			await view.unmount();
 		}
 	} finally {
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });

@@ -62,7 +62,7 @@ async function runTask(task: Task, modelId: string): Promise<{ passed: boolean; 
 	const resolved = resolveModel(settings, modelId);
 	if (!resolved) throw new Error(`Model not found: ${modelId}`);
 
-	const cwd = await mkdtemp(join(tmpdir(), "lyra-integration-"));
+	const cwd = await mkdtemp(join(tmpdir(), "plume-integration-"));
 	const name = basename(task.source);
 	await copyFile(task.source, join(cwd, name));
 

@@ -49,7 +49,7 @@ const SEARCH_FROM = 8;
  * In `localStorage` rather than in settings: it is about what this window shows, like a sidebar
  * width, not about how the app runs.
  */
-const COLLAPSED_KEY = "lyra.modelMenu.collapsed";
+const COLLAPSED_KEY = "plume.modelMenu.collapsed";
 
 function storedCollapsed(): string[] {
 	try {

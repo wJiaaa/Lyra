@@ -7,7 +7,7 @@
  * those two disagreeing is a project whose second folder shows its chats but still prompts on every
  * file. A shared answer requires a module a browser can import, which rules out `settings.ts`.
  *
- * Exported through `@lyra/core/project-folders`; see the `exports` map in `package.json`.
+ * Exported through `@plume/core/project-folders`; see the `exports` map in `package.json`.
  */
 
 /** The shape this needs — a full `ProjectEntry` satisfies it, and so does a half-built draft. */

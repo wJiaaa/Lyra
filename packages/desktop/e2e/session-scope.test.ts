@@ -120,8 +120,8 @@ const UI = `
 	 * stored conversation with one message in it, and a list that refreshed when the turn ended.
 	 */
 	const conversation = async () => {
-		const made = await window.lyra.sessions.create(P, "relay/grok-4.6");
-		await window.lyra.agent.prompt(made.meta.id, [{ type: "text", text: "hi" }]);
+		const made = await window.plume.sessions.create(P, "relay/grok-4.6");
+		await window.plume.agent.prompt(made.meta.id, [{ type: "text", text: "hi" }]);
 		await wait(1200);
 		return made.meta.id;
 	};
@@ -133,7 +133,7 @@ const UI = `
 	 * here: this whole block is a template literal, and one would end it early.
 	 */
 	const currentProject = async () => {
-		const settings = await window.lyra.settings.get();
+		const settings = await window.plume.settings.get();
 		return [...settings.projects].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)[0]?.name ?? null;
 	};
 `;
@@ -156,11 +156,11 @@ test("two conversations hold their own reasoning level, and the log agrees", asy
 		const a = await conversation();
 		const b = await conversation();
 
-		await window.lyra.agent.setThinking(a, "high");
-		await window.lyra.agent.setThinking(b, "low");
+		await window.plume.agent.setThinking(a, "high");
+		await window.plume.agent.setThinking(b, "low");
 
-		const listed = await window.lyra.sessions.list();
-		const settings = await window.lyra.settings.get();
+		const listed = await window.plume.sessions.list();
+		const settings = await window.plume.settings.get();
 		return {
 			first: listed.find((s) => s.id === a)?.thinking,
 			secondLevel: listed.find((s) => s.id === b)?.thinking,
@@ -178,8 +178,8 @@ test("the composer shows the level of the conversation on screen", async () => {
 		${EFFORT_LABEL}
 		const made = await conversation();
 		const other = await conversation();
-		await window.lyra.agent.setThinking(made, "high");
-		await window.lyra.agent.setThinking(other, "off");
+		await window.plume.agent.setThinking(made, "high");
+		await window.plume.agent.setThinking(other, "off");
 
 		await openRow(made);
 		const opened = effort();
@@ -222,7 +222,7 @@ test("a model change finishing late cannot replace a new conversation's default"
 		click(fresh);
 		await wait(500);
 
-		const settings = await window.lyra.settings.get();
+		const settings = await window.plume.settings.get();
 		return { chip: modelChip()?.dataset.lyTip ?? null, appDefault: settings.defaultModelId };
 	`);
 
@@ -248,8 +248,8 @@ test("changing the level from the menu writes to the conversation, not to the se
 		slider.dispatchEvent(new Event("input", { bubbles: true }));
 		await wait(320);
 
-		const listed = await window.lyra.sessions.list();
-		const settings = await window.lyra.settings.get();
+		const listed = await window.plume.sessions.list();
+		const settings = await window.plume.settings.get();
 		return {
 			level: listed.find((s) => s.id === made)?.thinking,
 			appDefault: settings.thinking,

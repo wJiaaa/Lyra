@@ -1,5 +1,5 @@
 /**
- * 设置页的钩子：用户级的在设置文件里，项目级的在 `<cwd>/.lyra/config.json` 里。
+ * 设置页的钩子：用户级的在设置文件里，项目级的在 `<cwd>/.plume/config.json` 里。
  *
  * 每个写操作都回一份新的完整列表，因为 `id` 是位置——删掉一条，后面的全都挪了。项目钩子另带
  * 一个 `trusted`：没被信任的在会话里不会运行，设置页据此给出「信任」按钮。
@@ -20,7 +20,7 @@ import {
 	type HookEntry,
 	type HookScope,
 	type HooksConfig,
-} from "@lyra/core";
+} from "@plume/core";
 import { applySettings, settings } from "../app-settings.ts";
 import type { HookView, HooksView } from "../ipc-types.ts";
 

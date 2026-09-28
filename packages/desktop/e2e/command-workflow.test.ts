@@ -71,7 +71,7 @@ async function key(key: string, code: number, modifiers = 0) {
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key, windowsVirtualKeyCode: code, modifiers }); await frames(2);
 }
 async function shot(name: string) {
-	const directory = process.env.LYRA_E2E_ARTIFACTS; if (!directory) return;
+	const directory = process.env.PLUME_E2E_ARTIFACTS; if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const data = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(directory, `${name}.png`), Buffer.from(data.data, "base64"));
@@ -118,10 +118,10 @@ test("native input decorates commands, keeps arguments and undo, and lists inlin
 
 test("narrow layouts, long drafts and IME keep the native input aligned and do not accidentally submit", async (t) => {
 	await click('[data-ly-row="qa-long"]');
-	const appearance = await app.evaluate(`window.lyra.settings.get().then(s => s.appearance)`);
+	const appearance = await app.evaluate(`window.plume.settings.get().then(s => s.appearance)`);
 	const viewport = await app.evaluate(`({width:innerWidth,height:innerHeight,deviceScaleFactor:devicePixelRatio,mobile:false})`);
 	try {
-		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:'light',reduceMotion:'off'}});})()`);
+		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:'light',reduceMotion:'off'}});})()`);
 		await app.send("Emulation.setDeviceMetricsOverride", { width: 375, height: 740, deviceScaleFactor: 1.25, mobile: false });
 		await input("/"); await until(`document.querySelectorAll('[role="option"]').length >= 27`); await frames();
 		const bounds = await app.evaluate(`(()=>{const m=document.querySelector('[role="listbox"]'),f=document.querySelector('textarea');const r=m.getBoundingClientRect();return {width:innerWidth,dpr:devicePixelRatio,left:r.left,right:r.right,top:r.top,fieldLeft:f.getBoundingClientRect().left,fieldRight:f.getBoundingClientRect().right};})()`);
@@ -136,7 +136,7 @@ test("narrow layouts, long drafts and IME keep the native input aligned and do n
 		await app.evaluate(`document.querySelector('[role="listbox"] .ly-scroll-view').scrollTop = 150`); await frames();
 		const fades = await app.evaluate(`(()=>{const s=getComputedStyle(document.querySelector('[role="listbox"] .ly-scroll-view'));return [s.getPropertyValue('--ly-fade-top'),s.getPropertyValue('--ly-fade-bottom')];})()`);
 		assert.deepEqual(fades, ["36px", "48px"]);
-		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,reduceMotion:'on'}});})()`); await frames();
+		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,reduceMotion:'on'}});})()`); await frames();
 		assert.equal(await app.evaluate(`getComputedStyle(document.querySelector('[role="listbox"] .ly-marquee-track')).animationName`), "none");
 		await input("/review-0"); await click('[role="option"]');
 		assert.equal(await app.evaluate(`document.querySelector('textarea').value`), "/review-0 ");
@@ -171,7 +171,7 @@ test("narrow layouts, long drafts and IME keep the native input aligned and do n
 		// Electron retains the emulated widget size after clear; restore the original viewport explicitly.
 		await app.send("Emulation.setDeviceMetricsOverride", viewport);
 		await until(`innerWidth === ${viewport.width} && innerHeight === ${viewport.height}`);
-		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:${JSON.stringify(appearance)}});})()`);
+		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:${JSON.stringify(appearance)}});})()`);
 	}
 });
 
@@ -179,7 +179,7 @@ test("pasted compact with parameters executes once, reports progress, and surviv
 	await click('[data-ly-row="qa-long"]');
 	await until(`document.querySelector('[data-view="qa-long"][data-active="true"] button[aria-label^="上下文占用"]')`);
 	const meterBefore = await app.evaluate<string>(`document.querySelector('[data-view="qa-long"][data-active="true"] button[aria-label^="上下文占用"] circle:last-child').getAttribute('stroke-dasharray')`);
-	const contextBefore = await app.evaluate<{used:number}>(`window.lyra.sessions.contextBreakdown('qa-long')`);
+	const contextBefore = await app.evaluate<{used:number}>(`window.plume.sessions.contextBreakdown('qa-long')`);
 	hold = true; complete = undefined; const before = requests.length;
 	let finishCompaction: (() => void) | undefined;
 	try {
@@ -208,7 +208,7 @@ test("pasted compact with parameters executes once, reports progress, and surviv
 		const result = await app.evaluate(`document.querySelector('[data-view="qa-long"][data-active="true"] [data-command-status="done"]').textContent`);
 		assert.match(result, /已压缩上下文/); t.diagnostic(result);
 		await until(`document.querySelector('[data-view="qa-long"][data-active="true"] button[aria-label^="上下文占用"] circle:last-child').getAttribute('stroke-dasharray') !== ${JSON.stringify(meterBefore)}`);
-		const contextAfter = await app.evaluate<{used:number}>(`window.lyra.sessions.contextBreakdown('qa-long')`);
+		const contextAfter = await app.evaluate<{used:number}>(`window.plume.sessions.contextBreakdown('qa-long')`);
 		assert.ok(contextAfter.used < contextBefore.used * 0.7, JSON.stringify({contextBefore,contextAfter}));
 		t.diagnostic(JSON.stringify({contextBefore,contextAfter}));
 		await click('[data-view="qa-long"][data-active="true"] button[aria-label^="上下文占用"]');

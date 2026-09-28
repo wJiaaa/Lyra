@@ -50,7 +50,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@lyra/core':
+      '@plume/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -72,12 +72,12 @@ importers:
 
   packages/core:
     dependencies:
-      '@lyra/registry-shared':
-        specifier: workspace:*
-        version: link:../registry-shared
       '@modelcontextprotocol/sdk':
         specifier: 1.30.0
         version: 1.30.0(zod@4.6.2)
+      '@plume/registry-shared':
+        specifier: workspace:*
+        version: link:../registry-shared
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
@@ -175,18 +175,18 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
-      '@lyra/contract':
-        specifier: workspace:*
-        version: link:../contract
-      '@lyra/core':
-        specifier: workspace:*
-        version: link:../core
-      '@lyra/registry-shared':
-        specifier: workspace:*
-        version: link:../registry-shared
       '@modelcontextprotocol/sdk':
         specifier: 1.30.0
         version: 1.30.0(zod@4.6.2)
+      '@plume/contract':
+        specifier: workspace:*
+        version: link:../contract
+      '@plume/core':
+        specifier: workspace:*
+        version: link:../core
+      '@plume/registry-shared':
+        specifier: workspace:*
+        version: link:../registry-shared
       '@xterm/addon-fit':
         specifier: 0.11.0
         version: 0.11.0

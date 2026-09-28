@@ -17,9 +17,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-gitgraph";
+const dir = process.argv[2] ?? "/tmp/plume-gitgraph";
 /** This repository — it has a real history with branches, which a fixture would not. */
-const REPO = "/Users/kittors/Developer/opensource/Lyra";
+const REPO = "/Users/kittors/Developer/opensource/Plume";
 
 let failures = 0;
 function check(label: string, passed: boolean, evidence: string): void {
@@ -35,7 +35,7 @@ async function seed(home: string): Promise<void> {
 			version: 1,
 			providers: [],
 			mcpServers: [],
-			projects: [{ id: "e2e", name: "Lyra", path: REPO, pinned: true, lastOpenedAt: 1 }],
+			projects: [{ id: "e2e", name: "Plume", path: REPO, pinned: true, lastOpenedAt: 1 }],
 			defaultModelId: null,
 			permissionMode: "auto",
 			thinking: "medium",

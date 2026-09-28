@@ -114,7 +114,7 @@ try {
 	check("scenario completed", false, String(error));
 } finally {
 	await stop(); await app.stop();
-	const output = join(homedir(), "Desktop", "Lyra最小宽度测试");
+	const output = join(homedir(), "Desktop", "Plume最小宽度测试");
 	await mkdir(output, { recursive: true });
 	const name = `${new Date().toISOString().replace(/[:.]/g,"-")}_${baseline ? "修复前" : "最小宽度与自动窗口"}_${checks.filter(c=>c.ok).length}of${checks.length}`;
 	await writeFile(join(output, name+".json"), JSON.stringify(checks,null,2));

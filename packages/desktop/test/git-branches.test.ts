@@ -45,7 +45,7 @@ async function git(args: string[], cwd = dir): Promise<string> {
 }
 
 before(async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-git-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-git-"));
 	dir = join(root, "work");
 	origin = join(root, "origin.git");
 
@@ -181,7 +181,7 @@ test("creating a branch puts you on it, and deleting one takes it off the list",
 });
 
 test("a directory that is not a repository answers empty rather than throwing", async () => {
-	const plain = await mkdtemp(join(tmpdir(), "lyra-not-git-"));
+	const plain = await mkdtemp(join(tmpdir(), "plume-not-git-"));
 	try {
 		assert.deepEqual(await listBranches(plain), { current: null, local: [], remote: [] });
 	} finally {

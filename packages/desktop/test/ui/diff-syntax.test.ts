@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h } from "react";
-import type { DiffHunk } from "@lyra/core";
+import type { DiffHunk } from "@plume/core";
 import { DiffView } from "../../src/features/git/DiffView.tsx";
 import { loadFenceLanguage } from "../../src/lib/code/highlight.ts";
 import { mount } from "../helpers/mount.ts";
 
 for (const [path, language, code] of [
-	["Example.cs", "cs", 'public class Example { string name = "Lyra"; int n = 42; }'],
-	["config.yaml", "yaml", 'name: "Lyra"\nenabled: true'],
+	["Example.cs", "cs", 'public class Example { string name = "Plume"; int n = 42; }'],
+	["config.yaml", "yaml", 'name: "Plume"\nenabled: true'],
 	["Dockerfile", "dockerfile", 'FROM node:24\nRUN echo "hello"'],
 ] as const) {
 	test(`added ${path} lines retain syntax classes`, async () => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { conversationTime, questionsIn, questionWindow, timeSeparators, QUESTION_LIMIT } from "../src/features/conversation/question-navigation.ts";
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 
 const user = (timestamp: number, text = "same"): Message => ({ role: "user", timestamp, content: [{ type: "text", text }] });
 

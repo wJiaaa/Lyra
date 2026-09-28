@@ -97,11 +97,11 @@ async function begin(prompt: string) {
 }
 async function appearance(theme: "light" | "dark", width: number) {
 	await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
-	await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${theme === "light" ? '"light"' : '"dark"'}}});})()`);
+	await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${theme === "light" ? '"light"' : '"dark"'}}});})()`);
 	await until(`document.documentElement.classList.contains(${theme === "light" ? '"light"' : '"dark"'})`); await frames(20);
 }
 async function shot(name: string) {
-	const directory = process.env.LYRA_E2E_ARTIFACTS; if (!directory) return;
+	const directory = process.env.PLUME_E2E_ARTIFACTS; if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(directory, `${name}.png`), Buffer.from(result.data, "base64"));

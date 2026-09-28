@@ -13,14 +13,14 @@ export function pr(
 ): PullRequestSummary {
 	return {
 		accountId: "acct-1",
-		repo: "kittors/lyra",
+		repo: "kittors/plume",
 		number: 1,
 		title: "fix: something",
 		author: "someone",
 		avatarUrl: "https://avatars.githubusercontent.com/u/1?s=64",
 		state: "OPEN",
 		isDraft: false,
-		url: "https://github.com/kittors/lyra/pull/1",
+		url: "https://github.com/kittors/plume/pull/1",
 		createdAt: "2026-08-01T00:00:00Z",
 		updatedAt: "2026-08-02T00:00:00Z",
 		comments: 0,

@@ -271,7 +271,7 @@ function judgeSingle(command: string, contained = false, cwd?: string, dialect: 
 	 * A credential named anywhere in the command, read or written.
 	 *
 	 * Checked before the write rules rather than folded into them, because for a key the read is
-	 * the loss: `cat ~/.lyra/vault.key` does no damage and hands over every stored credential,
+	 * the loss: `cat ~/.plume/vault.key` does no damage and hands over every stored credential,
 	 * and `curl -d @~/.ssh/id_ed25519` is the same sentence with somewhere to send it. Both were
 	 * safe, because the only path rule in here fired on a redirect.
 	 */

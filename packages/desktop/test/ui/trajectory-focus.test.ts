@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h } from "react";
-import type { AgentEvent, SessionMeta, TrajectoryChanges } from "@lyra/core";
-import type { Entry } from "@lyra/core/trajectory-view";
+import type { AgentEvent, SessionMeta, TrajectoryChanges } from "@plume/core";
+import type { Entry } from "@plume/core/trajectory-view";
 import { useApp } from "../../src/store/index.ts";
 import { useOpenFile } from "../../src/store/openFile.ts";
 import { provideScope, usePaneDock } from "../../src/features/dock/index.ts";
@@ -19,9 +19,9 @@ function fixture(id: string) {
 	const files: { path: string; resolve: () => void; reject: (error: Error) => void }[] = [];
 	const panes: string[] = [], errors: string[] = [];
 	const listeners = new Set<(payload: { sessionId: string; event: AgentEvent }) => void>();
-	const previousBridge = Object.getOwnPropertyDescriptor(window, "lyra");
+	const previousBridge = Object.getOwnPropertyDescriptor(window, "plume");
 	const app = useApp.getState(), dock = usePaneDock.getState(), file = useOpenFile.getState(), focus = useTraceFocus.getState();
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		sessions: {
 			trajectoryChanges: (_project: string, sessionId: string) => new Promise<TrajectoryChanges>(resolve => reads.push({ id: sessionId, resolve })),
 			exportTrajectory: (_project: string, _sessionId: string, format: string, entry?: { id: string }) => new Promise<string>((resolve, reject) => exports.push({ format, entry, resolve, reject })),
@@ -36,7 +36,7 @@ function fixture(id: string) {
 	useTraceFocus.setState({ sessionId: "", correlationId: "", nonce: 0 });
 	return { meta, reads, exports, files, panes, errors, listeners, restore() {
 		useApp.setState(app); usePaneDock.setState(dock); useOpenFile.setState(file); useTraceFocus.setState(focus); provideScope(() => null);
-		if (previousBridge) Object.defineProperty(window, "lyra", previousBridge); else Reflect.deleteProperty(window, "lyra");
+		if (previousBridge) Object.defineProperty(window, "plume", previousBridge); else Reflect.deleteProperty(window, "plume");
 	} };
 }
 

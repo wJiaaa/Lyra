@@ -172,7 +172,7 @@ async function main() {
 	assert.equal(named, "报告", `这颗按钮报给读屏的名字是 ${JSON.stringify(named)}`);
 
 	for (const theme of ["light", "dark"] as const) {
-		await evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}});})()`);
+		await evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}});})()`);
 		await until(`document.documentElement.style.colorScheme===${JSON.stringify(theme)}&&!document.documentElement.hasAttribute('data-theme-switching')`, `等不到 ${theme} 主题`);
 		await evaluate(`document.querySelector('[data-turn-delivery]').scrollIntoView({block:'center',behavior:'instant'})`);
 		await frames();

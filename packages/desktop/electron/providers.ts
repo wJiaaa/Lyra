@@ -6,7 +6,7 @@
  */
 
 import type { ProviderTestResult } from "./ipc-types.ts";
-import { USER_AGENT, sessionHeaders, type Settings } from "@lyra/core";
+import { USER_AGENT, sessionHeaders, type Settings } from "@plume/core";
 
 /**
  * Auth plus the session header the endpoint insists on, as the real requests send them. A probe has

@@ -7,7 +7,7 @@ import { startRecording, encode, type Frame } from "./record.ts";
 import { issueModel, seedIssues } from "./issues-fixture.ts";
 
 const baseline = process.argv.includes("--baseline");
-const out = join(homedir(), "Desktop", "Lyra未完成问题修复测试");
+const out = join(homedir(), "Desktop", "Plume未完成问题修复测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Singapore" }).replace(/[: ]/g, "-");
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];
 const check = (name: string, ok: boolean, measured: unknown) => { checks.push({ name, ok, measured }); console.log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(measured)}`); };

@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h } from "react";
 
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { SubAgentPanel } from "../../src/features/subagents/SubAgentPanel.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { useSubAgents } from "../../src/store/subAgents.ts";

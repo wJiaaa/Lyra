@@ -1,5 +1,5 @@
 /**
- * Make the development app say "Lyra" instead of "Electron".
+ * Make the development app say "Plume" instead of "Electron".
  *
  * Packaged builds never come through here — electron-builder writes productName into the bundle.
  * This is only about development, where the process being run is Electron's own prebuilt
@@ -32,9 +32,9 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const NAME = "Lyra";
+const NAME = "Plume";
 /** Matches `appId` in electron-builder.yml, so development and release are one identity. */
-const APP_ID = "dev.lyra.app";
+const APP_ID = "dev.plume.app";
 const LSREGISTER =
 	"/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 
@@ -193,7 +193,7 @@ try {
 /*
  * The Dock keeps its own copy on top of LaunchServices.
  *
- * This was the last one holding the old name: `lsappinfo` reported Lyra while the tooltip still
+ * This was the last one holding the old name: `lsappinfo` reported Plume while the tooltip still
  * said Electron. Only on an actual change — in practice once per `electron` reinstall. The Dock
  * relaunches itself within a second, but it is the user's whole desktop, and flickering it on
  * every `pnpm dev` for no change would not be worth it.

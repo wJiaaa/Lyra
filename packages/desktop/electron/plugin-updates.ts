@@ -16,7 +16,7 @@
 import { access, readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { bundleRoot, installEntry, isOutdated, readInstalls, type InstallRecord, type RegistryEntry, type Settings } from "@lyra/core";
+import { bundleRoot, installEntry, isOutdated, readInstalls, type InstallRecord, type RegistryEntry, type Settings } from "@plume/core";
 import { readRegistry, withBundle } from "./plugin-index.ts";
 import { releaseBundle, settingsAfterInstall } from "./ipc/plugin-actions.ts";
 import { sessions } from "./session-hub.ts";

@@ -20,7 +20,7 @@ function textOf(res: { content: { type: string; text?: string }[] }): string {
 }
 
 async function workspace(content: string, name = "catalog.json"): Promise<{ file: string; ctx: ToolContext }> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-read-long-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-read-long-"));
 	const file = join(dir, name);
 	await writeFile(file, content, "utf8");
 	return { file, ctx: { cwd: dir, sessionId: "t", state: new Map() } };

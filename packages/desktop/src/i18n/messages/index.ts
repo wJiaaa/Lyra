@@ -1,4 +1,4 @@
-import type { UiLocale } from "@lyra/core";
+import type { UiLocale } from "@plume/core";
 import { en } from "./en.ts";
 import { zhCN, type MessageCatalog, type MessageKey, type PluralForms } from "./zh-CN.ts";
 

@@ -21,8 +21,8 @@ import { startApp } from "./app.ts";
 
 const MODEL_PORT = 9576;
 const DEBUG_PORT = 9468;
-const OUT = "/tmp/lyra-thinking-typing";
-const FRAMES = join(OUT, `frames-${process.env.LYRA_TAKE ?? "thinking"}`);
+const OUT = "/tmp/plume-thinking-typing";
+const FRAMES = join(OUT, `frames-${process.env.PLUME_TAKE ?? "thinking"}`);
 const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 interface Step {
@@ -390,14 +390,14 @@ try {
 	await new Promise<void>((resolve, reject) => {
 		const ff = spawn(
 			"ffmpeg",
-			["-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-fps_mode", "vfr", "-vf", "scale=1470:-2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "21", join(OUT, `${process.env.LYRA_TAKE ?? "thinking"}.mp4`)],
+			["-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-fps_mode", "vfr", "-vf", "scale=1470:-2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "21", join(OUT, `${process.env.PLUME_TAKE ?? "thinking"}.mp4`)],
 			{ cwd: FRAMES, stdio: ["ignore", "ignore", "pipe"] },
 		);
 		let said = "";
 		ff.stderr.on("data", (chunk: Buffer) => (said = (said + chunk.toString()).slice(-2000)));
 		ff.once("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg 失败：${said}`))));
 	});
-	process.stdout.write(`✓ ${join(OUT, `${process.env.LYRA_TAKE ?? "thinking"}.mp4`)}\n`);
+	process.stdout.write(`✓ ${join(OUT, `${process.env.PLUME_TAKE ?? "thinking"}.mp4`)}\n`);
 } finally {
 	await app.stop();
 	await new Promise<void>((resolve) => model.close(() => resolve()));

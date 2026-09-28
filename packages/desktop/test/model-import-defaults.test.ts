@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ProviderConfig } from "@lyra/core";
+import type { ProviderConfig } from "@plume/core";
 
 import { importedModel, windowLabel } from "../src/features/settings/model-defaults.ts";
 

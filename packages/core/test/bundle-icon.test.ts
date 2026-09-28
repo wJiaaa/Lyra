@@ -2,7 +2,7 @@
  * The icon a bundle ships, read off a real directory.
  *
  * The same rules the platform applies to the archive it built — that is the point of them living in
- * `@lyra/registry-shared` — so what is tested here is that this side reaches the same answers from
+ * `@plume/registry-shared` — so what is tested here is that this side reaches the same answers from
  * files rather than from tar members, including the refusals. An icon that is refused costs the
  * icon and nothing else: the bundle still installs, still loads, and still gets the mark for its
  * kind.
@@ -20,7 +20,7 @@ const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect w
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 
 async function bundle(files: Record<string, string | Buffer>): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-icon-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-icon-"));
 	for (const [path, content] of Object.entries(files)) {
 		const full = join(dir, path);
 		await mkdir(join(full, ".."), { recursive: true });
@@ -66,7 +66,7 @@ test("a declared path that climbs out of the bundle is refused", async () => {
 
 test("an SVG carrying script is not drawn", async () => {
 	/*
-	 * It becomes a `data:` URL in a renderer that can reach `window.lyra`. Refused rather than
+	 * It becomes a `data:` URL in a renderer that can reach `window.plume`. Refused rather than
 	 * sanitised: sanitising means keeping a list of everything dangerous and being right about all
 	 * of it forever.
 	 */

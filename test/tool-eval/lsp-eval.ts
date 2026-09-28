@@ -47,7 +47,7 @@ const OFF = "[0m";
 
 /** A project where the dangerous callsite does not contain the symbol's name. */
 async function fixture(): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-lsp-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-lsp-"));
 	await mkdir(join(dir, "src"), { recursive: true });
 	await writeFile(join(dir, "package.json"), JSON.stringify({ name: "probe", type: "module" }), "utf8");
 	await writeFile(

@@ -18,7 +18,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { bridge } from "../../services/index.ts";
 
-const KEY = "lyra.avatars.v2";
+const KEY = "plume.avatars.v2";
 
 /** Roughly 4KB each at this size. Eighty covers every author a triage session sees. */
 const LIMIT = 80;

@@ -20,7 +20,7 @@
 
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 
 const attached = new Set<string>();
 

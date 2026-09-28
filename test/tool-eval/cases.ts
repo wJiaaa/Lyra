@@ -1,5 +1,5 @@
 /**
- * Edit tasks, built from real Lyra source.
+ * Edit tasks, built from real Plume source.
  *
  * The snippets are inlined rather than read from the working tree on purpose: a corpus that
  * changes when the repository changes cannot be compared against last week's baseline. They were
@@ -385,8 +385,8 @@ const LONG_SETTINGS = `export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	darkForeground: "#EDEDED",
 	uiFont: "Inter Variable",
 	codeFont: "JetBrains Mono Variable",
-	codeLightTheme: "lyra-light",
-	codeDarkTheme: "lyra-dark",
+	codeLightTheme: "plume-light",
+	codeDarkTheme: "plume-dark",
 	uiFontSize: 14,
 	codeFontSize: 12,
 	codeLineHeight: 1.6,
@@ -422,7 +422,7 @@ export const DEFAULT_SCREENSHOT_SETTINGS: ScreenshotSettings = {
 };
 
 export function settingsPath(): string {
-	return join(lyraHome(), "settings.json");
+	return join(plumeHome(), "settings.json");
 }
 
 export async function loadSettings(): Promise<Settings> {

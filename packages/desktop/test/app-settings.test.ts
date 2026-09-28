@@ -14,18 +14,18 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { DEFAULT_SETTINGS, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type Settings } from "@plume/core";
 import { applySettings, onSettingsChanged, settings } from "../electron/app-settings.ts";
 
 let home: string;
 
 before(async () => {
 	home = await mkdtemp(join(tmpdir(), "ly-appset-"));
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 });
 
 after(async () => {
-	delete process.env.LYRA_HOME;
+	delete process.env.PLUME_HOME;
 	await rm(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
 

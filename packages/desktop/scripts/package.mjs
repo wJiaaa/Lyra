@@ -28,7 +28,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 /** The name in the certificate `make-signing-cert.sh` generates. */
-const DEFAULT_IDENTITY = "Lyra Code Signing";
+const DEFAULT_IDENTITY = "Plume Code Signing";
 
 const mac = process.platform === "darwin";
 const identity = process.env.MAC_SIGNING_IDENTITY?.trim() || DEFAULT_IDENTITY;

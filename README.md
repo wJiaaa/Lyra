@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="assets/lyra.png" alt="Lyra" width="200">
+  <img src="assets/lyra.png" alt="Plume" width="200">
 </p>
 
 <p align="center">
-  <a href="https://github.com/kittors/Lyra/actions/workflows/ci.yml"><img src="https://github.com/kittors/Lyra/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/wJiaaa/Plume/actions/workflows/ci.yml"><img src="https://github.com/wJiaaa/Plume/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href=".nvmrc"><img src="https://img.shields.io/badge/node-%E2%89%A524-brightgreen.svg" alt="Node ≥ 24"></a>
 </p>
@@ -18,22 +18,22 @@ This is not a shell around Claude Code or Codex. The agent loop, tools, skills, 
 
 ## Download
 
-Installers live on [Releases](https://github.com/kittors/Lyra/releases/latest). Every release includes every OS and architecture. Pick the file for this machine:
+Installers live on [Releases](https://github.com/wJiaaa/Plume/releases/latest). Every release includes every OS and architecture. Pick the file for this machine:
 
 | OS | Architecture | File |
 | --- | --- | --- |
-| macOS | Apple silicon | `Lyra-<version>-arm64.dmg` |
-| macOS | Intel | `Lyra-<version>-x64.dmg` |
-| Windows | x64 | `Lyra-<version>-x64.exe` |
-| Windows | Arm (Snapdragon laptops, Surface Pro X) | `Lyra-<version>-arm64.exe` |
-| Linux | x64 | `Lyra-<version>-x86_64.AppImage` or `Lyra-<version>-amd64.deb` |
-| Linux | arm64 (Raspberry Pi, Ampere, a Linux VM on a Mac) | `Lyra-<version>-arm64.AppImage` or `Lyra-<version>-arm64.deb` |
+| macOS | Apple silicon | `Plume-<version>-arm64.dmg` |
+| macOS | Intel | `Plume-<version>-x64.dmg` |
+| Windows | x64 | `Plume-<version>-x64.exe` |
+| Windows | Arm (Snapdragon laptops, Surface Pro X) | `Plume-<version>-arm64.exe` |
+| Linux | x64 | `Plume-<version>-x86_64.AppImage` or `Plume-<version>-amd64.deb` |
+| Linux | arm64 (Raspberry Pi, Ampere, a Linux VM on a Mac) | `Plume-<version>-arm64.AppImage` or `Plume-<version>-arm64.deb` |
 
 If you are not sure which architecture you have: on macOS look at the chip line in About This Mac, on Windows look at System type under Settings → System → About, on Linux run `uname -m` (`x86_64` is x64, `aarch64` is arm64).
 
-AppImage or deb, not both. AppImage needs no installer: `chmod +x` and run it on any distribution. The `.deb` is for Debian and Ubuntu: `sudo apt install ./Lyra-<version>-amd64.deb`.
+AppImage or deb, not both. AppImage needs no installer: `chmod +x` and run it on any distribution. The `.deb` is for Debian and Ubuntu: `sudo apt install ./Plume-<version>-amd64.deb`.
 
-Four other files are usually not what you want. The two `.zip` files are macOS archives of the same app. `Lyra-<version>.exe` is a combined Windows installer for x64 and arm64, about 230 MB; the per-arch installers are about 110 MB each, so use those if you know the architecture. `SHA256SUMS` is the digest list.
+Four other files are usually not what you want. The two `.zip` files are macOS archives of the same app. `Plume-<version>.exe` is a combined Windows installer for x64 and arm64, about 230 MB; the per-arch installers are about 110 MB each, so use those if you know the architecture. `SHA256SUMS` is the digest list.
 
 ## First launch
 
@@ -47,7 +47,7 @@ The published build is ad-hoc signed. There is no Apple Developer certificate an
 - Or drop the quarantine flag:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/Lyra.app
+xattr -dr com.apple.quarantine /Applications/Plume.app
 ```
 
 If the dialog says the app is damaged rather than unverified, that is a 0.6.0 or earlier build. Those were unsigned. Gatekeeper treats the bundle as broken, and the only option is the Trash. Install a later version.
@@ -59,24 +59,24 @@ Screenshots use the system Screen Recording permission. Ad-hoc signing produces 
 Clear this app's record so it can ask again:
 
 ```bash
-tccutil reset ScreenCapture dev.lyra.app
+tccutil reset ScreenCapture dev.plume.app
 ```
 
-Then fully quit Lyra (⌘Q; closing the window is not enough) and open it again. The next screenshot should prompt. If it does not, turn Lyra off and on under Screen Recording, or remove the row with the minus button.
+Then fully quit Plume (⌘Q; closing the window is not enough) and open it again. The next screenshot should prompt. If it does not, turn Plume off and on under Screen Recording, or remove the row with the minus button.
 
-`dev.lyra.app` is Lyra's bundle id. Leave it in. `tccutil reset ScreenCapture` without it clears Screen Recording for every app on the machine.
+`dev.plume.app` is Plume's bundle id. Leave it in. `tccutil reset ScreenCapture` without it clears Screen Recording for every app on the machine.
 
 ### First open on Windows
 
 The Windows installer is also unsigned. The first run hits SmartScreen: "Windows protected your PC." Click More info, then Run anyway.
 
-If the wizard finishes, "Run Lyra" is checked, and you get "missing shortcut / Windows is looking for Lyra.exe" (or the Start menu and desktop icons do the same), `Lyra.exe` did not stay in the install folder. The usual cause is Microsoft Defender quarantining a large unsigned binary. Check Windows Security → Virus & threat protection → Protection history, allow the entry, and run the installer again.
+If the wizard finishes, "Run Plume" is checked, and you get "missing shortcut / Windows is looking for Plume.exe" (or the Start menu and desktop icons do the same), `Plume.exe` did not stay in the install folder. The usual cause is Microsoft Defender quarantining a large unsigned binary. Check Windows Security → Virus & threat protection → Protection history, allow the entry, and run the installer again.
 
-The installed app is always named `Lyra.exe` and is a couple of hundred MB. If the install folder also has `Lyra-<version>-<arch>.exe`, about 100 MB, that is the installer itself, not the app. That happens when the destination folder is the folder the installer was downloaded into. `Uninstall Lyra.exe` is a few hundred KB and only uninstalls. Neither of those launches the app.
+The installed app is always named `Plume.exe` and is a couple of hundred MB. If the install folder also has `Plume-<version>-<arch>.exe`, about 100 MB, that is the installer itself, not the app. That happens when the destination folder is the folder the installer was downloaded into. `Uninstall Plume.exe` is a few hundred KB and only uninstalls. Neither of those launches the app.
 
 ## Add a model first
 
-Lyra does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model. The API format is **Responses**, **Anthropic Messages** or **Chat Completions**, whichever the provider documents.
+Plume does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model. The API format is **Responses**, **Anthropic Messages** or **Chat Completions**, whichever the provider documents.
 
 ## What it does
 
@@ -88,7 +88,7 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
   - Network and preview: `web_fetch` `web_search` `preview`
 - **Skills.** `SKILL.md` plus YAML frontmatter. Only the name and description enter the system prompt. The body is injected when the model calls `skill`, so dozens of skills do not burn the context window.
 - **MCP.** stdio, Streamable HTTP, and SSE. Tools are named `mcp__<server>__<tool>`, so they never collide with built-ins.
-- **Sub-agents.** `task` hands work to an agent with its own context window and brings back the conclusion. Seven built-ins: `general` `explore` `review` `verify` `plan` `simple` `reason`. Add more with `.lyra/agents/*.md`.
+- **Sub-agents.** `task` hands work to an agent with its own context window and brings back the conclusion. Seven built-ins: `general` `explore` `review` `verify` `plan` `simple` `reason`. Add more with `.plume/agents/*.md`.
 - **Side chat.** A temporary conversation beside the current session. It can read the main chat. It writes nothing into it. Work that needs tools is queued on the main session.
 - **Right-hand dock.** Nine panes, all open at once if you want: Files, File contents, Terminal, Git, Side chat, Sub-agents, Tasks, Trace, Browser. The file pane is a read-only, syntax-highlighted preview. The terminal is a real pty.
 - **Split workspace.** Keep up to four conversations side-by-side in one window. Each conversation slot owns its tools dock (at least 420 px for chat, 300 px for tools), and panels render squeezed rather than unexpectedly detaching into floating windows when narrow.
@@ -118,7 +118,7 @@ pnpm dev
 
 ### Without a window
 
-For evaluation runs: one task in, the answer out, no questions asked. It is the same runtime reading the same `~/.lyra`, so models, keys, permissions, MCP servers and skills are set up once, in the desktop app.
+For evaluation runs: one task in, the answer out, no questions asked. It is the same runtime reading the same `~/.plume`, so models, keys, permissions, MCP servers and skills are set up once, in the desktop app.
 
 ```bash
 pnpm cli -C ~/code/my-project "make the failing test pass"
@@ -133,21 +133,21 @@ Contributing is in [CONTRIBUTING.md](CONTRIBUTING.md). An agent asked to change 
 
 | Path | Contents |
 | --- | --- |
-| `~/.lyra/settings.json` | providers, models, MCP, permission mode |
-| `~/.lyra/credentials.json` | API keys, encrypted. The key material is `~/.lyra/vault.key` |
-| `~/.lyra/sessions/` | session logs (JSONL, one record per line) |
-| `~/.lyra/skills/`, `plugins/`, `commands/` | user-level skills, plugins, slash commands |
-| `~/.lyra/memory.json` | what the `learn` tool wrote down |
-| `<project>/.lyra/skills/`, `agents/`, `commands/`, `plugins/` | the same set at project level, preferred over user-level |
-| `<project>/LYRA.md`, `AGENTS.md`, `CLAUDE.md` | project instructions, first file that exists in that order |
+| `~/.plume/settings.json` | providers, models, MCP, permission mode |
+| `~/.plume/credentials.json` | API keys, encrypted. The key material is `~/.plume/vault.key` |
+| `~/.plume/sessions/` | session logs (JSONL, one record per line) |
+| `~/.plume/skills/`, `plugins/`, `commands/` | user-level skills, plugins, slash commands |
+| `~/.plume/memory.json` | what the `learn` tool wrote down |
+| `<project>/.plume/skills/`, `agents/`, `commands/`, `plugins/` | the same set at project level, preferred over user-level |
+| `<project>/PLUME.md`, `AGENTS.md`, `CLAUDE.md` | project instructions, first file that exists in that order |
 
-Moving machines is a copy of `~/.lyra`. Copy `credentials.json` and `vault.key` together, or the keys will not open.
+Moving machines is a copy of `~/.plume`. Copy `credentials.json` and `vault.key` together, or the keys will not open.
 
 ## Extensions
 
 How plugins, skills, MCP, and sub-agents are laid out, and how the browser, the index, and hooks work:
 
-- [Extending Lyra](docs/guide/extending.md): plugin directories, `SKILL.md`, MCP servers, sub-agent definitions
+- [Extending Plume](docs/guide/extending.md): plugin directories, `SKILL.md`, MCP servers, sub-agent definitions
 - [Built-in capabilities](docs/guide/capabilities.md): the browser and its boundary, the index, hooks
 - [Architecture](ARCHITECTURE.md): package graph, the boundary rules, decision records
 

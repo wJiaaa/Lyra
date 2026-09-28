@@ -4,8 +4,8 @@ import { browserContents, browserScale } from "./browser-workspace.ts";
 const WORLD = 999;
 /** One isolated listener owns selection; exiting removes every handler and drawing. */
 const INSPECT = `(mode) => new Promise(resolve => {
-	globalThis.__lyraCancelInspect?.();
-	const layer=document.createElement('div');layer.id='__lyra_inspect_layer';
+	globalThis.__plumeCancelInspect?.();
+	const layer=document.createElement('div');layer.id='__plume_inspect_layer';
 	layer.style.cssText='position:fixed;inset:0;z-index:2147483646;pointer-events:none';
 	const root=layer.attachShadow({mode:'closed'});
 	const box=document.createElement('div'), label=document.createElement('div');
@@ -15,8 +15,8 @@ const INSPECT = `(mode) => new Promise(resolve => {
 	let start=null, current=null, target=null;
 	const paint=(r,text)=>{box.style.left=r.x+'px';box.style.top=r.y+'px';box.style.width=r.width+'px';box.style.height=r.height+'px';label.textContent=text;label.style.left=Math.max(0,Math.min(r.x,innerWidth-360))+'px';label.style.top=Math.max(0,r.y-30)+'px';};
 	const selector=(el)=>{if(el.id)return '#'+CSS.escape(el.id);const parts=[];let node=el;while(node&&node!==document.body){let part=node.localName;const siblings=node.parentElement?[...node.parentElement.children].filter(e=>e.localName===node.localName):[];if(siblings.length>1)part+=':nth-of-type('+(siblings.indexOf(node)+1)+')';parts.unshift(part);node=node.parentElement;}return ['body',...parts].join(' > ');};
-	const finish=(result)=>{for(const [name,fn] of handlers)document.removeEventListener(name,fn,true);layer.remove();delete globalThis.__lyraCancelInspect;resolve(result);};
-	const cancel=()=>finish(null);globalThis.__lyraCancelInspect=cancel;
+	const finish=(result)=>{for(const [name,fn] of handlers)document.removeEventListener(name,fn,true);layer.remove();delete globalThis.__plumeCancelInspect;resolve(result);};
+	const cancel=()=>finish(null);globalThis.__plumeCancelInspect=cancel;
 	const stop=e=>{e.preventDefault();e.stopImmediatePropagation();};
 	const move=e=>{stop(e);target=document.elementFromPoint(e.clientX,e.clientY);if(!target)return;
 		const r=mode==='region'&&start?{x:Math.min(start.x,e.clientX),y:Math.min(start.y,e.clientY),width:Math.abs(start.x-e.clientX),height:Math.abs(start.y-e.clientY)}:target.getBoundingClientRect();
@@ -33,7 +33,7 @@ const INSPECT = `(mode) => new Promise(resolve => {
 })`;
 
 export async function cancelBrowserInspect(id: string): Promise<void> {
-	await browserContents(id).executeJavaScriptInIsolatedWorld(WORLD, [{ code: "globalThis.__lyraCancelInspect?.()" }]);
+	await browserContents(id).executeJavaScriptInIsolatedWorld(WORLD, [{ code: "globalThis.__plumeCancelInspect?.()" }]);
 }
 
 function selection(value: unknown): value is Omit<BrowserSelection, "screenshot"> {

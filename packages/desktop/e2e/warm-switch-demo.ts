@@ -81,7 +81,7 @@ async function revealHuge(): Promise<string[]> {
 
 async function main() {
 	await mkdir(OUT_DIR, { recursive: true });
-	console.log("复制本机 ~/.lyra（凭据已剔）…");
+	console.log("复制本机 ~/.plume（凭据已剔）…");
 	app = await startApp({ port: PORT, seed: seedFromReal });
 	const d = driver(app);
 	const frames: Frame[] = [];

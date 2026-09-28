@@ -1,14 +1,14 @@
 /**
  * 设置页和编辑器上的那些脸：人人不同、新来的不撞脸、挑脸时别人的那张挑不走、存下去的就是看见的那张。
  *
- * 挂载真组件，数据走和窗口里一样的 `window.lyra.agentDefinitions`——这一页的每个承诺都是关于
+ * 挂载真组件，数据走和窗口里一样的 `window.plume.agentDefinitions`——这一页的每个承诺都是关于
  * 「画出来的是什么」的，所以都从 DOM 上读。
  */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import { BUILTIN_AGENTS, DEFAULT_SETTINGS, type AgentDefinitionRecord, type AgentDefinitionSave, type Settings } from "@lyra/core";
+import { BUILTIN_AGENTS, DEFAULT_SETTINGS, type AgentDefinitionRecord, type AgentDefinitionSave, type Settings } from "@plume/core";
 import { AgentsSettings } from "../../src/features/settings/AgentsSettings.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { I18nProvider } from "../../src/i18n/index.ts";
@@ -38,7 +38,7 @@ const records: AgentDefinitionRecord[] = [
 async function open(save: (input: AgentDefinitionSave) => Promise<{ warning?: string }> = async () => ({})): Promise<Mounted> {
 	const settings: Settings = { ...DEFAULT_SETTINGS };
 	useApp.setState({ activeSessionId: null, meta: null, settings, capabilities: null, workspace: null });
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			agentDefinitions: {

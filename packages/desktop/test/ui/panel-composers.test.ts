@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
 
-import type { Message, SubAgentSummary, UserContent } from "@lyra/core";
+import type { Message, SubAgentSummary, UserContent } from "@plume/core";
 import { SubAgentPanel } from "../../src/features/subagents/SubAgentPanel.tsx";
 import { SubAgentTranscript } from "../../src/features/subagents/SubAgentMessageRow.tsx";
 import { MessageRow } from "../../src/features/sidechat/MessageRow.tsx";
@@ -53,7 +53,7 @@ let steered: unknown[][];
 beforeEach(() => {
 	steered = [];
 	useApp.setState({ activeSessionId: "s", messages: [], toolRuns: {}, drafts: {} });
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			subAgents: {

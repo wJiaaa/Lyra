@@ -58,7 +58,7 @@ const CHECKS = [
 	{
 		id: "ISSUE-ui",
 		what: "提问遮挡、清单残留、队列卸载重建、过程收起硬切和 Git 重复入口",
-		run: ["pnpm", ["--filter", "@lyra/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/approval-overlay.test.ts", "test/ui/message-queue-strip.test.ts", "test/ui/turn-process.test.ts", "test/ui/git-group-actions.test.ts"]],
+		run: ["pnpm", ["--filter", "@plume/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/approval-overlay.test.ts", "test/ui/message-queue-strip.test.ts", "test/ui/turn-process.test.ts", "test/ui/git-group-actions.test.ts"]],
 	},
 	{
 		id: "C1",
@@ -73,7 +73,7 @@ const CHECKS = [
 	{
 		id: "S1",
 		what: "主进程的 ipcMain.handle 没有任何东西和契约比对",
-		run: ["pnpm", ["--filter", "@lyra/contract", "test"]],
+		run: ["pnpm", ["--filter", "@plume/contract", "test"]],
 	},
 	{
 		id: "H1",

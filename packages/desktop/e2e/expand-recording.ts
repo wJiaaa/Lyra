@@ -10,7 +10,7 @@
  * 帧不是 rAF 逐帧（每张截图要走一次 CDP 往返，抓不到 60fps），而是按固定间隔采样。判据仍然
  * 由 `jump-probe` 给，这里只负责让人看见。
  *
- * 输出：`/tmp/lyra-rec-<tag>/frame-*.png` 和 `meta.json`。
+ * 输出：`/tmp/plume-rec-<tag>/frame-*.png` 和 `meta.json`。
  *
  * 用法：node --experimental-strip-types e2e/expand-recording.ts <tag>
  */
@@ -21,7 +21,7 @@ import { startApp, type RunningApp } from "./app.ts";
 import { seedFromReal } from "./session-switch-perf.ts";
 
 const TAG = process.argv[2] ?? "after";
-const OUT = `/tmp/lyra-rec-${TAG}`;
+const OUT = `/tmp/plume-rec-${TAG}`;
 const PORT = 9707;
 const FRAMES = 10;
 const EVERY_MS = 70;

@@ -90,8 +90,8 @@ before(async () => {
 			await writeFile(path, JSON.stringify(settings));
 			await mkdir(join(home, "agents"), { recursive: true });
 			await writeFile(join(home, "agents", "docs-writer.md"), "---\nname: docs-writer\ndescription: 整理与改写项目文档\ntools: [read]\navatar: ghost-plum\n---\nYou write documentation.\n");
-			await mkdir(join(home, "project", ".lyra", "agents"), { recursive: true });
-			await writeFile(join(home, "project", ".lyra", "agents", "boss.md"), "---\nname: boss\ndescription: 编排者\n---\nBOSS\n");
+			await mkdir(join(home, "project", ".plume", "agents"), { recursive: true });
+			await writeFile(join(home, "project", ".plume", "agents", "boss.md"), "---\nname: boss\ndescription: 编排者\n---\nBOSS\n");
 		},
 	});
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 860, deviceScaleFactor: 1, mobile: false });

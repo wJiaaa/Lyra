@@ -3,13 +3,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { SessionStore } from "@lyra/core";
+import { SessionStore } from "@plume/core";
 import { observeSessionStorage } from "../electron/session-storage.ts";
 import type { SessionChange } from "../electron/ipc-shapes.ts";
 import { readTrajectoryChanges } from "../electron/trajectory-changes.ts";
 
 test("committed cold-session changes notify every persistence path without broadcasting tokens", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-session-sync-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-session-sync-"));
 	const changes: SessionChange[] = [];
 	const store = observeSessionStorage(new SessionStore(join(root, "sessions")), (change) => changes.push(change));
 	try {
@@ -46,7 +46,7 @@ test("failed persistence never claims a successful change", async () => {
 });
 
 test("the desktop observer preserves incremental log reads through the real trajectory service", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-observed-trajectory-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-observed-trajectory-"));
 	const source = new SessionStore(root);
 	let fullReads = 0;
 	const read = source.read.bind(source);

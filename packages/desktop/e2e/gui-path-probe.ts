@@ -68,8 +68,8 @@ function watchWhileBooting(port: number, stop: () => boolean): Promise<string[]>
 			}
 			if (pid) {
 				for (const args of await descendants(pid)) {
-					// The ask is `$SHELL -lic 'printf …__LYRA_PATH__…'`; the marker is what makes it ours.
-					if (args.includes("__LYRA_PATH__")) seen.add(args);
+					// The ask is `$SHELL -lic 'printf …__PLUME_PATH__…'`; the marker is what makes it ours.
+					if (args.includes("__PLUME_PATH__")) seen.add(args);
 				}
 			}
 			await new Promise((r) => setTimeout(r, 10));

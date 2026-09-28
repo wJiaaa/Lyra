@@ -9,7 +9,7 @@
  *
  * 截图另存，因为遮罩这件事只能看。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/input-overflow-probe.ts [标签] [输出目录]`
  */
 
@@ -21,7 +21,7 @@ import { startApp, type RunningApp } from "./app.ts";
 import { seedFromReal } from "./session-switch-perf.ts";
 
 const LABEL = process.argv[2] ?? "before";
-const OUT_DIR = process.argv[3] ?? join(homedir(), "Desktop", "Lyra输入框样式测试");
+const OUT_DIR = process.argv[3] ?? join(homedir(), "Desktop", "Plume输入框样式测试");
 const PORT = 9787;
 
 /** 够长到必然溢出，又每行一样宽，量右端才有意义。 */

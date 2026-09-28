@@ -39,11 +39,11 @@ export const risky = (code: RiskCode, params?: RiskParams): RiskVerdict => ({
  * directory we just told it to write to is not a safety question, it is a bug — and one that turns
  * an unattended run into a run that stops on the first scratch file.
  *
- * `~/.lyra` as a whole is deliberately not here: settings and session logs live there too, and
+ * `~/.plume` as a whole is deliberately not here: settings and session logs live there too, and
  * those are worth a question.
  */
 export function scratchRoots(cwd?: string): string[] {
-	const home = process.env.LYRA_HOME || join(homedir(), ".lyra");
+	const home = process.env.PLUME_HOME || join(homedir(), ".plume");
 	/*
 	 * `/tmp` by name as well as by API.
 	 *

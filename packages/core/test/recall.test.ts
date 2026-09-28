@@ -101,14 +101,14 @@ let previousHome: string | undefined;
 
 before(async () => {
 	home = await mkdtemp(join(tmpdir(), "ly-recall-"));
-	// `recall` finds the log the way the app does: under LYRA_HOME, keyed by cwd and session id.
-	previousHome = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	// `recall` finds the log the way the app does: under PLUME_HOME, keyed by cwd and session id.
+	previousHome = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 });
 
 after(async () => {
-	if (previousHome === undefined) delete process.env.LYRA_HOME;
-	else process.env.LYRA_HOME = previousHome;
+	if (previousHome === undefined) delete process.env.PLUME_HOME;
+	else process.env.PLUME_HOME = previousHome;
 	await rm(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
 

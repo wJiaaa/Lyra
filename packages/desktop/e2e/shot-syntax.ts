@@ -9,9 +9,9 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const out = process.argv[2] ?? "/tmp/lyra-syntax.png";
+const out = process.argv[2] ?? "/tmp/plume-syntax.png";
 const wanted = process.argv[3] ?? ".gitignore";
-const repo = "/tmp/lyra-syntax-shot";
+const repo = "/tmp/plume-syntax-shot";
 
 rmSync(repo, { recursive: true, force: true });
 mkdirSync(repo, { recursive: true });
@@ -60,7 +60,7 @@ const app = await startApp({
 				pluginRegistries: [],
 				skillRegistries: [],
 				alwaysAllow: [],
-				appearance: { theme: process.env.LYRA_SHOT_THEME === "light" ? "light" : "dark" },
+				appearance: { theme: process.env.PLUME_SHOT_THEME === "light" ? "light" : "dark" },
 			}),
 		);
 	},

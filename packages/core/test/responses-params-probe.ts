@@ -21,7 +21,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ModelConfig, ProviderConfig } from "../src/types.ts";
 
-const HOME = join(homedir(), ".lyra");
+const HOME = join(homedir(), ".plume");
 const FILTER = process.argv[2] ?? "";
 
 type Item = Record<string, unknown>;
@@ -92,7 +92,7 @@ async function main() {
 	}
 
 	await writeFile(join(HOME, "scratch", "responses-params.txt"), `${new Date().toISOString()}\n\n${report.join("\n")}`, "utf8");
-	console.log(`\n落盘：~/.lyra/scratch/responses-params.txt`);
+	console.log(`\n落盘：~/.plume/scratch/responses-params.txt`);
 }
 
 main().catch((error) => {

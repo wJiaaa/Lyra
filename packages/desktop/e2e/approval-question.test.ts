@@ -36,7 +36,7 @@ afterEach(async () => { if (app) await shot("approval-question-last-screen"); })
 after(async () => {
 	await stopRecording?.();
 	await cleanupFixture(() => app?.stop(), () => closeListeningServer(server));
-	const out = join(homedir(), "Desktop", "Lyra未完成问题修复测试");
+	const out = join(homedir(), "Desktop", "Plume未完成问题修复测试");
 	await mkdir(out, { recursive: true });
 	if (frames.length) await encode(frames, join(out, `${stamp}_长提问滚动主题输入法_${passed}of2.mp4`), 30);
 });
@@ -76,13 +76,13 @@ async function enter() {
 
 async function appearance(theme: "dark" | "light", width: number) {
 	await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
-	await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}});})()`);
+	await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}});})()`);
 	await until(async () => app.evaluate(`innerWidth===${width}&&document.documentElement.style.colorScheme===${JSON.stringify(theme)}&&!document.documentElement.hasAttribute('data-theme-switching')`));
 	await settle();
 }
 
 async function shot(name: string) {
-	const directory = process.env.LYRA_E2E_ARTIFACTS; if (!directory) return;
+	const directory = process.env.PLUME_E2E_ARTIFACTS; if (!directory) return;
 	await mkdir(directory, { recursive: true }); await settle();
 	const { data } = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(directory, `${name}.png`), Buffer.from(data, "base64"));
@@ -145,7 +145,7 @@ test("long questions stay readable and actionable across themes and widths with 
 	assert.equal(await app.evaluate("document.querySelector('input[aria-label=\"自定义回答\"]').value"), answer);
 	await shot("approval-custom-native-input"); await click("submit");
 	await until(async () => app.evaluate("!document.querySelector('[data-approval-card]')&&!document.querySelector('button[aria-label=\"停止\"]')"));
-	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.lyra.sessions.list()).find(s=>s.id==='qa-long');const t=await window.lyra.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
+	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-long');const t=await window.plume.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
 	assert.deepEqual(results, [answer]);
 	passed++;
 });
@@ -160,7 +160,7 @@ test("a long final choice remains reachable through the same body scroller", asy
 	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] input:checked').length"), 1);
 	await click("confirm");
 	await until(async () => app.evaluate("!document.querySelector('[data-approval-card]')&&!document.querySelector('button[aria-label=\"停止\"]')"));
-	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.lyra.sessions.list()).find(s=>s.id==='qa-short');const t=await window.lyra.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
+	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-short');const t=await window.plume.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
 	assert.deepEqual(results, [LONG_OPTIONS.at(-1)]);
 	passed++;
 });

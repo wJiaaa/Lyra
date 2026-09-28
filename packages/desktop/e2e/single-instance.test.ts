@@ -1,5 +1,5 @@
 /**
- * One Lyra per machine.
+ * One Plume per machine.
  *
  * Closing the window does not quit while there is a status bar item, so the app looks closed while
  * it is still running — and opening it again used to start a *second copy*. On Windows that is a
@@ -34,7 +34,7 @@ after(async () => {
  * A second launch against the same profile, and what it did.
  *
  * Spawned the same way the first one was, so the lock is being tested rather than a lookalike:
- * the lock is keyed on the user data directory, which `LYRA_HOME` decides.
+ * the lock is keyed on the user data directory, which `PLUME_HOME` decides.
  *
  * That claim used to be false. This went through `electron-vite preview`, which rebuilds before it
  * launches anything — so the second copy spent the whole budget compiling, the backstop killed it
@@ -47,7 +47,7 @@ function secondLaunch(home: string): Promise<{ code: number | null; output: stri
 		const { executable, argv } = electronLaunch();
 		const second = spawn(executable, argv, {
 			cwd: ROOT,
-			env: { ...process.env, LYRA_HOME: home, ELECTRON_ENABLE_LOGGING: "1" },
+			env: { ...process.env, PLUME_HOME: home, ELECTRON_ENABLE_LOGGING: "1" },
 			stdio: "pipe",
 			detached: true,
 		});

@@ -149,7 +149,7 @@ async function main() {
 		requestAnimationFrame(tick);
 	})()`;
 	const probe = () => app.evaluate<{ frames: number; panel: number; toast: number; card: number }>("({ ...window.__probe })");
-	const page = (expression: string) => app.evaluate<unknown>(`(async () => { const s = await window.lyra.browser.state(); const tab = s.tabs.find((t) => t.sessionId === 'qa-short'); const el = tab && document.querySelector('[data-browser-page="' + tab.id + '"]'); return el ? el.executeJavaScript(${JSON.stringify(expression)}) : null; })()`);
+	const page = (expression: string) => app.evaluate<unknown>(`(async () => { const s = await window.plume.browser.state(); const tab = s.tabs.find((t) => t.sessionId === 'qa-short'); const el = tab && document.querySelector('[data-browser-page="' + tab.id + '"]'); return el ? el.executeJavaScript(${JSON.stringify(expression)}) : null; })()`);
 
 	try {
 		await app.evaluate("document.fonts.ready");
@@ -159,7 +159,7 @@ async function main() {
 		await app.evaluate(RECORDER);
 		await shot("00_开始之前");
 
-		await app.evaluate(`window.lyra.agent.prompt('qa-short',[{type:'text',text:'打开页面，输入并点两下按钮，最后截个图'}])`);
+		await app.evaluate(`window.plume.agent.prompt('qa-short',[{type:'text',text:'打开页面，输入并点两下按钮，最后截个图'}])`);
 		// 第一次点击落地之后，第二次点击之前。
 		await d.until(`window.__probe && document.body.innerText.length > 0`, 5000);
 		// `step` moves in the fake model's request handler, so it is read through a call each time round.

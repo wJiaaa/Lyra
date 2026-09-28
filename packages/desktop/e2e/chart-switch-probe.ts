@@ -10,7 +10,7 @@
  * 两处都按**绘制帧**取，不按时间采样：rAF 里逐帧读 computed 值，才能分清「滑过去」和「跳过去」
  * ——两头的读数在这两种情况下一模一样，区别只在中间那几帧存不存在。
  *
- * 图要有数据才画得出来，所以固件是从真实的 ~/.lyra 里复制一个会话目录进来的：合成的用量压不出
+ * 图要有数据才画得出来，所以固件是从真实的 ~/.plume 里复制一个会话目录进来的：合成的用量压不出
  * 多供应商、跨月份的那条曲线，而那正是这张图的样子。
  *
  * 跑：node --experimental-strip-types e2e/chart-switch-probe.ts
@@ -29,7 +29,7 @@ const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** 真实 profile 里最大的那个会话目录——用量图要有跨天的记录才画得出趋势。 */
 async function biggestSessionDir(): Promise<string | null> {
-	const root = join(homedir(), ".lyra", "sessions");
+	const root = join(homedir(), ".plume", "sessions");
 	try {
 		const names = await readdir(root);
 		let best: { path: string; size: number } | null = null;

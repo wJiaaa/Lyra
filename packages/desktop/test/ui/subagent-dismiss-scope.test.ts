@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h } from "react";
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { SubAgentPanel } from "../../src/features/subagents/SubAgentPanel.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";
@@ -32,7 +32,7 @@ let view: Mounted | undefined;
 beforeEach(() => {
 	asked = [];
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			subAgents: {
@@ -54,7 +54,7 @@ afterEach(async () => {
 	view = undefined;
 	useApp.setState(previous, true);
 	useSubAgents.setState({ agents: [], transcripts: {}, focused: null, loading: [], rosters: {} });
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 test("the close button in a screen without focus names that screen's conversation", async () => {

@@ -266,7 +266,7 @@ export function toResponsesInput(
 							 * **但那不是上面那句 400 的原因。** 这一点在真实端点上分离过：同一份被拒的请求，
 							 * 推理项带上 `content.reasoning_text` 和不带，两种都是 400；真正的原因是助手轮没有
 							 * 以推理项开头（见下面的补位分支，落盘在
-							 * `~/.lyra/scratch/deepseek-compaction-400.txt`）。所以这里维持不发——补发一份等于
+							 * `~/.plume/scratch/deepseek-compaction-400.txt`）。所以这里维持不发——补发一份等于
 							 * 把每段推理在请求里放两遍（`summary` 已经有一份），长会话上是实打实的钱，而换回来
 							 * 的好处一个都没被证实过。要改它，先拿出「模型接得回思维链」的量法，别拿那句 400。
 							 */
@@ -364,7 +364,7 @@ export function toResponsesInput(
 			 *     The `reasoning_text` in the thinking mode must be passed back to the API.
 			 *
 			 * 一句听起来在讲某个字段、实际在讲位置的话。2026-09-15 在真实端点上分离过（落盘
-			 * `~/.lyra/scratch/deepseek-compaction-400.txt`，历史取自被它报废的那个会话压缩后的 18 条）：
+			 * `~/.plume/scratch/deepseek-compaction-400.txt`，历史取自被它报废的那个会话压缩后的 18 条）：
 			 *
 			 *     原样（助手轮前面没有推理项）                    400
 			 *     在那条助手消息前插一个合成推理项                200

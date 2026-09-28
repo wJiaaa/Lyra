@@ -51,7 +51,7 @@ export { toolsPlugin } from "./plugins/tools.ts";
 export { AGENT_TOOLS, FILE_TOOLS, SHELL_TOOLS, WEB_TOOLS, builtinToolGroups } from "../tools/groups.ts";
 
 /**
- * The set that makes an ordinary Lyra.
+ * The set that makes an ordinary Plume.
  *
  * Listed rather than discovered, because the default configuration should be something you can
  * read. A host that wants a different shape — no shell, a remote sandbox, another model API —

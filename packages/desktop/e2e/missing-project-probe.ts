@@ -2,7 +2,7 @@
 /**
  * 文件夹在磁盘上没了之后，这个项目还听不听话。
  *
- * 报告是「项目从本地删除了，lyra 里面就删不掉」。量两件事：切过去的时候有没有一句话说清是
+ * 报告是「项目从本地删除了，plume 里面就删不掉」。量两件事：切过去的时候有没有一句话说清是
  * 目录变了（`workspace.info` 对不存在的路径答 `null`，从前这个 `null` 和「已经被新的选择顶掉」
  * 共用一个 `return`，于是点它什么都不发生）；以及那条记录到底删不删得掉。
  *
@@ -16,9 +16,9 @@ import { startApp } from "./app.ts";
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const alive = await mkdtemp(join(tmpdir(), "lyra-alive-"));
+const alive = await mkdtemp(join(tmpdir(), "plume-alive-"));
 // 从来没有被创建过，等同于用户在访达里删掉之后剩下的那条记录。
-const gone = join(tmpdir(), "lyra-gone-does-not-exist-9931");
+const gone = join(tmpdir(), "plume-gone-does-not-exist-9931");
 
 const app = await startApp({
 	port: 9756,
@@ -88,7 +88,7 @@ try {
 			await pause(1200);
 			const seen = (await app.evaluate(`document.body.innerText`)) as string;
 			const told = seen.includes("文件夹已经不在了");
-			const named = seen.includes("lyra-gone-does-not-exist-9931");
+			const named = seen.includes("plume-gone-does-not-exist-9931");
 			console.log(`  切过去：提示 ${told ? "出现了" : "✗ 没出现"}，${named ? "点名了是哪个文件夹" : "✗ 没说是哪个文件夹"}`);
 			if (!told) problems.push("切到已删除的项目，界面上一句话都没有——就是报告里那个「点它没反应」");
 			if (!named) problems.push("提示没说是哪个文件夹");

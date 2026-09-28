@@ -3,7 +3,7 @@
  *
  * This type crosses three boundaries — the app that installs from it, the worker that serves it,
  * and the site that browses it — so it lives here rather than in any one of them. It used to live
- * in `@lyra/core`, where the worker could not reach it; two copies of a contract are two contracts,
+ * in `@plume/core`, where the worker could not reach it; two copies of a contract are two contracts,
  * and the one nobody compiles is the one that drifts.
  *
  * The shape is deliberately additive over what the file-based registry already published. Every

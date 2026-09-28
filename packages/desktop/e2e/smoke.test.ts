@@ -30,13 +30,13 @@ test("the window opens and paints the shell", async () => {
 
 	assert.equal(shape.shell, true, "the app shell rendered");
 	assert.equal(shape.sidebar, true, "so did the navigation pane");
-	assert.equal(shape.title, "Lyra");
+	assert.equal(shape.title, "Plume");
 });
 
 test("the preload exposed the API the renderer is written against", async () => {
-	const api = await app.evaluate<string[]>(`Object.keys(window.lyra ?? {}).sort()`);
+	const api = await app.evaluate<string[]>(`Object.keys(window.plume ?? {}).sort()`);
 	for (const area of ["agent", "clipboard", "files", "sessions", "settings", "workspace"]) {
-		assert.ok(api.includes(area), `window.lyra.${area} is missing`);
+		assert.ok(api.includes(area), `window.plume.${area} is missing`);
 	}
 });
 

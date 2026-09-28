@@ -107,6 +107,6 @@ try {
 } catch (error) {
 	console.warn(
 		`\nCould not rebuild node-pty for Electron: ${error instanceof Error ? error.message : String(error)}\n` +
-			"The app will run; the terminal panel will not. Re-run `pnpm --filter @lyra/desktop rebuild:pty` once the build tools are available.\n",
+			"The app will run; the terminal panel will not. Re-run `pnpm --filter @plume/desktop rebuild:pty` once the build tools are available.\n",
 	);
 }

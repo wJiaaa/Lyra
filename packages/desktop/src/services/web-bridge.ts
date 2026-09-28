@@ -1,8 +1,8 @@
 /**
- * `window.lyra`, spoken over one WebSocket instead of over Electron IPC.
+ * `window.plume`, spoken over one WebSocket instead of over Electron IPC.
  *
  * Web access serves this same renderer to a browser. The renderer knows how to talk to exactly one
- * thing, `window.lyra`; in a window the preload builds it out of IPC channels, and here it is built
+ * thing, `window.plume`; in a window the preload builds it out of IPC channels, and here it is built
  * out of the contract's method table and a socket back to the desktop that served the page. Nothing
  * about the interface is duplicated, so nothing about it can drift.
  *
@@ -15,15 +15,15 @@
  * round trip to be told no.
  */
 
-import { METHODS, WEB_METHODS } from "@lyra/contract";
+import { METHODS, WEB_METHODS } from "@plume/contract";
 import { translate } from "../i18n/translate.ts";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 
 /** How the link to the desktop stands. The store and the banner both listen for this. */
 export type WebConnection = "connecting" | "connected" | "reconnecting";
 
 /** The event carrying a `WebConnection` in `detail`, dispatched on `window`. */
-export const CONNECTION_EVENT = "lyra:connection";
+export const CONNECTION_EVENT = "plume:connection";
 
 /** The parts of `WebSocket` this uses, so a test can hand in something else. */
 export interface SocketLike {
@@ -50,7 +50,7 @@ export interface WebBridgeOptions {
 }
 
 export interface WebBridge {
-	api: LyraApi;
+	api: PlumeApi;
 	status(): WebConnection;
 	/** Check the socket now rather than at the next heartbeat. */
 	probe(): void;
@@ -111,7 +111,7 @@ function isSubscription(name: string): boolean {
 /*
  * The floor under everything this file does not name.
  *
- * `LyraApi` carries more than the contract: synchronous helpers from the preload, window-only
+ * `PlumeApi` carries more than the contract: synchronous helpers from the preload, window-only
  * events, facts like `systemVersion`. Writing each out means the browser breaks every time the
  * window gains one, and it breaks hard — a missing method is a TypeError inside a render. So an
  * unknown name is a callable Proxy: call it and it resolves to null, reach through it and you get
@@ -362,7 +362,7 @@ export function createWebBridge(options: WebBridgeOptions): WebBridge {
 	heartbeat();
 
 	return {
-		api: withFloor(root) as unknown as LyraApi,
+		api: withFloor(root) as unknown as PlumeApi,
 		status: () => status,
 		probe,
 		close() {
@@ -430,7 +430,7 @@ export function webConnection(): WebConnection | null {
 }
 
 /**
- * Build `window.lyra` for a page that has none.
+ * Build `window.plume` for a page that has none.
  *
  * Only in a browser, only over http(s), and only when nothing got there first — in an Electron
  * window the preload runs before any script, so its object is already there, including in
@@ -438,15 +438,15 @@ export function webConnection(): WebConnection | null {
  */
 function installWebBridge(): void {
 	if (typeof window === "undefined" || typeof location === "undefined" || typeof WebSocket === "undefined") return;
-	const scope = window as unknown as { lyra?: LyraApi };
-	if (scope.lyra || !/^https?:$/.test(location.protocol)) return;
+	const scope = window as unknown as { plume?: PlumeApi };
+	if (scope.plume || !/^https?:$/.test(location.protocol)) return;
 	installed = createWebBridge({
 		url: `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`,
 		createSocket: (url) => new WebSocket(url) as unknown as SocketLike,
 		platform: browserPlatform(navigator.userAgent),
 		onConnection: (status) => window.dispatchEvent(new CustomEvent(CONNECTION_EVENT, { detail: status })),
 	});
-	scope.lyra = installed.api;
+	scope.plume = installed.api;
 	// A tab back from the background, or a machine back on the network, checks its socket at once
 	// rather than at the next beat.
 	document.addEventListener("visibilitychange", () => {

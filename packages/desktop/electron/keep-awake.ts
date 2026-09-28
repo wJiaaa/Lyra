@@ -1,5 +1,5 @@
 /**
- * 「Lyra 开着的时候别让电脑睡」。
+ * 「Plume 开着的时候别让电脑睡」。
  *
  * 一个开关，开着的时候持有一个系统级的「别休眠」声明，关掉就放掉。声明由 Electron 的
  * `powerSaveBlocker` 发出，两个平台各自落到自己的系统 API 上：macOS 是 `IOPMAssertion`，

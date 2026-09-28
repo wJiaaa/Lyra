@@ -34,16 +34,16 @@ function registry() {
 before(async () => {
 	root = await mkdtemp(join(tmpdir(), "ly-cap-"));
 	project = join(root, "project");
-	home = join(root, "lyra-home");
+	home = join(root, "plume-home");
 	userHome = join(root, "user-home");
 
 	// Our own directories.
-	await put("project/.lyra/skills/deploy/SKILL.md", "---\nname: deploy\ndescription: 我们的部署技能\n---\n正文");
-	await put("project/.lyra/commands/review.md", "---\ndescription: 我们的审查\n---\n审查改动");
-	await put("project/.lyra/agents/general.md", "---\nname: general\ndescription: 覆盖内置的 general\n---\n我是自定义的。");
-	await put("project/.lyra/agents/boss.md", "---\nname: boss\ndescription: 编排者\nspawns: \"*\"\nmax-turns: 25\n---\n派活。");
+	await put("project/.plume/skills/deploy/SKILL.md", "---\nname: deploy\ndescription: 我们的部署技能\n---\n正文");
+	await put("project/.plume/commands/review.md", "---\ndescription: 我们的审查\n---\n审查改动");
+	await put("project/.plume/agents/general.md", "---\nname: general\ndescription: 覆盖内置的 general\n---\n我是自定义的。");
+	await put("project/.plume/agents/boss.md", "---\nname: boss\ndescription: 编排者\nspawns: \"*\"\nmax-turns: 25\n---\n派活。");
 	await put(
-		"project/.lyra/agents/lead.md",
+		"project/.plume/agents/lead.md",
 		"---\nname: lead\ndescription: 组长\nspawns: [scout, reviewer]\nschema-mode: strict\nmaxTurns: 0\noutput:\n  type: object\n  properties:\n    where:\n      type: string\n---\n带队。",
 	);
 
@@ -60,7 +60,7 @@ after(async () => {
 test("a custom agent replaces the built-in of the same name", async () => {
 	/*
 	 * The bug this closes: agents were assembled `[...BUILTIN_AGENTS, ...custom]` and read with
-	 * `.find()`, so a `general` written into `.lyra/agents/` was found second and never used. The
+	 * `.find()`, so a `general` written into `.plume/agents/` was found second and never used. The
 	 * file loaded, appeared in listings, and did nothing.
 	 */
 	const result = await registry().load<AgentDefinition>("agent", { cwd: project });
@@ -106,13 +106,13 @@ test("schema-mode and max-turns may be camelCase too, and the hyphenated one win
 	 * leaves an explicitly written camelCase key holding its own value, so an agent that wrote both
 	 * got the camelCase one. Both key orders, because YAML order is the author's accident.
 	 */
-	await put("project/.lyra/agents/camel-only.md", "---\nschemaMode: permissive\nmaxTurns: 7\n---\nBody.");
+	await put("project/.plume/agents/camel-only.md", "---\nschemaMode: permissive\nmaxTurns: 7\n---\nBody.");
 	await put(
-		"project/.lyra/agents/both-hyphen-first.md",
+		"project/.plume/agents/both-hyphen-first.md",
 		"---\nschema-mode: strict\nschemaMode: permissive\nmax-turns: 12\nmaxTurns: 40\n---\nBody.",
 	);
 	await put(
-		"project/.lyra/agents/both-camel-first.md",
+		"project/.plume/agents/both-camel-first.md",
 		"---\nschemaMode: permissive\nschema-mode: strict\nmaxTurns: 40\nmax-turns: 12\n---\nBody.",
 	);
 
@@ -209,7 +209,7 @@ test("contributors and watched directories describe what actually happened", asy
 	assert.ok(result.contributors.includes("native"));
 	assert.ok(result.contributors.includes("claude"));
 	assert.ok(
-		result.watched.some((dir) => dir.includes(join(".lyra", "commands"))),
+		result.watched.some((dir) => dir.includes(join(".plume", "commands"))),
 		"the directories that produced items are the ones worth watching",
 	);
 });

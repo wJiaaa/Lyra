@@ -57,7 +57,7 @@ test("八个 scheme 都注册了", () => {
 		.schemes()
 		.map((s) => s.scheme)
 		.sort();
-	assert.deepEqual(schemes, ["agent", "artifact", "lyra", "mcp", "plugin", "scratch", "session", "skill"].sort());
+	assert.deepEqual(schemes, ["agent", "artifact", "plume", "mcp", "plugin", "scratch", "session", "skill"].sort());
 });
 
 test("只有 scratch 是可写的", () => {

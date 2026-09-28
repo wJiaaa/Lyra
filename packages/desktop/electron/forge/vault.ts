@@ -23,8 +23,8 @@
 
 import { mkdir, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { lyraHome, writeFileAtomic } from "@lyra/core";
-import { isSealed, seal, unseal } from "@lyra/core";
+import { plumeHome, writeFileAtomic } from "@plume/core";
+import { isSealed, seal, unseal } from "@plume/core";
 import { parseAccounts } from "./accounts.ts";
 import type { ForgeAccount } from "./types.ts";
 
@@ -40,7 +40,7 @@ interface StoredFile {
 	entries: StoredEntry[];
 }
 
-const FILE = () => join(lyraHome(), "forges.json");
+const FILE = () => join(plumeHome(), "forges.json");
 
 /** Read once, kept in memory: every list refresh would otherwise be a disk read and a decrypt. */
 let loaded: StoredFile | null = null;
@@ -60,7 +60,7 @@ let loaded: StoredFile | null = null;
 let intact = true;
 
 /**
- * Forget what was read, for tests that point `LYRA_HOME` somewhere else between cases.
+ * Forget what was read, for tests that point `PLUME_HOME` somewhere else between cases.
  *
  * The cache is keyed on nothing — it assumes one home per process, which is true of the app and
  * false of a test file. Without this the second case reads the first one's accounts.
@@ -107,7 +107,7 @@ async function read(): Promise<StoredFile> {
 
 async function write(file: StoredFile): Promise<void> {
 	const path = FILE();
-	await mkdir(lyraHome(), { recursive: true });
+	await mkdir(plumeHome(), { recursive: true });
 
 	/*
 	 * Never overwrite a file we could not fully read.

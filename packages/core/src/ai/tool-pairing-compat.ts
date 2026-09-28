@@ -32,7 +32,7 @@
  * （错误原文见上），那个端点已不在用户的配置里，所以它现在无法复验。样本这么小仍然改默认值，靠的是上面
  * 那条不对称，不是样本量——这一点必须诚实写在这里。
  *
- * 落盘的原始输出在 `~/.lyra/scratch/tool-pairing-survey.txt`、`tool-pairing-order.txt`、
+ * 落盘的原始输出在 `~/.plume/scratch/tool-pairing-survey.txt`、`tool-pairing-order.txt`、
  * `reasoning-shape-matrix.txt`。
  *
  * 和 `reasoning-compat.ts` 是**两个独立的轴**，各学各的。上一版把「发几块推理」和「一块里带哪些字段」

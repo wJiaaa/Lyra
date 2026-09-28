@@ -16,7 +16,7 @@ function reply(text: string): AssistantMessage {
 }
 
 test("manual commands carry focus instructions, are single-flight, and persist a result without adding model prompts", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-manual-compact-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-manual-compact-"));
 	const store = new SessionStore(join(root, "sessions"));
 	const meta = await store.create(root, model.id);
 	let finish!: (message: AssistantMessage) => void;
@@ -73,7 +73,7 @@ test("manual commands carry focus instructions, are single-flight, and persist a
 
 test("cancellation and provider failure keep the previous history boundary and end the busy state", async () => {
 	for (const outcome of ["cancelled", "failed", "empty"]) {
-		const root = await mkdtemp(join(tmpdir(), "lyra-compact-failure-"));
+		const root = await mkdtemp(join(tmpdir(), "plume-compact-failure-"));
 		const store = new SessionStore(join(root, "sessions"));
 		const meta = await store.create(root, model.id);
 		let fail!: (error: Error) => void;
@@ -97,7 +97,7 @@ test("cancellation and provider failure keep the previous history boundary and e
 });
 
 test("interrupted command replay settles once and rewind removes only records after the retained history", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-command-replay-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-command-replay-"));
 	const store = new SessionStore(join(root, "sessions"));
 	const meta = await store.create(root, model.id);
 	const session = new AgentSession({ cwd: root, store, meta, settings: DEFAULT_SETTINGS, emit: () => {} });
@@ -120,7 +120,7 @@ test("interrupted command replay settles once and rewind removes only records af
 });
 
 test("a prompt submitted during manual compaction waits for the new boundary and is delivered once", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-compact-queued-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-compact-queued-"));
 	const store = new SessionStore(join(root, "sessions"));
 	const meta = await store.create(root, model.id);
 	let finish!: (message: AssistantMessage) => void;
@@ -155,7 +155,7 @@ test("a prompt submitted during manual compaction waits for the new boundary and
 });
 
 test("后台报告等压缩时人按了停止：压缩取消，报告也不再开回合", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-compact-delivery-stop-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-compact-delivery-stop-"));
 	const store = new SessionStore(join(root, "sessions"));
 	const meta = await store.create(root, model.id);
 	let finish!: (message: AssistantMessage) => void;

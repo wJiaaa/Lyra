@@ -16,8 +16,8 @@ import { test } from "node:test";
 import { ensureSessionWorkspace, prChatSlug, rescueLegacyWorkspaces } from "../electron/scratch.ts";
 
 test("owner/name becomes one path component", () => {
-	const slug = prChatSlug("kittors/lyra", 42);
-	assert.equal(slug, "kittors-lyra-42");
+	const slug = prChatSlug("kittors/plume", 42);
+	assert.equal(slug, "kittors-plume-42");
 	assert.ok(!slug.includes("/"), "a slash would make this two directories");
 });
 
@@ -43,12 +43,12 @@ test("length is bounded, and the number survives the truncation", () => {
 });
 
 test("two pull requests in one repository get different directories", () => {
-	assert.notEqual(prChatSlug("kittors/lyra", 1), prChatSlug("kittors/lyra", 2));
+	assert.notEqual(prChatSlug("kittors/plume", 1), prChatSlug("kittors/plume", 2));
 });
 
 test("the same pull request always gets the same directory", () => {
 	// This is what makes a conversation reopen months later: nothing is recorded, it is derived.
-	assert.equal(prChatSlug("kittors/lyra", 9), prChatSlug("kittors/lyra", 9));
+	assert.equal(prChatSlug("kittors/plume", 9), prChatSlug("kittors/plume", 9));
 });
 
 test("unicode and spaces are replaced rather than passed through", () => {
@@ -66,12 +66,12 @@ test("unicode and spaces are replaced rather than passed through", () => {
  * sweep, and the thing it must never do is touch what the sweep legitimately owns.
  */
 test("the old directories are carried over, and core's own are left alone", async (t) => {
-	const home = await mkdtemp(join(tmpdir(), "lyra-rescue-"));
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const home = await mkdtemp(join(tmpdir(), "plume-rescue-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	t.after(async () => {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 		await rm(home, { recursive: true, force: true });
 	});
 
@@ -99,12 +99,12 @@ test("the old directories are carried over, and core's own are left alone", asyn
 });
 
 test("a directory already carried over is never overwritten", async (t) => {
-	const home = await mkdtemp(join(tmpdir(), "lyra-rescue-"));
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const home = await mkdtemp(join(tmpdir(), "plume-rescue-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	t.after(async () => {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 		await rm(home, { recursive: true, force: true });
 	});
 
@@ -120,12 +120,12 @@ test("a directory already carried over is never overwritten", async (t) => {
 });
 
 test("a conversation's directory is put back when it has gone missing", async (t) => {
-	const home = await mkdtemp(join(tmpdir(), "lyra-ensure-"));
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const home = await mkdtemp(join(tmpdir(), "plume-ensure-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	t.after(async () => {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 		await rm(home, { recursive: true, force: true });
 	});
 

@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import type { Message, SubAgentSummary } from "@lyra/core";
+import type { Message, SubAgentSummary } from "@plume/core";
 import { rosterOrder, useSubAgents } from "../src/store/subAgents.ts";
 
 function summary(over: Partial<SubAgentSummary> & { id: string }): SubAgentSummary {
@@ -140,7 +140,7 @@ test("a transcript already read is not read again", async () => {
 	// several times a second.
 	let reads = 0;
 	(globalThis as { window?: unknown }).window = {
-		lyra: {
+		plume: {
 			subAgents: {
 				detail: async () => {
 					reads += 1;
@@ -164,7 +164,7 @@ test("messages that streamed in during the read are not lost by it", async () =>
 	 * transcript — and the alternative loses whatever the sub-agent said while the pane was opening.
 	 */
 	(globalThis as { window?: unknown }).window = {
-		lyra: {
+		plume: {
 			subAgents: {
 				detail: async () => {
 					// Something arrives while the read is in flight.

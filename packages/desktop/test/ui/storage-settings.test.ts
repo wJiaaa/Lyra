@@ -36,7 +36,7 @@ interface Harness {
 
 async function open(use: StorageUse | null = USE, result: ClearResult = { removed: 12, freed: 4096, skipped: 0 }): Promise<Harness> {
 	const harness: Harness = { view: null as unknown as Mounted, calls: [], reads: 0 };
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			usage: {

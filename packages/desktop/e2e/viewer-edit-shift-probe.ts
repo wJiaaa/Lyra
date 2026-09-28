@@ -16,7 +16,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "lyra-图片标注位移");
+const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "plume-图片标注位移");
 const PORT = 9499;
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

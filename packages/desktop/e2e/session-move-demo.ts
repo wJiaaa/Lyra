@@ -19,11 +19,11 @@
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { projectIdFor, SessionStore } from "@lyra/core";
+import { projectIdFor, SessionStore } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, startRecording, type Frame } from "./record.ts";
 
-const OUT = join(homedir(), "Desktop", "Lyra移动对话测试");
+const OUT = join(homedir(), "Desktop", "Plume移动对话测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-");
 const PORT = 9421;
 
@@ -188,7 +188,7 @@ async function main() {
 	 * `startApp` 不给 `reuseHome` 的时候，它自己 `mkdtemp` 一个，并在 `stop()` 里删掉——而第三段
 	 * 正是要用同一份 profile 再起一次。所以这里先建好、先种好，两次启动都指着它，最后自己清。
 	 */
-	const home = await mkdtemp(join(tmpdir(), "lyra-move-demo-"));
+	const home = await mkdtemp(join(tmpdir(), "plume-move-demo-"));
 	await seed(home);
 	app = await startApp({ port: PORT, reuseHome: home });
 	let stop = await startRecording(PORT, frames);

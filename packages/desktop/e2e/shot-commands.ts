@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import { startApp } from "./app.ts";
 
-const out = process.argv[2] ?? "/tmp/lyra-commands.png";
+const out = process.argv[2] ?? "/tmp/plume-commands.png";
 const typed = process.argv[3] ?? "/";
 
 async function seed(home: string): Promise<void> {

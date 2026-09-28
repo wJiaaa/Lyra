@@ -6,8 +6,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import type { ModelConfig } from "@lyra/core";
-import { catalogFill, catalogModelFor } from "@lyra/core/model-catalog";
+import type { ModelConfig } from "@plume/core";
+import { catalogFill, catalogModelFor } from "@plume/core/model-catalog";
 
 import { ModelEditor } from "../../src/features/settings/ModelEditor.tsx";
 import { click, fire, mount } from "../helpers/mount.ts";

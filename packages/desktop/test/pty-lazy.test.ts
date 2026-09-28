@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { lazyPty } from "../electron/pty-loader.ts";
 import { createTerminalRegistry, type LiveTerminal } from "../electron/terminal-registry.ts";
 
-const GLIBC = "/lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found (required by /opt/Lyra/resources/app.asar.unpacked/node_modules/node-pty/build/Release/pty.node)";
+const GLIBC = "/lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found (required by /opt/Plume/resources/app.asar.unpacked/node_modules/node-pty/build/Release/pty.node)";
 
 test("nothing is loaded until a terminal is actually opened", () => {
 	let loads = 0;

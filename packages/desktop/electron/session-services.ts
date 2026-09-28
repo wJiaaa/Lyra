@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { request } from "node:http";
 import { promisify } from "node:util";
-import { backgroundJobs } from "@lyra/core";
+import { backgroundJobs } from "@plume/core";
 import type { ServiceEndpoint, SessionServices } from "../shared/session-services.ts";
 import { advertisedEndpoints, descendants, localHost, parseLsof, parseProcesses, parseSs, parseWindowsListeners, serviceUrl, type ProcessEntry } from "./service-listeners.ts";
 import { sessions } from "./session-hub.ts";

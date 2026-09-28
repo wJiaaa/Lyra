@@ -78,8 +78,8 @@ async function main(): Promise<void> {
 	const resolved = resolveModel(settings, modelId);
 	if (!resolved) throw new Error(`Model not found: ${modelId}`);
 
-	const home = await mkdtemp(join(tmpdir(), "lyra-mem-home-"));
-	process.env.LYRA_HOME = home;
+	const home = await mkdtemp(join(tmpdir(), "plume-mem-home-"));
+	process.env.PLUME_HOME = home;
 
 	console.log(`\n${BOLD}项目记忆 · ${modelId}${OFF}\n`);
 	console.log(`${"探针".padEnd(22)} ${"该记".padEnd(6)} ${"记了".padEnd(6)} 判定`);
@@ -87,7 +87,7 @@ async function main(): Promise<void> {
 
 	let ok = 0;
 	for (const probe of PROBES) {
-		const cwd = await mkdtemp(join(tmpdir(), "lyra-mem-proj-"));
+		const cwd = await mkdtemp(join(tmpdir(), "plume-mem-proj-"));
 		await mkdir(join(cwd, "src"), { recursive: true });
 		await writeFile(join(cwd, "src", "app.ts"), "export function total(items: number[]) {\n\treturn items.reduce((a, b) => a + b, 0);\n}\n", "utf8");
 
@@ -138,7 +138,7 @@ async function main(): Promise<void> {
 	// -------------------------------------------------------------------------
 	console.log(`${BOLD}下一个会话会不会照做${OFF}\n`);
 
-	const cwd = await mkdtemp(join(tmpdir(), "lyra-mem-carry-"));
+	const cwd = await mkdtemp(join(tmpdir(), "plume-mem-carry-"));
 	await mkdir(join(cwd, "src"), { recursive: true });
 	await writeFile(join(cwd, "package.json"), JSON.stringify({ name: "demo", scripts: { test: "vitest" } }, null, 2), "utf8");
 

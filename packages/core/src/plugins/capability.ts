@@ -1,7 +1,7 @@
 /**
  * Capability plugins found on disk.
  *
- * A bundle in `.lyra/plugins` already contributes skills and MCP servers. This is the third
+ * A bundle in `.plume/plugins` already contributes skills and MCP servers. This is the third
  * thing it may contribute and the most powerful: a Cordis plugin, which can provide or replace any
  * of the seams — the model registry, the sandbox, the loop, the scheduler.
  *

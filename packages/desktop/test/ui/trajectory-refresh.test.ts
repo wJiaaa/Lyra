@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h } from "react";
-import type { AgentEvent, SessionMeta, TrajectoryChanges } from "@lyra/core";
-import type { Entry } from "@lyra/core/trajectory-view";
+import type { AgentEvent, SessionMeta, TrajectoryChanges } from "@plume/core";
+import type { Entry } from "@plume/core/trajectory-view";
 import { useApp } from "../../src/store/index.ts";
 import { useTrajectory } from "../../src/features/conversation/trajectory/useTrajectory.ts";
 import { click, mount } from "../helpers/mount.ts";
@@ -16,8 +16,8 @@ test("durable events during a read are drained once; old-session responses canno
 	const requests: { id: string; resolve: (changes: TrajectoryChanges) => void; reject: (error: Error) => void }[] = [];
 	const listeners = new Set<(payload: { sessionId: string; event: AgentEvent }) => void>();
 	const meta: SessionMeta = { id: "trace-refresh-a", projectId: "p", projectName: "QA", cwd: "/tmp", title: "A", createdAt: 1, updatedAt: 1, messageCount: 1, seq: 1, modelId: "qa", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
-	const previous = Object.getOwnPropertyDescriptor(window, "lyra");
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	const previous = Object.getOwnPropertyDescriptor(window, "plume");
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		sessions: { trajectoryChanges: (_project: string, id: string) => new Promise<TrajectoryChanges>((resolve, reject) => requests.push({ id, resolve, reject })) },
 		agent: { onEvent: (listener: (payload: { sessionId: string; event: AgentEvent }) => void) => { listeners.add(listener); return () => listeners.delete(listener); } },
 	} });
@@ -44,7 +44,7 @@ test("durable events during a read are drained once; old-session responses canno
 	} finally {
 		await view.unmount();
 		assert.equal(listeners.size, 0);
-		if (previous) Object.defineProperty(window, "lyra", previous); else Reflect.deleteProperty(window, "lyra");
+		if (previous) Object.defineProperty(window, "plume", previous); else Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -52,17 +52,17 @@ test("reconnect and foreground recovery share the incremental read drain and rem
 	const requests: { cursor?: string; resolve: (changes: TrajectoryChanges) => void }[] = [];
 	const listeners = new Set<(payload: { sessionId: string; event: AgentEvent }) => void>();
 	const meta: SessionMeta = { id: "trace-reconnect", projectId: "p", projectName: "QA", cwd: "/tmp", title: "Reconnect", createdAt: 1, updatedAt: 1, messageCount: 1, seq: 1, modelId: "qa", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
-	const previous = Object.getOwnPropertyDescriptor(window, "lyra");
+	const previous = Object.getOwnPropertyDescriptor(window, "plume");
 	const previousVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
 	Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		sessions: { trajectoryChanges: (_project: string, _id: string, cursor?: string) => new Promise<TrajectoryChanges>(resolve => requests.push({ cursor, resolve })) },
 		agent: { onEvent: (listener: (payload: { sessionId: string; event: AgentEvent }) => void) => { listeners.add(listener); return () => listeners.delete(listener); } },
 	} });
 	useApp.setState({ meta });
 	const view = await mount(h(Probe));
 	const entry = (seq: number, detail: string): Entry => ({ seq, ts: seq, source: "compaction", detail, summary: detail });
-	const connection = (detail: string) => window.dispatchEvent(new CustomEvent("lyra:connection", { detail }));
+	const connection = (detail: string) => window.dispatchEvent(new CustomEvent("plume:connection", { detail }));
 	try {
 		assert.equal(requests.length, 1);
 		assert.equal(requests[0].cursor, undefined);
@@ -116,6 +116,6 @@ test("reconnect and foreground recovery share the incremental read drain and rem
 		assert.equal(requests.length, finished, "unmounted panels must not retain recovery listeners");
 		assert.equal(listeners.size, 0);
 		if (previousVisibility) Object.defineProperty(document, "visibilityState", previousVisibility); else Reflect.deleteProperty(document, "visibilityState");
-		if (previous) Object.defineProperty(window, "lyra", previous); else Reflect.deleteProperty(window, "lyra");
+		if (previous) Object.defineProperty(window, "plume", previous); else Reflect.deleteProperty(window, "plume");
 	}
 });

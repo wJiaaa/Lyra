@@ -91,7 +91,7 @@ async function seedSessions(home: string, cwd: string): Promise<void> {
  * every one of these calls scales with.
  */
 async function makeRepo(files: number): Promise<string> {
-	const root = join(tmpdir(), `lyra-switch-${files}`);
+	const root = join(tmpdir(), `plume-switch-${files}`);
 	await rm(root, { recursive: true, force: true });
 	await mkdir(root, { recursive: true });
 	await exec("git", ["init", "-q"], { cwd: root });

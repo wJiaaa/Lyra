@@ -11,7 +11,7 @@
 import { homedir } from "node:os";
 import { createRegistry } from "../capability/index.ts";
 import type { ContextFile } from "../capability/types.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { concurrencyNote } from "../runtime/dispatch-guard.ts";
 import { parseGuidelines } from "./overrides.ts";
 import { renderTemplate } from "./template.ts";
@@ -100,7 +100,7 @@ export interface SystemPromptInput {
 	/** How many sub-agents may run at once, and how deep dispatch may nest. */
 	dispatchLimits?: { maxConcurrent: number; maxDepth: number };
 	/**
-	 * A replacement for the identity paragraph, from `.lyra/prompts/identity.md`.
+	 * A replacement for the identity paragraph, from `.plume/prompts/identity.md`.
 	 *
 	 * The first thing this project's prompts become files for, and the one worth doing first: it is
 	 * the block people most often want to change, and until now the only way was `appendSystemPrompt`
@@ -110,15 +110,15 @@ export interface SystemPromptInput {
 	 */
 	identityOverride?: string;
 	/**
-	 * 子代理的身份：它定义里的那段话，原样放在最前面，取代 Lyra 的身份段。
+	 * 子代理的身份：它定义里的那段话，原样放在最前面，取代 Plume 的身份段。
 	 *
 	 * 不走 `identityOverride`：那是项目文件，按模板渲染；子代理定义可能来自用户写的 markdown，
-	 * 里面的 `{{` 只是正文。以前子代理没有这一项，于是开头读到的是「You are Lyra」，自己的角色
+	 * 里面的 `{{` 只是正文。以前子代理没有这一项，于是开头读到的是「You are Plume」，自己的角色
 	 * 追加在整段提示词的末尾——同一段提示词里两个身份，先到的那个占上风。
 	 */
 	identity?: string;
 	/**
-	 * 换掉内置的行为准则，来自 `.lyra/prompts/guidelines.md`。
+	 * 换掉内置的行为准则，来自 `.plume/prompts/guidelines.md`。
 	 *
 	 * 换的只是内置的那些，**工具贡献的仍然照常追加**——`bash` 关于 shell 的几句是那个工具的
 	 * 说明书，不是一条可以被别人的偏好删掉的意见。`boundaries` 不在可换之列。
@@ -130,7 +130,7 @@ export interface SystemPromptInput {
  * 只说是谁、做什么。不写「你会被怎样评判」：模型会把它读成背后有个评分者，然后在推理里揣测评分者
  * 的隐藏测试会怎么写——2026-09-27 的会话里，这种揣测占了第一次写文件前那段推理的四分之一。
  */
-const IDENTITY = `You are Lyra, a coding agent that works directly inside the user's project. You help by reading files, running commands, editing code, and writing new files.`;
+const IDENTITY = `You are Plume, a coding agent that works directly inside the user's project. You help by reading files, running commands, editing code, and writing new files.`;
 
 /** Rules that hold regardless of which tools are loaded. */
 const BASE_GUIDELINES = [
@@ -191,7 +191,7 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 	const cwd = input.cwd.replace(/\\/g, "/");
 
 	/*
-	 * 隔离那条跟着内置的一起走，所以 `.lyra/prompts/guidelines.md` 换掉内置准则时它也一起换掉——
+	 * 隔离那条跟着内置的一起走，所以 `.plume/prompts/guidelines.md` 换掉内置准则时它也一起换掉——
 	 * `guidelinesOverride` 的语义就是「内置那些我自己来写」。
 	 */
 	const guidelines = input.guidelinesOverride?.trim()
@@ -363,7 +363,7 @@ function escapeXml(text: string): string {
  * 而这正是「子包可以覆盖仓库约定」该有的样子。
  */
 export async function loadProjectInstructions(cwd: string): Promise<{ path: string; content: string }[]> {
-	const result = await createRegistry({ home: lyraHome(), userHome: homedir() }).load<ContextFile>("context-file", { cwd });
+	const result = await createRegistry({ home: plumeHome(), userHome: homedir() }).load<ContextFile>("context-file", { cwd });
 	return [...result.items].sort((a, b) => b.depth - a.depth).map((file) => ({ path: file.path, content: file.content }));
 }
 

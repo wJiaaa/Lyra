@@ -82,7 +82,7 @@ function marker(omitted: number, address?: string): string {
 	const where = address
 		? `the full result is at \`${address}\` — \`read ${address}\` if you need the middle`
 		: "the full result is kept in the session and shown in the transcript. Narrow the search or read a specific file if you need the middle";
-	return `\n\n… [${omitted.toLocaleString("en-US")} characters omitted by Lyra to fit the context window; ${where}.] …\n\n`;
+	return `\n\n… [${omitted.toLocaleString("en-US")} characters omitted by Plume to fit the context window; ${where}.] …\n\n`;
 }
 
 /**

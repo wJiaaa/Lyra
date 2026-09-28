@@ -13,7 +13,7 @@
 # the user is asked to authorise everything again. Signing with *any* certificate changes the
 # requirement to name the certificate instead:
 #
-#     designated => identifier "dev.lyra.app" and certificate leaf = H"<this cert>"
+#     designated => identifier "dev.plume.app" and certificate leaf = H"<this cert>"
 #
 # which does not mention the executable at all. Verified by signing two completely different
 # binaries with one certificate and diffing the requirement: identical.
@@ -42,8 +42,8 @@ set -euo pipefail
 # release is signed with and that every granted permission is tied to; "probably not committed" is
 # the wrong guarantee for it. Somewhere git has no opinion about is the right one.
 #
-OUT="${1:-$HOME/.lyra-signing}"
-NAME="Lyra Code Signing"
+OUT="${1:-$HOME/.plume-signing}"
+NAME="Plume Code Signing"
 
 # Twenty years. The certificate's fingerprint *is* the app's identity, so replacing it resets every
 # permission exactly the way the current problem does — an expiry is a scheduled recurrence of the
@@ -129,14 +129,14 @@ To sign locally, install the identity into your own keychain once:
     -P '<the password>' -T /usr/bin/codesign
   security add-trusted-cert -r trustRoot $OUT/cert.pem
 
-\`pnpm --filter @lyra/desktop package\` then finds it by name and signs with it — it looks the
+\`pnpm --filter @plume/desktop package\` then finds it by name and signs with it — it looks the
 identity up rather than taking a path, because electron-builder's own \`CSC_LINK\` import is broken
 in 26.15.3 (it unlocks its temporary keychain with the certificate's password instead of the
 keychain's). See scripts/package.mjs.
 
 To check any build carries the durable identity rather than a hash:
 
-  codesign -d -r- packages/desktop/release/mac*/Lyra.app
-  # want: identifier "dev.lyra.app" and certificate leaf = H"..."
+  codesign -d -r- packages/desktop/release/mac*/Plume.app
+  # want: identifier "dev.plume.app" and certificate leaf = H"..."
   # not:  cdhash H"..."     <- ad-hoc; permissions reset on every update
 EOF

@@ -1,12 +1,12 @@
 /**
- * `.lyra/config.json` 到底有没有被读。
+ * `.plume/config.json` 到底有没有被读。
  *
  * 分层合并本身有一整份测试，而那份测试测的是「如果有人调用它，它会合并对」。产品里没有人调用
  * 它——`loadProjectLayer`、`mergeLayer`、`resolveLayers` 在 `packages/` 里的引用全部来自
  * 测试文件。「A 项目用便宜模型加严格审批、B 项目用强模型加宽松审批」在这个分支上一直是
  * 一段注释。
  *
- * 所以这里从 `AgentSession` 这一头测：写一个真的 `.lyra/config.json`，起一个真的会话，
+ * 所以这里从 `AgentSession` 这一头测：写一个真的 `.plume/config.json`，起一个真的会话，
  * 问它现在用的是什么。
  */
 
@@ -53,23 +53,23 @@ async function sessionIn(cwd: string) {
 before(async () => {
 	home = await mkdtemp(join(tmpdir(), "ly-cfg-home-"));
 	root = await mkdtemp(join(tmpdir(), "ly-cfg-"));
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 });
 
 after(async () => {
-	delete process.env.LYRA_HOME;
+	delete process.env.PLUME_HOME;
 	await rm(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
 
 async function project(name: string, config: unknown): Promise<string> {
 	const dir = join(root, name);
-	await mkdir(join(dir, ".lyra"), { recursive: true });
-	if (config !== undefined) await writeFile(join(dir, ".lyra", "config.json"), JSON.stringify(config), "utf8");
+	await mkdir(join(dir, ".plume"), { recursive: true });
+	if (config !== undefined) await writeFile(join(dir, ".plume", "config.json"), JSON.stringify(config), "utf8");
 	return dir;
 }
 
-test("项目里的 .lyra/config.json 真的生效", async () => {
+test("项目里的 .plume/config.json 真的生效", async () => {
 	/*
 	 * 这条以前必然失败。分层模块在，测试在，而 `AgentSession` 从来没读过那个文件——
 	 * 每个项目拿到的都是同一份全局设置。
@@ -118,8 +118,8 @@ test("坏掉的 JSON 不会让会话起不来", async () => {
 	 * 不是一个打不开的窗口。
 	 */
 	const dir = join(root, "broken");
-	await mkdir(join(dir, ".lyra"), { recursive: true });
-	await writeFile(join(dir, ".lyra", "config.json"), "{ oops,", "utf8");
+	await mkdir(join(dir, ".plume"), { recursive: true });
+	await writeFile(join(dir, ".plume", "config.json"), "{ oops,", "utf8");
 
 	const { session, events } = await sessionIn(dir);
 	const used = (session as unknown as { settings: Settings }).settings;

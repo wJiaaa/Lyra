@@ -11,9 +11,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startApp } from "./app.ts";
 
-const out = process.argv[2] ?? "/tmp/lyra-binary-diff.png";
+const out = process.argv[2] ?? "/tmp/plume-binary-diff.png";
 const trayDir = join(dirname(fileURLToPath(import.meta.url)), "..", "build", "tray");
-const repo = "/tmp/lyra-bindiff-shot";
+const repo = "/tmp/plume-bindiff-shot";
 
 function seedRepo(): void {
 	rmSync(repo, { recursive: true, force: true });
@@ -58,7 +58,7 @@ const app = await startApp({
 				pluginRegistries: [],
 				skillRegistries: [],
 				alwaysAllow: [],
-				appearance: { theme: process.env.LYRA_SHOT_THEME === "light" ? "light" : "dark" },
+				appearance: { theme: process.env.PLUME_SHOT_THEME === "light" ? "light" : "dark" },
 			}),
 		);
 	},

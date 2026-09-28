@@ -3,7 +3,7 @@
  *
  * Assembling the list here rather than at each call site is what makes "add a source" a one-line
  * change. The order in the array is the tie-break for equal priorities, and it is load-bearing in
- * exactly one place today — see `LYRA.md` versus `AGENTS.md` in the plan — so it is written as an
+ * exactly one place today — see `PLUME.md` versus `AGENTS.md` in the plan — so it is written as an
  * ordered list rather than derived from anything.
  */
 

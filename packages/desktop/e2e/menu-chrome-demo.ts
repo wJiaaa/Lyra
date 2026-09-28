@@ -2,7 +2,7 @@
 /**
  * 下拉和右键共用一张 16px 卡片、6px 四边留白、10px 同心激活行、36px 行高。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/menu-chrome-demo.ts`
  */
 
@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Lyra菜单圆角测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume菜单圆角测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const PORT = 9779;
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];
@@ -215,7 +215,7 @@ try {
 	);
 	await hold(1600);
 
-	await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:"light"}});})()`);
+	await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:"light"}});})()`);
 	await until(`document.documentElement.style.colorScheme==="light"`);
 	await pause(400);
 	const panelLight = await measure();

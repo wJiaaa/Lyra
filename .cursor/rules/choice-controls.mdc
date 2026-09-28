@@ -8,7 +8,7 @@ alwaysApply: true
 
 Ask-user option rows are the wash only. No `ChoiceMark`, no trailing check, no index.
 
-Do not ship `<input type="checkbox">` or `<input type="radio">` as the visible control. Native chrome follows the OS (Aqua, Fluent) and does not match Lyra's ink/accent cards.
+Do not ship `<input type="checkbox">` or `<input type="radio">` as the visible control. Native chrome follows the OS (Aqua, Fluent) and does not match Plume's ink/accent cards.
 
 Keep a visually hidden native input (`sr-only`) when a real form control is needed so tests and assistive tech still see `input:checked`.
 

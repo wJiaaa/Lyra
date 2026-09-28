@@ -19,7 +19,7 @@
 
 import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { rosterRows } from "../../store/subAgents.ts";
 import { useAgentAvatars } from "../../store/agent-avatars.ts";
 import { stateOf } from "../../lib/dispatches.ts";

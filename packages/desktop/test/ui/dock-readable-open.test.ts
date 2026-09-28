@@ -25,7 +25,7 @@ const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 test("an overfull tile takes the panel into its own tree", async () => {
 	reset();
 	const opened: unknown[] = [];
-	Reflect.set(window, "lyra", { windows: { openPanel: async (input: unknown) => { opened.push(input); return { ok: true }; } } });
+	Reflect.set(window, "plume", { windows: { openPanel: async (input: unknown) => { opened.push(input); return { ok: true }; } } });
 	usePaneDock.getState().rememberSize("width", { width: 700, height: 400 });
 	toggleScopedPanel("width", "browser");
 	await Promise.resolve();
@@ -35,7 +35,7 @@ test("an overfull tile takes the panel into its own tree", async () => {
 
 test("failed native creation restores the original panel even after its tile became too small", async () => {
 	reset();
-	Reflect.set(window, "lyra", { windows: { openPanel: async () => { throw new Error("native window refused"); } } });
+	Reflect.set(window, "plume", { windows: { openPanel: async () => { throw new Error("native window refused"); } } });
 	usePaneDock.getState().open("width", "terminal");
 	const before = usePaneDock.getState().tree("width");
 	usePaneDock.getState().rememberSize("width", { width: 500, height: 350 });
@@ -48,7 +48,7 @@ test("failed native creation restores the original panel even after its tile bec
 test("a rejected native creation does not undo a different panel opened during the handoff", async () => {
 	reset();
 	const result = Promise.withResolvers<{ok:boolean}>();
-	Reflect.set(window, "lyra", { windows: { openPanel: () => result.promise } });
+	Reflect.set(window, "plume", { windows: { openPanel: () => result.promise } });
 	usePaneDock.getState().open("width", "terminal");
 	const transfer = popOutPanel({scope:"width",kind:"terminal",sessionId:"width"});
 	usePaneDock.getState().open("width", "files");
@@ -62,7 +62,7 @@ test("a rejected native creation does not undo a different panel opened during t
 test("a rejected native creation restores its panel after the old neighbour was closed", async () => {
 	reset();
 	const result = Promise.withResolvers<{ ok: boolean }>();
-	Reflect.set(window, "lyra", { windows: { openPanel: () => result.promise } });
+	Reflect.set(window, "plume", { windows: { openPanel: () => result.promise } });
 	usePaneDock.getState().open("width", "files");
 	usePaneDock.getState().open("width", "terminal", { kind: "files", side: "bottom" });
 	const transfer = popOutPanel({ scope: "width", kind: "terminal", sessionId: "width" });
@@ -85,7 +85,7 @@ test("a screen takes a panel back even with no room, using its remembered layout
 	reset();
 	let restore = (_input: { kind: string; scope: string }) => {};
 	const closed: unknown[] = [];
-	Reflect.set(window, "lyra", { windows: {
+	Reflect.set(window, "plume", { windows: {
 		list: async () => ({ panels: [{ kind: "terminal", scope: "width" }] }),
 		onChanged: () => () => {},
 		onRestorePanel: (listener: typeof restore) => { restore = listener; return () => {}; },
@@ -130,7 +130,7 @@ for (const dock of ["window", "pane"] as const) {
 		const scope = dock === "window" ? "window" : "width";
 		let restore = (_input: { kind: string; scope: string }) => {};
 		const closed: unknown[] = [];
-		Reflect.set(window, "lyra", { windows: {
+		Reflect.set(window, "plume", { windows: {
 			list: async () => ({ panels: [{ kind: "file", scope }, { kind: "files", scope }] }),
 			onChanged: () => () => {},
 			onRestorePanel: (listener: typeof restore) => { restore = listener; return () => {}; },
@@ -170,7 +170,7 @@ for (const dock of ["window", "pane"] as const) {
 test("a tool left detached at quit comes back to its tile, however small the tile is", async () => {
 	reset();
 	const opened: unknown[] = [];
-	Reflect.set(window, "lyra", { windows: {
+	Reflect.set(window, "plume", { windows: {
 		list: async () => ({ panels: [] }),
 		onChanged: () => () => {}, onRestorePanel: () => () => {},
 		openPanel: async (input: unknown) => { opened.push(input); return { ok: true }; },

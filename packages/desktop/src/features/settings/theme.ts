@@ -11,7 +11,7 @@
  * scaled by the contrast slider.
  */
 
-import type { AppearanceSettings } from "@lyra/core";
+import type { AppearanceSettings } from "@plume/core";
 import { sharedHighlightStyle } from "../../lib/code/highlight.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
 import { bridge } from "../../services/index.ts";
@@ -26,7 +26,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	/*
 	 * The defaults are *not* merged in here, deliberately.
 	 *
-	 * That would mean importing a value from "@lyra/core", and the package root reaches `node:fs`
+	 * That would mean importing a value from "@plume/core", and the package root reaches `node:fs`
 	 * — see the note in `ScheduledView.tsx`. The bundle would load and then throw on the first Node
 	 * builtin, which is a worse failure than the one it set out to fix. Completeness is guaranteed
 	 * at the door instead: `migrateAppearance` for settings read off disk. What is left here is
@@ -111,7 +111,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * 要看当前是哪个语法主题、那个主题又是不是 `inherit`。CSS 表达不了「按 `inlineCode` 选一支」，
 	 * 真写成三套选择器就是同一个决定散在两个文件里。
 	 *
-	 * `syntax` 这支不直接拿主题声明的 background：默认的 `lyra-light` / `lyra-dark` 是 `inherit`，
+	 * `syntax` 这支不直接拿主题声明的 background：默认的 `plume-light` / `plume-dark` 是 `inherit`，
 	 * 它的底色就是页面底色，照搬过来等于没有底——句子里那块代码会整个消失。所以统一往主题的字色
 	 * 方向兑 8%：`inherit` 的主题得到一层淡灰，Solarized 那样自带底色的得到一块暖调，两种情况下
 	 * 它都比它坐着的那张纸深一档。`--ly-code-bg-soft` 的 5% 是同一个思路，那是给整片区域用的，
@@ -200,7 +200,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * a reply, the diff viewer, and the terminal. That last one cannot use a variable — xterm
 		 * paints to a canvas — so `TerminalPane` reads these two back out and pushes them in.
 		 *
-		 * `inherit` is what keeps 「Lyra 默认」 from repainting the window: it takes the app's own
+		 * `inherit` is what keeps 「Plume 默认」 from repainting the window: it takes the app's own
 		 * background, including a tinted one, so only the syntax colours come from the theme.
 		 * Choosing Solarized Light is then an actual choice with an actual consequence, rather
 		 * than something the app did to itself on first launch.

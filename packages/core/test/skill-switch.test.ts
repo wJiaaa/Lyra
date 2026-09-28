@@ -26,11 +26,11 @@ const STORE = { append: async (meta: SessionMeta) => meta, create: async () => M
 before(async () => {
 	home = await mkdtemp(join(tmpdir(), "ly-skill-switch-home-"));
 	root = await mkdtemp(join(tmpdir(), "ly-skill-switch-"));
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 });
 
 after(async () => {
-	delete process.env.LYRA_HOME;
+	delete process.env.PLUME_HOME;
 	await rm(home, { recursive: true, force: true });
 	await rm(root, { recursive: true, force: true });
 });
@@ -42,15 +42,15 @@ async function skill(dir: string, name: string): Promise<void> {
 
 test("关掉的技能进不了会话和 / 菜单，符号链接的另一个路径同样算数", async () => {
 	const cwd = join(root, "project");
-	await skill(join(cwd, ".lyra", "skills"), "keep");
-	await skill(join(cwd, ".lyra", "skills"), "off");
+	await skill(join(cwd, ".plume", "skills"), "keep");
+	await skill(join(cwd, ".plume", "skills"), "off");
 	await skill(join(cwd, ".agents", "skills"), "linked");
 	await mkdir(join(cwd, ".claude", "skills"), { recursive: true });
 	await symlink(join(cwd, ".agents", "skills", "linked"), join(cwd, ".claude", "skills", "linked"));
 
 	const settings: Settings = {
 		...DEFAULT_SETTINGS,
-		disabledSkills: [join(cwd, ".lyra", "skills", "off", "SKILL.md"), join(cwd, ".agents", "skills", "linked", "SKILL.md")],
+		disabledSkills: [join(cwd, ".plume", "skills", "off", "SKILL.md"), join(cwd, ".agents", "skills", "linked", "SKILL.md")],
 	};
 	const session = new AgentSession({ cwd, settings, store: STORE, meta: { ...META, cwd }, emit: async () => {} });
 	await session.initialize();

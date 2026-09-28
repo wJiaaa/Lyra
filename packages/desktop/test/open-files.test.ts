@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 
 const reads: string[] = [];
 (globalThis as unknown as { window: unknown }).window = {
-	lyra: {
+	plume: {
 		files: {
 			read: async (path: string) => {
 				reads.push(path);

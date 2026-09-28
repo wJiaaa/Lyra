@@ -12,7 +12,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-scroll-shot";
+const dir = process.argv[2] ?? "/tmp/plume-scroll-shot";
 const project = join(dir, "proj");
 
 const SHORT = Array.from({ length: 35 }, (_, i) => `line-${i + 1}`).join("\n");

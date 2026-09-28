@@ -8,8 +8,8 @@ import { applySessionChange } from "./session-changes.ts";
  * warming an index takes. The agent starts when something is actually asked of it.
  */
 
-import type { SessionMeta } from "@lyra/core";
-import type { SessionActivity } from "@lyra/core/activity";
+import type { SessionMeta } from "@plume/core";
+import type { SessionActivity } from "@plume/core/activity";
 import { cacheIsFresh, prune, without, type CachedSessionState } from "./derive.ts";
 import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";

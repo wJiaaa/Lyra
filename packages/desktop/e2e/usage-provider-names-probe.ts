@@ -10,7 +10,7 @@
  * 量的是画出来的结果，不是传进去的值：供应商那一栏的文字从 DOM 上读回来，命名之后再读一次
  * `settings.json`，确认那个名字真的落了盘——页面上改对了而没写进去，下次打开还是那串 id。
  *
- * Run: LYRA_E2E_ARTIFACTS=~/Desktop/供应商名字测试 node --experimental-strip-types e2e/usage-provider-names-probe.ts
+ * Run: PLUME_E2E_ARTIFACTS=~/Desktop/供应商名字测试 node --experimental-strip-types e2e/usage-provider-names-probe.ts
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -101,7 +101,7 @@ const app = await startApp({
 });
 
 async function shot(name: string): Promise<void> {
-	const directory = process.env.LYRA_E2E_ARTIFACTS;
+	const directory = process.env.PLUME_E2E_ARTIFACTS;
 	if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });

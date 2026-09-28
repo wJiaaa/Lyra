@@ -21,7 +21,7 @@ import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { act, createElement as h } from "react";
 
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import {
 	claimHoverSuppression,
 	dismissHoverLayers,

@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BUILTIN_AGENTS } from "@lyra/core/agents-builtin";
+import { BUILTIN_AGENTS } from "@plume/core/agents-builtin";
 import {
 	AVATAR_COLORS,
 	AVATAR_SHAPES,

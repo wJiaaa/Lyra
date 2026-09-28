@@ -1,4 +1,4 @@
-import type { UiLocale } from "@lyra/core";
+import type { UiLocale } from "@plume/core";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { resolveUiLocale } from "./locales.ts";
 import type { MessageKey, ResolvedUiLocale } from "./messages/index.ts";

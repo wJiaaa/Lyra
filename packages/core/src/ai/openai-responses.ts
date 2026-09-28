@@ -85,7 +85,7 @@ async function* streamResponses(
 				toolPairing(scope.providerId, scope.modelId),
 			),
 			stream: true,
-			// Sessions live in Lyra's own store, not on the provider.
+			// Sessions live in Plume's own store, not on the provider.
 			store: false,
 			max_output_tokens: options.maxTokens ?? model.maxOutputTokens,
 			...(context.systemPrompt ? { instructions: context.systemPrompt } : {}),
@@ -93,7 +93,7 @@ async function* streamResponses(
 			 * `tool_choice: "auto"` 是服务端默认值，发它零收益——但撞过一次的端点上要连它一起省掉。
 			 *
 			 * 没有直接改成「一律不发」，是因为「省略等于 auto」这句话本身没有实测支撑：作者手上两个端点带不带
-			 * 都是 200（`~/.lyra/scratch/responses-params.txt`），证明不了别家也一样。默认维持原样，撞了再撤。
+			 * 都是 200（`~/.plume/scratch/responses-params.txt`），证明不了别家也一样。默认维持原样，撞了再撤。
 			 */
 			...(context.tools.length > 0
 				? {

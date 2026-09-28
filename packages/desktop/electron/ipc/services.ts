@@ -6,9 +6,9 @@
  * or not anything is running.
  */
 
-import { addMemoryEntry, annotateInjected, buildIndex, clearAllMemory, indexStats, loadIndex, loadMemory, readInjected, removeMemoryEntry, saveIndex, searchIndex, userInjectedPath } from "@lyra/core";
-import { activeModelCatalog } from "@lyra/core/model-catalog";
-import { syncModelCatalog } from "@lyra/core/model-catalog-sync";
+import { addMemoryEntry, annotateInjected, buildIndex, clearAllMemory, indexStats, loadIndex, loadMemory, readInjected, removeMemoryEntry, saveIndex, searchIndex, userInjectedPath } from "@plume/core";
+import { activeModelCatalog } from "@plume/core/model-catalog";
+import { syncModelCatalog } from "@plume/core/model-catalog-sync";
 import { ipcMain } from "electron";
 import type { ProviderTestResult } from "../ipc-types.ts";
 import { applySettings, settings } from "../app-settings.ts";

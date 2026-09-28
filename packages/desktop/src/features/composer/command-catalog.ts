@@ -1,6 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
-import { builtinCommandsFor, type CommandAction } from "@lyra/core/commands-builtin";
-import { parseInvocation, resolveCommand, skillCommandName, type SlashCommand } from "@lyra/core/commands-view";
+import { builtinCommandsFor, type CommandAction } from "@plume/core/commands-builtin";
+import { parseInvocation, resolveCommand, skillCommandName, type SlashCommand } from "@plume/core/commands-view";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 
 export interface CommandEntry {

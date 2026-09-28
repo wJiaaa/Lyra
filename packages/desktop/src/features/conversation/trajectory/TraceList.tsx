@@ -1,7 +1,7 @@
 import { translate } from "../../../i18n/translate.ts";
 import { ArrowDown, ChevronRight } from "lucide-react";
 import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { entryKey, SOURCE_LABEL, STATUS_LABEL, type Entry } from "@lyra/core/trajectory-view";
+import { entryKey, SOURCE_LABEL, STATUS_LABEL, type Entry } from "@plume/core/trajectory-view";
 import { SourceIcon } from "./SourceIcon.tsx";
 import { Scroller } from "../../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../../ui/scroll/ScrollText.tsx";

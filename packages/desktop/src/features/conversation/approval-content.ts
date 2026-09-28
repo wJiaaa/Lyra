@@ -1,4 +1,4 @@
-import type { ApprovalRisk } from "@lyra/core";
+import type { ApprovalRisk } from "@plume/core";
 import { MESSAGE_CATALOGS, type MessageKey } from "../../i18n/messages/index.ts";
 import type { MessageVariables } from "../../i18n/translate.ts";
 

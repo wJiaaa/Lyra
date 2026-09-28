@@ -17,7 +17,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-mdcode";
+const dir = process.argv[2] ?? "/tmp/plume-mdcode";
 const project = join(dir, "proj");
 
 /** One block per grammar that was broken, plus two that were not, as a control. */

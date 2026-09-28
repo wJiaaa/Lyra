@@ -162,7 +162,7 @@ function print(label: string, r: FrameReport): void {
 }
 
 async function main(): Promise<void> {
-	console.log("复制本机 ~/.lyra（凭据已剔）…");
+	console.log("复制本机 ~/.plume（凭据已剔）…");
 	app = await startApp({ port: PORT, seed: seedFromReal });
 	try {
 		await until(`document.querySelectorAll("[data-ly-row]").length > 2`, 60000);

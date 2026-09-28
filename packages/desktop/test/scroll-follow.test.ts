@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { AssistantContent, Message, StopReason, Usage } from "@lyra/core";
+import type { AssistantContent, Message, StopReason, Usage } from "@plume/core";
 
 import { tailSignature } from "../src/ui/scroll/signature.ts";
 import {

@@ -14,7 +14,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-scrollbar";
+const dir = process.argv[2] ?? "/tmp/plume-scrollbar";
 const project = join(dir, "proj");
 
 /** 35 行，全是短行 —— 截图里那个 .gitignore 的形状。 */

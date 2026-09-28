@@ -1,5 +1,5 @@
 /**
- * Lyra's own directories, and the loaders that already read them.
+ * Plume's own directories, and the loaders that already read them.
  *
  * This provider wraps rather than replaces. The skill, command and agent loaders are tested, in
  * use, and each carries a season of corrections that are not visible in their shape. Rewriting
@@ -18,7 +18,7 @@ import { normalizeKeys, walkFiles } from "../fs.ts";
 import type { CapabilityId, CapabilityProvider, ContextFile, Diagnostic, DiscoveryContext, ProviderResult, SourceMeta, Sourced } from "../types.ts";
 
 const ID = "native";
-const LABEL = "Lyra";
+const LABEL = "Plume";
 
 /** The scope a loader's own `source` field maps to. */
 function scopeOf(source: string): SourceMeta["scope"] {
@@ -46,7 +46,7 @@ function upgrade(diagnostics: { path: string; message: string; severity?: string
 export const nativeProvider: CapabilityProvider = {
 	id: ID,
 	label: LABEL,
-	describe: "读取项目里的 .lyra/ 与 ~/.lyra/",
+	describe: "读取项目里的 .plume/ 与 ~/.plume/",
 	priority: 100,
 	supplies: ["skill", "command", "agent", "context-file"],
 
@@ -61,7 +61,7 @@ export const nativeProvider: CapabilityProvider = {
 
 async function loadNativeSkills(ctx: DiscoveryContext): Promise<ProviderResult<Skill>> {
 	const dirs = [
-		ctx.cwd ? { dir: join(ctx.cwd, ".lyra", "skills"), source: "workspace" as const } : null,
+		ctx.cwd ? { dir: join(ctx.cwd, ".plume", "skills"), source: "workspace" as const } : null,
 		{ dir: join(ctx.home, "skills"), source: "user" as const },
 	].filter((d): d is { dir: string; source: "workspace" | "user" } => d !== null);
 
@@ -90,9 +90,9 @@ async function loadNativeCommands(ctx: DiscoveryContext): Promise<ProviderResult
 	/*
 	 * Only our own directories here. `.claude/commands` is the `claude` provider's business, and
 	 * reading it from two places would make the same file collide with itself — which the registry
-	 * would faithfully report as a conflict between Lyra and Lyra.
+	 * would faithfully report as a conflict between Plume and Plume.
 	 */
-	const sources = commandSources(ctx.cwd, ctx.home).filter((s) => s.origin === "lyra");
+	const sources = commandSources(ctx.cwd, ctx.home).filter((s) => s.origin === "plume");
 	const { commands, diagnostics } = await loadCommands(sources);
 	return {
 		items: attach(commands, (c) => c.path, (c) => scopeOf(c.scope)),
@@ -102,7 +102,7 @@ async function loadNativeCommands(ctx: DiscoveryContext): Promise<ProviderResult
 }
 
 /**
- * Sub-agent definitions from `.lyra/agents/*.md`.
+ * Sub-agent definitions from `.plume/agents/*.md`.
  *
  * Read here rather than in `session-setup.ts` because that is where the precedence bug lived: the
  * list was built as `[...BUILTIN_AGENTS, ...custom]` and consumed with `.find()`, so a definition
@@ -112,7 +112,7 @@ async function loadNativeCommands(ctx: DiscoveryContext): Promise<ProviderResult
  */
 async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<AgentDefinition>> {
 	const dirs = [
-		ctx.cwd ? { dir: join(ctx.cwd, ".lyra", "agents"), scope: "project" as const } : null,
+		ctx.cwd ? { dir: join(ctx.cwd, ".plume", "agents"), scope: "project" as const } : null,
 		{ dir: join(ctx.home, "agents"), scope: "user" as const },
 	].filter((d): d is { dir: string; scope: "project" | "user" } => d !== null);
 
@@ -201,7 +201,7 @@ async function readFileSafe(file: string, diagnostics: Diagnostic[]): Promise<st
 }
 
 /** 同一个目录里的优先级。两份都在时，前者赢——后者多半是从别的工具迁过来没删的旧版本。 */
-const CONTEXT_FILE_NAMES = ["LYRA.md", "AGENTS.md", "CLAUDE.md"];
+const CONTEXT_FILE_NAMES = ["PLUME.md", "AGENTS.md", "CLAUDE.md"];
 
 /**
  * 项目指令，从 cwd 一路往上收到仓库根。

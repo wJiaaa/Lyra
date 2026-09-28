@@ -16,7 +16,7 @@ function node(over: Partial<SearchNode> = {}): SearchNode {
 	return {
 		number: 1,
 		title: "Bump the actions group across 1 directory with 5 updates",
-		url: "https://github.com/kittors/Lyra/pull/1",
+		url: "https://github.com/kittors/Plume/pull/1",
 		state: "OPEN",
 		isDraft: false,
 		createdAt: "2026-08-16T00:00:00Z",
@@ -26,7 +26,7 @@ function node(over: Partial<SearchNode> = {}): SearchNode {
 		headRefName: "dependabot/github_actions/actions-ed7ea029e0",
 		reviewDecision: null,
 		author: { login: "dependabot", avatarUrl: "https://avatars.githubusercontent.com/in/29110?s=64" },
-		repository: { nameWithOwner: "kittors/Lyra" },
+		repository: { nameWithOwner: "kittors/Plume" },
 		comments: { totalCount: 2 },
 		commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] },
 		...over,
@@ -46,7 +46,7 @@ function answer(buckets: { reviewing?: unknown[]; authored?: unknown[]; reviewed
 test("a row carries everything the list draws, from one search", () => {
 	const summary = toSummary(node(), "reviewing", "acct-1");
 
-	assert.equal(summary.repo, "kittors/Lyra");
+	assert.equal(summary.repo, "kittors/Plume");
 	assert.equal(summary.author, "dependabot");
 	assert.equal(summary.avatarUrl, "https://avatars.githubusercontent.com/in/29110?s=64");
 	assert.equal(summary.additions, 16);

@@ -17,7 +17,7 @@ function apply(entries: Entry[], changes: TrajectoryChanges): Entry[] {
 }
 
 async function fixture() {
-	const root = await mkdtemp(join(tmpdir(), "lyra-trajectory-changes-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-trajectory-changes-"));
 	const store = new SessionStore(root);
 	const meta = await store.create(root, "test/model");
 	const reader = new TrajectoryReader(store);
@@ -120,7 +120,7 @@ test("a restored file or retired cache epoch resets stale client cursors", async
 });
 
 test("byte cursors retain incomplete UTF-8 JSONL tails until their terminating newline", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-record-changes-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-record-changes-"));
 	try {
 		const file = join(root, "records.jsonl");
 		const first = `${JSON.stringify({ seq: 1, ts: 1, type: "title", title: "第一行" })}\n`;

@@ -8,7 +8,7 @@
  * 采样参数没生效），而多发一个是整个请求被拒。所以默认全发、撞了就撤，方向永远是安全的那边。
  *
  * 为什么是「学」而不是「配」：这四条在作者能测到的两个端点上**全部 200**（2026-09-11，
- * `test/responses-params-probe.ts`，落盘在 `~/.lyra/scratch/responses-params.txt`）。也就是说我们手上
+ * `test/responses-params-probe.ts`，落盘在 `~/.plume/scratch/responses-params.txt`）。也就是说我们手上
  * 没有能复现它们的端点，没有资格替所有人改默认值。oh-my-pi 有一张人工普查出来的表能直接查（它的
  * `catalog/src/compat/axes.ts` 有 `reasoning-disable-mode`、`supports-tool-choice`、
  * `supports-sampling-params` 等轴），我们没有那份普查数据——但错误串自带诊断，撞一次就够了。

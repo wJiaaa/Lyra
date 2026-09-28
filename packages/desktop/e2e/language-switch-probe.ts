@@ -23,7 +23,7 @@ import { join } from "node:path";
 import { startApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-language-switch";
+const dir = process.argv[2] ?? "/tmp/plume-language-switch";
 await mkdir(dir, { recursive: true });
 
 const app = await startApp({ port: 9743, seed: seedInteractions });
@@ -73,7 +73,7 @@ const SCRAPE = `(() => {
  * 永远红，而红得没有意义。
  */
 const OWN_CONTENT = [
-	/^lyra$/i,
+	/^plume$/i,
 	/^e2e/,
 	/测试/,
 	/^你好/,
@@ -93,7 +93,7 @@ interface Sample {
 const scrape = () => app.evaluate<Sample[]>(SCRAPE);
 const setLocale = async (locale: string) => {
 	await app.evaluate(
-		`window.lyra.settings.get().then((s) => window.lyra.settings.save({ ...s, uiLocale: ${JSON.stringify(locale)} }))`,
+		`window.plume.settings.get().then((s) => window.plume.settings.save({ ...s, uiLocale: ${JSON.stringify(locale)} }))`,
 	);
 	await wait(1500);
 };

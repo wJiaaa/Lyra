@@ -28,19 +28,19 @@ const STORE = { append: async (meta: SessionMeta) => meta, create: async () => M
 before(async () => {
 	home = await mkdtemp(join(tmpdir(), "ly-hot-home-"));
 	root = await mkdtemp(join(tmpdir(), "ly-hot-"));
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 });
 
 after(async () => {
-	delete process.env.LYRA_HOME;
+	delete process.env.PLUME_HOME;
 	await rm(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
 
 async function skill(dir: string, name: string): Promise<void> {
-	await mkdir(join(dir, ".lyra", "skills", name), { recursive: true });
+	await mkdir(join(dir, ".plume", "skills", name), { recursive: true });
 	await writeFile(
-		join(dir, ".lyra", "skills", name, "SKILL.md"),
+		join(dir, ".plume", "skills", name, "SKILL.md"),
 		`---\nname: ${name}\ndescription: 一个用来看它有没有被读到的技能\n---\n正文\n`,
 		"utf8",
 	);

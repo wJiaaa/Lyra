@@ -124,7 +124,7 @@ function isSvgText(data: Uint8Array): boolean {
  *
  * It matters on both sides for different reasons. On the platform the file is served from its own
  * origin, so a script in it runs with the site's session cookie in scope. In the app it becomes a
- * `data:` URL in a renderer that can reach `window.lyra` — a bundle anybody may publish must not be
+ * `data:` URL in a renderer that can reach `window.plume` — a bundle anybody may publish must not be
  * able to put script there.
  */
 function isSafeSvg(data: Uint8Array): boolean {

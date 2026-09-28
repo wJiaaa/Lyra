@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h, type ReactNode } from "react";
-import type { AssistantMessage, Message, SessionMeta } from "@lyra/core";
+import type { AssistantMessage, Message, SessionMeta } from "@plume/core";
 import type { SessionSnapshot, WorkspaceInfo } from "../../electron/ipc-types.ts";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { LayoutProvider } from "../../src/app/layout.tsx";
@@ -45,7 +45,7 @@ let view: Mounted | undefined;
 
 beforeEach(async () => {
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			workspace: { info: async (path: string) => [ALPHA, BETA].find((one) => one.path === path) ?? null },

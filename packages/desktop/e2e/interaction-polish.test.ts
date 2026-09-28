@@ -29,7 +29,7 @@ async function until(expression: string): Promise<void> {
 	await app.evaluate(`new Promise((resolve,reject)=>{let n=300;const step=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(step);else reject(new Error(${JSON.stringify(expression)}));};step();})`);
 }
 async function shot(name: string): Promise<void> {
-	const dir = process.env.LYRA_E2E_ARTIFACTS;
+	const dir = process.env.PLUME_E2E_ARTIFACTS;
 	if (!dir) return;
 	await mkdir(dir, { recursive: true });
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });

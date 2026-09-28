@@ -22,7 +22,7 @@ pnpm dev         # 桌面端
 | `pnpm lint:fix` | 能自动修的修掉 |
 | `pnpm typecheck` | 三个包一起 |
 | `pnpm test` | 单元测试，含组件测试 |
-| `pnpm --filter @lyra/desktop test:ui` | 只跑组件测试（happy-dom，不到一秒） |
+| `pnpm --filter @plume/desktop test:ui` | 只跑组件测试（happy-dom，不到一秒） |
 | `pnpm release patch` | 发版：版本号、CHANGELOG、tag、推送 |
 | `pnpm knip` | 未使用的导出、依赖、文件 |
 | `pnpm build` | core + 桌面端 |
@@ -62,7 +62,7 @@ cd packages/core && node --test --experimental-strip-types test/session-log.test
 组件的测试在 `packages/desktop/test/ui/`，用 happy-dom 真的挂载再断言：
 
 ```bash
-pnpm --filter @lyra/desktop test:ui
+pnpm --filter @plume/desktop test:ui
 ```
 
 写法上用 `createElement` 而不是 JSX（测试文件是 `.ts`），`test/helpers/mount.ts` 提供 `mount`、

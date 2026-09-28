@@ -17,8 +17,8 @@ let home = "";
 let online = true;
 
 before(async () => {
-	home = await mkdtemp(join(tmpdir(), "lyra-index-kept-"));
-	process.env.LYRA_HOME = home;
+	home = await mkdtemp(join(tmpdir(), "plume-index-kept-"));
+	process.env.PLUME_HOME = home;
 	mock.method(globalThis, "fetch", async () => {
 		if (!online) throw new TypeError("fetch failed");
 		return new Response(JSON.stringify({ name: "Test market", plugins: [{ id: "context7", name: "Context7", repository: "https://github.com/upstash/context7" }] }), {

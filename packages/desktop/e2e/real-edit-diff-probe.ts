@@ -18,7 +18,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
+const REAL_HOME = join(homedir(), ".plume");
 const WAIT = `(ms) => new Promise((r) => setTimeout(r, ms))`;
 
 /** 照客户截图里那个文件的形状造一份。 */
@@ -41,7 +41,7 @@ async function seed(home: string): Promise<void> {
 
 	for (const file of ["credentials.json", "vault.key"]) {
 		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
-			throw new Error(`没找到 ~/.lyra/${file}——真实模型调用需要它`);
+			throw new Error(`没找到 ~/.plume/${file}——真实模型调用需要它`);
 		});
 	}
 	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));
@@ -107,9 +107,9 @@ async function main() {
 				if (turning) { started = true; quiet = 0; }
 				else if (started && ++quiet > 20) break;
 			}
-			const list = await window.lyra.sessions.list();
+			const list = await window.plume.sessions.list();
 			const meta = list[0];
-			const snapshot = meta ? await window.lyra.sessions.open(meta.projectId, meta.id) : null;
+			const snapshot = meta ? await window.plume.sessions.open(meta.projectId, meta.id) : null;
 			const messages = snapshot?.messages ?? [];
 			const edits = [];
 			for (const m of messages) {

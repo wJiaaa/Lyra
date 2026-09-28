@@ -8,7 +8,7 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { computeDiff, type DiffHunk } from "@lyra/core";
+import { computeDiff, type DiffHunk } from "@plume/core";
 import type { WorkspaceDiffFile } from "./ipc-types.ts";
 import { readBlobs, type BlobRead } from "./git-blobs.ts";
 import { git, gitBuffer, mapLimit, MAX_BLOB_BYTES, MAX_FILES } from "./git-exec.ts";

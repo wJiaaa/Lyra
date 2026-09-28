@@ -9,7 +9,7 @@
 
 import { useEffect } from "react";
 import { create } from "zustand";
-import type { SessionActivity } from "@lyra/core/activity";
+import type { SessionActivity } from "@plume/core/activity";
 import type { SchedulerNotice } from "../../../electron/ipc-types.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";

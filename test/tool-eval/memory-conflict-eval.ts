@@ -29,7 +29,7 @@ const DIM = "\x1b[2m";
 const OFF = "\x1b[0m";
 
 async function fixture(): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-memconf-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-memconf-"));
 	await mkdir(join(dir, "src"), { recursive: true });
 	await writeFile(
 		join(dir, "package.json"),

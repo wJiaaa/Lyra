@@ -161,7 +161,7 @@ export class McpManager {
 		 */
 		const server = resolveServer(declared, commandEnv(process.env));
 		const epoch = this.epoch;
-		const client = new Client({ name: "lyra", version: "0.1.0" }, { capabilities: {} });
+		const client = new Client({ name: "plume", version: "0.1.0" }, { capabilities: {} });
 		const transport =
 			server.transport === "stdio"
 				? new TreeKillingStdioTransport({

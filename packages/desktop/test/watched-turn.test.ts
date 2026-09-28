@@ -13,7 +13,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { nextActivity, visibleActivity, type SessionActivity } from "@lyra/core/activity";
+import { nextActivity, visibleActivity, type SessionActivity } from "@plume/core/activity";
 
 /** What `apply-event` records, given who is on screen. */
 function recorded(settled: SessionActivity | null, sessionId: string, activeSessionId: string | null) {

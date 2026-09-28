@@ -30,7 +30,7 @@ let previous: ReturnType<typeof useApp.getState>;
 
 /** 一条命令，按磁盘上读出来的样子。 */
 function command(name: string, content: string, deliver?: "steer" | "followUp") {
-	return { name, description: name, content, path: `/test/${name}.md`, scope: "workspace" as const, origin: "lyra" as const, ...(deliver ? { deliver } : {}) };
+	return { name, description: name, content, path: `/test/${name}.md`, scope: "workspace" as const, origin: "plume" as const, ...(deliver ? { deliver } : {}) };
 }
 
 function setup(over: { running?: boolean; commands?: ReturnType<typeof command>[]; draft?: string } = {}) {
@@ -43,7 +43,7 @@ function setup(over: { running?: boolean; commands?: ReturnType<typeof command>[
 			return true;
 		},
 	});
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		commands: { list: async () => ({ commands: over.commands ?? [], skills: [], agents: [] }) },
 	} });
 }

@@ -15,7 +15,7 @@ import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { looksBinary } from "../tools/paths.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
 
@@ -135,11 +135,11 @@ export async function buildIndex(cwd: string, signal?: AbortSignal): Promise<Sym
 
 function indexPath(cwd: string): string {
 	const id = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	return join(lyraHome(), "index", `${id}.json`);
+	return join(plumeHome(), "index", `${id}.json`);
 }
 
 export async function saveIndex(index: SymbolIndex): Promise<void> {
-	await mkdir(join(lyraHome(), "index"), { recursive: true });
+	await mkdir(join(plumeHome(), "index"), { recursive: true });
 	// Two sessions in one project can finish building at the same moment; see `atomic-write.ts`.
 	await writeFileAtomic(indexPath(index.cwd), JSON.stringify(index));
 }

@@ -20,7 +20,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
+const REAL_HOME = join(homedir(), ".plume");
 const WAIT = `(ms) => new Promise((r) => setTimeout(r, ms))`;
 
 async function seed(home: string): Promise<void> {
@@ -32,7 +32,7 @@ async function seed(home: string): Promise<void> {
 
 	for (const file of ["credentials.json", "vault.key"]) {
 		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
-			throw new Error(`没找到 ~/.lyra/${file}——拉取模型要真的连上去`);
+			throw new Error(`没找到 ~/.plume/${file}——拉取模型要真的连上去`);
 		});
 	}
 	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));
@@ -148,7 +148,7 @@ async function main() {
 		await click("[data-import-qa]");
 		await app.evaluate(`(${WAIT})(3000)`);
 		const imported = await app.evaluate<{ count: number; limits: string }>(`(async () => {
-			const s = await window.lyra.settings.get();
+			const s = await window.plume.settings.get();
 			const models = (s.providers ?? []).flatMap((p) => p.models ?? []);
 			return {
 				count: models.length,
@@ -164,7 +164,7 @@ async function main() {
 		 * 重新加载。
 		 */
 		// `app.stop()` 会把 profile 删掉，所以先留一份副本，再关、再用这份副本开第二次。
-		const staged = await mkdtemp(join(tmpdir(), "lyra-restart-"));
+		const staged = await mkdtemp(join(tmpdir(), "plume-restart-"));
 		await cp(app.home, staged, { recursive: true });
 		await app.stop();
 		app = await startApp({
@@ -175,7 +175,7 @@ async function main() {
 			},
 		});
 		const after = await app.evaluate<string>(`(async () => {
-			const s = await window.lyra.settings.get();
+			const s = await window.plume.settings.get();
 			const models = (s.providers ?? []).flatMap((p) => p.models ?? []);
 			return JSON.stringify(models.map((m) => [m.modelId, m.contextWindow, m.maxOutputTokens]));
 		})()`).catch(() => "unavailable");

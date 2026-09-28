@@ -1,6 +1,6 @@
 import { translate } from "../i18n/translate.ts";
-import type { AgentEvent } from "@lyra/core";
-import type { SessionActivity } from "@lyra/core/activity";
+import type { AgentEvent } from "@plume/core";
+import type { SessionActivity } from "@plume/core/activity";
 
 /** A repeated end event does not announce the same unread result twice. */
 export function completionNotice(event: AgentEvent, previous: SessionActivity | null): { level: "info" | "error"; text: string } | null {

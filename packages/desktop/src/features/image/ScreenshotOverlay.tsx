@@ -19,7 +19,7 @@ import { translate } from "../../i18n/translate.ts";
 import { shortcutLetter } from "../../ui/keyboard.ts";
 import { Check, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ScreenshotSettings } from "@lyra/core";
+import type { ScreenshotSettings } from "@plume/core";
 import { useAnnotator } from "./Annotator.tsx";
 import { AnnotateCanvas } from "./AnnotateCanvas.tsx";
 import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
@@ -73,7 +73,7 @@ interface ScreenshotInit {
 	 * The screen, as raw RGBA pixels.
 	 *
 	 * Not an encoded image: PNG-encoding a 2940×1912 screen in the main process so it could be
-	 * decoded again here measured 133ms, and it was the biggest thing Lyra itself added to the wait
+	 * decoded again here measured 133ms, and it was the biggest thing Plume itself added to the wait
 	 * before a capture appears. That wait is what makes the desktop appear to jump — the picture is
 	 * taken at the start of it, so anything that moves on screen while it runs is undone in one
 	 * frame when the overlay lands on top.
@@ -420,7 +420,7 @@ export function ScreenshotOverlay() {
 	 * and `passThrough` tells the main process to let presses through it, so the moment the screen
 	 * looks normal it behaves normally too.
 	 *
-	 * Shared by the two other errands that end without delivering anything to Lyra: downloading the
+	 * Shared by the two other errands that end without delivering anything to Plume: downloading the
 	 * picture and pinning it. All three want the same shape — the capture goes now, the answer stays
 	 * a beat — and the one thing that differs is what the answer says.
 	 */
@@ -478,7 +478,7 @@ export function ScreenshotOverlay() {
 	 * Read straight off the live canvas rather than through `render()` and a second decode: the
 	 * canvas is already exactly the picture that is wanted, minus everything outside the frame.
 	 *
-	 * Its own function because three buttons now want the same picture — 完成 delivers it to Lyra,
+	 * Its own function because three buttons now want the same picture — 完成 delivers it to Plume,
 	 * 下载 writes it to a folder, 置顶 leaves it on the desktop — and the cropping was written out
 	 * inside the first of them. Called before the fade in every case, so the picture is of the marks
 	 * rather than of them half faded out.

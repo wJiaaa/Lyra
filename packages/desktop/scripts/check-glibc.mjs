@@ -80,7 +80,7 @@ export function staticallyLinked(objdumpStderr) {
 	return /not a dynamic object/.test(objdumpStderr ?? "");
 }
 
-/** Every ELF file under `dir`, by its magic number rather than its name — `.so.1` and `Lyra` alike. */
+/** Every ELF file under `dir`, by its magic number rather than its name — `.so.1` and `Plume` alike. */
 function elfFiles(dir, found = []) {
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
 		const path = join(dir, entry.name);

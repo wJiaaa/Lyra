@@ -1,6 +1,6 @@
 /* oxlint-disable no-console -- live listener that prints what the installed window did */
 /**
- * 挂到本机正在用的那个 Lyra 上，你切会话，这里把卡在哪一行打出来。
+ * 挂到本机正在用的那个 Plume 上，你切会话，这里把卡在哪一行打出来。
  *
  * 用法：先把包装好的 app 用 --remote-debugging-port=9333 拉起来，再跑这个文件。
  */

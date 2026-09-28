@@ -17,7 +17,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { projectMemoryDir } from "./project-memory.ts";
 
 export type InjectedMap = Record<string, number>;
@@ -29,7 +29,7 @@ export const EXTRACTED_KEY = "extracted";
 const MARK_INTERVAL_MS = 60_000;
 
 export function userInjectedPath(): string {
-	return join(lyraHome(), "memory-injected.json");
+	return join(plumeHome(), "memory-injected.json");
 }
 
 export function projectInjectedPath(cwd: string): string {

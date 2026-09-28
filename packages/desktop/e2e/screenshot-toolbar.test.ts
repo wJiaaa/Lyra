@@ -98,7 +98,7 @@ function evaluator(socket: string) {
  * roughly two runs out of three.
  *
  * It is the protocol, not the app, and that was established rather than assumed: the same window in
- * the same state reveals its close button to the *real* pointer, with Lyra not even frontmost —
+ * the same state reveals its close button to the *real* pointer, with Plume not even frontmost —
  * `screenshot-toolbar-probe.ts` warps the system cursor onto it and checks. So an event that goes
  * unanswered is sent again and then let go. Duplicates are safe here because every assertion in
  * this file is about a settled end state — the window moved, the window closed — rather than about
@@ -192,9 +192,9 @@ async function pressTip(socket: string, tip: string): Promise<boolean> {
  * would be looking at a blue rectangle baked into it and blaming this feature for drawing it.
  */
 async function frameRegion(): Promise<{ x: number; y: number; width: number; height: number }> {
-	await app.evaluate(`window.lyra.screenshot.cancel()`).catch(() => {});
+	await app.evaluate(`window.plume.screenshot.cancel()`).catch(() => {});
 	await pause(900);
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	if (!overlay) overlay = await pageFor("screenshot-overlay");
 	assert.ok(overlay, "截图浮层窗口没有出现");
 	const run = evaluator(overlay);
@@ -240,7 +240,7 @@ before(async () => {
 });
 
 after(async () => {
-	await app?.evaluate(`window.lyra.screenshot.cancel()`).catch(() => {});
+	await app?.evaluate(`window.plume.screenshot.cancel()`).catch(() => {});
 	await app?.stop();
 });
 
@@ -461,7 +461,7 @@ test("置顶在桌面：图片留在原地，hover 出现关闭按钮，能拖�
 	assert.ok(state.shown, "置顶窗口里没有画出图片");
 	assert.ok(Math.abs(state.w - region.width) <= 4 && Math.abs(state.h - region.height) <= 4,
 		`置顶窗口和选区对不上：${state.w}×${state.h} vs ${region.width}×${region.height}`);
-	assert.equal(await app.evaluate<number>(`window.lyra.screenshot.pinnedCount()`), 1, "置顶窗口在主进程里已经没了");
+	assert.equal(await app.evaluate<number>(`window.plume.screenshot.pinnedCount()`), 1, "置顶窗口在主进程里已经没了");
 
 	// The close button appears with the pointer, and only with it.
 	const closeOpacity = () => pin<string>(`(() => {
@@ -496,7 +496,7 @@ test("置顶在桌面：图片留在原地，hover 出现关闭按钮，能拖�
 	assert.ok(closeAt, "置顶窗口上没有关闭按钮");
 	await click(pinned, closeAt.x, closeAt.y);
 	await pause(800);
-	assert.equal(await app.evaluate<number>(`window.lyra.screenshot.pinnedCount()`), 0, "点了关闭按钮，置顶窗口还在");
+	assert.equal(await app.evaluate<number>(`window.plume.screenshot.pinnedCount()`), 0, "点了关闭按钮，置顶窗口还在");
 });
 
 test("下载截图：文件落在设置好的目录里，界面确认它保存了", async (t) => {
@@ -567,7 +567,7 @@ test("下载截图：文件落在设置好的目录里，界面确认它保存�
  * focus (pressing 粗 while writing has to resize that caption rather than end it).
  *
  * Measured in pixels of the caption's own colour rather than by reading state, because state is
- * exactly what was right the whole time. The default is `#ef4444`; a Lyra window has almost none of
+ * exactly what was right the whole time. The default is `#ef4444`; a Plume window has almost none of
  * it, so a control run with no caption gives the floor to compare against.
  */
 async function redPixels(file: string): Promise<number> {
@@ -613,7 +613,7 @@ async function typeCaption(text: string): Promise<void> {
 /*
  * Driven through 下载 rather than 完成, and it covers both.
  *
- * The report was about 完成, but that hands the picture to Lyra — to the clipboard and the composer
+ * The report was about 完成, but that hands the picture to Plume — to the clipboard and the composer
  * — where checking it means reading a clipboard image out of the main process. 下载 ends in a file
  * this test can open, and the two share one line: `withText(() => { crop(); … })`. What is being
  * defended is that line running before the crop, not which button reached it.

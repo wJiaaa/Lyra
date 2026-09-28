@@ -27,7 +27,7 @@ import { today, withEnvironment } from "../prompt/environment.ts";
 import { readPromptOverride } from "../prompt/overrides.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { resolveSubAgentModel } from "../config/model-roles.ts";
 import { sessionPruner } from "./aged-prune.ts";
@@ -399,7 +399,7 @@ export async function runSubAgent(
 		 *
 		 * 「注释一律中文」「匹配周围代码风格」对子代理写的代码同样成立——这些约定管的是产出，
 		 * 而子代理的产出最后进的是同一个仓库。身份则由它自己的定义写着（「你是一个只读的代码审查者」），
-		 * 放在最前面；项目的身份段和 Lyra 的默认身份都不用，否则等于把派它出去的理由抹掉。
+		 * 放在最前面；项目的身份段和 Plume 的默认身份都不用，否则等于把派它出去的理由抹掉。
 		 */
 		identity: definition.systemPrompt,
 		guidelinesOverride: await readPromptOverride(options.cwd, "guidelines"),
@@ -661,7 +661,7 @@ export async function runSubAgent(
 				// fewer parameter that can be forgotten at a new call site. A delegated run reads
 				// across the project's folders exactly as the conversation that dispatched it does.
 				projectRoots: projectRootsFor(options.settings.projects, options.cwd),
-				scratchDir: join(lyraHome(), "scratch", options.sessionId),
+				scratchDir: join(plumeHome(), "scratch", options.sessionId),
 				beforeToolCall: makeBeforeToolCall(hooks),
 				afterToolCall: makeAfterToolCall(hooks),
 				permissionRequest: makePermissionRequest(hooks),
@@ -672,7 +672,7 @@ export async function runSubAgent(
 				 * is part of that conversation — filed under an id that disappears when the sub-agent
 				 * finishes, the page would outlive nothing and be found by no one.
 				 */
-				writePreview: (input) => writePreview(lyraHome(), { ...input, sessionId: options.sessionId }),
+				writePreview: (input) => writePreview(plumeHome(), { ...input, sessionId: options.sessionId }),
 				// Inherited, so a host that replaced the provider call replaced it for the whole
 				// tree — a sub-agent quietly dialling out would defeat the point of overriding it.
 				streamFn: options.streamFn,

@@ -1,4 +1,4 @@
-import { readFileChange, undoFileChangeBatches, type SessionStorage } from "@lyra/core";
+import { readFileChange, undoFileChangeBatches, type SessionStorage } from "@plume/core";
 import { sessions } from "./session-hub.ts";
 
 export type { DeliveryFile, TurnDelivery } from "./delivery-record.ts";

@@ -12,7 +12,7 @@ test("delete targets its own row, cancel is inert, and failure keeps the definit
 	let opened = 0; let reloaded = 0;
 	let fail!: (error: Error) => void;
 	const request = new Promise<void>((_resolve, reject) => { fail = reject; });
-	Object.defineProperty(window, "lyra", { configurable: true, value: { capabilities: { trash: (_kind: string, _cwd: string, path: string) => { calls.push(path); return request; } } } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { capabilities: { trash: (_kind: string, _cwd: string, path: string) => { calls.push(path); return request; } } } });
 	function Example() {
 		const removal = useDefinitionRemoval("command", "/project", () => { reloaded++; });
 		return h("div", null,

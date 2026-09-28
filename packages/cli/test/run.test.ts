@@ -1,6 +1,6 @@
 /**
  * A run against the real runtime: a real `AgentSession`, real tools, the real approval gate — only
- * the model is a script. In a throwaway home so nothing reads or writes `~/.lyra`.
+ * the model is a script. In a throwaway home so nothing reads or writes `~/.plume`.
  */
 
 import assert from "node:assert/strict";
@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { promisify } from "node:util";
-import { bootHostKernel, DEFAULT_SETTINGS, emptyUsage, type AssistantMessage, type HostKernel, type LlmContext, type ModelConfig, type ProviderConfig, type Settings } from "@lyra/core";
+import { bootHostKernel, DEFAULT_SETTINGS, emptyUsage, type AssistantMessage, type HostKernel, type LlmContext, type ModelConfig, type ProviderConfig, type Settings } from "@plume/core";
 import { runOnce, SetupError } from "../src/run.ts";
 
 const MODEL: ModelConfig = { id: "fake/model", providerId: "fake", modelId: "model", name: "Fake", contextWindow: 100_000, maxOutputTokens: 4096, supportsThinking: false, supportsImages: false, supportsTools: true };
@@ -23,18 +23,18 @@ const says = (content: AssistantMessage["content"], stopReason: AssistantMessage
 let root = "";
 let workspace = "";
 let kernel: HostKernel;
-const saved = { LYRA_HOME: process.env.LYRA_HOME, HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
+const saved = { PLUME_HOME: process.env.PLUME_HOME, HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
 
 before(async () => {
-	root = await mkdtemp(join(tmpdir(), "lyra-cli-"));
+	root = await mkdtemp(join(tmpdir(), "plume-cli-"));
 	workspace = join(root, "work");
-	process.env.LYRA_HOME = join(root, "home", ".lyra");
+	process.env.PLUME_HOME = join(root, "home", ".plume");
 	// Both, because `os.homedir()` reads `USERPROFILE` on Windows.
 	process.env.HOME = join(root, "home");
 	process.env.USERPROFILE = join(root, "home");
-	await mkdir(join(workspace, ".lyra", "skills", "demo"), { recursive: true });
+	await mkdir(join(workspace, ".plume", "skills", "demo"), { recursive: true });
 	await writeFile(join(workspace, "a.txt"), "hello\n");
-	await writeFile(join(workspace, ".lyra", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: 演示用的 skill，把事情整理成清单\n---\n\n整理成清单。\n");
+	await writeFile(join(workspace, ".plume", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: 演示用的 skill，把事情整理成清单\n---\n\n整理成清单。\n");
 	kernel = await bootHostKernel(SETTINGS, () => {});
 });
 
@@ -101,7 +101,7 @@ test("没有默认模型时不开会话，报设置问题", async () => {
 
 test("命令行：没给任务或没有模型时退出码是 2，stdout 保持干净", async () => {
 	const main = join(import.meta.dirname, "..", "src", "main.ts");
-	const env = { ...process.env, LYRA_HOME: join(root, "empty", ".lyra"), HOME: join(root, "empty") };
+	const env = { ...process.env, PLUME_HOME: join(root, "empty", ".plume"), HOME: join(root, "empty") };
 	const call = (args: string[]) => promisify(execFile)(process.execPath, [main, ...args], { env }).then(() => ({ code: 0, stdout: "", stderr: "" }), (error: { code: number; stdout: string; stderr: string }) => error);
 	const noModel = await call(["hi"]);
 	assert.equal(noModel.code, 2);

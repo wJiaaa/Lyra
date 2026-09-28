@@ -6,7 +6,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import type { SubAgentStatus } from "@lyra/core";
+import type { SubAgentStatus } from "@plume/core";
 import { formatTokens } from "../../lib/format-tokens.ts";
 import { formatCost } from "../settings/index.ts";
 import { describeActivity } from "../../lib/tool-kinds.ts";

@@ -2,7 +2,7 @@
  * Everything the catalogue can show, from the three places it comes from.
  *
  * A bundle reaches this window down one of two paths: it was cloned from a registry, or somebody
- * put a directory in `~/.lyra/plugins`. Those are different facts about the same kind of thing,
+ * put a directory in `~/.plume/plugins`. Those are different facts about the same kind of thing,
  * and the page is not a good place to keep them apart — a card wants to say "this is Chrome, it
  * controls the browser, and you have it" without first asking which list it came out of.
  *
@@ -18,12 +18,12 @@
  * registry says it is.
  */
 
-import type { BundleKind, ClientId, InstallRecord, McpBundle, McpNeed, McpServerConfig, Plugin, RegistryEntry, Skill } from "@lyra/core";
-// A sub-entry, not the root: importing a value from `@lyra/core` pulls its whole index — and with
+import type { BundleKind, ClientId, InstallRecord, McpBundle, McpNeed, McpServerConfig, Plugin, RegistryEntry, Skill } from "@plume/core";
+// A sub-entry, not the root: importing a value from `@plume/core` pulls its whole index — and with
 // it `node:fs` — into this bundle. See AGENTS.md.
-import { isOutdated } from "@lyra/core/install-record";
-import { needsOf } from "@lyra/core/mcp-placeholders";
-import { CATEGORY_ORDER, canonicalCategory } from "@lyra/registry-shared";
+import { isOutdated } from "@plume/core/install-record";
+import { needsOf } from "@plume/core/mcp-placeholders";
+import { CATEGORY_ORDER, canonicalCategory } from "@plume/registry-shared";
 
 /** Bundles with nothing to file them under. Not a category anyone chose — see `shelves`. */
 export const UNFILED = " unfiled";
@@ -75,7 +75,7 @@ export interface CatalogItem {
 	 * has shown all of them on its own cards the whole time. The desktop card drew a name and a
 	 * description, so the two views of the same catalogue disagreed about how much was known.
 	 *
-	 * Optional, all of them, because a bundle sitting in `~/.lyra/plugins` came from a directory
+	 * Optional, all of them, because a bundle sitting in `~/.plume/plugins` came from a directory
 	 * rather than an index and genuinely has no author, no download count and no version beyond
 	 * what its own manifest claims. A missing field is left out of the line rather than filled.
 	 */

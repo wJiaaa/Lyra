@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
-const OUT = process.env.LYRA_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "scroll-geometry");
+const OUT = process.env.PLUME_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "scroll-geometry");
 const RUNS = 300;
 
 let app: RunningApp;

@@ -19,7 +19,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import { DEFAULT_SETTINGS, type AssistantMessage, type Message, type SessionMeta, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type AssistantMessage, type Message, type SessionMeta, type Settings } from "@plume/core";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { ContextMeter } from "../../src/features/composer/ContextMeter.tsx";
 import { MessageRow } from "../../src/features/conversation/rows.tsx";
@@ -50,7 +50,7 @@ let view: Mounted | undefined;
 beforeEach(() => {
 	reads = [];
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			sessions: {
@@ -73,7 +73,7 @@ afterEach(async () => {
 	await view?.unmount();
 	view = undefined;
 	useApp.setState(previous, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 function meterUnder(id: string, messages: Message[]): ReturnType<typeof h> {

@@ -33,7 +33,7 @@ test("窗口不会被导航到外部页面", async () => {
 	await new Promise((resolve) => setTimeout(resolve, 800));
 
 	const after = await app.evaluate<string>("location.href");
-	assert.equal(after, before, "窗口应该停在原地；它被导航走就等于 window.lyra 交了出去");
+	assert.equal(after, before, "窗口应该停在原地；它被导航走就等于 window.plume 交了出去");
 });
 
 test("window.open 不在应用内开新窗口", async () => {
@@ -51,9 +51,9 @@ test("window.open 不在应用内开新窗口", async () => {
 	assert.match(href, /^(file:|http:\/\/localhost)/, "主窗口仍然是我们自己的页面");
 });
 
-test("渲染进程仍然拿得到 window.lyra——守卫没有误伤自己人", async () => {
+test("渲染进程仍然拿得到 window.plume——守卫没有误伤自己人", async () => {
 	const shape = await app.evaluate<{ has: boolean; sessions: boolean }>(`
-		({ has: typeof window.lyra === "object", sessions: typeof window.lyra?.sessions?.list === "function" })
+		({ has: typeof window.plume === "object", sessions: typeof window.plume?.sessions?.list === "function" })
 	`);
 	assert.equal(shape.has, true);
 	assert.equal(shape.sessions, true, "IPC 面必须完好，否则守卫收得太紧");

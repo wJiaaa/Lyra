@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 
 import { rankMentions } from "../src/features/composer/mention-catalog.ts";
 import { conversationTime } from "../src/features/conversation/question-navigation.ts";
@@ -58,10 +58,10 @@ test("the exact time behind an age follows the window's language", () => {
 });
 
 test("a past conversation in the @ menu is dated in the window's language", () => {
-	const session = { id: "s-1", title: "Refactor", projectName: "lyra", updatedAt: AFTERNOON } as SessionMeta;
+	const session = { id: "s-1", title: "Refactor", projectName: "plume", updatedAt: AFTERNOON } as SessionMeta;
 	const dated = () => rankMentions("", { sessions: [session] }).find((item) => item.kind === "session")?.description;
 	setActiveLocale("en");
-	assert.equal(dated(), "lyra · 9/26/2026");
+	assert.equal(dated(), "plume · 9/26/2026");
 	setActiveLocale("zh-CN");
-	assert.equal(dated(), "lyra · 2026/9/26");
+	assert.equal(dated(), "plume · 2026/9/26");
 });

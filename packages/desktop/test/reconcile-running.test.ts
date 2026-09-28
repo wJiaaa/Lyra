@@ -32,7 +32,7 @@ const asked: string[] = [];
 	removeEventListener: () => {},
 	localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
 	matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
-	lyra: {
+	plume: {
 		sessions: {
 			running: async (sessionId: string) => {
 				asked.push(sessionId);

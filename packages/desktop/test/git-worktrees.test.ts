@@ -19,7 +19,7 @@ import {
 	resolveWorktreesRoot,
 } from "../electron/git-worktrees.ts";
 import { listWorktrees } from "../electron/git-repos.ts";
-import { DEFAULT_SETTINGS } from "@lyra/core";
+import { DEFAULT_SETTINGS } from "@plume/core";
 
 const exec = promisify(execFile);
 
@@ -33,7 +33,7 @@ async function git(args: string[], cwd = dir): Promise<string> {
 }
 
 before(async () => {
-	root = await mkdtemp(join(tmpdir(), "lyra-wt-test-"));
+	root = await mkdtemp(join(tmpdir(), "plume-wt-test-"));
 	dir = join(root, "work");
 	origin = join(root, "origin.git");
 

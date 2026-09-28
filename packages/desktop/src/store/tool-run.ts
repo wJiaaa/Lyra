@@ -1,4 +1,4 @@
-import type { ToolResult } from "@lyra/core";
+import type { ToolResult } from "@plume/core";
 
 /** Shared transcript data must not depend on either conversation's live store. */
 export interface ToolRun {

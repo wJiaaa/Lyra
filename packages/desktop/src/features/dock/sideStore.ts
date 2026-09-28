@@ -16,8 +16,8 @@
  * 派活，所以按会话存在 `tasks` 里。
  */
 
-import type { SideChatUpdate, Message, MessageAttachment, QueuedTask, ThinkingLevel, UserContent } from "@lyra/core";
-import { DEFAULT_SIDE_CHAT_ID } from "@lyra/contract";
+import type { SideChatUpdate, Message, MessageAttachment, QueuedTask, ThinkingLevel, UserContent } from "@plume/core";
+import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { create } from "zustand";
 import { reduceSideEvent, rebuildToolRuns, type SideConversation } from "./side-events.ts";
 

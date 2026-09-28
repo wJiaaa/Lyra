@@ -198,13 +198,13 @@ try {
 	check("browser opens in a dedicated window with its address bar", await detached.evaluate(`Boolean(document.querySelector('[data-ly-panel-window="browser"] [data-browser-omnibox]'))`), detached.boot);
 	await clickAux(detached, "[data-ly-keep-on-top]");
 	await hold(1100, detached, extraFrames);
-	const pinned = await detached.evaluate<{ enabled: boolean }>("window.lyra.windows.keepOnTop()");
+	const pinned = await detached.evaluate<{ enabled: boolean }>("window.plume.windows.keepOnTop()");
 	check("pin controls the native detached window", pinned.enabled, pinned);
 	await clickAux(detached, "[data-ly-keep-on-top]");
 	await hold(900, detached, extraFrames);
-	check("unpin releases the detached window", !(await detached.evaluate<{ enabled: boolean }>("window.lyra.windows.keepOnTop()")).enabled, { enabled: false });
+	check("unpin releases the detached window", !(await detached.evaluate<{ enabled: boolean }>("window.plume.windows.keepOnTop()")).enabled, { enabled: false });
 	await app.main(`process._linkedBinding('electron_browser_window').BrowserWindow.getAllWindows().find(w=>w.webContents.id===1).focus()`);
-	const backgroundState = await detached.evaluate<{ tabs: unknown[] }>("window.lyra.browser.state()");
+	const backgroundState = await detached.evaluate<{ tabs: unknown[] }>("window.plume.browser.state()");
 	check("a detached browser can initialize and synchronize without keyboard focus", backgroundState.tabs.length>=2, { tabs: backgroundState.tabs.length });
 	await detached.evaluate(`document.querySelector('webview').executeJavaScript("document.querySelector('#next').click(); true")`);
 	await hold(1700, detached, extraFrames);
@@ -233,7 +233,7 @@ try {
 	check("a detached terminal keeps its shell and tab controls", terminalDetached===terminalBefore && await shellWindow.evaluate(`Boolean(document.querySelector('button[aria-label="新建终端"]'))`), { terminalBefore, terminalDetached });
 	await app.main(`process._linkedBinding('electron_browser_window').BrowserWindow.getAllWindows().find(w=>w.webContents.id===1).focus()`);
 	const streamCommand = "for i in 1 2 3 4 5; do printf 'WINDOW_STREAM_%s\\n' \"$i\"; sleep 0.2; done\r";
-	await shellWindow.evaluate(`window.lyra.terminal.write(${JSON.stringify(terminalBefore)}, ${JSON.stringify(streamCommand)})`);
+	await shellWindow.evaluate(`window.plume.terminal.write(${JSON.stringify(terminalBefore)}, ${JSON.stringify(streamCommand)})`);
 	await hold(2300, shellWindow, extraFrames);
 	const backgroundText = await shellWindow.evaluate<string>("document.querySelector('.xterm-rows')?.textContent??''");
 	check("a detached terminal continues painting output while the main window has focus", backgroundText.includes("WINDOW_STREAM_1")&&backgroundText.includes("WINDOW_STREAM_5"), { text:backgroundText });
@@ -244,7 +244,7 @@ try {
 	await d.click(`${pane(IDS[1], "terminal")} [data-tab="${terminalBefore}"]`); await hold();
 	const shared = await app.evaluate(`document.querySelector(${JSON.stringify(pane(IDS[1], "terminal") + " [data-terminal-id]")})?.dataset.terminalId===${JSON.stringify(terminalBefore)}`);
 	await d.click(`${pane(IDS[1], "terminal")} button[aria-label="关闭终端"]`); await hold();
-	await app.evaluate(`window.lyra.terminal.write(${JSON.stringify(terminalBefore)}, ${JSON.stringify("printf 'SHARED_VIEW_OK\\n'\r")})`);
+	await app.evaluate(`window.plume.terminal.write(${JSON.stringify(terminalBefore)}, ${JSON.stringify("printf 'SHARED_VIEW_OK\\n'\r")})`);
 	await hold();
 	const sharedText = await app.evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(pane(IDS[0], "terminal") + " .xterm-rows > div")})].map(row=>row.textContent.trim())`);
 	check("closing one of two views of a shell leaves the other view receiving output", Boolean(shared)&&sharedText.includes("SHARED_VIEW_OK"), { shared,text:sharedText });
@@ -284,7 +284,7 @@ try {
 	await stop();
 	await app.stop();
 	await closeListeningServer(server);
-	const output = join(homedir(), "Desktop", "Lyra分屏拖拽测试");
+	const output = join(homedir(), "Desktop", "Plume分屏拖拽测试");
 	await mkdir(output, { recursive: true });
 	const name = `${new Date().toISOString().replace(/[:.]/g, "-")}_分屏与独立窗口_${checks.filter((c) => c.ok).length}of${checks.length}`;
 	await writeFile(join(output, name + ".json"), JSON.stringify(checks, null, 2));

@@ -1,4 +1,4 @@
-import type { AppearanceSettings } from "@lyra/core";
+import type { AppearanceSettings } from "@plume/core";
 import { useApp } from "../../store/index.ts";
 
 export type CallChain = NonNullable<AppearanceSettings["callChain"]>;

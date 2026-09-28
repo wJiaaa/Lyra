@@ -146,7 +146,7 @@ async function openFilePanel(): Promise<void> {
 
 test("a file is created, and it is on disk", async () => {
 	const result = await inProject<{ ok: boolean; path?: string }>(
-		`return window.lyra.files.create(P + "/src", "made.ts", "file")`,
+		`return window.plume.files.create(P + "/src", "made.ts", "file")`,
 	);
 	assert.equal(result.ok, true, result.path ?? "create failed");
 	assert.equal(await readFile(join(project, "src", "made.ts"), "utf8"), "");
@@ -154,7 +154,7 @@ test("a file is created, and it is on disk", async () => {
 
 test("the same name twice is refused as a question, not as an error", async () => {
 	const again = await inProject<{ ok: boolean; code?: string }>(
-		`return window.lyra.files.create(P + "/src", "made.ts", "file")`,
+		`return window.plume.files.create(P + "/src", "made.ts", "file")`,
 	);
 	assert.equal(again.ok, false);
 	// `exists` is what the panel keys its replace prompt off; any other code and it would give up.
@@ -163,7 +163,7 @@ test("the same name twice is refused as a question, not as an error", async () =
 
 test("renaming moves the bytes and leaves nothing behind", async () => {
 	const result = await inProject<{ ok: boolean }>(
-		`return window.lyra.files.rename(P + "/src/made.ts", P + "/docs/renamed.ts")`,
+		`return window.plume.files.rename(P + "/src/made.ts", P + "/docs/renamed.ts")`,
 	);
 	assert.equal(result.ok, true);
 	assert.ok(!(await readdir(join(project, "src"))).includes("made.ts"), "the source is gone");
@@ -172,12 +172,12 @@ test("renaming moves the bytes and leaves nothing behind", async () => {
 
 test("a copy keeps both, and a free name is found for the second", async () => {
 	const free = await inProject<{ ok: boolean; path?: string }>(
-		`return window.lyra.files.uniquePath(P + "/src", "main.ts")`,
+		`return window.plume.files.uniquePath(P + "/src", "main.ts")`,
 	);
 	assert.equal(free.path, join(project, "src", "main copy.ts"));
 
 	const copied = await inProject<{ ok: boolean }>(
-		`return window.lyra.files.copy(P + "/src/main.ts", P + "/src/main copy.ts")`,
+		`return window.plume.files.copy(P + "/src/main.ts", P + "/src/main copy.ts")`,
 	);
 	assert.equal(copied.ok, true);
 	const both = await readdir(join(project, "src"));
@@ -186,7 +186,7 @@ test("a copy keeps both, and a free name is found for the second", async () => {
 
 test("a directory cannot be moved inside itself", async () => {
 	const result = await inProject<{ ok: boolean; code?: string }>(
-		`return window.lyra.files.rename(P + "/src", P + "/src/deep/src")`,
+		`return window.plume.files.rename(P + "/src", P + "/src/deep/src")`,
 	);
 	assert.equal(result.ok, false);
 	assert.equal(result.code, "descendant");
@@ -202,8 +202,8 @@ test("`..` cannot walk out of the project, to read or to write", async () => {
 	 */
 	const escaped = await inProject<{ read: unknown; created: { ok: boolean; code?: string } }>(`
 		return {
-			read: await window.lyra.files.read(P + "/../../etc/hosts"),
-			created: await window.lyra.files.create(P + "/..", "escaped.txt", "file"),
+			read: await window.plume.files.read(P + "/../../etc/hosts"),
+			created: await window.plume.files.create(P + "/..", "escaped.txt", "file"),
 		}
 	`);
 	assert.equal(escaped.read, null, "reading outside the project answered with contents");
@@ -214,7 +214,7 @@ test("`..` cannot walk out of the project, to read or to write", async () => {
 
 test("a name the filesystem would refuse is refused with a reason", async () => {
 	const bad = await inProject<{ ok: boolean; code?: string; error?: string }>(
-		`return window.lyra.files.create(P, "a/b", "file")`,
+		`return window.plume.files.create(P, "a/b", "file")`,
 	);
 	assert.equal(bad.ok, false);
 	assert.equal(bad.code, "invalid");
@@ -222,7 +222,7 @@ test("a name the filesystem would refuse is refused with a reason", async () => 
 });
 
 test("permanent delete removes a whole directory", async () => {
-	const result = await inProject<{ ok: boolean }>(`return window.lyra.files.remove([P + "/docs"])`);
+	const result = await inProject<{ ok: boolean }>(`return window.plume.files.remove([P + "/docs"])`);
 	assert.equal(result.ok, true);
 	assert.ok(!(await readdir(project)).includes("docs"));
 });
@@ -231,7 +231,7 @@ test("the clipboard round-trips through the main process", async () => {
 	// The renderer's own `navigator.clipboard.readText` needs a permission nothing grants, so
 	// paste in a context menu depends entirely on this path working in a packaged app.
 	const text = await app.evaluate<string>(
-		`(async () => { await window.lyra.clipboard.write("往返"); return window.lyra.clipboard.read(); })()`,
+		`(async () => { await window.plume.clipboard.write("往返"); return window.plume.clipboard.read(); })()`,
 	);
 	assert.equal(text, "往返");
 });
@@ -373,7 +373,7 @@ test("⌘⌫ asks first, and the answer decides what happens on disk", async () 
 });
 
 test("cut and paste moves a file between folders", async () => {
-	await inProject(`return window.lyra.files.create(P, "elsewhere", "directory")`);
+	await inProject(`return window.plume.files.create(P, "elsewhere", "directory")`);
 	// The folder was made through the API, so the tree has not heard about it yet.
 	await ui(`
 		openMenu(row("/src")); await wait(300);

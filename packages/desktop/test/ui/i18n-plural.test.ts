@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 
 import { ArchivedSettings } from "../../src/features/settings/ArchivedSettings.tsx";
 import { I18nProvider, useI18n, type MessageKey } from "../../src/i18n/index.ts";
@@ -24,7 +24,7 @@ import { mount } from "../helpers/mount.ts";
 
 const usage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 } };
 const archived = (over: Partial<SessionMeta>): SessionMeta => ({
-	id: "a", title: "Refactor", cwd: "/work/lyra", projectId: "lyra", projectName: "lyra",
+	id: "a", title: "Refactor", cwd: "/work/plume", projectId: "plume", projectName: "plume",
 	createdAt: 1, updatedAt: 2, modelId: "", messageCount: 1, seq: 2, usage, archived: true, ...over,
 });
 
@@ -38,7 +38,7 @@ test("the English archive counts one conversation and one message in the singula
 	try {
 		const toggle = view.find("[data-ly-archive-toggle]");
 		assert.equal(toggle.lastElementChild?.textContent, "1 conversation");
-		assert.equal(toggle.getAttribute("aria-label"), "lyra, 1 conversation");
+		assert.equal(toggle.getAttribute("aria-label"), "plume, 1 conversation");
 		assert.equal(view.find("[data-ly-delete-all-archived]").getAttribute("data-ly-tip"), "Delete 1 archived conversation");
 		assert.ok(view.find("[data-ly-archive-row] button > span:last-child").textContent?.endsWith(" · 1 message"));
 
@@ -47,7 +47,7 @@ test("the English archive counts one conversation and one message in the singula
 			useApp.setState({ sessions: [archived({ id: "a", messageCount: 1 }), archived({ id: "b", messageCount: 12, updatedAt: 3 })] });
 		});
 		assert.equal(toggle.lastElementChild?.textContent, "2 conversations");
-		assert.equal(toggle.getAttribute("aria-label"), "lyra, 2 conversations");
+		assert.equal(toggle.getAttribute("aria-label"), "plume, 2 conversations");
 		const rows = view.all("[data-ly-archive-row] button > span:last-child").map((line) => line.textContent ?? "");
 		assert.deepEqual(rows.map((line) => line.slice(line.indexOf(" · "))), [" · 12 messages", " · 1 message"]);
 	} finally {

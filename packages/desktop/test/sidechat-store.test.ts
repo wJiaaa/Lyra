@@ -12,15 +12,15 @@ import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { after, before, test, type TestContext } from "node:test";
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 
 let home = "";
 before(async () => {
-	home = await mkdtemp(join(tmpdir(), "lyra-sidechat-"));
-	process.env.LYRA_HOME = home;
+	home = await mkdtemp(join(tmpdir(), "plume-sidechat-"));
+	process.env.PLUME_HOME = home;
 });
 after(async () => {
-	delete process.env.LYRA_HOME;
+	delete process.env.PLUME_HOME;
 	await rm(home, { recursive: true, force: true });
 });
 

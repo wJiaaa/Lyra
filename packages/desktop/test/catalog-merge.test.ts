@@ -14,14 +14,14 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { McpBundle, McpServerConfig, Plugin, RegistryEntry } from "@lyra/core";
+import type { McpBundle, McpServerConfig, Plugin, RegistryEntry } from "@plume/core";
 
 import { isEnabled, isInstalled, merge } from "../src/features/plugins/catalog.ts";
 
 function plugin(id: string, extra: Partial<Plugin> = {}): Plugin {
 	return {
 		id,
-		dir: `/home/me/.lyra/plugins/${id}`,
+		dir: `/home/me/.plume/plugins/${id}`,
 		manifest: { name: id },
 		source: "user",
 		skills: [],
@@ -31,7 +31,7 @@ function plugin(id: string, extra: Partial<Plugin> = {}): Plugin {
 }
 
 function bundle(id: string, servers: McpServerConfig[]): McpBundle {
-	return { id, dir: `/home/me/.lyra/mcp/${id}`, manifest: { name: id }, source: "user", servers };
+	return { id, dir: `/home/me/.plume/mcp/${id}`, manifest: { name: id }, source: "user", servers };
 }
 
 function server(id: string, extra: Partial<McpServerConfig> = {}): McpServerConfig {
@@ -53,7 +53,7 @@ function entry(id: string, kind: RegistryEntry["kind"]): RegistryEntry {
 test("an installed bundle keeps the kind its contents gave it, whatever the index claims", () => {
 	// Exactly the case in the wild: Context7 is an MCP server, and the index calls it a plugin.
 	const items = merge([], [bundle("context7", [server("context7__c7")])], [], [
-		{ from: "Lyra Plugins", entry: entry("context7", "plugin") },
+		{ from: "Plume Plugins", entry: entry("context7", "plugin") },
 	]);
 
 	assert.equal(items.length, 1, "one thing, not one per source");

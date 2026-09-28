@@ -2,7 +2,7 @@
 /**
  * 点交付卡片上的文件行，悬停预览不能闪一下。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/delivery-hover-click-demo.ts`
  */
 
@@ -15,7 +15,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Lyra交付点击悬停闪烁测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume交付点击悬停闪烁测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const PORT = 9783;
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];
@@ -124,7 +124,7 @@ try {
 
 	await click('[data-ly-row="qa-short"] > button');
 	await app.evaluate(
-		`window.lyra.agent.prompt('qa-short',[{type:'text',text:'改三个文件用来验证点文件不闪悬停预览'}])`,
+		`window.plume.agent.prompt('qa-short',[{type:'text',text:'改三个文件用来验证点文件不闪悬停预览'}])`,
 	);
 	await until(`document.querySelector('[data-turn-delivery]')?.textContent.includes('已编辑 3 个文件')`, 30_000);
 	await app.evaluate(`document.querySelector('[data-turn-delivery]').scrollIntoView({block:'center',behavior:'instant'})`);

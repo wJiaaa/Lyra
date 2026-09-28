@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { createElement as h, useState, type ComponentProps } from "react";
-import { entryKey, type Entry } from "@lyra/core/trajectory-view";
+import { entryKey, type Entry } from "@plume/core/trajectory-view";
 import { TraceTimeline } from "../../src/features/conversation/trajectory/TraceTimeline.tsx";
 import { click, fire, mount, press } from "../helpers/mount.ts";
 

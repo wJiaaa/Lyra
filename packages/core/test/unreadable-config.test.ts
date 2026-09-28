@@ -29,20 +29,20 @@ const BOM = "\uFEFF";
 
 let home: string;
 const made: string[] = [];
-const previous = { home: process.env.LYRA_HOME, userProfile: process.env.USERPROFILE };
+const previous = { home: process.env.PLUME_HOME, userProfile: process.env.USERPROFILE };
 
 beforeEach(async () => {
-	home = await mkdtemp(join(tmpdir(), "lyra-unreadable-"));
+	home = await mkdtemp(join(tmpdir(), "plume-unreadable-"));
 	made.push(home);
-	// Both, because `os.homedir()` reads `USERPROFILE` on Windows; `LYRA_HOME` outranks either.
-	process.env.LYRA_HOME = home;
+	// Both, because `os.homedir()` reads `USERPROFILE` on Windows; `PLUME_HOME` outranks either.
+	process.env.PLUME_HOME = home;
 	process.env.USERPROFILE = home;
 	resetVault();
 });
 
 after(async () => {
-	if (previous.home === undefined) delete process.env.LYRA_HOME;
-	else process.env.LYRA_HOME = previous.home;
+	if (previous.home === undefined) delete process.env.PLUME_HOME;
+	else process.env.PLUME_HOME = previous.home;
 	if (previous.userProfile === undefined) delete process.env.USERPROFILE;
 	else process.env.USERPROFILE = previous.userProfile;
 	await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 })));
@@ -93,7 +93,7 @@ test("a session started on unreadable settings says so in the conversation", asy
 	const settings = await loadSettings();
 
 	const events: AgentEvent[] = [];
-	const cwd = await mkdtemp(join(tmpdir(), "lyra-unreadable-cwd-"));
+	const cwd = await mkdtemp(join(tmpdir(), "plume-unreadable-cwd-"));
 	made.push(cwd);
 	const meta = { id: "s1", projectId: "p", cwd, modelId: "m", title: "", createdAt: 0, updatedAt: 0 } as unknown as SessionMeta;
 	const store = { append: async (m: SessionMeta) => m, create: async () => meta } as unknown as SessionStorage;
@@ -130,7 +130,7 @@ test("a bundle whose manifest and .mcp.json start with a byte-order mark still h
 	assert.equal(mcpBundles[0]?.servers.length, 1);
 });
 
-test("a project's .lyra/config.json that starts with a byte-order mark is still read", async () => {
+test("a project's .plume/config.json that starts with a byte-order mark is still read", async () => {
 	const path = join(home, "project-config.json");
 	await writeFile(path, `${BOM}${JSON.stringify({ defaultModelId: "m-1" })}`, "utf8");
 	const { config, error } = await readConfigFile(path);

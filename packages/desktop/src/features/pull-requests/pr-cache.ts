@@ -22,11 +22,11 @@ import type { PullRequestDetail, PullRequestSummary } from "../../../electron/ip
  * account, and everything done to a pull request afterwards is addressed by account first — a
  * tolerant reader would have meant a list that draws and a detail pane that cannot open.
  */
-const LIST_KEY = "lyra.pull-requests.v3";
+const LIST_KEY = "plume.pull-requests.v3";
 /** v3 → v4: same reason, and the detail extends the row's shape. */
-const DETAIL_KEY = "lyra.pull-request-details.v4";
+const DETAIL_KEY = "plume.pull-request-details.v4";
 /** v1 → v2: keyed by row id, which now includes the account. */
-const SEEN_KEY = "lyra.pull-requests.seen.v2";
+const SEEN_KEY = "plume.pull-requests.seen.v2";
 
 /**
  * Bounded, because a detail carries its description, its reviews and its comment threads, and a

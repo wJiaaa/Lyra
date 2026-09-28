@@ -1,5 +1,5 @@
 import { Bell, BookOpen, Bot, Brain, Circle, FileOutput, FoldVertical, MessageCircle, Settings2, ShieldCheck, Sparkles, Terminal, User, type LucideIcon } from "lucide-react";
-import type { Source } from "@lyra/core/trajectory-view";
+import type { Source } from "@plume/core/trajectory-view";
 
 const icons: Record<Source, LucideIcon> = {
 	system: Settings2, context: BookOpen, user: User, thinking: Brain, assistant: MessageCircle,

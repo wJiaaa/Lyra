@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { before, after, afterEach, test, type TestContext } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
-import type { SessionRecord } from "@lyra/core";
+import type { SessionRecord } from "@plume/core";
 import { zhCN } from "../src/i18n/messages/zh-CN.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { named } from "./named.ts";
@@ -35,12 +35,12 @@ before(async () => { app = await startApp({ port: PORT, seed: async (home) => {
 	}
 	await writeFile(log, records.map(record=>JSON.stringify(record)).join("\n")+"\n");
 } });
-	if (process.env.LYRA_E2E_VIDEO) stopRecording = await startRecording(PORT, recorded);
+	if (process.env.PLUME_E2E_VIDEO) stopRecording = await startRecording(PORT, recorded);
 });
 after(async () => {
 	try {
 		await stopRecording?.();
-		if (process.env.LYRA_E2E_VIDEO && recorded.length) await encode(recorded, process.env.LYRA_E2E_VIDEO, 30);
+		if (process.env.PLUME_E2E_VIDEO && recorded.length) await encode(recorded, process.env.PLUME_E2E_VIDEO, 30);
 	} finally { await app?.stop(); }
 });
 /*
@@ -117,10 +117,10 @@ async function clickDialogAction(text: string) {
 	await clickFound(`(()=>{const row=[...document.querySelectorAll('[data-ly-modal]')].at(-1)?.querySelector('[data-ly-dialog-actions]');if(!row)throw new Error('no open dialog has an action row');const buttons=[...row.querySelectorAll('button')];return buttons.find(e=>e.checkVisibility({visibilityProperty:true})&&${named(text)})??(()=>{throw new Error('the dialog has no '+${JSON.stringify(text)}+' action: '+buttons.map(b=>(b.textContent||'').trim()).join(' | '));})();})()`);
 }
 async function screenshot(name: string) {
-	if (!process.env.LYRA_E2E_ARTIFACTS) return;
-	await mkdir(process.env.LYRA_E2E_ARTIFACTS, {recursive:true});
+	if (!process.env.PLUME_E2E_ARTIFACTS) return;
+	await mkdir(process.env.PLUME_E2E_ARTIFACTS, {recursive:true});
 	const shot = await app.send<{data:string}>("Page.captureScreenshot", {format:"png"});
-	await writeFile(join(process.env.LYRA_E2E_ARTIFACTS, name+".png"), Buffer.from(shot.data,"base64"));
+	await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, name+".png"), Buffer.from(shot.data,"base64"));
 }
 
 async function withTouchViewport(run: () => Promise<void>) {
@@ -244,7 +244,7 @@ test("permission dialog uses grouped capabilities, animates cancel, and restores
 test("project memory is visible in usage and its settings switch stops injection without erasing stored lessons", async (t) => {
 	await app.send("Input.dispatchKeyEvent", {type:"keyDown",key:"Escape",windowsVirtualKeyCode:27});
 	await app.send("Input.dispatchKeyEvent", {type:"keyUp",key:"Escape",windowsVirtualKeyCode:27}); await frames();
-	const before = await app.evaluate<{used:number;projectMemory:string}>(`window.lyra.sessions.contextBreakdown('qa-long')`);
+	const before = await app.evaluate<{used:number;projectMemory:string}>(`window.plume.sessions.contextBreakdown('qa-long')`);
 	assert.match(before.projectMemory,/核对当前仓库/);
 	await click('button:has(svg.lucide-settings)');
 	await until(`[...document.querySelectorAll('nav button')].some(e=>${named("个性化")})`);
@@ -253,15 +253,15 @@ test("project memory is visible in usage and its settings switch stops injection
 	await app.evaluate(`(()=>{const title=[...document.querySelectorAll('[data-view="personalization"] *')].find(e=>e.children.length===0&&e.textContent==='用户记忆');let row=title;while(row&&!row.querySelector('[role="switch"]'))row=row.parentElement;row.querySelector('[role="switch"]').setAttribute('data-user-switch','');})()`);
 	await click('[data-user-switch]');
 	assert.equal(await app.evaluate(`document.querySelector('[data-project-switch]').getAttribute('aria-checked')`),"true");
-	assert.match((await app.evaluate<{projectMemory:string}>(`window.lyra.sessions.contextBreakdown('qa-long')`)).projectMemory, /核对当前仓库/);
+	assert.match((await app.evaluate<{projectMemory:string}>(`window.plume.sessions.contextBreakdown('qa-long')`)).projectMemory, /核对当前仓库/);
 	await click('[data-user-switch]');
 	await click('[data-project-switch]');
 	await until(`document.querySelector('[data-project-switch]').getAttribute('aria-checked') === 'false'`);
-	const after = await app.evaluate<{used:number;projectMemory:string}>(`window.lyra.sessions.contextBreakdown('qa-long')`);
+	const after = await app.evaluate<{used:number;projectMemory:string}>(`window.plume.sessions.contextBreakdown('qa-long')`);
 	assert.equal(after.projectMemory, "");
-	assert.match(await app.evaluate<string>(`window.lyra.projectMemory.list(${JSON.stringify(join(app.home,"project"))}).then(r=>r.extracted.text)`), /核对当前仓库/);
+	assert.match(await app.evaluate<string>(`window.plume.projectMemory.list(${JSON.stringify(join(app.home,"project"))}).then(r=>r.extracted.text)`), /核对当前仓库/);
 	await click('[data-project-switch]'); await frames();
-	assert.match((await app.evaluate<{projectMemory:string}>(`window.lyra.sessions.contextBreakdown('qa-long')`)).projectMemory, /核对当前仓库/);
+	assert.match((await app.evaluate<{projectMemory:string}>(`window.plume.sessions.contextBreakdown('qa-long')`)).projectMemory, /核对当前仓库/);
 	await screenshot("project-memory-settings");t.diagnostic(JSON.stringify({before:before.used,after:after.used}));
 });
 
@@ -270,7 +270,7 @@ test("short touch viewports keep modal actions reachable and reduced motion stil
 	await clickText("返回工作区");
 	await frames();
 	await withTouchViewport(async () => {
-	await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,appearance:{...s.appearance,theme:'dark',reduceMotion:'on'}}))`);
+	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,theme:'dark',reduceMotion:'on'}}))`);
 	await frames();
 	await clickText("帮我批准");
 	await click('[aria-label="权限模式"] button:has(svg.lucide-circle-alert)');
@@ -291,7 +291,7 @@ test("short touch viewports keep modal actions reachable and reduced motion stil
 test("long registry lists scroll inside the dialog and nested confirmation closes independently", async (t) => {
 	await app.send("Emulation.setTouchEmulationEnabled", {enabled:false});
 	await app.send("Emulation.setDeviceMetricsOverride", {width:1200,height:800,deviceScaleFactor:1,mobile:false});
-	await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,skillRegistries:[],pluginRegistries:Array.from({length:20},(_,i)=>'http://127.0.0.1/invalid-test-source-'+i+'/registry.json')}))`);
+	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,skillRegistries:[],pluginRegistries:Array.from({length:20},(_,i)=>'http://127.0.0.1/invalid-test-source-'+i+'/registry.json')}))`);
 	// A missed native click needs its actual hit target; extending the wait cannot explain it.
 	await app.evaluate(`(() => {
 		window.qaRegistryClicks=[]; window.qaRegistryEvents=[];
@@ -322,7 +322,7 @@ test("long registry lists scroll inside the dialog and nested confirmation close
 	await app.send("Input.dispatchKeyEvent", {type:"keyDown",key:"Escape",windowsVirtualKeyCode:27});
 	await app.send("Input.dispatchKeyEvent", {type:"keyUp",key:"Escape",windowsVirtualKeyCode:27});
 	await until(`document.querySelectorAll('[data-ly-modal]').length===1`);
-	assert.equal(await app.evaluate(`window.lyra.settings.get().then(s=>s.pluginRegistries.length)`),20);
+	assert.equal(await app.evaluate(`window.plume.settings.get().then(s=>s.pluginRegistries.length)`),20);
 	await withTouchViewport(async () => {
 	await frames();
 	const narrow = await app.evaluate(`(()=>{const e=document.querySelector('[data-ly-modal]'),r=e.getBoundingClientRect(),s=e.querySelector('.ly-scroll-view');return {x:r.x,right:r.right,bottom:r.bottom,overflow:s.scrollWidth-s.clientWidth,action:getComputedStyle(e.querySelector('.ly-row-action')).opacity,touch:navigator.maxTouchPoints,hover:matchMedia('(hover: hover)').matches};})()`);

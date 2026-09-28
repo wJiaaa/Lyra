@@ -68,7 +68,7 @@ async function key(key: string, code: number) {
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key, windowsVirtualKeyCode: code }); await frames(3);
 }
 async function shot(name: string) {
-	const directory = process.env.LYRA_E2E_ARTIFACTS; if (!directory) return;
+	const directory = process.env.PLUME_E2E_ARTIFACTS; if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const image = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
@@ -167,5 +167,5 @@ test("role and subagent menus share a bounded searchable favourite catalog witho
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
 	await label("返回工作区"); await frames();
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-dock-pane="conversation"]').innerText`), /同名模型/);
-	assert.equal(await app.evaluate(`window.lyra.sessions.list().then(rows=>rows.find(s=>s.id==='qa-long').modelId)`), "p0/m0");
+	assert.equal(await app.evaluate(`window.plume.sessions.list().then(rows=>rows.find(s=>s.id==='qa-long').modelId)`), "p0/m0");
 });

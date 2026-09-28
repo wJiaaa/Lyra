@@ -1,7 +1,7 @@
 /**
  * Web access, end to end: the real app serving, a real Chromium page with no preload loading it.
  *
- * The browser is a second Electron process running a bare window — no preload, so `window.lyra` is
+ * The browser is a second Electron process running a bare window — no preload, so `window.plume` is
  * absent and the renderer has to build it over the network exactly as Safari or Chrome would. That
  * is the whole path the unit tests cannot see: the cookie, the socket, the bridge, the first frame.
  * The first real run of this feature crashed in that first frame (`s.sessions.includes`), with
@@ -98,19 +98,19 @@ before(async () => {
 	// The server is started during boot; wait until it answers rather than guessing how long that is.
 	await until(() => fetch(`http://127.0.0.1:${WEB_PORT}/`).then((res) => res.status), (status) => status === 401, "Web 访问服务没有起来");
 
-	browserHome = await mkdtemp(join(tmpdir(), "lyra-web-browser-"));
+	browserHome = await mkdtemp(join(tmpdir(), "plume-web-browser-"));
 	const main = join(browserHome, "main.cjs");
 	await writeFile(
 		main,
 		`const { app, BrowserWindow } = require("electron");
 app.whenReady().then(() => {
 	const win = new BrowserWindow({ show: false, width: 1280, height: 820 });
-	win.loadURL(process.env.LYRA_WEB_URL);
+	win.loadURL(process.env.PLUME_WEB_URL);
 });`,
 	);
 	const { executable } = electronLaunch();
 	browser = spawn(executable, [main, `--remote-debugging-port=${BROWSER_DEBUG_PORT}`, `--user-data-dir=${join(browserHome, "profile")}`], {
-		env: { ...process.env, LYRA_WEB_URL: `http://127.0.0.1:${WEB_PORT}/?token=${TOKEN}` },
+		env: { ...process.env, PLUME_WEB_URL: `http://127.0.0.1:${WEB_PORT}/?token=${TOKEN}` },
 		stdio: "ignore",
 		detached: process.platform !== "win32",
 	});
@@ -130,12 +130,12 @@ after(async () => {
 	if (browserHome) await rm(browserHome, { recursive: true, force: true });
 });
 
-test("the link trades its token for a cookie, and the page builds window.lyra over the network", async () => {
+test("the link trades its token for a cookie, and the page builds window.plume over the network", async () => {
 	// Waited for exactly, not for "no token": mid-redirect the page reads as `about:blank`.
 	await until(() => inPage<string>("location.href"), (href) => href === `http://127.0.0.1:${WEB_PORT}/`, "地址栏里的令牌没有被去掉");
-	assert.equal(await inPage<string>("window.lyra.host"), "web");
+	assert.equal(await inPage<string>("window.plume.host"), "web");
 	// HttpOnly: the page never holds the secret.
-	assert.doesNotMatch(await inPage<string>("document.cookie"), /lyra_web/);
+	assert.doesNotMatch(await inPage<string>("document.cookie"), /plume_web/);
 });
 
 test("the sidebar lists the desktop's conversations, without the error screen", async () => {
@@ -162,14 +162,14 @@ test("opening a conversation shows its transcript", async () => {
 });
 
 test("a rename on the desktop reaches the browser without a reload", async () => {
-	const projectId = await app.evaluate<string>(`window.lyra.sessions.list().then((all) => all.find((s) => s.id === "qa-long").projectId)`);
-	await app.evaluate(`window.lyra.sessions.rename(${JSON.stringify(projectId)}, "qa-long", "桌面端改的名字")`);
+	const projectId = await app.evaluate<string>(`window.plume.sessions.list().then((all) => all.find((s) => s.id === "qa-long").projectId)`);
+	await app.evaluate(`window.plume.sessions.rename(${JSON.stringify(projectId)}, "qa-long", "桌面端改的名字")`);
 	await until(text, (t) => t.includes("桌面端改的名字"), "改名没有推到浏览器");
 });
 
 test("what the browser may not do is refused without a round trip", async () => {
-	assert.equal(await inPage("window.lyra.settings.save({})"), null);
-	assert.equal(await inPage("window.lyra.terminal.list()"), null);
+	assert.equal(await inPage("window.plume.settings.save({})"), null);
+	assert.equal(await inPage("window.plume.terminal.list()"), null);
 });
 
 test("a turn started in the browser streams to both screens while it is still running", async () => {
@@ -178,7 +178,7 @@ test("a turn started in the browser streams to both screens while it is still ru
 	await app.evaluate(`[...document.querySelectorAll("button")].find((el) => el.textContent?.includes("qa-short"))?.click()`);
 	await until(desktop, (t) => t.includes("qa-short 第 1 个问题"), "桌面端没有打开 qa-short");
 
-	await inPage(`window.lyra.agent.prompt("qa-short", [{ type: "text", text: "从浏览器发的问题" }])`);
+	await inPage(`window.plume.agent.prompt("qa-short", [{ type: "text", text: "从浏览器发的问题" }])`);
 	const midTurn = (t: string) => t.includes("从浏览器发的问题") && t.includes("浏览器那头先看到半句") && !t.includes("然后是整句");
 	await until(text, midTurn, "进行中的回复没有推到浏览器");
 	await until(desktop, midTurn, "浏览器发起的回合没有实时出现在桌面端");

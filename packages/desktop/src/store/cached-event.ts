@@ -1,5 +1,5 @@
 import { translate } from "../i18n/translate.ts";
-import type { AgentEvent } from "@lyra/core";
+import type { AgentEvent } from "@plume/core";
 import { settleTail } from "../lib/transcript.ts";
 import { applyToolEvent } from "./apply-tool.ts";
 import { howItStopped, rebuildToolRuns, todosFrom, type Cache, type CachedSessionState } from "./derive.ts";

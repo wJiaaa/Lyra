@@ -6,7 +6,7 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import type { AgentEvent, AssistantMessage, Message } from "@lyra/core";
+import type { AgentEvent, AssistantMessage, Message } from "@plume/core";
 
 /**
  * Close out a reply the stream never finished.

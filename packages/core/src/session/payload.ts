@@ -19,7 +19,7 @@ import type { Message, UserContent } from "../types.ts";
 export const INLINE_IMAGE_CHARS = 8_000;
 
 export function sessionMediaHome(): string {
-	return join(process.env.LYRA_HOME || join(homedir(), ".lyra"), "session-media");
+	return join(process.env.PLUME_HOME || join(homedir(), ".plume"), "session-media");
 }
 
 export function sessionMediaPath(name: string): string {

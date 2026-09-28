@@ -6,9 +6,9 @@ import { startApp, closeListeningServer, type RunningApp } from "./app.ts";
 import { startRecording, encode, type Frame } from "./record.ts";
 import { issueModel, seedIssues } from "./issues-fixture.ts";
 
-process.env.LYRA_E2E_SLOW_TRANSCRIPT = "450";
+process.env.PLUME_E2E_SLOW_TRANSCRIPT = "450";
 
-const out = join(homedir(), "Desktop", "Lyra未完成问题修复测试");
+const out = join(homedir(), "Desktop", "Plume未完成问题修复测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Singapore" }).replace(/[: ]/g, "-");
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];
 const check = (name: string, ok: boolean, measured: unknown) => {
@@ -140,7 +140,7 @@ try {
 	await mkdir(out, { recursive: true });
 	const pass = checks.filter((item) => item.ok).length;
 	const name = `${stamp}_未完成issue彻底修复_${pass}of${checks.length}`;
-	await writeFile(join(out, `${name}.json`), JSON.stringify({ fixture: "Isolated LYRA_HOME, local SSE model, real Electron window", checks }, null, 2));
+	await writeFile(join(out, `${name}.json`), JSON.stringify({ fixture: "Isolated PLUME_HOME, local SSE model, real Electron window", checks }, null, 2));
 	if (frames.length) await encode(frames, join(out, `${name}.mp4`), 60);
 	console.log(`Evidence: ${join(out, name)} (${frames.length} captured frames)`);
 	if (checks.some((item) => !item.ok)) process.exitCode = 1;

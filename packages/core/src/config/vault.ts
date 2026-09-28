@@ -31,10 +31,10 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { join } from "node:path";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
 
-const KEY_FILE = () => join(lyraHome(), "vault.key");
+const KEY_FILE = () => join(plumeHome(), "vault.key");
 
 /** AES-256-GCM: 32-byte key, 12-byte nonce, 16-byte tag. */
 const KEY_BYTES = 32;
@@ -76,7 +76,7 @@ async function loadOrMakeKey(): Promise<Buffer> {
 	if (existing && existing.length === KEY_BYTES) return (cached = existing);
 
 	const fresh = randomBytes(KEY_BYTES);
-	await mkdir(lyraHome(), { recursive: true });
+	await mkdir(plumeHome(), { recursive: true });
 	await writeFileAtomic(path, fresh, { mode: 0o600 });
 	return (cached = fresh);
 }
@@ -121,7 +121,7 @@ export const isSealed = (value: string): boolean => value.startsWith("v1:");
 // The store the secrets live in
 // ---------------------------------------------------------------------------
 
-const FILE = () => join(lyraHome(), "credentials.json");
+const FILE = () => join(plumeHome(), "credentials.json");
 
 interface VaultFile {
 	version: 1;
@@ -149,7 +149,7 @@ async function read(): Promise<VaultFile> {
 
 async function write(file: VaultFile): Promise<void> {
 	loaded = file;
-	await mkdir(lyraHome(), { recursive: true });
+	await mkdir(plumeHome(), { recursive: true });
 	await writeFileAtomic(FILE(), JSON.stringify(file, null, 2), { mode: 0o600 });
 }
 

@@ -5,7 +5,7 @@
  * column of dots would be a list, not a history.
  */
 
-import { computeDiff } from "@lyra/core";
+import { computeDiff } from "@plume/core";
 import type { GitCommit, WorkspaceDiffFile } from "./ipc-types.ts";
 import { readBlobs, type BlobRead } from "./git-blobs.ts";
 import { git, run, runRemote, MAX_FILES, type RemoteResult } from "./git-exec.ts";

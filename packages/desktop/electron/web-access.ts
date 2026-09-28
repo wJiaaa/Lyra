@@ -12,7 +12,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { SessionStorage, Settings } from "@lyra/core";
+import type { SessionStorage, Settings } from "@plume/core";
 import { workspaceInfo } from "./workspace-info.ts";
 import { applySettings, onSettingsChanged, settings } from "./app-settings.ts";
 import type { WebAccessStatus } from "./ipc-shapes.ts";

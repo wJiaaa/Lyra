@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h } from "react";
-import type { UserMessage as UserMessageType } from "@lyra/core";
+import type { UserMessage as UserMessageType } from "@plume/core";
 import { UserMessage } from "../../src/features/conversation/UserMessage.tsx";
 import { AttachmentStrip } from "../../src/features/composer/attachments/AttachmentStrip.tsx";
 import { provideScope } from "../../src/features/dock/popout.ts";
@@ -29,7 +29,7 @@ const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAA
 
 const calls = { read: [] as string[], openIn: [] as [string, string][], exists: [] as string[] };
 
-Object.defineProperty(window, "lyra", {
+Object.defineProperty(window, "plume", {
 	configurable: true,
 	value: {
 		host: "desktop",

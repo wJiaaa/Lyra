@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { grantArtifactRead, readableArtifact } from "../electron/readable-artifacts.ts";
 test("file access grants only the exact contextual artifact, never its directory or an arbitrary file", async () => {
-	const root=await mkdtemp(join(tmpdir(),"lyra-artifact-access-"));
+	const root=await mkdtemp(join(tmpdir(),"plume-artifact-access-"));
 	try {
 		const memory=join(root,"MEMORY.md"),secret=join(root,"settings.json");await writeFile(memory,"lesson");await writeFile(secret,"private");
 		assert.equal(readableArtifact(memory),null);grantArtifactRead(memory);

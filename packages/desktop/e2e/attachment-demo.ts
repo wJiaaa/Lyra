@@ -73,7 +73,7 @@ async function seed(home: string): Promise<void> {
 			mcpServers: [],
 			projects: [{ id: "e2e", name: "project", path: project, pinned: true, lastOpenedAt: 1 }],
 			// 客户报这件事的截图是浅色的，片子要对得上。
-			appearance: { theme: process.env.LYRA_THEME === "dark" ? "dark" : "light" },
+			appearance: { theme: process.env.PLUME_THEME === "dark" ? "dark" : "light" },
 			defaultModelId: `relay/${MODEL}`, permissionMode: "full", thinking: "high", retryAttempts: 1,
 			hooks: [], scheduledTasks: [], disabledPlugins: [], alwaysAllow: [],
 		}),
@@ -242,14 +242,14 @@ try {
 
 	/* 七、换成英文：句子里那些会翻译的标记跟着改写，文件名不动。 */
 	await grab.evaluate(`(async () => {
-		const settings = await window.lyra.settings.get();
-		await window.lyra.settings.save({ ...settings, uiLocale: "en" });
+		const settings = await window.plume.settings.get();
+		await window.plume.settings.save({ ...settings, uiLocale: "en" });
 		return true;
 	})()`);
 	await film(3000);
 	await grab.evaluate(`(async () => {
-		const settings = await window.lyra.settings.get();
-		await window.lyra.settings.save({ ...settings, uiLocale: "zh-CN" });
+		const settings = await window.plume.settings.get();
+		await window.plume.settings.save({ ...settings, uiLocale: "zh-CN" });
 		return true;
 	})()`);
 	await film(2000);
@@ -288,7 +288,7 @@ try {
 		await film(900);
 	}
 
-	const file = join(out, process.env.LYRA_THEME === "dark" ? "Lyra-附件-暗色.mp4" : "Lyra-附件.mp4");
+	const file = join(out, process.env.PLUME_THEME === "dark" ? "Plume-附件-暗色.mp4" : "Plume-附件.mp4");
 	await encode(frames, file, 30);
 	console.log(`${frames.length} 帧 → ${file}`);
 } finally {

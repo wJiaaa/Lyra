@@ -20,21 +20,21 @@ import { join, relative } from "node:path";
 import { test, type TestContext } from "node:test";
 import { promisify } from "node:util";
 
-import type { RegistryEntry } from "@lyra/registry-shared";
+import type { RegistryEntry } from "@plume/registry-shared";
 
 import { bundleRoot, installEntry, uninstallEntry } from "../src/plugins/registry.ts";
 
 const run = promisify(execFile);
 
 async function withHome(body: (home: string) => Promise<void>): Promise<void> {
-	const home = await mkdtemp(join(tmpdir(), "lyra-replace-"));
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const home = await mkdtemp(join(tmpdir(), "plume-replace-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	try {
 		await body(home);
 	} finally {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 		await rm(home, { recursive: true, force: true });
 	}
 }
@@ -51,7 +51,7 @@ async function commit(repo: string, files: Record<string, string>): Promise<void
 }
 
 async function repo(files: Record<string, string>): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-replace-repo-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-replace-repo-"));
 	await run("git", ["init", "-q", "."], { cwd: dir });
 	await commit(dir, files);
 	return dir;

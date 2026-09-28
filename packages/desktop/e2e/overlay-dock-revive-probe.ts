@@ -3,7 +3,7 @@
 /**
  * The reported bug, end to end, in the real app: capture from elsewhere, cancel, click the dock.
  *
- * "Clicking Lyra in the dock kills every mouse click on the machine, and only Escape gives it back."
+ * "Clicking Plume in the dock kills every mouse click on the machine, and only Escape gives it back."
  * What was behind it was the capture overlay — full-screen, above the menu bar, opaque to the mouse
  * and showing nothing — being left ordered in by a close that hid the application, and restored by
  * macOS along with it. `overlay-dismiss-probe.ts` proves the window-level mechanism in isolation and
@@ -182,7 +182,7 @@ try {
 	await pause(1200);
 	note("• 前台切到 Finder，从外部发起截图");
 
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	const overlay = await overlayTarget();
 	if (!overlay?.webSocketDebuggerUrl) throw new Error("截图浮层没有出现——多半是没有屏幕录制权限");
 	const socket = overlay.webSocketDebuggerUrl;
@@ -241,7 +241,7 @@ try {
 	await execFileAsync("osascript", ["-e", 'tell application "Finder" to activate']);
 	await pause(1200);
 	note("• 再来一次，这回走「完成截图」");
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	await pause(1500);
 	const duringFinish = await overlayWindows(pid);
 	note(`• 浮层已出现 → ${describe(duringFinish)}`);
@@ -249,7 +249,7 @@ try {
 
 	const pixel = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 	await send(socket, "Runtime.evaluate", {
-		expression: `window.lyra.screenshot.finish(${JSON.stringify(pixel)}, { copyToClipboard: false })`,
+		expression: `window.plume.screenshot.finish(${JSON.stringify(pixel)}, { copyToClipboard: false })`,
 		awaitPromise: true,
 	});
 	await pause(1500);

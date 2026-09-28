@@ -68,7 +68,7 @@ async function harness() {
 	// A home of its own, so the assertions are about this test and not about this machine.
 	const home = join(root, "home");
 	await mkdir(home, { recursive: true });
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 	const store = new SessionStore(join(root, "sessions"));
 	const session = new AgentSession({
 		cwd: root,
@@ -87,7 +87,7 @@ async function harness() {
 			return loaded?.meta.title;
 		},
 		cleanup: async () => {
-			delete process.env.LYRA_HOME;
+			delete process.env.PLUME_HOME;
 			await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 		},
 	};

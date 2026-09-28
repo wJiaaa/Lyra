@@ -6,7 +6,7 @@
  * is gone. This checks that the host outlives it, and that the session's own work continues.
  */
 const say = (s = "") => process.stderr.write(s + "\n");
-const B = "/Users/kittors/Developer/opensource/Lyra-tool-quality";
+const B = "/Users/kittors/Developer/opensource/Plume-tool-quality";
 const { ExtensionHost } = await import(`${B}/packages/core/src/extensions/host.ts`);
 const { mkdtemp, mkdir, writeFile } = await import("node:fs/promises");
 const { tmpdir } = await import("node:os");

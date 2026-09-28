@@ -36,7 +36,7 @@ async function runOnce(task: string, withReroute: boolean, modelId: string) {
 	const resolved = resolveModel(settings, modelId);
 	if (!resolved) throw new Error(`Model not found: ${modelId}`);
 
-	const cwd = await mkdtemp(join(tmpdir(), "lyra-reroute-"));
+	const cwd = await mkdtemp(join(tmpdir(), "plume-reroute-"));
 	await mkdir(join(cwd, "src"), { recursive: true });
 	await writeFile(join(cwd, "src", "parser.ts"), "export function parseSettings(raw: string) { return JSON.parse(raw); }\n");
 	await writeFile(join(cwd, "src", "loader.ts"), "import { parseSettings as pc } from './parser.ts';\nexport const load = (s: string) => pc(s);\n");

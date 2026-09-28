@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import type { CommandRun } from "@lyra/core";
+import type { CommandRun } from "@plume/core";
 import { CommandRunRow } from "../../src/features/conversation/CommandRunRow.tsx";
 import { mount } from "../helpers/mount.ts";
 

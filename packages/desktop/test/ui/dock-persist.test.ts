@@ -148,13 +148,13 @@ test("盘上写着一个已经不存在的面板，只丢那一个", () => {
  * 那个槽。面板窗口的寿命本来就独立于主窗口的刷新。
  */
 /**
- * 最小的 `window.lyra` 桩。
+ * 最小的 `window.plume` 桩。
  *
  * `popOutPanel` 在记完「从哪儿走的」之后会去叫主进程开窗口，而那条路在测试环境里不存在——
  * 没有桩就会在记录之后、断言之前抛掉。这里只需要它别抛。
  */
 function stubBridge(): void {
-	(window as unknown as { lyra: unknown }).lyra = {
+	(window as unknown as { plume: unknown }).plume = {
 		windows: { openPanel: async () => ({ ok: true }), closePanel: async () => ({ ok: true }), list: async () => ({ panels: [], sessions: [] }) },
 	};
 }
@@ -195,12 +195,12 @@ test("盘上那份坏了，当作没记录，而不是把收回这件事弄崩",
  * 「没收回就退出」的那一种，照记录放回去就是对的。少任何一条，另一条都会做错事。
  */
 
-/** 能从外面推事件的 `window.lyra` 桩，用来摆「面板窗口来了又走」。 */
+/** 能从外面推事件的 `window.plume` 桩，用来摆「面板窗口来了又走」。 */
 function stubPanelWindows(initial: { kind: string; scope: string }[]): {
 	change: (panels: { kind: string; scope: string }[]) => void;
 } {
 	let changed: ((state: { panels: { kind: string; scope: string }[] }) => void) | null = null;
-	(window as unknown as { lyra: unknown }).lyra = {
+	(window as unknown as { plume: unknown }).plume = {
 		windows: {
 			openPanel: async () => ({ ok: true }),
 			closePanel: async () => ({ ok: true }),

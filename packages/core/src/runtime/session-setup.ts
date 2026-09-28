@@ -21,7 +21,7 @@ import { McpManager, type McpServerStatus } from "../mcp/client.ts";
 import { loadPlugins, type Plugin, type PluginDiagnostic } from "../plugins/loader.ts";
 import { type Skill, type SkillDiagnostic } from "../skills/loader.ts";
 import { registeredSkills } from "../skills/registry.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { builtinTools } from "../tools/index.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
@@ -147,7 +147,7 @@ export interface ShadowedSkill {
  * window the other's.
  */
 function sessionRegistry(plugins: Plugin[]): CapabilityRegistry {
-	const registry = createRegistry({ home: lyraHome(), userHome: homedir() });
+	const registry = createRegistry({ home: plumeHome(), userHome: homedir() });
 	registry.register(
 		pluginProvider(
 			plugins.filter((plugin) => plugin.enabled),
@@ -166,14 +166,14 @@ export async function loadCapabilities(
 ): Promise<LoadedCapabilities> {
 	const loadedPlugins = await loadPlugins(
 		[
-			{ dir: join(cwd, ".lyra", "plugins"), source: "workspace" as const },
-			{ dir: join(lyraHome(), "plugins"), source: "user" as const },
+			{ dir: join(cwd, ".plume", "plugins"), source: "workspace" as const },
+			{ dir: join(plumeHome(), "plugins"), source: "user" as const },
 			/*
 			 * Where MCP bundles live once installed. Read here as well because a bundle is sorted
 			 * by its contents rather than its location — one that predates the split, or was put
 			 * in by hand, is found either way, and only its `origin` cares which directory it is in.
 			 */
-			{ dir: join(lyraHome(), "mcp"), source: "user" as const },
+			{ dir: join(plumeHome(), "mcp"), source: "user" as const },
 		],
 		settings.disabledPlugins,
 	);

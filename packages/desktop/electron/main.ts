@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { app, BrowserWindow, Menu, Notification, powerSaveBlocker, protocol } from "electron";
 import {
 	bootHostKernel,
-	lyraHome,
+	plumeHome,
 	registerDefaultSearchProviders,
 	type HostKernel,
 	migratePreviousHome,
@@ -14,8 +14,8 @@ import {
 	primeCommandPath,
 	type Settings,
 	type SessionStorage,
-} from "@lyra/core";
-import { projectFolders } from "@lyra/core/project-folders";
+} from "@plume/core";
+import { projectFolders } from "@plume/core/project-folders";
 import {
 	browsers,
 	configureHub,
@@ -33,7 +33,7 @@ import { registerFileOpsIpc } from "./ipc/file-ops.ts";
 import { rescueLegacyWorkspaces, scratchRoots } from "./scratch.ts";
 import { resolveWorktreesRoot } from "./git-worktrees.ts";
 import { applySettings, loadAppSettings, onSettingsChanged } from "./app-settings.ts";
-import { loadCachedModelCatalog, MODEL_CATALOG_SYNC_INTERVAL_MS, syncModelCatalog } from "@lyra/core/model-catalog-sync";
+import { loadCachedModelCatalog, MODEL_CATALOG_SYNC_INTERVAL_MS, syncModelCatalog } from "@plume/core/model-catalog-sync";
 import { createKeepAwake, installKeepAwake } from "./keep-awake.ts";
 import { registerServicesIpc } from "./ipc/services.ts";
 import { registerDeliveryIpc } from "./ipc/delivery.ts";
@@ -107,7 +107,7 @@ const spawnPty = lazyPty(
 /*
  * A profile is a whole app, Chromium's half included.
  *
- * `LYRA_HOME` moves everything this app stores — sessions, settings, scratch directories — and
+ * `PLUME_HOME` moves everything this app stores — sessions, settings, scratch directories — and
  * until now Chromium's own directory stayed where it was, shared by every profile on the machine.
  * That was survivable while it only meant a shared `localStorage`; the lock below made it load
  * bearing, because a single-instance lock is keyed on exactly that directory. Two profiles would
@@ -116,19 +116,19 @@ const spawnPty = lazyPty(
  * Only when a home was asked for. Without it nothing moves, so no existing install has its window
  * size, its saved layout or its browser panel's cookies relocated out from under it.
  */
-if (process.env.LYRA_HOME) app.setPath("userData", join(process.env.LYRA_HOME, "chromium"));
-if (process.platform === "win32") app.setAppUserModelId("dev.lyra.app");
+if (process.env.PLUME_HOME) app.setPath("userData", join(process.env.PLUME_HOME, "chromium"));
+if (process.platform === "win32") app.setAppUserModelId("dev.plume.app");
 
 
 /**
- * One Lyra per machine, and every later launch reaches the one that is already running.
+ * One Plume per machine, and every later launch reaches the one that is already running.
  *
  * Closing the window does not quit — that is the point of the status bar item, and it is what made
  * the second launch so easy to reach: the window is gone, so the app looks closed, and opening it
  * again started a *second copy*. On Windows that shows up as a row of identical tray icons, several
  * of which belong to processes nobody can see and which therefore answer no clicks at all.
  *
- * The icons are the visible half. Underneath, two copies share one `~/.lyra`: two schedulers firing
+ * The icons are the visible half. Underneath, two copies share one `~/.plume`: two schedulers firing
  * the same task twice, and two processes appending to the same session log — which is how a
  * transcript ends up interleaved with itself.
  *
@@ -304,7 +304,7 @@ protocol.registerSchemesAsPrivileged([
  */
 useSandboxRunner(join(import.meta.dirname, "sandbox-runner.js"));
 
-app.setName("Lyra");
+app.setName("Plume");
 
 /*
  * Keep painting a window that something is covering.
@@ -313,7 +313,7 @@ app.setName("Lyra");
  * it comes back — which takes a frame. Usually nobody notices. The screenshot overlay makes it
  * conspicuous: it is a full-screen window over the main one, so the main window is judged occluded
  * for the length of the capture, and the moment the overlay goes away it is on screen *blank*
- * before its first repaint lands. That white rectangle appearing and vanishing is the "Lyra flashes
+ * before its first repaint lands. That white rectangle appearing and vanishing is the "Plume flashes
  * for an instant" at the end of every capture, and it gets worse the longer the capture took.
  *
  * The cost is that a covered window keeps drawing. For an app with one window that is a rounding
@@ -425,11 +425,11 @@ app.whenReady().then(async () => {
 	 * was renamed, and to someone who had been using it, a fresh empty one is indistinguishable
 	 * from having lost every session.
 	 */
-	const migration = await migratePreviousHome(lyraHome());
-	if (migration.moved) console.log(`[lyra] 已把 ${migration.from} 迁移到 ${migration.to}`);
-	if (migration.error) console.warn(`[lyra] 旧目录迁移失败：${migration.error}`);
+	const migration = await migratePreviousHome(plumeHome());
+	if (migration.moved) console.log(`[plume] 已把 ${migration.from} 迁移到 ${migration.to}`);
+	if (migration.error) console.warn(`[plume] 旧目录迁移失败：${migration.error}`);
 
-	await mkdir(lyraHome(), { recursive: true });
+	await mkdir(plumeHome(), { recursive: true });
 
 	/*
 	 * Before the sweep below gets to them.
@@ -441,7 +441,7 @@ app.whenReady().then(async () => {
 	 * launch had not yet destroyed, and has to run first for that to mean anything.
 	 */
 	const rescued = await rescueLegacyWorkspaces().catch(() => []);
-	if (rescued.length > 0) console.log(`[lyra] 把 ${rescued.length} 个无项目会话的目录挪到了 workspaces/：${rescued.join("、")}`);
+	if (rescued.length > 0) console.log(`[plume] 把 ${rescued.length} 个无项目会话的目录挪到了 workspaces/：${rescued.join("、")}`);
 
 	/*
 	 * The dock icon, which macOS otherwise takes from the bundle.
@@ -524,7 +524,7 @@ function bindScreenshotShortcut(): void {
 	});
 	// 模型目录：启动后拉一次，之后每小时一次；设置页也能手动更新。目录只是填值的参考，换了不动已有配置。
 	// E2E 关掉自动同步：测试不访问外网，断言的目录值也不能随上游变。
-	if (!process.env.LYRA_E2E_OFFLINE_CATALOG) {
+	if (!process.env.PLUME_E2E_OFFLINE_CATALOG) {
 		void syncModelCatalog();
 		setInterval(() => void syncModelCatalog(), MODEL_CATALOG_SYNC_INTERVAL_MS).unref();
 	}
@@ -586,7 +586,7 @@ function bindScreenshotShortcut(): void {
 	// Clear out sessions that were reserved and never used — including any left over from
 	// when clicking "新对话" created one up front.
 	const pruned = await store.pruneEmpty().catch(() => 0);
-	if (pruned > 0) console.log(`[lyra] 清理了 ${pruned} 个空会话`);
+	if (pruned > 0) console.log(`[plume] 清理了 ${pruned} 个空会话`);
 
 	/*
 	 * Previews outlive nothing. Anything belonging to a conversation that is gone goes with it,
@@ -595,9 +595,9 @@ function bindScreenshotShortcut(): void {
 	 */
 	void store
 		.listSessions()
-		.then((all) => pruneSessionArtifacts(lyraHome(), new Set(all.map((s) => s.id))))
+		.then((all) => pruneSessionArtifacts(plumeHome(), new Set(all.map((s) => s.id))))
 		.then((gone) => {
-			if (gone > 0) console.log(`[lyra] 清理了 ${gone} 个会话的临时文件`);
+			if (gone > 0) console.log(`[plume] 清理了 ${gone} 个会话的临时文件`);
 		})
 		.catch(() => {});
 	registerDefaultSearchProviders(() => settings?.searchApiKeys);
@@ -624,7 +624,7 @@ function bindScreenshotShortcut(): void {
 		notify: (message, level, about) => {
 			const win = getWindow();
 			if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-				// The shape is `SchedulerNotice`; `preload.ts` hands it to `lyra.scheduler.onNotice` as is.
+				// The shape is `SchedulerNotice`; `preload.ts` hands it to `plume.scheduler.onNotice` as is.
 				win.webContents.send("scheduler:notice", { ...about, message, level });
 			}
 		},
@@ -671,7 +671,7 @@ function bindScreenshotShortcut(): void {
 		 * does nothing.
 		 *
 		 * And showing it, not merely checking it exists. A capture puts the main window away for its
-		 * duration — activating the overlay activates Lyra, and macOS raises every window of an
+		 * duration — activating the overlay activates Plume, and macOS raises every window of an
 		 * application it activates, which would park the main window on top of whatever was being
 		 * screenshotted. Without this, the dock icon of an app whose window was hidden that way does
 		 * nothing at all.

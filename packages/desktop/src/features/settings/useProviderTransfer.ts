@@ -12,7 +12,7 @@
  */
 
 import { useState } from "react";
-import type { ProviderConfig } from "@lyra/core";
+import type { ProviderConfig } from "@plume/core";
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useApp } from "../../store/index.ts";

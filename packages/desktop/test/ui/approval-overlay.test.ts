@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h } from "react";
-import type { ApprovalDecision } from "@lyra/core";
+import type { ApprovalDecision } from "@plume/core";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { ApprovalOverlay } from "../../src/features/conversation/ApprovalOverlay.tsx";
 import { PermissionChoices } from "../../src/features/conversation/PermissionChoices.tsx";
@@ -14,7 +14,7 @@ import { click, fire, mount } from "../helpers/mount.ts";
 test("approval bodies preserve full content once and omit whitespace-only reasons", async () => {
 	const previous = useApp.getState();
 	const detail = "第一段需要完整保留。\n" + "长问题与路径 /workspace/very-long-name 需要换行。\n".repeat(50);
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	useApp.setState({ activeSessionId: "owner", approvals: [{ id: "question", kind: "interactive", title: "需要你的意见", reason: detail.replaceAll("\n", "  "), detail, options: ["继续"], allowCustomInput: true }] });
 	const view = await mount(h(LayoutProvider, { children: h(ApprovalOverlay) }));
 	try {
@@ -38,7 +38,7 @@ test("approval bodies preserve full content once and omit whitespace-only reason
 test("a question that can expire shows the time it has left, and one that cannot shows nothing", async (t) => {
 	const previous = useApp.getState();
 	t.mock.timers.enable({ apis: ["setInterval", "Date"], now: 1_000_000 });
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	useApp.setState({ activeSessionId: "owner", approvals: [{ id: "question", kind: "interactive", title: "需要你的意见", detail: "是否立即强制推送到远程？", options: ["确认推送"], expiresAt: 1_000_000 + 90_000 }] });
 	const view = await mount(h(LayoutProvider, { children: h(ApprovalOverlay) }));
 	try {
@@ -66,7 +66,7 @@ test("a question that can expire shows the time it has left, and one that cannot
 test("an escalation card offers no 'stop asking', whichever way its event arrived", async () => {
 	const { cachedEvent } = await import("../../src/store/cached-event.ts");
 	const previous = useApp.getState();
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	const command = { type: "approval_request" as const, requestId: "cmd", toolCallId: "cmd", kind: "bash", title: "清理构建目录", detail: "rm -rf ../build", subject: "rm -rf ../build" };
 	const escalation = {
 		...command, requestId: "esc", toolCallId: "esc", title: "提权运行：清理构建目录",
@@ -231,7 +231,7 @@ test("the recommended chip sits beside the whole copy stack", async () => {
 
 test("folding the card keeps the body mounted and drives the reveal grid", async () => {
 	const previous = useApp.getState();
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	useApp.setState({
 		activeSessionId: "fold",
 		approvals: [{ id: "question", kind: "interactive", title: "需要你的意见", detail: "选一个", options: ["继续"], allowCustomInput: true }],

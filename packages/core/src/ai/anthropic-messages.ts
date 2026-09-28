@@ -1,7 +1,7 @@
 /**
  * Anthropic Messages API adapter.
  *
- * Maps the neutral Lyra message model onto `/v1/messages` with `stream: true`,
+ * Maps the neutral Plume message model onto `/v1/messages` with `stream: true`,
  * including extended thinking and its signature round-trip.
  */
 
@@ -254,7 +254,7 @@ function thinkingParams(adaptive: boolean, effort: string, budget: number | unde
  * `options.temperature` 本来就被挡在思考关闭那条分支里，但紧接着两个 `...samplingParams` 又把它放了
  * 回来——用户在模型上配一个 `samplingParams: {temperature: 0.3}` 再开思考，每一轮都 400。
  *
- * 只摘这三个键，而不是像 oh-my-pi（`anthropic.ts:4088-4095`）那样整个 `samplingParams` 都不发：Lyra
+ * 只摘这三个键，而不是像 oh-my-pi（`anthropic.ts:4088-4095`）那样整个 `samplingParams` 都不发：Plume
  * 的 `samplingParams` 是个「原样合并进请求体」的口子（`types/provider.ts:79`），里面放的不一定是采样
  * 参数，整块扣掉会顺手扣掉别的东西，而没有证据说别的键在开思考时发不出去。
  *

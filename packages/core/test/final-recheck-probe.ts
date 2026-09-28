@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { streamAssistant } from "../src/ai/index.ts";
 import type { AssistantMessage, LlmContext, Message, ModelConfig, ProviderConfig, ToolSpec } from "../src/types.ts";
 
-const HOME = join(homedir(), ".lyra");
+const HOME = join(homedir(), ".plume");
 
 /** 一把带「刁钻 schema」的工具：`minItems`、`pattern`、`format` 都是 Anthropic 白名单会处理的。 */
 const TOOLS: ToolSpec[] = [

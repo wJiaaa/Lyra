@@ -52,7 +52,7 @@ const FIXTURES = {
 	"scan.pdf": `<img src="${BLANK_PNG}" style="width:600px;height:800px">`,
 };
 
-const dir = mkdtempSync(join(tmpdir(), "lyra-fixtures-"));
+const dir = mkdtempSync(join(tmpdir(), "plume-fixtures-"));
 const script = join(dir, "print.cjs");
 const jobs = Object.entries(FIXTURES).map(([name, body]) => ({ target: join(HERE, name), body }));
 

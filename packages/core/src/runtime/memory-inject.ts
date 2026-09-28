@@ -2,7 +2,7 @@
  * What goes into the prompt as memory — and recorded as having gone.
  *
  * Two stores with different scopes and different trust: the user's own preferences from
- * `~/.lyra/memory.json`, and this project's memory (what `learn` wrote, what background
+ * `~/.plume/memory.json`, and this project's memory (what `learn` wrote, what background
  * extraction wrote).
  *
  * 会话内冻结，压缩、撤回、重新载入会话时刷新。以前每轮从磁盘读，理由是 `learn` 在会话中途写文件，

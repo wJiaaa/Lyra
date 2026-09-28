@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Message, UserMessage } from "@lyra/core";
+import type { Message, UserMessage } from "@plume/core";
 import { attachmentBody } from "../src/lib/attachment-placeholders.ts";
 import { draftFromUserMessage, lastUserMessageIndex } from "../src/lib/revert-draft.ts";
 

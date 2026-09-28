@@ -418,7 +418,7 @@ async function focusByMouse(side: Side): Promise<void> {
 /** What the conversation holds on disk, read through the app's own bridge. */
 const onDisk = (side: Side) =>
 	js<string[]>(`(async () => {
-		const snapshot = await window.lyra.sessions.transcript(${JSON.stringify(side.projectId)}, ${JSON.stringify(side.id)});
+		const snapshot = await window.plume.sessions.transcript(${JSON.stringify(side.projectId)}, ${JSON.stringify(side.id)});
 		return (snapshot?.messages ?? []).filter((m) => m.role === 'user').map((m) => (m.displayText ?? m.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ')).slice(0, 60));
 	})()`);
 
@@ -501,7 +501,7 @@ async function sceneSubagent(): Promise<void> {
 		await key("Enter", 13);
 		await until(`document.querySelector('${pane(A)} [data-ly-subagent-bar]')`, 30000, "输入框上方的子智能体条");
 		// Only what the verdict needs: the whole summary carries usage and answers and buries the log.
-		const listed = async () => js<Array<{ description: string; status: string }>>(`window.lyra.subAgents.list(${JSON.stringify(A.id)}).then((list) => list.map((one) => ({ description: one.description, status: one.status })))`);
+		const listed = async () => js<Array<{ description: string; status: string }>>(`window.plume.subAgents.list(${JSON.stringify(A.id)}).then((list) => list.map((one) => ({ description: one.description, status: one.status })))`);
 		const end = Date.now() + 30000;
 		while (!((await listed()).length === SUBS.length && (await listed()).every((one) => one.status !== "running")) && Date.now() < end) await pause(300);
 		await within(`!document.querySelector('${pane(A)} [data-ly-run="running"]')`, 20000);

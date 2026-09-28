@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
 
-import type { ExtensionStats } from "@lyra/core";
+import type { ExtensionStats } from "@plume/core";
 import { ExtensionStatsList, formatMs } from "../../src/features/settings/ExtensionHostSettings.tsx";
 import { mount } from "../helpers/mount.ts";
 
@@ -14,7 +14,7 @@ const PROBE: ExtensionStats = {
 	name: "probe",
 	version: "0.1.0",
 	description: "看着每次工具调用",
-	dir: "/repo/.lyra/extensions/probe",
+	dir: "/repo/.plume/extensions/probe",
 	events: ["tool_call", "turn_end"],
 	intercepts: true,
 	state: "running",

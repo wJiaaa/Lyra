@@ -1,5 +1,5 @@
 /**
- * `window.lyra` over a WebSocket, for a browser opened through Web access.
+ * `window.plume` over a WebSocket, for a browser opened through Web access.
  *
  * The claims: a call goes out as one frame and comes back as its answer; a method the desktop
  * refuses is nothing rather than an error; a method outside `WEB_METHODS` is never sent at all; the
@@ -125,8 +125,8 @@ test("a method outside the allowlist is null, whatever it is called, and is neve
 
 test("in a browser, the sidebar's detached-window list is never replaced by something that is not a list", async () => {
 	const { bridge, api } = harness();
-	const scope = globalThis as { lyra?: unknown };
-	scope.lyra = api;
+	const scope = globalThis as { plume?: unknown };
+	scope.plume = api;
 	try {
 		const { useSessionWindows, watchSessionWindows } = await import("../src/features/split/session-windows.ts");
 		const stop = watchSessionWindows();
@@ -134,7 +134,7 @@ test("in a browser, the sidebar's detached-window list is never replaced by some
 		assert.ok(Array.isArray(useSessionWindows.getState().sessions), "SessionRow calls `.includes` on it every render");
 		stop();
 	} finally {
-		delete scope.lyra;
+		delete scope.plume;
 		bridge.close();
 	}
 });
@@ -234,17 +234,17 @@ test("the viewer's system decides the shortcut glyphs", () => {
 });
 
 test("available(): every method in a window, only the allowlist in a browser, never a typo", () => {
-	const scope = globalThis as { lyra?: unknown };
+	const scope = globalThis as { plume?: unknown };
 	try {
 		assert.equal(onWeb(), false);
 		assert.equal(available("terminal", "open"), true);
 		assert.equal(available("terminal", "nope"), false, "a name the contract does not have exists nowhere");
-		scope.lyra = { host: "web" };
+		scope.plume = { host: "web" };
 		assert.equal(onWeb(), true);
 		assert.equal(available("agent", "prompt"), true);
 		assert.equal(available("terminal", "open"), false);
 		assert.equal(available("settings", "save"), false);
 	} finally {
-		delete scope.lyra;
+		delete scope.plume;
 	}
 });

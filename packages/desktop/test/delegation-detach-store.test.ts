@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { useSubAgents, awaitingSubAgents } from "../src/store/subAgents.ts";
 import { outlivingTurn } from "../src/lib/approval-scope.ts";
 import { deliveredReports, joinDispatches } from "../src/lib/dispatches.ts";
@@ -19,9 +19,9 @@ import { deliveredReports, joinDispatches } from "../src/lib/dispatches.ts";
  * 收尾那一支会顺手去主进程要一次会话列表（侧栏的排序）。这里不测它，但它得有个地方可去，
  * 否则 `bridge` 在断言之前就先抛了。
  */
-const scope = globalThis as { window?: { lyra?: unknown } };
+const scope = globalThis as { window?: { plume?: unknown } };
 scope.window ??= {};
-scope.window.lyra = { sessions: { list: async () => [] } };
+scope.window.plume = { sessions: { list: async () => [] } };
 
 const { applyAgentEvent } = await import("../src/store/apply-event.ts");
 

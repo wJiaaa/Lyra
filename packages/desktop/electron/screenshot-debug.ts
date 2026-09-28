@@ -14,7 +14,7 @@
 
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
-import { lyraHome } from "@lyra/core";
+import { plumeHome } from "@plume/core";
 
 let started = 0;
 let session = 0;
@@ -29,7 +29,7 @@ let seq = 0;
 
 /** The file, so it can be quoted to the user in one piece. */
 function debugLogPath(): string {
-	return join(lyraHome(), "screenshot-debug.log");
+	return join(plumeHome(), "screenshot-debug.log");
 }
 
 export function beginCaptureLog(): void {

@@ -1,4 +1,4 @@
-import { activeModelCatalog } from "@lyra/core/model-catalog";
+import { activeModelCatalog } from "@plume/core/model-catalog";
 import { Boxes, CalendarDays, ChartLine, Layers, RefreshCw } from "lucide-react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useCallback, useEffect, useMemo, useState } from "react";

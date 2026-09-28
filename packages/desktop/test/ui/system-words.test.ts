@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { after, afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h, type ReactNode } from "react";
-import { DEFAULT_SETTINGS, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type Settings } from "@plume/core";
 
 import { GeneralSettings } from "../../src/features/settings/GeneralSettings.tsx";
 import { useDefinitionRemoval } from "../../src/features/settings/useDefinitionRemoval.tsx";
@@ -19,7 +19,7 @@ import { useApp } from "../../src/store/index.ts";
 import { click, mount } from "../helpers/mount.ts";
 
 function host(platform: string, extra: Record<string, unknown> = {}) {
-	Object.defineProperty(window, "lyra", { configurable: true, value: { platform, ...extra } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { platform, ...extra } });
 }
 
 const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
@@ -34,7 +34,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 // The general page starts the update check's never-ending timer; see `settings-platform.test.ts`.

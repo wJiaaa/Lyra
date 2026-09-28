@@ -1,6 +1,6 @@
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import type { SessionActivity } from "@lyra/core/activity";
+import type { SessionActivity } from "@plume/core/activity";
 
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 

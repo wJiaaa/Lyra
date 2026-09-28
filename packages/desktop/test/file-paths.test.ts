@@ -63,12 +63,12 @@ test("the extension starts at the last dot, and a dotfile has none", () => {
 
 test("a home folder is written as ~ wherever the system keeps one", () => {
 	// The plugin page used to abbreviate only macOS's `/Users/<name>`, and showed the rest in full.
-	assert.equal(tildeHome("/Users/me/.lyra/plugins/x"), "~/.lyra/plugins/x");
-	assert.equal(tildeHome("/home/me/.lyra/plugins/x"), "~/.lyra/plugins/x");
-	assert.equal(tildeHome("C:\\Users\\me\\.lyra\\plugins\\x"), "~\\.lyra\\plugins\\x");
+	assert.equal(tildeHome("/Users/me/.plume/plugins/x"), "~/.plume/plugins/x");
+	assert.equal(tildeHome("/home/me/.plume/plugins/x"), "~/.plume/plugins/x");
+	assert.equal(tildeHome("C:\\Users\\me\\.plume\\plugins\\x"), "~\\.plume\\plugins\\x");
 	assert.equal(tildeHome("d:/Users/me/x"), "~/x");
 	assert.equal(tildeHome("/Users/me"), "~");
 	// Only a whole segment: these are not anybody's home.
 	assert.equal(tildeHome("/homework/me/x"), "/homework/me/x");
-	assert.equal(tildeHome("/opt/lyra/plugins/x"), "/opt/lyra/plugins/x");
+	assert.equal(tildeHome("/opt/plume/plugins/x"), "/opt/plume/plugins/x");
 });

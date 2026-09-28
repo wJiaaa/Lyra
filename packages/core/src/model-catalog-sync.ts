@@ -3,7 +3,7 @@
  *
  * 唯一的来源是 pi 的公开目录。桌面主进程启动时先读缓存，之后定时拉一次，设置页也能手动触发。
  * 带上次的 ETag 做条件请求，没变时服务器回 304，不重复下载近 1MB 的原始数据。拉到的内容压成
- * Lyra 用得到的几项、整份校验，比当前的新才换上，并缓存到 `~/.lyra/model-catalog.json`。任何一步
+ * Plume 用得到的几项、整份校验，比当前的新才换上，并缓存到 `~/.plume/model-catalog.json`。任何一步
  * 失败都保持现有目录——打包的快照只在首次启动和离线时兜底。
  */
 
@@ -14,7 +14,7 @@ import { activeModelCatalog, installModelCatalog } from "./model-catalog.ts";
 import { compactPiCatalog, isRecord, MODEL_CATALOG_URL, parseModelCatalog, type ModelCatalogDocument } from "./model-catalog-format.ts";
 
 export { MODEL_CATALOG_URL } from "./model-catalog-format.ts";
-import { lyraHome } from "./session/store.ts";
+import { plumeHome } from "./session/store.ts";
 import { writeFileAtomic } from "./utils/atomic-write.ts";
 
 /** 自动同步的间隔。目录变化以天计，一小时一次足够及时；没变时只是一个 304。 */
@@ -33,7 +33,7 @@ export interface CatalogSyncResult {
 }
 
 function cachePath(): string {
-	return join(lyraHome(), "model-catalog.json");
+	return join(plumeHome(), "model-catalog.json");
 }
 
 async function readCache(): Promise<CachedCatalog | null> {
@@ -66,7 +66,7 @@ export async function syncModelCatalog(
 		// ETag 只在那份缓存正是当前生效的目录时才用：否则一个 304 会让缓存坏掉之后永远拉不到新的。
 		const etag = cached?.document.source.revision === activeModelCatalog().source.revision ? cached.etag : undefined;
 		const response = await (options.fetch ?? globalThis.fetch)(MODEL_CATALOG_URL, {
-			headers: { accept: "application/json", "user-agent": "Lyra", ...(etag ? { "if-none-match": etag } : {}) },
+			headers: { accept: "application/json", "user-agent": "Plume", ...(etag ? { "if-none-match": etag } : {}) },
 			signal: options.signal ?? AbortSignal.timeout(30_000),
 		});
 		if (response.status === 304) return { status: "unchanged", source: activeModelCatalog().source };

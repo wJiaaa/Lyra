@@ -19,7 +19,7 @@ import { strToU8, zipSync } from "fflate";
 
 import { readTool } from "../src/tools/read.ts";
 
-const dir = mkdtempSync(join(tmpdir(), "lyra-read-docs-"));
+const dir = mkdtempSync(join(tmpdir(), "plume-read-docs-"));
 
 /** 工具要的上下文，只给它真正会读的那几项。 */
 const context = () => ({ cwd: dir, state: new Map(), abort: new AbortController().signal }) as never;

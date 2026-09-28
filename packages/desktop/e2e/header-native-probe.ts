@@ -14,8 +14,8 @@ const app = await startApp({ port: 9596, seed: async (home) => {
 	}));
 } });
 try {
-	// A unique native title identifies this isolated window without touching another running Lyra.
-	const title = `Lyra header QA ${Date.now()}`;
+	// A unique native title identifies this isolated window without touching another running Plume.
+	const title = `Plume header QA ${Date.now()}`;
 	await app.evaluate(`document.title = ${JSON.stringify(title)}`);
 	const { stdout } = await exec("osascript", ["-l", "JavaScript", "-e", `
 		ObjC.import('CoreGraphics'); ObjC.import('Foundation');
@@ -29,7 +29,7 @@ try {
 	const path = join(app.home, "native-header.png");
 	await exec("screencapture", ["-x", "-o", "-l", String(ids[0]), path], { timeout: 5_000 });
 	const png = await readFile(path);
-	const dir = process.env.LYRA_E2E_ARTIFACTS;
+	const dir = process.env.PLUME_E2E_ARTIFACTS;
 	if (dir) {
 		await mkdir(dir, { recursive: true });
 		await writeFile(join(dir, "native-header.png"), png);

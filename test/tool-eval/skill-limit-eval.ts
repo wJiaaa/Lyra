@@ -6,7 +6,7 @@
  * model a skill restricted to `read` and a task that plainly wants `bash`.
  */
 const say = (s = "") => process.stderr.write(s + "\n");
-const B = "/Users/kittors/Developer/opensource/Lyra-tool-quality";
+const B = "/Users/kittors/Developer/opensource/Plume-tool-quality";
 
 const { runAgent } = await import(`${B}/packages/core/src/agent/loop.ts`);
 const { loadSettings, resolveModel } = await import(`${B}/packages/core/src/config/settings.ts`);
@@ -37,8 +37,8 @@ const skills = [{
    * reaches for bash should be stopped by the list rather than by the prose.
    */
   content: "你现在按这个技能工作：查看文件内容并汇报你看到了什么。",
-  path: `${cwd}/.lyra/skills/safe-reader/SKILL.md`,
-  dir: `${cwd}/.lyra/skills/safe-reader`,
+  path: `${cwd}/.plume/skills/safe-reader/SKILL.md`,
+  dir: `${cwd}/.plume/skills/safe-reader`,
   source: "workspace" as const,
   allowedTools: ["read"],
   disableModelInvocation: false,

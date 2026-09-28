@@ -86,8 +86,8 @@ async function tiles(): Promise<Tile[]> {
 
 async function panelWindows(): Promise<string[]> {
 	return evaluate<string[]>(`(async () => {
-		if (!window.lyra?.windows?.list) return [];
-		const r = await window.lyra.windows.list();
+		if (!window.plume?.windows?.list) return [];
+		const r = await window.plume.windows.list();
 		return (r.panels || []).map((p) => p.kind + "@" + p.scope);
 	})()`);
 }
@@ -132,10 +132,10 @@ async function closeTerminal(): Promise<void> {
 	await evaluate(`(async () => {
 		const b = [...document.querySelectorAll('button')].find((el) => /关闭终端/.test(el.getAttribute('aria-label') || ''));
 		if (b) b.click();
-		if (window.lyra?.windows?.list && window.lyra?.windows?.closePanel) {
-			const r = await window.lyra.windows.list();
+		if (window.plume?.windows?.list && window.plume?.windows?.closePanel) {
+			const r = await window.plume.windows.list();
 			for (const p of r.panels || []) {
-				if (p.kind === 'terminal') await window.lyra.windows.closePanel({ kind: p.kind, scope: p.scope });
+				if (p.kind === 'terminal') await window.plume.windows.closePanel({ kind: p.kind, scope: p.scope });
 			}
 		}
 		return true;

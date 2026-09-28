@@ -28,7 +28,7 @@ export function pickedFrom(list: FileList | null | undefined): PickedFile[] {
 	/*
 	 * 问桥本身有没有这个方法。
 	 *
-	 * `pathForDrop` 不在契约表（`@lyra/contract` 的 `METHODS`）里——它不是一次 IPC，是 preload 里
+	 * `pathForDrop` 不在契约表（`@plume/contract` 的 `METHODS`）里——它不是一次 IPC，是 preload 里
 	 * 手写的一个同步调用，`webUtils` 只有那儿有。按契约表去问会永远答 false，路径一次都取不到。
 	 *
 	 * 这类判断只有一种可靠问法：那个函数在不在。

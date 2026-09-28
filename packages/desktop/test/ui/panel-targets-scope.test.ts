@@ -22,7 +22,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h, Fragment, type ReactNode } from "react";
 import { Terminal } from "@xterm/xterm";
-import type { Message, SessionMeta, UserMessage as UserMessageType } from "@lyra/core";
+import type { Message, SessionMeta, UserMessage as UserMessageType } from "@plume/core";
 import type { ContextBreakdown, WorkspaceInfo } from "../../electron/ipc-types.ts";
 import type { TurnDelivery } from "../../electron/turn-delivery.ts";
 import type { BrowserCommand, BrowserTab } from "../../shared/browser.ts";
@@ -77,7 +77,7 @@ function parked(id: string, cwd: string): Cache[string] {
 
 /** The paths handed to the window's one open-file store. */
 let opened: string[];
-let lyra: Record<string, unknown>;
+let plume: Record<string, unknown>;
 let previous: {
 	app: AppState;
 	file: ReturnType<typeof useOpenFile.getState>;
@@ -90,8 +90,8 @@ let view: Mounted | undefined;
 beforeEach(() => {
 	opened = [];
 	previous = { app: useApp.getState(), file: useOpenFile.getState(), side: useSide.getState(), terminals: useTerminals.getState(), browser: useBrowser.getState() };
-	lyra = { system: { openTargets: async () => [], pathExists: async () => true } };
-	Object.defineProperty(window, "lyra", { configurable: true, value: lyra });
+	plume = { system: { openTargets: async () => [], pathExists: async () => true } };
+	Object.defineProperty(window, "plume", { configurable: true, value: plume });
 	// 甲 holds the live slot in alpha; 乙, beside it, left the live slot earlier and is parked in beta.
 	useApp.setState({
 		activeSessionId: "a", pendingSessionId: null, meta: meta("a", ALPHA.path, ALPHA.name), messages: said("a"), toolRuns: {}, running: false, stopped: null,
@@ -122,7 +122,7 @@ afterEach(async () => {
 	useTerminals.setState(previous.terminals, true);
 	useBrowser.setState(previous.browser, true);
 	provideScope(() => null);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 /** What sits inside one screen: its dock and its conversation, both named. */
@@ -245,7 +245,7 @@ test("a relative file link on the screen without focus opens that screen's proje
 
 test("a web link on the screen without focus opens in that conversation's browser, in that screen", async () => {
 	const browser = fakeBrowser();
-	lyra.browser = browser.api;
+	plume.browser = browser.api;
 	view = await inWindow(h(BrowserWorkspace), screen("b", h(Markdown, { text: "文档在[这里](https://example.com/docs)" })));
 	await click(view.find('a[href="https://example.com/docs"]'));
 	await settle();
@@ -261,7 +261,7 @@ test("「在终端运行」 on the screen without focus opens the terminal in th
 
 test("「在终端运行」 on the screen without focus runs in that screen's shell, not in the terminal open beside it", async () => {
 	const shells = fakeShells();
-	lyra.terminal = shells.api;
+	plume.terminal = shells.api;
 	// 甲 already has its terminal open and connected; 乙's opens when the button asks for it.
 	usePaneDock.getState().open("a", "terminal");
 	view = await inWindow(screen("a", h(DockedTerminal, { screen: "a" })), screen("b", h(CodeBlock, { lang: "bash", code: "pwd" }), h(DockedTerminal, { screen: "b" })));
@@ -276,7 +276,7 @@ test("「在终端运行」 on the screen without focus runs in that screen's sh
 // What did not change: the screen with focus asking, or nobody naming a screen, and exactly one shell runs it.
 test("with the focus on the screen pressed, or a command that names no screen, the focused terminal runs it once", async () => {
 	const shells = fakeShells();
-	lyra.terminal = shells.api;
+	plume.terminal = shells.api;
 	usePaneDock.getState().open("a", "terminal");
 	usePaneDock.getState().open("b", "terminal");
 	view = await inWindow(screen("a", h(CodeBlock, { lang: "bash", code: "ls" }), h(DockedTerminal, { screen: "a" })), screen("b", h(DockedTerminal, { screen: "b" })));
@@ -295,7 +295,7 @@ test("with the focus on the screen pressed, or a command that names no screen, t
 
 test("when the asking screen cannot take the terminal, the command follows the terminal to the screen that did", async () => {
 	const shells = fakeShells();
-	lyra.terminal = shells.api;
+	plume.terminal = shells.api;
 	usePaneDock.getState().open("a", "terminal");
 	// 丙 is drawn but has not measured itself, so the request falls back to the screen with focus.
 	useApp.setState({ sessions: [...useApp.getState().sessions, meta("c", BETA.path)], sessionCache: { ...useApp.getState().sessionCache, c: parked("c", BETA.path) } });
@@ -308,7 +308,7 @@ test("when the asking screen cannot take the terminal, the command follows the t
 });
 
 test("a file named in a message on the screen without focus opens in that screen", async () => {
-	lyra.files = { mediaUrl: (path: string) => `ly-media://f/${encodeURIComponent(path)}` };
+	plume.files = { mediaUrl: (path: string) => `ly-media://f/${encodeURIComponent(path)}` };
 	const message: UserMessageType = {
 		role: "user",
 		content: [{ type: "text", text: "看看 【notes.md】" }],
@@ -324,7 +324,7 @@ test("a file named in a message on the screen without focus opens in that screen
 
 test("the skill a message used, on the screen without focus, is looked up in that conversation's directory and opens in that screen", async () => {
 	const listed: string[] = [];
-	lyra.commands = {
+	plume.commands = {
 		list: async (cwd: string) => {
 			listed.push(cwd);
 			return { commands: [], agents: [], skills: [{ name: "deploy", description: "", source: "workspace", path: `${cwd}/.claude/skills/deploy/SKILL.md` }] };
@@ -352,16 +352,16 @@ test("the skill a message used, on the screen without focus, is looked up in tha
 test("the delivery card on the screen without focus names files by that project and opens its panes in that screen", async () => {
 	const delivery: TurnDelivery = {
 		files: [{ path: "/work/beta/src/lib.ts", added: 3, removed: 1, hunks: [], changeIds: ["c1"], canUndo: true }],
-		commands: [], serviceJobIds: [], warnings: [], reportPath: "/work/beta/.lyra/report.md",
+		commands: [], serviceJobIds: [], warnings: [], reportPath: "/work/beta/.plume/report.md",
 	};
-	lyra.delivery = { get: async () => delivery };
+	plume.delivery = { get: async () => delivery };
 	view = await inScreen("b", h(TurnDeliveryCard, { timestamp: 2 }));
 	await until(() => view!.all("[data-delivery-file]").length > 0);
 	const row = view.find('[data-delivery-file="/work/beta/src/lib.ts"]');
 	assert.equal((row.textContent ?? "").split("+")[0], "src/lib.ts", "the file was named against the project of the screen with focus");
 
 	await click(buttonText("报告"));
-	assert.deepEqual(opened, ["/work/beta/.lyra/report.md"]);
+	assert.deepEqual(opened, ["/work/beta/.plume/report.md"]);
 	assert.deepEqual(openedIn("file"), { a: false, b: true }, "the report opened beside the conversation with focus");
 	await click(buttonText("审核"));
 	assert.deepEqual(openedIn("delivery"), { a: false, b: true }, "the review opened beside the conversation with focus");
@@ -369,7 +369,7 @@ test("the delivery card on the screen without focus names files by that project 
 
 test("a preview on the screen without focus opens in that conversation's browser, in that screen", async () => {
 	const browser = fakeBrowser();
-	lyra.browser = browser.api;
+	plume.browser = browser.api;
 	view = await inWindow(h(BrowserWorkspace), screen("b", h(PreviewCard, { preview: { id: "p1", sessionId: "b", title: "演示", entry: "index.html" } })));
 	await click(view.find('button[aria-label="在侧栏中打开"]'));
 	await settle();
@@ -386,7 +386,7 @@ test("「在轨迹中查看」 opens the trace in the conversation's own screen,
 
 test("a tool run's raw output and its place in the trace, from the screen without focus, open in that screen", async () => {
 	const exported: string[] = [];
-	lyra.sessions = {
+	plume.sessions = {
 		exportTrajectory: async (_project: string, sessionId: string, format: string) => {
 			exported.push(`${sessionId}:${format}`);
 			return `/tmp/${sessionId}-${format}.txt`;
@@ -406,11 +406,11 @@ test("a tool run's raw output and its place in the trace, from the screen withou
 });
 
 test("exporting from the trace panel of the screen without focus opens the file in that screen", async () => {
-	lyra.sessions = {
+	plume.sessions = {
 		trajectoryChanges: async () => ({ cursor: "b:1", reset: true, upserts: [{ id: "one", seq: 1, ts: 1, source: "request", summary: "请求" }], removals: [] }),
 		exportTrajectory: async (_project: string, sessionId: string, format: string) => `/tmp/${sessionId}.${format}`,
 	};
-	lyra.agent = { onEvent: () => () => {} };
+	plume.agent = { onEvent: () => () => {} };
 	view = await inScreen("b", h(TrajectoryPanel));
 	await settle();
 	await click(view.find('button[aria-label="轨迹操作"]'));
@@ -430,8 +430,8 @@ test("a memory file in the context meter of the screen without focus opens in th
 });
 
 test("taking a queued message to the side chat, on the screen without focus, opens the side chat in that screen", async () => {
-	lyra.commands = { list: async () => ({ commands: [], skills: [], agents: [] }) };
-	lyra.sessions = { contextBreakdown: async () => null, list: async () => [] };
+	plume.commands = { list: async () => ({ commands: [], skills: [], agents: [] }) };
+	plume.sessions = { contextBreakdown: async () => null, list: async () => [] };
 	const asked: Array<string | null> = [];
 	useSide.setState({ ask: async (sessionId) => { asked.push(sessionId); } });
 	useApp.getState().enqueue("b", { content: [{ type: "text", text: "先问问" }], draft: { text: "先问问", attachments: [], sessionRefs: [] }, preview: "先问问" });
@@ -445,8 +445,8 @@ test("taking a queued message to the side chat, on the screen without focus, ope
 
 test("「在终端中打开」 in the file tree of the screen without focus opens that screen's terminal and runs there", async () => {
 	const shells = fakeShells();
-	lyra.terminal = shells.api;
-	lyra.files = { list: async (dir: string) => (dir === BETA.path ? [{ name: "src", path: "/work/beta/src", isDirectory: true, size: 0 }] : []) };
+	plume.terminal = shells.api;
+	plume.files = { list: async (dir: string) => (dir === BETA.path ? [{ name: "src", path: "/work/beta/src", isDirectory: true, size: 0 }] : []) };
 	usePaneDock.getState().open("a", "terminal");
 	const tree = h(FileTree, { roots: [BETA.path], openPath: null, onOpen() {}, onMoved() {}, onRemoved() {} });
 	view = await inWindow(screen("a", h(DockedTerminal, { screen: "a" })), screen("b", tree, h(DockedTerminal, { screen: "b" })));
@@ -469,8 +469,8 @@ function placeMark(host: HTMLElement): { x: number; y: number } {
 }
 
 test("a file marked in the composer of the screen without focus opens in that screen", async () => {
-	lyra.commands = { list: async () => ({ commands: [], skills: [], agents: [] }) };
-	lyra.sessions = { contextBreakdown: async () => null, list: async () => [] };
+	plume.commands = { list: async () => ({ commands: [], skills: [], agents: [] }) };
+	plume.sessions = { contextBreakdown: async () => null, list: async () => [] };
 	// A draft holding a dropped file: where it came from and what its mark says ride along with the body.
 	const notes = { id: "f1", name: "notes.md", mimeType: "text/markdown", text: "# notes", isText: true, path: "/work/beta/notes.md", label: "notes.md" };
 	useApp.setState({ drafts: { b: { text: "看看 【notes.md】", sessionRefs: [], attachments: [notes] } } });
@@ -482,7 +482,7 @@ test("a file marked in the composer of the screen without focus opens in that sc
 });
 
 test("a file marked in the side chat composer of the screen without focus opens in that screen", async () => {
-	lyra.files = { pathForDrop: () => "/work/beta/notes.md" };
+	plume.files = { pathForDrop: () => "/work/beta/notes.md" };
 	view = await inScreen("b", h(SideComposer, { running: false, onSend() {}, onStop() {} }));
 	const drop = new Event("drop", { bubbles: true, cancelable: true });
 	// 一个真的 DataTransfer 该有的都给上：drop 先问是不是文件树拖来的路径（`getData`），再按 `items` 拣出文件夹。

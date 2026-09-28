@@ -15,7 +15,7 @@ import { rename, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-/** What the directory used to be called, before the app became Lyra. */
+/** What the directory used to be called, before the app became Plume. */
 const PREVIOUS = ".deepwise";
 
 export interface MigrationResult {
@@ -28,14 +28,14 @@ export interface MigrationResult {
 }
 
 /**
- * Move `~/.deepwise` to `~/.lyra`, if and only if that is unambiguous.
+ * Move `~/.deepwise` to `~/.plume`, if and only if that is unambiguous.
  *
  * Skipped when the new home already exists — someone has used the renamed app, and merging two
- * histories is not something to attempt without being asked. Skipped when `LYRA_HOME` is set,
+ * histories is not something to attempt without being asked. Skipped when `PLUME_HOME` is set,
  * because then the caller has already said where the data lives.
  */
 export async function migratePreviousHome(home: string): Promise<MigrationResult> {
-	if (process.env.LYRA_HOME) return { moved: false };
+	if (process.env.PLUME_HOME) return { moved: false };
 
 	const previous = join(homedir(), PREVIOUS);
 	if (previous === home) return { moved: false };

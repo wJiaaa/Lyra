@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
-const OUT = process.env.LYRA_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "message-queue");
+const OUT = process.env.PLUME_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "message-queue");
 
 let app: RunningApp;
 let server: Server;
@@ -178,7 +178,7 @@ async function main() {
 	await shot("stopped");
 
 	// 亮色下再看一眼：条只有一圈描边和一层很淡的底，两种主题里它们都得站得住。
-	await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:"light"}})})()`);
+	await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:"light"}})})()`);
 	await until(`document.documentElement.style.colorScheme==='light'&&!document.documentElement.hasAttribute('data-theme-switching')`);
 	await frames();
 	await shot("queued-strip-light", await clipOf("[data-composer-queue]", 12));

@@ -13,7 +13,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "lyra-设置改动");
+const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "plume-设置改动");
 const PORT = 9495;
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AgentDefinitionRecord, ProjectEntry } from "@lyra/core";
+import type { AgentDefinitionRecord, ProjectEntry } from "@plume/core";
 import { bridge } from "../../services/index.ts";
 
 /** `project` 是页面上选中的项目，null 是用户级。 */

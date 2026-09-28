@@ -20,7 +20,7 @@ import type { ToolContext } from "../src/types.ts";
 const FIVE = "alpha\nbravo\ncharlie\ndelta\necho\n";
 
 async function fixture(content = FIVE): Promise<{ dir: string; file: string; ctx: ToolContext }> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-edit-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-edit-"));
 	const file = join(dir, "sample.txt");
 	await writeFile(file, content, "utf8");
 	return { dir, file, ctx: { cwd: dir, sessionId: "t", state: new Map() } };
@@ -289,12 +289,12 @@ test("read and edit work cleanly on explicitly allowed paths outside workspace",
 	 * directory to stand for "outside the workspace" was testing a path that is no longer outside
 	 * anything, and it passed for that reason rather than because the boundary held.
 	 */
-	const externalDir = await mkdtemp(join(homedir(), ".lyra-external-"));
+	const externalDir = await mkdtemp(join(homedir(), ".plume-external-"));
 	const externalFile = join(externalDir, "external.txt");
 	await writeFile(externalFile, FIVE, "utf8");
 	t.after(() => rm(externalDir, { recursive: true, force: true }));
 
-	const workspaceDir = await mkdtemp(join(tmpdir(), "lyra-ws-"));
+	const workspaceDir = await mkdtemp(join(tmpdir(), "plume-ws-"));
 	const ctxWithoutAllowed: ToolContext = {
 		cwd: workspaceDir,
 		sessionId: "t2",
@@ -333,10 +333,10 @@ test("read and edit work cleanly on explicitly allowed paths outside workspace",
 
 test("an attachment does not become a licence to overwrite the file either", async () => {
 	// `write` 和 `edit` 是同一条边界上的两个入口，堵一个不堵另一个等于没堵。
-	const externalDir = await mkdtemp(join(tmpdir(), "lyra-external-"));
+	const externalDir = await mkdtemp(join(tmpdir(), "plume-external-"));
 	const externalFile = join(externalDir, "external.txt");
 	await writeFile(externalFile, FIVE, "utf8");
-	const workspaceDir = await mkdtemp(join(tmpdir(), "lyra-ws-"));
+	const workspaceDir = await mkdtemp(join(tmpdir(), "plume-ws-"));
 	const ctx: ToolContext = { cwd: workspaceDir, sessionId: "t3", state: new Map(), allowedPaths: new Set([externalFile]) };
 
 	// 先读一遍：`write` 对已存在的文件要求先读过，绕开这一步会撞上另一条规则而不是边界本身。
@@ -348,7 +348,7 @@ test("an attachment does not become a licence to overwrite the file either", asy
 });
 
 test("a file just written can be edited in the same turn without a dummy read", async () => {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-write-edit-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-write-edit-"));
 	const ctx: ToolContext = { cwd: dir, sessionId: "write-edit", state: new Map() };
 	const created = await writeTool.execute({ path: "Sample.ts", content: "export const answer = 1;\n" } as never, ctx);
 	assert.equal(created.isError, undefined, created.content[0].type === "text" ? created.content[0].text : "");
@@ -358,7 +358,7 @@ test("a file just written can be edited in the same turn without a dummy read", 
 });
 
 test("the write result hands back the tag, so the patch form works right after writing", async () => {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-write-tag-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-write-tag-"));
 	const ctx: ToolContext = { cwd: dir, sessionId: "write-tag", state: new Map() };
 	const created = await writeTool.execute({ path: "sample.txt", content: FIVE } as never, ctx);
 	const match = /Tag: ([0-9A-F]{4})/.exec(created.content[0].type === "text" ? created.content[0].text : "");

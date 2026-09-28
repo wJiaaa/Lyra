@@ -238,7 +238,7 @@ function get(url: URL, addresses: readonly string[], signal: AbortSignal | undef
 			agent: false,
 			signal,
 			headers: {
-				"user-agent": "Lyra/0.1 (+https://github.com/kittors/Lyra)",
+				"user-agent": "Plume/0.1 (+https://github.com/wJiaaa/Plume)",
 				accept: "text/html,text/plain,*/*",
 				"accept-encoding": "gzip, deflate, br",
 			},

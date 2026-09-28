@@ -1,4 +1,4 @@
-import type { AgentEvent, Message } from "@lyra/core";
+import type { AgentEvent, Message } from "@plume/core";
 import type { AppState } from "./index.ts";
 
 type State = Pick<AppState, "messages" | "pendingUserMessage">;

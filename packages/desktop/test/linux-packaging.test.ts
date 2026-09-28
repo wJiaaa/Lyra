@@ -3,7 +3,7 @@
  *
  * None of these can be seen from a macOS build, and each of them was wrong:
  *
- *   - No `desktopName`, so Electron derived one from the package name — `@lyra/desktop.desktop` —
+ *   - No `desktopName`, so Electron derived one from the package name — `@plume/desktop.desktop` —
  *     and the Wayland app_id matched no installed `.desktop` file: a generic icon in the dock,
  *     windows not grouped under their launcher, and the GlobalShortcuts portal refusing every
  *     binding without a word.
@@ -32,7 +32,7 @@ const builder = parse(readFileSync(join(desktop, "electron-builder.yml"), "utf8"
 };
 
 test("desktopName is set, and names the .desktop file the packages already install", () => {
-	assert.equal(pkg.desktopName, "Lyra.desktop");
+	assert.equal(pkg.desktopName, "Plume.desktop");
 	// electron-builder names the file after `executableName` without it; keeping the two equal means
 	// an existing install's launcher, pinned favourite and autostart entry all keep their file.
 	assert.equal(pkg.desktopName?.replace(/\.desktop$/, ""), builder.executableName);

@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import type { AgentEvent, UiLocale } from "@lyra/core";
+import type { AgentEvent, UiLocale } from "@plume/core";
 import { resolveNativeLocale, setInterfaceLocaleSource, type NativeLocale } from "../electron/i18n.ts";
 import { configureNotify, notifyNeedAssistance, notifyAgentEvent, notifyTaskDone, type NotificationInstance, type WindowLike } from "../electron/notify.ts";
 
@@ -103,7 +103,7 @@ test("notifyTaskDone: shows notification when window is not focused, and sends t
 
 	assert.equal(shown, true, "Notification should be shown");
 	assert.deepEqual(capturedOptions, {
-		title: "Lyra",
+		title: "Plume",
 		body: "「重构登录逻辑」已完成",
 		icon: "/path/to/icon.png",
 		silent: false,
@@ -224,7 +224,7 @@ test("notifyNeedAssistance: shows notification when window is blurred and naviga
 
 	assert.equal(shown, true, "Notification must be shown when window is not focused");
 	assert.deepEqual(capturedOptions, {
-		title: "Lyra",
+		title: "Plume",
 		body: "「重构数据库」等待回复：请选择迁移模式：自动还是手动？",
 		icon: "/path/to/icon.png",
 		silent: false,

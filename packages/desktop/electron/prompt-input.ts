@@ -1,4 +1,4 @@
-import type { UserContent } from "@lyra/core";
+import type { UserContent } from "@plume/core";
 import { noteAttachmentPath } from "./attachment-reads.ts";
 import type { InitialPrompt } from "./create-session.ts";
 

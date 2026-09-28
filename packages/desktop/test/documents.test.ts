@@ -20,7 +20,7 @@ let workbook: string;
 let database: string;
 
 before(async () => {
-	dir = mkdtempSync(join(tmpdir(), "lyra-docs-"));
+	dir = mkdtempSync(join(tmpdir(), "plume-docs-"));
 	workbook = join(dir, "book.xlsx");
 	database = join(dir, "data.sqlite");
 
@@ -165,7 +165,7 @@ test("a file that is not a database is reported, not thrown", async () => {
 test("opening a database is read-only — a preview must not write to it", async () => {
 	// A journal appearing beside a repository because somebody glanced at a file would be a bug
 	// with a very bad name.
-	const before = mkdtempSync(join(tmpdir(), "lyra-ro-"));
+	const before = mkdtempSync(join(tmpdir(), "plume-ro-"));
 	const path = join(before, "ro.sqlite");
 	const { DatabaseSync } = await import("node:sqlite");
 	const seed = new DatabaseSync(path);

@@ -53,16 +53,16 @@ test("an unlisted ephemeral panel stays registered for code to open", () => {
 
 test("a browser through Web access is offered only the panels that declare they work there", () => {
 	const remove = registerPanels([stub("terminal", "终端"), { ...stub("tasks", "任务"), web: true }]);
-	const scope = globalThis as { lyra?: unknown };
+	const scope = globalThis as { plume?: unknown };
 	try {
 		assert.ok(allPanels().some((p) => p.kind === "terminal"), "a window has every panel");
-		scope.lyra = { host: "web" };
+		scope.plume = { host: "web" };
 		const kinds = new Set(allPanels().map((p) => p.kind));
 		assert.ok(kinds.has("tasks"));
 		assert.ok(!kinds.has("terminal"), "a shell has no business in a browser");
 		assert.equal(detachOf("tasks"), "none", "and a browser tab has no second window to move anything into");
 	} finally {
-		delete scope.lyra;
+		delete scope.plume;
 		remove();
 	}
 });

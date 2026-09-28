@@ -64,11 +64,11 @@ function scripted(text: string) {
 before(async () => {
 	home = await mkdtemp(join(tmpdir(), "ly-pass-home-"));
 	project = await mkdtemp(join(tmpdir(), "ly-pass-proj-"));
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 });
 
 after(async () => {
-	delete process.env.LYRA_HOME;
+	delete process.env.PLUME_HOME;
 	await rm(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	await rm(project, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
@@ -115,7 +115,7 @@ test("没有可用模型是单独一种原因", () => {
 // 真的跑一遍
 // ---------------------------------------------------------------------------
 
-/** 一个够老、够长、能成为候选的会话，写进 `LYRA_HOME/sessions/<projectId>/`。 */
+/** 一个够老、够长、能成为候选的会话，写进 `PLUME_HOME/sessions/<projectId>/`。 */
 async function seedSession(cwd: string, id: string, lines: string[], ageMs: number): Promise<void> {
 	const dir = join(home, "sessions", projectIdFor(cwd));
 	await mkdir(dir, { recursive: true });

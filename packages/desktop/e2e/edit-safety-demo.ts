@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { driver, encode, frameGrabber, pause, startRecording, type Frame } from "./record.ts";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Lyra编辑工具测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume编辑工具测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-");
 const port = 9657, session = "edit-safety";
 const original = "alpha\r\nbeta\r\ngamma\r\ndelta";

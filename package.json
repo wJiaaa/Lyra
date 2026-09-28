@@ -1,20 +1,20 @@
 {
-  "name": "lyra",
+  "name": "plume",
   "version": "0.9.21",
   "private": true,
   "type": "module",
-  "description": "Lyra — a fully self-hosted code agent with custom models, tools, skills and MCP. Desktop app built on Electron.",
+  "description": "Plume — a fully self-hosted code agent with custom models, tools, skills and MCP. Desktop app built on Electron.",
   "engines": {
     "node": ">=24",
     "pnpm": ">=11"
   },
   "packageManager": "pnpm@11.9.0",
   "scripts": {
-    "dev": "pnpm --filter @lyra/desktop dev",
+    "dev": "pnpm --filter @plume/desktop dev",
     "cli": "node packages/cli/src/main.ts",
-    "build": "pnpm --filter @lyra/core build && pnpm --filter @lyra/desktop build",
-    "build:core": "pnpm --filter @lyra/core build",
-    "package": "pnpm build && pnpm --filter @lyra/desktop package",
+    "build": "pnpm --filter @plume/core build && pnpm --filter @plume/desktop build",
+    "build:core": "pnpm --filter @plume/core build",
+    "package": "pnpm build && pnpm --filter @plume/desktop package",
     "typecheck": "pnpm -r typecheck",
     "lint": "oxlint --deny-warnings",
     "i18n": "node scripts/check-i18n.mjs",
@@ -24,7 +24,7 @@
     "test:unit": "pnpm -r --no-bail test",
     "check": "pnpm lint && pnpm check:links && pnpm style && pnpm i18n && pnpm typecheck && pnpm arch && pnpm test",
     "prepare": "lefthook install",
-    "test:e2e": "pnpm --filter @lyra/desktop test:e2e",
+    "test:e2e": "pnpm --filter @plume/desktop test:e2e",
     "audit:sessions": "node --experimental-strip-types scripts/session-audit.ts",
     "audit:prune": "node --experimental-strip-types scripts/session-prune-audit.ts",
     "probe:parallel": "node --experimental-strip-types scripts/probe-parallel-calls.ts",
@@ -52,7 +52,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kittors/Lyra.git"
+    "url": "git+https://github.com/wJiaaa/Plume.git"
   },
   "pnpm": {
     "ignoredBuiltDependencies": [

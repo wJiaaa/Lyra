@@ -114,7 +114,7 @@ function processReport(pids: number[]): string {
 }
 
 test("ordinary stop closes a real descendant listener without stopping a sibling session's service", { timeout: 90_000 }, async t => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-owned-services-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-owned-services-"));
 	const ownedState = new Map<string, unknown>(), siblingState = new Map<string, unknown>();
 	const registries = [backgroundJobs(ownedState), backgroundJobs(siblingState)];
 	const started = Date.now();

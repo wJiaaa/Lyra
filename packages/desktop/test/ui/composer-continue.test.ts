@@ -19,7 +19,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import type { AssistantMessage, Message, TodoItem } from "@lyra/core";
+import type { AssistantMessage, Message, TodoItem } from "@plume/core";
 import { Composer } from "../../src/features/composer/Composer.tsx";
 import { ResumeRow } from "../../src/features/conversation/ResumeRow.tsx";
 import { LayoutProvider } from "../../src/app/layout.tsx";
@@ -53,7 +53,7 @@ function todo(status: TodoItem["status"]): TodoItem {
  * has to have somewhere to land.
  */
 function stubBridge() {
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			commands: { list: async () => ({ commands: [], skills: [], agents: [] }) },

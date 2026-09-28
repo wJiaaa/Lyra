@@ -101,7 +101,7 @@ export function treeRows({
 	 * One base opens straight into its contents; several get a row each.
 	 *
 	 * The single case is the overwhelmingly common one and must look exactly as it always has — a
-	 * row saying 「Lyra」 above the contents of Lyra is a level of nesting that tells you nothing.
+	 * row saying 「Plume」 above the contents of Plume is a level of nesting that tells you nothing.
 	 * With several there is no such thing as "the" root, and which folder a file is in is the first
 	 * thing you need to know about it.
 	 */

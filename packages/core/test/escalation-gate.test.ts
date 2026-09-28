@@ -28,7 +28,7 @@ import { assessCommand } from "../src/tools/risk.ts";
 import type { ToolContext, ToolResult } from "../src/types.ts";
 
 /** Judged risky on its own, and harmless even if a broken fake ever let it reach a shell. */
-const RECURSIVE_DELETE = "rm -rf /nonexistent-lyra-escalation-probe";
+const RECURSIVE_DELETE = "rm -rf /nonexistent-plume-escalation-probe";
 
 function immediateExit(): SandboxProcess {
 	let exited: ((code: number | null) => void) | undefined;
@@ -42,7 +42,7 @@ function immediateExit(): SandboxProcess {
  * `alwaysAllow` is what the settings file hands the gate at start-up.
  */
 async function autoSession(t: TestContext, answer: "once" | "always" | "reject", alwaysAllow: string[] = []) {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-esc-gate-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-esc-gate-"));
 	const ran: Array<{ command: string; mode?: SandboxMode }> = [];
 	// oxlint-disable-next-line react-hooks/rules-of-hooks -- `useSandbox` binds the sandbox seam; it is not a React hook
 	useSandbox({

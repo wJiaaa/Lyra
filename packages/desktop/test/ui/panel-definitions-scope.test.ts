@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h } from "react";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import type { WorkspaceInfo } from "../../electron/ipc-types.ts";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { SessionScope } from "../../src/app/session-scope.tsx";
@@ -22,7 +22,7 @@ import { click, mount, type Mounted } from "../helpers/mount.ts";
 
 const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 const ALPHA: WorkspaceInfo = { path: "/work/alpha", name: "alpha-app", isGitRepo: true, branch: "main" };
-const CHAT = "/lyra/workspaces/chat-c";
+const CHAT = "/plume/workspaces/chat-c";
 
 function meta(id: string, cwd: string): SessionMeta {
 	return { id, title: id, cwd, projectId: id, projectName: id, createdAt: 1, updatedAt: 2, modelId: "", messageCount: 2, seq: 3, usage };
@@ -33,10 +33,10 @@ let view: Mounted | undefined;
 
 beforeEach(() => {
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", { configurable: true, value: { workspace: { info: async (path: string) => (path === ALPHA.path ? ALPHA : null) } } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { workspace: { info: async (path: string) => (path === ALPHA.path ? ALPHA : null) } } });
 	useApp.setState({
 		sessions: [meta("a", ALPHA.path), meta("c", CHAT)], sessionCache: {}, workspaceByPath: { [ALPHA.path]: ALPHA },
-		scratchRoots: ["/lyra/workspaces"], settings: null, parkedDraft: null,
+		scratchRoots: ["/plume/workspaces"], settings: null, parkedDraft: null,
 	});
 	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
 	window.localStorage.clear();
@@ -46,7 +46,7 @@ afterEach(async () => {
 	await view?.unmount();
 	view = undefined;
 	useApp.setState(previous, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 /** The live slot on 甲, in its project. */

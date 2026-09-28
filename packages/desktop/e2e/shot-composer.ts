@@ -62,7 +62,7 @@ async function seed(home: string): Promise<void> {
 	);
 }
 
-const out = process.argv[2] ?? "/tmp/lyra-composer";
+const out = process.argv[2] ?? "/tmp/plume-composer";
 const model = startModel();
 const app = await startApp({ port: 9470, seed });
 

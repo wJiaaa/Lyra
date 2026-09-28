@@ -3,7 +3,7 @@
  *
  * `node --experimental-strip-types e2e/settings-preview-probe.ts [dir]`
  *
- *   1. 「Lyra 默认」 is the default, and it leaves the app's own surface alone — a fresh install
+ *   1. 「Plume 默认」 is the default, and it leaves the app's own surface alone — a fresh install
  *      must not repaint itself in somebody else's palette.
  *   3. 代码外观's specimens take typing directly, stay highlighted while they do, and carry one
  *      reset button that does not sit on top of the theme's name.
@@ -13,7 +13,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-preview";
+const dir = process.argv[2] ?? "/tmp/plume-preview";
 
 async function seed(home: string): Promise<void> {
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1320, height: 940, x: 0, y: 0 }));
@@ -90,9 +90,9 @@ try {
 
 	await openSettings("外观");
 	const themeNames = await app.evaluate<string[]>(
-		`[...document.querySelectorAll("button")].map((b) => b.textContent?.trim()).filter((t) => t === "Lyra 默认")`,
+		`[...document.querySelectorAll("button")].map((b) => b.textContent?.trim()).filter((t) => t === "Plume 默认")`,
 	);
-	check("外观页两个下拉都停在「Lyra 默认」上", themeNames.length === 2, `找到 ${themeNames.length} 个`);
+	check("外观页两个下拉都停在「Plume 默认」上", themeNames.length === 2, `找到 ${themeNames.length} 个`);
 
 	/* ---------- 3. 代码外观的预览 ---------- */
 
@@ -110,7 +110,7 @@ try {
 		// The reset lives in the header row beside the theme's name; overlapping means it is
 		// positioned over it instead of laid out next to it.
 		const reset = first?.querySelector('button[aria-label="还原示例内容"]');
-		const label = [...(first?.querySelectorAll("span") ?? [])].find((s) => s.textContent?.trim() === "Lyra 默认");
+		const label = [...(first?.querySelectorAll("span") ?? [])].find((s) => s.textContent?.trim() === "Plume 默认");
 		let overlap = false;
 		if (reset && label) {
 			const a = reset.getBoundingClientRect();
@@ -148,7 +148,7 @@ try {
 		const first = boxes[0];
 		const spans = [...first.querySelectorAll("span[style*=color]")];
 		const reset = first.querySelector('button[aria-label="还原示例内容"]');
-		const label = [...first.querySelectorAll("span")].find((s) => s.textContent?.trim() === "Lyra 默认");
+		const label = [...first.querySelectorAll("span")].find((s) => s.textContent?.trim() === "Plume 默认");
 		let overlap = false;
 		if (reset && label) {
 			const a = reset.getBoundingClientRect();

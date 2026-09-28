@@ -22,7 +22,7 @@ import { registerSearchProvider } from "../search/index.ts";
 import { instantAnswerProvider } from "../search/instant.ts";
 import { BRAVE_PROVIDER_ID, EXA_PROVIDER_ID, keyedSearchProvider, TAVILY_PROVIDER_ID } from "../search/keyed.ts";
 import type { SessionStorage } from "../session/storage.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { useSkillRegistry } from "../skills/registry.ts";
 import { useToolRegistry } from "../tools/index.ts";
 import type { Context } from "./context.ts";
@@ -66,7 +66,7 @@ export async function bootHostKernel(settings: Settings, warn: (message: string)
 	 * skipped — someone else's broken plugin must not be why the host will not start.
 	 */
 	const bundles = await loadPlugins(
-		[{ dir: join(lyraHome(), "plugins"), source: "user" as const }],
+		[{ dir: join(plumeHome(), "plugins"), source: "user" as const }],
 		settings.disabledPlugins,
 	);
 	const extra = await loadCapabilityPlugins(bundles.plugins);
@@ -75,7 +75,7 @@ export async function bootHostKernel(settings: Settings, warn: (message: string)
 	 * A capability that loads and then throws while being applied is as broken as one that does not
 	 * load, and was not covered: the throw came out of `createContext`, before the window existed,
 	 * and the app did not open. Started again without the installed ones — the built-in set is what
-	 * an ordinary Lyra is, and a context that failed halfway is not something to keep building on.
+	 * an ordinary Plume is, and a context that failed halfway is not something to keep building on.
 	 */
 	const context = await createContext([...DEFAULT_PLUGINS, ...extra.plugins]).catch((error: unknown) => {
 		if (extra.plugins.length === 0) throw error;

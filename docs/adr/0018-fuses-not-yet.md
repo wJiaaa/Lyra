@@ -20,7 +20,7 @@ Electron 的 fuses 是编译进二进制的一组开关，用来关掉几条内�
 - electron-builder 确实执行了它——打包日志里有 `executing @electron/fuses`
 - 但打出来的包用 `@electron/fuses` 的 `getCurrentFuseWire` 读回去，八个位**全是关**，包括配成
   `true` 的 `runAsNode`、`enableCookieEncryption`、`enableEmbeddedAsarIntegrityValidation`
-- 与此同时 `ELECTRON_RUN_AS_NODE=1 ./Lyra -e "..."` 仍然能起 Node
+- 与此同时 `ELECTRON_RUN_AS_NODE=1 ./Plume -e "..."` 仍然能起 Node
 
 最后一条是关键：如果 `RunAsNode` 真的被关成了 `false`，那条命令会失败。它没有失败，说明那些位
 根本没写进二进制，读到的「全关」是未初始化的默认值，而不是生效后的状态。

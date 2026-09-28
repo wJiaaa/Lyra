@@ -3,7 +3,7 @@
  *
  * 这件事从前没有地方做。包里的声明带着 `${BRAVE_API_KEY}` 这样的空位，设置页上只有「命令」和
  * 「参数」两个框，env 根本不显示——一个要钥匙的服务装上之后，唯一的办法是去手改
- * `~/.lyra/settings.json`，而改完的钥匙明文躺在那个会被同步、被拷贝、被贴进 issue 的文件里。
+ * `~/.plume/settings.json`，而改完的钥匙明文躺在那个会被同步、被拷贝、被贴进 issue 的文件里。
  *
  * 现在：每一个要填的值一行，写着它是什么、去哪里申请；填完失焦就存，存的时候进保险箱（见 core 的
  * `config/settings.ts`），文件里只留那个空位。登录 shell 里已经 export 过的，这里说一声「已从环境
@@ -13,8 +13,8 @@
  * 另一处存成了明文。
  */
 
-import type { McpNeed, McpServerConfig } from "@lyra/core";
-import { isPlaceholder, looksSecret, needsOf } from "@lyra/core/mcp-placeholders";
+import type { McpNeed, McpServerConfig } from "@plume/core";
+import { isPlaceholder, looksSecret, needsOf } from "@plume/core/mcp-placeholders";
 import { Check, ExternalLink, KeyRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 

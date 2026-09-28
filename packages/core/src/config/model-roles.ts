@@ -19,7 +19,7 @@ import type { Settings } from "./settings.ts";
  *
  * 这个文件是设置页的模型角色那一段要用的，而那段代码跑在渲染器里。`settings.ts` 顶上就是
  * `node:fs`——从它那里导入一个值，会把整条依赖链拉进浏览器包，窗口一片空白。
- * 这也是 `@lyra/core/model-roles` 这个子入口存在的原因：它自己就是浏览器安全的。
+ * 这也是 `@plume/core/model-roles` 这个子入口存在的原因：它自己就是浏览器安全的。
  */
 import { resolveModel } from "./models.ts";
 import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";

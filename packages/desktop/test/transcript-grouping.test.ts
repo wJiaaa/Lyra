@@ -10,8 +10,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { AssistantContent, AssistantMessage, Message, StopReason, ToolCallContent } from "@lyra/core";
-import { emptyUsage } from "@lyra/core";
+import type { AssistantContent, AssistantMessage, Message, StopReason, ToolCallContent } from "@plume/core";
+import { emptyUsage } from "@plume/core";
 
 import { computeTurnStats, runs, runKey, type Run } from "../src/features/conversation/grouping.ts";
 import { CARRY_ON_PROMPTS } from "../src/store/derive.ts";

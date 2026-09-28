@@ -11,8 +11,8 @@
  * 纯逻辑，没有 React：对话里的派发行用它，单测直接喂数据。
  */
 
-import type { DeliveredReport, SubAgentSummary } from "@lyra/core";
-import { RENAMED_AGENTS } from "@lyra/core/agents-builtin";
+import type { DeliveredReport, SubAgentSummary } from "@plume/core";
+import { RENAMED_AGENTS } from "@plume/core/agents-builtin";
 
 /** 一张脸此刻的样子——和 `AgentAvatar` 的表情一一对应（它另外还有一个 `idle`）。 */
 export type DispatchState = "waiting" | "working" | "done" | "failed" | "stopped";

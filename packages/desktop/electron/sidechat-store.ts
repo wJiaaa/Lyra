@@ -2,8 +2,8 @@
 
 import { access, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { DEFAULT_SIDE_CHAT_ID } from "@lyra/contract";
-import { lyraHome, writeFileAtomic, type Message } from "@lyra/core";
+import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
+import { plumeHome, writeFileAtomic, type Message } from "@plume/core";
 
 const writes = new Map<string, Promise<void>>();
 
@@ -16,7 +16,7 @@ function enqueue(path: string, write: () => Promise<void>): Promise<void> {
 }
 
 function dir(): string {
-	return join(lyraHome(), "sidechats");
+	return join(plumeHome(), "sidechats");
 }
 
 /** 界面生成的 id：时间戳加随机数的 base36，按字面排序就是开出来的先后。 */

@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
-const OUT = join(homedir(), "Desktop", "Lyra撤回空会话测试");
+const OUT = join(homedir(), "Desktop", "Plume撤回空会话测试");
 const ONLY_MESSAGE = "你可以看看 /Users/kittors/Documents/国网项目开发 这里面有啥吗？";
 /** 计划里正在做的那一步，浮在转录右上角的那张卡片上写的就是它。 */
 const PLAN_STEP = "看过那个目录里的三个子项目";

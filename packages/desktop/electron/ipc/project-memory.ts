@@ -25,7 +25,7 @@ import {
 	runMemoryPass,
 	shouldRunPass,
 	type SessionStorage,
-} from "@lyra/core";
+} from "@plume/core";
 import { settings } from "../app-settings.ts";
 
 export interface ProjectMemoryIpcDeps {
@@ -54,7 +54,7 @@ export function registerProjectMemoryIpc({ store }: ProjectMemoryIpcDeps): void 
 	 * 忘掉一条，或者忘掉抽取出来的那一份。
 	 *
 	 * 这里的每一条都会被注入这个项目的每一次请求。一条错的记忆不是碍眼，是一句对模型永远重复
-	 * 的指示——在这之前，撤回它的唯一办法是自己去 `~/.lyra/projects` 底下翻那个项目的记忆目录。
+	 * 的指示——在这之前，撤回它的唯一办法是自己去 `~/.plume/projects` 底下翻那个项目的记忆目录。
 	 */
 	ipcMain.handle("memory:projectForget", async (_event, cwd: string, at: number) => forgetLesson(cwd, at));
 

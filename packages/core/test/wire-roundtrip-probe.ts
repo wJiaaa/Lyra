@@ -20,7 +20,7 @@ import { join } from "node:path";
 import { streamAssistant } from "../src/ai/index.ts";
 import type { AssistantMessage, LlmContext, Message, ModelConfig, ProviderConfig, ToolSpec } from "../src/types.ts";
 
-const HOME = join(homedir(), ".lyra");
+const HOME = join(homedir(), ".plume");
 const FILTER = process.argv[2] ?? "";
 
 const TOOLS: ToolSpec[] = [{

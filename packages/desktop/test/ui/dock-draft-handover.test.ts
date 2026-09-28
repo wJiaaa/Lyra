@@ -26,7 +26,7 @@ function screen(scope: string) {
 let unregister: () => void = () => {};
 
 beforeEach(() => {
-	Object.defineProperty(window, "lyra", { configurable: true, value: { platform: "darwin" } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin" } });
 	window.localStorage.clear();
 	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
 	useApp.setState({ draftBecame: null });
@@ -39,7 +39,7 @@ beforeEach(() => {
 afterEach(() => {
 	unregister();
 	useApp.setState({ draftBecame: null });
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 test("sending a blank conversation keeps the panels it was arranged with, on the same screen", async () => {

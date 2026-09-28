@@ -43,7 +43,7 @@ const CWD = "/tmp/ws" === tmpdir() ? "/workspace" : join(tmpdir(), "..", "not-a-
  * 家目录本身就是个仓库（放 dotfiles 的那种）——不设天花板，git 会一路往上找到它，把人家暂存着的
  * 改动提交掉。
  */
-const HOME = await mkdtemp(join(homedir(), ".lyra-read-access-home-"));
+const HOME = await mkdtemp(join(homedir(), ".plume-read-access-home-"));
 const borrowed = ["HOME", "USERPROFILE", "GIT_CEILING_DIRECTORIES"] as const;
 const saved = new Map(borrowed.map((key) => [key, process.env[key]]));
 for (const key of borrowed) process.env[key] = HOME;
@@ -60,8 +60,8 @@ if (home() !== HOME) {
 }
 
 /** A workspace that is not under a temp root, because temp roots are readable by design. */
-const WS = join(HOME, ".lyra-test-ws");
-const OUTSIDE = join(HOME, ".lyra-test-outside");
+const WS = join(HOME, ".plume-test-ws");
+const OUTSIDE = join(HOME, ".plume-test-outside");
 
 /**
  * A path as a model writes it for bash, which is the shell commands run in on Windows too (Git Bash).
@@ -105,7 +105,7 @@ function readsAsked(seen: ApprovalRequest[]): ApprovalRequest[] {
  * would make every "outside" path in these tests readable and the assertions vacuous.
  */
 async function workspace(t: { after(fn: () => unknown): void }): Promise<string> {
-	const dir = await mkdtemp(join(HOME, ".lyra-test-ws-"));
+	const dir = await mkdtemp(join(HOME, ".plume-test-ws-"));
 	t.after(() => rm(dir, { recursive: true, force: true }));
 	return dir;
 }
@@ -135,8 +135,8 @@ test("anything else outside the workspace is a question, granted as a tree", () 
 test("a credential is a question wherever it lives, and is granted as itself", () => {
 	for (const path of [
 		join(HOME, ".ssh/id_ed25519"),
-		join(HOME, ".lyra/vault.key"),
-		join(HOME, ".lyra/credentials.json"),
+		join(HOME, ".plume/vault.key"),
+		join(HOME, ".plume/credentials.json"),
 		join(HOME, ".aws/credentials"),
 		join(HOME, ".netrc"),
 	]) {
@@ -167,21 +167,21 @@ test("a file the user attached is theirs to have attached", () => {
 });
 
 test("installed skill files are readable only when the caller opted in", () => {
-	const home = join(HOME, ".lyra");
+	const home = join(HOME, ".plume");
 	const loose = join(home, "skills/check/SKILL.md");
 	const plugin = join(home, "plugins/waza/skills/check/references/modes.md");
 	for (const path of [loose, plugin]) {
-		assert.equal(assessRead(path, WS, { lyraHomeDir: home, allowSkillReads: true }).decision, "allow", path);
-		assert.equal(assessRead(path, WS, { lyraHomeDir: home }).decision, "ask", path);
+		assert.equal(assessRead(path, WS, { plumeHomeDir: home, allowSkillReads: true }).decision, "allow", path);
+		assert.equal(assessRead(path, WS, { plumeHomeDir: home }).decision, "ask", path);
 	}
 	// Settings and transcripts stay shut either way.
-	assert.equal(assessRead(join(home, "settings.json"), WS, { lyraHomeDir: home, allowSkillReads: true }).decision, "ask");
+	assert.equal(assessRead(join(home, "settings.json"), WS, { plumeHomeDir: home, allowSkillReads: true }).decision, "ask");
 });
 
 // ---------------------------------------------------------------- what a grant covers
 
 test("a grant walks up to the repository, so approving once covers the project", async (t) => {
-	const repo = await mkdtemp(join(HOME, ".lyra-test-repo-"));
+	const repo = await mkdtemp(join(HOME, ".plume-test-repo-"));
 	t.after(() => rm(repo, { recursive: true, force: true }));
 	await mkdir(join(repo, ".git"), { recursive: true });
 	await mkdir(join(repo, "src/deep/deeper"), { recursive: true });
@@ -298,7 +298,7 @@ test("a credential read through bash asks, despite the read-only table", async (
 
 test("the file tool and the shell now give the same answer for the same path", async (t) => {
 	const ws = await workspace(t);
-	const outside = await mkdtemp(join(HOME, ".lyra-test-outside-"));
+	const outside = await mkdtemp(join(HOME, ".plume-test-outside-"));
 	t.after(() => rm(outside, { recursive: true, force: true }));
 	const file = join(outside, "secret.txt");
 	await writeFile(file, "SECRET_FROM_OTHER_PROJECT\n", "utf8");
@@ -320,7 +320,7 @@ test("the file tool and the shell now give the same answer for the same path", a
 
 test("one question per grant, not per path", async (t) => {
 	const ws = await workspace(t);
-	const outside = await mkdtemp(join(HOME, ".lyra-test-multi-"));
+	const outside = await mkdtemp(join(HOME, ".plume-test-multi-"));
 	t.after(() => rm(outside, { recursive: true, force: true }));
 	await writeFile(join(outside, "a.txt"), "a", "utf8");
 	await writeFile(join(outside, "b.txt"), "b", "utf8");
@@ -333,7 +333,7 @@ test("one question per grant, not per path", async (t) => {
 // ---------------------------------------------------------------- every reading tool, same door
 
 test("ls, grep and glob are judged the same way read is", async (t) => {
-	const outside = await mkdtemp(join(HOME, ".lyra-test-tools-"));
+	const outside = await mkdtemp(join(HOME, ".plume-test-tools-"));
 	t.after(() => rm(outside, { recursive: true, force: true }));
 	await writeFile(join(outside, "app.ts"), "const needle = 1;\n", "utf8");
 
@@ -355,7 +355,7 @@ test("ls, grep and glob are judged the same way read is", async (t) => {
 test("a link inside the workspace that points outside is judged where it points, by every tool", { skip: process.platform === "win32" }, async (t) => {
 	// 以前只有 read 解析链接；grep/ls/glob/cat 按字面路径判，链接在工作区里就当成工作区。
 	const ws = await workspace(t);
-	const outside = await mkdtemp(join(HOME, ".lyra-test-linked-"));
+	const outside = await mkdtemp(join(HOME, ".plume-test-linked-"));
 	t.after(() => rm(outside, { recursive: true, force: true }));
 	await writeFile(join(outside, "app.ts"), "const needle = 1;\n", "utf8");
 	await symlink(outside, join(ws, "link"));
@@ -387,7 +387,7 @@ test("with nobody to ask, the boundary holds rather than opens", async (t) => {
 	 * A host with no approval channel — the CLI, a test, a sub-agent given no way to ask — has not
 	 * been given permission by anyone. ADR-0004 already settled which way that fails.
 	 */
-	const outside = await mkdtemp(join(HOME, ".lyra-test-noask-"));
+	const outside = await mkdtemp(join(HOME, ".plume-test-noask-"));
 	t.after(() => rm(outside, { recursive: true, force: true }));
 	const file = join(outside, "x.txt");
 	await writeFile(file, "nope", "utf8");
@@ -446,7 +446,7 @@ test("a path that is not there is not worth a question", async () => {
 	 * costs a prompt, and the tool's own "not found" is the honest answer.
 	 */
 	const approvals = { decisions: [] as never[], seen: [] as ApprovalRequest[] };
-	const result = await readTool.execute({ path: join(HOME, ".lyra-test-absent-xyz/nope.txt") } as never, ctxFor(WS, approvals));
+	const result = await readTool.execute({ path: join(HOME, ".plume-test-absent-xyz/nope.txt") } as never, ctxFor(WS, approvals));
 	assert.equal(approvals.seen.length, 0);
 	assert.equal(result.isError, true);
 	assert.match(textOf(result), /File not found/);
@@ -481,10 +481,10 @@ test("a credential is asked about even where the path does not seem to exist", a
 	 * real key look absent, and absent was a reason not to ask. For a key, it no longer is.
 	 */
 	const ctx: ToolContext = { cwd: WS, sessionId: "t", state: new Map() };
-	const refusal = await authorizeCommandReads(`cat ${sh(join(HOME, ".ssh", `id_lyra_absent_${process.pid}`))}`, ctx);
+	const refusal = await authorizeCommandReads(`cat ${sh(join(HOME, ".ssh", `id_plume_absent_${process.pid}`))}`, ctx);
 	assert.ok(refusal, "a credential path must be put to a person, and there is none here");
 	// An ordinary path that does not exist is still not a question.
-	assert.equal(await authorizeCommandReads(`cat ${sh(join(HOME, `lyra-absent-${process.pid}.txt`))}`, ctx), null);
+	assert.equal(await authorizeCommandReads(`cat ${sh(join(HOME, `plume-absent-${process.pid}.txt`))}`, ctx), null);
 });
 
 test("a path spelled with backslashes is the path bash opens", () => {
@@ -511,7 +511,7 @@ test("a workspace reached through a link is still the workspace, for read as wel
 	// 工作区本身在链接后面时，解析后的路径不以 cwd 字面开头；不能因此把自己的项目当成外面去问。
 	const real = await workspace(t);
 	await writeFile(join(real, "a.txt"), "inside\n", "utf8");
-	const alias = join(HOME, `.lyra-test-alias-${Date.now()}`);
+	const alias = join(HOME, `.plume-test-alias-${Date.now()}`);
 	await symlink(real, alias);
 	t.after(() => rm(alias, { force: true }));
 	const approvals = { decisions: [] as never[], seen: [] as ApprovalRequest[] };

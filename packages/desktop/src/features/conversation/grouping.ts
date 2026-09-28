@@ -12,7 +12,7 @@
  */
 
 import { isNudge } from "../../lib/spoken.ts";
-import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@lyra/core";
+import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@plume/core";
 import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
 import { intact } from "../../lib/transcript.ts";

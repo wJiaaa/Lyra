@@ -2,7 +2,7 @@
 /**
  * 分屏地板、窗口停靠、格内停靠：窗口里已打开的终端仍在格子外可拖；从某一格打开的面板只留在那一格。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/session-split-floor-demo.ts`
  */
 
@@ -16,7 +16,7 @@ import { encode, pause, startRecording, type Frame } from "./record.ts";
 import { SCREEN_MIN_HEIGHT_PX, SCREEN_MIN_WIDTH_PX } from "../src/features/split/geometry.ts";
 import { PANEL_MIN_WIDTH_PX } from "../src/features/dock/geometry.ts";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Lyra分屏地板测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume分屏地板测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const PORT = 9793;
 const IDS = ["floor-a", "floor-b", "floor-c", "floor-d", "floor-e"] as const;

@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, RefObject } from "react";
 
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 /*
  * 「哪几条是人自己打的」在 `lib/spoken.ts`：从前走对话域的大门去拿，而这个 hook 如今是输入框域对外
  * 的东西（侧边聊天、子智能体也用），经大门去引对话域就连成了「输入框 → 对话 → 输入框」的环。

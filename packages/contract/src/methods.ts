@@ -20,7 +20,7 @@ export interface Method {
 /**
  * The methods, by group.
  *
- * Grouped the way `window.lyra` is grouped, so a reader can hold one subject at a time. Within a
+ * Grouped the way `window.plume` is grouped, so a reader can hold one subject at a time. Within a
  * group the order is the order they appear in the preload, which is roughly the order they were
  * written.
  */
@@ -309,7 +309,7 @@ export const METHODS = {
 	 *
 	 * 不是不一致。channel 的形状是 `域:动作`，而域必须是一个小写词——`methods.test.ts` 在管这件
 	 * 事，它的注释写得很好：「已知的一处例外」和「随便怎么写都行」是两回事。而项目记忆和用户
-	 * 偏好记忆读写的是不同的地方、有各自的开关，在 `window.lyra` 上分开才说得清。
+	 * 偏好记忆读写的是不同的地方、有各自的开关，在 `window.plume` 上分开才说得清。
 	 *
 	 * 于是域共用、动作带前缀。这条测试是在 `git push` 的钩子里抓到我的——它值这个位置。
 	 */

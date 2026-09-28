@@ -19,7 +19,7 @@ const layout = (panelLayout: "tabs" | "split") => useApp.setState({ settings: { 
 const previousSettings = useApp.getState().settings;
 
 beforeEach(() => {
-	Reflect.set(window, "lyra", { files: { read: async (path: string) => ({ text: path, truncated: false }) } });
+	Reflect.set(window, "plume", { files: { read: async (path: string) => ({ text: path, truncated: false }) } });
 	window.localStorage.clear();
 	useOpenFile.getState().clear();
 	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
@@ -30,7 +30,7 @@ beforeEach(() => {
 afterEach(() => {
 	useApp.setState({ settings: previousSettings });
 	provideScope(() => null);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 test("标签页：一个文件一个标签，开过的切回去，不重复开", async () => {

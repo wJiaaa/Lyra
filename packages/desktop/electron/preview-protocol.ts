@@ -10,10 +10,10 @@
 import { readFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { lyraHome, previewsHome } from "@lyra/core";
+import { plumeHome, previewsHome } from "@plume/core";
 import { nativeImage, net, protocol, session } from "electron";
 import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "../shared/session-image.ts";
-import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@lyra/core";
+import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@plume/core";
 import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
 import { attachmentFile } from "./attachment-reads.ts";
 
@@ -287,7 +287,7 @@ export function registerPreviewProtocols(options: {
 	// `ly-preview://<sessionId>/<previewId>/<file>`, resolved against the previews directory.
 	const servePreview = async (request: Request): Promise<Response> => {
 		const url = new URL(request.url);
-		const root = previewsHome(lyraHome());
+		const root = previewsHome(plumeHome());
 		const target = resolve(root, url.hostname, decodeURIComponent(url.pathname).replace(/^\//, ""));
 		if (target !== root && !target.startsWith(root + sep)) return new Response("forbidden", { status: 403 });
 		const body = await readFile(target).catch(() => null);

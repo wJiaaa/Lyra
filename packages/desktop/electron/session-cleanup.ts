@@ -1,7 +1,7 @@
 /**
  * 会话记录占了多少地方，以及怎么把一段时间的删掉。
  *
- * 用量页上的每一个数字都是现算的——扫一遍 `~/.lyra/sessions` 下的日志，把里面的 token 加起来。
+ * 用量页上的每一个数字都是现算的——扫一遍 `~/.plume/sessions` 下的日志，把里面的 token 加起来。
  * 所以「清除统计数据」没有一个单独的东西可以清：**要让那些数字消失，只能删掉产生它们的会话**，
  * 而那些会话就是聊天记录本身。这个模块存在的第一个理由，就是把这件事说清楚，而不是让一个叫
  * 「清除统计」的按钮悄悄删掉半年的对话。
@@ -13,7 +13,7 @@
 
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { lyraHome, removeSessionArtifacts, type SessionMeta, type SessionStorage } from "@lyra/core";
+import { plumeHome, removeSessionArtifacts, type SessionMeta, type SessionStorage } from "@plume/core";
 
 /** 本地日期键，和用量页、扫描器用的是同一个口径——不是 ISO/UTC。 */
 function dayKey(ms: number): string {
@@ -86,12 +86,12 @@ async function sizeOf(home: string, meta: Pick<SessionMeta, "projectId" | "id">)
 /**
  * 会话日志一共占多少。
  *
- * 数的是 `sessions/` 下的 `.jsonl`，不是整个 `~/.lyra`——因为这正是下面那个删除动作能收回来的
+ * 数的是 `sessions/` 下的 `.jsonl`，不是整个 `~/.plume`——因为这正是下面那个删除动作能收回来的
  * 部分。索引、缓存、插件目录都不归它管，把它们算进来会让「删了却没少多少」变成常态。
  *
  * 走目录而不是走索引：一个索引里没有的孤儿日志照样占着盘，而它恰恰是最该被数出来的那种。
  */
-export async function storageUse(store: SessionStorage, home = lyraHome()): Promise<StorageUse> {
+export async function storageUse(store: SessionStorage, home = plumeHome()): Promise<StorageUse> {
 	const root = join(home, "sessions");
 	let bytes = 0;
 	for (const project of await readdir(root, { withFileTypes: true }).catch(() => [])) {
@@ -142,7 +142,7 @@ export async function clearSessions(
 	store: SessionStorage,
 	range: ClearRange,
 	isRunning: (sessionId: string) => boolean,
-	home = lyraHome(),
+	home = plumeHome(),
 ): Promise<ClearResult> {
 	const all = await store.listSessions();
 	const matched = all.filter((meta) => withinRange(meta, range));

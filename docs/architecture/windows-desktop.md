@@ -1,6 +1,6 @@
 # Windows 桌面适配
 
-Lyra 共用一份渲染界面，窗口按钮继续由 Electron 的原生 Window Controls Overlay 绘制。
+Plume 共用一份渲染界面，窗口按钮继续由 Electron 的原生 Window Controls Overlay 绘制。
 不按操作系统复制页面，也不通过关闭 GPU 加速来规避渲染问题。
 
 ## 窗口与标题栏

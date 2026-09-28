@@ -85,19 +85,19 @@ const app = await startApp({
 });
 const said: Record<string, unknown> = {};
 try {
-	said.fileEn = await app.evaluate(`window.lyra.files.create(${JSON.stringify(OUTSIDE)}, "a.txt", "file")`);
+	said.fileEn = await app.evaluate(`window.plume.files.create(${JSON.stringify(OUTSIDE)}, "a.txt", "file")`);
 	assert.deepEqual(said.fileEn, { ok: false, error: "That path is not inside an open project", code: "denied" });
 	await clickNamed(app, "button", "Pull requests");
 	said.paneEn = await paneMessage(app, "The token for kittors can no longer be read — enter it again in Settings");
 	await shot(app, "1-pull-requests-en.png");
 
 	await app.evaluate(`(async () => {
-		const settings = await window.lyra.settings.get();
-		await window.lyra.settings.save({ ...settings, uiLocale: "ja" });
+		const settings = await window.plume.settings.get();
+		await window.plume.settings.save({ ...settings, uiLocale: "ja" });
 	})()`);
-	said.fileJa = await app.evaluate(`window.lyra.files.create(${JSON.stringify(OUTSIDE)}, "a.txt", "file")`);
+	said.fileJa = await app.evaluate(`window.plume.files.create(${JSON.stringify(OUTSIDE)}, "a.txt", "file")`);
 	assert.deepEqual(said.fileJa, { ok: false, error: "このパスは開いているプロジェクトの中にありません", code: "denied" });
-	said.listJa = await app.evaluate(`window.lyra.git.myPullRequests()`);
+	said.listJa = await app.evaluate(`window.plume.git.myPullRequests()`);
 	await clickNamed(app, "button", "更新");
 	said.paneJa = await paneMessage(app, "kittors のトークンを読み取れなくなりました。設定で入力し直してください");
 	await shot(app, "2-pull-requests-ja.png");

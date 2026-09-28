@@ -17,7 +17,7 @@ import { computeCost } from "../utils/pricing.ts";
 import { failureOf, worthRetrying } from "./failure.ts";
 
 /** 模型请求的 User-Agent。不写的话 Node 的 fetch 会自己填 `node`，端点那边认不出是谁在调。 */
-export const USER_AGENT = "Lyra";
+export const USER_AGENT = "Plume";
 
 /** `base` 与 `path` 拼成一个地址，避开 `/v1` 重复。 */
 export function joinUrl(base: string, path: string): string {

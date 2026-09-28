@@ -1,7 +1,7 @@
 /**
  * What a window may open, go to, host and be granted — as decisions, not as wiring.
  *
- * A renderer with a preload is the most privileged surface this application has: `window.lyra`
+ * A renderer with a preload is the most privileged surface this application has: `window.plume`
  * reaches the filesystem, the shell and the model keys. These rules exist so that surface only ever
  * hosts our own page, and so the pages we *do* host cannot ask for more than they need.
  *
@@ -39,7 +39,7 @@ const OURS = ["file://", "ly-media://", "ly-preview://"];
  * clicked link, a redirect, a `location.href` written by injected script — is somewhere else.
  *
  * Without this rule one successful injection is enough: `location.href = "https://…"` loads a
- * remote page *into the window that holds the preload*, and that page then owns `window.lyra`.
+ * remote page *into the window that holds the preload*, and that page then owns `window.plume`.
  *
  * The dev server is compared as an origin rather than as a prefix. `startsWith` would accept
  * `http://localhost:51730` for a server on `:5173`, and — worse — a hostile page can put the whole
@@ -97,7 +97,7 @@ export interface GuestPreferences {
  * handed to `will-attach-webview` *is* the one the guest is created with.
  */
 export function harden(preferences: GuestPreferences): void {
-	// Nothing in a guest page needs our preload, and handing it over would hand over `window.lyra`.
+	// Nothing in a guest page needs our preload, and handing it over would hand over `window.plume`.
 	delete preferences.preload;
 	preferences.nodeIntegration = false;
 	preferences.contextIsolation = true;

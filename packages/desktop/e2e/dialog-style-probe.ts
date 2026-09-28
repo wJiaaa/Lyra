@@ -19,7 +19,7 @@ import { createServer } from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { DEFAULT_SETTINGS, type ModelConfig, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type ModelConfig, type Settings } from "@plume/core";
 import { startApp } from "./app.ts";
 
 const PORT = 9487;

@@ -15,7 +15,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-settings-align";
+const dir = process.argv[2] ?? "/tmp/plume-settings-align";
 const project = join(dir, "proj");
 
 async function seed(home: string): Promise<void> {

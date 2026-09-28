@@ -17,7 +17,7 @@ import { diskImageStore } from "../electron/image-cache.ts";
 const PICTURE = "data:image/webp;base64,UklGRg==";
 
 async function scratch(): Promise<string> {
-	return mkdtemp(join(tmpdir(), "lyra-image-cache-"));
+	return mkdtemp(join(tmpdir(), "plume-image-cache-"));
 }
 
 test("a kept picture comes back on the next launch, and is not stale while it is new", async () => {

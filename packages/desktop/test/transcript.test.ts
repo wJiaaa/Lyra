@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { AssistantMessage, Message } from "@lyra/core";
+import type { AssistantMessage, Message } from "@plume/core";
 
-import { emptyUsage } from "@lyra/core";
+import { emptyUsage } from "@plume/core";
 
 import { carryOnPrompt, hasRetryPoint, howItStopped, rebuildToolRuns, wasCutShort } from "../src/store/derive.ts";
 import { settleTail } from "../src/lib/transcript.ts";

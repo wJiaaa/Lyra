@@ -11,7 +11,7 @@
  * 放在 `lib` 而不是 dock 里：面板自己也要从 kind 认出自己是哪一个，去引 dock 的大门会连成环。
  */
 
-import { DEFAULT_SIDE_CHAT_ID } from "@lyra/contract";
+import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 
 const MANY = ["chat", "terminal", "file"] as const;
 export type ManyKind = (typeof MANY)[number];

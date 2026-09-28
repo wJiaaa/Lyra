@@ -2,7 +2,7 @@
  * Token estimation, kept free of any runtime the browser does not have.
  *
  * Its own module rather than part of `runtime/compaction.ts`, and reachable as
- * `@lyra/core/tokens`, because both sides of the app need it: the runtime to decide when
+ * `@plume/core/tokens`, because both sides of the app need it: the runtime to decide when
  * to compact, and the renderer to show how full the context window is. Importing it from the
  * package root would drag in the whole kernel — the bash tool, settings, the plugin loader —
  * and the first thing that happens then is `process is not defined`, with a white window.

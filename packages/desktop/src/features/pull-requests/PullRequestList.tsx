@@ -34,7 +34,7 @@ const FILTERS: { key: Filter; label: MessageKey }[] = [
 	{ key: "authored", label: "prList.mine" },
 ];
 
-const FOLD_KEY = "lyra.pull-requests.folded.v1";
+const FOLD_KEY = "plume.pull-requests.folded.v1";
 
 function readFolded(): Set<string> {
 	try {

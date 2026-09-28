@@ -215,7 +215,7 @@ async function shot(file: string, around: Box): Promise<void> {
 	const y = Math.max(0, Math.round(around.y * SCALE));
 	const w = Math.min(Math.round(around.w * SCALE), view.w * SCALE - x);
 	const h = Math.min(Math.round(around.h * SCALE), view.h * SCALE - y);
-	const input = join(tmpdir(), `lyra-tip-${process.pid}-${Math.random().toString(36).slice(2)}.png`);
+	const input = join(tmpdir(), `plume-tip-${process.pid}-${Math.random().toString(36).slice(2)}.png`);
 	await writeFile(input, Buffer.from(data, "base64"));
 	try {
 		await promisify(execFile)("ffmpeg", ["-y", "-loglevel", "error", "-i", input, "-vf", `crop=${w}:${h}:${x}:${y}`, "-frames:v", "1", join(OUT, file)]);

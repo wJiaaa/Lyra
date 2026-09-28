@@ -46,7 +46,7 @@ async function bundle(
 }
 
 async function withRoot(body: (root: string) => Promise<void>): Promise<void> {
-	const root = await mkdtemp(join(tmpdir(), "lyra-bundle-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-bundle-"));
 	try {
 		await body(root);
 	} finally {

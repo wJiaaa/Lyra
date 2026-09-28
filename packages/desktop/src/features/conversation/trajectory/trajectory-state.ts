@@ -1,5 +1,5 @@
-import type { TrajectoryChanges } from "@lyra/core";
-import { entryKey, type Entry } from "@lyra/core/trajectory-view";
+import type { TrajectoryChanges } from "@plume/core";
+import { entryKey, type Entry } from "@plume/core/trajectory-view";
 
 /** Preserve untouched entries so selecting, searching and streaming reuse the same render work. */
 export function applyTrajectoryChanges(previous: Entry[], changes: TrajectoryChanges): Entry[] {

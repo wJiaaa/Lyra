@@ -27,7 +27,7 @@ function sourceFile(functions = 12): string {
 }
 
 async function fixture(name: string, content: string): Promise<{ file: string; ctx: ToolContext }> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-outline-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-outline-"));
 	const file = join(dir, name);
 	await writeFile(file, content, "utf8");
 	return { file, ctx: { cwd: dir, sessionId: "t", state: new Map() } };

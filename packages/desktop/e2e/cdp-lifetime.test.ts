@@ -13,25 +13,25 @@ test("evaluations retain pending promises through GC and release their handles a
 			let settle;
 			const promise = new Promise((resolve, reject) => settle = ${rejects ? "reject" : "resolve"});
 			promise.settle = settle;
-			globalThis.__lyraPromiseProbe = new WeakRef(promise);
+			globalThis.__plumePromiseProbe = new WeakRef(promise);
 			return promise;
 		})()`).then(value => ({ value }), error => ({ error: String(error) }));
 		try {
 			for (let i = 0; i < 100; i++) {
-				if (await app.evaluate<boolean>("Boolean(globalThis.__lyraPromiseProbe)")) break;
+				if (await app.evaluate<boolean>("Boolean(globalThis.__plumePromiseProbe)")) break;
 				assert.ok(i < 99, "the pending evaluation reached the renderer");
 			}
 			await app.send("HeapProfiler.collectGarbage");
-			await app.evaluate("globalThis.__lyraPromiseProbe.deref()?.settle(42)");
+			await app.evaluate("globalThis.__plumePromiseProbe.deref()?.settle(42)");
 			const result = await pending;
 			if (rejects) {
 				assert.ok("error" in result);
 				assert.match(result.error, /Uncaught/);
 			} else assert.deepEqual(result, { value: 42 });
 			await app.send("HeapProfiler.collectGarbage");
-			assert.equal(await app.evaluate("globalThis.__lyraPromiseProbe.deref() === undefined"), true);
+			assert.equal(await app.evaluate("globalThis.__plumePromiseProbe.deref() === undefined"), true);
 		} finally {
-			await app.evaluate("delete globalThis.__lyraPromiseProbe");
+			await app.evaluate("delete globalThis.__plumePromiseProbe");
 		}
 	}
 });
@@ -54,12 +54,12 @@ test("serialization failures release the remote result", async () => {
 		await assert.rejects(app.evaluate(`(() => {
 			const value = {};
 			value.self = value;
-			globalThis.__lyraObjectProbe = new WeakRef(value);
+			globalThis.__plumeObjectProbe = new WeakRef(value);
 			return value;
 		})()`), /Object reference chain|returned by value/);
 		await app.send("HeapProfiler.collectGarbage");
-		assert.equal(await app.evaluate("globalThis.__lyraObjectProbe.deref() === undefined"), true);
+		assert.equal(await app.evaluate("globalThis.__plumeObjectProbe.deref() === undefined"), true);
 	} finally {
-		await app.evaluate("delete globalThis.__lyraObjectProbe");
+		await app.evaluate("delete globalThis.__plumeObjectProbe");
 	}
 });

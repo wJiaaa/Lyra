@@ -34,7 +34,7 @@ import { realpath } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { scratchHome } from "../runtime/previews.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { commandDialects, commandShell, dialectsOf, home } from "../platform.ts";
 import type { ToolContext } from "../types/tool.ts";
 import { displayPath, toAbsolute } from "./paths.ts";
@@ -73,7 +73,7 @@ export interface ReadAccessOptions {
 	/** Installed skill files the system prompt tells the model to open by absolute path. */
 	allowSkillReads?: boolean;
 	/** Overridable so a test does not depend on the machine it runs on. */
-	lyraHomeDir?: string;
+	plumeHomeDir?: string;
 }
 
 /**
@@ -133,7 +133,7 @@ function isInstalledSkillFile(absolute: string, homeDir: string): boolean {
  * a judgement that resolves paths itself is one that cannot be tested without a home directory.
  */
 export function assessRead(absolute: string, cwd: string, options: ReadAccessOptions = {}): ReadVerdict {
-	const homeDir = options.lyraHomeDir ?? lyraHome();
+	const homeDir = options.plumeHomeDir ?? plumeHome();
 
 	/*
 	 * What the user handed over is theirs to hand over.

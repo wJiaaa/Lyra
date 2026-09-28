@@ -36,7 +36,7 @@ after(async () => {
 	await rm(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
 
-const registry = () => createRegistry({ home: join(home, ".lyra"), userHome: home });
+const registry = () => createRegistry({ home: join(home, ".plume"), userHome: home });
 
 test("跨层都留，各带自己的 depth", async () => {
 	const result = await registry().load<ContextFile>("context-file", { cwd: join(root, "repo", "packages", "api") });

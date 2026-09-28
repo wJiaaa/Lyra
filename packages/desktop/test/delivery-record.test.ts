@@ -5,10 +5,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { recordFileChange } from "../../core/src/tools/file-changes.ts";
 import { collectDelivery, deliveryMessages } from "../electron/delivery-record.ts";
-import type { Message, ToolContext } from "@lyra/core";
+import type { Message, ToolContext } from "@plume/core";
 let home: string, ctx: ToolContext, prior: string | undefined;
-beforeEach(async()=>{home=await mkdtemp(join(tmpdir(),"lyra-delivery-test-"));prior=process.env.LYRA_HOME;process.env.LYRA_HOME=home;const cwd=join(home,"project");await mkdir(cwd);ctx={cwd,sessionId:"qa",state:new Map(),scratchDir:join(home,"scratch")};});
-afterEach(async()=>{if(prior===undefined)delete process.env.LYRA_HOME;else process.env.LYRA_HOME=prior;await rm(home,{recursive:true,force:true});});
+beforeEach(async()=>{home=await mkdtemp(join(tmpdir(),"plume-delivery-test-"));prior=process.env.PLUME_HOME;process.env.PLUME_HOME=home;const cwd=join(home,"project");await mkdir(cwd);ctx={cwd,sessionId:"qa",state:new Map(),scratchDir:join(home,"scratch")};});
+afterEach(async()=>{if(prior===undefined)delete process.env.PLUME_HOME;else process.env.PLUME_HOME=prior;await rm(home,{recursive:true,force:true});});
 function result(details: unknown): Message {return {role:"toolResult",toolName:"write",toolCallId:"tool",content:[],details,isError:false,timestamp:10};}
 test("delivery reports the net file change and actual command evidence, with no report for ordinary chat",async()=>{
 	const path=join(ctx.cwd,"index.ts");

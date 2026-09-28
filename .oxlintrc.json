@@ -179,8 +179,8 @@
           "error",
           {
             "object": "window",
-            "property": "lyra",
-            "message": "经 @/services 的 bridge 访问主进程。window.lyra 只在 services/bridge.ts、services/host.ts 与 services/web-bridge.ts 里出现——87 个文件各自直接调用它时，「这个窗口到底调了什么」无法回答。"
+            "property": "plume",
+            "message": "经 @/services 的 bridge 访问主进程。window.plume 只在 services/bridge.ts、services/host.ts 与 services/web-bridge.ts 里出现——87 个文件各自直接调用它时，「这个窗口到底调了什么」无法回答。"
           }
         ]
       }

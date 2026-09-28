@@ -34,7 +34,7 @@ import type {
 export type Disposer = () => void;
 
 export interface RegistryDeps {
-	/** Lyra's configuration root. */
+	/** Plume's configuration root. */
 	home: string;
 	/** The operating system's home directory. */
 	userHome: string;
@@ -50,7 +50,7 @@ export interface RegistryDeps {
 	capabilities?: Partial<Record<CapabilityId, Capability<never>>>;
 }
 
-const TRACE = process.env.LYRA_TRACE === "capability";
+const TRACE = process.env.PLUME_TRACE === "capability";
 
 export class CapabilityRegistry {
 	private readonly providers: CapabilityProvider[] = [];
@@ -69,7 +69,7 @@ export class CapabilityRegistry {
 		 * Sort on insert rather than on load. Load happens per session and per kind; registration
 		 * happens once. Doing it here also makes the order a property of the list rather than of
 		 * whoever called load, which matters for the tie-break: equal priorities keep registration
-		 * order, and that is the documented way `LYRA.md` beats `AGENTS.md`.
+		 * order, and that is the documented way `PLUME.md` beats `AGENTS.md`.
 		 */
 		this.providers.sort((a, b) => b.priority - a.priority);
 		return () => {

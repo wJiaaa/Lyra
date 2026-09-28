@@ -9,9 +9,9 @@
  * 回车时看到的是什么，发出去的就该是什么。
  */
 
-import type { MessageAttachment, UserContent } from "@lyra/core";
+import type { MessageAttachment, UserContent } from "@plume/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
-import { parseInvocation, parseSkillMention, resolveInvocation } from "@lyra/core/commands-view";
+import { parseInvocation, parseSkillMention, resolveInvocation } from "@plume/core/commands-view";
 
 import { formatList } from "../../i18n/list.ts";
 import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
@@ -202,7 +202,7 @@ export async function buildOutgoing(
 	 * you can audit and one where a step happened off-screen. It also costs nothing to explain
 	 * afterwards — the instructions are right there.
 	 *
-	 * Re-read on dispatch so paste-and-send and edits made outside Lyra use the current definition.
+	 * Re-read on dispatch so paste-and-send and edits made outside Plume use the current definition.
 	 * An unknown name is not an error: it goes out as typed, because `/` is also how people
 	 * write paths and a composer that rejected them would be wrong far more often than right.
 	 */

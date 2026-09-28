@@ -9,7 +9,7 @@ import { join } from "node:path";
 import type { Settings } from "../config/settings.ts";
 import { loadPlugins } from "../plugins/loader.ts";
 import { collectAgents, collectSkills, withoutDisabledSkills } from "../runtime/session-setup.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { builtinCommandsFor, type BuiltinCommand, type CommandAction } from "./builtin.ts";
 import { commandSources, loadCommands, type SlashCommand } from "./loader.ts";
 
@@ -31,7 +31,7 @@ export interface SkillEntry {
 
 /** `actions` is what this host implements; built-ins it cannot run are left out of the list. */
 export async function listCommands(cwd: string, settings: Settings, actions: readonly CommandAction[]): Promise<CommandsList> {
-	const home = lyraHome();
+	const home = plumeHome();
 	const { commands, diagnostics } = await loadCommands(commandSources(cwd || null, home));
 	/*
 	 * The switched-off list, not `[]`. With nothing disabled every plugin counted as on, so a plugin
@@ -40,7 +40,7 @@ export async function listCommands(cwd: string, settings: Settings, actions: rea
 	 */
 	const bundles = await loadPlugins(
 		[
-			{ dir: join(cwd || home, ".lyra", "plugins"), source: "workspace" as const },
+			{ dir: join(cwd || home, ".plume", "plugins"), source: "workspace" as const },
 			{ dir: join(home, "plugins"), source: "user" as const },
 		],
 		settings.disabledPlugins,

@@ -59,7 +59,7 @@ export interface HookRunnerOptions {
 }
 
 /**
- * Lyra 的工具名是小写的（`bash`、`edit`），照 Claude Code 写的 matcher 是 `Bash|Edit`。两种都认，
+ * Plume 的工具名是小写的（`bash`、`edit`），照 Claude Code 写的 matcher 是 `Bash|Edit`。两种都认，
  * 同一份配置搬过来不用改。
  */
 const TOOL_ALIASES: Record<string, string[]> = {
@@ -115,16 +115,16 @@ interface ProcessResult {
 function expandVariables(value: string, input: HookInput): string {
 	const replacements: Record<string, string> = {
 		CLAUDE_PROJECT_DIR: input.cwd,
-		LYRA_PROJECT_DIR: input.cwd,
+		PLUME_PROJECT_DIR: input.cwd,
 		CLAUDE_SESSION_ID: input.sessionId,
 		CLAUDE_CODE_SESSION_ID: input.sessionId,
-		LYRA_SESSION_ID: input.sessionId,
+		PLUME_SESSION_ID: input.sessionId,
 	};
-	return value.replace(/\$\{(CLAUDE_PROJECT_DIR|LYRA_PROJECT_DIR|CLAUDE_SESSION_ID|CLAUDE_CODE_SESSION_ID|LYRA_SESSION_ID)\}/gu, (_match, key: string) => replacements[key]);
+	return value.replace(/\$\{(CLAUDE_PROJECT_DIR|PLUME_PROJECT_DIR|CLAUDE_SESSION_ID|CLAUDE_CODE_SESSION_ID|PLUME_SESSION_ID)\}/gu, (_match, key: string) => replacements[key]);
 }
 
 /**
- * stdin：Lyra 自己的 camelCase 字段，加上 Claude Code 脚本认的 snake_case 别名。`transcript_path`
+ * stdin：Plume 自己的 camelCase 字段，加上 Claude Code 脚本认的 snake_case 别名。`transcript_path`
  * 指向一份临时文件，只装着这次事件涉及的那条消息。
  */
 async function compatibleStdin(input: HookInput): Promise<{ value: string; cleanup: () => Promise<void> }> {
@@ -149,7 +149,7 @@ async function compatibleStdin(input: HookInput): Promise<{ value: string; clean
 		compatible.last_assistant_message = input.responseText;
 		compatible.stop_hook_active = input.stopHookActive;
 	}
-	const dir = await mkdtemp(join(tmpdir(), "lyra-hook-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-hook-"));
 	const transcriptPath = join(dir, "transcript.jsonl");
 	const line = (role: "user" | "assistant", text: unknown) => `${JSON.stringify({ message: { role, content: [{ type: "text", text: String(text ?? "") }] } })}\n`;
 	await writeFile(
@@ -193,10 +193,10 @@ function execute(entry: HookEntry, input: HookInput, stdin: string, timeoutMs: n
 			env: {
 				...commandEnv(process.env),
 				CLAUDE_PROJECT_DIR: input.cwd,
-				LYRA_PROJECT_DIR: input.cwd,
+				PLUME_PROJECT_DIR: input.cwd,
 				CLAUDE_SESSION_ID: input.sessionId,
 				CLAUDE_CODE_SESSION_ID: input.sessionId,
-				LYRA_SESSION_ID: input.sessionId,
+				PLUME_SESSION_ID: input.sessionId,
 			},
 		});
 		const killTree = () => {

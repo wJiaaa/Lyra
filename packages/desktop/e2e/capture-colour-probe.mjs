@@ -19,7 +19,7 @@
  * 不对，那就确凿是色域的事，不是亮度曲线或者别的什么。
  *
  * 跑：`pnpm exec electron e2e/capture-colour-probe.mjs`
- * 头一回跑要给屏幕录制权限——这个进程是 Electron 自己，不是打包出来的 Lyra，系统按两个应用算。
+ * 头一回跑要给屏幕录制权限——这个进程是 Electron 自己，不是打包出来的 Plume，系统按两个应用算。
  */
 
 import { app, BrowserWindow, desktopCapturer, screen, systemPreferences } from "electron";

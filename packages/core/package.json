@@ -1,9 +1,9 @@
 {
-	"name": "@lyra/core",
+	"name": "@plume/core",
 	"version": "0.9.21",
 	"private": true,
 	"type": "module",
-	"description": "Lyra agent kernel: providers, agent loop, tools, skills, MCP, sessions",
+	"description": "Plume agent kernel: providers, agent loop, tools, skills, MCP, sessions",
 	"main": "./src/index.ts",
 	"types": "./src/index.ts",
 	"exports": {
@@ -31,7 +31,7 @@
 		"test": "node --test --import ./test/setup.ts --experimental-strip-types test/*.test.ts"
 	},
 	"dependencies": {
-		"@lyra/registry-shared": "workspace:*",
+		"@plume/registry-shared": "workspace:*",
 		"@modelcontextprotocol/sdk": "1.30.0",
 		"fflate": "^0.8.3",
 		"unpdf": "^1.8.1",

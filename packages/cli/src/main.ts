@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 /**
- * `lyra` — run one task non-interactively and print the answer.
+ * `plume` — run one task non-interactively and print the answer.
  *
  * stdout carries the answer (or `--json`'s one object) and nothing else; progress goes to stderr.
- * Models, keys, permissions, MCP servers and skills come from the desktop app's `~/.lyra`.
+ * Models, keys, permissions, MCP servers and skills come from the desktop app's `~/.plume`.
  */
 
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { bootHostKernel, loadSettings, registerDefaultSearchProviders } from "@lyra/core";
-import { loadCachedModelCatalog } from "@lyra/core/model-catalog-sync";
+import { bootHostKernel, loadSettings, registerDefaultSearchProviders } from "@plume/core";
+import { loadCachedModelCatalog } from "@plume/core/model-catalog-sync";
 import { runOnce, SetupError } from "./run.ts";
 
-const USAGE = `用法：lyra [选项] <任务>
-      echo <任务> | lyra [选项]
+const USAGE = `用法：plume [选项] <任务>
+      echo <任务> | plume [选项]
 
 非交互地跑完一个任务：进度写到 stderr，最终回答写到 stdout。
 任务可以是 /命令 参数 或 /skill 名 参数，和桌面端输入框的写法一样。
-模型、权限、MCP 与 skill 读取桌面端的设置（~/.lyra）；需要授权的操作会被拒绝。
+模型、权限、MCP 与 skill 读取桌面端的设置（~/.plume）；需要授权的操作会被拒绝。
 
 选项：
   -C, --cwd <目录>   在这个目录里工作（默认当前目录）

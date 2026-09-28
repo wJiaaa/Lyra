@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import type { AgentEvent } from "@lyra/core";
+import type { AgentEvent } from "@plume/core";
 import { useApp } from "../src/store/index.ts";
 import { applyAgentEvent } from "../src/store/apply-event.ts";
 

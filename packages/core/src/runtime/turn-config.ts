@@ -24,7 +24,7 @@ import type {
 	ThinkingLevel,
 	Tool,
 } from "../types.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { compactWith } from "./compaction.ts";
 import type { ArtifactSink } from "./prune.ts";
 import { textTokens, toolTokens } from "./context.ts";
@@ -135,7 +135,7 @@ export function buildTurnConfig(
 			 * so it can be thrown away with the conversation that produced it.
 			 */
 			writePreview: (input) =>
-				writePreview(lyraHome(), { ...input, sessionId: deps.sessionId }),
+				writePreview(plumeHome(), { ...input, sessionId: deps.sessionId }),
 			requestApproval: (request) => deps.requestApproval(request),
 			/*
 			 * What this turn's commands may change, derived from the permission mode.

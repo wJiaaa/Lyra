@@ -51,8 +51,8 @@ test("switching every bundled locale updates visible UI without reloading or los
 
 	for (const [locale, expected] of locales) {
 		const state = await app.evaluate<{ lang: string; body: string; draft: string; mount: string }>(`(async()=>{
-			const settings=await window.lyra.settings.get();
-			await window.lyra.settings.save({...settings,uiLocale:${JSON.stringify(locale)}});
+			const settings=await window.plume.settings.get();
+			await window.plume.settings.save({...settings,uiLocale:${JSON.stringify(locale)}});
 			await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
 			return {lang:document.documentElement.lang,body:document.body.innerText,draft:document.querySelector('textarea')?.value??'',mount:document.querySelector('.ly-shell')?.dataset.i18nMount??''};
 		})()`);
@@ -64,7 +64,7 @@ test("switching every bundled locale updates visible UI without reloading or los
 });
 
 test("the language menu exposes three aligned choices and English labels do not overflow", async () => {
-	await app.evaluate(`(async()=>{const settings=await window.lyra.settings.get();await window.lyra.settings.save({...settings,uiLocale:'zh-CN'});await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()`);
+	await app.evaluate(`(async()=>{const settings=await window.plume.settings.get();await window.plume.settings.save({...settings,uiLocale:'zh-CN'});await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()`);
 	await app.evaluate(`document.querySelector('.ly-sidebar-foot button').click()`);
 	await frames(20);
 	await app.evaluate(`(()=>{const b=[...document.querySelectorAll('nav button')].find((e)=>e.textContent.trim()==='常规');if(!b)throw new Error('general section missing');b.click();})()`);
@@ -97,8 +97,8 @@ test("the language menu exposes three aligned choices and English labels do not 
 
 async function switchAndMeasure(locale: string) {
 	return app.evaluate<{ documentWidth: number; clippedButtons: number }>(`(async()=>{
-		const settings=await window.lyra.settings.get();
-		await window.lyra.settings.save({...settings,uiLocale:${JSON.stringify(locale)}});
+		const settings=await window.plume.settings.get();
+		await window.plume.settings.save({...settings,uiLocale:${JSON.stringify(locale)}});
 		await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
 		const buttons=[...document.querySelectorAll('nav button')].filter((element)=>element.checkVisibility({visibilityProperty:true}));
 		return {documentWidth:document.documentElement.scrollWidth,clippedButtons:buttons.filter((element)=>element.scrollWidth>element.clientWidth+1).length};
@@ -110,7 +110,7 @@ async function frames(count: number): Promise<void> {
 }
 
 async function capture(name: string): Promise<void> {
-	const directory = process.env.LYRA_E2E_ARTIFACTS;
+	const directory = process.env.PLUME_E2E_ARTIFACTS;
 	if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });

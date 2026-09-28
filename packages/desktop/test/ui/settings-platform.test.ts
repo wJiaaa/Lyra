@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h, type ComponentType } from "react";
-import { DEFAULT_SETTINGS, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type Settings } from "@plume/core";
 
 import { AccessSettings } from "../../src/features/settings/AccessSettings.tsx";
 import { AppearanceSettings } from "../../src/features/settings/AppearanceSettings.tsx";
@@ -18,7 +18,7 @@ import { useApp } from "../../src/store/index.ts";
 import { mount, type Mounted } from "../helpers/mount.ts";
 
 function withPlatform(platform: string, extra: Record<string, unknown> = {}) {
-	Object.defineProperty(window, "lyra", { configurable: true, value: { platform, ...extra } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { platform, ...extra } });
 }
 
 /**
@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 test("字体平滑只在 macOS 上出现：-webkit-font-smoothing 在别的系统上什么都不改", async () => {

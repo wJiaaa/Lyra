@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| [扩展 Lyra](extending.md) | 技能、插件、MCP 服务、子智能体：目录结构与文件格式 |
+| [扩展 Plume](extending.md) | 技能、插件、MCP 服务、子智能体：目录结构与文件格式 |
 | [内置能力](capabilities.md) | 浏览器与它的边界、索引库、钩子 |
 | [上下文压缩模型](context-compaction.md) | `@compact` 用哪一个模型写摘要 |
 | [会话标题](session-titles.md) | 新会话怎么起名，智能标题什么时候请求 |

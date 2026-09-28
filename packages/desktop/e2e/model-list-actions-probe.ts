@@ -15,7 +15,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 
-const OUT = join(homedir(), "Desktop", "Lyra模型列表按钮测试");
+const OUT = join(homedir(), "Desktop", "Plume模型列表按钮测试");
 
 let app: RunningApp;
 

@@ -54,7 +54,7 @@ Landlock 在 Ubuntu、Fedora、Debian 的内核里默认启用，无特权进程
 一起断，老内核断不了，探测时如实报告。
 
 同一时期还修了 Windows：runner 在 app 里从来没启动过（Electron 按 Node 跑时把
-`--lyra-sandbox-runner` 当成自己的选项，`bad option`，退出码 9，见 `sandbox/runner-entry.ts`），
+`--plume-sandbox-runner` 当成自己的选项，`bad option`，退出码 9，见 `sandbox/runner-entry.ts`），
 受限令牌也因为结构体偏移写错一直建不起来，默认模式下同样什么都不跑。Windows 上受约束的命令为什么改在 PowerShell 里跑，
 见 [ADR-0022](0022-windows-confined-commands-in-powershell.md)。
 

@@ -10,9 +10,9 @@ import type { ContextBreakdown } from "../../core/src/runtime/context.ts";
 import { closeListeningServer, startApp } from "./app.ts";
 import { driver, encode, frameGrabber, pause, startRecording, type Frame } from "./record.ts";
 
-const evidence = join(homedir(), "Desktop", "Lyra上下文组装测试");
+const evidence = join(homedir(), "Desktop", "Plume上下文组装测试");
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-const profile = await mkdtemp(join(tmpdir(), "lyra-context-window-"));
+const profile = await mkdtemp(join(tmpdir(), "plume-context-window-"));
 const cwd = join(profile, "project");
 const projectId = projectIdFor(cwd);
 const requests: { system: { text: string }[]; tools?: { name: string }[] }[] = [];
@@ -44,11 +44,11 @@ const server = createServer((req, res) => {
 await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
 const modelPort = (server.address() as { port: number }).port;
 await mkdir(evidence, { recursive: true });
-await mkdir(join(cwd, ".lyra", "prompts"), { recursive: true });
+await mkdir(join(cwd, ".plume", "prompts"), { recursive: true });
 await writeFile(join(cwd, "AGENTS.md"), `RULE_ORIGINAL\n${"项目规则。".repeat(10_000)}`);
-await writeFile(join(cwd, ".lyra", "prompts", "identity.md"), "CONTEXT_FIXTURE_IDENTITY：按用户要求完成隔离上下文验收。");
+await writeFile(join(cwd, ".plume", "prompts", "identity.md"), "CONTEXT_FIXTURE_IDENTITY：按用户要求完成隔离上下文验收。");
 for (let index = 0; index < 130; index++) {
-	const dir = join(cwd, ".lyra", "skills", `fixture-${index}`);
+	const dir = join(cwd, ".plume", "skills", `fixture-${index}`);
 	await mkdir(dir, { recursive: true });
 	await writeFile(join(dir, "SKILL.md"), `---\nname: fixture-${index}\ndescription: ${"这是隔离测试用的技能目录描述。".repeat(30)}\n---\n正文按需加载。\n`);
 }
@@ -83,7 +83,7 @@ try {
 		const captured = await grab!.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 		await writeFile(join(evidence, `${stamp}_${label}.png`), Buffer.from(captured.data, "base64"));
 	};
-	const detail = () => app!.evaluate<ContextBreakdown>(`window.lyra.sessions.contextBreakdown(${JSON.stringify(meta.id)})`);
+	const detail = () => app!.evaluate<ContextBreakdown>(`window.plume.sessions.contextBreakdown(${JSON.stringify(meta.id)})`);
 	const panel = async (open: boolean) => {
 		const expanded = await app!.evaluate<string>('document.querySelector(".ly-ring-button").getAttribute("aria-expanded")');
 		if (expanded !== String(open)) await d.click(".ly-ring-button");

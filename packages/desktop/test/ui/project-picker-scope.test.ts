@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h, type ReactNode } from "react";
-import type { Message, SessionMeta } from "@lyra/core";
+import type { Message, SessionMeta } from "@plume/core";
 import type { WorkspaceInfo } from "../../electron/ipc-types.ts";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { DockScope, provideScreenFocus, SessionScope } from "../../src/app/session-scope.tsx";
@@ -50,7 +50,7 @@ let view: Mounted | undefined;
 beforeEach(() => {
 	chosen = [];
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: { commands: { list: async () => ({ commands: [], skills: [], agents: [] }) }, sessions: { contextBreakdown: async () => null, list: async () => [] } },
 	});
@@ -79,7 +79,7 @@ afterEach(async () => {
 	view = undefined;
 	provideScreenFocus(null);
 	useApp.setState(previous, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 function screen(id: string | null, body: ReactNode): ReactNode {

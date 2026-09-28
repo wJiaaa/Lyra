@@ -7,7 +7,7 @@
  *
  * plan.json：{ entries: [{ entry: RegistryEntry, test?: { prompt, expect: "mcp" | "skill", keys?: {NAME: "值或 $环境变量"} } }] }
  *
- * 每个条目一个全新的 LYRA_HOME，走的是应用自己的那几条路，不是替身：
+ * 每个条目一个全新的 PLUME_HOME，走的是应用自己的那几条路，不是替身：
  *
  *   1. 装：`installEntry`——克隆（或下载包）、按内容认种类、放进对应目录、记账；
  *   2. 读：`loadPlugins` / `loadSkills`——扫出来的种类、技能数、有没有读不出来的；
@@ -16,7 +16,7 @@
  *   4. 用（可选，--no-model 跳过）：用这台机器上配好的真实模型开一个会话，问一个只有这个插件能答好的
  *      问题，看模型是不是真的调了它的工具 / 读了它的技能，工具有没有报错。
  *
- * 模型那一步读的是 `~/.lyra` 里的供应商配置：把 settings.json、credentials.json、vault.key 拷进临时
+ * 模型那一步读的是 `~/.plume` 里的供应商配置：把 settings.json、credentials.json、vault.key 拷进临时
  * 目录，密钥在保险箱里解开，这个脚本从不打印它们。权限用 `full`（不问人），工具只给只读的那几个加上
  * 被测的 MCP 服务——不会碰这台机器上的任何真实文件。
  */
@@ -94,7 +94,7 @@ if (!planPath || !outDir) {
 const only = argv.includes("--only") ? new Set(argv[argv.indexOf("--only") + 1]!.split(",")) : null;
 const withModel = !argv.includes("--no-model");
 const modelOverride = argv.includes("--model") ? argv[argv.indexOf("--model") + 1] : undefined;
-const REAL_HOME = process.env.LYRA_REAL_HOME ?? join(homedir(), ".lyra");
+const REAL_HOME = process.env.PLUME_REAL_HOME ?? join(homedir(), ".plume");
 const MCP_TIMEOUT_MS = 240_000;
 const MODEL_TIMEOUT_MS = 300_000;
 
@@ -133,8 +133,8 @@ process.exit(0);
 async function verify(item: PlanItem): Promise<Result> {
 	const { entry, test } = item;
 	const notes: string[] = [];
-	const home = await mkdtemp(join(tmpdir(), `lyra-verify-${entry.id}-`));
-	process.env.LYRA_HOME = home;
+	const home = await mkdtemp(join(tmpdir(), `plume-verify-${entry.id}-`));
+	process.env.PLUME_HOME = home;
 	resetVault();
 	if (withModel && test?.prompt && test.model !== false) {
 		for (const file of ["settings.json", "credentials.json", "vault.key"]) {
@@ -200,7 +200,7 @@ async function verify(item: PlanItem): Promise<Result> {
 				keys[name] = real;
 				keysUsed = "real";
 			} else {
-				keys[name] = "lyra-verify-placeholder";
+				keys[name] = "plume-verify-placeholder";
 				if (keysUsed === "none") keysUsed = "placeholder";
 			}
 		}

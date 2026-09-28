@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
-import type { SessionMeta, Settings } from "@lyra/core";
+import type { SessionMeta, Settings } from "@plume/core";
 
 interface Call {
 	sessionId: string;
@@ -37,7 +37,7 @@ let setModelGate: Promise<void> | null = null;
 		removeItem: () => {},
 	},
 	matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
-	lyra: {
+	plume: {
 		agent: {
 			setThinking: async (sessionId: string, thinking: unknown) => {
 				setThinkingCalls.push({ sessionId, value: thinking });

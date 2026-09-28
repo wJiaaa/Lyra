@@ -17,15 +17,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import type { Message, SideChatUpdate } from "@lyra/core";
+import type { Message, SideChatUpdate } from "@plume/core";
 
 let home = "";
 before(async () => {
-	home = await mkdtemp(join(tmpdir(), "lyra-side-discard-"));
-	process.env.LYRA_HOME = home;
+	home = await mkdtemp(join(tmpdir(), "plume-side-discard-"));
+	process.env.PLUME_HOME = home;
 });
 after(async () => {
-	delete process.env.LYRA_HOME;
+	delete process.env.PLUME_HOME;
 	await rm(home, { recursive: true, force: true });
 });
 

@@ -59,9 +59,9 @@ projectId 和初始化期间用户设置的标题。
 因此没有把“格式合格”当作语义合格。
 
 修正输入链路后，生成过程读取当前项目指令。第二次真实生成耗时约 16.3 秒，结果为
-`lyra-project-release`、scope=project，引用两个真实来源；要求每次重读 AGENTS，保留
+`plume-project-release`、scope=project，引用两个真实来源；要求每次重读 AGENTS，保留
 `pnpm release:rehearse` 强制门禁，调用 `pnpm release`，禁止手工发布旁路、忽略检查和擅自回滚。
-它不再固定包数量或当前版本。由于证据属于 Lyra 的专有发布流程，明确项目范围是正确结论。
+它不再固定包数量或当前版本。由于证据属于 Plume 的专有发布流程，明确项目范围是正确结论。
 
 portable 候选必须通过输入发现当前仓库的脚本、版本策略和约束；不能通过删掉可执行细节来伪装通用。
 自动检查能约束结构、来源和记录格式，不能证明任意模型输出的语义都正确，候选仍需人审阅后启用。
@@ -107,7 +107,7 @@ macOS 原生标题栏单独通过系统窗口截图验证：红黄绿按钮的�
 最终全量运行中，两次慢 MCP 首条提交分别在约 76ms、89ms 出现侧栏条目，worktree 场景约 51ms；
 此结果是本机隔离测试的观测值，不作为所有机器的固定性能承诺。
 
-测试日志、真实截图及两次模型提案保存在本机 `/tmp/lyra-polish-12`。它们属于验证产物，不是应用配置。
+测试日志、真实截图及两次模型提案保存在本机 `/tmp/plume-polish-12`。它们属于验证产物，不是应用配置。
 
 ## 第 15 项：列表悬停删除
 
@@ -138,11 +138,11 @@ macOS 原生标题栏单独通过系统窗口截图验证：红黄绿按钮的�
 本次增量 `pnpm check` 通过：2745 条测试中 2744 通过、0 失败、1 个 Windows 专属测试在 macOS
 跳过；lint、style、六包类型检查与 arch 均通过，arch 仍为 0 errors、132 advisory warnings。
 构建通过。新增两条 Electron 测试通过，截图位于本机
-`/tmp/lyra-polish-12/hover-e2e/command-hover-delete.png` 与 `command-touch-delete.png`。
+`/tmp/plume-polish-12/hover-e2e/command-hover-delete.png` 与 `command-touch-delete.png`。
 此前的 219 条全量 E2E 结果属于前 14 项交付。本次增量执行 `definition-actions`、
 `interaction-polish`、`plugins` 与 `slash-commands` 四个 Electron 测试文件：21/21 通过，
 0 失败、0 跳过，约 46.1 秒。覆盖新增删除、插件安装卸载、斜杠菜单、设置路由、问题导航、
-Tab 状态保留、渐隐及 Git 差异。日志为 `/tmp/lyra-polish-12/hover-regression.log`。
+Tab 状态保留、渐隐及 Git 差异。日志为 `/tmp/plume-polish-12/hover-regression.log`。
 
 删除交互测试已加入 Windows UI CI，但本机没有 Windows 环境，本次未执行 Windows CI 或实机验证。
 
@@ -183,7 +183,7 @@ Tab 状态保留、渐隐及 Git 差异。日志为 `/tmp/lyra-polish-12/hover-r
 | 编辑与隔离 | 原生 Undo、句中光标补全、组合输入防误发、无参数自定义命令、即时读盘、跨会话发送及命令结果复制均验证。 |
 
 截图来自真实应用加载的隔离合成会话和命令，模型请求发往本地协议测试服务。复制按钮通过明确
-的测试接收函数取证，没有覆盖系统剪贴板。截图与日志保存在本机 `/tmp/lyra-polish-12/slash-e2e`
+的测试接收函数取证，没有覆盖系统剪贴板。截图与日志保存在本机 `/tmp/plume-polish-12/slash-e2e`
 及同级 `slash-*.log`，测试退出时清理隔离 profile。
 
 命令工作流已纳入 Windows UI CI。本机验证的是 macOS Electron 与共享 Chromium 布局，375px
@@ -195,7 +195,7 @@ macOS 跳过；lint、style、类型检查与 arch 通过，arch 保持 0 errors
 构建、Markdown 链接检查及 `git diff --check` 通过。8 个真实 Electron 测试文件合计 40/40
 通过，0 失败、0 跳过，用时约 126.8 秒，覆盖命令工作流、斜杠菜单、输入框适配、显示缩放、
 长对话稳定性、会话创建、Git/设置/导航及列表删除。日志为
-`/tmp/lyra-polish-12/slash-regression.log`。测试 Electron 进程已全部退出。
+`/tmp/plume-polish-12/slash-regression.log`。测试 Electron 进程已全部退出。
 
 
 ## 8 项交互与上下文增量（2026-09-06）
@@ -241,7 +241,7 @@ macOS 跳过；lint、style、类型检查与 arch 通过，arch 保持 0 errors
 均为 1184px。375×480 视口下权限弹窗范围为 x=16–359px、y=36–444px，减少动画时长为
 0.00001 秒；取消后焦点恢复到“帮我批准”。项目记忆关闭后注入内容为空，文件保留，重新开启恢复。
 
-截图位于本机 `/tmp/lyra-polish-17-final/`，包括 `release-preview.png`、`question-neighbourhood.png`、
+截图位于本机 `/tmp/plume-polish-17-final/`，包括 `release-preview.png`、`question-neighbourhood.png`、
 `user-images-time.png`、`permission-dialog.png`、`context-after-compaction.png` 和
 `project-memory-settings.png`。它们来自实际应用加载测试数据，不是设计稿。
 
@@ -257,8 +257,8 @@ macOS 跳过；lint、style、类型检查与 arch 通过，arch 保持 0 errors
 
 最新压缩实测：用量由 16422 降至 7761 tokens（约减少 52.7%），圆环同步更新；完整转录保留。
 “用户记忆”开关独立性的回归先在真实应用得到 `false !== true`，修复后通过，关闭用户记忆
-不再关闭项目记忆。相应日志为 `/tmp/lyra-polish-17-memory-toggle-red.log` 和
-`/tmp/lyra-polish-17-final-detail.log`。
+不再关闭项目记忆。相应日志为 `/tmp/plume-polish-17-memory-toggle-red.log` 和
+`/tmp/plume-polish-17-final-detail.log`。
 
 
 最终验证：`pnpm check` 通过，2761 项测试中 2760 通过、0 失败、1 项 Windows 专属测试在
@@ -266,7 +266,7 @@ macOS 跳过；lint、style、类型检查和 arch 均通过（架构检查 0 er
 桌面构建、Markdown 链接检查和 `git diff --check` 通过。最终 10 个真实 Electron 文件共
 51/51 通过、0 失败、0 跳过，用时约 153.1 秒，覆盖上述视觉行为及既有命令、滚动/切换、
 Git、设置路由、输入框、显示缩放、会话创建和插件/定义删除。日志为
-`/tmp/lyra-polish-17-final-regression.log` 与 `/tmp/lyra-polish-17-check.log`。
+`/tmp/plume-polish-17-final-regression.log` 与 `/tmp/plume-polish-17-check.log`。
 本轮测试实例已退出，隔离 profile 由测试清理；代码未提交或发布。
 
 
@@ -349,7 +349,7 @@ x=33–212.4140625px 与 x=220.4140625–316.4609375px，均未超出窗口。
 早期决策和长工具输出尾部，再在全新 Electron 进程中恢复并编辑首条可见提问。
 
 所有运行证据来自真实应用路径加载隔离合成记录与本地协议服务，截图保存在
-`/tmp/lyra-agents-sidechat/`。没有修改用户真实设置、记忆、密钥或会话。新端到端文件已加入
+`/tmp/plume-agents-sidechat/`。没有修改用户真实设置、记忆、密钥或会话。新端到端文件已加入
 Windows UI CI；本机没有运行 Windows CI，也未验证原生 Windows 字体、输入法或硬件表现。
 
 最终验证：`pnpm check` 通过，2788 项测试中 2787 通过、0 失败、1 项 Windows 专属测试在
@@ -365,8 +365,8 @@ macOS 跳过；桌面构建、Markdown 链接检查和 `git diff --check` 通过
 确认重发后旧分支被替换，保存的模型偏好仍然一致。最初该测试用直接 DOM 点击及程序滚动，
 未表达用户离开底部的意图；修正测试操作后通过，没有以产品延迟或强制刷新掩盖失败。
 
-最终日志：`/tmp/lyra-subagent-check.log`、`/tmp/lyra-subagent-build.log`、
-`/tmp/lyra-subagent-arch.log`、`/tmp/lyra-agents-sidechat-regression.log`。
+最终日志：`/tmp/plume-subagent-check.log`、`/tmp/plume-subagent-build.log`、
+`/tmp/plume-subagent-arch.log`、`/tmp/plume-agents-sidechat-regression.log`。
 实际应用截图包括 `agent-profiles-1280.png`、`agent-profiles-375.png`、
 `sidechat-main-history.png` 与 `sidechat-restored-edit.png`（目录见上文）。
 测试实例已退出，隔离 profile 已由测试清理；未调用真实付费供应商，未提交或发布代码。
@@ -383,12 +383,12 @@ macOS 跳过；桌面构建、Markdown 链接检查和 `git diff --check` 通过
 移出恢复、展开隐藏及置顶分组收起规则。实测 loading 距右边缘 10px，垂直中心偏差为 0px；
 24 帧内行高恒为 31px，名称 x=43px、宽 155px，hover 时 loading opacity 从 1 降到 0、
 按钮组 opacity 从 0 升到 1。截图来自真实应用与隔离测试数据，位于
-`/tmp/lyra-group-loading/group-loading-{collapsed,hover,expanded}.png`。
+`/tmp/plume-group-loading/group-loading-{collapsed,hover,expanded}.png`。
 
 本次 `pnpm check` 为 2790 项测试、2789 通过、0 失败、1 项 Windows 专属跳过；构建与
 `pnpm arch` 通过（0 errors、128 条 advisory warnings，比修改前减少 2 条）。日志为
-`/tmp/lyra-group-check.log`、`/tmp/lyra-group-build.log`、`/tmp/lyra-group-arch.log` 和
-`/tmp/lyra-group-e2e.log`。本机实测 macOS，共享布局的 Windows 硬件表现未实测。
+`/tmp/plume-group-check.log`、`/tmp/plume-group-build.log`、`/tmp/plume-group-arch.log` 和
+`/tmp/plume-group-e2e.log`。本机实测 macOS，共享布局的 Windows 硬件表现未实测。
 
 
 ### 问题导航、Markdown 预览与模型配置菜单（2026-09-06）
@@ -429,10 +429,10 @@ Git Index 统计和 C# 高亮、设置路由、弹窗稳定性、图片布局、
 通过。`pnpm arch`：0 errors、129 条 advisory warnings；比上一轮增加的一条循环报告来自
 QuestionNav 复用已有 Markdown → CodeBlock → 文件面板 → 会话的依赖路径，未放宽检查规则。
 
-日志：`/tmp/lyra-navigation-check.log`、`/tmp/lyra-navigation-build.log`、
-`/tmp/lyra-navigation-arch.log`、`/tmp/lyra-navigation-e2e.log`、
-`/tmp/lyra-navigation-final-e2e.log`、`/tmp/lyra-navigation-last-e2e.log`。
-实际应用截图位于 `/tmp/lyra-navigation-evidence/`，包含 `markdown-question-preview.png`、
+日志：`/tmp/plume-navigation-check.log`、`/tmp/plume-navigation-build.log`、
+`/tmp/plume-navigation-arch.log`、`/tmp/plume-navigation-e2e.log`、
+`/tmp/plume-navigation-final-e2e.log`、`/tmp/plume-navigation-last-e2e.log`。
+实际应用截图位于 `/tmp/plume-navigation-evidence/`，包含 `markdown-question-preview.png`、
 `model-role-favourites.png`、`subagent-model-menu-1280.png`、`subagent-model-menu-375.png`。
 Windows 原生渲染和真实供应商能力仍需对应环境验证；macOS 测试实例及隔离 profile 自动清理。
 
@@ -467,10 +467,10 @@ Chromium 原生 composition 流程没有误提交，截图关闭状态由主进�
 剪贴板包含图片。Windows UI CI 增加浏览器、工作区交付与导航模型用例，本机没有运行 Windows
 CI 或原生 Windows 硬件验证。
 
-日志：`/tmp/lyra-workspace-check.log`、`/tmp/lyra-workspace-build.log`、
-`/tmp/lyra-workspace-regression.log`、`/tmp/lyra-workspace-regression-retest.log`、
-`/tmp/lyra-workspace-final-ui.log`、`/tmp/lyra-workspace-last-regression.log`、
-`/tmp/lyra-workspace-screenshot.log`。截图位于 `/tmp/lyra-workspace-evidence/`，包含
+日志：`/tmp/plume-workspace-check.log`、`/tmp/plume-workspace-build.log`、
+`/tmp/plume-workspace-regression.log`、`/tmp/plume-workspace-regression-retest.log`、
+`/tmp/plume-workspace-final-ui.log`、`/tmp/plume-workspace-last-regression.log`、
+`/tmp/plume-workspace-screenshot.log`。截图位于 `/tmp/plume-workspace-evidence/`，包含
 `memory-file-disclosure.png`、`turn-delivery-diff.png`、`delivery-report-preview.png`、
 `session-owned-service.png` 和 `browser-agent.png`。测试 profile 与后台服务在退出时回收，
 没有改写用户真实设置或会话，代码未提交、推送或发布。
@@ -516,8 +516,8 @@ ScrollText 以布局宽度判断溢出，避免把面板过渡中的缩放误认
 
 新增守卫为 `e2e/dock-fullscreen.test.ts` 和浏览器工作区的全屏用例；Windows UI CI 已登记
 压力测试，但本机没有运行原生 Windows。原有几何测试改为检查实际可见性，避免把透明的保留
-面板当作可见面板。日志和逐帧数据保存在 `/tmp/lyra-fullscreen-before.log`、
-`/tmp/lyra-fullscreen-regression.log`、`/tmp/lyra-fullscreen-final/dock-fullscreen.json`；
+面板当作可见面板。日志和逐帧数据保存在 `/tmp/plume-fullscreen-before.log`、
+`/tmp/plume-fullscreen-regression.log`、`/tmp/plume-fullscreen-final/dock-fullscreen.json`；
 实际应用截图为同目录 `dock-fullscreen.png`，内容为上述合成测试数据。
 
 最终回归：7 个 Electron 文件、62 项用例全部通过，包含成对文件面板全屏后的分隔线命中与拖动、
@@ -543,7 +543,7 @@ MCP、hook、定时任务、搜索密钥和同步令牌均被裁剪。
 
 触控样式使用真实 44×44px toolbar/composer 控件，不再以会互相覆盖的伪元素扩张命中区。必要的
 hover 操作在无 hover 设备上常显；document tooltip 与 iOS 残留 hover 关闭；Markdown、代码和
-输入框仍可选择。WebView 的安全区、状态栏、方向与深浅色跟随系统和 Lyra 主题，Android 以实际
+输入框仍可选择。WebView 的安全区、状态栏、方向与深浅色跟随系统和 Plume 主题，Android 以实际
 键盘交集避让 composer，页面本身不随键盘开合跳动。
 
 真实 renderer 以 390×844 CSS viewport、DPR 2、5 点触控及 `hover:none` 运行。主工具栏、
@@ -555,7 +555,7 @@ pane header 重叠 198px²；现在标签行和两个按钮均为 44px 高，重
 仍能选中“# 双向同步测试”；横向滚动容器为 382px，内容宽 411px，`scrollLeft` 可从 0 移至
 20px。界面没有保存、格式化或系统打开入口。设置导航只显示常规、外观、个性化、子智能体、
 关于、已归档的聊天与引导，所有行高 44px；模型供应商、MCP、Hooks、命令、截图、浏览器、
-工作树和 Forge 均未暴露。实际应用截图位于 `/tmp/lyra-mobile-evidence/`，包括
+工作树和 Forge 均未暴露。实际应用截图位于 `/tmp/plume-mobile-evidence/`，包括
 `mobile-readonly-source.png` 与 `mobile-settings-navigation.png`；页面来自真实 renderer 和
 WebSocket bridge，项目内容来自隔离 probe，不是另建 HTML 或拼接图。
 
@@ -599,8 +599,8 @@ key，价格变化会废弃旧聚合结果并从日志重新计价。旧成本�
 真实 Electron 验证使用隔离的 40 个会话、72,000 条消息和五类计价来源。1440×900 下费用与趋势
 双栏显示，指标栏实测 5 列；760×900 下自然堆叠，指标栏为 2 列。两种尺寸的文档横向溢出均为
 0px，趋势图高度至少 150px，刷新和筛选不卸载仪表盘。真实应用截图保存在
-`/tmp/lyra-usage-e2e/usage-dashboard-1440x900.png` 和
-`/tmp/lyra-usage-e2e/usage-dashboard-760x900.png`。
+`/tmp/plume-usage-e2e/usage-dashboard-1440x900.png` 和
+`/tmp/plume-usage-e2e/usage-dashboard-760x900.png`。
 
 相关 core 单测 8/8、desktop 单测 54/54、模型菜单 E2E 3/3、用量页面 E2E 4/4 均通过；
 desktop production build 通过。Windows UI CI 已登记模型菜单和用量页面用例。本机没有 Windows
@@ -615,7 +615,7 @@ desktop production build 通过。Windows UI CI 已登记模型菜单和用量�
 `overrides`、`catalogRef` 在读取设置时丢弃，已有的值原样保留。
 
 pi 目录按供应商端点列出模型，同一型号在不同端点的上限可以不同，例如 OpenCode Go 上的 `glm-5.3`
-与智谱官方。`core/src/model-catalog-format.ts` 把原始目录压成 Lyra 用到的几项并整份校验；四项价格全为
+与智谱官方。`core/src/model-catalog-format.ts` 把原始目录压成 Plume 用到的几项并整份校验；四项价格全为
 0 的是订阅制端点，当作没有价格而不是免费。pi 目录只收编码代理用的对话模型，没有工具调用字段，
 填入时一律视为支持工具。
 
@@ -637,7 +637,7 @@ pi 目录按供应商端点列出模型，同一型号在不同端点的上限�
 参考价。目录版本进入用量缓存 key，目录更新后这部分估价会重算。
 
 仓库打包一份目录快照（`pnpm catalog:update` 生成），只在首次启动和离线时兜底。桌面主进程启动时
-先读 `~/.lyra/model-catalog.json` 缓存，再每小时拉取一次（`core/src/model-catalog-sync.ts`）；模型
+先读 `~/.plume/model-catalog.json` 缓存，再每小时拉取一次（`core/src/model-catalog-sync.ts`）；模型
 设置页显示目录版本，也可以手动「立即更新」。请求带上次的 ETag，没变时服务端回 304。新目录整份
 校验通过、版本不同且不比当前旧才换上并缓存，任何失败都保留现有目录。渲染进程在启动和打开模型设置页
 时按版本号经 `providers.modelCatalog` 取主进程生效的那份，版本没变不重复传输。

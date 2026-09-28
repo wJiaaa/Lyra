@@ -72,7 +72,7 @@ AppLocker，写不了就当成被锁定的机器、退到 ConstrainedLanguage—
 认得 MSYS 在令牌下的死法），和其他越界写入走同一条路：模型用 `escalate` 重试，人决定这一次
 要不要放到沙箱外跑。`git` 本身是原生程序，照常能跑。
 
-**要小心的**：管理员身份启动的 Lyra（从提升过的终端启动，或者 CI 里的 pwsh 步骤），令牌的默认
+**要小心的**：管理员身份启动的 Plume（从提升过的终端启动，或者 CI 里的 pwsh 步骤），令牌的默认
 DACL 只有 Administrators（在受限令牌里是 deny-only）和 SYSTEM，受约束的进程连自己都打不开，
 以 `0xC0000142` 死在 DLL 初始化里。默认 DACL 因此要加上登录 SID——普通身份和限制 SID 里唯一
 共有的那一个。从 Git Bash 启动时测不出这个问题：Cygwin 会改写自己令牌的默认 DACL，子进程

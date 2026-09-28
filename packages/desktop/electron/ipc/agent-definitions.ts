@@ -1,10 +1,10 @@
 import { ipcMain } from "electron";
-import { AgentDefinitionStore, builtinTools, lyraHome, type AgentDefinitionSave } from "@lyra/core";
+import { AgentDefinitionStore, builtinTools, plumeHome, type AgentDefinitionSave } from "@plume/core";
 import { settings } from "../app-settings.ts";
 import { sessions } from "../session-hub.ts";
 
 export function registerAgentDefinitionsIpc(): void {
-	const store = new AgentDefinitionStore(lyraHome());
+	const store = new AgentDefinitionStore(plumeHome());
 	const cwd = (projectId: string | null) => {
 		if (projectId === null) return null;
 		if (typeof projectId !== "string") throw new Error("项目标识无效");

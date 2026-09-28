@@ -66,7 +66,7 @@ after(async () => {
 	await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
 
-const sources = () => [{ dir: join(root, "commands"), scope: "workspace" as const, origin: "lyra" as const }];
+const sources = () => [{ dir: join(root, "commands"), scope: "workspace" as const, origin: "plume" as const }];
 
 // ---------------------------------------------------------------------------
 // 内建命令

@@ -8,9 +8,9 @@
  */
 
 import { join } from "node:path";
-import type { MessageAttachment } from "@lyra/core";
+import type { MessageAttachment } from "@plume/core";
 import {
-	lyraHome,
+	plumeHome,
 	forkSession,
 	readTrajectory,
 	removeSessionArtifacts,
@@ -21,7 +21,7 @@ import {
 	type Settings,
 	type ThinkingLevel,
 	type UserContent,
-} from "@lyra/core";
+} from "@plume/core";
 import { grantArtifactRead } from "../readable-artifacts.ts";
 import { exportTrajectory } from "../trajectory-export.ts";
 import { readTrajectoryChanges } from "../trajectory-changes.ts";
@@ -61,7 +61,7 @@ export function registerSessionsIpc({
 	const store = readStore();
 	ipcMain.handle("sessions:exportTrajectory", (_event, projectId: string, sessionId: string, format: "json" | "md" | "output", selection?: { id?: string; correlationId?: string }) => exportTrajectory(store, projectId, sessionId, format, selection, sessions.get(sessionId)?.running ?? false));
 	// 和 `SessionStore` 落盘的是同一个位置（`sessions/<projectId>/<id>.jsonl`），只拼路径，不碰文件。
-	ipcMain.handle("sessions:logPath", (_event, projectId: string, sessionId: string) => join(lyraHome(), "sessions", projectId, `${sessionId}.jsonl`));
+	ipcMain.handle("sessions:logPath", (_event, projectId: string, sessionId: string) => join(plumeHome(), "sessions", projectId, `${sessionId}.jsonl`));
 
 	ipcMain.handle("sessions:list", async () => store.listSessions());
 
@@ -135,7 +135,7 @@ export function registerSessionsIpc({
 
 			const loaded = await store.load(projectId, sessionId, { display: true });
 			if (!loaded) return null;
-			const delay = Number(process.env.LYRA_E2E_SLOW_TRANSCRIPT ?? 0);
+			const delay = Number(process.env.PLUME_E2E_SLOW_TRANSCRIPT ?? 0);
 			if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
 			return slimSnapshot({
 				meta: loaded.meta,
@@ -163,7 +163,7 @@ export function registerSessionsIpc({
 			const sessionMeta = (await store.listSessions()).find((s) => s.id === sessionId);
 			await disposeSession(sessionId);
 			await store.delete(projectId, sessionId);
-			await removeSessionArtifacts(lyraHome(), sessionId);
+			await removeSessionArtifacts(plumeHome(), sessionId);
 
 			// If session was running in a dedicated worktree and autoCleanOld is enabled, clean it up
 			const appSettings = readSettings();
@@ -236,7 +236,7 @@ export function registerSessionsIpc({
 			archived.map((s) => ({ projectId: s.projectId, id: s.id })),
 		);
 		await Promise.all(
-			archived.map((s) => removeSessionArtifacts(lyraHome(), s.id)),
+			archived.map((s) => removeSessionArtifacts(plumeHome(), s.id)),
 		);
 		return store.listSessions();
 	});

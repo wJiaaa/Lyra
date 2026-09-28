@@ -126,11 +126,11 @@ export function readAllowedTools(value: unknown): AllowedTools {
 		 * here to narrow it with, and refusing `bash` would leave a `Bash(git commit *)` skill unable
 		 * to do the one thing it names.
 		 */
-		problems.push(`\`allowed-tools\` 里括号中的范围在 Lyra 不生效，${list(widened)} 按整个工具放行：${list(scoped)}。`);
+		problems.push(`\`allowed-tools\` 里括号中的范围在 Plume 不生效，${list(widened)} 按整个工具放行：${list(scoped)}。`);
 	}
-	if (unmatched.length > 0) problems.push(`\`allowed-tools\` 里对应不到 Lyra 工具的项不会放行任何调用：${list(unmatched)}。`);
+	if (unmatched.length > 0) problems.push(`\`allowed-tools\` 里对应不到 Plume 工具的项不会放行任何调用：${list(unmatched)}。`);
 	if (serverWide.length > 0) {
-		problems.push(`\`allowed-tools\` 里指整个 MCP 服务的项不会放行任何调用，Lyra 只认完整的工具名 \`mcp__<服务>__<工具>\`：${list(serverWide)}。`);
+		problems.push(`\`allowed-tools\` 里指整个 MCP 服务的项不会放行任何调用，Plume 只认完整的工具名 \`mcp__<服务>__<工具>\`：${list(serverWide)}。`);
 	}
 	return { tools, problems };
 }

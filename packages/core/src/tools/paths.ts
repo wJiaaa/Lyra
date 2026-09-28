@@ -2,7 +2,7 @@ import { realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { scratchHome } from "../runtime/previews.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { home } from "../platform.ts";
 
 function contains(root: string, absolute: string): boolean {
@@ -27,13 +27,13 @@ function contains(root: string, absolute: string): boolean {
  * for anything that should not end up in the user's repository. Refusing it would be telling the
  * model to write somewhere and then stopping it — which is exactly what happened before this,
  * and what it worked around by reaching for an MCP filesystem server instead. Only the scratch
- * subtree is opened up: `~/.lyra` itself still holds settings and transcripts, and stays shut.
+ * subtree is opened up: `~/.plume` itself still holds settings and transcripts, and stays shut.
  */
 export function resolveWorkspacePath(cwd: string, input: string): string {
 	if (!input || typeof input !== "string") throw new Error("A path is required.");
 	// 与读取侧同一套写法解析：以前这里只认 `~/`，Windows 上 `/c/…`、`~\` 读得到、写却报越界。
 	const absolute = toAbsolute(cwd, input);
-	if (contains(cwd, absolute) || contains(scratchHome(lyraHome()), absolute)) return absolute;
+	if (contains(cwd, absolute) || contains(scratchHome(plumeHome()), absolute)) return absolute;
 	throw new Error(`Path escapes the workspace root (${cwd}): ${input}`);
 }
 
@@ -78,7 +78,7 @@ export async function resolveFilePath(
 		}
 	};
 	const target = await canonical(absolute);
-	const roots = await Promise.all([canonical(cwd), canonical(scratchHome(lyraHome()))]);
+	const roots = await Promise.all([canonical(cwd), canonical(scratchHome(plumeHome()))]);
 	if (!roots.some((root) => contains(root, target))) {
 		throw new Error(`Path escapes the workspace root through a symbolic link: ${input}`);
 	}

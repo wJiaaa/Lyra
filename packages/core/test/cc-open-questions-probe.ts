@@ -24,7 +24,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ModelConfig, ProviderConfig } from "../src/types.ts";
 
-const HOME = join(homedir(), ".lyra");
+const HOME = join(homedir(), ".plume");
 const PROVIDER_ID = "provider-mtvmtyj6";
 const MODEL_ID = "deepseek-flash";
 
@@ -154,7 +154,7 @@ async function main() {
 	say(quiet ? `  → 真正能关掉的是：${quiet}` : "  → 没有一种写法能关掉思考 ← 这个端点上「关思考」做不到，界面不该说能关");
 
 	await writeFile(join(HOME, "scratch", "cc-open-questions.txt"), `${new Date().toISOString()}\n\n${report.join("\n")}`, "utf8");
-	console.log("\n落盘：~/.lyra/scratch/cc-open-questions.txt");
+	console.log("\n落盘：~/.plume/scratch/cc-open-questions.txt");
 }
 
 main().catch((error) => {

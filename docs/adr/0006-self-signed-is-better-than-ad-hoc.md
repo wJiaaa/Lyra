@@ -29,7 +29,7 @@ electron-builder 把它改名、重写 Info.plist、把我们的资源塞在旁�
 code has no resources but signature indicates they must be present
 ```
 
-带着隔离标记时，Gatekeeper 认定签名损坏并报「Lyra.app 已损坏，无法打开。」——那个对话框**没有
+带着隔离标记时，Gatekeeper 认定签名损坏并报「Plume.app 已损坏，无法打开。」——那个对话框**没有
 「仍要打开」**。死路一条。
 
 ## 决定
@@ -38,7 +38,7 @@ code has no resources but signature indicates they must be present
 指向证书：
 
 ```
-designated => identifier "dev.lyra.app" and certificate leaf = H"…"
+designated => identifier "dev.plume.app" and certificate leaf = H"…"
 ```
 
 它对可执行文件只字不提，所以更新之后仍然是同一个应用。用一张证书签两个毫不相干的二进制验证

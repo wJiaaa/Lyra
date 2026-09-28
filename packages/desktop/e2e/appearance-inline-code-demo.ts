@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { startApp } from "./app.ts";
 
 const outDir = process.argv[2] ?? join(homedir(), "Desktop", "行内代码配色测试");
-const home = "/tmp/lyra-inline-demo";
+const home = "/tmp/plume-inline-demo";
 const project = join(home, "proj");
 
 async function seed(dir: string): Promise<void> {
@@ -153,8 +153,8 @@ const backToWorkspace = () =>
 const patchAppearance = (patch: Record<string, unknown>) =>
 	app.evaluate(`(async () => {
 		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-		const settings = await window.lyra.settings.get();
-		await window.lyra.settings.save({
+		const settings = await window.plume.settings.get();
+		await window.plume.settings.save({
 			...settings,
 			appearance: { ...settings.appearance, ...${JSON.stringify(patch)} },
 		});

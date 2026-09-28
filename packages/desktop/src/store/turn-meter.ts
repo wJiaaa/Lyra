@@ -35,8 +35,8 @@
  * 「我这件事等了多久」，补一句需求不是另起一件事。两个问题各自答对，不是同一个问题答了两遍。
  */
 
-import type { Usage } from "@lyra/core";
-import { freshTokens } from "@lyra/core/tokens";
+import type { Usage } from "@plume/core";
+import { freshTokens } from "@plume/core/tokens";
 
 /** A turn in flight: when its clock was lit, and what it has spent since. */
 export interface TurnMeter {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { createElement as h } from "react";
-import { DEFAULT_SETTINGS, type SessionMeta, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type SessionMeta, type Settings } from "@plume/core";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { groupSessions } from "../../src/lib/sidebar-grouping.ts";
@@ -22,7 +22,7 @@ let reordered: number;
 beforeEach(() => {
 	saves = []; opened = 0; reordered = 0;
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS, projects }, sessions, activity: {}, notices: [], activeSessionId: null });
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		settings: { save: async (next: Settings) => { saves.push(next); return next; } },
 		workspace: { info: async (path: string) => ({ path, name: "A", isGitRepo: false, branch: null }) },
 	} });

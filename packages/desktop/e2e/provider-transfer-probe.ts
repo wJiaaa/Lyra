@@ -17,7 +17,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "lyra-供应商导入导出");
+const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "plume-供应商导入导出");
 const PORT = 9497;
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -51,7 +51,7 @@ const HERE = [
 
 /** 从「另一台机器」带来的文件：一条覆盖、一条新增，外加一条被人手工抹掉密钥的。 */
 const FILE = {
-	kind: "lyra.providers",
+	kind: "plume.providers",
 	version: 1,
 	exportedAt: new Date().toISOString(),
 	containsSecrets: true,
@@ -174,7 +174,7 @@ try {
 	await app.evaluate(`(() => {
 		const input = document.querySelector('input[type="file"][accept*="json"]');
 		if (!input) return "没有找到文件输入框";
-		const file = new File([${payload}], "lyra-providers.json", { type: "application/json" });
+		const file = new File([${payload}], "plume-providers.json", { type: "application/json" });
 		const dt = new DataTransfer();
 		dt.items.add(file);
 		input.files = dt.files;

@@ -12,8 +12,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startApp } from "./app.ts";
 
-const outDir = process.argv[2] ?? "/tmp/lyra-doc-shots";
-const repo = "/tmp/lyra-docs-shot";
+const outDir = process.argv[2] ?? "/tmp/plume-doc-shots";
+const repo = "/tmp/plume-docs-shot";
 const trayDir = join(dirname(fileURLToPath(import.meta.url)), "..", "build", "tray");
 
 rmSync(repo, { recursive: true, force: true });
@@ -82,7 +82,7 @@ const app = await startApp({
 				pluginRegistries: [],
 				skillRegistries: [],
 				alwaysAllow: [],
-				appearance: { theme: process.env.LYRA_SHOT_THEME === "light" ? "light" : "dark" },
+				appearance: { theme: process.env.PLUME_SHOT_THEME === "light" ? "light" : "dark" },
 			}),
 		);
 	},

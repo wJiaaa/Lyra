@@ -7,7 +7,7 @@ import { globTool } from "../src/tools/glob.ts";
 
 test("glob walks the whole tree, so newest-first and the remaining count are real", async (t) => {
 	// 以前找到 2000 个就停止遍历：最新的文件在后面的目录里就排不进来，「还有 N 个」也偏小。
-	const dir = await mkdtemp(join(tmpdir(), "lyra-glob-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-glob-"));
 	t.after(() => rm(dir, { recursive: true, force: true }));
 	const old = new Date("2020-01-01");
 	for (const group of ["a", "b"]) {

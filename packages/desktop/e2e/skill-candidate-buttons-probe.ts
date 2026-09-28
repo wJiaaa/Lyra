@@ -211,8 +211,8 @@ try {
 
 	console.log(`\n[1] 进项目（${LOCALE}）`);
 	const diag = await app.evaluate<{ pending: { name: string }[] }>(`(async () => {
-		const settings = await window.lyra.settings.get();
-		const pending = await window.lyra.skills.pending(settings.projects[0].path);
+		const settings = await window.plume.settings.get();
+		const pending = await window.plume.skills.pending(settings.projects[0].path);
 		return { pending };
 	})()`);
 	// 固件真的落到了主进程读的那个目录——先立住这条，后面量到的空才说明得了问题。

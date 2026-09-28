@@ -7,14 +7,14 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import type { AppState } from "./index.ts";
 import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 import { moveBeforeOrAfter, orderedSessions, type SessionSortKey } from "../lib/sidebar-order.ts";
 import { sessionUnderProject } from "../lib/project-scope.ts";
 import { baseName } from "../lib/paths.ts";
-import { projectFolders } from "@lyra/core/project-folders";
+import { projectFolders } from "@plume/core/project-folders";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -443,7 +443,7 @@ export function workspaceSlice(set: Set, get: Get) {
      * falls back to the session's own `projectName` when no configured project matches — so the
      * group was rebuilt on the next render from the very conversations that removing the entry
      * deliberately leaves alone. Delete the folder from disk and it is still there: the sessions
-     * live in `~/.lyra`, not in the directory they point at. That is the 「删不掉」 report.
+     * live in `~/.plume`, not in the directory they point at. That is the 「删不掉」 report.
      *
      * Archiving rather than deleting keeps the promise on the other half of it. Nothing is lost —
      * the conversations are in 设置 › 已归档 and can be brought back one by one — and it reuses

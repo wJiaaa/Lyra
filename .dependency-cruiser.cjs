@@ -118,7 +118,7 @@ module.exports = {
 		{
 			name: "contract-is-a-leaf",
 			comment:
-				"`@lyra/contract` has two consumers — the main process registers by it and the preload " +
+				"`@plume/contract` has two consumers — the main process registers by it and the preload " +
 				"builds from it. Whatever it imports is dragged into both builds. It depends on " +
 				"nothing, and that is the point of it being a package rather than a directory.",
 			severity: "error",

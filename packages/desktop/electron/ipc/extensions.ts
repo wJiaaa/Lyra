@@ -8,7 +8,7 @@
 import { ipcMain } from "electron";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { extensionDirs, validateManifest, type ExtensionDiagnostic, type ExtensionStats } from "@lyra/core";
+import { extensionDirs, validateManifest, type ExtensionDiagnostic, type ExtensionStats } from "@plume/core";
 import { sessions } from "../session-hub.ts";
 
 /** 只有清单：一个还没在任何会话里跑起来的扩展长什么样。 */

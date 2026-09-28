@@ -14,7 +14,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
+const REAL_HOME = join(homedir(), ".plume");
 
 async function seed(home: string): Promise<void> {
 	await mkdir(home, { recursive: true });
@@ -51,11 +51,11 @@ async function until(expression: string, ms = 30000) {
 /** 面板里那个终端当前在哪个目录——问它自己。 */
 async function pwd(): Promise<string> {
 	await app.evaluate(`(async () => {
-		const tabs = await window.lyra.terminal.listAll();
+		const tabs = await window.plume.terminal.listAll();
 		// 写给**每一个**终端：面板上只画活动的那一个，所以谁显示出来了，谁就是活动的。
 		// 挑 tabs[0] 会去问一个根本没在看的终端——那是上一版读数为空的原因。
 		for (const tab of tabs) {
-			await window.lyra.terminal.write(tab.id, "echo DIR=" + String.fromCharCode(36) + "{PWD##*/}" + String.fromCharCode(13));
+			await window.plume.terminal.write(tab.id, "echo DIR=" + String.fromCharCode(36) + "{PWD##*/}" + String.fromCharCode(13));
 		}
 	})()`);
 	await pause(1500);
@@ -68,7 +68,7 @@ async function pwd(): Promise<string> {
 }
 
 async function tabs(): Promise<Array<{ id: string; title: string }>> {
-	return app.evaluate(`window.lyra.terminal.listAll()`);
+	return app.evaluate(`window.plume.terminal.listAll()`);
 }
 
 /** 输入框上那个项目名——切项目到底有没有生效，看它。 */
@@ -134,7 +134,7 @@ async function main() {
 
 		console.log("\n③ 在 beta 里按「+」开一个新终端");
 		await app.evaluate(`(async () => {
-			const cwd = window.lyra ? null : null;
+			const cwd = window.plume ? null : null;
 			const b = [...document.querySelectorAll("button")].find((e) => /新建终端|新终端/.test(e.getAttribute("aria-label") ?? e.getAttribute("data-ly-tip") ?? "")) ?? [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === "+");
 			b?.click();
 			return Boolean(b);

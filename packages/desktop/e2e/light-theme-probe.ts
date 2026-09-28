@@ -16,7 +16,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-light";
+const dir = process.argv[2] ?? "/tmp/plume-light";
 const project = join(dir, "proj");
 
 /** The user's own file from the screenshot, near enough: comments, globs, values. */

@@ -32,7 +32,7 @@ const OFF = "[0m";
 
 /** A small but real codebase to search: a copy of a few of our own files. */
 async function fixture(): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-orch-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-orch-"));
 	await mkdir(join(dir, "src", "auth"), { recursive: true });
 	await mkdir(join(dir, "src", "db"), { recursive: true });
 

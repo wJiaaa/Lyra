@@ -22,7 +22,7 @@ import type { Settings } from "../config/settings.ts";
 
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { lyraHome, projectIdFor } from "../session/store.ts";
+import { plumeHome, projectIdFor } from "../session/store.ts";
 import { budgetMemory } from "../prompt/budget.ts";
 import { today } from "../prompt/environment.ts";
 import { invalidateMemorySnapshots } from "./memory.ts";
@@ -48,7 +48,7 @@ export const MAX_LESSON_CHARS = 2000;
 const MAX_CONTEXT_CHARS = 400;
 
 export function projectMemoryDir(cwd: string): string {
-	return join(lyraHome(), "projects", projectIdFor(cwd), "memory");
+	return join(plumeHome(), "projects", projectIdFor(cwd), "memory");
 }
 
 /**
@@ -329,7 +329,7 @@ export function formatProjectMemorySources(lessons: Lesson[], extracted = ""): {
 }
 
 /** Kept in the session state so changing the setting also gates an already-running tool call. */
-export const PROJECT_MEMORY_ENABLED_KEY = "lyra.project-memory.enabled";
+export const PROJECT_MEMORY_ENABLED_KEY = "plume.project-memory.enabled";
 export function projectMemoryEnabled(settings: Pick<Settings, "personalization">): boolean {
 	return (settings.personalization?.enableProjectMemory ?? settings.personalization?.enableMemory) !== false;
 }

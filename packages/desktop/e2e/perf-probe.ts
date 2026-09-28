@@ -18,7 +18,7 @@ const exec = promisify(execFile);
 
 /** A repository with `dirty` changed files and `fresh` untracked ones, all real text. */
 async function makeRepo(files: number): Promise<string> {
-	const root = join(tmpdir(), `lyra-perf-${Date.now()}`);
+	const root = join(tmpdir(), `plume-perf-${Date.now()}`);
 	await mkdir(root, { recursive: true });
 	await exec("git", ["init", "-q"], { cwd: root });
 	await exec("git", ["config", "user.email", "probe@example.com"], { cwd: root });
@@ -49,7 +49,7 @@ async function main() {
 	const app = await startApp({ port: 9333 });
 	try {
 		// Warm: the first call of anything pays for module loading, not for the work.
-		await app.evaluate(`window.lyra.workspace.info(${JSON.stringify(repo)}).then(() => 1)`);
+		await app.evaluate(`window.plume.workspace.info(${JSON.stringify(repo)}).then(() => 1)`);
 
 		const time = async (label: string, expression: string) => {
 			const ms = await app.evaluate<number>(
@@ -59,20 +59,20 @@ async function main() {
 			return ms;
 		};
 
-		await time("workspace.info (dirty repo)", `window.lyra.workspace.info(${JSON.stringify(repo)})`);
-		await time("git.status (dirty repo)", `window.lyra.git.status(${JSON.stringify(repo)})`);
-		await time("git.repos (dirty repo)", `window.lyra.git.repos(${JSON.stringify(repo)})`);
-		await time("sessions.list", `window.lyra.sessions.list()`);
+		await time("workspace.info (dirty repo)", `window.plume.workspace.info(${JSON.stringify(repo)})`);
+		await time("git.status (dirty repo)", `window.plume.git.status(${JSON.stringify(repo)})`);
+		await time("git.repos (dirty repo)", `window.plume.git.repos(${JSON.stringify(repo)})`);
+		await time("sessions.list", `window.plume.sessions.list()`);
 		// What the git panel's changes view asks for on every status it receives.
-		await time("diff.workspaceDiff", `window.lyra.diff.workspaceDiff(${JSON.stringify(repo)})`);
-		await time("git.diffRefs (staged)", `window.lyra.git.diffRefs(${JSON.stringify(repo)}, "HEAD", null)`);
-		await time("git.worktrees", `window.lyra.git.worktrees(${JSON.stringify(repo)})`);
+		await time("diff.workspaceDiff", `window.plume.diff.workspaceDiff(${JSON.stringify(repo)})`);
+		await time("git.diffRefs (staged)", `window.plume.git.diffRefs(${JSON.stringify(repo)}, "HEAD", null)`);
+		await time("git.worktrees", `window.plume.git.worktrees(${JSON.stringify(repo)})`);
 
 		// The two calls 新对话 and 新建项目 wait on before anything on screen changes.
-		await time("git.generalScratch", `window.lyra.git.generalScratch()`);
+		await time("git.generalScratch", `window.plume.git.generalScratch()`);
 		await time(
 			"settings.save",
-			`window.lyra.settings.get().then((s) => window.lyra.settings.save(s))`,
+			`window.plume.settings.get().then((s) => window.plume.settings.save(s))`,
 		);
 
 		/*
@@ -87,13 +87,13 @@ async function main() {
 			const poll = (async () => {
 				while (running) {
 					const t = performance.now();
-					await window.lyra.sessions.list();
+					await window.plume.sessions.list();
 					samples.push(performance.now() - t);
 					await new Promise((r) => setTimeout(r, 16));
 				}
 			})();
 			const t = performance.now();
-			await window.lyra.workspace.info(${JSON.stringify(repo)});
+			await window.plume.workspace.info(${JSON.stringify(repo)});
 			const info = performance.now() - t;
 			running = false;
 			await poll;

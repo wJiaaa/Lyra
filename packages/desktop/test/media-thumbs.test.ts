@@ -16,7 +16,7 @@ import { cachedThumb, parkedThumb, thumbPath } from "../electron/media-thumbs.ts
 const PNG = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
 
 async function home(): Promise<string> {
-	return mkdtemp(join(tmpdir(), "lyra-thumbs-"));
+	return mkdtemp(join(tmpdir(), "plume-thumbs-"));
 }
 
 function deps(calls: { shrink: number; source: number }, out: Uint8Array | null = PNG) {

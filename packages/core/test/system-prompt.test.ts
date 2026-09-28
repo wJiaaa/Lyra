@@ -38,8 +38,8 @@ test("skills contribute names and locations, never their bodies", async () => {
 		name: "release-notes",
 		description: "Write release notes.",
 		content: "SECRET BODY THAT MUST NOT BE IN THE PROMPT",
-		path: "/tmp/project/.lyra/skills/release-notes/SKILL.md",
-		dir: "/tmp/project/.lyra/skills/release-notes",
+		path: "/tmp/project/.plume/skills/release-notes/SKILL.md",
+		dir: "/tmp/project/.plume/skills/release-notes",
 		source: "workspace",
 		disableModelInvocation: false,
 	};
@@ -47,7 +47,7 @@ test("skills contribute names and locations, never their bodies", async () => {
 	const prompt = await buildSystemPrompt({ ...BASE, tools: builtinTools(), skills: [skill] });
 	assert.match(prompt, /<available_skills>/);
 	assert.match(prompt, /<name>release-notes<\/name>/);
-	assert.match(prompt, /<location>\/tmp\/project\/\.lyra\/skills\/release-notes<\/location>/);
+	assert.match(prompt, /<location>\/tmp\/project\/\.plume\/skills\/release-notes<\/location>/);
 	// The body is what the `skill` tool loads on demand; putting it here defeats the design.
 	assert.doesNotMatch(prompt, /SECRET BODY/);
 });
@@ -57,8 +57,8 @@ test("a skill hidden from the model is not advertised", async () => {
 		name: "manual-only",
 		description: "Only the user may invoke this.",
 		content: "",
-		path: "/tmp/project/.lyra/skills/manual-only/SKILL.md",
-		dir: "/tmp/project/.lyra/skills/manual-only",
+		path: "/tmp/project/.plume/skills/manual-only/SKILL.md",
+		dir: "/tmp/project/.plume/skills/manual-only",
 		source: "workspace",
 		disableModelInvocation: true,
 	};

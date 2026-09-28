@@ -67,16 +67,16 @@ async function harness(script?: (turn: number) => AssistantMessage | Promise<Ass
 	/*
 	 * A home of its own, so the assertions are about this test and not about this machine.
 	 *
-	 * A session loads the user's global skills as well as the workspace's, so `~/.lyra/skills`
+	 * A session loads the user's global skills as well as the workspace's, so `~/.plume/skills`
 	 * was part of every context these tests measured. Installing a skill collection therefore
 	 * broke the suite — and `pnpm test` is in the pre-push hook, so using the app as intended
 	 * stopped you pushing to it.
 	 *
-	 * HOME 也要换：个人的 `~/.agents/skills` 同样进会话，而它按 `os.homedir()` 找，不看 LYRA_HOME。
+	 * HOME 也要换：个人的 `~/.agents/skills` 同样进会话，而它按 `os.homedir()` 找，不看 PLUME_HOME。
 	 */
 	const home = join(root, "home");
 	await mkdir(home, { recursive: true });
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 	process.env.HOME = process.env.USERPROFILE = home;
 	let turn = 0;
 	const store = new SessionStore(join(root, "sessions"));
@@ -100,7 +100,7 @@ async function harness(script?: (turn: number) => AssistantMessage | Promise<Ass
 		},
 		cleanup: async () => {
 			await session.dispose();
-			delete process.env.LYRA_HOME;
+			delete process.env.PLUME_HOME;
 			await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 		},
 	};
@@ -140,7 +140,7 @@ test("the context the model was given is written down, once", async () => {
 		const first = contexts[0];
 		assert.equal(first.type, "event");
 		if (first.type !== "event" || first.event.type !== "context") throw new Error("wrong record");
-		assert.match(first.event.systemPrompt, /Lyra/, "the prompt itself is kept, not a hash of it");
+		assert.match(first.event.systemPrompt, /Plume/, "the prompt itself is kept, not a hash of it");
 		assert.ok(first.event.tools.includes("bash"), "and which tools it could reach");
 		assert.deepEqual([...first.event.tools].sort(), first.event.tools, "recorded in a stable order");
 		assert.ok(first.event.schemas?.some(tool => tool.name === "bash" && tool.parameters), "the actual tool schemas survive a restart");
@@ -158,7 +158,7 @@ test("a changed context is written again", async () => {
 
 		// A skill appearing mid-session is exactly the kind of change the log must not miss: the
 		// same messages, a different set of things the model could have done about them.
-		const dir = join(h.root, ".lyra", "skills", "greet");
+		const dir = join(h.root, ".plume", "skills", "greet");
 		await mkdir(dir, { recursive: true });
 		await writeFile(join(dir, "SKILL.md"), "---\nname: greet\ndescription: Say hello\n---\n\nSay hello.\n");
 		await h.session.initialize();

@@ -1,6 +1,6 @@
 import { Check, ChevronRight, Shuffle, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { AgentDefinitionRecord, AgentDefinitionSave, AgentDraft } from "@lyra/core";
+import type { AgentDefinitionRecord, AgentDefinitionSave, AgentDraft } from "@plume/core";
 import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";

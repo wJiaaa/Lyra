@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { proseLength } from "../src/features/conversation/answering.ts";
-import type { AssistantContent, Message } from "@lyra/core";
+import type { AssistantContent, Message } from "@plume/core";
 
 /** A reply mid-flight, built from whatever blocks the case is about. */
 function pending(...content: AssistantContent[]): Message {

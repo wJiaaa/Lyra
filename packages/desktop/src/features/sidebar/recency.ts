@@ -13,7 +13,7 @@
 
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 
 export interface RecencyBand {
 	/** Stable across renders and unique within the list — the sticky heading keys off it. */

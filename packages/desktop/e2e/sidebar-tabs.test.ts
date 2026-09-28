@@ -247,7 +247,7 @@ async function selectTab(value: "projects" | "chats"): Promise<void> {
 /** Switch the interface language the way the settings page does, and wait until it is drawn. */
 async function setLocale(locale: string): Promise<void> {
 	await app.evaluate(
-		`window.lyra.settings.get().then((s) => window.lyra.settings.save({ ...s, uiLocale: ${JSON.stringify(locale)} }))`,
+		`window.plume.settings.get().then((s) => window.plume.settings.save({ ...s, uiLocale: ${JSON.stringify(locale)} }))`,
 	);
 	for (let i = 0; i < 40; i++) {
 		if ((await app.evaluate<string>("document.documentElement.lang")) === locale) break;

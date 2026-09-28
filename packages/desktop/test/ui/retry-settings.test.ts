@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import { DEFAULT_SETTINGS, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type Settings } from "@plume/core";
 
 import { RetrySettings } from "../../src/features/settings/RetrySettings.tsx";
 import { useApp } from "../../src/store/index.ts";

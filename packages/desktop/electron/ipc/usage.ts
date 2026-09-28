@@ -16,7 +16,7 @@
  */
 
 import { ipcMain } from "electron";
-import type { SessionStorage } from "@lyra/core";
+import type { SessionStorage } from "@plume/core";
 import { settings } from "../app-settings.ts";
 import { sessions } from "../session-hub.ts";
 import { clearSessions, storageUse, type ClearRange } from "../session-cleanup.ts";

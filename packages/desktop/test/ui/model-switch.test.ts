@@ -17,7 +17,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import { DEFAULT_SETTINGS, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type Settings } from "@plume/core";
 
 import { ModelMenu } from "../../src/features/models/ModelMenu.tsx";
 import { Confirm } from "../../src/ui/overlay/Confirm.tsx";

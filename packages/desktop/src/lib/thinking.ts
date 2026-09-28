@@ -10,7 +10,7 @@
  * not open yet, where there is no conversation to ask.
  */
 
-import type { SessionMeta, Settings, ThinkingLevel } from "@lyra/core";
+import type { SessionMeta, Settings, ThinkingLevel } from "@plume/core";
 
 /** What the app falls back to when nothing has ever been chosen. Mirrors `DEFAULT_SETTINGS`. */
 export const THINKING_FALLBACK: ThinkingLevel = "medium";

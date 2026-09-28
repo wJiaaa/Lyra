@@ -1,7 +1,7 @@
 /**
  * Which shell a new terminal starts, on the platform where `SHELL` lies.
  *
- * Lyra launched from Git Bash inherits `SHELL=/usr/bin/bash` — a path in MSYS's world, which
+ * Plume launched from Git Bash inherits `SHELL=/usr/bin/bash` — a path in MSYS's world, which
  * ConPTY cannot open — and the registry handed it to node-pty as it was. The terminal never
  * started. The platform and environment are parameters so the Windows case is checked here, on
  * whatever machine runs the tests.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
-import { SessionStore } from "@lyra/core";
+import { SessionStore } from "@plume/core";
 
 interface Contents { mainFrame: object }
 interface Event { sender: Contents; senderFrame: object }

@@ -328,7 +328,7 @@ export class SideChat {
 				: queue.map((t) => `- [${t.status === "running" ? "执行中" : "排队中"}] ${t.text}`).join("\n");
 
 		return [
-			"你是 Lyra 的侧边助手，附在用户当前的主会话旁边。",
+			"你是 Plume 的侧边助手，附在用户当前的主会话旁边。",
 			"",
 			"# 你的处境",
 			"",

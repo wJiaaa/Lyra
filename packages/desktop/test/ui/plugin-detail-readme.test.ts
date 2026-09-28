@@ -1,7 +1,7 @@
 /**
  * 市场详情页：README 画出来、事实改成标签、内容分页。
  *
- * 桥是假的（`window.lyra`），README 由假的 `plugins.readme` 给；其余是真组件、真 store。
+ * 桥是假的（`window.plume`），README 由假的 `plugins.readme` 给；其余是真组件、真 store。
  * 要证的是用户看到的：README 是渲染过的，不是源码；那张「信息」表不在了，它说的东西成了名字下面
  * 的一行标签；技能不再和介绍摞在一起，而是另一个标签页。
  */
@@ -9,13 +9,13 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import { DEFAULT_SETTINGS, type Plugin, type RegistryEntry, type Settings, type Skill } from "@lyra/core";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import { DEFAULT_SETTINGS, type Plugin, type RegistryEntry, type Settings, type Skill } from "@plume/core";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 import { PluginsView } from "../../src/features/plugins/PluginsView.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { click, mount } from "../helpers/mount.ts";
 
-type Scan = Awaited<ReturnType<LyraApi["plugins"]["list"]>>;
+type Scan = Awaited<ReturnType<PlumeApi["plugins"]["list"]>>;
 
 const REGISTRY = "https://market.example/v1/index";
 
@@ -43,7 +43,7 @@ const entries: RegistryEntry[] = [
 ];
 
 function skill(name: string): Skill {
-	return { name, description: `${name} 的说明`, path: `/home/.lyra/plugins/waza/skills/${name}/SKILL.md`, dir: `/home/.lyra/plugins/waza/skills/${name}`, source: "user", pluginId: "waza" } as Skill;
+	return { name, description: `${name} 的说明`, path: `/home/.plume/plugins/waza/skills/${name}/SKILL.md`, dir: `/home/.plume/plugins/waza/skills/${name}`, source: "user", pluginId: "waza" } as Skill;
 }
 
 function scanWith(extra: Partial<Scan> = {}): Scan {
@@ -53,7 +53,7 @@ function scanWith(extra: Partial<Scan> = {}): Scan {
 let seq = 0;
 function stubBridge(scan: Scan, readmes: Record<string, string | null>, settings: Partial<Settings> = {}): { asked: string[] } {
 	const asked: string[] = [];
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			plugins: {
@@ -137,7 +137,7 @@ test("那张信息表没有了：类别、许可、能装进的客户端成了�
 test("装好的技能集合：介绍和技能是两个标签页，切过去才是技能列表", async () => {
 	const installed: Plugin = {
 		id: "waza",
-		dir: "/home/.lyra/plugins/waza",
+		dir: "/home/.plume/plugins/waza",
 		manifest: { name: "waza", version: "3.0.0" },
 		source: "user",
 		skills: [skill("think"), skill("check")],

@@ -16,7 +16,7 @@
  * never writes the settings file to record that it had nothing to record.
  */
 
-import { isPlaceholder, needsOf, type Installed, type McpBundle, type McpServerConfig, type Settings } from "@lyra/core";
+import { isPlaceholder, needsOf, type Installed, type McpBundle, type McpServerConfig, type Settings } from "@plume/core";
 
 /**
  * The settings an install leaves behind, or null when it has nothing to say.
@@ -79,7 +79,7 @@ export function settingsAfterUninstall(current: Settings, id: string): Settings 
 /**
  * Bring what is on disk and what is in settings back into agreement, or null if they already are.
  *
- * Every MCP bundle installed before the plugin/MCP split went into `~/.lyra/plugins` and was loaded
+ * Every MCP bundle installed before the plugin/MCP split went into `~/.plume/plugins` and was loaded
  * through the plugin's own `mcpServers` list — a path that no longer exists. Left alone, an upgrade
  * would silently disconnect every MCP server anybody had installed: still on disk, still in the
  * catalogue, connected to nothing.

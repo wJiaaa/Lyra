@@ -1,15 +1,15 @@
 /**
  * What a newly imported model starts with.
  *
- * Limits, capabilities and price are filled in once from the model catalogue (`@lyra/core/model-catalog`),
+ * Limits, capabilities and price are filled in once from the model catalogue (`@plume/core/model-catalog`),
  * which knows the endpoint as well as the model name. After that the row is the person's: catalogue
  * updates do not touch it. A model the catalogue does not know gets the general defaults.
  *
  * The pull dialog shows the same figure the import will write, from the same function.
  */
 
-import type { ModelConfig, ProviderConfig } from "@lyra/core";
-import { catalogFill, catalogModelFor, DEFAULT_MODEL_LIMITS, type CatalogFill } from "@lyra/core/model-catalog";
+import type { ModelConfig, ProviderConfig } from "@plume/core";
+import { catalogFill, catalogModelFor, DEFAULT_MODEL_LIMITS, type CatalogFill } from "@plume/core/model-catalog";
 
 type Endpoint = Pick<ProviderConfig, "id" | "baseUrl">;
 

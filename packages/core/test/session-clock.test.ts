@@ -25,7 +25,7 @@ function tickingClock(t: TestContext): void {
 }
 
 async function withStore(run: (store: SessionStore, root: string) => Promise<void>): Promise<void> {
-	const root = await mkdtemp(join(tmpdir(), "lyra-clock-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-clock-"));
 	try {
 		await run(new SessionStore(root), root);
 	} finally {

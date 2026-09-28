@@ -19,7 +19,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import type { InstallRecord } from "./install-record.ts";
 
 /*
@@ -32,7 +32,7 @@ import type { InstallRecord } from "./install-record.ts";
 export { isOutdated, type InstallRecord } from "./install-record.ts";
 
 function ledgerPath(): string {
-	return join(lyraHome(), "installs.json");
+	return join(plumeHome(), "installs.json");
 }
 
 /**
@@ -77,6 +77,6 @@ export async function forgetInstall(id: string): Promise<void> {
 }
 
 async function save(all: Record<string, InstallRecord>): Promise<void> {
-	await mkdir(lyraHome(), { recursive: true });
+	await mkdir(plumeHome(), { recursive: true });
 	await writeFile(ledgerPath(), `${JSON.stringify(all, null, "\t")}\n`, "utf8");
 }

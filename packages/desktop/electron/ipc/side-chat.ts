@@ -1,7 +1,7 @@
 /** Electron IPC bindings for the shared side-chat service. */
 
 import { ipcMain } from "electron";
-import type { SideAskOptions, UserContent } from "@lyra/core";
+import type { SideAskOptions, UserContent } from "@plume/core";
 import {
 	sideChatAbort,
 	sideChatAsk,

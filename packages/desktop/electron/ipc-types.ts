@@ -2,7 +2,7 @@
  * Everything the renderer may ask the main process to do.
  *
  * One interface, grouped by subject, and the only description of the boundary there is — the
- * preload builds `window.lyra` against it and the handlers are registered against the same
+ * preload builds `window.plume` against it and the handlers are registered against the same
  * channel names, so a call that is not written here does not exist.
  *
  * The values it passes are in `ipc-shapes`, re-exported below so a caller still imports one thing.
@@ -10,7 +10,7 @@
 
 import type { SessionChange } from "./ipc-shapes.ts";
 import type { FilePanelState, FilePanelVersion } from "../shared/file-panel-state.ts";
-import type { TrajectoryEntry, TrajectoryChanges, AgentDefinitionRecord, AgentDefinitionSave } from "@lyra/core";
+import type { TrajectoryEntry, TrajectoryChanges, AgentDefinitionRecord, AgentDefinitionSave } from "@plume/core";
 import type { ForgeAccount, ForgeKind, ForgeKindInfo } from "./forge/types.ts";
 import type {
 	BranchList,
@@ -41,9 +41,9 @@ import type { SchedulerNotice } from "./scheduler.ts";
 export type { SchedulerNotice } from "./scheduler.ts";
 export type { DocumentData } from "./documents.ts";
 import type { DocumentData } from "./documents.ts";
-import type { ExtractedText } from "@lyra/core";
-import type { ModelCatalogDocument } from "@lyra/core/model-catalog";
-import type { CatalogSyncResult } from "@lyra/core/model-catalog-sync";
+import type { ExtractedText } from "@plume/core";
+import type { ModelCatalogDocument } from "@plume/core/model-catalog";
+import type { CatalogSyncResult } from "@plume/core/model-catalog-sync";
 import type { ClearRange, ClearResult, StorageUse } from "./session-cleanup.ts";
 import type { UsageScan } from "./usage-scan.ts";
 export type { OpenTarget } from "./open-targets.ts";
@@ -79,7 +79,7 @@ import type {
 	SubAgentSummary,
 	ThinkingLevel,
 	UserContent,
-} from "@lyra/core";
+} from "@plume/core";
 
 import type {
 	AgentCapabilities,
@@ -130,8 +130,8 @@ interface PanelInMain {
 /** 设置页上的一条钩子，摊平了的样子。`id` 是位置，任何一次改动之后都要换成新列表里的。 */
 export interface HookView {
 	id: string;
-	scope: import("@lyra/core").HookScope;
-	event: import("@lyra/core").HookEventName;
+	scope: import("@plume/core").HookScope;
+	event: import("@plume/core").HookEventName;
 	matcher?: string;
 	type: "command" | "process";
 	command: string;
@@ -153,7 +153,7 @@ export interface HooksView {
 	/** 没有打开项目时为 null。 */
 	project: HookView[] | null;
 	projectPath?: string;
-	/** 项目的 `.lyra/config.json` 读不出来时，为什么。 */
+	/** 项目的 `.plume/config.json` 读不出来时，为什么。 */
 	projectError?: string;
 }
 
@@ -181,7 +181,7 @@ interface AttachedTerminal {
 	replay: string;
 }
 
-export interface LyraApi {
+export interface PlumeApi {
 	agentDefinitions: {
 		list(projectId: string | null): Promise<{ records: AgentDefinitionRecord[]; tools: string[] }>;
 		read(projectId: string | null, id: string): Promise<AgentDefinitionRecord>;
@@ -280,7 +280,7 @@ export interface LyraApi {
 		get(): Promise<Settings>;
 		save(settings: Settings): Promise<Settings>;
 		/**
-		 * 项目层相对全局的差别：哪些键被 `<cwd>/.lyra/config.json` 整体替换（数组与标量；对象深合并
+		 * 项目层相对全局的差别：哪些键被 `<cwd>/.plume/config.json` 整体替换（数组与标量；对象深合并
 		 * 后只报叶子）、两侧的值各是什么，以及那个文件里被拒绝的键。设置页读写的是全局文件，
 		 * 被替换的键在这一页拨了也不生效，页面要把这句话说出来。
 		 */
@@ -300,9 +300,9 @@ export interface LyraApi {
 	hooks: {
 		list(cwd: string | null): Promise<HooksView>;
 		/** `id` 为 null 是新建。 */
-		save(scope: import("@lyra/core").HookScope, cwd: string | null, id: string | null, draft: import("@lyra/core").HookDraft): Promise<HooksView>;
-		remove(scope: import("@lyra/core").HookScope, cwd: string | null, id: string): Promise<HooksView>;
-		setEnabled(scope: import("@lyra/core").HookScope, cwd: string | null, id: string, enabled: boolean): Promise<HooksView>;
+		save(scope: import("@plume/core").HookScope, cwd: string | null, id: string | null, draft: import("@plume/core").HookDraft): Promise<HooksView>;
+		remove(scope: import("@plume/core").HookScope, cwd: string | null, id: string): Promise<HooksView>;
+		setEnabled(scope: import("@plume/core").HookScope, cwd: string | null, id: string, enabled: boolean): Promise<HooksView>;
 		trust(cwd: string, ids: string[]): Promise<HooksView>;
 	};
 	usage: {
@@ -470,7 +470,7 @@ export interface LyraApi {
 		reset(sessionId: string, sideId: string): Promise<void>;
 		/** 关掉这一个：停下，存档一起删掉。 */
 		close(sessionId: string, sideId: string): Promise<void>;
-		onEvent(handler: (payload: { sessionId: string; sideId: string; event: import("@lyra/core").SideChatUpdate }) => void): () => void;
+		onEvent(handler: (payload: { sessionId: string; sideId: string; event: import("@plume/core").SideChatUpdate }) => void): () => void;
 	};
 	/** Work the side chat handed to a session, waiting for it to be free. */
 	tasks: {
@@ -863,7 +863,7 @@ export interface LyraApi {
 				 * The screen, as raw RGBA pixels rather than an encoded image.
 				 *
 				 * Encoding it to PNG so it could be decoded again on the other side of this message
-				 * measured 133ms — the largest single thing Lyra contributed to the wait before a
+				 * measured 133ms — the largest single thing Plume contributed to the wait before a
 				 * capture appears, and the picture is taken before that wait, so it was time in which
 				 * the screen could change and then appear to snap back when the frozen copy landed.
 				 */
@@ -1171,7 +1171,7 @@ export interface LyraApi {
 	/**
 	 * 这个项目的记忆——跟上面那个跨项目的偏好库是两回事。
 	 *
-	 * 上面那个是「我这个人的习惯」，存在 `~/.lyra/memory.json`；这个是「这个仓库怎么回事」，
+	 * 上面那个是「我这个人的习惯」，存在 `~/.plume/memory.json`；这个是「这个仓库怎么回事」，
 	 * 由后台抽取从历史会话里读出来，存在项目自己的记忆目录。
 	 */
 	projectMemory: {
@@ -1228,7 +1228,7 @@ interface WindowControlsOverlay extends EventTarget {
 
 declare global {
 	interface Window {
-		lyra: LyraApi;
+		plume: PlumeApi;
 	}
 	interface Navigator {
 		readonly windowControlsOverlay?: WindowControlsOverlay;

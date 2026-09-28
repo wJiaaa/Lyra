@@ -18,7 +18,7 @@
  *   没有远端和 promisor，`refs` 是空的（也就没有 replace 引用）。index 和对象库经
  *   `GIT_INDEX_FILE`/`GIT_OBJECT_DIRECTORY` 指回真实仓库，工作区经 `GIT_WORK_TREE`。
  *   属性里写了 `filter=x`、`diff=x` 也没用：配置里没有这个驱动，git 按没有处理。
- * - 这个目录放在 `lyraHome()` 下而不是系统临时目录：后者是沙箱可写根之一，后台命令可以抢在
+ * - 这个目录放在 `plumeHome()` 下而不是系统临时目录：后者是沙箱可写根之一，后台命令可以抢在
  *   git 读之前往里写配置。
  * - 宿主自己环境里的 `GIT_*` 一律去掉，只留下面明确设的那些。
  *
@@ -31,7 +31,7 @@ import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 
 const exec = promisify(execFile);
 
@@ -119,13 +119,13 @@ export async function openRepo(cwd: string): Promise<HostRepo | null> {
 
 /** 在隔离的 `GIT_DIR` 里跑一组 git 命令，结束即删。 */
 export async function withRepoView<T>(repo: HostRepo, work: (git: HostGit) => Promise<T>): Promise<T> {
-	const parent = join(lyraHome(), "git-views");
+	const parent = join(plumeHome(), "git-views");
 	await mkdir(parent, { recursive: true, mode: 0o700 });
 	const dir = await mkdtemp(join(parent, "view-"));
 	try {
 		await mkdir(join(dir, "refs"));
 		await mkdir(join(dir, "info"));
-		await writeFile(join(dir, "HEAD"), "ref: refs/heads/lyra-view\n");
+		await writeFile(join(dir, "HEAD"), "ref: refs/heads/plume-view\n");
 		await writeFile(join(dir, "config"), repo.config);
 		// 忽略规则与属性是数据；属性里的 `filter=`/`diff=` 在这里找不到驱动，不会执行。
 		for (const name of ["exclude", "attributes"]) {

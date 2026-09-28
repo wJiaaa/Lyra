@@ -8,7 +8,7 @@
 
 import { join } from "node:path";
 import type { Settings } from "../config/settings.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import type { SessionFacts } from "./reporting.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
@@ -49,5 +49,5 @@ export function sessionFacts(input: {
  * previews, which are removed on the same occasions and for the same reason.
  */
 export function scratchDir(sessionId: string | undefined): string {
-	return join(lyraHome(), "scratch", sessionId ?? "unsaved");
+	return join(plumeHome(), "scratch", sessionId ?? "unsaved");
 }

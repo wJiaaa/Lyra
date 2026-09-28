@@ -7,7 +7,7 @@
 //
 // 证书：自签一个 CA 和 localhost 的证书放在 MARKET_TLS（缺省 /tmp/plugin-verify/tls），应用那边用
 // NODE_EXTRA_CA_CERTS=<ca.pem> 交给它——证书校验照常开着，不用关：
-//   openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.pem -days 30 -subj "/CN=Lyra Test CA"
+//   openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.pem -days 30 -subj "/CN=Plume Test CA"
 //   openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj "/CN=localhost"
 //   printf "subjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth\n" > ext.cnf
 //   openssl x509 -req -in server.csr -CA ca.pem -CAkey ca.key -CAcreateserial -out server.pem -days 30 -extfile ext.cnf
@@ -21,7 +21,7 @@ import { join } from "node:path";
 const TLS = process.env.MARKET_TLS ?? "/tmp/plugin-verify/tls";
 const PORT = Number(process.env.PORT ?? 8443);
 const config = JSON.parse(readFileSync(process.argv[2], "utf8"));
-const out = join(tmpdir(), `lyra-market-${PORT}`);
+const out = join(tmpdir(), `plume-market-${PORT}`);
 mkdirSync(out, { recursive: true });
 
 const archives = new Map();
@@ -41,7 +41,7 @@ const server = createServer({ key: readFileSync(join(TLS, "server.key")), cert: 
 		const kind = url.searchParams.get("kind");
 		const list = kind ? entries.filter((entry) => entry.kind === kind) : entries;
 		res.writeHead(200, { "content-type": "application/json" });
-		res.end(JSON.stringify({ name: "Lyra 测试市场", updatedAt: new Date().toISOString(), entries: list }));
+		res.end(JSON.stringify({ name: "Plume 测试市场", updatedAt: new Date().toISOString(), entries: list }));
 		return;
 	}
 	const match = /^\/dl\/([a-z0-9._-]+)\.tar\.gz$/.exec(url.pathname);

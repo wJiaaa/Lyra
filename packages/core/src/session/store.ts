@@ -142,8 +142,8 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 /** A record as supplied by callers, before the store stamps `seq` and `ts`. */
 export type SessionRecordInput = DistributiveOmit<SessionRecord, "seq" | "ts">;
 
-export function lyraHome(): string {
-	return process.env.LYRA_HOME || join(homedir(), ".lyra");
+export function plumeHome(): string {
+	return process.env.PLUME_HOME || join(homedir(), ".plume");
 }
 
 export function projectIdFor(cwd: string): string {
@@ -248,7 +248,7 @@ export class SessionStore implements SessionStorage {
 	 */
 	private indexQueue: Promise<unknown> = Promise.resolve();
 
-	constructor(root = join(lyraHome(), "sessions")) {
+	constructor(root = join(plumeHome(), "sessions")) {
 		this.root = root;
 	}
 

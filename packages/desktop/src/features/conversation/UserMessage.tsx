@@ -2,7 +2,7 @@ import { translate } from "../../i18n/translate.ts";
 import type {
   UserContent,
   UserMessage as UserMessageType,
-} from "@lyra/core";
+} from "@plume/core";
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Undo2 } from "lucide-react";
 import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, KIND_LABEL, previewableInPanel, sentKind, type FileKind, type StripFile } from "../composer/index.ts";

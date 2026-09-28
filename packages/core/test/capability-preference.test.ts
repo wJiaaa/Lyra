@@ -25,7 +25,7 @@ interface Named {
 }
 
 function registry(): CapabilityRegistry {
-	return new CapabilityRegistry({ home: "/home/.lyra", userHome: "/home", repoRoot: () => null });
+	return new CapabilityRegistry({ home: "/home/.plume", userHome: "/home", repoRoot: () => null });
 }
 
 function fake(id: string, priority: number, names: string[]): CapabilityProvider<Named> {
@@ -81,20 +81,20 @@ test("a preference is scoped by kind: preferring a command does not touch a skil
 
 test("接线：settings.json 里的偏好经 collectSkills 到达注册表，被盖掉的那份能赢回名字", async () => {
 	/*
-	 * 真实的形状：项目里 `.lyra/skills/` 和 `.claude/skills/` 各有一份 `deploy`，前者优先级高、
+	 * 真实的形状：项目里 `.plume/skills/` 和 `.claude/skills/` 各有一份 `deploy`，前者优先级高、
 	 * 默认赢。偏好指向 `.claude` 那份，它就该成为赢家——用正文来认，那是两份唯一不同的地方。
 	 */
-	const root = await mkdtemp(join(tmpdir(), "lyra-prefer-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-prefer-"));
 	const skill = async (dir: string, body: string) => {
 		await mkdir(join(root, dir, "deploy"), { recursive: true });
 		await writeFile(join(root, dir, "deploy", "SKILL.md"), `---\nname: deploy\ndescription: 部署\n---\n${body}\n`, "utf8");
 	};
-	await skill(join(".lyra", "skills"), "LYRA-COPY");
+	await skill(join(".plume", "skills"), "PLUME-COPY");
 	await skill(join(".claude", "skills"), "CLAUDE-COPY");
 
 	const base = { capabilityPreferences: {} } as unknown as Settings;
 	const before = await collectSkills(root, [], base);
-	assert.match(before.skills.find((item) => item.name === "deploy")?.content ?? "", /LYRA-COPY/, "by default ours wins");
+	assert.match(before.skills.find((item) => item.name === "deploy")?.content ?? "", /PLUME-COPY/, "by default ours wins");
 
 	const claudePath = join(root, ".claude", "skills", "deploy", "SKILL.md");
 	const after = await collectSkills(root, [], { capabilityPreferences: { "skill:deploy": claudePath } } as unknown as Settings);

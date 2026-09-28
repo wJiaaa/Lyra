@@ -85,7 +85,7 @@ POSIX 结束进程组，普通停止使用 `SIGTERM`，强制结束使用 `SIGKI
 
 回归入口：`packages/core/test/edit-safety.test.ts`、`packages/core/test/diff.test.ts`；真实桌面端
 验证运行 `node --experimental-strip-types packages/desktop/e2e/edit-safety-demo.ts`（先 `pnpm build`），
-使用临时项目和本地模型协议服务，录制编辑、差异审阅与撤销到桌面 `Lyra编辑工具测试` 目录。
+使用临时项目和本地模型协议服务，录制编辑、差异审阅与撤销到桌面 `Plume编辑工具测试` 目录。
 
 ### 快照与撤销
 
@@ -93,7 +93,7 @@ write/edit 在变更前保存 before/after 快照，并在批准后重新核对�
 快照按 sessionId 哈希和 UUID 存在私有 `changes` 目录；工具结果只携带变更 ID。foreground bash
 在 Git 仓库记录执行前后的工作区差异，基线包含原有未提交和暂存改动，不能把用户原有改动算给本轮。
 这些 git 调用在宿主进程里跑，而仓库是沙箱可写的，所以它们不读仓库配置（`host-git.ts`）：除了
-`rev-parse` 与 `config --list`，其余在 `~/.lyra/git-views` 下临时生成的 `GIT_DIR` 里执行，配置只带
+`rev-parse` 与 `config --list`，其余在 `~/.plume/git-views` 下临时生成的 `GIT_DIR` 里执行，配置只带
 换行转换等白名单数据键，没有 filter/diff 驱动、fsmonitor、钩子和 promisor 远端。沙箱内命令写进
 `.git/config` 的程序不会被宿主执行；缺对象时记录失败并提示，不会去拉取。
 

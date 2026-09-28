@@ -356,7 +356,7 @@ test("开着思考时，配在 samplingParams 里的 temperature 不发出去", 
 });
 
 test("开着思考时只摘那三个键，别的原样合并进去", () => {
-	// Lyra 的 `samplingParams` 是个「原样合并进请求体」的口子（`types/provider.ts:79`），里面放的不一定
+	// Plume 的 `samplingParams` 是个「原样合并进请求体」的口子（`types/provider.ts:79`），里面放的不一定
 	// 是采样参数；整块扣掉会顺手扣掉别的东西，而没有证据说别的键在开思考时发不出去。
 	const sent = samplingFor(true, { samplingParams: { temperature: 0.3, metadata: { user_id: "u1" } } }, { samplingParams: { stop_sequences: ["</done>"] } });
 	assert.deepEqual(sent, { metadata: { user_id: "u1" }, stop_sequences: ["</done>"] });

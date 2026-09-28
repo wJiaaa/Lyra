@@ -36,7 +36,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
 	override componentDidCatch(error: Error, info: ErrorInfo): void {
 		// Also to the console, so it lands in the devtools log with everything logged around it.
-		console.error("[lyra] uncaught render error", error, info.componentStack);
+		console.error("[plume] uncaught render error", error, info.componentStack);
 		this.setState({ componentStack: info.componentStack ?? null });
 	}
 

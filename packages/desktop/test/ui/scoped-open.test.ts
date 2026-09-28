@@ -109,7 +109,7 @@ test("没有工作区的窗口里（会话窗口），什么也不写", () => {
 test("面板窗口：请求转给主窗口，不动本地的树", () => {
 	reset(null);
 	const asked: unknown[] = [];
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		bootWindow: { kind: "panel", panelKind: "files", panelScope: "sess-a", sessionId: null, id: "p1" },
 		windows: { openPanelInMain: async (input: unknown) => { asked.push(input); return { ok: true }; } },
 	});
@@ -119,7 +119,7 @@ test("面板窗口：请求转给主窗口，不动本地的树", () => {
 		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-a" }]);
 		assert.deepEqual(usePaneDock.getState().trees, {}, "面板窗口里的树是没人画的，往里写等于把点击吞掉");
 	} finally {
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -133,7 +133,7 @@ test("面板窗口：请求转给主窗口，不动本地的树", () => {
 test("a panel window's request names the screen it was popped out of, and the file it just opened", () => {
 	reset(null);
 	const asked: unknown[] = [];
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		bootWindow: { kind: "panel", panelKind: "files", panelScope: "sess-b", sessionId: "sess-b", id: "p1" },
 		windows: { openPanelInMain: async (input: unknown) => { asked.push(input); return { ok: true }; } },
 	});
@@ -141,7 +141,7 @@ test("a panel window's request names the screen it was popped out of, and the fi
 		void openFilePane({ path: "/work/beta/lib.ts", name: "lib.ts" }, undefined, { kind: "files", side: "bottom" });
 		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } }]);
 	} finally {
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -151,7 +151,7 @@ test("the main window opens what a panel window asked for in the screen it came 
 	usePaneDock.getState().rememberSize("sess-a", ROOMY);
 	usePaneDock.getState().rememberSize("sess-b", ROOMY);
 	let asked: ((request: unknown) => void) | undefined;
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		windows: {
 			list: async () => ({ panels: [], sessions: [] }),
 			onChanged: () => () => {},
@@ -176,6 +176,6 @@ test("the main window opens what a panel window asked for in the screen it came 
 	} finally {
 		stop();
 		useOpenFile.setState(previous, true);
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });

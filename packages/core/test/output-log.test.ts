@@ -7,7 +7,7 @@ import { createOutputLog } from "../src/tools/output-log.ts";
 import { bashTool } from "../src/tools/bash.ts";
 
 test("command output is retained beyond the model limit, in order, and closes idempotently", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-output-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-output-"));
 	try {
 		const log = await createOutputLog(root); assert.ok(log);
 		const chunks = Array.from({ length: 1500 }, (_, index) => `${index}: 中文日志 ${"x".repeat(200)}\n`);
@@ -21,7 +21,7 @@ test("command output is retained beyond the model limit, in order, and closes id
 });
 
 test("the bash tool keeps raw output beyond 120k characters and links it from the persisted result", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-bash-output-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-bash-output-"));
 	try {
 		await writeFile(join(root, "generate.cjs"), `process.stdout.write('x'.repeat(150000) + 'RAW_OUTPUT_TAIL');`);
 		const result = await bashTool.execute({ command: "node generate.cjs" }, { cwd: root, sessionId: "test-output", state: new Map(), scratchDir: join(root, "scratch"), sandboxMode: "danger-full-access" });

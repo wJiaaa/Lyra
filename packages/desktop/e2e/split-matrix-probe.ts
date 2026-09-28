@@ -91,8 +91,8 @@ async function shot(): Promise<Shot> {
 			if (k && (k.startsWith('dw:') || k.startsWith('ly:split'))) keys.push(k.slice(0, 26));
 		}
 		let panels = [], sessions = [];
-		if (window.lyra?.windows?.list) {
-			const r = await window.lyra.windows.list();
+		if (window.plume?.windows?.list) {
+			const r = await window.plume.windows.list();
 			panels = (r.panels || []).map((p) => p.kind + '@' + String(p.scope).slice(0, 8));
 			sessions = (r.sessions || []).map((s) => String(s).slice(0, 8));
 		}
@@ -271,9 +271,9 @@ async function reset(): Promise<void> {
 	}
 	await evaluate(`(async () => {
 		document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-		if (window.lyra?.windows?.list && window.lyra?.windows?.closePanel) {
-			const r = await window.lyra.windows.list();
-			for (const p of r.panels || []) await window.lyra.windows.closePanel({ kind: p.kind, scope: p.scope });
+		if (window.plume?.windows?.list && window.plume?.windows?.closePanel) {
+			const r = await window.plume.windows.list();
+			for (const p of r.panels || []) await window.plume.windows.closePanel({ kind: p.kind, scope: p.scope });
 		}
 		for (const b of [...document.querySelectorAll('button')]) {
 			const l = b.getAttribute('aria-label') || '';
@@ -930,8 +930,8 @@ async function main(): Promise<void> {
 			const popped = (await shot()).panels;
 			if (!popped.length) return ["skip", "没弹出来"];
 			await evaluate(`(async () => {
-				const r = await window.lyra.windows.list();
-				for (const p of r.panels || []) await window.lyra.windows.closePanel({ kind: p.kind, scope: p.scope });
+				const r = await window.plume.windows.list();
+				for (const p of r.panels || []) await window.plume.windows.closePanel({ kind: p.kind, scope: p.scope });
 				return true;
 			})()`);
 			await wait(1500);

@@ -1,7 +1,7 @@
 /** Validation for the incremental usage cache. Invalid or old caches are simply rebuilt. */
 
 import { readFile } from "node:fs/promises";
-import type { CacheDiagnosisState } from "@lyra/core";
+import type { CacheDiagnosisState } from "@plume/core";
 import type { UsageBucket } from "./usage-types.ts";
 
 export interface UsageFileEntry {

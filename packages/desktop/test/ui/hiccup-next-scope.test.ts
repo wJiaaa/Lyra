@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h } from "react";
-import type { UserContent } from "@lyra/core";
+import type { UserContent } from "@plume/core";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { HiccupRow } from "../../src/features/conversation/HiccupTrace.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";

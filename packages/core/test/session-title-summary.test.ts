@@ -372,7 +372,7 @@ test("session initialized via pendingPrompt (desktop new session flow) summarize
 			resolveSummary = r;
 		});
 
-		const text = "查看lyra的mcp连接设置和管理，例如现在的sqlcl mcp在各个会话是怎么初始化管理的";
+		const text = "查看plume的mcp连接设置和管理，例如现在的sqlcl mcp在各个会话是怎么初始化管理的";
 		const fallbackTitle = text.slice(0, 60);
 		// Simulate desktop electron createStoredSession
 		let meta = await store.create(process.cwd(), SESSION_MODEL.id, fallbackTitle);

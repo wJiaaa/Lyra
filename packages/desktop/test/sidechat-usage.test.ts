@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { DEFAULT_SETTINGS, SessionStore, AgentSession, emptyUsage, type AssistantMessage, type ModelConfig, type ProviderConfig } from "@lyra/core";
+import { DEFAULT_SETTINGS, SessionStore, AgentSession, emptyUsage, type AssistantMessage, type ModelConfig, type ProviderConfig } from "@plume/core";
 
 const model: ModelConfig = {
 	id: "qa/model",
@@ -28,7 +28,7 @@ const provider: ProviderConfig = {
 const settings = { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id };
 
 test("sideChat emits usage to main session log without inflating main messageCount", async (t) => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-side-usage-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-side-usage-"));
 	t.after(async () => {
 
 		await rm(root, { recursive: true, force: true });
@@ -60,7 +60,7 @@ test("sideChat emits usage to main session log without inflating main messageCou
 		timestamp: Date.now(),
 	};
 
-	const { SideChat } = await import("@lyra/core");
+	const { SideChat } = await import("@plume/core");
 	const chat = new SideChat({
 		main,
 		settings,

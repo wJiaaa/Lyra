@@ -73,7 +73,7 @@
  *
  * Deliberately the app's vocabulary rather than a spinner: this is the first thing the app draws,
  * and it should already be the app. Accent rather than the cards' info blue — at launch the only
- * thing in progress is Lyra itself.
+ * thing in progress is Plume itself.
  *
  * Indeterminate, because it is honest. Boot has no measurable steps to report, and a bar that
  * fills to a made-up percentage is a worse lie the faster the launch is.

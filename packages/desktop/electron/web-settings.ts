@@ -12,7 +12,7 @@
  * has no inverse to keep in step with.
  */
 
-import type { Settings } from "@lyra/core";
+import type { Settings } from "@plume/core";
 
 export function settingsForWeb(settings: Settings): Settings {
 	return {

@@ -384,7 +384,7 @@ export class AgentSession {
 		};
 
 		await this.can.load(this.cwd, this.settings);
-		// 目录名单本身也会变——新建了 `.lyra/skills/` 之后，它才第一次出现在 `watched` 里。
+		// 目录名单本身也会变——新建了 `.plume/skills/` 之后，它才第一次出现在 `watched` 里。
 		this.startWatching();
 
 		await this.emit({
@@ -398,7 +398,7 @@ export class AgentSession {
 	}
 
 	/**
-	 * 把 `<cwd>/.lyra/config.json` 叠到全局设置上。
+	 * 把 `<cwd>/.plume/config.json` 叠到全局设置上。
 	 *
 	 * 这一层以前只有一个模块和一份测试，产品里没有任何东西读那个文件——「A 项目用便宜模型加
 	 * 严格审批、B 项目用强模型加宽松审批」在这个分支上一直只是一段注释。
@@ -415,14 +415,14 @@ export class AgentSession {
 		/*
 		 * 被拒的键要说出来，而且要说得像一次拒绝。
 		 *
-		 * `.lyra/config.json` 是要提交进仓库的，落在里面的凭证就是已公开的凭证。安静地忽略它，
+		 * `.plume/config.json` 是要提交进仓库的，落在里面的凭证就是已公开的凭证。安静地忽略它，
 		 * 写的人会以为它生效了——那正是「能正常工作、只是把密钥共享了」的那种错误。
 		 */
 		if (layered.refused.length > 0) {
 			await this.emit({
 				type: "notice",
 				level: "warn",
-				message: `.lyra/config.json 里的 ${layered.refused.join("、")} 被忽略了——这个文件会进仓库，凭证和供应商只能写在全局设置里。`,
+				message: `.plume/config.json 里的 ${layered.refused.join("、")} 被忽略了——这个文件会进仓库，凭证和供应商只能写在全局设置里。`,
 			});
 		}
 		if (layered.error) await this.emit({ type: "notice", level: "warn", message: layered.error });

@@ -67,7 +67,7 @@ async function seed(home: string): Promise<void> {
 	);
 }
 
-const out = process.argv[2] ?? "/tmp/lyra-model-menu.png";
+const out = process.argv[2] ?? "/tmp/plume-model-menu.png";
 const app = await startApp({ port: 9462, seed });
 
 try {

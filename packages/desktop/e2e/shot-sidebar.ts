@@ -3,7 +3,7 @@
  *
  * Not a test — `node e2e/shot-sidebar.ts` — and beside the tests because it boots the app the same
  * way they do. Reviewing a change to how something is *drawn* against a DOM assertion is reviewing
- * a description of the picture; this is the picture. `LYRA_SHOT_THEME` picks the theme, which is
+ * a description of the picture; this is the picture. `PLUME_SHOT_THEME` picks the theme, which is
  * the one thing a pinned row's colour still depends on.
  */
 
@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { startApp } from "./app.ts";
 
 const DAY = 86_400_000;
-const NAMES = ["cf-sub-worker-public", "agent-test", "deepWise", "CliProxy", "Lyra", "quantum"];
+const NAMES = ["cf-sub-worker-public", "agent-test", "deepWise", "CliProxy", "Plume", "quantum"];
 const AGES = [0, 0, 1, 1, 3, 9, 20, 40, 90];
 
 async function seed(home: string): Promise<void> {
@@ -60,13 +60,13 @@ async function seed(home: string): Promise<void> {
 			skillRegistries: [],
 			alwaysAllow: [],
 			appearance: {
-				theme: process.env.LYRA_SHOT_THEME === "light" ? "light" : "dark",
+				theme: process.env.PLUME_SHOT_THEME === "light" ? "light" : "dark",
 			},
 		}),
 	);
 }
 
-const out = process.argv[2] ?? "/tmp/lyra-sidebar";
+const out = process.argv[2] ?? "/tmp/plume-sidebar";
 const app = await startApp({ port: 9471, seed });
 const view = `document.querySelector(".ly-sidebar-fill .ly-scroll-view")`;
 

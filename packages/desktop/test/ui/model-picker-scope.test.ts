@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import { DEFAULT_SETTINGS, type Message, type SessionMeta, type Settings, type ThinkingLevel } from "@lyra/core";
+import { DEFAULT_SETTINGS, type Message, type SessionMeta, type Settings, type ThinkingLevel } from "@plume/core";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { EffortMenu } from "../../src/features/models/EffortMenu.tsx";
 import { EffortTrigger } from "../../src/features/models/EffortTrigger.tsx";
@@ -59,7 +59,7 @@ beforeEach(() => {
 	efforts = [];
 	opened = [];
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			agent: {
@@ -95,7 +95,7 @@ afterEach(async () => {
 	view = undefined;
 	// The whole state back, stand-in actions included, so nothing leaks into the next test.
 	useApp.setState(previous, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 function onScreen(id: string, body: ReturnType<typeof h>): Promise<Mounted> {

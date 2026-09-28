@@ -2,7 +2,7 @@
  * The Windows runner, really started — not through a probe hook.
  *
  * Every other Windows sandbox test injects `probe: () => true`, which is how the runner went its
- * whole life without once starting: Electron in Node mode read `--lyra-sandbox-runner` as one of
+ * whole life without once starting: Electron in Node mode read `--plume-sandbox-runner` as one of
  * Node's own options and exited 9, the real probe failed, and on Windows the default permission
  * mode ran no command at all. Nothing here is injected. It starts the runner the way the app does,
  * through PowerShell — the shell a confined command runs in there (`commandShell`) — and checks what
@@ -80,8 +80,8 @@ test("unconfined commands run in Git Bash on a Windows that has Git, confined on
 });
 
 test("workspace-write: the project and its temp are writable, the rest of the disk is not", { skip, timeout: 120_000 }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-win-ws-"));
-	const outside = join(homedir(), `lyra-win-outside-${process.pid}.txt`);
+	const ws = await mkdtemp(join(tmpdir(), "plume-win-ws-"));
+	const outside = join(homedir(), `plume-win-outside-${process.pid}.txt`);
 	t.after(async () => {
 		await rm(ws, { recursive: true, force: true });
 		await rm(outside, { force: true });
@@ -126,7 +126,7 @@ test("an MSYS program started by a confined command is reported as the sandbox r
 	 * `git commit` in a confined PowerShell runs its hooks with Git's `sh`, which cannot start under
 	 * the token. That has to reach the model as a denial it can escalate, not as a broken hook.
 	 */
-	const ws = await mkdtemp(join(tmpdir(), "lyra-win-msys-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-win-msys-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 	const gitSh = join(systemShell().file, "..", "..", "usr", "bin", "sh.exe");
 	assert.ok(existsSync(gitSh), gitSh);
@@ -137,7 +137,7 @@ test("an MSYS program started by a confined command is reported as the sandbox r
 });
 
 test("read-only: nothing in the project is writable, and reading still works", { skip, timeout: 60_000 }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-win-ro-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-win-ro-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	let r = await run("Set-Content -Path ro.txt -Value x", ws, "read-only");
@@ -156,7 +156,7 @@ test("confined PowerShell is the whole language, speaks UTF-8, and reports error
 	 * `-EncodedCommand`. Both PowerShells, because 5.1 is the one every Windows has and the one that
 	 * did the CLIXML, while CI's `commandShell` finds 7.
 	 */
-	const ws = await mkdtemp(join(tmpdir(), "lyra-win-lang-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-win-lang-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 	const seven = commandShell("workspace-write");
 	const legacy = { ...seven, file: join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe") };
@@ -180,7 +180,7 @@ test("confined PowerShell is the whole language, speaks UTF-8, and reports error
 });
 
 test("full access runs Git Bash, unconfined", { skip, timeout: 60_000 }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-win-full-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-win-full-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	const r = await run("echo hi > full.txt && cat full.txt && uname -o", ws, "danger-full-access");

@@ -15,7 +15,7 @@
  * Electron 和半个主进程，写在那儿的规则没有任何测试够得着。
  */
 
-import type { SideChatUpdate } from "@lyra/core";
+import type { SideChatUpdate } from "@plume/core";
 import { loadSideChatSnapshot, saveSideChat } from "./sidechat-store.ts";
 
 /** 只用到侧边聊天的这两件事：它手上有没有东西，以及把它推倒重来。 */

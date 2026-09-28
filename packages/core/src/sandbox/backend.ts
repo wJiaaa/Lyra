@@ -189,7 +189,7 @@ function runnerArgv(runner: "landlock" | "windows-acl", policy: SandboxPolicy): 
  */
 function privateTemp(workspace: string): string {
 	const key = createHash("sha256").update(workspace.toLowerCase(), "utf8").digest("hex").slice(0, 16);
-	return join(canonicalPath(tmpdir()), "lyra-sandbox", key);
+	return join(canonicalPath(tmpdir()), "plume-sandbox", key);
 }
 
 // ---------------------------------------------------------------------------------------------

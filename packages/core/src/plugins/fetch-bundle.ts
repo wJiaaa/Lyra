@@ -16,7 +16,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 
-import type { RegistryEntry } from "@lyra/registry-shared";
+import type { RegistryEntry } from "@plume/registry-shared";
 
 /**
  * Run a console program to completion, without a console window.
@@ -141,7 +141,7 @@ async function fromTarball(entry: RegistryEntry, staging: string): Promise<void>
 	 * download agrees with what the catalogue advertised. The header is a fallback for a client that
 	 * only has a URL, and is worth strictly less — it arrived with the thing it describes.
 	 */
-	const expected = entry.sha256 ?? response.headers.get("x-lyra-sha256") ?? undefined;
+	const expected = entry.sha256 ?? response.headers.get("x-plume-sha256") ?? undefined;
 	await unpackVerified(new Uint8Array(await response.arrayBuffer()), expected, staging);
 }
 

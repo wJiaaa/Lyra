@@ -7,7 +7,7 @@
  * streamed from the log and keep only this message's images.
  */
 
-import type { Message, SessionStorage, UserContent } from "@lyra/core";
+import type { Message, SessionStorage, UserContent } from "@plume/core";
 
 export type DisplayImage = Extract<UserContent, { type: "image" }>;
 

@@ -25,10 +25,10 @@ let project: string;
 before(async () => {
 	home = await mkdtemp(join(tmpdir(), "ly-inject-home-"));
 	project = await mkdtemp(join(tmpdir(), "ly-inject-proj-"));
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 });
 after(async () => {
-	delete process.env.LYRA_HOME;
+	delete process.env.PLUME_HOME;
 	await rm(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	await rm(project, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });

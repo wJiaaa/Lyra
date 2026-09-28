@@ -23,7 +23,7 @@ import { join } from "node:path";
 import { startApp } from "./app.ts";
 
 const PORT = 9470;
-const OUT = "/tmp/lyra-overscroll-probe";
+const OUT = "/tmp/plume-overscroll-probe";
 const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let failures = 0;

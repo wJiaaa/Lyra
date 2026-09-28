@@ -41,9 +41,9 @@ function tokenUrl(info: ForgeKindInfo, baseUrl: string): string | null {
 
 	switch (info.kind) {
 		case "github":
-			return `${base}/settings/tokens/new?scopes=repo,read:org,read:user&description=Lyra`;
+			return `${base}/settings/tokens/new?scopes=repo,read:org,read:user&description=Plume`;
 		case "gitlab":
-			return `${base}/-/user_settings/personal_access_tokens?name=Lyra&scopes=api`;
+			return `${base}/-/user_settings/personal_access_tokens?name=Plume&scopes=api`;
 		case "gitee":
 			return `${base}/personal_access_tokens/new`;
 		case "gitea":

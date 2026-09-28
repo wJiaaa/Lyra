@@ -6,7 +6,7 @@
  * the extension directories in the main process.
  */
 
-import type { Settings } from "@lyra/core";
+import type { Settings } from "@plume/core";
 import { useEffect, useState } from "react";
 
 import { useApp } from "../../store/index.ts";

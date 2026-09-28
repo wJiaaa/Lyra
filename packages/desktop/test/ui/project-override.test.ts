@@ -10,7 +10,7 @@ import { brief, LayerCard, OverrideNotice } from "../../src/features/settings/Pr
 import { mount } from "../helpers/mount.ts";
 
 const VIEW = {
-	path: "/repo/.lyra/config.json",
+	path: "/repo/.plume/config.json",
 	exists: true,
 	refused: ["mcpServers"],
 	overrides: [

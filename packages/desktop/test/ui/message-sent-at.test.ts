@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h, memo } from "react";
-import type { UiLocale } from "@lyra/core";
+import type { UiLocale } from "@plume/core";
 
 import { MessageActions } from "../../src/features/conversation/MessageActions.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";

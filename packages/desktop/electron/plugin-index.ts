@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { fetchRegistry, lyraHome } from "@lyra/core";
+import { fetchRegistry, plumeHome } from "@plume/core";
 
 /*
  * How long an index is reused without asking again.
@@ -70,7 +70,7 @@ export async function readRegistry(url: string, force = false, maxAge = INDEX_CA
 
 /** Where the last good copy of each index is kept between launches. */
 function keptPath(url: string): string {
-	return join(lyraHome(), "cache", "registries", `${createHash("sha256").update(url).digest("hex").slice(0, 32)}.json`);
+	return join(plumeHome(), "cache", "registries", `${createHash("sha256").update(url).digest("hex").slice(0, 32)}.json`);
 }
 
 async function keep(url: string, registry: Registry, at: number): Promise<void> {

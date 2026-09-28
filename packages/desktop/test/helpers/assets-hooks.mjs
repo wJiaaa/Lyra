@@ -26,7 +26,7 @@ const STUBS = {
 };
 
 export async function resolve(specifier, context, next) {
-	if (specifier in STUBS) return { url: `lyra-stub:${specifier}`, shortCircuit: true };
+	if (specifier in STUBS) return { url: `plume-stub:${specifier}`, shortCircuit: true };
 	// `x.png?inline` is not a file on disk; resolve the file and keep the query for `load` to see.
 	if (ASSET.test(specifier)) {
 		const query = /\?[a-z]+$/i.exec(specifier)?.[0] ?? "";
@@ -37,7 +37,7 @@ export async function resolve(specifier, context, next) {
 }
 
 export async function load(url, context, next) {
-	if (url.startsWith("lyra-stub:")) return { format: "module", source: STUBS[url.slice("lyra-stub:".length)], shortCircuit: true };
+	if (url.startsWith("plume-stub:")) return { format: "module", source: STUBS[url.slice("plume-stub:".length)], shortCircuit: true };
 	if (ASSET.test(url)) return { format: "module", source: 'export default "";', shortCircuit: true };
 	return next(url, context);
 }

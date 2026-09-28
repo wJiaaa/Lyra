@@ -34,7 +34,7 @@ test("完整的提示词就是这一段", async () => {
 
 	assert.equal(
 		prompt,
-		`You are Lyra, a coding agent that works directly inside the user's project. You help by reading files, running commands, editing code, and writing new files.
+		`You are Plume, a coding agent that works directly inside the user's project. You help by reading files, running commands, editing code, and writing new files.
 
 Guidelines:
 - Answer in the user's language.

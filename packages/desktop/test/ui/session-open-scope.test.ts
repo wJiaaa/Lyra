@@ -18,7 +18,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import type { Message, SessionMeta, UserMessage as UserMessageType } from "@lyra/core";
+import type { Message, SessionMeta, UserMessage as UserMessageType } from "@plume/core";
 import { DockScope, provideScreenFocus, SessionScope } from "../../src/app/session-scope.tsx";
 import { UserMessage } from "../../src/features/conversation/UserMessage.tsx";
 import { TrajectoryPanel } from "../../src/features/conversation/trajectory/TrajectoryPanel.tsx";
@@ -48,7 +48,7 @@ let view: Mounted | undefined;
 beforeEach(() => {
 	opened = [];
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	useApp.setState({
 		activeSessionId: "a", pendingSessionId: null, meta: meta("a"), messages: said("a"), toolRuns: {}, running: false,
 		sessions: [meta("a"), meta("b"), meta("c")], sessionCache: { b: parked("b") }, notices: [],
@@ -73,7 +73,7 @@ afterEach(async () => {
 	provideScreenFocus(null);
 	// The whole state back, stand-in actions included, so nothing leaks into the next test.
 	useApp.setState(previous, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 function inScreen(id: string, body: ReturnType<typeof h>): Promise<Mounted> {
@@ -126,7 +126,7 @@ function menuItem(label: string): HTMLElement {
 }
 
 test("a conversation forked from the trajectory panel of the screen without focus opens in place of that screen", async () => {
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			sessions: {

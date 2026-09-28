@@ -6,7 +6,7 @@
  * unit tests already pin.
  */
 const say = (s = "") => process.stderr.write(s + "\n");
-const B = "/Users/kittors/Developer/opensource/Lyra-tool-quality";
+const B = "/Users/kittors/Developer/opensource/Plume-tool-quality";
 const { runAgent } = await import(`${B}/packages/core/src/agent/loop.ts`);
 
 const EMPTY = "No matches for /nothing/.\n(searched 340 files)".repeat(10);

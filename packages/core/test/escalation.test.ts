@@ -163,7 +163,7 @@ function context(cwd: string, mode: "read-only" | "workspace-write", onAsk?: (r:
 const textOf = (result: ToolResult) => result.content.map((b) => (b.type === "text" ? b.text : "")).join("");
 
 test("denied, and told how to ask", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-esc-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-esc-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	const result = (await bashTool.execute({ command: sh.write(join(ws, "f.txt"), "x") }, context(ws, "read-only"))) as ToolResult;
@@ -173,7 +173,7 @@ test("denied, and told how to ask", { skip }, async (t) => {
 });
 
 test("the same command, escalated with a reason, is approved and runs", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-esc-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-esc-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	let prompt: ApprovalRequest | undefined;
@@ -192,7 +192,7 @@ test("the same command, escalated with a reason, is approved and runs", { skip }
 });
 
 test("a rejected escalation runs nothing at all", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-esc-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-esc-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	const result = (await bashTool.execute(
@@ -205,7 +205,7 @@ test("a rejected escalation runs nothing at all", { skip }, async (t) => {
 });
 
 test("a grant is spent on the call that asked for it", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-esc-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-esc-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	let asks = 0;
@@ -234,8 +234,8 @@ test("a grant is spent on the call that asked for it", { skip }, async (t) => {
 test("escalating outside the sandbox's reach still cannot write outside the workspace", { skip }, async (t) => {
 	// workspace-write is the workspace and the temp areas — not everywhere. An escalation to it
 	// grants exactly that, and the home directory is still refused.
-	const ws = await mkdtemp(join(tmpdir(), "lyra-esc-"));
-	const outside = join(homedir(), ".lyra-escalation-probe");
+	const ws = await mkdtemp(join(tmpdir(), "plume-esc-"));
+	const outside = join(homedir(), ".plume-escalation-probe");
 	t.after(async () => {
 		await rm(ws, { recursive: true, force: true });
 		await rm(outside, { force: true });

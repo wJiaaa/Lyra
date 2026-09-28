@@ -48,7 +48,7 @@ test("a path that does not exist still gets a stable answer", () => {
 });
 
 test("a real directory reached by going down and back up is the same directory", async () => {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-pathkey-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-pathkey-"));
 	made.push(dir);
 	const child = await mkdtemp(join(dir, "child-"));
 

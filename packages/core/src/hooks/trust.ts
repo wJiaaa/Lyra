@@ -1,16 +1,16 @@
 /**
  * 项目钩子的信任记录。
  *
- * `.lyra/config.json` 跟着仓库走：克隆一个别人的仓库、在 Lyra 里打开，里面写的命令就会在这台机器上
+ * `.plume/config.json` 跟着仓库走：克隆一个别人的仓库、在 Plume 里打开，里面写的命令就会在这台机器上
  * 跑，而且跑在沙盒外面。所以项目钩子要先被这台机器的主人逐条认过——按内容认，不按位置认：命令改了，
  * 指纹就变了，旧的信任不再算数。
  *
- * 记录放在 `~/.lyra/hook-trust.json`，不进仓库。文件读不出来时一条都不信，而不是全信。
+ * 记录放在 `~/.plume/hook-trust.json`，不进仓库。文件读不出来时一条都不信，而不是全信。
  */
 
 import { mkdir, readFile, realpath } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
 
 interface TrustFile {
@@ -20,7 +20,7 @@ interface TrustFile {
 }
 
 function hookTrustPath(): string {
-	return join(lyraHome(), "hook-trust.json");
+	return join(plumeHome(), "hook-trust.json");
 }
 
 async function workspaceKey(cwd: string): Promise<string> {

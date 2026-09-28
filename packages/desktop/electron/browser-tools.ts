@@ -1,4 +1,4 @@
-import { persistSessionImage, type Tool, type ToolResult } from "@lyra/core";
+import { persistSessionImage, type Tool, type ToolResult } from "@plume/core";
 import type { BrowserResultDetails } from "../shared/browser.ts";
 import { actBrowser, readBrowser, type BrowserAction } from "./browser-actions.ts";
 import { awakeBrowser, browserContents, browserCommand, browserState, browserThumbnail, closeSessionBrowser, onWhite, openBrowser, selectBrowser } from "./browser-workspace.ts";
@@ -56,7 +56,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 	const tools: Tool[] = [
 		{
 			name: "browser_open", executionMode: "sequential", mutating: true,
-			description: "Open a URL in Lyra's built-in browser. It runs in the background; the user opens it from the conversation when they want to watch. Reuses this session's selected tab unless newTab is true. Returns tabId and rendered text plus interactive elements. Supports http/https and Lyra previews.",
+			description: "Open a URL in Plume's built-in browser. It runs in the background; the user opens it from the conversation when they want to watch. Reuses this session's selected tab unless newTab is true. Returns tabId and rendered text plus interactive elements. Supports http/https and Plume previews.",
 			parameters: { type: "object", properties: { url: { type: "string" }, newTab: { type: "boolean" } }, required: ["url"], additionalProperties: false },
 			async execute(args, ctx) {
 				try {

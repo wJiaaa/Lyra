@@ -1,4 +1,4 @@
-import type { SessionStorage } from "@lyra/core";
+import type { SessionStorage } from "@plume/core";
 import type { SessionChange } from "./ipc-shapes.ts";
 
 /** Observe committed writes at the shared IPC/RPC boundary, including cold sessions. */

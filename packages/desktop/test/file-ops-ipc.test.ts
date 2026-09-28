@@ -33,7 +33,7 @@ const fixture: { handlers: Map<string, Handler> } = await import(fixtureUrl);
 const { registerFileOpsIpc } = await import("../electron/ipc/file-ops.ts");
 hooks.deregister();
 
-const root = await mkdtemp(join(tmpdir(), "lyra-file-ops-"));
+const root = await mkdtemp(join(tmpdir(), "plume-file-ops-"));
 after(() => rm(root, { recursive: true, force: true }));
 registerFileOpsIpc({ projectPath: (target) => (target.startsWith(root) ? target : null) });
 

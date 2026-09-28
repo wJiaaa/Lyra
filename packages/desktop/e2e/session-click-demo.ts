@@ -2,7 +2,7 @@
 /**
  * 侧栏点会话：行要立刻亮，转录可以后到。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/session-click-demo.ts`
  */
 
@@ -14,9 +14,9 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { encode, startRecording, type Frame } from "./record.ts";
 import { issueModel, seedIssues } from "./issues-fixture.ts";
 
-process.env.LYRA_E2E_SLOW_TRANSCRIPT = "450";
+process.env.PLUME_E2E_SLOW_TRANSCRIPT = "450";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Lyra会话点击测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume会话点击测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const PORT = 9794;
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];

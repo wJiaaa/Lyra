@@ -17,7 +17,7 @@ import { electronLaunch, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..");
-const OUT = process.env.LYRA_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "close-and-grip");
+const OUT = process.env.PLUME_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "close-and-grip");
 const INSPECT = 9683;
 
 /**
@@ -27,7 +27,7 @@ const INSPECT = 9683;
  * 不在全局上（`typeof require` 是 undefined）；evaluate 出来的代码没有宿主给的动态 import 回调，
  * `await import('electron')` 直接报 "A dynamic import callback was not specified"；
  * `process.getBuiltinModule` 函数在，但 Electron 没把自己注册成 Node 内建模块，返回 undefined；
- * 用 `--require` 预加载一个 CJS 桥也不行，这个仓库里的 electron 二进制被改名成了 Lyra，Electron
+ * 用 `--require` 预加载一个 CJS 桥也不行，这个仓库里的 electron 二进制被改名成了 Plume，Electron
  * 据此认定自己是打包应用，然后整串 NODE_OPTIONS 都不认。
  *
  * 剩下的是 `process._linkedBinding`，它不经过任何模块系统。拿到的不是半成品：Electron 的 JS 层
@@ -66,7 +66,7 @@ async function main() {
 
 	console.log("\n=== 1. 关窗之后 ===");
 	// 拿不到 electron 的话，下面每一行都会以同一种方式失败——先把原因问出来。
-	await app.evaluate(`window.__lyraKept = 'kept-' + Date.now(); true`);
+	await app.evaluate(`window.__plumeKept = 'kept-' + Date.now(); true`);
 	console.log("窗口（关之前）：", JSON.stringify(await windows()));
 	console.log("渲染层（关之前）：", JSON.stringify(await probe()));
 
@@ -137,7 +137,7 @@ async function waitGone(within: number): Promise<boolean> {
 async function probe(): Promise<{ alive: boolean; kept?: string; visibility?: string; scroll?: number; panes?: string[]; error?: string }> {
 	try {
 		const seen = await app.evaluate<{ kept: string; visibility: string; scroll: number; panes: string[] }>(
-			`({kept:window.__lyraKept ?? '（没了）',visibility:document.visibilityState,scroll:Math.round(document.querySelector('.ly-transcript')?.scrollTop ?? -1),panes:[...document.querySelectorAll('[data-dock-pane]')].map(p=>p.dataset.dockPane)})`,
+			`({kept:window.__plumeKept ?? '（没了）',visibility:document.visibilityState,scroll:Math.round(document.querySelector('.ly-transcript')?.scrollTop ?? -1),panes:[...document.querySelectorAll('[data-dock-pane]')].map(p=>p.dataset.dockPane)})`,
 		);
 		return { alive: true, ...seen };
 	} catch (error) {
@@ -190,7 +190,7 @@ function secondLaunch(home: string): Promise<{ code: number | null; output: stri
 		const { executable, argv } = electronLaunch();
 		const second = spawn(executable, argv, {
 			cwd: ROOT,
-			env: { ...process.env, LYRA_HOME: home, ELECTRON_ENABLE_LOGGING: "1" },
+			env: { ...process.env, PLUME_HOME: home, ELECTRON_ENABLE_LOGGING: "1" },
 			stdio: "pipe",
 			detached: true,
 		});

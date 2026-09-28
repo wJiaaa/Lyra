@@ -24,7 +24,7 @@
  *     and none of them are the answer still coming in.
  */
 
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 
 /**
  * How long prose may sit unchanged before the line comes back.

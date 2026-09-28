@@ -22,7 +22,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { encode, startRecording, type Frame } from "./record.ts";
 
-const OUT = join(homedir(), "Desktop", "Lyra侧边聊天状态测试");
+const OUT = join(homedir(), "Desktop", "Plume侧边聊天状态测试");
 const PORT = 9741;
 
 let app: RunningApp;

@@ -11,7 +11,7 @@ import { compactPiCatalog, MODEL_CATALOG_URL } from "../packages/core/src/model-
 
 const OUTPUT = resolve("packages/core/src/catalog/model-catalog.json");
 
-const response = await fetch(MODEL_CATALOG_URL, { headers: { accept: "application/json", "user-agent": "Lyra catalogue updater" } });
+const response = await fetch(MODEL_CATALOG_URL, { headers: { accept: "application/json", "user-agent": "Plume catalogue updater" } });
 if (!response.ok) throw new Error(`${MODEL_CATALOG_URL} returned ${response.status}`);
 const revision = response.headers.get("x-pi-model-catalog-revision");
 if (!revision) throw new Error("response has no x-pi-model-catalog-revision header");

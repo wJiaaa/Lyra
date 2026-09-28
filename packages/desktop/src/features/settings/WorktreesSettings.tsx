@@ -104,7 +104,7 @@ export function WorktreesSettings() {
 						<TextInput
 							type="text"
 							value={rootDir}
-							placeholder="~/.lyra/worktrees"
+							placeholder="~/.plume/worktrees"
 							onChange={(next) => update({ rootDir: next })}
 							mono
 							className="w-72"

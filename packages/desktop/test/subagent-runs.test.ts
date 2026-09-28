@@ -13,7 +13,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 import { subAgentRuns } from "../src/features/subagents/runs.ts";
 
 const call = (id: string, name: string, args: Record<string, unknown>, at = 1000): Message => ({

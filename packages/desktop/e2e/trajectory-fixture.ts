@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SessionMeta, SessionRecordInput } from "@lyra/core";
+import type { SessionMeta, SessionRecordInput } from "@plume/core";
 
 /** Synthetic events use the real JSONL reader, renderer, search and artifact access paths. */
 export async function seedTrajectory(home: string): Promise<void> {

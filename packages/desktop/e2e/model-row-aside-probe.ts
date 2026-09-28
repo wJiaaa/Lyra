@@ -49,14 +49,14 @@ function models(prefix: string, names: string[], window: (i: number) => number) 
 }
 
 /*
- * `LYRA_PROBE_DARK=1` runs the whole thing on the dark theme.
+ * `PLUME_PROBE_DARK=1` runs the whole thing on the dark theme.
  *
  * Worth a switch rather than an eyeball: the selected row's fill is a percentage of the accent
  * mixed into nothing, and 12% of a blue over a near-black panel is not the same amount of
  * visible as 12% of it over white. Only the rest of `appearance` is left out — settings merge
  * over `DEFAULT_APPEARANCE`, so naming the theme is the whole of saying it.
  */
-const DARK = process.env.LYRA_PROBE_DARK === "1";
+const DARK = process.env.PLUME_PROBE_DARK === "1";
 const tag = DARK ? "暗色" : "亮色";
 
 async function seed(home: string): Promise<void> {
@@ -279,7 +279,7 @@ try {
 	}
 	await new Promise((resolve) => setTimeout(resolve, 700));
 	const toggled = await app.evaluate<{ pressed: string | null; stored: string[] }>(`(async () => {
-		const settings = await window.lyra.settings.get();
+		const settings = await window.plume.settings.get();
 		const star = document.querySelector('[data-model="${PLAIN}"] .ly-model-star');
 		return { pressed: star ? star.getAttribute('aria-pressed') : null, stored: settings.favoriteModelIds || [] };
 	})()`);

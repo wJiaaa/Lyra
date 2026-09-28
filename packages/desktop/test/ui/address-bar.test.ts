@@ -14,7 +14,7 @@ import { createElement as h, createRef } from "react";
 import { AddressBar } from "../../src/features/browser/AddressBar.tsx";
 import { fire, mount, press, type Mounted } from "../helpers/mount.ts";
 
-const BOOKMARKS = [{ url: "https://lyra.example.com/docs", title: "Lyra 文档" }, { url: "https://other.example.com/", title: "别的" }];
+const BOOKMARKS = [{ url: "https://plume.example.com/docs", title: "Plume 文档" }, { url: "https://other.example.com/", title: "别的" }];
 
 async function open(url = "about:blank", search?: { searchEngine?: "bing" | "google" | "baidu" | "duckduckgo" | "custom"; searchUrl?: string }) {
 	const opened: string[] = [];
@@ -59,16 +59,16 @@ test("bookmarks are offered under the action, and the arrow keys pick one", asyn
 	const { view, opened, field } = await open("about:blank", { searchEngine: "google" });
 	try {
 		assert.match(field.placeholder, /用Google搜索/);
-		await type(field, "lyra");
-		assert.deepEqual(choices(view), ["search:lyra用 Google 搜索".replace(" Google ", "Google"), "bookmark:Lyra 文档https://lyra.example.com/docs"]);
+		await type(field, "plume");
+		assert.deepEqual(choices(view), ["search:plume用 Google 搜索".replace(" Google ", "Google"), "bookmark:Plume 文档https://plume.example.com/docs"]);
 		await press(field, "ArrowDown");
 		await press(field, "Enter");
-		assert.deepEqual(opened, ["https://lyra.example.com/docs"]);
+		assert.deepEqual(opened, ["https://plume.example.com/docs"]);
 		// Wrapping around from the last row lands back on the search, not on nothing.
-		await type(field, "lyra");
+		await type(field, "plume");
 		await press(field, "ArrowUp");
 		await press(field, "Enter");
-		assert.equal(opened[1], "https://lyra.example.com/docs");
+		assert.equal(opened[1], "https://plume.example.com/docs");
 	} finally { await view.unmount(); }
 });
 
@@ -76,8 +76,8 @@ test("a custom engine reads as one, rather than as 「用自定义搜索搜索�
 	const { view, field } = await open("about:blank", { searchEngine: "custom", searchUrl: "https://s.example.com/find?q=%s" });
 	try {
 		assert.equal(field.placeholder, "用自定义搜索，或输入网址");
-		await type(field, "lyra");
-		assert.deepEqual(view.all("[data-omnibox-detail]").map((row) => row.textContent), ["用自定义搜索", "https://lyra.example.com/docs"]);
+		await type(field, "plume");
+		assert.deepEqual(view.all("[data-omnibox-detail]").map((row) => row.textContent), ["用自定义搜索", "https://plume.example.com/docs"]);
 	} finally { await view.unmount(); }
 });
 

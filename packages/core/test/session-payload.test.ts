@@ -29,8 +29,8 @@ test("a multi-megabyte image line slims without parsing the pixels", () => {
 
 test("append parks large images so the log line stays small; display load does not rehydrate", async () => {
 	const root = await mkdtemp(join(tmpdir(), "ly-payload-"));
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = join(root, "home");
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = join(root, "home");
 	try {
 	const store = new SessionStore(join(root, "sessions"));
 	const meta = await store.create(root, "fake/model");
@@ -67,15 +67,15 @@ test("append parks large images so the log line stays small; display load does n
 		assert.equal(fullImage.content[0].data, data);
 	}
 	} finally {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 	}
 });
 
 test("materializeJsonlLine writes the file and leaves a media pointer", () => {
 	const home = join(tmpdir(), `ly-materialize-${Date.now()}`);
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	try {
 		const blob = Buffer.alloc(6_100, 7).toString("base64");
 		// 带上 role：只有会画出来的图才停盘位，而真实的 message 记录本来就有这一项。
@@ -87,8 +87,8 @@ test("materializeJsonlLine writes the file and leaves a media pointer", () => {
 		assert.ok(parsed.message.content[0]?.media);
 		assert.match(parsed.message.content[0]?.media ?? "", /^[a-f0-9]{40}\.png$/);
 	} finally {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 	}
 });
 

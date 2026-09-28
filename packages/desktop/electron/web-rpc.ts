@@ -2,7 +2,7 @@
  * What a browser opened through Web access is allowed to ask the desktop to do.
  *
  * The browser runs the desktop's own renderer — the same React app, the same components — and that
- * renderer talks to `window.lyra`, an interface of some 200 methods. On the desktop those are
+ * renderer talks to `window.plume`, an interface of some 200 methods. On the desktop those are
  * Electron IPC channels. Over the network they cannot all be: `terminal.*` hands out a shell,
  * `files.remove` deletes from the project, `screenshot.*` reads the display.
  *
@@ -33,8 +33,8 @@ import {
 	type Settings,
 	type ThinkingLevel,
 	type UserContent,
-} from "@lyra/core";
-import type { LyraApi } from "./ipc-types.ts";
+} from "@plume/core";
+import type { PlumeApi } from "./ipc-types.ts";
 import { resolveSessionApproval } from "./approval-response.ts";
 import { readTrajectoryChanges } from "./trajectory-changes.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
@@ -54,8 +54,8 @@ import {
 	text,
 	type ArgsError,
 	type Checked,
-} from "@lyra/contract/args";
-import { WEB_METHODS } from "@lyra/contract";
+} from "@plume/contract/args";
+import { WEB_METHODS } from "@plume/contract";
 import { slimSnapshot } from "./display-transcript.ts";
 
 /**
@@ -75,30 +75,30 @@ export interface RpcDeps {
 	live(sessionId: string): AgentSession | undefined;
 	/** Bring a stored session up, or null when there is no such session. */
 	activate(projectId: string, sessionId: string): Promise<AgentSession | null>;
-	create: LyraApi["sessions"]["create"];
-	prompt: LyraApi["agent"]["prompt"];
-	editMessage: LyraApi["agent"]["editMessage"];
-	revertMessage: LyraApi["agent"]["revertMessage"];
+	create: PlumeApi["sessions"]["create"];
+	prompt: PlumeApi["agent"]["prompt"];
+	editMessage: PlumeApi["agent"]["editMessage"];
+	revertMessage: PlumeApi["agent"]["revertMessage"];
 	abort(sessionId: string): Promise<void>;
 	dispose(sessionId: string): Promise<void>;
 	snapshot(session: AgentSession): Promise<unknown>;
 	touch(sessionId: string): void;
-	sideChatState: LyraApi["sideChat"]["state"];
-	sideChatSetModel: LyraApi["sideChat"]["setModel"];
-	sideChatAsk: LyraApi["sideChat"]["ask"];
-	sideChatEditAndResend: LyraApi["sideChat"]["editAndResend"];
-	sideChatAbort: LyraApi["sideChat"]["abort"];
-	sideChatReset: LyraApi["sideChat"]["reset"];
-	sideChatClose: LyraApi["sideChat"]["close"];
-	tasksList: LyraApi["tasks"]["list"];
-	tasksCancel: LyraApi["tasks"]["cancel"];
-	tasksDismiss: LyraApi["tasks"]["dismiss"];
-	tasksResume: LyraApi["tasks"]["resume"];
-	commandsList: LyraApi["commands"]["list"];
-	filesList: LyraApi["files"]["list"];
-	filesRead: LyraApi["files"]["read"];
-	scratchRoots: LyraApi["git"]["scratchRoots"];
-	generalScratch: LyraApi["git"]["generalScratch"];
+	sideChatState: PlumeApi["sideChat"]["state"];
+	sideChatSetModel: PlumeApi["sideChat"]["setModel"];
+	sideChatAsk: PlumeApi["sideChat"]["ask"];
+	sideChatEditAndResend: PlumeApi["sideChat"]["editAndResend"];
+	sideChatAbort: PlumeApi["sideChat"]["abort"];
+	sideChatReset: PlumeApi["sideChat"]["reset"];
+	sideChatClose: PlumeApi["sideChat"]["close"];
+	tasksList: PlumeApi["tasks"]["list"];
+	tasksCancel: PlumeApi["tasks"]["cancel"];
+	tasksDismiss: PlumeApi["tasks"]["dismiss"];
+	tasksResume: PlumeApi["tasks"]["resume"];
+	commandsList: PlumeApi["commands"]["list"];
+	filesList: PlumeApi["files"]["list"];
+	filesRead: PlumeApi["files"]["read"];
+	scratchRoots: PlumeApi["git"]["scratchRoots"];
+	generalScratch: PlumeApi["git"]["generalScratch"];
 }
 
 type Handler = (deps: RpcDeps, args: unknown[]) => Promise<unknown>;

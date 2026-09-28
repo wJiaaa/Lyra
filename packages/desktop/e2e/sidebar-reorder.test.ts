@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { after, before, test } from "node:test";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
@@ -11,7 +11,7 @@ let app: RunningApp;
 let projectPath: string;
 let screenshots: string;
 before(async () => {
-	screenshots = await mkdtemp(join(tmpdir(), "lyra-pr55-ui-"));
+	screenshots = await mkdtemp(join(tmpdir(), "plume-pr55-ui-"));
 	app = await startApp({ port: 9615, seed: async (home) => {
 		// Synthetic transcripts use the real storage and renderer paths.
 		await seedInteractions(home);
@@ -104,7 +104,7 @@ test("real mouse drag preserves other rows, suppresses navigation, and renders i
 	assert.deepEqual(await rows(), ["qa-long", "qa-short", "qa-third"]);
 	const current = await app.evaluate(`document.querySelector('[data-ly-row] [aria-current="page"]')?.closest('[data-ly-row]')?.dataset.lyRow ?? null`);
 	for (const theme of ["light", "dark"]) {
-		await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${theme === "light" ? '"light"' : '"dark"'}}}))`);
+		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,theme:${theme === "light" ? '"light"' : '"dark"'}}}))`);
 		const finish = await begin();
 		await waitFor(`document.querySelector('.ly-glass-solid.pointer-events-none.fixed')`);
 		const ghost = await app.evaluate<{ width: number; height: number; left: number; top: number; position: string; text: string }>(`(()=>{const e=document.querySelector('.ly-glass-solid.pointer-events-none.fixed');const r=e.getBoundingClientRect();return {width:r.width,height:r.height,left:r.left,top:r.top,position:getComputedStyle(e).position,text:e.textContent};})()`);
@@ -124,7 +124,7 @@ test("real mouse drag preserves other rows, suppresses navigation, and renders i
 	await waitFor(`document.querySelector('[data-ly-row]')?.dataset.lyRow === 'qa-short'`);
 	assert.deepEqual(await rows(), ["qa-short", "qa-long", "qa-third"]);
 	assert.equal(await app.evaluate(`document.querySelector('[data-ly-row] [aria-current="page"]')?.closest('[data-ly-row]')?.dataset.lyRow ?? null`), current);
-	const order = await app.evaluate<Record<string, string[]>>(`window.lyra.settings.get().then(s=>s.sessionOrder)`);
+	const order = await app.evaluate<Record<string, string[]>>(`window.plume.settings.get().then(s=>s.sessionOrder)`);
 	const stored = order[projectPath];
 	assert.deepEqual(stored, ["qa-short", "qa-long", "qa-third"]);
 	const originalDocument = await app.evaluate<number>("performance.timeOrigin");
@@ -146,6 +146,6 @@ test("project drag moves the whole group and does not collapse it", async () => 
 	await waitFor(`${headingsQuery}[0]?.textContent.includes('第二项目')`);
 	assert.equal(await app.evaluate(`${headingsQuery}[1].getAttribute('aria-expanded')`), "true");
 	assert.deepEqual(await rows(), ["qa-short", "qa-long", "qa-third"]);
-	const saved = await app.evaluate<string[]>(`window.lyra.settings.get().then(s=>s.projects.map(p=>p.path))`);
+	const saved = await app.evaluate<string[]>(`window.plume.settings.get().then(s=>s.projects.map(p=>p.path))`);
 	assert.equal(saved[1], projectPath);
 });

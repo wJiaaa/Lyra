@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-settings";
+const dir = process.argv[2] ?? "/tmp/plume-settings";
 
 const models = ["command/deepseek-v4-flash", "gemini-3.7-flash-high", "deepseek-v4-flash:0731", "kimi-k3", "grok-4.6", "claude-opus-5", "gpt-6-mini", "qwen4-max"].map((modelId) => ({
 	id: `relay/${modelId}`,
@@ -56,7 +56,7 @@ async function seed(home: string): Promise<void> {
 			skillRegistries: [],
 			alwaysAllow: [],
 			editor: { defaultOpenTarget: "Zed", showBottomPanel: true },
-			appearance: { theme: process.env.LYRA_SHOT_THEME === "light" ? "light" : "dark" },
+			appearance: { theme: process.env.PLUME_SHOT_THEME === "light" ? "light" : "dark" },
 		}),
 	);
 }

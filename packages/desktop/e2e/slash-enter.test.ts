@@ -20,7 +20,7 @@ import { startApp, type RunningApp } from "./app.ts";
 const DAY = 86_400_000;
 const now = Date.now();
 const SESSION = "sess-compact";
-const PROJECT = "/tmp/lyra-compact-demo";
+const PROJECT = "/tmp/plume-compact-demo";
 
 let app: RunningApp;
 

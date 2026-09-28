@@ -33,7 +33,7 @@ import type {
 	Plugin,
 	SessionMeta,
 	Skill,
-} from "@lyra/core";
+} from "@plume/core";
 
 export type { ContextBreakdown, ContextSegmentKey, RegistryEntry };
 
@@ -62,14 +62,14 @@ export interface WorkspaceInfo {
 
 export interface SessionSnapshot {
 	meta: SessionMeta;
-	messages: import("@lyra/core").Message[];
+	messages: import("@plume/core").Message[];
 	running: boolean;
-	pendingApprovals: (import("@lyra/core").ApprovalRequest & { id: string; expiresAt?: number })[];
+	pendingApprovals: (import("@plume/core").ApprovalRequest & { id: string; expiresAt?: number })[];
 	/** Message positions where history was summarised, so the mark survives a reload. */
 	compactions?: number[];
 	commandRuns?: CommandRun[];
 	/** 钩子的执行记录，会话里每一轮那个锚点按钮读的就是它。 */
-	hookRuns?: import("@lyra/core").HookRun[];
+	hookRuns?: import("@plume/core").HookRun[];
 }
 
 /**
@@ -79,7 +79,7 @@ export interface SessionSnapshot {
 export interface SideChatSnapshot {
 	modelId: string | null;
 	revision?: number;
-	messages: import("@lyra/core").Message[];
+	messages: import("@plume/core").Message[];
 	running: boolean;
 }
 
@@ -251,7 +251,7 @@ export interface WorkspaceDiffFile {
 	status: "added" | "modified" | "deleted" | "renamed" | "untracked";
 	added: number;
 	removed: number;
-	hunks: import("@lyra/core").DiffHunk[];
+	hunks: import("@plume/core").DiffHunk[];
 	/**
 	 * Not text, so there are no hunks and the counts are zero.
 	 *

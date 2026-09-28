@@ -72,7 +72,7 @@ async function harness(settings: Settings = SETTINGS) {
 	const root = await mkdtemp(join(tmpdir(), "ly-think-"));
 	const home = join(root, "home");
 	await mkdir(home, { recursive: true });
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 
 	const asked: (ThinkingLevel | undefined)[] = [];
 	const store = new SessionStore(join(root, "sessions"));
@@ -102,7 +102,7 @@ async function harness(settings: Settings = SETTINGS) {
 		/** The last level handed to the provider. */
 		last: () => asked[asked.length - 1],
 		cleanup: async () => {
-			delete process.env.LYRA_HOME;
+			delete process.env.PLUME_HOME;
 			await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 		},
 	};

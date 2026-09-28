@@ -25,7 +25,7 @@ import { encode, startRecording, type Frame } from "./record.ts";
 
 const PORT = 9751;
 const MODEL_PORT = 9752;
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra等待反馈测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume等待反馈测试");
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 
 let app: RunningApp;

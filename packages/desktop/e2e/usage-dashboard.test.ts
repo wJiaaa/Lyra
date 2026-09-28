@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
-import { catalogModelFor } from "@lyra/core/model-catalog";
+import { catalogModelFor } from "@plume/core/model-catalog";
 import { zhCN } from "../src/i18n/messages/zh-CN.ts";
 import { startApp, type RunningApp } from "./app.ts";
 
@@ -141,7 +141,7 @@ afterEach(async (context) => {
 });
 
 async function shot(name: string): Promise<void> {
-	const directory = process.env.LYRA_E2E_ARTIFACTS;
+	const directory = process.env.PLUME_E2E_ARTIFACTS;
 	if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });

@@ -4,7 +4,7 @@
  * The interesting assertions are the refusals, and each one names a way a privileged renderer stops
  * being ours: a `file:` URL handed to the OS opener runs whatever that path is associated with; a
  * navigation away from our own page loads a stranger into the window holding the preload; a
- * `<webview>` that keeps the preload hands `window.lyra` to a site.
+ * `<webview>` that keeps the preload hands `window.plume` to a site.
  *
  * Only the pure half is tested here — `window-security.ts` keeps its decisions as functions over
  * strings precisely so this file needs no Electron. Whether the listeners are actually attached is
@@ -101,7 +101,7 @@ test("webview：无论标签怎么写，客人都拿不到主人的钥匙", () =
 	};
 	harden(asked);
 
-	assert.equal(asked.preload, undefined, "preload 必须被剥掉——它就是 window.lyra");
+	assert.equal(asked.preload, undefined, "preload 必须被剥掉——它就是 window.plume");
 	assert.equal(asked.nodeIntegration, false);
 	assert.equal(asked.contextIsolation, true);
 	assert.equal(asked.sandbox, true);

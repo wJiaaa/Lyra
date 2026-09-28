@@ -19,10 +19,10 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-// The subpath, not the package root: `@lyra/core` pulls the whole kernel — and `koffi` with it —
+// The subpath, not the package root: `@plume/core` pulls the whole kernel — and `koffi` with it —
 // into a renderer that otherwise only ever imports its types.
-import { normalizeRetryPolicy, type RetryFailure, type RetryRule } from "@lyra/core/retry-policy";
-import type { Settings } from "@lyra/core";
+import { normalizeRetryPolicy, type RetryFailure, type RetryRule } from "@plume/core/retry-policy";
+import type { Settings } from "@plume/core";
 import { isLegalDraft } from "../../lib/number-draft.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";

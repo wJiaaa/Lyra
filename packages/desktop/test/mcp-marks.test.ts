@@ -6,7 +6,7 @@
  * agree because this side never tries to take the name apart — it matches candidates forwards.
  */
 
-import type { McpServerConfig } from "@lyra/core";
+import type { McpServerConfig } from "@plume/core";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

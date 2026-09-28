@@ -60,7 +60,7 @@ export function instantAnswerProvider(fetchImpl: typeof fetch = fetch): SearchPr
 			url.searchParams.set("format", "json");
 			url.searchParams.set("no_html", "1");
 			url.searchParams.set("skip_disambig", "1");
-			url.searchParams.set("t", "lyra");
+			url.searchParams.set("t", "plume");
 
 			let response: Response;
 			try {

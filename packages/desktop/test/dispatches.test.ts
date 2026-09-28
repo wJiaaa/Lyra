@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { joinDispatches, stateOf, type DispatchCall } from "../src/lib/dispatches.ts";
 
 function summary(over: Partial<SubAgentSummary> & { id: string }): SubAgentSummary {

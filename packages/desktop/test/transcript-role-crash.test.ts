@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 import { runKey, runs } from "../src/features/conversation/grouping.ts";
 import { questionsIn, timeSeparators } from "../src/features/conversation/question-navigation.ts";
 import { tailSignature } from "../src/ui/scroll/signature.ts";

@@ -22,7 +22,7 @@ import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { windowLabel } from "./model-defaults.ts";
-import type { ProviderConfig } from "@lyra/core";
+import type { ProviderConfig } from "@plume/core";
 import { useI18n } from "../../i18n/index.ts";
 
 export function FetchModelsModal({

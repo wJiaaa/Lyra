@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h } from "react";
-import type { AssistantMessage, Message, SessionMeta } from "@lyra/core";
+import type { AssistantMessage, Message, SessionMeta } from "@plume/core";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { BrowserCards } from "../../src/features/conversation/BrowserCard.tsx";
 import { LiveToolCard, ToolRun } from "../../src/features/conversation/runs.tsx";
@@ -58,7 +58,7 @@ let view: Mounted | undefined;
 
 beforeEach(() => {
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	// 甲 holds the live slot with no tool runs of its own; 乙, beside it, has finished its turn.
 	useApp.setState({
 		activeSessionId: "a", pendingSessionId: null, meta: meta("a"), messages: [], toolRuns: {}, running: false,
@@ -70,7 +70,7 @@ afterEach(async () => {
 	await view?.unmount();
 	view = undefined;
 	useApp.setState(previous, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 function under(id: string, body: ReturnType<typeof h>): Promise<Mounted> {

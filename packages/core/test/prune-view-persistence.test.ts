@@ -82,9 +82,9 @@ test("a result cut by compaction is sent cut again after a restart, not rebuilt 
 	const { SessionStore } = await import("../src/session/store.ts");
 	const root = await mkdtemp(join(tmpdir(), "ly-views-"));
 	await mkdir(join(root, "home"), { recursive: true });
-	process.env.LYRA_HOME = join(root, "home");
+	process.env.PLUME_HOME = join(root, "home");
 	t.after(async () => {
-		delete process.env.LYRA_HOME;
+		delete process.env.PLUME_HOME;
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	});
 	const settings = { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, mcpServers: [], permissionMode: "full" as const };

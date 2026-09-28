@@ -1,4 +1,4 @@
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 
 export type SessionSortKey = "updatedAt" | "createdAt" | "manual";
 

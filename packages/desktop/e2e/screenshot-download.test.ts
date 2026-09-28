@@ -12,7 +12,7 @@ test("screenshot downloads use the chosen directory and survive an unavailable c
 		// The fixture is a real app-window screenshot; no desktop or other applications are captured.
 		const { data } = await app.send<{data: string}>("Page.captureScreenshot", { format: "png" });
 		const png = `data:image/png;base64,${data}`;
-		const download = () => app.evaluate<{ok:boolean;filePath?:string;error?:string}>(`window.lyra.screenshot.download(${JSON.stringify(png)}).catch(e=>({ok:false,error:e.message}))`);
+		const download = () => app.evaluate<{ok:boolean;filePath?:string;error?:string}>(`window.plume.screenshot.download(${JSON.stringify(png)}).catch(e=>({ok:false,error:e.message}))`);
 		const first = await download();
 		assert.equal(first.ok, true, JSON.stringify(first));
 		assert.ok(first.filePath?.startsWith(join(app.home, "下载 甲")));
@@ -20,7 +20,7 @@ test("screenshot downloads use the chosen directory and survive an unavailable c
 		t.diagnostic("PASS: chosen Unicode directory contains the exact PNG bytes");
 
 		const secondDir = join(app.home, "下载 乙");
-		await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(secondDir)},copyToClipboard:true}}))`);
+		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(secondDir)},copyToClipboard:true}}))`);
 		// Inject a native clipboard failure, as when another Windows process owns the clipboard.
 		await app.main("(()=>{const c=process._linkedBinding('electron_common_clipboard');globalThis.__downloadClipboard=c.writeImage;c.writeImage=()=>{throw new Error('clipboard is busy')};return true})()");
 		const second = await download();
@@ -32,16 +32,16 @@ test("screenshot downloads use the chosen directory and survive an unavailable c
 
 		const blocked = join(app.home, "not-a-directory");
 		await writeFile(blocked, "occupied");
-		await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(blocked)},copyToClipboard:false}}))`);
+		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(blocked)},copyToClipboard:false}}))`);
 		const failure = await download();
 		assert.equal(failure.ok, false);
 		assert.equal(failure.filePath, undefined);
 		assert.match(failure.error ?? "", /ENOTDIR|EEXIST|EPERM|EACCES/);
 		t.diagnostic("PASS: an unwritable destination reports failure without claiming a file was saved");
 
-		if (process.env.LYRA_E2E_ARTIFACTS) {
-			await mkdir(process.env.LYRA_E2E_ARTIFACTS, {recursive:true});
-			await writeFile(join(process.env.LYRA_E2E_ARTIFACTS, "screenshot-download.json"), JSON.stringify({platform:process.platform,first: {ok:first.ok,bytes:(await readFile(first.filePath)).length},second:{ok:second.ok,bytes:(await readFile(second.filePath)).length},failure},null,2));
+		if (process.env.PLUME_E2E_ARTIFACTS) {
+			await mkdir(process.env.PLUME_E2E_ARTIFACTS, {recursive:true});
+			await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, "screenshot-download.json"), JSON.stringify({platform:process.platform,first: {ok:first.ok,bytes:(await readFile(first.filePath)).length},second:{ok:second.ok,bytes:(await readFile(second.filePath)).length},failure},null,2));
 		}
 	} finally {
 		await app.stop();
@@ -78,7 +78,7 @@ test("the visible download arrow saves to Desktop or the selected directory and 
 		}
 	}
 	async function hold(ms = 1100) {
-		if (!overlay || !process.env.LYRA_E2E_RECORD_DIR) return;
+		if (!overlay || !process.env.PLUME_E2E_RECORD_DIR) return;
 		const end = Date.now() + ms;
 		while (Date.now() < end) {
 			const shot = await overlay.send<{ data: string }>("Page.captureScreenshot", { format: "jpeg", quality: 90 });
@@ -101,14 +101,14 @@ test("the visible download arrow saves to Desktop or the selected directory and 
 		await writeFile(fixture, Buffer.from(data, "base64"));
 		const desktop = join(app.home, "System Desktop");
 		await mkdir(desktop);
-		// Only the OS acquisition boundary is a fixture: a real Lyra window, never the user's desktop.
+		// Only the OS acquisition boundary is a fixture: a real Plume window, never the user's desktop.
 		// Production start/init, pointer handling, cropping, IPC, filesystem and toast all run normally.
 		await app.main(`(() => {
 			const require=process.getBuiltinModule('module').createRequire(process._linkedBinding('electron_browser_app').app.getAppPath()+'/package.json');
 			const e=require('electron'),image=e.nativeImage.createFromPath(${JSON.stringify(fixture)});
 			e.app.setPath('desktop',${JSON.stringify(desktop)});
 			e.systemPreferences.getMediaAccessStatus=()=> 'granted';
-			e.desktopCapturer.getSources=async options=>e.screen.getAllDisplays().map(d=>({id:'screen:'+d.id+':0',display_id:String(d.id),name:'Lyra settings window fixture',thumbnail:image.resize(options.thumbnailSize)}));
+			e.desktopCapturer.getSources=async options=>e.screen.getAllDisplays().map(d=>({id:'screen:'+d.id+':0',display_id:String(d.id),name:'Plume settings window fixture',thumbnail:image.resize(options.thumbnailSize)}));
 			return true;
 		})()`);
 		for (let n = 0; n < 100 && !overlay; n++) {
@@ -146,10 +146,10 @@ test("the visible download arrow saves to Desktop or the selected directory and 
 			assert.ok(bytes.readUInt32BE(16) >= 360 && bytes.readUInt32BE(20) >= 200);
 			check("file is written and the square toast only says saved", { directory, bytes: bytes.length, toast });
 			await hold();
-			if (process.env.LYRA_E2E_ARTIFACTS) {
-				await mkdir(process.env.LYRA_E2E_ARTIFACTS, { recursive: true });
+			if (process.env.PLUME_E2E_ARTIFACTS) {
+				await mkdir(process.env.PLUME_E2E_ARTIFACTS, { recursive: true });
 				const shot = await page.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-				await writeFile(join(process.env.LYRA_E2E_ARTIFACTS, `screenshot-saved-${checks.length}.png`), Buffer.from(shot.data, "base64"));
+				await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, `screenshot-saved-${checks.length}.png`), Buffer.from(shot.data, "base64"));
 			}
 			await until(page, `Boolean(document.querySelector('[data-capture="idle"]'))`);
 		}
@@ -171,7 +171,7 @@ test("the visible download arrow saves to Desktop or the selected directory and 
 		await until(app, `document.querySelector('[data-view="screenshot"]')?.textContent.includes(${JSON.stringify(chosen)}) === true`);
 		assert.equal(JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")).screenshot.downloadLocation, chosen);
 		check("directory picked in Settings persists without restart", chosen);
-		await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,screenshot:{...s.screenshot,copyToClipboard:true}}))`);
+		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,screenshot:{...s.screenshot,copyToClipboard:true}}))`);
 		await app.main(`(() => {process._linkedBinding('electron_common_clipboard').writeImage=()=>{throw new Error('clipboard is busy')};return true;})()`);
 		await select();
 		await click(page, 'button:has(.lucide-download)');
@@ -179,7 +179,7 @@ test("the visible download arrow saves to Desktop or the selected directory and 
 
 		const blocked = join(app.home, "not-a-directory");
 		await writeFile(blocked, "occupied");
-		await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(blocked)}}}))`);
+		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(blocked)}}}))`);
 		await select();
 		const selection = await page.evaluate(`document.querySelector('[data-selection]').getBoundingClientRect().toJSON()`);
 		await click(page, 'button:has(.lucide-download)');
@@ -190,19 +190,19 @@ test("the visible download arrow saves to Desktop or the selected directory and 
 		check("failed saves keep the selection and display the actual error", error);
 		await hold();
 		const retry = join(app.home, "下载 重试");
-		await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(retry)}}}))`);
+		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(retry)}}}))`);
 		await click(page, 'button:has(.lucide-download)');
 		await saved(retry);
 		passed = true;
 	} finally {
-		if (process.env.LYRA_E2E_ARTIFACTS) {
-			await mkdir(process.env.LYRA_E2E_ARTIFACTS, { recursive: true });
-			await writeFile(join(process.env.LYRA_E2E_ARTIFACTS, "screenshot-toolbar-download.json"), JSON.stringify({ platform: process.platform, passed, checks }, null, 2));
+		if (process.env.PLUME_E2E_ARTIFACTS) {
+			await mkdir(process.env.PLUME_E2E_ARTIFACTS, { recursive: true });
+			await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, "screenshot-toolbar-download.json"), JSON.stringify({ platform: process.platform, passed, checks }, null, 2));
 		}
 		await app.stop();
-		if (frames.length && process.env.LYRA_E2E_RECORD_DIR) {
+		if (frames.length && process.env.PLUME_E2E_RECORD_DIR) {
 			const { encode } = await import("./record.ts");
-			const directory = process.env.LYRA_E2E_RECORD_DIR;
+			const directory = process.env.PLUME_E2E_RECORD_DIR;
 			await mkdir(directory, { recursive: true });
 			const name = `${new Date().toISOString().replaceAll(":", "-")}_截图下载_${checks.length}of6${passed ? "" : "_failed"}`;
 			await writeFile(join(directory, `${name}.json`), JSON.stringify({ platform: process.platform, passed, checks }, null, 2));

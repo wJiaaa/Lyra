@@ -81,7 +81,7 @@ test("middleware replacement cannot keep provenance for content it removed", asy
 });
 
 test("a disk read overlapping rewind cannot restore the discarded prompt", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-context-rewind-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-context-rewind-"));
 	const store = new SessionStore(root);
 	const log = new SessionLog(store, () => {}, await store.create(root, model.id));
 	let release!: () => void;
@@ -116,9 +116,9 @@ test("a disk read overlapping rewind cannot restore the discarded prompt", async
 });
 
 test("runtime statistics reuse filtered requests and recorded sources through restart", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-context-"));
-	const previous = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, LYRA_HOME: process.env.LYRA_HOME };
-	Object.assign(process.env, { HOME: root, USERPROFILE: root, LYRA_HOME: join(root, "home") });
+	const root = await mkdtemp(join(tmpdir(), "plume-context-"));
+	const previous = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, PLUME_HOME: process.env.PLUME_HOME };
+	Object.assign(process.env, { HOME: root, USERPROFILE: root, PLUME_HOME: join(root, "home") });
 	const settings = { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, mcpServers: [], personalization: { enableMemory: false } };
 	const store = new SessionStore(join(root, "sessions"));
 	let sent!: LlmContext;
@@ -126,9 +126,9 @@ test("runtime statistics reuse filtered requests and recorded sources through re
 	const session = new AgentSession({ cwd: root, store, settings, emit: () => {}, streamFn: async context => { sent = { ...context, messages: [...context.messages] }; answer = reply(); return answer; } });
 	let reopened: AgentSession | undefined;
 	try {
-		await mkdir(join(root, ".lyra", "prompts"), { recursive: true });
+		await mkdir(join(root, ".plume", "prompts"), { recursive: true });
 		await writeFile(join(root, "AGENTS.md"), "RULES_BEFORE");
-		await writeFile(join(root, ".lyra", "prompts", "identity.md"), "CUSTOM_IDENTITY");
+		await writeFile(join(root, ".plume", "prompts", "identity.md"), "CUSTOM_IDENTITY");
 		await session.initialize();
 		await session.log.commit({ role: "user", content: [{ type: "text", text: "inspect output" }], timestamp: 1 });
 		await session.log.commit({ ...reply(), content: [{ type: "toolCall", id: "large", name: "bash", arguments: { command: "fixture" } }], stopReason: "toolUse" });

@@ -15,7 +15,7 @@ import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
 const LABEL = process.argv[2] ?? "after";
-const OUT_DIR = process.argv[3] ?? join(homedir(), "Desktop", "Lyra面板标签页测试");
+const OUT_DIR = process.argv[3] ?? join(homedir(), "Desktop", "Plume面板标签页测试");
 const PORT = 9493;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 

@@ -26,7 +26,7 @@ export function SidebarHead({
 	return (
 		<>
 			<div className="ly-sidebar-head flex h-[34px] shrink-0 items-center justify-between px-4">
-				<span className="text-title font-semibold tracking-tight text-ink">Lyra</span>
+				<span className="text-title font-semibold tracking-tight text-ink">Plume</span>
 				<div className="flex items-center gap-0.5">
 					<button
 						type="button"

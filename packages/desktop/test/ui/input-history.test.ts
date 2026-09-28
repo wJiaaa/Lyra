@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { createElement as h, useRef, useState } from "react";
 import { test } from "node:test";
 
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 import { useInputHistory } from "../../src/features/composer/useInputHistory.ts";
 import type { RestoredAttachment } from "../../src/features/composer/attachments/restore.ts";
 import { attachmentBody, attachmentImageLabel, attachmentStub } from "../../src/lib/attachment-placeholders.ts";

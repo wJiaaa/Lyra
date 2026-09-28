@@ -23,7 +23,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
 
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra智能体界面测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume智能体界面测试");
 const PORT = 9644;
 const STEP_MS = 2600;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
@@ -150,7 +150,7 @@ const model = createServer((req, res) => {
 			}
 			if (who === "review") later(() => reply(res, { tools: [{ name: "yield", input: REVIEW }] }));
 			else if (who === "plan") later(() => reply(res, { tools: [{ name: "yield", input: PLAN }] }));
-			else if (short) later(() => reply(res, { tools: [{ name: "yield", input: { summary: "配置从 `~/.lyra/settings.json` 读，项目里的 `.lyra/config.json` 覆盖它。", files: [{ path: "src/config/settings.ts:994", why: "合并全局与项目配置的地方。" }] } }] }));
+			else if (short) later(() => reply(res, { tools: [{ name: "yield", input: { summary: "配置从 `~/.plume/settings.json` 读，项目里的 `.plume/config.json` 覆盖它。", files: [{ path: "src/config/settings.ts:994", why: "合并全局与项目配置的地方。" }] } }] }));
 			else later(() => reply(res, { tools: [{ name: "yield", input: EXPLORE }] }));
 			return;
 		}

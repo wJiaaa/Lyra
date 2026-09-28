@@ -248,9 +248,9 @@ test("a name with nothing here to match is kept, so the restriction holds, and i
 	});
 	assert.deepEqual(result.skills.get("notebook")?.allowedTools, ["NotebookEdit"]);
 	assert.deepEqual(result.skills.get("mixed")?.allowedTools, ["read", "Workflow"]);
-	assert.match(warningsFor(result, "notebook").join("\n"), /对应不到 Lyra 工具的项.*`NotebookEdit`/);
+	assert.match(warningsFor(result, "notebook").join("\n"), /对应不到 Plume 工具的项.*`NotebookEdit`/);
 	const mixed = warningsFor(result, "mixed").join("\n");
-	assert.match(mixed, /对应不到 Lyra 工具的项.*`Workflow`/);
+	assert.match(mixed, /对应不到 Plume 工具的项.*`Workflow`/);
 	assert.doesNotMatch(mixed, /`Read`/, "only the name that failed is named");
 });
 
@@ -359,16 +359,16 @@ test("给 Claude Code 写的技能：正文里的 ${CLAUDE_SKILL_DIR} 和 ${CLAU
 		name: "ui-ux",
 		description: "测试用的技能。",
 		content: "先跑 python ${CLAUDE_SKILL_DIR}/scripts/search.py，规则在 ${CLAUDE_PLUGIN_ROOT}/shared/rules.md。",
-		path: "/home/.lyra/plugins/pro/skills/ui-ux/SKILL.md",
-		dir: "/home/.lyra/plugins/pro/skills/ui-ux",
+		path: "/home/.plume/plugins/pro/skills/ui-ux/SKILL.md",
+		dir: "/home/.plume/plugins/pro/skills/ui-ux",
 		source: "user",
 		disableModelInvocation: false,
 		pluginId: "pro",
-		pluginRoot: "/home/.lyra/plugins/pro",
+		pluginRoot: "/home/.plume/plugins/pro",
 	};
 	const text = formatSkillInvocation(skill);
-	assert.match(text, /python \/home\/\.lyra\/plugins\/pro\/skills\/ui-ux\/scripts\/search\.py/);
-	assert.match(text, /\/home\/\.lyra\/plugins\/pro\/shared\/rules\.md/);
+	assert.match(text, /python \/home\/\.plume\/plugins\/pro\/skills\/ui-ux\/scripts\/search\.py/);
+	assert.match(text, /\/home\/\.plume\/plugins\/pro\/shared\/rules\.md/);
 	assert.doesNotMatch(text, /\$\{CLAUDE_/);
 	// 零散技能没有包：插件根就当它自己的目录。
 	const loose = formatSkillInvocation({ ...skill, pluginId: undefined, pluginRoot: undefined });

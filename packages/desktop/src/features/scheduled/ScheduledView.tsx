@@ -1,15 +1,15 @@
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { TextArea } from "../../ui/inputs/TextArea.tsx";
-import type { ScheduledTask } from "@lyra/core";
+import type { ScheduledTask } from "@plume/core";
 /*
  * From the sub-entry, not from the package root.
  *
- * Importing a *value* from "@lyra/core" pulls the whole index into the renderer, and the whole
+ * Importing a *value* from "@plume/core" pulls the whole index into the renderer, and the whole
  * index reaches `node:fs`, `node:child_process` and the rest — the bundle loads, throws on the
  * first Node builtin, and the window renders nothing at all. Types are erased at compile time and
  * cost nothing; values have to come from an entry that is browser-safe on its own.
  */
-import { nextRunAt } from "@lyra/core/schedule";
+import { nextRunAt } from "@plume/core/schedule";
 import { Clock, ExternalLink, Play, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";

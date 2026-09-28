@@ -15,7 +15,7 @@ let detached = false;
 let diskText = "disk baseline";
 let readDelay: Promise<void> | null = null;
 const writes: FilePanelVersion[] = [];
-Object.defineProperty(globalThis, "window", { configurable: true, value: { lyra: {
+Object.defineProperty(globalThis, "window", { configurable: true, value: { plume: {
 	get bootWindow() { return detached ? { kind: "panel", panelKind: "file" } : { kind: "primary" }; },
 	files: { read: async (path: string): Promise<FileContents> => { reads.push(path); if (readDelay) await readDelay; return { text: diskText, truncated: false }; } },
 	windows: {

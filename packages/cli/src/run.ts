@@ -18,7 +18,7 @@ import {
 	type SessionStorage,
 	type Settings,
 	type Usage,
-} from "@lyra/core";
+} from "@plume/core";
 
 type RunStatus = "done" | "aborted" | "error" | "max_turns" | "stalled";
 
@@ -50,7 +50,7 @@ const firstLine = (text: string) => text.split("\n").find((line) => line.trim())
 
 export async function runOnce(options: RunOptions): Promise<RunResult> {
 	if (!resolveModel(options.settings, options.settings.defaultModelId)) {
-		throw new SetupError("没有可用的默认模型。在 Lyra 桌面端的设置里添加模型供应商并选好默认模型。");
+		throw new SetupError("没有可用的默认模型。在 Plume 桌面端的设置里添加模型供应商并选好默认模型。");
 	}
 
 	// `/命令 参数` and `/skill:名字` mean what they mean in the desktop composer; anything else is sent as typed.

@@ -26,7 +26,7 @@ const exec = promisify(execFile);
 let repo: string;
 
 before(async () => {
-	repo = await mkdtemp(join(tmpdir(), "lyra-blobs-"));
+	repo = await mkdtemp(join(tmpdir(), "plume-blobs-"));
 	await exec("git", ["init", "-q"], { cwd: repo });
 	await exec("git", ["config", "user.email", "t@example.com"], { cwd: repo });
 	await exec("git", ["config", "user.name", "t"], { cwd: repo });

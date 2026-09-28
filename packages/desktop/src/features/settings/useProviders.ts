@@ -12,10 +12,10 @@
 
 import { uniqueProviderName } from "./provider-transfer.ts";
 import { translate } from "../../i18n/translate.ts";
-import type { ModelConfig, ProviderConfig } from "@lyra/core";
-import { activeModelCatalog } from "@lyra/core/model-catalog";
+import type { ModelConfig, ProviderConfig } from "@plume/core";
+import { activeModelCatalog } from "@plume/core/model-catalog";
 import { pullModelCatalog } from "../../store/model-catalog.ts";
-import type { CatalogSyncResult } from "@lyra/core/model-catalog-sync";
+import type { CatalogSyncResult } from "@plume/core/model-catalog-sync";
 import { importedModel } from "./model-defaults.ts";
 import { useEffect, useMemo, useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";

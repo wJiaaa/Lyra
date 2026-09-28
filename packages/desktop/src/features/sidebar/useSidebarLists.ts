@@ -12,7 +12,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import { useMemo } from "react";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";

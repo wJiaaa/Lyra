@@ -14,7 +14,7 @@
 import { ChevronDown, CircleStop } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { useI18n } from "../../i18n/index.ts";
 import { figuresOf, rosterOrder, useSubAgents } from "../../store/subAgents.ts";
 import { useAgentAvatars } from "../../store/agent-avatars.ts";

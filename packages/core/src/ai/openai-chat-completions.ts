@@ -410,7 +410,7 @@ async function* streamChatCompletions(
 			 *   - oh-my-pi 说有端点不收它——`supportsToolChoice: d.isClinePass || !d.isDirectDeepseekReasoning`
 			 *     （`packages/catalog/src/compat/resolve.ts:486`，直连 DeepSeek 的推理模型那一格是 false）。
 			 *   - 但本项目 2026-09-11 在用户自己那两个端点上实测发 `tool_choice: "auto"` 得 200（探针
-			 *     `test/responses-params-probe.ts`，落盘 `~/.lyra/scratch/responses-params.txt`；那一轮测的是
+			 *     `test/responses-params-probe.ts`，落盘 `~/.plume/scratch/responses-params.txt`；那一轮测的是
 			 *     Responses 端点，不是这条链）。
 			 *
 			 * 也就是说手上没有能复现这个故障的端点，而 `auto` 本来就是服务端在有 `tools` 时的默认值（OpenAI
@@ -433,7 +433,7 @@ async function* streamChatCompletions(
 			 *
 			 * 这条链原本什么都不发（`resolveReasoningEffort` 在 `off` 上返回 undefined），理由是「不发在所有
 			 * 端点上都不会是 400」——安全，但**关不掉**。2026-09-11 在 `api.deepseek.com/v1/chat/completions`
-			 * 上量过一张表（落盘 `~/.lyra/scratch/cc-open-questions.txt`，探针
+			 * 上量过一张表（落盘 `~/.plume/scratch/cc-open-questions.txt`，探针
 			 * `test/cc-open-questions-probe.ts`），同一个问题七种写法：
 			 *
 			 *     什么都不发（原来这样）      推理 45 字   ← 关不掉

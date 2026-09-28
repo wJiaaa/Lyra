@@ -36,9 +36,9 @@ test("native dialogs use the selected language", () => {
 
 test("tray menu labels use the selected language", () => {
 	const menu = trayMenu({ windowVisible: false, recent: [], launchAtLogin: false, locale: "en" });
-	assert.equal(menu[0].type === "item" ? menu[0].label : "", "Open Lyra");
+	assert.equal(menu[0].type === "item" ? menu[0].label : "", "Open Plume");
 	const last = menu.at(-1);
-	assert.equal(last?.type === "item" ? last.label : "", "Quit Lyra");
+	assert.equal(last?.type === "item" ? last.label : "", "Quit Plume");
 });
 
 test("both native catalogs have the same keys and slots", () => {

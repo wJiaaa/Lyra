@@ -7,8 +7,8 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import type { SessionMeta } from "@lyra/core";
-import { projectFolders } from "@lyra/core/project-folders";
+import type { SessionMeta } from "@plume/core";
+import { projectFolders } from "@plume/core/project-folders";
 import { orderedSessions, type SessionSortKey } from "./sidebar-order.ts";
 import { isDescendantPath } from "./paths.ts";
 

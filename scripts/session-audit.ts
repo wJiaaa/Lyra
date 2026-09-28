@@ -12,7 +12,7 @@
  *   - 回合结束的原因分布变了吗（第 5 节）
  *   - 提示缓存的前缀有没有在哪一次请求被打断（第 10 节的「原因不明」）
  *
- * 读的是 `~/.lyra/sessions` 下的真实会话，所以数字会随着你自己的使用而变。**要对照就必须是同
+ * 读的是 `~/.plume/sessions` 下的真实会话，所以数字会随着你自己的使用而变。**要对照就必须是同
  * 一台机器、同一批会话的前后两次**，不同机器之间的绝对值没有可比性。
  *
  * 第 4 节直接 import 生产用的 `RepetitionWatch` 并在真实调用序列上重放，而不是照着它的逻辑另
@@ -46,7 +46,7 @@ const CHARS_PER_TOKEN = 3.5;
 /** 进入「单条最贵」榜的门槛，低于这个的条目太多且都不值得看。 */
 const BIG_RESULT_CHARS = 2000;
 
-const ROOT = join(homedir(), ".lyra", "sessions");
+const ROOT = join(homedir(), ".plume", "sessions");
 const asJson = process.argv.includes("--json");
 
 interface Call {

@@ -8,7 +8,7 @@
  * row: the transcript it wrote is in another pane.
  */
 
-import { visibleActivity, type SessionActivity } from "@lyra/core/activity";
+import { visibleActivity, type SessionActivity } from "@plume/core/activity";
 
 export interface SideRunningSource {
 	/**

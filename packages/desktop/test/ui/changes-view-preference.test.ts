@@ -25,15 +25,15 @@ const status: GitStatus = {
 };
 
 function fixture(t: TestContext) {
-	const previous = Object.getOwnPropertyDescriptor(window, "lyra");
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	const previous = Object.getOwnPropertyDescriptor(window, "plume");
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		git: { diffRefs: async () => ({ files: [], added: 0, removed: 0 }), branches: async () => ({ current: "main", local: ["main"], remote: [] }) },
 		diff: { workspaceDiff: async () => ({ files: [], added: 0, removed: 0 }) },
 	} });
-	localStorage.removeItem("lyra.git.changes.tree");
+	localStorage.removeItem("plume.git.changes.tree");
 	t.after(() => {
-		localStorage.removeItem("lyra.git.changes.tree");
-		if (previous) Object.defineProperty(window, "lyra", previous); else Reflect.deleteProperty(window, "lyra");
+		localStorage.removeItem("plume.git.changes.tree");
+		if (previous) Object.defineProperty(window, "plume", previous); else Reflect.deleteProperty(window, "plume");
 	});
 }
 
@@ -51,7 +51,7 @@ test("点成树形之后，重新挂一次还是树形", async (t) => {
 	const first = await mount(changes());
 	try {
 		await click(toggle());
-		assert.equal(localStorage.getItem("lyra.git.changes.tree"), "1", "选择没有落到本地");
+		assert.equal(localStorage.getItem("plume.git.changes.tree"), "1", "选择没有落到本地");
 	} finally {
 		await first.unmount();
 	}
@@ -71,12 +71,12 @@ test("点成树形之后，重新挂一次还是树形", async (t) => {
 
 test("再点回平铺，记住的也是平铺", async (t) => {
 	fixture(t);
-	localStorage.setItem("lyra.git.changes.tree", "1");
+	localStorage.setItem("plume.git.changes.tree", "1");
 	const first = await mount(changes());
 	try {
 		assert.match(toggle().getAttribute("aria-label") ?? "", /切换为扁平列表/, "本地存着树形，挂上来却不是树形");
 		await click(toggle());
-		assert.equal(localStorage.getItem("lyra.git.changes.tree"), "0", "关掉树形没有被记下来");
+		assert.equal(localStorage.getItem("plume.git.changes.tree"), "0", "关掉树形没有被记下来");
 	} finally {
 		await first.unmount();
 	}

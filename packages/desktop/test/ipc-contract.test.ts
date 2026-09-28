@@ -1,5 +1,5 @@
 /**
- * 契约（`@lyra/contract`）与主进程、preload 之间的对应关系。
+ * 契约（`@plume/contract`）与主进程、preload 之间的对应关系。
  */
 
 import assert from "node:assert/strict";
@@ -17,8 +17,8 @@ test("契约里的每个 channel 都真的被主进程注册着", async () => {
 	 * 于是它们抢走了下一行的 channel，`files.create` 与 `terminal.attach` 整个消失。
 	 *
 	 * 当时所有检查都过了：契约 157 个方法配 157 个 channel、逐个 channel 都在主进程注册着、
-	 * 真窗口里 157 个方法名也都挂在 `window.lyra` 上——因为 `mediaUrl` 顶着 `files:create` 的
-	 * 位置站在那儿。直到十条 e2e 红了，报 `window.lyra.files.create is not a function`。
+	 * 真窗口里 157 个方法名也都挂在 `window.plume` 上——因为 `mediaUrl` 顶着 `files:create` 的
+	 * 位置站在那儿。直到十条 e2e 红了，报 `window.plume.files.create is not a function`。
 	 *
 	 * 能抓住它的检查是「每个 channel 都有人注册」加上「没有两个方法共用一个 channel」——前者
 	 * 会发现 `files:create` 被一个不发 IPC 的属性占着，后者会发现总数对不上。
@@ -27,7 +27,7 @@ test("契约里的每个 channel 都真的被主进程注册着", async () => {
 	 * `fetchRegistry ↔ registry:fetch` 这类差异是既有命名，有七处，改它们要动三个文件加所有
 	 * 调用点，而它们从来没出过问题。
 	 */
-	const { METHODS, CHANNELS } = await import("@lyra/contract");
+	const { METHODS, CHANNELS } = await import("@plume/contract");
 
 	// 主进程注册的 channel，从源码读——handler 是分散注册的，导入它们会把 electron 拖进来。
 	const { readdir, readFile } = await import("node:fs/promises");
@@ -80,7 +80,7 @@ test("契约里的每个方法，preload 生成它时都会撞上一个真 handl
 	 * 非 IPC 的东西登记成了 IPC，而那个 channel 就此无人可达。
 	 */
 	const preload = await readFile(fileURLToPath(new URL("../electron/preload.ts", import.meta.url)), "utf8");
-	const { METHODS } = await import("@lyra/contract");
+	const { METHODS } = await import("@plume/contract");
 
 	// preload 里手写的属性名，从 `extras` 那个对象里取。
 	const extras = preload.slice(preload.indexOf("const extras"), preload.indexOf("contextBridge.exposeInMainWorld"));

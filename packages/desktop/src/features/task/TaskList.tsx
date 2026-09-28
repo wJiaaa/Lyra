@@ -1,5 +1,5 @@
 import { useI18n } from "../../i18n/index.ts";
-import type { TodoItem } from "@lyra/core";
+import type { TodoItem } from "@plume/core";
 import { ChevronDown, ListTodo, Pause, Play, RotateCw } from "lucide-react";
 import { useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";

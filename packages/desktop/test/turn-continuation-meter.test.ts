@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import type { AgentEvent, AssistantContent, AssistantMessage, Message, StopReason, ToolCallContent } from "@lyra/core";
+import type { AgentEvent, AssistantContent, AssistantMessage, Message, StopReason, ToolCallContent } from "@plume/core";
 
-// Mock window and window.lyra before importing store
+// Mock window and window.plume before importing store
 const storage: Record<string, string> = {};
 (globalThis as unknown as { window: unknown }).window = {
 	addEventListener: () => {},
@@ -18,7 +18,7 @@ const storage: Record<string, string> = {};
 		},
 	},
 	matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
-	lyra: {
+	plume: {
 		sessions: {
 			list: async () => [],
 			running: async () => false,

@@ -68,7 +68,7 @@ const REJECTS = [
  * 「这个端点要求把推理还回来」的说法——**这句话不可信，留着只当兜底**。
  *
  * 2026-09-11 在 `api.deepseek.com/v1/responses` 上做过一次九格对照，落盘在
- * `~/.lyra/scratch/reasoning-shape-matrix.txt`：同一段历史，推理项的九种形状各发一次——去掉密文、去掉
+ * `~/.plume/scratch/reasoning-shape-matrix.txt`：同一段历史，推理项的九种形状各发一次——去掉密文、去掉
  * id、去掉 summary、去掉 content、换位置、每个调用前各放一份、**整个推理项都不发**、**连思考都关掉**
  * ——九发全部 400，错误串一字不变。推理项已经不在请求里了，它还在说推理没带回来。
  *

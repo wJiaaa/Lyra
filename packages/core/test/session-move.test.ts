@@ -22,7 +22,7 @@ import { test } from "node:test";
 import { projectIdFor, SessionStore } from "../src/session/store.ts";
 
 async function withStore(run: (store: SessionStore, root: string) => Promise<void>): Promise<void> {
-	const root = await mkdtemp(join(tmpdir(), "lyra-move-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-move-"));
 	try {
 		await run(new SessionStore(root), root);
 	} finally {

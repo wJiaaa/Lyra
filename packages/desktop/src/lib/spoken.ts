@@ -6,7 +6,7 @@
  * 管这叫新的环。判断本身只看消息，不需要任何界面，放在 `lib` 里两边都够得着。
  */
 
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 import { translate } from "../i18n/translate.ts";
 import { stripPlaceholders } from "./attachment-placeholders.ts";
 

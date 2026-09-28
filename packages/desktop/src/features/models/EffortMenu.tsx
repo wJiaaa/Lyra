@@ -1,14 +1,14 @@
 import { translate } from "../../i18n/translate.ts";
-import type { ModelConfig, ThinkingLevel, ThinkingOption } from "@lyra/core";
+import type { ModelConfig, ThinkingLevel, ThinkingOption } from "@plume/core";
 /*
  * From the leaf, not the barrel.
  *
- * `@lyra/core`'s index reaches the provider transports, which load koffi — a native module the
+ * `@plume/core`'s index reaches the provider transports, which load koffi — a native module the
  * renderer cannot bundle, and the build fails on it rather than warning. Types from the barrel are
  * free (they vanish at compile time); a *value* is not. `thinking-options.ts` has one type import
  * and nothing else.
  */
-import { resolveModelThinkingOptions, resolveThinkingOption } from "@lyra/core/thinking-options";
+import { resolveModelThinkingOptions, resolveThinkingOption } from "@plume/core/thinking-options";
 import { CircleHelp } from "lucide-react";
 import { useState } from "react";
 import { Popover, type Anchor } from "../../ui/overlay/Popover.tsx";

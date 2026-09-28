@@ -1,10 +1,10 @@
 import type { TurnMeter, CarriedTurn } from "./turn-meter.ts";
-import type { ApprovalOrigin, ApprovalRequest, ApprovalRisk, QuestionFields } from "@lyra/core";
+import type { ApprovalOrigin, ApprovalRequest, ApprovalRisk, QuestionFields } from "@plume/core";
 import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
 import type { PluginUpdateState, SessionChange } from "../../electron/ipc-types.ts";
-import type { AgentEvent, ApprovalDecision, CommandRun, HookRun, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent } from "@lyra/core";
-import { type SessionActivity } from "@lyra/core/activity";
+import type { AgentEvent, ApprovalDecision, CommandRun, HookRun, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent } from "@plume/core";
+import { type SessionActivity } from "@plume/core/activity";
 import { applyAgentEvent } from "./apply-event.ts";
 import type { Cache, TurnStop } from "./derive.ts";
 import { howItStopped } from "./turn-stop.ts";
@@ -13,7 +13,7 @@ import { readSelectedSession } from "./session-read.ts";
 import { queueSlice, type QueueSlice } from "./queue-slice.ts";
 import { turnSlice } from "./turn-slice.ts";
 import { workspaceSlice } from "./workspace-slice.ts";
-import type { TodoItem } from "@lyra/core";
+import type { TodoItem } from "@plume/core";
 import { create } from "zustand";
 import type {
   AgentCapabilities,
@@ -33,7 +33,7 @@ import type {
 import { useSide } from "../features/dock/sideStore.ts";
 import { sideChatRunning } from "../lib/row-activity.ts";
 import { available, bridge } from "../services/index.ts";
-import { activeModelCatalog } from "@lyra/core/model-catalog";
+import { activeModelCatalog } from "@plume/core/model-catalog";
 import { pullModelCatalog } from "./model-catalog.ts";
 import type { ToolRun } from "./tool-run.ts";
 export type { ToolRun } from "./tool-run.ts";
@@ -713,7 +713,7 @@ export const useApp = create<AppState>((set, get) => ({
 			useSide.getState().applyEvent(sessionId, sideId, event),
 		);
 		if (typeof window !== "undefined") {
-			window.addEventListener("lyra:connection", (event) => {
+			window.addEventListener("plume:connection", (event) => {
 				const status = event instanceof CustomEvent ? event.detail : null;
 				if (status === "reconnecting" || status === "offline") {
 					connectionInterrupted = true;

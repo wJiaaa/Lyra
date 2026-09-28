@@ -1,5 +1,5 @@
-import { normalizeRetryPolicy } from "@lyra/core";
-import { normalizeSubAgentProfiles } from "@lyra/core/model-roles";
+import { normalizeRetryPolicy } from "@plume/core";
+import { normalizeSubAgentProfiles } from "@plume/core/model-roles";
 /**
  * The app's settings, in one place that owns them.
  *
@@ -13,7 +13,7 @@ import { normalizeSubAgentProfiles } from "@lyra/core/model-roles";
  * do; this decides when.
  */
 
-import { loadSettings, migrateSecrets, rememberProviderNames, saveSettings as persist, type Settings } from "@lyra/core";
+import { loadSettings, migrateSecrets, rememberProviderNames, saveSettings as persist, type Settings } from "@plume/core";
 
 type Listener = (next: Settings) => void | Promise<void>;
 

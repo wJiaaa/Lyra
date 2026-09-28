@@ -8,8 +8,8 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import type { UserContent } from "@lyra/core";
-import { DEFAULT_SIDE_CHAT_ID } from "@lyra/contract";
+import type { UserContent } from "@plume/core";
+import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { findModel } from "../models/index.ts";

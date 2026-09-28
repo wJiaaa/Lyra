@@ -14,7 +14,7 @@
  * one is in those frames, or it is not happening.
  *
  * Run: node --experimental-strip-types e2e/capture-entry-probe.ts
- * Frames land in /tmp/lyra-entry/.
+ * Frames land in /tmp/plume-entry/.
  */
 
 import { execFile, spawn } from "node:child_process";
@@ -23,8 +23,8 @@ import { promisify } from "node:util";
 import { startApp } from "./app.ts";
 
 const execFileAsync = promisify(execFile);
-const OUT = "/tmp/lyra-entry";
-const CLIP = "/tmp/lyra-entry.mp4";
+const OUT = "/tmp/plume-entry";
+const CLIP = "/tmp/plume-entry.mp4";
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const app = await startApp({ port: 9418 });
@@ -49,9 +49,9 @@ try {
 	for (let i = 1; i <= 4; i++) {
 		marks.push((Date.now() - startedAt) / 1000 + 2.5);
 		console.log(`• 第 ${i} 次截图（录屏第 ${marks[i - 1]!.toFixed(1)} 秒）`);
-		await app.evaluate(`window.lyra.screenshot.start()`);
+		await app.evaluate(`window.plume.screenshot.start()`);
 		await pause(2200);
-		await app.evaluate(`window.lyra.screenshot.cancel()`);
+		await app.evaluate(`window.plume.screenshot.cancel()`);
 		await pause(2800);
 	}
 

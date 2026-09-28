@@ -165,10 +165,10 @@ function startModel(): Server {
 
 async function seed(home: string): Promise<void> {
 	const project = join(home, "project");
-	await mkdir(join(project, ".lyra", "agents"), { recursive: true });
+	await mkdir(join(project, ".plume", "agents"), { recursive: true });
 	for (const file of FILES) await writeFile(join(project, file), `export const ${file.replace(".ts", "")} = 1\n`);
 	await writeFile(
-		join(project, ".lyra", "agents", "scout.md"),
+		join(project, ".plume", "agents", "scout.md"),
 		"---\nname: scout\ndescription: 只读梳理\ntools: [read, ls]\nmax-turns: 3\n---\n你是只读梳理助手 PROBE-SCOUT。\n",
 	);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 900, x: 0, y: 0 }));

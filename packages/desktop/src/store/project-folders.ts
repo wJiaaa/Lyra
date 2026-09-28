@@ -17,7 +17,7 @@
 
 import { useMemo } from "react";
 
-import { projectFolders } from "@lyra/core/project-folders";
+import { projectFolders } from "@plume/core/project-folders";
 import { useApp } from "./index.ts";
 
 /** `scoped` is a screen's own project (see `useScopedWorkspace`); without it, the live slot's. */

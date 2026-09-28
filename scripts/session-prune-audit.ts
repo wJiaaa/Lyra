@@ -8,7 +8,7 @@ import { dropStaleResults } from "../packages/core/src/runtime/stale-results.ts"
 import { boundedGrepLines } from "../packages/core/src/tools/grep.ts";
 import type { Message } from "../packages/core/src/types.ts";
 
-const root = join(homedir(), ".lyra", "sessions");
+const root = join(homedir(), ".plume", "sessions");
 const store = new SessionStore(root);
 const chars = (messages: Message[]) => messages.reduce((sum, message) => sum + (message.role === "toolResult" ? message.content.reduce((n, part) => n + (part.type === "text" ? part.text.length : 0), 0) : 0), 0);
 let sessions = 0, requests = 0, before = 0, afterSend = 0, afterStale = 0, afterGrep = 0, combined = 0, rewrites = 0, maxGrepBefore = 0, maxGrepAfter = 0;

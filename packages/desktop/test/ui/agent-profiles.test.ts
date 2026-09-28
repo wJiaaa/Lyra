@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import { BUILTIN_AGENTS, DEFAULT_SETTINGS, type ModelConfig, type Settings } from "@lyra/core";
+import { BUILTIN_AGENTS, DEFAULT_SETTINGS, type ModelConfig, type Settings } from "@plume/core";
 import { AgentsSettings } from "../../src/features/settings/AgentsSettings.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { click, mount } from "../helpers/mount.ts";
@@ -12,7 +12,7 @@ const settings: Settings = { ...DEFAULT_SETTINGS, defaultModelId: model.id, prov
 const capabilities = { agents: [{ name: "explore", source: "builtin", tools: "*", description: "Read" }], skills: [], skillDiagnostics: [], plugins: [], pluginDiagnostics: [], mcp: [], toolNames: [] } satisfies NonNullable<ReturnType<typeof useApp.getState>["capabilities"]>;
 function setup(initial: Settings, save: (settings: Settings) => Promise<Settings>) {
 	useApp.setState({ activeSessionId: "qa", meta: null, settings: initial, capabilities });
-	Object.defineProperty(window, "lyra", { configurable: true, value: { agentDefinitions: { list: async () => ({ records: BUILTIN_AGENTS.map(definition => ({ definition, id: definition.name, scope: "builtin", editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] })), tools: [] }) }, sessions: { capabilities: async () => capabilities }, settings: { save } } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { agentDefinitions: { list: async () => ({ records: BUILTIN_AGENTS.map(definition => ({ definition, id: definition.name, scope: "builtin", editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] })), tools: [] }) }, sessions: { capabilities: async () => capabilities }, settings: { save } } });
 }
 async function choose(text: string) {
 	const item = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((item) => item.textContent?.startsWith(text));
@@ -23,7 +23,7 @@ test("built-in profiles are configurable before a session exists and while a col
 	for (const sessionId of [null, "cold-session"]) {
 		setup(settings, async (next) => next);
 		useApp.setState({ activeSessionId: sessionId, capabilities: null });
-		Object.defineProperty(window, "lyra", { configurable: true, value: { agentDefinitions: { list: async () => ({ records: BUILTIN_AGENTS.map(definition => ({ definition, id: definition.name, scope: "builtin", editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] })), tools: [] }) }, sessions: { capabilities: async () => null } } });
+		Object.defineProperty(window, "plume", { configurable: true, value: { agentDefinitions: { list: async () => ({ records: BUILTIN_AGENTS.map(definition => ({ definition, id: definition.name, scope: "builtin", editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] })), tools: [] }) }, sessions: { capabilities: async () => null } } });
 		const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(AgentsSettings) }));
 		try {
 			// 名字来自 BUILTIN_AGENTS 本身，而不是抄一份：抄的那份在改名时不会红，只会悄悄少测两个。
@@ -40,7 +40,7 @@ test("built-in profiles are configurable before a session exists and while a col
 test("choosing a project reloads the catalogue and lists only that project's own agents", async () => {
 	setup({ ...settings, projects: [{ id: "project", name: "Project", path: "/qa-project", lastOpenedAt: 0 }] }, async next => next);
 	const own = (description: string, scope: "user" | "project") => ({ definition: { ...BUILTIN_AGENTS[0], name: scope, description, source: scope === "project" ? "workspace" as const : "user" as const }, id: scope, scope, editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] });
-	Object.defineProperty(window, "lyra", { configurable: true, value: { agentDefinitions: { list: async (projectId: string | null) => ({ records: projectId ? [own("Global policy", "user"), own("Project exploration policy", "project")] : [own("Global policy", "user")], tools: [] }) } } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { agentDefinitions: { list: async (projectId: string | null) => ({ records: projectId ? [own("Global policy", "user"), own("Project exploration policy", "project")] : [own("Global policy", "user")], tools: [] }) } } });
 	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(AgentsSettings) }));
 	try {
 		assert.match(view.text(), /Global policy/);

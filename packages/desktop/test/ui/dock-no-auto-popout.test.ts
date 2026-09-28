@@ -18,7 +18,7 @@ import "../../src/features/dock/panels/builtin.tsx";
 /** Every call the renderer could make to open one, recorded instead of performed. */
 function watchWindows(): { opened: unknown[] } {
 	const opened: unknown[] = [];
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		windows: {
 			openPanel: async (input: unknown) => {
 				opened.push(input);

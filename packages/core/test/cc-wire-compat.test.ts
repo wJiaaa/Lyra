@@ -135,7 +135,7 @@ async function runTurn(
 	for await (const event of openaiChatCompletionsProvider.stream(
 		providerOf(),
 		model,
-		{ systemPrompt: "你是 Lyra。", messages: [{ role: "user", content: [{ type: "text", text: "在吗" }], timestamp: 1 }], tools: [] },
+		{ systemPrompt: "你是 Plume。", messages: [{ role: "user", content: [{ type: "text", text: "在吗" }], timestamp: 1 }], tools: [] },
 		{ retryAttempts: 1, fetch: fetchStub as typeof globalThis.fetch, ...options },
 	)) {
 		if (event.type === "done") done = event.message;
@@ -371,7 +371,7 @@ test("CC：学到的结论按 provider+model 分开记，不串台", () => {
 test("关思考要明说 reasoning_effort:none —— 什么都不发等于没关", async () => {
 	/*
 	 * 实测（2026-09-11，`api.deepseek.com/v1/chat/completions` + `deepseek-flash`，七种写法，落盘
-	 * `~/.lyra/scratch/cc-open-questions.txt`）：什么都不发时推理 45 字、`low` 63 字、`minimal` 39 字、
+	 * `~/.plume/scratch/cc-open-questions.txt`）：什么都不发时推理 45 字、`low` 63 字、`minimal` 39 字、
 	 * `enable_thinking:false` 57 字，只有 `none` 和 `thinking:{type:"disabled"}` 是 0 字。
 	 *
 	 * 不发 = 用服务端默认，而这个模型的默认就在思考。用户关了思考照样被按推理 token 收费——不报错、

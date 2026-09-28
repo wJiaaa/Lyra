@@ -2,7 +2,7 @@
  * Where a bundle's README comes from, and what is never read.
  *
  * Three sources in order — the platform's detail page, the installed directory, GitHub — and three
- * refusals that matter more than any of them: a directory outside the Lyra home, a path climbing out
+ * refusals that matter more than any of them: a directory outside the Plume home, a path climbing out
  * of the repository, an id that is not an id. The network is a fake that records what was asked.
  */
 
@@ -20,7 +20,7 @@ let asked: string[] = [];
 let answers: Record<string, { status: number; body: string; type?: string }> = {};
 
 before(async () => {
-	home = await mkdtemp(join(tmpdir(), "lyra-readme-"));
+	home = await mkdtemp(join(tmpdir(), "plume-readme-"));
 	mock.method(globalThis, "fetch", async (input: string | URL) => {
 		const url = String(input);
 		asked.push(url);
@@ -60,14 +60,14 @@ test("the same id on the platform but another repository is another entry, and G
 	assert.equal(answer?.repo, "me/tools");
 });
 
-test("an installed bundle's own README is read from its directory, but only inside the Lyra home", async () => {
+test("an installed bundle's own README is read from its directory, but only inside the Plume home", async () => {
 	const inside = join(home, "plugins", "notes");
 	await mkdir(inside, { recursive: true });
 	await writeFile(join(inside, "readme.md"), "# Notes\n");
 	const answer = await readmeFor({ id: "notes", dir: inside }, [], home);
 	assert.equal(answer?.markdown, "# Notes\n");
 
-	const outside = await mkdtemp(join(tmpdir(), "lyra-readme-outside-"));
+	const outside = await mkdtemp(join(tmpdir(), "plume-readme-outside-"));
 	try {
 		await writeFile(join(outside, "README.md"), "private");
 		assert.equal(await readmeFor({ id: "elsewhere", dir: outside }, [], home), null);

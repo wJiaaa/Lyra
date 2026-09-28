@@ -7,7 +7,7 @@
  * `activeSessionId`.
  */
 
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import { intact } from "../../lib/transcript.ts";
 import { bridge } from "../../services/index.ts";
 import { howItStopped, prune, rebuildToolRuns, todosFrom } from "../../store/derive.ts";

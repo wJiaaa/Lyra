@@ -6,8 +6,8 @@
 
 import type { WorkflowRunStatus, WorkflowRunSummary } from "../../../electron/ipc-types.ts";
 
-const RUNS_PREFIX = "lyra.pipelines.runs.v1:";
-const DETAIL_PREFIX = "lyra.pipelines.detail.v1:";
+const RUNS_PREFIX = "plume.pipelines.runs.v1:";
+const DETAIL_PREFIX = "plume.pipelines.detail.v1:";
 
 export function readCachedRuns(cwd: string): WorkflowRunSummary[] | null {
 	try {

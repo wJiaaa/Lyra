@@ -68,7 +68,7 @@ async function harness(settings: Settings = SETTINGS) {
 	const root = await mkdtemp(join(tmpdir(), "ly-deleg-"));
 	const home = join(root, "home");
 	await mkdir(home, { recursive: true });
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 
 	const prompts: string[] = [];
 	const session = new AgentSession({
@@ -98,7 +98,7 @@ async function harness(settings: Settings = SETTINGS) {
 			return gate instanceof DispatchGate ? gate.width : null;
 		},
 		cleanup: async () => {
-			delete process.env.LYRA_HOME;
+			delete process.env.PLUME_HOME;
 			await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 		},
 	};

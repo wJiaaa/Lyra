@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { DISPLAY_TEXT_CHARS, slimMessagesForDisplay, slimSnapshot } from "../electron/display-transcript.ts";
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 
 test("oversized tool results are cut for display and small ones keep their identity", () => {
 	const small: Message = {
@@ -54,9 +54,9 @@ test("oversized inline images are stripped from the display copy", () => {
 });
 
 test("slimSnapshot parks oversized images so the window has a file pointer", () => {
-	const home = mkdtempSync(join(tmpdir(), "lyra-slim-"));
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const home = mkdtempSync(join(tmpdir(), "plume-slim-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	try {
 		const slimmed = slimSnapshot({
 			messages: [
@@ -71,8 +71,8 @@ test("slimSnapshot parks oversized images so the window has a file pointer", () 
 		assert.ok(image?.type === "image" && image.media);
 		assert.equal(existsSync(join(home, "session-media", image.media)), true);
 	} finally {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 	}
 });
 

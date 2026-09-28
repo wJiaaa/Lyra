@@ -9,7 +9,7 @@
  * 不是测试——`node e2e/attachment-strip-probe.ts`——但和测试一起放在这儿，因为它用同一套方式
  * 起窗口。跑的是 `out/` 里的产物，所以改完代码要先 `pnpm build`。
  *
- * `LYRA_THEME=dark` 换暗色跑一遍。附件标记的颜色是「色相由门类给、明度由主题给」，只看亮色那一张
+ * `PLUME_THEME=dark` 换暗色跑一遍。附件标记的颜色是「色相由门类给、明度由主题给」，只看亮色那一张
  * 等于只验了一半——而糊掉的那一半只在另一个主题下才现形。
  */
 
@@ -70,7 +70,7 @@ async function seed(home: string): Promise<void> {
 			 * 规则——只加 class 的话，标记的颜色换了、它底下的背景没换，拍出来是「亮底配暗色字」，一张
 			 * 现实中不存在的图。`normalizeSettings` 会把没写的字段补成默认值，所以这里只说主题。
 			 */
-			appearance: { theme: process.env.LYRA_THEME === "dark" ? "dark" : "light" },
+			appearance: { theme: process.env.PLUME_THEME === "dark" ? "dark" : "light" },
 			defaultModelId: `relay/${MODEL}`, permissionMode: "full", thinking: "high", retryAttempts: 1,
 			hooks: [], scheduledTasks: [], disabledPlugins: [], alwaysAllow: [],
 		}),
@@ -246,7 +246,7 @@ async function clip(app: Awaited<ReturnType<typeof startApp>>, selector: string,
 	return await app.send<{ data: string }>("Page.captureScreenshot", { format: "png", clip: { ...box, scale: 2 } });
 }
 
-const out = process.argv[2] ?? "/tmp/lyra-attachments";
+const out = process.argv[2] ?? "/tmp/plume-attachments";
 const model = startModel();
 const app = await startApp({ port: 9472, seed });
 
@@ -735,8 +735,8 @@ try {
 	 */
 	const beforeLocale = await app.evaluate<string>(`document.querySelector("main textarea").value`);
 	await app.evaluate(`(async () => {
-		const settings = await window.lyra.settings.get();
-		await window.lyra.settings.save({ ...settings, uiLocale: "en" });
+		const settings = await window.plume.settings.get();
+		await window.plume.settings.save({ ...settings, uiLocale: "en" });
 		return true;
 	})()`);
 	await new Promise((r) => setTimeout(r, 1500));
@@ -754,8 +754,8 @@ try {
 	console.log(`wrote ${out}-en.png`);
 	// 换回去，后面那几步的断言是按中文写的。
 	await app.evaluate(`(async () => {
-		const settings = await window.lyra.settings.get();
-		await window.lyra.settings.save({ ...settings, uiLocale: "zh-CN" });
+		const settings = await window.plume.settings.get();
+		await window.plume.settings.save({ ...settings, uiLocale: "zh-CN" });
 		return true;
 	})()`);
 	await new Promise((r) => setTimeout(r, 1200));

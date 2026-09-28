@@ -1,5 +1,5 @@
 import { translate } from "../i18n/translate.ts";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import type { AppState } from "./index.ts";
 import { howItStopped, prune, rebuildToolRuns, todosFrom, type Cache } from "./derive.ts";
 import { intact } from "../lib/transcript.ts";

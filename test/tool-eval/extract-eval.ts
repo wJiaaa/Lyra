@@ -68,7 +68,7 @@ async function main(): Promise<void> {
 	const resolved = resolveModel(settings, modelId);
 	if (!resolved) throw new Error(`Model not found: ${modelId}`);
 
-	const cwd = await mkdtemp(join(tmpdir(), "lyra-extract-"));
+	const cwd = await mkdtemp(join(tmpdir(), "plume-extract-"));
 	const result = await extractMemory({
 		cwd,
 		candidates: SESSIONS.map((messages, i) => ({ id: `s${i}`, updatedAt: Date.now(), messages })),

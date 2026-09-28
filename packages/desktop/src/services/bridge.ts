@@ -1,12 +1,12 @@
 /**
- * The one place `window.lyra` is named.
+ * The one place `window.plume` is named.
  *
  * Everything the renderer asks of the main process goes through this object, and it is reached
  * through `services/` rather than directly — 87 files used to name it, which made two questions
  * unanswerable without searching all of them: what does this window actually call, and what would
  * have to change to test any of it.
  *
- * `oxlint` enforces the rule (`no-restricted-properties` on `window.lyra`), with this file,
+ * `oxlint` enforces the rule (`no-restricted-properties` on `window.plume`), with this file,
  * `host.ts` and `web-bridge.ts` exempted. A lint rule rather than a convention because the convention held for exactly
  * as long as somebody was watching.
  *
@@ -17,26 +17,26 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 
 /**
  * The bridge, or a failure that names the cause.
  *
- * A missing `window.lyra` means the preload did not run, and every symptom of that is confusing:
+ * A missing `window.plume` means the preload did not run, and every symptom of that is confusing:
  * blank panels, buttons that do nothing, a settings page with no settings. Better to say so.
  */
-function bridgeOrThrow(): LyraApi {
+function bridgeOrThrow(): PlumeApi {
 	/*
-	 * `globalThis.lyra` and `globalThis.window.lyra` are the same object in a browser and are not in
+	 * `globalThis.plume` and `globalThis.window.plume` are the same object in a browser and are not in
 	 * a test.
 	 *
 	 * The preload exposes it on `window`, which *is* `globalThis` at runtime — so either spelling
 	 * works there. A unit test has no `window` until it makes one, and what it makes is an ordinary
-	 * object assigned to `globalThis.window`; reading only `globalThis.lyra` would miss it, and the
+	 * object assigned to `globalThis.window`; reading only `globalThis.plume` would miss it, and the
 	 * store under test would throw at a point unrelated to what the test is about.
 	 */
-	const scope = globalThis as { lyra?: LyraApi; window?: { lyra?: LyraApi } };
-	const api = scope.lyra ?? scope.window?.lyra;
+	const scope = globalThis as { plume?: PlumeApi; window?: { plume?: PlumeApi } };
+	const api = scope.plume ?? scope.window?.plume;
 	if (!api) {
 		throw new Error(
 			translate("bridge.missing1") +
@@ -53,9 +53,9 @@ function bridgeOrThrow(): LyraApi {
  * throw during import rather than at the call that needed it. A `Proxy` keeps the ergonomics of a
  * plain object — `bridge.sessions.list()` — while deferring the lookup to the moment of use.
  */
-export const bridge: LyraApi = new Proxy({} as LyraApi, {
+export const bridge: PlumeApi = new Proxy({} as PlumeApi, {
 	get(_target, property) {
-		return bridgeOrThrow()[property as keyof LyraApi];
+		return bridgeOrThrow()[property as keyof PlumeApi];
 	},
 	has(_target, property) {
 		return property in bridgeOrThrow();

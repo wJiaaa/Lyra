@@ -14,7 +14,7 @@
 import { Folder, FolderPlus, Monitor, X } from "lucide-react";
 import { useState } from "react";
 
-import { projectFolders } from "@lyra/core/project-folders";
+import { projectFolders } from "@plume/core/project-folders";
 import { useI18n } from "../../i18n/index.ts";
 import { baseName } from "../../lib/paths.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";

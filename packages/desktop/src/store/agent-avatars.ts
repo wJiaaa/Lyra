@@ -10,7 +10,7 @@
  */
 
 import { useMemo } from "react";
-import { BUILTIN_AGENTS, RENAMED_AGENTS } from "@lyra/core/agents-builtin";
+import { BUILTIN_AGENTS, RENAMED_AGENTS } from "@plume/core/agents-builtin";
 import { assignAvatars, hashedAvatar, parseAvatar, type Avatar } from "../lib/agent-avatar.ts";
 import { useApp } from "./index.ts";
 
@@ -23,7 +23,7 @@ const BUILTIN_TAKEN = BUILTIN_AGENTS.flatMap((agent) => {
 /**
  * 内置的那张脸，按名字——包括改过名的旧名。
  *
- * 不只看定义里带没带：用户在 `~/.lyra/agents/general.md` 里手写一份覆盖内置的，文件里多半没有
+ * 不只看定义里带没带：用户在 `~/.plume/agents/general.md` 里手写一份覆盖内置的，文件里多半没有
  * `avatar` 这一行，可它仍然是 `general`，不该因为改了几句指令就换了一张脸。
  */
 export function builtinAvatar(name: string): string | undefined {

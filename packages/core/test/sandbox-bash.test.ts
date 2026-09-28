@@ -48,7 +48,7 @@ async function run(cwd: string, mode: SandboxMode | undefined, command: string):
 }
 
 test("workspace-write lets a command write inside the project", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-ws-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-ws-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	const s = shellFor("workspace-write");
@@ -58,9 +58,9 @@ test("workspace-write lets a command write inside the project", { skip }, async 
 });
 
 test("workspace-write refuses a write outside the project, and nothing is created", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-ws-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-ws-"));
 	// Under the home directory: outside the workspace and outside the temp areas the mode grants.
-	const outside = join(homedir(), ".lyra-sandbox-e2e-probe");
+	const outside = join(homedir(), ".plume-sandbox-e2e-probe");
 	t.after(async () => {
 		await rm(ws, { recursive: true, force: true });
 		await rm(outside, { force: true });
@@ -75,7 +75,7 @@ test("workspace-write refuses a write outside the project, and nothing is create
 });
 
 test("read-only refuses even inside the project", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-ro-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-ro-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	await run(ws, "read-only", shellFor("read-only").write(join(ws, "nope.txt")));
@@ -83,7 +83,7 @@ test("read-only refuses even inside the project", { skip }, async (t) => {
 });
 
 test("read-only still allows the sink a shell cannot run without", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-ro-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-ro-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	// A read-only sandbox that cannot run `... 2>/dev/null` is not read-only, it is broken.
@@ -93,7 +93,7 @@ test("read-only still allows the sink a shell cannot run without", { skip }, asy
 });
 
 test("read-only can still read", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-ro-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-ro-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	/*
@@ -101,7 +101,7 @@ test("read-only can still read", { skip }, async (t) => {
 	 * the temp areas are readable without asking (`read-access.ts`), `/etc/passwd` is not a file
 	 * Git Bash promises, and anything under the home directory would be a question for a person.
 	 */
-	const other = join(tmpdir(), `lyra-sb-read-${process.pid}.txt`);
+	const other = join(tmpdir(), `plume-sb-read-${process.pid}.txt`);
 	await writeFile(other, "data");
 	t.after(() => rm(other, { force: true }));
 	const s = shellFor("read-only");
@@ -110,8 +110,8 @@ test("read-only can still read", { skip }, async (t) => {
 });
 
 test("danger-full-access is unconfined, and says nothing about denials", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-full-"));
-	const outside = join(ws, "..", `lyra-full-${process.pid}.txt`);
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-full-"));
+	const outside = join(ws, "..", `plume-full-${process.pid}.txt`);
 	t.after(async () => {
 		await rm(ws, { recursive: true, force: true });
 		await rm(outside, { force: true });
@@ -124,7 +124,7 @@ test("danger-full-access is unconfined, and says nothing about denials", { skip 
 });
 
 test("no mode means no confinement, which is how the CLI and the tests run", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-none-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-none-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	const result = await run(ws, undefined, "echo DONE");
@@ -133,7 +133,7 @@ test("no mode means no confinement, which is how the CLI and the tests run", { s
 
 test("a path with a quote in it does not break out of the profile", { skip: skip || (process.platform === "win32" ? "a Windows path cannot contain a quote" : false) }, async (t) => {
 	// The escaping is unit-tested; this proves the escaped profile is one the kernel accepts.
-	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-q-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-q-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	const weird = join(ws, 'we"ird dir');
@@ -143,7 +143,7 @@ test("a path with a quote in it does not break out of the profile", { skip: skip
 });
 
 test("an ordinary failure is not dressed up as a denial", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-fail-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-fail-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	const result = await run(ws, "workspace-write", "definitely-not-a-command-here");
@@ -213,16 +213,16 @@ test("the shell a command runs in is the one its session announced, escalated or
 	 * Pretends to be Windows with a Git Bash on hand; a recording sandbox, so nothing is started.
 	 */
 	const realPlatform = process.platform;
-	const realShell = process.env.LYRA_SHELL;
-	const bashDir = await mkdtemp(join(tmpdir(), "lyra-sb-shell-"));
+	const realShell = process.env.PLUME_SHELL;
+	const bashDir = await mkdtemp(join(tmpdir(), "plume-sb-shell-"));
 	await writeFile(join(bashDir, "bash.exe"), "");
 	Object.defineProperty(process, "platform", { value: "win32", configurable: true });
-	process.env.LYRA_SHELL = join(bashDir, "bash.exe");
+	process.env.PLUME_SHELL = join(bashDir, "bash.exe");
 	resetSystemShell();
 	t.after(async () => {
 		Object.defineProperty(process, "platform", { value: realPlatform, configurable: true });
-		if (realShell === undefined) delete process.env.LYRA_SHELL;
-		else process.env.LYRA_SHELL = realShell;
+		if (realShell === undefined) delete process.env.PLUME_SHELL;
+		else process.env.PLUME_SHELL = realShell;
 		resetSystemShell();
 		await rm(bashDir, { recursive: true, force: true });
 	});
@@ -257,7 +257,7 @@ test("the shell a command runs in is the one its session announced, escalated or
 });
 
 test("a denied network is denied, and an allowed one is not", { skip: netSkip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-sb-net-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-net-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	// `-sS` rather than `-s`: the denial marker is matched against what the command printed, so a

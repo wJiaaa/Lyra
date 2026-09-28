@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { DEFAULT_SETTINGS, type AgentSession, type ScheduledTask, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type AgentSession, type ScheduledTask, type Settings } from "@plume/core";
 import { setInterfaceLocaleSource } from "../electron/i18n.ts";
 import { Scheduler, type SchedulerNotice } from "../electron/scheduler.ts";
 

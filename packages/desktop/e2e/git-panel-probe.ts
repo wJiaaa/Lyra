@@ -19,7 +19,7 @@ import { startApp } from "./app.ts";
 const exec = promisify(execFile);
 
 async function makeRepo(files: number): Promise<string> {
-	const root = join(tmpdir(), `lyra-gitpanel-${files}`);
+	const root = join(tmpdir(), `plume-gitpanel-${files}`);
 	await rm(root, { recursive: true, force: true });
 	await mkdir(root, { recursive: true });
 	await exec("git", ["init", "-q"], { cwd: root });
@@ -57,7 +57,7 @@ async function main() {
 		// The shortcut refuses until a project is open, and that is a round trip after the shell paints.
 		await app.evaluate(`(async () => {
 			for (let i = 0; i < 200; i++) {
-				if (document.body.innerText.includes("lyra-gitpanel-120")) return 1;
+				if (document.body.innerText.includes("plume-gitpanel-120")) return 1;
 				await new Promise((r) => setTimeout(r, 50));
 			}
 			throw new Error("the project never opened: " + document.body.innerText.slice(0, 200));

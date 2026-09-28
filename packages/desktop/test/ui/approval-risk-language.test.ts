@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h, memo } from "react";
-import { RISK_REASONS, type ApprovalRisk, type UiLocale } from "@lyra/core";
+import { RISK_REASONS, type ApprovalRisk, type UiLocale } from "@plume/core";
 
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { ApprovalOverlay } from "../../src/features/conversation/ApprovalOverlay.tsx";
@@ -25,7 +25,7 @@ const FORCE_PUSH: ApprovalRisk = { code: "force-push", text: "强制推送会覆
 /** What the card prints in its text block for one pending request. */
 async function cardText(locale: UiLocale, risk: ApprovalRisk | undefined, detail = PUSH): Promise<string> {
 	const previous = useApp.getState();
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	useApp.setState({
 		activeSessionId: "owner",
 		approvals: [{ id: "push", kind: "bash", title: "Run shell command", detail, subject: detail, ...(risk ? { risk } : {}) }],
@@ -36,7 +36,7 @@ async function cardText(locale: UiLocale, risk: ApprovalRisk | undefined, detail
 	} finally {
 		await view.unmount();
 		useApp.setState(previous, true);
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 }
 
@@ -74,7 +74,7 @@ test("switching language rewords a card that is already open", async () => {
 		return h(ApprovalOverlay);
 	});
 	const previous = useApp.getState();
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	useApp.setState({ activeSessionId: "owner", approvals: [{ id: "push", kind: "bash", title: "Run shell command", detail: PUSH, subject: PUSH, risk: FORCE_PUSH }] });
 	const tree = (locale: UiLocale) => h(LayoutProvider, { children: h(I18nProvider, { locale, children: h(Conversation) }) });
 	const view = await mount(tree("zh-CN"));
@@ -85,7 +85,7 @@ test("switching language rewords a card that is already open", async () => {
 	} finally {
 		await view.unmount();
 		useApp.setState(previous, true);
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 

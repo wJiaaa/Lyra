@@ -3,7 +3,7 @@
  * 交付卡片点文件进右边这一轮的 diff，点审核进同一块面板里全部文件的 diff。
  * 不是文件预览，也不是 Git。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/delivery-dock-demo.ts`
  */
 
@@ -16,7 +16,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Lyra交付卡片停靠测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume交付卡片停靠测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const PORT = 9781;
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];
@@ -124,7 +124,7 @@ try {
 	}
 	await click('[data-ly-row="qa-short"] > button');
 	await app.evaluate(
-		`window.lyra.agent.prompt('qa-short',[{type:'text',text:'改三个文件用来验证交付卡片点开停靠栏'}])`,
+		`window.plume.agent.prompt('qa-short',[{type:'text',text:'改三个文件用来验证交付卡片点开停靠栏'}])`,
 	);
 	try {
 		await until(`document.querySelector('[data-turn-delivery]')?.textContent.includes('已编辑 3 个文件')`, 30_000);

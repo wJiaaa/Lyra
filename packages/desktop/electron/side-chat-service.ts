@@ -1,9 +1,9 @@
 /** Side-chat operations behind the Electron IPC handlers. */
 
-import { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatEvent, type UserContent } from "@lyra/core";
+import { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatEvent, type UserContent } from "@plume/core";
 import { settings } from "./app-settings.ts";
 import { broadcastSideChat, ensureLiveSession, liveSideChat, sessions, sideChats } from "./session-hub.ts";
-import { DEFAULT_SIDE_CHAT_ID } from "@lyra/contract";
+import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { isSideId, loadSideChatSnapshot, saveSideChatTranscript, saveSideChat } from "./sidechat-store.ts";
 
 const opening = new Map<string, Promise<SideChat | null>>();

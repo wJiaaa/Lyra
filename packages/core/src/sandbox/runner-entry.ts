@@ -7,9 +7,9 @@
  * work and becomes the command's exit status.
  *
  * A file of its own because of how it has to be started. The runner used to be the app itself —
- * `Lyra.exe --lyra-sandbox-runner …` with `ELECTRON_RUN_AS_NODE=1` — and in that mode Electron is
+ * `Plume.exe --plume-sandbox-runner …` with `ELECTRON_RUN_AS_NODE=1` — and in that mode Electron is
  * Node, which reads the first argument as one of its own options: `bad option:
- * --lyra-sandbox-runner`, exit 9, every time. The probe failed, the backend reported no sandbox,
+ * --plume-sandbox-runner`, exit 9, every time. The probe failed, the backend reported no sandbox,
  * and on Windows the default permission mode refused every command. Node mode needs a script
  * before any flag, and this is the script. The desktop build emits it as `sandbox-runner.js`
  * beside the main bundle; from source it runs as TypeScript.

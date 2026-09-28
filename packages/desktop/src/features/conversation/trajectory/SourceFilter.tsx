@@ -1,7 +1,7 @@
 import { translate } from "../../../i18n/translate.ts";
 import { Check, Circle, ListFilter, RotateCcw } from "lucide-react";
 import { useState } from "react";
-import { SOURCE_LABEL, SOURCE_ORDER, STATUS_LABEL, type Source, type TrajectoryFilter } from "@lyra/core/trajectory-view";
+import { SOURCE_LABEL, SOURCE_ORDER, STATUS_LABEL, type Source, type TrajectoryFilter } from "@plume/core/trajectory-view";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";
 import { MenuBody, MenuLabel, MenuItem } from "../../../ui/overlay/Menu.tsx";
 import { Popover } from "../../../ui/overlay/Popover.tsx";

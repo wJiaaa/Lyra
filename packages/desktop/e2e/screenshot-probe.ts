@@ -210,7 +210,7 @@ try {
 		tick();
 		return true;
 	})()`);
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 
 	// The overlay only shows itself once its snapshot is painted, so give it a moment to appear.
 	let overlay: Target | undefined;
@@ -454,9 +454,9 @@ try {
 		 * it. Outside is inert now, so the way back to nothing is to cancel and open again — which is
 		 * also the only way a person has.
 		 */
-		await app.evaluate(`window.lyra.screenshot.cancel()`);
+		await app.evaluate(`window.plume.screenshot.cancel()`);
 		await pause(700);
-		await app.evaluate(`window.lyra.screenshot.start()`);
+		await app.evaluate(`window.plume.screenshot.start()`);
 		for (let i = 0; i < 40; i++) {
 			await pause(200);
 			if (!(await captureOver())) break;
@@ -556,7 +556,7 @@ try {
 		};
 		tick();
 	})()`);
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	let reopened = false;
 	for (let i = 0; i < 40 && !reopened; i++) {
 		await pause(250);
@@ -617,7 +617,7 @@ try {
 
 	// And back into a capture for the annotation checks below.
 	await pause(1400);
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	let thirdOpen = false;
 	for (let i = 0; i < 40 && !thirdOpen; i++) {
 		await pause(250);
@@ -1086,14 +1086,14 @@ try {
 
 	// ---- 9. 存下来看一眼 --------------------------------------------------
 	const shot = (await call<{ data: string }>(socket, "Page.captureScreenshot", { format: "png" })).data;
-	await writeFile("/tmp/lyra-screenshot-overlay.png", Buffer.from(shot, "base64"));
-	note("  9. 浮层截图已写入 /tmp/lyra-screenshot-overlay.png");
+	await writeFile("/tmp/plume-screenshot-overlay.png", Buffer.from(shot, "base64"));
+	note("  9. 浮层截图已写入 /tmp/plume-screenshot-overlay.png");
 
 	// ---- 10. 完成，走真实保存路径 -----------------------------------------
 	/*
 	 * Clicked for real, and checked by the file that comes out of it.
 	 *
-	 * The first version of this replaced `window.lyra.screenshot.finish` with a spy. `window.lyra`
+	 * The first version of this replaced `window.plume.screenshot.finish` with a spy. `window.plume`
 	 * comes through `contextBridge`, which hands over a frozen object — the assignment did nothing,
 	 * the real handler ran, the overlay was destroyed mid-evaluate, and the probe hung until it
 	 * timed out. Seeding a save directory and looking at what lands in it covers the whole path
@@ -1101,7 +1101,7 @@ try {
 	 */
 	// The destination the app believes in, printed because a mismatch between this and the directory
 	// below is what a stale instance on the debug port looks like from here.
-	note(`      保存位置 → ${await app.evaluate<string>(`window.lyra.settings.get().then(s => s.screenshot?.saveLocation ?? "(没有)")`)}`);
+	note(`      保存位置 → ${await app.evaluate<string>(`window.plume.settings.get().then(s => s.screenshot?.saveLocation ?? "(没有)")`)}`);
 	const finished = await pressTool(socket, run, "完成");
 	if (!finished) problems.push("工具条上没有「完成」按钮");
 	await pause(700);
@@ -1123,7 +1123,7 @@ try {
 		problems.push("点了完成之后没有保存出文件");
 		// Which half is broken: the save path itself, or the overlay's call into it.
 		const direct = await app.evaluate<string>(
-			`window.lyra.screenshot.finish("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==").then(r => JSON.stringify(r), e => "threw: " + e.message)`,
+			`window.plume.screenshot.finish("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==").then(r => JSON.stringify(r), e => "threw: " + e.message)`,
 		).catch((e) => `evaluate failed: ${e.message}`);
 		note(`      直接调用保存 → ${direct}`);
 		const now = await readdir(shots).catch((e) => [`(读不了: ${e.message})`]);
@@ -1140,8 +1140,8 @@ try {
 		note(`      图片尺寸 ${size.width}×${size.height}`);
 		// Kept where it can be looked at: the export is its own code path, and "the file exists and
 		// is the right size" does not say the marks made it into it.
-		await writeFile("/tmp/lyra-screenshot-export.png", await readFile(join(shots, saved.name)));
-		note("      导出的图片已复制到 /tmp/lyra-screenshot-export.png");
+		await writeFile("/tmp/plume-screenshot-export.png", await readFile(join(shots, saved.name)));
+		note("      导出的图片已复制到 /tmp/plume-screenshot-export.png");
 		// The selection ended at 680×460 CSS pixels, so the file is that times the scale factor.
 		if (size.width < 600 || size.height < 400) problems.push(`导出的图片尺寸不对：${size.width}×${size.height}`);
 	}
@@ -1152,13 +1152,13 @@ try {
 	 *
 	 * The reported bug is that the app disappears behind whatever was on screen before it: the
 	 * overlay is `alwaysOnTop` at screen-saver level, and when macOS destroys it the foreground
-	 * goes to the application underneath, not back to Lyra. Nothing about the main window's DOM
+	 * goes to the application underneath, not back to Plume. Nothing about the main window's DOM
 	 * changes, which is why the first version of this check passed while the bug was there. The
 	 * window server is the only thing that can answer it.
 	 *
 	 * Confirmed to fail when it should: with `app.focus({ steal: true })` removed from
 	 * `closeScreenshotOverlay`, this reports whichever application happened to be behind the
-	 * overlay instead of Lyra.
+	 * overlay instead of Plume.
 	 */
 	const alive = await app.evaluate<boolean>(`Boolean(document.querySelector(".ly-shell"))`);
 	if (!alive) problems.push("完成截图后主窗口没了");
@@ -1169,7 +1169,7 @@ try {
 	 * Reported, not asserted, and the reason is the point.
 	 *
 	 * Where the foreground goes now depends on where the screenshot came from — see `cameFromApp`
-	 * in `screenshot.ts`. Started from inside Lyra it comes back to Lyra; started by the global
+	 * in `screenshot.ts`. Started from inside Plume it comes back to Plume; started by the global
 	 * shortcut while reading something else it deliberately does not, because being yanked into a
 	 * different application after screenshotting a browser is the complaint that produced that
 	 * rule. Whether *this* run had focus at the moment it began is not something the probe controls,
@@ -1200,9 +1200,9 @@ if (timeline) {
 		const total = Number(shown[1]);
 		const own = total - Number(snap[1]);
 		const grab = /"getSources":(\d+)/.exec(block)?.[1] ?? "?";
-		console.log(`\n• 第 ${i + 1} 次：触发→上屏 ${total}ms（系统取画面 ${grab}ms，Lyra 自己 ${own}ms）`);
+		console.log(`\n• 第 ${i + 1} 次：触发→上屏 ${total}ms（系统取画面 ${grab}ms，Plume 自己 ${own}ms）`);
 		/*
-		 * Judged on Lyra's own share, not the total.
+		 * Judged on Plume's own share, not the total.
 		 *
 		 * `getSources` is the system taking the picture and varies with what else the machine is
 		 * doing; the part worth defending is everything after it — decoding, painting, showing —
@@ -1216,7 +1216,7 @@ if (timeline) {
 			problems.push(`第一次截图系统取画面花了 ${grab}ms——预热没生效，头一两张截图仍会看到画面跳一下`);
 		}
 		if (i > 0 && own > 90) {
-			problems.push(`浮层上屏前 Lyra 自己花了 ${own}ms——这段时间内屏幕的变化会在浮层落下时被“抹回去”，看起来就是画面跳一下`);
+			problems.push(`浮层上屏前 Plume 自己花了 ${own}ms——这段时间内屏幕的变化会在浮层落下时被“抹回去”，看起来就是画面跳一下`);
 		}
 	});
 } else {

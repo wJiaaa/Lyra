@@ -6,7 +6,7 @@
  * 而 `store/index.ts` 本来就引着侧边聊天的 store，`pnpm arch` 当场报一个新的环。连 `import type` 都算。
  */
 
-import type { UserContent } from "@lyra/core";
+import type { UserContent } from "@plume/core";
 
 /** 附件在草稿里的样子。和 `drafts` 里的同一种东西，因为「编辑」要把它原样放回去。 */
 interface QueuedAttachment {

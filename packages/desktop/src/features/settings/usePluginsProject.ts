@@ -1,4 +1,4 @@
-import type { ProjectEntry } from "@lyra/core";
+import type { ProjectEntry } from "@plume/core";
 import { useApp } from "../../store/index.ts";
 
 /**

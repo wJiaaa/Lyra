@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import type { SessionStorage } from "@lyra/core";
+import type { SessionStorage } from "@plume/core";
 import { grantArtifactRead } from "../readable-artifacts.ts";
 import { sessionDelivery, undoDeliveryFile } from "../turn-delivery.ts";
 import { isAppWindowContents } from "../window.ts";

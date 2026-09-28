@@ -24,7 +24,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-project-head-hover";
+const dir = process.argv[2] ?? "/tmp/plume-project-head-hover";
 const theme = process.argv[3] === "dark" ? "dark" : "light";
 const port = Number(process.argv[4] ?? 9811);
 /** 侧栏宽度：默认 272，最宽 420 也量一遍。 */
@@ -56,7 +56,7 @@ const PROJECTS: SeedProject[] = [
 	// 用户举的那个名字；底下放一条同名会话，同样的字、同样的宽，悬停时并排对照。
 	{ key: "mgmt", name: "智能投标对外公开项目管理", sessions: ["智能投标对外公开项目管理", "补上单元测试"] },
 	{ key: "long", name: "智能投标对外公开项目管理后台前端工程与运维监控平台", sessions: ["升级依赖"] },
-	{ key: "short", name: "Lyra", sessions: ["侧栏悬停", "发版"] },
+	{ key: "short", name: "Plume", sessions: ["侧栏悬停", "发版"] },
 	{ key: "shut", name: "招投标文件智能审查平台", sessions: ["一", "二", "三", "四"], collapsed: true },
 	{
 		key: "shutlong",
@@ -372,7 +372,7 @@ const TARGETS: Array<{ label: string; kind: "project" | "session"; key: string }
 	{ label: "项目·智能投标对外公开项目", kind: "project", key: "智能投标对外公开项目" },
 	{ label: "项目·智能投标对外公开项目管理", kind: "project", key: "智能投标对外公开项目管理" },
 	{ label: "项目·超长名", kind: "project", key: "智能投标对外公开项目管理后台前端工程与运维监控平台" },
-	{ label: "项目·短名 Lyra", kind: "project", key: "Lyra" },
+	{ label: "项目·短名 Plume", kind: "project", key: "Plume" },
 	{ label: "项目·收起（计数 4）", kind: "project", key: "招投标文件智能审查平台" },
 	{ label: "项目·收起长名（计数 12）", kind: "project", key: "政府采购电子招投标交易平台前端工程" },
 	{ label: "会话·长标题", kind: "session", key: "bid-0" },

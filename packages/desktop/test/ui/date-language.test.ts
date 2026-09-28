@@ -15,7 +15,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { act, createElement as h, memo } from "react";
-import type { Message, SessionMeta } from "@lyra/core";
+import type { Message, SessionMeta } from "@plume/core";
 
 import { MessageRow } from "../../src/features/conversation/rows.tsx";
 import { ArchivedSettings } from "../../src/features/settings/ArchivedSettings.tsx";
@@ -33,13 +33,13 @@ const DAY = 86_400_000;
 
 const usage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 } };
 const meta = (over: Partial<SessionMeta> = {}): SessionMeta => ({
-	id: "a", title: "Refactor", cwd: "/work/lyra", projectId: "lyra", projectName: "lyra",
+	id: "a", title: "Refactor", cwd: "/work/plume", projectId: "plume", projectName: "plume",
 	createdAt: 1, updatedAt: AFTERNOON, modelId: "", messageCount: 12, seq: 2, usage, ...over,
 });
 
 afterEach(() => {
 	useApp.setState({ sessions: [], workspace: null });
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 test("an archived conversation is dated in the window's language", async () => {
@@ -60,11 +60,11 @@ test("an archived conversation is dated in the window's language", async () => {
 
 test("when the index was last built, in the window's language", async () => {
 	const stats = { exists: true, builtAt: AFTERNOON, files: 3, symbols: 40, bytes: 2048 };
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: { index: { stats: async () => stats, search: async () => [] } },
 	});
-	useApp.setState({ workspace: { path: "/work/lyra", name: "lyra", isGitRepo: false, branch: null } });
+	useApp.setState({ workspace: { path: "/work/plume", name: "plume", isGitRepo: false, branch: null } });
 	for (const [locale, label, expected] of [
 		["en", "Last built", "9/26/2026, 2:28:05 PM"],
 		["zh-CN", "上次构建", "2026/9/26 14:28:05"],

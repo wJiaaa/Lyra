@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import { DEFAULT_SETTINGS, type ScheduledTask, type UiLocale } from "@lyra/core";
+import { DEFAULT_SETTINGS, type ScheduledTask, type UiLocale } from "@plume/core";
 
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { ScheduledView } from "../../src/features/scheduled/ScheduledView.tsx";
@@ -33,7 +33,7 @@ const task = (patch: Partial<ScheduledTask> = {}): ScheduledTask => ({
 
 async function withCard(locale: UiLocale, scheduled: ScheduledTask, check: (view: Mounted) => void): Promise<void> {
 	const previous = useApp.getState();
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS, scheduledTasks: [scheduled] }, saveSettings: async () => {} } as never);
 	const view = await mount(h(LayoutProvider, { children: h(I18nProvider, { locale, children: h(ScheduledView) }) }));
 	try {
@@ -41,7 +41,7 @@ async function withCard(locale: UiLocale, scheduled: ScheduledTask, check: (view
 	} finally {
 		await view.unmount();
 		useApp.setState(previous, true);
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 }
 

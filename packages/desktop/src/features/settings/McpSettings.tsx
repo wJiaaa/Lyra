@@ -14,8 +14,8 @@
  */
 
 import { Input } from "../../ui/inputs/NativeField.tsx";
-import type { McpServerConfig } from "@lyra/core";
-import { looksSecret } from "@lyra/core/mcp-placeholders";
+import type { McpServerConfig } from "@plume/core";
+import { looksSecret } from "@plume/core/mcp-placeholders";
 import { FolderOpen, MoreHorizontal, Plus, SlidersHorizontal, Store, Trash2 } from "lucide-react";
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { useEffect, useRef, useState } from "react";
@@ -97,7 +97,7 @@ export function McpSettings({ filter = "", markOf }: { filter?: string; markOf?:
 				? {
 						/*
 						 * Uninstalling reaches past this page, because an installed server is two things: this
-						 * row, and the directory under `~/.lyra/mcp` it was copied from. Deleting only the row
+						 * row, and the directory under `~/.plume/mcp` it was copied from. Deleting only the row
 						 * leaves the directory, and the next scan writes the row straight back.
 						 */
 						title: t("mcp.uninstallConfirm", { name: server.name }),

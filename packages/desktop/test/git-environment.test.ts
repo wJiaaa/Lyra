@@ -90,7 +90,7 @@ test("Path key case-insensitivity on Windows is preserved", { skip: process.plat
  * caller in the app ever meant to ask.
  */
 test("GIT_DIR in the environment no longer decides which repository git answers about", async () => {
-	const home = await mkdtemp(join(tmpdir(), "lyra-git-env-"));
+	const home = await mkdtemp(join(tmpdir(), "plume-git-env-"));
 	const project = join(home, "project");
 	const decoy = join(home, "decoy");
 

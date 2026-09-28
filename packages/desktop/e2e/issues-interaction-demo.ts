@@ -6,7 +6,7 @@ import { startApp, closeListeningServer } from "./app.ts";
 import { startRecording, encode, type Frame } from "./record.ts";
 import { issueModel, seedIssues } from "./issues-fixture.ts";
 
-const out = join(homedir(), "Desktop", "Lyra未完成问题修复测试");
+const out = join(homedir(), "Desktop", "Plume未完成问题修复测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Singapore" }).replace(/[: ]/g, "-");
 const checks: { name: string; ok: boolean; value: unknown }[] = [];
 const check = (name: string, ok: boolean, value: unknown) => { checks.push({ name, ok, value }); console.log(`${ok ? "PASS" : "FAIL"} ${name} ${JSON.stringify(value)}`); };
@@ -72,7 +72,7 @@ try {
 	check("collapse preserves answer draft", draft === "收起后仍应保留中文草稿", draft);
 	for (const width of [1500, 375]) for (const theme of ["dark", "light"]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 950, deviceScaleFactor: 1, mobile: false });
-		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}})})()`);
+		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}})})()`);
 		await pause();
 		const boxes = await app.evaluate<{ left: number; right: number; top: number; bottom: number; transcriptBottom: number; overflow: number }>("(()=>{const c=document.querySelector('[data-approval-card]'),r=c.getBoundingClientRect(),region=document.querySelector('[data-approval-region]'),scroll=region.parentElement.previousElementSibling.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,transcriptBottom:scroll.bottom,overflow:c.scrollWidth-c.clientWidth}})()");
 		check(`question visible without overlap ${width} ${theme}`, boxes.left >= 0 && boxes.right <= width && boxes.top >= boxes.transcriptBottom - 1 && boxes.bottom <= 950 && boxes.overflow <= 1, boxes);
@@ -93,7 +93,7 @@ try {
 	check("two choices remain selected until confirmation", selectedCount === 2, selectedCount);
 	await click('[data-ly-question-footer] button[type="submit"]');
 	await until("!document.querySelector('[data-approval-card]')&&!document.querySelector('[data-composer-send=stop]')"); await pause();
-	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.lyra.sessions.list()).find(s=>s.id==='issue-demo');const t=await window.lyra.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
+	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='issue-demo');const t=await window.plume.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
 	check("multiple answers reach the model once", results.length === 2 && results[1].includes("保留现有行为") && results[1].includes("更新实现"), results);
 	await shot("completed-questions");
 	const beforePlan = model.answers.length;
@@ -103,7 +103,7 @@ try {
 	check("stopped plan is visibly paused", await app.evaluate("document.body.innerText.includes('已暂停')"), await app.evaluate("[...document.querySelectorAll('button')].find(e=>e.textContent.includes('旧目标待取消'))?.textContent"));
 	await shot("paused-plan");
 	model.set("discard");
-	await app.evaluate("window.lyra.sideChat.ask('issue-demo',[{type:'text',text:'明确取消旧目标，停止并废除旧清单。'}])");
+	await app.evaluate("window.plume.sideChat.ask('issue-demo',[{type:'text',text:'明确取消旧目标，停止并废除旧清单。'}])");
 	await until("![...document.querySelectorAll('button')].some(e=>e.textContent.includes('旧目标待取消'))"); await pause();
 	check("side chat cancellation removes stale task card", await app.evaluate("![...document.querySelectorAll('button')].some(e=>e.textContent.includes('旧目标待取消'))"), "no task card");
 	await app.send("Page.reload"); await until("Boolean(document.querySelector('[data-ly-row=issue-demo]'))");

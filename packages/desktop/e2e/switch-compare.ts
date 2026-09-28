@@ -104,7 +104,7 @@ async function measureSettings(): Promise<{
 }
 
 async function main(): Promise<void> {
-	console.log("════ 会话切换（本机 ~/.lyra）════");
+	console.log("════ 会话切换（本机 ~/.plume）════");
 	console.log("改前下限（HEAD 代码，不是感觉）：每次点击先空等 360ms，冷开还要等整份转录，再淡入 340ms。");
 	app = await startApp({ port: PORT, seed: seedFromReal });
 	try {

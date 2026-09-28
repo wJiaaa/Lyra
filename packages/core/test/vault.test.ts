@@ -5,7 +5,7 @@
  * in plaintext at 0644, and that file is copied between machines and pasted into bug reports. The move has to be invisible — nobody should have to re-enter a key to
  * complete it — so most of what is checked here is the migration rather than the cryptography.
  *
- * Each test gets a home of its own. `lyraHome()` reads `LYRA_HOME` on every call, so pointing it
+ * Each test gets a home of its own. `plumeHome()` reads `PLUME_HOME` on every call, so pointing it
  * at a temporary directory is enough to isolate the whole of the config layer.
  */
 
@@ -21,7 +21,7 @@ import type { ProviderConfig, Settings } from "../src/types.ts";
 
 let home: string;
 const made: string[] = [];
-const previous = { home: process.env.LYRA_HOME, userProfile: process.env.USERPROFILE };
+const previous = { home: process.env.PLUME_HOME, userProfile: process.env.USERPROFILE };
 
 /**
  * A profile of its own per test, not a shared one emptied between them.
@@ -32,23 +32,23 @@ const previous = { home: process.env.LYRA_HOME, userProfile: process.env.USERPRO
  * for exactly that below) surfacing as a false failure somewhere it was not the subject.
  */
 beforeEach(async () => {
-	home = await mkdtemp(join(tmpdir(), "lyra-vault-"));
+	home = await mkdtemp(join(tmpdir(), "plume-vault-"));
 	made.push(home);
 	/*
 	 * Both variables, because `os.homedir()` reads `USERPROFILE` on Windows and `HOME` elsewhere —
 	 * a sandbox that sets only one of them leaks into the real profile on the other platform. This
-	 * suite sets `LYRA_HOME` directly, which takes precedence over either, but the pair is set as
+	 * suite sets `PLUME_HOME` directly, which takes precedence over either, but the pair is set as
 	 * well so nothing that falls back can reach outside.
 	 */
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 	process.env.USERPROFILE = home;
 	// The vault caches its key and its file, and the next test's are different files entirely.
 	resetVault();
 });
 
 after(async () => {
-	if (previous.home === undefined) delete process.env.LYRA_HOME;
-	else process.env.LYRA_HOME = previous.home;
+	if (previous.home === undefined) delete process.env.PLUME_HOME;
+	else process.env.PLUME_HOME = previous.home;
 	if (previous.userProfile === undefined) delete process.env.USERPROFILE;
 	else process.env.USERPROFILE = previous.userProfile;
 	await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })));

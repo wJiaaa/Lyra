@@ -22,7 +22,7 @@ const run = promisify(execFile);
 
 /** 一个有一次提交的仓库——没有提交就开不了 worktree。 */
 async function repo(): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-ws-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-ws-"));
 	const git = (...args: string[]) => run("git", ["-C", dir, ...args]);
 	await git("init", "-q");
 	await git("config", "user.email", "t@t.test");
@@ -77,7 +77,7 @@ test("a submodule is not, even though its .git is also a file", async () => {
 });
 
 test("a plain directory that is not a repository is not", async () => {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-plain-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-plain-"));
 	try {
 		assert.equal(await isIsolatedWorktree(dir), false);
 	} finally {
@@ -87,13 +87,13 @@ test("a plain directory that is not a repository is not", async () => {
 
 test("a path that does not exist is not", async () => {
 	// 读不动、不存在、没权限——都算拿不准，而拿不准一律落在安全的那一边。
-	assert.equal(await isIsolatedWorktree(join(tmpdir(), `lyra-missing-${Date.now()}`)), false);
+	assert.equal(await isIsolatedWorktree(join(tmpdir(), `plume-missing-${Date.now()}`)), false);
 });
 
 test("a malformed .git pointer is not", async () => {
 	const cases = ["", "gitdir:", "not a pointer at all\n", "gitdir: /somewhere/else\n"];
 	for (const body of cases) {
-		const dir = await mkdtemp(join(tmpdir(), "lyra-bad-"));
+		const dir = await mkdtemp(join(tmpdir(), "plume-bad-"));
 		try {
 			await writeFile(join(dir, ".git"), body);
 			assert.equal(await isIsolatedWorktree(dir), false, `畸形指针不该被当成副本：${JSON.stringify(body)}`);
@@ -110,7 +110,7 @@ test("a .git symlink pointing at a real worktree pointer is not", async () => {
 	 * 这不是假想的形状：把 `.git` 软链出去是有人真的会做的事，而链接的那一头指到哪，这个函数管不着。
 	 * 管不着的东西按拿不准处理。
 	 */
-	const dir = await mkdtemp(join(tmpdir(), "lyra-link-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-link-"));
 	try {
 		const real = join(dir, "real-pointer");
 		await mkdir(join(dir, "work"));

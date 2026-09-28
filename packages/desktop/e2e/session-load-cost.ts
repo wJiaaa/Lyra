@@ -7,7 +7,7 @@
  * 是单趟本身就太贵。贵在哪一步没量过，只能是猜：磁盘、`JSON.parse`、跨进程那次结构化克隆、
  * 还是拿到之后那几个各扫一遍的派生函数。
  *
- * 这里不开窗口（用户正开着 Lyra 在用），只在 Node 里把同一批数据按同样的顺序过一遍，量每一段。
+ * 这里不开窗口（用户正开着 Plume 在用），只在 Node 里把同一批数据按同样的顺序过一遍，量每一段。
  * 跨进程那次没法在这里真做，用 `structuredClone` 顶替——它和 IPC 用的是同一套序列化。
  *
  * 用法：node --import tsx e2e/session-load-cost.ts [会话文件路径]
@@ -22,7 +22,7 @@ import { howItStopped, rebuildToolRuns, todosFrom } from "../src/store/derive.ts
 
 /** 最大的那几个会话文件，从大到小。 */
 function biggest(n: number): string[] {
-	const root = join(homedir(), ".lyra", "sessions");
+	const root = join(homedir(), ".plume", "sessions");
 	const out = execFileSync("sh", ["-c", `find ${JSON.stringify(root)} -name '*.jsonl' -type f -exec du -k {} + | sort -rn | head -${n} | cut -f2-`], { encoding: "utf8" });
 	return out.trim().split("\n").filter(Boolean);
 }

@@ -2,7 +2,7 @@
 /**
  * 设置里的数字框：能一位一位地打，非法字符进不去，加减停在上下限。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/settings-numbers-demo.ts`
  */
 
@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Lyra设置数字框测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume设置数字框测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const PORT = 9788;
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];

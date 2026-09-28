@@ -16,7 +16,7 @@
 
 import { startApp } from "./app.ts";
 
-const REPO = "/Users/kittors/Developer/opensource/Lyra";
+const REPO = "/Users/kittors/Developer/opensource/Plume";
 const settle = (ms = 800) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let failures = 0;
@@ -37,7 +37,7 @@ const app = await startApp({
 				version: 1,
 				providers: [],
 				mcpServers: [],
-				projects: [{ id: "e2e", name: "Lyra", path: REPO, pinned: true, lastOpenedAt: 1 }],
+				projects: [{ id: "e2e", name: "Plume", path: REPO, pinned: true, lastOpenedAt: 1 }],
 				defaultModelId: null,
 				permissionMode: "auto",
 				thinking: "medium",

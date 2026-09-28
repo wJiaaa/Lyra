@@ -1,7 +1,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { DiffHunk } from "@lyra/core";
+import type { DiffHunk } from "@plume/core";
 import { useDiffHighlight } from "./diff-highlight.ts";
 
 /**

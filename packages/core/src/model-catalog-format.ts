@@ -100,7 +100,7 @@ const PI_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as
  * pi 条目的 `thinkingLevelMap` 折算成可选档位，规则照 pi 自己的 `getSupportedThinkingLevels`：
  * 值为 `null` 是不支持；缺省时 `xhigh`/`max` 不支持、其余支持；字符串是实际发给接口的值。
  *
- * Lyra 按档位名原样发送，所以只收接口值就是档位名本身的那些。映射到别的档位的（Copilot 上
+ * Plume 按档位名原样发送，所以只收接口值就是档位名本身的那些。映射到别的档位的（Copilot 上
  * `minimal` 实际发 `low`）去掉：留着它只是菜单里多一档和相邻档一模一样的。`off` 例外，关思考
  * 怎么发是适配器的事，这里只关心它能不能关。
  */
@@ -115,7 +115,7 @@ function thinkingLevels(entry: Record<string, unknown>): ThinkingLevel[] {
 }
 
 /**
- * pi 目录（`{ 供应商 id: { 模型 id: 条目 } }`）压成 Lyra 的目录格式，只留上限、思考与档位、图片、端点和价格。
+ * pi 目录（`{ 供应商 id: { 模型 id: 条目 } }`）压成 Plume 的目录格式，只留上限、思考与档位、图片、端点和价格。
  * 字段不全的条目跳过，不猜。
  */
 export function compactPiCatalog(raw: unknown, source: ModelCatalogDocument["source"]): ModelCatalogDocument {

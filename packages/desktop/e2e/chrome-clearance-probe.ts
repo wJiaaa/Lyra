@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
-const OUT = process.env.LYRA_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "chrome-clearance");
+const OUT = process.env.PLUME_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "chrome-clearance");
 
 let app: RunningApp;
 

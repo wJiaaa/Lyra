@@ -10,7 +10,7 @@
  *
  *   node --experimental-strip-types packages/desktop/e2e/table-probe.ts
  *
- * Leaves `/tmp/lyra-table-*.png` behind so the result can be looked at rather than believed.
+ * Leaves `/tmp/plume-table-*.png` behind so the result can be looked at rather than believed.
  */
 
 import { createHash } from "node:crypto";
@@ -115,7 +115,7 @@ async function mouseTo(x: number, y: number): Promise<void> {
 
 async function shot(name: string): Promise<void> {
 	const image = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-	await writeFile(`/tmp/lyra-table-${name}.png`, Buffer.from(image.data, "base64"));
+	await writeFile(`/tmp/plume-table-${name}.png`, Buffer.from(image.data, "base64"));
 }
 
 try {

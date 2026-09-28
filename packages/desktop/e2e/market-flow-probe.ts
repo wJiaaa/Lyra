@@ -25,7 +25,7 @@ import { seedInteractions } from "./interaction-fixture.ts";
 import { encode, frameGrabber, pause, startRecording, type Frame } from "./record.ts";
 
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "插件市场测试", "真窗口实测");
-const REGISTRY = process.env.LYRA_PROBE_REGISTRY ?? "https://localhost:8443/v1/index";
+const REGISTRY = process.env.PLUME_PROBE_REGISTRY ?? "https://localhost:8443/v1/index";
 const PORT = 9647;
 
 let home = "";
@@ -200,7 +200,7 @@ try {
 	await shot("设置_技能");
 
 	console.log("\n【六】卸载（经主进程的同一个 IPC——菜单里的项探针点不动，见记忆 probe-cannot-click-popover-items）");
-	await $(`window.lyra.plugins.uninstall('i-have-adhd')`);
+	await $(`window.plume.plugins.uninstall('i-have-adhd')`);
 	const rescanned = await until("设置页跟着重扫", async () => /插件\s*0/.test(await $<string>(`document.querySelector('[data-ly-extensions-page]')?.innerText??''`)), 20_000);
 	check("在别处卸载，开着的设置页自己重扫（插件 0）", rescanned);
 	await clickEl(byText("body", "返回工作区", "button"), "返回工作区");

@@ -10,7 +10,7 @@
 import { guardNavigation } from "./window-security.ts";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { lyraHome, type Settings } from "@lyra/core";
+import { plumeHome, type Settings } from "@plume/core";
 import { app, BrowserWindow, ipcMain, nativeTheme, screen } from "electron";
 import { MAC_MAIN_TRAFFIC_LIGHT_POSITION, MAC_TRAFFIC_LIGHT_POSITION, NATIVE_HEADER_HEIGHT } from "../shared/window-chrome.ts";
 import { appIconCandidates } from "./app-icon-path.ts";
@@ -582,7 +582,7 @@ interface WindowState {
 }
 
 function windowStatePath(): string {
-	return join(lyraHome(), "window.json");
+	return join(plumeHome(), "window.json");
 }
 
 /**

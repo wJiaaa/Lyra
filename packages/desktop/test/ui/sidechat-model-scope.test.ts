@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h } from "react";
-import { DEFAULT_SETTINGS, type Message, type SessionMeta, type Settings, type ThinkingLevel } from "@lyra/core";
+import { DEFAULT_SETTINGS, type Message, type SessionMeta, type Settings, type ThinkingLevel } from "@plume/core";
 import { DockScope, SessionScope } from "../../src/app/session-scope.tsx";
 import { useSide } from "../../src/features/dock/sideStore.ts";
 import { SideComposer } from "../../src/features/sidechat/SideComposer.tsx";
@@ -52,7 +52,7 @@ let view: Mounted | undefined;
 
 beforeEach(() => {
 	previous = { app: useApp.getState(), side: useSide.getState() };
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	useApp.setState({
 		activeSessionId: "a", pendingSessionId: null, meta: A, messages: said("a"), toolRuns: {}, running: false,
 		sessions: [A, B], sessionCache: { b: parked(B) }, settings,
@@ -64,7 +64,7 @@ afterEach(async () => {
 	view = undefined;
 	useApp.setState(previous.app, true);
 	useSide.setState(previous.side, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 /** The side chat as it sits in a screen's dock: that screen's dock, beside that screen's conversation. */

@@ -7,7 +7,7 @@
  * that they are a different clock.
  */
 
-import type { AgentEvent, TodoItem } from "@lyra/core";
+import type { AgentEvent, TodoItem } from "@plume/core";
 import type { AppState } from "./index.ts";
 
 type State = Pick<AppState, "toolRuns" | "todos">;

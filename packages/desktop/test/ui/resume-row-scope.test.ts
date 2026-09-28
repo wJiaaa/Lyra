@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import type { AssistantMessage, Message, SessionMeta, UserContent } from "@lyra/core";
+import type { AssistantMessage, Message, SessionMeta, UserContent } from "@plume/core";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { ResumeRow } from "../../src/features/conversation/ResumeRow.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";

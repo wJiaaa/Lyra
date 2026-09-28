@@ -6,7 +6,7 @@
  * 回 `null`，随时可以问一句而不必每次传整份目录。
  */
 
-import { activeModelCatalog, installModelCatalog } from "@lyra/core/model-catalog";
+import { activeModelCatalog, installModelCatalog } from "@plume/core/model-catalog";
 import { bridge } from "../services/index.ts";
 
 /** 换上主进程的目录。返回当前版本号，拿不到（网页端没有这个方法）就还是本地那份。 */

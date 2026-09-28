@@ -13,7 +13,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ModelConfig, ProviderConfig } from "@lyra/core";
+import type { ModelConfig, ProviderConfig } from "@plume/core";
 
 import {
 	applyImport,
@@ -85,19 +85,19 @@ test("the file says whether it is worth stealing", () => {
 });
 
 test("the name is sortable by eye", () => {
-	assert.equal(bundleFileName(new Date(2026, 8, 9, 15, 4)), "lyra-providers-20260909-1504.json");
+	assert.equal(bundleFileName(new Date(2026, 8, 9, 15, 4)), "plume-providers-20260909-1504.json");
 });
 
 test("anything that is not one of our files is refused, and says which way", () => {
 	assert.deepEqual(parseBundle("not json at all"), { ok: false, problem: "not-json" });
 	assert.deepEqual(parseBundle('{"providers":[]}'), { ok: false, problem: "not-a-bundle" });
 	assert.deepEqual(
-		parseBundle(JSON.stringify({ kind: "lyra.providers", version: 99, providers: [provider("glm")] })),
+		parseBundle(JSON.stringify({ kind: "plume.providers", version: 99, providers: [provider("glm")] })),
 		{ ok: false, problem: "too-new" },
 		"a newer file is refused rather than read for the parts this build happens to understand",
 	);
 	assert.deepEqual(
-		parseBundle(JSON.stringify({ kind: "lyra.providers", version: 1, providers: [] })),
+		parseBundle(JSON.stringify({ kind: "plume.providers", version: 1, providers: [] })),
 		{ ok: false, problem: "no-providers" },
 	);
 });
@@ -109,7 +109,7 @@ test("an entry missing what a provider needs is dropped, and counted", () => {
 	 */
 	const parsed = parseBundle(
 		JSON.stringify({
-			kind: "lyra.providers",
+			kind: "plume.providers",
 			version: 1,
 			providers: [provider("glm"), { name: "no id or url" }, { id: "x" }],
 		}),
@@ -123,7 +123,7 @@ test("an entry missing what a provider needs is dropped, and counted", () => {
 test("a hand-edited entry is filled in rather than trusted", () => {
 	const parsed = parseBundle(
 		JSON.stringify({
-			kind: "lyra.providers",
+			kind: "plume.providers",
 			version: 1,
 			providers: [
 				{

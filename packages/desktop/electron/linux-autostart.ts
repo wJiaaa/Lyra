@@ -17,7 +17,7 @@ import { dirname, isAbsolute, join } from "node:path";
  * The same name as the installed launcher — `desktopName` in package.json, which a test holds to
  * this. A desktop that shows autostart entries in its settings then lists the familiar one.
  */
-export const DESKTOP_FILE = "Lyra.desktop";
+export const DESKTOP_FILE = "Plume.desktop";
 
 export function autostartFile(env: NodeJS.ProcessEnv, home: string): string {
 	// The Base Directory spec: a relative XDG_CONFIG_HOME is invalid and must be ignored.
@@ -30,7 +30,7 @@ export function autostartFile(env: NodeJS.ProcessEnv, home: string): string {
  * What to run at login.
  *
  * An AppImage runs from a temporary mount that is gone after it exits — `execPath` there is
- * `/tmp/.mount_Lyra…/lyra` — so the entry names the AppImage file itself (`$APPIMAGE`). A package
+ * `/tmp/.mount_Plume…/plume` — so the entry names the AppImage file itself (`$APPIMAGE`). A package
  * runs the binary where it was installed; a development run is Electron plus the source directory.
  */
 export function autostartArgv(from: { appImage?: string; packaged: boolean; execPath: string; appPath: string }): string[] {
@@ -57,7 +57,7 @@ function execArgument(argument: string): string {
 
 export function autostartEntry(argv: string[]): string {
 	const exec = argv.map(execArgument).join(" ").replaceAll("\\", "\\\\");
-	return ["[Desktop Entry]", "Type=Application", "Name=Lyra", `Exec=${exec}`, "Icon=Lyra", "Terminal=false", "X-GNOME-Autostart-enabled=true", ""].join("\n");
+	return ["[Desktop Entry]", "Type=Application", "Name=Plume", `Exec=${exec}`, "Icon=Plume", "Terminal=false", "X-GNOME-Autostart-enabled=true", ""].join("\n");
 }
 
 /**

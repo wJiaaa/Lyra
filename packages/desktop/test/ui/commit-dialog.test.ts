@@ -38,7 +38,7 @@ function stubBridge(extra: Record<string, unknown> = {}) {
 		calls.push({ name, args });
 		return Promise.resolve(value);
 	};
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		platform: "darwin",
 		git: {
 			branches: record("branches", { current: "main", local: ["main", "feature-x"], remote: [] }),
@@ -107,7 +107,7 @@ test("是一个居中的弹窗，不是挂在按钮上的浮层", async () => {
 		assert.ok(at("[data-ly-commit-dialog]"), "弹窗本体没画出来");
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -123,7 +123,7 @@ test("分支那一行能点开，里面列着本地分支", async () => {
 		assert.ok(text.includes("新分支"), "菜单末尾该有「新分支」");
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -143,7 +143,7 @@ test("选「新分支」只是换成一个输入框，不会当场建分支", as
 		assert.equal(calls.filter((c) => c.name === "createBranch").length, 0, "分支不该在这一刻就被创建");
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -181,7 +181,7 @@ test("填了新分支名再提交：先建分支，再提交", async () => {
 		assert.ok(order.some((step) => step.startsWith("commit:")), "分支建完之后要真的提交");
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -203,7 +203,7 @@ test("留空提交：先生成一句，提交的就是那一句", async () => {
 		assert.deepEqual(committed, ["生成的一句话"]);
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -223,7 +223,7 @@ test("生成的那句话写回了输入框——提交失败时它还在", async
 		assert.equal(field.value, "生成的一句话");
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -276,7 +276,7 @@ test("生成中关掉弹窗：活还在跑，再打开还是原来那一个", as
 		generate.release({ ok: true, message: "生成的一句话" });
 		await act(async () => {});
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -307,7 +307,7 @@ test("关着的时候生成回来了：再打开，那句话在框里", async ()
 		);
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -320,7 +320,7 @@ test("没有可推的提交时，「推送」那一行是禁用的", async () =>
 		assert.equal((push as HTMLButtonElement).disabled, true, "它一度永远画成灰的却永远可点");
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -356,7 +356,7 @@ test("远端没见过的分支：那一行是「发布分支」，没有数也�
 		assert.deepEqual(pushed, ["push"]);
 	} finally {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -371,7 +371,7 @@ test("「提交」那一行的键帽按这台机器的键盘写：PC 上是 Ctrl
 			assert.ok(!keys.some((key) => key?.includes("⌘")));
 		} finally {
 			await view.unmount();
-			Reflect.deleteProperty(window, "lyra");
+			Reflect.deleteProperty(window, "plume");
 		}
 	});
 });

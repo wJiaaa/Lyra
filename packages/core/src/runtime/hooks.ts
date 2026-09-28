@@ -141,7 +141,7 @@ export function makeBeforeToolCall(scope: TurnHooks, extensions?: ExtensionHost)
 /**
  * 工具要人确认的时候，先让 PermissionRequest 钩子答。答了就不弹窗；没答（或者这条钩子坏了）才问人。
  *
- * 顺序执行而不是和弹窗赛跑：Lyra 的确认卡片没有「被别人答掉了」这种收场，先弹再撤比晚弹一会儿更糟。
+ * 顺序执行而不是和弹窗赛跑：Plume 的确认卡片没有「被别人答掉了」这种收场，先弹再撤比晚弹一会儿更糟。
  */
 export function makePermissionRequest(scope: TurnHooks): NonNullable<AgentRunConfig["permissionRequest"]> {
 	return async ({ toolName, args, toolCallId }, request) => {

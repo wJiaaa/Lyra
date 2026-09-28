@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { emptyUsage, type Message } from "@lyra/core";
+import { emptyUsage, type Message } from "@plume/core";
 import { latestDeliveryTimestamp } from "../src/features/conversation/delivery-state.ts";
 
 test("only the latest completed answer owns a delivery; a new question or active run retires it", () => {

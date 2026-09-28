@@ -9,7 +9,7 @@ import { asWindows, refuseRenames } from "./held-open.ts";
 
 const draft: AgentDraft = { name: "qa-agent", description: "Inspect code", systemPrompt: "Read before acting.", tools: ["read"] };
 async function fixture(t: TestContext) {
-	const root = await mkdtemp(join(tmpdir(), "lyra-agent-definitions-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-agent-definitions-"));
 	const home = join(root, "home"), cwd = join(root, "project");
 	await mkdir(home); await mkdir(cwd);
 	const previous = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };

@@ -23,14 +23,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, beforeEach, test } from "node:test";
 
-import { isSealed, resetVault, seal } from "@lyra/core";
+import { isSealed, resetVault, seal } from "@plume/core";
 
 import { saveAccount, tokenFor } from "../electron/forge/vault.ts";
 import type { ForgeAccount } from "../electron/forge/types.ts";
 
 let home: string;
 const made: string[] = [];
-const previous = { home: process.env.LYRA_HOME, userProfile: process.env.USERPROFILE };
+const previous = { home: process.env.PLUME_HOME, userProfile: process.env.USERPROFILE };
 
 /**
  * A whole account, because the store validates what it reads.
@@ -51,9 +51,9 @@ const account: ForgeAccount = {
 };
 
 beforeEach(async () => {
-	home = await mkdtemp(join(tmpdir(), "lyra-forge-"));
+	home = await mkdtemp(join(tmpdir(), "plume-forge-"));
 	made.push(home);
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 	process.env.USERPROFILE = home;
 	resetVault();
 	// The forge store caches the file it read; the next test's is a different file entirely.
@@ -62,8 +62,8 @@ beforeEach(async () => {
 });
 
 after(async () => {
-	if (previous.home === undefined) delete process.env.LYRA_HOME;
-	else process.env.LYRA_HOME = previous.home;
+	if (previous.home === undefined) delete process.env.PLUME_HOME;
+	else process.env.PLUME_HOME = previous.home;
 	if (previous.userProfile === undefined) delete process.env.USERPROFILE;
 	else process.env.USERPROFILE = previous.userProfile;
 	await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })));

@@ -107,12 +107,12 @@ test("starring a model pins it to the top and persists", async () => {
 		if (!star) throw new Error("no star button for claude-3");
 		click(star);
 		await wait(500);
-		const settings = await window.lyra.settings.get();
+		const settings = await window.plume.settings.get();
 		const first = rows()[0] || "";
 		const lit = menu().querySelector('button[aria-pressed="true"]');
 		click(lit);
 		await wait(500);
-		const after = await window.lyra.settings.get();
+		const after = await window.plume.settings.get();
 		return { first, stored: settings.favoriteModelIds || [], afterUnstar: after.favoriteModelIds || [] };
 	`);
 

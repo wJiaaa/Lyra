@@ -5,7 +5,7 @@
  * 单测的剥类型运行器加载不了 `.tsx`。
  */
 
-import type { SubAgentStatus } from "@lyra/core";
+import type { SubAgentStatus } from "@plume/core";
 
 /**
  * 上下文还在、又没做完的（跑到检查点、上游出错、被按停）→ 接着跑：只付新增的那几轮。上下文

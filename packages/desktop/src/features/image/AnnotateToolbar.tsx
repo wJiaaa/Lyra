@@ -472,7 +472,7 @@ export function AnnotateToolbar({
 			</ToolButton>
 
 			{/*
-			 * The two ways out that are not "give it to Lyra", in their own group.
+			 * The two ways out that are not "give it to Plume", in their own group.
 			 *
 			 * Both end the capture and neither delivers it to the app, which is what makes them a
 			 * group of their own between the drawing tools and the confirm button: 置顶 leaves the

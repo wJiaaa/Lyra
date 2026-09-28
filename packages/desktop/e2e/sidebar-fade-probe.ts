@@ -24,8 +24,8 @@ import { join } from "node:path";
 import { startApp } from "./app.ts";
 import { MASK_PROBE } from "./mask.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-sidebar-fade";
-const REPO = "/Users/kittors/Developer/opensource/Lyra";
+const dir = process.argv[2] ?? "/tmp/plume-sidebar-fade";
+const REPO = "/Users/kittors/Developer/opensource/Plume";
 
 let failures = 0;
 function check(label: string, passed: boolean, evidence: string): void {
@@ -44,7 +44,7 @@ async function seed(home: string): Promise<void> {
 	 * 好让分组标题也有得吸；每个项目的后六条收进归档，两边的列表就都滚得动。
 	 */
 	const projects = [
-		{ path: REPO, name: "Lyra" },
+		{ path: REPO, name: "Plume" },
 		{ path: join(home, "proj-two"), name: "另一个项目" },
 		{ path: join(home, "proj-three"), name: "第三个项目" },
 	].map((p) => ({ ...p, id: createHash("sha256").update(p.path).digest("hex").slice(0, 16) }));
@@ -535,7 +535,7 @@ try {
 			'const id = row.getAttribute("data-ly-row");' +
 			'row.querySelector("button").click();' +
 			'await wait(1200);' +
-			'const state = window.__lyraStore ? window.__lyraStore.getState() : null;' +
+			'const state = window.__plumeStore ? window.__plumeStore.getState() : null;' +
 			'const active = document.querySelector(\'.ly-sidebar-fill [aria-current="page"]\');' +
 			'return { opened: Boolean(active), stillArchived: Boolean(document.querySelector(`[data-ly-row="${id}"]`)), note: id };' +
 		'})()',

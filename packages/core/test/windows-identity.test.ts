@@ -54,9 +54,9 @@ test("subauthorities stay inside 30 bits", () => {
 
 test("a temp SID can never be mistaken for a workspace SID", () => {
 	// Sharing an identity would let every session write every other session's temp tree.
-	const temp = tempWriteSid("C:\\Temp\\lyra-abc123");
+	const temp = tempWriteSid("C:\\Temp\\plume-abc123");
 	assert.match(temp, /^S-1-4-\d+-\d+-1$/);
-	assert.notEqual(temp, workspaceWriteSid("C:\\Temp\\lyra-abc123"));
+	assert.notEqual(temp, workspaceWriteSid("C:\\Temp\\plume-abc123"));
 });
 
 test("the temp derivation is domain-separated, not just suffixed", () => {

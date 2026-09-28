@@ -11,7 +11,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import type { ExtensionDiagnostic, ExtensionStats } from "@lyra/core";
+import type { ExtensionDiagnostic, ExtensionStats } from "@plume/core";
 import { Puzzle, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";

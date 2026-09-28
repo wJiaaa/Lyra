@@ -1,6 +1,6 @@
 /** Does a sub-agent actually run on the model its definition asked for? */
 const say = (s = "") => process.stderr.write(s + "\n");
-const B = "/Users/kittors/Developer/opensource/Lyra-tool-quality";
+const B = "/Users/kittors/Developer/opensource/Plume-tool-quality";
 const { loadSettings, resolveModel, DEFAULT_SETTINGS } = await import(`${B}/packages/core/src/config/settings.ts`);
 const { runSubAgent } = await import(`${B}/packages/core/src/runtime/sub-agent.ts`);
 const { readTool } = await import(`${B}/packages/core/src/tools/read.ts`);

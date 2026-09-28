@@ -12,7 +12,7 @@
  * first time recorded the app launching and called it a capture.
  *
  * Run: node --experimental-strip-types e2e/capture-motion-probe.ts
- * Frames land in /tmp/lyra-motion/ for looking at.
+ * Frames land in /tmp/plume-motion/ for looking at.
  */
 
 import { spawn } from "node:child_process";
@@ -23,8 +23,8 @@ import { startApp } from "./app.ts";
 
 const execFileAsync = promisify(execFile);
 const PORT = 9415;
-const OUT = "/tmp/lyra-motion";
-const CLIP = "/tmp/lyra-motion.mp4";
+const OUT = "/tmp/plume-motion";
+const CLIP = "/tmp/plume-motion.mp4";
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const app = await startApp({ port: PORT });
@@ -42,11 +42,11 @@ try {
 	await pause(3000);
 
 	console.log("• 触发截图（录屏第 3 秒）");
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	await pause(5000);
 
 	console.log("• 取消截图（录屏第 8 秒）");
-	await app.evaluate(`window.lyra.screenshot.cancel?.()`).catch(() => {});
+	await app.evaluate(`window.plume.screenshot.cancel?.()`).catch(() => {});
 	await pause(4000);
 
 	rec.kill("SIGINT");

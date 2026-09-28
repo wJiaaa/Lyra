@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { listReadableFiles, readReadableFile, resolveReadablePath } from "../electron/file-read-service.ts";
 
 test("phone file reads stay read-only and share the desktop text rules", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-file-read-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-file-read-"));
 	try {
 		await mkdir(join(root, "src"));
 		await writeFile(join(root, "b.txt"), "second\n");
@@ -31,7 +31,7 @@ test("a refused path never reaches the filesystem reader", async () => {
 });
 
 test("phone file reads cannot follow a project link into a private directory", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-phone-boundary-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-phone-boundary-"));
 	try {
 		const project = join(root, "project");
 		const privateDir = join(root, "private");
@@ -47,7 +47,7 @@ test("phone file reads cannot follow a project link into a private directory", a
 });
 
 test("phone file boundaries permit contained links and projects opened through a link", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-phone-links-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-phone-links-"));
 	try {
 		const project = join(root, "project");
 		const source = join(project, "src");
@@ -70,7 +70,7 @@ test("phone file boundaries permit contained links and projects opened through a
 });
 
 test("a phone can list a linked project and read the exact path returned by each listing", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-phone-browse-link-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-phone-browse-link-"));
 	try {
 		const physical = join(root, "physical");
 		const opened = join(root, "opened");
@@ -97,7 +97,7 @@ test("a phone can list a linked project and read the exact path returned by each
 });
 
 test("scratch roots and worktree roots permit reading files within them while forbidding traversal", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-scratch-roots-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-scratch-roots-"));
 	try {
 		const project = join(root, "project");
 		const scratch = join(root, "scratch");

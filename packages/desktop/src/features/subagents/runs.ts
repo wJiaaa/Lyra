@@ -12,7 +12,7 @@
  * and a panel full of successful work is drawn entirely in red.
  */
 
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 import { summarizeToolCall } from "../../lib/tool-summary.ts";
 import type { ToolRun } from "../../store/index.ts";
 

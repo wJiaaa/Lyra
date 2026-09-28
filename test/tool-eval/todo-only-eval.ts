@@ -27,7 +27,7 @@ const DIM = "\x1b[2m";
 const OFF = "\x1b[0m";
 
 async function fixture(): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-todo-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-todo-"));
 	await mkdir(join(dir, "src"), { recursive: true });
 	await mkdir(join(dir, "test"), { recursive: true });
 	await writeFile(join(dir, "package.json"), JSON.stringify({ name: "probe", type: "module", scripts: { test: "node --test" } }, null, 2));

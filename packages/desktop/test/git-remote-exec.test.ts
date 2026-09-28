@@ -41,7 +41,7 @@ before(async () => {
 	const address = silent.address();
 	silentPort = typeof address === "object" && address ? address.port : 0;
 
-	dir = await mkdtemp(join(tmpdir(), "lyra-remote-"));
+	dir = await mkdtemp(join(tmpdir(), "plume-remote-"));
 	await execFileAsync("git", ["init", "-q", "-b", "main", dir]);
 });
 

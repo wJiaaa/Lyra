@@ -1,6 +1,6 @@
 import { ChevronDown, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { entryKey, SOURCE_LABEL, type Entry } from "@lyra/core/trajectory-view";
+import { entryKey, SOURCE_LABEL, type Entry } from "@plume/core/trajectory-view";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";
 import { useI18n } from "../../../i18n/index.ts";
 import { draggedRange, LANE_HEIGHT, timelineDomain, timelineHit, timelineLane, type TimeRange } from "./timeline-geometry.ts";
@@ -45,7 +45,7 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 			setCramped(parent.clientHeight < 160);
 			if (initialized.current) return;
 			initialized.current = true;
-			const preference = window.sessionStorage.getItem("lyra.trace.timeline");
+			const preference = window.sessionStorage.getItem("plume.trace.timeline");
 			setExpanded(preference ? preference === "open" : parent.clientHeight >= 400);
 		});
 		observer.observe(parent); return () => observer.disconnect();
@@ -110,7 +110,7 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 	const point = (el: HTMLCanvasElement, clientX: number, clientY: number) => { const bounds = el.getBoundingClientRect(); return { x: clientX - bounds.left, y: clientY - bounds.top, width: bounds.width }; };
 	return <section ref={root} hidden={cramped} className="shrink-0 px-3 pb-1" aria-label={t("timeline.overview")} data-trace-timeline>
 		<div className="flex h-8 items-center gap-1 text-caption text-ink-muted">
-			<IconButton size="xs" label={short ? t("timeline.expandHint") : expanded ? t("timeline.title") : t("timeline.expand")} ariaLabel={t("timeline.overview")} expanded={visible} className="mr-auto" onClick={() => { cancel(); window.sessionStorage.setItem("lyra.trace.timeline", expanded ? "closed" : "open"); setExpanded(!expanded); }} icon={<ChevronDown size={12} aria-hidden style={{ transform: expanded ? undefined : "rotate(-90deg)" }} />} />
+			<IconButton size="xs" label={short ? t("timeline.expandHint") : expanded ? t("timeline.title") : t("timeline.expand")} ariaLabel={t("timeline.overview")} expanded={visible} className="mr-auto" onClick={() => { cancel(); window.sessionStorage.setItem("plume.trace.timeline", expanded ? "closed" : "open"); setExpanded(!expanded); }} icon={<ChevronDown size={12} aria-hidden style={{ transform: expanded ? undefined : "rotate(-90deg)" }} />} />
 			{/*
 			 * 收起的时候，这三个不在。
 			 *

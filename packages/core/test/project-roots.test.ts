@@ -20,9 +20,9 @@ import { buildTurnConfig } from "../src/runtime/turn-config.ts";
 import { assessRead } from "../src/tools/read-access.ts";
 
 const HOME = homedir();
-const APP = join(HOME, ".lyra-test-app");
-const API = join(HOME, ".lyra-test-api");
-const ELSEWHERE = join(HOME, ".lyra-test-elsewhere");
+const APP = join(HOME, ".plume-test-app");
+const API = join(HOME, ".plume-test-api");
+const ELSEWHERE = join(HOME, ".plume-test-elsewhere");
 
 function entry(path: string, folders?: string[]) {
 	return { path, folders };

@@ -49,7 +49,7 @@ async function seeded() {
 	meta = await store.append(meta, { type: "message", message: user });
 	meta = await store.append(meta, {
 		type: "event",
-		event: { type: "context", systemPrompt: "You are Lyra.", tools: ["bash", "read"], skills: [] },
+		event: { type: "context", systemPrompt: "You are Plume.", tools: ["bash", "read"], skills: [] },
 	});
 	meta = await store.append(meta, {
 		type: "message",
@@ -136,7 +136,7 @@ test("the system prompt is kept whole, so it can be read back", async () => {
 	try {
 		const entries = await readTrajectory(h.store, h.meta.projectId, h.meta.id);
 		const system = entries.find((entry) => entry.source === "system");
-		assert.equal(system?.detail, "You are Lyra.");
+		assert.equal(system?.detail, "You are Plume.");
 	} finally {
 		await h.cleanup();
 	}

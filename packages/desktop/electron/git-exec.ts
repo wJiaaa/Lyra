@@ -22,7 +22,7 @@ const execFileAsync = promisify(execFile);
  * refuse to answer at all — and the answer the window drew from that was 「不是 Git 仓库」 about a
  * project with a perfectly good `.git` in it.
  *
- * They arrive by inheritance. Anything that starts Lyra from inside a git operation passes them
+ * They arrive by inheritance. Anything that starts Plume from inside a git operation passes them
  * down: a `git` hook, `git rebase --exec`, a terminal still holding them from an earlier command.
  * The app never sets them and never wants them, so they are dropped rather than trusted — the
  * directory is the whole of what these calls mean to ask about.

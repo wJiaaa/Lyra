@@ -32,7 +32,7 @@ import { join } from "node:path";
 import { startApp } from "./app.ts";
 
 const MODEL_PORT = 9576;
-const OUT = "/tmp/lyra-halfpixel-probe";
+const OUT = "/tmp/plume-halfpixel-probe";
 const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let failures = 0;
@@ -73,7 +73,7 @@ function startModel(): Server {
 			/*
 			 * 按请求内容分派，不按到达顺序。
 			 *
-			 * 第一次跑就栽在这里：Lyra 会另发一个拟标题的请求，它先到，于是「第一轮」的正文全
+			 * 第一次跑就栽在这里：Plume 会另发一个拟标题的请求，它先到，于是「第一轮」的正文全
 			 * 喂给了标题——侧边栏上是小说开头，转录里一个字都没有，而对话本身拿到的是本该给第二
 			 * 轮的那段静默。屏幕上看着像「回复没渲染」，其实是发错了人。拟标题那个 max_tokens
 			 * 很小，拿它当判据。

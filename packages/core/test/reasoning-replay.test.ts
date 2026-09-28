@@ -158,7 +158,7 @@ test("reasoning keeps its place among the other blocks of the turn", () => {
  * summary.」是一条没有推理的助手消息，而 `api.deepseek.com` 在思考模式下不收这种助手轮，它对此只有
  * 一句话可说——正是文件头那句点名 `reasoning_text` 的话。
  *
- * 真实端点上分离过（`~/.lyra/scratch/deepseek-compaction-400.txt`）：那条助手消息原样留着 400，前面
+ * 真实端点上分离过（`~/.plume/scratch/deepseek-compaction-400.txt`）：那条助手消息原样留着 400，前面
  * 插一个合成推理项 200，改成 user 200，整条删掉 200；而推理项带不带 `content.reasoning_text`，两种
  * 都是 400。所以这一组测试盯的是**位置**，不是那个字段——盯错了一次，代价是一整天。
  */

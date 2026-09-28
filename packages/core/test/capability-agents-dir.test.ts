@@ -44,7 +44,7 @@ after(async () => {
 	await rm(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
 
-const registry = () => createRegistry({ home: join(home, ".lyra"), userHome: home });
+const registry = () => createRegistry({ home: join(home, ".plume"), userHome: home });
 const cwd = () => join(root, "repo", "packages", "api");
 
 test("三种能力都从 .agents/ 里读出来", async () => {

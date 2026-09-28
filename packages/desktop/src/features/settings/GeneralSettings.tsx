@@ -1,5 +1,5 @@
 import { RetrySettings } from "./RetrySettings.tsx";
-import type { PermissionMode, UiLocale } from "@lyra/core";
+import type { PermissionMode, UiLocale } from "@plume/core";
 import { FolderOpen, Languages } from "lucide-react";
 import { matchTarget, revealLabel, useOpenTargets } from "../../store/open-targets.ts";
 import { useApp } from "../../store/index.ts";

@@ -1,6 +1,6 @@
 import { RotateCcw } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
-import type { AppearanceSettings as Appearance } from "@lyra/core";
+import type { AppearanceSettings as Appearance } from "@plume/core";
 import { useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
@@ -17,7 +17,7 @@ const CUSTOM_FONT = "__custom__";
 
 
 const PRESETS: { id: string; label: string; patch: Partial<Appearance> }[] = [
-	{ id: "lyra", label: "Lyra", patch: { accent: "#339CFF", darkBackground: "#171717", darkForeground: "#D4D4D4" } },
+	{ id: "plume", label: "Plume", patch: { accent: "#339CFF", darkBackground: "#171717", darkForeground: "#D4D4D4" } },
 	{ id: "graphite", label: "Graphite", patch: { accent: "#8E8E93", darkBackground: "#1C1C1E", darkForeground: "#F2F2F7" } },
 	{ id: "moss", label: "Moss", patch: { accent: "#3ECF8E", darkBackground: "#121614", darkForeground: "#E6F2EC" } },
 	{ id: "ember", label: "Ember", patch: { accent: "#FF8B3D", darkBackground: "#1A1412", darkForeground: "#F5E9E2" } },

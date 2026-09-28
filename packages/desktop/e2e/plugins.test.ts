@@ -12,7 +12,7 @@
  * shipped no icon, and by a monorepo that makes seven products share one owner. It could only be
  * seen by looking.
  *
- * Uninstalling is driven through the actual menu rather than through `window.lyra`, because the
+ * Uninstalling is driven through the actual menu rather than through `window.plume`, because the
  * question is whether *the button* works. Everything it touches — the directory, the settings file
  * — is then read off the disk, not off the screen.
  *
@@ -203,7 +203,7 @@ test("installing puts the bundle on disk and a card on the page, under its own n
 	 */
 	await switchTab("插件");
 	const result = await app.evaluate<{ ok: boolean; kind?: string; message?: string }>(
-		`window.lyra.plugins.installFromRegistry({
+		`window.plume.plugins.installFromRegistry({
 			id: "translator",
 			name: "翻译器",
 			kind: "plugin",

@@ -1,4 +1,4 @@
-import type { DiffHunk, ToolResult } from "@lyra/core";
+import type { DiffHunk, ToolResult } from "@plume/core";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import {
 	ArrowUpRight,

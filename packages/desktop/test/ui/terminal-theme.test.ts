@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h, useEffect } from "react";
 import { Terminal } from "@xterm/xterm";
-import { DEFAULT_APPEARANCE, type AppearanceSettings, type Settings } from "@lyra/core";
+import { DEFAULT_APPEARANCE, type AppearanceSettings, type Settings } from "@plume/core";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { applyAppearance } from "../../src/features/settings/theme.ts";
 import { TerminalPane } from "../../src/features/terminal/TerminalPane.tsx";
@@ -70,7 +70,7 @@ async function mountTerminal(t: import("node:test").TestContext, appearance: App
 		else Reflect.deleteProperty(globalThis, "CSS");
 	});
 	const tabs = [{ id: "shell", title: "zsh" }];
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		terminal: {
 			listAll: async () => tabs,
 			list: async () => tabs,
@@ -89,7 +89,7 @@ async function mountTerminal(t: import("node:test").TestContext, appearance: App
 	// Unmounted while the bridge is still there: the pane detaches its shell on the way out.
 	t.after(async () => {
 		await view.unmount();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	});
 	const terminal = built.at(-1);
 	if (!terminal) throw new Error("the pane built no terminal");

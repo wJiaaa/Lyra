@@ -26,7 +26,7 @@ const exec = promisify(execFile);
 let repo: string;
 
 before(async () => {
-	repo = await mkdtemp(join(tmpdir(), "lyra-diff-"));
+	repo = await mkdtemp(join(tmpdir(), "plume-diff-"));
 	await exec("git", ["init", "-q"], { cwd: repo });
 	await exec("git", ["config", "user.email", "t@example.com"], { cwd: repo });
 	await exec("git", ["config", "user.name", "t"], { cwd: repo });
@@ -55,7 +55,7 @@ test("a CRLF checkout with one line changed shows one line changed", async (t) =
 	 * so against the CRLF file on disk every line differed, and a one-line edit was shown as the
 	 * whole file rewritten. `.gitattributes` gives the same checkout on any platform.
 	 */
-	const crlf = await mkdtemp(join(tmpdir(), "lyra-diff-crlf-"));
+	const crlf = await mkdtemp(join(tmpdir(), "plume-diff-crlf-"));
 	t.after(() => rm(crlf, { recursive: true, force: true }));
 	await exec("git", ["init", "-q"], { cwd: crlf });
 	await exec("git", ["config", "user.email", "t@example.com"], { cwd: crlf });
@@ -126,7 +126,7 @@ test("the totals are the sum of the files", async () => {
 });
 
 test("a directory that is not a repository answers empty rather than throwing", async () => {
-	const plain = await mkdtemp(join(tmpdir(), "lyra-plain-"));
+	const plain = await mkdtemp(join(tmpdir(), "plume-plain-"));
 	try {
 		assert.deepEqual(await collectWorkspaceDiff(plain), { files: [], added: 0, removed: 0, branch: null });
 	} finally {

@@ -25,7 +25,7 @@ import { startApp, type AppWindow, type RunningApp } from "./app.ts";
 import { seedFromReal } from "./session-switch-perf.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra窗口策略测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume窗口策略测试");
 const PORT = 9731;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 

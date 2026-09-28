@@ -13,7 +13,7 @@ let app: RunningApp;
 let cwd: string;
 let command: string;
 let skill: string;
-const id = `lyra-row-qa-${randomUUID()}`;
+const id = `plume-row-qa-${randomUUID()}`;
 const trashed: string[] = [];
 /*
  * The confirmation's button, in this system's own words: the Trash is a Mac's, and Windows and Linux
@@ -25,7 +25,7 @@ before(async () => {
 	app = await startApp({ port: 9603, seed: async (home) => {
 		cwd = join(home, "project");
 		command = join(home, "commands", `${id}.md`);
-		skill = join(cwd, ".lyra", "skills", `${id}-skill`, "SKILL.md");
+		skill = join(cwd, ".plume", "skills", `${id}-skill`, "SKILL.md");
 		// Only these synthetic definitions travel through the real renderer, IPC and OS trash.
 		for (const [path, body] of [
 			[command, `---\nname: xiaorong\ndescription: 消融实验，验证悬停删除时内容与来源保持对齐。\nargument-hint: <可选：这个命令接受什么参数>\n---\nRun isolated checks.`],
@@ -83,7 +83,7 @@ async function select(label: string, nav = false, counted = false) {
 	await click('[data-qa-pick]');
 }
 async function shot(name: string) {
-	const dir = process.env.LYRA_E2E_ARTIFACTS;
+	const dir = process.env.PLUME_E2E_ARTIFACTS;
 	if (!dir) return;
 	await mkdir(dir, { recursive: true });
 	const image = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
@@ -168,7 +168,7 @@ test("command deletion fades in without shifting its row, works with keyboard/to
 	await click(selector); await select(TO_TRASH);
 	await until(`!document.querySelector('${selector}')`);
 	await assert.rejects(access(command));
-	const list = await app.evaluate<{ commands: { name: string }[] }>(`window.lyra.commands.list(${JSON.stringify(cwd)})`);
+	const list = await app.evaluate<{ commands: { name: string }[] }>(`window.plume.commands.list(${JSON.stringify(cwd)})`);
 	assert.ok(!list.commands.some((item) => item.name === "xiaorong"));
 });
 

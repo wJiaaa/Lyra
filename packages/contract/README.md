@@ -1,4 +1,4 @@
-# @lyra/contract
+# @plume/contract
 
 渲染进程与主进程之间那条线，写下来一次。
 

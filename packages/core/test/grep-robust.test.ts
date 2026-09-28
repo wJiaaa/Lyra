@@ -56,8 +56,8 @@ const NO_SHELL_SPAWN = process.platform === "win32" ? "a shell script cannot sta
 
 /** A workspace whose only file the built-in scanner can find, and a stand-in rg first on PATH. */
 async function withFakeRg(t: TestContext, behaviour: FakeRg): Promise<{ dir: string; argv: () => Promise<string[]> }> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-grep-rg-"));
-	const bin = await mkdtemp(join(tmpdir(), "lyra-grep-bin-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-grep-rg-"));
+	const bin = await mkdtemp(join(tmpdir(), "plume-grep-bin-"));
 	await writeFile(join(dir, "sample.txt"), "from-fallback\n");
 	await writeFile(join(bin, "rg"), FAKE_RG);
 	await chmod(join(bin, "rg"), 0o755);
@@ -137,7 +137,7 @@ test("调用 rg 时带上 --crlf", { skip: NO_SHELL_SPAWN }, async (t) => {
 
 for (const fallback of [false, true]) {
 	test(`CRLF 与 BOM 文件：$ 与 ^ 照常锚定，输出里不带 \\r (fallback=${fallback})`, async (t) => {
-		const dir = await mkdtemp(join(tmpdir(), "lyra-grep-crlf-"));
+		const dir = await mkdtemp(join(tmpdir(), "plume-grep-crlf-"));
 		t.after(() => rm(dir, { recursive: true, force: true }));
 		await writeFile(join(dir, "crlf.txt"), "\uFEFFhead foo\r\nbeta\r\nfoo\r\n");
 		const path = process.env.PATH;

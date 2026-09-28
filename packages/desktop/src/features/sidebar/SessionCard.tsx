@@ -21,8 +21,8 @@ import { translate } from "../../i18n/translate.ts";
 import { Coins, FolderOpen, MessagesSquare, Zap } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { SessionMeta } from "@lyra/core";
-import { freshTokens } from "@lyra/core/tokens";
+import type { SessionMeta } from "@plume/core";
+import { freshTokens } from "@plume/core/tokens";
 import { formatTokens } from "../conversation/index.ts";
 import { hoverLayersSuppressed, onHoverLayersDismissed } from "../../ui/overlay/hover-layers.ts";
 import { portal } from "../../ui/overlay/portal.ts";

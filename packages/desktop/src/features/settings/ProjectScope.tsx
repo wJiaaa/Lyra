@@ -1,4 +1,4 @@
-import type { ProjectEntry } from "@lyra/core";
+import type { ProjectEntry } from "@plume/core";
 import { Check, ChevronDown, Folder, Monitor } from "lucide-react";
 import { useI18n } from "../../i18n/index.ts";
 import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuLabel, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";

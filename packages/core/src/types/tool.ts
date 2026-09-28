@@ -141,7 +141,7 @@ export interface ToolContext {
 	/** Shared per-session scratch space (todo list, file read cache, ...). */
 	state: Map<string, unknown>;
 	/**
-	 * The session's address space: `skill://`, `scratch://`, `lyra://`.
+	 * The session's address space: `skill://`, `scratch://`, `plume://`.
 	 *
 	 * Per session rather than a module singleton, because a sub-agent has its own skill set and a
 	 * shared router would resolve `skill://x` against whichever session touched it last.

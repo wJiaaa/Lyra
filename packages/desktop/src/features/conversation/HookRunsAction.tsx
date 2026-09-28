@@ -5,7 +5,7 @@
  * 摆出来只会把回答挤开。拦下了什么、哪条失败了，才是点开时要一眼看到的。
  */
 
-import type { HookRun } from "@lyra/core";
+import type { HookRun } from "@plume/core";
 import { Anchor, Ban, Check, CircleSlash, CircleX, Clock } from "lucide-react";
 import { useMemo } from "react";
 import { useScopedHookRuns } from "../../app/session-scope.tsx";

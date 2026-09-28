@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ModelConfig, ProviderConfig, Settings } from "@lyra/core";
+import type { ModelConfig, ProviderConfig, Settings } from "@plume/core";
 import {
 	ambiguousNames,
 	favouriteRows,

@@ -52,7 +52,7 @@ let failures = 0;
 
 /** `name` 进截图的文件名；同一个文件里红几条就留几张，带序号，中文用例名也不互相覆盖。 */
 async function recordFailure(app: RunningApp, context: TestContext, name: string): Promise<void> {
-	const directory = process.env.LYRA_E2E_ARTIFACTS;
+	const directory = process.env.PLUME_E2E_ARTIFACTS;
 	failures += 1;
 	if (directory) {
 		await mkdir(directory, { recursive: true });

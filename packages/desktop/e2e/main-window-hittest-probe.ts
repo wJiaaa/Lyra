@@ -3,7 +3,7 @@
 /**
  * Whether the main window is still catching clicks while a capture is up.
  *
- * Activating the overlay activates Lyra, and macOS raises every window of an application it
+ * Activating the overlay activates Plume, and macOS raises every window of an application it
  * activates — so the main window ends up above whatever is being screenshotted, hidden only by the
  * frozen picture on top of it. It is made to "step aside" for the duration, and the question this
  * answers is whether stepping aside is enough: a window made transparent is invisible, but macOS
@@ -66,43 +66,43 @@ try {
 	/*
 	 * Started from somewhere else, which is the case that matters.
 	 *
-	 * A capture begun from inside Lyra is expected to come back to Lyra, and the main window is left
+	 * A capture begun from inside Plume is expected to come back to Plume, and the main window is left
 	 * where it is. It is the global-shortcut case — screenshotting another application — where the
 	 * main window has no business being in front.
 	 */
 	await execFileAsync("osascript", ["-e", 'tell application "Finder" to activate']).catch(() => {});
 	await pause(1200);
 
-	const ours = (list: Win[]) => list.filter((w) => w.app === "Electron" || w.app.includes("Lyra"));
+	const ours = (list: Win[]) => list.filter((w) => w.app === "Electron" || w.app.includes("Plume"));
 	const before = await windows();
-	note(`截图前  Lyra 的窗口：${JSON.stringify(ours(before).map((w) => ({ 序: w.order, 尺寸: `${w.w}×${w.h}`, 透明度: w.alpha })))}`);
+	note(`截图前  Plume 的窗口：${JSON.stringify(ours(before).map((w) => ({ 序: w.order, 尺寸: `${w.w}×${w.h}`, 透明度: w.alpha })))}`);
 
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	await pause(1500);
 
 	const during = await windows();
 	const mine = ours(during);
-	note(`截图中  Lyra 的窗口：${JSON.stringify(mine.map((w) => ({ 序: w.order, 尺寸: `${w.w}×${w.h}`, 透明度: w.alpha })))}`);
+	note(`截图中  Plume 的窗口：${JSON.stringify(mine.map((w) => ({ 序: w.order, 尺寸: `${w.w}×${w.h}`, 透明度: w.alpha })))}`);
 
 	/*
 	 * A window at alpha 0 that the window server still lists is the whole problem: it is not drawn,
 	 * and it is hit. During a colour pick the overlay above it is click-through by design, so every
 	 * press in that second lands on a window the user cannot see and gets nothing back — which is
-	 * what "Lyra froze" was.
+	 * what "Plume froze" was.
 	 */
 	const ghosts = mine.filter((w) => w.alpha === 0);
 	if (ghosts.length > 0) {
 		problems.push(
-			`截图期间有 ${ghosts.length} 个 Lyra 窗口透明度为 0 却仍在屏幕窗口列表里（${ghosts.map((g) => `${g.w}×${g.h} 第 ${g.order} 层`).join("、")}）——看不见，但照样接住点击`,
+			`截图期间有 ${ghosts.length} 个 Plume 窗口透明度为 0 却仍在屏幕窗口列表里（${ghosts.map((g) => `${g.w}×${g.h} 第 ${g.order} 层`).join("、")}）——看不见，但照样接住点击`,
 		);
 	}
 
-	await app.evaluate(`window.lyra.screenshot.cancel()`).catch(() => {});
+	await app.evaluate(`window.plume.screenshot.cancel()`).catch(() => {});
 	await pause(1200);
 	const after = await windows();
-	note(`截图后  Lyra 的窗口：${JSON.stringify(ours(after).map((w) => ({ 序: w.order, 尺寸: `${w.w}×${w.h}`, 透明度: w.alpha })))}`);
+	note(`截图后  Plume 的窗口：${JSON.stringify(ours(after).map((w) => ({ 序: w.order, 尺寸: `${w.w}×${w.h}`, 透明度: w.alpha })))}`);
 	const stuck = ours(after).filter((w) => w.alpha === 0);
-	if (stuck.length > 0) problems.push(`截图结束后还有 ${stuck.length} 个 Lyra 窗口停在透明度 0`);
+	if (stuck.length > 0) problems.push(`截图结束后还有 ${stuck.length} 个 Plume 窗口停在透明度 0`);
 } finally {
 	await app.stop();
 }

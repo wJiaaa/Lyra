@@ -15,7 +15,7 @@
  * 抖动是单独一条：`content-visibility` 让浏览器跳过屏幕外的布局，代价是它得先估一个高度，估得不准
  * 滚动条就会在滚过去的时候跳一下。所以 C 里每帧都记 `scrollHeight`，跳变超过一屏就算抖。
  *
- * 数据是**整个 `~/.lyra` 复制一份**进临时 profile（凭据剔掉），原始数据只读不动——合成数据压不出
+ * 数据是**整个 `~/.plume` 复制一份**进临时 profile（凭据剔掉），原始数据只读不动——合成数据压不出
  * 这个问题。
  *
  * 用法：node --experimental-strip-types e2e/huge-session-frames.ts
@@ -31,14 +31,14 @@ import { startApp, type RunningApp } from "./app.ts";
 const PORT = 9713;
 
 /**
- * 整个 `~/.lyra` 复制一份，凭据剔掉。
+ * 整个 `~/.plume` 复制一份，凭据剔掉。
  *
  * 这段和 `session-switch-perf.ts` 里的是一样的，但**不能 import 它**——那个文件顶层就调用了自己的
  * `main()`，导进来等于把它整套测试跑一遍（第一次就是这么撞上的：输出全是别人的场景）。
  */
 async function seedFromReal(home: string): Promise<void> {
 	const env = { ...process.env, DEVELOPER_DIR: "/Library/Developer/CommandLineTools" };
-	await promisify(execFile)("cp", ["-R", `${join(homedir(), ".lyra")}/.`, home], { env, maxBuffer: 64 * 1024 * 1024 });
+	await promisify(execFile)("cp", ["-R", `${join(homedir(), ".plume")}/.`, home], { env, maxBuffer: 64 * 1024 * 1024 });
 	for (const secret of ["credentials.json", "vault.key", "forges.json"]) await rm(join(home, secret), { force: true });
 	const file = join(home, "settings.json");
 	try {
@@ -167,7 +167,7 @@ async function describeMain(): Promise<string> {
 const DRAWN = `document.querySelectorAll('main .prose-dw, main article, main [data-ly-run]').length`;
 
 async function main(): Promise<void> {
-	console.log("把真实的 ~/.lyra 复制进临时 profile（凭据剔掉）…");
+	console.log("把真实的 ~/.plume 复制进临时 profile（凭据剔掉）…");
 	app = await startApp({ port: PORT, seed: seedFromReal });
 	try {
 		await until(`document.querySelectorAll('[data-ly-row]').length > 2`, 60000);
@@ -278,7 +278,7 @@ async function main(): Promise<void> {
 		check("滚动时 scrollHeight 不会整屏乱跳", c.biggestJump < 200000, `最大跳变 ${c.biggestJump} px`);
 	} finally {
 		await app?.stop().catch(() => {});
-		await rm("/tmp/lyra-frames-profile", { recursive: true, force: true }).catch(() => {});
+		await rm("/tmp/plume-frames-profile", { recursive: true, force: true }).catch(() => {});
 	}
 
 	const passed = checks.filter((c) => c.ok).length;

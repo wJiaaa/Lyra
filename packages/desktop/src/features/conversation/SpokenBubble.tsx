@@ -11,7 +11,7 @@
  */
 
 import type { ReactNode } from "react";
-import type { UserContent, UserMessage } from "@lyra/core";
+import type { UserContent, UserMessage } from "@plume/core";
 
 import { translate } from "../../i18n/translate.ts";
 import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";

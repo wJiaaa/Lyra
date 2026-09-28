@@ -21,7 +21,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
 
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra智能体界面测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume智能体界面测试");
 const PORT = 9638;
 const STEP_MS = 3500;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
@@ -91,8 +91,8 @@ async function main() {
 			await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 820, x: 0, y: 0 }));
 			await mkdir(join(home, "agents"), { recursive: true });
 			await writeFile(join(home, "agents", "docs-writer.md"), "---\nname: docs-writer\ndescription: 整理与改写项目文档\ntools: [read]\navatar: ghost-plum\n---\nYou write documentation.\n");
-			await mkdir(join(home, "project", ".lyra", "agents"), { recursive: true });
-			await writeFile(join(home, "project", ".lyra", "agents", "boss.md"), "---\nname: boss\ndescription: 编排者，会再派 explore 去找\n---\nBOSS\n");
+			await mkdir(join(home, "project", ".plume", "agents"), { recursive: true });
+			await writeFile(join(home, "project", ".plume", "agents", "boss.md"), "---\nname: boss\ndescription: 编排者，会再派 explore 去找\n---\nBOSS\n");
 		},
 	});
 	await app.send("Page.bringToFront");

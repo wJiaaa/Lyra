@@ -6,7 +6,7 @@
  * confined command runs in PowerShell and only an unconfined one in Git Bash. Everywhere else the
  * mode changes nothing.
  *
- * `process.platform` is swapped for the Windows cases, and `LYRA_SHELL` points at files named for
+ * `process.platform` is swapped for the Windows cases, and `PLUME_SHELL` points at files named for
  * the shells — the selection reads names and existence, which is all a test here can provide.
  */
 
@@ -20,23 +20,23 @@ import { commandDialects, commandShell, resetSystemShell, systemShell } from "..
 
 // Captured once: a test that pretends twice must still put back the real ones, not its own first pretence.
 const REAL_PLATFORM = process.platform;
-const REAL_LYRA_SHELL = process.env.LYRA_SHELL;
+const REAL_PLUME_SHELL = process.env.PLUME_SHELL;
 
-async function pretend(t: TestContext, platform: NodeJS.Platform, lyraShell?: string): Promise<void> {
+async function pretend(t: TestContext, platform: NodeJS.Platform, plumeShell?: string): Promise<void> {
 	Object.defineProperty(process, "platform", { value: platform, configurable: true });
-	if (lyraShell === undefined) delete process.env.LYRA_SHELL;
-	else process.env.LYRA_SHELL = lyraShell;
+	if (plumeShell === undefined) delete process.env.PLUME_SHELL;
+	else process.env.PLUME_SHELL = plumeShell;
 	resetSystemShell();
 	t.after(() => {
 		Object.defineProperty(process, "platform", { value: REAL_PLATFORM, configurable: true });
-		if (REAL_LYRA_SHELL === undefined) delete process.env.LYRA_SHELL;
-		else process.env.LYRA_SHELL = REAL_LYRA_SHELL;
+		if (REAL_PLUME_SHELL === undefined) delete process.env.PLUME_SHELL;
+		else process.env.PLUME_SHELL = REAL_PLUME_SHELL;
 		resetSystemShell();
 	});
 }
 
 async function fakeShell(t: TestContext, name: string): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-shell-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-shell-"));
 	t.after(() => rm(dir, { recursive: true, force: true }));
 	const file = join(dir, name);
 	await writeFile(file, "");
@@ -59,7 +59,7 @@ test("Windows: a confined command runs in PowerShell, an unconfined one in Git B
 	}
 });
 
-test("Windows: LYRA_SHELL naming a PowerShell is used confined too", async (t) => {
+test("Windows: PLUME_SHELL naming a PowerShell is used confined too", async (t) => {
 	const pwsh = await fakeShell(t, "pwsh.exe");
 	await pretend(t, "win32", pwsh);
 	assert.equal(commandShell("workspace-write").file, pwsh);

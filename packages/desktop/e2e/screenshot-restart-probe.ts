@@ -225,7 +225,7 @@ const COUNT_ACCENT = (frame: Rect, band: number) => `(() => {
 	 *
 	 * Zero on the frame line and zero here mean two different things: the first is the fix working,
 	 * the second is a canvas that has nothing in it — a stale bitmap, a failed decode, a selector
-	 * that found the wrong element. The desktop under this capture is Lyra's own window and its
+	 * that found the wrong element. The desktop under this capture is Plume's own window and its
 	 * accent is this very colour, so a live snapshot always has some.
 	 */
 	let anywhere = 0;
@@ -288,7 +288,7 @@ try {
 
 	// ---- 1. 第一次截图，把选区框和手柄留在屏幕上 -------------------------
 	note("\n【1】第一次截图：拉出选区，让蓝框和 8 个圆手柄留在屏幕上");
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	const socket = await overlayPage();
 	const run = evaluator(socket);
 	for (let i = 0; i < 60; i++) {
@@ -332,7 +332,7 @@ try {
 	// ---- 2. 不取消，直接再截一次 -----------------------------------------
 	note("\n【2】不取消，直接再触发一次截图");
 	await parkCursor(8, 8);
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	/*
 	 * Long enough for the new snapshot to be decoded, painted and reported. The window is up
 	 * throughout — that is the case under test — so there is nothing to wait for appearing; what is
@@ -362,14 +362,14 @@ try {
 		const crop = await run<string>(CROP_BACKDROP(outer)).catch(() => "");
 		if (crop.startsWith("data:image")) {
 			const { writeFile } = await import("node:fs/promises");
-			const out = join(homedir(), "Desktop", `lyra-连拍第二张快照-${stamp}.png`);
+			const out = join(homedir(), "Desktop", `plume-连拍第二张快照-${stamp}.png`);
 			await writeFile(out, Buffer.from(crop.split(",")[1]!, "base64"));
 			note(`  这一块快照已写到 ${out}（和下面置顶出来的那张是同一块区域）`);
 		}
 		/*
 		 * Against the control rather than against zero.
 		 *
-		 * The desktop under the capture is Lyra's own window, whose accent colour is this same
+		 * The desktop under the capture is Plume's own window, whose accent colour is this same
 		 * `#339CFF` — so a handful of hits anywhere is the wallpaper, not the overlay. What the fault
 		 * looks like is hundreds of them on the frame line and none twenty-five points away.
 		 */
@@ -489,12 +489,12 @@ try {
 		const dataUrl = await pin<string>(`document.querySelector("img") ? document.querySelector("img").src : ""`);
 		if (dataUrl.startsWith("data:image")) {
 			const { writeFile } = await import("node:fs/promises");
-			const out = join(homedir(), "Desktop", `lyra-连拍第二张-${stamp}.png`);
+			const out = join(homedir(), "Desktop", `plume-连拍第二张-${stamp}.png`);
 			await writeFile(out, Buffer.from(dataUrl.split(",")[1]!, "base64"));
 			note(`  第二张的原图已写到 ${out}`);
 		}
 
-		await app.evaluate(`window.lyra.screenshot.cancel()`).catch(() => {});
+		await app.evaluate(`window.plume.screenshot.cancel()`).catch(() => {});
 		await pause(600);
 	}
 

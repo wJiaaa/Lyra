@@ -21,10 +21,10 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
 /** Where the screenshots go: the first argument, as `audit-regression.mjs` passes it, or the desktop. */
-const OUT = process.argv[2] ?? join(homedir(), "Desktop", "Lyra提权审批测试");
+const OUT = process.argv[2] ?? join(homedir(), "Desktop", "Plume提权审批测试");
 const LEGACY = "escalate:danger-full-access:echo hi";
 /** Outside the workspace so `auto` asks, and absent so nothing is deleted even if it ran. */
-const NONEXISTENT = join(homedir(), ".lyra-e2e-nonexistent-escalation-probe");
+const NONEXISTENT = join(homedir(), ".plume-e2e-nonexistent-escalation-probe");
 
 /** One tool call per trigger word; a tool result, or anything else, gets a line of text. */
 const CALLS: Record<string, Record<string, unknown>> = {
@@ -173,7 +173,7 @@ async function main() {
 		const commandShot = await shot("2-普通命令对照");
 		await refuse();
 
-		const stored = await app.evaluate<string[]>("window.lyra.settings.get().then((s) => s.alwaysAllow)");
+		const stored = await app.evaluate<string[]>("window.plume.settings.get().then((s) => s.alwaysAllow)");
 		const opened = await app.evaluate<boolean>(`(async () => {
 			const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 			const hit = (text) => {

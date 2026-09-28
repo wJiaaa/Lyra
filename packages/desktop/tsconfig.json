@@ -8,7 +8,7 @@
     "noEmit": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@lyra/core": ["../core/src/index.ts"]
+      "@plume/core": ["../core/src/index.ts"]
     }
   },
   "include": [

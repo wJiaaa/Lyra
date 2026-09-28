@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { DEFAULT_SETTINGS, type Settings, type UserContent } from "@lyra/core";
-import type { LyraApi, SessionSnapshot, WorkspaceInfo } from "../../electron/ipc-types.ts";
+import { DEFAULT_SETTINGS, type Settings, type UserContent } from "@plume/core";
+import type { PlumeApi, SessionSnapshot, WorkspaceInfo } from "../../electron/ipc-types.ts";
 import { startProjectSession } from "../../src/store/project-session.ts";
 import { useApp } from "../../src/store/index.ts";
 
@@ -20,9 +20,9 @@ function deferred<T>() {
 	return { promise, resolve };
 }
 
-let readWorkspace: LyraApi["workspace"]["info"];
-let readScratch: LyraApi["git"]["generalScratch"];
-let saveSettings: LyraApi["settings"]["save"];
+let readWorkspace: PlumeApi["workspace"]["info"];
+let readScratch: PlumeApi["git"]["generalScratch"];
+let saveSettings: PlumeApi["settings"]["save"];
 let saves: Settings[];
 const previous = snapshot("old", "/worktree");
 
@@ -39,7 +39,7 @@ beforeEach(() => {
 		loadingSession: false, pendingUserMessage: null, activity: {}, turns: {}, carried: {}, notices: [], capabilities: null,
 		view: "chat", stopped: null, retrying: null, turnStartedAt: null, turnTokens: 0,
 	});
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		workspace: { info: (path: string) => readWorkspace(path) },
 		git: { generalScratch: () => readScratch() },
 		settings: { save: (settings: Settings) => { saves.push(settings); return saveSettings(settings); } },

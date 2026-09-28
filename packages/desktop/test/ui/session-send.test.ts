@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import type { UserContent } from "@lyra/core";
+import type { UserContent } from "@plume/core";
 import type { SessionSnapshot } from "../../electron/ipc-types.ts";
 import { useApp } from "../../src/store/index.ts";
 
@@ -18,7 +18,7 @@ function snapshot(id: string): SessionSnapshot {
 beforeEach(() => {
 	requests.length = 0; prompted.length = 0;
 	useApp.setState({ activeSessionId: null, meta: null, messages: [], sessions: [], workspace: null, scratchCwd: "/test", scratchRoots: ["/test"], sessionCache: {}, toolRuns: {}, running: false, pendingUserMessage: null, activity: {}, turns: {}, carried: {}, notices: [], settings: null });
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		sessions: {
 			create: () => new Promise<SessionSnapshot>((resolve) => requests.push({ resolve })),
 			capabilities: async () => null,
@@ -69,7 +69,7 @@ test("two submissions in the same draft create a single conversation", async () 
 test("a failed capability refresh does not turn an accepted prompt into a retryable send", async () => {
 	const active = snapshot("a");
 	useApp.setState({ activeSessionId: "a", meta: active.meta, sessions: [active.meta] });
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		agent: { prompt: async () => active.meta },
 		sessions: { capabilities: async () => { throw new Error("connection lost after acknowledgement"); } },
 	} });
@@ -88,7 +88,7 @@ test("undoing the last user message cuts the tail and fills the composer", async
 		composerDraft: null,
 	});
 	const called: number[] = [];
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		agent: { revertMessage: async (_id: string, index: number) => { called.push(index); } },
 	} });
 	await useApp.getState().revertMessage(0);
@@ -108,7 +108,7 @@ test("an offline undo restores the transcript and does not fill the composer", a
 		running: false,
 		composerDraft: null,
 	});
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		agent: { revertMessage: async () => { throw new Error("offline"); } },
 	} });
 	await useApp.getState().revertMessage(0);
@@ -120,7 +120,7 @@ test("an offline undo restores the transcript and does not fill the composer", a
 test("an offline edit preserves the previous transcript and leaves a visible failure", async () => {
 	const active = snapshot("a");
 	useApp.setState({ activeSessionId: "a", meta: active.meta, messages: active.messages, running: false });
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		agent: { editMessage: async () => { throw new Error("offline"); } },
 	} });
 	await useApp.getState().editMessage(0, [{ type: "text", text: "未能提交的编辑" }]);
@@ -133,7 +133,7 @@ test("an offline edit preserves the previous transcript and leaves a visible fai
 test("a failed reasoning-level change rolls back the uncommitted picker value", async () => {
 	const active = snapshot("a");
 	useApp.setState({ activeSessionId: "a", meta: active.meta });
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		agent: { setThinking: async () => { throw new Error("offline"); } },
 	} });
 	await useApp.getState().setThinking("high");
@@ -144,7 +144,7 @@ test("a failed reasoning-level change rolls back the uncommitted picker value", 
 test("an unacknowledged approval stays available for retry after a connection failure", async () => {
 	const approval = { id: "approval", kind: "shell", title: "Run command", detail: "echo hello" };
 	useApp.setState({ activeSessionId: "a", approvals: [approval] });
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		agent: { approve: async () => { throw new Error("offline"); } },
 	} });
 	await assert.rejects(useApp.getState().respondToApproval("approval", "once"), /offline/);
@@ -158,7 +158,7 @@ test(`a rejected older prompt cannot clear a newer ${acknowledged ? "acknowledge
 	let rejectOlder!: (error: Error) => void;
 	let finishNewer!: (meta: SessionSnapshot["meta"]) => void;
 	let submitted = 0;
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		agent: { prompt: () => submitted++ === 0
 			? new Promise<SessionSnapshot["meta"]>((_resolve, reject) => { rejectOlder = reject; })
 			: new Promise<SessionSnapshot["meta"]>((resolve) => { finishNewer = resolve; }) },

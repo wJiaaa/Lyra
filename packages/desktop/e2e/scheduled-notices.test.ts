@@ -137,7 +137,7 @@ before(async () => {
 	 * A second listener on the same bridge the app uses, keeping every notice that crosses it —
 	 * the direct evidence that the main process's send reaches the page, and in what shape.
 	 */
-	await app.evaluate(`(() => { window.__notices = []; window.lyra.scheduler.onNotice((notice) => window.__notices.push({ ...notice, at: performance.now() })); })()`);
+	await app.evaluate(`(() => { window.__notices = []; window.plume.scheduler.onNotice((notice) => window.__notices.push({ ...notice, at: performance.now() })); })()`);
 });
 
 after(async () => {
@@ -180,7 +180,7 @@ async function press(text: string): Promise<void> {
 }
 
 async function shot(name: string): Promise<void> {
-	const directory = process.env.LYRA_E2E_ARTIFACTS;
+	const directory = process.env.PLUME_E2E_ARTIFACTS;
 	if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
@@ -247,7 +247,7 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	assert.equal(started[0].message, "已安排任务「Alpha」开始运行");
 	const alphaSession = started[0].sessionId;
 	assert.ok(alphaSession, "a started run names its session");
-	assert.equal(await app.evaluate<string>(`window.lyra.settings.get().then((s) => s.scheduledTasks.find((t) => t.id === "alpha").lastSessionId)`), alphaSession);
+	assert.equal(await app.evaluate<string>(`window.plume.settings.get().then((s) => s.scheduledTasks.find((t) => t.id === "alpha").lastSessionId)`), alphaSession);
 
 	// ── Beta cannot start: its sessions have nowhere to go. ──
 	await click('[data-scheduled-task="beta"] button[data-ly-tip="立即运行一次"]');
@@ -267,7 +267,7 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	// ── In a conversation: Beta again, and this time nobody is looking at its card. ──
 	await press("新对话");
 	await until(`document.querySelector("textarea")?.checkVisibility()`);
-	await app.evaluate(`window.lyra.scheduler.runNow("beta")`);
+	await app.evaluate(`window.plume.scheduler.runNow("beta")`);
 	await until(`${line("beta")}?.checkVisibility()`);
 	assert.match(await app.evaluate<string>(`${line("beta")}.textContent`), /已安排任务「Beta」无法启动/);
 	await until(`document.querySelector(${JSON.stringify(badge(1))})`);

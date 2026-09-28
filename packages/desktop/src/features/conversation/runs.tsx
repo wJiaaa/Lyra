@@ -6,7 +6,7 @@
  */
 
 import { memo } from "react";
-import type { AssistantContent, AssistantMessage } from "@lyra/core";
+import type { AssistantContent, AssistantMessage } from "@plume/core";
 import { PreviewCard, type PreviewInfo } from "../files/index.ts";
 import { ToolCard } from "./ToolCard.tsx";
 import { DispatchFaces, useDelegation, useDispatches } from "./DelegationCard.tsx";

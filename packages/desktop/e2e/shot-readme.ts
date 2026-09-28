@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 
 import { startApp } from "./app.ts";
 
-const out = process.argv[2] ?? "/tmp/lyra-readme.png";
+const out = process.argv[2] ?? "/tmp/plume-readme.png";
 const scroll = Number(process.argv[3] ?? 0);
 const REPO = join(fileURLToPath(import.meta.url), "..", "..", "..", "..");
 
@@ -32,7 +32,7 @@ async function seed(home: string): Promise<void> {
 			version: 1,
 			providers: [],
 			mcpServers: [],
-			projects: [{ id: "readme", name: "Lyra", path: REPO, pinned: true, lastOpenedAt: 1 }],
+			projects: [{ id: "readme", name: "Plume", path: REPO, pinned: true, lastOpenedAt: 1 }],
 			defaultModelId: null,
 			permissionMode: "auto",
 			thinking: "medium",
@@ -41,7 +41,7 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			appearance: { theme: process.env.LYRA_SHOT_THEME === "dark" ? "dark" : "light" },
+			appearance: { theme: process.env.PLUME_SHOT_THEME === "dark" ? "dark" : "light" },
 		}),
 	);
 }

@@ -40,7 +40,7 @@ const ROUND = `(async (urls, tag) => {
 	const ping = async () => {
 		while (!stop) {
 			const at = performance.now();
-			try { await window.lyra.sessions.running('probe-ping'); } catch (e) {}
+			try { await window.plume.sessions.running('probe-ping'); } catch (e) {}
 			out.pings.push(Math.round(performance.now() - at));
 			await new Promise((r) => setTimeout(r, 25));
 		}
@@ -85,7 +85,7 @@ function report(r: Round, note = ""): void {
 }
 
 async function main(): Promise<void> {
-	const media = join(homedir(), ".lyra", "session-media");
+	const media = join(homedir(), ".plume", "session-media");
 	const names = (await readdir(media).catch(() => [])).filter((n) => /\.(png|jpg|webp)$/.test(n));
 	if (names.length === 0) {
 		console.log("session-media 里没有图，先打开一个带图的会话让它外置出来");

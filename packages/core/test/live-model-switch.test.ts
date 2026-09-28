@@ -82,7 +82,7 @@ after(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 async function session() {
 	const root = await mkdtemp(join(tmpdir(), "ly-live-model-"));
-	process.env.LYRA_HOME = join(root, "home");
+	process.env.PLUME_HOME = join(root, "home");
 	const provider: ProviderConfig = { id: "t", name: "T", baseUrl: base, api: "openai-chat-completions", apiKey: "x", enabled: true, models: [A, B] };
 	// 跟反馈者本机一样：上游坏了就一直重试，直到有人取消。间隔取允许的最短一秒。
 	const forever = { retries: null, strategy: "fixed", intervalMs: 1000, maxIntervalMs: 1000 };

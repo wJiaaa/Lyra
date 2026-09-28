@@ -217,7 +217,7 @@ test("a symlink inside scratch cannot carry a read or a write outside it", async
 
 test("everything except scratch is read-only", async () => {
 	const r = router();
-	for (const url of ["skill://pdf", "lyra://addresses"]) {
+	for (const url of ["skill://pdf", "plume://addresses"]) {
 		await assert.rejects(() => r.write(url, "改掉", ctx()), /只读/, `${url} must not be writable`);
 	}
 });
@@ -231,15 +231,15 @@ test("the router reports which schemes are writable", () => {
 });
 
 // ---------------------------------------------------------------------------
-// lyra://
+// plume://
 // ---------------------------------------------------------------------------
 
-test("lyra:// serves its own documentation and lists its topics", async () => {
-	const doc = await router().resolve("lyra://writing-skills", ctx());
+test("plume:// serves its own documentation and lists its topics", async () => {
+	const doc = await router().resolve("plume://writing-skills", ctx());
 	assert.match(doc.content, /description/, "the doc says what the frontmatter looks like");
 	assert.equal(doc.immutable, true);
 
-	const index = await router().resolve("lyra://", ctx());
+	const index = await router().resolve("plume://", ctx());
 	assert.match(index.content, /writing-skills/);
 });
 

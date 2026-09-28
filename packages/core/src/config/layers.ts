@@ -6,7 +6,7 @@
  * switch. And the failure is not the editing: it is forgetting to edit back, which makes the next
  * project's session run under the previous project's rules with nothing on screen saying so.
  *
- * 两层，全局在下、项目在上：`~/.lyra/settings.json` → `<cwd>/.lyra/config.json`。
+ * 两层，全局在下、项目在上：`~/.plume/settings.json` → `<cwd>/.plume/config.json`。
  *
  * 计划里画的是五层（内置默认 → 全局 → 项目 → 一次性 → 运行时），这里也曾经有一个
  * `resolveLayers` 按那五层合并、并记录每个键来自哪一层。**而实际接线走的是两层**——会话拿到
@@ -25,7 +25,7 @@ import { withoutBom } from "../utils/bom.ts";
 /**
  * Keys a project file may not set, whatever it says.
  *
- * `.lyra/config.json` is checked into the repository — that is the point of it — so anything that
+ * `.plume/config.json` is checked into the repository — that is the point of it — so anything that
  * lands there is shared with everyone who clones it and with anyone who reads the repository. A
  * credential in that file is a published credential, and the person who put it there is usually
  * the last to find out.
@@ -139,14 +139,14 @@ export async function readConfigFile(path: string): Promise<{ config: Plain; err
 }
 
 export function projectConfigPath(cwd: string): string {
-	return join(cwd, ".lyra", "config.json");
+	return join(cwd, ".plume", "config.json");
 }
 
 /**
  * Load the project layer for a working directory.
  *
  * Global settings stay where they are — this only adds the layer above them, so a project with no
- * `.lyra/config.json` behaves exactly as before.
+ * `.plume/config.json` behaves exactly as before.
  */
 export async function loadProjectLayer(cwd: string | null): Promise<{ config: Plain; refused: string[]; error?: string }> {
 	if (!cwd) return { config: {}, refused: [] };

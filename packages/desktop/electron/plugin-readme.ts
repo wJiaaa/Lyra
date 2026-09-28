@@ -89,7 +89,7 @@ async function fromDisk(query: ReadmeQuery, home: string): Promise<ReadmeAnswer 
 	if (!query.dir) return null;
 	const root = resolve(home);
 	const dir = resolve(query.dir);
-	// Installed bundles live under the Lyra home. A directory anywhere else is not one this reads.
+	// Installed bundles live under the Plume home. A directory anywhere else is not one this reads.
 	if (!dir.startsWith(root + sep)) return null;
 	const names = await readdir(dir).catch(() => [] as string[]);
 	const name = names.find((candidate) => /^readme(?:\.md|\.markdown)?$/i.test(candidate));

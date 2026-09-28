@@ -15,10 +15,10 @@
  */
 
 import assert from "node:assert/strict";
-import { DEFAULT_SETTINGS } from "@lyra/core";
+import { DEFAULT_SETTINGS } from "@plume/core";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h, useRef } from "react";
-import type { Message, SessionMeta } from "@lyra/core";
+import type { Message, SessionMeta } from "@plume/core";
 import type { FileEntry, WorkspaceInfo } from "../../electron/ipc-types.ts";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { DockScope, SessionScope } from "../../src/app/session-scope.tsx";
@@ -68,7 +68,7 @@ beforeEach(() => {
 	views = [];
 	previous = useApp.getState();
 	previousFile = useOpenFile.getState();
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			files: {
@@ -103,7 +103,7 @@ afterEach(async () => {
 	useApp.setState(previous, true);
 	useOpenFile.setState(previousFile, true);
 	provideScope(() => null);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 /** Long enough for directory listings to come back and be drawn. */

@@ -1,11 +1,11 @@
 /**
  * Persistent memory engine: stores learned facts, preferences, user habits, and rules across sessions.
- * Similar to OpenAI / Codex local memory model, saved under ~/.lyra/memory.json.
+ * Similar to OpenAI / Codex local memory model, saved under ~/.plume/memory.json.
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 
 export interface MemoryEntry {
 	id: string;
@@ -29,7 +29,7 @@ const DEFAULT_MEMORY_STORE: MemoryStore = {
 };
 
 export function memoryPath(): string {
-	return join(lyraHome(), "memory.json");
+	return join(plumeHome(), "memory.json");
 }
 
 export async function loadMemory(): Promise<MemoryStore> {

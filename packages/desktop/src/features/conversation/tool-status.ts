@@ -18,7 +18,7 @@
  * 第二条里的 `turnRunning` 就是防止永远转圈的那把锁：轮次一停，卡片立刻给出结论。
  */
 
-import type { AssistantMessage } from "@lyra/core";
+import type { AssistantMessage } from "@plume/core";
 
 export function toolCardFallback(
 	stopReason: AssistantMessage["stopReason"],

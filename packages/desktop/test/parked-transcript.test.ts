@@ -13,10 +13,10 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { AgentEvent, CommandRun, Message, SessionMeta } from "@lyra/core";
+import type { AgentEvent, CommandRun, Message, SessionMeta } from "@plume/core";
 import { applyAgentEvent } from "../src/store/apply-event.ts";
 import { cachedEvent } from "../src/store/cached-event.ts";
-import { nextActivity } from "@lyra/core/activity";
+import { nextActivity } from "@plume/core/activity";
 
 const usage = {
 	input: 0,

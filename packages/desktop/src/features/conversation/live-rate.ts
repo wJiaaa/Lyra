@@ -3,7 +3,7 @@
  *
  * 「实时」这个词在这里有个绕不开的前提：**计费口径的 token 数在回合结束前是空的**。适配器要等
  * `response.completed` 才把服务商报的 `usage` 一次性填上，而实时速度要的恰恰是结束之前的那段时间。
- * 所以这里读的是还在长的文本，按 `@lyra/core/tokens` 的 3.5 字符/token 折算——和上下文仪表、压缩判断
+ * 所以这里读的是还在长的文本，按 `@plume/core/tokens` 的 3.5 字符/token 折算——和上下文仪表、压缩判断
  * 用的是同一把尺，全应用至少口径一致。回合结束后 `MessageActions` 那行显示的是服务商的真数，两者会有
  * 出入，那是估算的代价。
  *
@@ -111,7 +111,7 @@ export const SETTLE_MS = 1200;
 /**
  * 一个 token 折合多少字符。
  *
- * 和 `@lyra/core/tokens` 的 `estimateTokens` 是同一把尺（那边是 `chars / 3.5`）。提成常量是因为
+ * 和 `@plume/core/tokens` 的 `estimateTokens` 是同一把尺（那边是 `chars / 3.5`）。提成常量是因为
  * 现在两个方向都要用：这条线按字符走，而子代理的产出只报 token——它的消息要等 `message_end` 才
  * 到，中途没有字符可数——所以接进来之前得先乘回去。见 `RunningIndicator` 里 `subChars` 那一段。
  */

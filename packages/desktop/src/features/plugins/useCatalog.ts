@@ -6,7 +6,7 @@
  * split is also what makes the merge testable without a renderer.
  */
 
-import type { InstallRecord, Plugin, PluginDiagnostic, RegistryEntry, Skill } from "@lyra/core";
+import type { InstallRecord, Plugin, PluginDiagnostic, RegistryEntry, Skill } from "@plume/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useApp } from "../../store/index.ts";

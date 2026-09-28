@@ -1,20 +1,20 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, mock, test } from "node:test";
 import { act, createElement as h } from "react";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import { useApp } from "../../src/store/index.ts";
 import { applyAgentEvent } from "../../src/store/apply-event.ts";
 import { WindowControls } from "../../src/app/window/WindowControls.tsx";
 import { useTrayCommands } from "../../src/app/window/tray-commands.ts";
 import { Toaster } from "../../src/features/toast/Toaster.tsx";
 import { LayoutProvider } from "../../src/app/layout.tsx";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 import { click, mount } from "../helpers/mount.ts";
 
 const usage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 } };
 const meta = (id: string): SessionMeta => ({ id, title: "同名任务", cwd: "/test/project", projectId: "test", projectName: "test", createdAt: 1, updatedAt: 2, modelId: "", messageCount: 1, seq: 2, usage });
 let list: () => Promise<SessionMeta[]>;
-let onTray: Parameters<LyraApi["onTrayCommand"]>[0] | undefined;
+let onTray: Parameters<PlumeApi["onTrayCommand"]>[0] | undefined;
 function deferredList() {
 	let resolve!: (sessions: SessionMeta[]) => void;
 	let reject!: (cause: Error) => void;
@@ -58,8 +58,8 @@ beforeEach(() => {
 	 */
 	useApp.setState({ selectionEpoch: 0, activeSessionId: "a", pendingSessionId: null, meta: meta("a"), sessions: [meta("a"), meta("b")], activity: {}, turns: {}, carried: {}, notices: [],
 		messages: [], approvals: [], sessionCache: {}, toolRuns: {}, scratchRoots: ["/test"], scratchCwd: "/test", workspace: null, running: false, loadingSession: false, view: "chat", openSessionById });
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
-		onTrayCommand: (listener: Parameters<LyraApi["onTrayCommand"]>[0]) => { onTray = listener; return () => { onTray = undefined; }; },
+	Object.defineProperty(window, "plume", { configurable: true, value: {
+		onTrayCommand: (listener: Parameters<PlumeApi["onTrayCommand"]>[0]) => { onTray = listener; return () => { onTray = undefined; }; },
 		sessions: { list: () => list(), transcript: async (_project: string, id: string) => ({ meta: meta(id), messages: [], running: false, pendingApprovals: [] }), capabilities: async () => null },
 		subAgents: { list: async () => [] },
 	} });

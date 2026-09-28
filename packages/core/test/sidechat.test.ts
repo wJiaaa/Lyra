@@ -17,7 +17,7 @@ function reply(text = "Answer"): AssistantMessage {
 	return { role: "assistant", content: [{ type: "text", text }], api: provider.api, provider: provider.id, model: model.modelId, stopReason: "stop", usage: emptyUsage(), timestamp: Date.now() };
 }
 async function fixture(t: TestContext, options: Omit<SideChatOptions, "main" | "settings"> & { settings?: SideChatOptions["settings"] }) {
-	const root = await mkdtemp(join(tmpdir(), "lyra-side-read-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-side-read-"));
 	const store = new SessionStore(join(root, "sessions"));
 	const meta = await store.create(root, model.id);
 	const main = new AgentSession({ cwd: root, store, meta, settings, emit: () => {} });

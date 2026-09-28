@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h } from "react";
 import { MessageCirclePlus } from "lucide-react";
-import { DEFAULT_SETTINGS } from "@lyra/core";
+import { DEFAULT_SETTINGS } from "@plume/core";
 import { DockView } from "../../src/features/dock/DockView.tsx";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { usePanelKind } from "../../src/app/session-scope.tsx";
@@ -24,7 +24,7 @@ function Chat() {
 
 test("侧边聊天开着时再从「+」开一次是新的一格；关掉后开的那一格，它的对话一起删", async () => {
 	const closed: string[][] = [];
-	Object.defineProperty(window, "lyra", { configurable: true, value: { platform: "darwin", sideChat: { close: async (sessionId: string, sideId: string) => void closed.push([sessionId, sideId]) } } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin", sideChat: { close: async (sessionId: string, sideId: string) => void closed.push([sessionId, sideId]) } } });
 	window.localStorage.clear();
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "tabs" } } });
 	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, tab: {}, tabShare: 0.4, host: null });

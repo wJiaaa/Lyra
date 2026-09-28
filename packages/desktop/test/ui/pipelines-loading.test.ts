@@ -12,16 +12,16 @@ interface PendingRequest {
 	reject(cause: unknown): void;
 }
 function fixture(t: TestContext) {
-	const previous = Object.getOwnPropertyDescriptor(window, "lyra");
+	const previous = Object.getOwnPropertyDescriptor(window, "plume");
 	Object.defineProperty(globalThis, "localStorage", { configurable: true, value: window.localStorage });
 	localStorage.clear();
 	const pending: PendingRequest[] = [];
-	Object.defineProperty(window, "lyra", { configurable: true, value: { git: {
+	Object.defineProperty(window, "plume", { configurable: true, value: { git: {
 		listWorkflowRuns: () => new Promise<WorkflowRunSummary[]>((resolve, reject) => pending.push({ resolve, reject })),
 	} } });
 	t.after(() => {
 		localStorage.clear();
-		if (previous) Object.defineProperty(window, "lyra", previous); else Reflect.deleteProperty(window, "lyra");
+		if (previous) Object.defineProperty(window, "plume", previous); else Reflect.deleteProperty(window, "plume");
 	});
 	return pending;
 }
@@ -67,7 +67,7 @@ test("a resumed pipeline request owns the displayed result and cache", async t =
 		await act(async () => pending[0].resolve([run("stale")]));
 		assert.match(view.text(), /latest/);
 		assert.doesNotMatch(view.text(), /stale/);
-		assert.match(localStorage.getItem(`lyra.pipelines.runs.v1:${cwd}`) ?? "", /latest/);
+		assert.match(localStorage.getItem(`plume.pipelines.runs.v1:${cwd}`) ?? "", /latest/);
 	} finally { await view.unmount(); }
 });
 
@@ -103,7 +103,7 @@ test("a failed cold load shows its error and can retry without claiming an empty
 		assert.equal(view.find('[role="alert"]').textContent, "Pipeline request failed");
 		assert.doesNotMatch(view.text(), /暂无/);
 		assert.equal(view.host.querySelector('[aria-busy="true"]'), null);
-		assert.equal(localStorage.getItem(`lyra.pipelines.runs.v1:${cwd}`), null);
+		assert.equal(localStorage.getItem(`plume.pipelines.runs.v1:${cwd}`), null);
 		const refresh = view.find<HTMLButtonElement>('[aria-label="刷新流水线"]');
 		assert.equal(refresh.disabled, false);
 		await click(refresh);
@@ -131,7 +131,7 @@ test("a failed refresh preserves the displayed runs and their cache", async t =>
 		assert.equal(view.find('[role="alert"]').textContent, "Refresh failed");
 		assert.match(view.text(), /loaded/);
 		assert.doesNotMatch(view.text(), /暂无/);
-		assert.equal(localStorage.getItem(`lyra.pipelines.runs.v1:${cwd}`), JSON.stringify(loaded));
+		assert.equal(localStorage.getItem(`plume.pipelines.runs.v1:${cwd}`), JSON.stringify(loaded));
 		assert.equal(view.find<HTMLButtonElement>('[aria-label="刷新流水线"]').disabled, false);
 	} finally { await view.unmount(); }
 });
@@ -155,7 +155,7 @@ for (const outcome of ["resolve", "reject"]) {
 			assert.match(view.text(), /running/);
 			assert.doesNotMatch(view.text(), /stale|Obsolete request failed/);
 			assert.equal(view.host.querySelector('[role="alert"]'), null);
-			assert.equal(localStorage.getItem(`lyra.pipelines.runs.v1:${cwd}`), JSON.stringify(cached));
+			assert.equal(localStorage.getItem(`plume.pipelines.runs.v1:${cwd}`), JSON.stringify(cached));
 			assert.equal(view.find<HTMLButtonElement>('[aria-label="刷新流水线"]').disabled, true);
 			await act(async () => t.mock.timers.tick(7_000));
 			assert.equal(pending.length, 2, "polling must not replace the request that still owns the visible view");

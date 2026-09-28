@@ -1,7 +1,7 @@
 /**
  * The icon a bundle ships with itself, read off the disk.
  *
- * The rules for where to look and what counts as a picture are in `@lyra/registry-shared`, because
+ * The rules for where to look and what counts as a picture are in `@plume/registry-shared`, because
  * the platform applies the same ones to the archive it builds. If they ever disagree, a bundle
  * wears one mark in the catalogue and a different one after it is installed — which is the same
  * class of bug as the catalogue calling something a plugin that installs as an MCP server, and the
@@ -15,7 +15,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { acceptIcon, iconCandidates } from "@lyra/registry-shared";
+import { acceptIcon, iconCandidates } from "@plume/registry-shared";
 
 /**
  * How large an icon may be before it is left on disk.

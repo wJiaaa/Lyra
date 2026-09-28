@@ -29,7 +29,7 @@ import { startApp, type RunningApp } from "./app.ts";
 
 const _HOW_MANY = Number(process.argv[2] ?? 4);
 const PORT = 9695;
-const REAL = join(homedir(), ".lyra", "sessions");
+const REAL = join(homedir(), ".plume", "sessions");
 
 let app: RunningApp;
 
@@ -48,7 +48,7 @@ async function _biggest(count: number): Promise<{ file: string; dir: string; byt
 }
 
 /**
- * 把**整个 `~/.lyra` 复制一份**进临时 profile，然后剔掉凭据。
+ * 把**整个 `~/.plume` 复制一份**进临时 profile，然后剔掉凭据。
  *
  * 前面试过只挑几个会话文件再手搓 meta 和 settings，连着六轮都卡在「还没有会话」——项目要登记、
  * 目录要是 git 仓库、meta 不能取第一行那条（`seq: 0` 会被静默丢掉）……每一条都是真的，而凑齐它们
@@ -65,7 +65,7 @@ export function seedFromReal(home: string): Promise<void> {
 	return (async () => {
 		const env = { ...process.env, DEVELOPER_DIR: "/Library/Developer/CommandLineTools" };
 		// `-R` 连目录结构一起，`.` 是为了把内容复制进去而不是复制成一个子目录。
-		await promisify(execFile)("cp", ["-R", `${join(homedir(), ".lyra")}/.`, home], { env, maxBuffer: 64 * 1024 * 1024 });
+		await promisify(execFile)("cp", ["-R", `${join(homedir(), ".plume")}/.`, home], { env, maxBuffer: 64 * 1024 * 1024 });
 
 		for (const secret of ["credentials.json", "vault.key", "forges.json"]) {
 			await rm(join(home, secret), { force: true });
@@ -78,7 +78,7 @@ export function seedFromReal(home: string): Promise<void> {
 				sync?: { enabled?: boolean; port?: number };
 			};
 			for (const provider of settings.providers ?? []) provider.apiKey = "";
-			// 同步服务换个端口，免得撞上用户自己正开着的那个 Lyra。
+			// 同步服务换个端口，免得撞上用户自己正开着的那个 Plume。
 			if (settings.sync) settings.sync = { ...settings.sync, enabled: false, port: 4523 };
 			await writeFile(file, JSON.stringify(settings));
 		} catch {
@@ -144,7 +144,7 @@ interface Watch {
  * 里」，那是个有几十个 useMemo 的组件，从它看不出是哪个函数读到了 undefined。同一句报错被报上来
  * 三次、每次都只有组件栈，就是这么三次都没查到根上的。
  *
- * `ErrorBoundary.componentDidCatch` 会 `console.error("[lyra] uncaught render error", error, ...)`，
+ * `ErrorBoundary.componentDidCatch` 会 `console.error("[plume] uncaught render error", error, ...)`，
  * 所以在这里截一道就能拿到 Error 本体。不用改应用代码，也不用重新构建。
  */
 const HOOK_CONSOLE = `(() => {

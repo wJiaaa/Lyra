@@ -56,7 +56,7 @@ test("几个一起回来：一行说几个，出错的另外标出来，逐个�
 });
 
 test("子智能体要授权：卡上是它的脸和一行「谁在请求」；主智能体自己要的照旧是那枚图标", async () => {
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	useApp.setState({
 		activeSessionId: "s",
 		approvals: [{ id: "r1", kind: "write", title: "写入 src/a.ts", detail: "src/a.ts", subject: "src/a.ts", from: { subAgentId: "s:sub:1", agent: "general", description: "改登录流程" } }],

@@ -21,7 +21,7 @@ test("a variable is substituted, unescaped", () => {
 	 * Unescaped is the point: this emits plain text for a model, and HTML-escaping it would put
 	 * `&amp;` and `&lt;` into a prompt. Handlebars' `{{}}`/`{{{}}}` distinction is pure cost here.
 	 */
-	assert.equal(render("Hello {{name}}", { name: "<Lyra & co>" }), "Hello <Lyra & co>");
+	assert.equal(render("Hello {{name}}", { name: "<Plume & co>" }), "Hello <Plume & co>");
 });
 
 test("a missing variable renders as nothing", () => {
@@ -89,7 +89,7 @@ test("each over nothing takes the else branch", () => {
 });
 
 test("the outer scope is still visible inside each", () => {
-	assert.equal(render("{{#each xs}}{{project}}/{{this}} {{/each}}", { project: "lyra", xs: ["a"] }), "lyra/a");
+	assert.equal(render("{{#each xs}}{{project}}/{{this}} {{/each}}", { project: "plume", xs: ["a"] }), "plume/a");
 });
 
 // ---------------------------------------------------------------------------

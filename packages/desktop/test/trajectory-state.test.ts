@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Entry } from "@lyra/core/trajectory-view";
+import type { Entry } from "@plume/core/trajectory-view";
 import { applyTrajectoryChanges } from "../src/features/conversation/trajectory/trajectory-state.ts";
 
 const entry = (id: string): Entry => ({ id, seq: 1, ts: 1, source: "tool-call", summary: id, detail: id });

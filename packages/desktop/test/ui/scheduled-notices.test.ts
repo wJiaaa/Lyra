@@ -10,8 +10,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h, Fragment, type ReactNode } from "react";
-import { DEFAULT_SETTINGS, type ScheduledTask, type UiLocale } from "@lyra/core";
-import type { SessionActivity } from "@lyra/core/activity";
+import { DEFAULT_SETTINGS, type ScheduledTask, type UiLocale } from "@plume/core";
+import type { SessionActivity } from "@plume/core/activity";
 
 import type { SchedulerNotice } from "../../electron/ipc-types.ts";
 import { LayoutProvider } from "../../src/app/layout.tsx";
@@ -65,7 +65,7 @@ async function scenario(
 	const previous = useApp.getState();
 	let handler: ((notice: SchedulerNotice) => void) | null = null;
 	let released = false;
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			scheduler: {
@@ -94,7 +94,7 @@ async function scenario(
 	} finally {
 		useApp.setState(previous, true);
 		useScheduledNotices.setState({ runs: {}, unseen: [], focus: null });
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 }
 

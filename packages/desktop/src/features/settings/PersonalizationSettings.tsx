@@ -363,7 +363,7 @@ export function PersonalizationSettings() {
 							 *
 							 * 这些会被注入这个项目的每一次请求——一条过时的记忆不是碍眼，是一句对模型
 							 * 永远重复的指示。在这之前，撤回它的唯一办法是自己去改
-							 * `~/.lyra/projects` 底下那个项目的记忆目录；用户记忆早就有这颗按钮了，
+							 * `~/.plume/projects` 底下那个项目的记忆目录；用户记忆早就有这颗按钮了，
 							 * 项目记忆没有，纯粹是漏了。
 							 */}
 							{projectMemory.lessons.map((lesson) => (

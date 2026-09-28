@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
-import type { AgentSession, ScheduledTask, Settings } from "@lyra/core";
+import type { AgentSession, ScheduledTask, Settings } from "@plume/core";
 import { setInterfaceLocaleSource, type NativeLocale } from "../electron/i18n.ts";
 import { Scheduler } from "../electron/scheduler.ts";
 

@@ -9,7 +9,7 @@
 import { ipcMain, shell } from "electron";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { lyraHome } from "@lyra/core";
+import { plumeHome } from "@plume/core";
 import { registerReferenceFiles } from "../reference-files.ts";
 import { settings } from "../app-settings.ts";
 import { listCommands, type CommandsList } from "../commands-service.ts";
@@ -18,7 +18,7 @@ export type { SkillEntry } from "../commands-service.ts";
 
 /** Where a newly created command goes, per scope. Only ours — nothing writes into `.claude`. */
 function directoryFor(scope: "workspace" | "user", cwd: string): string {
-	return scope === "workspace" ? join(cwd, ".lyra", "commands") : join(lyraHome(), "commands");
+	return scope === "workspace" ? join(cwd, ".plume", "commands") : join(plumeHome(), "commands");
 }
 
 /**

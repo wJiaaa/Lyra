@@ -1,8 +1,8 @@
 import { translate } from "../../../i18n/translate.ts";
 import { History, Coins, Crosshair, Terminal, Zap } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { freshTokens } from "@lyra/core/tokens";
-import { countBySource, entryKey, filterTrajectory, type Entry, type Source, type TrajectoryFilter } from "@lyra/core/trajectory-view";
+import { freshTokens } from "@plume/core/tokens";
+import { countBySource, entryKey, filterTrajectory, type Entry, type Source, type TrajectoryFilter } from "@plume/core/trajectory-view";
 import { PanelEmpty } from "../../../ui/layout/PanelEmpty.tsx";
 import { SearchField } from "../../../ui/inputs/SearchField.tsx";
 import { formatTokens } from "../../../lib/format-tokens.ts";

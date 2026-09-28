@@ -10,7 +10,7 @@
  * 了、主智能体接着处理」，点一下面板翻到它那一页。
  */
 
-import type { DeliveredReport } from "@lyra/core";
+import type { DeliveredReport } from "@plume/core";
 import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useAgentAvatars } from "../../store/agent-avatars.ts";

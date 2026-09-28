@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { devNull } from "node:os";
-import { emptyUsage, type AssistantMessage, type Message } from "@lyra/core";
+import { emptyUsage, type AssistantMessage, type Message } from "@plume/core";
 
 /** Local deterministic model fixtures go through the real provider, loop, IPC and renderer. */
 export function issueModel() {

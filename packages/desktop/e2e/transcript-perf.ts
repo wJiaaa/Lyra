@@ -26,7 +26,7 @@ const EXPANSIONS = Number(process.env.PERF_EXPAND ?? 0);
  * in what those rows contain rather than in how many there are. Copied rather than opened in
  * place so nothing here can write to the profile the app actually uses.
  */
-const REAL_HOME = process.env.PERF_SOURCE_HOME ?? join(homedir(), ".lyra");
+const REAL_HOME = process.env.PERF_SOURCE_HOME ?? join(homedir(), ".plume");
 
 interface FrameStats {
 	label: string;
@@ -370,7 +370,7 @@ async function main() {
 			return {
 				nodes: document.querySelectorAll("*").length,
 				settling: cost(() => { root.dataset.dockSettling = ""; }, () => { delete root.dataset.dockSettling; }),
-				unstyled: cost(() => { root.dataset.lyraUnused = "1"; }, () => { delete root.dataset.lyraUnused; }),
+				unstyled: cost(() => { root.dataset.plumeUnused = "1"; }, () => { delete root.dataset.plumeUnused; }),
 				freeze: cost(
 					() => { for (const el of targets) el.setAttribute("data-ly-frozen", ""); },
 					() => { for (const el of targets) el.removeAttribute("data-ly-frozen"); },

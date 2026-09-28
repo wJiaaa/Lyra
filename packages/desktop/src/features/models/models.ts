@@ -1,4 +1,4 @@
-import type { ModelConfig, Settings } from "@lyra/core";
+import type { ModelConfig, Settings } from "@plume/core";
 
 /**
  * The model a conversation is running on, found by the id that identifies it here.

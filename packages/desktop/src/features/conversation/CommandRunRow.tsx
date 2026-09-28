@@ -1,5 +1,5 @@
 import { useI18n } from "../../i18n/index.ts";
-import type { CommandRun } from "@lyra/core";
+import type { CommandRun } from "@plume/core";
 import { Check, CircleAlert, Minus, Terminal } from "lucide-react";
 import { FlowRow } from "./FlowRow.tsx";
 import { MessageActions } from "./MessageActions.tsx";

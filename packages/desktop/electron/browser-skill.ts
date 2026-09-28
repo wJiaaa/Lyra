@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { isUnparsable, parseFrontmatter, type Skill } from "@lyra/core";
+import { isUnparsable, parseFrontmatter, type Skill } from "@plume/core";
 import path from "../resources/skills/browser/SKILL.md?asset";
 
 export function browserSkill(): Skill {

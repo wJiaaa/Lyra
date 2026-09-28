@@ -37,15 +37,15 @@ import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type Message, type Tool } from "../src/types.ts";
 
 let root: string;
-const home = process.env.LYRA_HOME;
+const home = process.env.PLUME_HOME;
 before(async () => {
 	root = await mkdtemp(join(tmpdir(), "ly-hooks-"));
-	// 信任记录写在 `~/.lyra` 下，测试不能碰真的那份。
-	process.env.LYRA_HOME = join(root, "home");
+	// 信任记录写在 `~/.plume` 下，测试不能碰真的那份。
+	process.env.PLUME_HOME = join(root, "home");
 });
 after(async () => {
-	if (home === undefined) delete process.env.LYRA_HOME;
-	else process.env.LYRA_HOME = home;
+	if (home === undefined) delete process.env.PLUME_HOME;
+	else process.env.PLUME_HOME = home;
 	await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
 
@@ -103,10 +103,10 @@ test("增删改和开关都落在对的那一组里", () => {
 
 test("项目钩子写回时只动 hooks 这个键，而且不参与设置合并", async () => {
 	const cwd = join(root, "project-write");
-	await mkdir(join(cwd, ".lyra"), { recursive: true });
-	await writeFile(join(cwd, ".lyra", "config.json"), JSON.stringify({ thinking: "high" }));
+	await mkdir(join(cwd, ".plume"), { recursive: true });
+	await writeFile(join(cwd, ".plume", "config.json"), JSON.stringify({ thinking: "high" }));
 	await writeProjectHooks(cwd, config("Stop", [{ type: "command", command: "echo done" }]));
-	const written = JSON.parse(await readFile(join(cwd, ".lyra", "config.json"), "utf8"));
+	const written = JSON.parse(await readFile(join(cwd, ".plume", "config.json"), "utf8"));
 	assert.equal(written.thinking, "high");
 	assert.equal((await readProjectHooks(cwd)).config.events.Stop?.[0].hooks[0].command, "echo done");
 	const layer = await loadProjectLayer(cwd);
@@ -123,7 +123,7 @@ test("matcher：名字列表、正则，以及 Claude Code 风格的工具名", 
 	const runs: HookRun[] = [];
 	const before = makeBeforeToolCall(scope(config("PreToolUse", [node("process.exit(2)")], "Bash"), runs));
 	const decision = await before({ toolName: "bash", args: {}, toolCallId: "c1" });
-	assert.equal(decision?.block, true, "Bash 匹配 Lyra 的 bash");
+	assert.equal(decision?.block, true, "Bash 匹配 Plume 的 bash");
 });
 
 test("退出码 2 拦下调用、原因取 stderr；其他非零只记失败，不替它拦", async () => {

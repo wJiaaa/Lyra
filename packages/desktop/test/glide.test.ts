@@ -15,8 +15,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { AssistantContent, AssistantMessage, Message, StopReason, ToolCallContent } from "@lyra/core";
-import { emptyUsage } from "@lyra/core";
+import type { AssistantContent, AssistantMessage, Message, StopReason, ToolCallContent } from "@plume/core";
+import { emptyUsage } from "@plume/core";
 
 import { runs, sameRun, type Call, type Run } from "../src/features/conversation/grouping.ts";
 

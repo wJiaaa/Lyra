@@ -20,7 +20,7 @@ import { click, mount } from "../helpers/mount.ts";
 const width = Object.getOwnPropertyDescriptor(window, "innerWidth");
 
 afterEach(() => {
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 	if (width) Object.defineProperty(window, "innerWidth", width);
 });
 
@@ -36,7 +36,7 @@ function Harness() {
 
 /** A 700px window — narrow enough for the drawer — on `platform`, with the drawer opened. */
 async function openDrawer(platform: string) {
-	Object.defineProperty(window, "lyra", { configurable: true, value: { platform } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { platform } });
 	Object.defineProperty(window, "innerWidth", { configurable: true, value: 700 });
 	const view = await mount(h(LayoutProvider, { children: h(Harness) }));
 	assert.equal(view.find("[data-test-toggle]").getAttribute("data-compact"), "true", "700px 应当是紧凑布局");

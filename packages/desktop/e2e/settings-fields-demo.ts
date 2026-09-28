@@ -2,7 +2,7 @@
 /**
  * 设置里的输入框和下拉：和弹窗按钮同一颗胶囊，菜单也跟着软一圈。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/settings-fields-demo.ts`
  */
 
@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Lyra设置控件测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume设置控件测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const PORT = 9772;
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];

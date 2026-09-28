@@ -67,7 +67,7 @@ async function send(text: string) {
 }
 afterEach(async t => { if (!t.passed) await screenshot("delivery-failure"); });
 async function screenshot(name: string) {
-	const dir = process.env.LYRA_E2E_ARTIFACTS; if (!dir) return;
+	const dir = process.env.PLUME_E2E_ARTIFACTS; if (!dir) return;
 	await mkdir(dir, { recursive: true });
 	const shot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(dir, name + ".png"), Buffer.from(shot.data, "base64"));
@@ -87,7 +87,7 @@ test("real file changes produce one temporary card with internal expansion and s
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-turn-delivery] [data-delivery-file]:not([inert] *)').length`), 5);
 	await click('[data-turn-delivery] [aria-expanded="true"]'); await frames();
 	for (const theme of ["light", "dark"]) {
-		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}});})()`);
+		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}});})()`);
 		await until(`document.documentElement.style.colorScheme===${JSON.stringify(theme)}&&!document.documentElement.hasAttribute('data-theme-switching')`);
 		await app.evaluate(`document.querySelector('[data-turn-delivery]').scrollIntoView({block:'center',behavior:'instant'})`); await frames();
 		const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector('[data-delivery-file]').getBoundingClientRect();return {x:r.x+50,y:r.y+r.height/2}})()`);
@@ -247,7 +247,7 @@ test("real file changes produce one temporary card with internal expansion and s
 
 test("local material readers reject links outside an opened project", async () => {
 	const path = join(app.home, "project", "outside", "outside.txt");
-	const result = await app.evaluate(`(async()=>({read:await window.lyra.files.read(${JSON.stringify(path)}),bytes:await window.lyra.files.bytes(${JSON.stringify(path)}),document:await window.lyra.files.document(${JSON.stringify(path)})}))()`);
+	const result = await app.evaluate(`(async()=>({read:await window.plume.files.read(${JSON.stringify(path)}),bytes:await window.plume.files.bytes(${JSON.stringify(path)}),document:await window.plume.files.document(${JSON.stringify(path)})}))()`);
 	assert.deepEqual(result, { read: null, bytes: null, document: null });
 	assert.equal(await readFile(join(app.home, "private", "outside.txt"), "utf8"), "PRIVATE_FIXTURE");
 });

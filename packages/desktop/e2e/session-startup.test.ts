@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, afterEach, before, test, type TestContext } from "node:test";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
@@ -98,10 +98,10 @@ async function submit(): Promise<{ meta: SessionMeta; elapsed: number }> {
 	 * instead, and wait on the clock: 120 frames on a busy Windows runner is about two seconds of
 	 * hope, not a measurement.
 	 */
-	const before = await app.evaluate<{ id: string; title: string; messageCount: number }[]>(`window.lyra.sessions.list().then(list=>list.map(s=>({id:s.id,title:s.title,messageCount:s.messageCount})))`);
+	const before = await app.evaluate<{ id: string; title: string; messageCount: number }[]>(`window.plume.sessions.list().then(list=>list.map(s=>({id:s.id,title:s.title,messageCount:s.messageCount})))`);
 	const start = performance.now();
 	await click('button[aria-label="发送"]');
-	const meta = await app.evaluate<SessionMeta>(`new Promise((resolve,reject)=>{const before=${JSON.stringify(before)};const end=performance.now()+8000;const read=async()=>{const list=await window.lyra.sessions.list();const hit=list.find(s=>s.title==="相同提示词隔离验证"&&s.messageCount>=1&&(!before.some(b=>b.id===s.id)||(before.find(b=>b.id===s.id)?.messageCount??0)<1));if(hit)resolve(hit);else if(performance.now()<end)requestAnimationFrame(()=>{void read();});else reject(new Error("no immediate session row"));};void read();})`);
+	const meta = await app.evaluate<SessionMeta>(`new Promise((resolve,reject)=>{const before=${JSON.stringify(before)};const end=performance.now()+8000;const read=async()=>{const list=await window.plume.sessions.list();const hit=list.find(s=>s.title==="相同提示词隔离验证"&&s.messageCount>=1&&(!before.some(b=>b.id===s.id)||(before.find(b=>b.id===s.id)?.messageCount??0)<1));if(hit)resolve(hit);else if(performance.now()<end)requestAnimationFrame(()=>{void read();});else reject(new Error("no immediate session row"));};void read();})`);
 	return { meta, elapsed: performance.now() - start };
 }
 
@@ -122,27 +122,27 @@ test("slow MCP startup still creates immediate titled rows, aggregates collapsed
 	await click('button[aria-label="停止"]');
 	await frames(180);
 	assert.equal(modelRequests, 0, "cancellation during initialization never starts the provider afterwards");
-	const stored = await app.evaluate<{ id: string; count: number; pending: boolean; running: boolean }[]>(`Promise.all(${JSON.stringify([first.meta, second.meta])}.map(async s=>{const t=await window.lyra.sessions.transcript(s.projectId,s.id);return {id:s.id,count:t.messages.length,pending:!!t.meta.pendingPrompt,running:t.running};}))`);
+	const stored = await app.evaluate<{ id: string; count: number; pending: boolean; running: boolean }[]>(`Promise.all(${JSON.stringify([first.meta, second.meta])}.map(async s=>{const t=await window.plume.sessions.transcript(s.projectId,s.id);return {id:s.id,count:t.messages.length,pending:!!t.meta.pendingPrompt,running:t.running};}))`);
 	assert.ok(stored.every((s) => s.count === 1 && !s.pending && !s.running));
 	t.diagnostic(JSON.stringify({ firstRowMs: first.elapsed, secondRowMs: second.elapsed, group, stored }));
-	await app.evaluate(`window.lyra.sessions.rename(${JSON.stringify(first.meta.projectId)},${JSON.stringify(first.meta.id)},'独立重命名')`);
-	await app.evaluate(`window.lyra.sessions.setArchived(${JSON.stringify(first.meta.projectId)},${JSON.stringify(first.meta.id)},true)`);
-	await app.evaluate(`window.lyra.sessions.remove(${JSON.stringify(first.meta.projectId)},${JSON.stringify(first.meta.id)})`);
-	const remaining = await app.evaluate<SessionMeta[]>(`window.lyra.sessions.list()`);
+	await app.evaluate(`window.plume.sessions.rename(${JSON.stringify(first.meta.projectId)},${JSON.stringify(first.meta.id)},'独立重命名')`);
+	await app.evaluate(`window.plume.sessions.setArchived(${JSON.stringify(first.meta.projectId)},${JSON.stringify(first.meta.id)},true)`);
+	await app.evaluate(`window.plume.sessions.remove(${JSON.stringify(first.meta.projectId)},${JSON.stringify(first.meta.id)})`);
+	const remaining = await app.evaluate<SessionMeta[]>(`window.plume.sessions.list()`);
 	assert.equal(remaining.find((s) => s.id === second.meta.id)?.title, "相同提示词隔离验证");
 	assert.equal(remaining.find((s) => s.id === second.meta.id)?.archived, undefined);
 });
 
 test("a submitted worktree session preserves a startup rename and completes once while parked", async (t) => {
-	await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,worktrees:{...s.worktrees,autoCreateOnNewSession:true}});})()`);
+	await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,worktrees:{...s.worktrees,autoCreateOnNewSession:true}});})()`);
 	const requested = new Promise<void>((resolve) => { onModelRequest = resolve; });
 	const started = await submit();
-	await app.evaluate(`window.lyra.sessions.rename(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)},'初始化中重命名')`);
+	await app.evaluate(`window.plume.sessions.rename(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)},'初始化中重命名')`);
 	await click('button[aria-label="在「交互验证」里新建会话"]');
 	await requested;
 	assert.ok(completeReply);
 	completeReply();
-	const saved = await app.evaluate<{ meta: SessionMeta; messages: { role: string }[]; running: boolean }>(`new Promise((resolve,reject)=>{const end=performance.now()+20000;const read=async()=>{const s=await window.lyra.sessions.transcript(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)});if(s.messages.some(m=>m.role==='assistant')&&!s.running)resolve(s);else if(performance.now()<end)requestAnimationFrame(()=>{void read();});else reject(new Error('turn did not complete'));};void read();})`);
+	const saved = await app.evaluate<{ meta: SessionMeta; messages: { role: string }[]; running: boolean }>(`new Promise((resolve,reject)=>{const end=performance.now()+20000;const read=async()=>{const s=await window.plume.sessions.transcript(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)});if(s.messages.some(m=>m.role==='assistant')&&!s.running)resolve(s);else if(performance.now()<end)requestAnimationFrame(()=>{void read();});else reject(new Error('turn did not complete'));};void read();})`);
 	assert.deepEqual(saved.messages.map((m) => m.role), ["user", "assistant"]);
 	assert.equal(saved.meta.title, "初始化中重命名");
 	assert.equal(saved.meta.projectId, started.meta.projectId);
@@ -157,19 +157,19 @@ test("a submitted worktree session preserves a startup rename and completes once
 });
 
 test("collapsed group loading shares the far-right action slot without shifting the heading", async (t) => {
-	await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,worktrees:{...s.worktrees,autoCreateOnNewSession:false}});})()`);
+	await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,worktrees:{...s.worktrees,autoCreateOnNewSession:false}});})()`);
 	const requested = new Promise<void>((resolve) => { onModelRequest = resolve; });
 	const started = await submit();
 	await requested;
 	await verifyGroupLoading(t, started.meta.id);
 	assert.ok(completeReply); completeReply();
-	await app.evaluate(`new Promise((resolve,reject)=>{const end=performance.now()+20000;const read=async()=>{const s=await window.lyra.sessions.transcript(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)});if(!s.running)resolve();else if(performance.now()<end)requestAnimationFrame(()=>{void read();});else reject(new Error('turn did not complete'));};void read();})`);
+	await app.evaluate(`new Promise((resolve,reject)=>{const end=performance.now()+20000;const read=async()=>{const s=await window.plume.sessions.transcript(${JSON.stringify(started.meta.projectId)},${JSON.stringify(started.meta.id)});if(!s.running)resolve();else if(performance.now()<end)requestAnimationFrame(()=>{void read();});else reject(new Error('turn did not complete'));};void read();})`);
 	await click('[data-qa-running-group]'); await frames(20);
 	assert.equal(await app.evaluate(`!!document.querySelector('[data-qa-running-group] svg.ly-arc')`), false);
 });
 
 async function shot(name: string) {
-	const directory = process.env.LYRA_E2E_ARTIFACTS;
+	const directory = process.env.PLUME_E2E_ARTIFACTS;
 	if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });

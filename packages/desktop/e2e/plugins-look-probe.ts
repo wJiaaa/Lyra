@@ -6,8 +6,8 @@
  * 先 build：探针跑的是 out/ 里的产物。
  *
  * 环境变量：
- *   LYRA_PROBE_REGISTRY  用这个索引地址代替默认的市场（本地 https 服务：自签 CA 用 NODE_EXTRA_CA_CERTS 交给应用，不关证书校验）
- *   LYRA_PROBE_HOME      用一个已经准备好的 profile（装好了东西的），不从空白开始
+ *   PLUME_PROBE_REGISTRY  用这个索引地址代替默认的市场（本地 https 服务：自签 CA 用 NODE_EXTRA_CA_CERTS 交给应用，不关证书校验）
+ *   PLUME_PROBE_HOME      用一个已经准备好的 profile（装好了东西的），不从空白开始
  */
 
 import { cp, mkdir, writeFile } from "node:fs/promises";
@@ -20,8 +20,8 @@ import { frameGrabber, pause } from "./record.ts";
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "插件市场测试", "改后");
 const PREFIX = process.argv[3] ?? "改后";
 const PORT = 9646;
-const REGISTRY = process.env.LYRA_PROBE_REGISTRY;
-const PREPARED = process.env.LYRA_PROBE_HOME;
+const REGISTRY = process.env.PLUME_PROBE_REGISTRY;
+const PREPARED = process.env.PLUME_PROBE_HOME;
 
 const app = await startApp({
 	port: PORT,

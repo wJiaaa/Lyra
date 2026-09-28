@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="assets/lyra.png" alt="Lyra" width="200">
+  <img src="assets/lyra.png" alt="Plume" width="200">
 </p>
 
 <p align="center">
-  <a href="https://github.com/kittors/Lyra/actions/workflows/ci.yml"><img src="https://github.com/kittors/Lyra/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/wJiaaa/Plume/actions/workflows/ci.yml"><img src="https://github.com/wJiaaa/Plume/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href=".nvmrc"><img src="https://img.shields.io/badge/node-%E2%89%A524-brightgreen.svg" alt="Node ≥ 24"></a>
 </p>
@@ -19,25 +19,25 @@
 
 ## 下载
 
-装好的包在 [Releases](https://github.com/kittors/Lyra/releases/latest)，每个版本都带全部系统和
+装好的包在 [Releases](https://github.com/wJiaaa/Plume/releases/latest)，每个版本都带全部系统和
 架构。挑你这台机器的那一个：
 
 | 系统 | 架构 | 下载 |
 | --- | --- | --- |
-| macOS | Apple 芯片 | `Lyra-<版本>-arm64.dmg` |
-| macOS | Intel | `Lyra-<版本>-x64.dmg` |
-| Windows | x64 | `Lyra-<版本>-x64.exe` |
-| Windows | Arm（骁龙笔记本、Surface Pro X） | `Lyra-<版本>-arm64.exe` |
-| Linux | x64 | `Lyra-<版本>-x86_64.AppImage` 或 `Lyra-<版本>-amd64.deb` |
-| Linux | arm64（树莓派、Ampere、Mac 上的 Linux 虚拟机） | `Lyra-<版本>-arm64.AppImage` 或 `Lyra-<版本>-arm64.deb` |
+| macOS | Apple 芯片 | `Plume-<版本>-arm64.dmg` |
+| macOS | Intel | `Plume-<版本>-x64.dmg` |
+| Windows | x64 | `Plume-<版本>-x64.exe` |
+| Windows | Arm（骁龙笔记本、Surface Pro X） | `Plume-<版本>-arm64.exe` |
+| Linux | x64 | `Plume-<版本>-x86_64.AppImage` 或 `Plume-<版本>-amd64.deb` |
+| Linux | arm64（树莓派、Ampere、Mac 上的 Linux 虚拟机） | `Plume-<版本>-arm64.AppImage` 或 `Plume-<版本>-arm64.deb` |
 
 不知道自己是哪个架构：macOS 看「关于本机」的芯片一行，Windows 看「设置 → 系统 → 系统信息」的
 「系统类型」，Linux 跑 `uname -m`（`x86_64` 取 x64，`aarch64` 取 arm64）。
 
 AppImage 和 deb 二选一：AppImage 不用装，`chmod +x` 之后直接运行，哪个发行版都行；deb 是
-Debian、Ubuntu 这一系的包管理器格式，`sudo apt install ./Lyra-<版本>-amd64.deb`。
+Debian、Ubuntu 这一系的包管理器格式，`sudo apt install ./Plume-<版本>-amd64.deb`。
 
-剩下四个文件一般用不上：两个 `.zip` 是同一个 macOS 应用的压缩包，`Lyra-<版本>.exe` 是 x64 与
+剩下四个文件一般用不上：两个 `.zip` 是同一个 macOS 应用的压缩包，`Plume-<版本>.exe` 是 x64 与
 arm64 合一的 Windows 安装包（两百多 MB，上面那两个各一百多 MB，能确定架构就别下它），
 `SHA256SUMS` 是全部文件的校验值。
 
@@ -54,7 +54,7 @@ arm64 合一的 Windows 安装包（两百多 MB，上面那两个各一百多 M
 - 或者去掉隔离标记：
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/Lyra.app
+xattr -dr com.apple.quarantine /Applications/Plume.app
 ```
 
 提示里如果写的是「已损坏」而不是「无法验证开发者」，那是 0.6.0 及更早的包。那些包根本没签名，
@@ -69,14 +69,14 @@ Gatekeeper 认定 bundle 被破坏，除了废纸篓没有别的选项。升级�
 把这个应用的授权记录清掉，让它重新问一次：
 
 ```bash
-tccutil reset ScreenCapture dev.lyra.app
+tccutil reset ScreenCapture dev.plume.app
 ```
 
-跑完要**完全退出** Lyra（⌘Q，关窗口不算）再打开，下一次截图才会弹出新的授权请求。如果还是不弹，
-到「系统设置 → 隐私与安全性 → 屏幕录制」里把 Lyra 的开关关掉再打开，必要时用列表下方的减号
+跑完要**完全退出** Plume（⌘Q，关窗口不算）再打开，下一次截图才会弹出新的授权请求。如果还是不弹，
+到「系统设置 → 隐私与安全性 → 屏幕录制」里把 Plume 的开关关掉再打开，必要时用列表下方的减号
 先移除条目。
 
-`dev.lyra.app` 是 Lyra 的 bundle id，别省。不带它的 `tccutil reset ScreenCapture` 会清掉
+`dev.plume.app` 是 Plume 的 bundle id，别省。不带它的 `tccutil reset ScreenCapture` 会清掉
 **所有**应用的屏幕录制授权，你的会议软件和录屏工具都得重新授权一遍。
 
 ### Windows 首次打开
@@ -84,19 +84,19 @@ tccutil reset ScreenCapture dev.lyra.app
 Windows 安装包同样没有代码签名。第一次运行会撞上 SmartScreen 的蓝色弹窗「Windows 已保护你的电脑」，
 点「更多信息」再点「仍要运行」即可。
 
-如果安装向导走完了，勾了「运行 Lyra」却弹出「缺少快捷方式 / Windows 正在查找 Lyra.exe」，
-或者开始菜单、桌面图标点下去是同一个报错，那说明 `Lyra.exe` 没能留在安装目录里。最常见的原因是
+如果安装向导走完了，勾了「运行 Plume」却弹出「缺少快捷方式 / Windows 正在查找 Plume.exe」，
+或者开始菜单、桌面图标点下去是同一个报错，那说明 `Plume.exe` 没能留在安装目录里。最常见的原因是
 未签名的大体积程序被 Windows 安全中心判成可疑文件隔离掉了：到「Windows 安全中心 → 病毒和威胁防护
 → 保护历史记录」查有没有对应条目，有就选「允许」，然后重新运行一次安装包。
 
 
-顺带说明一件容易认错的事：装进去的主程序固定叫 `Lyra.exe`，两百多 MB。安装目录里如果还有一个
-`Lyra-<版本>-<架构>.exe`，一百多 MB，那是安装包**自己**，不是主程序。通常是安装时把目标目录选成了
-安装包所在的文件夹。而只有几百 KB 的 `Uninstall Lyra.exe` 是卸载程序。这两个都不是用来启动应用的。
+顺带说明一件容易认错的事：装进去的主程序固定叫 `Plume.exe`，两百多 MB。安装目录里如果还有一个
+`Plume-<版本>-<架构>.exe`，一百多 MB，那是安装包**自己**，不是主程序。通常是安装时把目标目录选成了
+安装包所在的文件夹。而只有几百 KB 的 `Uninstall Plume.exe` 是卸载程序。这两个都不是用来启动应用的。
 
 ## 先配一个模型
 
-Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置 → 模型设置」添加供应商：填 Base URL、
+Plume 不自带模型，所以第一次打开是发不出消息的。到「设置 → 模型设置」添加供应商：填 Base URL、
 选 API 格式（**Responses**、**Anthropic Messages** 或 **Chat Completions**，按供应商文档选）、填 API Key，
 再添加至少一个模型。
 
@@ -110,7 +110,7 @@ Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置
   - 网络与预览：`web_fetch` `web_search` `preview`
 - **Skill**：`SKILL.md` + YAML frontmatter。只有名称和描述进系统提示，正文在模型调用 `skill` 工具时才注入。装几十个技能也不烧上下文。
 - **MCP**：stdio / Streamable HTTP / SSE 三种传输，工具以 `mcp__<服务>__<工具>` 命名注入，不会和内置工具撞名。
-- **子智能体**：`task` 工具把工作交给拥有独立上下文窗口的子 agent，只把结论带回主对话。内置七个：`general` `explore` `review` `verify` `plan` `simple` `reason`，可用 `.lyra/agents/*.md` 扩展。
+- **子智能体**：`task` 工具把工作交给拥有独立上下文窗口的子 agent，只把结论带回主对话。内置七个：`general` `explore` `review` `verify` `plan` `simple` `reason`，可用 `.plume/agents/*.md` 扩展。
 - **侧边聊天**：在当前会话旁边再开一个临时对话。它读得到主会话聊了什么，但一个字也不写进去；需要动手的事交给主会话排队执行。
 - **右侧面板**：文件、文件内容、终端、Git、侧边聊天、子 Agent、任务、轨迹、浏览器九个标签页，可同时开着来回拖。文件带语法高亮的只读预览，终端是真的 pty。
 - **多会话分屏**：单窗口最多同时查看并排的四个会话。每个会话拥有独立的工具 Dock（会话至少 420 px、工具至少 300 px），空间不足时紧凑绘制，不再意外强行脱离出独立孤儿窗口。
@@ -141,7 +141,7 @@ pnpm dev
 
 ### 不开窗口跑（评测用）
 
-给一个任务，跑完输出回答，中途不问人。跑的是同一个运行时，读的是同一份 `~/.lyra`：模型、密钥、权限、
+给一个任务，跑完输出回答，中途不问人。跑的是同一个运行时，读的是同一份 `~/.plume`：模型、密钥、权限、
 MCP 和 skill 都在桌面端配一次就行。
 
 ```bash
@@ -160,22 +160,22 @@ pnpm cli -C ~/code/my-project --json "/review src/a.ts"   # 命令和 skill 的�
 
 | 路径 | 内容 |
 | --- | --- |
-| `~/.lyra/settings.json` | 供应商、模型、MCP、权限模式 |
-| `~/.lyra/credentials.json` | API Key，加密存放；密钥本体在 `~/.lyra/vault.key` |
-| `~/.lyra/sessions/` | 会话日志（JSONL，一行一条记录） |
-| `~/.lyra/skills/`、`plugins/`、`commands/` | 用户级的技能、插件、斜杠命令 |
-| `~/.lyra/memory.json` | `learn` 工具记下来的东西 |
-| `<项目>/.lyra/skills/`、`agents/`、`commands/`、`plugins/` | 项目级的同一套，优先级高于用户级 |
-| `<项目>/LYRA.md`、`AGENTS.md`、`CLAUDE.md` | 项目指令，按此优先级取第一个存在的 |
+| `~/.plume/settings.json` | 供应商、模型、MCP、权限模式 |
+| `~/.plume/credentials.json` | API Key，加密存放；密钥本体在 `~/.plume/vault.key` |
+| `~/.plume/sessions/` | 会话日志（JSONL，一行一条记录） |
+| `~/.plume/skills/`、`plugins/`、`commands/` | 用户级的技能、插件、斜杠命令 |
+| `~/.plume/memory.json` | `learn` 工具记下来的东西 |
+| `<项目>/.plume/skills/`、`agents/`、`commands/`、`plugins/` | 项目级的同一套，优先级高于用户级 |
+| `<项目>/PLUME.md`、`AGENTS.md`、`CLAUDE.md` | 项目指令，按此优先级取第一个存在的 |
 
-换机器只需要拷 `~/.lyra`。拷之前想清楚 `credentials.json` 和 `vault.key` 要不要一起走。两个都在
+换机器只需要拷 `~/.plume`。拷之前想清楚 `credentials.json` 和 `vault.key` 要不要一起走。两个都在
 才解得开，只拷一个等于把 Key 丢了。
 
 ## 扩展与机制
 
 插件、技能、MCP、子智能体的目录结构与文件格式，以及浏览器、索引库、钩子的工作方式：
 
-- [扩展 Lyra](docs/guide/extending.md)：插件目录结构、`SKILL.md` 格式、MCP 服务、子智能体定义
+- [扩展 Plume](docs/guide/extending.md)：插件目录结构、`SKILL.md` 格式、MCP 服务、子智能体定义
 - [内置能力](docs/guide/capabilities.md)：浏览器与其安全边界、索引库、钩子
 - [架构](ARCHITECTURE.md)：包与包的关系、边界规则、决策记录
 

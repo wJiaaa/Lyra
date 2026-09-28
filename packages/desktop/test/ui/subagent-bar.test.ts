@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
 
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { SubAgentBar } from "../../src/features/subagents/SubAgentBar.tsx";
 import { useSubAgents } from "../../src/store/subAgents.ts";
 import { mount } from "../helpers/mount.ts";

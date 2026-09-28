@@ -14,7 +14,7 @@ import { join } from "node:path";
 
 import { startApp } from "./app.ts";
 
-const out = process.argv[2] ?? "/tmp/lyra-plugins.png";
+const out = process.argv[2] ?? "/tmp/plume-plugins.png";
 const REGISTRY = "https://market.07230805.xyz/v1/index";
 
 async function seed(home: string): Promise<void> {
@@ -47,9 +47,9 @@ async function seed(home: string): Promise<void> {
 			pluginRegistries: [REGISTRY],
 			skillRegistries: [`${REGISTRY}?kind=skill`],
 			alwaysAllow: [],
-			// `LYRA_SHOT_THEME=light` — the marks tint themselves from a declared brand colour, and a
+			// `PLUME_SHOT_THEME=light` — the marks tint themselves from a declared brand colour, and a
 			// mix that reads well on #171717 is not automatically one that reads on white.
-			appearance: { theme: process.env.LYRA_SHOT_THEME === "light" ? "light" : "dark" },
+			appearance: { theme: process.env.PLUME_SHOT_THEME === "light" ? "light" : "dark" },
 		}),
 	);
 }

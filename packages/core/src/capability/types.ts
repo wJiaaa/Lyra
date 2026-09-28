@@ -37,7 +37,7 @@ export type ProviderId = string;
 
 /** Where an item came from. Carried on every item so that "why is this here" has an answer. */
 /**
- * 一份项目指令文件：`AGENTS.md`、`CLAUDE.md`、`LYRA.md`。
+ * 一份项目指令文件：`AGENTS.md`、`CLAUDE.md`、`PLUME.md`。
  *
  * `name` 是相对仓库根的路径，`depth` 是离 cwd 几层。注册表按 `scope:depth` 去重——同一层
  * 只留一份、跨层都留，见 `kinds.ts` 里那段关于 monorepo 根 AGENTS.md 静默失效的注释。
@@ -105,7 +105,7 @@ export interface Capability<T = unknown> {
  */
 export interface DiscoveryContext {
 	cwd: string | null;
-	/** Lyra's own configuration root (`lyraHome()`). */
+	/** Plume's own configuration root (`plumeHome()`). */
 	home: string;
 	/** The operating system's home directory, where other tools keep their user-level config. */
 	userHome: string;
@@ -194,7 +194,7 @@ export interface CapabilityResult<T = unknown> {
 	/** Directories worth watching for changes. */
 	watched: string[];
 	elapsedMs: number;
-	/** Per-provider timings, for `LYRA_TRACE=capability`. */
+	/** Per-provider timings, for `PLUME_TRACE=capability`. */
 	timings: { provider: ProviderId; ms: number; count: number }[];
 }
 

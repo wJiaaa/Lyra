@@ -1,7 +1,7 @@
 /**
  * 外观页对「默认」的复述，两处：代码外观那一节的恢复默认，和整页的恢复默认。
  *
- * 复述而不是从 `@lyra/core` 导入，这是构建上的约束，不是偏好：从那个包里导入一个*值*会把整包
+ * 复述而不是从 `@plume/core` 导入，这是构建上的约束，不是偏好：从那个包里导入一个*值*会把整包
  * ——连同原生模块——拖进渲染进程的 bundle，构建直接失败。（类型是免费的，值要钱。）任务条的
  * `isResumable` 栽在同一条上。
  *
@@ -13,12 +13,12 @@
  * 所以它从组件里搬到了这里：组件导不进测试（会连整个 React 一起拖进来），模块可以。
  */
 
-import type { AppearanceSettings as Appearance } from "@lyra/core";
+import type { AppearanceSettings as Appearance } from "@plume/core";
 
 /** 「代码外观」那一节按下恢复默认，放回来的东西。 */
 export const CODE_DEFAULTS = {
-	codeLightTheme: "lyra-light",
-	codeDarkTheme: "lyra-dark",
+	codeLightTheme: "plume-light",
+	codeDarkTheme: "plume-dark",
 	codeFont:
 		'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace',
 	codeFontSize: 12,

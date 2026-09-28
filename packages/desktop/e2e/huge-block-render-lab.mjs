@@ -19,7 +19,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 
-const SOURCE = "/Users/kittors/.lyra/sessions/638c1d5fcb97d249/2723f0cb-add6-415f-aa94-dff71d02aa7b.jsonl";
+const SOURCE = "/Users/kittors/.plume/sessions/638c1d5fcb97d249/2723f0cb-add6-415f-aa94-dff71d02aa7b.jsonl";
 
 /** 取出这个会话里最大的那个 text block——也就是真正交给 Markdown 的那段。 */
 function hugestTextBlock(file) {

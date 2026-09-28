@@ -26,7 +26,7 @@ const png = (name: string) => readFileSync(join(trayDir, name));
 let repo: string;
 
 before(() => {
-	repo = mkdtempSync(join(tmpdir(), "lyra-bindiff-"));
+	repo = mkdtempSync(join(tmpdir(), "plume-bindiff-"));
 	const git = (...args: string[]) => execFileSync("git", args, { cwd: repo, stdio: "pipe" });
 	git("init", "-q");
 	git("config", "user.email", "test@example.com");

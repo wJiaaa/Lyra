@@ -31,14 +31,14 @@ after(async () => {
 });
 
 const sources = (): CommandSource[] => [
-	{ dir: join(root, "project/.lyra/commands"), scope: "workspace", origin: "lyra" },
-	{ dir: join(root, "home/commands"), scope: "user", origin: "lyra" },
+	{ dir: join(root, "project/.plume/commands"), scope: "workspace", origin: "plume" },
+	{ dir: join(root, "home/commands"), scope: "user", origin: "plume" },
 	{ dir: join(root, "project/.claude/commands"), scope: "workspace", origin: "claude" },
 ];
 
 test("a markdown file becomes a command, described by its frontmatter", async () => {
 	await put(
-		"project/.lyra/commands/review.md",
+		"project/.plume/commands/review.md",
 		"---\ndescription: 审查改动\nargument-hint: <文件>\n---\n\n请审查 $ARGUMENTS。",
 	);
 
@@ -70,7 +70,7 @@ test("argument-hint may also be spelled argumentHint, and the hyphenated one win
 });
 
 test("a nested directory namespaces the command", async () => {
-	await put("project/.lyra/commands/git/commit.md", "写一条提交信息");
+	await put("project/.plume/commands/git/commit.md", "写一条提交信息");
 
 	const { commands } = await loadCommands(sources());
 	assert.ok(
@@ -115,7 +115,7 @@ test("the shadowed command is reported, and the report names the file that won",
 	const shadowed = diagnostics.find((d) => d.path.includes(join(".claude", "commands", "review.md")));
 	assert.ok(shadowed, `the losing file is named (${diagnostics.map((d) => d.path).join("; ")})`);
 	assert.match(shadowed.message, /review/, "the message says which command");
-	assert.match(shadowed.message, /\.lyra/, "and points at the file that took it");
+	assert.match(shadowed.message, /\.plume/, "and points at the file that took it");
 });
 
 test("frontmatter that opens and never closes is reported instead of becoming prose", async () => {
@@ -148,7 +148,7 @@ test("a name that is not kebab-case is reported rather than silently skipped", a
 
 test("a directory that does not exist is not an error", async () => {
 	const { commands, diagnostics } = await loadCommands([
-		{ dir: join(root, "nowhere"), scope: "user", origin: "lyra" },
+		{ dir: join(root, "nowhere"), scope: "user", origin: "plume" },
 	]);
 	assert.deepEqual(commands, []);
 	assert.deepEqual(diagnostics, []);
@@ -173,12 +173,12 @@ test("Claude Code's user commands are looked for under the same home directory a
 		else process.env.CLAUDE_CONFIG_DIR = saved;
 	});
 
-	const claude = commandSources(null, join(root, "lyra")).find((source) => source.origin === "claude" && source.scope === "user");
+	const claude = commandSources(null, join(root, "plume")).find((source) => source.origin === "claude" && source.scope === "user");
 	assert.equal(claude?.dir, join(root, "the-real-home", ".claude", "commands"));
 
 	// An explicit configuration directory still wins, as it does for Claude Code.
 	process.env.CLAUDE_CONFIG_DIR = join(root, "configured");
-	const configured = commandSources(null, join(root, "lyra")).find((source) => source.origin === "claude" && source.scope === "user");
+	const configured = commandSources(null, join(root, "plume")).find((source) => source.origin === "claude" && source.scope === "user");
 	assert.equal(configured?.dir, join(root, "configured", "commands"));
 });
 
@@ -205,7 +205,7 @@ const command = (content: string): SlashCommand => ({
 	content,
 	path: "/x.md",
 	scope: "user",
-	origin: "lyra",
+	origin: "plume",
 });
 
 test("placeholders take the arguments, one at a time or all at once", () => {

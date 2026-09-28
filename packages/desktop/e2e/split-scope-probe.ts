@@ -537,7 +537,7 @@ async function sceneRunning(): Promise<void> {
 		await dragIntoSplit(B.id, 2);
 		await pause(3000);
 		const split = await js<string>(TOOL_STATE(A.id));
-		const alive = await js<boolean>(`window.lyra.sessions.running(${JSON.stringify(A.id)})`);
+		const alive = await js<boolean>(`window.plume.sessions.running(${JSON.stringify(A.id)})`);
 		check(scene, "分屏后：主进程确认甲的命令还在跑", alive, { running: alive });
 		check(scene, "分屏后：甲屏的命令仍画成在跑（焦点在乙）", /spin=[1-9]/.test(split) && split.includes("cross=0"), split);
 		await shoot("08", "分屏后_焦点在乙_甲的命令", [`[data-ly-split-pane="${A.id}"] [data-ly-run]`]);

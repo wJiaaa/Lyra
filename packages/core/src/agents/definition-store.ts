@@ -21,14 +21,14 @@ export class AgentDefinitionStore {
 	private directory(scope: "user" | "project", cwd: string | null): string {
 		if (scope !== "user" && scope !== "project") throw new Error("智能体范围无效");
 		if (scope === "project" && !cwd) throw new Error("请先选择项目");
-		return scope === "user" ? join(this.home, "agents") : join(cwd ?? "", ".lyra", "agents");
+		return scope === "user" ? join(this.home, "agents") : join(cwd ?? "", ".plume", "agents");
 	}
 	private async guard(path: string, scope: "user" | "project", cwd: string | null): Promise<void> {
 		const root = resolve(scope === "user" ? this.home : cwd ?? "");
 		const directory = this.directory(scope, cwd);
 		if (!inside(directory, path) || dirname(path) !== directory) throw new Error("智能体路径越界");
 		// Check every existing ancestor before mkdir, so a symlink cannot create files outside the root.
-		for (const item of scope === "user" ? [root, directory, path] : [root, join(root, ".lyra"), directory, path]) {
+		for (const item of scope === "user" ? [root, directory, path] : [root, join(root, ".plume"), directory, path]) {
 			try { if ((await lstat(item)).isSymbolicLink()) throw new Error("智能体目录不允许符号链接"); }
 			catch (error) { if (!missing(error)) throw error; }
 		}

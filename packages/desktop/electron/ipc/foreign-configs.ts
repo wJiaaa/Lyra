@@ -3,7 +3,7 @@
  */
 
 import { ipcMain } from "electron";
-import { FOREIGN_CONFIGS_NOTICE, foreignConfigsIn, markNoticed, noticed } from "@lyra/core";
+import { FOREIGN_CONFIGS_NOTICE, foreignConfigsIn, markNoticed, noticed } from "@plume/core";
 
 export function registerForeignConfigsIpc(): void {
 	ipcMain.handle("workspace:foreignConfigs", async (_event, cwd: string) => {

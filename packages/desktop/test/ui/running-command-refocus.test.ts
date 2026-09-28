@@ -11,14 +11,14 @@
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import type { AssistantMessage, Message, SessionMeta, ToolResult } from "@lyra/core";
+import type { AssistantMessage, Message, SessionMeta, ToolResult } from "@plume/core";
 import { useApp } from "../../src/store/index.ts";
 import { applyAgentEvent } from "../../src/store/apply-event.ts";
 import { flushCoalesced } from "../../src/store/coalesce.ts";
 import { warmSession } from "../../src/features/split/warm.ts";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 
-type Snapshot = Awaited<ReturnType<LyraApi["sessions"]["transcript"]>>;
+type Snapshot = Awaited<ReturnType<PlumeApi["sessions"]["transcript"]>>;
 
 const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 
@@ -80,7 +80,7 @@ beforeEach(() => {
 		view: "chat",
 		sessions: [meta("a"), meta("b")],
 	});
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			sessions: {
@@ -119,7 +119,7 @@ test("a command that ended while nobody was looking still reads as finished", as
 	// The other half of the rule: without the main process saying the turn is running, a call with no
 	// result did not survive — a restart mid-command must not leave a spinner counting forever.
 	useApp.setState({ activeSessionId: "b", meta: meta("b"), messages: [ask, answered], toolRuns: {}, running: false, sessionCache: {} });
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			sessions: { transcript: async (_projectId: string, id: string) => ({ ...busy(id), running: false }), capabilities: async () => null },

@@ -21,7 +21,7 @@ import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { join } from "node:path";
 import { errorResult } from "../agent/tool-run.ts";
-import { lyraHome, projectIdFor } from "../session/store.ts";
+import { plumeHome, projectIdFor } from "../session/store.ts";
 import type { Message, Tool, ToolResult } from "../types.ts";
 
 /** How many matching messages to answer with when the caller does not say. */
@@ -79,7 +79,7 @@ export const recallTool: Tool<RecallArgs> = {
 
 		const limit = Math.min(MAX_LIMIT, Math.max(1, Math.floor(args.limit ?? DEFAULT_LIMIT)));
 		const offset = Math.max(0, Math.floor(args.offset ?? 0));
-		const path = join(lyraHome(), "sessions", projectIdFor(ctx.cwd), `${ctx.sessionId}.jsonl`);
+		const path = join(plumeHome(), "sessions", projectIdFor(ctx.cwd), `${ctx.sessionId}.jsonl`);
 
 		let hits: { index: number; message: Message }[];
 		try {

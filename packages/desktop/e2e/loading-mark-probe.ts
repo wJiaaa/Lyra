@@ -30,7 +30,7 @@ import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra加载记号测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume加载记号测试");
 const PORT = 9468;
 const MODEL_PORT = 9588;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);

@@ -2,7 +2,7 @@
 /**
  * 对话分屏与新窗口：对照 Codex 录像的拖放、最多四屏、关闭归并、新窗口。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/session-split-demo.ts`
  */
 
@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { call, evaluateRenderer, startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Lyra分屏新窗口测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume分屏新窗口测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const PORT = 9791;
 const IDS = ["split-a", "split-b", "split-c", "split-d", "split-e"] as const;

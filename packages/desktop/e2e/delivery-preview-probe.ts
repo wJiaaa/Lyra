@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
-const OUT = process.env.LYRA_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "delivery-preview");
+const OUT = process.env.PLUME_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "delivery-preview");
 
 /** 够高（出竖向滚动条）也够宽（出横向滚动条）的一份改动。 */
 function payload(index: number): string {

@@ -14,8 +14,8 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
-const OUT = process.argv[2] ?? join(homedir(), "Downloads", "lyra-flow-demo.mp4");
+const REAL_HOME = join(homedir(), ".plume");
+const OUT = process.argv[2] ?? join(homedir(), "Downloads", "plume-flow-demo.mp4");
 const PORT = 9420;
 
 /** 一份带暗号的文档，用来演示附件占位符：气泡里只留胶囊，模型却读得到正文。 */
@@ -26,7 +26,7 @@ const DOC = [
 	"",
 	"## 暗号",
 	"",
-	"LYRA-DEMO-2026",
+	"PLUME-DEMO-2026",
 	"",
 ].join("\n");
 
@@ -40,7 +40,7 @@ async function seed(home: string): Promise<void> {
 	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	for (const file of ["credentials.json", "vault.key"]) {
 		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
-			throw new Error(`没找到 ~/.lyra/${file}——真实模型调用需要它`);
+			throw new Error(`没找到 ~/.plume/${file}——真实模型调用需要它`);
 		});
 	}
 	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));

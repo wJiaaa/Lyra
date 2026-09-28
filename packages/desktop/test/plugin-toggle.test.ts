@@ -12,14 +12,14 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Plugin, Settings } from "@lyra/core";
+import type { Plugin, Settings } from "@plume/core";
 
 import { settingsAfterToggle } from "../src/features/plugins/toggle.ts";
 
 function plugin(id: string, name = id): Plugin {
 	return {
 		id,
-		dir: `/home/me/.lyra/plugins/${id}`,
+		dir: `/home/me/.plume/plugins/${id}`,
 		manifest: { name },
 		source: "user",
 		skills: [],

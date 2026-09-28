@@ -17,15 +17,15 @@ import { readdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	diagnoseRequest,
-	lyraHome,
+	plumeHome,
 	markCacheBoundary,
 	newCacheDiagnosisState,
 	type AssistantMessage,
 	type CacheCause,
 	type CacheDiagnosisState,
 	type ProviderConfig,
-} from "@lyra/core";
-import { freshTokens } from "@lyra/core/tokens";
+} from "@plume/core";
+import { freshTokens } from "@plume/core/tokens";
 import { readUsageCache, USAGE_CACHE_VERSION, type UsageFileEntry, type UsageFiles } from "./usage-cache.ts";
 import { priceUsage, usagePricingKey, type TokenUsage } from "./usage-pricing.ts";
 import type { UsageBucket, UsageCacheMiss, UsageDay, UsageScan } from "./usage-types.ts";
@@ -248,9 +248,9 @@ async function readLog(path: string, entry: UsageFileEntry, size: number, provid
 }
 
 /**
- * Every session log under `~/.lyra/sessions`, as `projectId/session.jsonl`.
+ * Every session log under `~/.plume/sessions`, as `projectId/session.jsonl`.
  *
- * **`~/.lyra/sidechats` 不在这里，而且不该加进来。** 那个目录看着像一整块没人统计的花销——本机
+ * **`~/.plume/sidechats` 不在这里，而且不该加进来。** 那个目录看着像一整块没人统计的花销——本机
  * 上是 241 条助手消息、3.7M 输入 token——但侧边聊天每说一句都会往它所属的主对话日志里补一条
  * `type: "usage"` 的记录（`source: "side-chat"`，上面 `readLog` 认得它）。两边逐条对过：13 个
  * 会话里条数和 token 一个不差。把快照也扫进来就是把这 222 条算两遍。
@@ -287,7 +287,7 @@ function addCacheMiss(into: UsageCacheMiss | undefined, add: UsageCacheMiss): Us
  * with what was recorded is re-read from scratch — including one that shrank, which means it was
  * rewritten rather than appended to and nothing about the old numbers can be trusted.
  */
-export async function scanUsage(home = lyraHome(), providers: ProviderConfig[] = []): Promise<UsageScan> {
+export async function scanUsage(home = plumeHome(), providers: ProviderConfig[] = []): Promise<UsageScan> {
 	const started = Date.now();
 	const root = join(home, "sessions");
 	const cachePath = join(home, "usage-cache.json");

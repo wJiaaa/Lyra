@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { QueuedTask } from "@lyra/core";
+import type { QueuedTask } from "@plume/core";
 import { TaskQueue } from "../../core/src/runtime/task-queue.ts";
 
 /*

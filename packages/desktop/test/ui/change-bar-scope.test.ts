@@ -15,7 +15,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import type { WorkspaceInfo } from "../../electron/ipc-types.ts";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { DockScope, SessionScope } from "../../src/app/session-scope.tsx";
@@ -43,7 +43,7 @@ let view: Mounted | undefined;
 beforeEach(() => {
 	scanned = [];
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			git: {
@@ -76,7 +76,7 @@ afterEach(async () => {
 	view = undefined;
 	useApp.setState(previous, true);
 	provideScope(() => null);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 /** What sits inside one screen: its dock and its conversation, both named. */

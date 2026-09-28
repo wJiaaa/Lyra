@@ -43,15 +43,15 @@ describe("model catalogue sync", () => {
 	let previousHome: string | undefined;
 
 	beforeEach(async () => {
-		home = await mkdtemp(join(tmpdir(), "lyra-catalog-"));
-		previousHome = process.env.LYRA_HOME;
-		process.env.LYRA_HOME = home;
+		home = await mkdtemp(join(tmpdir(), "plume-catalog-"));
+		previousHome = process.env.PLUME_HOME;
+		process.env.PLUME_HOME = home;
 		resetModelCatalog();
 	});
 
 	afterEach(async () => {
-		if (previousHome === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previousHome;
+		if (previousHome === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previousHome;
 		resetModelCatalog();
 		await rm(home, { recursive: true, force: true });
 	});

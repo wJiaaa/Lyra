@@ -26,17 +26,17 @@ const BOM = "\uFEFF";
 const CRLF = "alpha\r\nbravo\r\ncharlie\r\n";
 
 async function fixture(t: TestContext, content: string): Promise<{ file: string; ctx: ToolContext }> {
-	const home = await mkdtemp(join(tmpdir(), "lyra-crlf-"));
+	const home = await mkdtemp(join(tmpdir(), "plume-crlf-"));
 	const cwd = join(home, "project");
 	await mkdir(cwd);
 	const file = join(cwd, "sample.txt");
 	await writeFile(file, content, "utf8");
 	// A scratch dir makes the tools record each change, which is what undo replays.
-	const prior = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const prior = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	t.after(async () => {
-		if (prior === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = prior;
+		if (prior === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = prior;
 		await rm(home, { recursive: true, force: true });
 	});
 	return { file, ctx: { cwd, sessionId: "crlf", state: new Map(), scratchDir: join(home, "scratch") } };

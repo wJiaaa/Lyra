@@ -1,6 +1,6 @@
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { computeDiff, formatDiff, lyraHome, readFileChange, type Message, type RecordedChange, type DiffHunk } from "@lyra/core";
+import { computeDiff, formatDiff, plumeHome, readFileChange, type Message, type RecordedChange, type DiffHunk } from "@plume/core";
 export interface DeliveryFile { path: string; added: number; removed: number; hunks: DiffHunk[]; changeIds: string[]; canUndo: boolean }
 export interface TurnDelivery { files: DeliveryFile[]; commands: { command: string; status: string; output: string }[]; serviceJobIds: string[]; warnings: string[]; reportPath: string | null }
 export function deliveryMessages(messages: Message[], timestamp: number): Message[] {
@@ -54,7 +54,7 @@ export async function collectDelivery(sessionId: string, cwd: string, messages: 
 		`## 文件差异`, ...value.files.map((file) => `~~~diff\n${formatDiff({ added: file.added, removed: file.removed, hunks: file.hunks }, file.path, Infinity)}\n~~~`),
 	].join("\n\n");
 	// Session ids are supplied by the trusted transcript, but still cannot become path segments.
-	const dir = join(lyraHome(), "scratch", encodeURIComponent(sessionId)); await mkdir(dir, { recursive: true });
+	const dir = join(plumeHome(), "scratch", encodeURIComponent(sessionId)); await mkdir(dir, { recursive: true });
 	value.reportPath = join(dir, `delivery-${timestamp}.md`); await writeFile(value.reportPath, report, "utf8");
 	return value;
 }

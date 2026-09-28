@@ -38,8 +38,8 @@ try {
 	if(!overlay) throw new Error("screenshot overlay did not warm");
 	const blocked=join(app.home,"不可写入的目录");
 	await writeFile(blocked,"this is a file");
-	await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(blocked)}}}))`);
-	// Explicit fixture: the overlay receives only a capture of this disposable Lyra window.
+	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(blocked)}}}))`);
+	// Explicit fixture: the overlay receives only a capture of this disposable Plume window.
 	const initialize = (session: number) => app.main(`(()=>{const w=process._linkedBinding('electron_browser_window').BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('#/screenshot-overlay'));const image=process._linkedBinding('electron_common_native_image').nativeImage.createFromPath(${JSON.stringify(fixture)});const pixels=image.toBitmap();for(let i=0;i<pixels.length;i+=4){const b=pixels[i];pixels[i]=pixels[i+2];pixels[i+2]=b;}w.setBounds({x:40,y:50,width:${size.width},height:${size.height}});w.setIgnoreMouseEvents(false);w.setOpacity(1);w.show();w.webContents.send('screenshot:init',{snapshot:{pixels,width:image.getSize().width,height:image.getSize().height},session:${session},bounds:{x:40,y:50,width:${size.width},height:${size.height}},scaleFactor:1,colorSpace:'srgb',windows:[],settings:{downloadLocation:${JSON.stringify(blocked)},copyToClipboard:false}});w.webContents.send('screenshot:shown');return true})()`);
 	await initialize(999);
 	await wait("Boolean(document.querySelector('[data-capture=active] canvas'))");
@@ -57,7 +57,7 @@ try {
 	const failure=await overlay.evaluate<{active:boolean;selection:unknown;text:string}>("({active:document.querySelector('[data-capture]').dataset.capture==='active',selection:document.querySelector('[data-selection]')?.getBoundingClientRect().toJSON(),text:document.querySelector('[data-screenshot-toast]')?.textContent})");
 	check("failed download keeps the exact selected region and displays the filesystem error",failure.active&&JSON.stringify(selection)===JSON.stringify(failure.selection)&&/EEXIST|ENOTDIR|EACCES|EPERM/.test(failure.text),failure);
 	const destination=join(app.home,"下载 已修改");
-	await app.evaluate(`window.lyra.settings.get().then(s=>window.lyra.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(destination)}}}))`);
+	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,screenshot:{...s.screenshot,downloadLocation:${JSON.stringify(destination)}}}))`);
 	await pressDownload();
 	await wait(`document.querySelector('[data-screenshot-toast]')?.textContent.includes(${JSON.stringify(destination)})`);
 	await hold(2000);
@@ -79,7 +79,7 @@ try {
 	check("scenario completed",false,String(error));
 } finally {
 	await app.stop();
-	const dir=join(homedir(),"Desktop","Lyra截图保存测试");
+	const dir=join(homedir(),"Desktop","Plume截图保存测试");
 	await mkdir(dir,{recursive:true});
 	const name=`${new Date().toISOString().replace(/[:.]/g,"-")}_截图保存与重试_${checks.filter(c=>c.ok).length}of${checks.length}`;
 	await writeFile(join(dir,name+".json"),JSON.stringify(checks,null,2));

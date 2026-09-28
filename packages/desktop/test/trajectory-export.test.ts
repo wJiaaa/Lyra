@@ -3,12 +3,12 @@ import { test } from "node:test";
 import { mkdtemp, realpath, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { SessionStore } from "@lyra/core";
+import { SessionStore } from "@plume/core";
 import { exportTrajectory } from "../electron/trajectory-export.ts";
 
 test("exports the full authoritative record, refuses unrelated sessions and does not trust an output path", async () => {
-	const root = await mkdtemp(join(tmpdir(), "lyra-export-"));
-	const previous = process.env.LYRA_HOME; process.env.LYRA_HOME = root;
+	const root = await mkdtemp(join(tmpdir(), "plume-export-"));
+	const previous = process.env.PLUME_HOME; process.env.PLUME_HOME = root;
 	const exported: string[] = [];
 	try {
 		const store = new SessionStore(join(root, "sessions"));
@@ -33,7 +33,7 @@ test("exports the full authoritative record, refuses unrelated sessions and does
 		await store.append(meta, { type: "message", message: { role: "toolResult", toolCallId: "bad", toolName: "bash", content: [], timestamp: 2, isError: false, details: { outputPath: secret } } });
 		await assert.rejects(exportTrajectory(store, meta.projectId, meta.id, "output", { correlationId: "bad" }), /不属于当前会话/);
 	} finally {
-		if (previous === undefined) delete process.env.LYRA_HOME; else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME; else process.env.PLUME_HOME = previous;
 		await Promise.all([...exported, root].map(path => rm(path, { recursive: true, force: true })));
 	}
 });

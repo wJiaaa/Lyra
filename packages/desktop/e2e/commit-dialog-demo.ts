@@ -16,7 +16,7 @@ import { startApp, type RunningApp } from "./app.ts";
 import { seedFromReal } from "./session-switch-perf.ts";
 import { encode, startRecording, type Frame } from "./record.ts";
 
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra提交弹窗测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume提交弹窗测试");
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 const PORT = 9741;
 
@@ -160,7 +160,7 @@ async function main(): Promise<void> {
 		await pause(1600);
 
 		const branches = await evaluate<string[]>(`(async () => {
-			const list = await window.lyra.git.branches(${JSON.stringify(process.cwd())});
+			const list = await window.plume.git.branches(${JSON.stringify(process.cwd())});
 			return list.local;
 		})()`).catch(() => [] as string[]);
 		check(

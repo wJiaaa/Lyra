@@ -2,7 +2,7 @@
 /**
  * 本地未闭环 issue 的真窗口验收：侧栏分区、会话悬停缓存、切会话过渡、空页附件高度、运行行不再带缓存%。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/open-issues-demo.ts`
  */
 import { mkdir, writeFile } from "node:fs/promises";
@@ -12,9 +12,9 @@ import { join } from "node:path";
 import { startApp, closeListeningServer, type RunningApp } from "./app.ts";
 import { startRecording, encode, type Frame } from "./record.ts";
 import { issueModel } from "./issues-fixture.ts";
-import { emptyUsage, type AssistantMessage, type Message } from "@lyra/core";
+import { emptyUsage, type AssistantMessage, type Message } from "@plume/core";
 
-const out = join(homedir(), "Desktop", "Lyra未修复issue验收");
+const out = join(homedir(), "Desktop", "Plume未修复issue验收");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];
 const check = (name: string, ok: boolean, measured: unknown) => {
@@ -33,13 +33,13 @@ const frames: Frame[] = [];
 const pause = (ms = 1000) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function seed(home: string) {
-	const lyra = join(home, "lyra-project");
+	const plume = join(home, "plume-project");
 	const shop = join(home, "shop-project");
-	await mkdir(lyra, { recursive: true });
+	await mkdir(plume, { recursive: true });
 	await mkdir(shop, { recursive: true });
-	await writeFile(join(lyra, "README.md"), "# Lyra fixture\n");
+	await writeFile(join(plume, "README.md"), "# Plume fixture\n");
 	await writeFile(join(shop, "README.md"), "# 数图可视化品类空间\n");
-	const lyraId = createHash("sha256").update(lyra).digest("hex").slice(0, 16);
+	const plumeId = createHash("sha256").update(plume).digest("hex").slice(0, 16);
 	const shopId = createHash("sha256").update(shop).digest("hex").slice(0, 16);
 	const at = Date.now() - 60_000;
 	const usage = { ...emptyUsage(), input: 20_000, cacheRead: 80_000, cacheWrite: 0, total: 100_000 };
@@ -60,13 +60,13 @@ async function seed(home: string) {
 	const meta = (id: string, title: string, projectId: string, projectName: string, cwd: string, count: number) => ({
 		id, title, projectId, projectName, cwd, createdAt: at, updatedAt: at, modelId: "issue/fixture", messageCount: count, usage, seq: count + 2,
 	});
-	const lyraMessages = thread("核对侧栏置顶和项目分区。", "Lyra 会话正文，用来对照切换。");
+	const plumeMessages = thread("核对侧栏置顶和项目分区。", "Plume 会话正文，用来对照切换。");
 	const shopMessages = thread("打开数图这个未置顶项目。", "数图会话正文，切换后应平滑出现。");
 	const pinMessages = thread("这条会话被置顶。", "置顶会话正文。");
-	const lyraMeta = meta("issue-lyra", "Lyra 会话", lyraId, "Lyra", lyra, lyraMessages.length);
+	const plumeMeta = meta("issue-plume", "Plume 会话", plumeId, "Plume", plume, plumeMessages.length);
 	const shopMeta = meta("issue-shop", "数图会话", shopId, "数图可视化品类空间", shop, shopMessages.length);
-	const pinMeta = meta("issue-pin", "置顶的这条会话", lyraId, "Lyra", lyra, pinMessages.length);
-	const writeSession = async (projectId: string, id: string, sessionMeta: typeof lyraMeta, messages: Message[]) => {
+	const pinMeta = meta("issue-pin", "置顶的这条会话", plumeId, "Plume", plume, pinMessages.length);
+	const writeSession = async (projectId: string, id: string, sessionMeta: typeof plumeMeta, messages: Message[]) => {
 		const dir = join(home, "sessions", projectId);
 		await mkdir(dir, { recursive: true });
 		await writeFile(
@@ -78,10 +78,10 @@ async function seed(home: string) {
 			].join("\n") + "\n",
 		);
 	};
-	await writeSession(lyraId, "issue-lyra", lyraMeta, lyraMessages);
+	await writeSession(plumeId, "issue-plume", plumeMeta, plumeMessages);
 	await writeSession(shopId, "issue-shop", shopMeta, shopMessages);
-	await writeSession(lyraId, "issue-pin", pinMeta, pinMessages);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([pinMeta, lyraMeta, shopMeta]));
+	await writeSession(plumeId, "issue-pin", pinMeta, pinMessages);
+	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([pinMeta, plumeMeta, shopMeta]));
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900 }));
 	await writeFile(join(home, "settings.json"), JSON.stringify({
 		uiLocale: "zh-CN",
@@ -93,7 +93,7 @@ async function seed(home: string) {
 		appearance: { reduceMotion: "off" },
 		pinnedSessionIds: ["issue-pin"],
 		projects: [
-			{ path: lyra, name: "Lyra", pinned: true, lastOpenedAt: at },
+			{ path: plume, name: "Plume", pinned: true, lastOpenedAt: at },
 			{ path: shop, name: "数图可视化品类空间", pinned: false, lastOpenedAt: at - 1000 },
 		],
 		defaultModelId: "issue/fixture",
@@ -146,7 +146,7 @@ try {
 	check("projects heading sits between pinned and the unpinned shop project", sections.shopBelow && /项目/.test(sections.projects) && /置顶/.test(sections.pinned), sections);
 	await pause();
 
-	await hover('[data-ly-row="issue-lyra"]');
+	await hover('[data-ly-row="issue-plume"]');
 	await pause(800);
 	const card = await page.evaluate<{ text: string; hasSessionCache: boolean }>(`(()=>{
 		const el=document.querySelector('[data-ly-session-card]');
@@ -158,9 +158,9 @@ try {
 	await pause();
 
 	await click('[data-ly-tab="chats"]');
-	await until(`Boolean(document.querySelector('[data-ly-row="issue-lyra"]'))`);
-	await click('[data-ly-row="issue-lyra"] > button');
-	await until(`document.querySelector('[data-ly-session]')?.getAttribute('data-ly-session')==='issue-lyra'`);
+	await until(`Boolean(document.querySelector('[data-ly-row="issue-plume"]'))`);
+	await click('[data-ly-row="issue-plume"] > button');
+	await until(`document.querySelector('[data-ly-session]')?.getAttribute('data-ly-session')==='issue-plume'`);
 	await pause();
 
 	const motion = await page.evaluate<{ min: number; max: number; faded: boolean; fromZero: boolean; shifted: boolean }>(`new Promise(resolve=>{
@@ -235,7 +235,7 @@ try {
 	const after = await page.evaluate<Box>(box);
 	check("heading did not jump more than 8px after attach", Math.abs(after[0] - before[0]) <= 8, { before, after });
 
-	await click('[data-ly-row="issue-lyra"] > button');
+	await click('[data-ly-row="issue-plume"] > button');
 	await until(`Boolean(document.querySelector('[data-ly-chat-surface="conversation"]'))`);
 	await pause();
 	model.set("hold");
@@ -260,7 +260,7 @@ try {
 	await mkdir(out, { recursive: true });
 	const pass = checks.filter((item) => item.ok).length;
 	const name = `${stamp}_未修复issue_${pass}of${checks.length}`;
-	await writeFile(join(out, `${name}.json`), JSON.stringify({ fixture: "Isolated LYRA_HOME, local SSE model, real Electron window", checks }, null, 2));
+	await writeFile(join(out, `${name}.json`), JSON.stringify({ fixture: "Isolated PLUME_HOME, local SSE model, real Electron window", checks }, null, 2));
 	if (frames.length) await encode(frames, join(out, `${name}.mp4`), 60);
 	console.log(`Evidence: ${join(out, name)} (${frames.length} captured frames)`);
 	if (checks.some((item) => !item.ok)) process.exitCode = 1;

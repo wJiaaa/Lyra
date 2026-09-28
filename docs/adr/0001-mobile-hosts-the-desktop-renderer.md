@@ -16,7 +16,7 @@
 
 手机不再自己画。它在 WebView 里加载**桌面端的那一份界面**，从配对的那台机器上取。
 
-`bridge.ts` 在页面加载前注入一段脚本，用 HTTP 加一个 WebSocket 重新实现 `window.lyra`。
+`bridge.ts` 在页面加载前注入一段脚本，用 HTTP 加一个 WebSocket 重新实现 `window.plume`。
 界面只认识这一个东西，所以它察觉不到自己跑在哪里。
 
 ## 后果

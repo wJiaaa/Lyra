@@ -12,7 +12,7 @@
  * calls itself instead of whatever its folder is called. That is the right thing to show a person
  * and the wrong thing to identify a directory by, and every symptom of confusing the two is silent:
  *
- *   - uninstalling removes `~/.lyra/mcp/<manifest name>`, which does not exist, and reports success
+ *   - uninstalling removes `~/.plume/mcp/<manifest name>`, which does not exist, and reports success
  *   - the settings rows are matched on the same wrong name, so the server stays in the list
  *   - the scan then finds a bundle with no row and writes a fresh one, on every single scan
  *
@@ -29,14 +29,14 @@ import { loadPlugins } from "../src/plugins/loader.ts";
 import { bundleRoot, uninstallEntry } from "../src/plugins/registry.ts";
 
 async function withHome(body: (home: string) => Promise<void>): Promise<void> {
-	const home = await mkdtemp(join(tmpdir(), "lyra-identity-"));
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const home = await mkdtemp(join(tmpdir(), "plume-identity-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	try {
 		await body(home);
 	} finally {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 		await rm(home, { recursive: true, force: true });
 	}
 }

@@ -9,7 +9,7 @@ import { registerPanels } from "../../src/features/dock/panels/registry.ts";
 import { kinds, lift } from "../../src/features/dock/tree.ts";
 import { flushTree, paneStorageKey, readTree } from "../../src/features/dock/persist.ts";
 import { mount, press } from "../helpers/mount.ts";
-import { DEFAULT_SETTINGS } from "@lyra/core";
+import { DEFAULT_SETTINGS } from "@plume/core";
 import { useApp } from "../../src/store/index.ts";
 
 // 拖动面板只在分栏排法下有，标签页排法没有抓手。
@@ -17,7 +17,7 @@ useApp.setState({ settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETT
 
 /** One screen, the way `SplitPane` draws it: the conversation's own title bar, then its body. */
 function screen(scope: string, children: React.ReactNode, header: () => React.ReactNode = () => null) {
-	Object.defineProperty(window, "lyra", { configurable: true, value: { platform: "darwin" } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin" } });
 	return h(LayoutProvider, { children: h(DockView, { scope, header, children }) });
 }
 
@@ -53,7 +53,7 @@ test("a lifted last panel and the conversation retain their DOM through an empty
 		unregister();
 		Reflect.deleteProperty(HTMLElement.prototype, "showPopover");
 		Reflect.deleteProperty(HTMLElement.prototype, "hidePopover");
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 
@@ -91,7 +91,7 @@ test("arrow keys preview a pane move; Escape cancels and Enter commits without r
 	} finally {
 		await view.unmount();
 		unregister();
-		Reflect.deleteProperty(window, "lyra");
+		Reflect.deleteProperty(window, "plume");
 	}
 });
 

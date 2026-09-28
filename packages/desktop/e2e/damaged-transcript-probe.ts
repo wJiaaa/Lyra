@@ -61,7 +61,7 @@ async function seed(home: string): Promise<void> {
 	];
 	await writeFile(join(dir, `${SESSION}.jsonl`), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
 
-	const real = JSON.parse(await readFile(join(homedir(), ".lyra", "settings.json"), "utf8"));
+	const real = JSON.parse(await readFile(join(homedir(), ".plume", "settings.json"), "utf8"));
 	await writeFile(
 		join(home, "settings.json"),
 		JSON.stringify({
@@ -126,7 +126,7 @@ async function main() {
 
 		// 四、控制台留下了形状，下次报上来的不再只有一句报错。
 		const logged = await app.evaluate<string>(
-			`(() => window.__lyraDamagedLog || "")()`,
+			`(() => window.__plumeDamagedLog || "")()`,
 		).catch(() => "");
 		if (logged) console.log(`     控制台诊断：${logged.slice(0, 160)}`);
 	} finally {

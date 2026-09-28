@@ -11,7 +11,7 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import type { ModelConfig, ProviderConfig, Settings } from "@lyra/core";
+import type { ModelConfig, ProviderConfig, Settings } from "@plume/core";
 
 export interface ModelGroup {
 	provider: ProviderConfig;

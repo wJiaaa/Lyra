@@ -73,7 +73,7 @@ export class TsServerBackend implements CodeIntelBackend {
 
 		this.root = root;
 		/*
-		 * `ELECTRON_RUN_AS_NODE`, because in the app `process.execPath` is Lyra, not Node.
+		 * `ELECTRON_RUN_AS_NODE`, because in the app `process.execPath` is Plume, not Node.
 		 *
 		 * Without it every code-intelligence question started a second copy of the app with
 		 * `tsserver.js` for an argument: the single-instance lock sent it away, the server never

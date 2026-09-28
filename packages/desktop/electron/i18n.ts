@@ -1,10 +1,10 @@
-import type { UiLocale } from "@lyra/core";
+import type { UiLocale } from "@plume/core";
 
 export type NativeLocale = Exclude<UiLocale, "system">;
 
 const zhCN = {
-	"tray.show": "打开 Lyra",
-	"tray.hide": "隐藏 Lyra",
+	"tray.show": "打开 Plume",
+	"tray.hide": "隐藏 Plume",
 	"tray.newChat": "新对话",
 	"tray.recent": "最近会话",
 	"tray.noChats": "还没有会话",
@@ -12,12 +12,12 @@ const zhCN = {
 	"tray.scheduled": "定时任务",
 	"tray.settings": "设置…",
 	"tray.launchAtLogin": "开机时启动",
-	"tray.quit": "退出 Lyra",
+	"tray.quit": "退出 Plume",
 	"dialog.projectDirectory": "选择项目目录",
 	"dialog.screenshotDirectory": "选择截图保存位置",
 	"shortcut.taken": "截图全局快捷键 {shortcut} 没能注册，可能已被其他应用占用（比如微信的截图键）。可以在 设置 → 屏幕截图 里换一个。",
 	"shortcut.invalid": "截图全局快捷键 {shortcut} 无法识别，没有注册。可以在 设置 → 屏幕截图 里重新录一个。",
-	"terminal.unavailable": "终端无法启动：原生组件 node-pty 没能加载。Lyra 的其他功能不受影响。",
+	"terminal.unavailable": "终端无法启动：原生组件 node-pty 没能加载。Plume 的其他功能不受影响。",
 	"terminal.tab": "终端 {n}",
 	// System notifications. `detail` joins a status line to what the agent asked, so each language
 	// brings its own separator and quote marks instead of inheriting 「」 and ：.
@@ -98,10 +98,10 @@ type NativeMessageVariables = Readonly<Record<string, string | number>>;
 export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 	"zh-CN": zhCN,
 	en: {
-		"tray.show": "Open Lyra", "tray.hide": "Hide Lyra", "tray.newChat": "New chat", "tray.recent": "Recent chats", "tray.noChats": "No chats yet", "tray.pullRequests": "Pull requests", "tray.scheduled": "Scheduled", "tray.settings": "Settings…", "tray.launchAtLogin": "Launch at login", "tray.quit": "Quit Lyra", "dialog.projectDirectory": "Choose project folder", "dialog.screenshotDirectory": "Choose screenshot folder",
+		"tray.show": "Open Plume", "tray.hide": "Hide Plume", "tray.newChat": "New chat", "tray.recent": "Recent chats", "tray.noChats": "No chats yet", "tray.pullRequests": "Pull requests", "tray.scheduled": "Scheduled", "tray.settings": "Settings…", "tray.launchAtLogin": "Launch at login", "tray.quit": "Quit Plume", "dialog.projectDirectory": "Choose project folder", "dialog.screenshotDirectory": "Choose screenshot folder",
 		"shortcut.taken": "The global shortcut {shortcut} could not be registered — another app is probably using it (WeChat's screenshot key, for one). Pick another in Settings → Screenshots.",
 		"shortcut.invalid": "The global shortcut {shortcut} is not a key combination this system recognises, so it was not registered. Record it again in Settings → Screenshots.",
-		"terminal.unavailable": "The terminal cannot start: its native component, node-pty, failed to load. The rest of Lyra is unaffected.",
+		"terminal.unavailable": "The terminal cannot start: its native component, node-pty, failed to load. The rest of Plume is unaffected.",
 		"terminal.tab": "Terminal {n}",
 		"notification.done": "“{title}” finished", "notification.doneUntitled": "Task finished",
 		"notification.approval": "“{title}” needs your approval", "notification.approvalUntitled": "Waiting for your approval",

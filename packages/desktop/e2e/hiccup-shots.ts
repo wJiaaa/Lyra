@@ -20,9 +20,9 @@ import { join } from "node:path";
 import { closeListeningServer, startApp } from "./app.ts";
 
 const MODEL_PORT = 9575;
-const OUT = join(homedir(), "Desktop", "lyra-重试改动");
+const OUT = join(homedir(), "Desktop", "plume-重试改动");
 /** 帧先落在临时目录，合成完就删——桌面上不该多出几百个 png。 */
-const FRAMES = "/tmp/lyra-hiccup-frames";
+const FRAMES = "/tmp/plume-hiccup-frames";
 
 let failuresLeft = 0;
 /** 失败时发什么：流内 error（可重试）还是 401（当场停）。 */

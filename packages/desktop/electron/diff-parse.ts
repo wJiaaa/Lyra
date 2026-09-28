@@ -12,7 +12,7 @@
  * because one file in forty was a PNG.
  */
 
-import type { DiffHunk } from "@lyra/core";
+import type { DiffHunk } from "@plume/core";
 import type { WorkspaceDiffFile } from "./ipc-shapes.ts";
 
 /** Past this a diff is not being read, it is being scrolled. */

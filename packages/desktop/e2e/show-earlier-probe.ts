@@ -17,17 +17,17 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { projectIdFor } from "@lyra/core";
+import { projectIdFor } from "@plume/core";
 import { startApp } from "./app.ts";
 import { frameGrabber } from "./record.ts";
 
 const PORT = 9643;
 /** 今天那场 recall 风暴的会话：904 条消息，足够把窗口撑满。 */
-const SOURCE = join(homedir(), ".lyra/sessions/63ca3825cb82944e/aa5eb131-4b20-4e20-8036-6b39cfd77507.jsonl");
+const SOURCE = join(homedir(), ".plume/sessions/63ca3825cb82944e/aa5eb131-4b20-4e20-8036-6b39cfd77507.jsonl");
 const SESSION_ID = "aa5eb131-4b20-4e20-8036-6b39cfd77507";
 /** 侧边栏上那一行的字，用来找到它——选择器会随重构改名，标题不会。 */
 const TITLE = "添加文件后布局异常排查";
-const OUT = join(homedir(), ".lyra/scratch/show-earlier");
+const OUT = join(homedir(), ".plume/scratch/show-earlier");
 
 const app = await startApp({
 	port: PORT,

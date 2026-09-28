@@ -26,7 +26,7 @@
   `running`，冷读未完成记录显示 `interrupted`；明确的运行错误和用户取消使用各自状态。
 
 代码入口为 `core/src/trajectory/{read,entries,project}.ts`，浏览器只从
-`@lyra/core/trajectory-view` 导入纯展示逻辑。
+`@plume/core/trajectory-view` 导入纯展示逻辑。
 
 ## 面板交互与性能
 
@@ -84,7 +84,7 @@
 `packages/client/ui-trajectory`，参考版本为
 `d347e703908d0406b7a7ef80e3a0e594d86b2215`。阅读了记录契约、压缩定义、工具栏和组件说明。
 
-| 参考能力 | Lyra 对应实现 |
+| 参考能力 | Plume 对应实现 |
 | --- | --- |
 | 轮次、步骤与账本 | 轮次折叠、步骤索引、虚拟列表 |
 | 模型、工具与嵌套记录关联 | 请求、输入输出、父 Agent 和调用 ID |
@@ -93,7 +93,7 @@
 | 轮次间压缩 | 命令生命周期、摘要、前后数量、状态 |
 | 长记录浏览 | 列表虚拟化、尾部跟随、详情分页、全文搜索 |
 
-这是接入 Lyra 现有运行时的对应能力，不是兼容 harness 的记录格式。当前没有记录每次 HTTP
+这是接入 Plume 现有运行时的对应能力，不是兼容 harness 的记录格式。当前没有记录每次 HTTP
 重试的原始网络载荷，也没有额外测量自动压缩的开始、失败及模型用量；这些不能当作已实现。
 
 ## 验证
@@ -111,7 +111,7 @@
 
 真实应用 E2E 使用隔离 profile、本地合成模型服务和合成 JSONL，经正式运行时、IPC 和 UI
 渲染。2500 次工具调用产生 7503 条轨迹；截图不是另外绘制的页面。应用截图存于
-`/tmp/lyra-trajectory-final/`，测试 profile 退出时清理。Windows UI CI 已登记相同用例，
+`/tmp/plume-trajectory-final/`，测试 profile 退出时清理。Windows UI CI 已登记相同用例，
 本机未运行 Windows，不把 macOS 验证称为 Windows 实机验证。
 
 整合前 2026-09-06 的实测：2500 次调用、7503 条轨迹，初始挂载 21 行，连续 60 帧滚动最多 30 行，
@@ -124,7 +124,7 @@
 帧间隔 17.4–26.7ms；文件展开与还原分别为 17.7ms、18.1ms。
 完整 `pnpm check` 共 2825 项，2824 通过、1 项 Windows 专属跳过；独立架构扫描为
 0 errors、143 条 advisory warnings，未放宽检查规则。构建、链接和差异检查单独执行。
-验证日志为 `/tmp/lyra-trajectory-check-final.log` 和 `/tmp/lyra-trajectory-regression-final.log`。
+验证日志为 `/tmp/plume-trajectory-check-final.log` 和 `/tmp/plume-trajectory-regression-final.log`。
 
 2026-09-07 增量协议在真实 Electron 中复测，使用同一套合成 JSONL，并为 2500 次工具结果
 各追加约 8KiB。计时在渲染进程内包住正式 IPC：全量接口三次为 292.7/248.2/197.4ms，
@@ -133,4 +133,4 @@
 314 字节、34.5ms；磁盘尾读为 141 字节、一条记录、0.597ms。追加时仍包含完整重新投影
 的成本。期间发现并修复桌面存储观察器遗漏 `readChanges` 转发导致回退全量扫描，回归测试
 通过真实包装存储检查刷新不会额外调用全量 reader。测试 profile 已清理，证据为
-`/tmp/lyra-v090-trajectory-incremental-metrics.json` 与同前缀 `probe.log`。
+`/tmp/plume-v090-trajectory-incremental-metrics.json` 与同前缀 `probe.log`。

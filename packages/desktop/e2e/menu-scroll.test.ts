@@ -54,7 +54,7 @@ test("hover and wheel leave scroll ownership with the pointer; arrows reveal the
 test("menu thumbs stay inside their rounded surfaces in both themes and narrow windows", async (t) => {
 	for (const theme of ["light", "dark"]) for (const width of [1200, 375]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
-		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${theme === "light" ? '"light"' : '"dark"'}}})})()`);
+		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${theme === "light" ? '"light"' : '"dark"'}}})})()`);
 		await openMenu();
 		for (const top of [0, 100000]) {
 			await app.evaluate(`${view}.scrollTop=${top}`); await frames();
@@ -63,12 +63,12 @@ test("menu thumbs stay inside their rounded surfaces in both themes and narrow w
 			assert.ok(metrics.top >= 6 && metrics.bottom >= 6 && metrics.right >= 6 && metrics.gap >= 4, JSON.stringify(metrics));
 			assert.ok(metrics.left >= 0 && metrics.panelRight <= width);
 		}
-		if (process.env.LYRA_E2E_ARTIFACTS) {
+		if (process.env.PLUME_E2E_ARTIFACTS) {
 			const point = await app.evaluate<{x:number;y:number}>(`(()=>{const r=${view}.getBoundingClientRect();return {x:r.left+40,y:r.top+r.height/2}})()`);
 			await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point }); await frames();
-			await mkdir(process.env.LYRA_E2E_ARTIFACTS, { recursive: true });
+			await mkdir(process.env.PLUME_E2E_ARTIFACTS, { recursive: true });
 			const shot = await app.send<{data:string}>("Page.captureScreenshot", { format: "png" });
-			await writeFile(join(process.env.LYRA_E2E_ARTIFACTS, `menu-scroll-${theme}-${width}.png`), Buffer.from(shot.data, "base64"));
+			await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, `menu-scroll-${theme}-${width}.png`), Buffer.from(shot.data, "base64"));
 		}
 	}
 });
@@ -76,7 +76,7 @@ test("menu thumbs stay inside their rounded surfaces in both themes and narrow w
 test("shared model popovers keep clear gutters and their thumb can be dragged to the last row", async (t) => {
 	await key("Escape", 27);
 	// Synthetic models are saved through the real settings IPC; no provider request is made.
-	await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();const models=Array.from({length:40},(_,i)=>({id:'qa/model-'+i,providerId:'qa',modelId:'model-'+i,name:'菜单验证 '+String(i).padStart(2,'0'),contextWindow:128000,maxOutputTokens:4096,supportsImages:false,supportsThinking:false,supportsTools:true}));await window.lyra.settings.save({...s,providers:[{id:'qa',name:'菜单验证',api:'anthropic-messages',baseUrl:'http://127.0.0.1:9',apiKey:'test',enabled:true,models}],defaultModelId:'qa/model-0'})})()`);
+	await app.evaluate(`(async()=>{const s=await window.plume.settings.get();const models=Array.from({length:40},(_,i)=>({id:'qa/model-'+i,providerId:'qa',modelId:'model-'+i,name:'菜单验证 '+String(i).padStart(2,'0'),contextWindow:128000,maxOutputTokens:4096,supportsImages:false,supportsThinking:false,supportsTools:true}));await window.plume.settings.save({...s,providers:[{id:'qa',name:'菜单验证',api:'anthropic-messages',baseUrl:'http://127.0.0.1:9',apiKey:'test',enabled:true,models}],defaultModelId:'qa/model-0'})})()`);
 	const selector = '[role="menu"][aria-label="选择模型"]';
 	for (const theme of ["light", "dark"]) for (const width of [1200, 375]) {
 		// Protocol GC failures carry no JavaScript stack; record the pending operation in CI.
@@ -84,7 +84,7 @@ test("shared model popovers keep clear gutters and their thumb can be dragged to
 		phase("resize");
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
 		phase("save theme and open model menu");
-		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${theme === "light" ? '"light"' : '"dark"'}}});[...document.querySelectorAll('button[aria-haspopup="menu"]')].find(b=>(b.dataset.lyTip||'').endsWith('上下文')).click()})()`);
+		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${theme === "light" ? '"light"' : '"dark"'}}});[...document.querySelectorAll('button[aria-haspopup="menu"]')].find(b=>(b.dataset.lyTip||'').endsWith('上下文')).click()})()`);
 		phase("wait for open menu frames");
 		await frames();
 		phase("read thumb geometry");

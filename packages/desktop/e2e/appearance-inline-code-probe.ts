@@ -24,7 +24,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-inline-code";
+const dir = process.argv[2] ?? "/tmp/plume-inline-code";
 const project = join(dir, "proj");
 
 /** 自定义那一档给的颜色。挑得刺眼，是为了「没生效」和「生效了」不可能看混。 */
@@ -386,7 +386,7 @@ try {
 		 *
 		 * （这段注释里一个反引号都不能有：整个函数体是一条模板字符串，注释里的反引号会把它截断。）
 		 */
-		const savedFg = async () => (await window.lyra.settings.get()).appearance.inlineCodeLightFg ?? "无";
+		const savedFg = async () => (await window.plume.settings.get()).appearance.inlineCodeLightFg ?? "无";
 
 		const specimenBefore = specimen();
 

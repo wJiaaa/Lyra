@@ -1,4 +1,4 @@
-import type { UiLocale } from "@lyra/core";
+import type { UiLocale } from "@plume/core";
 import type { MessageKey, ResolvedUiLocale } from "./messages/index.ts";
 
 export interface LocaleOption {

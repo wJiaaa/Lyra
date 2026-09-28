@@ -1,13 +1,13 @@
 import { lstat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { collectSkills, commandSources, loadCommands, lyraHome, type Settings } from "@lyra/core";
+import { collectSkills, commandSources, loadCommands, plumeHome, type Settings } from "@plume/core";
 
 /** Resolve against a fresh inventory; the renderer cannot choose an arbitrary file or directory. */
 export async function definitionTrashTarget(kind: unknown, cwd: unknown, path: unknown, settings: Settings): Promise<string> {
 	if (typeof cwd !== "string" || typeof path !== "string" || !isAbsolute(path)) throw new Error("无效的定义文件路径。");
 	let target: string | undefined;
 	if (kind === "command") {
-		const { commands } = await loadCommands(commandSources(cwd || null, lyraHome()));
+		const { commands } = await loadCommands(commandSources(cwd || null, plumeHome()));
 		target = commands.find((command) => command.path === path)?.path;
 	} else if (kind === "skill") {
 		// Bundled skills are managed through plugin uninstall, never by removing part of a bundle.

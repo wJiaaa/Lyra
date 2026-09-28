@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h } from "react";
-import { DEFAULT_SETTINGS } from "@lyra/core";
+import { DEFAULT_SETTINGS } from "@plume/core";
 import { PermissionPicker } from "../../src/features/modals/PermissionPicker.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { click, mount } from "../helpers/mount.ts";

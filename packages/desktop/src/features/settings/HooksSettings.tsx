@@ -1,11 +1,11 @@
 /**
- * 钩子：用户级的存在设置文件里，项目级的存在当前项目的 `.lyra/config.json` 里。
+ * 钩子：用户级的存在设置文件里，项目级的存在当前项目的 `.plume/config.json` 里。
  *
  * 布局：顶上一行是范围、数量和搜索，下面「已安装」一段，每条一行，点开是表单。项目钩子
  * 来自项目目录——可能是别人提交进来的——所以没信任过的那几条开关是灰的，旁边给一个「信任」。
  */
 
-import type { HookDraft, HookScope } from "@lyra/core";
+import type { HookDraft, HookScope } from "@plume/core";
 import { Anchor, Plus, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { HookView, HooksView } from "../../../electron/ipc-types.ts";

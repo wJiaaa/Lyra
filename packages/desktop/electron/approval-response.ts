@@ -1,4 +1,4 @@
-import type { AgentSession } from "@lyra/core";
+import type { AgentSession } from "@plume/core";
 
 /** Keep permission persistence tied to the pending request owned by the runtime. */
 export async function resolveSessionApproval(

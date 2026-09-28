@@ -1,6 +1,6 @@
 /** Data returned by the main-process usage scanner. */
 
-import type { CacheCause } from "@lyra/core";
+import type { CacheCause } from "@plume/core";
 
 /**
  * 本该从缓存读到、却按全价重算的那部分，见 core 的 `runtime/cache-diagnostics.ts`。

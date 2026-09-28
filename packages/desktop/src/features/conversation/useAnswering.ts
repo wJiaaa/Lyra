@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 import { proseLength, STALL_MS } from "./answering.ts";
 
 /**

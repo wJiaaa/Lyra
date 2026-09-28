@@ -23,14 +23,14 @@ const { server, requests } = questionModel();
 const capsuleCount = `[...document.querySelectorAll('.ly-composer button[aria-label^="移除会话引用："]')].filter((e) => e.checkVisibility()).length`;
 type SessionId = "qa-long" | "qa-short";
 const clickTargets = {
-	composer: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('main textarea'))?.checkVisibility())`,
-	"qa-long": `Boolean((globalThis.__lyraMentionTarget=document.querySelector('[data-ly-row="qa-long"] > button'))?.checkVisibility())`,
-	"qa-short": `Boolean((globalThis.__lyraMentionTarget=document.querySelector('[data-ly-row="qa-short"] > button'))?.checkVisibility())`,
-	firstReference: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('.ly-mention-menu [role="option"][data-index="0"]'))?.checkVisibility())`,
-	secondReference: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('.ly-mention-menu [role="option"][data-index="1"]'))?.checkVisibility())`,
-	choice: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('[data-question-choice]'))?.checkVisibility())`,
-	custom: `Boolean((globalThis.__lyraMentionTarget=document.querySelector('input[aria-label="自定义回答"]'))?.checkVisibility())`,
-	submitCustom: `Boolean((globalThis.__lyraMentionTarget=[...document.querySelectorAll('[data-ly-question-footer] button[type="submit"]')].find(b=>b.textContent.trim()==='发送回答'))?.checkVisibility())`,
+	composer: `Boolean((globalThis.__plumeMentionTarget=document.querySelector('main textarea'))?.checkVisibility())`,
+	"qa-long": `Boolean((globalThis.__plumeMentionTarget=document.querySelector('[data-ly-row="qa-long"] > button'))?.checkVisibility())`,
+	"qa-short": `Boolean((globalThis.__plumeMentionTarget=document.querySelector('[data-ly-row="qa-short"] > button'))?.checkVisibility())`,
+	firstReference: `Boolean((globalThis.__plumeMentionTarget=document.querySelector('.ly-mention-menu [role="option"][data-index="0"]'))?.checkVisibility())`,
+	secondReference: `Boolean((globalThis.__plumeMentionTarget=document.querySelector('.ly-mention-menu [role="option"][data-index="1"]'))?.checkVisibility())`,
+	choice: `Boolean((globalThis.__plumeMentionTarget=document.querySelector('[data-question-choice]'))?.checkVisibility())`,
+	custom: `Boolean((globalThis.__plumeMentionTarget=document.querySelector('input[aria-label="自定义回答"]'))?.checkVisibility())`,
+	submitCustom: `Boolean((globalThis.__plumeMentionTarget=[...document.querySelectorAll('[data-ly-question-footer] button[type="submit"]')].find(b=>b.textContent.trim()==='发送回答'))?.checkVisibility())`,
 };
 
 before(async () => {
@@ -45,13 +45,13 @@ after(async () => {
 	await stopRecording?.();
 	await cleanupFixture(
 		async () => {
-			const directory = process.env.LYRA_E2E_ARTIFACTS;
+			const directory = process.env.PLUME_E2E_ARTIFACTS;
 			if (directory) { await mkdir(directory, { recursive: true }); await writeFile(join(directory, "request-tails.json"), JSON.stringify(requests.map((request) => request.messages.slice(-3)), null, 2)); }
 		},
 		() => app?.stop(),
 		() => closeListeningServer(server),
 	);
-	const out = join(homedir(), "Desktop", "Lyra未完成问题修复测试");
+	const out = join(homedir(), "Desktop", "Plume未完成问题修复测试");
 	await mkdir(out, { recursive: true });
 	if (frames.length) await encode(frames, join(out, `${stamp}_提问跨会话隔离_${passed}of2.mp4`), 30);
 });
@@ -68,15 +68,15 @@ async function click(target: keyof typeof clickTargets) {
 	await until(async () => {
 		// The fixture selects a complete constant script, never inserts data into JavaScript.
 		if (!await app.evaluate(clickTargets[target])) return false;
-		await app.evaluate("globalThis.__lyraMentionTarget.scrollIntoView({block:'nearest',behavior:'instant'})");
-		return app.evaluate("(()=>{const e=globalThis.__lyraMentionTarget,r=e.getBoundingClientRect();return !document.getAnimations().some(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity) && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()");
+		await app.evaluate("globalThis.__plumeMentionTarget.scrollIntoView({block:'nearest',behavior:'instant'})");
+		return app.evaluate("(()=>{const e=globalThis.__plumeMentionTarget,r=e.getBoundingClientRect();return !document.getAnimations().some(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity) && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()");
 	});
-	const at = await app.evaluate<{ x: number; y: number }>("(()=>{const r=globalThis.__lyraMentionTarget.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");
+	const at = await app.evaluate<{ x: number; y: number }>("(()=>{const r=globalThis.__plumeMentionTarget.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()");
 	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) });
 }
 async function input(text: string, target: "composer" | "custom" = "composer") {
 	await click(target);
-	await app.evaluate("globalThis.__lyraMentionTarget.select()");
+	await app.evaluate("globalThis.__plumeMentionTarget.select()");
 	await app.send("Input.insertText", { text });
 	const value = target === "composer" ? "document.querySelector('main textarea').value" : `document.querySelector('input[aria-label="自定义回答"]').value`;
 	await until(async () => await app.evaluate(value) === text);
@@ -93,13 +93,13 @@ async function session(id: SessionId) {
 }
 async function snapshot(id: SessionId) {
 	const result = await app.evaluate<SessionSnapshot | null>(id === "qa-long"
-		? "(async()=>{const s=(await window.lyra.sessions.list()).find(s=>s.id==='qa-long');return window.lyra.sessions.transcript(s.projectId,s.id);})()"
-		: "(async()=>{const s=(await window.lyra.sessions.list()).find(s=>s.id==='qa-short');return window.lyra.sessions.transcript(s.projectId,s.id);})()");
+		? "(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-long');return window.plume.sessions.transcript(s.projectId,s.id);})()"
+		: "(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-short');return window.plume.sessions.transcript(s.projectId,s.id);})()");
 	assert.ok(result); return result;
 }
 async function shot(name: string) {
 	await new Promise(resolve => setTimeout(resolve, 1000));
-	const directory = process.env.LYRA_E2E_ARTIFACTS; if (!directory) return;
+	const directory = process.env.PLUME_E2E_ARTIFACTS; if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	await app.evaluate(`Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))`);
 	const { data } = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
@@ -108,8 +108,8 @@ async function shot(name: string) {
 async function appearance(theme: "dark" | "light", width: number) {
 	await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
 	await app.evaluate(theme === "light"
-		? "(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:'light'}});})()"
-		: "(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:'dark'}});})()");
+		? "(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:'light'}});})()"
+		: "(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:'dark'}});})()");
 	await until(async () => {
 		const state = await app.evaluate<{ width: number; theme: string; switching: boolean }>("({width:innerWidth,theme:document.documentElement.style.colorScheme,switching:document.documentElement.hasAttribute('data-theme-switching')})");
 		return state.width === width && state.theme === theme && !state.switching;

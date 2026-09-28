@@ -18,7 +18,7 @@
 import { Bot, Check, Copy, CornerLeftUp, Play, Plus, RotateCcw, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { rosterOrder, useSubAgents } from "../../store/subAgents.ts";

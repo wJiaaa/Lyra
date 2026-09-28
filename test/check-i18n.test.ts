@@ -97,7 +97,7 @@ test("what only reaches a log is not a finding, and what reaches a person still 
 	const source = [
 		'console.error("[terminal] node-pty 加载失败:", error);',
 		"console.warn(",
-		"\t`[lyra] 清理了 ${n} 个空会话（${reason(\"原因\")}）`,",
+		"\t`[plume] 清理了 ${n} 个空会话（${reason(\"原因\")}）`,",
 		");",
 		'notify("已安排任务开始运行");',
 		"page.run(\"console.log('不是日志')\");",

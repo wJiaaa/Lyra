@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h } from "react";
 import { Globe, Terminal } from "lucide-react";
-import { DEFAULT_SETTINGS } from "@lyra/core";
+import { DEFAULT_SETTINGS } from "@plume/core";
 import { DockView } from "../../src/features/dock/DockView.tsx";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
@@ -13,7 +13,7 @@ import { translate } from "../../src/i18n/translate.ts";
 import { click, mount } from "../helpers/mount.ts";
 
 test("tabs layout: every panel stays mounted in one right-hand pane, and only the current tab shows", async () => {
-	Object.defineProperty(window, "lyra", { configurable: true, value: { platform: "darwin" } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin" } });
 	window.localStorage.clear();
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "tabs" } } });
 	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, tab: {}, tabShare: 0.4, host: null });

@@ -8,8 +8,8 @@
  * The tick is one minute, which is the finest granularity the schedule kinds express.
  */
 
-import { isDue } from "@lyra/core";
-import type { AgentSession, ScheduledTask, Settings } from "@lyra/core";
+import { isDue } from "@plume/core";
+import type { AgentSession, ScheduledTask, Settings } from "@plume/core";
 import { nativeText } from "./i18n.ts";
 
 const TICK_MS = 60_000;

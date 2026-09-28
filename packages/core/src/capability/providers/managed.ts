@@ -19,7 +19,7 @@ const LABEL = "从会话中总结";
 export const managedProvider: CapabilityProvider<Skill> = {
 	id: ID,
 	label: LABEL,
-	describe: "读 ~/.lyra/projects/<项目>/memory/skills/——从过去的会话里总结、并经你批准的技能",
+	describe: "读 ~/.plume/projects/<项目>/memory/skills/——从过去的会话里总结、并经你批准的技能",
 	priority: 5,
 	supplies: ["skill"],
 

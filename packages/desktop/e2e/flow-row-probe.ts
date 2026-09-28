@@ -13,7 +13,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
+const REAL_HOME = join(homedir(), ".plume");
 const PROMPT = [
 	"一个 8x8 棋盘去掉对角两格，能不能用 31 张 1x2 骨牌铺满？先想清楚。",
 	"想明白之后用 ls 看一下这个工程有哪些文件，把结论追加到 README.md。",
@@ -29,7 +29,7 @@ async function seed(home: string): Promise<void> {
 	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	for (const file of ["credentials.json", "vault.key"]) {
 		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
-			throw new Error(`没找到 ~/.lyra/${file}——真实模型调用需要它`);
+			throw new Error(`没找到 ~/.plume/${file}——真实模型调用需要它`);
 		});
 	}
 	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));

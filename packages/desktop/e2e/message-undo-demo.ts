@@ -2,7 +2,7 @@
 /**
  * 用户消息上的撤回：截断这一轮，把原文接回输入框，不立刻再问模型。
  *
- * 用法：先 `pnpm --filter @lyra/desktop build`，再
+ * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/message-undo-demo.ts`
  */
 
@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Lyra用户消息撤回测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume用户消息撤回测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const PORT = 9785;
 const SESSION = "undo-demo";

@@ -49,9 +49,9 @@ const SCALE = 2;
 const REPLY = [
 	`[${LONG}](${LONG}) 是这次需求的原始文档，先读它，再对照下面几份。`,
 	"",
-	"安装包在 [Lyra-0.9.8-x64.exe](Lyra-0.9.8-x64.exe)，改动说明见 [README.md](README.md)，实现细节写在 [实现说明](docs/result.md:12) 里。",
+	"安装包在 [Plume-0.9.8-x64.exe](Plume-0.9.8-x64.exe)，改动说明见 [README.md](README.md)，实现细节写在 [实现说明](docs/result.md:12) 里。",
 	"",
-	`这一段故意写得很长，好让文件标签落到行尾换行的地方：需求文档里的三个约束逐条核对过了，第一条已经满足，第二条需要改配置，第三条要看 [docs/result.md](docs/result.md) 里的结论，另外 [README.md](README.md) 的安装步骤也要同步更新，最后别忘了 [${LONG}](${LONG}) 的签字页，以及安装包 [Lyra-0.9.8-x64.exe](Lyra-0.9.8-x64.exe) 的签名。`,
+	`这一段故意写得很长，好让文件标签落到行尾换行的地方：需求文档里的三个约束逐条核对过了，第一条已经满足，第二条需要改配置，第三条要看 [docs/result.md](docs/result.md) 里的结论，另外 [README.md](README.md) 的安装步骤也要同步更新，最后别忘了 [${LONG}](${LONG}) 的签字页，以及安装包 [Plume-0.9.8-x64.exe](Plume-0.9.8-x64.exe) 的签名。`,
 	"",
 	"- 列表第一项：[docs/result.md](docs/result.md)",
 	"- 列表第二项里的 [README.md](README.md) 标签",
@@ -74,7 +74,7 @@ async function seed(home: string): Promise<void> {
 	await writeFile(join(cwd, "README.md"), "# 演示工程\n");
 	await writeFile(join(cwd, LONG), "# 需求\n");
 	await writeFile(join(cwd, "docs", "result.md"), "# 结论\n");
-	await writeFile(join(cwd, "Lyra-0.9.8-x64.exe"), Buffer.alloc(2048, 7));
+	await writeFile(join(cwd, "Plume-0.9.8-x64.exe"), Buffer.alloc(2048, 7));
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
 	const dir = join(home, "sessions", projectId);
 	await mkdir(dir, { recursive: true });
@@ -288,7 +288,7 @@ async function crop(image: Buffer, clip: Box, out: string): Promise<void> {
 	const y = Math.max(0, Math.round(clip.y * SCALE));
 	const w = Math.min(Math.round(clip.w * SCALE), view.w * SCALE - x);
 	const h = Math.min(Math.round(clip.h * SCALE), view.h * SCALE - y);
-	const input = join(tmpdir(), `lyra-file-link-${process.pid}-${Math.random().toString(36).slice(2)}.img`);
+	const input = join(tmpdir(), `plume-file-link-${process.pid}-${Math.random().toString(36).slice(2)}.img`);
 	await writeFile(input, image);
 	try {
 		await promisify(execFile)("ffmpeg", ["-y", "-loglevel", "error", "-i", input, "-vf", `crop=${w}:${h}:${x}:${y}`, "-frames:v", "1", out]);

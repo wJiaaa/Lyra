@@ -2,7 +2,7 @@
  * The components, on their own.
  *
  * Not Storybook. This is an extra entry point in the existing Vite config, built only when
- * `LYRA_GALLERY` is set, so it costs the shipped application nothing and needs no second toolchain.
+ * `PLUME_GALLERY` is set, so it costs the shipped application nothing and needs no second toolchain.
  *
  * It answers a question the tests cannot: what does this actually look like. `test/ui/` asserts
  * that a danger button has `bg-danger` — true, and it says nothing about whether the red reads as
@@ -56,7 +56,7 @@ function Gallery() {
 		<div className="min-h-screen bg-shell text-ink">
 			<header className="flex items-center justify-between border-b border-line px-6 py-4">
 				<Text size="title" className="font-semibold">
-					Lyra 组件
+					Plume 组件
 				</Text>
 				<Button variant="ghost" size="sm" onClick={() => setDark((d) => !d)}>
 					{dark ? "浅色" : "深色"}

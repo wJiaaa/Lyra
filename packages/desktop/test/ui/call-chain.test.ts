@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { createElement as h } from "react";
-import type { AssistantContent, Settings } from "@lyra/core";
+import type { AssistantContent, Settings } from "@plume/core";
 import { ToolRun } from "../../src/features/conversation/runs.tsx";
 import { TurnProcess } from "../../src/features/conversation/TurnProcess.tsx";
 import { useApp } from "../../src/store/index.ts";

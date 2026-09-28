@@ -16,31 +16,31 @@ import type { Dirent } from "node:fs";
 import { lstat, mkdir, readdir, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
-import { normalisePath, readIndex } from "@lyra/registry-shared";
-import type { BundleKind, RegistryEntry } from "@lyra/registry-shared";
+import { normalisePath, readIndex } from "@plume/registry-shared";
+import type { BundleKind, RegistryEntry } from "@plume/registry-shared";
 
 import type { McpServerConfig } from "../mcp/client.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import { renameWithRetry } from "../utils/atomic-write.ts";
 import { fetchBundle, type FetchResult } from "./fetch-bundle.ts";
 import { forgetInstall, readInstalls, recordInstall, type InstallRecord } from "./installs.ts";
 import { inspectBundle } from "./loader.ts";
 
 /*
- * What an entry is and what an index may say about one now live in `@lyra/registry-shared`.
+ * What an entry is and what an index may say about one now live in `@plume/registry-shared`.
  *
  * They were defined here, which was right while the app was the only thing that read an index. It
  * stopped being right when the platform started serving them: the worker cannot import from a
  * package that reaches for `node:child_process` on line one, so it would have needed its own copy
  * — and two copies of a contract are two contracts, with the one nobody compiles doing the drifting.
  *
- * Re-exported rather than replaced at every call site: the renderer imports these from `@lyra/core`
+ * Re-exported rather than replaced at every call site: the renderer imports these from `@plume/core`
  * in a dozen places, and moving a type is not a reason to touch a dozen files.
  */
 // `ClientId` too: the desktop package depends on core alone, and a card that shows which agents a
 // bundle installs into needs the type. Adding a second dependency to reach one alias would be a
 // wider change than re-exporting it beside the entry type it is a field of.
-export type { BundleKind, ClientId, RegistryEntry } from "@lyra/registry-shared";
+export type { BundleKind, ClientId, RegistryEntry } from "@plume/registry-shared";
 
 /** How long a registry has to answer before we give up on it. */
 const FETCH_TIMEOUT_MS = 10_000;
@@ -81,10 +81,10 @@ export async function fetchRegistry(url: string, signal?: AbortSignal): Promise<
 
 /** Where each kind of bundle lives once installed. */
 export function bundleRoot(kind: BundleKind): string {
-	if (kind === "mcp") return join(lyraHome(), "mcp");
+	if (kind === "mcp") return join(plumeHome(), "mcp");
 	// Skills go where loose skills already are, so nothing has to know they came from a registry.
-	if (kind === "skill") return join(lyraHome(), "skills");
-	return join(lyraHome(), "plugins");
+	if (kind === "skill") return join(plumeHome(), "skills");
+	return join(plumeHome(), "plugins");
 }
 
 export interface Installed {
@@ -157,8 +157,8 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
 
 	// Beside the eventual target rather than in the OS temp dir: same filesystem, so the move is a
 	// rename rather than a copy, and a crash leaves the debris somewhere we already clean up.
-	const staging = join(lyraHome(), "plugins", `.${entry.id}.staging`);
-	await mkdir(join(lyraHome(), "plugins"), { recursive: true });
+	const staging = join(plumeHome(), "plugins", `.${entry.id}.staging`);
+	await mkdir(join(plumeHome(), "plugins"), { recursive: true });
 	await rm(staging, { recursive: true, force: true });
 	await sweepRetired();
 
@@ -212,7 +212,7 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
 			const root = bundleRoot("plugin");
 			await mkdir(root, { recursive: true });
 			const target = join(root, entry.id);
-			const bundle = join(lyraHome(), "plugins", `.${entry.id}.bundle`);
+			const bundle = join(plumeHome(), "plugins", `.${entry.id}.bundle`);
 			await rm(bundle, { recursive: true, force: true });
 			await mkdir(join(bundle, ".lyra-plugin"), { recursive: true });
 			await rename(source, join(bundle, "skills"));
@@ -245,7 +245,7 @@ export async function installEntry(entry: RegistryEntry, registryName?: string, 
 		 *
 		 * An entry with a `path` never had this problem — only the named subdirectory is moved, so the
 		 * `.git` beside it is left in staging and swept up with everything else. An entry without one
-		 * moves the whole clone, and used to move the repository with it: `~/.lyra/plugins/demo` came
+		 * moves the whole clone, and used to move the repository with it: `~/.plume/plugins/demo` came
 		 * out a working tree of somebody else's project. That is a real thing in the user's home
 		 * directory, not a tidiness point — anything that walks upward looking for a repository finds
 		 * it, `git status` one directory too high reports on it, and a shallow clone's history is
@@ -382,7 +382,7 @@ const SWEEP_AFTER_MS = 10 * 60_000;
  * root a bundle is installed into, so that moving one here is a rename. Not among the loose skills:
  * the skill loader reads every directory there, and would load a retired copy.
  */
-const retiredRoot = () => join(lyraHome(), "plugins", ".retired");
+const retiredRoot = () => join(plumeHome(), "plugins", ".retired");
 
 /**
  * Put every `from` at its `to` and take away what was there — all of it, or none of it.

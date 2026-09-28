@@ -73,7 +73,7 @@ function evaluator(socket: string) {
 }
 
 
-const dir = process.argv[2] ?? "/tmp/lyra-annotator";
+const dir = process.argv[2] ?? "/tmp/plume-annotator";
 
 let failures = 0;
 function check(label: string, passed: boolean, evidence: string): void {
@@ -129,7 +129,7 @@ try {
 	 * from the previous picture, which is the bug.
 	 */
 	async function mosaicRound(label: string): Promise<number> {
-		await app.evaluate(`window.lyra.screenshot.start()`);
+		await app.evaluate(`window.plume.screenshot.start()`);
 		await settle(2000);
 		const window = await overlay();
 		if (!window) return -1;
@@ -199,7 +199,7 @@ try {
 	);
 
 	process.stdout.write("\n── 截图标注：真窗口 ──\n");
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	await settle(2200);
 
 	const run = await overlay();

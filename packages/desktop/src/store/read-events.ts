@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@lyra/core";
+import type { AgentEvent } from "@plume/core";
 
 const readers = new Map<string, AgentEvent[]>();
 

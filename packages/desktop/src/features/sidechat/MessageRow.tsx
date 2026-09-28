@@ -11,7 +11,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import type { AssistantMessage, Message, UserContent, UserMessage } from "@lyra/core";
+import type { AssistantMessage, Message, UserContent, UserMessage } from "@plume/core";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { MessageActions } from "../conversation/index.ts";

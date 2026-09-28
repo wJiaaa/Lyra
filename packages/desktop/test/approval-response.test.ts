@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ApprovalRequest } from "@lyra/core";
+import type { ApprovalRequest } from "@plume/core";
 import { ApprovalGate } from "../../core/src/runtime/approvals.ts";
 import { resolveSessionApproval } from "../electron/approval-response.ts";
 

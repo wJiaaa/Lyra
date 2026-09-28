@@ -30,26 +30,26 @@ import {
 import { loadPlugins } from "../src/plugins/loader.ts";
 
 const made: string[] = [];
-const previous = { home: process.env.LYRA_HOME, userProfile: process.env.USERPROFILE };
+const previous = { home: process.env.PLUME_HOME, userProfile: process.env.USERPROFILE };
 
 beforeEach(async () => {
-	const home = await mkdtemp(join(tmpdir(), "lyra-mcp-keys-"));
+	const home = await mkdtemp(join(tmpdir(), "plume-mcp-keys-"));
 	made.push(home);
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 	process.env.USERPROFILE = home;
 	resetVault();
 });
 
 after(async () => {
-	if (previous.home === undefined) delete process.env.LYRA_HOME;
-	else process.env.LYRA_HOME = previous.home;
+	if (previous.home === undefined) delete process.env.PLUME_HOME;
+	else process.env.PLUME_HOME = previous.home;
 	if (previous.userProfile === undefined) delete process.env.USERPROFILE;
 	else process.env.USERPROFILE = previous.userProfile;
 	await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
 /** 一个名字保证不会在谁的登录 shell 里出现的空位。 */
-const KEY = "LYRA_TEST_ONLY_BRAVE_KEY_7Q";
+const KEY = "PLUME_TEST_ONLY_BRAVE_KEY_7Q";
 
 function brave(extra: Partial<McpServerConfig> = {}): McpServerConfig {
 	return {
@@ -154,7 +154,7 @@ test("缺钥匙的服务不启动，状态里写着缺哪几个——不是一�
 	const manager = new McpManager({ timeoutMs: 2000 });
 	try {
 		// 命令故意是一个不存在的程序：要是真去启动了，报的就会是「找不到命令」而不是缺钥匙。
-		const [status] = await manager.connectAll([brave({ command: "definitely-not-a-real-binary-lyra" })]);
+		const [status] = await manager.connectAll([brave({ command: "definitely-not-a-real-binary-plume" })]);
 		assert.equal(status?.state, "failed");
 		assert.deepEqual(status?.missing, [KEY]);
 		assert.match(status?.error ?? "", new RegExp(KEY));
@@ -168,7 +168,7 @@ test("缺钥匙的服务不启动，状态里写着缺哪几个——不是一�
 // ---------------------------------------------------------------------------
 
 async function bundleRoot(): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), "lyra-mcp-bundles-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-mcp-bundles-"));
 	made.push(root);
 	return root;
 }
@@ -215,17 +215,17 @@ test("manifest 里的 env 说明分给用到它的那台服务；只有一台时
 
 test("bearer_token_env_var 变成请求头里的空位，不再在安装那一刻把令牌读出来写死", async () => {
 	const root = await bundleRoot();
-	process.env.LYRA_TEST_BEARER = "should-not-be-baked";
+	process.env.PLUME_TEST_BEARER = "should-not-be-baked";
 	try {
 		await writeBundle(root, "remote", {
-			".mcp.json": { mcpServers: { remote: { type: "http", url: "https://mcp.example.com/mcp", bearer_token_env_var: "LYRA_TEST_BEARER" } } },
+			".mcp.json": { mcpServers: { remote: { type: "http", url: "https://mcp.example.com/mcp", bearer_token_env_var: "PLUME_TEST_BEARER" } } },
 		});
 		const { mcpBundles } = await loadPlugins([{ dir: root, source: "user" }]);
 		const server = mcpBundles[0]?.servers[0];
 		if (server?.transport !== "http") return assert.fail("应当读成 HTTP 服务");
-		assert.deepEqual(server.headers, { Authorization: "Bearer ${LYRA_TEST_BEARER}" });
+		assert.deepEqual(server.headers, { Authorization: "Bearer ${PLUME_TEST_BEARER}" });
 	} finally {
-		delete process.env.LYRA_TEST_BEARER;
+		delete process.env.PLUME_TEST_BEARER;
 	}
 });
 
@@ -289,7 +289,7 @@ test("包声明成机密的，名字不像也进保险箱；删掉服务，它�
 	const server = brave({ env: { WORKSPACE_HANDLE: "acme-private" }, needs: [{ name: "WORKSPACE_HANDLE", secret: true }] });
 	await saveSettings(settingsWith(server));
 	assert.equal((await readFile(settingsPath(), "utf8")).includes("acme-private"), false);
-	assert.match(await readFile(join(process.env.LYRA_HOME!, "credentials.json"), "utf8"), /mcp:brave__brave:WORKSPACE_HANDLE/);
+	assert.match(await readFile(join(process.env.PLUME_HOME!, "credentials.json"), "utf8"), /mcp:brave__brave:WORKSPACE_HANDLE/);
 
 	await saveSettings(settingsWith());
 	resetVault();
@@ -300,7 +300,7 @@ test("包声明成机密的，名字不像也进保险箱；删掉服务，它�
 });
 
 test("文件里已有的明文钥匙，启动时搬进保险箱", async () => {
-	await mkdir(join(process.env.LYRA_HOME!), { recursive: true });
+	await mkdir(join(process.env.PLUME_HOME!), { recursive: true });
 	await writeFile(settingsPath(), JSON.stringify({ ...DEFAULT_SETTINGS, mcpServers: [brave({ env: { GITHUB_PERSONAL_ACCESS_TOKEN: "ghp_plaintext", PATH_HINT: "/opt" } })] }));
 	assert.equal(await migrateSecrets(), 1);
 	const onDisk = await readFile(settingsPath(), "utf8");

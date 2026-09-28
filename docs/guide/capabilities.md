@@ -17,12 +17,12 @@
 
 ## 子智能体
 
-Lyra 内置七种子智能体：`general`、`explore`、`review`、`verify`、`plan`、`simple`、`reason`。
+Plume 内置七种子智能体：`general`、`explore`、`review`、`verify`、`plan`、`simple`、`reason`。
 设置 › 子智能体在没有会话、刚新建会话或会话尚未载入时也显示这七项，可以提前选择模型和思考等级。
 默认遵循定义：`general` 跟随主会话，`explore`、`verify`、`simple` 使用 `@fast`，`review` 使用
 `@review`，`plan`、`reason` 使用 `@deep`；未设置角色时回退到主会话模型。保存的覆盖在下一次派发生效。
 
-定义来自同一个 `@lyra/core/agents-builtin` 浏览器安全入口，运行时与设置页不维护两份名单。
+定义来自同一个 `@plume/core/agents-builtin` 浏览器安全入口，运行时与设置页不维护两份名单。
 会话能力加载后使用已合并的项目、用户和内置定义，同名项目／用户定义仍按能力层优先级覆盖内置项。
 
 ## 子智能体调度
@@ -79,9 +79,9 @@ Agent 光标由面板覆盖层绘制，采用圆润的黑色箭头、白色描�
 里管理，分两个范围：
 
 - **用户**：存在设置文件的 `hooks` 里，对所有项目生效。
-- **项目**：存在项目的 `.lyra/config.json` 的 `hooks` 里，只对这个项目生效。项目钩子可能是别人
+- **项目**：存在项目的 `.plume/config.json` 的 `hooks` 里，只对这个项目生效。项目钩子可能是别人
   提交进来的，所以**信任之前不会运行**：会话里跑到它只记一笔「已阻止」，输入框上方提示待审核，
-  在设置页逐条点「信任」。信任按内容指纹记在 `~/.lyra/hook-trust.json`，改过的钩子要重新信任；
+  在设置页逐条点「信任」。信任按内容指纹记在 `~/.plume/hook-trust.json`，改过的钩子要重新信任；
   在设置页里亲手新建或修改的项目钩子自动信任。
 
 七个事件：`SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、
@@ -104,7 +104,7 @@ Agent 光标由面板覆盖层绘制，采用圆润的黑色箭头、白色描�
 - **匹配器**：留空或 `*` 匹配全部；只含字母数字、`_` 和 `|` 时按名字精确匹配（工具名同时认
   `bash` / `Bash` 两种写法）；其余按正则。
 - **输入**：事件的 JSON 从标准输入送进去（字段同时给 camelCase 和 snake_case，如 `tool_name`、
-  `tool_input`）；环境变量有 `CLAUDE_PROJECT_DIR`、`LYRA_PROJECT_DIR`、`CLAUDE_SESSION_ID` 等。
+  `tool_input`）；环境变量有 `CLAUDE_PROJECT_DIR`、`PLUME_PROJECT_DIR`、`CLAUDE_SESSION_ID` 等。
 - **输出**：退出码 0 时读标准输出里的 JSON（`decision`、`reason`、`additionalContext`、
   `hookSpecificOutput.permissionDecision` 等，不是 JSON 就忽略）；退出码 2 表示阻止，原因取
   标准错误；其他退出码记为失败但不阻止。多个钩子的权限结论取最严的一个（deny > ask > allow）。

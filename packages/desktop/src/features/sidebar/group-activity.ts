@@ -1,4 +1,4 @@
-import type { SessionActivity } from "@lyra/core/activity";
+import type { SessionActivity } from "@plume/core/activity";
 import { rowActivity } from "../../lib/row-activity.ts";
 
 const PRIORITY: SessionActivity[] = ["waiting", "running", "failed", "done"];

@@ -22,7 +22,7 @@ let sent: BrowserCommand[] = [];
 beforeEach(() => {
 	open = [];
 	sent = [];
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		bootWindow: { id: "test", kind: "primary", sessionId: null, panelKind: null, panelScope: null },
 		browser: {
 			state: async () => ({ tabs: open, activeId: null }),
@@ -31,7 +31,7 @@ beforeEach(() => {
 	} });
 });
 afterEach(() => {
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 	useApp.setState({ toolRuns: {}, activeSessionId: null });
 });
 

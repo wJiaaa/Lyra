@@ -82,7 +82,7 @@ async function click(selector:string){
 	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",...point});await app.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...point});await app.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...point});
 }
 async function label(text:string,selector="button"){const match=named(text);await app.evaluate(`(()=>{const e=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>${match});if(!e)throw new Error('No label '+${JSON.stringify(text)});e.setAttribute('data-qa-label','');})()`);await click('[data-qa-label]');await app.evaluate("document.querySelector('[data-qa-label]')?.removeAttribute('data-qa-label')");}
-async function shot(name:string){const dir=process.env.LYRA_E2E_ARTIFACTS;if(!dir)return;await mkdir(dir,{recursive:true});await app.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{}))).then(()=>new Promise(requestAnimationFrame))");const result=await app.send<{data:string}>("Page.captureScreenshot",{format:"png"});await writeFile(join(dir,`${name}.png`),Buffer.from(result.data,"base64"));}
+async function shot(name:string){const dir=process.env.PLUME_E2E_ARTIFACTS;if(!dir)return;await mkdir(dir,{recursive:true});await app.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{}))).then(()=>new Promise(requestAnimationFrame))");const result=await app.send<{data:string}>("Page.captureScreenshot",{format:"png"});await writeFile(join(dir,`${name}.png`),Buffer.from(result.data,"base64"));}
 async function escape(){await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",windowsVirtualKeyCode:27});await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",windowsVirtualKeyCode:27});}
 
 test("new profiles default to recently created and memory disclosure opens the actual source file",async(t)=>{
@@ -115,21 +115,21 @@ test("motto persists, IME keeps confirmation keys and screenshot disabling reach
 	await click('[aria-label="保存座右铭"]');
 	// `disabled` flips on `setSaving(true)`, before the main process writes the file.
 	// Windows CI read settings.json in that window and saw personalization without sidebarMotto.
-	await app.evaluate(`(async()=>{for(let n=0;n<200;n++){const s=await window.lyra.settings.get();if(s.personalization?.sidebarMotto===${JSON.stringify(motto)})return;await new Promise(r=>setTimeout(r,25));}throw new Error('motto not in settings.get');})()`);
+	await app.evaluate(`(async()=>{for(let n=0;n<200;n++){const s=await window.plume.settings.get();if(s.personalization?.sidebarMotto===${JSON.stringify(motto)})return;await new Promise(r=>setTimeout(r,25));}throw new Error('motto not in settings.get');})()`);
 	assert.equal((JSON.parse(await readFile(join(app.home,"settings.json"),"utf8"))).personalization.sidebarMotto,motto);
 	await label("屏幕截图","nav button");await until(`document.querySelector('[data-view="screenshot"]')`);
-	const result=await app.evaluate<string>(`window.lyra.screenshot.start().then(()=>"started",e=>e.message)`);assert.match(result,/已关闭/);
+	const result=await app.evaluate<string>(`window.plume.screenshot.start().then(()=>"started",e=>e.message)`);assert.match(result,/已关闭/);
 	await shot("screenshot-settings-disabled");await label("返回工作区","nav button");
 	assert.match(await app.evaluate<string>("document.body.innerText"),/保持好奇/);t.diagnostic("Chromium IME composition, persisted motto and authoritative screenshot disable verified");
 });
 
 test("engineering delivery shows net syntax diffs, a real report and a live owned service",async(t)=>{
-	await app.evaluate(`window.lyra.agent.prompt('qa-short',[{type:'text',text:'WORKSPACE_QA 实现并验证'}])`);
+	await app.evaluate(`window.plume.agent.prompt('qa-short',[{type:'text',text:'WORKSPACE_QA 实现并验证'}])`);
 	await until(`document.body.innerText.includes('WORKSPACE_QA_DONE')`);
 	await until(`document.querySelector('[data-turn-delivery]')?.innerText.includes('1 个文件')`);
 	assert.equal(await readFile(join(app.home,"project","Sample.ts"),"utf8"),"export const answer = 2;\n");
-	const timestamp=await app.evaluate<number>(`window.lyra.sessions.list().then(s=>window.lyra.sessions.transcript(s.find(s=>s.id==='qa-short').projectId,'qa-short')).then(s=>s.messages.findLast(m=>m.role==='assistant').timestamp)`);
-	const delivery=await app.evaluate<{reportPath:string;files:{added:number;removed:number}[];commands:{status:string}[]}>(`window.lyra.delivery.get('qa-short',${timestamp})`);
+	const timestamp=await app.evaluate<number>(`window.plume.sessions.list().then(s=>window.plume.sessions.transcript(s.find(s=>s.id==='qa-short').projectId,'qa-short')).then(s=>s.messages.findLast(m=>m.role==='assistant').timestamp)`);
+	const delivery=await app.evaluate<{reportPath:string;files:{added:number;removed:number}[];commands:{status:string}[]}>(`window.plume.delivery.get('qa-short',${timestamp})`);
 	assert.equal(delivery.files.length,1);assert.equal(delivery.files[0].removed,0);assert.ok(delivery.commands.some(c=>c.status==='exit 0'));
 	assert.match(await readFile(delivery.reportPath,"utf8"),/answer = 2/);assert.match(await readFile(delivery.reportPath,"utf8"),/本轮实现与验证记录/);
 	// 等的是交付卡片自己。这里从前等「在内置浏览器打开」，可那个按钮在任务面板的服务列表里，
@@ -158,22 +158,22 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 	 * 进程没对上、监听的那个 pid 不在 `descendants` 里。差别决定改哪儿。
 	 */
 	await app.evaluate(`(async()=>{const end=Date.now()+20000;while(Date.now()<end){const text=document.querySelector('[data-session-services]')?.innerText??'';if(text.includes('127.0.0.1:'))return;await new Promise(r=>setTimeout(r,100));}throw new Error('service endpoint never appeared');})()`).catch(async (cause: unknown) => {
-		const report = await app.evaluate(`window.lyra.services.list('qa-short').then(s=>JSON.stringify({discoveryError:s.discoveryError,jobs:s.jobs.map(j=>({pid:j.pid,finishedAt:j.finishedAt,endpoints:j.endpoints}))}))`);
+		const report = await app.evaluate(`window.plume.services.list('qa-short').then(s=>JSON.stringify({discoveryError:s.discoveryError,jobs:s.jobs.map(j=>({pid:j.pid,finishedAt:j.finishedAt,endpoints:j.endpoints}))}))`);
 		throw new Error(`服务端点没有出现，探测的说法：${String(report)}`, { cause });
 	});
-	const services=await app.evaluate<{jobs:{id:string;pid:number;endpoints:{url:string;port:number}[]}[]}>("window.lyra.services.list('qa-short')");
+	const services=await app.evaluate<{jobs:{id:string;pid:number;endpoints:{url:string;port:number}[]}[]}>("window.plume.services.list('qa-short')");
 	const job=services.jobs.find(j=>j.endpoints.length);assert.ok(job);assert.equal(await (await fetch(job.endpoints[0].url)).text(),"SERVICE_QA");
-	assert.equal(await app.evaluate(`window.lyra.services.stop('qa-long',${JSON.stringify(job.id)},true)`),false);
+	assert.equal(await app.evaluate(`window.plume.services.stop('qa-long',${JSON.stringify(job.id)},true)`),false);
 	await shot("session-owned-service");t.diagnostic(JSON.stringify({files:delivery.files,service:job,hoverRowHeight:row.height}));
 });
 
 test("undo protects later user changes and service stop really closes the owned listener",async()=>{
 	const path=join(app.home,"project","Sample.ts");await writeFile(path,"user added work\n");
-	const timestamp=await app.evaluate<number>(`window.lyra.sessions.list().then(s=>window.lyra.sessions.transcript(s.find(s=>s.id==='qa-short').projectId,'qa-short')).then(s=>s.messages.findLast(m=>m.role==='assistant').timestamp)`);
-	assert.match(await app.evaluate<string>(`window.lyra.delivery.undo('qa-short',${timestamp},${JSON.stringify(path)}).then(()=>"undone",e=>e.message)`),/没有可安全撤销/);
+	const timestamp=await app.evaluate<number>(`window.plume.sessions.list().then(s=>window.plume.sessions.transcript(s.find(s=>s.id==='qa-short').projectId,'qa-short')).then(s=>s.messages.findLast(m=>m.role==='assistant').timestamp)`);
+	assert.match(await app.evaluate<string>(`window.plume.delivery.undo('qa-short',${timestamp},${JSON.stringify(path)}).then(()=>"undone",e=>e.message)`),/没有可安全撤销/);
 	assert.equal(await readFile(path,"utf8"),"user added work\n");
 	await writeFile(path,"export const answer = 2;\n");
-	await app.evaluate(`window.lyra.delivery.undo('qa-short',${timestamp},${JSON.stringify(path)})`);await assert.rejects(readFile(path),{code:"ENOENT"});
+	await app.evaluate(`window.plume.delivery.undo('qa-short',${timestamp},${JSON.stringify(path)})`);await assert.rejects(readFile(path),{code:"ENOENT"});
 	await click('[data-session-services] [aria-label="停止服务"]');await until(`document.querySelectorAll('[data-service-id]').length===0`);
-	const stopped=await app.evaluate<{jobs:{finishedAt?:number}[]}>("window.lyra.services.list('qa-short')");assert.ok(stopped.jobs.every(j=>j.finishedAt!==undefined));
+	const stopped=await app.evaluate<{jobs:{finishedAt?:number}[]}>("window.plume.services.list('qa-short')");assert.ok(stopped.jobs.every(j=>j.finishedAt!==undefined));
 });

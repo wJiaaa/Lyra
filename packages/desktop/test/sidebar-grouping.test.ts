@@ -216,11 +216,11 @@ test("project-less conversations are loose rows, not a project each and not a pr
 	 * one becomes a project called `owner-repo-6381` sitting among the user's actual work; grouped
 	 * under one folder row, that row is a project named after not being one.
 	 */
-	const roots = ["/home/.lyra/workspaces"];
+	const roots = ["/home/.plume/workspaces"];
 	const sessions = [
 		session({ id: "work", cwd: "/a" }),
-		session({ id: "review-1", cwd: "/home/.lyra/workspaces/owner-repo-1" }),
-		session({ id: "review-2", cwd: "/home/.lyra/workspaces/owner-repo-2" }),
+		session({ id: "review-1", cwd: "/home/.plume/workspaces/owner-repo-1" }),
+		session({ id: "review-2", cwd: "/home/.plume/workspaces/owner-repo-2" }),
 	];
 
 	const { projects: rest, loose } = groupSessions(sessions, projects, "", roots);
@@ -238,11 +238,11 @@ test("project-less conversations are loose rows, not a project each and not a pr
 });
 
 test("loose rows are newest first, whatever order they arrived in", () => {
-	const roots = ["/home/.lyra/workspaces"];
+	const roots = ["/home/.plume/workspaces"];
 	const sessions = [
-		session({ id: "older", cwd: "/home/.lyra/workspaces/general", updatedAt: 10 }),
-		session({ id: "newest", cwd: "/home/.lyra/workspaces/general", updatedAt: 30 }),
-		session({ id: "middle", cwd: "/home/.lyra/workspaces/general", updatedAt: 20 }),
+		session({ id: "older", cwd: "/home/.plume/workspaces/general", updatedAt: 10 }),
+		session({ id: "newest", cwd: "/home/.plume/workspaces/general", updatedAt: 30 }),
+		session({ id: "middle", cwd: "/home/.plume/workspaces/general", updatedAt: 20 }),
 	];
 	assert.deepEqual(
 		groupSessions(sessions, [], "", roots).loose.map((s) => s.id),
@@ -254,15 +254,15 @@ test("every historical root is recognised, not just the current one", () => {
 	// The directory has been renamed twice. Sessions record the path they were created under, so
 	// forgetting an old one turns every already-opened review back into a fake project.
 	const sessions = [
-		session({ id: "oldest", cwd: "/home/.lyra/pr/owner-repo-1" }),
-		session({ id: "old", cwd: "/home/.lyra/scratch/owner-repo-2" }),
-		session({ id: "new", cwd: "/home/.lyra/workspaces/owner-repo-3" }),
+		session({ id: "oldest", cwd: "/home/.plume/pr/owner-repo-1" }),
+		session({ id: "old", cwd: "/home/.plume/scratch/owner-repo-2" }),
+		session({ id: "new", cwd: "/home/.plume/workspaces/owner-repo-3" }),
 	];
 
 	const { projects: rest, loose } = groupSessions(sessions, [], "", [
-		"/home/.lyra/workspaces",
-		"/home/.lyra/scratch",
-		"/home/.lyra/pr",
+		"/home/.plume/workspaces",
+		"/home/.plume/scratch",
+		"/home/.plume/pr",
 	]);
 	assert.deepEqual(
 		loose.map((s) => s.id),
@@ -273,18 +273,18 @@ test("every historical root is recognised, not just the current one", () => {
 
 test("a project whose path merely starts the same is still its own project", () => {
 	// The root arrives without a trailing slash; a plain `startsWith` would swallow
-	// `/home/.lyra/prototypes` into the loose rows.
-	const sessions = [session({ id: "prototypes", cwd: "/home/.lyra/prototypes" })];
+	// `/home/.plume/prototypes` into the loose rows.
+	const sessions = [session({ id: "prototypes", cwd: "/home/.plume/prototypes" })];
 
-	const { projects: rest, loose } = groupSessions(sessions, [], "", ["/home/.lyra/pr"]);
+	const { projects: rest, loose } = groupSessions(sessions, [], "", ["/home/.plume/pr"]);
 	assert.deepEqual(loose, []);
-	assert.equal(rest[0].path, "/home/.lyra/prototypes");
+	assert.equal(rest[0].path, "/home/.plume/prototypes");
 });
 
 test("on Windows the roots are backslashed, and sessions under them are still project-less", () => {
 	// The roots come from the main process's `path.join`. Matching them with `root + "/"` never
 	// succeeded there, so every PR review and every project-less chat became a project of its own.
-	const root = "C:\\Users\\me\\.lyra";
+	const root = "C:\\Users\\me\\.plume";
 	const sessions = [
 		session({ id: "review", cwd: `${root}\\pr\\owner-repo-1` }),
 		session({ id: "chat", cwd: `${root}\\workspaces\\general` }),
@@ -301,10 +301,10 @@ test("on Windows the roots are backslashed, and sessions under them are still pr
 });
 
 test("with no roots known yet, nothing is treated as project-less", () => {
-	const sessions = [session({ id: "review", cwd: "/home/.lyra/workspaces/owner-repo-1" })];
+	const sessions = [session({ id: "review", cwd: "/home/.plume/workspaces/owner-repo-1" })];
 	const { projects: rest, loose } = groupSessions(sessions, [], "", []);
 	assert.deepEqual(loose, []);
-	assert.equal(rest[0].path, "/home/.lyra/workspaces/owner-repo-1");
+	assert.equal(rest[0].path, "/home/.plume/workspaces/owner-repo-1");
 });
 
 /*

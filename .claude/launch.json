@@ -17,7 +17,7 @@
         "-C",
         "../Lyra-Registry",
         "--filter",
-        "@lyra/registry-api",
+        "@plume/registry-api",
         "dev"
       ],
       "port": 8787
@@ -29,7 +29,7 @@
         "-C",
         "../Lyra-Registry",
         "--filter",
-        "@lyra/registry-web",
+        "@plume/registry-web",
         "dev"
       ],
       "port": 5173

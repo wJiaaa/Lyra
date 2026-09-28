@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import type { AssistantMessage, Message } from "@lyra/core";
+import type { AssistantMessage, Message } from "@plume/core";
 import type { SideChatSnapshot } from "../../electron/ipc-types.ts";
 import { useSide } from "../../src/features/dock/sideStore.ts";
 
@@ -12,7 +12,7 @@ function deferred<T>() {
 	return { resolve, promise };
 }
 function api(state: (id: string) => Promise<SideChatSnapshot | null>, ask = async () => {}) {
-	Object.defineProperty(window, "lyra", { configurable: true, value: { sideChat: { state, ask, reset: async () => {}, abort: async () => {} }, tasks: { list: async () => [] } } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { sideChat: { state, ask, reset: async () => {}, abort: async () => {} }, tasks: { list: async () => [] } } });
 }
 afterEach(async () => {
 	await useSide.getState().attach(null);
@@ -86,7 +86,7 @@ test("late snapshots cannot replace a newer model selection, including backgroun
 
 test("一个会话旁边的两个侧边聊天各画各的；关掉的那个，路上的事件画不回来", async () => {
 	api(async (_id) => ({ modelId: null, messages: [], running: false, revision: 0 }));
-	Object.assign((window as unknown as { lyra: { sideChat: Record<string, unknown> } }).lyra.sideChat, { close: async () => {} });
+	Object.assign((window as unknown as { plume: { sideChat: Record<string, unknown> } }).plume.sideChat, { close: async () => {} });
 	await useSide.getState().attachChat("pair", "default");
 	await useSide.getState().attachChat("pair", "x1");
 	useSide.getState().applyEvent("pair", "x1", { type: "message_start", message: user("只问 x1"), sideRevision: 1 });

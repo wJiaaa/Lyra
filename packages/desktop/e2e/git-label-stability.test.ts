@@ -10,7 +10,7 @@ let app: RunningApp;
 before(async () => {
 	app = await startApp({ port: 9641, seed: async (home) => {
 		await seedInteractions(home);
-		await promisify(execFile)("git", ["worktree", "add", "-qb", "codex/fix-cdp-promise-lifetime", join(home, "lyra-cdp-promise-lifetime")], { cwd: join(home, "project") });
+		await promisify(execFile)("git", ["worktree", "add", "-qb", "codex/fix-cdp-promise-lifetime", join(home, "plume-cdp-promise-lifetime")], { cwd: join(home, "project") });
 	} });
 });
 after(async () => { await app?.stop(); });
@@ -25,8 +25,8 @@ test("checkout label and branch widths settle without a resize feedback loop", a
 	await app.evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'r',code:'KeyR',metaKey:true,shiftKey:true,bubbles:true}))`);
 	await until(`document.querySelector('[data-dock-pane="review"] [aria-label="分支"]')`);
 	await app.evaluate(`document.querySelector('[data-dock-pane="review"] [aria-label="分支"]').click()`);
-	await until(`[...document.querySelectorAll('[data-dock-pane="review"] button')].some(e=>e.dataset.lyTip?.endsWith('lyra-cdp-promise-lifetime'))`);
-	const samples = await app.evaluate<number[][]>(`new Promise(resolve=>{const row=[...document.querySelectorAll('[data-dock-pane="review"] button')].find(e=>e.dataset.lyTip?.endsWith('lyra-cdp-promise-lifetime'));const result=[];const end=performance.now()+1500;function tick(){result.push([...row.children].map(e=>e.getBoundingClientRect().width));if(performance.now()<end)requestAnimationFrame(tick);else resolve(result);}requestAnimationFrame(tick);})`);
+	await until(`[...document.querySelectorAll('[data-dock-pane="review"] button')].some(e=>e.dataset.lyTip?.endsWith('plume-cdp-promise-lifetime'))`);
+	const samples = await app.evaluate<number[][]>(`new Promise(resolve=>{const row=[...document.querySelectorAll('[data-dock-pane="review"] button')].find(e=>e.dataset.lyTip?.endsWith('plume-cdp-promise-lifetime'));const result=[];const end=performance.now()+1500;function tick(){result.push([...row.children].map(e=>e.getBoundingClientRect().width));if(performance.now()<end)requestAnimationFrame(tick);else resolve(result);}requestAnimationFrame(tick);})`);
 	const stable = samples.slice(10);
 	assert.ok(stable.length > 10);
 	const ranges = stable[0].map((_, i) => Math.max(...stable.map(s => s[i])) - Math.min(...stable.map(s => s[i])));

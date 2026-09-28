@@ -10,7 +10,7 @@
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { DEFAULT_SETTINGS, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type Settings } from "@plume/core";
 import type { SessionSnapshot, WorkspaceInfo } from "../../electron/ipc-types.ts";
 import { useApp } from "../../src/store/index.ts";
 
@@ -68,7 +68,7 @@ beforeEach(() => {
 		turnStartedAt: null,
 		turnTokens: 0,
 	});
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			workspace: { info: async (path: string) => workspace(path) },

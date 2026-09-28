@@ -37,12 +37,12 @@ export function parseGuidelines(raw: string): string[] {
 }
 
 /**
- * Read `<cwd>/.lyra/prompts/<block>.md`, or empty when there is none.
+ * Read `<cwd>/.plume/prompts/<block>.md`, or empty when there is none.
  *
  * Bounded, because this text goes into every request in the project and an accident — a log file
  * renamed, a paste gone wrong — should cost one truncated prompt rather than every turn's budget.
  */
 export async function readPromptOverride(cwd: string, block: OverridableBlock): Promise<string> {
-	const raw = await readFile(join(cwd, ".lyra", "prompts", `${block}.md`), "utf8").catch(() => null);
+	const raw = await readFile(join(cwd, ".plume", "prompts", `${block}.md`), "utf8").catch(() => null);
 	return raw === null ? "" : raw.slice(0, 8000).trim();
 }

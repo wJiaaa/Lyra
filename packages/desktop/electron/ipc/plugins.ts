@@ -12,8 +12,8 @@ import { ipcMain, shell } from "electron";
 import { mkdir, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, sep } from "node:path";
-import type { McpBundle, McpServerConfig, McpServerStatus, Settings, Skill } from "@lyra/core";
-import { collectSkills, commandEnv, disabledSkillMatcher, lyraHome, installEntry, loadPlugins, McpManager, readInstalls, uninstallEntry } from "@lyra/core";
+import type { McpBundle, McpServerConfig, McpServerStatus, Settings, Skill } from "@plume/core";
+import { collectSkills, commandEnv, disabledSkillMatcher, plumeHome, installEntry, loadPlugins, McpManager, readInstalls, uninstallEntry } from "@plume/core";
 import { remoteImage } from "../avatars.ts";
 import { diskImageStore, type ImageStore } from "../image-cache.ts";
 import { readRegistry, withBundle } from "../plugin-index.ts";
@@ -152,7 +152,7 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 	 * ignored for exactly that reason — there is nothing to recover from.
 	 */
 	const tidy = async (bundles: McpBundle[]): Promise<void> => {
-		const home = join(lyraHome(), "mcp");
+		const home = join(plumeHome(), "mcp");
 		for (const bundle of bundles) {
 			if (bundle.source !== "user" || bundle.dir.startsWith(home)) continue;
 			await mkdir(home, { recursive: true }).catch(() => {});
@@ -170,11 +170,11 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 		 */
 		const plugins = await loadPlugins(
 			[
-				...(cwd ? [{ dir: join(cwd, ".lyra", "plugins"), source: "workspace" as const }] : []),
-				{ dir: join(lyraHome(), "plugins"), source: "user" as const },
+				...(cwd ? [{ dir: join(cwd, ".plume", "plugins"), source: "workspace" as const }] : []),
+				{ dir: join(plumeHome(), "plugins"), source: "user" as const },
 				// Both roots, because a bundle is sorted by what it holds — one installed before
 				// the split is still filed under `plugins` and still has to come back as MCP.
-				{ dir: join(lyraHome(), "mcp"), source: "user" as const },
+				{ dir: join(plumeHome(), "mcp"), source: "user" as const },
 			],
 			disabledPlugins(),
 		);
@@ -219,7 +219,7 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 
 	ipcMain.handle("registry:readme", async (_event, query: ReadmeQuery) => {
 		const current = settings();
-		return readmeFor(query ?? { id: "" }, [...(current.pluginRegistries ?? []), ...(current.skillRegistries ?? [])], lyraHome());
+		return readmeFor(query ?? { id: "" }, [...(current.pluginRegistries ?? []), ...(current.skillRegistries ?? [])], plumeHome());
 	});
 
 	/*
@@ -257,12 +257,12 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
  */
 let iconStore: ImageStore | null = null;
 function icons(): ImageStore {
-	iconStore ??= diskImageStore(join(lyraHome(), "cache", "icons"));
+	iconStore ??= diskImageStore(join(plumeHome(), "cache", "icons"));
 	return iconStore;
 }
 
 /**
- * 散装技能所在的那一层目录，设置页按它分组：「个人」底下可能同时有 `~/.lyra/skills`、
+ * 散装技能所在的那一层目录，设置页按它分组：「个人」底下可能同时有 `~/.plume/skills`、
  * `~/.claude/skills`、`~/.agents/skills`，只写「个人」就分不清改哪一份。项目内写相对路径，主目录下
  * 写成 `~/…`，都不是就原样。插件和内置的技能不给——前者按插件名分组，后者没有目录。
  */
@@ -276,5 +276,5 @@ function skillFolder(skill: Skill, cwd: string): string | undefined {
 }
 
 function pluginsDir(scope: "workspace" | "user", cwd: string): string {
-	return scope === "workspace" ? join(cwd, ".lyra", "plugins") : join(lyraHome(), "plugins");
+	return scope === "workspace" ? join(cwd, ".plume", "plugins") : join(plumeHome(), "plugins");
 }

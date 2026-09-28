@@ -1,9 +1,9 @@
 /**
  * How `tsserver` is started, which only matters inside the app.
  *
- * In Electron's main process `process.execPath` is Lyra itself. Started without
+ * In Electron's main process `process.execPath` is Plume itself. Started without
  * `ELECTRON_RUN_AS_NODE`, it is the app, not Node: every code-intelligence question launched a second
- * copy of Lyra with `tsserver.js` for an argument, the single-instance lock sent it away, and the tool
+ * copy of Plume with `tsserver.js` for an argument, the single-instance lock sent it away, and the tool
  * waited out its timeout. Tests run under Node, where the variable changes nothing — so the arguments
  * the process is started with are what is checked here, not whether a server answers.
  */
@@ -49,6 +49,6 @@ test("tsserver starts as Node inside the app, with no console window on Windows"
 	assert.equal(calls.length, 1);
 	assert.equal(calls[0].file, process.execPath);
 	assert.match(String(calls[0].args[0]), /tsserver\.js$/);
-	assert.equal(calls[0].options.env?.ELECTRON_RUN_AS_NODE, "1", "in the app, process.execPath is Lyra — without this it is not Node");
+	assert.equal(calls[0].options.env?.ELECTRON_RUN_AS_NODE, "1", "in the app, process.execPath is Plume — without this it is not Node");
 	assert.equal(calls[0].options.windowsHide, true);
 });

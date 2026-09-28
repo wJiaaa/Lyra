@@ -226,7 +226,7 @@ try {
 		return { samples, changed: samples.length, before, after: readCost() };
 	})()`);
 	if (!travel) {
-		note("  这台机器上没有可读的用量数据，跳过——需要 ~/.lyra 里有会话记录");
+		note("  这台机器上没有可读的用量数据，跳过——需要 ~/.plume 里有会话记录");
 	} else {
 		note(`  ${travel.before} → ${travel.after}，中间经过 ${travel.changed} 个不同的值`);
 		note(`  取样：${travel.samples.slice(0, 8).join(" → ")}${travel.samples.length > 8 ? " → …" : ""}`);

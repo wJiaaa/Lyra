@@ -9,7 +9,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { Check } from "lucide-react";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
-import type { TodoItem } from "@lyra/core";
+import type { TodoItem } from "@plume/core";
 
 export /**
  * Three states, three marks, all on the same 13px grid so the column of them stays a column.

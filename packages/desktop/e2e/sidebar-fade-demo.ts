@@ -30,9 +30,9 @@ import { startApp } from "./app.ts";
 import { MASK_PROBE } from "./mask.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-fade-demo";
+const dir = process.argv[2] ?? "/tmp/plume-fade-demo";
 const tag = process.argv[3] ?? "after";
-const REPO = "/Users/kittors/Developer/opensource/Lyra";
+const REPO = "/Users/kittors/Developer/opensource/Plume";
 const PORT = 9518;
 
 const usage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 } };
@@ -47,7 +47,7 @@ async function seed(home: string): Promise<void> {
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1180, height: 820, x: 60, y: 60 }));
 
 	const projects = [
-		{ path: REPO, name: "Lyra" },
+		{ path: REPO, name: "Plume" },
 		{ path: join(home, "proj-two"), name: "生产管控平台" },
 		{ path: join(home, "proj-three"), name: "源码-plfx" },
 	].map((p) => ({ ...p, id: createHash("sha256").update(p.path).digest("hex").slice(0, 16) }));

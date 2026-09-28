@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { testProvider } from "../electron/providers.ts";
-import type { ProviderConfig } from "@lyra/core";
+import type { ProviderConfig } from "@plume/core";
 
 test("testProvider with targetModelId targets the specific model without fetching /models", async () => {
 	let requestedUrl = "";

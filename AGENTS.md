@@ -5,7 +5,7 @@
 
 ## 一句话
 
-Lyra 是一个 agent 运行时加一个桌面端。`packages/core` 平台无关，桌面端（Electron）
+Plume 是一个 agent 运行时加一个桌面端。`packages/core` 平台无关，桌面端（Electron）
 驱动它的 `AgentSession`。
 
 ## 第一原则
@@ -148,8 +148,8 @@ pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
 `~/Desktop/<这件事叫什么>测试/`——不是写进仓库，也不是散落在桌面根目录，文件名带时间戳和通过数：
 
 ```
-~/Desktop/Lyra输入历史测试/2026-09-12-06-18_方向键翻输入历史_12of12.mp4
-~/Desktop/Lyra输入历史测试/2026-09-12-06-18_01_翻到上一条.png
+~/Desktop/Plume输入历史测试/2026-09-12-06-18_方向键翻输入历史_12of12.mp4
+~/Desktop/Plume输入历史测试/2026-09-12-06-18_01_翻到上一条.png
 ```
 
 **视觉类的改动至少各拍一张改动前后的状态**：`Page.captureScreenshot` 一行就够，而一张图省掉的
@@ -188,7 +188,7 @@ pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、
 真正发出去的是 CHANGELOG 里两个块：
 
 ```
-<!-- lyra:notes en -->      <!-- lyra:notes zh-CN -->
+<!-- plume:notes en -->      <!-- plume:notes zh-CN -->
 ```
 
 GitHub Release 正文是这两段按写下的顺序排出来的全文，**英文必须在最上面**。
@@ -224,7 +224,7 @@ tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这
 - **单文件尽量 300 行以内**，但拆分要有真实边界，不要对半切
 - **`docs/plan` 与 `docs/notes` 是本地笔记**，在 `.gitignore` 里，不要当成文档改。
   `docs/architecture`、`docs/adr`、`docs/guide` 进仓库——改了行为要同步改它们
-- **不要提交任何密钥**。模型配置在 `~/.lyra/settings.json`，不在仓库里
+- **不要提交任何密钥**。模型配置在 `~/.plume/settings.json`，不在仓库里
 - 改了行为就补测试。规则性的代码（分组、风险判定、去重）尤其要测
 
 ## 跨平台
@@ -244,11 +244,11 @@ tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这
 - **Node 的 `--experimental-strip-types` 不支持构造函数参数属性**。`constructor(private x: T) {}`
   能通过 tsc 但会让测试整个文件挂掉。写成显式字段赋值。
 - **测试用 `node:test`**，不是 vitest/jest。别引测试框架。
-- **core 不能 import 任何端上的东西**，反过来也一样：**渲染进程不能从 `@lyra/core`
+- **core 不能 import 任何端上的东西**，反过来也一样：**渲染进程不能从 `@plume/core`
   根入口导入"值"**。类型（`import type`）编译期就擦掉了，没有代价；值会把整个 index 拉进
   浏览器，而 index 一路连到 `node:fs`、`node:child_process`——bundle 加载、在第一个 Node
-  内置模块上抛错、窗口一片空白。浏览器要用的东西走子入口：`@lyra/core/schedule`、
-  `@lyra/core/trajectory-view`、`@lyra/core/activity`。
+  内置模块上抛错、窗口一片空白。浏览器要用的东西走子入口：`@plume/core/schedule`、
+  `@plume/core/trajectory-view`、`@plume/core/activity`。
 - **给 core 加了新的子入口，要重启 dev server**。Vite 缓存 exports 解析，不重启会报
   "not exported under the conditions"。
 - **改了 core 要重启桌面端**，HMR 只覆盖渲染进程；主进程里的 core 代码不会热更新。

@@ -12,10 +12,10 @@
  * goes back to the caller so the window can say the file was not entirely understood.
  */
 
-import type { ApiFormat, ModelConfig, ModelPricing, ModelPricingTier, ProviderConfig } from "@lyra/core";
+import type { ApiFormat, ModelConfig, ModelPricing, ModelPricingTier, ProviderConfig } from "@plume/core";
 
 /** Identifies the file as ours before anything reads what is in it. */
-const BUNDLE_KIND = "lyra.providers";
+const BUNDLE_KIND = "plume.providers";
 const BUNDLE_VERSION = 1;
 
 const API_FORMATS = new Set<string>(["openai-responses", "anthropic-messages", "openai-chat-completions"]);
@@ -59,7 +59,7 @@ export function serializeBundle(bundle: ProviderBundle): string {
 export function bundleFileName(now = new Date()): string {
 	const pad = (value: number) => String(value).padStart(2, "0");
 	const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
-	return `lyra-providers-${stamp}.json`;
+	return `plume-providers-${stamp}.json`;
 }
 
 export function parseBundle(text: string): BundleParse {

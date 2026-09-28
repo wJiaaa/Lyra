@@ -24,7 +24,7 @@ import { startApp } from "./app.ts";
 import { install, type Frame, type Point, type Read } from "./branch-row-gauge.ts";
 import { frameGrabber } from "./record.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-branch-row-hover";
+const dir = process.argv[2] ?? "/tmp/plume-branch-row-hover";
 const port = Number(process.argv[3] ?? 9823);
 
 /** Sized against the panel's default width: FITS fits the current row's name box with under 36px to spare. */

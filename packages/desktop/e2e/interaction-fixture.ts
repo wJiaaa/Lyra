@@ -28,7 +28,7 @@ export async function seedInteractions(home: string, modelPort?: number): Promis
 	const git = async (...args: string[]) => promisify(execFile)("git", args, { cwd, env: gitEnv() });
 	await git("init", "-q");
 	await git("config", "user.email", "test@example.com");
-	await git("config", "user.name", "Lyra test");
+	await git("config", "user.name", "Plume test");
 	await writeFile(join(cwd, "README.md"), "# QA fixture\n");
 	await git("add", "README.md"); await git("commit", "-qm", "seed");
 	await writeFile(join(cwd, "Hello.cs"), 'using System;\npublic class Hello {\n public string Text = "before";\n}\n');

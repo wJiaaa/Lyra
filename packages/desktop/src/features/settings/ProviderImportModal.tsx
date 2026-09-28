@@ -13,7 +13,7 @@
 
 import { CheckSquare, KeyRound, Square, Upload } from "lucide-react";
 import { useState } from "react";
-import type { ProviderConfig } from "@lyra/core";
+import type { ProviderConfig } from "@plume/core";
 import { useI18n } from "../../i18n/index.ts";
 import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";

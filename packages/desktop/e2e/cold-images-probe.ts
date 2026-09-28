@@ -3,7 +3,7 @@
  * 一个一百多张图的会话，**第一次**打开要付多少钱。
  *
  * 这是人真正遇到的那一次：图还内联在 jsonl 里，显示缓存没有，缩略图一张都没算过。之前几个探针
- * 量的都是第二次以后——`seedFromReal` 把整个 `~/.lyra` 复制过来，连缓存一起，于是量到的是热的。
+ * 量的都是第二次以后——`seedFromReal` 把整个 `~/.plume` 复制过来，连缓存一起，于是量到的是热的。
  *
  * 所以跑之前先清三样：显示缓存（`*.display.json`）、外置出来的图（`session-media/`）、缩略图
  * （`session-media/thumbs/`）。然后打开那个会话、从头滚到尾，把每一张图都带进视口。
@@ -64,7 +64,7 @@ const WATCH = `(() => {
 	(async () => {
 		while (!out.done) {
 			const at = performance.now();
-			try { await window.lyra.sessions.running('probe-ping'); } catch (e) {}
+			try { await window.plume.sessions.running('probe-ping'); } catch (e) {}
 			out.pings.push(Math.round(performance.now() - at));
 			await new Promise((r) => setTimeout(r, 25));
 		}

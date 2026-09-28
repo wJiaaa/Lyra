@@ -4,7 +4,7 @@ import { SourceIcon } from "./SourceIcon.tsx";
 import { available } from "../../../services/index.ts";
 import { ArrowUpRight, ArrowLeft, ChevronLeft, ChevronRight, Ellipsis, FileText, GitBranch, ScrollText as OutputIcon } from "lucide-react";
 import { openViewer } from "../../image/index.ts";
-import { SOURCE_LABEL, STATUS_LABEL, entryKey, type Entry } from "@lyra/core/trajectory-view";
+import { SOURCE_LABEL, STATUS_LABEL, entryKey, type Entry } from "@plume/core/trajectory-view";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";
 import { ScrollText } from "../../../ui/scroll/ScrollText.tsx";
 import { Popover, MenuBody, MenuItem, usePopover, type Anchor } from "../../../ui/overlay/Popover.tsx";

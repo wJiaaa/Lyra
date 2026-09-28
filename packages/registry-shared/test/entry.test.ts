@@ -2,7 +2,7 @@
  * What an index is allowed to say.
  *
  * This is a contract with people who do not have this codebase — anyone publishing a registry — so
- * it is checked here rather than only when a fetch happens to run. It moved from `@lyra/core` when
+ * it is checked here rather than only when a fetch happens to run. It moved from `@plume/core` when
  * the worker started needing the same answers: a contract enforced in one of the three places that
  * depend on it is a contract the other two are free to drift from.
  */

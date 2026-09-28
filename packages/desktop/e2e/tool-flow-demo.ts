@@ -16,7 +16,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
 const LABEL = process.argv[2] ?? "after";
-const OUT_DIR = process.argv[3] ?? join(homedir(), "Desktop", "Lyra工具调用交互测试");
+const OUT_DIR = process.argv[3] ?? join(homedir(), "Desktop", "Plume工具调用交互测试");
 const PORT = 9491;
 const MODEL_PORT = 9591;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);

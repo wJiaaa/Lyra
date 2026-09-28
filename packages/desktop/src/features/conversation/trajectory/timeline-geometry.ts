@@ -1,4 +1,4 @@
-import type { Entry } from "@lyra/core/trajectory-view";
+import type { Entry } from "@plume/core/trajectory-view";
 
 export interface TimeRange { start: number; end: number }
 export const LANE_HEIGHT = 16;

@@ -9,13 +9,13 @@
  * keeps the map from being reachable — and therefore mutable — from six different files.
  */
 
-import { AgentSession, backgroundJobs, type AgentEvent, type SessionStorage, type Settings, type SideChat } from "@lyra/core";
+import { AgentSession, backgroundJobs, type AgentEvent, type SessionStorage, type Settings, type SideChat } from "@plume/core";
 import type { BrowserWindow } from "electron";
 import { browserState, closeSessionBrowser } from "./browser-workspace.ts";
 import { createBrowserTools } from "./browser-tools.ts";
 import { autoCreateSessionWorktree, cleanOldWorktrees } from "./git-worktrees.ts";
 import type { SessionChange } from "./ipc-shapes.ts";
-import type { SessionSnapshot, LyraApi } from "./ipc-types.ts";
+import type { SessionSnapshot, PlumeApi } from "./ipc-types.ts";
 import { createStoredSession, type InitialPrompt } from "./create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace } from "./scratch.ts";
@@ -32,7 +32,7 @@ export interface HubDeps {
 	/** Events also go to connected browsers, while Web access is on. */
 	web?(): {
 		broadcast(sessionId: string, event: AgentEvent): void;
-		broadcastSideChat(sessionId: string, sideId: string, event: import("@lyra/core").SideChatUpdate): void;
+		broadcastSideChat(sessionId: string, sideId: string, event: import("@plume/core").SideChatUpdate): void;
 		broadcastSessionChange(change: SessionChange): void;
 	} | null;
 }
@@ -75,7 +75,7 @@ function stageSession(saved: SessionSnapshot): AgentSession {
 	return session;
 }
 
-export const promptSession: LyraApi["agent"]["prompt"] = async (id, content, options) => {
+export const promptSession: PlumeApi["agent"]["prompt"] = async (id, content, options) => {
 	const input = promptContent(content);
 	const requested = promptOptions(options);
 	let session: AgentSession | null;
@@ -95,7 +95,7 @@ export const browsers = new Map<string, () => void>();
 /**
  * Side chats, built on first use and dropped with the session.
  *
- * 一个会话可以同时开好几个，里面一层按侧边聊天的 id 分——见 `@lyra/contract` 的 `DEFAULT_SIDE_CHAT_ID`。
+ * 一个会话可以同时开好几个，里面一层按侧边聊天的 id 分——见 `@plume/contract` 的 `DEFAULT_SIDE_CHAT_ID`。
  * 一个都没有的会话不留空的那一层：回收会话时按「这里有没有它」判断它旁边是不是还有对话。
  */
 export const sideChats = new Map<string, Map<string, SideChat>>();
@@ -115,8 +115,8 @@ async function sideChatIds(sessionId: string): Promise<string[]> {
 export async function editSessionMessage(
 	sessionId: string,
 	index: number,
-	content: Parameters<LyraApi["agent"]["editMessage"]>[2],
-	options: Parameters<LyraApi["agent"]["editMessage"]>[3] = {},
+	content: Parameters<PlumeApi["agent"]["editMessage"]>[2],
+	options: Parameters<PlumeApi["agent"]["editMessage"]>[3] = {},
 ): Promise<void> {
 	const session = await ensureLiveSession(sessionId);
 	if (!session) throw new Error("找不到这个会话。");
@@ -160,7 +160,7 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
 /**
  * Side-chat events have their own channel on both transports so they cannot enter the main thread.
  */
-export function broadcastSideChat(sessionId: string, sideId: string, event: import("@lyra/core").SideChatUpdate): void {
+export function broadcastSideChat(sessionId: string, sideId: string, event: import("@plume/core").SideChatUpdate): void {
 	eachAppWindow((win) => win.webContents.send("sidechat:event", { sessionId, sideId, event }));
 	deps.web?.()?.broadcastSideChat(sessionId, sideId, event);
 }

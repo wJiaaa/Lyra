@@ -32,7 +32,7 @@ export interface CodeThemeSpec {
 	/**
 	 * Take the surface from the app rather than from these two fields.
 	 *
-	 * For the default theme only. Its whole point is to look like Lyra, and Lyra's background is
+	 * For the default theme only. Its whole point is to look like Plume, and Plume's background is
 	 * whatever the user set on the appearance page — a fixed `#FFFFFF` here would ignore a tinted
 	 * background and put a hard white rectangle in the middle of it. The fields above are still
 	 * filled in, as the value the settings swatch previews and as a fallback.
@@ -61,10 +61,10 @@ export interface CodeThemeSpec {
 export const LIGHT_CODE_THEMES: CodeThemeSpec[] = [
 	{
 		/*
-		 * Lyra's own, and the default.
+		 * Plume's own, and the default.
 		 *
 		 * The token colours are the terminal's ANSI palette, not a new invention. That palette is
-		 * already Lyra's answer to "what colour is a string, a number, an error" — it was tuned for
+		 * already Plume's answer to "what colour is a string, a number, an error" — it was tuned for
 		 * this background, and reusing it means `git diff`'s green in the terminal and a type name
 		 * in the editor are the same green. A second hand-picked set would drift from it on the
 		 * first tweak to either.
@@ -72,9 +72,9 @@ export const LIGHT_CODE_THEMES: CodeThemeSpec[] = [
 		 * `inherit` keeps the surface the app's own, so this theme adds colour to code without
 		 * repainting the window. Anything else is a choice the user made.
 		 */
-		id: "lyra-light",
-		label: "Lyra",
-		labelKey: "theme.lyraDefault",
+		id: "plume-light",
+		label: "Plume",
+		labelKey: "theme.plumeDefault",
 		mode: "light",
 		inherit: true,
 		background: "#ffffff",
@@ -276,9 +276,9 @@ export const LIGHT_CODE_THEMES: CodeThemeSpec[] = [
 export const DARK_CODE_THEMES: CodeThemeSpec[] = [
 	{
 		// The dark half of the pair above — the same ANSI slots, dark-theme values.
-		id: "lyra-dark",
-		label: "Lyra",
-		labelKey: "theme.lyraDefault",
+		id: "plume-dark",
+		label: "Plume",
+		labelKey: "theme.plumeDefault",
 		mode: "dark",
 		inherit: true,
 		background: "#171717",

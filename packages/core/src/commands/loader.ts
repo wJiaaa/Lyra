@@ -8,8 +8,8 @@
  *
  * Four directories are searched, and two of them are not ours:
  *
- *   <project>/.lyra/commands/**\/*.md     the project's own, shared through the repository
- *   ~/.lyra/commands/**\/*.md             yours, everywhere
+ *   <project>/.plume/commands/**\/*.md     the project's own, shared through the repository
+ *   ~/.plume/commands/**\/*.md             yours, everywhere
  *   <project>/.claude/commands/**\/*.md   what Claude Code reads
  *   ~/.claude/commands/**\/*.md
  *
@@ -47,7 +47,7 @@ export interface SlashCommand {
 	 * Worth surfacing rather than hiding: someone who cannot find the file they are looking at is
 	 * usually looking in the wrong one of two directories that both exist.
 	 */
-	origin: "lyra" | "claude" | "agents";
+	origin: "plume" | "claude" | "agents";
 	/** From frontmatter `argument-hint` or `argumentHint`. Shown as a placeholder once the command is chosen. */
 	argumentHint?: string;
 	/**
@@ -97,13 +97,13 @@ export interface CommandSource {
  *
  * Project before user, ours before Claude's. The first is the ordinary rule for layered
  * configuration — the repository you are in is more specific than your home directory. The second
- * is only a tie-break, and it points this way so that a command written for Lyra can deliberately
+ * is only a tie-break, and it points this way so that a command written for Plume can deliberately
  * shadow one of the same name found elsewhere.
  */
 export function commandSources(cwd: string | null, home: string): CommandSource[] {
 	const sources: CommandSource[] = [];
-	if (cwd) sources.push({ dir: join(cwd, ".lyra", "commands"), scope: "workspace", origin: "lyra" });
-	sources.push({ dir: join(home, "commands"), scope: "user", origin: "lyra" });
+	if (cwd) sources.push({ dir: join(cwd, ".plume", "commands"), scope: "workspace", origin: "plume" });
+	sources.push({ dir: join(home, "commands"), scope: "user", origin: "plume" });
 	if (cwd) sources.push({ dir: join(cwd, ".claude", "commands"), scope: "workspace", origin: "claude" });
 	sources.push({ dir: join(claudeHome(), "commands"), scope: "user", origin: "claude" });
 	return sources;

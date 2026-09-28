@@ -8,7 +8,7 @@
  * state is how two windows end up sharing one project's plugins.
  *
  * Priority 90 puts it under `native`, which is the rule everywhere else too: a loose skill dropped
- * into `.lyra/skills` is how you override a bundled one, and it only works if the loose copy wins.
+ * into `.plume/skills` is how you override a bundled one, and it only works if the loose copy wins.
  */
 
 import type { Plugin } from "../../plugins/loader.ts";

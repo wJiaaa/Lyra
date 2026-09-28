@@ -22,7 +22,7 @@ import { seedFromReal } from "./session-switch-perf.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
 /** 视频和截图都落在这里——见 AGENTS.md 的「验证要录一段视频，放到桌面上」。 */
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra密钥框与提交框测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume密钥框与提交框测试");
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 const PORT = 9744;
 

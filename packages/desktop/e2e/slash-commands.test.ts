@@ -6,7 +6,7 @@
  * filter, move under the arrow keys, and put the right text in the field" is a claim about a
  * textarea, a floating panel and their event handling together.
  *
- * The command files are written into the profile before launch — one under `.lyra`, one under
+ * The command files are written into the profile before launch — one under `.plume`, one under
  * `.claude` — because the compatibility claim is worth holding to the same standard as the rest:
  * a file somebody wrote for Claude Code has to show up here without being touched.
  */

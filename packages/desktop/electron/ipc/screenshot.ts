@@ -3,7 +3,7 @@
  */
 
 import { app, dialog, ipcMain } from "electron";
-import type { ScreenshotSettings, Settings } from "@lyra/core";
+import type { ScreenshotSettings, Settings } from "@plume/core";
 import { captureLog } from "../screenshot-debug.ts";
 import {
 	closeScreenshotOverlay,
@@ -43,7 +43,7 @@ export function registerScreenshotIpc(deps: ScreenshotIpcDeps): void {
 	 * Cancelling produces nothing, so it moves nothing.
 	 *
 	 * `foreground: false` is the difference between this and finishing. A capture that produced an
-	 * image has somewhere to send it and Lyra comes forward to receive it; pressing Escape means
+	 * image has somewhere to send it and Plume comes forward to receive it; pressing Escape means
 	 * "never mind", and answering that by throwing the application in front of whatever the user
 	 * was reading is the opposite of never mind.
 	 */

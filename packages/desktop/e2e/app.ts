@@ -171,7 +171,7 @@ export interface RunningApp {
 	 *
 	 * 路其实一直在——每个 Electron 窗口在 `/json/list` 里都是一个独立的 page target，从前只
 	 * 取了第一个。认身份不靠 URL：三种窗口 `loadFile` 的是同一个 index.html，靠标题也不行
-	 * （页面自己会改）。问它 `window.lyra.bootWindow`——那是 preload 从 argv 里读出来的，
+	 * （页面自己会改）。问它 `window.plume.bootWindow`——那是 preload 从 argv 里读出来的，
 	 * 每个窗口从生到死都只有一个答案。
 	 */
 	windows(): Promise<AppWindow[]>;
@@ -199,7 +199,7 @@ export interface AppWindow {
  * window in which settings can be written for it to read at launch.
  */
 /**
- * How a Lyra instance is launched, for the tests that start a second one themselves.
+ * How a Plume instance is launched, for the tests that start a second one themselves.
  *
  * The binary directly, never `electron-vite preview`: Windows cannot spawn a `pnpm.cmd` shim
  * without a shell, and preview silently rebuilds instead of running the build under test. The
@@ -211,8 +211,8 @@ export interface AppWindow {
  * enough to open a debugging port, and giving it the first one's would be a second conflict.
  */
 export function electronLaunch(port?: number): { executable: string; argv: string[] } {
-	const bundle = process.env.LYRA_E2E_APP;
-	const electron: unknown = bundle ? join(bundle, "Contents", "MacOS", "Lyra") : createRequire(import.meta.url)("electron");
+	const bundle = process.env.PLUME_E2E_APP;
+	const electron: unknown = bundle ? join(bundle, "Contents", "MacOS", "Plume") : createRequire(import.meta.url)("electron");
 	if (typeof electron !== "string") throw new Error("Electron's executable path is unavailable");
 	// Keep app.getAppPath() at the package root, exactly as electron-vite's `electron .` does.
 	const argv = bundle ? [] : [ROOT];
@@ -278,7 +278,7 @@ export async function startApp({
 	const output: string[] = [];
 
 	/*
-	 * The built bundle when `LYRA_E2E_APP` names one, and the built development app otherwise.
+	 * The built bundle when `PLUME_E2E_APP` names one, and the built development app otherwise.
 	 *
 	 * They are not the same program in the ways that have bitten hardest. A packaged build runs out
 	 * of an asar, resolves `app.getAppPath()` somewhere else entirely, and has whatever
@@ -286,7 +286,7 @@ export async function startApp({
 	 * dock icon can be found in development and missing in the app people install. Testing the
 	 * thing that ships is the only way to see that class of fault.
 	 */
-	const bundle = process.env.LYRA_E2E_APP;
+	const bundle = process.env.PLUME_E2E_APP;
 	const entry = join(ROOT, "out", "main", "index.js");
 	if (!bundle) {
 		await access(entry).catch((cause: unknown) => {
@@ -299,7 +299,7 @@ export async function startApp({
 	if (inspectPort !== undefined) argv.unshift(`--inspect=${inspectPort}`);
 
 	// Validate the executable before creating a profile, so failed setup leaves no test data.
-	const home = reuseHome ?? (await mkdtemp(join(tmpdir(), "lyra-e2e-")));
+	const home = reuseHome ?? (await mkdtemp(join(tmpdir(), "plume-e2e-")));
 	try {
 		if (!reuseHome) await seed?.(home);
 		const settingsPath = join(home, "settings.json");
@@ -324,7 +324,7 @@ export async function startApp({
 	 * Launch the binary directly: Windows cannot spawn a pnpm.cmd shim without a shell, and
 	 * electron-vite preview silently rebuilds per suite instead of testing the requested build.
 	 */
-	const childEnv: NodeJS.ProcessEnv = { ...process.env, LYRA_HOME: home, ELECTRON_ENABLE_LOGGING: "1", LYRA_E2E_OFFLINE_CATALOG: "1" };
+	const childEnv: NodeJS.ProcessEnv = { ...process.env, PLUME_HOME: home, ELECTRON_ENABLE_LOGGING: "1", PLUME_E2E_OFFLINE_CATALOG: "1" };
 	// The app may run node --test itself; inheriting this suppresses every nested test.
 	delete childEnv.NODE_TEST_CONTEXT;
 	const app: ChildProcess = spawn(executable, argv, {
@@ -380,7 +380,7 @@ export async function startApp({
 /**
  * 每个窗口问一次「你是谁」。
  *
- * 一个刚开出来的窗口有一段时间还没有 `window.lyra`（preload 在文档之前跑，但 target 会在
+ * 一个刚开出来的窗口有一段时间还没有 `window.plume`（preload 在文档之前跑，但 target 会在
  * 那之前就出现在 `/json/list` 里）。答不上来的跳过而不是抛——调用方等的是「面板窗口开出来
  * 了吗」，一次没答上来下一次轮询会答。
  */
@@ -395,7 +395,7 @@ async function listAppWindows(port: number): Promise<AppWindow[]> {
 		const boot = await evaluateRenderer<AppWindow["boot"] | null>(
 			url,
 			`(() => {
-				const b = window.lyra && window.lyra.bootWindow;
+				const b = window.plume && window.plume.bootWindow;
 				if (!b) return null;
 				return { id: b.id, kind: b.kind, sessionId: b.sessionId ?? null, panelKind: b.panelKind ?? null, panelScope: b.panelScope ?? null };
 			})()`,
@@ -471,7 +471,7 @@ async function waitForShell(evaluate: <T>(expression: string) => Promise<T>): Pr
 export function evaluateRenderer<T>(target: string, expression: string): Promise<T> {
 	return withConnection(target, async (send) => {
 		type Answer = { exceptionDetails?: { exception?: { description?: string }; text: string }; result?: { value: T; objectId?: string; subtype?: string } };
-		const objectGroup = "lyra-e2e-evaluation";
+		const objectGroup = "plume-e2e-evaluation";
 		try {
 			// V8 bug 536271637: awaitPromise alone holds a weak reference in Electron 43's V8.
 			// A remote handle owns the result until this same connection has awaited and released it.

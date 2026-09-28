@@ -21,8 +21,8 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra输入历史测试");
+const REAL_HOME = join(homedir(), ".plume");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume输入历史测试");
 const PORT = 9427;
 const STAMP = new Date()
 	.toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" })
@@ -162,7 +162,7 @@ async function seed(home: string): Promise<void> {
 	 */
 	for (const file of ["credentials.json", "vault.key"]) {
 		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
-			throw new Error(`没找到 ~/.lyra/${file}——最后那次真实发送需要它`);
+			throw new Error(`没找到 ~/.plume/${file}——最后那次真实发送需要它`);
 		});
 	}
 	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));

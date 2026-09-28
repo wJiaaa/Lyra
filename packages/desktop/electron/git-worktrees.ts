@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { mkdir, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
-import type { Settings } from "@lyra/core";
+import type { Settings } from "@plume/core";
 import { git } from "./git-exec.ts";
 import { isGitRepo } from "./git.ts";
 import { canonicalPath, pathKey } from "./path-key.ts";
@@ -32,7 +32,7 @@ export interface WorktreeResult {
 
 /**
  * Resolves the configured root directory for worktrees.
- * Supports "~" expansion and defaults to "~/.lyra/worktrees" or project sibling.
+ * Supports "~" expansion and defaults to "~/.plume/worktrees" or project sibling.
  */
 export function resolveWorktreesRoot(customRootDir?: string): string {
 	if (customRootDir && customRootDir.trim()) {
@@ -42,7 +42,7 @@ export function resolveWorktreesRoot(customRootDir?: string): string {
 		}
 		return isAbsolute(trimmed) ? trimmed : resolve(process.cwd(), trimmed);
 	}
-	return join(process.env.LYRA_HOME || join(homedir(), ".lyra"), "worktrees");
+	return join(process.env.PLUME_HOME || join(homedir(), ".plume"), "worktrees");
 }
 
 /**
@@ -202,7 +202,7 @@ export async function autoCreateSessionWorktree(
 		return { cwd: projectCwd, worktreeCreated: false };
 	}
 
-	const branchName = `lyra/session-${sessionId.slice(0, 8)}`;
+	const branchName = `plume/session-${sessionId.slice(0, 8)}`;
 	const root = await git(projectCwd, ["rev-parse", "--show-toplevel"])
 		.then((out) => out.trim())
 		.catch(() => projectCwd);

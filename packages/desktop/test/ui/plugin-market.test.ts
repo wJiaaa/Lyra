@@ -1,7 +1,7 @@
 /**
  * 插件市场和它的详情页，挂载出来点：看到的是不是对的状态，点下去发出去的是不是对的请求。
  *
- * 桥是假的（`window.lyra`），数据是手写的一份索引加一次扫盘结果，其余全是真组件、真 store：
+ * 桥是假的（`window.plume`），数据是手写的一份索引加一次扫盘结果，其余全是真组件、真 store：
  * 卡片上的状态怎么认、搜索和分类怎么筛、钥匙怎么存、开关怎么改设置——这些都在组件和 store 里，
  * 桩只替掉进程边界那一头。
  */
@@ -9,14 +9,14 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import { DEFAULT_SETTINGS, type McpServerConfig, type Plugin, type RegistryEntry, type Settings } from "@lyra/core";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import { DEFAULT_SETTINGS, type McpServerConfig, type Plugin, type RegistryEntry, type Settings } from "@plume/core";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 import { PluginsView } from "../../src/features/plugins/PluginsView.tsx";
 import { RegistrySources } from "../../src/features/plugins/RegistrySources.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 
-type Scan = Awaited<ReturnType<LyraApi["plugins"]["list"]>>;
+type Scan = Awaited<ReturnType<PlumeApi["plugins"]["list"]>>;
 
 const REGISTRY = "https://market.example/v1/index";
 
@@ -30,7 +30,7 @@ const entries: RegistryEntry[] = [
 function plugin(id: string, extra: Partial<Plugin> = {}): Plugin {
 	return {
 		id,
-		dir: `/home/.lyra/plugins/${id}`,
+		dir: `/home/.plume/plugins/${id}`,
 		manifest: { name: id, version: "1.0.0" },
 		source: "user",
 		skills: [],
@@ -52,7 +52,7 @@ interface Stub {
 let seq = 0;
 function stubBridge(scan: Scan, settings: Partial<Settings> = {}): Stub {
 	const stub: Stub = { installs: [], saved: [], scan };
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			plugins: {
@@ -193,7 +193,7 @@ test("装好的 MCP 缺钥匙：卡片是「待配置」，详情页里填上就
 		enabled: false,
 		origin: { bundle: "brave-search" },
 	};
-	const bundle = { id: "brave-search", dir: "/home/.lyra/mcp/brave-search", manifest: { name: "brave-search" }, source: "user" as const, servers: [server] };
+	const bundle = { id: "brave-search", dir: "/home/.plume/mcp/brave-search", manifest: { name: "brave-search" }, source: "user" as const, servers: [server] };
 	const stub = stubBridge(scanWith({ mcpBundles: [bundle] }), { mcpServers: [server] });
 	const view = await mount(h(PluginsView));
 	try {

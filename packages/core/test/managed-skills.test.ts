@@ -22,10 +22,10 @@ let project: string;
 before(async () => {
 	home = await mkdtemp(join(tmpdir(), "ly-mskill-home-"));
 	project = await mkdtemp(join(tmpdir(), "ly-mskill-proj-"));
-	process.env.LYRA_HOME = home;
+	process.env.PLUME_HOME = home;
 });
 after(async () => {
-	delete process.env.LYRA_HOME;
+	delete process.env.PLUME_HOME;
 	await rm(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	await rm(project, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
@@ -37,7 +37,7 @@ const CANDIDATE = {
 };
 
 async function skillNames(): Promise<string[]> {
-	const result = await createRegistry({ home: join(home, ".lyra"), userHome: home }).load<Skill>("skill", { cwd: project });
+	const result = await createRegistry({ home: join(home, ".plume"), userHome: home }).load<Skill>("skill", { cwd: project });
 	return result.items.map((s) => s.name);
 }
 
@@ -102,11 +102,11 @@ test("同名的人写技能盖掉自动生成的", async () => {
 	await proposeSkill(project, { ...CANDIDATE, name: "contested", body: "自动生成的正文" });
 	await approveSkill(project, "contested");
 
-	const mine = join(project, ".lyra", "skills", "contested");
+	const mine = join(project, ".plume", "skills", "contested");
 	await mkdir(mine, { recursive: true });
 	await writeFile(join(mine, "SKILL.md"), '---\nname: contested\ndescription: "我自己写的"\n---\n\n我的正文\n');
 
-	const result = await createRegistry({ home: join(home, ".lyra"), userHome: home }).load<Skill>("skill", { cwd: project });
+	const result = await createRegistry({ home: join(home, ".plume"), userHome: home }).load<Skill>("skill", { cwd: project });
 	const won = result.items.find((s) => s.name === "contested");
 	assert.match(won?.content ?? "", /我的正文/, "人写的那份赢");
 });
@@ -179,7 +179,7 @@ test("candidate scope and evidence survive storage", async () => {
 	assert.ok(!(await skillNames()).includes("portable-release"));
 	const path = await approveSkill(project, "portable-release");
 	assert.ok(path);
-	const result = await createRegistry({ home: join(home, ".lyra"), userHome: home }).load<Skill>("skill", { cwd: project });
+	const result = await createRegistry({ home: join(home, ".plume"), userHome: home }).load<Skill>("skill", { cwd: project });
 	const loaded = result.items.find((skill) => skill.name === "portable-release");
 	assert.match(loaded?.content ?? "", /Read current configuration\./);
 	assert.ok(!(await pendingSkills(project)).some((skill) => skill.name === "portable-release"));

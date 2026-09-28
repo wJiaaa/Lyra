@@ -1,4 +1,4 @@
-import type { Message, UserContent, UserMessage } from "@lyra/core";
+import type { Message, UserContent, UserMessage } from "@plume/core";
 import { isAttachmentBody } from "./attachment-placeholders.ts";
 
 type RestoredAttachment = {

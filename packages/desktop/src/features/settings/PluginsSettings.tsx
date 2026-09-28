@@ -8,7 +8,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import type { Plugin } from "@lyra/core";
+import type { Plugin } from "@plume/core";
 import { ArrowUp, FolderOpen, MoreHorizontal, Store, TriangleAlert, Trash2 } from "lucide-react";
 import { useState } from "react";
 
@@ -50,7 +50,7 @@ export function PluginsSettings({ filter = "", markOf }: { filter?: string; mark
 	/*
 	 * Two lists, because they answer different questions. A problem is a plugin that did not load;
 	 * a warning is one that did, with a skill that may not behave as written — a short description,
-	 * an `allowed-tools` entry Lyra cannot honour. Counted together, a short description read as a
+	 * an `allowed-tools` entry Plume cannot honour. Counted together, a short description read as a
 	 * broken plugin.
 	 *
 	 * Warnings are counted by skill, because one file can carry several and the header says how many

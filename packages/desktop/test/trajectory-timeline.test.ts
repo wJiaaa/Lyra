@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Entry } from "@lyra/core/trajectory-view";
+import type { Entry } from "@plume/core/trajectory-view";
 import { draggedRange, timelineHit } from "../src/features/conversation/trajectory/timeline-geometry.ts";
 
 const span = { start: 0, end: 1000 };

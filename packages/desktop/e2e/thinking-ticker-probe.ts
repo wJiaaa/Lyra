@@ -23,7 +23,7 @@ import { join } from "node:path";
 import { startApp } from "./app.ts";
 
 const MODEL_PORT = 9571;
-const OUT = "/tmp/lyra-thinking-probe";
+const OUT = "/tmp/plume-thinking-probe";
 const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let failures = 0;

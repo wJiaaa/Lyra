@@ -9,10 +9,10 @@
 ```
 渲染进程（一份代码）
    ├─ Electron 窗口 ──► preload ──► IPC ──► 主进程
-   └─ 浏览器 ──► services/web-bridge.ts（网络版 window.lyra）──► WebSocket ──► web-rpc 白名单
+   └─ 浏览器 ──► services/web-bridge.ts（网络版 window.plume）──► WebSocket ──► web-rpc 白名单
 ```
 
-界面只认识 `window.lyra`。窗口里它由 preload 从 IPC 搭出来；浏览器里没有 preload，
+界面只认识 `window.plume`。窗口里它由 preload 从 IPC 搭出来；浏览器里没有 preload，
 `web-bridge.ts` 按契约的方法表用一条 WebSocket 搭一个同样形状的对象。界面察觉不到差别，
 所以两边不会各说各的。
 
@@ -24,7 +24,7 @@
 | `electron/web-rpc.ts` | 浏览器能调的方法及参数校验——**安全边界** |
 | `electron/web-settings.ts` | 发给浏览器的设置去掉密钥、命令和令牌 |
 | `contract/src/web.ts` | `WEB_METHODS`：白名单的声明，主进程与渲染进程读同一份 |
-| `src/services/web-bridge.ts` | 浏览器里的 `window.lyra` |
+| `src/services/web-bridge.ts` | 浏览器里的 `window.plume` |
 | `src/services/host.ts` | `onWeb()` 与 `available()`：界面在画控件之前问这个方法在这里答不答 |
 
 ## 能做什么，不能做什么

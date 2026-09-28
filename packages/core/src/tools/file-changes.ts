@@ -2,12 +2,12 @@ import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import { mkdir, readFile, writeFile, lstat, realpath, unlink } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import type { ToolContext } from "../types.ts";
 import { renameWithRetry } from "../utils/atomic-write.ts";
 
 export interface RecordedChange { id: string; path: string; before: string | null; after: string | null; source?: "tool" | "command"; timestamp: number }
-function directory(sessionId: string): string { return join(lyraHome(), "changes", createHash("sha256").update(sessionId).digest("hex")); }
+function directory(sessionId: string): string { return join(plumeHome(), "changes", createHash("sha256").update(sessionId).digest("hex")); }
 export async function recordFileChange(ctx: ToolContext, path: string, before: string | null, after: string | null, source: "tool" | "command" = "tool"): Promise<string | undefined> {
 	// Bare tool hosts have no persistent session artifacts.
 	if (!ctx.scratchDir) return undefined;
@@ -46,7 +46,7 @@ async function replaceRecorded(path: string, expected: string | null, content: s
 	if (await realpath(parent) !== parent) throw new Error("文件目录已变化，不能撤销");
 	const initial = await lstat(path).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT" && expected === null) return null; throw error; });
 	if (initial && (!initial.isFile() || initial.isSymbolicLink())) throw new Error("只能撤销普通文件");
-	const temporary = join(parent, `.lyra-undo-${randomUUID()}`);
+	const temporary = join(parent, `.plume-undo-${randomUUID()}`);
 	try {
 		if (content !== null) {
 			await fs.writeFile(temporary, content, { encoding: "utf8", flag: "wx", mode: 0o600 });

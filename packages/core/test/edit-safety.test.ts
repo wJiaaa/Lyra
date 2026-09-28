@@ -12,7 +12,7 @@ import type { ToolContext, ToolResult } from "../src/types.ts";
 
 const text = (result: ToolResult) => result.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
 async function fixture(t: { after(fn: () => Promise<void>): void }, content = "a\nb\nc\nd\n") {
-	const cwd = await mkdtemp(join(tmpdir(), "lyra-edit-safety-"));
+	const cwd = await mkdtemp(join(tmpdir(), "plume-edit-safety-"));
 	t.after(() => rm(cwd, { recursive: true, force: true }));
 	const path = join(cwd, "sample.txt");
 	await writeFile(path, content);

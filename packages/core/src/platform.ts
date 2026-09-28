@@ -52,7 +52,7 @@ export interface CommandShell {
  * platform. Git for Windows is what brings `git` to almost every developer's Windows, and it brings
  * bash with it. When it is missing, the model is told which PowerShell it has, so it can write for it.
  *
- * `LYRA_SHELL` overrides all of this, for a bash or zsh or PowerShell installed where none of the
+ * `PLUME_SHELL` overrides all of this, for a bash or zsh or PowerShell installed where none of the
  * searches look.
  *
  * This is the shell for a command that runs unconfined. A confined one on Windows runs in
@@ -68,10 +68,10 @@ export function systemShell(): CommandShell {
 let cachedShell: CommandShell | undefined;
 let cachedFor: string | undefined;
 /** The inputs the answer depends on, so a changed environment (a test, a settings change) is re-read. */
-const shellKey = () => `${process.platform}\0${process.env.LYRA_SHELL ?? ""}\0${process.env.SHELL ?? ""}`;
+const shellKey = () => `${process.platform}\0${process.env.PLUME_SHELL ?? ""}\0${process.env.SHELL ?? ""}`;
 
 function pickShell(): CommandShell {
-	const override = process.env.LYRA_SHELL?.trim();
+	const override = process.env.PLUME_SHELL?.trim();
 	if (override && existsSync(override)) {
 		const shell = shellAt(override);
 		if (shell) return shell;
@@ -155,7 +155,7 @@ const PRELUDE =
  */
 function scriptFile(command: string): string {
 	const body = `${PRELUDE}\n${command}\nif (-not $?) { exit $(if ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }) }\n`;
-	const dir = join(tmpdir(), "lyra-commands");
+	const dir = join(tmpdir(), "plume-commands");
 	mkdirSync(dir, { recursive: true });
 	if (!sweptScripts) {
 		sweptScripts = true;
@@ -211,14 +211,14 @@ type Confinement = "read-only" | "workspace-write" | "danger-full-access";
  * not by what one call was escalated to: an escalated command is still the command the model wrote,
  * in the grammar it was told to write in.
  *
- * `LYRA_SHELL` is honoured here only when it names a PowerShell; one that names Git Bash would
+ * `PLUME_SHELL` is honoured here only when it names a PowerShell; one that names Git Bash would
  * fail on every command.
  */
 export function commandShell(mode?: Confinement): CommandShell {
 	if (process.platform !== "win32" || mode === undefined || mode === "danger-full-access") return systemShell();
 	if (confinedShell && confinedFor === shellKey()) return confinedShell;
 	confinedFor = shellKey();
-	const override = process.env.LYRA_SHELL?.trim();
+	const override = process.env.PLUME_SHELL?.trim();
 	const chosen = override && existsSync(override) ? shellAt(override) : undefined;
 	confinedShell = chosen?.kind === "powershell" ? chosen : windowsPowerShell();
 	return confinedShell;
@@ -301,7 +301,7 @@ export function loginShell(): string {
  * were written for bash, and a line that means one thing to bash and another to PowerShell has to
  * be judged by whichever reading finds more. That is every Windows — its confined modes run
  * PowerShell and full access runs Git Bash (`commandShell`), and a verdict about a command must not
- * hang on which of the two happens to run it — and anywhere `LYRA_SHELL` picked a PowerShell.
+ * hang on which of the two happens to run it — and anywhere `PLUME_SHELL` picked a PowerShell.
  * Elsewhere, bash's reading alone.
  */
 export function commandDialects(): ("posix" | "powershell")[] {

@@ -1,5 +1,5 @@
 import { activeLocale, translate } from "../../i18n/translate.ts";
-import type { SessionMeta } from "@lyra/core";
+import type { SessionMeta } from "@plume/core";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 
 export type MentionKind = "action" | "file" | "subagent" | "plugin" | "session";

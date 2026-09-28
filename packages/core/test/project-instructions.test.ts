@@ -75,7 +75,7 @@ test("每层最多一份，同层按优先级", async () => {
 	 */
 	const dir = join(root, "repo", "packages", "both");
 	await mkdir(dir, { recursive: true });
-	await writeFile(join(dir, "LYRA.md"), "优先这份。\n");
+	await writeFile(join(dir, "PLUME.md"), "优先这份。\n");
 	await writeFile(join(dir, "AGENTS.md"), "不该同时出现。\n");
 
 	const found = await loadProjectInstructions(dir);

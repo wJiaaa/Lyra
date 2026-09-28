@@ -50,7 +50,7 @@ export async function findUser(id) {
 		key: "json",
 		label: "JSON",
 		sample: `{
-	"name": "@lyra/desktop",
+	"name": "@plume/desktop",
 	"version": "0.8.32",
 	"private": true,
 	"scripts": { "dev": "electron-vite dev", "test": "node --test" }
@@ -121,7 +121,7 @@ const answer = 42;
 	<head>
 		<!-- 字符集要在最前面 -->
 		<meta charset="utf-8" />
-		<title>Lyra</title>
+		<title>Plume</title>
 	</head>
 	<body>
 		<main id="root" data-ready="false"></main>
@@ -194,7 +194,7 @@ pub async fn find_user(id: &str) -> Result<User, Error> {
 	{
 		key: "java",
 		label: "Java",
-		sample: `package com.lyra;
+		sample: `package com.plume;
 
 /** 一个用户。 */
 public record User(String id, String name) {
@@ -239,7 +239,7 @@ struct User {
 	{
 		key: "cs",
 		label: "C#",
-		sample: `namespace Lyra;
+		sample: `namespace Plume;
 
 // 一个用户
 public record User(string Id, string Name = "匿名")

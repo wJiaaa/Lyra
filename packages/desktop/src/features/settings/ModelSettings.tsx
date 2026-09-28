@@ -8,7 +8,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { activeLocale } from "../../i18n/translate.ts";
-import type { ModelConfig } from "@lyra/core";
+import type { ModelConfig } from "@plume/core";
 import { Box, Download, Plus, RefreshCw, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";

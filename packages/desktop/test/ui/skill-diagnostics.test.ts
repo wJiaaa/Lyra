@@ -13,14 +13,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h, type ReactElement } from "react";
-import { DEFAULT_SETTINGS } from "@lyra/core";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import { DEFAULT_SETTINGS } from "@plume/core";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 import { PluginsSettings } from "../../src/features/settings/PluginsSettings.tsx";
 import { SkillsSettings } from "../../src/features/settings/SkillsSettings.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { mount, type Mounted } from "../helpers/mount.ts";
 
-type Scan = Awaited<ReturnType<LyraApi["plugins"]["list"]>>;
+type Scan = Awaited<ReturnType<PlumeApi["plugins"]["list"]>>;
 
 const scan = (patch: Partial<Scan>): Scan => ({
 	plugins: [],
@@ -34,8 +34,8 @@ const scan = (patch: Partial<Scan>): Scan => ({
 
 // The loader's own sentences, trimmed: each row has to keep saying its own one.
 const SHORT = "`description` 只有 8 个字符。模型靠它决定什么时候用这个技能。";
-const SCOPED = "`allowed-tools` 里括号中的范围在 Lyra 不生效，`bash` 按整个工具放行：`Bash(git add *)`。";
-const UNMATCHED = "`allowed-tools` 里对应不到 Lyra 工具的项不会放行任何调用：`NotebookEdit`。";
+const SCOPED = "`allowed-tools` 里括号中的范围在 Plume 不生效，`bash` 按整个工具放行：`Bash(git add *)`。";
+const UNMATCHED = "`allowed-tools` 里对应不到 Plume 工具的项不会放行任何调用：`NotebookEdit`。";
 const UNCLOSED = "Frontmatter opens with `---` but is never closed, so the whole file is being treated as body text.";
 const NO_DESCRIPTION = "`description` is required — it is how the model decides to use this skill.";
 
@@ -54,7 +54,7 @@ const times = (view: Mounted, needle: string) => view.text().split(needle).lengt
  */
 async function render(element: ReactElement, ...scans: Scan[]) {
 	let call = 0;
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: { plugins: { list: async () => scans[Math.min(call++, scans.length - 1)] } },
 	});
@@ -102,8 +102,8 @@ test("skill warnings are counted by skill, under a header that does not name one
 });
 
 test("the failed-to-load header counts skills that did not load, and nothing else", async () => {
-	const broken = "/work/.lyra/skills/broken/SKILL.md";
-	const short = "/work/.lyra/skills/short/SKILL.md";
+	const broken = "/work/.plume/skills/broken/SKILL.md";
+	const short = "/work/.plume/skills/short/SKILL.md";
 	const page = await render(
 		h(SkillsSettings),
 		scan({ skillDiagnostics: [error(broken, UNCLOSED), error(broken, NO_DESCRIPTION), warning(short, SHORT)] }),
@@ -140,7 +140,7 @@ test("a rescan that reorders the rows neither doubles nor drops one", async () =
 });
 
 test("plugin skill warnings are counted by skill; plugin problems are still counted one by one", async () => {
-	const skills = "/home/me/.lyra/plugins/waza/skills";
+	const skills = "/home/me/.plume/plugins/waza/skills";
 	const page = await render(
 		h(PluginsSettings),
 		scan({

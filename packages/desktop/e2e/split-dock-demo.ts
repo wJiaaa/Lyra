@@ -7,7 +7,7 @@ import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 import { seed, IDS } from "./split-dock-fixture.ts";
 
 const port = 9817;
-const output = join(homedir(), "Desktop", "Lyra分屏拖拽测试");
+const output = join(homedir(), "Desktop", "Plume分屏拖拽测试");
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];
 const frames: Frame[] = [];
 const app = await startApp({ port, inspectPort: 9818, seed });

@@ -4,7 +4,7 @@
  * Every test here runs a real server process — a few lines of Node that speak just enough JSON-RPC
  * to be connected to — because the two things being pinned down are properties of processes, not of
  * objects: which environment the server was started with, and whether it is still running after
- * Lyra has stopped talking to it. A mocked transport can say "closed" while the process it stands
+ * Plume has stopped talking to it. A mocked transport can say "closed" while the process it stands
  * for keeps running, which is exactly the bug.
  */
 
@@ -75,7 +75,7 @@ interface Fixture {
 }
 
 async function fixture(t: TestContext): Promise<Fixture> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-mcp-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-mcp-"));
 	const script = join(dir, "server.cjs");
 	await writeFile(script, SERVER);
 	const started = async () => {
@@ -225,7 +225,7 @@ test("a server that answers after the deadline is stopped, not connected for nob
 	await assert.rejects(manager.connect(fx.server({ FAKE_MCP_INIT_DELAY: "900" })), /timed out/i);
 	const [pid] = await fx.started();
 	/*
-	 * Past the moment it answers. Lyra gave up at its own deadline while the SDK's request, with a
+	 * Past the moment it answers. Plume gave up at its own deadline while the SDK's request, with a
 	 * longer one, was still waiting — so a server answering in between finished connecting a client
 	 * that nobody held and nobody would ever close.
 	 */
@@ -367,11 +367,11 @@ test("disconnecting one bundle stops its servers and leaves the others running",
 
 test("a session stops offering the tools of a server it was disconnected from", async (t) => {
 	const fx = await fixture(t);
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = join(fx.dir, "home");
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = join(fx.dir, "home");
 	t.after(() => {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 	});
 	const can = new SessionCapabilities();
 	try {

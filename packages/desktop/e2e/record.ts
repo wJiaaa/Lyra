@@ -24,7 +24,7 @@ export interface Frame {
 /**
  * 主界面那一个 webContents，不是碰巧排在前面的那一个。
  *
- * Lyra 跑起来有不止一个 `page` 类型的目标，而且标题和 URL 一模一样——从列表里 `find` 第一个，
+ * Plume 跑起来有不止一个 `page` 类型的目标，而且标题和 URL 一模一样——从列表里 `find` 第一个，
  * 有时候拿到的是另一个。录制会因此整趟报废，且不报错：`startScreencast` 在一个什么都不画的
  * webContents 上照样成功，只是一帧都不来。查了半天以为是窗口被挡住，其实是录错了对象。
  *
@@ -161,7 +161,7 @@ export async function frameGrabber(port: number): Promise<{
  * 素材处理得很差：明明录到了每一帧，播出来却是一顿一顿的。不给就维持变帧率，文件更小。
  */
 export async function encode(frames: Frame[], out: string, fps?: number, maxHoldMs = 0): Promise<void> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-demo-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-demo-"));
 	const lines: string[] = [];
 	for (const [index, frame] of frames.entries()) {
 		const file = join(dir, `${String(index).padStart(6, "0")}.jpg`);

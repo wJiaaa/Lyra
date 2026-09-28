@@ -7,8 +7,8 @@
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import type { UserContent } from "@lyra/core";
-import type { SessionMeta } from "@lyra/core";
+import type { UserContent } from "@plume/core";
+import type { SessionMeta } from "@plume/core";
 import { useApp } from "../../src/store/index.ts";
 import { applySessionChange } from "../../src/store/session-changes.ts";
 import type { QueuedMessage } from "../../src/store/queue-slice.ts";
@@ -32,7 +32,7 @@ beforeEach(() => {
 		queued: {}, activeSessionId: "a", meta: meta("a"), messages: [], sessions: [meta("a")], sessionCache: {},
 		running: false, activity: {}, turns: {}, carried: {}, notices: [], pendingUserMessage: null, drafts: {}, workspace: null, scratchCwd: "/test",
 	});
-	Object.defineProperty(window, "lyra", { configurable: true, value: {
+	Object.defineProperty(window, "plume", { configurable: true, value: {
 		agent: {
 			prompt: async (sessionId: string, content: UserContent[], options?: { deliver?: string }) => {
 				if (refuse?.()) throw new Error("offline");

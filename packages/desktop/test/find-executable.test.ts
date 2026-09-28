@@ -66,7 +66,7 @@ test("a path is checked where it is rather than searched for", () => {
 });
 
 test("on a real disk, a file without the execute bit is not a program", { skip: process.platform === "win32" }, () => {
-	const dir = mkdtempSync(join(tmpdir(), "lyra-which-"));
+	const dir = mkdtempSync(join(tmpdir(), "plume-which-"));
 	try {
 		writeFileSync(join(dir, "plain"), "#!/bin/sh\n");
 		writeFileSync(join(dir, "runnable"), "#!/bin/sh\n");

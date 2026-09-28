@@ -1,4 +1,4 @@
-import type { Message } from "@lyra/core";
+import type { Message } from "@plume/core";
 
 export type TurnStop = "user" | "interrupt" | "error" | null;
 

@@ -3,8 +3,8 @@
 /**
  * Whether the capture overlay can come back from the dead and take the mouse with it.
  *
- * The report was that clicking Lyra's dock icon killed every mouse click on the machine, and that
- * only Escape gave it back. `~/.lyra/screenshot-debug.log` had the loop in it: a capture ending in
+ * The report was that clicking Plume's dock icon killed every mouse click on the machine, and that
+ * only Escape gave it back. `~/.plume/screenshot-debug.log` had the loop in it: a capture ending in
  * `app.hide()`, then `did-become-active` when the dock icon was clicked, then — thirty-four seconds
  * later — `close: entered {covering: true}`, a capture the user had finished minutes earlier still
  * being closed by a key they had no reason to press. Four more rounds after that, because the close
@@ -120,7 +120,7 @@ interface Round {
 }
 
 async function run(): Promise<Round[]> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-overlay-probe-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-overlay-probe-"));
 	const script = join(dir, "main.cjs");
 	await writeFile(script, MAIN, "utf8");
 	try {

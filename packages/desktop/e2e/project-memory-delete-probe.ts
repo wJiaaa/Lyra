@@ -3,7 +3,7 @@
  * 项目记忆能不能删掉——在真窗口里，用真鼠标。
  *
  * 在这之前这一栏只能看：每一条都会被注入这个项目的每一次请求，而撤回一条错的记忆，唯一的办法是
- * 自己去 `~/.lyra/projects` 底下翻那个项目的记忆目录。用户记忆早就有那颗垃圾桶按钮了，项目记忆
+ * 自己去 `~/.plume/projects` 底下翻那个项目的记忆目录。用户记忆早就有那颗垃圾桶按钮了，项目记忆
  * 没有。
  *
  * 要验的是一条链，中间断在哪儿都只会表现为「点了没反应」：
@@ -17,12 +17,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { projectIdFor, writeLessons } from "@lyra/core";
+import { projectIdFor, writeLessons } from "@plume/core";
 import { startApp } from "./app.ts";
 import { frameGrabber } from "./record.ts";
 
 const PORT = 9646;
-const OUT = join(homedir(), ".lyra/scratch/project-memory");
+const OUT = join(homedir(), ".plume/scratch/project-memory");
 const LESSONS = [
 	{ text: "这个仓库的端口固定在 4100，别去猜。", at: 1_700_000_000_000 },
 	{ text: "改完 CSS 要跑 pnpm style，否则 CI 必红。", at: 1_700_000_001_000 },
@@ -45,7 +45,7 @@ const app = await startApp({
 		 * 那个文件的格式由 `renderLessons`/`parseLessons` 一对函数定义；手写一份「看起来对」的，
 		 * 验的就成了我对格式的理解，而不是这条链路。
 		 */
-		process.env.LYRA_HOME = home;
+		process.env.PLUME_HOME = home;
 		memoryDir = join(home, "projects", projectIdFor(root), "memory");
 		await mkdir(memoryDir, { recursive: true });
 		await writeLessons(root, LESSONS);

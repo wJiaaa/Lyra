@@ -14,7 +14,7 @@ import { terminalKey, windowsPtyFor } from "./terminal-keys.ts";
 import { TerminalMenu } from "./TerminalMenu.tsx";
 import { CODE_DEFAULTS, onAppearanceApplied } from "../settings/index.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
-import type { AppearanceSettings } from "@lyra/core";
+import type { AppearanceSettings } from "@plume/core";
 import { bridge } from "../../services/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
 

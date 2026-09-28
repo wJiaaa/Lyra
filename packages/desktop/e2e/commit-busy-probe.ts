@@ -23,7 +23,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
 const exec = promisify(execFile);
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra提交按钮忙态测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume提交按钮忙态测试");
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 const PORT = 9748;
 /** 模型慢这么久，中间够把弹窗关掉、再点开、各拍一张（全屏 PNG 一张要好几百毫秒）。 */

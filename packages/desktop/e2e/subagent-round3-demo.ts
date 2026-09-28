@@ -24,7 +24,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
 
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra智能体界面测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume智能体界面测试");
 const PORT = 9645;
 const STEP_MS = 1500;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
@@ -208,9 +208,9 @@ async function main() {
 			await writeFile(path, JSON.stringify(settings));
 			await writeFile(join(seedHome, "window.json"), JSON.stringify({ width: 1200, height: 860, x: 0, y: 0 }));
 			// 一个自己写的子智能体：每 3 轮检查一次——演示检查点上的宽限。
-			await mkdir(join(seedHome, "project", ".lyra", "agents"), { recursive: true });
+			await mkdir(join(seedHome, "project", ".plume", "agents"), { recursive: true });
 			await writeFile(
-				join(seedHome, "project", ".lyra", "agents", "slowpoke.md"),
+				join(seedHome, "project", ".plume", "agents", "slowpoke.md"),
 				"---\nname: slowpoke\ndescription: 慢慢查的调查员\ntools: [read, grep, ls]\nmax-turns: 3\navatar: cloud-violet\n---\n你是一个仔细的调查员，一步一步查。\n",
 			);
 		},

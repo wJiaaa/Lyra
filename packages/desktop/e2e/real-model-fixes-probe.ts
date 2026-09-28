@@ -2,7 +2,7 @@
 /**
  * 在真窗口里、用真实供应商验证这一轮修的几件事。
  *
- * 不是模拟：它把本机 `~/.lyra` 的 `settings.json` 与 `credentials.json` 复制进一个临时 profile，
+ * 不是模拟：它把本机 `~/.plume` 的 `settings.json` 与 `credentials.json` 复制进一个临时 profile，
  * 于是发出去的是真的 HTTP 请求，回来的是真的模型输出。客户报的两条 400（`input[N].id` 和
  * `input[N].content`）只在真实上游那里才会出现，模型桩永远是绿的——这个探针存在的理由就是这个。
  *
@@ -19,7 +19,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
+const REAL_HOME = join(homedir(), ".plume");
 
 /** 一份 400 行的 md，长到「铺在气泡里」和「没铺」一眼就能分辨。 */
 const LONG_DOC = [
@@ -53,7 +53,7 @@ async function seed(home: string): Promise<void> {
 	// `credentials.json` 是 AES-GCM 密文，钥匙在 `vault.key`——两个都要，少一个就是 401。
 	for (const file of ["credentials.json", "vault.key"]) {
 		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
-			throw new Error(`没找到 ~/.lyra/${file}——真实模型调用需要它`);
+			throw new Error(`没找到 ~/.plume/${file}——真实模型调用需要它`);
 		});
 	}
 	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));
@@ -90,9 +90,9 @@ function turnScript(body: string): string {
 			if (turning) { started = true; quiet = 0; }
 			else if (started && ++quiet > 16) break;
 		}
-		const list = await window.lyra.sessions.list();
+		const list = await window.plume.sessions.list();
 		const meta = list[0];
-		const snapshot = meta ? await window.lyra.sessions.open(meta.projectId, meta.id) : null;
+		const snapshot = meta ? await window.plume.sessions.open(meta.projectId, meta.id) : null;
 		const messages = snapshot?.messages ?? [];
 		const assistants = messages.filter((m) => m.role === "assistant");
 		const last = assistants.at(-1);
@@ -130,7 +130,7 @@ function check(name: string, ok: boolean, detail: string) {
 /** 供应商里有哪些模型可以用来做「换模型」这件事。 */
 async function models(): Promise<Array<{ id: string; label: string }>> {
 	return app.evaluate(`(async () => {
-		const settings = await window.lyra.settings.get();
+		const settings = await window.plume.settings.get();
 		const out = [];
 		for (const p of settings.providers ?? []) {
 			if (!p.enabled) continue;
@@ -157,11 +157,11 @@ async function main() {
 
 		const switched = await app.evaluate<{ from: string; to: string }>(`(async () => {
 			const wait = ${WAIT};
-			const before = (await window.lyra.sessions.list())[0];
+			const before = (await window.plume.sessions.list())[0];
 			const target = ${JSON.stringify(available[1].id)} === before.modelId ? ${JSON.stringify(available[0].id)} : ${JSON.stringify(available[1].id)};
-			await window.lyra.agent.setModel(before.id, target);
+			await window.plume.agent.setModel(before.id, target);
 			await wait(800);
-			const after = (await window.lyra.sessions.list())[0];
+			const after = (await window.plume.sessions.list())[0];
 			return { from: before.modelId, to: after.modelId };
 		})()`);
 		check("切换模型", switched.from !== switched.to, `${switched.from} → ${switched.to}`);
@@ -176,8 +176,8 @@ async function main() {
 
 		const third = await app.evaluate<Record<string, unknown>>(`(async () => {
 			const wait = ${WAIT};
-			const s = (await window.lyra.sessions.list())[0];
-			await window.lyra.agent.setModel(s.id, ${JSON.stringify(switched.from)});
+			const s = (await window.plume.sessions.list())[0];
+			await window.plume.agent.setModel(s.id, ${JSON.stringify(switched.from)});
 			await wait(800);
 			return null;
 		})()`).then(() => app.evaluate<Record<string, unknown>>(turnScript(type("再复述一次，一句话。"))));

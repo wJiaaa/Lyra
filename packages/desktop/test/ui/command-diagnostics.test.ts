@@ -14,17 +14,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h, type ReactElement } from "react";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 import { CommandsSettings } from "../../src/features/settings/CommandsSettings.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { mount, type Mounted } from "../helpers/mount.ts";
 
-type CommandList = Awaited<ReturnType<LyraApi["commands"]["list"]>>;
+type CommandList = Awaited<ReturnType<PlumeApi["commands"]["list"]>>;
 type SlashCommand = CommandList["commands"][number];
 
 // The loaders' own sentences: each row has to keep saying its own one.
 const UNCLOSED = "开头的 `---` 没有闭合，整个文件都被当成了正文。";
-const SHADOWED = "命令“review”已由 /work/.lyra/commands/review.md 定义，这一个被遮蔽了。";
+const SHADOWED = "命令“review”已由 /work/.plume/commands/review.md 定义，这一个被遮蔽了。";
 const BAD_NAME = "命令名只能是小写字母、数字和连字符，用冒号分组；当前是“Review_Diff”。";
 const BAD_DELIVER = "`deliver` 只能是 prompt、steer、followUp；当前是“steering”，已按 prompt 处理。";
 const BAD_YAML = "文件开头的 YAML 无法解析：Flow sequence in block collection must be sufficiently indented and end with a ]";
@@ -37,7 +37,7 @@ const command = (name: string, path: string): SlashCommand => ({
 	content: "……",
 	path,
 	scope: path.startsWith("/work/") ? "workspace" : "user",
-	origin: path.includes("/.claude/") ? "claude" : "lyra",
+	origin: path.includes("/.claude/") ? "claude" : "plume",
 });
 
 /** How many times `needle` appears on screen: a row doubled or dropped shows up here. */
@@ -68,8 +68,8 @@ function answers<T>(lists: T[]): () => Promise<T> {
  * only drops or doubles a row on a later update. Listening is what makes the first render a test of
  * the keys at all.
  */
-async function render(element: ReactElement, lyra: object) {
-	Object.defineProperty(window, "lyra", { configurable: true, value: lyra });
+async function render(element: ReactElement, plume: object) {
+	Object.defineProperty(window, "plume", { configurable: true, value: plume });
 	useApp.setState({ workspace: null });
 	const duplicateKeys: string[] = [];
 	const report = console.error;
@@ -98,14 +98,14 @@ async function render(element: ReactElement, lyra: object) {
 const settle = () => act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 
 test("a command is counted once however many lines it has, and one that loaded is not counted as failing", async () => {
-	const focus = "/home/me/.lyra/commands/focus.md";
+	const focus = "/home/me/.plume/commands/focus.md";
 	const draft = "/home/me/.claude/commands/Review_Diff.md";
 	const review = "/home/me/.claude/commands/review.md";
 	const page = await render(h(CommandsSettings), {
 		commands: {
 			list: answers([
 				commandList({
-					commands: [command("focus", focus), command("review", "/work/.lyra/commands/review.md")],
+					commands: [command("focus", focus), command("review", "/work/.plume/commands/review.md")],
 					diagnostics: [
 						{ path: focus, message: BAD_DELIVER },
 						{ path: draft, message: BAD_NAME },
@@ -143,7 +143,7 @@ test("coming back from the editor re-reads the commands, and a line that moved d
 		{ path: review, message: SHADOWED },
 	];
 	// Written in the editor meanwhile: a project command, read first, whose YAML does not parse.
-	const after = [{ path: "/work/.lyra/commands/ship.md", message: BAD_YAML }, ...before];
+	const after = [{ path: "/work/.plume/commands/ship.md", message: BAD_YAML }, ...before];
 	const page = await render(h(CommandsSettings), {
 		commands: { list: answers([commandList({ diagnostics: before }), commandList({ diagnostics: after })]) },
 	});

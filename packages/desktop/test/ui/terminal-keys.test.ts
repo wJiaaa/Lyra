@@ -107,7 +107,7 @@ test("终端面板把这些接上：windowsPty、按键处理、右键菜单", a
 		paste: (text: string) => { pasted.push(text); },
 	});
 	const written: string[] = [];
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		platform: "win32",
 		systemVersion: "10.0.22631",
 		terminal: {
@@ -164,7 +164,7 @@ test("终端面板把这些接上：windowsPty、按键处理、右键菜单", a
 			assert.deepEqual(pasted, ["npm run dev"]);
 		} finally {
 			await view.unmount();
-			Reflect.deleteProperty(window, "lyra");
+			Reflect.deleteProperty(window, "plume");
 		}
 	});
 });

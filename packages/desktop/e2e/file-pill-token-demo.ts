@@ -72,7 +72,7 @@ async function seed(home: string): Promise<void> {
 	];
 	await writeFile(join(dir, `${SESSION}.jsonl`), lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
 
-	const real = JSON.parse(await readFile(join(homedir(), ".lyra", "settings.json"), "utf8"));
+	const real = JSON.parse(await readFile(join(homedir(), ".plume", "settings.json"), "utf8"));
 	await writeFile(
 		join(home, "settings.json"),
 		JSON.stringify({
@@ -94,7 +94,7 @@ const check = (name: string, ok: boolean, measured: unknown) => {
 let app: RunningApp;
 
 async function main() {
-	const outDir = join(homedir(), "Desktop", "Lyra文件胶囊与附件标记测试");
+	const outDir = join(homedir(), "Desktop", "Plume文件胶囊与附件标记测试");
 	await mkdir(outDir, { recursive: true });
 	const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Singapore" }).replace(/[: ]/g, "-");
 	const frames: Frame[] = [];

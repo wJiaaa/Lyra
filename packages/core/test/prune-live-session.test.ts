@@ -24,7 +24,7 @@ const NAME = "Qwen3-LiveTranslate Flash Realtime";
 async function blowupCatalog(): Promise<string> {
 	const entries = Array.from({ length: 16_000 }, (_, index) => `{"id":"model-${index}","name":"Model ${index}","limit":{"context":200000,"output":32000},"cost":{"input":1,"output":2}}`);
 	entries.splice(6_000, 0, `{"id":"qwen3-livetranslate-flash-realtime","name":"${NAME}"}`);
-	const dir = await mkdtemp(join(tmpdir(), "lyra-blowup-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-blowup-"));
 	await writeFile(join(dir, CATALOG), `{"schema":1,"providers":[{"id":"p","models":[${entries.join(",")}]}]}`, "utf8");
 	return dir;
 }
@@ -58,7 +58,7 @@ test("a name past the first 2000 characters of model-catalog.json is still retur
 });
 
 test("the recorded blow-up session is cut on the same prepare path the loop uses", async (t) => {
-	const root = join(homedir(), ".lyra", "sessions");
+	const root = join(homedir(), ".plume", "sessions");
 	let project = "";
 	let session = "";
 	for (const dir of await readdir(root, { withFileTypes: true }).catch(() => [])) {

@@ -15,7 +15,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { DiffHunk } from "@lyra/core";
+import type { DiffHunk } from "@plume/core";
 import { highlightHunks } from "../src/features/git/diff-highlight.ts";
 
 /** Stands in for the real tokenizer: one token per line, carrying that line's own text. */

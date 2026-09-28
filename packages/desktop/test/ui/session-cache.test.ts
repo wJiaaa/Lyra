@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { DEFAULT_SETTINGS, type AssistantMessage, type SessionMeta, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type AssistantMessage, type SessionMeta, type Settings } from "@plume/core";
 import { useApp } from "../../src/store/index.ts";
 import { applyAgentEvent } from "../../src/store/apply-event.ts";
 import { flushCoalesced } from "../../src/store/coalesce.ts";
@@ -9,10 +9,10 @@ import { afterPaint } from "../../src/lib/after-paint.ts";
 import { readSelectedSession } from "../../src/store/session-read.ts";
 import { applySessionChange } from "../../src/store/session-changes.ts";
 import { abandonSessionReveal, revealSession } from "../../src/features/split/actions.ts";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 
-type Snapshot = Awaited<ReturnType<LyraApi["sessions"]["transcript"]>>;
-let readTranscript: LyraApi["sessions"]["transcript"];
+type Snapshot = Awaited<ReturnType<PlumeApi["sessions"]["transcript"]>>;
+let readTranscript: PlumeApi["sessions"]["transcript"];
 let capabilityReads: string[];
 let rosterReads: string[];
 
@@ -95,7 +95,7 @@ beforeEach(() => {
 		view: "chat",
 		sessions: [meta("a"), meta("b")],
 	});
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			sessions: {
@@ -126,7 +126,7 @@ test("previewing a session lights it without swapping the live transcript", () =
 test("selecting a conversation clears its manual unread mark, including the one already on screen", async () => {
 	const saved: Settings[] = [];
 	const previous = useApp.getState().settings;
-	window.lyra.settings = { save: async (next: Settings) => { saved.push(next); return next; } } as never;
+	window.plume.settings = { save: async (next: Settings) => { saved.push(next); return next; } } as never;
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS, unreadSessionIds: ["a", "b", "c"] } });
 	useApp.getState().previewSession(meta("b"));
 	await Promise.resolve();
@@ -424,8 +424,8 @@ test("a cold read retains the history prefix and events arriving while it was in
 });
 
 test("Windows scratch conversations retain their projectless identity on selection", async () => {
-	const cwd = "C:\\Users\\Tester\\.lyra\\scratch\\session";
-	useApp.setState({ scratchRoots: ["C:\\Users\\Tester\\.lyra\\scratch"], workspace: { path: "C:\\code\\project", name: "project", isGitRepo: false, branch: null } });
+	const cwd = "C:\\Users\\Tester\\.plume\\scratch\\session";
+	useApp.setState({ scratchRoots: ["C:\\Users\\Tester\\.plume\\scratch"], workspace: { path: "C:\\code\\project", name: "project", isGitRepo: false, branch: null } });
 	await useApp.getState().openSession({ ...meta("b"), cwd });
 	assert.equal(useApp.getState().workspace, null);
 	assert.equal(useApp.getState().scratchCwd, cwd);
@@ -491,7 +491,7 @@ test("remote metadata updates the active picker, and deletion clears running sta
 });
 
 test("failed archive and deletion leave the visible session and draft intact", async () => {
-	Object.defineProperty(window, "lyra", { configurable: true, value: { sessions: {
+	Object.defineProperty(window, "plume", { configurable: true, value: { sessions: {
 		setArchived: async () => { throw new Error("offline"); },
 		remove: async () => { throw new Error("offline"); },
 	} } });

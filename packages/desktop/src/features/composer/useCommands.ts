@@ -1,6 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
 import { useEffect, useId, useMemo, useState } from "react";
-import { rankCommands, resolveCommand } from "@lyra/core/commands-view";
+import { rankCommands, resolveCommand } from "@plume/core/commands-view";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { commandCompletion, commandDecoration, commandEntries, type CommandEntry } from "./command-catalog.ts";

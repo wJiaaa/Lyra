@@ -109,7 +109,7 @@ export function resetModelCatalog(): void {
 /**
  * 把端点地址规整成可比较的形式：小写主机、去掉查询和尾斜杠，再去掉末尾的 `/v1`。
  *
- * Lyra 的请求地址是 `baseUrl` 再补 `/v1/...`（已经以 `/v1` 结尾就不重复），所以 `https://x/v1`
+ * Plume 的请求地址是 `baseUrl` 再补 `/v1/...`（已经以 `/v1` 结尾就不重复），所以 `https://x/v1`
  * 和 `https://x` 是同一个端点；目录里 Anthropic 系不带 `/v1`、OpenAI 系带，统一去掉再比。
  */
 function normalizeEndpoint(baseUrl: string): string | null {

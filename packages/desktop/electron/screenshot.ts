@@ -8,7 +8,7 @@
 
 import { join } from "node:path";
 import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, nativeImage, screen, systemPreferences } from "electron";
-import type { ScreenshotSettings, Settings } from "@lyra/core";
+import type { ScreenshotSettings, Settings } from "@plume/core";
 
 import { registerShortcut, type ShortcutOutcome } from "./accelerator.ts";
 import { hidesOverlayForSnapshot, warmupPlan } from "./screenshot-platform.ts";
@@ -32,7 +32,7 @@ import { beginCaptureLog, captureLog } from "./screenshot-debug.ts";
  *   - Coming out, `app.hide()` on macOS is not synchronous. Destroying the overlay three
  *     milliseconds later uncovered the main window before the hide had landed, and the log has the
  *     window taking focus 6ms after the hide was asked for and losing it 19ms later — one and a
- *     bit frames of Lyra on screen, which is the flash.
+ *     bit frames of Plume on screen, which is the flash.
  *
  * A window that is never destroyed has neither cost: showing it is one call, and hiding it happens
  * under the cover of a hide that has already taken effect.
@@ -45,7 +45,7 @@ let overlayLoading: Promise<BrowserWindow> | null = null;
  * 这一次截图的全部状态，一个对象。
  *
  * 原来是六个平铺的模块级 `let`。它们合起来是一台状态机——「屏上有没有一次截图」「这次是不是从
- * Lyra 里触发的」「这次让开了哪个窗口」「这次注册了 Escape 吗」——而散成六个之后，那台状态机没有
+ * Plume 里触发的」「这次让开了哪个窗口」「这次注册了 Escape 吗」——而散成六个之后，那台状态机没有
  * 任何一处写得下来：一次截图结束该清掉哪几个，只存在于每个 `close` 分支各自记得多少。漏一个的
  * 症状是下一次截图带着上一次的半截状态开场，而那是用户一眼就看见的东西。
  *
@@ -85,29 +85,29 @@ interface Capture {
 	/**
 	 * The main window, if this capture put it away.
 	 *
-	 * Activating the overlay activates Lyra, and macOS raises *every* window of an application it
+	 * Activating the overlay activates Plume, and macOS raises *every* window of an application it
 	 * activates — so the main window comes up above whatever the user was actually looking at and sits
 	 * there, out of sight underneath the overlay, for the whole capture. Nothing showed it while the
 	 * frozen picture covered the screen, which is why this took so long to see: it only appears at the
-	 * moment that picture goes, and then it is Lyra in front of the browser you were screenshotting.
+	 * moment that picture goes, and then it is Plume in front of the browser you were screenshotting.
 	 *
-	 * A user's recording caught it exactly: the frozen page is replaced by the Lyra window, and the
+	 * A user's recording caught it exactly: the frozen page is replaced by the Plume window, and the
 	 * 「已复制色值」 confirmation lands on top of *that* instead of on the page the colour came from.
 	 *
-	 * So it is hidden for the duration — but only when the capture did not come from Lyra in the first
+	 * So it is hidden for the duration — but only when the capture did not come from Plume in the first
 	 * place, since a capture started from the app is expected to come back to it.
 	 */
 	steppedAsideMain: BrowserWindow | null;
 	/**
-	 * Whether Lyra was the application in front when the screenshot started.
+	 * Whether Plume was the application in front when the screenshot started.
 	 *
 	 * Decides where the foreground goes afterwards, and the two answers are opposite. Triggered from
-	 * inside Lyra — the composer's button, the tray — finishing should come back to Lyra, because that
+	 * inside Plume — the composer's button, the tray — finishing should come back to Plume, because that
 	 * is where the picture is going. Triggered by the global shortcut while reading something else, it
 	 * should not: taking a screenshot of a browser and being thrown into a different application is
 	 * the app barging in on work it was only meant to observe.
 	 *
-	 * What the fix for the disappearing window actually owed was "do not leave Lyra buried behind two
+	 * What the fix for the disappearing window actually owed was "do not leave Plume buried behind two
 	 * other applications with no way back" — not "always jump to the front".
 	 */
 	cameFromApp: boolean;
@@ -167,7 +167,7 @@ function endCapture(): void {
  * It was hidden rather than made transparent — see `stepMainAside` — so there is nothing to undo
  * here: a hidden window is not catching anything and not showing anything. Whether it comes back
  * depends on how the capture ended, and only the caller knows that. Finishing delivers a picture to
- * Lyra and raises it; cancelling and stepping back leave it away, which is where it was when the
+ * Plume and raises it; cancelling and stepping back leave it away, which is where it was when the
  * capture began. `app.on("activate")` brings it back whenever the user asks.
  */
 function releaseSteppedAsideMain(): BrowserWindow | null {
@@ -322,7 +322,7 @@ async function captureFullDisplaySnapshot(displayId?: number): Promise<{ pixels:
 		 *
 		 * `toDataURL` measured 133ms on this screen and `toBitmap` measures two — the difference is
 		 * an entire PNG encode of a 2940×1912 image, done so it could be decoded again at the other
-		 * end of an IPC message. That 133ms was the largest thing Lyra itself contributed to the wait
+		 * end of an IPC message. That 133ms was the largest thing Plume itself contributed to the wait
 		 * before a capture appears, and the picture is taken *before* the wait: every millisecond of
 		 * it is time in which the screen can change and then appear to snap backwards when the frozen
 		 * copy lands on top of it.
@@ -398,7 +398,7 @@ export function revealScreenshotOverlay(webContentsId: number): void {
  * The overlay is `alwaysOnTop` at `screen-saver` level and visible on every workspace — it has to
  * be, or it cannot cover a fullscreen app to take a picture of it. What that costs is where the
  * foreground goes when it is destroyed: macOS hands it to whatever is underneath, which is
- * whatever the user happened to have open before Lyra. The main window is not hidden and not
+ * whatever the user happened to have open before Plume. The main window is not hidden and not
  * closed; it is simply behind two other applications, which reads as the app having vanished —
  * the dock icon is there and clicking it does nothing, because nothing is minimised.
  *
@@ -483,7 +483,7 @@ export function closeScreenshotOverlay(options?: {
 	/*
 	 * Cancelling moves nothing at all.
 	 *
-	 * The log settled this. On a cancel from inside Lyra the main window is *already visible* —
+	 * The log settled this. On a cancel from inside Plume the main window is *already visible* —
 	 * `main.showInactive() {wasVisible: true}` — so the call's only effect is to order it in front of
 	 * whatever the user was looking at. That is the flash at the end of a capture, and it is worst
 	 * after picking a colour, because the eye is in the middle of the screen when a window jumps to
@@ -499,7 +499,7 @@ export function closeScreenshotOverlay(options?: {
 	}
 
 	/*
-	 * Finishing brings Lyra forward, and does it *under* the overlay.
+	 * Finishing brings Plume forward, and does it *under* the overlay.
 	 *
 	 * The order used to be: take the overlay away, then activate. Between the two the main window is
 	 * on screen wearing its inactive look, and the log measured how long for — 58ms from
@@ -548,7 +548,7 @@ function settleOverlayHidden(): void {
 		 * `screen-saver` level so above the menu bar, on every workspace, still opaque to the mouse
 		 * from the capture that set it so — and empty, because the message below had already told the
 		 * page to drop its picture. Invisible, in front of everything, and swallowing every click on
-		 * the machine. `~/.lyra/screenshot-debug.log` caught the whole loop: `did-become-active` (the
+		 * the machine. `~/.plume/screenshot-debug.log` caught the whole loop: `did-become-active` (the
 		 * dock icon), then `close: entered {covering: true}` a full 34 seconds later when Escape
 		 * finally reached the page and closed a capture the user thought had ended minutes ago. Four
 		 * more rounds after that one, because closing it this way hid the application again and left
@@ -817,11 +817,11 @@ export function overlayPainted(): void {
 /**
  * Put the main window away for the rest of the capture.
  *
- * Activating the overlay activates Lyra, and macOS raises every window of an application it
+ * Activating the overlay activates Plume, and macOS raises every window of an application it
  * activates — so the main window arrives above whatever is being screenshotted and waits there,
  * out of sight beneath the frozen picture. It is what the screen shows the moment that picture goes,
  * and during a colour pick, when the overlay is deliberately click-through, it is what catches every
- * press: invisible, in front, and answering nothing. That was reported as Lyra freezing.
+ * press: invisible, in front, and answering nothing. That was reported as Plume freezing.
  *
  * `hide()`, not `setOpacity(0)`. A transparent window is not an absent one — the window server goes
  * on listing it and goes on hitting it, which `e2e/main-window-hittest-probe.ts` reads straight out
@@ -1004,7 +1004,7 @@ function endWarmPresentation(): void {
  * Take a picture nobody will look at, so the first real one is quick.
  *
  * The capture log says the rest of this: `getSources` measured 160-180ms on the first capture after
- * launch and 56-80ms on every one after it, while everything Lyra does with the result — the bitmap,
+ * launch and 56-80ms on every one after it, while everything Plume does with the result — the bitmap,
  * the channel swap, the paint — stayed flat. What varies is macOS setting up a ScreenCaptureKit
  * stream: negotiating the configuration and allocating buffers happens once, and the stream is warm
  * afterwards. Reported as "the first two screenshots still jump", which is exactly what an extra

@@ -2,7 +2,7 @@
  * What the status bar menu offers, and on which platforms.
  *
  * The menu is the only way out of the app on Windows and Linux — closing the window there only
- * hides it — so "退出 Lyra is present and reachable" is a functional requirement rather than a
+ * hides it — so "退出 Plume is present and reachable" is a functional requirement rather than a
  * nicety. It is also the only surface that is identical on every platform by policy: how the menu
  * opens is each system's convention, what is in it is ours.
  */
@@ -34,14 +34,14 @@ function find(items: TrayItem[], label: string): TrayItem | undefined {
 }
 
 test("the way out is always in the menu, because on Windows there is no other one", () => {
-	const quit = find(state(), "退出 Lyra");
+	const quit = find(state(), "退出 Plume");
 	assert.equal(quit?.type, "item");
 	assert.deepEqual(quit.type === "item" ? quit.action : null, { kind: "quit" });
 });
 
 test("the first item names what pressing it will do, not what is true", () => {
-	assert.equal(labels(state({ windowVisible: false }))[0], "打开 Lyra");
-	assert.equal(labels(state({ windowVisible: true }))[0], "隐藏 Lyra");
+	assert.equal(labels(state({ windowVisible: false }))[0], "打开 Plume");
+	assert.equal(labels(state({ windowVisible: true }))[0], "隐藏 Plume");
 });
 
 test("the things worth doing from cold are all one press away", () => {

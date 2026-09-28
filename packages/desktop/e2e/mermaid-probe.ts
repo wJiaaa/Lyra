@@ -16,14 +16,14 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { projectIdFor } from "@lyra/core";
+import { projectIdFor } from "@plume/core";
 import { startApp } from "./app.ts";
 import { frameGrabber } from "./record.ts";
 
 const PORT = 9645;
 const SESSION_ID = "11111111-2222-3333-4444-555555555555";
 const TITLE = "mermaid 渲染检查";
-const OUT = join(homedir(), ".lyra/scratch/mermaid");
+const OUT = join(homedir(), ".plume/scratch/mermaid");
 
 /** 截图里那张进程树，一字不改。 */
 const REAL = `graph TD

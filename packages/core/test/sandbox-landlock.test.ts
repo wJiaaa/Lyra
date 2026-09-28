@@ -74,8 +74,8 @@ function run(command: string, cwd: string, mode: SandboxMode, network: SandboxNe
 
 test("workspace-write: the project and the temp areas are writable, nothing else is", { skip }, async (t) => {
 	resetProbeCache();
-	const ws = await mkdtemp(join(tmpdir(), "lyra-ll-ws-"));
-	const outside = join(homedir(), `.lyra-landlock-probe-${process.pid}`);
+	const ws = await mkdtemp(join(tmpdir(), "plume-ll-ws-"));
+	const outside = join(homedir(), `.plume-landlock-probe-${process.pid}`);
 	t.after(async () => {
 		await rm(ws, { recursive: true, force: true });
 		await rm(outside, { force: true });
@@ -100,7 +100,7 @@ test("workspace-write: the project and the temp areas are writable, nothing else
 });
 
 test("read-only: the project is not writable, the devices a shell needs are", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-ll-ro-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-ll-ro-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	let r = await run("echo x > ro.txt", ws, "read-only");
@@ -112,7 +112,7 @@ test("read-only: the project is not writable, the devices a shell needs are", { 
 });
 
 test("the command's status and death are the runner's", { skip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-ll-st-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-ll-st-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	assert.equal((await run("exit 3", ws, "workspace-write")).code, 3);
@@ -123,7 +123,7 @@ test("the command's status and death are the runner's", { skip }, async (t) => {
 });
 
 test("a denied network refuses TCP", { skip: skip || (abi < 4 ? `Landlock ABI ${abi} cannot deny the network` : false) }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "lyra-ll-net-"));
+	const ws = await mkdtemp(join(tmpdir(), "plume-ll-net-"));
 	t.after(() => rm(ws, { recursive: true, force: true }));
 
 	// A non-routable address: unconfined, the connection would hang, so a hang is its own verdict.

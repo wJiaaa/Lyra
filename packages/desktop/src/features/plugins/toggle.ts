@@ -9,7 +9,7 @@
  * A pure function over the settings, so the rule can be tested without a renderer.
  */
 
-import type { Plugin, Settings } from "@lyra/core";
+import type { Plugin, Settings } from "@plume/core";
 
 /**
  * The settings after this plugin is switched on or off.

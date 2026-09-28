@@ -7,7 +7,7 @@
 
 import { access, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { lyraHome } from "@lyra/core";
+import { plumeHome } from "@plume/core";
 import { clipboard, ipcMain, nativeImage, shell } from "electron";
 import { documentImage } from "../avatars.ts";
 import { openExternalSafely } from "../window-security.ts";
@@ -30,7 +30,7 @@ export function registerSystemIpc(): void {
 	ipcMain.handle("system:openTargets", async (): Promise<OpenTarget[]> => openTargets());
 
 	ipcMain.handle("system:revealSkillsDir", async (_event, scope: "workspace" | "user", cwd: string) => {
-		const dir = scope === "workspace" ? join(cwd, ".lyra", "skills") : join(lyraHome(), "skills");
+		const dir = scope === "workspace" ? join(cwd, ".plume", "skills") : join(plumeHome(), "skills");
 		await mkdir(dir, { recursive: true });
 		await shell.openPath(dir);
 		return dir;

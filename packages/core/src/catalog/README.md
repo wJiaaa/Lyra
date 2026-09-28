@@ -8,7 +8,7 @@ from then on belong to the user: neither settings reads nor catalogue updates ch
 page also uses it to estimate prices for history whose model has no configured price.
 
 The snapshot is only the first-run and offline fallback. The desktop main process loads its cached
-copy (`~/.lyra/model-catalog.json`) at startup, then fetches the live catalogue every hour and on the
+copy (`~/.plume/model-catalog.json`) at startup, then fetches the live catalogue every hour and on the
 "Update now" action in model settings (`../model-catalog-sync.ts`). Requests revalidate with the cached
 ETag. A fetched catalogue is compacted and validated as a whole, and only replaces the active one when
 its revision differs and it is not older; any failure keeps the current catalogue.
@@ -17,7 +17,7 @@ Refresh the bundled snapshot from the repository root with `pnpm catalog:update`
 upstream revision (`x-pi-model-catalog-revision`) and update time; that revision also goes into price
 snapshots and usage cache keys, so a new catalogue reprices estimates.
 
-Only what Lyra uses is kept: endpoint base URL, limits, `reasoning`, image input, and text-token prices
+Only what Plume uses is kept: endpoint base URL, limits, `reasoning`, image input, and text-token prices
 in USD per million tokens with cache rates and context tiers. Entries without limits are skipped.
 Entries whose four rates are all zero are subscription endpoints and are treated as unpriced, not free.
 pi lists coding-agent chat models only, so a filled-in model is taken to support tools.

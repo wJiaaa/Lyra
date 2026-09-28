@@ -28,18 +28,18 @@ const HOME_VARS = ["HOME", "USERPROFILE"] as const;
 async function sandbox(): Promise<{ home: string; previous: string; restore: () => void }> {
 	const root = await mkdtemp(join(tmpdir(), "ly-migrate-"));
 	const real = HOME_VARS.map((name) => [name, process.env[name]] as const);
-	const realLyraHome = process.env.LYRA_HOME;
+	const realPlumeHome = process.env.PLUME_HOME;
 	for (const name of HOME_VARS) process.env[name] = root;
-	delete process.env.LYRA_HOME;
+	delete process.env.PLUME_HOME;
 	return {
-		home: join(root, ".lyra"),
+		home: join(root, ".plume"),
 		previous: join(root, ".deepwise"),
 		restore: () => {
 			for (const [name, value] of real) {
 				if (value === undefined) delete process.env[name];
 				else process.env[name] = value;
 			}
-			if (realLyraHome !== undefined) process.env.LYRA_HOME = realLyraHome;
+			if (realPlumeHome !== undefined) process.env.PLUME_HOME = realPlumeHome;
 		},
 	};
 }
@@ -90,15 +90,15 @@ test("two homes are left alone rather than merged", async () => {
 	}
 });
 
-test("an explicit LYRA_HOME means the caller has already decided", async () => {
+test("an explicit PLUME_HOME means the caller has already decided", async () => {
 	const box = await sandbox();
 	try {
 		await mkdir(box.previous, { recursive: true });
-		process.env.LYRA_HOME = box.home;
+		process.env.PLUME_HOME = box.home;
 
 		assert.equal((await migratePreviousHome(box.home)).moved, false);
 	} finally {
-		delete process.env.LYRA_HOME;
+		delete process.env.PLUME_HOME;
 		box.restore();
 	}
 });

@@ -2,7 +2,7 @@
 /**
  * 正在打字的时候，句子里那些标记还在不在。
  *
- * 复现客户截的那一张：草稿里有一枚 `【Lyra界面改进-20260913095611.mp4】`，手一开始打拼音，
+ * 复现客户截的那一张：草稿里有一枚 `【Plume界面改进-20260913095611.mp4】`，手一开始打拼音，
  * 整枚标记就塌回成一串方括号加文件名——直到这个字上了屏才变回来。中文每打一个字都要过一次组
  * 字，所以这不是偶发，而是「打中文的全过程里标记都是坏的」。
  *
@@ -34,7 +34,7 @@ async function seed(home: string): Promise<void> {
 			providers: [],
 			mcpServers: [],
 			projects: [{ id: "e2e", name: "project", path: project, pinned: true, lastOpenedAt: 1 }],
-			appearance: { theme: process.env.LYRA_THEME === "dark" ? "dark" : "light" },
+			appearance: { theme: process.env.PLUME_THEME === "dark" ? "dark" : "light" },
 			permissionMode: "full",
 			hooks: [],
 			scheduledTasks: [],
@@ -52,7 +52,7 @@ const DROP = `(async () => {
 	ctx.fillStyle = "#3b5bdb"; ctx.fillRect(0, 0, 320, 200);
 	const blob = await new Promise((done) => canvas.toBlob(done, "image/png"));
 	const dt = new DataTransfer();
-	dt.items.add(new File([blob], "Lyra界面改进-20260913095611.png", { type: "image/png" }));
+	dt.items.add(new File([blob], "Plume界面改进-20260913095611.png", { type: "image/png" }));
 	document.querySelector("main .ly-composer").dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
 	return true;
 })()`;
@@ -114,7 +114,7 @@ const LOOK = `(() => {
 	};
 })()`;
 
-const out = process.argv[2] ?? "/tmp/lyra-ime";
+const out = process.argv[2] ?? "/tmp/plume-ime";
 const app = await startApp({ port: 9476, seed });
 const wire = await frameGrabber(9476);
 

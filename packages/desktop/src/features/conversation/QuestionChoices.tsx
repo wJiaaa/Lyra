@@ -1,7 +1,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { Check, SkipForward, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { ApprovalDecision, QuestionFields } from "@lyra/core";
+import type { ApprovalDecision, QuestionFields } from "@plume/core";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Button } from "../../ui/primitives/Button.tsx";

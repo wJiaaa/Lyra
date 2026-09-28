@@ -31,7 +31,7 @@ const MODELS = [
 	"deepseek-r2", "deepseek-v4", "glm-5", "glm-5-air", "step-3", "doubao-2-pro", "hunyuan-t2", "ernie-6",
 ];
 
-const OUT = join(homedir(), "Desktop", "Lyra拉取模型弹窗测试");
+const OUT = join(homedir(), "Desktop", "Plume拉取模型弹窗测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-");
 /** `after` 是带改动的这一版，`before` 由调用方把改动 stash 掉之后再跑一次。 */
 const phase = process.argv.includes("--before") ? "before" : "after";

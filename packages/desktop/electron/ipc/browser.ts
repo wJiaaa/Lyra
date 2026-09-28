@@ -7,7 +7,7 @@ import { isAppWindowContents } from "../window.ts";
 export function registerBrowserIpc(window: () => BrowserWindow | null, settings: () => { defaultZoom?: number }): void {
 	configureBrowser(window, settings);
 	const trusted = (event: IpcMainInvokeEvent) => {
-		if (!isAppWindowContents(event.sender) || event.senderFrame !== event.sender.mainFrame) throw new Error("浏览器控制只允许来自 Lyra 应用窗口");
+		if (!isAppWindowContents(event.sender) || event.senderFrame !== event.sender.mainFrame) throw new Error("浏览器控制只允许来自 Plume 应用窗口");
 	};
 	ipcMain.handle("browser:state", (event) => { trusted(event); return browserState(); });
 	ipcMain.handle("browser:command", async (event, command: unknown) => {

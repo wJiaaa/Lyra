@@ -25,8 +25,8 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra附件能力测试");
+const REAL_HOME = join(homedir(), ".plume");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume附件能力测试");
 const PORT = 9425;
 
 /** 文件名里的时间点，精确到分——同一轮跑出来的几个文件排在一起。 */
@@ -120,7 +120,7 @@ async function seed(home: string): Promise<void> {
 	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	for (const file of ["credentials.json", "vault.key"]) {
 		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
-			throw new Error(`没找到 ~/.lyra/${file}——真实模型调用需要它`);
+			throw new Error(`没找到 ~/.plume/${file}——真实模型调用需要它`);
 		});
 	}
 	const real = JSON.parse(await readFile(join(REAL_HOME, "settings.json"), "utf8"));
@@ -147,7 +147,7 @@ async function attach(files: { path: string; name: string; mime: string }[]): Pr
 	const present = await app.evaluate<number>(`document.querySelectorAll('input[type="file"]').length`);
 	if (present === 0) throw new Error("页面上没有 file input");
 
-	await app.evaluate(`window.__lyraProbeFiles = []`);
+	await app.evaluate(`window.__plumeProbeFiles = []`);
 	for (const file of files) {
 		const base64 = (await readFile(file.path)).toString("base64");
 		await app.evaluate(`
@@ -155,7 +155,7 @@ async function attach(files: { path: string; name: string; mime: string }[]): Pr
 				const bin = atob(${JSON.stringify(base64)});
 				const bytes = new Uint8Array(bin.length);
 				for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-				window.__lyraProbeFiles.push(new File([bytes], ${JSON.stringify(file.name)}, { type: ${JSON.stringify(file.mime)} }));
+				window.__plumeProbeFiles.push(new File([bytes], ${JSON.stringify(file.name)}, { type: ${JSON.stringify(file.mime)} }));
 			})()
 		`);
 	}
@@ -164,7 +164,7 @@ async function attach(files: { path: string; name: string; mime: string }[]): Pr
 		(() => {
 			const input = document.querySelector('input[type="file"]');
 			const transfer = new DataTransfer();
-			for (const file of window.__lyraProbeFiles) transfer.items.add(file);
+			for (const file of window.__plumeProbeFiles) transfer.items.add(file);
 			input.files = transfer.files;
 			input.dispatchEvent(new Event("change", { bubbles: true }));
 		})()

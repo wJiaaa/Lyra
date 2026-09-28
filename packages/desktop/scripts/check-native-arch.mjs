@@ -37,8 +37,8 @@ const RELEASE_DIR = fileURLToPath(new URL("../release/", import.meta.url));
  * no architecture at all.
  */
 const BUILDS = {
-	mac: { platform: "darwin", arch: "x64", resources: "Lyra.app/Contents/Resources" },
-	"mac-arm64": { platform: "darwin", arch: "arm64", resources: "Lyra.app/Contents/Resources" },
+	mac: { platform: "darwin", arch: "x64", resources: "Plume.app/Contents/Resources" },
+	"mac-arm64": { platform: "darwin", arch: "arm64", resources: "Plume.app/Contents/Resources" },
 	"win-unpacked": { platform: "win32", arch: "x64", resources: "resources" },
 	"win-arm64-unpacked": { platform: "win32", arch: "arm64", resources: "resources" },
 	"linux-unpacked": { platform: "linux", arch: "x64", resources: "resources" },

@@ -25,7 +25,7 @@ const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "插件市场测�
 const PORT = 9648;
 const MARKET_PORT = 8444;
 const REGISTRY = `https://localhost:${MARKET_PORT}/v1/index`;
-const SOURCE = "/tmp/lyra-plugins/repo";
+const SOURCE = "/tmp/plume-plugins/repo";
 const WORK = "/tmp/plugin-verify/update-probe";
 
 /** 一版市场：全部条目，另把这几个包的版本改成给定的号（包里的 manifest 跟着改，包的哈希就变了）。 */
@@ -186,7 +186,7 @@ try {
 	await shot("手动全部更新之后");
 
 	console.log("\n【二】自动更新开着：再出一版，点刷新，不再点别的");
-	await $(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,autoUpdatePlugins:true});})()`);
+	await $(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,autoUpdatePlugins:true});})()`);
 	await pause(800);
 	await serve(await marketVersion("v3", { time: "9999.1.1", "brave-search": "9999.2.1" }));
 	await refresh();

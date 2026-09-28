@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { createElement as h } from "react";
 
-import type { SubAgentSummary } from "@lyra/core";
+import type { SubAgentSummary } from "@plume/core";
 import { SubAgentHeader } from "../../src/features/subagents/SubAgentHeader.tsx";
 import { SubAgentMenu } from "../../src/features/subagents/SubAgentMenu.tsx";
 import { useSubAgents } from "../../src/store/subAgents.ts";
@@ -109,7 +109,7 @@ test("不足一分钱写 <$0.01，没有价钱的只写 token——便宜不是�
 
 test("排队的排在在跑的后面：灰着、说在排队、停得下；排队时底下一行说出闸门多宽", async () => {
 	const { useApp } = await import("../../src/store/index.ts");
-	const { DEFAULT_SETTINGS } = await import("@lyra/core");
+	const { DEFAULT_SETTINGS } = await import("@plume/core");
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS, maxConcurrentSubAgents: 1 } as never, meta: null });
 	const view = await mount(
 		h(SubAgentMenu, {

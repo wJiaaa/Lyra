@@ -22,8 +22,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 
-import type { McpBundle, McpServerConfig, RegistryEntry, Settings } from "@lyra/core";
-import { bundleRoot, installEntry, uninstallEntry } from "@lyra/core";
+import type { McpBundle, McpServerConfig, RegistryEntry, Settings } from "@plume/core";
+import { bundleRoot, installEntry, uninstallEntry } from "@plume/core";
 
 import {
 	releaseBundle,
@@ -34,23 +34,23 @@ import {
 
 const run = promisify(execFile);
 
-/** A home of our own; these tests write to `~/.lyra` and must never find the real one. */
+/** A home of our own; these tests write to `~/.plume` and must never find the real one. */
 async function withHome(body: () => Promise<void>): Promise<void> {
-	const home = await mkdtemp(join(tmpdir(), "lyra-ipc-"));
-	const previous = process.env.LYRA_HOME;
-	process.env.LYRA_HOME = home;
+	const home = await mkdtemp(join(tmpdir(), "plume-ipc-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
 	try {
 		await body();
 	} finally {
-		if (previous === undefined) delete process.env.LYRA_HOME;
-		else process.env.LYRA_HOME = previous;
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
 		await rm(home, { recursive: true, force: true });
 	}
 }
 
 /** A git repository holding the given files, which is what `entry.repository` points at. */
 async function repoWith(files: Record<string, string>): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-repo-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-repo-"));
 	for (const [path, content] of Object.entries(files)) {
 		const full = join(dir, path);
 		await mkdir(join(full, ".."), { recursive: true });
@@ -223,7 +223,7 @@ test("a server the user switched on survives a re-install of a different bundle"
 function bundle(id: string, servers: McpServerConfig[]): McpBundle {
 	return {
 		id,
-		dir: `/home/me/.lyra/mcp/${id}`,
+		dir: `/home/me/.plume/mcp/${id}`,
 		manifest: { name: id },
 		source: "user",
 		servers: servers.map((server) => ({ ...server, origin: { bundle: id } })),

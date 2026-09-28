@@ -21,10 +21,10 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra审计整改测试");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume审计整改测试");
 const PORT = 9463;
 const SESSION_ID = randomUUID();
-const WORK = "/tmp/lyra-audit-fixes";
+const WORK = "/tmp/plume-audit-fixes";
 
 async function seed(home: string): Promise<void> {
 	const cwd = join(WORK, "proj");
@@ -276,7 +276,7 @@ try {
 	/*
 	 * 按这一节自己的标题找，不按 `/network/`。
 	 *
-	 * 权限模式那一行的说明里也有 "network"（`Lyra can ... access the network without approval`），
+	 * 权限模式那一行的说明里也有 "network"（`Plume can ... access the network without approval`），
 	 * 它排在前面，于是断言拿着那一行变绿——而那一行和这一轮的改动毫无关系。
 	 */
 	const enNetwork = await app.evaluate<{ title: string | null; detail: string | null }>(`(() => {

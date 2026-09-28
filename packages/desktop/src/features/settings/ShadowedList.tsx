@@ -13,7 +13,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import type { DiffHunk } from "@lyra/core";
+import type { DiffHunk } from "@plume/core";
 import { ArrowLeftRight, Eye, EyeOff, Layers } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";

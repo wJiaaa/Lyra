@@ -5,7 +5,7 @@ import { constants, copyFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { McpServerConfig } from "../mcp/client.ts";
 import { EMPTY_HOOKS_CONFIG, normalizeHooksConfig, type HooksConfig } from "../hooks/config.ts";
-import { lyraHome } from "../session/store.ts";
+import { plumeHome } from "../session/store.ts";
 import type { ModelConfig, ProviderConfig, ThinkingLevel } from "../types.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { withoutBom } from "../utils/bom.ts";
@@ -21,7 +21,7 @@ export type PermissionMode =
 	/** Never ask. */
 	| "full";
 
-/** The language used by Lyra's own interface. */
+/** The language used by Plume's own interface. */
 export type UiLocale = "system" | "zh-CN" | "en";
 
 export const UI_LOCALES = ["system", "zh-CN", "en"] as const satisfies readonly UiLocale[];
@@ -190,10 +190,10 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	uiFont: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
 	codeFont:
 		'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace',
-	// Lyra's own — see `lyra-light` in `code-themes.ts`. It takes the app's background rather than
-	// bringing one, so a fresh install looks like Lyra and picking any other theme is a real choice.
-	codeLightTheme: "lyra-light",
-	codeDarkTheme: "lyra-dark",
+	// Plume's own — see `plume-light` in `code-themes.ts`. It takes the app's background rather than
+	// bringing one, so a fresh install looks like Plume and picking any other theme is a real choice.
+	codeLightTheme: "plume-light",
+	codeDarkTheme: "plume-dark",
 	// 14 reads next to Mail / native Mac apps. 13 was a size down from that and looked slight.
 	uiFontSize: 14,
 	codeFontSize: 12,
@@ -301,7 +301,7 @@ export interface Settings {
 	 */
 	allowedHosts?: string[];
 	/**
-	 * Lyra 开着的时候，别让这台电脑睡。
+	 * Plume 开着的时候，别让这台电脑睡。
 	 *
 	 * 开着的时候主进程持有一个系统级的「别休眠」声明（`electron/keep-awake.ts`），保证不息屏、
 	 * 不因为闲置而休眠——长任务跑一夜、离开工位回来它还在那儿。
@@ -310,7 +310,7 @@ export interface Settings {
 	 * 电源计划里的 LIDACTION，都要特权），设置页把这一句写在开关下面，而不是让人自己发现。
 	 */
 	keepAwake?: boolean;
-	/** Lyra's interface language. `system` follows the operating system without storing a guess. */
+	/** Plume's interface language. `system` follows the operating system without storing a guess. */
 	uiLocale: UiLocale;
 	/**
 	 * 写进文件、但**没有任何代码读它**。
@@ -369,7 +369,7 @@ export interface Settings {
 	sessionOrder?: Record<string, string[]>;
 	/** Worktrees configuration and auto-cleanup preferences. */
 	worktrees?: {
-		/** Managed worktrees root directory. Defaults to ~/.lyra/worktrees or sibling directory if empty. */
+		/** Managed worktrees root directory. Defaults to ~/.plume/worktrees or sibling directory if empty. */
 		rootDir?: string;
 		/** Automatically create a dedicated worktree when starting a new session. */
 		autoCreateOnNewSession?: boolean;
@@ -425,7 +425,7 @@ export interface Settings {
 	 */
 	commitLanguage?: string;
 	appearance: AppearanceSettings;
-	/** 用户级钩子。项目级的在 `.lyra/config.json`，不走设置合并，见 `hooks/config.ts`。 */
+	/** 用户级钩子。项目级的在 `.plume/config.json`，不走设置合并，见 `hooks/config.ts`。 */
 	hooks: HooksConfig;
 	scheduledTasks: ScheduledTask[];
 	/**
@@ -446,7 +446,7 @@ export interface Settings {
 	/**
 	 * Which file wins a same-name conflict, as `kind:name` → path — 「改用那个」 on the settings page.
 	 *
-	 * Here rather than in `.lyra/config.json` because the value is a path on this machine, and
+	 * Here rather than in `.plume/config.json` because the value is a path on this machine, and
 	 * that file is the one checked into the repository.
 	 */
 	capabilityPreferences: Record<string, string>;
@@ -634,7 +634,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export function settingsPath(): string {
-	return join(lyraHome(), "settings.json");
+	return join(plumeHome(), "settings.json");
 }
 
 /** Where a provider's key is filed in the vault. */
@@ -702,7 +702,7 @@ export async function loadSettings(): Promise<Settings> {
 }
 
 /**
- * The settings a particular project sees: the global settings with `<cwd>/.lyra/config.json` over it.
+ * The settings a particular project sees: the global settings with `<cwd>/.plume/config.json` over it.
  *
  * Takes settings already in hand rather than reading the file, because a running session gets its
  * global settings handed to it — the desktop keeps one copy and pushes changes down — and
@@ -770,7 +770,7 @@ async function readSettingsFile(): Promise<Settings> {
  * a byte-order mark (see `withoutBom`), which is now simply read; this is for a file that cannot be.
  */
 export interface SettingsProblem {
-	/** The file it is about. A test, or a host that moved `LYRA_HOME`, reads another file entirely. */
+	/** The file it is about. A test, or a host that moved `PLUME_HOME`, reads another file entirely. */
 	path: string;
 	/** What the parser said. */
 	reason: string;
@@ -789,7 +789,7 @@ export function settingsProblem(): SettingsProblem | null {
 export function describeSettingsProblem(found: SettingsProblem): string {
 	return found.keptAt
 		? `${found.path} 读不出来（${found.reason}），原文件已另存为 ${found.keptAt}。现在用的是默认设置：模型供应商、MCP 服务器、hooks 要从那份文件里找回来。`
-		: `${found.path} 读不出来（${found.reason}），这次按默认设置运行，模型供应商、MCP 服务器、hooks 都没有加载。文件本身没有动过：修好之后重启 Lyra；在那之前保存设置，会先把它另存一份再写入。`;
+		: `${found.path} 读不出来（${found.reason}），这次按默认设置运行，模型供应商、MCP 服务器、hooks 都没有加载。文件本身没有动过：修好之后重启 Plume；在那之前保存设置，会先把它另存一份再写入。`;
 }
 
 /**
@@ -825,7 +825,7 @@ function withoutCatalogLinks(model: ModelConfig): ModelConfig {
  * A settings object as written, brought up to the shape the app expects.
  *
  * Split out of `readSettingsFile` so that every layer goes through it. A project's
- * `.lyra/config.json` setting `maxConcurrentSubAgents: 500` has to meet the same ceiling a global
+ * `.plume/config.json` setting `maxConcurrentSubAgents: 500` has to meet the same ceiling a global
  * one does, and merging layers field by field would put those bounds in a second place that has to
  * be kept in step with this one.
  */
@@ -1026,7 +1026,7 @@ async function writeSettings(settings: Settings): Promise<void> {
 	// Removed providers and servers — and a key somebody cleared — are forgotten in the same pass.
 	await keepSecrets((id) => (!id.startsWith("provider:") && !id.startsWith("mcp:")) || id in keys);
 
-	await mkdir(lyraHome(), { recursive: true });
+	await mkdir(plumeHome(), { recursive: true });
 	const scrubbed: Settings = {
 		...settings,
 		// 密钥跟着供应商一起走，名字不跟着走——见 `providerNames`。

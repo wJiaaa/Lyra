@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
-import { DEFAULT_SETTINGS, type ModelConfig, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type ModelConfig, type Settings } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
 import { named } from "./named.ts";
 
 let app: RunningApp;
-const shots = "/tmp/lyra-model-defaults-e2e";
+const shots = "/tmp/plume-model-defaults-e2e";
 const legacy = (modelId: string): ModelConfig => ({
 	id: `relay/${modelId}`, providerId: "relay", modelId, name: modelId,
 	contextWindow: 200000, maxOutputTokens: 16384, supportsThinking: true, supportsImages: true, supportsTools: true,
@@ -120,7 +120,7 @@ test("all built-in agents can be configured before any session is created", asyn
 	await until(`document.querySelector('[data-model="relay/gemini-3.7-flash-high"] button')`);
 	await click('[data-model="relay/gemini-3.7-flash-high"] button');
 	await until(`document.querySelector('[aria-label="explore 模型"]').textContent.includes('gemini-3.7-flash-high')`);
-	const saved = await app.evaluate<Settings>("window.lyra.settings.get()");
+	const saved = await app.evaluate<Settings>("window.plume.settings.get()");
 	assert.equal(saved.subAgentProfiles?.explore.modelId, "relay/gemini-3.7-flash-high");
 	await label("返回工作区");
 	await label("新对话");
@@ -172,7 +172,7 @@ test("an unknown alias has no fake prices and can be filled from a searched entr
 	const fields = await app.evaluate<{ id: string; input: string }>(readFields);
 	assert.equal(fields.id, "gemini-pro-agent"); assert.equal(fields.input, "1.25");
 	await label("保存"); await until(`!document.querySelector('[data-ly-modal]')`);
-	const saved = await app.evaluate<Settings>("window.lyra.settings.get()");
+	const saved = await app.evaluate<Settings>("window.plume.settings.get()");
 	const filled = saved.providers[0].models.find((model) => model.modelId === "gemini-pro-agent");
 	assert.equal(filled?.pricing?.input, 1.25);
 	assert.equal(filled && "catalogRef" in filled, false, "filling in is a one-off, not a link");

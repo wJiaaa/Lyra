@@ -1,7 +1,7 @@
 /**
  * Which conversations go with a project when it is removed.
  *
- * The report was that a project deleted from disk could not be removed from Lyra. Archiving only
+ * The report was that a project deleted from disk could not be removed from Plume. Archiving only
  * the chats whose `cwd` matched exactly was half of why: the sidebar builds a group per distinct
  * `cwd`, so anything started one directory down came back as its own group the moment the entry
  * was dropped.

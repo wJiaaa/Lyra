@@ -109,7 +109,7 @@ async function call(conn: ForgeConnection, path: string, options: CallOptions = 
 			headers: {
 				...authHeader(conn),
 				Accept: options.accept ?? "application/json",
-				"User-Agent": "Lyra",
+				"User-Agent": "Plume",
 				...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
 			},
 			body: options.body === undefined ? undefined : JSON.stringify(options.body),

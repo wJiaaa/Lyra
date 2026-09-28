@@ -20,7 +20,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { lyraHome, within } from "@lyra/core";
+import { plumeHome, within } from "@plume/core";
 
 /** Everything outside this becomes a dash, which also flattens `owner/name` into one segment. */
 const UNSAFE = /[^a-zA-Z0-9._-]+/g;
@@ -61,7 +61,7 @@ export function prChatSlug(repo: string, number: number): string {
  * Exposed so the renderer can recognise these sessions and keep them out of the sidebar's project
  * list. They are real sessions in a real directory — that is what makes them reopen months later —
  * but they are not projects, and listing a folder called `owner-repo-6381` between someone's actual
- * work is noise. Derived here rather than pattern-matched there: the home is `LYRA_HOME`-overridable,
+ * work is noise. Derived here rather than pattern-matched there: the home is `PLUME_HOME`-overridable,
  * so a hard-coded path in the renderer would be wrong for anyone who moved it.
  *
  * `workspaces/`, and the name is the fix.
@@ -78,7 +78,7 @@ export function prChatSlug(repo: string, number: number): string {
  * sweeping `scratch/`, and nothing it sweeps belongs to anybody.
  */
 function workspacesRoot(): string {
-	return join(lyraHome(), "workspaces");
+	return join(plumeHome(), "workspaces");
 }
 
 /**
@@ -93,7 +93,7 @@ function workspacesRoot(): string {
  * for why it could not stay), and both stay here forever to keep old conversations recognisable.
  */
 export function scratchRoots(): string[] {
-	return [workspacesRoot(), join(lyraHome(), "scratch"), join(lyraHome(), "pr")];
+	return [workspacesRoot(), join(plumeHome(), "scratch"), join(plumeHome(), "pr")];
 }
 
 /** The working directory for one pull request, created if it is not there yet. */
@@ -141,7 +141,7 @@ const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  */
 export async function rescueLegacyWorkspaces(): Promise<string[]> {
 	const moved: string[] = [];
-	for (const legacy of [join(lyraHome(), "scratch"), join(lyraHome(), "pr")]) {
+	for (const legacy of [join(plumeHome(), "scratch"), join(plumeHome(), "pr")]) {
 		const entries = await readdir(legacy, { withFileTypes: true }).catch(() => []);
 		for (const entry of entries) {
 			if (!entry.isDirectory() || SESSION_ID.test(entry.name)) continue;

@@ -21,7 +21,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const dir = process.argv[2] ?? "/tmp/lyra-title-scroll";
+const dir = process.argv[2] ?? "/tmp/plume-title-scroll";
 
 let failures = 0;
 function check(label: string, passed: boolean, evidence: string): void {

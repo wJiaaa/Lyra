@@ -6,7 +6,7 @@
  */
 
 import { ipcMain } from "electron";
-import { approveSkill, pendingSkills, rejectSkill } from "@lyra/core";
+import { approveSkill, pendingSkills, rejectSkill } from "@plume/core";
 import { sessions } from "../session-hub.ts";
 
 export function registerSkillsIpc(): void {

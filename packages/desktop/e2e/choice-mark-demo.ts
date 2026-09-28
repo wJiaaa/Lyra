@@ -6,7 +6,7 @@ import { startApp, closeListeningServer } from "./app.ts";
 import { startRecording, encode, type Frame } from "./record.ts";
 import { issueModel, seedIssues } from "./issues-fixture.ts";
 
-const out = join(homedir(), "Desktop", "Lyra授权框选项测试");
+const out = join(homedir(), "Desktop", "Plume授权框选项测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Singapore" }).replace(/[: ]/g, "-");
 const checks: { name: string; ok: boolean; value: unknown }[] = [];
 const check = (name: string, ok: boolean, value: unknown) => {
@@ -98,7 +98,7 @@ try {
 	await closeListeningServer(model.server);
 	const pass = checks.filter((item) => item.ok).length;
 	const name = `${stamp}_授权框选项_${pass}of${checks.length}`;
-	await writeFile(join(out, `${name}.json`), JSON.stringify({ fixture: "Isolated LYRA_HOME, local SSE model, real Electron window", checks }, null, 2));
+	await writeFile(join(out, `${name}.json`), JSON.stringify({ fixture: "Isolated PLUME_HOME, local SSE model, real Electron window", checks }, null, 2));
 	if (frames.length) await encode(frames, join(out, `${name}.mp4`), 60);
 	console.log(`Evidence: ${join(out, name)} (${frames.length} captured frames)`);
 	if (checks.some((item) => !item.ok)) process.exitCode = 1;

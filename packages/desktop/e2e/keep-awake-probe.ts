@@ -6,7 +6,7 @@
  * 「`powerSaveBlocker.start` 真的让 macOS 记下了一条 assertion」这件事，假的那个一个字也说不了。
  * 这正是 memory 里反复踩的那类：量写进去的值，不量画出来的结果。
  *
- * 所以这里问系统本人：`pmset -g assertions` 列的是内核当下持有的全部电源声明，Lyra 发的那条会
+ * 所以这里问系统本人：`pmset -g assertions` 列的是内核当下持有的全部电源声明，Plume 发的那条会
  * 以进程名出现在里面。开关一开一关，那一条要跟着出现和消失。
  *
  * 开关是通过渲染层的 `saveSettings` 打开的，走的是和点设置页那个 Toggle 完全同一条链路：
@@ -76,7 +76,7 @@ function added(before: string[], now: string[]): string[] {
  */
 async function setSwitch(on: boolean): Promise<void> {
 	const saved = await app.evaluate<boolean>(
-		`(async () => { const s = await window.lyra.settings.get(); await window.lyra.settings.save({ ...s, keepAwake: ${on} }); const back = await window.lyra.settings.get(); return back.keepAwake === ${on}; })()`,
+		`(async () => { const s = await window.plume.settings.get(); await window.plume.settings.save({ ...s, keepAwake: ${on} }); const back = await window.plume.settings.get(); return back.keepAwake === ${on}; })()`,
 	);
 	if (!saved) throw new Error(`设置没存进去：keepAwake 应该是 ${on}`);
 	// 声明是主进程发的，给它一点时间——但落没落到系统上由 pmset 说了算，不由这个等待说了算。

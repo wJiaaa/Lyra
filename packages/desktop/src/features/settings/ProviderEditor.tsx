@@ -12,7 +12,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
-import type { ApiFormat, ModelConfig, ProviderConfig } from "@lyra/core";
+import type { ApiFormat, ModelConfig, ProviderConfig } from "@plume/core";
 import { Pencil, Power, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";

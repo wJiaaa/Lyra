@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
-import { THINKING_LEVELS, thinkingOptionsFor } from "@lyra/core";
+import { THINKING_LEVELS, thinkingOptionsFor } from "@plume/core";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
@@ -166,7 +166,7 @@ async function persistedUpstream(matches: (rule: Record<string, unknown>) => boo
 	throw new Error(`retry policy never reached disk; last was ${JSON.stringify(last)}`);
 }
 async function shot(name: string) {
-	const directory = process.env.LYRA_E2E_ARTIFACTS; if (!directory) return;
+	const directory = process.env.PLUME_E2E_ARTIFACTS; if (!directory) return;
 	await mkdir(directory, { recursive: true });
 	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(directory, name + ".png"), Buffer.from(result.data, "base64"));
@@ -319,10 +319,10 @@ test("a fresh Electron process restores persisted answers and can edit the first
 	t.diagnostic(await app.evaluate<string>(`JSON.stringify([...document.querySelectorAll('[data-dock-pane="chat"] textarea')].map(e=>({value:e.value,rect:e.getBoundingClientRect().toJSON(),focused:e===document.activeElement})))`));
 	await label("重新提问");
 	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到早期决策')`);
-	const state = await app.evaluate<{ messages: unknown[] }>(`window.lyra.sideChat.state('qa-long')`);
+	const state = await app.evaluate<{ messages: unknown[] }>(`window.plume.sideChat.state('qa-long')`);
 	assert.doesNotMatch(JSON.stringify(state.messages), /以前的侧聊问题|以前的侧聊回答|TOOL_TAIL_REQUEST/);
 	assert.match(JSON.stringify(state.messages), /编辑后查询早期决策/);
-	assert.deepEqual(await app.evaluate(`window.lyra.settings.get().then(s=>s.subAgentProfiles)`), savedProfiles);
+	assert.deepEqual(await app.evaluate(`window.plume.settings.get().then(s=>s.subAgentProfiles)`), savedProfiles);
 	await shot("sidechat-restored-edit");
 });
 
@@ -334,7 +334,7 @@ test("sidechat model selection and its default use their actual providers and su
 	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`);
 	const actual = requests.slice(start).find(request => JSON.stringify(request.body).includes("SIDE_MODEL_PROBE"));
 	assert.ok(actual); assert.ok(actual.path.startsWith("/secondary"));
-	assert.equal(await app.evaluate(`window.lyra.sideChat.state('qa-long').then(s=>s.modelId)`), "secondary/model");
+	assert.equal(await app.evaluate(`window.plume.sideChat.state('qa-long').then(s=>s.modelId)`), "secondary/model");
 	await click('button:has(svg.lucide-settings)'); await label("智能体", "nav button");
 	await click('[aria-label="侧边聊天默认模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
 	await until(`document.querySelector('[aria-label="侧边聊天默认模型"]').dataset.lyTip?.includes('第二供应商')`);
@@ -342,7 +342,7 @@ test("sidechat model selection and its default use their actual providers and su
 	await label("返回工作区", "nav button");
 	await click('[aria-label="新的侧边聊天"]');
 	await until(`!document.querySelector('[data-dock-pane="chat"]').innerText.includes('SIDE_MODEL_PROBE')`);
-	assert.deepEqual(await app.evaluate(`window.lyra.sideChat.state('qa-long').then(s=>({modelId:s.modelId,messages:s.messages}))`), { modelId: "secondary/model", messages: [] });
+	assert.deepEqual(await app.evaluate(`window.plume.sideChat.state('qa-long').then(s=>({modelId:s.modelId,messages:s.messages}))`), { modelId: "secondary/model", messages: [] });
 	await send("SIDE_AFTER_RESET"); await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`);
 	savedSide = await readFile(join(app.home, "sidechats", "qa-long.json"), "utf8");
 	await app.stop(); app = await startApp({ port: 9611, seed });

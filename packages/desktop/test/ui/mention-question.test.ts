@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import type { ApprovalDecision } from "@lyra/core";
+import type { ApprovalDecision } from "@plume/core";
 import { UserMessage } from "../../src/features/conversation/UserMessage.tsx";
 import { QuestionChoices } from "../../src/features/conversation/QuestionChoices.tsx";
 import { MentionMenu } from "../../src/features/composer/MentionMenu.tsx";
@@ -49,7 +49,7 @@ test("question options send an answer without creating a user prompt; custom inp
 test("an answer retains the request's session when selection moves before completion", async () => {
 	const called: unknown[][] = [];
 	let finish!: () => void;
-	Object.defineProperty(window, "lyra", { configurable: true, value: { agent: { approve: (...args: unknown[]) => {
+	Object.defineProperty(window, "plume", { configurable: true, value: { agent: { approve: (...args: unknown[]) => {
 		called.push(args); return new Promise<void>((resolve) => { finish = resolve; });
 	} } } });
 	const request = { id: "a-question", kind: "interactive", title: "question", detail: "?" };

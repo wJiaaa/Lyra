@@ -1,7 +1,7 @@
 /**
  * Opening another real window of this app.
  *
- * Not `shell.openExternal("lyra://…")`. That scheme is refused by the navigation guard, so the
+ * Not `shell.openExternal("plume://…")`. That scheme is refused by the navigation guard, so the
  * old "open in a new window" item toasted and then did nothing.
  *
  * A session window is a conversation, not a second workspace. `openInMain` puts that conversation

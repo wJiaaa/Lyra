@@ -19,12 +19,12 @@ import { readFile } from "node:fs/promises";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
-const EXTERNAL = join(homedir(), ".lyra-e2e-external-project-with-a-fairly-long-name");
+const EXTERNAL = join(homedir(), ".plume-e2e-external-project-with-a-fairly-long-name");
 const EXTERNAL_FILE = join(EXTERNAL, "src", "deeply", "nested", "configuration-loader.ts");
 const FAKE_KEY = join(EXTERNAL, ".ssh", "id_ed25519");
-const REPO = join(homedir(), ".lyra-e2e-external-repo");
+const REPO = join(homedir(), ".plume-e2e-external-repo");
 const REPO_FILE = join(REPO, "packages", "server", "src", "handler.ts");
-const OUT = join(homedir(), "Desktop", "Lyra读取边界测试");
+const OUT = join(homedir(), "Desktop", "Plume读取边界测试");
 
 let app: RunningApp;
 
@@ -184,7 +184,7 @@ async function main() {
 		 * 每一种。这一条不是为读取边界测的，是为「别把别人的卡片改坏」测的。
 		 * 删一个不存在的临时路径：工作区之外所以会问，而就算真跑了也什么都删不掉。
 		 */
-		const command = await run("4-命令审批对照", 9714, "bash", { command: `rm -rf ${join(homedir(), ".lyra-e2e-nonexistent-xyz")}`, description: "清理临时目录" });
+		const command = await run("4-命令审批对照", 9714, "bash", { command: `rm -rf ${join(homedir(), ".plume-e2e-nonexistent-xyz")}`, description: "清理临时目录" });
 		console.log("\n=== 场景四：命令审批（共用卡片的对照）===");
 		console.log(JSON.stringify(command.state, null, 2));
 		console.log("截图:", command.png);

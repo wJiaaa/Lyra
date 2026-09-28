@@ -1,4 +1,4 @@
-import { INLINE_IMAGE_CHARS, persistSessionImage, type AssistantContent, type ImageContent, type Message, type UserContent } from "@lyra/core";
+import { INLINE_IMAGE_CHARS, persistSessionImage, type AssistantContent, type ImageContent, type Message, type UserContent } from "@plume/core";
 import { noteAttachments } from "./attachment-reads.ts";
 
 /**

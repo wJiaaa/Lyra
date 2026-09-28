@@ -17,7 +17,7 @@ let hold = false;
 let hasRun = false;
 let requests = 0;
 const pending = new Set<ServerResponse>();
-const artifacts = process.env.LYRA_E2E_ARTIFACTS;
+const artifacts = process.env.PLUME_E2E_ARTIFACTS;
 const pane = '[data-dock-pane="review"]';
 const view = `${pane} [data-view="pipelines"]`;
 const tab = (label: string) => `[...document.querySelectorAll('${pane} button')].find(e=>(e.dataset.lyTip||'').startsWith(${JSON.stringify(label)})||e.querySelector('span')?.textContent===${JSON.stringify(label)})`;
@@ -172,7 +172,7 @@ test("pipeline loading and retained refresh never flash an unrelated list or los
 		t.diagnostic(`${name}: cold loading, Activity return, empty remount and cached refresh`);
 		await closeGit();
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
-		await app.evaluate(`(async()=>{const s=await window.lyra.settings.get();await window.lyra.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}});localStorage.removeItem(${JSON.stringify(`lyra.pipelines.runs.v1:${project}`)})})()`);
+		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}});localStorage.removeItem(${JSON.stringify(`plume.pipelines.runs.v1:${project}`)})})()`);
 		await until(`document.documentElement.classList.contains(${JSON.stringify(theme)})&&innerWidth===${width}`);
 		hasRun = false;
 		await openGit();

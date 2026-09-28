@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import { DEFAULT_SETTINGS } from "@lyra/core";
+import { DEFAULT_SETTINGS } from "@plume/core";
 import { UserMessage } from "../../src/features/conversation/UserMessage.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { useOpenFile } from "../../src/store/openFile.ts";
@@ -17,11 +17,11 @@ import { click, mount } from "../helpers/mount.ts";
 
 test("点已发送文档的标记，打开的是那个文件", async () => {
 	const opened: string[] = [];
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			platform: "darwin",
-			files: { mediaUrl: (path: string) => `lyra-media://test${path}` },
+			files: { mediaUrl: (path: string) => `plume-media://test${path}` },
 			system: { openTargets: async () => [], pathExists: async () => true, openIn: async () => {} },
 		},
 	});

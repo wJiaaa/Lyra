@@ -259,7 +259,7 @@ test("被拒的那条不进日志：压缩边界落在跟发出去的同一处",
 	 * 从前被拒的回复先提交再重发，日志末尾就多一条循环眼里没有的错误。边界记的是「最后 N 条」，
 	 * 从日志末尾数就偏一条：下一轮重建的历史和刚发出去的对不上，缓存前缀断开。
 	 */
-	const root = await mkdtemp(join(tmpdir(), "lyra-overflow-"));
+	const root = await mkdtemp(join(tmpdir(), "plume-overflow-"));
 	try {
 		const store = new SessionStore(root);
 		const log = new SessionLog(store, () => {}, await store.create(root, MODEL.id));

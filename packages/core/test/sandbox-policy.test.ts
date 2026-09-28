@@ -49,7 +49,7 @@ test("workspace-write grants the workspace and the temp areas", () => {
 });
 
 test("a workspace inside a temp root is absorbed rather than granted twice", async (t) => {
-	const parent = await mkdtemp(join(tmpdir(), "lyra-sb-"));
+	const parent = await mkdtemp(join(tmpdir(), "plume-sb-"));
 	const child = join(parent, "project");
 	await mkdir(child, { recursive: true });
 	t.after(() => rm(parent, { recursive: true, force: true }));
@@ -74,7 +74,7 @@ test("an unresolvable root is kept as spelled, granting nothing until it exists"
 });
 
 test("a symlinked root resolves to what the kernel would report", async (t) => {
-	const base = await mkdtemp(join(tmpdir(), "lyra-sb-link-"));
+	const base = await mkdtemp(join(tmpdir(), "plume-sb-link-"));
 	const real = join(base, "real");
 	const link = join(base, "link");
 	await mkdir(real, { recursive: true });

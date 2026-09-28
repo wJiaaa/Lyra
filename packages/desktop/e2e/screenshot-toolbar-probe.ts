@@ -18,7 +18,7 @@
  *
  * The recording is not decoration either. Half of these are timing faults — a window that appears
  * and is hidden two frames later, a toolbar that jumps before it settles — and a probe that samples
- * the DOM at 200ms intervals cannot see any of them. `~/Desktop/lyra-截图控件-*.mp4` is the record
+ * the DOM at 200ms intervals cannot see any of them. `~/Desktop/plume-截图控件-*.mp4` is the record
  * of what was actually on screen while the assertions below were being made.
  *
  * Run: `node --experimental-strip-types e2e/screenshot-toolbar-probe.ts`
@@ -93,7 +93,7 @@ function evaluator(socket: string) {
  * roughly two runs out of three.
  *
  * It is the protocol, not the app, and that was established rather than assumed — the same window
- * in the same state reveals its close button to the *real* pointer, with Lyra not even frontmost.
+ * in the same state reveals its close button to the *real* pointer, with Plume not even frontmost.
  * See the 「真实鼠标」 check in the pinning section. So a move that goes unanswered is retried once
  * and then let go: a duplicate move changes nothing, where a duplicate press would.
  */
@@ -216,7 +216,7 @@ const note = (line: string) => console.log(line);
 const beat = () => pause(1_100);
 
 const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-const CLIP = join(homedir(), "Desktop", `lyra-截图控件-${stamp}.mp4`);
+const CLIP = join(homedir(), "Desktop", `plume-截图控件-${stamp}.mp4`);
 let recorder: ChildProcess | null = null;
 
 /**
@@ -326,7 +326,7 @@ try {
 
 	// ---- 1. 工具栏尺寸 ---------------------------------------------------
 	note("\n【1】截图工具栏的尺寸");
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	const socket = await overlayPage();
 	const run = evaluator(socket);
 	for (let i = 0; i < 60; i++) {
@@ -478,7 +478,7 @@ try {
 	await beat();
 	note("\n【4】置顶在桌面");
 	/*
-	 * From the shortcut, not from inside Lyra, which is the case that can go wrong.
+	 * From the shortcut, not from inside Plume, which is the case that can go wrong.
 	 *
 	 * A capture the app did not start hands the foreground back by hiding the whole application —
 	 * and `app.hide()` hides every window, including one created a line earlier. Bringing another
@@ -495,12 +495,12 @@ try {
 	 *
 	 * `clearOverlayForSnapshot` in `screenshot.ts` empties the window before the picture is taken, so
 	 * the case can be walked through instead of stepped around, and pinning gets exercised on the
-	 * harder path: a capture that supersedes another *and* comes from outside Lyra.
+	 * harder path: a capture that supersedes another *and* comes from outside Plume.
 	 * `e2e/screenshot-restart-probe.ts` is what checks the pixels; here it just has to work.
 	 */
 	await execFileAsync("open", ["-a", "Finder"]).catch(() => {});
 	await pause(1_200);
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	await pause(1_200);
 	await drag(socket, [region[0], region[1]], [region[2], region[3]]);
 	await pause(400);
@@ -552,7 +552,7 @@ try {
 		 */
 		await parkCursor(8, 8);
 		await pause(900);
-		await execFileAsync("screencapture", ["-x", join(homedir(), "Desktop", `lyra-置顶截图-${stamp}.png`)]).catch(() => {});
+		await execFileAsync("screencapture", ["-x", join(homedir(), "Desktop", `plume-置顶截图-${stamp}.png`)]).catch(() => {});
 
 		/*
 		 * What the overlay is doing while a pinned picture is on screen.
@@ -583,11 +583,11 @@ try {
 		const dataUrl = await pin<string>(`document.querySelector("img") ? document.querySelector("img").src : ""`);
 		if (dataUrl.startsWith("data:image")) {
 			const { writeFile } = await import("node:fs/promises");
-			await writeFile(join(homedir(), "Desktop", `lyra-置顶原图-${stamp}.png`), Buffer.from(dataUrl.split(",")[1]!, "base64"));
-			note(`  置顶用的原图已写到桌面 lyra-置顶原图-${stamp}.png`);
+			await writeFile(join(homedir(), "Desktop", `plume-置顶原图-${stamp}.png`), Buffer.from(dataUrl.split(",")[1]!, "base64"));
+			note(`  置顶用的原图已写到桌面 plume-置顶原图-${stamp}.png`);
 		}
 
-		const onScreen = await app.evaluate<number>(`window.lyra.screenshot.pinnedCount()`);
+		const onScreen = await app.evaluate<number>(`window.plume.screenshot.pinnedCount()`);
 		note(`  主进程记着 ${onScreen} 个置顶窗口`);
 		if (onScreen < 1) problems.push("置顶窗口在主进程里已经不存在了——多半是被 app.hide() 一起收走了");
 
@@ -621,7 +621,7 @@ try {
 		}
 
 		/*
-		 * 4c-bis. And with the *real* pointer, while Lyra is not the front application.
+		 * 4c-bis. And with the *real* pointer, while Plume is not the front application.
 		 *
 		 * This is the state the feature is actually used in — a picture pinned over somebody else's
 		 * window — and it is not the state anything above tests: a synthetic `Input.dispatchMouseEvent`
@@ -638,7 +638,7 @@ try {
 			const b = document.querySelector("[data-pinned-close]");
 			return b ? getComputedStyle(b).opacity : "没有这个按钮";
 		})()`).catch((e: unknown) => `读不到（${String(e)}）`);
-		note(`  真实鼠标（Lyra 不在前台）移上去 → 关闭按钮 opacity=${realHover}`);
+		note(`  真实鼠标（Plume 不在前台）移上去 → 关闭按钮 opacity=${realHover}`);
 		if (realHover !== "1") {
 			problems.push(`真实鼠标移到置顶图片上时关闭按钮没有出现（opacity=${realHover}）——合成事件能触发不代表真手能`);
 		}
@@ -658,7 +658,7 @@ try {
 		else {
 			await click(pinSocket, closeAt.x, closeAt.y);
 			await pause(800);
-			const left = await app.evaluate<number>(`window.lyra.screenshot.pinnedCount()`);
+			const left = await app.evaluate<number>(`window.plume.screenshot.pinnedCount()`);
 			note(`  点关闭之后还剩 ${left} 个置顶窗口`);
 			if (left !== 0) problems.push(`点了关闭按钮，置顶窗口还在（剩 ${left} 个）`);
 		}
@@ -669,7 +669,7 @@ try {
 	note("\n【5】下载截图");
 	// Also straight on: the capture above ended itself once the pinned picture was taken, and if it
 	// has not, starting over one that is up is now a path with pixels behind it rather than a hazard.
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	await pause(1_200);
 	await drag(socket, [region[0], region[1]], [region[2], region[3]]);
 	await pause(400);
@@ -709,7 +709,7 @@ try {
 	 * without the words that were plainly on screen, and nothing said so.
 	 *
 	 * Counted in pixels of the caption's own colour, because the state was right the whole time —
-	 * only the bitmap was wrong. `#ef4444` is the default, and a Lyra window has almost none of it.
+	 * only the bitmap was wrong. `#ef4444` is the default, and a Plume window has almost none of it.
 	 */
 	const seen = new Set(await readdir(downloads).catch(() => [] as string[]));
 	const justSaved = async (): Promise<string | null> => {
@@ -739,7 +739,7 @@ try {
 	};
 
 	await pause(900);
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	await pause(1_200);
 	await drag(socket, [region[0], region[1]], [region[2], region[3]]);
 	await pause(400);

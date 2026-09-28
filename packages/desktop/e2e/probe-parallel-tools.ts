@@ -14,7 +14,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const settings = JSON.parse(await readFile(join(homedir(), ".lyra", "settings.json"), "utf8"));
+const settings = JSON.parse(await readFile(join(homedir(), ".plume", "settings.json"), "utf8"));
 const wanted = process.argv[2];
 const provider = wanted
 	? settings.providers.find((p: { models: { modelId: string }[] }) => p.models.some((m) => m.modelId === wanted))

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
-import type { Message, SessionStorage } from "@lyra/core";
+import type { Message, SessionStorage } from "@plume/core";
 import { findUserImagesAt, loadUserImagesAt, readUserImagesAt } from "../electron/display-image.ts";
 
 const photo = (data: string, timestamp: number): Message => ({

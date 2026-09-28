@@ -71,7 +71,7 @@ async function seed(home: string): Promise<void> {
 	 * 这个探针一次请求都不发，但少了它，界面停在「未配置模型供应商」的空状态上——要量的那一行根本
 	 * 不会被渲染出来。凭据不抄：没有请求要发。
 	 */
-	const real = JSON.parse(await readFile(join(homedir(), ".lyra", "settings.json"), "utf8"));
+	const real = JSON.parse(await readFile(join(homedir(), ".plume", "settings.json"), "utf8"));
 	await writeFile(
 		join(home, "settings.json"),
 		JSON.stringify({

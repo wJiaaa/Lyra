@@ -3,7 +3,7 @@
  *
  * Three, because "is the new format better" cannot be answered by measuring one of them:
  *
- *   str-replace  what Lyra ships today — anchor on the exact old bytes, hand back the new bytes.
+ *   str-replace  what Plume ships today — anchor on the exact old bytes, hand back the new bytes.
  *   hunk-text    a line-anchored mini-language; the model writes only the replacement lines.
  *   hunk-json    the same operations as a structured array, to separate "line anchoring helps"
  *                from "a terse text syntax helps".

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { act, createElement as h } from "react";
-import { DEFAULT_SETTINGS } from "@lyra/core";
-import type { LyraApi } from "../../electron/ipc-types.ts";
+import { DEFAULT_SETTINGS } from "@plume/core";
+import type { PlumeApi } from "../../electron/ipc-types.ts";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { PluginsView } from "../../src/features/plugins/PluginsView.tsx";
 import { useApp } from "../../src/store/index.ts";
@@ -13,9 +13,9 @@ import { click, mount } from "../helpers/mount.ts";
  * 才说：没有配来源，就说没有来源。
  */
 test("a local scan cannot report an empty catalogue before it answers", async () => {
-	let finish!: (scan: Awaited<ReturnType<LyraApi["plugins"]["list"]>>) => void;
-	const scan = new Promise<Awaited<ReturnType<LyraApi["plugins"]["list"]>>>((resolve) => { finish = resolve; });
-	Object.defineProperty(window, "lyra", { configurable: true, value: { plugins: { list: () => scan, environment: async () => [] } } });
+	let finish!: (scan: Awaited<ReturnType<PlumeApi["plugins"]["list"]>>) => void;
+	const scan = new Promise<Awaited<ReturnType<PlumeApi["plugins"]["list"]>>>((resolve) => { finish = resolve; });
+	Object.defineProperty(window, "plume", { configurable: true, value: { plugins: { list: () => scan, environment: async () => [] } } });
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS, pluginRegistries: [], skillRegistries: [] }, workspace: { path: "/tmp/catalog-loading-test" } as never, pluginFocus: null });
 	// PluginsView 读 `useLayout()`（侧栏开合、标题栏），和应用里一样套在 LayoutProvider 下。
 	const view = await mount(h(LayoutProvider, { children: h(PluginsView) }));

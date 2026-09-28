@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import { DEFAULT_SETTINGS, type Settings } from "@lyra/core";
+import { DEFAULT_SETTINGS, type Settings } from "@plume/core";
 import type { UsageBucket, UsageScan } from "../../electron/usage-scan.ts";
 import { UsageSettings } from "../../src/features/settings/UsageSettings.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";
@@ -63,7 +63,7 @@ async function open(buckets: UsageBucket[], over: Partial<Settings> = {}): Promi
 	const saved: Settings[] = [];
 	const settings: Settings = { ...DEFAULT_SETTINGS, ...over };
 	useApp.setState({ activeSessionId: "qa", meta: null, settings, capabilities: null });
-	Object.defineProperty(window, "lyra", {
+	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
 			usage: {

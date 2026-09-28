@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
-import type { Message, SessionMeta } from "@lyra/core";
+import type { Message, SessionMeta } from "@plume/core";
 import { SessionScope } from "../../src/app/session-scope.tsx";
 import { RunningIndicator } from "../../src/features/conversation/RunningIndicator.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";
@@ -46,7 +46,7 @@ let view: Mounted | undefined;
 
 beforeEach(() => {
 	previous = useApp.getState();
-	Object.defineProperty(window, "lyra", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
 	// 甲 holds the live slot: twelve seconds in, 4k tokens spent, on a shell command. 乙 has been going three seconds.
 	useApp.setState({
 		activeSessionId: "a", pendingSessionId: null, meta: meta("a"), messages: [asked("a")], toolRuns: { t1: shell },
@@ -61,7 +61,7 @@ afterEach(async () => {
 	await view?.unmount();
 	view = undefined;
 	useApp.setState(previous, true);
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 function lineUnder(id: string): Promise<Mounted> {

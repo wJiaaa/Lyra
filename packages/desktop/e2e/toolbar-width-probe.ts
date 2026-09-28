@@ -116,7 +116,7 @@ const report = (stage: string, box: Box | null) => {
 
 try {
 	await pause(2600);
-	await app.evaluate(`window.lyra.screenshot.start()`);
+	await app.evaluate(`window.plume.screenshot.start()`);
 	const { run, drag } = await overlay();
 	await pause(900);
 
@@ -163,6 +163,6 @@ try {
 	console.log(problems.length === 0 ? "\n工具栏始终在屏幕内\n" : `\n${problems.length} 处越界：\n${problems.map((p) => `  ✗ ${p}`).join("\n")}\n`);
 	process.exitCode = problems.length === 0 ? 0 : 1;
 } finally {
-	await app.evaluate(`window.lyra.screenshot.cancel()`).catch(() => {});
+	await app.evaluate(`window.plume.screenshot.cancel()`).catch(() => {});
 	await app.stop();
 }

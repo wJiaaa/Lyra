@@ -15,7 +15,7 @@
  */
 
 import { createContext, useContext, useEffect } from "react";
-import type { Message, SessionMeta, SubAgentSummary } from "@lyra/core";
+import type { Message, SessionMeta, SubAgentSummary } from "@plume/core";
 import type { WorkspaceInfo } from "../../electron/ipc-types.ts";
 import { isProjectLess } from "../lib/project-scope.ts";
 import { useApp, type AppState } from "../store/index.ts";

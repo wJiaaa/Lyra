@@ -40,7 +40,7 @@ function percent(): number {
 
 afterEach(async () => {
 	await act(async () => closeViewer());
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 // The annotator is mounted with the viewer; happy-dom has no decoded bitmap constructor.
@@ -60,7 +60,7 @@ after(() => {
 });
 
 async function viewer() {
-	Object.defineProperty(window, "lyra", { configurable: true, value: { platform: "win32" } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "win32" } });
 	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(LayoutProvider, { children: h(ImageViewer) }) }));
 	await act(async () => openViewer([{ src: "data:image/png;base64,iVBORw0KGgo=" }], 0, null));
 	await settle();

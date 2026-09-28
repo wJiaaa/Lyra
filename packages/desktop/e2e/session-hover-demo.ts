@@ -1,13 +1,13 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * 会话行右侧虚化 / 图标让位——对着刚打出来的 Lyra.app 边量边录。
+ * 会话行右侧虚化 / 图标让位——对着刚打出来的 Plume.app 边量边录。
  *
  * 用户截到的是标题右边一块空、虚化位置对不上图标。单测读的是 class 名；这里问的是打包进 asar
  * 之后，真窗口里那一行在静止和悬停时各占多少像素。
  *
- * `LYRA_E2E_APP` 指向 `packages/desktop/release/mac-arm64/Lyra.app` 时，开的就是那份包，不是
+ * `PLUME_E2E_APP` 指向 `packages/desktop/release/mac-arm64/Plume.app` 时，开的就是那份包，不是
  * `pnpm dev`。用法：
- * `LYRA_E2E_APP=... node --experimental-strip-types e2e/session-hover-demo.ts [输出目录]`
+ * `PLUME_E2E_APP=... node --experimental-strip-types e2e/session-hover-demo.ts [输出目录]`
  */
 
 import { createHash } from "node:crypto";
@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
-const REPO = "/Users/kittors/Developer/opensource/Lyra";
+const REPO = "/Users/kittors/Developer/opensource/Plume";
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "会话行虚化让位测试");
 const PORT = 9531;
 const STAMP = new Date()
@@ -63,7 +63,7 @@ async function seed(home: string): Promise<void> {
 			version: 1,
 			providers: [],
 			mcpServers: [],
-			projects: [{ id: projectId, name: "Lyra", path: REPO, pinned: true, lastOpenedAt: Date.now() }],
+			projects: [{ id: projectId, name: "Plume", path: REPO, pinned: true, lastOpenedAt: Date.now() }],
 			defaultModelId: null,
 			permissionMode: "auto",
 			thinking: "medium",
@@ -97,7 +97,7 @@ async function seed(home: string): Promise<void> {
 			title: TITLES[i],
 			cwd: REPO,
 			projectId,
-			projectName: "Lyra",
+			projectName: "Plume",
 			createdAt: 1_700_000_000_000 + i * 1000,
 			updatedAt: 1_700_000_000_000 + i * 1000,
 			modelId: "test",
@@ -230,11 +230,11 @@ async function iconPoint(index: number): Promise<{ x: number; y: number }> {
 }
 
 async function main() {
-	if (!process.env.LYRA_E2E_APP) {
-		throw new Error("先设 LYRA_E2E_APP 指向刚打出来的 Lyra.app，否则录到的不是包装后的程序");
+	if (!process.env.PLUME_E2E_APP) {
+		throw new Error("先设 PLUME_E2E_APP 指向刚打出来的 Plume.app，否则录到的不是包装后的程序");
 	}
 	await mkdir(OUT_DIR, { recursive: true });
-	console.log(`包：${process.env.LYRA_E2E_APP}`);
+	console.log(`包：${process.env.PLUME_E2E_APP}`);
 	app = await startApp({ port: PORT, seed });
 	const d = driver(app);
 	const frames: Frame[] = [];

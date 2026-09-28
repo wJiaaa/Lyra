@@ -26,7 +26,7 @@ const SOURCE = [
 ].join("\n");
 
 async function workspace(): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), "lyra-grep-"));
+	const dir = await mkdtemp(join(tmpdir(), "plume-grep-"));
 	await writeFile(join(dir, "sample.ts"), SOURCE);
 	return dir;
 }

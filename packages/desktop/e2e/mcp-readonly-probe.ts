@@ -3,14 +3,14 @@
  * 真窗口 + 真模型：MCP 工具的只读提示，和工具结果里的图片。
  *
  * 一台本地 stdio MCP 服务器给两个工具——`peek` 标了 `readOnlyHint`，返回一段文字和一张纯红的图；
- * `poke` 什么都没标。模型用的是 `~/.lyra` 里配的默认模型，走它自己的协议。量的是：
+ * `poke` 什么都没标。模型用的是 `~/.plume` 里配的默认模型，走它自己的协议。量的是：
  *
  *   - auto 模式下 `peek` 不弹审批卡片，`poke` 弹；ask 模式下 `peek` 照样弹。
  *   - 同一条回复里的两次 `peek` 在服务器端时间上重叠（模型真把它们放进一条回复时才验得到）。
  *   - 工具返回的图片按协议的形状出现在发出去的请求里：Chat Completions 是紧跟工具结果的一条
  *     user 消息里的 `image_url`，Responses 是 `function_call_output.output` 里的 `input_image`。
  *     请求经过一个本地转发代理，代理只记这一个布尔值，不记请求头。模型答出的颜色另外打出来，
- *     那是模型能力的观察，不是 Lyra 的断言——一个看不了图的模型会照样编一个颜色。
+ *     那是模型能力的观察，不是 Plume 的断言——一个看不了图的模型会照样编一个颜色。
  *
  * 服务器把每次调用的起止时刻记进 profile 里的一个文件，并发与否以它为准，不看界面动画。
  *
@@ -26,8 +26,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
-const REAL_HOME = join(homedir(), ".lyra");
-const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Lyra工具调用测试");
+const REAL_HOME = join(homedir(), ".plume");
+const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume工具调用测试");
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 const SDK = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "core", "node_modules", "@modelcontextprotocol", "sdk", "dist", "esm");
 

@@ -38,7 +38,7 @@ test("preload 是从契约生成的，而不是另抄一份", async () => {
 	 */
 	const preload = await source("preload.ts");
 
-	assert.match(preload, /from "@lyra\/contract"/, "preload 必须从契约读方法表");
+	assert.match(preload, /from "@plume\/contract"/, "preload 必须从契约读方法表");
 	assert.match(preload, /Object\.entries\(METHODS\)/, "并且是遍历它来生成 invoke");
 
 	/*

@@ -20,7 +20,7 @@ type Call = [string, ...unknown[]];
 /** A project with one file in it, and every file operation recorded rather than performed. */
 function project(calls: Call[]) {
 	const done = (path?: string) => ({ ok: true, path });
-	Reflect.set(window, "lyra", {
+	Reflect.set(window, "plume", {
 		platform: "win32",
 		files: {
 			list: async (dir: string) =>
@@ -86,7 +86,7 @@ function key(keyName: string, code: string, init: KeyboardEventInit = {}) {
 }
 
 afterEach(() => {
-	Reflect.deleteProperty(window, "lyra");
+	Reflect.deleteProperty(window, "plume");
 });
 
 /*

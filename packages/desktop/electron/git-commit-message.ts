@@ -13,7 +13,7 @@ import {
 	type AssistantMessage,
 	type Settings,
 	type TextContent,
-} from "@lyra/core";
+} from "@plume/core";
 import { getSettings } from "./app-settings.ts";
 import { git } from "./git-exec.ts";
 

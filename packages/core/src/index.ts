@@ -150,7 +150,7 @@ export {
 	type PluginManifest,
 } from "./plugins/loader.ts";
 /*
- * `isOutdated` is also published as `@lyra/core/install-record`, and the renderer must use that one.
+ * `isOutdated` is also published as `@plume/core/install-record`, and the renderer must use that one.
  * Importing a *value* from this index pulls the whole of it into a browser bundle, which reaches
  * `node:fs` and blanks the window. The type is free either way.
  */
@@ -218,7 +218,7 @@ export type { SessionStatus } from "./runtime/reporting.ts";
 export { AgentSession, type AgentSessionOptions,  } from "./runtime/session.ts";
 export { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatOptions, type SideChatState, type SideChatEvent, type SideChatUpdate } from "./runtime/sidechat.ts";
 export {
-	lyraHome,
+	plumeHome,
 	projectIdFor,
 	SessionStore,
 	type SessionMeta,

@@ -8,7 +8,7 @@ import { readTool } from "../src/tools/read.ts";
 import { resolveWorkspacePath } from "../src/tools/paths.ts";
 
 const HOME = join(tmpdir(), "ly-paths-home");
-process.env.LYRA_HOME = HOME;
+process.env.PLUME_HOME = HOME;
 
 const CWD = join(tmpdir(), "ly-paths-project");
 

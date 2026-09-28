@@ -236,7 +236,7 @@ test("tidying its own scratch files is not a decision worth interrupting", () =>
 
 test("the scratch directory we handed the agent is not a place to ask about", () => {
 	const cwd = "/Users/me/project";
-	const home = process.env.LYRA_HOME || join(homedir(), ".lyra");
+	const home = process.env.PLUME_HOME || join(homedir(), ".plume");
 
 	// The exact case that stopped a run: a test file in the session's own scratch directory.
 	assert.equal(assessWrite(join(home, "scratch", "abc-123", "like-test.mjs"), cwd).risky, false);

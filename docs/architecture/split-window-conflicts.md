@@ -87,7 +87,7 @@ panel 窗口（把面板弹出去）     只有一个面板，没有 dock
 **「够不到」那一列没了。** 从前 S10/S11/S12/S14 写着「要操作另一个窗口的 DOM，而探针只连着
 主窗口那一个 CDP target」——那不是难，是没有路。路一直在：每个 Electron 窗口在 `/json/list`
 里都是一个独立的 page target，从前只取了第一个。`app.windows()` 把每个都拿回来，认身份靠问它
-`window.lyra.bootWindow`（preload 从 argv 里读的，一个窗口从生到死只有一个答案）——不靠 URL，
+`window.plume.bootWindow`（preload 从 argv 里读的，一个窗口从生到死只有一个答案）——不靠 URL，
 三种窗口 `loadFile` 的是同一个 index.html；也不靠标题，页面自己会改。
 
 ---

@@ -38,10 +38,10 @@ test("the entry is named like the installed launcher", () => {
 });
 
 test("what starts at login is the AppImage itself, not the copy mounted for this run", () => {
-	assert.deepEqual(autostartArgv({ appImage: "/home/me/Apps/Lyra.AppImage", packaged: true, execPath: "/tmp/.mount_Lyra/lyra", appPath: "/x" }), [
-		"/home/me/Apps/Lyra.AppImage",
+	assert.deepEqual(autostartArgv({ appImage: "/home/me/Apps/Plume.AppImage", packaged: true, execPath: "/tmp/.mount_Plume/plume", appPath: "/x" }), [
+		"/home/me/Apps/Plume.AppImage",
 	]);
-	assert.deepEqual(autostartArgv({ packaged: true, execPath: "/opt/Lyra/Lyra", appPath: "/opt/Lyra/resources/app.asar" }), ["/opt/Lyra/Lyra"]);
+	assert.deepEqual(autostartArgv({ packaged: true, execPath: "/opt/Plume/Plume", appPath: "/opt/Plume/resources/app.asar" }), ["/opt/Plume/Plume"]);
 	// A development run is Electron plus the source directory.
 	assert.deepEqual(autostartArgv({ packaged: false, execPath: "/repo/node_modules/electron/dist/electron", appPath: "/repo/packages/desktop" }), [
 		"/repo/node_modules/electron/dist/electron",
@@ -50,52 +50,52 @@ test("what starts at login is the AppImage itself, not the copy mounted for this
 });
 
 test("Exec is quoted by the Desktop Entry rules — spaces, $, backslashes and % included", () => {
-	const entry = autostartEntry(["/home/me/My Apps/Lyra $1\\x 100%.AppImage"]);
+	const entry = autostartEntry(["/home/me/My Apps/Plume $1\\x 100%.AppImage"]);
 	const exec = entry.split("\n").find((line) => line.startsWith("Exec="));
 	// Quoted for the space; `$` and `\` escaped inside the quotes and then again as a string value;
 	// a literal % written as %% so it is not read as a field code.
-	assert.equal(exec, 'Exec="/home/me/My Apps/Lyra \\\\$1\\\\\\\\x 100%%.AppImage"');
-	assert.equal(autostartEntry(["/opt/Lyra/Lyra"]).split("\n").find((line) => line.startsWith("Exec=")), "Exec=/opt/Lyra/Lyra");
+	assert.equal(exec, 'Exec="/home/me/My Apps/Plume \\\\$1\\\\\\\\x 100%%.AppImage"');
+	assert.equal(autostartEntry(["/opt/Plume/Plume"]).split("\n").find((line) => line.startsWith("Exec=")), "Exec=/opt/Plume/Plume");
 	assert.ok(entry.startsWith("[Desktop Entry]\n"));
 	assert.ok(entry.includes("\nType=Application\n"));
 });
 
 test("an entry the desktop was told to skip does not count as on", () => {
-	assert.equal(autostartEnabled("[Desktop Entry]\nType=Application\nExec=/opt/Lyra/Lyra\n"), true);
-	assert.equal(autostartEnabled("[Desktop Entry]\nExec=/opt/Lyra/Lyra\nHidden=true\n"), false);
-	assert.equal(autostartEnabled("[Desktop Entry]\nExec=/opt/Lyra/Lyra\nX-GNOME-Autostart-enabled=false\n"), false);
+	assert.equal(autostartEnabled("[Desktop Entry]\nType=Application\nExec=/opt/Plume/Plume\n"), true);
+	assert.equal(autostartEnabled("[Desktop Entry]\nExec=/opt/Plume/Plume\nHidden=true\n"), false);
+	assert.equal(autostartEnabled("[Desktop Entry]\nExec=/opt/Plume/Plume\nX-GNOME-Autostart-enabled=false\n"), false);
 	// Only the main group decides; an action group saying Hidden=true is about something else.
 	assert.equal(autostartEnabled("[Desktop Entry]\nExec=a\n\n[Desktop Action x]\nHidden=true\n"), true);
 });
 
 test("turning it on writes the file, turning it off removes it, and reading agrees both times", () => {
-	const root = mkdtempSync(join(tmpdir(), "lyra-autostart-"));
+	const root = mkdtempSync(join(tmpdir(), "plume-autostart-"));
 	try {
 		const file = autostartFile({ XDG_CONFIG_HOME: root }, "/nowhere");
 		assert.equal(readAutostart(file), false);
-		writeAutostart(file, true, ["/opt/Lyra/Lyra"]);
+		writeAutostart(file, true, ["/opt/Plume/Plume"]);
 		assert.ok(existsSync(file));
 		assert.equal(readAutostart(file), true);
-		writeAutostart(file, false, ["/opt/Lyra/Lyra"]);
+		writeAutostart(file, false, ["/opt/Plume/Plume"]);
 		assert.equal(existsSync(file), false);
 		assert.equal(readAutostart(file), false);
 		// Off when it is already off is not an error.
-		writeAutostart(file, false, ["/opt/Lyra/Lyra"]);
+		writeAutostart(file, false, ["/opt/Plume/Plume"]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
 });
 
 test("a hand-disabled entry reads as off, and turning it on replaces it", () => {
-	const root = mkdtempSync(join(tmpdir(), "lyra-autostart-"));
+	const root = mkdtempSync(join(tmpdir(), "plume-autostart-"));
 	try {
 		const file = autostartFile({ XDG_CONFIG_HOME: root }, "/nowhere");
 		mkdirSync(dirname(file), { recursive: true });
-		writeFileSync(file, "[Desktop Entry]\nExec=/old/Lyra\nHidden=true\n");
+		writeFileSync(file, "[Desktop Entry]\nExec=/old/Plume\nHidden=true\n");
 		assert.equal(readAutostart(file), false);
-		writeAutostart(file, true, ["/opt/Lyra/Lyra"]);
+		writeAutostart(file, true, ["/opt/Plume/Plume"]);
 		assert.equal(readAutostart(file), true);
-		assert.ok(readFileSync(file, "utf8").includes("Exec=/opt/Lyra/Lyra"));
+		assert.ok(readFileSync(file, "utf8").includes("Exec=/opt/Plume/Plume"));
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
