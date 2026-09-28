@@ -157,9 +157,10 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 */
 		"--color-line-float": veil(dark ? 0.14 : 0.12),
 		"--color-ink": toHex(foreground),
-		// ZCode（zai 主题）的 foreground-subtle / subtlest：正文色的 60%，最浅那档浅色 40%、深色 30%。
+		// ZCode（zai 主题）的 foreground-subtle：正文色的 60%。最浅那档 ZCode 浅色 40%、深色 30%，
+		// 深色 30% 在深色底上过程行（思考、工具）读不清，提到 50%。
 		"--color-ink-muted": text(0.6),
-		"--color-ink-faint": text(dark ? 0.3 : 0.4),
+		"--color-ink-faint": text(dark ? 0.5 : 0.4),
 		"--color-accent": accent,
 		"--color-info": accent,
 		"--ly-ui-font": appearance.uiFont,
