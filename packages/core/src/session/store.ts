@@ -106,6 +106,13 @@ export type SessionRecord =
 	 */
 	| { seq: number; ts: number; type: "move"; cwd: string; projectId: string; projectName: string }
 	/**
+	 * 压缩改写过、已经这样发出去的工具结果：`at` 是原文在转录里的位置，`message` 是发出去的那份。
+	 *
+	 * 日志里只留原文，模型看到的是这份。不记下的话，重启后从原文重建，发出去的前缀就变了。
+	 * 同一位置后写的那条作数（后一次压缩在前一次之上又剪了一刀）。见 `AgedToolPruner`。
+	 */
+	| { seq: number; ts: number; type: "views"; views: { at: number; message: Message }[] }
+	/**
 	 * Everything after `afterSeq` is void.
 	 *
 	 * Editing a message rewrites history — the reply it drew, and everything that followed,
@@ -175,6 +182,21 @@ function indexUnchanged(payload: SessionRecordInput, base: SessionMeta, next: Se
 	return next.usage === base.usage && next.messageCount === base.messageCount;
 }
 
+/** 文件不存在、为空，或最后一个字节是换行。 */
+async function endsWithNewline(file: string): Promise<boolean> {
+	const handle = await open(file, "r").catch(() => null);
+	if (!handle) return true;
+	try {
+		const { size } = await handle.stat();
+		if (size === 0) return true;
+		const last = Buffer.alloc(1);
+		await handle.read(last, 0, 1, size - 1);
+		return last[0] === 0x0a;
+	} finally {
+		await handle.close();
+	}
+}
+
 /** 日志最后一条完整记录的 `seq`；没有文件或读不出来时为 0。从文件尾往前读，不扫整份日志。 */
 async function lastSeq(file: string): Promise<number> {
 	const handle = await open(file, "r").catch(() => null);
@@ -215,6 +237,8 @@ export class SessionStore implements SessionStorage {
 	 */
 	private writeQueues = new Map<string, Promise<SessionMeta>>();
 	private latestMeta = new Map<string, SessionMeta>();
+	/** 这个进程里已经确认过末尾是整行的日志；之后的追加都由这里写，天然以换行结尾。 */
+	private sealed = new Set<string>();
 	/**
 	 * Serializes mutations to `index.json`.
 	 *
@@ -407,7 +431,14 @@ export class SessionStore implements SessionStorage {
 			: payload;
 		const record: SessionRecord = { seq: next.seq, ts: now, ...parkRecordPayload(persisted) };
 		await mkdir(this.dirFor(meta.projectId), { recursive: true });
-		await appendFile(this.fileFor(meta.projectId, meta.id), `${JSON.stringify(record)}\n`, "utf8");
+		const file = this.fileFor(meta.projectId, meta.id);
+		/*
+		 * 上次崩溃可能留下没写完、没有换行的末行。直接接着写，新记录会和它拼成一行、一起解析失败，
+		 * 被读取时当作坏行跳过——丢的正是崩溃后的第一条，可能是一条撤回。先补一个换行，坏的只剩那半截。
+		 */
+		const lead = this.sealed.has(key) || (await endsWithNewline(file)) ? "" : "\n";
+		await appendFile(file, `${lead}${JSON.stringify(record)}\n`, "utf8");
+		this.sealed.add(key);
 		await unlink(this.displayCacheFor(meta.projectId, meta.id)).catch(() => undefined);
 		this.latestMeta.set(key, next);
 		if (!indexUnchanged(payload, base, next)) await this.writeIndex(next);

@@ -17,6 +17,7 @@ import { promptBase } from "../prompt/update.ts";
 import type { AgentEvent, AgentEventSink, CommandRun, HookRun } from "../agent/events.ts";
 import type { SessionMeta, SessionRecordInput } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
+import { parkMessage, rehydrateMessages } from "../session/payload.ts";
 import type { LlmContext, Message, ModelConfig } from "../types.ts";
 
 export type RecordedContext = Extract<AgentEvent, { type: "context" }>;
@@ -257,6 +258,41 @@ export class SessionLog {
 		this.meta = await this.store.append(this.meta, record);
 	}
 
+	/**
+	 * 压缩采纳的已发视图写进日志（`AgedToolPruner.onAdopt`）。
+	 *
+	 * 不等它写完：采纳发生在压缩边界写盘之后、同步调用里。存储层的追加队列按调用顺序排，所以它
+	 * 仍然落在边界之后、下一条消息之前。
+	 */
+	recordViews(views: { source: Message; view: Message }[]): void {
+		const records = views.flatMap(({ source, view }) => {
+			const at = this.messages.indexOf(source);
+			return at < 0 ? [] : [{ at, message: parkMessage(view) }];
+		});
+		if (records.length === 0 || !this.meta) return;
+		void this.append({ type: "views", views: records }).catch(() => {});
+	}
+
+	/**
+	 * 从日志读回的已发视图，按位置对上当前历史里的原文。只在载入之后有意义；截断照 `load` 的规矩退回。
+	 */
+	async restoredViews(): Promise<{ source: Message; view: Message }[]> {
+		if (!this.restored) return [];
+		const seqs: number[] = [];
+		const views = new Map<number, { seq: number; message: Message }>();
+		for await (const record of this.store.read(this.meta.projectId, this.meta.id)) {
+			if (record.type === "message") { if (record.message) seqs.push(record.seq); }
+			else if (record.type === "views") for (const view of record.views) views.set(view.at, { seq: record.seq, message: view.message });
+			else if (record.type === "truncate") {
+				while (seqs.length && seqs.at(-1)! > record.afterSeq) seqs.pop();
+				for (const [at, view] of views) if (view.seq > record.afterSeq || at >= seqs.length) views.delete(at);
+			}
+		}
+		const found = [...views].filter(([at]) => at < this.messages.length);
+		const hydrated = await rehydrateMessages(found.map(([, view]) => view.message));
+		return found.map(([at], index) => ({ source: this.messages[at], view: hydrated[index] }));
+	}
+
 	/** 快照按会话 id 冻结，见 `memory-inject.ts`。 */
 	private refreshMemory(): void {
 		if (this.meta) refreshMemorySnapshot(this.meta.id);
@@ -316,6 +352,8 @@ export class SessionLog {
 		const truncated = await this.store.truncateFrom(this.meta.projectId, this.meta.id, index);
 		if (!truncated) return false;
 		this.meta = truncated.meta;
+		// 存储层会把落在工具结果上的截断点往前挪（不拆开调用和结果），按它实际截到的位置算，和重新载入时一致。
+		const cut = truncated.messages.length;
 		/*
 		 * A rewind past the compaction boundary retires it.
 		 *
@@ -324,12 +362,15 @@ export class SessionLog {
 		 * be standing in for messages that are themselves now gone, and the kept tail it was paired
 		 * with no longer exists. Going back to the full history is correct and costs one compaction
 		 * next time the window fills.
+		 *
+		 * 截在边界上（编辑保留尾部的第一条，常见）不算越过：摘要覆盖的消息都还在，只是尾部空了。
+		 * 同 `store.ts` 载入时的判断，否则运行中退回完整历史、重启后却是摘要。
 		 */
-		const boundary = this.compaction && index > this.compaction.keptFrom ? this.compaction : null;
-		this.commandRuns = this.commandRuns.filter((run) => run.at <= index);
-		this.hookRuns = this.hookRuns.filter((run) => run.at <= index);
+		const boundary = this.compaction && cut >= this.compaction.keptFrom ? this.compaction : null;
+		this.commandRuns = this.commandRuns.filter((run) => run.at <= cut);
+		this.hookRuns = this.hookRuns.filter((run) => run.at <= cut);
 		// The marks live at positions too, so a cut tail takes the ones inside it — same rule as the runs above.
-		this.restore(truncated.messages, boundary, this.compactions.filter((at) => at <= index));
+		this.restore(truncated.messages, boundary, this.compactions.filter((at) => at <= cut));
 		return true;
 	}
 }

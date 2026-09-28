@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
+import type { SettledDispatch } from "../src/runtime/delegation-waits.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
@@ -146,6 +147,42 @@ test("a prompt submitted during manual compaction waits for the new boundary and
 		assert.ok(seen[1].length < 20);
 		assert.match(JSON.stringify(seen[1]), /<session-summary>/);
 		assert.equal(session.messages.filter((message) => message.role === "user" && message.content.some((block) => block.type === "text" && block.text === "Continue once after compaction.")).length, 1);
+		assert.equal(session.running, false);
+	} finally {
+		finish?.(reply("stop")); await session.dispose();
+		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
+});
+
+test("后台报告等压缩时人按了停止：压缩取消，报告也不再开回合", async () => {
+	const root = await mkdtemp(join(tmpdir(), "lyra-compact-delivery-stop-"));
+	const store = new SessionStore(join(root, "sessions"));
+	const meta = await store.create(root, model.id);
+	let finish!: (message: AssistantMessage) => void;
+	let requested!: () => void;
+	const received = new Promise<void>((resolve) => { requested = resolve; });
+	const summary = new Promise<AssistantMessage>((resolve) => { finish = resolve; });
+	let requests = 0;
+	const session = new AgentSession({ cwd: root, store, meta, settings: { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id }, emit: () => {},
+		streamFn: async () => {
+			requests++;
+			if (requests === 1) { requested(); return summary; }
+			return reply("Merged the background report.");
+		} });
+	// 送达走的是私有的那条路：从登记簿取出报告、等压缩、再提交。这里直接驱动它，让报告落在「已取出、正等压缩」的那一格。
+	const internals = session as unknown as { collectDelivery(report: SettledDispatch): void; flushDeliveries(): Promise<void> };
+	try {
+		await session.initialize();
+		for (let index = 0; index < 20; index++) await session.log.commit(index % 2 ? reply("notes ".repeat(300)) : { role: "user", content: [{ type: "text", text: "requirements ".repeat(200) }], timestamp: index });
+		const compaction = session.compact(); await received;
+		internals.collectDelivery({ id: "bg-1", error: "background worker crashed" });
+		const delivering = internals.flushDeliveries();
+		session.abort();
+		finish(reply("Retained task and decisions."));
+		assert.equal((await compaction).ok, false);
+		await delivering;
+		assert.equal(requests, 1, "停止之后不该再有模型请求");
+		assert.ok(!session.messages.some((message) => message.role === "user" && message.delivery), "也没有送达消息进历史");
 		assert.equal(session.running, false);
 	} finally {
 		finish?.(reply("stop")); await session.dispose();

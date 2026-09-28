@@ -32,6 +32,11 @@ export async function runTools(
 	config: AgentRunConfig,
 	state: Map<string, unknown>,
 	emit: AgentEventSink,
+	/**
+	 * 接在每条成功结果末尾、给模型读的一句话。在提交之前接上：`message_end` 就是落盘点，之后再改，
+	 * 日志里是没接的那份，重启后重建的历史和当时发出去的对不上，前缀从那条起断开。
+	 */
+	note?: string,
 ): Promise<ToolResultMessage[]> {
 	const byName = new Map(config.tools.map((t) => [t.name, t]));
 
@@ -72,7 +77,7 @@ export async function runTools(
 			role: "toolResult",
 			toolCallId: call.id,
 			toolName: call.name,
-			content: result.content,
+			content: note && result.isError !== true ? [...result.content, { type: "text", text: note }] : result.content,
 			details: result.details,
 			isError: result.isError === true,
 			/* An error is always worth keeping, whatever else the tool said about itself. */
@@ -196,9 +201,15 @@ async function executeOne(
 		requestApproval: requestApproval
 			? async (request) => {
 				if (request.kind !== "interactive") {
-					if (preApproved) return "once";
+					/*
+					 * 提权只能由人在提权卡片上批（`ApprovalGate.request`）：钩子的放行不算数，拒绝照样算。
+					 * 钩子是一段脚本，项目钩子还可能是别人提交进来的——让它替人批「到沙箱外跑」，等于闸门上
+					 * 留了一把谁都能配的钥匙。PreToolUse 要确认时人点过的那张是通用卡片，没说要出沙箱，也不算。
+					 */
+					const escalation = request.escalation !== undefined;
+					if (preApproved && !escalation) return "once";
 					const answered = await config.permissionRequest?.({ toolName: call.name, args: call.arguments, toolCallId: call.id }, request).catch(() => undefined);
-					if (answered) return answered;
+					if (answered && !(escalation && approved(answered))) return answered;
 				}
 				return requestApproval(request);
 			}

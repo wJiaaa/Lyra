@@ -249,6 +249,39 @@ test("between two requests the next one goes to the new model, with the old one'
 	assert.equal(result.reason, "done");
 });
 
+test("compaction after a switch to another provider is handed that provider, not the one the turn began with", async () => {
+	const first: ProviderConfig = { id: "p1", name: "P1", baseUrl: "http://p1", api: "anthropic-messages", apiKey: "x", enabled: true, models: [A] };
+	const second: ProviderConfig = { id: "p2", name: "P2", baseUrl: "http://p2", api: "anthropic-messages", apiKey: "x", enabled: true, models: [B] };
+	let now = { provider: first, model: A };
+	const flip: Tool = {
+		name: "flip", snippet: "flip", description: "flip",
+		parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
+		summarize: () => "flip",
+		async execute() {
+			now = { provider: second, model: B };
+			return { content: [{ type: "text", text: "ok" }] };
+		},
+	};
+	const compactedWith: string[] = [];
+	let calls = 0;
+	await runAgent(
+		{
+			sessionId: "s", cwd: "/tmp", provider: first, model: A, systemPrompt: "", tools: [flip],
+			liveModel: { current: () => now, onChange: () => () => {} },
+			messages: [{ role: "user", content: [{ type: "text", text: "go" }], timestamp: 1 }],
+			compact: async (_messages, model, _observer, options) => {
+				compactedWith.push(`${options?.provider?.id}/${model.modelId}`);
+				return null;
+			},
+			streamFn: async () => (++calls === 1
+				? reply("model-a", [{ type: "toolCall", id: "c1", name: "flip", arguments: {}, argumentsText: "{}" }], "toolUse")
+				: reply("model-b", [{ type: "text", text: "好了" }], "stop")),
+		},
+		async () => {},
+	);
+	assert.deepEqual(compactedWith, ["p1/model-a", "p2/model-b"]);
+});
+
 test("without a live model nothing changes: the whole run stays on the model it was given", async () => {
 	const asked: string[] = [];
 	const provider: ProviderConfig = { id: "t", name: "T", baseUrl: "http://localhost", api: "anthropic-messages", apiKey: "x", enabled: true, models: [A, B] };

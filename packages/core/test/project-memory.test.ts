@@ -95,6 +95,18 @@ test("a lesson is recorded and read back", async () => {
 	assert.equal(back[0].text, "这个仓库用 pnpm，不是 npm。");
 });
 
+test("lessons recorded at the same moment all survive", async () => {
+	// 模型在一次回复里并行调了几次 `learn`：各自读—改—写整份文件，不排队的话后写的覆盖先写的。
+	const own = await mkdtemp(join(tmpdir(), "ly-mem-race-"));
+	try {
+		const texts = ["发布前先跑 pnpm check。", "数据库迁移放在 migrations 目录。", "界面文案走 i18n，不要硬编码。"];
+		await Promise.all(texts.map((text) => recordLesson(own, { text })));
+		assert.deepEqual((await readLessons(own)).map((lesson) => lesson.text).sort(), [...texts].sort());
+	} finally {
+		await rm(own, { recursive: true, force: true });
+	}
+});
+
 test("a near-duplicate is merged rather than appended, and moves to the front", async () => {
 	await recordLesson(project, { text: "提交信息的 scope 只能是 core、desktop、cli。" });
 	const before = (await readLessons(project)).length;

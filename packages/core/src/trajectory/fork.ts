@@ -12,7 +12,7 @@ import type { SessionStorage } from "../session/storage.ts";
  */
 
 import type { SessionMeta } from "../session/store.ts";
-import { messagesUpTo } from "./replay.ts";
+import { historyUpTo, type BoundaryAt } from "./replay.ts";
 
 export interface ForkResult {
 	meta: SessionMeta;
@@ -36,10 +36,25 @@ export async function forkSession(
 	const source = (await store.listSessions()).find((candidate) => candidate.id === sessionId);
 	if (!source || source.projectId !== projectId) return null;
 
-	const messages = await messagesUpTo(store, projectId, sessionId, seq);
+	const { messages, boundary } = await historyUpTo(store, projectId, sessionId, seq);
 	let meta = await store.create(source.cwd, source.modelId, title ?? `${source.title}（分叉）`, { thinking: source.thinking });
-	for (const message of messages) {
+	/*
+	 * 压缩边界跟着消息一起抄过去，写在原来的位置上：载入时 `keptFrom` 由「此刻已有几条 - kept」
+	 * 算出，位置对了它就和原会话一致，分叉在这一点看到的模型视图也就是原会话在这一点看到的那份。
+	 * 只抄消息的话，模型视图从摘要展开回全部原文，计量却还信压缩后那几条回复的 usage。
+	 *
+	 * 这条记录的时间是分叉这一刻（存储层给的 `ts`），所以抄过来的回复都早于边界，计量在分叉的
+	 * 第一次回复之前按估算走——它们量的是原会话的请求，分叉之后的 system prompt、工具都可能不同。
+	 */
+	for (const [index, message] of messages.entries()) {
+		if (boundary && index === boundary.markAt) meta = await appendBoundary(store, meta, boundary);
 		meta = await store.append(meta, { type: "message", message });
 	}
+	if (boundary && boundary.markAt === messages.length) meta = await appendBoundary(store, meta, boundary);
 	return { meta, messages: messages.length };
+}
+
+function appendBoundary(store: SessionStorage, meta: SessionMeta, boundary: BoundaryAt): Promise<SessionMeta> {
+	const { summary, keptFrom, markAt, before, after } = boundary;
+	return store.append(meta, { type: "event", event: { type: "compacted", before, after, summary, kept: markAt - keptFrom } });
 }

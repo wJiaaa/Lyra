@@ -1,53 +1,42 @@
-import type { Message, ToolResultMessage } from "../types.ts";
-import { CHEAP_SUFFIX_CHARS, derive, descends, firstAffordableCut, pruneToolResults, sizePruneSaving, sourceOf, type ArtifactSink, type PruneTiming } from "./prune.ts";
-import { applyStaleCuts, staleCuts } from "./stale-results.ts";
-
-// Historical carry curves flatten near 20 rounds; batch at that cadence to avoid
-// rewriting the cached prefix every turn. Lower ages can evict still-useful output.
-export const PRUNE_AGE_ROUNDS = 20;
-
-interface SizedCut {
-	index: number;
-	saving: number;
-	original: Message;
-	current: Message;
-}
+import type { Message } from "../types.ts";
+import { carriesResults, derive, descends, dropUneventful, FRESH_RESULT_MAX_CHARS, pruneToolResults, sourceOf, type ArtifactSink } from "./prune.ts";
 
 /**
- * Batch old output without invalidating the provider's prefix on every request.
+ * 发给模型的视图：每条工具结果第一次发出前定下它的样子，之后原样重发，不再改写。
  *
- * 也是这个会话「发给模型的视图」在进程内的记录：按日志原文记住上一次发出去的副本，下一轮从日志
- * 重建出原文时换回同一份。不止记自己剪的——外层 `dropUneventful` 的清空、压缩阶段的剪枝（经
- * `adopt`）都算，否则它们下一轮回弹成原文：前缀从那里断开，而压缩判断读的是上一次剪过之后的
- * usage，不会再触发，原文照发，隔轮振荡。
+ * 前缀缓存从被改的那条起整段失效，而改写得不得划算取决于服务商把缓存留多久——各家不同、中转更
+ * 说不准，猜错一次就是整段按原价重算。所以这里不猜：会话中途不改已经发出去的内容，唯一的例外是
+ * 压缩（它本来就要重写前缀）。从前的按轮老化和「被新读取覆盖就清掉」都是中途改写，已经去掉；
+ * 覆盖的判断留在压缩里做（`compaction.ts` 的 `dropStaleResults`）。
  *
- * 只在进程内有效。重启后从日志重建的是原文，新的剪枝器第一次请求就是一批（`requests` 从 0 起），
- * 大多数视图会按同样的规则重新剪出来；要做到跨重启逐字一致，需要把剪枝决定写进日志。
+ * 第一次发出前能做的只有两件，都只看这条结果本身：清空「无结果」的输出，把超过
+ * `FRESH_RESULT_MAX_CHARS` 的剪成头尾。所以从日志重建时——包括重启之后——会得出同一份，前缀
+ * 不靠记忆也接得上（`artifact://` 地址按内容取，见 `SessionCapabilities.keepArtifact`）。
+ *
+ * 记忆仍然要有，为的是压缩：压缩里剪过的结果经 `adopt` 记下，否则下一轮从日志重建回原文，前缀
+ * 从那里断开，而压缩判断读的是剪过之后的 usage，不会再触发，原文照发，隔轮振荡。采纳的那些经
+ * `onAdopt` 交给会话写进日志，重启后由 `remember` 放回（`SessionLog.recordViews` / `restoredViews`），
+ * 不然重启后的第一次请求把剪过的结果按原文重发，已经发出去的前缀就被改写了。
  */
 export class AgedToolPruner {
-	private requests = 0;
 	private readonly views = new WeakMap<Message, Message>();
+	/** 压缩采纳了哪些改写：原文和发出去的那份。会话据此落盘。 */
+	onAdopt?: (views: { source: Message; view: Message }[]) => void;
 
-	prepare(messages: Message[], timing: PruneTiming = {}, artifacts?: ArtifactSink): Message[] {
+	prepare(messages: Message[], artifacts?: ArtifactSink): Message[] {
 		const sources = messages.map(sourceOf);
 		const viewed = this.withViews(messages, sources);
-		const stale = staleCuts(viewed);
-		const batch = this.requests++ % PRUNE_AGE_ROUNDS === 0;
-		const sized = this.sizeCuts(sources, viewed, batch);
-		const from = firstAffordableCut(viewed, [...stale, ...sized], timing);
-		if (from === undefined) return viewed === messages ? messages : viewed;
-
-		const next = applyStaleCuts(viewed, stale.filter((cut) => cut.index >= from));
-		let result = next;
-		for (const cut of sized) {
-			if (cut.index < from) continue;
-			const [view] = pruneToolResults([cut.current], undefined, artifacts);
-			if (view === cut.current) continue;
-			this.views.set(cut.original, view);
-			if (result === next) result = [...next];
-			result[cut.index] = view;
+		let result = viewed;
+		for (let index = 0; index < sources.length; index++) {
+			const source = sources[index];
+			// 有记录的已经发出去过（或正是记下的那份），原样重发；没记录的就是还没发过的新结果。
+			if (!carriesResults(source) || this.views.has(source)) continue;
+			const view = source.role === "toolResult" && source.toolName === "skill" ? source : pruneToolResults(dropUneventful([source]), FRESH_RESULT_MAX_CHARS, artifacts)[0];
+			this.views.set(source, view);
+			if (view === source) continue;
+			if (result === viewed) result = [...viewed];
+			result[index] = view;
 		}
-		this.remember(sources, viewed, result);
 		return result;
 	}
 
@@ -55,37 +44,29 @@ export class AgedToolPruner {
 	 * 采纳别处（压缩）对已发视图做的改写，让下一轮从日志重建时换回同一份。
 	 *
 	 * `before` 与 `after` 按末尾对齐：只剪枝时两边等长，摘要时 `after` 的保留尾部就是 `before`
-	 * 的后缀。只认同一个调用的工具结果，换了策略插件、对不上的位置跳过。
+	 * 的后缀。只认同一份结果（`sameResult`），换了策略插件、对不上的位置跳过。
 	 */
 	adopt(before: Message[], after: Message[], count = Math.min(before.length, after.length)): void {
+		const adopted: { source: Message; view: Message }[] = [];
 		for (let k = 1; k <= Math.min(count, before.length, after.length); k++) {
 			const was = before[before.length - k];
 			const now = after[after.length - k];
-			if (now === was || now.role !== "toolResult" || was.role !== "toolResult" || now.toolCallId !== was.toolCallId) continue;
-			this.views.set(sourceOf(was), derive(was, now));
+			if (now === was || !sameResult(was, now)) continue;
+			const source = sourceOf(was);
+			this.views.set(source, derive(was, now));
+			adopted.push({ source, view: now });
 		}
+		if (adopted.length > 0) this.onAdopt?.(adopted.reverse());
 	}
 
-	private sizeCuts(originals: Message[], viewed: Message[], batch: boolean): SizedCut[] {
-		const cuts: SizedCut[] = [];
-		let age = 0;
-		for (let index = originals.length - 1; index >= 0; index--) {
-			const original = originals[index];
-			const message = viewed[index];
-			if (original.role === "assistant") age++;
-			if (message.role !== "toolResult" || message.toolName === "skill") continue;
-			const chars = message.content.reduce((sum, block) => sum + (block.type === "text" ? [...block.text].length : 0), 0);
-			const saving = sizePruneSaving(chars);
-			// Blow-ups do not wait for the 20-round batch: a 1.7 MB grep is already dead weight.
-			if (saving <= 0 || (saving <= CHEAP_SUFFIX_CHARS ? !batch || age < PRUNE_AGE_ROUNDS : false)) continue;
-			cuts.push({ index, saving, original, current: message });
-		}
-		return cuts;
+	/** 放回一份从日志读回来的已发视图：对不上同一份结果的不认。 */
+	remember(source: Message, view: Message): void {
+		if (sameResult(source, view)) this.views.set(source, derive(source, view));
 	}
 
 	/*
 	 * 记下的视图优先于从原文重新剪出的副本：上一次发出去的是它，前缀才接得上。只有在它之上
-	 * 进一步剪出来的（同一轮里外层又清空了一次）才替换它。
+	 * 进一步剪出来的（服务商拒收后 `stripOversizedToolResults` 又剪了一次）才替换它。
 	 */
 	private withViews(messages: Message[], sources: Message[]): Message[] {
 		let next = messages;
@@ -99,13 +80,15 @@ export class AgedToolPruner {
 		}
 		return next;
 	}
+}
 
-	private remember(sources: Message[], before: Message[], after: Message[]): void {
-		if (after === before) return;
-		for (let index = 0; index < sources.length; index++) {
-			if (after[index] !== before[index] && after[index].role === "toolResult") this.views.set(sources[index], derive(before[index], after[index] as ToolResultMessage));
-		}
+/** 两条是不是同一份结果：工具结果按调用 id，后台送达按它送回的那几份报告的 id。 */
+function sameResult(was: Message, now: Message): boolean {
+	if (was.role === "toolResult" && now.role === "toolResult") return was.toolCallId === now.toolCallId;
+	if (was.role === "user" && now.role === "user" && was.delivery && now.delivery) {
+		return was.delivery.map((report) => report.id).join("\n") === now.delivery.map((report) => report.id).join("\n");
 	}
+	return false;
 }
 
 /** Keep the pruned prefix stable when a new user message starts another turn. */

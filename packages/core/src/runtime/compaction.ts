@@ -91,6 +91,8 @@ const SAFE_AFTER = 0.3;
  * itself off exactly when it was needed. The older turns are condensed to fit this budget first.
  */
 const SUMMARY_INPUT = 0.4;
+/** 按条丢弃时，前面那条说明里用户原话的摘录合计最多占窗口多少，见 `droppedMessage`。 */
+const DROPPED_EXCERPT_SHARE = 0.15;
 
 /**
  * The summariser's own instructions, kept separate from the conversation it is reading.
@@ -320,14 +322,12 @@ export async function compactIfNeeded(
 	 * question that will be asked again. Emptying them is free in a way that cutting a real result
 	 * is not — nothing is lost, so there is no judgement about what the model might need later.
 	 *
-	 * `worthPruning` is bypassed here on purpose: by the time compaction runs, the window is nearly
-	 * full and the alternative is a model call. The prefix cache is worth protecting against
-	 * routine per-turn tidying, not against the thing that stops the conversation ending.
+	 * 被后来的观察覆盖的结果也只在这里清：会话中途不改写已经发出去的内容，压缩本来就要重写前缀。
 	 */
-	const tidied = dropUneventful(messages, { lastRequestAt: 0, now: Number.MAX_SAFE_INTEGER });
-	const stale = dropStaleResults(tidied, { lastRequestAt: 0, now: Number.MAX_SAFE_INTEGER });
+	const tidied = dropUneventful(messages);
+	const stale = dropStaleResults(tidied);
 	/*
-	 * 模型还没看过的新结果（最后一条助手消息之后）只剪炸开的那种，和循环里的按龄剪枝同一条线。
+	 * 模型还没看过的新结果（最后一条助手消息之后）只剪炸开的那种，和发送路径第一次发出前的那条线相同。
 	 * `read` 把输出控制在这条线以内，并把返回的行记成读过；这里照常剪到 8k 的话，它记下的又
 	 * 多于模型看到的，`edit` 会放行没见过的行。
 	 */
@@ -348,12 +348,9 @@ export async function compactIfNeeded(
 		 * which passes the array it sent — `AgedToolPruner` puts back the views it sent before, so a
 		 * result it already cut arrives cut and saves nothing twice — plus what arrived since. The
 		 * approximation errs cautious when the pruner cut more this turn (the estimate is below what
-		 * was measured, the calibration above the truth). It errs eager in one case: after a restart
-		 * the pruner no longer holds a view an earlier compaction adopted, so a result that went out
-		 * cut arrives whole and its cut is booked again. The cut copy is then roughly what was already
-		 * sent and measured, so the request is no bigger than the last one, and the next turn measures
-		 * it with the view adopted. `/compact` passes the log in full, but it forces a summary and
-		 * never takes this path.
+		 * was measured, the calibration above the truth). Views an earlier compaction adopted survive
+		 * a restart (`SessionLog.restoredViews`), so a result that went out cut arrives cut then too.
+		 * `/compact` passes the log in full, but it forces a summary and never takes this path.
 		 */
 		const sent = estimateTokens(messages);
 		const calibration = measured.measured && sent > 0 ? Math.max(0, used - overhead) / sent : 1;
@@ -462,8 +459,22 @@ export async function compactIfNeeded(
 	 * one unit — the scaled estimate — because comparing an estimate against a measured total lets
 	 * the estimator's own error decide the answer.
 	 */
-	if (scaled(compacted) >= scaled(messages)) return null;
-	return { messages: compacted, summary, kept: tail.length };
+	let result: Compaction | null = scaled(compacted) < scaled(messages) ? { messages: compacted, summary, kept: tail.length } : null;
+
+	/*
+	 * 尾部删光了仍在触发线以上，是摘要本身太大——多半是兜底摘要带着整段历史请求。先试按条丢弃：落到线下
+	 * 就用它。都落不到的，取两份里小的那份，但它必须在窗口以内——交回一份发不出去的历史当作压缩成功，
+	 * 下一轮只会原样超长。比的是触发线而不是 `target`：后者是想落到的位置，落不到那里但已在线下的结果
+	 * 照样能用。光开销就占满触发线时什么历史都放不下，丢弃也救不了，不走这一步。
+	 */
+	const room = compactionTriggerTokens(model.contextWindow) - overhead;
+	if (room > 0 && scaled(compacted) >= room) {
+		const dropped = dropOldest(messages, model, overhead, scale);
+		if (dropped && scaled(dropped.messages) < room) return dropped;
+		if (dropped && scaled(dropped.messages) < scaled(result?.messages ?? messages)) result = dropped;
+		if (result && scaled(result.messages) + overhead > model.contextWindow) return null;
+	}
+	return result;
 }
 
 /** 摘要里最多列几个文件——再多就从「一眼能扫完的清单」变成「又一段要读的正文」。 */
@@ -651,7 +662,8 @@ async function summarize(
 		(message) =>
 			message.role === "user" &&
 			message.synthetic &&
-			message.content.some((block) => block.type === "text" && block.text.includes("<session-summary>")),
+			message.content[0]?.type === "text" &&
+			message.content[0].text.startsWith("<session-summary>"),
 	);
 
 	const instruction: Message = {
@@ -909,8 +921,11 @@ function fallbackSummary(messages: Message[]): string {
 				.map((c) => c.text.trim())
 				.filter(Boolean)
 				.join("\n");
-			if (text && !userPrompts.includes(text)) {
-				userPrompts.push(text);
+			// 和 `lastRequest` 同一个上限：一段贴进来的长日志不该让兜底摘要本身放不下。
+			const points = [...text];
+			const excerpt = points.length <= 2000 ? text : `${points.slice(0, 2000).join("")}…`;
+			if (excerpt && !userPrompts.includes(excerpt)) {
+				userPrompts.push(excerpt);
 			}
 		} else if (msg.role === "assistant") {
 			for (const part of msg.content) {
@@ -983,13 +998,12 @@ function previousSummary(messages: Message[]): string | null {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];
 		if (message.role !== "user" || !message.synthetic) continue;
-		for (const block of message.content) {
-			if (block.type !== "text") continue;
-			const match = /<session-summary>\n?([\s\S]*?)\n?<\/session-summary>/.exec(block.text);
-			if (match) {
-				const text = match[1].trim();
-				if (text) return text;
-			}
+		// 压缩头以 `<session-summary>` 开头；别的合成消息里引用到的同名标签不是上一次的摘要。
+		const first = message.content[0];
+		const match = first?.type === "text" ? /^<session-summary>\n?([\s\S]*?)\n?<\/session-summary>/.exec(first.text) : null;
+		if (match) {
+			const text = match[1].trim();
+			if (text) return text;
 		}
 	}
 	return null;
@@ -1013,18 +1027,25 @@ function dropOldest(messages: Message[], model: ModelConfig, overhead: number, s
 	const target = Math.max(0, model.contextWindow * SAFE_AFTER - overhead);
 	const weight = (list: Message[]) => estimateTokens(list) * scale;
 
+	// 预算的是交出去的整份：前面那条说明带着最新请求和任务上下文，中文下能有好几千 token。
+	const build = (start: number) => {
+		const older = messages.slice(0, start);
+		const standing = lastRequest(older) ?? lastRequest(messages);
+		return [droppedMessage(standing, taskContextFromHistory(older), model), ...messages.slice(start)];
+	};
+	if (weight(messages) <= target) return null;
 	let start = 0;
-	while (start < messages.length - 1 && weight(messages.slice(start)) > target) {
+	let result: Message[] = messages;
+	while (start < messages.length - 1) {
 		start++;
 		// Never begin on an answer whose question has just been dropped.
 		while (start < messages.length && messages[start].role === "toolResult") start++;
+		result = build(start);
+		if (weight(result) <= target) break;
 	}
 	if (start === 0) return null;
-
-	const older = messages.slice(0, start);
-	const tail = messages.slice(start);
-	const standing = lastRequest(older) ?? lastRequest(messages);
-	return { messages: [droppedMessage(standing, taskContextFromHistory(older)), ...tail], summary: "", kept: tail.length };
+	// 丢到只剩最后一条仍可能放不下；放不放得下由调用方和摘要结果一起比（见 `compactIfNeeded`）。
+	return { messages: result, summary: "", kept: result.length - 1 };
 }
 
 /**
@@ -1038,11 +1059,23 @@ function dropOldest(messages: Message[], model: ModelConfig, overhead: number, s
  * drop rather than a summary, because it means nobody read what went: the model should trust
  * nothing about the earlier work except what it recalls for itself.
  */
-export function droppedMessage(standing: string | null = null, taskContext?: CompactionContext): Message {
+export function droppedMessage(standing: string | null = null, taskContext?: CompactionContext, model?: ModelConfig): Message {
 	standing = taskContext?.latestRequest ?? standing;
+	/*
+	 * 窗口小时按窗口收紧三段摘录（最新请求、原始请求、中间请求）。只由窗口决定，从日志重建时才得出
+	 * 同一份；按一个汉字一个 token 的最坏情况折算，因为重建拿不到实测的校正比例。大窗口下这条线高于
+	 * 原有的 2000 / 6000 字上限，不起作用。
+	 */
+	const part = model ? Math.max(100, Math.floor((model.contextWindow * DROPPED_EXCERPT_SHARE) / 3)) : Number.POSITIVE_INFINITY;
+	const cut = (text: string) => {
+		const points = [...text];
+		return points.length <= part ? text : `${points.slice(0, part).join("")}…`;
+	};
+	if (standing) standing = cut(standing);
+	const shown = taskContext?.originalRequest ? { ...taskContext, originalRequest: cut(taskContext.originalRequest) } : taskContext;
 	const text = [
 		`<dropped-history>\nEarlier turns were removed to fit the context window. Summarising them was not possible, so they are gone from this conversation rather than condensed — do not assume anything about what came before.`,
-		taskContext ? formatTaskContext(taskContext) : null,
+		shown ? formatTaskContext(shown, Math.min(6000, part)) : null,
 		standing
 			? `<standing-request>\nLatest user request (possibly excerpted). It supersedes conflicting summary claims; compatible earlier constraints still apply. Do not restart completed or cancelled work.\n\n${standing}\n</standing-request>`
 			: null,

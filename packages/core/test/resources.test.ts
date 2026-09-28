@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { after, before, test } from "node:test";
 import { BUILTIN_RESOURCES } from "../src/resources/handlers.ts";
 import { parseResourceUrl, ResourceRouter, resolveInside } from "../src/resources/router.ts";
@@ -197,6 +197,37 @@ test("scratch:// round-trips", async () => {
 
 test("a scratch path cannot climb out", async () => {
 	await assert.rejects(() => router().write("scratch://../escaped.md", "x", ctx()), /临时目录外面/);
+});
+
+test("the first write into a scratch directory that does not exist yet, under a symlinked tmpdir, is allowed", async () => {
+	const fresh = join(await mkdtemp(join(tmpdir(), "ly-scratch-fresh-")), "not-yet");
+	await router().write("scratch://a/b.md", "ok", { ...ctx(), scratchDir: fresh });
+	assert.equal((await router().resolve("scratch://a/b.md", { ...ctx(), scratchDir: fresh })).content, "ok");
+	await rm(dirname(fresh), { recursive: true, force: true });
+});
+
+test("a symlink inside scratch cannot carry a read or a write outside it", async () => {
+	// 字面路径还在临时目录里，读写却顺着软链落到外面：模拟凭据被读走、外部文件被覆盖或新建。
+	const target = await mkdtemp(join(tmpdir(), "ly-scratch-out-"));
+	try {
+		await writeFile(join(target, "credentials"), "secret");
+		await mkdir(scratchDir, { recursive: true });
+		await symlink(target, join(scratchDir, "out"));
+		await symlink(join(target, "made-by-link"), join(scratchDir, "dangling"));
+		const r = router();
+		await assert.rejects(() => r.resolve("scratch://out/credentials", ctx()), /临时目录外面/);
+		await assert.rejects(() => r.write("scratch://out/credentials", "overwritten", ctx()), /临时目录外面/);
+		await assert.rejects(() => r.write("scratch://out/new.txt", "x", ctx()), /临时目录外面/);
+		await assert.rejects(() => r.write("scratch://out/deeper/new.txt", "x", ctx()), /临时目录外面/);
+		await assert.rejects(() => r.write("scratch://dangling", "x", ctx()), /临时目录外面/);
+		const { readdir, readFile } = await import("node:fs/promises");
+		assert.equal(await readFile(join(target, "credentials"), "utf8"), "secret");
+		assert.deepEqual(await readdir(target), ["credentials"], "nothing was created outside");
+	} finally {
+		await rm(join(scratchDir, "out"), { force: true });
+		await rm(join(scratchDir, "dangling"), { force: true });
+		await rm(target, { recursive: true, force: true });
+	}
 });
 
 // ---------------------------------------------------------------------------

@@ -100,10 +100,20 @@ const INFORMATIONAL = /^(--version|-v|-V|--help|-h|version)$/;
 const WRITES_ANYWAY: Record<string, RegExp> = {
 	// `find -delete` and `-exec` are the two that matter; the `-f*` family writes files too.
 	find: /^(-delete|-exec|-execdir|-ok|-okdir|-fls|-fprint|-fprintf|-fprint0)$/,
-	// Everything except reading it back is a write to a config file.
-	git: /^(--replace-all|--add|--unset|--unset-all|--rename-section|--remove-section|--edit|-e)$/,
+	// Everything except reading it back is a write to a config file; `--output` makes `diff`/`log`/`show` write one.
+	git: /^(--replace-all|--add|--unset|--unset-all|--rename-section|--remove-section|--edit|-e|--output(=.*)?)$/,
 	// A pager that can shell out is not a reader.
 	docker: /^(--format=.*exec.*)$/,
+	// `-x`/`-X` run a program per match. Short flags cluster (`-Hx`), so any cluster holding one counts.
+	fd: /^(-[A-Za-z]*[xX].*|--exec(-batch)?(=.*)?)$/,
+	// `--pre` runs a program over every file searched.
+	rg: /^--pre(=.*)?$/,
+	// `-o` writes the listing to a file; clusters like `-ao` too.
+	tree: /^-[A-Za-z]*o.*$/,
+	// `-C` compiles a magic file and writes it out.
+	file: /^(-[A-Za-z]*C.*|--compile)$/,
+	// Setting the clock.
+	date: /^(-[A-Za-z]*s.*|--set(=.*)?)$/,
 };
 
 export function isReadOnlyCommand(command: string): boolean {
@@ -135,7 +145,26 @@ export function isReadOnlyCommand(command: string): boolean {
 
 	const sub = READ_ONLY_SUBCOMMANDS[head];
 	if (head === "git" && args[0] === "config") return gitConfigReads(args.slice(1));
+	if (head === "git" && args[0] === "branch") return gitBranchReads(args.slice(1));
+	if (head === "git" && args[0] === "remote") return gitRemoteReads(args.slice(1));
 	return sub ? sub.has(args[0] ?? "") : false;
+}
+
+/**
+ * `git branch` 只有列出的形式算只读：`-D` 删分支、`-m` 改名、`-u` 改上游，带一个名字就是新建。
+ * 位置参数只在跟着取值旗标（`--contains <commit>`）或 `--list <pattern>` 时才是在问，不是在建。
+ */
+function gitBranchReads(args: string[]): boolean {
+	if (args.some((arg) => /^(-[A-Za-z]*[dDmMcCfu].*|--delete|--move|--copy|--force|--set-upstream-to(=.*)?|--unset-upstream|--edit-description|--track(=.*)?|--no-track|--create-reflog|--recurse-submodules)$/.test(arg))) return false;
+	if (args.some((arg) => /^(-l|--list)$/.test(arg))) return true;
+	const takesValue = /^(--contains|--no-contains|--merged|--no-merged|--points-at|--sort|--format|--column)$/;
+	return args.every((arg, index) => arg.startsWith("-") || (index > 0 && takesValue.test(args[index - 1])));
+}
+
+/** `git remote` 只有列出、`show`、`get-url` 是在问；`add`、`set-url`、`remove`、`prune`、`update` 都改仓库。 */
+function gitRemoteReads(args: string[]): boolean {
+	const positional = args.filter((arg) => !arg.startsWith("-"));
+	return positional.length === 0 || positional[0] === "show" || positional[0] === "get-url";
 }
 
 /**

@@ -240,11 +240,13 @@ export function buildTurnConfig(
 			 * for. That is a conversation which compacts on every single turn.
 			 */
 			compact: (messages, model, observer, options) => {
-				const summarizer = resolveModelRef(deps.settings, "@compact", { provider: deps.provider, model });
+				// 一轮中途换过模型的，供应商跟着 loop 此刻的走，见 `CompactOptions.provider`。
+				const provider = options?.provider ?? deps.provider;
+				const summarizer = resolveModelRef(deps.settings, "@compact", { provider, model });
 				return compactWith({
 					messages,
 					model,
-					provider: deps.provider,
+					provider,
 					streamFn: deps.summaryStream,
 					overhead: textTokens(systemPrompt) + toolTokens(turn.tools),
 					// 自动压缩剪掉的原文也存下来——它剪掉的量比手动压缩多得多。

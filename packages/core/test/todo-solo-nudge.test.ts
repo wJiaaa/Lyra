@@ -35,7 +35,7 @@ function reply(content: AssistantMessage["content"], stopReason: AssistantMessag
 const todoCall = (id: string) => ({ type: "toolCall" as const, id, name: "todo_write", arguments: { todos: [{ content: "读 a.ts", status: "in_progress", activeForm: "读 a.ts" }] }, argumentsText: "{}" });
 const readCall = (id: string) => ({ type: "toolCall" as const, id, name: "read", arguments: { path: "a.ts" }, argumentsText: "{}" });
 
-async function run(script: AssistantMessage[]): Promise<Message[]> {
+async function run(script: AssistantMessage[], committed: string[] = []): Promise<Message[]> {
 	let at = 0;
 	const result = await runAgent(
 		{
@@ -51,7 +51,12 @@ async function run(script: AssistantMessage[]): Promise<Message[]> {
 			state: new Map(),
 			streamFn: async () => script[Math.min(at++, script.length - 1)],
 		},
-		async () => {},
+		// `message_end` 是落盘点：这里记下的就是日志里、重启后重建出来的那一份。
+		async (event) => {
+			if (event.type === "message_end" && event.message.role === "toolResult" && event.message.toolName === "todo_write") {
+				committed.push(JSON.stringify(event.message.content));
+			}
+		},
 	);
 	return result.messages;
 }
@@ -72,6 +77,15 @@ test("a lone todo_write gets the note in its own result; one batched with real w
 	assert.equal(results.length, 2);
 	assert.ok(results[0].includes(SOLO_TODO_NOTE), "the lone call is told, in the place the model reads next");
 	assert.ok(!results[1].includes(SOLO_TODO_NOTE), "the batched call is what was asked for; nothing to say");
+});
+
+test("the note is in the result before it is committed, so a restart rebuilds what was sent", async () => {
+	const committed: string[] = [];
+	const messages = await run([reply([todoCall("t1")], "toolUse"), reply([{ type: "text", text: "好。" }], "stop")], committed);
+	const sent = messages.find((m) => m.role === "toolResult" && m.toolName === "todo_write");
+	assert.equal(committed.length, 1);
+	assert.ok(committed[0].includes("往返"), "the log carries the note");
+	assert.equal(committed[0], JSON.stringify(sent?.content), "and nothing is changed after the commit");
 });
 
 test("the note names the cost, and the tool's own guidance already says never to do this", () => {

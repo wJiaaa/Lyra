@@ -7,7 +7,8 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -26,7 +27,8 @@ import {
 import { ResourceRouter } from "../src/resources/router.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { SessionCapabilities } from "../src/runtime/session-capabilities.ts";
-import { pruneToolResults } from "../src/runtime/prune.ts";
+import { FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../src/runtime/prune.ts";
+import { readTool } from "../src/tools/read.ts";
 import type { Message } from "../src/types.ts";
 
 let root: string;
@@ -141,6 +143,37 @@ test("plugin:// 优先给 README，没有才给清单", async () => {
 
 	const b = await pluginResource.resolve({ scheme: "plugin", path: "no-readme", segments: ["no-readme"], raw: "plugin://no-readme" }, ctx(state));
 	assert.match(b.content, /只有清单/);
+});
+
+test("plugin:// 默认说明和显式 README 一样，软链指到插件目录外就拒绝", async () => {
+	const dir = join(root, "p-link");
+	const secret = join(root, "p-link-secret.md");
+	await mkdir(dir, { recursive: true });
+	await writeFile(secret, "插件目录外的文件");
+	await symlink(secret, join(dir, "README.md"));
+	const state = new Map<string, unknown>([[PLUGINS_KEY, [{ id: "fixture", dir, manifest: {}, skills: [], source: "user", enabled: true }]]]);
+
+	const explicit = { scheme: "plugin", path: "fixture/README.md", segments: ["fixture", "README.md"], raw: "plugin://fixture/README.md" };
+	await assert.rejects(() => pluginResource.resolve(explicit, ctx(state)), /插件目录外面/);
+	await assert.rejects(() => pluginResource.resolve({ scheme: "plugin", path: "fixture", segments: ["fixture"], raw: "plugin://fixture" }, ctx(state)), /插件目录外面/);
+});
+
+test("plugin:// 默认说明先查边界再读：指向外面命名管道的软链不会把读取挂住", { skip: process.platform === "win32" }, async () => {
+	const dir = join(root, "p-fifo");
+	const fifo = join(root, "p-fifo-outside");
+	await mkdir(dir, { recursive: true });
+	execFileSync("mkfifo", [fifo]);
+	await symlink(fifo, join(dir, "README.md"));
+	const state = new Map<string, unknown>([[PLUGINS_KEY, [{ id: "fixture", dir, manifest: {}, skills: [], source: "user", enabled: true }]]]);
+
+	// 先读的话，打开没有写端的管道会一直等下去；这里限时，挂住就算失败。
+	let timer: NodeJS.Timeout | undefined;
+	const hung = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("读取挂住了")), 2000); });
+	try {
+		await assert.rejects(() => Promise.race([pluginResource.resolve({ scheme: "plugin", path: "fixture", segments: ["fixture"], raw: "plugin://fixture" }, ctx(state)), hung]), /插件目录外面/);
+	} finally {
+		clearTimeout(timer);
+	}
 });
 
 test("插件内容一律带 origin", async () => {
@@ -270,6 +303,23 @@ test("剪枝把原文存下来，占位标记里给出地址", async () => {
 	assert.match(text, /artifact:\/\/a1/, "占位标记里写着地址");
 });
 
+test("read artifact:// 按窗口取回，被剪掉的中段拿得回来", async () => {
+	// 整段返回的话，它作为新结果又被剪成同样的头尾——标记里那句「read 它取回中段」就做不到。
+	const can = new SessionCapabilities();
+	can.state.set(ARTIFACTS_KEY, can.artifacts);
+	const huge = `${"a".repeat(50_000)}中段标记${"b".repeat(50_000)}`;
+	const address = can.keepArtifact("bash", huge);
+	const read = async (args: Record<string, unknown>) => {
+		const result = await readTool.execute({ path: address, ...args } as never, { cwd: root, state: can.state, resources: router() } as never);
+		return (result.content[0] as { text: string }).text;
+	};
+
+	const bare = await read({});
+	assert.ok(bare.length <= FRESH_RESULT_MAX_CHARS, `整段读回 ${bare.length} 字符，会再被剪一次`);
+	assert.match(bare, /char_offset=2001/);
+	assert.match(await read({ char_offset: 50_001 }), /中段标记/);
+});
+
 test("会话把四个数据源都填进了 state", async () => {
 	/*
 	 * 这个文件真正要拦的东西。四个 scheme 注册在路由上是一行代码，而它们能不能解析出东西，
@@ -311,6 +361,15 @@ test("会话把 session:// 的数据源也填上了", async () => {
 	assert.ok(lookup, "`session://` 的数据源必须在会话初始化时就位");
 	const found = await lookup.transcript("other");
 	assert.deepEqual(found?.lines, ["用户：你好"]);
+});
+
+test("同一段原文每次换回同一个地址，重建出的占位标记逐字不变", () => {
+	const first = new SessionCapabilities();
+	const address = first.keepArtifact("bash", "完整输出");
+	assert.equal(first.keepArtifact("bash", "完整输出"), address);
+	assert.equal(first.artifacts.size, 1);
+	assert.equal(new SessionCapabilities().keepArtifact("bash", "完整输出"), address, "重启之后也是同一个");
+	assert.notEqual(first.keepArtifact("bash", "另一段"), address);
 });
 
 test("折叠的份数有上限，超了丢最旧的", async () => {

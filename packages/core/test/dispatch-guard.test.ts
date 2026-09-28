@@ -160,27 +160,93 @@ test("名额还两次也只算一次", async () => {
 test("派生里的派生：先让出自己的名额，孩子排不上时照样能被叫停", async () => {
 	const gate = new DispatchGate(1);
 	const parent = await gate.acquire();
-	const child = await gate.acquireNested();
+	const child = await gate.children().acquire();
 	assert.equal(gate.running, 1, "父亲让出来的那个位置给了孩子");
 	child();
 	assert.equal(gate.running, 1, "孩子还回去，父亲把自己的位置拿回来");
 	parent();
 	assert.equal(gate.running, 0);
 
-	// 宽度中途收窄，让出自己的那一个之后仍然超额——孩子得排队；排着被停，父亲的位置照样拿回来。
+	// 宽度中途收窄，让出自己的那一个之后仍然超额——孩子得排队；排着被停，父亲等到有空位再拿回来，不越过宽度。
 	const wide = new DispatchGate(2);
 	const a = await wide.acquire();
 	const b = await wide.acquire();
 	wide.setLimit(1);
 	const stop = new AbortController();
-	const queued = wide.acquireNested(stop.signal);
+	const queued = wide.children().acquire(stop.signal);
 	assert.equal(wide.queued, 1, "孩子在排队");
 	stop.abort();
-	await assert.rejects(queued, DispatchCancelled);
-	assert.equal(wide.running, 2, "父亲那一个没有丢");
-	a();
+	let settled = false;
+	const cancelled = assert.rejects(queued, DispatchCancelled).then(() => { settled = true; });
+	await new Promise((r) => setTimeout(r, 5));
+	assert.equal(settled, false, "宽度已是 1、另一个还在跑：父亲等它走");
 	b();
+	await cancelled;
+	assert.equal(wide.running, 1, "父亲那一个没有丢");
+	a();
 	assert.equal(wide.running, 0);
+});
+
+test("一个父亲并行派几个孩子，只让一次位，孩子照常排队", async () => {
+	// 按孩子让位的话，宽度 1 时四个孩子各让一次父亲的名额，全都同时进来，计数却一直是 1。
+	const gate = new DispatchGate(1);
+	const parent = await gate.acquire();
+	const kids = gate.children();
+	let started = 0;
+	const releases: (() => void)[] = [];
+	const pending = Array.from({ length: 4 }, () => kids.acquire().then((release) => { started++; releases.push(release); }));
+	await new Promise((r) => setTimeout(r, 5));
+	assert.equal(started, 1, "父亲让出的那一个位置只放进一个孩子");
+	assert.equal(gate.queued, 3, "其余的排队");
+	for (let i = 0; i < 4; i++) {
+		releases.shift()?.();
+		await new Promise((r) => setTimeout(r, 1));
+	}
+	await Promise.all(pending);
+	assert.equal(started, 4);
+	assert.equal(gate.running, 1, "孩子都走了，父亲取回自己的位置");
+	parent();
+	assert.equal(gate.running, 0);
+});
+
+test("最后一个孩子走的时候，名额先还给父亲，排队的人不会跟着同时进来", async () => {
+	const gate = new DispatchGate(1);
+	const parent = await gate.acquire();
+	const child = await gate.children().acquire();
+	let admitted = false;
+	const other = gate.acquire().then((release) => { admitted = true; return release; });
+	child();
+	await new Promise((r) => setTimeout(r, 5));
+	assert.equal(admitted, false, "父亲回来了，宽度 1 已经满了");
+	assert.equal(gate.running, 1);
+	parent();
+	(await other)();
+	assert.equal(gate.running, 0);
+});
+
+test("最后一个排队的孩子被叫停，父亲也不越过宽度取回名额", async () => {
+	// P 派 C1/C2，C1 走后空位被先排着的 Q 拿走；这时单独停掉 C2，父亲不能凭空多出一个名额。
+	const gate = new DispatchGate(1);
+	const parent = await gate.acquire();
+	const kids = gate.children();
+	const c1 = await kids.acquire();
+	const q = gate.acquire();
+	const stop = new AbortController();
+	const c2 = kids.acquire(stop.signal);
+	c1();
+	const releaseQ = await q;
+	assert.equal(gate.running, 1, "Q 拿到了 C1 空出来的位置");
+	stop.abort();
+	let settled = false;
+	const cancelled = assert.rejects(c2, DispatchCancelled).then(() => { settled = true; });
+	await new Promise((r) => setTimeout(r, 5));
+	assert.equal(gate.running, 1, "宽度 1，父亲等 Q 走");
+	assert.equal(settled, false);
+	releaseQ();
+	await cancelled;
+	assert.equal(gate.running, 1, "Q 走了，父亲拿回自己的位置");
+	parent();
+	assert.equal(gate.running, 0);
 });
 
 test("停止落在排队中的派发上：出队、不跑、不占名额", async () => {
@@ -241,7 +307,7 @@ test("嵌套派发排队时同样听停止信号，让出去的位置照样取�
 	await gate.run(async () => {
 		const stop = new AbortController();
 		stop.abort();
-		await assert.rejects(gate.nested(async () => assert.fail("不该开跑"), stop.signal));
+		await assert.rejects(gate.children().run(async () => assert.fail("不该开跑"), stop.signal));
 		assert.equal(gate.running, 1, "父亲的位置原样取回");
 	});
 	assert.equal(gate.running, 0);
@@ -329,13 +395,13 @@ test("闸门收到 1 的时候，第二层派生照样进得来", async () => {
 	 * 孙代理，孙代理排在它后面——而它在等孙代理。界面上是一个「派发子任务」转到超时，日志里
 	 * 什么错都没有。
 	 *
-	 * 整棵派生树共用一道闸门是对的，占着位置等孩子不对。见 `DispatchGate.nested`。
+	 * 整棵派生树共用一道闸门是对的，占着位置等孩子不对。见 `DispatchGate.children`。
 	 */
 	const gate = new DispatchGate(1);
 	const done: string[] = [];
 	await gate.run(async () => {
 		done.push("父进来了");
-		await gate.nested(async () => {
+		await gate.children().run(async () => {
 			done.push("孩子也进来了");
 		});
 		done.push("父继续跑");
@@ -351,7 +417,7 @@ test("四路各派一个孙代理，谁也不会卡住", async () => {
 	await Promise.all(
 		Array.from({ length: 4 }, (_, i) =>
 			gate.run(async () => {
-				await gate.nested(async () => {
+				await gate.children().run(async () => {
 					await new Promise((r) => setTimeout(r, 5));
 				});
 				finished.push(i);
@@ -373,8 +439,8 @@ test("让位是暂时的，真正在跑的仍然不超过宽度", async () => {
 		await new Promise<void>((resolve) => release.push(resolve));
 	};
 	const jobs = [
-		gate.run(async () => { await busy(); await gate.nested(busy); }),
-		gate.run(async () => { await busy(); await gate.nested(busy); }),
+		gate.run(async () => { await busy(); await gate.children().run(busy); }),
+		gate.run(async () => { await busy(); await gate.children().run(busy); }),
 		gate.run(busy),
 	];
 	for (let i = 0; i < 6; i++) {

@@ -192,6 +192,29 @@ test("a read-only program with something to run is not read-only", () => {
 	assert.equal(isReadOnlyCommand("git config --unset user.email"), false);
 });
 
+test("read-only programs with a flag that runs or writes something are not read-only", () => {
+	// Programs run per match or per file.
+	assert.equal(isReadOnlyCommand("fd -x rm"), false);
+	assert.equal(isReadOnlyCommand("fd -Hx rm"), false, "短旗标可以连写");
+	assert.equal(isReadOnlyCommand("fd --exec rm"), false);
+	assert.equal(isReadOnlyCommand("fd -X rm"), false);
+	assert.equal(isReadOnlyCommand("fd --exec-batch rm"), false);
+	assert.equal(isReadOnlyCommand("rg --pre ./x.sh TODO"), false);
+	assert.equal(isReadOnlyCommand("rg --pre=./x.sh TODO"), false);
+	// Output written to a file.
+	assert.equal(isReadOnlyCommand("tree -o out.txt"), false);
+	assert.equal(isReadOnlyCommand("tree -ao out.txt"), false);
+	assert.equal(isReadOnlyCommand("git diff --output=patch.txt"), false);
+	assert.equal(isReadOnlyCommand("git log --output patch.txt"), false);
+	assert.equal(isReadOnlyCommand("file -C -m magic"), false);
+	assert.equal(isReadOnlyCommand("date -s 2020-01-01"), false);
+	// Branches and remotes changed rather than listed.
+	for (const command of ["git branch -D main", "git branch -m old new", "git branch --delete x", "git branch feature", "git branch -u origin/main", "git branch --set-upstream-to=origin/main"])
+		assert.equal(isReadOnlyCommand(command), false, command);
+	for (const command of ["git remote add evil https://example.test/x.git", "git remote set-url origin https://example.test/x.git", "git remote remove origin", "git remote prune origin", "git remote update"])
+		assert.equal(isReadOnlyCommand(command), false, command);
+});
+
 test("what is read-only stays read-only", () => {
 	// The point of this list is that an agent reading state does not interrupt anybody.
 	for (const command of [
@@ -208,6 +231,20 @@ test("what is read-only stays read-only", () => {
 		"npm ls",
 		"pnpm why react",
 		"docker ps",
+		"fd -e ts src",
+		"fd -H config",
+		"rg -n --hidden TODO",
+		"tree -a -L 2",
+		"file package.json",
+		"date +%F",
+		"git branch",
+		"git branch -a -vv",
+		"git branch --show-current",
+		"git branch --contains HEAD",
+		"git branch --list feat*",
+		"git remote -v",
+		"git remote show origin",
+		"git remote get-url origin",
 	]) {
 		assert.equal(isReadOnlyCommand(command), true, `应免审批: ${command}`);
 	}

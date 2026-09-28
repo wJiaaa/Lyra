@@ -118,6 +118,25 @@ export async function readLessons(cwd: string): Promise<Lesson[]> {
  * writing variations of the same sentence.
  */
 export async function recordLesson(cwd: string, lesson: Omit<Lesson, "at">): Promise<{ action: "added" | "merged"; total: number }> {
+	return inTurn(cwd, () => addLesson(cwd, lesson));
+}
+
+/**
+ * 同一个项目的 `learned.md`，读—改—写一次只走一个。
+ *
+ * 每一处都是先读整份、再写回整份：模型在一次回复里并行调了两次 `learn`，或者正写着的时候有人在
+ * 设置里删了一条，后写的那份不知道先写的那一条，把它覆盖掉。按文件排队，进程里的写入者就都接得上。
+ */
+const lessonTurns = new Map<string, Promise<unknown>>();
+
+function inTurn<T>(cwd: string, work: () => Promise<T>): Promise<T> {
+	const file = join(projectMemoryDir(cwd), "learned.md");
+	const run = (lessonTurns.get(file) ?? Promise.resolve()).then(work, work);
+	lessonTurns.set(file, run.catch(() => {}));
+	return run;
+}
+
+async function addLesson(cwd: string, lesson: Omit<Lesson, "at">): Promise<{ action: "added" | "merged"; total: number }> {
 	const text = redactSecrets(lesson.text.trim()).slice(0, MAX_LESSON_CHARS);
 	const context = lesson.context ? redactSecrets(lesson.context.trim()).slice(0, MAX_CONTEXT_CHARS) : undefined;
 
@@ -160,17 +179,19 @@ export async function recordLesson(cwd: string, lesson: Omit<Lesson, "at">): Pro
  * two windows open on the same project is enough to produce the second.
  */
 export async function forgetLesson(cwd: string, at: number): Promise<boolean> {
-	const existing = await readLessons(cwd);
-	const next = existing.filter((lesson) => lesson.at !== at);
-	if (next.length === existing.length) return false;
-	await writeLessons(cwd, next);
-	invalidateMemorySnapshots();
-	return true;
+	return inTurn(cwd, async () => {
+		const existing = await readLessons(cwd);
+		const next = existing.filter((lesson) => lesson.at !== at);
+		if (next.length === existing.length) return false;
+		await writeLessons(cwd, next);
+		invalidateMemorySnapshots();
+		return true;
+	});
 }
 
 /** Forget every lesson at once, leaving the extracted file alone. */
 export async function forgetAllLessons(cwd: string): Promise<void> {
-	await writeLessons(cwd, []);
+	await inTurn(cwd, () => writeLessons(cwd, []));
 	invalidateMemorySnapshots();
 }
 

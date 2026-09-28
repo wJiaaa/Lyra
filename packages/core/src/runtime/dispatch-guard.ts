@@ -219,7 +219,7 @@ export class DispatchGate {
 	}
 
 	/**
-	 * 派生里的派生：先把自己的位置让出来，再让孩子按正常规则进。
+	 * 派生里的派生：先把自己的位置让出来，再让孩子按正常规则进。一个父代理调一次，它派的孩子都走这里。
 	 *
 	 * 整棵派生树共用一道闸门（这是对的——不然「最多四个」会变成每层四个）。但一个正在派孩子的
 	 * 子代理，这一刻并没有在跑模型，它在等。占着位置等，而等的正是同一道闸门里的位置，那就是
@@ -228,37 +228,69 @@ export class DispatchGate {
 	 *
 	 * 四个子代理各派一个孙代理、`limit` 是 4，同样谁也进不去；宽度设成 1 时则是必然。
 	 *
+	 * 让位属于父亲，不属于每个孩子：第一个孩子进来时让一次，最后一个孩子走了才取回。按孩子让的话，
+	 * 父亲一次并行派四个就让了四次，宽度 1 时四个孩子同时在跑，计数却一直是 1。
+	 *
 	 * 让出的位置不主动放给队列，是留给孩子的：它下一行就要进来，而这个位置本来就是它父亲的。
 	 * 取回的时候不排队，无条件加回去——排队等的可能正是自己刚让出去的那个位置，而那个位置上的人
 	 * 在等自己。宁可有那么一瞬多出一个，也不要一个永远解不开的环。
 	 */
-	async nested<T>(body: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-		const release = await this.acquireNested(signal);
-		try {
-			return await body();
-		} finally {
-			release();
-		}
-	}
-
-	/** `nested` 的拿/还两段写法，理由同 `acquire`。 */
-	async acquireNested(signal?: AbortSignal): Promise<() => void> {
-		// 走到这里的一定是个已经拿到名额的子代理；0 只可能是没有会话的宿主临时开的一道新闸门。
-		const held = this.active > 0;
-		if (held) this.active -= 1;
-		let release: () => void;
-		try {
-			release = await this.acquire(signal);
-		} catch (error) {
-			if (held) this.active += 1;
-			throw error;
-		}
-		let returned = false;
-		return () => {
-			if (returned) return;
-			returned = true;
-			release();
-			if (held) this.active += 1;
+	children(): { acquire(signal?: AbortSignal): Promise<() => void>; run<T>(body: () => Promise<T>, signal?: AbortSignal): Promise<T> } {
+		let present = 0;
+		let yielded = false;
+		// 正常走的孩子：它的名额转给父亲（调用方随后 `release` 抵掉）。
+		const leave = () => {
+			present -= 1;
+			if (present === 0 && yielded) {
+				yielded = false;
+				this.active += 1;
+			}
+		};
+		/*
+		 * 没排上就被叫停的孩子：没有名额可转。父亲有空位就拿，没有就排在队首等下一个空出来的——无条件加回去
+		 * 会让宽度 1 时父亲和刚被放进来的别人同时在跑。这时父亲已经没有在跑的孩子，占着名额的都不在等它，
+		 * 排队不会成环。等待不听停止信号：父亲之后一定会还自己的名额，没拿回来就还，计数会变成负的。
+		 */
+		const abandon = async () => {
+			present -= 1;
+			if (present !== 0 || !yielded) return;
+			yielded = false;
+			if (this.active < this.limit) this.active += 1;
+			else await new Promise<void>((resolve) => this.waiting.unshift(resolve));
+		};
+		const acquire = async (signal?: AbortSignal): Promise<() => void> => {
+			// 走到这里的一定是个已经拿到名额的子代理；0 只可能是没有会话的宿主临时开的一道新闸门。
+			if (present === 0 && this.active > 0) {
+				yielded = true;
+				this.active -= 1;
+			}
+			present += 1;
+			let release: () => void;
+			try {
+				release = await this.acquire(signal);
+			} catch (error) {
+				await abandon();
+				throw error;
+			}
+			let returned = false;
+			return () => {
+				if (returned) return;
+				returned = true;
+				// 先让父亲取回名额，再还孩子的：反过来的话，还回去的那一个先被排队的人拿走，父亲再无条件加回来，就超了宽度。
+				leave();
+				release();
+			};
+		};
+		return {
+			acquire,
+			async run(body, signal) {
+				const release = await acquire(signal);
+				try {
+					return await body();
+				} finally {
+					release();
+				}
+			},
 		};
 	}
 

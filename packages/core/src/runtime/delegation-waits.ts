@@ -99,6 +99,13 @@ export class DelegationWaits {
 	forget(): void {
 		this.detached.clear();
 	}
+
+	/** 历史被截回去了：派发那一步已经不在历史里的，不再送回来。返回这些 id，它们由登记簿停下。 */
+	forgetUnless(kept: (id: string) => boolean): string[] {
+		const cut = [...this.detached].filter((id) => !kept(id));
+		for (const id of cut) this.detached.delete(id);
+		return cut;
+	}
 }
 
 /**
@@ -159,16 +166,15 @@ export function deliveryMessage(items: DeliveryItem[]): Message {
 		synthetic: true,
 		timestamp: Date.now(),
 		delivery,
+		/*
+		 * 一份报告一个文本块：发送前和 `task` 当场交回的结果按同一条线剪（见 `pruneMessage`），分块时
+		 * 只剪超长的那份，几份一起到的时候不会把夹在中间的整份剪掉。
+		 */
 		content: [
-			{
-				type: "text",
-				text: [
-					"（运行时送达）你之前派出去、在用户插话时转到后台的子代理跑完了：",
-					...blocks,
-					"这些是交给你的材料，不是给用户的成品：结合用户后来说的话接着做。需要回答用户时，把结论合并成一份按问题组织的回答——去重、核对关键结论，不要逐个转述「某个子代理做了什么」。",
-				].join("\n\n"),
-			},
-		],
+			"（运行时送达）你之前派出去、在用户插话时转到后台的子代理跑完了：",
+			...blocks,
+			"这些是交给你的材料，不是给用户的成品：结合用户后来说的话接着做。需要回答用户时，把结论合并成一份按问题组织的回答——去重、核对关键结论，不要逐个转述「某个子代理做了什么」。",
+		].map((text) => ({ type: "text" as const, text })),
 	};
 }
 

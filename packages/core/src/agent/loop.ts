@@ -13,10 +13,12 @@ import type { RuleMatch } from "../rules/stream.ts";
 import { extractPaths } from "../rules/stream.ts";
 import { failTruncatedCalls, runTools } from "./tool-run.ts";
 import { streamAssistant } from "../ai/index.ts";
+import { comparePrefix, payloadSegments, type PrefixSegment } from "../ai/prefix-fingerprint.ts";
 import { isContextOverflow } from "../ai/failure.ts";
-import { dropUneventful, stripOversizedToolResults } from "../runtime/prune.ts";
+import { stripOversizedToolResults } from "../runtime/prune.ts";
 import type { ArtifactSink } from "../runtime/prune.ts";
 import { AgedToolPruner } from "../runtime/aged-prune.ts";
+import { requestPrompt } from "../runtime/cache-diagnostics.ts";
 import { contextMaxTokens } from "../runtime/context.ts";
 import { stripStaleHandles } from "../runtime/model-switch.ts";
 import { withEnvironment } from "../prompt/environment.ts";
@@ -257,10 +259,39 @@ function rejectedContent(assistant: AssistantMessage): boolean {
 const DEFAULT_MAX_TURNS = 200;
 /** Empty-response retries per run; tool calls must not replenish this budget. */
 const MAX_NUDGES = 3;
+/**
+ * 连续几次回复撞上输出上限还接着来。
+ *
+ * 输出上限已经取到模型允许的最大值（`contextMaxTokens`），没有更大的可调；能做的是让它从断处接着写，
+ * 或把一次写不完的内容拆开。连续这么多次还在撞，说明拆不动或卡住了，停下来说清楚，而不是空耗轮数。
+ */
+const MAX_TRUNCATED_REPLIES = 3;
+const TRUNCATED_CALL_REASON =
+	"the response hit the output token limit before this call's arguments were complete. Re-issue it with less in one call: " +
+	"write a large file in parts (create it with the first part, then add the rest with edit), and send fewer calls per reply";
 
 /** Appended to a lone todo_write's result. The wording names the cost, not just the rule. */
 export const SOLO_TODO_NOTE =
 	"（这一轮只调了 todo_write，没有做任何实际工作。从下一轮起，把清单更新和真正的下一步——读文件、改代码、跑命令——放在同一次回复里；单独更新清单是浪费一次往返。）";
+
+/** Written by the person, as opposed to the runtime speaking in the user role. */
+function fromPerson(message: Message): boolean {
+	return message.role === "user" && !message.synthetic;
+}
+
+/**
+ * Whether the person said something after the model last spoke.
+ *
+ * Looks at the whole trailing run of user messages rather than the last one: synthetic messages
+ * (a prompt update, a date block) can land after the prompt, and a run that resumes after tool
+ * results or a nudge has no new instruction at all.
+ */
+function humanSinceLastReply(messages: readonly Message[]): boolean {
+	for (let at = messages.length - 1; at >= 0 && messages[at].role === "user"; at--) {
+		if (fromPerson(messages[at])) return true;
+	}
+	return false;
+}
 
 export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Promise<AgentRunResult> {
 	const messages = [...config.messages];
@@ -270,18 +301,12 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 	const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
 	/** Empty-response retries spent in this run. */
 	let nudges = 0;
+	/** 连续撞上输出上限的回复数；一条没撞的就清零。 */
+	let truncations = 0;
 	/** Watches for a turn that has stopped learning anything; see `repetition.ts`. */
 	const repetition = config.repetition ?? new RepetitionWatch();
 	const pruner = config.pruner ?? new AgedToolPruner();
 	const requestMessages = (history: Message[]): Message[] => (config.environment ? withEnvironment(history) : history);
-	/**
-	 * When the last request went out, for judging whether the provider's prefix cache is still warm.
-	 *
-	 * Undefined on the first turn, which reads as "no cache to protect" — correct, since there has
-	 * been no request to cache anything from.
-	 */
-	let lastRequestAt: number | undefined;
-
 	await emit({ type: "agent_start", sessionId: config.sessionId });
 
 	let turn = 0;
@@ -317,16 +342,18 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		await emit({ type: "turn_start", turn });
 
 		const drained = config.drainSteering?.() ?? [];
+		const steering = [...reminders, ...carried, ...drained];
 		/*
 		 * Something the person just said ends the previous skill's tool restriction.
 		 *
 		 * Their message is a new instruction, and a restriction left standing across it would
 		 * silently refuse work they had just asked for — with an explanation naming a skill they
-		 * may not remember loading.
+		 * may not remember loading. On the first turn that includes the prompt that started this
+		 * run: the state map outlives the run, so a skill loaded for the previous request is still
+		 * in it. Checking only `drained` once missed both that and `carried`.
 		 */
-		if (drained.some((message) => message.role === "user" && !message.synthetic)) clearActiveSkill(state);
+		if ((turn === 1 && humanSinceLastReply(config.messages)) || steering.some(fromPerson)) clearActiveSkill(state);
 
-		const steering = [...reminders, ...carried, ...drained];
 		reminders = [];
 		carried = [];
 		for (const steered of steering) {
@@ -355,26 +382,16 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		}
 
 		/*
-		 * Tidy away the results that were never going to be read again, when it is free to do so.
-		 *
-		 * Different from the pass inside compaction, which runs when the window is nearly full and
-		 * takes the cache hit because the alternative is a model call.
-		 *
-		 * Worth knowing what the cache check actually guards here, because it is not what it looks
-		 * like. Within a running turn the result being cleared is almost always the newest message,
-		 * with nothing under it — no cache has ever included it, so clearing it costs nothing and
-		 * `worthPruning` says yes every time. Where it earns its place is a *resumed* conversation:
-		 * the history loaded from the log carries empty results from turns that ended before this
-		 * process started, and those do sit under everything that came after.
+		 * 新结果第一次发出前定下它发给模型的样子；已经发出去的原样重发。见 `AgedToolPruner`。
 		 */
-		const tidied = pruner.prepare(dropUneventful(messages, { lastRequestAt }), { lastRequestAt }, config.artifacts);
+		const tidied = pruner.prepare(messages, config.artifacts);
 		if (tidied !== messages) {
 			messages.length = 0;
 			messages.push(...tidied);
 		}
 
 		if (config.compact) {
-			const compaction = await compactStep(config, messages, active.model, emit);
+			const compaction = await compactStep(config, messages, active.model, emit, { provider: active.provider });
 			if (config.signal?.aborted) return finish("aborted");
 			if (compaction) {
 				messages.length = 0;
@@ -392,7 +409,6 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			tools: config.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
 		};
 
-		lastRequestAt = Date.now();
 		let { message: assistant, ruleMatches, deferredMatches, switched, held } = await streamTurn(active, context, emit);
 		/*
 		 * 还没说出一个字就被换下的请求：什么都不留，回到顶上用新模型从同一处重来。
@@ -450,7 +466,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		 */
 		if (!switched && assistant.stopReason === "error" && isContextOverflow(assistant.failure) && config.compact) {
 			await emit({ type: "notice", level: "warn", message: "上下文超出了模型的上限，正在压缩历史后重试。" });
-			const compaction = await compactStep(config, messages, active.model, emit, { force: true }).catch(async (cause: unknown) => {
+			const compaction = await compactStep(config, messages, active.model, emit, { force: true, provider: active.provider }).catch(async (cause: unknown) => {
 				// 压缩自己抛了：被拒的那条照实提交再往上抛，转录里要留得下这一轮为什么停。
 				await held?.commit();
 				throw cause;
@@ -559,6 +575,31 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			carried = turn < maxTurns ? config.drainSteering?.() ?? [] : [];
 			if (carried.length > 0) continue;
 
+			/*
+			 * 写到一半撞上了输出上限：不当作答完了。
+			 *
+			 * 从前这里直接 `finish("done")`，界面上是一段戛然而止的回答，看不出是被截断的。让它从断处接着
+			 * 写；连续撞满 `MAX_TRUNCATED_REPLIES` 次就停，并说出来。
+			 */
+			if (assistant.stopReason === "length") {
+				truncations += 1;
+				if (truncations <= MAX_TRUNCATED_REPLIES && turn < maxTurns) {
+					const resume: Message = {
+						role: "user",
+						content: [{ type: "text", text: "（自动继续）上一条回复达到了输出长度上限，在中途被截断。请从断开的地方直接接着写，不要重复已经写出的内容。" }],
+						timestamp: Date.now(),
+						// 运行时在说话，不是人：同上面的空回复催促。
+						synthetic: true,
+					};
+					messages.push(resume);
+					produced.push(resume);
+					await emit({ type: "message_start", message: resume });
+					await emit({ type: "message_end", message: resume });
+					continue;
+				}
+				await emit({ type: "notice", level: "warn", message: "回复连续多次达到输出长度上限，已停下。最后一段回答可能不完整。" });
+			} else truncations = 0;
+
 			// A checklist cannot distinguish a question from abandoned work. Text yields to the
 			// person; only an actually empty response earns a bounded retry.
 			const saidNothing = assistant.content.every((part) => part.type !== "text" || !part.text.trim());
@@ -608,22 +649,18 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		}
 
 		syncSkillContext(state, messages);
-		const toolResults =
-			assistant.stopReason === "length"
-				? await failTruncatedCalls(toolCalls, emit)
-				: await runTools(toolCalls, config, state, emit);
-
+		const truncated = assistant.stopReason === "length";
+		truncations = truncated ? truncations + 1 : 0;
 		/*
 		 * A reply that only updated the list did nothing else, and will spend another round trip
 		 * doing it. Said in the result of that very call — where the model reads next, about the
 		 * thing it just did — rather than in a prompt it has already skimmed past. Measured before
 		 * this: nearly half the tool turns on a three-step task were a lone todo_write (06 §6.3).
 		 */
-		if (toolCalls.length === 1 && toolCalls[0].name === "todo_write" && config.tools.length > 1) {
-			for (const result of toolResults) {
-				if (result.role === "toolResult" && !result.isError) result.content.push({ type: "text", text: SOLO_TODO_NOTE });
-			}
-		}
+		const soloTodo = toolCalls.length === 1 && toolCalls[0].name === "todo_write" && config.tools.length > 1;
+		const toolResults = truncated
+			? await failTruncatedCalls(toolCalls, emit, TRUNCATED_CALL_REASON)
+			: await runTools(toolCalls, config, state, emit, soloTodo ? SOLO_TODO_NOTE : undefined);
 
 		for (const result of toolResults) {
 			messages.push(result);
@@ -649,6 +686,11 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		const terminated = toolResults.find((result) => result.terminate === true);
 		if (terminated) return finish("done");
 
+		// 工具参数一再写到一半就被截断：拆不动了，接着跑只会一轮轮白费。
+		if (truncated && truncations > MAX_TRUNCATED_REPLIES) {
+			return finish("error", "回复连续多次在工具参数写到一半时达到输出长度上限，已停下。可以让它把内容拆小，或换一个输出上限更大的模型。");
+		}
+
 		/*
 		 * Same call, same arguments, same answer — again.
 		 *
@@ -670,6 +712,10 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		 * `skill` 注入过 4 次，每次 5,625 token。
 		 *
 		 * 只动给模型看的那一份，工具照常执行过：万一这次结果真的变了，指纹就不同，根本走不到这里。
+		 *
+		 * 换在提交之后，日志和界面留的是原文。代价是重启后重建的历史在这条上和当时发出去的不同，
+		 * 前缀从这里断一次；换到提交之前要么等整批跑完才落盘（崩溃时丢掉已完成的结果），要么让
+		 * 计数看到的不是原文，都不划算。
 		 */
 		if (repetition.exhausted()) return finish("stalled");
 
@@ -846,7 +892,24 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 
 	const signal = AbortSignal.any([...(config.signal ? [config.signal] : []), ruleAbort.signal, switchAbort.signal]);
 
-	const stream = streamAssistant(config.provider, config.model, context, {
+	/*
+	 * 前缀从哪里开始和上一次不同，写在这次的回复上——缓存未命中的归因证据，见 `ai/prefix-fingerprint.ts`。
+	 * 重试的每一次覆盖 `sent`，比的是最后真发出去的那份；基准按会话存，跨轮接得上。基准只从诊断也算数的
+	 * 请求推进（`requestPrompt`）：诊断跳过零用量的失败请求去比前后两次成功的，这里也得比那两次。
+	 */
+	let sent: PrefixSegment[] | undefined;
+	let prefix: AssistantMessage["prefix"] | null = null;
+	const stamp = (message: AssistantMessage): AssistantMessage => {
+		if (prefix === null && sent && config.state) {
+			const previous = config.state.get(PREFIX_KEY) as PrefixSegment[] | undefined;
+			prefix = previous ? comparePrefix(previous, sent) : undefined;
+			if (requestPrompt(message) > 0) config.state.set(PREFIX_KEY, sent);
+		}
+		if (prefix) message.prefix = prefix;
+		return message;
+	};
+	const stream = stamped(streamAssistant(config.provider, config.model, context, {
+		onPayload: config.state ? (body) => { sent = payloadSegments(body); } : undefined,
 		signal,
 		thinking: config.thinking,
 		maxTokens: config.maxTokens,
@@ -865,7 +928,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 			retries += 1;
 			void emit({ type: "retry", attempt: retries, delayMs, reason, failure });
 		},
-	});
+	}), stamp);
 
 	let started = false;
 
@@ -996,6 +1059,22 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 	}
 	} finally {
 		unsubscribe?.();
+	}
+}
+
+/** 会话状态里上一次请求的切段，见 `streamTurn` 里的 `stamp`。 */
+const PREFIX_KEY = "requestPrefix";
+
+/** 收尾的消息（`done`/`error` 事件里的和最后返回的）在交出去之前过一遍 `stamp`。 */
+async function* stamped(
+	stream: ReturnType<typeof streamAssistant>,
+	stamp: (message: AssistantMessage) => AssistantMessage,
+): ReturnType<typeof streamAssistant> {
+	while (true) {
+		const next = await stream.next();
+		if (next.done) return stamp(next.value);
+		if (next.value.type === "done" || next.value.type === "error") stamp(next.value.message);
+		yield next.value;
 	}
 }
 

@@ -74,6 +74,8 @@ export interface McpManagerOptions {
 export class McpManager {
 	private connections = new Map<string, McpConnection>();
 	private failures = new Map<string, string>();
+	/** 已经断开的连接：进程退出、远端断线，或被我们关掉。 */
+	private readonly dead = new WeakSet<McpConnection>();
 	private readonly timeoutMs: number;
 	/**
 	 * Bumped by every `closeAll`, so a connect that was already under way when it ran can tell that
@@ -104,7 +106,17 @@ export class McpManager {
 	}
 
 	private async replaceAll(servers: McpServerConfig[]): Promise<McpServerStatus[]> {
-		await this.closeAll();
+		/*
+		 * 配置没变、连接还活着的原样留下。重载多半是改了一条技能或规则（见 `AgentSession.reloadCapabilities`），
+		 * 跟 MCP 无关；每次都关掉重启，等于让每台服务器为一个 markdown 文件冷启动一遍。改了配置、关过
+		 * 再开、连接已经断了的，照旧重连——这也是想手动重连一台服务器时的办法。
+		 */
+		const kept = new Map<string, McpConnection>();
+		for (const server of servers) {
+			const connection = this.connections.get(server.id);
+			if (server.enabled && connection && !this.dead.has(connection) && JSON.stringify(connection.config) === JSON.stringify(server)) kept.set(server.id, connection);
+		}
+		await this.closeExcept(kept);
 		// A reload that was queued behind the one running when the session was disposed.
 		if (this.disposed) return [];
 		const results = await Promise.all(
@@ -113,7 +125,7 @@ export class McpManager {
 					return { id: server.id, name: server.name, origin: server.origin, state: "disabled", toolCount: 0, tools: [] };
 				}
 				try {
-					const connection = await this.connect(server);
+					const connection = kept.get(server.id) ?? (await this.connect(server));
 					return {
 						id: server.id,
 						name: server.name,
@@ -210,6 +222,8 @@ export class McpManager {
 				await client.close().catch(() => {});
 			},
 		};
+		// 服务器自己退出或断线的，下次重载不复用，见 `replaceAll`。
+		client.onclose = () => this.dead.add(connection);
 		const previous = this.connections.get(server.id);
 		this.connections.set(server.id, connection);
 		this.failures.delete(server.id);
@@ -293,9 +307,13 @@ export class McpManager {
 	}
 
 	async closeAll(): Promise<void> {
+		await this.closeExcept(new Map());
+	}
+
+	private async closeExcept(kept: ReadonlyMap<string, McpConnection>): Promise<void> {
 		this.epoch += 1;
-		const open = [...this.connections.values()];
-		this.connections.clear();
+		const open = [...this.connections.values()].filter((c) => kept.get(c.config.id) !== c);
+		this.connections = new Map(kept);
 		this.failures.clear();
 		await Promise.all(open.map((c) => c.close()));
 	}

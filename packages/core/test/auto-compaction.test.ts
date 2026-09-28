@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { compactStep } from "../src/agent/compact-step.ts";
 import { runAgent, type AgentRunConfig } from "../src/agent/loop.ts";
 import type { AgentEvent, CommandRun } from "../src/agent/events.ts";
-import { compactWith } from "../src/runtime/compaction.ts";
+import { compactionTriggerTokens, compactWith } from "../src/runtime/compaction.ts";
+import { estimateTokens } from "../src/tokens.ts";
 import { completedCompaction } from "../src/runtime/compaction-lifecycle.ts";
 import { SessionLog } from "../src/runtime/session-log.ts";
 import { SessionStore } from "../src/session/store.ts";
@@ -92,13 +93,14 @@ test("below-threshold history has no phantom operation or summary call", async (
 	assert.deepEqual(events, []);
 });
 
-test("a summary that cannot shrink history records failure without moving the boundary", async () => {
+test("a summary too big to fit falls back to dropping the oldest turns instead of leaving history over the window", async () => {
+	// 原样返回 null 的话，下一轮带着同一份超长历史再来一遍、再失败一遍。
 	const events: AgentEvent[] = [];
 	const stream: typeof streamAssistant = async function* () { yield { type: "start", partial: reply("") }; return reply("s".repeat(200000)); };
-	assert.equal(await compactStep(config(stream), history(), model, event => { events.push(event); }), null);
-	assert.ok(events.every(e => e.type === "command_status"));
-	assert.equal(events.at(-1)?.command.status, "failed");
-	assert.equal(events.at(-1)?.command.automatic?.fault?.kind, "no_reduction");
+	const result = await compactStep(config(stream), history(), model, event => { events.push(event); });
+	assert.ok(result, "it still came back with something sendable");
+	assert.equal(result.summary, "", "by dropping, since the summary could not be used");
+	assert.ok(estimateTokens(result.messages) < compactionTriggerTokens(model.contextWindow));
 });
 
 for (const phase of ["summarizing", "retrying", "fallback"] as const) test(`restart during ${phase} retains the old boundary and does not retry`, async () => {

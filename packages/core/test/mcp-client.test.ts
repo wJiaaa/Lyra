@@ -251,6 +251,31 @@ test("overlapping reloads leave one server running, and closing leaves none", as
 	for (const pid of await fx.started()) assert.equal(await stopped(pid), true, `server ${pid} outlived closeAll`);
 });
 
+test("a reload with the same config keeps a live server; a changed, re-enabled or dead one is restarted", async (t) => {
+	// 改一条技能也会重载能力；每次都关掉重启，等于让每台服务器为一个 markdown 文件冷启动一遍。
+	const fx = await fixture(t);
+	const manager = new McpManager();
+	t.after(() => manager.closeAll());
+	await manager.connectAll([fx.server()]);
+	await manager.connectAll([fx.server()]);
+	assert.equal((await fx.started()).length, 1, "same config: the running server is reused");
+
+	await manager.connectAll([fx.server({ CHANGED: "1" })]);
+	assert.equal((await fx.started()).length, 2, "changed config: restarted");
+
+	await manager.connectAll([{ ...fx.server({ CHANGED: "1" }), enabled: false }]);
+	await manager.connectAll([fx.server({ CHANGED: "1" })]);
+	assert.equal((await fx.started()).length, 3, "switched off and on: restarted");
+
+	const pid = (await fx.started()).find(alive)!;
+	process.kill(pid, "SIGKILL");
+	assert.equal(await stopped(pid), true);
+	await delay(50);
+	const [status] = await manager.connectAll([fx.server({ CHANGED: "1" })]);
+	assert.equal(status.state, "connected");
+	assert.equal((await fx.started()).length, 4, "a server that died is started again, not reused");
+});
+
 test("closing while a server is still starting stops it when it answers", async (t) => {
 	const fx = await fixture(t);
 	const manager = new McpManager();

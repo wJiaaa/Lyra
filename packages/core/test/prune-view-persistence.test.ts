@@ -72,3 +72,48 @@ test("the tail kept beside a summary is rebuilt as the cut copy that was sent", 
 	const second = await turn(rebuilt, pruner, 3_000);
 	assert.deepEqual(second.sent.slice(0, sent.length), sent);
 });
+
+test("a result cut by compaction is sent cut again after a restart, not rebuilt from the log's original", async (t) => {
+	const { mkdtemp, mkdir, rm } = await import("node:fs/promises");
+	const { tmpdir } = await import("node:os");
+	const { join } = await import("node:path");
+	const { DEFAULT_SETTINGS } = await import("../src/config/settings.ts");
+	const { AgentSession } = await import("../src/runtime/session.ts");
+	const { SessionStore } = await import("../src/session/store.ts");
+	const root = await mkdtemp(join(tmpdir(), "ly-views-"));
+	await mkdir(join(root, "home"), { recursive: true });
+	process.env.LYRA_HOME = join(root, "home");
+	t.after(async () => {
+		delete process.env.LYRA_HOME;
+		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	});
+	const settings = { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, mcpServers: [], permissionMode: "full" as const };
+	const store = new SessionStore(join(root, "sessions"));
+	let meta = await store.create(root, model.id);
+	// Measured near the window, so the next turn compacts; cutting the one big result is enough on its own.
+	for (const message of [user("look"), reply([{ type: "toolCall", id: "t1", name: "grep", arguments: {} }]), result("t1", "a".repeat(30_000)), reply([{ type: "text", text: "found" }], 17_000)]) {
+		meta = await store.append(meta, { type: "message", message });
+	}
+
+	/** Open the stored session the way the desktop hub does, send one message, return what went out. */
+	const open = async (text: string) => {
+		const loaded = (await store.load(meta.projectId, meta.id))!;
+		let sent: Message[] = [];
+		const session = new AgentSession({
+			cwd: root, settings, store, meta: loaded.meta, emit: () => {},
+			streamFn: async (context: LlmContext) => { sent = [...context.messages]; return reply([{ type: "text", text: "ok" }], 3_000); },
+		});
+		session.restore(loaded.messages, loaded.compaction, loaded.compactions);
+		await session.initialize();
+		await session.prompt([{ type: "text", text }]);
+		session.abort();
+		return sent;
+	};
+
+	const before = await open("next");
+	const cut = before.find((message) => message.role === "toolResult");
+	assert.match(JSON.stringify(cut), /characters omitted/, "precondition: compaction cut the result");
+
+	const after = await open("again");
+	assert.deepEqual(after.find((message) => message.role === "toolResult"), cut, "the restarted session sends what was sent before the restart");
+});

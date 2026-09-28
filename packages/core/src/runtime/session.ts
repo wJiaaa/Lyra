@@ -213,6 +213,8 @@ export class AgentSession {
 	 * 每一次都要把整段前缀重发一遍。
 	 */
 	private deliveries: SettledDispatch[] = [];
+	/** 剪枝器最后一次从日志放回视图时对着的那份历史；见 `preparePruner`。 */
+	private viewsSeededFor: Message[] | null = null;
 	private deliveryTimer: ReturnType<typeof setTimeout> | null = null;
 	/** 正在跑的那一轮对「模型换了」的订阅；见 `liveModel`。 */
 	private readonly modelListeners = new Set<() => void>();
@@ -507,6 +509,7 @@ export class AgentSession {
 		const resolved = resolveModel(this.settings, this.log.meta.modelId || this.settings.defaultModelId);
 		if (!resolved) return { ok: false, reason: "还没有配置模型。" };
 
+		await this.preparePruner();
 		const history = modelHistory(this.log, resolved.provider, resolved.model);
 		if (history.length <= 6) return { ok: false, reason: "对话还太短，没什么可压缩的。" };
 
@@ -565,6 +568,20 @@ export class AgentSession {
 		});
 		adopt();
 		return { ok: true, before: history.length, after: compaction.messages.length };
+	}
+
+	/**
+	 * 会话的剪枝器接上日志：压缩采纳的视图写下来；历史换过一份（载入、撤回、换模型）之后，
+	 * 第一次用它之前把日志里记下的放回去。读不出来就照旧从原文走，不挡这一轮。
+	 */
+	private async preparePruner(): Promise<void> {
+		const pruner = sessionPruner(this.can.state);
+		pruner.onAdopt ??= (views) => this.log.recordViews(views);
+		const history = this.log.messages;
+		if (this.viewsSeededFor === history) return;
+		this.viewsSeededFor = history;
+		const views = await this.log.restoredViews().catch(() => []);
+		for (const { source, view } of views) pruner.remember(source, view);
 	}
 
 	/** Drop the cached symbol index so the next `symbol` lookup re-reads it from disk. */
@@ -929,7 +946,13 @@ export class AgentSession {
 			.filter(({ report, summary }) => summary?.status !== "aborted" && !report.answer?.stoppedByUser);
 		if (reports.length === 0) return;
 		// 手动压缩正在改写历史：等它写完边界再进来，和人发消息一样。
+		const epoch = this.abortEpoch;
 		if (this.compactionTask) await this.compactionTask;
+		/*
+		 * 等的时候人按了停止：这批报告已经从 `deliveries` 里取出来了，`abort` 清的那一下够不着它们。
+		 * 按同一个道理丢掉，不放回去——`abort` 对攒着没送的就是直接清空。
+		 */
+		if (this.abortEpoch !== epoch) return;
 		await this.submit(deliveryMessage(reports), { fromPerson: false });
 	}
 
@@ -994,6 +1017,7 @@ export class AgentSession {
 		this.controller = new AbortController();
 		this.settleController = new AbortController();
 		try {
+			await this.preparePruner();
 			this.activeTurn = driveTurn({
 				cwd: this.cwd,
 				settings: this.settings,
@@ -1197,8 +1221,9 @@ export class AgentSession {
 		if (!(await this.log.truncateFrom(messageIndex))) {
 			throw new Error(`Failed to truncate message at index ${messageIndex}`);
 		}
-		// 与 `revert` 同一个截断，同一个理由，见 `restorePlanFromLog`。
+		// 与 `revert` 同一个截断，同一个理由，见 `restorePlanFromLog` 和 `stopCutDelegations`。
 		this.restorePlanFromLog();
+		this.stopCutDelegations();
 
 		await this.emit({ type: "rewound", messageCount: this.log.messages.length });
 		await this.prompt(content, options);
@@ -1222,7 +1247,26 @@ export class AgentSession {
 			throw new Error(`Failed to truncate message at index ${messageIndex}`);
 		}
 		this.restorePlanFromLog();
+		this.stopCutDelegations();
 		await this.emit({ type: "rewound", messageCount: this.log.messages.length });
+	}
+
+	/**
+	 * 派发那一步被截掉的后台子代理，停下，结果也不再送回来。
+	 *
+	 * 回合在跑时截断先走 `abort`，全部停了；闲着的时候截断从前不碰它们，于是一个在被丢掉的那段
+	 * 历史里派出去的子代理照样跑完、照样把报告送进来、照样开一个回合——主会话去接一件在它的
+	 * 历史里从没发生过的事，还要为此再花一轮。派发还留在历史里的照旧：那份结果仍然有人在等。
+	 */
+	private stopCutDelegations(): void {
+		const dispatched = new Set<string>();
+		for (const message of this.log.messages) {
+			const id = message.role === "toolResult" ? (message.details as { subAgentId?: unknown } | undefined)?.subAgentId : undefined;
+			if (typeof id === "string") dispatched.add(id);
+		}
+		// 已经跑完、正攒着等送的，不在 `delegations` 里了，要另外筛。
+		this.deliveries = this.deliveries.filter((report) => dispatched.has(report.id));
+		for (const id of this.delegations.forgetUnless((id) => dispatched.has(id))) this.subAgents.abort(id);
 	}
 
 	/**

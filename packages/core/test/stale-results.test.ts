@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CACHE_TTL_MS, CHEAP_SUFFIX_CHARS, PRUNE_THRESHOLD_CHARS, pruneToolResults, sizePruneSaving, worthPruning } from "../src/runtime/prune.ts";
+import { PRUNE_THRESHOLD_CHARS, pruneToolResults } from "../src/runtime/prune.ts";
 import { dropStaleResults } from "../src/runtime/stale-results.ts";
 import { AgedToolPruner } from "../src/runtime/aged-prune.ts";
 import { emptyUsage, type Message, type ToolResultMessage } from "../src/types.ts";
@@ -29,10 +29,6 @@ function result(id: string, name: string, text: string, extra: Partial<ToolResul
 /** What `read` puts on a verbatim result: the line span that actually came back. */
 function shown(from: number, to: number, totalLines: number, extra: Record<string, unknown> = {}): Partial<ToolResultMessage> {
 	return { details: { kind: "text", path: "f.ts", tag: "t", totalLines, shownFrom: from, shownTo: to, ...extra } };
-}
-
-function user(text: string): Message {
-	return { role: "user", content: [{ type: "text", text }], timestamp: 0 };
 }
 
 test("a later full read blanks the earlier one of the same file", () => {
@@ -189,54 +185,12 @@ test("relative and absolute paths to the same file collide", () => {
 	assert.match((dropStaleResults(messages)[1].content[0] as { text: string }).text, /superseded/);
 });
 
-test("a warm long suffix blocks a small stale cut; a saving larger than the suffix does not", () => {
-	const small = [
-		assistant("a", "read", { path: "f.ts" }),
-		result("a", "read", "old ".repeat(80)),
-		assistant("b", "read", { path: "f.ts" }),
-		result("b", "read", "new"),
-		user("y".repeat(CHEAP_SUFFIX_CHARS + 1)),
-	];
-	const now = Date.now();
-	assert.equal(dropStaleResults(small, { lastRequestAt: now, now }), small);
-
-	const huge = "x".repeat(CHEAP_SUFFIX_CHARS + 8_000);
-	const net = [
-		assistant("a", "read", { path: "f.ts" }),
-		result("a", "read", huge),
-		assistant("b", "read", { path: "f.ts" }),
-		result("b", "read", "new"),
-		user("y".repeat(CHEAP_SUFFIX_CHARS + 1)),
-	];
-	assert.notEqual(dropStaleResults(net, { lastRequestAt: now, now }), net);
-	const cold = dropStaleResults(small, { lastRequestAt: now - CACHE_TTL_MS - 1, now });
-	assert.match((cold[1].content[0] as { text: string }).text, /superseded|Duplicate/);
-});
-
-test("size-prune saving is zero under the threshold and positive above it", () => {
-	assert.equal(sizePruneSaving(1000), 0);
-	assert.ok(sizePruneSaving(20_000) > 10_000);
-});
-
-test("net-benefit worthPruning lets a large cut through a warm tail the old 32k cap would refuse", () => {
-	const messages = [result("a", "grep", "x".repeat(80_000)), user("y".repeat(CHEAP_SUFFIX_CHARS + 1))];
-	const now = Date.now();
-	assert.equal(worthPruning(messages, 0, { lastRequestAt: now, now }), false);
-	assert.equal(worthPruning(messages, 0, { lastRequestAt: now, now }, 90_000), true);
-});
-
-test("the live pruner blanks a superseded read at the batch or once the cache is cold, not on a warm request", () => {
+test("the send path never blanks a superseded read that has gone out; compaction does", () => {
 	const first = result("a", "read", "snapshot ".repeat(80));
 	const history = [assistant("a", "read", { path: "a.ts" }), first, assistant("b", "read", { path: "a.ts" }), result("b", "read", "now", shown(1, 40, 40))];
-	const next = new AgedToolPruner().prepare(history);
-	assert.notEqual(next, history, "the first request of a pruner is a batch");
-	assert.match(JSON.stringify(next[1]), /superseded/);
+	assert.equal(new AgedToolPruner().prepare(history), history, "what was sent is sent again as it was");
+	assert.match(JSON.stringify(dropStaleResults(history)[1]), /superseded/);
 	assert.equal(first.content[0].type === "text" && first.content[0].text.startsWith("snapshot"), true);
-
-	const pruner = new AgedToolPruner();
-	pruner.prepare([user("开始")]);
-	assert.equal(pruner.prepare(history, { lastRequestAt: 0, now: 1000 }), history, "a warm prefix is not rewritten for a stale read alone");
-	assert.match(JSON.stringify(pruner.prepare(history, { lastRequestAt: 0, now: CACHE_TTL_MS })[1]), /superseded/);
 });
 
 test("a later full read that size-pruning will cut to head and tail does not blank the window read before it", () => {

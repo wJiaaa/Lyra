@@ -7,8 +7,8 @@
  * someone else's text. A router per session cannot have it.
  */
 
-import { isAbsolute, relative, resolve as resolvePath } from "node:path";
-import { realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, resolve as resolvePath } from "node:path";
+import { readlink, realpath } from "node:fs/promises";
 import { ResourceError, type ParsedUrl, type Resource, type ResourceContext, type ResourceHandler } from "./types.ts";
 
 /**
@@ -160,10 +160,25 @@ export function resolveInside(root: string, child: string): string | null {
  * where the root holds files the user did not write.
  */
 export async function stillInside(root: string, resolved: string): Promise<boolean> {
-	const [realRoot, realChild] = await Promise.all([
-		realpath(root).catch(() => root),
-		realpath(resolved).catch(() => resolved),
-	]);
+	// 根也按同一个办法取：临时目录第一次写之前还不存在，而 macOS 的 tmpdir 本身就在软链后面。
+	const [realRoot, realChild] = await Promise.all([realLocation(root), realLocation(resolved)]);
 	const step = relative(realRoot, realChild);
 	return step === "" || (!step.startsWith("..") && !isAbsolute(step));
+}
+
+/**
+ * 一条路径真正落在哪里，包括还不存在的。
+ *
+ * 要写的新文件 `realpath` 取不到，退回字面路径就漏了两种：父目录是指向外面的软链（`out/new.txt`），
+ * 和最后一段本身是悬空软链——`writeFile` 会顺着它在外面新建文件。所以悬空软链跟着它走，真不存在的
+ * 取最近一个存在的父目录的真实位置，再接上剩下的部分。
+ */
+async function realLocation(path: string, hops = 0): Promise<string> {
+	const real = await realpath(path).catch(() => null);
+	if (real !== null) return real;
+	const link = hops < 40 ? await readlink(path).catch(() => null) : null;
+	if (link !== null) return realLocation(resolvePath(dirname(path), link), hops + 1);
+	const parent = dirname(path);
+	if (parent === path) return path;
+	return join(await realLocation(parent, hops), basename(path));
 }

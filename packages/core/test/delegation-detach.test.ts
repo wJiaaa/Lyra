@@ -16,6 +16,8 @@ import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { deliveryMessage } from "../src/runtime/delegation-waits.ts";
+import { AgedToolPruner } from "../src/runtime/aged-prune.ts";
+import { FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../src/runtime/prune.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type AssistantMessage, type LlmContext, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
 
@@ -300,5 +302,66 @@ test("设置里把并发调大，排着的当场开跑——不等一个永远�
 		session.abort();
 		delete process.env.LYRA_HOME;
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
+});
+
+test("后台送达的报告和当场交回的一样，发出前按同一条线剪，只剪超长的那份", () => {
+	// 送达是一条用户消息；只认 toolResult 的剪枝会让十万字的报告原样进父会话，每轮都付一次钱。
+	const huge = `开头${"证据".repeat(60_000)}结尾`;
+	const message = deliveryMessage([
+		{ report: { id: "s:sub:1", answer: { text: huge } }, summary: { agent: "explore", description: "大报告", status: "done" } },
+		{ report: { id: "s:sub:2", answer: { text: "B 的结论" } }, summary: { agent: "review", description: "小报告", status: "done" } },
+	]);
+	const kept: string[] = [];
+	const [view] = new AgedToolPruner().prepare([message], { keep: (_tool, content) => (kept.push(content), "artifact://a1") });
+	const text = textOf(view);
+	assert.ok(text.length <= FRESH_RESULT_MAX_CHARS, `发出去 ${text.length} 字符`);
+	assert.match(text, /B 的结论/, "短的那份原样在");
+	assert.match(text, /artifact:\/\/a1/, "剪掉的原文给了地址");
+	assert.ok(kept[0]?.includes(huge), "存下的是原文");
+	assert.equal(textOf(message).includes(huge), true, "日志里那条不动");
+});
+
+test("压缩剪过的后台报告，下一轮从日志重建时还是剪过的那份", () => {
+	// 记不住的话下一轮回弹成原文，而压缩判断读的是剪过之后的 usage，不会再触发。
+	const message = deliveryMessage([
+		{ report: { id: "s:sub:1", answer: { text: "证据".repeat(15_000) } }, summary: { agent: "explore", description: "报告", status: "done" } },
+	]);
+	const pruner = new AgedToolPruner();
+	const [sent] = pruner.prepare([message]);
+	assert.equal(sent, message, "三万字在首发上限以内，原样发出");
+	const [compacted] = pruneToolResults([sent], 8192);
+	assert.notEqual(compacted, sent, "压缩阶段剪了它");
+	pruner.adopt([sent], [compacted]);
+	assert.equal(textOf(pruner.prepare([message])[0]), textOf(compacted));
+});
+
+test("闲着时撤回到派发之前：后台那个停下，结果不再送回来；派发还在历史里时照旧送", async () => {
+	for (const cutDispatch of [true, false]) {
+		const h = await harness();
+		try {
+			const first = h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
+			await until(() => h.session.subAgents.list()[0]?.status === "running", "子代理开跑");
+			await h.session.prompt([{ type: "text", text: "先告诉我 1+1 等于几" }]);
+			await first;
+			assert.equal(h.session.running, false);
+
+			// 撤回第一句（派发在它后面）或者第二句（派发留在历史里）。
+			const asked = h.session.messages.findIndex((message) => message.role === "user" && textOf(message).includes(cutDispatch ? "派一个" : "1+1"));
+			await h.session.revert(asked);
+			h.finish.resolve();
+			if (cutDispatch) {
+				await until(() => h.session.subAgents.list()[0]?.status !== "running", "子代理停下");
+				await new Promise((resolve) => setTimeout(resolve, 600));
+				assert.equal(h.session.subAgents.list()[0]?.status, "aborted");
+				assert.equal(h.main.length, 2, "没有为被撤掉的派发再开一轮");
+				assert.ok(!h.session.messages.some((message) => message.role === "user" && message.delivery));
+			} else {
+				await until(() => h.main.length === 3 && !h.session.running, "送达之后开新回合");
+				assert.ok(h.session.messages.some((message) => message.role === "user" && message.delivery));
+			}
+		} finally {
+			await h.cleanup();
+		}
 	}
 });

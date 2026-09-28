@@ -20,8 +20,12 @@ import {
 	messagesUpTo,
 	readTrajectory,
 } from "../src/trajectory/index.ts";
-import type { AssistantMessage, Message } from "../src/types.ts";
+import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
+import { measureTotal } from "../src/runtime/context.ts";
+import { SessionLog } from "../src/runtime/session-log.ts";
+import { modelHistory } from "../src/runtime/session-turn.ts";
+import { estimateTokens } from "../src/tokens.ts";
 
 function assistant(content: AssistantMessage["content"]): AssistantMessage {
 	return {
@@ -174,6 +178,68 @@ test("forking copies the history up to a point and leaves the original alone", a
 		// The original still has everything.
 		const original = await messagesUpTo(h.store, h.meta.projectId, h.meta.id, Number.POSITIVE_INFINITY);
 		assert.equal(original.length, 3);
+	} finally {
+		await h.cleanup();
+	}
+});
+
+/** 一段压缩过的会话：25 条原文、边界只保留最后 4 条，边界之后又有一问一答，回复带着压缩后请求的 usage。 */
+async function compacted() {
+	const root = await mkdtemp(join(tmpdir(), "ly-traj-compacted-"));
+	const store = new SessionStore(join(root, "sessions"));
+	const meta = await store.create(root, "fake/model");
+	const log = new SessionLog(store, async () => {}, meta);
+	const say = (text: string): Message => ({ role: "user", content: [{ type: "text", text }], timestamp: Date.now() });
+	await log.commit(say("目标：修复登录"));
+	for (let i = 0; i < 24; i++) await log.commit({ ...assistant([{ type: "text", text: `Details ${i}: ${"implementation ".repeat(180)}` }]), timestamp: Date.now() });
+	await log.emit({ type: "compacted", before: 25, after: 6, summary: "之前修了登录的前半段。", kept: 4 });
+	const beforeBoundary = (await store.load(meta.projectId, meta.id))!.meta.seq - 1;
+	await new Promise((resolve) => setTimeout(resolve, 10));
+	await log.commit(say("继续"));
+	await log.commit({ ...assistant([{ type: "text", text: "好" }]), usage: { ...emptyUsage(), input: 2500 }, timestamp: Date.now() });
+	return { store, meta: log.meta, beforeBoundary, cleanup: () => rm(root, { recursive: true, force: true, maxRetries: 8 }) };
+}
+
+const tight: ModelConfig = { id: "fake/model", providerId: "fake", modelId: "model", name: "Fake", contextWindow: 10_000, maxOutputTokens: 2000, supportsThinking: false, supportsImages: false, supportsTools: true };
+const fake: ProviderConfig = { id: "fake", name: "Fake", api: "openai-responses", apiKey: "k", baseUrl: "http://localhost", enabled: true, models: [tight] };
+const viewText = (messages: Message[]) => messages.flatMap((message) => message.content).map((block) => (block.type === "text" ? block.text : "")).join("\n");
+
+async function restoredView(store: SessionStore, meta: { projectId: string; id: string }) {
+	const loaded = await store.load(meta.projectId, meta.id);
+	assert.ok(loaded);
+	const log = new SessionLog(store, async () => {}, loaded.meta);
+	log.restore(loaded.messages, loaded.compaction);
+	return { loaded, view: modelHistory(log, fake, tight) };
+}
+
+test("a fork past a compaction carries the boundary, so the model sees what the original saw there", async () => {
+	// 只抄消息时分叉的模型视图展开回 27 条原文（估算两万多），计量却还报压缩后那条回复的 2,500。
+	const h = await compacted();
+	try {
+		const fork = await forkSession(h.store, h.meta.projectId, h.meta.id, h.meta.seq);
+		assert.ok(fork);
+		const original = await restoredView(h.store, h.meta);
+		const forked = await restoredView(h.store, fork.meta);
+
+		assert.equal(forked.loaded.messages.length, 27, "the transcript is still copied whole");
+		assert.deepEqual(forked.loaded.compaction && { summary: forked.loaded.compaction.summary, keptFrom: forked.loaded.compaction.keptFrom }, { summary: original.loaded.compaction!.summary, keptFrom: original.loaded.compaction!.keptFrom });
+		assert.deepEqual(forked.loaded.compactions, original.loaded.compactions, "the divider sits where it did");
+		assert.equal(viewText(forked.view), viewText(original.view));
+		const total = measureTotal(forked.view);
+		assert.ok(total.tokens >= estimateTokens(forked.view), `metering ${total.tokens} must not undercount the view it describes`);
+	} finally {
+		await h.cleanup();
+	}
+});
+
+test("a fork from before the compaction was written opens on the full history", async () => {
+	const h = await compacted();
+	try {
+		const fork = await forkSession(h.store, h.meta.projectId, h.meta.id, h.beforeBoundary);
+		assert.ok(fork);
+		const forked = await restoredView(h.store, fork.meta);
+		assert.equal(forked.loaded.compaction, null, "at that point nothing had been summarised yet");
+		assert.equal(forked.view.length, 25);
 	} finally {
 		await h.cleanup();
 	}

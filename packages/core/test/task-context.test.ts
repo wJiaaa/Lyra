@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { compactIfNeeded, summaryMessages } from "../src/runtime/compaction.ts";
 import { formatTaskContext, taskContextFromHistory } from "../src/runtime/task-context.ts";
 import { modelHistory } from "../src/runtime/session-turn.ts";
+import { measureTotal } from "../src/runtime/context.ts";
 import { SessionLog } from "../src/runtime/session-log.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
@@ -118,5 +119,29 @@ test("cold restore rebuilds the same snapshot; rewind drops updates after the re
 		assert.equal(taskContextFromHistory(modelHistory(restored, provider, model)).todos?.[0].status, "completed");
 		restored.restore(loaded.messages, loaded.compaction);
 		assert.equal(taskContextFromHistory(modelHistory(restored, provider, model)).todos?.[0].status, "pending");
+	} finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("a dropped boundary rebuilt from disk keeps the usage measured after it", async () => {
+	// 重建时给头部当前时间，计量会把边界之后的新用量也当成「压缩之前」丢掉，退回字符估算。
+	const root = await mkdtemp(join(tmpdir(), "ly-drop-boundary-"));
+	try {
+		const store = new SessionStore(root);
+		const meta = await store.create(root, model.id);
+		const log = new SessionLog(store, async () => {}, meta);
+		for (const message of [user("目标：修复登录"), ...filler()]) await log.commit(message);
+		await log.emit({ type: "compacted", before: 25, after: 3, summary: "", kept: 2 });
+		const pause = () => new Promise((resolve) => setTimeout(resolve, 10));
+		await pause();
+		await log.commit(user("继续"));
+		await log.commit({ ...reply("好"), usage: { ...emptyUsage(), input: 6000 }, timestamp: Date.now() });
+		await pause();
+
+		const loaded = await store.load(meta.projectId, meta.id);
+		const restored = new SessionLog(store, async () => {}, meta);
+		restored.restore(loaded!.messages, loaded!.compaction);
+		const total = measureTotal(modelHistory(restored, provider, model));
+		assert.equal(total.measured, true, "the reply after the drop is evidence about the present");
+		assert.ok(total.tokens >= 6000);
 	} finally { await rm(root, { recursive: true, force: true }); }
 });

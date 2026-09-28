@@ -32,7 +32,9 @@ import { matchesHookMatcher, sanitizeHookDisplayText } from "../src/hooks/output
 import { createHookRunner, HookRunner } from "../src/hooks/runner.ts";
 import { trustHookDigests } from "../src/hooks/trust.ts";
 import { loadHookRunner, makeAfterToolCall, makeBeforeToolCall, makeOnStop, makePermissionRequest, type TurnHooks } from "../src/runtime/hooks.ts";
-import type { Tool } from "../src/types.ts";
+import { AgentSession } from "../src/runtime/session.ts";
+import { SessionStore } from "../src/session/store.ts";
+import { emptyUsage, type Message, type Tool } from "../src/types.ts";
 
 let root: string;
 const home = process.env.LYRA_HOME;
@@ -234,6 +236,42 @@ test("工具调用：改过的参数真的被用上，allow 预先答掉工具�
 	assert.deepEqual(asked, [], "钩子答了就不弹窗");
 });
 
+test("提权只由人批：钩子的放行答不掉提权，钩子的拒绝照样算", async () => {
+	const asked: string[] = [];
+	const tool: Tool = {
+		name: "bash",
+		snippet: "bash",
+		description: "bash",
+		parameters: { type: "object", properties: {} },
+		execute: async (_args, ctx) => {
+			const confined = await ctx.requestApproval!({ kind: "bash", title: "run", detail: "", subject: "run" });
+			const unconfined = await ctx.requestApproval!({ kind: "bash", title: "escalate", detail: "", subject: "escalate:danger-full-access:rm -rf build", escalation: "danger-full-access" });
+			return { content: [{ type: "text", text: `${confined} ${unconfined}` }] };
+		},
+	};
+	const model = { id: "m", modelId: "m", providerId: "p", name: "m", contextWindow: 1000, maxOutputTokens: 100, supportsThinking: false, supportsImages: false, supportsTools: true };
+	const base: AgentRunConfig = {
+		sessionId: "s", cwd: root, model, systemPrompt: "", messages: [], tools: [tool],
+		provider: { id: "p", name: "p", baseUrl: "http://localhost", api: "openai-responses", apiKey: "", enabled: true, models: [model] },
+		requestApproval: async (request) => { asked.push(request.title); return "reject"; },
+	};
+	const call = { type: "toolCall" as const, id: "c1", name: "bash", arguments: { command: "rm -rf build" } };
+
+	const [preAllowed] = await runTools([call], { ...base, beforeToolCall: async () => ({ approval: "allow" }) }, new Map(), async () => {});
+	assert.match(JSON.stringify(preAllowed.content), /once reject/, "PreToolUse 放行只答掉沙箱里的那次");
+	assert.deepEqual(asked, ["escalate"]);
+
+	asked.length = 0;
+	const [hookAllowed] = await runTools([call], { ...base, permissionRequest: async () => "once" }, new Map(), async () => {});
+	assert.match(JSON.stringify(hookAllowed.content), /once reject/, "PermissionRequest 放行同样答不掉提权");
+	assert.deepEqual(asked, ["escalate"]);
+
+	asked.length = 0;
+	const [hookDenied] = await runTools([call], { ...base, permissionRequest: async () => "reject" }, new Map(), async () => {});
+	assert.match(JSON.stringify(hookDenied.content), /reject reject/);
+	assert.deepEqual(asked, [], "钩子拒绝提权不必再问人");
+});
+
 test("Stop 钩子要求接着干时给出原因，连续三次封顶", async () => {
 	const onStop = makeOnStop(scope(config("Stop", [node("process.stderr.write('测试还没跑');process.exit(2)")])))!;
 	const results = [];
@@ -255,4 +293,42 @@ test("后台钩子不挡路，结局照样记下来", async () => {
 
 test("显示出来的命令盖掉口令", () => {
 	assert.equal(sanitizeHookDisplayText("curl -H 'Authorization: Bearer abc123' https://u:p@host/x?token=zzz"), "curl -H 'Authorization: Bearer ••••' https://••••:••••@host/x?token=••••");
+});
+
+test("UserPromptSubmit 查的是人刚发的那句，不是同一轮先注入的 SessionStart 上下文", async () => {
+	const cwd = join(root, "prompt-submit");
+	await mkdir(cwd, { recursive: true });
+	const model = { id: "p/m", modelId: "m", providerId: "p", name: "m", contextWindow: 100_000, maxOutputTokens: 1000, supportsThinking: false, supportsImages: false, supportsTools: true };
+	const provider = { id: "p", name: "p", baseUrl: "http://localhost", api: "openai-responses" as const, apiKey: "x", enabled: true, models: [model] };
+	const hooks: HooksConfig = { events: {
+		SessionStart: [{ hooks: [node("console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'SessionStart',additionalContext:'START_CONTEXT'}}))")] }],
+		UserPromptSubmit: [{ hooks: [node(`${READ_STDIN}if(String(input.prompt).includes('BLOCK_ME')){process.stderr.write('不许发');process.exit(2)}});`)] }],
+	} };
+	const requests: Message[][] = [];
+	const session = new AgentSession({
+		cwd,
+		settings: { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, mcpServers: [], hooks },
+		store: new SessionStore(join(cwd, "sessions")),
+		emit: () => {},
+		streamFn: async (context) => {
+			// 只记主会话的回合（带工具的那种）；起标题之类的旁路请求不算。
+			if (context.tools.length > 0) requests.push([...context.messages]);
+			return { role: "assistant", content: [{ type: "text", text: "ok" }], api: "openai-responses", provider: "p", model: "m", usage: emptyUsage(), stopReason: "stop", timestamp: Date.now() };
+		},
+	});
+	const said = (text: string) => (messages: readonly Message[]) => messages.some((message) => message.role === "user" && JSON.stringify(message.content).includes(text));
+	try {
+		await session.initialize();
+		await session.prompt([{ type: "text", text: "请把 BLOCK_ME 发出去" }]);
+		assert.ok(!requests.some(said("BLOCK_ME")), "被拦下的那句不该进任何模型请求");
+		assert.ok(!said("BLOCK_ME")(session.messages), "也不该留在历史里");
+
+		// 拦下的是开场那句：SessionStart 的上下文跟着一起撤了，下一轮要重新补上，而不是就此丢掉。
+		await session.prompt([{ type: "text", text: "正常的一句" }]);
+		const last = requests.at(-1)!;
+		assert.ok(said("正常的一句")(last));
+		assert.ok(said("START_CONTEXT")(last), "SessionStart 的上下文还在");
+	} finally {
+		await session.dispose();
+	}
 });

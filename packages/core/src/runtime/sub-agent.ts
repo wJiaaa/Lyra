@@ -162,7 +162,7 @@ export interface SubAgentOptions {
 	 */
 	gate?: DispatchGate;
 	/**
-	 * 怎么拿到一个名额：顶层用 `gate.acquire`，派生里的派生用 `gate.acquireNested`（先让出自己的）。
+	 * 怎么拿到一个名额：顶层用 `gate.acquire`，派生里的派生用 `gate.children()`（先让出自己的）。
 	 *
 	 * 在 `runSubAgent` 里面等，而不是像从前那样由调用方把整个调用包进 `gate.run`：它要先登记、在
 	 * 名单上说出自己在排队，然后才等。包在外面的话，排着的那几个在名单上一个字都没有——一次派四个、
@@ -525,6 +525,8 @@ export async function runSubAgent(
 	 * 之前的地方接着干，「这是最后一轮、只剩 yield」那句话不该出现在它往后的历史里。
 	 */
 	let view: Message[] = history;
+	/** 它派的孩子共用一个入场口：它的名额只让一次，见 `DispatchGate.children`。 */
+	const childAdmission = options.gate?.children();
 	/** Whether the extra round got a delivery out of it, which changes what the answer says. */
 	let salvaged = false;
 	const checkpoint = definition.maxTurns ?? SUB_AGENT_CHECKPOINT_TURNS;
@@ -625,7 +627,7 @@ export async function runSubAgent(
 									dispatch: here,
 									gate,
 									signal: controller.signal,
-									admission: (signal) => gate.acquireNested(signal),
+									admission: (childAdmission ?? gate.children()).acquire,
 									onRegistered: undefined,
 								},
 								nested,

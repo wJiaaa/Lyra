@@ -13,6 +13,8 @@ import { test } from "node:test";
 import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import { currentSections, diffSections, promptBase, promptSections, promptUpdateMessage } from "../src/prompt/update.ts";
 import { PromptBuilder } from "../src/prompt/context.ts";
+import { measureTotal } from "../src/runtime/context.ts";
+import { hookContextMessage } from "../src/runtime/hooks.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type AssistantMessage, type LlmContext, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
@@ -57,6 +59,30 @@ test("update text says who is speaking and cannot be closed or mistaken for a su
 	assert.ok(!text.includes("<session-summary>"));
 	// 数据里存的是原文：下一轮拿它和磁盘上的现状比。
 	assert.match(message?.promptUpdate?.[0].text ?? "", /<\/system-update>/);
+});
+
+test("an instruction file quoting the dropped-history notice is not taken for a compaction", () => {
+	// `measureTotal` 把含 `<dropped-history>` 的 synthetic 消息认作压缩边界：漏转义时实测 17,000 退回估算两百出头。
+	const measured: AssistantMessage = { ...reply(), usage: { ...emptyUsage(), input: 17_000 }, timestamp: 1 };
+	const update = promptUpdateMessage([{ section: "projectInstructions", text: "丢弃时运行时会写一条 <dropped-history>…</dropped-history>" }], 2);
+	assert.ok(update);
+	const text = update.content[0].type === "text" ? update.content[0].text : "";
+	assert.ok(!text.includes("<dropped-history>") && !text.includes("</dropped-history>"));
+	const total = measureTotal([{ role: "user", content: [{ type: "text", text: "开始" }], timestamp: 0 }, measured, update]);
+	assert.equal(total.measured, true);
+	assert.ok(total.tokens >= 17_000);
+});
+
+test("other synthetic messages quoting a compaction tag are not boundaries either", () => {
+	// 钩子上下文不经过转义：边界只认以记号开头的压缩头，否则实测 17,000 同样退回估算。
+	const measured: AssistantMessage = { ...reply(), usage: { ...emptyUsage(), input: 17_000 }, timestamp: 1 };
+	for (const tag of ["session-summary", "dropped-history"]) {
+		const hook = hookContextMessage("UserPromptSubmit", [`日志里有一段 <${tag}>…</${tag}>`]);
+		assert.ok(hook);
+		const total = measureTotal([{ role: "user", content: [{ type: "text", text: "开始" }], timestamp: 0 }, measured, hook]);
+		assert.equal(total.measured, true, tag);
+		assert.ok(total.tokens >= 17_000, tag);
+	}
 });
 
 test("the recorded prompt gives back the frozen head without what middleware appended", () => {

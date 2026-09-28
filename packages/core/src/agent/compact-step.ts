@@ -2,18 +2,25 @@ import { randomUUID } from "node:crypto";
 import type { Compaction } from "../runtime/compaction.ts";
 import type { CompactionObserver } from "../types/compaction.ts";
 import type { AgentEventSink, CommandRun } from "./events.ts";
-import type { Message, ModelConfig } from "../types.ts";
+import type { Message, ModelConfig, ProviderConfig } from "../types.ts";
 import { completedCompaction, interruptedCompaction } from "../runtime/compaction-lifecycle.ts";
 import type { AgedToolPruner } from "../runtime/aged-prune.ts";
 
 /**
  * `force`：不看 80% 线，现在就压——模型已经以「上下文超长」拒收了这次请求（`loop.ts` 的超长恢复）。
  * 实现方原样交给 `compactWith` 的同名字段。
+ *
+ * `provider`：`model` 所属的那个供应商。一轮中途换了模型时它跟着换，实现方不能用开轮时捕获的那个，
+ * 否则摘要请求会发到旧供应商的端点、带着新供应商的模型 ID。
  */
-export type CompactHistory = (messages: Message[], model: ModelConfig, observer?: CompactionObserver, options?: { force?: boolean }) => Promise<Compaction | null>;
+export interface CompactOptions {
+	force?: boolean;
+	provider?: ProviderConfig;
+}
+export type CompactHistory = (messages: Message[], model: ModelConfig, observer?: CompactionObserver, options?: CompactOptions) => Promise<Compaction | null>;
 
 /** The completed operation and its new model view share one durable record. */
-export async function compactStep(config: { compact?: CompactHistory; signal?: AbortSignal; pruner?: Pick<AgedToolPruner, "adopt"> }, messages: Message[], model: ModelConfig, emit: AgentEventSink, options?: { force?: boolean }) {
+export async function compactStep(config: { compact?: CompactHistory; signal?: AbortSignal; pruner?: Pick<AgedToolPruner, "adopt"> }, messages: Message[], model: ModelConfig, emit: AgentEventSink, options?: CompactOptions) {
 	if (!config.compact) return null;
 	let command: CommandRun | undefined;
 	const report = async (next: CommandRun) => {

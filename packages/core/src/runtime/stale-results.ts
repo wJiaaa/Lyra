@@ -6,10 +6,10 @@
  * later result is the current observation; the earlier one is a snapshot the model will not
  * need unless it asks (`recall`).
  *
- * oh-my-pi (`pruneSupersededToolResults`) and pi-dcp do the same two cuts, and both still go
- * through a prompt-cache gate — rewriting a warm prefix to save a few hundred characters is
- * how their #3406 happened. We reuse `worthPruning`, including the net-benefit path: a large
- * superseded read under a shorter tail is worth the one-time rewrite.
+ * oh-my-pi (`pruneSupersededToolResults`) and pi-dcp do the same two cuts mid-conversation behind
+ * a prompt-cache gate — rewriting a warm prefix to save a few hundred characters is how their
+ * #3406 happened. Here it runs only inside compaction, which rewrites the prefix anyway; the send
+ * path never edits what has already gone out (see `AgedToolPruner`).
  *
  * Emptied in place, never removed. An unpaired `tool_use` poisons every later request.
  */
@@ -17,17 +17,16 @@
 import type { Message, ToolResultMessage } from "../types.ts";
 import { isRepeatNotice } from "../agent/repetition.ts";
 import { MAX_LINE_CHARS } from "../tools/long-line.ts";
-import { firstAffordableCut, PRUNE_FLOOR_CHARS, PRUNE_THRESHOLD_CHARS, sourceOf, type PruneTiming } from "./prune.ts";
+import { PRUNE_FLOOR_CHARS, PRUNE_THRESHOLD_CHARS, sourceOf } from "./prune.ts";
 
 const PROTECTED = new Set(["skill"]);
 
-export interface StaleCut {
+interface StaleCut {
 	index: number;
-	saving: number;
 	notice: string;
 }
 
-export function staleCuts(messages: Message[]): StaleCut[] {
+function staleCuts(messages: Message[]): StaleCut[] {
 	const calls = callsById(messages);
 	const latestReads = new Map<string, Window[]>();
 	const mutated = new Set<string>();
@@ -67,8 +66,7 @@ export function staleCuts(messages: Message[]): StaleCut[] {
 		if (duplicate || superseded) {
 			const notice = superseded ? supersededNotice(path) : duplicateNotice(call.name);
 			const size = textChars(message);
-			const saving = size - notice.length;
-			if (size > Math.max(PRUNE_FLOOR_CHARS, notice.length) && saving > 0) cuts.push({ index, saving, notice });
+			if (size > Math.max(PRUNE_FLOOR_CHARS, notice.length)) cuts.push({ index, notice });
 		}
 
 		// A failed or cancelled read observed nothing, so it cannot stand in for an earlier one.
@@ -84,14 +82,11 @@ export function staleCuts(messages: Message[]): StaleCut[] {
 	return cuts;
 }
 
-export function dropStaleResults(messages: Message[], timing: PruneTiming = {}): Message[] {
-	const cuts = staleCuts(messages);
-	const from = firstAffordableCut(messages, cuts, timing);
-	if (from === undefined) return messages;
-	return applyStaleCuts(messages, cuts.filter((cut) => cut.index >= from));
+export function dropStaleResults(messages: Message[]): Message[] {
+	return applyStaleCuts(messages, staleCuts(messages));
 }
 
-export function applyStaleCuts(messages: Message[], cuts: readonly StaleCut[]): Message[] {
+function applyStaleCuts(messages: Message[], cuts: readonly StaleCut[]): Message[] {
 	if (cuts.length === 0) return messages;
 	const byIndex = new Map(cuts.map((cut) => [cut.index, cut.notice]));
 	return messages.map((message, index) => {

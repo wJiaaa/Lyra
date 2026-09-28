@@ -8,11 +8,13 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { runAgent } from "../src/agent/loop.ts";
 import { readAllowedTools } from "../src/skills/allowed-tools.ts";
 import { ACTIVE_SKILL_KEY, clearActiveSkill, skillRefusal, skillTool, SKILLS_KEY, syncSkillContext } from "../src/skills/tool.ts";
 import type { Skill } from "../src/skills/loader.ts";
 import { builtinToolGroups } from "../src/tools/groups.ts";
-import type { ToolContext } from "../src/types.ts";
+import type { AssistantMessage, Message, ModelConfig, ProviderConfig, Tool, ToolContext } from "../src/types.ts";
+import { emptyUsage } from "../src/types.ts";
 
 function skill(name: string, allowedTools?: string[]): Skill {
 	return {
@@ -162,4 +164,100 @@ test("every built-in tool can be named the way Claude Code writes names", () => 
 			.join("");
 		assert.deepEqual(readAllowedTools(pascal), { tools: [tool.name], problems: [] }, pascal);
 	}
+});
+
+/*
+ * The loop is where "the person said something new" is decided, so the lifetime of a restriction
+ * is checked end to end: `runAgent` with the real `skill` tool and a `bash` that counts its runs.
+ * Only the interjection drained at the top of a turn used to clear it — a new prompt starting the
+ * next run and a message carried over from a finished reply both left the old skill refusing work
+ * the person had just asked for.
+ */
+const LOOP_MODEL: ModelConfig = { id: "fake/model", providerId: "fake", modelId: "model", name: "Fake", contextWindow: 100_000, maxOutputTokens: 4096, supportsThinking: false, supportsImages: false, supportsTools: true };
+const LOOP_PROVIDER: ProviderConfig = { id: "fake", name: "Fake", baseUrl: "http://l", api: "openai-responses", apiKey: "x", enabled: true, models: [LOOP_MODEL] };
+
+function said(content: AssistantMessage["content"], stopReason: AssistantMessage["stopReason"] = "toolUse"): AssistantMessage {
+	return { role: "assistant", api: "openai-responses", provider: "fake", model: "model", usage: emptyUsage(), stopReason, timestamp: Date.now(), content };
+}
+const loadSkill = (id: string) => said([{ type: "toolCall", id, name: "skill", arguments: { name: "readonly" }, argumentsText: "{}" }]);
+const runBash = (id: string) => said([{ type: "toolCall", id, name: "bash", arguments: { command: "ls" }, argumentsText: "{}" }]);
+const answer = (text: string) => said([{ type: "text", text }], "stop");
+const person = (text: string): Message => ({ role: "user", content: [{ type: "text", text }], timestamp: Date.now() });
+
+function loopFixture() {
+	const counts = { bash: 0 };
+	const bash = {
+		name: "bash",
+		description: "bash",
+		parameters: { type: "object", properties: {} },
+		execute: async () => {
+			counts.bash += 1;
+			return { content: [{ type: "text", text: "ok" }] };
+		},
+	} as unknown as Tool;
+	const state = new Map<string, unknown>([[SKILLS_KEY, [skill("readonly", ["read"])]]]);
+	const run = async (messages: Message[], script: AssistantMessage[], options: { steering?: Message[]; duringTurn?: number } = {}) => {
+		let at = 0;
+		const queue: Message[] = [];
+		const result = await runAgent(
+			{
+				sessionId: "skill-lifetime",
+				cwd: "/tmp",
+				provider: LOOP_PROVIDER,
+				model: LOOP_MODEL,
+				systemPrompt: "x",
+				tools: [skillTool, bash] as unknown as Tool[],
+				messages,
+				maxTurns: 8,
+				state,
+				drainSteering: () => queue.splice(0, queue.length),
+				streamFn: async () => {
+					at += 1;
+					if (at === options.duringTurn) queue.push(...(options.steering ?? []));
+					return script[Math.min(at - 1, script.length - 1)];
+				},
+			},
+			async () => {},
+		);
+		return [...messages, ...result.messages];
+	};
+	return { counts, state, run };
+}
+
+test("within one request the skill's restriction holds", async () => {
+	const { counts, run } = loopFixture();
+	await run([person("summarize the docs")], [loadSkill("s1"), runBash("b1"), answer("done")]);
+	assert.equal(counts.bash, 0, "no new instruction arrived, so the skill still speaks for the work");
+});
+
+test("a new prompt starting the next run ends the previous skill's restriction", async () => {
+	const { counts, run } = loopFixture();
+	const history = await run([person("summarize the docs")], [loadSkill("s1"), answer("done")]);
+	await run([...history, person("now run ls with bash")], [runBash("b1"), answer("listed")]);
+	assert.equal(counts.bash, 1, "the person asked for bash in a new request");
+});
+
+test("a run resumed without anything new from the person keeps the restriction", async () => {
+	/*
+	 * Trailing runtime messages are not an instruction: a run that picks up after a tool result, or
+	 * after a synthetic nudge, is still doing the work the skill was loaded for.
+	 */
+	const { counts, run } = loopFixture();
+	const history = await run([person("summarize the docs")], [loadSkill("s1"), answer("done")]);
+	const nudge: Message = { ...person("（自动继续）"), synthetic: true };
+	await run([...history, nudge], [runBash("b1"), answer("still here")]);
+	assert.equal(counts.bash, 0);
+});
+
+test("a message carried over from a finished reply ends the restriction", async () => {
+	/*
+	 * Queued while the model was writing a reply with no tool calls, it is drained at the bottom of
+	 * that turn and injected at the top of the next — a path the interjection check never saw.
+	 */
+	const { counts, run } = loopFixture();
+	await run([person("summarize the docs")], [loadSkill("s1"), answer("done"), runBash("b1"), answer("listed")], {
+		steering: [person("now run ls with bash")],
+		duringTurn: 2,
+	});
+	assert.equal(counts.bash, 1);
 });

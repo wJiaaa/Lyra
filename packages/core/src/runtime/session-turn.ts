@@ -176,15 +176,26 @@ async function runPromptHooks(input: TurnInputs, hooks: TurnHooks): Promise<bool
 	const { can, log } = input;
 	const inject = (message: Message | null) => injectMessage(input, message);
 
+	/*
+	 * 这一轮要查的那句，在注入任何东西之前定位。
+	 *
+	 * SessionStart 的上下文也是一条 user 消息，注入之后再往回找，找到的就是它——钩子查了启动上下文，
+	 * 人发的那句原样进了模型请求。也不能按 `synthetic` 跳过：「继续」和后台送达本身就是 synthetic，
+	 * 这一轮就是它们开的，跳过去会查到更早的一句人话，拦下时还会从那里把整段历史截掉。
+	 */
+	let index = log.messages.length - 1;
+	while (index >= 0 && log.messages[index].role !== "user") index--;
+
+	let startedNow = false;
 	if (!can.state.get(SESSION_START_KEY)) {
 		can.state.set(SESSION_START_KEY, true);
 		const resumed = log.messages.some((message) => message.role === "assistant");
 		const started = await runSessionStartHooks(hooks, resumed ? "resume" : "startup", `${input.provider.name}/${input.model.id}`);
-		await inject(hookContextMessage("SessionStart", started.additionalContexts));
+		const context = hookContextMessage("SessionStart", started.additionalContexts);
+		await inject(context);
+		startedNow = context !== null;
 	}
 
-	let index = log.messages.length - 1;
-	while (index >= 0 && log.messages[index].role !== "user") index--;
 	const prompt = index >= 0 ? log.messages[index] : null;
 	if (!prompt || prompt.role !== "user") return true;
 	const text = prompt.displayText || prompt.content.map((part) => (part.type === "text" ? part.text : "")).join("");
@@ -192,6 +203,8 @@ async function runPromptHooks(input: TurnInputs, hooks: TurnHooks): Promise<bool
 	const submitted = await runUserPromptSubmitHooks(hooks, text, attachments);
 	if (submitted.preventContinuation) {
 		if (await log.truncateFrom(index)) await input.emit({ type: "rewound", messageCount: log.messages.length });
+		// 刚注入的 SessionStart 上下文排在这句后面，跟着一起截掉了；不重置，这个会话就再也拿不到它。
+		if (startedNow) can.state.delete(SESSION_START_KEY);
 		await input.emit({ type: "notice", level: "warn", message: `UserPromptSubmit 钩子拦下了这条消息：${submitted.stopReason ?? "未说明原因"}` });
 		await input.emit({ type: "agent_end", reason: "done" });
 		return false;
@@ -256,13 +269,14 @@ export function modelHistory(log: SessionLog, provider: ProviderConfig, model: M
 
 	const older = log.messages.slice(0, boundary.keptFrom);
 	const tail = log.messages.slice(boundary.keptFrom);
+	// 头部带固定的边界时间：计量据此只丢边界之前的用量（`measureTotal`），重建时取当前时间会把之后的新用量也丢掉。
+	const at = boundary.at ?? Math.max(0, ...tail.map((message) => message.timestamp));
 	if (!boundary.summary) {
 		const standing = lastRequest(older) ?? lastRequest(log.messages);
-		return [droppedMessage(standing, taskContextFromHistory(older)), ...tail];
+		return [{ ...droppedMessage(standing, taskContextFromHistory(older), model), timestamp: at }, ...tail];
 	}
 
 	const head = summaryMessages(boundary.summary, lastRequest(older), provider, model, filesSeen(older), taskContextFromHistory(older));
-	const at = boundary.at ?? Math.max(0, ...tail.map((message) => message.timestamp));
 	return [...head.map((message) => ({ ...message, timestamp: at })), ...tail];
 }
 

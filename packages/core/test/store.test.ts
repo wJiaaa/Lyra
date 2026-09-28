@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { appendFile, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -17,6 +17,10 @@ function toolResult(id: string): Message {
 		isError: false,
 		timestamp: Date.now(),
 	};
+}
+
+function assistant(): AssistantMessage {
+	return { role: "assistant", content: [{ type: "text", text: "ok" }], api: "openai-responses", provider: "p", model: "m", stopReason: "stop", usage: emptyUsage(), timestamp: 1 };
 }
 
 test("concurrent appends get distinct, gapless sequence numbers", async (t) => {
@@ -75,6 +79,54 @@ test("reopening a session continues numbering instead of restarting", async (t) 
 	assert.ok(loaded);
 	const next = await second.append(loaded.meta, { type: "message", message: toolResult("b") });
 	assert.equal(next.seq, 3);
+});
+
+test("the first record after a crash that cut the last line short is not lost with it", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "ly-store-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	const first = new SessionStore(root);
+	const meta = await first.create("/tmp/project", "model");
+	await first.append(meta, { type: "message", message: toolResult("a") });
+	const file = (await readdir(join(root, meta.projectId))).find((name) => name.startsWith(meta.id));
+	assert.ok(file);
+	// 进程在写一条记录的中途被杀：末行没有写完，也没有换行。
+	await appendFile(join(root, meta.projectId, file), '{"seq":3,"ts":1,"type":"mess');
+
+	const second = new SessionStore(root);
+	const loaded = await second.load(meta.projectId, meta.id);
+	assert.ok(loaded);
+	await second.append(loaded.meta, { type: "truncate", afterSeq: 1 });
+	await second.append(loaded.meta, { type: "message", message: toolResult("b") });
+	const types: string[] = [];
+	for await (const record of new SessionStore(root).read(meta.projectId, meta.id)) types.push(record.type);
+	assert.deepEqual(types.slice(-2), ["truncate", "message"], "崩溃后写的第一条（这里是一次撤回）没有和半截行拼在一起丢掉");
+});
+
+test("a rewind to exactly the compaction boundary keeps it, running and after a restart alike", async (t) => {
+	const { SessionLog } = await import("../src/runtime/session-log.ts");
+	const root = await mkdtemp(join(tmpdir(), "ly-store-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	const store = new SessionStore(root);
+	const log = new SessionLog(store, () => {}, await store.create("/tmp/project", "model"));
+	const user = (text: string): Message => ({ role: "user", content: [{ type: "text", text }], timestamp: 1 });
+	const call = (id: string): AssistantMessage => ({ ...assistant(), stopReason: "toolUse", content: [{ type: "toolCall", id, name: "bash", arguments: {}, argumentsText: "{}" }] });
+	for (const message of [user("0"), assistant(), user("2"), call("c"), toolResult("c"), assistant(), user("6"), assistant()]) await log.commit(message);
+	await log.emit({ type: "compacted", before: 8, after: 3, kept: 2, summary: "S" });
+	assert.equal(log.compaction?.keptFrom, 6);
+
+	// 编辑保留尾部的第一条：截在边界上，摘要覆盖的消息都还在。
+	await log.truncateFrom(6);
+	const reloaded = await new SessionStore(root).load(log.meta.projectId, log.meta.id);
+	assert.equal(log.compaction?.keptFrom, 6, "运行中保留边界");
+	assert.equal(reloaded?.compaction?.keptFrom, 6, "重启后也保留");
+
+	// 截点落在工具结果上会被挪到调用之前：两边都按挪过的位置判断，越过了边界就都废弃。
+	await log.emit({ type: "compacted", before: 6, after: 3, kept: 1, summary: "S2" });
+	assert.equal(log.compaction?.keptFrom, 5);
+	await log.truncateFrom(4);
+	assert.equal(log.messages.length, 3);
+	assert.equal(log.compaction, null);
+	assert.equal((await new SessionStore(root).load(log.meta.projectId, log.meta.id))?.compaction ?? null, null);
 });
 
 test("subagent assistant usage survives session reload and rebuildIndex", async (t) => {

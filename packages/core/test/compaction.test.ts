@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { compactIfNeeded, compactionTriggerTokens, COMPACTION_BUFFER_TOKENS, COMPACTION_RATIO, summaryMessages } from "../src/runtime/compaction.ts";
 import { PRUNE_THRESHOLD_CHARS, pruneText, pruneToolResults } from "../src/runtime/prune.ts";
+import { measureTotal } from "../src/runtime/context.ts";
 import { estimateTokens } from "../src/tokens.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
@@ -196,6 +197,60 @@ test("a summary that never arrives falls back to deterministic summary or drop w
 	const head = result[0].content.map((b) => (b.type === "text" ? b.text : "")).join("");
 	assert.ok(head.includes("帮我排查程序坞图标消失原因并修复"), "and preserves user intent and standing request");
 	assert.notEqual(result[1]?.role, "toolResult", "the survivors start on a whole unit");
+});
+
+test("a fallback summary too big to fit falls through to dropping, not to an unsendable success", async () => {
+	// 兜底摘要逐条带着历史请求；请求一多，摘要自己就超过了压缩要落到的那条线。
+	const messages: Message[] = [];
+	for (let i = 0; i < 40; i++) messages.push(user(`request ${i} ${"details ".repeat(150)}`), reply(`done ${i}`));
+	const empty = async function* () {
+		yield { type: "start" as const, partial: reply("") };
+		return reply("   ");
+	};
+
+	const result = await compact(messages, MODEL, PROVIDER, empty as never);
+	assert.ok(result, "it still came back with something");
+	const line = compactionTriggerTokens(MODEL.contextWindow);
+	assert.ok(estimateTokens(result) < line, `compacted to ${estimateTokens(result)}, still over the ${line} that triggers compaction`);
+});
+
+test("dropping budgets the notice it prepends, and the old usage stops counting", async () => {
+	// 中文下，前面那条说明带着最新请求的摘录就有两千多 token；只给尾部算预算，结果会超出窗口。
+	const messages: Message[] = [];
+	for (let i = 0; i < 30; i++) messages.push(user(`第 ${i} 个请求 ${"需求细节说明".repeat(400)}`), reply(`好的 ${i}`));
+	const last = messages[messages.length - 1] as AssistantMessage;
+	last.usage = { ...emptyUsage(), input: 40_000 };
+	const empty = async function* () {
+		yield { type: "start" as const, partial: reply("") };
+		return reply("   ");
+	};
+
+	const result = await compact(messages, MODEL, PROVIDER, empty as never);
+	assert.ok(result, "it still came back with something");
+	const target = MODEL.contextWindow * 0.3;
+	assert.ok(estimateTokens(result) <= target, `${estimateTokens(result)} tokens, over the ${target} dropping aims for`);
+	assert.equal(measureTotal(result).measured, false, "the 40k measured before the drop no longer describes the conversation");
+});
+
+test("dropping under measured CJK usage and a fixed overhead still hands back something that fits, or nothing", async () => {
+	// 中文约一字一 token，实测把估算放大三倍多；尾部删到一条之后，头部的原话摘录仍会把结果顶出窗口。
+	const messages: Message[] = [];
+	for (let i = 0; i < 30; i++) messages.push(user(`第 ${i} 个请求 ${"需求细节说明".repeat(400)}`), reply(`好的 ${i}`));
+	const last = messages[messages.length - 1] as AssistantMessage;
+	last.usage = { ...emptyUsage(), input: 72_000 };
+	const empty = async function* () {
+		yield { type: "start" as const, partial: reply("") };
+		return reply("   ");
+	};
+	const overhead = 1000;
+	const scale = (72_000 - overhead) / estimateTokens(messages);
+
+	const result = await compactIfNeeded(messages, MODEL, PROVIDER, empty as never, overhead);
+	if (result) {
+		const sent = estimateTokens(result.messages) * scale + overhead;
+		assert.ok(sent < compactionTriggerTokens(MODEL.contextWindow), `hands back ${Math.round(sent)} tokens against a ${MODEL.contextWindow} window`);
+	}
+	assert.ok(result, "a head held to the window leaves room for the latest turn");
 });
 
 /*

@@ -132,7 +132,16 @@ export const pluginResource: ResourceHandler = {
 			 * 答案在前者；只有前者不存在时，后者的 description 字段才是唯一能说的话。
 			 */
 			for (const name of ["README.md", "readme.md", "README.markdown"]) {
-				const text = await readFile(resolveInside(plugin.dir, name) ?? "", "utf8").catch(() => null);
+				const file = resolveInside(plugin.dir, name);
+				if (!file) continue;
+				/*
+				 * 和显式的 `plugin://<id>/README.md` 同一道检查，而且先查后读：插件目录里一条指向外面的软链
+				 * 不能从这里绕过去；先读的话，指向外面的命名管道会让读取一直挂着，根本走不到检查。
+				 */
+				if (!(await stillInside(plugin.dir, file))) {
+					throw new ResourceError(`插件“${plugin.id}”的 ${name} 经过软链后指到了插件目录外面。`);
+				}
+				const text = await readFile(file, "utf8").catch(() => null);
 				if (text !== null) {
 					return {
 						url: url.raw,

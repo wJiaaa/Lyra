@@ -158,8 +158,13 @@ export interface ArtifactSink {
 	keep(tool: string, content: string): string;
 }
 
+/** 后台子代理的送达消息装的也是工具结果（`task` 的回答），和当场交回的按同一条线剪。 */
+export function carriesResults(message: Message): boolean {
+	return message.role === "toolResult" || (message.role === "user" && message.delivery !== undefined);
+}
+
 function pruneMessage(message: Message, threshold: number, artifacts?: ArtifactSink): Message {
-	if (message.role !== "toolResult") return message;
+	if (!carriesResults(message)) return message;
 
 	/*
 	 * Measured over the text blocks together, and cut back inside that same total.
@@ -172,7 +177,7 @@ function pruneMessage(message: Message, threshold: number, artifacts?: ArtifactS
 	const texts = message.content.flatMap((block, index) => (block.type === "text" ? [{ index, points: [...block.text] }] : []));
 	const total = texts.reduce((sum, block) => sum + block.points.length, 0);
 	if (total <= threshold) return message;
-	const tool = message.toolName ?? "工具";
+	const tool = message.role === "toolResult" ? (message.toolName ?? "工具") : "task";
 	const level = allowance(texts.map((block) => block.points.length), threshold);
 	const content = [...message.content];
 
@@ -189,7 +194,7 @@ function pruneMessage(message: Message, threshold: number, artifacts?: ArtifactS
 		if (cut === null) return message;
 		content[texts[0].index] = { type: "text", text: cut };
 		const dropped = new Set(texts.slice(1).map((block) => block.index));
-		return derive(message, { ...message, content: content.filter((_, index) => !dropped.has(index)) } as ToolResultMessage);
+		return derive(message, { ...message, content: content.filter((_, index) => !dropped.has(index)) } as Message);
 	}
 
 	let cut = false;
@@ -206,10 +211,10 @@ function pruneMessage(message: Message, threshold: number, artifacts?: ArtifactS
 		const pruned = cutTo(block.points, level, address);
 		if (pruned === null) continue;
 		cut = true;
-		content[block.index] = { ...message.content[block.index], text: pruned } as ToolResultMessage["content"][number];
+		content[block.index] = { ...message.content[block.index], text: pruned } as (typeof content)[number];
 	}
 	if (!cut) return message;
-	return derive(message, { ...message, content } as ToolResultMessage);
+	return derive(message, { ...message, content } as Message);
 }
 
 /**
@@ -270,105 +275,18 @@ export function stripOversizedToolResults(messages: Message[], threshold = PRUNE
 	return changed ? next : messages;
 }
 
-/**
- * How long a conversation must have been idle before rewriting its middle is free.
- *
- * Editing history invalidates a provider's prefix cache from the edit onwards, so a prune that
- * saves tokens this turn can cost more than it saved on the next one. Once the cache has expired
- * on its own there is nothing left to invalidate.
- *
- * Five minutes is the conservative reading: Anthropic's default TTL is five minutes and OpenAI's
- * automatic caching is a few. A session using a longer TTL loses nothing by this — it only means
- * the other condition (a small suffix) is what lets a prune through.
- */
-export const CACHE_TTL_MS = 5 * 60 * 1000;
-
-/**
- * How much may sit below a prune before the lost cache outweighs it.
- *
- * Everything after the edit has to be re-sent uncached. A short tail is cheap to re-send; a long
- * one is the whole saving handed back.
- */
-export const CHEAP_SUFFIX_CHARS = 32_000;
-
-export interface PruneTiming {
-	/** When the last request went out, for judging whether the cache is still warm. */
-	lastRequestAt?: number;
-	/** Now, injectable for tests. */
-	now?: number;
-}
-
-/**
- * Whether rewriting history at `index` is worth what it breaks.
- *
- * Two ways to say yes, and they are the same reason twice: either the cache below the edit is
- * small, or it is already gone.
- */
-/**
- * Characters a size-prune actually removes, so the cache check can weigh the rewrite against
- * the saving. Zero means the result is already under the threshold and must not be touched.
- */
-export function sizePruneSaving(chars: number): number {
-	if (chars <= PRUNE_THRESHOLD_CHARS) return 0;
-	return Math.max(0, chars - PRUNE_HEAD_CHARS - PRUNE_TAIL_CHARS - MARKER_CHARS);
-}
-
-/** 占位标记大约多长，算节省时扣掉。 */
+/** 占位标记大约多长，算上限时留出来。 */
 const MARKER_CHARS = 280;
 
 /**
- * 一条新结果最多多长，`AgedToolPruner` 才不会在模型看到它之前就剪掉。
+ * 一条新结果发给模型的上限：超过的在第一次发出前剪成头尾，之后每次请求都是同一份。
  *
- * 超过它的节省大于 `CHEAP_SUFFIX_CHARS`，算作「炸开的输出」，不等二十轮就剪成头尾——对 `read`
- * 这意味着模型只看到前 4k 和后 1k，而工具已把整段记成读过，`edit` 会放行它没见过的行。
- * 会自己记「已显示」的工具要把输出控制在这以内（见 `tools/read.ts`）。
+ * 发出去的历史不再改写（见 `AgedToolPruner`），所以剪不剪只能在第一次发出前定。线放得高：只接
+ * 「炸开的输出」，普通结果的长短由各个工具自己按内容控制——对 `read` 剪成前 4k、后 1k 意味着
+ * 工具已把整段记成读过、模型却没看见，`edit` 会放行它没见过的行。会自己记「已显示」的工具要把
+ * 输出控制在这以内（见 `tools/read.ts`、`tools/bash.ts`）。
  */
-export const FRESH_RESULT_MAX_CHARS = CHEAP_SUFFIX_CHARS + PRUNE_HEAD_CHARS + PRUNE_TAIL_CHARS + MARKER_CHARS;
-
-/**
- * The leftmost rewrite we can afford this request.
- *
- * Once the prefix breaks at `L`, every later cut rides for free. Checking each candidate
- * alone refuses a pile of small superseded reads that together outrun the tail; taking the
- * earliest *individual* pass would also refuse a later 1.7 MB cut because a 400-character
- * stale read sat in front of it. Walk left to right and keep the first `L` whose remaining
- * saving already beats its suffix.
- */
-export function firstAffordableCut(messages: Message[], cuts: ReadonlyArray<{ index: number; saving: number }>, timing: PruneTiming = {}): number | undefined {
-	if (cuts.length === 0) return undefined;
-	const ordered = [...cuts].sort((a, b) => a.index - b.index);
-	const remaining = new Map<number, number>();
-	let total = 0;
-	for (let i = ordered.length - 1; i >= 0; i--) {
-		total += ordered[i].saving;
-		remaining.set(ordered[i].index, total);
-	}
-	for (const cut of ordered) {
-		if (worthPruning(messages, cut.index, timing, remaining.get(cut.index) ?? 0)) return cut.index;
-	}
-	return undefined;
-}
-
-export function worthPruning(messages: Message[], index: number, timing: PruneTiming = {}, saving = 0): boolean {
-	const now = timing.now ?? Date.now();
-	if (timing.lastRequestAt !== undefined && now - timing.lastRequestAt >= CACHE_TTL_MS) return true;
-
-	let suffix = 0;
-	for (let at = index + 1; at < messages.length; at += 1) {
-		for (const block of messages[at].content) {
-			if (block.type === "text") suffix += block.text.length;
-			/*
-			 * Refuse once the tail is both expensive to resend *and* larger than this cut.
-			 *
-			 * A 1.7 MB grep sitting under 50 k of later text used to stay forever: the 32 k
-			 * suffix cap fired regardless of how much the cut saved. If the saving already
-			 * exceeds the tail, the next request is cheaper even after the cache break.
-			 */
-			if (suffix > CHEAP_SUFFIX_CHARS && suffix >= saving) return false;
-		}
-	}
-	return saving > suffix || suffix <= CHEAP_SUFFIX_CHARS;
-}
+export const FRESH_RESULT_MAX_CHARS = 32_000 + PRUNE_HEAD_CHARS + PRUNE_TAIL_CHARS + MARKER_CHARS;
 
 /**
  * Empty out the results that were never going to be read again.
@@ -377,14 +295,16 @@ export function worthPruning(messages: Message[], index: number, timing: PruneTi
  * reject the request — and not just that request: every later one carrying the same history, which
  * includes the one sent to recover from it. One orphan does not spoil a turn, it spoils the
  * conversation.
+ *
+ * 只看这条结果本身，所以对同一条结果每次得出同一份：发送路径在它第一次发出前用它，压缩路径用它
+ * 清理历史，两边一致。
  */
-export function dropUneventful(messages: Message[], timing: PruneTiming = {}): Message[] {
+export function dropUneventful(messages: Message[]): Message[] {
 	let changed = false;
-	const next = messages.map((message, index) => {
+	const next = messages.map((message) => {
 		if (message.role !== "toolResult" || !message.uneventful) return message;
 		const size = message.content.reduce((sum, block) => sum + (block.type === "text" ? block.text.length : 0), 0);
 		if (size <= PRUNE_FLOOR_CHARS) return message;
-		if (!worthPruning(messages, index, timing)) return message;
 		changed = true;
 		return derive(message, { ...message, content: [{ type: "text" as const, text: "[无结果]" }] } as ToolResultMessage);
 	});

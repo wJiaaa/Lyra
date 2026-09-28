@@ -10,6 +10,7 @@
  * the todo list and the skill catalogue — things a tool wrote down for the next tool to read.
  */
 
+import { createHash } from "node:crypto";
 import { ExtensionHost } from "../extensions/host.ts";
 import { lyraHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
@@ -180,12 +181,16 @@ export class SessionCapabilities {
 	/**
 	 * 剪枝往这里存原文，换回一个 `artifact://` 地址。
 	 *
+	 * 地址按内容取，同一段原文每次都换回同一个地址：发送路径每次从日志重建视图（重启之后也是），
+	 * 占位标记里的地址要是换了，发给模型的前缀就从那里断开。重复存同一份只是把它挪到最新。
+	 *
 	 * 有上限：折叠下来的东西每一份都是几十万字符，一个跑了一天的会话能攒出几百兆。超过之后
 	 * 丢最旧的——最近折叠的那几份才是模型可能回头去看的，而一天前那次搜索的完整输出，
 	 * 它早就不记得自己搜过了。
 	 */
 	keepArtifact(tool: string, content: string): string {
-		const id = `a${(this.artifactSeq += 1).toString(36)}`;
+		const id = `a${createHash("sha256").update(tool).update("\0").update(content).digest("hex").slice(0, 12)}`;
+		this.artifacts.delete(id);
 		this.artifacts.set(id, { id, tool, content, at: Date.now() });
 		while (this.artifacts.size > MAX_ARTIFACTS) {
 			const oldest = this.artifacts.keys().next().value;
@@ -194,8 +199,6 @@ export class SessionCapabilities {
 		}
 		return `artifact://${id}`;
 	}
-
-	private artifactSeq = 0;
 
 	/** Drop the cached symbol index so the next lookup re-reads it from disk. */
 	invalidateSymbolIndex(): void {

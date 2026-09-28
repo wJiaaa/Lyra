@@ -199,15 +199,18 @@ export function measureTotal(messages: Message[]): { measured: boolean; tokens: 
 /**
  * When the conversation was last rewritten by compaction, or null if it never was.
  *
- * Recognised by the summary the head carries. It is written by `runtime/compaction`, is always
- * synthetic, and is the only message in a conversation that is a rewrite of everything before it.
+ * Recognised by the summary (or the dropped-history notice) the head carries. It is written by
+ * `runtime/compaction`, is always synthetic, and is the only message in a conversation that is a
+ * rewrite of everything before it.
  */
 function lastCompactionAt(messages: Message[]): number | null {
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];
 		if (message.role !== "user" || !message.synthetic) continue;
 		const text = message.content.map((block) => (block.type === "text" ? block.text : "")).join("");
-		if (text.includes("<session-summary>")) return message.timestamp;
+		// 按条丢弃（`<dropped-history>`）同样重写了它之前的一切，旧回复的 usage 一样作废。
+		// 只认以记号开头的：两种压缩头都这样写，而钩子上下文、子代理报告里引用到的同名标签不是边界。
+		if (text.startsWith("<session-summary>") || text.startsWith("<dropped-history>")) return message.timestamp;
 	}
 	return null;
 }
