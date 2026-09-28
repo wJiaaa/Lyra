@@ -114,7 +114,8 @@ export class ApprovalGate {
 	 *
 	 * For permissions, `full` never asks; `auto` asks only about what cannot be taken back, judged by the
 	 * approval policy rather than here — that judgement is a matter of where the agent is running,
-	 * and a plugin can replace it. An escalation is never that policy's to judge. Anything else asks.
+	 * and a plugin can replace it. An escalation is never that policy's to judge, nor the allow
+	 * list's. Anything else asks.
 	 */
 	async request(request: ApprovalRequest): Promise<ApprovalDecision> {
 		const mode = this.options.mode();
