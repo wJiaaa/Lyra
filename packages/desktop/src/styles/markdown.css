@@ -627,7 +627,11 @@
   max-width: min(100%, var(--ly-file-chip-max));
   padding: 1.5px 4px;
   border-radius: 5px;
-  vertical-align: middle;
+  /*
+   * On the sentence's baseline, taken from the name (see `[data-ly-file-name]`). `middle` centred the
+   * box on the Latin x-height, which sat the name 1.3px below the Chinese around it.
+   */
+  vertical-align: baseline;
   line-height: 1;
   white-space: nowrap;
   transition: background-color var(--ly-t-quick) var(--ly-e-out);
@@ -664,6 +668,8 @@
 }
 
 [data-ly-file-name] {
+  /* The chip's baseline comes from the name; left to the icon, an SVG's bottom edge stands in and lifts the name 1.5px. */
+  align-self: baseline;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
