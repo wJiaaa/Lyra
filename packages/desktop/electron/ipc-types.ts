@@ -764,6 +764,8 @@ export interface LyraApi {
 		 * 不该被界面要求再填一遍。窗口读不到那个环境，只能问主进程。
 		 */
 		environment(names: string[]): Promise<string[]>;
+		/** 设置里每台 MCP 服务的状态和工具，不需要会话：主进程临时连一次再断开。 */
+		mcpStatus(): Promise<AgentCapabilities["mcp"]>;
 		/** 对账结果一变就推过来：自动更新完了、有新的落后了、装卸之后重新数过了。 */
 		onChanged(handler: (state: PluginUpdateState) => void): () => void;
 	};

@@ -181,6 +181,7 @@ export const METHODS = {
 		updates: { channel: "plugins:updates" },
 		updateAll: { channel: "plugins:updateAll" },
 		environment: { channel: "plugins:environment" },
+		mcpStatus: { channel: "plugins:mcpStatus" },
 	},
 	windows: {
 		keepOnTop: { channel: "windows:keepOnTop" },

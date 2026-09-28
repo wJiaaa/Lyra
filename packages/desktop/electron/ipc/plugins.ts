@@ -11,8 +11,8 @@
 import { ipcMain, shell } from "electron";
 import { mkdir, rename } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { McpBundle, Settings } from "@lyra/core";
-import { collectSkills, commandEnv, lyraHome, installEntry, loadPlugins, readInstalls, uninstallEntry } from "@lyra/core";
+import type { McpBundle, McpServerConfig, McpServerStatus, Settings } from "@lyra/core";
+import { collectSkills, commandEnv, lyraHome, installEntry, loadPlugins, McpManager, readInstalls, uninstallEntry } from "@lyra/core";
 import { remoteImage } from "../avatars.ts";
 import { diskImageStore, type ImageStore } from "../image-cache.ts";
 import { readRegistry, withBundle } from "../plugin-index.ts";
@@ -61,6 +61,35 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 		const env = commandEnv(process.env);
 		return (Array.isArray(names) ? names : []).filter((name) => typeof name === "string" && !!env[name]);
 	});
+
+	/*
+	 * MCP 页上每台服务的状态和工具，不靠会话。
+	 *
+	 * 连接原本只存在于会话里，没开会话时这一页只能写「已启用」，看不到工具。这里临时连一次，列完
+	 * 工具就断开，不让服务器常驻。连上过的按启动配置记住：同一份配置再打开这一页不再冷启动一遍
+	 * （npx 那类第一次要几十秒）；名字和来源不参与，改名不该重启服务。失败的不记，下次再试——缺的
+	 * 钥匙、断的网可能已经好了。
+	 */
+	const probed = new Map<string, Promise<McpServerStatus>>();
+	const probe = (server: McpServerConfig): Promise<McpServerStatus> => {
+		const { name: _name, origin: _origin, ...launch } = server;
+		const key = JSON.stringify(launch);
+		let status = probed.get(key);
+		if (!status) {
+			const manager = new McpManager();
+			status = manager
+				.connectAll([server])
+				.then(([result]) => result!)
+				.finally(() => manager.closeAll());
+			probed.set(key, status);
+			status.then(
+				(result) => result.state === "connected" || probed.delete(key),
+				() => probed.delete(key),
+			);
+		}
+		return status;
+	};
+	ipcMain.handle("plugins:mcpStatus", () => Promise.all(settings().mcpServers.map(probe)));
 
 	/*
 	 * Cloning is a write to disk from a URL the user typed, so it says what it did.

@@ -18,7 +18,7 @@ import type { McpServerConfig } from "@lyra/core";
 import { looksSecret } from "@lyra/core/mcp-placeholders";
 import { FolderOpen, MoreHorizontal, Plus, SlidersHorizontal, Store, Trash2 } from "lucide-react";
 import { Collapse } from "../../ui/layout/Collapse.tsx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -42,21 +42,38 @@ export function McpSettings({ filter = "", markOf }: { filter?: string; markOf?:
 	const activeSessionId = useApp((s) => s.activeSessionId);
 	const setView = useApp((s) => s.setView);
 	const setPluginFocus = useApp((s) => s.setPluginFocus);
-	const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(null);
+	const [statuses, setStatuses] = useState<Status[] | null>(null);
+	const asked = useRef(false);
 	const confirm = useConfirmer();
 	// Each installed server's bundle: where it lives (for 打开目录) and what it looks like.
 	const { scan } = useLocalScan();
 	const bundles = new Map((scan?.mcpBundles ?? []).map((bundle) => [bundle.id, bundle]));
 
+	/*
+	 * 有会话用会话的：那是 agent 手上真实的连接，不必再启一份。没有会话、或会话还没在主进程里载入
+	 * 时，让主进程临时连一次（`plugins:mcpStatus`）。
+	 *
+	 * 第一次立刻问，之后等输入停下再问：名字、命令、环境变量都是逐字保存的，每敲一个字就去启动一遍
+	 * 服务器不行。
+	 */
 	useEffect(() => {
-		if (!activeSessionId) return;
 		let alive = true;
-		void bridge.sessions
-			.capabilities(activeSessionId)
-			.then((answer) => alive && setCapabilities(answer))
-			.catch(() => {});
+		const timer = setTimeout(
+			async () => {
+				try {
+					const fromSession = activeSessionId ? (await bridge.sessions.capabilities(activeSessionId))?.mcp : undefined;
+					const answer = fromSession ?? (await bridge.plugins.mcpStatus());
+					if (alive) setStatuses(answer);
+				} catch {
+					// 问不到就保持原样：卡片落回「已启用」，不是一段报错。
+				}
+			},
+			asked.current ? 600 : 0,
+		);
+		asked.current = true;
 		return () => {
 			alive = false;
+			clearTimeout(timer);
 		};
 	}, [activeSessionId, settings?.mcpServers]);
 
@@ -118,7 +135,7 @@ export function McpSettings({ filter = "", markOf }: { filter?: string; markOf?:
 						<ServerCard
 							key={server.id}
 							server={server}
-							status={capabilities?.mcp.find((m) => m.id === server.id)}
+							status={statuses?.find((m) => m.id === server.id)}
 							missing={missingOf(server, present)}
 							onUpdate={(patch) => update(server.id, patch)}
 							onRemove={() => remove(server)}
