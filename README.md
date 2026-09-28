@@ -101,6 +101,7 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 ```
 packages/
   core/              agent kernel: providers, loop, tools, skills, MCP, session store
+  cli/               runs one task without a window, for evaluation; uses the desktop's settings
   desktop/           Electron app (main process + preload + React renderer)
   contract/          the line between the two processes; 221 methods in one place
   registry-shared/   plugin catalog index format, shared by desktop and the catalog service
@@ -114,6 +115,17 @@ packages/
 pnpm install
 pnpm dev
 ```
+
+### Without a window
+
+For evaluation runs: one task in, the answer out, no questions asked. It is the same runtime reading the same `~/.lyra`, so models, keys, permissions, MCP servers and skills are set up once, in the desktop app.
+
+```bash
+pnpm cli -C ~/code/my-project "make the failing test pass"
+pnpm cli -C ~/code/my-project --json "/review src/a.ts"    # commands and skills work as in the composer
+```
+
+The answer goes to stdout and progress to stderr; `--json` prints `status`, `answer`, `error`, `sessionId` and `usage` instead. Anything that needs approval is refused, so set the permission mode in the desktop app to what the run may do. Exit code 0 means the task finished, 1 that it did not, 2 a usage or settings problem. The run is saved as an ordinary session, which the desktop app can open.
 
 Contributing is in [CONTRIBUTING.md](CONTRIBUTING.md). An agent asked to change this repository should read [AGENTS.md](AGENTS.md).
 
@@ -253,7 +265,7 @@ Or one piece:
 
 ```bash
 pnpm lint          # oxlint, --deny-warnings: a warning is a failure
-pnpm typecheck     # 4 packages
+pnpm typecheck     # 5 packages
 pnpm test          # unit tests, including component tests. node:test, not vitest or jest
 pnpm arch          # dependency direction, a couple of seconds
 pnpm package       # this machine's installer. the only place besides a release that runs electron-builder

@@ -45,7 +45,7 @@ const architecture = read("ARCHITECTURE.md");
 
 test("包的数目", () => {
 	const actual = dirsIn("packages").length;
-	assert.equal(actual, 4, "先确认现数是多少，再看文档");
+	assert.equal(actual, 5, "先确认现数是多少，再看文档");
 	for (const written of counts(agents, "个包")) {
 		assert.equal(written, actual, "AGENTS.md 里写的包数和 packages/ 下的目录数对不上");
 	}

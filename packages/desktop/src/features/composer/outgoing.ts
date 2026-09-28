@@ -11,11 +11,10 @@
 
 import type { MessageAttachment, UserContent } from "@lyra/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
-import { expandCommand, parseInvocation, parseSkillMention, resolveCommand, skillNameOf } from "@lyra/core/commands-view";
+import { parseInvocation, parseSkillMention, resolveInvocation } from "@lyra/core/commands-view";
 
 import { formatList } from "../../i18n/list.ts";
 import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
-import { skillCommandName } from "./command-catalog.ts";
 import { bridge } from "../../services/index.ts";
 
 /** 附件在草稿里的样子，只取这一步用得上的几项。 */
@@ -222,56 +221,8 @@ export async function buildOutgoing(
 		const fresh = await bridge.commands.list(commandCwd);
 		// A disk scan must not dispatch an obsolete draft or erase edits made while it was pending.
 		if (!stillCurrent()) return null;
-
-		/*
-		 * 精确命中优先，否则唯一的末段匹配——`/commit` 找到 `git:commit`。
-		 *
-		 * 菜单那边早就这么匹配了（`rankCommands` 的 rank 2），而这里一直是精确匹配：
-		 * 列表里看得见、回车却找不到。
-		 */
-		const command = resolveCommand(fresh.commands, invocation.name);
-		if (command) {
-			outgoing = expandCommand(command, invocation.rest);
-			/*
-			 * 命令自己说了怎么送，就按它说的送。
-			 *
-			 * `followUp` 是这里唯一真正改变行为的一个：会话正忙时不插话，排到这一轮后面。
-			 * 空闲时三种都一样，都是开一个新回合。
-			 */
-			if (command.deliver === "followUp" || command.deliver === "steer") deliver = command.deliver;
-		} else {
-			/*
-			 * A skill, asked for by name.
-			 *
-			 * Expanded into an instruction rather than into the skill's own body: the body can
-			 * run to several thousand words and belongs in a tool result, which is where the
-			 * `skill` tool puts it. What goes in the transcript is the ask — short, and exactly
-			 * what the model is being told.
-			 *
-			 * Works for skills the model cannot see on its own, and that is the point of them:
-			 * `disableModelInvocation` means "do not choose this yourself", not "never run
-			 * this" — the tool looks skills up by name and has never filtered on that flag.
-			 */
-			// Preserve the plugin-qualified name so two bundles cannot select each other's skill.
-			const targetSkillName = skillNameOf(invocation).toLowerCase();
-			const skill = fresh.skills?.find((entry) => skillCommandName(entry).toLowerCase() === targetSkillName);
-			if (skill) {
-				skillRef = {
-					name: skill.name,
-					path: skill.path,
-					pluginId: skill.pluginId,
-				};
-				const restText = invocation.rest.trim();
-				displayText = restText;
-				outgoing = [
-					// Written for the model, so it stays in English whatever the window is set to — see `Composer`.
-			`Use the \`${skill.name}\` skill${skill.pluginId ? ` (from the ${skill.pluginId} plugin)` : ""}.`,
-					restText,
-				]
-					.filter(Boolean)
-					.join("\n\n");
-			}
-		}
+		const resolved = resolveInvocation(invocation, fresh);
+		if (resolved) ({ outgoing, displayText, skillRef, deliver } = resolved);
 	}
 
 	const sessionPrompts = draft.sessionRefs.map((session) =>

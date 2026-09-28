@@ -27,6 +27,7 @@ export {
 	type TurnPipeline,
 	type ToolRegistry,
 } from "./kernel/index.ts";
+export { bootHostKernel, registerDefaultSearchProviders, type HostKernel } from "./kernel/host.ts";
 export { getSandbox, useSandbox, LocalSandbox, primeCommandPath } from "./sandbox/index.ts";
 /** 登录 shell 的环境——MCP 服务就在这份环境里启动，「这个变量有没有设」也要问它。 */
 export { commandEnv } from "./sandbox/login-path.ts";
@@ -232,6 +233,8 @@ export {
 	sessionMediaPath,
 } from "./session/payload.ts";
 export { builtinCommandsFor, BUILTIN_COMMANDS, type BuiltinCommand, type CommandAction } from "./commands/builtin.ts";
+export { listCommands, type CommandsList, type SkillEntry } from "./commands/catalogue.ts";
+export { resolveInvocation, skillCommandName, type ResolvedInvocation } from "./commands/invoke.ts";
 export {
 	commandSources,
 	loadCommands,
@@ -242,6 +245,7 @@ export {
 export {
 	expandCommand,
 	parseInvocation,
+	parseSkillMention,
 	rankCommands,
 	splitArguments,
 	type Invocation,

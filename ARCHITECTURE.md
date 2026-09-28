@@ -12,6 +12,7 @@ Lyra 是一个 agent 运行时加一个桌面端。`packages/core` 平台无关�
 | 包 | 是什么 | 依赖谁 |
 | --- | --- | --- |
 | `core` | agent 内核：provider 适配、agent loop、工具、skill、MCP、会话存储 | 只依赖 `registry-shared` |
+| `cli` | 非交互命令行：用桌面端的设置跑完一个任务，给评测用，见 [ADR-0031](docs/adr/0031-headless-cli-for-evaluation.md) | `core` |
 | `desktop` | Electron 应用。`electron/` 主进程，`src/` 渲染进程，`shared/` 两边共有 | `core` |
 | `registry-shared` | 插件市场的契约：索引能说什么、API 答什么 | 谁也不依赖 |
 
@@ -93,6 +94,8 @@ pre-push 里都是必过项：
 | 加一个内置工具 | `core/src/tools/`，经 `useToolRegistry` 那条缝 |
 | 加一个右侧面板 | `src/panels/registry.ts` 注册一条记录 |
 | 维护模型价格、能力和中转别名 | `core/src/model-catalog.ts` 与 `scripts/update-model-catalog.mjs`；`pnpm catalog:update` 更新离线数据 |
+| 宿主启动时装配内核 | `core/src/kernel/host.ts` 的 `bootHostKernel`；桌面端与终端共用，加一条缝只改这里 |
+| 斜杠命令、skill 的解析与展开 | `core/src/commands/invoke.ts`（`@lyra/core/commands-view`）；桌面端输入框和命令行都走它 |
 | 默认子智能体定义 | `core/src/agents-builtin.ts`；运行时与设置页共用，浏览器从 `@lyra/core/agents-builtin` 导入 |
 | 改设计 token | `src/styles.css` 的 `@theme` 段 |
 | 加一个基础组件 | `src/ui/<组>/`，配一条 `test/ui/` 的测试 |

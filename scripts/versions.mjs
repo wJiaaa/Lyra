@@ -20,6 +20,7 @@ export const SOURCE = "package.json";
 export const MANIFESTS = [
 	"package.json",
 	"packages/core/package.json",
+	"packages/cli/package.json",
 	"packages/desktop/package.json",
 	"packages/contract/package.json",
 	"packages/registry-shared/package.json",

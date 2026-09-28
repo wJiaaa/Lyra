@@ -107,7 +107,7 @@ pnpm install
 
 ```bash
 pnpm lint        # oxlint，--deny-warnings：警告等于失败
-pnpm typecheck   # 4 个包
+pnpm typecheck   # 5 个包
 pnpm test        # 单元测试，含组件测试
 node scripts/audit-regression.mjs   # 修过的每个 bug，各自的守卫跑一遍
 pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
@@ -179,7 +179,7 @@ pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
 pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、推送
 ```
 
-版本号写在 5 个地方（根目录和 4 个包的 `package.json`），脚本一起改，`test/version-sync.test.ts`
+版本号写在 6 个地方（根目录和 5 个包的 `package.json`），脚本一起改，`test/version-sync.test.ts`
 守着它们不跑偏；新加一个包而忘了登记，那条测试会红。
 
 ### 发版文案是手写的，中英两种语言一种都不能少
@@ -264,6 +264,7 @@ tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这
 | `packages/core/src/runtime/` | 会话、日志、审批、任务队列、压缩 |
 | `packages/core/src/tools/` | 内置工具。`risk*.ts` 判定哪些命令需要人来点头 |
 | `packages/core/src/kernel/` | 插件内核：服务、事件、十条缝 |
+| `packages/cli/` | 非交互命令行，评测用：一个任务进、回答出，见 ADR-0031 |
 | `packages/desktop/electron/` | 主进程：IPC、窗口、Git |
 | `packages/desktop/src/` | 渲染进程。9 个目录，见 ARCHITECTURE.md |
 | `packages/desktop/src/features/` | 22 个功能域，跨域只经对方的 index |

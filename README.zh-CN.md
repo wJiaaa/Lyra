@@ -123,6 +123,7 @@ Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置
 ```
 packages/
   core/              agent 内核：provider 适配、agent loop、工具、skill、MCP、会话存储
+  cli/               不开窗口跑完一个任务，给评测用；读桌面端的设置
   desktop/           Electron 应用（主进程 + preload + React 渲染进程）
   contract/          两个进程之间那条线，221 个方法写在一处
   registry-shared/   插件目录的索引格式，桌面端与目录服务共用
@@ -137,6 +138,20 @@ packages/
 pnpm install
 pnpm dev
 ```
+
+### 不开窗口跑（评测用）
+
+给一个任务，跑完输出回答，中途不问人。跑的是同一个运行时，读的是同一份 `~/.lyra`：模型、密钥、权限、
+MCP 和 skill 都在桌面端配一次就行。
+
+```bash
+pnpm cli -C ~/code/my-project "让挂掉的测试通过"
+pnpm cli -C ~/code/my-project --json "/review src/a.ts"   # 命令和 skill 的写法和桌面端输入框一样
+```
+
+回答写到 stdout，进度写到 stderr；加 `--json` 则 stdout 只输出一个含 `status`、`answer`、`error`、
+`sessionId`、`usage` 的对象。需要授权的操作一律拒绝，所以跑之前在桌面端把权限模式设成这次允许的程度。
+退出码 0 表示跑完，1 表示没跑完，2 表示用法或设置有误。这次运行照常存成一个会话，桌面端能打开。
 
 想参与开发看 [CONTRIBUTING.md](CONTRIBUTING.md)；如果你是被叫来改这份代码的 agent，
 看 [AGENTS.md](AGENTS.md)。
@@ -280,7 +295,7 @@ pnpm check     # lint + style + i18n + typecheck + arch + test，一条顶六条
 
 ```bash
 pnpm lint          # oxlint，--deny-warnings：警告等于失败
-pnpm typecheck     # 4 个包
+pnpm typecheck     # 5 个包
 pnpm test          # 单元测试，含组件测试。用的是 node:test，不是 vitest/jest
 pnpm arch          # 依赖方向，两秒
 pnpm package       # 打出本机架构的安装包，release 之外唯一会跑 electron-builder 的地方

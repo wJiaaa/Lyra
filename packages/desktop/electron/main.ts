@@ -3,54 +3,17 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { app, BrowserWindow, Menu, Notification, powerSaveBlocker, protocol } from "electron";
 import {
-	createContext,
+	bootHostKernel,
 	lyraHome,
+	registerDefaultSearchProviders,
+	type HostKernel,
 	migratePreviousHome,
-	loadCapabilityPlugins,
-	loadPlugins,
-	DEFAULT_PLUGINS,
 	pruneSessionArtifacts,
 	useSandboxRunner,
-	registerSearchProvider,
-	duckDuckGoProvider,
-	instantAnswerProvider,
-	keyedSearchProvider,
-	BRAVE_PROVIDER_ID,
-	EXA_PROVIDER_ID,
-	TAVILY_PROVIDER_ID,
-	useAgentLoop,
-	useApprovalPolicy,
-	useCompaction,
-	useLlmRegistry,
-	useSandbox,
-	useScheduler,
-	useSkillRegistry,
-	useToolRegistry,
-	useTurnPipeline,
-	APPROVAL,
-	COMPACTION,
-	LLM,
-	LOOP,
-	SANDBOX,
-	SCHEDULER,
-	SESSION,
-	SKILLS,
-	STORAGE,
-	TOOLS,
 	SessionStore,
 	primeCommandPath,
-	type AgentLoop,
-	type ApprovalPolicy,
-	type CompactionStrategy,
-	type Context as CapabilityContext,
-	type LlmRegistry,
-	type Sandbox,
 	type Settings,
 	type SessionStorage,
-	type SkillRegistry,
-	type TaskScheduler,
-	type TurnPipeline,
-	type ToolRegistry,
 } from "@lyra/core";
 import { projectFolders } from "@lyra/core/project-folders";
 import {
@@ -251,7 +214,7 @@ let store: SessionStorage = new SessionStore();
 /** Live sessions keyed by session id. A session stays warm so MCP servers are not respawned per turn. */
 
 /** The capability context: what the app can do, assembled from plugins at boot. */
-let kernel: CapabilityContext | null = null;
+let kernel: HostKernel | null = null;
 /** Per-session browser instances, disposed alongside the session that owns them. */
 /**
  * Live pseudo-terminals, one per project directory. Killed when the app quits.
@@ -500,45 +463,13 @@ app.whenReady().then(async () => {
 	 * downstream imports a concrete implementation, so replacing one (a sandboxed shell, another
 	 * model API, a stricter policy) is a change to this list rather than to the code that uses it.
 	 */
-	/*
-	 * The kernel is built from the default set plus whatever the user has installed.
-	 *
-	 * Discovering plugins before the window exists is deliberate: a plugin that replaces the model
-	 * registry or the sandbox has to be in place before the first session is built, not bolted on
-	 * afterwards. A bundle that fails to load is recorded and skipped — someone else's broken
-	 * plugin must not be why the app will not start.
-	 */
 	// 先换上缓存的模型目录，读设置时套的目录值才是最新的一份。
 	await loadCachedModelCatalog();
 	settings = await loadAppSettings();
-	const bundles = await loadPlugins(
-		[{ dir: join(lyraHome(), "plugins"), source: "user" as const }],
-		settings.disabledPlugins,
-	);
-	const extra = await loadCapabilityPlugins(bundles.plugins);
-	for (const diagnostic of extra.diagnostics) console.warn(`[plugin] ${diagnostic.path}: ${diagnostic.message}`);
-	/*
-	 * A capability that loads and then throws while being applied is as broken as one that does not
-	 * load, and was not covered: the throw came out of `createContext`, before the window existed,
-	 * and the app did not open. Started again without the installed ones — the built-in set is what
-	 * an ordinary Lyra is, and a context that failed halfway is not something to keep building on.
-	 */
-	kernel = await createContext([...DEFAULT_PLUGINS, ...extra.plugins]).catch((error: unknown) => {
-		if (extra.plugins.length === 0) throw error;
-		console.warn(`[plugin] 已装的能力插件（${extra.plugins.map((plugin) => plugin.name).join("、")}）启动失败，这次不带它们启动：${error instanceof Error ? error.message : String(error)}`);
-		return createContext(DEFAULT_PLUGINS);
-	});
-	useLlmRegistry(kernel.require<LlmRegistry>(LLM));
-	useToolRegistry(kernel.require<ToolRegistry>(TOOLS));
-	useSandbox(kernel.require<Sandbox>(SANDBOX));
-	store = observeSessionStorage(kernel.require<SessionStorage>(STORAGE), broadcastSessionChange);
-	useCompaction(kernel.require<CompactionStrategy>(COMPACTION));
-	useApprovalPolicy(kernel.require<ApprovalPolicy>(APPROVAL));
-	useSkillRegistry(kernel.require<SkillRegistry>(SKILLS));
-	kernel.require<SkillRegistry>(SKILLS).register([browserSkill()]);
-	useScheduler(kernel.require<TaskScheduler>(SCHEDULER));
-	useAgentLoop(kernel.require<AgentLoop>(LOOP));
-	useTurnPipeline(kernel.require<TurnPipeline>(SESSION).all());
+	// Built from the default set plus whatever the user has installed; see `bootHostKernel`.
+	kernel = await bootHostKernel(settings);
+	store = observeSessionStorage(kernel.storage, broadcastSessionChange);
+	kernel.skills.register([browserSkill()]);
 
 /**
  * 把截图快捷键（重新）绑到当前设置上。
@@ -669,19 +600,7 @@ function bindScreenshotShortcut(): void {
 			if (gone > 0) console.log(`[lyra] 清理了 ${gone} 个会话的临时文件`);
 		})
 		.catch(() => {});
-	/*
-	 * Search, working out of the box.
-	 *
-	 * The keyless provider is registered unconditionally so a fresh install can search at all; the
-	 * keyed ones read their key at call time, so they become available the moment one is pasted in
-	 * and stay out of the way until then. Which of them runs is `selectSearchProvider`'s call: the
-	 * user's pick, or — with none made — a pasted key over the keyless default.
-	 */
-	registerSearchProvider(duckDuckGoProvider());
-	registerSearchProvider(instantAnswerProvider());
-	registerSearchProvider(keyedSearchProvider(TAVILY_PROVIDER_ID, () => settings?.searchApiKeys?.tavily));
-	registerSearchProvider(keyedSearchProvider(EXA_PROVIDER_ID, () => settings?.searchApiKeys?.exa));
-	registerSearchProvider(keyedSearchProvider(BRAVE_PROVIDER_ID, () => settings?.searchApiKeys?.brave));
+	registerDefaultSearchProviders(() => settings?.searchApiKeys);
 
 	registerIpc();
 	createWindow();
@@ -866,15 +785,6 @@ app.on("before-quit", async () => {
 	await Promise.all([...sessions.values()].map((s) => s.dispose()));
 	await shutdownWebAccess();
 	// Unwinds every capability the plugins installed, in the reverse of the order they arrived.
-	useLlmRegistry(null);
-	useToolRegistry(null);
-	useSandbox(null);
-	useCompaction(null);
-	useApprovalPolicy(null);
-	useSkillRegistry(null);
-	useScheduler(null);
-	useAgentLoop(null);
-	useTurnPipeline(null);
 	await kernel?.dispose();
 	kernel = null;
 });

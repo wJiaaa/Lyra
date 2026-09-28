@@ -1,6 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
 import { builtinCommandsFor, type CommandAction } from "@lyra/core/commands-builtin";
-import { parseInvocation, resolveCommand, type SlashCommand } from "@lyra/core/commands-view";
+import { parseInvocation, resolveCommand, skillCommandName, type SlashCommand } from "@lyra/core/commands-view";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 
 export interface CommandEntry {
@@ -10,10 +10,6 @@ export interface CommandEntry {
 	origin: string;
 	kind: "builtin" | "command" | "skill";
 	action?: CommandAction;
-}
-
-export function skillCommandName(skill: SkillEntry): string {
-	return skill.pluginId ? `${skill.pluginId}:${skill.name}` : skill.name;
 }
 
 export function commandEntries(commands: SlashCommand[], skills: SkillEntry[]): CommandEntry[] {
