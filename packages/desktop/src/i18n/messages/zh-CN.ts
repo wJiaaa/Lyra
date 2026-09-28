@@ -1529,6 +1529,7 @@ export const zhCN = {
 	"split.moveHere": "移到这里",
 	"split.noRoom": "这一屏放不下再分一屏",
 	"split.closePane": "关闭此屏",
+	"split.sessionActions": "会话操作",
 	"split.move.left": "向左移动分屏",
 	"split.move.right": "向右移动分屏",
 	"split.move.up": "向上移动分屏",

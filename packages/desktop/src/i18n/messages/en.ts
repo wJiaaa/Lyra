@@ -1353,6 +1353,7 @@ export const en = {
 	"split.moveHere": "Move here",
 	"split.noRoom": "No room to split this screen",
 	"split.closePane": "Close pane",
+	"split.sessionActions": "Conversation actions",
 	"split.move.left": "Move split view left",
 	"split.move.right": "Move split view right",
 	"split.move.up": "Move split view up",
