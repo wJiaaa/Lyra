@@ -283,6 +283,19 @@ test("terms matched far apart in one message are each quoted in place", async ()
 	assert.ok([...quotedBody(text)].length < 1400, `within the same budget (${[...quotedBody(text)].length})`);
 });
 
+test("a match the full head showed is not lost when another term needs a window in the middle", async () => {
+	// At character ~500 the rule sits inside the 900-character head, and alone it comes back there.
+	// A second term in the middle shrinks the head; the rule must then get a window of its own.
+	const rule = "备份约束：覆盖前先备份。";
+	const long = `${"前".repeat(500)}${rule}${"中".repeat(1500)}中段标记${"后".repeat(1500)}`;
+	const ctx = await sessionWith(long);
+	assert.ok(textOf(await recallTool.execute({ query: "备份约束" }, ctx)).includes(rule), "precondition: alone it is quoted");
+	const text = textOf(await recallTool.execute({ query: "备份约束 中段标记" }, ctx));
+	assert.ok(text.includes(rule), `still quoted beside the middle match:\n${text.slice(0, 600)}`);
+	assert.ok(text.includes("中段标记"));
+	assert.ok([...quotedBody(text)].length < 1400, `within the same budget (${[...quotedBody(text)].length})`);
+});
+
 test("a match already inside the head or tail keeps the plain head-and-tail quote", async () => {
 	const long = `开头标记 ${"填充".repeat(3000)} 结尾标记`;
 	const ctx = await sessionWith(long);

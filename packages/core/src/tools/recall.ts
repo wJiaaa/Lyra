@@ -311,9 +311,12 @@ function excerpt(points: string[], terms: string[]): string {
 
 	const head = Math.floor(QUOTE_CHARS * 0.75);
 	const tail = Math.floor(QUOTE_CHARS * 0.25);
-	const outside = locate(points, terms).filter((hit) => hit.end > head && hit.start < length - tail);
-	if (outside.length === 0) return stitch(points, [[0, head], [length - tail, length]]);
+	const hits = locate(points, terms);
+	if (!hits.some((hit) => hit.end > head && hit.start < length - tail)) return stitch(points, [[0, head], [length - tail, length]]);
 
+	// Judged again against the shrunken head and tail: a match the full head used to show falls out
+	// of the short one, and without its own window adding a term would lose what one term found.
+	const outside = hits.filter((hit) => hit.end > HEAD_CHARS && hit.start < length - TAIL_CHARS);
 	const share = Math.floor((QUOTE_CHARS - HEAD_CHARS - TAIL_CHARS) / outside.length);
 	const spans: [number, number][] = [[0, HEAD_CHARS], [length - TAIL_CHARS, length]];
 	for (const hit of outside) {
