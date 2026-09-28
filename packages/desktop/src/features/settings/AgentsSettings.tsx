@@ -12,6 +12,7 @@ import { InlineSelect } from "./controls.tsx";
 import { ModelSelect } from "../models/index.ts";
 import { AgentDefinitionEditor } from "./AgentDefinitionEditor.tsx";
 import { useAgentDefinitions } from "./useAgentDefinitions.ts";
+import { ProjectScope } from "./ProjectScope.tsx";
 import type { AgentDefinitionRecord } from "@lyra/core";
 import { bridge } from "../../services/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
@@ -24,14 +25,18 @@ import { useI18n } from "../../i18n/index.ts";
 type Agent = AgentCapabilities["agents"][number];
 
 /*
- * 这一页照 ZCode 的子智能体页画：工具条（标题、数量、搜索）、「已安装」「内置」两组、组里是一块
+ * 这一页：工具条（标题、数量、搜索）、「已安装」「内置」两组、组里是一块
  * 没有描边的浅面，行与行之间一道半透明的线，点一行进编辑。颜色取自 `[data-agent-settings]`
  * 上的几个变量，见 `styles/fields.css`。
  */
 
 export function AgentsSettings() {
 	const { t } = useI18n();
-	const catalogue = useAgentDefinitions();
+	const projects = useApp((s) => s.settings?.projects) ?? [];
+	/** null 是用户级；项目被移除后回到用户级，而不是继续读一个已经不在列表里的目录。 */
+	const [projectPath, setProjectPath] = useState<string | null>(null);
+	const project = projects.find((entry) => entry.path === projectPath) ?? null;
+	const catalogue = useAgentDefinitions(project);
 	const [editor, setEditor] = useState<{ record?: AgentDefinitionRecord; copy?: boolean; projectId: string | null } | null>(null);
 	const [undo, setUndo] = useState<{ token: string; projectId: string | null } | null>(null);
 	const [notice, setNotice] = useState("");
@@ -92,7 +97,7 @@ export function AgentsSettings() {
 		} catch (cause) { setError(String(cause)); }
 		finally { setSaving(false); }
 	};
-	/* 删除先问一句，和 ZCode 一样；删掉之后列表上方仍然给一次撤销。 */
+	/* 删除先问一句；删掉之后列表上方仍然给一次撤销。 */
 	const askRemove = (record: AgentDefinitionRecord, then?: () => void) => confirm.ask({
 		title: t("agents.delete"),
 		detail: t("agents.deleteConfirm", { name: record.definition.name }),
@@ -104,7 +109,7 @@ export function AgentsSettings() {
 		const record = editor.record;
 		const deletable = record && !editor.copy && record.editable && record.scope !== "builtin" && !record.customized;
 		return <>
-			<AgentDefinitionEditor record={record} copy={editor.copy} projectId={editor.projectId} projectName={catalogue.projectName} tools={catalogue.tools}
+			<AgentDefinitionEditor record={record} copy={editor.copy} projectId={editor.projectId} projectName={catalogue.projectName} defaultScope={project ? "project" : "user"} tools={catalogue.tools}
 				avatarOf={avatarOf} taken={agents.filter(agent => !record || editor.copy || agent.name !== record.definition.name).map(agent => ({ name: agent.name, avatar: avatarOf(agent.name) }))}
 				onClose={() => setEditor(null)} onDelete={deletable ? () => askRemove(record, () => setEditor(null)) : undefined}
 				onSaved={(name, warning) => { setEditor(null); setHighlight({ name, at: Date.now() }); setNotice(warning ?? t("agents.savedForNext")); void catalogue.refresh(); }} />
@@ -114,8 +119,13 @@ export function AgentsSettings() {
 
 	const needle = query.trim().toLowerCase();
 	const matches = (agent: Agent) => !needle || [agent.name, agent.description, agent.source, ...(agent.tools === "*" ? [] : agent.tools)].some(value => value.toLowerCase().includes(needle));
-	const installed = agents.filter(agent => agent.source !== "builtin" && matches(agent));
-	const builtin = agents.filter(agent => agent.source === "builtin" && matches(agent));
+	/*
+	 * 跟命令、钩子一样，「已安装」只列选中那一层自己的。改过的内置存在用户级（编辑内置总是存到
+	 * 那里），看项目时它不属于这一层，归回「内置」一组，不然就从页面上消失了。
+	 */
+	const own = project ? "workspace" : "user";
+	const installed = agents.filter(agent => agent.source === own && matches(agent));
+	const builtin = agents.filter(agent => (agent.source === "builtin" || (project && agent.source === "user" && recordOf(agent.name)?.customized)) && matches(agent));
 	const count = installed.length + builtin.length;
 	const create = () => setEditor({ projectId: catalogue.projectId });
 	const row = (agent: Agent) => {
@@ -132,6 +142,8 @@ export function AgentsSettings() {
 			<h1 className="pb-8 text-display leading-tight font-semibold tracking-tight text-ink">{t("agents.title")}</h1>
 			<div className="@container space-y-6">
 				<div className="flex min-w-0 flex-wrap items-center gap-3">
+					<ProjectScope value={project} projects={projects} onChange={setProjectPath} />
+					<div className="h-4 w-px bg-line" aria-hidden />
 					<div className="flex h-7 items-center gap-1 px-1 text-label font-medium text-ink">
 						<span>{t("agents.title")}</span>
 						<span className="text-caption font-normal text-ink-muted">{count}</span>
@@ -208,7 +220,7 @@ function GroupHeader({ title, count, children }: { title: string; count?: number
 	</div>;
 }
 
-/** 一组行：没有描边的浅面，行与行之间一道 5% 的线（ZCode 是 `border/50`）。 */
+/** 一组行：没有描边的浅面，行与行之间一道 5% 的线。 */
 function AgentList({ children }: { children: React.ReactNode }) {
 	return <div className="@container overflow-hidden rounded-xl bg-[var(--ly-agent-surface)] [&>*+*]:border-t [&>*+*]:border-[var(--ly-agent-divider)]">{children}</div>;
 }
@@ -231,7 +243,7 @@ function AgentRow({ agent, record, avatarOf, saved, disabled, controls, edit, co
 		<div data-agent-profile={name} data-agent-saved={highlighted || undefined} data-ly-avatar-host=""
 			className={`relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 transition-colors duration-[var(--ly-t-quick)] @2xl:grid-cols-[auto_minmax(0,1fr)_auto] ${edit && !disabled ? "hover:bg-[var(--ly-agent-hover)]" : ""} ${highlighted ? "bg-info/5" : ""}`}>
 			{/*
-			 * 整行是编辑入口，和 ZCode 一样；但行里还有下拉和按钮，按钮套按钮不成立，所以用一层垫在
+			 * 整行是编辑入口；但行里还有下拉和按钮，按钮套按钮不成立，所以用一层垫在
 			 * 最底下的按钮铺满整行（同 `ListRow`），上面的控件各自先接住自己的点击。
 			 */}
 			{edit && <button type="button" aria-label={t("agents.editNamed", { name })} disabled={disabled} className="absolute inset-0" onClick={edit} />}
@@ -289,7 +301,7 @@ function AgentModelControls({ agent, settings, mainModelId, disabled, onChange }
 		<fieldset disabled={disabled} aria-label={t("agents.runConfig", { name: agent.name })} className="m-0 flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2 border-0 p-0 disabled:opacity-60 [&>button]:max-w-full">
 			<ModelSelect ariaLabel={t("agents.modelFor", { name: agent.name })} showIcon={false} value={profile.modelId ?? ""} disabled={disabled} inheritedModelId={inherited?.model.id} inheritedSource={inherited?.via === t("agents.sessionModel") ? t("agents.followMainShort") : t("common.default")}
 				inheritLabel={inherited && inherited.via !== t("agents.sessionModel") ? t("agents.followDefinition") : t("agents.followMain")} inheritDetail={inherited ? `${inherited.provider.name} · ${inherited.model.name}` : t("agents.followMain")} onChange={(modelId) => onChange(modelId ? { modelId } : {})} />
-			{/* 模型不支持思考时这一格不画，和 ZCode 一样——一个点不开的「不支持思考」只是占位。 */}
+			{/* 模型不支持思考时这一格不画——一个点不开的「不支持思考」只是占位。 */}
 			{levels.length > 0 && <InlineSelect ariaLabel={t("agents.thinkingFor", { name: agent.name })} value={profile.thinking ?? ""}
 				options={[
 					{ value: "", label: t("agents.defaultThinking", { level: defaultThinking?.label ?? t("thinking.off") }), icon: <Brain size={14} /> },

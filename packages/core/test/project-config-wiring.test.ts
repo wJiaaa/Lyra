@@ -32,7 +32,6 @@ const GLOBAL: Settings = {
 	defaultModelId: "global/strong",
 	maxConcurrentSubAgents: 4,
 	permissionMode: "full",
-	disabledRules: ["global-rule"],
 } as Settings;
 
 /** 起一个会话，返回它最终在用的设置和它说过的话。 */

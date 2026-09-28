@@ -6,7 +6,7 @@
  * 上一个按钮，写一条 `kind:name → path` 的偏好。
  *
  * 要验的是关系：被指名的那份成为赢家，原来的赢家变成输家并指着它，其它输家也改指它——设置页
- * 上的「被 X 覆盖」读的是这个字段。最后一条接线：偏好从 settings.json 出发，经 `loadRules`
+ * 上的「被 X 覆盖」读的是这个字段。最后一条接线：偏好从 settings.json 出发，经 `collectSkills`
  * 到达注册表，把这段传参摘掉它必须变红。
  */
 
@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { CapabilityRegistry } from "../src/capability/registry.ts";
 import type { CapabilityId, CapabilityProvider, DiscoveryContext, Sourced } from "../src/capability/types.ts";
-import { loadRules } from "../src/runtime/session-setup.ts";
+import { collectSkills } from "../src/runtime/session-setup.ts";
 import type { Settings } from "../src/types.ts";
 
 interface Named {
@@ -70,34 +70,35 @@ test("a preference for a path that is not there does nothing", async () => {
 	assert.equal(result.items[0].provenance.provider, "high", "default order holds");
 });
 
-test("a preference is scoped by kind: preferring a rule does not touch a skill of the same name", async () => {
+test("a preference is scoped by kind: preferring a command does not touch a skill of the same name", async () => {
 	const reg = registry();
 	reg.register(fake("low", 10, ["deploy"]));
 	reg.register(fake("high", 100, ["deploy"]));
 
-	const result = await reg.load<Named>("skill", { cwd: "/p", preferred: new Map([["rule:deploy", "/low/deploy.md"]]) });
+	const result = await reg.load<Named>("skill", { cwd: "/p", preferred: new Map([["command:deploy", "/low/deploy.md"]]) });
 	assert.equal(result.items[0].provenance.provider, "high");
 });
 
-test("接线：settings.json 里的偏好经 loadRules 到达注册表，内置规则能赢回被项目盖掉的名字", async () => {
+test("接线：settings.json 里的偏好经 collectSkills 到达注册表，被盖掉的那份能赢回名字", async () => {
 	/*
-	 * 真实的形状：项目里放一条 `no-force-push.md`，它按优先级盖掉内置的那条。偏好指向内置的
-	 * `builtin:no-force-push`，内置那条就该回到 stream 桶里——用它的正则来认，那是两份唯一
-	 * 不同的地方。
+	 * 真实的形状：项目里 `.lyra/skills/` 和 `.claude/skills/` 各有一份 `deploy`，前者优先级高、
+	 * 默认赢。偏好指向 `.claude` 那份，它就该成为赢家——用正文来认，那是两份唯一不同的地方。
 	 */
 	const root = await mkdtemp(join(tmpdir(), "lyra-prefer-"));
-	await mkdir(join(root, ".lyra", "rules"), { recursive: true });
-	await writeFile(join(root, ".lyra", "rules", "no-force-push.md"), "---\ncondition: 'PROJECT-ONLY'\n---\n项目里的那份。\n", "utf8");
+	const skill = async (dir: string, body: string) => {
+		await mkdir(join(root, dir, "deploy"), { recursive: true });
+		await writeFile(join(root, dir, "deploy", "SKILL.md"), `---\nname: deploy\ndescription: 部署\n---\n${body}\n`, "utf8");
+	};
+	await skill(join(".lyra", "skills"), "LYRA-COPY");
+	await skill(join(".claude", "skills"), "CLAUDE-COPY");
 
-	const base = { enabledForeignUserRules: [], disabledRules: [], capabilityPreferences: {} } as unknown as Settings;
-	const before = await loadRules(root, base, []);
-	const projectWon = before.stream.find((rule) => rule.name === "no-force-push");
-	assert.ok(projectWon && projectWon.conditions.some((c) => c.source === "PROJECT-ONLY"), "by default the project file wins");
+	const base = { capabilityPreferences: {} } as unknown as Settings;
+	const before = await collectSkills(root, [], base);
+	assert.match(before.skills.find((item) => item.name === "deploy")?.content ?? "", /LYRA-COPY/, "by default ours wins");
 
-	const preferring = { ...base, capabilityPreferences: { "rule:no-force-push": "builtin:no-force-push" } } as Settings;
-	const after = await loadRules(root, preferring, []);
-	const builtinWon = after.stream.find((rule) => rule.name === "no-force-push");
-	assert.ok(builtinWon, "the name is still there");
-	assert.ok(!builtinWon.conditions.some((c) => c.source === "PROJECT-ONLY"), "and it is the built-in one now");
-	assert.equal(builtinWon.source, "builtin");
+	const claudePath = join(root, ".claude", "skills", "deploy", "SKILL.md");
+	const after = await collectSkills(root, [], { capabilityPreferences: { "skill:deploy": claudePath } } as unknown as Settings);
+	const won = after.skills.find((item) => item.name === "deploy");
+	assert.ok(won, "the name is still there");
+	assert.match(won.content, /CLAUDE-COPY/, "and it is the preferred one now");
 });

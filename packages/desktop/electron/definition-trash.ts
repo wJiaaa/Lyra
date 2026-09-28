@@ -1,6 +1,6 @@
 import { lstat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { collectRules, collectSkills, commandSources, loadCommands, lyraHome, type Settings } from "@lyra/core";
+import { collectSkills, commandSources, loadCommands, lyraHome, type Settings } from "@lyra/core";
 
 /** Resolve against a fresh inventory; the renderer cannot choose an arbitrary file or directory. */
 export async function definitionTrashTarget(kind: unknown, cwd: unknown, path: unknown, settings: Settings): Promise<string> {
@@ -14,9 +14,6 @@ export async function definitionTrashTarget(kind: unknown, cwd: unknown, path: u
 		const { skills } = await collectSkills(cwd, [], settings);
 		const skill = skills.find((skill) => skill.path === path && skill.source !== "builtin" && !skill.pluginId);
 		target = skill?.dir;
-	} else if (kind === "rule") {
-		const { rules } = await collectRules(cwd, settings, []);
-		target = rules.find((rule) => rule.path === path && !rule.path.startsWith("builtin:"))?.path;
 	} else {
 		throw new Error("不支持删除这种能力。");
 	}

@@ -2,7 +2,6 @@
 /**
  * The split-view scoping faults left after the first pass, reproduced in a real window.
  *
- *   rule        The 「要把这次纠正变成一条规则吗？」 card drew under every screen, and went away when focus moved.
  *   subagent    Closing a sub-agent from a screen the keyboard reached asked the focused conversation to close it.
  *   disclosure  A process block opened in one screen folded again when focus moved to another.
  *   changebar   The change counter under a screen opened the Git panel in the focused screen.
@@ -18,7 +17,7 @@
  *
  * Screenshots, recordings and the measured numbers land in ~/Desktop/分屏其余串台测试/.
  *
- * Usage: node --experimental-strip-types e2e/split-scope-rest-probe.ts <rule|subagent|disclosure|changebar|hiccup|revert|edit|all> <before|after>
+ * Usage: node --experimental-strip-types e2e/split-scope-rest-probe.ts <subagent|disclosure|changebar|hiccup|revert|edit|all> <before|after>
  */
 
 import { execFile } from "node:child_process";
@@ -59,9 +58,6 @@ interface Side {
 const A: Side = { id: "split-a", title: "甲会话", project: "alpha-app", branch: "main", ask: "甲会话的第一个问题", answer: "甲会话的回答。", dirty: ["README.md"], projectId: "" };
 const B: Side = { id: "split-b", title: "乙会话", project: "beta-lib", branch: "beta-work", ask: "乙会话的第一个问题", answer: "乙会话的回答。", dirty: ["README.md", "lib.ts"], projectId: "" };
 
-/** Said to 甲 to make the runtime offer a rule: it reads like a correction to the cheap pre-filter. */
-const CORRECTION = "别用 var，以后都用 const";
-const RULE_NAME = "probe-no-var";
 /** Asks the model to delegate; each sub-agent is told one of these, which is how its requests are recognised. */
 const DELEGATE = "派两个子智能体去找入口和配置";
 const SUB_PROMPT = "子任务：";
@@ -81,7 +77,7 @@ const EDITED = "乙会话改过的问题";
 // ---------------------------------------------------------------------------
 
 interface Asked {
-	kind: "chat" | "title" | "classify" | "sub";
+	kind: "chat" | "title" | "sub";
 	/** The first thing said in the conversation the request belongs to. */
 	first: string;
 	/** The last thing a person said, skipping the runtime's trailing <env> block. */
@@ -105,11 +101,9 @@ function startModel(): Promise<{ port: number; asked: Asked[]; server: Server }>
 		req.on("data", (chunk: Buffer) => (raw += chunk.toString()));
 		req.on("end", () => {
 			const body = JSON.parse(raw || "{}") as {
-				system?: string | Array<{ text?: string }>;
 				messages?: Array<{ role: string; content: unknown }>;
 				tools?: Array<{ name: string }>;
 			};
-			const system = typeof body.system === "string" ? body.system : (body.system ?? []).map((block) => block.text ?? "").join("\n");
 			const users = (body.messages ?? []).filter((message) => message.role === "user");
 			const human = (content: unknown) => textOf(content).filter((text) => !text.trim().startsWith("<env>"));
 			const first = human(users[0]?.content).join(" ");
@@ -123,9 +117,9 @@ function startModel(): Promise<{ port: number; asked: Asked[]; server: Server }>
 			}
 			const tail = users.at(-1)?.content;
 			const result = Array.isArray(tail) && tail.some((block: { type?: string }) => block?.type === "tool_result");
-			// The title request and the correction classifier carry no tools; a conversation turn offers todo_write.
+			// The title request carries no tools; a conversation turn offers todo_write.
 			const chat = (body.tools ?? []).some((tool) => tool.name === "todo_write");
-			const kind: Asked["kind"] = first.startsWith(SUB_PROMPT) ? "sub" : chat ? "chat" : system.includes("isCorrection") ? "classify" : "title";
+			const kind: Asked["kind"] = first.startsWith(SUB_PROMPT) ? "sub" : chat ? "chat" : "title";
 			const project = raw.includes(`/${A.project}`) ? A.project : raw.includes(`/${B.project}`) ? B.project : null;
 			asked.push({ kind, first, last, result, project });
 
@@ -144,13 +138,7 @@ function startModel(): Promise<{ port: number; asked: Asked[]; server: Server }>
 			};
 			let stop = "end_turn";
 			if (kind === "title") say("探针会话");
-			else if (kind === "classify") {
-				say(
-					first.includes(CORRECTION)
-						? JSON.stringify({ isCorrection: true, condition: "\\bvar\\s", scope: "text", name: RULE_NAME, body: "别用 var，统一用 const。" })
-						: JSON.stringify({ isCorrection: false }),
-				);
-			} else if (kind === "sub") say(first.includes("配置") ? "配置在 lib.ts。" : "入口在 README.md。");
+			else if (kind === "sub") say(first.includes("配置") ? "配置在 lib.ts。" : "入口在 README.md。");
 			else if (result) say("子任务做完了。");
 			else if (last.includes(DELEGATE)) {
 				stop = "tool_use";
@@ -494,62 +482,6 @@ async function shutdown(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// rule: the offer to keep a correction.
-// ---------------------------------------------------------------------------
-
-/** Visible 「保存到项目」 buttons in a screen: one per card drawn there. */
-const RULE_CARDS = (side: Side) => js<number>(`[...document.querySelectorAll('${pane(side)} button[aria-label="保存到项目"]')].filter((el) => el.checkVisibility()).length`);
-const RULE_CARD_MARK = `button[aria-label="保存到项目"]`;
-
-async function sceneRule(): Promise<void> {
-	const scene = "rule";
-	await boot("规则建议卡片");
-	try {
-		await splitAB();
-		await caption(`点左边「${A.title}」，纠正它一句：${CORRECTION}`);
-		await focusByMouse(A);
-		await g.send("Input.insertText", { text: CORRECTION });
-		await pause(200);
-		await key("Enter", 13);
-		const deadline = Date.now() + 20000;
-		while (!model.asked.some((one) => one.kind === "classify" && one.first.includes(CORRECTION)) && Date.now() < deadline) await pause(150);
-		const offered = await within(`[...document.querySelectorAll('${RULE_CARD_MARK}')].some((el) => el.checkVisibility())`, 10000);
-		await pause(1200);
-		const first = { a: await RULE_CARDS(A), b: await RULE_CARDS(B), focused: await focusedScreen() };
-		console.log(`     模型收到：${JSON.stringify(model.asked)}`);
-		check(scene, "甲被纠正后出现了规则建议卡片", offered, first);
-		check(scene, "焦点在甲：卡片只画在甲屏，乙屏没有", first.a === 1 && first.b === 0, first);
-		await caption(first.b > 0 ? `乙屏也画出了「${A.title}」的规则卡片` : "卡片只在甲屏");
-		await shoot("01", "甲刚被纠正_两屏的规则卡片", [`${pane(A)} ${RULE_CARD_MARK}`, `${pane(B)} ${RULE_CARD_MARK}`]);
-
-		await caption(`点右边「${B.title}」的输入框，焦点换到乙`);
-		await focusByMouse(B);
-		const moved = { a: await RULE_CARDS(A), b: await RULE_CARDS(B), focused: await focusedScreen() };
-		check(scene, "焦点换到乙：甲屏的卡片还在，乙屏仍然没有", moved.a === 1 && moved.b === 0, moved);
-		await caption(moved.a === 0 ? "焦点一走，甲屏的卡片没了——还没回答就丢了" : "焦点换到乙，甲屏的卡片还在");
-		await shoot("02", "焦点换到乙_两屏的规则卡片", [`${pane(A)} ${RULE_CARD_MARK}`, `${pane(B)} ${RULE_CARD_MARK}`]);
-
-		if (moved.a === 0) {
-			check(scene, "键盘在甲屏按「保存到项目」：规则存进甲的项目", false, { skipped: "甲屏已经没有卡片可按" });
-			return;
-		}
-		await caption("键盘把焦点移到甲屏卡片的「保存到项目」（没有鼠标按下），回车");
-		await keyboardPress(`${pane(A)} ${RULE_CARD_MARK}`);
-		const file = (side: Side) => join(app!.home, side.project, ".lyra", "rules", `${RULE_NAME}.md`);
-		const end = Date.now() + 6000;
-		while (!existsSync(file(A)) && !existsSync(file(B)) && Date.now() < end) await pause(150);
-		await pause(800);
-		const saved = { alpha: existsSync(file(A)), beta: existsSync(file(B)), cardsA: await RULE_CARDS(A), cardsB: await RULE_CARDS(B), focused: await focusedScreen() };
-		check(scene, "键盘在甲屏按「保存到项目」：规则存进甲的项目，乙的项目里没有", saved.alpha && !saved.beta, saved);
-		check(scene, "存完之后两屏都没有卡片", saved.cardsA === 0 && saved.cardsB === 0, saved);
-		await caption(saved.alpha ? `规则存进了 ${A.project}/.lyra/rules/` : saved.beta ? `规则存进了乙的项目 ${B.project}` : "什么也没存下");
-		await shoot("03", "键盘保存之后", [pane(A)]);
-	} finally {
-		await shutdown();
-	}
-}
-
-// ---------------------------------------------------------------------------
 // subagent: closing a delegated run from its own screen's panel.
 // ---------------------------------------------------------------------------
 
@@ -844,7 +776,6 @@ async function sceneEdit(): Promise<void> {
 async function main(): Promise<void> {
 	await mkdir(OUT, { recursive: true });
 	const scenes: Record<string, () => Promise<void>> = {
-		rule: sceneRule,
 		subagent: sceneSubagent,
 		disclosure: sceneDisclosure,
 		changebar: sceneChangebar,

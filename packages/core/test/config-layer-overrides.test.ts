@@ -10,8 +10,8 @@ import { test } from "node:test";
 import { layerOverrides, mergeLayer } from "../src/config/layers.ts";
 
 test("an array set by the project replaces the global one, and both sides are reported", () => {
-	const out = layerOverrides({ disabledRules: ["no-force-push"], alwaysAllow: ["bash"] }, { disabledRules: ["verify-before-yield"] });
-	assert.deepEqual(out, [{ key: "disabledRules", kind: "array", project: ["verify-before-yield"], global: ["no-force-push"] }]);
+	const out = layerOverrides({ disabledPlugins: ["plugin-a"], alwaysAllow: ["bash"] }, { disabledPlugins: ["plugin-b"] });
+	assert.deepEqual(out, [{ key: "disabledPlugins", kind: "array", project: ["plugin-b"], global: ["plugin-a"] }]);
 });
 
 test("objects merge, so only the leaves inside them are overrides — with dotted keys", () => {
@@ -22,8 +22,8 @@ test("objects merge, so only the leaves inside them are overrides — with dotte
 });
 
 test("a key the global layer never set, or set to the same value, is not an override", () => {
-	assert.deepEqual(layerOverrides({}, { disabledRules: ["x"] }), [], "nothing was lost");
-	assert.deepEqual(layerOverrides({ disabledRules: ["x"] }, { disabledRules: ["x"] }), [], "nothing changed");
+	assert.deepEqual(layerOverrides({}, { disabledPlugins: ["x"] }), [], "nothing was lost");
+	assert.deepEqual(layerOverrides({ disabledPlugins: ["x"] }, { disabledPlugins: ["x"] }), [], "nothing changed");
 	assert.deepEqual(layerOverrides({ thinking: "off" }, { thinking: undefined }), [], "undefined is absence");
 });
 

@@ -1,7 +1,7 @@
 /**
  * System prompt construction.
  *
- * 系统提示只放对整个会话都成立的话：身份、怎么说话和做事、边界、环境，然后是技能、规则、项目
+ * 系统提示只放对整个会话都成立的话：身份、怎么说话和做事、边界、环境，然后是技能、项目
  * 指令，工作目录最后。某个工具怎么用写在那个工具自己的 `description` 里——它随工具表一起发，
  * 工具没加载就不在；以前工具在这里还有一行清单和一组 guidelines，同一件事写两三处，改一处漏一处。
  *
@@ -12,8 +12,6 @@ import { homedir } from "node:os";
 import { createRegistry } from "../capability/index.ts";
 import type { ContextFile } from "../capability/types.ts";
 import { lyraHome } from "../session/store.ts";
-import type { RuleSet } from "../rules/types.ts";
-import { formatRules } from "../rules/session.ts";
 import { concurrencyNote } from "../runtime/dispatch-guard.ts";
 import { parseGuidelines } from "./overrides.ts";
 import { renderTemplate } from "./template.ts";
@@ -40,13 +38,6 @@ export interface SystemPromptInput {
 	projectRoots?: readonly string[];
 	tools: Tool[];
 	skills: Skill[];
-	/**
-	 * Rules the user wrote.
-	 *
-	 * Only two of the three buckets reach the prompt: always-apply bodies and the rulebook's
-	 * listing. Stream rules stay out on purpose — their whole value is costing nothing here.
-	 */
-	rules?: RuleSet;
 	/** Sub-agents the `task` tool can dispatch to. */
 	agents?: AgentDefinition[];
 	/** Contents of the project's instruction file, if one exists. */
@@ -261,7 +252,6 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 	}
 
 	prompt.add("skills", formatSkills(input.skills));
-	if (input.rules) prompt.add("rules", formatRules(input.rules));
 	// Only worth listing when task is actually loaded — otherwise the model cannot dispatch.
 	if (input.tools.some((tool) => tool.name === "task") && input.agents?.length) {
 		prompt.add("agents", formatSubagents(input.agents));

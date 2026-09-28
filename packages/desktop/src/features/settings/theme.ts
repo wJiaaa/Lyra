@@ -152,13 +152,13 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * the wrong frame of reference.
 		 *
 		 * A veil instead, like `--color-elevated` above: a wash of the foreground at a fixed opacity,
-		 * which lands the same distance above whatever it is over. 10%, ZCode's `--color-border`:
+		 * which lands the same distance above whatever it is over. 10%:
 		 * 14% drew a menu's outline and separators as a visible frame rather than an edge.
 		 */
 		"--color-line-float": veil(0.1),
 		"--color-ink": toHex(foreground),
-		// ZCode（zai 主题）的 foreground-subtle：正文色的 60%。最浅那档 ZCode 浅色 40%、深色 30%，
-		// 深色 30% 在深色底上过程行（思考、工具）读不清，提到 50%。
+		// 次要文字：正文色的 60%。最浅那档浅色 40%、深色 50%——
+		// 深色用 30% 时，深色底上的过程行（思考、工具）读不清。
 		"--color-ink-muted": text(0.6),
 		"--color-ink-faint": text(dark ? 0.5 : 0.4),
 		"--color-accent": accent,
@@ -313,6 +313,16 @@ export function applyAppearance(input: AppearanceSettings): void {
 	root.dataset.fontSmoothing = String(appearance.fontSmoothing);
 	root.dataset.reduceMotion = appearance.reduceMotion;
 	root.dataset.callChain = appearance.callChain ?? "collapsed";
+	/*
+	 * 毛玻璃只有 preload 打过标记的窗口才有（macOS 主窗口），这里只跟着设置切 on / off；
+	 * 窗口那一层的材质由主进程在设置变化时换。关掉时 `<html>` 回到主题底色，开着时必须透明，
+	 * 不然一层实色盖在材质上。
+	 */
+	if (root.dataset.vibrancy) {
+		const vibrant = appearance.vibrancy !== false;
+		root.dataset.vibrancy = vibrant ? "on" : "off";
+		root.style.background = vibrant ? "transparent" : "var(--color-shell)";
+	}
 	for (const listener of applied) listener();
 }
 

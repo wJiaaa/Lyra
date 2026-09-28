@@ -1,7 +1,7 @@
 /**
  * 钩子：用户级的存在设置文件里，项目级的存在当前项目的 `.lyra/config.json` 里。
  *
- * 布局照 ZCode：顶上一行是范围、数量和搜索，下面「已安装」一段，每条一行，点开是表单。项目钩子
+ * 布局：顶上一行是范围、数量和搜索，下面「已安装」一段，每条一行，点开是表单。项目钩子
  * 来自项目目录——可能是别人提交进来的——所以没信任过的那几条开关是灰的，旁边给一个「信任」。
  */
 
@@ -10,7 +10,6 @@ import { Anchor, Plus, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-reac
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { HookView, HooksView } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { baseName } from "../../lib/paths.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
@@ -18,7 +17,7 @@ import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { Toggle } from "./controls.tsx";
 import { HookForm } from "./HookForm.tsx";
-import { InlineSelect } from "./inputs.tsx";
+import { ProjectScope } from "./ProjectScope.tsx";
 import { Card } from "./layout.tsx";
 
 function matchesQuery(hook: HookView, query: string): boolean {
@@ -28,9 +27,14 @@ function matchesQuery(hook: HookView, query: string): boolean {
 
 export function HooksSettings() {
 	const { t } = useI18n();
-	const cwd = useApp((s) => s.workspace?.path) ?? null;
+	const workspace = useApp((s) => s.workspace?.path) ?? null;
+	const projects = useApp((s) => s.settings?.projects) ?? [];
+	/** null 是用户级；项目被移除后回到用户级，而不是继续读一个已经不在列表里的目录。 */
+	const [projectPath, setProjectPath] = useState<string | null>(null);
+	const project = projects.find((entry) => entry.path === projectPath) ?? null;
+	const cwd = project?.path ?? null;
+	const scope: HookScope = project ? "project" : "user";
 	const [view, setView] = useState<HooksView | null>(null);
-	const [scope, setScope] = useState<HookScope>("user");
 	const [query, setQuery] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState<string | null>(null);
@@ -54,21 +58,22 @@ export function HooksSettings() {
 		window.addEventListener("focus", refresh);
 		return () => window.removeEventListener("focus", refresh);
 	}, [refresh]);
-	useEffect(() => {
-		if (!cwd) setScope("user");
-	}, [cwd]);
-
 	/*
 	 * 从会话里「去审核」点过来的，直接落在项目那一栏。
 	 *
-	 * 只在首次拿到列表时看一眼：之后切回「用户」是用户自己的选择，不该被抢回去。
+	 * 只在打开时看一眼当前会话的项目：之后切回「用户」是用户自己的选择，不该被抢回去。
 	 */
 	const [landed, setLanded] = useState(false);
 	useEffect(() => {
-		if (landed || !view) return;
+		if (landed || !workspace) return;
 		setLanded(true);
-		if (view.project?.some((hook) => hook.trusted === false)) setScope("project");
-	}, [landed, view]);
+		void bridge.hooks
+			.list(workspace)
+			.then((next) => {
+				if (next.project?.some((hook) => hook.trusted === false)) setProjectPath(workspace);
+			})
+			.catch(() => {});
+	}, [landed, workspace]);
 
 	async function run(id: string, action: () => Promise<HooksView>) {
 		setBusy(id);
@@ -83,8 +88,8 @@ export function HooksSettings() {
 	}
 
 	const scopes = useMemo(
-		() => [{ value: "user" as const, label: t("common.user") }, ...(cwd ? [{ value: "project" as const, label: baseName(cwd) }] : [])],
-		[cwd, t],
+		() => [{ value: "user" as const, label: t("common.user") }, ...(project ? [{ value: "project" as const, label: project.name }] : [])],
+		[project, t],
 	);
 
 	if (editing !== undefined) {
@@ -101,7 +106,7 @@ export function HooksSettings() {
 						try {
 							setView(await bridge.hooks.save(saveScope, cwd, target?.id ?? null, draft));
 							setError(null);
-							setScope(saveScope);
+							if (saveScope === "user") setProjectPath(null);
 							setEditing(undefined);
 						} catch (reason) {
 							setError(reason instanceof Error ? reason.message : String(reason));
@@ -138,7 +143,7 @@ export function HooksSettings() {
 			<p className="mt-2 text-label text-ink-muted">{t("hooks.intro")}</p>
 
 			<div className="mt-6 flex min-w-0 flex-wrap items-center gap-3">
-				<InlineSelect value={scope} onChange={setScope} options={scopes} ariaLabel={t("hooks.scope")} />
+				<ProjectScope value={project} projects={projects} onChange={setProjectPath} />
 				<div className="h-4 w-px bg-line" aria-hidden />
 				<div className="flex items-center gap-1 text-label font-medium text-ink">
 					{t("hooks.title")}

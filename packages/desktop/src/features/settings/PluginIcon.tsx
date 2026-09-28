@@ -51,21 +51,6 @@ const MARKS: Record<BundleKind, { Glyph: typeof Blocks; label: MessageKey }> = {
 };
 
 /**
- * A skill's mark, which is the same mark for every skill.
- *
- * A skill is a markdown file, not a product: it has no icon and never will, so anything that looks
- * like a logo is the wrong picture here — a list of eight skills became eight copies of the same
- * colourful square, which is a lot of ink spent saying "these are all skills" to someone who is
- * reading a list of skills.
- *
- * Quiet on purpose. It marks where the row starts and gives the name something to sit against;
- * anything more competes with the only part of the row that differs.
- */
-export function SkillMark({ size = 30 }: { size?: number }) {
-	return <KindMark kind="skill" size={size} />;
-}
-
-/**
  * The mark for a bundle that shipped no icon of its own.
  *
  * Shaped like a logo — same square, same corner radius, same place in the row — so a list that

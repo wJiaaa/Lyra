@@ -1,9 +1,8 @@
 /**
  * 「这个仓库里有其他 AI 工具的配置，Lyra 已经在用」——那几行从哪来（15 §5）。
  *
- * 数字要是真的：一个 `.cursor/rules/` 里两个能解析的文件，才是「2 条规则」；空目录什么都不是。
- * 所以从注册表读，而不是看目录在不在。只算这个仓库里的——`~/.cursor/rules` 是你自己的，不是
- * 仓库带的。看过一次记在项目自己的目录里，不进仓库。
+ * 数字要是真的：一个 `.claude/skills/` 里两个能解析的技能，才是「2 个技能」；空目录什么都不是。
+ * 所以从注册表读，而不是看目录在不在。只算这个仓库里的——`~/.claude` 是你自己的，不是仓库带的。看过一次记在项目自己的目录里，不进仓库。
  */
 
 import assert from "node:assert/strict";
@@ -26,13 +25,12 @@ before(async () => {
 	repo = await mkdtemp(join(tmpdir(), "ly-foreign-repo-"));
 	process.env.LYRA_HOME = home;
 	await mkdir(join(repo, ".git"), { recursive: true });
-	await put(".cursor/rules/a.mdc", "---\ndescription: A\n---\n甲。");
-	await put(".cursor/rules/b.mdc", "---\ndescription: B\n---\n乙。");
 	await put(".claude/commands/review.md", "---\ndescription: 审查\n---\n审。");
 	await put(".claude/skills/pdf/SKILL.md", "---\nname: pdf\ndescription: 读 PDF，抽取表格与正文，用于总结长文档\n---\n正文");
+	await put(".claude/skills/csv/SKILL.md", "---\nname: csv\ndescription: 读 CSV，按列汇总并画出分布，用于分析表格数据\n---\n正文");
 	await put("CLAUDE.md", "# Claude 的约定\n\n用 pnpm。");
 	// 我们自己的，不该出现在「其他工具」里——AGENTS.md 是这个产品默认要的项目规则文件
-	await put(".lyra/rules/ours.md", "---\ndescription: 我们的\n---\n自家。");
+	await put(".lyra/skills/ours/SKILL.md", "---\nname: ours\ndescription: 自家的技能，只在这个仓库里用来检查发布前的准备\n---\n自家。");
 	await put("LYRA.md", "# 自家上下文");
 	await put("AGENTS.md", "# 约定\n\n用 pnpm。");
 });
@@ -47,8 +45,7 @@ test("每家工具一行一处，带真实数量；自家的不算", async () =>
 	const brief = lines.map((l) => `${l.where} ${l.kind} x${l.count} (${l.label})`);
 	assert.deepEqual(brief, [
 		".claude/commands/ command x1 (Claude Code)",
-		".claude/skills/ skill x1 (Claude Code)",
-		".cursor/rules/ rule x2 (Cursor)",
+		".claude/skills/ skill x2 (Claude Code)",
 		"CLAUDE.md context-file x1 (Claude Code)",
 	]);
 	assert.ok(!lines.some((l) => l.where.startsWith(".lyra/") || l.where === "LYRA.md" || l.where === "AGENTS.md"), "ours is not another tool's");
@@ -56,8 +53,8 @@ test("每家工具一行一处，带真实数量；自家的不算", async () =>
 
 test("一个只有自家配置的仓库，一行都没有", async () => {
 	const plain = await mkdtemp(join(tmpdir(), "ly-foreign-plain-"));
-	await mkdir(join(plain, ".lyra", "rules"), { recursive: true });
-	await writeFile(join(plain, ".lyra", "rules", "x.md"), "---\ndescription: x\n---\nx", "utf8");
+	await mkdir(join(plain, ".lyra", "skills", "x"), { recursive: true });
+	await writeFile(join(plain, ".lyra", "skills", "x", "SKILL.md"), "---\nname: x\ndescription: 自家的技能，只在这个仓库里用来检查发布前的准备\n---\nx", "utf8");
 	assert.deepEqual(await foreignConfigsIn(plain), []);
 	await rm(plain, { recursive: true, force: true });
 });

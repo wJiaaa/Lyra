@@ -38,8 +38,8 @@ export const writeTool: Tool<WriteArgs> = {
 		 * Writable addresses, of which there is exactly one.
 		 *
 		 * The refusal for everything else is the point rather than a gap. A model that could
-		 * `write rule://no-force-push` could rewrite the constraint that stops it force-pushing,
-		 * and the rewrite would look like any other tool call. Changing a rule goes through the
+		 * `write skill://<name>` could rewrite the instructions it is meant to follow, and the
+		 * rewrite would look like any other tool call. Changing a skill goes through the
 		 * filesystem, where the user's own review of a diff applies.
 		 */
 		if (ctx.resources?.canResolve(args.path)) {

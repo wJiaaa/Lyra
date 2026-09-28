@@ -3,8 +3,8 @@
  *
  * The boundaries are the reason most of this file exists. One is that a path cannot climb out of
  * the namespace it names — including through a symlink, where the textual path never leaves and
- * the read does. The other is that almost nothing is writable, so a model cannot edit the rule
- * that constrains it by addressing it.
+ * the read does. The other is that almost nothing is writable, so a model cannot edit the
+ * instructions that constrain it by addressing them.
  */
 
 import assert from "node:assert/strict";
@@ -45,15 +45,6 @@ function state(): Map<string, unknown> {
 					disableModelInvocation: false,
 				},
 			],
-		],
-		[
-			"rules",
-			{
-				always: [],
-				book: [{ name: "style", content: "用 tab 缩进。", path: "/rules/style.md", bucket: "book", source: "workspace", conditions: [], scopes: [], interrupt: "always", repeat: "once" }],
-				stream: [],
-				diagnostics: [],
-			},
 		],
 	]);
 }
@@ -137,8 +128,8 @@ test("registering a scheme twice is refused", () => {
 });
 
 test("a bare scheme lists what is in it", async () => {
-	const listed = await router().resolve("rule://", ctx());
-	assert.match(listed.content, /rule:\/\/style/);
+	const listed = await router().resolve("skill://", ctx());
+	assert.match(listed.content, /skill:\/\/pdf/);
 });
 
 // ---------------------------------------------------------------------------
@@ -172,16 +163,6 @@ test("a symlink out of the skill directory is refused", async () => {
 
 test("an unknown skill names the ones that exist", async () => {
 	await assert.rejects(() => router().resolve("skill://nope", ctx()), /现有的是：pdf/);
-});
-
-// ---------------------------------------------------------------------------
-// rule://
-// ---------------------------------------------------------------------------
-
-test("rule:// returns a rule body", async () => {
-	const rule = await router().resolve("rule://style", ctx());
-	assert.equal(rule.content, "用 tab 缩进。");
-	assert.equal(rule.meta?.bucket, "book");
 });
 
 // ---------------------------------------------------------------------------
@@ -236,7 +217,7 @@ test("a symlink inside scratch cannot carry a read or a write outside it", async
 
 test("everything except scratch is read-only", async () => {
 	const r = router();
-	for (const url of ["rule://style", "skill://pdf", "lyra://addresses"]) {
+	for (const url of ["skill://pdf", "lyra://addresses"]) {
 		await assert.rejects(() => r.write(url, "改掉", ctx()), /只读/, `${url} must not be writable`);
 	}
 });
@@ -254,8 +235,8 @@ test("the router reports which schemes are writable", () => {
 // ---------------------------------------------------------------------------
 
 test("lyra:// serves its own documentation and lists its topics", async () => {
-	const doc = await router().resolve("lyra://writing-rules", ctx());
-	assert.match(doc.content, /alwaysApply/, "the doc says what the frontmatter looks like");
+	const doc = await router().resolve("lyra://writing-skills", ctx());
+	assert.match(doc.content, /description/, "the doc says what the frontmatter looks like");
 	assert.equal(doc.immutable, true);
 
 	const index = await router().resolve("lyra://", ctx());
@@ -280,11 +261,11 @@ test("read falls through to the filesystem for a scheme nobody owns", async () =
 	assert.match(textOf(result), /File not found/, "it failed as a path, not as an address");
 });
 
-test("write goes to scratch through the tool, and is refused for a rule", async () => {
+test("write goes to scratch through the tool, and is refused for a skill", async () => {
 	const ok = await writeTool.execute({ path: "scratch://from-tool.md", content: "内容" } as never, toolCtx());
 	assert.equal(ok.isError, undefined);
 
-	const refused = await writeTool.execute({ path: "rule://style", content: "把规则改掉" } as never, toolCtx());
+	const refused = await writeTool.execute({ path: "skill://pdf", content: "把技能改掉" } as never, toolCtx());
 	assert.ok(refused.isError);
 	assert.match(textOf(refused), /只读/);
 });

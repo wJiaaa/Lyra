@@ -203,11 +203,11 @@
 }
 
 /*
- * 菜单和浮层的卡片：照 ZCode（shadcn 的 dropdown / popover），实底、一层淡阴影。
+ * 菜单和浮层的卡片：照 shadcn 的 dropdown / popover，实底、一层淡阴影。
  *
  * 之前用 `.ly-glass`：半透明加 40px 模糊、顶边一道内高光、深色下 50% 的重阴影，放在一张小菜单上
  * 显得又厚又花。浮层本来就几乎不透明（92%），模糊透不出什么东西，只剩那些装饰。阴影是 Tailwind
- * 的 `shadow-md`，深浅主题同一组，和 ZCode 一样。
+ * 的 `shadow-md`，深浅主题同一组。
  */
 .ly-menu-card {
   border-radius: var(--radius-menu);
@@ -495,18 +495,6 @@
   animation-range: exit calc(100% - 36px) exit 100%;
 }
 
-/*
- * A rule correction in the transcript.
- *
- * Only the code surface is here; the layout is Tailwind on the component, like every other card in
- * this app. The excerpt reads as code and belongs on the code theme's own background, so that a
- * light syntax theme does not put warm text on the app's panel colour.
- */
-.ly-rule-excerpt {
-  background: var(--ly-code-bg, var(--color-shell));
-  color: var(--ly-code-fg, var(--color-ink));
-}
-
 /* Opacity preserves geometry; touch devices keep the action visible without a hover gesture. */
 .ly-row-action {
 	transition: opacity var(--ly-t-quick) var(--ly-e-out);
@@ -530,7 +518,7 @@
 /* Identical metrics keep the decoration and the native caret in the same place. */
 .ly-composer-text {
 	padding: var(--ly-composer-in) var(--ly-composer-x);
-	/* ZCode 输入框的 14px / 20px。 */
+	/* 输入框的 14px / 20px。 */
 	font-size: var(--text-label);
 	line-height: 20px;
 	color: var(--color-ink);
@@ -539,7 +527,7 @@
 }
 
 /*
- * 空框两行高（40px），对齐 ZCode 输入区的 `min-h-10`。
+ * 空框两行高（40px），即 `min-h-10`。
  *
  * 写成 `min-height` 而不是 `rows`，是因为自适应高度的那段脚本每次都会把 `height` 覆盖掉，而
  * `min-height` 在 CSS 里永远压得住 `height`：脚本照旧按内容算它的数，框只是不会比这条线更矮。
@@ -663,7 +651,7 @@ textarea.ly-composer-text[data-highlighted="true"] {
   margin-left: calc(var(--ly-token-inset) * -1);
 }
 
-/* ZCode 的用户输入是 14px / 24px、不加字距；气泡里的 Markdown 跟着它，不跟回复正文。 */
+/* 用户输入是 14px / 24px、不加字距；气泡里的 Markdown 跟着它，不跟回复正文。 */
 .ly-user-bubble .prose-dw {
   line-height: 24px;
   letter-spacing: 0;
@@ -808,7 +796,7 @@ textarea.ly-composer-text[data-highlighted="true"] {
   --ly-glyph: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%238d8d8d%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2022a2%202%200%200%201-2-2V4a2%202%200%200%201%202-2h8a2.4%202.4%200%200%201%201.704.706l3.588%203.588A2.4%202.4%200%200%201%2020%208v12a2%202%200%200%201-2%202z%22%2F%3E%3Cpath%20d%3D%22M14%202v5a1%201%200%200%200%201%201h5%22%2F%3E%3C%2Fsvg%3E");
 }
 
-/* 「/」和「@」的菜单出现、收起都不做动画，对齐 ZCode：它跟着每一次按键开合，动画只会拖在手后面。 */
+/* 「/」和「@」的菜单出现、收起都不做动画：它跟着每一次按键开合，动画只会拖在手后面。 */
 .ly-mention-menu {
 	visibility: hidden;
 }

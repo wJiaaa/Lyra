@@ -21,7 +21,6 @@
 export type CapabilityId =
 	| "skill"
 	| "command"
-	| "rule"
 	| "agent"
 	| "context-file"
 	| "mcp"
@@ -114,9 +113,9 @@ export interface DiscoveryContext {
 	/**
 	 * Whether this provider may read its user-level directory this time.
 	 *
-	 * Project-level directories are always read: a `.cursor/rules` checked into a repository is
-	 * something the team wrote for this code. User-level ones are not, because your private Cursor
-	 * rules following you into someone else's repository is a surprise nobody asked for.
+	 * Project-level directories are always read: a `.claude/commands` checked into a repository is
+	 * something the team wrote for this code. User-level ones are not, because your private Claude
+	 * commands following you into someone else's repository is a surprise nobody asked for.
 	 */
 	userSourceEnabled: boolean;
 	signal?: AbortSignal;

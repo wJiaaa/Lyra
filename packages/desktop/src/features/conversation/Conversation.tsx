@@ -6,7 +6,6 @@ import { BackToLatest } from "./BackToLatest.tsx";
 import { Composer } from "../composer/index.ts";
 import { ResumeRow } from "./ResumeRow.tsx";
 import { HiccupRow } from "./HiccupTrace.tsx";
-import { RuleSuggestion } from "./RuleSuggestion.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
 import { BrowserCards } from "./BrowserCard.tsx";
@@ -536,13 +535,6 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
           </div>
           {/* Where the running indicator would have been, saying why it is not there. */}
           <ResumeRow />
-          {/*
-           * 「要把这次纠正变成一条规则吗？」——在转录末尾，而且只在一轮结束之后。
-           *
-           * 位置就是这个功能的一半。它问的是刚刚那次交流，所以贴着刚刚那次交流的末尾；而中途
-           * 弹出来的选择，人会为了让它消失而随手点掉。
-           */}
-          <RuleSuggestion />
           {/*
            * The end of the transcript, as an element.
            *

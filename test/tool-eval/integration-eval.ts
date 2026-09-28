@@ -50,10 +50,10 @@ const TASKS: Task[] = [
 	},
 	{
 		id: "two-places",
-		source: "packages/core/src/rules/stream.ts",
-		instruction: "两处改动：MAX_BUFFER 从 64 * 1024 改成 32 * 1024；MAX_PER_TURN 从 2 改成 3。",
-		expect: (c) => /MAX_BUFFER = 32 \* 1024/.test(c) && /MAX_PER_TURN = 3/.test(c),
-		intact: (c) => c.includes("export class StreamRuleMonitor") && /MATCH_WINDOW = 4096/.test(c),
+		source: "packages/core/src/tools/grep.ts",
+		instruction: "两处改动：MAX_MATCHES 从 200 改成 150；ERROR_LINES_KEPT 从 3 改成 5。",
+		expect: (c) => /MAX_MATCHES = 150;/.test(c) && /ERROR_LINES_KEPT = 5;/.test(c),
+		intact: (c) => c.includes("export const grepTool") && /MAX_OUTPUT_CHARS = 12_000;/.test(c),
 	},
 ];
 

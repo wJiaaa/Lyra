@@ -107,7 +107,7 @@ export class McpManager {
 
 	private async replaceAll(servers: McpServerConfig[]): Promise<McpServerStatus[]> {
 		/*
-		 * 配置没变、连接还活着的原样留下。重载多半是改了一条技能或规则（见 `AgentSession.reloadCapabilities`），
+		 * 配置没变、连接还活着的原样留下。重载多半是改了一条技能（见 `AgentSession.reloadCapabilities`），
 		 * 跟 MCP 无关；每次都关掉重启，等于让每台服务器为一个 markdown 文件冷启动一遍。改了配置、关过
 		 * 再开、连接已经断了的，照旧重连——这也是想手动重连一台服务器时的办法。
 		 */

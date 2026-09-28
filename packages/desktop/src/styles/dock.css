@@ -69,7 +69,7 @@
   /* A veil of the ink rather than `--color-line-soft`: that one is a line drawn *on* the page and
    * barely separates a card from the darker window surface around it. */
   border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
-  /* 不投影，和 ZCode 的工作区面板一样：底色、10% 描边和 12px 圆角都已对齐，它只靠卡片之间露出的窗口底色分层。 */
+  /* 不投影：底色、10% 描边和 12px 圆角，它只靠卡片之间露出的窗口底色分层。 */
   border-radius: var(--radius-panel);
 }
 
@@ -328,9 +328,9 @@
 }
 
 /*
- * 对话那一栏（转录和输入框）有多宽，照 ZCode：窗格窄于 864 铺满；864–1279 是
- * `min(100% - 96px, 896px)`；1280 起是 `min(100% - 384px, 1152px)`。ZCode 那一栏里输入框
- * 还有左右各 16px 的内衬，这里的数就是它们减掉之后的输入框宽度。
+ * 对话那一栏（转录和输入框）有多宽：窗格窄于 864 铺满；864–1279 是
+ * `min(100% - 96px, 896px)`；1280 起是 `min(100% - 384px, 1152px)`。这是那一栏减掉
+ * 左右各 16px 内衬之后的输入框宽度。
  *
  * 写在窗格的直接子元素上再往下继承：容器查询只能改容器里面的元素，改不了容器自己。
  */

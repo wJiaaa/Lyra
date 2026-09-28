@@ -71,10 +71,13 @@ async function harness(script?: (turn: number) => AssistantMessage | Promise<Ass
 	 * was part of every context these tests measured. Installing a skill collection therefore
 	 * broke the suite — and `pnpm test` is in the pre-push hook, so using the app as intended
 	 * stopped you pushing to it.
+	 *
+	 * HOME 也要换：个人的 `~/.agents/skills` 同样进会话，而它按 `os.homedir()` 找，不看 LYRA_HOME。
 	 */
 	const home = join(root, "home");
 	await mkdir(home, { recursive: true });
 	process.env.LYRA_HOME = home;
+	process.env.HOME = process.env.USERPROFILE = home;
 	let turn = 0;
 	const store = new SessionStore(join(root, "sessions"));
 	const session = new AgentSession({

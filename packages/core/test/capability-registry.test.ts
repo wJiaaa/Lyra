@@ -297,16 +297,16 @@ test("a disposer removes the provider", async () => {
 test("providers are listed per kind", async () => {
 	const reg = registry();
 	reg.register(fake("native", 100, [], { supplies: ["skill", "command"] }));
-	reg.register(fake("cursor", 50, [], { supplies: ["rule"], foreign: true }));
+	reg.register(fake("cursor", 50, [], { supplies: ["agent"], foreign: true }));
 
 	assert.deepEqual(
 		reg.providersFor("skill").map((p) => p.id),
 		["native"],
 	);
 	assert.deepEqual(
-		reg.providersFor("rule").map((p) => p.id),
+		reg.providersFor("agent").map((p) => p.id),
 		["cursor"],
 	);
-	assert.equal(reg.providersFor("rule")[0].foreign, true);
+	assert.equal(reg.providersFor("agent")[0].foreign, true);
 	assert.equal(reg.providersFor().length, 2, "no kind means all of them");
 });

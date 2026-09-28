@@ -17,7 +17,7 @@
  * deeper than the container is tall.
  */
 @layer components {
-  /* 字号、行高、字距、各元素字重都对齐 ZCode 的回复正文（`message.tsx`）。 */
+  /* 回复正文的字号、行高、字距和各元素字重。 */
   .prose-dw {
     font-size: var(--text-label);
     line-height: 1.75;
@@ -206,7 +206,7 @@
   }
 
   /*
-   * 围栏代码块：标题栏（图标、语言、运行 / 换行 / 复制）和代码同在一个框里，对齐 ZCode。
+   * 围栏代码块：标题栏（图标、语言、运行 / 换行 / 复制）和代码同在一个框里。
    *
    * 框画在外层，里面的 `pre` 把自己那套底色、描边、圆角撤掉，否则标题栏和代码是两块拼起来的。
    * 按钮常驻：它们一块只出现一次，不像文件链接那样满页重复。
@@ -412,7 +412,7 @@
 
   .prose-dw thead th {
     background: var(--color-card);
-    /* 表头是标签不是标题：和 ZCode 一样常规字重、最浅那档颜色。 */
+    /* 表头是标签不是标题：常规字重、最浅那档颜色。 */
     font-weight: var(--font-weight-normal);
     color: var(--color-ink-faint);
     /* The header's rule is the one line worth keeping: it separates labels from data. */

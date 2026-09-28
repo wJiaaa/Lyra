@@ -49,15 +49,12 @@ test("loose skills include their resources, and symlinks resolve to the link rat
 	assert.match(await readFile(join(shared, "SKILL.md"), "utf8"), /shared/);
 });
 
-test("rules are individual files; built-ins, plugin files and unrelated paths are rejected", async () => {
-	const rule = await file(join(project, ".lyra", "rules", "test-rule.md"), "---\ndescription: Test the local rule removal workflow\n---\nKeep tests isolated.");
-	assert.equal(await definitionTrashTarget("rule", project, rule, DEFAULT_SETTINGS), rule);
+test("plugin files, unknown kinds and unrelated paths are rejected", async () => {
 	const outside = await file(join(root, "important.md"), "keep");
 	const plugin = await file(join(project, ".lyra", "plugins", "bundle", "skills", "test", "SKILL.md"), "---\nname: test\ndescription: Plugin skill that is managed as part of its own bundle, never independently.\n---\nKeep");
-	for (const kind of ["command", "skill", "rule"]) await assert.rejects(definitionTrashTarget(kind, project, outside, DEFAULT_SETTINGS));
+	for (const kind of ["command", "skill"]) await assert.rejects(definitionTrashTarget(kind, project, outside, DEFAULT_SETTINGS));
 	await assert.rejects(definitionTrashTarget("skill", project, plugin, DEFAULT_SETTINGS));
-	await assert.rejects(definitionTrashTarget("rule", project, "builtin:test", DEFAULT_SETTINGS));
-	await assert.rejects(definitionTrashTarget("other", project, rule, DEFAULT_SETTINGS));
-	await assert.rejects(definitionTrashTarget("rule", null, rule, DEFAULT_SETTINGS));
+	await assert.rejects(definitionTrashTarget("other", project, outside, DEFAULT_SETTINGS));
+	await assert.rejects(definitionTrashTarget("command", null, outside, DEFAULT_SETTINGS));
 	assert.equal(await readFile(outside, "utf8"), "keep");
 });

@@ -302,8 +302,6 @@ export {
 	readTodos,
 	todoTool,
 	TODOS_KEY,
-	ruleTool,
-	RULES_KEY,
 	htmlToText,
 	webFetchTool,
 	webSearchTool,
@@ -332,8 +330,7 @@ export {
 } from "./runtime/previews.ts";
 
 export type { SubAgentDetail, SubAgentStatus, SubAgentSummary } from "./runtime/sub-agents.ts";
-export { collectAgents, collectRules, collectSkills, type RuleEntry } from "./runtime/session-setup.ts";
-export { FOREIGN_USER_SOURCES } from "./capability/providers/foreign.ts";
+export { collectAgents, collectSkills, disabledSkillMatcher } from "./runtime/session-setup.ts";
 export {
 	approveSkill,
 	managedSkillsDir,
@@ -359,9 +356,6 @@ export {
 	roleStatus,
 	type ModelRole,
 } from "./config/model-roles.ts";
-export { renderRuleFile, type CorrectionSuggestion } from "./rules/from-correction.ts";
-export { ruleDir, saveRule, type RuleDestination } from "./rules/save.ts";
-export { BUILTIN_RULES } from "./rules/builtin.ts";
 export { FOREIGN_CONFIGS_NOTICE, foreignConfigsIn, markNoticed, noticed, type ForeignConfigLine } from "./runtime/foreign-configs.ts";
 export { layerOverrides, loadProjectLayer, projectConfigPath, type LayerOverride } from "./config/layers.ts";
 export { extensionDirs } from "./runtime/session-capabilities.ts";

@@ -21,7 +21,7 @@ export function SectionTitle({ children }: { children: React.ReactNode }) {
 /**
  * Rest props are forwarded so a card can carry a `data-` hook for tests to measure it by.
  *
- * 卡片用 `float` 那张纸，不用 `card/40`：对齐 ZCode，它的设置卡片和弹出菜单是同一个颜色——
+ * 卡片用 `float` 那张纸，不用 `card/40`：设置卡片和弹出菜单是同一个颜色——
  * 两个主题下都比页面亮一档的实底。`card/40` 叠在暗色页面上只比页面亮三四级灰，卡片化进了背景。
  * 边框随之换成 `line-float`，那是给「画在自己那张纸上」的线准备的；卡片里面的线和控件怎么跟着
  * 换，见 `overlay.css` 的 `.ly-settings-card`。
@@ -103,6 +103,7 @@ export function ListRow({
 	control,
 	onOpen,
 	openLabel,
+	flush = false,
 }: {
 	icon?: React.ReactNode;
 	title: React.ReactNode;
@@ -112,6 +113,8 @@ export function ListRow({
 	/** Makes the row itself a target — for a thing that has somewhere further to go. */
 	onOpen?: () => void;
 	openLabel?: string;
+	/** 放在卡片里的一行：贴着卡片边留白，不圆角，悬停铺满整行（技能页用）。 */
+	flush?: boolean;
 }) {
 	return (
 		/*
@@ -123,7 +126,7 @@ export function ListRow({
 		 * by rhythm, and the only line left on the page is the one under the tabs, which is the one
 		 * that means something.
 		 */
-		<div data-row-actions className="ly-scroll group/row relative flex items-center gap-3 rounded-lg px-2 py-3">
+		<div data-row-actions className={`ly-scroll group/row relative flex items-center gap-3 py-3 ${flush ? "px-4" : "rounded-lg px-2"}`}>
 			{/*
 			 * The row's own hit area, underneath everything on it.
 			 *
@@ -136,7 +139,7 @@ export function ListRow({
 					type="button"
 					aria-label={openLabel}
 					onClick={onOpen}
-					className="absolute inset-0 rounded-lg transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover/60"
+					className={`absolute inset-0 transition-colors duration-[var(--ly-t-quick)] ${flush ? "hover:bg-card-hover" : "rounded-lg hover:bg-card-hover/60"}`}
 				/>
 			)}
 

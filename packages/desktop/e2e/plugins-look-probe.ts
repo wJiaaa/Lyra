@@ -119,7 +119,7 @@ try {
 	await clickText("管理已安装", "[data-market] header");
 	await pause(1500);
 	await shot("设置_插件");
-	for (const tab of ["MCP", "技能", "规则", "扩展"]) {
+	for (const tab of ["MCP", "技能", "扩展"]) {
 		if (await clickText(tab, "[data-ly-extensions-page]")) {
 			await pause(1000);
 			await shot(`设置_${tab}`);

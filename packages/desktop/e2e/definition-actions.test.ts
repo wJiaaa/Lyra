@@ -13,7 +13,6 @@ let app: RunningApp;
 let cwd: string;
 let command: string;
 let skill: string;
-let rule: string;
 const id = `lyra-row-qa-${randomUUID()}`;
 const trashed: string[] = [];
 /*
@@ -27,12 +26,10 @@ before(async () => {
 		cwd = join(home, "project");
 		command = join(home, "commands", `${id}.md`);
 		skill = join(cwd, ".lyra", "skills", `${id}-skill`, "SKILL.md");
-		rule = join(cwd, ".lyra", "rules", `${id}-rule.md`);
 		// Only these synthetic definitions travel through the real renderer, IPC and OS trash.
 		for (const [path, body] of [
 			[command, `---\nname: xiaorong\ndescription: 消融实验，验证悬停删除时内容与来源保持对齐。\nargument-hint: <可选：这个命令接受什么参数>\n---\nRun isolated checks.`],
 			[skill, `---\nname: loose-qa\ndescription: A reusable isolated workflow used to verify the skill row and its delete action.\n---\nRead inputs.`],
-			[rule, `---\ndescription: An isolated rule used to verify deletion without changing built-in rules.\n---\nUse isolated files.`],
 		]) { await mkdir(dirname(path), { recursive: true }); await writeFile(path, body); }
 		await writeFile(join(dirname(skill), "resource.txt"), "skill resource");
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1200, height: 800 }));
@@ -175,19 +172,13 @@ test("command deletion fades in without shifting its row, works with keyboard/to
 	assert.ok(!list.commands.some((item) => item.name === "xiaorong"));
 });
 
-test("loose skill and rule rows delete their own definitions while related configuration rows share hover actions", async () => {
+test("loose skill rows delete their own definitions while related configuration rows share hover actions", async () => {
 	await select("插件", true); await select("技能", false, true);
 	await until(`document.querySelector('[aria-label="删除技能 loose-qa"]')`);
 	trashed.push(basename(dirname(skill)));
 	await click('[aria-label="删除技能 loose-qa"]'); await select(TO_TRASH);
 	await until(`!document.querySelector('[aria-label="删除技能 loose-qa"]')`);
 	await assert.rejects(access(dirname(skill)));
-	await select("规则", false, true);
-	await until(`document.querySelector('[aria-label="删除规则 ${id}-rule"]')`);
-	trashed.push(basename(rule));
-	await click(`[aria-label="删除规则 ${id}-rule"]`); await select(TO_TRASH);
-	await until(`!document.querySelector('[aria-label="删除规则 ${id}-rule"]')`);
-	await assert.rejects(access(rule));
 	assert.equal(await app.evaluate(`[...document.querySelectorAll('[data-row-actions]')].filter(row=>row.textContent.includes('内置')).some(row=>row.querySelector('.ly-row-action'))`), false);
 	await select("MCP", false, true);
 	await until(`document.querySelector('[aria-label="删除 QA 服务"]')`);

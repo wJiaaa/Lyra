@@ -176,8 +176,8 @@ function ui<T>(body: string): Promise<T> {
 	return app.evaluate<T>(`(async () => { ${UI} const P = ${JSON.stringify(project)}; ${body} })()`);
 }
 
-test("the welcome composer is ZCode's 672px column", async () => {
-	// 宽度不再是设置项：欢迎页照 ZCode 的 `max-w-2xl`，对话里按窗格宽度分三档（见 composer.css）。
+test("the welcome composer is a 672px column", async () => {
+	// 宽度不再是设置项：欢迎页是 `max-w-2xl`，对话里按窗格宽度分三档（见 composer.css）。
 	const width = await ui<number | null>(`return measure();`);
 	assert.equal(width, 672);
 });

@@ -1,6 +1,6 @@
 # 上下文组装与统计
 
-主会话的组装入口是 `runtime/session-turn.ts`。规则、技能、记忆、环境和可用能力经
+主会话的组装入口是 `runtime/session-turn.ts`。项目指令、技能、记忆、环境和可用能力经
 `runtime/prompt-context.ts` 加载，由 `prompt/system.ts` 产出一份提示词和段落来源。
 每段记录来源、字符范围，以及适用时的文件路径和截断标记。
 段落用字符范围引用同一份字符串，日志不重复保存正文。

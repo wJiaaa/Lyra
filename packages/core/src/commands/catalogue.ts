@@ -8,7 +8,7 @@
 import { join } from "node:path";
 import type { Settings } from "../config/settings.ts";
 import { loadPlugins } from "../plugins/loader.ts";
-import { collectAgents, collectSkills } from "../runtime/session-setup.ts";
+import { collectAgents, collectSkills, withoutDisabledSkills } from "../runtime/session-setup.ts";
 import { lyraHome } from "../session/store.ts";
 import { builtinCommandsFor, type BuiltinCommand, type CommandAction } from "./builtin.ts";
 import { commandSources, loadCommands, type SlashCommand } from "./loader.ts";
@@ -45,7 +45,9 @@ export async function listCommands(cwd: string, settings: Settings, actions: rea
 		],
 		settings.disabledPlugins,
 	).catch(() => ({ plugins: [] }));
-	const { skills } = await collectSkills(cwd || home, bundles.plugins, settings).catch(() => ({ skills: [] }));
+	const collected = await collectSkills(cwd || home, bundles.plugins, settings).catch(() => ({ skills: [] }));
+	// 关掉的技能会话里没有，菜单里也不能有。
+	const skills = await withoutDisabledSkills(collected.skills, settings);
 	const agents = await collectAgents(cwd || home, settings);
 	return {
 		agents: agents.map(agent => ({ id: agent.name, name: agent.name, description: agent.description, ...(agent.avatar ? { avatar: agent.avatar } : {}) })),

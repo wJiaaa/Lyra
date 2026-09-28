@@ -52,12 +52,12 @@ const ctx = (state: Map<string, unknown>) => ({ cwd: root, sessionId: "me", stat
 // 九个 scheme 都在
 // ---------------------------------------------------------------------------
 
-test("九个 scheme 都注册了", () => {
+test("八个 scheme 都注册了", () => {
 	const schemes = router()
 		.schemes()
 		.map((s) => s.scheme)
 		.sort();
-	assert.deepEqual(schemes, ["agent", "artifact", "lyra", "mcp", "plugin", "rule", "scratch", "session", "skill"].sort());
+	assert.deepEqual(schemes, ["agent", "artifact", "lyra", "mcp", "plugin", "scratch", "session", "skill"].sort());
 });
 
 test("只有 scratch 是可写的", () => {
@@ -330,7 +330,7 @@ test("会话把四个数据源都填进了 state", async () => {
 	 * 而能力层刻意不知道会话是怎么存的。
 	 */
 	const can = new SessionCapabilities();
-	await can.load(root, { disabledPlugins: [], disabledRules: [], mcpServers: [] } as never);
+	await can.load(root, { disabledPlugins: [], disabledSkills: [], mcpServers: [] } as never);
 
 	assert.ok(can.state.get(PLUGINS_KEY) !== undefined, "plugin:// 有插件列表");
 	assert.ok(can.state.get(MCP_KEY) !== undefined, "mcp:// 有管理器");
@@ -351,7 +351,7 @@ test("会话把 session:// 的数据源也填上了", async () => {
 	};
 	const session = new AgentSession({
 		cwd: root,
-		settings: { disabledPlugins: [], disabledRules: [], mcpServers: [], alwaysAllow: [] } as never,
+		settings: { disabledPlugins: [], disabledSkills: [], mcpServers: [], alwaysAllow: [] } as never,
 		store: store as never,
 		emit: async () => {},
 	});

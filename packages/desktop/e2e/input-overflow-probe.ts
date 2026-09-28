@@ -338,35 +338,6 @@ async function main(): Promise<void> {
 		} else {
 			check("设置页里找得到统一后的多行框", false, "没有 .ly-textarea-shell textarea.ly-textarea");
 		}
-
-		/*
-		 * 规则草稿那个框：底是代码主题的，字色必须跟着一起走。
-		 *
-		 * 到不了那张卡片（要一条真的提过规则建议的会话），但要验的事只跟样式表有关——现造一对
-		 * 节点挂进真页面，让浏览器自己算。这比断言 CSS 文本强一层：它回答的是「算出来是多少」。
-		 */
-		console.log("\n【五】代码底色的那个框，字色跟着底走吗");
-		const inked = await evaluate<{ shell: string; field: string; card: string }>(`(() => {
-			const make = (cls) => {
-				const shell = document.createElement("div");
-				shell.className = cls;
-				const field = document.createElement("textarea");
-				field.className = "ly-textarea";
-				shell.append(field);
-				document.body.append(shell);
-				const out = { shell: getComputedStyle(shell).color, field: getComputedStyle(field).color };
-				shell.remove();
-				return out;
-			};
-			const excerpt = make("ly-textarea-shell ly-rule-excerpt");
-			const plain = make("ly-textarea-shell");
-			return { shell: excerpt.shell, field: excerpt.field, card: plain.field };
-		})()`);
-		check(
-			"外壳换了底色，里面那层的字色跟着换——不会出现深底配深字",
-			inked.field === inked.shell,
-			inked,
-		);
 	} catch (error) {
 		check("探针跑完了", false, String(error));
 		throw error;

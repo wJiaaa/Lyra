@@ -231,7 +231,6 @@ export const METHODS = {
 	scheduler: {
 		runNow: { channel: "scheduler:runNow" },
 	},
-	/* 回答「要把这次纠正变成一条规则吗」那张卡片。 */
 	extensions: {
 		stats: { channel: "extensions:stats" },
 	},
@@ -240,17 +239,11 @@ export const METHODS = {
 		diff: { channel: "capabilities:diff" },
 		prefer: { channel: "capabilities:prefer" },
 	},
-	rules: {
-		preview: { channel: "rules:preview" },
-		keep: { channel: "rules:keep" },
-		decline: { channel: "rules:decline" },
-		list: { channel: "rules:list" },
-		/* 从会话里总结出来的技能候选。 */
-		pendingSkills: { channel: "skills:pending" },
-		approveSkill: { channel: "skills:approve" },
-		rejectSkill: { channel: "skills:reject" },
-		setDisabled: { channel: "rules:setDisabled" },
-		setForeignUser: { channel: "rules:setForeignUser" },
+	/* 从会话里总结出来的技能候选。 */
+	skills: {
+		pending: { channel: "skills:pending" },
+		approve: { channel: "skills:approve" },
+		reject: { channel: "skills:reject" },
 	},
 	forge: {
 		kinds: { channel: "forge:kinds" },

@@ -159,19 +159,35 @@ function resolvedBackground(): string {
 }
 
 /**
- * 主窗口在 macOS 上铺系统的毛玻璃材质，照 ZCode（`under-window`）。
+ * 主窗口在 macOS 上可以铺系统的毛玻璃材质（`under-window`）。
  *
  * 只给主窗口：会话窗口和面板窗口整面都是不透明的卡片色，材质透不出来，给了只会让快速拉边时露出的
  * 那一条从底色变成材质。Windows 有自己的 acrylic、Linux 没有，这里只做 macOS。
  * 渲染进程那一侧（窗口底层半透明、侧边栏透明）挂在 `data-vibrancy` 上，见 `tabs.css`。
  */
-function isVibrant(role: AppWindowRole): boolean {
+function canVibrate(role: AppWindowRole): boolean {
 	return process.platform === "darwin" && role === "primary";
 }
+
+/** 能开的窗口里，开不开由外观设置决定，没表过态就是开着。 */
+function isVibrant(role: AppWindowRole): boolean {
+	return canVibrate(role) && readSettings()?.appearance?.vibrancy !== false;
+}
+
+/** 窗口现在铺没铺材质，免得每次改设置都重建一遍材质视图。 */
+const vibrancyApplied = new WeakMap<BrowserWindow, boolean>();
 
 export function applyNativeAppearance(): void {
 	const theme = readSettings()?.appearance?.theme ?? "system";
 	nativeTheme.themeSource = theme === "light" || theme === "dark" ? theme : "system";
+	// 设置里切换毛玻璃，开着的主窗口当场换，不用重开。页面那一侧由 `applyAppearance` 跟着换。
+	const win = getPrimaryWindow();
+	if (!win || !canVibrate("primary")) return;
+	const vibrant = isVibrant("primary");
+	if (vibrancyApplied.get(win) === vibrant) return;
+	vibrancyApplied.set(win, vibrant);
+	win.setVibrancy(vibrant ? "under-window" : null);
+	win.setBackgroundColor(vibrant ? "#00000000" : resolvedBackground());
 }
 
 function bootTheme(): { dark: boolean; background: string; foreground: string; accent: string } {
@@ -380,13 +396,12 @@ function buildAppWindow(options: {
 		 */
 		// 毛玻璃底下的底色必须透明：不透明的一层会盖在材质上，材质就白开了。
 		backgroundColor: vibrant ? "#00000000" : resolvedBackground(),
-		...(vibrant
-			? {
-					vibrancy: "under-window" as const,
-					// 否则材质跟着焦点走，别的应用在前面时就变成一块平的灰。
-					visualEffectState: "active" as const,
-				}
-			: {}),
+		...(vibrant ? { vibrancy: "under-window" as const } : {}),
+		/*
+		 * 否则材质跟着焦点走，别的应用在前面时就变成一块平的灰。能开就给，不看现在开没开：
+		 * 之后在设置里打开时 `setVibrancy` 建的材质视图沿用这个状态。
+		 */
+		...(canVibrate(options.role) ? { visualEffectState: "active" as const } : {}),
 		// The chrome in the design is drawn by the renderer; keep only the traffic lights.
 		titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
 		// 主窗口的顶行在浮起的卡片里，低 5px；会话和面板窗口贴顶。见 `MAIN_WINDOW_ROW_OFFSET`。
@@ -438,7 +453,8 @@ function buildAppWindow(options: {
 			backgroundThrottling: false,
 			// Read by the preload before the first frame, so the app never opens in the wrong theme.
 			additionalArguments: [
-				`--ly-boot=${encodeURIComponent(JSON.stringify({ ...bootTheme(), vibrancy: vibrant }))}`,
+				// 能开毛玻璃的窗口才带 `vibrancy`（on / off），页面据此知道这扇窗有没有这回事。
+				`--ly-boot=${encodeURIComponent(JSON.stringify({ ...bootTheme(), ...(canVibrate(options.role) ? { vibrancy: vibrant ? "on" : "off" } : {}) }))}`,
 				`--ly-window=${windowId}`,
 				...(options.role === "aux" ? ["--ly-kind=session"] : []),
 				...(options.role === "panel" ? ["--ly-kind=panel"] : []),
@@ -450,6 +466,7 @@ function buildAppWindow(options: {
 	});
 
 	appWindows.add(win);
+	vibrancyApplied.set(win, vibrant);
 	windowMeta.set(win, {
 		id: windowId,
 		role: options.role,

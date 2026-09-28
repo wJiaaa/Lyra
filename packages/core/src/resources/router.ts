@@ -102,8 +102,8 @@ export class ResourceRouter {
 		if (!handler.write) {
 			/*
 			 * Read-only is the default and the interesting half of this design. A model that could
-			 * `write rule://no-force-push` could edit the constraint that stops it force-pushing,
-			 * and the edit would look like an ordinary tool call. Changing a rule goes through the
+			 * `write skill://<name>` could edit the instructions it is meant to follow, and the
+			 * edit would look like an ordinary tool call. Changing a skill goes through the
 			 * filesystem, where the user's own review applies.
 			 */
 			throw new ResourceError(`\`${url.scheme}://\` 是只读的，不能写。`);

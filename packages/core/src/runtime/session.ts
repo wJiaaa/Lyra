@@ -34,7 +34,6 @@ import type { AgentRunConfig, LiveModel } from "../agent/loop.ts";
 import type { Settings } from "../config/settings.ts";
 import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem } from "../config/settings.ts";
 import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts";
-import { saveRule, type RuleDestination } from "../rules/save.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
 import type { ApprovalDecision, ApprovalRequest, Message, MessageAttachment, ThinkingLevel, Tool, UserContent } from "../types.ts";
@@ -126,7 +125,7 @@ export class AgentSession {
 	 * 拿已经叠过的结果再叠一次，项目的值会被当成全局的值固化下来。
 	 */
 	private globalSettings: Settings;
-	/** 盯着技能和规则目录的那个，没有可听的目录时是 null。 */
+	/** 盯着技能和子智能体目录的那个，没有可听的目录时是 null。 */
 	private watcher: CapabilityWatcher | null = null;
 	private streamFn?: AgentRunConfig["streamFn"];
 	/**
@@ -149,30 +148,17 @@ export class AgentSession {
 	 *
 	 * 不是 `running` 的同义词，这正是它存在的理由。取走 `steering` 的只有 loop 自己
 	 * （`drainSteering`），而 loop 的起止就是 `agent_start` 和 `agent_end` 这一对；`running`
-	 * 管的范围要大一圈——回合说完之后还有一段收尾（末尾那次规则分类调用，见 `session-turn.ts`
-	 * 的 `offerRuleFromCorrection`，一次网络请求，上限 20 秒），那段时间里 `controller` 还在，
-	 * `running` 还是 true，而取件人已经下班了。
+	 * 管的范围要大一圈——回合说完之后还有一段收尾，那段时间里 `controller` 还在，`running`
+	 * 还是 true，而取件人已经下班了。
 	 *
 	 * 这一格没分开的时候：窗口收到 `agent_end` 就把排着的那条送出来，主进程照着 `running`
 	 * 把它塞进 `steering`，然后再没有人来取——消息既不在转录里也不在队列条上，屏幕上是「发出
-	 * 去了但一点反应都没有」，而下一次发送时它会被 `drainSteering` 顺带倒出来，看起来像旧话重
-	 * 放。这场赛跑必然是收尾那一段赢：它是一次网络请求，对面只是一趟进程内 IPC。
+	 * 去了但一点反应都没有」，而下一次发送时它会被 `drainSteering` 顺带倒出来，看起来像旧话重放。
 	 *
 	 * 在 `emit` 里翻牌而不是在 `run` 里，为的是把窗口那一端也算进来：`agent_end` 写盘、发出
 	 * 去之前这里就已经是 false，所以窗口看到「说完了」的那一刻，主进程早就不再收插话了。
 	 */
 	private steerable = false;
-	/**
-	 * 这一轮说完了，但还没放手——收尾那一段正跑着。
-	 *
-	 * 和 `steerable` 是同一件事的两面，分开是因为它们的另一端不一样：`steerable` 在回合开始时
-	 * 也要为真，而这一格在那时必须为假。`run` 从创建 controller 到 loop 发出 `agent_start`
-	 * 之间要准备好这一轮的全部材料（读文件、拼提示词），那几百毫秒里 `steerable` 同样是 false，
-	 * 而那一段绝不能被当成收尾扯掉。
-	 */
-	private settling = false;
-	/** 收尾那一段的叫停绳——见 `session-turn.ts` 的 `settleSignal`，不能拿回合那根代替。 */
-	private settleController: AbortController | null = null;
 	/**
 	 * 说了「等这一轮做完再说」的那些消息。
 	 *
@@ -258,7 +244,7 @@ export class AgentSession {
 		/*
 		 * 每一个出门的事件都先过这里翻牌，然后才交给宿主。
 		 *
-		 * 翻的是 `steerable` / `settling`，看 loop 此刻在不在。必须挂在 log 的出口上：loop 自己
+		 * 翻的是 `steerable`，看 loop 此刻在不在。必须挂在 log 的出口上：loop 自己
 		 * 的事件走 `session-turn.ts` 的 `recordTurnEvent` 直接进 `log.emit`，根本不经过
 		 * `Session.emit`——翻在那里的话 `agent_start` 一次都翻不到，`steerable` 永远是 false，
 		 * 于是插话悄悄退化成了「这一轮做完再说」，而测试照样是绿的。
@@ -267,8 +253,8 @@ export class AgentSession {
 		 * 排队出队要抢的那一拍。
 		 */
 		this.log = new SessionLog(options.store, (event) => {
-			if (event.type === "agent_start") { this.steerable = true; this.settling = false; }
-			else if (event.type === "agent_end") { this.steerable = false; this.settling = true; }
+			if (event.type === "agent_start") this.steerable = true;
+			else if (event.type === "agent_end") this.steerable = false;
 			return options.emit(event);
 		}, options.meta);
 		this.can = new SessionCapabilities(options.extraTools ?? []);
@@ -360,7 +346,7 @@ export class AgentSession {
 	/**
 	 * 盯着那些真的放了东西的目录，改了就重读。
 	 *
-	 * 编辑技能和规则是这套系统里最高频的动作之一：写一条、试一句、再改一版。要求每一版都重启
+	 * 编辑技能是这套系统里最高频的动作之一：写一条、试一句、再改一版。要求每一版都重启
 	 * 窗口，等于要求每一版都重新加载全部插件、重连全部 MCP、丢掉正在看的那个对话。
 	 *
 	 * `watched` 这份名单一直被收集着——每个 provider 都老实报了，注册表也合并了——只是从来
@@ -381,7 +367,7 @@ export class AgentSession {
 	 * 重读一遍，然后说清楚变了什么。
 	 *
 	 * 「能力已更新」对着一次 `git checkout` 说了等于没说——那会换掉半个目录。所以报的是数量差
-	 * 和新出现的名字。三个数都是 0 也是一个诚实的答案：有人改了某个规则的正文，而名单没变。
+	 * 和新出现的名字。两个数都是 0 也是一个诚实的答案：有人改了某个技能的正文，而名单没变。
 	 */
 	/**
 	 * 重新发现能力，并把变化说出来。
@@ -393,20 +379,17 @@ export class AgentSession {
 	async reloadCapabilities(): Promise<void> {
 		const before = {
 			skills: this.can.skills.length,
-			rules: this.can.rules.always.length + this.can.rules.book.length + this.can.rules.stream.length,
 			agents: this.can.agents.length,
 			names: new Set([...this.can.skills.map((s) => s.name), ...this.can.agents.map((a) => a.name)]),
 		};
 
 		await this.can.load(this.cwd, this.settings);
-		// 目录名单本身也会变——新建了 `.lyra/rules/` 之后，它才第一次出现在 `watched` 里。
+		// 目录名单本身也会变——新建了 `.lyra/skills/` 之后，它才第一次出现在 `watched` 里。
 		this.startWatching();
 
-		const rules = this.can.rules.always.length + this.can.rules.book.length + this.can.rules.stream.length;
 		await this.emit({
 			type: "capabilities_changed",
 			skills: this.can.skills.length - before.skills,
-			rules: rules - before.rules,
 			agents: this.can.agents.length - before.agents,
 			added: [...this.can.skills.map((s) => s.name), ...this.can.agents.map((a) => a.name)]
 				.filter((name) => !before.names.has(name))
@@ -589,27 +572,6 @@ export class AgentSession {
 		this.can.invalidateSymbolIndex();
 	}
 
-	/**
-	 * Keep a suggested rule, and make it apply from the next turn on.
-	 *
-	 * The reload is the part that must not be skipped. Writing the file and leaving the session
-	 * with the rules it loaded at startup gives the worst version of this feature: somebody accepts
-	 * the offer, watches the same mistake happen in the very next message, and concludes the whole
-	 * thing does nothing.
-	 *
-	 * Accepting also clears the refusal streak — they want these, they just did not want those two.
-	 */
-	async keepSuggestedRule(scope: RuleDestination, name: string, content: string): Promise<{ path: string; renamed?: string }> {
-		const saved = await saveRule(scope, this.cwd, name, content);
-		this.can.correctionBudget.recordAcceptance();
-		await this.can.reloadRules(this.cwd, this.settings);
-		return saved;
-	}
-
-	/** They said no. Two in a row and this session stops asking. */
-	declineSuggestedRule(): void {
-		this.can.correctionBudget.recordRefusal();
-	}
 
 	updateSettings(settings: Settings): void {
 		if (settings.autoSummarizeTitle === false) void this.title.cancel();
@@ -880,17 +842,6 @@ export class AgentSession {
 			 */
 			if (options.deliver === "followUp" || !this.steerable) {
 				this.pending.push({ message, thinking: options.thinking });
-				/*
-				 * 正卡在收尾上的话，把那一段叫停。
-				 *
-				 * 收尾等的是一次「要不要把刚才那句纠正存成规则」的判断（`session-turn.ts`，一次
-				 * 网络调用，上限 20 秒），而排在后面的这句得等它跑完才轮得上——人看到的就是消息
-				 * 发出去了、助手那边却一直空着。按那个判断自己的道理，人一旦说了下一句它就已经
-				 * 在讲上一次交流了，作废正好。
-				 *
-				 * 扯的是收尾那根绳，不是回合那根：后者上面挂着这一轮派出去的子智能体。
-				 */
-				if (options.fromPerson && this.settling) this.settleController?.abort();
 			} else {
 				this.steering.push(message);
 				/*
@@ -1015,7 +966,6 @@ export class AgentSession {
 		}
 
 		this.controller = new AbortController();
-		this.settleController = new AbortController();
 		try {
 			await this.preparePruner();
 			this.activeTurn = driveTurn({
@@ -1027,7 +977,6 @@ export class AgentSession {
 				provider: resolved.provider,
 				model: resolved.model,
 				signal: this.controller.signal,
-				settleSignal: this.settleController.signal,
 				thinking,
 				streamFn: this.streamFn,
 				scratchDir: scratchDir(this.log.meta.id),
@@ -1043,9 +992,6 @@ export class AgentSession {
 			this.activeTurn = null;
 			this.activeTurn = null;
 			this.controller = null;
-			// 收尾也做完了，两样都归位：绳子没了主人，这一格也不再是「还没放手」。
-			this.settleController = null;
-			this.settling = false;
 			/*
 			 * Anything still waiting for approval would hang forever once the run is over.
 			 *

@@ -11,7 +11,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { createRegistry } from "../src/capability/index.ts";
-import type { Rule } from "../src/rules/types.ts";
+import { pluginProvider } from "../src/capability/providers/plugins.ts";
+import type { Plugin } from "../src/plugins/loader.ts";
 import type { Skill } from "../src/skills/loader.ts";
 import type { AgentDefinition } from "../src/tools/task.ts";
 
@@ -39,7 +40,6 @@ before(async () => {
 	// Our own directories.
 	await put("project/.lyra/skills/deploy/SKILL.md", "---\nname: deploy\ndescription: 我们的部署技能\n---\n正文");
 	await put("project/.lyra/commands/review.md", "---\ndescription: 我们的审查\n---\n审查改动");
-	await put("project/.lyra/rules/style.md", "---\ndescription: 我们的风格\nglobs: ['**/*.ts']\n---\n用 tab 缩进。");
 	await put("project/.lyra/agents/general.md", "---\nname: general\ndescription: 覆盖内置的 general\n---\n我是自定义的。");
 	await put("project/.lyra/agents/boss.md", "---\nname: boss\ndescription: 编排者\nspawns: \"*\"\nmax-turns: 25\n---\n派活。");
 	await put(
@@ -51,22 +51,6 @@ before(async () => {
 	await put("project/.claude/commands/review.md", "---\ndescription: Claude 的审查\n---\n别的内容");
 	await put("project/.claude/commands/security.md", "---\ndescription: 安全审查\n---\n查注入");
 	await put("project/.claude/skills/pdf/SKILL.md", "---\nname: pdf\ndescription: 读 PDF\n---\n正文");
-
-	// Four other tools, three of which are only rules.
-	await put("project/.cursor/rules/imports.mdc", "---\ndescription: 导入顺序\nalwaysApply: false\n---\n先内置后第三方。");
-	await put("project/.windsurf/rules/naming.md", "命名用 camelCase。");
-	await put("project/.clinerules", "提交信息写中文。");
-	await put("project/.github/instructions/tests.instructions.md", "---\napplyTo: 'test/**'\n---\n测试要断言原因。");
-
-	// A rule of the same name from two tools, to prove which wins.
-	await put("project/.lyra/rules/shared.md", "---\ndescription: 我们的\n---\n我们的版本。");
-	await put("project/.cursor/rules/shared.mdc", "---\ndescription: Cursor 的\n---\nCursor 的版本。");
-
-	// User-level foreign directories, which must not be read unless asked for.
-	await put("user-home/.cursor/rules/private.mdc", "---\ndescription: 我的私人规则\n---\n私人内容。");
-
-	// A file that is broken, next to one that is not.
-	await put("project/.lyra/rules/broken.md", "---\ncondition: '('\n---\n这条正则编译不了。");
 });
 
 after(async () => {
@@ -175,62 +159,29 @@ test("skills come from both directories", async () => {
 	assert.equal(result.items.find((s) => s.name === "pdf")?.provenance.provider, "claude");
 });
 
-test("four ecosystems' rules are all read, and ours wins the shared name", async () => {
-	const result = await registry().load<Rule>("rule", { cwd: project });
-	const byProvider = new Map(result.items.map((r) => [r.name, r.provenance.provider]));
+test("a plugin's skill is labelled with that plugin and where it is installed", async () => {
+	const bundle = (id: string, source: Plugin["source"], displayName?: string) => ({
+		id,
+		source,
+		manifest: { name: id, ...(displayName ? { interface: { displayName } } : {}) },
+		skills: [{ name: `${id}-skill`, path: join(root, id, "SKILL.md") } as Skill],
+	});
+	const reg = registry();
+	// The project copy of `pdf` in `.claude/skills` loses to a bundled one, and says to which.
+	const pdf = bundle("pdf-tools", "workspace", "PDF 工具");
+	pdf.skills.push({ name: "pdf", path: join(root, "pdf-tools", "pdf", "SKILL.md") } as Skill);
+	reg.register(pluginProvider([pdf, bundle("notes", "user")], []));
+	const result = await reg.load<Skill>("skill", { cwd: project });
 
-	assert.equal(byProvider.get("style"), "native");
-	assert.equal(byProvider.get("imports"), "cursor");
-	assert.equal(byProvider.get("naming"), "windsurf");
-	assert.equal(byProvider.get("clinerules"), "cline");
-	assert.equal(byProvider.get("tests"), "copilot");
-	assert.equal(byProvider.get("shared"), "native", "a name we also define is ours");
-
-	const loser = result.all.find((r) => r.name === "shared" && r.provenance.provider === "cursor");
-	assert.equal(loser?.shadowedBy?.provider, "native");
-});
-
-test("a foreign user-level directory is not read until it is asked for", async () => {
-	const off = await registry().load<Rule>("rule", { cwd: project });
-	assert.ok(!off.items.some((r) => r.name === "private"), "your personal Cursor rules stay out of someone else's repo");
-
-	const on = await registry().load<Rule>("rule", { cwd: project, enabledUserSources: new Set(["cursor"]) });
-	assert.ok(
-		on.items.some((r) => r.name === "private"),
-		"and are read once you say so",
-	);
-});
-
-test("a project-level foreign directory is always read", async () => {
-	const result = await registry().load<Rule>("rule", { cwd: project });
-	assert.ok(
-		result.items.some((r) => r.provenance.provider === "cursor" && r.provenance.scope === "project"),
-		"what the team committed for this repository applies without a setting",
-	);
-});
-
-test("a broken rule file does not cost the healthy ones", async () => {
-	const result = await registry().load<Rule>("rule", { cwd: project });
-	assert.ok(
-		result.items.some((r) => r.name === "style"),
-		"the file next to the broken one loaded",
-	);
-	assert.ok(
-		result.diagnostics.some((d) => d.path.includes("broken")),
-		`and the broken one is reported (${result.diagnostics.map((d) => d.path).join("; ")})`,
-	);
-});
-
-test("built-in rules are present and can be replaced by name", async () => {
-	const result = await registry().load<Rule>("rule", { cwd: project });
-	assert.ok(
-		result.items.some((r) => r.name === "no-secret-in-code" && r.provenance.provider === "builtin"),
-		"the shipped rules arrive through the registry like anything else",
-	);
+	const meta = (name: string) => result.items.find((s) => s.name === name)?.provenance;
+	assert.deepEqual([meta("pdf-tools-skill")?.providerLabel, meta("pdf-tools-skill")?.scope], ["插件「PDF 工具」", "project"]);
+	assert.deepEqual([meta("notes-skill")?.providerLabel, meta("notes-skill")?.scope], ["插件「notes」", "user"]);
+	const loser = result.all.find((s) => s.name === "pdf" && s.provenance.provider === "claude");
+	assert.equal(loser?.shadowedBy?.providerLabel, "插件「PDF 工具」");
 });
 
 test("only: native reduces the result to our own directories", async () => {
-	const result = await registry().load<Rule>("rule", { cwd: project, only: new Set(["native"]) });
+	const result = await registry().load<{ name: string }>("command", { cwd: project, only: new Set(["native"]) });
 	assert.ok(result.items.length > 0);
 	assert.ok(
 		result.items.every((r) => r.provenance.provider === "native"),
@@ -239,13 +190,13 @@ test("only: native reduces the result to our own directories", async () => {
 });
 
 test("disabling a provider removes its contribution and promotes what it was hiding", async () => {
-	const result = await registry().load<Rule>("rule", { cwd: project, disabledProviders: new Set(["native"]) });
-	const shared = result.items.find((r) => r.name === "shared");
-	assert.equal(shared?.provenance.provider, "cursor", "with ours switched off, Cursor's version of that name serves");
+	const result = await registry().load<{ name: string }>("command", { cwd: project, disabledProviders: new Set(["native"]) });
+	const review = result.items.find((r) => r.name === "review");
+	assert.equal(review?.provenance.provider, "claude", "with ours switched off, Claude Code's version of that name serves");
 });
 
 test("no working directory still yields the user-level and built-in layers", async () => {
-	const result = await registry().load<Rule>("rule", { cwd: null });
+	const result = await registry().load<AgentDefinition>("agent", { cwd: null });
 	assert.ok(
 		result.items.every((r) => r.provenance.scope !== "project"),
 		"nothing project-scoped, because there is no project",
@@ -254,16 +205,16 @@ test("no working directory still yields the user-level and built-in layers", asy
 });
 
 test("contributors and watched directories describe what actually happened", async () => {
-	const result = await registry().load<Rule>("rule", { cwd: project });
+	const result = await registry().load<{ name: string }>("command", { cwd: project });
 	assert.ok(result.contributors.includes("native"));
-	assert.ok(result.contributors.includes("cursor"));
+	assert.ok(result.contributors.includes("claude"));
 	assert.ok(
-		result.watched.some((dir) => dir.includes(join(".lyra", "rules"))),
+		result.watched.some((dir) => dir.includes(join(".lyra", "commands"))),
 		"the directories that produced items are the ones worth watching",
 	);
 });
 
 test("a cold load of the mixed fixture stays under 150ms", async () => {
-	const result = await registry().load<Rule>("rule", { cwd: project });
+	const result = await registry().load<{ name: string }>("command", { cwd: project });
 	assert.ok(result.elapsedMs < 150, `cold load took ${result.elapsedMs}ms; the slowest were ${JSON.stringify(result.timings)}`);
 });

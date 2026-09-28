@@ -155,6 +155,13 @@ export interface AppearanceSettings {
 	 * arranged by dragging.
 	 */
 	panelLayout?: "split" | "tabs";
+	/**
+	 * macOS 主窗口的毛玻璃：侧边栏透出系统材质。
+	 *
+	 * 可选，没写过的设置文件照旧是开着的。关掉时窗口和侧边栏回到不透明的主题色——材质叠在桌面上，
+	 * 颜色跟着壁纸走，有人要的是一块颜色确定的底。
+	 */
+	vibrancy?: boolean;
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -170,14 +177,14 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	 */
 	theme: "system",
 	accent: "#339CFF",
-	// ZCode zai-light 的 `--color-background`。菜单和输入框的浮层色由它往白混 80%，约 #fefefe，比页面亮一档。
+	// 浅色背景。菜单和输入框的浮层色由它往白混 80%，约 #fefefe，比页面亮一档。
 	lightBackground: "#F8F8F8",
-	// ZCode 实际生效的 zai-light / zai-dark 主题：neutral-800 / neutral-300。
+	// 前景色：浅色 neutral-800，深色 neutral-300。
 	lightForeground: "#262626",
 	darkBackground: "#171717",
 	darkForeground: "#D4D4D4",
 	/*
-	 * 和 ZCode 一致，不打包字体：界面是 Tailwind 默认的系统字体栈，代码是系统等宽字体，
+	 * 不打包字体：界面是 Tailwind 默认的系统字体栈，代码是系统等宽字体，
 	 * 中文回退写在 `monospace` 前面，因为 Windows 的 Consolas 没有中文字形。
 	 */
 	uiFont: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
@@ -214,8 +221,9 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	errorDetail: "compact",
 	callChain: "collapsed",
 	panelLayout: "tabs",
-	// ZCode 不设 `-webkit-font-smoothing`，字按系统默认的粗细画。
+	// 不设 `-webkit-font-smoothing`，字按系统默认的粗细画。
 	fontSmoothing: false,
+	vibrancy: true,
 };
 
 /** A prompt the app sends on its own schedule, in a fresh session each time. */
@@ -429,23 +437,12 @@ export interface Settings {
 	 */
 	disabledPlugins: string[];
 	/**
-	 * Rules switched off by name, built-in or discovered.
+	 * 关掉的技能，按 SKILL.md 的绝对路径记；没列出的都开着，只记关掉的。
 	 *
-	 * By name rather than by path so that turning one off survives it moving between `.lyra/rules`
-	 * and, say, `.cursor/rules` — the user turned off an idea, not a file.
+	 * 关掉就是完全不可用：不进提示词，`skill` 工具和 `/` 菜单里都没有。设置页照样列出它们，
+	 * 好让人再打开。插件带的技能不在这里单独开关，跟着 `disabledPlugins`。
 	 */
-	disabledRules: string[];
-	/**
-	 * 哪些外部工具的**个人**规则也读进来，按 provider id（`cursor`、`windsurf`、`gemini`…）。
-	 *
-	 * 项目里的 `.cursor/rules` 永远读——那是团队对这份代码做出的声明，提交在仓库里。而
-	 * `~/.cursor/rules` 是你自己的：让它跟着你进别人的仓库，会做出一个跟同事在同一份代码上
-	 * 行为不同的 agent，而屏幕上没有任何东西解释为什么。所以默认不读，要读得自己勾。
-	 *
-	 * 这个开关的另一半（`enabledUserSources`）在能力层里写好很久了，而**从来没有产品代码传过
-	 * 它**——所有外部工具的用户级目录一直都是读不到的。设置 › 插件 › 规则 现在把它接上了。
-	 */
-	enabledForeignUserRules: string[];
+	disabledSkills: string[];
 	/**
 	 * Which file wins a same-name conflict, as `kind:name` → path — 「改用那个」 on the settings page.
 	 *
@@ -606,8 +603,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	hooks: EMPTY_HOOKS_CONFIG,
 	scheduledTasks: [],
 	disabledPlugins: [],
-	disabledRules: [],
-	enabledForeignUserRules: [],
+	disabledSkills: [],
 	capabilityPreferences: {},
 	rerouteShellCommands: true,
 	autoSummarizeTitle: true,
@@ -848,8 +844,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			hooks: normalizeHooksConfig(parsed.hooks),
 			scheduledTasks: parsed.scheduledTasks ?? [],
 			disabledPlugins: parsed.disabledPlugins ?? [],
-			disabledRules: parsed.disabledRules ?? [],
-			enabledForeignUserRules: parsed.enabledForeignUserRules ?? [],
+			disabledSkills: parsed.disabledSkills ?? [],
 			capabilityPreferences: parsed.capabilityPreferences ?? {},
 			rerouteShellCommands: parsed.rerouteShellCommands !== false,
 			autoSummarizeTitle: parsed.autoSummarizeTitle !== false,
@@ -944,9 +939,9 @@ const SUPERSEDED_FOREGROUNDS: Record<"lightForeground" | "darkForeground", strin
  * Every held row was a visible slab, and which shade of wrong depended on the wallpaper.
  *
  * `uiFontWeight` was a base weight the whole UI hierarchy was derived from. Weights are now fixed
- * at Tailwind's 400 / 500 / 600 / 700, as in ZCode, so a stored value would mean nothing.
+ * at Tailwind's 400 / 500 / 600 / 700, so a stored value would mean nothing.
  *
- * `codeFontWeight` did the same for code. ZCode sets code at the body's 400 and so does Lyra now.
+ * `codeFontWeight` did the same for code. Code is now set at the body's 400.
  */
 const REMOVED_APPEARANCE = ["translucentSidebar", "uiFontWeight", "codeFontWeight"] as const;
 

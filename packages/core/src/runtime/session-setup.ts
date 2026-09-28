@@ -11,6 +11,7 @@
  * expect, and one of them had the comparison backwards. What is left in this file is assembly.
  */
 
+import { realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { createRegistry, type CapabilityRegistry } from "../capability/index.ts";
@@ -20,8 +21,6 @@ import { McpManager, type McpServerStatus } from "../mcp/client.ts";
 import { loadPlugins, type Plugin, type PluginDiagnostic } from "../plugins/loader.ts";
 import { type Skill, type SkillDiagnostic } from "../skills/loader.ts";
 import { registeredSkills } from "../skills/registry.ts";
-import type { Rule, RuleDiagnostic, RuleSet } from "../rules/types.ts";
-import { conditionSource } from "../rules/condition.ts";
 import { lyraHome } from "../session/store.ts";
 import { builtinTools } from "../tools/index.ts";
 import type { AgentDefinition } from "../tools/task.ts";
@@ -35,7 +34,6 @@ export interface LoadedCapabilities {
 	agents: AgentDefinition[];
 	mcpStatuses: McpServerStatus[];
 	tools: Tool[];
-	rules: RuleSet;
 	/** 这次加载实际读过的目录，用来建立监听。 */
 	watched: string[];
 }
@@ -54,7 +52,7 @@ export interface LoadedCapabilities {
  */
 export async function collectSkills(
 	cwd: string,
-	plugins: { enabled: boolean; skills: Skill[] }[],
+	plugins: Plugin[],
 	settings?: Pick<Settings, "capabilityPreferences">,
 ): Promise<{ skills: Skill[]; diagnostics: SkillDiagnostic[]; shadowed: ShadowedSkill[] }> {
 	const result = await sessionRegistry(plugins).load<Skill>("skill", { cwd, preferred: preferredSources(settings) });
@@ -84,86 +82,47 @@ export async function collectSkills(
 	};
 }
 
+/**
+ * 这份技能是被 `disabledSkills` 里哪一条关掉的，没关就是 `undefined`。
+ *
+ * 路径和真实路径都比：`~/.claude/skills/x` 常常是链到 `~/.agents/skills/x` 的符号链接，
+ * 设置里记的是哪一种形态，另一种都得认——同一个 SKILL.md 不能因为换了个路径就绕过开关。
+ * 返回命中的那一条，好让设置页打开时删掉的正是它。
+ */
+export async function disabledSkillMatcher(disabledSkills: readonly string[]): Promise<(path: string) => Promise<string | undefined>> {
+	const real = (path: string) => realpath(path).catch(() => path);
+	const entries = new Map<string, string>();
+	for (const entry of disabledSkills) {
+		entries.set(entry, entry);
+		entries.set(await real(entry), entry);
+	}
+	return async (path) => (entries.size === 0 ? undefined : (entries.get(path) ?? entries.get(await real(path))));
+}
+
+/**
+ * 去掉设置里关掉的技能。会话和 `/` 菜单都经过这里；设置页和删除用的是 `collectSkills` 的全量，
+ * 关掉的也得列出来，人才能再打开它。
+ *
+ * 在分胜负之后过滤：关掉的是这个名字当前生效的那一份，被它盖住的同名副本不会顶上来——
+ * 否则设置页上显示的那份和会话实际用的那份就对不上了。
+ */
+export async function withoutDisabledSkills<T extends { path: string }>(skills: T[], settings: Pick<Settings, "disabledSkills">): Promise<T[]> {
+	if (settings.disabledSkills.length === 0) return skills;
+	const match = await disabledSkillMatcher(settings.disabledSkills);
+	const off = await Promise.all(skills.map((skill) => match(skill.path)));
+	return skills.filter((_, index) => off[index] === undefined);
+}
+
 /** Menu candidates use the runtime registry, including project overrides and configured precedence. */
 export async function collectAgents(cwd: string, settings?: Pick<Settings, "capabilityPreferences">): Promise<AgentDefinition[]> {
 	const result = await sessionRegistry([]).load<AgentDefinition>("agent", { cwd, preferred: preferredSources(settings) });
 	return result.items;
 }
 
-/** 一条规则在设置页里该说清楚的全部。 */
-export interface RuleEntry {
-	name: string;
-	description?: string;
-	path: string;
-	/** 来源在人话里叫什么：「项目」「个人」「Cursor」「内置」…… */
-	sourceLabel: string;
-	/** 常驻 / 规则库 / 流规则——决定它什么时候花上下文。 */
-	bucket: "always" | "book" | "stream";
-	/**
-	 * 流规则的触发条件，按它编译成的样子给出。
-	 *
-	 * 计划里点名说了：写错的正则是这套系统最大的挫败来源。一条不触发的规则跟一条不存在的规则
-	 * 在界面上长得一模一样，而看见 `/:\s*any\b/i` 这个东西本身，是唯一能让人发现自己写错了的
-	 * 办法——所以这里给的是**编译后**的源文本，包括那些内联标志。
-	 */
-	condition?: string[];
-	/** 关掉了没有。`disabledRules` 按名字记，所以同名的一起关。 */
-	disabled: boolean;
-	/** 被同名的哪一条盖掉了。设置页要回答的正是「我写的规则为什么没生效」。 */
-	shadowedBy?: { path: string; label: string };
-}
-
-/**
- * 这个项目现在有哪些规则，包括被盖掉的和被关掉的。
- *
- * 跟 `loadRules` 分开，因为要的东西不同：会话要的是**生效的那些**（关掉的已经过滤掉了），
- * 而这一份要的是**全部**——一条被关掉的规则从会话的角度不存在，而设置页正是那个把它打开的
- * 地方；一条被同名文件盖掉的规则，从列表里消失跟从没写过一模一样。
- */
-export async function collectRules(
-	cwd: string,
-	settings: Settings,
-	plugins: Plugin[],
-): Promise<{ rules: RuleEntry[]; diagnostics: RuleDiagnostic[] }> {
-	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings), preferred: preferredSources(settings) });
-	const off = new Set(settings.disabledRules ?? []);
-
-	return {
-		rules: result.all.map((item) => ({
-			name: item.name,
-			description: item.description,
-			path: item.provenance.path,
-			sourceLabel: item.provenance.providerLabel,
-			bucket: item.bucket,
-			// As the file spells it, so the page can show it and try it — not `/todo/i`.
-			condition: item.conditions?.map(conditionSource),
-			disabled: off.has(item.name),
-			shadowedBy: item.shadowedBy ? { path: item.shadowedBy.path, label: item.shadowedBy.providerLabel } : undefined,
-		})),
-		/*
-		 * With their severity, as the session gets them. The settings page splits on it: a file that
-		 * could not be read is one thing, a description cut short is another, and without it every
-		 * line arrived as the first.
-		 */
-		diagnostics: ruleDiagnostics(result.diagnostics),
-	};
-}
-
-/**
- * 用户勾了哪些外部工具的个人规则。
- *
- * 三个读规则的入口共用一份答案。少传一处的后果不是报错，是那条入口安静地读不到用户级目录
- * ——而这正是这个开关此前的状态：能力层认得它，没有任何产品代码传过它。
- */
-function foreignUserSources(settings: Settings): ReadonlySet<string> {
-	return new Set(settings.enabledForeignUserRules ?? []);
-}
-
 /**
  * 「改用那个」写下的偏好：`kind:name` → 该赢的那个文件。
  *
- * 跟 `foreignUserSources` 一样，每个读能力的入口都要传——少传一处，那处就安静地按默认优先级来，
- * 而设置页上明明写着「已改用」。
+ * 每个读能力的入口都要传——少传一处，那处就安静地按默认优先级来，而设置页上明明写着「已改用」。
  */
 function preferredSources(settings: Pick<Settings, "capabilityPreferences"> | undefined): ReadonlyMap<string, string> {
 	return new Map(Object.entries(settings?.capabilityPreferences ?? {}));
@@ -187,30 +146,15 @@ export interface ShadowedSkill {
  * windows on two projects have different plugins enabled, and a shared registry would give one
  * window the other's.
  */
-function sessionRegistry(plugins: { enabled: boolean; skills: Skill[] }[]): CapabilityRegistry {
+function sessionRegistry(plugins: Plugin[]): CapabilityRegistry {
 	const registry = createRegistry({ home: lyraHome(), userHome: homedir() });
 	registry.register(
 		pluginProvider(
-			plugins.filter((plugin) => plugin.enabled).flatMap((plugin) => plugin.skills),
+			plugins.filter((plugin) => plugin.enabled),
 			registeredSkills(),
 		),
 	);
 	return registry;
-}
-
-/**
- * The rules alone, for when one is written while a session is running.
- *
- * Saving a rule from a correction has to make it apply. A rule that only takes effect after a
- * restart is indistinguishable from one that was not saved — and the whole promise of the offer is
- * that next time the mistake is about to happen, something stops it.
- *
- * Reloading everything would do it too, and would also reconnect every MCP server and reload every
- * extension worker as a side effect of writing one small markdown file.
- */
-export async function loadRules(cwd: string, settings: Settings, plugins: Plugin[]): Promise<RuleSet> {
-	const result = await sessionRegistry(plugins).load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings), preferred: preferredSources(settings) });
-	return groupRules(result.items, settings.disabledRules ?? [], result.diagnostics);
 }
 
 /** Load skills, agents and MCP tools. Safe to call again after settings change. */
@@ -239,7 +183,7 @@ export async function loadCapabilities(
 	const registry = sessionRegistry(plugins);
 
 	const skillResult = await registry.load<Skill>("skill", { cwd, preferred: preferredSources(settings) });
-	const skills = skillResult.items;
+	const skills = await withoutDisabledSkills(skillResult.items, settings);
 	const skillDiagnostics = skillResult.diagnostics.map((d) => ({ path: d.path, message: d.message }));
 
 	/*
@@ -252,15 +196,6 @@ export async function loadCapabilities(
 	 */
 	const agentResult = await registry.load<AgentDefinition>("agent", { cwd, preferred: preferredSources(settings) });
 	const agents = agentResult.items;
-
-	/*
-	 * Rules come back as one list ordered by precedence and are regrouped into the three buckets the
-	 * rest of the system reads. Regrouping here rather than teaching the registry about buckets keeps
-	 * the merge rules the same for every capability: a bucket is a property of a rule, not a
-	 * dimension the merge has to understand.
-	 */
-	const ruleResult = await registry.load<Rule>("rule", { cwd, enabledUserSources: foreignUserSources(settings), preferred: preferredSources(settings) });
-	const rules = groupRules(ruleResult.items, settings.disabledRules ?? [], ruleResult.diagnostics);
 
 	/*
 	 * Settings is the only place a session reads MCP servers from.
@@ -283,37 +218,7 @@ export async function loadCapabilities(
 	 * 只监听**贡献过条目的目录**，不是所有可能的位置：后者是几十个 watcher，而其中绝大多数
 	 * 指向的目录在这台机器上根本不存在。
 	 */
-	const watched = [...new Set([...skillResult.watched, ...agentResult.watched, ...ruleResult.watched])];
+	const watched = [...new Set([...skillResult.watched, ...agentResult.watched])];
 
-	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, mcpStatuses, tools, rules, watched };
-}
-
-/**
- * Sort merged rules back into the three buckets, honouring the user's off-switches.
- *
- * `disabledRules` is applied here rather than passed to the registry as `disabledItems` because it
- * is keyed by bare name — that is what the setting has always held and what the settings UI writes
- * — while the registry keys items as `rule:<name>`. Translating at the boundary keeps the stored
- * shape stable; a migration would be the only other option and would buy nothing.
- */
-function groupRules(rules: Rule[], disabled: string[], diagnostics: { path: string; message: string; severity: string }[]): RuleSet {
-	const off = new Set(disabled);
-	const set: RuleSet = { always: [], book: [], stream: [], diagnostics: [] };
-	for (const rule of rules) {
-		if (off.has(rule.name)) continue;
-		set[rule.bucket].push(rule);
-	}
-	set.diagnostics = ruleDiagnostics(diagnostics);
-	return set;
-}
-
-/**
- * The registry's diagnostics as rules report them: `info` dropped, the rest an error or a warning.
- *
- * One function for the session and the settings page, so the page lists what the session was told.
- */
-function ruleDiagnostics(diagnostics: { path: string; message: string; severity: string }[]): RuleDiagnostic[] {
-	return diagnostics
-		.filter((d) => d.severity !== "info")
-		.map((d) => ({ path: d.path, message: d.message, severity: d.severity === "warning" ? "warning" : "error" }));
+	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, mcpStatuses, tools, watched };
 }

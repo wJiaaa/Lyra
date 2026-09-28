@@ -1,7 +1,7 @@
 /**
  * 钩子配置：用户级在 `settings.json` 的 `hooks`，项目级在 `<cwd>/.lyra/config.json` 的 `hooks`。
  *
- * 形状照 ZCode（也就是 Claude Code 插件 `hooks.json` 那一套）：按事件分组，每组一个 matcher，
+ * 形状照 Claude Code 插件 `hooks.json` 那一套：按事件分组，每组一个 matcher，
  * 组里是若干条命令。设置页按「一条钩子一行」来增删改，所以这里同时负责两种视图之间的换算——
  * 盘上是分组的，界面上是摊平的，`id` 就是摊平时的位置。
  */

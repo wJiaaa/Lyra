@@ -40,12 +40,13 @@ function scanLocal(cwd: string, key: string): Promise<LocalScan> {
 }
 
 /**
- * 当前项目下扫出来的插件、MCP 包、技能和账本。
+ * `cwd` 这个项目下扫出来的插件、MCP 包、技能和账本；空串只扫全局。
+ *
+ * 目录由调用方给：设置页看的是在设置页里选的项目，市场看的是当前工作区，两者可以不同。
  *
  * `fresh` 说的是手上这份是不是为当前这个目录扫的：换了项目，旧的那份先留着画，但不当真。
  */
-export function useLocalScan(): { scan: LocalScan | null; cwd: string; fresh: boolean } {
-	const cwd = useApp((s) => s.workspace?.path ?? "");
+export function useLocalScan(cwd: string): { scan: LocalScan | null; cwd: string; fresh: boolean } {
 	const nonce = useApp((s) => s.extensionsNonce);
 	// 开关一个插件会改变扫出来的 `enabled`，所以它也在键里。
 	const disabledKey = useApp((s) => (s.settings?.disabledPlugins ?? []).join("|"));

@@ -5,7 +5,7 @@
  * had not, so the only way to know where you were was to read the pane beside it. `active` is the
  * same treatment the settings nav already gives its own sections.
  *
- * Every row is drawn in full ink, as ZCode's sidebar is; the current destination is marked by its
+ * Every row is drawn in full ink; the current destination is marked by its
  * fill alone. 新对话 starts a conversation rather than leading anywhere, so it has no state to be
  * in. `undefined` rather than `false` says that: not inactive, inapplicable.
  */

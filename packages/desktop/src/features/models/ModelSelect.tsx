@@ -13,7 +13,7 @@ import { useI18n } from "../../i18n/index.ts";
  * `quiet` 是列表行里那一种：平时只有字，悬停、展开时才浮出一块底。设置页一列七行、每行两颗
  * 灰底胶囊的时候，页面读起来是十四个输入框，而用户要找的是那一两行改过的。
  *
- * `showIcon` 关掉触发器前面的模型记号——智能体页照 ZCode 只写模型名。
+ * `showIcon` 关掉触发器前面的模型记号——智能体页只写模型名。
  */
 export function ModelSelect({ ariaLabel, disabled, inheritedModelId, inheritedSource, quiet, showIcon = true, ...selection }: ModelSelection & { ariaLabel: string; disabled?: boolean; inheritedModelId?: string; inheritedSource?: string; quiet?: boolean; showIcon?: boolean }) {
 	const { t } = useI18n();

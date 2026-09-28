@@ -1,13 +1,14 @@
 import type { Plugin, Skill, SkillCandidate } from "@lyra/core";
-import { Sparkles, TriangleAlert } from "lucide-react";
+import { Sparkles, TriangleAlert, WandSparkles } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useDefinitionRemoval } from "./useDefinitionRemoval.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { SkillMark } from "./PluginIcon.tsx";
+import { PluginIcon } from "./PluginIcon.tsx";
 import { useApp } from "../../store/index.ts";
+import { usePluginsProject } from "./usePluginsProject.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
-import { Badge, Card, EmptyHint, ListRow } from "./controls.tsx";
+import { Badge, Card, EmptyHint, ListRow, Toggle } from "./controls.tsx";
 import { SkillCandidates } from "./SkillCandidates.tsx";
 import { DiffView } from "../git/index.ts";
 import { ShadowedList } from "./ShadowedList.tsx";
@@ -26,22 +27,27 @@ import { useLocalScan } from "../plugins/index.ts";
  * plugin's name, because `~/.lyra/skills` is where a collection flattens its skills too, and 「个人」
  * there would say "you wrote this" about something that arrives and leaves with the plugin.
  */
-function groupSkills(skills: Skill[], plugins: Plugin[]): { key: string; title: string; skills: Skill[] }[] {
-	const groups = new Map<string, { key: string; title: string; rank: number; skills: Skill[] }>();
+/** 扫描带回来的技能：`where` 是所在目录，`disabledBy` 是关掉它的那条设置。 */
+type ScannedSkill = Skill & { where?: string; disabledBy?: string };
+
+function groupSkills(skills: ScannedSkill[], plugins: Plugin[]): { key: string; title: string; plugin?: Plugin; skills: ScannedSkill[] }[] {
+	const groups = new Map<string, { key: string; title: string; plugin?: Plugin; rank: number; skills: ScannedSkill[] }>();
 	for (const skill of skills) {
-		const key = skill.pluginId ? `plugin:${skill.pluginId}` : skill.source;
+		// 散装技能再按目录分：「个人」底下的 `~/.lyra/skills` 和 `~/.claude/skills` 是两份不同的东西。
+		const key = skill.pluginId ? `plugin:${skill.pluginId}` : `${skill.source}:${skill.where ?? ""}`;
 		let group = groups.get(key);
 		if (!group) {
 			const plugin = skill.pluginId ? plugins.find((entry) => entry.id === skill.pluginId) : undefined;
+			const scope = skill.source === "workspace" ? translate("common.project") : translate("common.personal");
 			const title = skill.pluginId
 				? (plugin?.manifest.interface?.displayName ?? plugin?.manifest.name ?? skill.pluginId)
-				: skill.source === "workspace"
-					? translate("common.project")
-					: skill.source === "builtin"
-						? translate("common.builtin")
-						: translate("common.personal");
+				: skill.source === "builtin"
+					? translate("common.builtin")
+					: skill.where
+						? `${scope} · ${skill.where}`
+						: scope;
 			const rank = skill.pluginId ? 2 : skill.source === "workspace" ? 0 : skill.source === "builtin" ? 3 : 1;
-			group = { key, title, rank, skills: [] };
+			group = { key, title, plugin, rank, skills: [] };
 			groups.set(key, group);
 		}
 		group.skills.push(skill);
@@ -51,11 +57,31 @@ function groupSkills(skills: Skill[], plugins: Plugin[]): { key: string; title: 
 
 export function SkillsSettings({ filter = "" }: { filter?: string }) {
 	const { t } = useI18n();
-	const workspace = useApp((s) => s.workspace);
+	const workspace = usePluginsProject();
+	const settings = useApp((s) => s.settings);
+	const saveSettings = useApp((s) => s.saveSettings);
+	/*
+	 * 技能开关：只记关掉的，打开就是把那条删掉。读设置而不是等重扫，开关拨了当场就变；
+	 * `disabledBy` 管的是符号链接——设置里记的可能是同一个文件的另一个路径，打开时要删的是它。
+	 * 只影响之后新开的会话，已经在跑的会话保持开场时的技能。
+	 */
+	const disabledSkills = settings?.disabledSkills ?? [];
+	const skillOn = (skill: ScannedSkill) => !disabledSkills.includes(skill.path) && !(skill.disabledBy && disabledSkills.includes(skill.disabledBy));
+	const setSkillOn = (skill: ScannedSkill, on: boolean) => {
+		if (!settings) return;
+		const next = new Set(settings.disabledSkills);
+		if (on) {
+			next.delete(skill.path);
+			if (skill.disabledBy) next.delete(skill.disabledBy);
+		} else {
+			next.add(skill.path);
+		}
+		void saveSettings({ ...settings, disabledSkills: [...next] });
+	};
 	// A plugin carries skills, so installing one moves this list without touching this page.
 	const extensionsNonce = useApp((s) => s.extensionsNonce);
 	// The one scan the whole 插件 page shares — see `useLocalScan`.
-	const { scan } = useLocalScan();
+	const { scan } = useLocalScan(workspace?.path ?? "");
 	/** Only when the scan is slow enough to notice; below that the list simply appears. */
 
 
@@ -69,7 +95,7 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 	const [pending, setPending] = useState<SkillCandidate[] | null>(null);
 	const reloadPending = useCallback(() => {
 		if (!workspace?.path) { setPending([]); return; }
-		void bridge.rules.pendingSkills(workspace.path).then(setPending).catch(() => {});
+		void bridge.skills.pending(workspace.path).then(setPending).catch(() => {});
 	}, [workspace?.path]);
 
 	const slow = useSlowLoad(scan === null || pending === null);
@@ -105,8 +131,8 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 	const decide = async (name: string, keep: boolean) => {
 		const cwd = workspace?.path;
 		if (!cwd) return;
-		if (keep) await bridge.rules.approveSkill(cwd, name);
-		else await bridge.rules.rejectSkill(cwd, name);
+		if (keep) await bridge.skills.approve(cwd, name);
+		else await bridge.skills.reject(cwd, name);
 		reloadPending();
 		useApp.getState().bumpExtensions();
 	};
@@ -163,7 +189,6 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 			 * it like a fault would make a working feature look like a problem.
 			 */}
 			<ShadowedList
-				kind="skill"
 				entries={shadowed}
 				diff={(winner, loser) => bridge.capabilities.diff("skill", winner, loser)}
 				prefer={(name, path) => bridge.capabilities.prefer("skill", name, path)}
@@ -177,43 +202,58 @@ export function SkillsSettings({ filter = "" }: { filter?: string }) {
 				<EmptyHint icon={Sparkles}>{needle ? t("common.noMatchingSkills") : t("skills.empty")}</EmptyHint>
 			) : (
 				/*
-				 * The same row as the plugin list, because it is the same kind of thing: a mark, a
-				 * name, one line, and the row itself opens it.
-				 *
-				 * Where it came from sits on the right, quietly, because it is the one thing about a
-				 * skill you cannot work out from its name: two skills called `review` behave the same
-				 * way and live in different places, and which one is yours to edit depends entirely on
-				 * this word. `仅手动调用` stays beside the name instead, because that is not provenance
-				 * — it changes what the model will do.
+				 * 技能页：每组一张卡片，行之间一条细线，名字不用等宽；插件的技能用插件自己的
+				 * 图标，其余用同一个魔杖。`仅手动调用` 仍然挨着名字——它改变模型会不会用，不是来源。
+				 * 插件的技能没有单独开关，跟着插件走。
 				 */
-				groupSkills(skills, scan?.plugins ?? []).map((group, groupIndex) => (
-					<section key={group.key} className={groupIndex === 0 ? "" : "pt-4"} data-skill-group={group.key}>
-						<h3 className="flex items-baseline gap-1.5 px-2 pb-1 text-detail font-medium text-ink-faint">
-							{group.title}
-							<span className="font-normal tabular-nums">{group.skills.length}</span>
-						</h3>
-						{group.skills.map((skill) => (
-							<ListRow
-								key={skill.path}
-								icon={<SkillMark size={28} />}
-								title={
-									<span className="flex min-w-0 items-center gap-2">
-										<ScrollText text={skill.name} className="min-w-0 font-mono" />
-										{skill.disableModelInvocation && <Badge tone="accent">{t("skills.manualOnly")}</Badge>}
-									</span>
-								}
-								detail={skill.description}
-								actions={
-									skill.source !== "builtin" && !skill.pluginId ? (
-										<RowDeleteButton label={t("skills.deleteNamed", { name: skill.name })} pending={removal.pending.has(skill.path)} onClick={() => removal.ask(skill.name, skill.path)} />
-									) : undefined
-								}
-								onOpen={() => void bridge.system.openPath(skill.path)}
-								openLabel={t("skills.openNamed", { name: skill.name })}
-							/>
-						))}
-					</section>
-				))
+				<div className="space-y-6">
+					{groupSkills(skills, scan?.plugins ?? []).map((group) => (
+						<section key={group.key} className="space-y-3" data-skill-group={group.key}>
+							<h3 className="flex h-7 items-center gap-1.5 text-body font-medium text-ink">
+								{group.title}
+								<span className="text-label font-normal text-ink-muted tabular-nums">{group.skills.length}</span>
+							</h3>
+							<div className="overflow-hidden rounded-xl bg-card">
+								{group.skills.map((skill, index) => (
+									<div key={skill.path}>
+										{index > 0 && <div aria-hidden className="h-px bg-line" />}
+										<ListRow
+											flush
+											icon={
+												group.plugin ? (
+													<PluginIcon logo={group.plugin.manifest.interface?.logo} brandColor={group.plugin.manifest.interface?.brandColor} kind="plugin" size={36} />
+												) : (
+													<span className="flex size-9 items-center justify-center rounded-xl bg-shell text-ink-muted">
+														<WandSparkles size={16} strokeWidth={1.8} />
+													</span>
+												)
+											}
+											title={
+												<span className="flex min-w-0 items-center gap-2">
+													<ScrollText text={skill.name} className="min-w-0 font-medium" />
+													{skill.disableModelInvocation && <Badge tone="accent">{t("skills.manualOnly")}</Badge>}
+												</span>
+											}
+											detail={skill.description}
+											actions={
+												skill.pluginId ? undefined : (
+													<>
+														<Toggle checked={skillOn(skill)} onChange={(on) => setSkillOn(skill, on)} ariaLabel={t("market.enableNamed", { name: skill.name })} />
+														{skill.source !== "builtin" && (
+															<RowDeleteButton label={t("skills.deleteNamed", { name: skill.name })} pending={removal.pending.has(skill.path)} onClick={() => removal.ask(skill.name, skill.path)} />
+														)}
+													</>
+												)
+											}
+											onOpen={() => void bridge.system.openPath(skill.path)}
+											openLabel={t("skills.openNamed", { name: skill.name })}
+										/>
+									</div>
+								))}
+							</div>
+						</section>
+					))}
+				</div>
 			)}
 			{removal.element}
 		</div>

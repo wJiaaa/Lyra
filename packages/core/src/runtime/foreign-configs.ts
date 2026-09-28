@@ -1,14 +1,14 @@
 /**
  * What other tools' configuration this repository carries — and that Lyra is already reading.
  *
- * The first time a project with a `.cursor/rules/` or an `AGENTS.md` is opened, the plan (15 §5)
+ * The first time a project with a `.claude/skills/` or an `AGENTS.md` is opened, the plan (15 §5)
  * wants one notice, worded as a fact rather than a question: not "import these?" but "these are
  * in use". Nothing to do is the whole point of reading every format in place.
  *
  * The lines come from the capability registry rather than from looking for directories, so they
- * say what was actually loaded: a `.cursor/rules/` holding nothing parseable is not "6 条规则",
- * it is nothing. Only this repository's files count — a user's own `~/.cursor/rules` is not what
- * the repository carries.
+ * say what was actually loaded: a `.claude/skills/` holding nothing parseable is not "6 个技能",
+ * it is nothing. Only this repository's files count — a user's own `~/.claude` is not what the
+ * repository carries.
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -19,10 +19,10 @@ import type { CapabilityId } from "../capability/types.ts";
 import { lyraHome, projectIdFor } from "../session/store.ts";
 
 export interface ForeignConfigLine {
-	/** Provider id: `cursor`, `claude`, `agents-dir`, `codex`... */
+	/** Provider id: `claude`, `agents-dir`... */
 	provider: string;
 	label: string;
-	/** Relative to the repository: `.cursor/rules/`, `AGENTS.md`. Sorted on. */
+	/** Relative to the repository: `.claude/skills/`, `AGENTS.md`. Sorted on. */
 	where: string;
 	kind: CapabilityId;
 	count: number;
@@ -30,7 +30,7 @@ export interface ForeignConfigLine {
 
 /** Providers that are ours: what they find is not another tool's configuration. */
 const OURS = new Set(["native", "builtin", "plugins", "managed"]);
-const KINDS: CapabilityId[] = ["rule", "skill", "command", "agent", "context-file"];
+const KINDS: CapabilityId[] = ["skill", "command", "agent", "context-file"];
 
 /**
  * Context files are read by the native provider whichever tool wrote them; the file name says

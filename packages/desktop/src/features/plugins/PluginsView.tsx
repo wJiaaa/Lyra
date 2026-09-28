@@ -65,7 +65,7 @@ export function PluginsView() {
 	const saveSettings = useApp((s) => s.saveSettings);
 	const updates = useApp((s) => s.pluginUpdates);
 
-	const catalog = useCatalog();
+	const catalog = useCatalog(useApp((s) => s.workspace?.path ?? ""));
 	const [kind, setKind] = useState<Kind>("all");
 	const [category, setCategory] = useState<string | null>(null);
 	const [query, setQuery] = useState("");

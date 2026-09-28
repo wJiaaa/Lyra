@@ -232,7 +232,7 @@ export interface UserMessage {
 	/**
 	 * 会话中途改了的 system prompt 段落：段落 id → 新文本，`null` 是这一段没了。
 	 *
-	 * 存成数据而不是让下一轮去解析正文，理由同 `ruleMatch`：正文是写给模型的，措辞会改；而下一轮
+	 * 存成数据而不是让下一轮去解析正文：正文是写给模型的，措辞会改；而下一轮
 	 * 要据此算出「模型此刻以为各段是什么」，重启后也要从日志算出同一个答案。见 `prompt/update.ts`。
 	 */
 	promptUpdate?: { section: string; text: string | null }[];
@@ -247,23 +247,6 @@ export interface UserMessage {
 	 * 面板上它不该画成人发的气泡：那不是看着面板的人说的。
 	 */
 	origin?: "side-chat" | "parent";
-	/**
-	 * What a rule matched, when this message is a rule correction.
-	 *
-	 * Carried as data rather than left for the renderer to pull out of the injected text. The text
-	 * is written for the model and is deliberately blunt XML; a UI that parsed it would break the
-	 * next time that wording is improved, and every consumer would have to parse it separately.
-	 *
-	 * Without this the correction is invisible: synthetic messages render as nothing, so a rule
-	 * that stopped the model mid-sentence shows up as the model simply having said something
-	 * different — which is the one thing a person needs explained.
-	 */
-	ruleMatch?: {
-		/** One entry per rule that fired on the same stream position. */
-		rules: { name: string; path: string; excerpt: string; source: string; toolName?: string }[];
-		/** False when the turn was allowed to finish and this rode the next one. */
-		interrupted: boolean;
-	};
 	/** Clean user input text for UI display, excluding injected skill or session instructions. */
 	displayText?: string;
 	/** Skill triggered by this prompt, along with its filesystem path for viewing. */

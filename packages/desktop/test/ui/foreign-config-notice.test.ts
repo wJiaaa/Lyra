@@ -16,8 +16,8 @@ import { describeLine, ForeignConfigBanner, ForeignConfigNotice, summarize, targ
 import { click, mount } from "../helpers/mount.ts";
 
 const LINES = [
-	{ provider: "cursor", label: "Cursor", where: ".cursor/rules/", kind: "rule" as const, count: 6 },
-	{ provider: "copilot", label: "GitHub Copilot", where: ".github/instructions/", kind: "rule" as const, count: 2 },
+	{ provider: "cursor", label: "Cursor", where: ".cursor/commands/", kind: "command" as const, count: 6 },
+	{ provider: "copilot", label: "GitHub Copilot", where: ".github/agents/", kind: "agent" as const, count: 2 },
 	{ provider: "claude", label: "Claude Code", where: "CLAUDE.md", kind: "context-file" as const, count: 1 },
 ];
 
@@ -33,7 +33,7 @@ test("one line: whose configuration is in use and how many places, never an offe
 
 test("one tool with several places is named once; a single place shows no count", async () => {
 	const two = [
-		{ provider: "cursor", label: "Cursor", where: ".cursor/rules/", kind: "rule" as const, count: 6 },
+		{ provider: "cursor", label: "Cursor", where: ".cursor/commands/", kind: "command" as const, count: 6 },
 		{ provider: "cursor", label: "Cursor", where: ".cursor/skills/", kind: "skill" as const, count: 1 },
 	];
 	assert.deepEqual(summarize(two), { tools: "Cursor", places: 2 });
@@ -56,22 +56,21 @@ test("查看 with one place goes straight there; with several it asks which", as
 	// `textContent` runs the spans together; the row is the path, then what it holds and whose.
 	assert.deepEqual(
 		items.map((item) => item.textContent?.replace(/\s+/g, " ").trim()),
-		[".cursor/rules/6 条规则 · Cursor", ".github/instructions/2 条规则 · GitHub Copilot", "CLAUDE.md项目上下文 · Claude Code"],
+		[".cursor/commands/6 个命令 · Cursor", ".github/agents/2 个子 Agent 定义 · GitHub Copilot", "CLAUDE.md项目上下文 · Claude Code"],
 		"one row per place: the path, what it holds, whose",
 	);
 	await click(items[1]);
-	assert.deepEqual(looked, ["CLAUDE.md", ".github/instructions/"], "the row that was clicked");
+	assert.deepEqual(looked, ["CLAUDE.md", ".github/agents/"], "the row that was clicked");
 	assert.equal(document.querySelectorAll("[role=menuitem]").length, 0, "the menu closes on choosing");
 	await many.unmount();
 });
 
-test("each kind of place has a page — rules to the rules tab, a context file to the file itself", () => {
-	assert.deepEqual(targetFor(LINES[0]), { page: "plugins", tab: "rules", query: "Cursor" }, "that tool's rules, and the search box says so");
+test("each kind of place has a page — a context file goes to the file itself", () => {
+	assert.deepEqual(targetFor(LINES[0]), { page: "commands" });
 	assert.deepEqual(targetFor({ ...LINES[0], kind: "skill" }), { page: "plugins", tab: "skills" });
-	assert.deepEqual(targetFor({ ...LINES[0], kind: "command" }), { page: "commands" });
-	assert.deepEqual(targetFor({ ...LINES[0], kind: "agent" }), { page: "agents" });
+	assert.deepEqual(targetFor(LINES[1]), { page: "agents" });
 	assert.deepEqual(targetFor(LINES[2]), { file: "CLAUDE.md" });
-	assert.equal(describeLine(LINES[0]), "6 条规则");
+	assert.equal(describeLine(LINES[0]), "6 个命令");
 	assert.equal(describeLine(LINES[2]), "项目上下文");
 });
 

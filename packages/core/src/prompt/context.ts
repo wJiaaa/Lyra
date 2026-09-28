@@ -5,7 +5,7 @@
  * 不用另外接线。同一来源的几块合成一段，所以别给经常变的内容和稳定的内容共用一个来源——变一处，
  * 增量里就要把整段重发一遍（派活说明从 `agents` 里拆成 `delegation` 就是为此）。
  */
-export type PromptSource = "identity" | "tools" | "guidelines" | "boundaries" | "environment" | "custom" | "tone" | "userInstructions" | "userMemory" | "projectMemory" | "skills" | "rules" | "agents" | "delegation" | "projectInstructions" | "workspace" | "resources" | "extension";
+export type PromptSource = "identity" | "tools" | "guidelines" | "boundaries" | "environment" | "custom" | "tone" | "userInstructions" | "userMemory" | "projectMemory" | "skills" | "agents" | "delegation" | "projectInstructions" | "workspace" | "resources" | "extension";
 
 export interface PromptSection {
 	source: PromptSource;

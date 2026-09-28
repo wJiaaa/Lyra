@@ -7,7 +7,7 @@ import { useApp } from "../../store/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 
 /** Keys, so the word matches the window rather than the moment this file loaded. */
-const LABELS = { command: "removal.command", skill: "removal.skill", rule: "removal.rule" } as const satisfies Record<string, MessageKey>;
+const LABELS = { command: "removal.command", skill: "removal.skill" } as const satisfies Record<string, MessageKey>;
 
 export function useDefinitionRemoval(kind: keyof typeof LABELS, cwd: string, reload: () => void) {
 	const confirm = useConfirmer();

@@ -14,9 +14,7 @@ import type { AgentRunConfig } from "../agent/loop.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Skill } from "../skills/loader.ts";
-import { ruleHooks } from "../rules/session.ts";
 import { DispatchGate, normalizeMaxConcurrentSubAgents, rootDispatch } from "./dispatch-guard.ts";
-import type { StreamRuleMonitor } from "../rules/stream.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type {
 	ApprovalDecision,
@@ -82,12 +80,7 @@ export interface TurnConfigDeps {
 	permissionRequest?: AgentRunConfig["permissionRequest"];
 	onStop?: AgentRunConfig["onStop"];
 	drainSteering: AgentRunConfig["drainSteering"];
-	/**
-	 * Watches the stream for rule violations. Session-scoped, not per turn: repeat policy is
-	 * counted in turns, so a monitor rebuilt each turn would let a `once` rule fire forever.
-	 */
-	ruleMonitor?: StreamRuleMonitor;
-	/** The session's address space. Session-scoped for the same reason the monitor is. */
+	/** The session's address space. Session-scoped: its handlers hold session state. */
 	resources?: AgentRunConfig["resources"];
 	/** Where `scratch://` writes for this session. */
 	scratchDir?: string;
@@ -224,7 +217,6 @@ export function buildTurnConfig(
 			drainSteering: deps.drainSteering,
 			resources: deps.resources,
 			scratchDir: deps.scratchDir,
-			rules: deps.ruleMonitor?.active ? ruleHooks(deps.ruleMonitor) : undefined,
 			beforeToolCall: deps.beforeToolCall,
 			afterToolCall: deps.afterToolCall,
 			permissionRequest: deps.permissionRequest,

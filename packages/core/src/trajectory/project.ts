@@ -166,8 +166,8 @@ export function projectTrajectory(records: SessionRecord[], live = false): Entry
 			}
 			return;
 		}
-		if (data.type === "retry" || data.type === "notice" || data.type === "rule_triggered") {
-			const detail = data.type === "retry" ? `重试 ${data.attempt} · 等待 ${data.delayMs} ms\n${data.reason}` : data.type === "notice" ? data.message : JSON.stringify(data.rules, null, 2);
+		if (data.type === "retry" || data.type === "notice") {
+			const detail = data.type === "retry" ? `重试 ${data.attempt} · 等待 ${data.delayMs} ms\n${data.reason}` : data.message;
 			const entry = basic("notice", detail.split("\n")[0].slice(0, 120), detail);
 			entry.metadata = data;
 			if (data.type === "notice" && data.level === "error") entry.status = "error";

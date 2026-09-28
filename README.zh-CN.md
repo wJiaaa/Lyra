@@ -106,7 +106,7 @@ Lyra 不自带模型，所以第一次打开是发不出消息的。到「设置
 - **20 个内置工具**，按代码里的分组：
   - 文件与代码：`read` `write` `edit` `ls` `glob` `grep` `symbol` `lsp`
   - 执行命令：`bash` `bash_output`
-  - 会话与记忆：`todo_write` `task` `skill` `rule` `recall` `learn` `ask_user`
+  - 会话与记忆：`todo_write` `task` `skill` `recall` `learn` `ask_user`
   - 网络与预览：`web_fetch` `web_search` `preview`
 - **Skill**：`SKILL.md` + YAML frontmatter。只有名称和描述进系统提示，正文在模型调用 `skill` 工具时才注入。装几十个技能也不烧上下文。
 - **MCP**：stdio / Streamable HTTP / SSE 三种传输，工具以 `mcp__<服务>__<工具>` 命名注入，不会和内置工具撞名。
@@ -163,7 +163,7 @@ pnpm cli -C ~/code/my-project --json "/review src/a.ts"   # 命令和 skill 的�
 | `~/.lyra/settings.json` | 供应商、模型、MCP、权限模式 |
 | `~/.lyra/credentials.json` | API Key，加密存放；密钥本体在 `~/.lyra/vault.key` |
 | `~/.lyra/sessions/` | 会话日志（JSONL，一行一条记录） |
-| `~/.lyra/skills/`、`plugins/`、`rules/`、`commands/` | 用户级的技能、插件、规则、斜杠命令 |
+| `~/.lyra/skills/`、`plugins/`、`commands/` | 用户级的技能、插件、斜杠命令 |
 | `~/.lyra/memory.json` | `learn` 工具记下来的东西 |
 | `<项目>/.lyra/skills/`、`agents/`、`commands/`、`plugins/` | 项目级的同一套，优先级高于用户级 |
 | `<项目>/LYRA.md`、`AGENTS.md`、`CLAUDE.md` | 项目指令，按此优先级取第一个存在的 |

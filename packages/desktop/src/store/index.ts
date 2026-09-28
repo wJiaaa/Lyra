@@ -104,7 +104,7 @@ export type SettingsSection =
   | "archived";
 
 /** The tabs on the 插件 page; the page itself is the `plugins` section. */
-export type ExtensionsTab = "plugins" | "skills" | "rules" | "mcp" | "extensions";
+export type ExtensionsTab = "plugins" | "skills" | "mcp" | "extensions";
 
 /** Text left for a composer by something that is not the composer — see `composerDraft`. */
 interface ComposerDraft {
@@ -153,18 +153,17 @@ interface PendingApproval extends QuestionFields {
   from?: ApprovalOrigin;
 }
 
-/** A correction offered as a rule: what `rule_suggested` carries, and what the card asks about. */
-export interface RuleOffer {
-  name: string;
-  body: string;
-  condition?: string;
-  scope?: string;
-}
-
 export interface AppState extends QueueSlice {
   ready: boolean;
   view: View;
   settingsSection: SettingsSection;
+  /**
+   * 设置 › 插件看哪个项目的项目级内容（插件、MCP、技能、扩展），按路径；null 是只看全局。
+   *
+   * 在那一页里显式选，不跟当前打开的会话走：从前它读的是 `workspace`，于是页面显示什么取决于
+   * 进设置前最后点的是哪个会话，而页面上看不出来。不落盘——它回答的是「此刻在看什么」。
+   */
+  pluginsProject: string | null;
   /**
    * Which bundle the catalogue should be showing, by key, or null for the grid.
    *
@@ -183,11 +182,9 @@ export interface AppState extends QueueSlice {
    * Which tab the 插件 page should open on, and what to have typed into its search — or null for
    * whichever it was on.
    *
-   * Set by whoever sends someone there for a reason. The notice above the composer says 「查看」
-   * about a `.cursor/rules/`, and landing that click on the list of installed plugins answered a
-   * question nobody had asked; landing it on the rules tab with 「Cursor」 in the search box shows
-   * exactly those rules, and the box says why. Read once by the page and cleared, so a later visit
-   * opens on whatever was chosen by hand.
+   * Set by whoever sends someone there for a reason: landing a 「查看」 about another tool's skills
+   * on the list of installed plugins answers a question nobody had asked. Read once by the page and
+   * cleared, so a later visit opens on whatever was chosen by hand.
    */
   extensionsFocus: { tab: ExtensionsTab; query?: string } | null;
   /**
@@ -417,22 +414,12 @@ export interface AppState extends QueueSlice {
 	/** 钩子的执行记录；`at` 是它发生时转录里的消息数，据此归到那一轮。 */
 	hookRuns: HookRun[];
   notices: { id: string; level: "info" | "warn" | "error"; message: string; sessionId?: string }[];
-  /**
-   * Corrections the runtime thinks could become rules, waiting to be answered — by conversation.
-   *
-   * Not kept in the transcript. An offer is about the exchange that just happened, and one still
-   * sitting there three turns later would be asking about something the person has moved on from —
-   * so the conversation's next turn clears it whether or not it was answered.
-   *
-   * Keyed rather than one slot for the live conversation: a split shows several at once, and a slot
-   * drew the offer under every screen, then dropped it unanswered when focus moved to another one.
-   */
-  ruleOffers: Record<string, RuleOffer>;
   capabilities: AgentCapabilities | null;
 
   bootstrap(): Promise<void>;
   setView(view: View): void;
   setSettingsSection(section: SettingsSection): void;
+  setPluginsProject(path: string | null): void;
   /** Open one bundle's page in the catalogue, or return to the grid with null. */
   setPluginFocus(key: string | null): void;
   setExtensionsFocus(focus: { tab: ExtensionsTab; query?: string } | null): void;
@@ -613,6 +600,7 @@ export const useApp = create<AppState>((set, get) => ({
   ready: false,
   view: "chat",
   settingsSection: "models",
+  pluginsProject: null,
   pluginFocus: null,
   pluginUpdates: null,
   extensionsFocus: null,
@@ -656,7 +644,6 @@ export const useApp = create<AppState>((set, get) => ({
 	hookRuns: [],
   todos: [],
   notices: [],
-  ruleOffers: {},
   capabilities: null,
 
   async bootstrap() {
@@ -785,6 +772,7 @@ export const useApp = create<AppState>((set, get) => ({
       };
     }),
   setSettingsSection: (settingsSection) => set({ settingsSection }),
+  setPluginsProject: (pluginsProject) => set({ pluginsProject }),
   setPluginFocus: (pluginFocus) => set({ pluginFocus }),
   setExtensionsFocus: (extensionsFocus) => set({ extensionsFocus }),
   openExtensions: (tab, query) =>
@@ -863,11 +851,12 @@ export const useApp = create<AppState>((set, get) => ({
  * 会让目录长出来，那确实得重扫——广播里加这一下就是为了它。可广播是所有设置改动共用的一条路，
  * 于是拖一格滑条也重扫一遍，从 1 拖到 10 是九轮，每轮都要走一趟主进程去读目录。
  *
- * 所以只认真正会改变磁盘布局的那两项。第一次（还没有设置）返回一个对不上的键，让它照扫不误。
+ * 所以只认会改变扫描结果的那几项。第一次（还没有设置）返回一个对不上的键，让它照扫不误。
  */
 function scanKey(settings: Settings | null | undefined): string {
 	if (!settings) return "";
-	return JSON.stringify([settings.mcpServers, settings.disabledPlugins]);
+	// 技能开关也算：同一个 SKILL.md 可能有符号链接的另一个路径，关掉一个，另一个的状态得从主进程重读。
+	return JSON.stringify([settings.mcpServers, settings.disabledPlugins, settings.disabledSkills]);
 }
 
 async function refreshRemoteState(

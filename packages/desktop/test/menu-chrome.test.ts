@@ -1,7 +1,7 @@
 /**
  * Menu cards share one radius and one even inset.
  *
- * An 8px card and 6px rows, as ZCode draws them (`rounded-lg` /
+ * An 8px card and 6px rows (`rounded-lg` /
  * `rounded-md`). Both have to stay in the tokens, not as a number at a
  * call site.
  */

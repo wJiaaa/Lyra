@@ -32,6 +32,7 @@ export function AccessSettings() {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
+	const workspacePath = useApp((s) => s.workspace?.path);
 	const [host, setHost] = useState("");
 	/*
 	 * Whether the network switch is offered at all, which is a property of the machine.
@@ -65,7 +66,7 @@ export function AccessSettings() {
 				{t("access.intro")}
 			</p>
 
-			<ProjectOverrideNotice keys={["alwaysAllow", "permissionMode"]} />
+			<ProjectOverrideNotice keys={["alwaysAllow", "permissionMode"]} cwd={workspacePath} />
 			<SectionTitle>{t("access.alwaysAllow")}</SectionTitle>
 			<Card className="mb-6">
 				{allowed.length === 0 ? (

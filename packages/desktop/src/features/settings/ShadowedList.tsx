@@ -8,8 +8,8 @@
  * preference and then says where it wrote it: a change nobody can find later is a change they
  * cannot undo.
  *
- * Shared by rules and skills because the relation is the same; the callbacks come from the page,
- * which is also what lets this mount in a test with nothing behind it.
+ * The callbacks come from the page, which is also what lets this mount in a test with nothing
+ * behind it.
  */
 
 import { useI18n } from "../../i18n/index.ts";
@@ -36,14 +36,12 @@ export interface ShadowedDiff {
 }
 
 export function ShadowedList({
-	kind,
 	entries,
 	diff,
 	prefer,
 	onChanged,
 	renderDiff,
 }: {
-	kind: "rule" | "skill";
 	entries: ShadowedEntry[];
 	/** Winner first, loser second. */
 	diff: (winner: string, loser: string) => Promise<ShadowedDiff>;
@@ -76,7 +74,7 @@ export function ShadowedList({
 				 */}
 				<div className="mb-2 flex items-center gap-1.5 text-label text-ink-muted">
 					<Layers size={13} strokeWidth={1.9} />
-					{t(kind === "rule" ? "shadowed.headerRules" : "shadowed.headerSkills", { n: entries.length })}
+					{t("shadowed.headerSkills", { n: entries.length })}
 				</div>
 				{entries.map((entry) => (
 					<Row

@@ -88,7 +88,7 @@ export function ProjectHead({
 					compact ? "h-[40px]" : "h-[32px]"
 				}`}
 			>
-				{/* 和 ZCode 一样：只用文件夹本身表示开合，不在悬停时换成箭头。 */}
+				{/* 只用文件夹本身表示开合，不在悬停时换成箭头。 */}
 				<span className="shrink-0">{collapsed ? <Folder size={16} /> : <FolderOpen size={16} />}</span>
 				<ScrollText text={group.name} className="ly-fade-tail min-w-0 flex-1" />
 				{/*

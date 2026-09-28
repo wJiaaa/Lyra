@@ -29,7 +29,6 @@
 	"electron/ipc/files.ts": 2,
 	"electron/ipc/git.ts": 17,
 	"electron/ipc/hooks.ts": 1,
-	"electron/ipc/rules.ts": 1,
 	"electron/ipc/running-services.ts": 2,
 	"electron/ipc/services.ts": 4,
 	"electron/ipc/sessions.ts": 2,
@@ -45,6 +44,6 @@
 	"electron/tray-menu.ts": 1,
 	"electron/turn-delivery.ts": 4,
 	"electron/web-access.ts": 1,
-	"electron/web-rpc.ts": 5,
+	"electron/web-rpc.ts": 4,
 	"electron/web-server.ts": 2
 }

@@ -40,7 +40,6 @@ const BUILTIN_TOOLS = [
 	"todo_write",
 	"task",
 	"skill",
-	"rule",
 	"recall",
 	"learn",
 	"ask_user",

@@ -19,8 +19,8 @@ export type MarketMark = {
  * the bundle's id first, then by name, so a server added by hand as "Context7" still gets Context7's
  * mark; the name has to match exactly (case aside), never "looks like".
  */
-export function useMarketMarks(): (id?: string, name?: string) => MarketMark | undefined {
-	const catalog = useCatalog();
+export function useMarketMarks(cwd: string): (id?: string, name?: string) => MarketMark | undefined {
+	const catalog = useCatalog(cwd);
 	return useMemo(() => {
 		const byId = new Map<string, MarketMark>();
 		const byName = new Map<string, MarketMark>();

@@ -8,9 +8,6 @@
 
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { findRule } from "../rules/session.ts";
-import type { RuleSet } from "../rules/types.ts";
-import { RULES_KEY } from "../tools/rule.ts";
 import { expandSkillPaths, type Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { artifactResource, mcpResource, pluginResource, sessionResource } from "./more-handlers.ts";
@@ -100,37 +97,6 @@ const skillResource: ResourceHandler = {
 	},
 };
 
-/** `rule://<name>` is a rule body. Read-only, and that is a boundary rather than an omission. */
-const ruleResource: ResourceHandler = {
-	scheme: "rule",
-	describe: "规则正文",
-
-	async resolve(url: ParsedUrl, ctx: ResourceContext): Promise<Resource> {
-		const set = ctx.state.get(RULES_KEY) as RuleSet | undefined;
-		const name = url.segments.join("/");
-		// 走 `findRule`——它就是给这里和 `rule` 工具写的，而两边原本各拼了一遍同样的三段。
-		const rule = set ? findRule(set, name) : undefined;
-		if (!rule) {
-			const all = set ? [...set.always, ...set.book, ...set.stream] : [];
-			const available = all.map((r) => r.name).join("、");
-			throw new ResourceError(`没有叫“${name}”的规则。现有的是：${available || "（一条都没有）"}`);
-		}
-		return {
-			url: url.raw,
-			content: rule.content,
-			contentType: "text/markdown",
-			label: `规则“${rule.name}”的完整正文`,
-			meta: { name: rule.name, path: rule.path, bucket: rule.bucket, source: rule.source },
-		};
-	},
-
-	async list(ctx: ResourceContext): Promise<Completion[]> {
-		const set = ctx.state.get(RULES_KEY) as RuleSet | undefined;
-		const all = set ? [...set.always, ...set.book, ...set.stream] : [];
-		return all.map((r) => ({ value: `rule://${r.name}`, description: r.description ?? r.bucket }));
-	},
-};
-
 /**
  * `scratch://<path>` is the session's own directory. The one writable scheme.
  *
@@ -213,34 +179,6 @@ const TOPICS: Record<string, { title: string; body: string }> = {
 			"同名时优先级：项目 > 用户 > 插件包 > 代码里注册的。",
 		].join("\n"),
 	},
-	"writing-rules": {
-		title: "怎么写一条规则",
-		body: [
-			"规则是一个 markdown 文件，放在 `<项目>/.lyra/rules/` 或 `~/.lyra/rules/`。",
-			"按 frontmatter 分成三桶，**这决定了它什么时候花你的 token**：",
-			"",
-			"| 桶 | 怎么触发 | frontmatter |",
-			"| --- | --- | --- |",
-			"| 常驻 | 每一轮都在提示词里 | `alwaysApply: true` |",
-			"| 规则库 | 列出名字，模型按需读正文 | 有 `description`，无 `condition` |",
-			"| 流规则 | 模型写出匹配内容时才注入 | 有 `condition` |",
-			"",
-			"```markdown",
-			"---",
-			"condition: '\\bvar\\s+\\w'   # 正则。写出匹配内容时中止并重来",
-			"scope: text                 # text / thinking / tool:<名字> / tool:bash(*.sh)",
-			"interrupt: always           # always / prose-only / tool-only / never",
-			"repeat: once                # once / always / { afterTurns: 5 }",
-			"---",
-			"这个仓库不用 `var`。用 `const`，需要重新赋值时用 `let`。",
-			"```",
-			"",
-			"**流规则在提示词里不占一个字节**，所以一个项目可以有五十条。",
-			"",
-			"`.cursor/rules`、`.windsurf/rules`、`.clinerules`、`.github/instructions`",
-			"里已有的规则会被直接读取，不需要迁移。",
-		].join("\n"),
-	},
 	"editing-files": {
 		title: "编辑文件的格式",
 		body: [
@@ -269,12 +207,11 @@ const TOPICS: Record<string, { title: string; body: string }> = {
 			"这些地址在 `read` 里跟普通路径一样用：",
 			"",
 			"- `skill://<名字>` 技能正文；`skill://<名字>/<路径>` 技能目录里的文件",
-			"- `rule://<名字>` 规则正文",
 			"- `scratch://<路径>` 本次会话的临时目录，**可写**，会话结束后消失",
 			"- `lyra://<主题>` 这份文档本身",
 			"",
 			"末尾可以跟行范围：`read skill://pdf:10-40`。",
-			"只给 scheme（`read rule://`）会列出这个命名空间里有什么。",
+			"只给 scheme（`read skill://`）会列出这个命名空间里有什么。",
 		].join("\n"),
 	},
 };
@@ -426,7 +363,6 @@ function pickPath(root: unknown, segments: string[]): unknown {
  */
 export const BUILTIN_RESOURCES: ResourceHandler[] = [
 	skillResource,
-	ruleResource,
 	scratchResource,
 	lyraResource,
 	agentResource,

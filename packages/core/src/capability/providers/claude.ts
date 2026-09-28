@@ -1,15 +1,14 @@
 /**
  * Claude Code's directories.
  *
- * Separate from the other foreign tools because it supplies more than rules — commands and skills
- * live there in a layout close enough to ours that the same loaders read them — and because its
- * project-level directory is one people genuinely share. The reasoning is the one already written
- * in `commands/loader.ts`, and it applies unchanged:
+ * Commands and skills live there in a layout close enough to ours that the same loaders read
+ * them, and its project-level directory is one people genuinely share. The reasoning is the one
+ * already written in `commands/loader.ts`, and it applies unchanged:
  *
  *   一个命令文件就是 markdown 里的一个 prompt，里面没有任何东西属于某一个程序。
  *   拒绝读它们意味着要所有人把命令抄一遍才能被告知同样的事。
  *
- * Priority 80: below our own directories, above every other tool's, because it is the format ours
+ * Priority 80: below our own directories, above `.agents/`, because it is the format ours
  * is closest to and a collision between the two is most likely to be the same file copied across.
  */
 

@@ -225,10 +225,10 @@ export function ComposerShell({
   useLayoutEffect(remeasure);
 
   /*
-   * Grow with the text, up to ZCode's eight lines (160px of text), and never past a third of the
+   * Grow with the text, up to eight lines (160px of text), and never past a third of the
    * window — a 160px field in a short window would leave no transcript above it.
    *
-   * 长高不做动画，对齐 ZCode：一行一行直接长，过渡只会让光标所在那一行晚一拍才露出来。
+   * 长高不做动画：一行一行直接长，过渡只会让光标所在那一行晚一拍才露出来。
    *
    * 下限不在这里定：`min-height` 是两行，见 `misc.css` 的 `.ly-composer-text`。这里只需要认得
    * 它——`height: auto` 之后量到的 `clientHeight` 就是那条线，上限再低也不能低过它，否则一个还

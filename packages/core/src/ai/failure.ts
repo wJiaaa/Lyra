@@ -189,14 +189,14 @@ function isPerMinuteQuota(body: string): boolean {
  *
  * 新增一种：把原话里稳定的那一段写成正则放进 `phrases`，行尾注明哪家、原话长什么样；再在
  * `test/context-overflow.test.ts` 的样例表里加一行原话。只看状态码就能断定的，放进 `statuses`。
- * 来源多数取自 pi（`packages/ai/src/utils/overflow.ts`）和 ZCode（`failure-inspection.ts`）收集的实测原话。
+ * 来源多数取自 pi（`packages/ai/src/utils/overflow.ts`）等收集的实测原话。
  */
 const CONTEXT_OVERFLOW = {
 	/** 413：请求体超出服务端上限（Anthropic `request_too_large`、网关的 Payload Too Large），压小历史同样能过。 */
 	statuses: new Set([413]),
 	phrases: [
 		/context[_\s-]?length[_\s-]?exceeded/i, // OpenAI 的 error.code；vLLM、中转常原样转发
-		/(?:model_)?context_(?:window_)?exceeded/i, // ZCode 收集的码：context_window_exceeded、model_context_window_exceeded（z.ai 把 finish_reason 写进错误）
+		/(?:model_)?context_(?:window_)?exceeded/i, // 错误码：context_window_exceeded、model_context_window_exceeded（z.ai 把 finish_reason 写进错误）
 		/maximum context length/i, // OpenAI / DeepSeek / OpenRouter / vLLM："This model's maximum context length is 65536 tokens. However, you requested …"
 		/exceeds the context window/i, // OpenAI Responses："Your input exceeds the context window of this model."
 		/prompt (?:is )?too long/i, // Anthropic："prompt is too long: 213462 tokens > 200000 maximum"；z.ai "Prompt too long"；Ollama
@@ -207,7 +207,7 @@ const CONTEXT_OVERFLOW = {
 		/exceeded model token limit/i, // Kimi / Moonshot："Your request exceeded model token limit: 262144"
 		/range of input length should be/i, // 通义 DashScope："Range of input length should be [1, 129024]"
 		/context window exceeds limit/i, // MiniMax："invalid params, context window exceeds limit"
-		/total message token length.{0,60}exceed/i, // ZCode 收集的 OpenAI 兼容服务商："total message token length … exceed model limit"
+		/total message token length.{0,60}exceed/i, // OpenAI 兼容服务商："total message token length … exceed model limit"
 		/maximum prompt length is \d+/i, // xAI："This model's maximum prompt length is 131072 but the request contains …"
 		/reduce the length of the messages/i, // Groq；DeepSeek 与 OpenAI 旧文案的结尾
 		/too large for model with \d+ maximum context length/i, // Mistral

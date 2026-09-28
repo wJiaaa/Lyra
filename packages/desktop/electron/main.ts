@@ -65,7 +65,7 @@ import { MEDIA_SCHEME, PREVIEW_SCHEME, registerPreviewProtocols } from "./previe
 import { guardWebviews, installPermissionHandlers } from "./window-security.ts";
 import { registerGitIpc } from "./ipc/git.ts";
 import { registerUsageIpc } from "./ipc/usage.ts";
-import { registerRulesIpc } from "./ipc/rules.ts";
+import { registerSkillsIpc } from "./ipc/skills.ts";
 import { registerAgentDefinitionsIpc } from "./ipc/agent-definitions.ts";
 import { registerCapabilitiesIpc } from "./ipc/capabilities.ts";
 import { registerExtensionsIpc } from "./ipc/extensions.ts";
@@ -832,7 +832,7 @@ function registerIpc(): void {
 
 	registerGitIpc({ insideAProject });
 	registerUsageIpc({ store: () => store });
-	registerRulesIpc();
+	registerSkillsIpc();
 	registerAgentDefinitionsIpc();
 	registerCapabilitiesIpc();
 	registerExtensionsIpc();

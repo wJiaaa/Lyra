@@ -157,7 +157,7 @@ export function ModelSettings() {
                 key={provider.id}
                 type="button"
                 onClick={() => p.select(provider.id)}
-                // 选中靠一圈线标出，不垫底色，和 ZCode 一样：这一栏坐在卡片上，垫一块灰就又多了一层面。
+                // 选中靠一圈线标出，不垫底色：这一栏坐在卡片上，垫一块灰就又多了一层面。
                 className={`ly-scroll flex h-[38px] w-full items-center gap-2.5 rounded-lg px-2.5 text-left transition-shadow ${
                   p.selected?.id === provider.id
                     ? "shadow-[inset_0_0_0_1px_var(--color-line)]"

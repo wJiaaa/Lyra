@@ -21,17 +21,13 @@ import type { Settings } from "../config/settings.ts";
 import type { Plugin, PluginDiagnostic } from "../plugins/loader.ts";
 import type { Skill, SkillDiagnostic } from "../skills/loader.ts";
 import { ARTIFACTS_KEY, MCP_KEY, PLUGINS_KEY, type Artifact, type McpLookup } from "../resources/more-handlers.ts";
-import { OfferBudget } from "../rules/from-correction.ts";
-import { StreamRuleMonitor } from "../rules/stream.ts";
-import { EMPTY_RULE_SET, type RuleSet } from "../rules/types.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { backgroundJobs } from "../tools/background-jobs.ts";
 import { invalidateIndex } from "../tools/index.ts";
 import { TOOL_NAMES_KEY } from "../tools/reroute.ts";
-import { RULES_KEY } from "../tools/rule.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
 import type { Tool } from "../types.ts";
-import { loadCapabilities, loadRules } from "./session-setup.ts";
+import { loadCapabilities } from "./session-setup.ts";
 
 /**
  * 最多留多少份折叠内容。
@@ -49,8 +45,6 @@ export class SessionCapabilities {
 	pluginDiagnostics: PluginDiagnostic[] = [];
 	mcpStatuses: McpServerStatus[] = [];
 	agents: AgentDefinition[] = [...BUILTIN_AGENTS];
-	/** Discovered rules, already sorted into always-apply, rulebook and stream buckets. */
-	rules: RuleSet = EMPTY_RULE_SET;
 	/**
 	 * 这次加载实际读过的目录。
 	 *
@@ -59,15 +53,7 @@ export class SessionCapabilities {
 	 */
 	watched: string[] = [];
 	/**
-	 * Watches the stream for the rules that have conditions.
-	 *
-	 * Lives here rather than being built per turn because repeat policy counts turns: a monitor
-	 * rebuilt every turn would let a `once` rule fire on every one of them.
-	 */
-	ruleMonitor = new StreamRuleMonitor([]);
-
-	/**
-	 * The session's address space: `skill://`, `rule://`, `scratch://`, `lyra://`.
+	 * The session's address space: `skill://`, `scratch://`, `lyra://`.
 	 *
 	 * One per session, never a module singleton. A sub-agent has its own skill set, and a shared
 	 * router would resolve `skill://x` against whichever session touched it last — a bug that only
@@ -83,15 +69,6 @@ export class SessionCapabilities {
 	 * with none pays nothing.
 	 */
 	readonly extensions = new ExtensionHost();
-
-	/**
-	 * How many times this session may still offer to turn a correction into a rule.
-	 *
-	 * Session-scoped, and deliberately not persisted: "you have said no twice" is a fact about a
-	 * conversation, not about a person. Somebody who dismissed two offers on Monday should not find
-	 * the feature permanently gone on Tuesday.
-	 */
-	readonly correctionBudget = new OfferBudget();
 
 	/**
 	 * 被剪枝折叠掉的大块输出，按 id 存着，`artifact://` 从这里取。
@@ -126,8 +103,6 @@ export class SessionCapabilities {
 		this.skills = loaded.skills;
 		this.skillDiagnostics = loaded.skillDiagnostics;
 		this.agents = loaded.agents;
-		this.rules = loaded.rules;
-		this.ruleMonitor = new StreamRuleMonitor(loaded.rules.stream);
 		this.mcpStatuses = loaded.mcpStatuses;
 		this.tools = loaded.tools;
 		/*
@@ -141,7 +116,6 @@ export class SessionCapabilities {
 		// Two tools read these back rather than taking them as arguments.
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
-		this.state.set(RULES_KEY, this.rules);
 		/*
 		 * `bash` 的改道靠这个 key 知道「建议的工具在不在」。
 		 *
@@ -163,19 +137,6 @@ export class SessionCapabilities {
 			read: (server: string, uri: string) => this.mcp.readResource(server, uri),
 		} satisfies McpLookup);
 		this.watched = loaded.watched;
-	}
-
-	/**
-	 * Re-read the rules and nothing else, for a rule written while this session is running.
-	 *
-	 * The monitor is rebuilt, which resets what has fired — a `once` rule that already fired may
-	 * fire once more. That is the honest trade: the alternative is carrying counters for rules that
-	 * may no longer exist, and a rule saved thirty seconds ago has not used up its one turn yet.
-	 */
-	async reloadRules(cwd: string, settings: Settings): Promise<void> {
-		this.rules = await loadRules(cwd, settings, this.plugins);
-		this.ruleMonitor = new StreamRuleMonitor(this.rules.stream);
-		this.state.set(RULES_KEY, this.rules);
 	}
 
 	/**

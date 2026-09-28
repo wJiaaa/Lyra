@@ -17,7 +17,7 @@ import { cachedEvent } from "./cached-event.ts";
 import { messageEvent } from "./message-event.ts";
 import { coalesce, flushCoalesced } from "./coalesce.ts";
 import { applyToolEvent } from "./apply-tool.ts";
-import { howItStopped, without } from "./derive.ts";
+import { howItStopped } from "./derive.ts";
 import { freeze, relight, saveCarried } from "./turn-meter.ts";
 /*
  * `sideStore.ts` directly, not the domain's index.
@@ -272,27 +272,6 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       saveCarried(sessionId, null);
       set({ carried });
     }
-  }
-
-  /*
-   * The offer to keep a correction, for whichever conversation made it — a question, not a record,
-   * which is why it is state rather than a message.
-   *
-   * It used to be kept only for the conversation in the live slot, on the reasoning that an offer
-   * about a conversation nobody is looking at would be answered with no idea what it referred to.
-   * With several screens the live slot is only where focus is: the conversation beside it is being
-   * looked at, and its offer was dropped. The card is drawn at the end of its own transcript, under
-   * the exchange it asks about, so it has that context wherever it is seen — a conversation opened
-   * later included. The session spends its budget either way, which is the honest cost: it did ask.
-   *
-   * Its next turn takes it away, answered or not. The offer is about the exchange that had just
-   * happened; left up, it would sit under a reply to a different question — still offering to save a
-   * rule about something the conversation has moved past.
-   */
-  if (event.type === "rule_suggested") {
-    set({ ruleOffers: { ...get().ruleOffers, [sessionId]: { name: event.name, body: event.body, condition: event.condition, scope: event.scope } } });
-  } else if (event.type === "agent_start" && get().ruleOffers?.[sessionId]) {
-    set({ ruleOffers: without(get().ruleOffers, sessionId) });
   }
 
   if (sessionId !== get().activeSessionId) {
@@ -556,15 +535,14 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
 
     case "capabilities_changed": {
       /*
-       * 磁盘上的技能或规则变了，这个会话已经重新读过了。
+       * 磁盘上的技能或子智能体变了，这个会话已经重新读过了。
        *
        * 说出来，而且要说变了什么。一句「能力已更新」在换分支的时候等于没说——那会换掉半个目录。
-       * 三个数都是 0 也是一个真实的情况：有人改了某条规则的正文，而名单没变——那时不说话，
+       * 两个数都是 0 也是一个真实的情况：有人改了某个技能的正文，而名单没变——那时不说话，
        * 因为「改的东西已经生效了」并不值得打断谁。
        */
       const parts = [
         event.skills !== 0 ? translate("applyEvent.skillsDelta", { delta: `${event.skills > 0 ? "+" : ""}${event.skills}` }) : null,
-        event.rules !== 0 ? translate("applyEvent.rulesDelta", { delta: `${event.rules > 0 ? "+" : ""}${event.rules}` }) : null,
         event.agents !== 0 ? translate("applyEvent.agentsDelta", { delta: `${event.agents > 0 ? "+" : ""}${event.agents}` }) : null,
       ].filter(Boolean);
       if (parts.length > 0) {

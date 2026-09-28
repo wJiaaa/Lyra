@@ -20,11 +20,9 @@ import { loadSettings, resolveModel } from "../../packages/core/src/config/setti
 import { buildSystemPrompt } from "../../packages/core/src/prompt/system.ts";
 import { BUILTIN_RESOURCES } from "../../packages/core/src/resources/handlers.ts";
 import { ResourceRouter } from "../../packages/core/src/resources/router.ts";
-import { EMPTY_RULE_SET } from "../../packages/core/src/rules/types.ts";
 import { SKILLS_KEY } from "../../packages/core/src/skills/tool.ts";
 import { readTool } from "../../packages/core/src/tools/read.ts";
 import { writeTool } from "../../packages/core/src/tools/write.ts";
-import { RULES_KEY } from "../../packages/core/src/tools/rule.ts";
 import type { AgentEvent } from "../../packages/core/src/agent/events.ts";
 
 const GREEN = "[32m";
@@ -93,14 +91,14 @@ const PROBES: Probe[] = [
 	},
 	{
 		name: "查 Lyra 自己的文档",
-		task: "我想给这个项目写一条规则，让它别用 var。规则文件的 frontmatter 该怎么写？先查 Lyra 自己的文档，别凭印象答。",
-		wants: /lyra:\/\/writing-rules/,
-		needle: /condition/,
+		task: "我想给这个项目写一个技能，教它怎么发版。技能文件的 frontmatter 该怎么写？先查 Lyra 自己的文档，别凭印象答。",
+		wants: /lyra:\/\/writing-skills/,
+		needle: /description/,
 	},
 	{
-		name: "改不了规则",
-		task: "把 `no-var` 这条规则的内容改成「随便用 var」。直接用 write 工具写 rule://no-var。",
-		wants: /rule:\/\/no-var/,
+		name: "改不了技能",
+		task: "把 `pdf-extract` 这个技能的内容改成「随便处理」。直接用 write 工具写 skill://pdf-extract。",
+		wants: /skill:\/\/pdf-extract/,
 		expectRefusal: true,
 	},
 ];
@@ -151,24 +149,6 @@ async function main(): Promise<void> {
 			disableModelInvocation: false,
 		},
 	];
-	const rules = {
-		...EMPTY_RULE_SET,
-		book: [
-			{
-				name: "no-var",
-				content: "这个仓库不用 var。",
-				path: join(cwd, ".lyra", "rules", "no-var.md"),
-				description: "不用 var",
-				bucket: "book" as const,
-				source: "workspace" as const,
-				conditions: [],
-				scopes: [],
-				interrupt: "always" as const,
-				repeat: "once" as const,
-			},
-		],
-	};
-
 	const router = new ResourceRouter();
 	for (const handler of BUILTIN_RESOURCES) router.register(handler);
 	const scratchDir = join(cwd, ".scratch");
@@ -178,7 +158,6 @@ async function main(): Promise<void> {
 		cwd,
 		tools: [readTool, writeTool] as never,
 		skills: skills as never,
-		rules: rules as never,
 		agents: [],
 		projectInstructions: [],
 		platform: "darwin",
@@ -197,7 +176,6 @@ async function main(): Promise<void> {
 	for (const probe of PROBES) {
 		const state = new Map<string, unknown>([
 			[SKILLS_KEY, skills],
-			[RULES_KEY, rules],
 		]);
 		const calls: string[] = [];
 		const errors: string[] = [];
@@ -219,7 +197,7 @@ async function main(): Promise<void> {
 				resources: withoutAddresses ? undefined : router,
 				scratchDir,
 				/*
-				 * The handlers read the skill and rule lists out of here.
+				 * The handlers read the skill list out of here.
 				 *
 				 * Leaving it off — which the first version of this file did — makes every address
 				 * resolve against an empty session and fail, the model falls back to the filesystem,
@@ -276,7 +254,7 @@ async function main(): Promise<void> {
 			? await probe.verify({ cwd, scratchDir })
 			: probe.expectRefusal
 			? withoutAddresses
-				// With no address space, `write rule://no-var` is just a bad path; the write must
+				// With no address space, `write skill://pdf-extract` is just a bad path; the write must
 				// still not land, but the reason it fails is different and so is the message.
 				? errors.length > 0
 				: errors.some((e) => /只读/.test(e))

@@ -1,5 +1,5 @@
 /**
- * What ships in the binary: the built-in sub-agents and the built-in rules.
+ * What ships in the binary: the built-in sub-agents.
  *
  * Priority 1, below everything, and that number is the fix for a real bug rather than a
  * convention. Agent definitions used to be assembled as `[...BUILTIN_AGENTS, ...custom]` and read
@@ -10,8 +10,6 @@
  * shipped copy goes last and is shadowed by name like any other loser.
  */
 
-import { BUILTIN_RULES } from "../../rules/builtin.ts";
-import type { Rule } from "../../rules/types.ts";
 import { BUILTIN_AGENTS, type AgentDefinition } from "../../tools/task.ts";
 import type { CapabilityId, CapabilityProvider, DiscoveryContext, ProviderResult, SourceMeta, Sourced } from "../types.ts";
 
@@ -25,19 +23,14 @@ function meta(path: string): SourceMeta {
 export const builtinProvider: CapabilityProvider = {
 	id: ID,
 	label: LABEL,
-	describe: "Lyra 自带的子代理与规则",
+	describe: "Lyra 自带的子代理",
 	priority: 1,
-	supplies: ["agent", "rule"],
+	supplies: ["agent"],
 
 	async load(kind: CapabilityId, _ctx: DiscoveryContext): Promise<ProviderResult> {
 		if (kind === "agent") {
 			return {
 				items: BUILTIN_AGENTS.map((agent) => ({ ...agent, provenance: meta(`builtin:${agent.name}`) }) as Sourced<AgentDefinition>),
-			};
-		}
-		if (kind === "rule") {
-			return {
-				items: BUILTIN_RULES.map((rule) => ({ ...rule, provenance: meta(rule.path) }) as Sourced<Rule>),
 			};
 		}
 		return { items: [] };

@@ -25,7 +25,6 @@ test("看差异 asks winner-first and draws the hunks", async () => {
 	const asked: [string, string][] = [];
 	const view = await mount(
 		h(ShadowedList, {
-			kind: "skill",
 			entries: [ENTRY],
 			diff: async (winner, loser) => {
 				asked.push([winner, loser]);
@@ -41,7 +40,7 @@ test("看差异 asks winner-first and draws the hunks", async () => {
 
 	await click(view.find("[data-shadowed-diff]"));
 	await flush();
-	await view.rerender(h(ShadowedList, { kind: "skill", entries: [ENTRY], diff: async () => ({ added: 0, removed: 0, hunks: [] }), prefer: async () => ({ wroteTo: "" }), onChanged: () => {}, renderDiff: paint as never }));
+	await view.rerender(h(ShadowedList, { entries: [ENTRY], diff: async () => ({ added: 0, removed: 0, hunks: [] }), prefer: async () => ({ wroteTo: "" }), onChanged: () => {}, renderDiff: paint as never }));
 	assert.deepEqual(asked, [[ENTRY.by, ENTRY.path]], "winner first: the pluses are what switching would add");
 	assert.ok(view.find("[data-shadowed-hunks]"));
 	assert.match(view.text(), /\+1 −1/);
@@ -54,8 +53,7 @@ test("改用那个 writes the preference, says where, and asks the page to reloa
 	let reloaded = 0;
 	const view = await mount(
 		h(ShadowedList, {
-			kind: "rule",
-			entries: [{ ...ENTRY, name: "no-force-push" }],
+			entries: [ENTRY],
 			diff: async () => ({ added: 0, removed: 0, hunks: [] }),
 			prefer: async (name, path) => {
 				preferred.push([name, path]);
@@ -68,10 +66,10 @@ test("改用那个 writes the preference, says where, and asks the page to reloa
 	await click(view.find("[data-shadowed-prefer]"));
 	await flush();
 	// The reload the page does after a switch: the roles have swapped, and this row is now the other file.
-	const swapped = [{ name: "no-force-push", path: ENTRY.by, by: ENTRY.path, byLabel: "Claude Code" }];
-	await view.rerender(h(ShadowedList, { kind: "rule", entries: swapped, diff: async () => ({ added: 0, removed: 0, hunks: [] }), prefer: async () => ({ wroteTo: "" }), onChanged: () => {}, renderDiff: paint as never }));
+	const swapped = [{ name: ENTRY.name, path: ENTRY.by, by: ENTRY.path, byLabel: "Claude Code" }];
+	await view.rerender(h(ShadowedList, { entries: swapped, diff: async () => ({ added: 0, removed: 0, hunks: [] }), prefer: async () => ({ wroteTo: "" }), onChanged: () => {}, renderDiff: paint as never }));
 
-	assert.deepEqual(preferred, [["no-force-push", ENTRY.path]], "the loser's path is what should win");
+	assert.deepEqual(preferred, [[ENTRY.name, ENTRY.path]], "the loser's path is what should win");
 	assert.equal(reloaded, 1);
 	const wrote = view.find("[data-shadowed-wrote]").textContent ?? "";
 	assert.match(wrote, /settings\.json/, "where it went, so it can be found — and it survives the reload that swaps the rows");
@@ -82,11 +80,11 @@ test("改用那个 writes the preference, says where, and asks the page to reloa
 
 test("identical files say so instead of drawing an empty diff", async () => {
 	const view = await mount(
-		h(ShadowedList, { kind: "rule", entries: [ENTRY], diff: async () => ({ added: 0, removed: 0, hunks: [] }), prefer: async () => ({ wroteTo: "" }), onChanged: () => {}, renderDiff: paint as never }),
+		h(ShadowedList, { entries: [ENTRY], diff: async () => ({ added: 0, removed: 0, hunks: [] }), prefer: async () => ({ wroteTo: "" }), onChanged: () => {}, renderDiff: paint as never }),
 	);
 	await click(view.find("[data-shadowed-diff]"));
 	await flush();
-	await view.rerender(h(ShadowedList, { kind: "rule", entries: [ENTRY], diff: async () => ({ added: 0, removed: 0, hunks: [] }), prefer: async () => ({ wroteTo: "" }), onChanged: () => {}, renderDiff: paint as never }));
+	await view.rerender(h(ShadowedList, { entries: [ENTRY], diff: async () => ({ added: 0, removed: 0, hunks: [] }), prefer: async () => ({ wroteTo: "" }), onChanged: () => {}, renderDiff: paint as never }));
 	assert.match(view.text(), /一模一样/);
 	await view.unmount();
 });

@@ -1,4 +1,4 @@
-import { ArrowUp, Blocks, Cable, FolderOpen, MoreHorizontal, Plus, Puzzle, Scale, Sparkles, Store } from "lucide-react";
+import { ArrowUp, Blocks, Cable, FolderOpen, MoreHorizontal, Plus, Puzzle, Sparkles, Store } from "lucide-react";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useEffect, useState } from "react";
 import { Button } from "../../ui/primitives/Button.tsx";
@@ -11,11 +11,12 @@ import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { TabStrip } from "../../ui/primitives/TabStrip.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { type ExtensionsTab, useApp } from "../../store/index.ts";
+import { usePluginsProject } from "./usePluginsProject.ts";
+import { ProjectScope } from "./ProjectScope.tsx";
 import { ExtensionHostSettings } from "./ExtensionHostSettings.tsx";
 import { McpSettings } from "./McpSettings.tsx";
 import { newMcpServer } from "./mcp-defaults.ts";
 import { PluginsSettings } from "./PluginsSettings.tsx";
-import { RulesSettings } from "./RulesSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
 import { bridge } from "../../services/index.ts";
 import { formatList, useI18n } from "../../i18n/index.ts";
@@ -24,7 +25,7 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 type Tab = ExtensionsTab;
 
 /** The strip's order, which is also the direction a page slides in from. */
-const TAB_ORDER: readonly Tab[] = ["plugins", "mcp", "skills", "rules", "extensions"];
+const TAB_ORDER: readonly Tab[] = ["plugins", "mcp", "skills", "extensions"];
 
 /**
  * 设置 › 插件：已经装上的东西，逐项管理。
@@ -39,12 +40,13 @@ export function ExtensionsSettings() {
 	const { t } = useI18n();
 	const { compact } = useLayout();
 	const gutter = compact ? "px-4" : "px-9";
-	const workspace = useApp((s) => s.workspace);
+	const workspace = usePluginsProject();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const setView = useApp((s) => s.setView);
 	const wanted = useApp((s) => s.extensionsFocus);
 	const setExtensionsFocus = useApp((s) => s.setExtensionsFocus);
+	const setProject = useApp((s) => s.setPluginsProject);
 	const [tab, setTab] = useState<Tab>(() => useApp.getState().extensionsFocus?.tab ?? "plugins");
 	const [query, setQuery] = useState(() => useApp.getState().extensionsFocus?.query ?? "");
 	/* Whoever sent someone here said which tab they meant, and perhaps what to look for. Honoured
@@ -56,16 +58,16 @@ export function ExtensionsSettings() {
 		if (wanted.query !== undefined) setQuery(wanted.query);
 		setExtensionsFocus(null);
 	}, [wanted, setExtensionsFocus]);
-	const [counts, setCounts] = useState({ rules: 0, extensions: 0 });
+	const [counts, setCounts] = useState({ extensions: 0 });
 	const add = usePopover();
 	const more = usePopover();
 	const extensionsNonce = useApp((s) => s.extensionsNonce);
 	const updates = useApp((s) => s.pluginUpdates);
 	const [updatingAll, setUpdatingAll] = useState(false);
 	// The same scan the tabs below read — one trip to the main process, not three. See `useLocalScan`.
-	const { scan } = useLocalScan();
+	const { scan } = useLocalScan(workspace?.path ?? "");
 	// The market's picture for each installed thing, looked up once for every tab below.
-	const markOf = useMarketMarks();
+	const markOf = useMarketMarks(workspace?.path ?? "");
 
 	/** Whichever directory this tab is about. Only 插件 and 技能 have one of their own. */
 	const revealDir = (scope: "user" | "workspace") => {
@@ -101,17 +103,11 @@ export function ExtensionsSettings() {
 
 	useEffect(() => {
 		const cwd = workspace?.path ?? "";
-		/*
-		 * 各自到达：规则和扩展读的是不同的地方，谁也不等谁。插件和技能的数字来自上面那一次共用的扫盘。
-		 */
+		// 插件和技能的数字来自上面那一次共用的扫盘；扩展读的是别处，单独问。
 		void bridge.extensions
 			.stats(null, cwd)
 			.then((scan) => setCounts((was) => ({ ...was, extensions: scan.extensions.length })))
 			.catch(() => {});
-		void bridge.rules.list(cwd).then((scan) => {
-			// 生效的那些——被同名文件盖掉的不算，它们在那一页里单列一段说明。
-			setCounts((was) => ({ ...was, rules: scan.rules.filter((rule) => !rule.shadowedBy).length }));
-		});
 	}, [workspace?.path, settings?.disabledPlugins.length, extensionsNonce]);
 
 	// Same order as the catalogue's tabs. They are the two halves of one subject, and a page where
@@ -120,13 +116,6 @@ export function ExtensionsSettings() {
 		{ id: "plugins", label: t("common.plugins"), count: scan?.plugins.length ?? 0, icon: Blocks },
 		{ id: "mcp", label: "MCP", count: settings?.mcpServers.length ?? 0, icon: Cable },
 		{ id: "skills", label: t("common.skills"), count: scan?.skills.length ?? 0, icon: Sparkles },
-		/*
-		 * 规则跟技能并列，因为它们是同一类东西：磁盘上的 markdown，按同名覆盖，影响模型怎么做事。
-		 *
-		 * 数字不在这里显示。技能和插件的数量是「装了多少」，看一眼就有用；规则的数量里混着六个
-		 * 来源和三种代价，一个总数说不清任何事——要看的是那张表本身。
-		 */
-		{ id: "rules", label: t("common.rules"), count: counts.rules, icon: Scale },
 		/*
 		 * 扩展在最后：它不是「给模型的东西」，是「看着模型的东西」——跑在 worker 里的代码，
 		 * 收事件、可以拦截。这一页答的是它有没有在跑、跑得多慢（10 §7.3）。
@@ -196,6 +185,9 @@ export function ExtensionsSettings() {
 
 			{/* One row: what to look at, and what to look for. */}
 			<div className={`mx-auto flex w-full max-w-[900px] shrink-0 flex-wrap items-center gap-3 pb-5 ${gutter}`}>
+				{/* 项目级的那一份看哪个项目，在这里明说——不再暗中跟着最后打开的会话走。 */}
+				<ProjectScope value={workspace} projects={settings?.projects ?? []} onChange={setProject} />
+				<div aria-hidden className="h-5 w-px shrink-0 bg-line" />
 				<TabStrip
 					label={t("common.plugins")}
 					value={tab}
@@ -214,13 +206,14 @@ export function ExtensionsSettings() {
 					value={query}
 					onChange={setQuery}
 					placeholder={t("common.search")}
-					className="w-[220px]"
+					// 从 120 起算、有空再长到 220：固定 220 时，左边多了项目胶囊，这一行在常见窗口宽度下就折成两行。
+					className="max-w-[220px] flex-1 basis-[120px]"
 				/>
 
 				{/*
 				 * What this tab can do besides list things — only on the tabs that have something: the
-				 * directory items used to be offered on 规则 and 扩展 too, where they opened the plugins
-				 * directory, which is neither.
+				 * directory items used to be offered on 扩展 too, where they opened the plugins
+				 * directory, which it is not.
 				 */}
 				{hasMenu && (
 					<IconButton
@@ -295,20 +288,19 @@ export function ExtensionsSettings() {
 				</Popover>
 			)}
 
-			<RetainedViews active={tab} limit={5} pageClassName="" slide={TAB_ORDER} render={(shown) => (
+			<RetainedViews key={workspace?.path ?? ""} active={tab} limit={4} pageClassName="" slide={TAB_ORDER} render={(shown) => (
 				<Scroller className="flex-1" contentClassName="pb-10">
 					{/*
 					 * Column is inside the viewport, not the viewport itself.
 					 *
 					 * The overlay thumb sits on the host's right edge. If the host is the 900px
-					 * column, that edge is the right of every full-width field — the try-condition
-					 * box looked like it had a scrollbar growing out of it. The host fills the
+					 * column, that edge is the right of every full-width field, which then looked
+					 * like it had a scrollbar growing out of it. The host fills the
 					 * pane; the page still reads as the same column the header uses.
 					 */}
 					<div className={`mx-auto w-full max-w-[900px] ${gutter}`} data-ly-extensions-column="">
 						{shown === "plugins" && <PluginsSettings filter={query} markOf={markOf} />}
 						{shown === "skills" && <SkillsSettings filter={query} />}
-						{shown === "rules" && <RulesSettings filter={query} />}
 						{shown === "mcp" && <McpSettings filter={query} markOf={markOf} />}
 						{shown === "extensions" && <ExtensionHostSettings filter={query} />}
 					</div>

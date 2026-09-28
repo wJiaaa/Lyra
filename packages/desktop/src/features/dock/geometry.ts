@@ -128,7 +128,7 @@ export { WINDOW_HEADER_HEIGHT as HEADER_HEIGHT } from "../../../shared/window-ch
  *
  * Applied inside the pane's box rather than by shrinking the box, which keeps the tiling
  * arithmetic exact — the boxes still meet edge to edge, and the seam is each of two neighbours
- * holding back this much. Half of the 4px gap between frames, ZCode's number; the other half on
+ * holding back this much. Half of the 4px gap between frames; the other half on
  * the window's side is `FRAME_PAD`.
  */
 export const PANE_INSET = 2;

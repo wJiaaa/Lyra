@@ -3,7 +3,7 @@
  *
  * The bar used to sit above the composer and say 「已在用 Cursor 的配置」. That is a fact the
  * person already lives with — they opened the project — so it is not shown. `targetFor` and
- * `summarize` stay because the settings pages still need to know whose rules a path is.
+ * `summarize` stay because the settings pages still need to know whose configuration a path is.
  */
 
 import { useI18n } from "../../i18n/index.ts";
@@ -24,16 +24,11 @@ import { Button } from "../../ui/primitives/Button.tsx";
 export type LookTarget = { page: SettingsSection; tab?: ExtensionsTab; query?: string } | { file: string };
 
 /**
- * A `.cursor/rules/` is shown on the rules page — every rule in it, with a badge saying whose and
- * a switch to turn it off — and the tool's name goes into the page's search box so that those are
- * the rules on screen, with the box saying why. Skills, commands and agents have pages too. A
- * context file has no page: it is one file, and the pane that shows files is the honest place to
- * read it.
+ * Skills, commands and agents each have a page. A context file has no page: it is one file, and
+ * the pane that shows files is the honest place to read it.
  */
 export function targetFor(line: ForeignConfigLine): LookTarget {
 	switch (line.kind) {
-		case "rule":
-			return { page: "plugins", tab: "rules", query: line.label };
 		case "skill":
 			return { page: "plugins", tab: "skills" };
 		case "command":
@@ -49,9 +44,8 @@ export function ForeignConfigNotice() {
 	return null;
 }
 
-/** What a place says about itself, after the path: 「2 条规则」, 「项目上下文」. */
+/** What a place says about itself, after the path: 「3 个技能」, 「项目上下文」. */
 export function describeLine(line: ForeignConfigLine): string {
-	if (line.kind === "rule") return translate("foreign.rules", { n: line.count });
 	if (line.kind === "skill") return translate("foreign.skills", { n: line.count });
 	if (line.kind === "command") return translate("foreign.commands", { n: line.count });
 	if (line.kind === "agent") return translate("foreign.subAgents", { n: line.count });
@@ -62,7 +56,7 @@ export function describeLine(line: ForeignConfigLine): string {
  * One line, like the bars around it: whose configuration is in use, and in how many places.
  *
  * Tool names rather than paths — 「Cursor、Claude Code」 is recognised at a glance where
- * `.cursor/rules/ 2 条规则 · .claude/commands/ 1 个命令` has to be read, and a line above the
+ * `.claude/skills/ 3 个技能 · .claude/commands/ 1 个命令` has to be read, and a line above the
  * composer must not need reading. The places themselves are behind 「查看」.
  */
 export function summarize(lines: ForeignConfigLine[]): { tools: string; places: number } {

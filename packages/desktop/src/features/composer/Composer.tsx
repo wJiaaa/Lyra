@@ -58,8 +58,8 @@ type Attachment = DraftAttachment;
 /*
  * 欢迎页的输入框刚被换下时有多宽。
  *
- * ZCode 从欢迎页进入对话，输入框是同一个元素，只是宽度用 150ms ease-out 从 672 过渡到对话那一栏。
- * 这里欢迎页和对话各挂各的输入框，所以由旧的那个在卸载时留下宽度，新的那个挂上时接着往下画。
+ * 从欢迎页进入对话，输入框看上去是同一个，宽度用 150ms ease-out 从 672 过渡到对话那一栏。
+ * 实际上欢迎页和对话各挂各的输入框，所以由旧的那个在卸载时留下宽度，新的那个挂上时接着往下画。
  * 只认一秒以内的交接：隔久了就不是「同一个框换了位置」，而是另一次打开。
  */
 let handoff: { width: number; at: number } | null = null;
@@ -557,7 +557,7 @@ export function Composer({ centered = false }: {
 				<CommandMenu id={slash.id} commands={slash.matches} term={slash.term} active={slash.active} keyboardSelection={slash.keyboardSelection} onPick={slash.pick} onHover={slash.hover} />
 				<MentionMenu id={mention.id} items={mention.matches} agents={mention.agents} term={mention.term} active={mention.active} keyboardSelection={mention.keyboardSelection} onPick={(item) => void mention.pick(item)} onHover={mention.hover} />
 				{/*
-				 * 托盘：项目和分支坐在卡片上方露出来的那一条里，对齐 ZCode。见 `composer.css` 的 `.ly-composer-tray`。
+				 * 托盘：项目和分支坐在卡片上方露出来的那一条里。见 `composer.css` 的 `.ly-composer-tray`。
 				 */}
 				<div className="ly-composer-tray">
 					{/*

@@ -1,11 +1,9 @@
 /**
  * Lyra's own directories, and the loaders that already read them.
  *
- * This provider wraps rather than replaces. The skill, command, rule and agent loaders are tested,
- * in use, and each carries a season of corrections that are not visible in their shape — the way
- * `.clinerules` is a file about as often as a directory, or the way a Cursor `alwaysApply` counts
- * only when it is literally `true`. Rewriting them to fit a new interface would put all of that at
- * risk to gain nothing a caller can see.
+ * This provider wraps rather than replaces. The skill, command and agent loaders are tested, in
+ * use, and each carries a season of corrections that are not visible in their shape. Rewriting
+ * them to fit a new interface would put all of that at risk to gain nothing a caller can see.
  *
  * What the registry adds on top is uniform: one precedence rule instead of five, a shadowed item
  * that can name its winner, and diagnostics with a severity. The loaders keep doing the reading.
@@ -13,8 +11,6 @@
 
 import { join } from "node:path";
 import { loadCommands, commandSources } from "../../commands/loader.ts";
-import { loadRules, ruleSources } from "../../rules/loader.ts";
-import type { Rule } from "../../rules/types.ts";
 import { isUnparsable, loadSkills, parseFrontmatter, type Skill } from "../../skills/loader.ts";
 import type { AgentDefinition } from "../../tools/task.ts";
 import type { JsonSchema } from "../../types.ts";
@@ -52,12 +48,11 @@ export const nativeProvider: CapabilityProvider = {
 	label: LABEL,
 	describe: "读取项目里的 .lyra/ 与 ~/.lyra/",
 	priority: 100,
-	supplies: ["skill", "command", "rule", "agent", "context-file"],
+	supplies: ["skill", "command", "agent", "context-file"],
 
 	async load(kind: CapabilityId, ctx: DiscoveryContext): Promise<ProviderResult> {
 		if (kind === "skill") return loadNativeSkills(ctx);
 		if (kind === "command") return loadNativeCommands(ctx);
-		if (kind === "rule") return loadNativeRules(ctx);
 		if (kind === "agent") return loadNativeAgents(ctx);
 		if (kind === "context-file") return loadNativeContextFiles(ctx);
 		return { items: [] };
@@ -102,21 +97,6 @@ async function loadNativeCommands(ctx: DiscoveryContext): Promise<ProviderResult
 	return {
 		items: attach(commands, (c) => c.path, (c) => scopeOf(c.scope)),
 		diagnostics: upgrade(diagnostics),
-		watched: sources.map((s) => s.dir),
-	};
-}
-
-async function loadNativeRules(ctx: DiscoveryContext): Promise<ProviderResult<Rule>> {
-	const sources = ruleSources(ctx.cwd, ctx.home).filter((s) => s.dialect === "lyra");
-	/*
-	 * Built-ins are the `builtin` provider's contribution, not ours — merging them here would give
-	 * them our priority of 100 and make a project rule of the same name unable to replace one.
-	 */
-	const set = await loadRules(sources, { builtin: false });
-	const rules = [...set.always, ...set.book, ...set.stream];
-	return {
-		items: attach(rules, (r) => r.path, (r) => scopeOf(r.source)),
-		diagnostics: upgrade(set.diagnostics),
 		watched: sources.map((s) => s.dir),
 	};
 }

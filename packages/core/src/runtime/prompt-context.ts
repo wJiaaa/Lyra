@@ -17,10 +17,10 @@ import { isIsolatedWorktree } from "./workspace.ts";
  * Execution and pre-request previews resolve exactly the same sources and budgets.
  *
  * 每轮按磁盘现状生成一份；会话里真正发出去的是冻结的那份，两者在段落上的差别作为增量接在历史
- * 末尾（`session-turn.ts` 的 `settlePrompt`）。所以这里照旧每轮重读项目指令、规则和技能：改动
+ * 末尾（`session-turn.ts` 的 `settlePrompt`）。所以这里照旧每轮重读项目指令和技能：改动
  * 要被发现，只是不再改写开头。
  */
-export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "tools" | "skills" | "agents" | "modelName" | "rules" | "resources" | "dispatchLimits" | "scratchDir"> & {
+export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "tools" | "skills" | "agents" | "modelName" | "resources" | "dispatchLimits" | "scratchDir"> & {
 	settings: Settings;
 	recordInjection?: boolean;
 }) {

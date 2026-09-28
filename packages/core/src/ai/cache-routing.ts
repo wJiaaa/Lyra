@@ -4,15 +4,15 @@
  * 缓存命中是按机器算的。同一条对话前缀的请求被负载均衡打散到别的机器、号池中转换了一个上游账号，
  * 前缀再一样也是全价重算。路由键就是告诉服务商「这几次请求是同一条对话，送到同一处」。
  *
- * 不按端点区分，每个请求都带同一套，做法同 ZCode 并补上它没有的两项：
+ * 不按端点区分，每个请求都带同一套，一共这几项：
  *
- *   - OpenAI 系两条链：请求头 `x-session-id`（OpenRouter 的粘性路由键，ZCode 对所有请求都带）、
+ *   - OpenAI 系两条链：请求头 `x-session-id`（OpenRouter 的粘性路由键）、
  *     请求头 `session_id`（Codex CLI 发的；sub2api 一类号池选账号先看它，其次 `conversation_id` 头和
  *     `prompt_cache_key`，都没有就随机分，见 Wei-Shaw/sub2api#1421）、请求体 `prompt_cache_key`
  *     （OpenAI 官方字段，Kimi、通用中转也认）。未知请求头各家都是忽略；严格端点对未知的请求体字段
  *     会 400 并点名它，撞一次就学会不发（`request-params-compat.ts` 的 `cache-key`），两个头照带。
- *   - Anthropic 协议：请求体 `metadata.user_id`，写成 Claude Code 的 JSON（同 ZCode
- *     `anthropic-request-metadata.ts`），Claude 号池类中转按其中的 `session_id` 粘住账号。缓存本身仍由
+ *   - Anthropic 协议：请求体 `metadata.user_id`，写成 Claude Code 的 JSON，
+ *     Claude 号池类中转按其中的 `session_id` 粘住账号。缓存本身仍由
  *     `cache_control` 断点声明。
  *
  * 端点硬性要求的会话头（例如 OpenCode Go 的 `x-opencode-session`，缺了直接 400）另见 `sessionHeaders`：
@@ -114,7 +114,7 @@ function isOpenCodeGo(baseUrl: string): boolean {
  * 端点硬性要求的会话头。三种协议都走这里，Anthropic 协议也不例外——
  * 这不是可选的路由提示，缺了请求就发不出去。
  *
- * 目前只有 OpenCode Go 的 `x-opencode-session`（缺了直接 400），写死同 ZCode `opencode-session.ts`。
+ * 目前只有 OpenCode Go 的 `x-opencode-session`（缺了直接 400），写死。
  * 没有 `cacheKey`（压缩、测试连接这类一次性请求）时换成一个随机 id 而不是不带：随机 id 只是失去路由，
  * 请求照样能发。调用方每次请求算一次，重试沿用同一个结果。
  */

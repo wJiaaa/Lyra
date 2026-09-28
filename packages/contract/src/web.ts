@@ -61,9 +61,6 @@ export const WEB_METHODS: ReadonlySet<string> = new Set([
 	"files.list",
 	"files.read",
 	"commands.list",
-	"rules.preview",
-	"rules.keep",
-	"rules.decline",
 	"git.generalScratch",
 	"git.scratchRoots",
 ]);

@@ -50,7 +50,6 @@ export interface SessionFacts {
 	readonly mcpStatuses: McpServerStatus[];
 	readonly agents: AgentDefinition[];
 	readonly mcp: McpManager;
-	readonly rules: SystemPromptInput["rules"];
 	readonly resources: SystemPromptInput["resources"];
 	readonly requestContext: RequestContext | null;
 	readContext(): Promise<RecordedContext | null>;
@@ -90,7 +89,7 @@ export async function describeContext(session: SessionFacts): Promise<ContextBre
 		const capabilities = promptCapabilities({ settings: session.settings, tools: session.tools });
 		prompt = await loadPromptContext({
 			cwd: session.cwd, settings: session.settings, ...capabilities,
-			skills: session.skills, agents: session.agents, rules: session.rules, resources: session.resources,
+			skills: session.skills, agents: session.agents, resources: session.resources,
 			modelName: resolved.model.name,
 			scratchDir: session.scratchDir(), recordInjection: false,
 		});

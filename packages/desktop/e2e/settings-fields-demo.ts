@@ -143,7 +143,7 @@ try {
 	}
 
 	await openSettings("命令");
-	await until(`Boolean(document.querySelector("[data-ly-commands-settings] [data-ly-select]"))`);
+	await until(`Boolean(document.querySelector("[data-ly-commands-settings] [data-ly-project-scope]"))`);
 	const commands = await app.evaluate<{ search: ReturnType<typeof capsule>; select: ReturnType<typeof capsule> }>(`(() => {
 		const read = (el) => {
 			if (!el) return { height: 0, radius: 0, border: 0 };
@@ -153,7 +153,7 @@ try {
 		const page = document.querySelector("[data-ly-commands-settings]");
 		return {
 			search: read(page.querySelector("[data-ly-field]:not([data-ly-select])")),
-			select: read(page.querySelector("[data-ly-select]")),
+			select: read(page.querySelector("[data-ly-project-scope]")),
 		};
 	})()`);
 	check("command search and scope dropdown share the capsule", commands.search.height === 34 && commands.select.height === 34 && commands.search.border === 0 && commands.select.border === 0, commands);

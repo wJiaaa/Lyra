@@ -33,8 +33,8 @@ function built(parts: [Parameters<PromptBuilder["add"]>[0], string][]) {
 }
 
 test("the diff is taken against what the model last read, not against the frozen head", () => {
-	const frozen = built([["identity", "I"], ["delegation", "\n\nwide"], ["rules", "\n\nR"]]);
-	const narrowed = promptUpdateMessage(diffSections(currentSections(frozen, []), promptSections(built([["identity", "I"], ["delegation", "\n\nnarrow"], ["rules", "\n\nR"]]))));
+	const frozen = built([["identity", "I"], ["delegation", "\n\nwide"], ["skills", "\n\nS"]]);
+	const narrowed = promptUpdateMessage(diffSections(currentSections(frozen, []), promptSections(built([["identity", "I"], ["delegation", "\n\nnarrow"], ["skills", "\n\nS"]]))));
 	assert.ok(narrowed);
 	assert.deepEqual(narrowed.promptUpdate, [{ section: "delegation", text: "\n\nnarrow" }]);
 	assert.equal(narrowed.synthetic, true);
@@ -45,8 +45,8 @@ test("the diff is taken against what the model last read, not against the frozen
 	assert.deepEqual(diffSections(currentSections(frozen, [narrowed, promptUpdateMessage(back)!]), promptSections(frozen)), []);
 
 	const removed = promptUpdateMessage(diffSections(promptSections(frozen), promptSections(built([["identity", "I"], ["delegation", "\n\nwide"]]))));
-	assert.deepEqual(removed?.promptUpdate, [{ section: "rules", text: null }]);
-	assert.match(JSON.stringify(removed?.content), /section-update id=\\"rules\\" removed=\\"true\\"/);
+	assert.deepEqual(removed?.promptUpdate, [{ section: "skills", text: null }]);
+	assert.match(JSON.stringify(removed?.content), /section-update id=\\"skills\\" removed=\\"true\\"/);
 });
 
 test("update text says who is speaking and cannot be closed or mistaken for a summary from inside", () => {
@@ -86,7 +86,7 @@ test("other synthetic messages quoting a compaction tag are not boundaries eithe
 });
 
 test("the recorded prompt gives back the frozen head without what middleware appended", () => {
-	const head = built([["identity", "I"], ["rules", "\n\nR"]]);
+	const head = built([["identity", "I"], ["skills", "\n\nS"]]);
 	const appended = { systemPrompt: `${head.systemPrompt}\nPLUGIN`, sections: [...head.sections, { source: "extension" as const, start: head.systemPrompt.length, end: head.systemPrompt.length + 7 }] };
 	assert.deepEqual(promptBase(appended), head);
 	assert.equal(promptBase({ systemPrompt: "X", sections: [{ source: "extension", start: 0, end: 1 }] }), null);

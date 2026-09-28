@@ -5,7 +5,7 @@
  * headers at full height. It holds the tools of *this* conversation: terminal, browser, Git and the
  * overflow open and close panels in this screen, and their pressed state is this screen's.
  *
- * 每一屏都报出自己的会话名，单屏也一样，照 ZCode：文件夹图标、标题、「…」，「…」就是侧边栏右键
+ * 每一屏都报出自己的会话名，单屏也一样：文件夹图标、标题、「…」，「…」就是侧边栏右键
  * 的那份会话菜单。只有多屏时才能关掉某一屏，面板菜单里也才有挪动它们的项。
  */
 

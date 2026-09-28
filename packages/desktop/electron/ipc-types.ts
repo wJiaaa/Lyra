@@ -55,7 +55,6 @@ import type {
 	BuiltinCommand,
 	BundleKind,
 	ContextBreakdown,
-	CorrectionSuggestion,
 	DiffHunk,
 	ExtensionDiagnostic,
 	ExtensionStats,
@@ -69,8 +68,6 @@ import type {
 	QueuedTask,
 	Registry,
 	RegistryEntry,
-	RuleDestination,
-	RuleEntry,
 	ScreenshotSettings,
 	SessionMeta,
 	Settings,
@@ -685,7 +682,11 @@ export interface LyraApi {
 			mcpBundles: McpBundle[];
 			/** 同样带 `severity`：插件里一个描述太短的技能是提醒，不是「没能加载」。 */
 			pluginDiagnostics: PluginDiagnostic[];
-			skills: Skill[];
+			/**
+			 * `where`：散装技能所在的目录，项目内是相对路径，主目录下是 `~/…`。
+			 * `disabledBy`：关掉它的那条 `disabledSkills`（路径或符号链接的真实路径命中），开着就没有。
+			 */
+			skills: (Skill & { where?: string; disabledBy?: string })[];
 			/** 带 `severity`：设置页按它把「没加载」和「加载了但描述太短」分成两段。 */
 			skillDiagnostics: SkillDiagnostic[];
 			/**
@@ -963,14 +964,6 @@ export interface LyraApi {
 		 */
 		onNotice(handler: (notice: SchedulerNotice) => void): () => void;
 	};
-	/**
-	 * Answering the card that offers to turn a correction into a rule.
-	 *
-	 * `preview` renders in the main process on purpose: the card shows the exact text that will be
-	 * written, produced by the same function that writes it. A second renderer in the window would
-	 * drift, and it would drift in the direction where somebody approves text that is not what
-	 * lands on disk.
-	 */
 	extensions: {
 		/**
 		 * 扩展的可观测：有会话就是那个会话宿主里的数字，没有就只有磁盘上的清单（`live: false`）。
@@ -981,43 +974,24 @@ export interface LyraApi {
 
 	capabilities: {
 		/** Trash a discovered loose definition, preserving built-ins and plugin bundles. */
-		trash(kind: "command" | "skill" | "rule", cwd: string, path: string): Promise<void>;
+		trash(kind: "command" | "skill", cwd: string, path: string): Promise<void>;
 		/** 两份同名能力的差异，赢家在前输家在后；hunk 直接交给 DiffView。 */
 		diff(
-			kind: "rule" | "skill",
+			kind: "skill",
 			winner: string,
 			loser: string,
 		): Promise<{ hunks: DiffHunk[]; added: number; removed: number; winner: string; loser: string }>;
 		/** 「改用那个」：让 `path` 这一份赢下 `kind:name`。返回写到了哪个文件。 */
-		prefer(kind: "rule" | "skill", name: string, path: string): Promise<{ wroteTo: string }>;
+		prefer(kind: "skill", name: string, path: string): Promise<{ wroteTo: string }>;
 	};
 
-	rules: {
-		/** 这个项目现在有哪些规则，包括被关掉的和被同名文件盖掉的。 */
-		list(cwd: string): Promise<{
-			rules: RuleEntry[];
-			/** A warning is a rule to look at again; only an error is a file that could not be read. */
-			diagnostics: { path: string; message: string; severity: "error" | "warning" }[];
-			/** 有个人级规则可以勾的外部工具。 */
-			foreignUserSources: { id: string; label: string; describe: string }[];
-			/** 已经勾上的那些。 */
-			enabledForeignUserRules: string[];
-		}>;
-		/** 关掉或打开一条。已经开着的会话会立刻跟上。 */
-		setDisabled(name: string, disabled: boolean): Promise<void>;
-		/** 勾或取消一个外部工具的个人规则目录。 */
-		setForeignUser(id: string, enabled: boolean): Promise<void>;
-		/** 从会话里总结出来、等着人点头的技能候选。 */
-		pendingSkills(cwd: string): Promise<SkillCandidate[]>;
+	/** 从会话里总结出来、等着人点头的技能候选。 */
+	skills: {
+		pending(cwd: string): Promise<SkillCandidate[]>;
 		/** 批准一个。`content` 是人编辑过的版本——「编辑后启用」跟「启用」是同一个动作。 */
-		approveSkill(cwd: string, name: string, content?: string): Promise<string | null>;
+		approve(cwd: string, name: string, content?: string): Promise<string | null>;
 		/** 否决一个。文件删掉，下次不再问。 */
-		rejectSkill(cwd: string, name: string): Promise<boolean>;
-		preview(suggestion: CorrectionSuggestion): Promise<string>;
-		/** Save it and make it apply from the next turn. `renamed` when the name was taken. */
-		keep(sessionId: string, scope: RuleDestination, name: string, content: string): Promise<{ path: string; renamed?: string }>;
-		/** They said no. Two in a row and this session stops offering. */
-		decline(sessionId: string): Promise<void>;
+		reject(cwd: string, name: string): Promise<boolean>;
 	};
 	/**
 	 * The code hosts this app is signed in to.

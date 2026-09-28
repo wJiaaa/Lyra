@@ -106,8 +106,6 @@ test("an English sentence that counts something has a form for one", () => {
 	 * is not a plural. "device(s)" is: it is the same missing `one`, spelled so nobody has to write it.
 	 */
 	const exempt: Record<string, string> = {
-		"ruleTry.intro": "n is RECENT_LIMIT, which is 20",
-		"ruleTry.noHits": "\"matches\" is the verb: nothing in the last n matches",
 		"sheet.rowsOf": "only shown once a sheet passes MAX_ROWS (2000), so total is never 1",
 		"modelSettings.catalogStatus": "count is the whole model catalogue, thousands of entries, never 1",
 	};

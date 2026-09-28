@@ -73,7 +73,7 @@
  * 看不出层次。
  *
  * dock 里的卡片是 `.ly-dock-card`（见 `dock.css` 和 `DockPane`）；这里是不走 dock 的那几页。
- * 间距对齐 ZCode：卡片和卡片之间、卡片和窗口边之间都是 4px。dock 里是每张卡片各让 2px
+ * 间距：卡片和卡片之间、卡片和窗口边之间都是 4px。dock 里是每张卡片各让 2px
  * （`PANE_INSET`）加上工作区自己的 2px 内边距（`.ly-frames`）；独立页面直接让出 4px。
  * ------------------------------------------------------------------------- */
 
@@ -84,9 +84,9 @@
 }
 
 /*
- * macOS 主窗口的毛玻璃，照 ZCode：窗口底层是一层半透明的底色叠在系统材质上，侧边栏自己不刷底，
- * 和卡片之间的缝一起透出这一层。浅色取背景色 70%，深色取浮层色 60%——ZCode 浅色是
- * `--color-background` 70%、深色是 `#2b2b2b`（它的浮层色）60%，这里换成跟着外观设置走的同位 token。
+ * macOS 主窗口的毛玻璃：窗口底层是一层半透明的底色叠在系统材质上，侧边栏自己不刷底，
+ * 和卡片之间的缝一起透出这一层。浅色取背景色 70%，深色取浮层色 60%，
+ * 用的是跟着外观设置走的 token，不钉死色值。
  *
  * 标记由 preload 按主进程的决定打上（`electron/window.ts` 的 `isVibrant`），没有材质的窗口不会有它，
  * 这几条就不生效，底层照旧是上面的不透明侧边栏色。
@@ -168,7 +168,7 @@
    * still wraps anything too long, which `pre` would not.
    */
   white-space: pre-line;
-  /* 和 ZCode 一样不反色：跟随主题的浮层底色，加一圈细边。 */
+  /* 不反色：跟随主题的浮层底色，加一圈细边。 */
   border: 1px solid var(--color-line-float);
   background: var(--color-float);
   color: var(--color-ink);
@@ -264,7 +264,7 @@
   /*
    * Max width of the chat column.
    *
-   * 窄窗格里铺满；窗格宽了以后按 ZCode 的三档收窄，规则写在 `dock.css` 的窗格容器查询里。
+   * 窄窗格里铺满；窗格宽了以后按三档收窄，规则写在 `dock.css` 的窗格容器查询里。
    * Applied as a max — a hard width overflowed the window and cut the send button in half once
    * the padding was added, and it leaves the column free to shrink with a narrow pane.
    */

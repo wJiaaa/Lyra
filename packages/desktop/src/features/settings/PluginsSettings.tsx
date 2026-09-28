@@ -16,6 +16,7 @@ import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useApp } from "../../store/index.ts";
+import { usePluginsProject } from "./usePluginsProject.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { settingsAfterToggle, useLocalScan, type MarketMark } from "../plugins/index.ts";
 import { Card, ListRow, Toggle } from "./controls.tsx";
@@ -33,7 +34,8 @@ export function PluginsSettings({ filter = "", markOf }: { filter?: string; mark
 	const setPluginFocus = useApp((s) => s.setPluginFocus);
 	const bumpExtensions = useApp((s) => s.bumpExtensions);
 	const updates = useApp((s) => s.pluginUpdates);
-	const { scan } = useLocalScan();
+	const cwd = usePluginsProject()?.path;
+	const { scan } = useLocalScan(cwd ?? "");
 	/*
 	 * A local scan is usually instantaneous, so the placeholder is for the case where it is not — a
 	 * workspace with a lot of skill directories, or a cold filesystem cache.
@@ -75,7 +77,7 @@ export function PluginsSettings({ filter = "", markOf }: { filter?: string; mark
 
 	return (
 		<div>
-			<ProjectOverrideNotice keys={["disabledPlugins"]} />
+			<ProjectOverrideNotice keys={["disabledPlugins"]} cwd={cwd} />
 			{diagnostics.length > 0 && (
 				<Card className="mb-6 border-accent/35 bg-accent/6">
 					<div className="px-4 py-3">
@@ -139,7 +141,7 @@ export function PluginsSettings({ filter = "", markOf }: { filter?: string; mark
 					)}
 				</div>
 			) : (
-				/* The same inset the rules and MCP lists sit at, so a switch is in one place on every tab. */
+				/* The same inset the MCP list sits at, so a switch is in one place on every tab. */
 				<div className="px-2">
 				{plugins.map((plugin) => (
 					<PluginRow
@@ -231,8 +233,8 @@ function PluginRow({
 					</>
 				}
 				/*
-				 * Switch, then ⋯ at the far end — the order the MCP cards and the rules list use, so the
-				 * switches of all three tabs sit in the same place and the menu is always the last thing.
+				 * Switch, then ⋯ at the far end — the order the MCP cards use, so the switches of both
+				 * tabs sit in the same place and the menu is always the last thing.
 				 */
 				control={
 					<div className="flex items-center gap-2">

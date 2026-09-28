@@ -302,9 +302,6 @@ test("每个 handler 都能经 callRpc 到达", async () => {
 		"commands.list": ["/tmp/project"],
 		"files.list": ["/tmp/project"],
 		"files.read": ["/tmp/project/README.md"],
-		"rules.preview": [{ isCorrection: true, name: "no-any", body: "不用 any。" }],
-		"rules.keep": ["s1", "project", "no-any", "---\n---\n不用 any。\n"],
-		"rules.decline": ["s1"],
 	};
 
 	for (const method of Object.keys(RPC)) {

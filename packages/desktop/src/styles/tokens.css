@@ -83,8 +83,8 @@
    * left edge than the right. 999 was the other language, and it read as two
    * menus glued together.
    *
-   * 数值对齐 ZCode（DESIGN.md「Menus and selection overlays」）：卡 `rounded-lg` 8px、行
-   * `rounded-md` 6px、4px 的内衬；32px 的行约等于它 14px 字号下 `py-1` 加 relaxed 行高撑出来的
+   * 数值：卡 `rounded-lg` 8px、行
+   * `rounded-md` 6px、4px 的内衬；32px 的行约等于 14px 字号下 `py-1` 加 relaxed 行高撑出来的
    * 31px。之前卡 12 / 行 8，一张小菜单圆得发软。
    */
   --radius-menu: 8px;
@@ -118,15 +118,15 @@
   /*
    * The workspace's padding around its docks (`FRAME_PAD` in geometry.ts), and how far a card's
    * inside stands off the window: that padding, `PANE_INSET` (2) and the card's 1px border. The 4px
-   * between two frames and between a frame and the window is ZCode's. Keep in step with geometry.ts.
+   * between two frames and between a frame and the window. Keep in step with geometry.ts.
    */
   --ly-frame-pad: 2px;
   --ly-pane-chrome: 5px;
 
   /*
-   * 字体跟 ZCode 一致，不打包字体：界面用系统字体，代码用系统等宽。
+   * 不打包字体：界面用系统字体，代码用系统等宽。
    *
-   * `--font-sans` 显式写出 ZCode 所用 Tailwind 4.2 的默认栈：4.3 起默认换成了 `-apple-system`
+   * `--font-sans` 显式写出 Tailwind 4.2 的默认栈：4.3 起默认换成了 `-apple-system`
    * 开头的另一套，不写就会随 Tailwind 版本漂移。Windows 的 Consolas 不含中文字形，所以等宽栈在
    * `monospace` 前显式加上各平台的中文无衬线字体，否则代码里的中文会落到宋体。
    */
@@ -213,7 +213,7 @@
    * difference between a diff you can scan and a wall; tracking is the one people with a particular
    * face in mind ask for. The fallbacks are exactly what the app rendered before any of them existed,
    * so a settings file written earlier looks unchanged. Weight is not a setting: code is set at the
-   * body's 400, as in ZCode.
+   * body's 400.
    */
   --text-code--line-height: var(--ly-code-line-height, 1.6);
   --text-code--weight: 400;

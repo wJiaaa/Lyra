@@ -14,7 +14,7 @@ export function questionsIn(messages: readonly Message[]) {
 			if (question && answer) question.answer = answer.slice(0, 600);
 			continue;
 		}
-		if (message.role !== "user" || message.synthetic || message.ruleMatch || isNudge(message)) continue;
+		if (message.role !== "user" || message.synthetic || isNudge(message)) continue;
 		const text = message.content.filter((block) => block.type === "text").map((block) => block.text).join(" ").trim();
 		questions.push({ index, text: text || translate("questionNav.imageMessage"), answer: "" });
 	}
@@ -35,7 +35,7 @@ export function timeSeparators(messages: readonly Message[]) {
 	let previous: number | undefined;
 	for (const [index, message] of messages.entries()) {
 		if (!readable(message)) continue;
-		if (message.role === "user" && !message.synthetic && !message.ruleMatch && !isNudge(message)) {
+		if (message.role === "user" && !message.synthetic && !isNudge(message)) {
 			if (previous === undefined || message.timestamp - previous >= 30 * 60_000 || new Date(previous).toDateString() !== new Date(message.timestamp).toDateString()) result.add(index);
 		}
 		if (!('synthetic' in message && message.synthetic)) previous = message.timestamp;

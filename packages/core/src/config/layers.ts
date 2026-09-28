@@ -47,8 +47,8 @@ function isPlainObject(value: unknown): value is Plain {
  *
  * Arrays replace rather than concatenate, and that is the choice people trip over — omp's docs
  * call it the most common surprise. It is still right: with append semantics there is no way to
- * express *removing* an entry, so a project could add to a global `disabledRules` and never
- * subtract from it. The cost is that a project listing one rule replaces the global list entirely,
+ * express *removing* an entry, so a project could add to a global `disabledPlugins` and never
+ * subtract from it. The cost is that a project listing one entry replaces the global list entirely,
  * which the settings page has to say out loud rather than leave to be discovered.
  */
 export function mergeLayer(base: Plain, over: Plain): Plain {
@@ -62,7 +62,7 @@ export function mergeLayer(base: Plain, over: Plain): Plain {
 
 /** One value the project layer replaces outright, with what it replaced. */
 export interface LayerOverride {
-	/** Dotted path: `disabledRules`, `approval.bash`. */
+	/** Dotted path: `disabledPlugins`, `approval.bash`. */
 	key: string;
 	kind: "array" | "scalar";
 	project: unknown;

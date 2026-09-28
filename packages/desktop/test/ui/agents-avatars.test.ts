@@ -31,7 +31,7 @@ const records: AgentDefinitionRecord[] = [
 	record({ ...BUILTIN_AGENTS[0], source: "user", avatar: undefined }, { id: "general-override", scope: "user", customized: true }),
 	...BUILTIN_AGENTS.slice(1).map((definition) => record(definition)),
 	// 手写的，没有 avatar 那一行：按名字算一张。
-	record({ name: "boss", description: "编排者", systemPrompt: "BOSS", tools: "*", source: "workspace" }, { scope: "project" }),
+	record({ name: "boss", description: "编排者", systemPrompt: "BOSS", tools: "*", source: "user" }),
 	record({ name: "docs-writer", description: "整理文档", systemPrompt: "Docs", tools: ["read"], source: "user", avatar: "ghost-plum" }),
 ];
 
@@ -74,7 +74,7 @@ test("every agent on the page wears a different face, own ones listed apart from
 		assert.equal(faces["docs-writer"], "ghost-plum", "a written face is drawn as written");
 		assert.equal(faces.general, "circle-blue", "an override of general is still general's face");
 		/*
-		 * 这一页按 ZCode 分「已安装」「内置智能体」两组，按定义从哪里来分：覆盖了内置的 general 是用户目录里的
+		 * 这一页分「已安装」「内置智能体」两组，按定义从哪里来分：覆盖了内置的 general 是用户目录里的
 		 * 一份文件，列在「已安装」里，行上标「内置 · 已自定义」。
 		 */
 		const sections = view.all<HTMLElement>("section");

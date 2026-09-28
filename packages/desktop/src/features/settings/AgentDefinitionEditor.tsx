@@ -19,14 +19,16 @@ const drafts = new Map<string, { draft: AgentDraft; scope: "user" | "project" }>
 const DEFAULT_TOOLS = ["read", "glob", "grep", "ls"];
 
 /*
- * 编辑页照 ZCode 的子智能体表单：面包屑、标题和一句说明，下面一整块描边的表单，
+ * 编辑页：面包屑、标题和一句说明，下面一整块描边的表单，
  * 删除在左下，保存、取消在右下。颜色变量见 `styles/fields.css` 的 `[data-agent-settings]`。
  *
  * 脸放在名字旁边，而且新建时就已经挑好了一张没人用的——它是这个智能体在设置页、`@` 菜单、面板
  * 里被认出来的方式，不该是一个等人想起来才去填的空。不满意就点它换，或者掷一次骰子。
  */
-export function AgentDefinitionEditor({ record, copy, projectId, projectName, tools, avatarOf, taken, onClose, onDelete, onSaved }: {
+export function AgentDefinitionEditor({ record, copy, projectId, projectName, defaultScope = "user", tools, avatarOf, taken, onClose, onDelete, onSaved }: {
 	record?: AgentDefinitionRecord; copy?: boolean; projectId: string | null; projectName?: string;
+	/** 新建时存到哪一层：跟着页面上选中的范围。 */
+	defaultScope?: "user" | "project";
 	tools: string[];
 	/** 名单里每个人现在的脸，用来给新来的挑一张没人用的。 */
 	avatarOf: AvatarOf;
@@ -42,7 +44,7 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 	const [initialAvatar] = useState(() => formatAvatar(record && !copy ? avatarOf(record.definition.name) : freshAvatar(taken.map(other => other.avatar))));
 	const original: AgentDraft = { name: copy ? `${definition?.name ?? "agent"}-copy` : definition?.name ?? "", description: definition?.description ?? "", systemPrompt: definition?.systemPrompt ?? "", tools: definition?.tools ?? DEFAULT_TOOLS, avatar: initialAvatar };
 	const [draft, setDraft] = useState(remembered?.draft ?? original);
-	const [scope, setScope] = useState<"user" | "project">(remembered?.scope ?? (record?.scope === "project" && !copy ? "project" : "user"));
+	const [scope, setScope] = useState<"user" | "project">(remembered?.scope ?? (record ? (record.scope === "project" && !copy ? "project" : "user") : defaultScope));
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState("");
 	const [leaving, setLeaving] = useState(false);
@@ -71,7 +73,7 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 	const selected = draft.tools;
 	return <form data-agent-settings data-agent-editor className="max-w-[800px] space-y-6 pt-2 pb-10" onSubmit={event => { event.preventDefault(); void save(); }}>
 		<nav className="-ml-2 flex h-7 min-w-0 items-center text-label">
-			{/* 面包屑的第一段就是返回：ZCode 顶栏里那一段，这里没有顶栏，放在页首。 */}
+			{/* 面包屑的第一段就是返回：这里没有顶栏，放在页首。 */}
 			<Button variant="subtle" size="sm" ariaLabel={t("agentEditor.back")} disabled={busy} onClick={leave}>{t("agents.title")}</Button>
 			<ChevronRight size={14} aria-hidden className="shrink-0 text-ink-faint" />
 			<span className="truncate px-2 text-ink">{editing && record ? record.definition.name : t("agents.add")}</span>
@@ -154,7 +156,7 @@ function FieldLabel({ children }: { children: string }) {
 	return <span className="mb-1.5 block text-label font-medium text-ink-muted">{children}</span>;
 }
 
-/** ZCode 的工具勾选：整格是按钮，勾上是前景色实底。能改文件、跑命令的几样右边一个红点。 */
+/** 工具勾选：整格是按钮，勾上是前景色实底。能改文件、跑命令的几样右边一个红点。 */
 function ToolCheckbox({ name, checked, onChange }: { name: string; checked: boolean; onChange: (checked: boolean) => void }) {
 	return <button type="button" role="checkbox" aria-checked={checked} onClick={() => onChange(!checked)}
 		className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors duration-[var(--ly-t-quick)] hover:bg-[var(--ly-agent-line)]">

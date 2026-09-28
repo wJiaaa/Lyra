@@ -245,7 +245,6 @@ test("只翻人自己说过的，机器替他说的不算", async () => {
 			messages: [
 				said("人说的"),
 				said("继续推进当前任务", { synthetic: true }),
-				said("规则匹配上的", { ruleMatch: { name: "r" } }),
 				{ role: "assistant", content: [{ type: "text", text: "模型说的" }], timestamp: 2 } as unknown as Message,
 			],
 		}),

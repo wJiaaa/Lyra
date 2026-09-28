@@ -9,8 +9,6 @@ import type { RetryPolicySource } from "../config/retry-policy.ts";
  */
 
 import { originalInView, REPEAT_WARN, repeatNotice, RepetitionWatch } from "./repetition.ts";
-import type { RuleMatch } from "../rules/stream.ts";
-import { extractPaths } from "../rules/stream.ts";
 import { failTruncatedCalls, runTools } from "./tool-run.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { comparePrefix, payloadSegments, type PrefixSegment } from "../ai/prefix-fingerprint.ts";
@@ -132,25 +130,6 @@ export interface AgentRunConfig {
 	 * Runs before a tool executes. Returning `block` turns the call into an error result the
 	 * model can react to, without ending the turn.
 	 */
-	/**
-	 * Watching the stream for rule violations, and what to inject when one fires.
-	 *
-	 * Optional because the loop must stay usable without it — tests, subagents and the CLI all
-	 * construct a run directly. When absent nothing is buffered and nothing is matched.
-	 */
-	rules?: {
-		/** Fed every delta; returns the rules that just became eligible. */
-		observe(chunk: { source: "text" | "thinking" | "tool"; delta: string; key: string; toolName?: string; paths?: string[] }): RuleMatch[];
-		/** Turn boundary, for buffers and repeat accounting. */
-		startTurn(): void;
-		/** Called once a correction has actually been delivered. */
-		markFired(matches: RuleMatch[]): void;
-		/** The hidden message injected before the retry. */
-		render(matches: RuleMatch[]): Message;
-		/** The hidden message delivered at the end of a turn, for rules that did not interrupt. */
-		renderReminder(matches: RuleMatch[]): Message;
-	};
-
 	beforeToolCall?: (call: {
 		toolName: string;
 		args: Record<string, unknown>;
@@ -317,15 +296,6 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 	 * prompting the model with no new input.
 	 */
 	let carried: Message[] = [];
-	/**
-	 * Reminders from rules that matched without interrupting.
-	 *
-	 * Delivered at the start of the next turn rather than folded into the tool result that tripped
-	 * them. That is later than it could be, and it is the honest place for it: `interrupt: never`
-	 * means "this is not urgent enough to stop for", and a message that arrives with the next turn
-	 * says exactly that. It also leaves tool results the shape every renderer expects.
-	 */
-	let reminders: Message[] = [];
 
 	/*
 	 * 这一轮此刻用的模型。起点是调用方给的那个，人中途换了就跟着换——见 `liveModel`。
@@ -342,7 +312,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		await emit({ type: "turn_start", turn });
 
 		const drained = config.drainSteering?.() ?? [];
-		const steering = [...reminders, ...carried, ...drained];
+		const steering = [...carried, ...drained];
 		/*
 		 * Something the person just said ends the previous skill's tool restriction.
 		 *
@@ -354,7 +324,6 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		 */
 		if ((turn === 1 && humanSinceLastReply(config.messages)) || steering.some(fromPerson)) clearActiveSkill(state);
 
-		reminders = [];
 		carried = [];
 		for (const steered of steering) {
 			messages.push(steered);
@@ -409,7 +378,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			tools: config.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
 		};
 
-		let { message: assistant, ruleMatches, deferredMatches, switched, held } = await streamTurn(active, context, emit);
+		let { message: assistant, switched, held } = await streamTurn(active, context, emit);
 		/*
 		 * 还没说出一个字就被换下的请求：什么都不留，回到顶上用新模型从同一处重来。
 		 *
@@ -422,7 +391,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		/** 拒收恢复里的重发：被拒的那条放掉，换一份历史再问。 */
 		const resend = async () => {
 			await held?.discard();
-			({ message: assistant, ruleMatches, deferredMatches, switched, held } = await streamTurn(active, { ...context, messages: requestMessages(messages) }, emit));
+			({ message: assistant, switched, held } = await streamTurn(active, { ...context, messages: requestMessages(messages) }, emit));
 		};
 
 		/*
@@ -487,52 +456,6 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 			continue;
 		}
 		await held?.commit();
-		/*
-		 * A rule interrupted this turn: drop what was said and say it again, better informed.
-		 *
-		 * The partial output is discarded rather than kept. Leaving half a violation in the
-		 * history invites the model to continue it, and the whole point of interrupting mid-
-		 * sentence was to stop that sentence from existing. `streamTurn` already withheld its
-		 * `message_end` (the commit point) — which is why "was it interrupted, or did the user
-		 * win" is decided there, once, and not re-checked here: a stop landing in between would
-		 * otherwise send an uncommitted reply down the aborted path below.
-		 */
-		if (ruleMatches.length > 0 && config.rules) {
-			const injection = config.rules.render(ruleMatches);
-			config.rules.markFired(ruleMatches);
-			messages.push(injection);
-			produced.push(injection);
-			await emit({ type: "message_start", message: injection });
-			await emit({ type: "message_end", message: injection });
-			await emit({
-				type: "rule_triggered",
-				rules: ruleMatches.map((m) => ({
-					name: m.rule.name,
-					path: m.rule.path,
-					excerpt: m.excerpt,
-					source: m.source,
-					toolName: m.toolName,
-				})),
-			});
-			continue;
-		}
-
-		if (deferredMatches.length > 0 && config.rules && assistant.stopReason !== "aborted" && assistant.stopReason !== "error") {
-			config.rules.markFired(deferredMatches);
-			reminders.push(config.rules.renderReminder(deferredMatches));
-			await emit({
-				type: "rule_triggered",
-				rules: deferredMatches.map((m) => ({
-					name: m.rule.name,
-					path: m.rule.path,
-					excerpt: m.excerpt,
-					source: m.source,
-					toolName: m.toolName,
-					deferred: true,
-				})),
-			});
-		}
-
 		messages.push(assistant);
 		produced.push(assistant);
 
@@ -767,29 +690,8 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		error?: string,
 		retryable?: boolean,
 	): Promise<AgentRunResult> {
-		/*
-		 * A reminder that never got a turn to ride on still has to land somewhere.
-		 *
-		 * Non-interrupting matches are delivered at the start of the next turn — and when the match
-		 * happens on the last turn there is no next one, so it was silently dropped. Measured: a
-		 * rule with `interrupt: never` fired, was marked deferred, and the model never saw it.
-		 *
-		 * Persisting it into the produced messages is the right home rather than a consolation
-		 * prize: the reminder is about what to do *going forward*, and the conversation continues
-		 * the next time the user types. It is not pushed into `messages`, which belongs to a run
-		 * that is over.
-		 */
-		for (const reminder of reminders) {
-			produced.push(reminder);
-			await emit({ type: "message_start", message: reminder });
-			await emit({ type: "message_end", message: reminder });
-		}
-		// 提醒不进 `messages`（那是这一轮自己的），但接着跑的那一段要看得见它——见 `view`。
-		const view = [...messages, ...reminders];
-		reminders = [];
-
 		await emit({ type: "agent_end", reason, error });
-		return { messages: produced, view, reason, error, ...(retryable ? { retryable } : {}) };
+		return { messages: produced, view: [...messages], reason, error, ...(retryable ? { retryable } : {}) };
 	}
 }
 
@@ -797,24 +699,9 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 // Streaming one assistant turn
 // ---------------------------------------------------------------------------
 
-/**
- * One assistant turn, plus whatever rules it tripped on the way.
- *
- * `ruleMatches` is non-empty only when a rule asked to interrupt: the stream was aborted
- * deliberately, and the caller is expected to discard the partial output, inject the rule, and
- * generate again from the same point.
- */
+/** One assistant turn. */
 interface TurnResult {
 	message: AssistantMessage;
-	/**
-	 * Rules that asked to interrupt: the stream was aborted and the turn should be redone.
-	 *
-	 * 只在真的打断了的时候非空（人同时按了停止的不算，人赢），判定在 `streamTurn` 里做一次：那边
-	 * 据此决定这条回复发不发 `message_end`，循环据此决定重来还是收场，两边不能各判各的。
-	 */
-	ruleMatches: RuleMatch[];
-	/** Rules that matched but did not interrupt: delivered once this turn has finished. */
-	deferredMatches: RuleMatch[];
 	/** 人换了模型，而这个请求还什么都没说出口：它被放手了，调用方该用新模型从同一处重来。 */
 	switched?: boolean;
 	/**
@@ -834,8 +721,8 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 	await emit({ type: "request", provider: config.provider.id, model: config.model.modelId, thinking: config.thinking, messageCount: context.messages.length });
 
 	/*
-	 * 换模型的那一下，单独一个控制器，理由和下面规则打断那个一样：它的意思不是「停」，是「换个人
-	 * 重来」，所以不能跟 `config.signal`（人按了停止）混为一谈。
+	 * 换模型的那一下，单独一个控制器：它的意思不是「停」，是「换个人重来」，所以不能跟
+	 * `config.signal`（人按了停止）混为一谈。
 	 *
 	 * 只放手还什么都没说出口的请求——在连、在重试。那正是人会去换模型的时候：旧的上游坏了，这个请求
 	 * 在一遍遍地等它。已经在出字的不动：它在干活，说完了下一个请求自然用新的。
@@ -852,17 +739,17 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 		try {
 			// 替身拿到的也是带着「换人」的那根信号，行为跟真实请求一样，才测得到。
 			const message = await config.streamFn(context, { ...config, signal: AbortSignal.any([...(config.signal ? [config.signal] : []), switchAbort.signal]) });
-			if (switched()) return { message, ruleMatches: [], deferredMatches: [], switched: true };
+			if (switched()) return { message, switched: true };
 			if (rejectedContent(message)) {
 				const commit = async () => {
 					await emit({ type: "message_start", message });
 					await emit({ type: "message_end", message });
 				};
-				return { message, ruleMatches: [], deferredMatches: [], held: { commit, discard: async () => {} } };
+				return { message, held: { commit, discard: async () => {} } };
 			}
 			await emit({ type: "message_start", message });
 			await emit({ type: "message_end", message });
-			return { message, ruleMatches: [], deferredMatches: [] };
+			return { message };
 		} finally {
 			unsubscribe?.();
 		}
@@ -879,18 +766,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 	 */
 	let retries = 0;
 
-	/*
-	 * A separate controller for rule interrupts.
-	 *
-	 * It must not be `config.signal`: that one means "the user stopped this", and the loop ends
-	 * the run when it fires. A rule interrupt means the opposite — keep going, but say something
-	 * first — so the two are combined for the request and told apart afterwards.
-	 */
-	const ruleAbort = new AbortController();
-	const pendingMatches: RuleMatch[] = [];
-	const deferredMatches: RuleMatch[] = [];
-
-	const signal = AbortSignal.any([...(config.signal ? [config.signal] : []), ruleAbort.signal, switchAbort.signal]);
+	const signal = AbortSignal.any([...(config.signal ? [config.signal] : []), switchAbort.signal]);
 
 	/*
 	 * 前缀从哪里开始和上一次不同，写在这次的回复上——缓存未命中的归因证据，见 `ai/prefix-fingerprint.ts`。
@@ -970,20 +846,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 			const to = config.liveModel?.current()?.model.name;
 			await emit({ type: "retry_settled", outcome: "switched", attempts: retries, ...(to ? { switchedTo: to } : {}) });
 		}
-		return { message, ruleMatches: [], deferredMatches: [], switched: true };
-	};
-
-	/*
-	 * 规则打断的：开了头的那一截不收尾、不提交，只告诉界面把它收掉。
-	 *
-	 * `config.signal` 要看，因为两根信号掐的是同一个流：人在规则触发的同一刻按了停止，人赢。
-	 */
-	const interruptedByRule = (message: AssistantMessage) =>
-		pendingMatches.length > 0 && message.stopReason === "aborted" && !config.signal?.aborted;
-	const discard = async (message: AssistantMessage): Promise<TurnResult> => {
-		if (started) await emit({ type: "message_discarded", message });
-		await settle(message);
-		return { message, ruleMatches: pendingMatches, deferredMatches };
+		return { message, switched: true };
 	};
 
 	try {
@@ -991,9 +854,8 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 		const next = await stream.next();
 		if (next.done) {
 			if (switched()) return await letGo(next.value);
-			if (interruptedByRule(next.value)) return await discard(next.value);
 			await settle(next.value);
-			return { message: next.value, ruleMatches: [], deferredMatches };
+			return { message: next.value };
 		}
 		const event = next.value;
 
@@ -1008,7 +870,6 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 			case "toolcall_end":
 				said = true;
 				await emit({ type: "message_update", message: event.partial, delta: event });
-				if (config.rules && event.type !== "toolcall_end") observeDelta(config.rules, event, pendingMatches, deferredMatches, ruleAbort);
 				break;
 			case "done":
 			case "error": {
@@ -1017,17 +878,11 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 					const tail = await stream.next();
 					return await letGo(tail.done ? tail.value : message);
 				}
-				if (interruptedByRule(message)) {
-					const tail = await stream.next();
-					return await discard(tail.done ? tail.value : message);
-				}
 				if (rejectedContent(message)) {
 					const tail = await stream.next();
 					const settled = tail.done ? tail.value : message;
 					return {
 						message: settled,
-						ruleMatches: [],
-						deferredMatches,
 						held: {
 							commit: async () => {
 								if (!started) await emit({ type: "message_start", message: settled });
@@ -1051,7 +906,7 @@ async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: Age
 				const tail = await stream.next();
 				const settled = tail.done ? tail.value : message;
 				await settle(settled);
-				return { message: settled, ruleMatches: [], deferredMatches };
+				return { message: settled };
 			}
 			default:
 				break;
@@ -1076,57 +931,4 @@ async function* stamped(
 		if (next.value.type === "done" || next.value.type === "error") stamp(next.value.message);
 		yield next.value;
 	}
-}
-
-/**
- * Route one stream delta to the rule monitor, and abort if a rule wants to interrupt.
- *
- * The tool case needs the buffer keyed per call: two tools streaming their arguments at once
- * would otherwise share one buffer, and a pattern could match across the seam between them —
- * a rule firing on text that no single call ever contained.
- */
-function observeDelta(
-	rules: NonNullable<AgentRunConfig["rules"]>,
-	event: { type: string; delta: string; index: number; partial: AssistantMessage },
-	pending: RuleMatch[],
-	deferred: RuleMatch[],
-	abort: AbortController,
-): void {
-	let chunk: Parameters<typeof rules.observe>[0];
-
-	if (event.type === "text_delta") {
-		chunk = { source: "text", delta: event.delta, key: "text" };
-	} else if (event.type === "thinking_delta") {
-		chunk = { source: "thinking", delta: event.delta, key: "thinking" };
-	} else {
-		const call = event.partial.content[event.index];
-		if (call?.type !== "toolCall") return;
-		const partialArgs = typeof call.arguments === "string" ? call.arguments : JSON.stringify(call.arguments ?? {});
-		chunk = { source: "tool", delta: event.delta, key: `tool:${call.id}`, toolName: call.name, paths: extractPaths(partialArgs) };
-	}
-
-	const matches = rules.observe(chunk);
-	if (matches.length === 0) return;
-
-	/*
-	 * `interrupt` decides whether this is worth stopping mid-sentence.
-	 *
-	 * A rule set to `never`, or scoped away from this source, still matched — it is delivered at
-	 * the end of the turn instead. Dropping it would make `interrupt: never` a setting that
-	 * silently disables the rule, which is the worst thing a setting can do.
-	 */
-	for (const match of matches) {
-		const interrupts =
-			match.rule.interrupt === "never"
-				? false
-				: match.rule.interrupt === "prose-only"
-					? chunk.source !== "tool"
-					: match.rule.interrupt === "tool-only"
-						? chunk.source === "tool"
-						: true;
-		const bucket = interrupts ? pending : deferred;
-		if (!bucket.some((existing) => existing.rule.name === match.rule.name)) bucket.push(match);
-	}
-
-	if (pending.length > 0 && !abort.signal.aborted) abort.abort();
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { act, createElement as h } from "react";
+import { createElement as h } from "react";
 import { BUILTIN_AGENTS, DEFAULT_SETTINGS, type ModelConfig, type Settings } from "@lyra/core";
 import { AgentsSettings } from "../../src/features/settings/AgentsSettings.tsx";
 import { useApp } from "../../src/store/index.ts";
@@ -37,15 +37,17 @@ test("built-in profiles are configurable before a session exists and while a col
 	}
 });
 
-test("project changes reload the catalogue without reopening settings", async () => {
+test("choosing a project reloads the catalogue and lists only that project's own agents", async () => {
 	setup({ ...settings, projects: [{ id: "project", name: "Project", path: "/qa-project", lastOpenedAt: 0 }] }, async next => next);
-	Object.defineProperty(window, "lyra", { configurable: true, value: { agentDefinitions: { list: async (projectId: string | null) => ({ records: [{ definition: { ...BUILTIN_AGENTS[0], description: projectId ? "Project exploration policy" : "Global policy" }, id: "definition", scope: "user", editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] }], tools: [] }) } } });
+	const own = (description: string, scope: "user" | "project") => ({ definition: { ...BUILTIN_AGENTS[0], name: scope, description, source: scope === "project" ? "workspace" as const : "user" as const }, id: scope, scope, editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] });
+	Object.defineProperty(window, "lyra", { configurable: true, value: { agentDefinitions: { list: async (projectId: string | null) => ({ records: projectId ? [own("Global policy", "user"), own("Project exploration policy", "project")] : [own("Global policy", "user")], tools: [] }) } } });
 	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(AgentsSettings) }));
 	try {
 		assert.match(view.text(), /Global policy/);
-		await act(async () => { useApp.setState({ workspace: { path: "/qa-project", name: "Project", isGitRepo: false, branch: null } }); });
+		await click(view.find("[data-ly-project-scope]")); await choose("Project");
 		assert.match(view.text(), /Project exploration policy/);
-	} finally { await view.unmount(); useApp.setState({ workspace: null }); }
+		assert.doesNotMatch(view.text(), /Global policy/, "the user-level one belongs to the other scope");
+	} finally { await view.unmount(); }
 });
 
 test("switching to a non-reasoning model clears the incompatible saved effort and offers no fake levels", async () => {

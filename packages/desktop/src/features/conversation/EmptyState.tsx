@@ -8,7 +8,7 @@ import { useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
 
 /*
- * 输入框下面那一排建议，样子对齐 ZCode：单色图标，描边胶囊，一个接一个落下来。
+ * 输入框下面那一排建议：单色图标，描边胶囊，一个接一个落下来。
  * 之前每个图标带一种颜色，排成一行描边 chip 时四种颜色抢的是输入框的注意力。
  */
 const PROMPTS: { icon: typeof Telescope; labelKey: MessageKey; promptKey: MessageKey }[] = [
@@ -18,7 +18,7 @@ const PROMPTS: { icon: typeof Telescope; labelKey: MessageKey; promptKey: Messag
 	{ icon: Bug, labelKey: "empty.fix", promptKey: "empty.fixPrompt" },
 ];
 
-/** 标记高度加上它和标题之间的 24px，顶部留白要扣掉这一段，标题才落在 ZCode 的那条线上。 */
+/** 标记高度加上它和标题之间的 24px，顶部留白要扣掉这一段，标题才落在那条线上。 */
 const MARK_BLOCK = { compact: 104 + 24, regular: 132 + 24 };
 
 export function EmptyState() {
@@ -32,14 +32,14 @@ export function EmptyState() {
 	const mark = compact ? MARK_BLOCK.compact : MARK_BLOCK.regular;
 
 	return (
-		// 欢迎页这一列是 ZCode 的 `max-w-2xl`（672px），输入框和下面的建议都读它；进了对话再按窗格宽度分档。
+		// 欢迎页这一列是 `max-w-2xl`（672px），输入框和下面的建议都读它；进了对话再按窗格宽度分档。
 		<div data-ly-chat-surface="empty" className="flex min-h-0 flex-1 flex-col [--ly-content:672px]">
 			{/*
 			 * Scrolls rather than clips: at the minimum window height the mark, the heading, the
 			 * composer and the suggestions do not all fit, and a control you cannot reach is worse
 			 * than one you have to scroll to.
 			 *
-			 * 布局照 ZCode：上面一段可压缩的留白把标题放在视口约 29% 处，下面一段 `flex-1` 吃掉剩下的高度。
+			 * 布局：上面一段可压缩的留白把标题放在视口约 29% 处，下面一段 `flex-1` 吃掉剩下的高度。
 			 * 仍然是上重下轻而不是 `m-auto` 居中——输入框长高时标题不动，多出来的高度往下推。
 			 */}
 			<Scroller
@@ -79,7 +79,7 @@ export function EmptyState() {
 				</div>
 
 				{/*
-				 * 不比输入框宽，放不下就居中换行。标签照 ZCode 收成四个字一枚，平常一行放得下；
+				 * 不比输入框宽，放不下就居中换行。标签收成四个字一枚，平常一行放得下；
 				 * 窄窗口里换行而不是横向滚动，滚动会把后两枚藏起来。
 				 */}
 				<div className="mt-6 w-full max-w-[var(--ly-content)] shrink-0">

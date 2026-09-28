@@ -62,7 +62,7 @@ const CHECKS = [
 	},
 	{
 		id: "C1",
-		what: "recall/rule/learn/lsp/web_search 五个工具没被告知给模型",
+		what: "recall/learn/lsp/web_search 等工具没被告知给模型",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/tool-registry.test.ts"]],
 	},
 	{
@@ -127,13 +127,13 @@ const CHECKS = [
 	},
 	{
 		id: "CORE-prompt-freeze",
-		what: "规则/技能/AGENTS.md/推理档位一变就重写 system prompt，整条缓存前缀失效；记忆每次 learn 都改开头",
+		what: "技能/AGENTS.md/推理档位一变就重写 system prompt，整条缓存前缀失效；记忆每次 learn 都改开头",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/prompt-freeze.test.ts", "packages/core/test/memory-snapshot.test.ts"]],
 	},
 	{
 		id: "CORE-lifecycle",
-		what: "停止后排队的子代理照跑、孙代理不停、半截违规回复落盘、第 200 轮插话丢失、任务队列竞态、续跑换模型旧句柄",
-		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/dispatch-guard.test.ts", "packages/core/test/sub-agent-lineage.test.ts", "packages/core/test/sub-agent-resume.test.ts", "packages/core/test/rule-interrupt-discard.test.ts", "packages/core/test/steer-at-turn-cap.test.ts", "packages/core/test/task-queue-between.test.ts", "packages/core/test/revert-message.test.ts"]],
+		what: "停止后排队的子代理照跑、孙代理不停、第 200 轮插话丢失、任务队列竞态、续跑换模型旧句柄",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/dispatch-guard.test.ts", "packages/core/test/sub-agent-lineage.test.ts", "packages/core/test/sub-agent-resume.test.ts", "packages/core/test/steer-at-turn-cap.test.ts", "packages/core/test/task-queue-between.test.ts", "packages/core/test/revert-message.test.ts"]],
 	},
 	{
 		id: "CORE-tools",

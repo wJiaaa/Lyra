@@ -84,7 +84,7 @@ Lyra does not ship a model, so the first launch cannot send a message. Open Sett
 - **20 built-in tools**, in the groups the code uses:
   - Files and code: `read` `write` `edit` `ls` `glob` `grep` `symbol` `lsp`
   - Commands: `bash` `bash_output`
-  - Session and memory: `todo_write` `task` `skill` `rule` `recall` `learn` `ask_user`
+  - Session and memory: `todo_write` `task` `skill` `recall` `learn` `ask_user`
   - Network and preview: `web_fetch` `web_search` `preview`
 - **Skills.** `SKILL.md` plus YAML frontmatter. Only the name and description enter the system prompt. The body is injected when the model calls `skill`, so dozens of skills do not burn the context window.
 - **MCP.** stdio, Streamable HTTP, and SSE. Tools are named `mcp__<server>__<tool>`, so they never collide with built-ins.
@@ -136,7 +136,7 @@ Contributing is in [CONTRIBUTING.md](CONTRIBUTING.md). An agent asked to change 
 | `~/.lyra/settings.json` | providers, models, MCP, permission mode |
 | `~/.lyra/credentials.json` | API keys, encrypted. The key material is `~/.lyra/vault.key` |
 | `~/.lyra/sessions/` | session logs (JSONL, one record per line) |
-| `~/.lyra/skills/`, `plugins/`, `rules/`, `commands/` | user-level skills, plugins, rules, slash commands |
+| `~/.lyra/skills/`, `plugins/`, `commands/` | user-level skills, plugins, slash commands |
 | `~/.lyra/memory.json` | what the `learn` tool wrote down |
 | `<project>/.lyra/skills/`, `agents/`, `commands/`, `plugins/` | the same set at project level, preferred over user-level |
 | `<project>/LYRA.md`, `AGENTS.md`, `CLAUDE.md` | project instructions, first file that exists in that order |

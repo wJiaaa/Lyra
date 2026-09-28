@@ -542,17 +542,12 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		 * so it must not divide what it sits between. The work either side of a nudge is one
 		 * continuous stretch, and a row drawn through the middle of it would break the run in
 		 * two at a line nobody can see.
-		 *
-		 * A rule correction is the exception, and it is not machinery. It cut the reply off and
-		 * made the model start again, so the two halves either side of it are *not* one continuous
-		 * stretch — hiding the seam leaves a transcript where the model appears to have changed
-		 * its mind unprompted, which is the one thing a reader needs explained.
 		 */
 		/*
-		 * 送回来的结果也是一道缝：主智能体收尾之后被它叫醒，重新干起来。不画出来，读的人看到的是
-		 * 主智能体说完一段话、隔了几分钟又自己动了起来。
+		 * 送回来的结果是例外，它是一道缝：主智能体收尾之后被它叫醒，重新干起来。不画出来，读的人
+		 * 看到的是主智能体说完一段话、隔了几分钟又自己动了起来。
 		 */
-		if (message.role === "user" && (message.synthetic || isNudge(message)) && !message.ruleMatch && !message.delivery) continue;
+		if (message.role === "user" && (message.synthetic || isNudge(message)) && !message.delivery) continue;
 
 		if (message.role !== "assistant") {
 			out.push({ kind: "message", message, index, upTo: message.content.length });

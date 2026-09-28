@@ -15,7 +15,7 @@ function paintBootTheme(): void {
 	const flag = process.argv.find((arg) => arg.startsWith("--ly-boot="));
 	if (!flag) return;
 
-	let boot: { dark: boolean; background: string; foreground: string; accent: string; vibrancy?: boolean };
+	let boot: { dark: boolean; background: string; foreground: string; accent: string; vibrancy?: "on" | "off" };
 	try {
 		boot = JSON.parse(decodeURIComponent(flag.slice("--ly-boot=".length)));
 	} catch {
@@ -37,12 +37,13 @@ function paintBootTheme(): void {
 		 * Painted directly as well, not only as a token: the stylesheet that turns `--color-shell`
 		 * into a background is itself a load away, and until it lands the page is default white.
 		 */
-		root.style.background = boot.vibrancy ? "transparent" : boot.background;
+		root.style.background = boot.vibrancy === "on" ? "transparent" : boot.background;
 		/*
-		 * 毛玻璃窗口：页面每一层都得让光透过去，材质是窗户画的，不是页面画的。样式表按这个标记把
-		 * `body` 和窗口底层换成透明 / 半透明，见 `tabs.css`。
+		 * 毛玻璃窗口：页面每一层都得让光透过去，材质是窗户画的，不是页面画的。样式表按 `on` 把
+		 * `body` 和窗口底层换成透明 / 半透明，见 `tabs.css`。`off` 是能开但设置里关了，标记留着，
+		 * `applyAppearance` 靠它知道这扇窗能跟着设置切换。
 		 */
-		if (boot.vibrancy) root.dataset.vibrancy = "on";
+		if (boot.vibrancy) root.dataset.vibrancy = boot.vibrancy;
 		// Left behind so "did the theme land before the first paint?" stays answerable later.
 		root.dataset.bootThemeMs = String(Math.round(performance.now()));
 	};

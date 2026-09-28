@@ -61,7 +61,7 @@ function wordWidth(label: HTMLElement | null): number {
  *
  * Shared so the two cannot drift apart, which they already had once: two buttons of two heights
  * either side of a control that is a third height reads as three unrelated things rather than one
- * row. Sized as ZCode's `icon-sm` (24px) — the strip's own tabs are 24px too, so the buttons line
+ * row. Sized at 24px — the strip's own tabs are 24px too, so the buttons line
  * up with them rather than with the strip's outer edge.
  */
 export function StripButton({
@@ -110,7 +110,7 @@ export function SidebarTabs({
 }) {
 	const { compact } = useLayout();
 	const { t } = useI18n();
-	// ZCode 的胶囊是 28px：2px 内边距包 24px 标签；抽屉模式保留原来的 3px 内边距，整条仍是 38px。
+	// 胶囊是 28px：2px 内边距包 24px 标签；抽屉模式保留原来的 3px 内边距，整条仍是 38px。
 	const pad = compact ? 3 : 2;
 	const row = useRef<HTMLDivElement>(null);
 	const list = useRef<HTMLDivElement>(null);

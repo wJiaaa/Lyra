@@ -21,7 +21,6 @@
 		"./model-catalog": "./src/model-catalog.ts",
 		"./model-catalog-sync": "./src/model-catalog-sync.ts",
 		"./commands-builtin": "./src/commands/builtin.ts",
-		"./rules-condition": "./src/rules/condition.ts",
 		"./install-record": "./src/plugins/install-record.ts",
 		"./mcp-placeholders": "./src/mcp/placeholders.ts",
 		"./sandbox-runner": "./src/sandbox/runner-entry.ts"

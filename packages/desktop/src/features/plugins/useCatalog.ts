@@ -55,7 +55,8 @@ function urlsKeyOf(settings: { pluginRegistries?: string[]; skillRegistries?: st
 	return [...(settings?.pluginRegistries ?? []), ...(settings?.skillRegistries ?? [])].join("|");
 }
 
-export function useCatalog(): Catalog {
+/** `cwd`：本地扫盘看哪个项目，空串只看全局——见 `useLocalScan`。 */
+export function useCatalog(cwd: string): Catalog {
 	const settings = useApp((s) => s.settings);
 	/*
 	 * The shared "something was installed" signal.
@@ -70,7 +71,7 @@ export function useCatalog(): Catalog {
 	 * the main process does not hot-reload: during a dev session where the renderer has new code and
 	 * the main process has old, a field it does not send yet must cost its rows, not the page.
 	 */
-	const { scan, fresh } = useLocalScan();
+	const { scan, fresh } = useLocalScan(cwd);
 	const local = useMemo(
 		() => ({
 			plugins: scan?.plugins ?? [],

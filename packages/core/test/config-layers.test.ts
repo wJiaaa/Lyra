@@ -43,8 +43,8 @@ test("arrays replace, they do not append", () => {
 	 * The surprising one, and still correct: with append semantics there is no way to express
 	 * removing an entry, so a project could only ever add to a global list.
 	 */
-	const merged = mergeLayer({ disabledRules: ["no-force-push"] }, { disabledRules: ["verify-before-yield"] });
-	assert.deepEqual(merged.disabledRules, ["verify-before-yield"]);
+	const merged = mergeLayer({ disabledPlugins: ["plugin-a"] }, { disabledPlugins: ["plugin-b"] });
+	assert.deepEqual(merged.disabledPlugins, ["plugin-b"]);
 });
 
 test("scalars replace", () => {

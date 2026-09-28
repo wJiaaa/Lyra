@@ -174,7 +174,7 @@ function byRecent(a: SessionMeta, b: SessionMeta): number {
  * 崩溃后落后的只有 `seq` 和 `updatedAt`，前者由 `withLoggedSeq` 按日志校正，后者只影响排序的先后。
  * `agent_end`、摘要、命令状态这类可能是一轮最后一条记录的，不在这里。
  */
-const IN_RUN_EVENTS = new Set<AgentEvent["type"]>(["turn_start", "tool_start", "request", "context", "retry", "retry_settled", "approval_request", "rule_triggered", "subagent_event", "subagent_message"]);
+const IN_RUN_EVENTS = new Set<AgentEvent["type"]>(["turn_start", "tool_start", "request", "context", "retry", "retry_settled", "approval_request", "subagent_event", "subagent_message"]);
 
 function indexUnchanged(payload: SessionRecordInput, base: SessionMeta, next: SessionMeta): boolean {
 	if (payload.type !== "event" || !IN_RUN_EVENTS.has(payload.event.type)) return false;

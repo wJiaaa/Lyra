@@ -1,7 +1,7 @@
 /**
  * 钩子交回来的东西怎么读：stdout 上的 JSON，按事件取出决定，再把几条钩子的结论并成一个。
  *
- * 语义照 ZCode：`continue: false` / `decision: "block"` 是拦，PreToolUse 的 `permissionDecision`
+ * 语义：`continue: false` / `decision: "block"` 是拦，PreToolUse 的 `permissionDecision`
  * 几条之间取最严（deny > ask > allow），Stop 上的 block 是「别停，接着干」。
  */
 

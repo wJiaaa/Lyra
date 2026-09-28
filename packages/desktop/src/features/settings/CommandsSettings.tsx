@@ -5,10 +5,10 @@
 import type { BuiltinCommand } from "@lyra/core/commands-builtin";
 import type { SlashCommand } from "@lyra/core/commands-view";
 import { FolderOpen, Plus, RefreshCw, SquareTerminal, TriangleAlert } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { baseName } from "../../lib/paths.ts";
+import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
-import { InlineSelect, TextInput } from "./inputs.tsx";
+import { TextInput } from "./inputs.tsx";
+import { ProjectScope } from "./ProjectScope.tsx";
 import { Card } from "./layout.tsx";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { Button } from "../../ui/primitives/Button.tsx";
@@ -51,12 +51,15 @@ function matchesQuery(command: { name: string; description?: string; argumentHin
  */
 function SlashCommands() {
 	const { t } = useI18n();
-	const workspace = useApp((s) => s.workspace);
-	const cwd = workspace?.path ?? "";
+	const projects = useApp((s) => s.settings?.projects) ?? [];
+	/** null 是用户级；项目被移除后回到用户级，而不是继续读一个已经不在列表里的目录。 */
+	const [projectPath, setProjectPath] = useState<string | null>(null);
+	const project = projects.find((entry) => entry.path === projectPath) ?? null;
+	const cwd = project?.path ?? "";
+	const scope = project ? "workspace" : "user";
 	const [list, setList] = useState<{ commands: SlashCommand[]; builtins: BuiltinCommand[]; diagnostics: { path: string; message: string }[] } | null>(
 		null,
 	);
-	const [scope, setScope] = useState<"workspace" | "user">("user");
 	const [query, setQuery] = useState("");
 	const [creating, setCreating] = useState(false);
 	const [name, setName] = useState("");
@@ -68,9 +71,6 @@ function SlashCommands() {
 	const removal = useDefinitionRemoval("command", cwd, refresh);
 
 	useEffect(refresh, [refresh]);
-	useEffect(() => {
-		if (!cwd) setScope("user");
-	}, [cwd]);
 
 	/*
 	 * Re-read when the window is focused again.
@@ -109,14 +109,6 @@ function SlashCommands() {
 		await bridge.commands.open(result.path);
 	}
 
-	const scopes = useMemo(
-		() => [
-			{ value: "user" as const, label: t("common.personal") },
-			...(cwd ? [{ value: "workspace" as const, label: baseName(cwd) }] : []),
-		],
-		[cwd, t],
-	);
-
 	const commands = (list?.commands ?? []).filter((command) => command.scope === scope);
 	const needle = query.trim().toLowerCase();
 	const visible = commands.filter((command) => matchesQuery(command, needle));
@@ -135,7 +127,7 @@ function SlashCommands() {
 	return (
 		<div data-ly-commands-settings="">
 			<div className="flex min-w-0 flex-wrap items-center gap-3">
-				<InlineSelect value={scope} onChange={setScope} options={scopes} ariaLabel={t("hooks.scope")} />
+				<ProjectScope value={project} projects={projects} onChange={setProjectPath} />
 				<div className="h-4 w-px bg-line" aria-hidden />
 				<div className="flex items-center gap-1 text-label font-medium text-ink">
 					{t("commands.title")}

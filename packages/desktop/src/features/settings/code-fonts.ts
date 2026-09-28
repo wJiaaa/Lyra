@@ -34,7 +34,7 @@ export interface CodeFontOption {
 }
 
 export const CODE_FONTS: CodeFontOption[] = [
-	// The default, and the same stack ZCode uses; see `CODE_DEFAULTS.codeFont`.
+	// The default; see `CODE_DEFAULTS.codeFont`.
 	{
 		label: "System monospace",
 		labelKey: "codeFonts.systemMono",

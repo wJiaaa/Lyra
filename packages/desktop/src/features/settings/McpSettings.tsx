@@ -24,6 +24,7 @@ import { PluginIcon } from "./PluginIcon.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { useApp } from "../../store/index.ts";
+import { usePluginsProject } from "./usePluginsProject.ts";
 import { Card, EmptyHint, Field, Select, TextInput, Toggle } from "./controls.tsx";
 import { SecretInput } from "./inputs.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
@@ -46,7 +47,8 @@ export function McpSettings({ filter = "", markOf }: { filter?: string; markOf?:
 	const asked = useRef(false);
 	const confirm = useConfirmer();
 	// Each installed server's bundle: where it lives (for 打开目录) and what it looks like.
-	const { scan } = useLocalScan();
+	const cwd = usePluginsProject()?.path;
+	const { scan } = useLocalScan(cwd ?? "");
 	const bundles = new Map((scan?.mcpBundles ?? []).map((bundle) => [bundle.id, bundle]));
 
 	/*
@@ -118,7 +120,7 @@ export function McpSettings({ filter = "", markOf }: { filter?: string; markOf?:
 
 	return (
 		<div>
-			<ProjectOverrideNotice keys={["mcpServers"]} />
+			<ProjectOverrideNotice keys={["mcpServers"]} cwd={cwd} />
 
 			{servers.length === 0 ? (
 				<div className="py-12 text-center">

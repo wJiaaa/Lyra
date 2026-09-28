@@ -55,7 +55,7 @@ function declaredToolNames(): Map<string, string> {
 test("every tool in the source reaches the static list", () => {
 	const declared = declaredToolNames();
 	// A guard on the guard: if the scan stops finding tools, it must fail rather than pass empty.
-	assert.ok(declared.size >= 20, `expected at least 20 declared tools, found ${declared.size}`);
+	assert.ok(declared.size >= 19, `expected at least 19 declared tools, found ${declared.size}`);
 
 	const listed = new Set(staticTools().map((tool) => tool.name));
 	const missing = [...declared.keys()].filter((name) => !listed.has(name));
@@ -72,17 +72,17 @@ test("the kernel registry advertises the same tools as the static list", async (
 	}
 });
 
-test("the five tools the desktop used to be missing are in the registry", async () => {
+test("the tools the desktop used to be missing are in the registry", async () => {
 	/*
 	 * Named individually on purpose. A set comparison passes the moment both sides are wrong the
-	 * same way, and these five are the ones that were actually lost — `recall` is how compacted
+	 * same way, and these are the ones that were actually lost — `recall` is how compacted
 	 * history is retrieved, `learn` is where project memory comes from, and the settings pages for
 	 * both were drawn and reachable the whole time.
 	 */
 	const ctx = await createContext();
 	try {
 		const registry = ctx.require<ToolRegistry>(TOOLS);
-		for (const name of ["rule", "recall", "learn", "lsp", "web_search"]) {
+		for (const name of ["recall", "learn", "lsp", "web_search"]) {
 			assert.ok(registry.byName(name), `${name} is not registered`);
 		}
 	} finally {

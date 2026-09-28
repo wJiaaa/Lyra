@@ -86,7 +86,6 @@ const READS = new Set([
 	"commands.list",
 	"files.list",
 	"files.read",
-	"rules.preview",
 	"git.generalScratch",
 	"git.scratchRoots",
 ]);

@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AgentDefinitionRecord } from "@lyra/core";
+import type { AgentDefinitionRecord, ProjectEntry } from "@lyra/core";
 import { bridge } from "../../services/index.ts";
-import { useApp } from "../../store/index.ts";
 
-export function useAgentDefinitions() {
-	const workspace = useApp(state => state.workspace);
-	const settings = useApp(state => state.settings);
-	const project = settings?.projects.find(item => item.path === workspace?.path);
+/** `project` 是页面上选中的项目，null 是用户级。 */
+export function useAgentDefinitions(project: ProjectEntry | null) {
 	const projectId = project?.id ?? null;
 	const [records, setRecords] = useState<AgentDefinitionRecord[] | null>(null);
 	const [tools, setTools] = useState<string[]>([]);

@@ -2,7 +2,7 @@
  * "This page cannot change that here" — the project layer, said out loud (14 §3).
  *
  * Arrays replace rather than merge, which is the right choice (append semantics cannot express
- * removing an entry) and the one people trip over: a project listing one disabled rule replaces
+ * removing an entry) and the one people trip over: a project listing one disabled plugin replaces
  * the global list entirely, and the toggle on this page goes on toggling a value nothing reads.
  * omp can only warn about this in its docs. A page can show it beside the control it affects.
  *
@@ -21,29 +21,30 @@ import { bridge } from "../../services/index.ts";
 import { Card } from "./controls.tsx";
 
 interface LayerState {
-	cwd: string | null;
-	view: ProjectLayerView | null;
+	/**
+	 * 按项目分开存：插件页看的是页内选的项目，其余页看当前工作区，两页可能同时挂着（见
+	 * `RetainedViews`）。只存一份时，后读的那页会把先读的那页的答案顶掉。
+	 */
+	views: Record<string, ProjectLayerView | null>;
 	load(cwd: string): Promise<void>;
 }
 
 const useProjectLayer = create<LayerState>((set) => ({
-	cwd: null,
-	view: null,
+	views: {},
 	async load(cwd) {
 		const view = await bridge.settings.layers(cwd).catch(() => null);
-		set({ cwd, view });
+		set((state) => ({ views: { ...state.views, [cwd]: view } }));
 	},
 }));
 
-/** Keep the store current for the open workspace, and re-read after any settings save. */
-function useLayerSync(): ProjectLayerView | null {
-	const workspace = useApp((s) => s.workspace);
+/** Keep the store current for the project `path`, and re-read after any settings save. */
+function useLayerSync(path: string | undefined): ProjectLayerView | null {
 	const settings = useApp((s) => s.settings);
-	const view = useProjectLayer((s) => s.view);
+	const view = useProjectLayer((s) => (path ? (s.views[path] ?? null) : null));
 	useEffect(() => {
-		if (workspace?.path) void useProjectLayer.getState().load(workspace.path);
-	}, [workspace?.path, settings]);
-	return workspace?.path ? view : null;
+		if (path) void useProjectLayer.getState().load(path);
+	}, [path, settings]);
+	return view;
 }
 
 /** A value as it would be written, cut short: the page is saying *which*, not reproducing the file. */
@@ -52,8 +53,9 @@ export function brief(value: unknown, max = 96): string {
 	return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-export function ProjectOverrideNotice({ keys }: { keys: string[] }) {
-	const view = useLayerSync();
+/** `cwd` 是这一页在说的项目：插件页是页内选的那个，其余是当前工作区。 */
+export function ProjectOverrideNotice({ keys, cwd }: { keys: string[]; cwd: string | undefined }) {
+	const view = useLayerSync(cwd);
 	if (!view) return null;
 	return <OverrideNotice view={view} keys={keys} />;
 }
@@ -99,7 +101,7 @@ export function OverrideNotice({ view, keys }: { view: ProjectLayerView; keys: s
 
 /** Everything the project file changes, for the general page. */
 export function ProjectLayerCard() {
-	const view = useLayerSync();
+	const view = useLayerSync(useApp((s) => s.workspace?.path));
 	if (!view || !view.exists) return null;
 	return <LayerCard view={view} />;
 }

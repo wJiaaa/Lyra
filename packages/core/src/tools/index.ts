@@ -45,7 +45,6 @@ export { AGENTS_KEY, BUILTIN_AGENTS, taskTool, type AgentDefinition } from "./ta
 export { previewTool } from "./preview.ts";
 export { readTodos, todoTool, TODOS_KEY, type TodoItem } from "./todo.ts";
 export { askUserTool } from "./ask-user.ts";
-export { ruleTool, RULES_KEY } from "./rule.ts";
 export { htmlToText, webFetchTool } from "./web.ts";
 export { webSearchTool } from "./search.ts";
 export { writeTool } from "./write.ts";

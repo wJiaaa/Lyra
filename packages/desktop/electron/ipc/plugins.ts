@@ -10,9 +10,10 @@
 
 import { ipcMain, shell } from "electron";
 import { mkdir, rename } from "node:fs/promises";
-import { basename, join } from "node:path";
-import type { McpBundle, McpServerConfig, McpServerStatus, Settings } from "@lyra/core";
-import { collectSkills, commandEnv, lyraHome, installEntry, loadPlugins, McpManager, readInstalls, uninstallEntry } from "@lyra/core";
+import { homedir } from "node:os";
+import { basename, dirname, join, relative, sep } from "node:path";
+import type { McpBundle, McpServerConfig, McpServerStatus, Settings, Skill } from "@lyra/core";
+import { collectSkills, commandEnv, disabledSkillMatcher, lyraHome, installEntry, loadPlugins, McpManager, readInstalls, uninstallEntry } from "@lyra/core";
 import { remoteImage } from "../avatars.ts";
 import { diskImageStore, type ImageStore } from "../image-cache.ts";
 import { readRegistry, withBundle } from "../plugin-index.ts";
@@ -189,11 +190,18 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 		void tidy(plugins.mcpBundles);
 
 		const collected = await collectSkills(cwd ?? process.cwd(), plugins.plugins, settings());
+		const disabledBy = await disabledSkillMatcher(settings().disabledSkills);
 		return {
 			plugins: plugins.plugins,
 			mcpBundles: plugins.mcpBundles,
 			pluginDiagnostics: plugins.diagnostics,
-			skills: collected.skills,
+			skills: await Promise.all(
+				collected.skills.map(async (skill) => {
+					const where = skillFolder(skill, cwd);
+					const off = await disabledBy(skill.path);
+					return { ...skill, ...(where ? { where } : {}), ...(off ? { disabledBy: off } : {}) };
+				}),
+			),
 			skillDiagnostics: collected.diagnostics,
 			shadowedSkills: collected.shadowed,
 			installs: await readInstalls().catch(() => ({})),
@@ -251,6 +259,20 @@ let iconStore: ImageStore | null = null;
 function icons(): ImageStore {
 	iconStore ??= diskImageStore(join(lyraHome(), "cache", "icons"));
 	return iconStore;
+}
+
+/**
+ * 散装技能所在的那一层目录，设置页按它分组：「个人」底下可能同时有 `~/.lyra/skills`、
+ * `~/.claude/skills`、`~/.agents/skills`，只写「个人」就分不清改哪一份。项目内写相对路径，主目录下
+ * 写成 `~/…`，都不是就原样。插件和内置的技能不给——前者按插件名分组，后者没有目录。
+ */
+function skillFolder(skill: Skill, cwd: string): string | undefined {
+	if (skill.pluginId || skill.source === "builtin") return undefined;
+	const folder = dirname(skill.dir);
+	if (cwd && folder.startsWith(cwd + sep)) return relative(cwd, folder);
+	const home = homedir();
+	if (folder.startsWith(home + sep)) return join("~", relative(home, folder));
+	return folder;
 }
 
 function pluginsDir(scope: "workspace" | "user", cwd: string): string {

@@ -2,9 +2,9 @@
  * The tools that ship with the app, grouped by what they touch.
  *
  * One list, because there used to be two. The kernel's tools plugin registered four groups and
- * `index.ts` kept a flat list of its own beside them — and they drifted apart: `rule`, `recall`,
- * `learn`, `lsp` and `web_search` only ever reached the flat one. The desktop binds the kernel
- * registry, so for the desktop those five tools did not exist: they were written, tested, shipped,
+ * `index.ts` kept a flat list of its own beside them — and they drifted apart: `recall`, `learn`,
+ * `lsp` and `web_search` (and a since-removed `rule`) only ever reached the flat one. The desktop
+ * binds the kernel registry, so for the desktop those five tools did not exist: they were written, tested, shipped,
  * and never advertised to a model. 23,000 tool calls of real session logs contain none of them.
  * Nothing compared the two lists, so nothing said so. `test/tool-registry.test.ts` now does.
  *
@@ -26,7 +26,6 @@ import { lspTool } from "./lsp.ts";
 import { previewTool } from "./preview.ts";
 import { readTool } from "./read.ts";
 import { recallTool } from "./recall.ts";
-import { ruleTool } from "./rule.ts";
 import { webSearchTool } from "./search.ts";
 import { symbolTool } from "./symbol.ts";
 import { taskTool } from "./task.ts";
@@ -49,12 +48,11 @@ export const FILE_TOOLS = [
 /** Running commands, and reading what a backgrounded one has printed since. */
 export const SHELL_TOOLS = [bashTool, bashOutputTool] as unknown as Tool[];
 
-/** The agent's own working memory: its plan, its delegates, its rules, what it has been told. */
+/** The agent's own working memory: its plan, its delegates, what it has been told. */
 export const AGENT_TOOLS = [
 	todoTool,
 	taskTool,
 	skillTool,
-	ruleTool,
 	recallTool,
 	learnTool,
 	askUserTool,

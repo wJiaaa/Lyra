@@ -15,6 +15,7 @@ import type { ExtensionDiagnostic, ExtensionStats } from "@lyra/core";
 import { Puzzle, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
+import { usePluginsProject } from "./usePluginsProject.ts";
 import { bridge } from "../../services/index.ts";
 import { Badge, Card, EmptyHint } from "./controls.tsx";
 import { useI18n } from "../../i18n/index.ts";
@@ -22,15 +23,16 @@ import { useI18n } from "../../i18n/index.ts";
 const POLL_MS = 2000;
 
 export function ExtensionHostSettings({ filter = "" }: { filter?: string }) {
-	const sessionId = useApp((s) => s.activeSessionId);
-	const workspace = useApp((s) => s.workspace);
+	const cwd = usePluginsProject()?.path ?? "";
+	// 运行中的数字只属于当前会话：选的是别的项目时，读那个项目盘上的清单，而不是把这个会话的冒充成它的。
+	const sessionId = useApp((s) => ((s.workspace?.path ?? "") === cwd ? s.activeSessionId : null));
 	const [data, setData] = useState<Awaited<ReturnType<typeof bridge.extensions.stats>> | null>(null);
 
 	useEffect(() => {
 		let gone = false;
 		const tick = () => {
 			void bridge.extensions
-				.stats(sessionId, workspace?.path ?? "")
+				.stats(sessionId, cwd)
 				.then((next) => {
 					if (!gone) setData(next);
 				})
@@ -42,7 +44,7 @@ export function ExtensionHostSettings({ filter = "" }: { filter?: string }) {
 			gone = true;
 			window.clearInterval(timer);
 		};
-	}, [sessionId, workspace?.path]);
+	}, [sessionId, cwd]);
 
 	if (data === null) return null;
 	const needle = filter.trim().toLowerCase();
