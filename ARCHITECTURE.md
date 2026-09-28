@@ -74,16 +74,16 @@ pre-push 里都是必过项：
    那一条只管域与域之间，从下面伸上去它看不见。壳（`app/`、`main.tsx`）不在此列——
    它们 `lazy()` 各域的整屏视图，而把那些视图放进域的出口会让打包器把整个域并回主 chunk。
 
-循环依赖是 error，垫着一份已有的 119 条的基线（`.dependency-cruiser-known-violations.json`，
-连同第 8 条那两处有理由的破例共 121 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。
+循环依赖是 error，垫着一份已有的 118 条的基线（`.dependency-cruiser-known-violations.json`，
+连同第 8 条那两处有理由的破例共 120 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。
 这个数字每次 `pnpm arch` 都会印出来，少一条就 `pnpm arch:baseline` 重生成一次——那是让它下降的
 正常动作，也是唯一能让它上升的动作。
 
 从前这条规则是 warn 配一句「数字是要盯的东西」，没有东西在盯，于是它从 53 涨到了 159。装上棘轮
 之后清了两轮没人用的转出，掉到 142——其中最后 16 条是删掉 `electron/git.ts` 里一个空的
 `export {} from "./forge/index.ts"` 断掉的。每一次下降都由 `test/docs-numbers.test.ts` 逼着改
-这一段：它要求这里写的数和基线里的一样多。最近一次是删掉应用内更新（121 → 119）：`modals/UpdateDialog.tsx`
-不在了，经过它的两条环随之消失。
+这一段：它要求这里写的数和基线里的一样多。最近一次是文件标签并入面板（119 → 118）：`files/FileTabs.tsx`
+删掉了，经过它和 `dock/index.ts` 的那条环随之消失。
 
 ## 要做某件事，去哪
 

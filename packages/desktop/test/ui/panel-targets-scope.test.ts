@@ -485,7 +485,14 @@ test("a file marked in the side chat composer of the screen without focus opens 
 	lyra.files = { pathForDrop: () => "/work/beta/notes.md" };
 	view = await inScreen("b", h(SideComposer, { running: false, onSend() {}, onStop() {} }));
 	const drop = new Event("drop", { bubbles: true, cancelable: true });
-	Object.defineProperty(drop, "dataTransfer", { value: { files: [new File(["# notes"], "notes.md", { type: "text/markdown" })] } });
+	// 一个真的 DataTransfer 该有的都给上：drop 先问是不是文件树拖来的路径（`getData`），再按 `items` 拣出文件夹。
+	Object.defineProperty(drop, "dataTransfer", {
+		value: {
+			files: [new File(["# notes"], "notes.md", { type: "text/markdown" })],
+			items: [{ kind: "file", webkitGetAsEntry: () => ({ isDirectory: false }) }],
+			getData: () => "",
+		},
+	});
 	await fire(view.find(".ly-composer"), drop);
 	await until(() => view!.all("[data-command-mirror] .ly-attachment-token").length > 0);
 	const at = placeMark(view.host);
