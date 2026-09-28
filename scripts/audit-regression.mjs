@@ -191,6 +191,16 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/retry-usage-context.test.ts", "packages/core/test/prune-total.test.ts", "packages/core/test/compaction-budget.test.ts", "packages/core/test/stale-results.test.ts", "packages/core/test/recall.test.ts", "packages/core/test/repetition.test.ts"]],
 	},
 	{
+		id: "harness-core",
+		what: "崩溃留下的半行吞掉下一条记录、撤回到压缩边界丢了边界、输出上限截断当成说完了、Anthropic 起始帧自带的内容和空白文本块、撤回后被截掉的后台子代理照样送回结果",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/store.test.ts", "packages/core/test/output-limit.test.ts", "packages/core/test/anthropic-wire-content.test.ts", "packages/core/test/delegation-detach.test.ts"]],
+	},
+	{
+		id: "harness-low",
+		what: "带工具调用却报 stop、回放坏参数、限流等待与 Gemini 每分钟限额、推理摘要粘连、压缩剪过的视图重启后丢失、单独清单提示写盘后才接上、并行 learn 互相覆盖、钩子替人批提权",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/cc-wire-stream.test.ts", "packages/core/test/cc-wire-request.test.ts", "packages/core/test/failure-classify.test.ts", "packages/core/test/retry.test.ts", "packages/core/test/responses-lossy-stream.test.ts", "packages/core/test/prune-view-persistence.test.ts", "packages/core/test/todo-solo-nudge.test.ts", "packages/core/test/project-memory.test.ts", "packages/core/test/hooks.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,

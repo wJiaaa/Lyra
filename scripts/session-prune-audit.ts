@@ -11,25 +11,23 @@ import type { Message } from "../packages/core/src/types.ts";
 const root = join(homedir(), ".lyra", "sessions");
 const store = new SessionStore(root);
 const chars = (messages: Message[]) => messages.reduce((sum, message) => sum + (message.role === "toolResult" ? message.content.reduce((n, part) => n + (part.type === "text" ? part.text.length : 0), 0) : 0), 0);
-let sessions = 0, requests = 0, before = 0, afterAge = 0, afterStale = 0, afterGrep = 0, combined = 0, rewrites = 0, maxGrepBefore = 0, maxGrepAfter = 0;
+let sessions = 0, requests = 0, before = 0, afterSend = 0, afterStale = 0, afterGrep = 0, combined = 0, rewrites = 0, maxGrepBefore = 0, maxGrepAfter = 0;
 for (const project of await readdir(root, { withFileTypes: true })) {
 	if (!project.isDirectory()) continue;
 	for (const file of await readdir(join(root, project.name))) {
 		if (!file.endsWith(".jsonl")) continue;
 		const original = await store.messages(project.name, file.slice(0, -6));
 		const history: Message[] = [], bounded: Message[] = [];
-		const age = new AgedToolPruner(), both = new AgedToolPruner();
-		let previousAt: number | undefined;
+		const send = new AgedToolPruner(), both = new AgedToolPruner();
 		sessions++;
 		for (const message of original) {
 			if (message.role === "assistant") {
 				requests++;
-				const timing = { lastRequestAt: previousAt, now: message.timestamp };
-				const pruned = age.prepare(history, timing), trimmed = both.prepare(bounded, timing);
-				const stale = dropStaleResults(history, timing);
-				before += chars(history); afterAge += chars(pruned); afterStale += chars(stale); afterGrep += chars(bounded); combined += chars(trimmed);
+				const pruned = send.prepare(history), trimmed = both.prepare(bounded);
+				// 覆盖判断只在压缩里做；这里量的是它在压缩时能清掉多少，不是发送路径的行为。
+				const stale = dropStaleResults(history);
+				before += chars(history); afterSend += chars(pruned); afterStale += chars(stale); afterGrep += chars(bounded); combined += chars(trimmed);
 				rewrites += pruned.filter((m, i) => m !== history[i]).length;
-				previousAt = message.timestamp;
 			}
 			history.push(message);
 			if (message.role === "toolResult" && message.toolName === "grep") {
@@ -43,8 +41,8 @@ for (const project of await readdir(root, { withFileTypes: true })) {
 }
 console.log(JSON.stringify({
 	label: "Historical message replay; tool-result UTF-16 characters × subsequent requests; does not simulate model behaviour, compaction, invoices or cache hits",
-	sessions, requests, before, afterAge, afterStale, afterGrep, combined,
-	ageSaving: 1 - afterAge / before,
+	sessions, requests, before, afterSend, afterStale, afterGrep, combined,
+	sendSaving: 1 - afterSend / before,
 	staleSaving: 1 - afterStale / before,
 	grepSaving: 1 - afterGrep / before,
 	combinedSaving: 1 - combined / before,
