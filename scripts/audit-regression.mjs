@@ -186,6 +186,11 @@ const CHECKS = [
 		run: ["pnpm", ["knip"]],
 	},
 	{
+		id: "harness-context",
+		what: "重试用量被当成窗口占用、多块结果与摘要输入绕过总预算、仅剪枝足够仍调摘要、大纲读取清掉读过的正文、recall 不返回命中处、测图计数硬停真实工作",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/retry-usage-context.test.ts", "packages/core/test/prune-total.test.ts", "packages/core/test/compaction-budget.test.ts", "packages/core/test/stale-results.test.ts", "packages/core/test/recall.test.ts", "packages/core/test/repetition.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,

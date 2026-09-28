@@ -55,6 +55,8 @@ token 和多花的钱，用来验收上面这些前缀修复、并定位前缀�
 
 - **期望前缀**：`min(上一次请求的 input + cacheRead + cacheWrite, 这一次的同一总量)`；
   未命中 = 期望 − 实际 cacheRead。Usage 四个桶互不重叠，所以只报 cacheRead 的服务商也适用。
+  用量取这一次请求自身的 `lastAttemptUsage`，没有就取 `usage`（`requestUsage`）：`usage` 是含流内
+  重试的计费总额，拿它当前缀长度或窗口占用，一次重试就会算成两倍。`measureTotal` 同理。
 - **多花**：未命中的 token 按这一次 input 与 cacheWrite 两桶的加权实付单价，减去缓存读单价。
   费率只取日志里请求当时存下的 `cost.rates`；没有（模型没配定价）就只报 token、不报钱。
 - **原因**，按这个顺序判定：没有上一次 → 首个请求；未命中 ≤ 1024 token → 命中（缓存按块计，
