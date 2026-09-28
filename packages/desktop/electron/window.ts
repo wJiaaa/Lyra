@@ -158,6 +158,17 @@ function resolvedBackground(): string {
 	return bootTheme().background;
 }
 
+/**
+ * 主窗口在 macOS 上铺系统的毛玻璃材质，照 ZCode（`under-window`）。
+ *
+ * 只给主窗口：会话窗口和面板窗口整面都是不透明的卡片色，材质透不出来，给了只会让快速拉边时露出的
+ * 那一条从底色变成材质。Windows 有自己的 acrylic、Linux 没有，这里只做 macOS。
+ * 渲染进程那一侧（窗口底层半透明、侧边栏透明）挂在 `data-vibrancy` 上，见 `tabs.css`。
+ */
+function isVibrant(role: AppWindowRole): boolean {
+	return process.platform === "darwin" && role === "primary";
+}
+
 export function applyNativeAppearance(): void {
 	const theme = readSettings()?.appearance?.theme ?? "system";
 	nativeTheme.themeSource = theme === "light" || theme === "dark" ? theme : "system";
@@ -170,7 +181,7 @@ function bootTheme(): { dark: boolean; background: string; foreground: string; a
 		: nativeTheme.shouldUseDarkColors;
 	return {
 		dark,
-		background: dark ? (appearance?.darkBackground ?? "#171717") : (appearance?.lightBackground ?? "#ffffff"),
+		background: dark ? (appearance?.darkBackground ?? "#171717") : (appearance?.lightBackground ?? "#f8f8f8"),
 		foreground: dark ? (appearance?.darkForeground ?? "#d4d4d4") : (appearance?.lightForeground ?? "#262626"),
 		accent: appearance?.accent ?? "#339cff",
 	};
@@ -332,6 +343,7 @@ function buildAppWindow(options: {
 	const origin = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
 	const sessionBox = options.role === "aux" || options.role === "panel" ? sessionWindowBounds(origin) : null;
 	const windowId = options.role === "primary" ? "primary" : crypto.randomUUID();
+	const vibrant = isVibrant(options.role);
 	const win = new BrowserWindow({
 		/*
 		 * The icon, for the layouts that read it from the window.
@@ -366,7 +378,15 @@ function buildAppWindow(options: {
 		 * Hard-coded dark, it flashed a black frame on every drag under a light theme. Seeded
 		 * from the saved appearance here, and kept in step by `window:theme` afterwards.
 		 */
-		backgroundColor: resolvedBackground(),
+		// 毛玻璃底下的底色必须透明：不透明的一层会盖在材质上，材质就白开了。
+		backgroundColor: vibrant ? "#00000000" : resolvedBackground(),
+		...(vibrant
+			? {
+					vibrancy: "under-window" as const,
+					// 否则材质跟着焦点走，别的应用在前面时就变成一块平的灰。
+					visualEffectState: "active" as const,
+				}
+			: {}),
 		// The chrome in the design is drawn by the renderer; keep only the traffic lights.
 		titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
 		// 主窗口的顶行在浮起的卡片里，低 5px；会话和面板窗口贴顶。见 `MAIN_WINDOW_ROW_OFFSET`。
@@ -418,7 +438,7 @@ function buildAppWindow(options: {
 			backgroundThrottling: false,
 			// Read by the preload before the first frame, so the app never opens in the wrong theme.
 			additionalArguments: [
-				`--ly-boot=${encodeURIComponent(JSON.stringify(bootTheme()))}`,
+				`--ly-boot=${encodeURIComponent(JSON.stringify({ ...bootTheme(), vibrancy: vibrant }))}`,
 				`--ly-window=${windowId}`,
 				...(options.role === "aux" ? ["--ly-kind=session"] : []),
 				...(options.role === "panel" ? ["--ly-kind=panel"] : []),
@@ -616,7 +636,8 @@ export function registerWindowIpc(): void {
 		 * This is the surface a fast resize exposes before the renderer has reflowed, so it has
 		 * to track the theme — otherwise dragging an edge flashes the old palette's background.
 		 */
-		window.setBackgroundColor(colors.color);
+		// 毛玻璃窗口的底色一直是透明的，刷上主题色就把材质盖住了。
+		if (!isVibrant(windowMeta.get(window)?.role ?? "aux")) window.setBackgroundColor(colors.color);
 		/*
 		 * Only Windows and Linux have a system-drawn title strip — macOS keeps its own lights
 		 * outside the page — and Electron throws if the window was not created with an overlay,

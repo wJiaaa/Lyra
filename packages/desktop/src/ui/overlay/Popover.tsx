@@ -577,22 +577,13 @@ export function Popover({
 		};
 	}, [anchor, dismiss, self, overlayDepth]);
 
-	// Frosted: every surface a menu opens over paints a background of its own for it to blur.
-	const surface = "ly-glass";
-
 	/*
 	 * Rendered into `<body>`, not where it was written.
 	 *
 	 * A popover is `position: fixed` and positioned from window coordinates, so where it sits in
-	 * the tree never affected where it appeared — until it did. `backdrop-filter` samples what has
-	 * been painted *inside the nearest backdrop root*, and a `mask` makes an element one. Every
-	 * scroller in this app that softens its edges carries a mask, so a menu opened inside one was
-	 * blurring that scroller's own transparent background instead of the page: the frosted panel
-	 * kept its tint and its shadow and lost the blur, and the text underneath came through sharp.
-	 *
-	 * The same containment would eventually have clipped a menu against an ancestor's `overflow`
-	 * as well. Both problems are the same problem — a transient layer that belongs on top of the
-	 * window should not be a descendant of anything in it.
+	 * the tree never affected where it appeared — until an ancestor's `overflow`, `mask` or
+	 * `transform` clips it or becomes its containing block. A transient layer that belongs on top
+	 * of the window should not be a descendant of anything in it.
 	 */
 	return portal(/* Everything drawn in here is inside this popover, and so must not close it. */
 		<PopoverChain.Provider value={chain}>
@@ -620,7 +611,7 @@ export function Popover({
 				 * The hole goes when the popover does, so the strip drags again once it closes.
 				 */
 				// `line-float` 而不是 `line`：`line` 是按页面算的，画在比页面亮的浮层上是一圈暗边。
-				className={`${surface} ly-menu-card no-drag fixed z-[60] flex flex-col overflow-hidden border border-line-float ${
+				className={`ly-menu-card no-drag fixed z-[60] flex flex-col overflow-hidden border border-line-float ${
 					leaving ? "ly-pop-out" : placed ? "ly-pop-in" : ""
 				} ${className}`}
 			>

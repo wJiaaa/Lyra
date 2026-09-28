@@ -31,6 +31,7 @@ import { DropLineIndicator } from "./DropIndicator.tsx";
 import { useRowLit } from "./use-row-lit.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { TimeAgo } from "../../ui/primitives/TimeAgo.tsx";
 
 /**
  * How recently a conversation must have been created for its row to drop in.
@@ -245,6 +246,14 @@ export function SessionRow({
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
 				<SessionStatus activity={rowActivity(activity, sideRunning, active)} />
 				<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
+				{/*
+				 * 最后活动距今多久，占的是悬停按钮落下的那一角：按钮出来时它让位，两者从不同时出现。
+				 * 不管列表按哪个时间排，这里都是 updatedAt——扫一眼要回答的是「这条多久没动了」。
+				 */}
+				<TimeAgo
+					iso={new Date(session.updatedAt).toISOString()}
+					className="shrink-0 text-caption text-ink-muted transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0"
+				/>
 			</button>
 
 			<HoverRowReveal className="rounded-r-lg">

@@ -82,10 +82,10 @@ export function ChatList({
 				// The gap sits on the band rather than on its heading — see `BandHead`. The first
 				// band gets none: it opens the list, and a list that starts with a gap reads as
 				// something above it having failed to render.
-				<div key={band.key} className={index === 0 ? "" : "mt-3"}>
+				<div key={band.key} data-ly-band className={index === 0 ? "" : "mt-3"}>
 					{/* Held at the rail for as long as this band is what you are scrolling through —
 					    see `ProjectGroup` for why being sticky inside the band is the hand-off. */}
-					<div data-ly-head className="ly-pin sticky top-[var(--ly-rail)] z-20">
+					<div data-ly-head className="sticky top-[var(--ly-rail)] z-20">
 						<BandHead label={band.label} />
 					</div>
 					<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[2px] pt-[4px]"}`}>

@@ -48,7 +48,7 @@ export const FACTORY_APPEARANCE: Appearance = {
 	// 跟着系统走。没表过态的人是什么主题，按下这颗按钮之后就该回到什么主题。
 	theme: "system",
 	accent: "#339CFF",
-	lightBackground: "#FFFFFF",
+	lightBackground: "#F8F8F8",
 	lightForeground: "#262626",
 	darkBackground: "#171717",
 	darkForeground: "#D4D4D4",

@@ -77,19 +77,19 @@
   --radius-field: 999px;
   --ly-control: 34px;
   /*
-   * Floating menus are a soft card, and the hover follows the card.
+   * Floating menus are a card with rows inside it.
    *
    * The inset is the same on every side so a hover fill is not closer to the
-   * left edge than the right. The row radius is that leftover (12 − 4): an
-   * active row and the card share one curve instead of a pill sitting inside
-   * a box. 999 was the other language, and it read as two menus glued together.
+   * left edge than the right. 999 was the other language, and it read as two
+   * menus glued together.
    *
-   * 数值对齐 ZCode：12px 的卡、4px 的内衬、32px 的行。之前是 16 / 6 / 36，一张菜单
-   * 圆得像气泡，行也松，同样几个项目要多占三分之一的高度。
+   * 数值对齐 ZCode（DESIGN.md「Menus and selection overlays」）：卡 `rounded-lg` 8px、行
+   * `rounded-md` 6px、4px 的内衬；32px 的行约等于它 14px 字号下 `py-1` 加 relaxed 行高撑出来的
+   * 31px。之前卡 12 / 行 8，一张小菜单圆得发软。
    */
-  --radius-menu: 12px;
+  --radius-menu: 8px;
   --ly-menu-inset: 4px;
-  --radius-item: 8px;
+  --radius-item: 6px;
   --ly-menu-row: 32px;
   /*
    * Composer chrome. Three numbers, used by every field that looks like the

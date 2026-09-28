@@ -40,6 +40,7 @@ export function ShowMore({
 		return (
 			<button
 				type="button"
+				data-ly-fades
 				onClick={onShowMore}
 				className={`group/more flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-2 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink-muted active:bg-elevated ${heightClass}`}
 			>
@@ -61,6 +62,7 @@ export function ShowMore({
 		return (
 			<button
 				type="button"
+				data-ly-fades
 				onClick={onCollapse}
 				className={`group/more flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-2 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink-muted active:bg-elevated ${heightClass}`}
 			>
@@ -75,7 +77,7 @@ export function ShowMore({
 	}
 
 	return (
-		<div className={`flex w-full min-w-0 items-center justify-between gap-1 rounded-lg ${heightClass}`}>
+		<div data-ly-fades className={`flex w-full min-w-0 items-center justify-between gap-1 rounded-lg ${heightClass}`}>
 			<button
 				type="button"
 				onClick={onShowMore}

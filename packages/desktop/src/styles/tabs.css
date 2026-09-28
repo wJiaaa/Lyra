@@ -83,6 +83,39 @@
   background: var(--color-sidebar);
 }
 
+/*
+ * macOS 主窗口的毛玻璃，照 ZCode：窗口底层是一层半透明的底色叠在系统材质上，侧边栏自己不刷底，
+ * 和卡片之间的缝一起透出这一层。浅色取背景色 70%，深色取浮层色 60%——ZCode 浅色是
+ * `--color-background` 70%、深色是 `#2b2b2b`（它的浮层色）60%，这里换成跟着外观设置走的同位 token。
+ *
+ * 标记由 preload 按主进程的决定打上（`electron/window.ts` 的 `isVibrant`），没有材质的窗口不会有它，
+ * 这几条就不生效，底层照旧是上面的不透明侧边栏色。
+ */
+:root[data-vibrancy="on"] {
+  --ly-window-tint: color-mix(in oklab, var(--color-shell) 70%, transparent);
+}
+
+:root.dark[data-vibrancy="on"] {
+  --ly-window-tint: color-mix(in oklab, var(--color-float) 60%, transparent);
+}
+
+:root[data-vibrancy="on"] body {
+  background: transparent;
+}
+
+:root[data-vibrancy="on"] :is(.ly-window-body, [data-ly-workspace-window], [data-ly-settings]) {
+  background: var(--ly-window-tint);
+}
+
+:root[data-vibrancy="on"] .ly-sidebar-fill {
+  background: transparent;
+}
+
+/* 抽屉盖在正文上，透明就是两层字叠在一起，照旧用不透明的侧边栏色。 */
+:root[data-vibrancy="on"] [data-pane="drawer"] .ly-sidebar-fill {
+  background: var(--color-sidebar);
+}
+
 .ly-frames {
   padding: var(--ly-frame-pad);
 }

@@ -21,7 +21,7 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 	if (!viewAvailable("settings")) return null;
 
 	return (
-		<div className={`ly-sidebar-foot flex shrink-0 items-center gap-2 border-t border-line ${compact ? "p-3" : "p-2.5"}`}>
+		<div className={`ly-sidebar-foot flex shrink-0 items-center gap-2 ${compact ? "p-3" : "p-2.5"}`}>
 			<button
 				type="button"
 				onClick={() => {

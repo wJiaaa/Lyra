@@ -152,10 +152,10 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * the wrong frame of reference.
 		 *
 		 * A veil instead, like `--color-elevated` above: a wash of the foreground at a fixed opacity,
-		 * which lands the same distance above whatever it is over. Slightly stronger than `elevated`
-		 * because a hairline has one pixel to make its case.
+		 * which lands the same distance above whatever it is over. 10%, ZCode's `--color-border`:
+		 * 14% drew a menu's outline and separators as a visible frame rather than an edge.
 		 */
-		"--color-line-float": veil(dark ? 0.14 : 0.12),
+		"--color-line-float": veil(0.1),
 		"--color-ink": toHex(foreground),
 		// ZCode（zai 主题）的 foreground-subtle：正文色的 60%。最浅那档 ZCode 浅色 40%、深色 30%，
 		// 深色 30% 在深色底上过程行（思考、工具）读不清，提到 50%。

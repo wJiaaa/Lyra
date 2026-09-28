@@ -69,15 +69,8 @@
   /* A veil of the ink rather than `--color-line-soft`: that one is a line drawn *on* the page and
    * barely separates a card from the darker window surface around it. */
   border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
+  /* 不投影，和 ZCode 的工作区面板一样：底色、10% 描边和 12px 圆角都已对齐，它只靠卡片之间露出的窗口底色分层。 */
   border-radius: var(--radius-panel);
-  /*
-   * A shadow small enough to be felt rather than seen.
-   *
-   * It is what makes a panel read as resting *on* the conversation instead of merely next to it —
-   * the border alone puts them on the same plane. Anything heavier and five open panels would each
-   * be casting their own weather over the page.
-   */
-  box-shadow: 0 1px 3px -1px rgb(0 0 0 / 0.16);
 }
 
 .ly-dock-pane {

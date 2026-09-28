@@ -59,6 +59,7 @@ export function ProjectGroup({
 
 	return (
 		<div
+			data-ly-band
 			className={`relative mb-2 flex flex-col transition-opacity duration-[var(--ly-t-quick)] ${
 				isDraggingThisProject ? "opacity-35" : ""
 			}`}
@@ -72,11 +73,12 @@ export function ProjectGroup({
 			 * heading arrives on its own. There is no code for that anywhere — it falls out of where
 			 * the element sits.
 			 *
-			 * `ly-pin` is the opaque fill it needs to hide the rows passing underneath, and
-			 * `data-ly-head` is what the fade measures against so the list softens below it rather
-			 * than through it.
+			 * No fill: the rows passing underneath fade out before they get there, and so does this
+			 * heading before the next one pushes it under the strip — `data-ly-band` is what that
+			 * fade reads (`ly-under-pin`). `data-ly-head` is what the fade measures against so the
+			 * list softens below it rather than through it.
 			 */}
-			<div data-ly-head className="ly-pin sticky top-[var(--ly-rail)] z-20">
+			<div data-ly-head className="sticky top-[var(--ly-rail)] z-20">
 				<ProjectHead group={group} collapsed={collapsed} onToggleCollapsed={onToggleCollapsed} />
 			</div>
 

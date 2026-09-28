@@ -170,7 +170,8 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	 */
 	theme: "system",
 	accent: "#339CFF",
-	lightBackground: "#FFFFFF",
+	// ZCode zai-light 的 `--color-background`。菜单和输入框的浮层色由它往白混 80%，约 #fefefe，比页面亮一档。
+	lightBackground: "#F8F8F8",
 	// ZCode 实际生效的 zai-light / zai-dark 主题：neutral-800 / neutral-300。
 	lightForeground: "#262626",
 	darkBackground: "#171717",
