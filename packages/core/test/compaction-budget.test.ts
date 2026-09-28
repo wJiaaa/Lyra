@@ -129,3 +129,22 @@ test("a measured history the cut cannot bring under the margin is still summaris
 	assert.ok(result?.kept !== undefined, "it summarised");
 	assert.equal(requests.length, 1);
 });
+
+test("the reply the summary request asks for is the room the pre-send check kept for it", async () => {
+	// Measured at twice the estimate: the check prices the history calibrated, so the reply it lets
+	// through has to be the one it reserved, not one sized again from the uncalibrated estimate.
+	const m: ModelConfig = { ...model(10_000), maxOutputTokens: 8000 };
+	const history: Message[] = [user("开始")];
+	for (let i = 0; i < 12; i++) history.push(say(`步骤 ${i} ${"x".repeat(1200)}`), user(`继续 ${"y".repeat(1200)}`));
+	history.push(say("完成", estimateTokens(history) * 2));
+	const sent: { context: LlmContext; maxTokens?: number }[] = [];
+	const stream = async function* (_p: unknown, _m: unknown, context: LlmContext, options: { maxTokens?: number }) {
+		sent.push({ context, maxTokens: options.maxTokens });
+		yield { type: "start" as const, partial: say("") };
+		return say("摘要");
+	};
+	await compactIfNeeded(history, m, provider(m), stream as never);
+	assert.equal(sent.length, 1, "precondition: a summary was asked for");
+	const input = requestTokens(sent[0].context) * 2;
+	assert.ok(input + (sent[0].maxTokens ?? m.maxOutputTokens) <= m.contextWindow, `calibrated input ${input} + reply ${sent[0].maxTokens} fits the window`);
+});

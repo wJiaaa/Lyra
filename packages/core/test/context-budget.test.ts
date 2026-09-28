@@ -61,7 +61,8 @@ test("summary requests use their own prompt budget and ignore retired provider m
 	await compactIfNeeded(messages, model, provider, async function* (_provider, active, context, config) {
 		sent = true;
 		assert.equal(active.id, summarizer.id);
-		assert.equal(config?.maxTokens, contextMaxTokens(active, context, 6000, true));
+		// The room the pre-send check reserved: a quarter of this small summariser's window.
+		assert.equal(config?.maxTokens, 1500);
 		assert.ok(estimateTokens(context.messages) + textTokens(context.systemPrompt) + config!.maxTokens! + 60 <= active.contextWindow);
 		yield { type: "start" as const, partial: reply("") };
 		return reply("Summary");

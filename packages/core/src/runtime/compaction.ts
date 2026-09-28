@@ -30,7 +30,7 @@ import { streamAssistant } from "../ai/index.ts";
 import { estimateTokens } from "../tokens.ts";
 import { allowance, dropUneventful, FRESH_RESULT_MAX_CHARS, pruneToolResults, type ArtifactSink } from "./prune.ts";
 import { dropStaleResults } from "./stale-results.ts";
-import { contextMaxTokens, measureTotal, textTokens } from "./context.ts";
+import { measureTotal, textTokens } from "./context.ts";
 import { stripStaleHandles } from "./model-switch.ts";
 import { formatTaskContext, taskContextFromHistory } from "./task-context.ts";
 import type { CompactionContext } from "../types/message.ts";
@@ -670,7 +670,8 @@ async function summarize(
 	 * long `/compact` focus, 40% of the window is more than is left.
 	 */
 	const inflate = Math.max(1, scale);
-	// Room kept for the summary itself. `contextMaxTokens` hands it whatever is left; a quarter of the
+	// Room kept for the summary itself, and exactly what the request asks for: sized again from the
+	// uncalibrated estimate, it overran what the pre-send check below had priced in. A quarter of the
 	// window is more than a handover needs, and a small summariser cannot give up more.
 	const reply = Math.min(8000, model.maxOutputTokens, Math.floor(model.contextWindow * 0.25));
 	const fixed = textTokens(SUMMARY_SYSTEM) + estimateTokens([instruction]);
@@ -698,7 +699,7 @@ async function summarize(
 	let final: IteratorResult<import("../types.ts").StreamEvent, AssistantMessage>;
 	try {
 		const stream = streamFn(provider, model, context, {
-			thinking: "off", maxTokens: contextMaxTokens(model, context, Math.min(8000, model.maxOutputTokens), true), signal: manual?.signal ?? observer?.signal,
+			thinking: "off", maxTokens: reply, signal: manual?.signal ?? observer?.signal,
 			onRetry: observer ? ({ delayMs, failure }) => {
 				pending = pending.then(() => observer.progress({ phase: "retrying", delayMs, fault: failure ? faultOf(failure) : { kind: "unknown" } })).catch((error: unknown) => { recordError = error; });
 			} : undefined,
