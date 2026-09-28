@@ -28,9 +28,9 @@ import type { CompactionObserver, CompactionFault } from "../types/compaction.ts
 import type { CompactionRequest, CompactionStrategy } from "../kernel/services.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { estimateTokens } from "../tokens.ts";
-import { dropUneventful, FRESH_RESULT_MAX_CHARS, pruneToolResults, type ArtifactSink } from "./prune.ts";
+import { allowance, dropUneventful, FRESH_RESULT_MAX_CHARS, pruneToolResults, type ArtifactSink } from "./prune.ts";
 import { dropStaleResults } from "./stale-results.ts";
-import { contextMaxTokens, measureTotal } from "./context.ts";
+import { contextMaxTokens, measureTotal, textTokens } from "./context.ts";
 import { stripStaleHandles } from "./model-switch.ts";
 import { formatTaskContext, taskContextFromHistory } from "./task-context.ts";
 import type { CompactionContext } from "../types/message.ts";
@@ -312,11 +312,6 @@ export async function compactIfNeeded(
 	 *
 	 * Cheapest thing first, by a wide margin: cutting is string work, summarising is a model call
 	 * that is slow, billed, and least reliable exactly when the window is tight.
-	 *
-	 * Priced against the cut copy rather than as a saving against the uncut one. The turn is handed
-	 * the conversation as the log holds it, in full, while the request that produced `used` had
-	 * already been cut — so an estimate over the uncut text and a measurement of cut text are not
-	 * comparable, and subtracting one from the other books a saving that was banked turns ago.
 	 */
 	/*
 	 * Results with nothing in them go first, before anything with content is touched.
@@ -343,9 +338,26 @@ export async function compactIfNeeded(
 	const unseenPruned = pruneToolResults(unseenPart, FRESH_RESULT_MAX_CHARS, artifacts);
 	const pruned = seenPruned === seenPart && unseenPruned === unseenPart ? stale : [...seenPruned, ...unseenPruned];
 	if (pruned !== messages) {
-		const rawPruned = estimateTokens(pruned);
-		const factor = measured.measured && rawPruned > 0 ? Math.max(0, used - overhead) / rawPruned : 1;
-		const next = rawPruned * factor + overhead;
+		/*
+		 * Priced by calibrating the estimate on the view that was measured, then applying that same
+		 * calibration to the cut copy. Dividing the measurement by an estimate of the cut copy instead
+		 * gives back `used` for any cut at all, so this path could never be taken with a measured
+		 * usage: a history estimated at 8.6k tokens cut to 1.5k still asked for a summary.
+		 *
+		 * `messages` stands in for what the last request sent. Every automatic caller is the loop,
+		 * which passes the array it sent — `AgedToolPruner` puts back the views it sent before, so a
+		 * result it already cut arrives cut and saves nothing twice — plus what arrived since. The
+		 * approximation errs cautious when the pruner cut more this turn (the estimate is below what
+		 * was measured, the calibration above the truth). It errs eager in one case: after a restart
+		 * the pruner no longer holds a view an earlier compaction adopted, so a result that went out
+		 * cut arrives whole and its cut is booked again. The cut copy is then roughly what was already
+		 * sent and measured, so the request is no bigger than the last one, and the next turn measures
+		 * it with the view adopted. `/compact` passes the log in full, but it forces a summary and
+		 * never takes this path.
+		 */
+		const sent = estimateTokens(messages);
+		const calibration = measured.measured && sent > 0 ? Math.max(0, used - overhead) / sent : 1;
+		const next = estimateTokens(pruned) * calibration + overhead;
 		/*
 		 * And it has to clear the line by a margin, because both sides of that product are estimates
 		 * and being wrong in the eager direction sends a turn that does not fit — which comes back
@@ -376,6 +388,10 @@ export async function compactIfNeeded(
 	 * applies to the messages alone, never to the overhead: `used` covers prompt, schemas and
 	 * history, `raw` estimates only the history, and dividing one by the other would bake a
 	 * constant into a variable.
+	 *
+	 * Divided by the cut copy, not by what was sent: `/compact` hands over the log in full, which can
+	 * be many times what was measured, and a scale that runs low here lets the summary request and
+	 * the kept tail outgrow the window. Over the cut copy it can only run high, the safe way.
 	 */
 	const raw = estimateTokens(messages);
 	const conversation = Math.max(0, used - overhead);
@@ -638,24 +654,28 @@ async function summarize(
 			message.content.some((block) => block.type === "text" && block.text.includes("<session-summary>")),
 	);
 
-	const context: LlmContext = {
-		systemPrompt: SUMMARY_SYSTEM,
-		messages: [
-			/*
-			 * 预算按实测比例折回字符估算的单位。估算是「字符 / 3.5」，中文和密集 JSON 上会低估到
-			 * 三分之一，不校正的话 40% 的预算实际发出去超过整个窗口，摘要请求被拒，退回机械兜底。
-			 * 只往保守方向校正：摘要模型可能换了分词器，估算偏高时不据此多塞。
-			 */
-			...condense(messages, (model.contextWindow * SUMMARY_INPUT) / Math.max(1, scale)),
-			{
-				role: "user",
-				content: [{ type: "text", text: [iterative ? UPDATE_SUMMARY : FIRST_SUMMARY,
-					manual?.instructions?.trim() ? `User-requested summary focus (preserve the required handover structure and outstanding tasks):\n${manual.instructions.trim()}` : ""].filter(Boolean).join("\n\n") }],
-				timestamp: Date.now(),
-			},
-		],
-		tools: [],
+	const instruction: Message = {
+		role: "user",
+		content: [{ type: "text", text: [iterative ? UPDATE_SUMMARY : FIRST_SUMMARY,
+			manual?.instructions?.trim() ? `User-requested summary focus (preserve the required handover structure and outstanding tasks):\n${manual.instructions.trim()}` : ""].filter(Boolean).join("\n\n") }],
+		timestamp: Date.now(),
 	};
+	/*
+	 * 预算按实测比例折回字符估算的单位。估算是「字符 / 3.5」，中文和密集 JSON 上会低估到
+	 * 三分之一，不校正的话 40% 的预算实际发出去超过整个窗口，摘要请求被拒，退回机械兜底。
+	 * 只往保守方向校正：摘要模型可能换了分词器，估算偏高时不据此多塞。
+	 *
+	 * The history's share is also capped by what the request leaves once the system prompt, the
+	 * instruction and the reply it asks for are paid for — on a small summariser window, or beside a
+	 * long `/compact` focus, 40% of the window is more than is left.
+	 */
+	const inflate = Math.max(1, scale);
+	// Room kept for the summary itself. `contextMaxTokens` hands it whatever is left; a quarter of the
+	// window is more than a handover needs, and a small summariser cannot give up more.
+	const reply = Math.min(8000, model.maxOutputTokens, Math.floor(model.contextWindow * 0.25));
+	const fixed = textTokens(SUMMARY_SYSTEM) + estimateTokens([instruction]);
+	const history = condense(messages, Math.min(model.contextWindow * SUMMARY_INPUT / inflate, (model.contextWindow - reply) / inflate - fixed));
+	const context: LlmContext = { systemPrompt: SUMMARY_SYSTEM, messages: [...history, instruction], tools: [] };
 	// Provider callbacks are synchronous; serialize their durable records and drain before completion.
 	let pending = Promise.resolve();
 	let recordError: unknown;
@@ -664,6 +684,17 @@ async function summarize(
 		if (!observer?.signal?.aborted) await observer?.progress({ phase: "fallback", fault });
 		return null;
 	};
+	/*
+	 * Checked before sending, not left to the provider to refuse.
+	 *
+	 * `condense` cannot always reach its budget — images have a fixed weight, and a focus longer than
+	 * the window leaves no budget at all. A request known not to fit only spends a retry cycle to be
+	 * refused, and on some relays is refused as something that looks retryable.
+	 */
+	if ((fixed + estimateTokens(history)) * inflate + reply > model.contextWindow) {
+		if (manual) throw new Error("摘要请求放不进摘要模型的上下文窗口，原上下文保持不变。可以缩短压缩说明，或换一个窗口更大的压缩模型。");
+		return decline({ kind: "fatal", hint: "check-request" });
+	}
 	let final: IteratorResult<import("../types.ts").StreamEvent, AssistantMessage>;
 	try {
 		const stream = streamFn(provider, model, context, {
@@ -704,36 +735,114 @@ async function summarize(
  * failed — and those are exactly what the summary is for. Every message keeps its head and its
  * tail instead: the head says what was being attempted, the tail says how it turned out, and
  * the middle of a 900-line file is what nobody needs in a summary of the work.
+ *
+ * The budget holds for the result as a whole. Every message is held to one shared limit, the
+ * largest at which the total still fits, so short messages stay whole; inside a message its parts
+ * share that limit the same way, so ten long blocks split one allowance instead of taking ten.
+ * Only when even `CONDENSE_FLOOR` per message cannot fit — thousands of messages — does a step
+ * go, and then the oldest ones after the opening request (see `elide`).
  */
 function condense(messages: Message[], budget: number): Message[] {
 	if (estimateTokens(messages) <= budget) return messages;
-	// Characters, since that is what the estimate is derived from.
-	const perMessage = Math.max(200, Math.floor((budget * 3.5) / Math.max(1, messages.length)));
+	const fits = (list: Message[], limit: number) => estimateTokens(clipAll(list, limit)) <= budget;
+	const kept = fits(messages, CONDENSE_FLOOR) ? messages : elide(messages, budget);
 
-	return messages.map((message) => ({
-		...message,
-		content: message.content.map((part) => {
-			if (part.type === "text") return { ...part, text: clip(part.text, perMessage) };
-			if (part.type === "thinking") return { ...part, thinking: clip(part.thinking, Math.floor(perMessage / 3)) };
-			if (part.type === "toolCall") {
-				/*
-				 * 剪参数对象里的长字符串，再让原文跟着它重新序列化。
-				 *
-				 * 以前只剪 `argumentsText`、把 `arguments` 置空：OpenAI 两种协议读原文，还看得到路径和
-				 * 命令；Anthropic 只读 `arguments`，摘要模型看到的每一次调用都是 `{}`，写不出改过哪个文件。
-				 * 两份同源，任何协议读到的都是同一份剪短的参数。
-				 */
-				const args = clipValues(part.arguments ?? {}, perMessage) as Record<string, unknown>;
-				if (args !== part.arguments) return { ...part, arguments: args, argumentsText: JSON.stringify(args) };
-				// 参数没解析出来、只剩流式原文（截断 JSON 的抢救稿）时，能剪的只有原文。
-				if (Object.keys(args).length === 0 && part.argumentsText && part.argumentsText.length > perMessage) {
-					return { ...part, argumentsText: clip(part.argumentsText, perMessage) };
+	let low = 0;
+	let high = 1;
+	for (const message of kept) high = Math.max(high, message.content.reduce((sum, part) => sum + partLength(part), 0));
+	// Largest limit that fits; the total only grows with the limit, so bisecting finds it.
+	while (low < high) {
+		const mid = Math.ceil((low + high) / 2);
+		if (fits(kept, mid)) low = mid;
+		else high = mid - 1;
+	}
+	return clipAll(kept, low);
+}
+
+/**
+ * How short a message may be clipped before steps are dropped instead.
+ *
+ * About a line: enough to say which file and which command. Below that the steps are all still
+ * there and none of them says anything, and dropping the oldest is the better loss.
+ */
+const CONDENSE_FLOOR = 100;
+
+function partLength(part: Message["content"][number]): number {
+	if (part.type === "text") return part.text.length;
+	if (part.type === "thinking") return part.thinking.length;
+	if (part.type === "toolCall") return (part.argumentsText ?? JSON.stringify(part.arguments ?? {})).length;
+	return 0;
+}
+
+/**
+ * Every message held to about `limit` characters, shared out among its parts by `allowance` —
+ * thinking gets a third of its share, since it is the least needed. About, because a tool call's
+ * strings are clipped one by one and then re-serialised; `condense` measures the result rather
+ * than trusting this.
+ */
+function clipAll(messages: Message[], limit: number): Message[] {
+	return messages.map((message) => {
+		const share = allowance(message.content.map(partLength), limit);
+		return {
+			...message,
+			content: message.content.map((part) => {
+				if (part.type === "text") return { ...part, text: clip(part.text, share) };
+				if (part.type === "thinking") return { ...part, thinking: clip(part.thinking, Math.floor(share / 3)) };
+				if (part.type === "toolCall") {
+					/*
+					 * 剪参数对象里的长字符串，再让原文跟着它重新序列化。
+					 *
+					 * 以前只剪 `argumentsText`、把 `arguments` 置空：OpenAI 两种协议读原文，还看得到路径和
+					 * 命令；Anthropic 只读 `arguments`，摘要模型看到的每一次调用都是 `{}`，写不出改过哪个文件。
+					 * 两份同源，任何协议读到的都是同一份剪短的参数。
+					 */
+					const args = clipValues(part.arguments ?? {}, share) as Record<string, unknown>;
+					if (args !== part.arguments) return { ...part, arguments: args, argumentsText: JSON.stringify(args) };
+					// 参数没解析出来、只剩流式原文（截断 JSON 的抢救稿）时，能剪的只有原文。
+					if (Object.keys(args).length === 0 && part.argumentsText && part.argumentsText.length > share) {
+						return { ...part, argumentsText: clip(part.argumentsText, share) };
+					}
+					return part;
 				}
 				return part;
-			}
-			return part;
-		}),
-	})) as Message[];
+			}),
+		} as Message;
+	});
+}
+
+/**
+ * The history with the oldest steps after its opening removed, until the rest fits at the floor.
+ *
+ * The opening is the goal — the user's first request, or the previous summary that carries it —
+ * and the newest steps are what the summary has to bring up to date, so what goes is the stretch
+ * just after the opening. A note stands where it was, so the summariser writes around a gap it
+ * knows about instead of reading two distant steps as consecutive. Cut on whole units: a tool
+ * result without its call is rejected by both APIs, and so is a call without its result.
+ */
+function elide(messages: Message[], budget: number): Message[] {
+	const unit = (from: number) => {
+		let to = from + 1;
+		while (to < messages.length && messages[to].role === "toolResult") to++;
+		return to;
+	};
+	const head = unit(0);
+	const cost = messages.map((message) => estimateTokens(clipAll([message], CONDENSE_FLOOR)));
+	const note = (count: number): Message => ({
+		role: "user",
+		content: [{ type: "text", text: `[${count} earlier messages omitted here to fit the summary request. They are still in the session log; summarise around the gap and do not guess what was in it.]` }],
+		timestamp: messages[head]?.timestamp ?? messages[0].timestamp,
+		synthetic: true,
+	});
+	let rest = cost.slice(head).reduce((sum, value) => sum + value, 0);
+	const fixed = cost.slice(0, head).reduce((sum, value) => sum + value, 0) + estimateTokens([note(messages.length)]);
+	let from = head;
+	while (from < messages.length && fixed + rest > budget) {
+		const to = unit(from);
+		for (let at = from; at < to; at++) rest -= cost[at];
+		from = to;
+	}
+	if (from === head) return messages;
+	return [...messages.slice(0, head), note(from - head), ...messages.slice(from)];
 }
 
 /** 参数对象里超长的字符串逐个剪短；没有要剪的就原样返回同一个对象。 */
@@ -755,7 +864,9 @@ function clip(text: string, limit: number): string {
 	if (text.length <= limit) return text;
 	const head = Math.ceil(limit * 0.7);
 	const tail = limit - head;
-	return `${text.slice(0, head)}\n…（省略 ${text.length - limit} 字）…\n${text.slice(-tail)}`;
+	const clipped = `${text.slice(0, head)}\n…（省略 ${text.length - limit} 字）…\n${text.slice(text.length - tail)}`;
+	// Just over the limit, the marker is longer than what it replaces; a clip must never grow the text.
+	return clipped.length < text.length ? clipped : text;
 }
 
 /**

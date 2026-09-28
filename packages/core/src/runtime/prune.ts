@@ -104,11 +104,42 @@ export function pruneText(text: string, threshold = PRUNE_THRESHOLD_CHARS, addre
 	 * it saves nothing and rewrites the middle of the conversation to do it.
 	 */
 	if (points.length <= PRUNE_FLOOR_CHARS) return null;
+	return cutTo(points, threshold, address);
+}
 
-	const head = points.slice(0, PRUNE_HEAD_CHARS).join("");
-	const tail = points.slice(points.length - PRUNE_TAIL_CHARS).join("");
-	const omitted = points.length - PRUNE_HEAD_CHARS - PRUNE_TAIL_CHARS;
-	return `${head}${marker(omitted, address)}${tail}`;
+/**
+ * `points` cut so that head, marker and tail together take at most `room` code points.
+ *
+ * A room that holds the default head and tail gets exactly those, so a lone result is cut the way
+ * it always was. A smaller one — a block sharing the threshold with its neighbours — keeps the same
+ * four-to-one split of what is left once the marker is paid for. Never below the floor: a cut that
+ * keeps less than the marker is all marker.
+ */
+function cutTo(points: string[], room: number, address?: string): string | null {
+	const keep = Math.max(PRUNE_FLOOR_CHARS, Math.min(PRUNE_HEAD_CHARS + PRUNE_TAIL_CHARS, room - [...marker(points.length, address)].length));
+	const head = Math.min(PRUNE_HEAD_CHARS, Math.ceil(keep * 0.8));
+	const tail = Math.min(PRUNE_TAIL_CHARS, keep - head);
+	const note = marker(points.length - head - tail, address);
+	// Only reachable with a room below the marker's own length; a "cut" that grows the text is not one.
+	if (head + tail + [...note].length >= points.length) return null;
+	return `${points.slice(0, head).join("")}${note}${points.slice(points.length - tail).join("")}`;
+}
+
+/**
+ * The largest per-block allowance under which `sizes`, each held to it, sum to at most `budget`.
+ *
+ * Water-filling: blocks smaller than the allowance keep all of theirs and leave the remainder to
+ * the ones that are not, so a small block beside a huge one is never touched.
+ */
+export function allowance(sizes: number[], budget: number): number {
+	const ordered = [...sizes].sort((a, b) => a - b);
+	let left = budget;
+	for (let i = 0; i < ordered.length; i++) {
+		const share = Math.floor(left / (ordered.length - i));
+		if (ordered[i] > share) return share;
+		left -= ordered[i];
+	}
+	return Number.POSITIVE_INFINITY;
 }
 
 /**
@@ -131,30 +162,52 @@ function pruneMessage(message: Message, threshold: number, artifacts?: ArtifactS
 	if (message.role !== "toolResult") return message;
 
 	/*
-	 * Measured over the text blocks together, cut on the one that is actually big.
+	 * Measured over the text blocks together, and cut back inside that same total.
 	 *
 	 * A result is usually one text block, but it does not have to be. Judging each block on its own
-	 * would let ten blocks of eight thousand characters through, and cutting every block to a share
-	 * of the budget would mangle a small block sitting beside a huge one.
+	 * would let ten blocks of eight thousand characters through, and cutting every block to an equal
+	 * share would mangle a small block sitting beside a huge one. So the threshold is shared out by
+	 * `allowance`: small blocks keep everything, the big ones split what is left.
 	 */
-	const total = message.content.reduce((sum, block) => sum + (block.type === "text" ? [...block.text].length : 0), 0);
+	const texts = message.content.flatMap((block, index) => (block.type === "text" ? [{ index, points: [...block.text] }] : []));
+	const total = texts.reduce((sum, block) => sum + block.points.length, 0);
 	if (total <= threshold) return message;
+	const tool = message.toolName ?? "工具";
+	const level = allowance(texts.map((block) => block.points.length), threshold);
+	const content = [...message.content];
+
+	/*
+	 * Too many big blocks to give each its own marker and still keep a readable head: cut them as one.
+	 *
+	 * Measured against the marker without an address, which is longer than one with an
+	 * `artifact://` address, so the decision does not have to store anything first.
+	 */
+	if (level - [...marker(total)].length < PRUNE_FLOOR_CHARS) {
+		const joined = texts.map((block) => block.points.join("")).join("\n\n");
+		const address = artifacts ? artifacts.keep(tool, joined) : undefined;
+		const cut = cutTo([...joined], threshold, address);
+		if (cut === null) return message;
+		content[texts[0].index] = { type: "text", text: cut };
+		const dropped = new Set(texts.slice(1).map((block) => block.index));
+		return derive(message, { ...message, content: content.filter((_, index) => !dropped.has(index)) } as ToolResultMessage);
+	}
 
 	let cut = false;
-	const content = message.content.map((block) => {
-		if (block.type !== "text") return block;
+	for (const block of texts) {
+		if (block.points.length <= level) continue;
 		/*
 		 * 先存原文，再剪。
 		 *
 		 * 反过来的话存进去的就是剪过的那份，而那正是模型已经有的东西——一个取回来跟手上一样的
-		 * 地址，比没有这个地址更浪费。
+		 * 地址，比没有这个地址更浪费。只存真要剪的块：没剪的块模型手上就是全文。
 		 */
-		const address = artifacts ? artifacts.keep(message.toolName ?? "工具", block.text) : undefined;
-		const pruned = pruneText(block.text, threshold, address);
-		if (pruned === null) return block;
+		const text = (message.content[block.index] as { text: string }).text;
+		const address = artifacts ? artifacts.keep(tool, text) : undefined;
+		const pruned = cutTo(block.points, level, address);
+		if (pruned === null) continue;
 		cut = true;
-		return { ...block, text: pruned };
-	});
+		content[block.index] = { ...message.content[block.index], text: pruned } as ToolResultMessage["content"][number];
+	}
 	if (!cut) return message;
 	return derive(message, { ...message, content } as ToolResultMessage);
 }
