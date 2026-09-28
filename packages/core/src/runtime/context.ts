@@ -12,7 +12,7 @@
  * prompt rather than added to it, which is why the segments sum to the total.
  */
 
-import type { LlmContext, Message, ModelConfig, ToolSpec } from "../types.ts";
+import { requestUsage, type LlmContext, type Message, type ModelConfig, type ToolSpec } from "../types.ts";
 import { estimateTokens } from "../tokens.ts";
 import type { PromptSection } from "../prompt/context.ts";
 
@@ -187,7 +187,9 @@ export function measureTotal(messages: Message[]): { measured: boolean; tokens: 
 		const message = messages[i];
 		if (message.role !== "assistant" || message.stopReason === "pending") continue;
 		if (compactedAt !== null && message.timestamp <= compactedAt) break;
-		const total = message.usage.input + message.usage.cacheRead + message.usage.cacheWrite + message.usage.output;
+		// Not `usage`: that also bills attempts abandoned by retries, which never shared this window.
+		const usage = requestUsage(message);
+		const total = usage.input + usage.cacheRead + usage.cacheWrite + usage.output;
 		if (total <= 0) break;
 		return { measured: true, tokens: total + estimateTokens(messages.slice(i + 1)) };
 	}

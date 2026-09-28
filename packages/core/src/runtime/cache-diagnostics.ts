@@ -16,7 +16,7 @@
  * - 时间间隔用两次请求的开始时间相减：缓存在读写时续期，而那发生在请求一开始的预填充阶段。
  */
 
-import type { ApiFormat, AssistantMessage, Message, Usage } from "../types.ts";
+import { requestUsage, type ApiFormat, type AssistantMessage, type Message, type Usage } from "../types.ts";
 import { costAtRates } from "../utils/pricing.ts";
 import { CACHE_TTL_MS } from "./prune.ts";
 
@@ -135,7 +135,8 @@ export function diagnoseRequest(
 	index: number,
 	options: Omit<CacheDiagnosticsOptions, "boundaries"> = {},
 ): CacheRequestDiagnosis | undefined {
-	const usage = message.usage;
+	// One request's prompt, not the retry-inclusive bill — a retried turn would read as a doubled prefix.
+	const usage = requestUsage(message);
 	const prompt = promptOf(usage);
 	if (!(prompt > 0)) return undefined;
 
@@ -203,7 +204,7 @@ export function diagnoseCache(messages: readonly Message[], options: CacheDiagno
  * 改写历史；没存费率（模型没配定价）就只报 token、不报钱。
  */
 function extraCostOf(message: AssistantMessage, missed: number): number | undefined {
-	const usage = message.usage;
+	const usage = requestUsage(message);
 	const rates = usage.cost.rates;
 	if (!rates) return undefined;
 	const paidTokens = usage.input + usage.cacheWrite;

@@ -153,6 +153,11 @@ export function addUsage(a: Usage, b: Usage): Usage {
 	};
 }
 
+/** What the request behind a reply actually sent and received, retries excluded. See `lastAttemptUsage`. */
+export function requestUsage(message: Pick<AssistantMessage, "usage" | "lastAttemptUsage">): Usage {
+	return message.lastAttemptUsage ?? message.usage;
+}
+
 export type StopReason = "pending" | "stop" | "length" | "toolUse" | "error" | "aborted";
 
 // ---------------------------------------------------------------------------
@@ -314,6 +319,15 @@ export interface AssistantMessage {
 	provider: string;
 	model: string;
 	usage: Usage;
+	/**
+	 * The final attempt's own usage, set only when failed attempts were folded into `usage`.
+	 *
+	 * `usage` is the bill, and the bill has to include what abandoned retries cost. The context
+	 * window, though, held one request, not their sum, so anything asking "how big was the
+	 * conversation" reads this instead — through `requestUsage`. Absent without retries and on
+	 * logs written before it existed; `usage` is then that one request.
+	 */
+	lastAttemptUsage?: Usage;
 	stopReason: StopReason;
 	errorMessage?: string;
 	/**

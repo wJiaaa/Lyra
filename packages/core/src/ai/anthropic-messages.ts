@@ -23,7 +23,7 @@ import { classifyFailure, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
-import { USER_AGENT, failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
+import { USER_AGENT, failedStreamEvent, joinUrl, priceAttempt, settleUsage } from "./endpoint.ts";
 import { compatKey, compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
 import { anthropicMetadata, sessionHeaders } from "./cache-routing.ts";
@@ -712,7 +712,7 @@ async function* streamAnthropic(
 	}
 	partial.stopReason = mapStopReason(stopReason, partial.content);
 	// 成功了，但失败的那几次也是花过钱的——账上要有。各按各的档位计价再相加，见 `priceAttempt`。
-	partial.usage = addUsage(priceAttempt(partial.usage, model), spentOnRetries);
+	settleUsage(partial, model, spentOnRetries);
 	yield { type: "done", message: { ...partial } };
 	return partial;
 }

@@ -39,6 +39,19 @@ export function priceAttempt(usage: Usage, model: ModelConfig): Usage {
 }
 
 /**
+ * Price the final attempt and fold in what earlier attempts cost.
+ *
+ * The final attempt is also kept on its own when there is anything to fold: the sum is the bill,
+ * but only this one request ever sat in the context window, and reading the sum as window size
+ * made a single retry look like twice the conversation. See `lastAttemptUsage`.
+ */
+export function settleUsage(partial: AssistantMessage, model: ModelConfig, spentOnRetries: Usage): void {
+	const attempt = priceAttempt(partial.usage, model);
+	partial.usage = addUsage(attempt, spentOnRetries);
+	if (spentOnRetries.total > 0) partial.lastAttemptUsage = attempt;
+}
+
+/**
  * 一次 fetch 失败，说成能放进界面的一句话。
  *
  * 不导出：三条链原来各自 import 它，而现在唯一的使用者是下面那个 `failedStreamEvent`——「失败时
@@ -93,7 +106,7 @@ export function failedStreamEvent(
 	partial.errorRetryable = failure ? worthRetrying(failure) : false;
 	partial.failure = failure;
 	// 这一次先按自己的档位计价，再加上前几次各自算好的——见 `priceAttempt`。
-	partial.usage = addUsage(priceAttempt(partial.usage, context.model), context.spentOnRetries);
+	settleUsage(partial, context.model, context.spentOnRetries);
 	partial.durationMs = Math.max(1, Date.now() - context.startTime);
 	if (context.firstTokenTime !== null) {
 		partial.sseDurationMs = Math.max(1, Date.now() - context.firstTokenTime);

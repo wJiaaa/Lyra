@@ -20,7 +20,7 @@ import { computeCost } from "../utils/pricing.ts";
 import { classifyFailure, FailureError } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
-import { USER_AGENT, failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
+import { USER_AGENT, failedStreamEvent, joinUrl, priceAttempt, settleUsage } from "./endpoint.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { droppedParams, learnDroppedParam, type SentParams } from "./request-params-compat.ts";
@@ -938,7 +938,7 @@ async function* streamChatCompletions(
 		partial.stopReason = hasToolCalls ? "toolUse" : "stop";
 	}
 	// 成功了，但失败的那几次也是花过钱的——账上要有。各按各的档位计价再相加，见 `priceAttempt`。
-	partial.usage = addUsage(priceAttempt(partial.usage, model), spentOnRetries);
+	settleUsage(partial, model, spentOnRetries);
 
 	yield { type: "done", message: partial };
 	return partial;
