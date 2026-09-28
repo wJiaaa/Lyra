@@ -16,6 +16,7 @@ import { CODE_DEFAULTS, onAppearanceApplied } from "../settings/index.ts";
 import { findCodeTheme } from "../../lib/code/themes.ts";
 import type { AppearanceSettings } from "@lyra/core";
 import { bridge } from "../../services/index.ts";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 /**
  * A real shell, in the panel.
@@ -576,20 +577,16 @@ export function TerminalPane() {
 				<div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-7 pb-6 text-center">
 					<SquareTerminal size={30} strokeWidth={1.35} className="text-ink-faint" />
 					<p className="text-label text-ink-muted">{translate("terminal.gone")}</p>
-					<button
-						type="button"
+					<Button
+						label={translate("terminal.new")}
 						onClick={() => {
 							// The measured size, like everywhere else a shell is started — see `size`.
 							void bridge.terminal.open(startingCwd(), Math.max(10, size.current.cols), Math.max(4, size.current.rows)).then((opened) => {
 								useTerminals.getState().add({ id: opened.id, title: opened.title }, scope);
 							});
 						}}
-						data-ly-tip={translate("terminal.new")}
-						aria-label={translate("terminal.new")}
-						className="grid h-9 w-9 place-items-center rounded-lg border border-hairline text-ink transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
-					>
-						<Plus size={16} strokeWidth={1.9} aria-hidden />
-					</button>
+						icon={<Plus size={16} strokeWidth={1.9} aria-hidden />}
+					/>
 				</div>
 			)}
 			{exited !== null && (

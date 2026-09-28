@@ -180,16 +180,6 @@ export const METHODS = {
 		updateAll: { channel: "plugins:updateAll" },
 		environment: { channel: "plugins:environment" },
 	},
-	updates: {
-		check: { channel: "updates:check" },
-		state: { channel: "updates:state" },
-		download: { channel: "updates:download" },
-		pause: { channel: "updates:pause" },
-		cancel: { channel: "updates:cancel" },
-		relaunch: { channel: "updates:relaunch" },
-		reopen: { channel: "updates:reopen" },
-		open: { channel: "updates:open" },
-	},
 	windows: {
 		keepOnTop: { channel: "windows:keepOnTop" },
 		open: { channel: "windows:open" },

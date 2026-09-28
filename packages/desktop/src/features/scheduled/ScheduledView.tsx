@@ -22,7 +22,7 @@ import { useLayout } from "../../app/layout.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { activeLocale, translate } from "../../i18n/translate.ts";
 import { useApp } from "../../store/index.ts";
-import { Toggle } from "../settings/index.ts";
+import { Segmented, Toggle } from "../settings/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { bridge } from "../../services/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
@@ -251,24 +251,18 @@ function TaskCard({
 				</label>
 
 				<div className="flex flex-wrap items-center gap-3">
-					<div className="flex gap-0.5 rounded-lg bg-card p-0.5">
-						{(["daily", "interval"] as const).map((kind) => (
-							<button
-								key={kind}
-								type="button"
-								onClick={() =>
-									onChange({
-										schedule: kind === "daily" ? { kind: "daily", time: "09:00" } : { kind: "interval", minutes: 60 },
-									})
-								}
-								className={`h-[26px] rounded-lg px-3 text-detail transition-colors ${
-									task.schedule.kind === kind ? "bg-elevated text-ink" : "text-ink-muted hover:text-ink"
-								}`}
-							>
-								{kind === "daily" ? t("scheduled.daily") : t("scheduled.every")}
-							</button>
-						))}
-					</div>
+					<Segmented
+						value={task.schedule.kind}
+						onChange={(kind) =>
+							onChange({
+								schedule: kind === "daily" ? { kind: "daily", time: "09:00" } : { kind: "interval", minutes: 60 },
+							})
+						}
+						options={[
+							{ value: "daily", label: t("scheduled.daily") },
+							{ value: "interval", label: t("scheduled.every") },
+						]}
+					/>
 
 					{task.schedule.kind === "daily" ? (
 						<TimeField
@@ -313,11 +307,7 @@ function TaskCard({
 					 */}
 					{next && <span>{t("scheduled.nextRun", { time: next })}</span>}
 					{task.lastSessionId && lastSessionTitle && (
-						<button type="button" onClick={onOpenLast} className="text-ink-muted transition-colors hover:text-ink"
-							data-ly-tip={t("scheduled.openLast")}
-							aria-label={t("scheduled.openLast")}>
-							<ExternalLink size={13} strokeWidth={1.8} />
-						</button>
+						<IconButton size="xs" label={t("scheduled.openLast")} onClick={onOpenLast} icon={<ExternalLink size={13} strokeWidth={1.8} />} />
 					)}
 					{task.lastError && (
 						<span className="text-danger" data-scheduled-error>

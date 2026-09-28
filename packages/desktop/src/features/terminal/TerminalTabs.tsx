@@ -18,13 +18,14 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTerminals } from "../../store/terminals.ts";
 import { bridge } from "../../services/index.ts";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
 import { useTerminalScope } from "./scope.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { ClosableTab } from "../../ui/primitives/ClosableTab.tsx";
 
 export function TerminalTabs() {
 	const tabs = useTerminals((s) => s.tabs);
@@ -74,45 +75,22 @@ export function TerminalTabs() {
 			<Sideways
 				trackRef={strip}
 				outerClassName="flex-1"
+				role="tablist"
+				aria-label={translate("terminal.tabs")}
 				className="flex min-w-0 items-center gap-0.5 overflow-x-auto"
 			>
-				{tabs.map((tab) => {
-					const current = tab.id === active;
-					return (
-						<div
-							key={tab.id}
-							data-tab={tab.id}
-							className={`group/tab flex shrink-0 items-center gap-1 rounded-md pr-0.5 pl-2 transition-colors duration-[var(--ly-t-quick)] ${
-								current ? "bg-card-hover text-ink" : "text-ink-faint hover:text-ink"
-							}`}
-						>
-							<button
-								type="button"
-								onClick={() => useTerminals.getState().select(tab.id, scope)}
-								className="py-1 text-detail whitespace-nowrap"
-							>
-								{tab.title}
-							</button>
-							{/*
-							 * The ✕ is only on the tab you are pointing at, or the one you are on.
-							 *
-							 * Every tab carrying one turned a strip of three into a row of six targets,
-							 * and the close buttons read as loudly as the names — on a strip whose whole
-							 * job is to let you pick by name.
-							 */}
-							<button
-								type="button"
-								aria-label={translate("terminal.closeOne", { name: tab.title })}
-								onClick={() => close(tab.id)}
-								className={`rounded-md p-0.5 transition-opacity duration-[var(--ly-t-quick)] hover:bg-elevated ${
-									current ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover/tab:opacity-60"
-								}`}
-							>
-								<X size={11} strokeWidth={2.2} />
-							</button>
-						</div>
-					);
-				})}
+				{tabs.map((tab) => (
+					<ClosableTab
+						key={tab.id}
+						data-tab={tab.id}
+						current={tab.id === active}
+						onSelect={() => useTerminals.getState().select(tab.id, scope)}
+						onClose={() => close(tab.id)}
+						closeLabel={translate("terminal.closeOne", { name: tab.title })}
+					>
+						{tab.title}
+					</ClosableTab>
+				))}
 			</Sideways>
 
 			{/* Outside the scroller: "open another" must not be the thing that scrolls out of reach. */}

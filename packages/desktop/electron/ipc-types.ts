@@ -36,15 +36,6 @@ export type {
 	WorkflowRunStatus,
 	WorkflowRunSummary,
 };
-/*
- * Re-exported under a name that means something on this side of the boundary.
- *
- * `DownloadPhase` is the downloader's word for its own state; from the renderer, the thing being
- * described is "where the update is up to". Same type, and it has to be the same type — the phase
- * crosses the wire verbatim, so two declarations would be two contracts with one of them free to
- * drift.
- */
-import type { DownloadPhase } from "./ipc/update-download.ts";
 import type { TrayCommand } from "./tray-menu.ts";
 import type { SchedulerNotice } from "./scheduler.ts";
 export type { SchedulerNotice } from "./scheduler.ts";
@@ -57,8 +48,6 @@ import type { ClearRange, ClearResult, StorageUse } from "./session-cleanup.ts";
 import type { UsageScan } from "./usage-scan.ts";
 export type { OpenTarget } from "./open-targets.ts";
 import type { OpenTarget } from "./open-targets.ts";
-
-export type UpdatePhase = DownloadPhase;
 
 import type {
 	AgentEvent,
@@ -807,55 +796,6 @@ export interface LyraApi {
 	 * what is usually a dropped connection. Quiet I/O codes never get this far; see `QUIET_IO`.
 	 */
 	onMainError(handler: (payload: { origin: string; message: string }) => void): () => void;
-	updates: {
-		/** Whether a newer release exists. Never throws: offline is a normal answer, not an error. */
-		check(force?: boolean): Promise<{
-			current: string;
-			latest: string;
-			available: boolean;
-			/**
-			 * Whether GitHub actually answered.
-			 *
-			 * False means offline, rate-limited, or no releases yet — all of which return the running
-			 * version as the newest, which is the same shape as "you are up to date" and must not be
-			 * shown as it. The badge is right to treat both as nothing to announce; a surface that was
-			 * asked the question directly is not.
-			 */
-			checked: boolean;
-			notes: string;
-			url: string;
-			publishedAt: number | null;
-			asset: { name: string; url: string; size: number } | null;
-		}>;
-		/**
-		 * Where the download is right now, whoever started it.
-		 *
-		 * The main process owns this, not the window: a download outlives the dialog that began it
-		 * and outlives the window itself. Asked once on mount, and kept current by `onProgress`.
-		 */
-		state(): Promise<UpdatePhase>;
-		/**
-		 * Start fetching, or carry on from a pause. Resumes from the bytes already on disk.
-		 *
-		 * Returns the phase it reached, and every change also arrives on `onProgress` — so a caller
-		 * may await this or ignore it entirely and just draw what it is told.
-		 */
-		download(version: string): Promise<UpdatePhase>;
-		/** Stop, keeping what has come down. Resuming asks the server only for the rest. */
-		pause(): Promise<UpdatePhase>;
-		/** Stop and throw the partial away. What 取消 means, as opposed to 暂停. */
-		cancel(): Promise<UpdatePhase>;
-		/** Put the staged update in place and come back up on it. Does not return if it works. */
-		relaunch(): Promise<boolean>;
-		/**
-		 * Put the downloaded installer back on screen — Windows and Linux, where installing is a
-		 * window this app does not own and is easy to dismiss by accident. False if there is none.
-		 */
-		reopen(): Promise<boolean>;
-		/** Opens the release page in the browser. Refuses anything that is not a github.com URL. */
-		open(url: string): Promise<boolean>;
-		onProgress(listener: (phase: UpdatePhase) => void): () => void;
-	};
 	system: {
 		openPath(path: string): Promise<void>;
 		openExternal(url: string): Promise<void>;

@@ -27,7 +27,7 @@ Lyra 是一个 agent 运行时加一个桌面端。`packages/core` 平台无关�
 src/
 ├── main.tsx      入口
 ├── app/          窗口怎么装起来：布局、快捷键、启动屏、窗口按钮、对话独立窗
-├── features/     23 个用户看得见的域，各自一个目录
+├── features/     22 个用户看得见的域，各自一个目录
 ├── ui/           谁都能用的组件——换个产品也成立
 ├── lib/          纯逻辑：没有 React，没有主进程，不需要 DOM 就能测
 ├── services/     跟主进程说话的唯一出口
@@ -57,7 +57,7 @@ src/
 ## 边界
 
 由 `.dependency-cruiser.cjs` 与 `.oxlintrc.json` 执行，`pnpm arch` 与 `pnpm lint` 检查，
-CI 里都是必过项：
+pre-push 里都是必过项：
 
 1. **`core` 不 import 桌面端。** 它是平台无关的运行时，一旦引了桌面端就不再是。
 2. **渲染进程从 `core` 只能 `import type`**，白名单子入口除外。从根入口导入*值*会把整个
@@ -74,17 +74,16 @@ CI 里都是必过项：
    那一条只管域与域之间，从下面伸上去它看不见。壳（`app/`、`main.tsx`）不在此列——
    它们 `lazy()` 各域的整屏视图，而把那些视图放进域的出口会让打包器把整个域并回主 chunk。
 
-循环依赖是 error，垫着一份已有的 121 条的基线（`.dependency-cruiser-known-violations.json`，
-连同第 8 条那两处有理由的破例共 123 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。
+循环依赖是 error，垫着一份已有的 119 条的基线（`.dependency-cruiser-known-violations.json`，
+连同第 8 条那两处有理由的破例共 121 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。
 这个数字每次 `pnpm arch` 都会印出来，少一条就 `pnpm arch:baseline` 重生成一次——那是让它下降的
 正常动作，也是唯一能让它上升的动作。
 
 从前这条规则是 warn 配一句「数字是要盯的东西」，没有东西在盯，于是它从 53 涨到了 159。装上棘轮
 之后清了两轮没人用的转出，掉到 142——其中最后 16 条是删掉 `electron/git.ts` 里一个空的
 `export {} from "./forge/index.ts"` 断掉的。每一次下降都由 `test/docs-numbers.test.ts` 逼着改
-这一段：它要求这里写的数和基线里的一样多。最近一次是子智能体面板那一轮（124 → 121）：输入框翻历史
-不再经对话域的大门去拿「谁说的」（搬到了 `lib/spoken.ts`），排队条不再自己引 dock，`ToolCard` 不再从
-对话域的大门导出。
+这一段：它要求这里写的数和基线里的一样多。最近一次是删掉应用内更新（121 → 119）：`modals/UpdateDialog.tsx`
+不在了，经过它的两条环随之消失。
 
 ## 要做某件事，去哪
 
@@ -100,7 +99,7 @@ CI 里都是必过项：
 | 加一个功能 | `src/features/<域>/`；跨域只经对方的 index |
 | 调主进程 | `import { bridge } from "@/services"` |
 | 判断命令危不危险 | `core/src/tools/risk*.ts` |
-| 发版 | `pnpm release:rehearse` 然后 `pnpm release patch` |
+| 发版 | `pnpm release patch` |
 
 ## 检查
 

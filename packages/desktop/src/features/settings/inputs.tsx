@@ -13,6 +13,7 @@ import { Check, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { acceleratorLabel, composingKey, recordAccelerator } from "../../ui/keyboard.ts";
 import { MENU_MAX_HEIGHT, MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function TextInput({
 	value,
@@ -97,15 +98,13 @@ export function SecretInput({
 				data-ly-secret-input=""
 				className="h-full min-w-0 flex-1 bg-transparent tracking-wide text-ink placeholder:text-ink-faint"
 			/>
-			<button
-				type="button"
-				data-ly-tip={translate(visible ? "common.hide" : "common.show")}
+			<IconButton
+				label={translate(visible ? "common.hide" : "common.show")}
 				data-ly-secret-toggle=""
 				onClick={() => setVisible((v) => !v)}
-				className="-mr-1.5 flex size-[26px] shrink-0 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
-			>
-				{visible ? <EyeOff size={15} strokeWidth={1.8} /> : <Eye size={15} strokeWidth={1.8} />}
-			</button>
+				className="-mr-1.5"
+				icon={visible ? <EyeOff size={15} strokeWidth={1.8} /> : <Eye size={15} strokeWidth={1.8} />}
+			/>
 		</div>
 	);
 }

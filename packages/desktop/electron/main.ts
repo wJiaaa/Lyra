@@ -111,7 +111,6 @@ import { registerHooksIpc } from "./ipc/hooks.ts";
 import { registerForeignConfigsIpc } from "./ipc/foreign-configs.ts";
 import { registerProjectMemoryIpc } from "./ipc/project-memory.ts";
 import { registerSideChatIpc } from "./ipc/side-chat.ts";
-import { registerUpdateIpc } from "./ipc/updates.ts";
 import { registerTerminalIpc, type LiveTerminal } from "./ipc/terminal.ts";
 import { Scheduler } from "./scheduler.ts";
 import { createTray, destroyTray, hasTray, refreshMenu, type TrayCommand } from "./tray.ts";
@@ -908,7 +907,6 @@ function registerIpc(): void {
 		eachWindow: eachAppWindow,
 		locale: () => resolveNativeLocale(settings?.uiLocale ?? "system", app.getLocale()),
 	});
-	registerUpdateIpc();
 
 	registerServicesIpc({
 		testProvider,

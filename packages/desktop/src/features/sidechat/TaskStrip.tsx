@@ -19,6 +19,7 @@ import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { useSide, sideChatOf } from "../dock/index.ts";
 import { useSideSessionId } from "./scope.ts";
 import { useApp } from "../../store/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 const TASK_ICON: Record<QueuedTask["status"], typeof Clock> = {
 	queued: Clock,
@@ -136,30 +137,25 @@ function TaskRow({ task }: { task: QueuedTask }) {
 			<div data-ly-hover-reveal className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/task:opacity-100 group-has-[:focus-visible]/task:opacity-100">
 				{task.status === "queued" && (
 					<>
-						<button
-							type="button"
-							data-ly-tip={t("taskStrip.runNow")}
+						<IconButton
+							size="xs"
+							label={t("taskStrip.runNow")}
 							onClick={() => {
 								void cancelTask(sessionId, task.id);
 								void send([{ type: "text", text: task.text }]);
 							}}
-							className="flex h-5 w-5 items-center justify-center rounded-md text-ink-faint transition-colors hover:text-ink"
-							aria-label={t("taskStrip.runNow")}
-						>
-							<Play size={11} strokeWidth={2} />
-						</button>
-						<button
-							type="button"
-							data-ly-tip={t("taskStrip.withdraw")}
+							icon={<Play size={11} strokeWidth={2} />}
+						/>
+						<IconButton
+							size="xs"
+							label={t("taskStrip.withdraw")}
+							ariaLabel={t("taskStrip.withdrawOne")}
 							onClick={() => {
 								void cancelTask(sessionId, task.id);
 								seedDraft(sessionId, task.text);
 							}}
-							className="flex h-5 w-5 items-center justify-center rounded-md text-ink-faint transition-colors hover:text-ink"
-							aria-label={t("taskStrip.withdrawOne")}
-						>
-							<RotateCcw size={11} strokeWidth={2} />
-						</button>
+							icon={<RotateCcw size={11} strokeWidth={2} />}
+						/>
 					</>
 				)}
 				{/*
@@ -171,26 +167,22 @@ function TaskRow({ task }: { task: QueuedTask }) {
 				 * simply not done and there was no way to ask for it again short of retyping it.
 				 */}
 				{resumable && (
-					<button
-						type="button"
-						data-ly-tip={t(task.status === "failed" ? "taskStrip.retryOne" : "taskStrip.resumeOne")}
+					<IconButton
+						size="xs"
+						label={t(task.status === "failed" ? "taskStrip.retryOne" : "taskStrip.resumeOne")}
 						onClick={() => void resumeTask(sessionId, task.id)}
-						className="flex h-5 w-5 items-center justify-center rounded-md text-ink-faint transition-colors hover:text-ink"
-						aria-label={t(task.status === "failed" ? "taskStrip.retryOne" : "taskStrip.resumeOne")}
-					>
-						<Play size={11} strokeWidth={2} />
-					</button>
+						icon={<Play size={11} strokeWidth={2} />}
+					/>
 				)}
 				{over && (
-					<button
-						type="button"
-						data-ly-tip={t("taskStrip.remove")}
+					<IconButton
+						size="xs"
+						tone="danger"
+						label={t("taskStrip.remove")}
+						ariaLabel={t("taskStrip.removeOne")}
 						onClick={() => void dismissTask(sessionId, task.id)}
-						className="flex h-5 w-5 items-center justify-center rounded-md text-ink-faint transition-colors hover:text-danger"
-						aria-label={t("taskStrip.removeOne")}
-					>
-						<X size={11} strokeWidth={2} />
-					</button>
+						icon={<X size={11} strokeWidth={2} />}
+					/>
 				)}
 			</div>
 		</div>

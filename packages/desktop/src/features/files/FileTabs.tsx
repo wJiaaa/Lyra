@@ -22,6 +22,7 @@ import { MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { available, bridge } from "../../services/index.ts";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
+import { ClosableTab } from "../../ui/primitives/ClosableTab.tsx";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
 
@@ -99,48 +100,22 @@ export function FileTabs() {
 				aria-label={t("tabs.openFiles")}
 				className="ly-file-tabs flex h-7 items-center gap-0.5 overflow-x-auto border-b border-line px-1"
 			>
-				{tabs.map((tab) => {
-					const current = tab.path === open;
-					return (
-						<div
-							key={tab.path}
-							data-file-tab={tab.path}
-							onContextMenu={(event) => menu.show(event, tab)}
-							className={`ly-file-tab group/tab flex h-[22px] shrink-0 items-center gap-1 rounded-md pr-0.5 pl-2 transition-colors duration-[var(--ly-t-quick)] ${
-								current
-									? "bg-card-hover text-ink"
-									// 指到哪个标签哪个就亮起来——不然一排文件名里看不出鼠标停在谁身上。
-									: "text-ink-faint hover:bg-card-hover/60 hover:text-ink"
-							}`}
-						>
-							<button
-								type="button"
-								role="tab"
-								aria-selected={current}
-								data-ly-tip={tab.path}
-								onClick={() =>
-									void useOpenFile
-										.getState()
-										.open({ name: tab.name, path: tab.path, isDirectory: false, size: 0 })
-								}
-								className="max-w-[160px] truncate py-1 text-detail whitespace-nowrap"
-							>
-								{tab.name}
-							</button>
-							<button
-								type="button"
-								data-ly-hover-reveal
-								aria-label={t("tabs.closeOne", { name: tab.name })}
-								onClick={() => closeOne(tab.path)}
-								className={`rounded-md p-0.5 transition-opacity duration-[var(--ly-t-quick)] hover:bg-elevated ${
-									current ? "opacity-60 hover:opacity-100" : "opacity-0 group-hover/tab:opacity-60"
-								}`}
-							>
-								<X size={11} strokeWidth={2.2} />
-							</button>
-						</div>
-					);
-				})}
+				{tabs.map((tab) => (
+					<ClosableTab
+						key={tab.path}
+						data-file-tab={tab.path}
+						current={tab.path === open}
+						tip={tab.path}
+						onContextMenu={(event) => menu.show(event, tab)}
+						onSelect={() => void useOpenFile.getState().open({ name: tab.name, path: tab.path, isDirectory: false, size: 0 })}
+						onClose={() => closeOne(tab.path)}
+						closeLabel={t("tabs.closeOne", { name: tab.name })}
+						className="ly-file-tab h-[22px]"
+						labelClassName="max-w-[160px] truncate"
+					>
+						{tab.name}
+					</ClosableTab>
+				))}
 			</Sideways>
 
 			{menu.target && (

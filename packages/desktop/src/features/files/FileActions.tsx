@@ -19,6 +19,7 @@ import { openLabel, useOpenTarget } from "../../store/open-targets.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { fileKind } from "./FileViewer.tsx";
 import { available, bridge } from "../../services/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function FileActions() {
 	const { t } = useI18n();
@@ -82,18 +83,5 @@ function Mark({
 	onClick: () => void;
 	children: React.ReactNode;
 }) {
-	return (
-		<button
-			type="button"
-			data-ly-tip={tip}
-			aria-label={tip}
-			aria-pressed={active}
-			onClick={onClick}
-			className={`flex h-[20px] w-[20px] items-center justify-center rounded-md transition-colors duration-[var(--ly-t-quick)] ${
-				active ? "bg-card-hover text-ink" : "text-ink-faint hover:bg-card-hover hover:text-ink"
-			}`}
-		>
-			{children}
-		</button>
-	);
+	return <IconButton size="xs" label={tip} active={active} onClick={onClick} icon={children} />;
 }

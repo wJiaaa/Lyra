@@ -6,17 +6,10 @@
  * push. Every step of that is easy and one of them is always forgotten — one manifest once sat at
  * 0.1.0 for thirty-five releases because it was the item at the end of the list.
  *
- * The rehearsal check is the other half. AGENTS.md asks for a `Release dry run` before every tag,
- * and explains why: daily CI does not package, so `pnpm package` runs nowhere else, and the first
- * release found that out the hard way. Asking a person to remember it makes it a thing that gets
- * remembered until the one time it does not, so this asks GitHub instead.
- *
  *   pnpm release patch                 补丁位 +1
  *   pnpm release minor|major
  *   pnpm release 0.9.0                 指定版本
  *   pnpm release patch --no-push       改完提交打好 tag，不推——本地看一眼再决定
- *   pnpm release patch --skip-rehearsal 跳过排练检查，理由会写进 tag
- *   pnpm release rehearse              触发一次 Release dry run 并等它跑完
  */
 
 import { execFile } from "node:child_process";
@@ -68,7 +61,7 @@ function nextVersion(current, request) {
  * Checked up front rather than as it goes, so a failure leaves the tree exactly as it was found
  * instead of half-bumped.
  */
-async function preflight({ skipRehearsal }) {
+async function preflight() {
 	const branch = await must("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
 	if (branch !== "main") fail(`发版要在 main 上，当前是 ${branch}`);
 
@@ -82,71 +75,21 @@ async function preflight({ skipRehearsal }) {
 		fail(`本地与 origin/main 不一致（领先 ${ahead}，落后 ${behind}）。先推或先拉。`);
 	}
 
-	const head = await must("git", ["rev-parse", "HEAD"]);
-
-	if (skipRehearsal) {
-		note("⚠︎ 跳过排练检查——这次发布没有在四个 runner 上打包验证过");
-		return { head, rehearsed: false };
-	}
-
-	/*
-	 * The dry run has to be *this* commit's.
-	 *
-	 * A green run on the previous commit says nothing about this one, and packaging is exactly the
-	 * kind of thing a one-line change can break: `executableName`, an icon path, a native module
-	 * that only resolves on one architecture.
-	 */
-	const runs = await must("gh", [
-		"run", "list", "--workflow", "release-dryrun.yml",
-		"--json", "headSha,conclusion,url", "--limit", "20",
-	]).catch(() => "[]");
-
-	let ok = null;
-	try {
-		ok = JSON.parse(runs).find((r) => r.headSha === head && r.conclusion === "success");
-	} catch {
-		note("读不到 dry run 记录（gh 未登录？）。用 --skip-rehearsal 可以绕过，但请知道绕过的是什么。");
-	}
-	if (!ok) {
-		fail(
-			`这个提交没有绿色的 Release dry run。\n\n` +
-			`  先跑：  pnpm release rehearse\n` +
-			`  绕过：  pnpm release <版本> --skip-rehearsal\n\n` +
-			`为什么必须：日常 CI 不打包，pnpm package 只在 release 与 dry run 里跑过。` +
-			`打包错误在其它任何检查里都是绿的——直到 tag 推上去。`,
-		);
-	}
-	note(`排练通过：${ok.url}`);
-	return { head, rehearsed: true };
-}
-
-async function rehearse() {
-	note("触发 Release dry run…");
-	await must("gh", ["workflow", "run", "release-dryrun.yml", "--ref", "main"]);
-	await new Promise((r) => setTimeout(r, 6000));
-	const id = await must("gh", ["run", "list", "--workflow", "release-dryrun.yml", "--limit", "1", "--json", "databaseId", "-q", ".[0].databaseId"]);
-	note(`跑起来了：${id}。等它结束（四个 runner）…`);
-	// `--exit-status` is the whole point: without it a red dry run still printed
-	// 「绿了就可以」and exited 0, which is how a failed Windows verify was treated as a pass.
-	await must("gh", ["run", "watch", id, "--exit-status"]);
-	console.log("\n绿了就可以 pnpm release <版本>\n");
 }
 
 async function main() {
 	const args = process.argv.slice(2);
-	if (args[0] === "rehearse") return rehearse();
 
 	const request = args[0];
-	if (!request) fail("用法：pnpm release <patch|minor|major|x.y.z> [--no-push] [--skip-rehearsal]");
+	if (!request) fail("用法：pnpm release <patch|minor|major|x.y.z> [--no-push]");
 	const noPush = args.includes("--no-push");
-	const skipRehearsal = args.includes("--skip-rehearsal");
 
 	const current = await readVersion(SOURCE);
 	const version = nextVersion(current, request);
 	const tag = `v${version}`;
 	console.log(`\n${current} → ${version}\n`);
 
-	const { rehearsed } = await preflight({ skipRehearsal });
+	await preflight();
 
 	const existing = await must("git", ["tag", "-l", tag]);
 	if (existing) fail(`${tag} 已经存在`);
@@ -175,8 +118,7 @@ async function main() {
 
 	note("打 tag");
 	const message = await must("node", ["scripts/changelog-section.mjs", tag]);
-	const body = rehearsed ? message : `${message}\n\n注意：这次发布跳过了 Release dry run 的排练检查。`;
-	await must("git", ["tag", "-a", tag, "-m", body]);
+	await must("git", ["tag", "-a", tag, "-m", message]);
 
 	if (noPush) {
 		console.log(`\n没有推送。看一眼之后：\n  git push origin main && git push origin ${tag}\n撤销：\n  git reset --hard origin/main && git tag -d ${tag}\n`);
@@ -186,7 +128,7 @@ async function main() {
 	note("推送");
 	await must("git", ["push", "origin", "main"]);
 	await must("git", ["push", "origin", tag]);
-	console.log(`\n✓ ${tag} 已推送。构建：https://github.com/kittors/Lyra/actions/workflows/release.yml\n`);
+	console.log(`\n✓ ${tag} 已推送。\n`);
 }
 
 await main();

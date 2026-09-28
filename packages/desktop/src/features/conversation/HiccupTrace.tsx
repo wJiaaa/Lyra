@@ -99,16 +99,13 @@ export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
 				 * 按钮，也不是从前那个顶在错误前面、点开才知道里面是什么的箭头。
 				 */}
 				{hiccup.detail && hiccup.detail !== hiccup.summary && (
-					<button
-						type="button"
-						data-ly-tip={translate(open ? "common.collapse" : "common.details")}
-						aria-label={translate(open ? "common.collapse" : "common.details")}
+					<IconButton
+						size="xs"
+						label={translate(open ? "common.collapse" : "common.details")}
+						expanded={open}
 						onClick={() => setOpen((was) => !was)}
-						aria-expanded={open}
-						className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
-					>
-						<ChevronRight size={10} strokeWidth={2} aria-hidden className={`transition-transform duration-[var(--ly-t-quick)] ${open ? "rotate-90" : ""}`} />
-					</button>
+						icon={<ChevronRight size={10} strokeWidth={2} aria-hidden className={`transition-transform duration-[var(--ly-t-quick)] ${open ? "rotate-90" : ""}`} />}
+					/>
 				)}
 				{failed && <Next hint={hiccup.hint} />}
 			</div>

@@ -26,6 +26,7 @@ import { useRolled } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { ModelTrigger } from "../models/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { BranchMenu } from "../modals/index.ts";
 import { PermissionPicker } from "../modals/index.ts";
 import { ProjectPicker } from "../modals/index.ts";
@@ -719,25 +720,16 @@ export function Composer({ centered = false }: {
 					}
 					left={
 						<>
-							<button
-								type="button"
-								data-ly-tip={t("composer.addAttachment")}
-								aria-label={t("composer.addAttachment")}
-								onClick={kit.picker.open}
-								className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-lg text-ink transition-colors hover:bg-card-hover"
-							>
-								<Plus size={16} strokeWidth={1.9} />
-							</button>
+							<IconButton size="composer" emphasis label={t("composer.addAttachment")} onClick={kit.picker.open} icon={<Plus size={16} strokeWidth={1.9} />} />
 							{settings?.screenshot?.enabled !== false && settings?.screenshot?.showInComposer && available("screenshot", "start") && (
-								<button
-									type="button"
-									data-ly-tip={`${t("composer.screenshot")} ${settings?.screenshot?.shortcut ? `(${settings.screenshot.shortcut.replace("CommandOrControl", "⌘").replace("Shift", "⇧").replace("Alt", "⌥").replace(/\+/g, "")})` : ""}`}
-									aria-label={t("composer.screenshot")}
+								<IconButton
+									size="composer"
+									emphasis
+									label={`${t("composer.screenshot")} ${settings?.screenshot?.shortcut ? `(${settings.screenshot.shortcut.replace("CommandOrControl", "⌘").replace("Shift", "⇧").replace("Alt", "⌥").replace(/\+/g, "")})` : ""}`}
+									ariaLabel={t("composer.screenshot")}
 									onClick={() => void takeScreenshot()}
-									className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-lg text-ink transition-colors hover:bg-card-hover"
-								>
-									<Camera size={15} strokeWidth={1.9} />
-								</button>
+									icon={<Camera size={15} strokeWidth={1.9} />}
+								/>
 							)}
 							{kit.picker.input}
 

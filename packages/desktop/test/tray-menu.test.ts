@@ -46,7 +46,7 @@ test("the first item names what pressing it will do, not what is true", () => {
 
 test("the things worth doing from cold are all one press away", () => {
 	const all = labels(state());
-	for (const label of ["新对话", "拉取请求", "定时任务", "设置…", "检查更新…", "开机时启动"]) {
+	for (const label of ["新对话", "拉取请求", "定时任务", "设置…", "开机时启动"]) {
 		assert.ok(all.includes(label), `missing ${label}`);
 	}
 });
@@ -93,7 +93,7 @@ test("a conversation with no title yet is still nameable", () => {
 
 test("every command in the menu is one the window knows how to answer", () => {
 	// Mirrors the switch in `src/tray-commands.ts`; a new item without a case is a dead menu row.
-	const answered = new Set(["new-session", "pull-requests", "scheduled", "settings", "updates"]);
+	const answered = new Set(["new-session", "pull-requests", "scheduled", "settings"]);
 	const walk = (items: TrayItem[]) => {
 		for (const item of items) {
 			if (item.type === "separator") continue;

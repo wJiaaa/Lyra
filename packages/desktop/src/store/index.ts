@@ -102,7 +102,6 @@ export type SettingsSection =
   | "usage"
   | "storage"
   | "worktrees"
-  | "about"
   | "archived";
 
 /** The tabs on the 插件 page; the page itself is the `plugins` section. */

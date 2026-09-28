@@ -68,15 +68,10 @@ function SourceFolders({
 				{folders.length === 0 ? (
 					<div className="flex flex-col items-center gap-3 px-4 py-7">
 						<p className="text-label text-ink-muted">{t("project.addFolderOnThisComputer")}</p>
-						<button
-							type="button"
-							data-ly-add-folder
-							onClick={onAdd}
-							className="ly-dialog-action ly-dialog-action-secondary"
-						>
+						<DialogAction data-ly-add-folder onClick={onAdd}>
 							<FolderPlus size={14} strokeWidth={1.8} aria-hidden />
 							{t("project.add")}
-						</button>
+						</DialogAction>
 					</div>
 				) : (
 					<>

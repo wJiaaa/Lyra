@@ -157,16 +157,9 @@ export function PullRequestList({
 			>
 				<div className="no-drag flex items-center gap-0.5">
 					{FILTERS.map((option) => (
-						<button
-							key={option.key}
-							type="button"
-							onClick={() => onFilter(option.key)}
-							className={`h-[26px] shrink-0 rounded-lg px-2.5 text-label whitespace-nowrap transition-colors ${
-								filter === option.key ? "bg-card-hover text-ink" : "text-ink-muted hover:text-ink"
-							}`}
-						>
+						<Button key={option.key} variant="subtle" size="sm" pressed={filter === option.key} onClick={() => onFilter(option.key)}>
 							{t(option.label)}
-						</button>
+						</Button>
 					))}
 				</div>
 

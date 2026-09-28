@@ -4,17 +4,12 @@
  * Padded container, rounded row — the same shape as every other item in this pane. As a full-bleed
  * button its hover fill ran edge to edge and read as a different kind of control from the list it
  * sits under.
- *
- * The update dot rides at the end of this row, and is usually not there at all. Which is why it is
- * here rather than in the toolbar: this is the one strip of the window that is about the app
- * itself, and a row that already ends in a small round mark has somewhere to put another one.
  */
 
 import { Settings as SettingsIcon } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp, viewAvailable } from "../../store/index.ts";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { UpdateBadge } from "../update/index.ts";
 import { activeProviderLabel } from "../../lib/sidebar-grouping.ts";
 
 export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
@@ -22,8 +17,7 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 	const setView = useApp((s) => s.setView);
 	const { compact } = useLayout();
 
-	// The whole strip is the way into settings and the app's own updates, neither of which a browser
-	// through Web access has.
+	// The whole strip is the way into settings, which a browser through Web access does not have.
 	if (!viewAvailable("settings")) return null;
 
 	return (
@@ -39,8 +33,6 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 				}`}
 			>
 				<SettingsIcon size={16} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
-				{/* Fades when the badge beside it opens, rather than being squeezed into its own
-				    overflow animation — see `.ly-sidebar-foot` in styles.css. */}
 				<ScrollText
 					text={settings?.personalization?.sidebarMotto?.trim() || activeProviderLabel(settings?.providers ?? [])}
 					className="ly-sidebar-foot-label min-w-0 flex-1 text-label text-ink"
@@ -49,7 +41,6 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 					?
 				</span>
 			</button>
-			<UpdateBadge compact={compact} />
 		</div>
 	);
 }

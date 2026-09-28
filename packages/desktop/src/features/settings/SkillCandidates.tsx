@@ -126,12 +126,7 @@ function Candidate({
 						data-held={open || busy !== null || undefined}
 						className="flex items-center gap-1.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/candidate:opacity-100 focus-within:opacity-100 data-[held]:opacity-100"
 					>
-					<button
-						type="button"
-						aria-expanded={open}
-						onClick={() => setOpen((was) => !was)}
-						className="flex h-[28px] items-center gap-1 rounded-lg px-2.5 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink aria-expanded:text-ink"
-					>
+					<Button variant="subtle" size="sm" expanded={open} onClick={() => setOpen((was) => !was)} className="aria-expanded:text-ink">
 						{open ? t("common.hide") : t("common.preview")}
 						<ChevronDown
 							size={13}
@@ -139,7 +134,7 @@ function Candidate({
 							aria-hidden
 							className={`transition-transform duration-[var(--ly-t-base)] ease-[var(--ly-e-out)] ${open ? "rotate-180" : ""}`}
 						/>
-					</button>
+					</Button>
 					<Button variant="subtle" size="sm" loading={busy === "drop"} disabled={busy !== null} onClick={() => void decide(false)}>
 						{t("skillsSettings.reject")}
 					</Button>

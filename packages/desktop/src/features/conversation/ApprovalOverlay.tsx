@@ -5,6 +5,7 @@ import { translate } from "../../i18n/translate.ts";
 import { MessageCircle, TriangleAlert } from "lucide-react";
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { Caret } from "../../ui/primitives/Caret.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
@@ -109,7 +110,7 @@ export function ApprovalOverlay() {
 					)}
 				</span>
 				{tags}
-				<button type="button" aria-expanded={!collapsed} aria-label={translate(collapsed ? "question.expand" : "question.collapse")} onClick={() => setCollapsedId(collapsed ? null : request.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-muted hover:bg-card-hover"><Caret open={!collapsed} size={15} /></button>
+				<IconButton label={translate(collapsed ? "question.expand" : "question.collapse")} expanded={!collapsed} onClick={() => setCollapsedId(collapsed ? null : request.id)} icon={<Caret open={!collapsed} size={15} />} />
 			</div>
 			<Collapse open={!collapsed} keepMounted className="min-h-0" bodyClassName="flex min-h-0 flex-col overflow-hidden">{interactive ? <>
 				<p className="shrink-0 px-4 pb-1 text-caption text-ink-muted">{translate("question.fullAccessNote")}</p>

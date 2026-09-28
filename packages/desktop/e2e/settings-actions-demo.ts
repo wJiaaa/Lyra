@@ -230,18 +230,6 @@ try {
 	check("search keeps only matching groups and opens them", searched.names.length === 1 && /Alpha/.test(searched.names[0] ?? "") && searched.open === 1 && searched.height > 40, searched);
 	await hold(1200);
 
-	await openSettings("关于");
-	await until(`Boolean(document.querySelector("[data-ly-check-update]"))`);
-	const about = await app.evaluate<{ check: string; repo: string; releases: string; pills: number }>(`(() => {
-		const text = (sel) => (document.querySelector(sel)?.textContent || "").replace(/\\s+/g, " ").trim();
-		const check = text("[data-ly-check-update]");
-		const repo = text("[data-ly-open-repo]");
-		const releases = text("[data-ly-open-releases]");
-		const pills = [...document.querySelectorAll("[data-ly-check-update], [data-ly-open-repo], [data-ly-open-releases]")].filter((el) => el.classList.contains("ly-dialog-action")).length;
-		return { check, repo, releases, pills };
-	})()`);
-	check("about actions have words and dialog paint", about.pills === 3 && about.check.includes("检查更新") && about.repo.length > 0 && about.releases.length > 0, about);
-	await hold(1400);
 } catch (error) {
 	check("verification script completed", false, String(error));
 	throw error;

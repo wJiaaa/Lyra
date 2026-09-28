@@ -88,9 +88,8 @@ export function BrowserPanel() {
 			<IconButton size="sm" label={t("browser.forward")} icon={<ArrowRight size={13} />} disabled={!tab?.canGoForward} onClick={() => command("forward")} />
 			<IconButton size="sm" label={t("common.refresh")} icon={<RotateCw size={13} className={tab?.loading ? "ly-pulse" : ""} />} disabled={!tab} onClick={() => command("reload")} />
 			<AddressBar url={tab?.url ?? "about:blank"} bookmarks={settings?.browser?.bookmarks ?? []} search={settings?.browser} onOpen={(url) => open(url)} inputRef={addressInput} />
-			<button type="button" aria-label={t("browser.menu")} aria-haspopup="menu" aria-expanded={options.open} onClick={(event) => { setMenu("actions"); options.toggle(event); }} className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg hover:bg-card-hover ${options.open || inspecting ? "bg-card-hover text-ink" : "text-ink-faint hover:text-ink"}`}>
-				<Ellipsis size={16} />
-			</button>
+			<IconButton label={t("browser.menu")} menu={options.open} data-inspecting={inspecting ? "" : undefined} onClick={(event) => { setMenu("actions"); options.toggle(event); }}
+				className="aria-expanded:bg-card-hover aria-expanded:text-ink data-[inspecting]:bg-card-hover data-[inspecting]:text-ink" icon={<Ellipsis size={16} />} />
 		</div>
 		{inspecting && <div role="status" className="flex shrink-0 items-center justify-between px-3 py-1 text-caption text-ink-muted">
 			<span>{t("browser.pickOnPage")}</span><IconButton size="sm" label={t("browser.exitInspect")} icon={<X size={12} />} onClick={() => void bridge.browser.cancelInspect(inspecting)} />

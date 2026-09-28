@@ -30,6 +30,7 @@ import { shortcutLabel } from "../../ui/keyboard.ts";
 import { COMMIT_LANGUAGES, commitLanguageLabel, resolveCommitLanguage } from "./commit-language.ts";
 import type { CommitWork } from "./commit-work.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 export interface CommitPushDialogProps {
 	cwd: string;
@@ -393,19 +394,21 @@ export function CommitPushDialog({
 					 * 这句话讲的是这个框里的字怎么来，挂在框外面就成了一句无主的小字。
 					 */}
 					<div className="ly-composer-bar flex justify-end">
-						<button
-							type="button"
-							data-ly-commit-language
-							data-ly-tip={t("commit.languageIs", { language: commitLanguageLabel(language) })}
-							aria-label={t("commit.languageIs", { language: commitLanguageLabel(language) })}
+						<Button
+							variant="subtle"
+							size="xs"
+							data-ly-commit-language=""
+							label={t("commit.languageIs", { language: commitLanguageLabel(language) })}
+							ariaLabel={t("commit.languageIs", { language: commitLanguageLabel(language) })}
+							menu={languageMenu.open}
 							disabled={disabled}
 							onClick={languageMenu.toggle}
-							className="-mr-1 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-40"
+							icon={<Languages size={11} strokeWidth={1.8} />}
+							className="-mr-1"
 						>
-							<Languages size={11} strokeWidth={1.8} />
 							<span>{commitLanguageLabel(language)}</span>
 							<ChevronDown size={9} strokeWidth={2} />
-						</button>
+						</Button>
 					</div>
 				</div>
 

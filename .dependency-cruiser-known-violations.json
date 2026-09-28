@@ -1289,64 +1289,6 @@
   {
     "type": "cycle",
     "from": "packages/desktop/src/features/composer/Composer.tsx",
-    "to": "packages/desktop/src/features/modals/index.ts",
-    "unresolvedTo": "../modals/index.ts",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/desktop/src/features/modals/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/modals/UpdateDialog.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/conversation/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/conversation/Conversation.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/composer/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/composer/Composer.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "packages/desktop/src/features/composer/Composer.tsx",
     "to": "packages/desktop/src/features/subagents/index.ts",
     "unresolvedTo": "../subagents/index.ts",
     "dependencyTypes": [
@@ -3554,14 +3496,14 @@
         ]
       },
       {
-        "name": "packages/desktop/src/features/modals/index.ts",
+        "name": "packages/desktop/src/features/subagents/index.ts",
         "dependencyTypes": [
           "local",
           "import"
         ]
       },
       {
-        "name": "packages/desktop/src/features/modals/UpdateDialog.tsx",
+        "name": "packages/desktop/src/features/subagents/SubAgentPanel.tsx",
         "dependencyTypes": [
           "local",
           "export"
@@ -7167,50 +7109,6 @@
         "dependencyTypes": [
           "local",
           "import"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "packages/desktop/src/features/modals/UpdateDialog.tsx",
-    "to": "packages/desktop/src/features/update/index.ts",
-    "unresolvedTo": "../update/index.ts",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/desktop/src/features/update/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/update/UpdateBadge.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/modals/index.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/features/modals/UpdateDialog.tsx",
-        "dependencyTypes": [
-          "local",
-          "export"
         ]
       }
     ]

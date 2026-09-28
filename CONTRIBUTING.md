@@ -10,9 +10,8 @@ pnpm dev         # 桌面端
 ```
 
 `pnpm install` 会跑 `lefthook install`。之后 `git commit` 会 lint 你暂存的文件，
-`git push` 会跑 `pnpm check` 和 `pnpm knip`——和 CI 里 linux 那几项同一组。
-Windows 上的真实窗口（`windows-ui`）只在 CI 里跑。要临时跳过：`LEFTHOOK=0 git commit …`——
-但那意味着你打算让 CI 替你发现问题，通常不划算。
+`git push` 会跑 `pnpm check` 和 `pnpm knip`。仓库没有 CI，这就是最后一道检查。
+要临时跳过：`LEFTHOOK=0 git commit …`——但那样问题就没有别的地方会被发现。
 
 ## 命令
 
@@ -24,13 +23,12 @@ Windows 上的真实窗口（`windows-ui`）只在 CI 里跑。要临时跳过�
 | `pnpm typecheck` | 三个包一起 |
 | `pnpm test` | 单元测试，含组件测试 |
 | `pnpm --filter @lyra/desktop test:ui` | 只跑组件测试（happy-dom，不到一秒） |
-| `pnpm release:rehearse` | 触发 Release dry run 并等到绿；红了就停 |
 | `pnpm release patch` | 发版：版本号、CHANGELOG、tag、推送 |
 | `pnpm knip` | 未使用的导出、依赖、文件 |
 | `pnpm build` | core + 桌面端 |
 | `pnpm package` | 打出桌面端安装包 |
 
-推之前跑 `pnpm check` 和 `pnpm knip`；hooks 也会替你跑。`windows-ui` 过不了，`all-green` 就是红的。
+推之前跑 `pnpm check` 和 `pnpm knip`；hooks 也会替你跑。
 
 ## 代码约定
 
@@ -81,7 +79,7 @@ pnpm test:e2e
 - 一个 PR 做一件事。顺手改的格式和真正的改动分开提交，评审时能分得清。
 - 描述里写清楚你**实际**验证了什么，不是应该验证什么。
 - UI 改动附改前/改后截图。
-- CI 全绿再请人看。
+- `pnpm check` 和 `pnpm knip` 全绿再请人看。
 
 仓库里有一个跑 DeepSeek V4 Flash 的 agent，PR 开起来之后它会先读一遍并留下评论。
 它的意见不是结论，是第一双眼睛——不同意就在评论里说明理由。
@@ -91,7 +89,7 @@ pnpm test:e2e
 ```
 packages/core      Agent 运行时：循环、工具、技能、会话日志、插件内核。平台无关。
 packages/desktop   Electron 应用。electron/ 是主进程，src/ 是渲染进程。
-.github/           CI、模板、仓库 agent
+.github/           Issue 与 PR 模板、CODEOWNERS
 ```
 
 core 不依赖桌面端，它是平台无关的运行时，桌面端驱动它的 `AgentSession`。

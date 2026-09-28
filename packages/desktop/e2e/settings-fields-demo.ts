@@ -192,21 +192,6 @@ try {
 	);
 	await hold(1200);
 
-	await openSettings("关于");
-	await until(`Boolean(document.querySelector("[data-ly-check-update]"))`);
-	const about = await app.evaluate<{ select: ReturnType<typeof capsule>; button: ReturnType<typeof capsule> }>(`(() => {
-		const read = (el) => {
-			if (!el) return { height: 0, radius: 0, border: 0 };
-			const s = getComputedStyle(el);
-			return { height: Math.round(parseFloat(s.height)), radius: parseFloat(s.borderRadius), border: parseFloat(s.borderTopWidth) };
-		};
-		return {
-			select: read(document.querySelector("[data-ly-select]")),
-			button: read(document.querySelector("[data-ly-check-update]")),
-		};
-	})()`);
-	check("about interval dropdown matches the check-update pill", about.select.height === about.button.height && about.select.radius >= 16 && about.select.border === 0, about);
-	await hold(1400);
 } catch (error) {
 	check("verification script completed", false, String(error));
 	throw error;

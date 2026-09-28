@@ -2,8 +2,10 @@
  * `src/ui` 以外手写的 `<button>`，只许减少，不许增加。
  *
  * 按钮统一过两次。写 `Button` 时有 276 个手写的，之后又长回 307 个（按下面的数法）——组件在，
- * 但新代码没人拦着就不走它。第二次迁到 204 个：剩下的多数是整行点击层、标签页、菜单项、输入框里
- * 的控件、深色浮层上的按钮；也有几处带 `aria-expanded` 的展开按钮、以及尺寸刻意对齐行高的，要单独讨论。
+ * 但新代码没人拦着就不走它。第二次迁到 204 个；第三次给组件补上 `expanded`（原地展开，不是菜单）、
+ * `pressed`（一组里选中的那个）、`ariaLabel`、20px 的 `xs` 和输入框底栏那一档尺寸，再把终端和文件的标签
+ * 合成 `ClosableTab`，迁到 156 个；自动更新连同它的徽标删掉之后是 155 个。剩下的多数是整行点击层、列表行、菜单项、深色浮层上的按钮、自带形状的
+ * 控件（开关、滑块、色块、拖拽柄）、输入框底栏的文字触发器，以及尺寸刻意对齐行高的（侧栏顶 28px、通知 18px）。
  * 这条测试把这个数钉住。
  *
  * 新写一个按钮时，先用 `ui/primitives` 的 `Button` / `IconButton`。确实不合适（上面那几类），
@@ -19,7 +21,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CEILING = 199;
+const CEILING = 155;
 
 test("src/ui 以外手写的 <button> 不超过上限，且上限跟着迁移往下调", async () => {
 	const root = fileURLToPath(new URL("../src", import.meta.url));

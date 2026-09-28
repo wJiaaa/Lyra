@@ -23,11 +23,12 @@ import { releaseNotes } from "./release-notes.ts";
 import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { MenuBody, MenuItem } from "../../ui/overlay/Menu.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";
-import { Popover } from "../../ui/overlay/Popover.tsx";
+import { Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner, StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { bridge } from "../../services/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 interface ReleaseModalProps {
 	cwd: string;
@@ -44,8 +45,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 	const notesRevision = useRef(0);
 	const [generatingNotes, setGeneratingNotes] = useState(false);
 	const [notesLang, setNotesLang] = useState<"zh" | "en">("zh");
-	const [langMenuOpen, setLangMenuOpen] = useState(false);
-	const langButtonRef = useRef<HTMLButtonElement | null>(null);
+	const langMenu = usePopover();
 	const [previewMode, setPreviewMode] = useState(true);
 	const notify = useApp((s) => s.notify);
 
@@ -300,23 +300,21 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 									<span className="text-caption font-medium text-ink-muted">
 										{t("release.changelog")}
 									</span>
-									<div data-open={langMenuOpen} className="ly-notes-actions flex items-center gap-1 opacity-0 transition-opacity group-hover/notes:opacity-100 group-focus-within/notes:opacity-100">
+									<div data-open={langMenu.open} className="ly-notes-actions flex items-center gap-1 opacity-0 transition-opacity group-hover/notes:opacity-100 group-focus-within/notes:opacity-100">
 										{/* Language Dropdown */}
 										<div className="relative">
-											<button
-												ref={langButtonRef}
+											<IconButton
+												label={t("release.languageIs", { language: notesLang === "zh" ? t("common.chinese") : "English" })}
+												ariaLabel={t("release.notesLanguage")}
+												menu={langMenu.open}
 												disabled={generatingNotes}
-												type="button"
-												onClick={() => setLangMenuOpen((v) => !v)}
-												aria-label={t("release.notesLanguage")} data-ly-tip={t("release.languageIs", { language: notesLang === "zh" ? t("common.chinese") : "English" })}
-												className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink"
-											>
-												<Globe size={14} className="text-ink-muted" />
-											</button>
-											{langMenuOpen && (
+												onClick={langMenu.toggle}
+												icon={<Globe size={14} className="text-ink-muted" />}
+											/>
+											{langMenu.open && (
 												<Popover
-													anchor={langButtonRef.current}
-													onClose={() => setLangMenuOpen(false)}
+													anchor={langMenu.anchor}
+													onClose={langMenu.close}
 													placement="bottom"
 													align="end"
 													width={120}
@@ -326,7 +324,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 															selected={notesLang === "zh"}
 															onClick={() => {
 																setNotesLang("zh");
-																setLangMenuOpen(false);
+																langMenu.close();
 																void handleGenerateNotes("zh", true);
 															}}
 														>
@@ -336,7 +334,7 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 															selected={notesLang === "en"}
 															onClick={() => {
 																setNotesLang("en");
-																setLangMenuOpen(false);
+																langMenu.close();
 																void handleGenerateNotes("en", true);
 															}}
 														>
@@ -347,12 +345,19 @@ export function ReleaseModal({ cwd, onClose }: ReleaseModalProps) {
 											)}
 										</div>
 
-										<button type="button" onClick={() => setPreviewMode(!previewMode)} aria-label={previewMode ? t("release.editNotes") : t("release.previewNotes")} data-ly-tip={previewMode ? t("common.edit") : t("common.preview")} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink">
-											{previewMode ? <Edit3 size={14} /> : <Eye size={14} />}
-										</button>
-										<button type="button" onClick={() => void handleGenerateNotes(notesLang, true)} disabled={generatingNotes} aria-label={t("release.regenerateNotes")} data-ly-tip={t("resume.regenerate")} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-50">
-											{generatingNotes ? <ActionSpinner size={14} /> : <RefreshCw size={14} />}
-										</button>
+										<IconButton
+											label={previewMode ? t("common.edit") : t("common.preview")}
+											ariaLabel={previewMode ? t("release.editNotes") : t("release.previewNotes")}
+											onClick={() => setPreviewMode(!previewMode)}
+											icon={previewMode ? <Edit3 size={14} /> : <Eye size={14} />}
+										/>
+										<IconButton
+											label={t("resume.regenerate")}
+											ariaLabel={t("release.regenerateNotes")}
+											disabled={generatingNotes}
+											onClick={() => void handleGenerateNotes(notesLang, true)}
+											icon={generatingNotes ? <ActionSpinner size={14} /> : <RefreshCw size={14} />}
+										/>
 									</div>
 								</div>
 

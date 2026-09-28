@@ -346,8 +346,6 @@ export interface Settings {
 		/** Number of managed worktrees to retain before oldest are pruned. */
 		keepLimit?: number;
 	};
-	/** Update check frequency in hours (e.g. 4, 8, 12, 24). Default is 6. */
-	updateCheckIntervalHours?: number;
 	/** `${providerId}/${modelId}` of the model used for new sessions. */
 	defaultModelId: string | null;
 	/** Default for new side chats; null follows the main conversation. */

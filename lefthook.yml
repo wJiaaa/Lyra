@@ -42,9 +42,8 @@ commit-msg:
 pre-push:
   jobs:
     - name: check
-      # Same set CI's linux jobs run before windows-ui: lint, style, i18n,
-      # typecheck, arch, test. typecheck-only was how knip and unused exports
-      # reached main and sat in a red dead-code job that all-green did not wait for.
+      # lint, links, style, i18n, typecheck, arch, test. There is no CI behind
+      # this, so it is the last check before a change reaches the remote.
       run: pnpm check
 
     - name: knip

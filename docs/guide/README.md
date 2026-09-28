@@ -8,6 +8,5 @@
 | [会话标题](session-titles.md) | 新会话怎么起名，智能标题什么时候请求 |
 | [侧边栏排序](sidebar.md) | 项目和会话的拖动顺序 |
 | [任务完成通知](task-notifications.md) | 窗口不在前台时，完成会不会响一声 |
-| [更新下载](update-downloads.md) | 安装包放哪、怎么续传、校验对不上就不装 |
 
 架构与决策在 [../architecture/](../architecture/) 与 [../adr/](../adr/)。

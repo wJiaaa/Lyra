@@ -25,6 +25,7 @@ import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
 import { lastIsSettled, MessageRow, rowKey } from "./MessageRow.tsx";
 import { SideComposer } from "./SideComposer.tsx";
 import { TaskStrip } from "./TaskStrip.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function SideChat() {
 	const sessionId = useSideSessionId();
@@ -187,15 +188,7 @@ export function SideChatActions() {
 	const reset = useSide((s) => s.reset);
 	if (messages.length === 0) return null;
 	return (
-		<button
-			type="button"
-			data-ly-tip={translate("sideChat.new")}
-			aria-label={translate("sideChat.new")}
-			onClick={() => void reset(sessionId)}
-			/* Sized and coloured like the pane's own header buttons — see `FileActions`. */
-			className="flex h-[20px] w-[20px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-		>
-			<RotateCcw size={12} strokeWidth={2} />
-		</button>
+		// Sized and coloured like the pane's own header buttons — see `FileActions`.
+		<IconButton size="xs" label={translate("sideChat.new")} onClick={() => void reset(sessionId)} icon={<RotateCcw size={12} strokeWidth={2} />} />
 	);
 }

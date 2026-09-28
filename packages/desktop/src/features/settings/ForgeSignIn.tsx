@@ -24,6 +24,7 @@ import { Field, GhostButton, PrimaryButton, SecretInput, TextInput } from "./con
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 /**
  * Where a host keeps its token page, for the instance actually being signed in to.
@@ -94,16 +95,9 @@ export function ForgeSignIn({ kinds, onDone, onCancel }: { kinds: ForgeKindInfo[
 		<div className="rounded-[12px] border border-line bg-card/40 p-4">
 			<div className="mb-4 flex flex-wrap gap-1.5">
 				{kinds.map((entry) => (
-					<button
-						key={entry.kind}
-						type="button"
-						onClick={() => choose(entry.kind)}
-						className={`h-[30px] rounded-lg border px-3 text-label transition-colors ${
-							kind === entry.kind ? "border-ink-faint bg-card-hover text-ink" : "border-line text-ink-muted hover:text-ink"
-						}`}
-					>
+					<Button key={entry.kind} pressed={kind === entry.kind} onClick={() => choose(entry.kind)}>
 						{entry.name}
-					</button>
+					</Button>
 				))}
 			</div>
 

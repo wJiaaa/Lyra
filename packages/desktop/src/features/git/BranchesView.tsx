@@ -13,6 +13,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 import { FileDiffList } from "./FileDiffList.tsx";
@@ -185,15 +186,14 @@ export function BranchesView({
                 data-ly-field=""
                 className="ly-field ly-field-compact min-w-0 flex-1"
               />
-              <button
+              <Button
                 type="submit"
-                aria-label={t("branches.createAndSwitch")}
-                data-ly-tip={t("branches.createAndSwitch")}
+                variant="primary"
+                size="sm"
+                label={t("branches.createAndSwitch")}
                 disabled={busy || !name.trim()}
-                className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg bg-ink text-detail font-medium text-shell disabled:opacity-40"
-              >
-                <GitBranchPlus size={14} />
-              </button>
+                icon={<GitBranchPlus size={14} />}
+              />
             </form>
           )}
 

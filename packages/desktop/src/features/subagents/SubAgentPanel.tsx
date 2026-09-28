@@ -378,15 +378,7 @@ function IdleComposer({ placeholder, agent }: { placeholder: string; agent?: Sub
 				placeholder={placeholder}
 				left={
 					<>
-						<button
-							type="button"
-							disabled
-							data-ly-tip={t("composer.addAttachment")}
-							aria-label={t("composer.addAttachment")}
-							className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-lg text-ink-muted"
-						>
-							<Plus size={16} strokeWidth={1.9} />
-						</button>
+						<IconButton size="composer" emphasis disabled label={t("composer.addAttachment")} onClick={() => undefined} icon={<Plus size={16} strokeWidth={1.9} />} />
 						{/*
 						 * 和在跑时那一格同一个位置、同一张脸，只是淡下去：跑完的那一刻这一行不跳。从前这里在右边
 						 * 另画一个「• 定向纠偏」，和占位里那句一字不差，一个框里说了两遍同一个词。
@@ -502,15 +494,7 @@ function Steer({ agent, sessionId, openFile }: { agent: SubAgentSummary; session
 				}
 				left={
 					<>
-						<button
-							type="button"
-							data-ly-tip={t("composer.addAttachment")}
-							aria-label={t("composer.addAttachment")}
-							onClick={kit.picker.open}
-							className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-						>
-							<Plus size={16} strokeWidth={1.9} />
-						</button>
+						<IconButton size="composer" emphasis label={t("composer.addAttachment")} onClick={kit.picker.open} icon={<Plus size={16} strokeWidth={1.9} />} />
 						{kit.picker.input}
 						{/* 说给谁听：它的脸在这儿，字就不用再写一遍名字。 */}
 						<span className="flex h-7 min-w-0 items-center gap-1.5 px-2 text-label text-ink-faint">

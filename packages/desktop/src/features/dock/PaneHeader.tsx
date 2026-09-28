@@ -28,6 +28,7 @@ import { Maximize2, Minimize2, SquareArrowOutUpRight, X } from "lucide-react";
 import { HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
 import { PaneGrip } from "./PaneGrip.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function PaneHeader({
 	kind,
@@ -236,15 +237,5 @@ function HeaderButton({
 	onClick: () => void;
 	children: React.ReactNode;
 }) {
-	return (
-		<button
-			type="button"
-			data-ly-tip={tip}
-			aria-label={label}
-			onClick={onClick}
-			className="flex h-[20px] w-[20px] items-center justify-center rounded-md text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
-		>
-			{children}
-		</button>
-	);
+	return <IconButton size="xs" label={tip} ariaLabel={label} onClick={onClick} icon={children} />;
 }

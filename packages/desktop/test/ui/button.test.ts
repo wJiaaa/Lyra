@@ -122,6 +122,31 @@ test("Button: menu 给出弹出类型和开合状态，普通按钮不带", asyn
 	await plain.unmount();
 });
 
+test("Button: expanded 只给开合状态，不声称会弹出菜单", async () => {
+	const view = await mount(h(Button, { expanded: true, children: "预览" }));
+	const button = view.find<HTMLButtonElement>("button");
+	assert.equal(button.getAttribute("aria-expanded"), "true");
+	assert.equal(button.getAttribute("aria-haspopup"), null);
+	await view.unmount();
+});
+
+test("Button: pressed 反映为 aria-pressed，不是一组里的按钮就不带", async () => {
+	const on = await mount(h(Button, { variant: "subtle", pressed: true, children: "全部" }));
+	assert.equal(on.find("button").getAttribute("aria-pressed"), "true");
+	await on.unmount();
+	const plain = await mount(h(Button, { children: "确定" }));
+	assert.equal(plain.find("button").getAttribute("aria-pressed"), null);
+	await plain.unmount();
+});
+
+test("Button: ariaLabel 在有字时也给出可访问名，tooltip 仍是 label", async () => {
+	const view = await mount(h(Button, { label: "提交说明语言：中文", ariaLabel: "提交说明语言：中文", children: "中文" }));
+	const button = view.find<HTMLButtonElement>("button");
+	assert.equal(button.getAttribute("aria-label"), "提交说明语言：中文");
+	assert.equal(button.dataset.lyTip, "提交说明语言：中文");
+	await view.unmount();
+});
+
 test("Button: data-* 原样透传，但盖不掉组件自己的 data-variant", async () => {
 	const view = await mount(h(Button, { "data-usage-clear": "true", "data-variant": "x", variant: "danger", children: "清理" }));
 	const button = view.find<HTMLButtonElement>("button");

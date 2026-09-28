@@ -13,4 +13,3 @@ export { ProjectDialog } from "./ProjectDialog.tsx";
 export { ProjectMenu } from "./ProjectMenu.tsx";
 export { ProjectPicker } from "./ProjectPicker.tsx";
 export { SessionMenu } from "./SessionMenu.tsx";
-export { UpdateDialog } from "./UpdateDialog.tsx";

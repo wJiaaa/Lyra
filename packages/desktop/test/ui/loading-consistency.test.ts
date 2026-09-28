@@ -23,12 +23,7 @@ const SRC = new URL("../../src/", import.meta.url);
 /**
  * 允许留下旧写法的地方，连同理由——白名单里没有理由的一行，下一个人只会照抄。
  */
-const ALLOWED = new Map([
-	[
-		"features/update/UpdateBadge.tsx",
-		"进度环。它画的是「下到几成」，转只是在说这一段进度未知；`ActionSpinner` 的弧长是固定的，没有地方放进度。",
-	],
-]);
+const ALLOWED = new Map<string, string>();
 
 /**
  * 每一条禁令，连同它该改成什么。
@@ -43,7 +38,7 @@ const ALLOWED = new Map([
 const BANNED = [
 	{ pattern: /\bLoader2\b/, fix: "换成 `StatusSpinner` 或 `ActionSpinner`（ui/motion/loaders.tsx）" },
 	{ pattern: /\banimate-spin\b/, fix: "换成那两个记号之一，不要把图标转起来" },
-	{ pattern: /\bly-spin\b/, fix: "`ly-spin` 只留给更新徽章的进度环；「正在忙」用那两个记号" },
+	{ pattern: /\bly-spin\b/, fix: "「正在忙」用那两个记号，不要把东西挂上 `ly-spin` 转起来" },
 	{
 		pattern: /\bSpinner\b/,
 		fix: "没有裸的 `Spinner` 了。状态列里用 `StatusSpinner`，按钮和角标位用 `ActionSpinner`",

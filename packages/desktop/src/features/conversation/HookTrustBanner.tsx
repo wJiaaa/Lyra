@@ -11,6 +11,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 /**
  * 忽略过的，按「项目 + 待审的那几条」记，活在这次运行里。
@@ -55,17 +56,17 @@ export function HookTrustBanner({ className = "" }: { className?: string }) {
 				<div className="ly-enter flex w-full items-center gap-2 rounded-lg border border-line-soft bg-card/60 px-2 py-0.5" data-ly-hook-trust-banner="">
 					<Anchor size={13} strokeWidth={1.8} className="shrink-0 text-accent" aria-hidden />
 					<span className="min-w-0 flex-1 truncate py-1 text-detail text-ink-muted">{t("hooks.pending", { n: pending.count })}</span>
-					<button
-						type="button"
+					<Button
+						variant="subtle"
+						size="xs"
 						onClick={() => {
 							const state = useApp.getState();
 							state.setSettingsSection("hooks");
 							state.setView("settings");
 						}}
-						className="flex h-5 shrink-0 items-center rounded-md px-1 text-caption text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
 					>
 						{t("hooks.review")}
-					</button>
+					</Button>
 					<IconButton
 						size="sm"
 						label={t("hooks.dismiss")}

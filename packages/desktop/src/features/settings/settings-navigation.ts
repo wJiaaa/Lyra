@@ -10,7 +10,6 @@ import {
 	GitPullRequest,
 	Globe,
 	HardDrive,
-	Info,
 	Layers,
 	MonitorSmartphone,
 	Palette,
@@ -73,9 +72,8 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 		],
 	},
 	{
-		labelKey: "settings.group.about",
+		labelKey: "settings.group.archive",
 		items: [
-			{ id: "about", labelKey: "settings.about", icon: Info },
 			{ id: "archived", labelKey: "settings.archived", icon: Archive },
 		],
 	},

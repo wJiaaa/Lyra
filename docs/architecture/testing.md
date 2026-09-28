@@ -58,8 +58,7 @@ Electron 43 携带的 V8 尚未包含 [536271637 的修复](https://chromium-rev
 
 ### Windows 桌面回归
 
-CI 的 `windows-ui` 在 push、PR 和手动执行时运行真实 Windows Electron，并纳入 `all-green`。
-`dead-code`（knip）也是：未用导出不能只红在一个没人等的 job 上。
+仓库没有 CI，下面这组真实 Windows Electron 测试需要在 Windows 机器上手动运行。
 它跑 `desktop-compatibility.test.ts`、`transcript-stability.test.ts`、`interaction-polish.test.ts`、
 `session-startup.test.ts`、`definition-actions.test.ts`、`command-workflow.test.ts`、`visual-details.test.ts`、`agent-profiles-sidechat.test.ts`、`navigation-models.test.ts`、`model-menu-polish.test.ts`、`usage-dashboard.test.ts`、`workspace-quality.test.ts`、`browser-workspace.test.ts`、`browser-cursor.test.ts`、`dock-fullscreen.test.ts`、`dock-native-header.test.ts`、`trajectory.test.ts`、`menu-scroll.test.ts`、`cdp-lifetime.test.ts` 与 `pipelines-loading.test.ts`：
 
@@ -79,7 +78,7 @@ CI 的 `windows-ui` 在 push、PR 和手动执行时运行真实 Windows Electro
 - 斜杠命令的原生编辑、撤销、光标补全、参数装饰、长草稿滚动、菜单渐隐，以及压缩的参数传递、取消、结果与跨会话隔离。
 - 模型菜单的收藏置顶、供应商折叠和内部滚动，以及用量页的离线计价、缓存分类、图表切换、模型目录同步和窄窗口重排。
 
-设置 `LYRA_E2E_ARTIFACTS` 可以保存真实应用截图；CI 保留 7 天。测试使用临时项目和合成会话
+设置 `LYRA_E2E_ARTIFACTS` 可以保存真实应用截图。测试使用临时项目和合成会话
 日志，经真实应用加载，退出后清理。模型请求只发给测试启动的本地协议服务，不使用用户密钥。
 
 本地聚焦运行：
@@ -90,7 +89,7 @@ pnpm --filter @lyra/desktop exec node --test --test-concurrency=1 --experimental
 ```
 
 macOS 上运行这些测试可验证共享 Chromium 布局，不能证明 Windows 的 DirectWrite、GPU 驱动、
-原生 IME 或多屏 DPI 切换都正常。Windows CI 的强制缩放也不替代跨显示器拖动的实机测试。
+原生 IME 或多屏 DPI 切换都正常。强制缩放也不替代跨显示器拖动的实机测试。
 平台行为约束见 [Windows 桌面适配](windows-desktop.md)。
 
 ### macOS 原生标题栏

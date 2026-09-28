@@ -19,11 +19,11 @@ Lyra 会在你的机器上执行模型给出的命令。这是它的用途，也
 ## 依赖
 
 `pnpm audit --prod` 是零。传递依赖里出现的通告用 `pnpm-workspace.yaml` 的 `overrides` 压住，
-dependabot 每周会送来直接依赖的升级。
+直接依赖的升级需要手动跟进。
 
 有一个例外要人工盯：**`xlsx` 从 SheetJS 自己的 CDN 装**，不是 npm。npm 上的最后一版是
-0.18.5，带着两条 high，而修复版本只在 `cdn.sheetjs.com` 上发布。dependabot 跟踪不了 URL
-形式的依赖，所以它不会提醒你。每个季度手动看一次：
+0.18.5，带着两条 high，而修复版本只在 `cdn.sheetjs.com` 上发布。URL 形式的依赖
+不会有任何工具提醒你。每个季度手动看一次：
 
 ```bash
 curl -s https://cdn.sheetjs.com/ | grep -o 'xlsx-[0-9.]*' | sort -V | tail -1

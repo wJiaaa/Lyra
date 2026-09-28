@@ -15,6 +15,7 @@ import { Caret } from "../../ui/primitives/Caret.tsx";
 import { type ExtensionsTab, type SettingsSection } from "../../store/index.ts";
 import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 /**
  * Where one place is shown in this app: a settings page (a tab on it, something in its search
@@ -99,13 +100,12 @@ export function ForeignConfigBanner({
 				</span>
 			)}
 			{/* One place: go there. Several: ask which — a button cannot land on all of them. */}
-			<button
-				type="button"
+			<Button
+				variant="subtle"
+				size="xs"
 				onClick={(event) => (places === 1 ? onLook(lines[0]) : menu.toggle(event))}
-				data-foreign-config-look
-				aria-haspopup={places > 1 ? "menu" : undefined}
-				aria-expanded={places > 1 ? menu.open : undefined}
-				className="flex h-5 shrink-0 items-center gap-0.5 rounded-md px-1 text-caption text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"
+				data-foreign-config-look=""
+				menu={places > 1 ? menu.open : undefined}
 			>
 				{/*
 				 * 这颗在句子末尾，留字。
@@ -116,7 +116,7 @@ export function ForeignConfigBanner({
 				 */}
 				{t("common.look")}
 				{places > 1 && <Caret open={menu.open} size={11} className="opacity-70" />}
-			</button>
+			</Button>
 			<IconButton size="sm" label={t("foreign.dismiss")} onClick={onOk} data-foreign-config-ok icon={<X size={12} strokeWidth={2} />} />
 			{menu.open && (
 				/* Wider than a menu: a path on the left and what it holds on the right must not meet. */

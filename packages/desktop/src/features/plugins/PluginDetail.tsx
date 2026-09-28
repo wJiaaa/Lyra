@@ -144,13 +144,9 @@ export function PluginDetail({
 		<div className="-mt-11 flex min-h-0 flex-1 flex-col" data-plugin-detail={item.id}>
 			<header className="relative z-50 flex h-11 shrink-0 items-center gap-1 px-3">
 				<nav className="no-drag flex min-w-0 items-center gap-1 text-label">
-					<button
-						type="button"
-						onClick={onBack}
-						className="rounded-lg px-2 py-1 text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:text-ink"
-					>
+					<Button variant="subtle" size="sm" onClick={onBack}>
 						{t("market.title")}
-					</button>
+					</Button>
 					<ChevronRight size={13} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
 					<span className="max-w-[320px] truncate px-1 text-ink">{item.name}</span>
 				</nav>

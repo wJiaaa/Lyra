@@ -7,6 +7,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import type { UserContent } from "@lyra/core";
 import { Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -213,15 +214,7 @@ export function SideComposer({
 				}
 				left={
 					<>
-						<button
-							type="button"
-							data-ly-tip={t("composer.addAttachment")}
-							aria-label={t("composer.addAttachment")}
-							onClick={kit.picker.open}
-							className="ly-composer-control ly-composer-icon flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
-						>
-							<Plus size={16} strokeWidth={1.9} />
-						</button>
+						<IconButton size="composer" emphasis label={t("composer.addAttachment")} onClick={kit.picker.open} icon={<Plus size={16} strokeWidth={1.9} />} />
 						{kit.picker.input}
 					</>
 				}

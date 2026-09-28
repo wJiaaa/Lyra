@@ -35,7 +35,7 @@ let app: RunningApp;
  * 元素自己带没带 Tailwind 的 `hover:`／`group-hover:` 类，以及它命不命中 styles/*.css 里那几个
  * 写了 `:hover` 的自定义类——那份名单短且稳定，用 grep 就能对齐。
  */
-const HOVER_CLASSES = ["ly-item", "ly-scroll", "ly-dock-grip", "ly-dock-pane", "ly-pr-row", "ly-splitter", "ly-thumb", "ly-hthumb", "ly-diff-host", "ly-scroll-host", "ly-update-dot", "ly-dialog-action-danger", "ly-dialog-action-secondary"];
+const HOVER_CLASSES = ["ly-item", "ly-scroll", "ly-dock-grip", "ly-dock-pane", "ly-pr-row", "ly-splitter", "ly-thumb", "ly-hthumb", "ly-diff-host", "ly-scroll-host", "ly-dialog-action-danger", "ly-dialog-action-secondary"];
 
 const SCAN = `(()=>{
 	const named=${JSON.stringify(HOVER_CLASSES)};

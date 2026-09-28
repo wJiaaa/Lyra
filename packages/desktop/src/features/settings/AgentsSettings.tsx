@@ -145,7 +145,7 @@ export function AgentsSettings() {
 					</div>
 				</div>
 
-				{catalogue.error && <Banner action={<button type="button" className="h-6 shrink-0 rounded-lg px-2 text-label text-ink transition-colors hover:bg-[var(--ly-agent-hover)]" onClick={() => void catalogue.refresh()}>{t("common.retry")}</button>}>{catalogue.error}</Banner>}
+				{catalogue.error && <Banner action={<Button variant="subtle" size="sm" onClick={() => void catalogue.refresh()}>{t("common.retry")}</Button>}>{catalogue.error}</Banner>}
 				{error && <Banner>{error}</Banner>}
 				{notice && <p role="status" className="px-1 text-label text-ink-muted">{notice} {undo && <button type="button" data-ly-tip={t("common.undo")} aria-label={t("common.undo")} className="inline-grid h-5 w-5 translate-y-[3px] place-items-center rounded-md text-ink hover:bg-[var(--ly-agent-hover)]" onClick={() => { void bridge.agentDefinitions.restore(undo.projectId, undo.token).then(() => { setUndo(null); setNotice(t("agents.restored")); return catalogue.refresh(); }).catch(cause => setError(String(cause))); }}><Undo2 size={12} strokeWidth={2} aria-hidden /></button>}</p>}
 

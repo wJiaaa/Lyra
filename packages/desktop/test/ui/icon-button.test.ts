@@ -86,3 +86,19 @@ test("IconButton: data-* 原样透传，menu 给出弹出类型和开合状态",
 	assert.equal(plain.find("button").getAttribute("aria-haspopup"), null);
 	await plain.unmount();
 });
+
+test("IconButton: expanded 只给开合状态，不声称会弹出菜单", async () => {
+	const view = await mount(h(IconButton, { label: "收起", icon: ICON, expanded: false, onClick: () => {} }));
+	const button = view.find<HTMLButtonElement>("button");
+	assert.equal(button.getAttribute("aria-expanded"), "false");
+	assert.equal(button.getAttribute("aria-haspopup"), null);
+	await view.unmount();
+});
+
+test("IconButton: composer 尺寸读输入框的控件变量，不写死像素", async () => {
+	const view = await mount(h(IconButton, { label: "添加附件", icon: ICON, size: "composer", onClick: () => {} }));
+	const button = view.find<HTMLButtonElement>("button");
+	assert.ok(button.classList.contains("ly-composer-control") && button.classList.contains("ly-composer-icon"));
+	assert.equal(button.className.includes("h-[26px]"), false);
+	await view.unmount();
+});

@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 /**
  * The pager under a run of conversation rows.
@@ -87,16 +88,9 @@ export function ShowMore({
 					<RollingText rollKey={hidden}>{translate("showMore.expand", { n: hidden })}</RollingText>
 				</span>
 			</button>
-			<button
-				type="button"
-				data-ly-tip={translate("common.collapse")}
-				aria-label={translate("common.collapse")}
-				onClick={onCollapse}
-				className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-caption text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink-muted"
-			>
-				<ChevronUp size={12} strokeWidth={2} aria-hidden />
-				<span>{translate("common.collapse")}</span>
-			</button>
+			<Button variant="subtle" size="xs" label={translate("common.collapse")} onClick={onCollapse} icon={<ChevronUp size={12} strokeWidth={2} aria-hidden />}>
+				{translate("common.collapse")}
+			</Button>
 		</div>
 	);
 }

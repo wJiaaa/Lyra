@@ -219,16 +219,13 @@ function ServerCard({
 					</div>
 				</div>
 				{/* Shown on hover or focus — and kept while its section is open, so the way back is where it was. */}
-				<button
-					type="button"
-					aria-label={t("mcpSettings.launch")}
-					data-ly-tip={t("mcpSettings.launch")}
-					aria-expanded={open === "launch"}
+				<IconButton
+					label={t("mcpSettings.launch")}
+					expanded={open === "launch"}
 					onClick={() => toggle("launch")}
-					className="flex h-[26px] w-[26px] items-center justify-center rounded-md text-ink-faint opacity-0 transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] group-hover/card:opacity-100 hover:bg-card-hover hover:text-ink focus-visible:opacity-100 aria-expanded:bg-card-hover aria-expanded:text-ink aria-expanded:opacity-100"
-				>
-					<SlidersHorizontal size={14} strokeWidth={1.9} aria-hidden />
-				</button>
+					className="opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 aria-expanded:bg-card-hover aria-expanded:text-ink aria-expanded:opacity-100"
+					icon={<SlidersHorizontal size={14} strokeWidth={1.9} aria-hidden />}
+				/>
 				<Toggle checked={server.enabled} onChange={(enabled) => onUpdate({ enabled })} ariaLabel={t("market.enableNamed", { name: server.name })} />
 				<IconButton
 					label={t("common.more")}

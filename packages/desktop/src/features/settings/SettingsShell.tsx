@@ -13,7 +13,6 @@ import { ToolbarButton } from "../../app/window/WindowControls.tsx";
 import { WindowHeader } from "../../app/window/WindowToolbar.tsx";
 import { AgentsSettings } from "./AgentsSettings.tsx";
 import { ArchivedSettings } from "./ArchivedSettings.tsx";
-import { AboutSettings } from "./AboutSettings.tsx";
 import { AppearanceSettings } from "./AppearanceSettings.tsx";
 import { CommandsSettings } from "./CommandsSettings.tsx";
 import { ToolsSettings } from "./ToolsSettings.tsx";
@@ -265,8 +264,6 @@ function SectionBody({ section }: { section: SettingsSection }) {
 			return <StorageSettings />;
 		case "worktrees":
 			return <WorktreesSettings />;
-		case "about":
-			return <AboutSettings />;
 		case "archived":
 			return <ArchivedSettings />;
 		default:

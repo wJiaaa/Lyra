@@ -1,6 +1,6 @@
 # ADR-0010：更新包核对摘要，验不了就不装
 
-- 状态：已采纳
+- 状态：已废弃（应用内更新与发版流水线已移除）
 - 日期：2026-09-03
 - 相关：`packages/desktop/electron/update-checksum.ts`、`.github/workflows/release.yml`
 

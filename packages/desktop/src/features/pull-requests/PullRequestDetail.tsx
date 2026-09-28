@@ -25,6 +25,7 @@ import { PullRequestMeta } from "./PullRequestMeta.tsx";
 import { DetailSkeleton } from "./PullRequestSkeleton.tsx";
 import { bridge } from "../../services/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 export type PrTab = "summary" | "code";
 
@@ -124,16 +125,9 @@ export function PullRequestDetail({
 
 				<div className="no-drag flex items-center gap-1">
 					{(["summary", "code"] as const).map((key) => (
-						<button
-							key={key}
-							type="button"
-							onClick={() => onTab(key)}
-							className={`h-[26px] rounded-lg px-2.5 text-label transition-colors ${
-								tab === key ? "bg-card-hover text-ink" : "text-ink-muted hover:text-ink"
-							}`}
-						>
+						<Button key={key} variant="subtle" size="sm" pressed={tab === key} onClick={() => onTab(key)}>
 							{t(key === "summary" ? "prDetail.summary" : "prDetail.code")}
-						</button>
+						</Button>
 					))}
 				</div>
 

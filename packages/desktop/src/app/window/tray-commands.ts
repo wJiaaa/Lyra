@@ -48,12 +48,6 @@ export function useTrayCommands(): void {
 				case "settings":
 					app.setView("settings");
 					break;
-				case "updates":
-					// 关于 is where the version, the check button and the changelog live. It used to be
-					// the bottom of 常规, which held a copy of the first two and none of the rest.
-					app.setSettingsSection("about");
-					app.setView("settings");
-					break;
 			}
 		});
 	}, []);

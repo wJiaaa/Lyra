@@ -110,7 +110,7 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 	const point = (el: HTMLCanvasElement, clientX: number, clientY: number) => { const bounds = el.getBoundingClientRect(); return { x: clientX - bounds.left, y: clientY - bounds.top, width: bounds.width }; };
 	return <section ref={root} hidden={cramped} className="shrink-0 px-3 pb-1" aria-label={t("timeline.overview")} data-trace-timeline>
 		<div className="flex h-8 items-center gap-1 text-caption text-ink-muted">
-			<button type="button" data-ly-tip={short ? t("timeline.expandHint") : expanded ? t("timeline.title") : t("timeline.expand")} aria-label={t("timeline.overview")} aria-expanded={visible} className="mr-auto grid h-5 w-5 place-items-center rounded-md hover:text-ink" onClick={() => { cancel(); window.sessionStorage.setItem("lyra.trace.timeline", expanded ? "closed" : "open"); setExpanded(!expanded); }}><ChevronDown size={12} aria-hidden style={{ transform: expanded ? undefined : "rotate(-90deg)" }} /></button>
+			<IconButton size="xs" label={short ? t("timeline.expandHint") : expanded ? t("timeline.title") : t("timeline.expand")} ariaLabel={t("timeline.overview")} expanded={visible} className="mr-auto" onClick={() => { cancel(); window.sessionStorage.setItem("lyra.trace.timeline", expanded ? "closed" : "open"); setExpanded(!expanded); }} icon={<ChevronDown size={12} aria-hidden style={{ transform: expanded ? undefined : "rotate(-90deg)" }} />} />
 			{/*
 			 * 收起的时候，这三个不在。
 			 *

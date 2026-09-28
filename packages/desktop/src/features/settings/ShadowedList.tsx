@@ -18,6 +18,7 @@ import { ArrowLeftRight, Eye, EyeOff, Layers } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Card } from "./controls.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export interface ShadowedEntry {
 	name: string;
@@ -137,13 +138,10 @@ function Row({
 					<span className="font-mono">{entry.path}</span> {t("shadowed.byPrefix", { where: entry.byLabel })}{" "}
 						<span className="font-mono">{entry.by}</span> {t("shadowed.bySuffix")}
 				</span>
-				<button type="button" data-shadowed-diff data-ly-tip={t(open ? "shadowed.hideDiff" : "shadowed.showDiff")} aria-label={t(open ? "shadowed.hideDiff" : "shadowed.showDiff")} onClick={() => void toggle()} className={`${link} inline-grid h-5 w-5 place-items-center rounded-md`}>
-					{open ? <EyeOff size={12} strokeWidth={1.9} aria-hidden /> : <Eye size={12} strokeWidth={1.9} aria-hidden />}
-				</button>
+				<IconButton size="xs" data-shadowed-diff="" label={t(open ? "shadowed.hideDiff" : "shadowed.showDiff")} onClick={() => void toggle()}
+					icon={open ? <EyeOff size={12} strokeWidth={1.9} aria-hidden /> : <Eye size={12} strokeWidth={1.9} aria-hidden />} />
 				{/* Still offered after a switch: by then this row is the other file, and this is the way back. */}
-				<button type="button" data-shadowed-prefer data-ly-tip={t("shadowed.useThat")} aria-label={t("shadowed.useThat")} disabled={busy} onClick={() => void switchTo()} className={`${link} inline-grid h-5 w-5 place-items-center rounded-md`}>
-					<ArrowLeftRight size={12} strokeWidth={1.9} aria-hidden />
-				</button>
+				<IconButton size="xs" data-shadowed-prefer="" label={t("shadowed.useThat")} disabled={busy} onClick={() => void switchTo()} icon={<ArrowLeftRight size={12} strokeWidth={1.9} aria-hidden />} />
 			</div>
 			{/* Where it went, so it can be found again — and undone, which is the same button, now on this row. */}
 			{wrote && (
@@ -171,5 +169,3 @@ function Row({
 		</div>
 	);
 }
-
-const link = "shrink-0 text-caption text-ink-muted underline-offset-2 transition-colors duration-[var(--ly-t-quick)] hover:text-ink hover:underline disabled:opacity-50";

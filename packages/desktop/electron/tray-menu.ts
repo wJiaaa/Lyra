@@ -26,7 +26,6 @@ export type TrayCommand =
 	| "pull-requests"
 	| "scheduled"
 	| "settings"
-	| "updates"
 	| `open-session:${string}`;
 
 export type TrayAction =
@@ -105,7 +104,6 @@ export function trayMenu(state: TrayState): TrayItem[] {
 		{ type: "item", label: t("tray.scheduled"), action: { kind: "command", command: "scheduled" } },
 		{ type: "separator" },
 		{ type: "item", label: t("tray.settings"), action: { kind: "command", command: "settings" } },
-		{ type: "item", label: t("tray.updates"), action: { kind: "command", command: "updates" } },
 		{
 			type: "item",
 			label: t("tray.launchAtLogin"),

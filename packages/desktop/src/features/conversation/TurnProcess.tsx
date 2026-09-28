@@ -56,7 +56,7 @@ export function TurnProcess({
 				/>
 			)}
 
-			<Collapse open={shown} bodyClassName="flex flex-col gap-2.5">{children}</Collapse>
+			<Collapse open={shown} bodyClassName={running ? "flex flex-col gap-2.5" : "flex flex-col gap-2.5 pt-2.5"}>{children}</Collapse>
 		</div>
 	);
 }
