@@ -16,6 +16,7 @@
  * 陪着它——同一件事说两遍，就是长任务让人觉得吵的原因。
  */
 
+import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -94,6 +95,12 @@ export function FlowRow({
 				</span>
 			)}
 			{trailing && <span className="ly-flow-trail">{trailing}</span>}
+			{/*
+			 * The chevron is back, and it follows the words rather than sitting at the far edge. It was
+			 * dropped when the process rows were unified, and a row that opens then looked exactly like
+			 * one that does not. A row that navigates elsewhere passes no `open` and draws its own mark.
+			 */}
+			{expandable && open !== undefined && <ChevronRight size={12} strokeWidth={2} className="ly-flow-chevron" aria-hidden />}
 		</>
 	);
 

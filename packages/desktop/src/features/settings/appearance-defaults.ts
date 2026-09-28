@@ -60,5 +60,6 @@ export const FACTORY_APPEARANCE: Appearance = {
 	reduceMotion: "system",
 	diffMarkers: "color",
 	errorDetail: "compact",
+	callChain: "collapsed",
 	fontSmoothing: false,
 };

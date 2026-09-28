@@ -674,7 +674,20 @@ export interface TurnBlock {
 function isProcess(run: Run): boolean {
 	if (run.kind === "tools" || run.kind === "hiccup" || run.kind === "compaction") return true;
 	// `lead` 的那一条是开头的推理被单独拆出来的行，见 `leadingThinking`。
-	return run.kind === "message" && run.lead === true;
+	return run.kind === "message" && (run.lead === true || thinkingOnly(run));
+}
+
+/**
+ * A reply row that is nothing but reasoning — a reply that thought and then only called tools.
+ *
+ * It gets no `lead` (there is no prose row below it to lead into), so it used to count as an
+ * answer: drawn outside the fold and missing from the turn line's tally of thoughts. Rows with no
+ * reasoning in them stay out of this, above all the empty row that is a failure's only trace.
+ */
+function thinkingOnly(run: Extract<Run, { kind: "message" }>): boolean {
+	if (run.message.role !== "assistant") return false;
+	const own = run.message.content.slice(run.from ?? 0, run.upTo);
+	return own.some((block) => block.type === "thinking") && !own.some((block) => block.type === "text" && block.text.trim());
 }
 
 /** 一条 run 是不是「人开的口」——新一轮从这里开始。 */
@@ -711,7 +724,16 @@ export function turnBlocks(list: Run[]): TurnBlock[] {
 		let answer = end;
 		for (let n = end - 1; n >= at; n--) {
 			const run = list[n];
-			if (run.kind === "message" && run.message.role === "assistant" && !isProcess(run)) {
+			/*
+			 * Work after a sentence makes that sentence commentary, not the answer.
+			 *
+			 * Picking "the last assistant text" alone split a running turn in two: the sentence before a
+			 * batch of calls counted as the answer, so everything done after it was drawn outside the
+			 * fold — and jumped into it the moment the real answer began. Markers (a reconnect, a
+			 * compaction) are not work and do not demote the sentence before them.
+			 */
+			if (run.kind !== "hiccup" && run.kind !== "compaction" && isProcess(run)) break;
+			if (run.kind === "message" && run.message.role === "assistant") {
 				answer = n;
 				break;
 			}
@@ -730,7 +752,7 @@ export function turnBlocks(list: Run[]): TurnBlock[] {
 				runs: body,
 				counts: {
 					tools: process.reduce((n, run) => n + (run.kind === "tools" ? run.calls.length : 0), 0),
-					thinking: process.filter((run) => run.kind === "message" && run.lead === true).length,
+					thinking: process.filter((run) => run.kind === "message").length,
 				},
 				turn,
 			});

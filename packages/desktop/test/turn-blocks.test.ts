@@ -28,6 +28,14 @@ const think = (index: number): Run => ({
 	lead: true,
 });
 
+/** 一条只想了、然后只调了工具的回复：它没有正文行可以「领」，所以不带 `lead`。 */
+const thinkingOnly = (index: number): Run => ({
+	kind: "message",
+	message: { role: "assistant", content: [{ type: "thinking", thinking: "再想想" }, { type: "toolCall", id: "t", name: "read", arguments: {} }], stopReason: "toolUse" } as Message,
+	index,
+	upTo: 1,
+});
+
 const say = (text: string, index: number): Run => ({
 	kind: "message",
 	message: { role: "assistant", content: [{ type: "text", text }], stopReason: "end" } as Message,
@@ -66,6 +74,20 @@ test("还没说出最后那句话时，过程一直延伸到末尾", () => {
 	const blocks = turnBlocks([ask("跑一下", 0), think(1), work(2)]);
 	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process"]);
 	assert.equal(blocks[1].counts.tools, 2);
+});
+
+test("说完一句又接着干活时，那句是解说，后面的活不会漏到过程外面", () => {
+	// 跑到一半的样子：「我先看一下配置」之后又想了一下、又调了工具，还没有最后那句话。
+	const blocks = turnBlocks([ask("改一下", 0), work(1), say("我先看一下配置。", 2), thinkingOnly(3), work(2)]);
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process"]);
+	assert.equal(blocks[1].runs.length, 4, "解说、只有推理的那一行、两段活，全在过程里");
+	assert.deepEqual(blocks[1].counts, { tools: 3, thinking: 1 });
+});
+
+test("一条什么都没说出来的失败回复不被收进过程", () => {
+	const failed: Run = { kind: "message", message: { role: "assistant", content: [], stopReason: "error" } as Message, index: 2, upTo: 0 };
+	const blocks = turnBlocks([ask("跑一下", 0), work(1), failed]);
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process", "plain"], "失败那一行是它唯一露面的机会");
 });
 
 test("没有过程的一轮不产生空壳", () => {

@@ -134,6 +134,23 @@
   margin-left: 8px;
 }
 
+/* The disclosure chevron: right after the words, turned 90° while open. */
+.ly-flow-chevron {
+  flex: none;
+  margin-left: 6px;
+  opacity: 0.8;
+  transition: transform var(--ly-t-base) var(--ly-e-out);
+}
+
+.ly-flow-row[data-open] .ly-flow-chevron {
+  transform: rotate(90deg);
+}
+
+/* The expanded call-chain layout is the earlier look, which drew no chevrons. */
+:root[data-call-chain="expanded"] .ly-flow-chevron {
+  display: none;
+}
+
 /*
  * 一整轮的过程，是一块，所以行距只有一种。
  *

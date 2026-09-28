@@ -311,6 +311,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	root.dataset.pointerCursor = String(appearance.pointerCursor);
 	root.dataset.fontSmoothing = String(appearance.fontSmoothing);
 	root.dataset.reduceMotion = appearance.reduceMotion;
+	root.dataset.callChain = appearance.callChain ?? "collapsed";
 	for (const listener of applied) listener();
 }
 
