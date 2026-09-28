@@ -18,7 +18,6 @@ import {
 	ShieldCheck,
 	Sparkles,
 	SquareTerminal,
-	Wrench,
 } from "lucide-react";
 import type { SettingsSection } from "../../store/index.ts";
 import type { MessageKey } from "../../i18n/index.ts";
@@ -50,7 +49,6 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 			{ id: "plugins", labelKey: "settings.extensions", icon: Blocks },
 			{ id: "agents", labelKey: "settings.agents", icon: Bot },
 			{ id: "commands", labelKey: "settings.commands", icon: SquareTerminal },
-			{ id: "tools", labelKey: "settings.tools", icon: Wrench },
 			{ id: "hooks", labelKey: "settings.hooks", icon: Anchor },
 			{ id: "search", labelKey: "settings.search", icon: Search },
 			{ id: "access", labelKey: "settings.access", icon: ShieldCheck },

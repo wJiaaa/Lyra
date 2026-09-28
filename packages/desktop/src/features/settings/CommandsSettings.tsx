@@ -1,8 +1,5 @@
 /**
  * 斜杠命令：在输入框里敲 `/` 能用到什么。
- *
- * 工具清单以前是这一页的第二个标签，现在单独成了「工具」一项（`ToolsSettings.tsx`）：
- * 它回答的是另一个问题——模型能调用什么。
  */
 
 import type { BuiltinCommand } from "@lyra/core/commands-builtin";

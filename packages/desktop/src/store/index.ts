@@ -92,7 +92,6 @@ export type SettingsSection =
   | "agents"
   | "mcp"
   | "commands"
-  | "tools"
   | "hooks"
   | "index"
   | "web"
