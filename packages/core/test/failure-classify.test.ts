@@ -119,6 +119,43 @@ test("服务器说的等待时间，头和正文两处都认", () => {
 	assert.equal(serverDelayMs(null, JSON.stringify({ model: "gpt-4o-2024" })), undefined, "模型名里的数字不是等待时间");
 });
 
+test("限流原话、Gemini 的 retryDelay 里写着的等待时间也认", () => {
+	const openai = JSON.stringify({ error: { message: "Rate limit reached for gpt-4o on tokens per min (TPM): Limit 30000, Used 29000. Please try again in 11.05s.", type: "tokens", code: "rate_limit_exceeded" } });
+	assert.equal(serverDelayMs(null, openai), 11_050);
+	assert.equal(serverDelayMs(null, "Please try again in 1m2s."), 62_000);
+	assert.equal(serverDelayMs(null, "Please try again in 20ms."), 20);
+	assert.equal(classifyFailure({ from: "stream", message: "Rate limit reached. Please try again in 6m0s." }).retryAfterMs, 360_000);
+	const gemini = JSON.stringify({ error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "You exceeded your current quota. Please retry in 30.5s.", details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "30s" }] } });
+	assert.equal(serverDelayMs(null, gemini), 30_000);
+	assert.equal(serverDelayMs(null, "retry in 5 minutes"), undefined, "不是时长写法的不猜");
+});
+
+test("Gemini 每分钟限流用的是欠费那句话，按限流重试；按天用完和 OpenAI 的额度耗尽照旧是终局", () => {
+	const gemini = (quotaId: string) => JSON.stringify({
+		error: {
+			code: 429,
+			status: "RESOURCE_EXHAUSTED",
+			message: "You exceeded your current quota, please check your plan and billing details.",
+			details: [
+				{ "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaMetric: "generativelanguage.googleapis.com/generate_content_free_tier_requests", quotaId }] },
+				{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "31s" },
+			],
+		},
+	});
+	const perMinute = classifyFailure({ from: "status", status: 429, body: gemini("GenerateRequestsPerMinutePerProjectPerModel-FreeTier") });
+	assert.equal(perMinute.kind, "upstream");
+	assert.equal(perMinute.retryAfterMs, 31_000);
+	assert.equal(classifyFailure({ from: "status", status: 429, body: gemini("GenerateRequestsPerDayPerProjectPerModel-FreeTier") }).hint, "check-billing");
+	const openai = JSON.stringify({ error: { message: "You exceeded your current quota, please check your plan and billing details.", type: "insufficient_quota", code: "insufficient_quota" } });
+	assert.equal(classifyFailure({ from: "status", status: 429, body: openai }).kind, "fatal");
+});
+
+test("529 过载按上游故障重试", () => {
+	const overloaded = classifyFailure({ from: "status", status: 529, body: JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "Overloaded" } }) });
+	assert.equal(overloaded.kind, "upstream");
+	assert.equal(worthRetrying(overloaded), true);
+});
+
 test("同一个错误的指纹一样，不同的不一样", () => {
 	const first = classifyFailure({ from: "stream", message: "upstream busy (request 8f2a1b)" });
 	const second = classifyFailure({ from: "stream", message: "upstream busy (request c93d4e)" });

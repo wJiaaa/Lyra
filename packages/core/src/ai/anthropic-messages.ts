@@ -19,7 +19,7 @@ import type {
 	StreamEvent,
 } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";
-import { classifyFailure, FailureError } from "./failure.ts";
+import { classifyFailure, FailureError, REFUSAL_MESSAGE } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
@@ -346,6 +346,8 @@ async function* streamAnthropic(
 			kind: "text" | "thinking" | "toolCall";
 			contentIndex: number;
 			raw: string;
+			/** `content_block_start` 自己带着的工具参数；后面没有 `input_json_delta` 时就是它。 */
+			input?: Record<string, unknown>;
 		}
 	>();
 	let stopReason: string | undefined;
@@ -479,8 +481,12 @@ async function* streamAnthropic(
 						case "content_block_start": {
 							const idx: number = event.index;
 							const block = event.content_block ?? {};
+							/*
+							 * 开头这一帧可以自带内容。官方在这里发空串和 `input: {}`，正文全在后面的 delta 里；但有的中转
+							 * 把整块一次放在开头、不再发 delta。从前一律从空开始，那种中转的正文就没了，工具带着 `{}` 执行。
+							 */
 							if (block.type === "text") {
-								partial.content.push({ type: "text", text: "" });
+								partial.content.push({ type: "text", text: typeof block.text === "string" ? block.text : "" });
 								blocks.set(idx, {
 									kind: "text",
 									contentIndex: partial.content.length - 1,
@@ -490,7 +496,8 @@ async function* streamAnthropic(
 							} else if (block.type === "thinking" || block.type === "redacted_thinking") {
 								partial.content.push({
 									type: "thinking",
-									thinking: "",
+									thinking: typeof block.thinking === "string" ? block.thinking : "",
+									...(typeof block.signature === "string" && block.signature ? { signature: block.signature } : {}),
 									redacted: block.type === "redacted_thinking" || undefined,
 									encrypted: typeof block.data === "string" ? block.data : undefined,
 								});
@@ -501,17 +508,20 @@ async function* streamAnthropic(
 								});
 								yield { type: "thinking_start", index: idx };
 							} else if (block.type === "tool_use") {
+								// 官方的 `input: {}` 只是占位，参数在后面的 `input_json_delta` 里拼出来；非空的才是自带的参数。
+								const input = block.input && typeof block.input === "object" && !Array.isArray(block.input) && Object.keys(block.input).length > 0 ? (block.input as Record<string, unknown>) : undefined;
 								partial.content.push({
 									type: "toolCall",
 									id: toolCallId(block.id, idx, inventedIds),
 									name: String(block.name ?? ""),
-									arguments: {},
-									argumentsText: "",
+									arguments: input ?? {},
+									argumentsText: input ? JSON.stringify(input) : "",
 								});
 								blocks.set(idx, {
 									kind: "toolCall",
 									contentIndex: partial.content.length - 1,
 									raw: "",
+									input,
 								});
 								yield {
 									type: "toolcall_start",
@@ -569,7 +579,7 @@ async function* streamAnthropic(
 							if (tracked.kind === "toolCall") {
 								const target = partial.content[tracked.contentIndex];
 								if (target?.type === "toolCall") {
-									target.arguments = parseToolArguments(tracked.raw) ?? {};
+									target.arguments = tracked.raw ? parseToolArguments(tracked.raw) ?? {} : tracked.input ?? {};
 								}
 								yield {
 									type: "toolcall_end",
@@ -655,10 +665,18 @@ async function* streamAnthropic(
 					throw new FailureError(
 						classifyFailure({
 							from: "stream",
-							message: REFUSAL_MESSAGE,
+							message: `${REFUSAL_MESSAGE}（stop_reason: refusal）`,
 							spent: partial.usage.output > 0 || partial.content.length > 0,
 						}),
 					);
+				}
+
+				/*
+				 * 上下文窗口满了，生成被截在半路。按截断（`length`）处理的话，loop 会让它接着写，而窗口
+				 * 还是满的，再写还是撞；抛成上下文超长，loop 的超长恢复会压缩历史后重发这一次。
+				 */
+				if (stopReason === "model_context_window_exceeded") {
+					throw new FailureError(classifyFailure({ from: "stream", message: CONTEXT_FULL_MESSAGE, spent: true }));
 				}
 
 				if (!sawMessageStop && stopReason === undefined && partial.content.length > 0) {
@@ -730,16 +748,15 @@ export function samplingFor(thinkingEnabled: boolean, model: Pick<ModelConfig, "
 	return merged;
 }
 
-/** 拒绝作答时交给分类器的那句话。带着 `stop_reason: refusal` 原文，`failure.ts` 靠它判成内容策略。 */
-const REFUSAL_MESSAGE = "模型拒绝回答这次请求（stop_reason: refusal）";
+/** 窗口满时交给分类器的那句话。带着原文，`failure.ts` 的超长短语表认它。 */
+const CONTEXT_FULL_MESSAGE = "上下文窗口已满，回答被截在半路（stop_reason: model_context_window_exceeded）";
 
 /**
- * 协议的 `stop_reason` → 我们的 `stopReason`。`refusal` 不经过这里，在流末尾就抛了。
+ * 协议的 `stop_reason` → 我们的 `stopReason`。`refusal` 和 `model_context_window_exceeded` 不经过这里，
+ * 在流末尾就抛了：前者是内容策略，后者是上下文超长，要压缩后重发。
  *
  *   - `end_turn` / `stop_sequence`：说完了（带着工具调用时仍算 `toolUse`，见函数末尾）。
  *   - `max_tokens`：输出上限截断。
- *   - `model_context_window_exceeded`：上下文窗口满了，生成被截在半路——和 `max_tokens` 是同一个结局
- *     （回答不完整，工具调用可能是半截），按 `length` 处理，loop 不会去执行半截的调用。
  *   - `pause_turn`：服务端工具跑得太久、这一轮被暂停，要原样发回去才能续上。我们不发服务端工具，正常
  *     走不到；兼容端点真发了，这一轮就是没做完的，按 `length` 如实标出来，不冒充说完了。
  *   - `tool_use`：要调工具。
@@ -751,7 +768,6 @@ const REFUSAL_MESSAGE = "模型拒绝回答这次请求（stop_reason: refusal�
 function mapStopReason(raw: string | undefined, content: AssistantContent[]): AssistantMessage["stopReason"] {
 	switch (raw) {
 		case "max_tokens":
-		case "model_context_window_exceeded":
 		case "pause_turn":
 			return "length";
 		case "tool_use":

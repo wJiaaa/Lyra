@@ -20,7 +20,7 @@ import type {
 	StreamEvent,
 } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";
-import { classifyFailure, FailureError } from "./failure.ts";
+import { classifyFailure, FailureError, REFUSAL_MESSAGE } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { USER_AGENT, failedStreamEvent, joinUrl, priceAttempt, settleUsage } from "./endpoint.ts";
@@ -156,6 +156,8 @@ async function* streamResponses(
 	/** Stand-in ids for calls the provider did not name, keyed by output index. */
 	const inventedIds = new Map<number, string>();
 	let incompleteReason: string | undefined;
+	/** 模型拒答时说的话：`response.refusal.delta`，或完成的 message 里 `type: "refusal"` 的那段。 */
+	let refusal = "";
 	/** 这次尝试收到过几个能看懂的事件——用来分辨「模型没话说」和「中转发来一团别的东西」。 */
 	let framesSeen = 0;
 	/** 收到过收尾事件（`response.completed` / `.incomplete`）——没有它就说明流是断的，不是说完了。 */
@@ -189,6 +191,7 @@ async function* streamResponses(
 		items.clear();
 		inventedIds.clear();
 		incompleteReason = undefined;
+		refusal = "";
 		framesSeen = 0;
 		settled = false;
 		firstTokenTime = null;
@@ -315,6 +318,11 @@ async function* streamResponses(
 							break;
 						}
 
+						case "response.refusal.delta": {
+							refusal += event.delta ?? "";
+							break;
+						}
+
 						case "response.output_text.delta": {
 							if (firstTokenTime === null) firstTokenTime = Date.now();
 							const tracked = items.get(outputIndex);
@@ -327,6 +335,20 @@ async function* streamResponses(
 									delta: event.delta ?? "",
 									partial: { ...partial },
 								};
+							}
+							break;
+						}
+
+						/*
+						 * 推理摘要可以分好几段，每段一个 `summary_part`。段与段之间协议不带任何分隔，直接拼起来
+						 * 上一段的末句和下一段的标题粘成一行（`…目录结构。**检查测试**`），所以新的一段开头补一个空行。
+						 */
+						case "response.reasoning_summary_part.added": {
+							const tracked = items.get(outputIndex);
+							const target = tracked ? partial.content[tracked.contentIndex] : undefined;
+							if (target?.type === "thinking" && target.thinking) {
+								target.thinking += "\n\n";
+								yield { type: "thinking_delta", index: outputIndex, delta: "\n\n", partial: { ...partial } };
 							}
 							break;
 						}
@@ -432,6 +454,10 @@ async function* streamResponses(
 								if (!target.text && Array.isArray(item.content)) {
 									target.text = item.content.map((c: { text?: string }) => c.text ?? "").join("");
 								}
+								// 没流式发 `refusal.delta` 的端点，拒答只在完成的 message 里。
+								if (!refusal && Array.isArray(item.content)) {
+									refusal = item.content.map((c: { type?: string; refusal?: string }) => (c.type === "refusal" ? c.refusal ?? "" : "")).join("");
+								}
 								yield { type: "text_end", index: outputIndex };
 							}
 							break;
@@ -459,6 +485,13 @@ async function* streamResponses(
 							 * 额度）会被判成 `fatal` 原样抛到最外面，和从前的行为一模一样——区别只是
 							 * 这个结论现在来自事件的内容，而不是来自「它出现在流里」这个位置。
 							 */
+							/*
+							 * `response.failed` carries the Response object, usage included: the provider
+							 * billed this attempt. Recorded before throwing so `reset` folds it into the
+							 * bill when a retry follows, and `failedStreamEvent` settles it when none does.
+							 * A bare `error` event has no `response`, and `applyUsage` ignores that.
+							 */
+							applyUsage("openai-responses", partial.usage, event.response?.usage);
 							const said = event.response?.error?.message ?? event.message;
 							throw new FailureError(
 								classifyFailure({
@@ -484,6 +517,11 @@ async function* streamResponses(
 					throw new FailureError(
 						classifyFailure({ from: "transport", error: new Error(`流空闲超过 ${Math.round(STREAM_IDLE_TIMEOUT_MS / 1000)} 秒`) }),
 					);
+				}
+
+				// 拒答：和另外两条链同一个出口，判成内容策略、不重试。从前它落成一条空回答被重试，所以排在空回答之前。
+				if (refusal.trim()) {
+					throw new FailureError(classifyFailure({ from: "stream", message: `${REFUSAL_MESSAGE}：${refusal.trim()}`, spent: true }));
 				}
 
 				/*

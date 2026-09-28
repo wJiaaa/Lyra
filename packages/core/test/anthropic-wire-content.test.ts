@@ -251,3 +251,20 @@ test("要几个就放几个，历史比它短时放到没得放为止", () => {
 	assert.equal(cacheMarks(toAnthropicMessages([user("只有一条")], { cacheBreakpoints: 2 })).length, 1);
 	assert.equal(cacheMarks(toAnthropicMessages([user("一"), user("二"), user("三")], { cacheBreakpoints: 2 })).length, 2);
 });
+
+test("只有空白的文本块不上线：工具调用前的换行、空白的工具输出、空白的用户消息", () => {
+	const history: Message[] = [
+		user("读一下"),
+		{ ...assistantWithCall("toolu_01A"), content: [{ type: "text", text: "\n\n" }, ...assistantWithCall("toolu_01A").content] },
+		result("toolu_01A", [{ type: "text", text: "  \n" }]),
+		user(" "),
+	];
+	const out = toAnthropicMessages(history);
+	assert.equal(blocksOf(out).some((b) => b.type === "text" && !String(b.text).trim()), false);
+	assert.deepEqual(out[1].content.map((b) => b.type), ["tool_use"]);
+	assert.deepEqual(blocksOf(out).find((b) => b.type === "tool_result")?.content, [{ type: "text", text: "Tool returned no output." }]);
+	assert.equal(out.length, 3, "只剩空白的用户消息整条不发");
+	// 原本就是空数组的结果照旧发空数组，不改已经在缓存里的前缀。
+	const empty = toAnthropicMessages([user("读"), assistantWithCall("toolu_01B"), result("toolu_01B", [])]);
+	assert.deepEqual(blocksOf(empty).find((b) => b.type === "tool_result")?.content, []);
+});

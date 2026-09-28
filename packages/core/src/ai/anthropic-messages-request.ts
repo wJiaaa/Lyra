@@ -113,7 +113,8 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 			for (let i = 0; i < message.content.length; i++) {
 				const c = message.content[i];
 				if (c.type === "text") {
-					if (c.text) blocks.push({ type: "text", text: wellFormed(c.text) });
+					// 工具调用前那段只有换行的文本很常见；空白文本块 Anthropic 直接 400，这条历史从此发不出去。
+					if (c.text.trim()) blocks.push({ type: "text", text: wellFormed(c.text) });
 				} else if (c.type === "thinking") {
 					if (replay === "none") continue;
 					// 密文那一档跟签名无关：它本身就是可回放的那一份。
@@ -162,7 +163,8 @@ function toContentBlocks(content: UserContent[], vision: boolean): AnthropicBloc
 	const blocks: AnthropicBlock[] = [];
 	for (const c of content) {
 		if (c.type === "text") {
-			blocks.push({ type: "text", text: wellFormed(c.text) });
+			// 空白文本块 Anthropic 直接 400（`text content blocks must contain non-whitespace text`）。
+			if (c.text.trim()) blocks.push({ type: "text", text: wellFormed(c.text) });
 			continue;
 		}
 		if (!vision) {
@@ -208,10 +210,10 @@ function toToolResultBlock(message: ToolResultMessage, ids: Map<string, string>,
 	if (message.isError && content.some((b) => b.type === "image")) {
 		for (const b of content) if (b.type === "image") hoist.push(b);
 		content = content.filter((b) => b.type !== "image");
-		// 图片是这次结果的全部内容时，提升之后块就空了。空的 `content` 在部分兼容端点上也是 400，
-		// 而且模型看不出发生过什么，所以留一句话。
-		if (content.length === 0) content.push({ type: "text", text: "Tool failed with no output." });
 	}
+	// 图片提升走了、或者输出只有空白时，块就空了。空的 `content` 在部分兼容端点上也是 400，
+	// 而且模型看不出发生过什么，所以留一句话。
+	if (content.length === 0 && message.content.length > 0) content.push({ type: "text", text: message.isError ? "Tool failed with no output." : "Tool returned no output." });
 	return {
 		type: "tool_result",
 		// 和上面那个 `tool_use` 走同一张表。改了一头不改另一头，配对就断了，换来的是另一个 400。

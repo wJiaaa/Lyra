@@ -312,6 +312,13 @@ export interface DeliveredReport {
 	incomplete?: boolean;
 }
 
+export interface RequestPrefix {
+	/** 这次请求体切成了几段（工具、系统提示词、逐条消息）。 */
+	segments: number;
+	/** 第一处和上一次不同的段及其前后长度（字符）；没有就是上一次原样是这次的前缀。 */
+	change?: { segment: string; before: number; after: number };
+}
+
 export interface AssistantMessage {
 	role: "assistant";
 	content: AssistantContent[];
@@ -348,6 +355,11 @@ export interface AssistantMessage {
 	 * 在 `failure.ts` 里只产生一次，然后一路带着走。
 	 */
 	failure?: Failure;
+	/**
+	 * 这次请求体和同一会话上一次相比，前缀从哪里开始不同。缓存未命中的归因证据，见
+	 * `ai/prefix-fingerprint.ts`。没有这个字段是没量（旧日志、第一次请求、替身流）。
+	 */
+	prefix?: RequestPrefix;
 	/** Provider response id, used for Responses-API conversation chaining. */
 	responseId?: string;
 	/** Latency in milliseconds from request start to completion */

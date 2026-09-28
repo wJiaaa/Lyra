@@ -7,6 +7,7 @@
  */
 
 import type { AssistantMessage, Message, ToolResultMessage, ToolSpec } from "../types.ts";
+import { replayArguments } from "./openai-chat-completions-request.ts";
 import type { ReasoningReplay } from "./reasoning-compat.ts";
 import type { ToolPairing } from "./tool-pairing-compat.ts";
 import type { ToolResultImages } from "./tool-result-images-compat.ts";
@@ -344,7 +345,7 @@ export function toResponsesInput(
 						type: "function_call",
 						call_id: c.id,
 						name: c.name,
-						arguments: c.argumentsText ?? JSON.stringify(c.arguments),
+						arguments: replayArguments(c),
 					});
 					const answer = answers.get(c.id);
 					if (!answer) continue;

@@ -102,6 +102,34 @@ test("Responses: an empty attempt is billed but not counted as context", async (
 	assertOneAttemptInWindow(await run(openaiResponsesProvider, "openai-responses", [empty, whole]), 6);
 });
 
+/*
+ * `response.failed` carries the Response object, usage included (OpenAI's streaming reference).
+ * The adapter threw on it without reading that usage, so a failed attempt the provider reported
+ * as 101,000 tokens went on the bill as 0 — and once a retry succeeded, it was gone for good.
+ */
+const FAILED_PROMPT = 101_000;
+const failed = responses("response.failed", {
+	response: { id: "resp_f", status: "failed", error: { code: "server_error", message: "upstream overloaded" }, usage: { input_tokens: FAILED_PROMPT, output_tokens: 0 } },
+});
+
+test("Responses: a failed attempt's reported usage is billed once a retry succeeds", async () => {
+	const whole = [
+		responses("response.output_item.done", { output_index: 0, item: { type: "message", id: "m1", role: "assistant", content: [{ type: "output_text", text: "whole" }] } }),
+		responses("response.completed", { response: { id: "resp_1", usage: { input_tokens: PROMPT, output_tokens: 6 } } }),
+	];
+	const message = await run(openaiResponsesProvider, "openai-responses", [[failed], whole]);
+	assert.equal(message.stopReason, "stop");
+	assert.equal(message.usage.input, FAILED_PROMPT + PROMPT, "the bill includes the failed attempt");
+	assert.equal(message.lastAttemptUsage?.input, PROMPT, "the window still holds only the attempt that answered");
+	assert.ok(message.usage.cost.input > message.lastAttemptUsage!.cost.input, "and it is priced, not just counted");
+});
+
+test("Responses: when every attempt fails, the failed message still carries what they cost", async () => {
+	const message = await run(openaiResponsesProvider, "openai-responses", [[failed]]);
+	assert.equal(message.stopReason, "error");
+	assert.equal(message.usage.input, FAILED_PROMPT * 2);
+});
+
 test("a message logged before attempts were recorded separately still reads its usage", () => {
 	const legacy: AssistantMessage = {
 		role: "assistant", content: [{ type: "text", text: "ok" }], api: "anthropic-messages", provider: "qa", model: "m",

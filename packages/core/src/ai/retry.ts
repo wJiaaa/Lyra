@@ -1,6 +1,6 @@
 /** Shared request/stream budget prevents nested retry loops from multiplying the configured limit. */
 import { normalizeRetryPolicy, policyDelay, type RetryPolicy, type RetryPolicySource, type RetryFailure } from "../config/retry-policy.ts";
-import { classifyFailure, failureOf, FailureError, serverDelayMs, worthRetrying, type Failure } from "./failure.ts";
+import { classifyFailure, durationMs, failureOf, FailureError, serverDelayMs, worthRetrying, type Failure } from "./failure.ts";
 
 /** Explicit low-level attempt overrides (e.g. commit titles) retain their bounded lifetime. */
 function resolvePolicy(policy: RetryPolicy | undefined, legacyAttempts: number | undefined): RetryPolicy {
@@ -100,11 +100,25 @@ export function serverDelay(header: string | null, body?: string): number | null
 	return serverDelayMs(header, body) ?? null;
 }
 
-/** 响应头里服务器说的等待时间：标准的 `Retry-After`，和 OpenAI 系额外发的毫秒版 `retry-after-ms`。 */
+/**
+ * 响应头里服务器说的等待时间：标准的 `Retry-After`，和 OpenAI 系额外发的毫秒版 `retry-after-ms`。
+ *
+ * 两个都没有时，再看 OpenAI 的 `x-ratelimit-reset-requests` / `-tokens`（`6m0s` 这种写法）。只取
+ * 对应的 `x-ratelimit-remaining-*` 已经是 0 的那一项：另一项的重置时间说的是「完全回满」要多久，
+ * 不是这一次要等多久，拿它来等会白等几分钟。正文里写了等待时间的，正文优先。
+ */
 function headerDelay(response: Response, body?: string): number | null {
 	const ms = Number(response.headers.get("retry-after-ms"));
 	if (Number.isFinite(ms) && ms > 0) return ms;
-	return serverDelay(response.headers.get("retry-after"), body);
+	const said = serverDelay(response.headers.get("retry-after"), body);
+	if (said !== null) return said;
+	let reset: number | null = null;
+	for (const kind of ["requests", "tokens"]) {
+		if (response.headers.get(`x-ratelimit-remaining-${kind}`)?.trim() !== "0") continue;
+		const wait = durationMs(response.headers.get(`x-ratelimit-reset-${kind}`) ?? "");
+		if (wait !== undefined) reset = Math.max(reset ?? 0, wait);
+	}
+	return reset;
 }
 
 /**

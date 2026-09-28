@@ -10,7 +10,7 @@ import { anthropicMessagesProvider, learnThinkingReplay, resetThinkingReplay, th
 import { toAnthropicMessages } from "../src/ai/anthropic-messages-request.ts";
 import { openaiChatCompletionsProvider } from "../src/ai/openai-chat-completions.ts";
 import { openaiResponsesProvider } from "../src/ai/openai-responses.ts";
-import { classifyFailure } from "../src/ai/failure.ts";
+import { classifyFailure, isContextOverflow } from "../src/ai/failure.ts";
 import { resetReasoningCompat } from "../src/ai/reasoning-compat.ts";
 import { droppedParams, learnDroppedParam, resetRequestParamsCompat } from "../src/ai/request-params-compat.ts";
 import { resetToolPairingCompat, toolPairing } from "../src/ai/tool-pairing-compat.ts";
@@ -171,6 +171,31 @@ test("Chat：上一次尝试的 length 不会带到重试成功的那条上", as
 	assert.equal(message.stopReason, "stop", `带着上一次的 ${message.stopReason} 交出去了`);
 });
 
+test("拒答在三条链上是同一个结局：内容策略、不重试，不是一条空回答", async () => {
+	const context: LlmContext = { systemPrompt: "", messages: [userSays("hi")], tools: [] };
+	const chat = modelOf("openai-chat-completions", { supportsThinking: false });
+	const chatRefusal = chunk({ delta: { refusal: "I can't " } }) + chunk({ delta: { refusal: "help with that." }, finish_reason: "stop" }) + "data: [DONE]\n\n";
+	const responses = modelOf("openai-responses", { supportsThinking: false });
+	const events = (streamed: boolean) => [
+		{ type: "response.output_item.added", output_index: 0, item: { type: "message", id: "msg_1" } },
+		...(streamed ? [{ type: "response.refusal.delta", output_index: 0, delta: "I can't help with that." }] : []),
+		{ type: "response.output_item.done", output_index: 0, item: { type: "message", id: "msg_1", content: [{ type: "refusal", refusal: "I can't help with that." }] } },
+		{ type: "response.completed", response: { id: "resp_1", usage: { input_tokens: 10, output_tokens: 5 } } },
+	].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+	const runs = [
+		() => drive((fetch) => openaiChatCompletionsProvider.stream(chat.provider, chat.model, context, { ...quick, fetch }), [{ status: 200, body: chatRefusal }]),
+		() => drive((fetch) => openaiResponsesProvider.stream(responses.provider, responses.model, context, { ...quick, fetch }), [{ status: 200, body: events(true) }]),
+		() => drive((fetch) => openaiResponsesProvider.stream(responses.provider, responses.model, context, { ...quick, fetch }), [{ status: 200, body: events(false) }]),
+	];
+	for (const run of runs) {
+		const { message, calls } = await withoutSleep(run);
+		assert.equal(calls, 1, "同样的输入再问还是同样的拒绝");
+		assert.equal(message.stopReason, "error");
+		assert.equal(message.failure?.hint, "blocked");
+		assert.match(message.errorMessage ?? "", /拒绝|安全策略/);
+	}
+});
+
 test("Chat：不带 index 的并行工具调用各是各的，不拼成一个", async () => {
 	const { provider, model } = modelOf("openai-chat-completions", { supportsThinking: false });
 	const context: LlmContext = { systemPrompt: "", messages: [userSays("hi")], tools: [] };
@@ -258,10 +283,42 @@ test("Anthropic：refusal 是明确的拒绝，不重试、不当成说完了", 
 test("Anthropic：上下文窗口满和 pause_turn 都不冒充说完了", async () => {
 	const { provider, model } = modelOf("anthropic-messages", { supportsThinking: false });
 	const context: LlmContext = { systemPrompt: "", messages: [userSays("hi")], tools: [] };
-	for (const [raw, expected] of [["model_context_window_exceeded", "length"], ["pause_turn", "length"], ["max_tokens", "length"], ["end_turn", "stop"], ["stop_sequence", "stop"]]) {
+	for (const [raw, expected] of [["pause_turn", "length"], ["max_tokens", "length"], ["end_turn", "stop"], ["stop_sequence", "stop"]]) {
 		const { message } = await drive((fetch) => anthropicMessagesProvider.stream(provider, model, context, { fetch }), [anthropicReply(raw)]);
 		assert.equal(message.stopReason, expected, raw);
 	}
+	// 窗口满不是输出上限：接着写还会撞，要按上下文超长交给 loop 压缩后重发。
+	const { message, calls } = await withoutSleep(() => drive((fetch) => anthropicMessagesProvider.stream(provider, model, context, { fetch }), [anthropicReply("model_context_window_exceeded", "说到一半")]));
+	assert.equal(message.stopReason, "error");
+	assert.equal(isContextOverflow(message.failure), true);
+	assert.equal(calls, 1, "同一份历史重试也还是满的");
+});
+
+test("Anthropic：内容整块放在 content_block_start 里、不再发 delta 的中转，正文和工具参数不丢", async () => {
+	const { provider, model } = modelOf("anthropic-messages", { supportsThinking: false });
+	const context: LlmContext = { systemPrompt: "", messages: [userSays("hi")], tools: [] };
+	const body = [
+		frame("message_start", { message: { id: "msg_1", usage: { input_tokens: 10, output_tokens: 1 } } }),
+		frame("content_block_start", { index: 0, content_block: { type: "thinking", thinking: "先想想", signature: "sig" } }),
+		frame("content_block_stop", { index: 0 }),
+		frame("content_block_start", { index: 1, content_block: { type: "text", text: "我去读文件" } }),
+		frame("content_block_stop", { index: 1 }),
+		frame("content_block_start", { index: 2, content_block: { type: "tool_use", id: "t1", name: "read", input: { path: "a.ts" } } }),
+		frame("content_block_stop", { index: 2 }),
+		// 官方写法：开头是 `input: {}` 占位，参数在 delta 里。
+		frame("content_block_start", { index: 3, content_block: { type: "tool_use", id: "t2", name: "read", input: {} } }),
+		frame("content_block_delta", { index: 3, delta: { type: "input_json_delta", partial_json: '{"path":"b.ts"}' } }),
+		frame("content_block_stop", { index: 3 }),
+		frame("message_delta", { delta: { stop_reason: "tool_use" }, usage: { output_tokens: 5 } }),
+		frame("message_stop"),
+	].join("");
+	const { message } = await drive((fetch) => anthropicMessagesProvider.stream(provider, model, context, { fetch }), [{ status: 200, body }]);
+	assert.equal(message.stopReason, "toolUse");
+	const [thinking, text, first, second] = message.content;
+	assert.deepEqual(thinking.type === "thinking" && [thinking.thinking, thinking.signature], ["先想想", "sig"]);
+	assert.deepEqual(text, { type: "text", text: "我去读文件" });
+	assert.deepEqual(first.type === "toolCall" && [first.arguments, JSON.parse(first.argumentsText!)], [{ path: "a.ts" }, { path: "a.ts" }]);
+	assert.deepEqual(second.type === "toolCall" && second.arguments, { path: "b.ts" });
 });
 
 test("Anthropic：不再带过时的 prompt-caching beta 头", async () => {

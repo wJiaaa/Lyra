@@ -540,12 +540,15 @@ function QualityBar({ totals }: { totals: UsageView["totals"] }) {
 }
 
 /**
- * 有未命中的那几种原因，按「要不要去查」排：原因不明的是前缀被改动了，排第一；其余几种是空闲过期、
- * 有意改写或换模型，付了代价但说得清为什么。
+ * 有未命中的那几种原因，按「要不要去查」排：本地改了工具、提示词或历史的排前面，其次是前缀没变
+ * 服务商却没读到、没有前缀记录分不清的；最后几种是有意改写或换模型，付了代价但说得清为什么。
  */
 const CACHE_MISS_CAUSES: { cause: keyof Totals["cacheMiss"]["byCause"]; label: MessageKey }[] = [
+	{ cause: "tools", label: "usage.cacheMissTools" },
+	{ cause: "prompt", label: "usage.cacheMissPrompt" },
+	{ cause: "rewrite", label: "usage.cacheMissRewrite" },
+	{ cause: "provider", label: "usage.cacheMissProvider" },
 	{ cause: "unknown", label: "usage.cacheMissUnknown" },
-	{ cause: "idle", label: "usage.cacheMissIdle" },
 	{ cause: "compaction", label: "usage.cacheMissCompaction" },
 	{ cause: "rewind", label: "usage.cacheMissRewind" },
 	{ cause: "model", label: "usage.cacheMissModel" },

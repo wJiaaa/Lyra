@@ -507,21 +507,28 @@ const p90 = (values: number[]) => values.length ? [...values].sort((a, b) => a -
 // ---------------------------------------------------------------------------
 // 10. 逐次请求的缓存未命中：本该命中而没命中多少、多花多少、为什么
 //
-// 第 8 节的累计占比只能说「整体还行」；前缀修复的验收要看这里的「原因不明」，它指向前缀被打断
-// 的那一次请求。诊断直接用 core 的 `diagnoseCache`，费率读请求当时存进日志的那份。
-// 默认 TTL 取服务商文档的下限（5 分钟），按小时保留的服务商因此会把个别真打断算成「空闲过期」。
+// 第 8 节的累计占比只能说「整体还行」；前缀修复的验收要看这里没有正当理由的那几类：本地改了
+// 工具/提示词/历史，或前缀没变服务商却没读到，它们指向前缀被打断的那一次请求。诊断直接用 core 的
+// `diagnoseCache`，费率读请求当时存进日志的那份。
+// 不按猜的缓存有效期归类：隔了很久的未命中照样按前缀证据归，下面逐条列出间隔，由人对照。
 // ---------------------------------------------------------------------------
 
 const CAUSE_LABELS: Record<CacheCause, string> = {
 	first: "首个请求/冷启动",
 	hit: "命中（噪声线内）",
 	uncached: "服务商未报告缓存",
-	idle: "空闲超过 TTL",
 	model: "换了模型或服务商",
 	compaction: "压缩后前缀重写",
 	rewind: "撤回后重发",
-	unknown: "原因不明（前缀被改动）",
+	tools: "本地工具定义变了",
+	prompt: "本地系统提示词变了",
+	rewrite: "本地改写了已发出的消息",
+	provider: "前缀未变，服务商没读到（清掉或已过期）",
+	unknown: "原因不明（没有前缀记录）",
 };
+
+/** 没有正当理由的未命中：不是冷启动、有意改写或换模型，是要去查的那几类。 */
+const SUSPECT = new Set<CacheCause>(["tools", "prompt", "rewrite", "provider", "unknown"]);
 
 const cacheDiagnoses: { stream: string; diagnosis: CacheRequestDiagnosis }[] = [];
 const cacheBySession: { id: string; streams: number; missed: number; extraCost: number; unknown: number; unknownMissed: number }[] = [];
@@ -537,7 +544,7 @@ for (const session of sessions) {
 			cacheDiagnoses.push({ stream: stream.label, diagnosis });
 			row.missed += diagnosis.missed;
 			row.extraCost += diagnosis.extraCost ?? 0;
-			if (diagnosis.cause === "unknown") {
+			if (SUSPECT.has(diagnosis.cause)) {
 				row.unknown++;
 				row.unknownMissed += diagnosis.missed;
 			}
@@ -547,7 +554,7 @@ for (const session of sessions) {
 }
 const cacheSummary = summarizeCacheDiagnoses(cacheDiagnoses.map((d) => d.diagnosis));
 const worstUnknown = cacheDiagnoses
-	.filter((d) => d.diagnosis.cause === "unknown")
+	.filter((d) => SUSPECT.has(d.diagnosis.cause))
 	.sort((a, b) => b.diagnosis.missed - a.diagnosis.missed)
 	.slice(0, 10);
 
@@ -626,6 +633,7 @@ if (asJson) {
 						expected: d.expected,
 						idleMs: d.idleMs,
 						model: d.model,
+						prefix: d.prefix,
 					})),
 				},
 			},
@@ -733,21 +741,28 @@ for (const cause of CACHE_CAUSES) {
 	if (v.requests === 0) continue;
 	console.log(`  ${pad(v.requests, 8)}  ${pad(v.missed.toLocaleString(), 14)}  ${pad(`$${v.extraCost.toFixed(4)}`, 10)}  ${CAUSE_LABELS[cause]}`);
 }
-console.log(`  （未命中 ≤ ${CACHE_NOISE_FLOOR_TOKENS} token 算粒度噪声、记为命中；只有「原因不明」是前缀被打断的嫌疑）`);
+console.log(`  （未命中 ≤ ${CACHE_NOISE_FLOOR_TOKENS} token 算粒度噪声、记为命中；本地改动、服务商没读到和原因不明是前缀被打断的嫌疑）`);
 const sessionsWithMiss = cacheBySession.filter((row) => row.missed > 0).sort((a, b) => b.missed - a.missed);
 if (sessionsWithMiss.length) {
 	console.log("  未命中最多的会话：");
 	for (const row of sessionsWithMiss.slice(0, 8))
 		console.log(
 			`    ${row.id}  未命中 ${pad(row.missed.toLocaleString(), 12)} token  多花 $${row.extraCost.toFixed(4)}  ` +
-				`其中原因不明 ${row.unknown} 次 / ${row.unknownMissed.toLocaleString()} token`,
+				`其中要查的 ${row.unknown} 次 / ${row.unknownMissed.toLocaleString()} token`,
 		);
 }
+/** 本地前缀有没有变、变在哪：变了是本地改写，量过没变是服务商那边没读到，没量的是旧日志。 */
+function prefixNote(prefix: CacheRequestDiagnosis["prefix"]): string {
+	if (!prefix) return "前缀未记录";
+	if (!prefix.change) return "本地前缀未变";
+	return `本地前缀变于 ${prefix.change.segment}（${prefix.change.before}→${prefix.change.after} 字符）`;
+}
+
 if (worstUnknown.length) {
-	console.log("  原因不明最严重的几次（同一模型、缓存按说还活着、中间没有压缩或撤回，前缀却没读到）：");
+	console.log("  要查的未命中里最严重的几次（同一模型、中间没有压缩或撤回，前缀却没读到；间隔长的可能只是缓存过期）：");
 	for (const { stream, diagnosis: d } of worstUnknown)
 		console.log(
 			`    ${stream.padEnd(26)} 第 ${pad(d.ordinal, 4)} 次请求  未命中 ${pad(d.missed.toLocaleString(), 10)} / 应命中 ${pad(d.expected.toLocaleString(), 10)}  ` +
-				`间隔 ${pad(Math.round((d.idleMs ?? 0) / 1000), 5)}s  ${d.model}`,
+				`间隔 ${pad(Math.round((d.idleMs ?? 0) / 1000), 5)}s  ${d.model}  ${CAUSE_LABELS[d.cause]}  ${prefixNote(d.prefix)}`,
 		);
-} else console.log("  没有原因不明的未命中。");
+} else console.log("  没有要查的未命中。");

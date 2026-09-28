@@ -348,3 +348,23 @@ test("助手轮只有工具调用时不算「以助手的话收尾」", () => {
 	] as Message[]) as Array<Record<string, unknown>>;
 	assert.equal(input[input.length - 1].type, "function_call", "不该被当成助手发言而补尾巴");
 });
+
+test("多段推理摘要之间补一个空行，不把上一段末句和下一段标题粘成一行", async () => {
+	const frame = (type: string, rest: Record<string, unknown>) => `event: ${type}\ndata: ${JSON.stringify({ type, output_index: 0, ...rest })}\n\n`;
+	const message = await run(
+		[
+			frame("response.output_item.added", { item: { type: "reasoning", id: "rs_1" } }),
+			frame("response.reasoning_summary_part.added", { summary_index: 0, part: { type: "summary_text", text: "" } }),
+			frame("response.reasoning_summary_text.delta", { summary_index: 0, delta: "**看目录**\n先列出文件。" }),
+			frame("response.reasoning_summary_part.added", { summary_index: 1, part: { type: "summary_text", text: "" } }),
+			frame("response.reasoning_summary_text.delta", { summary_index: 1, delta: "**查测试**\n再跑测试。" }),
+			frame("response.output_item.done", { item: { type: "reasoning", id: "rs_1", summary: [] } }),
+			frame("response.output_item.added", { output_index: 1, item: { type: "message", id: "msg_1" } }),
+			frame("response.output_text.delta", { output_index: 1, delta: "好了" }),
+			frame("response.output_item.done", { output_index: 1, item: { type: "message", id: "msg_1", content: [{ type: "output_text", text: "好了" }] } }),
+			frame("response.completed", { response: { usage: { input_tokens: 10, output_tokens: 5 } } }),
+		].join(""),
+	);
+	const thinking = message.content.find((c) => c.type === "thinking");
+	assert.equal(thinking?.type === "thinking" && thinking.thinking, "**看目录**\n先列出文件。\n\n**查测试**\n再跑测试。");
+});

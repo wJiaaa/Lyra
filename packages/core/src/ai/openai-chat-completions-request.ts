@@ -2,7 +2,7 @@
  * Our messages, in the shape the OpenAI Chat Completions API wants (`POST /v1/chat/completions`).
  */
 
-import type { Message, ToolResultMessage, ToolSpec } from "../types.ts";
+import type { Message, ToolCallContent, ToolResultMessage, ToolSpec } from "../types.ts";
 import type { ReasoningReplay } from "./reasoning-compat.ts";
 
 /**
@@ -202,7 +202,7 @@ export function toChatCompletionsMessages(
 						type: "function",
 						function: {
 							name: c.name,
-							arguments: c.argumentsText ?? JSON.stringify(c.arguments),
+							arguments: replayArguments(c),
 						},
 					});
 				}
@@ -286,4 +286,24 @@ export function toChatCompletionsMessages(
 	}
 
 	return out;
+}
+
+/**
+ * 回放一次工具调用时发的参数串。
+ *
+ * 优先发流里收到的原文：那是上一次请求里服务商亲眼见过的字节，换成重新序列化的版本（键序、空格、
+ * 转义都可能不同）会让这一段缓存前缀失效。原文不是合法 JSON 时（截断、模型吐坏了）才改发解析后的
+ * 参数：原样透传在官方端点上没事，但把请求再翻译成 Anthropic / Gemini 的中转要先解析它，解析不了
+ * 就是 400，而这条调用进了历史，之后每一轮都是这个 400。
+ */
+export function replayArguments(call: ToolCallContent): string {
+	if (call.argumentsText !== undefined) {
+		try {
+			JSON.parse(call.argumentsText);
+			return call.argumentsText;
+		} catch {
+			// 落到下面
+		}
+	}
+	return JSON.stringify(call.arguments);
 }

@@ -17,7 +17,7 @@ import type {
 } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";
 import { computeCost } from "../utils/pricing.ts";
-import { classifyFailure, FailureError } from "./failure.ts";
+import { classifyFailure, FailureError, REFUSAL_MESSAGE } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { USER_AGENT, failedStreamEvent, joinUrl, priceAttempt, settleUsage } from "./endpoint.ts";
@@ -567,6 +567,8 @@ async function* streamChatCompletions(
 				let sawFinish = false;
 				/** `finish_reason` 说这次不算成功，那句话是什么。流走完才抛，见下面。 */
 				let finishError: string | undefined;
+				/** 模型拒答时说的话（`delta.refusal`）。它不在 `content` 里，不接住就成了一条空回答。 */
+				let refusal = "";
 				/** 这条流的推理 delta 是全量快照而不是增量。见 `appendReasoning`。 */
 				let reasoningIsSnapshot = false;
 				/** 可见文本里扣下来等下一个 chunk 的那截半个特殊 token。见 `trailingPartialDeepseekToken`。 */
@@ -619,6 +621,7 @@ async function* streamChatCompletions(
 					if (!choice) continue;
 
 					const delta = choice.delta;
+					if (typeof delta?.refusal === "string") refusal += delta.refusal;
 					if (delta) {
 						/*
 						 * 推理挂在三个键之一上，不只是 `reasoning_content`。见 `reasoningFromDelta`。
@@ -835,6 +838,14 @@ async function* streamChatCompletions(
 				 *
 				 * `spent` 给真话：已经吐过字的话服务商收过钱了，界面要把这个代价说出来（见 `Failure.costIncurred`）。
 				 */
+				/*
+				 * 拒答是一个明确的结局，和 Anthropic 链的 `stop_reason: refusal` 同一个出口：判成内容策略、不重试。
+				 * 从前没接 `delta.refusal`，它落成空回答被重试好几次——同样的输入再问还是同样的拒绝。
+				 */
+				if (refusal.trim()) {
+					throw new FailureError(classifyFailure({ from: "stream", message: `${REFUSAL_MESSAGE}：${refusal.trim()}`, spent: true }));
+				}
+
 				if (finishError) {
 					throw new FailureError(
 						classifyFailure({
@@ -933,10 +944,11 @@ async function* streamChatCompletions(
 	if (firstTokenTime !== null) {
 		partial.sseDurationMs = Math.max(1, Date.now() - firstTokenTime);
 	}
-	if (partial.stopReason === "pending") {
-		const hasToolCalls = partial.content.some((c) => c.type === "toolCall");
-		partial.stopReason = hasToolCalls ? "toolUse" : "stop";
-	}
+	const hasToolCalls = partial.content.some((c) => c.type === "toolCall");
+	if (partial.stopReason === "pending") partial.stopReason = hasToolCalls ? "toolUse" : "stop";
+	// 带着工具调用却报 `stop` 的宿主不少，和 Anthropic 链的 `mapStopReason` 一样按内容判成 `toolUse`：
+	// 留着 `stop`，回放到 Anthropic 时这一轮会被当成「弃用工具」、整轮思考签名被剥掉。
+	else if (partial.stopReason === "stop" && hasToolCalls) partial.stopReason = "toolUse";
 	// 成功了，但失败的那几次也是花过钱的——账上要有。各按各的档位计价再相加，见 `priceAttempt`。
 	settleUsage(partial, model, spentOnRetries);
 

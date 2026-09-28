@@ -32,11 +32,16 @@ interface UsageCache {
  * 4: 子 Agent 的用量开始算进来（它的消息落盘成 `type: "event"` 里的 `subagent_message`，从前够不着）。
  *    这一版的漏算不小：用户的一个会话里子 Agent 比主 Agent 还多烧 40%。
  * 5: 逐次请求的缓存未命中（`UsageBucket.cacheMiss`），要从头诊断每条请求序列。
+ * 6: 未命中不再按猜的缓存有效期归成「空闲过期」，旧缓存里记在 `idle` 名下的要重新归类。
+ * 7: 按回复上记下的前缀指纹把原来的「原因不明」拆开（工具、提示词、改写历史、服务商没读到），
+ *    已经记在 `unknown` 名下的要重新归类。
+ * 8: 读取不再越过扫描前取得的大小和末尾的半行。旧版在扫描期间日志被追加时会把追加的部分算两次，
+ *    文件之后不再增长的话这个多算会一直留在缓存里，所以要从头重扫。
  *
  * 上面那个 `version: 2` 曾经和这里的 3 对不上——接口写死一个字面量、常量另写一个，两边谁也不管谁。
  * 现在接口直接引常量，只能一起改。
  */
-export const USAGE_CACHE_VERSION = 5 as const;
+export const USAGE_CACHE_VERSION = 8 as const;
 
 const BUCKET_NUMBERS: (keyof UsageBucket)[] = [
 	"input", "output", "cacheRead", "cacheWrite", "reasoning", "cost", "inputCost", "outputCost",

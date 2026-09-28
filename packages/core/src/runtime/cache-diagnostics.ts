@@ -13,28 +13,16 @@
  *   「服务商/模型」记，而不是按服务商：中转站同一个服务商下常混着会缓存和不会缓存的模型。
  * - 压缩/撤回边界之后的第一次请求，前缀是有意改写的，原因记 `compaction` / `rewind`，
  *   不算前缀被打断；未命中量照样算出来，那是这次改写真实付出的代价。
+ * - 其余的按回复上记下的前缀指纹（`AssistantMessage.prefix`，见 `ai/prefix-fingerprint.ts`）分：
+ *   第一处变化落在工具、系统提示词还是消息上，就是本地改了哪里；量过而前缀没变，是服务商那边
+ *   没读到。没有指纹的（旧日志、重启后的第一次请求）才是 `unknown`。
+ * - 不按缓存有效期归类：各家留多久不同，中转更说不准，按一个猜的时长把未命中记成「过期」，
+ *   会把真正的打断藏起来。间隔照实记在 `idleMs`，由看的人对照。
  * - 时间间隔用两次请求的开始时间相减：缓存在读写时续期，而那发生在请求一开始的预填充阶段。
  */
 
-import { requestUsage, type ApiFormat, type AssistantMessage, type Message, type Usage } from "../types.ts";
+import { requestUsage, type AssistantMessage, type Message, type RequestPrefix, type Usage } from "../types.ts";
 import { costAtRates } from "../utils/pricing.ts";
-import { CACHE_TTL_MS } from "./prune.ts";
-
-/**
- * 各协议默认的缓存存活时间（毫秒），取服务商文档里的下限。
- *
- * - Anthropic：`cache_control: { type: "ephemeral" }` 默认 5 分钟、每次命中续期；Lyra 不申请 1 小时档。
- * - OpenAI（Responses / Chat Completions）：自动缓存「通常 5–10 分钟无访问后清除，最长 1 小时」。
- *
- * 取下限是为了让 `unknown` 只剩「缓存按说还活着却没读到」的那些：空闲超过下限的一律算
- * `idle`，宁可把个别真正的打断算成过期，也不把过期报成打断。DeepSeek 这类按小时保留的服务商
- * 用 `ttlMs` 选项声明。和 `prune.ts` 判断「改写历史是否免费」用的是同一个数。
- */
-export const DEFAULT_CACHE_TTL_MS: Readonly<Record<ApiFormat, number>> = {
-	"anthropic-messages": CACHE_TTL_MS,
-	"openai-responses": CACHE_TTL_MS,
-	"openai-chat-completions": CACHE_TTL_MS,
-};
 
 /**
  * 未命中量不超过这个数就当作命中。
@@ -52,18 +40,24 @@ export type CacheCause =
 	| "hit"
 	/** 这个服务商/模型从未报告过缓存，无从判断。 */
 	| "uncached"
-	/** 距上一次请求超过缓存存活时间。 */
-	| "idle"
 	/** 换了模型或服务商，缓存本来就不共享。 */
 	| "model"
 	/** 压缩（摘要或剪枝）之后的第一次请求，前缀被有意重写。 */
 	| "compaction"
 	/** 撤回历史之后的第一次请求。 */
 	| "rewind"
-	/** 以上都不是：前缀被改动了，这是要去查的那一类。 */
+	/** 本地请求的工具定义和上一次不同：三条协议里它都排在最前面，改一处整段重算。 */
+	| "tools"
+	/** 本地请求的系统提示词和上一次不同。 */
+	| "prompt"
+	/** 已经发出去的某条消息这次发得不一样了（剪枝、协议编码等）。 */
+	| "rewrite"
+	/** 前缀逐段和上一次相同，却没读到：服务商清掉了缓存，或路由到了没有它的节点。`idleMs` 帮着分辨。 */
+	| "provider"
+	/** 没有前缀指纹可比，或变的是请求参数（thinking 等）：分不清是本地改动还是服务商没读到。 */
 	| "unknown";
 
-export const CACHE_CAUSES: readonly CacheCause[] = ["first", "hit", "uncached", "idle", "model", "compaction", "rewind", "unknown"];
+export const CACHE_CAUSES: readonly CacheCause[] = ["first", "hit", "uncached", "model", "compaction", "rewind", "tools", "prompt", "rewrite", "provider", "unknown"];
 
 /** 模型看到的历史被有意改写的位置：`at` 是它之前的那条消息在 `messages` 里的下标，与 `SessionLog.compactions` 同义。 */
 export interface CacheBoundary {
@@ -73,8 +67,6 @@ export interface CacheBoundary {
 
 export interface CacheDiagnosticsOptions {
 	boundaries?: readonly CacheBoundary[];
-	/** 按请求声明缓存存活时间；返回 undefined 时用 `DEFAULT_CACHE_TTL_MS`。 */
-	ttlMs?: (request: AssistantMessage) => number | undefined;
 	noiseFloorTokens?: number;
 }
 
@@ -97,8 +89,9 @@ export interface CacheRequestDiagnosis {
 	extraCost: number | undefined;
 	/** 距上一次请求开始的毫秒数；第一次请求没有。 */
 	idleMs: number | undefined;
-	ttlMs: number;
 	cause: CacheCause;
+	/** 本地请求前缀从哪里开始变的；`cause` 的 `tools` / `prompt` / `rewrite` / `provider` 由它而来。 */
+	prefix?: RequestPrefix;
 }
 
 /**
@@ -126,7 +119,23 @@ export function markCacheBoundary(state: CacheDiagnosisState, kind: CacheBoundar
 }
 
 const promptOf = (usage: Usage) => usage.input + usage.cacheRead + usage.cacheWrite;
+
+/** 这次请求的输入总量；0 是没发出去或没报用量，诊断跳过它，前缀指纹的基准也不从它推进。 */
+export function requestPrompt(message: AssistantMessage): number {
+	return promptOf(requestUsage(message));
+}
 const keyOf = (message: AssistantMessage) => `${message.provider}/${message.model}`;
+
+function prefixCause(prefix: RequestPrefix | undefined): CacheCause {
+	if (!prefix) return "unknown";
+	const segment = prefix.change?.segment;
+	if (segment === undefined) return "provider";
+	if (segment === "tools") return "tools";
+	if (segment === "system") return "prompt";
+	// thinking 档位这类参数：有的会让缓存失效、有的不会，证据不够分清，不归到服务商头上。
+	if (segment === "params") return "unknown";
+	return "rewrite";
+}
 
 /** 诊断序列里的下一次请求，推进 `state`。没有用量的请求（失败在发出前）不算，返回 undefined。 */
 export function diagnoseRequest(
@@ -137,13 +146,12 @@ export function diagnoseRequest(
 ): CacheRequestDiagnosis | undefined {
 	// One request's prompt, not the retry-inclusive bill — a retried turn would read as a doubled prefix.
 	const usage = requestUsage(message);
-	const prompt = promptOf(usage);
+	const prompt = requestPrompt(message);
 	if (!(prompt > 0)) return undefined;
 
 	const floor = options.noiseFloorTokens ?? CACHE_NOISE_FLOOR_TOKENS;
 	const previous = state.previous;
 	const key = keyOf(message);
-	const ttlMs = options.ttlMs?.(message) ?? DEFAULT_CACHE_TTL_MS[message.api] ?? CACHE_TTL_MS;
 	const idleMs = previous ? Math.max(0, message.timestamp - previous.timestamp) : undefined;
 	const expected = previous ? Math.min(previous.prompt, prompt) : 0;
 	let missed = Math.max(0, expected - usage.cacheRead);
@@ -153,8 +161,7 @@ export function diagnoseRequest(
 	else if (state.crossed) cause = state.crossed;
 	else if (previous.key !== key) cause = "model";
 	else if (usage.cacheRead + usage.cacheWrite === 0 && !state.reported.includes(key)) cause = "uncached";
-	else if (idleMs !== undefined && idleMs > ttlMs) cause = "idle";
-	else cause = "unknown";
+	else cause = prefixCause(message.prefix);
 	if (cause === "first" || cause === "hit" || cause === "uncached") missed = 0;
 
 	state.requests++;
@@ -173,8 +180,8 @@ export function diagnoseRequest(
 		missed,
 		extraCost: missed > 0 ? extraCostOf(message, missed) : 0,
 		idleMs,
-		ttlMs,
 		cause,
+		...(message.prefix ? { prefix: message.prefix } : {}),
 	};
 }
 

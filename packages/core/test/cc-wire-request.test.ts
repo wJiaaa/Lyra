@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { toChatCompletionsMessages } from "../src/ai/openai-chat-completions-request.ts";
+import { toResponsesInput } from "../src/ai/openai-responses-request.ts";
 import { emptyUsage } from "../src/types.ts";
 import type { AssistantMessage, Message, ToolResultMessage, UserMessage } from "../src/types.ts";
 
@@ -218,4 +219,21 @@ test("CC：看不了图的模型，工具结果里的图片换成一句话，bas
 	assert.equal(wire.find((m) => m.role === "tool")?.content, "[image omitted: model does not support vision]");
 	assert.equal(wire[wire.length - 1].role, "tool");
 	assert.equal(JSON.stringify(wire).includes(PNG_1PX), false);
+});
+
+test("回放工具参数：合法的原文一字节不动，坏掉的原文改发解析后的参数（Chat 与 Responses 同一条规则）", () => {
+	const call = (argumentsText: string | undefined) =>
+		toolCallAssistant({
+			content: [{ type: "toolCall", id: "call_9xKpLm2QsRtVwYz", name: "read", arguments: { file_path: "/tmp/a.txt" }, argumentsText }],
+		});
+	const chatArgs = (text: string | undefined) =>
+		(toChatCompletionsMessages("", [user("读"), call(text), toolResult()])[1] as { tool_calls: { function: { arguments: string } }[] }).tool_calls[0].function.arguments;
+	const responsesArgs = (text: string | undefined) =>
+		(toResponsesInput([user("读"), call(text), toolResult()]).find((item) => (item as { type?: string }).type === "function_call") as { arguments: string }).arguments;
+	for (const encode of [chatArgs, responsesArgs]) {
+		assert.equal(encode('{ "file_path" : "/tmp/a.txt" }'), '{ "file_path" : "/tmp/a.txt" }', "原文的空格也是缓存前缀的一部分");
+		assert.equal(encode('{"file_path":"/tmp/a.t'), '{"file_path":"/tmp/a.txt"}');
+		assert.equal(encode(""), '{"file_path":"/tmp/a.txt"}');
+		assert.equal(encode(undefined), '{"file_path":"/tmp/a.txt"}');
+	}
 });

@@ -182,7 +182,6 @@ export { computeCost, costAtRates, selectPricingRates, type SelectedPricingRates
 export {
 	CACHE_CAUSES,
 	CACHE_NOISE_FLOOR_TOKENS,
-	DEFAULT_CACHE_TTL_MS,
 	diagnoseCache,
 	diagnoseRequest,
 	markCacheBoundary,

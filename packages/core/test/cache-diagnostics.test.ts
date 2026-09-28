@@ -38,25 +38,34 @@ describe("cache diagnostics", () => {
 		]);
 	});
 
-	it("blames an idle gap past the TTL, and a warm miss on a changed prefix", () => {
+	it("does not guess a cache lifetime: a miss after a long gap is unknown, with the gap reported", () => {
 		const out = diagnoseCache([
 			request(0, { input: 1_000, cacheRead: 19_000 }),
-			request(6 * MINUTE, { input: 21_000, cacheRead: 0 }),
-			request(6 * MINUTE + 5_000, { input: 16_000, cacheRead: 6_000 }),
+			request(60 * MINUTE, { input: 21_000, cacheRead: 0 }),
+			request(60 * MINUTE + 5_000, { input: 16_000, cacheRead: 6_000 }),
 		]);
-		assert.equal(out[1].cause, "idle");
+		assert.equal(out[1].cause, "unknown");
 		assert.equal(out[1].missed, 20_000);
-		assert.equal(out[1].idleMs, 6 * MINUTE);
+		assert.equal(out[1].idleMs, 60 * MINUTE);
 		// 按实付单价 1 而非缓存读单价 0.1 计：20,000 × 0.9 / 1M
 		assert.ok(Math.abs(out[1].extraCost! - 0.018) < 1e-12);
 		assert.equal(out[2].cause, "unknown");
+		assert.equal(out[2].idleMs, 5_000);
 		assert.equal(out[2].missed, 21_000 - 6_000);
 	});
 
-	it("takes the TTL a provider declares instead of the default", () => {
-		const messages = [request(0, { input: 1_000, cacheRead: 19_000 }), request(6 * MINUTE, { input: 21_000, cacheRead: 0 })];
-		assert.equal(diagnoseCache(messages, { ttlMs: () => 60 * MINUTE })[1].cause, "unknown");
-		assert.equal(diagnoseCache(messages, { ttlMs: () => undefined })[1].cause, "idle");
+	it("splits unexplained misses by where the recorded request prefix first changed", () => {
+		const miss = (at: number, prefix?: AssistantMessage["prefix"]) => request(at, { input: 21_000, cacheRead: 0 }, prefix ? { prefix } : {});
+		const change = (segment: string) => ({ segments: 9, change: { segment, before: 100, after: 120 } });
+		const out = diagnoseCache([
+			request(0, { input: 1_000, cacheRead: 19_000 }),
+			miss(1_000, change("tools")),
+			miss(2_000, change("system")),
+			miss(3_000, change("messages[4]")),
+			miss(4_000, { segments: 9 }),
+			miss(5_000),
+		]);
+		assert.deepEqual(out.slice(1).map((d) => d.cause), ["tools", "prompt", "rewrite", "provider", "unknown"]);
 	});
 
 	it("attributes a miss after switching model or provider to the switch", () => {
@@ -137,7 +146,7 @@ describe("cache diagnostics", () => {
 		assert.equal(summary.missed, 20_000 + 15_000);
 		assert.deepEqual(
 			Object.fromEntries(Object.entries(summary.byCause).filter(([, v]) => v.requests > 0).map(([k, v]) => [k, [v.requests, v.missed]])),
-			{ first: [1, 0], idle: [1, 20_000], unknown: [1, 15_000], hit: [1, 0] },
+			{ first: [1, 0], unknown: [2, 35_000], hit: [1, 0] },
 		);
 		assert.ok(Math.abs(summary.extraCost - 35_000 * 0.9 / 1e6) < 1e-12);
 	});

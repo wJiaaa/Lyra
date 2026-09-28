@@ -256,3 +256,21 @@ test("a supplied id is used unchanged", () => {
 	// Whitespace-only is not an id.
 	assert.notEqual(toolCallId("   ", 1, invented), "   ");
 });
+
+test("retry-after-ms wins, and OpenAI's x-ratelimit-reset-* counts only for the limit that is used up", () => {
+	assert.equal(retryDelay(1, new Response("", { status: 429, headers: { "retry-after-ms": "1500", "retry-after": "9" } })), 1500);
+	const headers = (remainingRequests: string, remainingTokens: string) =>
+		new Response("", {
+			status: 429,
+			headers: {
+				"x-ratelimit-remaining-requests": remainingRequests,
+				"x-ratelimit-reset-requests": "6m0s",
+				"x-ratelimit-remaining-tokens": remainingTokens,
+				"x-ratelimit-reset-tokens": "1.5s",
+			},
+		});
+	assert.equal(retryDelay(1, headers("12", "0")), 1500, "tokens ran out: wait for tokens, not for the request window to refill");
+	assert.equal(retryDelay(1, headers("0", "900")), 60_000, "requests ran out: six minutes, capped");
+	const neither = retryDelay(1, headers("12", "900"));
+	assert.ok(neither >= 1500 && neither <= 2500, "neither is used up: the curve decides");
+});

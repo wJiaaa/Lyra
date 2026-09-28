@@ -398,3 +398,14 @@ test("CC：剥离和扣留的两个纯函数", () => {
 	// 正文里一个孤零零的 `<｜` 不能让缓冲无限长。
 	assert.equal(trailingPartialDeepseekToken(`<｜${"x".repeat(400)}`), "");
 });
+
+test("CC：带着工具调用却报 finish_reason: stop 的，按内容算 toolUse，和 Anthropic 链一致", async () => {
+	const { done } = await run(sse(
+		chunk({ tool_calls: [{ index: 0, id: "call_7Hq2", type: "function", function: { name: "bash", arguments: "{\"cmd\":\"ls\"}" } }] }),
+		chunk({}, "stop"),
+		"data: [DONE]",
+	));
+	assert.equal(done?.stopReason, "toolUse");
+	const plain = await run(sse(chunk({ content: "好了。" }), chunk({}, "stop"), "data: [DONE]"));
+	assert.equal(plain.done?.stopReason, "stop");
+});

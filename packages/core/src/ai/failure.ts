@@ -145,16 +145,39 @@ const FATAL_CAUSES = new Set([
  * 认不出来的落进 `upstream` 去重试，再由界面把「一直是同一个错误」说出来。所以这张表宁可短一些
  * 也不要猜：错判成 `fatal` 会让一次本可以自愈的抖动直接终止，那比多重试几次糟得多。
  */
-const FATAL_PHRASES: { match: Pick<RegExp, "test">; summary: string; hint: FailureHint; code?: FailureCode; notOnRateLimit?: true }[] = [
-	{ match: /insufficient[_\s-]?quota|exceeded your current quota|余额不足|额度不足|欠费/i, summary: "额度不足", hint: "check-billing" },
+/** 模型拒绝作答时交给分类器的那句话；上面的内容策略那条认它，判成 `blocked`、不重试。 */
+export const REFUSAL_MESSAGE = "模型拒绝回答这次请求";
+
+const FATAL_PHRASES: {
+	match: Pick<RegExp, "test">;
+	summary: string;
+	hint: FailureHint;
+	code?: FailureCode;
+	notOnRateLimit?: true;
+	/** 429 的整个正文说明这不是终局时跳过这条。 */
+	passOnRateLimit?: (body: string) => boolean;
+}[] = [
+	{ match: /insufficient[_\s-]?quota|exceeded your current quota|余额不足|额度不足|欠费/i, summary: "额度不足", hint: "check-billing", passOnRateLimit: isPerMinuteQuota },
 	{ match: /invalid[_\s-]?api[_\s-]?key|incorrect api key|unauthorized|api key not valid|密钥无效/i, summary: "密钥被拒绝", hint: "check-key" },
 	{ match: /account[_\s-]?(deactivated|disabled|suspended|banned)|账号已(停用|禁用|封禁)/i, summary: "账号已停用", hint: "check-billing" },
-	// `stop_reason: refusal` 是 Anthropic 链在模型拒答时自己拼的那句（见 `anthropic-messages.ts` 的 `REFUSAL_MESSAGE`）。
-	{ match: /content[_\s-]?filter|content[_\s-]?policy|safety|违反.{0,6}政策|内容审核|stop_reason:\s*refusal/i, summary: "内容被安全策略拒绝", hint: "blocked" },
+	// `REFUSAL_MESSAGE` 是三条链在模型拒答时自己拼的那句（Anthropic `stop_reason: refusal`、两条 OpenAI 链的 `refusal` 字段）。
+	{ match: /content[_\s-]?filter|content[_\s-]?policy|safety|违反.{0,6}政策|内容审核|stop_reason:\s*refusal|模型拒绝回答/i, summary: "内容被安全策略拒绝", hint: "blocked" },
 	{ match: /model[_\s-]?not[_\s-]?found|does not exist|no such model|模型不存在/i, summary: "模型或地址不存在", hint: "check-model" },
 	// 上下文超长也是这张表的一条，原话多、还在长，单独放在 `CONTEXT_OVERFLOW`。
 	{ match: { test: isOverflowText }, summary: "上下文超出模型上限", hint: "check-request", code: "context-overflow", notOnRateLimit: true },
 ];
+
+/**
+ * Gemini 的每分钟限额。
+ *
+ * Gemini 把每分钟限流和按天的额度用完写成同一句 `You exceeded your current quota`（429
+ * `RESOURCE_EXHAUSTED`），分得开的只有 `details` 里的 `QuotaFailure`：`quotaId` 是
+ * `…PerMinute…` 还是 `…PerDay…`。前者等 `retryDelay` 说的几十秒就好，判成欠费会让一次限流直接
+ * 终止这一轮。按天的、以及 OpenAI 真正的额度耗尽（`insufficient_quota`，正文里没有这些字样）照旧是终局。
+ */
+function isPerMinuteQuota(body: string): boolean {
+	return /per[_\s-]?minute/i.test(body) && !/per[_\s-]?day|insufficient[_\s-]?quota/i.test(body);
+}
 
 /**
  * 上下文超出模型窗口：各协议、各服务商的说法都在这里，只在这里。
@@ -319,13 +342,28 @@ export function serverDelayMs(header: string | null | undefined, body?: string):
 		const ms = numeric[0].includes("_ms") ? raw : raw * 1000;
 		if (ms > 0) return ms;
 	}
-	// `"reset_time":"53s"`——同一件事写成字符串，也有人这么发。
-	const written = body.match(/"(?:reset_time|retry_after)"\s*:\s*"(\d+(?:\.\d+)?)s"/);
+	// `"reset_time":"53s"`——同一件事写成字符串，也有人这么发。Gemini 的 `RetryInfo` 是 `"retryDelay":"30s"`。
+	const written = body.match(/"(?:reset_time|retry_after|retryDelay)"\s*:\s*"(\d+(?:\.\d+)?)s"/);
 	if (written) {
 		const ms = Number(written[1]) * 1000;
 		if (ms > 0) return ms;
 	}
-	return undefined;
+	// 写在句子里的：OpenAI `Please try again in 11.05s` / `in 1m2s` / `in 20ms`，Gemini `Please retry in 30.5s`。
+	const sentence = body.match(/(?:try again|retry) in\s+((?:\d+(?:\.\d+)?(?:ms|h|m|s))+)/i);
+	return sentence ? durationMs(sentence[1]) : undefined;
+}
+
+/**
+ * `1m2s`、`6m0s`、`11.05s`、`20ms` 这种时长写法，毫秒。OpenAI 的 `x-ratelimit-reset-*` 头和
+ * 限流原话都这么写。整串都得是时长，认不出就是 `undefined`。
+ */
+export function durationMs(text: string): number | undefined {
+	const trimmed = text.trim();
+	if (!/^(?:\d+(?:\.\d+)?(?:ms|h|m|s))+$/.test(trimmed)) return undefined;
+	const unit: Record<string, number> = { ms: 1, s: 1000, m: 60_000, h: 3_600_000 };
+	let total = 0;
+	for (const [, value, name] of trimmed.matchAll(/(\d+(?:\.\d+)?)(ms|h|m|s)/g)) total += Number(value) * unit[name];
+	return total > 0 ? total : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -467,7 +505,7 @@ function fromStatus(status: number, body?: string): Failure {
 	 *
 	 * 有的中转把欠费答成 503，重试到天荒地老也不会变成有钱。
 	 */
-	const phrase = matchFatalPhrase(said || body || "", status === 429);
+	const phrase = matchFatalPhrase(said || body || "", status === 429 ? body ?? "" : undefined);
 	if (phrase) {
 		return {
 			kind: "fatal",
@@ -515,7 +553,8 @@ function fromStream(message: string | undefined, raw: string | undefined, spent:
 		kind: "upstream",
 		summary: said ? shorten(said) : "服务商中断了这次回答",
 		detail: truncateDetail(raw ?? said),
-		retryAfterMs: serverDelayMs(undefined, raw),
+		// 流内错误常只给一句话（`… Please try again in 6m0s.`），原始帧里没有就看那句话。
+		retryAfterMs: serverDelayMs(undefined, raw) ?? serverDelayMs(undefined, said),
 		fingerprint: fingerprintOf("upstream", said || "stream-error"),
 		costIncurred: spent || undefined,
 	};
@@ -570,10 +609,11 @@ function fromEmpty(why: "no-content" | "no-frames" | "unparsable", body?: string
  */
 const EMPTY_REPLY_RETRIES = 4;
 
-function matchFatalPhrase(text: string, rateLimited = false): { summary: string; hint: FailureHint; code?: FailureCode } | undefined {
+/** `rateLimitedBody`：状态码是 429 时的整个正文，只有 429 才给。 */
+function matchFatalPhrase(text: string, rateLimitedBody?: string): { summary: string; hint: FailureHint; code?: FailureCode } | undefined {
 	if (!text) return undefined;
 	for (const rule of FATAL_PHRASES) {
-		if (rateLimited && rule.notOnRateLimit) continue;
+		if (rateLimitedBody !== undefined && (rule.notOnRateLimit || rule.passOnRateLimit?.(rateLimitedBody))) continue;
 		if (rule.match.test(text)) return { summary: rule.summary, hint: rule.hint, ...(rule.code ? { code: rule.code } : {}) };
 	}
 	return undefined;
