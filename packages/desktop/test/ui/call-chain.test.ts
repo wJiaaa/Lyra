@@ -1,7 +1,7 @@
 /**
  * 设置 › 外观 › 调用链：两种排法各自说的是不是它们自己的那一套。
  *
- * 折叠（默认）：一轮从一开始就有那一行，跑完不收；每次调用各占一行，没有工具组那一层。
+ * 折叠（默认）：一轮从一开始就有那一行，默认收着；每次调用各占一行，没有工具组那一层。
  * 展开：原来的样子——跑的时候没有那一行、跑完自己收起，调用收成工具组，组里是带框的卡片。
  */
 
@@ -66,12 +66,12 @@ test("expanded: a running turn has no line and folds itself away when it ends", 
 	} finally { await view.unmount(); }
 });
 
-test("collapsed: the same running turn has its line from the start and keeps it open", async () => {
+test("collapsed: the same running turn has its line from the start, folded", async () => {
 	layout("collapsed");
 	const view = await mount(h(TurnProcess, { counts: { tools: 2, thinking: 0 }, running: true, children: inside }));
 	try {
-		assert.equal(view.find("button[aria-expanded]").getAttribute("aria-expanded"), "true");
+		assert.equal(view.find("button[aria-expanded]").getAttribute("aria-expanded"), "false");
 		await view.rerender(h(TurnProcess, { counts: { tools: 2, thinking: 0 }, running: false, children: inside }));
-		assert.equal(view.find("button[aria-expanded]").getAttribute("aria-expanded"), "true");
+		assert.equal(view.find("button[aria-expanded]").getAttribute("aria-expanded"), "false");
 	} finally { await view.unmount(); }
 });

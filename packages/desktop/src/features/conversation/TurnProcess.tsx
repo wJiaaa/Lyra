@@ -1,6 +1,6 @@
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 /**
- * 一整轮的过程，收成一行。
+ * 一段过程，收成一行。一轮里模型中途说的话把过程切成几段，话留在外面（见 `turnBlocks`）。
  *
  * 一轮读下来是「想 → 做 → 说」。过程值得看一次——正在跑的时候你就想看着它——但看过之后，翻回
  * 一段旧对话时四十行工具卡片挡在答案前面就只是噪音了。所以这一行是过程的开关。
@@ -13,7 +13,6 @@ import { Collapse } from "../../ui/layout/Collapse.tsx";
  */
 
 import { Layers } from "lucide-react";
-import { useLayoutEffect } from "react";
 
 import { FlowRow } from "./FlowRow.tsx";
 import { translate } from "../../i18n/translate.ts";
@@ -33,31 +32,13 @@ export function TurnProcess({
 	work?: string;
 	/** 收起那一行的行尾：这一轮派出去的子智能体的脸。 */
 	trailing?: React.ReactNode;
-	/** 正在跑的那一轮默认摊开——那时候人是在看着它的。 */
+	/** 正在跑的那一轮。「展开」排法下它全程摊开、没有那一行；「折叠」排法下只影响标记。 */
 	running: boolean;
 	stateKey?: string;
 	children: React.ReactNode;
 }) {
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
 	const chain = useCallChain();
-
-	/*
-	 * Open while it runs, and left open once it ends.
-	 *
-	 * The line used to be absent while the turn ran and appear only when it ended, folding the work
-	 * away in the same frame. That did two things at the moment someone was reading: it pushed the
-	 * whole turn down by a row, and it took away what they were looking at. Drawn from the start, the
-	 * line carries the running tally and works as a toggle throughout, so the reason for hiding it —
-	 * a switch that did nothing while the turn ran — no longer holds.
-	 *
-	 * Recorded as an ordinary "opened" choice, so a person can still close it mid-run and it stays
-	 * closed. Turns never seen running (history read from disk) keep the old default: folded.
-	 * A layout effect, so a turn mounted mid-run never paints one folded frame first.
-	 */
-	useLayoutEffect(() => {
-		if (running && chain === "collapsed") setOpen(() => true);
-		// oxlint-disable-next-line react-hooks/exhaustive-deps -- only the start of a run opens it; `setOpen` is rebuilt every render
-	}, [running, chain]);
 
 	if (chain === "expanded") {
 		// The earlier layout: no line while the turn runs (it is shown in full), folded once it ends.
@@ -79,6 +60,10 @@ export function TurnProcess({
 		);
 	}
 
+	/*
+	 * Folded by default, running or not — the line's tally already says what is going on, and the
+	 * replies between segments stay outside it. Opening one is remembered as the person's choice.
+	 */
 	return (
 		<div data-ly-turn-process={running ? "running" : "done"} data-ly-turn-open={open ? "" : undefined}>
 			<FlowRow

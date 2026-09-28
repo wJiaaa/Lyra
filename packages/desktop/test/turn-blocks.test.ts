@@ -61,12 +61,13 @@ test("一轮里，过程收成一块，最后那句话留在外面", () => {
 	assert.equal(blocks[2].runs[0].kind, "message");
 });
 
-test("中间的解说也算过程——它在说自己正在做什么，不是结论", () => {
-	// 「我先看一下配置」不是这一轮的答案，最后那句才是。
+test("中间说的话留在外面，把过程切成两段", () => {
+	// 「我先看一下配置」是在向人汇报，收进过程里，收起之后就看不到了。
 	const blocks = turnBlocks([ask("改一下", 0), think(1), say("我先看一下配置。", 2), work(1), say("改好了。", 4)]);
-	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process", "plain"]);
-	assert.equal(blocks[1].runs.length, 3, "推理、解说、那段活，三条都收进去");
-	assert.equal(blocks[2].runs[0].kind, "message");
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process", "plain", "process", "plain"]);
+	assert.deepEqual(blocks[1].counts, { tools: 0, thinking: 1 });
+	assert.deepEqual(blocks[3].counts, { tools: 1, thinking: 0 });
+	assert.equal(blocks[2].turn, blocks[3].turn, "切开的几段仍属于同一轮");
 });
 
 test("还没说出最后那句话时，过程一直延伸到末尾", () => {
@@ -76,12 +77,16 @@ test("还没说出最后那句话时，过程一直延伸到末尾", () => {
 	assert.equal(blocks[1].counts.tools, 2);
 });
 
-test("说完一句又接着干活时，那句是解说，后面的活不会漏到过程外面", () => {
-	// 跑到一半的样子：「我先看一下配置」之后又想了一下、又调了工具，还没有最后那句话。
+test("说完一句又接着干活时，后面的推理和活收成新的一段", () => {
 	const blocks = turnBlocks([ask("改一下", 0), work(1), say("我先看一下配置。", 2), thinkingOnly(3), work(2)]);
-	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process"]);
-	assert.equal(blocks[1].runs.length, 4, "解说、只有推理的那一行、两段活，全在过程里");
-	assert.deepEqual(blocks[1].counts, { tools: 3, thinking: 1 });
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process", "plain", "process"]);
+	assert.deepEqual(blocks[3].counts, { tools: 2, thinking: 1 });
+});
+
+test("只有重连标记、没有推理和工具的一段不收成一行", () => {
+	const hiccup = { kind: "hiccup", hiccup: {} } as Run;
+	const blocks = turnBlocks([ask("跑一下", 0), say("先说一句。", 1), hiccup, say("接着说。", 2)]);
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "plain", "plain", "plain"]);
 });
 
 test("一条什么都没说出来的失败回复不被收进过程", () => {
