@@ -12,12 +12,12 @@
  */
 
 import { parseUnifiedDiff } from "../diff-parse.ts";
+import { nativeText } from "../i18n.ts";
 import type { PullRequestDetail, PullRequestSummary, WorkspaceDiffFile } from "../ipc-shapes.ts";
 import type { Relation } from "../pr-summary.ts";
 import { DIFF_TIMEOUT_MS, json, text } from "./http.ts";
 import { ForgeError } from "./errors.ts";
 import type { ForgeConnection, ForgeDriver, ForgeIdentity, ReviewVerdict } from "./types.ts";
-import { nativeText } from "../i18n.ts";
 
 const PER_BUCKET = 30;
 

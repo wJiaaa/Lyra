@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeftRight, ChevronRight, CircleAlert, CircleCheck, Play, Settings2 } from "lucide-react";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { describeHiccup, hiccupTip, type Hiccup } from "../../lib/hiccup.ts";
+import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
@@ -157,6 +158,14 @@ function Icon({ outcome }: { outcome: Hiccup["outcome"] }) {
  */
 function Next({ hint }: { hint?: string }) {
 	const send = useApp((s) => s.send);
+	/*
+	 * The conversation of the screen this row is drawn in, named on the send — as `ResumeRow` does.
+	 *
+	 * Left out, the send meant "the live one": in a split, whichever screen had focus. A press focuses
+	 * its screen first, so a click picked the right one; Enter on this button from the keyboard sent
+	 * 「继续」 into the conversation beside it.
+	 */
+	const sessionId = useScopedSessionId();
 	const setView = useApp((s) => s.setView);
 	const setSettingsSection = useApp((s) => s.setSettingsSection);
 
@@ -191,7 +200,7 @@ function Next({ hint }: { hint?: string }) {
 			 * so a run that failed once and was picked up from here reported the length of its second
 			 * leg. `ResumeRow` has always sent the constant; this row is the same act and was not.
 			 */
-			onClick={() => void send([{ type: "text", text: carryOnPrompt("error", 0) ?? CARRY_ON_PROMPTS[1] }], { synthetic: true, carryOn: true })}
+			onClick={() => void send([{ type: "text", text: carryOnPrompt("error", 0) ?? CARRY_ON_PROMPTS[1] }], { synthetic: true, carryOn: true, sessionId: sessionId ?? undefined })}
 			icon={<Play size={11} strokeWidth={2} fill="currentColor" aria-hidden />}
 		/>
 	);

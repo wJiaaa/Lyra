@@ -78,17 +78,6 @@ export interface ModelConfig {
 	samplingParams?: Record<string, unknown>;
 }
 
-/**
- * 缓存路由键的携带方式。每一个都在 `ai/cache-routing.ts` 的 `CACHE_CARRIERS` 里有一行声明——那张表用
- * `satisfies Record<CacheCarrierId, …>` 约束，这里加了名字而那边没加行，编译不过。
- *
- * 名字写在这里而不是从那边推出来：那边要 import 本文件的类型，反过来引就成环了。
- */
-export type CacheCarrierId = "prompt_cache_key" | "x-session-id";
-
-/** `auto` 按端点自动选；`off` 一律不带；点名一种方式就只用它。 */
-export type CacheRoutingMode = "auto" | "off" | CacheCarrierId;
-
 export interface ProviderConfig {
 	id: string;
 	name: string;
@@ -96,11 +85,6 @@ export interface ProviderConfig {
 	api: ApiFormat;
 	apiKey: string;
 	enabled: boolean;
-	/**
-	 * 缓存路由键（`RequestOptions.cacheKey`）怎么带。缺省等于 `auto`：按端点自动选，见 `ai/cache-routing.ts`。
-	 * `off` 给那种拒绝未知字段、错误里又不点名字段的严格端点——自动学习认不出它，只能手动关。
-	 */
-	cacheRouting?: CacheRoutingMode;
 	models: ModelConfig[];
 }
 

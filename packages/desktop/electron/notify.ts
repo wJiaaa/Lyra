@@ -4,6 +4,9 @@
  * Emits an OS notification when an agent finishes its work or asks for user assistance
  * while the user is away from the app window. Clicking the notification restores and
  * focuses the window, navigating directly to the conversation.
+ *
+ * The text is in the interface language, from the main process's own catalog in `i18n.ts` —
+ * the renderer's `translate` is not reachable from here.
  */
 
 import type { AgentEvent } from "@lyra/core";
@@ -31,7 +34,9 @@ export function notifyAgentEvent(sessionId: string, event: AgentEvent, title?: s
 	if (event.type === "agent_end" && event.reason === "done") notifyTaskDone({ sessionId, title });
 	if (event.type === "approval_request") {
 		const question = event.kind === "interactive" || event.subject === "ask_user";
-		notifyNeedAssistance({ sessionId, title, kind: question ? "question" : "approval", question: question ? event.detail || event.reason : event.title });
+		// 后台子智能体问的，说出是谁在问——人要据此决定的，正是「这个活该不该由它来干」。
+		const asking = question ? event.detail || event.reason : event.title;
+		notifyNeedAssistance({ sessionId, title, kind: question ? "question" : "approval", question: event.from && asking ? nativeText("notification.asking", { agent: event.from.description, question: asking }) : asking });
 	}
 }
 

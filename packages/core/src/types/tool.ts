@@ -8,7 +8,10 @@
 
 import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
+import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
 import type { UserContent } from "./message.ts";
+
+export type { RiskCode, RiskParams };
 
 export interface SubAgentAnswer {
 	text: string;
@@ -20,6 +23,11 @@ export interface SubAgentAnswer {
 	incomplete?: boolean;
 	/** 人在面板上把它按停的。派它来的那一方不该自作主张地让它接着跑。 */
 	stoppedByUser?: boolean;
+	/**
+	 * 父会话没等它跑完就放手了：人插了话，父会话先去回应。它在后台接着跑，跑完后结果由运行时
+	 * 作为一条消息送回——见 `runtime/delegation-waits.ts`。这时 `text` 说的是「它还在跑」，不是结论。
+	 */
+	detached?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +193,13 @@ export interface ApprovalRequest extends QuestionFields {
 	 * model requesting an escalation, it is the model's own sentence, shown verbatim.
 	 */
 	reason?: string;
+	/**
+	 * What the approval policy found dangerous, when that is why this is being asked.
+	 *
+	 * Set by the gate, beside `detail` rather than written into it: written in, it was a sentence
+	 * in the language it was composed in, whatever the window was set to.
+	 */
+	risk?: ApprovalRisk;
 	/** Command / path the approval applies to, used for "always allow" rules. */
 	subject: string;
 	/**
@@ -200,6 +215,33 @@ export interface ApprovalRequest extends QuestionFields {
 	 * (see `ApprovalGate.request`).
 	 */
 	escalation?: SandboxMode;
+	/**
+	 * 是哪个子代理在问。主会话自己问的没有这一项。
+	 *
+	 * 子代理的授权一直送到主窗口的同一张卡片上，只是卡片说不出是谁在要——而后台可能同时有四个
+	 * 在跑，人要据以决定的恰恰是「这个活该不该由它来干」。
+	 */
+	from?: ApprovalOrigin;
+}
+
+/**
+ * The policy's finding, in two forms.
+ *
+ * `code` names the built-in rule, for the host to say in the interface's language; `text` is the
+ * policy's own sentence — what a plugin's policy has to offer, and what is shown for a code the
+ * host has no words for.
+ */
+export interface ApprovalRisk {
+	text: string;
+	code?: RiskCode;
+	params?: RiskParams;
+}
+
+/** 提出授权请求的那个子代理。 */
+export interface ApprovalOrigin {
+	subAgentId: string;
+	agent: string;
+	description: string;
 }
 export type ApprovalDecision = "once" | "always" | "reject" | "skip" | { answer: string | string[]; skipped?: boolean };
 

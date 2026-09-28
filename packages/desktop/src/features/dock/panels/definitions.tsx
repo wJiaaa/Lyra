@@ -16,13 +16,19 @@ import "./builtin.tsx";
 export type ResolvedPanel = Omit<PanelDefinition, "unavailable"> & { unavailable?: MessageKey };
 
 export function usePanelDefinitions(): ResolvedPanel[] {
-	// What this screen's conversation has, which in a split is not the focused one's.
+	/*
+	 * What this screen's conversation has, asked from its own title bar and dock.
+	 *
+	 * The live slot describes the focused screen only. Read from there, a conversation in no project
+	 * with focus took the Git button away from the project's screen beside it and gave one to itself,
+	 * and the blank screen offered the panels of the conversation next to it.
+	 */
 	const { workspace, scratchCwd } = useScopedWorkspace();
-	const activeSessionId = useScopedSessionId();
+	const sessionId = useScopedSessionId();
 	const state = {
 		workspace: Boolean(workspace),
 		cwd: Boolean(workspace ?? scratchCwd),
-		session: Boolean(activeSessionId),
+		session: Boolean(sessionId),
 	};
 	return allPanels().map((panel) => ({ ...panel, unavailable: panel.unavailable?.(state) }));
 }

@@ -518,7 +518,17 @@ app.whenReady().then(async () => {
 	);
 	const extra = await loadCapabilityPlugins(bundles.plugins);
 	for (const diagnostic of extra.diagnostics) console.warn(`[plugin] ${diagnostic.path}: ${diagnostic.message}`);
-	kernel = await createContext([...DEFAULT_PLUGINS, ...extra.plugins]);
+	/*
+	 * A capability that loads and then throws while being applied is as broken as one that does not
+	 * load, and was not covered: the throw came out of `createContext`, before the window existed,
+	 * and the app did not open. Started again without the installed ones — the built-in set is what
+	 * an ordinary Lyra is, and a context that failed halfway is not something to keep building on.
+	 */
+	kernel = await createContext([...DEFAULT_PLUGINS, ...extra.plugins]).catch((error: unknown) => {
+		if (extra.plugins.length === 0) throw error;
+		console.warn(`[plugin] 已装的能力插件（${extra.plugins.map((plugin) => plugin.name).join("、")}）启动失败，这次不带它们启动：${error instanceof Error ? error.message : String(error)}`);
+		return createContext(DEFAULT_PLUGINS);
+	});
 	useLlmRegistry(kernel.require<LlmRegistry>(LLM));
 	useToolRegistry(kernel.require<ToolRegistry>(TOOLS));
 	useSandbox(kernel.require<Sandbox>(SANDBOX));
@@ -693,10 +703,11 @@ function bindScreenshotShortcut(): void {
 		getSettings: () => settings,
 		saveSettings: async (next) => void (await applySettings(next)),
 		createSession: (cwd, modelId) => getOrCreateSession(cwd, modelId),
-		notify: (message, level) => {
+		notify: (message, level, about) => {
 			const win = getWindow();
 			if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-				win.webContents.send("scheduler:notice", { message, level });
+				// The shape is `SchedulerNotice`; `preload.ts` hands it to `lyra.scheduler.onNotice` as is.
+				win.webContents.send("scheduler:notice", { ...about, message, level });
 			}
 		},
 	});
@@ -889,7 +900,14 @@ function registerIpc(): void {
 	registerFilesIpc({ projectRoots: () => allowedRoots() });
 	registerFileOpsIpc({ projectPath });
 
-	registerTerminalIpc({ terminals, spawnPty, projectPath, insideAProject, eachWindow: eachAppWindow });
+	registerTerminalIpc({
+		terminals,
+		spawnPty,
+		projectPath,
+		insideAProject,
+		eachWindow: eachAppWindow,
+		locale: () => resolveNativeLocale(settings?.uiLocale ?? "system", app.getLocale()),
+	});
 	registerUpdateIpc();
 
 	registerServicesIpc({

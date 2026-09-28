@@ -2,10 +2,12 @@ import { BUILTIN_AGENTS } from "@lyra/core/agents-builtin";
 import type { Settings } from "@lyra/core";
 import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@lyra/core/model-roles";
 import { resolveModelThinkingOptions, resolveThinkingOption } from "@lyra/core/thinking-options";
-import { AlertCircle, Bot, Brain, Plus, Copy, RefreshCcw, RotateCcw, Search, Trash2, Undo2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { AlertCircle, Brain, Plus, Copy, RefreshCcw, RotateCcw, Search, Trash2, Undo2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";
+import { useAgentAvatars, type AvatarOf } from "../../store/agent-avatars.ts";
+import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
 import { InlineSelect } from "./controls.tsx";
 import { ModelSelect } from "../models/index.ts";
 import { AgentDefinitionEditor } from "./AgentDefinitionEditor.tsx";
@@ -33,7 +35,8 @@ export function AgentsSettings() {
 	const [editor, setEditor] = useState<{ record?: AgentDefinitionRecord; copy?: boolean; projectId: string | null } | null>(null);
 	const [undo, setUndo] = useState<{ token: string; projectId: string | null } | null>(null);
 	const [notice, setNotice] = useState("");
-	const [highlight, setHighlight] = useState("");
+	// 刚存下的那一个：行底色亮一下，脸也跟着高兴一下（`at` 让同一个人连存两次也各算一次）。
+	const [highlight, setHighlight] = useState<{ name: string; at: number } | null>(null);
 	const [query, setQuery] = useState("");
 	const confirm = useConfirmer();
 	const activeSessionId = useApp((s) => s.activeSessionId);
@@ -71,7 +74,11 @@ export function AgentsSettings() {
 		if (current) void persist(withAgentProfile(current, name, profile));
 	}
 
-	const agents: Agent[] = catalogue.records?.map(record => record.definition) ?? capabilities?.agents ?? BUILTIN_AGENTS;
+	const agents: Agent[] = useMemo(
+		() => catalogue.records?.map(record => record.definition) ?? capabilities?.agents ?? BUILTIN_AGENTS,
+		[catalogue.records, capabilities?.agents],
+	);
+	const avatarOf = useAgentAvatars(agents);
 	const recordOf = (name: string) => catalogue.records?.find(record => record.definition.name === name);
 	const openEditor = async (record: AgentDefinitionRecord, copy = false) => {
 		try { const fresh = await bridge.agentDefinitions.read(catalogue.projectId, record.id); setEditor({ record: fresh, copy, projectId: catalogue.projectId }); }
@@ -98,8 +105,9 @@ export function AgentsSettings() {
 		const deletable = record && !editor.copy && record.editable && record.scope !== "builtin" && !record.customized;
 		return <>
 			<AgentDefinitionEditor record={record} copy={editor.copy} projectId={editor.projectId} projectName={catalogue.projectName} tools={catalogue.tools}
+				avatarOf={avatarOf} taken={agents.filter(agent => !record || editor.copy || agent.name !== record.definition.name).map(agent => ({ name: agent.name, avatar: avatarOf(agent.name) }))}
 				onClose={() => setEditor(null)} onDelete={deletable ? () => askRemove(record, () => setEditor(null)) : undefined}
-				onSaved={(name, warning) => { setEditor(null); setHighlight(name); setNotice(warning ?? t("agents.savedForNext")); void catalogue.refresh(); }} />
+				onSaved={(name, warning) => { setEditor(null); setHighlight({ name, at: Date.now() }); setNotice(warning ?? t("agents.savedForNext")); void catalogue.refresh(); }} />
 			{confirm.element}
 		</>;
 	}
@@ -112,7 +120,7 @@ export function AgentsSettings() {
 	const create = () => setEditor({ projectId: catalogue.projectId });
 	const row = (agent: Agent) => {
 		const record = recordOf(agent.name);
-		return <AgentRow key={agent.name} agent={agent} record={record} highlighted={highlight === agent.name} disabled={saving}
+		return <AgentRow key={agent.name} agent={agent} record={record} avatarOf={avatarOf} saved={highlight?.name === agent.name ? highlight.at : null} disabled={saving}
 			controls={settings && <AgentModelControls agent={agent} settings={settings} mainModelId={mainModelId} disabled={saving} onChange={(profile) => { void save(agent.name, profile); }} />}
 			edit={record?.editable ? () => void openEditor(record) : undefined}
 			copy={record ? () => void openEditor(record, true) : undefined}
@@ -209,21 +217,26 @@ function Badge({ children }: { children: React.ReactNode }) {
 	return <span className="inline-flex min-h-5 items-center rounded-md bg-[var(--ly-agent-surface)] px-1.5 py-0.5 text-caption leading-none text-ink-muted ring-1 ring-[var(--ly-agent-line)]">{children}</span>;
 }
 
-function AgentRow({ agent, record, highlighted, disabled, controls, edit, copy, remove }: {
-	agent: Agent; record?: AgentDefinitionRecord; highlighted: boolean; disabled: boolean; controls: React.ReactNode;
+function AgentRow({ agent, record, avatarOf, saved, disabled, controls, edit, copy, remove }: {
+	agent: Agent; record?: AgentDefinitionRecord; avatarOf: AvatarOf;
+	/** 刚存下时是存下的时刻，否则 null。 */
+	saved: number | null;
+	disabled: boolean; controls: React.ReactNode;
 	edit?: () => void; copy?: () => void; remove?: () => void;
 }) {
 	const { t } = useI18n();
 	const name = agent.name;
+	const highlighted = saved !== null;
 	return (
-		<div data-agent-profile={name} data-agent-saved={highlighted || undefined}
+		<div data-agent-profile={name} data-agent-saved={highlighted || undefined} data-ly-avatar-host=""
 			className={`relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 transition-colors duration-[var(--ly-t-quick)] @2xl:grid-cols-[auto_minmax(0,1fr)_auto] ${edit && !disabled ? "hover:bg-[var(--ly-agent-hover)]" : ""} ${highlighted ? "bg-info/5" : ""}`}>
 			{/*
 			 * 整行是编辑入口，和 ZCode 一样；但行里还有下拉和按钮，按钮套按钮不成立，所以用一层垫在
 			 * 最底下的按钮铺满整行（同 `ListRow`），上面的控件各自先接住自己的点击。
 			 */}
 			{edit && <button type="button" aria-label={t("agents.editNamed", { name })} disabled={disabled} className="absolute inset-0" onClick={edit} />}
-			<span aria-hidden className="pointer-events-none relative grid size-9 shrink-0 place-items-center rounded-xl bg-shell text-ink-muted"><Bot size={16} /></span>
+			{/* 设置页、`@` 菜单、面板里都是这张脸，见 `store/agent-avatars.ts`。 */}
+			<span className="pointer-events-none relative grid size-9 shrink-0 place-items-center"><AgentAvatar avatar={avatarOf(name)} size={34} seed={name} host="[data-ly-avatar-host]" cheer={saved} /></span>
 			<div className="pointer-events-none relative min-w-0">
 				<div className="flex min-w-0 flex-wrap items-center gap-2">
 					<span className="truncate text-label font-medium text-ink">{name}</span>

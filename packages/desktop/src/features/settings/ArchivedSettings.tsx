@@ -12,6 +12,7 @@ import { InlineSelect } from "./controls.tsx";
 import { groupIsOpen, toggleOpened } from "./archived-groups.ts";
 import { useApp } from "../../store/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
+import { hourStyle } from "../../lib/hour-style.ts";
 import { useI18n, type ResolvedUiLocale } from "../../i18n/index.ts";
 
 /**
@@ -114,7 +115,7 @@ export function ArchivedSettings() {
 							onChange={setProject}
 							options={[
 								{ value: "all", label: t("common.allProjects") },
-								...projects.map((p) => ({ value: p.path, label: `${p.name}（${p.count}）` })),
+								...projects.map((p) => ({ value: p.path, label: t("archived.projectCount", { name: p.name, count: p.count }) })),
 							]}
 						/>
 					</div>
@@ -235,7 +236,7 @@ function formatDate(ts: number, locale: ResolvedUiLocale): string {
 		year: "numeric",
 		month: "long",
 		day: "numeric",
-		hour: "2-digit",
+		hour: hourStyle(locale),
 		minute: "2-digit",
 	});
 }

@@ -72,7 +72,13 @@ export function TerminalPane() {
 	useEffect(() => {
 		const id = sessionId.current;
 		if (!pending || !ready || !id) return;
-		if (scope !== undefined && scope !== (useSide.getState().pendingFor ?? useApp.getState().activeSessionId ?? "@draft")) return;
+		/*
+		 * One terminal runs it: the one in the screen it was asked from, or with no screen named, the
+		 * one with focus. Every screen's terminal sees the same queued command, and deciding by focus
+		 * alone gave a command pressed from the keyboard in another screen to the shell beside it.
+		 */
+		const owner = useSide.getState().pendingScreen ?? (useApp.getState().activeSessionId ?? "@draft");
+		if (scope !== undefined && scope !== owner) return;
 		if (useSide.getState().pendingCommand !== pending) return;
 		/*
 		 * Claimed before it is written, not after.
@@ -441,9 +447,9 @@ export function TerminalPane() {
 	 *
 	 * Not from the effect below: that runs before `App`'s effect writes the theme onto the document,
 	 * and the palette is read off the document — the `dark` class, and the code background the
-	 * default themes inherit. Assigned there, the terminal kept the theme being left after a switch,
-	 * and never followed the system turning dark under 「跟随系统」, which changes nothing React can
-	 * see. `onAppearanceApplied` is called by the writer itself.
+	 * default themes inherit. Assigned there, the terminal showed the theme being left for a frame or
+	 * two after every switch (measured), and never followed the system turning dark under 「跟随系统」,
+	 * which changes nothing React can see. `onAppearanceApplied` is called by the writer itself.
 	 */
 	useEffect(
 		() =>
@@ -456,12 +462,11 @@ export function TerminalPane() {
 	/*
 	 * Follow 代码外观's type without rebuilding the shell under the user.
 	 *
-	 * The four typographic
-	 * options were read once inside `new Terminal()` and never again, so changing the code font
-	 * did nothing to the terminal until the pane happened to be rebuilt. It is the one surface in
-	 * the app that CSS cannot reach: xterm measures a character and paints to a canvas, so the
-	 * variables the diff viewer and the Markdown blocks pick up on their own have to be pushed in
-	 * by hand.
+	 * The four typographic options were read once inside `new Terminal()` and never again, so
+	 * changing the code font did nothing to the terminal until the pane happened to be rebuilt. It is
+	 * the one surface in the app that CSS cannot reach: xterm measures a character and paints to a
+	 * canvas, so the variables the diff viewer and the Markdown blocks pick up on their own have to
+	 * be pushed in by hand.
 	 *
 	 * From `appearance` rather than `readVar`, and that ordering is the whole reason this is
 	 * subtle: the variables are written by an effect in `App.tsx`, which is a parent, and React

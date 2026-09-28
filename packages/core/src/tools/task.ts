@@ -36,6 +36,8 @@ export const taskTool: Tool<TaskArgs> = {
 		"and a sizeable piece of work that does not depend on what you are doing. " +
 		"Do everything else yourself: a change you can make in a step or two, part of what you are writing right now (such as tests for the function you just wrote), " +
 		"or work you could only hand off after spelling out its interfaces and conventions — spelling those out costs as much as doing it. " +
+		"Agents with write tools edit files directly, and their risky actions are asked of the user in this window like yours. " +
+		"Several calls in one reply run in parallel and extra ones wait in a queue, so dispatch independent pieces together rather than one per reply. " +
 		"When you run several at once, have each skip builds, lints and tests and verify once yourself at the end; pieces that need a shared interface which does not exist yet are not independent — write the interface first, or do not split. " +
 		"The sub-agent cannot ask you questions, so put everything it needs in `prompt`. " +
 		"Each call starts a fresh sub-agent with an empty context, unless you pass `resume` with the id of one you dispatched earlier: " +
@@ -145,6 +147,8 @@ export const taskTool: Tool<TaskArgs> = {
 					warnings: answer.warnings?.length ? answer.warnings : undefined,
 					...(answer.id ? { subAgentId: answer.id } : {}),
 					...(resuming ? { resumed: true } : {}),
+					// 父会话没等它跑完：卡片据此跟着登记簿画它的实时状态，而不是把这句「转到后台」当结论。
+					...(answer.detached ? { detached: true } : {}),
 				},
 			};
 		} catch (error) {
@@ -164,6 +168,8 @@ export const taskTool: Tool<TaskArgs> = {
  */
 function withResumeHint(text: string, answer: SubAgentAnswer): string {
 	if (!answer.id) return text;
+	// 还在后台跑的，结果会自己送回来——这时候给一句「用 resume 追问它」，正好把模型往重复派活上引。
+	if (answer.detached) return `${text}\n\n（子代理 id：\`${answer.id}\`。）`;
 	if (answer.stoppedByUser) return `${text}\n\n（这个子代理是用户在面板上手动停下的。除非用户要求，不要续跑它。）`;
 	if (answer.incomplete) {
 		return (
@@ -172,5 +178,12 @@ function withResumeHint(text: string, answer: SubAgentAnswer): string {
 			"剩下的不多，也可以自己接手。"
 		);
 	}
-	return `${text}\n\n（子代理 id：\`${answer.id}\`。要追问它、或让它在这个基础上接着做，用 \`task\` 的 \`resume\`。）`;
+	/*
+	 * 末尾那半句「这是材料」是说给正要写回答的那个模型的。
+	 *
+	 * 指引里也写了，但指引在系统提示词里、隔着几万字；模型写最后那段回答时，眼前是这几份结果。
+	 * 没有这半句，几个子代理的结果一起回来时，它最顺手的写法就是按人头逐个转述——「子智能体 2：
+	 * 核心逻辑……」——把它自己该做的合并推给了读的人（2026-09-26 的真实会话就是这么答的）。
+	 */
+	return `${text}\n\n（子代理 id：\`${answer.id}\`。要追问它、或让它在这个基础上接着做，用 \`task\` 的 \`resume\`。它交的是材料：回答用户时和别的结论合在一起、按问题组织。）`;
 }

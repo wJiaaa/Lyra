@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useI18n } from "../../i18n/index.ts";
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { MessageCircle, TriangleAlert } from "lucide-react";
@@ -8,9 +9,11 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { useScopedApprovals, useScopedSessionId } from "../../app/session-scope.tsx";
+import { useAgentAvatars } from "../../store/agent-avatars.ts";
+import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
 import { QuestionChoices } from "./QuestionChoices.tsx";
 import { PermissionChoices } from "./PermissionChoices.tsx";
-import { approvalReason } from "./approval-content.ts";
+import { approvalReason, riskSentence } from "./approval-content.ts";
 
 /** What is being asked for, by kind. Keys — this table is built at import time. */
 const KIND_LABEL: Record<string, MessageKey> = {
@@ -57,7 +60,13 @@ export function ApprovalOverlay() {
 	const sessionId = useScopedSessionId();
 	const approvals = useScopedApprovals();
 	const respond = useApp(s => s.respondToApproval);
+	const avatarOf = useAgentAvatars();
 	const { compact } = useLayout();
+	/*
+	 * Subscribed, not only read through `translate`: the card sits under the memoised
+	 * `Conversation`, and a context is what reaches through that when the language changes.
+	 */
+	const { t } = useI18n();
 	const [collapsedId, setCollapsedId] = useState<string | null>(null);
 	const request = approvals[0];
 	if (!request) return null;
@@ -65,18 +74,41 @@ export function ApprovalOverlay() {
 	const interactive = request.kind === "interactive";
 	const Icon = interactive ? MessageCircle : TriangleAlert;
 	const reason = approvalReason(request.reason, request.detail);
+	// On top of the command, where the gate used to write it into the text in one language.
+	const risk = riskSentence(request.risk, t);
 	const context = <>
 		{reason && <p className="mb-2.5 whitespace-pre-wrap break-words text-label leading-relaxed text-ink">{reason}</p>}
-		<pre className={`whitespace-pre-wrap break-words ${interactive ? "font-sans text-label leading-relaxed text-ink" : "font-mono text-code text-ink-muted"}`}>{request.detail}</pre>
+		<pre className={`whitespace-pre-wrap break-words ${interactive ? "font-sans text-label leading-relaxed text-ink" : "font-mono text-code text-ink-muted"}`}>{risk ? `${risk}\n\n${request.detail}`.trim() : request.detail}</pre>
+	</>;
+	const tags = <>
+		{!interactive && <span className="shrink-0 text-caption text-ink-faint">{KIND_LABEL[request.kind] ? translate(KIND_LABEL[request.kind]) : request.kind}</span>}
+		{request.expiresAt !== undefined && <Expiry at={request.expiresAt} />}
+		{approvals.length > 1 && <span className="shrink-0 text-caption text-ink-faint">+{approvals.length - 1}</span>}
 	</>;
 	return <div data-approval-region className={`flex shrink-0 justify-center pb-2 ${compact ? "ly-content-gutter-compact" : "ly-content-gutter"}`}>
 		<div data-approval-card className="ly-glass flex w-full max-w-[var(--ly-content)] max-h-[min(560px,calc(100dvh-14rem))] flex-col overflow-hidden rounded-xl border border-line">
-			<div className="flex shrink-0 items-center gap-2 px-4 py-2.5">
-				<Icon size={15} strokeWidth={1.8} className="shrink-0 text-accent" />
-				<span className="min-w-0 flex-1 break-words text-label font-medium text-ink">{interactive ? translate("question.title") : request.title}</span>
-				{!interactive && <span className="shrink-0 text-caption text-ink-faint">{KIND_LABEL[request.kind] ? translate(KIND_LABEL[request.kind]) : request.kind}</span>}
-				{request.expiresAt !== undefined && <Expiry at={request.expiresAt} />}
-				{approvals.length > 1 && <span className="shrink-0 text-caption text-ink-faint">+{approvals.length - 1}</span>}
+			<div className="flex shrink-0 items-center gap-2 px-4 py-2.5" data-ly-avatar-host="" data-approval-head="">
+				{/*
+				 * 子智能体在问的，脸替掉那枚警告图标，标题下面一行小字说是谁。
+				 *
+				 * 子智能体的授权一直是送到这张卡上的，只是卡片说不出是谁在要：同一句「写入 src/a.ts」可能
+				 * 来自主智能体，也可能来自后台四个子智能体里的任何一个，而人要据此决定的恰恰是「这个活
+				 * 该不该由它来干」。
+				 */}
+				{request.from ? (
+					<AgentAvatar avatar={avatarOf(request.from.agent)} size={18} seed={request.from.agent} host="[data-ly-avatar-host]" />
+				) : (
+					<Icon size={15} strokeWidth={1.8} className="shrink-0 text-accent" />
+				)}
+				<span className="flex min-w-0 flex-1 flex-col">
+					<span className="break-words text-label font-medium text-ink" data-approval-title="">{interactive ? translate("question.title") : request.title}</span>
+					{request.from && (
+						<span className="truncate text-caption text-ink-faint" data-approval-from="">
+							{translate("approval.fromSubAgent", { name: request.from.description, agent: request.from.agent })}
+						</span>
+					)}
+				</span>
+				{tags}
 				<button type="button" aria-expanded={!collapsed} aria-label={translate(collapsed ? "question.expand" : "question.collapse")} onClick={() => setCollapsedId(collapsed ? null : request.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-muted hover:bg-card-hover"><Caret open={!collapsed} size={15} /></button>
 			</div>
 			<Collapse open={!collapsed} keepMounted className="min-h-0" bodyClassName="flex min-h-0 flex-col overflow-hidden">{interactive ? <>

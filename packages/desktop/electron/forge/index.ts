@@ -11,6 +11,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { nativeText } from "../i18n.ts";
 import type { PullRequestDetail, PullRequestSummary, WorkspaceDiffFile } from "../ipc-shapes.ts";
 import { defaultLabel, normalizeServer, sameIdentity } from "./accounts.ts";
 import { describe } from "./errors.ts";
@@ -20,7 +21,6 @@ import { github } from "./github.ts";
 import { gitlab } from "./gitlab.ts";
 import type { ForgeAccount, ForgeConnection, ForgeDriver, ForgeKind, ReviewVerdict } from "./types.ts";
 import { accountById, listAccounts, removeAccount, saveAccount, tokenFor, updateAccount } from "./vault.ts";
-import { nativeText } from "../i18n.ts";
 
 const DRIVERS: Record<ForgeKind, ForgeDriver> = { github, gitlab, gitee, gitea };
 

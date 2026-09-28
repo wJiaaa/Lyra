@@ -12,11 +12,19 @@ import { AtSign, Clock, GitPullRequest } from "lucide-react";
 import { useApp, viewAvailable } from "../../store/index.ts";
 import { NavItem } from "./NavItem.tsx";
 import { useI18n } from "../../i18n/index.ts";
+import { useScheduledNotices } from "../scheduled/index.ts";
 
 export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 	const { t } = useI18n();
+	// Scheduled tasks that failed with nobody looking. Opening the schedule is what clears it.
+	const failures = useScheduledNotices((s) => s.unseen.length);
 	const view = useApp((s) => s.view);
 	const setView = useApp((s) => s.setView);
+	/*
+	 * 自动更新关着时，有新版的数目挂在这里——人不打开市场也知道。开着的话它们一会儿就自己换上了，
+	 * 挂一个转眼就消失的数字只是晃一下眼。
+	 */
+	const waiting = useApp((s) => (s.pluginUpdates && !s.pluginUpdates.auto ? s.pluginUpdates.outdated.length : 0));
 	const go = (next: Parameters<typeof setView>[0]) => () => {
 		setView(next);
 		onNavigate();
@@ -36,7 +44,14 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 				/>
 			)}
 			{viewAvailable("scheduled") && (
-				<NavItem active={view === "scheduled"} icon={<Clock size={16} />} label={t("sidebar.scheduled")} onClick={go("scheduled")} />
+				<NavItem
+					active={view === "scheduled"}
+					icon={<Clock size={16} />}
+					label={t("sidebar.scheduled")}
+					onClick={go("scheduled")}
+					badge={view === "scheduled" ? 0 : failures}
+					badgeLabel={t("scheduled.unseenFailures", { n: failures })}
+				/>
 			)}
 			{/*
 			 * The catalogue, not the settings pane it used to open.
@@ -47,7 +62,14 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 			 * in this view's header is the way across.
 			 */}
 			{viewAvailable("plugins") && (
-				<NavItem active={view === "plugins"} icon={<AtSign size={16} />} label={t("sidebar.plugins")} onClick={go("plugins")} />
+				<NavItem
+					active={view === "plugins"}
+					icon={<AtSign size={16} />}
+					label={t("sidebar.plugins")}
+					onClick={go("plugins")}
+					badge={waiting}
+					badgeLabel={t("sidebar.pluginUpdates", { n: waiting })}
+				/>
 			)}
 		</div>
 	);

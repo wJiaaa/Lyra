@@ -34,5 +34,8 @@
 | [0025](0025-model-switch-applies-from-next-request.md) | 一轮之内换模型从下一个请求起就换，卡在重试上的请求当场放手 |
 | [0026](0026-remove-mobile-and-relay.md) | 移除移动端与中转服务，只保留桌面端 |
 | [0027](0027-web-access.md) | Web 访问：桌面端把自己的界面发给局域网里的浏览器，实时同步，对话可操作 |
+| [0028](0028-core-names-the-rule-hosts-say-it.md) | core 报的是哪条规则（给码），说成哪种语言由宿主按码翻译，不把界面语言传进 core |
+| [0029](0029-parent-lets-go-when-spoken-to.md) | 主会话等子代理时人一开口就放手，子代理在后台跑完、结果送回来 |
+| [0030](0030-plugin-market-keys-and-live-updates.md) | 插件市场一格一动作，MCP 的钥匙进保险箱，装过的东西自己跟上新版 |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。

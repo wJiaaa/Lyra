@@ -1,10 +1,10 @@
 /**
- * 缓存路由键：各类端点下请求体 / 请求头带不带、带成什么样；严格端点拒绝后学会不带并重发。
+ * 缓存路由键：OpenAI 系两条链和 Anthropic 协议各带什么；严格端点拒绝请求体字段后学会不带并重发。
  */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cacheRouting, defaultCarriers, fitKey, sessionHeaders } from "../src/ai/cache-routing.ts";
+import { anthropicMetadata, cacheRouting, fitKey, sessionHeaders } from "../src/ai/cache-routing.ts";
 import { openaiChatCompletionsProvider, resetChatCompletionsCompat } from "../src/ai/openai-chat-completions.ts";
 import { openaiResponsesProvider } from "../src/ai/openai-responses.ts";
 import { anthropicMessagesProvider } from "../src/ai/anthropic-messages.ts";
@@ -14,37 +14,28 @@ import type { ApiFormat, AssistantMessage, ModelConfig, ProviderConfig } from ".
 
 const EMPTY = new Set<never>();
 
-test("路由表：各端点的默认携带方式", () => {
-	assert.deepEqual(defaultCarriers("https://api.openai.com/v1"), ["prompt_cache_key"]);
-	assert.deepEqual(defaultCarriers("https://openrouter.ai/api/v1"), ["x-session-id"]);
-	assert.deepEqual(defaultCarriers("https://api.moonshot.cn/v1"), ["prompt_cache_key"]);
-	assert.deepEqual(defaultCarriers("https://api.deepseek.com"), []);
-	assert.deepEqual(defaultCarriers("https://generativelanguage.googleapis.com/v1beta/openai"), []);
-	assert.deepEqual(defaultCarriers("https://relay.example.com/v1"), ["prompt_cache_key"], "通用中转默认带请求体字段，拒了再学");
-	assert.deepEqual(defaultCarriers("not a url"), ["prompt_cache_key"]);
-	// 子域算，名字里碰巧包含不算。
-	assert.deepEqual(defaultCarriers("https://eu.openrouter.ai/api"), ["x-session-id"]);
-	assert.deepEqual(defaultCarriers("https://notopenrouter.ai.example.com"), ["prompt_cache_key"]);
+test("路由：不分端点，请求体 prompt_cache_key 加 x-session-id、session_id 两个头", () => {
+	assert.deepEqual(cacheRouting("s1", EMPTY), { body: { prompt_cache_key: "s1" }, headers: { "x-session-id": "s1", session_id: "s1" } });
+	assert.deepEqual(cacheRouting(undefined, EMPTY), { body: {}, headers: {} }, "没有 cacheKey 什么都不带");
+	assert.deepEqual(cacheRouting("s1", new Set(["cache-key" as const])), { body: {}, headers: { "x-session-id": "s1", session_id: "s1" } }, "请求体字段被拒过只撤它，两个头照带");
 });
 
-test("路由：没有 cacheKey、Anthropic 协议、配置 off，一律什么都不带", () => {
-	const openai = { baseUrl: "https://api.openai.com" };
-	assert.deepEqual(cacheRouting(openai, "openai-responses", undefined, EMPTY), { body: {}, headers: {} });
-	assert.deepEqual(cacheRouting(openai, "anthropic-messages", "s1", EMPTY), { body: {}, headers: {} });
-	assert.deepEqual(cacheRouting({ ...openai, cacheRouting: "off" }, "openai-responses", "s1", EMPTY), { body: {}, headers: {} });
+test("路由：请求体按 64、请求头按 256 各自压", () => {
+	const long = `session-${"a".repeat(100)}`;
+	const routing = cacheRouting(long, EMPTY);
+	assert.equal(routing.body.prompt_cache_key, fitKey(long, 64));
+	assert.equal(routing.headers.session_id, long, "放得下的请求头原样用");
 });
 
-test("路由：用户点名一种方式就只用它；学到的撤销对点名的也生效", () => {
-	const relay = { baseUrl: "https://relay.example.com", cacheRouting: "x-session-id" as const };
-	assert.deepEqual(cacheRouting(relay, "openai-chat-completions", "s1", EMPTY), { body: {}, headers: { "x-session-id": "s1" } });
-	const forced = { baseUrl: "https://api.deepseek.com", cacheRouting: "prompt_cache_key" as const };
-	assert.deepEqual(cacheRouting(forced, "openai-chat-completions", "s1", EMPTY).body, { prompt_cache_key: "s1" });
-	assert.deepEqual(cacheRouting(forced, "openai-chat-completions", "s1", new Set(["cache-key" as const])).body, {});
-});
-
-test("路由：配置里写了一个不认识的方式，什么都不带而不是乱带", () => {
-	const odd = { baseUrl: "https://api.openai.com", cacheRouting: "bogus" as never };
-	assert.deepEqual(cacheRouting(odd, "openai-responses", "s1", EMPTY), { body: {}, headers: {} });
+test("Anthropic：metadata.user_id 写成 Claude Code 的 JSON，同一台机器同一个 device_id", () => {
+	const first = JSON.parse(anthropicMetadata("s1").metadata!.user_id) as Record<string, string>;
+	assert.deepEqual(Object.keys(first), ["device_id", "account_uuid", "session_id"]);
+	assert.match(first.device_id, /^[0-9a-f]{64}$/);
+	assert.equal(first.account_uuid, "");
+	assert.equal(first.session_id, "s1");
+	const second = JSON.parse(anthropicMetadata("s2").metadata!.user_id) as Record<string, string>;
+	assert.equal(second.device_id, first.device_id);
+	assert.deepEqual(anthropicMetadata(undefined), {}, "没有 cacheKey 请求和从前一样");
 });
 
 test("fitKey：放得下原样用；超长的压成定长摘要，共享长前缀的两个键不会撞成一个", () => {
@@ -183,31 +174,23 @@ function resetAll(): void {
 }
 
 for (const api of ["openai-chat-completions", "openai-responses"] as const) {
-	test(`${api}：OpenAI 官方带 prompt_cache_key，不带会话头`, async () => {
-		resetAll();
-		const { sent } = await run(api, { id: `openai-${api}`, baseUrl: "https://api.openai.com/v1" }, "sess-1");
-		assert.equal(sent[0].body.prompt_cache_key, "sess-1");
-		assert.equal("x-session-id" in sent[0].headers, false);
-	});
-
-	test(`${api}：OpenRouter 带 x-session-id 头，请求体不加字段`, async () => {
-		resetAll();
-		const { sent } = await run(api, { id: `or-${api}`, baseUrl: "https://openrouter.ai/api/v1" }, "sess-1");
-		assert.equal(sent[0].headers["x-session-id"], "sess-1");
-		assert.equal("prompt_cache_key" in sent[0].body, false);
-	});
-
-	test(`${api}：DeepSeek 什么都不带`, async () => {
-		resetAll();
-		const { sent } = await run(api, { id: `ds-${api}`, baseUrl: "https://api.deepseek.com" }, "sess-1");
-		assert.equal("prompt_cache_key" in sent[0].body, false);
-		assert.equal("x-session-id" in sent[0].headers, false);
-	});
+	for (const baseUrl of ["https://api.openai.com/v1", "https://openrouter.ai/api/v1", "https://relay.example.com/v1"]) {
+		test(`${api}：${new URL(baseUrl).hostname} 带 prompt_cache_key 和两个会话头`, async () => {
+			resetAll();
+			const { sent } = await run(api, { id: `${new URL(baseUrl).hostname}-${api}`, baseUrl }, "sess-1");
+			assert.equal(sent[0].body.prompt_cache_key, "sess-1");
+			assert.equal(sent[0].headers["x-session-id"], "sess-1");
+			assert.equal(sent[0].headers.session_id, "sess-1");
+			assert.equal("metadata" in sent[0].body, false);
+		});
+	}
 
 	test(`${api}：没传 cacheKey 时请求和从前一模一样`, async () => {
 		resetAll();
 		const { sent } = await run(api, { id: `none-${api}`, baseUrl: "https://api.openai.com" }, undefined);
 		assert.equal("prompt_cache_key" in sent[0].body, false);
+		assert.equal("x-session-id" in sent[0].headers, false);
+		assert.equal("session_id" in sent[0].headers, false);
 	});
 
 	test(`${api}：严格端点点名拒绝 prompt_cache_key，学会不带并重发一次，之后的请求也不带`, async () => {
@@ -217,26 +200,33 @@ for (const api of ["openai-chat-completions", "openai-responses"] as const) {
 		assert.equal(first.sent.length, 2);
 		assert.equal(first.sent[0].body.prompt_cache_key, "sess-1");
 		assert.equal("prompt_cache_key" in first.sent[1].body, false);
+		assert.equal(first.sent[1].headers.session_id, "sess-1", "请求体字段撤掉了，会话头照带");
 		assert.ok(first.done, "重发那一次成功了");
 		assert.ok(droppedParams(id, `${id}/m`).has("cache-key"));
 
 		const next = await run(api, { id, baseUrl: "https://relay.example.com/v1" }, "sess-2");
 		assert.equal(next.sent.length, 1);
 		assert.equal("prompt_cache_key" in next.sent[0].body, false, "学到的结论下一轮直接生效，不再先撞一次");
+		assert.equal(next.sent[0].headers.session_id, "sess-2", "号池中转仍能按会话头粘住账号");
 	});
 }
 
-test("anthropic-messages：协议没有路由字段，请求体和请求头都不带", async () => {
+test("anthropic-messages：请求体带 metadata.user_id，不带 OpenAI 系的字段和头", async () => {
 	resetAll();
-	const { sent } = await run("anthropic-messages", { id: "an", baseUrl: "https://openrouter.ai/api" }, "sess-1");
+	const { sent } = await run("anthropic-messages", { id: "an", baseUrl: "https://api.anthropic.com" }, "sess-1");
+	const metadata = sent[0].body.metadata as { user_id: string };
+	assert.equal((JSON.parse(metadata.user_id) as { session_id: string }).session_id, "sess-1");
 	assert.equal("prompt_cache_key" in sent[0].body, false);
 	assert.equal("x-session-id" in sent[0].headers, false);
+	assert.equal("session_id" in sent[0].headers, false);
+	const bare = await run("anthropic-messages", { id: "an-bare", baseUrl: "https://api.anthropic.com" }, undefined);
+	assert.equal("metadata" in bare.sent[0].body, false);
 });
 
 for (const api of ["openai-chat-completions", "openai-responses", "anthropic-messages"] as const) {
-	test(`${api}：OpenCode Go 带 x-opencode-session，关掉缓存路由也照带`, async () => {
+	test(`${api}：OpenCode Go 带 x-opencode-session，没有会话也带`, async () => {
 		resetAll();
-		const provider = { id: `oc-${api}`, baseUrl: "https://opencode.ai/zen/go", cacheRouting: "off" as const };
+		const provider = { id: `oc-${api}`, baseUrl: "https://opencode.ai/zen/go" };
 		const { sent } = await run(api, provider, "sess-1");
 		assert.equal(sent[0].headers["x-opencode-session"], "sess-1");
 		const bare = await run(api, provider, undefined);

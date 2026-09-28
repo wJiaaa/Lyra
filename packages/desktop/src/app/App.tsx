@@ -27,8 +27,6 @@ import { useShortcuts } from "./shortcuts.ts";
 import { useSide } from "../features/dock/index.ts";
 import { useApp } from "../store/index.ts";
 import { useTrayCommands } from "./window/tray-commands.ts";
-import { useFileTreeStore } from "../store/fileTree.ts";
-import { useProjectFolders } from "../store/project-folders.ts";
 import { useMemoryPass } from "../features/memory/useMemoryPass.ts";
 import { WINDOW_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
 import { useBrowserWorkspace } from "../features/browser/index.ts";
@@ -70,6 +68,7 @@ const SettingsShell = lazy(() =>
 );
 import { useOpenFile } from "../store/openFile.ts";
 import { watchFilePanelState } from "../store/file-panel-handoff.ts";
+import { useSchedulerNotices } from "../features/scheduled/index.ts";
 import { useTerminalPrewarm } from "../features/terminal/index.ts";
 import { applyAppearance, watchSystemTheme } from "../features/settings/index.ts";
 import { bridge } from "../services/index.ts";
@@ -115,8 +114,12 @@ export function App() {
 		[],
 	);
 
-	// What the scheduler says as its tasks run, sent since its first version and never listened to.
-	useEffect(() => bridge.scheduler.onNotice(({ message, level }) => useApp.getState().notify(message, level)), []);
+	/*
+	 * What the scheduler says as its tasks run, which had been sent since the first version and
+	 * never listened to. Not as toasts: a start shows on the task's card, and a failure on the card,
+	 * above the composer and on the sidebar — see `features/scheduled/notices.ts`.
+	 */
+	useSchedulerNotices();
 
 	// Before the `ready` gate below, so a command sent to a window that is still booting is not
 	// dropped for the one or two frames the boot screen is up.
@@ -427,6 +430,12 @@ function MainContent() {
  * untouched; and inert, so nothing in it takes the pointer, the focus or a drag region. Coming back
  * plays the same arrival the retained views do: the class is off while it is away, so putting it
  * back starts the animation again.
+ *
+ * Invisible reaches only what inherits it. Anything in here that transitions `visibility` stays
+ * visible for the length of that transition, and `transition-all` transitions it: the suggestion
+ * cards, the send button and the title bar's panel buttons went on painting over the view that had
+ * just replaced this one for 150–220ms, and on the way back turned up a frame after everything else.
+ * So what sits in here names what it transitions — Tailwind's `transition` leaves `visibility` out.
  */
 function Workspace({ away }: { away: boolean }) {
 	return (
@@ -576,21 +585,12 @@ function ChatShell({ settings }: { settings: boolean }) {
  */
 function useProjectFiles(): void {
 	const root = useApp((s) => s.workspace?.path ?? null);
-	const folders = useProjectFolders();
-	const key = folders.join("\0");
 
 	/*
-	 * The tree follows the project's source folders, which can change without the project doing so.
-	 *
-	 * Adding a folder in 编辑项目 has to put it in the tree; removing one has to take it out. Kept
-	 * apart from the effect below because those two want opposite things from the open file: a
-	 * different project means the file on screen belongs to something else, while a folder added to
-	 * this one means nothing about the file you are reading.
+	 * The tree is no longer pointed from here. A split shows a project per screen, so each tree names
+	 * its own screen's source folders (`useFileTree`), and a folder added in 编辑项目 reaches it
+	 * through `useProjectFolders` all the same.
 	 */
-	useEffect(() => {
-		useFileTreeStore.getState().setRoots(key ? key.split("\0") : []);
-	}, [key]);
-
 	useEffect(() => {
 		useOpenFile.getState().clear();
 		return watchFilePanelState((error) => useApp.getState().notify(String(error), "error"));

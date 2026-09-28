@@ -14,11 +14,31 @@ import { nativeText } from "./i18n.ts";
 
 const TICK_MS = 60_000;
 
+/**
+ * What a task tells the window as it runs, and which task it is about.
+ *
+ * The sentence alone could only have gone into a corner of the window. With the task's id the window
+ * can put it on that task's card; with the session's id it can tell when the run is over — absent
+ * when there is no session, as when one could not be created. `kind` is there because the three are
+ * not shown alike: a start is a state of the card, while a failure is also worth telling someone who
+ * is not looking at the card.
+ */
+export interface SchedulerNotice {
+	taskId: string;
+	kind: "started" | "failed" | "cannotStart";
+	level: "info" | "error";
+	message: string;
+	sessionId?: string;
+}
+
+type NoticeSubject = Pick<SchedulerNotice, "taskId" | "kind" | "sessionId">;
+
 export interface SchedulerDeps {
 	getSettings(): Settings;
 	saveSettings(settings: Settings): Promise<void>;
 	createSession(cwd: string, modelId: string): Promise<AgentSession>;
-	notify(message: string, level: "info" | "warn" | "error"): void;
+	/** A notice for the window, already in the interface language, and the task it is about. */
+	notify(message: string, level: SchedulerNotice["level"], about: NoticeSubject): void;
 }
 
 export class Scheduler {
@@ -63,18 +83,25 @@ export class Scheduler {
 			const settings = this.deps.getSettings();
 			const session = await this.deps.createSession(task.cwd, settings.defaultModelId ?? "");
 			sessionId = session.meta.id;
-			this.deps.notify(nativeText("scheduled.started", { name: task.name }), "info");
+			this.deps.notify(nativeText("scheduled.started", { name: task.name }), "info", { taskId: task.id, kind: "started", sessionId });
 			// Not awaited: the turn can run for minutes and must not block the tick.
 			void session.prompt([{ type: "text", text: task.prompt }]).catch(async (cause: unknown) => {
 				const reason = cause instanceof Error ? cause.message : String(cause);
-				this.deps.notify(nativeText("scheduled.failed", { name: task.name, reason }), "error");
+				this.deps.notify(nativeText("scheduled.failed", { name: task.name, reason }), "error", {
+					taskId: task.id,
+					kind: "failed",
+					sessionId: session.meta.id,
+				});
 				// A save that failed has already been reported by the run it belongs to.
 				await recorded.catch(() => {});
 				await this.recordFailure(task.id, session.meta.id, reason);
 			});
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : String(cause);
-			this.deps.notify(nativeText("scheduled.couldNotStart", { name: task.name, reason: error }), "error");
+			this.deps.notify(nativeText("scheduled.couldNotStart", { name: task.name, reason: error }), "error", {
+				taskId: task.id,
+				kind: "cannotStart",
+			});
 		} finally {
 			this.running.delete(task.id);
 			// Record the attempt either way, so a failing task does not retry every minute.

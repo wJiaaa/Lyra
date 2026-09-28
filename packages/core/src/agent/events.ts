@@ -1,5 +1,5 @@
 import type { AutoCompactionState } from "../types/compaction.ts";
-import type { AssistantMessage, Message, StreamEvent, ToolResult, ToolResultMessage } from "../types.ts";
+import type { ApprovalRisk, AssistantMessage, Message, StreamEvent, ToolResult, ToolResultMessage } from "../types.ts";
 import type { SubAgentSummary } from "../runtime/sub-agents.ts";
 import type { Failure } from "../ai/failure.ts";
 
@@ -81,6 +81,8 @@ export type AgentEvent =
 			detail: string;
 			/** The asker's own sentence on why — the model's words when it is requesting an escalation. */
 			reason?: string;
+			/** What the approval policy found dangerous, for the card to say in its own language. */
+			risk?: ApprovalRisk;
 			/** What an "always" answer would be remembered against, so the prompt can say so. */
 			subject: string;
 			/** Interactive choices for user selection. */
@@ -97,7 +99,17 @@ export type AgentEvent =
 			 * forever right up until it silently did not.
 			 */
 			expiresAt?: number;
+			/** 哪个子代理在问；主会话自己问的没有。见 `ApprovalRequest.from`。 */
+			from?: import("../types.ts").ApprovalOrigin;
 		}
+	/**
+	 * 一个待决的授权不再等了：答了、超时了、或者问它的那个子代理停下了。
+	 *
+	 * 从前窗口只在回合结束时把卡片整个清掉——主会话的授权必然在回合里被回答，那样就够了。后台
+	 * 子代理的授权不在任何一个回合里：主会话早就收尾了，它还在等人点。回合结束时一刀清空会把
+	 * 这张卡从屏幕上拿走，而那边还在一直等到五分钟超时。所以每一张卡怎么收场，都单独说一声。
+	 */
+	| { type: "approval_settled"; requestId: string }
 	| { type: "turn_end"; message: AssistantMessage; toolResults: ToolResultMessage[] }
 	/** `stalled`: the turn kept making the same call for the same answer and was stopped. */
 	| { type: "agent_end"; reason: "done" | "aborted" | "error" | "max_turns" | "stalled"; error?: string }

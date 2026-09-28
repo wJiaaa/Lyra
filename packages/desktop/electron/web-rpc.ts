@@ -336,6 +336,7 @@ export const RPC: Record<string, Handler> = {
 				source: agent.source,
 				model: agent.model,
 				tools: agent.tools,
+				...(agent.avatar ? { avatar: agent.avatar } : {}),
 			})),
 			toolNames: status.toolNames,
 		};

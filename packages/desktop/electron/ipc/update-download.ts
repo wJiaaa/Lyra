@@ -24,8 +24,8 @@
 import { mkdir, open, readdir, rm, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { renameWithRetry } from "@lyra/core";
-import { parseChecksums, sha256, verify, type Verdict } from "../update-checksum.ts";
 import { nativeText } from "../i18n.ts";
+import { parseChecksums, sha256, verify, type Verdict } from "../update-checksum.ts";
 
 /**
  * Where a download is, as one value.

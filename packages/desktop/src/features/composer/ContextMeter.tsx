@@ -41,7 +41,13 @@ export function ContextMeter({
 	const current = snapshot?.sessionId === sessionId && snapshot.modelId === modelId ? snapshot : null;
 	const detail = current?.detail;
 	const hasMessages = messages.length > 0;
-	// This composer's conversation, which in a split is not always the focused one.
+	/*
+	 * This screen's turn and summaries, the two things that decide when to re-read.
+	 *
+	 * The live slot's are the focused screen's: beside a running conversation the reading froze
+	 * across this conversation's finished turns, and beside an idle one it re-read on every message of
+	 * a turn still running here.
+	 */
 	const compacted = useScopedCompactions().length;
 	const running = useScopedRunning();
 	const open = popover.open;
@@ -125,7 +131,7 @@ export function ContextMeter({
 							<span className="text-label text-ink">{t("context.window")}</span>
 							<span className={`text-label tabular-nums ${tight ? "text-danger" : "text-ink-muted"}`}>
 								{detail
-									? `${formatTokens(used)} / ${formatTokens(limit)}（${percent}%）`
+									? t("context.usedOfLimit", { used: formatTokens(used), limit: formatTokens(limit), percent })
 									: current?.error
 										? t("context.unreadable")
 										: t("context.loading")}

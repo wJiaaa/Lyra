@@ -123,8 +123,8 @@ async function* streamResponses(
 			...(options.temperature !== undefined && !thinkingEnabled && !dropped.has("sampling")
 				? { temperature: options.temperature }
 				: {}),
-			// 缓存路由键：带不带、带在哪由端点决定，被拒过就不再带。见 `cache-routing.ts`。
-			...cacheRouting(provider, "openai-responses", options.cacheKey, dropped).body,
+			// 缓存路由键，被拒过就不再带。见 `cache-routing.ts`。
+			...cacheRouting(options.cacheKey, dropped).body,
 			/*
 			 * 采样参数最后展开——它们是用户自己配的，覆盖上面算出来的值是有意为之。
 			 *
@@ -221,7 +221,7 @@ async function* streamResponses(
 						headers: {
 							"content-type": "application/json",
 							authorization: `Bearer ${provider.apiKey}`,
-							...cacheRouting(provider, "openai-responses", options.cacheKey, droppedParams(scope.providerId, scope.modelId)).headers,
+							...cacheRouting(options.cacheKey, droppedParams(scope.providerId, scope.modelId)).headers,
 							...requiredHeaders,
 						},
 						body: JSON.stringify(body),

@@ -12,10 +12,10 @@
  * OS proxy settings, Node ignores them entirely. Outside Electron — in tests — it falls back.
  */
 
+import { nativeText } from "../i18n.ts";
 import { apiRoot } from "./accounts.ts";
 import { describeStatus, ForgeError, networkMessage } from "./errors.ts";
 import type { ForgeConnection } from "./types.ts";
-import { nativeText } from "../i18n.ts";
 
 /**
  * A ceiling on any one call.

@@ -86,6 +86,9 @@ const WINDOWS_ILLEGAL = /["*:<>?|]/;
  *
  * The Windows rules are applied on Windows only, but they are applied — a project synced between
  * machines does not stop being one because the name was typed on a Mac.
+ *
+ * The reason is in the interface language: it goes back to the renderer as the operation's error,
+ * and is shown as it is.
  */
 export function validateName(name: string, platform: string = process.platform): string | null {
 	if (name === "") return nativeText("files.nameEmpty");

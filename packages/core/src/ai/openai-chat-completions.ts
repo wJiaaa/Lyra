@@ -465,8 +465,8 @@ async function* streamChatCompletions(
 			...(options.temperature !== undefined && !thinkingEnabled && !dropped.has("sampling")
 				? { temperature: options.temperature }
 				: {}),
-			// 缓存路由键：带不带、带在哪由端点决定，被拒过就不再带。见 `cache-routing.ts`。
-			...cacheRouting(provider, "openai-chat-completions", options.cacheKey, dropped).body,
+			// 缓存路由键，被拒过就不再带。见 `cache-routing.ts`。
+			...cacheRouting(options.cacheKey, dropped).body,
 			...sampling,
 		};
 	};
@@ -535,7 +535,7 @@ async function* streamChatCompletions(
 						headers: {
 							"content-type": "application/json",
 							authorization: `Bearer ${provider.apiKey}`,
-							...cacheRouting(provider, "openai-chat-completions", options.cacheKey, droppedParams(scope.providerId, scope.modelId)).headers,
+							...cacheRouting(options.cacheKey, droppedParams(scope.providerId, scope.modelId)).headers,
 							...requiredHeaders,
 						},
 						body: JSON.stringify(body),

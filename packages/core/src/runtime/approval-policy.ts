@@ -38,7 +38,8 @@ export const builtInApprovalPolicy: ApprovalPolicy = {
 				 * before anything reaches a prompt.
 				 */
 				const verdict = assessNetwork({ url: subject });
-				return verdict.decision === "allow" ? { risky: false } : { risky: true, reason: verdict.reason };
+				if (verdict.decision === "allow") return { risky: false };
+				return { risky: true, reason: verdict.reason, code: verdict.code, ...(verdict.params ? { params: verdict.params } : {}) };
 			}
 		// An MCP tool its server marks read-only; why that is enough here is in `mcp/client.ts`.
 		if (kind === "mcp") return { risky: request?.readOnly !== true };

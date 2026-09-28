@@ -73,17 +73,16 @@ export function revealSession(meta: SessionMeta): void {
 
 export function focusPane(sessionId: string | null): void {
 	useSplit.getState().focus(sessionId);
+	/*
+	 * The blank screen takes the live slot too, in its own project.
+	 *
+	 * It used to take the split's focus and nothing else: the conversation beside it stayed in the
+	 * live slot, so everything that asks the live slot — the send, the project row — answered for
+	 * that one. A message typed into the fresh screen went to the conversation next to it. The split's
+	 * focus goes first, which is how `SplitWorkspace` tells this from 新对话 and keeps the screens.
+	 */
 	if (!sessionId) {
-		/*
-		 * A blank screen takes the live slot too.
-		 *
-		 * It used to only take the focus, leaving the conversation beside it live: the blank screen's
-		 * composer, stop button and project row then acted on that conversation, and what was typed
-		 * there was sent to it. Not when there is nowhere to run yet: `newSession` would ask for a
-		 * project, and a press or a keystroke is not that request — sending is, and `send` makes it.
-		 */
-		const { activeSessionId, workspace, scratchCwd } = useApp.getState();
-		if (activeSessionId !== null && (workspace || scratchCwd)) void useApp.getState().newSession({ keepView: true });
+		useApp.getState().stageDraft();
 		return;
 	}
 	if (useApp.getState().activeSessionId === sessionId && useApp.getState().pendingSessionId == null) return;
@@ -145,8 +144,8 @@ export function splitWith(meta: SessionMeta, target: string | null, width: numbe
 }
 
 export function closePane(sessionId: string): void {
-	const next = useSplit.getState().close(sessionId);
-	if (next) focusPane(next);
+	// Including a blank screen left on its own: the conversation just closed must not stay live off screen.
+	focusPane(useSplit.getState().close(sessionId));
 }
 
 export function dropOnPane(sessionId: string, target: string | null, side: DropSide): boolean {

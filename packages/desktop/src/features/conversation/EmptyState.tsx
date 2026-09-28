@@ -103,7 +103,7 @@ export function EmptyState() {
 								 * message asking for an architecture tour, a new feature and a code
 								 * review at once.
 								 */
-								onClick={() => useApp.getState().setComposerDraft(t(prompt.promptKey), true, { target: sessionId })}
+								onClick={() => useApp.getState().setComposerDraft(t(prompt.promptKey), { sessionId, replace: true })}
 								style={{ animationDelay: `${index * 65}ms` }}
 								className="ly-draft-chip group flex h-8 min-w-0 items-center gap-1.5 overflow-hidden rounded-lg border px-3 text-left"
 							>

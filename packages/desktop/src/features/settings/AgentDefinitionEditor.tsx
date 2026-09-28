@@ -1,10 +1,16 @@
-import { Check, ChevronRight, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Check, ChevronRight, Shuffle, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { AgentDefinitionRecord, AgentDefinitionSave, AgentDraft } from "@lyra/core";
 import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
+import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
+import { Popover, usePopover } from "../../ui/overlay/Popover.tsx";
+import { formatAvatar, freshAvatar, parseAvatar, type Avatar } from "../../lib/agent-avatar.ts";
+import type { AvatarOf } from "../../store/agent-avatars.ts";
 import { InlineSelect, TextInput } from "./controls.tsx";
+import { AvatarPicker, avatarName } from "./AvatarPicker.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -12,31 +18,45 @@ import { useI18n } from "../../i18n/index.ts";
 const drafts = new Map<string, { draft: AgentDraft; scope: "user" | "project" }>();
 const DEFAULT_TOOLS = ["read", "glob", "grep", "ls"];
 
-
 /*
  * 编辑页照 ZCode 的子智能体表单：面包屑、标题和一句说明，下面一整块描边的表单，
  * 删除在左下，保存、取消在右下。颜色变量见 `styles/fields.css` 的 `[data-agent-settings]`。
+ *
+ * 脸放在名字旁边，而且新建时就已经挑好了一张没人用的——它是这个智能体在设置页、`@` 菜单、面板
+ * 里被认出来的方式，不该是一个等人想起来才去填的空。不满意就点它换，或者掷一次骰子。
  */
-export function AgentDefinitionEditor({ record, copy, projectId, projectName, tools, onClose, onDelete, onSaved }: {
+export function AgentDefinitionEditor({ record, copy, projectId, projectName, tools, avatarOf, taken, onClose, onDelete, onSaved }: {
 	record?: AgentDefinitionRecord; copy?: boolean; projectId: string | null; projectName?: string;
-	tools: string[]; onClose: () => void; onDelete?: () => void; onSaved: (name: string, warning?: string) => void;
+	tools: string[];
+	/** 名单里每个人现在的脸，用来给新来的挑一张没人用的。 */
+	avatarOf: AvatarOf;
+	/** 除了正在编辑的这一个之外，每个人和他在用的脸。 */
+	taken: { name: string; avatar: Avatar }[];
+	onClose: () => void; onDelete?: () => void; onSaved: (name: string, warning?: string) => void;
 }) {
 	const { t } = useI18n();
 	const definition = record?.definition;
-	const original: AgentDraft = { name: copy ? `${definition?.name ?? "agent"}-copy` : definition?.name ?? "", description: definition?.description ?? "", systemPrompt: definition?.systemPrompt ?? "", tools: definition?.tools ?? DEFAULT_TOOLS };
 	const draftKey = JSON.stringify([projectId, record?.id ?? "new", Boolean(copy)]);
 	const remembered = drafts.get(draftKey);
+	// 新建和复制一张新脸（复制出来的是另一个人）；编辑沿用它现在那张。只在第一次渲染时定下来。
+	const [initialAvatar] = useState(() => formatAvatar(record && !copy ? avatarOf(record.definition.name) : freshAvatar(taken.map(other => other.avatar))));
+	const original: AgentDraft = { name: copy ? `${definition?.name ?? "agent"}-copy` : definition?.name ?? "", description: definition?.description ?? "", systemPrompt: definition?.systemPrompt ?? "", tools: definition?.tools ?? DEFAULT_TOOLS, avatar: initialAvatar };
 	const [draft, setDraft] = useState(remembered?.draft ?? original);
 	const [scope, setScope] = useState<"user" | "project">(remembered?.scope ?? (record?.scope === "project" && !copy ? "project" : "user"));
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState("");
 	const [leaving, setLeaving] = useState(false);
-	const editing = Boolean(record && !copy);
+	const [rolls, setRolls] = useState(0);
+	const picker = usePopover();
 	const dirty = JSON.stringify(draft) !== JSON.stringify(original) || scope !== (record?.scope === "project" && !copy ? "project" : "user");
 	useEffect(() => { if (dirty) drafts.set(draftKey, { draft, scope }); else drafts.delete(draftKey); }, [draftKey, draft, scope, dirty]);
 	const discard = () => { drafts.delete(draftKey); onClose(); };
 	const leave = () => dirty ? setLeaving(true) : onClose();
 	const patch = (next: Partial<AgentDraft>) => setDraft(current => ({ ...current, ...next }));
+	const face = parseAvatar(draft.avatar) ?? parseAvatar(initialAvatar) ?? freshAvatar(taken.map(other => other.avatar));
+	// 谁在用哪张：选脸的格子据此把别人的那张标出来、不让选，提示里说是谁。
+	const owners = useMemo(() => new Map(taken.map(other => [formatAvatar(other.avatar), other.name])), [taken]);
+	const editing = Boolean(record && !copy);
 	const save = async () => {
 		if (busy) return;
 		setBusy(true); setError("");
@@ -76,9 +96,23 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 						<fieldset disabled={editing} className="m-0 border-0 p-0"><InlineSelect ariaLabel={t("agentEditor.scope")} value={scope} options={[{ value: "user", label: t("common.allProjects") }, ...(projectId ? [{ value: "project", label: projectName ?? t("common.currentProject") }] : [])]} onChange={value => { if (value === "project" || value === "user") setScope(value); }} /></fieldset>
 					</div>
 				</div>
-				<label className="block @xl:max-w-[14rem]"><FieldLabel>{t("agentEditor.nameLabel")}</FieldLabel>
-					<TextInput aria-label={t("agentEditor.callName")} placeholder="code-reviewer" value={draft.name} readOnly={editing} required pattern={editing ? undefined : "[a-z][a-z0-9_-]{0,63}"} onChange={next => patch({ name: next })} />
-				</label>
+				<div className="flex items-end gap-3">
+					{/*
+					 * 脸是一块能点的底：点它挑，角上那颗骰子直接换一张没人用的。两颗按钮叠在一块底上而不是
+					 * 套在一起——按钮里不能再有按钮。
+					 */}
+					<div className="relative grid h-[56px] w-[56px] shrink-0 place-items-center rounded-[16px] border border-[var(--ly-agent-line)] bg-float transition-colors duration-[var(--ly-t-quick)] hover:bg-[var(--ly-agent-hover)]" data-ly-avatar-host="">
+						<button type="button" aria-label={t("agentEditor.pickAvatar")} data-ly-tip={`${t("agentEditor.pickAvatar")} · ${avatarName(face, t)}`} aria-haspopup="dialog" aria-expanded={picker.open}
+							data-agent-avatar={formatAvatar(face)} onClick={picker.toggle} className="absolute inset-0 rounded-[16px]" />
+						<AgentAvatar avatar={face} size={38} seed={draft.name || "new"} host="[data-ly-avatar-host]" cheer={rolls || null} className="pointer-events-none" />
+						<IconButton size="sm" label={t("agentEditor.shuffleAvatar")} data-agent-shuffle=""
+							onClick={() => { patch({ avatar: formatAvatar(freshAvatar([...taken.map(other => other.avatar), face])) }); setRolls(n => n + 1); }}
+							className="absolute -right-2 -bottom-2 bg-shell" icon={<Shuffle size={12} strokeWidth={2} aria-hidden />} />
+					</div>
+					<label className="block min-w-0 flex-1 @xl:max-w-[14rem]"><FieldLabel>{t("agentEditor.nameLabel")}</FieldLabel>
+						<TextInput aria-label={t("agentEditor.callName")} placeholder="code-reviewer" value={draft.name} readOnly={editing} required pattern={editing ? undefined : "[a-z][a-z0-9_-]{0,63}"} onChange={next => patch({ name: next })} />
+					</label>
+				</div>
 				<label className="block"><FieldLabel>{t("agentEditor.purposeLabel")}</FieldLabel>
 					<TextInput aria-label={t("agentEditor.purpose")} placeholder={t("agentEditor.purposePlaceholder")} required maxLength={2000} value={draft.description} onChange={next => patch({ description: next })} />
 				</label>
@@ -110,6 +144,9 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, to
 				</div>
 			</fieldset>
 		</div>
+		{picker.open && <Popover anchor={picker.anchor} onClose={picker.close} placement="bottom" align="start" width={316} label={t("agentEditor.pickAvatar")}>
+			<AvatarPicker value={face} owners={owners} onChange={next => { patch({ avatar: formatAvatar(next) }); setRolls(n => n + 1); }} />
+		</Popover>}
 	</form>;
 }
 

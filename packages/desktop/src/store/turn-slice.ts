@@ -14,6 +14,7 @@ import { loadCarried, meterFor, saveCarried } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
 import { bridge } from "../services/index.ts";
 import { draftFromUserMessage } from "../lib/revert-draft.ts";
+import { outlivingTurn } from "../lib/approval-scope.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -22,37 +23,36 @@ export function turnSlice(set: Set, get: Get) {
 	const creating = new Map<number, ReturnType<typeof bridge.sessions.create>>();
 	const prompting = new Map<string, symbol>();
 	/*
-	 * 指名的会话不在台上，先把它请上台；没请上来就返回 false。
+	 * Put a named conversation in the live slot before acting on its transcript; false if it did not
+	 * get there.
 	 *
-	 * 编辑、撤回、重试都只改台上那一份转录。分屏时非焦点那一屏的按钮用键盘按下去不经过
-	 * pointerdown，焦点不会先切过来——不先请上台，被改写的就是焦点那一屏的对话。请上台在分屏里
-	 * 就是把焦点切到那一屏，和鼠标按下时一样。
+	 * Editing, taking back and re-asking all work on the live slot's copy. In a split the conversation
+	 * asked for can be on another screen: pressing there focuses it first, the keyboard does not, and
+	 * acting on the live slot then rewrote the conversation beside it — a turn's worth of tokens spent
+	 * on, or a message taken out of, somebody else's work. Bringing it on stage is what the press would
+	 * have done; in a split that moves the focus to its screen.
 	 */
-	const onStage = async (sessionId: string | undefined): Promise<boolean> => {
-		if (!sessionId || sessionId === get().activeSessionId) return true;
+	const onStage = async (sessionId: string): Promise<boolean> => {
 		const meta = get().sessions.find((session) => session.id === sessionId);
 		if (!meta) return false;
 		await get().openSession(meta);
-		// 等待期间人又点开了别的对话：那是更新的选择，这次操作不再作数。
+		// Another conversation was opened while this one was being read: that is the newer choice.
 		return get().activeSessionId === sessionId;
 	};
 	return {
 	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null } = {}) {
-		/*
-		 * `null` names the blank conversation, which is not the same as naming none.
-		 *
-		 * Naming none means "the live one". In a split a blank screen can sit beside a conversation
-		 * that holds the live slot, and leaving the id out sent what was typed on the blank screen to
-		 * that conversation. The blank one is put in the live slot first — what pressing on its
-		 * screen does — and if that did not happen, nothing is sent rather than sent to the wrong place.
-		 */
-		if (options.sessionId === null && get().activeSessionId !== null) {
-			await get().newSession({ keepView: true });
-			if (get().activeSessionId !== null) return false;
-		}
 		const { workspace, settings, scratchCwd, selectionEpoch: epoch } = get();
-		let sessionId = options.sessionId ?? get().activeSessionId;
-		const cwd = workspace?.path ?? scratchCwd;
+		// `null` is the blank conversation, named on purpose; only leaving it out means "the live one".
+		let sessionId = options.sessionId === undefined ? get().activeSessionId : options.sessionId;
+		/*
+		 * The blank conversation while another holds the live slot runs where its own screen was opened.
+		 *
+		 * The composer puts its screen in the live slot before it sends, so this is only a send that
+		 * got here without that — and it must still not become a message to the conversation that has
+		 * focus, nor start one in that conversation's project.
+		 */
+		const draft = options.sessionId === null && get().activeSessionId !== null ? get().parkedDraft : null;
+		const cwd = draft ? (draft.workspace?.path ?? draft.scratchCwd) : (workspace?.path ?? scratchCwd);
 		if (!sessionId && !cwd) { await get().pickWorkspace(); return false; }
 		// A second submission in the same draft shares its identity, never its title as a key.
 		const inFlight = !sessionId ? creating.get(epoch) : undefined;
@@ -67,7 +67,7 @@ export function turnSlice(set: Set, get: Get) {
 		 * 消息发的就是屏幕上这个——队列出队时是指名会话的（见 `queue-slice`），而那一刻人常常已经
 		 * 在看别的对话了，乐观地把消息画进转录会画进别人的转录。
 		 */
-		const ownsSelection = () => get().selectionEpoch === epoch && (!options.sessionId || options.sessionId === get().activeSessionId);
+		const ownsSelection = () => get().selectionEpoch === epoch && (options.sessionId === undefined || options.sessionId === get().activeSessionId);
 		const pending: Message = {
 			role: "user",
 			content,
@@ -212,7 +212,8 @@ export function turnSlice(set: Set, get: Get) {
    * for the same reason it does when the wording changes.
    */
   async retryFrom(index: number, sessionId?: string) {
-    if (!(await onStage(sessionId))) return;
+    // A conversation on another screen is brought on stage first; see `onStage`.
+    if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
     const messages = get().messages;
     for (let i = Math.min(index, messages.length - 1); i >= 0; i--) {
       const message = messages[i];
@@ -233,7 +234,8 @@ export function turnSlice(set: Set, get: Get) {
     meta: { displayText?: string; attachments?: MessageAttachment[] } = {},
     target?: string,
   ) {
-    if (!(await onStage(target))) return;
+    // A conversation on another screen is brought on stage first; see `onStage`.
+    if (target && target !== get().activeSessionId && !(await onStage(target))) return;
     const sessionId = get().activeSessionId;
     if (!sessionId || get().running) return;
     const before = get();
@@ -256,7 +258,7 @@ export function turnSlice(set: Set, get: Get) {
       messages: [...get().messages.slice(0, index), pending],
       pendingUserMessage: { sessionId, message: pending },
       toolRuns: {},
-      approvals: [],
+      approvals: outlivingTurn(get().approvals),
       running: true,
       turnStartedAt: Date.now(),
       turnTokens: 0,
@@ -295,7 +297,8 @@ export function turnSlice(set: Set, get: Get) {
   },
 
   async revertMessage(index: number, target?: string) {
-    if (!(await onStage(target))) return;
+    // A conversation on another screen is brought on stage first; see `onStage`.
+    if (target && target !== get().activeSessionId && !(await onStage(target))) return;
     const sessionId = get().activeSessionId;
     if (!sessionId || get().running) return;
     const messages = get().messages;
@@ -306,7 +309,7 @@ export function turnSlice(set: Set, get: Get) {
     set({
       messages: kept,
       toolRuns: {},
-      approvals: [],
+      approvals: outlivingTurn(get().approvals),
       commandRuns: get().commandRuns.filter((run) => run.at <= index),
       hookRuns: get().hookRuns.filter((run) => run.at <= index),
       compactions: get().compactions.filter((run) => run.at <= index),
@@ -339,10 +342,10 @@ export function turnSlice(set: Set, get: Get) {
       await bridge.agent.revertMessage(sessionId, index);
       if (get().activeSessionId !== sessionId) return;
       const draft = draftFromUserMessage(message as UserMessage);
-      get().setComposerDraft(draft.text, false, {
+      get().setComposerDraft(draft.text, {
+        sessionId,
         attachments: draft.attachments,
         sessionRefs: draft.sessionRefs,
-        target: sessionId,
       });
     } catch (cause) {
       const current = get();
@@ -396,8 +399,12 @@ export function turnSlice(set: Set, get: Get) {
    * is lost is the earlier reasoning context, which the warning below says plainly — the visible
    * transcript, and everything the new model reads, is unchanged.
    */
-  async setModel(modelId: string, options: { asDefault?: boolean } = {}) {
-    const { activeSessionId, settings, meta } = get();
+  async setModel(modelId: string, options: { asDefault?: boolean; sessionId?: string | null } = {}) {
+    // A conversation on another screen is brought on stage first; see `onStage`.
+    if (options.sessionId && options.sessionId !== get().activeSessionId && !(await onStage(options.sessionId))) return;
+    const { settings, meta } = get();
+    // The blank screen has no session for the choice to land on, whoever holds the live slot.
+    const activeSessionId = options.sessionId === null ? null : get().activeSessionId;
     if (activeSessionId) {
       /*
        * Paint this conversation's choice before the write crosses IPC.
@@ -445,8 +452,11 @@ export function turnSlice(set: Set, get: Get) {
    * read by the composer's label, and a control that lags a frame behind the press reads as one
    * that did not take.
    */
-  async setThinking(thinking: ThinkingLevel) {
-    const { activeSessionId, meta, settings } = get();
+  async setThinking(thinking: ThinkingLevel, sessionId?: string | null) {
+    // Named the way `setModel` names it: another screen's conversation comes on stage, `null` is the blank one.
+    if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
+    const { meta, settings } = get();
+    const activeSessionId = sessionId === null ? null : get().activeSessionId;
     if (activeSessionId) {
 			const optimistic = meta ? { ...meta, thinking } : null;
 			if (optimistic) set({ meta: optimistic });

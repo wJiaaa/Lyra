@@ -17,12 +17,12 @@
  */
 
 import { parseUnifiedDiff } from "../diff-parse.ts";
+import { nativeText } from "../i18n.ts";
 import type { PullRequestDetail, PullRequestSummary, WorkspaceDiffFile } from "../ipc-shapes.ts";
 import { ForgeError } from "./errors.ts";
 import { assembleDiff, type PatchFile } from "./patch.ts";
 import { DIFF_TIMEOUT_MS, json, pooled } from "./http.ts";
 import type { ForgeConnection, ForgeDriver, ForgeIdentity, ReviewVerdict } from "./types.ts";
-import { nativeText } from "../i18n.ts";
 
 /**
  * How many repositories one refresh looks at.

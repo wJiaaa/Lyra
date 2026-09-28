@@ -173,8 +173,12 @@ export const METHODS = {
 		fetchRegistry: { channel: "registry:fetch" },
 		icon: { channel: "registry:icon" },
 		icons: { channel: "registry:icons" },
+		readme: { channel: "registry:readme" },
 		installFromRegistry: { channel: "registry:install" },
 		uninstall: { channel: "registry:uninstall" },
+		updates: { channel: "plugins:updates" },
+		updateAll: { channel: "plugins:updateAll" },
+		environment: { channel: "plugins:environment" },
 	},
 	updates: {
 		check: { channel: "updates:check" },

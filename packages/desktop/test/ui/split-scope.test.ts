@@ -64,7 +64,10 @@ test("空白屏发出的话开一个新会话，不进旁边台上那一屏", as
 	assert.equal(await useApp.getState().send(content, { sessionId: null }), true);
 	assert.deepEqual(created, ["new"], "开了一个新会话");
 	assert.deepEqual(prompted, ["n"], "话只发给了新会话");
-	assert.deepEqual(useApp.getState().sessionCache.a?.messages.map((m) => m.content), [[{ type: "text", text: "甲的话" }]], "甲的转录原样停在缓存里");
+	// 空白屏不先把自己请上台：甲留在台上，转录原样；新会话落进缓存，等它那一屏来取。
+	assert.equal(useApp.getState().activeSessionId, "a", "甲还在台上");
+	assert.deepEqual(useApp.getState().messages.map((m) => m.content), [[{ type: "text", text: "甲的话" }]], "甲的转录原样");
+	assert.ok(useApp.getState().sessionCache.n, "新会话落进了缓存");
 });
 
 test("撤回点名的会话，不是台上那一个", async () => {
@@ -81,7 +84,7 @@ test("点名给一屏的草稿只落进那一屏的输入框", async () => {
 		h("div", { "data-screen": "b" }, h(SessionScope.Provider, { value: "b" }, h(Composer))),
 	) }) }));
 	try {
-		await act(async () => useApp.getState().setComposerDraft("给乙的草稿", true, { target: "b" }));
+		await act(async () => useApp.getState().setComposerDraft("给乙的草稿", { sessionId: "b", replace: true }));
 		const field = (screen: string) => document.querySelector<HTMLTextAreaElement>(`[data-screen="${screen}"] textarea`)?.value ?? "";
 		assert.equal(field("b"), "给乙的草稿");
 		assert.equal(field("a"), "", "甲的输入框没有被一起填上");

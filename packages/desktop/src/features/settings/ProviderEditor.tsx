@@ -12,7 +12,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
-import type { ApiFormat, CacheRoutingMode, ModelConfig, ProviderConfig } from "@lyra/core";
+import type { ApiFormat, ModelConfig, ProviderConfig } from "@lyra/core";
 import { Pencil, Power, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
@@ -112,17 +112,6 @@ export function ProviderEditor({
 						placeholder="sk-…"
 					/>
 				</Field>
-
-				{/* Anthropic 协议的缓存靠 `cache_control` 断点，没有路由键可带，见 `ai/cache-routing.ts`。 */}
-				{provider.api !== "anthropic-messages" && (
-					<Field label={t("provider.cacheRouting")} hint={t("provider.cacheRoutingHint")}>
-						<Select
-							value={provider.cacheRouting ?? "auto"}
-							onChange={(cacheRouting) => onChange({ cacheRouting })}
-							options={cacheRoutingOptions(t)}
-						/>
-					</Field>
-				)}
 			</div>
 
 			<ProviderModels
@@ -143,15 +132,6 @@ export function ProviderEditor({
 			/>
 		</div>
 	);
-}
-
-function cacheRoutingOptions(t: ReturnType<typeof useI18n>["t"]): { value: CacheRoutingMode; label: string; detail?: string }[] {
-	return [
-		{ value: "auto", label: t("provider.cacheRoutingAuto"), detail: t("provider.cacheRoutingAutoDetail") },
-		{ value: "prompt_cache_key", label: "prompt_cache_key", detail: t("provider.cacheRoutingBodyDetail") },
-		{ value: "x-session-id", label: "x-session-id", detail: t("provider.cacheRoutingHeaderDetail") },
-		{ value: "off", label: t("provider.cacheRoutingOff"), detail: t("provider.cacheRoutingOffDetail") },
-	];
 }
 
 /** The name, its state, and the two things you can do to the provider as a whole. */

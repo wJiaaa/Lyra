@@ -75,7 +75,7 @@ const SIGNALS: { pattern: RegExp; drop: DroppedParam; source: string }[] = [
 	},
 	{
 		/*
-		 * 缓存路由键（`cache-routing.ts`）。对通用中转默认是发的，而严格端点对未知字段 400 时会点名它：
+		 * 缓存路由键（`cache-routing.ts`）。每个请求都发，而严格端点对未知字段 400 时会点名它：
 		 * Google 系是 `Unknown name "prompt_cache_key"`，pydantic 系（Mistral、vLLM 严格模式）是
 		 * `extra_forbidden` 加一个带字段名的 loc。这个名字只属于它一个，点名即可判定。
 		 */

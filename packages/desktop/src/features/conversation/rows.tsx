@@ -15,9 +15,11 @@ import { MessageActions } from "./MessageActions.tsx";
 import { HookRunsAction } from "./HookRunsAction.tsx";
 import { ThinkingBlock } from "./ThinkingBlock.tsx";
 import { RuleCard } from "./RuleCard.tsx";
+import { DeliveryRow } from "./DeliveryRow.tsx";
 import { conversationTime } from "./question-navigation.ts";
 import { UserMessage } from "./UserMessage.tsx";
-import { useApp } from "../../store/index.ts";
+import { useScopedRunning } from "../../app/session-scope.tsx";
+import { useI18n } from "../../i18n/index.ts";
 import { isNudge, type TurnStats } from "./grouping.ts";
 import { LiveToolCard, segments, ToolRun as ToolRunGroup } from "./runs.tsx";
 
@@ -119,8 +121,10 @@ export const MessageRow = memo(function MessageRow({
      * the model having thought better of it on its own.
      */
     if (message.ruleMatch) return <RuleCard match={message.ruleMatch} />;
+    // 后台子智能体的结果送回来了：一行说明，不是人说的话。见 `DeliveryRow`。
+    if (message.delivery) return <DeliveryRow delivery={message.delivery} />;
     if (message.synthetic || isNudge(message)) return null;
-    return <>{showTime && <div className="ly-conversation-time py-2 text-center text-caption text-ink-faint"><time dateTime={new Date(message.timestamp).toISOString()}>{conversationTime(message.timestamp)}</time></div>}<UserMessage message={message} index={index} /></>;
+    return <>{showTime && <ConversationTime timestamp={message.timestamp} />}<UserMessage message={message} index={index} /></>;
   }
 
   // Tool results are rendered inside their tool card, not as standalone rows.
@@ -130,6 +134,22 @@ export const MessageRow = memo(function MessageRow({
     <AssistantRow message={message} index={index} upTo={upTo} from={from} lead={lead} newest={newest} continued={continued} turnStats={turnStats} viewKey={viewKey} />
   );
 });
+
+/**
+ * The date over a message that follows a pause.
+ *
+ * Its own component so it can subscribe to the language: `MessageRow` is memoised, and a context
+ * subscription is the one thing that reaches through a memo when the language changes. Drawn
+ * inline in the row, it kept whatever language the transcript was first rendered in.
+ */
+function ConversationTime({ timestamp }: { timestamp: number }) {
+  const { resolvedLocale } = useI18n();
+  return (
+    <div className="ly-conversation-time py-2 text-center text-caption text-ink-faint">
+      <time dateTime={new Date(timestamp).toISOString()}>{conversationTime(timestamp, Date.now(), resolvedLocale)}</time>
+    </div>
+  );
+}
 
 function AssistantRow({
   message,
@@ -152,7 +172,8 @@ function AssistantRow({
   turnStats?: TurnStats;
   viewKey?: string;
 }) {
-  const running = useApp((s) => s.running);
+  // This transcript's turn: the focused screen's set reasoning cut short here typing itself out again.
+  const running = useScopedRunning();
 
   const own = message.content.slice(from, upTo);
 

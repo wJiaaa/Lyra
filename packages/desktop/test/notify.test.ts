@@ -1,10 +1,12 @@
 /**
- * Logic and suppression guards for system notifications on task completion.
+ * Logic and suppression guards for system notifications on task completion, and the language
+ * their text is written in.
  */
 
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import type { AgentEvent } from "@lyra/core";
+import { beforeEach, test } from "node:test";
+import type { AgentEvent, UiLocale } from "@lyra/core";
+import { resolveNativeLocale, setInterfaceLocaleSource, type NativeLocale } from "../electron/i18n.ts";
 import { configureNotify, notifyNeedAssistance, notifyAgentEvent, notifyTaskDone, type NotificationInstance, type WindowLike } from "../electron/notify.ts";
 
 function mockWindow(overrides: Partial<WindowLike> = {}): WindowLike {
@@ -15,6 +17,28 @@ function mockWindow(overrides: Partial<WindowLike> = {}): WindowLike {
 		isMinimized: () => false,
 		...overrides,
 	};
+}
+
+/*
+ * The language is module state like every other dependency, so a test that switches it would
+ * leak into the tests after it. Each one starts from Simplified Chinese, the catalog's source.
+ */
+beforeEach(() => {
+	setInterfaceLocaleSource(() => "zh-CN");
+});
+
+/** The body of every notification `show` puts up, with the window out of view. */
+function bodiesIn(uiLocale: UiLocale, systemLocale: string, show: () => void): string[] {
+	const bodies: string[] = [];
+	// What `main.ts` points the main process's language at: the setting, resolved against the OS.
+	setInterfaceLocaleSource(() => resolveNativeLocale(uiLocale, systemLocale));
+	configureNotify({
+		isSupported: () => true,
+		window: () => mockWindow({ isFocused: () => false }),
+		createNotification: (options) => ({ on: () => {}, show: () => { bodies.push(options.body); } }),
+	});
+	show();
+	return bodies;
 }
 
 test("notifyTaskDone: suppresses notification when window is focused and visible", () => {
@@ -289,3 +313,78 @@ for (const [name, window] of [
 		assert.equal(shown, 1);
 	});
 }
+
+/** One notification of each shape, so a language is checked on every message it has. */
+function showEveryKind(): void {
+	notifyTaskDone({ sessionId: "s", title: "Refactor login" });
+	notifyTaskDone({ sessionId: "s" });
+	notifyNeedAssistance({ sessionId: "s", title: "Clean up", kind: "approval", question: "Run command" });
+	notifyNeedAssistance({ sessionId: "s", kind: "approval" });
+	notifyNeedAssistance({ sessionId: "s", title: "Pick a plan", kind: "question", question: "A or B?" });
+	notifyNeedAssistance({ sessionId: "s", kind: "question" });
+}
+
+test("notifications are written in the interface language, not in Chinese for everyone", () => {
+	// On a Chinese system, so the English has to come from the setting rather than from the OS.
+	assert.deepEqual(bodiesIn("en", "zh-CN", showEveryKind), [
+		"“Refactor login” finished",
+		"Task finished",
+		"“Clean up” needs your approval: Run command",
+		"Waiting for your approval",
+		"“Pick a plan” needs your input: A or B?",
+		"Waiting for your input",
+	]);
+	// And the other way round: Chinese chosen on an English system.
+	assert.deepEqual(bodiesIn("zh-CN", "en-US", showEveryKind), [
+		"「Refactor login」已完成",
+		"任务已完成",
+		"「Clean up」等待批准：Run command",
+		"等待批准",
+		"「Pick a plan」等待回复：A or B?",
+		"等待回复",
+	]);
+});
+
+test("a \"system\" language setting follows the operating system", () => {
+	assert.deepEqual(bodiesIn("system", "zh-Hant-TW", () => notifyNeedAssistance({ sessionId: "s", kind: "approval" })), ["等待批准"]);
+	assert.deepEqual(bodiesIn("system", "ja-JP", () => notifyTaskDone({ sessionId: "s", title: "整理" })), ["“整理” finished"]);
+	assert.deepEqual(bodiesIn("system", "es-MX", () => notifyTaskDone({ sessionId: "s" })), ["Task finished"]);
+});
+
+test("the language is read for each notification, so changing it applies to the next one", () => {
+	let language: NativeLocale = "en";
+	const bodies: string[] = [];
+	setInterfaceLocaleSource(() => language);
+	configureNotify({
+		isSupported: () => true,
+		window: () => mockWindow({ isFocused: () => false }),
+		createNotification: (options) => ({ on: () => {}, show: () => { bodies.push(options.body); } }),
+	});
+	notifyTaskDone({ sessionId: "s" });
+	language = "zh-CN";
+	notifyTaskDone({ sessionId: "s" });
+	assert.deepEqual(bodies, ["Task finished", "任务已完成"]);
+});
+
+test("a session title goes in as text, even when it looks like a replacement pattern or a slot", () => {
+	assert.deepEqual(
+		bodiesIn("en", "en-US", () => {
+			notifyTaskDone({ sessionId: "s", title: "Swap $& for $'" });
+			notifyNeedAssistance({ sessionId: "s", title: "Fill {detail}", kind: "approval", question: "Run command" });
+		}),
+		["“Swap $& for $'” finished", "“Fill {detail}” needs your approval: Run command"],
+	);
+});
+
+test("a sub-agent's question names the agent, joined the way the interface language joins things", () => {
+	const asked = {
+		type: "approval_request",
+		kind: "interactive",
+		subject: "ask_user",
+		title: "",
+		detail: "Which branch?",
+		from: { subAgentId: "a1", agent: "reviewer", description: "Review auth" },
+	} as unknown as AgentEvent;
+	assert.deepEqual(bodiesIn("en", "zh-CN", () => notifyAgentEvent("s", asked, "Refactor")), ["“Refactor” needs your input: Review auth: Which branch?"]);
+	assert.deepEqual(bodiesIn("zh-CN", "en-US", () => notifyAgentEvent("s", asked, "Refactor")), ["「Refactor」等待回复：Review auth：Which branch?"]);
+});

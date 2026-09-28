@@ -32,6 +32,8 @@ const zhCN = {
 	"notification.reply": "「{title}」等待回复",
 	"notification.replyUntitled": "等待回复",
 	"notification.detail": "{status}：{detail}",
+	// A background sub-agent's question, after the name of the agent asking it.
+	"notification.asking": "{agent}：{question}",
 	// Scheduled tasks: the notice the window shows when one starts, or fails to.
 	"scheduled.started": "定时任务「{name}」开始运行",
 	"scheduled.failed": "定时任务「{name}」失败：{reason}",
@@ -134,6 +136,7 @@ export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 		"notification.approval": "“{title}” needs your approval", "notification.approvalUntitled": "Waiting for your approval",
 		"notification.reply": "“{title}” needs your input", "notification.replyUntitled": "Waiting for your input",
 		"notification.detail": "{status}: {detail}",
+		"notification.asking": "{agent}: {question}",
 		"scheduled.started": "Scheduled task “{name}” started",
 		"scheduled.failed": "Scheduled task “{name}” failed: {reason}",
 		"scheduled.couldNotStart": "Scheduled task “{name}” could not start: {reason}",

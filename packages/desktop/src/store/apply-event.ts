@@ -7,6 +7,7 @@
  * the event belongs to the conversation on screen.
  */
 
+import { formatList } from "../i18n/list.ts";
 import { translate } from "../i18n/translate.ts";
 import type { AgentEvent } from "@lyra/core";
 import { addTurnUsage, type TurnMeter, type CarriedTurn } from "./turn-meter.ts";
@@ -16,7 +17,7 @@ import { cachedEvent } from "./cached-event.ts";
 import { messageEvent } from "./message-event.ts";
 import { coalesce, flushCoalesced } from "./coalesce.ts";
 import { applyToolEvent } from "./apply-tool.ts";
-import { howItStopped } from "./derive.ts";
+import { howItStopped, without } from "./derive.ts";
 import { freeze, relight, saveCarried } from "./turn-meter.ts";
 /*
  * `sideStore.ts` directly, not the domain's index.
@@ -30,7 +31,8 @@ import { freeze, relight, saveCarried } from "./turn-meter.ts";
  * below the features rather than beside them, so it is not one domain reaching into another.
  */
 import { useSide } from "../features/dock/sideStore.ts";
-import { useSubAgents } from "./subAgents.ts";
+import { awaitingSubAgents, useSubAgents } from "./subAgents.ts";
+import { outlivingTurn } from "../lib/approval-scope.ts";
 import type { AppState } from "./index.ts";
 import { settleTail } from "../lib/transcript.ts";
 import { foldRetry, settleHiccups } from "../lib/hiccup.ts";
@@ -101,6 +103,33 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
    */
   if (event.type === "agent_end" && event.reason === "done") {
     queueMicrotask(() => void get().flushQueue(sessionId));
+  }
+
+  /*
+   * 这一轮收尾了：输入框上方那一行据此收起。在这之前结束的子智能体，结果已经进了这一轮，那一行
+   * 就没什么可说的了（见 `barAgents`）。每个会话都记，理由同上：收尾常常发生在人没看着的时候。
+   */
+  if (event.type === "agent_end") useSubAgents.getState().settle(sessionId);
+
+  /*
+   * 主会话卡在它派出去的子智能体上时，排着的话不再等。
+   *
+   * 排队的意思是「等这一轮做完」，而这一轮此刻不是在干活，是在等子智能体——那可能是十几分钟。
+   * 2026-09-26 的真实会话里，一句排着的话就这样等到了最后一个子智能体交差。所以一旦看出主会话
+   * 在等它们，就把队首送进去：运行时收到人说的话，会让主会话放手、先回应人，子智能体留在后台
+   * 跑完再把结果送回来（`delegation-waits.ts`）。
+   *
+   * 看的是名单：主会话派出去、还没完、也还没转到后台的那几个。每次名单一变都会来一次，送过一次
+   * 之后它们就被标成后台了，不会一条接一条地把队伍全送进去。
+   */
+  if (event.type === "subagents" && (get().queued[sessionId]?.length ?? 0) > 0 && awaitingSubAgents(event.agents)) {
+    const activity = get().activity[sessionId];
+    if (activity === "running" || activity === "waiting") {
+      queueMicrotask(() => {
+        const head = get().queued[sessionId]?.[0];
+        if (head) void get().steerQueued(sessionId, head.id);
+      });
+    }
   }
 
   /*
@@ -245,6 +274,27 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
     }
   }
 
+  /*
+   * The offer to keep a correction, for whichever conversation made it — a question, not a record,
+   * which is why it is state rather than a message.
+   *
+   * It used to be kept only for the conversation in the live slot, on the reasoning that an offer
+   * about a conversation nobody is looking at would be answered with no idea what it referred to.
+   * With several screens the live slot is only where focus is: the conversation beside it is being
+   * looked at, and its offer was dropped. The card is drawn at the end of its own transcript, under
+   * the exchange it asks about, so it has that context wherever it is seen — a conversation opened
+   * later included. The session spends its budget either way, which is the honest cost: it did ask.
+   *
+   * Its next turn takes it away, answered or not. The offer is about the exchange that had just
+   * happened; left up, it would sit under a reply to a different question — still offering to save a
+   * rule about something the conversation has moved past.
+   */
+  if (event.type === "rule_suggested") {
+    set({ ruleOffers: { ...get().ruleOffers, [sessionId]: { name: event.name, body: event.body, condition: event.condition, scope: event.scope } } });
+  } else if (event.type === "agent_start" && get().ruleOffers?.[sessionId]) {
+    set({ ruleOffers: without(get().ruleOffers, sessionId) });
+  }
+
   if (sessionId !== get().activeSessionId) {
 		// Delegated work of a conversation that is on screen without being the live one.
 		if (event.type === "subagents") useSubAgents.getState().retain(sessionId, event.agents);
@@ -312,14 +362,6 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
          */
         hiccups: [],
         stopped: null,
-        /*
-         * An unanswered offer does not survive into the next turn.
-         *
-         * It is about the exchange that had just happened. Left up, it would sit under a reply to
-         * a different question — still offering to save a rule about something the conversation
-         * has moved past, and still looking like it is about what is on screen now.
-         */
-        ruleOffer: null,
         // The composer already started the clock when it sent, and the ~2s of session
         // setup before the agent starts is part of the wait. Overwriting it here made
         // the elapsed time jump backwards. A turn driven from the scheduler has no
@@ -366,13 +408,22 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
             title: event.title,
             detail: event.detail,
             ...(event.reason ? { reason: event.reason } : {}),
+            ...(event.risk ? { risk: event.risk } : {}),
             subject: event.subject,
             ...(event.options ? { options: event.options } : {}), ...(event.allowCustomInput !== undefined ? { allowCustomInput: event.allowCustomInput } : {}), selectionMode: event.selectionMode, allowSkip: event.allowSkip, defaultOptionIndex: event.defaultOptionIndex,
             // Rebuilt field by field, so anything added to the event has to be added here too.
             ...(event.expiresAt !== undefined ? { expiresAt: event.expiresAt } : {}),
+            ...(event.from ? { from: event.from } : {}),
           },
         ],
       });
+      break;
+
+    // 一张卡收场了（答了、超时、问它的子智能体停下了）——核心说一声，这里拿走。
+    case "approval_settled":
+      if (get().approvals.some((one) => one.id === event.requestId)) {
+        set({ approvals: get().approvals.filter((one) => one.id !== event.requestId) });
+      }
       break;
 
     case "rewound":
@@ -516,25 +567,11 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
         event.agents !== 0 ? translate("applyEvent.agentsDelta", { delta: `${event.agents > 0 ? "+" : ""}${event.agents}` }) : null,
       ].filter(Boolean);
       if (parts.length > 0) {
-        const named = event.added.length > 0 ? `：${event.added.join("、")}` : "";
-        get().notify(`${parts.join("，")}${named}`);
+        const changes = parts.join(translate("common.comma"));
+        get().notify(event.added.length > 0 ? translate("applyEvent.changesNamed", { changes, names: formatList(event.added) }) : changes);
       }
       break;
     }
-
-    case "rule_suggested":
-      /*
-       * A question, not a record — which is why it is state rather than a message.
-       *
-       * Everything above this point has already returned for sessions that are not on screen, and
-       * that is the behaviour this one needs: an offer about a conversation somebody is not
-       * looking at would be answered with no idea what it referred to. The session spends its
-       * budget either way, which is the honest cost — it did ask.
-       */
-      set({
-        ruleOffer: { name: event.name, body: event.body, condition: event.condition, scope: event.scope },
-      });
-      break;
 
     case "agent_end": {
       /*
@@ -547,7 +584,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       set({
         running: false,
         retrying: null,
-        approvals: [],
+        // 主会话自己的问题跟着这一轮走；后台子智能体的还等着人，见 `outlivingTurn`。
+        approvals: outlivingTurn(get().approvals),
         compactedAt: null,
         pendingUserMessage: null,
         turnStartedAt: null,

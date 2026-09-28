@@ -80,6 +80,8 @@ export function Toaster() {
 					message,
 					...(context.length > 0 ? ["", ...context] : []),
 				].join("\n"),
+				// The conversation just started, which is the live one now — not every screen a split shows.
+				{ sessionId: useApp.getState().activeSessionId },
 			);
 		},
 		[newSession, setComposerDraft],
@@ -171,6 +173,8 @@ export function Toaster() {
 		 * `pointer-events-none` on the column so only the cards themselves take the pointer.
 		 */
 		<div
+			/* Found by the phone's stylesheet, which moves the stack clear of the status bar. */
+			data-ly-toaster=""
 			style={{
 				zIndex: TOAST_Z,
 				left: !compact && navOpen ? `${sidebarWidth}px` : "0px",

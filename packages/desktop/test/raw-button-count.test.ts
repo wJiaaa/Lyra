@@ -19,7 +19,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CEILING = 204;
+const CEILING = 199;
 
 test("src/ui 以外手写的 <button> 不超过上限，且上限跟着迁移往下调", async () => {
 	const root = fileURLToPath(new URL("../src", import.meta.url));

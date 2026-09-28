@@ -95,31 +95,26 @@ token 和多花的钱，用来验收上面这些前缀修复、并定位前缀�
 ## 缓存路由键
 
 `RequestOptions.cacheKey` 是同一条对话前缀的稳定标识（主会话传会话 id，子代理各传区分开的 id）。
-缓存命中按机器算，路由键让服务商把这些请求送到同一处。怎么带由 `ai/cache-routing.ts` 两张表决定：
-`CACHE_CARRIERS`（携带方式）与 `CACHE_ROUTING_RULES`（按 baseUrl 主机名选方式，首条匹配生效）。
+缓存命中按机器算，路由键让服务商把这些请求送到同一处。`ai/cache-routing.ts` 不按端点区分、没有配置项，
+每个请求都带同一套，做法同 ZCode 并补上它没有的两项：
 
-| 端点 | 默认 | 依据 |
+| 协议 | 带什么 | 依据 |
 | --- | --- | --- |
-| `api.openai.com` | 请求体 `prompt_cache_key`（≤64） | OpenAI 文档，Chat 与 Responses 都有 |
-| `openrouter.ai` | 请求头 `x-session-id`（≤256） | OpenRouter 文档：直接作为 sticky routing 键 |
-| Kimi / Moonshot | 请求体 `prompt_cache_key` | Kimi Chat API 文档，建议传会话 id |
-| `api.deepseek.com` | 不带 | 硬盘缓存按前缀自动命中，无路由参数 |
-| Gemini OpenAI 兼容层 | 不带 | 未知字段 400，隐式缓存无路由参数 |
-| 其他（通用中转） | 请求体 `prompt_cache_key` | 中转多把请求体原样转给 OpenAI 系上游 |
-| Anthropic 协议 | 不带 | 协议没有对应字段，缓存靠 `cache_control` |
+| Responses / Chat Completions | 请求头 `x-session-id`（≤256） | OpenRouter 的 sticky routing 键；ZCode 对所有请求都带 |
+| | 请求头 `session_id`（≤256） | Codex CLI 发的会话头；sub2api 一类号池选上游账号先看它，都没有就随机分 |
+| | 请求体 `prompt_cache_key`（≤64） | OpenAI 官方字段，Kimi 与多数中转也认 |
+| Anthropic Messages | 请求体 `metadata.user_id` | Claude Code 的 JSON `{device_id, account_uuid, session_id}`，同 ZCode；Claude 号池类中转按其中的 `session_id` 粘住账号。缓存本身靠 `cache_control` |
 
 - **严格端点**：未知字段被拒且错误串点名 `prompt_cache_key` 时，`request-params-compat.ts` 学到
-  `cache-key`，撤掉重发一次，本进程内这个模型不再带。请求头不参与学习：未知请求头几乎都被忽略。
-- **拒了却不点名字段**的端点学不到，只能在配置里关（设置页服务商的「缓存路由」）：`ProviderConfig.cacheRouting` 取 `off`；也可以
-  点名一种方式（`prompt_cache_key` / `x-session-id`），给表里没有、但已知认什么的中转用。缺省为 `auto`。
-- **要求专门会话头的服务商**不进路由表，由 `sessionHeaders` 按地址写死：目前只有 OpenCode Go
+  `cache-key`，撤掉重发一次，本进程内这个模型不再带；两个会话头照带。请求头不参与学习：未知请求头各家
+  都是忽略。拒了却不点名字段的端点学不到，这类端点目前没有手动关的开关。
+- **`device_id`** 由主机名和用户目录算出的 64 位十六进制摘要，不存盘，同一台机器每次启动都一样。
+- **要求专门会话头的服务商**由 `sessionHeaders` 按地址写死：目前只有 OpenCode Go
   （`opencode.ai/zen/go`）的 `x-opencode-session`，缺了直接 400，做法同 ZCode `opencode-session.ts`。
-  三种协议都带，不受 `cacheRouting: off` 影响；没有 `cacheKey` 的一次性请求（压缩、测试连接）给随机
-  id 而不是不带。
+  三种协议都带；没有 `cacheKey` 的一次性请求（压缩、测试连接）给随机 id 而不是不带。
+- **没有 `cacheKey`** 的请求上面几项都不带（`x-opencode-session` 除外），和从前一样。
 - **超长或含非 ASCII 的键**压成「可读前缀-摘要」，不截断：pi 截到 64 字符，共享长前缀的主会话与
   子代理键会变成同一个。请求头只能是可见 ASCII，否则 `fetch` 直接抛错。
-- 没照抄的：pi 在 Chat 链只对 `api.openai.com` 发 `prompt_cache_key`、在 Responses 链对所有端点发，
-  两条链规则不同；ZCode 对所有请求都带 `x-session-id`，那是它自家服务端的归因头。
 
 ## 请求与统计共用的数据
 

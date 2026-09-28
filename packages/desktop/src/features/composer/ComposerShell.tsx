@@ -436,7 +436,12 @@ export function ComposerShell({
   );
 }
 
-/** One stable button lets the icon and colours interpolate when the run changes state. */
+/**
+ * One stable button lets the icon and colours interpolate when the run changes state.
+ *
+ * `transition`, not `transition-all`, which transitions `visibility` too — see `Workspace` in
+ * `app/App.tsx` for what that did.
+ */
 export function ComposerSend({ running, disabled, onSend, onStop, continueReady = false, tip, active = true }: {
 	running: boolean;
 	continueReady?: boolean;

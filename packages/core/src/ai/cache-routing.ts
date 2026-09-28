@@ -1,100 +1,27 @@
 /**
- * 缓存路由键（`RequestOptions.cacheKey`）怎么带给服务商：对哪类端点、用请求体字段还是请求头。
+ * 缓存路由键（`RequestOptions.cacheKey`）怎么带给服务商。
  *
- * 缓存命中是按机器算的。同一条对话前缀的请求被负载均衡打散到别的机器（或 OpenRouter 换了一家上游），
+ * 缓存命中是按机器算的。同一条对话前缀的请求被负载均衡打散到别的机器、号池中转换了一个上游账号，
  * 前缀再一样也是全价重算。路由键就是告诉服务商「这几次请求是同一条对话，送到同一处」。
  *
- * 两张声明表：`CACHE_CARRIERS` 说有哪几种携带方式，`CACHE_ROUTING_RULES` 说哪类端点用哪几种。
- * **新增一个服务商 = 在 `CACHE_ROUTING_RULES` 里加一行**；新增一种携带方式 = 在 `CACHE_CARRIERS`
- * 里加一行、在 `types/provider.ts` 的 `CacheCarrierId` 里加它的名字（漏一边编译不过），用户配置
- * （`ProviderConfig.cacheRouting`）随即就能点名它。各端点默认选择的依据写在每行的
- * `source` 里，长篇取舍见 `docs/architecture/context-assembly.md` 的「缓存路由键」一节。
+ * 不按端点区分，每个请求都带同一套，做法同 ZCode 并补上它没有的两项：
  *
- * Anthropic 协议没有对应字段（它的缓存由 `cache_control` 断点显式声明），那条链不调 `cacheRouting`。
+ *   - OpenAI 系两条链：请求头 `x-session-id`（OpenRouter 的粘性路由键，ZCode 对所有请求都带）、
+ *     请求头 `session_id`（Codex CLI 发的；sub2api 一类号池选账号先看它，其次 `conversation_id` 头和
+ *     `prompt_cache_key`，都没有就随机分，见 Wei-Shaw/sub2api#1421）、请求体 `prompt_cache_key`
+ *     （OpenAI 官方字段，Kimi、通用中转也认）。未知请求头各家都是忽略；严格端点对未知的请求体字段
+ *     会 400 并点名它，撞一次就学会不发（`request-params-compat.ts` 的 `cache-key`），两个头照带。
+ *   - Anthropic 协议：请求体 `metadata.user_id`，写成 Claude Code 的 JSON（同 ZCode
+ *     `anthropic-request-metadata.ts`），Claude 号池类中转按其中的 `session_id` 粘住账号。缓存本身仍由
+ *     `cache_control` 断点声明。
  *
- * 端点硬性要求的会话头（例如 OpenCode Go 的 `x-opencode-session`，缺了直接 400）不进这两张表，
- * 三种协议都要带、也不受 `cacheRouting: off` 影响，见 `sessionHeaders`。
+ * 端点硬性要求的会话头（例如 OpenCode Go 的 `x-opencode-session`，缺了直接 400）另见 `sessionHeaders`：
+ * 三种协议都带，没有 `cacheKey` 时也带。
  */
 
-import { randomUUID } from "node:crypto";
-import type { ApiFormat, CacheCarrierId, ProviderConfig } from "../types.ts";
+import { createHash, randomUUID } from "node:crypto";
+import { homedir, hostname } from "node:os";
 import type { DroppedParam } from "./request-params-compat.ts";
-
-/** 一种携带方式。 */
-interface CacheCarrier {
-	kind: "body" | "header";
-	/** 请求体字段名或请求头名。 */
-	name: string;
-	/** 服务商对值的长度上限；超出时压成定长摘要，见 `fitKey`。 */
-	maxLength: number;
-	/**
-	 * 被拒之后学会不再发的那个参数轴，见 `request-params-compat.ts`。
-	 *
-	 * 只有请求体字段需要：严格端点对未知字段 400，而对未知请求头几乎都是忽略。
-	 */
-	learnable?: DroppedParam;
-	source: string;
-}
-
-const CACHE_CARRIERS = {
-	prompt_cache_key: {
-		kind: "body",
-		name: "prompt_cache_key",
-		maxLength: 64,
-		learnable: "cache-key",
-		source: "OpenAI 文档：Chat Completions 与 Responses 都有这个字段；上限 64 字符同 pi openai-prompt-cache.ts",
-	},
-	"x-session-id": {
-		kind: "header",
-		name: "x-session-id",
-		maxLength: 256,
-		source: "OpenRouter 文档 prompt-caching：sticky routing 键，≤256 字符；pi 的 sessionAffinityFormat=openrouter 同此",
-	},
-} as const satisfies Record<CacheCarrierId, CacheCarrier>;
-
-/** 一类端点的默认携带方式。 */
-interface CacheRoutingRule {
-	/** 匹配 baseUrl 的主机名，本身或其子域都算。空数组表示兜底（匹配一切）。 */
-	hosts: readonly string[];
-	carriers: readonly CacheCarrierId[];
-	source: string;
-}
-
-/** 从上往下第一条匹配的生效，所以兜底那一行必须在最后。 */
-const CACHE_ROUTING_RULES: readonly CacheRoutingRule[] = [
-	{
-		hosts: ["api.openai.com"],
-		carriers: ["prompt_cache_key"],
-		source: "OpenAI 文档：prompt_cache_key 参与缓存路由，替代旧的 user 字段",
-	},
-	{
-		hosts: ["openrouter.ai"],
-		carriers: ["x-session-id"],
-		source: "OpenRouter 文档：x-session-id 直接作为 sticky routing 键，优先于 prompt_cache_key",
-	},
-	{
-		hosts: ["api.moonshot.cn", "api.moonshot.ai", "api.kimi.com"],
-		carriers: ["prompt_cache_key"],
-		source: "Kimi Chat API 文档：prompt_cache_key，建议传会话 id",
-	},
-	{
-		hosts: ["api.deepseek.com"],
-		carriers: [],
-		source: "DeepSeek 文档：硬盘缓存按前缀自动命中，没有路由参数——发了也没用",
-	},
-	{
-		hosts: ["generativelanguage.googleapis.com"],
-		carriers: [],
-		source: "推断：Google API 的 JSON 解析对未知字段报 Unknown name 400；隐式缓存自动，无路由参数",
-	},
-	{
-		hosts: [],
-		carriers: ["prompt_cache_key"],
-		source:
-			"通用中转（new-api / one-api / LiteLLM 等）多把请求体原样转给 OpenAI 系上游，带上才有用；" +
-			"严格端点对未知字段 400 时错误串会点名它，撞一次就学会不发（request-params-compat.ts 的 cache-key）",
-	},
-];
 
 /** 这次请求要加到请求体和请求头里的东西。 */
 export interface CacheRouting {
@@ -104,22 +31,10 @@ export interface CacheRouting {
 
 const NONE: CacheRouting = Object.freeze({ body: Object.freeze({}), headers: Object.freeze({}) }) as CacheRouting;
 
-function hostOf(baseUrl: string): string {
-	try {
-		return new URL(baseUrl).hostname.toLowerCase();
-	} catch {
-		return "";
-	}
-}
-
-/** 这个端点默认用哪几种携带方式。导出给测试和文档对照。 */
-export function defaultCarriers(baseUrl: string): readonly CacheCarrierId[] {
-	const host = hostOf(baseUrl);
-	const rule = CACHE_ROUTING_RULES.find(
-		(candidate) => candidate.hosts.length === 0 || candidate.hosts.some((h) => host === h || host.endsWith(`.${h}`)),
-	);
-	return rule?.carriers ?? [];
-}
+/** `prompt_cache_key` 的上限，同 pi openai-prompt-cache.ts。 */
+const BODY_KEY_MAX = 64;
+/** 请求头的上限，取 OpenRouter `x-session-id` 的 256。 */
+const HEADER_KEY_MAX = 256;
 
 /** FNV-1a 32 位，两个种子拼成 16 位十六进制。只求稳定、分散，不求抗碰撞攻击——键本身不是秘密。 */
 function digest(text: string): string {
@@ -149,29 +64,38 @@ export function fitKey(key: string, maxLength: number): string {
 }
 
 /**
- * 这次请求该带什么。没有 `cacheKey`、Anthropic 协议、配置关掉、或者请求体字段已经撞墙学过，都返回空。
- *
- * `dropped` 对用户点名的方式也生效：点名了而端点拒绝，照样撤掉——否则每一轮都是同一个 400。
+ * OpenAI 系两条链这次该带什么。没有 `cacheKey` 返回空；请求体字段被这个模型拒过就只带请求头。
  */
-export function cacheRouting(
-	provider: Pick<ProviderConfig, "baseUrl" | "cacheRouting">,
-	api: ApiFormat,
-	cacheKey: string | undefined,
-	dropped: ReadonlySet<DroppedParam>,
-): CacheRouting {
-	if (!cacheKey || api === "anthropic-messages") return NONE;
-	const mode = provider.cacheRouting ?? "auto";
-	if (mode === "off") return NONE;
-	const carriers = mode === "auto" ? defaultCarriers(provider.baseUrl) : CACHE_CARRIERS[mode] ? [mode] : [];
-	const routing: CacheRouting = { body: {}, headers: {} };
-	for (const id of carriers) {
-		const carrier: CacheCarrier = CACHE_CARRIERS[id];
-		if (carrier.learnable && dropped.has(carrier.learnable)) continue;
-		const value = fitKey(cacheKey, carrier.maxLength);
-		if (carrier.kind === "body") routing.body[carrier.name] = value;
-		else routing.headers[carrier.name] = value;
-	}
-	return routing;
+export function cacheRouting(cacheKey: string | undefined, dropped: ReadonlySet<DroppedParam>): CacheRouting {
+	if (!cacheKey) return NONE;
+	const header = fitKey(cacheKey, HEADER_KEY_MAX);
+	return {
+		body: dropped.has("cache-key") ? {} : { prompt_cache_key: fitKey(cacheKey, BODY_KEY_MAX) },
+		headers: { "x-session-id": header, session_id: header },
+	};
+}
+
+let device: string | undefined;
+
+/**
+ * 这台机器的设备 id：64 位十六进制，形状同 Claude Code 的 `device_id`。
+ *
+ * 由主机名和用户目录算出来而不是随机生成再存盘：同一台机器上每次启动都是同一个，不用读写文件，
+ * 也不带出任何可读的本机信息。主机名改了它跟着变，代价只是那之后的第一轮缓存路由换一处。
+ */
+function deviceId(): string {
+	device ??= createHash("sha256").update(`lyra-device\0${hostname()}\0${homedir()}`).digest("hex");
+	return device;
+}
+
+/** Anthropic 协议这次该在请求体里加什么。没有 `cacheKey` 返回空，请求和从前一样。 */
+export function anthropicMetadata(cacheKey: string | undefined): { metadata?: { user_id: string } } {
+	if (!cacheKey) return {};
+	return {
+		metadata: {
+			user_id: JSON.stringify({ device_id: deviceId(), account_uuid: "", session_id: fitKey(cacheKey, BODY_KEY_MAX) }),
+		},
+	};
 }
 
 /** OpenCode Go 的地址：目录里 `/zen/go` 和 `/zen/go/v1` 两种写法都有。Zen（`/zen/v1`）不要求会话头。 */
@@ -187,7 +111,7 @@ function isOpenCodeGo(baseUrl: string): boolean {
 }
 
 /**
- * 端点硬性要求的会话头。三种协议都走这里，Anthropic 协议也不例外，也不看 `cacheRouting`——
+ * 端点硬性要求的会话头。三种协议都走这里，Anthropic 协议也不例外——
  * 这不是可选的路由提示，缺了请求就发不出去。
  *
  * 目前只有 OpenCode Go 的 `x-opencode-session`（缺了直接 400），写死同 ZCode `opencode-session.ts`。

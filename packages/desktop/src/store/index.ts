@@ -1,8 +1,8 @@
 import type { TurnMeter, CarriedTurn } from "./turn-meter.ts";
-import type { QuestionFields } from "@lyra/core";
+import type { ApprovalOrigin, ApprovalRisk, QuestionFields } from "@lyra/core";
 import { translate } from "../i18n/translate.ts";
 import { applySessionChange } from "./session-changes.ts";
-import type { SessionChange } from "../../electron/ipc-types.ts";
+import type { PluginUpdateState, SessionChange } from "../../electron/ipc-types.ts";
 import type { AgentEvent, ApprovalDecision, CommandRun, HookRun, Message, MessageAttachment, SessionMeta, Settings, ThinkingLevel, UserContent } from "@lyra/core";
 import { type SessionActivity } from "@lyra/core/activity";
 import { applyAgentEvent } from "./apply-event.ts";
@@ -108,6 +108,23 @@ export type SettingsSection =
 /** The tabs on the 插件 page; the page itself is the `plugins` section. */
 export type ExtensionsTab = "plugins" | "skills" | "rules" | "mcp" | "extensions";
 
+/** Text left for a composer by something that is not the composer — see `composerDraft`. */
+interface ComposerDraft {
+  /**
+   * Whose composer: that conversation's id, or null for the blank conversation — named the way `send`
+   * names where a message goes.
+   *
+   * There is one slot for the window and a composer on every screen of a split. A draft that named
+   * no screen was taken by all of them in the same commit: a suggestion card pressed on one screen
+   * typed itself into every other, and the caret went to whichever took it last.
+   */
+  sessionId: string | null;
+  text: string;
+  replace: boolean;
+  attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
+  sessionRefs?: Array<{ id: string; title: string }>;
+}
+
 interface PendingApproval extends QuestionFields {
   id: string;
   kind: string;
@@ -115,6 +132,8 @@ interface PendingApproval extends QuestionFields {
   detail: string;
   /** Why the asker is asking, in its own words. Present when a model requested an escalation. */
   reason?: string;
+  /** What the approval policy found dangerous; the card words it in the window's language. */
+  risk?: ApprovalRisk;
   /** What an "always" answer gets remembered against. */
   subject?: string;
   /**
@@ -125,6 +144,21 @@ interface PendingApproval extends QuestionFields {
    * invented fact on top of the one this whole change is about.
    */
   expiresAt?: number;
+  /**
+   * 哪个子智能体在问；主会话自己问的没有。
+   *
+   * 也决定这张卡活多久：主会话的问题跟着它那一轮走，一轮收尾就收掉；子智能体的问题可能是在
+   * 主会话收尾之后才问出来的（它在后台跑），要等核心说它收场了（`approval_settled`）才拿走。
+   */
+  from?: ApprovalOrigin;
+}
+
+/** A correction offered as a rule: what `rule_suggested` carries, and what the card asks about. */
+export interface RuleOffer {
+  name: string;
+  body: string;
+  condition?: string;
+  scope?: string;
 }
 
 export interface AppState extends QueueSlice {
@@ -139,6 +173,12 @@ export interface AppState extends QueueSlice {
    * cannot hand a parameter to a view it is not rendering.
    */
   pluginFocus: string | null;
+  /**
+   * 后台对账的结果：谁落后了市场、正在换谁。主进程推过来的，见 `plugin-updates.ts`。
+   *
+   * 放在 store 里，是因为画它的地方不在同一棵树上：侧栏那个数、市场页的「全部更新」、设置页的横条。
+   */
+  pluginUpdates: PluginUpdateState | null;
   /**
    * Which tab the 插件 page should open on, and what to have typed into its search — or null for
    * whichever it was on.
@@ -167,6 +207,23 @@ export interface AppState extends QueueSlice {
   settings: Settings | null;
   sessions: SessionMeta[];
   workspace: WorkspaceInfo | null;
+  /**
+   * Projects already described this run, by path.
+   *
+   * `workspace` belongs to the live slot, and a split shows conversations that are not in it. Each
+   * screen names its own project from here: a project is written in when its conversation leaves
+   * the live slot, and read on demand for one that never held it (`describeWorkspace`).
+   */
+  workspaceByPath: Record<string, WorkspaceInfo>;
+  /**
+   * Where the blank conversation runs while another conversation holds the live slot.
+   *
+   * A split keeps a blank screen on show beside conversations that take the live slot in turn, and
+   * `workspace` then describes whichever of them has it. Parked here when the blank one leaves the
+   * slot, so its screen keeps naming — and its first message keeps going to — the project it was
+   * opened in; put back by `stageDraft`, dropped by `newSession`.
+   */
+  parkedDraft: { workspace: WorkspaceInfo | null; scratchCwd: string | null } | null;
   /** Every directory project-less conversations are stored under, so the sidebar can exclude them. */
   scratchRoots: string[];
   /**
@@ -187,37 +244,23 @@ export interface AppState extends QueueSlice {
    */
   parkedProject: string | null;
   /**
-   * Text to put in the composer, for callers that are not the composer.
+   * Text to put in a composer, for callers that are not the composer; null while nothing waits.
    *
    * Opening a review's conversation fills in what to ask rather than asking it: the user should
-   * see the question, be able to change it, and press send themselves. Consumed on read.
+   * see the question, be able to change it, and press send themselves. Consumed on read, by the
+   * composer of the screen the draft names.
    *
    * `replace` decides what happens to whatever is already in the field, and the two callers want
    * opposite things. A review or an error arrives while you may be part-way through typing, and
    * discarding that would lose work — those append. A suggestion card is a choice between four
    * alternatives, so pressing a second one means "that one instead": appending there stacks three
    * unrelated requests into one message nobody wrote.
-   *
-   * `target` is whose composer: a conversation's id, null for the blank one, absent for the live
-   * slot's. A split mounts a composer per screen, and a draft that named none was taken by all of
-   * them — a suggestion card pressed on one screen typed itself into every other.
    */
-  composerDraft: {
-    text: string;
-    replace: boolean;
-    attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
-    sessionRefs?: Array<{ id: string; title: string }>;
-    target?: string | null;
-  };
+  composerDraft: ComposerDraft | null;
   browserAttachment: { text: string; dataUrl: string; draftKey: string } | null;
   setComposerDraft(
     text: string,
-    replace?: boolean,
-    extras?: {
-      attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
-      sessionRefs?: Array<{ id: string; title: string }>;
-      target?: string | null;
-    },
+    options: Pick<ComposerDraft, "sessionId" | "attachments" | "sessionRefs"> & { replace?: boolean },
   ): void;
 
   /**
@@ -375,13 +418,16 @@ export interface AppState extends QueueSlice {
 	hookRuns: HookRun[];
   notices: { id: string; level: "info" | "warn" | "error"; message: string; sessionId?: string }[];
   /**
-   * A correction the runtime thinks could become a rule, waiting to be answered.
+   * Corrections the runtime thinks could become rules, waiting to be answered — by conversation.
    *
-   * One at a time and not kept in the transcript. An offer is about the exchange that just
-   * happened, and one still sitting there three turns later would be asking about something the
-   * person has moved on from — so a new turn clears it whether or not it was answered.
+   * Not kept in the transcript. An offer is about the exchange that just happened, and one still
+   * sitting there three turns later would be asking about something the person has moved on from —
+   * so the conversation's next turn clears it whether or not it was answered.
+   *
+   * Keyed rather than one slot for the live conversation: a split shows several at once, and a slot
+   * drew the offer under every screen, then dropped it unanswered when focus moved to another one.
    */
-  ruleOffer: { name: string; body: string; condition?: string; scope?: string } | null;
+  ruleOffers: Record<string, RuleOffer>;
   capabilities: AgentCapabilities | null;
 
   bootstrap(): Promise<void>;
@@ -390,14 +436,29 @@ export interface AppState extends QueueSlice {
   /** Open one bundle's page in the catalogue, or return to the grid with null. */
   setPluginFocus(key: string | null): void;
   setExtensionsFocus(focus: { tab: ExtensionsTab; query?: string } | null): void;
+  /**
+   * 去设置 › 插件的某一栏。
+   *
+   * 从前各处写 `setSettingsSection("mcp")`——可设置的导航里没有「mcp」这一项，那是插件页里的一个
+   * 标签，于是落到了「常规」上。标签页要经 `extensionsFocus` 交给插件页自己切。
+   */
+  openExtensions(tab: ExtensionsTab, query?: string): void;
   /** Say that what is installed has changed, so every list showing it re-reads. */
   bumpExtensions(): void;
   saveSettings(settings: Settings): Promise<void>;
 
   pickWorkspace(): Promise<void>;
   openWorkspace(path: string): Promise<void>;
-  /** Re-read git state for the current project, after a branch switch or an external change. */
-  refreshWorkspace(): Promise<void>;
+  /**
+   * Re-read git state for a project, after a branch switch or an external change.
+   *
+   * `path` names the project of the screen that asked; without it, the live slot's. A named project
+   * is re-read wherever a screen reads it from — the live slot when it is on that project, and
+   * `workspaceByPath` for the screens beside it.
+   */
+  refreshWorkspace(path?: string): Promise<void>;
+  /** Read a project into `workspaceByPath`, for a screen whose conversation is not the live one. */
+  describeWorkspace(path: string): Promise<void>;
   /**
    * Which branch a switch is currently trying to reach, or null when none is.
    *
@@ -406,9 +467,12 @@ export interface AppState extends QueueSlice {
    * snapped to `main`, which is worse than no feedback at all: it says the thing happened and then
    * unsays it. This drives a loading state instead, so the name on screen is only ever a branch
    * git has actually confirmed.
+   *
+   * The repository is named with it: a split shows several, and a bare flag pulsed the branch chip
+   * under every screen while one of them switched.
    */
-  switchingBranch: string | null;
-  setSwitchingBranch(branch: string | null): void;
+  switchingBranch: { path: string; branch: string } | null;
+  setSwitchingBranch(switching: { path: string; branch: string } | null): void;
   /** Work without a project. Sessions still run; they just have no repo behind them. */
   clearWorkspace(): Promise<void>;
   /**
@@ -455,6 +519,11 @@ export interface AppState extends QueueSlice {
    * 人从设置页甩回对话页，中间没有任何东西解释发生了什么。
    */
   newSession(options?: { keepView?: boolean }): Promise<void>;
+  /**
+   * Put the blank conversation a split still shows back in the live slot, in its own project.
+   * Focusing that screen does this; 新对话 is `newSession`.
+   */
+  stageDraft(): void;
   /** Light the row now. Returns the selection epoch so a later hydrate can tell if it is stale. */
   previewSession(meta: SessionMeta): number;
   previewSessionId(id: string): number;
@@ -481,6 +550,10 @@ export interface AppState extends QueueSlice {
    *
    * 队列才需要它：排队的消息等的是「那一轮结束」，而那一轮结束时人可能已经切到别的对话去了——
    * 没有它，出队要么发错对话，要么只能等人切回来。
+   *
+   * `null` names the blank conversation: a new one is created, whatever holds the live slot. A split's
+   * blank screen has no id to give, and leaving it out fell back to the live conversation — so what
+   * was typed into a split's fresh screen went to whichever conversation had focus.
    */
 	send(content: UserContent[], options?: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null }): Promise<boolean>;
   /**
@@ -489,12 +562,15 @@ export interface AppState extends QueueSlice {
    * `meta` 是这条消息除措辞之外的样子——附了哪几个文件，气泡里该显示哪一份文本。编辑改的是
    * 措辞，这两样得原样带过去，否则每编辑一次就把附件从界面上抹掉一次。
    */
-  editMessage(index: number, content: UserContent[], meta?: { displayText?: string; attachments?: MessageAttachment[] }, target?: string): Promise<void>;
+  editMessage(index: number, content: UserContent[], meta?: { displayText?: string; attachments?: MessageAttachment[] }, sessionId?: string): Promise<void>;
   /**
    * Take a user message back: cut it and everything after, then put the wording in the composer.
    * Does not start another turn.
+   *
+   * Both act on the live conversation. Given `sessionId`, on that one, which is made the live one
+   * first if it is not already — a split's other screen names its own.
    */
-  revertMessage(index: number, target?: string): Promise<void>;
+  revertMessage(index: number, sessionId?: string): Promise<void>;
   /**
    * Re-send the user message that produced the reply at `index`. Given `sessionId`, in that
    * conversation, which is made the live one first if it is not already.
@@ -511,10 +587,13 @@ export interface AppState extends QueueSlice {
    *
    * `asDefault` additionally makes it what new conversations start on — a separate decision, and
    * one that used to be taken silently on every pick. See the note in `turn-slice`.
+   *
+   * `sessionId` names the conversation, the way `send` does: a conversation on another screen is
+   * brought on stage first, `null` is the blank screen, and leaving it out means the live one.
    */
-  setModel(modelId: string, options?: { asDefault?: boolean }): Promise<void>;
-  /** How hard this conversation asks the model to think. Falls back to the app default. */
-  setThinking(thinking: ThinkingLevel): Promise<void>;
+  setModel(modelId: string, options?: { asDefault?: boolean; sessionId?: string | null }): Promise<void>;
+  /** How hard this conversation asks the model to think. Falls back to the app default. `sessionId` as for `setModel`. */
+  setThinking(thinking: ThinkingLevel, sessionId?: string | null): Promise<void>;
   dismissNotice(id: string): void;
   notify(message: string, level?: "info" | "warn" | "error", sessionId?: string): void;
   /**
@@ -534,17 +613,20 @@ export const useApp = create<AppState>((set, get) => ({
   view: "chat",
   settingsSection: "models",
   pluginFocus: null,
+  pluginUpdates: null,
   extensionsFocus: null,
   extensionsNonce: 0,
   catalogRevision: activeModelCatalog().source.revision,
   settings: null,
   sessions: [],
   workspace: null,
+  workspaceByPath: {},
+  parkedDraft: null,
   switchingBranch: null,
   scratchRoots: [],
   scratchCwd: null,
   parkedProject: null,
-  composerDraft: { text: "", replace: false },
+  composerDraft: null,
   browserAttachment: null,
   drafts: {},
   activeSessionId: null,
@@ -573,7 +655,7 @@ export const useApp = create<AppState>((set, get) => ({
 	hookRuns: [],
   todos: [],
   notices: [],
-  ruleOffer: null,
+  ruleOffers: {},
   capabilities: null,
 
   async bootstrap() {
@@ -616,12 +698,26 @@ export const useApp = create<AppState>((set, get) => ({
 		 * Also bumps `extensionsNonce`, because a change to `mcpServers` usually means a directory
 		 * appeared or vanished as well, and the lists that scan disk have no other way to hear it.
 		 */
-		bridge.settings.onChanged((next) => {
+		bridge.settings.onChanged((next) =>
 			set((state) => ({
 				settings: next,
 				extensionsNonce: state.extensionsNonce + (scanKey(state.settings) === scanKey(next) ? 0 : 1),
-			}));
-		});
+			})),
+		);
+		/*
+		 * 磁盘上装着的东西一变（这个窗口、别的窗口、后台自动更新，谁动的手都算），扫盘的那几张列表
+		 * 跟着重扫：`revision` 就是为这个数的。网页访问那头不开放这组方法（插件只在桌面上装），问不到就算了。
+		 */
+		bridge.plugins.onChanged?.((next) =>
+			set((state) => ({
+				pluginUpdates: next,
+				extensionsNonce: state.extensionsNonce + ((state.pluginUpdates?.revision ?? 0) !== (next.revision ?? 0) ? 1 : 0),
+			})),
+		);
+		void bridge.plugins
+			.updates?.()
+			.then((pluginUpdates) => set({ pluginUpdates }))
+			.catch(() => {});
 		bridge.agent.onEvent(({ sessionId, event }) =>
 			get().applyEvent(sessionId, event),
 		);
@@ -666,16 +762,8 @@ export const useApp = create<AppState>((set, get) => ({
   setView: (view) => {
     if (viewAvailable(view)) set({ view });
   },
-  setComposerDraft: (text, replace = false, extras) =>
-    set({
-      composerDraft: {
-        text,
-        replace,
-        attachments: extras?.attachments ?? [],
-        sessionRefs: extras?.sessionRefs ?? [],
-        ...(extras?.target !== undefined ? { target: extras.target } : {}),
-      },
-    }),
+  setComposerDraft: (text, { sessionId, replace = false, attachments = [], sessionRefs = [] }) =>
+    set({ composerDraft: { sessionId, text, replace, attachments, sessionRefs } }),
   setDraft: (key, draft) =>
     set((state) => {
       if (!draft || (!draft.text.trim() && (!draft.attachments || draft.attachments.length === 0) && !draft.sessionRefs?.length)) {
@@ -698,6 +786,8 @@ export const useApp = create<AppState>((set, get) => ({
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   setPluginFocus: (pluginFocus) => set({ pluginFocus }),
   setExtensionsFocus: (extensionsFocus) => set({ extensionsFocus }),
+  openExtensions: (tab, query) =>
+    set({ view: "settings", settingsSection: "plugins", extensionsFocus: query === undefined ? { tab } : { tab, query } }),
   bumpExtensions: () => set((state) => ({ extensionsNonce: state.extensionsNonce + 1 })),
 
   async saveSettings(settings) {

@@ -26,7 +26,7 @@ import { resolveReasoningEffort } from "./thinking-options.ts";
 import { failedStreamEvent, joinUrl, priceAttempt } from "./endpoint.ts";
 import { compatKey, compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
-import { sessionHeaders } from "./cache-routing.ts";
+import { anthropicMetadata, sessionHeaders } from "./cache-routing.ts";
 
 const THINKING_BUDGET: Record<string, number> = {
 	minimal: 1024,
@@ -324,6 +324,8 @@ async function* streamAnthropic(
 		// 写法是学出来的，见 `learnAdaptiveThinking`。
 		...(thinkingEnabled && effort ? thinkingParams(usesAdaptiveThinking(scope.providerId, scope.modelId), effort, budget, maxTokens) : {}),
 		...samplingFor(thinkingEnabled, model, options),
+		// 缓存路由键，见 `cache-routing.ts`。
+		...anthropicMetadata(options.cacheKey),
 	});
 
 	let body = buildBody(thinkingReplay(provider, model));

@@ -15,21 +15,29 @@ import { ipcMain, shell } from "electron";
 import { cp, mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { isDescendant, uniqueName, validateName } from "../file-ops.ts";
-import type { FileOpResult } from "../ipc-types.ts";
 import { nativeText } from "../i18n.ts";
+import type { FileOpResult } from "../ipc-types.ts";
 
 export interface FileOpsIpcDeps {
 	/** The path, normalised, if it lies in an open project — otherwise null. */
 	projectPath(target: string): string | null;
 }
 
-/** Worded when it is said — a constant would keep whatever language the app started in. */
+/**
+ * The refusal for a path outside every open project, worded when it is said — a constant would
+ * keep whatever language the app started in.
+ */
 function outside(): FileOpResult {
 	return { ok: false, error: nativeText("files.outsideProject"), code: "denied" };
 }
 
+/** What the filesystem said, which is the reason a failed operation gives. */
+function reason(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
 function failed(error: unknown): FileOpResult {
-	return { ok: false, error: error instanceof Error ? error.message : String(error) };
+	return { ok: false, error: reason(error) };
 }
 
 /** Whether two paths name the same file on disk, which a case-insensitive volume makes possible. */
@@ -153,7 +161,7 @@ export function registerFileOpsIpc({ projectPath }: FileOpsIpcDeps): void {
 			try {
 				await shell.trashItem(path);
 			} catch (error) {
-				return { ok: false, error: nativeText("files.deleteFailed", { name: basename(path), reason: failed(error).error ?? "" }) };
+				return { ok: false, error: nativeText("files.deleteFailed", { name: basename(path), reason: reason(error) }) };
 			}
 		}
 		return { ok: true };
@@ -168,7 +176,7 @@ export function registerFileOpsIpc({ projectPath }: FileOpsIpcDeps): void {
 			try {
 				await rm(path, { recursive: true, force: true });
 			} catch (error) {
-				return { ok: false, error: nativeText("files.deleteFailed", { name: basename(path), reason: failed(error).error ?? "" }) };
+				return { ok: false, error: nativeText("files.deleteFailed", { name: basename(path), reason: reason(error) }) };
 			}
 		}
 		return { ok: true };

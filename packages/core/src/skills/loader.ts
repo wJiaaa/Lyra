@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { normalizeKeys } from "../capability/fs.ts";
 import { withoutBom } from "../utils/bom.ts";
+import { readAllowedTools } from "./allowed-tools.ts";
 
 export interface Skill {
 	name: string;
@@ -24,12 +25,17 @@ export interface Skill {
 	dir: string;
 	/** Where the skill came from, shown in the UI. */
 	source: "workspace" | "user" | "builtin";
-	/** Restrict which tools the agent may use while the skill is active. */
+	/**
+	 * Restrict which tools the agent may use while the skill is active. Always our tool names,
+	 * however the frontmatter spelled them: see `readAllowedTools`.
+	 */
 	allowedTools?: string[];
 	/** Hide from the model; only invocable by the user through a slash command. */
 	disableModelInvocation: boolean;
 	/** Set when the skill came from a plugin bundle rather than a loose directory. */
 	pluginId?: string;
+	/** That bundle's directory — what `${CLAUDE_PLUGIN_ROOT}` means inside the skill. */
+	pluginRoot?: string;
 }
 
 export interface SkillDiagnostic {
@@ -120,12 +126,14 @@ export async function loadSkills(
 
 			seen.add(name);
 			/*
-			 * Both spellings, the hyphenated one first. `normalizeKeys` only copies `allowed-tools` to
-			 * `allowedTools`, so a skill written with the camelCase key the guide documents was read as
-			 * "no limit" — the one failure a limit must not have. When an author writes both, each key
-			 * keeps its own value and the hyphenated form, shared with SKILL.md elsewhere, decides.
+			 * The hyphenated spelling is read first. `normalizeKeys` makes `allowedTools` an alias of
+			 * `allowed-tools`, except when an author writes both: then each key keeps its own value, and
+			 * reading the alias alone would let the camelCase one win. The hyphenated form is the
+			 * documented one, shared with Claude Code's SKILL.md, so it is the one that decides.
 			 */
 			const tools = frontmatter["allowed-tools"] ?? frontmatter.allowedTools;
+			const allowed = readAllowedTools(tools);
+			for (const problem of allowed.problems) diagnostics.push({ path: file, message: problem, severity: "warning" });
 			skills.push({
 				name,
 				description,
@@ -133,8 +141,8 @@ export async function loadSkills(
 				path: file,
 				dir: skillDir,
 				source,
-				allowedTools: Array.isArray(tools) ? (tools as unknown[]).filter((t): t is string => typeof t === "string") : undefined,
-				disableModelInvocation: frontmatter["disable-model-invocation"] === true || frontmatter.disableModelInvocation === true,
+				allowedTools: allowed.tools,
+				disableModelInvocation: (frontmatter["disable-model-invocation"] ?? frontmatter.disableModelInvocation) === true,
 			});
 		}
 	}
@@ -200,7 +208,23 @@ export function parseFrontmatter(raw: string): ParsedFrontmatter | UnparsableFro
 /** Wrap a skill body for injection, telling the model where its relative paths resolve. */
 export function formatSkillInvocation(skill: Skill, extra?: string): string {
 	const header = `<skill name="${skill.name}" dir="${skill.dir}">\nFile references inside this skill are relative to ${skill.dir}.\n\n`;
-	return `${header}${skill.content}\n</skill>${extra ? `\n\n${extra}` : ""}`;
+	return `${header}${expandSkillPaths(skill)}\n</skill>${extra ? `\n\n${extra}` : ""}`;
+}
+
+/**
+ * A skill written for Claude Code names its own files through two variables: `${CLAUDE_SKILL_DIR}`
+ * (this skill's directory) and `${CLAUDE_PLUGIN_ROOT}` (the bundle it shipped in). Nothing replaced
+ * them here, so the model was told to run `python ${CLAUDE_SKILL_DIR}/scripts/search.py` and ran it
+ * literally — against a path that does not exist. Filled in with the real directories, absolute,
+ * because the agent's working directory is the user's project, not the skill.
+ *
+ * A loose skill has no bundle; its plugin root is taken to be its own directory, which is where
+ * anything it names relative to "the plugin" would have to be for it to work at all.
+ */
+export function expandSkillPaths(skill: Skill): string {
+	return skill.content
+		.replaceAll("${CLAUDE_SKILL_DIR}", skill.dir)
+		.replaceAll("${CLAUDE_PLUGIN_ROOT}", skill.pluginRoot ?? skill.dir);
 }
 
 /** The compact catalogue injected into the system prompt. */

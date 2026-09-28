@@ -6,7 +6,7 @@ import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } fr
 import { highlightGeneration, loadFenceLanguage, onHighlightChange, sharedHighlightStyle, tokenize } from "../../lib/code/highlight.ts";
 import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 import { useSide, openScopedPanel } from "../dock/index.ts";
-import { useScopedSessionId } from "../../app/session-scope.tsx";
+import { useDockScope } from "../../app/session-scope.tsx";
 
 /**
  * Fences that are commands rather than code.
@@ -54,13 +54,17 @@ function commandFrom(code: string): string {
 }
 
 export function CodeBlock({ lang, code }: { lang: string; code: string }) {
-	// The screen this block is on, by the key its dock uses: its session id, or `@draft`.
-	const screen = useScopedSessionId() ?? "@draft";
 	const [copied, setCopied] = useState(false);
 	const [wrap, setWrap] = useState(false);
 	const label = lang.toLowerCase() || "text";
 	const look = lookFor(`code.${LANG_EXTENSION[label] ?? label}`, false);
 	const [language, setLanguage] = useState<Language | null>(null);
+	/*
+	 * The screen this block is drawn in, which the command belongs to. Named for both halves of
+	 * 「在终端运行」 — where the terminal opens and which terminal runs it — because the keyboard
+	 * presses the button without giving this screen the focus, and both halves used to follow the focus.
+	 */
+	const screen = useDockScope();
 
 	/*
 	 * Grammar fetched per language, colouring recomputed per edit.
@@ -123,10 +127,10 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 					<CodeAction
 						tip={translate("codeBlock.runInTerminal")}
 						onClick={() => {
-							// 这一屏的终端来接，不是焦点屏的——见 `pendingFor`。
-							useSide.getState().runInTerminal(commandFrom(code), screen);
 							// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
-							openScopedPanel("terminal", undefined, screen);
+							const at = openScopedPanel("terminal", undefined, screen ?? undefined);
+							// For that terminal, wherever the request landed: a command nobody's terminal takes is lost.
+							useSide.getState().runInTerminal(commandFrom(code), at);
 						}}
 					>
 						<Play size={14} strokeWidth={1.9} />

@@ -13,6 +13,7 @@ import type { MessageAttachment, UserContent } from "@lyra/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
 import { expandCommand, parseInvocation, parseSkillMention, resolveCommand, skillNameOf } from "@lyra/core/commands-view";
 
+import { formatList } from "../../i18n/list.ts";
 import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { skillCommandName } from "./command-catalog.ts";
 import { bridge } from "../../services/index.ts";
@@ -328,8 +329,8 @@ export function queuePreview(draft: OutgoingDraft): string {
 	const text = draft.text.trim();
 	if (text) return text;
 	const named = draft.attachments.map((file) => file.name).filter(Boolean);
-	if (named.length > 0) return named.join("、");
-	return draft.sessionRefs.map((session) => session.title).join("、");
+	if (named.length > 0) return formatList(named);
+	return formatList(draft.sessionRefs.map((session) => session.title));
 }
 
 /** 条上那个缩略图：第一张真的带着像素的图片。 */

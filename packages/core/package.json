@@ -1,6 +1,6 @@
 {
 	"name": "@lyra/core",
-	"version": "0.9.19",
+	"version": "0.9.20",
 	"private": true,
 	"type": "module",
 	"description": "Lyra agent kernel: providers, agent loop, tools, skills, MCP, sessions",
@@ -23,6 +23,7 @@
 		"./commands-builtin": "./src/commands/builtin.ts",
 		"./rules-condition": "./src/rules/condition.ts",
 		"./install-record": "./src/plugins/install-record.ts",
+		"./mcp-placeholders": "./src/mcp/placeholders.ts",
 		"./sandbox-runner": "./src/sandbox/runner-entry.ts"
 	},
 	"scripts": {

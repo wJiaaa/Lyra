@@ -19,6 +19,9 @@ import { projectFolders } from "@lyra/core/project-folders";
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
 
+/** Paths being read for `describeWorkspace`: every screen on one project asks at once. */
+const describing = new Set<string>();
+
 export function workspaceSlice(set: Set, get: Get) {
   return {
   async pickWorkspace() {
@@ -97,15 +100,43 @@ export function workspaceSlice(set: Set, get: Get) {
     });
   },
 
-  setSwitchingBranch(switchingBranch: string | null) {
+  setSwitchingBranch(switchingBranch: { path: string; branch: string } | null) {
     set({ switchingBranch });
   },
 
-  async refreshWorkspace() {
-    const current = get().workspace;
-    if (!current) return;
-    const workspace = await bridge.workspace.info(current.path);
-    if (workspace) set({ workspace });
+  async refreshWorkspace(path?: string) {
+    const target = path ?? get().workspace?.path;
+    if (!target) return;
+    const workspace = await bridge.workspace.info(target);
+    if (!workspace) return;
+    if (get().workspace?.path === target) set({ workspace });
+    /*
+     * And the copy the other screens read, when a screen named the project.
+     *
+     * A screen away from the live slot names its project from `workspaceByPath`. Re-reading only the
+     * live slot left a switch made under that screen unsaid there — its chip kept the branch git had
+     * already left — and, with both screens on one repository, left the two chips disagreeing.
+     */
+    if (path !== undefined) {
+      const named = get().settings?.projects.find((project) => project.path === target)?.name;
+      set({ workspaceByPath: { ...get().workspaceByPath, [target]: named ? { ...workspace, name: named } : workspace } });
+    }
+  },
+
+  async describeWorkspace(path: string) {
+    if (describing.has(path)) return;
+    describing.add(path);
+    try {
+      const workspace = await bridge.workspace.info(path);
+      if (!workspace) return;
+      // The name the project was given, as `openWorkspace` shows it; the directory only knows its own.
+      const named = get().settings?.projects.find((project) => project.path === path)?.name;
+      set({ workspaceByPath: { ...get().workspaceByPath, [path]: named ? { ...workspace, name: named } : workspace } });
+    } catch {
+      // A screen without its branch still names its project from the conversation; nothing to report.
+    } finally {
+      describing.delete(path);
+    }
   },
 
   /**

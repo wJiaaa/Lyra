@@ -9,10 +9,12 @@ import { memo } from "react";
 import type { AssistantContent, AssistantMessage } from "@lyra/core";
 import { PreviewCard, type PreviewInfo } from "../files/index.ts";
 import { ToolCard } from "./ToolCard.tsx";
+import { DispatchFaces, useDelegation, useDispatches } from "./DelegationCard.tsx";
 import { describeRun } from "./ToolGroup.tsx";
 import { ToolGroup } from "./ToolGroup.tsx";
-import { useApp, type ToolRun as ToolRunState } from "../../store/index.ts";
-import { scopedToolRuns, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
+import type { ToolRun as ToolRunState } from "../../store/index.ts";
+import { useScopedFromToolRuns, useScopedRunning } from "../../app/session-scope.tsx";
+import type { Dispatch } from "../../lib/dispatches.ts";
 import { toolCardFallback } from "./tool-status.ts";
 import { sameRun, type Call } from "./grouping.ts";
 import { baseName } from "../../lib/paths.ts";
@@ -72,6 +74,7 @@ export function LiveToolCard({
   block,
   stopReason,
   runs,
+  dispatch,
 }: {
   block: Extract<AssistantContent, { type: "toolCall" }>;
   stopReason: AssistantMessage["stopReason"];
@@ -84,10 +87,15 @@ export function LiveToolCard({
    * and passes them in.
    */
   runs?: Record<string, ToolRunState>;
+  /** 这一张要是一次派发，整组对过号之后它是哪一个——见 `DelegationCard`。 */
+  dispatch?: Dispatch;
 }) {
-  // This screen's records: the live ones are the focused conversation's, where this card has none.
-  const scope = useScopedSessionId();
-  const stored = useApp((s) => scopedToolRuns(s, scope)[block.id]);
+  /*
+   * This screen's record of the call. The live slot's `toolRuns` are the focused conversation's, and
+   * a call in the conversation beside it is never among them: its card fell back to 「出错」 once the
+   * turn ended, and a preview never drew its page.
+   */
+  const stored = useScopedFromToolRuns((toolRuns) => toolRuns[block.id]);
   const run = runs ? runs[block.id] : stored;
   /*
    * 这一轮还在不在跑，决定没有记录的卡片怎么说话——见 `tool-status.ts`。
@@ -96,6 +104,22 @@ export function LiveToolCard({
    * 主会话此刻的状态，拿它去判子智能体的旧卡片，会让它们跟着主会话一起转圈。
    */
   const turnRunning = useScopedRunning();
+  if (block.name === "task") return <DelegationCard block={block} run={run} stopReason={stopReason} dispatch={dispatch} detached={Boolean(runs)} />;
+  return <PlainToolCard block={block} run={run} stopReason={stopReason} runs={runs} turnRunning={turnRunning} />;
+}
+
+/** 一次派发：它的脸、派给了谁、在排队还是在跑——见 `DelegationCard.tsx`。 */
+function DelegationCard(props: Parameters<typeof useDelegation>[0]) {
+  return <ToolCard {...useDelegation(props)} />;
+}
+
+function PlainToolCard({ block, run, stopReason, runs, turnRunning }: {
+  block: Extract<AssistantContent, { type: "toolCall" }>;
+  run?: ToolRunState;
+  stopReason: AssistantMessage["stopReason"];
+  runs?: Record<string, ToolRunState>;
+  turnRunning: boolean;
+}) {
   /*
    * A preview replaces its own tool card.
    *
@@ -171,17 +195,21 @@ const ToolRunGroup = function ToolRun({
    * events nobody witnessed was standing in for.
    */
   const summary = describeRun(calls.map(({ block }) => ({ toolName: block.name, subject: subjectOf(block) })));
-  // Totals across the run, so a fold does not hide how much changed.
-  const scope = useScopedSessionId();
-  const added = useApp((s) => calls.reduce((n, { block }) => n + diffOf((runs ?? scopedToolRuns(s, scope))[block.id], "added"), 0));
-  const removed = useApp((s) => calls.reduce((n, { block }) => n + diffOf((runs ?? scopedToolRuns(s, scope))[block.id], "removed"), 0));
+  // Totals across the run, so a fold does not hide how much changed — counted from this screen's records.
+  const added = useScopedFromToolRuns((toolRuns) => calls.reduce((n, { block }) => n + diffOf((runs ?? toolRuns)[block.id], "added"), 0));
+  const removed = useScopedFromToolRuns((toolRuns) => calls.reduce((n, { block }) => n + diffOf((runs ?? toolRuns)[block.id], "removed"), 0));
+
+  // 这一段里派出去的子智能体：整组一起对号，收起时行尾摆一排它们的脸。见 `useDispatches`。
+  const dispatches = useDispatches(calls.map(({ block }) => block), runs);
+  const byCall = new Map(dispatches.map((one) => [one.callId, one]));
 
   const cards = calls.map(({ block, stopReason }) => (
-    <LiveToolCard key={block.id} block={block} stopReason={stopReason} runs={runs} />
+    <LiveToolCard key={block.id} block={block} stopReason={stopReason} runs={runs} dispatch={byCall.get(block.id)} />
   ));
 
   return (
-    <ToolGroup stateKey={runs ? undefined : `tools-${calls[0].block.id}`} summary={summary} added={added} removed={removed} running={Boolean(live)}>
+    <ToolGroup stateKey={runs ? undefined : `tools-${calls[0].block.id}`} summary={summary} added={added} removed={removed} running={Boolean(live)}
+      extra={dispatches.length > 0 ? <DispatchFaces dispatches={dispatches} /> : undefined}>
       {cards}
     </ToolGroup>
   );

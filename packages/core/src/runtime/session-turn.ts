@@ -42,6 +42,7 @@ import { reconcilePrompt, type PromptContext } from "../prompt/context.ts";
 import { currentSections, diffSections, promptSections, promptUpdateMessage } from "../prompt/update.ts";
 import { buildTurnConfig } from "./turn-config.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
+import type { DelegationWaits } from "./delegation-waits.ts";
 
 export interface TurnInputs {
 	cwd: string;
@@ -72,6 +73,8 @@ export interface TurnInputs {
 	drainSteering: () => Message[];
 	/** Where sub-agents dispatched by this turn register — see `runtime/sub-agents.ts`. */
 	subAgents?: SubAgentRegistry;
+	/** 这一轮在等的派发，人一开口就放手——见 `delegation-waits.ts`。 */
+	delegations?: DelegationWaits;
 	/** 这场对话此刻设定的模型——一轮之内也会变。见 `AgentRunConfig.liveModel`。 */
 	liveModel?: AgentRunConfig["liveModel"];
 }
@@ -343,6 +346,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 			allowedPaths: collectAllowedPaths(log.messages),
 			// Where anything this turn delegates registers itself, so it can be watched and steered.
 			subAgents: input.subAgents,
+			delegations: input.delegations,
 			liveModel: input.liveModel,
 			signal: input.signal,
 			streamFn: input.streamFn,
