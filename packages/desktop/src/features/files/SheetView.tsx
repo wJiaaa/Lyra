@@ -19,6 +19,7 @@ import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
 import { bridge } from "../../services/index.ts";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 /** Numbers line up on the right; everything else reads from the left. */
 const NUMERIC = /^-?[\d,]+(\.\d+)?%?$/;
@@ -126,17 +127,16 @@ export function SheetView({ path }: { path: string }) {
 			 */}
 			<Sideways trackRef={sheetTabs} outerClassName="shrink-0" className="flex items-center gap-1 overflow-x-auto border-t border-line px-2 py-1.5">
 				{data.sheets.map((entry, index) => (
-					<button
+					<Button
 						key={entry.name}
-						type="button"
+						variant="subtle"
+						size="xs"
+						pressed={index === active}
 						onClick={() => setActive(index)}
-						className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-caption transition-colors ${
-							index === active ? "bg-card-hover text-ink" : "text-ink-muted hover:bg-card-hover hover:text-ink"
-						}`}
+						icon={data.kind === "tables" ? <Database size={11} strokeWidth={1.9} /> : <Table2 size={11} strokeWidth={1.9} />}
 					>
-						{data.kind === "tables" ? <Database size={11} strokeWidth={1.9} /> : <Table2 size={11} strokeWidth={1.9} />}
 						<span className="max-w-[160px] truncate">{entry.name}</span>
-					</button>
+					</Button>
 				))}
 				<span className="ml-auto shrink-0 pr-1">
 					<Text size="caption" tone="faint" numeric>

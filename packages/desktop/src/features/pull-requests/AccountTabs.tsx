@@ -20,6 +20,7 @@ import type { ForgeAccount } from "../../../electron/ipc-types.ts";
 import { Avatar } from "./Avatar.tsx";
 import { useRef } from "react";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 
 export function AccountTabs({
 	accounts,
@@ -92,19 +93,10 @@ function Tab({
 	onClick: () => void;
 }) {
 	return (
-		<button
-			type="button"
-			onClick={onClick}
-			data-ly-tip={tip}
-			aria-pressed={active}
-			className={`flex h-[26px] max-w-[140px] shrink-0 items-center gap-1.5 rounded-lg pr-2.5 text-label whitespace-nowrap transition-colors ${
-				icon ? "pl-1.5" : "pl-2.5"
-			} ${active ? "bg-card-hover text-ink" : "text-ink-muted hover:text-ink"}`}
-		>
-			{icon}
+		<Button variant="subtle" size="sm" label={tip} pressed={active} onClick={onClick} icon={icon} className="max-w-[140px]">
 			<span className="min-w-0 truncate">{label}</span>
 			{/* Marks the tab rather than the list, so a failing account is visible from any tab. */}
 			{failing && <span aria-hidden className="h-[5px] w-[5px] shrink-0 rounded-full bg-danger" />}
-		</button>
+		</Button>
 	);
 }

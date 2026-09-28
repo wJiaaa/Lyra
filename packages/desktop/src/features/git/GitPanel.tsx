@@ -790,29 +790,35 @@ export function GitPanel() {
 
       {/* One row of views, counted where a count means something. */}
       <div ref={navRef} className="flex shrink-0 items-center gap-0.5 px-1.5 pb-1.5">
-        {VIEWS.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            aria-label={t(entry.labelKey)}
-            aria-pressed={view === entry.id}
-            data-ly-tip={narrowNav ? `${t(entry.labelKey)}${entry.id === "changes" && changeCount > 0 ? ` (${changeCount})` : ""}` : undefined}
-            onClick={() => setView(entry.id)}
-            className={`flex h-[26px] shrink-0 items-center gap-1.5 rounded-lg text-detail transition-colors duration-[var(--ly-t-quick)] ${
-              narrowNav ? "px-2" : "px-2.5"
-            } ${
-              view === entry.id
-                ? "bg-card-hover text-ink"
-                : "text-ink-muted hover:bg-card-hover/60"
-            }`}
-          >
-            <entry.icon size={12.5} strokeWidth={1.8} className="shrink-0" />
-            {!narrowNav && <span className="truncate">{t(entry.labelKey)}</span>}
-            {entry.id === "changes" && changeCount > 0 && (
-              <CountUp value={changeCount} className="text-ink-faint tabular-nums" />
-            )}
-          </button>
-        ))}
+        {VIEWS.map((entry) => {
+          const count = entry.id === "changes" && changeCount > 0 ? changeCount : null;
+          const icon = <entry.icon size={12.5} strokeWidth={1.8} className="shrink-0" />;
+          // Narrow: the word goes into the tooltip and the count onto the corner, so four views still fit.
+          return narrowNav ? (
+            <IconButton
+              key={entry.id}
+              label={`${t(entry.labelKey)}${count ? ` (${count})` : ""}`}
+              ariaLabel={t(entry.labelKey)}
+              active={view === entry.id}
+              badge={count}
+              onClick={() => setView(entry.id)}
+              icon={icon}
+            />
+          ) : (
+            <Button
+              key={entry.id}
+              variant="subtle"
+              size="sm"
+              ariaLabel={t(entry.labelKey)}
+              pressed={view === entry.id}
+              onClick={() => setView(entry.id)}
+              icon={icon}
+            >
+              <span className="truncate">{t(entry.labelKey)}</span>
+              {count && <CountUp value={count} className="text-ink-faint tabular-nums" />}
+            </Button>
+          );
+        })}
       </div>
 
       <RetainedViews key={cwd} active={view} limit={4} render={(shown) => <>
