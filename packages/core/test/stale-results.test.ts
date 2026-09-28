@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CACHE_TTL_MS, CHEAP_SUFFIX_CHARS, sizePruneSaving, worthPruning } from "../src/runtime/prune.ts";
+import { CACHE_TTL_MS, CHEAP_SUFFIX_CHARS, PRUNE_THRESHOLD_CHARS, pruneToolResults, sizePruneSaving, worthPruning } from "../src/runtime/prune.ts";
 import { dropStaleResults } from "../src/runtime/stale-results.ts";
 import { AgedToolPruner } from "../src/runtime/aged-prune.ts";
 import { emptyUsage, type Message, type ToolResultMessage } from "../src/types.ts";
@@ -225,11 +225,39 @@ test("net-benefit worthPruning lets a large cut through a warm tail the old 32k 
 	assert.equal(worthPruning(messages, 0, { lastRequestAt: now, now }, 90_000), true);
 });
 
-test("the live pruner blanks a superseded read without waiting twenty rounds", () => {
+test("the live pruner blanks a superseded read at the batch or once the cache is cold, not on a warm request", () => {
 	const first = result("a", "read", "snapshot ".repeat(80));
 	const history = [assistant("a", "read", { path: "a.ts" }), first, assistant("b", "read", { path: "a.ts" }), result("b", "read", "now", shown(1, 40, 40))];
 	const next = new AgedToolPruner().prepare(history);
-	assert.notEqual(next, history);
+	assert.notEqual(next, history, "the first request of a pruner is a batch");
 	assert.match(JSON.stringify(next[1]), /superseded/);
 	assert.equal(first.content[0].type === "text" && first.content[0].text.startsWith("snapshot"), true);
+
+	const pruner = new AgedToolPruner();
+	pruner.prepare([user("开始")]);
+	assert.equal(pruner.prepare(history, { lastRequestAt: 0, now: 1000 }), history, "a warm prefix is not rewritten for a stale read alone");
+	assert.match(JSON.stringify(pruner.prepare(history, { lastRequestAt: 0, now: CACHE_TTL_MS })[1]), /superseded/);
+});
+
+test("a later full read that size-pruning will cut to head and tail does not blank the window read before it", () => {
+	// Lines 180–214 read first, then the whole file: the whole file is over the size threshold, so
+	// the view that goes out keeps only its head and tail — the middle survives only in the first read.
+	const body = "the function body at lines 180-214 ".repeat(20);
+	const whole = "line of the file\n".repeat(Math.ceil((PRUNE_THRESHOLD_CHARS * 2) / 17));
+	const history = [
+		assistant("a", "read", { path: "prune.ts", offset: 180, limit: 35 }),
+		result("a", "read", body, shown(180, 214, 1000)),
+		assistant("b", "read", { path: "prune.ts" }),
+		result("b", "read", whole, shown(1, 1000, 1000)),
+	];
+	assert.equal((dropStaleResults(history)[1].content[0] as { text: string }).text, body, "not superseded by a result that will not go out whole");
+	const sent = new AgedToolPruner().prepare(history);
+	assert.equal((sent[1].content[0] as { text: string }).text, body, "the live pruner keeps it too");
+});
+
+test("a later read already cut to head and tail covers nothing", () => {
+	const body = "the function body ".repeat(40);
+	const [cut] = pruneToolResults([result("b", "read", "x".repeat(PRUNE_THRESHOLD_CHARS * 2), shown(1, 1000, 1000))]);
+	const history = [assistant("a", "read", { path: "f.ts", offset: 180, limit: 35 }), result("a", "read", body, shown(180, 214, 1000)), assistant("b", "read", { path: "f.ts" }), cut];
+	assert.equal((dropStaleResults(history)[1].content[0] as { text: string }).text, body);
 });

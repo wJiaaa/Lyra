@@ -17,7 +17,7 @@
 import type { Message, ToolResultMessage } from "../types.ts";
 import { isRepeatNotice } from "../agent/repetition.ts";
 import { MAX_LINE_CHARS } from "../tools/long-line.ts";
-import { firstAffordableCut, PRUNE_FLOOR_CHARS, type PruneTiming } from "./prune.ts";
+import { firstAffordableCut, PRUNE_FLOOR_CHARS, PRUNE_THRESHOLD_CHARS, sourceOf, type PruneTiming } from "./prune.ts";
 
 const PROTECTED = new Set(["skill"]);
 
@@ -53,8 +53,10 @@ export function staleCuts(messages: Message[]): StaleCut[] {
 		 * What a read covers is what came back, not what was asked for: a bare read of a long
 		 * source file returns an outline with every body folded, and a wide window can stop at the
 		 * output budget. Judging by the arguments blanked bodies the model had read and never saw again.
+		 * And only a result that goes out as it came back: `details` still describes the span after a
+		 * size cut has left a head and a tail, so trusting it lost the middle from both reads.
 		 */
-		const returned = isRead && !message.isError ? returnedWindow(message.details, call.arguments) : undefined;
+		const returned = isRead && !message.isError && goesOutWhole(message) ? returnedWindow(message.details, call.arguments) : undefined;
 		const duplicate = seenExact.has(fingerprint);
 		const superseded =
 			!message.isError &&
@@ -138,6 +140,19 @@ function returnedWindow(details: unknown, args: Record<string, unknown>): Window
 	const total = numberOf(d.totalLines);
 	if (from === undefined || to === undefined) return undefined;
 	return { from, to: from <= 1 && total !== undefined && to >= total ? Number.POSITIVE_INFINITY : to, ...charSpan(args) };
+}
+
+/**
+ * Whether this result reaches the model as it came back, now and later.
+ *
+ * A view derived from the logged result has been rewritten already. One over the size threshold is
+ * cut to head and tail by the aged pruner — in this same pass, or in a later batch — and the earlier
+ * read it would have replaced is then the only copy of its middle.
+ */
+function goesOutWhole(message: ToolResultMessage): boolean {
+	if (sourceOf(message) !== message) return false;
+	const chars = message.content.reduce((sum, block) => sum + (block.type === "text" ? [...block.text].length : 0), 0);
+	return chars <= PRUNE_THRESHOLD_CHARS;
 }
 
 /** The most an earlier read can have shown — what it asked for. Only used as the side being covered. */
