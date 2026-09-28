@@ -11,6 +11,19 @@ import { useEffect, useState } from "react";
 import { NumberField } from "./pickers.tsx";
 import { contrastingInk, parseHex } from "./theme.ts";
 
+/**
+ * 能解析的颜色统一写成 `#RRGGBB`，解析不了是 null。
+ *
+ * `parseHex` 容许不带 `#`，CSS 不容许。之前输入框把手打的 `1A1C1F` 原样存下，又原样拿去当色块的
+ * `background`——那条声明失效，色块透明，字却按深色底算成白色，整格在白色的行上看不见。显示和保存都
+ * 走这一个出口，已经存成没有 `#` 的旧值也能正常显示，下次改动时顺带存回规范写法。
+ */
+function canonical(text: string): string | null {
+	const rgb = parseHex(text);
+	if (!rgb) return null;
+	return `#${[rgb.r, rgb.g, rgb.b].map((v) => v.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+}
+
 export function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
 	return (
 		<div className="flex items-center justify-between border-b border-line-soft px-4 py-3 last:border-b-0">
@@ -37,20 +50,21 @@ export function ColorField({
 	/** 给读屏用的名字。色块里只有一串十六进制，听不出它是哪一项的颜色。 */
 	label: string;
 }) {
-	const [draft, setDraft] = useState(value);
-	const valid = parseHex(draft) !== null;
+	const [draft, setDraft] = useState(() => canonical(value) ?? value);
+	const swatch = canonical(draft);
+	const valid = swatch !== null;
 
 	// Switching theme swaps which colour this row edits. Without this the field kept showing
 	// the dark value after switching to light, since useState only seeds on first render.
-	// The case-insensitive compare keeps the user's own typing from being rewritten mid-edit.
+	// Comparing the parsed colours keeps the user's own typing from being rewritten mid-edit.
 	useEffect(() => {
-		setDraft((current) => (current.toUpperCase() === value.toUpperCase() ? current : value));
+		setDraft((current) => (canonical(current) === canonical(value) ? current : (canonical(value) ?? value)));
 	}, [value]);
 
 	return (
 		<label
 			className="flex h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2.5 transition-colors"
-			style={{ background: valid ? draft : "transparent", color: valid ? contrastingInk(draft) : undefined }}
+			style={{ background: swatch ?? "transparent", color: swatch ? contrastingInk(swatch) : undefined }}
 		>
 			<span className="h-3.5 w-3.5 rounded-full border border-current opacity-60" />
 			<Input
@@ -58,9 +72,10 @@ export function ColorField({
 				onChange={(e) => {
 					setDraft(e.target.value);
 					// Apply as soon as it parses, so dragging through values previews live.
-					if (parseHex(e.target.value)) onChange(e.target.value.toUpperCase());
+					const next = canonical(e.target.value);
+					if (next) onChange(next);
 				}}
-				onBlur={() => !valid && setDraft(value)}
+				onBlur={() => !valid && setDraft(canonical(value) ?? value)}
 				spellCheck={false}
 				aria-label={label}
 				className={`w-[74px] bg-transparent font-mono text-label tracking-wide ${valid ? "" : "text-danger"}`}
