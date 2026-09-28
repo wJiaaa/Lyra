@@ -13,6 +13,7 @@ import { Check, MoreVertical } from "lucide-react";
 import { emptyDockTree, has, toggleScopedPanel, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
 import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";
+import { nextPanelKind } from "../../lib/panel-instance.ts";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";
 import { MAIN_WINDOW_ROW_OFFSET, NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
@@ -104,15 +105,15 @@ export function WindowHeader({
 /**
  * The panels that get a button of their own, in the order they sit in.
  *
- * A shortlist, not the whole registry. These are the three you reach for while working — a shell,
- * a page, the diff — and reaching for them through two clicks of a menu is two clicks too many.
- * Everything else, including anything a plugin contributes, is in the menu beside them, which is
- * also where these three appear when they cannot be opened.
+ * A shortlist, not the whole registry. These are the ones you reach for while working — a side
+ * chat, a shell, a page, the diff — and reaching for them through two clicks of a menu is two
+ * clicks too many. Everything else, including anything a plugin contributes, is in the menu beside
+ * them, which is also where these appear when they cannot be opened.
  */
-const QUICK: PanelKind[] = ["terminal", "browser", "review"];
+const QUICK: PanelKind[] = ["chat", "terminal", "browser", "review"];
 
 /**
- * Which panels this conversation has open: three buttons and a menu.
+ * Which panels this conversation has open: a few buttons and a menu.
  *
  * Rendered *inside the conversation's own title bar* rather than in a toolbar of its own. A toolbar
  * cost a whole row of the window and put these buttons on a different line from the pane titles
@@ -146,8 +147,9 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 						<ToolbarButton
 							key={kind}
 							label={`${t(def.label)} ${def.shortcut}`}
-							active={has(tree, kind)}
-							onClick={() => toggle(kind)}
+							// 侧边聊天能开好几个：每点一次再开一个，和标签栏「+」一样，所以也没有开着/关着之分。
+							active={kind !== "chat" && has(tree, kind)}
+							onClick={() => (kind === "chat" ? open(nextPanelKind("chat", (each) => has(tree, each))) : toggle(kind))}
 						>
 							<def.icon size={13} strokeWidth={1.9} />
 						</ToolbarButton>
