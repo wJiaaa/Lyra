@@ -26,9 +26,10 @@ import { Button } from "../../ui/primitives/Button.tsx";
  * redraw, no Ctrl-C, and anything full-screen — an editor, a pager, an interactive installer —
  * is simply unusable. Those are most of the reasons to want a terminal at all.
  *
- * The shell is not owned here. It lives in the main process, and this connects to whichever one the
- * tab strip has selected. So this component mounting is not a terminal starting, and it unmounting
- * is not one ending — see `electron/terminal-registry.ts`.
+ * The shell is not owned here. It lives in the main process, and this connects to whichever one this
+ * pane has selected — each terminal is its own tab of the dock, see `scope.ts`. So this component
+ * mounting is not a terminal starting, and it unmounting is not one ending — see
+ * `electron/terminal-registry.ts`.
  *
  * Nor is it owned by the project. Everything in here used to be keyed by the current directory, so
  * changing projects tore the terminal down and built another, and leaving every project left the
@@ -36,7 +37,7 @@ import { Button } from "../../ui/primitives/Button.tsx";
  * decides one thing only: where a shell starts when you ask for a new one.
  */
 export function TerminalPane() {
-	const { active, scope, cwd: scopedCwd } = useTerminalScope();
+	const { active, scope, slot, instance, cwd: scopedCwd } = useTerminalScope();
 	const appearance = useApp((s) => s.settings?.appearance);
 	const host = useRef<HTMLDivElement>(null);
 	const term = useRef<Terminal | null>(null);
@@ -80,6 +81,8 @@ export function TerminalPane() {
 		 */
 		const owner = useSide.getState().pendingScreen ?? (useApp.getState().activeSessionId ?? "@draft");
 		if (scope !== undefined && scope !== owner) return;
+		// 一屏开着好几格终端时，交给最早那一格——「在终端运行」打开、切过去的就是它。
+		if (instance) return;
 		if (useSide.getState().pendingCommand !== pending) return;
 		/*
 		 * Claimed before it is written, not after.
@@ -92,7 +95,7 @@ export function TerminalPane() {
 		useSide.getState().commandTaken();
 		bridge.terminal.write(id, `${pending}\r`);
 		term.current?.focus();
-	}, [pending, ready, scope]);
+	}, [pending, ready, scope, instance]);
 
 
 	/**
@@ -117,8 +120,7 @@ export function TerminalPane() {
 	/*
 	 * Find out what is already running before drawing anything.
 	 *
-	 * Coming back to two shells should show two tabs and the one that was in front, not a third
-	 * shell nobody asked for. Only when there is genuinely nothing does this open one — which is
+	 * Coming back to a shell should show that shell, not a second one nobody asked for. Only when there is genuinely nothing does this open one — which is
 	 * the first-ever visit, and the only time a terminal is actually started by looking at it.
 	 *
 	 * Once, on mount. A shell is not a view of the current project, so there is nothing here for a
@@ -143,9 +145,9 @@ export function TerminalPane() {
 			 * question — see the note below about a pane titled A showing B's shell.
 			 */
 			if (bridge.bootWindow?.kind === "panel") {
-				const saved = savedTerminal(scope);
+				const saved = savedTerminal(slot);
 				if (saved && tabs.some((tab) => tab.id === saved)) {
-					useTerminals.getState().select(saved, scope);
+					useTerminals.getState().select(saved, slot);
 					return;
 				}
 			}
@@ -199,12 +201,16 @@ export function TerminalPane() {
 		if (cancelled()) return;
 		const state = useTerminals.getState();
 		const known = new Set(state.tabs.map((tab) => tab.id));
-		const claimed = new Set(Object.entries(state.activeByScope).filter(([owner]) => owner !== scope).map(([, id]) => id));
-		const saved = savedTerminal(scope);
+		const claimed = new Set(Object.entries(state.activeByScope).filter(([owner]) => owner !== slot).map(([, id]) => id));
+		const saved = savedTerminal(slot);
+		/*
+		 * 后开的那一格只认自己记着的那个：它是人点「再开一个」要的，给它一个没人在看的旧 shell 就不是
+		 * 「新的终端」了。接手没人看的 shell 只是最早那一格的事——启动时预热的那个就是这样接上的。
+		 */
 		const mine = here.find((tab) => tab.id === saved && !claimed.has(tab.id))
-			?? here.find((tab) => known.has(tab.id) && !claimed.has(tab.id));
+			?? (instance ? undefined : here.find((tab) => known.has(tab.id) && !claimed.has(tab.id)));
 		if (mine) {
-			useTerminals.getState().select(mine.id, scope);
+			useTerminals.getState().select(mine.id, slot);
 			return;
 		}
 		const opened = await bridge.terminal.open(cwd, Math.max(10, size.current.cols), Math.max(4, size.current.rows));
@@ -214,7 +220,7 @@ export function TerminalPane() {
 		 * shell 已经在主进程里起来了；这时候丢掉它，就多了一个没有标签、谁也够不着的 pty。
 		 * 加进去最多是多一个标签，那是看得见、关得掉的。
 		 */
-		useTerminals.getState().add({ id: opened.id, title: opened.title }, scope);
+		useTerminals.getState().add({ id: opened.id, title: opened.title }, slot);
 	};
 
 	/*
@@ -378,8 +384,8 @@ export function TerminalPane() {
 		let typing: { dispose(): void } | null = null;
 
 		void bridge.terminal.attach(active, terminal.cols, terminal.rows).then((connected) => {
-			// The shell can exit while the pane is away; the list effect above notices and moves
-			// the strip on, which brings us back here with a tab that does exist.
+			// The shell can exit while the pane is away; the exit listener above drops it and the
+			// pane falls back to its empty state, offering a new one.
 			if (!connected) return;
 			const { id, epoch, replay } = connected;
 			// The panel can be closed before the shell finishes connecting.
@@ -582,7 +588,7 @@ export function TerminalPane() {
 						onClick={() => {
 							// The measured size, like everywhere else a shell is started — see `size`.
 							void bridge.terminal.open(startingCwd(), Math.max(10, size.current.cols), Math.max(4, size.current.rows)).then((opened) => {
-								useTerminals.getState().add({ id: opened.id, title: opened.title }, scope);
+								useTerminals.getState().add({ id: opened.id, title: opened.title }, slot);
 							});
 						}}
 						icon={<Plus size={16} strokeWidth={1.9} aria-hidden />}

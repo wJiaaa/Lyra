@@ -5,6 +5,8 @@ import { DURATION, EASING } from "../../ui/motion/tokens.ts";
 interface Props extends HTMLAttributes<HTMLDivElement> {
 	carried: boolean;
 	isHidden: boolean;
+	/** 挂上来时不淡入——它不是新出现的一块，是顶替同一位置上已经在显示的那一块。见 `DockView`。 */
+	quietEntrance?: boolean;
 	header: ReactNode;
 }
 
@@ -18,7 +20,8 @@ export class PaneSurface extends Component<Props, Record<string, never>, Snapsho
 	private element = createRef<HTMLDivElement>();
 	private surface = createRef<HTMLDivElement>();
 	private motions: Animation[] = [];
-	private retained = false;
+	// 只在挂上的那一刻读：之后被藏过一次就一直算「挂过」，由 render 接着管。
+	private retained = Boolean(this.props.quietEntrance);
 
 	// Hooks run after DOM mutations. A snapshot is needed before React writes the new box,
 	// including the current visual position when a user reverses an unfinished transition.
@@ -85,7 +88,7 @@ export class PaneSurface extends Component<Props, Record<string, never>, Snapsho
 	}
 
 	override render() {
-		const { carried: _carried, isHidden: _hidden, header, children, ...props } = this.props;
+		const { carried: _carried, isHidden: _hidden, quietEntrance: _quiet, header, children, ...props } = this.props;
 		if (this.props.isHidden) this.retained = true;
 		return <div {...props} ref={this.element} inert={this.props.isHidden} data-dock-retained={this.retained ? "" : undefined}>
 			{header}

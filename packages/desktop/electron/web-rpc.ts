@@ -91,6 +91,7 @@ export interface RpcDeps {
 	sideChatEditAndResend: LyraApi["sideChat"]["editAndResend"];
 	sideChatAbort: LyraApi["sideChat"]["abort"];
 	sideChatReset: LyraApi["sideChat"]["reset"];
+	sideChatClose: LyraApi["sideChat"]["close"];
 	tasksList: LyraApi["tasks"]["list"];
 	tasksCancel: LyraApi["tasks"]["cancel"];
 	tasksDismiss: LyraApi["tasks"]["dismiss"];
@@ -298,13 +299,14 @@ export const RPC: Record<string, Handler> = {
 	"subAgents.abort": async (deps, [sessionId, id]) => deps.live(s(sessionId))?.abortSubAgent(s(id)) ?? false,
 	"subAgents.dismiss": async (deps, [sessionId, id]) => deps.live(s(sessionId))?.dismissSubAgent(s(id)) ?? "unknown",
 	"subAgents.dismissFinished": async (deps, [sessionId]) => deps.live(s(sessionId))?.dismissFinishedSubAgents() ?? 0,
-	"sideChat.setModel": async (deps, [sessionId, modelId]) => deps.sideChatSetModel(s(sessionId), modelId === null ? null : s(modelId)),
-	"sideChat.state": async (deps, [sessionId]) => deps.sideChatState(s(sessionId)),
-	"sideChat.ask": async (deps, [sessionId, content_, options]) => deps.sideChatAsk(s(sessionId), promptContent(content_), thinkingOnly(options)),
-	"sideChat.editAndResend": async (deps, [sessionId, messageIndex, content_]) =>
-		deps.sideChatEditAndResend(s(sessionId), Number(messageIndex), promptContent(content_)),
-	"sideChat.abort": async (deps, [sessionId]) => deps.sideChatAbort(s(sessionId)),
-	"sideChat.reset": async (deps, [sessionId]) => deps.sideChatReset(s(sessionId)),
+	"sideChat.setModel": async (deps, [sessionId, sideId, modelId]) => deps.sideChatSetModel(s(sessionId), s(sideId), modelId === null ? null : s(modelId)),
+	"sideChat.state": async (deps, [sessionId, sideId]) => deps.sideChatState(s(sessionId), s(sideId)),
+	"sideChat.ask": async (deps, [sessionId, sideId, content_, options]) => deps.sideChatAsk(s(sessionId), s(sideId), promptContent(content_), thinkingOnly(options)),
+	"sideChat.editAndResend": async (deps, [sessionId, sideId, messageIndex, content_]) =>
+		deps.sideChatEditAndResend(s(sessionId), s(sideId), Number(messageIndex), promptContent(content_)),
+	"sideChat.abort": async (deps, [sessionId, sideId]) => deps.sideChatAbort(s(sessionId), s(sideId)),
+	"sideChat.reset": async (deps, [sessionId, sideId]) => deps.sideChatReset(s(sessionId), s(sideId)),
+	"sideChat.close": async (deps, [sessionId, sideId]) => deps.sideChatClose(s(sessionId), s(sideId)),
 	"tasks.list": async (deps, [sessionId]) => deps.tasksList(s(sessionId)),
 	"tasks.cancel": async (deps, [sessionId, taskId]) => deps.tasksCancel(s(sessionId), s(taskId)),
 	"tasks.dismiss": async (deps, [sessionId, taskId]) => deps.tasksDismiss(s(sessionId), s(taskId)),
@@ -458,13 +460,15 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 	"subAgents.abort": ([sessionId, id]) => fail(all(str(sessionId, "sessionId"), str(id, "id"))),
 	"subAgents.dismiss": ([sessionId, id]) => fail(all(str(sessionId, "sessionId"), str(id, "id"))),
 	"subAgents.dismissFinished": ([sessionId]) => fail(str(sessionId, "sessionId")),
-	"sideChat.setModel": ([sessionId, modelId]) => fail(all(str(sessionId, "sessionId"), nullableStr(modelId, "modelId"))),
-	"sideChat.state": ([sessionId]) => fail(str(sessionId, "sessionId")),
-	"sideChat.ask": ([sessionId, content_, options]) => fail(all(str(sessionId, "sessionId"), content(content_, "content"), optionalRecord(options, "options"))),
-	"sideChat.editAndResend": ([sessionId, messageIndex, content_]) =>
-		fail(all(str(sessionId, "sessionId"), index(messageIndex, "messageIndex"), content(content_, "content"))),
-	"sideChat.abort": ([sessionId]) => fail(str(sessionId, "sessionId")),
-	"sideChat.reset": ([sessionId]) => fail(str(sessionId, "sessionId")),
+	"sideChat.setModel": ([sessionId, sideId, modelId]) => fail(all(str(sessionId, "sessionId"), str(sideId, "sideId"), nullableStr(modelId, "modelId"))),
+	"sideChat.state": ([sessionId, sideId]) => fail(all(str(sessionId, "sessionId"), str(sideId, "sideId"))),
+	"sideChat.ask": ([sessionId, sideId, content_, options]) =>
+		fail(all(str(sessionId, "sessionId"), str(sideId, "sideId"), content(content_, "content"), optionalRecord(options, "options"))),
+	"sideChat.editAndResend": ([sessionId, sideId, messageIndex, content_]) =>
+		fail(all(str(sessionId, "sessionId"), str(sideId, "sideId"), index(messageIndex, "messageIndex"), content(content_, "content"))),
+	"sideChat.abort": ([sessionId, sideId]) => fail(all(str(sessionId, "sessionId"), str(sideId, "sideId"))),
+	"sideChat.reset": ([sessionId, sideId]) => fail(all(str(sessionId, "sessionId"), str(sideId, "sideId"))),
+	"sideChat.close": ([sessionId, sideId]) => fail(all(str(sessionId, "sessionId"), str(sideId, "sideId"))),
 	"tasks.list": ([sessionId]) => fail(str(sessionId, "sessionId")),
 	"tasks.cancel": ([sessionId, taskId]) => fail(all(str(sessionId, "sessionId"), str(taskId, "taskId"))),
 	"tasks.dismiss": ([sessionId, taskId]) => fail(all(str(sessionId, "sessionId"), str(taskId, "taskId"))),

@@ -9,16 +9,15 @@
 import { useI18n } from "../../i18n/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import type { UserContent } from "@lyra/core";
+import { DEFAULT_SIDE_CHAT_ID } from "@lyra/contract";
 import { Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { findModel } from "../models/index.ts";
-import { useSide, sideChatOf, openScopedPanel } from "../dock/index.ts";
-import { useSideSessionId } from "./scope.ts";
+import { useSide, sideChatOf, openFilePane } from "../dock/index.ts";
+import { useSideTarget } from "./target.ts";
 import { useDockScope, useScopedMeta } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
-import { useOpenFile } from "../../store/openFile.ts";
-import { companionOf } from "../dock/index.ts";
 import {
 	ComposerSend,
 	ComposerShell,
@@ -54,24 +53,24 @@ export function SideComposer({
 	 * slot's `meta`: under another screen that named the focused conversation's model and effort.
 	 */
 	const meta = useScopedMeta();
-	const sessionId = useSideSessionId();
+	const { sessionId, sideId } = useSideTarget();
 	// The screen this side chat is docked in, where a file marked here opens — not the one with focus.
 	const screen = useDockScope();
 	/** 标记点开的文件进右边的文件面板——和主输入框同一个去处，开在这一屏。 */
 	const openFile = (path: string, name: string) => {
-		void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-		openScopedPanel("file", companionOf("file"), screen ?? undefined);
+		void openFilePane({ path, name }, screen ?? undefined);
 	};
-	const modelId = useSide((s) => sideChatOf(s, sessionId).modelId);
-	const loading = useSide((s) => sideChatOf(s, sessionId).loading);
-	const thinking = useSide((s) => sideChatOf(s, sessionId).thinking);
-	const messages = useSide((s) => sideChatOf(s, sessionId).messages);
-	const queued = useSide((s) => sideChatOf(s, sessionId).queued);
+	const modelId = useSide((s) => sideChatOf(s, sessionId, sideId).modelId);
+	const loading = useSide((s) => sideChatOf(s, sessionId, sideId).loading);
+	const thinking = useSide((s) => sideChatOf(s, sessionId, sideId).thinking);
+	const messages = useSide((s) => sideChatOf(s, sessionId, sideId).messages);
+	const queued = useSide((s) => sideChatOf(s, sessionId, sideId).queued);
 	/*
-	 * 草稿按会话存，和主输入框同一个仓库——面板关了、换个会话再回来，打了一半的话还在。
-	 * 从前它是这个组件自己的 state，面板一关就没了。
+	 * 草稿按侧边聊天存，和主输入框同一个仓库——面板关了、换个会话再回来，打了一半的话还在。
+	 * 从前它是这个组件自己的 state，面板一关就没了。最早那一个沿用一个会话只有一个侧边聊天时的 key。
 	 */
-	const { text, setText, attachments, setAttachments, clear } = useDraft<DraftAttachment>(sessionId ? `side:${sessionId}` : null);
+	const draftKey = sessionId ? (sideId === DEFAULT_SIDE_CHAT_ID ? `side:${sessionId}` : `side:${sessionId}:${sideId}`) : null;
+	const { text, setText, attachments, setAttachments, clear } = useDraft<DraftAttachment>(draftKey);
 	const field = useRef<HTMLTextAreaElement>(null);
 	/*
 	 * 收附件的那一整套，和主输入框是同一份：八个的上限、PDF 抽字、上方只摆图片（文件在句子里那枚
@@ -89,7 +88,7 @@ export function SideComposer({
 			setAttachments(files as DraftAttachment[]);
 		},
 		field,
-		resetKey: sessionId ?? "",
+		resetKey: draftKey ?? "",
 	});
 
 	/*
@@ -100,12 +99,12 @@ export function SideComposer({
 	 * substituted when something is already half-typed: losing what you were writing to recover
 	 * something you asked for is a bad trade.
 	 */
-	const draftSeed = useSide((s) => sideChatOf(s, sessionId).draftSeed);
+	const draftSeed = useSide((s) => sideChatOf(s, sessionId, sideId).draftSeed);
 	useEffect(() => {
 		if (!draftSeed) return;
 		setText((was) => (was.trim() ? `${was.replace(/\s+$/, "")}\n${draftSeed.text}` : draftSeed.text));
-		useSide.getState().clearDraftSeed(sessionId);
-	}, [draftSeed, sessionId, setText]);
+		useSide.getState().clearDraftSeed(sessionId, sideId);
+	}, [draftSeed, sessionId, sideId, setText]);
 
 	const empty = !text.trim() && attachments.length === 0;
 
@@ -129,7 +128,7 @@ export function SideComposer({
 		if (running || queued.length > 0) {
 			const composed = { text: trimmed, attachments, sessionRefs: [] };
 			const thumbnail = queueThumbnail(composed);
-			useSide.getState().enqueue(sessionId, {
+			useSide.getState().enqueue(sessionId, sideId, {
 				content,
 				displayText: sent.displayText,
 				...(sent.attachments.length ? { attachments: sent.attachments } : {}),
@@ -169,8 +168,8 @@ export function SideComposer({
 				<QueueList
 					source={{
 						items: queued,
-						drop: (id) => useSide.getState().dropQueued(sessionId, id),
-						move: (id, targetId, placement) => void useSide.getState().moveQueued(sessionId, id, targetId, placement),
+						drop: (id) => useSide.getState().dropQueued(sessionId, sideId, id),
+						move: (id, targetId, placement) => void useSide.getState().moveQueued(sessionId, sideId, id, targetId, placement),
 					}}
 					running={running}
 					onEdit={restoreQueued}
@@ -233,7 +232,7 @@ export function SideComposer({
 								inheritLabel: t("sideChat.followMainLong"),
 								inheritDetail: modelName ?? t("sideChat.noModel"),
 								onChange: (value) => {
-									void useSide.getState().setModel(sessionId, value || null);
+									void useSide.getState().setModel(sessionId, sideId, value || null);
 								},
 							}}
 						/>
@@ -246,7 +245,7 @@ export function SideComposer({
 							selection={{
 								modelId: modelId || model?.id,
 								value: thinking ?? sessionThinking(meta, settings),
-								onChange: (level) => useSide.getState().setThinking(sessionId, level),
+								onChange: (level) => useSide.getState().setThinking(sessionId, sideId, level),
 							}}
 						/>
 						{/* 正在答的时候按下去是排队，所以它说的也不再是「发送」——和主输入框同一个说法。 */}

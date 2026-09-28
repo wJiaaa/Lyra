@@ -89,6 +89,39 @@ test("disk snapshots reject paths instead of accepting a session id as a filenam
 	}
 });
 
+test("一个会话旁边的几个侧边聊天各存各的，按开出来的先后列出来", async () => {
+	const { listSideChats, loadSideChat, saveSideChat, saveSideChatTranscript } = await import("../electron/sidechat-store.ts");
+	assert.deepEqual(await listSideChats("multi"), [], "一个都没开口过");
+	await saveSideChat("multi", [said("第二个")], undefined, "b2");
+	await saveSideChatTranscript("multi", [said("第一个")], null, "a1");
+	await saveSideChat("multi", [said("最早那个")]);
+	// 最早那一个留在老位置，旧存档不用搬。
+	assert.deepEqual(await readdir(join(home, "sidechats", "multi")).then((names) => names.sort()), ["a1.json", "b2.json"]);
+	assert.deepEqual(await listSideChats("multi"), ["default", "a1", "b2"]);
+	assert.deepEqual(await loadSideChat("multi", "a1"), [said("第一个")]);
+	assert.deepEqual(await loadSideChat("multi"), [said("最早那个")]);
+	assert.deepEqual(await listSideChats("multi-other"), [], "别的会话的不算进来");
+});
+
+test("关掉的侧边聊天不再列出来，哪怕是最早那一个", async () => {
+	const { clearSideChat, listSideChats, saveSideChat } = await import("../electron/sidechat-store.ts");
+	await saveSideChat("closing", [said("留着")], undefined, "k1");
+	await saveSideChat("closing", [said("要关的")], undefined, "k2");
+	await saveSideChat("closing", [said("最早那个")]);
+	// 不等删完就列：列的时候要等路上的写落定，不然刚关的会被读回来。
+	void clearSideChat("closing", "k2");
+	void clearSideChat("closing");
+	assert.deepEqual(await listSideChats("closing"), ["k1"]);
+});
+
+test("侧边聊天的 id 也不能拿来拼路径", async () => {
+	const { loadSideChat, saveSideChat } = await import("../electron/sidechat-store.ts");
+	for (const id of ["../x", "a/b", "A", "", "x".repeat(33)]) {
+		await assert.rejects(() => loadSideChat("s1", id), /Invalid side-chat id/);
+		assert.throws(() => saveSideChat("s1", [said("not a path")], undefined, id), /Invalid side-chat id/);
+	}
+});
+
 test("empty model selections persist and message snapshots cannot overwrite queued selections", async () => {
 	const { loadSideChatSnapshot, saveSideChat, saveSideChatTranscript } = await import("../electron/sidechat-store.ts");
 	await saveSideChat("model-choice", [], "qa/side");

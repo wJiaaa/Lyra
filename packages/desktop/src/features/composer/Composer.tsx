@@ -19,7 +19,8 @@ import { commandEntries } from "./command-catalog.ts";
 import { ScheduledAlert } from "../scheduled/index.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
-import { companionOf, openScopedPanel, useSide } from "../dock/index.ts";
+import { companionOf, openFilePane, openScopedPanel, useSide } from "../dock/index.ts";
+import { DEFAULT_SIDE_CHAT_ID } from "@lyra/contract";
 import { ContextMeter } from "./ContextMeter.tsx";
 import { EffortTrigger } from "../models/index.ts";
 import { useRolled } from "../../ui/motion/RollingText.tsx";
@@ -33,7 +34,6 @@ import { ProjectPicker } from "../modals/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import type { DraftAttachment } from "./attachments/read.ts";
 import { useComposerAttachments } from "./useComposerAttachments.tsx";
-import { useOpenFile } from "../../store/openFile.ts";
 import { useApp } from "../../store/index.ts";
 import {
 	focusScreenOf,
@@ -224,9 +224,8 @@ export function Composer({ centered = false }: {
 		field,
 		/* 标记点开的文件进右边的文件面板——这个组件本来就引着 dock，那件事在这里做。 */
 		openFile: (path, name) => {
-			void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
 			// In this composer's screen, as the sub-agent bar does: the keyboard reaches it without focusing it.
-			openScopedPanel("file", companionOf("file"), activeSessionId ?? "@draft");
+			void openFilePane({ path, name }, activeSessionId ?? "@draft");
 		},
 	});
 	const { marks } = kit;
@@ -550,7 +549,8 @@ export function Composer({ centered = false }: {
 						onAside={(taken) => {
 							// Beside the conversation it was queued in, which the keyboard can reach without focusing it.
 							openScopedPanel("chat", companionOf("chat"), activeSessionId);
-							void useSide.getState().ask(activeSessionId, taken.content);
+							// 开的是最早那一个侧边聊天，问的也是它。
+							void useSide.getState().ask(activeSessionId, DEFAULT_SIDE_CHAT_ID, taken.content);
 						}}
 					/>
 				)}

@@ -27,8 +27,7 @@ import { renderMath } from "../../lib/markdown/math.ts";
 import { stripEmoji } from "../../lib/markdown/strip-emoji.ts";
 import { available, bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
-import { useOpenFile } from "../../store/openFile.ts";
-import { companionOf, openScopedPanel } from "../dock/index.ts";
+import { openFilePane, openScopedPanel } from "../dock/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 import { SessionScope, useDockScope, useScopedProjectPath } from "../../app/session-scope.tsx";
@@ -441,11 +440,7 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 	const [offset, setOffset] = useState<number | null>(null);
 	const openFile = () => {
 		const name = path.split(/[/\\]/).pop() || path;
-		void useOpenFile
-			.getState()
-			.open({ path, name })
-			.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
-		openScopedPanel("file", companionOf("file"), screen ?? undefined);
+		void openFilePane({ path, name }, screen ?? undefined).catch((error: unknown) => useApp.getState().notify(String(error), "error"));
 	};
 	const fail = (error: unknown) => useApp.getState().notify(String(error), "error");
 	const place = (event: SyntheticEvent<HTMLElement>, pointerX?: number) => {

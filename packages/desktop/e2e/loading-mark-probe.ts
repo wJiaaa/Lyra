@@ -9,16 +9,14 @@
  * 于是这里逐帧读真实的 computed `transform`，从矩阵里反解出角度。逐帧而不是定时采样：动画是按
  * 绘制帧插值的，`setInterval` 取的样和屏幕上画出来的不是同一串数。
  *
- * 三处一起验，而且验的不只是「换上了」，还有**换对了哪一个**：
+ * 四处一起验，而且验的不只是「换上了」，还有**换对了哪一个**：
  *
  *   - 任务清单的每一步（`Mark`）→ 虚线环。它是一列状态里的一格，上下是完成的勾、还没开始的虚线圆
  *   - 转录区的工具卡（`ToolCard`）→ 虚线环。同一行后面跟着 CircleCheck / CircleX
+ *   - 侧栏会话行（`SessionStatus`）→ 虚线环。同一列里是等待、完成、失败的状态点
  *   - 侧栏折叠起来的分组头（`GroupActivity`）→ 亮弧。它顶掉的是一个计数，不是一列状态里的一格
  *
  * 拿错哪一个在屏幕上都读得通——都在转，都是个圆——所以这一条只能在真窗口里验，code review 看不出来。
- *
- * 第四处——侧栏会话行那圈呼吸波纹——**不换**，所以这里反过来验它还在。它回答的不是同一个问题：
- * 一列会话可能同时好几行在跑，而那一列还要用来读标题。这条曾经被「统一」掉一次，捞回来了。
  *
  * 模型是假的，停在一个没写完的工具调用上——界面因此一直停在「正在跑」，可以慢慢读。
  *
@@ -418,6 +416,7 @@ async function main() {
 			const put = (el, name) => { if (el) el.setAttribute("data-ly-mark-where", name); };
 			const marks = [...document.querySelectorAll(${JSON.stringify(MARK_SELECTOR)})].filter((s) => s.checkVisibility());
 			for (const svg of marks) {
+				if (svg.closest("[data-ly-status-mark]")) { put(svg.parentElement, "侧栏会话行"); continue; }
 				if (svg.closest("aside")) { put(svg.parentElement, "侧栏分组头"); continue; }
 				if (svg.closest("[data-ly-run]")) { put(svg.closest("[data-ly-run]"), "工具卡"); continue; }
 				put(svg.parentElement, "任务清单");
@@ -442,7 +441,7 @@ async function main() {
 		 * 来的只有位置：任务清单和工具卡是一列状态里的一格，侧栏那个顶掉的是一个计数。
 		 */
 		const misplaced = marks.filter((m) => {
-			if (m.where === "任务清单" || m.where === "工具卡") return m.kind !== "dash";
+			if (m.where === "任务清单" || m.where === "工具卡" || m.where === "侧栏会话行") return m.kind !== "dash";
 			if (m.where === "侧栏分组头") return m.kind !== "arc";
 			return false;
 		});
@@ -475,33 +474,8 @@ async function main() {
 		const old = await app.evaluate<string[]>(READ_OLD);
 		check("旧的转圈记号一个都不剩", old.length === 0, old.join("、") || "（干净）");
 
-		/*
-		 * 侧栏那圈呼吸，必须原样还在。
-		 *
-		 * 这一条验的是「没被换掉」，方向和上面几条相反。它被「统一 loading」顺手删过一次，删的时候
-		 * 每一条测试都是绿的——因为当时没有一条测试说它该在。
-		 *
-		 * 查的是波纹自己那两个环在不在动，不是类名在不在：类名留着而 `@keyframes` 被清掉的话，
-		 * 侧栏会画出一个不动的圆圈，而 `querySelector` 照样说「在」。
-		 */
-		const breathe = await app.evaluate<{ found: number; animated: number; core: boolean }>(`(() => {
-			const nodes = [...document.querySelectorAll(".ly-breathe")].filter((el) => el.checkVisibility());
-			const animated = nodes.filter((el) => [...el.querySelectorAll("i")].every((ring) => {
-				const name = getComputedStyle(ring).animationName;
-				return name.includes("ly-breathe-wave") && name.includes("ly-breathe-hue");
-			}) && el.querySelectorAll("i").length === 2).length;
-			return {
-				found: nodes.length,
-				animated,
-				core: nodes.every((el) => getComputedStyle(el.querySelector("b")).animationName.includes("ly-breathe-core")),
-			};
-		})()`);
-		check("侧栏会话行那圈呼吸还在（没被一起换掉）", breathe.found > 0, `一个都没画`);
-		check("两道波纹还挂着 wave + hue 两条动画", breathe.found > 0 && breathe.animated === breathe.found, `${breathe.animated}/${breathe.found} 枚是完整的`);
-		check("核心还在走 accent → info → violet", breathe.core && breathe.found > 0, breathe.core ? "（没找到波纹）" : "核心的动画掉了");
-
 		console.log("\n【二】逐帧读它到底转没转");
-		for (const where of ["任务清单", "工具卡", "侧栏分组头"]) {
+		for (const where of ["任务清单", "工具卡", "侧栏会话行", "侧栏分组头"]) {
 			if (!marks.some((m) => m.where === where)) {
 				console.log(`   （${where}：这一轮没画出来，跳过）`);
 				continue;

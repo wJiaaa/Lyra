@@ -17,7 +17,7 @@ import { useState } from "react";
 import { MessageActions } from "../conversation/index.ts";
 import { MessageEditor } from "../conversation/index.ts";
 import { useSide, sideChatOf } from "../dock/index.ts";
-import { useSideSessionId } from "./scope.ts";
+import { useSideTarget } from "./target.ts";
 import { Markdown, SpokenBubble, spokenText } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
 import { segments, ToolRun } from "../conversation/index.ts";
@@ -51,9 +51,9 @@ export function MessageRow({ message, index, live }: {
  * `e2e/hover-controls-probe.ts`.
  */
 function UserRow({ index, message }: { index: number; message: UserMessage }) {
-	const sessionId = useSideSessionId();
+	const { sessionId, sideId } = useSideTarget();
 	const editAndResend = useSide((s) => s.editAndResend);
-	const running = useSide((s) => sideChatOf(s, sessionId).running);
+	const running = useSide((s) => sideChatOf(s, sessionId, sideId).running);
 	/*
 	 * 人打的那句话优先，拼起来的 `content` 只是退路——见 `spokenText`。`content` 里带着展开给模型的
 	 * 附件正文，把它们拼起来画，等于把写给模型的记号摆到人眼前。
@@ -75,7 +75,7 @@ function UserRow({ index, message }: { index: number; message: UserMessage }) {
 		 */
 		const images = message.content.filter((block): block is Extract<UserContent, { type: "image" }> => block.type === "image");
 		const bodies = message.content.filter((block): block is Extract<UserContent, { type: "text" }> => block.type === "text" && isAttachmentBody(block.text));
-		void editAndResend(sessionId, index, [...images, ...bodies, { type: "text", text: trimmed }], { displayText: trimmed, attachments: message.attachments ?? [] });
+		void editAndResend(sessionId, sideId, index, [...images, ...bodies, { type: "text", text: trimmed }], { displayText: trimmed, attachments: message.attachments ?? [] });
 	}
 
 	if (editing) {
@@ -124,8 +124,8 @@ function UserRow({ index, message }: { index: number; message: UserMessage }) {
 }
 
 function AssistantRow({ message, live }: { message: AssistantMessage; live?: boolean }) {
-	const sessionId = useSideSessionId();
-	const toolRuns = useSide((s) => sideChatOf(s, sessionId).toolRuns);
+	const { sessionId, sideId } = useSideTarget();
+	const toolRuns = useSide((s) => sideChatOf(s, sessionId, sideId).toolRuns);
 	/** What it actually said, for the copy button. Tool calls and thinking are not the answer. */
 	const spoken = message.content
 		.filter((block): block is Extract<typeof block, { type: "text" }> => block.type === "text")

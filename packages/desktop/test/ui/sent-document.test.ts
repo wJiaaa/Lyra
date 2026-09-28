@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS } from "@lyra/core";
 import { UserMessage } from "../../src/features/conversation/UserMessage.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { useOpenFile } from "../../src/store/openFile.ts";
+import { provideScope } from "../../src/features/dock/popout.ts";
 import { click, mount } from "../helpers/mount.ts";
 
 test("点已发送文档的标记，打开的是那个文件", async () => {
@@ -32,7 +33,9 @@ test("点已发送文档的标记，打开的是那个文件", async () => {
 		running: false,
 		notices: [],
 	} as never);
-	useOpenFile.setState({ open: (async (entry: { path: string }) => void opened.push(entry.path)) as never });
+	useOpenFile.setState({ open: async (_slot, entry) => void opened.push(entry.path) });
+	// 文件开在人所在的那一屏；没有屏的窗口里没有文件面板可开。
+	provideScope(() => "s");
 
 	const message = {
 		role: "user" as const,
@@ -46,5 +49,6 @@ test("点已发送文档的标记，打开的是那个文件", async () => {
 		assert.deepEqual(opened, ["/p/notes.md"]);
 	} finally {
 		await view.unmount();
+		provideScope(() => null);
 	}
 });

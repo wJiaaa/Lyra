@@ -357,6 +357,8 @@ export interface LyraApi {
 		trajectory(projectId: string, sessionId: string): Promise<TrajectoryEntry[]>;
 		trajectoryChanges(projectId: string, sessionId: string, cursor?: string): Promise<TrajectoryChanges>;
 		exportTrajectory(projectId: string, sessionId: string, format: "json" | "md" | "output", selection?: { id?: string; correlationId?: string }): Promise<string>;
+		/** Where this session's log lives on disk. Only the path; whether the file exists yet is not asked. */
+		logPath(projectId: string, sessionId: string): Promise<string>;
 		/** Copy history up to `seq` into a new session, leaving this one untouched. */
 		fork(projectId: string, sessionId: string, seq: number): Promise<{ meta: SessionMeta; messages: number } | null>;
 		remove(projectId: string, sessionId: string): Promise<void>;
@@ -446,26 +448,32 @@ export interface LyraApi {
 	 * describe a different conversation, and mixing them would paint side-chat replies into
 	 * the main transcript.
 	 */
+	/**
+	 * 一个会话旁边可以开好几个侧边聊天，`sideId` 指的是其中哪一个。最早那一个叫 `"default"`，
+	 * 见 `sidechat-store.ts`。
+	 */
 	sideChat: {
 		/** Null when this session has never had one opened. */
-		state(sessionId: string): Promise<SideChatSnapshot | null>;
-		setModel(sessionId: string, modelId: string | null): Promise<void>;
+		state(sessionId: string, sideId: string): Promise<SideChatSnapshot | null>;
+		setModel(sessionId: string, sideId: string, modelId: string | null): Promise<void>;
 		/**
 		 * `displayText` 与 `attachments` 是给面板画气泡用的，和主会话存的是同一份——
 		 * 不给的话，给模型看的附件正文会原样出现在气泡里。见 core 的 `SideAskOptions`。
 		 */
-		ask(sessionId: string, content: UserContent[], options?: { thinking?: ThinkingLevel; displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
+		ask(sessionId: string, sideId: string, content: UserContent[], options?: { thinking?: ThinkingLevel; displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
 		/**
 		 * Replace a question already asked and answer from there, dropping everything after it.
 		 *
 		 * The same act as editing a message in the main conversation, and for the same reason: a
 		 * question that came out wrong, re-asked below the old one, leaves the model reading both.
 		 */
-		editAndResend(sessionId: string, index: number, content: UserContent[], options?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
-		abort(sessionId: string): Promise<void>;
+		editAndResend(sessionId: string, sideId: string, index: number, content: UserContent[], options?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
+		abort(sessionId: string, sideId: string): Promise<void>;
 		/** Throw the conversation away and start fresh. The main session is untouched. */
-		reset(sessionId: string): Promise<void>;
-		onEvent(handler: (payload: { sessionId: string; event: import("@lyra/core").SideChatUpdate }) => void): () => void;
+		reset(sessionId: string, sideId: string): Promise<void>;
+		/** 关掉这一个：停下，存档一起删掉。 */
+		close(sessionId: string, sideId: string): Promise<void>;
+		onEvent(handler: (payload: { sessionId: string; sideId: string; event: import("@lyra/core").SideChatUpdate }) => void): () => void;
 	};
 	/** Work the side chat handed to a session, waiting for it to be free. */
 	tasks: {

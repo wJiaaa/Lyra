@@ -140,8 +140,8 @@ export class WebServer {
 		this.send({ type: "agent_event", sessionId, event });
 	}
 
-	broadcastSideChat(sessionId: string, event: SideChatUpdate): void {
-		this.send({ type: "side_chat_event", sessionId, event });
+	broadcastSideChat(sessionId: string, sideId: string, event: SideChatUpdate): void {
+		this.send({ type: "side_chat_event", sessionId, sideId, event });
 	}
 
 	broadcastSessionChange(change: SessionChange): void {

@@ -46,7 +46,7 @@ test("撤到中间：主会话还在，那场讨论也还有对象", async () =>
 	const live = liveChat([said("预计要多久？")]);
 	const events: SideChatUpdate[] = [];
 
-	await discardSideChat("mid-1", { mainMessagesLeft: 2, live, defaultModelId: "qa/model", broadcast: (event) => events.push(event) });
+	await discardSideChat("mid-1", "default", { mainMessagesLeft: 2, live, defaultModelId: "qa/model", broadcast: (event) => events.push(event) });
 
 	assert.equal(live.restarted, 0, "只撤掉了后面那一截，不该连人在侧边问过的话一起收走");
 	assert.deepEqual(events, []);
@@ -57,7 +57,7 @@ test("撤到中间时，磁盘上那份也一样不碰", async () => {
 	const { discardSideChat } = await import("../electron/sidechat-discard.ts");
 	await saveSideChat("mid-2", [said("主会话现在到哪一步了？")], "old/model");
 
-	await discardSideChat("mid-2", { mainMessagesLeft: 1, live: undefined, defaultModelId: "default/model", broadcast: () => {} });
+	await discardSideChat("mid-2", "default", { mainMessagesLeft: 1, live: undefined, defaultModelId: "default/model", broadcast: () => {} });
 
 	assert.equal((await loadSideChat("mid-2")).length, 1, "存档原样留着");
 });
@@ -67,7 +67,7 @@ test("撤空时，面板开着就推倒手边那一个", async () => {
 	const live = liveChat([said("预计要多久？"), said("有没有遇到啥问题")]);
 	const events: SideChatUpdate[] = [];
 
-	await discardSideChat("live-1", { mainMessagesLeft: 0, live, defaultModelId: "qa/model", broadcast: (event) => events.push(event) });
+	await discardSideChat("live-1", "default", { mainMessagesLeft: 0, live, defaultModelId: "qa/model", broadcast: (event) => events.push(event) });
 
 	assert.equal(live.restarted, 1, "走的是「重置」那条路");
 	assert.deepEqual(events, [], "事件由 restart 自己发，这里不能再补一份——面板会收到两次");
@@ -77,7 +77,7 @@ test("手边那个本来就是空的，就不必惊动它", async () => {
 	const { discardSideChat } = await import("../electron/sidechat-discard.ts");
 	const live = liveChat([]);
 
-	await discardSideChat("live-2", { mainMessagesLeft: 0, live, defaultModelId: null, broadcast: () => {} });
+	await discardSideChat("live-2", "default", { mainMessagesLeft: 0, live, defaultModelId: null, broadcast: () => {} });
 
 	assert.equal(live.restarted, 0, "没有可收的东西，撤空一个会话不该顺手写一次存档");
 });
@@ -88,7 +88,7 @@ test("重开应用之后：内存里没有实例，磁盘上那份也要抹平",
 	await saveSideChat("cold-1", [said("主会话现在到哪一步了？")], "old/model");
 	const events: SideChatUpdate[] = [];
 
-	await discardSideChat("cold-1", { mainMessagesLeft: 0, live: undefined, defaultModelId: "default/model", broadcast: (event) => events.push(event) });
+	await discardSideChat("cold-1", "default", { mainMessagesLeft: 0, live: undefined, defaultModelId: "default/model", broadcast: (event) => events.push(event) });
 
 	assert.deepEqual(await loadSideChat("cold-1"), [], "存档空了，下次打开不会再把它读回来");
 	assert.deepEqual(
@@ -102,7 +102,7 @@ test("从没聊过的会话，撤空不会凭空造出一份存档", async () =>
 	const { discardSideChat } = await import("../electron/sidechat-discard.ts");
 	const events: SideChatUpdate[] = [];
 
-	await discardSideChat("cold-2", { mainMessagesLeft: 0, live: undefined, defaultModelId: null, broadcast: (event) => events.push(event) });
+	await discardSideChat("cold-2", "default", { mainMessagesLeft: 0, live: undefined, defaultModelId: null, broadcast: (event) => events.push(event) });
 
 	const { readdir } = await import("node:fs/promises");
 	const files = await readdir(join(home, "sidechats")).catch(() => [] as string[]);

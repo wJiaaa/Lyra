@@ -2,11 +2,10 @@ import { translate } from "../../i18n/translate.ts";
 import { FileText } from "lucide-react";
 import { useState } from "react";
 import type { ContextBreakdown } from "../../../electron/ipc-types.ts";
-import { useOpenFile } from "../../store/openFile.ts";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { formatTokens } from "../conversation/index.ts";
-import { companionOf, openScopedPanel } from "../dock/index.ts";
+import { openFilePane } from "../dock/index.ts";
 import { useDockScope } from "../../app/session-scope.tsx";
 
 /** The paths come from the prompt sources, never guessed from the renderer's workspace. */
@@ -28,8 +27,7 @@ export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdow
 				<button key={file.path} type="button" data-ly-tip={file.path} className="group/file ly-scroll flex w-full items-center gap-1.5 rounded-lg py-1 text-detail text-ink-faint transition-colors hover:text-ink"
 					onClick={() => {
 						onOpen();
-						void useOpenFile.getState().open({ path: file.path, name: file.path.split(/[\\/]/).pop() || file.path, isDirectory: false, size: 0 });
-						openScopedPanel("file", companionOf("file"), screen ?? undefined);
+						void openFilePane({ path: file.path, name: file.path.split(/[\\/]/).pop() || file.path }, screen ?? undefined);
 					}}>
 					<FileText size={12} strokeWidth={1.8} className="shrink-0" />
 					<ScrollText text={file.path} className="min-w-0 flex-1 text-left font-mono text-caption" />

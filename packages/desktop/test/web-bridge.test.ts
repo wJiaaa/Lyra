@@ -178,11 +178,11 @@ test("pushes reach the handlers the store subscribed, and unsubscribing stops th
 		socket().receive({ type: "agent_event", sessionId: "s1", event: { type: "turn_start" } });
 		socket().receive({ type: "session_changed", change: { id: "s1" } });
 		socket().receive({ type: "settings_changed", settings: { a: 1 } });
-		socket().receive({ type: "side_chat_event", sessionId: "s1", event: { kind: "x" } });
+		socket().receive({ type: "side_chat_event", sessionId: "s1", sideId: "default", event: { kind: "x" } });
 		assert.deepEqual(agent, [{ sessionId: "s1", event: { type: "turn_start" } }]);
 		assert.deepEqual(sessions, [{ id: "s1" }]);
 		assert.deepEqual(settings, [{ a: 1 }]);
-		assert.deepEqual(side, [{ sessionId: "s1", event: { kind: "x" } }]);
+		assert.deepEqual(side, [{ sessionId: "s1", sideId: "default", event: { kind: "x" } }]);
 		stop();
 		socket().receive({ type: "agent_event", sessionId: "s1", event: { type: "turn_end" } });
 		assert.equal(agent.length, 1);

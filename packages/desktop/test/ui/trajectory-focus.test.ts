@@ -32,7 +32,7 @@ function fixture(id: string) {
 	// Panels open in the screen the person is in; record which ones were asked for.
 	provideScope(() => id);
 	usePaneDock.setState({ open: (_scope, kind) => { panes.push(kind); return true; } });
-	useOpenFile.setState({ open: entry => new Promise<void>((resolve, reject) => files.push({ path: entry.path, resolve, reject })) });
+	useOpenFile.setState({ open: (_slot, entry) => new Promise<void>((resolve, reject) => files.push({ path: entry.path, resolve, reject })) });
 	useTraceFocus.setState({ sessionId: "", correlationId: "", nonce: 0 });
 	return { meta, reads, exports, files, panes, errors, listeners, restore() {
 		useApp.setState(app); usePaneDock.setState(dock); useOpenFile.setState(file); useTraceFocus.setState(focus); provideScope(() => null);

@@ -1,5 +1,5 @@
 /**
- * 「正在忙」的三个记号，以及它们各管哪里。
+ * 「正在忙」的两个记号，以及它们各管哪里。
  *
  * 分成两个而不是一个，是因为「正在忙」其实是两句话：
  *
@@ -15,9 +15,7 @@
  * 一个可点的动作图标（或一个计数）就用 `ActionSpinner`。`test/ui/loading-consistency.test.ts`
  * 守着这条。
  *
- * `BreatheLoader` 只在侧栏的会话行上，那一处问的不是同一个问题，见它自己的注释。
- *
- * 前两个都是 r=10 的描边圆，和 lucide 的 `CheckCircle2`、`XCircle`、`Clock` 精确重合——它们
+ * 两个都是 r=10 的描边圆，和 lucide 的 `CheckCircle2`、`XCircle`、`Clock` 精确重合——它们
  * 就是那一列里的邻居。在这之前这里是一枚八条射线的星芒，一列圆里混一个星，每次都从队列里
  * 跳出来一次。几何和那些数字怎么定的，写在 `styles/loading.css` 的 Loading 一节。
  */
@@ -70,26 +68,5 @@ export function ActionSpinner({
 			<circle className="ly-arc-track" cx="12" cy="12" r="10" />
 			<circle className="ly-arc-head" cx="12" cy="12" r="10" />
 		</svg>
-	);
-}
-
-/**
- * 一圈波纹离开静止的中心，颜色一路走过调色板。
- *
- * 给侧栏的会话行。那一列可能同时有好几行在跑，而你还要用它读标题——所以这里连「亮处在走」都不
- * 要：什么都不旋转、什么都不位移，余光里它只是缓缓涨落的一团。换成上面那两个试过，一列里并排
- * 三四个各自明灭，读标题时总有东西在旁边闪。
- *
- * 颜色走完 accent → info → violet 的那 2.4 秒，是它说「跑了多久」的方式：扫一眼知道它活着，
- * 多看一会儿知道它**还**活着，而没有任何东西变快或变响。
- */
-export function BreatheLoader({ size = 14, className = "" }: { size?: number; className?: string }) {
-	return (
-		<span aria-hidden className={`ly-breathe shrink-0 ${className}`} style={{ width: size, height: size }}>
-			{/* 两道波纹差半个周期，所以总有一道正在离场；`b` 是核心。 */}
-			<i />
-			<i />
-			<b />
-		</span>
 	);
 }

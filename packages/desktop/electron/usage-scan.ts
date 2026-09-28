@@ -15,7 +15,6 @@
 import { createReadStream } from "node:fs";
 import { readdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
 import {
 	diagnoseRequest,
 	lyraHome,
@@ -90,21 +89,52 @@ function bucketFor(entry: UsageFileEntry, day: string, key: string, provider: st
 }
 
 /**
- * Read one log, from `entry.size` onwards.
+ * `[cursor.at, to)` 里以换行结尾的完整行；每交出一行，游标就推进到那一行的换行之后。
  *
- * Records are whole lines appended atomically, so the previous size is always a line boundary —
- * but a line that fails to parse is skipped rather than thrown on, because a log truncated by a
- * crash mid-write is a thing that happens and losing one turn's numbers is not worth losing the
- * page over.
+ * 两条边界都是为了「游标记在哪，就恰好读到哪」：
+ * - **上界 `to`**：扫描前 `stat` 到的大小。不设上界时，扫描期间追加的内容这次被读到、算进去，
+ *   游标却停在旧大小，下一次从旧大小再读一遍——同一条回复算两次，而且被缓存住。
+ * - **末尾没有换行的半行不交出、游标不越过它**：它可能是正在写的一条记录。按半行解析失败跳过、
+ *   游标却越过去的话，下一次从行中间读起，剩下那半截也解析失败，这条记录就永远丢了。
+ *
+ * 按字节切而不是按解码后的字符串数，游标才和文件偏移对得上（多字节字符、`\r\n` 都不会让它漂）。
+ */
+async function* completeLines(path: string, cursor: { at: number }, to: number): AsyncGenerator<string> {
+	const stream = createReadStream(path, { start: cursor.at, end: to - 1 });
+	let rest: Buffer = Buffer.alloc(0);
+	try {
+		for await (const chunk of stream as AsyncIterable<Buffer>) {
+			const buffer = rest.length > 0 ? Buffer.concat([rest, chunk]) : chunk;
+			let start = 0;
+			for (let newline = buffer.indexOf(0x0a); newline !== -1; newline = buffer.indexOf(0x0a, start)) {
+				const end = newline > start && buffer[newline - 1] === 0x0d ? newline - 1 : newline;
+				const line = buffer.toString("utf8", start, end);
+				cursor.at += newline + 1 - start;
+				start = newline + 1;
+				yield line;
+			}
+			rest = buffer.subarray(start);
+		}
+	} finally {
+		stream.destroy();
+	}
+}
+
+/**
+ * Read one log, from `entry.size` up to `size`, and leave `entry.size` at the end of the last
+ * complete line read (see `completeLines`).
+ *
+ * A line that fails to parse is skipped rather than thrown on, because a log truncated by a crash
+ * mid-write is a thing that happens and losing one turn's numbers is not worth losing the page
+ * over. 崩溃留下的半行会停在游标之后，直到写入端下次追加前补上换行（`SessionStore.append`），
+ * 它才成为一行坏行被跳过。
  */
 async function readLog(path: string, entry: UsageFileEntry, size: number, providers: ProviderConfig[]): Promise<void> {
-	const from = entry.size;
-	if (size <= from) return;
+	const cursor = { at: entry.size };
+	if (size <= cursor.at) return;
 
-	const stream = createReadStream(path, { encoding: "utf8", start: from });
-	const lines = createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
 	try {
-		for await (const line of lines) {
+		for await (const line of completeLines(path, cursor, size)) {
 			/*
 			 * Cheaper than parsing: most records in a busy log are events, not messages.
 			 *
@@ -213,10 +243,8 @@ async function readLog(path: string, entry: UsageFileEntry, size: number, provid
 			}
 		}
 	} finally {
-		lines.close();
-		stream.close();
+		entry.size = cursor.at;
 	}
-	entry.size = size;
 }
 
 /**
@@ -295,8 +323,8 @@ export async function scanUsage(home = lyraHome(), providers: ProviderConfig[] =
 			await readLog(path, entry, info.size, providers);
 			scanned += 1;
 		}
+		// `entry.size` 由 `readLog` 定在最后一个完整行之后，不能拿 `info.size` 覆盖：那会越过末尾的半行。
 		entry.mtimeMs = info.mtimeMs;
-		entry.size = info.size;
 		next[relative] = entry;
 
 		for (const [day, messages] of Object.entries(entry.days)) {

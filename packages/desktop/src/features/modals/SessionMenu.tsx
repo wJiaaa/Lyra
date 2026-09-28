@@ -6,9 +6,13 @@ import {
 	ChevronRight,
 	Columns2,
 	Copy,
+	CornerUpRight,
 	ExternalLink,
 	Folder,
 	FolderInput,
+	History,
+	Mail,
+	MailOpen,
 	Pencil,
 	Pin,
 	PinOff,
@@ -20,7 +24,8 @@ import type { SessionMeta } from "@lyra/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
-import { available } from "../../services/index.ts";
+import { available, bridge } from "../../services/index.ts";
+import { useRevealLabel } from "../../store/open-targets.ts";
 import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
 
@@ -29,6 +34,7 @@ export function SessionMenu({
 	session,
 	onClose,
 	onRequestDelete,
+	onShowTrajectory,
 }: {
 	anchor: Anchor;
 	session: SessionMeta;
@@ -42,17 +48,24 @@ export function SessionMenu({
 	 * nothing, and deleted nothing — see `SessionRow`, which outlives the menu and holds it instead.
 	 */
 	onRequestDelete: () => void;
+	/**
+	 * 打开这条会话的调用轨迹。由打开菜单的一方给：轨迹面板在 `dock` 里，而 `dock` 经浏览器、输入框
+	 * 一路引回这里，从这里直接引它就成环了。不给就不显示这一项。
+	 */
+	onShowTrajectory?: () => void;
 }) {
 	const { t } = useI18n();
 	const splitTree = useSplit((s) => s.tree);
 	const settings = useApp((s) => s.settings);
 	const setSessionPinned = useApp((s) => s.setSessionPinned);
 	const setSessionArchived = useApp((s) => s.setSessionArchived);
+	const setSessionUnread = useApp((s) => s.setSessionUnread);
 	const renameSession = useApp((s) => s.renameSession);
 	const moveSessionProject = useApp((s) => s.moveSessionProject);
 	const notify = useApp((s) => s.notify);
+	const reveal = useRevealLabel();
 
-	const [mode, setMode] = useState<"menu" | "rename" | "projects" | "copy">("menu");
+	const [mode, setMode] = useState<"menu" | "rename" | "projects">("menu");
 	const [openIn, setOpenIn] = useState(false);
 	const openInRow = useRef<HTMLDivElement>(null);
 	const openInLeave = useRef<number>(0);
@@ -66,7 +79,13 @@ export function SessionMenu({
 	const [draft, setDraft] = useState(session.title);
 
 	const isPinned = settings?.pinnedSessionIds?.includes(session.id) ?? false;
+	const isUnread = settings?.unreadSessionIds?.includes(session.id) ?? false;
 	const projects = settings?.projects ?? [];
+	const copy = async (text: string | Promise<string>, done: string) => {
+		onClose();
+		await navigator.clipboard.writeText(await text);
+		notify(done);
+	};
 
 	if (mode === "rename") {
 		return (
@@ -158,44 +177,6 @@ export function SessionMenu({
 		);
 	}
 
-	if (mode === "copy") {
-		return (
-			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("sessionMenu.copyOptions")}>
-				<MenuBody>
-					<MenuItem
-						icon={<FolderInput size={13} strokeWidth={1.8} />}
-						onClick={() => {
-							setMode("menu");
-						}}
-					>
-						{t("common.back")}
-					</MenuItem>
-					<MenuSeparator />
-					<MenuItem
-						icon={<Copy size={13} strokeWidth={1.8} />}
-						onClick={() => {
-							void navigator.clipboard.writeText(session.cwd);
-							notify(t("sessionMenu.cwdCopied"));
-							onClose();
-						}}
-					>
-						{t("sessionMenu.copyCwd")}
-					</MenuItem>
-					<MenuItem
-						icon={<Copy size={13} strokeWidth={1.8} />}
-						onClick={() => {
-							void navigator.clipboard.writeText(`lyra://session/${session.id}`);
-							notify(t("sessionMenu.deepLinkCopied"));
-							onClose();
-						}}
-					>
-						{t("sessionMenu.copyDeepLink")}
-					</MenuItem>
-				</MenuBody>
-			</Popover>
-		);
-	}
-
 	return (
 		<>
 			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("sessionMenu.options")}>
@@ -223,17 +204,6 @@ export function SessionMenu({
 						{t("common.rename")}
 					</MenuItem>
 
-					{/*
-					 * 「标为未读」不在这里，因为它从来没有被实现过。
-					 *
-					 * 这一项过去点下去只弹一句「已标为未读」，然后什么都不做——全仓没有任何会话级
-					 * 的手动未读位：`unreadActivity` 问的是「有没有跑完的活动」，`unreadSince` 问的
-					 * 是「转录里未读了多少」，两个都是自动推出来的，谁都没有入口去写。
-					 *
-					 * 一个假装做完了的按钮比一个不存在的按钮更糟：它让人以为那条会话被标记了。要么
-					 * 真做（`SessionMeta` 上加一位，侧边栏画点，打开会话时清掉），要么不给。
-					 */}
-
 					<MenuItem
 						icon={session.archived ? <ArchiveRestore size={13} strokeWidth={1.8} /> : <Archive size={13} strokeWidth={1.8} />}
 						onClick={() => {
@@ -243,6 +213,19 @@ export function SessionMenu({
 					>
 						{session.archived ? t("common.unarchive") : t("common.archive")}
 					</MenuItem>
+
+					{!session.archived && (
+						<MenuItem
+							icon={isUnread ? <MailOpen size={13} strokeWidth={1.8} /> : <Mail size={13} strokeWidth={1.8} />}
+							onClick={() => {
+								void setSessionUnread(session.id, !isUnread);
+								notify(isUnread ? t("sessionMenu.markedRead") : t("sessionMenu.markedUnread"));
+								onClose();
+							}}
+						>
+							{isUnread ? t("sessionMenu.markRead") : t("sessionMenu.markUnread")}
+						</MenuItem>
+					)}
 
 					{session.archived && (
 						<MenuItem
@@ -260,10 +243,6 @@ export function SessionMenu({
 
 					<MenuItem icon={<Folder size={13} strokeWidth={1.8} />} onClick={() => setMode("projects")}>
 						{t("sessionMenu.project")}
-					</MenuItem>
-
-					<MenuItem icon={<Copy size={13} strokeWidth={1.8} />} onClick={() => setMode("copy")}>
-						{t("common.copy")}
 					</MenuItem>
 
 					<div
@@ -319,6 +298,51 @@ export function SessionMenu({
 						)}
 					</div>
 					<SplitMoveItems sessionId={session.id} onClose={onClose} />
+
+					<MenuSeparator />
+
+					{session.cwd && available("workspace", "reveal") && (
+						<MenuItem
+							icon={<CornerUpRight size={13} strokeWidth={1.8} />}
+							onClick={() => {
+								void bridge.workspace.reveal(session.cwd);
+								onClose();
+							}}
+						>
+							{reveal}
+						</MenuItem>
+					)}
+					{session.cwd && (
+						<MenuItem icon={<Copy size={13} strokeWidth={1.8} />} onClick={() => void copy(session.cwd, t("sessionMenu.cwdCopied"))}>
+							{t("sessionMenu.copyCwd")}
+						</MenuItem>
+					)}
+					{available("sessions", "logPath") && (
+						<MenuItem
+							icon={<Copy size={13} strokeWidth={1.8} />}
+							onClick={() => void copy(bridge.sessions.logPath(session.projectId, session.id), t("sessionMenu.logPathCopied"))}
+						>
+							{t("sessionMenu.copyLogPath")}
+						</MenuItem>
+					)}
+					<MenuItem icon={<Copy size={13} strokeWidth={1.8} />} onClick={() => void copy(session.id, t("sessionMenu.sessionIdCopied"))}>
+						{t("sessionMenu.copySessionId")}
+					</MenuItem>
+
+					{onShowTrajectory && (
+						<>
+							<MenuSeparator />
+							<MenuItem
+								icon={<History size={13} strokeWidth={1.8} />}
+								onClick={() => {
+									onClose();
+									onShowTrajectory();
+								}}
+							>
+								{t("sessionMenu.viewTrajectory")}
+							</MenuItem>
+						</>
+					)}
 				</MenuBody>
 			</Popover>
 		</>

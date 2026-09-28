@@ -5,6 +5,7 @@ import type { SideAskOptions, UserContent } from "@lyra/core";
 import {
 	sideChatAbort,
 	sideChatAsk,
+	sideChatClose,
 	sideChatEditAndResend,
 	sideChatReset,
 	sideChatState,
@@ -16,13 +17,14 @@ import {
 } from "../side-chat-service.ts";
 
 export function registerSideChatIpc(): void {
-	ipcMain.handle("sidechat:setModel", (_event, sessionId: string, modelId: string | null) => sideChatSetModel(sessionId, modelId));
-	ipcMain.handle("sidechat:state", (_event, sessionId: string) => sideChatState(sessionId));
-	ipcMain.handle("sidechat:ask", (_event, sessionId: string, content: UserContent[], options?: SideAskOptions) => sideChatAsk(sessionId, content, options));
-	ipcMain.handle("sidechat:editAndResend", (_event, sessionId: string, index: number, content: UserContent[], options?: SideAskOptions) =>
-		sideChatEditAndResend(sessionId, index, content, options));
-	ipcMain.handle("sidechat:abort", (_event, sessionId: string) => sideChatAbort(sessionId));
-	ipcMain.handle("sidechat:reset", (_event, sessionId: string) => sideChatReset(sessionId));
+	ipcMain.handle("sidechat:setModel", (_event, sessionId: string, sideId: string, modelId: string | null) => sideChatSetModel(sessionId, sideId, modelId));
+	ipcMain.handle("sidechat:state", (_event, sessionId: string, sideId: string) => sideChatState(sessionId, sideId));
+	ipcMain.handle("sidechat:ask", (_event, sessionId: string, sideId: string, content: UserContent[], options?: SideAskOptions) => sideChatAsk(sessionId, sideId, content, options));
+	ipcMain.handle("sidechat:editAndResend", (_event, sessionId: string, sideId: string, index: number, content: UserContent[], options?: SideAskOptions) =>
+		sideChatEditAndResend(sessionId, sideId, index, content, options));
+	ipcMain.handle("sidechat:abort", (_event, sessionId: string, sideId: string) => sideChatAbort(sessionId, sideId));
+	ipcMain.handle("sidechat:reset", (_event, sessionId: string, sideId: string) => sideChatReset(sessionId, sideId));
+	ipcMain.handle("sidechat:close", (_event, sessionId: string, sideId: string) => sideChatClose(sessionId, sideId));
 	ipcMain.handle("tasks:list", (_event, sessionId: string) => tasksList(sessionId));
 	ipcMain.handle("tasks:cancel", (_event, sessionId: string, taskId: string) => tasksCancel(sessionId, taskId));
 	ipcMain.handle("tasks:dismiss", (_event, sessionId: string, taskId: string) => tasksDismiss(sessionId, taskId));

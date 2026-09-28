@@ -31,8 +31,12 @@ Object.defineProperty(globalThis, "window", { configurable: true, value: { lyra:
 		},
 	},
 } } });
-const { useOpenFile } = await import("../src/store/openFile.ts");
+const { fileSlot, openFileOf, useOpenFile } = await import("../src/store/openFile.ts");
 const { applyFilePanelState, filePanelSnapshot, flushFilePanelState, watchFilePanelState } = await import("../src/store/file-panel-handoff.ts");
+/** The detached window's one pane, and a file pane in the main window. */
+const DETACHED = fileSlot(null, "file");
+const MAIN = fileSlot("s", "file");
+const shown = (slot: string) => openFileOf(useOpenFile.getState(), slot);
 async function settled() { for (let i = 0; i < 12; i++) await Promise.resolve(); }
 
 beforeEach(() => {
@@ -46,11 +50,12 @@ beforeEach(() => {
 	readDelay = null;
 });
 
-test("a new renderer restores active file, both tabs and view options through a normal read", async () => {
-	await applyFilePanelState(initial);
+test("a new renderer restores the active file and view options through a normal read", async () => {
+	await applyFilePanelState(DETACHED, initial);
 	assert.deepEqual(reads, [b.path]);
-	assert.deepEqual(filePanelSnapshot(), initial);
-	assert.equal(useOpenFile.getState().contents?.text, "disk baseline");
+	// One file per pane: the snapshot lists only the file on screen.
+	assert.deepEqual(filePanelSnapshot(DETACHED), { ...initial, tabs: [b] });
+	assert.equal(shown(DETACHED).contents?.text, "disk baseline");
 });
 
 test("every detached change reaches the main-process snapshot before a return or close completes", async () => {
@@ -108,25 +113,25 @@ test("a source open racing a pending change preserves that change and the new ac
 		await flushFilePanelState();
 		assert.equal(remote.state.path, c.path);
 		assert.equal(remote.state.wrap, false);
-		assert.deepEqual(remote.state.tabs, [a, b, c]);
+		assert.equal(shown(DETACHED).path, c.path);
 		assert.deepEqual(errors, []);
 	} finally { stop(); }
 });
 
-test("background view changes preserve the source's different active project", async () => {
-	await applyFilePanelState(initial);
+test("background view changes reach the source window without touching its own file panes", async () => {
 	const c = { path: "/other/work.ts", name: "work.ts" };
-	await useOpenFile.getState().open(c);
+	await useOpenFile.getState().open(MAIN, c);
+	useOpenFile.setState({ wrap: true });
 	const stop = watchFilePanelState((error) => { throw error; });
 	try {
 		listener?.({ version: 2, previous: initial, state: { ...initial, wrap: false } });
 		await settled();
-		assert.equal(useOpenFile.getState().path, c.path);
+		assert.equal(shown(MAIN).path, c.path);
 		assert.equal(useOpenFile.getState().wrap, false);
 	} finally { stop(); }
 });
 
-test("closing the final detached tab and moving an active file never publish an invalid snapshot", async () => {
+test("moving and then deleting the detached file never publish an invalid snapshot", async () => {
 	detached = true;
 	const errors: unknown[] = [];
 	const stop = watchFilePanelState((error) => errors.push(error));
@@ -135,8 +140,7 @@ test("closing the final detached tab and moving an active file never publish an 
 		useOpenFile.getState().moved(b.path, "/project/renamed.ts");
 		await flushFilePanelState();
 		assert.equal(remote.state.path, "/project/renamed.ts");
-		useOpenFile.getState().closeTab(a.path);
-		useOpenFile.getState().closeTab("/project/renamed.ts");
+		useOpenFile.getState().removed(["/project/renamed.ts"]);
 		await flushFilePanelState();
 		assert.equal(remote.state.path, null);
 		assert.deepEqual(remote.state.tabs, []);
@@ -148,13 +152,13 @@ test("closing the final detached tab and moving an active file never publish an 
 test("moving a file while its read is pending restarts at the new path and settles loading", async () => {
 	let resume = () => {};
 	readDelay = new Promise<void>((resolve) => { resume = resolve; });
-	const opening = useOpenFile.getState().open(a);
+	const opening = useOpenFile.getState().open(DETACHED, a);
 	useOpenFile.getState().moved(a.path, "/project/renamed.ts");
 	resume();
 	await opening;
 	await settled();
 	assert.deepEqual(reads, [a.path, "/project/renamed.ts"]);
-	assert.equal(useOpenFile.getState().path, "/project/renamed.ts");
-	assert.equal(useOpenFile.getState().opening, null);
-	assert.equal(useOpenFile.getState().loading, false);
+	assert.equal(shown(DETACHED).path, "/project/renamed.ts");
+	assert.equal(shown(DETACHED).opening, null);
+	assert.equal(shown(DETACHED).loading, false);
 });

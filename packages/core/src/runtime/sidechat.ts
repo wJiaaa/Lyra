@@ -39,6 +39,11 @@ type SideChatSink = (event: SideChatEvent) => void | Promise<void>;
 
 export interface SideChatOptions {
 	main: AgentSession;
+	/**
+	 * 同一个会话旁边的第几个侧边聊天。一个会话可以同时开好几个，它们各自的前缀（自己的那段对话）
+	 * 互不相干，缓存 key 要分开。不给是最早那一个，key 和从前一样。
+	 */
+	sideId?: string;
 	settings: Settings;
 	emit: SideChatSink;
 	persistModel?: (modelId: string | null) => Promise<void>;
@@ -75,6 +80,7 @@ export function restoredSideChatMessages(messages: Message[]): Message[] {
 
 export class SideChat {
 	readonly mainSessionId: string;
+	private readonly cacheKey: string;
 
 	private main: AgentSession;
 	private settings: Settings;
@@ -95,6 +101,7 @@ export class SideChat {
 	constructor(options: SideChatOptions) {
 		this.main = options.main;
 		this.mainSessionId = options.main.meta.id;
+		this.cacheKey = `${this.mainSessionId}:side${options.sideId ? `:${options.sideId}` : ""}`;
 		this.settings = options.settings;
 		this.modelId = options.settings.sideChatModelId || null;
 		this.emitExternal = options.emit;
@@ -267,12 +274,12 @@ export class SideChat {
 			reading = reading.map((message) => message.role === "assistant" && (message.api !== resolved.provider.api || message.provider !== resolved.provider.id || message.model !== resolved.model.modelId)
 				? stripStaleHandles([message], 1)[0] : message);
 			await runAgent({
-				sessionId: `${this.mainSessionId}:side`,
+				sessionId: this.cacheKey,
 				/*
 				 * 独立一个，不和主会话混用：侧聊的前缀（自己的提示词、主会话快照）跟主会话不同，同一个 key
 				 * 只会把两条互不相干的前缀挤到一处。同一次提问里的多轮工具调用共享前缀，这个 key 管的是它们。
 				 */
-				cacheKey: `${this.mainSessionId}:side`,
+				cacheKey: this.cacheKey,
 				cwd: this.main.cwd,
 				provider: resolved.provider,
 				model: resolved.model,

@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
 import { Markdown } from "../../src/features/conversation/Markdown.tsx";
+import { provideScope } from "../../src/features/dock/popout.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 
 test("named local Markdown artifacts open through the file reader and preserve their labels", async () => {
 	const paths: string[] = [];
 	const previous = Object.getOwnPropertyDescriptor(window, "lyra");
 	Object.defineProperty(window, "lyra", { configurable: true, value: { files: { read: async (path: string) => { paths.push(path); return null; } } } });
+	// 文件开在人所在的那一屏；没有屏的窗口里没有文件面板可开。
+	provideScope(() => "s");
 	const view = await mount(h(Markdown, { text: "[实现说明](/project/docs/result.md:12)", baseDir: "/project" }));
 	try {
 		assert.equal(view.find("a").textContent, "实现说明");
@@ -16,6 +19,7 @@ test("named local Markdown artifacts open through the file reader and preserve t
 		assert.deepEqual(paths, ["/project/docs/result.md"]);
 	} finally {
 		await view.unmount();
+		provideScope(() => null);
 		if (previous) Object.defineProperty(window, "lyra", previous); else Reflect.deleteProperty(window, "lyra");
 	}
 });

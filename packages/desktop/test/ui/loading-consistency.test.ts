@@ -28,10 +28,6 @@ const ALLOWED = new Map<string, string>();
 /**
  * 每一条禁令，连同它该改成什么。
  *
- * 这里禁的是**自己画一个**，不是「除这两个之外的一切」。侧栏会话行的呼吸波纹（`BreatheLoader` /
- * `ly-breathe`）不在名单上，而且是故意不在：那一列可能同时好几行在跑，一列并排都在转的记号会把
- * 标题挡在余光里读不了。第一版把它也算成「第二种 loading」删掉了，那是把统一当成了目的本身。
- *
  * 裸的 `Spinner` 也在名单上，尽管那个名字已经不存在了。删掉它是故意的：三十八处调用点当初全是
  * 这一个名字，谁都不必想一想这一处在说哪句话。名字留在这里，是为了让照着旧代码抄的人撞上它。
  */
@@ -59,6 +55,7 @@ const STATUS_SITES = new Map([
 	["features/conversation/ToolCard.tsx", "工具卡运行中，同一行后面跟着 CircleCheck / CircleX"],
 	["features/conversation/HiccupTrace.tsx", "重试轨迹的 waiting，兄弟分支是 CircleCheck"],
 	["features/conversation/RunningIndicator.tsx", "提问或审批卡住这一轮时，这行是在等你；虚线转圈替掉思考的 orb"],
+	["features/conversation/SessionStatus.tsx", "侧栏会话行的运行中，兄弟分支是等待、完成、失败、未读的状态点"],
 ]);
 
 async function sources(dir: URL, prefix = ""): Promise<{ path: string; text: string }[]> {
@@ -129,22 +126,5 @@ test("STATUS_SITES 里的每一项都还用得上", async () => {
 	for (const [path] of STATUS_SITES) {
 		const text = await readFile(new URL(path, SRC), "utf8");
 		assert.ok(/<StatusSpinner\b/.test(text), `${path} 已经不用状态记号了，把它从 STATUS_SITES 里删掉`);
-	}
-});
-
-test("侧栏会话行的呼吸波纹留着", async () => {
-	/*
-	 * 这一条是捞回来的。
-	 *
-	 * 一次「把全局 loading 统一掉」的改动顺手把它也换成了射线——理由是「只有一种记号」，而那是把
-	 * 统一当成了目的本身。它回答的不是同一个问题：一列会话可能同时好几行在跑，而那一列还要用来
-	 * 读标题，射线并排明灭会把标题挡在余光里。所以它留着，并且由这条守着。
-	 */
-	const status = await readFile(new URL("features/conversation/SessionStatus.tsx", SRC), "utf8");
-	assert.match(status, /BreatheLoader/, "会话行的 running 状态该用 BreatheLoader");
-
-	const css = await readFile(new URL("styles/loading.css", SRC), "utf8");
-	for (const rule of [/@keyframes ly-breathe-wave/, /@keyframes ly-breathe-core/, /@keyframes ly-breathe-hue/, /\.ly-breathe i \{/, /\.ly-breathe b \{/]) {
-		assert.match(css, rule, `styles/loading.css 里少了 ${rule.source}——波纹会变成一个不动的方块`);
 	}
 });

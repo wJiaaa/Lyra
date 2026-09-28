@@ -243,3 +243,13 @@ test("stopping sidechat cancels a summary wait and passes its configured retry p
 	await ready; chat.abort(); await pending;
 	assert.equal(summarySignal?.aborted, true); assert.equal(requestCount, 0);
 });
+
+test("同一个会话旁边的几个侧边聊天，缓存 key 各用各的；最早那一个和从前一样", async (t) => {
+	const keys: (string | undefined)[] = [];
+	const streamFn: SideChatOptions["streamFn"] = async (_context, config) => { keys.push(config.cacheKey); return reply(); };
+	const { main, chat } = await fixture(t, { emit: () => {}, streamFn });
+	const another = new SideChat({ main, settings, sideId: "k1", emit: () => {}, streamFn });
+	await chat.ask([{ type: "text", text: "一" }]);
+	await another.ask([{ type: "text", text: "二" }]);
+	assert.deepEqual(keys, [`${main.meta.id}:side`, `${main.meta.id}:side:k1`]);
+});

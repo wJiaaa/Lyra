@@ -6,12 +6,11 @@ import type { DeliveryFile, TurnDelivery } from "../../../electron/turn-delivery
 import { available, bridge } from "../../services/index.ts";
 import { relativeTo } from "../../lib/paths.ts";
 import { useApp } from "../../store/index.ts";
-import { useOpenFile } from "../../store/openFile.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
-import { companionOf, openScopedPanel, usePaneDock } from "../dock/index.ts";
+import { openFilePane, openScopedPanel, usePaneDock } from "../dock/index.ts";
 import { useDockScope, useScopedMessages, useScopedProjectPath, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { DiffView } from "../git/index.ts";
 import { latestDeliveryTimestamp } from "./delivery-state.ts";
@@ -159,9 +158,8 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 	const report = data.reportPath;
 	const openInFilePane = (path: string) => {
 		hideHover();
-		void useOpenFile.getState().open({ path, name: path.split(/[\\/]/).pop() || path })
+		void openFilePane({ path, name: path.split(/[\\/]/).pop() || path }, screen ?? undefined)
 			.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
-		openScopedPanel("file", companionOf("file"), screen ?? undefined);
 	};
 	const openTurn = (path?: string) => {
 		hideHover();

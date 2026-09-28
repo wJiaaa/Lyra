@@ -27,6 +27,7 @@ import { SessionStatus } from "../conversation/index.ts";
 import { useTypedText } from "../../ui/motion/TypedText.tsx";
 import { useSidebarReorderContext } from "./reorder-context.ts";
 import { offerSessionDrag } from "../split/index.ts";
+import { openScopedPanel, usePaneDock } from "../dock/index.ts";
 import { DropLineIndicator } from "./DropIndicator.tsx";
 import { useRowLit } from "./use-row-lit.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
@@ -67,6 +68,29 @@ export function rowActions(actions: RowActions, session: SessionMeta) {
 		onRestore: bind(actions.onRestore),
 		onDelete: bind(actions.onDelete),
 	};
+}
+
+/**
+ * 打开这条会话（走行自己的 `open`，窄布局下侧栏会跟着收起），再在它那一屏里打开轨迹。
+ *
+ * 轨迹面板挂在会话那一屏的停靠区上，屏没挂出来之前 `openScopedPanel` 找不到它，会落到当前焦点那屏
+ * ——看到的就是别的会话的轨迹。所以没挂出来时等它量出尺寸（挂上了）再开；五秒还没等到就放弃，
+ * 会话已经打开了，不至于什么都没发生。
+ */
+function showTrajectory(session: SessionMeta, open: () => void): void {
+	open();
+	const show = () => openScopedPanel("trajectory", undefined, session.id);
+	if (usePaneDock.getState().size(session.id)) {
+		show();
+		return;
+	}
+	const stop = usePaneDock.subscribe((state) => {
+		if (!state.size(session.id)) return;
+		stop();
+		window.clearTimeout(timer);
+		show();
+	});
+	const timer = window.setTimeout(stop, 5000);
 }
 
 export function SessionRow({
@@ -119,6 +143,7 @@ export function SessionRow({
 	 */
 	const confirm = useConfirmer();
 	const isPinned = settings?.pinnedSessionIds?.includes(session.id) ?? false;
+	const isUnread = settings?.unreadSessionIds?.includes(session.id) ?? false;
 	const { compact } = useLayout();
 	const menu = usePopover();
 
@@ -190,6 +215,7 @@ export function SessionRow({
 					anchor={menu.anchor}
 					session={session}
 					onClose={menu.close}
+					onShowTrajectory={() => showTrajectory(session, onOpen)}
 					/*
 					 * Asked by the menu, answered here, because the menu is gone by the time the
 					 * question needs an answer — it closes itself on the way out. A dialog owned by
@@ -244,7 +270,7 @@ export function SessionRow({
 				}`}
 			>
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
-				<SessionStatus activity={rowActivity(activity, sideRunning, active)} />
+				<SessionStatus activity={rowActivity(activity, sideRunning, active)} unread={isUnread} />
 				<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
 				{/*
 				 * 最后活动距今多久，占的是悬停按钮落下的那一角：按钮出来时它让位，两者从不同时出现。

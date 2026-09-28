@@ -1,6 +1,6 @@
 import { Play, RotateCcw } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
-import { useSide, sideChatOf } from "../dock/index.ts";
+import { useSide, sideTasksOf } from "../dock/index.ts";
 import {
 	useScopedHiccups,
 	useScopedMessages,
@@ -60,7 +60,7 @@ export function ResumeRow() {
 	 *
 	 * Above the early return, because hooks cannot be called conditionally.
 	 */
-	const interrupted = useSide((s) => sideChatOf(s, sessionId).tasks.find((t) => t.status === "cancelled" && t.cancelledBy === "stop"));
+	const interrupted = useSide((s) => sideTasksOf(s, sessionId).find((t) => t.status === "cancelled" && t.cancelledBy === "stop"));
 	const resumeTask = useSide((s) => s.resumeTask);
 	/** 上面那条记录是不是已经把这次失败讲完了——讲完了这一行就不必再讲一遍。 */
 	const failedAlready = hiccups.some((hiccup) => hiccup.outcome === "gave_up");

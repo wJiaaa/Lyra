@@ -16,7 +16,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { openScopedPanel, provideScope, watchPanelWindows } from "../../src/features/dock/popout.ts";
+import { openFilePane, openScopedPanel, provideScope, watchPanelWindows } from "../../src/features/dock/popout.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { has } from "../../src/features/dock/tree.ts";
 import { useOpenFile } from "../../src/store/openFile.ts";
@@ -137,14 +137,10 @@ test("a panel window's request names the screen it was popped out of, and the fi
 		bootWindow: { kind: "panel", panelKind: "files", panelScope: "sess-b", sessionId: "sess-b", id: "p1" },
 		windows: { openPanelInMain: async (input: unknown) => { asked.push(input); return { ok: true }; } },
 	});
-	const previous = useOpenFile.getState();
-	// What `open` sets at once, before its read lands: the file the tree was just clicked on.
-	useOpenFile.setState({ opening: "/work/beta/lib.ts" });
 	try {
-		openScopedPanel("file", { kind: "files", side: "bottom" });
+		void openFilePane({ path: "/work/beta/lib.ts", name: "lib.ts" }, undefined, { kind: "files", side: "bottom" });
 		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } }]);
 	} finally {
-		useOpenFile.setState(previous, true);
 		Reflect.deleteProperty(window, "lyra");
 	}
 });
@@ -168,10 +164,12 @@ test("the main window opens what a panel window asked for in the screen it came 
 	});
 	const opened: string[] = [];
 	const previous = useOpenFile.getState();
-	useOpenFile.setState({ open: async (entry) => { opened.push(entry.path); } });
+	useOpenFile.setState({ open: async (_slot, entry) => { opened.push(entry.path); } });
 	const stop = watchPanelWindows();
 	try {
 		asked?.({ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } });
+		// The pane opens once the file has been read.
+		await new Promise((resolve) => setTimeout(resolve, 0));
 		assert.deepEqual(opened, ["/work/beta/lib.ts"], "the file clicked in the panel window was not opened here");
 		assert.ok(has(usePaneDock.getState().tree("sess-b"), "file"), "the file pane did not open in the screen the panel came from");
 		assert.ok(!has(usePaneDock.getState().tree("sess-a"), "file"), "the file pane opened in the screen with focus");

@@ -17,6 +17,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";
 import { SessionMenu } from "../modals/index.ts";
+import { openScopedPanel } from "../dock/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { closePane } from "./actions.ts";
@@ -77,6 +78,8 @@ export function SplitChrome({
 					anchor={menu.anchor}
 					session={meta}
 					onClose={menu.close}
+					// 这条会话就在这一屏上，直接在这一屏的停靠区里开，不用像侧边栏那样先打开再等。
+					onShowTrajectory={() => openScopedPanel("trajectory", undefined, paneKey(sessionId))}
 					onRequestDelete={() =>
 						confirm.ask({
 							title: t("sidebarList.deleteConfirm"),

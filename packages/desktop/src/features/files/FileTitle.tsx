@@ -17,16 +17,22 @@
  * does nothing worth doing — so the name is just a name then. What counts as "on screen" is not
  * "open": maximising this pane on its own covers the tree, and a narrow window shows one pane at a
  * time. See `paneVisible`.
+ *
+ * 标签页排法下前面再补上它所在的目录——见 `FileDirs`。
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { ChevronDown, FileText, PanelLeft } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, PanelLeft } from "lucide-react";
+import { Fragment } from "react";
 
-import { openScopedPanel, usePaneOnScreen } from "../dock/index.ts";
+import { openFilePane, openScopedPanel, usePaneOnScreen, usePanelLayout } from "../dock/index.ts";
 import { companionOf } from "../dock/index.ts";
 import { useProjectFolders } from "../../store/project-folders.ts";
 import { useDockScope, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
+import { baseName, isDescendantPath, parentOf, relativeTo, tildeHome } from "../../lib/paths.ts";
+import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
+import { usePaneFile, usePaneSlot } from "./pane-file.tsx";
 import { MENU_MAX_HEIGHT, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { FileTree } from "./FileTree.tsx";
 
@@ -49,10 +55,25 @@ export function FileTitle() {
 	const folders = useProjectFolders(workspace);
 	// The tree pane it hands off to opens in this screen, named rather than found by focus.
 	const screen = useDockScope();
-	const path = useOpenFile((s) => s.path);
-	const name = useOpenFile((s) => s.name);
+	const slot = usePaneSlot();
+	const path = usePaneFile((s) => s.path);
+	const name = usePaneFile((s) => s.name);
+	const empty = usePaneFile((s) => !s.path && !s.opening);
 	const menu = usePopover();
 	const treeOnScreen = useTreeOnScreen();
+	const tabbed = usePanelLayout() === "tabs";
+
+	/*
+	 * 标签页排法下，标签上已经写着文件名，这一行前面补上它在哪：项目 › 目录 › 文件名。文件名照旧
+	 * 点得开下拉树。图标换成文件自己的，和树里、标签上认的是同一个样子。
+	 */
+	const dirs = tabbed ? <FileDirs folders={folders} path={path} /> : null;
+	const look = tabbed && name ? lookFor(name, false) : null;
+	const icon = look ? (
+		<look.Icon size={12.5} strokeWidth={1.75} className="shrink-0" style={{ color: iconColour(look) }} />
+	) : (
+		<FileText size={12.5} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
+	);
 
 	/*
 	 * A name, and nothing more, while the tree is beside it.
@@ -63,15 +84,19 @@ export function FileTitle() {
 	 */
 	if (treeOnScreen) {
 		return (
+			<>
+			{dirs}
 			<span className="flex min-w-0 items-center gap-1 py-0.5 pl-1 text-detail" data-ly-tip={path ?? undefined}>
-				<FileText size={12.5} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
+				{icon}
 				<span className={`min-w-0 truncate ${path ? "text-ink" : "text-ink-muted"}`}>{name ?? t("dock.fileContents")}</span>
 			</span>
+			</>
 		);
 	}
 
 	return (
 		<>
+			{dirs}
 			<button
 				type="button"
 				// `no-drag`, like every control in a pane header: the bar around it moves the window.
@@ -81,7 +106,7 @@ export function FileTitle() {
 				data-ly-tip={path ?? undefined}
 				onClick={menu.toggle}
 			>
-				<FileText size={12.5} strokeWidth={1.8} className="shrink-0 text-ink-faint" />
+				{icon}
 				<span className={`min-w-0 truncate ${path ? "text-ink" : "text-ink-muted"}`}>{name ?? t("dock.fileContents")}</span>
 				<ChevronDown
 					size={11}
@@ -135,7 +160,12 @@ export function FileTitle() {
 								roots={folders}
 								openPath={path}
 								onOpen={(entry) => {
-									void useOpenFile.getState().open(entry);
+									/*
+									 * 这一格还空着，或者它在面板窗口里（那里只有它一格），文件就进这一格；
+									 * 不然和树上点一样，开成顶上的一个标签。
+									 */
+									if (empty || !screen) void useOpenFile.getState().open(slot, entry);
+									else void openFilePane(entry, screen);
 									/*
 									 * Picking a file is the end of the errand, so the tree goes away.
 									 *
@@ -167,4 +197,29 @@ export function FileTitle() {
 function useTreeOnScreen(): boolean {
 	// Asked of the screen this file pane is in — the tree beside it, not one in another conversation.
 	return usePaneOnScreen("files");
+}
+
+/**
+ * 这个文件所在的目录，一段一段写出来，每段后面一个 `›`，接着就是文件名。
+ *
+ * 在项目的某个源文件夹里就从那个文件夹的名字写起；不在的（附件、导出的记录）写它所在的目录，
+ * 家目录缩成 `~`。
+ */
+function FileDirs({ folders, path }: { folders: string[]; path: string | null }) {
+	if (!path) return null;
+	const dir = parentOf(path);
+	const root = folders.find((folder) => isDescendantPath(folder, path));
+	const dirs = root
+		? [baseName(root), ...(dir === root ? [] : relativeTo(root, dir).split(/[\\/]/))]
+		: tildeHome(dir).split(/[\\/]/).filter(Boolean);
+	return (
+		<span className="flex min-w-0 items-center gap-1 py-0.5 pl-1 text-detail text-ink-muted">
+			{dirs.map((dir, at) => (
+				<Fragment key={at}>
+					<span className="min-w-0 truncate">{dir}</span>
+					<ChevronRight size={11} strokeWidth={2} className="shrink-0 text-ink-faint" />
+				</Fragment>
+			))}
+		</span>
+	);
 }

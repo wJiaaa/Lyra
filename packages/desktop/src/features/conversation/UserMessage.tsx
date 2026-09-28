@@ -7,7 +7,7 @@ import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Undo2 } from "lucide-
 import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, KIND_LABEL, previewableInPanel, sentKind, type FileKind, type StripFile } from "../composer/index.ts";
 import { useAttachmentActions } from "../composer/index.ts";
-import { companionOf, openScopedPanel } from "../dock/index.ts";
+import { openFilePane } from "../dock/index.ts";
 import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
 import { baseName } from "../../lib/paths.ts";
 import { useMemo, useState } from "react";
@@ -17,7 +17,6 @@ import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
 import { focusScreenOf, useDockScope, useScopedFromMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
-import { useOpenFile } from "../../store/openFile.ts";
 import { available, bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -225,11 +224,8 @@ export function UserMessage({
      * 就只会报一句「文件不在原处」。那边照旧直接打开，读不到由面板自己说。
      */
     if (available("system", "pathExists") && !(await attachmentActions.ensureThere({ name: file.label ?? file.name, path }))) return;
-    void useOpenFile
-      .getState()
-      .open({ path, name: baseName(path) || file.name, isDirectory: false, size: 0 })
+    void openFilePane({ path, name: baseName(path) || file.name }, screen ?? undefined)
       .catch((error: unknown) => useApp.getState().notify(String(error), "error"));
-    openScopedPanel("file", companionOf("file"), screen ?? undefined);
   };
 
   /**
@@ -450,13 +446,7 @@ export function UserMessage({
                 const targetPath = list?.skills?.find((skill: SkillEntry) => skill.name === skillRef.name && skill.pluginId === skillRef.pluginId)?.path;
                 if (targetPath) {
                   const fileName = targetPath.split(/[/\\]/).pop() || `${skillRef?.name} (SKILL.md)`;
-                  void useOpenFile.getState().open({
-                    path: targetPath,
-                    name: fileName,
-                    isDirectory: false,
-                    size: 0,
-                  });
-                  openScopedPanel("file", { kind: "conversation", side: "right", share: 0.45 }, screen ?? undefined);
+                  void openFilePane({ path: targetPath, name: fileName }, screen ?? undefined, { kind: "conversation", side: "right", share: 0.45 });
                 } else {
                   useApp.getState().notify(t("userMessage.skillMissing", { name: skillRef?.name ?? "" }), "warn");
                 }

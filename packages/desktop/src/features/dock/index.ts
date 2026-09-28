@@ -10,13 +10,14 @@
  */
 
 export { companionOf } from "./panels/definitions.tsx";
-export { useSide, sideChatOf } from "./sideStore.ts";
+export { useSide, sideChatOf, sideTasksOf } from "./sideStore.ts";
 export { emptyDockTree, usePaneDock } from "./pane-store.ts";
 export { DockView, startInset } from "./DockView.tsx";
 export type { ScreenInsets } from "./DockView.tsx";
 export { usePaneOnScreen } from "./scope-context.ts";
 export {
 	currentScope,
+	openFilePane,
 	openScopedPanel,
 	provideReveal,
 	provideScope,
@@ -28,3 +29,4 @@ export { renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions
 export { useBoxSize } from "./useBoxSize.ts";
 export type { PanelKind } from "./sideStore.ts";
 export { has } from "./tree.ts";
+export { usePanelLayout } from "./tabs.ts";

@@ -17,15 +17,16 @@ import { Code, ExternalLink, Eye, WrapText } from "lucide-react";
 
 import { openLabel, useOpenTarget } from "../../store/open-targets.ts";
 import { useOpenFile } from "../../store/openFile.ts";
+import { usePaneFile } from "./pane-file.tsx";
 import { fileKind } from "./FileViewer.tsx";
 import { available, bridge } from "../../services/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function FileActions() {
 	const { t } = useI18n();
-	const path = useOpenFile((s) => s.path);
-	const name = useOpenFile((s) => s.name);
-	const contents = useOpenFile((s) => s.contents);
+	const path = usePaneFile((s) => s.path);
+	const name = usePaneFile((s) => s.name);
+	const contents = usePaneFile((s) => s.contents);
 	const wrap = useOpenFile((s) => s.wrap);
 	const showSource = useOpenFile((s) => s.showSource);
 	const openTarget = useOpenTarget();

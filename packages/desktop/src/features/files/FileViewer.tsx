@@ -3,7 +3,6 @@ import { FileWarning } from "lucide-react";
 import type { FileContents } from "../../../electron/ipc-types.ts";
 import { CodeEditor } from "../editor/index.ts";
 import { documentKind } from "../../../shared/document-kind.ts";
-import { FileTabs } from "./FileTabs.tsx";
 import { PdfView, WordView } from "./DocumentView.tsx";
 import { ImagePane } from "./ImagePane.tsx";
 import { SheetView } from "./SheetView.tsx";
@@ -99,9 +98,6 @@ export function FileViewer({
 
 	return (
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-			{/* Where the toolbar was: the files this pane has had open. */}
-			<FileTabs />
-
 			{!richPreview && ["image", "video", "audio", "sheet", "pdf", "document"].includes(kind) ? (
 				<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
 					<FileWarning size={26} strokeWidth={1.4} className="text-ink-faint" />

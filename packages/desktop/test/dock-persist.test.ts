@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { legacyStorageKey, paneStorageKey, sanitize, serialize } from "../src/features/dock/persist.ts";
+import { legacyStorageKey, paneStorageKey, readTree, sanitize, serialize } from "../src/features/dock/persist.ts";
 import { defaultTree, has, kinds, leafOf, type DockNode, type DockSplit, type PaneKind } from "../src/features/dock/tree.ts";
 
 /**
@@ -72,6 +72,30 @@ test("a duplicated pane is repaired rather than rejected — the first one wins"
 	const stored = row([leafOf("conversation"), leafOf("terminal"), leafOf("terminal")], [0.4, 0.3, 0.3]);
 	const tree = sanitize(stored, ALLOWED);
 	assert.deepEqual(kinds(tree), ["conversation", "terminal"]);
+});
+
+test("一个会话旁边的几个侧边聊天各占一格，存下来读回去一个都不少", () => {
+	const allowed: PaneKind[] = ["conversation", "chat"];
+	const stored = row([leafOf("conversation"), leafOf("chat"), leafOf("chat:k1" as PaneKind), leafOf("chat:k1" as PaneKind)], [0.4, 0.2, 0.2, 0.2]);
+	assert.deepEqual(kinds(sanitize(stored, allowed)), ["conversation", "chat", "chat:k1"], "按 `chat` 认，重复的那一格照样修掉");
+	assert.deepEqual(kinds(sanitize(stored, ["conversation"])), ["conversation"], "侧边聊天这个面板没了，后开的也一起不认");
+});
+
+test("后开的文件标签不跟着布局回来：它看的文件只记在内存里，回来只会是一排空白", () => {
+	const key = paneStorageKey("s");
+	const stored = row([leafOf("conversation"), leafOf("file"), leafOf("file:k1" as PaneKind), leafOf("terminal:k2" as PaneKind)], [0.4, 0.2, 0.2, 0.2]);
+	const saved = new Map([[key, serialize(stored)]]);
+	Reflect.set(globalThis, "window", { localStorage: { getItem: (name: string) => saved.get(name) ?? null } });
+	try {
+		assert.deepEqual(kinds(readTree(key, ["conversation", "file", "terminal"])!), ["conversation", "file", "terminal:k2"]);
+	} finally {
+		Reflect.deleteProperty(globalThis, "window");
+	}
+});
+
+test("弹出去的那一格收回来时，名单上写的就是它自己", () => {
+	const stored = row([leafOf("conversation"), leafOf("chat:k1" as PaneKind)], [0.5, 0.5]);
+	assert.deepEqual(kinds(sanitize(stored, ["conversation", "chat:k1" as PaneKind])), ["conversation", "chat:k1"]);
 });
 
 test("a layout that lost the conversation gets it back, beside what survived", () => {

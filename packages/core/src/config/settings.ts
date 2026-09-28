@@ -337,6 +337,13 @@ export interface Settings {
 	/** Pinned session IDs across projects and loose chats. */
 	pinnedSessionIds?: string[];
 	/**
+	 * 手动标成未读的会话。和置顶一样存在这里，重启后还在；选中这条会话就清掉。
+	 *
+	 * 和窗口里 `activity` 的 `done`/`failed` 不是一回事：那两个是「跑完了你还没看」，由事件推出来、
+	 * 只在内存里；这个是人自己说「回头再看」，只有人的动作能立起来和放下去。
+	 */
+	unreadSessionIds?: string[];
+	/**
 	 * Fold a project away once every one of its conversations is archived.
 	 *
 	 * Off by default. Archiving the last conversation is a reasonable way to say a project is done

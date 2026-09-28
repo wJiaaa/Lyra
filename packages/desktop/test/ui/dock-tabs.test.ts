@@ -27,15 +27,21 @@ test("tabs layout: every panel stays mounted in one right-hand pane, and only th
 	try {
 		await act(() => { usePaneDock.getState().open(scope, "terminal"); });
 		const terminal = view.find("[data-test-terminal]");
-		// 「+」里只列还没开的面板，点一下开成新标签；开过的不再列。
-		await click(pane("terminal").querySelector(`button[aria-label="${translate("pane.addTab")}"]`)!);
-		const items = [...document.querySelectorAll('[role="menuitem"]')] as HTMLElement[];
+		// 「+」里只列还没开的面板，点一下开成新标签；开过的不再列——能开好几个的（终端）除外。
+		const offeredFrom = async (kind: string) => {
+			await click(pane(kind).querySelector(`button[aria-label="${translate("pane.addTab")}"]`)!);
+			return [...document.querySelectorAll('[role="menuitem"]')] as HTMLElement[];
+		};
+		const items = await offeredFrom("terminal");
 		const offered = items.map((item) => item.textContent ?? "");
-		assert.ok(!offered.some((text) => text.includes(translate("common.terminal"))), "an open panel was offered again");
+		assert.ok(offered.some((text) => text.includes(translate("common.terminal"))), "a terminal can always be opened again");
 		const browserItem = items.find((item) => item.textContent?.includes(translate("browser.title")));
 		assert.ok(browserItem, `the browser was not offered: ${offered.join(", ")}`);
 		await click(browserItem);
 		assert.equal(usePaneDock.getState().tab[scope], "browser");
+		const again = (await offeredFrom("browser")).map((item) => item.textContent ?? "");
+		assert.ok(!again.some((text) => text.includes(translate("browser.title"))), "an open panel was offered again");
+		await click(pane("browser").querySelector(`button[aria-label="${translate("pane.addTab")}"]`)!);
 
 		// 两个面板占同一格，在对话右边，只有新开的那个看得见。
 		assert.equal(pane("terminal").style.left, pane("browser").style.left);

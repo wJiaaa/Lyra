@@ -2,7 +2,6 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { translate } from "../../i18n/translate.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
-import { Button } from "../../ui/primitives/Button.tsx";
 
 /**
  * The pager under a run of conversation rows.
@@ -18,6 +17,13 @@ import { Button } from "../../ui/primitives/Button.tsx";
  *
  * Indented so its icon aligns with the session status icons above it (pl-2 and 14px slot),
  * with the title starting at 30px to align with session titles.
+ *
+ * Text only: hover deepens the ink and paints no fill. A fill is a box drawn around a line
+ * that reads as text, and it was what a press left behind when the list moved the button.
+ *
+ * Each shape is keyed apart. The first two are otherwise the same <button> to React, so a press
+ * kept the node and carried its hover colour to wherever the list moved it, fading out over
+ * `transition-colors` on a button the pointer was no longer on.
  */
 export function ShowMore({
 	hidden,
@@ -39,10 +45,11 @@ export function ShowMore({
 	if (hidden > 0 && !canCollapse) {
 		return (
 			<button
+				key="more"
 				type="button"
 				data-ly-fades
 				onClick={onShowMore}
-				className={`group/more flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-2 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink-muted active:bg-elevated ${heightClass}`}
+				className={`group/more flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-2 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted ${heightClass}`}
 			>
 				{/*
 				 * The 14px (h-3.5 w-3.5) icon slot preceded by pl-2 perfectly mirrors SessionRow,
@@ -61,10 +68,11 @@ export function ShowMore({
 	if (hidden <= 0 && canCollapse) {
 		return (
 			<button
+				key="collapse"
 				type="button"
 				data-ly-fades
 				onClick={onCollapse}
-				className={`group/more flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-2 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink-muted active:bg-elevated ${heightClass}`}
+				className={`group/more flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-2 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted ${heightClass}`}
 			>
 				<span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-ink-faint transition-colors duration-[var(--ly-t-quick)] group-hover/more:text-ink-muted">
 					<ChevronUp size={12} strokeWidth={2} aria-hidden />
@@ -77,11 +85,11 @@ export function ShowMore({
 	}
 
 	return (
-		<div data-ly-fades className={`flex w-full min-w-0 items-center justify-between gap-1 rounded-lg ${heightClass}`}>
+		<div key="split" data-ly-fades className={`flex w-full min-w-0 items-center justify-between gap-1 rounded-lg ${heightClass}`}>
 			<button
 				type="button"
 				onClick={onShowMore}
-				className="group/more flex min-w-0 flex-1 items-center gap-2 rounded-lg pl-2 pr-1.5 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink-muted"
+				className="group/more flex min-w-0 flex-1 items-center gap-2 rounded-lg pl-2 pr-1.5 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
 			>
 				<span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-ink-faint transition-colors duration-[var(--ly-t-quick)] group-hover/more:text-ink-muted">
 					<ChevronDown size={12} strokeWidth={2} aria-hidden />
@@ -90,9 +98,14 @@ export function ShowMore({
 					<RollingText rollKey={hidden}>{translate("showMore.expand", { n: hidden })}</RollingText>
 				</span>
 			</button>
-			<Button variant="subtle" size="xs" label={translate("common.collapse")} onClick={onCollapse} icon={<ChevronUp size={12} strokeWidth={2} aria-hidden />}>
+			<button
+				type="button"
+				onClick={onCollapse}
+				className="group/less flex shrink-0 items-center gap-1 rounded-md px-1.5 text-detail text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
+			>
+				<ChevronUp size={12} strokeWidth={2} aria-hidden />
 				{translate("common.collapse")}
-			</Button>
+			</button>
 		</div>
 	);
 }

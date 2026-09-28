@@ -15,6 +15,7 @@
  */
 
 import assert from "node:assert/strict";
+import { DEFAULT_SETTINGS } from "@lyra/core";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h, useRef } from "react";
 import type { Message, SessionMeta } from "@lyra/core";
@@ -31,7 +32,7 @@ import { I18nProvider } from "../../src/i18n/index.ts";
 import { useApp, type AppState } from "../../src/store/index.ts";
 import type { Cache } from "../../src/store/derive.ts";
 import { useFileTreeStore } from "../../src/store/fileTree.ts";
-import { useOpenFile } from "../../src/store/openFile.ts";
+import { fileSlot, useOpenFile } from "../../src/store/openFile.ts";
 import { click, mount, type Mounted } from "../helpers/mount.ts";
 
 const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
@@ -89,7 +90,7 @@ beforeEach(() => {
 		activity: {}, settings: null,
 	});
 	useFileTreeStore.setState({ children: {}, expanded: new Set() });
-	useOpenFile.setState({ path: null, name: null, open: async (entry: { path: string }) => void opened.push(entry.path) });
+	useOpenFile.setState({ files: {}, last: null, open: async (_slot, entry) => void opened.push(entry.path) });
 	window.localStorage.clear();
 	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
 	usePaneDock.getState().rememberSize("a", { width: 1200, height: 900 });
@@ -170,8 +171,20 @@ test("a file opened from a screen's Files panel opens the file pane in that scre
 	assert.ok(!has(usePaneDock.getState().tree("a"), "file"), "it opened beside the conversation that has focus");
 });
 
-test("the tree under the open file's name lists that screen's project, and hands off to that screen", async () => {
-	useOpenFile.setState({ path: "/work/beta/lib.ts", name: "lib.ts" });
+test("tabs layout: under the file's tab is where it is, and its name still opens the tree", async () => {
+	useOpenFile.setState({ files: { [fileSlot("b", "file")]: { path: "/work/beta/src/lib.ts", name: "lib.ts", contents: null, opening: null, loading: false } } });
+	const b = await inScreen("b", h(FileTitle));
+	assert.equal(b.text(), "betasrclib.ts", "that screen's project, the folder, then the file");
+	await click(b.find("button"));
+	await settle();
+	const listed = [...document.querySelectorAll("[data-path]")].map((one) => one.getAttribute("data-path"));
+	assert.ok(listed.includes("/work/beta/lib.ts"), `the dropdown listed ${JSON.stringify(listed)}`);
+});
+
+test("split layout: the tree under the open file's name lists that screen's project, and hands off to that screen", async () => {
+	// 分栏排法没有那排标签，名字和它背后的下拉树照旧。
+	useApp.setState({ settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "split" } } });
+	useOpenFile.setState({ files: { [fileSlot("b", "file")]: { path: "/work/beta/lib.ts", name: "lib.ts", contents: null, opening: null, loading: false } } });
 	const b = await inScreen("b", h(FileTitle));
 	await click(b.find("button"));
 	await settle();

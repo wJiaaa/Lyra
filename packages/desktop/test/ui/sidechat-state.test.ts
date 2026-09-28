@@ -22,12 +22,12 @@ afterEach(async () => {
 test("late attach snapshot merges new stream events without deleting older questions or duplicating included events", async () => {
 	const pending = deferred<SideChatSnapshot>(); api(() => pending.promise);
 	const attaching = useSide.getState().attach("a");
-	useSide.getState().applyEvent("a", { type: "message_start", message: user("Old question"), sideRevision: 1 });
-	useSide.getState().applyEvent("a", { type: "message_start", message: { ...answer, stopReason: "pending" }, sideRevision: 2 });
-	useSide.getState().applyEvent("a", { type: "message_end", message: answer, sideRevision: 3 });
-	useSide.getState().applyEvent("a", { type: "agent_end", reason: "done", sideRevision: 4 });
+	useSide.getState().applyEvent("a", "default", { type: "message_start", message: user("Old question"), sideRevision: 1 });
+	useSide.getState().applyEvent("a", "default", { type: "message_start", message: { ...answer, stopReason: "pending" }, sideRevision: 2 });
+	useSide.getState().applyEvent("a", "default", { type: "message_end", message: answer, sideRevision: 3 });
+	useSide.getState().applyEvent("a", "default", { type: "agent_end", reason: "done", sideRevision: 4 });
 	pending.resolve({ modelId: null, revision: 1, messages: [user("Old question")], running: true }); await attaching;
-	const slot = useSide.getState().chats.a;
+	const slot = useSide.getState().chats.a?.default;
 	assert.deepEqual(slot?.messages, [user("Old question"), answer]);
 	assert.equal(slot?.running, false); assert.equal(slot?.loading, false);
 });
@@ -35,13 +35,13 @@ test("late attach snapshot merges new stream events without deleting older quest
 test("background answers update only their session and are immediately visible on returning", async () => {
 	api(async (id) => ({ modelId: null, messages: [user(id)], running: false, revision: 0 }));
 	await useSide.getState().attach("a"); await useSide.getState().attach("b");
-	useSide.getState().applyEvent("a", { type: "message_start", message: answer, sideRevision: 1 });
-	useSide.getState().applyEvent("a", { type: "message_end", message: answer, sideRevision: 2 });
-	assert.deepEqual(useSide.getState().chats.b?.messages, [user("b")]);
-	assert.deepEqual(useSide.getState().chats.a?.messages, [user("a"), answer]);
+	useSide.getState().applyEvent("a", "default", { type: "message_start", message: answer, sideRevision: 1 });
+	useSide.getState().applyEvent("a", "default", { type: "message_end", message: answer, sideRevision: 2 });
+	assert.deepEqual(useSide.getState().chats.b?.default?.messages, [user("b")]);
+	assert.deepEqual(useSide.getState().chats.a?.default?.messages, [user("a"), answer]);
 	const response = deferred<SideChatSnapshot>(); api(() => response.promise);
 	const returning = useSide.getState().attach("a");
-	assert.deepEqual(useSide.getState().chats.a?.messages, [user("a"), answer]);
+	assert.deepEqual(useSide.getState().chats.a?.default?.messages, [user("a"), answer]);
 	response.resolve({ modelId: null, messages: [user("a"), answer], running: false, revision: 2 }); await returning;
 });
 
@@ -53,33 +53,46 @@ test("A to B to A cannot be overwritten by the first A read", async () => {
 	const newA = useSide.getState().attach("a", true);
 	last.resolve({ modelId: null, messages: [user("Current A")], running: false }); await newA;
 	first.resolve({ modelId: null, messages: [user("Stale A")], running: true }); await oldA;
-	assert.deepEqual(useSide.getState().chats.a?.messages, [user("Current A")]); assert.equal(useSide.getState().chats.a?.running, false);
+	assert.deepEqual(useSide.getState().chats.a?.default?.messages, [user("Current A")]); assert.equal(useSide.getState().chats.a?.default?.running, false);
 });
 
 test("failed submission shows an error and releases the composer instead of leaving a pending run", async () => {
 	api(async () => ({ modelId: null, messages: [], running: false }), async () => { throw new Error("IPC unavailable"); });
 	await useSide.getState().attach("a");
-	await useSide.getState().ask("a", [{ type: "text", text: "Question" }]);
-	const slot = useSide.getState().chats.a;
+	await useSide.getState().ask("a", "default", [{ type: "text", text: "Question" }]);
+	const slot = useSide.getState().chats.a?.default;
 	assert.equal(slot?.running, false); assert.equal(slot?.pending, null);
 	assert.match(slot?.error ?? "", /IPC unavailable/);
 });
 
 test("rewind drops discarded answers and tool cards before the replacement arrives", async () => {
 	api(async () => ({ modelId: null, messages: [user("Original"), answer], running: false })); await useSide.getState().attach("a");
-	useSide.getState().applyEvent("a", { type: "rewound", messageCount: 0 });
-	useSide.getState().applyEvent("a", { type: "message_start", message: user("Replacement", 3) });
-	const slot = useSide.getState().chats.a;
+	useSide.getState().applyEvent("a", "default", { type: "rewound", messageCount: 0 });
+	useSide.getState().applyEvent("a", "default", { type: "message_start", message: user("Replacement", 3) });
+	const slot = useSide.getState().chats.a?.default;
 	assert.deepEqual(slot?.messages, [user("Replacement", 3)]); assert.deepEqual(slot?.toolRuns, {});
 });
 
 test("late snapshots cannot replace a newer model selection, including background session caches", async () => {
 	const pending = deferred<SideChatSnapshot>(); api(() => pending.promise);
 	const attach = useSide.getState().attach("model-a");
-	useSide.getState().applyEvent("model-a", { type: "side_model", modelId: "chosen", sideRevision: 2 });
+	useSide.getState().applyEvent("model-a", "default", { type: "side_model", modelId: "chosen", sideRevision: 2 });
 	pending.resolve({ messages: [], running: false, modelId: "old", revision: 1 }); await attach;
-	assert.equal(useSide.getState().chats["model-a"]?.modelId, "chosen");
+	assert.equal(useSide.getState().chats["model-a"]?.default?.modelId, "chosen");
 	api(async () => ({ messages: [], running: false, modelId: null, revision: 0 })); await useSide.getState().attach("model-b");
-	useSide.getState().applyEvent("model-a", { type: "side_model", modelId: "background", sideRevision: 3 });
-	assert.equal(useSide.getState().chats["model-b"]?.modelId, null); assert.equal(useSide.getState().chats["model-a"]?.modelId, "background");
+	useSide.getState().applyEvent("model-a", "default", { type: "side_model", modelId: "background", sideRevision: 3 });
+	assert.equal(useSide.getState().chats["model-b"]?.default?.modelId, null); assert.equal(useSide.getState().chats["model-a"]?.default?.modelId, "background");
+});
+
+test("一个会话旁边的两个侧边聊天各画各的；关掉的那个，路上的事件画不回来", async () => {
+	api(async (_id) => ({ modelId: null, messages: [], running: false, revision: 0 }));
+	Object.assign((window as unknown as { lyra: { sideChat: Record<string, unknown> } }).lyra.sideChat, { close: async () => {} });
+	await useSide.getState().attachChat("pair", "default");
+	await useSide.getState().attachChat("pair", "x1");
+	useSide.getState().applyEvent("pair", "x1", { type: "message_start", message: user("只问 x1"), sideRevision: 1 });
+	assert.deepEqual(useSide.getState().chats.pair?.x1?.messages, [user("只问 x1")]);
+	assert.deepEqual(useSide.getState().chats.pair?.default?.messages, [], "另一个不受影响");
+	await useSide.getState().close("pair", "x1");
+	useSide.getState().applyEvent("pair", "x1", { type: "message_end", message: answer, sideRevision: 2 });
+	assert.equal(useSide.getState().chats.pair?.x1, undefined);
 });

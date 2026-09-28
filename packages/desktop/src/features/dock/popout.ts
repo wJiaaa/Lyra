@@ -20,14 +20,15 @@ import { create } from "zustand";
 import { flushSync } from "react-dom";
 import { bridge } from "../../services/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
-import { useOpenFile } from "../../store/openFile.ts";
+import { fileSlot, openFileOf, useOpenFile } from "../../store/openFile.ts";
+import { allowsMany, basePanelKind, nextPanelKind } from "../../lib/panel-instance.ts";
 import { paneFloor } from "./geometry.ts";
 import { clearsFloors } from "./layout.ts";
 import { dropFits, homeOf, placePanel } from "./place.ts";
 import { emptyDockTree, usePaneDock, type Placement } from "./pane-store.ts";
 import { has, insert, kinds, remove, type DockNode, type DropAt, type DropSide, type PaneKind } from "./tree.ts";
 import { paneStorageKey, readTree, sanitize, writeTree } from "./persist.ts";
-import { allPanels, detachOf } from "./panels/registry.ts";
+import { allPanels, detachOf, panelOf } from "./panels/registry.ts";
 import { activeTab, panelLayout } from "./tabs.ts";
 import type { PanelKind } from "./sideStore.ts";
 
@@ -161,7 +162,7 @@ export async function popOutPanel(input: { scope: string; kind: PanelKind; sessi
 	});
 	let opened = false;
 	try {
-		opened = (await bridge.windows.openPanel({ kind: input.kind, scope: input.scope, sessionId: input.sessionId, ...(input.kind === "file" ? { fileState: filePanelSnapshot() } : {}) })).ok;
+		opened = (await bridge.windows.openPanel({ kind: input.kind, scope: input.scope, sessionId: input.sessionId, ...(basePanelKind(input.kind) === "file" ? { fileState: filePanelSnapshot(fileSlot(input.scope, input.kind)) } : {}) })).ok;
 	} finally {
 		if (!opened) {
 			usePanelWindows.setState((state) => ({ opening: state.opening.filter((panel) => panel.scope !== input.scope || panel.kind !== input.kind) }));
@@ -283,33 +284,82 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 	 * passes its own (`useDockScope`), and so does a request that is not a click at all — an
 	 * announcement, a page an agent revealed.
 	 */
-	const scope = target && usePaneDock.getState().size(target) ? target : readScope();
+	const scope = screenFor(target);
 	if (!scope) return null;
 	if (isPopped(scope, kind)) {
-		if (bridge.windows?.openPanel) void bridge.windows.openPanel({ kind, scope, sessionId: sessionOf(scope), ...(kind === "file" ? { fileState: filePanelSnapshot() } : {}) });
+		if (bridge.windows?.openPanel) void bridge.windows.openPanel({ kind, scope, sessionId: sessionOf(scope), ...(basePanelKind(kind) === "file" ? { fileState: filePanelSnapshot(fileSlot(scope, kind)) } : {}) });
 		return scope;
 	}
 	usePaneDock.getState().open(scope, kind, beside);
 	return scope;
 }
 
+/** The screen a request made from `target` lands in: that one while it is on screen, else the one with focus. */
+function screenFor(target: string | undefined): string | null {
+	return target && usePaneDock.getState().size(target) ? target : readScope();
+}
+
 /**
- * What a panel window asks the main window for, with the two things the main window cannot know.
+ * What a panel window asks the main window for, with the thing the main window cannot know.
  *
  * The screen: the one this panel was popped out of, which is where the request was made — the main
- * window's focus is on some other screen as often as not. And, for the file pane, the file: this
- * window's open-file store is its own, so without it the main window opened its file pane on
- * whatever file it already had, or on nothing.
+ * window's focus is on some other screen as often as not. The file, for a file pane, is named by
+ * `openFilePane`: this window's open-file store is its own.
  */
 function inMain(kind: PanelKind, beside: { kind: PaneKind; side: DropSide; share?: number } | undefined, target: string | undefined) {
 	const scope = target ?? bridge.bootWindow?.panelScope ?? undefined;
-	const path = kind === "file" ? filePanelSnapshot().path : null;
 	return {
 		kind,
 		...(beside ? { beside } : {}),
 		...(scope ? { scope } : {}),
-		...(path ? { file: { path, name: path.split(/[\\/]/).pop() || path } } : {}),
 	};
+}
+
+/**
+ * 把一个文件打开到一屏的文件标签里。
+ *
+ * 每个文件是顶上那排标签里的一个，各看各的文件（`store/openFile.ts`）。已经有一格开着它就切过去；
+ * 有一格空着——从菜单或「+」开出来还没选文件的——就用那一格；最早那一格 `file` 不在树上就用它
+ * （它弹出去了，文件就进那个窗口，和从前一样）；标签页排法下再不然新开一格。
+ *
+ * 分栏排法下没有那排标签：每点一个文件就多劈一格，几下就把屏切碎了，所以换掉正在看的那一格里
+ * 的文件。要并排看两个文件，用那一格头上的「再开一个」。
+ *
+ * 读到了才开出那一格；读不到由调用方说。
+ */
+export function openFilePane(
+	file: { path: string; name: string },
+	target?: string,
+	beside: { kind: PaneKind; side: DropSide; share?: number } | undefined = panelOf("file")?.companion,
+): Promise<void> {
+	if (inPanelWindow()) {
+		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain({ ...inMain("file", beside, target), file });
+		return Promise.resolve();
+	}
+	const scope = screenFor(target);
+	if (!scope) return Promise.resolve();
+	const dock = usePaneDock.getState();
+	const tree = dock.tree(scope);
+	const files = useOpenFile.getState();
+	const panes = kinds(tree).filter((kind) => basePanelKind(kind) === "file");
+	const showing = (kind: PaneKind) => {
+		const open = openFileOf(files, fileSlot(scope, kind));
+		return open.opening ?? open.path;
+	};
+	const focused = dock.focused[scope];
+	const kind =
+		panes.find((each) => showing(each) === file.path) ??
+		panes.find((each) => !showing(each)) ??
+		(panelLayout() === "tabs" || panes.length === 0
+			? nextPanelKind("file", (each) => has(tree, each))
+			: focused && panes.includes(focused) ? focused : panes[0]!);
+	/*
+	 * Read first, then show. A file that cannot be read does not leave an empty tab behind, and a
+	 * pane already showing something keeps showing it — the caller says what went wrong.
+	 */
+	return files.open(fileSlot(scope, kind), file).then(() => {
+		openScopedPanel(kind as PanelKind, beside, scope);
+	});
 }
 
 /**
@@ -350,7 +400,10 @@ export function toggleScopedPanel(scope: string, kind: PanelKind, options: { com
 function adoptOrphans(deadline: number): void {
 	const pending: string[] = [];
 	for (const key of Object.keys(readHomes())) {
-		const cut = key.lastIndexOf(":");
+		let cut = key.lastIndexOf(":");
+		// 后开的那几格自己带一个冒号（`terminal:<id>`），键是 `<屏>:<种类>:<id>`。
+		const before = key.lastIndexOf(":", cut - 1);
+		if (before > 0 && allowsMany(key.slice(before + 1, cut))) cut = before;
 		if (cut <= 0) continue;
 		const scope = key.slice(0, cut);
 		const kind = key.slice(cut + 1) as PanelKind;
@@ -403,17 +456,14 @@ export function watchPanelWindows(): () => void {
 	 * through this window's own file boundary, as a click here would read it.
 	 */
 	const stopOpen = bridge.windows.onOpenPanel?.(({ kind, beside, scope, file }) => {
-		if (file) void useOpenFile.getState().open({ path: file.path, name: file.name, isDirectory: false, size: 0 });
-		openScopedPanel(kind as PanelKind, beside as { kind: PaneKind; side: DropSide; share?: number } | undefined, scope);
+		const near = beside as { kind: PaneKind; side: DropSide; share?: number } | undefined;
+		if (file && basePanelKind(kind) === "file") void openFilePane(file, scope, near);
+		else openScopedPanel(kind as PanelKind, near, scope);
 	}) ?? (() => {});
 	const stopRestore = bridge.windows.onRestorePanel(({ kind, scope, fileState }) => {
 		const restore = async () => {
 			if (!(await dockBack(kind as PanelKind, scope, true))) return;
-			if (fileState) {
-				const current = filePanelSnapshot();
-				const paths = new Set(fileState.tabs.map((tab) => tab.path));
-				await applyFilePanelState({ ...fileState, tabs: [...current.tabs.filter((tab) => !paths.has(tab.path)), ...fileState.tabs] });
-			}
+			if (fileState) await applyFilePanelState(fileSlot(scope, kind), fileState);
 			await bridge.windows.closePanel({ kind, scope });
 		};
 		void restore().catch((error: unknown) => {

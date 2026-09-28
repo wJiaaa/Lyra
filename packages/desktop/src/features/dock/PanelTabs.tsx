@@ -14,13 +14,16 @@ import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/ove
 import { ClosableTab } from "../../ui/primitives/ClosableTab.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
-import { usePaneDock } from "./pane-store.ts";
-import type { PaneKind } from "./tree.ts";
+import { closePane, usePaneDock } from "./pane-store.ts";
+import { has, type PaneKind } from "./tree.ts";
+import { allowsMany, nextPanelKind, type ManyKind } from "../../lib/panel-instance.ts";
 
 export interface PanelTab {
 	kind: PaneKind;
 	label: string;
 	icon?: ReactNode;
+	/** 标签上画的名字，代替 `label`——见 `PanelDefinition.tabTitle`。 */
+	title?: ReactNode;
 }
 
 /** 「+」菜单里的一项：能开、还没开的面板。 */
@@ -57,18 +60,18 @@ export function PanelTabs({
 				aria-label={translate("pane.tabs")}
 				className="flex min-w-0 items-center gap-0.5 overflow-x-auto"
 			>
-				{tabs.map(({ kind, label, icon }) => (
+				{tabs.map(({ kind, label, icon, title }) => (
 					<ClosableTab
 						key={kind}
 						data-panel-tab={kind}
 						current={kind === current}
 						onSelect={() => usePaneDock.getState().focus(scope, kind)}
-						onClose={() => usePaneDock.getState().close(scope, kind)}
+						onClose={() => closePane(scope, kind)}
 						closeLabel={translate("pane.closeOne", { label })}
 					>
 						<span className="flex items-center gap-1.5">
 							{icon && <span className="flex shrink-0 items-center">{icon}</span>}
-							{label}
+							{title ?? label}
 						</span>
 					</ClosableTab>
 				))}
@@ -88,7 +91,10 @@ export function PanelTabs({
 								icon={panel.icon}
 								hint={panel.shortcut}
 								onClick={() => {
-									usePaneDock.getState().open(scope, panel.kind);
+									const dock = usePaneDock.getState();
+									// 能开好几个的（侧边聊天、终端）开着的时候，再点一次是再开一个，不是切回那一个。
+									const kind = allowsMany(panel.kind) ? nextPanelKind(panel.kind as ManyKind, (each) => has(dock.tree(scope), each)) : panel.kind;
+									dock.open(scope, kind);
 									menu.close();
 								}}
 							>

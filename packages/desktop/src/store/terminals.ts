@@ -1,8 +1,8 @@
 /**
- * Which terminals are open, and which one you are looking at.
+ * Which terminals are open, and which one each terminal pane is looking at.
  *
  * The shells themselves live in the main process and outlive everything here — this is only the
- * tab strip's view of them.
+ * panes' view of them. Each terminal is a tab of the dock, keyed by `terminalSlot`.
  *
  * One list, not one per project. It used to be keyed by project directory, which tied the strip to
  * whatever the rest of the window happened to be showing: changing projects swapped the terminals
@@ -11,10 +11,10 @@
  * started and are using; closing a folder in an editor does not close the build you are watching.
  *
  * The project still decides where a *new* shell starts — the current one, or home when there is
- * none — and that is the whole of the relationship between them. See `TerminalTabs`.
+ * none — and that is the whole of the relationship between them.
  *
- * Outside React because two components need it — the strip in the pane's header and the pane
- * itself — and they are not in a position to pass it between them.
+ * Outside React because several things need it — the pane itself, its tab's title, and closing the
+ * tab — and they are not in a position to pass it between them.
  */
 
 import { create } from "zustand";
@@ -32,6 +32,8 @@ interface TerminalsState {
 	add(tab: TerminalTab, scope?: string): void;
 	remove(id: string): void;
 	select(id: string, scope?: string): void;
+	/** 这一格不在了：不再记它在看哪个 shell。 */
+	forget(scope: string): void;
 }
 
 /** Shared by the main and detached renderers, validated against the live shell list on attach. */
@@ -41,6 +43,10 @@ export function savedTerminal(scope: string | undefined): string | null {
 
 function saveTerminal(scope: string | undefined, id: string): void {
 	if (typeof window !== "undefined") window.localStorage.setItem(`ly:terminal-selection:${scope ?? "@window"}`, id);
+}
+
+function dropTerminal(scope: string): void {
+	if (typeof window !== "undefined") window.localStorage.removeItem(`ly:terminal-selection:${scope}`);
 }
 
 export const useTerminals = create<TerminalsState>((set, get) => ({
@@ -84,5 +90,11 @@ export const useTerminals = create<TerminalsState>((set, get) => ({
 		if (!get().tabs.some((tab) => tab.id === id)) return;
 		saveTerminal(scope, id);
 		set(scope === undefined ? { active: id } : { activeByScope: { ...get().activeByScope, [scope]: id } });
+	},
+
+	forget: (scope) => {
+		dropTerminal(scope);
+		const { [scope]: _gone, ...rest } = get().activeByScope;
+		set({ activeByScope: rest });
 	},
 }));

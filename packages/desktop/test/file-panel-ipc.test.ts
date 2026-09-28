@@ -79,6 +79,9 @@ test("real file-panel handlers validate snapshots, isolate senders and keep the 
 	assert.deepEqual(await call("windows:openPanel", owner, { kind: "file", scope: "test", sessionId: "session", fileState: snapshot }), { ok: true });
 	const panel = fixture.panels.get("test:file");
 	assert.ok(panel);
+	// 后开的文件标签弹出去，一样带着它的文件。
+	assert.deepEqual(await call("windows:openPanel", owner, { kind: "file:k1", scope: "test", sessionId: "session", fileState: snapshot }), { ok: true });
+	assert.ok(fixture.panels.get("test:file:k1"));
 	assert.deepEqual(call("windows:filePanelState", panel), { version: 1, state: snapshot });
 	assert.equal(call("windows:filePanelState", owner), null);
 	assert.equal(call("windows:filePanelState", unrelated), null);
@@ -153,9 +156,15 @@ test("openPanelInMain validates the kind and the layout hint before forwarding",
 	assert.deepEqual(await call("windows:openPanelInMain", panel, { kind: "file", beside: { kind: "files", side: "bottom", share: 0.3 } }), { ok: true });
 	assert.deepEqual(fixture.openedInMain, [{ kind: "file", beside: { kind: "files", side: "bottom", share: 0.3 } }]);
 
+	fixture.openedInMain.length = 0;
+	assert.deepEqual(await call("windows:openPanelInMain", panel, { kind: "terminal:k1", beside: { kind: "file:k2", side: "right" } }), { ok: true }, "后开的那几格按种类认");
+	assert.deepEqual(fixture.openedInMain, [{ kind: "terminal:k1", beside: { kind: "file:k2", side: "right" } }]);
+
 	for (const bad of [
 		undefined,
 		{ kind: "settings" },
+		{ kind: "settings:k1" },
+		{ kind: "terminal:../x" },
 		{ kind: "file", beside: { kind: "file", side: "sideways" } },
 		{ kind: "file", beside: { kind: "not-a-panel", side: "left" } },
 		{ kind: "file", beside: { kind: "files", side: "left", share: 4 } },

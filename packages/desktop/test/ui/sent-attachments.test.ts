@@ -19,7 +19,7 @@ import { provideScope } from "../../src/features/dock/popout.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { has } from "../../src/features/dock/tree.ts";
 import { I18nProvider } from "../../src/i18n/index.ts";
-import { useOpenFile } from "../../src/store/openFile.ts";
+import { fileSlot, openFileOf, useOpenFile } from "../../src/store/openFile.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 
 const MD = "/Users/kittors/Desktop/调研-UI 参考知识库.md";
@@ -56,12 +56,15 @@ Object.defineProperty(window, "lyra", {
 	},
 });
 
+/** 这一屏那格文件面板看着的文件。 */
+const shown = () => openFileOf(useOpenFile.getState(), fileSlot("s", "file"));
+
 function reset(): void {
 	calls.read.length = 0;
 	calls.openIn.length = 0;
 	calls.exists.length = 0;
 	window.localStorage.clear();
-	useOpenFile.setState({ path: null, name: null, contents: null, loading: false, opening: null, tabs: [] });
+	useOpenFile.getState().clear();
 	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
 	provideScope(() => "s");
 	usePaneDock.getState().rememberSize("s", { width: 1200, height: 900 });
@@ -155,11 +158,11 @@ test("菜单里的「预览」在右边的文件面板里打开它，项目外�
 	try {
 		const menu = await menuOf(view.find(".ly-attachment-token"));
 		await click(menu.row("预览"));
-		await settle(() => useOpenFile.getState().path === MD);
+		await settle(() => shown().path === MD);
 		assert.deepEqual(calls.exists, [MD], "打开之前先问文件还在不在");
 		assert.deepEqual(calls.read, [MD]);
-		assert.equal(useOpenFile.getState().path, MD);
-		assert.equal(useOpenFile.getState().name, NAME, "标签页叫磁盘上的名字——面板按扩展名把 .md 渲染成文档");
+		assert.equal(shown().path, MD);
+		assert.equal(shown().name, NAME, "标签页叫磁盘上的名字——面板按扩展名把 .md 渲染成文档");
 		assert.ok(has(usePaneDock.getState().tree("s"), "file"), "文件面板要开出来");
 	} finally {
 		await view.unmount();
@@ -171,8 +174,8 @@ test("左键点标记也是预览，不是去访达里指出来", async () => {
 	const view = await render(mdMessage());
 	try {
 		await click(view.find(".ly-attachment-token"));
-		await settle(() => useOpenFile.getState().path === MD);
-		assert.equal(useOpenFile.getState().path, MD);
+		await settle(() => shown().path === MD);
+		assert.equal(shown().path, MD);
 		assert.deepEqual(calls.openIn, [], "项目外的 md 从前只能退成「在访达中显示」");
 	} finally {
 		await view.unmount();

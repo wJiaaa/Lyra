@@ -20,6 +20,8 @@ import { dropLegacy, dropTree, flushTree, legacyStorageKey, paneStorageKey, read
 import { MIN_FRACTION, paneFloor } from "./geometry.ts";
 import { defaultDrop, dropFits, placePanel } from "./place.ts";
 import { clampTabShare, panelsOf, readTabShare, writeTabShare } from "./tabs.ts";
+import { panelInstance } from "../../lib/panel-instance.ts";
+import { panelOf } from "./panels/registry.ts";
 import {
 	areAdjacent,
 	defaultTree,
@@ -547,6 +549,18 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		},
 	};
 });
+
+/**
+ * 人点了 ✕：关掉这一格。
+ *
+ * 和 `usePaneDock.close` 分开，因为那个也是弹出窗口时把面板从树里拿走的那一步，不能带副作用。
+ * 后开的那几格关掉就没了，手上的东西交给面板自己收——见 `PanelDefinition.closeInstance`。
+ */
+export function closePane(scope: string, kind: PaneKind): void {
+	usePaneDock.getState().close(scope, kind);
+	const instance = panelInstance(kind);
+	if (instance) panelOf(kind)?.closeInstance?.(scope, instance);
+}
 
 /**
  * Save on the way out.

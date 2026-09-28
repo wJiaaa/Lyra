@@ -11,11 +11,12 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { MessageCirclePlus, RotateCcw } from "lucide-react";
-import type { Message } from "@lyra/core";
+import type { Message, UserMessage } from "@lyra/core";
 import { useEffect, useState } from "react";
 import { useSide, sideChatOf } from "../dock/index.ts";
-import { useSideSessionId } from "./scope.ts";
-import { BackToLatest } from "../conversation/index.ts";
+import { useSideTarget } from "./target.ts";
+import { BackToLatest, spokenText } from "../conversation/index.ts";
+import { sideIdOfPanel } from "../../lib/panel-instance.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
@@ -28,11 +29,11 @@ import { TaskStrip } from "./TaskStrip.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function SideChat() {
-	const sessionId = useSideSessionId();
-	const messages = useSide((s) => sideChatOf(s, sessionId).messages);
-	const running = useSide((s) => sideChatOf(s, sessionId).running);
-	const loading = useSide((s) => sideChatOf(s, sessionId).loading);
-	const error = useSide((s) => sideChatOf(s, sessionId).error);
+	const { sessionId, sideId } = useSideTarget();
+	const messages = useSide((s) => sideChatOf(s, sessionId, sideId).messages);
+	const running = useSide((s) => sideChatOf(s, sessionId, sideId).running);
+	const loading = useSide((s) => sideChatOf(s, sessionId, sideId).loading);
+	const error = useSide((s) => sideChatOf(s, sessionId, sideId).error);
 	const ask = useSide((s) => s.ask);
 	const abort = useSide((s) => s.abort);
 
@@ -43,8 +44,8 @@ export function SideChat() {
 	 * 的是别人的。面板知道自己属于谁，就该自己开口要；`attach` 是幂等的，重复叫不会多拉。
 	 */
 	useEffect(() => {
-		void useSide.getState().attach(sessionId);
-	}, [sessionId]);
+		void useSide.getState().attachChat(sessionId, sideId);
+	}, [sessionId, sideId]);
 
 	/*
 	 * The same rule the main transcript follows, from the same place.
@@ -58,7 +59,8 @@ export function SideChat() {
 	/** 正在答的那一条——它末尾那段工具调用亮着，别的都已经是记录了。 */
 	const lastReply = messages.findLastIndex((message) => message.role === "assistant");
 	const follow = useFollowBottom({
-		surfaceId: sessionId,
+		// 每个侧边聊天各记各的滚动位置：切个标签回来，还停在刚才读到的地方。
+		surfaceId: sessionId ? `${sessionId}:${sideId}` : null,
 		namespace: "sidechat",
 		count: messages.length,
 		tail: tailSignature(messages, running ? "run" : ""),
@@ -132,8 +134,8 @@ export function SideChat() {
 			<SideComposer
 				running={running}
 				disabled={!sessionId || loading}
-				onSend={(content, meta) => void ask(sessionId, content, meta)}
-				onStop={() => void abort(sessionId)}
+				onSend={(content, meta) => void ask(sessionId, sideId, content, meta)}
+				onStop={() => void abort(sessionId, sideId)}
 			/>
 		</div>
 	);
@@ -183,12 +185,30 @@ function SideThinking({ messages }: { messages: Message[] }) {
  * already on screen.
  */
 export function SideChatActions() {
-	const sessionId = useSideSessionId();
-	const messages = useSide((s) => sideChatOf(s, sessionId).messages);
+	const { sessionId, sideId } = useSideTarget();
+	const messages = useSide((s) => sideChatOf(s, sessionId, sideId).messages);
 	const reset = useSide((s) => s.reset);
 	if (messages.length === 0) return null;
 	return (
 		// Sized and coloured like the pane's own header buttons — see `FileActions`.
-		<IconButton size="xs" label={translate("sideChat.new")} onClick={() => void reset(sessionId)} icon={<RotateCcw size={12} strokeWidth={2} />} />
+		<IconButton size="xs" label={translate("sideChat.new")} onClick={() => void reset(sessionId, sideId)} icon={<RotateCcw size={12} strokeWidth={2} />} />
 	);
+}
+
+/**
+ * 侧边聊天那个标签上写什么：它问的第一句话，还没开口的写「侧边聊天」。
+ *
+ * 一个会话旁边开了好几个时，一排「侧边聊天」分不出谁是谁。见 `PanelDefinition.tabTitle`；`scope`
+ * 就是这一屏的会话 id。
+ */
+export function SideChatTitle({ scope, kind, fallback }: { scope: string; kind: string; fallback: string }) {
+	const sideId = sideIdOfPanel(kind) ?? "";
+	const first = useSide((s) => sideChatOf(s, scope, sideId).messages.find((message): message is UserMessage => message.role === "user"));
+	const title = first ? spokenText(first).split("\n")[0]?.trim() : "";
+	return title ? <span className="max-w-40 truncate" data-ly-tip={title}>{title}</span> : <>{fallback}</>;
+}
+
+/** 后开的那一个关掉：停下、存档一起删——没有别的入口能再把它叫回来。 */
+export function closeSideChat(scope: string, sideId: string): void {
+	void useSide.getState().close(scope, sideId);
 }

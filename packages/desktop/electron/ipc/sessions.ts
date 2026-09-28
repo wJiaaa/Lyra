@@ -7,6 +7,7 @@
  * below is about keeping that line.
  */
 
+import { join } from "node:path";
 import type { MessageAttachment } from "@lyra/core";
 import {
 	lyraHome,
@@ -59,6 +60,8 @@ export function registerSessionsIpc({
 }: SessionsIpcDeps): void {
 	const store = readStore();
 	ipcMain.handle("sessions:exportTrajectory", (_event, projectId: string, sessionId: string, format: "json" | "md" | "output", selection?: { id?: string; correlationId?: string }) => exportTrajectory(store, projectId, sessionId, format, selection, sessions.get(sessionId)?.running ?? false));
+	// 和 `SessionStore` 落盘的是同一个位置（`sessions/<projectId>/<id>.jsonl`），只拼路径，不碰文件。
+	ipcMain.handle("sessions:logPath", (_event, projectId: string, sessionId: string) => join(lyraHome(), "sessions", projectId, `${sessionId}.jsonl`));
 
 	ipcMain.handle("sessions:list", async () => store.listSessions());
 

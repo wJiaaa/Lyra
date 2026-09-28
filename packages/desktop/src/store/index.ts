@@ -505,6 +505,7 @@ export interface AppState extends QueueSlice {
    */
   updateProject(path: string, patch: { name?: string; folders?: string[] }): Promise<void>;
   setSessionPinned(sessionId: string, pinned: boolean): Promise<void>;
+  setSessionUnread(sessionId: string, unread: boolean): Promise<void>;
   reorderProjects(sourcePath: string, targetPath: string, placement: "before" | "after"): Promise<boolean>;
   reorderProjectSessions(projectPath: string, sourceId: string, targetId: string, placement: "before" | "after", sort: "updatedAt" | "createdAt" | "manual"): Promise<boolean>;
   renameSession(session: SessionMeta, title: string): Promise<void>;
@@ -722,8 +723,8 @@ export const useApp = create<AppState>((set, get) => ({
 		bridge.agent.onEvent(({ sessionId, event }) =>
 			get().applyEvent(sessionId, event),
 		);
-		bridge.sideChat.onEvent(({ sessionId, event }) =>
-			useSide.getState().applyEvent(sessionId, event),
+		bridge.sideChat.onEvent(({ sessionId, sideId, event }) =>
+			useSide.getState().applyEvent(sessionId, sideId, event),
 		);
 		if (typeof window !== "undefined") {
 			window.addEventListener("lyra:connection", (event) => {

@@ -38,6 +38,19 @@ export function useDockScope(): string | null {
 }
 
 /**
+ * 正在画的这一格是哪个 kind。
+ *
+ * 大多数面板一种只有一格，知道自己是什么就够了。侧边聊天一个会话可以开好几格，面板正文、头上的
+ * 按钮得知道自己是其中哪一个——dock 的 `renderPanel` 这些在画的时候把 kind 放进来，见 `lib/panel-instance.ts`。
+ * 和 `DockScope` 一样放在这里，面板问它不用去引 dock。
+ */
+export const PanelKindScope = createContext<string | null>(null);
+
+export function usePanelKind(): string | null {
+	return useContext(PanelKindScope);
+}
+
+/**
  * Put a screen's conversation in the live slot — what pressing anywhere on that screen does.
  *
  * Registered by the split workspace, which owns the screens; a window without one shows a single

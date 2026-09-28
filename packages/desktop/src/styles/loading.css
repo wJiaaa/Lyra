@@ -1,7 +1,7 @@
 /* ---------------------------------------------------------------------------
  * Loading
  *
- * 三个记号，分工明确。
+ * 两个记号，分工明确。
  *
  * **虚线环**（`.ly-dash`）说的是「这一条正在跑」：它是某个对象的状态值，站在一列同族状态记号
  * 中间——上下是 ✓、✗、时钟、待办圆点。任务清单的每一步、流水线的每一行、工具卡的运行中。
@@ -9,10 +9,7 @@
  * **亮弧**（`.ly-arc`）说的是「你按的那下正在回来」：它顶替一个刚被按下的动作图标，或者填在
  * 一个刚被清空的角标位上。全应用三十来处按钮都是它。
  *
- * **呼吸**（`.ly-breathe`）只在侧栏的会话行上。那一处的问题和别处不是同一个，见下面它自己的
- * 注释——一列会话可能同时有好几个在跑，而那一列你还要用来读标题。
- *
- * 前两个都是 r=10、`stroke-width` 2 的描边圆，和 lucide 的 `CheckCircle2`、`XCircle`、`Clock`
+ * 两个都是 r=10、`stroke-width` 2 的描边圆，和 lucide 的 `CheckCircle2`、`XCircle`、`Clock`
  * 精确重合。这一条是这一节真正的规矩：**「正在忙」和它的邻居是同一个形状**。在这之前这里是
  * 一枚八条射线的星芒，一列圆里混一个星，笔触还比空心圆环重——每次都从队列里跳出来一次。
  *
@@ -123,105 +120,4 @@
 
 :root[data-reduce-motion="on"] .ly-arc-track {
   opacity: 0.5;
-}
-
-/* ---------------------------------------------------------------------------
- * 呼吸：一圈波纹离开静止的中心，颜色一路走过调色板
- *
- * 只给侧栏的会话行。那一行是一列记号里的一个，要在 11px 上还认得出，而且一列里可能同时好几个
- * 在跑——那一列你还得用来读标题。所以这里连「亮处在走」都不要：什么都不旋转、什么都不位移，
- * 余光里它只是缓缓涨落的一团。
- *
- * 缓动抄的是 SpinKit（tobiasahlin），它那些数值值得照搬而不是重新发明：每一条动画都在正弦曲线
- * 上。这里早先有过一版从零写起、`linear` 加均分几何的，读起来就是机械的，原因正是这个。
- *
- * 颜色是说「跑了多久」的那一半。一次呼吸 2.4s，色相在其间走 accent → info → violet → accent，
- * 于是扫一眼知道它活着，多看一会儿知道它**还**活着——而没有任何东西变快或变响。三个颜色本来
- * 就在调色板里；这里没有引入新颜色，只是把已有的走了一遍。
- * ------------------------------------------------------------------------- */
-
-@keyframes ly-breathe-wave {
-  0% {
-    transform: scale(0.3);
-    opacity: 0.55;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0;
-  }
-}
-
-/*
- * 核心走色相，而它绝不能怎么变大小。
- *
- * 它待在一列 7px 的记号里——等待、完成、失败都是 7px——而画它的槽是 12px，所以这里每 0.1 的
- * scale 就是 1.2px，对面是一排从不动弹的邻居。最初那组数值峰值到 0.86，也就是 10.3px：比它上面
- * 那颗点大出一半，偏偏又是整列里最惹眼的一行。`SessionStatus` 里的注释曾说核心和别的点一样大，
- * 那话只在它停住的那两帧上成立。
- *
- * 0.58 → 0.62 让它读起来就是 7px，把这口气花在颜色上。
- */
-@keyframes ly-breathe-core {
-  0%,
-  100% {
-    transform: scale(0.58);
-    background: var(--color-accent);
-  }
-  33% {
-    transform: scale(0.62);
-    background: var(--color-info);
-  }
-  66% {
-    transform: scale(0.6);
-    background: var(--color-violet);
-  }
-}
-
-@keyframes ly-breathe-hue {
-  0%,
-  100% {
-    border-color: var(--color-accent);
-  }
-  33% {
-    border-color: var(--color-info);
-  }
-  66% {
-    border-color: var(--color-violet);
-  }
-}
-
-.ly-breathe {
-  position: relative;
-  display: block;
-}
-
-/*
- * 波纹和核心共用一个周期，但不共用曲线。
- *
- * 波纹是 ease-out——它是被抛出去的，一路慢下来。色相走的是 `ease-in-out`，于是它在每个色上多留
- * 一会儿，而不是匀速滑过去。两道波纹差半个周期，所以总有一道正在离场。
- */
-.ly-breathe i {
-  position: absolute;
-  inset: 0;
-  display: block;
-  border: 1.5px solid var(--color-accent);
-  border-radius: 50%;
-  animation:
-    ly-breathe-wave 2.4s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite,
-    ly-breathe-hue 2.4s ease-in-out infinite;
-}
-
-.ly-breathe i:nth-of-type(2) {
-  animation-delay: -1.2s;
-}
-
-.ly-breathe b {
-  position: absolute;
-  inset: 0;
-  display: block;
-  border-radius: 50%;
-  background: var(--color-accent);
-  transform: scale(0.62);
-  animation: ly-breathe-core 2.4s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
 }

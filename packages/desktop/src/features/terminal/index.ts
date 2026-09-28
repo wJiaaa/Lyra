@@ -8,5 +8,5 @@
  */
 
 export { TerminalPane } from "./TerminalPane.tsx";
-export { TerminalTabs } from "./TerminalTabs.tsx";
+export { TerminalTitle, closeTerminal } from "./TerminalTitle.tsx";
 export { useTerminalPrewarm } from "./prewarm.ts";

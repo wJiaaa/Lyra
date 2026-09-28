@@ -35,6 +35,7 @@ import { generalScratchDir, scratchRoots } from "./scratch.ts";
 import {
 	sideChatAbort,
 	sideChatAsk,
+	sideChatClose,
 	sideChatEditAndResend,
 	sideChatReset,
 	sideChatSetModel,
@@ -100,8 +101,9 @@ function build(): WebServer {
 		sideChatSetModel,
 		sideChatAsk,
 		sideChatEditAndResend,
-		sideChatAbort: async (id) => void sideChatAbort(id),
+		sideChatAbort: async (id, sideId) => void sideChatAbort(id, sideId),
 		sideChatReset,
+		sideChatClose,
 		tasksList: async (id) => tasksList(id),
 		tasksCancel: async (id, taskId) => tasksCancel(id, taskId),
 		tasksDismiss: async (id, taskId) => tasksDismiss(id, taskId),

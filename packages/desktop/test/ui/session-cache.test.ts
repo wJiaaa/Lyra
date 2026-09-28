@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import type { AssistantMessage, SessionMeta } from "@lyra/core";
+import { DEFAULT_SETTINGS, type AssistantMessage, type SessionMeta, type Settings } from "@lyra/core";
 import { useApp } from "../../src/store/index.ts";
 import { applyAgentEvent } from "../../src/store/apply-event.ts";
 import { flushCoalesced } from "../../src/store/coalesce.ts";
@@ -121,6 +121,27 @@ test("previewing a session lights it without swapping the live transcript", () =
 	useApp.getState().previewSession(meta("c"));
 	assert.equal(useApp.getState().view, "settings", "the row lights without tearing down the page that is still on screen");
 	assert.equal(useApp.getState().pendingSessionId, "c");
+});
+
+test("selecting a conversation clears its manual unread mark, including the one already on screen", async () => {
+	const saved: Settings[] = [];
+	const previous = useApp.getState().settings;
+	window.lyra.settings = { save: async (next: Settings) => { saved.push(next); return next; } } as never;
+	useApp.setState({ settings: { ...DEFAULT_SETTINGS, unreadSessionIds: ["a", "b", "c"] } });
+	useApp.getState().previewSession(meta("b"));
+	await Promise.resolve();
+	await Promise.resolve();
+	assert.deepEqual(useApp.getState().settings?.unreadSessionIds, ["a", "c"]);
+	abandonSessionReveal();
+	useApp.setState({ pendingSessionId: null });
+	useApp.getState().previewSession(meta("a"));
+	await Promise.resolve();
+	await Promise.resolve();
+	assert.deepEqual(useApp.getState().settings?.unreadSessionIds, ["c"], "the row already on screen returns early, and still counts as read");
+	useApp.getState().previewSession(meta("a"));
+	await Promise.resolve();
+	assert.equal(saved.length, 2, "a conversation that was never marked writes nothing");
+	useApp.setState({ settings: previous });
 });
 
 test("clicking the loaded conversation from another page reveals it without reloading or replacing its state", async () => {

@@ -286,6 +286,17 @@ export function workspaceSlice(set: Set, get: Get) {
       pinnedSessionIds: Array.from(current),
     });
   },
+
+  // 没变就不写：选中会话时都会来问一次，绝大多数会话根本没标过。
+  async setSessionUnread(sessionId: string, unread: boolean) {
+    const settings = get().settings;
+    if (!settings) return;
+    const current = new Set(settings.unreadSessionIds ?? []);
+    if (current.has(sessionId) === unread) return;
+    if (unread) current.add(sessionId);
+    else current.delete(sessionId);
+    await get().saveSettings({ ...settings, unreadSessionIds: Array.from(current) });
+  },
 	async reorderProjects(sourcePath: string, targetPath: string, placement: "before" | "after") {
 		const settings = get().settings;
 		if (!settings) return false;

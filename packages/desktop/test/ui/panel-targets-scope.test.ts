@@ -98,10 +98,10 @@ beforeEach(() => {
 		workspace: ALPHA, scratchCwd: null, scratchRoots: ["/scratch"], parkedDraft: null,
 		sessions: [meta("a", ALPHA.path, ALPHA.name), meta("b", BETA.path, BETA.name)], sessionCache: { b: parked("b", BETA.path) }, workspaceByPath: { [BETA.path]: BETA },
 		activity: {}, turns: {}, queued: {}, drafts: {}, notices: [],
-		settings: { projects: [{ path: ALPHA.path, name: ALPHA.name }, { path: BETA.path, name: BETA.name }], editor: {}, browser: { openLinks: "builtin" } } as unknown as AppState["settings"],
+		settings: { projects: [{ path: ALPHA.path, name: ALPHA.name }, { path: BETA.path, name: BETA.name }], editor: {}, browser: { openLinks: "builtin" }, appearance: {} } as unknown as AppState["settings"],
 		notify: () => {},
 	});
-	useOpenFile.setState({ open: async (entry) => { opened.push(entry.path); } });
+	useOpenFile.setState({ open: async (_slot, entry) => { opened.push(entry.path); } });
 	useTerminals.setState({ tabs: [], active: "", activeByScope: {} });
 	useBrowser.setState({ tabs: [], activeId: null });
 	window.localStorage.clear();

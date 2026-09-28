@@ -16,8 +16,9 @@ import { translate } from "../../i18n/translate.ts";
 import type { QueuedTask } from "@lyra/core";
 import { Ban, Check, CircleDashed, Clock, OctagonPause, Play, RotateCcw, TriangleAlert, X } from "lucide-react";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
-import { useSide, sideChatOf } from "../dock/index.ts";
+import { useSide, sideTasksOf } from "../dock/index.ts";
 import { useSideSessionId } from "./scope.ts";
+import { useSideTarget } from "./target.ts";
 import { useApp } from "../../store/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
@@ -48,7 +49,7 @@ const RECENT_KEPT = 3;
 
 export function TaskStrip() {
 	const sessionId = useSideSessionId();
-	const tasks = useSide((s) => sideChatOf(s, sessionId).tasks);
+	const tasks = useSide((s) => sideTasksOf(s, sessionId));
 
 	const active = tasks.filter((t) => t.status === "queued" || t.status === "running");
 	const recent = tasks.filter(worthKeeping).slice(-RECENT_KEPT);
@@ -86,7 +87,8 @@ function statusOf(task: QueuedTask): string {
 
 function TaskRow({ task }: { task: QueuedTask }) {
 	const { t } = useI18n();
-	const sessionId = useSideSessionId();
+	// 撤回来的那句话放回正看着的那个侧边聊天的输入框——派活的可能是另一个，但人此刻在这一个里。
+	const { sessionId, sideId } = useSideTarget();
 	const cancelTask = useSide((s) => s.cancelTask);
 	const dismissTask = useSide((s) => s.dismissTask);
 	const resumeTask = useSide((s) => s.resumeTask);
@@ -152,7 +154,7 @@ function TaskRow({ task }: { task: QueuedTask }) {
 							ariaLabel={t("taskStrip.withdrawOne")}
 							onClick={() => {
 								void cancelTask(sessionId, task.id);
-								seedDraft(sessionId, task.text);
+								seedDraft(sessionId, sideId, task.text);
 							}}
 							icon={<RotateCcw size={11} strokeWidth={2} />}
 						/>

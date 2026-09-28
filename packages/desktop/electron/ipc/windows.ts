@@ -66,13 +66,24 @@ const PANEL_KINDS = new Set([
 	"trajectory",
 ]);
 
+/** 后开的侧边聊天、终端、文件是 `<种类>:<id>`，按种类认——见渲染层的 `lib/panel-instance.ts`。 */
+const PANEL_INSTANCE = /^(chat|terminal|file):[a-z0-9]{1,32}$/;
+
+function panelKindOk(kind: string): boolean {
+	return PANEL_KINDS.has(kind) || PANEL_INSTANCE.test(kind);
+}
+
+function isFilePanel(kind: string): boolean {
+	return kind === "file" || kind.startsWith("file:");
+}
+
 function readPanel(input: unknown): {
 	kind: string;
 	scope: string;
 	sessionId: string | null;
 } | null {
 	if (!input || typeof input !== "object" || !("kind" in input) || !("scope" in input)) return null;
-	if (typeof input.kind !== "string" || typeof input.scope !== "string" || !input.scope || !PANEL_KINDS.has(input.kind)) return null;
+	if (typeof input.kind !== "string" || typeof input.scope !== "string" || !input.scope || !panelKindOk(input.kind)) return null;
 	const sessionId = "sessionId" in input ? input.sessionId : null;
 	if (sessionId !== null && sessionId !== undefined && typeof sessionId !== "string") return null;
 	return { kind: input.kind, scope: input.scope, sessionId: sessionId ?? null };
@@ -111,7 +122,7 @@ export function registerWindowsIpc(): void {
 		const panel = readPanel(input);
 		if (!panel) return { ok: false };
 		const fileState = input.fileState === undefined ? null : readFilePanelState(input.fileState);
-		if (input.fileState !== undefined && (panel.kind !== "file" || !fileState)) return { ok: false };
+		if (input.fileState !== undefined && (!isFilePanel(panel.kind) || !fileState)) return { ok: false };
 		const win = openPanelWindow(panel);
 		if (fileState) {
 			const previous = fileHandoffs.get(win.webContents.id);
@@ -140,7 +151,7 @@ export function registerWindowsIpc(): void {
 	ipcMain.handle("windows:openPanelInMain", async (event, input: unknown) => {
 		if (!trustedWindow(event)) return { ok: false };
 		if (!input || typeof input !== "object" || !("kind" in input) || typeof input.kind !== "string") return { ok: false };
-		if (!PANEL_KINDS.has(input.kind)) return { ok: false };
+		if (!panelKindOk(input.kind)) return { ok: false };
 		/*
 		 * `beside` is a layout hint, not a capability: it names a pane to sit next to and a side.
 		 * Validated rather than forwarded as-is so a compromised renderer cannot post arbitrary
@@ -152,7 +163,7 @@ export function registerWindowsIpc(): void {
 			if (typeof hint !== "object" || !("kind" in hint) || !("side" in hint)) return { ok: false };
 			if (typeof hint.kind !== "string" || typeof hint.side !== "string") return { ok: false };
 			if (!["left", "right", "top", "bottom"].includes(hint.side)) return { ok: false };
-			if (hint.kind !== "conversation" && !PANEL_KINDS.has(hint.kind)) return { ok: false };
+			if (hint.kind !== "conversation" && !panelKindOk(hint.kind)) return { ok: false };
 			const share = "share" in hint ? hint.share : undefined;
 			if (share !== undefined && (typeof share !== "number" || !(share > 0 && share < 1))) return { ok: false };
 			beside = { kind: hint.kind, side: hint.side, ...(share === undefined ? {} : { share }) };

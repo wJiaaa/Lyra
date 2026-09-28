@@ -155,31 +155,31 @@ test("侧边聊天正在答的时候按回车是排队：答完自己发出去�
 	const asked: UserContent[][] = [];
 	useSide.setState({ chats: {} });
 	const original = useSide.getState().ask;
-	useSide.setState({ ask: async (_sessionId, content) => void asked.push(content) });
+	useSide.setState({ ask: async (_sessionId, _sideId, content) => void asked.push(content) });
 	try {
 		const store = useSide.getState();
-		useSide.setState({ chats: { s: { ...sideChatOf(useSide.getState(), "s"), running: true } } });
-		store.enqueue("s", { content: [{ type: "text", text: "还有一件" }], draft: { text: "还有一件", attachments: [], sessionRefs: [] }, preview: "还有一件" });
-		store.enqueue("s", { content: [{ type: "text", text: "再一件" }], draft: { text: "再一件", attachments: [], sessionRefs: [] }, preview: "再一件" });
+		useSide.setState({ chats: { s: { default: { ...sideChatOf(useSide.getState(), "s", "default"), running: true } } } });
+		store.enqueue("s", "default", { content: [{ type: "text", text: "还有一件" }], draft: { text: "还有一件", attachments: [], sessionRefs: [] }, preview: "还有一件" });
+		store.enqueue("s", "default", { content: [{ type: "text", text: "再一件" }], draft: { text: "再一件", attachments: [], sessionRefs: [] }, preview: "再一件" });
 		await new Promise((resolve) => queueMicrotask(() => resolve(undefined)));
 		assert.equal(asked.length, 0, "还在答，不插进去");
-		assert.deepEqual(sideChatOf(useSide.getState(), "s").queued.map((one) => one.preview), ["还有一件", "再一件"]);
+		assert.deepEqual(sideChatOf(useSide.getState(), "s", "default").queued.map((one) => one.preview), ["还有一件", "再一件"]);
 
 		// 换个顺序，条上改得了先后。
-		const [first, second] = sideChatOf(useSide.getState(), "s").queued;
-		assert.ok(store.moveQueued("s", second!.id, first!.id, "before"));
-		assert.deepEqual(sideChatOf(useSide.getState(), "s").queued.map((one) => one.preview), ["再一件", "还有一件"]);
+		const [first, second] = sideChatOf(useSide.getState(), "s", "default").queued;
+		assert.ok(store.moveQueued("s", "default", second!.id, first!.id, "before"));
+		assert.deepEqual(sideChatOf(useSide.getState(), "s", "default").queued.map((one) => one.preview), ["再一件", "还有一件"]);
 
-		store.applyEvent("s", { type: "agent_end", reason: "aborted" } as never);
+		store.applyEvent("s", "default", { type: "agent_end", reason: "aborted" } as never);
 		await new Promise((resolve) => queueMicrotask(() => resolve(undefined)));
 		assert.equal(asked.length, 0, "按了停止，排着的不接着灌进去");
 
-		useSide.setState({ chats: { s: { ...sideChatOf(useSide.getState(), "s"), running: true } } });
-		store.applyEvent("s", { type: "agent_end", reason: "done" } as never);
+		useSide.setState({ chats: { s: { default: { ...sideChatOf(useSide.getState(), "s", "default"), running: true } } } });
+		store.applyEvent("s", "default", { type: "agent_end", reason: "done" } as never);
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		assert.equal(asked.length, 1, "答完了，队首接上");
 		assert.deepEqual(asked[0], [{ type: "text", text: "再一件" }]);
-		assert.deepEqual(sideChatOf(useSide.getState(), "s").queued.map((one) => one.preview), ["还有一件"]);
+		assert.deepEqual(sideChatOf(useSide.getState(), "s", "default").queued.map((one) => one.preview), ["还有一件"]);
 	} finally {
 		useSide.setState({ ask: original });
 	}
@@ -187,12 +187,12 @@ test("侧边聊天正在答的时候按回车是排队：答完自己发出去�
 
 test("重新开始一段侧边聊天，排着的那几句不跟过去", async () => {
 	const store = useSide.getState();
-	useSide.setState({ chats: { s: { ...sideChatOf(useSide.getState(), "s"), running: true } } });
-	store.enqueue("s", { content: [{ type: "text", text: "问上一段的" }], draft: { text: "问上一段的", attachments: [], sessionRefs: [] }, preview: "问上一段的" });
-	assert.equal(sideChatOf(useSide.getState(), "s").queued.length, 1);
-	useSide.setState({ chats: { s: { ...sideChatOf(useSide.getState(), "s"), running: false } } });
-	await store.reset("s");
-	assert.equal(sideChatOf(useSide.getState(), "s").queued.length, 0);
+	useSide.setState({ chats: { s: { default: { ...sideChatOf(useSide.getState(), "s", "default"), running: true } } } });
+	store.enqueue("s", "default", { content: [{ type: "text", text: "问上一段的" }], draft: { text: "问上一段的", attachments: [], sessionRefs: [] }, preview: "问上一段的" });
+	assert.equal(sideChatOf(useSide.getState(), "s", "default").queued.length, 1);
+	useSide.setState({ chats: { s: { default: { ...sideChatOf(useSide.getState(), "s", "default"), running: false } } } });
+	await store.reset("s", "default");
+	assert.equal(sideChatOf(useSide.getState(), "s", "default").queued.length, 0);
 });
 
 test("侧边聊天的队伍是同一条条：没有「插进这一轮」，编辑直接是一个按钮", async () => {
@@ -213,7 +213,7 @@ test("侧边聊天的队伍是同一条条：没有「插进这一轮」，编�
 test("侧边聊天里编辑一句带文件的问题：文件和给人看的那一份都跟着过去", async () => {
 	const resent: { content: UserContent[]; meta: unknown }[] = [];
 	const original = useSide.getState().editAndResend;
-	useSide.setState({ editAndResend: async (_sessionId, _index, content, meta) => void resent.push({ content, meta }) });
+	useSide.setState({ editAndResend: async (_sessionId, _sideId, _index, content, meta) => void resent.push({ content, meta }) });
 	const message: Message = {
 		role: "user",
 		content: [{ type: "text", text: "总结【报告.md】" }, { type: "text", text: "\n\n### Attached file: 报告.md\n```\n正文\n```" }],

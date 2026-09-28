@@ -585,7 +585,7 @@ function bindScreenshotShortcut(): void {
 		refreshMenu();
 		bindScreenshotShortcut();
 		for (const session of sessions.values()) session.updateSettings(next);
-		for (const chat of sideChats.values()) chat.updateSettings(next);
+		for (const chats of sideChats.values()) for (const chat of chats.values()) chat.updateSettings(next);
 		const win = getWindow();
 		if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
 			win.webContents.send("settings:changed", next);

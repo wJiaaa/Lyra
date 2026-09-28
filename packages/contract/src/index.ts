@@ -7,6 +7,14 @@
 export { CHANNELS, METHODS, type Method } from "./methods.ts";
 export { WEB_METHODS } from "./web.ts";
 
+/**
+ * 一个会话旁边最早的那个侧边聊天。
+ *
+ * 一个会话能开好几个侧边聊天之前，它就是唯一那一个，存档是 `sidechats/<会话>.json`。它留在原处、
+ * 叫这个 id，旧存档不用搬；后开的那些由界面起 id，见主进程的 `sidechat-store.ts`。
+ */
+export const DEFAULT_SIDE_CHAT_ID = "default";
+
 /*
  * `args.ts` 不在这里导出，要用它得走 `@lyra/contract/args`。
  *

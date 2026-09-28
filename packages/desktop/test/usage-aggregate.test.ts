@@ -113,13 +113,13 @@ describe("totalsFor", () => {
 	it("cache misses add up across buckets, cause by cause; buckets without any contribute nothing", () => {
 		const totals = totalsFor(
 			[
-				bucket("2026-09-01", "relay/m", { cacheMiss: { tokens: 300, cost: 0.1, unpriced: 0, byCause: { idle: 300 } } }),
-				bucket("2026-09-02", "relay/m", { cacheMiss: { tokens: 500, cost: 0, unpriced: 500, byCause: { idle: 200, unknown: 300 } } }),
+				bucket("2026-09-01", "relay/m", { cacheMiss: { tokens: 300, cost: 0.1, unpriced: 0, byCause: { model: 300 } } }),
+				bucket("2026-09-02", "relay/m", { cacheMiss: { tokens: 500, cost: 0, unpriced: 500, byCause: { model: 200, unknown: 300 } } }),
 				bucket("2026-09-03", "relay/m"),
 			],
 			[],
 		);
-		assert.deepEqual(totals.cacheMiss, { tokens: 800, cost: 0.1, unpriced: 500, byCause: { idle: 500, unknown: 300 } });
+		assert.deepEqual(totals.cacheMiss, { tokens: 800, cost: 0.1, unpriced: 500, byCause: { model: 500, unknown: 300 } });
 	});
 
 	it("a day with messages is an active day; one without is not", () => {

@@ -19,7 +19,7 @@ import { Button } from "../src/ui/primitives/Button.tsx";
 import { IconButton } from "../src/ui/primitives/IconButton.tsx";
 import { Text } from "../src/ui/primitives/Text.tsx";
 import { Badge, Segmented, Toggle } from "../src/features/settings/controls.tsx";
-import { ActionSpinner, BreatheLoader, StatusSpinner } from "../src/ui/motion/loaders.tsx";
+import { ActionSpinner, StatusSpinner } from "../src/ui/motion/loaders.tsx";
 import { AlertCircle, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { installTooltips } from "../src/ui/overlay/tooltip.ts";
 import "../src/styles.css";
@@ -88,13 +88,11 @@ function Gallery() {
 			</Row>
 
 			{/*
-			 * 三个记号并排，看的是它们该不该是三个。
+			 * 两个记号并排，看的是它们该不该是两个。
 			 *
-			 * 虚线环说「这一条正在跑」，亮弧说「你按的那下正在回来」，呼吸只给侧栏会话行，因为那
-			 * 一列可能同时好几行在跑而它还要用来读标题。并排放着，也是在提醒下一个想「统一」的人：
-			 * 右边这个已经被删过一次。
+			 * 虚线环说「这一条正在跑」，亮弧说「你按的那下正在回来」。
 			 */}
-			<Row title="三个记号并排 — 状态、动作、会话行">
+			<Row title="两个记号并排 — 状态、动作">
 				<span className="flex flex-col items-center gap-1.5">
 					<StatusSpinner size={14} />
 					<Text size="caption" tone="faint">虚线环</Text>
@@ -102,10 +100,6 @@ function Gallery() {
 				<span className="flex flex-col items-center gap-1.5">
 					<ActionSpinner size={14} />
 					<Text size="caption" tone="faint">亮弧</Text>
-				</span>
-				<span className="flex flex-col items-center gap-1.5">
-					<BreatheLoader size={12} />
-					<Text size="caption" tone="faint">呼吸</Text>
 				</span>
 			</Row>
 

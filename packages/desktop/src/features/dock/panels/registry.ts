@@ -16,6 +16,7 @@ import type { ComponentType } from "react";
 import type { GitCompare } from "lucide-react";
 import type { DropSide, PaneKind } from "../tree.ts";
 import type { PanelKind } from "../sideStore.ts";
+import { basePanelKind } from "../../../lib/panel-instance.ts";
 import { onWeb } from "../../../services/index.ts";
 
 interface PanelAvailability {
@@ -119,11 +120,23 @@ export interface PanelDefinition {
 	/**
 	 * Drawn in the pane header in place of the title.
 	 *
-	 * For a panel whose header is a control rather than a label — the terminal's tab strip is the
-	 * one. Everything else gets the title, which is what a header is for; this exists because a
-	 * strip of tabs *is* the title once there is more than one of something in a pane.
+	 * For a panel whose header is a control rather than a label — the open file's name and its menu.
+	 * Everything else gets the title, which is what a header is for. Not for a strip of tabs: a panel
+	 * that can hold several of something opens each as a tab of the dock instead, see `panel-instance.ts`.
 	 */
 	header?: ComponentType;
+	/**
+	 * 顶上那个标签写什么，代替注册的名字。能开好几个的面板用它把几个标签分开——侧边聊天写第一句话，
+	 * 终端写 shell 的名字。拿不到就画 `fallback`。
+	 */
+	tabTitle?: ComponentType<{ scope: string; kind: PaneKind; fallback: string }>;
+	/**
+	 * 人关掉后开的那一格（`<种类>:<id>`）时，它手上的东西怎么收。
+	 *
+	 * 最早那一格关掉只是收起，工具栏和快捷键还能原样叫回来；后开的那几格关掉就再没有入口了，留着
+	 * 只是一个够不着的对话、一个没人看的 shell。弹出窗口也会把面板从树里拿走，那不算关，不走这里。
+	 */
+	closeInstance?: (scope: string, instance: string) => void;
 	/**
 	 * Drawn in the header's controls, left of full screen and close.
 	 *
@@ -169,5 +182,11 @@ export function allPanels(): PanelDefinition[] {
 export function detachOf(kind: PaneKind): "self" | "handoff" | "none" {
 	// A browser tab has no second window to move anything into.
 	if (onWeb()) return "none";
-	return allPanels().find((panel) => panel.kind === kind)?.detach ?? "self";
+	return panelOf(kind)?.detach ?? "self";
+}
+
+/** 这一格用的是哪个注册项。后开的那几格用的是它们种类的那一个，见 `panel-instance.ts`。 */
+export function panelOf(kind: PaneKind): PanelDefinition | undefined {
+	const base = basePanelKind(kind);
+	return allPanels().find((panel) => panel.kind === base);
 }

@@ -183,6 +183,13 @@ export function sessionSlice(set: Set, get: Get) {
 
 	previewSessionId(id: string) {
 		const current = get();
+		/*
+		 * 选中就是读了，手动标的未读在这里放下。
+		 *
+		 * 放在这里而不是 `openSession`：侧边栏、通知、引用跳转都先经过这一步，而点的正好是屏上这条
+		 * 时下面会提前返回，`openSession` 根本不会走到——那一下点击也该算读过。
+		 */
+		if (current.settings?.unreadSessionIds?.includes(id)) void current.setSessionUnread(id, false);
 		if (current.pendingSessionId === id) return current.selectionEpoch;
 		if (current.pendingSessionId == null && current.activeSessionId === id) return current.selectionEpoch;
 		const epoch = current.selectionEpoch + 1;

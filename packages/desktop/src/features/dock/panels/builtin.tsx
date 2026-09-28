@@ -13,12 +13,11 @@ import { FileBrowser } from "../../files/index.ts";
 import { FilePanel } from "../../files/index.ts";
 import { SubAgentPanel } from "../../subagents/index.ts";
 import { FileActions } from "../../files/index.ts";
-import { FileTitle } from "../../files/index.ts";
+import { FileTitle, FileTabTitle, closeFile } from "../../files/index.ts";
 import { DiffView, GitPanel } from "../../git/index.ts";
-import { SideChat, SideChatActions } from "../../sidechat/index.ts";
+import { SideChat, SideChatActions, SideChatTitle, closeSideChat } from "../../sidechat/index.ts";
 import { TaskPanel } from "../../task/index.ts";
-import { TerminalPane } from "../../terminal/index.ts";
-import { TerminalTabs } from "../../terminal/index.ts";
+import { TerminalPane, TerminalTitle, closeTerminal } from "../../terminal/index.ts";
 import { TrajectoryPanel, useDeliveryReview } from "../../conversation/index.ts";
 import type { DeliveryFile, TurnDelivery } from "../../../../electron/turn-delivery.ts";
 import { useI18n } from "../../../i18n/index.ts";
@@ -30,10 +29,9 @@ import { PanelEmpty } from "../../../ui/layout/PanelEmpty.tsx";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../../ui/scroll/Scroller.tsx";
 import { usePaneDock } from "../pane-store.ts";
-import { openScopedPanel } from "../popout.ts";
-import { useOpenFile } from "../../../store/openFile.ts";
+import { openFilePane } from "../popout.ts";
 import { useDockScope, useScopedProjectPath, useScopedSessionId } from "../../../app/session-scope.tsx";
-import { allPanels, registerPanels, type PanelDefinition } from "./registry.ts";
+import { registerPanels, type PanelDefinition } from "./registry.ts";
 
 /**
  * The tree's portion when it opens beside the file.
@@ -52,10 +50,7 @@ const TREE_SHARE = 0.3;
 function SubAgentPane() {
 	return (
 		<SubAgentPanel
-			openFile={(path, name) => {
-				void useOpenFile.getState().open({ path, name, isDirectory: false, size: 0 });
-				openScopedPanel("file", allPanels().find((panel) => panel.kind === "file")?.companion);
-			}}
+			openFile={(path, name) => void openFilePane({ path, name })}
 		/>
 	);
 }
@@ -240,7 +235,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		 * the side for names".
 		 */
 		companion: { kind: "files", side: "bottom" },
-		// The draft and the open tabs move with it — `file-panel-handoff.ts` is that code.
+		// The open file and how it is being read move with it — `file-panel-handoff.ts` is that code.
 		detach: "handoff",
 		render: FilePanel,
 		/*
@@ -252,6 +247,9 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		 */
 		header: FileTitle,
 		actions: FileActions,
+		// 每个打开的文件是顶上的一个标签，写它的文件名——见 `openFilePane`。
+		tabTitle: FileTabTitle,
+		closeInstance: closeFile,
 	},
 	/*
 	 * Delegated work, in a pane of its own.
@@ -278,6 +276,8 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		unavailable: needsSession,
 		render: SideChat,
 		actions: SideChatActions,
+		tabTitle: SideChatTitle,
+		closeInstance: closeSideChat,
 	},
 	{
 		kind: "terminal",
@@ -291,7 +291,8 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		 * directory — the same thing every other terminal on the machine does.
 		 */
 		render: TerminalPane,
-		header: TerminalTabs,
+		tabTitle: TerminalTitle,
+		closeInstance: closeTerminal,
 	},
 	{ kind: "tasks", label: "common.tasks", icon: ListTodo, shortcut: "⌘J", web: true, render: TaskPanel },
 	{

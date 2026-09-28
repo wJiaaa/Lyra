@@ -16,7 +16,8 @@
  * paints an empty window, which is indistinguishable from a crash.
  */
 
-import { defaultTree, has, leafOf, normalize, type DockNode, type PaneKind } from "./tree.ts";
+import { defaultTree, has, kinds, leafOf, normalize, remove, type DockNode, type PaneKind } from "./tree.ts";
+import { basePanelKind, panelInstance } from "../../lib/panel-instance.ts";
 
 /** Bumped when the stored shape changes in a way older data cannot be read as. */
 const VERSION = 1;
@@ -77,7 +78,8 @@ function sift(raw: unknown, allowed: Set<string>, seen: Set<string>): DockNode |
 
 	if (node.type === "leaf") {
 		const kind = node.kind;
-		if (typeof kind !== "string" || !allowed.has(kind) || seen.has(kind)) return null;
+		// 后开的那几格按种类认，见 `panel-instance.ts`；弹出去再收回时名单上写的就是它自己。
+		if (typeof kind !== "string" || !(allowed.has(kind) || allowed.has(basePanelKind(kind))) || seen.has(kind)) return null;
 		seen.add(kind);
 		return leafOf(kind as PaneKind);
 	}
@@ -139,10 +141,22 @@ export function readTree(key: string, allowed: Iterable<PaneKind>): DockNode | n
 	try {
 		const parsed = JSON.parse(raw) as { v?: unknown; tree?: unknown };
 		if (parsed?.v !== VERSION) return null;
-		return sanitize(parsed.tree, allowed);
+		return withoutFileTabs(sanitize(parsed.tree, allowed));
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * 后开的文件标签不跟着布局回来。
+ *
+ * 它看的是哪个文件只记在内存里（`store/openFile.ts`），重启以后回来的会是一排空白的「选一个文件」。
+ * 最早那一格照旧留着，和只有一个文件面板时一样回来是空的。
+ */
+function withoutFileTabs(tree: DockNode): DockNode {
+	return kinds(tree)
+		.filter((kind) => basePanelKind(kind) === "file" && panelInstance(kind))
+		.reduce((rest, kind) => remove(rest, kind), tree);
 }
 
 /*

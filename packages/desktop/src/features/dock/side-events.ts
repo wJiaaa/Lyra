@@ -1,4 +1,4 @@
-import type { SideChatUpdate, Message, QueuedTask } from "@lyra/core";
+import type { SideChatUpdate, Message } from "@lyra/core";
 import { summarizeToolCall } from "../../lib/tool-summary.ts";
 import { settleTail } from "../../lib/transcript.ts";
 import type { ToolRun } from "../../store/tool-run.ts";
@@ -9,12 +9,11 @@ export interface SideConversation {
 	toolRuns: Record<string, ToolRun>;
 	running: boolean;
 	pending: Message | null;
-	tasks: QueuedTask[];
 	error: string | null;
 }
 
 export function reduceSideEvent(state: SideConversation, event: SideChatUpdate): SideConversation {
-	let next: SideConversation = { modelId: state.modelId, messages: state.messages, toolRuns: state.toolRuns, running: state.running, pending: state.pending, tasks: state.tasks, error: state.error };
+	let next: SideConversation = { modelId: state.modelId, messages: state.messages, toolRuns: state.toolRuns, running: state.running, pending: state.pending, error: state.error };
 	const get = () => next;
 	const set = (patch: Partial<SideConversation>) => { next = { ...next, ...patch }; };
 	switch (event.type) {

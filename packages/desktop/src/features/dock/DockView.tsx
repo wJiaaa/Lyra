@@ -33,12 +33,15 @@ import { PaneGrip } from "./PaneGrip.tsx";
 import { Splitter } from "./Splitter.tsx";
 import { fitTree, layoutPanes, layoutSplitters, type Box, type SplitterBox } from "./layout.ts";
 import { popOutPanel } from "./popout.ts";
-import { emptyDockTree, usePaneDock } from "./pane-store.ts";
+import { closePane, emptyDockTree, usePaneDock } from "./pane-store.ts";
+import { allowsMany, basePanelKind, nextPanelKind, type ManyKind } from "../../lib/panel-instance.ts";
+import { Plus } from "lucide-react";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { DockScope } from "../../app/session-scope.tsx";
 import { canToggleMaximized } from "./visibility.ts";
 import type { DockDragHost } from "./drag-host.ts";
 import type { PanelKind } from "./sideStore.ts";
-import { kinds, type PaneKind } from "./tree.ts";
+import { has, kinds, type PaneKind } from "./tree.ts";
 import { detachOf } from "./panels/registry.ts";
 import { useBoxSize } from "./useBoxSize.ts";
 import { useDockDrag } from "./useDockDrag.ts";
@@ -300,14 +303,20 @@ export function DockView({
 	const startCorner = insets.start > 0 ? paneAtCorner({ compact, focusedPane, boxes: drawn, corner: "start" }) : null;
 	const endCorner = insets.end > 0 ? paneAtCorner({ compact, focusedPane, boxes: drawn, corner: "end" }) : null;
 	const conversationLabel = translate("sidebar.chats");
+	/** 标签上画的名字：能开好几个的面板各写各的，见 `PanelDefinition.tabTitle`。 */
+	const titleOf = (kind: PaneKind, label: string): ReactNode => {
+		const Title = definitions.find((entry) => entry.kind === basePanelKind(kind))?.tabTitle;
+		return Title ? <Title scope={scope} kind={kind} fallback={label} /> : undefined;
+	};
 	const tabs: PanelTab[] = panels.map((kind) => {
-		const def = definitions.find((entry) => entry.kind === kind);
-		return { kind, label: def ? translate(def.label) : kind, icon: def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined };
+		const def = definitions.find((entry) => entry.kind === basePanelKind(kind));
+		const label = def ? translate(def.label) : kind;
+		return { kind, label, icon: def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined, title: titleOf(kind, label) };
 	});
-	// 和顶栏「⋮」菜单同一个口径：开不了的、不在菜单里列的都不给。
+	// 和顶栏「⋮」菜单同一个口径：开不了的、不在菜单里列的都不给。能开好几个的开着也还能再开一个。
 	const addable: AddablePanel[] = tabbed
 		? definitions
-				.filter((def) => !def.unavailable && def.listed !== false && !panels.includes(def.kind))
+				.filter((def) => !def.unavailable && def.listed !== false && (allowsMany(def.kind) || !panels.includes(def.kind)))
 				.map((def) => ({ kind: def.kind, label: translate(def.label), icon: <def.icon size={16} strokeWidth={1.7} />, shortcut: def.shortcut }))
 		: [];
 
@@ -352,7 +361,8 @@ export function DockView({
 						const placed = boxes.find((box) => box.kind === kind);
 						if (!placed && carried?.kind !== kind && !present.includes(kind) && kind !== "browser") return null;
 						const conversation = kind === "conversation";
-						const def = definitions.find((entry) => entry.kind === kind);
+						const base = basePanelKind(kind);
+						const def = definitions.find((entry) => entry.kind === base);
 						const label = conversation ? conversationLabel : def ? translate(def.label) : kind;
 						const icon = !conversation && def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined;
 						const slot = slotOf(kind);
@@ -380,16 +390,40 @@ export function DockView({
 								 * lifted out of the tree and is positioned against the window.
 								 */
 								hidden={compact ? kind !== focusedPane : !placed && !moving}
+								/*
+								 * 标签页排法下新开一个标签，是在这一栏正显示着的那一格上顶替它：旧的那格立刻透明，
+								 * 新的那格要是再从透明淡入，中间 150ms 整栏（连同标签条）都是空的，看着就是闪了一下。
+								 * 这一栏本来就有面板时不淡入；这一栏从无到有（第一个面板）才是真的出现，照旧淡入。
+								 */
+								quietEntrance={tabbed && !conversation && panels.length > 1}
 								draggable={draggable}
 								onDragStart={onDragStart}
 								onMove={onMove}
 								onArrowMove={onArrowMove}
-								actions={conversation ? undefined : renderPanelActions(kind as PanelKind)}
+								actions={
+									conversation ? undefined : (
+										<>
+											{renderPanelActions(kind as PanelKind)}
+											{/* 分栏排法没有顶上那个「+」，能开好几个的面板在自己头上给一个。 */}
+											{!tabbed && allowsMany(base) && (
+												<IconButton
+													size="xs"
+													label={translate("pane.openAnother", { label })}
+													onClick={() => {
+														const dock = usePaneDock.getState();
+														dock.open(scope, nextPanelKind(base as ManyKind, (each) => has(dock.tree(scope), each)));
+													}}
+													icon={<Plus size={12} strokeWidth={2} />}
+												/>
+											)}
+										</>
+									)
+								}
 								title={
 									conversation ? undefined : tabbed ? (
 										<PanelTabs scope={scope} tabs={tabs} addable={addable} current={kind} />
 									) : (
-										panelHeader
+										panelHeader ?? titleOf(kind, label)
 									)
 								}
 								inset={inset}
@@ -406,7 +440,7 @@ export function DockView({
 											: () => usePaneDock.getState().toggleMaximized(scope, kind, companionOf(kind as PanelKind)?.kind)
 								}
 								// 标签页排法下关闭在标签自己身上，标题栏不再放第二个。
-								onClose={conversation || tabbed ? undefined : () => usePaneDock.getState().close(scope, kind)}
+								onClose={conversation || tabbed ? undefined : () => closePane(scope, kind)}
 								onPopOut={
 									conversation || detachOf(kind) === "none"
 										? undefined
@@ -431,7 +465,7 @@ export function DockView({
 								) : (
 									/*
 									 * 两种排法同一个结构：切换排法时面板正文的位置不变，终端和浏览器才不会被重建。
-									 * 标签页排法下标题栏让给了标签条，面板自己的标题控件（终端的子标签、文件名）挪到它下面一行。
+									 * 标签页排法下标题栏让给了标签条，面板自己的标题控件（文件的路径、交付的文件名）挪到它下面一行。
 									 */
 									<>
 										{tabbed && panelHeader && (

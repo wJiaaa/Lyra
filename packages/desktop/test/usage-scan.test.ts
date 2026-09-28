@@ -9,6 +9,7 @@
 
 import assert from "node:assert/strict";
 import { appendFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createRequire, syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -249,6 +250,55 @@ describe("scanUsage", () => {
 		await writeFile(log("s1"), `${replyLine(AT, { input: 10 })}{"type":"message","message":{"role":"ass\n${replyLine(AT, { input: 20 })}`);
 		const scan = await scanUsage(home);
 		assert.equal(scan.buckets[0].input, 30);
+	});
+
+	it("a turn appended while the scan is reading is counted once, by the next scan", async () => {
+		await writeFile(log("s1"), replyLine(AT, { input: 100 }));
+		/*
+		 * 扫描先 `stat` 取大小、再开流读。在这两步之间插一次追加，就是真实的「扫描期间日志长了」：
+		 * 改 CJS 那份 `stat` 再同步到 ESM 绑定，扫描器拿到的就是追加前的大小。
+		 */
+		const fsp = createRequire(import.meta.url)("node:fs/promises") as typeof import("node:fs/promises");
+		const original = fsp.stat;
+		let appended = false;
+		fsp.stat = (async (...args: Parameters<typeof original>) => {
+			const info = await original(...args);
+			if (!appended && String(args[0]) === log("s1")) {
+				appended = true;
+				await appendFile(log("s1"), replyLine(AT, { input: 5 }));
+			}
+			return info;
+		}) as typeof original;
+		syncBuiltinESMExports();
+		let first;
+		try {
+			first = await scanUsage(home);
+		} finally {
+			fsp.stat = original;
+			syncBuiltinESMExports();
+		}
+		assert.ok(appended, "the append happened between stat and read");
+		// 读到 stat 时的大小为止，和记下的 size/mtime 是同一个时刻的文件；追加的那条留给下一次。
+		assert.equal(first.buckets[0].replies, 1);
+
+		const next = await scanUsage(home);
+		assert.equal(next.buckets[0].replies, 2, "two replies in the log, two counted");
+		assert.equal(next.buckets[0].input, 105);
+		const cached = await scanUsage(home);
+		assert.equal(cached.buckets[0].replies, 2, "and the cache keeps the right count");
+	});
+
+	it("a line still being written is left for the next scan instead of being lost", async () => {
+		const whole = replyLine(AT, { input: 20 });
+		const cut = Math.floor(whole.length / 2);
+		await writeFile(log("s1"), replyLine(AT, { input: 10 }) + whole.slice(0, cut));
+		const first = await scanUsage(home);
+		assert.equal(first.buckets[0].input, 10, "the half line is not counted yet");
+
+		await appendFile(log("s1"), whole.slice(cut));
+		const next = await scanUsage(home);
+		assert.equal(next.buckets[0].input, 30, "once finished, it is counted");
+		assert.equal(next.buckets[0].replies, 2);
 	});
 
 	it("a reply with no usage recorded counts as a message and no tokens", async () => {

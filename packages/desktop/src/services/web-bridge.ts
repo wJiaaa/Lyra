@@ -206,7 +206,7 @@ export function createWebBridge(options: WebBridgeOptions): WebBridge {
 	};
 
 	const onMessage = (raw: unknown) => {
-		let message: { type?: unknown; id?: unknown; ok?: unknown; value?: unknown; error?: unknown; sessionId?: unknown; event?: unknown; change?: unknown; settings?: unknown };
+		let message: { type?: unknown; id?: unknown; ok?: unknown; value?: unknown; error?: unknown; sessionId?: unknown; sideId?: unknown; event?: unknown; change?: unknown; settings?: unknown };
 		try {
 			message = JSON.parse(String(raw)) as typeof message;
 		} catch {
@@ -231,7 +231,7 @@ export function createWebBridge(options: WebBridgeOptions): WebBridge {
 				for (const fn of listeners.agent) fn({ sessionId: message.sessionId, event: message.event } as never);
 				return;
 			case "side_chat_event":
-				for (const fn of listeners.sideChat) fn({ sessionId: message.sessionId, event: message.event } as never);
+				for (const fn of listeners.sideChat) fn({ sessionId: message.sessionId, sideId: message.sideId, event: message.event } as never);
 				return;
 			case "session_changed":
 				for (const fn of listeners.sessions) fn(message.change as never);

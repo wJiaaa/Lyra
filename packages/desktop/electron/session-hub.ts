@@ -20,6 +20,7 @@ import { createStoredSession, type InitialPrompt } from "./create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace } from "./scratch.ts";
 import { discardSideChat } from "./sidechat-discard.ts";
+import { listSideChats } from "./sidechat-store.ts";
 import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { eachAppWindow } from "./window.ts";
@@ -31,7 +32,7 @@ export interface HubDeps {
 	/** Events also go to connected browsers, while Web access is on. */
 	web?(): {
 		broadcast(sessionId: string, event: AgentEvent): void;
-		broadcastSideChat(sessionId: string, event: import("@lyra/core").SideChatUpdate): void;
+		broadcastSideChat(sessionId: string, sideId: string, event: import("@lyra/core").SideChatUpdate): void;
 		broadcastSessionChange(change: SessionChange): void;
 	} | null;
 }
@@ -91,8 +92,24 @@ export const promptSession: LyraApi["agent"]["prompt"] = async (id, content, opt
 };
 /** Disposers for each session's browser tools, keyed the same way. */
 export const browsers = new Map<string, () => void>();
-/** Side chats, one per session, built on first use and dropped with the session. */
-export const sideChats = new Map<string, SideChat>();
+/**
+ * Side chats, built on first use and dropped with the session.
+ *
+ * 一个会话可以同时开好几个，里面一层按侧边聊天的 id 分——见 `@lyra/contract` 的 `DEFAULT_SIDE_CHAT_ID`。
+ * 一个都没有的会话不留空的那一层：回收会话时按「这里有没有它」判断它旁边是不是还有对话。
+ */
+export const sideChats = new Map<string, Map<string, SideChat>>();
+
+export function liveSideChat(sessionId: string, sideId: string): SideChat | undefined {
+	return sideChats.get(sessionId)?.get(sideId);
+}
+
+/** 这个会话旁边有哪些侧边聊天：有存档的，加上这次开着、还没来得及存下东西的。 */
+async function sideChatIds(sessionId: string): Promise<string[]> {
+	const ids = new Set(await listSideChats(sessionId));
+	for (const id of sideChats.get(sessionId)?.keys() ?? []) ids.add(id);
+	return Array.from(ids);
+}
 
 
 export async function editSessionMessage(
@@ -117,13 +134,16 @@ export async function revertSessionMessage(sessionId: string, index: number): Pr
 	if (!session) throw new Error("找不到这个会话。");
 	if (session.running) throw new Error("回合进行中，无法撤销");
 	await session.revert(index);
-	// 整个撤空的话，旁边那场对话就没有了依附的对象，跟着一起收掉——见 `sidechat-discard.ts`。
-	await discardSideChat(sessionId, {
-		mainMessagesLeft: session.messages.length,
-		live: sideChats.get(sessionId),
-		defaultModelId: deps.settings().sideChatModelId || null,
-		broadcast: (event) => broadcastSideChat(sessionId, event),
-	});
+	// 整个撤空的话，旁边那几场对话就没有了依附的对象，跟着一起收掉——见 `sidechat-discard.ts`。
+	if (session.messages.length > 0) return;
+	for (const sideId of await sideChatIds(sessionId)) {
+		await discardSideChat(sessionId, sideId, {
+			mainMessagesLeft: session.messages.length,
+			live: liveSideChat(sessionId, sideId),
+			defaultModelId: deps.settings().sideChatModelId || null,
+			broadcast: (event) => broadcastSideChat(sessionId, sideId, event),
+		});
+	}
 }
 
 export function broadcastSessionChange(change: SessionChange): void {
@@ -140,9 +160,9 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
 /**
  * Side-chat events have their own channel on both transports so they cannot enter the main thread.
  */
-export function broadcastSideChat(sessionId: string, event: import("@lyra/core").SideChatUpdate): void {
-	eachAppWindow((win) => win.webContents.send("sidechat:event", { sessionId, event }));
-	deps.web?.()?.broadcastSideChat(sessionId, event);
+export function broadcastSideChat(sessionId: string, sideId: string, event: import("@lyra/core").SideChatUpdate): void {
+	eachAppWindow((win) => win.webContents.send("sidechat:event", { sessionId, sideId, event }));
+	deps.web?.()?.broadcastSideChat(sessionId, sideId, event);
 }
 
 export async function getOrCreateSession(cwd: string, _modelId: string): Promise<AgentSession> {
@@ -238,7 +258,7 @@ export async function disposeSession(sessionId: string): Promise<void> {
 	browsers.delete(sessionId);
 	// A side chat reads its session's live message list; without the session it has nothing
 	// to read, so it goes at the same time.
-	sideChats.get(sessionId)?.reset();
+	for (const chat of sideChats.get(sessionId)?.values() ?? []) chat.reset();
 	sideChats.delete(sessionId);
 	sessions.delete(sessionId);
 	ready.delete(sessionId);

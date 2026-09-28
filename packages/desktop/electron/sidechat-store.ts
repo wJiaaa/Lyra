@@ -1,7 +1,8 @@
 /** Atomic, ordered side-chat snapshots, separate from the main transcript. */
 
-import { mkdir, readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { access, mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { DEFAULT_SIDE_CHAT_ID } from "@lyra/contract";
 import { lyraHome, writeFileAtomic, type Message } from "@lyra/core";
 
 const writes = new Map<string, Promise<void>>();
@@ -18,16 +19,51 @@ function dir(): string {
 	return join(lyraHome(), "sidechats");
 }
 
-function fileFor(sessionId: string): string {
+/** 界面生成的 id：时间戳加随机数的 base36，按字面排序就是开出来的先后。 */
+const SIDE_ID = /^[a-z0-9]{1,32}$/;
+
+export function isSideId(sideId: unknown): sideId is string {
+	return typeof sideId === "string" && SIDE_ID.test(sideId);
+}
+
+function checkSession(sessionId: string): void {
 	// Snapshot reads are reachable over IPC before a live session is resolved.
 	if (!sessionId || /[\\/\0:]/.test(sessionId)) throw new Error("Invalid side-chat session id");
-	return join(dir(), `${sessionId}.json`);
+}
+
+function fileFor(sessionId: string, sideId: string): string {
+	checkSession(sessionId);
+	if (!isSideId(sideId)) throw new Error("Invalid side-chat id");
+	// 最早那一个留在一个会话只有一个侧边聊天时的老位置，后开的放进以会话命名的目录。
+	return sideId === DEFAULT_SIDE_CHAT_ID ? join(dir(), `${sessionId}.json`) : join(dir(), sessionId, `${sideId}.json`);
+}
+
+/**
+ * 这个会话在磁盘上有存档的侧边聊天，按开出来的先后。
+ *
+ * 最早那一个排第一。从没开口的还没有存档，关掉的存档已经删了，两种都不在这里。
+ */
+export async function listSideChats(sessionId: string): Promise<string[]> {
+	checkSession(sessionId);
+	const legacy = fileFor(sessionId, DEFAULT_SIDE_CHAT_ID);
+	const folder = join(dir(), sessionId);
+	// 等这个会话还在路上的写和删落定，不然刚关掉的那个会被读回来。
+	await Promise.all(Array.from(writes).filter(([path]) => path === legacy || dirname(path) === folder).map(([, write]) => write.catch(() => {})));
+	const ids: string[] = [];
+	if (await access(legacy).then(() => true, () => false)) ids.push(DEFAULT_SIDE_CHAT_ID);
+	const names = await readdir(folder).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return [] as string[]; throw error; });
+	// 原子写落盘前的临时文件也在这个目录里，只认 `<id>.json`。
+	for (const name of names.sort()) {
+		const id = name.endsWith(".json") ? name.slice(0, -".json".length) : "";
+		if (id !== DEFAULT_SIDE_CHAT_ID && isSideId(id)) ids.push(id);
+	}
+	return ids;
 }
 
 export interface SideChatArchive { messages: Message[]; modelId?: string | null }
 
-export async function loadSideChatSnapshot(sessionId: string): Promise<SideChatArchive> {
-	const path = fileFor(sessionId);
+export async function loadSideChatSnapshot(sessionId: string, sideId = DEFAULT_SIDE_CHAT_ID): Promise<SideChatArchive> {
+	const path = fileFor(sessionId, sideId);
 	await writes.get(path);
 	return readSnapshot(path);
 }
@@ -42,8 +78,8 @@ async function readSnapshot(path: string): Promise<SideChatArchive> {
 	} catch { return { messages: [] }; }
 }
 
-export async function loadSideChat(sessionId: string): Promise<Message[]> {
-	return (await loadSideChatSnapshot(sessionId)).messages;
+export async function loadSideChat(sessionId: string, sideId = DEFAULT_SIDE_CHAT_ID): Promise<Message[]> {
+	return (await loadSideChatSnapshot(sessionId, sideId)).messages;
 }
 
 /**
@@ -55,16 +91,16 @@ export async function loadSideChat(sessionId: string): Promise<Message[]> {
  * be refused for that moment and was reported as failed, and a failed write left its temporary
  * file behind. See `utils/atomic-write.ts` in core.
  */
-export function saveSideChat(sessionId: string, messages: Message[], modelId?: string | null): Promise<void> {
-	const path = fileFor(sessionId);
+export function saveSideChat(sessionId: string, messages: Message[], modelId?: string | null, sideId = DEFAULT_SIDE_CHAT_ID): Promise<void> {
+	const path = fileFor(sessionId, sideId);
 	// Serialize now, before the next message can mutate this array or any content blocks.
 	const snapshot = messages.length > 0 || modelId !== undefined ? JSON.stringify({ messages, modelId }) : null;
 	return enqueue(path, () => writeSnapshot(path, snapshot));
 }
 
 /** Transcript events preserve a model selection committed earlier in the same write queue. */
-export function saveSideChatTranscript(sessionId: string, messages: Message[], defaultModelId: string | null): Promise<void> {
-	const path = fileFor(sessionId);
+export function saveSideChatTranscript(sessionId: string, messages: Message[], defaultModelId: string | null, sideId = DEFAULT_SIDE_CHAT_ID): Promise<void> {
+	const path = fileFor(sessionId, sideId);
 	const serialized = JSON.stringify(messages);
 	return enqueue(path, async () => {
 		const previous = await readSnapshot(path);
@@ -75,11 +111,11 @@ export function saveSideChatTranscript(sessionId: string, messages: Message[], d
 
 async function writeSnapshot(path: string, snapshot: string | null): Promise<void> {
 	if (snapshot === null) { await rm(path, { force: true }); return; }
-	await mkdir(dir(), { recursive: true });
+	await mkdir(dirname(path), { recursive: true });
 	await writeFileAtomic(path, snapshot);
 }
 
 /** Reset joins the same queue so an earlier save cannot resurrect the conversation. */
-export function clearSideChat(sessionId: string): Promise<void> {
-	return saveSideChat(sessionId, []);
+export function clearSideChat(sessionId: string, sideId = DEFAULT_SIDE_CHAT_ID): Promise<void> {
+	return saveSideChat(sessionId, [], undefined, sideId);
 }

@@ -7,9 +7,9 @@
  */
 
 import type { MessageKey } from "../../../i18n/messages/index.ts";
-import { allPanels, type PanelDefinition } from "./registry.ts";
+import { allPanels, panelOf, type PanelDefinition } from "./registry.ts";
 import type { PanelKind } from "../sideStore.ts";
-import { useScopedSessionId, useScopedWorkspace } from "../../../app/session-scope.tsx";
+import { PanelKindScope, useScopedSessionId, useScopedWorkspace } from "../../../app/session-scope.tsx";
 import "./builtin.tsx";
 
 /** A panel with its availability already decided, which is all a view needs. */
@@ -40,25 +40,25 @@ export function usePanelDefinitions(): ResolvedPanel[] {
  * lives with the panel — and so a plugin's does too.
  */
 export function companionOf(kind: PanelKind) {
-	return allPanels().find((panel) => panel.kind === kind)?.companion;
+	return panelOf(kind)?.companion;
 }
 
 /** What a tab shows. A kind with no registered panel renders nothing rather than crashing. */
 export function renderPanel(kind: PanelKind) {
-	const panel = allPanels().find((p) => p.kind === kind);
+	const panel = panelOf(kind);
 	if (!panel) return null;
 	const Body = panel.render;
-	return <Body />;
+	return <PanelKindScope.Provider value={kind}><Body /></PanelKindScope.Provider>;
 }
 
 /** A panel's own header content, for the few that draw a control where the title goes. */
 export function renderPanelHeader(kind: PanelKind) {
-	const Header = allPanels().find((p) => p.kind === kind)?.header;
-	return Header ? <Header /> : null;
+	const Header = panelOf(kind)?.header;
+	return Header ? <PanelKindScope.Provider value={kind}><Header /></PanelKindScope.Provider> : null;
 }
 
 /** A panel's own controls, for the header's button row. */
 export function renderPanelActions(kind: PanelKind) {
-	const Actions = allPanels().find((p) => p.kind === kind)?.actions;
-	return Actions ? <Actions /> : null;
+	const Actions = panelOf(kind)?.actions;
+	return Actions ? <PanelKindScope.Provider value={kind}><Actions /></PanelKindScope.Provider> : null;
 }

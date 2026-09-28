@@ -53,6 +53,7 @@ export const WEB_METHODS: ReadonlySet<string> = new Set([
 	"sideChat.editAndResend",
 	"sideChat.abort",
 	"sideChat.reset",
+	"sideChat.close",
 	"tasks.list",
 	"tasks.cancel",
 	"tasks.dismiss",

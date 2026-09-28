@@ -27,14 +27,15 @@ interface LiveSideChat {
 export interface DiscardSideChatIO {
 	/** 撤回之后主会话还剩几条。一条不剩才收，见上面那段。 */
 	mainMessagesLeft: number;
-	/** 这个会话的侧边聊天实例，没建起来过就是 `undefined`。 */
+	/** 这一个侧边聊天的实例，没建起来过就是 `undefined`。 */
 	live: LiveSideChat | undefined;
 	/** 重置之后它该用的模型，和「重置」按钮给的是同一个。 */
 	defaultModelId: string | null;
 	broadcast(event: SideChatUpdate): void;
 }
 
-export async function discardSideChat(sessionId: string, io: DiscardSideChatIO): Promise<void> {
+/** 一次收一个；一个会话旁边开着几个，调用方就挨个收几次。 */
+export async function discardSideChat(sessionId: string, sideId: string, io: DiscardSideChatIO): Promise<void> {
 	if (io.mainMessagesLeft > 0) return;
 	if (io.live) {
 		// 空的就别走一趟：`restart` 会中止、写存档、发三个事件，而这里什么都没有可收。
@@ -45,13 +46,13 @@ export async function discardSideChat(sessionId: string, io: DiscardSideChatIO):
 	 * 面板开着、内存里却没有实例，这是重开应用之后的常态：面板是照着磁盘快照画出来的，而
 	 * `sideChatState` 读快照并不建实例。只清内存那一份，重开之后第一次撤回会看着像什么都没发生。
 	 */
-	const archived = await loadSideChatSnapshot(sessionId).catch(() => null);
+	const archived = await loadSideChatSnapshot(sessionId, sideId).catch(() => null);
 	if (!archived || archived.messages.length === 0) return;
 	/*
 	 * 不为了清空而把一个 `SideChat` 叫起来——那会连带拉起主会话的整套东西。存档抹平、面板抹平，
 	 * `restart` 做的也正是这两件事。
 	 */
-	await saveSideChat(sessionId, [], io.defaultModelId);
+	await saveSideChat(sessionId, [], io.defaultModelId, sideId);
 	io.broadcast({ type: "rewound", messageCount: 0 });
 	io.broadcast({ type: "side_model", modelId: io.defaultModelId });
 }

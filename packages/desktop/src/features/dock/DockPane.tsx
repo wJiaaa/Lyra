@@ -23,6 +23,7 @@ export function DockPane({
 	carried,
 	landing,
 	hidden,
+	quietEntrance,
 	draggable,
 	onDragStart,
 	onMove,
@@ -65,6 +66,8 @@ export function DockPane({
 	 * terminal grid and every row's measurements; inherited visibility restyles every descendant.
 	 */
 	hidden: boolean;
+	/** 挂上来时不淡入，见 `PaneSurface`。 */
+	quietEntrance?: boolean;
 	draggable: boolean;
 	onDragStart: (event: React.PointerEvent<HTMLElement>) => void;
 	onMove: (side: DropSide) => void;
@@ -103,6 +106,7 @@ export function DockPane({
 		<PaneSurface
 			carried={Boolean(carried)}
 			isHidden={hidden}
+			quietEntrance={quietEntrance}
 			data-dock-pane={kind}
 			data-ly-pane-slot={customHeader ? "conversation" : undefined}
 			// Focus follows the click for the benefit of the collapsed layout and the keyboard;

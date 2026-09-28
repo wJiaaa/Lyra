@@ -2,7 +2,7 @@ import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { SessionActivity } from "@lyra/core/activity";
 
-import { BreatheLoader } from "../../ui/motion/loaders.tsx";
+import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 
 /** Keys, looked up when the row is drawn — this table is built at import time. */
 const LABEL: Record<SessionActivity, MessageKey> = {
@@ -25,28 +25,27 @@ const LABEL: Record<SessionActivity, MessageKey> = {
  * state, so titles line up as a column and a mark appearing does not shove one sideways; the
  * faint ring standing in for "nothing" is quiet enough to read as part of the rule.
  */
-export function SessionStatus({ activity }: { activity: SessionActivity | null }) {
+export function SessionStatus({ activity, unread = false }: { activity: SessionActivity | null; unread?: boolean }) {
+	/*
+	 * 手动标的未读只占空闲那一档。在跑、在等批准说的是接下来要发生的事，比「回头再看」要紧；
+	 * `done`/`failed` 本身就是未读，不用再叠一层。
+	 */
+	const label = activity ? translate(LABEL[activity]) : unread ? translate("sessionStatus.unread") : undefined;
 	return (
 		<span
 			className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center overflow-visible"
-			data-ly-tip={activity ? translate(LABEL[activity]) : undefined}
+			data-ly-tip={label}
 			data-ly-tip-side="right"
-			aria-label={activity ? translate(LABEL[activity]) : undefined}
-			role={activity ? "img" : undefined}
+			aria-label={label}
+			role={label ? "img" : undefined}
 		>
 			{activity === "running" ? (
 				/*
-				 * 比槽位小一圈，不填满。
-				 *
-				 * 波纹每口气的末尾会涨到满宽，所以给足 14px 的话，它每个周期顶点都要碰到邻居。12px
-				 * 上最宽的那圈仍然让得开行距，而核心——一眼真正读到的就是它——保持着其余状态那些点
-				 * 的大小。
-				 *
-				 * 这一处没有跟着换成 `StatusSpinner`：一列会话可能同时好几行在跑，而这一列还要用来
-				 * 读标题。并排三四个各自在转，读标题时旁边总有东西在动。
+				 * 比槽位小一圈：14px 的槽画 12px 的环，和同列 7px 的点放在一起不至于太重。虚线环六段
+				 * 等分、没有端点，一列里好几行同时在转也不会各自勾一下视线。
 				 */
-				<span data-ly-status-mark="running">
-					<BreatheLoader size={12} />
+				<span data-ly-status-mark="running" className="flex text-accent">
+					<StatusSpinner size={12} />
 				</span>
 			) : (
 				/*
@@ -54,7 +53,7 @@ export function SessionStatus({ activity }: { activity: SessionActivity | null }
 				 * 7px fill for a 6px ring, which is the hop the eye reports as the row jumping.
 				 */
 				<span
-					data-ly-status-mark={activity ?? "idle"}
+					data-ly-status-mark={activity ?? (unread ? "unread" : "idle")}
 					className={`box-border block h-[7px] w-[7px] rounded-full transition-colors duration-[var(--ly-t-quick)] ${
 						activity === "waiting"
 							? "ly-pulse bg-accent"
@@ -62,7 +61,9 @@ export function SessionStatus({ activity }: { activity: SessionActivity | null }
 								? "bg-ok"
 								: activity === "failed"
 									? "bg-danger"
-									: "border border-line"
+									: unread
+										? "bg-info"
+										: "border border-line"
 					}`}
 				/>
 			)}

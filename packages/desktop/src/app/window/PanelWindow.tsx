@@ -9,6 +9,7 @@ import { AppWindow } from "lucide-react";
 import { useEffect } from "react";
 import { SessionScope } from "../session-scope.tsx";
 import { renderPanel, renderPanelHeader, renderPanelActions, usePanelDefinitions, useSide } from "../../features/dock/index.ts";
+import { basePanelKind, sideIdOfPanel } from "../../lib/panel-instance.ts";
 import { useApp } from "../../store/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useLayout } from "../layout.tsx";
@@ -26,7 +27,7 @@ export function PanelWindow() {
 	const sessionId = bridge.bootWindow?.sessionId ?? null;
 	const { titlebar, headerBar } = useLayout();
 	const definitions = usePanelDefinitions();
-	const def = kind ? definitions.find((entry) => entry.kind === kind) : undefined;
+	const def = kind ? definitions.find((entry) => entry.kind === basePanelKind(kind)) : undefined;
 	const title = def ? t(def.label) : kind ?? "";
 
 	useEffect(() => {
@@ -43,7 +44,7 @@ export function PanelWindow() {
 	 * nothing. The transcript itself was never missing; nobody had asked for it.
 	 */
 	useEffect(() => {
-		if (kind !== "chat") return;
+		if (!kind || !sideIdOfPanel(kind)) return;
 		void useSide.getState().attach(sessionId).catch((error: unknown) => {
 			useApp.getState().notify(String(error), "error");
 		});
@@ -54,7 +55,7 @@ export function PanelWindow() {
 	}, [title]);
 
 	useEffect(() => {
-		if (kind !== "file" || !bridge.windows?.onClosePanel) return;
+		if (!kind || basePanelKind(kind) !== "file" || !bridge.windows?.onClosePanel) return;
 		let closing = false;
 		return bridge.windows.onClosePanel(() => {
 			if (closing) return;
@@ -72,7 +73,7 @@ export function PanelWindow() {
 	const restore = async () => {
 		if (!kind || !bridge.windows?.restorePanel) return;
 		try {
-			if (kind === "file") await flushFilePanelState();
+			if (basePanelKind(kind) === "file") await flushFilePanelState();
 			await bridge.windows.restorePanel({ kind, scope });
 		} catch (error) {
 			useApp.getState().notify(String(error), "error");
