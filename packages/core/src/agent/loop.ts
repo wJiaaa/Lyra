@@ -653,8 +653,8 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		 * Same call, same arguments, same answer — again.
 		 *
 		 * Told once, most models change approach. Told and ignored, the turn ends: an agent
-		 * repeating a probe that has already answered the same way six times is not going to
-		 * discover anything on the seventh, and the hours it would spend doing so belong to
+		 * repeating a call that has already answered the same way nine times is not going to
+		 * discover anything on the tenth, and the hours it would spend doing so belong to
 		 * whoever is waiting for it.
 		 */
 		const { warn: repeated, kind, repeats } = repetition.observe(toolCalls, toolResults);

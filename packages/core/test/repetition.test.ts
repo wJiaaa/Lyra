@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { INTENT_WARN, PROBE_STOP, PROBE_WARN, RepetitionWatch, REPEAT_STOP, REPEAT_WARN } from "../src/agent/repetition.ts";
+import { INTENT_WARN, PROBE_WARN, RepetitionWatch, REPEAT_STOP, REPEAT_WARN } from "../src/agent/repetition.ts";
 import type { Message } from "../src/types.ts";
 
 const result = (text: string): Message =>
@@ -205,17 +205,41 @@ test("a real workspace edit still resets probe counts", () => {
 	assert.equal(watch.exhausted(), false);
 });
 
-test("ignored probe corrections end the turn", () => {
+test("many distinct probes are corrected once, never cut off", () => {
+	/*
+	 * Ten different images measured with ten different results used to end the turn: the probe
+	 * count alone reached the stop line while no single call had repeated. Inspecting a batch of
+	 * screenshots looks exactly like this, so the activity earns a sentence, not a stop.
+	 */
 	const watch = new RepetitionWatch();
-	for (let i = 0; i < PROBE_STOP; i++) {
-		watch.observe(call("read", { path: `/tmp/band_${String(i).padStart(2, "0")}.png` }), [result("pixels")]);
+	const kinds: (string | undefined)[] = [];
+	for (let i = 0; i < REPEAT_STOP * 2; i++) {
+		const round = watch.observe(
+			call("bash", { command: `python3 -c "from PIL import Image; print(Image.open('shot_${i}.png').size)"` }),
+			[result(`(${800 + i}, 600)`)],
+		);
+		assert.deepEqual(round.repeats, [1], "no call ever repeated");
+		kinds.push(round.kind);
+	}
+	assert.deepEqual(
+		kinds.filter((kind) => kind === "probe"),
+		["probe"],
+		"told once",
+	);
+	assert.equal(watch.exhausted(), false);
+});
+
+test("an exact repeat still ends the turn, probe or not", () => {
+	const watch = new RepetitionWatch();
+	for (let i = 0; i < REPEAT_STOP; i++) {
+		watch.observe(call("read", { path: "/tmp/band_00.png" }), [result("pixels")]);
 	}
 	assert.equal(watch.exhausted(), true);
 });
 
 test("ordinary image work without measuring is not a probe loop", () => {
 	const watch = new RepetitionWatch();
-	for (let i = 0; i < PROBE_STOP + 1; i++) {
+	for (let i = 0; i < REPEAT_STOP + 1; i++) {
 		watch.observe(call("bash", { command: `ffmpeg -i src.mov frame-${i}.png` }), [result("ok")]);
 	}
 	assert.equal(watch.exhausted(), false);

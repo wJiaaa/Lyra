@@ -57,10 +57,14 @@ export const INTENT_WARN = 12;
  * Exact fingerprints miss this: each round writes a new Python file or changes crop coordinates,
  * so the call looks new and a successful `write` used to clear the other tables. The signal is
  * the *activity* — generating band_*.png, reading those slices, histogramming pixels — not the
- * arguments. Warn, then stop if the correction is ignored, same order as exact repeats.
+ * arguments.
+ *
+ * Warn only, never stop. This line once ended the turn at ten probes, and that counted ten
+ * different screenshots measured with ten different answers exactly like a model re-cutting the
+ * same slice: activity says nothing about whether anything was learned. Probing that truly repeats
+ * — same call, same answer — still reaches `REPEAT_STOP` through the exact line.
  */
 export const PROBE_WARN = 5;
-export const PROBE_STOP = 10;
 
 /*
  * 这里一度有一条「连着 60 轮一个字都没对人说过就停」，2026-09-16 拆掉了。留着这段是因为它错得很
@@ -128,7 +132,12 @@ export class RepetitionWatch {
 	 * file, and a watchdog that does that gets turned off.
 	 */
 	private readonly intents = new Map<string, number>();
-	/** Screenshot-slicing / pixel-measure family. Survives writing a new probe script. */
+	/**
+	 * Screenshot-slicing / pixel-measure family. Survives writing a new probe script.
+	 *
+	 * Never consulted by `exhausted`, for the same reason as `intents`: it counts an activity, not a
+	 * repeated answer.
+	 */
 	private probes = 0;
 	private probeWarned = false;
 	/**
@@ -218,15 +227,16 @@ export class RepetitionWatch {
 	 */
 	exhausted(): boolean {
 		for (const seen of this.counts.values()) if (seen >= REPEAT_STOP) return true;
-		return this.probes >= PROBE_STOP;
+		return false;
 	}
 
 	/**
 	 * 之前的观察作废，从头数。
 	 *
-	 * 两种时候：工作区被改过（结果可能变了），以及上下文被压缩过——压缩把早先那几份原文收进了
-	 * 摘要，模型再读一次是在把丢掉的东西拿回来，不是在打转。不清零的话，这次合理的重读会被算成
-	 * 第三次，拿到的是一句「不再重复贴一遍」，而它要的那份原文已经不在它眼前了。
+	 * 两种时候：工作区被改过（结果可能变了；`observe` 开头自己调），以及上下文被压缩过（`agent/loop.ts`
+	 * 压缩后调）——压缩把早先那几份原文收进了摘要，模型再读一次是在把丢掉的东西拿回来，不是在打转。
+	 * 不清零的话，这次合理的重读会被算成第三次，拿到的是一句「不再重复贴一遍」，而它要的那份原文已经
+	 * 不在它眼前了。
 	 */
 	reset(): void {
 		this.counts.clear();
