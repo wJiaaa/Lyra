@@ -147,6 +147,14 @@ export interface AppearanceSettings {
 	 * calls grouped into summary lines of bordered cards, and the turn folding away once it ends.
 	 */
 	callChain?: "expanded" | "collapsed";
+	/**
+	 * How a conversation's panels share its screen.
+	 *
+	 * `tabs` puts every open panel into one pane at the screen's right edge, one tab each, with only
+	 * the current one showing. `split` is the dock as it always was: every panel a pane of its own,
+	 * arranged by dragging.
+	 */
+	panelLayout?: "split" | "tabs";
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -204,6 +212,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	// Compact by default: the common failure is transient, and its wording is JSON.
 	errorDetail: "compact",
 	callChain: "collapsed",
+	panelLayout: "tabs",
 	// ZCode 不设 `-webkit-font-smoothing`，字按系统默认的粗细画。
 	fontSmoothing: false,
 };
