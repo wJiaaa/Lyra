@@ -26,13 +26,18 @@ function result(id: string, name: string, text: string, extra: Partial<ToolResul
 	return { role: "toolResult", toolCallId: id, toolName: name, content: [{ type: "text", text }], isError: false, timestamp: 0, ...extra };
 }
 
+/** What `read` puts on a verbatim result: the line span that actually came back. */
+function shown(from: number, to: number, totalLines: number, extra: Record<string, unknown> = {}): Partial<ToolResultMessage> {
+	return { details: { kind: "text", path: "f.ts", tag: "t", totalLines, shownFrom: from, shownTo: to, ...extra } };
+}
+
 function user(text: string): Message {
 	return { role: "user", content: [{ type: "text", text }], timestamp: 0 };
 }
 
 test("a later full read blanks the earlier one of the same file", () => {
 	const first = result("a", "read", "first snapshot ".repeat(80));
-	const messages = [assistant("a", "read", { path: "src/a.ts" }), first, assistant("b", "read", { path: "src/a.ts" }), result("b", "read", "current")];
+	const messages = [assistant("a", "read", { path: "src/a.ts" }), first, assistant("b", "read", { path: "src/a.ts" }), result("b", "read", "current", shown(1, 40, 40))];
 	const after = dropStaleResults(messages);
 	assert.equal(after.length, messages.length);
 	assert.equal((after[1] as ToolResultMessage).toolCallId, "a");
@@ -46,7 +51,7 @@ test("a later wider window covers a narrower earlier one; a slice does not cover
 		assistant("a", "read", { path: "f.ts", offset: 1, limit: 50 }),
 		result("a", "read", "page ".repeat(80)),
 		assistant("b", "read", { path: "f.ts", offset: 1, limit: 200 }),
-		result("b", "read", "wide"),
+		result("b", "read", "wide", shown(1, 200, 500)),
 	];
 	assert.match((dropStaleResults(covered)[1].content[0] as { text: string }).text, /superseded/);
 
@@ -54,7 +59,7 @@ test("a later wider window covers a narrower earlier one; a slice does not cover
 		assistant("a", "read", { path: "f.ts" }),
 		result("a", "read", "whole file ".repeat(80)),
 		assistant("b", "read", { path: "f.ts", offset: 1, limit: 40 }),
-		result("b", "read", "slice"),
+		result("b", "read", "slice", shown(1, 40, 500)),
 	];
 	assert.equal(dropStaleResults(full), full);
 });
@@ -64,7 +69,67 @@ test("a later head window does not blank an earlier mid-line read of the same fi
 		assistant("a", "read", { path: "catalog.json", char_offset: 80_000 }),
 		result("a", "read", "mid-line window ".repeat(80)),
 		assistant("b", "read", { path: "catalog.json" }),
-		result("b", "read", "line head ".repeat(80)),
+		result("b", "read", "line head ".repeat(80), shown(1, 1, 1, { charFrom: 1, charTo: 2000, longLines: 1 })),
+	];
+	assert.equal(dropStaleResults(messages), messages);
+});
+
+test("a later outline does not blank an earlier read of a body it folded", () => {
+	const messages = [
+		assistant("a", "read", { path: "big.ts", offset: 300, limit: 120 }),
+		result("a", "read", "function body ".repeat(80), shown(300, 419, 1200)),
+		assistant("b", "read", { path: "big.ts" }),
+		result("b", "read", "outline ".repeat(40), { details: { kind: "text", path: "big.ts", tag: "t", totalLines: 1200, outlined: true, shownLines: 277, foldedLines: 923 } }),
+	];
+	assert.equal(dropStaleResults(messages), messages);
+});
+
+test("a later verbatim read of the whole file does blank an earlier outline", () => {
+	const messages = [
+		assistant("a", "read", { path: "big.ts" }),
+		result("a", "read", "outline ".repeat(80), { details: { kind: "text", path: "big.ts", tag: "t", totalLines: 1200, outlined: true, shownLines: 277, foldedLines: 923 } }),
+		assistant("b", "read", { path: "big.ts", offset: 1, limit: 2000 }),
+		result("b", "read", "everything", shown(1, 1200, 1200)),
+	];
+	assert.match((dropStaleResults(messages)[1].content[0] as { text: string }).text, /superseded/);
+});
+
+test("a failed later read blanks nothing, not even under the same arguments", () => {
+	const messages = [
+		assistant("a", "read", { path: "f.ts" }),
+		result("a", "read", "whole file ".repeat(80), shown(1, 40, 40)),
+		assistant("b", "read", { path: "f.ts" }),
+		result("b", "read", "Tool execution was cancelled.", { isError: true, details: { cancelled: true } }),
+		assistant("c", "read", { path: "f.ts", offset: 1, limit: 2000 }),
+		result("c", "read", "File not found: f.ts", { isError: true }),
+	];
+	assert.equal(dropStaleResults(messages), messages);
+});
+
+test("a later read capped by the output budget covers only the lines it returned", () => {
+	const kept = [
+		assistant("a", "read", { path: "f.ts", offset: 1500, limit: 100 }),
+		result("a", "read", "tail page ".repeat(80), shown(1500, 1599, 3000)),
+		assistant("b", "read", { path: "f.ts", offset: 1, limit: 2000 }),
+		result("b", "read", "head", shown(1, 800, 3000)),
+	];
+	assert.equal(dropStaleResults(kept), kept);
+
+	const covered = [
+		assistant("a", "read", { path: "f.ts", offset: 100, limit: 50 }),
+		result("a", "read", "early page ".repeat(80), shown(100, 149, 3000)),
+		assistant("b", "read", { path: "f.ts", offset: 1, limit: 2000 }),
+		result("b", "read", "head", shown(1, 800, 3000)),
+	];
+	assert.match((dropStaleResults(covered)[1].content[0] as { text: string }).text, /superseded/);
+});
+
+test("a later read that does not say what it returned covers nothing", () => {
+	const messages = [
+		assistant("a", "read", { path: "f.ts", offset: 1, limit: 50 }),
+		result("a", "read", "page ".repeat(80), shown(1, 50, 500)),
+		assistant("b", "read", { path: "f.ts", offset: 1, limit: 200 }),
+		result("b", "read", "wide"),
 	];
 	assert.equal(dropStaleResults(messages), messages);
 });
@@ -119,7 +184,7 @@ test("relative and absolute paths to the same file collide", () => {
 		assistant("a", "read", { path: "/Users/me/proj/src/a.ts" }),
 		result("a", "read", "abs ".repeat(80)),
 		assistant("b", "read", { path: "src/a.ts" }),
-		result("b", "read", "rel"),
+		result("b", "read", "rel", shown(1, 40, 40)),
 	];
 	assert.match((dropStaleResults(messages)[1].content[0] as { text: string }).text, /superseded/);
 });
@@ -162,7 +227,7 @@ test("net-benefit worthPruning lets a large cut through a warm tail the old 32k 
 
 test("the live pruner blanks a superseded read without waiting twenty rounds", () => {
 	const first = result("a", "read", "snapshot ".repeat(80));
-	const history = [assistant("a", "read", { path: "a.ts" }), first, assistant("b", "read", { path: "a.ts" }), result("b", "read", "now")];
+	const history = [assistant("a", "read", { path: "a.ts" }), first, assistant("b", "read", { path: "a.ts" }), result("b", "read", "now", shown(1, 40, 40))];
 	const next = new AgedToolPruner().prepare(history);
 	assert.notEqual(next, history);
 	assert.match(JSON.stringify(next[1]), /superseded/);

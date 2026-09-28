@@ -48,13 +48,19 @@ export function staleCuts(messages: Message[]): StaleCut[] {
 		const path = pathOf(call.arguments);
 		const key = path ? intern(latestReads, mutated, path) : "";
 		const fingerprint = `${call.name} ${stable(call.arguments)}`;
-		const window = call.name === "read" ? readWindow(call.arguments) : undefined;
+		const isRead = call.name === "read";
+		/*
+		 * What a read covers is what came back, not what was asked for: a bare read of a long
+		 * source file returns an outline with every body folded, and a wide window can stop at the
+		 * output budget. Judging by the arguments blanked bodies the model had read and never saw again.
+		 */
+		const returned = isRead && !message.isError ? returnedWindow(message.details, call.arguments) : undefined;
 		const duplicate = seenExact.has(fingerprint);
 		const superseded =
 			!message.isError &&
-			call.name === "read" &&
+			isRead &&
 			key !== "" &&
-			(inSet(mutated, key) || coversAny(latestReads.get(key), window));
+			(inSet(mutated, key) || coversAny(latestReads.get(key), returned ?? askedWindow(call.arguments)));
 
 		if (duplicate || superseded) {
 			const notice = superseded ? supersededNotice(path) : duplicateNotice(call.name);
@@ -63,11 +69,12 @@ export function staleCuts(messages: Message[]): StaleCut[] {
 			if (size > Math.max(PRUNE_FLOOR_CHARS, notice.length) && saving > 0) cuts.push({ index, saving, notice });
 		}
 
-		seenExact.add(fingerprint);
+		// A failed or cancelled read observed nothing, so it cannot stand in for an earlier one.
+		if (!(isRead && message.isError)) seenExact.add(fingerprint);
 		if (key && (call.name === "write" || call.name === "edit") && !message.isError) mutated.add(key);
-		if (key && window) {
+		if (key && returned) {
 			const list = latestReads.get(key) ?? [];
-			list.push(window);
+			list.push(returned);
 			latestReads.set(key, list);
 		}
 	}
@@ -106,35 +113,52 @@ function callsById(messages: Message[]): Map<string, { name: string; arguments: 
 
 interface Window {
 	from: number;
+	/** `Infinity` when the window reached the last line. */
 	to: number;
-	/** No line window was asked for — this read named the whole file. */
-	lineFull: boolean;
 	charFrom: number;
 	charTo: number;
 }
 
-function readWindow(args: Record<string, unknown>): Window {
-	const offset = numberOf(args.offset);
-	const limit = numberOf(args.limit);
-	const charOffset = numberOf(args.char_offset) ?? numberOf(args.charOffset) ?? 1;
-	const from = offset ?? 1;
-	const lineFull = offset === undefined && limit === undefined;
-	return {
-		from,
-		to: lineFull || limit === undefined ? Number.POSITIVE_INFINITY : from + limit - 1,
-		lineFull,
-		charFrom: charOffset,
-		charTo: charOffset + MAX_LINE_CHARS - 1,
-	};
+const WHOLE: Window = { from: 1, to: Number.POSITIVE_INFINITY, charFrom: 1, charTo: Number.POSITIVE_INFINITY };
+
+/**
+ * The span a read result proves it returned verbatim, from the `details` `read` puts on it.
+ *
+ * Undefined whenever that cannot be proven — an outline, a truncated document, a resource, or a
+ * result without details (another tool, a hand-built message). Blanking an earlier read on a
+ * guess loses text the model saw; keeping it costs only characters.
+ */
+function returnedWindow(details: unknown, args: Record<string, unknown>): Window | undefined {
+	if (!details || typeof details !== "object") return undefined;
+	const d = details as Record<string, unknown>;
+	if (d.kind === "image" || (d.kind === "document" && d.truncated === false)) return WHOLE;
+	if (d.kind !== "text" || d.outlined === true) return undefined;
+	const from = numberOf(d.shownFrom);
+	const to = numberOf(d.shownTo);
+	const total = numberOf(d.totalLines);
+	if (from === undefined || to === undefined) return undefined;
+	return { from, to: from <= 1 && total !== undefined && to >= total ? Number.POSITIVE_INFINITY : to, ...charSpan(args) };
 }
 
-function coversAny(laters: Window[] | undefined, earlier: Window | undefined): boolean {
-	if (!laters || !earlier) return false;
-	return laters.some((later) => {
-		const lines = later.lineFull || (!earlier.lineFull && later.from <= earlier.from && later.to >= earlier.to);
-		const chars = later.charFrom <= earlier.charFrom && later.charTo >= earlier.charTo;
-		return lines && chars;
-	});
+/** The most an earlier read can have shown — what it asked for. Only used as the side being covered. */
+function askedWindow(args: Record<string, unknown>): Window {
+	const offset = numberOf(args.offset);
+	const limit = numberOf(args.limit);
+	const from = offset ?? 1;
+	return { from, to: limit === undefined ? Number.POSITIVE_INFINITY : from + limit - 1, ...charSpan(args) };
+}
+
+// `read` applies one character window to every selected line; short lines at offset 1 fit inside it.
+function charSpan(args: Record<string, unknown>): Pick<Window, "charFrom" | "charTo"> {
+	const charFrom = Math.max(1, numberOf(args.char_offset) ?? numberOf(args.charOffset) ?? 1);
+	return { charFrom, charTo: charFrom + MAX_LINE_CHARS - 1 };
+}
+
+function coversAny(laters: Window[] | undefined, earlier: Window): boolean {
+	if (!laters) return false;
+	return laters.some(
+		(later) => later.from <= earlier.from && later.to >= earlier.to && later.charFrom <= earlier.charFrom && later.charTo >= earlier.charTo,
+	);
 }
 
 function pathOf(args: Record<string, unknown>): string {
