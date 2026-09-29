@@ -143,13 +143,14 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 					// is a row of things you have to read before you can ignore them. The menu still
 					// lists them, with the reason.
 					if (!def || def.unavailable) return null;
+					// 侧边聊天和终端能开好几个：每点一次再开一个，和标签栏「+」一样，所以也没有开着/关着之分。
+					const many = kind === "chat" || kind === "terminal";
 					return (
 						<ToolbarButton
 							key={kind}
 							label={`${t(def.label)} ${def.shortcut}`}
-							// 侧边聊天能开好几个：每点一次再开一个，和标签栏「+」一样，所以也没有开着/关着之分。
-							active={kind !== "chat" && has(tree, kind)}
-							onClick={() => (kind === "chat" ? open(nextPanelKind("chat", (each) => has(tree, each))) : toggle(kind))}
+							active={!many && has(tree, kind)}
+							onClick={() => (many ? open(nextPanelKind(kind, (each) => has(tree, each))) : toggle(kind))}
 						>
 							<def.icon size={13} strokeWidth={1.9} />
 						</ToolbarButton>
