@@ -110,7 +110,8 @@ async function main() {
 	const head = firstVersion === -1 ? existingLog.trimEnd() : existingLog.slice(0, firstVersion);
 	const rest = firstVersion === -1 ? "" : existingLog.slice(firstVersion + 1);
 	const added = section.slice(section.indexOf("## ["));
-	await writeFile(changelogPath, `${head}\n\n${added.trim()}\n\n${rest}`.replace(/\n{3,}/g, "\n\n"));
+	// Trimmed at the end too: with no earlier version `rest` is empty and would leave a blank last line.
+	await writeFile(changelogPath, `${`${head}\n\n${added.trim()}\n\n${rest}`.replace(/\n{3,}/g, "\n\n").trimEnd()}\n`);
 
 	note("提交");
 	await must("git", ["add", "--", ...MANIFESTS, "CHANGELOG.md"]);
