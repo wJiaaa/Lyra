@@ -1,12 +1,13 @@
 import { translate } from "../../i18n/translate.ts";
 import type { Language } from "@codemirror/language";
 import { Check, Copy, Play, WrapText } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, memo, type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { highlightGeneration, loadFenceLanguage, onHighlightChange, sharedHighlightStyle, tokenize } from "../../lib/code/highlight.ts";
+import { highlightGeneration, loadFenceLanguage, onHighlightChange, sharedHighlightStyle, tokenize, tokenizeGrowing, type Grown, type Token } from "../../lib/code/highlight.ts";
 import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 import { useSide, openScopedPanel } from "../dock/index.ts";
 import { useDockScope } from "../../app/session-scope.tsx";
+import { useFade } from "./FadeText.tsx";
 
 /**
  * Fences that are commands rather than code.
@@ -53,7 +54,7 @@ function commandFrom(code: string): string {
 		.trim();
 }
 
-export function CodeBlock({ lang, code }: { lang: string; code: string }) {
+export function CodeBlock({ lang, code, fade = false }: { lang: string; code: string; fade?: boolean }) {
 	const [copied, setCopied] = useState(false);
 	const [wrap, setWrap] = useState(false);
 	const label = lang.toLowerCase() || "text";
@@ -92,6 +93,9 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 	 */
 	const generation = useSyncExternalStore(onHighlightChange, highlightGeneration, highlightGeneration);
 
+	/** 正在输出时上一次的解析结果，下一帧只解析长出来的那一截，见 `tokenizeGrowing`。 */
+	const grown = useRef<Grown | undefined>(undefined);
+
 	const tokens = useMemo(() => {
 		if (!language) return null;
 		/*
@@ -110,13 +114,21 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 		 */
 		if (code.length > HIGHLIGHT_LIMIT) return null;
 		try {
-			return tokenize(code, language, sharedHighlightStyle());
+			if (!fade) {
+				grown.current = undefined;
+				return tokenize(code, language, sharedHighlightStyle());
+			}
+			grown.current = tokenizeGrowing(code, language, sharedHighlightStyle(), grown.current);
+			return grown.current.tokens;
 		} catch {
 			// A half-written fence mid-stream is not a reason to lose the text.
 			return null;
 		}
 		// oxlint-disable-next-line exhaustive-deps -- `generation` 不出现在函数体里，它就是「重算」的信号
-	}, [code, language, generation]);
+	}, [code, language, generation, fade]);
+
+	// 正在输出的代码块，新来的字和正文一样淡入，见 `FadeText`。不在输出的块不记出现时刻。
+	const { settled, style } = useFade(fade ? Array.from(code).length : 0);
 
 	return (
 		<div className="ly-code-block" data-wrap={wrap || undefined}>
@@ -151,19 +163,23 @@ export function CodeBlock({ lang, code }: { lang: string; code: string }) {
 				</CodeAction>
 			</div>
 			<pre>
-				<code>
-					{tokens
-						? tokens.map((token, index) =>
-								token.className ? (
-									<span key={index} className={token.className}>
-										{token.text}
-									</span>
-								) : (
-									token.text
-								),
-							)
-						: code}
-				</code>
+				{fade ? (
+					fading(tokens ?? [{ text: code, className: "" }], settled, style)
+				) : (
+					<code>
+						{tokens
+							? tokens.map((token, index) =>
+									token.className ? (
+										<span key={index} className={token.className}>
+											{token.text}
+										</span>
+									) : (
+										token.text
+									),
+								)
+							: code}
+					</code>
+				)}
 			</pre>
 		</div>
 	);
@@ -183,3 +199,93 @@ function CodeAction({ tip, active, onClick, children }: { tip: string; active?: 
 		</button>
 	);
 }
+
+/** 正在输出的代码按这么多行一段画；写完的段不再重画。 */
+const CHUNK_LINES = 24;
+
+/**
+ * 正在输出的代码：淡完的字按 token 配色成段画，还在淡的字一个一个画成带配色的 span。
+ *
+ * 按行切成段，每段是一个块级元素，整段都淡完了就交给 `SettledChunk`，内容不变它就不重画。不切的话
+ * 整块代码是同一个行内排版：每帧长一个字，几百行、几千个 span 全部重排一遍。量过：300 行的块按
+ * 每秒 150 字输出，切段之前三分之一以上的帧超过 16ms。切开之后浏览器只重排最后一段。
+ *
+ * 段放在 `pre` 底下、每段自己再套一个 `code`，和写完之后整块的 `<pre><code>` 一行一行排得一样：
+ * 行高由 `pre` 的字号撑着。段放进 `code` 里面的话，每行矮 3px，写完换回整块那一刻，三百行的块
+ * 一下子长高近一千像素。
+ *
+ * 还在淡的字按字的序号作 key，挂在 token 外面而不是里面。配色是整块重算的，`cons` 长成 `const`
+ * 时 token 的边界和类名都会变；字挂在 token 里的话会跟着 token 被重建，淡入从头再来。挂在外面，
+ * 变的只是它的类名，动画不受影响。
+ */
+function fading(tokens: Token[], settled: number, style: (index: number) => CSSProperties): ReactNode[] {
+	const out: ReactNode[] = [];
+	let chunk: Token[] = [];
+	let start = 0;
+	let at = 0;
+	let lines = 0;
+	const flush = () => {
+		if (chunk.length === 0) return;
+		// `at` 这时是这一段的末尾：它之前的字都淡完了，这一段就不会再变。
+		out.push(
+			at <= settled ? (
+				<SettledChunk key={`s${start}`} tokens={chunk} />
+			) : (
+				<span key={`f${start}`} className="ly-code-chunk">
+					<code>{live(chunk, start, settled, style)}</code>
+				</span>
+			),
+		);
+		chunk = [];
+		start = at;
+		lines = 0;
+	};
+	for (const token of tokens) {
+		// 一个 token 可以跨行（块注释、模板字符串），在换行处切开，段才能按行分。
+		const parts = token.text.split("\n");
+		parts.forEach((part, index) => {
+			const text = index < parts.length - 1 ? `${part}\n` : part;
+			if (!text) return;
+			chunk.push({ text, className: token.className });
+			at += Array.from(text).length;
+			if (index < parts.length - 1 && ++lines === CHUNK_LINES) flush();
+		});
+	}
+	flush();
+	return out;
+}
+
+/** 一段里还有字在淡：淡完的部分成段，其余一个字一个 span。 */
+function live(tokens: Token[], start: number, settled: number, style: (index: number) => CSSProperties): ReactNode[] {
+	const out: ReactNode[] = [];
+	let at = start;
+	tokens.forEach((token, index) => {
+		const chars = Array.from(token.text);
+		const done = Math.max(0, Math.min(chars.length, settled - at));
+		if (done > 0) {
+			const text = chars.slice(0, done).join("");
+			out.push(token.className ? <span key={`t${index}`} className={token.className}>{text}</span> : text);
+		}
+		for (let offset = done; offset < chars.length; offset++) {
+			const char = at + offset;
+			out.push(
+				<span key={char} className={token.className ? `${token.className} ly-fade-char` : "ly-fade-char"} style={style(char)}>
+					{chars[offset]}
+				</span>,
+			);
+		}
+		at += chars.length;
+	});
+	return out;
+}
+
+const SettledChunk = memo(
+	function SettledChunk({ tokens }: { tokens: Token[] }) {
+		return (
+			<span className="ly-code-chunk">
+				<code>{tokens.map((token, index) => (token.className ? <span key={index} className={token.className}>{token.text}</span> : token.text))}</code>
+			</span>
+		);
+	},
+	(a, b) => a.tokens.length === b.tokens.length && a.tokens.every((token, index) => token.text === b.tokens[index].text && token.className === b.tokens[index].className),
+);
