@@ -135,6 +135,7 @@ export function useFollowBottom({
 	tail,
 	namespace,
 	ready = true,
+	live,
 }: {
 	/** Which conversation, side chat or delegate this is. `null` while there is nothing to show. */
 	surfaceId: string | null;
@@ -146,6 +147,12 @@ export function useFollowBottom({
 	namespace: string;
 	/** A restored offset is meaningful only after this surface's content has arrived. */
 	ready?: boolean;
+	/**
+	 * Whether this transcript is being written right now. Only then is growth output, and only
+	 * output is chased: at rest it is a card or an image landing late — the delivery card fetches
+	 * its files after mount — and sliding for that drags the whole history up from below.
+	 */
+	live: boolean;
 }): FollowBottom {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	/*
@@ -198,6 +205,9 @@ export function useFollowBottom({
 	const selectedSurface = useRef<string | null | undefined>(undefined);
 	const restore = useRef<FollowSnapshot | undefined>(undefined);
 	const clearWritten = useRef(0);
+	/** Read by `pin`, which is memoised and must not be rebuilt on every token. */
+	const writing = useRef(live);
+	writing.current = live;
 
 	/**
 	 * 手指上一次的位置，给 touchmove 定方向用。
@@ -305,7 +315,7 @@ export function useFollowBottom({
 
 			const moving = chase.current !== 0;
 			const slide =
-				known && sameView && grew >= 0 && grew <= reading.clientHeight && target > reading.scrollTop && (moving || grew > 0) && !motionReduced();
+				writing.current && known && sameView && grew >= 0 && grew <= reading.clientHeight && target > reading.scrollTop && (moving || grew > 0) && !motionReduced();
 			if (!slide) {
 				cancelAnimationFrame(chase.current);
 				chase.current = 0;

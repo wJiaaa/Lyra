@@ -198,6 +198,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
     surfaceId: activeSessionId,
     namespace: "transcript",
     ready: !loadingSession,
+    live: running,
     count: messages.length + commandRuns.length,
     /*
      * What "something arrived" means here.

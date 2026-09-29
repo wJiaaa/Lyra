@@ -62,6 +62,7 @@ export function SideChat() {
 		// 每个侧边聊天各记各的滚动位置：切个标签回来，还停在刚才读到的地方。
 		surfaceId: sessionId ? `${sessionId}:${sideId}` : null,
 		namespace: "sidechat",
+		live: running,
 		count: messages.length,
 		tail: tailSignature(messages, running ? "run" : ""),
 	});

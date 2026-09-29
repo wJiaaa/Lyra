@@ -37,11 +37,13 @@ function Harness({
 	ready = true,
 	count = 40,
 	tail = "same",
+	live = true,
 }: {
 	id: string;
 	ready?: boolean;
 	count?: number;
 	tail?: string;
+	live?: boolean;
 }) {
 	const follow = useFollowBottom({
 		surfaceId: id,
@@ -49,6 +51,7 @@ function Harness({
 		count: ready ? count : 0,
 		tail,
 		ready,
+		live,
 	});
 	controls = follow;
 	return h(
@@ -82,7 +85,7 @@ function Harness({
 }
 
 /** A mounted surface at a known size, following its own end. */
-async function open(id: string, props: { count?: number; tail?: string } = {}) {
+async function open(id: string, props: { count?: number; tail?: string; live?: boolean } = {}) {
 	geometry.content = 2400;
 	geometry.view = 400;
 	const view = await mount(h(Harness, { id, ...props }));
@@ -279,6 +282,15 @@ test("一行一行长出来的回复是滑到底的，不是一行一顿地顶�
 	const left = el.scrollTop;
 	await act(() => new Promise<void>((resolve) => setTimeout(resolve, 200)));
 	assert.equal(el.scrollTop, left, "读者往上滚了，追赶就停在那里");
+	await view.unmount();
+});
+
+test("没在输出时长高的一截一步到位——切进一个会话，末尾那张卡片晚到，不把整段历史滑上来", async () => {
+	const { view, el } = await open("at-rest", { live: false });
+	geometry.content += 150;
+	await view.rerender(h(Harness, { id: "at-rest", live: false, tail: "delivery-card" }));
+	await act(async () => controls.onResize(el));
+	assert.equal(el.scrollTop, bottom(), "晚到的卡片不是输出，不追");
 	await view.unmount();
 });
 
