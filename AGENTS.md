@@ -106,14 +106,11 @@ pnpm install
 ## 改动之后（必须全过）
 
 ```bash
-pnpm lint        # oxlint，--deny-warnings：警告等于失败
-pnpm typecheck   # 5 个包
-pnpm test        # 单元测试，含组件测试
+pnpm check       # lint（--deny-warnings）→ 链接 → 样式 → i18n → typecheck → arch → test
 node scripts/audit-regression.mjs   # 修过的每个 bug，各自的守卫跑一遍
-pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
 ```
 
-前三条是一条：`pnpm check`。`arch` 另跑，两秒。
+`arch` 查的是依赖方向，规则见 ARCHITECTURE.md 的「边界」。
 
 ### 三条命令全绿 ≠ 做完了
 
@@ -156,8 +153,9 @@ pnpm arch        # 依赖方向，见 ARCHITECTURE.md 的「边界」
 是一整轮「你说的是哪儿」。用户要看的是东西长什么样，截图回答这个；终端里的 `check()` 回答
 「量出来是多少」，两者都要有。
 
-录法在 `e2e/record.ts`：`startRecording` 开 CDP 的 `Page.startScreencast`、`encode` 合成。
-照着 `e2e/input-history-demo.ts` 或 `e2e/attachments-demo.ts` 写，剧本部分换掉就行。
+录法在 `packages/desktop/e2e/record.ts`：`startRecording` 开 CDP 的 `Page.startScreencast`、
+`encode` 合成。照着同目录的 `input-history-demo.ts` 或 `attachments-demo.ts` 写，剧本部分换掉
+就行。
 
 **拍窗口，不拍屏幕。** 抓全屏会把用户手边的私人窗口一起录进去——这不是美观问题。screencast
 只拍这一个 `BrowserWindow`，其他窗口从来不在画面里。
@@ -194,7 +192,7 @@ pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、
 GitHub Release 正文是这两段按写下的顺序排出来的全文，**英文必须在最上面**。
 
 tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这里读，所以**改 CHANGELOG
-就是改发布内容**。0.9.6 是写对了的样子，照它写。
+就是改发布内容**。两个块怎么排，照 CHANGELOG 里 0.9.22 那一节。
 
 两种语言是**各写一遍，不是把中文直译成英文**。英文用英文的说法和句子结构；每种语言里
 的产品名词要和该语言的界面文案对得上（对不上就是用户在设置里看到一个词、在更新说明里看到另一
