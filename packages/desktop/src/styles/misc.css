@@ -495,6 +495,15 @@
   animation-range: exit calc(100% - 36px) exit 100%;
 }
 
+/*
+ * 收起的分组里的行和标题看不见，不用跟着钉住的行淡出。摘掉动画，省下每次 `--ly-held-edge` 变化时
+ * 这些行的重算——行一多，这笔重算就是滚过标题时掉的那几帧。何时算收起见 `Collapsible`。
+ * 写在上面几条之后：选择器权重相同，靠顺序盖过去。
+ */
+.ly-sidebar-fill [data-ly-folded] :is([data-ly-row], [data-ly-fades], [data-ly-head]) {
+  animation: none;
+}
+
 /* Opacity preserves geometry; touch devices keep the action visible without a hover gesture. */
 .ly-row-action {
 	transition: opacity var(--ly-t-quick) var(--ly-e-out);

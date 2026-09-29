@@ -30,8 +30,17 @@ export function Collapsible({ open, children }: { open: boolean; children: React
 	 * 代价是它不算滚动容器，网格子项的最小高度回到内容高度，`0fr` 压不下去，所以要显式 `min-h-0`。
 	 */
 	const [clipped, setClipped] = useState(!open);
+	/*
+	 * 折完了才算收起，折的过程里行还看得见。
+	 *
+	 * 收起的内容仍然挂着，里面的行照样带着 `ly-under-pin` 的滚动驱动动画，`--ly-held-edge` 每变一次
+	 * 就要跟着重算一遍，行一多滚过标题就掉帧。收起后把它们的动画摘掉（`misc.css`）。不能一收就摘：
+	 * 折叠动画期间行还在，已经淡没在钉住的行底下的那几行会突然变回不透明。
+	 */
+	const [folded, setFolded] = useState(!open);
 	useEffect(() => {
 		if (!open) setClipped(true);
+		else setFolded(false);
 	}, [open]);
 
 	return (
@@ -49,9 +58,15 @@ export function Collapsible({ open, children }: { open: boolean; children: React
 			// The track has finished growing, so there is nothing left hanging outside the box.
 			onTransitionEnd={(event) => {
 				if (open && event.propertyName === "grid-template-rows") setClipped(false);
+				// 嵌套的项目折叠也会冒泡上来，只认自己这一层的。
+				if (!open && event.propertyName === "grid-template-rows" && event.target === event.currentTarget) setFolded(true);
 			}}
 		>
-			<div className={`min-h-0 ${clipped ? "overflow-clip" : ""} ${open ? "" : "pointer-events-none"}`} inert={!open}>
+			<div
+				data-ly-folded={folded || undefined}
+				className={`min-h-0 ${clipped ? "overflow-clip" : ""} ${open ? "" : "pointer-events-none"}`}
+				inert={!open}
+			>
 				{children}
 			</div>
 		</div>
