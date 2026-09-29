@@ -1,6 +1,6 @@
 {
 	"name": "@plume/cli",
-	"version": "0.9.21",
+	"version": "0.9.22",
 	"private": true,
 	"type": "module",
 	"description": "Plume without a window: runs one task non-interactively with the desktop app's settings, for evaluation.",
