@@ -73,9 +73,12 @@ test("a conversation that has just been sent to stays listed after you click awa
 	);
 });
 
-test("a project that never had a session takes no row", () => {
-	const { projects: rest } = groupSessions([], projects, "");
-	assert.deepEqual(rest, []);
+test("a project that never had a session takes a row only where asked, and not while searching", () => {
+	const unused = (query: string, showUnused: boolean) =>
+		groupSessions([], projects, query, [], [], undefined, "updatedAt", new Set(), false, showUnused).projects.map((g) => g.path);
+	assert.deepEqual(unused("", false), [], "归档视图那样不要的，默认不占行");
+	assert.deepEqual(unused("", true), ["/c", "/a"], "刚建好的项目在常规列表里要能点到");
+	assert.deepEqual(unused("登录", true), [], "搜索时没有会话可匹配，不占行");
 });
 
 /*

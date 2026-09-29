@@ -3,7 +3,8 @@
  *
  * Pure, and separate from the pane that renders it, because the rules are the sort you want to be
  * able to state and check: a project keeps its configured order, a project that never had a session
- * takes no row, and searching filters sessions without dissolving the projects they belong to.
+ * takes a row only where asked to, and searching filters sessions without dissolving the projects
+ * they belong to.
  */
 
 import { translate } from "../i18n/translate.ts";
@@ -71,6 +72,14 @@ export function groupSessions(
 	emptied: ReadonlySet<string> = new Set(),
 	/** Whether an emptied project should fold away with its conversations; see `hideEmptiedProjects`. */
 	hideEmptied = false,
+	/**
+	 * Whether a registered project that never had a conversation takes a row.
+	 *
+	 * Off by default because the archive groups the same way, and there a project with nothing filed
+	 * is not something to show. The ordinary list turns it on: a project just created has no
+	 * conversation yet, and hiding it left nowhere to click to start the first one.
+	 */
+	showUnused = false,
 ): Grouped {
 	const needle = query.trim().toLowerCase();
 	const filtered = needle ? sessions.filter((s) => s.title.toLowerCase().includes(needle)) : sessions;
@@ -132,10 +141,11 @@ export function groupSessions(
 			 * `hideEmptiedProjects`；默认不打开，因为一个登记过的项目突然从侧边栏消失，比多留
 			 * 一行更让人找不着北。
 			 *
-			 * 另一种是「一条会话都没有过」，不占行：有了第一条会话它才出现。
+			 * 另一种是「一条会话都没有过」，多半是刚建好的项目，由 `showUnused` 决定。搜索时不占行：
+			 * 它没有会话可以匹配，列出来只是一排和搜索词无关的空项目。
 			 */
 			if (emptied.has(group.path)) return !hideEmptied;
-			return false;
+			return showUnused && !needle;
 		})
 		.sort((a, b) => (order.get(a.path) ?? 999) - (order.get(b.path) ?? 999));
 

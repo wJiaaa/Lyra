@@ -87,6 +87,7 @@ export function useSidebarLists({
 				 * the reader came to look at, and hiding it would empty the view they opened.
 				 */
 				!archiveOpen && (settings?.hideEmptiedProjects ?? false),
+				!archiveOpen,
 			),
 		[pool, settings, query, scratchRoots, sort, emptied, archiveOpen],
 	);

@@ -1,8 +1,8 @@
 /**
  * 侧边栏「项目」下面列着的那几个项目，同样的顺序。
  *
- * 项目选择器用它，而不是自己读 `settings.projects`：那份列表里还有从没有过会话的项目，侧边栏
- * 不给它们占行，选择器却会列出来，两处就对不上。这里和侧边栏走同一个 `groupSessions`，按的是
+ * 项目选择器用它，而不是自己读 `settings.projects`：哪些项目占行、按什么顺序，是侧边栏的规则
+ * 说了算的，自己读那份列表两处就会对不上。这里和侧边栏走同一个 `groupSessions`，按的是
  * 常规视图（不在归档里、没有搜索）——那是选择器旁边始终可见的那一份。
  *
  * 放在 store 而不是侧边栏里：侧边栏经由 conversation 引到了输入框和 modals，选择器再回头引
@@ -33,6 +33,7 @@ export function useListedProjects(): Group[] {
 			undefined,
 			emptiedProjects(listable, archived),
 			settings?.hideEmptiedProjects ?? false,
+			true,
 		).projects;
 	}, [sessions, settings, activeSessionId, scratchRoots]);
 }
