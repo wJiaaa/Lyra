@@ -22,19 +22,35 @@ export interface IconLocation {
 }
 
 export function appIconCandidates(where: IconLocation): string[] {
+	/*
+	 * macOS: none, packaged or not. The bundle's icon is what the app switcher and notifications
+	 * already use — in development too, where `brand-dev-electron.mjs` gives the Electron bundle the
+	 * same `Assets.car` — and a PNG handed to a notification would replace it with the bare cut-out.
+	 * The dock is the one place the app overrides it, with `dockIconCandidates` below.
+	 */
+	if (where.platform === "darwin") return [];
+	return resourceCandidates(where, "icon.png");
+}
+
+/**
+ * The macOS dock icon for the current theme, made by `scripts/make-dock-icons.mjs`.
+ *
+ * The bundle icon's dark variant only shows when the system's "icon & widget style" is Dark —
+ * light or dark mode alone does not switch it — so the running app sets the dock icon itself.
+ */
+export function dockIconCandidates(where: IconLocation, dark: boolean): string[] {
+	return resourceCandidates(where, dark ? "dock-dark.png" : "dock-light.png");
+}
+
+function resourceCandidates(where: IconLocation, file: string): string[] {
 	if (where.packaged) {
-		/*
-		 * macOS: none. The bundle's `.icns` is the icon the dock, the app switcher and notifications
-		 * already use, and a PNG handed to `app.dock.setIcon` or a notification would replace it.
-		 *
-		 * Elsewhere: exactly where the `extraResources` entry for `build/icon.png` puts it.
-		 */
-		return where.platform === "darwin" ? [] : [join(where.resourcesPath, "build", "icon.png")];
+		// Exactly where the `extraResources` entry for `build/<file>` puts it.
+		return [join(where.resourcesPath, "build", file)];
 	}
 	return [
-		join(where.appPath, "build", "icon.png"),
-		join(where.appPath, "..", "build", "icon.png"),
-		join(where.appPath, "packages", "desktop", "build", "icon.png"),
-		join(where.moduleDir, "..", "..", "build", "icon.png"),
+		join(where.appPath, "build", file),
+		join(where.appPath, "..", "build", file),
+		join(where.appPath, "packages", "desktop", "build", file),
+		join(where.moduleDir, "..", "..", "build", file),
 	];
 }

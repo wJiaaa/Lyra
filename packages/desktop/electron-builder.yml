@@ -78,7 +78,21 @@ mac:
   # `build/build/icon.icns`, found nothing, and fell back to Electron's own icon without a word of
   # complaint. Every package ever built carried the default atom icon; nobody noticed because the
   # packages were never installed until the first release.
-  icon: icon.icns
+  #
+  # An Icon Composer document rather than an `.icns`: the portrait is a transparent cut-out, and
+  # macOS 26+ sets any legacy icon without its own squircle on a grey plate. `icon.icon` carries
+  # the background itself — light blue by default, brighter blue for the Dark icon style — and
+  # electron-builder compiles it with `actool` (Xcode 26+) into `Assets.car`, plus an `.icns` for
+  # older systems. `icon.icns` next to it is that same `actool` output, kept only for
+  # `brand-dev-electron.mjs`; regenerate it, and `pnpm dock:icons`, when the `.icon` changes.
+  icon: icon.icon
+  # The dock icons the running app switches between with its theme (`followThemeWithDockIcon`),
+  # read by path at runtime. Added to the top-level `extraResources`, as under `win`.
+  extraResources:
+    - from: build/dock-light.png
+      to: build/dock-light.png
+    - from: build/dock-dark.png
+      to: build/dock-dark.png
   target:
     - target: dmg
       arch: [arm64, x64]

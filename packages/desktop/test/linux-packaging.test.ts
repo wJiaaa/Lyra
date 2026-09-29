@@ -14,13 +14,13 @@
  */
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
-import { appIconCandidates } from "../electron/app-icon-path.ts";
+import { appIconCandidates, dockIconCandidates } from "../electron/app-icon-path.ts";
 
 const desktop = dirname(dirname(fileURLToPath(import.meta.url)));
 const pkg = JSON.parse(readFileSync(join(desktop, "package.json"), "utf8")) as { desktopName?: string };
@@ -29,6 +29,7 @@ const builder = parse(readFileSync(join(desktop, "electron-builder.yml"), "utf8"
 	toolsets?: { appimage?: string };
 	linux: { syncDesktopName?: boolean; extraResources?: { from: string; to: string }[] };
 	win: { extraResources?: { from: string; to: string }[] };
+	mac: { extraResources?: { from: string; to: string }[] };
 };
 
 test("desktopName is set, and names the .desktop file the packages already install", () => {
@@ -54,10 +55,21 @@ for (const platform of ["linux", "win32"] as const) {
 	});
 }
 
-test("a packaged macOS build keeps using the bundle's own icon", () => {
-	// The .icns is what the dock and notifications use there; a PNG would replace it.
-	assert.deepEqual(appIconCandidates({ platform: "darwin", packaged: true, appPath: "/A/app.asar", resourcesPath: "/R", moduleDir: "/A/out/main" }), []);
+test("macOS keeps using the bundle's own icon, packaged or in development", () => {
+	// The bundle's icon is what follows light and dark mode; a PNG would replace it.
+	for (const packaged of [true, false]) {
+		assert.deepEqual(appIconCandidates({ platform: "darwin", packaged, appPath: "/A/app.asar", resourcesPath: "/R", moduleDir: "/A/out/main" }), []);
+	}
 });
+
+for (const dark of [false, true]) {
+	test(`the macOS package carries the ${dark ? "dark" : "light"} dock icon where the app looks for it`, () => {
+		const [packaged] = dockIconCandidates({ platform: "darwin", packaged: true, appPath: "/A/app.asar", resourcesPath: "/R", moduleDir: "/A/out/main" }, dark);
+		const entry = builder.mac.extraResources?.find((item) => join("/R", ...item.to.split("/")) === packaged);
+		assert.ok(entry, `${packaged} is not packaged for macOS`);
+		assert.ok(existsSync(join(desktop, entry.from)), `${entry.from} is missing — run pnpm dock:icons`);
+	});
+}
 
 test("a development run still finds the icon in the source tree", () => {
 	const candidates = appIconCandidates({ platform: "linux", packaged: false, appPath: "/repo/packages/desktop", resourcesPath: "/electron/resources", moduleDir: "/repo/packages/desktop/out/main" });

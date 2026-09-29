@@ -50,6 +50,7 @@ import { registerWebIpc } from "./ipc/web.ts";
 import { registerSessionsIpc } from "./ipc/sessions.ts";
 import {
 	appIconPath,
+	followThemeWithDockIcon,
 	applyNativeAppearance,
 	beginQuit,
 	createWindow,
@@ -443,17 +444,7 @@ app.whenReady().then(async () => {
 	const rescued = await rescueLegacyWorkspaces().catch(() => []);
 	if (rescued.length > 0) console.log(`[plume] 把 ${rescued.length} 个无项目会话的目录挪到了 workspaces/：${rescued.join("、")}`);
 
-	/*
-	 * The dock icon, which macOS otherwise takes from the bundle.
-	 *
-	 * In development there is no bundle, so it shows Electron's own logo — on the dock, in the
-	 * app switcher and in the "force quit" list. Setting it here is the only way to be looking at
-	 * this application rather than at Electron while developing it.
-	 */
-	if (process.platform === "darwin") {
-		const icon = appIconPath();
-		if (icon) app.dock?.setIcon(icon);
-	}
+	followThemeWithDockIcon();
 
 	/*
 	 * Capabilities first, everything else after.

@@ -25,6 +25,7 @@
 		"brand:dev": "node scripts/brand-dev-electron.mjs",
 		"brand:restore": "node scripts/brand-dev-electron.mjs --restore",
 		"tray:icons": "node scripts/make-tray-icons.mjs",
+		"dock:icons": "node scripts/make-dock-icons.mjs",
 		"gallery": "node scripts/gallery.mjs"
 	},
 	"dependencies": {

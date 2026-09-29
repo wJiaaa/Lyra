@@ -27,8 +27,23 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+	copyFileSync,
+	cpSync,
+	existsSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	statSync,
+	symlinkSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -68,7 +83,11 @@ if (!existsSync(plist)) process.exit(0);
 
 const read = (key) => {
 	try {
-		return execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, plist], { encoding: "utf8" }).trim();
+		// stderr is silenced: a key that is not there yet is an answer here, not an error.
+		return execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, plist], {
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}).trim();
 	} catch {
 		return "";
 	}
@@ -76,7 +95,7 @@ const read = (key) => {
 
 const set = (key, value) => {
 	try {
-		execFileSync("/usr/libexec/PlistBuddy", ["-c", `Set :${key} ${value}`, plist]);
+		execFileSync("/usr/libexec/PlistBuddy", ["-c", `Set :${key} ${value}`, plist], { stdio: "ignore" });
 	} catch {
 		try {
 			execFileSync("/usr/libexec/PlistBuddy", ["-c", `Add :${key} string ${value}`, plist]);
@@ -84,6 +103,14 @@ const set = (key, value) => {
 			// A read-only store, or a plist shape we do not recognise. The name is cosmetic and
 			// must never be the reason the app will not start.
 		}
+	}
+};
+
+const remove = (key) => {
+	try {
+		execFileSync("/usr/libexec/PlistBuddy", ["-c", `Delete :${key}`, plist], { stdio: "ignore" });
+	} catch {
+		// Already absent.
 	}
 };
 
@@ -99,13 +126,34 @@ const iconTarget = join(bundle, "Contents", "Resources", "electron.icns");
 const iconStale =
 	existsSync(icon) && existsSync(iconTarget) && !readFileSync(icon).equals(readFileSync(iconTarget));
 
+/*
+ * The icon that follows light and dark mode.
+ *
+ * An `.icns` holds one picture. The appearance variants exist only in the asset catalog `actool`
+ * compiles from the Icon Composer document, and macOS reads it only when `CFBundleIconName` names
+ * it — the same two things electron-builder puts into a packaged bundle. `actool` output is not
+ * byte-for-byte reproducible, so staleness is a digest of the document, kept in the plist.
+ */
+const iconDocument = join(dirname(icon), "icon.icon");
+const DIGEST_KEY = "PlumeIconDigest";
+const iconDigest = existsSync(iconDocument)
+	? readdirSync(iconDocument, { recursive: true })
+			.map(String)
+			.sort()
+			.filter((file) => statSync(join(iconDocument, file)).isFile())
+			.reduce((hash, file) => hash.update(file).update(readFileSync(join(iconDocument, file))), createHash("sha256"))
+			.digest("hex")
+	: "";
+const assetsStale = iconDigest !== "" && read(DIGEST_KEY) !== iconDigest;
+
 /** Re-signing the bundle takes seconds, so nothing below runs on an already-branded copy. */
 const done =
 	bundle.endsWith(`${NAME}.app`) &&
 	read("CFBundleName") === NAME &&
 	read("CFBundleExecutable") === NAME &&
 	read("CFBundleIdentifier") === APP_ID &&
-	!iconStale;
+	!iconStale &&
+	!assetsStale;
 
 if (!restore && done) process.exit(0);
 
@@ -134,6 +182,9 @@ if (restore) {
 	set("CFBundleIdentifier", "com.github.Electron");
 	set("CFBundleName", "Electron");
 	set("CFBundleDisplayName", "Electron");
+	remove("CFBundleIconName");
+	remove(DIGEST_KEY);
+	rmSync(join(bundle, "Contents", "Resources", "Assets.car"), { force: true });
 
 	const originalApp = join(dirname(bundle), "Electron.app");
 	if (bundle !== originalApp && !existsSync(originalApp)) {
@@ -169,6 +220,44 @@ if (existsSync(original) && !existsSync(renamed)) {
 }
 
 if (iconStale) copyFileSync(icon, iconTarget);
+
+if (assetsStale) {
+	const work = mkdtempSync(join(tmpdir(), "plume-icon-"));
+	try {
+		// `--app-icon` names the icon inside the document, which is the document's file name.
+		cpSync(iconDocument, join(work, "Icon.icon"), { recursive: true });
+		execFileSync(
+			"xcrun",
+			[
+				"actool",
+				join(work, "Icon.icon"),
+				"--compile",
+				work,
+				"--app-icon",
+				"Icon",
+				"--include-all-app-icons",
+				"--output-partial-info-plist",
+				join(work, "info.plist"),
+				"--target-device",
+				"mac",
+				"--minimum-deployment-target",
+				"26.0",
+				"--platform",
+				"macosx",
+			],
+			{ stdio: "ignore" },
+		);
+		copyFileSync(join(work, "Assets.car"), join(bundle, "Contents", "Resources", "Assets.car"));
+		set("CFBundleIconName", "Icon");
+	} catch {
+		// No Xcode 26: the `.icns` above still shows, just without the dark variant.
+		console.log("[brand] actool unavailable — development icon will not follow dark mode");
+	} finally {
+		rmSync(work, { recursive: true, force: true });
+	}
+	// Recorded either way, so a machine without `actool` does not retry on every start.
+	set(DIGEST_KEY, iconDigest);
+}
 
 // The last fallback the dock reaches for, and the one VS Code changes as well.
 const renamedApp = join(dirname(bundle), `${NAME}.app`);
@@ -212,7 +301,8 @@ try {
  * The Dock keeps its own copy on top of LaunchServices.
  *
  * This was the last one holding the old name: `lsappinfo` reported Plume while the tooltip still
- * said Electron. Only on an actual change — an `electron` reinstall or a new `build/icon.icns`.
+ * said Electron. Only on an actual change — an `electron` reinstall or a new `build/icon.icns`
+ * or `build/icon.icon`.
  * The Dock relaunches itself within a second, but it is the user's whole desktop, and flickering
  * it on every `pnpm dev` for no change would not be worth it.
  */

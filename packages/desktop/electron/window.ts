@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { plumeHome, type Settings } from "@plume/core";
 import { app, BrowserWindow, ipcMain, nativeTheme, screen } from "electron";
 import { MAC_MAIN_TRAFFIC_LIGHT_POSITION, MAC_TRAFFIC_LIGHT_POSITION, NATIVE_HEADER_HEIGHT } from "../shared/window-chrome.ts";
-import { appIconCandidates } from "./app-icon-path.ts";
+import { appIconCandidates, dockIconCandidates, type IconLocation } from "./app-icon-path.ts";
 
 /**
  * Where the icon file is, packaged or not.
@@ -42,15 +42,47 @@ export function appIconPath(): string | undefined {
 	 * checked against `electron-builder.yml`. It was never packaged before, so this was undefined in
 	 * every release.
 	 */
-	const candidates = appIconCandidates({
+	iconPath = { found: appIconCandidates(iconLocation()).find((path) => existsSync(path)) };
+	return iconPath.found;
+}
+
+function iconLocation(): IconLocation {
+	return {
 		platform: process.platform,
-		packaged: app.isPackaged,
+		/*
+		 * Not `app.isPackaged` alone: on macOS that only asks whether the executable is still called
+		 * Electron, and `brand-dev-electron.mjs` renames it — so development answered "packaged" and
+		 * looked for the icons inside the Electron bundle. `electron .` always sets `defaultApp`.
+		 */
+		packaged: app.isPackaged && !process.defaultApp,
 		appPath: app.getAppPath(),
 		resourcesPath: process.resourcesPath ?? "",
 		moduleDir: import.meta.dirname,
-	});
-	iconPath = { found: candidates.find((path) => existsSync(path)) };
-	return iconPath.found;
+	};
+}
+
+/**
+ * The macOS dock icon, following the app's theme while it runs.
+ *
+ * `nativeTheme` already carries the theme setting — `applyNativeAppearance` writes `themeSource` —
+ * so one listener covers both changing the setting and the system switching under "system". Once
+ * the app quits the dock goes back to the bundle icon, whose variant is the system's choice.
+ */
+export function followThemeWithDockIcon(): void {
+	if (process.platform !== "darwin") return;
+	const where = iconLocation();
+	let shown: boolean | undefined;
+	const apply = () => {
+		const dark = nativeTheme.shouldUseDarkColors;
+		// `updated` also fires for contrast and transparency changes; the icon only cares about this.
+		if (dark === shown) return;
+		const icon = dockIconCandidates(where, dark).find((path) => existsSync(path));
+		if (!icon) return;
+		app.dock?.setIcon(icon);
+		shown = dark;
+	};
+	apply();
+	nativeTheme.on("updated", apply);
 }
 
 /**
