@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/lyra.png" alt="Plume" width="200">
+  <img src="assets/plume.png" alt="Plume" width="200">
 </p>
 
 <p align="center">

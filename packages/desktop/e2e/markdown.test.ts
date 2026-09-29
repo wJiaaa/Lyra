@@ -20,7 +20,7 @@ import { startApp, type RunningApp } from "./app.ts";
 
 let app: RunningApp;
 
-const LOGO = join(fileURLToPath(import.meta.url), "..", "..", "..", "..", "assets", "lyra.png");
+const LOGO = join(fileURLToPath(import.meta.url), "..", "..", "..", "..", "assets", "plume.png");
 
 /**
  * A document shaped like a README's opening, which is where all of this goes wrong.

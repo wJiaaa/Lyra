@@ -243,7 +243,7 @@ test("a nested details does not end the outer one early", () => {
  * ------------------------------------------------------------------------- */
 
 test("a centred container keeps its alignment and its contents", () => {
-	const blocks = parseMarkdown('<p align="center">\n  <img src="assets/lyra.png" alt="Plume" width="200">\n</p>');
+	const blocks = parseMarkdown('<p align="center">\n  <img src="assets/plume.png" alt="Plume" width="200">\n</p>');
 
 	const html = only(blocks, "html");
 	assert.equal(html.kind, "html");

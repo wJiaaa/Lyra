@@ -125,7 +125,7 @@ test("那张信息表没有了：类别、许可、能装进的客户端成了�
 		await settle();
 		await open(view, "Waza");
 		const tags = view.find<HTMLElement>("[data-detail-tags]");
-		for (const word of ["工作流", "MIT", "Claude Code", "Lyra"]) assert.match(tags.textContent ?? "", new RegExp(word));
+		for (const word of ["工作流", "MIT", "Claude Code", "Plume"]) assert.match(tags.textContent ?? "", new RegExp(word));
 		assert.ok(tags.querySelector('button[aria-label="仓库"]'), "仓库是标签行末尾的一个图标按钮");
 		const page = view.find<HTMLElement>("[data-plugin-detail]").textContent ?? "";
 		assert.doesNotMatch(page, /开发者|来源|适用于/, "信息表里的那几行都不在了");

@@ -2,7 +2,7 @@
  * Which agents can actually install a given thing.
  *
  * This registry is not tied to one client, and that is a fact about the formats rather than a
- * marketing position. `SKILL.md` is a convention Claude Code established and Codex, Pi and Lyra all
+ * marketing position. `SKILL.md` is a convention Claude Code established and Codex, Pi and Plume all
  * read; `.mcp.json` describes an MCP server, and MCP is a protocol with many clients. A directory
  * of skills genuinely does install into all of them.
  *
@@ -28,7 +28,7 @@ export const CLIENT_LABEL: Record<ClientId, string> = {
 	"claude-code": "Claude Code",
 	codex: "Codex",
 	pi: "Pi",
-	lyra: "Lyra",
+	lyra: "Plume",
 	mcp: "任何 MCP 客户端",
 };
 
@@ -42,7 +42,7 @@ export const CLIENT_SKILL_PATH: Partial<Record<ClientId, string>> = {
 	"claude-code": "~/.claude/skills/",
 	codex: "~/.codex/skills/",
 	pi: "~/.pi/skills/",
-	lyra: "~/.lyra/skills/",
+	lyra: "~/.plume/skills/",
 };
 
 export interface Evidence {
@@ -52,9 +52,9 @@ export interface Evidence {
 	mcp: boolean;
 	/** `.claude-plugin/` — Claude Code's own plugin layout. */
 	claudePlugin: boolean;
-	/** `.lyra-plugin/` — Lyra's. */
+	/** `.lyra-plugin/` — Plume's. */
 	lyraPlugin: boolean;
-	/** `.codex-plugin/` — read separately rather than inferred from Lyra's, see `clientsFor`. */
+	/** `.codex-plugin/` — read separately rather than inferred from Plume's, see `clientsFor`. */
 	codexPlugin: boolean;
 }
 
@@ -68,7 +68,7 @@ export interface Evidence {
  * `kind` is a parameter because a plugin manifest only says something when the thing *is* a plugin.
  * Context7 is a `.mcp.json` and a `.lyra-plugin/` directory holding a name, an icon and a
  * description — metadata, not a plugin — and reading that directory as evidence had it advertised
- * as installable into Codex and Lyra as a plugin, which it is not. Measured on the live catalogue:
+ * as installable into Codex and Plume as a plugin, which it is not. Measured on the live catalogue:
  * three of five entries were labelled wrong.
  *
  * Returns an empty list rather than guessing when nothing recognisable is present. An entry
@@ -85,8 +85,8 @@ export function clientsFor(kind: BundleKind, evidence: Evidence): ClientId[] {
 	if (kind === "plugin") {
 		if (evidence.claudePlugin) found.add("claude-code");
 		if (evidence.lyraPlugin) found.add("lyra");
-		// Not inferred from `.lyra-plugin/`. Lyra's loader happens to accept either directory name,
-		// which says what Lyra reads and nothing about what Codex installs.
+		// Not inferred from `.lyra-plugin/`. Plume's loader happens to accept either directory name,
+		// which says what Plume reads and nothing about what Codex installs.
 		if (evidence.codexPlugin) found.add("codex");
 	}
 

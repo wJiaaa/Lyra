@@ -1,7 +1,7 @@
 /**
  * Where a picture in a Markdown file actually lives.
  *
- * A README says `<img src="assets/lyra.png">` and means "next to me". Nothing in the renderer knows
+ * A README says `<img src="assets/plume.png">` and means "next to me". Nothing in the renderer knows
  * where "me" is — the component is handed a string of text, not a file — so the pane that opened the
  * file passes its directory down and this turns the pair into an absolute path.
  *

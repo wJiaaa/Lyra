@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startApp } from "./app.ts";
 
-const LOGO = join(fileURLToPath(import.meta.url), "..", "..", "..", "..", "assets", "lyra.png");
+const LOGO = join(fileURLToPath(import.meta.url), "..", "..", "..", "..", "assets", "plume.png");
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let projectPath = "";

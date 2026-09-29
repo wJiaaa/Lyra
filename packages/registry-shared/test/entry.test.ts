@@ -137,7 +137,7 @@ test("compatibility is read off the archive, and a plugin manifest only counts f
 	/*
 	 * The bug this exists to prevent. Context7 is a `.mcp.json` plus a `.lyra-plugin/` directory
 	 * holding a name and an icon — metadata, not a plugin. Counting that directory as evidence
-	 * advertised it as installable into Lyra and Codex as a plugin, which it is not.
+	 * advertised it as installable into Plume and Codex as a plugin, which it is not.
 	 */
 	assert.deepEqual(clientsFor("mcp", { ...none, mcp: true, lyraPlugin: true }), ["mcp"]);
 
@@ -150,7 +150,7 @@ test("compatibility is read off the archive, and a plugin manifest only counts f
 	]);
 	assert.deepEqual(clientsFor("plugin", { ...none, claudePlugin: true }), ["claude-code"]);
 
-	// Codex is never inferred from Lyra's directory, only from its own.
+	// Codex is never inferred from Plume's directory, only from its own.
 	assert.deepEqual(clientsFor("plugin", { ...none, lyraPlugin: true }), ["lyra"]);
 	assert.deepEqual(clientsFor("plugin", { ...none, codexPlugin: true }), ["codex"]);
 
