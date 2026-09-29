@@ -142,6 +142,8 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 	useLayoutEffect(() => {
 		const view = viewport.current;
 		if (!view) return;
+		// 这个集合本身不换，只增删成员；取一次给清理用，不在清理时再读 ref。
+		const nearby = near.current;
 		stale.current = true;
 		measure();
 
@@ -217,7 +219,7 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 			sizes.disconnect();
 			changes.disconnect();
 			readers.disconnect();
-			near.current.clear();
+			nearby.clear();
 			if (frame.current) cancelAnimationFrame(frame.current);
 		};
 	}, [measure, schedule, viewport]);
