@@ -8,6 +8,7 @@
  * The heading itself is in `ProjectHead`, because it is also drawn pinned over the list.
  */
 
+import { useRef } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { Collapsible } from "./Collapsible.tsx";
 import type { Group } from "../../lib/sidebar-grouping.ts";
@@ -16,6 +17,7 @@ import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
 import { ShowMore } from "./ShowMore.tsx";
 import { useSidebarReorderContext } from "./reorder-context.ts";
 import { DropLineIndicator } from "./DropIndicator.tsx";
+import { useUnfold } from "./useUnfold.ts";
 
 /**
  * How many sessions a project shows before the rest are behind 展开显示, and how many more each
@@ -49,6 +51,8 @@ export function ProjectGroup({
 	actions: RowActions;
 }) {
 	const { compact } = useLayout();
+	const rows = useRef<HTMLDivElement>(null);
+	const unfold = useUnfold(rows);
 	const visible = group.sessions.slice(0, Math.max(COLLAPSED_SESSION_COUNT, shown));
 	const hidden = group.sessions.length - visible.length;
 	// Only worth offering once something has actually been opened up.
@@ -86,15 +90,23 @@ export function ProjectGroup({
 				{/* The gap lives here rather than on the outer column, or a folded project would keep
 				    the space between rows it no longer has. */}
 				<div className={`flex flex-col ${compact ? "gap-[5px] pt-[5px]" : "gap-[2px] pt-[4px]"}`}>
-					{visible.map((session) => (
-						<SessionRow
-							key={session.id}
-							session={session}
-							{...rowActions(actions, session)}
-						/>
-					))}
+					{/* 只包住行：展开显示按钮在外面，展开收起时才跟着下沿走（见 `useUnfold`）。 */}
+					<div ref={rows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
+						{visible.map((session) => (
+							<SessionRow
+								key={session.id}
+								session={session}
+								{...rowActions(actions, session)}
+							/>
+						))}
+					</div>
 
-					<ShowMore hidden={hidden} canCollapse={canCollapse} onShowMore={onShowMore} onCollapse={onCollapse} />
+					<ShowMore
+						hidden={hidden}
+						canCollapse={canCollapse}
+						onShowMore={unfold.unfold(onShowMore)}
+						onCollapse={unfold.fold(COLLAPSED_SESSION_COUNT, onCollapse)}
+					/>
 				</div>
 			</Collapsible>
 		</div>
