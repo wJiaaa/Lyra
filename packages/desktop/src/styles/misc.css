@@ -442,7 +442,7 @@
  * 采样不到窗户外面。所以反过来，让列表在滚到钉住的行底下之前自己淡没，钉住的行底下就没有东西需要挡。
  * 不分平台一条路径。
  *
- * 线是 `--ly-held-edge`：已经钉住的那一串行的下沿，`useStickyFade` 每帧量出来写在滚动区上。行的
+ * 线是 `--ly-held-edge`：已经钉住的那一串行的下沿，`useStickyFade` 每帧量出来写给顶上那一段里的行。行的
  * 上沿离这条线还有 36px（`FADE_TOP`，和遮罩往下柔化的深度一致）时开始淡，碰到线时正好是 0，之后
  * 一直是 0。用滚动驱动动画而不是脚本逐帧改透明度：它跟着合成器上的滚动走，不会慢一帧——慢一帧就是
  * 一行字从钉住的行底下透出来。
@@ -450,6 +450,16 @@
  * 拖动中的行本来是 `opacity-35`，动画会盖掉它，所以起点读 `--ly-rest`。刚建出来的行有 `ly-drop`
  * 的落入动画，两个动画要写在一起，否则后写的那条把前一条整个换掉。
  */
+/*
+ * 不继承：只有读它的元素自己身上有值，改一次只重算那几个元素，不牵动它们底下的整棵子树。
+ * 写给谁见 `useStickyFade` 的 `NEAR_TOP`。
+ */
+@property --ly-held-edge {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0;
+}
+
 @keyframes ly-under-pin {
   from {
     opacity: var(--ly-rest, 1);
@@ -493,15 +503,6 @@
   animation: ly-under-pin linear both;
   animation-timeline: --ly-band;
   animation-range: exit calc(100% - 36px) exit 100%;
-}
-
-/*
- * 收起的分组里的行和标题看不见，不用跟着钉住的行淡出。摘掉动画，省下每次 `--ly-held-edge` 变化时
- * 这些行的重算——行一多，这笔重算就是滚过标题时掉的那几帧。何时算收起见 `Collapsible`。
- * 写在上面几条之后：选择器权重相同，靠顺序盖过去。
- */
-.ly-sidebar-fill [data-ly-folded] :is([data-ly-row], [data-ly-fades], [data-ly-head]) {
-  animation: none;
 }
 
 /* Opacity preserves geometry; touch devices keep the action visible without a hover gesture. */
