@@ -1,5 +1,5 @@
 import { Bug, Hammer, RefreshCw, Telescope } from "lucide-react";
-import mark from "../../assets/empty-mark.png?inline";
+import mark from "../../assets/plume-bust.png?inline";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Composer } from "../composer/index.ts";
 import { useLayout } from "../../app/layout.tsx";
@@ -18,8 +18,8 @@ const PROMPTS: { icon: typeof Telescope; labelKey: MessageKey; promptKey: Messag
 	{ icon: Bug, labelKey: "empty.fix", promptKey: "empty.fixPrompt" },
 ];
 
-/** 标记高度加上它和标题之间的 24px，顶部留白要扣掉这一段，标题才落在那条线上。 */
-const MARK_BLOCK = { compact: 104 + 24, regular: 132 + 24 };
+/** 插图高度加上它和标题之间的 24px，顶部留白要扣掉这一段，标题才落在那条线上。 */
+const MARK_BLOCK = { compact: 160 + 24, regular: 200 + 24 };
 
 export function EmptyState() {
 	const { t } = useI18n();
@@ -125,18 +125,17 @@ export function EmptyState() {
 }
 
 /**
- * The mark above the question.
+ * The illustration above the question.
  *
- * Larger than the outlined terminal glyph it replaces, because it is a picture rather than an icon:
- * at 56px the drawing reads as a smudge, and an illustration nobody can make out is worse than the
- * plain shape it was brought in to replace. Sized in points and shipped at 384px so it stays sharp
- * on a 3× display without carrying a 1254px original into the bundle.
+ * Not the boot screen's artwork: that one carries the wordmark, and "PLUME" drawn right above a
+ * heading that already says Plume is the name twice. Shipped at 480px, 2× of the regular 200px
+ * with room to spare.
  *
  * `aria-hidden` and an empty `alt`: the heading underneath already says what this screen is for, and
  * a screen reader announcing the decoration first would put an ornament ahead of the sentence.
  */
 function EmptyMark({ compact }: { compact: boolean }) {
-	const size = compact ? 104 : 132;
+	const size = compact ? 160 : 200;
 	return (
 		<img
 			src={mark}
@@ -145,7 +144,7 @@ function EmptyMark({ compact }: { compact: boolean }) {
 			draggable={false}
 			width={size}
 			height={size}
-			className="shrink-0 select-none"
+			className="ly-plume-mark shrink-0 select-none"
 		/>
 	);
 }

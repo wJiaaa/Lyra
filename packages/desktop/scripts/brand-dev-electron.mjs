@@ -27,7 +27,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -87,12 +87,25 @@ const set = (key, value) => {
 	}
 };
 
+// The dock icon comes from the bundle too, and Electron's default is its own atom.
+const icon = join(dirname(dirname(fileURLToPath(import.meta.url))), "build", "icon.icns");
+const iconTarget = join(bundle, "Contents", "Resources", "electron.icns");
+
+/*
+ * Compared by content, not by whether the bundle was ever branded: `build/icon.icns` changes on
+ * its own, and an already-branded copy would otherwise keep the old icon until `electron` is
+ * reinstalled.
+ */
+const iconStale =
+	existsSync(icon) && existsSync(iconTarget) && !readFileSync(icon).equals(readFileSync(iconTarget));
+
 /** Re-signing the bundle takes seconds, so nothing below runs on an already-branded copy. */
 const done =
 	bundle.endsWith(`${NAME}.app`) &&
 	read("CFBundleName") === NAME &&
 	read("CFBundleExecutable") === NAME &&
-	read("CFBundleIdentifier") === APP_ID;
+	read("CFBundleIdentifier") === APP_ID &&
+	!iconStale;
 
 if (!restore && done) process.exit(0);
 
@@ -155,10 +168,7 @@ if (existsSync(original) && !existsSync(renamed)) {
 	set("CFBundleExecutable", NAME);
 }
 
-// The dock icon comes from the bundle too, and Electron's default is its own atom.
-const icon = join(dirname(dirname(fileURLToPath(import.meta.url))), "build", "icon.icns");
-const iconTarget = join(bundle, "Contents", "Resources", "electron.icns");
-if (existsSync(icon) && existsSync(iconTarget)) copyFileSync(icon, iconTarget);
+if (iconStale) copyFileSync(icon, iconTarget);
 
 // The last fallback the dock reaches for, and the one VS Code changes as well.
 const renamedApp = join(dirname(bundle), `${NAME}.app`);
@@ -182,6 +192,14 @@ if (existsSync(pathFile)) {
 
 sign();
 
+/*
+ * The Dock's icon cache is keyed by the bundle's path and modification time, and replacing a file
+ * inside `Contents/Resources` changes neither. pnpm unpacks the bundle with a 1970 mtime, so
+ * without this the restarted Dock rebuilds its cache from the old entry and keeps the old icon.
+ */
+const now = new Date();
+utimesSync(bundle, now, now);
+
 // LaunchServices caches bundle metadata by path, and neither an edited plist nor a relaunch
 // invalidates that record. This is what makes it re-read.
 try {
@@ -194,9 +212,9 @@ try {
  * The Dock keeps its own copy on top of LaunchServices.
  *
  * This was the last one holding the old name: `lsappinfo` reported Plume while the tooltip still
- * said Electron. Only on an actual change — in practice once per `electron` reinstall. The Dock
- * relaunches itself within a second, but it is the user's whole desktop, and flickering it on
- * every `pnpm dev` for no change would not be worth it.
+ * said Electron. Only on an actual change — an `electron` reinstall or a new `build/icon.icns`.
+ * The Dock relaunches itself within a second, but it is the user's whole desktop, and flickering
+ * it on every `pnpm dev` for no change would not be worth it.
  */
 try {
 	execFileSync("/usr/bin/killall", ["Dock"], { stdio: "ignore" });

@@ -24,7 +24,7 @@ import { useEffect, useState } from "react";
  * appear before the artwork does, and a boot screen that flashes its own empty frame is worse
  * than one that waits. Arriving with the bundle means it is never late.
  */
-import mark from "../../assets/boot-mark.png?inline";
+import mark from "../../assets/plume-mark.png?inline";
 
 /**
  * Short, now that the screen is guaranteed a couple of seconds.
@@ -59,12 +59,8 @@ export function BootScreen() {
 				className="flex flex-col items-center gap-8 transition-opacity duration-[520ms] ease-out"
 				style={{ opacity: shown ? 1 : 0 }}
 			>
-				{/*
-				 * Sized in CSS rather than left to the file, and `alt=""` because the name is drawn
-				 * into the artwork — a screen reader announcing it twice is worse than not at all.
-				 * The label is on the region instead, where it can say what is happening.
-				 */}
-				<img src={mark} alt="" width={192} height={192} className="ly-boot-mark" draggable={false} />
+				{/* The region label already announces startup; the mark is decorative. */}
+				<img src={mark} alt="" width={288} height={288} className="ly-boot-mark" draggable={false} />
 				<div className="ly-boot-rail" />
 			</div>
 		</div>

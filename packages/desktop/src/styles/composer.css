@@ -376,3 +376,11 @@
   border-color: color-mix(in srgb, var(--color-ink) 15%, transparent);
   background: color-mix(in srgb, var(--color-float) 50%, transparent);
 }
+
+/*
+ * 欢迎页标题上方的插图。人物是黑发黑衣，深色底上轮廓会和背景糊成一片，
+ * 所以深色主题下沿边缘补一圈很淡的亮边；浅色底本身就分得开，不加。
+ */
+:root.dark .ly-plume-mark {
+  filter: drop-shadow(0 0 1.5px color-mix(in srgb, var(--color-ink) 35%, transparent));
+}

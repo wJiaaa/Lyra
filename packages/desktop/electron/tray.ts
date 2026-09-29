@@ -20,10 +20,9 @@
  *     wallpaper, under a pulled-down menu and under an active-app highlight — a fixed bitmap is
  *     wrong in at least one of those, whichever one it is drawn for.
  *   - Windows and Linux have no equivalent, and their notification areas are full of colour
- *     already, so they get the artwork as drawn — one bitmap per display scaling, no theme
- *     switching, since a drawing with its own outline reads on a light taskbar and a dark one.
+ *     already, so they get the coloured P — one bitmap per display scaling, no theme switching.
  *
- * Both come out of `scripts/make-tray-icons.mjs`, from two source drawings.
+ * Both come out of `scripts/make-tray-icons.mjs`, from the same P mark.
  */
 
 import { execFile } from "node:child_process";
@@ -121,7 +120,7 @@ function currentIcon(): Electron.NativeImage {
 	 *
 	 * There used to be two — a light fill and a dark one, swapped on `nativeTheme` — because the
 	 * icon was a flat silhouette and a flat silhouette is invisible against a taskbar of its own
-	 * shade. A drawing with its own palette and its own outline has no such problem: it reads the
+	 * shade. The coloured P has no such problem: it reads the
 	 * same on a white taskbar, a black one, and the accent-coloured one Windows uses when a window
 	 * is maximised. The theme listener went with it.
 	 *

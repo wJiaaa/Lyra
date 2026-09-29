@@ -1,26 +1,16 @@
 /**
- * Status bar icons, generated from one drawing.
- *
- * A menu bar icon is 16pt tall. The source is a line drawing whose strokes are a pixel or less at
- * that size, so scaling it directly produces grey mush — the outline version is unreadable at 16
- * and barely a face at 32. What survives is its *silhouette*: the alpha channel of the filled
- * version is the head, hair and the gaps between them, and that shape is still legible small.
- *
- * So every icon here comes from that one alpha channel, and the colour is applied afterwards:
+ * Status bar icons, generated from the compact P in the Plume wordmark.
+ * Colour is applied per platform:
  *
  *   - macOS gets a template image. The system ignores its RGB entirely and fills the alpha with
  *     the current menu bar's foreground colour, which is the only way to be correct in light
  *     mode, dark mode, and while a menu is pulled down over it.
- *   - Windows has no template equivalent, so it gets the same silhouette pre-filled twice, and
- *     the tray picks by system theme. Generating both from one alpha is what keeps the two
- *     platforms from slowly drifting into different drawings.
+ *   - Windows and Linux have no template equivalent, so they get the coloured mark.
  *
  * Run with `pnpm tray:icons`. The output is committed, because these are assets rather than build
  * products — nothing at build or run time should depend on being able to regenerate them.
  *
- * PNG handling is written out here rather than pulled from a dependency: this needs 8-bit RGBA
- * non-interlaced in and the same out, which is a page of code against zlib, and an image codec is
- * a large thing to add to a desktop app for one script it runs by hand.
+ * PNG handling stays local rather than adding an image dependency for one manual script.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -197,15 +187,7 @@ function resize(image, height) {
 /**
  * Clear the haze off the alpha before anything is scaled.
  *
- * The drawing carries a wide skirt of nearly-transparent pixels — a soft edge, a faint glow, the
- * ends of individual hair strands. At full size none of it is visible. Downscaled by forty, every
- * one of those pixels is averaged into its neighbours and the result is a grey fog a pixel or two
- * deep all the way round the subject, which in a menu bar of hard-edged glyphs is the one icon
- * that looks slightly out of focus.
- *
- * So the faintest are dropped outright and what remains is lifted. Gentle on purpose: the
- * antialiasing along the real edge is what keeps the shape smooth at 18 points, and pushing this
- * far enough to threshold it would trade fog for stairsteps.
+ * Drop faint edge pixels before reducing the mark to menu bar size, while keeping antialiasing.
  */
 function harden(image, floor = 16, gamma = 0.85) {
 	const pixels = Buffer.from(image.pixels);
@@ -228,7 +210,7 @@ function paint(image, [r, g, b]) {
 }
 
 /**
- * Crop to the ink, and no further.
+ * Crop to the glyph, and no further.
  *
  * A menu bar lines its icons up by height, so height is what has to match — pad this back to a
  * square and a wide subject gains transparent margin above and below, renders shorter than
@@ -268,30 +250,19 @@ function trim(image) {
 const BLACK = [0, 0, 0];
 
 /**
- * Two drawings, because the two platforms want opposite things from a status bar icon.
+ * Two treatments, because the two platforms want opposite things from a status bar icon.
  *
  * macOS wants a *shape*. Its menu bar icons are one colour filled by the system, so anything with
- * its own palette is wrong there by construction — it would not invert with the bar, and beside
- * Apple's own glyphs a full-colour sticker reads as a foreign object. So the mac source is the
- * silhouette, and the colour is whatever the system says.
+ * its own palette is wrong there by construction — it would not invert with the bar. So the mac
+ * source is the outlined letter and feather, and the colour is whatever the system says.
  *
  * Windows has no template equivalent and its notification area is full of colour — the network
  * icon, the volume icon, every third-party app. A flat monochrome shape there is the odd one out,
- * and on top of that the taskbar can be light or dark while a coloured icon with its own outline
- * is legible on both. So Windows gets the artwork as drawn.
+ * and on top of that the taskbar can be light or dark. So Windows gets the coloured P as drawn.
  */
-/*
- * The mac drawing's own alpha, not a filled-in silhouette.
- *
- * Filling it was the previous approach, and it was right for the drawing it was written for: that
- * one was line art, whose strokes and gaps both land under a pixel at 18pt and average out into a
- * grey smudge. This drawing is not line art — it is already a solid figure whose *interior* holds
- * the reading: the eyes are gaps, the hair falls in bands, and the hem is a row of scallops.
- * Flooding the enclosed areas shut turned all of that into one opaque blob roughly the shape of a
- * mushroom, which at 18 points is not a character, an app, or anything else.
- */
-const macSource = trim(harden(decode(readFileSync(join(trayDir, "source-mac.png")))));
-const winSource = trim(decode(readFileSync(join(trayDir, "source-win.png"))));
+const artwork = decode(readFileSync(join(here, "../../../assets/plume-tray-mark.png")));
+const macSource = trim(harden(artwork));
+const winSource = trim(artwork);
 
 /*
  * 18pt on macOS, 16px on Windows.

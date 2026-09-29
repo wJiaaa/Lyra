@@ -39,14 +39,11 @@ asarUnpack:
 # `files` above covers only `out/`, so without this the tray comes up blank in a packaged build
 # while working perfectly in development — the icons are right there in the source tree.
 #
-# The two source drawings are excluded deliberately: they are 1.8MB of 1254px artwork that only
-# `pnpm tray:icons` ever reads.
 extraResources:
   - from: build/tray
     to: build/tray
     filter:
       - "*.png"
-      - "!source-*.png"
 
 # Each build keeps only its own copy of the per-platform prebuilts.
 #

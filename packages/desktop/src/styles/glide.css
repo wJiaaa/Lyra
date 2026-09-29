@@ -37,12 +37,6 @@
 /*
  * The boot screen's mark, and the rail under it.
  *
- * Two problems, one of which only exists on a light theme. The artwork is mostly white — the
- * rabbit, the dress, the fill inside the letters — and on a pale page those parts stop having an
- * edge, so the whole thing reads as a blue smear with bits missing. A soft shadow underneath puts
- * the boundary back. Dark themes need none of it: the drawing already carries a white rim, which
- * is its own separation there, and a shadow in `--color-ink` would come out as a glow.
- *
  * The drift is four pixels over three and a half seconds — slow enough that it is never something
  * you watch, present enough that a screen held for two seconds is not a still image. Startup
  * should look unhurried, not busy.
@@ -52,10 +46,6 @@
   /* A dragged-out ghost of the logo is the one interaction this screen must not have. */
   user-select: none;
   -webkit-user-drag: none;
-}
-
-:root.light .ly-boot-mark {
-  filter: drop-shadow(0 5px 16px color-mix(in srgb, var(--color-ink) 15%, transparent));
 }
 
 @keyframes ly-boot-drift {
