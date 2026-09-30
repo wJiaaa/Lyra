@@ -144,15 +144,46 @@ async function* streamResponses(
 	const requiredHeaders = sessionHeaders(provider.baseUrl, options.cacheKey);
 
 	let firstTokenTime: number | null = null;
-	/** output_index -> position in partial.content, so deltas can find their block. */
+	/** Slot (`output_index`, or see `slotOf`) -> position in partial.content, so deltas can find their block. */
 	const items = new Map<
 		number,
 		{
 			kind: "text" | "thinking" | "toolCall";
 			contentIndex: number;
 			raw: string;
+			/** `output_item.done` arrived: the arguments are the provider's final ones, not a cut-off buffer. */
+			done?: boolean;
 		}
 	>();
+	/*
+	 * Slots for streams that leave `output_index` out (llama.cpp does). Falling back to 0 put every
+	 * item on one slot: with two parallel calls, `done` of the first wrote its arguments into the
+	 * second and the first ran with `{}`. Every event names its item (`item_id`, or `item.id` on
+	 * added/done), so that id is the key when the index is missing.
+	 */
+	const slotsById = new Map<string, number>();
+	/** Where an id-less event goes on such a stream: the item opened last. */
+	let lastSlot: number | undefined;
+	/** Next free slot, kept past every index seen so an invented slot never collides with a real one. */
+	let nextSlot = 0;
+	const slotOf = (type: string, event: Record<string, any>): number => {
+		const id: unknown = event.item_id ?? event.item?.id;
+		const known = typeof id === "string" ? slotsById.get(id) : undefined;
+		let slot: number;
+		if (typeof event.output_index === "number") slot = event.output_index;
+		else if (known !== undefined) slot = known;
+		else if (
+			type === "response.output_item.added" ||
+			// A `done` for an item never opened (lossy proxy) is a new item, not the last one's end.
+			(type === "response.output_item.done" && (typeof id === "string" || lastSlot === undefined || items.get(lastSlot)?.done))
+		)
+			slot = nextSlot;
+		else slot = lastSlot ?? 0;
+		if (typeof id === "string" && known === undefined) slotsById.set(id, slot);
+		if (type === "response.output_item.added") lastSlot = slot;
+		nextSlot = Math.max(nextSlot, slot + 1);
+		return slot;
+	};
 	/** Stand-in ids for calls the provider did not name, keyed by output index. */
 	const inventedIds = new Map<number, string>();
 	let incompleteReason: string | undefined;
@@ -189,6 +220,9 @@ async function* streamResponses(
 		partial.usage = emptyUsage();
 		partial.responseId = undefined;
 		items.clear();
+		slotsById.clear();
+		lastSlot = undefined;
+		nextSlot = 0;
 		inventedIds.clear();
 		incompleteReason = undefined;
 		refusal = "";
@@ -263,7 +297,7 @@ async function* streamResponses(
 					framesSeen += 1;
 
 					const type: string = event.type ?? frame.event ?? "";
-					const outputIndex: number = event.output_index ?? 0;
+					const outputIndex = slotOf(type, event);
 
 					switch (type) {
 						case "response.output_item.added": {
@@ -425,6 +459,7 @@ async function* streamResponses(
 								items.set(outputIndex, tracked);
 								framesSeen++;
 							}
+							tracked.done = true;
 							const target = partial.content[tracked.contentIndex];
 
 							if (tracked.kind === "toolCall" && target?.type === "toolCall") {
@@ -586,6 +621,27 @@ async function* streamResponses(
 								incompleteReason === "content_filter"
 									? "这次回复被内容策略拦下了（content_filter）"
 									: `回复没有正常结束：${incompleteReason}`,
+							spent: partial.usage.output > 0 || partial.content.length > 0,
+						}),
+					);
+				}
+
+				/*
+				 * A tool call whose `output_item.done` never came is not finished, even though the response is.
+				 *
+				 * Its arguments are whatever the deltas left behind: cut off mid-string, or mixed with another
+				 * call's. Handed over as `toolUse`, the loop runs it — with `{}`, or with half a
+				 * `rm -rf /tmp/build`. Same exit as the cut-off stream above: nothing has run yet, so asking
+				 * again is safe. `max_output_tokens` is exempt: that reply is `length`, and the loop already
+				 * refuses to run the calls of a truncated reply. Same as pi `openai-responses-shared.ts`.
+				 */
+				const unfinished = [...items.values()].find((item) => item.kind === "toolCall" && !item.done);
+				if (unfinished && !incompleteReason) {
+					const call = partial.content[unfinished.contentIndex];
+					throw new FailureError(
+						classifyFailure({
+							from: "stream",
+							message: `回复里的工具调用没有收尾（没有收到 response.output_item.done）：${call?.type === "toolCall" ? `${call.name} (${call.id})` : "?"}`,
 							spent: partial.usage.output > 0 || partial.content.length > 0,
 						}),
 					);
