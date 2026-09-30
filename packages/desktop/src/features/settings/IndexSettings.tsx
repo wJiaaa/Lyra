@@ -2,9 +2,9 @@ import { Database, RefreshCw } from "lucide-react";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { useCallback, useEffect, useState } from "react";
-import { useApp } from "../../store/index.ts";
-import { Card, EmptyHint, Row, SectionTitle } from "./controls.tsx";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useListedProjects } from "../../store/listed-projects.ts";
+import { Card, EmptyHint, InlineSelect, Row, SectionTitle } from "./controls.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -19,16 +19,26 @@ interface Stats {
 
 export function IndexSettings() {
 	const { t, resolvedLocale } = useI18n();
-	const workspace = useApp((s) => s.workspace);
+	// The page picks its own project, independent of the open conversation: following the global
+	// workspace meant the only way to look at another project's index was to go and open one of
+	// its conversations.
+	const projects = useListedProjects();
+	const [picked, setPicked] = useState<string | null>(null);
+	const path = projects.find((p) => p.path === picked)?.path ?? projects[0]?.path ?? null;
+	const pathRef = useRef(path);
+	pathRef.current = path;
 	const [stats, setStats] = useState<Stats | null>(null);
-	const [building, setBuilding] = useState(false);
+	// The path being built, so a rebuild left running does not spin or land on another project.
+	const [building, setBuilding] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
 	const [hits, setHits] = useState<{ name: string; kind: string; file: string; line: number }[]>([]);
 
 	const refresh = useCallback(async () => {
-		if (!workspace) return;
-		setStats(await bridge.index.stats(workspace.path));
-	}, [workspace]);
+		setStats(null);
+		if (!path) return;
+		const result = await bridge.index.stats(path);
+		if (pathRef.current === path) setStats(result);
+	}, [path]);
 
 	useEffect(() => {
 		void refresh();
@@ -36,18 +46,20 @@ export function IndexSettings() {
 
 	// Search as you type — the index is in memory on the main side, so this is cheap.
 	useEffect(() => {
-		if (!workspace || query.trim().length < 2) {
+		if (!path || query.trim().length < 2) {
 			setHits([]);
 			return;
 		}
 		let cancelled = false;
-		void bridge.index.search(workspace.path, query.trim()).then((result) => {
+		void bridge.index.search(path, query.trim()).then((result) => {
 			if (!cancelled) setHits(result);
 		});
 		return () => {
 			cancelled = true;
 		};
-	}, [workspace, query]);
+	}, [path, query]);
+
+	const isBuilding = building !== null && building === path;
 
 	return (
 		<div className="pt-2">
@@ -56,9 +68,9 @@ export function IndexSettings() {
 				{t("index.recordsWhat")}<strong className="font-medium text-ink">{t("index.definitions")}</strong>{t("index.definitionsDetail")}
 			</p>
 
-			{!workspace ? (
+			{!path ? (
 				<Card>
-					<EmptyHint>{t("index.pickProject")}</EmptyHint>
+					<EmptyHint>{t("index.noProjects")}</EmptyHint>
 				</Card>
 			) : (
 				<>
@@ -66,26 +78,36 @@ export function IndexSettings() {
 					<Card className="mb-7">
 						<Row
 							title={t("common.project")}
-							detail={workspace.path}
+							detail={path}
 							control={
-								<DialogAction
-									disabled={building}
-									onClick={() => {
-										void (async () => {
-											setBuilding(true);
-											try {
-												setStats(await bridge.index.rebuild(workspace.path));
-											} finally {
-												setBuilding(false);
-											}
-										})();
-									}}
-									label={building ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
-									data-ly-index-rebuild=""
-								>
-									{building ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={2} aria-hidden />}
-									{building ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
-								</DialogAction>
+								<div className="flex items-center gap-2">
+									<InlineSelect
+										value={path}
+										onChange={setPicked}
+										options={projects.map((p) => ({ value: p.path, label: p.name, detail: p.path }))}
+										ariaLabel={t("common.project")}
+									/>
+									<DialogAction
+										disabled={building !== null}
+										onClick={() => {
+											const target = path;
+											void (async () => {
+												setBuilding(target);
+												try {
+													const result = await bridge.index.rebuild(target);
+													if (pathRef.current === target) setStats(result);
+												} finally {
+													setBuilding(null);
+												}
+											})();
+										}}
+										label={isBuilding ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
+										data-ly-index-rebuild=""
+									>
+										{isBuilding ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={2} aria-hidden />}
+										{isBuilding ? t("index.building") : stats?.exists ? t("index.rebuild") : t("index.build")}
+									</DialogAction>
+								</div>
 							}
 						/>
 						<Row
@@ -144,7 +166,7 @@ export function IndexSettings() {
 									<button
 										key={`${hit.file}:${hit.line}`}
 										type="button"
-										onClick={() => void bridge.system.openPath(`${workspace.path}/${hit.file}`)}
+										onClick={() => void bridge.system.openPath(`${path}/${hit.file}`)}
 										className="flex w-full items-center gap-2.5 border-b border-line-soft px-4 py-2 text-left transition-colors last:border-b-0 hover:bg-card-hover/50"
 									>
 										<Database size={12} strokeWidth={1.8} className="shrink-0 text-ink-faint" />

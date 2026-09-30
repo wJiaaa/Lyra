@@ -948,7 +948,7 @@ export const zhCN = {
 	"index.buildFirst": "先建立索引",
 	"index.definitions": "定义位置",
 	"index.definitionsDetail": "，Agent 用 symbol 工具查它。",
-	"index.pickProject": "先选择一个项目",
+	"index.noProjects": "还没有项目",
 	"index.trySearch": "试搜",
 	"skills.reusable": "可复用流程 · 保存在当前项目",
 	"skills.candidates": "当前项目的候选技能",

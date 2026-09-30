@@ -38,7 +38,7 @@ const meta = (over: Partial<SessionMeta> = {}): SessionMeta => ({
 });
 
 afterEach(() => {
-	useApp.setState({ sessions: [], workspace: null });
+	useApp.setState({ sessions: [], workspace: null, settings: null });
 	Reflect.deleteProperty(window, "plume");
 });
 
@@ -64,7 +64,7 @@ test("when the index was last built, in the window's language", async () => {
 		configurable: true,
 		value: { index: { stats: async () => stats, search: async () => [] } },
 	});
-	useApp.setState({ workspace: { path: "/work/plume", name: "plume", isGitRepo: false, branch: null } });
+	useApp.setState({ settings: { projects: [{ id: "/work/plume", path: "/work/plume", name: "plume", lastOpenedAt: 1 }] } as never });
 	for (const [locale, label, expected] of [
 		["en", "Last built", "9/26/2026, 2:28:05 PM"],
 		["zh-CN", "上次构建", "2026/9/26 14:28:05"],

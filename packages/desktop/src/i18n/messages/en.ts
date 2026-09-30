@@ -774,7 +774,7 @@ export const en = {
 	"index.buildFirst": "Build the index first",
 	"index.definitions": "Where things are defined",
 	"index.definitionsDetail": " — the agent looks it up with the symbol tool.",
-	"index.pickProject": "Pick a project first",
+	"index.noProjects": "No projects yet",
 	"index.trySearch": "Try a search",
 	"skills.reusable": "A reusable routine · kept in this project",
 	"skills.candidates": "Suggested skills for this project",
