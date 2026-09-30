@@ -1,5 +1,5 @@
 import { composingKey, shortcutLetter } from "../../ui/keyboard.ts";
-import { ArrowLeft, Rocket } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useEffect } from "react";
 import { MAIN_WINDOW_ROW_OFFSET, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";
@@ -157,24 +157,6 @@ export function SettingsShell() {
 							dismissNav();
 						}}
 					/>
-
-					<div className={`pb-3 ${compact ? "px-3" : "px-2.5"}`}>
-						{/* The dashed edge marks it as the odd one out; the fill on hover keeps it
-						    behaving like the rest of the pane. */}
-						<button
-							type="button"
-							onClick={() => {
-								setSection("models");
-								dismissNav();
-							}}
-							className="flex h-[36px] w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated"
-							data-ly-tip={t("app.guide")}
-							aria-label={t("app.guide")}
-						>
-							<Rocket size={14} strokeWidth={1.8} />
-							<span>{t("app.guide")}</span>
-						</button>
-					</div>
 				</nav>
 			</NavPane>
 

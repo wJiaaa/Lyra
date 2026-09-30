@@ -32,7 +32,6 @@ export const zhCN = {
 	"common.save": "保存",
 	"common.show": "显示",
 	"app.backWorkspace": "返回工作区",
-	"app.guide": "引导",
 	"app.hideSettingsNavigation": "隐藏设置导航 {shortcut}",
 	"app.mainProcessError": "主进程出错",
 	"app.panel": "面板",

@@ -37,9 +37,6 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 					text={settings?.personalization?.sidebarMotto?.trim() || activeProviderLabel(settings?.providers ?? [])}
 					className="ly-sidebar-foot-label min-w-0 flex-1 text-label text-ink"
 				/>
-				<span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-line-float text-caption text-ink-muted">
-					?
-				</span>
 			</button>
 		</div>
 	);
