@@ -4,269 +4,277 @@
  * Only the layout lives here. What editing a provider actually does — and the consequences that
  * are easy to miss, like a removed provider orphaning the default model — is in `useProviders`,
  * and what a provider looks like is in `ProviderEditor`. Three files, three questions.
+ *
+ * The list and the editor share one settings card, split by a rule; the editor's own sections are
+ * the same titled cards every other settings page is made of.
  */
 
 import { useI18n } from "../../i18n/index.ts";
 import { activeLocale } from "../../i18n/translate.ts";
 import type { ModelConfig } from "@plume/core";
-import { Box, Download, Plus, RefreshCw, Upload } from "lucide-react";
+import { Download, MoreHorizontal, Plus, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
-import { FetchModelsModal } from "./FetchModelsModal.tsx";
+import { MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Card } from "./layout.tsx";
+import { FetchModelsModal } from "./FetchModelsModal.tsx";
 import { ModelEditor } from "./ModelEditor.tsx";
+import { ProviderAvatar } from "./ProviderAvatar.tsx";
 import { ProviderEditor } from "./ProviderEditor.tsx";
 import { ProviderImportModal } from "./ProviderImportModal.tsx";
 import { useProviders } from "./useProviders.ts";
 import { useProviderTransfer } from "./useProviderTransfer.ts";
-import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function ModelSettings() {
 	const { t } = useI18n();
-  const p = useProviders();
-  const transfer = useProviderTransfer();
-  const confirm = useConfirmer();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [editingModel, setEditingModel] = useState<{
-    providerId: string;
-    model: ModelConfig | null;
-  } | null>(null);
+	const p = useProviders();
+	const transfer = useProviderTransfer();
+	const confirm = useConfirmer();
+	const transferMenu = usePopover();
+	const fileRef = useRef<HTMLInputElement>(null);
+	const [editingModel, setEditingModel] = useState<{
+		providerId: string;
+		model: ModelConfig | null;
+	} | null>(null);
 
-  return (
+	return (
 		// Keep the provider editor usable when a short window cannot fit its minimum height.
-    <Scroller className="flex-1" contentClassName="flex flex-col">
-      <header className="flex shrink-0 items-start justify-between pt-2 pb-6">
-        <div>
-          <h1 className="text-display leading-tight font-semibold tracking-tight text-ink">
-            {t("modelSettings.title")}
-          </h1>
-          <p className="mt-2 text-label text-ink-muted">
-            {t("modelSettings.intro")}
-          </p>
-          {/* 上限、能力和价格都从这份目录来；它会自动更新，这里给个看得见的版本和手动更新的入口。 */}
-          <p className="mt-1 text-detail text-ink-faint" data-ly-model-catalog="">
-            {t("modelSettings.catalogStatus", {
-              source: p.catalog.name,
-              date: new Date(p.catalog.updatedAt).toLocaleDateString(activeLocale()),
-              count: p.catalogModels,
-            })}
-            {" · "}
-            <button
-              type="button"
-              disabled={p.updatingCatalog}
-              onClick={() => void p.updateCatalog()}
-              className="text-ink-muted underline-offset-2 transition-colors hover:text-ink hover:underline disabled:pointer-events-none disabled:opacity-60"
-            >
-              {p.updatingCatalog ? t("modelSettings.catalogUpdating") : t("modelSettings.catalogUpdate")}
-            </button>
-            {p.catalogResult && !p.updatingCatalog && (
-              <span className={p.catalogResult.status === "failed" ? "text-danger" : undefined}>
-                {" · "}
-                {p.catalogResult.status === "failed"
-                  ? t("modelSettings.catalogFailed", { error: p.catalogResult.error ?? "" })
-                  : t(p.catalogResult.status === "updated" ? "modelSettings.catalogUpdated" : "modelSettings.catalogUnchanged")}
-              </span>
-            )}
-          </p>
-        </div>
-        {/*
-          * Carrying the list to another machine, and testing the one in front of you: two
-          * different jobs, so the rule between them rather than four identical icons in a row.
-          */}
-        <div className="mt-1 flex items-center gap-0.5">
-          <IconButton
-            label={t("providerTransfer.importTip")}
-            onClick={() => fileRef.current?.click()}
-            icon={<Upload size={16} strokeWidth={1.8} />}
-          />
-          <IconButton
-            label={t("providerTransfer.exportTip")}
-            disabled={!transfer.canExport}
-            onClick={() =>
-              confirm.ask({
-                title: t("providerTransfer.exportConfirm"),
-                detail: t("providerTransfer.exportConfirmDetail"),
-                confirmLabel: t("providerTransfer.exportAction"),
-                onConfirm: transfer.exportAll,
-              })
-            }
-            icon={<Download size={16} strokeWidth={1.8} />}
-          />
+		<Scroller className="flex-1" contentClassName="flex flex-col">
+			<header className="flex shrink-0 items-start justify-between gap-4 pt-2 pb-6">
+				<div>
+					<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">
+						{t("modelSettings.title")}
+					</h1>
+					<p className="mt-2 text-label text-ink-muted">
+						{t("modelSettings.intro")}
+					</p>
+					{/* 上限、能力和价格都从这份目录来；它会自动更新，这里给个看得见的版本和手动更新的入口。 */}
+					<p className="mt-1 text-detail text-ink-faint" data-ly-model-catalog="">
+						{t("modelSettings.catalogStatus", {
+							source: p.catalog.name,
+							date: new Date(p.catalog.updatedAt).toLocaleDateString(activeLocale()),
+							count: p.catalogModels,
+						})}
+						{" · "}
+						<button
+							type="button"
+							disabled={p.updatingCatalog}
+							onClick={() => void p.updateCatalog()}
+							className="text-ink-muted transition-colors hover:text-ink disabled:pointer-events-none disabled:opacity-60"
+						>
+							{p.updatingCatalog ? t("modelSettings.catalogUpdating") : t("modelSettings.catalogUpdate")}
+						</button>
+						{p.catalogResult && !p.updatingCatalog && (
+							<span className={p.catalogResult.status === "failed" ? "text-danger" : undefined}>
+								{" · "}
+								{p.catalogResult.status === "failed"
+									? t("modelSettings.catalogFailed", { error: p.catalogResult.error ?? "" })
+									: t(p.catalogResult.status === "updated" ? "modelSettings.catalogUpdated" : "modelSettings.catalogUnchanged")}
+							</span>
+						)}
+					</p>
+				</div>
+				{/*
+				 * Carrying the list to another machine is something done once a year, so it goes
+				 * behind ⋯ with its words spelled out — as two bare arrows it was a guess which one
+				 * imports. Testing moved next to the key it tests.
+				 */}
+				<div className="mt-1 flex shrink-0 items-center gap-1.5">
+					<IconButton
+						label={t("common.more")}
+						menu={transferMenu.open}
+						onClick={transferMenu.toggle}
+						className="aria-expanded:bg-card-hover aria-expanded:text-ink"
+						icon={<MoreHorizontal size={16} strokeWidth={1.8} />}
+					/>
+					{/* 添加供应商放在页面右上角：列表底部那颗会被一长串供应商挤出视野。 */}
+					<DialogAction tone="primary" onClick={() => void p.add()} data-ly-add-provider="">
+						<Plus size={14} strokeWidth={2} aria-hidden />
+						{t("modelSettings.addProvider")}
+					</DialogAction>
+				</div>
 
-          <span aria-hidden className="mx-1 h-4 w-px bg-line" />
+				{transferMenu.open && (
+					<Popover anchor={transferMenu.anchor} onClose={transferMenu.close} placement="bottom" align="end" width="compact" role="menu" label={t("common.more")}>
+						<MenuBody>
+							<MenuItem
+								icon={<Upload size={13} strokeWidth={1.8} />}
+								onClick={() => {
+									transferMenu.close();
+									fileRef.current?.click();
+								}}
+							>
+								{t("providerTransfer.importTip")}
+							</MenuItem>
+							<MenuItem
+								icon={<Download size={13} strokeWidth={1.8} />}
+								disabled={!transfer.canExport}
+								onClick={() => {
+									transferMenu.close();
+									confirm.ask({
+										title: t("providerTransfer.exportConfirm"),
+										detail: t("providerTransfer.exportConfirmDetail"),
+										confirmLabel: t("providerTransfer.exportAction"),
+										onConfirm: transfer.exportAll,
+									});
+								}}
+							>
+								{t("providerTransfer.exportTip")}
+							</MenuItem>
+						</MenuBody>
+					</Popover>
+				)}
 
-          <IconButton
-            label={t("modelSettings.testConnection")}
-            onClick={() => void p.test()}
-            icon={
-              <RefreshCw
-                size={16}
-                strokeWidth={1.8}
-                className={p.testing ? "ly-pulse" : undefined}
-              />
-            }
-          />
+				{/* Reset after every pick, or choosing the same file twice fires no change event. */}
+				<input
+					ref={fileRef}
+					type="file"
+					accept="application/json,.json"
+					hidden
+					onChange={(e) => {
+						const file = e.target.files?.[0];
+						e.target.value = "";
+						if (file) void transfer.offer(file);
+					}}
+				/>
+			</header>
 
-          {/* 添加供应商放在页面右上角：列表底部那颗会被一长串供应商挤出视野。 */}
-          <DialogAction className="ml-2" onClick={() => void p.add()} label={t("modelSettings.addProvider")} data-ly-add-provider="">
-            <Plus size={14} strokeWidth={2} aria-hidden />
-            {t("modelSettings.addProvider")}
-          </DialogAction>
-        </div>
+			{/*
+			 * Side by side when there is room, stacked when there is not.
+			 *
+			 * The list used to be a fixed 268px that never gave any of it back, so in a narrow
+			 * window the editor beside it was left with whatever remained — at 420px that was
+			 * 70px, and every field became a slot with one character in it. Measured against
+			 * this container rather than the window, because the settings pane is the full width
+			 * of a narrow window and a fraction of a wide one.
+			 */}
+			{/* The query element and the queried element cannot be the same one: a container is
+			    sized by its contents, so it is only ever asked about by its descendants. */}
+			<div className="@container flex min-h-[340px] flex-1">
+				<Card className="mb-6 flex min-h-0 flex-1 flex-col @2xl:flex-row" data-ly-provider-panes="">
+					{/* Each pane scrolls on its own, so a long provider list never moves the editor. */}
+					{/* The rule between the panes runs the card's full height, so the padding lives in each pane rather than on the card. */}
+					<Scroller
+						className="max-h-[168px] shrink-0 border-b border-line-soft @2xl:max-h-none @2xl:w-[232px] @2xl:border-r @2xl:border-b-0"
+						contentClassName="flex flex-col gap-0.5 p-3"
+					>
+						{p.providers.map((provider) => (
+							<button
+								key={provider.id}
+								type="button"
+								onClick={() => p.select(provider.id)}
+								aria-current={p.selected?.id === provider.id ? "true" : undefined}
+								// Picked with a fill, not an outline — an outline is one more line on a page that had too many.
+								className={`flex h-9 w-full shrink-0 items-center gap-2.5 rounded-lg pr-2.5 pl-2 text-left transition-colors ${
+									p.selected?.id === provider.id ? "bg-card-hover" : "hover:bg-card-hover/50"
+								}`}
+							>
+								<ProviderAvatar name={provider.name} size="sm" className={provider.enabled ? "" : "opacity-50"} />
+								<ScrollText
+									text={provider.name}
+									className={`min-w-0 flex-1 text-label ${provider.enabled ? "text-ink" : "text-ink-muted"}`}
+								/>
+								{provider.enabled ? (
+									<span className="h-[6px] w-[6px] shrink-0 rounded-full bg-ok" />
+								) : (
+									<span className="shrink-0 text-caption text-ink-faint">{t("common.disabled")}</span>
+								)}
+							</button>
+						))}
+					</Scroller>
 
-        {/* Reset after every pick, or choosing the same file twice fires no change event. */}
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          hidden
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file) void transfer.offer(file);
-          }}
-        />
-      </header>
+					<Scroller className="min-w-0 flex-1" contentClassName="p-4 @2xl:px-6 @2xl:py-5">
+						{!p.selected ? (
+							<div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+								<p className="text-label text-ink-muted">
+									{t("modelSettings.noProviders")}
+								</p>
+								<DialogAction tone="primary" onClick={() => void p.add()} data-ly-add-provider="">
+									<Plus size={14} strokeWidth={2} aria-hidden />
+									{t("modelSettings.addFirst")}
+								</DialogAction>
+							</div>
+						) : (
+							/*
+							 * Keyed, so switching provider resets the fields rather than carrying them over.
+							 *
+							 * The import counter is in the key for the same reason, and it is not decoration:
+							 * an import replaces the provider under the same id, so nothing about the key
+							 * changes and the URL and API Key boxes — which read their initial value once, on
+							 * mount — go on showing what was there before. The file said one thing, the form
+							 * says another, and the form is the one being read.
+							 */
+							<ProviderEditor
+								key={`${p.selected.id}:${transfer.imports}`}
+								provider={p.selected}
+								defaultModelId={p.defaultModelId}
+								testResult={p.testResult}
+								testing={p.testing}
+								testingModelId={p.testingModelId}
+								modelTestResults={p.modelTestResults}
+								fetchingModels={p.fetchingModels}
+								fetchModelsError={p.fetchModelsError}
+								onFetchModels={() => void p.fetchModelsFromEndpoint()}
+								onTest={() => void p.test()}
+								onTestModel={(modelId) => void p.test(modelId)}
+								onChange={(patch) => void p.update(p.selected!.id, patch)}
+								onRemove={() => void p.remove(p.selected!.id)}
+								onEditModel={(model) =>
+									setEditingModel({ providerId: p.selected!.id, model })
+								}
+								onRemoveModel={(modelId) =>
+									void p.removeModel(p.selected!.id, modelId)
+								}
+								onSetDefault={(modelId) => void p.setDefaultModel(modelId)}
+							/>
+						)}
+					</Scroller>
+				</Card>
+			</div>
 
-      {/*
-       * Side by side when there is room, stacked when there is not.
-       *
-       * The list used to be a fixed 268px that never gave any of it back, so in a narrow
-       * window the editor beside it was left with whatever remained — at 420px that was
-       * 70px, and every field became a slot with one character in it. Measured against
-       * this container rather than the window, because the settings pane is the full width
-       * of a narrow window and a fraction of a wide one.
-       */}
-      {/* The query element and the queried element cannot be the same one: a container is
-				    sized by its contents, so it is only ever asked about by its descendants. */}
-      <div className="@container flex min-h-[340px] flex-1">
-        <Card className="flex min-h-0 flex-1 flex-col @2xl:flex-row">
-          {/* Each pane scrolls on its own, so a long provider list never moves the editor. */}
-          <Scroller
-            className="max-h-[168px] shrink-0 border-b border-line @2xl:max-h-none @2xl:w-[268px] @2xl:border-r @2xl:border-b-0"
-            contentClassName="p-2.5"
-          >
-            <div className="px-2 pt-1.5 pb-1 text-detail text-ink-faint">
-              {t("modelSettings.customProviders")}
-            </div>
-            {p.providers.map((provider) => (
-              <button
-                key={provider.id}
-                type="button"
-                onClick={() => p.select(provider.id)}
-                // 选中靠一圈线标出，不垫底色：这一栏坐在卡片上，垫一块灰就又多了一层面。
-                className={`ly-scroll flex h-[38px] w-full items-center gap-2.5 rounded-lg px-2.5 text-left transition-shadow ${
-                  p.selected?.id === provider.id
-                    ? "shadow-[inset_0_0_0_1px_var(--color-line)]"
-                    : "hover:shadow-[inset_0_0_0_1px_var(--color-line-soft)]"
-                }`}
-              >
-                <Box
-                  size={15}
-                  strokeWidth={1.7}
-                  className="shrink-0 text-ink-muted"
-                />
-                <ScrollText
-                  text={provider.name}
-                  className="min-w-0 flex-1 text-label text-ink"
-                />
-                <span
-                  className={`h-[6px] w-[6px] shrink-0 rounded-full ${provider.enabled ? "bg-ok" : "bg-ink-faint/60"}`}
-                />
-              </button>
-            ))}
-          </Scroller>
 
-          <Scroller className="min-w-0 flex-1" contentClassName="p-4 @2xl:p-6">
-            {!p.selected ? (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                <p className="text-label text-ink-muted">
-                  {t("modelSettings.noProviders")}
-                </p>
-                <DialogAction tone="primary" onClick={() => void p.add()} data-ly-add-provider="">
-                  <Plus size={14} strokeWidth={2} aria-hidden />
-                  {t("modelSettings.addFirst")}
-                </DialogAction>
-              </div>
-            ) : (
-              /*
-               * Keyed, so switching provider resets the fields rather than carrying them over.
-               *
-               * The import counter is in the key for the same reason, and it is not decoration:
-               * an import replaces the provider under the same id, so nothing about the key
-               * changes and the URL and API Key boxes — which read their initial value once, on
-               * mount — go on showing what was there before. The file said one thing, the form
-               * says another, and the form is the one being read.
-               */
-              <ProviderEditor
-                key={`${p.selected.id}:${transfer.imports}`}
-                provider={p.selected}
-                defaultModelId={p.defaultModelId}
-                testResult={p.testResult}
-                testing={p.testing}
-                testingModelId={p.testingModelId}
-                modelTestResults={p.modelTestResults}
-                fetchingModels={p.fetchingModels}
-                fetchModelsError={p.fetchModelsError}
-                onFetchModels={() => void p.fetchModelsFromEndpoint()}
-                onTest={() => void p.test()}
-                onTestModel={(modelId) => void p.test(modelId)}
-                onChange={(patch) => void p.update(p.selected!.id, patch)}
-                onRemove={() => void p.remove(p.selected!.id)}
-                onEditModel={(model) =>
-                  setEditingModel({ providerId: p.selected!.id, model })
-                }
-                onRemoveModel={(modelId) =>
-                  void p.removeModel(p.selected!.id, modelId)
-                }
-                onSetDefault={(modelId) => void p.setDefaultModel(modelId)}
-              />
-            )}
-          </Scroller>
-        </Card>
-      </div>
+			{editingModel && (
+				<ModelEditor
+					provider={
+						p.providers.find((provider) => provider.id === editingModel.providerId) ?? {
+							id: editingModel.providerId,
+							baseUrl: "",
+						}
+					}
+					model={editingModel.model}
+					onCancel={() => setEditingModel(null)}
+					onSave={(model) => {
+						void p.saveModel(editingModel.providerId, model, editingModel.model);
+						setEditingModel(null);
+					}}
+				/>
+			)}
 
-      {editingModel && (
-        <ModelEditor
-          provider={
-            p.providers.find((provider) => provider.id === editingModel.providerId) ?? {
-              id: editingModel.providerId,
-              baseUrl: "",
-            }
-          }
-          model={editingModel.model}
-          onCancel={() => setEditingModel(null)}
-          onSave={(model) => {
-            void p.saveModel(editingModel.providerId, model, editingModel.model);
-            setEditingModel(null);
-          }}
-        />
-      )}
+			{p.discoveredModels && (
+				<FetchModelsModal
+					open={Boolean(p.discoveredModels)}
+					provider={p.selected ?? { baseUrl: "" }}
+					models={p.discoveredModels}
+					existingModelIds={new Set(p.selected?.models.map((m) => m.modelId) ?? [])}
+					onClose={p.closeDiscoveredModal}
+					onImport={(selectedIds) => void p.importDiscoveredModels(selectedIds)}
+				/>
+			)}
 
-      {p.discoveredModels && (
-        <FetchModelsModal
-          open={Boolean(p.discoveredModels)}
-          provider={p.selected ?? { baseUrl: "" }}
-          models={p.discoveredModels}
-          existingModelIds={new Set(p.selected?.models.map((m) => m.modelId) ?? [])}
-          onClose={p.closeDiscoveredModal}
-          onImport={(selectedIds) => void p.importDiscoveredModels(selectedIds)}
-        />
-      )}
+			{transfer.pending && (
+				<ProviderImportModal
+					entries={transfer.pending.entries}
+					dropped={transfer.pending.dropped}
+					onCancel={transfer.cancelImport}
+					onImport={(chosen) => void transfer.confirmImport(chosen)}
+				/>
+			)}
 
-      {transfer.pending && (
-        <ProviderImportModal
-          entries={transfer.pending.entries}
-          dropped={transfer.pending.dropped}
-          onCancel={transfer.cancelImport}
-          onImport={(chosen) => void transfer.confirmImport(chosen)}
-        />
-      )}
-
-      {confirm.element}
-    </Scroller>
-  );
+			{confirm.element}
+		</Scroller>
+	);
 }
