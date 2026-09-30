@@ -21,6 +21,7 @@
 import type { AgentEvent } from "../agent/events.ts";
 import { runAgent, type AgentRunConfig } from "../agent/loop.ts";
 import { compactWith } from "./compaction.ts";
+import { compactionSpent, metered } from "./session-turn.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { dispatchTaskTool, controlMainTool } from "./sidechat-controls.ts";
@@ -294,7 +295,7 @@ export class SideChat {
 				streamFn: this.streamFn,
 				compact: async (messages, model, observer, compactOptions) => {
 					const summarizer = resolveModelRef(this.settings, "@compact", { provider: resolved.provider, model });
-					const compacted = await compactWith({ observer, force: compactOptions?.force, messages, model, provider: resolved.provider, streamFn: (provider, summaryModel, context, streamOptions) => (this.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => this.settings.retryPolicy, signal: controller.signal }), overhead: textTokens(systemPrompt) + toolTokens(tools), summarizer });
+					const compacted = await compactWith({ observer, force: compactOptions?.force, messages, model, provider: resolved.provider, streamFn: metered((provider, summaryModel, context, streamOptions) => (this.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => this.settings.retryPolicy, signal: controller.signal }), compactionSpent(this.main.log)), overhead: textTokens(systemPrompt) + toolTokens(tools), summarizer });
 					reading = [...(compacted?.messages ?? messages)];
 					return compacted;
 				},

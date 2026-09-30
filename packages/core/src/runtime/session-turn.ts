@@ -28,6 +28,7 @@ import type {
 	ProviderConfig,
 	StreamEvent,
 	ThinkingLevel,
+	Usage,
 } from "../types.ts";
 import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction.ts";
 import { taskContextFromHistory } from "./task-context.ts";
@@ -332,7 +333,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 			streamFn: input.streamFn,
 			requestApproval: input.requestApproval,
 			emit: input.emit,
-			summaryStream: summaryStream(input.streamFn, { sessionId: log.meta.id, cwd, retryPolicy: () => (input.getSettings?.() ?? input.settings).retryPolicy, signal: input.signal }),
+			summaryStream: summaryStream(input.streamFn, { sessionId: log.meta.id, cwd, retryPolicy: () => (input.getSettings?.() ?? input.settings).retryPolicy, signal: input.signal }, compactionSpent(log)),
 			// 压缩剪掉的大块输出存进会话，占位标记里给出 `artifact://` 地址。
 			artifacts: { keep: (tool, content) => can.keepArtifact(tool, content) },
 			beforeToolCall: makeBeforeToolCall(hooks, can.extensions),
@@ -382,7 +383,42 @@ async function settlePrompt(input: TurnInputs, fresh: PromptContext): Promise<Pr
 export function summaryStream(
 	override: AgentRunConfig["streamFn"] | undefined,
 	scope: Pick<AgentRunConfig, "sessionId" | "cwd" | "retryPolicy" | "signal">,
-): typeof streamAssistant | undefined {
+	spent?: SpentOn,
+): typeof streamAssistant {
+	const stream = unmetered(override, scope);
+	return spent ? metered(stream, spent) : stream;
+}
+
+/** Where a model call made outside the conversation reports what it cost. */
+export type SpentOn = (spent: { providerId: string; modelId: string; usage: Usage }) => Promise<void>;
+
+/** Compaction's bill, written into the session it shortened — delegated runs included, they compact through the parent's stream. */
+export function compactionSpent(log: Pick<SessionLog, "append">): SpentOn {
+	return (spent) => log.append({ type: "usage", source: "compaction", ...spent });
+}
+
+/**
+ * The same stream, with its bill handed to `spent` once the reply is complete.
+ *
+ * A summary is paid for like any reply but never becomes a message in the transcript, and the
+ * transcript is where cost used to be counted from — so compaction was free on the settings page
+ * however many times it ran. Metered at the stream rather than at each caller because this one
+ * stream serves the loop, `/compact` and every delegated run; a stream that throws reports nothing,
+ * as the title summary does.
+ */
+export function metered(stream: typeof streamAssistant, spent: SpentOn): typeof streamAssistant {
+	return (provider, model, context, options) =>
+		(async function* (): AsyncGenerator<StreamEvent, AssistantMessage> {
+			const message = yield* stream(provider, model, context, options);
+			await spent({ providerId: provider.id, modelId: model.modelId, usage: message.usage });
+			return message;
+		})();
+}
+
+function unmetered(
+	override: AgentRunConfig["streamFn"] | undefined,
+	scope: Pick<AgentRunConfig, "sessionId" | "cwd" | "retryPolicy" | "signal">,
+): typeof streamAssistant {
 	if (!override) return (provider, model, context, options) => streamAssistant(provider, model, context, { ...options, retryPolicy: options?.retryPolicy ?? scope.retryPolicy, signal: options?.signal ?? scope.signal });
 	return (provider, model, context, options) => {
 		const call = override;

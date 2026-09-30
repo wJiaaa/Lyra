@@ -20,6 +20,7 @@ import {
 	plumeHome,
 	markCacheBoundary,
 	newCacheDiagnosisState,
+	usageLedgerPath,
 	type AssistantMessage,
 	type CacheCause,
 	type CacheDiagnosisState,
@@ -300,8 +301,16 @@ export async function scanUsage(home = plumeHome(), providers: ProviderConfig[] 
 	let scanned = 0;
 	let cached = 0;
 
-	for (const relative of await logPaths(root)) {
-		const path = join(root, relative);
+	/*
+	 * The ledger is read like a session log but is not one: it holds calls no conversation made
+	 * (see `usage-ledger.ts` in core), so it adds cost and never an active conversation. Its key
+	 * has no directory part, which no session log's does, so the two cannot share a cache slot.
+	 */
+	const logs = [
+		...(await logPaths(root)).map((relative) => ({ relative, path: join(root, relative), conversation: true })),
+		{ relative: "usage-ledger.jsonl", path: usageLedgerPath(home), conversation: false },
+	];
+	for (const { relative, path, conversation } of logs) {
 		const info = await stat(path).catch(() => null);
 		if (!info) continue;
 
@@ -327,7 +336,7 @@ export async function scanUsage(home = plumeHome(), providers: ProviderConfig[] 
 		entry.mtimeMs = info.mtimeMs;
 		next[relative] = entry;
 
-		for (const [day, messages] of Object.entries(entry.days)) {
+		for (const [day, messages] of conversation ? Object.entries(entry.days) : []) {
 			const seen = days.get(day) ?? { day, sessions: 0, messages: 0 };
 			// One log is one conversation, so its presence on a day is one active conversation.
 			seen.sessions += 1;

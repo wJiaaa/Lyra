@@ -47,7 +47,7 @@ import { SessionLog } from "./session-log.ts";
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
 import { compactWith } from "./compaction.ts";
 import { sessionPruner } from "./aged-prune.ts";
-import { driveTurn, modelHistory, summaryStream } from "./session-turn.ts";
+import { compactionSpent, driveTurn, modelHistory, summaryStream } from "./session-turn.ts";
 import { SubAgentRegistry, type SteerDisplay } from "./sub-agents.ts";
 import { DelegationWaits, deliveryMessage, type SettledDispatch } from "./delegation-waits.ts";
 import { refreshDispatchGate } from "./turn-config.ts";
@@ -509,7 +509,7 @@ export class AgentSession {
 			messages: history,
 			model: resolved.model,
 			provider: resolved.provider,
-			streamFn: summaryStream(this.streamFn, { sessionId: this.meta.id, cwd: this.cwd, retryPolicy: () => this.settings.retryPolicy, signal }),
+			streamFn: summaryStream(this.streamFn, { sessionId: this.meta.id, cwd: this.cwd, retryPolicy: () => this.settings.retryPolicy, signal }, compactionSpent(this.log)),
 			force: true,
 			// 剪掉的原文存下来，占位标记里给出 `artifact://` 地址。
 			artifacts: { keep: (tool, content) => this.can.keepArtifact(tool, content) },

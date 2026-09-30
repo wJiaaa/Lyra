@@ -111,6 +111,20 @@ describe("scanUsage", () => {
 		assert.equal(scan.buckets[0].replies, 1);
 	});
 
+	it("counts the usage ledger as cost, never as a conversation", async () => {
+		await writeFile(log("s1"), userLine(AT) + replyLine(AT, { input: 100, output: 20, cost: 0.25 }));
+		const spent = { ts: AT, type: "usage", source: "memory-extract", providerId: "relay", modelId: "gemini-3.7", usage: { input: 900, output: 30, cacheRead: 0, cacheWrite: 0, total: 930, cost: { total: 0.5 } } };
+		await writeFile(join(home, "usage-ledger.jsonl"), `${JSON.stringify(spent)}\n`);
+		const scan = await scanUsage(home);
+
+		assert.equal(scan.days.length, 1);
+		assert.equal(scan.days[0].sessions, 1, "the ledger is not an active conversation");
+		assert.equal(scan.days[0].messages, 2);
+		assert.equal(scan.buckets.length, 1);
+		assert.equal(scan.buckets[0].input, 1_000);
+		assert.equal(scan.buckets[0].cost, 0.75);
+	});
+
 	it("estimates old zero-cost logs from an exact configured model price", async () => {
 		await writeFile(log("s1"), replyLine(AT, { input: 100, output: 100, cacheRead: 900, cost: 0 }));
 		const scan = await scanUsage(home, [pricedProvider(1)]);

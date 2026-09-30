@@ -17,6 +17,7 @@ import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import { lastPassAt, PASS_INTERVAL_MS, runMemoryPass, shouldRunPass } from "../src/runtime/memory-pass.ts";
 import { projectMemoryDir } from "../src/runtime/project-memory.ts";
 import { projectIdFor } from "../src/session/store.ts";
+import { usageLedgerPath } from "../src/session/usage-ledger.ts";
 import type { SessionStorage } from "../src/session/storage.ts";
 import type { AssistantMessage, Message } from "../src/types.ts";
 
@@ -195,6 +196,33 @@ test("太新的会话不读", async () => {
 		assert.equal(result.skipped, "没有符合条件的会话");
 	} finally {
 		await rm(fresh, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
+});
+
+test("抽取的花销记进用量账本——它不属于任何一个会话，会话日志里记不下", async () => {
+	const billed = await mkdtemp(join(tmpdir(), "ly-pass-billed-"));
+	try {
+		await seedSession(billed, "s3", ["a", "b", "c", "d", "e", "f"], 20 * 60 * 60 * 1000);
+		const stream = scripted("- 一条教训");
+		const withUsage = ((...args: never[]) => {
+			const inner = (stream as (...a: never[]) => AsyncGenerator<unknown, AssistantMessage>)(...args);
+			return (async function* () {
+				const message = yield* inner;
+				return { ...message, usage: { input: 900, output: 30, cacheRead: 0, cacheWrite: 0, total: 930, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
+			})();
+		}) as never;
+		const before = await readFile(usageLedgerPath(home), "utf8").catch(() => "");
+		await runMemoryPass({ cwd: billed, settings: settings(), storage: STORAGE, stream: withUsage });
+		const added = (await readFile(usageLedgerPath(home), "utf8")).slice(before.length).trim().split("\n").map((line) => JSON.parse(line));
+		assert.equal(added.length, 1);
+		assert.equal(added[0].type, "usage");
+		assert.equal(added[0].source, "memory-extract");
+		assert.equal(added[0].providerId, "p");
+		assert.equal(added[0].modelId, "m");
+		assert.equal(added[0].usage.input, 900);
+		assert.equal(typeof added[0].ts, "number");
+	} finally {
+		await rm(billed, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}
 });
 

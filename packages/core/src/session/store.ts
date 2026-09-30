@@ -89,7 +89,7 @@ export type SessionRecord =
 	| { seq: number; ts: number; type: "message"; message: Message }
 	| { seq: number; ts: number; type: "event"; event: AgentEvent }
 	| { seq: number; ts: number; type: "title"; title: string; source?: "user" | "auto" }
-	| { seq: number; ts: number; type: "usage"; source: "title-summary" | "side-chat" | (string & {}); providerId: string; modelId: string; usage: Usage }
+	| { seq: number; ts: number; type: "usage"; source: "title-summary" | "side-chat" | "compaction" | "memory-extract" | (string & {}); providerId: string; modelId: string; usage: Usage }
 	/**
 	 * Its own record type rather than a `meta` write: archiving must not touch `updatedAt`,
 	 * and a `meta` record always refreshes it. Sending it through the log also means a client

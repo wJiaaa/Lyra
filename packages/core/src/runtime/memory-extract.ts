@@ -21,7 +21,7 @@
 
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
-import type { Message, ModelConfig, ProviderConfig } from "../types.ts";
+import type { Message, ModelConfig, ProviderConfig, Usage } from "../types.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import { proposeSkill, type SkillCandidate } from "./managed-skills.ts";
 import { projectMemoryDir, redactSecrets } from "./project-memory.ts";
@@ -248,6 +248,8 @@ export interface ExtractOptions {
 	model: ModelConfig;
 	stream: typeof streamAssistant;
 	signal?: AbortSignal;
+	/** Where the reply's bill goes. The pass belongs to no session, so no transcript counts it. */
+	spent?: (usage: Usage) => Promise<void>;
 }
 
 /**
@@ -294,6 +296,8 @@ export async function extractMemory(options: ExtractOptions): Promise<Extraction
 			return { memory: "", sessions: options.candidates.length, skipped: "抽取时模型没能返回" };
 		}
 		const reply = final.value;
+		// Billed whatever the reply turns out to be — an interrupted or empty answer was still paid for.
+		await options.spent?.(reply.usage);
 		if (reply.stopReason === "error" || reply.stopReason === "aborted") {
 			return { memory: "", sessions: options.candidates.length, skipped: "抽取被中断" };
 		}

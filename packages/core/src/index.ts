@@ -348,6 +348,7 @@ export {
 	THINKING_LEVELS,
 } from "./ai/thinking-options.ts";
 export { lastPassAt, PASS_INTERVAL_MS, runMemoryPass, shouldRunPass } from "./runtime/memory-pass.ts";
+export { usageLedgerPath } from "./session/usage-ledger.ts";
 export {
 	MODEL_ROLES,
 	ROLE_DESCRIPTIONS,

@@ -7,7 +7,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -317,6 +317,66 @@ test("session.compact() falls back to session model when @compact is not configu
 		const res = await session.compact();
 		assert.ok(res.ok, `session compact should succeed: ${JSON.stringify(res)}`);
 		assert.equal(calledConfig?.model, MODEL.modelId, "should fall back to current session model");
+	} finally {
+		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
+});
+
+/** Every `usage` record written under `sessions/`, whatever the session file is called. */
+async function usageRecords(root: string): Promise<Array<{ source: string; modelId: string; usage: { input: number; output: number } }>> {
+	const out = [];
+	for (const file of await readdir(join(root, "sessions"), { recursive: true })) {
+		if (!file.endsWith(".jsonl")) continue;
+		for (const line of (await readFile(join(root, "sessions", file), "utf8")).split("\n")) {
+			if (!line.includes('"type":"usage"')) continue;
+			out.push(JSON.parse(line));
+		}
+	}
+	return out;
+}
+
+/** A summary request carries no tools; a conversation turn always does. */
+function billedSummary(): (context: unknown, config: { tools: unknown[] }) => Promise<AssistantMessage> {
+	return async (_context, config) => {
+		if (config.tools.length > 0) return reply("回复".repeat(400));
+		return { ...reply("这是摘要"), usage: { ...emptyUsage(), input: 1_234, output: 56, total: 1_290 } };
+	};
+}
+
+test("an automatic compaction's summary is billed to the session", async () => {
+	const root = await mkdtemp(join(tmpdir(), "ly-compact-bill-"));
+	const session = new AgentSession({ cwd: root, settings: SETTINGS, store: new SessionStore(join(root, "sessions")), emit: () => {}, streamFn: billedSummary() });
+	await session.initialize();
+	try {
+		for (let i = 0; i < 6; i++) {
+			await session.prompt([{ type: "text", text: `第 ${i} 个问题${"，说详细些".repeat(60)}` }]);
+		}
+		const billed = (await usageRecords(root)).filter((record) => record.source === "compaction");
+		assert.ok(billed.length >= 1, "the summary call left a usage record");
+		assert.equal(billed[0].modelId, "model");
+		assert.equal(billed[0].usage.input, 1_234);
+		assert.ok(session.meta.usage.input >= 1_234, "and the session's own total includes it");
+	} finally {
+		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
+});
+
+test("a manual /compact is billed to the session", async () => {
+	const root = await mkdtemp(join(tmpdir(), "ly-compact-bill-manual-"));
+	const settings: Settings = { ...SETTINGS, providers: [{ ...PROVIDER, models: [{ ...MODEL, contextWindow: 200_000 }] }] };
+	const session = new AgentSession({ cwd: root, settings, store: new SessionStore(join(root, "sessions")), emit: () => {}, streamFn: billedSummary() });
+	await session.initialize();
+	try {
+		for (let i = 0; i < 12; i++) {
+			await session.prompt([{ type: "text", text: `问题 ${i}: ${"详细说明系统设计与边界要求".repeat(30)}` }]);
+		}
+		assert.deepEqual(await usageRecords(root), [], "nothing billed before compacting");
+		const res = await session.compact();
+		assert.ok(res.ok, JSON.stringify(res));
+		const billed = await usageRecords(root);
+		assert.equal(billed.length, 1);
+		assert.equal(billed[0].source, "compaction");
+		assert.equal(billed[0].usage.output, 56);
 	} finally {
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}

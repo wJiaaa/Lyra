@@ -26,6 +26,7 @@ import type { streamAssistant } from "../ai/index.ts";
 import { streamAssistant as realStream } from "../ai/index.ts";
 import { plumeHome, projectIdFor } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
+import { recordLedgerUsage } from "../session/usage-ledger.ts";
 import type { ModelConfig, ProviderConfig } from "../types.ts";
 import { extractMemory, findCandidates, type ExtractionResult } from "./memory-extract.ts";
 import { projectMemoryDir } from "./project-memory.ts";
@@ -129,5 +130,8 @@ export async function runMemoryPass(options: PassOptions): Promise<ExtractionRes
 		model: resolved.model,
 		stream: options.stream ?? realStream,
 		signal: options.signal,
+		// A ledger that cannot be written must not cost the memory the reply just paid for.
+		spent: (usage) =>
+			recordLedgerUsage({ source: "memory-extract", providerId: resolved.provider.id, modelId: resolved.model.modelId, usage }).catch(() => {}),
 	});
 }
