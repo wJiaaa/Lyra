@@ -30,7 +30,6 @@ export const METHODS = {
 		read: { channel: "agentdefs:read" },
 		save: { channel: "agentdefs:save" },
 		remove: { channel: "agentdefs:remove" },
-		restore: { channel: "agentdefs:restore" },
 	},
 	delivery: {
 		get: { channel: "delivery:get" },

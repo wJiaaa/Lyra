@@ -133,7 +133,7 @@ function SlashCommands() {
 					{t("commands.title")}
 					<span className="text-detail font-normal text-ink-faint">{visible.length}</span>
 				</div>
-				<SearchField value={query} onChange={setQuery} placeholder={t("commands.searchPlaceholder")} className="ml-auto w-64" />
+				<SearchField size="comfortable" value={query} onChange={setQuery} placeholder={t("commands.searchPlaceholder")} className="ml-auto max-w-[220px] flex-1 basis-[120px]" />
 			</div>
 
 			{diagnostics.length > 0 && (

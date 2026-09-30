@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { access, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type ServerResponse } from "node:http";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { THINKING_LEVELS, thinkingOptionsFor } from "@plume/core";
@@ -88,7 +90,35 @@ afterEach(async (t) => {
 		t.diagnostic(await app.evaluate<string>(`JSON.stringify({text:document.body.innerText.slice(-3000),fields:[...document.querySelectorAll('[data-dock-pane="chat"] textarea,[data-qa-target]')].map(e=>({value:e.value,text:e.textContent,rect:e.getBoundingClientRect().toJSON(),focused:e===document.activeElement})),scrolls:[...document.querySelectorAll('[data-dock-pane="chat"] .ly-scroll-view')].map(e=>({top:e.scrollTop,height:e.scrollHeight,client:e.clientHeight}))})`));
 	}
 });
-after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server)); });
+after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server)); await emptyOwnTrash(); });
+
+/*
+ * Removing a subagent puts its file in the real system trash, so this test leaves its marker in
+ * everything it writes and takes back only files at a name it knows that carry that marker —
+ * never listing the trash, never touching something that was already there.
+ */
+const MARK = randomUUID();
+const COPY = `qa-copy-${MARK.slice(0, 8)}`;
+const TO_TRASH = process.platform === "darwin" ? "移入废纸篓" : "移入回收站";
+const ownTrash: string[] = [];
+function trashSpot(name: string): string | null {
+	if (process.platform === "darwin") return join(homedir(), ".Trash", name);
+	if (process.platform === "linux") return join(process.env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "Trash", "files", name);
+	return null;
+}
+const exists = (path: string) => access(path).then(() => true, () => false);
+/** Call before the removal: a name already taken in the trash means ours will land somewhere else. */
+async function expectTrashed(name: string) {
+	const spot = trashSpot(name);
+	if (spot && !(await exists(spot))) ownTrash.push(spot);
+}
+async function emptyOwnTrash() {
+	for (const spot of ownTrash) {
+		if (!(await readFile(spot, "utf8").catch(() => "")).includes(MARK)) continue;
+		await rm(spot, { force: true });
+		if (process.platform === "linux") await rm(join(spot, "..", "..", "info", `${spot.split("/").pop()}.trashinfo`), { force: true });
+	}
+}
 async function until(expression: string) {
 	await app.evaluate(`new Promise((resolve,reject)=>{let n=900;const tick=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(tick);else reject(new Error(${JSON.stringify(expression)}));};tick();})`);
 }
@@ -96,6 +126,9 @@ async function frames(n = 15) { await app.evaluate(`new Promise(r=>{let n=${n};c
 async function click(selector: string) {
 	await until(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
 	await app.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`); await frames(2);
+	// Point at it first, as a person does: a row's copy and delete only take the pointer once it is over that row.
+	const over = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...over }); await frames(3);
 	await until(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return false;const r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()`);
 	const at = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();if(!e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw new Error('Obscured: '+${JSON.stringify(selector)});return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) }); await frames(3);
@@ -172,7 +205,7 @@ async function shot(name: string) {
 	await writeFile(join(directory, name + ".png"), Buffer.from(result.data, "base64"));
 }
 
-test("agent definitions can be created without a session, edited, copied, deleted and restored in the real settings", async t => {
+test("agent definitions can be created without a session, edited, copied, trashed and reset to the builtin in the real settings", async t => {
 	await click('button:has(svg.lucide-settings)'); await label("智能体", "nav button");
 	await label("新建", "[data-agent-settings] button");
 	async function fill(name: string, text: string) {
@@ -183,17 +216,22 @@ test("agent definitions can be created without a session, edited, copied, delete
 	await fill("智能体调用名", "qa-editor"); await fill("智能体用途", "真实编辑流程验证"); await fill("智能体指令", "Read the repository before answering.");
 	await label("保存"); await until(`document.querySelector('[data-agent-profile="qa-editor"]')`);
 	const created = await readFile(join(app.home, "agents", "qa-editor.md"), "utf8"); assert.match(created, /Read the repository/);
-	await editAgent("general"); await fill("智能体指令", "Customized builtin instructions."); await label("保存");
+	await editAgent("general"); await fill("智能体指令", `Customized builtin instructions. ${MARK}`); await label("保存");
 	await until(`document.querySelector('[data-agent-profile="general"]').innerText.includes('已自定义')`);
 	assert.match(await readFile(join(app.home, "agents", "general.md"), "utf8"), /Customized builtin/);
 	await click('[aria-label="将 general 复制为新智能体"]');
 	await until(`document.querySelector('[data-agent-editor]')`);
-	assert.equal(await app.evaluate(`document.querySelector('[aria-label="智能体指令"]').value.trim()`), "Customized builtin instructions.");
-	await fill("智能体调用名", "qa-copy"); await label("保存"); await until(`document.querySelector('[data-agent-profile="qa-copy"]')`);
-	await click('[aria-label="删除 qa-copy"]'); await label("删除", '[role="dialog"] button');
-	await until(`!document.querySelector('[data-agent-profile="qa-copy"]')`); await label("撤销"); await until(`document.querySelector('[data-agent-profile="qa-copy"]')`);
+	assert.equal(await app.evaluate(`document.querySelector('[aria-label="智能体指令"]').value.trim()`), `Customized builtin instructions. ${MARK}`);
+	await fill("智能体调用名", COPY); await label("保存"); await until(`document.querySelector('[data-agent-profile="${COPY}"]')`);
+	// Deleting goes to the system trash, as commands and skills do: no undo line, and no hidden copy left beside the others.
+	await expectTrashed(`${COPY}.md`);
+	await click(`[aria-label="删除 ${COPY}"]`); await label(TO_TRASH, '[role="dialog"] button');
+	await until(`!document.querySelector('[data-agent-profile="${COPY}"]')`);
+	assert.equal(await app.evaluate(`[...document.querySelectorAll('[role="status"]')].some(e=>e.textContent.includes('撤销'))`), false);
+	await expectTrashed("general.md");
 	await click('[aria-label="恢复 general 的内置指令"]');
 	await until(`!document.querySelector('[data-agent-profile="general"]').innerText.includes('已自定义')`);
+	assert.deepEqual((await readdir(join(app.home, "agents"))).filter(name => name.endsWith(".deleted")), []);
 	for (const width of [1280, 375]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
 		await editAgent("qa-editor");

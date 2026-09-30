@@ -16,7 +16,6 @@ const missing = (error: unknown) => error instanceof Error && "code" in error &&
 export class AgentDefinitionStore {
 	private home: string;
 	private tail: Promise<unknown> = Promise.resolve();
-	private undo = new Map<string, { cwd: string | null; path: string; backup: string }>();
 	constructor(home: string) { this.home = home; }
 	private directory(scope: "user" | "project", cwd: string | null): string {
 		if (scope !== "user" && scope !== "project") throw new Error("智能体范围无效");
@@ -95,7 +94,12 @@ export class AgentDefinitionStore {
 			} finally { await unlink(temporary).catch(error => { if (!missing(error)) throw error; }); }
 		});
 	}
-	remove(cwd: string | null, id: string, revision: string, settings?: Pick<Settings, "capabilityPreferences">): Promise<string> {
+	/**
+	 * Hands the definition's file to `discard` once the revision still matches — the desktop moves it
+	 * to the system trash, the way commands and skills are removed. Nothing is kept here: an undo
+	 * that lived in memory died with the process and left a hidden `.deleted` copy behind for good.
+	 */
+	remove(cwd: string | null, id: string, revision: string, discard: (path: string) => Promise<void>, settings?: Pick<Settings, "capabilityPreferences">): Promise<void> {
 		return this.serialize(async () => {
 			const record = await this.read(cwd, id, settings);
 			if (!record.editable || record.scope === "builtin" || revision !== record.revision) throw new Error("定义已改变或不可删除，请重新加载");
@@ -104,22 +108,7 @@ export class AgentDefinitionStore {
 			if (!path) throw new Error("智能体不存在");
 			await this.guard(path, record.scope, cwd);
 			if (hash(await readFile(path, "utf8")) !== revision) throw new Error("定义已被修改，请重新加载");
-			const token = randomUUID(), backup = join(dirname(path), `.${token}.deleted`);
-			await renameWithRetry(path, backup);
-			this.undo.set(token, { cwd, path, backup });
-			return token;
-		});
-	}
-	restore(cwd: string | null, token: string): Promise<void> {
-		return this.serialize(async () => {
-			const item = this.undo.get(token);
-			if (!item || item.cwd !== cwd) throw new Error("撤销记录不存在");
-			const scope = dirname(item.path) === this.directory("user", cwd) ? "user" : "project";
-			await this.guard(item.path, scope, cwd);
-			await this.guard(item.backup, scope, cwd);
-			await link(item.backup, item.path);
-			await unlink(item.backup);
-			this.undo.delete(token);
+			await discard(path);
 		});
 	}
 }

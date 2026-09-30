@@ -88,7 +88,13 @@ export function HookForm({
 
 	return (
 		<div className="pt-2" data-ly-hook-form="">
-			<h1 className="text-display leading-tight font-semibold tracking-tight text-ink">{hook ? t("hooks.edit") : t("hooks.add")}</h1>
+			{/* The subagent editor's breadcrumb: its first step is the way back, as there is no top bar here. */}
+			<nav className="-ml-2 flex h-7 min-w-0 items-center text-label">
+				<Button variant="subtle" size="sm" ariaLabel={t("hooks.back")} onClick={onCancel}>{t("hooks.title")}</Button>
+				<ChevronRight size={14} aria-hidden className="shrink-0 text-ink-faint" />
+				<span className="truncate px-2 text-ink">{hook ? hook.event : t("hooks.add")}</span>
+			</nav>
+			<h1 className="mt-4 text-display leading-tight font-semibold tracking-tight text-ink">{hook ? t("hooks.edit") : t("hooks.add")}</h1>
 			<p className="mt-2 text-label text-ink-muted">{t("hooks.intro")}</p>
 
 			<Card className="mt-6 space-y-4 p-4">

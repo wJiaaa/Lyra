@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, shell } from "electron";
 import { AgentDefinitionStore, builtinTools, plumeHome, type AgentDefinitionSave } from "@plume/core";
 import { settings } from "../app-settings.ts";
 import { sessions } from "../session-hub.ts";
@@ -38,11 +38,8 @@ export function registerAgentDefinitionsIpc(): void {
 	ipcMain.handle("agentdefs:remove", async (_event, projectId: string | null, id: string, revision: string) => {
 		const path = cwd(projectId);
 		const record = await store.read(path, id, settings());
-		const undoToken = await store.remove(path, id, revision, settings());
-		return { undoToken, ...await reload(record.scope === "user" ? null : path) };
-	});
-	ipcMain.handle("agentdefs:restore", async (_event, projectId: string | null, token: string) => {
-		await store.restore(cwd(projectId), token);
-		return reload(null);
+		// The system trash, like commands and skills: recoverable there, nothing left behind here.
+		await store.remove(path, id, revision, (file) => shell.trashItem(file), settings());
+		return reload(record.scope === "user" ? null : path);
 	});
 }

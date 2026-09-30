@@ -142,7 +142,9 @@ test("command deletion fades in without shifting its row, works with keyboard/to
 	t.diagnostic(JSON.stringify({ opacityFrames: samples }));
 	assert.equal(hovering.opacity, 1);
 	assert.ok(samples.some((value) => value > 0 && value < 1), "hover paints intermediate opacity frames");
-	assert.deepEqual({ ...hovering, opacity: 0 }, resting);
+	// To a hundredth of a pixel: a row at a fractional offset reads 68.5 at rest and 68.50001525878906 mid-fade, which is no shift.
+	const settled = (box: typeof resting) => Object.fromEntries(Object.entries(box).map(([key, value]) => [key, Math.round(value * 100) / 100]));
+	assert.deepEqual(settled({ ...hovering, opacity: 0 }), settled(resting));
 	await shot("command-hover-delete");
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 10, y: 10 });
 	await app.evaluate(`document.querySelector('[aria-label="编辑 xiaorong"]').focus()`);

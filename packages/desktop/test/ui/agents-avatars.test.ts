@@ -78,10 +78,10 @@ test("every agent on the page wears a different face, own ones listed apart from
 		 * 一份文件，列在「已安装」里，行上标「内置 · 已自定义」。
 		 */
 		const sections = view.all<HTMLElement>("section");
-		assert.match(sections[0].textContent ?? "", /已安装\s*3 项/);
+		assert.match(sections[0].textContent ?? "", /已安装\s*3/);
 		assert.ok(sections[0].querySelector('[data-agent-profile="boss"]') && sections[0].querySelector('[data-agent-profile="docs-writer"]'));
 		assert.match(sections[0].querySelector('[data-agent-profile="general"]')?.textContent ?? "", /内置 · 已自定义/);
-		assert.match(sections[1].textContent ?? "", new RegExp(`内置智能体\\s*${BUILTIN_AGENTS.length - 1} 项`));
+		assert.match(sections[1].textContent ?? "", new RegExp(`内置智能体\\s*${BUILTIN_AGENTS.length - 1}`));
 		assert.ok(!sections[1].querySelector('[data-agent-profile="general"]'), "general is listed once, as the override");
 	} finally { await view.unmount(); }
 });

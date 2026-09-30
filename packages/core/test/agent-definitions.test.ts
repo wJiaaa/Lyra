@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -29,7 +29,7 @@ test("create without a session, reject duplicates and stale edits, and persist a
 	assert.equal((await new AgentDefinitionStore(home).read(null, record.id)).definition.name, draft.name);
 });
 
-test("builtin overrides preserve advanced metadata, can be copied and restored with undo", async t => {
+test("builtin overrides preserve advanced metadata, can be copied, and removing one brings the builtin back", async t => {
 	const { store } = await fixture(t);
 	const builtin = (await store.list(null)).find(item => item.scope === "builtin"); assert.ok(builtin);
 	const edited = { ...draft, name: builtin.definition.name, tools: builtin.definition.tools, systemPrompt: "Custom instructions" };
@@ -40,24 +40,24 @@ test("builtin overrides preserve advanced metadata, can be copied and restored w
 	await store.save(null, { copyFrom: custom.id, scope: "user", draft: { ...edited, name: "qa-copy" } }, []);
 	const copy = (await store.list(null)).find(item => item.definition.name === "qa-copy"); assert.ok(copy);
 	assert.equal(copy.definition.systemPrompt.trim(), "Custom instructions");
-	const token = await store.remove(null, custom.id, custom.revision);
+	await store.remove(null, custom.id, custom.revision, path => unlink(path));
 	assert.equal((await store.list(null)).find(item => item.definition.name === edited.name)?.scope, "builtin");
-	await store.restore(null, token);
-	assert.equal((await store.read(null, custom.id)).raw, custom.raw);
 });
 
-test("project scope, serialized creation, and undo collision never overwrite another definition", async t => {
+test("project scope, serialized creation, and removal hand over only the current file", async t => {
 	const { store, cwd } = await fixture(t);
 	await assert.rejects(store.save(null, { scope: "project", draft }, ["read"]), /选择项目/);
 	const results = await Promise.allSettled([store.save(cwd, { scope: "project", draft }, ["read"]), store.save(cwd, { scope: "project", draft }, ["read"])]);
 	assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
 	assert.equal((await store.list(null)).some(item => item.definition.name === draft.name), false);
 	const record = (await store.list(cwd)).find(item => item.definition.name === draft.name); assert.ok(record);
-	const token = await store.remove(cwd, record.id, record.revision);
-	await assert.rejects(store.restore(null, token), /不存在/);
-	await store.save(cwd, { scope: "project", draft: { ...draft, systemPrompt: "Replacement" } }, ["read"]);
-	await assert.rejects(store.restore(cwd, token), /EEXIST/);
-	assert.equal((await store.read(cwd, record.id)).definition.systemPrompt.trim(), "Replacement");
+	const discarded: string[] = [];
+	const discard = async (path: string) => { discarded.push(path); await unlink(path); };
+	await assert.rejects(store.remove(cwd, record.id, "stale", discard), /重新加载/);
+	assert.deepEqual(discarded, [], "a stale revision never reaches the trash");
+	await store.remove(cwd, record.id, record.revision, discard);
+	assert.deepEqual(discarded, [join(cwd, ".plume", "agents", `${draft.name}.md`)]);
+	assert.equal((await store.list(cwd)).some(item => item.definition.name === draft.name), false);
 });
 
 test("path traversal, unknown tools and symbolic link destinations are rejected", async t => {
@@ -79,18 +79,6 @@ test("on Windows a save refused for a moment is retried rather than failed", asy
 	assert.equal(refused(), 2, "the premise: the first two renames were refused");
 	const saved = (await store.list(null)).find(item => item.definition.name === draft.name); assert.ok(saved);
 	assert.match(saved.raw, /Saved again\./);
-});
-
-test("on Windows a removal refused for a moment is retried rather than failed", async t => {
-	const { store } = await fixture(t);
-	await store.save(null, { scope: "user", draft }, ["read"]);
-	const record = (await store.list(null)).find(item => item.definition.name === draft.name); assert.ok(record);
-	asWindows(t);
-	// Removing moves the file aside under a name made up on the spot; refuse whatever that is.
-	const { refused } = refuseRenames(t, /\.deleted$/, "EBUSY", 2);
-	await store.remove(null, record.id, record.revision);
-	assert.equal(refused(), 2, "the premise: the first two renames were refused");
-	assert.equal((await store.list(null)).some(item => item.definition.name === draft.name), false);
 });
 
 test("editing YAML preserves unknown nested metadata and rejects malformed documents", () => {

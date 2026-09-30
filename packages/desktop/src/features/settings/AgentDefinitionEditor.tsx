@@ -19,8 +19,8 @@ const drafts = new Map<string, { draft: AgentDraft; scope: "user" | "project" }>
 const DEFAULT_TOOLS = ["read", "glob", "grep", "ls"];
 
 /*
- * 编辑页：面包屑、标题和一句说明，下面一整块描边的表单，
- * 删除在左下，保存、取消在右下。颜色变量见 `styles/fields.css` 的 `[data-agent-settings]`。
+ * 编辑页，排法同钩子表单：面包屑、标题和一句说明，下面一张设置卡片，
+ * 删除在左下，取消、保存在右下。颜色变量见 `styles/fields.css` 的 `[data-agent-settings]`。
  *
  * 脸放在名字旁边，而且新建时就已经挑好了一张没人用的——它是这个智能体在设置页、`@` 菜单、面板
  * 里被认出来的方式，不该是一个等人想起来才去填的空。不满意就点它换，或者掷一次骰子。
@@ -71,27 +71,26 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, de
 	};
 	const title = editing && record ? t("agentEditor.editNamed", { name: record.definition.name }) : t("agents.add");
 	const selected = draft.tools;
-	return <form data-agent-settings data-agent-editor className="max-w-[800px] space-y-6 pt-2 pb-10" onSubmit={event => { event.preventDefault(); void save(); }}>
+	return <form data-agent-settings data-agent-editor className="pt-2" onSubmit={event => { event.preventDefault(); void save(); }}>
 		<nav className="-ml-2 flex h-7 min-w-0 items-center text-label">
 			{/* 面包屑的第一段就是返回：这里没有顶栏，放在页首。 */}
 			<Button variant="subtle" size="sm" ariaLabel={t("agentEditor.back")} disabled={busy} onClick={leave}>{t("agents.title")}</Button>
 			<ChevronRight size={14} aria-hidden className="shrink-0 text-ink-faint" />
 			<span className="truncate px-2 text-ink">{editing && record ? record.definition.name : t("agents.add")}</span>
 		</nav>
-		<div className="@container space-y-4">
-			<div className="space-y-1">
-				<h1 className="text-title font-semibold text-ink">{title}</h1>
-				<p className="text-label text-ink-muted">{record?.scope === "builtin" && !copy ? t("agentEditor.saveAsCustom") : t("agentEditor.intro")}</p>
-			</div>
-			{leaving && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--ly-agent-line)] px-3 py-2 text-label text-ink">
+		<h1 className="mt-4 text-display leading-tight font-semibold tracking-tight text-ink">{title}</h1>
+		<p className="mt-2 text-label text-ink-muted">{record?.scope === "builtin" && !copy ? t("agentEditor.saveAsCustom") : t("agentEditor.intro")}</p>
+		<div className="@container mt-6 space-y-4">
+			{leaving && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-line px-3.5 py-2.5 text-detail text-ink">
 				{t("agentEditor.unsaved")}
 				<div className="flex items-center gap-2">
 					<Button variant="subtle" size="sm" onClick={() => setLeaving(false)}>{t("agentEditor.keepEditing")}</Button>
 					<Button variant="danger" size="sm" onClick={discard}>{t("agentEditor.discard")}</Button>
 				</div>
 			</div>}
-			{error && <div role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-label text-danger">{error}</div>}
-			<fieldset disabled={busy} className="m-0 min-w-0 space-y-3 rounded-xl border border-[var(--ly-agent-line)] p-4 disabled:opacity-60">
+			{error && <div role="alert" className="rounded-[10px] border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger">{error}</div>}
+			{/* The settings card the hook form sits in, so its fields are the same fields. */}
+			<fieldset disabled={busy} className="ly-settings-card m-0 min-w-0 space-y-4 rounded-[12px] border border-line-float bg-float p-4 disabled:opacity-60">
 				<div className="flex justify-end">
 					<div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
 						<span className="shrink-0 text-label text-ink-muted">{t("agentEditor.scopeLabel")}</span>
@@ -137,11 +136,12 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, de
 				</label>
 				{definition && <div className="text-label"><Disclosure variant="framed" title={t("agentEditor.advanced")}><p className="mb-2 text-detail text-ink-muted">{t("agentEditor.advancedNote")}</p><pre className="overflow-auto whitespace-pre-wrap break-words text-caption">{JSON.stringify({ model: definition.model, output: definition.output, schemaMode: definition.schemaMode, spawns: definition.spawns }, null, 2)}</pre></Disclosure></div>}
 				<p className="text-caption text-ink-muted">{t("agentEditor.draftNote")}</p>
-				<div className="flex flex-col gap-2 pt-1 @sm:flex-row @sm:items-center">
-					{onDelete && <Button variant="danger" icon={<Trash2 size={14} aria-hidden />} className="self-start" onClick={onDelete}>{t("common.delete")}</Button>}
+				{/* The hook form's footer: a rule, delete on the left, then cancel before save. */}
+				<div className="flex flex-col gap-2 border-t border-line-soft pt-4 @sm:flex-row @sm:items-center">
+					{onDelete && <Button variant="danger" icon={<Trash2 size={13} aria-hidden />} className="self-start" onClick={onDelete}>{t("common.delete")}</Button>}
 					<div className="flex items-center justify-end gap-2 @sm:ml-auto">
-						<Button type="submit" variant="primary" loading={busy}>{busy ? t("common.saving") : t("common.save")}</Button>
-						<Button onClick={leave}>{t("common.cancel")}</Button>
+						<Button variant="ghost" onClick={leave}>{t("common.cancel")}</Button>
+						<Button type="submit" variant="primary" loading={busy}>{t("common.save")}</Button>
 					</div>
 				</div>
 			</fieldset>
@@ -153,7 +153,8 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, de
 }
 
 function FieldLabel({ children }: { children: string }) {
-	return <span className="mb-1.5 block text-label font-medium text-ink-muted">{children}</span>;
+	// The weight `Field` gives the hook form's labels.
+	return <span className="mb-1.5 block text-label text-ink-muted">{children}</span>;
 }
 
 /** 工具勾选：整格是按钮，勾上是前景色实底。能改文件、跑命令的几样右边一个红点。 */

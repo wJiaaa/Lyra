@@ -78,37 +78,34 @@ export function PluginsSettings({ filter = "", markOf }: { filter?: string; mark
 	return (
 		<div>
 			<ProjectOverrideNotice keys={["disabledPlugins"]} cwd={cwd} />
+			{/* The notices are the commands page's, so a failure reads the same on every definition page. */}
 			{diagnostics.length > 0 && (
-				<Card className="mb-6 border-accent/35 bg-accent/6">
-					<div className="px-4 py-3">
-						<div className="mb-2 flex items-center gap-1.5 text-label text-accent">
-							<TriangleAlert size={13} strokeWidth={1.9} />
-							{t("pluginsSettings.problems", { n: diagnostics.length })}
-						</div>
+				<div className="mb-5 flex items-start gap-2 rounded-[10px] border border-accent/35 bg-accent/6 px-3.5 py-2.5 text-detail text-ink-muted">
+					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-accent" aria-hidden />
+					<div className="min-w-0">
+						<div className="text-accent">{t("pluginsSettings.problems", { n: diagnostics.length })}</div>
 						{/* By position: a path repeats when one file has two diagnostics, and these rows hold no state. */}
 						{diagnostics.map((diagnostic, index) => (
-							<div key={index} className="py-0.5 text-detail text-accent/85">
+							<div key={index} className="mt-0.5">
 								<span className="font-mono">{diagnostic.path}</span> — {diagnostic.message}
 							</div>
 						))}
 					</div>
-				</Card>
+				</div>
 			)}
 
 			{warnings.length > 0 && (
-				<details className="mb-5 rounded-[10px] bg-card/50 px-4 py-2.5 text-detail text-ink-faint">
-					<summary className="flex cursor-pointer items-center gap-1.5 text-ink-muted">
-						<TriangleAlert size={12} strokeWidth={1.9} />
-						{t("pluginsSettings.warnings", { n: warned })}
-					</summary>
-					<div className="pt-2">
+				<div className="mb-5 flex items-start gap-2 rounded-[10px] border border-line px-3.5 py-2.5 text-detail text-ink-faint">
+					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden />
+					<div className="min-w-0">
+						<div className="text-ink-muted">{t("pluginsSettings.warnings", { n: warned })}</div>
 						{warnings.map((warning, index) => (
-							<div key={index} className="py-0.5">
+							<div key={index} className="mt-0.5">
 								<span className="font-mono">{warning.path}</span> — {warning.message}
 							</div>
 						))}
 					</div>
-				</details>
+				</div>
 			)}
 
 			{/*
@@ -116,7 +113,7 @@ export function PluginsSettings({ filter = "", markOf }: { filter?: string; mark
 			 * visible reason — indistinguishable from having switched each one off.
 			 */}
 			{allOff && plugins.length > 0 && (
-				<p className="mb-3 rounded-[10px] bg-card/60 px-3 py-2 text-detail leading-relaxed text-ink-muted">
+				<p className="mb-5 rounded-[10px] border border-line px-3.5 py-2.5 text-detail leading-relaxed text-ink-muted">
 					{t("plugins.settingsSays")} <code className="font-mono">disabledPlugins: ["*"]</code>
 					{t("plugins.allOffDetail")}
 				</p>
@@ -125,37 +122,43 @@ export function PluginsSettings({ filter = "", markOf }: { filter?: string; mark
 			{slow ? (
 				<SkeletonList count={5} label={t("plugins.reading")} />
 			) : scan === null ? null : plugins.length === 0 ? (
-				<div className="py-12 text-center">
-					<p className="text-label leading-relaxed text-ink-muted">{needle ? t("plugins.noMatch") : t("plugins.empty")}</p>
-					{!needle && (
-						<Button
-							onClick={() => {
-								setPluginFocus(null);
-								setView("plugins");
-							}}
-							icon={<Store size={14} strokeWidth={1.8} aria-hidden />}
-							className="mx-auto mt-3"
-						>
-							{t("pluginsSettings.browse")}
-						</Button>
+				<Card>
+					{needle ? (
+						<p className="px-6 py-10 text-center text-label text-ink-faint">{t("plugins.noMatch")}</p>
+					) : (
+						<div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+							<div className="text-label font-medium text-ink">{t("plugins.empty")}</div>
+							<p className="max-w-[360px] text-detail text-ink-faint">{t("pluginsSettings.emptyDetail")}</p>
+							<Button
+								variant="primary"
+								onClick={() => {
+									setPluginFocus(null);
+									setView("plugins");
+								}}
+								icon={<Store size={13} strokeWidth={1.8} aria-hidden />}
+								className="mt-2"
+							>
+								{t("pluginsSettings.browse")}
+							</Button>
+						</div>
 					)}
-				</div>
+				</Card>
 			) : (
-				/* The same inset the MCP list sits at, so a switch is in one place on every tab. */
-				<div className="px-2">
-				{plugins.map((plugin) => (
-					<PluginRow
-						key={plugin.id}
-						plugin={plugin}
-						outdated={behind.has(plugin.id)}
-						updating={updates?.updating.includes(plugin.id) ?? false}
-						mark={markOf?.(plugin.id, plugin.manifest.interface?.displayName ?? plugin.manifest.name)}
-						onToggle={(enabled) => toggle(plugin, enabled)}
-						onDetails={() => details(plugin)}
-						onChanged={bumpExtensions}
-					/>
-				))}
-				</div>
+				/* The settings card the hooks and commands lists sit in, rows ruled the same way. */
+				<Card className="divide-y divide-line-soft">
+					{plugins.map((plugin) => (
+						<PluginRow
+							key={plugin.id}
+							plugin={plugin}
+							outdated={behind.has(plugin.id)}
+							updating={updates?.updating.includes(plugin.id) ?? false}
+							mark={markOf?.(plugin.id, plugin.manifest.interface?.displayName ?? plugin.manifest.name)}
+							onToggle={(enabled) => toggle(plugin, enabled)}
+							onDetails={() => details(plugin)}
+							onChanged={bumpExtensions}
+						/>
+					))}
+				</Card>
 			)}
 		</div>
 	);
@@ -204,16 +207,19 @@ function PluginRow({
 
 	return (
 		<>
+			{/* Mark, name and line sized like a hook or command row: 36px, label over detail. */}
 			<ListRow
-				icon={<PluginIcon name={name} logo={ui?.logo ?? mark?.logo} brandColor={ui?.brandColor ?? mark?.brandColor} kind="plugin" size={30} />}
+				flush
+				icon={<PluginIcon name={name} logo={ui?.logo ?? mark?.logo} brandColor={ui?.brandColor ?? mark?.brandColor} kind="plugin" size={36} />}
 				title={
-					<span className="flex min-w-0 items-center gap-2">
+					<span className="flex min-w-0 items-center gap-2 text-label font-medium">
 						<span className="truncate">{name}</span>
-						{plugin.manifest.version && <span className="shrink-0 text-detail text-ink-faint tabular-nums">v{plugin.manifest.version}</span>}
-						{plugin.source === "workspace" && <span className="shrink-0 text-caption text-ink-faint">{t("common.project")}</span>}
+						{plugin.manifest.version && <span className="shrink-0 text-detail font-normal text-ink-faint tabular-nums">v{plugin.manifest.version}</span>}
+						{plugin.source === "workspace" && <span className="shrink-0 text-detail font-normal text-ink-faint">{t("common.project")}</span>}
 					</span>
 				}
-				detail={mark?.description ?? ui?.shortDescription ?? plugin.manifest.description ?? t("market.noTagline")}
+				/* A block with its own 2px, so name and line sit 4px apart as on a hook row. */
+				detail={<span className="mt-0.5 block truncate text-detail text-ink-faint">{mark?.description ?? ui?.shortDescription ?? plugin.manifest.description ?? t("market.noTagline")}</span>}
 				onOpen={onDetails}
 				openLabel={t("plugins.openNamed", { name })}
 				actions={

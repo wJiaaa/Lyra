@@ -160,51 +160,15 @@
 }
 
 /* -------------------------------------------------------------------------
- * 智能体设置页。
+ * Subagent settings: the two tints its editor still draws with — the avatar plate, the tool list,
+ * the unsaved-changes line. Taken from `ink` rather than fixed colours, because the page and text
+ * colours are the user's choice in 外观.
  *
- * 面、线、悬停都是前景色的一层薄纱：面 5%（浅色 3%）、线 10%、悬停的线 15%，输入类
- * 控件是比页面亮一档的实底加 1px 线、8px 圆角、32px 高。这里按比例从 `ink` 调出来，而不是
- * 钉死色值——Plume 的底色和字色是用户在外观里挑的，钉死的 #161616 一换主题就对不上。
- *
- * 写在这里而不是工具类：`.ly-field`、`.ly-textarea-shell` 未分层，压得过 `@layer utilities`。
- * 控件高度走 `--ly-control`，于是弹窗按钮这类同样读它的东西在这一页也是 32。
+ * Its fields used to be styled here too (a lighter fill, a 10% line, 32px tall). That made them the
+ * one set of inputs on the plugins / subagents / commands / hooks pages that looked different, so
+ * they are the settings card's fields now, like the hook form's.
  * ------------------------------------------------------------------------- */
 [data-agent-settings] {
-  --ly-control: 32px;
-  --ly-agent-surface: color-mix(in srgb, var(--color-ink) 3%, transparent);
   --ly-agent-hover: color-mix(in srgb, var(--color-ink) 5%, transparent);
   --ly-agent-line: color-mix(in srgb, var(--color-ink) 10%, transparent);
-  --ly-agent-line-hover: color-mix(in srgb, var(--color-ink) 15%, transparent);
-  --ly-agent-divider: color-mix(in srgb, var(--color-ink) 5%, transparent);
-}
-
-:root.dark [data-agent-settings] {
-  --ly-agent-surface: color-mix(in srgb, var(--color-ink) 5%, transparent);
-}
-
-[data-agent-settings] .ly-field {
-  padding: 0 12px;
-  border-radius: 8px;
-  background: var(--color-float);
-  box-shadow: inset 0 0 0 1px var(--ly-agent-line);
-  transition-property: color, box-shadow;
-}
-
-[data-agent-settings] .ly-field:is(:hover, :focus, :focus-within) {
-  background: var(--color-float);
-  box-shadow: inset 0 0 0 1px var(--ly-agent-line-hover);
-}
-
-[data-agent-settings] .ly-textarea-shell {
-  border-color: var(--ly-agent-line);
-  border-radius: 8px;
-  background: var(--color-float);
-}
-
-[data-agent-settings] .ly-textarea-shell:is(:hover, :focus-within) {
-  border-color: var(--ly-agent-line-hover);
-}
-
-[data-agent-settings] .ly-textarea {
-  padding: 8px;
 }

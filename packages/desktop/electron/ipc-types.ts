@@ -186,8 +186,7 @@ export interface PlumeApi {
 		list(projectId: string | null): Promise<{ records: AgentDefinitionRecord[]; tools: string[] }>;
 		read(projectId: string | null, id: string): Promise<AgentDefinitionRecord>;
 		save(projectId: string | null, input: AgentDefinitionSave): Promise<{ warning?: string }>;
-		remove(projectId: string | null, id: string, revision: string): Promise<{ undoToken: string; warning?: string }>;
-		restore(projectId: string | null, token: string): Promise<{ warning?: string }>;
+		remove(projectId: string | null, id: string, revision: string): Promise<{ warning?: string }>;
 	};
 	services: {
 		list(sessionId: string): Promise<import("../shared/session-services.ts").SessionServices>;

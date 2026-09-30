@@ -149,7 +149,7 @@ export function HooksSettings() {
 					{t("hooks.title")}
 					<span className="text-detail font-normal text-ink-faint">{visible.length}</span>
 				</div>
-				<SearchField value={query} onChange={setQuery} placeholder={t("hooks.searchPlaceholder")} className="ml-auto w-64" />
+				<SearchField size="comfortable" value={query} onChange={setQuery} placeholder={t("hooks.searchPlaceholder")} className="ml-auto max-w-[220px] flex-1 basis-[120px]" />
 			</div>
 
 			{untrusted && view?.projectPath && (
