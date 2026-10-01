@@ -1,7 +1,7 @@
 import { beforeCommand, afterCommand } from "./command-changes.ts";
 import { createOutputLog } from "./output-log.ts";
 import { randomUUID } from "node:crypto";
-import { backgroundJobs, type BackgroundJob } from "./background-jobs.ts";
+import { backgroundJobs, type BackgroundJob, type BackgroundJobs } from "./background-jobs.ts";
 import { rerouteShellCommand, TOOL_NAMES_KEY } from "./reroute.ts";
 import { getSandbox, looksDenied, looksNetworkDenied, selectRunner } from "../sandbox/index.ts";
 import {
@@ -191,8 +191,9 @@ export const bashTool: Tool<BashArgs> = {
 		"Run a shell command in the workspace. Prefer the dedicated tools over their shell equivalents: read over `cat`/`head`/`tail`, " +
 		"edit over `sed`, glob over `find`, grep over shell `grep`. Quote paths that may contain spaces. " +
 		"Every call starts fresh in the workspace root: a `cd`, variables " +
-		"and functions do not carry over, so chain dependent steps in one command (`cd sub && make`). Use `run_in_background: true` for long-running processes such as dev servers, " +
-		"then read their output with `bash_output`. A command still running when the default timeout passes is moved " +
+		"and functions do not carry over, so chain dependent steps in one command (`cd sub && make`). Use `run_in_background: true` for long-running processes such as dev servers " +
+		"and for slow commands you do not need to wait on; keep working meanwhile. The result says whether the job's exit will be reported " +
+		"to you; if not, read its output with `bash_output`. A command still running when the default timeout passes is moved " +
 		"to the background instead of being killed; an explicit `timeout` is a hard limit. " +
 		"Commands may run under a file sandbox. A blocked write is reported as a policy denial, not a bug in the " +
 		"command — do not retry it another way. When one is denied and a wider mode would let it through, retry that " +
@@ -416,14 +417,14 @@ export const bashTool: Tool<BashArgs> = {
 					return;
 				}
 				handedOff = true;
-				const id = adoptJob(ctx, args.command, child, outputLog, buffer);
+				const id = adoptJob(ctx, args, child, outputLog, buffer);
 				resolve({
 					content: [{
 						type: "text",
 						text:
 							`${output().trim() || "(no output yet)"}${fullLogHint(buffer, outputLog?.path)}\n\n[still running after ${Math.round(timeout / 1000)}s — ` +
-							`now background job ${id}. Read its output with bash_output({ id: "${id}" }); ` +
-							`stop it with bash_output({ id: "${id}", kill: true }).]`,
+							`now background job ${id}. ${followUp(ctx, id)} ` +
+							`Stop it with bash_output({ id: "${id}", kill: true }).]`,
 					}],
 					details: { kind: "bash", command: args.command, backgrounded: true, jobId: id },
 				});
@@ -494,7 +495,7 @@ export const bashTool: Tool<BashArgs> = {
 				const reading = readExit(args.command, code, output(), shell.kind);
 				const status =
 					code === 0 ? undefined : `[${describeStatus(code, signal)}${reading.meaning ? ` — ${reading.meaning}; not a failure` : ""}]`;
-				const leftBehind = lingering ? adoptJob(ctx, args.command, lingering, undefined) : undefined;
+				const leftBehind = lingering ? adoptJob(ctx, args, lingering, undefined) : undefined;
 				const markers = [
 					...(denied ? [sandboxDenialMarker(ranUnder), escalationHint("command")] : []),
 					...(cutOff ? [networkDenialMarker()] : []),
@@ -542,7 +543,7 @@ export const bashTool: Tool<BashArgs> = {
  */
 function adoptJob(
 	ctx: ToolContext,
-	command: string,
+	args: BashArgs,
 	process: SandboxProcess,
 	outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined,
 	seen?: OutputBuffer,
@@ -550,7 +551,8 @@ function adoptJob(
 	const id = randomUUID();
 	const job: BackgroundJob = {
 		id,
-		command,
+		command: args.command,
+		...(args.description ? { description: args.description } : {}),
 		startedAt: Date.now(),
 		exitCode: null,
 		output: "",
@@ -558,8 +560,9 @@ function adoptJob(
 		pid: process.pid,
 		status: "running",
 	};
-	track(job, process, outputLog, seen);
-	backgroundJobs(ctx.state).add(job, process);
+	const jobs = backgroundJobs(ctx.state);
+	track(job, process, jobs, outputLog, seen);
+	jobs.add(job, process);
 	return id;
 }
 
@@ -573,8 +576,14 @@ interface JobStream {
 }
 const streams = new WeakMap<BackgroundJob, JobStream>();
 
-/** Follow a job's output and exit, whoever started it. */
-function track(job: BackgroundJob, process: SandboxProcess, outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined, seen?: OutputBuffer): void {
+/** Follow a job's output and exit, whoever started it, and tell the registry when it is gone. */
+function track(
+	job: BackgroundJob,
+	process: SandboxProcess,
+	jobs: BackgroundJobs,
+	outputLog: Awaited<ReturnType<typeof createOutputLog>> | undefined,
+	seen?: OutputBuffer,
+): void {
 	const all = seen ?? new OutputBuffer();
 	const stream: JobStream = { all, unread: new OutputBuffer(all.end) };
 	streams.set(job, stream);
@@ -589,12 +598,15 @@ function track(job: BackgroundJob, process: SandboxProcess, outputLog: Awaited<R
 		job.exitCode = code;
 		job.finishedAt = Date.now();
 		job.status = code !== null && code !== 0 ? "failed" : "exited";
+		jobs.finished(job);
 	});
 	process.onError((error) => {
 		void outputLog?.close().then((details) => Object.assign(job, details));
 		job.error = error.message;
 		job.status = "failed";
 		if (!job.pid) job.finishedAt = Date.now();
+		// A start failure arrives here after "Started background job" was already returned.
+		jobs.finished(job);
 	});
 }
 
@@ -612,6 +624,7 @@ async function startBackground(args: BashArgs, ctx: ToolContext, shell: CommandS
 	const job: BackgroundJob = {
 		id,
 		command: args.command,
+		...(args.description ? { description: args.description } : {}),
 		startedAt: Date.now(),
 		exitCode: null,
 		output: "",
@@ -619,11 +632,11 @@ async function startBackground(args: BashArgs, ctx: ToolContext, shell: CommandS
 		pid: child.pid,
 		status: "running",
 	};
-	track(job, child, outputLog);
-
-	backgroundJobs(ctx.state).add(job, child);
+	const jobs = backgroundJobs(ctx.state);
+	track(job, child, jobs, outputLog);
+	jobs.add(job, child);
 	return {
-		content: [{ type: "text", text: `Started background job ${id}. Read its output with bash_output({ id: "${id}" }).` }],
+		content: [{ type: "text", text: `Started background job ${id}. ${followUp(ctx, id)}` }],
 		details: { kind: "bash_background", id, command: args.command, outputPath: outputLog?.path },
 	};
 }
@@ -648,25 +661,50 @@ export const bashOutputTool: Tool<BashOutputArgs> = {
 	summarize: (args) => `Check job ${args.id}`,
 
 	async execute(args, ctx): Promise<ToolResult> {
-		const job = backgroundJobs(ctx.state).get(args.id);
+		const jobs = backgroundJobs(ctx.state);
+		const job = jobs.get(args.id);
 		if (!job) return errorResult(`No background job with id "${args.id}".`);
-		if (args.kill) backgroundJobs(ctx.state).stop(args.id, true);
-		const status = job.finishedAt === undefined ? job.status : job.exitCode === null ? "terminated" : `exited with code ${job.exitCode}`;
-		// 只给上次读过之后的部分；读完游标移到末尾。更早的部分模型已经看过，要回看就读完整日志。
-		const stream = streams.get(job);
-		let text = job.output;
-		let hint = "";
-		if (stream) {
-			text = stream.unread.render(MODEL_OUTPUT_CHARS);
-			hint = fullLogHint(stream.unread, job.outputPath);
-			stream.unread = new OutputBuffer(stream.all.end);
-		}
+		if (args.kill) jobs.stop(args.id, true);
+		jobs.observed(args.id);
+		const { status, text } = readJob(job);
 		return {
-			content: [{ type: "text", text: `[job ${job.id} ${status}]\n${text || "(no new output)"}${hint}` }],
+			content: [{ type: "text", text: `[job ${job.id} ${status}]\n${text}` }],
 			details: { kind: "bash_output", id: job.id, exitCode: job.exitCode, command: job.command, outputPath: job.outputPath, outputComplete: job.outputComplete, outputError: job.outputError },
 		};
 	},
 };
+
+/**
+ * 一个后台任务此刻的状态，和模型上次读过之后的输出；读完游标移到末尾。
+ *
+ * `bash_output` 和结束时的送达共用它：送达就是替模型做了那一次读取，之后再读不会把同一段重发一遍。
+ * 更早的部分模型已经看过，要回看就读完整日志。
+ */
+export function readJob(job: BackgroundJob): { status: string; text: string } {
+	const status = job.finishedAt === undefined ? job.status : job.exitCode === null ? (job.error ? `failed: ${job.error}` : "terminated") : `exited with code ${job.exitCode}`;
+	const stream = streams.get(job);
+	let text = job.output;
+	let hint = "";
+	if (stream) {
+		text = stream.unread.render(MODEL_OUTPUT_CHARS);
+		hint = fullLogHint(stream.unread, job.outputPath);
+		stream.unread = new OutputBuffer(stream.all.end);
+	}
+	return { status, text: `${text || "(no new output)"}${hint}` };
+}
+
+/**
+ * What the model should do next about a job it just started.
+ *
+ * Where the end is reported, say so plainly: a model told only "read it with bash_output" polls, and
+ * every poll is a full request — one real session spent six of them on three jobs.
+ */
+function followUp(ctx: ToolContext, id: string): string {
+	return backgroundJobs(ctx.state).reportsExit
+		? "Keep working: its exit status and new output will be delivered to you as a message when it ends, so do not poll it. " +
+				`Read it earlier with bash_output({ id: "${id}" }) only if you need its output before then.`
+		: `Read its output with bash_output({ id: "${id}" }).`;
+}
 
 /**
  * 输出被截过时，告诉模型完整日志在哪。以前只放在 `details` 里，模型看不到，标记里的 `char_offset`

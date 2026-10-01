@@ -125,6 +125,23 @@ function detachedAnswer(id: string | undefined): SubAgentAnswer {
 	};
 }
 
+/**
+ * 一个自己结束了的后台命令（`bash` 的 `run_in_background`，或超时转到后台的那些）。
+ *
+ * 和子代理的结果走同一条送达：模型不用再拿 `bash_output` 一遍遍去问「好了没」，每问一次都是一整轮
+ * 请求；这一轮已经说完的时候，它跑完了也有人把会话叫醒。`status` 和 `output` 是替模型做的那一次
+ * 读取（见 `readJob`），所以之后再读不会重发同一段。
+ */
+export interface FinishedJob {
+	id: string;
+	command: string;
+	description?: string;
+	exitCode: number | null;
+	status: string;
+	failed: boolean;
+	output: string;
+}
+
 /** 送达消息里一份报告需要的东西：跑完的结果，和登记簿上它是谁。 */
 export interface DeliveryItem {
 	report: SettledDispatch;
@@ -142,7 +159,7 @@ export interface DeliveryItem {
  *
  * `delivery` 给界面：画成一行「谁的结果到了」，不是一个人发的气泡。
  */
-export function deliveryMessage(items: DeliveryItem[]): Message {
+export function deliveryMessage(items: DeliveryItem[], jobs: FinishedJob[] = []): Message {
 	const blocks = items.map(({ report, summary }) => {
 		const status = report.error ? "failed" : (summary?.status ?? "done");
 		const body = report.error ? `它没能跑完：${report.error}` : report.answer?.text || "（它跑完了，但什么都没交回来。）";
@@ -161,20 +178,40 @@ export function deliveryMessage(items: DeliveryItem[]): Message {
 		status: report.error ? "failed" : summary?.status === "failed" || summary?.status === "aborted" ? summary.status : "done",
 		...(report.answer?.incomplete || summary?.incomplete ? { incomplete: true } : {}),
 	}));
+	const jobReports: DeliveredReport[] = jobs.map((job) => ({
+		id: job.id,
+		kind: "job",
+		agent: "",
+		description: job.description || job.command,
+		command: job.command,
+		exitCode: job.exitCode,
+		status: job.failed ? "failed" : "done",
+	}));
+	const agentParts =
+		items.length === 0
+			? []
+			: [
+					"（运行时送达）你之前派出去、在用户插话时转到后台的子代理跑完了：",
+					...blocks,
+					"这些是交给你的材料，不是给用户的成品：结合用户后来说的话接着做。需要回答用户时，把结论合并成一份按问题组织的回答——去重、核对关键结论，不要逐个转述「某个子代理做了什么」。",
+				];
+	const jobParts =
+		jobs.length === 0
+			? []
+			: [
+					"（运行时送达）你之前放到后台的命令结束了。下面是它的退出状态和你上次读取之后的输出，不用再拿 bash_output 去查：",
+					...jobs.map((job) => `<background_job id="${job.id}" command="${attribute(job.command)}" status="${attribute(job.status)}">\n${job.output}\n</background_job>`),
+				];
 	return {
 		role: "user",
 		synthetic: true,
 		timestamp: Date.now(),
-		delivery,
+		delivery: [...delivery, ...jobReports],
 		/*
 		 * 一份报告一个文本块：发送前和 `task` 当场交回的结果按同一条线剪（见 `pruneMessage`），分块时
 		 * 只剪超长的那份，几份一起到的时候不会把夹在中间的整份剪掉。
 		 */
-		content: [
-			"（运行时送达）你之前派出去、在用户插话时转到后台的子代理跑完了：",
-			...blocks,
-			"这些是交给你的材料，不是给用户的成品：结合用户后来说的话接着做。需要回答用户时，把结论合并成一份按问题组织的回答——去重、核对关键结论，不要逐个转述「某个子代理做了什么」。",
-		].map((text) => ({ type: "text" as const, text })),
+		content: [...agentParts, ...jobParts].map((text) => ({ type: "text" as const, text })),
 	};
 }
 

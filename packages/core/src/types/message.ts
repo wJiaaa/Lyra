@@ -262,7 +262,7 @@ export interface UserMessage {
 	}>;
 
 	/**
-	 * 后台子代理送回来的结果——这条消息是运行时替它们递过来的，不是人说的话。
+	 * 后台子代理送回来的结果、或后台命令结束的消息——这条消息是运行时替它们递过来的，不是人说的话。
 	 *
 	 * 人在主会话等子代理的时候插了话，父会话先去回应人，子代理留在后台接着跑；它们跑完之后，结果
 	 * 作为这样一条消息回到主会话（见 `runtime/delegation-waits.ts`）。`content` 是给模型读的报告
@@ -286,8 +286,15 @@ export interface UserMessage {
 
 /** 送达消息里的一份报告是谁的、怎么收场的。 */
 export interface DeliveredReport {
-	/** 登记簿里的 id。 */
+	/** 登记簿里的 id；后台命令是它的任务 id。 */
 	id: string;
+	/**
+	 * 后台命令结束了，而不是子代理跑完了。这时 `agent` 为空，`description` 是模型起任务时写的那句
+	 * 说明（没写就是命令本身），`command` 是完整命令，`exitCode` 为 null 表示被信号终止。
+	 */
+	kind?: "job";
+	command?: string;
+	exitCode?: number | null;
 	agent: string;
 	description: string;
 	status: "done" | "failed" | "aborted";

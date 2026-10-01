@@ -49,7 +49,9 @@ import { compactWith } from "./compaction.ts";
 import { sessionPruner } from "./aged-prune.ts";
 import { compactionSpent, driveTurn, modelHistory, summaryStream } from "./session-turn.ts";
 import { SubAgentRegistry, type SteerDisplay } from "./sub-agents.ts";
-import { DelegationWaits, deliveryMessage, type SettledDispatch } from "./delegation-waits.ts";
+import { DelegationWaits, deliveryMessage, type FinishedJob, type SettledDispatch } from "./delegation-waits.ts";
+import { backgroundJobs, type BackgroundJob } from "../tools/background-jobs.ts";
+import { readJob } from "../tools/bash.ts";
 import { refreshDispatchGate } from "./turn-config.ts";
 import { sessionTaskQueue, type TaskQueue } from "./task-queue.ts";
 import { stripStaleHandles } from "./model-switch.ts";
@@ -199,6 +201,8 @@ export class AgentSession {
 	 * 每一次都要把整段前缀重发一遍。
 	 */
 	private deliveries: SettledDispatch[] = [];
+	/** 自己结束了、还没告诉模型的后台命令。和子代理的结果攒在同一个窗口里，一起到就是一条消息。 */
+	private finishedJobs: BackgroundJob[] = [];
 	/** 剪枝器最后一次从日志放回视图时对着的那份历史；见 `preparePruner`。 */
 	private viewsSeededFor: Message[] | null = null;
 	private deliveryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -258,6 +262,10 @@ export class AgentSession {
 			return options.emit(event);
 		}, options.meta);
 		this.can = new SessionCapabilities(options.extraTools ?? []);
+		backgroundJobs(this.can.state).onFinished((job) => {
+			this.finishedJobs.push(job);
+			this.scheduleDeliveries();
+		});
 		this.approvals = sessionApprovalGate({
 			mode: () => this.settings.permissionMode,
 			cwd: () => this.cwd,
@@ -878,6 +886,10 @@ export class AgentSession {
 	/** 一个放了手的子代理跑完了：先攒着，一小会儿之后连同前后脚跑完的一起送。 */
 	private collectDelivery(report: SettledDispatch): void {
 		this.deliveries.push(report);
+		this.scheduleDeliveries();
+	}
+
+	private scheduleDeliveries(): void {
 		this.deliveryTimer ??= setTimeout(() => {
 			this.deliveryTimer = null;
 			void this.flushDeliveries();
@@ -895,7 +907,8 @@ export class AgentSession {
 		const reports = settled
 			.map((report) => ({ report, summary: this.subAgents.detail(report.id) }))
 			.filter(({ report, summary }) => summary?.status !== "aborted" && !report.answer?.stoppedByUser);
-		if (reports.length === 0) return;
+		const jobs = this.takeFinishedJobs();
+		if (reports.length === 0 && jobs.length === 0) return;
 		// 手动压缩正在改写历史：等它写完边界再进来，和人发消息一样。
 		const epoch = this.abortEpoch;
 		if (this.compactionTask) await this.compactionTask;
@@ -904,7 +917,25 @@ export class AgentSession {
 		 * 按同一个道理丢掉，不放回去——`abort` 对攒着没送的就是直接清空。
 		 */
 		if (this.abortEpoch !== epoch) return;
-		await this.submit(deliveryMessage(reports), { fromPerson: false });
+		await this.submit(deliveryMessage(reports, jobs), { fromPerson: false });
+	}
+
+	/**
+	 * 攒下的后台命令，读成送达用的样子。
+	 *
+	 * 是否安静在这一刻再问一遍：攒着的那 400ms 里，模型可能已经自己用 `bash_output` 读到了结局，或者
+	 * 有人在服务面板上点了停止——前者再送是重复，后者是在跟那个决定争辩。
+	 */
+	private takeFinishedJobs(): FinishedJob[] {
+		const registry = backgroundJobs(this.can.state);
+		return this.finishedJobs
+			.splice(0, this.finishedJobs.length)
+			.filter((job) => !registry.isQuiet(job.id))
+			.map((job) => {
+				registry.observed(job.id);
+				const { status, text } = readJob(job);
+				return { id: job.id, command: job.command, description: job.description, exitCode: job.exitCode, status, failed: job.status === "failed", output: text };
+			});
 	}
 
 	/**
@@ -1041,6 +1072,12 @@ export class AgentSession {
 		 */
 		this.delegations.forget();
 		this.deliveries.length = 0;
+		/*
+		 * 后台命令不停——停止按钮管的是这场对话，不是人让它起的开发服务器——但它们结束时也不再叫醒
+		 * 会话。模型下一轮要知道结果，自己用 `bash_output` 去读。
+		 */
+		this.finishedJobs.length = 0;
+		backgroundJobs(this.can.state).mute();
 		if (this.deliveryTimer) clearTimeout(this.deliveryTimer);
 		this.deliveryTimer = null;
 		/*
