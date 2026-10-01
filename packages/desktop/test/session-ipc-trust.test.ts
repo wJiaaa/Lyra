@@ -18,6 +18,7 @@ export const sessionDelivery = async () => ({ files: [] });
 export const undoDeliveryFile = async () => ({ ok: true });
 export const listSessionServices = () => [];
 export const stopSessionService = () => ({ ok: true });
+export const readSessionServiceOutput = async () => null;
 `)}`;
 const sources = new Set(["delivery", "running-services"].map(name => new URL(`../electron/ipc/${name}.ts`, import.meta.url).href));
 const replacements = new Set(["electron", "../window.ts", "../readable-artifacts.ts", "../turn-delivery.ts", "../session-services.ts"]);
@@ -44,6 +45,7 @@ const requests = [
 	{ name: "delivery:undo", args: ["session", 1, "file.txt"] },
 	{ name: "services:list", args: ["session"] },
 	{ name: "services:stop", args: ["session", "service", false] },
+	{ name: "services:output", args: ["session", "service", -1] },
 ];
 
 for (const request of requests) {

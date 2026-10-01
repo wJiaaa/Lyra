@@ -191,6 +191,7 @@ export interface PlumeApi {
 	services: {
 		list(sessionId: string): Promise<import("../shared/session-services.ts").SessionServices>;
 		stop(sessionId: string, id: string, force: boolean): Promise<boolean>;
+		output(sessionId: string, id: string, from: number): Promise<import("../shared/session-services.ts").ServiceOutput | null>;
 	};
 	delivery: {
 		get(sessionId: string, timestamp: number): Promise<import("./turn-delivery.ts").TurnDelivery>;

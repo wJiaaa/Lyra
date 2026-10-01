@@ -49,6 +49,7 @@ import {
 } from "../../app/session-scope.tsx";
 import { awaitingSubAgents } from "../../store/subAgents.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
+import { useJobReveal } from "./job-reveal.ts";
 import { available, bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -80,6 +81,7 @@ export function Composer({ centered = false }: {
 	// A count, not the list: a selector that builds an array hands back a new one on every store tick.
 	const unfinished = useScopedTodos().filter((todo) => todo.status !== "completed").length;
 	const activeSessionId = useScopedSessionId();
+	useJobReveal(activeSessionId, useCallback(() => void openScopedPanel("tasks", companionOf("tasks"), activeSessionId ?? undefined), [activeSessionId]));
 	// "底部面板" in Settings → 常规. Saved but read by nothing until now.
 	const showBottomPanel = useApp((s) => s.settings?.editor.showBottomPanel) ?? true;
 	// A switch in this screen's repository — a switch under the screen beside it is not this chip's to show.

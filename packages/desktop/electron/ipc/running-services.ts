@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import { listSessionServices, stopSessionService } from "../session-services.ts";
+import { listSessionServices, readSessionServiceOutput, stopSessionService } from "../session-services.ts";
 import { isAppWindowContents } from "../window.ts";
 export function registerRunningServicesIpc(): void {
 	const trusted = (event: IpcMainInvokeEvent, sessionId: unknown) => {
@@ -10,5 +10,10 @@ export function registerRunningServicesIpc(): void {
 		trusted(event, sessionId);
 		if (typeof id !== "string" || typeof force !== "boolean") throw new Error("无效的停止请求");
 		return stopSessionService(sessionId, id, force);
+	});
+	ipcMain.handle("services:output", (event, sessionId: string, id: string, from: number) => {
+		trusted(event, sessionId);
+		if (typeof id !== "string" || !Number.isSafeInteger(from) || from < -1) throw new Error("Invalid services:output request");
+		return readSessionServiceOutput(sessionId, id, from);
 	});
 }

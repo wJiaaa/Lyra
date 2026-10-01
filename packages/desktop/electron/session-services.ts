@@ -2,8 +2,9 @@ import { execFile } from "node:child_process";
 import { request } from "node:http";
 import { promisify } from "node:util";
 import { backgroundJobs } from "@plume/core";
-import type { ServiceEndpoint, SessionServices } from "../shared/session-services.ts";
+import type { ServiceEndpoint, ServiceOutput, SessionServices } from "../shared/session-services.ts";
 import { advertisedEndpoints, descendants, localHost, parseLsof, parseProcesses, parseSs, parseWindowsListeners, serviceUrl, type ProcessEntry } from "./service-listeners.ts";
+import { readLogSlice } from "./log-slice.ts";
 import { sessions } from "./session-hub.ts";
 
 const exec = promisify(execFile);
@@ -66,6 +67,23 @@ function mergeEndpoints(fromOs: ServiceEndpoint[], fromLog: ServiceEndpoint[]): 
 	const extra = fromLog.filter((entry) => !seen.has(`${localHost(entry.address)}:${entry.port}`));
 	return [...fromOs, ...extra].slice(0, 16);
 }
+/**
+ * A job's output from byte `from`, read from its log file — the path comes from the registry, never
+ * from the window asking. See `readLogSlice` for how a read is cut.
+ */
+export async function readSessionServiceOutput(sessionId: string, id: string, from: number): Promise<ServiceOutput | null> {
+	const session = sessions.get(sessionId);
+	const job = session ? backgroundJobs(session.can.state).get(id) : undefined;
+	if (!job) return null;
+	const whole = { text: job.output, next: 0, done: job.finishedAt !== undefined, replace: true };
+	if (!job.outputPath) return whole;
+	// The log is closed asynchronously after exit; until then more may still land in it.
+	const settled = job.finishedAt !== undefined && (job.outputComplete !== undefined || job.outputError !== undefined);
+	const slice = await readLogSlice(job.outputPath, from).catch(() => null);
+	if (!slice) return whole;
+	return { text: slice.text, next: slice.next, done: settled && slice.atEnd, ...(from < 0 ? { replace: true } : {}) };
+}
+
 export function stopSessionService(sessionId: string, id: string, force: boolean): boolean {
 	const session = sessions.get(sessionId);
 	if (!session) return false;

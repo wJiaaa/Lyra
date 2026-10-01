@@ -38,6 +38,7 @@ export const METHODS = {
 	services: {
 		list: { channel: "services:list" },
 		stop: { channel: "services:stop" },
+		output: { channel: "services:output" },
 	},
 	browser: {
 		state: { channel: "browser:state" },

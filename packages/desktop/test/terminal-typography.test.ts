@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { TERMINAL_LINE_HEIGHT, terminalTypography } from "../src/features/terminal/typography.ts";
+import { TERMINAL_LINE_HEIGHT, terminalTypography } from "../src/ui/terminal/typography.ts";
 
 const FALLBACK = { font: "Menlo", size: 12 };
 
