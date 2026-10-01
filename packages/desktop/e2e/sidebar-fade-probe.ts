@@ -23,6 +23,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 import { MASK_PROBE } from "./mask.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const dir = process.argv[2] ?? "/tmp/plume-sidebar-fade";
 const REPO = "/Users/kittors/Developer/opensource/Plume";
@@ -68,11 +69,10 @@ async function seed(home: string): Promise<void> {
 		}),
 	);
 
-	const metas: object[] = [];
+	const sessions = [];
 	let n = 0;
 	for (const project of projects) {
 		await mkdir(project.path, { recursive: true });
-		await mkdir(join(home, "sessions", project.id), { recursive: true });
 		for (let i = 0; i < 22; i++) {
 			n++;
 			const id = `s${String(n).padStart(3, "0")}`;
@@ -88,18 +88,17 @@ async function seed(home: string): Promise<void> {
 				// 每个项目后六条收进归档：两边的列表都要长到滚得动，而且都要有三个分组。
 				...(i >= 16 ? { archived: true } : {}),
 			};
-			metas.push(meta);
-			await writeFile(
-				join(home, "sessions", project.id, `${id}.jsonl`),
-				[
-					JSON.stringify({ seq: 0, ts: 1, type: "meta", meta }),
-					...messages.map((message, at) => JSON.stringify({ seq: at + 1, ts: at + 1, type: "message", message })),
-					JSON.stringify({ seq: meta.seq, ts: 2, type: "meta", meta }),
-				].join("\n") + "\n",
-			);
+			sessions.push({
+				meta,
+				records: [
+					{ seq: 0, ts: 1, type: "meta", meta },
+					...messages.map((message, at) => ({ seq: at + 1, ts: at + 1, type: "message", message })),
+					{ seq: meta.seq, ts: 2, type: "meta", meta },
+				],
+			});
 		}
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 }
 
 const app = await startApp({ port: 9517, seed });

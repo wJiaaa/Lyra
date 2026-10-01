@@ -14,7 +14,7 @@ test("a manual title atomically rejects automatic writes and stale metadata from
 	const automatic = store.append(stale, { type: "title", title: "Late automatic", source: "auto" });
 	await Promise.all([manual, automatic]);
 	await store.append(stale, { type: "meta", meta: { ...stale, modelId: "another-model" } });
-	const loaded = await new SessionStore(root).load(stale.projectId, stale.id);
+	const loaded = await new SessionStore(root).load(stale.id);
 	assert.equal(loaded?.meta.title, "Manual");
 	assert.equal(loaded?.meta.titleSetByUser, true);
 	assert.equal(loaded?.meta.modelId, "another-model");

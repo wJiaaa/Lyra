@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { SessionStore } from "@plume/core";
 import { exportTrajectory } from "../electron/trajectory-export.ts";
 
-test("exports the full authoritative record, refuses unrelated sessions and does not trust an output path", async () => {
+test("exports the full authoritative record, refuses unknown sessions and does not trust an output path", async () => {
 	const root = await mkdtemp(join(tmpdir(), "plume-export-"));
 	const previous = process.env.PLUME_HOME; process.env.PLUME_HOME = root;
 	const exported: string[] = [];
@@ -17,21 +17,21 @@ test("exports the full authoritative record, refuses unrelated sessions and does
 		const path = join(root, "scratch", meta.id, "tool-output", "result.log");
 		await mkdir(dirname(path), { recursive: true }); await writeFile(path, output);
 		meta = await store.append(meta, { type: "message", message: { role: "toolResult", toolCallId: "call", toolName: "bash", content: [{ type: "text", text: output }], timestamp: 1, isError: false, details: { outputPath: path } } });
-		const json = await exportTrajectory(store, meta.projectId, meta.id, "json"); exported.push(dirname(json));
+		const json = await exportTrajectory(store, meta.id, "json"); exported.push(dirname(json));
 		assert.ok((await readFile(json, "utf8")).includes("TAIL"));
-		const md = await exportTrajectory(store, meta.projectId, meta.id, "md"); exported.push(dirname(md));
+		const md = await exportTrajectory(store, meta.id, "md"); exported.push(dirname(md));
 		assert.ok((await readFile(md, "utf8")).includes(output));
-		assert.equal(await exportTrajectory(store, meta.projectId, meta.id, "output", { correlationId: "call" }), await realpath(path));
-		await assert.rejects(exportTrajectory(store, "wrong-project", meta.id, "json"), /不存在/);
-		await assert.rejects(exportTrajectory(store, meta.projectId, meta.id, "json", { id: "unknown" }), /尚未落盘/);
+		assert.equal(await exportTrajectory(store, meta.id, "output", { correlationId: "call" }), await realpath(path));
+		await assert.rejects(exportTrajectory(store, "missing", "json"), /不存在/);
+		await assert.rejects(exportTrajectory(store, meta.id, "json", { id: "unknown" }), /尚未落盘/);
 		meta = await store.append(meta, { type: "event", event: { type: "tool_start", toolCallId: "live", toolName: "bash", args: { command: "pnpm build" }, summary: "build" } });
-		const live = await exportTrajectory(store, meta.projectId, meta.id, "json", { correlationId: "live" }, true); exported.push(dirname(live));
+		const live = await exportTrajectory(store, meta.id, "json", { correlationId: "live" }, true); exported.push(dirname(live));
 		assert.match(await readFile(live, "utf8"), /"status": "running"/);
-		const cold = await exportTrajectory(store, meta.projectId, meta.id, "json", { correlationId: "live" }); exported.push(dirname(cold));
+		const cold = await exportTrajectory(store, meta.id, "json", { correlationId: "live" }); exported.push(dirname(cold));
 		assert.match(await readFile(cold, "utf8"), /"status": "interrupted"/);
 		const secret = join(root, "private.txt"); await writeFile(secret, "unrelated");
 		await store.append(meta, { type: "message", message: { role: "toolResult", toolCallId: "bad", toolName: "bash", content: [], timestamp: 2, isError: false, details: { outputPath: secret } } });
-		await assert.rejects(exportTrajectory(store, meta.projectId, meta.id, "output", { correlationId: "bad" }), /不属于当前会话/);
+		await assert.rejects(exportTrajectory(store, meta.id, "output", { correlationId: "bad" }), /不属于当前会话/);
 	} finally {
 		if (previous === undefined) delete process.env.PLUME_HOME; else process.env.PLUME_HOME = previous;
 		await Promise.all([...exported, root].map(path => rm(path, { recursive: true, force: true })));

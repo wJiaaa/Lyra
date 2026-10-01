@@ -59,7 +59,7 @@ export interface UsageDay {
 export interface UsageScan {
 	days: UsageDay[];
 	buckets: UsageBucket[];
-	/** How many logs were read this time, and how many were answered from the cache. */
+	/** How many spend rows were read this time, and how many were already folded into the cache. */
 	scanned: number;
 	cached: number;
 	tookMs: number;

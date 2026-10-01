@@ -30,6 +30,17 @@ export interface PreviewRecord {
 	createdAt: number;
 }
 
+/**
+ * A session id as the one directory name it is meant to be.
+ *
+ * Ids reach these functions from IPC and the web bridge, and they are joined under the app's home
+ * and then removed recursively: `..` or a separator in one would delete outside it.
+ */
+function sessionDir(root: string, sessionId: string): string {
+	if (!sessionId || sessionId === "." || sessionId === ".." || /[\\/\0:]/.test(sessionId)) throw new Error(`Invalid session id: ${JSON.stringify(sessionId)}`);
+	return join(root, sessionId);
+}
+
 /** Rejects anything that would climb out of the preview's own directory. */
 function safeRelative(path: string): string | null {
 	const clean = path.replace(/^\/+/, "").trim();
@@ -48,7 +59,7 @@ export async function writePreview(
 	home: string,
 	options: { id: string; sessionId: string; title: string; files: PreviewFile[]; entry?: string },
 ): Promise<PreviewRecord> {
-	const dir = join(previewsHome(home), options.sessionId, options.id);
+	const dir = join(sessionDir(previewsHome(home), options.sessionId), options.id);
 	await mkdir(dir, { recursive: true });
 
 	let wrote = 0;
@@ -76,7 +87,7 @@ export async function writePreview(
 }
 
 export async function readPreview(home: string, sessionId: string, id: string): Promise<PreviewRecord | null> {
-	const dir = join(previewsHome(home), sessionId, id);
+	const dir = join(sessionDir(previewsHome(home), sessionId), id);
 	const raw = await readFile(join(dir, ".preview.json"), "utf8").catch(() => null);
 	if (!raw) return null;
 	try {
@@ -88,7 +99,7 @@ export async function readPreview(home: string, sessionId: string, id: string): 
 
 /** Everything a conversation produced, newest first. */
 export async function listPreviews(home: string, sessionId: string): Promise<PreviewRecord[]> {
-	const root = join(previewsHome(home), sessionId);
+	const root = sessionDir(previewsHome(home), sessionId);
 	const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
 	const records: PreviewRecord[] = [];
 	for (const entry of entries) {
@@ -101,7 +112,7 @@ export async function listPreviews(home: string, sessionId: string): Promise<Pre
 
 /** Removed with the conversation, since that is the only thing they belonged to. */
 export async function removePreviews(home: string, sessionId: string): Promise<void> {
-	await rm(join(previewsHome(home), sessionId), { recursive: true, force: true }).catch(() => {});
+	await rm(sessionDir(previewsHome(home), sessionId), { recursive: true, force: true }).catch(() => {});
 }
 
 /**
@@ -120,10 +131,9 @@ const SESSION_DIRS = [previewsHome, scratchHome];
 
 /** Everything a conversation wrote outside the project, gone with the conversation. */
 export async function removeSessionArtifacts(home: string, sessionId: string): Promise<void> {
+	const dirs = SESSION_DIRS.map((where) => sessionDir(where(home), sessionId));
 	await rm(join(home, "changes", createHash("sha256").update(sessionId).digest("hex")), { recursive: true, force: true });
-	await Promise.all(
-		SESSION_DIRS.map((where) => rm(join(where(home), sessionId), { recursive: true, force: true }).catch(() => {})),
-	);
+	await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {})));
 }
 
 /** As `prunePreviews`, over every kind of artifact. Returns how many directories were removed. */

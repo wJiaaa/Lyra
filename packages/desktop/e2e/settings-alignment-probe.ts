@@ -16,6 +16,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 const PORT = 9493;
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -58,17 +59,16 @@ async function seed(home: string): Promise<void> {
  * 两个供应商，因为图例、按供应商拆分的曲线和费用列表都要有两条以上才谈得上「重新分配」。
  */
 async function seedUsage(home: string): Promise<void> {
-	const dir = join(home, "sessions", "probe");
-	await mkdir(dir, { recursive: true });
 	const day = 24 * 60 * 60 * 1000;
-	const lines: string[] = [];
+	const records: FixtureRecord[] = [];
 	for (let back = 0; back < 90; back++) {
 		const at = Date.now() - back * day;
 		// 越往前用得越多：7 天窗口只罩住最小的那一头，90 天才把大头收进来。
 		const scale = 1 + back * 3;
 		for (const [provider, model] of [["relay", "gemini-3.8-flash"], ["fast", "grok-4.6"]] as const) {
-			lines.push(
-				JSON.stringify({
+			records.push(
+				{
+					ts: at,
 					type: "message",
 					message: {
 						role: "assistant",
@@ -77,11 +77,26 @@ async function seedUsage(home: string): Promise<void> {
 						model,
 						usage: { input: 1200 * scale, output: 320 * scale, cacheRead: 8000 * scale, cacheWrite: 0, cost: 0.004 * scale },
 					},
-				}),
+				},
 			);
 		}
 	}
-	await writeFile(join(dir, "probe.jsonl"), `${lines.join("\n")}\n`);
+	seedSessions(home, [{
+		meta: {
+			id: "probe",
+			title: "probe",
+			cwd: join(home, "proj"),
+			projectId: "probe",
+			projectName: "proj",
+			createdAt: Date.now() - 90 * day,
+			updatedAt: Date.now(),
+			modelId: "relay/gemini-3.8-flash",
+			messageCount: records.length,
+			seq: 0,
+			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+		},
+		records,
+	}]);
 }
 
 const problems: string[] = [];

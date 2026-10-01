@@ -55,7 +55,7 @@ function summarize(rule: RetryRule): string {
 
 export function RetrySettings({ settings }: { settings: Settings }) {
 	const { t } = useI18n();
-	const policy = normalizeRetryPolicy(settings.retryPolicy, settings.retryAttempts);
+	const policy = normalizeRetryPolicy(settings.retryPolicy);
 	const [open, setOpen] = useState<RetryFailure | null>(null);
 
 	/*
@@ -68,7 +68,7 @@ export function RetrySettings({ settings }: { settings: Settings }) {
 	const write = (kind: RetryFailure, patch: Partial<RetryRule>) => {
 		const current = useApp.getState().settings;
 		if (!current) return;
-		const base = normalizeRetryPolicy(current.retryPolicy, current.retryAttempts);
+		const base = normalizeRetryPolicy(current.retryPolicy);
 		void useApp.getState().saveSettings({ ...current, retryPolicy: { ...base, [kind]: { ...base[kind], ...patch } } });
 	};
 

@@ -9,7 +9,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -17,7 +17,6 @@ import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import { lastPassAt, PASS_INTERVAL_MS, runMemoryPass, shouldRunPass } from "../src/runtime/memory-pass.ts";
 import { projectMemoryDir } from "../src/runtime/project-memory.ts";
 import { projectIdFor } from "../src/session/store.ts";
-import { usageLedgerPath } from "../src/session/usage-ledger.ts";
 import type { SessionStorage } from "../src/session/storage.ts";
 import type { AssistantMessage, Message } from "../src/types.ts";
 
@@ -116,24 +115,22 @@ test("没有可用模型是单独一种原因", () => {
 // 真的跑一遍
 // ---------------------------------------------------------------------------
 
-/** 一个够老、够长、能成为候选的会话，写进 `PLUME_HOME/sessions/<projectId>/`。 */
+/** 一个够老、够长、能成为候选的会话，登记在假存储里。 */
 async function seedSession(cwd: string, id: string, lines: string[], ageMs: number): Promise<void> {
-	const dir = join(home, "sessions", projectIdFor(cwd));
-	await mkdir(dir, { recursive: true });
-	const path = join(dir, `${id}.jsonl`);
-	await writeFile(path, "", "utf8");
-	const when = new Date(Date.now() - ageMs);
-	await utimes(path, when, when);
-	seeded.set(`${projectIdFor(cwd)}/${id}`, lines.map((text, i) => ({
+	const messages = lines.map((text, i) => ({
 		role: i % 2 === 0 ? "user" : "assistant",
 		content: [{ type: "text", text }],
 		timestamp: 0,
-	}) as Message));
+	}) as Message);
+	seeded.set(id, { meta: { id, projectId: projectIdFor(cwd), updatedAt: Date.now() - ageMs, messageCount: messages.length }, messages });
 }
 
-const seeded = new Map<string, Message[]>();
+const seeded = new Map<string, { meta: { id: string; projectId: string; updatedAt: number; messageCount: number }; messages: Message[] }>();
+const spent: { source: string; providerId: string; modelId: string; usage: { input: number } }[] = [];
 const STORAGE = {
-	messages: async (projectId: string, sessionId: string) => seeded.get(`${projectId}/${sessionId}`) ?? [],
+	listSessions: async () => [...seeded.values()].map((entry) => entry.meta).sort((a, b) => b.updatedAt - a.updatedAt),
+	messages: async (sessionId: string) => seeded.get(sessionId)?.messages ?? [],
+	recordUsage: async (entry: (typeof spent)[number]) => { spent.push(entry); },
 } as unknown as SessionStorage;
 
 test("一遍跑完，磁盘上真的多了一个 MEMORY.md", async () => {
@@ -199,7 +196,7 @@ test("太新的会话不读", async () => {
 	}
 });
 
-test("抽取的花销记进用量账本——它不属于任何一个会话，会话日志里记不下", async () => {
+test("抽取的花销记进用量表——它不属于任何一个会话", async () => {
 	const billed = await mkdtemp(join(tmpdir(), "ly-pass-billed-"));
 	try {
 		await seedSession(billed, "s3", ["a", "b", "c", "d", "e", "f"], 20 * 60 * 60 * 1000);
@@ -211,16 +208,14 @@ test("抽取的花销记进用量账本——它不属于任何一个会话，�
 				return { ...message, usage: { input: 900, output: 30, cacheRead: 0, cacheWrite: 0, total: 930, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
 			})();
 		}) as never;
-		const before = await readFile(usageLedgerPath(home), "utf8").catch(() => "");
+		const before = spent.length;
 		await runMemoryPass({ cwd: billed, settings: settings(), storage: STORAGE, stream: withUsage });
-		const added = (await readFile(usageLedgerPath(home), "utf8")).slice(before.length).trim().split("\n").map((line) => JSON.parse(line));
+		const added = spent.slice(before);
 		assert.equal(added.length, 1);
-		assert.equal(added[0].type, "usage");
 		assert.equal(added[0].source, "memory-extract");
 		assert.equal(added[0].providerId, "p");
 		assert.equal(added[0].modelId, "m");
 		assert.equal(added[0].usage.input, 900);
-		assert.equal(typeof added[0].ts, "number");
 	} finally {
 		await rm(billed, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}

@@ -75,10 +75,10 @@ test("a resume finds the sub-agent by its id, full or short", () => {
 	}
 });
 
-test("renamed agents are called by their new names, and a record the roster no longer has falls back to the call", () => {
-	const [renamed] = joinDispatches([call("f", { description: "快", subagent_type: "fast" }, { status: "done" })], []);
-	assert.equal(renamed.agent, "simple");
-	assert.equal(renamed.state, "done", "finished and cleared from the roster: it was done");
+test("a record the roster no longer has falls back to the call", () => {
+	const [finished] = joinDispatches([call("f", { description: "快", subagent_type: "simple" }, { status: "done" })], []);
+	assert.equal(finished.agent, "simple");
+	assert.equal(finished.state, "done", "finished and cleared from the roster: it was done");
 	const [broken] = joinDispatches([call("e", { description: "坏了" }, { status: "error" })], []);
 	assert.equal(broken.state, "failed");
 	const [unknown] = joinDispatches([call("h", { prompt: "从历史里读回来的，没有运行记录也没有描述" })], []);

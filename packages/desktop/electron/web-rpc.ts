@@ -74,13 +74,15 @@ export interface RpcDeps {
 	/** Sessions currently warm, by id. */
 	live(sessionId: string): AgentSession | undefined;
 	/** Bring a stored session up, or null when there is no such session. */
-	activate(projectId: string, sessionId: string): Promise<AgentSession | null>;
+	activate(sessionId: string): Promise<AgentSession | null>;
 	create: PlumeApi["sessions"]["create"];
 	prompt: PlumeApi["agent"]["prompt"];
 	editMessage: PlumeApi["agent"]["editMessage"];
 	revertMessage: PlumeApi["agent"]["revertMessage"];
 	abort(sessionId: string): Promise<void>;
 	dispose(sessionId: string): Promise<void>;
+	/** Stop and delete, refusing new work on them until they are gone. See `deleteSessions`. */
+	remove(sessionIds: string[]): Promise<void>;
 	snapshot(session: AgentSession): Promise<unknown>;
 	touch(sessionId: string): void;
 	sideChatState: PlumeApi["sideChat"]["state"];
@@ -135,14 +137,14 @@ export const RPC: Record<string, Handler> = {
 	"workspace.info": async (deps, [path]) => deps.workspaceInfo(s(path)),
 
 	// -- Opening and reading a conversation ------------------------------------
-	"sessions.transcript": async (deps, [projectId, sessionId]) => {
+	"sessions.transcript": async (deps, [sessionId]) => {
 		// A live session is the authority: it holds the messages of a turn still in flight.
 		const warm = deps.live(s(sessionId));
 		if (warm) {
 			deps.touch(s(sessionId));
 			return deps.snapshot(warm);
 		}
-		const loaded = await deps.store().load(s(projectId), s(sessionId), { display: true });
+		const loaded = await deps.store().load(s(sessionId), { display: true });
 		if (!loaded) return null;
 		return slimSnapshot({
 			meta: loaded.meta,
@@ -154,16 +156,16 @@ export const RPC: Record<string, Handler> = {
 			hookRuns: loaded.hookRuns,
 		});
 	},
-	"sessions.open": async (deps, [projectId, sessionId]) => {
-		const session = await deps.activate(s(projectId), s(sessionId));
+	"sessions.open": async (deps, [sessionId]) => {
+		const session = await deps.activate(s(sessionId));
 		return session ? deps.snapshot(session) : null;
 	},
-	"sessions.trajectory": async (deps, [projectId, sessionId]) =>
-		readTrajectory(deps.store(), s(projectId), s(sessionId), deps.live(s(sessionId))?.running ?? false),
-	"sessions.trajectoryChanges": async (deps, [projectId, sessionId, cursor]) =>
-		readTrajectoryChanges(deps.store(), s(projectId), s(sessionId), typeof cursor === "string" ? cursor : undefined, deps.live(s(sessionId))?.running ?? false),
-	"sessions.fork": async (deps, [projectId, sessionId, seq]) =>
-		forkSession(deps.store(), s(projectId), s(sessionId), Number(seq)),
+	"sessions.trajectory": async (deps, [sessionId]) =>
+		readTrajectory(deps.store(), s(sessionId), deps.live(s(sessionId))?.running ?? false),
+	"sessions.trajectoryChanges": async (deps, [sessionId, cursor]) =>
+		readTrajectoryChanges(deps.store(), s(sessionId), typeof cursor === "string" ? cursor : undefined, deps.live(s(sessionId))?.running ?? false),
+	"sessions.fork": async (deps, [sessionId, seq]) =>
+		forkSession(deps.store(), s(sessionId), Number(seq)),
 	"sessions.create": async (deps, [cwd, modelId, initial]) =>
 		// "remote"：对面递来的附件路径不作数，见 `prompt-input.ts` 的 `PromptOrigin`。
 		deps.create(s(cwd), s(modelId), initialPrompt(initial, "remote")),
@@ -185,12 +187,12 @@ export const RPC: Record<string, Handler> = {
 		return null;
 	},
 	"agent.setModel": async (deps, [sessionId, modelId]) => {
-		const session = await live(deps, s(sessionId));
+		const session = await deps.activate(s(sessionId));
 		await session?.setModel(s(modelId));
 		return null;
 	},
 	"agent.setThinking": async (deps, [sessionId, thinking]) => {
-		const session = await live(deps, s(sessionId));
+		const session = await deps.activate(s(sessionId));
 		await session?.setThinking(thinkingLevel(thinking));
 		return null;
 	},
@@ -212,12 +214,12 @@ export const RPC: Record<string, Handler> = {
 		deps.revertMessage(s(sessionId), Number(index)),
 
 	"sessions.compact": async (deps, [sessionId, instructions]) => {
-		const session = await live(deps, s(sessionId));
+		const session = await deps.activate(s(sessionId));
 		if (!session) return { ok: false, reason: "找不到这个会话。" };
 		return session.compact(typeof instructions === "string" ? instructions : undefined);
 	},
 	"sessions.contextBreakdown": async (deps, [sessionId]) => {
-		const session = await live(deps, s(sessionId));
+		const session = await deps.activate(s(sessionId));
 		return session ? session.contextBreakdown() : null;
 	},
 
@@ -228,7 +230,7 @@ export const RPC: Record<string, Handler> = {
 	 * than reach into the machine. Writing files or opening a shell is the line, and it is drawn
 	 * by what is absent from this list.
 	 */
-	"sessions.rename": async (deps, [_projectId, sessionId, title]) => {
+	"sessions.rename": async (deps, [sessionId, title]) => {
 		const clean = s(title).trim();
 		if (!clean) return null;
 		const session = deps.live(s(sessionId));
@@ -236,19 +238,18 @@ export const RPC: Record<string, Handler> = {
 			await session.rename(clean);
 			return session.meta;
 		}
-		const meta = (await deps.store().listSessions()).find((entry) => entry.id === s(sessionId));
+		const meta = await deps.store().get(s(sessionId));
 		if (!meta) return null;
 		return deps.store().append(meta, { type: "title", title: clean, source: "user" });
 	},
-	"sessions.setArchived": async (deps, [projectId, sessionId, archived]) => {
+	"sessions.setArchived": async (deps, [sessionId, archived]) => {
 		if (archived) await deps.dispose(s(sessionId));
-		await deps.store().setArchived(s(projectId), s(sessionId), Boolean(archived));
+		await deps.store().setArchived(s(sessionId), Boolean(archived));
 		return deps.store().listSessions();
 	},
 	/*
 	 * 换个项目归属，规矩和桌面那条一样（见 `ipc/sessions.ts` 的 `sessions:move`）：正在跑的拒绝，
-	 * 其余的先把活着的那个停掉再搬——它攥着旧的 cwd 和旧的 projectId，接着写只会写回旧目录，而
-	 * 文件已经不在那儿了。
+	 * 其余的先把活着的那个停掉再搬——它攥着旧的 cwd，接着跑会在旧目录里动手。
 	 *
 	 * 多一道桌面端没有的关：**目标只能是这台机器已经认识的目录**。
 	 *
@@ -257,7 +258,7 @@ export const RPC: Record<string, Handler> = {
 	 * 目录指到这台机器上的任何地方，下次有人接着聊，agent 就在那儿动手了。这条清单这一侧的界线
 	 * 写在文件开头：整理这个应用自己的数据可以，伸进这台机器不行。
 	 */
-	"sessions.move": async (deps, [projectId, sessionId, cwd, projectName]) => {
+	"sessions.move": async (deps, [sessionId, cwd, projectName]) => {
 		const id = s(sessionId);
 		const target = s(cwd);
 		/*
@@ -272,15 +273,14 @@ export const RPC: Record<string, Handler> = {
 		if (deps.live(id)?.running) return { ok: false, reason: "running" };
 		await deps.dispose(id);
 		try {
-			const meta = await deps.store().move(s(projectId), id, target, s(projectName));
+			const meta = await deps.store().move(id, target, s(projectName));
 			return meta ? { ok: true, meta } : { ok: false, reason: "gone" };
 		} catch (cause) {
 			return { ok: false, reason: "failed", message: cause instanceof Error ? cause.message : String(cause) };
 		}
 	},
-	"sessions.remove": async (deps, [projectId, sessionId]) => {
-		await deps.dispose(s(sessionId));
-		await deps.store().delete(s(projectId), s(sessionId));
+	"sessions.remove": async (deps, [sessionId]) => {
+		await deps.remove([s(sessionId)]);
 		return null;
 	},
 	// -- Things the renderer asks for and can live without ---------------------
@@ -343,16 +343,6 @@ export const RPC: Record<string, Handler> = {
 	},
 };
 
-/** The session for an id, starting it from disk if it is only stored. */
-async function live(deps: RpcDeps, sessionId: string) {
-	const existing = deps.live(sessionId);
-	if (existing) {
-		deps.touch(sessionId);
-		return deps.activate(existing.meta.projectId, sessionId);
-	}
-	const meta = (await deps.store().listSessions()).find((entry) => entry.id === sessionId);
-	return meta ? deps.activate(meta.projectId, sessionId) : null;
-}
 
 export interface RpcResult {
 	ok: boolean;
@@ -387,30 +377,30 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 	"git.scratchRoots": () => null,
 
 	"workspace.info": ([path_]) => fail(path(path_, "path")),
-	"sessions.fork": ([projectId, sessionId, seq]) => fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), index(seq, "seq"))),
+	"sessions.fork": ([sessionId, seq]) => fail(all(str(sessionId, "sessionId"), index(seq, "seq"))),
 	"sessions.create": ([cwd, modelId]) => fail(all(path(cwd, "cwd"), optionalStr(modelId, "modelId"))),
-	"sessions.open": ([projectId, sessionId]) => fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"))),
+	"sessions.open": ([sessionId]) => fail(str(sessionId, "sessionId")),
 	"sessions.running": ([sessionId]) => fail(str(sessionId, "sessionId")),
-	"sessions.transcript": ([projectId, sessionId]) =>
-		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"))),
-	"sessions.trajectory": ([projectId, sessionId]) =>
-		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"))),
-	"sessions.trajectoryChanges": ([projectId, sessionId, cursor]) =>
-		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), optionalStr(cursor, "cursor"))),
-	"sessions.remove": ([projectId, sessionId]) => fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"))),
+	"sessions.transcript": ([sessionId]) =>
+		fail(str(sessionId, "sessionId")),
+	"sessions.trajectory": ([sessionId]) =>
+		fail(str(sessionId, "sessionId")),
+	"sessions.trajectoryChanges": ([sessionId, cursor]) =>
+		fail(all(str(sessionId, "sessionId"), optionalStr(cursor, "cursor"))),
+	"sessions.remove": ([sessionId]) => fail(str(sessionId, "sessionId")),
 	"sessions.capabilities": ([sessionId]) => fail(str(sessionId, "sessionId")),
-	"sessions.setArchived": ([projectId, sessionId, archived]) =>
-		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), bool(archived, "archived"))),
-	"sessions.rename": ([projectId, sessionId, title]) =>
-		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), text(title, "title"))),
+	"sessions.setArchived": ([sessionId, archived]) =>
+		fail(all(str(sessionId, "sessionId"), bool(archived, "archived"))),
+	"sessions.rename": ([sessionId, title]) =>
+		fail(all(str(sessionId, "sessionId"), text(title, "title"))),
 	/*
 	 * `cwd` 走 `path` 而不是 `str`：它是一个会被当成目录用的字符串。
 	 *
 	 * 这一层只管形状，「是不是这台机器认识的目录」在 handler 里问——那句话需要 settings，而这张
 	 * 表只看得见参数。
 	 */
-	"sessions.move": ([projectId, sessionId, cwd, projectName]) =>
-		fail(all(str(projectId, "projectId"), str(sessionId, "sessionId"), path(cwd, "cwd"), text(projectName, "projectName"))),
+	"sessions.move": ([sessionId, cwd, projectName]) =>
+		fail(all(str(sessionId, "sessionId"), path(cwd, "cwd"), text(projectName, "projectName"))),
 	"sessions.compact": ([sessionId, instructions]) =>
 		fail(all(str(sessionId, "sessionId"), optionalStr(instructions, "instructions", 20_000))),
 	"sessions.contextBreakdown": ([sessionId]) => fail(str(sessionId, "sessionId")),

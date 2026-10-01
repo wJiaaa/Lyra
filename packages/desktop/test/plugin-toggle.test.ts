@@ -1,13 +1,10 @@
 /**
  * Switching a plugin on and off, which is not the set operation it looks like.
  *
- * Two things make it awkward, and both produce the same symptom when got wrong: a switch that
- * reports a change and produces none, with the plugin still off after a reload.
- *
- * The wildcard is the first. `disabledPlugins: ["*"]` means "none of them", and turning one back on
- * has to name what the wildcard stood for rather than just deleting an id that was never in the
- * list. The second is the old name: entries written by earlier versions hold the manifest's name
- * where they now hold the directory, and the loader reads both when deciding `enabled`.
+ * The wildcard makes it awkward, and getting it wrong produces a switch that reports a change and
+ * produces none, with the plugin still off after a reload. `disabledPlugins: ["*"]` means "none of
+ * them", and turning one back on has to name what the wildcard stood for rather than just deleting
+ * an id that was never in the list.
  */
 
 import assert from "node:assert/strict";
@@ -16,11 +13,11 @@ import type { Plugin, Settings } from "@plume/core";
 
 import { settingsAfterToggle } from "../src/features/plugins/toggle.ts";
 
-function plugin(id: string, name = id): Plugin {
+function plugin(id: string): Plugin {
 	return {
 		id,
 		dir: `/home/me/.plume/plugins/${id}`,
-		manifest: { name },
+		manifest: { name: id },
 		source: "user",
 		skills: [],
 		enabled: true,
@@ -60,17 +57,6 @@ test("switching one off under a wildcard leaves the wildcard alone", () => {
 	// the same thing at greater length, and would stop meaning "whatever is installed".
 	const next = settingsAfterToggle(settings(["*"]), WAZA, false, [WAZA, OTHER]);
 	assert.equal(next.disabledPlugins.includes("*"), true);
-});
-
-test("switching on also clears the name an older version wrote", () => {
-	/*
-	 * `agentic-note-taking` on disk calls itself `Agentic Note Taking` in its manifest, and older
-	 * builds wrote that string here. The loader still reads both, so clearing only the directory
-	 * leaves the plugin off — and the switch says it is on.
-	 */
-	const renamed = plugin("agentic-note-taking", "Agentic Note Taking");
-	const next = settingsAfterToggle(settings(["Agentic Note Taking"]), renamed, true, [renamed]);
-	assert.deepEqual(next.disabledPlugins, []);
 });
 
 test("the rest of the settings are carried through untouched", () => {

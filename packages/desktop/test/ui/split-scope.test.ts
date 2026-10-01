@@ -47,7 +47,7 @@ beforeEach(() => {
 		sessions: {
 			create: async () => { created.push("new"); return snapshot("n"); },
 			capabilities: async () => null,
-			transcript: async (_project: string, id: string) => snapshot(id),
+			transcript: async (id: string) => snapshot(id),
 			contextBreakdown: async () => null,
 		},
 		subAgents: { list: async () => [] },

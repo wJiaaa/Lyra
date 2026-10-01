@@ -14,16 +14,17 @@
  * `pnpm build`。
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { projectIdFor } from "@plume/core";
 import { startApp } from "./app.ts";
 import { frameGrabber } from "./record.ts";
+import { fixtureStore, seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 const PORT = 9643;
-/** 今天那场 recall 风暴的会话：904 条消息，足够把窗口撑满。 */
-const SOURCE = join(homedir(), ".plume/sessions/63ca3825cb82944e/aa5eb131-4b20-4e20-8036-6b39cfd77507.jsonl");
+/** 今天那场 recall 风暴的会话：904 条消息，足够把窗口撑满。在本机真实的会话库里。 */
+const SOURCE = join(homedir(), ".plume");
 const SESSION_ID = "aa5eb131-4b20-4e20-8036-6b39cfd77507";
 /** 侧边栏上那一行的字，用来找到它——选择器会随重构改名，标题不会。 */
 const TITLE = "添加文件后布局异常排查";
@@ -43,17 +44,23 @@ const app = await startApp({
 		 * 这个 profile 里不存在的项目下，侧边栏根本不列它。
 		 */
 		const projectId = projectIdFor(root);
-		await mkdir(join(home, "sessions", projectId), { recursive: true });
-		const lines = (await readFile(SOURCE, "utf8")).split("\n").filter(Boolean);
-		const rewritten = lines.map((line) => {
-			const record = JSON.parse(line);
-			if (record.type === "meta" && record.meta) {
-				record.meta.cwd = root;
-				record.meta.projectId = projectId;
+		const source = fixtureStore(SOURCE);
+		const records: FixtureRecord[] = [];
+		let meta;
+		try {
+			meta = await source.get(SESSION_ID);
+			for await (const record of source.read(SESSION_ID)) {
+				if (record.type === "meta" && record.meta) {
+					record.meta.cwd = root;
+					record.meta.projectId = projectId;
+				}
+				records.push(record);
 			}
-			return JSON.stringify(record);
-		});
-		await writeFile(join(home, "sessions", projectId, `${SESSION_ID}.jsonl`), `${rewritten.join("\n")}\n`);
+		} finally {
+			source.close();
+		}
+		if (!meta) throw new Error(`本机会话库里没有 ${SESSION_ID}`);
+		seedSessions(home, [{ meta: { ...meta, cwd: root, projectId }, records }]);
 
 		await writeFile(
 			join(home, "settings.json"),

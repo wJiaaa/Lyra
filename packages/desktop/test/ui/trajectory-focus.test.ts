@@ -23,8 +23,8 @@ function fixture(id: string) {
 	const app = useApp.getState(), dock = usePaneDock.getState(), file = useOpenFile.getState(), focus = useTraceFocus.getState();
 	Object.defineProperty(window, "plume", { configurable: true, value: {
 		sessions: {
-			trajectoryChanges: (_project: string, sessionId: string) => new Promise<TrajectoryChanges>(resolve => reads.push({ id: sessionId, resolve })),
-			exportTrajectory: (_project: string, _sessionId: string, format: string, entry?: { id: string }) => new Promise<string>((resolve, reject) => exports.push({ format, entry, resolve, reject })),
+			trajectoryChanges: (sessionId: string) => new Promise<TrajectoryChanges>(resolve => reads.push({ id: sessionId, resolve })),
+			exportTrajectory: (_sessionId: string, format: string, entry?: { id: string }) => new Promise<string>((resolve, reject) => exports.push({ format, entry, resolve, reject })),
 		},
 		agent: { onEvent: (listener: (payload: { sessionId: string; event: AgentEvent }) => void) => { listeners.add(listener); return () => listeners.delete(listener); } },
 	} });

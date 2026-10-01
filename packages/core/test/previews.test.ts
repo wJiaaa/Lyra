@@ -169,3 +169,18 @@ test("pruning covers scratch directories, not just previews", async (t) => {
 	await assert.rejects(stat(deadScratch));
 	assert.ok(await stat(liveScratch));
 });
+
+test("a session id that would climb out of its directory deletes nothing", async (t) => {
+	const home = await sandbox(t);
+	// `home` stands in for the app's directory; the id arrives over IPC and the web bridge.
+	const outside = join(home, "outside.txt");
+	await writeFile(outside, "the user's file");
+	const kept = await scratch(home, "kept");
+	for (const id of ["..", ".", "", "../outside.txt", "kept/..", "a\\..\\.."]) {
+		await assert.rejects(removeSessionArtifacts(join(home, "app"), id), /Invalid session id/);
+		await assert.rejects(removePreviews(join(home, "app"), id), /Invalid session id/);
+	}
+	await assert.rejects(removeSessionArtifacts(home, ".."), /Invalid session id/);
+	assert.equal(await readFile(outside, "utf8"), "the user's file");
+	assert.ok(await stat(kept));
+});

@@ -24,9 +24,8 @@ import { agentProfile, resolveModelRef } from "../config/model-roles.ts";
 import { resolveModel } from "../config/settings.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import { streamAssistant as realStream } from "../ai/index.ts";
-import { plumeHome, projectIdFor } from "../session/store.ts";
+import { projectIdFor } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
-import { recordLedgerUsage } from "../session/usage-ledger.ts";
 import type { ModelConfig, ProviderConfig } from "../types.ts";
 import { extractMemory, findCandidates, type ExtractionResult } from "./memory-extract.ts";
 import { projectMemoryDir } from "./project-memory.ts";
@@ -113,12 +112,7 @@ export async function runMemoryPass(options: PassOptions): Promise<ExtractionRes
 	if (!resolved) return { memory: "", sessions: 0, skipped: "no-model" };
 
 	const projectId = projectIdFor(options.cwd);
-	const candidates = await findCandidates(
-		join(plumeHome(), "sessions"),
-		projectId,
-		(id) => options.storage.messages(projectId, id),
-		now,
-	);
+	const candidates = await findCandidates(options.storage, projectId, now);
 
 	await markPass(options.cwd, now);
 	if (candidates.length === 0) return { memory: "", sessions: 0, skipped: "没有符合条件的会话" };
@@ -132,6 +126,6 @@ export async function runMemoryPass(options: PassOptions): Promise<ExtractionRes
 		signal: options.signal,
 		// A ledger that cannot be written must not cost the memory the reply just paid for.
 		spent: (usage) =>
-			recordLedgerUsage({ source: "memory-extract", providerId: resolved.provider.id, modelId: resolved.model.modelId, usage }).catch(() => {}),
+			options.storage.recordUsage({ source: "memory-extract", providerId: resolved.provider.id, modelId: resolved.model.modelId, usage }).catch(() => {}),
 	});
 }

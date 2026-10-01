@@ -1,11 +1,12 @@
-/** Real Electron regression checks with isolated settings and synthetic session usage logs. */
+/** Real Electron regression checks with isolated settings and synthetic usage records. */
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
-import { DEFAULT_SETTINGS, type ModelConfig, type Settings } from "@plume/core";
+import { DEFAULT_SETTINGS, type ModelConfig, type Settings, type Usage } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
 import { named } from "./named.ts";
+import { fixtureStore } from "./session-fixture.ts";
 
 let app: RunningApp;
 const shots = "/tmp/plume-model-defaults-e2e";
@@ -17,7 +18,6 @@ const legacy = (modelId: string): ModelConfig => ({
 before(async () => {
 	app = await startApp({ port: 9648, seed: async (home) => {
 		await mkdir(join(home, "project"), { recursive: true });
-		await mkdir(join(home, "sessions", "fixture"), { recursive: true });
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 1100, x: 0, y: 0 }));
 		const settings: Settings = {
 			...DEFAULT_SETTINGS, uiLocale: "zh-CN", disabledPlugins: ["*"],
@@ -28,10 +28,10 @@ before(async () => {
 			projects: [{ id: "project", name: "目录验证", path: join(home, "project"), pinned: true, lastOpenedAt: 1 }],
 		};
 		await writeFile(join(home, "settings.json"), JSON.stringify(settings));
-		const timestamp = Date.now();
-		const message = { role: "assistant", timestamp, provider: "relay", model: "gpt-5.2-high", api: "openai-responses", content: [{ type: "text", text: "Synthetic usage fixture" }], stopReason: "stop",
-			usage: { input: 1000000, output: 0, cacheRead: 1000000, cacheWrite: 0, total: 2000000, cost: { total: 0 } } };
-		await writeFile(join(home, "sessions", "fixture", "history.jsonl"), `${JSON.stringify({ seq: 1, ts: timestamp, type: "message", message })}\n`);
+		const store = fixtureStore(home);
+		await store.recordUsage({ source: "reply", providerId: "relay", modelId: "gpt-5.2-high",
+			usage: { input: 1000000, output: 0, cacheRead: 1000000, cacheWrite: 0, total: 2000000, cost: { total: 0 } } as Usage });
+		store.close();
 	} });
 });
 after(async () => { await app?.stop(); });
@@ -87,8 +87,7 @@ async function editor(modelId: string) {
 const readFields = `(()=>{const modal=document.querySelector('[data-ly-modal]');const read=t=>[...modal.querySelectorAll('label')].find(e=>e.textContent.startsWith(t)).querySelector('input').value;return {id:read('模型 ID'),context:read('上下文窗口'),output:read('最大输出'),input:read('输入价格'),priceOut:read('输出价格'),cache:read('缓存命中价格'),toggles:[...modal.querySelectorAll('[role="switch"]')].map(e=>e.getAttribute('aria-checked')),text:modal.innerText};})()`;
 
 /*
- * 从前是五个。`RENAMED_AGENTS` 那次把 `fast`/`deep` 换名成 `simple`/`reason` 并列进内置名单，
- * 现在是七个，见 `core/src/agents-builtin.ts`；加上「会话」那一段里的 `compact`，页面上一共八行。
+ * 内置智能体七个，见 `core/src/agents-builtin.ts`；加上「会话」那一段里的 `compact`，页面上一共八行。
  */
 test("all built-in agents can be configured before any session is created", async (t) => {
 	await click(".ly-sidebar-foot button");

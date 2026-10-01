@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { DEFAULT_SETTINGS, type AssistantMessage, type SessionMeta, type Settings } from "@plume/core";
+import { DEFAULT_SETTINGS, type AssistantMessage, type Message, type SessionMeta, type Settings, type UserMessage } from "@plume/core";
 import { useApp } from "../../src/store/index.ts";
 import { applyAgentEvent } from "../../src/store/apply-event.ts";
 import { flushCoalesced } from "../../src/store/coalesce.ts";
@@ -67,7 +67,7 @@ function reply(text: string): AssistantMessage {
 beforeEach(() => {
 	abandonSessionReveal();
 	flushCoalesced();
-	readTranscript = async (_projectId, id) => snapshot(id);
+	readTranscript = async (id) => snapshot(id);
 	capabilityReads = [];
 	rosterReads = [];
 	useApp.setState({
@@ -99,7 +99,7 @@ beforeEach(() => {
 		configurable: true,
 		value: {
 			sessions: {
-				transcript: (projectId: string, id: string) => readTranscript(projectId, id),
+				transcript: (id: string) => readTranscript(id),
 				capabilities: async (id: string) => { capabilityReads.push(id); return null; },
 			},
 			subAgents: { list: async (id: string) => { rosterReads.push(id); return []; } },
@@ -146,7 +146,7 @@ test("selecting a conversation clears its manual unread mark, including the one 
 
 test("clicking the loaded conversation from another page reveals it without reloading or replacing its state", async () => {
 	const reads: string[] = [];
-	readTranscript = async (_projectId, id) => { reads.push(id); return snapshot(id); };
+	readTranscript = async (id) => { reads.push(id); return snapshot(id); };
 	useApp.setState({ running: true, drafts: { a: { text: "unsent draft", attachments: [] } } });
 	const original = useApp.getState();
 	for (const view of ["plugins", "pull-requests", "scheduled", "settings"] as const) {
@@ -179,7 +179,7 @@ test("a single sidebar click hydrates in the same turn", async () => {
 
 test("a burst of sidebar clicks keeps the last row and skips intermediate disk reads", async () => {
 	const reads: string[] = [];
-	readTranscript = async (_projectId, id) => {
+	readTranscript = async (id) => {
 		reads.push(id);
 		return snapshot(id);
 	};
@@ -208,7 +208,7 @@ test("a burst of sidebar clicks keeps the last row and skips intermediate disk r
 test("an in-flight cold read does not paint if a newer row is pending", async () => {
 	const first = deferredRead();
 	const second = deferredRead();
-	readTranscript = (_projectId, id) => (id === "b" ? first.promise : second.promise);
+	readTranscript = (id) => (id === "b" ? first.promise : second.promise);
 	revealSession(meta("b"));
 	await afterPaint();
 	assert.equal(useApp.getState().activeSessionId, "b");
@@ -230,7 +230,7 @@ test("an in-flight cold read does not paint if a newer row is pending", async ()
 
 test("a clean cache hit does not read the transcript again", async () => {
 	const reads: string[] = [];
-	readTranscript = async (_projectId, id) => {
+	readTranscript = async (id) => {
 		reads.push(id);
 		return snapshot(id);
 	};
@@ -245,7 +245,7 @@ test("a clean cache hit does not read the transcript again", async () => {
 
 test("a dirty cache still refreshes from disk", async () => {
 	const reads: string[] = [];
-	readTranscript = async (_projectId, id) => {
+	readTranscript = async (id) => {
 		reads.push(id);
 		return snapshot(id);
 	};
@@ -331,10 +331,52 @@ test("a warm refresh cannot roll back live events received while reading", async
 	assert.deepEqual(useApp.getState().messages[0].content, latest.content);
 });
 
+/*
+ * 「现在就发」 waits in the session's steering queue until the loop takes it at the next request, so
+ * the main process's transcript does not have it yet — nor the reply still streaming. Switching back
+ * used to replace the screen with that transcript: the message was gone, the reply with it, and the
+ * turn looked like it would never answer.
+ */
+function steeredTurn() {
+	const asked: UserMessage = { role: "user", content: [{ type: "text", text: "first" }], timestamp: 20 };
+	const streaming: AssistantMessage = { ...reply("streaming"), stopReason: "pending", timestamp: 30 };
+	const steered: UserMessage = { role: "user", content: [{ type: "text", text: "sent now" }], timestamp: 40 };
+	useApp.setState({ messages: [asked, streaming, steered], running: true, pendingUserMessage: { sessionId: "a", message: steered } });
+	return { asked, streaming, steered };
+}
+
+/** What the main process answers while that turn is still going: committed messages only. */
+function running(messages: Message[]): Snapshot {
+	return { meta: meta("a"), messages, running: true, pendingApprovals: [], compactions: [] };
+}
+
+test("switching back to a running turn keeps the streaming reply and the message sent into it", async () => {
+	const { asked, streaming, steered } = steeredTurn();
+	await useApp.getState().openSession(meta("b"));
+	readTranscript = async () => running([asked]);
+	await useApp.getState().openSession(meta("a"));
+	assert.deepEqual(useApp.getState().messages, [asked, streaming, steered]);
+
+	// The loop takes it: the committed copy replaces the one on screen instead of joining it.
+	const taken: UserMessage = { ...steered, timestamp: 50 };
+	applyAgentEvent("a", { type: "message_start", message: taken }, useApp.setState, useApp.getState);
+	flushCoalesced();
+	assert.deepEqual(useApp.getState().messages.map((message) => message.timestamp), [20, 30, 50]);
+});
+
+test("a snapshot that has already taken the message sent into the turn does not show it twice", async () => {
+	const { asked, streaming, steered } = steeredTurn();
+	await useApp.getState().openSession(meta("b"));
+	const finished: AssistantMessage = { ...streaming, stopReason: "toolUse" };
+	readTranscript = async () => running([asked, finished, { ...steered, timestamp: 50 }]);
+	await useApp.getState().openSession(meta("a"));
+	assert.deepEqual(useApp.getState().messages.map((message) => message.timestamp), [20, 30, 50]);
+});
+
 test("draining queued reads does not reset a warm selection a second time", async () => {
 	const first = deferredRead();
 	const next = deferredRead();
-	readTranscript = (_projectId, id) => (id === "b" ? first.promise : next.promise);
+	readTranscript = (id) => (id === "b" ? first.promise : next.promise);
 	const loading = useApp.getState().openSession(meta("b"));
 	await useApp.getState().openSession(meta("a"));
 	useApp.setState({ stopped: "error" });

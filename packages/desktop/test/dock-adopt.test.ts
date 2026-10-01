@@ -10,16 +10,12 @@
  *   — Clicking an existing conversation from a blank one *also* takes the screen from `@draft` to an
  *     id. There, carrying the draft's panes across is exactly the loss per-conversation layouts exist
  *     to prevent. The caller says which it is (`draftFrom`), so nothing here has to guess.
- *
- * And one thing that only happens once per installation: panels used to have two homes — a window
- * layer across every screen (`dw:dock:<id>`) and each screen's own (`dw:panedock:<id>`). They are
- * one now, and whatever either held for a conversation comes back.
  */
 
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { flushTree, legacyStorageKey, paneStorageKey, serialize } from "../src/features/dock/persist.ts";
+import { flushTree, paneStorageKey, serialize } from "../src/features/dock/persist.ts";
 import { has, kinds, leafOf, type DockNode, type PaneKind } from "../src/features/dock/tree.ts";
 
 const ALLOWED: PaneKind[] = ["conversation", "chat", "files", "terminal", "review", "browser", "tasks"];
@@ -147,30 +143,4 @@ test("a stored layout naming a panel that no longer exists still loads, minus th
 	usePaneDock.getState().hydrate("s-1", ALLOWED);
 
 	assert.deepEqual(kinds(tree("s-1")).sort(), ["conversation", "review"]);
-});
-
-test("a layout from the old window layer comes back inside the conversation's own screen", () => {
-	// A single screen with a task panel beside it, from before panels had one home.
-	store(legacyStorageKey("s-1"), withPanel("tasks"));
-	saved.set("dw:dock:at", "s-1");
-
-	usePaneDock.getState().hydrate("s-1", ALLOWED);
-
-	assert.ok(has(tree("s-1"), "tasks"), "the task panel belongs to this conversation and comes back with it");
-	flushTree();
-	assert.ok(saved.get(paneStorageKey("s-1"))?.includes("tasks"), "written to the one key there is now");
-	assert.equal(saved.has(legacyStorageKey("s-1")), false, "and the old key is gone, so it is not merged twice");
-	assert.equal(saved.has("dw:dock:at"), false, "the old layer's bookmark means nothing any more");
-});
-
-test("both old homes of one conversation are merged, nothing dropped", () => {
-	// Task panel opened on a single screen; browser opened in that conversation's screen during a split.
-	store(legacyStorageKey("s-1"), withPanel("tasks"));
-	store(paneStorageKey("s-1"), withPanel("browser"));
-
-	usePaneDock.getState().hydrate("s-1", ALLOWED);
-
-	assert.deepEqual(kinds(tree("s-1")).sort(), ["browser", "conversation", "tasks"]);
-	const top = tree("s-1");
-	assert.ok(top.type === "split" && top.dir === "row", "the full-size arrangement is the base");
 });

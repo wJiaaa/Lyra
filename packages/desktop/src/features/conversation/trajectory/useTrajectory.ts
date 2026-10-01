@@ -13,15 +13,15 @@ const durable = new Set(["command_status", "compacted", "message_end", "tool_sta
 export function useTrajectory() {
 	// The trajectory of the conversation whose screen asks, not of whichever one has the focus.
 	const meta = useScopedMeta();
-	const sessionId = meta?.id, projectId = meta?.projectId;
-	const key = `${projectId}:${sessionId}`;
+	const sessionId = meta?.id;
+	const key = sessionId ?? "";
 	const [value, setValue] = useState<{ key: string; entries: Entry[] } | null>(null);
 	const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
 	const [readingKey, setReadingKey] = useState<string | null>(null);
 	const [revision, setRevision] = useState(0);
 	const refresh = useCallback(() => setRevision(value => value + 1), []);
 	useEffect(() => {
-		if (!sessionId || !projectId) return;
+		if (!sessionId) return;
 		let live = true, reading = false, dirty = false;
 		let snapshot = cache.get(key);
 		const read = async () => {
@@ -32,7 +32,7 @@ export function useTrajectory() {
 			try {
 				do {
 					dirty = false;
-					const changes = await bridge.sessions.trajectoryChanges(projectId, sessionId, snapshot?.cursor);
+					const changes = await bridge.sessions.trajectoryChanges(sessionId, snapshot?.cursor);
 					if (!live) return;
 					const entries = applyTrajectoryChanges(snapshot?.entries ?? [], changes);
 					snapshot = { cursor: changes.cursor, entries };
@@ -57,7 +57,7 @@ export function useTrajectory() {
 			window.removeEventListener("focus", onForeground);
 			document.removeEventListener("visibilitychange", onForeground);
 		};
-	}, [projectId, sessionId, key, revision]);
+	}, [sessionId, key, revision]);
 	const all = value?.key === key ? value.entries : cache.get(key)?.entries;
 	return { all: all ?? [], loading: Boolean(sessionId && !all && failure?.key !== key), refreshing: readingKey === key, error: failure?.key === key ? failure.message : "", refresh };
 }

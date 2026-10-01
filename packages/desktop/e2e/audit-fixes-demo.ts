@@ -20,6 +20,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume审计整改测试");
 const PORT = 9463;
@@ -33,43 +34,34 @@ async function seed(home: string): Promise<void> {
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 940, x: 0, y: 0 }));
 
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	const dir = join(home, "sessions", projectId);
-	await mkdir(dir, { recursive: true });
 
-	// 序号从 1 起，meta 占掉第一个——`seq: 0` 的 meta 会被 `record.seq > sinceSeq` 读掉，会话连
-	// 列表都进不去。
 	const at = Date.now() - 600_000;
-	const record = (seq: number, role: string, text: string) =>
-		JSON.stringify({
-			seq,
-			ts: at + seq * 1000,
-			type: "message",
-			message: { role, content: [{ type: "text", text }], timestamp: at + seq * 1000 },
-		});
+	const record = (seq: number, role: string, text: string) => ({
+		seq,
+		ts: at + seq * 1000,
+		type: "message",
+		message: { role, content: [{ type: "text", text }], timestamp: at + seq * 1000 },
+	});
 
-	const lines = [
-		JSON.stringify({
-			seq: 1,
-			ts: at,
-			type: "meta",
-			meta: {
-				id: SESSION_ID,
-				title: "审计整改演示",
-				cwd,
-				projectId,
-				projectName: "proj",
-				createdAt: at,
-				updatedAt: at,
-				modelId: null,
-				messageCount: 2,
-				usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: 0 },
-				seq: 0,
-			},
-		}),
+	const meta = {
+		id: SESSION_ID,
+		title: "审计整改演示",
+		cwd,
+		projectId,
+		projectName: "proj",
+		createdAt: at,
+		updatedAt: at,
+		modelId: null,
+		messageCount: 2,
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: 0 },
+		seq: 0,
+	};
+	const records = [
+		{ seq: 1, ts: at, type: "meta", meta },
 		record(2, "user", "这一轮改了哪些东西？"),
 		record(3, "assistant", "工具清单归一、命令分类器加固、沙箱多了一条网络轴。"),
 	];
-	await writeFile(join(dir, `${SESSION_ID}.jsonl`), `${lines.join("\n")}\n`);
+	seedSessions(home, [{ meta, records }]);
 
 	await writeFile(
 		join(home, "settings.json"),

@@ -135,11 +135,11 @@ test("改全局设置不会把项目层默默清掉", async () => {
 	const cwd = await project("sticky", { defaultModelId: "project/cheap" });
 	const { session } = await sessionIn(cwd);
 
-	session.updateSettings({ ...GLOBAL, retryAttempts: 9 });
+	session.updateSettings({ ...GLOBAL, autoSummarizeTitle: false });
 	// `updateSettings` 是同步的，项目层在它之后自己叠回来。
 	await new Promise((resolve) => setTimeout(resolve, 50));
 
 	const used = (session as unknown as { settings: Settings }).settings;
 	assert.equal(used.defaultModelId, "project/cheap", "项目的模型还在");
-	assert.equal(used.retryAttempts, 9, "全局的新值也进来了");
+	assert.equal(used.autoSummarizeTitle, false, "全局的新值也进来了");
 });

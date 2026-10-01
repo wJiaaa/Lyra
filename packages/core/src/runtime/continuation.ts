@@ -8,7 +8,7 @@
  *
  * What used to happen in both cases was that the run stopped and waited for someone to press
  * "continue", which is exactly the human intervention an unattended run exists to avoid. The
- * connection case was worse than the cap: `retryAttempts` covers the request, so once those are
+ * connection case was worse than the cap: `retryPolicy` covers the request, so once those are
  * spent the turn is over — and the work it had done, being already in the transcript, was thrown
  * away not because it was lost but because nobody asked for it back.
  *

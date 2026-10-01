@@ -276,19 +276,7 @@ async function scanBundle(pluginDir: string, name: string, source: Plugin["sourc
 		// Tag skills so the UI can show which plugin brought them in — and so a skill written for Claude
 		// Code can find its bundle's files through `${CLAUDE_PLUGIN_ROOT}`; see `expandSkillPaths`.
 		skills: read.skills.map((skill) => ({ ...skill, pluginId: id, pluginRoot: resolve(pluginDir) })),
-		/*
-		 * Both names, because this list was written by earlier versions.
-		 *
-		 * `disabledPlugins` holds whatever `id` meant when the user switched something off, and
-		 * until this file changed that was the manifest's name. Reading only the directory
-		 * would quietly re-enable every renamed bundle anybody had disabled — and a migration
-		 * that turns things *on* is the one direction that cannot be undone by noticing.
-		 *
-		 * Costs a comparison and never expires: a bundle disabled under either name stays that
-		 * way, and new entries are written under the directory like everything else now is.
-		 */
-		enabled:
-			!disabled.includes("*") && !disabled.includes(id) && !(!!manifest.name && disabled.includes(manifest.name)),
+		enabled: !disabled.includes("*") && !disabled.includes(id),
 	});
 }
 

@@ -14,6 +14,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 let app: RunningApp;
 
@@ -30,26 +31,24 @@ async function seed(home: string): Promise<void> {
 
 	// 一段够长的对话，好让文稿区真的能滚起来——不能滚就没有「跟随」可言。
 	const projectId = createHash("sha256").update(root).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	const meta = {
 		id: "follow", title: "跟随", cwd: root, projectId, projectName: "p",
 		createdAt: 1, updatedAt: 2, modelId: "none", messageCount: 40,
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 		seq: 41,
 	};
-	const lines = [JSON.stringify({ seq: 1, ts: 1, type: "meta", meta })];
+	const records: FixtureRecord[] = [{ seq: 1, ts: 1, type: "meta", meta }];
 	for (let i = 0; i < 40; i += 1) {
-		lines.push(JSON.stringify({
+		records.push({
 			seq: i + 2, ts: i + 2, type: "message",
 			message: {
 				role: i % 2 === 0 ? "user" : "assistant",
 				content: [{ type: "text", text: `第 ${i} 段。` + "内容".repeat(40) }],
 				timestamp: i + 2,
 			},
-		}));
+		});
 	}
-	await writeFile(join(home, "sessions", projectId, "follow.jsonl"), `${lines.join("\n")}\n`);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta], null, 2));
+	seedSessions(home, [{ meta, records }]);
 }
 
 before(async () => {

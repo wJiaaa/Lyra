@@ -47,7 +47,7 @@ const store = {
 function session(emit: (event: AgentEvent) => void) {
 	return new AgentSession({
 		cwd: "/tmp",
-		settings: { permissionMode: "ask", alwaysAllow: [], thinking: "off", retryAttempts: 0 } as never,
+		settings: { permissionMode: "ask", alwaysAllow: [], thinking: "off" } as never,
 		store,
 		meta: META,
 		emit: async (event) => emit(event),

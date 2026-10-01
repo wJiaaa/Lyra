@@ -14,7 +14,7 @@ const model: ModelConfig = { id: "main/model", providerId: "main", modelId: "mod
 const summarizer: ModelConfig = { ...model, id: "summary/summarizer", providerId: "summary", modelId: "summarizer", name: "Summary", contextWindow: 8000 };
 const provider: ProviderConfig = { id: "main", name: "Main", api: "openai-responses", apiKey: "test", baseUrl: "http://localhost", enabled: true, models: [model] };
 const summaryProvider: ProviderConfig = { ...provider, id: "summary", name: "Summary", models: [summarizer] };
-const settings = { ...DEFAULT_SETTINGS, providers: [provider, summaryProvider], defaultModelId: model.id, modelRoles: { compact: summarizer.id } };
+const settings = { ...DEFAULT_SETTINGS, providers: [provider, summaryProvider], defaultModelId: model.id, subAgentProfiles: { compact: { modelId: summarizer.id } } };
 const question = (text: string): Message => ({ role: "user", content: [{ type: "text", text }], timestamp: 1 });
 function reply(text: string): AssistantMessage {
 	return { role: "assistant", content: [{ type: "text", text }], api: provider.api, provider: provider.id, model: model.modelId, stopReason: "stop", usage: emptyUsage(), timestamp: 2 };

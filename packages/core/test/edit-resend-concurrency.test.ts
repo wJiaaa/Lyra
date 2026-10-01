@@ -50,7 +50,7 @@ test("editing waits for prompt acceptance before truncating and running the repl
 		assert.match(seen[0], /Replacement question/);
 		assert.doesNotMatch(seen[0], /Original question/);
 		assert.equal(session.running, false);
-		const loaded = await store.load(session.meta.projectId, session.meta.id);
+		const loaded = await store.load(session.meta.id);
 		assert.deepEqual(loaded?.messages, session.messages);
 	} finally {
 		await session.dispose();

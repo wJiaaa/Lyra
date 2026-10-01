@@ -155,14 +155,14 @@ test("mid-session changes arrive as one logged update; the head keeps its bytes 
 		const prompt = f.last().messages[at - 1];
 		assert.ok(prompt.role === "user" && !prompt.synthetic && JSON.stringify(prompt.content).includes("two"), "the update follows the prompt it arrived with");
 		assert.ok(updates(session.log.messages).includes(update), "the update is in the transcript");
-		const loaded = await f.store.load(session.meta.projectId, session.meta.id);
+		const loaded = await f.store.load(session.meta.id);
 		assert.equal(updates(loaded!.messages).length, 1, "and in the log on disk");
 
 		await session.prompt([{ type: "text", text: "three" }]);
 		assert.equal(f.last().systemPrompt, head);
 		assert.equal(updates(f.last().messages).length, 1, "an update is sent once, not every turn");
 
-		const reopened = await f.open(await f.store.load(session.meta.projectId, session.meta.id));
+		const reopened = await f.open(await f.store.load(session.meta.id));
 		await reopened.prompt([{ type: "text", text: "four" }]);
 		assert.equal(f.last().systemPrompt, head, "restart rebuilds the same bytes from the log");
 		assert.equal(updates(reopened.log.messages).length, 1, "and does not repeat the update");
@@ -176,7 +176,7 @@ test("mid-session changes arrive as one logged update; the head keeps its bytes 
 		assert.match(refreshed, /最多 1 个子代理同时跑/);
 		assert.equal(updates(reopened.log.messages).length, 1, "the refreshed head already says it; nothing new is appended");
 
-		const again = await f.open(await f.store.load(session.meta.projectId, session.meta.id));
+		const again = await f.open(await f.store.load(session.meta.id));
 		await again.prompt([{ type: "text", text: "six" }]);
 		assert.equal(f.last().systemPrompt, refreshed, "after restart the post-compaction head is the frozen one");
 	} finally {

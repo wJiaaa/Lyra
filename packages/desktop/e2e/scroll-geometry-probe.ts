@@ -10,11 +10,11 @@
  * 只跑不断言：改之前跑一遍当基线，改之后再跑一遍对照。
  */
 
-import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { fixtureStore, seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 const OUT = process.env.PLUME_E2E_ARTIFACTS ?? join(process.cwd(), "test-results", "scroll-geometry");
 const RUNS = 300;
@@ -30,18 +30,19 @@ async function main() {
 			const settings = JSON.parse(await readFile(path, "utf8"));
 			await writeFile(path, JSON.stringify({ ...settings, permissionMode: "full", projectMemory: false, thinking: "off" }));
 			// 往 qa-short 里塞够多的工具调用，任务面板才滚得起来。
-			const projectId = createHash("sha256").update(join(home, "project")).digest("hex").slice(0, 16);
-			const log = join(home, "sessions", projectId, "qa-short.jsonl");
-			const lines = (await readFile(log, "utf8")).trim().split("\n");
+			const store = fixtureStore(home);
+			const meta = (await store.get("qa-short"))!;
+			const records: FixtureRecord[] = [];
+			for await (const record of store.read("qa-short")) records.push(record);
+			store.close();
 			const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
-			let seq = lines.length;
-			const extra: string[] = [];
+			const extra: FixtureRecord[] = [];
 			for (let i = 0; i < RUNS; i++) {
 				const id = `probe-run-${i}`;
-				extra.push(JSON.stringify({ type: "message", seq: seq++, ts: 1, message: { role: "assistant", content: [{ type: "toolCall", id, name: "bash", arguments: { command: `echo 第 ${i} 条执行记录，命令写长一点好看出右边界` } }], api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason: "toolUse", timestamp: 1000 + i * 2 } }));
-				extra.push(JSON.stringify({ type: "message", seq: seq++, ts: 1, message: { role: "toolResult", toolCallId: id, toolName: "bash", content: [{ type: "text", text: `第 ${i} 条的输出` }], isError: false, timestamp: 1001 + i * 2 } }));
+				extra.push({ type: "message", ts: 1, message: { role: "assistant", content: [{ type: "toolCall", id, name: "bash", arguments: { command: `echo 第 ${i} 条执行记录，命令写长一点好看出右边界` } }], api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason: "toolUse", timestamp: 1000 + i * 2 } });
+				extra.push({ type: "message", ts: 1, message: { role: "toolResult", toolCallId: id, toolName: "bash", content: [{ type: "text", text: `第 ${i} 条的输出` }], isError: false, timestamp: 1001 + i * 2 } });
 			}
-			await writeFile(log, [...lines, ...extra].join("\n") + "\n");
+			seedSessions(home, [{ meta, records: [...records, ...extra] }]);
 		},
 	});
 	await mkdir(OUT, { recursive: true });

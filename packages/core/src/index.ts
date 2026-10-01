@@ -48,7 +48,9 @@ export { duckDuckGoProvider, DUCKDUCKGO_PROVIDER_ID } from "./search/duckduckgo.
 export { instantAnswerProvider, INSTANT_PROVIDER_ID } from "./search/instant.ts";
 export { keyedSearchProvider, BRAVE_PROVIDER_ID, EXA_PROVIDER_ID, TAVILY_PROVIDER_ID } from "./search/keyed.ts";
 export { approvalPolicy, useApprovalPolicy } from "./runtime/approval-policy.ts";
-export type { SessionStorage } from "./session/storage.ts";
+export type { ActiveDay, SessionStorage } from "./session/storage.ts";
+export { SessionDbUnavailable } from "./session/db.ts";
+export type { SpendCall, SpendRow } from "./session/spend.ts";
 export {
 	countBySource,
 	filterTrajectory,
@@ -68,7 +70,6 @@ export {
 } from "./trajectory/index.ts";
 export { nextTask, useScheduler } from "./runtime/scheduling.ts";
 export { isDue, nextRunAt } from "./config/schedule.ts";
-export { migratePreviousHome, type MigrationResult } from "./session/migrate-home.ts";
 export { prepareTurn, useTurnPipeline, type TurnContext, type TurnMiddleware } from "./runtime/turn.ts";
 export { registeredSkills, useSkillRegistry } from "./skills/registry.ts";
 export { backgroundJobs, type BackgroundJob } from "./tools/background-jobs.ts";
@@ -88,7 +89,6 @@ export {
 	DEFAULT_SCREENSHOT_SETTINGS,
 	DEFAULT_SETTINGS,
 	loadSettings,
-	migrateSecrets,
 	rememberProviderNames,
 	resolveModel,
 	saveSettings,
@@ -348,7 +348,6 @@ export {
 	THINKING_LEVELS,
 } from "./ai/thinking-options.ts";
 export { lastPassAt, PASS_INTERVAL_MS, runMemoryPass, shouldRunPass } from "./runtime/memory-pass.ts";
-export { usageLedgerPath } from "./session/usage-ledger.ts";
 export {
 	MODEL_ROLES,
 	ROLE_DESCRIPTIONS,

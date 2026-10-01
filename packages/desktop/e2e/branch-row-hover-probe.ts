@@ -23,6 +23,7 @@ import { promisify } from "node:util";
 import { startApp } from "./app.ts";
 import { install, type Frame, type Point, type Read } from "./branch-row-gauge.ts";
 import { frameGrabber } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const dir = process.argv[2] ?? "/tmp/plume-branch-row-hover";
 const port = Number(process.argv[3] ?? 9823);
@@ -63,11 +64,8 @@ async function seed(home: string): Promise<void> {
 		{ role: "assistant", content: [{ type: "text", text: "答" }], api: "anthropic-messages", provider: "test", model: "test", usage, stopReason: "stop", timestamp: 2 },
 	];
 	const meta = { id: SESSION, title: "分支行悬停", cwd: repo, projectId: id, projectName: "branch-hover", createdAt: 1_700_000_000_000, updatedAt: 1_700_000_000_000, modelId: "test", messageCount: 2, usage, seq: 3 };
-	await mkdir(join(home, "sessions", id), { recursive: true });
-	// The outer seq starts at 1: a meta written at 0 is read away and the session never reaches the sidebar.
-	const lines = [{ seq: 1, ts: 1, type: "meta", meta: { ...meta, seq: 0 } }, ...messages.map((message, i) => ({ seq: i + 2, ts: i + 2, type: "message", message })), { seq: 4, ts: 3, type: "meta", meta }];
-	await writeFile(join(home, "sessions", id, `${SESSION}.jsonl`), lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta]));
+	const records = [{ seq: 1, ts: 1, type: "meta", meta: { ...meta, seq: 0 } }, ...messages.map((message, i) => ({ seq: i + 2, ts: i + 2, type: "message", message })), { seq: 4, ts: 3, type: "meta", meta }];
+	seedSessions(home, [{ meta, records }]);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1200, height: 800, x: 40, y: 40 }));
 	await writeFile(join(home, "settings.json"), JSON.stringify({ projects: [{ id, name: "branch-hover", path: repo, pinned: false, lastOpenedAt: 1 }], appearance: { theme: "light" } }));
 }

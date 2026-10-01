@@ -93,8 +93,8 @@ async function session(id: SessionId) {
 }
 async function snapshot(id: SessionId) {
 	const result = await app.evaluate<SessionSnapshot | null>(id === "qa-long"
-		? "(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-long');return window.plume.sessions.transcript(s.projectId,s.id);})()"
-		: "(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-short');return window.plume.sessions.transcript(s.projectId,s.id);})()");
+		? "(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-long');return window.plume.sessions.transcript(s.id);})()"
+		: "(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-short');return window.plume.sessions.transcript(s.id);})()");
 	assert.ok(result); return result;
 }
 async function shot(name: string) {

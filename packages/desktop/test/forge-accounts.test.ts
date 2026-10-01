@@ -16,7 +16,7 @@ function account(over: Partial<ForgeAccount> = {}): ForgeAccount {
 	return {
 		id: "a1",
 		kind: "github",
-		label: "kittors · github.com",
+		label: "kittors",
 		baseUrl: "https://github.com",
 		login: "kittors",
 		avatarUrl: null,
@@ -130,22 +130,4 @@ test("名字只管名字，主机归徽章和第二行管", () => {
 	// 登录名拿不到时退到显示名，两个都没有才退到那个词——这一段没变。
 	assert.equal(defaultLabel({ login: "  ", name: "K", avatarUrl: null }), "K");
 	assert.equal(hostOf("https://git.corp.example:8443/x"), "git.corp.example:8443");
-});
-
-test("已经存成旧格式的名字，读进来就换成新的", () => {
-	// 改默认值只管以后新加的账号，磁盘上那些 `kittors · github.com` 要靠读取时认一次。
-	const migrated = parseAccounts([account({ login: "kittors", label: "kittors · github.com" })]);
-	assert.equal(migrated[0].label, "kittors");
-});
-
-test("自己取的名字不动，哪怕它长得像旧格式", () => {
-	/*
-	 * 判的是「等于旧的自动值」而不是「含有 ` · `」。改过名的人是有意要那个名字的，按形状收走它
-	 * 就是把一个偏好当成垃圾清理掉——而这种清理没有撤销。
-	 */
-	const named = parseAccounts([account({ login: "kittors", label: "公司 · 前端" })]);
-	assert.equal(named[0].label, "公司 · 前端");
-	// 同一个登录名配另一台主机，也不是这个账号的旧自动值。
-	const other = parseAccounts([account({ login: "kittors", label: "kittors · gitlab.com" })]);
-	assert.equal(other[0].label, "kittors · gitlab.com");
 });

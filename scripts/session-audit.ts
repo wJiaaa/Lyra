@@ -12,7 +12,7 @@
  *   - 回合结束的原因分布变了吗（第 5 节）
  *   - 提示缓存的前缀有没有在哪一次请求被打断（第 10 节的「原因不明」）
  *
- * 读的是 `~/.plume/sessions` 下的真实会话，所以数字会随着你自己的使用而变。**要对照就必须是同
+ * 读的是 `~/.plume/sessions/sessions.db` 里的真实会话，所以数字会随着你自己的使用而变。**要对照就必须是同
  * 一台机器、同一批会话的前后两次**，不同机器之间的绝对值没有可比性。
  *
  * 第 4 节直接 import 生产用的 `RepetitionWatch` 并在真实调用序列上重放，而不是照着它的逻辑另
@@ -25,9 +25,10 @@
  *   pnpm audit:sessions --json > /tmp/before.json
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { RepetitionWatch, REPEAT_WARN, REPEAT_STOP } from "../packages/core/src/agent/repetition.ts";
 import { pruneToolResults, PRUNE_THRESHOLD_CHARS } from "../packages/core/src/runtime/prune.ts";
 import {
@@ -46,7 +47,7 @@ const CHARS_PER_TOKEN = 3.5;
 /** 进入「单条最贵」榜的门槛，低于这个的条目太多且都不值得看。 */
 const BIG_RESULT_CHARS = 2000;
 
-const ROOT = join(homedir(), ".plume", "sessions");
+const DB = join(homedir(), ".plume", "sessions", "sessions.db");
 const asJson = process.argv.includes("--json");
 
 interface Call {
@@ -98,121 +99,113 @@ interface Session {
 
 function loadSessions(): Session[] {
 	const out: Session[] = [];
-	let dirs: string[];
-	try {
-		dirs = readdirSync(ROOT);
-	} catch {
-		console.error(`读不到 ${ROOT} —— 这台机器上还没有会话记录。`);
+	if (!existsSync(DB)) {
+		console.error(`读不到 ${DB} —— 这台机器上还没有会话记录。`);
 		process.exit(1);
 	}
-	for (const dir of dirs) {
-		const path = join(ROOT, dir);
-		if (!statSync(path).isDirectory()) continue;
-		for (const file of readdirSync(path)) {
-			if (!file.endsWith(".jsonl")) continue;
-			let lines: string[];
+	// Read-only: the app may be running, and an audit must never be the thing that writes.
+	const db = new DatabaseSync(DB, { readOnly: true });
+	const records = db.prepare("SELECT body FROM records WHERE session_id = ? ORDER BY seq");
+	const ids = (db.prepare("SELECT id FROM sessions ORDER BY created_at").all() as { id: string }[]).map((row) => row.id);
+	for (const file of ids) {
+		const lines = (records.all(file) as { body: string }[]).map((row) => row.body);
+		const calls: Call[] = [];
+		const results = new Map<string, Message>();
+		const stops: string[] = [];
+		const runtimeStops: string[] = [];
+		const turns: Turn[] = [];
+		const userPrompts: UserPrompt[] = [];
+		let finalTodos: { content: string; status: string }[] | undefined;
+		const fileEdits = new Map<string, number>();
+		const mainStream: CacheStream = { label: file.slice(0, 8), messages: [], boundaries: [] };
+		const subStreams = new Map<string, CacheStream>();
+		const subStream = (id: string) => {
+			let stream = subStreams.get(id);
+			if (!stream) subStreams.set(id, (stream = { label: `${file.slice(0, 8)}:sub:${id.slice(-8)}`, messages: [], boundaries: [] }));
+			return stream;
+		};
+		let round = 0;
+		for (const line of lines) {
+			let entry: {
+				type?: string;
+				message?: Record<string, unknown>;
+				event?: { type?: string; reason?: string; id?: string; message?: Message; event?: { type?: string } };
+			};
 			try {
-				lines = readFileSync(join(path, file), "utf8").split("\n").filter(Boolean);
+				entry = JSON.parse(line);
 			} catch {
 				continue;
 			}
-			const calls: Call[] = [];
-			const results = new Map<string, Message>();
-			const stops: string[] = [];
-			const runtimeStops: string[] = [];
-			const turns: Turn[] = [];
-			const userPrompts: UserPrompt[] = [];
-			let finalTodos: { content: string; status: string }[] | undefined;
-			const fileEdits = new Map<string, number>();
-			const mainStream: CacheStream = { label: file.slice(0, 8), messages: [], boundaries: [] };
-			const subStreams = new Map<string, CacheStream>();
-			const subStream = (id: string) => {
-				let stream = subStreams.get(id);
-				if (!stream) subStreams.set(id, (stream = { label: `${file.slice(0, 8)}:sub:${id.slice(-8)}`, messages: [], boundaries: [] }));
-				return stream;
-			};
-			let round = 0;
-			for (const line of lines) {
-				let entry: {
-					type?: string;
-					message?: Record<string, unknown>;
-					event?: { type?: string; reason?: string; id?: string; message?: Message; event?: { type?: string } };
-				};
-				try {
-					entry = JSON.parse(line);
-				} catch {
-					continue;
-				}
-				if (entry.type === "event" && entry.event?.type === "agent_end" && entry.event.reason) runtimeStops.push(entry.event.reason);
-				// 模型看到的历史被有意改写的地方：压缩（含只剪枝不移边界的那种）与撤回
-				if (entry.type === "event" && entry.event?.type === "compacted") mainStream.boundaries.push({ at: mainStream.messages.length, kind: "compaction" });
-				if (entry.type === "truncate") mainStream.boundaries.push({ at: mainStream.messages.length, kind: "rewind" });
-				if (entry.type === "event" && entry.event?.type === "subagent_message" && entry.event.id && entry.event.message)
-					subStream(entry.event.id).messages.push(entry.event.message);
-				if (entry.type === "event" && entry.event?.type === "subagent_event" && entry.event.id && entry.event.event?.type === "compacted") {
-					const stream = subStream(entry.event.id);
-					stream.boundaries.push({ at: stream.messages.length, kind: "compaction" });
-				}
-				if (entry.type !== "message") continue;
-				if (entry.message) mainStream.messages.push(entry.message as unknown as Message);
-				const message = entry.message;
-				if (message?.role === "user") {
-					const text = ((message.content ?? []) as { type?: string; text?: string }[])
-						.map((p) => (p.type === "text" && p.text ? p.text : ""))
-						.join("");
-					userPrompts.push({ text, synthetic: message.synthetic === true });
-				} else if (message?.role === "assistant") {
-					round++;
-					stops.push(String(message.stopReason ?? "(none)"));
-					const content = (message.content ?? []) as { type: string; id: string; name: string; arguments: unknown }[];
-					let inRound = 0;
-					for (const block of content) {
-						if (block.type === "toolCall") {
-							calls.push({ id: block.id, name: block.name, args: block.arguments, round });
-							inRound++;
-							if (block.name === "todo_write" && block.arguments && typeof block.arguments === "object") {
-								const argsObj = block.arguments as { todos?: { content: string; status: string }[] };
-								if (Array.isArray(argsObj.todos)) finalTodos = argsObj.todos;
-							}
-							if (block.name === "edit" || block.name === "write") {
-								const argsObj = block.arguments as { path?: string; filePath?: string } | undefined;
-								const filePath = argsObj?.path || argsObj?.filePath;
-								if (filePath && typeof filePath === "string") {
-									fileEdits.set(filePath, (fileEdits.get(filePath) ?? 0) + 1);
-								}
+			if (entry.type === "event" && entry.event?.type === "agent_end" && entry.event.reason) runtimeStops.push(entry.event.reason);
+			// 模型看到的历史被有意改写的地方：压缩（含只剪枝不移边界的那种）与撤回
+			if (entry.type === "event" && entry.event?.type === "compacted") mainStream.boundaries.push({ at: mainStream.messages.length, kind: "compaction" });
+			if (entry.type === "truncate") mainStream.boundaries.push({ at: mainStream.messages.length, kind: "rewind" });
+			if (entry.type === "event" && entry.event?.type === "subagent_message" && entry.event.id && entry.event.message)
+				subStream(entry.event.id).messages.push(entry.event.message);
+			if (entry.type === "event" && entry.event?.type === "subagent_event" && entry.event.id && entry.event.event?.type === "compacted") {
+				const stream = subStream(entry.event.id);
+				stream.boundaries.push({ at: stream.messages.length, kind: "compaction" });
+			}
+			if (entry.type !== "message") continue;
+			if (entry.message) mainStream.messages.push(entry.message as unknown as Message);
+			const message = entry.message;
+			if (message?.role === "user") {
+				const text = ((message.content ?? []) as { type?: string; text?: string }[])
+					.map((p) => (p.type === "text" && p.text ? p.text : ""))
+					.join("");
+				userPrompts.push({ text, synthetic: message.synthetic === true });
+			} else if (message?.role === "assistant") {
+				round++;
+				stops.push(String(message.stopReason ?? "(none)"));
+				const content = (message.content ?? []) as { type: string; id: string; name: string; arguments: unknown }[];
+				let inRound = 0;
+				for (const block of content) {
+					if (block.type === "toolCall") {
+						calls.push({ id: block.id, name: block.name, args: block.arguments, round });
+						inRound++;
+						if (block.name === "todo_write" && block.arguments && typeof block.arguments === "object") {
+							const argsObj = block.arguments as { todos?: { content: string; status: string }[] };
+							if (Array.isArray(argsObj.todos)) finalTodos = argsObj.todos;
+						}
+						if (block.name === "edit" || block.name === "write") {
+							const argsObj = block.arguments as { path?: string; filePath?: string } | undefined;
+							const filePath = argsObj?.path || argsObj?.filePath;
+							if (filePath && typeof filePath === "string") {
+								fileEdits.set(filePath, (fileEdits.get(filePath) ?? 0) + 1);
 							}
 						}
 					}
-					const u = (message.usage ?? {}) as Record<string, number | { total?: number }>;
-					turns.push({
-						model: String(message.model ?? "(unknown)"),
-						toolCalls: inRound,
-						input: Number(u.input ?? 0),
-						output: Number(u.output ?? 0),
-						cacheRead: Number(u.cacheRead ?? 0),
-						cacheWrite: Number(u.cacheWrite ?? 0),
-						cost: Number((u.cost as { total?: number } | undefined)?.total ?? 0),
-					});
-				} else if (message?.role === "toolResult" && typeof message.toolCallId === "string") {
-					results.set(message.toolCallId, message as unknown as Message);
 				}
-			}
-			if (round > 0)
-				out.push({
-					id: file.slice(0, 8),
-					cacheStreams: [mainStream, ...subStreams.values()],
-					rounds: round,
-					calls,
-					results,
-					stops,
-					runtimeStops,
-					turns,
-					userPrompts,
-					finalTodos,
-					fileEdits,
+				const u = (message.usage ?? {}) as Record<string, number | { total?: number }>;
+				turns.push({
+					model: String(message.model ?? "(unknown)"),
+					toolCalls: inRound,
+					input: Number(u.input ?? 0),
+					output: Number(u.output ?? 0),
+					cacheRead: Number(u.cacheRead ?? 0),
+					cacheWrite: Number(u.cacheWrite ?? 0),
+					cost: Number((u.cost as { total?: number } | undefined)?.total ?? 0),
 				});
+			} else if (message?.role === "toolResult" && typeof message.toolCallId === "string") {
+				results.set(message.toolCallId, message as unknown as Message);
+			}
 		}
+		if (round > 0)
+			out.push({
+				id: file.slice(0, 8),
+				cacheStreams: [mainStream, ...subStreams.values()],
+				rounds: round,
+				calls,
+				results,
+				stops,
+				runtimeStops,
+				turns,
+				userPrompts,
+				finalTodos,
+				fileEdits,
+			});
 	}
+	db.close();
 	return out;
 }
 

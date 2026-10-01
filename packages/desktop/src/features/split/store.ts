@@ -31,7 +31,7 @@ export interface SplitState {
 	tree: SplitNode;
 	focused: string | null;
 	windowId: string;
-	hydrate: (windowId: string, existing: Set<string>, fallbackProject?: string) => void;
+	hydrate: (windowId: string, existing: Set<string>) => void;
 	reset: (sessionId?: string | null) => void;
 	focus: (sessionId: string | null) => void;
 	show: (sessionId: string) => void;
@@ -61,7 +61,7 @@ export const useSplit = create<SplitState>((set, get) => ({
 	focused: null,
 	windowId: "",
 
-	hydrate(windowId, existing, fallbackProject = "") {
+	hydrate(windowId, existing) {
 		const previous = get();
 		/*
 		 * The tiling belongs to the window. Focusing a conversation from another project
@@ -69,12 +69,14 @@ export const useSplit = create<SplitState>((set, get) => ({
 		 * away a four-pane mix. Once this window has a tree, keep it.
 		 */
 		if (previous.windowId === windowId && windowId !== "") return;
-		const loaded = loadSplit(windowId, fallbackProject);
+		const loaded = loadSplit(windowId);
 		/*
-		 * An empty `existing` is "the list has not arrived", not "every conversation was
-		 * deleted". Adopting against it would throw the saved tiling away on every boot.
+		 * An empty `existing` is the real list. This once guarded a mount that could run before the
+		 * list arrived; `SplitWorkspace` now only mounts behind `ready`, which lands in the same
+		 * `set` as `sessions`. Keeping a saved tiling against an empty list left every screen on a
+		 * conversation that no longer exists: each launch said so, and the composer sent into it.
 		 */
-		let tree = existing.size === 0 ? loaded.tree : adopt(loaded.tree, existing);
+		let tree = adopt(loaded.tree, existing);
 		let focused = loaded.focused && contains(tree, loaded.focused) ? loaded.focused : null;
 		const loadedEmpty = leafCount(tree) === 1 && firstSession(tree) === null;
 		const live = leafCount(previous.tree) > 1 || firstSession(previous.tree) !== null;
@@ -197,10 +199,8 @@ export const useSplit = create<SplitState>((set, get) => ({
 		 * tree (and persist it) on every `sessions` refresh — a streaming reply would rebalance
 		 * the handles once a second. Only a missing id is a reason to walk it.
 		 *
-		 * An empty set is "the list has not arrived", the same as `hydrate`. Treating it as
-		 * "every conversation was deleted" would throw a four-pane mix away on every boot.
+		 * An empty set is the real list here too — see `hydrate`.
 		 */
-		if (existing.size === 0) return;
 		if (sessionIds(get().tree).every((id) => existing.has(id))) return;
 		const tree = adopt(get().tree, existing);
 		if (tree === get().tree) return;

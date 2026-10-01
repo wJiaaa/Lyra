@@ -12,7 +12,8 @@ export function observeSessionStorage(store: SessionStorage, changed: (change: S
 		async append(...args) {
 			const meta = await store.append(...args);
 			// Token updates already travel over the agent stream; only directory changes need a push.
-			if (args[1].type !== "event") changed({ id: meta.id, projectId: meta.projectId, meta });
+			// Null is a write that landed after its session was deleted: announcing it would put the session back in the sidebar.
+			if (meta && args[1].type !== "event") changed({ id: meta.id, projectId: meta.projectId, meta });
 			return meta;
 		},
 		async setArchived(...args) {
@@ -35,21 +36,41 @@ export function observeSessionStorage(store: SessionStorage, changed: (change: S
 			if (result) changed({ id: result.meta.id, projectId: result.meta.projectId, meta: result.meta });
 			return result;
 		},
-		async delete(projectId, id) {
-			await store.delete(projectId, id);
-			changed({ id, projectId, meta: null });
+		async delete(id) {
+			const meta = await store.get(id);
+			await store.delete(id);
+			if (meta) changed({ id, projectId: meta.projectId, meta: null });
 		},
-		async deleteMany(targets) {
-			await store.deleteMany(targets);
-			for (const target of targets) changed({ ...target, meta: null });
+		async deleteMany(ids) {
+			const gone = (await Promise.all(ids.map((id) => store.get(id)))).filter((meta) => meta !== null);
+			await store.deleteMany(ids);
+			for (const meta of gone) changed({ id: meta.id, projectId: meta.projectId, meta: null });
 		},
+		get: (...args) => store.get(...args),
 		read: (...args) => store.read(...args),
-		readChanges: store.readChanges?.bind(store),
 		messages: (...args) => store.messages(...args),
-		load: (...args) => store.load(...args),
+		/*
+		 * Opening a conversation can commit the reply a dead writer left behind (`settlePartial`).
+		 * That changes its meta inside the store, where no wrapper sees a write, so the sidebar is told
+		 * here — by the one read that opening a conversation always goes through.
+		 */
+		async load(...args) {
+			const before = await store.get(args[0]);
+			const loaded = await store.load(...args);
+			if (loaded && before && loaded.meta.seq !== before.seq) changed({ id: loaded.meta.id, projectId: loaded.meta.projectId, meta: loaded.meta });
+			return loaded;
+		},
 		listSessions: () => store.listSessions(),
-		rebuildIndex: () => store.rebuildIndex(),
 		// Startup maintenance runs before clients connect.
 		pruneEmpty: (...args) => store.pruneEmpty(...args),
+		// Streaming a reply and the settings pages' reads change nothing the sidebar shows.
+		beginPartial: (...args) => store.beginPartial(...args),
+		appendPartial: (...args) => store.appendPartial(...args),
+		dropPartial: (...args) => store.dropPartial(...args),
+		recordUsage: (...args) => store.recordUsage(...args),
+		readSpend: (...args) => store.readSpend(...args),
+		storeId: () => store.storeId(),
+		activeDays: () => store.activeDays(),
+		sizes: () => store.sizes(),
 	};
 }

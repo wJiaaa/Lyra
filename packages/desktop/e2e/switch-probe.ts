@@ -15,6 +15,7 @@ import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions as seedFixture, type FixtureRecord, type FixtureSession } from "./session-fixture.ts";
 
 const exec = promisify(execFile);
 
@@ -37,9 +38,7 @@ const usage = {
 /** A conversation long enough that rendering it is real work. */
 async function seedSessions(home: string, cwd: string): Promise<void> {
 	const projectId = projectIdFor(cwd);
-	const dir = join(home, "sessions", projectId);
-	await mkdir(dir, { recursive: true });
-
+	const sessions: FixtureSession[] = [];
 	for (let s = 0; s < SESSIONS; s++) {
 		const id = `00000000-0000-4000-8000-${String(s).padStart(12, "0")}`;
 		const meta = {
@@ -55,7 +54,7 @@ async function seedSessions(home: string, cwd: string): Promise<void> {
 			usage,
 			seq: 0,
 		};
-		const lines: string[] = [JSON.stringify({ seq: 0, ts: meta.createdAt, type: "meta", meta })];
+		const records: FixtureRecord[] = [{ seq: 0, ts: meta.createdAt, type: "meta", meta }];
 		for (let m = 0; m < MESSAGES; m++) {
 			const body =
 				m % 2 === 0
@@ -76,11 +75,12 @@ async function seedSessions(home: string, cwd: string): Promise<void> {
 							stopReason: "stop",
 							timestamp: meta.createdAt + m,
 						};
-			lines.push(JSON.stringify({ seq: m + 1, ts: meta.createdAt + m, type: "message", message: body }));
+			records.push({ seq: m + 1, ts: meta.createdAt + m, type: "message", message: body });
 		}
-		lines.push(JSON.stringify({ seq: MESSAGES + 1, ts: meta.createdAt, type: "meta", meta: { ...meta, seq: MESSAGES + 1 } }));
-		await writeFile(join(dir, `${id}.jsonl`), `${lines.join("\n")}\n`);
+		records.push({ seq: MESSAGES + 1, ts: meta.createdAt, type: "meta", meta: { ...meta, seq: MESSAGES + 1 } });
+		sessions.push({ meta, records });
 	}
+	seedFixture(home, sessions);
 }
 
 /**

@@ -16,7 +16,7 @@ import { contrastingInk, parseHex } from "./theme.ts";
  *
  * `parseHex` 容许不带 `#`，CSS 不容许。之前输入框把手打的 `1A1C1F` 原样存下，又原样拿去当色块的
  * `background`——那条声明失效，色块透明，字却按深色底算成白色，整格在白色的行上看不见。显示和保存都
- * 走这一个出口，已经存成没有 `#` 的旧值也能正常显示，下次改动时顺带存回规范写法。
+ * 走这一个出口。
  */
 function canonical(text: string): string | null {
 	const rgb = parseHex(text);

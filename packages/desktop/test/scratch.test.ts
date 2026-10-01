@@ -9,11 +9,11 @@
 
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { ensureSessionWorkspace, prChatSlug, rescueLegacyWorkspaces } from "../electron/scratch.ts";
+import { ensureSessionWorkspace, prChatSlug } from "../electron/scratch.ts";
 
 test("owner/name becomes one path component", () => {
 	const slug = prChatSlug("kittors/plume", 42);
@@ -55,68 +55,6 @@ test("unicode and spaces are replaced rather than passed through", () => {
 	const slug = prChatSlug("用户/我的 项目", 3);
 	assert.match(slug, /^[a-zA-Z0-9._-]+$/);
 	assert.ok(slug.endsWith("-3"));
-});
-
-/**
- * Carrying the old arrangement forward.
- *
- * `workspaces/` exists because `scratch/` was shared with `core`'s own housekeeping, which deletes
- * every directory there that is not named after a live session — so the working directory of every
- * project-less conversation was being deleted on every launch. The rescue runs once, before that
- * sweep, and the thing it must never do is touch what the sweep legitimately owns.
- */
-test("the old directories are carried over, and core's own are left alone", async (t) => {
-	const home = await mkdtemp(join(tmpdir(), "plume-rescue-"));
-	const previous = process.env.PLUME_HOME;
-	process.env.PLUME_HOME = home;
-	t.after(async () => {
-		if (previous === undefined) delete process.env.PLUME_HOME;
-		else process.env.PLUME_HOME = previous;
-		await rm(home, { recursive: true, force: true });
-	});
-
-	const sessionId = "3f2a1b4c-5d6e-7f80-9a1b-2c3d4e5f6071";
-	await mkdir(join(home, "scratch", "general"), { recursive: true });
-	await mkdir(join(home, "scratch", "acme-widgets-42"), { recursive: true });
-	await mkdir(join(home, "scratch", sessionId), { recursive: true });
-	await mkdir(join(home, "pr", "owner-repo-7"), { recursive: true });
-	await writeFile(join(home, "scratch", "acme-widgets-42", "PR.md"), "# 42\n");
-
-	const moved = await rescueLegacyWorkspaces();
-
-	assert.deepEqual(moved.sort(), ["acme-widgets-42", "general", "owner-repo-7"]);
-	assert.ok(existsSync(join(home, "workspaces", "general")));
-	assert.ok(existsSync(join(home, "workspaces", "owner-repo-7")), "the oldest root is carried over too");
-	assert.equal(
-		await readFile(join(home, "workspaces", "acme-widgets-42", "PR.md"), "utf8"),
-		"# 42\n",
-		"what was in it came with it",
-	);
-	assert.ok(
-		existsSync(join(home, "scratch", sessionId)),
-		"a session id belongs to core's housekeeping and stays where it is",
-	);
-});
-
-test("a directory already carried over is never overwritten", async (t) => {
-	const home = await mkdtemp(join(tmpdir(), "plume-rescue-"));
-	const previous = process.env.PLUME_HOME;
-	process.env.PLUME_HOME = home;
-	t.after(async () => {
-		if (previous === undefined) delete process.env.PLUME_HOME;
-		else process.env.PLUME_HOME = previous;
-		await rm(home, { recursive: true, force: true });
-	});
-
-	await mkdir(join(home, "scratch", "general"), { recursive: true });
-	await writeFile(join(home, "scratch", "general", "old.txt"), "旧的");
-	await mkdir(join(home, "workspaces", "general"), { recursive: true });
-	await writeFile(join(home, "workspaces", "general", "new.txt"), "在用的");
-
-	assert.deepEqual(await rescueLegacyWorkspaces(), [], "nothing moved");
-	// The one that has not been getting deleted is the one that wins.
-	assert.equal(await readFile(join(home, "workspaces", "general", "new.txt"), "utf8"), "在用的");
-	assert.ok(!existsSync(join(home, "workspaces", "general", "old.txt")));
 });
 
 test("a conversation's directory is put back when it has gone missing", async (t) => {

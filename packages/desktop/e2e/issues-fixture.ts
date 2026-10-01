@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { devNull } from "node:os";
 import { emptyUsage, type AssistantMessage, type Message } from "@plume/core";
+import { seedSessions, type FixtureSession } from "./session-fixture.ts";
 
 /** Local deterministic model fixtures go through the real provider, loop, IPC and renderer. */
 export function issueModel() {
@@ -81,14 +82,11 @@ export async function seedIssues(home: string, port: number) {
 		long.push(assistant([{ type: "text", text: i === 0 ? "LONG_HEAD_REPLY 第一条回复留在视口里。" : `第 ${i + 1} 答` }], "stop"));
 	}
 	const longMeta = { id: "issue-long", title: "超过二十轮的长会话发送回弹", projectId, projectName: "Issue 验证", cwd, createdAt: at - 3_000, updatedAt: at - 500, modelId: "issue/fixture", messageCount: long.length, usage, seq: long.length + 2 };
-	const dir = join(home, "sessions", projectId); await mkdir(dir, { recursive: true });
-	const writeSession = async (id: string, sessionMeta: typeof meta, sessionMessages: Message[]) => {
-		await writeFile(join(dir, `${id}.jsonl`), [JSON.stringify({ type: "meta", meta: sessionMeta, seq: 1, ts: at }), ...sessionMessages.map((message, i) => JSON.stringify({ type: "message", message, seq: i + 2, ts: at })), JSON.stringify({ type: "meta", meta: sessionMeta, seq: sessionMeta.seq, ts: at })].join("\n") + "\n");
-	};
-	await writeSession("issue-demo", meta, messages);
-	await writeSession("issue-cold", hugeMeta, huge);
-	await writeSession("issue-long", longMeta, long);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([hugeMeta, longMeta, meta]));
+	const session = (sessionMeta: typeof meta, sessionMessages: Message[]): FixtureSession => ({
+		meta: sessionMeta,
+		records: [{ type: "meta", meta: sessionMeta, ts: at }, ...sessionMessages.map((message) => ({ type: "message" as const, message, ts: at })), { type: "meta", meta: sessionMeta, ts: at }],
+	});
+	seedSessions(home, [session(meta, messages), session(hugeMeta, huge), session(longMeta, long)]);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1500, height: 950 }));
 	await writeFile(join(home, "settings.json"), JSON.stringify({ uiLocale: "zh-CN", permissionMode: "full", projectMemory: false, thinking: "off", mcpServers: [], hooks: [], appearance: { reduceMotion: "off" }, projects: [{ path: cwd, name: "Issue 验证", pinned: true, lastOpenedAt: at }], defaultModelId: "issue/fixture", providers: [{ id: "issue", name: "本地隔离模型", api: "anthropic-messages", baseUrl: `http://127.0.0.1:${port}`, apiKey: "test", enabled: true, models: [{ id: "issue/fixture", providerId: "issue", modelId: "fixture", name: "隔离测试", contextWindow: 128000, maxOutputTokens: 4096, supportsImages: true, supportsTools: true, supportsThinking: true }] }] }));
 }

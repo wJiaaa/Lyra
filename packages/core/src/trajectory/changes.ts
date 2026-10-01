@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import type { SessionReadCursor } from "../session/read-changes.ts";
 import type { SessionRecord } from "../session/store.ts";
 import type { TrajectorySource } from "./read.ts";
 import { projectTrajectory } from "./project.ts";
@@ -9,7 +8,8 @@ import { entryKey, type Entry, type TrajectoryChanges } from "./types.ts";
 interface Snapshot {
 	epoch: string;
 	revision: number;
-	cursor?: SessionReadCursor;
+	/** Highest record seq already folded into `records`. */
+	seq: number;
 	records: SessionRecord[];
 	entries: Map<string, { entry: Entry; revision: number }>;
 	removals: Map<string, number>;
@@ -28,11 +28,11 @@ export class TrajectoryReader {
 		this.capacity = capacity;
 	}
 
-	async changes(projectId: string, sessionId: string, cursor?: string, running = false): Promise<TrajectoryChanges> {
-		const key = `${projectId}\0${sessionId}`;
+	async changes(sessionId: string, cursor?: string, running = false): Promise<TrajectoryChanges> {
+		const key = sessionId;
 		let snapshot = this.snapshots.get(key);
 		if (!snapshot) {
-			snapshot = { epoch: randomUUID(), revision: 0, records: [], entries: new Map(), removals: new Map(), running, pending: Promise.resolve() };
+			snapshot = { epoch: randomUUID(), revision: 0, seq: 0, records: [], entries: new Map(), removals: new Map(), running, pending: Promise.resolve() };
 		}
 		this.snapshots.delete(key);
 		this.snapshots.set(key, snapshot);
@@ -41,7 +41,7 @@ export class TrajectoryReader {
 			if (oldest !== undefined) this.snapshots.delete(oldest);
 		}
 		const current = snapshot;
-		const update = current.pending.then(() => this.refresh(current, projectId, sessionId, running));
+		const update = current.pending.then(() => this.refresh(current, sessionId, running));
 		// A failed I/O attempt remains visible to its caller without poisoning future refreshes.
 		current.pending = update.catch(() => {});
 		await update;
@@ -56,36 +56,18 @@ export class TrajectoryReader {
 		};
 	}
 
-	private async refresh(snapshot: Snapshot, projectId: string, sessionId: string, running: boolean): Promise<void> {
-		let incoming: SessionRecord[];
-		let reset = false;
-		let nextCursor: SessionReadCursor | undefined;
-		if (this.store.readChanges) {
-			const changes = await this.store.readChanges(projectId, sessionId, snapshot.cursor);
-			incoming = changes.records;
-			reset = changes.reset;
-			nextCursor = changes.cursor;
-			if (!reset && incoming.length === 0 && snapshot.running === running) {
-				snapshot.cursor = nextCursor;
-				return;
-			}
-		} else {
-			incoming = [];
-			for await (const record of this.store.read(projectId, sessionId)) incoming.push(record);
-		}
-		const records = this.store.readChanges && !reset ? [...snapshot.records] : [];
+	/** Only the records appended since the last look: the log is append-only, so the prefix never changes. */
+	private async refresh(snapshot: Snapshot, sessionId: string, running: boolean): Promise<void> {
+		const incoming: SessionRecord[] = [];
+		for await (const record of this.store.read(sessionId, snapshot.seq)) incoming.push(record);
+		if (incoming.length === 0 && snapshot.running === running && snapshot.revision > 0) return;
+		const records = [...snapshot.records];
 		for (const record of incoming) {
 			if (record.type === "truncate") {
 				while (records.length && records[records.length - 1].seq > record.afterSeq) records.pop();
 			} else records.push(record);
 		}
 		const projected = projectTrajectory(records, running);
-		if (reset && snapshot.cursor) {
-			snapshot.epoch = randomUUID();
-			snapshot.revision = 0;
-			snapshot.entries.clear();
-			snapshot.removals.clear();
-		}
 		const revision = snapshot.revision + 1;
 		const entries = new Map<string, { entry: Entry; revision: number }>();
 		for (const entry of projected) {
@@ -98,7 +80,7 @@ export class TrajectoryReader {
 		snapshot.entries = entries;
 		snapshot.revision = revision;
 		snapshot.records = records;
-		snapshot.cursor = nextCursor;
+		snapshot.seq = incoming.at(-1)?.seq ?? snapshot.seq;
 		snapshot.running = running;
 	}
 }

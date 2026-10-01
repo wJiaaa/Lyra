@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, beforeEach, test } from "node:test";
 
-import { DEFAULT_SETTINGS, loadSettings, migrateSecrets, saveSettings, settingsPath, type Settings } from "../src/config/settings.ts";
+import { DEFAULT_SETTINGS, loadSettings, saveSettings, settingsPath, type Settings } from "../src/config/settings.ts";
 import { resetVault } from "../src/config/vault.ts";
 import { McpManager, type McpServerConfig } from "../src/mcp/client.ts";
 import {
@@ -297,19 +297,6 @@ test("包声明成机密的，名字不像也进保险箱；删掉服务，它�
 	const loaded = await loadSettings();
 	const row = loaded.mcpServers[0];
 	assert.equal(row?.transport === "stdio" && row.env?.WORKSPACE_HANDLE, "${WORKSPACE_HANDLE}", "服务删过一次，旧钥匙不会借尸还魂");
-});
-
-test("文件里已有的明文钥匙，启动时搬进保险箱", async () => {
-	await mkdir(join(process.env.PLUME_HOME!), { recursive: true });
-	await writeFile(settingsPath(), JSON.stringify({ ...DEFAULT_SETTINGS, mcpServers: [brave({ env: { GITHUB_PERSONAL_ACCESS_TOKEN: "ghp_plaintext", PATH_HINT: "/opt" } })] }));
-	assert.equal(await migrateSecrets(), 1);
-	const onDisk = await readFile(settingsPath(), "utf8");
-	assert.equal(onDisk.includes("ghp_plaintext"), false);
-	assert.equal(onDisk.includes("/opt"), true);
-	const loaded = await loadSettings();
-	const row = loaded.mcpServers[0];
-	assert.equal(row?.transport === "stdio" && row.env?.GITHUB_PERSONAL_ACCESS_TOKEN, "ghp_plaintext");
-	assert.equal(await migrateSecrets(), 0, "第二次什么都不用搬");
 });
 
 test("可选的值没填就不传这个变量，而不是传一个空字符串", () => {

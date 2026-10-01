@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 import { frameGrabber } from "./record.ts";
+import { fixtureStore } from "./session-fixture.ts";
 
 const MODEL = "claude-opus-4-6-thinking";
 const MODEL_PORT = 9585;
@@ -253,23 +254,17 @@ try {
 	 * 界面上少一行菜单有两种来路：路径压根没跟着消息走，或者走了而没读到。直接看落盘的那一份，两者
 	 * 一句话分清——而这是界面问不出来的。
 	 */
-	const { readdir, readFile } = await import("node:fs/promises");
-	const root = join(HOME, "sessions");
-	const walk = async (dir: string): Promise<string[]> => {
-		const out: string[] = [];
-		for (const entry of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
-			const here = join(dir, entry.name);
-			if (entry.isDirectory()) out.push(...(await walk(here)));
-			else if (entry.name.endsWith(".jsonl")) out.push(here);
+	const store = fixtureStore(HOME);
+	try {
+		for (const meta of await store.listSessions()) {
+			for await (const record of store.read(meta.id)) {
+				if (!JSON.stringify(record).includes('"attachments"')) continue;
+				const parsed = record as { message?: { attachments?: unknown[] }; attachments?: unknown[] };
+				console.log("转录里存的附件：", JSON.stringify(parsed.message?.attachments ?? parsed.attachments));
+			}
 		}
-		return out;
-	};
-	for (const file of await walk(root)) {
-		for (const line of (await readFile(file, "utf8")).split("\n")) {
-			if (!line.includes('"attachments"')) continue;
-			const parsed = JSON.parse(line) as { message?: { attachments?: unknown[] }; attachments?: unknown[] };
-			console.log("转录里存的附件：", JSON.stringify(parsed.message?.attachments ?? parsed.attachments));
-		}
+	} finally {
+		store.close();
 	}
 } finally {
 	wire.close();

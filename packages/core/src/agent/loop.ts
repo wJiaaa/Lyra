@@ -56,7 +56,7 @@ export interface AgentRunConfig {
 	tools: Tool[];
 	messages: Message[];
 	thinking?: ThinkingLevel;
-	/** Attempts per request, including the first; see `Settings.retryAttempts`. */
+	/** Attempts per request, including the first, for a caller with no `retryPolicy` of its own. */
 	retryAttempts?: number;
 	retryPolicy?: RetryPolicySource;
 	maxTokens?: number;
@@ -92,6 +92,8 @@ export interface AgentRunConfig {
 	projectRoots?: ToolContext["projectRoots"];
 	/** Passed through to the tools; see `ToolContext.writePreview`. */
 	writePreview?: ToolContext["writePreview"];
+	/** Passed through to the tools; see `ToolContext.transcript`. */
+	transcript?: ToolContext["transcript"];
 	spawnSubAgent?: ToolContext["spawnSubAgent"];
 	/** The session's address space; see `ToolContext.resources`. */
 	resources?: ToolContext["resources"];

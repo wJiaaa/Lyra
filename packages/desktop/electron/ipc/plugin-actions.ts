@@ -16,7 +16,7 @@
  * never writes the settings file to record that it had nothing to record.
  */
 
-import { isPlaceholder, needsOf, type Installed, type McpBundle, type McpServerConfig, type Settings } from "@plume/core";
+import { isPlaceholder, needsOf, type Installed, type McpServerConfig, type Settings } from "@plume/core";
 
 /**
  * The settings an install leaves behind, or null when it has nothing to say.
@@ -74,43 +74,6 @@ function carriedOver(server: McpServerConfig, previous: McpServerConfig | undefi
 export function settingsAfterUninstall(current: Settings, id: string): Settings | null {
 	const remaining = current.mcpServers.filter((server) => server.origin?.bundle !== id);
 	return remaining.length === current.mcpServers.length ? null : { ...current, mcpServers: remaining };
-}
-
-/**
- * Bring what is on disk and what is in settings back into agreement, or null if they already are.
- *
- * Every MCP bundle installed before the plugin/MCP split went into `~/.plume/plugins` and was loaded
- * through the plugin's own `mcpServers` list — a path that no longer exists. Left alone, an upgrade
- * would silently disconnect every MCP server anybody had installed: still on disk, still in the
- * catalogue, connected to nothing.
- *
- * So anything on disk without a matching row gets one, keeping the state it had. For a bundle
- * loaded the old way that means "on unless the user switched this plugin off" — a migration that
- * turns working servers off is as wrong as one that turns unknown servers on. Idempotent by
- * construction: the second call finds a row for every bundle and returns null.
- */
-export function settingsAfterReconcile(current: Settings, bundles: McpBundle[]): Settings | null {
-	const known = new Set(current.mcpServers.map((server) => server.origin?.bundle).filter(Boolean));
-	const missing = bundles.filter((bundle) => !known.has(bundle.id));
-	if (missing.length === 0) return null;
-
-	const disabled = new Set(current.disabledPlugins);
-	const restored: McpServerConfig[] = missing.flatMap((bundle) =>
-		bundle.servers.map((server) => ({
-			...server,
-			/*
-			 * Stamped here rather than trusted to arrive stamped, because this function's idempotence
-			 * rests on it: the rows it writes are found by `origin.bundle`, and the id it looks them
-			 * up by is `bundle.id`. Taking whatever the loader happened to put there makes the two
-			 * the same string only as long as nothing upstream changes — and when they drift, this
-			 * runs on every scan, appending another copy of every server each time the plugins page
-			 * is opened. Writing the id it will later search for closes that over.
-			 */
-			origin: { ...server.origin, bundle: bundle.id },
-			enabled: !disabled.has("*") && !disabled.has(bundle.id),
-		})),
-	);
-	return { ...current, mcpServers: [...current.mcpServers, ...restored] };
 }
 
 /**

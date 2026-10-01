@@ -60,7 +60,7 @@ beforeEach(() => {
 		messages: [], approvals: [], sessionCache: {}, toolRuns: {}, scratchRoots: ["/test"], scratchCwd: "/test", workspace: null, running: false, loadingSession: false, view: "chat", openSessionById });
 	Object.defineProperty(window, "plume", { configurable: true, value: {
 		onTrayCommand: (listener: Parameters<PlumeApi["onTrayCommand"]>[0]) => { onTray = listener; return () => { onTray = undefined; }; },
-		sessions: { list: () => list(), transcript: async (_project: string, id: string) => ({ meta: meta(id), messages: [], running: false, pendingApprovals: [] }), capabilities: async () => null },
+		sessions: { list: () => list(), transcript: async (id: string) => ({ meta: meta(id), messages: [], running: false, pendingApprovals: [] }), capabilities: async () => null },
 		subAgents: { list: async () => [] },
 	} });
 });

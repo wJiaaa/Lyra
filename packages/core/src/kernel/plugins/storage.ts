@@ -6,10 +6,9 @@ import { STORAGE } from "../services.ts";
 /**
  * Where sessions are kept.
  *
- * The default is append-only JSONL under `~/.plume`: readable with `tail`, syncable by sequence
- * number, and impossible to corrupt by half-writing a turn. It is a seam because "on this disk" is
- * an assumption, not a requirement — a hosted deployment keeps sessions per account, and a phone
- * keeps a cache of someone else's.
+ * The default is one SQLite database under `~/.plume/sessions`: append-only records read back by
+ * sequence number, written a transaction at a time. It is a seam because "on this disk" is an
+ * assumption, not a requirement — a hosted deployment keeps sessions per account.
  */
 export const storagePlugin: Plugin = {
 	name: "storage",

@@ -54,7 +54,7 @@ beforeEach(() => {
 				},
 			},
 			sessions: {
-				transcript: async (_projectId: string, id: string): Promise<SessionSnapshot> => ({ meta: id === "a" ? A : B, messages: said(id), running: false, pendingApprovals: [] }),
+				transcript: async (id: string): Promise<SessionSnapshot> => ({ meta: id === "a" ? A : B, messages: said(id), running: false, pendingApprovals: [] }),
 				capabilities: async () => null,
 				contextBreakdown: async () => null,
 			},

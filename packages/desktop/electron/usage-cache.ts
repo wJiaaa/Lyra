@@ -4,44 +4,31 @@ import { readFile } from "node:fs/promises";
 import type { CacheDiagnosisState } from "@plume/core";
 import type { UsageBucket } from "./usage-types.ts";
 
-export interface UsageFileEntry {
-	mtimeMs: number;
-	size: number;
+/** Everything folded in so far, and where the next pass picks up. */
+export interface UsageTally {
+	/** The last spend row folded in; the next pass reads what comes after it. */
+	afterId: number;
+	/** How many rows that was. */
+	rows: number;
 	buckets: UsageBucket[];
-	days: Record<string, number>;
-	/** 每条请求序列（主会话 `main`、子代理 `sub:<id>`）的缓存诊断进度，日志长了从这里接着诊断。 */
-	cacheStreams: Record<string, CacheDiagnosisState>;
+	/** Per request sequence (`<session>\0main`, `<session>\0sub:<id>`), where diagnosis left off. */
+	streams: Record<string, CacheDiagnosisState>;
 }
 
-export type UsageFiles = Record<string, UsageFileEntry>;
-
-interface UsageCache {
+interface UsageCache extends UsageTally {
 	version: typeof USAGE_CACHE_VERSION;
 	pricingKey: string;
-	files: UsageFiles;
+	/** The database `afterId` points into (`SessionStorage.storeId`). */
+	source: string;
 }
 
 /**
  * 缓存的格式版本。**改了「扫什么」就要加一。**
  *
- * 这张缓存按「文件的 mtime + size 没变就不重读」工作，快是快在这里，代价是它记的是**上一版扫描器的
- * 结论**。所以凡是改变了从一行日志里读出什么的改动，都必须在这里加一，否则老用户的数字永远停在旧口径
- * 上——文件不再增长，缓存就再也不会被重算。
- *
- * 3: 计价 token 从每个桶都算，改成只算新鲜 token。
- * 4: 子 Agent 的用量开始算进来（它的消息落盘成 `type: "event"` 里的 `subagent_message`，从前够不着）。
- *    这一版的漏算不小：用户的一个会话里子 Agent 比主 Agent 还多烧 40%。
- * 5: 逐次请求的缓存未命中（`UsageBucket.cacheMiss`），要从头诊断每条请求序列。
- * 6: 未命中不再按猜的缓存有效期归成「空闲过期」，旧缓存里记在 `idle` 名下的要重新归类。
- * 7: 按回复上记下的前缀指纹把原来的「原因不明」拆开（工具、提示词、改写历史、服务商没读到），
- *    已经记在 `unknown` 名下的要重新归类。
- * 8: 读取不再越过扫描前取得的大小和末尾的半行。旧版在扫描期间日志被追加时会把追加的部分算两次，
- *    文件之后不再增长的话这个多算会一直留在缓存里，所以要从头重扫。
- *
- * 上面那个 `version: 2` 曾经和这里的 3 对不上——接口写死一个字面量、常量另写一个，两边谁也不管谁。
- * 现在接口直接引常量，只能一起改。
+ * 这张缓存按「读过的行不再读」工作，快是快在这里，代价是它记的是**上一版扫描器的结论**。所以凡是
+ * 改变了从一行里读出什么的改动，都必须在这里加一，否则数字永远停在旧口径上——读过的行不会再被重算。
  */
-export const USAGE_CACHE_VERSION = 8 as const;
+export const USAGE_CACHE_VERSION = 10 as const;
 
 const BUCKET_NUMBERS: (keyof UsageBucket)[] = [
 	"input", "output", "cacheRead", "cacheWrite", "reasoning", "cost", "inputCost", "outputCost",
@@ -74,32 +61,27 @@ function isCacheMiss(value: unknown): boolean {
 	);
 }
 
-function isFileEntry(value: unknown): value is UsageFileEntry {
-	const entry = asRecord(value);
-	if (!entry || typeof entry.mtimeMs !== "number" || typeof entry.size !== "number" || !Array.isArray(entry.buckets)) return false;
-	const days = asRecord(entry.days);
-	const streams = asRecord(entry.cacheStreams);
+function isUsageCache(value: unknown, expectedPricingKey: string, expectedSource: string): value is UsageCache {
+	const cache = asRecord(value);
+	if (!cache || cache.version !== USAGE_CACHE_VERSION || cache.pricingKey !== expectedPricingKey || cache.source !== expectedSource) return false;
+	const streams = asRecord(cache.streams);
 	return (
-		Boolean(days) &&
-		Object.values(days ?? {}).every((count) => typeof count === "number") &&
-		entry.buckets.every(isUsageBucket) &&
+		typeof cache.afterId === "number" &&
+		typeof cache.rows === "number" &&
+		Array.isArray(cache.buckets) &&
+		cache.buckets.every(isUsageBucket) &&
 		Boolean(streams) &&
 		Object.values(streams ?? {}).every((state) => Array.isArray(asRecord(state)?.reported) && typeof asRecord(state)?.requests === "number")
 	);
 }
 
-function isUsageCache(value: unknown, expectedPricingKey: string): value is UsageCache {
-	const cache = asRecord(value);
-	if (!cache || cache.version !== USAGE_CACHE_VERSION || cache.pricingKey !== expectedPricingKey) return false;
-	const files = asRecord(cache.files);
-	return Boolean(files) && Object.values(files ?? {}).every(isFileEntry);
-}
-
-export async function readUsageCache(path: string, expectedPricingKey: string): Promise<UsageFiles> {
+/** The cached tally, or an empty one to read the table from the top. `source` is the database the cursor must belong to. */
+export async function readUsageCache(path: string, expectedPricingKey: string, source: string): Promise<UsageTally> {
 	try {
 		const parsed: unknown = JSON.parse(await readFile(path, "utf8"));
-		return isUsageCache(parsed, expectedPricingKey) ? parsed.files : {};
+		if (isUsageCache(parsed, expectedPricingKey, source)) return { afterId: parsed.afterId, rows: parsed.rows, buckets: parsed.buckets, streams: parsed.streams };
 	} catch {
-		return {};
+		// Missing or unreadable: start over.
 	}
+	return { afterId: 0, rows: 0, buckets: [], streams: {} };
 }

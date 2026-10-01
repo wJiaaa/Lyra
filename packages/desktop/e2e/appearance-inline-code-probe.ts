@@ -23,6 +23,7 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const dir = process.argv[2] ?? "/tmp/plume-inline-code";
 const project = join(dir, "proj");
@@ -70,7 +71,6 @@ async function seed(home: string): Promise<void> {
 	);
 
 	const projectId = createHash("sha256").update(project).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	const meta = {
 		id: "inline",
 		title: "行内代码",
@@ -95,7 +95,7 @@ async function seed(home: string): Promise<void> {
 	 * 一句带两块行内代码的话，外加一个围栏块。
 	 *
 	 * 围栏块在这儿是当对照用的：它里面那枚 `<code>` 必须*不*跟着行内代码的配色走，否则调一次
-	 * 行内代码会把每个代码块里的字都染一遍。`seq` 从 1 起——写 0 的 meta 会被静默读掉。
+	 * 行内代码会把每个代码块里的字都染一遍。
 	 */
 	const reply = [
 		"已推送到 `origin/main`，最新提交 `f36a74b`。",
@@ -115,23 +115,22 @@ async function seed(home: string): Promise<void> {
 		"git log --oneline -1",
 		"```",
 	].join("\n");
-	const lines = [
-		JSON.stringify({ seq: 1, ts: 1, type: "meta", meta }),
-		JSON.stringify({
+	const records = [
+		{ seq: 1, ts: 1, type: "meta", meta },
+		{
 			seq: 2,
 			ts: 2,
 			type: "message",
 			message: { role: "user", content: [{ type: "text", text: "推了吗" }], timestamp: 2 },
-		}),
-		JSON.stringify({
+		},
+		{
 			seq: 3,
 			ts: 3,
 			type: "message",
 			message: { role: "assistant", content: [{ type: "text", text: reply }], timestamp: 3 },
-		}),
+		},
 	];
-	await writeFile(join(home, "sessions", projectId, "inline.jsonl"), `${lines.join("\n")}\n`);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta], null, 2));
+	seedSessions(home, [{ meta, records }]);
 }
 
 const app = await startApp({ port: 9487, seed });

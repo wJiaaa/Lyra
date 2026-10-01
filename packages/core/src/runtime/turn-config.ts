@@ -84,6 +84,8 @@ export interface TurnConfigDeps {
 	resources?: AgentRunConfig["resources"];
 	/** Where `scratch://` writes for this session. */
 	scratchDir?: string;
+	/** This session's committed messages, read from its own store; see `ToolContext.transcript`. */
+	transcript?: AgentRunConfig["transcript"];
 	/** Specific files outside the workspace explicitly granted to this turn. */
 	allowedPaths?: ReadonlySet<string>;
 	/** 见 `AgentRunConfig.liveModel`：人一轮中途换了模型，从下一个请求起就换。 */
@@ -123,7 +125,6 @@ export function buildTurnConfig(
 			tools: turn.tools,
 			messages: turn.messages,
 			thinking: thinking ?? deps.settings.thinking,
-			retryAttempts: deps.settings.retryAttempts,
 				retryPolicy: () => (deps.getSettings?.() ?? deps.settings).retryPolicy,
 			signal: deps.signal,
 			state: deps.state,
@@ -136,6 +137,7 @@ export function buildTurnConfig(
 			 */
 			writePreview: (input) =>
 				writePreview(plumeHome(), { ...input, sessionId: deps.sessionId }),
+			transcript: deps.transcript,
 			requestApproval: (request) => deps.requestApproval(request),
 			/*
 			 * What this turn's commands may change, derived from the permission mode.
@@ -205,6 +207,7 @@ export function buildTurnConfig(
 						},
 						dispatch: rootDispatch(),
 						allowedPaths: deps.allowedPaths,
+						transcript: deps.transcript,
 					},
 					input,
 					// 派出去那一刻会话在用哪个——一轮中途换过模型的，后派的子代理跟着新的走。

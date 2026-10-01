@@ -27,6 +27,7 @@ import { promisify } from "node:util";
 import { startApp, type RunningApp } from "./app.ts";
 import { pause } from "./record.ts";
 import { landsOn } from "./lands-on.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const PORT = 9855;
 const SCALE = 2;
@@ -58,19 +59,16 @@ async function seed(home: string): Promise<void> {
 	await writeFile(join(cwd, LONG), "# requirements\n");
 	await writeFile(join(cwd, PATH), "# issue\n");
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	const dir = join(home, "sessions", projectId);
-	await mkdir(dir, { recursive: true });
 	const now = Date.now();
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 	const meta = { id: SESSION, title: "提示气泡", cwd, projectId, projectName: "演示工程", createdAt: now, updatedAt: now, modelId: "qa/model", messageCount: 2, usage, seq: 0 };
-	// The outer seq starts at 1: a record with 0 is read past, and the session never reaches the sidebar.
-	const lines = [
+	const records = [
 		{ seq: 1, ts: now, type: "meta", meta },
 		{ seq: 2, ts: now, type: "message", message: { role: "user", content: [{ type: "text", text: "把相关文件列一下" }], timestamp: now } },
 		{ seq: 3, ts: now, type: "message", message: { role: "assistant", content: [{ type: "text", text: REPLY }], api: "anthropic-messages", provider: "qa", model: "model", usage, stopReason: "stop", timestamp: now } },
 		{ seq: 4, ts: now, type: "meta", meta: { ...meta, seq: 3 } },
 	];
-	await writeFile(join(dir, `${SESSION}.jsonl`), lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+	seedSessions(home, [{ meta, records }]);
 	// A fake provider that never gets a request; without one the reply is never rendered.
 	await writeFile(
 		join(home, "settings.json"),

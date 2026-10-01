@@ -418,7 +418,7 @@ export function sessionSlice(set: Set, get: Get) {
 
   async deleteSession(meta: SessionMeta) {
 		try {
-			await bridge.sessions.remove(meta.projectId, meta.id);
+			await bridge.sessions.remove(meta.id);
 			applySessionChange({ id: meta.id, projectId: meta.projectId, meta: null }, set, get);
 		} catch (cause) {
 			get().notify(translate("sessionSlice.deleteFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
@@ -427,7 +427,7 @@ export function sessionSlice(set: Set, get: Get) {
 
   async setSessionArchived(meta: SessionMeta, archived: boolean) {
 		try {
-			const sessions = await bridge.sessions.setArchived(meta.projectId, meta.id, archived);
+			const sessions = await bridge.sessions.setArchived(meta.id, archived);
 			const saved = sessions.find((session) => session.id === meta.id);
 			applySessionChange({ id: meta.id, projectId: meta.projectId, meta: saved ?? null }, set, get);
 		} catch (cause) {

@@ -121,8 +121,6 @@ function attachmentsOf(
        * 存下来的优先，没存的按**和输入框同一套规则**现算（见 `Composer` 的 `relabel`）。这条规则错
        * 开过两次，两次的表现是一样的：气泡里那些标记配不上任何一份附件，整句话的标签退化成一串方
        * 括号。两处必须是同一条。
-       *
-       * 老消息的标记写的是文件名，那一种由 `scanPlaceholders` 一并认（见 `answersTo`）。
        */
       label: file.label ?? displayName({ name: file.name, kindLabel: label(kind), kindIndex }, regionShot),
       tip: `${file.name}\n${label(kind)}`,

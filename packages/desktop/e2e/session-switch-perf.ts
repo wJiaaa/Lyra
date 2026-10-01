@@ -4,7 +4,7 @@
  *
  * 用**本机真实的会话**，不是造出来的：合成数据压不出这个问题——手写的转录每条都短、结构都一样，
  * 而真实的大会话里有几万条工具调用、几百个代码块、上千条思考行，解析和渲染的形状完全不同。这台
- * 机器上最大的那个 jsonl 有 25MB。
+ * 机器上最大的那个会话有 25MB。
  *
  * 量三样，按绘制帧记：
  *
@@ -22,9 +22,10 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { SessionStore } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
 
 const _HOW_MANY = Number(process.argv[2] ?? 4);
@@ -33,18 +34,15 @@ const REAL = join(homedir(), ".plume", "sessions");
 
 let app: RunningApp;
 
-/** 本机最大的那几个会话，连同它们的 meta。 */
-async function _biggest(count: number): Promise<{ file: string; dir: string; bytes: number }[]> {
-	const found: { file: string; dir: string; bytes: number }[] = [];
-	for (const dir of await readdir(REAL, { withFileTypes: true })) {
-		if (!dir.isDirectory()) continue;
-		for (const name of await readdir(join(REAL, dir.name))) {
-			if (!name.endsWith(".jsonl")) continue;
-			const file = join(REAL, dir.name, name);
-			found.push({ file, dir: dir.name, bytes: (await stat(file)).size });
-		}
+/** 本机最大的那几个会话，按记录字节数排。 */
+async function _biggest(count: number): Promise<{ id: string; bytes: number }[]> {
+	const store = new SessionStore(REAL);
+	try {
+		const sizes = await store.sizes();
+		return Object.entries(sizes).map(([id, bytes]) => ({ id, bytes })).sort((a, b) => b.bytes - a.bytes).slice(0, count);
+	} finally {
+		store.close();
 	}
-	return found.sort((a, b) => b.bytes - a.bytes).slice(0, count);
 }
 
 /**

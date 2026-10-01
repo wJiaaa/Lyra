@@ -14,6 +14,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume提问卡测试");
@@ -71,7 +72,6 @@ async function seed(home: string, modelPort: number): Promise<void> {
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
 	await mkdir(cwd, { recursive: true });
 	await writeFile(join(cwd, "README.md"), "# ask card\n");
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 	const meta = {
 		id: "ask-card",
@@ -86,13 +86,12 @@ async function seed(home: string, modelPort: number): Promise<void> {
 		usage,
 		seq: 3,
 	};
-	await writeFile(join(home, "sessions", projectId, "ask-card.jsonl"), [
-		JSON.stringify({ type: "meta", meta, seq: 0, ts: 1 }),
-		JSON.stringify({ type: "message", message: { role: "user", content: [{ type: "text", text: "你好，我想做个前端样式库。" }], timestamp: 1 }, seq: 1, ts: 1 }),
-		JSON.stringify({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "可以。先选定技术栈。" }], api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason: "stop", timestamp: 2 }, seq: 2, ts: 2 }),
-		JSON.stringify({ type: "meta", meta, seq: 3, ts: 3 }),
-	].join("\n") + "\n");
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta]));
+	seedSessions(home, [{ meta, records: [
+		{ type: "meta", meta, seq: 0, ts: 1 },
+		{ type: "message", message: { role: "user", content: [{ type: "text", text: "你好，我想做个前端样式库。" }], timestamp: 1 }, seq: 1, ts: 1 },
+		{ type: "message", message: { role: "assistant", content: [{ type: "text", text: "可以。先选定技术栈。" }], api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason: "stop", timestamp: 2 }, seq: 2, ts: 2 },
+		{ type: "meta", meta, seq: 3, ts: 3 },
+	] }]);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 860, x: 40, y: 40 }));
 	await writeFile(join(home, "settings.json"), JSON.stringify({
 		providers: [{ id: "qa", name: "隔离测试模型", api: "anthropic-messages", baseUrl: `http://127.0.0.1:${modelPort}`, apiKey: "test", enabled: true,

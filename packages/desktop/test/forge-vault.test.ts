@@ -4,17 +4,6 @@
  * The failure being fixed: macOS builds are ad-hoc signed, so each release has a different code
  * identity, and a keychain entry is bound to the identity that wrote it. Signing in to GitHub was
  * therefore something you did after every update. See `config/vault.ts` in core.
- *
- * Three shapes can be on disk, and all three have to be handled without asking anyone to sign in
- * again to complete a migration whose purpose is to stop asking:
- *
- *   - sealed by the vault — the ordinary case now
- *   - plaintext — what a machine with no keyring got from the old code
- *   - sealed by the keychain — every macOS install written before this change
- *
- * The first two are covered here. The third needs Electron's `safeStorage`, which does not exist
- * in this process — `legacyKeychain()` returns null, and the token reads as needing a fresh
- * sign-in, which is exactly what it does on a machine whose keychain has stopped answering.
  */
 
 import assert from "node:assert/strict";
@@ -70,7 +59,7 @@ after(async () => {
 });
 
 /** The stored file, as a test that wants to inspect the format reads it. */
-async function stored(): Promise<{ entries: { account: ForgeAccount; token: string; encrypted: boolean }[] }> {
+async function stored(): Promise<{ entries: { account: ForgeAccount; token: string }[] }> {
 	return JSON.parse(await readFile(join(home, "forges.json"), "utf8"));
 }
 
@@ -93,28 +82,11 @@ test("the file stays 0600", async () => {
 	assert.equal(mode, 0o600, `forges.json is ${mode.toString(8)}`);
 });
 
-test("a plaintext token from a machine with no keyring is read, then sealed in place", async () => {
-	// What the old code wrote when `safeStorage` reported no encryption available.
-	await writeFile(
-		join(home, "forges.json"),
-		JSON.stringify({ version: 1, entries: [{ account, token: "ghp_written_in_the_clear", encrypted: false }] }),
-		"utf8",
-	);
-
-	// Read once: the value has to survive, or the migration costs someone their sign-in.
-	assert.equal(await tokenFor("acc-1"), "ghp_written_in_the_clear");
-
-	// And it is no longer in the clear afterwards, without anyone having saved anything.
-	const file = await stored();
-	assert.ok(isSealed(file.entries[0].token), "the plaintext token was left as it was found");
-	assert.equal(await tokenFor("acc-1"), "ghp_written_in_the_clear", "and it still reads back");
-});
-
 test("a token this key cannot open reads as needing a fresh sign-in, not as a crash", async () => {
-	// Stands in for a keychain-sealed entry after an update: present, well-formed, unopenable.
+	// Present and well-formed, but not something the vault sealed.
 	await writeFile(
 		join(home, "forges.json"),
-		JSON.stringify({ version: 1, entries: [{ account, token: "bm90IG1pbmUgdG8gb3Blbg==", encrypted: true }] }),
+		JSON.stringify({ version: 1, entries: [{ account, token: "bm90IG1pbmUgdG8gb3Blbg==" }] }),
 		"utf8",
 	);
 
@@ -125,7 +97,7 @@ test("a sealed token written under a different key is null rather than wrong", a
 	const sealed = await seal("ghp_sealed_elsewhere");
 	await writeFile(
 		join(home, "forges.json"),
-		JSON.stringify({ version: 1, entries: [{ account, token: sealed, encrypted: true }] }),
+		JSON.stringify({ version: 1, entries: [{ account, token: sealed }] }),
 		"utf8",
 	);
 
@@ -170,9 +142,9 @@ test("an entry this build refuses does not take the rest of the file with it", a
 		JSON.stringify({
 			version: 1,
 			entries: [
-				{ account: { ...account, id: "acc-keep" }, token: await seal("ghp_keep"), encrypted: true },
+				{ account: { ...account, id: "acc-keep" }, token: await seal("ghp_keep") },
 				// A shape this build cannot validate: a newer version's, or a hand edit.
-				{ account: { id: "acc-strange", kind: "github" }, token: "whatever", encrypted: true },
+				{ account: { id: "acc-strange", kind: "github" }, token: "whatever" },
 			],
 		}),
 		"utf8",

@@ -41,9 +41,9 @@ test("truncateFrom uses active messages rather than physical line numbers when g
 		await appendMsg("assistant", "msg 3 (to be truncated)");
 
 		// 2. 截断到 index 2，使物理日志保留 msg 2 和 msg 3，但逻辑上被切除
-		await store.truncateFrom(meta.projectId, meta.id, 2);
+		await store.truncateFrom(meta.id, 2);
 
-		let loaded = await store.load(meta.projectId, meta.id);
+		let loaded = await store.load(meta.id);
 		assert.equal(loaded?.messages.length, 2);
 		assert.deepEqual(
 			loaded?.messages.map((m) => (m.content[0] as { text: string }).text),
@@ -56,12 +56,12 @@ test("truncateFrom uses active messages rather than physical line numbers when g
 		await appendMsg("user", "msg 4 new");
 		await appendMsg("assistant", "msg 5 new");
 
-		loaded = await store.load(meta.projectId, meta.id);
+		loaded = await store.load(meta.id);
 		assert.equal(loaded?.messages.length, 6);
 
 		// 4. 再次截断当前活跃消息的 index 4 (即保留前 4 条: msg 0, 1, 2 new, 3 new)
 		// 如果实现错误地物理扫描，由于物理日志前部有幽灵消息，cutoff 会漂移！
-		const after = await store.truncateFrom(meta.projectId, meta.id, 4);
+		const after = await store.truncateFrom(meta.id, 4);
 		assert.equal(after?.messages.length, 4);
 		assert.deepEqual(
 			after?.messages.map((m) => (m.content[0] as { text: string }).text),
@@ -69,7 +69,7 @@ test("truncateFrom uses active messages rather than physical line numbers when g
 		);
 
 		// 重新从磁盘 load 验证物理截断 afterSeq 是否正确生效
-		const reloaded = await new SessionStore(root).load(meta.projectId, meta.id);
+		const reloaded = await new SessionStore(root).load(meta.id);
 		assert.equal(reloaded?.messages.length, 4);
 		assert.deepEqual(
 			reloaded?.messages.map((m) => (m.content[0] as { text: string }).text),
@@ -122,19 +122,19 @@ test("truncateFrom maintains turn atomicity for parallel tool calls", async () =
 			});
 		}
 
-		let loaded = await store.load(meta.projectId, meta.id);
+		let loaded = await store.load(meta.id);
 		assert.equal(loaded?.messages.length, 5); // 0: user, 1: assistant, 2: res1, 3: res2, 4: res3
 
 		// 尝试在 toolResult 2 的位置截断 (index 3)
 		// 原子性要求：必须向前收缩，绝不能保留 assistant 却切掉后两个 toolResult！
-		const truncated = await store.truncateFrom(meta.projectId, meta.id, 3);
+		const truncated = await store.truncateFrom(meta.id, 3);
 		assert.ok(truncated);
 
 		// 此时应退回到 assistant 之前（即只保留 index 0: user），不会留下孤立的 toolCall
 		assert.equal(truncated.messages.length, 1);
 		assert.equal(truncated.messages[0].role, "user");
 
-		const reloaded = await store.load(meta.projectId, meta.id);
+		const reloaded = await store.load(meta.id);
 		assert.equal(reloaded?.messages.length, 1);
 		assert.equal(reloaded?.messages[0].role, "user");
 	} finally {

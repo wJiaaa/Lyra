@@ -48,7 +48,7 @@ test("manual commands carry focus instructions, are single-flight, and persist a
 		assert.equal(session.messages.length, 20);
 		const after = await session.contextBreakdown();
 		assert.ok(before && after && after.used < before.used * 0.7, JSON.stringify({ before: before?.used, after: after?.used }));
-		const loaded = await store.load(meta.projectId, meta.id);
+		const loaded = await store.load(meta.id);
 		assert.ok(loaded?.compaction);
 		assert.equal(loaded.commandRuns?.length, 1);
 		assert.equal(loaded.commandRuns?.[0].status, "done");
@@ -105,15 +105,15 @@ test("interrupted command replay settles once and rewind removes only records af
 		await session.log.commit({ role: "user", content: [{ type: "text", text: "first" }], timestamp: 1 });
 		const command = { id: "manual-1", name: "compact", input: "/compact", timestamp: 2, at: 1, status: "running", detail: "正在压缩会话…" } satisfies import("../src/agent/events.ts").CommandRun;
 		await session.log.emit({ type: "command_status", command });
-		assert.equal((await store.load(meta.projectId, meta.id))?.commandRuns?.[0].status, "cancelled");
+		assert.equal((await store.load(meta.id))?.commandRuns?.[0].status, "cancelled");
 		await session.log.emit({ type: "command_status", command: { ...command, status: "done", detail: "完成" } });
 		await session.log.commit(reply("first reply"));
 		await session.log.emit({ type: "command_status", command: { ...command, id: "manual-2", at: 2, status: "done" } });
 		await session.log.commit({ role: "user", content: [{ type: "text", text: "second" }], timestamp: 3 });
 		await session.log.emit({ type: "command_status", command: { ...command, id: "manual-3", at: 3 } });
-		assert.equal((await store.load(meta.projectId, meta.id))?.commandRuns?.length, 3);
+		assert.equal((await store.load(meta.id))?.commandRuns?.length, 3);
 		await session.log.truncateFrom(2);
-		const loaded = await store.load(meta.projectId, meta.id);
+		const loaded = await store.load(meta.id);
 		assert.deepEqual(loaded?.commandRuns, session.log.commandRuns);
 		assert.deepEqual(loaded?.commandRuns?.map((run) => [run.id, run.status]), [["manual-1", "done"], ["manual-2", "done"]]);
 	} finally { await rm(root, { recursive: true, force: true }); }

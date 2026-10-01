@@ -11,10 +11,12 @@
  * display gives it — so long frames, not averages, are what "不跟手" is made of.
  */
 
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { SessionMeta } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
+import { fixtureStore, seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 /** How many "show earlier" clicks to make before measuring, each mounting another 60 rows. */
 const EXPANSIONS = Number(process.env.PERF_EXPAND ?? 0);
@@ -51,19 +53,15 @@ interface FrameStats {
 // The heaviest conversation on this machine, copied into a throwaway profile
 // ---------------------------------------------------------------------------
 
-interface SessionMeta {
-	id: string;
-	title: string;
-	cwd: string;
-	projectId: string;
-	projectName: string;
-	messageCount: number;
-	[key: string]: unknown;
-}
-
 /** The session to measure: the one named by `PERF_SESSION`, or the longest transcript there is. */
 async function pickSession(): Promise<SessionMeta> {
-	const index = JSON.parse(await readFile(join(REAL_HOME, "sessions", "index.json"), "utf8")) as SessionMeta[];
+	const store = fixtureStore(REAL_HOME);
+	let index: SessionMeta[];
+	try {
+		index = await store.listSessions();
+	} finally {
+		store.close();
+	}
 	const wanted = process.env.PERF_SESSION;
 	const found = wanted
 		? index.find((meta) => meta.id === wanted)
@@ -93,13 +91,15 @@ function seedProfile(meta: SessionMeta): (home: string) => Promise<void> {
 			}),
 		);
 
-		// One session in the index, so the sidebar cannot open a different one by accident.
-		await mkdir(join(home, "sessions", meta.projectId), { recursive: true });
-		await copyFile(
-			join(REAL_HOME, "sessions", meta.projectId, `${meta.id}.jsonl`),
-			join(home, "sessions", meta.projectId, `${meta.id}.jsonl`),
-		);
-		await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta], null, 2));
+		// One session in the database, so the sidebar cannot open a different one by accident.
+		const source = fixtureStore(REAL_HOME);
+		const records: FixtureRecord[] = [];
+		try {
+			for await (const record of source.read(meta.id)) records.push(record);
+		} finally {
+			source.close();
+		}
+		seedSessions(home, [{ meta, records }]);
 	};
 }
 

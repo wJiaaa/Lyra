@@ -16,6 +16,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions, type FixtureSession } from "./session-fixture.ts";
 
 const REPO = "/Users/kittors/Developer/opensource/Plume";
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "会话行虚化让位测试");
@@ -55,7 +56,6 @@ function check(what: string, ok: boolean, saw: string) {
 
 async function seed(home: string): Promise<void> {
 	const projectId = createHash("sha256").update(REPO).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1180, height: 820, x: 48, y: 48 }));
 	await writeFile(
 		join(home, "settings.json"),
@@ -76,7 +76,7 @@ async function seed(home: string): Promise<void> {
 		}),
 	);
 
-	const metas: object[] = [];
+	const sessions: FixtureSession[] = [];
 	for (let i = 0; i < TITLES.length; i++) {
 		const id = `hover${String(i + 1).padStart(2, "0")}`;
 		const messages = [
@@ -105,17 +105,16 @@ async function seed(home: string): Promise<void> {
 			usage,
 			seq: messages.length + 1,
 		};
-		metas.push(meta);
-		await writeFile(
-			join(home, "sessions", projectId, `${id}.jsonl`),
-			[
-				JSON.stringify({ seq: 0, ts: 1, type: "meta", meta }),
-				...messages.map((message, at) => JSON.stringify({ seq: at + 1, ts: at + 1, type: "message", message })),
-				JSON.stringify({ seq: meta.seq, ts: 2, type: "meta", meta }),
-			].join("\n") + "\n",
-		);
+		sessions.push({
+			meta,
+			records: [
+				{ seq: 0, ts: 1, type: "meta", meta },
+				...messages.map((message, at) => ({ seq: at + 1, ts: at + 1, type: "message", message })),
+				{ seq: meta.seq, ts: 2, type: "meta", meta },
+			],
+		});
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 }
 
 type RowMeasure = {

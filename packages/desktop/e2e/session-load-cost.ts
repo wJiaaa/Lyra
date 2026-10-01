@@ -10,21 +10,22 @@
  * 这里不开窗口（用户正开着 Plume 在用），只在 Node 里把同一批数据按同样的顺序过一遍，量每一段。
  * 跨进程那次没法在这里真做，用 `structuredClone` 顶替——它和 IPC 用的是同一套序列化。
  *
- * 用法：node --import tsx e2e/session-load-cost.ts [会话文件路径]
+ * 用法：node --import tsx e2e/session-load-cost.ts [会话 id]
  */
 
-import { readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { intact } from "../src/lib/transcript.ts";
 import { howItStopped, rebuildToolRuns, todosFrom } from "../src/store/derive.ts";
 
-/** 最大的那几个会话文件，从大到小。 */
+// Read-only: the user's Plume may have this database open.
+const db = new DatabaseSync(join(homedir(), ".plume", "sessions", "sessions.db"), { readOnly: true });
+
+/** 最大的那几个会话，从大到小。 */
 function biggest(n: number): string[] {
-	const root = join(homedir(), ".plume", "sessions");
-	const out = execFileSync("sh", ["-c", `find ${JSON.stringify(root)} -name '*.jsonl' -type f -exec du -k {} + | sort -rn | head -${n} | cut -f2-`], { encoding: "utf8" });
-	return out.trim().split("\n").filter(Boolean);
+	const rows = db.prepare("SELECT session_id FROM records GROUP BY session_id ORDER BY SUM(LENGTH(CAST(body AS BLOB))) DESC LIMIT ?").all(n) as { session_id: string }[];
+	return rows.map((row) => row.session_id);
 }
 
 function ms(label: string, run: () => unknown): number {
@@ -36,30 +37,29 @@ function ms(label: string, run: () => unknown): number {
 	return dt;
 }
 
-/** 主进程读一个会话：按行 JSON.parse，取出 message 那些。 */
-function parseTranscript(text: string): unknown[] {
+/** 主进程读一个会话：逐条记录 JSON.parse，取出 message 那些。 */
+function parseTranscript(bodies: string[]): unknown[] {
 	const messages: unknown[] = [];
-	for (const line of text.split("\n")) {
-		if (!line) continue;
-		const record = JSON.parse(line) as { message?: unknown };
+	for (const body of bodies) {
+		const record = JSON.parse(body) as { message?: unknown };
 		if (record.message) messages.push(record.message);
 	}
 	return messages;
 }
 
-const files = process.argv[2] ? [process.argv[2]] : biggest(3);
+const ids = process.argv[2] ? [process.argv[2]] : biggest(3);
 
-for (const file of files) {
-	const bytes = readFileSync(file).byteLength;
-	console.log(`\n【${file.split("/").slice(-2).join("/")}】 ${(bytes / 1024 / 1024).toFixed(1)} MB`);
+for (const id of ids) {
+	const { bytes } = db.prepare("SELECT COALESCE(SUM(LENGTH(CAST(body AS BLOB))), 0) AS bytes FROM records WHERE session_id = ?").get(id) as { bytes: number };
+	console.log(`\n【${id}】 ${(bytes / 1024 / 1024).toFixed(1)} MB`);
 
-	let text = "";
+	let bodies: string[] = [];
 	let messages: unknown[] = [];
 	let cloned: unknown[] = [];
 
 	const total =
-		ms("读盘", () => { text = readFileSync(file, "utf8"); return null; }) +
-		ms("逐行 JSON.parse（主进程）", () => { messages = parseTranscript(text); return messages; }) +
+		ms("读库", () => { bodies = (db.prepare("SELECT body FROM records WHERE session_id = ? ORDER BY seq").all(id) as { body: string }[]).map((row) => row.body); return null; }) +
+		ms("逐条 JSON.parse（主进程）", () => { messages = parseTranscript(bodies); return messages; }) +
 		ms("结构化克隆（相当于过一次 IPC）", () => { cloned = structuredClone(messages) as unknown[]; return cloned; }) +
 		// 下面这些是拿到转录之后，渲染进程主线程上一个接一个跑的。
 		ms("intact（进门那道闸）", () => intact(cloned as never)) +
@@ -70,3 +70,5 @@ for (const file of files) {
 	console.log(`   ${"─".repeat(40)}`);
 	console.log(`   ${total.toFixed(0).padStart(6)} ms  合计（不含 React 渲染）`);
 }
+
+db.close();

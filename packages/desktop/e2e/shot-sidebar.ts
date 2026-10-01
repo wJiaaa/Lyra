@@ -7,9 +7,10 @@
  * the one thing a pinned row's colour still depends on.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const DAY = 86_400_000;
 const NAMES = ["cf-sub-worker-public", "agent-test", "deepWise", "CliProxy", "Plume", "quantum"];
@@ -17,7 +18,7 @@ const AGES = [0, 0, 1, 1, 3, 9, 20, 40, 90];
 
 async function seed(home: string): Promise<void> {
 	const now = Date.now();
-	const metas: unknown[] = [];
+	const metas = [];
 	let n = 0;
 	for (const name of NAMES) {
 		for (let i = 0; i < 9; i++) {
@@ -39,8 +40,7 @@ async function seed(home: string): Promise<void> {
 			n++;
 		}
 	}
-	await mkdir(join(home, "sessions"), { recursive: true });
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, metas.map((meta) => ({ meta, records: [] })));
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 900, x: 0, y: 0 }));
 	await writeFile(
 		join(home, "settings.json"),

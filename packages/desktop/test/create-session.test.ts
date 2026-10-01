@@ -18,12 +18,12 @@ test("opening submissions have durable distinct identities before any runtime is
 		assert.notEqual(first.meta.id, second.meta.id);
 		assert.equal(first.meta.title, "同一个问题 两个会话");
 		assert.equal(first.meta.workspaceSetup, "worktree");
-		assert.equal((await store.load(first.meta.projectId, first.meta.id))?.messages.length, 1);
+		assert.equal((await store.load(first.meta.id))?.messages.length, 1);
 		await store.append(first.meta, { type: "title", title: "只改第一个" });
-		await store.setArchived(first.meta.projectId, first.meta.id, true);
-		assert.equal((await store.load(second.meta.projectId, second.meta.id))?.meta.title, second.meta.title);
-		assert.equal((await store.load(second.meta.projectId, second.meta.id))?.meta.archived, undefined);
-		await store.delete(first.meta.projectId, first.meta.id);
+		await store.setArchived(first.meta.id, true);
+		assert.equal((await store.load(second.meta.id))?.meta.title, second.meta.title);
+		assert.equal((await store.load(second.meta.id))?.meta.archived, undefined);
+		await store.delete(first.meta.id);
 		assert.equal((await store.listSessions()).length, 1);
 	} finally { await rm(root, { recursive: true, force: true }); }
 });
@@ -64,8 +64,8 @@ test("a persisted opening message is consumed once and abort can cancel its star
 		assert.equal(session.running, false);
 		assert.equal(events.some((event) => event.type === "notice"), false, "no provider was reached after cancellation");
 		assert.ok(events.some(event => event.type === "agent_end" && event.reason === "aborted"));
-		assert.equal((await store.load(saved.meta.projectId, saved.meta.id))?.messages.length, 1);
-		assert.equal((await store.load(saved.meta.projectId, saved.meta.id))?.meta.pendingPrompt, undefined);
+		assert.equal((await store.load(saved.meta.id))?.messages.length, 1);
+		assert.equal((await store.load(saved.meta.id))?.meta.pendingPrompt, undefined);
 		await session.dispose();
 	} finally { await rm(root, { recursive: true, force: true }); }
 });
@@ -124,7 +124,7 @@ test("a reference-only opening uses its label and persists both same-title targe
 		const initial = initialPrompt({ content: "reference instructions", displayText: "", sessionRefs: [{ id: "a", title: "同名" }, { id: "b", title: "同名" }] });
 		const saved = await createStoredSession(store, DEFAULT_SETTINGS, root, "", initial);
 		assert.equal(saved.meta.title, "同名");
-		const message = (await store.load(saved.meta.projectId, saved.meta.id))?.messages[0];
+		const message = (await store.load(saved.meta.id))?.messages[0];
 		assert.ok(message?.role === "user");
 		assert.deepEqual(message.sessionRefs, initial?.sessionRefs);
 		assert.equal(message.displayText, "");
@@ -150,7 +150,7 @@ test("the level a new chat started with stays when the next new chat moves the d
 		const b = await createStoredSession(store, medium, root, "", { content: [{ type: "text", text: "对话 b" }] });
 		assert.equal(b.meta.thinking, "medium");
 
-		const reloaded = await store.load(a.meta.projectId, a.meta.id);
+		const reloaded = await store.load(a.meta.id);
 		assert.equal(reloaded?.meta.thinking, "high", "a 的记录里还是「高」");
 		assert.equal(sessionThinking(reloaded?.meta, medium), "high", "输入框那枚标签读到的也是");
 	} finally { await rm(root, { recursive: true, force: true }); }

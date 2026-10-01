@@ -23,6 +23,7 @@ import { createHash } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions, type FixtureSession } from "./session-fixture.ts";
 
 const dir = process.argv[2] ?? "/tmp/plume-project-head-hover";
 const theme = process.argv[3] === "dark" ? "dark" : "light";
@@ -71,14 +72,13 @@ const paths = new Map<string, string>();
 async function seed(home: string): Promise<void> {
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1200, height: 860, x: 40, y: 40 }));
 	const projects: object[] = [];
-	const metas: object[] = [];
+	const sessions: FixtureSession[] = [];
 	let n = 0;
 	for (const project of PROJECTS) {
 		const path = join(home, "work", project.key);
 		paths.set(project.key, path);
 		const id = createHash("sha256").update(path).digest("hex").slice(0, 16);
 		await mkdir(path, { recursive: true });
-		await mkdir(join(home, "sessions", id), { recursive: true });
 		projects.push({ id, name: project.name, path, pinned: false, lastOpenedAt: 1 });
 		for (const [at, title] of project.sessions.entries()) {
 			n++;
@@ -100,19 +100,17 @@ async function seed(home: string): Promise<void> {
 				usage,
 				seq: messages.length + 1,
 			};
-			metas.push(meta);
-			// 外层 seq 从 1 起：写 0 的 meta 会被读掉，会话连侧栏都进不去。
-			await writeFile(
-				join(home, "sessions", id, `${sid}.jsonl`),
-				[
-					JSON.stringify({ seq: 1, ts: 1, type: "meta", meta: { ...meta, seq: 0 } }),
-					...messages.map((message, i) => JSON.stringify({ seq: i + 2, ts: i + 2, type: "message", message })),
-					JSON.stringify({ seq: messages.length + 2, ts: 3, type: "meta", meta }),
-				].join("\n") + "\n",
-			);
+			sessions.push({
+				meta,
+				records: [
+					{ seq: 1, ts: 1, type: "meta", meta: { ...meta, seq: 0 } },
+					...messages.map((message, i) => ({ seq: i + 2, ts: i + 2, type: "message", message })),
+					{ seq: messages.length + 2, ts: 3, type: "meta", meta },
+				],
+			});
 		}
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 	await writeFile(
 		join(home, "settings.json"),
 		JSON.stringify({

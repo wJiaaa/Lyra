@@ -496,3 +496,13 @@ test("a match that carried an image says the image cannot come back", async () =
 	assert.match(text, /cannot be replayed/, "and says plainly that searching harder will not produce it");
 	assert.match(text, /ask the user to resend/, "and names the only thing that will");
 });
+
+test("the transcript the host provides is the one searched, not whatever store is on this disk", async () => {
+	// A session id no store here has ever seen: only the host's reader can answer.
+	const ctx: ToolContext = {
+		...context(home, "kept-somewhere-else"),
+		transcript: async () => [{ role: "user", content: [{ type: "text", text: "托管存储里的暗号" }], timestamp: 1 }],
+	};
+	const text = textOf(await recallTool.execute({ query: "暗号" }, ctx));
+	assert.ok(text.includes("托管存储里的暗号"), `found through the host's store:\n${text.slice(0, 400)}`);
+});

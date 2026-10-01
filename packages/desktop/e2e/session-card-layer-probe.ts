@@ -26,6 +26,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
+import { seedSessions, type FixtureSession } from "./session-fixture.ts";
 
 const PORT = 9547;
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "悬停卡层级测试");
@@ -59,7 +60,6 @@ async function seed(home: string): Promise<void> {
 	await mkdir(repo, { recursive: true });
 	await writeFile(join(repo, "readme.md"), "# CliProxy\n");
 	const projectId = createHash("sha256").update(repo).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1200, height: 860, x: 40, y: 40 }));
 	await writeFile(
 		join(home, "settings.json"),
@@ -80,7 +80,7 @@ async function seed(home: string): Promise<void> {
 		}),
 	);
 
-	const metas: object[] = [];
+	const sessions: FixtureSession[] = [];
 	for (let i = 0; i < TITLES.length; i++) {
 		const id = `card${String(i + 1).padStart(2, "0")}`;
 		const messages = [
@@ -109,17 +109,16 @@ async function seed(home: string): Promise<void> {
 			usage,
 			seq: messages.length + 1,
 		};
-		metas.push(meta);
-		await writeFile(
-			join(home, "sessions", projectId, `${id}.jsonl`),
-			[
-				JSON.stringify({ seq: 0, ts: 1, type: "meta", meta }),
-				...messages.map((message, at) => JSON.stringify({ seq: at + 1, ts: at + 1, type: "message", message })),
-				JSON.stringify({ seq: meta.seq, ts: 2, type: "meta", meta }),
-			].join("\n") + "\n",
-		);
+		sessions.push({
+			meta,
+			records: [
+				{ seq: 0, ts: 1, type: "meta", meta },
+				...messages.map((message, at) => ({ seq: at + 1, ts: at + 1, type: "message", message })),
+				{ seq: meta.seq, ts: 2, type: "meta", meta },
+			],
+		});
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 }
 
 /**

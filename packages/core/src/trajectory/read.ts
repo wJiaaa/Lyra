@@ -5,28 +5,25 @@
  * The interesting part is that this is the *only* reader: resuming, forking and replaying all go
  * through it, so there is one answer to "what happened" rather than three that can disagree.
  *
- * `truncate` records are honoured here rather than by rewriting the file — history is never edited,
+ * `truncate` records are honoured here rather than by deleting records — history is never edited,
  * so a trajectory has to know that a tail was voided and leave it out.
  */
 
 import type { SessionRecord } from "../session/store.ts";
 import type { Entry } from "./types.ts";
 import { projectTrajectory } from "./project.ts";
-import type { SessionReadCursor, SessionRecordChanges } from "../session/read-changes.ts";
 
 export interface TrajectorySource {
-	read(projectId: string, sessionId: string, sinceSeq?: number): AsyncGenerator<SessionRecord>;
-	readChanges?(projectId: string, sessionId: string, cursor?: SessionReadCursor): Promise<SessionRecordChanges<SessionRecord>>;
+	read(sessionId: string, sinceSeq?: number): AsyncGenerator<SessionRecord>;
 }
 
 export async function readTrajectory(
 	store: TrajectorySource,
-	projectId: string,
 	sessionId: string,
 	running = false,
 ): Promise<Entry[]> {
 	const records: SessionRecord[] = [];
-	for await (const record of store.read(projectId, sessionId)) {
+	for await (const record of store.read(sessionId)) {
 		if (record.type === "truncate") {
 			while (records.length && records[records.length - 1].seq > record.afterSeq) records.pop();
 		} else records.push(record);

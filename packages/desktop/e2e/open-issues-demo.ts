@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { startApp, closeListeningServer, type RunningApp } from "./app.ts";
 import { startRecording, encode, type Frame } from "./record.ts";
 import { issueModel } from "./issues-fixture.ts";
+import { seedSessions, type FixtureSession } from "./session-fixture.ts";
 import { emptyUsage, type AssistantMessage, type Message } from "@plume/core";
 
 const out = join(homedir(), "Desktop", "Plume未修复issue验收");
@@ -66,22 +67,15 @@ async function seed(home: string) {
 	const plumeMeta = meta("issue-plume", "Plume 会话", plumeId, "Plume", plume, plumeMessages.length);
 	const shopMeta = meta("issue-shop", "数图会话", shopId, "数图可视化品类空间", shop, shopMessages.length);
 	const pinMeta = meta("issue-pin", "置顶的这条会话", plumeId, "Plume", plume, pinMessages.length);
-	const writeSession = async (projectId: string, id: string, sessionMeta: typeof plumeMeta, messages: Message[]) => {
-		const dir = join(home, "sessions", projectId);
-		await mkdir(dir, { recursive: true });
-		await writeFile(
-			join(dir, `${id}.jsonl`),
-			[
-				JSON.stringify({ type: "meta", meta: sessionMeta, seq: 1, ts: at }),
-				...messages.map((message, i) => JSON.stringify({ type: "message", message, seq: i + 2, ts: at })),
-				JSON.stringify({ type: "meta", meta: sessionMeta, seq: sessionMeta.seq, ts: at }),
-			].join("\n") + "\n",
-		);
-	};
-	await writeSession(plumeId, "issue-plume", plumeMeta, plumeMessages);
-	await writeSession(shopId, "issue-shop", shopMeta, shopMessages);
-	await writeSession(plumeId, "issue-pin", pinMeta, pinMessages);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([pinMeta, plumeMeta, shopMeta]));
+	const session = (sessionMeta: typeof plumeMeta, messages: Message[]): FixtureSession => ({
+		meta: sessionMeta,
+		records: [
+			{ type: "meta", meta: sessionMeta, seq: 1, ts: at },
+			...messages.map((message, i) => ({ type: "message" as const, message, seq: i + 2, ts: at })),
+			{ type: "meta", meta: sessionMeta, seq: sessionMeta.seq, ts: at },
+		],
+	});
+	seedSessions(home, [session(plumeMeta, plumeMessages), session(shopMeta, shopMessages), session(pinMeta, pinMessages)]);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900 }));
 	await writeFile(join(home, "settings.json"), JSON.stringify({
 		uiLocale: "zh-CN",

@@ -9,6 +9,7 @@ import { seedInteractions } from "./interaction-fixture.ts";
 import { named } from "./named.ts";
 import { encode, startRecording, type Frame } from "./record.ts";
 import { settleSharedWindow } from "./shared-window.ts";
+import { fixtureStore, seedSessions } from "./session-fixture.ts";
 
 let app: RunningApp;
 const recorded: Frame[] = [];
@@ -26,14 +27,17 @@ before(async () => { app = await startApp({ port: PORT, seed: async (home) => {
 	await mkdir(memory, {recursive:true});
 	await writeFile(join(memory, "MEMORY.md"), "# 项目记忆\n\n核对当前仓库脚本，再选择验证命令。\n");
 	await writeFile(join(project.path, "AGENTS.md"), "# Project instructions\nUse current repository evidence.\n");
-	const log = join(home,"sessions",project.id,"qa-long.jsonl");
-	const records: SessionRecord[] = (await readFile(log,"utf8")).trim().split("\n").map(line=>JSON.parse(line));
+	const store = fixtureStore(home);
+	const meta = await store.get("qa-long");
+	const records: SessionRecord[] = [];
+	for await (const record of store.read("qa-long")) records.push(record);
+	store.close();
 	const icon = (await readFile(new URL("../build/icon.png", import.meta.url))).toString("base64");
 	for (const record of records) if (record.type === "message" && record.message.role === "user" && record.message.content.some(block=>block.type === "text" && block.text.includes("第 120 个问题"))) {
 		record.message.timestamp = Date.now();
 		record.message.content.push({type:"image",mimeType:"image/png",data:icon}, {type:"image",mimeType:"image/png",data:icon});
 	}
-	await writeFile(log, records.map(record=>JSON.stringify(record)).join("\n")+"\n");
+	seedSessions(home, [{ meta: meta!, records }]);
 } });
 	if (process.env.PLUME_E2E_VIDEO) stopRecording = await startRecording(PORT, recorded);
 });

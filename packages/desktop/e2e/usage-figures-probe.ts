@@ -19,6 +19,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions, type FixtureRecord, type FixtureSession } from "./session-fixture.ts";
 
 const PORT = 9427;
 const OUT = join(import.meta.dirname, "..", "..", "..", "test-results", "usage-figures");
@@ -41,9 +42,9 @@ const app = await startApp({
 		await mkdir(project, { recursive: true });
 		await writeFile(join(project, "readme.md"), "# demo\n");
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1180, height: 900, x: 0, y: 0 }));
-		await mkdir(join(home, "sessions", PROJECT_ID), { recursive: true });
 
 		const now = Date.now();
+		const sessions: FixtureSession[] = [];
 		for (const [index, shape] of SHAPES.entries()) {
 			/*
 			 * The usage is spread across the replies rather than parked on the meta record.
@@ -66,28 +67,29 @@ const app = await startApp({
 				usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 				seq: 1,
 			};
-			const lines = [JSON.stringify({ seq: 1, ts: now - 86_400_000, type: "meta", meta })];
+			const records: FixtureRecord[] = [{ seq: 1, ts: now - 86_400_000, type: "meta", meta }];
 			let seq = 1;
 			// Padded out to the real message count with user turns, so 「消息」 reads as it did.
 			const filler = Math.max(0, shape.messages - shape.replies);
 			for (let i = 0; i < shape.replies; i++) {
 				if (i < filler) {
-					lines.push(JSON.stringify({ seq: ++seq, ts: now, type: "message", message: { role: "user", content: [{ type: "text", text: "。" }], timestamp: now } }));
+					records.push({ seq: ++seq, ts: now, type: "message", message: { role: "user", content: [{ type: "text", text: "。" }], timestamp: now } });
 				}
-				lines.push(JSON.stringify({
+				records.push({
 					seq: ++seq, ts: now, type: "message",
 					message: {
 						role: "assistant", content: [{ type: "text", text: "。" }], api: "openai-responses",
 						provider: "relay", model: "gemini-3.8-flash-high", stopReason: "stop", timestamp: now,
 						usage: { ...per, total: per.input + per.output + per.cacheRead + per.cacheWrite, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 					},
-				}));
+				});
 			}
 			for (let i = shape.replies * 2; i < shape.messages; i++) {
-				lines.push(JSON.stringify({ seq: ++seq, ts: now, type: "message", message: { role: "user", content: [{ type: "text", text: "。" }], timestamp: now } }));
+				records.push({ seq: ++seq, ts: now, type: "message", message: { role: "user", content: [{ type: "text", text: "。" }], timestamp: now } });
 			}
-			await writeFile(join(home, "sessions", PROJECT_ID, `${shape.id}.jsonl`), lines.join("\n") + "\n");
+			sessions.push({ meta, records });
 		}
+		seedSessions(home, sessions);
 
 		await writeFile(join(home, "settings.json"), JSON.stringify({
 			version: 1, providers: [], mcpServers: [],

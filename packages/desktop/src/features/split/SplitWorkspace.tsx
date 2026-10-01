@@ -61,7 +61,6 @@ export function SplitWorkspace() {
 	const resize = useSplit((s) => s.resize);
 	const even = useSplit((s) => s.even);
 	const activeSessionId = useApp((s) => s.activeSessionId);
-	const workspace = useApp((s) => s.workspace);
 	const sessions = useApp((s) => s.sessions);
 	const root = useRef<HTMLElement | null>(null);
 	const viewport = useRef<HTMLDivElement>(null);
@@ -76,13 +75,11 @@ export function SplitWorkspace() {
 	 */
 
 	const windowId = bridge.bootWindow?.id ?? "primary";
-	const project = workspace?.path ?? "";
 
 	useEffect(() => {
 		const existing = new Set(useApp.getState().sessions.map((session) => session.id));
-		// `hydrate` takes a window's tiling once; after that this runs again only because the project changed.
 		const fresh = useSplit.getState().windowId !== windowId;
-		hydrate(windowId, existing, project);
+		hydrate(windowId, existing);
 		/*
 		 * 恢复出来的那一屏，也要让应用知道它就是「当前会话」。
 		 *
@@ -104,7 +101,7 @@ export function SplitWorkspace() {
 		 */
 		const restored = useSplit.getState().focused ?? firstSession(useSplit.getState().tree);
 		if (fresh && restored && !useApp.getState().activeSessionId) void useApp.getState().openSessionById(restored);
-	}, [hydrate, windowId, project]);
+	}, [hydrate, windowId]);
 
 	useEffect(() => {
 		/*

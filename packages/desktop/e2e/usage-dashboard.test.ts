@@ -7,6 +7,7 @@ import { after, afterEach, before, test } from "node:test";
 import { catalogModelFor } from "@plume/core/model-catalog";
 import { zhCN } from "../src/i18n/messages/zh-CN.ts";
 import { startApp, type RunningApp } from "./app.ts";
+import { seedSessions, type FixtureRecord, type FixtureSession } from "./session-fixture.ts";
 
 let app: RunningApp;
 
@@ -21,7 +22,7 @@ interface ReplyFixture {
 	cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; total: number; source?: "provider" };
 }
 
-function reply(seq: number, at: number, fixture: ReplyFixture): string {
+function reply(seq: number, at: number, fixture: ReplyFixture): FixtureRecord {
 	const usage = {
 		input: fixture.input,
 		output: fixture.output,
@@ -41,7 +42,7 @@ function reply(seq: number, at: number, fixture: ReplyFixture): string {
 		stopReason: "stop",
 		timestamp: at,
 	};
-	return `${JSON.stringify({ seq, ts: at, type: "message", message })}\n`;
+	return { seq, ts: at, type: "message", message };
 }
 
 function configuredModel(providerId: string, modelId: string, name: string) {
@@ -92,19 +93,24 @@ async function seed(home: string): Promise<void> {
 	await mkdir(root, { recursive: true });
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900, x: 0, y: 0 }));
 	const day = 24 * 60 * 60 * 1000;
+	const sessions: FixtureSession[] = [];
 	for (let session = 0; session < 40; session++) {
 		const projectId = `usage${session}`.padEnd(16, "0");
-		await mkdir(join(home, "sessions", projectId), { recursive: true });
-		const lines: string[] = [];
+		const records: FixtureRecord[] = [];
 		for (let daysAgo = 29; daysAgo >= 10; daysAgo--) {
 			const at = Date.now() - daysAgo * day;
 			for (let turn = 0; turn < 90; turn++) {
 				const tokens = 4_000 + ((daysAgo * 7_919 + session * 104_729 + turn * 31) % 46_000);
-				lines.push(reply(lines.length + 1, at, fixtureFor(daysAgo + session + turn, tokens)));
+				records.push(reply(records.length + 1, at, fixtureFor(daysAgo + session + turn, tokens)));
 			}
 		}
-		await writeFile(join(home, "sessions", projectId, `session-${session}.jsonl`), lines.join(""));
+		const empty = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+		sessions.push({
+			meta: { id: `session-${session}`, title: `session-${session}`, cwd: root, projectId, projectName: "project", createdAt: Date.now() - 29 * day, updatedAt: Date.now() - 10 * day, modelId: "relay/gemini-3-0", messageCount: records.length, usage: empty, seq: 0 },
+			records,
+		});
 	}
+	seedSessions(home, sessions);
 	await writeFile(join(home, "settings.json"), JSON.stringify({
 		version: 1,
 		providers: [

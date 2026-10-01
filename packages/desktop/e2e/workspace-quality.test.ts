@@ -128,7 +128,7 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 	await until(`document.body.innerText.includes('WORKSPACE_QA_DONE')`);
 	await until(`document.querySelector('[data-turn-delivery]')?.innerText.includes('1 个文件')`);
 	assert.equal(await readFile(join(app.home,"project","Sample.ts"),"utf8"),"export const answer = 2;\n");
-	const timestamp=await app.evaluate<number>(`window.plume.sessions.list().then(s=>window.plume.sessions.transcript(s.find(s=>s.id==='qa-short').projectId,'qa-short')).then(s=>s.messages.findLast(m=>m.role==='assistant').timestamp)`);
+	const timestamp=await app.evaluate<number>(`window.plume.sessions.transcript('qa-short').then(s=>s.messages.findLast(m=>m.role==='assistant').timestamp)`);
 	const delivery=await app.evaluate<{reportPath:string;files:{added:number;removed:number}[];commands:{status:string}[]}>(`window.plume.delivery.get('qa-short',${timestamp})`);
 	assert.equal(delivery.files.length,1);assert.equal(delivery.files[0].removed,0);assert.ok(delivery.commands.some(c=>c.status==='exit 0'));
 	assert.match(await readFile(delivery.reportPath,"utf8"),/answer = 2/);assert.match(await readFile(delivery.reportPath,"utf8"),/本轮实现与验证记录/);
@@ -169,7 +169,7 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 
 test("undo protects later user changes and service stop really closes the owned listener",async()=>{
 	const path=join(app.home,"project","Sample.ts");await writeFile(path,"user added work\n");
-	const timestamp=await app.evaluate<number>(`window.plume.sessions.list().then(s=>window.plume.sessions.transcript(s.find(s=>s.id==='qa-short').projectId,'qa-short')).then(s=>s.messages.findLast(m=>m.role==='assistant').timestamp)`);
+	const timestamp=await app.evaluate<number>(`window.plume.sessions.transcript('qa-short').then(s=>s.messages.findLast(m=>m.role==='assistant').timestamp)`);
 	assert.match(await app.evaluate<string>(`window.plume.delivery.undo('qa-short',${timestamp},${JSON.stringify(path)}).then(()=>"undone",e=>e.message)`),/没有可安全撤销/);
 	assert.equal(await readFile(path,"utf8"),"user added work\n");
 	await writeFile(path,"export const answer = 2;\n");

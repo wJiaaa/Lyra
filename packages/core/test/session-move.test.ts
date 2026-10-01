@@ -8,14 +8,10 @@
  *
  * 所以这里每一条都要**跨一次重新读取**才算数：`listSessions()` 问的是同一个实例的缓存，而 bug 的
  * 形状恰恰是「内存里是对的」。新开一个 `SessionStore` 指向同一个目录，等于重启一次应用。
- *
- * 另一半是文件本身。会话日志按 `projectId` 分目录存，`projectId` 又是 cwd 的哈希——所以「移动」
- * 不是改字段，是把 `sessions/<旧>/<id>.jsonl` 搬到 `sessions/<新>/` 下。只改 meta 不挪文件的实现
- * 能骗过前三条断言，然后在 `load` 那一条上露馅：新地址底下什么都没有。
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -23,15 +19,14 @@ import { projectIdFor, SessionStore } from "../src/session/store.ts";
 
 async function withStore(run: (store: SessionStore, root: string) => Promise<void>): Promise<void> {
 	const root = await mkdtemp(join(tmpdir(), "plume-move-"));
+	const store = new SessionStore(root);
 	try {
-		await run(new SessionStore(root), root);
+		await run(store, root);
 	} finally {
+		store.close();
 		await rm(root, { recursive: true, force: true });
 	}
 }
-
-const exists = (path: string) => stat(path).then(() => true).catch(() => false);
-const logFor = (root: string, cwd: string, id: string) => join(root, projectIdFor(cwd), `${id}.jsonl`);
 
 test("移动之后重新打开，它还在新项目里", async () => {
 	await withStore(async (store, root) => {
@@ -40,7 +35,7 @@ test("移动之后重新打开，它还在新项目里", async () => {
 		const meta = await store.create(from, "fake/model", "搬家的对话");
 		await store.append(meta, { type: "message", message: { role: "user", content: [{ type: "text", text: "搬之前说的话" }], timestamp: Date.now() } });
 
-		const moved = await store.move(meta.projectId, meta.id, to, "B 项目");
+		const moved = await store.move(meta.id, to, "B 项目");
 		assert.ok(moved, "移动应当返回新的 meta");
 		assert.equal(moved.cwd, to);
 		assert.equal(moved.projectId, projectIdFor(to));
@@ -60,23 +55,6 @@ test("移动之后重新打开，它还在新项目里", async () => {
 	});
 });
 
-test("搬的是文件本身，不只是几个字段", async () => {
-	await withStore(async (store, root) => {
-		const from = "/tmp/project-a";
-		const to = "/tmp/project-b";
-		const meta = await store.create(from, "fake/model");
-		await store.move(meta.projectId, meta.id, to, "B 项目");
-
-		assert.equal(await exists(logFor(root, from, meta.id)), false, "旧目录底下不该再有这个日志");
-		assert.equal(await exists(logFor(root, to, meta.id)), true, "日志应当躺在新项目的目录里");
-
-		// 光看文件在不在还不够：读得出来才算搬对了。
-		const loaded = await new SessionStore(root).load(projectIdFor(to), meta.id);
-		assert.ok(loaded, "用新的 projectId 应当读得出这条会话");
-		assert.equal(loaded.meta.cwd, to);
-	});
-});
-
 test("对话内容一条不少", async () => {
 	await withStore(async (store, root) => {
 		const to = "/tmp/project-b";
@@ -86,9 +64,9 @@ test("对话内容一条不少", async () => {
 			latest = await store.append(latest, { type: "message", message: { role: "user", content: [{ type: "text", text }], timestamp: Date.now() } });
 		}
 
-		await store.move(meta.projectId, meta.id, to, "B 项目");
+		await store.move(meta.id, to, "B 项目");
 
-		const loaded = await new SessionStore(root).load(projectIdFor(to), meta.id);
+		const loaded = await new SessionStore(root).load(meta.id);
 		assert.equal(loaded?.messages.length, 3, "三条消息都应当跟着过来");
 		assert.deepEqual(
 			loaded?.messages.map((m) => (m.content[0] as { text: string }).text),
@@ -104,7 +82,7 @@ test("整理不是活动：移动不把它顶到列表最前面", async () => {
 		const before = (await store.listSessions()).find((s) => s.id === created.id)!.updatedAt;
 		await new Promise((resolve) => setTimeout(resolve, 8));
 
-		const moved = await store.move(created.projectId, created.id, "/tmp/project-b", "B 项目");
+		const moved = await store.move(created.id, "/tmp/project-b", "B 项目");
 		const after = (await store.listSessions()).find((s) => s.id === created.id)!.updatedAt;
 
 		assert.equal(after, before, "updatedAt 不该被一次归类刷新——否则半年没动的对话会窜到最前面");
@@ -113,48 +91,26 @@ test("整理不是活动：移动不把它顶到列表最前面", async () => {
 	});
 });
 
-test("移进它已经在的那个项目：不挪文件，改名照样生效", async () => {
-	await withStore(async (store, root) => {
+test("移进它已经在的那个项目：改名照样生效", async () => {
+	await withStore(async (store) => {
 		const cwd = "/tmp/project-a";
 		const meta = await store.create(cwd, "fake/model");
-		const log = logFor(root, cwd, meta.id);
-		const sizeBefore = (await stat(log)).size;
 
 		// 项目被重命名过：目录没变，名字变了。
-		const renamed = await store.move(meta.projectId, meta.id, cwd, "改过名的 A");
+		const renamed = await store.move(meta.id, cwd, "改过名的 A");
 		assert.equal(renamed?.projectName, "改过名的 A");
 		assert.equal(renamed?.projectId, meta.projectId);
-		assert.ok((await stat(log)).size > sizeBefore, "改名这一条应当写进原来那个日志");
+		assert.ok((renamed?.seq ?? 0) > meta.seq, "改名这一条应当写进记录");
 
 		// 两样都没变，就不该再留一条什么都没说的记录。
-		const again = await store.move(meta.projectId, meta.id, cwd, "改过名的 A");
+		const again = await store.move(meta.id, cwd, "改过名的 A");
 		assert.equal(again?.seq, renamed?.seq, "无事可做时不写记录");
-	});
-});
-
-test("目标底下已经有同名文件：宁可失败，也不覆盖", async () => {
-	await withStore(async (store, root) => {
-		const from = "/tmp/project-a";
-		const to = "/tmp/project-b";
-		const meta = await store.create(from, "fake/model");
-		// 另一台机器拷过来的同 id 文件——正常撞不上（id 是 UUID），撞上就是别人的对话。
-		const squatter = logFor(root, to, meta.id);
-		await store.create(to, "fake/model");
-		await writeFile(squatter, '{"seq":1,"ts":1,"type":"meta","meta":{"id":"别人的"}}\n', "utf8");
-
-		await assert.rejects(() => store.move(meta.projectId, meta.id, to, "B 项目"), /已存在/);
-
-		// 失败要干净：原文件还在原处，占位的那份一个字没动。
-		assert.equal(await exists(logFor(root, from, meta.id)), true, "移动失败后原日志应当还在原处");
-		assert.match(await readFile(squatter, "utf8"), /别人的/, "目标文件不该被碰过");
-		const listed = (await new SessionStore(root).listSessions()).find((s) => s.id === meta.id);
-		assert.equal(listed?.cwd, from, "失败之后归属也不该变");
 	});
 });
 
 test("对着一条已经不在了的会话点移动，答 null 而不是抛异常", async () => {
 	await withStore(async (store) => {
 		// 一个还没刷新的侧边栏可以对着一条刚被别处删掉的对话点「移动到」。
-		assert.equal(await store.move(projectIdFor("/tmp/nowhere"), "没有这个 id", "/tmp/project-b", "B 项目"), null);
+		assert.equal(await store.move("没有这个 id", "/tmp/project-b", "B 项目"), null);
 	});
 });

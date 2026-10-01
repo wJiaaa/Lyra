@@ -29,7 +29,7 @@ test("a rejected boundary append leaves the previous in-memory and durable view 
 		await assert.rejects(log.emit({ ...boundary, summary: "not written" }), /disk full/);
 		assert.deepEqual(log.compaction, previous);
 		assert.equal(log.compactions.length, 1);
-		assert.equal((await store.load(meta.projectId, meta.id))?.compaction?.summary, "committed");
+		assert.equal((await store.load(meta.id))?.compaction?.summary, "committed");
 	} finally { await rm(root, { recursive: true, force: true }); }
 });
 
@@ -40,7 +40,7 @@ test("restart reconciles a committed manual boundary even when completion was no
 		let meta = await store.create(root, "model");
 		meta = await store.append(meta, { type: "event", event: { type: "command_status", command } });
 		meta = await store.append(meta, { type: "event", event: { ...boundary, commandId: command.id } });
-		const loaded = await new SessionStore(root).load(meta.projectId, meta.id);
+		const loaded = await new SessionStore(root).load(meta.id);
 		assert.equal(loaded?.commandRuns?.[0].status, "done");
 		assert.equal(loaded?.compaction?.summary, "committed");
 	} finally { await rm(root, { recursive: true, force: true }); }
@@ -54,7 +54,7 @@ test("an uncommitted or unrelated operation stays interrupted and preserves the 
 		meta = await store.append(meta, { type: "event", event: boundary });
 		meta = await store.append(meta, { type: "event", event: { type: "command_status", command } });
 		meta = await store.append(meta, { type: "event", event: { ...boundary, commandId: "other-command" } });
-		const loaded = await store.load(meta.projectId, meta.id);
+		const loaded = await store.load(meta.id);
 		assert.equal(loaded?.commandRuns?.[0].status, "cancelled");
 		assert.equal(loaded?.compaction?.summary, "committed");
 		assert.equal(loaded?.meta.seq, meta.seq, "restoring does not retry or append anything");
@@ -71,6 +71,6 @@ test("a committed boundary survives event delivery failure and completes only it
 		await assert.rejects(log.emit({ ...boundary, commandId: command.id }), /window closed/);
 		assert.equal(log.compaction?.summary, "committed");
 		assert.equal(log.commandRuns[0].status, "done");
-		assert.equal((await store.load(meta.projectId, meta.id))?.commandRuns?.[0].status, "done");
+		assert.equal((await store.load(meta.id))?.commandRuns?.[0].status, "done");
 	} finally { await rm(root, { recursive: true, force: true }); }
 });

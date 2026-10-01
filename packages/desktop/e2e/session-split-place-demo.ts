@@ -13,6 +13,7 @@ import { join } from "node:path";
 
 import { evaluateRenderer, startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume分屏落点测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
@@ -29,9 +30,8 @@ async function seed(home: string): Promise<void> {
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
 	await mkdir(cwd, { recursive: true });
 	await writeFile(join(cwd, "README.md"), "# place\n");
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
-	const metas = [];
+	const sessions = [];
 	for (const [index, id] of IDS.entries()) {
 		const messages = [
 			{ role: "user", content: [{ type: "text", text: `会话 ${id} 用来验证落点` }], timestamp: index * 10 },
@@ -50,17 +50,16 @@ async function seed(home: string): Promise<void> {
 			usage,
 			seq: 3,
 		};
-		metas.push(meta);
-		await writeFile(
-			join(home, "sessions", projectId, `${id}.jsonl`),
-			[
-				JSON.stringify({ type: "meta", meta, seq: 0, ts: 1 }),
-				...messages.map((message, i) => JSON.stringify({ type: "message", message, seq: i + 1, ts: 1 })),
-				JSON.stringify({ type: "meta", meta, seq: 3, ts: 2 }),
-			].join("\n") + "\n",
-		);
+		sessions.push({
+			meta,
+			records: [
+				{ type: "meta", meta, seq: 0, ts: 1 },
+				...messages.map((message, i) => ({ type: "message", message, seq: i + 1, ts: 1 })),
+				{ type: "meta", meta, seq: 3, ts: 2 },
+			],
+		});
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 860, x: 40, y: 40 }));
 	await writeFile(
 		join(home, "settings.json"),

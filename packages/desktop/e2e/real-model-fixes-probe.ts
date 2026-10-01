@@ -92,7 +92,7 @@ function turnScript(body: string): string {
 		}
 		const list = await window.plume.sessions.list();
 		const meta = list[0];
-		const snapshot = meta ? await window.plume.sessions.open(meta.projectId, meta.id) : null;
+		const snapshot = meta ? await window.plume.sessions.open(meta.id) : null;
 		const messages = snapshot?.messages ?? [];
 		const assistants = messages.filter((m) => m.role === "assistant");
 		const last = assistants.at(-1);

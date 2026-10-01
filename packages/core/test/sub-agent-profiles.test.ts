@@ -10,7 +10,7 @@ import { emptyUsage, type AssistantMessage, type ModelConfig, type ProviderConfi
 const model: ModelConfig = { id: "a/same", providerId: "a", modelId: "gpt-5.6-sol", name: "Same name", contextWindow: 128000, maxOutputTokens: 4096, supportsThinking: true, thinkingOptions: thinkingOptionsFor(THINKING_LEVELS), supportsImages: false, supportsTools: true };
 const provider: ProviderConfig = { id: "a", name: "A", api: "openai-responses", apiKey: "test", baseUrl: "http://localhost", enabled: true, models: [model] };
 const second: ProviderConfig = { ...provider, id: "b", name: "B", models: [{ ...model, providerId: "b", id: "b/same" }] };
-const settings: Settings = { ...DEFAULT_SETTINGS, providers: [provider, second], defaultModelId: model.id, thinking: "low", modelRoles: { fast: model.id } };
+const settings: Settings = { ...DEFAULT_SETTINGS, providers: [provider, second], defaultModelId: model.id, thinking: "low", subAgentProfiles: { fast: { modelId: model.id } } };
 const fallback = { model, provider };
 const explore = BUILTIN_AGENTS.find((agent) => agent.name === "explore");
 assert.ok(explore);
@@ -35,9 +35,9 @@ test("thinking follows model capability, including custom levels and non-reasoni
 	const basicSettings = { ...settings, thinking: "ultra", providers: [{ ...provider, models: [basic] }] };
 	// 继承来的档位模型没有时就近取，「极致」落到默认四档里最深的那档。
 	assert.equal(resolveSubAgentModel(basicSettings, explore, { provider, model: basic }).thinking, "high");
-	assert.throws(() => resolveSubAgentModel({ ...basicSettings, subAgentProfiles: { explore: { thinking: "ultra" } } }, explore, fallback), /不支持思考等级/);
+	assert.throws(() => resolveSubAgentModel({ ...basicSettings, subAgentProfiles: { ...settings.subAgentProfiles, explore: { thinking: "ultra" } } }, explore, fallback), /不支持思考等级/);
 	const custom = { ...model, thinkingOptions: [{ id: "deep-custom", label: "Custom", detail: "Custom effort" }] };
-	assert.equal(resolveSubAgentModel({ ...settings, providers: [{ ...provider, models: [custom] }], subAgentProfiles: { explore: { thinking: "deep-custom" } } }, explore, fallback).thinking, "deep-custom");
+	assert.equal(resolveSubAgentModel({ ...settings, providers: [{ ...provider, models: [custom] }], subAgentProfiles: { ...settings.subAgentProfiles, explore: { thinking: "deep-custom" } } }, explore, fallback).thinking, "deep-custom");
 	assert.equal(resolveSubAgentModel({ ...settings, providers: [{ ...provider, models: [{ ...model, supportsThinking: false }] }] }, explore, fallback).thinking, "off");
 });
 

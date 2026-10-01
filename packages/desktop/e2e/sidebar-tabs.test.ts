@@ -15,11 +15,12 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { SIDEBAR_MIN } from "../src/app/layout-widths.ts";
 import { startApp, type RunningApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 let app: RunningApp;
 
@@ -87,8 +88,7 @@ async function seed(home: string): Promise<void> {
 		}
 	}
 
-	await mkdir(join(home, "sessions"), { recursive: true });
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, metas.map((meta) => ({ meta, records: [] })));
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 900, x: 0, y: 0 }));
 	await writeFile(
 		join(home, "settings.json"),

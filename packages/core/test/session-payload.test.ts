@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -44,15 +44,15 @@ test("append parks large images so the log line stays small; display load does n
 	await store.append(meta, { type: "message", message });
 	assert.equal(message.content[0]?.type === "image" ? message.content[0].data : "", data, "live message keeps pixels");
 
-	const raw = await readFile(join(root, "sessions", meta.projectId, `${meta.id}.jsonl`), "utf8");
-	const lines = raw.trim().split("\n");
-	const written = JSON.parse(lines[lines.length - 1] ?? "{}") as {
+	const records = [];
+	for await (const record of store.read(meta.id)) records.push(record);
+	const written = records.at(-1) as unknown as {
 		message: { content: Array<{ data: string; media?: string }> };
 	};
 	assert.equal(written.message.content[0]?.data, "");
 	assert.ok(written.message.content[0]?.media);
 
-	const shown = await store.load(meta.projectId, meta.id, { display: true });
+	const shown = await store.load(meta.id, { display: true });
 	const shownImage = shown?.messages[0];
 	assert.ok(shownImage?.role === "user" && shownImage.content[0]?.type === "image");
 	if (shownImage?.role === "user" && shownImage.content[0]?.type === "image") {
@@ -60,7 +60,7 @@ test("append parks large images so the log line stays small; display load does n
 		assert.ok(shownImage.content[0].media);
 	}
 
-	const full = await store.load(meta.projectId, meta.id);
+	const full = await store.load(meta.id);
 	const fullImage = full?.messages[0];
 	assert.ok(fullImage?.role === "user" && fullImage.content[0]?.type === "image");
 	if (fullImage?.role === "user" && fullImage.content[0]?.type === "image") {

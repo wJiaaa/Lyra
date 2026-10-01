@@ -56,7 +56,7 @@ test("子代理：检查点那一轮收尾时的插话，接着跑一段送进�
 	const answer = await runSubAgent(
 		{
 			sessionId: "s1", cwd: "/tmp",
-			settings: { thinking: "off", retryAttempts: 0, maxConcurrentSubAgents: 4 } as unknown as Settings,
+			settings: { thinking: "off", maxConcurrentSubAgents: 4 } as unknown as Settings,
 			tools: [], skills: [], agents: [agent], registry,
 			requestApproval: async () => "allow",
 			emit: async () => {},

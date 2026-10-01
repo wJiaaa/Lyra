@@ -17,11 +17,8 @@
  * matched. This answers in messages, trimmed, oldest first.
  */
 
-import { createReadStream } from "node:fs";
-import { createInterface } from "node:readline";
-import { join } from "node:path";
 import { errorResult } from "../agent/tool-run.ts";
-import { plumeHome, projectIdFor } from "../session/store.ts";
+import { SessionStore } from "../session/store.ts";
 import type { Message, Tool, ToolResult } from "../types.ts";
 
 /** How many matching messages to answer with when the caller does not say. */
@@ -79,14 +76,19 @@ export const recallTool: Tool<RecallArgs> = {
 
 		const limit = Math.min(MAX_LIMIT, Math.max(1, Math.floor(args.limit ?? DEFAULT_LIMIT)));
 		const offset = Math.max(0, Math.floor(args.offset ?? 0));
-		const path = join(plumeHome(), "sessions", projectIdFor(ctx.cwd), `${ctx.sessionId}.jsonl`);
-
-		let hits: { index: number; message: Message }[];
-		try {
-			hits = await search(path, terms, ctx.signal);
-		} catch {
-			return errorResult("This session has no transcript on disk yet, so there is nothing to recall.");
-		}
+		/*
+		 * Read whole, not streamed. The log used to be streamed line by line because a long session
+		 * was tens of megabytes of JSONL that had to be parsed in full, events included. Now only the
+		 * message records are read: measured 2026-10-01, a 50MB transcript of 10,000 messages loads in
+		 * 48ms with ~107MB of transient heap. What this tool protects is the model's context window,
+		 * not process memory; revisit if transcripts grow past that by an order of magnitude.
+		 *
+		 * The session's own store when the host provides it (`ctx.transcript`); a bare context — the
+		 * CLI, a test — reads the default store on this disk.
+		 */
+		const messages = await (ctx.transcript?.() ?? new SessionStore().messages(ctx.sessionId)).catch(() => null);
+		if (!messages?.length) return errorResult("This session has no transcript on disk yet, so there is nothing to recall.");
+		const hits = search(messages, terms, ctx.signal);
 
 		if (hits.length === 0) {
 			return {
@@ -155,50 +157,21 @@ export const recallTool: Tool<RecallArgs> = {
 	},
 };
 
-/**
- * Every message in the log whose text contains all the terms.
- *
- * Streamed line by line rather than read whole. A long session's log runs to tens of megabytes —
- * that is the entire reason this tool exists — and loading it to search it would spend more memory
- * than the context window it is trying to protect.
- */
-async function search(path: string, terms: string[], signal?: AbortSignal): Promise<{ index: number; message: Message }[]> {
-	const stream = createReadStream(path, { encoding: "utf8" });
-	const lines = createInterface({ input: stream, crlfDelay: Infinity });
+/** Every message whose text contains all the terms, with its position in the transcript. */
+function search(messages: Message[], terms: string[], signal?: AbortSignal): { index: number; message: Message }[] {
 	const hits: { index: number; message: Message }[] = [];
-	let index = 0;
-
-	try {
-		for await (const line of lines) {
-			if (signal?.aborted) break;
-			if (!line) continue;
-
-			let record: { type?: string; message?: Message };
-			try {
-				record = JSON.parse(line);
-			} catch {
-				// A half-written final line is normal on a session that is still running.
-				continue;
-			}
-			if (record.type !== "message" || !record.message) continue;
-
-			const message = record.message;
-			/*
-			 * The position is counted before the echo check, not after.
-			 *
-			 * `index` is what the answer labels each match with, and a label is only useful if it
-			 * means the same thing every time it is printed. Advancing it only for searchable
-			 * messages would renumber the whole transcript the moment this filter changed.
-			 */
-			const position = index++;
-			if (isOwnEcho(message)) continue;
-
-			const text = searchableText(message).toLowerCase();
-			if (terms.every((term) => text.includes(term))) hits.push({ index: position, message });
-		}
-	} finally {
-		lines.close();
-		stream.destroy();
+	for (const [position, message] of messages.entries()) {
+		if (signal?.aborted) break;
+		/*
+		 * The position is counted before the echo check, not after.
+		 *
+		 * `index` is what the answer labels each match with, and a label is only useful if it
+		 * means the same thing every time it is printed. Advancing it only for searchable
+		 * messages would renumber the whole transcript the moment this filter changed.
+		 */
+		if (isOwnEcho(message)) continue;
+		const text = searchableText(message).toLowerCase();
+		if (terms.every((term) => text.includes(term))) hits.push({ index: position, message });
 	}
 	return hits;
 }

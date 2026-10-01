@@ -110,7 +110,7 @@ for (const phase of ["summarizing", "retrying", "fallback"] as const) test(`rest
 		const log = new SessionLog(store, () => {}, await store.create(root, model.id));
 		await log.emit({ type: "compacted", before: 24, after: 8, kept: 6, summary: "old boundary" });
 		await log.emit({ type: "command_status", command: { id: "auto", name: "compact", timestamp: 1, at: 99, input: "", status: "running", detail: phase, automatic: { phase, retries: 2 } } });
-		const loaded = await new SessionStore(root).load(log.meta.projectId, log.meta.id);
+		const loaded = await new SessionStore(root).load(log.meta.id);
 		assert.equal(loaded?.compaction?.summary, "old boundary");
 		assert.equal(loaded?.commandRuns?.[0].status, "cancelled");
 		assert.equal(loaded?.commandRuns?.[0].automatic?.retries, 2);
@@ -135,17 +135,17 @@ test("a committed fallback restores as completed after delivery fails; a rejecte
 		const boundary: AgentEvent = { type: "compacted", before: 24, after: 8, summary: "fallback", kept: 6, commandId: command.id, command: completedCompaction(command, 24, 8) };
 		await assert.rejects(log.emit(boundary), /window closed/);
 		assert.equal(log.commandRuns[0].status, "done");
-		const loaded = await store.load(log.meta.projectId, log.meta.id);
+		const loaded = await store.load(log.meta.id);
 		assert.equal(loaded?.commandRuns?.[0].automatic?.outcome, "fallback");
 		assert.equal(loaded?.commandRuns?.[0].status, "done");
-		const records = []; for await (const record of store.read(log.meta.projectId, log.meta.id)) records.push(record);
+		const records = []; for await (const record of store.read(log.meta.id)) records.push(record);
 		const entries = projectTrajectory(records);
 		assert.equal(entries.filter(e => e.source === "compaction").length, 1);
 		assert.equal(entries.find(e => e.correlationId === "auto")?.status, "done");
 		rejectAppend = true;
 		await log.emit({ type: "command_status", command: { ...command, id: "auto-2" } });
 		await assert.rejects(log.emit({ ...boundary, commandId: "auto-2", summary: "never written" }), /disk full/);
-		const recovered = await store.load(log.meta.projectId, log.meta.id);
+		const recovered = await store.load(log.meta.id);
 		assert.equal(recovered?.compaction?.summary, "fallback");
 		assert.equal(recovered?.commandRuns?.[1].status, "cancelled");
 	} finally { await rm(root, { recursive: true, force: true }); }

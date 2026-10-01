@@ -146,9 +146,9 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/cache-diagnostics.test.ts"]],
 	},
 	{
-		id: "CORE-index-writes",
-		what: "每追加一条记录都整份重写会话索引",
-		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/session-index-writes.test.ts"]],
+		id: "CORE-session-db",
+		what: "流到一半被杀的回复丢失、删会话把花销一起删掉、fork 重复计费",
+		run: ["node", ["--experimental-strip-types", "--import", "./packages/core/test/setup.ts", "--test", "packages/core/test/session-db.test.ts", "packages/core/test/session-index-race.test.ts"]],
 	},
 	{
 		id: "I4-worktree",
@@ -214,7 +214,7 @@ const CHECKS = [
 	},
 	{
 		id: "ISSUE-escalate-always-window",
-		what: "跑起来的桌面端里，提权卡片还有「以后不再问」吗；设置里旧版本记下的那条还替人答吗",
+		what: "跑起来的桌面端里，提权卡片还有「以后不再问」吗；允许列表里写着的那条还替人答吗",
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/escalation-approval-probe.ts", "/tmp/regression-escalate"]],
 	},

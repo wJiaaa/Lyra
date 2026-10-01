@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
 import { named } from "./named.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 let app: RunningApp;
 const usage = { input: 0, output: 0, total: 0, cost: { input: 0, output: 0, total: 0 } };
@@ -14,7 +15,6 @@ async function seed(home: string): Promise<void> {
 	const cwd = join(home, "project");
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
 	await mkdir(cwd);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	await writeFile(
 		join(home, "settings.json"),
 		JSON.stringify({
@@ -24,7 +24,7 @@ async function seed(home: string): Promise<void> {
 			projects: [{ id: projectId, path: cwd, name: "Scroll QA", pinned: true, lastOpenedAt: 1 }],
 		}),
 	);
-	const metas = [];
+	const sessions = [];
 	for (const id of ["scroll-a", "scroll-b", "scroll-c", "scroll-d"]) {
 		const messages: object[] = [];
 		for (let i = 0; i < (id === "scroll-a" ? 42 : 5); i++) {
@@ -96,17 +96,16 @@ async function seed(home: string): Promise<void> {
 			usage,
 			seq: messages.length + 1,
 		};
-		metas.push(meta);
-		await writeFile(
-			join(home, "sessions", projectId, `${id}.jsonl`),
-			[
-				JSON.stringify({ seq: 0, ts: 1, type: "meta", meta }),
-				...messages.map((message, i) => JSON.stringify({ seq: i + 1, ts: i + 1, type: "message", message })),
-				JSON.stringify({ seq: meta.seq, ts: 2, type: "meta", meta }),
-			].join("\n") + "\n",
-		);
+		sessions.push({
+			meta,
+			records: [
+				{ seq: 0, ts: 1, type: "meta", meta },
+				...messages.map((message, i) => ({ seq: i + 1, ts: i + 1, type: "message", message })),
+				{ seq: meta.seq, ts: 2, type: "meta", meta },
+			],
+		});
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 }
 
 before(async () => {

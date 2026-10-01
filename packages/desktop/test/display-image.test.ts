@@ -22,8 +22,8 @@ test("readUserImagesAt drops a truncated message", async () => {
 		yield { seq: 2, ts: 2, type: "message", message: photo("gone", 11) };
 		yield { seq: 3, ts: 3, type: "truncate", afterSeq: 1 };
 	};
-	assert.equal((await readUserImagesAt(read, "p", "s", 11)).length, 0);
-	assert.equal((await readUserImagesAt(read, "p", "s", 10))[0]?.data, "keep");
+	assert.equal((await readUserImagesAt(read, "s", 11)).length, 0);
+	assert.equal((await readUserImagesAt(read, "s", 10))[0]?.data, "keep");
 });
 
 test("loadUserImagesAt prefers the live session and does not read the log", async () => {
@@ -34,7 +34,6 @@ test("loadUserImagesAt prefers the live session and does not read the log", asyn
 	};
 	const images = await loadUserImagesAt(
 		{ liveMessages: () => [photo("live", 1)], read },
-		"p",
 		"s",
 		1,
 	);
@@ -59,9 +58,9 @@ test("a handled image read failure does not escape as an unhandled rejection and
 				} };
 			},
 		};
-		await assert.rejects(loadUserImagesAt(lookup, "p", "read-failure", 1), /image log unavailable/);
+		await assert.rejects(loadUserImagesAt(lookup, "read-failure", 1), /image log unavailable/);
 		await new Promise(resolve => setImmediate(resolve));
-		const images = await loadUserImagesAt(lookup, "p", "read-failure", 1);
+		const images = await loadUserImagesAt(lookup, "read-failure", 1);
 		assert.equal(images[0]?.data, "retry");
 		assert.equal(reads, 2);
 	`;

@@ -84,7 +84,7 @@ beforeEach(() => {
 		configurable: true,
 		value: {
 			sessions: {
-				transcript: async (_projectId: string, id: string) => (id === "a" ? busy(id) : idle(id)),
+				transcript: async (id: string) => (id === "a" ? busy(id) : idle(id)),
 				capabilities: async () => null,
 			},
 			subAgents: { list: async () => [] },
@@ -122,7 +122,7 @@ test("a command that ended while nobody was looking still reads as finished", as
 	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
-			sessions: { transcript: async (_projectId: string, id: string) => ({ ...busy(id), running: false }), capabilities: async () => null },
+			sessions: { transcript: async (id: string) => ({ ...busy(id), running: false }), capabilities: async () => null },
 			subAgents: { list: async () => [] },
 		},
 	});

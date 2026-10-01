@@ -85,7 +85,7 @@ test("sideChat emits usage to main session log without inflating main messageCou
 	assert.equal(main.meta.usage.cacheRead, 250, "main session meta must include side-chat cacheRead");
 	assert.equal(main.meta.usage.total, 460, "main session meta must include side-chat total");
 
-	const loaded = await store.load(meta.projectId, meta.id);
+	const loaded = await store.load(meta.id);
 	assert.ok(loaded);
 	assert.equal(loaded.messages.length, 0);
 	assert.equal(loaded.meta.messageCount, 0);

@@ -339,7 +339,7 @@ export interface PlumeApi {
 		list(): Promise<SessionMeta[]>;
 		create(cwd: string, modelId: string, initial?: { content: UserContent[]; synthetic?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[] }): Promise<SessionSnapshot>;
 		/** Start the agent for this session — skills, MCP servers, the lot. For running things. */
-		open(projectId: string, sessionId: string): Promise<SessionSnapshot | null>;
+		open(sessionId: string): Promise<SessionSnapshot | null>;
 		/**
 		 * 这个会话此刻在不在跑，问主进程要权威答案。
 		 *
@@ -348,25 +348,24 @@ export interface PlumeApi {
 		 */
 		running(sessionId: string): Promise<boolean>;
 		/** Read the stored transcript without starting anything. For looking at things. */
-		transcript(projectId: string, sessionId: string): Promise<SessionSnapshot | null>;
+		transcript(sessionId: string): Promise<SessionSnapshot | null>;
 		/** The same log, read as a trajectory: one entry per thing that happened, by source. */
-		trajectory(projectId: string, sessionId: string): Promise<TrajectoryEntry[]>;
-		trajectoryChanges(projectId: string, sessionId: string, cursor?: string): Promise<TrajectoryChanges>;
-		exportTrajectory(projectId: string, sessionId: string, format: "json" | "md" | "output", selection?: { id?: string; correlationId?: string }): Promise<string>;
-		/** Where this session's log lives on disk. Only the path; whether the file exists yet is not asked. */
-		logPath(projectId: string, sessionId: string): Promise<string>;
+		trajectory(sessionId: string): Promise<TrajectoryEntry[]>;
+		trajectoryChanges(sessionId: string, cursor?: string): Promise<TrajectoryChanges>;
+		/** Write the session out to a temporary file and return its path. `jsonl` is the raw records. */
+		exportTrajectory(sessionId: string, format: "json" | "md" | "output" | "jsonl", selection?: { id?: string; correlationId?: string }): Promise<string>;
 		/** Copy history up to `seq` into a new session, leaving this one untouched. */
-		fork(projectId: string, sessionId: string, seq: number): Promise<{ meta: SessionMeta; messages: number } | null>;
-		remove(projectId: string, sessionId: string): Promise<void>;
+		fork(sessionId: string, seq: number): Promise<{ meta: SessionMeta; messages: number } | null>;
+		remove(sessionId: string): Promise<void>;
 		/** Move a session in or out of the archive. Returns the whole list, already updated. */
-		setArchived(projectId: string, sessionId: string, archived: boolean): Promise<SessionMeta[]>;
+		setArchived(sessionId: string, archived: boolean): Promise<SessionMeta[]>;
 		/**
 		 * 把会话归到另一个项目下：日志文件跟着搬，不只是改个名字。
 		 *
 		 * 答复分得比 `boolean` 细，因为三种失败要对用户说三句不同的话：`running` 是「先让它停下来」，
 		 * `gone` 是「这条对话已经不在了」，`failed` 带着原话（多半是磁盘那边的原因）。
 		 */
-		move(projectId: string, sessionId: string, cwd: string, projectName: string): Promise<
+		move(sessionId: string, cwd: string, projectName: string): Promise<
 			| { ok: true; meta: SessionMeta }
 			| { ok: false; reason: "running" | "gone" | "failed"; message?: string }
 		>;
@@ -374,7 +373,7 @@ export interface PlumeApi {
 		removeArchived(): Promise<SessionMeta[]>;
 		capabilities(sessionId: string): Promise<AgentCapabilities | null>;
 		/** Rename a session and persist to disk/log. */
-		rename(projectId: string, sessionId: string, title: string): Promise<SessionMeta | null>;
+		rename(sessionId: string, title: string): Promise<SessionMeta | null>;
 		/** Summarise now. `reason` says why not, when it declines. */
 		compact(sessionId: string, instructions?: string): Promise<{ ok: boolean; reason?: string; before?: number; after?: number }>;
 		/** Null when the session is not open — this never boots one just to answer. */

@@ -28,6 +28,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 import { MASK_PROBE } from "./mask.ts";
+import { seedSessions } from "./session-fixture.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
 
 const dir = process.argv[2] ?? "/tmp/plume-fade-demo";
@@ -86,11 +87,10 @@ async function seed(home: string): Promise<void> {
 		"帮我把这一版的发布文案写了",
 	];
 
-	const metas: object[] = [];
+	const sessions = [];
 	let n = 0;
 	for (const project of projects) {
 		await mkdir(project.path, { recursive: true });
-		await mkdir(join(home, "sessions", project.id), { recursive: true });
 		for (let i = 0; i < titles.length; i++) {
 			n++;
 			const id = `s${String(n).padStart(3, "0")}`;
@@ -104,18 +104,17 @@ async function seed(home: string): Promise<void> {
 				createdAt: 1_700_000_000_000 + n * 1000, updatedAt: 1_700_000_000_000 + n * 1000,
 				modelId: "test", messageCount: messages.length, usage, seq: messages.length + 1,
 			};
-			metas.push(meta);
-			await writeFile(
-				join(home, "sessions", project.id, `${id}.jsonl`),
-				[
-					JSON.stringify({ seq: 0, ts: 1, type: "meta", meta }),
-					...messages.map((message, at) => JSON.stringify({ seq: at + 1, ts: at + 1, type: "message", message })),
-					JSON.stringify({ seq: meta.seq, ts: 2, type: "meta", meta }),
-				].join("\n") + "\n",
-			);
+			sessions.push({
+				meta,
+				records: [
+					{ seq: 0, ts: 1, type: "meta", meta },
+					...messages.map((message, at) => ({ seq: at + 1, ts: at + 1, type: "message", message })),
+					{ seq: meta.seq, ts: 2, type: "meta", meta },
+				],
+			});
 		}
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 }
 
 const app = await startApp({ port: PORT, seed });

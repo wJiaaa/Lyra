@@ -2,7 +2,7 @@
 
 import { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatEvent, type UserContent } from "@plume/core";
 import { settings } from "./app-settings.ts";
-import { broadcastSideChat, ensureLiveSession, liveSideChat, sessions, sideChats } from "./session-hub.ts";
+import { broadcastSideChat, ensureLiveSession, holdForSideChat, installSideChat, liveSideChat, sessions, sideChats } from "./session-hub.ts";
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { isSideId, loadSideChatSnapshot, saveSideChatTranscript, saveSideChat } from "./sidechat-store.ts";
 
@@ -29,6 +29,7 @@ async function ensureSideChat(sessionId: string, sideId: string): Promise<SideCh
 	const pending = opening.get(key);
 	if (pending) return pending;
 
+	const release = holdForSideChat(sessionId);
 	const operation = (async () => {
 		const main = await ensureLiveSession(sessionId);
 		if (!main) return null;
@@ -71,15 +72,13 @@ async function ensureSideChat(sessionId: string, sideId: string): Promise<SideCh
 		});
 		const snapshot = await loadSideChatSnapshot(sessionId, sideId);
 		chat.restore(snapshot.messages, snapshot.modelId);
-		const chats = sideChats.get(sessionId) ?? new Map<string, SideChat>();
-		chats.set(sideId, chat);
-		sideChats.set(sessionId, chats);
-		return chat;
+		return installSideChat(sessionId, main, sideId, chat) ? chat : null;
 	})();
 	opening.set(key, operation);
 	try {
 		return await operation;
 	} finally {
+		release();
 		if (opening.get(key) === operation) opening.delete(key);
 	}
 }

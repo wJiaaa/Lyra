@@ -29,6 +29,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 import { landsOn } from "./lands-on.ts";
 
 const PORT = 9853;
@@ -76,14 +77,11 @@ async function seed(home: string): Promise<void> {
 	await writeFile(join(cwd, "docs", "result.md"), "# 结论\n");
 	await writeFile(join(cwd, "Plume-0.9.8-x64.exe"), Buffer.alloc(2048, 7));
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	const dir = join(home, "sessions", projectId);
-	await mkdir(dir, { recursive: true });
 
 	const now = Date.now();
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 	const meta = { id: SESSION, title: "文件标签悬停", cwd, projectId, projectName: "演示工程", createdAt: now, updatedAt: now, modelId: "qa/model", messageCount: 2, usage, seq: 0 };
-	// The outer seq starts at 1: a record with 0 is read past, and the session never reaches the sidebar.
-	const lines = [
+	const records = [
 		{ seq: 1, ts: now, type: "meta", meta },
 		{ seq: 2, ts: now, type: "message", message: { role: "user", content: [{ type: "text", text: "把相关文件列一下" }], timestamp: now } },
 		{
@@ -94,7 +92,7 @@ async function seed(home: string): Promise<void> {
 		},
 		{ seq: 4, ts: now, type: "meta", meta: { ...meta, seq: 3 } },
 	];
-	await writeFile(join(dir, `${SESSION}.jsonl`), lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+	seedSessions(home, [{ meta, records }]);
 
 	/*
 	 * A fake provider that never gets a request.

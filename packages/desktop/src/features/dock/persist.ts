@@ -37,33 +37,8 @@ const SAVE_DELAY = 120;
  *
  * 面板属于会话，不属于窗口：单屏是只有一屏的分屏，所以单屏和分屏读写的是同一把钥匙。`@draft`
  * 是还没发出第一条消息的那个空白对话，它没有 id，但一样可以摆好面板再开口。
- *
- * 钥匙名沿用分屏时代的 `dw:panedock:`，存量数据因此不用搬。
  */
 export const paneStorageKey = (scope: string): string => `dw:panedock:${scope}`;
-
-/**
- * 旧版窗口 dock 按会话存的那一份，只读一次、并进上面那把钥匙之后就删。
- *
- * 从前面板有两个家：窗口一层（跨所有屏，`dw:dock:<会话>`）和每一屏自己一层（`dw:panedock:<会话>`）。
- * 同一个会话可能两边都存着东西——单屏时开的任务面板在前者，分屏时开的浏览器在后者。合并时一个
- * 都不丢，见 `pane-store.ts` 的 `hydrate`。
- */
-export const legacyStorageKey = (scope: string): string => `dw:dock:${scope}`;
-
-/** 旧版窗口 dock 记「此刻认哪把钥匙」用的，两层合成一层之后没有意义了。 */
-const LEGACY_AT_KEY = "dw:dock:at";
-
-/** 把旧版那一行删掉。读不到、删不掉都不值得打断任何人。 */
-export function dropLegacy(scope: string): void {
-	if (noWindow()) return;
-	try {
-		window.localStorage.removeItem(legacyStorageKey(scope));
-		window.localStorage.removeItem(LEGACY_AT_KEY);
-	} catch {
-		// 存储关了，下次再读到也只是再合并一遍，结果相同。
-	}
-}
 
 /**
  * Rebuild a tree from unknown data, dropping whatever cannot be trusted.

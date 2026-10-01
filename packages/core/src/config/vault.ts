@@ -85,8 +85,7 @@ async function loadOrMakeKey(): Promise<Buffer> {
  * One secret, as a string that is safe to write down.
  *
  * `v1:` prefixed so a later format can be told apart from this one without guessing, and so a
- * value that is *not* ciphertext — a token migrated from a plaintext file — is recognisable as
- * such rather than being fed to the decipher.
+ * value that is *not* ciphertext is recognisable as such rather than being fed to the decipher.
  */
 export async function seal(value: string): Promise<string> {
 	const iv = randomBytes(IV_BYTES);
@@ -164,7 +163,7 @@ export function resetVault(): void {
 export async function secret(id: string): Promise<string | null> {
 	const stored = (await read()).secrets[id];
 	if (stored === undefined) return null;
-	return isSealed(stored) ? unseal(stored) : stored;
+	return unseal(stored);
 }
 
 /**

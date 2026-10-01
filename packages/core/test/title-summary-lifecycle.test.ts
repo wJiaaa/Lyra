@@ -70,7 +70,7 @@ test("rename racing with a returned title keeps its cost and the manual name", a
 	await renamed.promise;
 	assert.deepEqual(session.meta.usage, billed);
 	assert.equal(session.meta.title, "Manual");
-	assert.deepEqual((await store.load(session.meta.projectId, session.meta.id))?.meta.usage, billed);
+	assert.deepEqual((await store.load(session.meta.id))?.meta.usage, billed);
 });
 
 test("dispose waits for cancelled title usage to finish writing before deletion", async (t) => {
@@ -102,8 +102,8 @@ test("dispose waits for cancelled title usage to finish writing before deletion"
 	await disposing.promise;
 	assert.deepEqual(session.meta.usage, billed);
 	assert.notEqual(session.meta.title, "Automatic");
-	await store.delete(session.meta.projectId, session.meta.id);
-	assert.equal(await store.load(session.meta.projectId, session.meta.id), null);
+	await store.delete(session.meta.id);
+	assert.equal(await store.load(session.meta.id), null);
 });
 
 test("dispose before any reported usage does not invent costs or revive the deleted log", async (t) => {
@@ -113,11 +113,11 @@ test("dispose before any reported usage does not invent costs or revive the dele
 	await session.prompt([{ type: "text", text: prompt }]);
 	const before = structuredClone(session.meta.usage);
 	await session.dispose();
-	await store.delete(session.meta.projectId, session.meta.id);
+	await store.delete(session.meta.id);
 	result.resolve({ ...reply("Too late"), usage: billed });
 	await lateFinal.promise;
 	assert.deepEqual(session.meta.usage, before);
-	assert.equal(await store.load(session.meta.projectId, session.meta.id), null);
+	assert.equal(await store.load(session.meta.id), null);
 });
 
 test("title fallback preserves ordinary user prose and uses structured display text", async (t) => {
@@ -181,7 +181,7 @@ test("rename waits for an already-started automatic title write", async (t) => {
 	await Promise.all([running, renaming]);
 	assert.equal(overlapped, false);
 	assert.equal(session.meta.title, "Manual");
-	const loaded = await store.load(session.meta.projectId, session.meta.id);
+	const loaded = await store.load(session.meta.id);
 	assert.equal(loaded?.meta.title, "Manual");
 	assert.equal(loaded?.meta.titleSetByUser, true);
 });
@@ -195,11 +195,11 @@ test("title usage is counted and survives reopening without adding conversation 
 	await session.prompt([{ type: "text", text: prompt }]);
 	await titled.promise;
 	assert.deepEqual(session.meta.usage, usage);
-	const loaded = await store.load(session.meta.projectId, session.meta.id);
+	const loaded = await store.load(session.meta.id);
 	assert.deepEqual(loaded?.meta.usage, usage);
 	assert.equal(loaded?.messages.length, 2);
 	await session.log.truncateFrom(0);
-	assert.deepEqual((await store.load(session.meta.projectId, session.meta.id))?.meta.usage, usage, "rewriting the prompt does not erase a title request that was already billed");
+	assert.deepEqual((await store.load(session.meta.id))?.meta.usage, usage, "rewriting the prompt does not erase a title request that was already billed");
 });
 
 test("image-only opening retains a useful title", async (t) => {
@@ -237,7 +237,7 @@ for (const resumed of [false, true]) {
 				await session.resumePendingPrompt();
 			} else await session.prompt(message.content, { displayText: "", ...reference });
 			assert.equal(session.meta.title, title);
-			assert.equal((await store.load(meta.projectId, meta.id))?.meta.title, title);
+			assert.equal((await store.load(meta.id))?.meta.title, title);
 		});
 	}
 }

@@ -28,7 +28,7 @@ export async function warmSession(meta: SessionMeta): Promise<void> {
 		if (Array.isArray(list) && useApp.getState().activeSessionId !== meta.id) useSubAgents.getState().retain(meta.id, list);
 	}).catch(() => {});
 	try {
-		const snapshot = await bridge.sessions.transcript(meta.projectId, meta.id);
+		const snapshot = await bridge.sessions.transcript(meta.id);
 		if (!snapshot) return;
 		if (useApp.getState().activeSessionId === meta.id) return;
 		const messages = intact(snapshot.messages);

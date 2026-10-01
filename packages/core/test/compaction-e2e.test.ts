@@ -7,7 +7,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -201,7 +201,7 @@ test("reopening a compacted session does not hand the model its whole history ba
 			await first.prompt([{ type: "text", text: `第 ${i} 个问题${"，说详细些".repeat(60)}` }]);
 		}
 
-		const loaded = await store.load(first.meta.projectId, first.meta.id);
+		const loaded = await store.load(first.meta.id);
 		assert.ok(loaded, "the session is on disk");
 		if (!loaded) return;
 		assert.ok(loaded.compaction, "and the boundary was written down with it");
@@ -261,7 +261,7 @@ test("session.compact() uses @compact model when configured", async () => {
 	const settingsWithCompact: Settings = {
 		...SETTINGS,
 		providers: [providerWithCompact],
-		modelRoles: { compact: compactModel.id },
+		subAgentProfiles: { compact: { modelId: compactModel.id } },
 	};
 
 	let calledConfig: { provider: string; model: string } | undefined;
@@ -322,15 +322,12 @@ test("session.compact() falls back to session model when @compact is not configu
 	}
 });
 
-/** Every `usage` record written under `sessions/`, whatever the session file is called. */
+/** Every `usage` record written to the session database under `sessions/`, whichever session it is in. */
 async function usageRecords(root: string): Promise<Array<{ source: string; modelId: string; usage: { input: number; output: number } }>> {
+	const store = new SessionStore(join(root, "sessions"));
 	const out = [];
-	for (const file of await readdir(join(root, "sessions"), { recursive: true })) {
-		if (!file.endsWith(".jsonl")) continue;
-		for (const line of (await readFile(join(root, "sessions", file), "utf8")).split("\n")) {
-			if (!line.includes('"type":"usage"')) continue;
-			out.push(JSON.parse(line));
-		}
+	for (const meta of await store.listSessions()) {
+		for await (const record of store.read(meta.id)) if (record.type === "usage") out.push(record);
 	}
 	return out;
 }

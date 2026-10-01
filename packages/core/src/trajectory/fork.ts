@@ -28,15 +28,14 @@ export interface ForkResult {
  */
 export async function forkSession(
 	store: SessionStorage,
-	projectId: string,
 	sessionId: string,
 	seq: number,
 	title?: string,
 ): Promise<ForkResult | null> {
-	const source = (await store.listSessions()).find((candidate) => candidate.id === sessionId);
-	if (!source || source.projectId !== projectId) return null;
+	const source = await store.get(sessionId);
+	if (!source) return null;
 
-	const { messages, boundary } = await historyUpTo(store, projectId, sessionId, seq);
+	const { messages, boundary } = await historyUpTo(store, sessionId, seq);
 	let meta = await store.create(source.cwd, source.modelId, title ?? `${source.title}（分叉）`, { thinking: source.thinking });
 	/*
 	 * 压缩边界跟着消息一起抄过去，写在原来的位置上：载入时 `keptFrom` 由「此刻已有几条 - kept」
@@ -48,13 +47,14 @@ export async function forkSession(
 	 */
 	for (const [index, message] of messages.entries()) {
 		if (boundary && index === boundary.markAt) meta = await appendBoundary(store, meta, boundary);
-		meta = await store.append(meta, { type: "message", message });
+		// Copied: these replies were paid for in the original, and the spend table already has them.
+		meta = (await store.append(meta, { type: "message", message }, { copy: true })) ?? meta;
 	}
 	if (boundary && boundary.markAt === messages.length) meta = await appendBoundary(store, meta, boundary);
 	return { meta, messages: messages.length };
 }
 
-function appendBoundary(store: SessionStorage, meta: SessionMeta, boundary: BoundaryAt): Promise<SessionMeta> {
+async function appendBoundary(store: SessionStorage, meta: SessionMeta, boundary: BoundaryAt): Promise<SessionMeta> {
 	const { summary, keptFrom, markAt, before, after } = boundary;
-	return store.append(meta, { type: "event", event: { type: "compacted", before, after, summary, kept: markAt - keptFrom } });
+	return (await store.append(meta, { type: "event", event: { type: "compacted", before, after, summary, kept: markAt - keptFrom } }, { copy: true })) ?? meta;
 }

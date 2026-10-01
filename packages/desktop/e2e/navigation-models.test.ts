@@ -6,6 +6,7 @@ import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { landsOn } from "./lands-on.ts";
 import { named } from "./named.ts";
+import { fixtureStore, seedSessions, type FixtureRecord, type FixtureSession } from "./session-fixture.ts";
 
 let app: RunningApp;
 before(async () => {
@@ -20,18 +21,20 @@ before(async () => {
 		})) }));
 		settings.defaultModelId = "p0/m0"; settings.favoriteModelIds = ["p1/m1", "p2/m0"]; settings.projectMemory = false;
 		await writeFile(path, JSON.stringify(settings));
-		const metas = JSON.parse(await readFile(join(home, "sessions", "index.json"), "utf8"));
-			for (const meta of metas) {
-				meta.modelId = "p0/m0";
-			const log = join(home, "sessions", meta.projectId, `${meta.id}.jsonl`);
-			const entries = (await readFile(log, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+		const store = fixtureStore(home);
+		const sessions: FixtureSession[] = [];
+		for (const meta of await store.listSessions()) {
+			meta.modelId = "p0/m0";
+			const entries: FixtureRecord[] = [];
+			for await (const entry of store.read(meta.id)) entries.push(entry);
 			for (const entry of entries) {
-				if (entry.meta) entry.meta.modelId = "p0/m0";
-				if (entry.message?.role === "assistant") entry.message.content[0].text = `**格式化回答**\n\n### 段落标题\n\n- 使用 \`Index\`\n\n${entry.message.content[0].text}`;
+				if (entry.type === "meta") entry.meta.modelId = "p0/m0";
+				if (entry.type === "message" && entry.message.role === "assistant" && entry.message.content[0].type === "text") entry.message.content[0].text = `**格式化回答**\n\n### 段落标题\n\n- 使用 \`Index\`\n\n${entry.message.content[0].text}`;
 			}
-				await writeFile(log, entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
-			}
-			await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+			sessions.push({ meta, records: entries });
+		}
+		store.close();
+		seedSessions(home, sessions);
 	} });
 });
 after(async () => { await app?.stop(); });

@@ -183,4 +183,4 @@ revision 和更新时间；运行时每小时同步，设置页也可手动更�
 `model-catalog-sync.test.ts` 用假 fetch 测条件请求、缓存与失败回退，都不依赖快照里的具体数值。更新
 快照后运行这两组、desktop 的 `model-import-defaults.test.ts` 与 `ui/model-catalog-fill.test.ts`、计价与
 扫描单测，以及 `e2e/model-defaults.test.ts` 和用量页面 E2E；目录版本和用户模型价格会进入用量缓存
-key，任一变化都会使旧聚合缓存失效并从原始会话日志重新计价。
+key，任一变化都会使旧聚合缓存失效并从会话库的 `spend` 表从头重新计价。

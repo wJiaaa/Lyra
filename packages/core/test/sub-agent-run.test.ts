@@ -88,7 +88,7 @@ async function dispatch(options: {
 		{
 			sessionId: "s1",
 			cwd: "/tmp",
-			settings: { thinking: "off", retryAttempts: 0 } as unknown as Settings,
+			settings: { thinking: "off" } as unknown as Settings,
 			tools: [noop],
 			skills: [],
 			agents: [],
@@ -167,7 +167,7 @@ test("a message steered mid-run reaches the sub-agent's own history", async () =
 		{
 			sessionId: "s1",
 			cwd: "/tmp",
-			settings: { thinking: "off", retryAttempts: 0 } as unknown as Settings,
+			settings: { thinking: "off" } as unknown as Settings,
 			tools: [noop],
 			skills: [],
 			agents: [],
@@ -215,7 +215,7 @@ test("a run that throws is marked failed, not left running", async () => {
 			{
 				sessionId: "s1",
 				cwd: "/tmp",
-				settings: { thinking: "off", retryAttempts: 0 } as unknown as Settings,
+				settings: { thinking: "off" } as unknown as Settings,
 				tools: [noop],
 				skills: [],
 				agents: [],

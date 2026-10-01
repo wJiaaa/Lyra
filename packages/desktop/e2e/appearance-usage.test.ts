@@ -12,12 +12,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 let app: RunningApp;
 let project: string;
 
 /** One assistant reply, as the log stores it, so the usage page has something real to read. */
-function replyRecord(seq: number, at: number, tokens: number): string {
+function replyRecord(seq: number, at: number, tokens: number) {
 	const message = {
 		role: "assistant",
 		content: [{ type: "text", text: "ok" }],
@@ -35,7 +36,7 @@ function replyRecord(seq: number, at: number, tokens: number): string {
 		stopReason: "stop",
 		timestamp: at,
 	};
-	return `${JSON.stringify({ seq, ts: at, type: "message", message })}\n`;
+	return { seq, ts: at, type: "message" as const, message };
 }
 
 async function seed(home: string): Promise<void> {
@@ -47,13 +48,12 @@ async function seed(home: string): Promise<void> {
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900, x: 0, y: 0 }));
 
 	/*
-	 * A conversation log with usage in it, written straight to disk.
+	 * A conversation log with usage in it, written straight to the database.
 	 *
 	 * The page reads the logs rather than any live state, so seeding one is the whole fixture —
 	 * and it means the numbers asserted below are numbers this test put there.
 	 */
 	const projectId = "aaaaaaaaaaaaaaaa";
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	const yesterday = Date.now() - 24 * 60 * 60 * 1000;
 	const meta = {
 		id: "seeded",
@@ -68,12 +68,12 @@ async function seed(home: string): Promise<void> {
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 		seq: 3,
 	};
-	await writeFile(
-		join(home, "sessions", projectId, "seeded.jsonl"),
-		`${JSON.stringify({ seq: 1, ts: yesterday, type: "meta", meta })}\n` +
-			replyRecord(2, yesterday, 1000) +
-			replyRecord(3, Date.now(), 2000),
-	);
+	seedSessions(home, [
+		{
+			meta,
+			records: [{ seq: 1, ts: yesterday, type: "meta", meta }, replyRecord(2, yesterday, 1000), replyRecord(3, Date.now(), 2000)],
+		},
+	]);
 
 	await writeFile(
 		join(home, "settings.json"),

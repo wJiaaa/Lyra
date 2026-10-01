@@ -309,7 +309,7 @@ test("子代理同样压缩后重发，每个请求带着它自己的、续跑�
 	const options = {
 		sessionId: "parent",
 		cwd: "/tmp",
-		settings: { thinking: "off", retryAttempts: 0 } as unknown as Settings,
+		settings: { thinking: "off" } as unknown as Settings,
 		tools: [],
 		skills: [],
 		agents: [general],

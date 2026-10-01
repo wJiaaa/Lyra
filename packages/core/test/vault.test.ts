@@ -2,8 +2,7 @@
  * Secrets, and getting them out of the file everyone shares.
  *
  * The bug these are written against is not a crash: it is that `settings.json` held every API key
- * in plaintext at 0644, and that file is copied between machines and pasted into bug reports. The move has to be invisible — nobody should have to re-enter a key to
- * complete it — so most of what is checked here is the migration rather than the cryptography.
+ * in plaintext at 0644, and that file is copied between machines and pasted into bug reports.
  *
  * Each test gets a home of its own. `plumeHome()` reads `PLUME_HOME` on every call, so pointing it
  * at a temporary directory is enough to isolate the whole of the config layer.
@@ -15,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, beforeEach, test } from "node:test";
 
-import { loadSettings, migrateSecrets, saveSettings, settingsPath, DEFAULT_SETTINGS } from "../src/config/settings.ts";
+import { loadSettings, saveSettings, settingsPath, DEFAULT_SETTINGS } from "../src/config/settings.ts";
 import { isSealed, resetVault, seal, unseal } from "../src/config/vault.ts";
 import type { ProviderConfig, Settings } from "../src/types.ts";
 
@@ -132,60 +131,30 @@ test("deleting a provider forgets its key rather than orphaning it", async () =>
 });
 
 // ---------------------------------------------------------------------------
-// The migration, which is the half that has to be invisible
+// Plaintext keys in the file
 // ---------------------------------------------------------------------------
 
-/** A settings file exactly as an older build wrote it: plaintext keys, world-readable. */
-async function writeLegacySettings(keys: [string, string][]): Promise<void> {
+/** A settings file with keys typed straight into it. */
+async function writePlaintextSettings(keys: [string, string][]): Promise<void> {
 	const settings = withProviders(...keys.map(([id, key]) => provider(id, key)));
 	await writeFile(settingsPath(), JSON.stringify(settings, null, 2), "utf8");
 }
 
-test("a key written by an older build is still read, before anything migrates it", async () => {
-	await writeLegacySettings([["p1", "sk-legacy"]]);
+test("a key typed into settings.json is still read", async () => {
+	await writePlaintextSettings([["p1", "sk-typed"]]);
 	resetVault();
 
-	// This is the launch right after an update: nothing has moved yet, and it has to work anyway.
 	const loaded = await loadSettings();
-	assert.equal(loaded.providers[0].apiKey, "sk-legacy");
-});
-
-test("and the first launch moves it out of the file without being asked", async () => {
-	await writeLegacySettings([["p1", "sk-legacy"], ["p2", "sk-also-legacy"]]);
-	resetVault();
-
-	assert.equal(await migrateSecrets(), 2, "both keys should have been moved");
-
-	const onDisk = await readFile(settingsPath(), "utf8");
-	assert.ok(!onDisk.includes("sk-legacy"), "the plaintext key is still in settings.json");
-	assert.ok(!onDisk.includes("sk-also-legacy"), "the plaintext key is still in settings.json");
-
-	// Nobody had to re-enter anything: the values survived the move.
-	const loaded = await loadSettings();
-	assert.deepEqual(
-		loaded.providers.map((p) => p.apiKey),
-		["sk-legacy", "sk-also-legacy"],
-	);
-});
-
-test("migrating twice is not a way to lose a key", async () => {
-	await writeLegacySettings([["p1", "sk-legacy"]]);
-	resetVault();
-
-	assert.equal(await migrateSecrets(), 1);
-	assert.equal(await migrateSecrets(), 0, "the second run has nothing to do");
-	assert.equal((await loadSettings()).providers[0].apiKey, "sk-legacy");
+	assert.equal(loaded.providers[0].apiKey, "sk-typed");
 });
 
 test("a stale plaintext key does not overwrite a newer one in the vault", async () => {
-	// The shape this guards: the file still carries what was there at upgrade time, and the vault
-	// has since been given a replacement. Migrating must not walk the old one back over the new.
+	// The file still carries an old key and the vault has since been given a replacement.
 	await saveSettings(withProviders(provider("p1", "sk-current")));
 
 	const stale = withProviders(provider("p1", "sk-stale"));
 	await writeFile(settingsPath(), JSON.stringify(stale, null, 2), "utf8");
 	resetVault();
 
-	await migrateSecrets();
 	assert.equal((await loadSettings()).providers[0].apiKey, "sk-current");
 });

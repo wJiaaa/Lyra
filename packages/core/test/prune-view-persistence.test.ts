@@ -97,7 +97,7 @@ test("a result cut by compaction is sent cut again after a restart, not rebuilt 
 
 	/** Open the stored session the way the desktop hub does, send one message, return what went out. */
 	const open = async (text: string) => {
-		const loaded = (await store.load(meta.projectId, meta.id))!;
+		const loaded = (await store.load(meta.id))!;
 		let sent: Message[] = [];
 		const session = new AgentSession({
 			cwd: root, settings, store, meta: loaded.meta, emit: () => {},

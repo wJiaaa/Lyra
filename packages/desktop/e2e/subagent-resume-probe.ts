@@ -20,11 +20,12 @@
  * 先 build：探针跑的是 out/ 里的产物。
  */
 
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import { closeListeningServer, startApp } from "./app.ts";
 import { encode, frameGrabber, type Frame } from "./record.ts";
+import { fixtureStore } from "./session-fixture.ts";
 
 const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "子代理续跑测试");
 const MODEL_PORT = 9876;
@@ -318,12 +319,14 @@ try {
 	await shot("01-检查点之后的主会话.png");
 
 	// 父模型读到的那一段——task 的工具结果，从落盘的会话里读，不靠折叠卡片。
-	const sessionsDir = join(home, "sessions");
+	const store = fixtureStore(home);
 	const logs: string[] = [];
-	for (const dir of await readdir(sessionsDir).catch(() => [] as string[])) {
-		for (const file of await readdir(join(sessionsDir, dir)).catch(() => [] as string[])) {
-			if (file.endsWith(".jsonl")) logs.push(await readFile(join(sessionsDir, dir, file), "utf8"));
+	try {
+		for (const meta of await store.listSessions()) {
+			for await (const record of store.read(meta.id)) logs.push(JSON.stringify(record));
 		}
+	} finally {
+		store.close();
 	}
 	const log = logs.join("\n");
 	check("父模型被告知用 resume 续跑", /resume: \\"[\w-]+:sub:[0-9a-f]{8}\\"/.test(log), "task 结果里带着那句「传 resume」");

@@ -13,7 +13,7 @@ import { normalizeSubAgentProfiles } from "@plume/core/model-roles";
  * do; this decides when.
  */
 
-import { loadSettings, migrateSecrets, rememberProviderNames, saveSettings as persist, type Settings } from "@plume/core";
+import { loadSettings, rememberProviderNames, saveSettings as persist, type Settings } from "@plume/core";
 
 type Listener = (next: Settings) => void | Promise<void>;
 
@@ -21,18 +21,6 @@ let current: Settings | undefined;
 const listeners: Listener[] = [];
 
 export async function loadAppSettings(): Promise<Settings> {
-	/*
-	 * Move any API key still written into `settings.json` out of it, before anything reads it.
-	 *
-	 * `saveSettings` does this on every write, so a key would move the next time anything was
-	 * changed — but somebody who never opens the settings page would keep theirs in a plaintext,
-	 * world-readable file forever. Here it happens once, on the first launch after updating, and is
-	 * a no-op on every launch after that.
-	 *
-	 * Failures are swallowed on purpose: a profile on a read-only volume, or a home directory
-	 * somebody has made undeletable, must not stop the app from starting over a hygiene task.
-	 */
-	await migrateSecrets().catch(() => 0);
 	current = await loadSettings();
 	return current;
 }
@@ -78,7 +66,7 @@ export function onSettingsChanged(listener: Listener): () => void {
 export async function applySettings(next: Settings): Promise<Settings> {
 	next = {
 		...next,
-		retryPolicy: normalizeRetryPolicy(next.retryPolicy, next.retryAttempts),
+		retryPolicy: normalizeRetryPolicy(next.retryPolicy),
 		subAgentProfiles: normalizeSubAgentProfiles(next.subAgentProfiles),
 		/*
 		 * 记在这里，而不是只让 `persist` 记。

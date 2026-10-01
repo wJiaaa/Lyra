@@ -1,12 +1,11 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { SessionMeta, SessionRecordInput } from "@plume/core";
+import { seededSessions, seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
-/** Synthetic events use the real JSONL reader, renderer, search and artifact access paths. */
+/** Synthetic events use the real session reader, renderer, search and artifact access paths. */
 export async function seedTrajectory(home: string): Promise<void> {
-	const indexPath = join(home, "sessions", "index.json");
-	const metas: SessionMeta[] = JSON.parse(await readFile(indexPath, "utf8"));
-	const base = metas[0];
+	const [base] = await seededSessions(home);
 	const id = "10000000-0000-4000-8000-000000000001";
 	const raw = join(home, "scratch", id, "tool-output", "build.log");
 	await mkdir(join(home, "scratch", id, "tool-output"), { recursive: true });
@@ -15,8 +14,8 @@ export async function seedTrajectory(home: string): Promise<void> {
 	const usage = { input: 100, output: 20, cacheRead: 10, cacheWrite: 0, total: 130, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 	const meta: SessionMeta = { ...base, id, title: "大规模轨迹验证", seq: 0, messageCount: 5001 };
 	let seq = 0;
-	const records: string[] = [];
-	const add = (input: SessionRecordInput, ts: number) => records.push(JSON.stringify({ ...input, ts, seq: seq++ }));
+	const records: FixtureRecord[] = [];
+	const add = (input: SessionRecordInput, ts: number) => records.push({ ...input, ts, seq: seq++ });
 	add({ type: "meta", meta }, start);
 	add({ type: "message", message: { role: "user", content: [{ type: "text", text: "执行并验证构建" }], timestamp: start } }, start);
 	add({ type: "event", event: { type: "context", systemPrompt: "Synthetic trace fixture", tools: ["bash"], skills: [], schemas: [{ name: "bash", description: "Run command", parameters: { type: "object" } }] } }, start);
@@ -32,6 +31,5 @@ export async function seedTrajectory(home: string): Promise<void> {
 	}
 	meta.seq = seq; meta.updatedAt = start + 2_500_000;
 	add({ type: "meta", meta }, meta.updatedAt);
-	await writeFile(join(home, "sessions", meta.projectId, `${id}.jsonl`), records.join("\n") + "\n");
-	await writeFile(indexPath, JSON.stringify([...metas, meta]));
+	seedSessions(home, [{ meta, records }]);
 }

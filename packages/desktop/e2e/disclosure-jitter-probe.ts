@@ -17,16 +17,17 @@
  * 要先 `pnpm build`。加 `--tag=after` 把结果存成另一份，好和基线对照。
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { projectIdFor } from "@plume/core";
 import { startApp } from "./app.ts";
 import { frameGrabber } from "./record.ts";
+import { fixtureStore, seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 const PORT = 9644;
-/** 今天那场会话：904 条消息、452 个工具结果——正是视频里那种规模。 */
-const SOURCE = join(homedir(), ".plume/sessions/63ca3825cb82944e/aa5eb131-4b20-4e20-8036-6b39cfd77507.jsonl");
+/** 今天那场会话：904 条消息、452 个工具结果——正是视频里那种规模。从本机真实的会话库里取。 */
+const SOURCE_HOME = join(homedir(), ".plume");
 const SESSION_ID = "aa5eb131-4b20-4e20-8036-6b39cfd77507";
 const TITLE = "添加文件后布局异常排查";
 const TAG = process.argv.find((a) => a.startsWith("--tag="))?.slice(6) ?? "before";
@@ -39,17 +40,19 @@ const app = await startApp({
 		await mkdir(root, { recursive: true });
 		await writeFile(join(home, "window.json"), JSON.stringify({ x: 0, y: 0, width: 1440, height: 900 }));
 		const projectId = projectIdFor(root);
-		await mkdir(join(home, "sessions", projectId), { recursive: true });
-		const lines = (await readFile(SOURCE, "utf8")).split("\n").filter(Boolean);
-		const rewritten = lines.map((line) => {
-			const record = JSON.parse(line);
+		const source = fixtureStore(SOURCE_HOME);
+		const meta = await source.get(SESSION_ID);
+		const records: FixtureRecord[] = [];
+		for await (const record of source.read(SESSION_ID)) {
 			if (record.type === "meta" && record.meta) {
 				record.meta.cwd = root;
 				record.meta.projectId = projectId;
 			}
-			return JSON.stringify(record);
-		});
-		await writeFile(join(home, "sessions", projectId, `${SESSION_ID}.jsonl`), `${rewritten.join("\n")}\n`);
+			records.push(record);
+		}
+		source.close();
+		if (!meta) throw new Error(`本机会话库里没有 ${SESSION_ID}`);
+		seedSessions(home, [{ meta: { ...meta, cwd: root, projectId }, records }]);
 		await writeFile(
 			join(home, "settings.json"),
 			JSON.stringify({

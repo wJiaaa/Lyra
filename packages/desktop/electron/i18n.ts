@@ -19,6 +19,9 @@ const zhCN = {
 	"shortcut.invalid": "截图全局快捷键 {shortcut} 无法识别，没有注册。可以在 设置 → 屏幕截图 里重新录一个。",
 	"terminal.unavailable": "终端无法启动：原生组件 node-pty 没能加载。Plume 的其他功能不受影响。",
 	"terminal.tab": "终端 {n}",
+	// The session database would not open at startup; `reason` is what SQLite or the version check said.
+	"sessions.unavailableTitle": "Plume 打不开会话记录",
+	"sessions.unavailable": "会话库 {path} 打不开：{reason}\n\nPlume 没有动这个文件。它可能正被另一个 Plume 占用，或者是更新版本的 Plume 写的。先退出其他 Plume 再打开；仍然打不开，就把 sessions.db 连同旁边同名的 -wal、-shm 文件一起挪到别处，Plume 会新建一个。",
 	// System notifications. `detail` joins a status line to what the agent asked, so each language
 	// brings its own separator and quote marks instead of inheriting 「」 and ：.
 	"notification.done": "「{title}」已完成",
@@ -103,6 +106,8 @@ export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 		"shortcut.invalid": "The global shortcut {shortcut} is not a key combination this system recognises, so it was not registered. Record it again in Settings → Screenshots.",
 		"terminal.unavailable": "The terminal cannot start: its native component, node-pty, failed to load. The rest of Plume is unaffected.",
 		"terminal.tab": "Terminal {n}",
+		"sessions.unavailableTitle": "Plume can't open your conversations",
+		"sessions.unavailable": "The session database at {path} would not open: {reason}\n\nPlume has left the file as it is. Another copy of Plume may have it open, or a newer version of Plume may have written it. Quit any other copy and try again. If it still won't open, move sessions.db somewhere else together with the -wal and -shm files beside it, and Plume will start a new one.",
 		"notification.done": "“{title}” finished", "notification.doneUntitled": "Task finished",
 		"notification.approval": "“{title}” needs your approval", "notification.approvalUntitled": "Waiting for your approval",
 		"notification.reply": "“{title}” needs your input", "notification.replyUntitled": "Waiting for your input",

@@ -3,10 +3,10 @@ import { normalizeRetryPolicy, policyDelay, type RetryPolicy, type RetryPolicySo
 import { classifyFailure, durationMs, failureOf, FailureError, serverDelayMs, worthRetrying, type Failure } from "./failure.ts";
 
 /** Explicit low-level attempt overrides (e.g. commit titles) retain their bounded lifetime. */
-function resolvePolicy(policy: RetryPolicy | undefined, legacyAttempts: number | undefined): RetryPolicy {
-	const normalized = normalizeRetryPolicy(policy, legacyAttempts);
-	if (policy || legacyAttempts === undefined) return normalized;
-	const retries = Number.isFinite(legacyAttempts) ? Math.max(0, Math.round(legacyAttempts) - 1) : 10;
+function resolvePolicy(policy: RetryPolicy | undefined, attempts: number | undefined): RetryPolicy {
+	const normalized = normalizeRetryPolicy(policy);
+	if (policy || attempts === undefined) return normalized;
+	const retries = Number.isFinite(attempts) ? Math.max(0, Math.round(attempts) - 1) : 10;
 	const upstream = { ...normalized.upstream, retries };
 	return { upstream, network: { ...upstream } };
 }
@@ -14,11 +14,11 @@ function resolvePolicy(policy: RetryPolicy | undefined, legacyAttempts: number |
 export class RetryBudget {
 	private used = { network: 0, upstream: 0 };
 	private readonly read: () => RetryPolicy | undefined;
-	private readonly legacyAttempts?: number;
+	private readonly attempts?: number;
 	private cache?: { from: RetryPolicy | undefined; resolved: RetryPolicy };
-	constructor(policy?: RetryPolicySource, legacyAttempts?: number) {
+	constructor(policy?: RetryPolicySource, attempts?: number) {
 		this.read = typeof policy === "function" ? policy : () => policy;
-		this.legacyAttempts = legacyAttempts;
+		this.attempts = attempts;
 	}
 	/**
 	 * The rules in force right now, not the ones this request started under.
@@ -28,7 +28,7 @@ export class RetryBudget {
 	 */
 	get policy(): RetryPolicy {
 		const from = this.read();
-		if (!this.cache || this.cache.from !== from) this.cache = { from, resolved: resolvePolicy(from, this.legacyAttempts) };
+		if (!this.cache || this.cache.from !== from) this.cache = { from, resolved: resolvePolicy(from, this.attempts) };
 		return this.cache.resolved;
 	}
 	/**

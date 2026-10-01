@@ -18,7 +18,7 @@ export function RunDetail({ run, query = "" }: { run: ToolRun; query?: string })
 	const openOutput = async () => {
 		if (!meta) return;
 		try {
-			const path = await bridge.sessions.exportTrajectory(meta.projectId, meta.id, "output", { correlationId: run.toolCallId });
+			const path = await bridge.sessions.exportTrajectory(meta.id, "output", { correlationId: run.toolCallId });
 			await openFilePane({ path, name: path.split(/[\\/]/).pop() || path }, screen ?? undefined);
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 	};

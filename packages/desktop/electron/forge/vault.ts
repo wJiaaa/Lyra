@@ -30,9 +30,8 @@ import type { ForgeAccount } from "./types.ts";
 
 interface StoredEntry {
 	account: ForgeAccount;
-	/** Base64 of the encrypted token, or the token itself when `encrypted` is false. */
+	/** The token, sealed by core's vault. */
 	token: string;
-	encrypted: boolean;
 }
 
 interface StoredFile {
@@ -89,7 +88,7 @@ async function read(): Promise<StoredFile> {
 		for (const entry of entries as StoredEntry[]) {
 			const [account] = parseAccounts([entry?.account]);
 			if (account && typeof entry.token === "string") {
-				kept.push({ account, token: entry.token, encrypted: entry.encrypted === true });
+				kept.push({ account, token: entry.token });
 			}
 		}
 		// Dropping a bad entry is right; forgetting that anything was dropped is what loses data.
@@ -149,33 +148,6 @@ function change<T>(body: () => Promise<T>): Promise<T> {
 	return run;
 }
 
-/**
- * The keychain, for reading what an older build wrote and nothing else.
- *
- * Entries stored before this change are sealed by `safeStorage`, and the ones that can still be
- * opened are worth carrying across rather than making somebody sign in again to complete a
- * migration whose entire purpose is to stop making them sign in again. The ones that cannot — the
- * macOS case this change exists for — are dropped, and the account is marked as needing a token.
- *
- * Imported dynamically for the same reason as everything else here that touches Electron: this
- * module is reachable from tests, where `electron` is not a module that exists.
- */
-async function legacyKeychain(): Promise<{ decrypt(value: Buffer): string } | null> {
-	try {
-		const { safeStorage } = await import("electron");
-		if (!safeStorage?.isEncryptionAvailable()) return null;
-		return { decrypt: (value) => safeStorage.decryptString(value) };
-	} catch {
-		return null;
-	}
-}
-
-/*
- * There used to be an `encryptionAvailable` here, and a settings page with two versions of the
- * truth to match: encrypted where the machine had a keyring, plaintext where it did not. The seal
- * no longer asks the OS for anything, so there is one answer and the question is gone with it.
- */
-
 export async function listAccounts(): Promise<ForgeAccount[]> {
 	return (await read()).entries.map((entry) => entry.account);
 }
@@ -184,63 +156,18 @@ export async function accountById(id: string): Promise<ForgeAccount | null> {
 	return (await read()).entries.find((entry) => entry.account.id === id)?.account ?? null;
 }
 
-/**
- * The secret for one account, opened. Null when there is no such account, or no opening it.
- *
- * Three shapes reach here, because two of them predate this file's current form: a value sealed by
- * the vault, one sealed by the keychain an older build used, and — on a machine that never had a
- * keyring — a token in the clear. The first is the ordinary case; the other two are read once and
- * rewritten as the first.
- */
+/** The secret for one account, opened. Null when there is no such account, or no opening it. */
 export async function tokenFor(id: string): Promise<string | null> {
 	const entry = (await read()).entries.find((e) => e.account.id === id);
-	if (!entry) return null;
-
-	if (isSealed(entry.token)) return unseal(entry.token);
-
-	if (!entry.encrypted) {
-		// Plaintext from a build that found no keyring. Seal it now that sealing needs no keyring.
-		await reseal(id, entry.token);
-		return entry.token;
-	}
-
-	const legacy = await legacyKeychain();
-	if (!legacy) return null;
-	try {
-		const token = legacy.decrypt(Buffer.from(entry.token, "base64"));
-		await reseal(id, token);
-		return token;
-	} catch {
-		/*
-		 * The keychain will not open what it wrote, which on macOS means the app was updated: the
-		 * entry is bound to the code identity that created it, and an ad-hoc signed build gets a new
-		 * one every release. This is the case the vault exists to end — but it cannot recover a token
-		 * already lost to it.
-		 *
-		 * Null rather than a throw: the caller turns it into "this account needs signing in again",
-		 * which is both true and actionable, where a decryption stack trace is neither.
-		 */
-		return null;
-	}
-}
-
-/** Rewrite one account's token in the current format, leaving everything else alone. */
-function reseal(id: string, token: string): Promise<void> {
-	return change(async () => {
-		const file = await read();
-		const at = file.entries.findIndex((e) => e.account.id === id);
-		if (at < 0) return;
-		const entries = [...file.entries];
-		entries[at] = { ...entries[at], token: await seal(token), encrypted: true };
-		await write({ version: 1, entries });
-	});
+	if (!entry || !isSealed(entry.token)) return null;
+	return unseal(entry.token);
 }
 
 /** Save an account and its token, replacing whatever was filed under the same id. */
 export function saveAccount(account: ForgeAccount, token: string): Promise<void> {
 	return change(async () => {
 		const file = await read();
-		const entry: StoredEntry = { account, token: await seal(token), encrypted: true };
+		const entry: StoredEntry = { account, token: await seal(token) };
 
 		const at = file.entries.findIndex((e) => e.account.id === account.id);
 		const entries = [...file.entries];

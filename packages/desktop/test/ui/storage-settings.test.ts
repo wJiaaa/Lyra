@@ -7,7 +7,7 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import { act, createElement as h } from "react";
 import type { ClearRange, ClearResult, StorageUse } from "../../electron/session-cleanup.ts";
 import { StorageSettings } from "../../src/features/settings/StorageSettings.tsx";
@@ -88,6 +88,13 @@ async function settle(): Promise<void> {
 }
 
 describe("StorageCleanup", () => {
+	/*
+	 * The calendar opens on the month of today. Unpinned, every test that picks a day in `USE` broke
+	 * the day the wall clock left September.
+	 */
+	beforeEach(() => mock.timers.enable({ apis: ["Date"], now: new Date(2026, 8, 29, 12).getTime() }));
+	afterEach(() => mock.timers.reset());
+
 	it("先说清楚占了多少、有几条——要不要删是从这两个数字开始判断的", async () => {
 		const { view } = await open();
 		try {

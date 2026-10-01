@@ -95,7 +95,7 @@ async function harness(script?: (turn: number) => AssistantMessage | Promise<Ass
 		/** Everything on disk, so the assertions are about the file rather than about memory. */
 		async records(): Promise<SessionRecord[]> {
 			const out: SessionRecord[] = [];
-			for await (const record of store.read(session.meta.projectId, session.meta.id)) out.push(record);
+			for await (const record of store.read(session.meta.id)) out.push(record);
 			return out;
 		},
 		cleanup: async () => {

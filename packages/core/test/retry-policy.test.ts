@@ -79,10 +79,8 @@ test("unlimited retry remains abortable during a real wait and never starts anot
 	assert.equal(calls, 1); assert.ok(Date.now() - start < 1000);
 });
 
-test("the old default upgrades to ten retries, explicit alternatives migrate, and invalid numbers cannot create tight loops", () => {
-	assert.equal(normalizeRetryPolicy(undefined, 5).upstream.retries, 10);
-	assert.equal(normalizeRetryPolicy(undefined, 3).upstream.retries, 2);
-	assert.equal(normalizeRetryPolicy(undefined, 1).upstream.retries, 0);
+test("a missing policy takes the defaults, and invalid numbers cannot create tight loops", () => {
+	assert.deepEqual(normalizeRetryPolicy(undefined), DEFAULT_RETRY_POLICY);
 	assert.deepEqual(normalizeRetryPolicy({ upstream: { retries: Infinity, intervalMs: -1, maxIntervalMs: NaN, strategy: "unknown" } }).upstream, { retries: 10, intervalMs: 1000, maxIntervalMs: 30000, strategy: "fixed" });
 	assert.equal(normalizeRetryPolicy({ upstream: { intervalMs: 40000, maxIntervalMs: 30000 } }).upstream.maxIntervalMs, 40000);
 });

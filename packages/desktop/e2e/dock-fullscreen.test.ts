@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { Message } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 let app: RunningApp;
 
@@ -12,7 +13,6 @@ let app: RunningApp;
 async function seed(home: string) {
 	const cwd = join(home, "project");
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	await mkdir(cwd);
 	await writeFile(join(cwd, "AGENTS.md"), Array.from({ length: 100 }, (_, i) =>
 		`## Rule ${i + 1}\n\n${"保留文件阅读位置，验证面板全屏与还原时的布局性能。".repeat(8)}\n\n- Read the current project instructions.\n- Verify the visible result.\n`).join("\n"));
@@ -29,8 +29,7 @@ async function seed(home: string) {
 	}
 	assert.equal(run, 2344);
 	const meta = { id: "fullscreen", title: "全屏性能验证", projectId, projectName: "性能验证", cwd, createdAt: 1, updatedAt: 2, modelId: null, messageCount: messages.length, usage, seq: messages.length + 1 };
-	await writeFile(join(home, "sessions", projectId, "fullscreen.jsonl"), [JSON.stringify({ type: "meta", meta, seq: 0, ts: 1 }), ...messages.map((message, i) => JSON.stringify({ type: "message", message, seq: i + 1, ts: 1 })), JSON.stringify({ type: "meta", meta, seq: meta.seq, ts: 2 })].join("\n") + "\n");
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta]));
+	seedSessions(home, [{ meta, records: [{ type: "meta", meta, ts: 1 }, ...messages.map((message) => ({ type: "message" as const, message, ts: 1 })), { type: "meta", meta, ts: 2 }] }]);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900 }));
 	await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [], mcpServers: [], hooks: [], projects: [{ id: projectId, name: "性能验证", path: cwd, pinned: true, lastOpenedAt: 1 }] }));
 }

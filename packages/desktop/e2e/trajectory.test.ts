@@ -114,7 +114,7 @@ test("manual compression is traceable with its command, summary and lifecycle wh
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
 	await until(`document.querySelector('[data-command-status="done"]')`);
-	const persisted = await app.evaluate<{source: string; summary: string; detail: string; command?: string}[]>(`(async()=>{const m=(await window.plume.sessions.list()).find(m=>m.id==='qa-long');return window.plume.sessions.trajectory(m.projectId,m.id);})()`);
+	const persisted = await app.evaluate<{source: string; summary: string; detail: string; command?: string}[]>(`(async()=>{const m=(await window.plume.sessions.list()).find(m=>m.id==='qa-long');return window.plume.sessions.trajectory(m.id);})()`);
 	t.diagnostic(JSON.stringify(persisted.filter(e => e.source === "compaction")));
 	await shot("trajectory-manual");
 	assert.ok(persisted.some(e => e.command === "/compact 保留关键决策"), "the durable command lifecycle must be projected, not just the message counts");
@@ -189,7 +189,7 @@ test("task execution search includes omitted text, links to its trajectory and o
 	await clickControl('[aria-label="记录操作"]');
 	await until(`[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent==='查看完整原始输出')`);
 	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent==='查看完整原始输出').click()`);
-	const read = await app.evaluate(`(async()=>{const m=(await window.plume.sessions.list()).find(m=>m.id==='10000000-0000-4000-8000-000000000001');const p=await window.plume.sessions.exportTrajectory(m.projectId,m.id,'output',{correlationId:'trace-run-2499'});const r=await window.plume.files.read(p);return {path:p,read:r?{bytes:r.bytes,truncated:r.truncated,tail:r.text.slice(-20)}:null};})()`);
+	const read = await app.evaluate(`(async()=>{const m=(await window.plume.sessions.list()).find(m=>m.id==='10000000-0000-4000-8000-000000000001');const p=await window.plume.sessions.exportTrajectory(m.id,'output',{correlationId:'trace-run-2499'});const r=await window.plume.files.read(p);return {path:p,read:r?{bytes:r.bytes,truncated:r.truncated,tail:r.text.slice(-20)}:null};})()`);
 	assert.ok(read.read, JSON.stringify(read));
 	assert.ok(read.read.bytes > 200000 && read.read.truncated === false && read.read.tail.endsWith("RAW_FILE_TAIL"), JSON.stringify(read));
 	let host: Pick<RunningApp, "evaluate" | "send"> | undefined;

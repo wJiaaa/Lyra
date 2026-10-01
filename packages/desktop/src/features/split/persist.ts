@@ -8,15 +8,12 @@
  * Everything that comes back out is treated as hostile. See `sift`.
  */
 
-import { defaultTree, firstSession, leafCount, sift, type SplitNode } from "./tree.ts";
+import { defaultTree, sift, type SplitNode } from "./tree.ts";
 
 const VERSION = 1;
 const SAVE_DELAY = 120;
 
 export const storageKey = (windowId: string): string => `ly:split:${windowId}`;
-
-const legacyKey = (windowId: string, project: string): string =>
-	`ly:split:${windowId}:${project || "@none"}`;
 
 interface Stored {
 	version: number;
@@ -37,32 +34,9 @@ function parse(raw: string | null): { tree: SplitNode; focused: string | null } 
 	}
 }
 
-function isLive(loaded: { tree: SplitNode } | null): boolean {
-	return Boolean(loaded && (leafCount(loaded.tree) > 1 || firstSession(loaded.tree)));
-}
-
-function readLegacy(windowId: string, fallbackProject: string): { tree: SplitNode; focused: string | null } | null {
-	const preferred = parse(localStorage.getItem(legacyKey(windowId, fallbackProject)));
-	if (isLive(preferred)) return preferred;
-	const prefix = `ly:split:${windowId}:`;
-	const n = localStorage.length;
-	for (let i = 0; i < n; i++) {
-		const key = localStorage.key(i);
-		if (!key || !key.startsWith(prefix)) continue;
-		const loaded = parse(localStorage.getItem(key));
-		if (isLive(loaded)) return loaded;
-	}
-	return preferred ?? parse(localStorage.getItem(legacyKey(windowId, "")));
-}
-
-export function loadSplit(
-	windowId: string,
-	fallbackProject = "",
-): { tree: SplitNode; focused: string | null } {
+export function loadSplit(windowId: string): { tree: SplitNode; focused: string | null } {
 	try {
-		const modern = parse(localStorage.getItem(storageKey(windowId)));
-		if (modern) return modern;
-		return readLegacy(windowId, fallbackProject) ?? { tree: defaultTree(), focused: null };
+		return parse(localStorage.getItem(storageKey(windowId))) ?? { tree: defaultTree(), focused: null };
 	} catch {
 		return { tree: defaultTree(), focused: null };
 	}

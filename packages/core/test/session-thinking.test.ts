@@ -116,7 +116,7 @@ test("a new conversation starts at the app default, and has it written down", as
 		assert.equal(h.last(), "medium");
 		assert.equal(session.meta.thinking, "medium", "the default of the moment is the conversation's own from the start");
 
-		const loaded = await h.store.load(session.meta.projectId, session.meta.id);
+		const loaded = await h.store.load(session.meta.id);
 		assert.equal(loaded?.meta.thinking, "medium", "in the first record, not only in memory");
 	} finally {
 		await h.cleanup();
@@ -170,7 +170,7 @@ test("the level survives a restart, because it is in the log", async () => {
 			emit: () => {},
 			meta: session.meta,
 		});
-		const loaded = await h.store.load(session.meta.projectId, session.meta.id);
+		const loaded = await h.store.load(session.meta.id);
 		assert.equal(loaded?.meta.thinking, "xhigh", "written to the file, not just held in memory");
 		assert.equal(reopened.meta.thinking, "xhigh");
 	} finally {
@@ -188,7 +188,7 @@ test("null hands the conversation back to the app default", async () => {
 		assert.equal(h.last(), "medium");
 		assert.equal(session.meta.thinking, undefined, "cleared, not pinned to today's default");
 
-		const loaded = await h.store.load(session.meta.projectId, session.meta.id);
+		const loaded = await h.store.load(session.meta.id);
 		assert.equal(loaded?.meta.thinking, undefined, "and cleared on disk too");
 	} finally {
 		await h.cleanup();
@@ -254,7 +254,7 @@ test("a fork keeps the level of the conversation it came from", async () => {
 		await source.setThinking("xhigh");
 		await source.prompt([{ type: "text", text: "hi" }]);
 
-		const fork = await forkSession(h.store, source.meta.projectId, source.meta.id, source.meta.seq);
+		const fork = await forkSession(h.store, source.meta.id, source.meta.seq);
 		assert.equal(fork?.meta.thinking, "xhigh");
 	} finally {
 		await h.cleanup();

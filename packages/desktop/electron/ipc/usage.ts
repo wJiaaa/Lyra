@@ -6,9 +6,8 @@
  * put the arithmetic on the far side of a process boundary where it cannot be tested without
  * booting Electron.
  *
- * In flight at most once. The first scan of a large home takes a couple of seconds, and opening
- * the page twice while it runs should wait for the answer rather than start a second read of the
- * same 264MB.
+ * In flight at most once. The first scan reads every billed call ever made, and opening the page
+ * twice while it runs should wait for the answer rather than start a second read.
  *
  * 另外两条是关于这些日志本身的：它们占了多少地方，以及怎么删掉一段时间的。删除放在这一组而不是
  * `sessions` 那一组，因为按时间成片地删是从「这一页上的数字」出发的动作，而不是从某一条对话出发
@@ -18,7 +17,7 @@
 import { ipcMain } from "electron";
 import type { SessionStorage } from "@plume/core";
 import { settings } from "../app-settings.ts";
-import { sessions } from "../session-hub.ts";
+import { deleteIdleSessions } from "../session-hub.ts";
 import { clearSessions, storageUse, type ClearRange } from "../session-cleanup.ts";
 import { scanUsage, type UsageScan } from "../usage-scan.ts";
 
@@ -31,7 +30,7 @@ export interface UsageIpcDeps {
 export function registerUsageIpc({ store: readStore }: UsageIpcDeps): void {
 	ipcMain.handle("usage:scan", async () => {
 		if (!inFlight) {
-			inFlight = scanUsage(undefined, settings().providers).finally(() => {
+			inFlight = scanUsage(readStore(), undefined, settings().providers).finally(() => {
 				inFlight = null;
 			});
 		}
@@ -41,19 +40,11 @@ export function registerUsageIpc({ store: readStore }: UsageIpcDeps): void {
 	ipcMain.handle("usage:storage", () => storageUse(readStore()));
 
 	ipcMain.handle("usage:clear", async (_event, range: ClearRange) => {
-		// 子代理还在后台跑的也算在跑：主会话收尾了，活没停，结果还要送回来（ADR-0029）。
-		const result = await clearSessions(readStore(), range, (id) => {
-			const live = sessions.get(id);
-			return Boolean(live && (live.running || live.subAgents.list().some((one) => one.status === "running" || one.status === "queued")));
-		});
+		// 「在跑」不只是回合本身：刚提交、正在启动、侧边聊天、后台子代理都算，见 `sessionBusy`。
+		const result = await clearSessions(readStore(), range, deleteIdleSessions);
 		/*
-		 * 丢掉在飞的那次扫描。
-		 *
-		 * 磁盘上的缓存不用管：汇总走的是 `logPaths` 实际列出来的文件，删掉的那些不在里面，它们在
-		 * 缓存里的桶既不会被加进总数，也会在下一次写缓存时自然消失。
-		 *
-		 * 要管的是这个内存里的 promise：它可能在删除**开始之前**就已经出发，读的是那份还完整的
-		 * 文件列表。留着它，删完之后点刷新拿回的是删除前的数字——看起来像什么都没发生。
+		 * 丢掉在飞的那次扫描：它可能在删除开始之前就已出发，每天有几个活跃会话还是删之前的数。
+		 * 花销不受影响——删会话不删 `spend` 表。
 		 */
 		inFlight = null;
 		return result;

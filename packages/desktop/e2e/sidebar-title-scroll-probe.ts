@@ -20,6 +20,7 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const dir = process.argv[2] ?? "/tmp/plume-title-scroll";
 
@@ -48,7 +49,6 @@ async function seed(home: string): Promise<void> {
 	const path = join(home, "proj");
 	const id = createHash("sha256").update(path).digest("hex").slice(0, 16);
 	await mkdir(path, { recursive: true });
-	await mkdir(join(home, "sessions", id), { recursive: true });
 
 	await writeFile(
 		join(home, "settings.json"),
@@ -69,7 +69,7 @@ async function seed(home: string): Promise<void> {
 		}),
 	);
 
-	const metas: object[] = [];
+	const sessions = [];
 	for (const n of LENGTHS) {
 		const sid = `s${String(n).padStart(2, "0")}`;
 		const messages = [
@@ -89,17 +89,16 @@ async function seed(home: string): Promise<void> {
 			usage,
 			seq: messages.length + 1,
 		};
-		metas.push(meta);
-		await writeFile(
-			join(home, "sessions", id, `${sid}.jsonl`),
-			[
-				JSON.stringify({ seq: 0, ts: 1, type: "meta", meta }),
-				...messages.map((message, at) => JSON.stringify({ seq: at + 1, ts: at + 1, type: "message", message })),
-				JSON.stringify({ seq: meta.seq, ts: 2, type: "meta", meta }),
-			].join("\n") + "\n",
-		);
+		sessions.push({
+			meta,
+			records: [
+				{ seq: 0, ts: 1, type: "meta", meta },
+				...messages.map((message, at) => ({ seq: at + 1, ts: at + 1, type: "message", message })),
+				{ seq: meta.seq, ts: 2, type: "meta", meta },
+			],
+		});
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 }
 
 const app = await startApp({ port: 9563, seed });

@@ -17,6 +17,7 @@ import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions as seedFixture, type FixtureRecord, type FixtureSession } from "./session-fixture.ts";
 
 const exec = promisify(execFile);
 const out = process.argv[2] ?? "/tmp/plume-switch-film";
@@ -54,9 +55,7 @@ async function makeRepo(): Promise<string> {
 
 async function seedSessions(home: string, cwd: string): Promise<void> {
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	const dir = join(home, "sessions", projectId);
-	await mkdir(dir, { recursive: true });
-
+	const sessions: FixtureSession[] = [];
 	for (const [i, id] of IDS.entries()) {
 		const meta = {
 			id,
@@ -71,7 +70,7 @@ async function seedSessions(home: string, cwd: string): Promise<void> {
 			usage,
 			seq: 24,
 		};
-		const lines = [JSON.stringify({ seq: 0, ts: meta.createdAt, type: "meta", meta })];
+		const records: FixtureRecord[] = [{ seq: 0, ts: meta.createdAt, type: "meta", meta }];
 		for (let m = 0; m < 24; m++) {
 			const message =
 				m % 2 === 0
@@ -86,12 +85,12 @@ async function seedSessions(home: string, cwd: string): Promise<void> {
 							stopReason: "stop",
 							timestamp: meta.createdAt + m,
 						};
-			lines.push(JSON.stringify({ seq: m + 1, ts: meta.createdAt + m, type: "message", message }));
+			records.push({ seq: m + 1, ts: meta.createdAt + m, type: "message", message });
 		}
-		// A closing `meta` with the final seq, which is what the index reads a session's shape from.
-		lines.push(JSON.stringify({ seq: 25, ts: meta.createdAt, type: "meta", meta: { ...meta, seq: 25 } }));
-		await writeFile(join(dir, `${id}.jsonl`), `${lines.join("\n")}\n`);
+		records.push({ seq: 25, ts: meta.createdAt, type: "meta", meta: { ...meta, seq: 25 } });
+		sessions.push({ meta, records });
 	}
+	seedFixture(home, sessions);
 
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900, x: 0, y: 0 }));
 	// Only what this needs; everything else takes its default, the way `switch-probe` does.

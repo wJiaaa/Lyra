@@ -19,9 +19,10 @@
  *   is how you get half of each.
  */
 
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { Message, ModelConfig, ProviderConfig, Usage } from "../types.ts";
+import type { SessionStorage } from "../session/storage.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import { proposeSkill, type SkillCandidate } from "./managed-skills.ts";
 import { projectMemoryDir, redactSecrets } from "./project-memory.ts";
@@ -403,24 +404,19 @@ export async function readExtractedMemory(cwd: string): Promise<string> {
 	return body.join("\n").trim();
 }
 
-/** Sessions on disk that are worth a pass, newest first. */
+/** This project's sessions that are worth a pass, newest first. */
 export async function findCandidates(
-	sessionsRoot: string,
+	storage: Pick<SessionStorage, "listSessions" | "messages">,
 	projectId: string,
-	load: (id: string) => Promise<Message[]>,
 	now = Date.now(),
 ): Promise<ExtractionCandidate[]> {
-	const dir = join(sessionsRoot, projectId);
-	const files = await readdir(dir).catch(() => []);
 	const found: ExtractionCandidate[] = [];
-
-	for (const file of files.filter((f) => f.endsWith(".jsonl"))) {
-		const info = await stat(join(dir, file)).catch(() => null);
-		if (!info) continue;
-		const messages = await load(file.replace(/\.jsonl$/, "")).catch(() => []);
-		if (!isCandidate({ updatedAt: info.mtimeMs, messageCount: messages.length }, now)) continue;
-		found.push({ id: file.replace(/\.jsonl$/, ""), updatedAt: info.mtimeMs, messages });
+	// The list is newest first, so the first MAX_SESSIONS candidates are the ones kept; reading past them loads transcripts only to drop them.
+	for (const meta of await storage.listSessions()) {
+		if (found.length >= MAX_SESSIONS) break;
+		if (meta.projectId !== projectId || !isCandidate(meta, now)) continue;
+		const messages = await storage.messages(meta.id).catch(() => []);
+		found.push({ id: meta.id, updatedAt: meta.updatedAt, messages });
 	}
-
-	return found.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_SESSIONS);
+	return found;
 }

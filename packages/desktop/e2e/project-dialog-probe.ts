@@ -17,6 +17,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const dir = process.argv[2] ?? "/tmp/plume-project-dialog";
 const root = join(dir, "工作区");
@@ -31,18 +32,20 @@ const extra = join(root, "design");
  *
  * 未置顶又一条会话都没有的项目本来就不列行（`grouping.ts` 里那条规则，早于这次改动）——
  * 第一次跑这个探针时整片红，原因就是这个：侧边栏画的是「还没有会话」，而断言在找那一行。
- * `seq` 从 1 起：写 0 的 meta 会被静默读掉，那条会话连侧边栏都进不去。
  */
 async function seedSession(home: string, projectId: string, cwd: string, title: string): Promise<void> {
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	const at = Date.now() - 60_000;
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 	const meta = { id: projectId, title, cwd, projectId, projectName: title, createdAt: at, updatedAt: at, modelId: "", messageCount: 1, usage, seq: 2 };
-	await writeFile(
-		join(home, "sessions", projectId, `${projectId}.jsonl`),
-		`${JSON.stringify({ seq: 1, ts: at, type: "meta", meta })}\n` +
-			`${JSON.stringify({ seq: 2, ts: at, type: "message", message: { role: "user", content: [{ type: "text", text: "你好" }], timestamp: at } })}\n`,
-	);
+	seedSessions(home, [
+		{
+			meta,
+			records: [
+				{ seq: 1, ts: at, type: "meta", meta },
+				{ seq: 2, ts: at, type: "message", message: { role: "user", content: [{ type: "text", text: "你好" }], timestamp: at } },
+			],
+		},
+	]);
 }
 
 const app = await startApp({

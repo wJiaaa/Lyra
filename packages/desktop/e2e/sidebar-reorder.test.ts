@@ -6,6 +6,7 @@ import { after, before, test } from "node:test";
 import type { SessionMeta } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { fixtureStore, seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 let app: RunningApp;
 let projectPath: string;
@@ -15,8 +16,15 @@ before(async () => {
 	app = await startApp({ port: 9615, seed: async (home) => {
 		// Synthetic transcripts use the real storage and renderer paths.
 		await seedInteractions(home);
-		const index = join(home, "sessions", "index.json");
-		const metas: SessionMeta[] = JSON.parse(await readFile(index, "utf8"));
+		const store = fixtureStore(home);
+		const logOf = async (id: string) => {
+			const records: FixtureRecord[] = [];
+			for await (const record of store.read(id)) records.push(record);
+			return records;
+		};
+		const metas = [await store.get("qa-long"), await store.get("qa-short")] as SessionMeta[];
+		const [longLog, shortLog] = [await logOf("qa-long"), await logOf("qa-short")];
+		store.close();
 		projectPath = metas[0].cwd;
 		const third = { ...metas[1], id: "qa-third", title: "qa-third", updatedAt: 0 };
 		/*
@@ -25,11 +33,13 @@ before(async () => {
 		 */
 		const secondArchived = { ...metas[1], id: "qa-second", title: "qa-second", cwd: join(home, "second"), projectId: "second", projectName: "第二项目", archived: true };
 		metas[0].updatedAt = 30; metas[1].updatedAt = 20;
-		const log = await readFile(join(home, "sessions", third.projectId, "qa-short.jsonl"), "utf8");
-		await writeFile(join(home, "sessions", third.projectId, "qa-third.jsonl"), log.replaceAll("qa-short", "qa-third"));
-		await mkdir(join(home, "sessions", "second"));
-		await writeFile(join(home, "sessions", "second", "qa-second.jsonl"), log.replaceAll("qa-short", "qa-second"));
-		await writeFile(index, JSON.stringify([...metas, third, secondArchived]));
+		const copyOf = (id: string): FixtureRecord[] => JSON.parse(JSON.stringify(shortLog).replaceAll("qa-short", id));
+		seedSessions(home, [
+			{ meta: metas[0], records: longLog },
+			{ meta: metas[1], records: shortLog },
+			{ meta: third, records: copyOf("qa-third") },
+			{ meta: secondArchived, records: copyOf("qa-second") },
+		]);
 		const file = join(home, "settings.json");
 		const settings = JSON.parse(await readFile(file, "utf8"));
 		settings.projects.push({ id: "second", path: join(home, "second"), name: "第二项目", lastOpenedAt: 0 });

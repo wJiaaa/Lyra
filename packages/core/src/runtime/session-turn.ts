@@ -197,8 +197,9 @@ async function injectMessage(input: TurnInputs, message: Message | null): Promis
 /**
  * Every event on its way out of the loop, with the two things that must happen as it passes.
  *
- * `message_end` is the commit point: partial assistant messages are never persisted, so this is
- * the only place a reply enters the transcript.
+ * `message_end` is the commit point. A reply is kept on disk while it streams (`PartialWriter`), but
+ * only so a dead process can be recovered from; in a live turn this is where a reply enters the
+ * transcript.
  *
  * And a turn stopped for going in circles has to say so. Ending silently is indistinguishable from
  * finishing, and the difference matters: one means the work is done, the other means it is stuck
@@ -219,7 +220,10 @@ async function recordTurnEvent(log: SessionLog, event: AgentEvent): Promise<void
 	 * 说成 `rewound` 而不是原样转发：界面早就认得它（按条数截断），而它的转录跟日志一条对一条——
 	 * 留着那一截，后面每一条的下标都错一位，编辑重发就会截在错的地方。
 	 */
-	if (event.type === "message_discarded") return log.emit({ type: "rewound", messageCount: log.messages.length });
+	if (event.type === "message_discarded") {
+		await log.discardPartial();
+		return log.emit({ type: "rewound", messageCount: log.messages.length });
+	}
 	await log.emit(event);
 }
 
@@ -325,6 +329,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 			resources: can.resources,
 			scratchDir: input.scratchDir,
 			allowedPaths: collectAllowedPaths(log.messages),
+			transcript: () => log.transcript(),
 			// Where anything this turn delegates registers itself, so it can be watched and steered.
 			subAgents: input.subAgents,
 			delegations: input.delegations,

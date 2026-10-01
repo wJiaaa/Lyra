@@ -13,6 +13,7 @@ import { join } from "node:path";
 
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume设置控件测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
@@ -69,22 +70,20 @@ async function seed(home: string): Promise<void> {
 		seq: 3,
 		archived: true,
 	};
-	await mkdir(join(home, "sessions", id), { recursive: true });
-	await writeFile(
-		join(home, "sessions", id, "arch-1.jsonl"),
-		[
-			JSON.stringify({ seq: 0, ts: 1, type: "meta", meta }),
-			JSON.stringify({ seq: 1, ts: 1, type: "message", message: { role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 } }),
-			JSON.stringify({
+	seedSessions(home, [{
+		meta,
+		records: [
+			{ seq: 0, ts: 1, type: "meta", meta },
+			{ seq: 1, ts: 1, type: "message", message: { role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 } },
+			{
 				seq: 2,
 				ts: 2,
 				type: "message",
 				message: { role: "assistant", content: [{ type: "text", text: "ok" }], api: "anthropic-messages", provider: "test", model: "test", usage, stopReason: "stop", timestamp: 2 },
-			}),
-			JSON.stringify({ seq: 3, ts: 2, type: "meta", meta }),
-		].join("\n") + "\n",
-	);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta]));
+			},
+			{ seq: 3, ts: 2, type: "meta", meta },
+		],
+	}]);
 }
 
 function capsule(style: { height: string; borderRadius: string; borderTopWidth: string }): { height: number; radius: number; border: number } {

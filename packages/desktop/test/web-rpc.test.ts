@@ -27,6 +27,7 @@ function deps(overrides: Partial<RpcDeps> = {}): RpcDeps {
 		editMessage: async () => {},
 		revertMessage: async () => {},
 		dispose: async () => {},
+		remove: async () => {},
 		prompt: async () => {
 			throw new Error("not needed");
 		},
@@ -167,7 +168,6 @@ test("approval decisions accept structured answers and persist only the consumed
 test("thinking accepts a bounded string or null", async () => {
 	const levels: unknown[] = [];
 	const session = {
-		meta: { projectId: "p1" },
 		setThinking: async (thinking: unknown) => void levels.push(thinking),
 	} as never;
 	const withSession = deps({
@@ -262,17 +262,17 @@ test("每个 handler 都能经 callRpc 到达", async () => {
 		"workspace.info": ["/tmp/p"],
 		"sessions.create": ["/tmp/p"],
 		"sessions.running": ["s1"],
-		"sessions.open": ["p1", "s1"],
-		"sessions.transcript": ["p1", "s1"],
-		"sessions.trajectory": ["p1", "s1"],
-		"sessions.trajectoryChanges": ["p1", "s1"],
-		"sessions.fork": ["p1", "s1", 1],
-		"sessions.remove": ["p1", "s1"],
+		"sessions.open": ["s1"],
+		"sessions.transcript": ["s1"],
+		"sessions.trajectory": ["s1"],
+		"sessions.trajectoryChanges": ["s1"],
+		"sessions.fork": ["s1", 1],
+		"sessions.remove": ["s1"],
 		"sessions.capabilities": ["s1"],
-		"sessions.setArchived": ["p1", "s1", true],
+		"sessions.setArchived": ["s1", true],
 		// `cwd` 走的是 `path` 规格，得是一条真的绝对路径；它是不是这台机器认识的目录由 handler 自己问。
-		"sessions.move": ["p1", "s1", "/tmp/p", "目标项目"],
-		"sessions.rename": ["p1", "s1", "标题"],
+		"sessions.move": ["s1", "/tmp/p", "目标项目"],
+		"sessions.rename": ["s1", "标题"],
 		"sessions.compact": ["s1"],
 		"sessions.contextBreakdown": ["s1"],
 		"agent.prompt": ["s1", "你好"],

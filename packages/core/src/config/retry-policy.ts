@@ -35,13 +35,12 @@ function normalizeRule(value: unknown, fallback: RetryRule): RetryRule {
 	};
 }
 
-/** Separate fault policies; legacy explicit attempt limits remain meaningful for upstream failures. */
-export function normalizeRetryPolicy(value: unknown, legacyAttempts?: number): RetryPolicy {
+/** Separate fault policies, each bounded the same way wherever it was written. */
+export function normalizeRetryPolicy(value: unknown): RetryPolicy {
 	const raw = value && typeof value === "object" ? value : {};
-	const legacy = typeof legacyAttempts === "number" && Number.isFinite(legacyAttempts) && legacyAttempts !== 5 ? { ...DEFAULT_RETRY_RULE, retries: Math.max(0, legacyAttempts - 1) } : DEFAULT_RETRY_RULE;
 	return {
 		network: normalizeRule("network" in raw ? raw.network : undefined, DEFAULT_RETRY_POLICY.network),
-		upstream: normalizeRule("upstream" in raw ? raw.upstream : "retries" in raw ? raw : undefined, legacy),
+		upstream: normalizeRule("upstream" in raw ? raw.upstream : undefined, DEFAULT_RETRY_POLICY.upstream),
 	};
 }
 

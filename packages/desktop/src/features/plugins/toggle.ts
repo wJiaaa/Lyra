@@ -34,15 +34,6 @@ export function settingsAfterToggle(
 	}
 	if (enabled) {
 		disabled.delete(plugin.id);
-		/*
-		 * And whatever it used to be called.
-		 *
-		 * `disabledPlugins` holds whatever `id` meant when the user switched something off, which for
-		 * entries written by older versions was the manifest's name rather than the directory. The
-		 * loader reads both when deciding `enabled`, so switching on has to clear both or the plugin
-		 * comes back off — see the note beside that check in `loader.ts`.
-		 */
-		if (plugin.manifest.name) disabled.delete(plugin.manifest.name);
 	} else {
 		disabled.add(plugin.id);
 	}

@@ -137,10 +137,10 @@ describe("catalogue matching", () => {
 		assert.deepEqual(filled(provider("https://generativelanguage.googleapis.com/v1beta"), "gemini-2.5-pro")?.pricing?.tiers, [{ aboveTokens: 200_000, input: 2.5, output: 15, cacheRead: undefined, cacheWrite: undefined }]);
 	});
 
-	it("never rewrites a configured model at settings load, and drops the retired follow-the-catalogue keys", () => {
+	it("never rewrites a configured model at settings load", () => {
 		const relay = provider("https://relay.example/v1");
-		const legacy = { ...bare(relay, "gpt-5.2-high"), contextWindow: 200000, maxOutputTokens: 16384, metadataSource: "smart", overrides: ["contextWindow"], catalogRef: { providerId: "openai", modelId: "gpt-5.2" } };
-		const settings = normalizeSettings({ providers: [{ ...relay, models: [legacy as ModelConfig] }] });
+		const configured = { ...bare(relay, "gpt-5.2-high"), contextWindow: 200000, maxOutputTokens: 16384 };
+		const settings = normalizeSettings({ providers: [{ ...relay, models: [configured] }] });
 		assert.deepEqual(settings.providers[0].models[0], { ...bare(relay, "gpt-5.2-high"), contextWindow: 200000, maxOutputTokens: 16384 });
 	});
 });

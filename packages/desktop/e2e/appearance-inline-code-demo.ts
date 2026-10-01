@@ -15,6 +15,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const outDir = process.argv[2] ?? join(homedir(), "Desktop", "行内代码配色测试");
 const home = "/tmp/plume-inline-demo";
@@ -43,7 +44,6 @@ async function seed(dir: string): Promise<void> {
 	);
 
 	const projectId = createHash("sha256").update(project).digest("hex").slice(0, 16);
-	await mkdir(join(dir, "sessions", projectId), { recursive: true });
 	const meta = {
 		id: "inline",
 		title: "行内代码",
@@ -76,23 +76,22 @@ async function seed(dir: string): Promise<void> {
 		"# f36a74b feat: 行内代码支持自定义配色",
 		"```",
 	].join("\n");
-	const lines = [
-		JSON.stringify({ seq: 1, ts: 1, type: "meta", meta }),
-		JSON.stringify({
+	const records = [
+		{ seq: 1, ts: 1, type: "meta", meta },
+		{
 			seq: 2,
 			ts: 2,
 			type: "message",
 			message: { role: "user", content: [{ type: "text", text: "提交并推送所有代码" }], timestamp: 2 },
-		}),
-		JSON.stringify({
+		},
+		{
 			seq: 3,
 			ts: 3,
 			type: "message",
 			message: { role: "assistant", content: [{ type: "text", text: reply }], timestamp: 3 },
-		}),
+		},
 	];
-	await writeFile(join(dir, "sessions", projectId, "inline.jsonl"), `${lines.join("\n")}\n`);
-	await writeFile(join(dir, "sessions", "index.json"), JSON.stringify([meta], null, 2));
+	seedSessions(dir, [{ meta, records }]);
 }
 
 const app = await startApp({ port: 9489, seed });

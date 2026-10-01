@@ -317,12 +317,14 @@ export function SessionMenu({
 							{t("sessionMenu.copyCwd")}
 						</MenuItem>
 					)}
-					{available("sessions", "logPath") && (
+					{available("sessions", "exportTrajectory") && (
 						<MenuItem
 							icon={<Copy size={13} strokeWidth={1.8} />}
-							onClick={() => void copy(bridge.sessions.logPath(session.projectId, session.id), t("sessionMenu.logPathCopied"))}
+							onClick={() =>
+								void copy(bridge.sessions.exportTrajectory(session.id, "jsonl"), t("sessionMenu.recordsExported")).catch((error) => notify(String(error), "error"))
+							}
 						>
-							{t("sessionMenu.copyLogPath")}
+							{t("sessionMenu.exportRecords")}
 						</MenuItem>
 					)}
 					<MenuItem icon={<Copy size={13} strokeWidth={1.8} />} onClick={() => void copy(session.id, t("sessionMenu.sessionIdCopied"))}>

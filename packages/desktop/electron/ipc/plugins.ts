@@ -9,10 +9,10 @@
  */
 
 import { ipcMain, shell } from "electron";
-import { mkdir, rename } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, relative, sep } from "node:path";
-import type { McpBundle, McpServerConfig, McpServerStatus, Settings, Skill } from "@plume/core";
+import { dirname, join, relative, sep } from "node:path";
+import type { McpServerConfig, McpServerStatus, Settings, Skill } from "@plume/core";
 import { collectSkills, commandEnv, disabledSkillMatcher, plumeHome, installEntry, loadPlugins, McpManager, readInstalls, uninstallEntry } from "@plume/core";
 import { remoteImage } from "../avatars.ts";
 import { diskImageStore, type ImageStore } from "../image-cache.ts";
@@ -21,7 +21,7 @@ import { readmeFor, type ReadmeQuery } from "../plugin-readme.ts";
 import { startPluginUpdates } from "../plugin-updates.ts";
 import { dropShared } from "../registry-icons.ts";
 import { sessions } from "../session-hub.ts";
-import { releaseBundle, settingsAfterInstall, settingsAfterReconcile, settingsAfterUninstall } from "./plugin-actions.ts";
+import { releaseBundle, settingsAfterInstall, settingsAfterUninstall } from "./plugin-actions.ts";
 import type { RegistryEntry } from "../ipc-types.ts";
 
 export interface PluginsIpcDeps {
@@ -138,28 +138,6 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 		void updates.recount(true).catch(() => undefined);
 	});
 
-	/** Bring what is on disk and what is in settings back into agreement — see `settingsAfterReconcile`. */
-	const reconcile = async (bundles: McpBundle[]): Promise<void> => {
-		const next = settingsAfterReconcile(settings(), bundles);
-		if (next) await saveSettings(next);
-	};
-
-	/**
-	 * Move a bundle to the directory its kind belongs in.
-	 *
-	 * Cosmetic, deliberately: sorting reads the contents, so a bundle in the wrong place already
-	 * works. This only keeps the two directories meaning what their names say, and a failure is
-	 * ignored for exactly that reason — there is nothing to recover from.
-	 */
-	const tidy = async (bundles: McpBundle[]): Promise<void> => {
-		const home = join(plumeHome(), "mcp");
-		for (const bundle of bundles) {
-			if (bundle.source !== "user" || bundle.dir.startsWith(home)) continue;
-			await mkdir(home, { recursive: true }).catch(() => {});
-			await rename(bundle.dir, join(home, basename(bundle.dir))).catch(() => {});
-		}
-	};
-
 	ipcMain.handle("plugins:list", async (_event, cwd: string) => {
 		/*
 		 * Sequential, because skills depend on which plugins loaded.
@@ -172,23 +150,10 @@ export function registerPluginsIpc({ settings, saveSettings }: PluginsIpcDeps): 
 			[
 				...(cwd ? [{ dir: join(cwd, ".plume", "plugins"), source: "workspace" as const }] : []),
 				{ dir: join(plumeHome(), "plugins"), source: "user" as const },
-				// Both roots, because a bundle is sorted by what it holds — one installed before
-				// the split is still filed under `plugins` and still has to come back as MCP.
 				{ dir: join(plumeHome(), "mcp"), source: "user" as const },
 			],
 			disabledPlugins(),
 		);
-		/*
-		 * Done on the way out of a read, which is not where side effects usually belong.
-		 *
-		 * The alternative is a migration at startup, and this page is reached before the first
-		 * session exists — someone opening 设置 › MCP on a fresh launch would see an empty list
-		 * and conclude their servers were gone. Both are idempotent and both no-op once there is
-		 * nothing left to fix, so the cost of running them here is a comparison per scan.
-		 */
-		await reconcile(plugins.mcpBundles);
-		void tidy(plugins.mcpBundles);
-
 		const collected = await collectSkills(cwd ?? process.cwd(), plugins.plugins, settings());
 		const disabledBy = await disabledSkillMatcher(settings().disabledSkills);
 		return {

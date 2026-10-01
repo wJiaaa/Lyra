@@ -40,7 +40,7 @@ const PROVIDER: ProviderConfig = {
 	models: [MODEL],
 };
 
-const SETTINGS = { thinking: "off", retryAttempts: 0, permissionMode: "ask" } as unknown as Settings;
+const SETTINGS = { thinking: "off", permissionMode: "ask" } as unknown as Settings;
 
 /** 只读审查者：定义里没有 `todo_write`。 */
 const REVIEW: AgentDefinition = { name: "review", description: "审查", systemPrompt: "review", tools: ["read"], source: "builtin", maxTurns: 2 };

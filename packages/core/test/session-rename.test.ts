@@ -83,7 +83,7 @@ async function harness() {
 		store,
 		/** The title as it is on disk, which is the only one that survives a reload. */
 		async storedTitle(): Promise<string | undefined> {
-			const loaded = await store.load(session.meta.projectId, session.meta.id);
+			const loaded = await store.load(session.meta.id);
 			return loaded?.meta.title;
 		},
 		cleanup: async () => {
@@ -155,7 +155,7 @@ test("the name is still there after the session is reopened from disk", async ()
 	try {
 		await h.session.rename("重构登录流程");
 
-		const loaded = await h.store.load(h.session.meta.projectId, h.session.meta.id);
+		const loaded = await h.store.load(h.session.meta.id);
 		assert.ok(loaded);
 		assert.equal(loaded.meta.title, "重构登录流程");
 		assert.equal(loaded.meta.titleSetByUser, true, "the flag rides the log too, or the next prompt overwrites it");

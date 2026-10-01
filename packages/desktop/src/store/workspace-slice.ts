@@ -336,7 +336,7 @@ export function workspaceSlice(set: Set, get: Get) {
       ...(get().activeSessionId === session.id && get().meta ? { meta: { ...get().meta!, title: trimmed } } : {}),
     });
     try {
-      const updated = await bridge.sessions.rename(session.projectId, session.id, trimmed);
+      const updated = await bridge.sessions.rename(session.id, trimmed);
       if (updated) {
         set({
           sessions: get().sessions.map((s) => (s.id === session.id ? { ...s, ...updated } : s)),
@@ -410,7 +410,7 @@ export function workspaceSlice(set: Set, get: Get) {
 
     patch({ cwd: nextCwd, projectName: nextProjectName });
     try {
-      const result = await bridge.sessions.move(session.projectId, session.id, nextCwd, nextProjectName);
+      const result = await bridge.sessions.move(session.id, nextCwd, nextProjectName);
       if (!result.ok) {
         patch(previous);
         get().notify(
@@ -506,11 +506,7 @@ export function workspaceSlice(set: Set, get: Get) {
     // Sequential rather than parallel: each call rewrites the shared session index.
     let latest = get().sessions;
     for (const session of targets) {
-      latest = await bridge.sessions.setArchived(
-        session.projectId,
-        session.id,
-        true,
-      );
+      latest = await bridge.sessions.setArchived(session.id, true);
     }
     set({ sessions: latest });
     get().notify(translate("workspace.archived", { n: targets.length }));

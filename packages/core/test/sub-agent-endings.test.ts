@@ -114,7 +114,7 @@ async function dispatch(options: {
 		{
 			sessionId: "s1",
 			cwd: "/tmp",
-			settings: { thinking: "off", retryAttempts: 0 } as unknown as Settings,
+			settings: { thinking: "off" } as unknown as Settings,
 			tools: [read],
 			skills: [],
 			agents: [EXPLORE],

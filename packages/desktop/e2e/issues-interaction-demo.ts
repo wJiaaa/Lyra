@@ -93,7 +93,7 @@ try {
 	check("two choices remain selected until confirmation", selectedCount === 2, selectedCount);
 	await click('[data-ly-question-footer] button[type="submit"]');
 	await until("!document.querySelector('[data-approval-card]')&&!document.querySelector('[data-composer-send=stop]')"); await pause();
-	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='issue-demo');const t=await window.plume.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
+	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='issue-demo');const t=await window.plume.sessions.transcript(s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
 	check("multiple answers reach the model once", results.length === 2 && results[1].includes("保留现有行为") && results[1].includes("更新实现"), results);
 	await shot("completed-questions");
 	const beforePlan = model.answers.length;

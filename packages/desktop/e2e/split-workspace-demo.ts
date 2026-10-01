@@ -103,8 +103,8 @@ try {
 	await d.until(`document.querySelector('[data-ly-row="${IDS[0]}"]')`, 25000);
 	await d.click(`[data-ly-row="${IDS[0]}"] > button`);
 	await hold();
-	// Exercise layouts saved before tools gained per-conversation docks.
-	await app.evaluate(`localStorage.setItem('dw:dock:${IDS[0]}',JSON.stringify({v:1,tree:{type:'split',dir:'row',children:[{type:'leaf',kind:'conversation'},{type:'leaf',kind:'browser'}],sizes:[0.6,0.4]}})); true`);
+	// A saved layout with a browser beside the conversation.
+	await app.evaluate(`localStorage.setItem('dw:panedock:${IDS[0]}',JSON.stringify({v:1,tree:{type:'split',dir:'row',children:[{type:'leaf',kind:'conversation'},{type:'leaf',kind:'browser'}],sizes:[0.6,0.4]}})); true`);
 	await app.send("Page.reload");
 	const windowBrowser = '[data-dock-panes] > [data-dock-pane="browser"]';
 	await d.until(`document.querySelector(${JSON.stringify(windowBrowser + ' [data-browser-omnibox] input')})`, 25000);

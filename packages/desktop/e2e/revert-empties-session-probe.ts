@@ -10,12 +10,13 @@
  * 撤回它会把整个转录清空——正是用户遇到的那一种。
  */
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const OUT = join(homedir(), "Desktop", "Plume撤回空会话测试");
 const ONLY_MESSAGE = "你可以看看 /Users/kittors/Documents/国网项目开发 这里面有啥吗？";
@@ -118,15 +119,14 @@ async function seedOneTurn(home: string, modelPort: number) {
 		{ role: "assistant", content: [{ type: "text", text: SIDE_ANSWER }], api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason: "stop", timestamp: 21 },
 	] }));
 	const meta = { id: "qa-short", title: "查看国网项目开发目录", projectId, projectName: "交互验证", cwd, createdAt: 1, updatedAt: 2, modelId: "qa/model", messageCount: messages.length, usage, seq: messages.length + 1 };
-	await writeFile(
-		join(home, "sessions", projectId, "qa-short.jsonl"),
-		[JSON.stringify({ type: "meta", meta, seq: 0, ts: 1 }),
-			...messages.map((message, i) => JSON.stringify({ type: "message", message, seq: i + 1, ts: 1 })),
-			JSON.stringify({ type: "meta", meta, seq: meta.seq, ts: 2 })].join("\n") + "\n",
-	);
-	const indexFile = join(home, "sessions", "index.json");
-	const metas = JSON.parse(await readFile(indexFile, "utf8")) as { id: string }[];
-	await writeFile(indexFile, JSON.stringify(metas.map((m) => (m.id === "qa-short" ? meta : m))));
+	seedSessions(home, [
+		{
+			meta,
+			records: [{ type: "meta", meta, seq: 0, ts: 1 },
+				...messages.map((message, i) => ({ type: "message", message, seq: i + 1, ts: 1 })),
+				{ type: "meta", meta, seq: meta.seq, ts: 2 }],
+		},
+	]);
 }
 
 async function main() {

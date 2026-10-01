@@ -53,18 +53,13 @@ test("bash 被停掉：中性的「已停止」，没有红叉", async () => {
 	}
 });
 
-test("agent 层放弃的调用也一样，包括只有那句文字、没有标记的旧记录", async () => {
-	for (const result of [
-		{ content: [{ type: "text", text: "Tool execution was cancelled." }], details: { cancelled: true }, isError: true },
-		{ content: [{ type: "text", text: "Tool execution was cancelled." }], isError: true },
-	]) {
-		const view = await mount(card(result));
-		try {
-			assert.ok(!view.host.querySelector(".lucide-circle-x"));
-			assert.ok(view.host.querySelector('[aria-label="已停止"]'));
-		} finally {
-			await view.unmount();
-		}
+test("agent 层放弃的调用也一样", async () => {
+	const view = await mount(card({ content: [{ type: "text", text: "Tool execution was cancelled." }], details: { cancelled: true }, isError: true }));
+	try {
+		assert.ok(!view.host.querySelector(".lucide-circle-x"));
+		assert.ok(view.host.querySelector('[aria-label="已停止"]'));
+	} finally {
+		await view.unmount();
 	}
 });
 

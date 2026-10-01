@@ -12,7 +12,6 @@
  */
 
 import type { DeliveredReport, SubAgentSummary } from "@plume/core";
-import { RENAMED_AGENTS } from "@plume/core/agents-builtin";
 
 /** 一张脸此刻的样子——和 `AgentAvatar` 的表情一一对应（它另外还有一个 `idle`）。 */
 export type DispatchState = "waiting" | "working" | "done" | "failed" | "stopped";
@@ -26,7 +25,7 @@ export interface DispatchCall {
 
 export interface Dispatch {
 	callId: string;
-	/** 定义名，旧名已经翻成新名。 */
+	/** 定义名。 */
 	agent: string;
 	description: string;
 	state: DispatchState;
@@ -100,8 +99,7 @@ export function joinDispatches(
 }
 
 function agentOf(call: DispatchCall): string {
-	const asked = text(call.args.subagent_type) || "general";
-	return RENAMED_AGENTS[asked] ?? asked;
+	return text(call.args.subagent_type) || "general";
 }
 
 /**

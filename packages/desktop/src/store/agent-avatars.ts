@@ -10,7 +10,7 @@
  */
 
 import { useMemo } from "react";
-import { BUILTIN_AGENTS, RENAMED_AGENTS } from "@plume/core/agents-builtin";
+import { BUILTIN_AGENTS } from "@plume/core/agents-builtin";
 import { assignAvatars, hashedAvatar, parseAvatar, type Avatar } from "../lib/agent-avatar.ts";
 import { useApp } from "./index.ts";
 
@@ -21,13 +21,13 @@ const BUILTIN_TAKEN = BUILTIN_AGENTS.flatMap((agent) => {
 });
 
 /**
- * 内置的那张脸，按名字——包括改过名的旧名。
+ * 内置的那张脸，按名字。
  *
  * 不只看定义里带没带：用户在 `~/.plume/agents/general.md` 里手写一份覆盖内置的，文件里多半没有
  * `avatar` 这一行，可它仍然是 `general`，不该因为改了几句指令就换了一张脸。
  */
 export function builtinAvatar(name: string): string | undefined {
-	return BUILTIN.get(RENAMED_AGENTS[name] ?? name);
+	return BUILTIN.get(name);
 }
 
 export type AvatarOf = (name: string) => Avatar;
@@ -36,7 +36,7 @@ export type AvatarOf = (name: string) => Avatar;
 export function avatarResolver(list: readonly { name: string; avatar?: string }[]): AvatarOf {
 	const roster = assignAvatars(list, builtinAvatar);
 	return (name) =>
-		roster.get(name) ?? roster.get(RENAMED_AGENTS[name] ?? name) ?? parseAvatar(builtinAvatar(name)) ?? hashedAvatar(name, BUILTIN_TAKEN);
+		roster.get(name) ?? parseAvatar(builtinAvatar(name)) ?? hashedAvatar(name, BUILTIN_TAKEN);
 }
 
 /** 给了名单就按它；没给就用当前会话的能力清单，会话还没有能力清单时用内置的那七个。 */

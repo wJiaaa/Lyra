@@ -22,6 +22,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 let app: RunningApp;
 
@@ -56,8 +57,7 @@ async function seed(home: string): Promise<void> {
 	);
 
 	const projectId = createHash("sha256").update(project).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
-	const metas = [];
+	const sessions = [];
 	for (const id of ["settle-a", "settle-b"]) {
 		const meta = {
 			id,
@@ -72,19 +72,18 @@ async function seed(home: string): Promise<void> {
 			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 			seq: 2,
 		};
-		metas.push(meta);
-		const lines = [
-			JSON.stringify({ seq: 1, ts: 1, type: "meta", meta }),
-			JSON.stringify({
+		const records = [
+			{ seq: 1, ts: 1, type: "meta", meta },
+			{
 				seq: 2,
 				ts: 2,
 				type: "message",
 				message: { role: "user", content: [{ type: "text", text: `${id} 的第一条消息` }], timestamp: 2 },
-			}),
+			},
 		];
-		await writeFile(join(home, "sessions", projectId, `${id}.jsonl`), `${lines.join("\n")}\n`);
+		sessions.push({ meta, records });
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas, null, 2));
+	seedSessions(home, sessions);
 }
 
 before(async () => {

@@ -53,7 +53,7 @@ test("a saved tiling is keyed by the window, not the project", () => {
 	flushSplit();
 	assert.ok(memory.get(storageKey("primary")));
 	assert.equal([...memory.keys()].some((key) => key.includes("/repo")), false);
-	const loaded = loadSplit("primary", "/other/repo");
+	const loaded = loadSplit("primary");
 	assert.equal(leafCount(loaded.tree), 3);
 	assert.equal(loaded.focused, "proj-b");
 });
@@ -61,17 +61,27 @@ test("a saved tiling is keyed by the window, not the project", () => {
 test("hydrate keeps a live mix when the focused project changes", () => {
 	const tree = mixed();
 	useSplit.setState({ tree, focused: "proj-b", windowId: "primary" });
-	useSplit.getState().hydrate("primary", new Set(["proj-a", "proj-b", "proj-c", "other"]), "/other/repo");
+	useSplit.getState().hydrate("primary", new Set(["proj-a", "proj-b", "proj-c", "other"]));
 	assert.equal(useSplit.getState().tree, tree);
 	assert.equal(useSplit.getState().focused, "proj-b");
 	assert.equal(firstSession(useSplit.getState().tree), "proj-a");
 });
 
-test("forgetMissing does not wipe a live tree when the list has not arrived", () => {
-	const tree = mixed();
-	useSplit.setState({ tree, focused: "proj-b", windowId: "primary" });
+test("an empty list is the real list: every tile on a gone conversation goes", () => {
+	// The split only mounts behind `ready`, so an empty list means none are left, not none arrived.
+	useSplit.setState({ tree: mixed(), focused: "proj-b", windowId: "primary" });
 	useSplit.getState().forgetMissing(new Set());
-	assert.equal(useSplit.getState().tree, tree);
+	assert.equal(firstSession(useSplit.getState().tree), null);
+	assert.equal(useSplit.getState().focused, null);
+});
+
+test("a saved tiling of conversations that are all gone opens on a blank screen", () => {
+	// Otherwise each launch said 「会话已不存在」 and the composer sent into the gone conversation.
+	saveSplit("primary", leafOf("gone"), "gone");
+	flushSplit();
+	useSplit.getState().hydrate("primary", new Set());
+	assert.equal(firstSession(useSplit.getState().tree), null);
+	assert.equal(useSplit.getState().focused, null);
 });
 
 test("forgetMissing drops a conversation that is genuinely gone", () => {

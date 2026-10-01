@@ -60,7 +60,6 @@ export interface SideChatState {
 	running: boolean;
 }
 
-/** Legacy main snapshots were hidden in the UI but shifted every persisted edit index. */
 /**
  * 问一句话时可以捎带的东西。
  *
@@ -75,6 +74,7 @@ export interface SideAskOptions {
 	attachments?: MessageAttachment[];
 }
 
+/** The saved thread without synthetic user messages — the loop's own nudges, which nobody typed. */
 export function restoredSideChatMessages(messages: Message[]): Message[] {
 	return messages.filter((message) => !(message.role === "user" && message.synthetic));
 }
@@ -137,7 +137,6 @@ export class SideChat {
 	 */
 	restore(messages: Message[], modelId?: string | null): void {
 		if (this.running || this.messages.length > 0) return;
-		// Old versions persisted hidden main-context messages, breaking visible edit indices.
 		this.messages = restoredSideChatMessages(messages);
 		if (modelId !== undefined) this.modelId = modelId;
 	}
@@ -288,7 +287,6 @@ export class SideChat {
 				tools,
 				messages: reading,
 				thinking: options.thinking ?? this.main.meta.thinking ?? this.settings.thinking,
-				retryAttempts: this.settings.retryAttempts,
 				retryPolicy: () => this.settings.retryPolicy,
 				signal: controller.signal,
 				maxTurns: 24,

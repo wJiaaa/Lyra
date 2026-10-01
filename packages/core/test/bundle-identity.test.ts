@@ -122,26 +122,3 @@ test("a plugin, likewise: renamed by its marketplace file, still removable", asy
 		assert.deepEqual(await readdir(bundleRoot("plugin")), []);
 	});
 });
-
-test("a manifest that renames a plugin does not switch off the one the user disabled", async () => {
-	await withHome(async () => {
-		/*
-		 * The compatibility this identity change owes.
-		 *
-		 * `disabledPlugins` is a list of ids written by earlier versions, and those ids were whatever
-		 * the manifest called the bundle. Reading the directory name instead would quietly re-enable
-		 * everything anyone had switched off — a migration that turns things on is exactly what the
-		 * rest of this module bends over backwards to avoid, so both names are honoured.
-		 */
-		const root = join(bundleRoot("plugin"), "note-taking");
-		await mkdir(join(root, "skills", "capture"), { recursive: true });
-		await writeFile(join(root, "skills", "capture", "SKILL.md"), "---\nname: capture\ndescription: 测试。\n---\n");
-		await writeFile(join(root, "plugin.json"), JSON.stringify({ name: "Agentic Note Taking", skills: "skills" }));
-
-		const byOldId = await loadPlugins([{ dir: bundleRoot("plugin"), source: "user" }], ["Agentic Note Taking"]);
-		const byNewId = await loadPlugins([{ dir: bundleRoot("plugin"), source: "user" }], ["note-taking"]);
-
-		assert.equal(byOldId.plugins[0].enabled, false, "the name it was disabled under still disables it");
-		assert.equal(byNewId.plugins[0].enabled, false, "and so does the directory it lives in");
-	});
-});

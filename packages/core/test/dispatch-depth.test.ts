@@ -43,7 +43,7 @@ const PROVIDER: ProviderConfig = {
 	models: [MODEL],
 };
 
-const SETTINGS = { thinking: "off", retryAttempts: 0, maxConcurrentSubAgents: 4 } as unknown as Settings;
+const SETTINGS = { thinking: "off", maxConcurrentSubAgents: 4 } as unknown as Settings;
 
 function says(text: string): AssistantMessage {
 	return {

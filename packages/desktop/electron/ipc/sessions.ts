@@ -7,7 +7,6 @@
  * below is about keeping that line.
  */
 
-import { join } from "node:path";
 import type { MessageAttachment } from "@plume/core";
 import {
 	plumeHome,
@@ -23,17 +22,17 @@ import {
 	type UserContent,
 } from "@plume/core";
 import { grantArtifactRead } from "../readable-artifacts.ts";
-import { exportTrajectory } from "../trajectory-export.ts";
+import { exportTrajectory, type TrajectoryExportFormat } from "../trajectory-export.ts";
 import { readTrajectoryChanges } from "../trajectory-changes.ts";
 import { ipcMain } from "electron";
 import { resolveSessionApproval } from "../approval-response.ts";
 import { cleanOldWorktrees } from "../git-worktrees.ts";
 import type { AgentCapabilities } from "../ipc-types.ts";
 import {
-	activateSession,
 	editSessionMessage,
 	revertSessionMessage,
 	broadcast,
+	deleteSessions,
 	disposeSession,
 	ensureLiveSession,
 	createSession,
@@ -59,9 +58,7 @@ export function registerSessionsIpc({
 	saveSettings,
 }: SessionsIpcDeps): void {
 	const store = readStore();
-	ipcMain.handle("sessions:exportTrajectory", (_event, projectId: string, sessionId: string, format: "json" | "md" | "output", selection?: { id?: string; correlationId?: string }) => exportTrajectory(store, projectId, sessionId, format, selection, sessions.get(sessionId)?.running ?? false));
-	// 和 `SessionStore` 落盘的是同一个位置（`sessions/<projectId>/<id>.jsonl`），只拼路径，不碰文件。
-	ipcMain.handle("sessions:logPath", (_event, projectId: string, sessionId: string) => join(plumeHome(), "sessions", projectId, `${sessionId}.jsonl`));
+	ipcMain.handle("sessions:exportTrajectory", (_event, sessionId: string, format: TrajectoryExportFormat, selection?: { id?: string; correlationId?: string }) => exportTrajectory(store, sessionId, format, selection, sessions.get(sessionId)?.running ?? false));
 
 	ipcMain.handle("sessions:list", async () => store.listSessions());
 
@@ -110,21 +107,21 @@ export function registerSessionsIpc({
 	 */
 	ipcMain.handle(
 		"sessions:trajectory",
-		async (_event, projectId: string, sessionId: string) =>
-			readTrajectory(store, projectId, sessionId, sessions.get(sessionId)?.running ?? false),
+		async (_event, sessionId: string) =>
+			readTrajectory(store, sessionId, sessions.get(sessionId)?.running ?? false),
 	);
-	ipcMain.handle("sessions:trajectoryChanges", (_event, projectId: string, sessionId: string, cursor?: string) =>
-		readTrajectoryChanges(store, projectId, sessionId, cursor, sessions.get(sessionId)?.running ?? false));
+	ipcMain.handle("sessions:trajectoryChanges", (_event, sessionId: string, cursor?: string) =>
+		readTrajectoryChanges(store, sessionId, cursor, sessions.get(sessionId)?.running ?? false));
 
 	ipcMain.handle(
 		"sessions:fork",
-		async (_event, projectId: string, sessionId: string, seq: number) =>
-			forkSession(store, projectId, sessionId, seq),
+		async (_event, sessionId: string, seq: number) =>
+			forkSession(store, sessionId, seq),
 	);
 
 	ipcMain.handle(
 		"sessions:transcript",
-		async (_event, projectId: string, sessionId: string) => {
+		async (_event, sessionId: string) => {
 			// A live session is the authority — it holds messages from the turn in flight and
 			// knows whether it is running.
 			const live = sessions.get(sessionId);
@@ -133,7 +130,7 @@ export function registerSessionsIpc({
 				return snapshot(live);
 			}
 
-			const loaded = await store.load(projectId, sessionId, { display: true });
+			const loaded = await store.load(sessionId, { display: true });
 			if (!loaded) return null;
 			const delay = Number(process.env.PLUME_E2E_SLOW_TRANSCRIPT ?? 0);
 			if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
@@ -151,18 +148,17 @@ export function registerSessionsIpc({
 
 	ipcMain.handle(
 		"sessions:open",
-		async (_event, projectId: string, sessionId: string) => {
-			const session = await activateSession(projectId, sessionId);
+		async (_event, sessionId: string) => {
+			const session = await ensureLiveSession(sessionId);
 			return session ? snapshot(session) : null;
 		},
 	);
 
 	ipcMain.handle(
 		"sessions:remove",
-		async (_event, projectId: string, sessionId: string) => {
-			const sessionMeta = (await store.listSessions()).find((s) => s.id === sessionId);
-			await disposeSession(sessionId);
-			await store.delete(projectId, sessionId);
+		async (_event, sessionId: string) => {
+			const sessionMeta = await store.get(sessionId);
+			await deleteSessions([sessionId]);
 			await removeSessionArtifacts(plumeHome(), sessionId);
 
 			// If session was running in a dedicated worktree and autoCleanOld is enabled, clean it up
@@ -176,7 +172,7 @@ export function registerSessionsIpc({
 
 	ipcMain.handle(
 		"sessions:rename",
-		async (_event, projectId: string, sessionId: string, title: string) => {
+		async (_event, sessionId: string, title: string) => {
 			const cleanTitle = title.trim();
 			if (!cleanTitle) return null;
 			const live = sessions.get(sessionId);
@@ -184,10 +180,11 @@ export function registerSessionsIpc({
 				await live.rename(cleanTitle);
 				return live.meta;
 			}
-			const meta = (await store.listSessions()).find((s) => s.id === sessionId);
+			const meta = await store.get(sessionId);
 			if (!meta) return null;
 			const updated = await store.append(meta, { type: "title", title: cleanTitle, source: "user" });
-			broadcast(sessionId, { type: "title", title: cleanTitle });
+			// Null: deleted between the read and the write. Nothing was renamed, so nothing is announced.
+			if (updated) broadcast(sessionId, { type: "title", title: cleanTitle });
 			return updated;
 		},
 	);
@@ -195,10 +192,8 @@ export function registerSessionsIpc({
 	/**
 	 * 把一条会话归到另一个项目下。
 	 *
-	 * 两件事非做不可，而它们都在主进程这一侧：日志文件要从 `sessions/<旧projectId>/` 搬到
-	 * `sessions/<新projectId>/`（`store.move` 干这件事），以及在那之前把还活着的那个 session 停掉
-	 * ——它手里攥着旧的 cwd 和旧的 projectId，接着写只会把记录写回旧目录，而文件已经不在那儿了。
-	 * 归档走的是同一条路子，理由一模一样。
+	 * 在那之前要把还活着的那个 session 停掉——它手里攥着旧的 cwd 和旧的 projectId，接着跑会在
+	 * 旧目录里动手，写下的 meta 也会把归属改回去。归档走的是同一条路子。
 	 *
 	 * **正在跑的会话直接拒绝**，不像归档那样先打断它。换项目意味着换 cwd，而一个正在执行工具调用
 	 * 的 agent 的每一条路径都是从 cwd 量出来的——半路换掉，轻则后面的命令跑在别的目录里，重则
@@ -206,11 +201,11 @@ export function registerSessionsIpc({
 	 */
 	ipcMain.handle(
 		"sessions:move",
-		async (_event, projectId: string, sessionId: string, cwd: string, projectName: string) => {
+		async (_event, sessionId: string, cwd: string, projectName: string) => {
 			if (sessions.get(sessionId)?.running) return { ok: false as const, reason: "running" as const };
 			await disposeSession(sessionId);
 			try {
-				const meta = await store.move(projectId, sessionId, cwd, projectName);
+				const meta = await store.move(sessionId, cwd, projectName);
 				if (!meta) return { ok: false as const, reason: "gone" as const };
 				return { ok: true as const, meta };
 			} catch (cause) {
@@ -221,20 +216,17 @@ export function registerSessionsIpc({
 
 	ipcMain.handle(
 		"sessions:setArchived",
-		async (_event, projectId: string, sessionId: string, archived: boolean) => {
+		async (_event, sessionId: string, archived: boolean) => {
 			// An archived session has no reason to keep its MCP servers and browser alive.
 			if (archived) await disposeSession(sessionId);
-			await store.setArchived(projectId, sessionId, archived);
+			await store.setArchived(sessionId, archived);
 			return store.listSessions();
 		},
 	);
 
 	ipcMain.handle("sessions:removeArchived", async () => {
 		const archived = (await store.listSessions()).filter((s) => s.archived);
-		await Promise.all(archived.map((s) => disposeSession(s.id)));
-		await store.deleteMany(
-			archived.map((s) => ({ projectId: s.projectId, id: s.id })),
-		);
+		await deleteSessions(archived.map((s) => s.id));
 		await Promise.all(
 			archived.map((s) => removeSessionArtifacts(plumeHome(), s.id)),
 		);

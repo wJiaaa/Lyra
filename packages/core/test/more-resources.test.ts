@@ -346,6 +346,7 @@ test("会话把 session:// 的数据源也填上了", async () => {
 	const store = {
 		create: async () => ({ id: "s1", projectId: "p", cwd: root, title: "", updatedAt: 1 }),
 		listSessions: async () => [{ id: "other", projectId: "p", title: "另一个", updatedAt: 9, archived: false }],
+		get: async (id: string) => (id === "other" ? { id: "other", projectId: "p", title: "另一个", updatedAt: 9, archived: false } : null),
 		messages: async () => [{ role: "user", content: [{ type: "text", text: "你好" }], timestamp: 0 }],
 		append: async (meta: unknown) => meta,
 	};

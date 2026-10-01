@@ -18,6 +18,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, pause } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const PORT = 9424;
 const SESSION = "dddddddd-cccc-bbbb-aaaa-999999999999";
@@ -28,8 +29,6 @@ async function seed(home: string): Promise<void> {
 	await mkdir(cwd, { recursive: true });
 	await writeFile(join(cwd, "README.md"), "# 演示工程\n");
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	const dir = join(home, "sessions", projectId);
-	await mkdir(dir, { recursive: true });
 
 	const now = Date.now();
 	const meta = {
@@ -49,7 +48,7 @@ async function seed(home: string): Promise<void> {
 	// `CLEAN=1` 跑一遍全好的同一份数据——不做这个对照，就分不清「坏记录打不开会话」和「我这份
 	// seed 本来就打不开」。
 	const clean = process.env.CLEAN === "1";
-	const lines = [
+	const records = [
 		{ seq: 1, ts: now, type: "meta", meta },
 		{ seq: 2, ts: now, type: "message", message: good("user", "第一条，好的") },
 		// 缺 content：core 放行，渲染端从前在这里抛 `content is not iterable`。
@@ -59,7 +58,7 @@ async function seed(home: string): Promise<void> {
 		{ seq: 5, ts: now, type: "message", message: good("assistant", "第四条，也是好的") },
 		{ seq: 6, ts: now, type: "meta", meta: { ...meta, messageCount: 4 } },
 	];
-	await writeFile(join(dir, `${SESSION}.jsonl`), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+	seedSessions(home, [{ meta, records }]);
 
 	const real = JSON.parse(await readFile(join(homedir(), ".plume", "settings.json"), "utf8"));
 	await writeFile(

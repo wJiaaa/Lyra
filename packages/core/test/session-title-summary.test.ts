@@ -180,7 +180,7 @@ test("long prompt (> 12 chars) uses immediate fallback then rewrites with summar
 	}
 });
 
-test("prefers fast model when modelRoles.fast is configured, falls back to session model otherwise", { timeout: 5000 }, async () => {
+test("prefers fast model when the fast role is configured, falls back to session model otherwise", { timeout: 5000 }, async () => {
 	const { store, cleanup } = await harness();
 	try {
 		const modelsUsed: string[] = [];
@@ -195,7 +195,7 @@ test("prefers fast model when modelRoles.fast is configured, falls back to sessi
 				...DEFAULT_SETTINGS,
 				providers: [PROVIDER],
 				defaultModelId: SESSION_MODEL.id,
-				modelRoles: { fast: FAST_MODEL.id },
+				subAgentProfiles: { fast: { modelId: FAST_MODEL.id } },
 			},
 			emit: (event) => { if (event.type === "title" && event.title === "使用fast总结") summaryApplied.resolve(); },
 			titleSummaryStream: (_provider, model) => {
@@ -412,7 +412,7 @@ test("session initialized via pendingPrompt (desktop new session flow) summarize
 			streamFn: async () => reply("正在查询 MCP 管理机制"),
 		});
 
-		const loaded = await store.load(meta.projectId, meta.id);
+		const loaded = await store.load(meta.id);
 		assert.ok(loaded);
 		session.restore(loaded.messages);
 

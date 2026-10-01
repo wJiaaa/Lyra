@@ -27,12 +27,11 @@ export function findUserImagesAt(messages: Message[], timestamp: number): Displa
 
 export async function readUserImagesAt(
 	read: SessionStorage["read"],
-	projectId: string,
 	sessionId: string,
 	timestamp: number,
 ): Promise<DisplayImage[]> {
 	let entries: { seq: number; timestamp: number; images: DisplayImage[] }[] = [];
-	for await (const record of read(projectId, sessionId)) {
+	for await (const record of read(sessionId)) {
 		if (record.type === "message" && record.message?.role === "user") {
 			const match = record.message.timestamp === timestamp;
 			entries.push({
@@ -56,11 +55,10 @@ export function loadUserImagesAt(
 		liveMessages(sessionId: string): Message[] | undefined;
 		read: SessionStorage["read"];
 	},
-	projectId: string,
 	sessionId: string,
 	timestamp: number,
 ): Promise<DisplayImage[]> {
-	const key = `${projectId}/${sessionId}/${timestamp}`;
+	const key = `${sessionId}/${timestamp}`;
 	const cached = recent.get(key);
 	if (cached) return Promise.resolve(cached);
 	const pending = inflight.get(key);
@@ -69,7 +67,7 @@ export function loadUserImagesAt(
 		const live = lookup.liveMessages(sessionId);
 		const images = live
 			? findUserImagesAt(live, timestamp)
-			: await readUserImagesAt(lookup.read, projectId, sessionId, timestamp);
+			: await readUserImagesAt(lookup.read, sessionId, timestamp);
 		recent.delete(key);
 		recent.set(key, images);
 		while (recent.size > RECENT) {

@@ -14,11 +14,10 @@
  * 裸方括号。于是它不再是噪声，而是句子的一部分：「照着 【表格 1】 改一版」里的那个「表格 1」，和上
  * 面那一排里的某一格是同一个东西，删掉那一格它就跟着消失。
  *
- * 匹配按名字加序号：文中第二个 `【表格 1】` 认的是第二个叫「表格 1」的附件。升级前存下的草稿和转录
- * 里的老消息写的是文件名，那一种也认——见 `answersTo`。
+ * 匹配按名字加序号：文中第二个 `【表格 1】` 认的是第二个叫「表格 1」的附件。
  */
 
-/** 从前写进草稿的那个记号。如今只有测试和读旧数据的路径还用得上它。 */
+/** 写进正文的那个记号。 */
 export function placeholderFor(name: string): string {
 	return `【${name}】`;
 }
@@ -96,14 +95,8 @@ export interface Placeholder<File> {
  * 上的对不上。给模型看的仍然是 `name`，两者分开走。
  */
 function answersTo(file: { name: string; label?: string }, written: string): boolean {
-	/*
-	 * 真名也认。
-	 *
-	 * 升级前写进草稿和转录的标记用的是文件名（`【image.png】`），而现在写的是界面上那个名字
-	 * （`【图片 1】`）。只认后者的话，那些旧消息的标记会全部退化成普通文字——气泡里凭空多出一串
-	 * 方括号，而它本来是一枚标签。
-	 */
-	return file.label === written || file.name === written;
+	// The same name `useAttachmentMarks` wrote: the label, or the file name when there is none.
+	return (file.label ?? file.name) === written;
 }
 
 /**

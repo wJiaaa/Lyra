@@ -108,7 +108,7 @@ test("cold restore rebuilds the same snapshot; rewind drops updates after the re
 		assert.ok(result?.kept !== undefined);
 		await log.emit({ type: "compacted", before: messages.length, after: result.messages.length, summary: result.summary, kept: result.kept });
 		const before = modelHistory(log, provider, model);
-		const loaded = await store.load(meta.projectId, meta.id);
+		const loaded = await store.load(meta.id);
 		assert.ok(loaded?.compaction);
 		const restored = new SessionLog(store, async () => {}, meta);
 		restored.restore(loaded.messages, loaded.compaction);
@@ -137,7 +137,7 @@ test("a dropped boundary rebuilt from disk keeps the usage measured after it", a
 		await log.commit({ ...reply("好"), usage: { ...emptyUsage(), input: 6000 }, timestamp: Date.now() });
 		await pause();
 
-		const loaded = await store.load(meta.projectId, meta.id);
+		const loaded = await store.load(meta.id);
 		const restored = new SessionLog(store, async () => {}, meta);
 		restored.restore(loaded!.messages, loaded!.compaction);
 		const total = measureTotal(modelHistory(restored, provider, model));

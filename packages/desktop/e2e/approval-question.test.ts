@@ -145,7 +145,7 @@ test("long questions stay readable and actionable across themes and widths with 
 	assert.equal(await app.evaluate("document.querySelector('input[aria-label=\"自定义回答\"]').value"), answer);
 	await shot("approval-custom-native-input"); await click("submit");
 	await until(async () => app.evaluate("!document.querySelector('[data-approval-card]')&&!document.querySelector('button[aria-label=\"停止\"]')"));
-	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-long');const t=await window.plume.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
+	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-long');const t=await window.plume.sessions.transcript(s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
 	assert.deepEqual(results, [answer]);
 	passed++;
 });
@@ -160,7 +160,7 @@ test("a long final choice remains reachable through the same body scroller", asy
 	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] input:checked').length"), 1);
 	await click("confirm");
 	await until(async () => app.evaluate("!document.querySelector('[data-approval-card]')&&!document.querySelector('button[aria-label=\"停止\"]')"));
-	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-short');const t=await window.plume.sessions.transcript(s.projectId,s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
+	const results = await app.evaluate<string[]>("(async()=>{const s=(await window.plume.sessions.list()).find(s=>s.id==='qa-short');const t=await window.plume.sessions.transcript(s.id);return t.messages.filter(m=>m.role==='toolResult'&&m.toolName==='ask_user').flatMap(m=>m.content.filter(c=>c.type==='text').map(c=>c.text));})()");
 	assert.deepEqual(results, [LONG_OPTIONS.at(-1)]);
 	passed++;
 });

@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { fixtureStore, seedSessions, type FixtureRecord, type FixtureSession } from "./session-fixture.ts";
 
 export const LONG_QUESTION = "完整问题起点\n" + "请检查所有环境、原始路径与中文输入法行为。 VeryLongPathSegment_without_breaks_".repeat(24) + "\n完整问题终点";
 export const LONG_OPTIONS = Array.from({ length: 6 }, (_, index) => `${index + 1}. 继续检查 ${"保留必要的原始上下文以及验证记录 ".repeat(8)}`.trim());
@@ -46,15 +47,16 @@ function reply(res: ServerResponse, text: string, question?: { id: string; quest
 /** Synthetic sessions have identical long titles and distinct IDs; their logs use normal storage. */
 export async function seedQuestions(home: string, modelPort: number) {
 	await seedInteractions(home, modelPort);
-	const indexFile = join(home, "sessions", "index.json");
-	const raw = await readFile(indexFile, "utf8");
-	const metas: Array<{ id: string; projectId: string }> = JSON.parse(raw);
-	const rename = (text: string) => text.replaceAll('"title":"qa-long"', `"title":${JSON.stringify(REFERENCE_TITLE)}`).replaceAll('"title":"qa-short"', `"title":${JSON.stringify(REFERENCE_TITLE)}`);
-	await writeFile(indexFile, rename(raw));
-	for (const meta of metas) {
-		const path = join(home, "sessions", meta.projectId, `${meta.id}.jsonl`);
-		await writeFile(path, rename(await readFile(path, "utf8")));
+	const store = fixtureStore(home);
+	const sessions: FixtureSession[] = [];
+	for (const meta of await store.listSessions()) {
+		const records: FixtureRecord[] = [];
+		for await (const record of store.read(meta.id)) records.push(record);
+		sessions.push({ meta, records });
 	}
+	store.close();
+	const rename = (text: string) => text.replaceAll('"title":"qa-long"', `"title":${JSON.stringify(REFERENCE_TITLE)}`).replaceAll('"title":"qa-short"', `"title":${JSON.stringify(REFERENCE_TITLE)}`);
+	seedSessions(home, JSON.parse(rename(JSON.stringify(sessions))));
 	const path = join(home, "settings.json");
 	const settings: Record<string, unknown> = JSON.parse(await readFile(path, "utf8"));
 	await writeFile(path, JSON.stringify({ ...settings, permissionMode: "full", thinking: "off", projectMemory: false, appearance: { theme: "dark", reduceMotion: "off" } }));

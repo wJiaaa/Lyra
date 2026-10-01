@@ -387,7 +387,7 @@ test("「在轨迹中查看」 opens the trace in the conversation's own screen,
 test("a tool run's raw output and its place in the trace, from the screen without focus, open in that screen", async () => {
 	const exported: string[] = [];
 	plume.sessions = {
-		exportTrajectory: async (_project: string, sessionId: string, format: string) => {
+		exportTrajectory: async (sessionId: string, format: string) => {
 			exported.push(`${sessionId}:${format}`);
 			return `/tmp/${sessionId}-${format}.txt`;
 		},
@@ -408,7 +408,7 @@ test("a tool run's raw output and its place in the trace, from the screen withou
 test("exporting from the trace panel of the screen without focus opens the file in that screen", async () => {
 	plume.sessions = {
 		trajectoryChanges: async () => ({ cursor: "b:1", reset: true, upserts: [{ id: "one", seq: 1, ts: 1, source: "request", summary: "请求" }], removals: [] }),
-		exportTrajectory: async (_project: string, sessionId: string, format: string) => `/tmp/${sessionId}.${format}`,
+		exportTrajectory: async (sessionId: string, format: string) => `/tmp/${sessionId}.${format}`,
 	};
 	plume.agent = { onEvent: () => () => {} };
 	view = await inScreen("b", h(TrajectoryPanel));

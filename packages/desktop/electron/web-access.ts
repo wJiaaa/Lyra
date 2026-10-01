@@ -17,9 +17,10 @@ import { workspaceInfo } from "./workspace-info.ts";
 import { applySettings, onSettingsChanged, settings } from "./app-settings.ts";
 import type { WebAccessStatus } from "./ipc-shapes.ts";
 import {
-	activateSession,
 	abortSession,
 	createSession,
+	deleteSessions,
+	ensureLiveSession,
 	disposeSession,
 	editSessionMessage,
 	promptSession,
@@ -76,7 +77,7 @@ function build(): WebServer {
 		saveSettings: async (next) => void (await applySettings(next)),
 		workspaceInfo: (path) => workspaceInfo(path),
 		live: (id) => sessions.get(id),
-		activate: (projectId, id) => activateSession(projectId, id),
+		activate: ensureLiveSession,
 		/*
 		 * 浏览器只能在已经打开的项目里开会话。
 		 *
@@ -95,6 +96,7 @@ function build(): WebServer {
 		revertMessage: revertSessionMessage,
 		abort: abortSession,
 		dispose: disposeSession,
+		remove: deleteSessions,
 		snapshot: (session) => snapshot(session),
 		touch: (id) => touchSession(id),
 		sideChatState,

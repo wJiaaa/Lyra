@@ -110,27 +110,10 @@ export function hostOf(baseUrl: string): string {
  * 而其中的 `github.com` 右边那枚徽章已经答过了。
  *
  * 所以歧义交回给那两个本来就在答它的地方：徽章说是哪一家，第二行在主机确实不是官方实例时说主机
- * （见 `identityOf`）。名字只管名字。已经存成旧格式的账号在读取时换过来——见 `freshLabel`。
+ * （见 `identityOf`）。名字只管名字。
  */
 export function defaultLabel(identity: ForgeIdentity): string {
 	return identity.login.trim() || identity.name.trim() || "账号";
-}
-
-/**
- * 存着的那个名字，除非它正是从前自动生成的那一串。
- *
- * 改 `defaultLabel` 只管以后新加的账号，磁盘上那些 `kittors · github.com` 一个都不会动——而它们
- * 正是这次要收拾的东西。所以读的时候认一次：值恰好等于旧格式生成的结果，就当它从来没被人改过，
- * 换成现在的默认。
- *
- * 判的是「等于旧的自动值」而不是「含有 ` · `」：自己把账号命名成「公司 · 前端」的人改过名了，
- * 那是他的名字，不能因为长得像就收走。和 `migrateAppearance` 认旧默认字体是同一条规矩。
- */
-function freshLabel(stored: string, login: string, baseUrl: string): string {
-	const name = stored.trim();
-	const fresh = defaultLabel({ login, name: login, avatarUrl: null });
-	if (!name) return fresh;
-	return name === `${fresh} · ${hostOf(baseUrl)}` ? fresh : name;
 }
 
 /**
@@ -178,7 +161,7 @@ export function parseAccounts(raw: unknown): ForgeAccount[] {
 			kind,
 			baseUrl,
 			login,
-			label: freshLabel(typeof item.label === "string" ? item.label : "", login, baseUrl),
+			label: (typeof item.label === "string" ? item.label.trim() : "") || defaultLabel({ login, name: login, avatarUrl: null }),
 			avatarUrl: typeof item.avatarUrl === "string" ? item.avatarUrl : null,
 			addedAt: typeof item.addedAt === "number" ? item.addedAt : 0,
 			// Absent means on. A file written before this field existed should not arrive silent.

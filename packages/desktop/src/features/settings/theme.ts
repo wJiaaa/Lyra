@@ -29,9 +29,9 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * That would mean importing a value from "@plume/core", and the package root reaches `node:fs`
 	 * — see the note in `ScheduledView.tsx`. The bundle would load and then throw on the first Node
 	 * builtin, which is a worse failure than the one it set out to fix. Completeness is guaranteed
-	 * at the door instead: `migrateAppearance` for settings read off disk. What is left here is
-	 * `parseHex` refusing to throw, so a field that slips through is a wrong colour rather than a
-	 * blank screen.
+	 * at the door instead: `normalizeSettings` merges the defaults into settings read off disk.
+	 * What is left here is `parseHex` refusing to throw, so a field that slips through is a wrong
+	 * colour rather than a blank screen.
 	 */
 	const appearance = input;
 	const root = document.documentElement;

@@ -221,6 +221,7 @@ async function executeOne(
 		allowedPaths: config.allowedPaths,
 		projectRoots: config.projectRoots,
 		writePreview: config.writePreview,
+		transcript: config.transcript,
 		spawnSubAgent: config.spawnSubAgent,
 		resources: config.resources,
 		scratchDir: config.scratchDir,

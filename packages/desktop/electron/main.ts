@@ -1,16 +1,16 @@
 import { mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { app, BrowserWindow, Menu, Notification, powerSaveBlocker, protocol } from "electron";
+import { app, BrowserWindow, dialog, Menu, Notification, powerSaveBlocker, protocol } from "electron";
 import {
 	bootHostKernel,
 	plumeHome,
 	registerDefaultSearchProviders,
 	type HostKernel,
-	migratePreviousHome,
 	pruneSessionArtifacts,
 	useSandboxRunner,
 	SessionStore,
+	SessionDbUnavailable,
 	primeCommandPath,
 	type Settings,
 	type SessionStorage,
@@ -30,7 +30,7 @@ import { loadUserImagesAt } from "./display-image.ts";
 import { captureLog } from "./screenshot-debug.ts";
 import { registerFilesIpc } from "./ipc/files.ts";
 import { registerFileOpsIpc } from "./ipc/file-ops.ts";
-import { rescueLegacyWorkspaces, scratchRoots } from "./scratch.ts";
+import { scratchRoots } from "./scratch.ts";
 import { resolveWorktreesRoot } from "./git-worktrees.ts";
 import { applySettings, loadAppSettings, onSettingsChanged } from "./app-settings.ts";
 import { loadCachedModelCatalog, MODEL_CATALOG_SYNC_INTERVAL_MS, syncModelCatalog } from "@plume/core/model-catalog-sync";
@@ -421,28 +421,7 @@ app.whenReady().then(async () => {
 	const menu = applicationMenuTemplate({ platform: process.platform, packaged: app.isPackaged });
 	if (menu) Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
 
-	/*
-	 * Before anything reads or writes it: the home directory was called `.deepwise` until the app
-	 * was renamed, and to someone who had been using it, a fresh empty one is indistinguishable
-	 * from having lost every session.
-	 */
-	const migration = await migratePreviousHome(plumeHome());
-	if (migration.moved) console.log(`[plume] 已把 ${migration.from} 迁移到 ${migration.to}`);
-	if (migration.error) console.warn(`[plume] 旧目录迁移失败：${migration.error}`);
-
 	await mkdir(plumeHome(), { recursive: true });
-
-	/*
-	 * Before the sweep below gets to them.
-	 *
-	 * Project-less conversations used to run in `scratch/`, which is also where `core` puts the
-	 * throwaway files it names after a session and deletes when that session is gone. `general` and
-	 * `owner-repo-6381` were never session ids, so every launch deleted the working directory of
-	 * every such conversation. They live in `workspaces/` now; this carries over whatever the last
-	 * launch had not yet destroyed, and has to run first for that to mean anything.
-	 */
-	const rescued = await rescueLegacyWorkspaces().catch(() => []);
-	if (rescued.length > 0) console.log(`[plume] 把 ${rescued.length} 个无项目会话的目录挪到了 workspaces/：${rescued.join("、")}`);
 
 	followThemeWithDockIcon();
 
@@ -460,6 +439,23 @@ app.whenReady().then(async () => {
 	// Built from the default set plus whatever the user has installed; see `bootHostKernel`.
 	kernel = await bootHostKernel(settings);
 	store = observeSessionStorage(kernel.storage, broadcastSessionChange);
+	/*
+	 * The conversations have to open before any window does.
+	 *
+	 * A database that will not open is reported and left alone (core `session/db.ts`), and the
+	 * report used to go nowhere: the sweep below swallows errors, the window's first list call
+	 * failed, and it sat on its loading screen for good. A database a newer Plume wrote ends the
+	 * same way. Nothing works without it, so say where it is and why, and stop.
+	 */
+	try {
+		await store.listSessions();
+	} catch (cause) {
+		const t = nativeTranslator(settings.uiLocale, app.getLocale());
+		const where = cause instanceof SessionDbUnavailable ? cause : { path: plumeHome(), reason: cause instanceof Error ? cause.message : String(cause) };
+		dialog.showErrorBox(t("sessions.unavailableTitle"), t("sessions.unavailable", { path: where.path, reason: where.reason }));
+		app.exit(1);
+		return;
+	}
 	kernel.skills.register([browserSkill()]);
 
 /**
@@ -565,9 +561,8 @@ function bindScreenshotShortcut(): void {
 			const images = await loadUserImagesAt(
 				{
 					liveMessages: (sessionId) => sessions.get(sessionId)?.messages,
-					read: (projectId, sessionId, since) => store.read(projectId, sessionId, since),
+					read: (sessionId, since) => store.read(sessionId, since),
 				},
-				ref.projectId,
 				ref.sessionId,
 				ref.timestamp,
 			);

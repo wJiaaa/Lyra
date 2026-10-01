@@ -105,6 +105,9 @@ test("一个回合真的会发 turn_start 和 turn_end", async () => {
 			listSessions: async () => [],
 			messages: async () => [],
 			append: async (meta: unknown) => meta,
+			beginPartial: async () => {},
+			appendPartial: async () => {},
+			dropPartial: async () => {},
 		} as never,
 		emit: async () => {},
 		streamFn: async () =>

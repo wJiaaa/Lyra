@@ -253,27 +253,6 @@ test("loose rows are newest first, whatever order they arrived in", () => {
 	);
 });
 
-test("every historical root is recognised, not just the current one", () => {
-	// The directory has been renamed twice. Sessions record the path they were created under, so
-	// forgetting an old one turns every already-opened review back into a fake project.
-	const sessions = [
-		session({ id: "oldest", cwd: "/home/.plume/pr/owner-repo-1" }),
-		session({ id: "old", cwd: "/home/.plume/scratch/owner-repo-2" }),
-		session({ id: "new", cwd: "/home/.plume/workspaces/owner-repo-3" }),
-	];
-
-	const { projects: rest, loose } = groupSessions(sessions, [], "", [
-		"/home/.plume/workspaces",
-		"/home/.plume/scratch",
-		"/home/.plume/pr",
-	]);
-	assert.deepEqual(
-		loose.map((s) => s.id),
-		["oldest", "old", "new"],
-	);
-	assert.deepEqual(rest, [], "none of them is a project");
-});
-
 test("a project whose path merely starts the same is still its own project", () => {
 	// The root arrives without a trailing slash; a plain `startsWith` would swallow
 	// `/home/.plume/prototypes` into the loose rows.

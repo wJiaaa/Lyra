@@ -17,7 +17,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { normalizeSettings } from "../src/config/settings.ts";
 import type { SandboxProcess } from "../src/kernel/services.ts";
 import { useApprovalPolicy } from "../src/runtime/approval-policy.ts";
 import { ApprovalGate, type PendingApproval } from "../src/runtime/approvals.ts";
@@ -161,7 +160,7 @@ test("an 'always' answer to an escalation is spent on that call, like any other 
 	assert.deepEqual(ran.map((one) => one.mode), ["danger-full-access", "danger-full-access"]);
 });
 
-test("an escalation an earlier version remembered grants nothing", async (t) => {
+test("a remembered line never grants an escalation", async (t) => {
 	const command = "echo hi";
 	const stored = `escalate:danger-full-access:${command}`;
 	const { ran, asked, ctx } = await autoSession(t, "reject", [stored]);
@@ -175,7 +174,4 @@ test("an escalation an earlier version remembered grants nothing", async (t) => 
 	assert.equal(asked[0]?.request.subject, stored, "precondition: the stored line names this very request");
 	assert.deepEqual(ran, []);
 	assert.ok(result.isError);
-
-	// Nor is it listed as allowed: the settings page would be showing a grant that does not exist.
-	assert.deepEqual(normalizeSettings({ alwaysAllow: ["npm test", stored] }).alwaysAllow, ["npm test"]);
 });

@@ -4,7 +4,7 @@
  * 用量页上那几个「不知道是啥」的供应商，在真窗口里现在长什么样。
  *
  * 账按 `providerId` 记，名字只活在 `settings.providers` 里——删掉一个供应商，它花过的钱一分不少
- * 地留在日志里，页面上却只剩 `provider-mttnetnn` 这么一串。这个探针把那一屏照原样造出来：三个
+ * 地留在账上，页面上却只剩 `provider-mttnetnn` 这么一串。这个探针把那一屏照原样造出来：三个
  * 已经删掉的供应商（一个有档案、两个没有）、一个还配着的、一个查不到价的。
  *
  * 量的是画出来的结果，不是传进去的值：供应商那一栏的文字从 DOM 上读回来，命名之后再读一次
@@ -16,6 +16,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 const PORT = 9433;
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -46,10 +47,9 @@ const app = await startApp({
 		await mkdir(project, { recursive: true });
 		await writeFile(join(project, "readme.md"), "# demo\n");
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 940, x: 0, y: 0 }));
-		await mkdir(join(home, "sessions", PROJECT_ID), { recursive: true });
 
 		const now = Date.now();
-		const lines: string[] = [];
+		const records: FixtureRecord[] = [];
 		let seq = 0;
 		const meta = {
 			id: "spend", title: "用量页固件", cwd: project, projectId: PROJECT_ID, projectName: "demo-project",
@@ -57,7 +57,7 @@ const app = await startApp({
 			messageCount: 0, seq: 1,
 			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 		};
-		lines.push(JSON.stringify({ seq: ++seq, ts: now - 20 * DAY, type: "meta", meta }));
+		records.push({ seq: ++seq, ts: now - 20 * DAY, type: "meta", meta });
 
 		for (const spend of SPEND) {
 			for (let i = 0; i < spend.replies; i++) {
@@ -71,18 +71,18 @@ const app = await startApp({
 				const cost = spend.priced
 					? { input: spend.perCost * 0.9, output: spend.perCost * 0.1, cacheRead: 0, cacheWrite: 0, total: spend.perCost, source: "catalog", catalogVersion: "2:89dfccad5490", rates: { input: 0.75, output: 3.75, cacheRead: 0.075, cacheWrite: 0.75 } }
 					: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
-				lines.push(JSON.stringify({
+				records.push({
 					seq: ++seq, ts: at, type: "message",
 					message: {
 						role: "assistant", content: [{ type: "text", text: "。" }], api: "openai-responses",
 						provider: spend.provider, model: spend.model, stopReason: "stop", timestamp: at,
 						usage: { input, output: 1_200, cacheRead: 0, cacheWrite: 0, reasoning: 0, total: input + 1_200, cost },
 					},
-				}));
-				lines.push(JSON.stringify({ seq: ++seq, ts: at, type: "message", message: { role: "user", content: [{ type: "text", text: "。" }], timestamp: at } }));
+				});
+				records.push({ seq: ++seq, ts: at, type: "message", message: { role: "user", content: [{ type: "text", text: "。" }], timestamp: at } });
 			}
 		}
-		await writeFile(join(home, "sessions", PROJECT_ID, "spend.jsonl"), lines.join("\n") + "\n");
+		seedSessions(home, [{ meta, records }]);
 
 		await writeFile(settingsPath, JSON.stringify({
 			version: 1,

@@ -16,6 +16,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 const PORT = 9431;
 const OUT = join(import.meta.dirname, "..", "..", "..", "test-results", "usage-layout");
@@ -36,24 +37,27 @@ const app = await startApp({
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900, x: 0, y: 0 }));
 
 		const projectId = "usagelayout00000".slice(0, 16);
-		await mkdir(join(home, "sessions", projectId), { recursive: true });
-		const lines: string[] = [];
+		const records: FixtureRecord[] = [];
 		let seq = 0;
 		for (let daysAgo = DAYS; daysAgo >= 1; daysAgo--) {
 			const at = Date.now() - daysAgo * 86_400_000;
 			for (let turn = 0; turn < 6; turn++) {
 				const input = 20_000 + ((daysAgo * 7_919 + turn * 31) % 40_000);
-				lines.push(JSON.stringify({
+				records.push({
 					seq: ++seq, ts: at, type: "message",
 					message: {
 						role: "assistant", content: [{ type: "text", text: "。" }], api: "openai-responses",
 						provider: "relay", model: "gemini-3-0", stopReason: "stop", timestamp: at,
 						usage: { input, output: 800, cacheRead: input * 9, cacheWrite: 0, total: input * 10 + 800, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 					},
-				}));
+				});
 			}
 		}
-		await writeFile(join(home, "sessions", projectId, "s.jsonl"), lines.join("\n") + "\n");
+		const empty = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+		seedSessions(home, [{
+			meta: { id: "s", title: "s", cwd: root, projectId, projectName: "project", createdAt: Date.now() - DAYS * 86_400_000, updatedAt: Date.now(), modelId: "relay/gemini-3-0", messageCount: records.length, usage: empty, seq: 0 },
+			records,
+		}]);
 
 		await writeFile(join(home, "settings.json"), JSON.stringify({
 			version: 1,

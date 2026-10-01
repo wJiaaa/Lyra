@@ -16,6 +16,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, pause } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const PORT = 9429;
 const SESSION = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
@@ -26,8 +27,6 @@ async function seed(home: string): Promise<void> {
 	await mkdir(cwd, { recursive: true });
 	await writeFile(join(cwd, "README.md"), "# 演示工程\n");
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	const dir = join(home, "sessions", projectId);
-	await mkdir(dir, { recursive: true });
 
 	const now = Date.now();
 	const meta = {
@@ -43,7 +42,7 @@ async function seed(home: string): Promise<void> {
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 		seq: 0,
 	};
-	const lines = [
+	const records = [
 		{ seq: 1, ts: now, type: "meta", meta },
 		{ seq: 2, ts: now, type: "message", message: { role: "user", content: [{ type: "text", text: "给出 README 链接" }], timestamp: now } },
 		{
@@ -63,7 +62,7 @@ async function seed(home: string): Promise<void> {
 		},
 		{ seq: 4, ts: now, type: "meta", meta: { ...meta, messageCount: 2 } },
 	];
-	await writeFile(join(dir, `${SESSION}.jsonl`), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+	seedSessions(home, [{ meta, records }]);
 
 	/*
 	 * 供应商照抄真实设置。

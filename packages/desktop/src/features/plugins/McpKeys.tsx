@@ -65,7 +65,7 @@ export function McpKeys({
 	compact,
 }: {
 	servers: McpServerConfig[];
-	/** 包对这些值的说明，行里没带（旧版本装的）时用它补上。 */
+	/** 包对这些值的说明，行里没带时用它补上。 */
 	notes?: McpNeed[];
 	/** 放在设置页的卡片里：不要标题，行距紧一点。 */
 	compact?: boolean;

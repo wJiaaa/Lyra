@@ -38,5 +38,6 @@
 | [0029](0029-parent-lets-go-when-spoken-to.md) | 主会话等子代理时人一开口就放手，子代理在后台跑完、结果送回来 |
 | [0030](0030-plugin-market-keys-and-live-updates.md) | 插件市场一格一动作，MCP 的钥匙进保险箱，装过的东西自己跟上新版 |
 | [0031](0031-headless-cli-for-evaluation.md) | 评测用的非交互命令行：同一个运行时、桌面端的设置，需要授权的一律拒绝 |
+| [0032](0032-sessions-in-sqlite.md) | 会话存进一个 SQLite 库，流式回复边写边落盘，删会话不删账 |
 
 写一份新的：复制最近一份的结构，编号往下走，加进这张表。

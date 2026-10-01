@@ -327,9 +327,9 @@ export class AgentSession {
 					.slice(0, limit)
 					.map((meta) => ({ id: meta.id, title: meta.title ?? "", updatedAt: meta.updatedAt })),
 			transcript: async (id) => {
-				const meta = (await this.store.listSessions()).find((entry) => entry.id === id);
+				const meta = await this.store.get(id);
 				if (!meta) return null;
-				const messages = await this.store.messages(meta.projectId, id);
+				const messages = await this.store.messages(id);
 				return { title: meta.title ?? "", lines: messages.map(renderMessage).filter(Boolean) };
 			},
 		} satisfies SessionLookup);
@@ -989,6 +989,8 @@ export class AgentSession {
 			});
 			await this.activeTurn;
 		} finally {
+			// Whatever the turn's own error was, it is the one that propagates.
+			await this.log.settleOrphan().catch(() => {});
 			this.activeTurn = null;
 			this.activeTurn = null;
 			this.controller = null;

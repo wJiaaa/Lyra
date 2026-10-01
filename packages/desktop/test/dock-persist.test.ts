@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { legacyStorageKey, paneStorageKey, readTree, sanitize, serialize } from "../src/features/dock/persist.ts";
+import { paneStorageKey, readTree, sanitize, serialize } from "../src/features/dock/persist.ts";
 import { defaultTree, has, kinds, leafOf, type DockNode, type DockSplit, type PaneKind } from "../src/features/dock/tree.ts";
 
 /**
@@ -44,12 +44,6 @@ test("the key is per conversation, and the unsent one has a key of its own", () 
 	assert.notEqual(paneStorageKey("s-a"), paneStorageKey("s-b"), "two conversations do not share a layout");
 	// The unsent conversation's screen is `@draft`; a draft that is sent hands its layout over.
 	assert.equal(paneStorageKey("@draft"), "dw:panedock:@draft");
-});
-
-test("one key per conversation — the old window layer's key is only ever read to migrate", () => {
-	// Same conversation, two keys from when panels had two homes. Only `paneStorageKey` is written.
-	assert.equal(legacyStorageKey("s-1a2b"), "dw:dock:s-1a2b");
-	assert.notEqual(legacyStorageKey("s-1a2b"), paneStorageKey("s-1a2b"));
 });
 
 test("anything that is not a tree falls back to the default layout", () => {

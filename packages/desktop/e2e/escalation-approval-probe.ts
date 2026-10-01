@@ -1,12 +1,10 @@
 /* oxlint-disable no-console -- the probe's output is what it measured */
 /**
- * An escalation card in a real window: no "stop asking", and nothing an earlier version remembered
- * answers it.
+ * An escalation card in a real window: no "stop asking", and nothing in the allow-list answers it.
  *
- * The profile starts with `escalate:danger-full-access:echo hi` in `alwaysAllow` — what clicking
- * "stop asking" on an escalation card used to leave behind — and the fake model then asks for
- * exactly that escalation. Before the fix no card was drawn at all: the gate found the line and the
- * command ran unconfined. A command `auto` stops on its own is the control, because the card is
+ * The profile starts with `escalate:danger-full-access:echo hi` in `alwaysAllow` — the subject of
+ * exactly the escalation the fake model then asks for. Before the fix no card was drawn at all: the
+ * gate found the line and the command ran unconfined. A command `auto` stops on its own is the control, because the card is
  * shared: it has to keep all three answers.
  *
  * Measured from what is drawn, not from what was sent: the buttons' own text, and the list the
@@ -22,7 +20,7 @@ import { seedInteractions } from "./interaction-fixture.ts";
 
 /** Where the screenshots go: the first argument, as `audit-regression.mjs` passes it, or the desktop. */
 const OUT = process.argv[2] ?? join(homedir(), "Desktop", "Plume提权审批测试");
-const LEGACY = "escalate:danger-full-access:echo hi";
+const GRANTED = "escalate:danger-full-access:echo hi";
 /** Outside the workspace so `auto` asks, and absent so nothing is deleted even if it ran. */
 const NONEXISTENT = join(homedir(), ".plume-e2e-nonexistent-escalation-probe");
 
@@ -153,7 +151,7 @@ async function main() {
 			// `auto`: the mode where an escalation is the only thing between the model and an unconfined run.
 			await writeFile(file, JSON.stringify({
 				...settings, permissionMode: "auto", thinking: "off", projectMemory: false,
-				alwaysAllow: [LEGACY, "npm test"], appearance: { theme: "dark", reduceMotion: "on" },
+				alwaysAllow: [GRANTED, "npm test"], appearance: { theme: "dark", reduceMotion: "on" },
 			}));
 		},
 	});
@@ -173,7 +171,6 @@ async function main() {
 		const commandShot = await shot("2-普通命令对照");
 		await refuse();
 
-		const stored = await app.evaluate<string[]>("window.plume.settings.get().then((s) => s.alwaysAllow)");
 		const opened = await app.evaluate<boolean>(`(async () => {
 			const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 			const hit = (text) => {
@@ -189,20 +186,17 @@ async function main() {
 			await wait(900);
 			return true;
 		})()`);
-		const listed = await app.evaluate<string[]>("[...document.querySelectorAll('main .font-mono.break-all')].map((el) => el.textContent.trim())");
 		const listShot = await shot("3-访问授权列表");
 
-		console.log(JSON.stringify({ escalation, command, stored, opened, listed }, null, 2));
+		console.log(JSON.stringify({ escalation, command, opened }, null, 2));
 		console.log("截图:", escalationShot, commandShot, listShot);
 		const checks: [string, boolean][] = [
-			["设置里留着旧版本记下的提权，卡片照样弹出来", escalation.detail === "echo hi"],
+			["允许列表里写着这条提权，卡片照样弹出来", escalation.detail === "echo hi"],
 			["提权卡片只有「拒绝」和「允许一次」", escalation.buttons.join("|") === "拒绝|允许一次"],
 			["提权卡片领头的是模型给的理由", escalation.reason.includes("../dist")],
 			["提权卡片没有横向溢出", escalation.overflowX === 0],
 			["普通命令的卡片三个答案都在", command.buttons.join("|") === "拒绝|以后不再问|允许一次"],
-			["设置读出来已经没有那条提权", !stored.includes(LEGACY) && stored.includes("npm test")],
 			["访问授权页打开了", opened],
-			["访问授权页只列出真正生效的那条", listed.join("|") === "npm test"],
 		];
 		console.log("\n=== 判定 ===");
 		let bad = 0;

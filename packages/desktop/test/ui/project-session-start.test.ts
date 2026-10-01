@@ -45,7 +45,7 @@ beforeEach(() => {
 		settings: { save: (settings: Settings) => { saves.push(settings); return saveSettings(settings); } },
 		sessions: {
 			create: async (cwd: string) => snapshot("new", cwd), capabilities: async () => null,
-			transcript: async (projectId: string, id: string) => snapshot(id, projectId),
+			transcript: async (id: string) => snapshot(id, useApp.getState().sessions.find((session) => session.id === id)?.cwd ?? "/app"),
 		},
 		subAgents: { list: async () => [] },
 		agent: { prompt: async (id: string) => snapshot(id, useApp.getState().workspace?.path ?? "").meta },

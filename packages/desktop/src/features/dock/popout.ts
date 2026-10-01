@@ -39,8 +39,6 @@ interface PanelWindowRef {
 }
 
 interface Home {
-	/** Kept for records written before panels had a single home; `"window"` meant the old window layer. */
-	dock?: "window" | "pane";
 	scope: string;
 	at: DropAt | null;
 	before?: unknown;
@@ -100,7 +98,7 @@ function isPopped(scope: string, kind: string): boolean {
 }
 
 function sessionOf(scope: string): string | null {
-	return !scope || scope === "@draft" || scope === "window" ? null : scope;
+	return !scope || scope === "@draft" ? null : scope;
 }
 
 /**
@@ -230,14 +228,10 @@ function dockIntoStored(kind: PanelKind, scope: string, home: Home | undefined):
  * brought on screen first; tidying up must never rearrange the workspace behind anyone's back, so
  * it writes the panel into that conversation's stored layout instead.
  */
-async function dockBack(kind: PanelKind, recorded: string, reveal: boolean): Promise<boolean> {
-	const home = homes.get(homeKey(recorded, kind));
-	// Records from before panels had one home named the old window layer, which no longer exists:
-	// they go to the conversation the person is working in.
-	const scope = recorded === "window" || home?.dock === "window" ? readScope() : recorded;
-	if (!scope) return false;
+async function dockBack(kind: PanelKind, scope: string, reveal: boolean): Promise<boolean> {
+	const home = homes.get(homeKey(scope, kind));
 	if (dockIntoLive(kind, scope, home)) {
-		homes.delete(homeKey(recorded, kind));
+		homes.delete(homeKey(scope, kind));
 		return true;
 	}
 	if (reveal && scope !== "@draft") {
@@ -246,13 +240,13 @@ async function dockBack(kind: PanelKind, recorded: string, reveal: boolean): Pro
 		for (let waited = 0; waited < 3_000; waited += 50) {
 			await new Promise((resolve) => setTimeout(resolve, 50));
 			if (dockIntoLive(kind, scope, home)) {
-				homes.delete(homeKey(recorded, kind));
+				homes.delete(homeKey(scope, kind));
 				return true;
 			}
 		}
 	}
 	dockIntoStored(kind, scope, home);
-	homes.delete(homeKey(recorded, kind));
+	homes.delete(homeKey(scope, kind));
 	return true;
 }
 
@@ -394,11 +388,8 @@ export function toggleScopedPanel(scope: string, kind: PanelKind, options: { com
  * 哪个会话，就照它放回那个会话的布局里——那个会话在屏上就回到原位，不在屏上就等它下次出现。
  *
  * 「人主动关掉那个面板窗口」不会走到这里：那一刻应用还活着，`apply` 当场就把记录清了。
- *
- * 旧记录指着已经不存在的窗口层时，要等工作区告诉我们人在哪一屏，所以那一种重试几次。
  */
-function adoptOrphans(deadline: number): void {
-	const pending: string[] = [];
+function adoptOrphans(): void {
 	for (const key of Object.keys(readHomes())) {
 		let cut = key.lastIndexOf(":");
 		// 后开的那几格自己带一个冒号（`terminal:<id>`），键是 `<屏>:<种类>:<id>`。
@@ -408,18 +399,8 @@ function adoptOrphans(deadline: number): void {
 		const scope = key.slice(0, cut);
 		const kind = key.slice(cut + 1) as PanelKind;
 		if (isPopped(scope, kind)) continue;
-		if ((scope === "window" || homes.get(key)?.dock === "window") && !readScope()) {
-			pending.push(key);
-			continue;
-		}
 		void dockBack(kind, scope, false);
 	}
-	if (pending.length === 0) return;
-	if (typeof window === "undefined" || Date.now() >= deadline) {
-		for (const key of pending) homes.delete(key);
-		return;
-	}
-	window.setTimeout(() => adoptOrphans(deadline), 400);
 }
 
 export function watchPanelWindows(): () => void {
@@ -430,7 +411,7 @@ export function watchPanelWindows(): () => void {
 		usePanelWindows.setState((state) => ({ panels, opening: state.opening.filter((pending) => !panels.some((panel) => panel.scope === pending.scope && panel.kind === pending.kind)) }));
 		if (first) {
 			first = false;
-			adoptOrphans(Date.now() + 6_000);
+			adoptOrphans();
 			return;
 		}
 		/*

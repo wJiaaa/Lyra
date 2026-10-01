@@ -88,6 +88,31 @@ export function intact(messages: Message[]): Message[] {
 	});
 }
 
+/**
+ * A running conversation's transcript as the main process has it, with what it cannot have yet put
+ * back from the screen.
+ *
+ * The live snapshot is the committed transcript. While a turn runs, two things exist only on
+ * screen: the reply still streaming (`pending`), and a message sent into the turn — 「现在就发」
+ * waits in the session's steering queue until the loop takes it at the next request. Replacing the
+ * screen with the snapshot dropped both: switch away and back, and the message just sent was gone,
+ * the reply with it, and nothing but "Thinking…" was left until the request ended.
+ *
+ * Only when the snapshot ends on a message the screen also has. A snapshot that has moved past the
+ * screen may already hold what would be kept — the message taken and committed, the reply finished
+ * — and the events on their way bring the screen up to it.
+ */
+export function withInFlight(screen: Message[], snapshot: Message[]): Message[] {
+	const last = snapshot.at(-1);
+	if (!last) return snapshot;
+	const at = screen.findLastIndex((message) => message.role === last.role && message.timestamp === last.timestamp);
+	if (at < 0) return snapshot;
+	const tail = screen
+		.slice(at + 1)
+		.filter((message) => message.role === "user" || (message.role === "assistant" && message.stopReason === "pending"));
+	return tail.length > 0 ? [...snapshot, ...tail] : snapshot;
+}
+
 /** 一条记录画得出来吗——门类认得出，正文走得通。 */
 function whole(message: Message | undefined): message is Message {
 	return Boolean(

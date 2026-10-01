@@ -75,7 +75,7 @@ async function seeded() {
 test("a reply's reasoning, its words and its tool call are three separate entries", async () => {
 	const h = await seeded();
 	try {
-		const entries = await readTrajectory(h.store, h.meta.projectId, h.meta.id);
+		const entries = await readTrajectory(h.store, h.meta.id);
 		const sources = entries.map((entry) => entry.source);
 
 		assert.deepEqual(sources, ["user", "system", "context", "thinking", "assistant", "tool-call", "tool-result"]);
@@ -91,7 +91,7 @@ test("a reply's reasoning, its words and its tool call are three separate entrie
 test("a command is carried out of the argument object, so it can be read as a command", async () => {
 	const h = await seeded();
 	try {
-		const entries = await readTrajectory(h.store, h.meta.projectId, h.meta.id);
+		const entries = await readTrajectory(h.store, h.meta.id);
 		const call = entries.find((entry) => entry.source === "tool-call");
 		assert.equal(call?.command, "npm run build");
 		assert.equal(call?.summary, "bash npm run build", "and it is what the row says, not a JSON blob");
@@ -104,7 +104,7 @@ test("a command is carried out of the argument object, so it can be read as a co
 test("a tool result can be traced back to the call it answers", async () => {
 	const h = await seeded();
 	try {
-		const entries = await readTrajectory(h.store, h.meta.projectId, h.meta.id);
+		const entries = await readTrajectory(h.store, h.meta.id);
 		const call = entries.find((entry) => entry.source === "tool-call");
 		const result = entries.find((entry) => entry.source === "tool-result");
 		assert.equal(call?.correlationId, "c1");
@@ -117,7 +117,7 @@ test("a tool result can be traced back to the call it answers", async () => {
 test("filtering by source and by words compose", async () => {
 	const h = await seeded();
 	try {
-		const entries = await readTrajectory(h.store, h.meta.projectId, h.meta.id);
+		const entries = await readTrajectory(h.store, h.meta.id);
 
 		assert.equal(filterTrajectory(entries, { sources: ["thinking"] }).length, 1);
 		assert.deepEqual(filterTrajectory(entries, { query: "cache miss" }).map(entry => entry.source), ["tool-call", "tool-result"], "paired call details are searchable too");
@@ -134,7 +134,7 @@ test("filtering by source and by words compose", async () => {
 test("the system prompt is kept whole, so it can be read back", async () => {
 	const h = await seeded();
 	try {
-		const entries = await readTrajectory(h.store, h.meta.projectId, h.meta.id);
+		const entries = await readTrajectory(h.store, h.meta.id);
 		const system = entries.find((entry) => entry.source === "system");
 		assert.equal(system?.detail, "You are Plume.");
 	} finally {
@@ -145,11 +145,11 @@ test("the system prompt is kept whole, so it can be read back", async () => {
 test("a voided tail does not appear in the trajectory", async () => {
 	const h = await seeded();
 	try {
-		const before = await readTrajectory(h.store, h.meta.projectId, h.meta.id);
+		const before = await readTrajectory(h.store, h.meta.id);
 		const cutoff = before[0].seq;
 
 		await h.store.append(h.meta, { type: "truncate", afterSeq: cutoff });
-		const after = await readTrajectory(h.store, h.meta.projectId, h.meta.id);
+		const after = await readTrajectory(h.store, h.meta.id);
 
 		assert.equal(after.length, 1, "only the first message survives");
 		assert.equal(after[0].source, "user");
@@ -161,22 +161,22 @@ test("a voided tail does not appear in the trajectory", async () => {
 test("forking copies the history up to a point and leaves the original alone", async () => {
 	const h = await seeded();
 	try {
-		const entries = await readTrajectory(h.store, h.meta.projectId, h.meta.id);
+		const entries = await readTrajectory(h.store, h.meta.id);
 		const atReply = entries.find((entry) => entry.source === "assistant");
 		assert.ok(atReply);
 
-		const fork = await forkSession(h.store, h.meta.projectId, h.meta.id, atReply.seq);
+		const fork = await forkSession(h.store, h.meta.id, atReply.seq);
 		assert.ok(fork);
 		assert.equal(fork.messages, 2, "the question and the reply, not the tool result after them");
 
-		const forked = await messagesUpTo(h.store, fork.meta.projectId, fork.meta.id, Number.POSITIVE_INFINITY);
+		const forked = await messagesUpTo(h.store, fork.meta.id, Number.POSITIVE_INFINITY);
 		assert.deepEqual(
 			forked.map((message) => message.role),
 			["user", "assistant"],
 		);
 
 		// The original still has everything.
-		const original = await messagesUpTo(h.store, h.meta.projectId, h.meta.id, Number.POSITIVE_INFINITY);
+		const original = await messagesUpTo(h.store, h.meta.id, Number.POSITIVE_INFINITY);
 		assert.equal(original.length, 3);
 	} finally {
 		await h.cleanup();
@@ -193,7 +193,7 @@ async function compacted() {
 	await log.commit(say("目标：修复登录"));
 	for (let i = 0; i < 24; i++) await log.commit({ ...assistant([{ type: "text", text: `Details ${i}: ${"implementation ".repeat(180)}` }]), timestamp: Date.now() });
 	await log.emit({ type: "compacted", before: 25, after: 6, summary: "之前修了登录的前半段。", kept: 4 });
-	const beforeBoundary = (await store.load(meta.projectId, meta.id))!.meta.seq - 1;
+	const beforeBoundary = (await store.load(meta.id))!.meta.seq - 1;
 	await new Promise((resolve) => setTimeout(resolve, 10));
 	await log.commit(say("继续"));
 	await log.commit({ ...assistant([{ type: "text", text: "好" }]), usage: { ...emptyUsage(), input: 2500 }, timestamp: Date.now() });
@@ -205,7 +205,7 @@ const fake: ProviderConfig = { id: "fake", name: "Fake", api: "openai-responses"
 const viewText = (messages: Message[]) => messages.flatMap((message) => message.content).map((block) => (block.type === "text" ? block.text : "")).join("\n");
 
 async function restoredView(store: SessionStore, meta: { projectId: string; id: string }) {
-	const loaded = await store.load(meta.projectId, meta.id);
+	const loaded = await store.load(meta.id);
 	assert.ok(loaded);
 	const log = new SessionLog(store, async () => {}, loaded.meta);
 	log.restore(loaded.messages, loaded.compaction);
@@ -216,7 +216,7 @@ test("a fork past a compaction carries the boundary, so the model sees what the 
 	// 只抄消息时分叉的模型视图展开回 27 条原文（估算两万多），计量却还报压缩后那条回复的 2,500。
 	const h = await compacted();
 	try {
-		const fork = await forkSession(h.store, h.meta.projectId, h.meta.id, h.meta.seq);
+		const fork = await forkSession(h.store, h.meta.id, h.meta.seq);
 		assert.ok(fork);
 		const original = await restoredView(h.store, h.meta);
 		const forked = await restoredView(h.store, fork.meta);
@@ -235,7 +235,7 @@ test("a fork past a compaction carries the boundary, so the model sees what the 
 test("a fork from before the compaction was written opens on the full history", async () => {
 	const h = await compacted();
 	try {
-		const fork = await forkSession(h.store, h.meta.projectId, h.meta.id, h.beforeBoundary);
+		const fork = await forkSession(h.store, h.meta.id, h.beforeBoundary);
 		assert.ok(fork);
 		const forked = await restoredView(h.store, fork.meta);
 		assert.equal(forked.loaded.compaction, null, "at that point nothing had been summarised yet");

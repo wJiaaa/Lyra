@@ -9,7 +9,7 @@
 import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
 import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
-import type { UserContent } from "./message.ts";
+import type { Message, UserContent } from "./message.ts";
 
 export type { RiskCode, RiskParams };
 
@@ -164,6 +164,14 @@ export interface ToolContext {
 		files: { path: string; content: string }[];
 		entry?: string;
 	}) => Promise<{ id: string; sessionId: string; title: string; entry: string; dir: string }>;
+	/**
+	 * Every message this session ever committed, truncated ones included — what `recall` searches.
+	 *
+	 * Provided by the host from the session's own store, so a host that keeps sessions somewhere
+	 * else (the `storage` seam) is the one read. Absent in a bare context, where `recall` falls back
+	 * to the default store on this disk.
+	 */
+	transcript?: () => Promise<Message[]>;
 	logger?: Logger;
 }
 

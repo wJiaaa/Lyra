@@ -5,12 +5,23 @@ import { plumeHome, readTrajectory, type SessionStorage } from "@plume/core";
 import { entryKey, SOURCE_LABEL, STATUS_LABEL } from "@plume/core/trajectory-view";
 import { grantArtifactRead } from "./readable-artifacts.ts";
 
+/**
+ * `jsonl` is the session's records exactly as stored, one per line — what `tail` and `jq` used to be
+ * pointed at when each session was its own file.
+ */
+export type TrajectoryExportFormat = "json" | "md" | "output" | "jsonl";
+
 /** Export only an authoritative session projection; IPC never supplies a file path or content. */
-export async function exportTrajectory(store: SessionStorage, projectId: string, sessionId: string, format: "json" | "md" | "output", selection?: { id?: string; correlationId?: string }, running = false): Promise<string> {
-	if (format !== "json" && format !== "md" && format !== "output") throw new Error("不支持的轨迹格式");
-	const meta = (await store.listSessions()).find(item => item.id === sessionId && item.projectId === projectId);
+export async function exportTrajectory(store: SessionStorage, sessionId: string, format: TrajectoryExportFormat, selection?: { id?: string; correlationId?: string }, running = false): Promise<string> {
+	if (format !== "json" && format !== "md" && format !== "output" && format !== "jsonl") throw new Error("不支持的轨迹格式");
+	const meta = await store.get(sessionId);
 	if (!meta) throw new Error("会话不存在");
-	const all = await readTrajectory(store, meta.projectId, meta.id, running);
+	if (format === "jsonl") {
+		const lines: string[] = [];
+		for await (const record of store.read(meta.id)) lines.push(JSON.stringify(record));
+		return writeExport("records.jsonl", lines.length ? `${lines.join("\n")}\n` : "");
+	}
+	const all = await readTrajectory(store, meta.id, running);
 	const entries = selection ? all.filter(entry => selection.id ? entryKey(entry) === selection.id : selection.correlationId && entry.correlationId === selection.correlationId) : all;
 	if (selection && !entries.length) throw new Error("这条记录尚未落盘或已被撤回");
 	if (format === "output") {
@@ -31,8 +42,12 @@ export async function exportTrajectory(store: SessionStorage, projectId: string,
 			return `## #${entry.seq} ${SOURCE_LABEL[entry.source]} · ${entry.summary}\n\n${entry.status ? STATUS_LABEL[entry.status] : ""} · ${new Date(entry.ts).toISOString()}${entry.durationMs === undefined ? "" : ` · ${entry.durationMs} ms`}\n\n${fence}text\n${content}\n${fence}\n\n${entry.metadata === undefined ? "" : `详情：\n\n${JSON.stringify(entry.metadata, null, 2)}`}`;
 		}),
 	].join("\n\n");
+	return writeExport(`trajectory.${format}`, text);
+}
+
+async function writeExport(name: string, text: string): Promise<string> {
 	const directory = await mkdtemp(join(tmpdir(), "plume-trajectory-"));
-	const path = join(directory, `trajectory.${format}`);
+	const path = join(directory, name);
 	await writeFile(path, text, { mode: 0o600 });
 	grantArtifactRead(path);
 	return path;

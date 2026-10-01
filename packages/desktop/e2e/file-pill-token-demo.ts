@@ -13,6 +13,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const PORT = 9488;
 const SESSION = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff";
@@ -25,8 +26,6 @@ async function seed(home: string): Promise<void> {
 	await writeFile(join(cwd, "README.md"), "# 演示工程\n");
 	await writeFile(join(cwd, LONG), "# issue\n");
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	const dir = join(home, "sessions", projectId);
-	await mkdir(dir, { recursive: true });
 
 	const now = Date.now();
 	const meta = {
@@ -50,7 +49,7 @@ async function seed(home: string): Promise<void> {
 		"",
 		"后面再跟一行普通文字，用来比对基线。",
 	].join("\n");
-	const lines = [
+	const records = [
 		{ seq: 1, ts: now, type: "meta", meta },
 		{ seq: 2, ts: now, type: "message", message: { role: "user", content: [{ type: "text", text: "给出文件链接" }], timestamp: now } },
 		{
@@ -70,7 +69,7 @@ async function seed(home: string): Promise<void> {
 		},
 		{ seq: 4, ts: now, type: "meta", meta: { ...meta, messageCount: 2 } },
 	];
-	await writeFile(join(dir, `${SESSION}.jsonl`), lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+	seedSessions(home, [{ meta, records }]);
 
 	const real = JSON.parse(await readFile(join(homedir(), ".plume", "settings.json"), "utf8"));
 	await writeFile(

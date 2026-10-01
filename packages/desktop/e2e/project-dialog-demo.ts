@@ -14,6 +14,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const PORT = 9591;
 const out = process.argv[2] ?? "/tmp/plume-project-demo";
@@ -24,15 +25,18 @@ const design = join(root, "design");
 const docs = join(root, "docs");
 
 async function seedSession(home: string, projectId: string, cwd: string, title: string): Promise<void> {
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	const at = Date.now() - 60_000;
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 	const meta = { id: projectId, title, cwd, projectId, projectName: title, createdAt: at, updatedAt: at, modelId: "", messageCount: 1, usage, seq: 2 };
-	await writeFile(
-		join(home, "sessions", projectId, `${projectId}.jsonl`),
-		`${JSON.stringify({ seq: 1, ts: at, type: "meta", meta })}\n` +
-			`${JSON.stringify({ seq: 2, ts: at, type: "message", message: { role: "user", content: [{ type: "text", text: "你好" }], timestamp: at } })}\n`,
-	);
+	seedSessions(home, [
+		{
+			meta,
+			records: [
+				{ seq: 1, ts: at, type: "meta", meta },
+				{ seq: 2, ts: at, type: "message", message: { role: "user", content: [{ type: "text", text: "你好" }], timestamp: at } },
+			],
+		},
+	]);
 }
 
 const app = await startApp({

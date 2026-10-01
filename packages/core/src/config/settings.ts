@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { McpServerConfig } from "../mcp/client.ts";
 import { EMPTY_HOOKS_CONFIG, normalizeHooksConfig, type HooksConfig } from "../hooks/config.ts";
 import { plumeHome } from "../session/store.ts";
-import type { ModelConfig, ProviderConfig, ThinkingLevel } from "../types.ts";
+import type { ProviderConfig, ThinkingLevel } from "../types.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { withoutBom } from "../utils/bom.ts";
 import { isPlaceholder, looksSecret } from "../mcp/placeholders.ts";
@@ -315,10 +315,9 @@ export interface Settings {
 	/**
 	 * 写进文件、但**没有任何代码读它**。
 	 *
-	 * 说清楚是因为它看起来像一个版本化迁移的入口，而这里没有版本化迁移：升级靠的是
-	 * `migrateAppearance`、`migrateSecrets` 这几张「认得旧值就换成新值」的
-	 * 表，各自独立、幂等，和这个数字无关。照着它写一个 `if (parsed.version < 2) …` 的人会得到
-	 * 一段永远不跑的代码——因为没有任何地方会把它写成 2，也没有任何地方比较过它。
+	 * 说清楚是因为它看起来像一个版本化迁移的入口，而这里没有版本化迁移，也没有任何认旧值的迁移表。
+	 * 照着它写一个 `if (parsed.version < 2) …` 的人会得到一段永远不跑的代码——因为没有任何地方会把
+	 * 它写成 2，也没有任何地方比较过它。
 	 *
 	 * 留着而不是删掉：它已经在每个用户的 `settings.json` 里了，`Settings` 的每个构造点都填了它，
 	 * 而多一个没人读的字段是无害的。真要上按版本迁移的那一天，第一步是让某处开始写它——在那之前
@@ -412,8 +411,6 @@ export interface Settings {
 	 */
 	denyCommandNetwork?: boolean;
 	thinking: ThinkingLevel;
-	/** Legacy total attempts, retained when reading older settings. Prefer retryPolicy. */
-	retryAttempts: number;
 	retryPolicy?: RetryPolicy;
 	/** Last level chosen above "off", restored when fast mode is switched back off. */
 	lastThinking?: ThinkingLevel;
@@ -476,13 +473,9 @@ export interface Settings {
 	 */
 	maxConcurrentSubAgents: number;
 	/**
-	 * Which model answers to `@compact`, `@fast`, `@deep` and `@review`.
-	 *
-	 * Lets a sub-agent definition name what it needs rather than a specific model — the definition
-	 * then works on a machine with a different set of providers, which is what makes one shareable
-	 * at all. Empty entries fall through to the session's own model.
+	 * Per-agent model and thinking overrides, by agent name. An entry named after a role (`compact`,
+	 * `fast`, `deep`, `review`) is also what `@compact` and friends resolve to — see `model-roles.ts`.
 	 */
-	modelRoles?: Partial<Record<"default" | "compact" | "fast" | "deep" | "review", string>>;
 	subAgentProfiles?: Record<string, SubAgentProfile>;
 	/**
 	 * Whether finished sessions may be read by a model to build project memory.
@@ -597,7 +590,6 @@ export const DEFAULT_SETTINGS: Settings = {
 	permissionMode: "auto",
 	thinking: "medium",
 	commitLanguage: "zh",
-	retryAttempts: 11,
 	retryPolicy: DEFAULT_RETRY_POLICY,
 	appearance: DEFAULT_APPEARANCE,
 	hooks: EMPTY_HOOKS_CONFIG,
@@ -609,7 +601,6 @@ export const DEFAULT_SETTINGS: Settings = {
 	autoSummarizeTitle: true,
 	hideEmptiedProjects: false,
 	maxConcurrentSubAgents: 4,
-	modelRoles: {},
 	/*
 	 * `memoryExtraction` is deliberately absent rather than `undefined`.
 	 *
@@ -661,10 +652,8 @@ function isSecretEnv(server: McpServerConfig, name: string): boolean {
  * of where the key is *stored* stops at this file rather than reaching every request builder and
  * settings pane. What comes off disk has an empty `apiKey`, and this fills it in.
  *
- * A key still sitting in `settings.json` is honoured rather than ignored — that is what every
- * install written by an earlier build looks like, and refusing it would log everyone out of their
- * model providers to fix a problem about writing them down. `saveSettings` moves it on the next
- * write; `migrateSecrets` moves it without waiting for one.
+ * A key typed into `settings.json` by hand is honoured rather than ignored; `saveSettings` moves it
+ * into the vault on the next write.
  */
 async function withKeys(settings: Settings): Promise<Settings> {
 	if (settings.providers.length === 0 && settings.mcpServers.length === 0) return settings;
@@ -737,9 +726,7 @@ export async function layerProjectSettings(
 /**
  * Settings exactly as written, with whatever `apiKey` the file happens to hold.
  *
- * Separate from `loadSettings` because the migration needs to see the plaintext that is still on
- * disk, and because `saveSettings` needs to compare against what was there without the vault's
- * answer masking it.
+ * Separate from `loadSettings` so the vault's answer is layered on in exactly one place.
  */
 async function readSettingsFile(): Promise<Settings> {
 	const path = settingsPath();
@@ -813,15 +800,6 @@ async function keepUnreadable(path: string): Promise<void> {
 }
 
 /**
- * 去掉旧版本让模型跟随目录的标记。现在目录只在导入和选中时填一次值，之后配置归用户；这些键留着
- * 只会让人以为它们还起作用。
- */
-function withoutCatalogLinks(model: ModelConfig): ModelConfig {
-	const { metadataSource: _source, overrides: _overrides, catalogRef: _ref, ...rest } = model as ModelConfig & Record<"metadataSource" | "overrides" | "catalogRef", unknown>;
-	return rest;
-}
-
-/**
  * A settings object as written, brought up to the shape the app expects.
  *
  * Split out of `readSettingsFile` so that every layer goes through it. A project's
@@ -830,17 +808,17 @@ function withoutCatalogLinks(model: ModelConfig): ModelConfig {
  * be kept in step with this one.
  */
 export function normalizeSettings(parsed: Partial<Settings>): Settings {
-		// Merge against defaults so a settings file written by an older build keeps working.
+		// Merge against defaults so a field the file does not mention takes its default.
 		return {
 			...DEFAULT_SETTINGS,
 			...parsed,
 			uiLocale: normalizeUiLocale(parsed.uiLocale),
-			retryPolicy: normalizeRetryPolicy(parsed.retryPolicy, parsed.retryAttempts),
+			retryPolicy: normalizeRetryPolicy(parsed.retryPolicy),
 			webAccess: { ...DEFAULT_SETTINGS.webAccess, ...parsed.webAccess },
 			editor: { ...DEFAULT_SETTINGS.editor, ...parsed.editor },
 			screenshot: { ...DEFAULT_SCREENSHOT_SETTINGS, ...parsed.screenshot },
 			personalization: { ...DEFAULT_SETTINGS.personalization, ...parsed.personalization },
-			appearance: migrateAppearance({ ...DEFAULT_APPEARANCE, ...parsed.appearance }),
+			appearance: { ...DEFAULT_APPEARANCE, ...parsed.appearance },
 			hooks: normalizeHooksConfig(parsed.hooks),
 			scheduledTasks: parsed.scheduledTasks ?? [],
 			disabledPlugins: parsed.disabledPlugins ?? [],
@@ -861,14 +839,6 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			 */
 			...(typeof parsed.memoryExtraction === "boolean" ? { memoryExtraction: parsed.memoryExtraction } : {}),
 			subAgentProfiles: normalizeSubAgentProfiles(parsed.subAgentProfiles),
-			modelRoles:
-				parsed.modelRoles && typeof parsed.modelRoles === "object"
-					? Object.fromEntries(
-							Object.entries(parsed.modelRoles as Record<string, unknown>).filter(
-								([key, value]) => ["default", "compact", "fast", "deep", "review"].includes(key) && typeof value === "string" && value,
-							),
-						)
-					: {},
 			/*
 			 * A missing list gets the default; an empty one is left empty.
 			 *
@@ -878,83 +848,15 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			 */
 			pluginRegistries: parsed.pluginRegistries ?? [DEFAULT_PLUGIN_REGISTRY],
 			skillRegistries: parsed.skillRegistries ?? [DEFAULT_SKILL_REGISTRY],
-			providers: (parsed.providers ?? []).map((provider) => ({ ...provider, models: provider.models.map(withoutCatalogLinks) })),
+			providers: parsed.providers ?? [],
 			// 只留 id→非空字符串那些行：这张表会被直接印到用量页上，一行 `undefined` 比没有那一行更糟。
 			providerNames: Object.fromEntries(
 				Object.entries(parsed.providerNames ?? {}).filter(([id, name]) => id && typeof name === "string" && name.trim()),
 			),
 			mcpServers: parsed.mcpServers ?? [],
 			projects: parsed.projects ?? [],
-			/*
-			 * Without the escalations an earlier version remembered.
-			 *
-			 * Its escalation card offered "stop asking" and wrote the answer here. An escalation is
-			 * granted for one call, and the gate consults nothing remembered for one, so such a line
-			 * grants nothing — kept, the settings page would list it as always allowed. The prefix is
-			 * the one `bash.ts` gives an escalation's subject.
-			 */
-			alwaysAllow: (Array.isArray(parsed.alwaysAllow) ? parsed.alwaysAllow : []).filter(
-				(subject) => typeof subject === "string" && !subject.startsWith("escalate:"),
-			),
+			alwaysAllow: (Array.isArray(parsed.alwaysAllow) ? parsed.alwaysAllow : []).filter((subject) => typeof subject === "string"),
 		};
-}
-
-/**
- * Font stacks that were once the default, and are no longer.
- *
- * Settings are written out in full, so every existing install has the old system stack recorded
- * as if it had been chosen deliberately — a new default would never reach anyone. Anything still
- * holding a value this list knows about is taken to have never made a choice, and moves on.
- * A stack the user actually typed is not in the list, and stays.
- */
-const SUPERSEDED_FONTS: Record<"uiFont" | "codeFont", string[]> = {
-	uiFont: [
-		'-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif',
-		'"Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
-		'"IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif',
-		'"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
-	],
-	codeFont: [
-		'ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace',
-		'"JetBrains Mono Variable", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "PingFang SC", monospace',
-	],
-};
-
-/** Foreground colours that were once the default; same reasoning as `SUPERSEDED_FONTS`. */
-const SUPERSEDED_FOREGROUNDS: Record<"lightForeground" | "darkForeground", string[]> = {
-	lightForeground: ["#1A1C1F", "#404040"],
-	darkForeground: ["#EDEDED", "#E5E5E5"],
-};
-
-/**
- * Settings that no longer exist, dropped rather than carried forever.
- *
- * The file is merged over the defaults and written back out in full, so a key nothing reads any
- * more still survives every save — and the next person to grep for it finds it live in real
- * settings files and has to work out whether it means anything. It does not.
- *
- * `translucentSidebar` turned the sidebar into macOS vibrancy. It was removed because a translucent
- * pane cannot be matched by anything opaque drawn on top of it: a pinned row has to hide the list
- * going under it, and no colour CSS can name is the colour of a pane showing the desktop through.
- * Every held row was a visible slab, and which shade of wrong depended on the wallpaper.
- *
- * `uiFontWeight` was a base weight the whole UI hierarchy was derived from. Weights are now fixed
- * at Tailwind's 400 / 500 / 600 / 700, so a stored value would mean nothing.
- *
- * `codeFontWeight` did the same for code. Code is now set at the body's 400.
- */
-const REMOVED_APPEARANCE = ["translucentSidebar", "uiFontWeight", "codeFontWeight"] as const;
-
-export function migrateAppearance(appearance: AppearanceSettings): AppearanceSettings {
-	const next = { ...appearance };
-	for (const key of ["uiFont", "codeFont"] as const) {
-		if (SUPERSEDED_FONTS[key].includes(next[key])) next[key] = DEFAULT_APPEARANCE[key];
-	}
-	for (const key of ["lightForeground", "darkForeground"] as const) {
-		if (SUPERSEDED_FOREGROUNDS[key].includes(next[key].toUpperCase())) next[key] = DEFAULT_APPEARANCE[key];
-	}
-	for (const key of REMOVED_APPEARANCE) delete (next as Record<string, unknown>)[key];
-	return next;
 }
 
 /**
@@ -1044,29 +946,6 @@ async function writeSettings(settings: Settings): Promise<void> {
 	 * for no reason other than that nothing ever set it.
 	 */
 	await writeFileAtomic(settingsPath(), JSON.stringify(scrubbed, null, 2), { mode: 0o600 });
-}
-
-/**
- * Move any key still written in `settings.json` into the vault, once.
- *
- * `saveSettings` does this too, but only when something is saved — and somebody who never opens
- * the settings page would keep their keys in a world-readable file indefinitely. Called at
- * startup, where it is a no-op on every launch after the first.
- *
- * Returns how many were moved, which the caller logs and the tests assert on.
- */
-export async function migrateSecrets(): Promise<number> {
-	const onDisk = await readSettingsFile();
-	const plaintext =
-		onDisk.providers.filter((provider) => provider.apiKey).length +
-		onDisk.mcpServers
-			.flatMap((server) => Object.entries(server.env ?? {}).map(([name, value]) => ({ server, name, value })))
-			.filter(({ server, name, value }) => value && !isPlaceholder(value) && isSecretEnv(server, name)).length;
-	if (plaintext === 0) return 0;
-	// Through `withKeys` so a provider already in the vault is not overwritten by the stale copy
-	// the file still carries.
-	await saveSettings(await withKeys(onDisk));
-	return plaintext;
 }
 
 /*

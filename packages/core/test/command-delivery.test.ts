@@ -54,6 +54,9 @@ const STORE = (id: string) =>
 		listSessions: async () => [],
 		messages: async () => [],
 		append: async (meta: unknown) => meta,
+		beginPartial: async () => {},
+		appendPartial: async () => {},
+		dropPartial: async () => {},
 	}) as never;
 
 let root: string;

@@ -12,6 +12,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { startApp, type RunningApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume输入框间距测试");
@@ -49,7 +50,6 @@ async function seed(home: string): Promise<void> {
 		}),
 	);
 	const projectId = createHash("sha256").update(project).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	const meta = {
 		id: "composer-space",
 		title: "输入框间距",
@@ -63,23 +63,22 @@ async function seed(home: string): Promise<void> {
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 		seq: 3,
 	};
-	const lines = [
-		JSON.stringify({ seq: 1, ts: 1, type: "meta", meta }),
-		JSON.stringify({
+	const records = [
+		{ seq: 1, ts: 1, type: "meta", meta },
+		{
 			seq: 2,
 			ts: 2,
 			type: "message",
 			message: { role: "user", content: [{ type: "text", text: "对一下三个输入框的高度和底边" }], timestamp: 2 },
-		}),
-		JSON.stringify({
+		},
+		{
 			seq: 3,
 			ts: 3,
 			type: "message",
 			message: { role: "assistant", content: [{ type: "text", text: "主输入框、侧边聊天、子 Agent 应当同高，底边落在同一条窗线上。" }], timestamp: 3 },
-		}),
+		},
 	];
-	await writeFile(join(home, "sessions", projectId, "composer-space.jsonl"), `${lines.join("\n")}\n`);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta], null, 2));
+	seedSessions(home, [{ meta, records }]);
 }
 
 let app: RunningApp | undefined;

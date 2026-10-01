@@ -13,6 +13,7 @@ import { join } from "node:path";
 
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume用户消息撤回测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
@@ -80,16 +81,16 @@ try {
 				usage,
 				seq: messages.length + 1,
 			};
-			await mkdir(join(home, "sessions", projectId), { recursive: true });
-			await writeFile(
-				join(home, "sessions", projectId, `${SESSION}.jsonl`),
-				[
-					JSON.stringify({ type: "meta", meta, seq: 0, ts: 1 }),
-					...messages.map((message, i) => JSON.stringify({ type: "message", message, seq: i + 1, ts: 1 })),
-					JSON.stringify({ type: "meta", meta, seq: meta.seq, ts: 2 }),
-				].join("\n") + "\n",
-			);
-			await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta]));
+			seedSessions(home, [
+				{
+					meta,
+					records: [
+						{ type: "meta", meta, seq: 0, ts: 1 },
+						...messages.map((message, i) => ({ type: "message", message, seq: i + 1, ts: 1 })),
+						{ type: "meta", meta, seq: meta.seq, ts: 2 },
+					],
+				},
+			]);
 			await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 860, x: 40, y: 40 }));
 			await writeFile(
 				join(home, "settings.json"),

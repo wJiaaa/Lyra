@@ -162,8 +162,7 @@ test("opening a conversation shows its transcript", async () => {
 });
 
 test("a rename on the desktop reaches the browser without a reload", async () => {
-	const projectId = await app.evaluate<string>(`window.plume.sessions.list().then((all) => all.find((s) => s.id === "qa-long").projectId)`);
-	await app.evaluate(`window.plume.sessions.rename(${JSON.stringify(projectId)}, "qa-long", "桌面端改的名字")`);
+	await app.evaluate(`window.plume.sessions.rename("qa-long", "桌面端改的名字")`);
 	await until(text, (t) => t.includes("桌面端改的名字"), "改名没有推到浏览器");
 });
 

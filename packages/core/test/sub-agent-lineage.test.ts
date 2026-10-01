@@ -41,7 +41,7 @@ const PROVIDER: ProviderConfig = {
 	models: [MODEL],
 };
 
-const SETTINGS = { thinking: "off", retryAttempts: 0, maxConcurrentSubAgents: 4 } as unknown as Settings;
+const SETTINGS = { thinking: "off", maxConcurrentSubAgents: 4 } as unknown as Settings;
 
 /** 一条带账单的回复：provider 在真实运行里就是这样把 usage 填好再交出来的。 */
 function priced(text: string, input: number, output: number, cost: number): AssistantMessage {

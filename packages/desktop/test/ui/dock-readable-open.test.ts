@@ -119,46 +119,42 @@ test("a screen takes a panel back even with no room, using its remembered layout
  *
  * `insert` against a neighbour that is not in the tree hands back a tree *without* the pane, and
  * the home record is deleted on the way out — so adopting that tree loses the panel for good.
- * That is the failure these two exist for, and it survives the change of policy: what used to be
+ * That is the failure this one exists for, and it survives the change of policy: what used to be
  * "refuse, keep the record" is now "land it on the root edge", but the pane must be in the tree
  * either way before anything is deleted.
  */
-// `window` is a record from before panels had one home: it returns to the screen the person is in.
-for (const dock of ["window", "pane"] as const) {
-	test(`${dock} return never deletes a home without actually placing the pane`, async () => {
-		reset();
-		const scope = dock === "window" ? "window" : "width";
-		let restore = (_input: { kind: string; scope: string }) => {};
-		const closed: unknown[] = [];
-		Reflect.set(window, "plume", { windows: {
-			list: async () => ({ panels: [{ kind: "file", scope }, { kind: "files", scope }] }),
-			onChanged: () => () => {},
-			onRestorePanel: (listener: typeof restore) => { restore = listener; return () => {}; },
-			closePanel: async (input: unknown) => { closed.push(input); return { ok: true }; },
-		} });
-		const rest = insert(defaultTree(), "files", { kind: "conversation", side: "right" });
-		const at = { kind: "files", side: "bottom" } as const;
-		const home = { dock, scope, at, before: insert(rest, "file", at), rest };
-		window.localStorage.setItem("dw:homes", JSON.stringify({ [`${scope}:file`]: home }));
-		// Either way the pane lands in the screen `width`: its own, or the one the person is in.
-		const resize = (width: number, height: number) => usePaneDock.getState().rememberSize("width", { width, height });
-		const current = () => usePaneDock.getState().tree("width");
-		usePaneDock.setState({ trees: { width: rest } });
-		resize(528, 330);
-		const stop = watchPanelWindows();
-		try {
-			await settled();
-			restore({ kind: "file", scope });
-			await settled();
-			// The anchor is gone, so the remembered edge cannot be used — it lands anyway.
-			assert.equal(has(current(), "file"), true, "a vanished anchor falls back to an edge that exists");
-			assert.equal(closed.length, 1, "the window closes only because the pane really is home");
-			assert.equal(JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}")[`${scope}:file`], undefined);
-			resize(900, 800);
-			assert.equal(has(current(), "file"), true, "and it stays there once there is room");
-		} finally { stop(); }
-	});
-}
+test("a return never deletes a home without actually placing the pane", async () => {
+	reset();
+	const scope = "width";
+	let restore = (_input: { kind: string; scope: string }) => {};
+	const closed: unknown[] = [];
+	Reflect.set(window, "plume", { windows: {
+		list: async () => ({ panels: [{ kind: "file", scope }, { kind: "files", scope }] }),
+		onChanged: () => () => {},
+		onRestorePanel: (listener: typeof restore) => { restore = listener; return () => {}; },
+		closePanel: async (input: unknown) => { closed.push(input); return { ok: true }; },
+	} });
+	const rest = insert(defaultTree(), "files", { kind: "conversation", side: "right" });
+	const at = { kind: "files", side: "bottom" } as const;
+	const home = { scope, at, before: insert(rest, "file", at), rest };
+	window.localStorage.setItem("dw:homes", JSON.stringify({ [`${scope}:file`]: home }));
+	const resize = (width: number, height: number) => usePaneDock.getState().rememberSize("width", { width, height });
+	const current = () => usePaneDock.getState().tree("width");
+	usePaneDock.setState({ trees: { width: rest } });
+	resize(528, 330);
+	const stop = watchPanelWindows();
+	try {
+		await settled();
+		restore({ kind: "file", scope });
+		await settled();
+		// The anchor is gone, so the remembered edge cannot be used — it lands anyway.
+		assert.equal(has(current(), "file"), true, "a vanished anchor falls back to an edge that exists");
+		assert.equal(closed.length, 1, "the window closes only because the pane really is home");
+		assert.equal(JSON.parse(window.localStorage.getItem("dw:homes") ?? "{}")[`${scope}:file`], undefined);
+		resize(900, 800);
+		assert.equal(has(current(), "file"), true, "and it stays there once there is room");
+	} finally { stop(); }
+});
 
 /*
  * Left detached at quit, adopted back on launch — into the dock, not into a new window.

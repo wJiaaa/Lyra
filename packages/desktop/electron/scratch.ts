@@ -17,8 +17,7 @@
  * from remote input, so every character outside a safe set is replaced rather than trusted.
  */
 
-import { existsSync } from "node:fs";
-import { mkdir, readdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { plumeHome, within } from "@plume/core";
 
@@ -82,18 +81,14 @@ function workspacesRoot(): string {
 }
 
 /**
- * Every directory these conversations have ever lived under, newest first.
+ * The directories the window treats as the app's own working space rather than a project.
  *
- * Sessions are filed by a hash of their working directory and each one records the path it was
- * created under, so moving the directory does not move them. The sidebar recognises these sessions
- * by path — drop an old entry and every review anyone had already opened reappears as a project
- * called `owner-repo-6381`, sitting among their real work.
- *
- * So the list only grows. `pr/` was the first release, `scratch/` the second (see `workspacesRoot`
- * for why it could not stay), and both stay here forever to keep old conversations recognisable.
+ * `workspaces/` is where project-less conversations run. `scratch/` is `core`'s: the throwaway
+ * files it tells the model to write live there, and a chat that shows or links one of them has to be
+ * able to open it — so it is readable through the same gate, even though no session runs in it.
  */
 export function scratchRoots(): string[] {
-	return [workspacesRoot(), join(plumeHome(), "scratch"), join(plumeHome(), "pr")];
+	return [workspacesRoot(), join(plumeHome(), "scratch")];
 }
 
 /** The working directory for one pull request, created if it is not there yet. */
@@ -117,52 +112,11 @@ export async function generalScratchDir(): Promise<string> {
 }
 
 /**
- * Anything a session id could look like, so a rescue can tell the two kinds of directory apart.
- *
- * `core` names its throwaway directories after the conversation that made them — a UUID. Ours are
- * named `general` or `owner-repo-6381`. Nothing else distinguishes them, since for one release
- * they shared a parent.
- */
-const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Move whatever is left of the old arrangement into `workspaces/`, once, before anything sweeps.
- *
- * Only reaches directories that are ours by name: a UUID belongs to `core`'s own housekeeping and
- * is left exactly where it is. A destination that already exists is left alone too — the new
- * location wins, because it is the one that has not been being deleted.
- *
- * Most people will have nothing to rescue: the sweep ran on every launch, so these directories
- * were empty by the next morning. It matters for the launch right after the last session someone
- * ran — the checkout they made to answer a review, still sitting there, one startup away from
- * being deleted for the last time.
- *
- * Returns what it moved, for the log.
- */
-export async function rescueLegacyWorkspaces(): Promise<string[]> {
-	const moved: string[] = [];
-	for (const legacy of [join(plumeHome(), "scratch"), join(plumeHome(), "pr")]) {
-		const entries = await readdir(legacy, { withFileTypes: true }).catch(() => []);
-		for (const entry of entries) {
-			if (!entry.isDirectory() || SESSION_ID.test(entry.name)) continue;
-			const to = join(workspacesRoot(), entry.name);
-			if (existsSync(to)) continue;
-			await mkdir(workspacesRoot(), { recursive: true });
-			await rename(join(legacy, entry.name), to).catch(() => {});
-			if (existsSync(to)) moved.push(entry.name);
-		}
-	}
-	return moved;
-}
-
-/**
  * Put a project-less conversation's directory back if it is missing, and refuse anything else.
  *
- * Two ways it goes missing. Every launch before this fix swept them, so anyone upgrading has
- * sessions whose recorded `cwd` no longer exists; and a directory under the app's own home is
- * something a person can delete without thinking of it as deleting a conversation. Either way the
- * session is still in the log and still opens — it just has nowhere to run, and every tool in it
- * fails on a working directory that is not there.
+ * A directory under the app's own home is something a person can delete without thinking of it as
+ * deleting a conversation. The session is still in the log and still opens — it just has nowhere to
+ * run, and every tool in it fails on a working directory that is not there.
  *
  * Guarded by the roots rather than trusting the caller: this creates directories from a path that
  * came out of a stored session record, and the one thing it must never do is create one somewhere

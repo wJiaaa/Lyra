@@ -140,7 +140,7 @@ function harness(agents: AgentDefinition[] = [GENERAL, EXPLORE]): Harness {
 				{
 					sessionId: "s1",
 					cwd: "/tmp",
-					settings: { thinking: "off", retryAttempts: 0 } as unknown as Settings,
+					settings: { thinking: "off" } as unknown as Settings,
 					tools: [read, todoTool as unknown as Tool, peek],
 					skills: [],
 					agents,
@@ -407,7 +407,7 @@ test("resuming is refused, with a sentence to act on, when it cannot work", asyn
 		{
 			sessionId: "s2",
 			cwd: "/tmp",
-			settings: { thinking: "off", retryAttempts: 0 } as unknown as Settings,
+			settings: { thinking: "off" } as unknown as Settings,
 			tools: [read],
 			skills: [],
 			agents: [GENERAL],
@@ -522,7 +522,7 @@ test("resumed on a different model, the old provider's handles are stripped firs
 	const run = (input: { prompt: string; resume?: string }, model: ModelConfig) =>
 		runSubAgent(
 			{
-				sessionId: "s1", cwd: "/tmp", settings: { thinking: "off", retryAttempts: 0 } as unknown as Settings,
+				sessionId: "s1", cwd: "/tmp", settings: { thinking: "off" } as unknown as Settings,
 				tools: [read], skills: [], agents: [GENERAL], registry,
 				requestApproval: async () => "once",
 				emit: async () => {},

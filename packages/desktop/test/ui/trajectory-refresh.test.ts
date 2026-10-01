@@ -18,7 +18,7 @@ test("durable events during a read are drained once; old-session responses canno
 	const meta: SessionMeta = { id: "trace-refresh-a", projectId: "p", projectName: "QA", cwd: "/tmp", title: "A", createdAt: 1, updatedAt: 1, messageCount: 1, seq: 1, modelId: "qa", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
 	const previous = Object.getOwnPropertyDescriptor(window, "plume");
 	Object.defineProperty(window, "plume", { configurable: true, value: {
-		sessions: { trajectoryChanges: (_project: string, id: string) => new Promise<TrajectoryChanges>((resolve, reject) => requests.push({ id, resolve, reject })) },
+		sessions: { trajectoryChanges: (id: string) => new Promise<TrajectoryChanges>((resolve, reject) => requests.push({ id, resolve, reject })) },
 		agent: { onEvent: (listener: (payload: { sessionId: string; event: AgentEvent }) => void) => { listeners.add(listener); return () => listeners.delete(listener); } },
 	} });
 	useApp.setState({ meta });
@@ -56,7 +56,7 @@ test("reconnect and foreground recovery share the incremental read drain and rem
 	const previousVisibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
 	Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
 	Object.defineProperty(window, "plume", { configurable: true, value: {
-		sessions: { trajectoryChanges: (_project: string, _id: string, cursor?: string) => new Promise<TrajectoryChanges>(resolve => requests.push({ cursor, resolve })) },
+		sessions: { trajectoryChanges: (_id: string, cursor?: string) => new Promise<TrajectoryChanges>(resolve => requests.push({ cursor, resolve })) },
 		agent: { onEvent: (listener: (payload: { sessionId: string; event: AgentEvent }) => void) => { listeners.add(listener); return () => listeners.delete(listener); } },
 	} });
 	useApp.setState({ meta });

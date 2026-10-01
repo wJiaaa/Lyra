@@ -18,6 +18,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 let app: RunningApp;
 
@@ -33,7 +34,6 @@ async function seed(home: string): Promise<void> {
 	}));
 
 	const projectId = createHash("sha256").update(root).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	const meta = {
 		id: "colour", title: "代码块", cwd: root, projectId, projectName: "project",
 		createdAt: 1, updatedAt: 2, modelId: "none", messageCount: 2,
@@ -47,13 +47,12 @@ async function seed(home: string): Promise<void> {
 		'if [ -f x ]; then echo "ok $NAME" | tee log && exit 0; fi',
 		"```",
 	].join("\n");
-	const lines = [
-		JSON.stringify({ seq: 1, ts: 1, type: "meta", meta }),
-		JSON.stringify({ seq: 2, ts: 2, type: "message", message: { role: "user", content: [{ type: "text", text: "探活" }], timestamp: 2 } }),
-		JSON.stringify({ seq: 3, ts: 3, type: "message", message: { role: "assistant", content: [{ type: "text", text: `好的：\n\n${shell}\n\n完成。` }], timestamp: 3 } }),
+	const records = [
+		{ seq: 1, ts: 1, type: "meta", meta },
+		{ seq: 2, ts: 2, type: "message", message: { role: "user", content: [{ type: "text", text: "探活" }], timestamp: 2 } },
+		{ seq: 3, ts: 3, type: "message", message: { role: "assistant", content: [{ type: "text", text: `好的：\n\n${shell}\n\n完成。` }], timestamp: 3 } },
 	];
-	await writeFile(join(home, "sessions", projectId, "colour.jsonl"), `${lines.join("\n")}\n`);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta], null, 2));
+	seedSessions(home, [{ meta, records }]);
 }
 
 before(async () => {

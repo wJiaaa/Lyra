@@ -27,6 +27,7 @@ import { promisify } from "node:util";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { landsOn } from "./lands-on.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const PORT = 9771;
 const OUT = join(homedir(), "Desktop", "分屏草稿测试");
@@ -89,7 +90,7 @@ function gitEnv(): NodeJS.ProcessEnv {
 
 async function seed(home: string, modelPort: number): Promise<void> {
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
-	const metas = [];
+	const sessions = [];
 	const projects = [];
 	for (const [index, one] of [A, B].entries()) {
 		const cwd = join(home, one.project);
@@ -109,19 +110,16 @@ async function seed(home: string, modelPort: number): Promise<void> {
 			{ role: "assistant", content: [{ type: "text", text: one.answer }], api: "anthropic-messages", provider: "qa", model: "model", usage, stopReason: "stop", timestamp: at + 1 },
 		];
 		const meta = { id: one.id, title: one.title, projectId, projectName: one.project, cwd, createdAt: at, updatedAt: at + 1, modelId: "qa/model", messageCount: 2, usage, seq: 4 };
-		metas.push(meta);
-		await mkdir(join(home, "sessions", projectId), { recursive: true });
-		// Outer seq starts at 1: a record at 0 is read past and the session never reaches the sidebar.
-		await writeFile(
-			join(home, "sessions", projectId, `${one.id}.jsonl`),
-			[
-				JSON.stringify({ seq: 1, ts: at, type: "meta", meta: { ...meta, seq: 0 } }),
-				...messages.map((message, i) => JSON.stringify({ seq: i + 2, ts: at, type: "message", message })),
-				JSON.stringify({ seq: 4, ts: at + 1, type: "meta", meta }),
-			].join("\n") + "\n",
-		);
+		sessions.push({
+			meta,
+			records: [
+				{ seq: 1, ts: at, type: "meta", meta: { ...meta, seq: 0 } },
+				...messages.map((message, i) => ({ seq: i + 2, ts: at, type: "message", message })),
+				{ seq: 4, ts: at + 1, type: "meta", meta },
+			],
+		});
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900, x: 40, y: 40 }));
 	await writeFile(
 		join(home, "settings.json"),

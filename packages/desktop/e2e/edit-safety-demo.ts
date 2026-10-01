@@ -7,6 +7,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { driver, encode, frameGrabber, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume编辑工具测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-");
@@ -75,13 +76,11 @@ try {
 		const projectId = createHash("sha256").update(project).digest("hex").slice(0, 16);
 		const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 		const meta = { id: session, title: "编辑保护与撤销", cwd: project, projectId, projectName: "编辑验证", createdAt: 1, updatedAt: 3, modelId: "qa/model", messageCount: 2, seq: 3, usage };
-		const dir = join(home, "sessions", projectId); await mkdir(dir, { recursive: true });
-		await writeFile(join(dir, `${session}.jsonl`), [
+		seedSessions(home, [{ meta, records: [
 			{ type: "meta", meta, seq: 1, ts: 1 },
 			{ type: "message", seq: 2, ts: 2, message: { role: "user", content: [{ type: "text", text: "准备验证文件编辑。" }], timestamp: 2 } },
 			{ type: "message", seq: 3, ts: 3, message: { role: "assistant", content: [{ type: "text", text: "可以开始。" }], timestamp: 3, usage, api: "anthropic-messages", provider: "qa", model: "model", stopReason: "stop" } },
-		].map((record) => JSON.stringify(record)).join("\n") + "\n");
-		await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta]));
+		] }]);
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1200, height: 850 }));
 		await writeFile(join(home, "settings.json"), JSON.stringify({
 			providers: [{ id: "qa", name: "本地验证模型", api: "anthropic-messages", baseUrl: `http://127.0.0.1:${address.port}`, apiKey: "test", enabled: true,

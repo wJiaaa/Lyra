@@ -12,6 +12,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 const out = process.argv[2] ?? join(process.env.HOME ?? "/tmp", "Desktop", "plume-设置改动");
 const PORT = 9495;
@@ -46,23 +47,37 @@ async function seed(home: string): Promise<void> {
 
 /** 九十天的假账，好让使用统计那一页有东西可画。跟对齐探针里那份是同一套。 */
 async function seedUsage(home: string): Promise<void> {
-	const dir = join(home, "sessions", "probe");
-	await mkdir(dir, { recursive: true });
 	const day = 24 * 60 * 60 * 1000;
-	const lines: string[] = [];
+	const records: FixtureRecord[] = [];
 	for (let back = 0; back < 90; back++) {
 		const at = Date.now() - back * day;
 		const scale = 1 + back * 3;
 		for (const [provider, model] of [["relay", "gemini-3.8-flash"], ["fast", "grok-4.6"]] as const) {
-			lines.push(
-				JSON.stringify({
+			records.push(
+				{
+					ts: at,
 					type: "message",
 					message: { role: "assistant", timestamp: at, provider, model, usage: { input: 1200 * scale, output: 320 * scale, cacheRead: 8000 * scale, cacheWrite: 0, cost: 0.004 * scale } },
-				}),
+				},
 			);
 		}
 	}
-	await writeFile(join(dir, "probe.jsonl"), `${lines.join("\n")}\n`);
+	seedSessions(home, [{
+		meta: {
+			id: "probe",
+			title: "probe",
+			cwd: join(home, "proj"),
+			projectId: "probe",
+			projectName: "proj",
+			createdAt: Date.now() - 90 * day,
+			updatedAt: Date.now(),
+			modelId: "relay/gemini-3.8-flash",
+			messageCount: records.length,
+			seq: 0,
+			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+		},
+		records,
+	}]);
 }
 
 const app = await startApp({ port: PORT, seed });

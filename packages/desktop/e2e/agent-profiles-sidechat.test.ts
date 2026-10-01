@@ -10,6 +10,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { named } from "./named.ts";
+import { fixtureStore, seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -49,14 +50,15 @@ async function seed(home: string) {
 	if (savedProfiles) settings.subAgentProfiles = savedProfiles;
 	await writeFile(path, JSON.stringify(settings));
 	// Real session logs with controlled data, not a substituted renderer or screenshot mockup.
-	const metas = JSON.parse(await readFile(join(home, "sessions", "index.json"), "utf8"));
-	const meta = metas.find((entry: { id: string }) => entry.id === "qa-long");
-	const log = join(home, "sessions", meta.projectId, "qa-long.jsonl");
-	let raw = await readFile(log, "utf8");
-	raw = raw.replace("qa-long 第 1 个问题：", "EARLY_MAIN_DECISION=使用索引作为基准。qa-long 第 1 个问题：");
-	const longTool = { role: "toolResult", toolName: "read", toolCallId: "old-read", content: [{ type: "text", text: "long output ".repeat(6000) + "TOOL_TAIL_VALUE=末尾证据已保留" }], isError: false, timestamp: 3000 };
-	raw += JSON.stringify({ type: "message", message: longTool, seq: 300, ts: 3000 }) + "\n";
-	await writeFile(log, raw);
+	const store = fixtureStore(home);
+	const meta = (await store.get("qa-long"))!;
+	const records: FixtureRecord[] = [];
+	for await (const record of store.read("qa-long")) records.push(record);
+	store.close();
+	const edited: FixtureRecord[] = JSON.parse(JSON.stringify(records).replace("qa-long 第 1 个问题：", "EARLY_MAIN_DECISION=使用索引作为基准。qa-long 第 1 个问题："));
+	const longTool = { role: "toolResult", toolName: "read", toolCallId: "old-read", content: [{ type: "text", text: "long output ".repeat(6000) + "TOOL_TAIL_VALUE=末尾证据已保留" }], isError: false, timestamp: 3000 } as const;
+	edited.push({ type: "message", message: longTool, ts: 3000 });
+	seedSessions(home, [{ meta, records: edited }]);
 	await mkdir(join(home, "sidechats"), { recursive: true });
 	const historical = { messages: [{ role: "user", synthetic: true, timestamp: 1, content: [{ type: "text", text: "Legacy hidden main snapshot" }] }, { role: "user", timestamp: 2, content: [{ type: "text", text: "以前的侧聊问题" }] }, { role: "assistant", timestamp: 3, api: "anthropic-messages", provider: "qa", model: "model", content: [{ type: "text", text: "以前的侧聊回答" }], usage: meta.usage, stopReason: "stop" }] };
 	await writeFile(join(home, "sidechats", "qa-long.json"), savedSide || JSON.stringify(historical));
@@ -317,7 +319,6 @@ test("sidechat restores old answers, queries early history and full tool tails, 
 
 test("@ agents are selectable and @compact executes real compaction with the configured model", async (t) => {
 	const composer = '[data-dock-pane="conversation"] textarea';
-	// `RENAMED_AGENTS` 把 `fast`/`deep` 换成了 `simple`/`reason`，内置名单里已经没有旧名。
 	for (const name of ["simple", "reason"]) {
 		await click(composer); await app.send("Input.insertText", { text: "@" + name });
 		await until(`document.querySelector('[data-mention-kind="subagent"][data-mention-title="${name}"]')?.checkVisibility()`);

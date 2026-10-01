@@ -80,7 +80,7 @@ async function contextGivenTo(settings: Partial<Settings>): Promise<ToolContext>
 		{
 			sessionId: "s1",
 			cwd: "/tmp",
-			settings: { thinking: "off", retryAttempts: 0, hooks: [], ...settings } as unknown as Settings,
+			settings: { thinking: "off", hooks: [], ...settings } as unknown as Settings,
 			tools: [probe],
 			skills: [],
 			agents: [],
@@ -148,7 +148,7 @@ test("configured hooks see a delegated tool call", async () => {
 		{
 			sessionId: "s1",
 			cwd: "/tmp",
-			settings: { thinking: "off", retryAttempts: 0, hooks: [] } as unknown as Settings,
+			settings: { thinking: "off", hooks: [] } as unknown as Settings,
 			tools: [probe],
 			skills: [],
 			agents: [],

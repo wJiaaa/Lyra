@@ -13,6 +13,7 @@ import { join } from "node:path";
 
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume表格换行图标测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
@@ -111,7 +112,6 @@ async function seed(home: string): Promise<void> {
 		}),
 	);
 	const projectId = createHash("sha256").update(project).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	const meta = {
 		id: "table-wrap",
 		title: "未决事项表",
@@ -125,13 +125,12 @@ async function seed(home: string): Promise<void> {
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 		seq: 3,
 	};
-	const lines = [
-		JSON.stringify({ seq: 1, ts: 1, type: "meta", meta }),
-		JSON.stringify({ seq: 2, ts: 2, type: "message", message: { role: "user", content: [{ type: "text", text: "未决事项列一下" }], timestamp: 2 } }),
-		JSON.stringify({ seq: 3, ts: 3, type: "message", message: { role: "assistant", content: [{ type: "text", text: TABLE }], timestamp: 3 } }),
+	const records = [
+		{ seq: 1, ts: 1, type: "meta", meta },
+		{ seq: 2, ts: 2, type: "message", message: { role: "user", content: [{ type: "text", text: "未决事项列一下" }], timestamp: 2 } },
+		{ seq: 3, ts: 3, type: "message", message: { role: "assistant", content: [{ type: "text", text: TABLE }], timestamp: 3 } },
 	];
-	await writeFile(join(home, "sessions", projectId, "table-wrap.jsonl"), `${lines.join("\n")}\n`);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta], null, 2));
+	seedSessions(home, [{ meta, records }]);
 }
 
 let app: RunningApp | undefined;

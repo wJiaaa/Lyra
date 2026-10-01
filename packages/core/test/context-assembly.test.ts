@@ -147,7 +147,7 @@ test("runtime statistics reuse filtered requests and recorded sources through re
 		assert.ok(detail.sources?.some(section => section.source === "extension"));
 		await writeFile(join(root, "AGENTS.md"), "RULES_AFTER".repeat(100));
 		assert.deepEqual(await session.contextBreakdown(), detail);
-		const loaded = await store.load(session.meta.projectId, session.meta.id);
+		const loaded = await store.load(session.meta.id);
 		assert.ok(loaded);
 		reopened = new AgentSession({ cwd: root, store, settings, meta: loaded.meta, emit: () => {} });
 		reopened.restore(loaded.messages, loaded.compaction, loaded.compactions);

@@ -25,6 +25,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
+import { fixtureStore, seedSessions } from "./session-fixture.ts";
 
 const REAL_HOME = join(homedir(), ".plume");
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume工具调用测试");
@@ -149,7 +150,6 @@ function forwarder(upstream: string, wire: Wire): Server {
 }
 
 interface Seeded {
-	sessionFile: string;
 	callLog: string;
 }
 
@@ -159,8 +159,6 @@ async function seed(home: string, scenario: Scenario, sessionId: string, proxyPo
 	const cwd = join(home, "project");
 	await mkdir(cwd, { recursive: true });
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	const dir = join(home, "sessions", projectId);
-	await mkdir(dir, { recursive: true });
 
 	const callLog = join(home, "mcp-calls.jsonl");
 	const fixture = join(home, "mcp-probe.mjs");
@@ -177,30 +175,27 @@ async function seed(home: string, scenario: Scenario, sessionId: string, proxyPo
 	const providers = real.providers.map((provider: { id: string; baseUrl: string }) =>
 		modelId.startsWith(`${provider.id}/`) ? { ...provider, baseUrl: `http://127.0.0.1:${proxyPort}/v1` } : provider);
 	const at = Date.now() - 60_000;
-	const sessionFile = join(dir, `${sessionId}.jsonl`);
 	// A session with nothing in it is not listed, so it opens with one exchange already there.
 	// Shaped like a real record: the context estimate reads `usage` off every assistant message.
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 	const message = (seq: number, role: string, text: string) =>
-		JSON.stringify({
+		({
 			seq,
 			ts: at + seq * 1000,
 			type: "message",
 			message: { role, content: [{ type: "text", text }], timestamp: at + seq * 1000, ...(role === "assistant" ? { api: "openai-chat-completions", provider: "probe", model: "probe", usage, stopReason: "stop" } : {}) },
 		});
-	await writeFile(
-		sessionFile,
-		`${[
-			JSON.stringify({
-				seq: 1,
-				ts: at,
-				type: "meta",
-				meta: { id: sessionId, title: `MCP 只读提示（${mode}）`, cwd, projectId, projectName: "验收工程", createdAt: at, updatedAt: at, modelId, messageCount: 2, usage, seq: 0 },
-			}),
-			message(2, "user", "接下来我会让你调用 probe 服务器上的 MCP 工具。"),
-			message(3, "assistant", "好的。"),
-		].join("\n")}\n`,
-	);
+	const meta = { id: sessionId, title: `MCP 只读提示（${mode}）`, cwd, projectId, projectName: "验收工程", createdAt: at, updatedAt: at, modelId, messageCount: 2, usage, seq: 0 };
+	seedSessions(home, [
+		{
+			meta,
+			records: [
+				{ seq: 1, ts: at, type: "meta", meta },
+				message(2, "user", "接下来我会让你调用 probe 服务器上的 MCP 工具。"),
+				message(3, "assistant", "好的。"),
+			],
+		},
+	]);
 	await writeFile(
 		join(home, "settings.json"),
 		JSON.stringify({
@@ -215,7 +210,7 @@ async function seed(home: string, scenario: Scenario, sessionId: string, proxyPo
 		}),
 	);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 860 }));
-	return { sessionFile, callLog };
+	return { callLog };
 }
 
 const checks: { ok: boolean; what: string; saw: string }[] = [];
@@ -230,18 +225,19 @@ async function calls(file: string): Promise<{ tool: string; n: unknown; start: n
 }
 
 /** Assistant messages the session log holds, oldest first. */
-async function assistantTurns(file: string): Promise<{ text: string; toolCalls: string[]; error?: string }[]> {
-	const raw = await readFile(file, "utf8");
-	return raw
-		.split("\n")
-		.filter(Boolean)
-		.map((line) => JSON.parse(line))
-		.filter((record) => record.type === "message" && record.message?.role === "assistant")
-		.map((record) => ({
-			text: record.message.content.filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join(""),
-			toolCalls: record.message.content.filter((c: { type: string }) => c.type === "toolCall").map((c: { name: string }) => c.name),
-			error: record.message.errorMessage,
-		}));
+async function assistantTurns(home: string, sessionId: string): Promise<{ text: string; toolCalls: string[]; error?: string }[]> {
+	const store = fixtureStore(home);
+	try {
+		return (await store.messages(sessionId))
+			.filter((message) => message.role === "assistant")
+			.map((message) => ({
+				text: message.content.filter((c) => c.type === "text").map((c) => c.text).join(""),
+				toolCalls: message.content.filter((c) => c.type === "toolCall").map((c) => c.name),
+				error: message.errorMessage,
+			}));
+	} finally {
+		store.close();
+	}
 }
 
 async function run(scenario: Scenario): Promise<void> {
@@ -257,7 +253,7 @@ async function run(scenario: Scenario): Promise<void> {
 	let seeded: Seeded | undefined;
 	const app: RunningApp = await startApp({ port: scenario.port, seed: async (home) => void (seeded = await seed(home, scenario, sessionId, proxyPort)) });
 	if (!seeded) throw new Error("seed did not run");
-	const { sessionFile, callLog } = seeded;
+	const { callLog } = seeded;
 	const d = driver(app);
 	const frames: Frame[] = [];
 	const stopRecording = await startRecording(scenario.port, frames);
@@ -295,7 +291,7 @@ async function run(scenario: Scenario): Promise<void> {
 			await turn();
 			await pause(1500);
 			await shot("1-peek看图");
-			const turns = await assistantTurns(sessionFile);
+			const turns = await assistantTurns(app.home, sessionId);
 			check(`${provider.api}：工具返回的图片按协议形状发了出去`, wire.toolImage, `代理转发了 ${wire.requests} 个请求`);
 			const last = turns.at(-1);
 			check("这一轮没有因为图片被拒而失败", !last?.error, last?.error?.slice(0, 160) ?? "");
@@ -310,7 +306,7 @@ async function run(scenario: Scenario): Promise<void> {
 			const peeks = (await calls(callLog)).filter((c) => c.tool === "peek");
 			check("auto：只读的 peek 没有弹审批卡片", !first.sawCard, first.sawCard ? await cardText() : "");
 			check("peek 真的在服务器上执行了", peeks.length >= 1, `执行了 ${peeks.length} 次`);
-			const turns = await assistantTurns(sessionFile);
+			const turns = await assistantTurns(app.home, sessionId);
 			const together = turns.find((t) => t.toolCalls.filter((name) => name.endsWith("__peek")).length >= 2);
 			if (together && peeks.length >= 2) {
 				const [a, b] = peeks;

@@ -1,18 +1,15 @@
 /**
  * 会话记录占了多少地方，以及怎么把一段时间的删掉。
  *
- * 用量页上的每一个数字都是现算的——扫一遍 `~/.plume/sessions` 下的日志，把里面的 token 加起来。
- * 所以「清除统计数据」没有一个单独的东西可以清：**要让那些数字消失，只能删掉产生它们的会话**，
- * 而那些会话就是聊天记录本身。这个模块存在的第一个理由，就是把这件事说清楚，而不是让一个叫
- * 「清除统计」的按钮悄悄删掉半年的对话。
+ * 删的是聊天记录本身，**花掉的钱不跟着删**：每一次调用的用量另记在会话库的 `spend` 表里，
+ * 用量页的总额读的是那张表，删会话动不到它（见 core 的 `session/spend.ts`）。所以这里能收回的
+ * 只有空间，不能把账抹掉——一个叫「清除」的按钮让已经付过的钱从统计里消失，账就对不上服务商了。
  *
  * 删除的单位是一整条会话，不是某几条消息。一条会话的用量摊在它活跃的每一天上，按天把中间几段
  * 剜掉，留下的是一份读不通的对话和一份仍然对不上的账——两样都不值得要。所以时间范围筛的是
  * 「最后活动时间」：一条八月建、昨天还在写的会话，属于昨天。
  */
 
-import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
 import { plumeHome, removeSessionArtifacts, type SessionMeta, type SessionStorage } from "@plume/core";
 
 /** 本地日期键，和用量页、扫描器用的是同一个口径——不是 ISO/UTC。 */
@@ -31,7 +28,7 @@ interface StorageDay {
 }
 
 export interface StorageUse {
-	/** 会话日志占的字节数。 */
+	/** 会话记录占的字节数。 */
 	bytes: number;
 	/** 有几条会话。 */
 	sessions: number;
@@ -63,7 +60,7 @@ export interface ClearRange {
 export interface ClearResult {
 	/** 删掉了几条会话。 */
 	removed: number;
-	/** 释放了多少字节（按删之前量到的日志大小算）。 */
+	/** 释放了多少字节（按删之前量到的记录大小算）。 */
 	freed: number;
 	/** 正在跑、所以没动的那几条。 */
 	skipped: number;
@@ -77,46 +74,24 @@ export function withinRange(meta: Pick<SessionMeta, "updatedAt">, range: ClearRa
 	return true;
 }
 
-/** 一条会话的日志有多大。读不到就当 0——它可能刚被别处删掉，不值得让整张表算不出来。 */
-async function sizeOf(home: string, meta: Pick<SessionMeta, "projectId" | "id">): Promise<number> {
-	const info = await stat(join(home, "sessions", meta.projectId, `${meta.id}.jsonl`)).catch(() => null);
-	return info?.size ?? 0;
-}
-
 /**
- * 会话日志一共占多少。
+ * 会话记录一共占多少，按最后活动的那一天摊开。
  *
- * 数的是 `sessions/` 下的 `.jsonl`，不是整个 `~/.plume`——因为这正是下面那个删除动作能收回来的
- * 部分。索引、缓存、插件目录都不归它管，把它们算进来会让「删了却没少多少」变成常态。
- *
- * 走目录而不是走索引：一个索引里没有的孤儿日志照样占着盘，而它恰恰是最该被数出来的那种。
+ * 数的是记录本身，不是整个库文件：库里还有花销表和空闲页，那些删会话收不回来，算进来会让
+ * 「删了却没少多少」变成常态。每条会话摊到它最后活动的那一天上，因为删除正是按这一天筛的。
  */
-export async function storageUse(store: SessionStorage, home = plumeHome()): Promise<StorageUse> {
-	const root = join(home, "sessions");
-	let bytes = 0;
-	for (const project of await readdir(root, { withFileTypes: true }).catch(() => [])) {
-		if (!project.isDirectory()) continue;
-		for (const file of await readdir(join(root, project.name)).catch(() => [])) {
-			if (!file.endsWith(".jsonl")) continue;
-			const info = await stat(join(root, project.name, file)).catch(() => null);
-			bytes += info?.size ?? 0;
-		}
-	}
-
+export async function storageUse(store: SessionStorage): Promise<StorageUse> {
 	const sessions = await store.listSessions();
-	/*
-	 * 每条会话量一次自己的日志，摊到它最后活动的那一天上。
-	 *
-	 * 总数那个 `bytes` 走目录（孤儿日志也占盘，也该数出来），这里走索引——按天分组问的是「删掉
-	 * 这一段会少多少」，而只有索引里的会话才会被删。两个数字对不上的那部分正是孤儿，它不属于
-	 * 任何一天。
-	 */
+	const sizes = await store.sizes();
 	const byDay = new Map<string, StorageDay>();
+	let bytes = 0;
 	for (const meta of sessions) {
+		const size = sizes[meta.id] ?? 0;
 		const day = dayKey(meta.updatedAt);
 		const seen = byDay.get(day) ?? { day, sessions: 0, bytes: 0 };
 		seen.sessions += 1;
-		seen.bytes += await sizeOf(home, meta);
+		seen.bytes += size;
+		bytes += size;
 		byDay.set(day, seen);
 	}
 	const days = [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
@@ -133,25 +108,26 @@ export async function storageUse(store: SessionStorage, home = plumeHome()): Pro
  * 把这一段里的会话删掉，连同它们写在项目外的东西。
  *
  * 正在跑的会话跳过，不打断。删一条正在执行工具调用的会话，省下的那几兆远不如它正在写的东西
- * 值钱——而且它下一次落盘又会把文件建回来，于是「删干净了」是假的。跳过几条要在结果里报出来，
- * 不能让它们无声地留下。
+ * 值钱。跳过几条要在结果里报出来，不能让它们无声地留下。
  *
- * 先量大小再删：`deleteMany` 之后文件就不在了，那时候再 stat 得到的是 0，释放量会报成一片零。
+ * 哪些在跑、删哪些，由 `remove` 一步决定并返回删掉的那些。判断和删除中间隔着一次 `await`，
+ * 就有一个请求恰好在这时开始、随后连同会话一起被删掉（见主进程的 `deleteIdleSessions`）。
+ *
+ * 先量大小再删：删完之后记录就不在了，那时候再量得到的是 0，释放量会报成一片零。
  */
 export async function clearSessions(
 	store: SessionStorage,
 	range: ClearRange,
-	isRunning: (sessionId: string) => boolean,
+	remove: (sessionIds: string[]) => Promise<string[]>,
 	home = plumeHome(),
 ): Promise<ClearResult> {
-	const all = await store.listSessions();
-	const matched = all.filter((meta) => withinRange(meta, range));
-	const targets = matched.filter((meta) => !isRunning(meta.id));
-	if (targets.length === 0) return { removed: 0, freed: 0, skipped: matched.length };
+	const sizes = await store.sizes();
+	const matched = (await store.listSessions()).filter((meta) => withinRange(meta, range));
+	if (matched.length === 0) return { removed: 0, freed: 0, skipped: 0 };
 
-	const freed = (await Promise.all(targets.map((meta) => sizeOf(home, meta)))).reduce((sum, size) => sum + size, 0);
-	await store.deleteMany(targets.map((meta) => ({ projectId: meta.projectId, id: meta.id })));
-	await Promise.all(targets.map((meta) => removeSessionArtifacts(home, meta.id).catch(() => {})));
+	const removed = await remove(matched.map((meta) => meta.id));
+	const freed = removed.reduce((sum, id) => sum + (sizes[id] ?? 0), 0);
+	await Promise.all(removed.map((id) => removeSessionArtifacts(home, id).catch(() => {})));
 
-	return { removed: targets.length, freed, skipped: matched.length - targets.length };
+	return { removed: removed.length, freed, skipped: matched.length - removed.length };
 }

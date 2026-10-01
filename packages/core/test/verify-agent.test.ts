@@ -75,7 +75,7 @@ test("父代理拿到的是失败摘要，不是完整日志", async () => {
 		{
 			sessionId: "s1",
 			cwd: "/tmp",
-			settings: { thinking: "off", retryAttempts: 0 } as unknown as Settings,
+			settings: { thinking: "off" } as unknown as Settings,
 			tools: [bashReturning(LOG)],
 			skills: [],
 			agents: BUILTIN_AGENTS,

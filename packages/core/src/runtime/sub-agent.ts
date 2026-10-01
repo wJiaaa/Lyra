@@ -41,7 +41,7 @@ import { writePreview } from "./previews.ts";
 import { makeYieldTool, renderYield, yieldInstruction, YIELD_KEY, type YieldOutcome } from "./yield-tool.ts";
 import type { Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
-import { AGENTS_KEY, BUILTIN_AGENTS, resolveAgentName, type AgentDefinition } from "../tools/task.ts";
+import { AGENTS_KEY, BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
 import { TODOS_KEY, todoTool, type TodoItem } from "../tools/todo.ts";
 import type { ApprovalDecision, ApprovalRequest, JsonSchema, Message, ModelConfig, ProviderConfig, Tool } from "../types.ts";
 import type { SubAgentConversation, SubAgentRegistry } from "./sub-agents.ts";
@@ -147,6 +147,8 @@ export interface SubAgentOptions {
 	registry?: SubAgentRegistry;
 	/** Passed through to the subagent; see `ToolContext.allowedPaths`. */
 	allowedPaths?: ReadonlySet<string>;
+	/** The dispatching conversation's messages, which is what `recall` searches from inside a delegation; see `ToolContext.transcript`. */
+	transcript?: () => Promise<Message[]>;
 	/**
 	 * Where the run doing the dispatching sits in the tree. Absent means the main conversation.
 	 *
@@ -205,9 +207,8 @@ export async function runSubAgent(
 	if (options.signal?.aborted) return { text: "（派发时会话已经停下，这个子代理没有开始。）" };
 	const earlier = input.resume === undefined ? undefined : resumable(options, input.resume);
 
-	// 旧名在这里也要认：历史记录重放和外部调用都可能带着 `fast`／`deep` 进来。见 `RENAMED_AGENTS`。
 	// 续跑的时候不换人：它是谁，当初派出去时就定了。
-	const wanted = earlier ? earlier.conversation.agent : resolveAgentName(input.agentType ?? "general", options.agents);
+	const wanted = earlier ? earlier.conversation.agent : input.agentType ?? "general";
 	const definition = options.agents.find((a) => a.name === wanted) ?? BUILTIN_AGENTS[0];
 	/*
 	 * 清单总在：它是子代理自己的记事本，不是一件能力。
@@ -569,7 +570,6 @@ export async function runSubAgent(
 				 * and inheriting that level would multiply the decision by however many were sent.
 				 */
 				thinking: chosen.thinking,
-				retryAttempts: options.settings.retryAttempts,
 				retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy,
 				signal: controller.signal,
 				state: subState,
@@ -594,13 +594,12 @@ export async function runSubAgent(
 							 * 只把它当布尔用，那份名单就成了注释。
 							 */
 							const allowedNames = definition.spawns;
-							// 同样先认旧名，否则一条写着 `fast` 的 spawns 白名单会把改名后的它自己挡在外面。
-							const wanted = resolveAgentName(nested.agentType ?? "general", options.agents);
+							const wanted = nested.agentType ?? "general";
 							/*
 							 * 续跑不过白名单：能续的只有它自己派出去的那些，派的那一刻已经过过一次了。而这里
 							 * 拿到的名字是调用时填的，不是那个子代理真正的定义——拿它来查只会冤枉人。
 							 */
-							if (nested.resume === undefined && Array.isArray(allowedNames) && !allowedNames.map((name) => resolveAgentName(name, options.agents)).includes(wanted)) {
+							if (nested.resume === undefined && Array.isArray(allowedNames) && !allowedNames.includes(wanted)) {
 								throw new Error(
 									`\`${definition.name}\` 只被允许派生 ${allowedNames.join("、")}，不包括 \`${wanted}\`。` +
 										`要放开，请在它的定义里把 \`${wanted}\` 加进 spawns。`,
@@ -657,6 +656,7 @@ export async function runSubAgent(
 				 */
 				searchProviderId: options.settings.searchProvider ?? null,
 				allowedPaths: options.allowedPaths,
+				transcript: options.transcript,
 				// Derived rather than passed down: same settings, same cwd, same answer — and one
 				// fewer parameter that can be forgotten at a new call site. A delegated run reads
 				// across the project's folders exactly as the conversation that dispatched it does.
@@ -771,7 +771,6 @@ export async function runSubAgent(
 					// 模型眼里的那一份：压缩过就是压缩过的。从前拼的是完整原文，压缩过的子代理在这一轮又撑爆一次。
 					messages: [...view, finalDemand(checkpoint)],
 					thinking: chosen.thinking,
-					retryAttempts: options.settings.retryAttempts,
 					retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy,
 					signal: controller.signal,
 					state: subState,

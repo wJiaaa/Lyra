@@ -15,7 +15,7 @@
  */
 
 import { writeFileSync } from "node:fs";
-import { copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { zipSync, strToU8 } from "fflate";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -24,6 +24,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
+import { fixtureStore } from "./session-fixture.ts";
 
 const REAL_HOME = join(homedir(), ".plume");
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume附件能力测试");
@@ -117,7 +118,6 @@ async function seed(home: string): Promise<void> {
 	await makeOfficeFiles(cwd);
 
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 	for (const file of ["credentials.json", "vault.key"]) {
 		await copyFile(join(REAL_HOME, file), join(home, file)).catch(() => {
 			throw new Error(`没找到 ~/.plume/${file}——真实模型调用需要它`);
@@ -178,32 +178,29 @@ async function attach(files: { path: string; name: string; mime: string }[]): Pr
  * 「回答里有 327」，那 327 可能来自任何地方——这种检测器不会报错，只会永远通过。日志里的是结构化的
  * 助手消息，模型说了什么就是什么。
  */
-async function assistantTexts(sessionDir: string): Promise<string[]> {
-	const files = await readdir(sessionDir).catch(() => [] as string[]);
+async function assistantTexts(home: string): Promise<string[]> {
+	const store = fixtureStore(home);
 	const out: string[] = [];
-	for (const name of files.filter((f) => f.endsWith(".jsonl"))) {
-		const raw = await readFile(join(sessionDir, name), "utf8").catch(() => "");
-		for (const line of raw.split("\n")) {
-			if (!line.includes('"role":"assistant"')) continue;
-			try {
-				const entry = JSON.parse(line) as { type?: string; message?: { role?: string; content?: { type: string; text?: string }[] } };
-				if (entry.type !== "message" || entry.message?.role !== "assistant") continue;
-				const text = (entry.message.content ?? [])
+	try {
+		for (const meta of await store.listSessions()) {
+			for (const message of await store.messages(meta.id)) {
+				if (message.role !== "assistant") continue;
+				const text = message.content
 					.filter((block) => block.type === "text" && block.text)
-					.map((block) => block.text)
+					.map((block) => (block.type === "text" ? block.text : ""))
 					.join(" ");
 				if (text.trim()) out.push(text.replace(/\s+/g, " ").trim());
-			} catch {
-				// 半行——还在写。下一轮再读。
 			}
 		}
+	} finally {
+		store.close();
 	}
 	return out;
 }
 
 /** 问一句，等到**新的**一条助手回答落盘为止，返回那一条。 */
-async function ask(sessionDir: string, question: string, driverApi: { type: (t: string) => Promise<void>; submit: () => Promise<void>; settled: () => Promise<void> }): Promise<string> {
-	const before = (await assistantTexts(sessionDir)).length;
+async function ask(home: string, question: string, driverApi: { type: (t: string) => Promise<void>; submit: () => Promise<void>; settled: () => Promise<void> }): Promise<string> {
+	const before = (await assistantTexts(home)).length;
 	await driverApi.type(question);
 	await pause(600);
 
@@ -232,7 +229,7 @@ async function ask(sessionDir: string, question: string, driverApi: { type: (t: 
 
 	// 落盘比「这一轮结束」晚一点点，所以这里等的是日志，不是界面。
 	for (let waited = 0; waited < 30_000; waited += 400) {
-		const texts = await assistantTexts(sessionDir);
+		const texts = await assistantTexts(home);
 		if (texts.length > before) return texts.slice(before).join(" ");
 		await pause(400);
 	}
@@ -247,8 +244,6 @@ async function main() {
 	const driverApi = driver(app);
 	const stop = await startRecording(PORT, frames);
 	const cwd = join(app.home, "project");
-	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	const sessionDir = join(app.home, "sessions", projectId);
 
 	try {
 		console.log("【一】七个文件一起附上：PDF / Word / Excel / CSV / 三张截图");
@@ -279,7 +274,7 @@ async function main() {
 
 		console.log("\n【二】问四份文档里的事实——只有真读进去了才答得上");
 		const answer = await ask(
-			sessionDir,
+			app.home,
 			"只依据我附上的文件回答，逐条给出数字，不要解释：" +
 				"1) 白皮书里 P99 延迟多少毫秒；2) 合同总金额；3) 报表里二月的销售额；4) 数据.csv 里成都的订单量。",
 			driverApi,
@@ -292,7 +287,7 @@ async function main() {
 
 		console.log("\n【三】序号定位：「第二张截图」和「excel 文件 1」");
 		const located = await ask(
-			sessionDir,
+			app.home,
 			"两个问题，各一行：1) 我发的第二张截图上写的是哪个词？2) 我说的「excel 文件 1」指的是哪个文件名？",
 			driverApi,
 		);

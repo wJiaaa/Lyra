@@ -44,6 +44,7 @@ import { promisify } from "node:util";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { landsOn } from "./lands-on.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const PORT = 9771;
 const OUT = join(homedir(), "Desktop", "分屏串台补漏测试");
@@ -228,7 +229,7 @@ const git = (cwd: string, ...args: string[]) => promisify(execFile)("git", args,
 
 async function seed(home: string, modelPort: number, scene: string): Promise<void> {
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
-	const metas = [];
+	const sessions = [];
 	const projects = [];
 	for (const [index, one] of [A, B, C].entries()) {
 		const cwd = join(home, one.project);
@@ -279,19 +280,16 @@ async function seed(home: string, modelPort: number, scene: string): Promise<voi
 		// 甲 thinks hard in the model scene, so the two screens' effort buttons have different things to say.
 		const thinking = scene === "model" && one === A ? { thinking: "high" } : {};
 		const meta = { id: one.id, title: one.title, projectId, projectName: one.branch ? one.project : "Chat", cwd, createdAt: at, updatedAt, modelId: one.model, messageCount: messages.length, usage, seq: last, ...thinking };
-		metas.push(meta);
-		await mkdir(join(home, "sessions", projectId), { recursive: true });
-		// Outer seq starts at 1: a record at 0 is read past and the session never reaches the sidebar.
-		await writeFile(
-			join(home, "sessions", projectId, `${one.id}.jsonl`),
-			[
-				JSON.stringify({ seq: 1, ts: at, type: "meta", meta: { ...meta, seq: 0 } }),
-				...messages.map((message, i) => JSON.stringify({ seq: i + 2, ts: at, type: "message", message })),
-				JSON.stringify({ seq: last, ts: updatedAt, type: "meta", meta }),
-			].join("\n") + "\n",
-		);
+		sessions.push({
+			meta,
+			records: [
+				{ seq: 1, ts: at, type: "meta", meta: { ...meta, seq: 0 } },
+				...messages.map((message, i) => ({ seq: i + 2, ts: at, type: "message", message })),
+				{ seq: last, ts: updatedAt, type: "meta", meta },
+			],
+		});
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900, x: 40, y: 40 }));
 	await writeFile(
 		join(home, "settings.json"),

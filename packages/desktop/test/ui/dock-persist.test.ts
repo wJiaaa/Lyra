@@ -223,15 +223,15 @@ const homesOnDisk = (): Record<string, unknown> =>
 
 test("人直接关掉面板窗口，那条回家记录跟着清掉", async () => {
 	clear();
-	const stub = stubPanelWindows([{ kind: "browser", scope: "window" }]);
+	const stub = stubPanelWindows([{ kind: "browser", scope: "sess-a" }]);
 	const { watchPanelWindows } = await import("../../src/features/dock/popout.ts");
-	window.localStorage.setItem("dw:homes", JSON.stringify({ "window:browser": { dock: "window", scope: "window", at: null } }));
+	window.localStorage.setItem("dw:homes", JSON.stringify({ "sess-a:browser": { scope: "sess-a", at: null } }));
 	const stop = watchPanelWindows();
 	await settled();
-	assert.ok(homesOnDisk()["window:browser"], "窗口还开着，这时候不该动那条记录");
+	assert.ok(homesOnDisk()["sess-a:browser"], "窗口还开着，这时候不该动那条记录");
 
 	stub.change([]);
-	assert.equal(homesOnDisk()["window:browser"], undefined, "窗口关掉了，记录还留在盘上");
+	assert.equal(homesOnDisk()["sess-a:browser"], undefined, "窗口关掉了，记录还留在盘上");
 	stop();
 });
 
@@ -267,21 +267,5 @@ test("它所属的会话不在屏上，就放回那个会话存着的布局，�
 	assert.equal(homesOnDisk()["sess-b:terminal"], undefined);
 	// 整理善后不许替人改工作区：屏上那个会话的布局一点没动。
 	assert.deepEqual(Object.keys(usePaneDock.getState().trees), []);
-	stop();
-});
-
-test("旧版记在窗口层上的，回到人此刻所在的那一屏", async () => {
-	clear();
-	usePaneDock.setState({ trees: { "sess-a": leafOf("conversation") }, sizes: { "sess-a": { width: 1100, height: 800 } } });
-	provideScope(() => "sess-a");
-	stubPanelWindows([]);
-	const { watchPanelWindows } = await import("../../src/features/dock/popout.ts");
-	window.localStorage.setItem("dw:homes", JSON.stringify({ "window:terminal": { dock: "window", scope: "window", at: null } }));
-	const stop = watchPanelWindows();
-	await settled();
-	await settled();
-
-	assert.ok(has(usePaneDock.getState().tree("sess-a"), "terminal"), "窗口层已经不存在了，面板落到人在的那一屏");
-	assert.equal(homesOnDisk()["window:terminal"], undefined);
 	stop();
 });

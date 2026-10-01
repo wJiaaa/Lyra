@@ -16,7 +16,7 @@
 import { create } from "zustand";
 import { sameDrop } from "./drop.ts";
 import type { DragState } from "./drag-host.ts";
-import { dropLegacy, dropTree, flushTree, legacyStorageKey, paneStorageKey, readTree, writeTree } from "./persist.ts";
+import { dropTree, flushTree, paneStorageKey, readTree, writeTree } from "./persist.ts";
 import { MIN_FRACTION, paneFloor } from "./geometry.ts";
 import { defaultDrop, dropFits, placePanel } from "./place.ts";
 import { clampTabShare, panelsOf, readTabShare, writeTabShare } from "./tabs.ts";
@@ -203,23 +203,6 @@ function survivingMaximized(maximized: Maximized | null, present: PaneKind[]): M
 	return panes.length === maximized.panes.length ? maximized : { ...maximized, panes };
 }
 
-/**
- * Two stored layouts of one conversation, from before the two layers became one.
- *
- * Nothing the person opened is dropped. The window-era layout is the base — it is the full-size
- * arrangement they looked at on a single screen — and whatever only the screen layer held is added
- * where a new panel would go.
- */
-function merged(windowLayout: DockNode | null, screenLayout: DockNode | null): DockNode | null {
-	if (!windowLayout) return screenLayout;
-	if (!screenLayout) return windowLayout;
-	let tree = windowLayout;
-	for (const kind of kinds(screenLayout)) {
-		if (!has(tree, kind)) tree = insert(tree, kind, defaultDrop(tree));
-	}
-	return tree;
-}
-
 const isBare = (tree: DockNode | null | undefined): boolean => !tree || (tree.type === "leaf" && tree.kind === "conversation");
 
 export const usePaneDock = create<PaneDockState>((set, get) => {
@@ -262,9 +245,8 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		hydrate(scope, allowed, options) {
 			// Memory is newer than disk: a screen that remounts keeps what it had.
 			if (get().trees[scope]) return;
-			const screenLayout = readTree(paneStorageKey(scope), allowed);
-			const windowLayout = readTree(legacyStorageKey(scope), allowed);
-			let tree = merged(isBare(windowLayout) ? null : windowLayout, isBare(screenLayout) ? null : screenLayout);
+			const stored = readTree(paneStorageKey(scope), allowed);
+			let tree = isBare(stored) ? null : stored;
 			/*
 			 * 空白对话发出第一条消息、拿到 id 的那一下。
 			 *
@@ -276,7 +258,6 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 				const draft = get().trees[options.draftFrom] ?? readTree(paneStorageKey(options.draftFrom), allowed);
 				if (!isBare(draft)) tree = draft;
 			}
-			if (windowLayout) dropLegacy(scope);
 			if (!tree || isBare(tree)) return;
 			set({ trees: { ...get().trees, [scope]: tree } });
 			persist(scope, tree);

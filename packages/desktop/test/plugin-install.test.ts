@@ -22,13 +22,12 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 
-import type { McpBundle, McpServerConfig, RegistryEntry, Settings } from "@plume/core";
+import type { McpServerConfig, RegistryEntry, Settings } from "@plume/core";
 import { bundleRoot, installEntry, uninstallEntry } from "@plume/core";
 
 import {
 	releaseBundle,
 	settingsAfterInstall,
-	settingsAfterReconcile,
 	settingsAfterUninstall,
 } from "../electron/ipc/plugin-actions.ts";
 
@@ -204,80 +203,6 @@ test("a server the user switched on survives a re-install of a different bundle"
 		const context7 = next.mcpServers.find((server) => server.origin?.bundle === "context7");
 		assert.equal(context7?.enabled, true, "another bundle's row is not touched, and not switched off");
 	});
-});
-
-/*
- * Reconciliation: what happens on the way out of a scan, for bundles that predate the split.
- *
- * These need no repository — the question is entirely about what is on disk versus what is in
- * settings, and `loadPlugins` has its own tests for producing the first half.
- */
-
-/**
- * A bundle as `loadPlugins` produces one, stamp included.
- *
- * The stamp matters to the shape of these tests: a real scan tags every server with the bundle it
- * came from, and reconciliation is only idempotent because the rows it writes can be found again by
- * that tag. A fixture without it would be testing a bundle that cannot exist.
- */
-function bundle(id: string, servers: McpServerConfig[]): McpBundle {
-	return {
-		id,
-		dir: `/home/me/.plume/mcp/${id}`,
-		manifest: { name: id },
-		source: "user",
-		servers: servers.map((server) => ({ ...server, origin: { bundle: id } })),
-	};
-}
-
-test("a bundle on disk with no settings row gets one, switched on", async () => {
-	/*
-	 * On, which looks like the opposite of the install rule and is the same rule. This is not a new
-	 * server arriving; it is one that was already installed and already working, loaded through a
-	 * path that no longer exists. A migration that turns working servers off is as wrong as one
-	 * that turns unknown servers on.
-	 */
-	const next = settingsAfterReconcile(settingsWith(), [bundle("context7", [handMade("c7")])]);
-
-	assert.ok(next);
-	assert.equal(next.mcpServers.length, 1);
-	assert.equal(next.mcpServers[0].enabled, true);
-});
-
-test("a bundle the user had switched off comes back switched off", () => {
-	const next = settingsAfterReconcile(settingsWith({ disabledPlugins: ["context7"] }), [
-		bundle("context7", [handMade("c7")]),
-	]);
-
-	assert.equal(next?.mcpServers[0].enabled, false);
-});
-
-test("everything off means everything off, including bundles named by nothing", () => {
-	// `*` is the "disable all plugins" switch, and it has to be honoured by the migration too.
-	const next = settingsAfterReconcile(settingsWith({ disabledPlugins: ["*"] }), [
-		bundle("context7", [handMade("c7")]),
-	]);
-
-	assert.equal(next?.mcpServers[0].enabled, false);
-});
-
-test("reconciling twice writes nothing the second time", () => {
-	const bundles = [bundle("context7", [handMade("c7")])];
-	const once = settingsAfterReconcile(settingsWith(), bundles)!;
-
-	assert.equal(settingsAfterReconcile(once, bundles), null, "idempotent, so it can run on every scan");
-});
-
-test("reconciliation does not resurrect a bundle that still has its row", () => {
-	const current = settingsWith({
-		mcpServers: [{ ...handMade("c7"), origin: { bundle: "context7" }, enabled: false } as McpServerConfig],
-	});
-
-	assert.equal(
-		settingsAfterReconcile(current, [bundle("context7", [handMade("c7")])]),
-		null,
-		"a row that exists is the answer, whatever state it is in",
-	);
 });
 
 test("releasing a bundle disconnects its servers in every live session, and nothing else", async () => {

@@ -14,6 +14,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const MODELS = [
 	{ id: "qa/alpha", providerId: "qa", modelId: "gpt-6-astra", name: "Alpha", contextWindow: 128000, maxOutputTokens: 4096, supportsImages: false, supportsTools: true, supportsThinking: true },
@@ -25,7 +26,6 @@ async function seed(home: string): Promise<void> {
 	const cwd = join(home, "project");
 	await mkdir(cwd, { recursive: true });
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	await mkdir(join(home, "sessions", projectId), { recursive: true });
 
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 	// 已经聊过——这正是弹确认框的前提。
@@ -34,15 +34,16 @@ async function seed(home: string): Promise<void> {
 		{ role: "assistant", content: [{ type: "text", text: "收到。" }], api: "anthropic-messages", provider: "qa", model: "gpt-6-astra", usage, stopReason: "stop", timestamp: 2 },
 	];
 	const meta = { id: "switch-me", title: "换模型", projectId, projectName: "换模型验证", cwd, createdAt: 1, updatedAt: 2, modelId: "qa/alpha", messageCount: messages.length, usage, seq: messages.length + 1 };
-	await writeFile(
-		join(home, "sessions", projectId, "switch-me.jsonl"),
-		[
-			JSON.stringify({ type: "meta", meta, seq: 0, ts: 1 }),
-			...messages.map((message, i) => JSON.stringify({ type: "message", message, seq: i + 1, ts: 1 })),
-			JSON.stringify({ type: "meta", meta, seq: meta.seq, ts: 2 }),
-		].join("\n") + "\n",
-	);
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta]));
+	seedSessions(home, [
+		{
+			meta,
+			records: [
+				{ type: "meta", meta, seq: 0, ts: 1 },
+				...messages.map((message, i) => ({ type: "message", message, seq: i + 1, ts: 1 })),
+				{ type: "meta", meta, seq: meta.seq, ts: 2 },
+			],
+		},
+	]);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1200, height: 800 }));
 	await writeFile(
 		join(home, "settings.json"),

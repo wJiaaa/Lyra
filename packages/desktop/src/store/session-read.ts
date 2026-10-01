@@ -2,7 +2,7 @@ import { translate } from "../i18n/translate.ts";
 import type { SessionMeta } from "@plume/core";
 import type { AppState } from "./index.ts";
 import { howItStopped, prune, rebuildToolRuns, todosFrom, type Cache } from "./derive.ts";
-import { intact } from "../lib/transcript.ts";
+import { intact, withInFlight } from "../lib/transcript.ts";
 import { useSubAgents } from "./subAgents.ts";
 import { bridge } from "../services/index.ts";
 import { beginSessionRead, endSessionRead } from "./read-events.ts";
@@ -87,7 +87,7 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 
 	let snapshot: Awaited<ReturnType<typeof bridge.sessions.transcript>>;
 	try {
-		snapshot = await bridge.sessions.transcript(meta.projectId, meta.id);
+		snapshot = await bridge.sessions.transcript(meta.id);
 	} catch (cause) {
 		if (!cacheOnly && get().activeSessionId === meta.id) {
 			set({ loadingSession: false });
@@ -173,7 +173,8 @@ export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get,
 		!snapshot.running &&
 		cached.meta.seq === snapshot.meta.seq &&
 		cached.messages.length === snapshot.messages.length;
-	const messages = advanced ? current.messages : unchanged ? cached.messages : snapshot.messages;
+	// A running turn's snapshot lacks the streaming reply and anything sent into it; see `withInFlight`.
+	const messages = advanced ? current.messages : unchanged ? cached.messages : snapshot.running ? withInFlight(current.messages, snapshot.messages) : snapshot.messages;
 	const toolRuns = advanced ? current.toolRuns : unchanged ? cached.toolRuns : rebuildToolRuns(messages, snapshot.running, current.toolRuns);
 	set({
 		meta: advanced ? current.meta : snapshot.meta,

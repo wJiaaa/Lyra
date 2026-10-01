@@ -136,16 +136,6 @@ test("别人被取下之后，剩下那些的序号跟着改", () => {
 	);
 });
 
-test("老消息里写的是文件名，新的写的是界面名，两种都认得", () => {
-	// 升级前发出去的那些标记写的是 `【shot.png】`，只认界面名的话它们会整片退化成普通方括号。
-	const file = { name: "shot.png", label: "图片 1" };
-	const { segments } = placeAttachments(`旧的 ${placeholderFor("shot.png")} 新的 ${placeholderFor("图片 1")}`, [file, { ...file }]);
-	assert.deepEqual(
-		segments.map((s) => (s.kind === "text" ? s.text : "<file>")),
-		["旧的 ", "<file>", " 新的 ", "<file>"],
-	);
-});
-
 test("退格吃掉整枚标记，不是一个字符", () => {
 	/*
 	 * 一格一格地退，`【表格 1】` 会先变成 `【表格 1`——那一刻它已经不再是标记（配不上任何附件），

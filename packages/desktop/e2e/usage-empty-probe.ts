@@ -28,8 +28,6 @@ const app = await startApp({
 		await writeFile(join(project, "readme.md"), "# demo\n");
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 940, x: 0, y: 0 }));
 		// 一条会话都不造：这就是这个探针的全部意思。
-		await mkdir(join(home, "sessions"), { recursive: true });
-		await writeFile(join(home, "sessions", "index.json"), "[]");
 		await writeFile(join(home, "settings.json"), JSON.stringify({
 			version: 1,
 			providers: [{ id: "relay", name: "公司中转", baseUrl: "https://relay.example/v1", api: "openai-responses", apiKey: "", enabled: true, models: [] }],

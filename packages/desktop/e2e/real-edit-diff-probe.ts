@@ -109,7 +109,7 @@ async function main() {
 			}
 			const list = await window.plume.sessions.list();
 			const meta = list[0];
-			const snapshot = meta ? await window.plume.sessions.open(meta.projectId, meta.id) : null;
+			const snapshot = meta ? await window.plume.sessions.open(meta.id) : null;
 			const messages = snapshot?.messages ?? [];
 			const edits = [];
 			for (const m of messages) {

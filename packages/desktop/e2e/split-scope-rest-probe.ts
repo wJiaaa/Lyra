@@ -31,6 +31,7 @@ import { promisify } from "node:util";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { landsOn } from "./lands-on.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const PORT = 9763;
 const OUT = join(homedir(), "Desktop", "分屏其余串台测试");
@@ -174,7 +175,7 @@ function gitEnv(): NodeJS.ProcessEnv {
 
 async function seed(home: string, modelPort: number): Promise<void> {
 	const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
-	const metas = [];
+	const sessions = [];
 	const projects = [];
 	for (const [index, one] of [A, B].entries()) {
 		const cwd = join(home, one.project);
@@ -205,19 +206,16 @@ async function seed(home: string, modelPort: number): Promise<void> {
 		];
 		const last = messages.length + 2;
 		const meta = { id: one.id, title: one.title, projectId, projectName: one.project, cwd, createdAt: at, updatedAt: at + 3, modelId: "qa/model", messageCount: messages.length, usage, seq: last };
-		metas.push(meta);
-		await mkdir(join(home, "sessions", projectId), { recursive: true });
-		// Outer seq starts at 1: a record at 0 is read past and the session never reaches the sidebar.
-		await writeFile(
-			join(home, "sessions", projectId, `${one.id}.jsonl`),
-			[
-				JSON.stringify({ seq: 1, ts: at, type: "meta", meta: { ...meta, seq: 0 } }),
-				...messages.map((message, i) => JSON.stringify({ seq: i + 2, ts: at, type: "message", message })),
-				JSON.stringify({ seq: last, ts: at + 3, type: "meta", meta }),
-			].join("\n") + "\n",
-		);
+		sessions.push({
+			meta,
+			records: [
+				{ seq: 1, ts: at, type: "meta", meta: { ...meta, seq: 0 } },
+				...messages.map((message, i) => ({ seq: i + 2, ts: at, type: "message", message })),
+				{ seq: last, ts: at + 3, type: "meta", meta },
+			],
+		});
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900, x: 40, y: 40 }));
 	await writeFile(
 		join(home, "settings.json"),
@@ -418,7 +416,7 @@ async function focusByMouse(side: Side): Promise<void> {
 /** What the conversation holds on disk, read through the app's own bridge. */
 const onDisk = (side: Side) =>
 	js<string[]>(`(async () => {
-		const snapshot = await window.plume.sessions.transcript(${JSON.stringify(side.projectId)}, ${JSON.stringify(side.id)});
+		const snapshot = await window.plume.sessions.transcript(${JSON.stringify(side.id)});
 		return (snapshot?.messages ?? []).filter((m) => m.role === 'user').map((m) => (m.displayText ?? m.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ')).slice(0, 60));
 	})()`);
 

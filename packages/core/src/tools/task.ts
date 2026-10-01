@@ -4,8 +4,8 @@ import { DISPATCH_KEY, refuseDispatch, rootDispatch, type DispatchContext } from
 import type { SubAgentRegistry } from "../runtime/sub-agents.ts";
 import type { SubAgentAnswer, Tool, ToolResult } from "../types.ts";
 
-export { BUILTIN_AGENTS, resolveAgentName, type AgentDefinition } from "../agents-builtin.ts";
-import { resolveAgentName, type AgentDefinition } from "../agents-builtin.ts";
+export { BUILTIN_AGENTS, type AgentDefinition } from "../agents-builtin.ts";
+import type { AgentDefinition } from "../agents-builtin.ts";
 
 export const AGENTS_KEY = "agents";
 
@@ -88,8 +88,7 @@ export const taskTool: Tool<TaskArgs> = {
 		const resuming = typeof args.resume === "string" && args.resume.trim() ? args.resume.trim() : undefined;
 		const found = resuming ? (ctx.state.get(SUBAGENTS_KEY) as SubAgentRegistry | undefined)?.lookupResumable(resuming) : undefined;
 		if (found && "refusal" in found) return errorResult(found.refusal);
-		// 旧名先翻译一次：三天前的会话里那条 `task` 写的还是 `fast`，它指的人还在。见 `RENAMED_AGENTS`。
-		const requested = found ? found.summary.agent : resolveAgentName(args.subagent_type ?? "general", agents ?? []);
+		const requested = found ? found.summary.agent : args.subagent_type ?? "general";
 		if (!resuming && agents && !agents.some((a) => a.name === requested)) {
 			const available = agents.length > 0 ? agents.map((a) => a.name).join(", ") : "none are defined in this session";
 			return errorResult(`Unknown subagent_type "${requested}". Available: ${available}.`);

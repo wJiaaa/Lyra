@@ -6,7 +6,7 @@
  * the middle; replaying asks for every point in turn.
  *
  * Truncation is applied as it is met rather than pre-scanned, because that is what it means: a
- * record that voids the tail behind it, in the order the file was written.
+ * record that voids the tail behind it, in the order it was written.
  */
 
 import type { SessionRecord, SessionStore } from "../session/store.ts";
@@ -15,11 +15,10 @@ import type { Message } from "../types.ts";
 /** The messages a session held at a given point. Pass `Infinity` for "all of it". */
 export async function messagesUpTo(
 	store: Pick<SessionStore, "read">,
-	projectId: string,
 	sessionId: string,
 	seq: number,
 ): Promise<Message[]> {
-	return (await historyUpTo(store, projectId, sessionId, seq)).messages;
+	return (await historyUpTo(store, sessionId, seq)).messages;
 }
 
 /** 到某一点为止仍然生效的压缩边界，以及写下它时对话走到了第几条（界面在那里画分隔线）。 */
@@ -41,13 +40,12 @@ export interface BoundaryAt {
  */
 export async function historyUpTo(
 	store: Pick<SessionStore, "read">,
-	projectId: string,
 	sessionId: string,
 	seq: number,
 ): Promise<{ messages: Message[]; boundary: BoundaryAt | null }> {
 	const kept: { seq: number; message: Message }[] = [];
 	let boundary: BoundaryAt | null = null;
-	for await (const record of store.read(projectId, sessionId)) {
+	for await (const record of store.read(sessionId)) {
 		if (record.seq > seq) break;
 		if (record.type === "truncate") {
 			const cutoff = record.afterSeq;
@@ -73,9 +71,8 @@ export async function historyUpTo(
  */
 export async function* replaySession(
 	store: Pick<SessionStore, "read">,
-	projectId: string,
 	sessionId: string,
 	sinceSeq = 0,
 ): AsyncGenerator<SessionRecord> {
-	for await (const record of store.read(projectId, sessionId, sinceSeq)) yield record;
+	for await (const record of store.read(sessionId, sinceSeq)) yield record;
 }

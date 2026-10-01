@@ -17,21 +17,20 @@
  * 用法：node e2e/huge-block-render-lab.mjs   然后用浏览器打开它打印的那个路径
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 
-const SOURCE = "/Users/kittors/.plume/sessions/638c1d5fcb97d249/2723f0cb-add6-415f-aa94-dff71d02aa7b.jsonl";
+const SOURCE = "/Users/kittors/.plume/sessions/sessions.db";
+const SESSION = "2723f0cb-add6-415f-aa94-dff71d02aa7b";
 
 /** 取出这个会话里最大的那个 text block——也就是真正交给 Markdown 的那段。 */
-function hugestTextBlock(file) {
+function hugestTextBlock(file, sessionId) {
 	let big = "";
-	for (const line of readFileSync(file, "utf8").split("\n")) {
-		if (!line) continue;
-		let record;
-		try {
-			record = JSON.parse(line);
-		} catch {
-			continue;
-		}
+	const db = new DatabaseSync(file, { readOnly: true });
+	const rows = db.prepare("SELECT body FROM records WHERE session_id = ? AND kind = 'message' ORDER BY seq").all(sessionId);
+	db.close();
+	for (const { body } of rows) {
+		const record = JSON.parse(body);
 		const content = record.message?.content;
 		if (typeof content === "string") {
 			if (content.length > big.length) big = content;
@@ -45,7 +44,7 @@ function hugestTextBlock(file) {
 	return big;
 }
 
-const text = hugestTextBlock(SOURCE);
+const text = hugestTextBlock(SOURCE, SESSION);
 console.log(`取到 ${(text.length / 1024 / 1024).toFixed(2)} MB，${text.split("\n").length} 行`);
 
 const page = `<!doctype html>

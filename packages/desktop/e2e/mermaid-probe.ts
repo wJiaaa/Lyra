@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { projectIdFor } from "@plume/core";
 import { startApp } from "./app.ts";
 import { frameGrabber } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const PORT = 9645;
 const SESSION_ID = "11111111-2222-3333-4444-555555555555";
@@ -72,28 +73,21 @@ const app = await startApp({
 		await writeFile(join(home, "window.json"), JSON.stringify({ x: 0, y: 0, width: 1440, height: 900 }));
 
 		const projectId = projectIdFor(root);
-		await mkdir(join(home, "sessions", projectId), { recursive: true });
 		const now = Date.now();
-		/*
-		 * `seq` 从 1 起，meta 自己那个内层的 seq 是 0。
-		 *
-		 * 外层写 0 的话，这条 meta 会被静默读掉——会话连侧边栏都进不去，而探针只会报「没找到
-		 * 会话行」，把人引向完全不相干的地方。
-		 */
 		/*
 		 * `usage` 不能省。
 		 *
-		 * `SessionStore.load` 读它的 `.total`，缺了就抛 `Cannot read properties of undefined`，
-		 * 而 `rebuildIndex` 把每个 load 的异常都吞掉——于是会话不是报错，是干脆不存在，
-		 * 探针只会说「侧边栏里没有那条会话」。手写固件先用 Node 调一次 load，比在窗口里猜快得多。
+		 * `SessionStore.load` 读它的 `.total`，缺了就抛 `Cannot read properties of undefined`。
+		 * 手写固件先用 Node 调一次 load，比在窗口里猜快得多。
 		 */
 		const zeroUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
-		const lines = [
-			{ seq: 1, ts: now, type: "meta", meta: { id: SESSION_ID, title: TITLE, cwd: root, projectId, projectName: "project", createdAt: now, updatedAt: now, modelId: null, messageCount: 2, usage: zeroUsage, seq: 0 } },
+		const meta = { id: SESSION_ID, title: TITLE, cwd: root, projectId, projectName: "project", createdAt: now, updatedAt: now, modelId: null, messageCount: 2, usage: zeroUsage, seq: 0 };
+		const records = [
+			{ seq: 1, ts: now, type: "meta", meta },
 			{ seq: 2, ts: now, type: "message", message: { role: "user", content: [{ type: "text", text: "画个图看看" }], timestamp: now } },
 			{ seq: 3, ts: now + 1, type: "message", message: { role: "assistant", content: [{ type: "text", text: BODY }], api: "openai-responses", provider: "x", model: "m", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: "stop", timestamp: now + 1 } },
 		];
-		await writeFile(join(home, "sessions", projectId, `${SESSION_ID}.jsonl`), `${lines.map((l) => JSON.stringify(l)).join("\n")}\n`);
+		seedSessions(home, [{ meta, records }]);
 
 		await writeFile(
 			join(home, "settings.json"),

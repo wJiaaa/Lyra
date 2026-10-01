@@ -17,6 +17,7 @@ import { promptBase } from "../prompt/update.ts";
 import type { AgentEvent, AgentEventSink, CommandRun, HookRun } from "../agent/events.ts";
 import type { SessionMeta, SessionRecordInput } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
+import { PartialWriter } from "../session/partial.ts";
 import { parkMessage, rehydrateMessages } from "../session/payload.ts";
 import type { LlmContext, Message, ModelConfig } from "../types.ts";
 
@@ -104,6 +105,8 @@ export class SessionLog {
 
 	private readonly store: SessionStorage;
 	private readonly sink: AgentEventSink;
+	/** The reply streaming right now, written as it arrives so a crash does not take all of it. */
+	private readonly partial: PartialWriter;
 
 	// Assigned here rather than as parameter properties: Node's type stripping runs the source
 	// as-is and cannot rewrite a constructor parameter into a field.
@@ -111,6 +114,7 @@ export class SessionLog {
 		this.store = store;
 		this.sink = sink;
 		if (meta) this.meta = meta;
+		this.partial = new PartialWriter(store, () => this.meta.id);
 	}
 
 	/** Append a message to the transcript and the log exactly once. */
@@ -118,7 +122,26 @@ export class SessionLog {
 		if (this.committed.has(message)) return;
 		this.committed.add(message);
 		this.messages.push(message);
-		this.meta = await this.store.append(this.meta, { type: "message", message });
+		try {
+			// A reply settles this writer's stream, and only that one.
+			const stream = message.role === "assistant" ? this.partial.stream ?? undefined : undefined;
+			this.meta = (await this.store.append(this.meta, { type: "message", message }, stream ? { stream } : undefined)) ?? this.meta;
+		} catch (error) {
+			/*
+			 * A reply that did not get written is not in the transcript either, and its stream stays
+			 * as it was: still saving what is waiting, still there for `settleOrphan` to commit as a
+			 * stopped reply, and still on disk if the process dies first. Forgetting it before the
+			 * write, as this once did, lost the last batch and left nothing to retry with.
+			 */
+			if (message.role === "assistant") {
+				this.committed.delete(message);
+				const at = this.messages.lastIndexOf(message);
+				if (at >= 0) this.messages.splice(at, 1);
+			}
+			throw error;
+		}
+		// The store dropped the streamed copy in the same transaction that wrote the reply.
+		if (message.role === "assistant") this.partial.settle();
 		if (this.requestContext && !this.requestContext.context.messages.includes(message)) this.requestContext.context.messages.push(message);
 	}
 
@@ -129,6 +152,9 @@ export class SessionLog {
 	 * none of it can be recovered from the messages alone, so it is written as it happens.
 	 */
 	async emit(event: AgentEvent): Promise<void> {
+		// Some messages are committed first and announced after; those have nothing left to stream.
+		if (event.type === "message_start" && event.message.role === "assistant" && this.meta && !this.committed.has(event.message)) await this.partial.begin(event.message);
+		if (event.type === "message_update" && this.meta) await this.partial.update(event.message);
 		if (event.type === "subagent_message") {
 			let seen = this.nestedCommitted.get(event.id);
 			if (!seen) { seen = new WeakSet(); this.nestedCommitted.set(event.id, seen); }
@@ -151,10 +177,10 @@ export class SessionLog {
 			event = { ...event, run: stamped };
 			if (at < 0) this.hookRuns.push(stamped); else this.hookRuns[at] = stamped;
 			// 只落终态：「开始了」对一份事后读的记录没有信息量，终态才说得出它拦没拦、为什么。
-			if (stamped.status !== "running" && this.meta) this.meta = await this.store.append(this.meta, { type: "event", event });
+			if (stamped.status !== "running" && this.meta) this.meta = (await this.store.append(this.meta, { type: "event", event })) ?? this.meta;
 		}
 		if (PERSISTED_EVENTS.has(event.type) && this.meta) {
-			this.meta = await this.store.append(this.meta, { type: "event", event });
+			this.meta = (await this.store.append(this.meta, { type: "event", event })) ?? this.meta;
 		}
 		if (event.type === "context") { this.recordedContext = event; this.contextLoaded = true; this.contextStale = false; }
 		if (event.type === "command_status") {
@@ -177,6 +203,31 @@ export class SessionLog {
 			if (at >= 0) this.commandRuns[at] = event.command ?? completedCompaction(this.commandRuns[at], event.before, event.after);
 		}
 		await this.sink(event);
+	}
+
+	/** A reply that started and was thrown away rather than committed: nothing of it is to be recovered. */
+	discardPartial(): Promise<void> {
+		return this.partial.discard();
+	}
+
+	/**
+	 * A reply still streaming when its turn ended: the turn threw before `message_end`.
+	 *
+	 * Committed as the reply a stop would have produced and announced like any other, so the
+	 * transcript, the window and the store stay one-to-one. Left alone, this process kept the stream
+	 * marked as live — no read would recover it — and the next turn's `beginPartial` deleted it.
+	 */
+	async settleOrphan(): Promise<void> {
+		if (!this.partial.streaming) return;
+		const reply = this.partial.stopped();
+		if (!reply) return this.partial.discard();
+		await this.commit(reply);
+		await this.emit({ type: "message_end", message: reply });
+	}
+
+	/** Every message this session ever committed, truncated ones included, from its own store. */
+	transcript(): Promise<Message[]> {
+		return this.store.messages(this.meta.id);
 	}
 
 	/**
@@ -208,7 +259,7 @@ export class SessionLog {
 		const contexts: { seq: number; event: RecordedContext }[] = [];
 		// 压缩边界的位置，和上下文一样按截断回退：被撤回的压缩不算数。
 		const boundaries: number[] = [];
-		for await (const record of this.store.read(this.meta.projectId, this.meta.id)) {
+		for await (const record of this.store.read(this.meta.id)) {
 			if (record.type === "event" && record.event.type === "context") contexts.push({ seq: record.seq, event: record.event });
 			if (record.type === "event" && record.event.type === "compacted" && record.event.kept !== undefined) boundaries.push(record.seq);
 			if (record.type === "truncate") {
@@ -252,10 +303,11 @@ export class SessionLog {
 	/**
 	 * Append anything else the log carries — a new title, a chosen model.
 	 *
-	 * The returned meta replaces the one held here, because appending is what advances it.
+	 * The returned meta replaces the one held here, because appending is what advances it. A session
+	 * deleted under a running turn returns none, and the last one known stays.
 	 */
 	async append(record: SessionRecordInput): Promise<void> {
-		this.meta = await this.store.append(this.meta, record);
+		this.meta = (await this.store.append(this.meta, record)) ?? this.meta;
 	}
 
 	/**
@@ -280,7 +332,7 @@ export class SessionLog {
 		if (!this.restored) return [];
 		const seqs: number[] = [];
 		const views = new Map<number, { seq: number; message: Message }>();
-		for await (const record of this.store.read(this.meta.projectId, this.meta.id)) {
+		for await (const record of this.store.read(this.meta.id)) {
 			if (record.type === "message") { if (record.message) seqs.push(record.seq); }
 			else if (record.type === "views") for (const view of record.views) views.set(view.at, { seq: record.seq, message: view.message });
 			else if (record.type === "truncate") {
@@ -349,7 +401,7 @@ export class SessionLog {
 	 * a mix of old and new. Null when there was nothing there to cut.
 	 */
 	async truncateFrom(index: number): Promise<boolean> {
-		const truncated = await this.store.truncateFrom(this.meta.projectId, this.meta.id, index);
+		const truncated = await this.store.truncateFrom(this.meta.id, index);
 		if (!truncated) return false;
 		this.meta = truncated.meta;
 		// 存储层会把落在工具结果上的截断点往前挪（不拆开调用和结果），按它实际截到的位置算，和重新载入时一致。

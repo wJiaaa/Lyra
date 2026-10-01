@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { SessionStore } from "../src/session/store.ts";
 
@@ -16,7 +17,7 @@ test("archiving does not reorder the list", async () => {
 		const before = await store.listSessions();
 		assert.equal(before[0].id, newer.id, "newest first to begin with");
 
-		const archived = await store.setArchived(older.projectId, older.id, true);
+		const archived = await store.setArchived(older.id, true);
 		assert.equal(archived?.archived, true);
 		assert.equal(archived?.updatedAt, older.updatedAt, "archiving must not stamp updatedAt");
 
@@ -33,32 +34,32 @@ test("archive state survives a reload from the log", async () => {
 	try {
 		const store = new SessionStore(root);
 		const meta = await store.create("/tmp/a", "m");
-		await store.setArchived(meta.projectId, meta.id, true);
+		await store.setArchived(meta.id, true);
 
 		const fresh = new SessionStore(root);
-		const loaded = await fresh.load(meta.projectId, meta.id);
+		const loaded = await fresh.load(meta.id);
 		assert.equal(loaded?.meta.archived, true, "replaying the log restores the flag");
 
-		await fresh.setArchived(meta.projectId, meta.id, false);
-		const restored = await new SessionStore(root).load(meta.projectId, meta.id);
+		await fresh.setArchived(meta.id, false);
+		const restored = await new SessionStore(root).load(meta.id);
 		assert.equal(restored?.meta.archived, false, "and unarchiving is replayed too");
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}
 });
 
-test("deleteMany empties the archive in one index rewrite", async () => {
+test("deleteMany empties the archive in one call", async () => {
 	const root = await mkdtemp(join(tmpdir(), "ly-arch-"));
 	try {
 		const store = new SessionStore(root);
 		const a = await store.create("/tmp/a", "m");
 		const b = await store.create("/tmp/b", "m");
 		const keep = await store.create("/tmp/c", "m");
-		await store.setArchived(a.projectId, a.id, true);
-		await store.setArchived(b.projectId, b.id, true);
+		await store.setArchived(a.id, true);
+		await store.setArchived(b.id, true);
 
 		const archived = (await store.listSessions()).filter((s) => s.archived);
-		await store.deleteMany(archived.map((s) => ({ projectId: s.projectId, id: s.id })));
+		await store.deleteMany(archived.map((s) => s.id));
 
 		const left = await store.listSessions();
 		assert.deepEqual(left.map((s) => s.id), [keep.id]);
@@ -72,7 +73,7 @@ test("setArchived on an unknown session returns null rather than throwing", asyn
 	try {
 		const store = new SessionStore(root);
 		await store.create("/tmp/a", "m");
-		assert.equal(await store.setArchived("nope", "nope", true), null);
+		assert.equal(await store.setArchived("nope", true), null);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}
@@ -91,9 +92,9 @@ test("pruneEmpty drops unused sessions but spares recent and used ones", async (
 		const fresh = await store.create("/tmp/c", "m");
 
 		// Age `stale` past the guard window without touching the other two.
-		const index = JSON.parse(await readFile(join(root, "index.json"), "utf8")) as { id: string; createdAt: number }[];
-		for (const entry of index) if (entry.id === stale.id) entry.createdAt = Date.now() - 60 * 60_000;
-		await writeFile(join(root, "index.json"), JSON.stringify(index), "utf8");
+		const db = new DatabaseSync(store.path);
+		db.prepare("UPDATE sessions SET created_at = ? WHERE id = ?").run(Date.now() - 60 * 60_000, stale.id);
+		db.close();
 
 		assert.equal(await store.pruneEmpty(), 1, "only the aged empty session goes");
 		const left = (await store.listSessions()).map((s) => s.id).sort();
@@ -128,11 +129,11 @@ test("truncateFrom drops a message and everything after it", async () => {
 		await say("user", "two");
 		await say("assistant", "reply two");
 
-		const before = await store.load(meta.projectId, meta.id);
+		const before = await store.load(meta.id);
 		assert.equal(before?.messages.length, 4);
 
 		// Editing message 2 discards it and the reply it drew.
-		const after = await store.truncateFrom(meta.projectId, meta.id, 2);
+		const after = await store.truncateFrom(meta.id, 2);
 		assert.deepEqual(
 			after?.messages.map((m) => (m.content[0] as { text: string }).text),
 			["one", "reply one"],
@@ -140,7 +141,7 @@ test("truncateFrom drops a message and everything after it", async () => {
 		assert.equal(after?.meta.messageCount, 2, "the index must reflect the shorter history");
 
 		// And it survives a reload — the truncate is in the log, not just in memory.
-		const reloaded = await new SessionStore(root).load(meta.projectId, meta.id);
+		const reloaded = await new SessionStore(root).load(meta.id);
 		assert.deepEqual(
 			reloaded?.messages.map((m) => (m.content[0] as { text: string }).text),
 			["one", "reply one"],
@@ -148,7 +149,7 @@ test("truncateFrom drops a message and everything after it", async () => {
 
 		// Appending after a truncate continues from the shortened history.
 		await say("user", "two edited");
-		const final = await new SessionStore(root).load(meta.projectId, meta.id);
+		const final = await new SessionStore(root).load(meta.id);
 		assert.deepEqual(
 			final?.messages.map((m) => (m.content[0] as { text: string }).text),
 			["one", "reply one", "two edited"],
@@ -163,13 +164,13 @@ test("truncateFrom refuses an index that is not there", async () => {
 	try {
 		const store = new SessionStore(root);
 		const meta = await store.create("/tmp/a", "m");
-		assert.equal(await store.truncateFrom(meta.projectId, meta.id, 0), null);
-		assert.equal(await store.truncateFrom(meta.projectId, meta.id, -1), null);
+		assert.equal(await store.truncateFrom(meta.id, 0), null);
+		assert.equal(await store.truncateFrom(meta.id, -1), null);
 		await store.append(meta, { type: "message", message: { role: "user", content: [{ type: "text", text: "keep" }], timestamp: 1 } });
 		for (const index of [0.5, NaN, Infinity]) {
-			assert.equal(await store.truncateFrom(meta.projectId, meta.id, index), null);
+			assert.equal(await store.truncateFrom(meta.id, index), null);
 		}
-		assert.equal((await store.load(meta.projectId, meta.id))?.messages.length, 1);
+		assert.equal((await store.load(meta.id))?.messages.length, 1);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}

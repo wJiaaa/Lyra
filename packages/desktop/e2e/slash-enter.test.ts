@@ -16,6 +16,7 @@ import { join } from "node:path";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 const DAY = 86_400_000;
 const now = Date.now();
@@ -26,7 +27,6 @@ let app: RunningApp;
 
 const seed = async (home: string) => {
 		await mkdir(PROJECT, { recursive: true });
-		await mkdir(join(home, "sessions", "p1"), { recursive: true });
 		const meta = {
 			id: SESSION,
 			title: "压缩用的会话",
@@ -40,11 +40,10 @@ const seed = async (home: string) => {
 			usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
 			seq: 1,
 		};
-		await writeFile(join(home, "sessions", "index.json"), JSON.stringify([meta]));
-		const lines = [JSON.stringify({ seq: 1, ts: now, type: "meta", meta })];
+		const records: FixtureRecord[] = [{ seq: 1, ts: now, type: "meta", meta }];
 		for (let i = 0; i < 10; i++) {
-			lines.push(
-				JSON.stringify({
+			records.push(
+				{
 					seq: i + 2,
 					ts: now + i,
 					type: "message",
@@ -61,10 +60,10 @@ const seed = async (home: string) => {
 									stopReason: "stop",
 									timestamp: now + i,
 								},
-				}),
+				},
 			);
 		}
-		await writeFile(join(home, "sessions", "p1", `${SESSION}.jsonl`), `${lines.join("\n")}\n`);
+		seedSessions(home, [{ meta, records }]);
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 900, x: 0, y: 0 }));
 		await writeFile(
 			join(home, "settings.json"),

@@ -74,7 +74,7 @@ function SessionTrajectory() {
 	const exportFile = async (format: "md" | "json" | "output", entry?: Entry) => {
 		if (!meta) return;
 		try {
-			const path = await bridge.sessions.exportTrajectory(meta.projectId, meta.id, format, entry ? { id: entryKey(entry) } : undefined);
+			const path = await bridge.sessions.exportTrajectory(meta.id, format, entry ? { id: entryKey(entry) } : undefined);
 			await openFilePane({ path, name: path.split(/[\\/]/).pop() || path }, screen ?? undefined);
 			setSelected(null);
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
@@ -82,7 +82,7 @@ function SessionTrajectory() {
 	const fork = async () => {
 		if (!meta || !picked) return;
 		try {
-			const result = await bridge.sessions.fork(meta.projectId, meta.id, picked.seq);
+			const result = await bridge.sessions.fork(meta.id, picked.seq);
 			if (!result) throw new Error(t("trajectory.forkFailed"));
 			/*
 			 * In this panel's screen, where it was asked for. A press there focuses the screen first, so

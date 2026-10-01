@@ -4,17 +4,18 @@
  * 「数据与存储」那一块，在真窗口里的样子和行为。
  *
  * 两件只有真窗口答得了的事：那张月历**画出来**好不好看（层级对不对、有没有被卡片裁掉、选中的一段
- * 是不是连成一条），以及删除是不是真的把文件从磁盘上拿走了。后者尤其不能只看界面——界面说「已删除
- * 12 条」和磁盘上真的少了 12 个文件是两回事，而这中间隔着一整条 IPC。
+ * 是不是连成一条），以及删除是不是真的把会话从库里拿走了。后者尤其不能只看界面——界面说「已删除
+ * 12 条」和库里真的少了 12 条会话是两回事，而这中间隔着一整条 IPC。
  *
- * 用临时 home，造 4 条分布在不同日期的会话，删中间那一段，然后数磁盘。
+ * 用临时 home，造 4 条分布在不同日期的会话，删中间那一段，然后数库里的会话。
  *
  * Run: PLUME_E2E_ARTIFACTS=~/Desktop/清除统计测试 node --experimental-strip-types e2e/storage-cleanup-probe.ts
  */
 
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startApp } from "./app.ts";
+import { seededSessions, seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 const PORT = 9435;
 const PROJECT_ID = "cccccccccccccccc";
@@ -29,20 +30,19 @@ const SESSIONS = [
 	{ id: "s-today", daysAgo: 0, replies: 5 },
 ];
 
-let sessionsDir = "";
+let seededHome = "";
 
 const app = await startApp({
 	port: PORT,
 	seed: async (home) => {
-		sessionsDir = join(home, "sessions", PROJECT_ID);
+		seededHome = home;
 		const project = join(home, "demo-project");
 		await mkdir(project, { recursive: true });
 		await writeFile(join(project, "readme.md"), "# demo\n");
 		await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 940, x: 0, y: 0 }));
-		await mkdir(sessionsDir, { recursive: true });
 
 		const now = Date.now();
-		const index = [];
+		const sessions = [];
 		for (const spec of SESSIONS) {
 			const at = now - spec.daysAgo * DAY;
 			const meta = {
@@ -50,24 +50,22 @@ const app = await startApp({
 				createdAt: at, updatedAt: at, modelId: "relay/gemini-3.8-flash-high", messageCount: spec.replies * 2, seq: 1,
 				usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 			};
-			const lines = [JSON.stringify({ seq: 1, ts: at, type: "meta", meta })];
+			const records: FixtureRecord[] = [{ seq: 1, ts: at, type: "meta", meta }];
 			let seq = 1;
 			for (let i = 0; i < spec.replies; i++) {
-				lines.push(JSON.stringify({ seq: ++seq, ts: at, type: "message", message: { role: "user", content: [{ type: "text", text: "。" }], timestamp: at } }));
-				lines.push(JSON.stringify({
+				records.push({ seq: ++seq, ts: at, type: "message", message: { role: "user", content: [{ type: "text", text: "。" }], timestamp: at } });
+				records.push({
 					seq: ++seq, ts: at, type: "message",
 					message: {
 						role: "assistant", content: [{ type: "text", text: "。".repeat(200) }], api: "openai-responses",
 						provider: "relay", model: "gemini-3.8-flash-high", stopReason: "stop", timestamp: at,
 						usage: { input: 40_000, output: 1_200, cacheRead: 0, cacheWrite: 0, reasoning: 0, total: 41_200, cost: { input: 0.03, output: 0.0045, cacheRead: 0, cacheWrite: 0, total: 0.0345, source: "catalog", catalogVersion: "2:89dfccad5490", rates: { input: 0.75, output: 3.75, cacheRead: 0.075, cacheWrite: 0.75 } } },
 					},
-				}));
+				});
 			}
-			await writeFile(join(sessionsDir, `${spec.id}.jsonl`), lines.join("\n") + "\n");
-			index.push(meta);
+			sessions.push({ meta, records });
 		}
-		await mkdir(join(home, "sessions"), { recursive: true });
-		await writeFile(join(home, "sessions", "index.json"), JSON.stringify(index, null, 2));
+		seedSessions(home, sessions);
 
 		await writeFile(join(home, "settings.json"), JSON.stringify({
 			version: 1,
@@ -90,7 +88,7 @@ async function shot(name: string): Promise<void> {
 	console.log("  截图:", join(directory, name + ".png"));
 }
 
-const logsOnDisk = async () => (await readdir(sessionsDir).catch(() => [])).filter((f) => f.endsWith(".jsonl")).sort();
+const logsOnDisk = async () => (await seededSessions(seededHome)).map((meta) => meta.id).sort();
 
 const UI = `
 	const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -115,7 +113,7 @@ try {
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 940, deviceScaleFactor: 2, mobile: false });
 	await pause(2_600);
 
-	console.log("磁盘上的日志（删之前）:", await logsOnDisk());
+	console.log("库里的会话（删之前）:", await logsOnDisk());
 
 	/*
 	 * 先打开一条会话。
@@ -314,7 +312,7 @@ try {
 	console.log("面板现在说:", cleared.done);
 	await shot("4-删除之后");
 
-	console.log("\n磁盘上的日志（删之后）:", await logsOnDisk());
+	console.log("\n库里的会话（删之后）:", await logsOnDisk());
 
 	/*
 	 * 删完回工作区，看那条被删的会话在渲染层有没有真的消失。

@@ -57,6 +57,8 @@ const submitted = new Set<string>();
 const initializing = new Map<string, Promise<AgentSession | null>>();
 const retiring = new Set<string>();
 const abortedWhileStarting = new Set<string>();
+/** Chosen for deletion and not gone yet: nothing new may start on them. See `deleteIdleSessions`. */
+const deleting = new Set<string>();
 
 export async function createSession(cwd: string, modelId: string, initial?: InitialPrompt): Promise<SessionSnapshot> {
 	const saved = await createStoredSession(deps.store(), deps.settings(), cwd, modelId, initialPrompt(initial));
@@ -102,6 +104,36 @@ export const sideChats = new Map<string, Map<string, SideChat>>();
 
 export function liveSideChat(sessionId: string, sideId: string): SideChat | undefined {
 	return sideChats.get(sessionId)?.get(sideId);
+}
+
+/** Side chats being opened, per session: their archive is still being read, so `sideChats` has no sign of them. */
+const sideChatsOpening = new Map<string, number>();
+
+/**
+ * Count the session as in use while a side chat on it opens; call what this returns once it is in place or failed.
+ *
+ * Taken before the first await. A clear by date that ran while the archive was read found nothing
+ * in flight and deleted the conversation being opened.
+ */
+export function holdForSideChat(sessionId: string): () => void {
+	sideChatsOpening.set(sessionId, (sideChatsOpening.get(sessionId) ?? 0) + 1);
+	return () => {
+		const left = (sideChatsOpening.get(sessionId) ?? 1) - 1;
+		if (left > 0) sideChatsOpening.set(sessionId, left);
+		else sideChatsOpening.delete(sessionId);
+	};
+}
+
+/**
+ * Put an opened side chat in place; false when `main` was stopped or deleted while it opened.
+ * Installed anyway, it would outlive `disposeSession`'s sweep and keep saving an archive for a conversation that is gone.
+ */
+export function installSideChat(sessionId: string, main: AgentSession, sideId: string, chat: SideChat): boolean {
+	if (sessions.get(sessionId) !== main || retiring.has(sessionId) || deleting.has(sessionId)) return false;
+	const chats = sideChats.get(sessionId) ?? new Map<string, SideChat>();
+	chats.set(sideId, chat);
+	sideChats.set(sessionId, chats);
+	return true;
 }
 
 /** 这个会话旁边有哪些侧边聊天：有存档的，加上这次开着、还没来得及存下东西的。 */
@@ -265,8 +297,14 @@ export async function disposeSession(sessionId: string): Promise<void> {
 	retiring.delete(sessionId);
 }
 
-export async function activateSession(projectId: string, sessionId: string): Promise<AgentSession | null> {
-	if (retiring.has(sessionId)) return null;
+/**
+ * The live session for an id, activating it from disk if it is not warm yet.
+ *
+ * The one entry point for "I need to actually run something on this conversation" — as opposed to
+ * reading it, which must never come through here.
+ */
+export async function ensureLiveSession(sessionId: string): Promise<AgentSession | null> {
+	if (retiring.has(sessionId) || deleting.has(sessionId)) return null;
 	const pending = initializing.get(sessionId);
 	if (pending) return pending;
 	const existing = sessions.get(sessionId);
@@ -274,17 +312,17 @@ export async function activateSession(projectId: string, sessionId: string): Pro
 		touchSession(sessionId);
 		return existing;
 	}
-	const starting = startStoredSession(projectId, sessionId);
+	const starting = startStoredSession(sessionId);
 	initializing.set(sessionId, starting);
 	try { return await starting; }
 	finally { initializing.delete(sessionId); abortedWhileStarting.delete(sessionId); }
 }
 
-async function startStoredSession(projectId: string, sessionId: string): Promise<AgentSession | null> {
+async function startStoredSession(sessionId: string): Promise<AgentSession | null> {
 	const store = deps.store();
 	let session = sessions.get(sessionId);
 	if (!session) {
-		const loaded = await store.load(projectId, sessionId);
+		const loaded = await store.load(sessionId);
 		if (!loaded || retiring.has(sessionId)) return null;
 		session = stageSession({ meta: loaded.meta, messages: loaded.messages, running: false, pendingApprovals: [] });
 		session.restore(loaded.messages, loaded.compaction, loaded.compactions);
@@ -333,43 +371,60 @@ export async function abortSession(sessionId: string): Promise<void> {
 	broadcast(sessionId, { type: "agent_end", reason: "aborted" });
 }
 
-/** Retire the least recently used sessions, never one mid-turn and never the current one. */
-async function evictStaleSessions(keep: string): Promise<void> {
-	// Snapshotted with `entries()`, not spread: this loop deletes from the map as it goes.
-	for (const [id, session] of Array.from(sessions.entries())) {
-		if (sessions.size <= MAX_LIVE_SESSIONS) break;
-		// An open side chat is a conversation in progress, same as a running turn — evicting
-		// its session would silently throw that conversation away.
-		if (id === keep || session.running || session.meta.pendingPrompt || initializing.has(id) || sideChats.has(id)) continue;
-		if (browserState().tabs.some((tab) => tab.sessionId === id)) continue;
-		if (backgroundJobs(session.can.state).list().some((job) => job.status === "running" || job.status === "stopping")) continue;
-		/*
-		 * 主会话已经收尾、子代理还在后台跑的，也是一场进行中的对话。
-		 *
-		 * 人在主会话等子代理时插了话，主会话回应完就收尾了（`running` 为假），子代理留在后台接着跑，
-		 * 跑完结果会送回来（ADR-0029）。按「没在跑」把它回收掉，等于把那几个子代理连同它们要送回来
-		 * 的结果一起扔了——而人只是去别的对话看了一眼。
-		 */
-		if (session.subAgents.list().some((one) => one.status === "running" || one.status === "queued")) continue;
-		await disposeSession(id);
-	}
+/**
+ * Something is still going to write to this session: a turn, a prompt on its way in, a session
+ * still starting, a side chat opening or answering, background work.
+ */
+function sessionBusy(id: string): boolean {
+	if (submitted.has(id) || initializing.has(id) || sideChatsOpening.has(id)) return true;
+	const session = sessions.get(id);
+	if (!session) return false;
+	if (session.running || session.meta.pendingPrompt) return true;
+	if (Array.from(sideChats.get(id)?.values() ?? []).some((chat) => chat.running)) return true;
+	if (backgroundJobs(session.can.state).list().some((job) => job.status === "running" || job.status === "stopping")) return true;
+	/*
+	 * 主会话已经收尾、子代理还在后台跑的，也是一场进行中的对话。
+	 *
+	 * 人在主会话等子代理时插了话，主会话回应完就收尾了（`running` 为假），子代理留在后台接着跑，
+	 * 跑完结果会送回来（ADR-0029）。按「没在跑」把它回收掉，等于把那几个子代理连同它们要送回来
+	 * 的结果一起扔了——而人只是去别的对话看了一眼。
+	 */
+	return session.subAgents.list().some((one) => one.status === "running" || one.status === "queued");
 }
 
 /**
- * The live session for an id, activating it from disk if it is not warm yet.
+ * Stop these sessions and delete them. Every way a session is deleted comes through here.
  *
- * The one entry point for "I need to actually run something on this conversation" — as opposed to
- * reading it, which must never come through here.
+ * Marked before anything is awaited and unmarked only once the rows are gone: in between,
+ * `ensureLiveSession` answers null, so a prompt sent meanwhile is refused
+ * instead of starting on a conversation about to vanish.
  */
-export async function ensureLiveSession(sessionId: string): Promise<AgentSession | null> {
-	if (retiring.has(sessionId)) return null;
-	const pending = initializing.get(sessionId);
-	if (pending) return pending;
-	const existing = sessions.get(sessionId);
-	if (existing && ready.has(sessionId)) {
-		touchSession(sessionId);
-		return existing;
+export async function deleteSessions(ids: string[]): Promise<void> {
+	for (const id of ids) deleting.add(id);
+	try {
+		await Promise.all(ids.map((id) => disposeSession(id)));
+		await deps.store().deleteMany(ids);
+	} finally {
+		for (const id of ids) deleting.delete(id);
 	}
-	const meta = (await deps.store().listSessions()).find((s) => s.id === sessionId);
-	return meta ? activateSession(meta.projectId, sessionId) : null;
+}
+
+/** As `deleteSessions`, for those of `ids` with nothing in flight; answers which. A clear by date must not stop work. */
+export async function deleteIdleSessions(ids: string[]): Promise<string[]> {
+	const idle = ids.filter((id) => !sessionBusy(id));
+	await deleteSessions(idle);
+	return idle;
+}
+
+/** Retire the least recently used sessions, never one mid-turn and never the current one. */
+async function evictStaleSessions(keep: string): Promise<void> {
+	// Snapshotted with `entries()`, not spread: this loop deletes from the map as it goes.
+	for (const [id] of Array.from(sessions.entries())) {
+		if (sessions.size <= MAX_LIVE_SESSIONS) break;
+		// An open side chat is a conversation in progress, same as a running turn — evicting
+		// its session would silently throw that conversation away.
+		if (id === keep || sessionBusy(id) || sideChats.has(id)) continue;
+		if (browserState().tabs.some((tab) => tab.sessionId === id)) continue;
+		await disposeSession(id);
+	}
 }

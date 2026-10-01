@@ -20,6 +20,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const REAL_HOME = join(homedir(), ".plume");
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "Plume输入历史测试");
@@ -61,18 +62,10 @@ async function seed(home: string): Promise<void> {
 	await writeFile(join(cwd, "README.md"), "# 演示工程\n");
 
 	const projectId = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
-	const dir = join(home, "sessions", projectId);
-	await mkdir(dir, { recursive: true });
 
-	/*
-	 * 序号从 1 起，meta 占掉第一个。
-	 *
-	 * `store.read` 的闸门是 `record.seq > sinceSeq`，而 `sinceSeq` 默认 0——一条 `seq: 0` 的 meta
-	 * 会被读掉，`load` 在 `if (!meta) return null` 处交回 null，会话连列表都进不去。
-	 */
 	const at = Date.now() - 600_000;
 	const record = (seq: number, role: string, text: string) =>
-		JSON.stringify({
+		({
 			seq,
 			ts: at + seq * 1000,
 			type: "message",
@@ -83,7 +76,7 @@ async function seed(home: string): Promise<void> {
 	 * 是人打的那句话。`attachments` 是那份元数据清单，`displayText` 是人看到的字。
 	 */
 	const withImage = (seq: number) =>
-		JSON.stringify({
+		({
 			seq,
 			ts: at + seq * 1000,
 			type: "message",
@@ -101,7 +94,7 @@ async function seed(home: string): Promise<void> {
 		});
 	/** 同一条消息里附一排图：够多才会换行，而换行正是叉浮到外面时唯一会出事的地方。 */
 	const manyImages = (seq: number) =>
-		JSON.stringify({
+		({
 			seq,
 			ts: at + seq * 1000,
 			type: "message",
@@ -124,25 +117,21 @@ async function seed(home: string): Promise<void> {
 			},
 		});
 
-	const lines = [
-		JSON.stringify({
-			seq: 1,
-			ts: at,
-			type: "meta",
-			meta: {
-				id: SESSION_ID,
-				title: "输入历史演示",
-				cwd,
-				projectId,
-				projectName: "演示工程",
-				createdAt: at,
-				updatedAt: at,
-				modelId: "relay/gemini-3.7-flash-high",
-				messageCount: 8,
-				usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: 0 },
-				seq: 0,
-			},
-		}),
+	const meta = {
+		id: SESSION_ID,
+		title: "输入历史演示",
+		cwd,
+		projectId,
+		projectName: "演示工程",
+		createdAt: at,
+		updatedAt: at,
+		modelId: "relay/gemini-3.7-flash-high",
+		messageCount: 8,
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: 0 },
+		seq: 0,
+	};
+	const records = [
+		{ seq: 1, ts: at, type: "meta", meta },
 		manyImages(2),
 		record(3, "assistant", "都看过了。"),
 		withImage(4),
@@ -152,7 +141,7 @@ async function seed(home: string): Promise<void> {
 		record(8, "user", SECOND),
 		record(9, "assistant", "也记下了：发版前先排练。"),
 	];
-	await writeFile(join(dir, `${SESSION_ID}.jsonl`), `${lines.join("\n")}\n`);
+	seedSessions(home, [{ meta, records }]);
 
 	/*
 	 * 借真实的模型配置，只为了让最后那一次「发送」是真的发出去。

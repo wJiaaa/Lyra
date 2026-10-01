@@ -13,6 +13,7 @@ import { join } from "node:path";
 
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume设置按钮测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
@@ -72,14 +73,13 @@ async function seed(home: string): Promise<void> {
 		}),
 	);
 
-	const metas: object[] = [];
+	const sessions = [];
 	const chats = [
 		{ project: projects[0], title: "Alpha 归档甲", id: "arch-a1" },
 		{ project: projects[0], title: "Alpha 归档乙", id: "arch-a2" },
 		{ project: projects[1], title: "Beta 归档丙", id: "arch-b1" },
 	];
 	for (const [i, chat] of chats.entries()) {
-		await mkdir(join(home, "sessions", chat.project.id), { recursive: true });
 		const meta = {
 			id: chat.id,
 			title: chat.title,
@@ -94,18 +94,17 @@ async function seed(home: string): Promise<void> {
 			seq: 3,
 			archived: true,
 		};
-		metas.push(meta);
-		await writeFile(
-			join(home, "sessions", chat.project.id, `${chat.id}.jsonl`),
-			[
-				JSON.stringify({ seq: 0, ts: 1, type: "meta", meta }),
-				JSON.stringify({
+		sessions.push({
+			meta,
+			records: [
+				{ seq: 0, ts: 1, type: "meta", meta },
+				{
 					seq: 1,
 					ts: 1,
 					type: "message",
 					message: { role: "user", content: [{ type: "text", text: chat.title }], timestamp: 1 },
-				}),
-				JSON.stringify({
+				},
+				{
 					seq: 2,
 					ts: 2,
 					type: "message",
@@ -119,12 +118,12 @@ async function seed(home: string): Promise<void> {
 						stopReason: "stop",
 						timestamp: 2,
 					},
-				}),
-				JSON.stringify({ seq: 3, ts: 2, type: "meta", meta }),
-			].join("\n") + "\n",
-		);
+				},
+				{ seq: 3, ts: 2, type: "meta", meta },
+			],
+		});
 	}
-	await writeFile(join(home, "sessions", "index.json"), JSON.stringify(metas));
+	seedSessions(home, sessions);
 }
 
 let app: RunningApp | undefined;

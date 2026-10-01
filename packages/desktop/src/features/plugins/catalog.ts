@@ -364,16 +364,13 @@ export function merge(
 /**
  * What an installed MCP bundle asks for, across its servers.
  *
- * The settings rows are what will be started, so their placeholders count; the bundle's own copy of
- * each server carries the manifest's notes about them, which rows written before those notes existed
- * do not have. One entry per name, the first description found.
+ * The settings rows are what will be started, so their placeholders count; before there are any,
+ * the bundle's own copy of each server. One entry per name, the first description found.
  */
 function bundleNeeds(bundle: McpBundle, rows: McpServerConfig[]): McpNeed[] {
 	const byName = new Map<string, McpNeed>();
-	const declared = new Map(bundle.servers.map((server) => [server.id, server]));
 	for (const server of rows.length > 0 ? rows : bundle.servers) {
-		const notes = server.needs ?? declared.get(server.id)?.needs;
-		for (const need of needsOf(notes ? { ...server, needs: notes } : server)) {
+		for (const need of needsOf(server)) {
 			if (!byName.has(need.name)) byName.set(need.name, need);
 		}
 	}
