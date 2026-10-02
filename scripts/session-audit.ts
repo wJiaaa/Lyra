@@ -16,6 +16,11 @@
  * 读的是 `~/.plume/sessions/sessions.db` 里的真实会话，所以数字会随着你自己的使用而变。**要对照就必须是同
  * 一台机器、同一批会话的前后两次**，不同机器之间的绝对值没有可比性。
  *
+ * 「同一批」比听上去难：改代码要几个小时，这期间人还在用这台机器，新会话一进来，改前存下的那份输出就
+ * 对不上了，分不清是代码变了还是样本变了。可靠的做法是在同一时刻跑两份代码——把改动前的提交检出到一个
+ * 临时 worktree（`git worktree add --detach /tmp/plume-base <基线提交>`，`node_modules` 软链过去），
+ * 两边各跑一次 `--json` 再 `cmp`。
+ *
  * 第 4 节直接 import 生产用的 `RepetitionWatch` 并在真实调用序列上重放，而不是照着它的逻辑另
  * 写一份：另写的那份只能证明「我以为它是这样」。
  *
@@ -596,6 +601,17 @@ const compactionStats = (automatic: boolean) => {
 };
 const blockingCompactions = compactionStats(true);
 const manualCompactions = compactionStats(false);
+
+/*
+ * 样本太薄时先说出来，写在 stderr，不进 `--json` 的输出。
+ *
+ * 会话搬进 SQLite 时没有迁移旧数据，改版之后本机一度只剩一两个会话；那时改前改后的输出逐字节相同，看上去
+ * 是「行为没变」的有力证据，其实只是十几轮对话没碰到改动的那几条路。数字只在样本够多时才说明问题。
+ */
+const THIN_SAMPLE = 10;
+if (sessions.length < THIN_SAMPLE) {
+	console.error(`⚠ 只读到 ${sessions.length} 个会话、${sessions.reduce((n, s) => n + s.rounds, 0)} 轮：前后两次一致说明不了多少，结论要打折扣。`);
+}
 
 if (asJson) {
 	console.log(
