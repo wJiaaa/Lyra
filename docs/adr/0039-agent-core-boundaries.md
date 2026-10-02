@@ -2,7 +2,7 @@
 
 - 状态：已采纳
 - 日期：2026-10-02
-- 相关：[ADR-0034](0034-run-config-in-four-groups.md)（循环的拆分与四组配置）；`packages/core/src/agent/`；`packages/core/src/runtime/{session,session-activity,session-deliveries,session-lookup,session-model,session-rewind,manual-compaction}.ts`；`packages/core/src/tokens.ts`；`.dependency-cruiser.cjs`（`loop-sits-below-the-session`）
+- 相关：[ADR-0034](0034-run-config-in-four-groups.md)（循环的拆分与四组配置）；`packages/core/src/agent/`；`packages/core/src/runtime/{session,session-activity,session-deliveries,session-lookup,session-model,session-rewind,session-inbox,manual-compaction}.ts`；`packages/core/src/tokens.ts`；`.dependency-cruiser.cjs`（`loop-sits-below-the-session`）
 
 ## 背景
 
@@ -32,9 +32,9 @@ hold 里面跑 turn，手动压缩单独占；`stop` 打一个标记，等过东
 
 ## 没有做的
 
-- **`session.ts` 仍有九百多行。** 能按真实边界搬走的已经搬走：手动压缩（`manual-compaction.ts`）、
+- **`session.ts` 仍有一千行左右。** 能按真实边界搬走的已经搬走：手动压缩（`manual-compaction.ts`）、
   撤回与编辑重发共用的截断（`session-rewind.ts`）、模型与思考档位的记录（`session-model.ts`），三者
-  只借日志和少数几样状态。剩下的是回合怎么开、怎么排队、怎么停，以及几十个对外方法的转手——
+  只借日志和少数几样状态；忙着时进来的插话与排队（`session-inbox.ts`）是不依赖会话的纯规则。剩下的是回合怎么开、怎么排队、怎么停，以及几十个对外方法的转手——
   回合驱动要同时借活动、日志、设置、审批、子代理、派发等十几样，硬拆就是把它们原样换成一个参数袋。
 - **进程级的缝（`useAgentLoop`、`useToolPipeline`、`useCompaction` 等十条）没有改成逐会话注入。**
   桌面端和命令行各自只启动一个内核，`node --test` 每个文件一个进程，14 个绑定这些缝的测试文件

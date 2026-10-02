@@ -11,8 +11,9 @@
  *
  * Who holds the history right now (a prompt, a turn, a manual compaction) is `SessionActivity`;
  * gathering background results and delivering them is `SessionDeliveries`; `session://` lookups are
- * `session-lookup.ts`. Manual compaction, the cut behind undo and edit-and-resend, and recording the
- * model and thinking level are `manual-compaction.ts`, `session-rewind.ts` and `session-model.ts`.
+ * `session-lookup.ts`. Manual compaction, the cut behind undo and edit-and-resend, recording the
+ * model and thinking level, and what waits to get in while busy are `manual-compaction.ts`,
+ * `session-rewind.ts`, `session-model.ts` and `session-inbox.ts`.
  * What stays is how a turn starts, queues and stops — which borrows a dozen pieces of session state
  * at once. Why it is split this way: ADR-0039.
  */
@@ -42,6 +43,7 @@ import { DelegationWaits } from "./delegation-waits.ts";
 import { backgroundJobs } from "../tools/background-jobs.ts";
 import { SessionActivity, type CompactOutcome } from "./session-activity.ts";
 import { SessionDeliveries } from "./session-deliveries.ts";
+import { SessionInbox } from "./session-inbox.ts";
 import { sessionLookup } from "./session-lookup.ts";
 import { refreshDispatchGate } from "./turn-config.ts";
 import { sessionTaskQueue, type TaskQueue } from "./task-queue.ts";
@@ -105,14 +107,8 @@ export class AgentSession {
 	private title: SessionTitle;
 	/** 谁此刻占着历史、怎么停下它。见 `session-activity.ts`。 */
 	private readonly activity = new SessionActivity();
-	private steering: Message[] = [];
-	/**
-	 * 说了「等这一轮做完再说」的那些消息。
-	 *
-	 * 跟 `steering` 分开的理由就是它们的区别：`steering` 会被塞进正在跑的那一轮，而这些要等
-	 * 那一轮结束。合成一个队列的话，两种意思里必然有一种表达不出来。
-	 */
-	private readonly pending: { message: Message; thinking?: ThinkingLevel }[] = [];
+	/** 忙着的时候进来的话：插话或排队。见 `session-inbox.ts`。 */
+	private readonly inbox = new SessionInbox();
 	/**
 	 * Every sub-agent this session has dispatched, live and finished.
 	 *
@@ -693,17 +689,8 @@ export class AgentSession {
 		options: { thinking?: ThinkingLevel; deliver?: "steer" | "followUp"; fromPerson: boolean; title?: () => Promise<void> },
 	): Promise<void> {
 		if (this.running) {
-			/*
-			 * 插话，还是排队。
-			 *
-			 * 插话是默认，因为绝大多数在回合中途说的话都是「等等，不是那样」——那种话晚说
-			 * 五分钟就白说了。而 `followUp` 说的是「这一轮做完再说」，把它插进去反而会打断
-			 * 那件本来就该先做完的事。
-			 */
-			if (options.deliver === "followUp" || !this.activity.steerable) {
-				this.pending.push({ message, thinking: options.thinking });
-			} else {
-				this.steering.push(message);
+			const went = this.inbox.accept({ message, thinking: options.thinking }, options.deliver, this.activity.steerable);
+			if (went === "steer") {
 				/*
 				 * 人开口了，父会话别再干等子代理。
 				 *
@@ -740,22 +727,9 @@ export class AgentSession {
 	 * `this.running` 为真，所以循环里不会有第二个回合同时开始。
 	 */
 	private async drainPending(): Promise<void> {
-		while (this.pending.length > 0 || this.steering.length > 0) {
-			/*
-			 * 没人接走的插话，也在这里兜住。
-			 *
-			 * 走到这里 loop 已经结束了——`drainSteering` 不会再被调用——所以此刻还留在
-			 * `steering` 里的只可能是孤儿。孤儿不报错、不进转录、也不回到队列条上，人看到的
-			 * 只是「发出去了但一点反应都没有」，而它会在下一次发送时被顺带倒出来，看起来像
-			 * 旧话重放。`steerable` 那道判断堵的是已知的那条进法，这里堵的是「还有没有别的
-			 * 进法」——这类故障最不该靠推理来保证不发生。
-			 *
-			 * 排在 `pending` 前面，因为它们是更早说出口的。
-			 */
-			if (this.steering.length > 0) {
-				this.pending.unshift(...this.steering.splice(0, this.steering.length).map((message) => ({ message })));
-			}
-			const next = this.pending.shift();
+		while (!this.inbox.empty) {
+			// Orphaned steering comes out first; see `SessionInbox.next`.
+			const next = this.inbox.next();
 			if (!next) break;
 			if (this.activity.stopping) break;
 			const mark = this.activity.mark();
@@ -809,7 +783,7 @@ export class AgentSession {
 				scratchDir: scratchDir(this.log.meta.id),
 				requestApproval: (request) => this.requestApproval(request),
 				emit: (event) => this.emit(event),
-				drainSteering: () => this.steering.splice(0, this.steering.length),
+				drainSteering: () => this.inbox.takeSteering(),
 				subAgents: this.subAgents,
 				delegations: this.delegations,
 				liveModel: this.liveModel,
@@ -847,7 +821,8 @@ export class AgentSession {
 		// The prompt owner records a cancelled startup before resolving, so disposal cannot race
 		// an unawaited append after the caller has already finished the opening submission.
 		this.activity.stop();
-		this.steering.length = 0;
+		// Steering and the queue both go: see `SessionInbox.clear`.
+		this.inbox.clear();
 		/*
 		 * Explicitly, as well as through the chain.
 		 *
@@ -862,13 +837,6 @@ export class AgentSession {
 		this.delegations.forget();
 		this.deliveries.clear();
 		backgroundJobs(this.can.state).mute();
-		/*
-		 * 排队等着的那些也一并取消。
-		 *
-		 * 「停止」说的是这个对话现在停下，而不是「停下当前这一轮，然后把我排的三条接着跑完」
-		 * ——后者会在人按下按钮之后继续花钱，而屏幕上刚刚显示了已停止。
-		 */
-		this.pending.length = 0;
 		// Stop means stop. Letting the queue carry on after the button was pressed would be
 		// the opposite of what pressing it asks for.
 		void this.tasks.cancelAll();
