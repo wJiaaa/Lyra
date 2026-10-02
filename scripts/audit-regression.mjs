@@ -201,6 +201,11 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/cc-wire-stream.test.ts", "packages/core/test/cc-wire-request.test.ts", "packages/core/test/failure-classify.test.ts", "packages/core/test/retry.test.ts", "packages/core/test/responses-lossy-stream.test.ts", "packages/core/test/prune-view-persistence.test.ts", "packages/core/test/todo-solo-nudge.test.ts", "packages/core/test/project-memory.test.ts", "packages/core/test/hooks.test.ts"]],
 	},
 	{
+		id: "crash-mid-call",
+		what: "进程在工具调用中途退出，重开只剩一个空的红叉、已打印的输出丢了；等审批时退出或按停的调用被说成「可能已经生效」",
+		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/live-calls.test.ts"]],
+	},
+	{
 		id: "S7-annotate",
 		what: "标注拆成三个文件之后还画得出来吗",
 		window: true,
@@ -223,6 +228,12 @@ const CHECKS = [
 		what: "那五个工具在跑起来的桌面端里真的出现在工具清单上吗",
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/audit-fixes-demo.ts", "/tmp/regression-tools"]],
+	},
+	{
+		id: "crash-mid-call-window",
+		what: "强杀之后重开，三张卡各说对了吗：跑到一半的带着输出，等审批的和没开始的是灰色「已停止」，模型的下一次请求里也是这些",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/interrupted-calls-demo.ts", "/tmp/regression-interrupted"]],
 	},
 ];
 

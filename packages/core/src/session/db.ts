@@ -17,13 +17,14 @@ import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 /**
- * Schema, one entry per version. Append; never edit an entry that has shipped.
+ * The schema, and its version. No migrations: a file written under any other version is reported
+ * with its path and left alone, never converted (ADR-0032). Bump the version with every change to
+ * the tables, so an older file can never pass for this one with a table missing.
  *
- * `records.body` is the whole record as JSON, so a new record type needs no migration — only a
- * change to the tables themselves does.
+ * `records.body` is the whole record as JSON, so a new record type changes nothing here.
  */
-const MIGRATIONS: string[] = [
-	`
+const SCHEMA_VERSION = 3;
+const SCHEMA = `
 	CREATE TABLE sessions (
 		id TEXT PRIMARY KEY,
 		project_id TEXT NOT NULL,
@@ -47,9 +48,12 @@ const MIGRATIONS: string[] = [
 		UNIQUE (session_id, seq)
 	);
 
+	-- \`token\` is which beginPartial a streamed copy belongs to. A new stream takes the same key, so
+	-- without it a writer that had been taken over could still extend, drop or settle its successor's.
 	CREATE TABLE partials (
 		session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 		stream TEXT NOT NULL,
+		token TEXT NOT NULL,
 		head TEXT NOT NULL,
 		owner_pid INTEGER NOT NULL,
 		updated_at INTEGER NOT NULL,
@@ -82,14 +86,19 @@ const MIGRATIONS: string[] = [
 	-- afresh, and a cursor from the old one would skip everything new.
 	CREATE TABLE info (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 	INSERT INTO info (key, value) VALUES ('id', lower(hex(randomblob(16))));
-	`,
-	`
-	-- Which beginPartial a streamed copy belongs to. A new stream takes the same key, so without it a
-	-- writer that had been taken over could still extend, drop or settle its successor's. A row from
-	-- before this has no stream live anywhere and settles like a dead writer's.
-	ALTER TABLE partials ADD COLUMN token TEXT NOT NULL DEFAULT '';
-	`,
-];
+
+	-- Tool calls started and not yet answered, so a process that dies mid-call leaves a fact behind
+	-- rather than a gap. Deleted in the transaction that writes the call's result. See \`live-calls.ts\`.
+	CREATE TABLE live_calls (
+		session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+		call_id TEXT NOT NULL,
+		phase TEXT NOT NULL,
+		output TEXT,
+		owner_pid INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL,
+		PRIMARY KEY (session_id, call_id)
+	);
+`;
 
 /** The session database would not open. Carries where it is, because the person has to go and look. */
 export class SessionDbUnavailable extends Error {
@@ -144,7 +153,7 @@ export function sessionDb(path: string): DatabaseSync {
 		 */
 		db.exec(`PRAGMA journal_size_limit = ${WAL_LIMIT_BYTES}`);
 		db.exec("PRAGMA foreign_keys = ON");
-		migrate(db);
+		prepareSchema(db);
 	} catch (cause) {
 		if (db?.isOpen) db.close();
 		throw new SessionDbUnavailable(path, cause);
@@ -212,14 +221,16 @@ function userVersion(db: DatabaseSync): number {
 	return Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
 }
 
-function migrate(db: DatabaseSync): void {
-	if (userVersion(db) === MIGRATIONS.length) return;
+/** Create the tables in a new file; refuse a file whose tables are not this version's. */
+function prepareSchema(db: DatabaseSync): void {
+	if (userVersion(db) === SCHEMA_VERSION) return;
 	transaction(db, () => {
-		// Read again under the write lock: another process may have migrated in the meantime.
-		const from = userVersion(db);
-		// An older build writing a newer schema is how a database gets quietly corrupted.
-		if (from > MIGRATIONS.length) throw new Error(`会话库版本 ${from} 比这个版本的 Plume（${MIGRATIONS.length}）新，请升级`);
-		for (let version = from; version < MIGRATIONS.length; version++) db.exec(MIGRATIONS[version]);
-		db.exec(`PRAGMA user_version = ${MIGRATIONS.length}`);
+		// Read again under the write lock: another process may have created it in the meantime.
+		const found = userVersion(db);
+		if (found === SCHEMA_VERSION) return;
+		// Writing into tables of another shape is how a database gets quietly corrupted.
+		if (found !== 0) throw new Error(`会话库的结构版本是 ${found}，这个版本的 Plume 用的是 ${SCHEMA_VERSION}，不做转换。把这个文件移走后重新打开，会建一个新的`);
+		db.exec(SCHEMA);
+		db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 	});
 }

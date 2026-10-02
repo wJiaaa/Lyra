@@ -148,16 +148,24 @@ export function batches<T>(items: readonly T[], parallel: (item: T) => boolean):
  * Never-resolving is the point: in a race with real work it is inert until the moment it matters,
  * and the listener is removed as soon as it does so a long turn does not accumulate one per call.
  */
-function cancelled(signal: AbortSignal | undefined): Promise<ToolResult> {
+function cancelled(signal: AbortSignal | undefined, waiting: () => boolean): Promise<ToolResult> {
 	if (!signal) return new Promise<ToolResult>(() => {});
-	if (signal.aborted) return Promise.resolve(cancelledResult());
+	if (signal.aborted) return Promise.resolve(cancelledResult(waiting()));
 	return new Promise<ToolResult>((resolve) => {
-		signal.addEventListener("abort", () => resolve(cancelledResult()), { once: true });
+		signal.addEventListener("abort", () => resolve(cancelledResult(waiting())), { once: true });
 	});
 }
 
-function cancelledResult(): ToolResult {
-	return { ...errorResult("Tool execution was cancelled. Anything it had already done may have taken effect."), details: { cancelled: true } };
+/**
+ * A stopped call, said the way it happened. One stopped while it waited for approval had not
+ * started, and telling the model it "may have taken effect" sent it off to check for effects that
+ * could not exist.
+ */
+function cancelledResult(waitingForApproval = false): ToolResult {
+	const text = waitingForApproval
+		? "Tool call was stopped while it waited for approval, so it never ran."
+		: "Tool execution was cancelled. Anything it had already done may have taken effect.";
+	return { ...errorResult(text), details: { cancelled: true } };
 }
 
 async function executeOne(
@@ -192,6 +200,21 @@ async function executeOne(
 	 */
 	let preApproved = false;
 	let hookContexts: string[] = [];
+	/*
+	 * Whether the call is waiting on a person. Announced as a phase so a crash meanwhile is recorded
+	 * as a call that never ran (`live-calls.ts`), and read by a stop for the same reason.
+	 */
+	let waiting = false;
+	const awaitingPerson = async <T>(answer: () => Promise<T>): Promise<T> => {
+		waiting = true;
+		await emit({ type: "tool_phase", toolCallId: call.id, phase: "approval" });
+		try {
+			return await answer();
+		} finally {
+			waiting = false;
+			await emit({ type: "tool_phase", toolCallId: call.id, phase: "running" });
+		}
+	};
 	const requestApproval = config.requestApproval;
 	const ctx: ToolContext = {
 		cwd: config.cwd,
@@ -199,7 +222,7 @@ async function executeOne(
 		signal: config.signal,
 		state,
 		requestApproval: requestApproval
-			? async (request) => {
+			? async (request) => awaitingPerson(async () => {
 				if (request.kind !== "interactive") {
 					/*
 					 * 提权只能由人在提权卡片上批（`ApprovalGate.request`）：钩子的放行不算数，拒绝照样算。
@@ -212,7 +235,7 @@ async function executeOne(
 					if (answered && !(escalation && approved(answered))) return answered;
 				}
 				return requestApproval(request);
-			}
+			})
 			: undefined,
 		sandboxMode: config.sandboxMode,
 		sandboxNetwork: config.sandboxNetwork,
@@ -242,7 +265,7 @@ async function executeOne(
 			}
 			if (decision?.approval === "allow") preApproved = true;
 			if (decision?.approval === "ask" && requestApproval) {
-				const answer = await requestApproval(hookApprovalRequest(call.name, call.arguments, decision.approvalReason));
+				const answer = await awaitingPerson(() => requestApproval(hookApprovalRequest(call.name, call.arguments, decision.approvalReason)));
 				if (!approved(answer)) return errorResult(`The user declined "${call.name}".`);
 				preApproved = true;
 			}
@@ -297,9 +320,9 @@ async function executeOne(
 		 * Racing the signal here makes the button mean what it says. Whatever the tool is doing
 		 * carries on in the background and its result is discarded; the turn is over.
 		 */
-		result = await Promise.race([runTool({ tool: runnable, args: runArgs, ctx }), cancelled(config.signal)]);
+		result = await Promise.race([runTool({ tool: runnable, args: runArgs, ctx }), cancelled(config.signal, () => waiting)]);
 	} catch (error) {
-		if (config.signal?.aborted) return cancelledResult();
+		if (config.signal?.aborted) return cancelledResult(waiting);
 		return errorResult(error instanceof Error ? error.message : String(error));
 	}
 	if (rerouted) result = { ...result, content: [...result.content, { type: "text", text: `[Executed with ${rerouted}; use that tool directly next time.]` }] };

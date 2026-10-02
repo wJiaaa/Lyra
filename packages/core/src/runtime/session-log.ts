@@ -17,6 +17,7 @@ import { promptBase } from "../prompt/update.ts";
 import type { AgentEvent, AgentEventSink, CommandRun, HookRun } from "../agent/events.ts";
 import type { SessionMeta, SessionRecordInput } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
+import { OUTPUT_SAVE_MS, KEPT_OUTPUT_CHARS, progressText } from "../session/live-calls.ts";
 import { PartialWriter } from "../session/partial.ts";
 import { parkMessage, rehydrateMessages } from "../session/payload.ts";
 import type { LlmContext, Message, ModelConfig } from "../types.ts";
@@ -107,6 +108,8 @@ export class SessionLog {
 	private readonly sink: AgentEventSink;
 	/** The reply streaming right now, written as it arrives so a crash does not take all of it. */
 	private readonly partial: PartialWriter;
+	/** When each running call's output was last written down; see `OUTPUT_SAVE_MS`. */
+	private readonly outputSaved = new Map<string, number>();
 
 	// Assigned here rather than as parameter properties: Node's type stripping runs the source
 	// as-is and cannot rewrite a constructor parameter into a field.
@@ -142,6 +145,7 @@ export class SessionLog {
 		}
 		// The store dropped the streamed copy in the same transaction that wrote the reply.
 		if (message.role === "assistant") this.partial.settle();
+		if (message.role === "toolResult") this.outputSaved.delete(message.toolCallId);
 		if (this.requestContext && !this.requestContext.context.messages.includes(message)) this.requestContext.context.messages.push(message);
 	}
 
@@ -155,6 +159,7 @@ export class SessionLog {
 		// Some messages are committed first and announced after; those have nothing left to stream.
 		if (event.type === "message_start" && event.message.role === "assistant" && this.meta && !this.committed.has(event.message)) await this.partial.begin(event.message);
 		if (event.type === "message_update" && this.meta) await this.partial.update(event.message);
+		if (this.meta) await this.trackCall(event);
 		if (event.type === "subagent_message") {
 			let seen = this.nestedCommitted.get(event.id);
 			if (!seen) { seen = new WeakSet(); this.nestedCommitted.set(event.id, seen); }
@@ -203,6 +208,19 @@ export class SessionLog {
 			if (at >= 0) this.commandRuns[at] = event.command ?? completedCompaction(this.commandRuns[at], event.before, event.after);
 		}
 		await this.sink(event);
+	}
+
+	/** How far each tool call has got, kept so a process that dies mid-call leaves a fact behind. See `live-calls.ts`. */
+	private async trackCall(event: AgentEvent): Promise<void> {
+		const id = this.meta.id;
+		if (event.type === "tool_start") return this.store.openCall(id, event.toolCallId);
+		if (event.type === "tool_phase") return this.store.markCall(id, event.toolCallId, event.phase);
+		if (event.type !== "tool_update") return;
+		// Throttled rather than every update: a chatty command reports ten times a second.
+		const now = Date.now();
+		if (now - (this.outputSaved.get(event.toolCallId) ?? 0) < OUTPUT_SAVE_MS) return;
+		this.outputSaved.set(event.toolCallId, now);
+		await this.store.saveCallOutput(id, event.toolCallId, progressText(event.partial.content).slice(-KEPT_OUTPUT_CHARS));
 	}
 
 	/** A reply that started and was thrown away rather than committed: nothing of it is to be recovered. */

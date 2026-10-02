@@ -9,11 +9,12 @@ import { existsSync, statSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { mock, test } from "node:test";
 import { pathToFileURL } from "node:url";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { SessionLog } from "../src/runtime/session-log.ts";
-import { sessionDb } from "../src/session/db.ts";
+import { sessionDb, SessionDbUnavailable } from "../src/session/db.ts";
 import { assemblePartial, mergePieces, PartialDiff, PartialWriter, type PartialPiece } from "../src/session/partial.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type AssistantMessage, type Message } from "../src/types.ts";
@@ -265,23 +266,20 @@ test("committing the reply, or throwing it away, leaves nothing to recover", asy
 	});
 });
 
-test("a database from before stream tokens opens, and a reply cut off in it is settled once", async () => {
+test("a database of another schema version is refused with its path and left as it was", async () => {
 	await withStore(async (store, root) => {
 		const meta = await store.create(root, "m");
 		await store.append(meta, { type: "message", message: user("go") });
-		await store.beginPartial(meta.id, "s1", reply([]));
-		await store.appendPartial(meta.id, "s1", [{ i: 0, type: "text", text: "cut off", reset: true }]);
-		// Back to the schema the stream was written under, by a process that is gone.
-		const db = sessionDb(store.path);
-		db.exec("ALTER TABLE partials DROP COLUMN token");
-		db.exec("PRAGMA user_version = 1");
-		db.prepare("UPDATE partials SET owner_pid = ?").run(deadPid());
+		sessionDb(store.path).exec("PRAGMA user_version = 2");
 		store.close();
 
-		const reopened = new SessionStore(root);
-		assert.deepEqual((await reopened.load(meta.id))?.messages.map((m) => m.role), ["user", "assistant"]);
-		assert.equal(sessionDb(reopened.path).prepare("SELECT COUNT(*) AS n FROM partials").get()?.n, 0, "settling took the copy with it");
-		assert.equal((await reopened.load(meta.id))?.messages.length, 2, "so the next open does not settle it again");
+		await assert.rejects(new SessionStore(root).load(meta.id), (error: unknown) => error instanceof SessionDbUnavailable && error.path === store.path && /结构版本是 2/.test(error.reason));
+		const raw = new DatabaseSync(store.path, { readOnly: true });
+		try {
+			assert.equal(raw.prepare("SELECT COUNT(*) AS n FROM records").get()?.n, 2, "nothing converted, nothing dropped");
+		} finally {
+			raw.close();
+		}
 	});
 });
 

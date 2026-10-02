@@ -11,6 +11,7 @@
 
 import type { Message, Usage } from "../types.ts";
 import type { CommandRun, HookRun } from "../agent/events.ts";
+import type { CallSink } from "./live-calls.ts";
 import type { PartialSink } from "./partial.ts";
 import type { SpendRow } from "./spend.ts";
 import type { Boundary, SessionMeta, SessionRecord, SessionRecordInput } from "./types.ts";
@@ -25,7 +26,7 @@ export interface ActiveDay {
 	messages: number;
 }
 
-export interface SessionStorage extends PartialSink {
+export interface SessionStorage extends PartialSink, CallSink {
 	/** `options.thinking` is written into the first record; see `SessionMeta.thinking` for why every new session gets one. */
 	create(cwd: string, modelId: string, title?: string, options?: Pick<SessionMeta, "thinking">): Promise<SessionMeta>;
 	/**

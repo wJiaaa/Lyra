@@ -71,6 +71,8 @@ export type AgentEvent =
 	| { type: "message_discarded"; message: AssistantMessage }
 	| { type: "tool_start"; toolCallId: string; toolName: string; args: Record<string, unknown>; summary: string }
 	| { type: "tool_update"; toolCallId: string; partial: ToolResult }
+	/** A call started waiting for a person, or stopped waiting. Recorded so a crash in between is known not to have run it. */
+	| { type: "tool_phase"; toolCallId: string; phase: "approval" | "running" }
 	| { type: "tool_end"; toolCallId: string; toolName: string; result: ToolResult; isError: boolean }
 	| {
 			type: "approval_request";

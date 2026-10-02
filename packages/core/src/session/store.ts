@@ -19,6 +19,7 @@ import type { AssistantMessage, Message, Usage } from "../types.ts";
 import { emptyUsage } from "../types.ts";
 import { applyRecord, persistedPayload, recordKind } from "./apply-record.ts";
 import { beforeSessionDbClose, closeSessionDb, sessionDb, transaction } from "./db.ts";
+import { interruptedResult, openRound, type CallPhase, type LiveCall } from "./live-calls.ts";
 import { assemblePartial, flushPendingPartials, type PartialPiece } from "./partial.ts";
 import { materializeJsonlLine, parkRecordPayload, rehydrateMessages } from "./payload.ts";
 import { REPLAY_KINDS, replayRecords } from "./replay-records.ts";
@@ -43,6 +44,12 @@ const SPEND_PAGE = 5_000;
 
 /** Streams this process is writing right now: token to the database it writes into. See `settlePartial`. */
 const liveStreams = new Map<string, string>();
+/** Tool calls this process is running right now, as `callKey`s. See `settleCalls`. */
+const liveCalls = new Set<string>();
+
+function callKey(path: string, sessionId: string, callId: string): string {
+	return `${path}\0${sessionId}\0${callId}`;
+}
 
 // A normal quit mid-stream writes out the last batch before the connection closes.
 beforeSessionDbClose(flushPendingPartials);
@@ -50,6 +57,17 @@ beforeSessionDbClose(flushPendingPartials);
 /** When this machine last booted, in ms. Nothing written before it can have a live writer. */
 function bootedAt(): number {
 	return Date.now() - uptime() * 1000;
+}
+
+/**
+ * Whether whoever wrote a row is still there to finish it: this process's own writers by what it
+ * remembers, another's by its pid — unless the row predates this boot, when the pid may be anyone's.
+ */
+function writerAlive(row: { owner_pid: number; updated_at: number }, mine: () => boolean): boolean {
+	if (row.owner_pid === process.pid) return mine();
+	// A few seconds of slack: `uptime` is rounded, and a row written just after boot is live.
+	if (row.updated_at < bootedAt() - 5_000) return false;
+	return processAlive(row.owner_pid);
 }
 
 function processAlive(pid: number): boolean {
@@ -92,6 +110,7 @@ export class SessionStore implements SessionStorage {
 	 */
 	close(): void {
 		for (const [token, path] of liveStreams) if (path === this.path) liveStreams.delete(token);
+		for (const key of liveCalls) if (key.startsWith(`${this.path}\0`)) liveCalls.delete(key);
 		closeSessionDb(this.path);
 	}
 
@@ -165,6 +184,8 @@ export class SessionStore implements SessionStorage {
 			// The reply is in; what was kept of it while it streamed has done its job. Only its own: a
 			// stream begun since belongs to whoever took over.
 			if (payload.type === "message" && payload.message.role === "assistant" && stream !== undefined) this.clearPartial(sessionId, stream);
+			// Answered: the call has nothing left for a dead owner to leave behind.
+			if (payload.type === "message" && payload.message.role === "toolResult") this.closeCall(sessionId, payload.message.toolCallId);
 			return next;
 		});
 	}
@@ -186,7 +207,7 @@ export class SessionStore implements SessionStorage {
 
 	/** Stream records, optionally only those newer than `sinceSeq`. */
 	async *read(sessionId: string, sinceSeq = 0, options?: { display?: boolean }): AsyncGenerator<SessionRecord> {
-		this.settlePartial(sessionId);
+		this.settle(sessionId);
 		const page = this.db.prepare("SELECT seq, body FROM records WHERE session_id = ? AND seq > ? ORDER BY seq LIMIT ?");
 		let after = sinceSeq;
 		while (true) {
@@ -206,7 +227,7 @@ export class SessionStore implements SessionStorage {
 	 * is now".
 	 */
 	async messages(sessionId: string): Promise<Message[]> {
-		this.settlePartial(sessionId);
+		this.settle(sessionId);
 		const rows = this.db.prepare("SELECT body FROM records WHERE session_id = ? AND kind = 'message' ORDER BY seq").all(sessionId) as { body: string }[];
 		const out: Message[] = [];
 		for (const row of rows) {
@@ -235,7 +256,7 @@ export class SessionStore implements SessionStorage {
 		hookRuns?: HookRun[];
 		compaction: Boundary | null;
 	} | null> {
-		this.settlePartial(sessionId);
+		this.settle(sessionId);
 		const meta = this.metaOf(sessionId);
 		if (!meta) return null;
 		const replayed = this.replay(sessionId, options?.display ?? false);
@@ -413,12 +434,7 @@ export class SessionStore implements SessionStorage {
 		const db = this.db;
 		type Row = { token: string; head: string; owner_pid: number; updated_at: number };
 		const probe = db.prepare("SELECT token, head, owner_pid, updated_at FROM partials WHERE session_id = ? AND stream = 'main'");
-		const alive = (row: Row) => {
-			if (row.owner_pid === process.pid) return liveStreams.has(row.token);
-			// A few seconds of slack: `uptime` is rounded, and a stream written just after boot is live.
-			if (row.updated_at < bootedAt() - 5_000) return false;
-			return processAlive(row.owner_pid);
-		};
+		const alive = (row: Row) => writerAlive(row, () => liveStreams.has(row.token));
 		const found = probe.get(sessionId) as Row | undefined;
 		if (!found || alive(found)) return;
 		transaction(db, () => {
@@ -428,6 +444,68 @@ export class SessionStore implements SessionStorage {
 			const message = assemblePartial(JSON.parse(row.head) as AssistantMessage, chunks.map((chunk) => JSON.parse(chunk.body) as PartialPiece[]));
 			if (!message) return this.clearPartial(sessionId, row.token);
 			this.write(sessionId, { type: "message", message }, false, Math.max(row.updated_at, this.metaOf(sessionId)?.updatedAt ?? 0), row.token);
+		});
+	}
+
+	/** Whatever a dead process left half-written in this session, committed as what it amounts to. */
+	private settle(sessionId: string): void {
+		this.settlePartial(sessionId);
+		this.settleCalls(sessionId);
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Tool calls in flight. See `live-calls.ts`.
+	// ---------------------------------------------------------------------------------------------
+
+	async openCall(sessionId: string, callId: string): Promise<void> {
+		const inserted = this.db.prepare("INSERT OR REPLACE INTO live_calls (session_id, call_id, phase, output, owner_pid, updated_at) SELECT id, ?, 'running', NULL, ?, ? FROM sessions WHERE id = ?")
+			.run(callId, process.pid, Date.now(), sessionId).changes;
+		if (Number(inserted) > 0) liveCalls.add(callKey(this.path, sessionId, callId));
+	}
+
+	async markCall(sessionId: string, callId: string, phase: CallPhase): Promise<void> {
+		this.db.prepare("UPDATE live_calls SET phase = ?, updated_at = ? WHERE session_id = ? AND call_id = ?").run(phase, Date.now(), sessionId, callId);
+	}
+
+	async saveCallOutput(sessionId: string, callId: string, output: string): Promise<void> {
+		this.db.prepare("UPDATE live_calls SET output = ?, updated_at = ? WHERE session_id = ? AND call_id = ?").run(output, Date.now(), sessionId, callId);
+	}
+
+	private closeCall(sessionId: string, callId: string): void {
+		this.db.prepare("DELETE FROM live_calls WHERE session_id = ? AND call_id = ?").run(sessionId, callId);
+		liveCalls.delete(callKey(this.path, sessionId, callId));
+	}
+
+	/**
+	 * Answer the calls a dead process left open, as what each had got to: not started, waiting for
+	 * approval, or running with the output it had printed.
+	 *
+	 * Only when every call of the session is dead. One live call means its process is still working
+	 * through the round, and the calls it has not started yet are about to be — answering them here
+	 * would put results in front of the ones it is about to write.
+	 *
+	 * Stamped like `settlePartial`'s reply, with when the call was last heard from.
+	 */
+	private settleCalls(sessionId: string): void {
+		const db = this.db;
+		type Row = { call_id: string; phase: CallPhase; output: string | null; owner_pid: number; updated_at: number };
+		const probe = db.prepare("SELECT call_id, phase, output, owner_pid, updated_at FROM live_calls WHERE session_id = ?");
+		const dead = (rows: Row[]) => rows.length > 0 && !rows.some((row) => writerAlive(row, () => liveCalls.has(callKey(this.path, sessionId, row.call_id))));
+		if (!dead(probe.all(sessionId) as Row[])) return;
+		transaction(db, () => {
+			const rows = probe.all(sessionId) as Row[];
+			if (!dead(rows)) return;
+			const live = new Map<string, LiveCall>(rows.map((row) => [row.call_id, { callId: row.call_id, phase: row.phase, output: row.output }]));
+			const round = openRound(this.replay(sessionId, false).entries.map((entry) => entry.message));
+			const calls = round?.reply.content.filter((block) => block.type === "toolCall") ?? [];
+			// A round these rows are not from has moved on; they describe nothing left to answer.
+			if (round && calls.some((call) => live.has(call.id))) {
+				const at = Math.max(...rows.map((row) => row.updated_at), this.metaOf(sessionId)?.updatedAt ?? 0);
+				for (const call of calls) {
+					if (!round.answered.has(call.id)) this.write(sessionId, { type: "message", message: interruptedResult(call, live.get(call.id), at) }, false, at);
+				}
+			}
+			db.prepare("DELETE FROM live_calls WHERE session_id = ?").run(sessionId);
 		});
 	}
 

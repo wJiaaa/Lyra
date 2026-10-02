@@ -11,6 +11,7 @@
  *   - 有没有哪条闸门从「从不触发」变成「频繁触发」，或者反过来（第 4 节）
  *   - 回合结束的原因分布变了吗（第 5 节）
  *   - 提示缓存的前缀有没有在哪一次请求被打断（第 10 节的「原因不明」）
+ *   - 压缩让人干等了多久（第 11 节）：决定值不值得把摘要挪到后台提前做
  *
  * 读的是 `~/.plume/sessions/sessions.db` 里的真实会话，所以数字会随着你自己的使用而变。**要对照就必须是同
  * 一台机器、同一批会话的前后两次**，不同机器之间的绝对值没有可比性。
@@ -95,6 +96,15 @@ interface Session {
 	userPrompts: UserPrompt[];
 	finalTodos?: { content: string; status: string }[];
 	fileEdits: Map<string, number>;
+	/** 结束了的压缩，从开始到写下结局的墙钟时间。 */
+	compactions: Compaction[];
+}
+
+interface Compaction {
+	/** 一轮里自动触发的：这一轮停下来等它。手动的是人自己按的。 */
+	automatic: boolean;
+	ms: number;
+	status: string;
 }
 
 function loadSessions(): Session[] {
@@ -125,11 +135,20 @@ function loadSessions(): Session[] {
 			return stream;
 		};
 		let round = 0;
+		const compactions = new Map<string, Compaction>();
 		for (const line of lines) {
 			let entry: {
 				type?: string;
+				ts?: number;
 				message?: Record<string, unknown>;
-				event?: { type?: string; reason?: string; id?: string; message?: Message; event?: { type?: string } };
+				event?: {
+					type?: string;
+					reason?: string;
+					id?: string;
+					message?: Message;
+					event?: { type?: string };
+					command?: { id: string; name: string; timestamp: number; status: string; automatic?: unknown };
+				};
 			};
 			try {
 				entry = JSON.parse(line);
@@ -137,6 +156,10 @@ function loadSessions(): Session[] {
 				continue;
 			}
 			if (entry.type === "event" && entry.event?.type === "agent_end" && entry.event.reason) runtimeStops.push(entry.event.reason);
+			// 记录写下的时刻减去命令开始的时刻；同一条命令最后一次的结局算数。
+			const command = entry.type === "event" && (entry.event?.type === "command_status" || entry.event?.type === "compacted") ? entry.event.command : undefined;
+			if (command?.name === "compact" && command.status !== "running" && entry.ts)
+				compactions.set(command.id, { automatic: command.automatic !== undefined, ms: entry.ts - command.timestamp, status: command.status });
 			// 模型看到的历史被有意改写的地方：压缩（含只剪枝不移边界的那种）与撤回
 			if (entry.type === "event" && entry.event?.type === "compacted") mainStream.boundaries.push({ at: mainStream.messages.length, kind: "compaction" });
 			if (entry.type === "truncate") mainStream.boundaries.push({ at: mainStream.messages.length, kind: "rewind" });
@@ -203,6 +226,7 @@ function loadSessions(): Session[] {
 				userPrompts,
 				finalTodos,
 				fileEdits,
+				compactions: [...compactions.values()],
 			});
 	}
 	db.close();
@@ -557,6 +581,22 @@ const worstUnknown = cacheDiagnoses
 
 const tools = [...byTool.entries()].sort((a, b) => b[1].carried - a[1].carried);
 
+const compactionRuns = sessions.flatMap((s) => s.compactions);
+const compactionStats = (automatic: boolean) => {
+	const runs = compactionRuns.filter((run) => run.automatic === automatic && run.status === "done");
+	const ms = runs.map((run) => run.ms).sort((a, b) => a - b);
+	return {
+		count: runs.length,
+		p50Ms: ms.length ? ms[Math.ceil(ms.length / 2) - 1] : 0,
+		p90Ms: p90(ms),
+		maxMs: ms.at(-1) ?? 0,
+		totalMs: ms.reduce((a, b) => a + b, 0),
+		unfinished: compactionRuns.filter((run) => run.automatic === automatic && run.status !== "done").length,
+	};
+};
+const blockingCompactions = compactionStats(true);
+const manualCompactions = compactionStats(false);
+
 if (asJson) {
 	console.log(
 		JSON.stringify(
@@ -607,6 +647,7 @@ if (asJson) {
 					frustSessions: frustMaxEdits.length, smoothSessions: smoothMaxEdits.length,
 					classification: "Uncalibrated keyword proxy, not a task-success metric",
 				},
+				compactions: { automatic: blockingCompactions, manual: manualCompactions },
 				cacheMisses: {
 					streams: cacheStreamCount,
 					requests: cacheSummary.requests,
@@ -759,3 +800,14 @@ if (worstUnknown.length) {
 				`间隔 ${pad(Math.round((d.idleMs ?? 0) / 1000), 5)}s  ${d.model}  ${CAUSE_LABELS[d.cause]}  ${prefixNote(d.prefix)}`,
 		);
 } else console.log("  没有要查的未命中。");
+
+console.log("\n── 11. 压缩让人干等了多久（后台压缩值不值得做看这里） ──");
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+for (const [label, v] of [["一轮里自动触发（这一轮停下来等它）", blockingCompactions], ["手动", manualCompactions]] as const) {
+	if (v.count === 0 && v.unfinished === 0) {
+		console.log(`  ${label}：没有`);
+		continue;
+	}
+	console.log(`  ${label}：完成 ${v.count} 次，p50 ${seconds(v.p50Ms)}，p90 ${seconds(v.p90Ms)}，最长 ${seconds(v.maxMs)}，合计 ${seconds(v.totalMs)}；没完成 ${v.unfinished} 次`);
+}
+console.log("  ⚠ 只有一轮里自动触发的那种在挡路。p90 只有几秒、次数又少，提前在后台做省不下多少等待。");
