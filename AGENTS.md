@@ -220,7 +220,7 @@ tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这
 ## 硬约束
 
 - **缩进 tab**，YAML/JSON 用 2 空格
-- **注释用英文，解释为什么**，不复述代码做了什么
+- **注释中英文都可以，解释为什么**，不复述代码做了什么。跟着所在文件已有的语言走，一段注释里不要两种混写
 - **单文件尽量 300 行以内**，但拆分要有真实边界，不要对半切
 - **`docs/plan` 与 `docs/notes` 是本地笔记**，在 `.gitignore` 里，不要当成文档改。
   `docs/architecture`、`docs/adr`、`docs/guide` 进仓库——改了行为要同步改它们
