@@ -242,13 +242,14 @@ async function requestReply(run: Run): Promise<AssistantMessage | "switched" | "
 				type: "notice",
 				level: "warn",
 				message: "模型服务拒收了这次请求。已把其中过大的工具输出压成一行，正在重试。",
+				code: "request-rejected",
 			});
 			replaceHistory(run, stripped);
 			reply = await resend(reply);
 		}
 	}
 	if (!reply.switched && reply.message.stopReason === "error" && isContextOverflow(reply.message.failure) && session.compact) {
-		await emit({ type: "notice", level: "warn", message: "上下文超出了模型的上限，正在压缩历史后重试。" });
+		await emit({ type: "notice", level: "warn", message: "上下文超出了模型的上限，正在压缩历史后重试。", code: "context-overflow" });
 		const held = reply.held;
 		const compaction = await compactStep(session, control.signal, run.messages, run.active.model, emit, { force: true, provider: run.active.provider }).catch(async (cause: unknown) => {
 			// Commit the rejected reply before rethrowing: the transcript must say why the turn stopped.
@@ -304,7 +305,7 @@ async function endWithoutTools(run: Run, assistant: AssistantMessage, turnsLeft:
 			await inject(run, synthetic(CONTINUE_AFTER_LENGTH));
 			return undefined;
 		}
-		await emit({ type: "notice", level: "warn", message: "回复连续多次达到输出长度上限，已停下。最后一段回答可能不完整。" });
+		await emit({ type: "notice", level: "warn", message: "回复连续多次达到输出长度上限，已停下。最后一段回答可能不完整。", code: "output-limit" });
 	} else run.truncations = 0;
 
 	// A checklist cannot tell a question from abandoned work. Text yields to the person; only an

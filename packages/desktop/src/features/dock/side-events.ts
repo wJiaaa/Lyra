@@ -1,5 +1,6 @@
 import type { SideChatUpdate, Message } from "@plume/core";
 import { summarizeToolCall } from "../../lib/tool-summary.ts";
+import { noticeText } from "../../lib/notice-text.ts";
 import { settleTail } from "../../lib/transcript.ts";
 import type { ToolRun } from "../../store/tool-run.ts";
 
@@ -21,7 +22,7 @@ export function reduceSideEvent(state: SideConversation, event: SideChatUpdate):
 			set({ modelId: event.modelId });
 			break;
 		case "notice":
-			if (event.level === "error") set({ error: event.message });
+			if (event.level === "error") set({ error: noticeText(event) });
 			break;
 		case "rewound": {
 			const messages = get().messages.slice(0, event.messageCount);

@@ -9,6 +9,12 @@ export const en = {
 	"compact.autoFallbackDone": "Summary failed; local fallback saved. Messages: {before} → {after}",
 	"compact.autoFailed": "Compaction failed; last saved context retained",
 	"compact.autoInterrupted": "Interrupted; last saved context retained, without restarting compaction",
+	"notice.request-rejected": "The provider refused this request. Oversized tool output was cut to one line each, and it is being sent again.",
+	"notice.context-overflow": "The conversation no longer fits in the model's context window. Compacting the history, then retrying.",
+	"notice.output-limit": "Stopped after several replies in a row ran into the output length limit. The last answer may be cut off.",
+	"notice.stalled": "Stopped: the same call kept coming back with the same result. Point it somewhere else, or say how you want this handled.",
+	"notice.no-model": "No model is available yet. Add a provider in Models settings.",
+	"notice.side-model-unavailable": "The model this side chat was using is no longer available. Pick another one.",
 	"compact.autoRetries": { one: "{n} retry", other: "{n} retries" },
 
 	"tools.run": "Tool calls",

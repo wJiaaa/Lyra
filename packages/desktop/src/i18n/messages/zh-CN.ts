@@ -7,6 +7,12 @@ export const zhCN = {
 	"compact.autoFallbackDone": "摘要失败，已本地整理：{before} → {after} 条消息",
 	"compact.autoFailed": "压缩失败，保留最近已保存的上下文",
 	"compact.autoInterrupted": "压缩中断，保留最近已保存的上下文；未自动重试",
+	"notice.request-rejected": "模型服务拒收了这次请求。已把其中过大的工具输出压成一行，正在重试。",
+	"notice.context-overflow": "上下文超出了模型的上限，正在压缩历史后重试。",
+	"notice.output-limit": "回复连续多次达到输出长度上限，已停下。最后一段回答可能不完整。",
+	"notice.stalled": "同一个调用反复得到相同结果，已停下。告诉它换个方向，或直接说明你想怎么处理。",
+	"notice.no-model": "还没有可用的模型，先到「模型设置」里添加一个服务商。",
+	"notice.side-model-unavailable": "侧边聊天指定的模型不可用，请重新选择。",
 	"compact.autoRetries": "重试 {n} 次",
 
 	"tools.run": "工具调用",

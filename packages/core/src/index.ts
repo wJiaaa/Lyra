@@ -78,7 +78,7 @@ export { loadCapabilityPlugins, type LoadedCapabilityPlugins } from "./plugins/c
 export { API_FORMATS, getProvider, streamAssistant, useLlmRegistry } from "./ai/index.ts";
 export { sessionHeaders } from "./ai/cache-routing.ts";
 export { USER_AGENT } from "./ai/endpoint.ts";
-export type { AgentEvent, AgentEventSink, CommandRun, HookRun, QueuedTask } from "./agent/events.ts";
+export type { AgentEvent, AgentEventSink, CommandRun, HookRun, NoticeCode, QueuedTask } from "./agent/events.ts";
 export type { TodoItem } from "./tools/todo.ts";
 export { runAgent } from "./agent/loop.ts";
 export type {

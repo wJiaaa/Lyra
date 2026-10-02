@@ -896,6 +896,7 @@ export class AgentSession {
 				type: "notice",
 				level: "error",
 				message: "No model is configured. Add a provider in Settings → Models first.",
+				code: "no-model",
 			});
 			await this.emit({ type: "agent_end", reason: "error", error: "no_model" });
 			return;

@@ -41,6 +41,21 @@ export interface HookRun {
 	at: number;
 }
 
+/** Situations the runtime reports in a `notice`, for hosts that translate (ADR-0028). */
+export type NoticeCode =
+	/** The provider refused the request; oversized tool output was cut to a line and it was resent. */
+	| "request-rejected"
+	/** The request overflowed the model's window; the history is being compacted before resending. */
+	| "context-overflow"
+	/** Replies kept stopping at the output limit; the run stopped and the last answer may be cut off. */
+	| "output-limit"
+	/** The same call kept returning the same result; the run stopped. */
+	| "stalled"
+	/** No model is configured for this conversation. */
+	| "no-model"
+	/** The model the side chat was set to is no longer available. */
+	| "side-model-unavailable";
+
 export type AgentEvent =
 	| { type: "command_status"; command: CommandRun }
 	| { type: "hook_run"; run: HookRun }
@@ -128,7 +143,12 @@ export type AgentEvent =
 	| { type: "turn_end"; message: AssistantMessage; toolResults: ToolResultMessage[] }
 	/** `stalled`: the turn kept making the same call for the same answer and was stopped. */
 	| { type: "agent_end"; reason: "done" | "aborted" | "error" | "max_turns" | "stalled"; error?: string }
-	| { type: "notice"; level: "info" | "warn" | "error"; message: string }
+	/**
+	 * `message` is core's own wording, kept for logs, trajectories and the CLI. `code`, when present,
+	 * names the situation so a host can say it in its own language (ADR-0028); a host that does not
+	 * know the code shows `message`.
+	 */
+	| { type: "notice"; level: "info" | "warn" | "error"; message: string; code?: NoticeCode }
 	/**
 	 * 磁盘上的技能或子代理定义变了，这个会话已经重新读过了。
 	 *

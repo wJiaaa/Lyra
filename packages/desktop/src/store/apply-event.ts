@@ -35,6 +35,7 @@ import { awaitingSubAgents, useSubAgents } from "./subAgents.ts";
 import { outlivingTurn } from "../lib/approval-scope.ts";
 import type { AppState } from "./index.ts";
 import { settleTail } from "../lib/transcript.ts";
+import { noticeText } from "../lib/notice-text.ts";
 import { foldRetry, settleHiccups } from "../lib/hiccup.ts";
 import { bridge } from "../services/index.ts";
 import { sessionTitle } from "../lib/session-title.ts";
@@ -527,7 +528,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
           {
             id: `${Date.now()}-${Math.random()}`,
             level: event.level,
-            message: event.message,
+            message: noticeText(event),
           },
         ],
       });

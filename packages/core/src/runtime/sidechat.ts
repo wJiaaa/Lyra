@@ -234,7 +234,7 @@ export class SideChat {
 		const resolved = resolveModel(this.settings, selected);
 		if (!resolved) {
 			this.controller = null;
-			await this.emit({ type: "notice", level: "error", message: this.modelId ? "侧边聊天指定的模型不可用，请重新选择。" : "没有可用的模型，请先在设置里配置。" });
+			await this.emit({ type: "notice", level: "error", message: this.modelId ? "侧边聊天指定的模型不可用，请重新选择。" : "没有可用的模型，请先在设置里配置。", code: this.modelId ? "side-model-unavailable" : "no-model" });
 			await this.emit({ type: "agent_end", reason: "error", error: "no_model" });
 			return;
 		}

@@ -213,6 +213,7 @@ async function recordTurnEvent(log: SessionLog, event: AgentEvent): Promise<void
 			type: "notice",
 			level: "warn",
 			message: "同一个调用反复得到相同结果，已停下。告诉它换个方向，或直接说明你想怎么处理。",
+			code: "stalled",
 		});
 	}
 	if (event.type === "message_end") await log.commit(event.message);
