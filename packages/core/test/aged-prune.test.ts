@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { sessionPruner, AgedToolPruner } from "../src/runtime/aged-prune.ts";
+import { sessionPruner, AgedToolPruner } from "../src/agent/aged-prune.ts";
 import { emptyUsage, type Message } from "../src/types.ts";
 import { runConfig } from "./run-config.ts";
 

@@ -76,7 +76,7 @@ export function diffSections(current: ReadonlyMap<string, string>, next: Readonl
  *
  * 项目指令是用户仓库里的文件，写什么都有可能：一个 `</system-update>` 能把后半截伪装成标签外的
  * 普通文字。`<session-summary>` 与 `<dropped-history>` 是压缩认边界的记号（`compaction.ts`、
- * `runtime/context.ts` 只看 synthetic 用户消息里有没有它们），一份讲 Plume 自己的 AGENTS.md 进了
+ * `tokens.ts` 的 `measureTotal` 只看 synthetic 用户消息里有没有它们），一份讲 Plume 自己的 AGENTS.md 进了
  * 增量就会被当成上一次压缩：前者被当成摘要，两者都让计量把此前的实测 usage 当作过期丢掉。
  * 新增压缩头的记号时这里要跟着加。
  */

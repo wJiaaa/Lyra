@@ -96,6 +96,9 @@ pre-push 里都是必过项：
 9. **`store`/`ui`/`lib`/`services` 不伸进某个功能域里点名文件。** 第 7 条的另一半：
    那一条只管域与域之间，从下面伸上去它看不见。壳（`app/`、`main.tsx`）不在此列——
    它们 `lazy()` 各域的整屏视图，而把那些视图放进域的出口会让打包器把整个域并回主 chunk。
+10. **agent 循环不 import `runtime/`、`session/`、`kernel/`。** 会话、子代理、侧聊驱动循环，循环不认识
+   它们；压缩、审批、钩子、中途换模型都经 `AgentRunConfig` 交进来。循环自己做的历史剪枝在 `agent/`，
+   token 估算在 `tokens.ts`。类型也算——从 `runtime/` 拿一个类型，下一次就是拿一个值。
 
 循环依赖是 error，垫着一份已有的 116 条的基线（`.dependency-cruiser-known-violations.json`，
 连同第 9 条那两处有理由的破例共 118 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。

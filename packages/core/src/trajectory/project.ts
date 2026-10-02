@@ -1,4 +1,4 @@
-import { completedCompaction } from "../runtime/compaction-lifecycle.ts";
+import { completedCompaction } from "../agent/compaction-lifecycle.ts";
 import type { AgentEvent } from "../agent/events.ts";
 import type { SessionRecord } from "../session/store.ts";
 import { entriesFor, fromMessage } from "./entries.ts";

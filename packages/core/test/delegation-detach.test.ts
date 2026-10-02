@@ -16,8 +16,8 @@ import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { deliveryMessage } from "../src/runtime/delegation-waits.ts";
-import { AgedToolPruner } from "../src/runtime/aged-prune.ts";
-import { FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../src/runtime/prune.ts";
+import { AgedToolPruner } from "../src/agent/aged-prune.ts";
+import { FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../src/agent/prune.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type AssistantMessage, type LlmContext, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
 

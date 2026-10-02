@@ -22,7 +22,7 @@ import {
 } from "../src/trajectory/index.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
-import { measureTotal } from "../src/runtime/context.ts";
+import { measureTotal } from "../src/tokens.ts";
 import { SessionLog } from "../src/runtime/session-log.ts";
 import { modelHistory } from "../src/runtime/session-turn.ts";
 import { estimateTokens } from "../src/tokens.ts";

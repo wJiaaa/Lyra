@@ -9,7 +9,7 @@ import type { AgentModelContext, AgentRunConfig, AgentSessionContext } from "../
 import type { AgentEvent, CommandRun } from "../src/agent/events.ts";
 import { compactionTriggerTokens, compactWith } from "../src/runtime/compaction.ts";
 import { estimateTokens } from "../src/tokens.ts";
-import { completedCompaction } from "../src/runtime/compaction-lifecycle.ts";
+import { completedCompaction } from "../src/agent/compaction-lifecycle.ts";
 import { SessionLog } from "../src/runtime/session-log.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { projectTrajectory } from "../src/trajectory/project.ts";

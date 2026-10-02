@@ -10,8 +10,7 @@ import type { AgentEventSink } from "./events.ts";
 import type { AgentModelContext } from "./run-config.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { comparePrefix, payloadSegments, type PrefixSegment } from "../ai/prefix-fingerprint.ts";
-import { requestPrompt } from "../runtime/cache-diagnostics.ts";
-import { contextMaxTokens } from "../runtime/context.ts";
+import { contextMaxTokens, requestPrompt } from "../tokens.ts";
 import type { AssistantMessage, LlmContext } from "../types.ts";
 
 /** One assistant turn. */

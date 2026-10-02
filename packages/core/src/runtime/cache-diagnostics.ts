@@ -21,8 +21,9 @@
  * - 时间间隔用两次请求的开始时间相减：缓存在读写时续期，而那发生在请求一开始的预填充阶段。
  */
 
-import { requestUsage, type AssistantMessage, type Message, type RequestPrefix, type Usage } from "../types.ts";
+import { requestUsage, type AssistantMessage, type Message, type RequestPrefix } from "../types.ts";
 import { costAtRates } from "../utils/pricing.ts";
+import { requestPrompt } from "../tokens.ts";
 
 /**
  * 未命中量不超过这个数就当作命中。
@@ -118,12 +119,7 @@ export function markCacheBoundary(state: CacheDiagnosisState, kind: CacheBoundar
 	if (state.crossed !== "compaction") state.crossed = kind;
 }
 
-const promptOf = (usage: Usage) => usage.input + usage.cacheRead + usage.cacheWrite;
 
-/** 这次请求的输入总量；0 是没发出去或没报用量，诊断跳过它，前缀指纹的基准也不从它推进。 */
-export function requestPrompt(message: AssistantMessage): number {
-	return promptOf(requestUsage(message));
-}
 const keyOf = (message: AssistantMessage) => `${message.provider}/${message.model}`;
 
 function prefixCause(prefix: RequestPrefix | undefined): CacheCause {

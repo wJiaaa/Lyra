@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
 import { runConfig } from "./run-config.ts";
-import { PRUNE_THRESHOLD_CHARS, stripOversizedToolResults } from "../src/runtime/prune.ts";
+import { PRUNE_THRESHOLD_CHARS, stripOversizedToolResults } from "../src/agent/prune.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";

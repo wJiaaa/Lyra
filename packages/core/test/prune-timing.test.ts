@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dropUneventful, PRUNE_FLOOR_CHARS, pruneText } from "../src/runtime/prune.ts";
+import { dropUneventful, PRUNE_FLOOR_CHARS, pruneText } from "../src/agent/prune.ts";
 import type { Message, ToolResultMessage } from "../src/types.ts";
 
 function result(text: string, uneventful = false): ToolResultMessage {

@@ -31,7 +31,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { RepetitionWatch, REPEAT_WARN, REPEAT_STOP } from "../packages/core/src/agent/repetition.ts";
-import { pruneToolResults, PRUNE_THRESHOLD_CHARS } from "../packages/core/src/runtime/prune.ts";
+import { pruneToolResults, PRUNE_THRESHOLD_CHARS } from "../packages/core/src/agent/prune.ts";
 import {
 	CACHE_CAUSES,
 	CACHE_NOISE_FLOOR_TOKENS,

@@ -1,8 +1,8 @@
 import type { CompactionObserver } from "../types/compaction.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import type { QueuedTask } from "../agent/events.ts";
-import type { Compaction } from "../runtime/compaction.ts";
-import type { ArtifactSink } from "../runtime/prune.ts";
+import type { Compaction } from "../types/compaction.ts";
+import type { ArtifactSink } from "../agent/prune.ts";
 import type { TurnMiddleware } from "../runtime/turn.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { ApprovalRequest, Message, ModelConfig, Provider, ProviderConfig, Tool } from "../types.ts";

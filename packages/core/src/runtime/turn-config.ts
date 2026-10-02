@@ -28,8 +28,8 @@ import type {
 } from "../types.ts";
 import { plumeHome } from "../session/store.ts";
 import { compactWith } from "./compaction.ts";
-import type { ArtifactSink } from "./prune.ts";
-import { textTokens, toolTokens } from "./context.ts";
+import type { ArtifactSink } from "../agent/prune.ts";
+import { textTokens, toolTokens } from "../tokens.ts";
 import { writePreview } from "./previews.ts";
 import { addressLookups, runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
@@ -37,7 +37,7 @@ import type { DelegationWaits } from "./delegation-waits.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
 import type { TurnContext } from "./turn.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
-import { sessionPruner } from "./aged-prune.ts";
+import { sessionPruner } from "../agent/aged-prune.ts";
 import { toolPolicy } from "./tool-policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
 

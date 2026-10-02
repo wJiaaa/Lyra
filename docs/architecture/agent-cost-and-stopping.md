@@ -270,7 +270,7 @@ pnpm audit:sessions --json   # 机读，用于前后对照
 |---|---|
 | 循环主体、`finish()` 的 5 种终止原因、溢出恢复 | [packages/core/src/agent/loop.ts](../../packages/core/src/agent/loop.ts) |
 | 重复检测（`REPEAT_WARN` / `REPEAT_STOP` / `INTENT_WARN`） | [packages/core/src/agent/repetition.ts](../../packages/core/src/agent/repetition.ts) |
-| 超大结果裁剪（`pruneToolResults` / `stripOversizedToolResults`） | [packages/core/src/runtime/prune.ts](../../packages/core/src/runtime/prune.ts) |
+| 超大结果裁剪（`pruneToolResults` / `stripOversizedToolResults`） | [packages/core/src/agent/prune.ts](../../packages/core/src/agent/prune.ts) |
 | 压缩（`THRESHOLD` 等 5 个常量、`filesSeen`） | [packages/core/src/runtime/compaction.ts](../../packages/core/src/runtime/compaction.ts) |
 | 续跑（`MAX_CONTINUATIONS` / `STALLED_CONTINUATIONS`） | [packages/core/src/runtime/continuation.ts](../../packages/core/src/runtime/continuation.ts) |
 | 整条续跑链共用的那只重复计数表 | [packages/core/src/runtime/turn-config.ts](../../packages/core/src/runtime/turn-config.ts) |
@@ -457,7 +457,7 @@ A1 省 50.6% 的携带量，换算成钱约 25%。
 ### A 组 · 输出体积 —— 不改变模型拿到的信息，只改变它占多大地方
 
 - [ ] **A1. 把超大结果的裁剪从「压缩时」提前到「产生 N 轮后」** ← 单条收益最大
-      **现状**：[prune.ts](../../packages/core/src/runtime/prune.ts) 的 `pruneToolResults` 已经存在且
+      **现状**：[prune.ts](../../packages/core/src/agent/prune.ts) 的 `pruneToolResults` 已经存在且
       参数合理（`PRUNE_THRESHOLD_CHARS = 8192` → 头 4096 + 尾 1024）。问题**纯粹是时机**：它只在
       [compaction.ts:310](../../packages/core/src/runtime/compaction.ts) 的压缩流程里跑，而压缩要等上
       下文用到 `THRESHOLD = 0.8`。在那之前，那条 495K token 的结果每一轮都全额重发。
@@ -479,7 +479,7 @@ A1 省 50.6% 的携带量，换算成钱约 25%。
 
       **也就是说「每轮轻量清理 vs 窗口满时重压缩」这个分层已经存在**，A1 要做的是往轻量那一层
       加一件事，不是新建一层。
-      **而且缓存问题已经有现成的解法**：[prune.ts](../../packages/core/src/runtime/prune.ts) 的
+      **而且缓存问题已经有现成的解法**：[prune.ts](../../packages/core/src/agent/prune.ts) 的
       `worthPruning(messages, index, timing)` 就是为此写的——它只在两种情况下放行：
       缓存已经过期（`CACHE_TTL_MS = 5 分钟`），或者改写点下面的内容很少
       （`CHEAP_SUFFIX_CHARS = 32_000`，「短尾巴重发很便宜，长尾巴等于把省下的又还回去」）。

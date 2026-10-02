@@ -6,7 +6,7 @@
  * never edited, so a reader has to know that a tail was voided and leave it out.
  */
 
-import { completedCompaction, interruptedCompaction } from "../runtime/compaction-lifecycle.ts";
+import { completedCompaction, interruptedCompaction } from "../agent/compaction-lifecycle.ts";
 import type { CommandRun, HookRun } from "../agent/events.ts";
 import type { Message, Usage } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";

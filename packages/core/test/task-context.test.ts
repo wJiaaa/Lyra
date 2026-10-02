@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { compactIfNeeded, summaryMessages } from "../src/runtime/compaction.ts";
 import { formatTaskContext, taskContextFromHistory } from "../src/runtime/task-context.ts";
 import { modelHistory } from "../src/runtime/session-turn.ts";
-import { measureTotal } from "../src/runtime/context.ts";
+import { measureTotal } from "../src/tokens.ts";
 import { SessionLog } from "../src/runtime/session-log.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";

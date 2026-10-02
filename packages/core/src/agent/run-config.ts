@@ -14,8 +14,8 @@
 import type { CompactHistory } from "./compact-step.ts";
 import type { RepetitionWatch } from "./repetition.ts";
 import type { RetryPolicySource } from "../config/retry-policy.ts";
-import type { AgedToolPruner } from "../runtime/aged-prune.ts";
-import type { ArtifactSink } from "../runtime/prune.ts";
+import type { AgedToolPruner } from "./aged-prune.ts";
+import type { ArtifactSink } from "./prune.ts";
 import type {
 	ApprovalDecision,
 	ApprovalRequest,

@@ -3,7 +3,7 @@ import { mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { AgedToolPruner } from "../src/runtime/aged-prune.ts";
+import { AgedToolPruner } from "../src/agent/aged-prune.ts";
 import { readTool } from "../src/tools/read.ts";
 import { readRecord, wasShown } from "../src/tools/read-state.ts";
 import type { Message, ToolContext } from "../src/types.ts";

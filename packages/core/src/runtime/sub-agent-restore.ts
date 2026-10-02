@@ -15,12 +15,13 @@
 import type { AgentEvent } from "../agent/events.ts";
 import { environmentDate, today, withEnvironment } from "../prompt/environment.ts";
 import { interruptedResult } from "../session/live-calls.ts";
-import { sessionPruner } from "./aged-prune.ts";
-import { stripStaleHandles } from "./model-switch.ts";
+import { sessionPruner } from "../agent/aged-prune.ts";
+import { stripStaleHandles } from "../agent/model-switch.ts";
 import type { Boundary, SessionRecord } from "../session/types.ts";
 import { TODOS_KEY, todosFromLog } from "../tools/todo.ts";
 import { addUsage, emptyUsage, type AssistantContent, type Message, type ToolResult } from "../types.ts";
-import type { SubAgentConversation, SubAgentSummary } from "./sub-agents.ts";
+import type { SubAgentConversation } from "./sub-agents.ts";
+import type { SubAgentSummary } from "../types/sub-agent.ts";
 
 type ToolCall = Extract<AssistantContent, { type: "toolCall" }>;
 type Event<T extends AgentEvent["type"]> = Extract<AgentEvent, { type: T }>;

@@ -17,7 +17,7 @@
 import type { Message, ToolResultMessage } from "../types.ts";
 import { isRepeatNotice } from "../agent/repetition.ts";
 import { MAX_LINE_CHARS } from "../tools/long-line.ts";
-import { PRUNE_FLOOR_CHARS, PRUNE_THRESHOLD_CHARS, sourceOf } from "./prune.ts";
+import { PRUNE_FLOOR_CHARS, PRUNE_THRESHOLD_CHARS, sourceOf } from "../agent/prune.ts";
 
 const PROTECTED = new Set(["skill"]);
 

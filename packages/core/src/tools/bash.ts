@@ -14,7 +14,7 @@ import {
 } from "./escalation.ts";
 import { errorResult } from "../agent/tool-run.ts";
 import { OutputBuffer } from "./bash-output.ts";
-import { FRESH_RESULT_MAX_CHARS } from "../runtime/prune.ts";
+import { FRESH_RESULT_MAX_CHARS } from "../agent/prune.ts";
 import { authorizeCommandReads } from "./read-access.ts";
 import { describeStatus, readExit } from "./exit-status.ts";
 import { commandShell, type CommandShell } from "../platform.ts";

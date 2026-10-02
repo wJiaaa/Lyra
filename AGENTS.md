@@ -260,7 +260,7 @@ tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这
 
 | 路径 | 是什么 |
 | --- | --- |
-| `packages/core/src/agent/` | 一轮循环、工具执行、重复检测 |
+| `packages/core/src/agent/` | 一轮循环、工具执行、重复检测、发给模型前的历史剪枝 |
 | `packages/core/src/runtime/` | 会话、日志、审批、任务队列、压缩 |
 | `packages/core/src/tools/` | 内置工具。`risk*.ts` 判定哪些命令需要人来点头 |
 | `packages/core/src/kernel/` | 插件内核：服务、事件、十条缝 |

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { contextMaxTokens, textTokens, toolTokens } from "../src/runtime/context.ts";
+import { contextMaxTokens, textTokens, toolTokens } from "../src/tokens.ts";
 import { compactIfNeeded, summaryMessages } from "../src/runtime/compaction.ts";
 import { runAgent } from "../src/agent/loop.ts";
 import { estimateTokens } from "../src/tokens.ts";

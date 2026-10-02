@@ -24,7 +24,7 @@ import type { AgentEvent } from "../src/agent/events.ts";
 import { classifyFailure, isContextOverflow } from "../src/ai/failure.ts";
 import type { streamAssistant } from "../src/ai/index.ts";
 import { compactWith, useCompaction } from "../src/runtime/compaction.ts";
-import { PRUNE_THRESHOLD_CHARS } from "../src/runtime/prune.ts";
+import { PRUNE_THRESHOLD_CHARS } from "../src/agent/prune.ts";
 import { SessionLog } from "../src/runtime/session-log.ts";
 import { modelHistory } from "../src/runtime/session-turn.ts";
 import { runSubAgent } from "../src/runtime/sub-agent.ts";

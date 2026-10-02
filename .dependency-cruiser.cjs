@@ -60,6 +60,19 @@ module.exports = {
 		},
 
 		{
+			name: "loop-sits-below-the-session",
+			comment:
+				"The agent loop is driven by the session, sub-agents and the side chat; it does not " +
+				"know them. What it needs from above — compaction, approvals, hooks, a model that can " +
+				"change mid-run — arrives through `AgentRunConfig`. Pure history transforms the loop " +
+				"applies itself live in `agent/`, and token arithmetic in `tokens.ts`. Type imports " +
+				"count too: a type from `runtime/` is how the next value import starts.",
+			severity: "error",
+			from: { path: "^packages/core/src/agent/" },
+			to: { path: "^packages/core/src/(runtime|session|kernel)/" },
+		},
+
+		{
 			name: "renderer-imports-core-types-only",
 			comment:
 				"Importing a *value* from core's root index pulls the whole index into a browser bundle, " +

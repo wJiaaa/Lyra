@@ -1,4 +1,4 @@
-import type { CommandRun } from "../agent/events.ts";
+import type { CommandRun } from "./events.ts";
 
 export function completedCompaction(command: CommandRun, before: number, after: number): CommandRun {
 	const fallback = command.automatic?.phase === "fallback";

@@ -13,7 +13,7 @@ import { test } from "node:test";
 import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import { currentSections, diffSections, promptBase, promptSections, promptUpdateMessage } from "../src/prompt/update.ts";
 import { PromptBuilder } from "../src/prompt/context.ts";
-import { measureTotal } from "../src/runtime/context.ts";
+import { measureTotal } from "../src/tokens.ts";
 import { hookContextMessage } from "../src/runtime/hooks.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { SessionStore } from "../src/session/store.ts";

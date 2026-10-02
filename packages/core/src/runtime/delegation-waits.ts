@@ -18,7 +18,7 @@
  */
 
 import type { DeliveredReport, Message, SubAgentAnswer } from "../types.ts";
-import type { SubAgentSummary } from "./sub-agents.ts";
+import type { SubAgentSummary } from "../types/sub-agent.ts";
 
 /** 一个放了手的派发跑完了。 */
 export interface SettledDispatch {

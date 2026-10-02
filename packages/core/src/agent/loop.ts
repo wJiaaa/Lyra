@@ -14,9 +14,9 @@ import type { AgentModelContext, AgentRunConfig, AgentRunResult } from "./run-co
 import { rejectedContent, streamTurn, type TurnResult } from "./stream-turn.ts";
 import { failTruncatedCalls, runTools } from "./tool-run.ts";
 import { isContextOverflow } from "../ai/failure.ts";
-import { stripOversizedToolResults } from "../runtime/prune.ts";
-import { AgedToolPruner } from "../runtime/aged-prune.ts";
-import { stripStaleHandles } from "../runtime/model-switch.ts";
+import { stripOversizedToolResults } from "./prune.ts";
+import { AgedToolPruner } from "./aged-prune.ts";
+import { stripStaleHandles } from "./model-switch.ts";
 import { withEnvironment } from "../prompt/environment.ts";
 import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
 import type { AssistantContent, AssistantMessage, LlmContext, Message, ToolResultMessage } from "../types.ts";

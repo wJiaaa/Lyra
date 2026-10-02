@@ -10,7 +10,7 @@
  * arrives twice by design rather than by accident.
  */
 
-import { completedCompaction, interruptedCompaction } from "./compaction-lifecycle.ts";
+import { completedCompaction, interruptedCompaction } from "../agent/compaction-lifecycle.ts";
 import { refreshMemorySnapshot } from "./memory-inject.ts";
 import type { PromptContext } from "../prompt/context.ts";
 import { promptBase } from "../prompt/update.ts";

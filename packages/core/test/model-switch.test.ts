@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { stripStaleHandles } from "../src/runtime/model-switch.ts";
+import { stripStaleHandles } from "../src/agent/model-switch.ts";
 import type { Message } from "../src/types.ts";
 
 function thought(text: string, handles: { signature?: string; encrypted?: string; redacted?: boolean } = {}): Message {

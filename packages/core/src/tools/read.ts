@@ -11,7 +11,7 @@ import { markRead, markReadChars, markReadRanges } from "./read-state.ts";
 export { hasRead, markRead } from "./read-state.ts";
 import { decodeText } from "./text-layout.ts";
 import { EXTRACTABLE, extractDocumentText } from "../files/document-text.ts";
-import { FRESH_RESULT_MAX_CHARS } from "../runtime/prune.ts";
+import { FRESH_RESULT_MAX_CHARS } from "../agent/prune.ts";
 
 const DEFAULT_LIMIT = 2000;
 /** 正文的字数上限：留出头部路径、页脚和长行提示的余量，整条结果落在剪枝不碰新结果的范围内。 */

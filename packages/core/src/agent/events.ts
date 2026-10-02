@@ -1,6 +1,6 @@
 import type { AutoCompactionState } from "../types/compaction.ts";
 import type { ApprovalRisk, AssistantMessage, Message, StreamEvent, ToolResult, ToolResultMessage } from "../types.ts";
-import type { SubAgentSummary } from "../runtime/sub-agents.ts";
+import type { SubAgentSummary } from "../types/sub-agent.ts";
 import type { Failure } from "../ai/failure.ts";
 
 /**

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { compactIfNeeded, compactionTriggerTokens, COMPACTION_BUFFER_TOKENS, COMPACTION_RATIO, summaryMessages } from "../src/runtime/compaction.ts";
-import { PRUNE_THRESHOLD_CHARS, pruneText, pruneToolResults } from "../src/runtime/prune.ts";
-import { measureTotal } from "../src/runtime/context.ts";
+import { PRUNE_THRESHOLD_CHARS, pruneText, pruneToolResults } from "../src/agent/prune.ts";
+import { measureTotal } from "../src/tokens.ts";
 import { estimateTokens } from "../src/tokens.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";

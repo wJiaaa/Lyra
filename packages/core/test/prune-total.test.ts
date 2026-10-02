@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { PRUNE_THRESHOLD_CHARS, pruneToolResults } from "../src/runtime/prune.ts";
+import { PRUNE_THRESHOLD_CHARS, pruneToolResults } from "../src/agent/prune.ts";
 import type { Message, ToolResultMessage } from "../src/types.ts";
 
 function result(...texts: string[]): ToolResultMessage {

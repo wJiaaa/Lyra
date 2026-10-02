@@ -2,7 +2,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { SessionStore } from "../packages/core/src/session/store.ts";
-import { AgedToolPruner } from "../packages/core/src/runtime/aged-prune.ts";
+import { AgedToolPruner } from "../packages/core/src/agent/aged-prune.ts";
 import { dropStaleResults } from "../packages/core/src/runtime/stale-results.ts";
 import { boundedGrepLines } from "../packages/core/src/tools/grep.ts";
 import type { Message } from "../packages/core/src/types.ts";

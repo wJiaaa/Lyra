@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
 import { runConfig } from "./run-config.ts";
-import { AgedToolPruner } from "../src/runtime/aged-prune.ts";
+import { AgedToolPruner } from "../src/agent/aged-prune.ts";
 import { compactIfNeeded } from "../src/runtime/compaction.ts";
 import { emptyUsage, type AssistantMessage, type LlmContext, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
 

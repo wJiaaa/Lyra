@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { Compaction } from "../runtime/compaction.ts";
+import type { Compaction } from "../types/compaction.ts";
 import type { CompactionObserver } from "../types/compaction.ts";
 import type { AgentEventSink, CommandRun } from "./events.ts";
 import type { Message, ModelConfig, ProviderConfig } from "../types.ts";
-import { completedCompaction, interruptedCompaction } from "../runtime/compaction-lifecycle.ts";
+import { completedCompaction, interruptedCompaction } from "./compaction-lifecycle.ts";
 import type { AgentSessionContext } from "./run-config.ts";
 
 /**

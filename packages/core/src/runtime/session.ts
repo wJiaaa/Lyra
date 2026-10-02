@@ -46,7 +46,7 @@ import { scratchDir, sessionFacts } from "./session-facts.ts";
 import { SessionLog } from "./session-log.ts";
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
 import { compactWith } from "./compaction.ts";
-import { sessionPruner } from "./aged-prune.ts";
+import { sessionPruner } from "../agent/aged-prune.ts";
 import { compactionSpent, driveTurn, historyFrom, modelHistory, summaryStream } from "./session-turn.ts";
 import { restoreSubAgents, type Rebuild } from "./sub-agent-restore.ts";
 import { rehydrateMessages } from "../session/payload.ts";
@@ -56,7 +56,7 @@ import { backgroundJobs, type BackgroundJob } from "../tools/background-jobs.ts"
 import { readJob } from "../tools/bash.ts";
 import { refreshDispatchGate } from "./turn-config.ts";
 import { sessionTaskQueue, type TaskQueue } from "./task-queue.ts";
-import { stripStaleHandles } from "./model-switch.ts";
+import { stripStaleHandles } from "../agent/model-switch.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { SessionTitle } from "./session-title.ts";
