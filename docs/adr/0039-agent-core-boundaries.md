@@ -2,7 +2,7 @@
 
 - 状态：已采纳
 - 日期：2026-10-02
-- 相关：[ADR-0034](0034-run-config-in-four-groups.md)（循环的拆分与四组配置）；`packages/core/src/agent/`；`packages/core/src/runtime/{session,session-activity,session-deliveries,session-lookup}.ts`；`packages/core/src/tokens.ts`；`.dependency-cruiser.cjs`（`loop-sits-below-the-session`）
+- 相关：[ADR-0034](0034-run-config-in-four-groups.md)（循环的拆分与四组配置）；`packages/core/src/agent/`；`packages/core/src/runtime/{session,session-activity,session-deliveries,session-lookup,session-model,session-rewind,manual-compaction}.ts`；`packages/core/src/tokens.ts`；`.dependency-cruiser.cjs`（`loop-sits-below-the-session`）
 
 ## 背景
 
@@ -25,14 +25,17 @@
 
 **谁占着历史由 `SessionActivity` 管。** 一次提问或续跑是一个 hold（在第一行执行之前就占位），
 hold 里面跑 turn，手动压缩单独占；`stop` 打一个标记，等过东西的代码对一下标记再动手。提问与续跑
-各自记账，修掉了共用一个布尔值的那个问题。后台结果的攒批送回（`SessionDeliveries`）只借四样东西，
-`session://` 的数据源（`session-lookup.ts`）只借 store，两者都搬了出去。
+各自记账，修掉了共用一个布尔值的那个问题。同一段历史上不允许同时有两个回合，有回合或占位时不允许
+手动压缩——这两条由 `SessionActivity` 自己抛错，而不是靠调用方记得先查。后台结果的攒批送回
+（`SessionDeliveries`）只借四样东西，`session://` 的数据源（`session-lookup.ts`）只借 store，
+两者都搬了出去。
 
 ## 没有做的
 
-- **`session.ts` 仍有一千一百多行。** 手动压缩、编辑重发、换模型、项目配置叠加都要同时借
-  `log`、`settings`、`emit`、`can` 中的三四样。按真实边界能拆的已经拆了；剩下的硬拆，协作者就要
-  收十几个回调。
+- **`session.ts` 仍有九百多行。** 能按真实边界搬走的已经搬走：手动压缩（`manual-compaction.ts`）、
+  撤回与编辑重发共用的截断（`session-rewind.ts`）、模型与思考档位的记录（`session-model.ts`），三者
+  只借日志和少数几样状态。剩下的是回合怎么开、怎么排队、怎么停，以及几十个对外方法的转手——
+  回合驱动要同时借活动、日志、设置、审批、子代理、派发等十几样，硬拆就是把它们原样换成一个参数袋。
 - **进程级的缝（`useAgentLoop`、`useToolPipeline`、`useCompaction` 等十条）没有改成逐会话注入。**
   桌面端和命令行各自只启动一个内核，`node --test` 每个文件一个进程，14 个绑定这些缝的测试文件
   都成对复位。没有观测到它造成的缺陷，改成注入要动四五十个文件。哪天一个进程里需要两套内核

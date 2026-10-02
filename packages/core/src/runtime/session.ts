@@ -9,14 +9,15 @@
  * thing — and what it *can do* is `SessionCapabilities`. Both are held rather than inherited, so
  * the boundary is visible at every call site.
  *
- * 谁此刻占着历史（一次提问、一轮、一次手动压缩）由 `SessionActivity` 管，后台结果怎么攒批送回由
- * `SessionDeliveries` 管，`session://` 的数据源在 `session-lookup.ts`。留在这里的手动压缩、编辑重发、
- * 换模型都同时要 `log`、`settings`、`emit`、`can` 中的三四样，搬走只会让协作者收十几个回调。
- * 拆分的来由见 ADR-0039。
+ * Who holds the history right now (a prompt, a turn, a manual compaction) is `SessionActivity`;
+ * gathering background results and delivering them is `SessionDeliveries`; `session://` lookups are
+ * `session-lookup.ts`. Manual compaction, the cut behind undo and edit-and-resend, and recording the
+ * model and thinking level are `manual-compaction.ts`, `session-rewind.ts` and `session-model.ts`.
+ * What stays is how a turn starts, queues and stops — which borrows a dozen pieces of session state
+ * at once. Why it is split this way: ADR-0039.
  */
 
-import { randomUUID } from "node:crypto";
-import type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "../agent/events.ts";
+import type { AgentEvent, AgentEventSink, QueuedTask } from "../agent/events.ts";
 import type { LiveModel, StreamFn } from "../agent/run-config.ts";
 import type { Settings } from "../config/settings.ts";
 import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem, withProjectLayer } from "../config/settings.ts";
@@ -32,9 +33,8 @@ import { SessionCapabilities } from "./session-capabilities.ts";
 import { scratchDir, sessionFacts } from "./session-facts.ts";
 import { SessionLog } from "./session-log.ts";
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
-import { compactWith } from "./compaction.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
-import { compactionSpent, driveTurn, historyFrom, modelHistory, summaryStream } from "./session-turn.ts";
+import { driveTurn, historyFrom, modelHistory } from "./session-turn.ts";
 import { restoreSubAgents, type Rebuild } from "./sub-agent-restore.ts";
 import { rehydrateMessages } from "../session/payload.ts";
 import { SubAgentRegistry, type SteerDisplay } from "./sub-agents.ts";
@@ -46,10 +46,12 @@ import { sessionLookup } from "./session-lookup.ts";
 import { refreshDispatchGate } from "./turn-config.ts";
 import { sessionTaskQueue, type TaskQueue } from "./task-queue.ts";
 import { stripStaleHandles } from "../agent/model-switch.ts";
-import { resolveModelRef } from "../config/model-roles.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { SessionTitle } from "./session-title.ts";
-import { TODOS_KEY, todosFromLog } from "../tools/todo.ts";
+import { TODOS_KEY } from "../tools/todo.ts";
+import { manualCompaction, type CompactionParts } from "./manual-compaction.ts";
+import { adoptModelSwitch, recordModel, recordThinking } from "./session-model.ts";
+import { rewind, type RewindParts } from "./session-rewind.ts";
 
 export interface AgentSessionOptions {
 	cwd: string;
@@ -157,7 +159,7 @@ export class AgentSession {
 			this.modelListeners.add(listener);
 			return () => this.modelListeners.delete(listener);
 		},
-		adopted: () => this.adoptModel(),
+		adopted: () => adoptModelSwitch(this.log),
 	};
 	private readonly approvals: ApprovalGate;
 	private readonly tasks: TaskQueue = sessionTaskQueue({
@@ -396,7 +398,7 @@ export class AgentSession {
 		const pending = this.activity.compaction;
 		if (pending) return pending;
 		if (this.running) return Promise.resolve({ ok: false, reason: "对话正在进行中，等它结束再压缩。" });
-		const task = this.activity.compact((signal) => this.reportCompaction(instructions, signal));
+		const task = this.activity.compact((signal) => manualCompaction(this.compactionParts(), instructions, signal));
 		void task.finally(() => {
 			void this.watcher?.resume();
 			void this.tasks.drain();
@@ -404,87 +406,15 @@ export class AgentSession {
 		return task;
 	}
 
-	private async reportCompaction(instructions: string, signal: AbortSignal) {
-		const command: CommandRun = { id: randomUUID(), name: "compact", timestamp: Date.now(), input: `/compact${instructions.trim() ? ` ${instructions.trim()}` : ""}`,
-			at: this.messages.length, status: "running", detail: "正在压缩会话…" };
-		await this.emit({ type: "command_status", command });
-		try {
-			const result = await this.compactHistory(instructions, signal, command.id);
-			await this.emit({ type: "command_status", command: { ...command, status: result.ok ? "done" : "skipped",
-				detail: result.ok ? `已压缩上下文：${result.before} 条消息整理为 ${result.after} 条，完整对话仍可查看。` : result.reason ?? "无需进一步压缩。" } });
-			return result;
-		} catch (cause) {
-			// A committed boundary remains successful even if delivery of the completion event failed.
-			if (this.log.commandRuns.some((run) => run.id === command.id && run.status === "done")) return { ok: true };
-			const reason = signal.aborted ? "压缩已取消，原上下文保持不变。" : `压缩失败：${cause instanceof Error ? cause.message : String(cause)}`;
-			await this.emit({ type: "command_status", command: { ...command, status: signal.aborted ? "cancelled" : "failed", detail: reason } });
-			return { ok: false, reason };
-		}
-	}
-
-	private async compactHistory(instructions: string, signal: AbortSignal, commandId: string): Promise<CompactOutcome> {
-		const resolved = resolveModel(this.settings, this.log.meta.modelId || this.settings.defaultModelId);
-		if (!resolved) return { ok: false, reason: "还没有配置模型。" };
-
-		await this.preparePruner();
-		const history = modelHistory(this.log, resolved.provider, resolved.model);
-		if (history.length <= 6) return { ok: false, reason: "对话还太短，没什么可压缩的。" };
-
-		const summarizer = resolveModelRef(this.settings, "@compact", resolved);
-		/*
-		 * Through the seam, not around it.
-		 *
-		 * This called `compactIfNeeded` directly, which meant `/compact` ran the built-in policy
-		 * even where a host had installed another one — so replacing compaction replaced it for
-		 * the loop and not for the user. There is one way a session's history gets shortened; this
-		 * only changes what starts it, which is what `force` says.
-		 */
-		const compaction = await compactWith({
-			messages: history,
-			model: resolved.model,
-			provider: resolved.provider,
-			streamFn: summaryStream(this.streamFn, { retryPolicy: () => this.settings.retryPolicy, signal }, compactionSpent(this.log)),
-			force: true,
-			// 剪掉的原文存下来，占位标记里给出 `artifact://` 地址。
-			artifacts: { keep: (tool, content) => this.can.keepArtifact(tool, content) },
-			manual: { instructions, signal },
-			summarizer,
-		});
-		/*
-		 * Two different outcomes, and they used to say the same thing.
-		 *
-		 * `null` means the pass ran and decided the result would not be smaller — on a short or
-		 * already-compacted conversation that is the correct answer, not a failure, and telling
-		 * someone to "try again later" invites them to keep pressing something that will keep
-		 * declining for the same good reason.
-		 *
-		 * `kept === undefined` is the other one: pruning trimmed some oversized tool output but no
-		 * boundary moved, so there is nothing to record. Worth saying plainly too — the window did
-		 * get a little smaller, just not by summarising anything.
-		 */
-		if (!compaction) return { ok: false, reason: "已经够紧凑了，这次压缩不会更小。" };
-		if (signal.aborted) throw new Error("压缩已取消。");
-		/*
-		 * 剪过的工具结果交给会话的剪枝器记住，和循环里的 `compactStep` 同一个做法：边界只记摘要和
-		 * 保留条数，不记的话下一轮从日志重建回原文，这次剪掉的又原样发出去。只剪枝时没有边界可写，
-		 * 这一步就是它生效的唯一途径。
-		 */
-		const adopt = () => sessionPruner(this.can.state).adopt(history, compaction.messages, compaction.kept ?? (compaction.messages.length === history.length ? history.length : 0));
-		if (compaction.kept === undefined) {
-			adopt();
-			return { ok: false, reason: "只裁掉了几段过长的工具输出，没有需要总结的历史。" };
-		}
-
-		await this.emit({
-			type: "compacted",
-			commandId,
-			before: history.length,
-			after: compaction.messages.length,
-			summary: compaction.summary,
-			kept: compaction.kept,
-		});
-		adopt();
-		return { ok: true, before: history.length, after: compaction.messages.length };
+	private compactionParts(): CompactionParts {
+		return {
+			log: this.log,
+			can: this.can,
+			settings: () => this.settings,
+			streamFn: this.streamFn,
+			emit: (event) => this.emit(event),
+			preparePruner: () => this.preparePruner(),
+		};
 	}
 
 	/**
@@ -565,28 +495,9 @@ export class AgentSession {
 		void this.applyProjectConfig();
 	}
 
-	/**
-	 * Pick or change the model this session runs on, at any point.
-	 *
-	 * Persisted into the session log so subsequent turns use the new model. Changing it partway
-	 * through also records where that happened: the reasoning handles written before it belong to
-	 * the previous provider and cannot be replayed to this one. See `stripStaleHandles`.
-	 */
+	/** Pick or change the model this session runs on, at any point. See `recordModel`. */
 	async setModel(modelId: string): Promise<boolean> {
-		const changed = this.log.meta.modelId !== modelId;
-		const switching = this.log.messages.length > 0 && changed;
-		const meta: SessionMeta = {
-			...this.log.meta,
-			modelId,
-			...(switching ? { modelSwitchedAt: this.log.messages.length } : {}),
-		};
-		this.log.meta = meta;
-		await this.log.append({ type: "meta", meta });
-		// The running session holds the same messages the next turn will encode, so clean those too.
-		if (switching) {
-			// Same transcript, same marks — a model switch rewrites handles, not where history was summarised.
-			this.log.restore(stripStaleHandles(this.log.messages, meta.modelSwitchedAt), this.log.compaction, this.log.compactions);
-		}
+		const changed = await recordModel(this.log, modelId);
 		/*
 		 * 正在跑的那一轮也要听到。
 		 *
@@ -598,49 +509,9 @@ export class AgentSession {
 		return true;
 	}
 
-	/**
-	 * 正在跑的那一轮真的换过去了：把「换模型的位置」挪到此刻。
-	 *
-	 * `setModel` 记下的是人按下切换的那一刻。可正在出字的那个请求会说完，那一句出自旧模型、带着旧
-	 * 供应商的句柄，却落在切换位置之后——下一轮从日志重建历史时它原样交给新模型，整条被拒。循环在
-	 * 真正换人的时候叫这里，位置就对了。
-	 *
-	 * 同步地摘、同步地记位置：循环不等这里，下一条消息可能马上就要写进来。落盘那一下可以晚一点。
-	 */
-	private adoptModel(): void {
-		const at = this.log.messages.length;
-		if (at === 0 || this.log.meta.modelSwitchedAt === at) return;
-		const meta: SessionMeta = { ...this.log.meta, modelSwitchedAt: at };
-		this.log.meta = meta;
-		this.log.restore(stripStaleHandles(this.log.messages, at), this.log.compaction, this.log.compactions);
-		void this.log.append({ type: "meta", meta }).catch(() => {});
-	}
-
-	/**
-	 * How hard this conversation asks the model to think, from here on.
-	 *
-	 * Written into the log like the model is, for the same reason: it is a property of the
-	 * conversation rather than of the window that happens to be showing it, so it has to survive a
-	 * restart, reach the phone through the same sync every other change reaches it through, and
-	 * apply to a turn started from anywhere.
-	 *
-	 * `null` gives the conversation back to the app default rather than pinning it to whatever the
-	 * default happens to be right now — a distinction that only shows itself later, when the
-	 * default moves and a session that was never given an opinion should move with it.
-	 */
+	/** How hard this conversation asks the model to think, from here on. See `recordThinking`. */
 	async setThinking(thinking: ThinkingLevel | null): Promise<void> {
-		/*
-		 * `undefined`, not `delete`.
-		 *
-		 * A `meta` record is merged over the store's copy (`Object.assign` in `appendExclusive`),
-		 * so a key that is simply missing leaves the previous value standing — clearing the level
-		 * by deleting the field wrote a record that changed nothing. Present-and-undefined
-		 * overwrites, and `JSON.stringify` drops it on the way to disk, so the reloaded log has no
-		 * level at all, which is what was meant.
-		 */
-		const meta: SessionMeta = { ...this.log.meta, thinking: thinking ?? undefined };
-		this.log.meta = meta;
-		await this.log.append({ type: "meta", meta });
+		await recordThinking(this.log, thinking);
 	}
 
 	// -------------------------------------------------------------------------
@@ -1090,14 +961,7 @@ export class AgentSession {
 			// Acceptance writes and follow-up draining also own the history, before/after driveTurn.
 			await (this.activity.holding("prompt") ?? this.activity.holding("resume"))?.catch(() => {});
 		}
-		if (!(await this.log.truncateFrom(messageIndex))) {
-			throw new Error(`Failed to truncate message at index ${messageIndex}`);
-		}
-		// 与 `revert` 同一个截断，同一个理由，见 `restorePlanFromLog` 和 `stopCutDelegations`。
-		this.restorePlanFromLog();
-		this.stopCutDelegations();
-
-		await this.emit({ type: "rewound", messageCount: this.log.messages.length });
+		await rewind(this.rewindParts(), messageIndex);
 		await this.prompt(content, options);
 	}
 
@@ -1115,46 +979,12 @@ export class AgentSession {
 			throw new Error("Cannot revert while a turn is running");
 		}
 		await this.title.cancel();
-		if (!(await this.log.truncateFrom(messageIndex))) {
-			throw new Error(`Failed to truncate message at index ${messageIndex}`);
-		}
-		this.restorePlanFromLog();
-		this.stopCutDelegations();
-		await this.emit({ type: "rewound", messageCount: this.log.messages.length });
+		await rewind(this.rewindParts(), messageIndex);
 	}
 
-	/**
-	 * 派发那一步被截掉的后台子代理，停下，结果也不再送回来。
-	 *
-	 * 回合在跑时截断先走 `abort`，全部停了；闲着的时候截断从前不碰它们，于是一个在被丢掉的那段
-	 * 历史里派出去的子代理照样跑完、照样把报告送进来、照样开一个回合——主会话去接一件在它的
-	 * 历史里从没发生过的事，还要为此再花一轮。派发还留在历史里的照旧：那份结果仍然有人在等。
-	 */
-	private stopCutDelegations(): void {
-		const dispatched = new Set<string>();
-		for (const message of this.log.messages) {
-			const id = message.role === "toolResult" ? (message.details as { subAgentId?: unknown } | undefined)?.subAgentId : undefined;
-			if (typeof id === "string") dispatched.add(id);
-		}
-		// 已经跑完、正攒着等送的，不在 `delegations` 里了，要另外筛。
-		this.deliveries.keepOnly(dispatched);
-		for (const id of this.delegations.forgetUnless((id) => dispatched.has(id))) this.subAgents.abort(id);
-	}
-
-	/**
-	 * 手边这份清单也要跟着回到截断点——撤回和编辑重发都要。
-	 *
-	 * 清单写在两处——日志里那条 `todo_write` 的结果，和这份给这一轮用的状态。截断只动得到
-	 * 前者，后者原样留着，于是一份转录里已经没人写过的计划继续替续跑投票：下一轮撞上步数
-	 * 上限时，`continueWhileWorkRemains` 会照着它说「清单里还有 3 项」，再自花两百步。编辑
-	 * 重发以前漏了这一步，而它截掉的跟撤回一样多，紧接着还要开跑。
-	 *
-	 * 从截断后的日志重新读，而不是一律清空：截断点之前可能自己就写过一份，那份还算数。
-	 */
-	private restorePlanFromLog(): void {
-		const plan = todosFromLog(this.log.messages);
-		if (plan.length > 0) this.can.state.set(TODOS_KEY, plan);
-		else this.can.state.delete(TODOS_KEY);
+	private rewindParts(): RewindParts {
+		const { log, deliveries, delegations, subAgents } = this;
+		return { log, state: this.can.state, deliveries, delegations, subAgents, emit: (event) => this.emit(event) };
 	}
 
 	/**
