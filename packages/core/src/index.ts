@@ -78,7 +78,7 @@ export { loadCapabilityPlugins, type LoadedCapabilityPlugins } from "./plugins/c
 export { API_FORMATS, getProvider, streamAssistant, useLlmRegistry } from "./ai/index.ts";
 export { sessionHeaders } from "./ai/cache-routing.ts";
 export { USER_AGENT } from "./ai/endpoint.ts";
-export type { AgentEvent, AgentEventSink, CommandRun, HookRun, NoticeCode, QueuedTask } from "./agent/events.ts";
+export type { AgentEvent, AgentEventSink, CommandRun, CompactCode, HookRun, NoticeCode, NoticeParams, QueuedTask } from "./agent/events.ts";
 export type { TodoItem } from "./tools/todo.ts";
 export { runAgent } from "./agent/loop.ts";
 export type {
@@ -374,7 +374,7 @@ export {
 	roleStatus,
 	type ModelRole,
 } from "./config/model-roles.ts";
-export { layerOverrides, loadProjectLayer, projectConfigPath, type LayerOverride } from "./config/layers.ts";
+export { layerOverrides, loadProjectLayer, projectConfigPath, type ConfigProblem, type LayerOverride } from "./config/layers.ts";
 export { extensionDirs } from "./runtime/session-capabilities.ts";
 export { validateManifest, type ExtensionDiagnostic, type ExtensionEventStats, type ExtensionStats } from "./extensions/types.ts";
 export { annotateInjected, EXTRACTED_KEY, projectInjectedPath, readInjected, userInjectedPath } from "./runtime/memory-injected.ts";

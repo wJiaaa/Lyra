@@ -21,6 +21,7 @@ export function registerLayersIpc(): void {
 			path,
 			exists: true,
 			error: layer.error,
+			problem: layer.problem,
 			refused: layer.refused,
 			overrides: layerOverrides(settings() as unknown as Record<string, unknown>, layer.config),
 		};

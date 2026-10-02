@@ -32,30 +32,35 @@ export interface CompactionParts {
 export async function manualCompaction(parts: CompactionParts, instructions: string, signal: AbortSignal): Promise<CompactOutcome> {
 	const { log, emit } = parts;
 	const command: CommandRun = { id: randomUUID(), name: "compact", timestamp: Date.now(), input: `/compact${instructions.trim() ? ` ${instructions.trim()}` : ""}`,
-		at: log.messages.length, status: "running", detail: "正在压缩会话…" };
+		at: log.messages.length, status: "running", detail: "正在压缩会话…", code: "running" };
 	await emit({ type: "command_status", command });
 	try {
 		const result = await compactHistory(parts, instructions, signal, command.id);
-		await emit({ type: "command_status", command: { ...command, status: result.ok ? "done" : "skipped",
-			detail: result.ok ? `已压缩上下文：${result.before} 条消息整理为 ${result.after} 条，完整对话仍可查看。` : result.reason ?? "无需进一步压缩。" } });
+		const settled: Partial<CommandRun> = result.ok
+			? { status: "done", detail: `已压缩上下文：${result.before} 条消息整理为 ${result.after} 条，完整对话仍可查看。`, code: "done", params: { before: result.before ?? 0, after: result.after ?? 0 } }
+			: { status: "skipped", detail: result.reason ?? "无需进一步压缩。", code: result.code, params: result.params };
+		await emit({ type: "command_status", command: { ...command, ...settled } });
 		return result;
 	} catch (cause) {
 		// A committed boundary remains successful even if delivery of the completion event failed.
 		if (log.commandRuns.some((run) => run.id === command.id && run.status === "done")) return { ok: true };
-		const reason = signal.aborted ? "压缩已取消，原上下文保持不变。" : `压缩失败：${cause instanceof Error ? cause.message : String(cause)}`;
-		await emit({ type: "command_status", command: { ...command, status: signal.aborted ? "cancelled" : "failed", detail: reason } });
-		return { ok: false, reason };
+		const error = cause instanceof Error ? cause.message : String(cause);
+		const outcome: CompactOutcome = signal.aborted
+			? { ok: false, reason: "压缩已取消，原上下文保持不变。", code: "cancelled" }
+			: { ok: false, reason: `压缩失败：${error}`, code: "failed", params: { error } };
+		await emit({ type: "command_status", command: { ...command, status: signal.aborted ? "cancelled" : "failed", detail: outcome.reason!, code: outcome.code, params: outcome.params } });
+		return outcome;
 	}
 }
 
 async function compactHistory(parts: CompactionParts, instructions: string, signal: AbortSignal, commandId: string): Promise<CompactOutcome> {
 	const { log, can, emit } = parts;
 	const resolved = resolveModel(parts.settings(), log.meta.modelId || parts.settings().defaultModelId);
-	if (!resolved) return { ok: false, reason: "还没有配置模型。" };
+	if (!resolved) return { ok: false, reason: "还没有可用的模型，先到「模型设置」里添加一个服务商。", code: "no-model" };
 
 	await parts.preparePruner();
 	const history = modelHistory(log, resolved.provider, resolved.model);
-	if (history.length <= 6) return { ok: false, reason: "对话还太短，没什么可压缩的。" };
+	if (history.length <= 6) return { ok: false, reason: "对话还太短，没什么可压缩的。", code: "too-short" };
 
 	const summarizer = resolveModelRef(parts.settings(), "@compact", resolved);
 	/*
@@ -89,7 +94,7 @@ async function compactHistory(parts: CompactionParts, instructions: string, sign
 	 * boundary moved, so there is nothing to record. Worth saying plainly too — the window did
 	 * get a little smaller, just not by summarising anything.
 	 */
-	if (!compaction) return { ok: false, reason: "已经够紧凑了，这次压缩不会更小。" };
+	if (!compaction) return { ok: false, reason: "已经够紧凑了，这次压缩不会更小。", code: "already-tight" };
 	if (signal.aborted) throw new Error("压缩已取消。");
 	/*
 	 * The trimmed tool results are handed to the session's pruner to remember, the same as
@@ -101,7 +106,7 @@ async function compactHistory(parts: CompactionParts, instructions: string, sign
 	const adopt = () => sessionPruner(can.state).adopt(history, compaction.messages, compaction.kept ?? (compaction.messages.length === history.length ? history.length : 0));
 	if (compaction.kept === undefined) {
 		adopt();
-		return { ok: false, reason: "只裁掉了几段过长的工具输出，没有需要总结的历史。" };
+		return { ok: false, reason: "只裁掉了几段过长的工具输出，没有需要总结的历史。", code: "prune-only" };
 	}
 
 	await emit({

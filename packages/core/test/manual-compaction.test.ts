@@ -52,6 +52,9 @@ test("manual commands carry focus instructions, are single-flight, and persist a
 		assert.ok(loaded?.compaction);
 		assert.equal(loaded.commandRuns?.length, 1);
 		assert.equal(loaded.commandRuns?.[0].status, "done");
+		// The window says the outcome from its code, so the code has to survive the round trip to disk.
+		assert.equal(loaded.commandRuns?.[0].code, "done");
+		assert.deepEqual(loaded.commandRuns?.[0].params, { before: 20, after: (result as { after: number }).after });
 		assert.equal(loaded.commandRuns?.[0].input, "/compact 保留当前决策和待办");
 		const reopened = new AgentSession({ cwd: root, store, meta: loaded.meta, settings: { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id }, emit: () => {} });
 		reopened.restore(loaded.messages, loaded.compaction);
@@ -92,6 +95,8 @@ test("cancellation and provider failure keep the previous history boundary and e
 			assert.equal(session.running, false);
 			assert.equal(session.log.commandRuns[0].status, outcome === "cancelled" ? "cancelled" : "failed");
 			assert.match(session.log.commandRuns[0].detail, outcome === "cancelled" ? /取消/ : outcome === "empty" ? /摘要.*空/ : /provider unavailable/);
+			assert.equal(session.log.commandRuns[0].code, outcome === "cancelled" ? "cancelled" : "failed");
+			if (outcome === "failed") assert.match(String(session.log.commandRuns[0].params?.error), /provider unavailable/);
 		} finally { await rm(root, { recursive: true, force: true }); }
 	}
 });
@@ -188,4 +193,18 @@ test("后台报告等压缩时人按了停止：压缩取消，报告也不再�
 		finish?.(reply("stop")); await session.dispose();
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}
+});
+
+test("a refused compaction names why with a code, both in its result and on the command line", async () => {
+	const root = await mkdtemp(join(tmpdir(), "plume-compact-refused-"));
+	const store = new SessionStore(join(root, "sessions"));
+	const meta = await store.create(root, model.id);
+	const session = new AgentSession({ cwd: root, store, meta, settings: { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id }, emit: () => {}, streamFn: async () => reply("unused") });
+	try {
+		await session.log.commit({ role: "user", content: [{ type: "text", text: "hi" }], timestamp: 1 });
+		const short = await session.compact();
+		assert.equal(short.code, "too-short");
+		assert.equal(session.log.commandRuns.at(-1)?.status, "skipped");
+		assert.equal(session.log.commandRuns.at(-1)?.code, "too-short");
+	} finally { await rm(root, { recursive: true, force: true }); }
 });

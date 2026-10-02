@@ -52,6 +52,7 @@ import { carryOnPrompt } from "../../store/derive.ts";
 import { useJobReveal } from "./job-reveal.ts";
 import { available, bridge, onPhone } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+import { compactText } from "../../lib/notice-text.ts";
 
 /** 输入框里挂着的一份附件——和侧边聊天、子智能体那两个框是同一个形状，见 `attachments/read.ts`。 */
 type Attachment = DraftAttachment;
@@ -397,7 +398,7 @@ export function Composer({ centered = false }: {
 			release();
 			if (builtin.action === "compact" && activeSessionId) {
 				const result = await bridge.sessions.compact(activeSessionId, invocation?.rest);
-				if (!result.ok && result.reason) useApp.getState().notify(result.reason, "warn");
+				if (!result.ok && result.reason) useApp.getState().notify(compactText(result, result.reason), "warn");
 			} else if (builtin.action === "clear") await useApp.getState().newSession();
 			else if (builtin.action === "manage-commands") {
 				useApp.getState().setSettingsSection("commands");

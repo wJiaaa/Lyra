@@ -70,7 +70,7 @@ function deps(script: AgentRunResult[], over: Partial<Parameters<typeof continue
 		messages: () => [],
 		todos: () => [],
 		aborted: () => false,
-		notify: (message) => void seen.notices.push(message),
+		notify: (notice) => void seen.notices.push(notice.message),
 		resuming: (info) => void seen.resumes.push(info),
 		sleep: async (ms) => void seen.waited.push(ms),
 		...over,

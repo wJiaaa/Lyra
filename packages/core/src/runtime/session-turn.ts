@@ -109,7 +109,7 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 		messages: () => modelHistory(input.log, input.provider, input.model),
 		todos: () => (input.can.state.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
 		aborted: () => input.signal.aborted,
-		notify: (message) => input.emit({ type: "notice", level: "info", message }),
+		notify: (notice) => input.emit({ type: "notice", level: "info", ...notice }),
 		// The running line, not a toast: this wait outlives one by an order of magnitude.
 		resuming: (info) => input.emit({ type: "retry", ...info, resume: true }),
 		// So that pressing stop during a minute-long wait is felt immediately.
@@ -175,7 +175,12 @@ async function runPromptHooks(input: TurnInputs, hooks: TurnHooks): Promise<bool
 		if (await log.truncateFrom(index)) await input.emit({ type: "rewound", messageCount: log.messages.length });
 		// 刚注入的 SessionStart 上下文排在这句后面，跟着一起截掉了；不重置，这个会话就再也拿不到它。
 		if (startedNow) can.state.delete(SESSION_START_KEY);
-		await input.emit({ type: "notice", level: "warn", message: `UserPromptSubmit 钩子拦下了这条消息：${submitted.stopReason ?? "未说明原因"}` });
+		await input.emit({
+			type: "notice",
+			level: "warn",
+			message: `UserPromptSubmit 钩子拦下了这条消息：${submitted.stopReason ?? "未说明原因"}`,
+			...(submitted.stopReason ? { code: "prompt-blocked", params: { reason: submitted.stopReason } } : { code: "prompt-blocked-silent" }),
+		});
 		await input.emit({ type: "agent_end", reason: "done" });
 		return false;
 	}

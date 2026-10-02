@@ -19,6 +19,7 @@ import { create } from "zustand";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { Card } from "./controls.tsx";
+import { configProblemText } from "../../lib/notice-text.ts";
 
 interface LayerState {
 	/**
@@ -113,7 +114,7 @@ export function LayerCard({ view }: { view: ProjectLayerView }) {
 			<div className="px-4 py-3" data-project-layer>
 				<div className="mb-1 text-label text-ink">{t("override.projectConfig")}</div>
 				<p className="mb-2 font-mono text-caption text-ink-faint">{view.path}</p>
-				{view.error && <p className="mb-2 text-detail text-danger">{view.error}</p>}
+				{view.error && <p className="mb-2 text-detail text-danger">{configProblemText(view.problem, view.error)}</p>}
 				{view.overrides.length === 0 && view.refused.length === 0 && !view.error && (
 					<p className="text-detail text-ink-muted">{t("override.nothingOverridden")}</p>
 				)}

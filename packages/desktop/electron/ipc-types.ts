@@ -57,10 +57,13 @@ import type {
 	ExtensionDiagnostic,
 	ExtensionStats,
 	InstallRecord,
+	CompactCode,
+	ConfigProblem,
 	LayerOverride,
 	McpBundle,
 	MessageAttachment,
 	Plugin,
+	NoticeParams,
 	PluginDiagnostic,
 	QueuedTask,
 	Registry,
@@ -158,6 +161,8 @@ export interface ProjectLayerView {
 	path: string;
 	exists: boolean;
 	error?: string;
+	/** What `error` says, for the window to say in its own language. */
+	problem?: ConfigProblem;
 	refused: string[];
 	overrides: LayerOverride[];
 }
@@ -400,7 +405,7 @@ export interface PlumeApi {
 		/** Rename a session and persist to disk/log. */
 		rename(sessionId: string, title: string): Promise<SessionMeta | null>;
 		/** Summarise now. `reason` says why not, when it declines. */
-		compact(sessionId: string, instructions?: string): Promise<{ ok: boolean; reason?: string; before?: number; after?: number }>;
+		compact(sessionId: string, instructions?: string): Promise<{ ok: boolean; reason?: string; code?: CompactCode; params?: NoticeParams; before?: number; after?: number }>;
 		/** Null when the session is not open — this never boots one just to answer. */
 		contextBreakdown(sessionId: string): Promise<ContextBreakdown | null>;
 	};

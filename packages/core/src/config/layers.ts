@@ -120,21 +120,25 @@ export function sanitizeProjectConfig(config: Plain): { config: Plain; refused: 
 	return { config: out, refused };
 }
 
+/** What was wrong with a config file, for hosts that translate; `error` beside it is core's own wording. */
+export type ConfigProblem = { kind: "not-object"; path: string } | { kind: "invalid-json"; path: string; detail: string };
+
 /** Read a JSON config file. A missing file is not an error; a malformed one is reported. */
-export async function readConfigFile(path: string): Promise<{ config: Plain; error?: string }> {
+export async function readConfigFile(path: string): Promise<{ config: Plain; error?: string; problem?: ConfigProblem }> {
 	const raw = await readFile(path, "utf8").catch(() => null);
 	if (raw === null) return { config: {} };
 	try {
 		// A byte-order mark — Notepad's "UTF-8 with BOM" — made this whole file a JSON syntax error; see `withoutBom`.
 		const parsed = JSON.parse(withoutBom(raw)) as unknown;
-		if (!isPlainObject(parsed)) return { config: {}, error: `${path} 的内容不是一个对象。` };
+		if (!isPlainObject(parsed)) return { config: {}, error: `${path} 的内容不是一个对象。`, problem: { kind: "not-object", path } };
 		return { config: parsed };
 	} catch (error) {
 		/*
 		 * A broken project config must not stop the session. Someone mid-edit with a trailing comma
 		 * should get their global settings and a message, not a window that will not open.
 		 */
-		return { config: {}, error: `${path} 不是合法的 JSON：${error instanceof Error ? error.message : String(error)}` };
+		const detail = error instanceof Error ? error.message : String(error);
+		return { config: {}, error: `${path} 不是合法的 JSON：${detail}`, problem: { kind: "invalid-json", path, detail } };
 	}
 }
 
@@ -148,9 +152,9 @@ export function projectConfigPath(cwd: string): string {
  * Global settings stay where they are — this only adds the layer above them, so a project with no
  * `.plume/config.json` behaves exactly as before.
  */
-export async function loadProjectLayer(cwd: string | null): Promise<{ config: Plain; refused: string[]; error?: string }> {
+export async function loadProjectLayer(cwd: string | null): Promise<{ config: Plain; refused: string[]; error?: string; problem?: ConfigProblem }> {
 	if (!cwd) return { config: {}, refused: [] };
-	const { config, error } = await readConfigFile(projectConfigPath(cwd));
+	const { config, error, problem } = await readConfigFile(projectConfigPath(cwd));
 	const { config: clean, refused } = sanitizeProjectConfig(config);
-	return { config: clean, refused, error };
+	return { config: clean, refused, error, problem };
 }

@@ -39,6 +39,7 @@
  * a session it reaches into.
  */
 
+import type { NoticeCode, NoticeParams } from "../agent/events.ts";
 import type { AgentRunResult } from "../agent/loop.ts";
 import type { TodoItem } from "../tools/todo.ts";
 import type { Message } from "../types.ts";
@@ -110,7 +111,7 @@ export interface ContinuationDeps {
 	messages(): Message[];
 	todos(): TodoItem[];
 	aborted(): boolean;
-	notify(message: string): Promise<void> | void;
+	notify(notice: { message: string; code: NoticeCode; params?: NoticeParams }): Promise<void> | void;
 	/**
 	 * About to wait, then go back for the work.
 	 *
@@ -180,11 +181,11 @@ export async function continueWhileWorkRemains(
 				 */
 				if (todos.length === 0 && deps.planless && !graced) {
 					graced = true;
-					await deps.notify("这一段的轮数用完了，还没写清单——让它把剩下的步骤列出来，接着做。");
+					await deps.notify({ message: "这一段的轮数用完了，还没写清单——让它把剩下的步骤列出来，接着做。", code: "continue-planless" });
 					result = await deps.run([...deps.messages(), deps.planless()]);
 					continue;
 				}
-				await deps.notify("本轮已达到步数上限，已停下。执行记录已保留，需要时可继续。");
+				await deps.notify({ message: "本轮已达到步数上限，已停下。执行记录已保留，需要时可继续。", code: "step-limit" });
 				break;
 			}
 
@@ -198,13 +199,15 @@ export async function continueWhileWorkRemains(
 			stalled = nowDone > done ? 0 : stalled + 1;
 			done = nowDone;
 			if (stalled > STALLED_CONTINUATIONS) {
-				await deps.notify(
-					`连着 ${stalled} 轮步数用尽，清单里的 ${unfinished.length} 项一项都没完成——先停下来，做过的都在记录里。`,
-				);
+				await deps.notify({
+					message: `连着 ${stalled} 轮步数用尽，清单里的 ${unfinished.length} 项一项都没完成——先停下来，做过的都在记录里。`,
+					code: "plan-stalled",
+					params: { rounds: stalled, n: unfinished.length },
+				});
 				break;
 			}
 
-			await deps.notify(`本轮步数用尽，清单里还有 ${unfinished.length} 项，继续执行。`);
+			await deps.notify({ message: `本轮步数用尽，清单里还有 ${unfinished.length} 项，继续执行。`, code: "continue-plan", params: { n: unfinished.length } });
 			result = await deps.run(deps.messages());
 			continue;
 		}
@@ -239,7 +242,7 @@ export async function continueWhileWorkRemains(
 		result = await deps.run(deps.messages());
 	}
 	if (extra === MAX_CONTINUATIONS && result.reason === "max_turns" && !deps.aborted()) {
-		await deps.notify("已达到自动续跑次数上限，已停下。执行记录已保留，需要时可继续。");
+		await deps.notify({ message: "已达到自动续跑次数上限，已停下。执行记录已保留，需要时可继续。", code: "continue-limit" });
 	}
 	return result;
 }

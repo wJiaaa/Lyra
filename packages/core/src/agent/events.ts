@@ -15,6 +15,9 @@ export interface CommandRun {
 	at: number;
 	status: "running" | "done" | "skipped" | "failed" | "cancelled";
 	detail: string;
+	/** What `detail` says, for hosts that translate; manual compaction only (automatic has `automatic`). */
+	code?: CompactCode;
+	params?: NoticeParams;
 	/** Present only for automatic maintenance; it does not own the agent turn. */
 	automatic?: AutoCompactionState;
 }
@@ -54,7 +57,50 @@ export type NoticeCode =
 	/** No model is configured for this conversation. */
 	| "no-model"
 	/** The model the side chat was set to is no longer available. */
-	| "side-model-unavailable";
+	| "side-model-unavailable"
+	/** `settings.json` could not be read; running on defaults. Params: `path`, `reason`. */
+	| "settings-unreadable"
+	/** The same, and the unreadable file was copied aside. Params: `path`, `reason`, `keptAt`. */
+	| "settings-unreadable-kept"
+	/** Keys in `.plume/config.json` that only the global settings may hold. Params: `keys`. */
+	| "project-config-refused"
+	/** `.plume/config.json` is not a JSON object. Params: `path`. */
+	| "project-config-not-object"
+	/** `.plume/config.json` is not valid JSON. Params: `path`, `error`. */
+	| "project-config-invalid-json"
+	/** A `UserPromptSubmit` hook blocked the message. Params: `reason`. */
+	| "prompt-blocked"
+	/** The same, without saying why. */
+	| "prompt-blocked-silent"
+	/** A `PreToolUse` or `PostToolUse` handler threw. Params: `hook`, `error`. */
+	| "hook-failed"
+	/** Out of rounds with no checklist written; given one more stretch to write it. */
+	| "continue-planless"
+	/** Out of rounds for this turn; stopped. */
+	| "step-limit"
+	/** Several stretches in a row finished no checklist item; stopped. Params: `rounds`, `n` (items left). */
+	| "plan-stalled"
+	/** Out of rounds with checklist items left; carrying on. Params: `n` (items left). */
+	| "continue-plan"
+	/** The automatic continuations are used up; stopped. */
+	| "continue-limit";
+
+/** Values a host fills into its own wording of a coded notice. */
+export type NoticeParams = Record<string, string | number>;
+
+/** Outcomes of a manual `/compact`, for hosts that translate (ADR-0028). */
+export type CompactCode =
+	| "running"
+	/** Params: `before`, `after`. */
+	| "done"
+	| "busy"
+	| "no-model"
+	| "too-short"
+	| "already-tight"
+	| "prune-only"
+	| "cancelled"
+	/** Params: `error`. */
+	| "failed";
 
 export type AgentEvent =
 	| { type: "command_status"; command: CommandRun }
@@ -148,7 +194,7 @@ export type AgentEvent =
 	 * names the situation so a host can say it in its own language (ADR-0028); a host that does not
 	 * know the code shows `message`.
 	 */
-	| { type: "notice"; level: "info" | "warn" | "error"; message: string; code?: NoticeCode }
+	| { type: "notice"; level: "info" | "warn" | "error"; message: string; code?: NoticeCode; params?: NoticeParams }
 	/**
 	 * 磁盘上的技能或子代理定义变了，这个会话已经重新读过了。
 	 *

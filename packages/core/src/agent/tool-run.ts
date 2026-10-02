@@ -280,6 +280,8 @@ async function executeOne(
 				type: "notice",
 				level: "warn",
 				message: `PreToolUse handling failed: ${error instanceof Error ? error.message : String(error)}`,
+				code: "hook-failed",
+				params: { hook: "PreToolUse", error: error instanceof Error ? error.message : String(error) },
 			});
 		}
 	}
@@ -342,6 +344,8 @@ async function executeOne(
 				type: "notice",
 				level: "warn",
 				message: `PostToolUse handling failed: ${error instanceof Error ? error.message : String(error)}`,
+				code: "hook-failed",
+				params: { hook: "PostToolUse", error: error instanceof Error ? error.message : String(error) },
 			});
 		}
 	}

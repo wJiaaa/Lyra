@@ -11,7 +11,7 @@ import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { withoutBom } from "../utils/bom.ts";
 import { isPlaceholder, looksSecret } from "../mcp/placeholders.ts";
 import { keepSecrets, putSecrets, secret } from "./vault.ts";
-import { loadProjectLayer, mergeLayer } from "./layers.ts";
+import { loadProjectLayer, mergeLayer, type ConfigProblem } from "./layers.ts";
 
 /** How much the agent may do without stopping to ask. */
 export type PermissionMode =
@@ -704,10 +704,10 @@ export async function loadSettings(): Promise<Settings> {
 export async function layerProjectSettings(
 	global: Settings,
 	cwd: string | null,
-): Promise<{ settings: Settings; layer: Record<string, unknown>; refused: string[]; error?: string }> {
+): Promise<{ settings: Settings; layer: Record<string, unknown>; refused: string[]; error?: string; problem?: ConfigProblem }> {
 	if (!cwd) return { settings: global, layer: {}, refused: [] };
 	const project = await loadProjectLayer(cwd);
-	return { settings: withProjectLayer(global, project.config), layer: project.config, refused: project.refused, error: project.error };
+	return { settings: withProjectLayer(global, project.config), layer: project.config, refused: project.refused, error: project.error, problem: project.problem };
 }
 
 /**

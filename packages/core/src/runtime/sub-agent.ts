@@ -38,7 +38,7 @@ import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { resolveSubAgentModel } from "../config/model-roles.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
 import { compactWith } from "./compaction.ts";
-import { continueWhileWorkRemains } from "./continuation.ts";
+import { continueWhileWorkRemains, type ContinuationDeps } from "./continuation.ts";
 import { stripStaleHandles } from "../agent/model-switch.ts";
 import { childDispatch, DEFAULT_MAX_DEPTH, DISPATCH_KEY, DispatchCancelled, DispatchGate, normalizeMaxConcurrentSubAgents, rootDispatch, type DispatchContext } from "./dispatch-guard.ts";
 import { textTokens, toolTokens } from "../tokens.ts";
@@ -774,7 +774,7 @@ export async function runSubAgent(
 			messages: () => view,
 			todos: () => (subState.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
 			aborted: () => controller.signal.aborted,
-			notify: (message: string) => options.emit({ type: "subagent_event", id, event: { type: "notice", level: "info", message } }),
+			notify: (notice: Parameters<ContinuationDeps["notify"]>[0]) => options.emit({ type: "subagent_event", id, event: { type: "notice", level: "info", ...notice } }),
 			// 没写清单就撞上检查点的，再给一段——见 `ContinuationDeps.planless`。
 			planless: () => planDemand(checkpoint),
 			resuming: () => {},

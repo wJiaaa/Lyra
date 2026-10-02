@@ -259,7 +259,15 @@ export class AgentSession {
 		 * reads as the app having lost everything, not as one file that would not parse.
 		 */
 		const damaged = settingsProblem();
-		if (damaged) await this.emit({ type: "notice", level: "error", message: describeSettingsProblem(damaged) });
+		if (damaged) {
+			await this.emit({
+				type: "notice",
+				level: "error",
+				message: describeSettingsProblem(damaged),
+				code: damaged.keptAt ? "settings-unreadable-kept" : "settings-unreadable",
+				params: { path: damaged.path, reason: damaged.reason, ...(damaged.keptAt ? { keptAt: damaged.keptAt } : {}) },
+			});
+		}
 		await this.can.load(this.cwd, this.settings);
 		/*
 		 * `session://` 的数据源。
@@ -362,9 +370,20 @@ export class AgentSession {
 				type: "notice",
 				level: "warn",
 				message: `.plume/config.json 里的 ${layered.refused.join("、")} 被忽略了——这个文件会进仓库，凭证和供应商只能写在全局设置里。`,
+				code: "project-config-refused",
+				params: { keys: layered.refused.join(", ") },
 			});
 		}
-		if (layered.error) await this.emit({ type: "notice", level: "warn", message: layered.error });
+		if (layered.error) {
+			const problem = layered.problem;
+			await this.emit({
+				type: "notice",
+				level: "warn",
+				message: layered.error,
+				...(problem?.kind === "not-object" ? { code: "project-config-not-object", params: { path: problem.path } } : {}),
+				...(problem?.kind === "invalid-json" ? { code: "project-config-invalid-json", params: { path: problem.path, error: problem.detail } } : {}),
+			});
+		}
 		// 项目层可能改了并发上限：闸门要跟上叠好的那一份，不是全局那一份。
 		refreshDispatchGate(this.can.state, this.settings);
 	}
@@ -397,7 +416,7 @@ export class AgentSession {
 	compact(instructions = ""): Promise<CompactOutcome> {
 		const pending = this.activity.compaction;
 		if (pending) return pending;
-		if (this.running) return Promise.resolve({ ok: false, reason: "对话正在进行中，等它结束再压缩。" });
+		if (this.running) return Promise.resolve({ ok: false, reason: "对话正在进行中，等它结束再压缩。", code: "busy" });
 		const task = this.activity.compact((signal) => manualCompaction(this.compactionParts(), instructions, signal));
 		void task.finally(() => {
 			void this.watcher?.resume();

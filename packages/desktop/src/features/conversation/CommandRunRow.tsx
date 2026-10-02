@@ -3,6 +3,7 @@ import type { CommandRun } from "@plume/core";
 import { Check, CircleAlert, Minus, Terminal } from "lucide-react";
 import { FlowRow } from "./FlowRow.tsx";
 import { MessageActions } from "./MessageActions.tsx";
+import { compactText } from "../../lib/notice-text.ts";
 
 /**
  * A local command is part of the transcript, but never a prompt sent to the agent.
@@ -36,7 +37,7 @@ export function CommandRunRow({ command }: { command: CommandRun }) {
 		<MessageActions timestamp={command.timestamp} text={command.input} className="justify-end pr-1" />
 		<FlowRow
 			icon={<Icon size={13} strokeWidth={1.8} />}
-			summary={command.detail}
+			summary={compactText(command, command.detail)}
 			running={running}
 			className={command.status === "failed" ? "text-danger hover:text-danger" : ""}
 		/>

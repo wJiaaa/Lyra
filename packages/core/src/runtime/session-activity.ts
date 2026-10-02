@@ -15,13 +15,16 @@
  * held it.
  */
 
-import type { AgentEvent } from "../agent/events.ts";
+import type { AgentEvent, CompactCode, NoticeParams } from "../agent/events.ts";
 
 export type HoldKind = "prompt" | "resume";
 
 export interface CompactOutcome {
 	ok: boolean;
 	reason?: string;
+	/** What `reason` says, for hosts that translate. */
+	code?: CompactCode;
+	params?: NoticeParams;
 	before?: number;
 	after?: number;
 }
