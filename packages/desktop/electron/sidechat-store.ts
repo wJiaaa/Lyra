@@ -1,6 +1,6 @@
 /** Atomic, ordered side-chat snapshots, separate from the main transcript. */
 
-import { access, mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { plumeHome, writeFileAtomic, type Message } from "@plume/core";
@@ -34,8 +34,7 @@ function checkSession(sessionId: string): void {
 function fileFor(sessionId: string, sideId: string): string {
 	checkSession(sessionId);
 	if (!isSideId(sideId)) throw new Error("Invalid side-chat id");
-	// 最早那一个留在一个会话只有一个侧边聊天时的老位置，后开的放进以会话命名的目录。
-	return sideId === DEFAULT_SIDE_CHAT_ID ? join(dir(), `${sessionId}.json`) : join(dir(), sessionId, `${sideId}.json`);
+	return join(dir(), sessionId, `${sideId}.json`);
 }
 
 /**
@@ -45,19 +44,14 @@ function fileFor(sessionId: string, sideId: string): string {
  */
 export async function listSideChats(sessionId: string): Promise<string[]> {
 	checkSession(sessionId);
-	const legacy = fileFor(sessionId, DEFAULT_SIDE_CHAT_ID);
 	const folder = join(dir(), sessionId);
 	// 等这个会话还在路上的写和删落定，不然刚关掉的那个会被读回来。
-	await Promise.all(Array.from(writes).filter(([path]) => path === legacy || dirname(path) === folder).map(([, write]) => write.catch(() => {})));
-	const ids: string[] = [];
-	if (await access(legacy).then(() => true, () => false)) ids.push(DEFAULT_SIDE_CHAT_ID);
+	await Promise.all(Array.from(writes).filter(([path]) => dirname(path) === folder).map(([, write]) => write.catch(() => {})));
 	const names = await readdir(folder).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return [] as string[]; throw error; });
 	// 原子写落盘前的临时文件也在这个目录里，只认 `<id>.json`。
-	for (const name of names.sort()) {
-		const id = name.endsWith(".json") ? name.slice(0, -".json".length) : "";
-		if (id !== DEFAULT_SIDE_CHAT_ID && isSideId(id)) ids.push(id);
-	}
-	return ids;
+	const ids = names.sort().map((name) => name.endsWith(".json") ? name.slice(0, -".json".length) : "").filter(isSideId);
+	// The default one is the first ever opened, whatever its name sorts as.
+	return ids.includes(DEFAULT_SIDE_CHAT_ID) ? [DEFAULT_SIDE_CHAT_ID, ...ids.filter((id) => id !== DEFAULT_SIDE_CHAT_ID)] : ids;
 }
 
 export interface SideChatArchive { messages: Message[]; modelId?: string | null }

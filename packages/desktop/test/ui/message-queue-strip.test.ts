@@ -20,7 +20,7 @@ const meta = { id: "a", title: "a", cwd: "/test", projectId: "test", projectName
 
 let prompted: { deliver?: string; text: string }[];
 
-function entry(text: string, extra: Partial<QueuedMessage> = {}): Omit<QueuedMessage, "id" | "queuedAt"> {
+function entry(text: string, extra: Partial<QueuedMessage> = {}): Omit<QueuedMessage, "id"> {
 	return {
 		content: [{ type: "text", text }],
 		draft: { text, attachments: [], sessionRefs: [] },

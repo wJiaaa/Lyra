@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, beforeEach, test } from "node:test";
 
-import { isSealed, resetVault, seal } from "@plume/core";
+import { resetVault, seal } from "@plume/core";
 
 import { saveAccount, tokenFor } from "../electron/forge/vault.ts";
 import type { ForgeAccount } from "../electron/forge/types.ts";
@@ -35,7 +35,6 @@ const account: ForgeAccount = {
 	baseUrl: "https://github.com",
 	login: "someone",
 	avatarUrl: null,
-	addedAt: 1,
 	enabled: true,
 };
 
@@ -68,7 +67,7 @@ test("a saved token comes back, and is not written down in the clear", async () 
 
 	const file = await stored();
 	assert.equal(file.entries.length, 1);
-	assert.ok(isSealed(file.entries[0].token), "the token was not sealed");
+	assert.ok(file.entries[0].token.startsWith("v1:"), "the token was not sealed");
 	assert.ok(!file.entries[0].token.includes("ghp_not_a_real_token"), "the plaintext is in the file");
 
 	assert.equal(await tokenFor("acc-1"), "ghp_not_a_real_token");
@@ -86,7 +85,7 @@ test("a token this key cannot open reads as needing a fresh sign-in, not as a cr
 	// Present and well-formed, but not something the vault sealed.
 	await writeFile(
 		join(home, "forges.json"),
-		JSON.stringify({ version: 1, entries: [{ account, token: "bm90IG1pbmUgdG8gb3Blbg==" }] }),
+		JSON.stringify({ entries: [{ account, token: "bm90IG1pbmUgdG8gb3Blbg==" }] }),
 		"utf8",
 	);
 
@@ -97,7 +96,7 @@ test("a sealed token written under a different key is null rather than wrong", a
 	const sealed = await seal("ghp_sealed_elsewhere");
 	await writeFile(
 		join(home, "forges.json"),
-		JSON.stringify({ version: 1, entries: [{ account, token: sealed }] }),
+		JSON.stringify({ entries: [{ account, token: sealed }] }),
 		"utf8",
 	);
 
@@ -140,7 +139,6 @@ test("an entry this build refuses does not take the rest of the file with it", a
 	await writeFile(
 		join(home, "forges.json"),
 		JSON.stringify({
-			version: 1,
 			entries: [
 				{ account: { ...account, id: "acc-keep" }, token: await seal("ghp_keep") },
 				// A shape this build cannot validate: a newer version's, or a hand edit.

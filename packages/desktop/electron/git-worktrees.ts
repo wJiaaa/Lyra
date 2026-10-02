@@ -174,20 +174,6 @@ export async function removeWorktree(
 }
 
 /**
- * Prunes worktree metadata for unreachable or deleted worktrees.
- */
-export async function pruneWorktrees(cwd: string): Promise<{ ok: boolean; error?: string }> {
-	if (!(await isGitRepo(cwd))) return { ok: false, error: "当前项目不是 Git 仓库" };
-	try {
-		await git(cwd, ["worktree", "prune"]);
-		return { ok: true };
-	} catch (cause) {
-		const message = cause instanceof Error && "stderr" in cause ? String(cause.stderr) : String(cause);
-		return { ok: false, error: message.trim() || "清理工作树失败" };
-	}
-}
-
-/**
  * Auto-creates a dedicated worktree for a new AI session if enabled in settings.
  */
 export async function autoCreateSessionWorktree(

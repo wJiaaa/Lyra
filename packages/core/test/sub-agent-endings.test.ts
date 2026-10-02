@@ -132,7 +132,6 @@ async function dispatch(options: {
 		{ description: "分析后端基础与认证", prompt: "去分析", agentType: "explore" },
 		PROVIDER,
 		MODEL,
-		"",
 	);
 
 	const done = events.find((event) => event.type === "subagent_done");

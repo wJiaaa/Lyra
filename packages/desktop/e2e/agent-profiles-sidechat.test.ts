@@ -59,9 +59,9 @@ async function seed(home: string) {
 	const longTool = { role: "toolResult", toolName: "read", toolCallId: "old-read", content: [{ type: "text", text: "long output ".repeat(6000) + "TOOL_TAIL_VALUE=末尾证据已保留" }], isError: false, timestamp: 3000 } as const;
 	edited.push({ type: "message", message: longTool, ts: 3000 });
 	seedSessions(home, [{ meta, records: edited }]);
-	await mkdir(join(home, "sidechats"), { recursive: true });
+	await mkdir(join(home, "sidechats", "qa-long"), { recursive: true });
 	const historical = { messages: [{ role: "user", synthetic: true, timestamp: 1, content: [{ type: "text", text: "Legacy hidden main snapshot" }] }, { role: "user", timestamp: 2, content: [{ type: "text", text: "以前的侧聊问题" }] }, { role: "assistant", timestamp: 3, api: "anthropic-messages", provider: "qa", model: "model", content: [{ type: "text", text: "以前的侧聊回答" }], usage: meta.usage, stopReason: "stop" }] };
-	await writeFile(join(home, "sidechats", "qa-long.json"), savedSide || JSON.stringify(historical));
+	await writeFile(join(home, "sidechats", "qa-long", "default.json"), savedSide || JSON.stringify(historical));
 }
 before(async () => {
 	server = createServer((req, res) => {
@@ -312,7 +312,7 @@ test("sidechat restores old answers, queries early history and full tool tails, 
 	await click('[data-ly-row="qa-long"]');
 	await until(`document.querySelector('[data-dock-pane="chat"]')?.innerText.includes('查到工具尾部')`);
 	await shot("sidechat-main-history");
-	savedSide = await readFile(join(app.home, "sidechats", "qa-long.json"), "utf8");
+	savedSide = await readFile(join(app.home, "sidechats", "qa-long", "default.json"), "utf8");
 	assert.match(savedSide, /查到工具尾部/); assert.doesNotMatch(savedSide, /Legacy hidden/);
 	savedProfiles = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")).subAgentProfiles;
 });
@@ -339,7 +339,7 @@ test("@ agents are selectable and @compact executes real compaction with the con
 	const previous = await app.evaluate<number>(`document.querySelector('[data-dock-pane="chat"]').innerText.split('查到早期决策').length`);
 	await send("EARLY_REQUEST 压缩后再次核对原始决策");
 	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.split('查到早期决策').length > ${previous}`);
-	savedSide = await readFile(join(app.home, "sidechats", "qa-long.json"), "utf8");
+	savedSide = await readFile(join(app.home, "sidechats", "qa-long", "default.json"), "utf8");
 	assert.match(savedSide, /压缩后再次核对原始决策/);
 });
 
@@ -358,7 +358,7 @@ test("a fresh Electron process restores persisted answers and can edit the first
 	t.diagnostic(await app.evaluate<string>(`JSON.stringify([...document.querySelectorAll('[data-dock-pane="chat"] textarea')].map(e=>({value:e.value,rect:e.getBoundingClientRect().toJSON(),focused:e===document.activeElement})))`));
 	await label("重新提问");
 	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到早期决策')`);
-	const state = await app.evaluate<{ messages: unknown[] }>(`window.plume.sideChat.state('qa-long')`);
+	const state = await app.evaluate<{ messages: unknown[] }>(`window.plume.sideChat.state('qa-long','default')`);
 	assert.doesNotMatch(JSON.stringify(state.messages), /以前的侧聊问题|以前的侧聊回答|TOOL_TAIL_REQUEST/);
 	assert.match(JSON.stringify(state.messages), /编辑后查询早期决策/);
 	assert.deepEqual(await app.evaluate(`window.plume.settings.get().then(s=>s.subAgentProfiles)`), savedProfiles);
@@ -373,7 +373,7 @@ test("sidechat model selection and its default use their actual providers and su
 	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`);
 	const actual = requests.slice(start).find(request => JSON.stringify(request.body).includes("SIDE_MODEL_PROBE"));
 	assert.ok(actual); assert.ok(actual.path.startsWith("/secondary"));
-	assert.equal(await app.evaluate(`window.plume.sideChat.state('qa-long').then(s=>s.modelId)`), "secondary/model");
+	assert.equal(await app.evaluate(`window.plume.sideChat.state('qa-long','default').then(s=>s.modelId)`), "secondary/model");
 	await click('button:has(svg.lucide-settings)'); await label("智能体", "nav button");
 	await click('[aria-label="侧边聊天默认模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
 	await until(`document.querySelector('[aria-label="侧边聊天默认模型"]').dataset.lyTip?.includes('第二供应商')`);
@@ -381,9 +381,9 @@ test("sidechat model selection and its default use their actual providers and su
 	await label("返回工作区", "nav button");
 	await click('[aria-label="新的侧边聊天"]');
 	await until(`!document.querySelector('[data-dock-pane="chat"]').innerText.includes('SIDE_MODEL_PROBE')`);
-	assert.deepEqual(await app.evaluate(`window.plume.sideChat.state('qa-long').then(s=>({modelId:s.modelId,messages:s.messages}))`), { modelId: "secondary/model", messages: [] });
+	assert.deepEqual(await app.evaluate(`window.plume.sideChat.state('qa-long','default').then(s=>({modelId:s.modelId,messages:s.messages}))`), { modelId: "secondary/model", messages: [] });
 	await send("SIDE_AFTER_RESET"); await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`);
-	savedSide = await readFile(join(app.home, "sidechats", "qa-long.json"), "utf8");
+	savedSide = await readFile(join(app.home, "sidechats", "qa-long", "default.json"), "utf8");
 	await app.stop(); app = await startApp({ port: 9611, seed });
 	await click('[data-ly-row="qa-long"]'); await openSide();
 	await until(`document.querySelector('[aria-label="侧边聊天模型"]').dataset.lyTip?.includes('第二供应商')`);

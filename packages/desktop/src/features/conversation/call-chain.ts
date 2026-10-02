@@ -6,8 +6,7 @@ export type CallChain = NonNullable<AppearanceSettings["callChain"]>;
 /**
  * Which tool-call layout the transcript draws — 设置 › 外观 › 调用链.
  *
- * `collapsed` when nothing is set: that is the default, and settings from before the option existed
- * have no value for it. The chevron's half of the switch is CSS, keyed off `data-call-chain` on the
+ * `collapsed` before settings have loaded, which is the default. The chevron's half of the switch is CSS, keyed off `data-call-chain` on the
  * root (see `applyAppearance`).
  */
 export function useCallChain(): CallChain {

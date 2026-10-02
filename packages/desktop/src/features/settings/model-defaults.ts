@@ -15,7 +15,7 @@ type Endpoint = Pick<ProviderConfig, "id" | "baseUrl">;
 
 function initialValues(provider: Pick<ProviderConfig, "baseUrl">, modelId: string): CatalogFill {
 	const found = catalogModelFor(provider, modelId);
-	return found ? catalogFill(found.provider.id, found.model) : DEFAULT_MODEL_LIMITS;
+	return found ? catalogFill(found.model) : DEFAULT_MODEL_LIMITS;
 }
 
 /** One discovered model id, as a row in the provider's list. */

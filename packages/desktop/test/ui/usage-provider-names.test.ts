@@ -56,7 +56,7 @@ function unpriced(provider: string, model: string): UsageBucket {
 }
 
 function scanOf(buckets: UsageBucket[]): UsageScan {
-	return { days: [{ day: DAY, sessions: 1, messages: 2 }], buckets, scanned: 1, cached: 0, tookMs: 1 };
+	return { days: [{ day: DAY, sessions: 1, messages: 2 }], buckets, scanned: 1 };
 }
 
 async function open(buckets: UsageBucket[], over: Partial<Settings> = {}): Promise<{ view: Mounted; saved: Settings[] }> {

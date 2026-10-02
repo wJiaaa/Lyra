@@ -37,12 +37,11 @@ export interface ResponsesHome {
 /**
  * Whether this turn was written by the model the request is going to.
  *
- * Missing provenance counts as ours: logs written before those fields existed have no opinion, and
- * dropping a handle we cannot prove is foreign would break the upstreams that require their own
- * reasoning back (see the `reasoning_text` note below).
+ * No `home` counts as ours: dropping a handle we cannot prove is foreign would break the upstreams
+ * that require their own reasoning back (see the `reasoning_text` note below).
  */
 function fromHome(message: AssistantMessage, home: ResponsesHome | undefined): boolean {
-	if (!home || !message.provider || !message.model) return true;
+	if (!home) return true;
 	return message.provider === home.provider && message.model === home.model;
 }
 

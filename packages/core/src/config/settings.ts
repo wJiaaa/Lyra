@@ -64,9 +64,9 @@ export interface AppearanceSettings {
 	uiFont: string;
 	codeFont: string;
 	/** Syntax highlighting theme for light mode. */
-	codeLightTheme?: string;
+	codeLightTheme: string;
 	/** Syntax highlighting theme for dark mode. */
-	codeDarkTheme?: string;
+	codeDarkTheme: string;
 	uiFontSize: number;
 	codeFontSize: number;
 	/**
@@ -76,14 +76,11 @@ export interface AppearanceSettings {
 	 * packed. Line height is the difference between a diff you can scan and a wall. Tracking is the
 	 * smaller of the two and the one people with a particular face in mind ask for first.
 	 *
-	 * Optional, so an existing settings file keeps the values it never had — the defaults below are
-	 * what the app has been rendering all along.
-	 *
 	 * A multiplier, not pixels: it has to hold at every one of the font sizes above.
 	 */
-	codeLineHeight?: number;
+	codeLineHeight: number;
 	/** In `em`, so it tracks the font size rather than fighting it. */
-	codeLetterSpacing?: number;
+	codeLetterSpacing: number;
 	/**
 	 * 单反引号那一小块——`像这样`——的配色从哪儿来。
 	 *
@@ -99,7 +96,7 @@ export interface AppearanceSettings {
 	 *
 	 * 默认是 `app`：装上就变个样子不是升级，是惊吓。
 	 */
-	inlineCode?: "app" | "syntax" | "custom";
+	inlineCode: "app" | "syntax" | "custom";
 	/**
 	 * `custom` 时用的四个颜色，深浅各一套。
 	 *
@@ -109,10 +106,10 @@ export interface AppearanceSettings {
 	 * 默认值取的是 `app` 模式此刻算出来的那两个色，所以从「跟界面」切到「自定义」的那一下画面
 	 * 不跳——先原样接管，再由着人改。
 	 */
-	inlineCodeLightBg?: string;
-	inlineCodeLightFg?: string;
-	inlineCodeDarkBg?: string;
-	inlineCodeDarkFg?: string;
+	inlineCodeLightBg: string;
+	inlineCodeLightFg: string;
+	inlineCodeDarkBg: string;
+	inlineCodeDarkFg: string;
 	/**
 	 * 给它描一圈边。
 	 *
@@ -122,7 +119,7 @@ export interface AppearanceSettings {
 	 *
 	 * 画成 inset 的阴影而不是 border，因为 border 会把它撑高一圈：开关一次，整段话的行距跟着动。
 	 */
-	inlineCodeBorder?: boolean;
+	inlineCodeBorder: boolean;
 	/** 0–100. Scales the distance between surface layers and text. */
 	contrast: number;
 	pointerCursor: boolean;
@@ -138,7 +135,7 @@ export interface AppearanceSettings {
 	 * sockets and provider hiccups — the wording is a stack of JSON nobody reads, and at full weight
 	 * a morning's work reads as a wall of red for something that resolved itself on the retry.
 	 */
-	errorDetail?: "full" | "compact";
+	errorDetail: "full" | "compact";
 	/**
 	 * How a turn's tool calls are laid out in the transcript.
 	 *
@@ -146,7 +143,7 @@ export interface AppearanceSettings {
 	 * on a row of its own beneath it. `expanded` is the earlier layout: no turn line while it runs,
 	 * calls grouped into summary lines of bordered cards, and the turn folding away once it ends.
 	 */
-	callChain?: "expanded" | "collapsed";
+	callChain: "expanded" | "collapsed";
 	/**
 	 * How a conversation's panels share its screen.
 	 *
@@ -154,14 +151,14 @@ export interface AppearanceSettings {
 	 * the current one showing. `split` is the dock as it always was: every panel a pane of its own,
 	 * arranged by dragging.
 	 */
-	panelLayout?: "split" | "tabs";
+	panelLayout: "split" | "tabs";
 	/**
 	 * macOS 主窗口的毛玻璃：侧边栏透出系统材质。
 	 *
-	 * 可选，没写过的设置文件照旧是开着的。关掉时窗口和侧边栏回到不透明的主题色——材质叠在桌面上，
+	 * 关掉时窗口和侧边栏回到不透明的主题色——材质叠在桌面上，
 	 * 颜色跟着壁纸走，有人要的是一块颜色确定的底。
 	 */
-	vibrancy?: boolean;
+	vibrancy: boolean;
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -312,18 +309,6 @@ export interface Settings {
 	keepAwake?: boolean;
 	/** Plume's interface language. `system` follows the operating system without storing a guess. */
 	uiLocale: UiLocale;
-	/**
-	 * 写进文件、但**没有任何代码读它**。
-	 *
-	 * 说清楚是因为它看起来像一个版本化迁移的入口，而这里没有版本化迁移，也没有任何认旧值的迁移表。
-	 * 照着它写一个 `if (parsed.version < 2) …` 的人会得到一段永远不跑的代码——因为没有任何地方会把
-	 * 它写成 2，也没有任何地方比较过它。
-	 *
-	 * 留着而不是删掉：它已经在每个用户的 `settings.json` 里了，`Settings` 的每个构造点都填了它，
-	 * 而多一个没人读的字段是无害的。真要上按版本迁移的那一天，第一步是让某处开始写它——在那之前
-	 * 这个 `1` 只是一个字面量。
-	 */
-	version: 1;
 	providers: ProviderConfig[];
 	/**
 	 * 每个见过的供应商最后一次叫什么名字——**包括已经删掉的那些**。
@@ -581,7 +566,6 @@ const DEFAULT_PLUGIN_REGISTRY = `${REGISTRY_ORIGIN}/v1/index`;
 const DEFAULT_SKILL_REGISTRY = `${REGISTRY_ORIGIN}/v1/index?kind=skill`;
 
 export const DEFAULT_SETTINGS: Settings = {
-	version: 1,
 	uiLocale: "system",
 	providers: [],
 	mcpServers: [],
@@ -612,7 +596,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	skillRegistries: [DEFAULT_SKILL_REGISTRY],
 	alwaysAllow: [],
 	webAccess: { enabled: false, port: 4517, token: null },
-	editor: { defaultOpenTarget: "Zed", showBottomPanel: true },
+	editor: { defaultOpenTarget: "zed", showBottomPanel: true },
 	screenshot: DEFAULT_SCREENSHOT_SETTINGS,
 	searchApiKeys: {},
 	allowedHosts: [],

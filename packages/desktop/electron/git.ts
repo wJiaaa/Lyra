@@ -12,7 +12,6 @@ export { type RemoteResult } from "./git-exec.ts";
 export { type GitOperation, type RemoteState } from "./git-remote-state.ts";
 export { collectWorkspaceDiff, readDiffBlob, type DiffBlob } from "./git-diff.ts";
 export {
-	commitAll,
 	discardPaths,
 	gitStatus,
 	stagePaths,
@@ -37,15 +36,11 @@ export {
 	QUIET_FETCH_TIMEOUT_MS,
 } from "./git-history.ts";
 export {
-	createWorktree,
 	initRepo,
 	listRepos,
 	listWorktrees,
-	pruneWorktrees,
 	removeWorktree,
 	type RepoRef,
-	type WorktreeCreateOptions,
-	type WorktreeResult,
 } from "./git-repos.ts";
 export {
 	bumpVersionFiles,

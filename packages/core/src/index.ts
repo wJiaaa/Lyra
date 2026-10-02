@@ -108,7 +108,7 @@ export {
  * Exported from the root because the main process is the only thing that touches it — the renderer
  * never sees a token, which is the point of it living behind IPC.
  */
-export { isSealed, resetVault, seal, secret, unseal } from "./config/vault.ts";
+export { resetVault, seal, secret, unseal } from "./config/vault.ts";
 /** Replacing a file whole, for the main process's own files; see `utils/atomic-write.ts`. */
 export { renameWithRetry, writeFileAtomic } from "./utils/atomic-write.ts";
 export {
@@ -226,7 +226,6 @@ export {
 } from "./session/store.ts";
 export {
 	INLINE_IMAGE_CHARS,
-	materializeJsonlLine,
 	persistSessionImage,
 	safeMediaName,
 	sessionMediaHome,
@@ -356,7 +355,6 @@ export {
 	roleStatus,
 	type ModelRole,
 } from "./config/model-roles.ts";
-export { FOREIGN_CONFIGS_NOTICE, foreignConfigsIn, markNoticed, noticed, type ForeignConfigLine } from "./runtime/foreign-configs.ts";
 export { layerOverrides, loadProjectLayer, projectConfigPath, type LayerOverride } from "./config/layers.ts";
 export { extensionDirs } from "./runtime/session-capabilities.ts";
 export { validateManifest, type ExtensionDiagnostic, type ExtensionEventStats, type ExtensionStats } from "./extensions/types.ts";

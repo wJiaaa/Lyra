@@ -41,10 +41,6 @@ export interface ModelPricing {
 	tiers?: ModelPricingTier[];
 	/** Manual values always take precedence over catalogue defaults. */
 	source?: "manual" | "catalog";
-	catalogProvider?: string;
-	catalogVersion?: string;
-	/** The exact reference entry, including when the endpoint uses a relay alias. */
-	catalogModel?: string;
 }
 
 export interface ModelPricingTier {

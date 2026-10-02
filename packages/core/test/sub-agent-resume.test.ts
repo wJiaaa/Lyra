@@ -158,7 +158,6 @@ function harness(agents: AgentDefinition[] = [GENERAL, EXPLORE]): Harness {
 				{ description: "梳理登录流程", ...input },
 				PROVIDER,
 				MODEL,
-				"",
 			);
 		},
 	};
@@ -418,7 +417,6 @@ test("resuming is refused, with a sentence to act on, when it cannot work", asyn
 		{ description: "d", prompt: "p" },
 		PROVIDER,
 		MODEL,
-		"",
 	);
 	assert.equal(orphan.id, undefined, "a host with no registry keeps nothing, so it hands out no id to resume by");
 });
@@ -534,7 +532,6 @@ test("resumed on a different model, the old provider's handles are stripped firs
 			{ description: "d", agentType: "general", ...input },
 			{ ...PROVIDER, models: [MODEL, OTHER] },
 			model,
-			"",
 		);
 	const handles = (messages: Message[]) => JSON.stringify(messages).includes("msg_from_old_provider");
 

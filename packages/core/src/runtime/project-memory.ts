@@ -331,5 +331,5 @@ export function formatProjectMemorySources(lessons: Lesson[], extracted = ""): {
 /** Kept in the session state so changing the setting also gates an already-running tool call. */
 export const PROJECT_MEMORY_ENABLED_KEY = "plume.project-memory.enabled";
 export function projectMemoryEnabled(settings: Pick<Settings, "personalization">): boolean {
-	return (settings.personalization?.enableProjectMemory ?? settings.personalization?.enableMemory) !== false;
+	return settings.personalization?.enableProjectMemory !== false;
 }

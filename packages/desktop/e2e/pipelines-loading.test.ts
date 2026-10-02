@@ -54,7 +54,7 @@ before(async () => {
 		await seedInteractions(home);
 		project = join(home, "project");
 		await promisify(execFile)("git", ["remote", "add", "origin", `${baseUrl}/fixture/repo.git`], { cwd: project });
-		await writeFile(join(home, "forges.json"), JSON.stringify({ version: 1, entries: [{ account: { id: "synthetic-forge", kind: "github", baseUrl, login: "synthetic", label: "Synthetic local Forge", avatarUrl: null, addedAt: 1, enabled: true }, token: "synthetic-test-token", encrypted: false }] }));
+		await writeFile(join(home, "forges.json"), JSON.stringify({ entries: [{ account: { id: "synthetic-forge", kind: "github", baseUrl, login: "synthetic", label: "Synthetic local Forge", avatarUrl: null, enabled: true }, token: "synthetic-test-token", encrypted: false }] }));
 	} });
 	await until(`document.querySelector('[data-ly-row="qa-short"] > button')`);
 	await click(`document.querySelector('[data-ly-row="qa-short"] > button')`);

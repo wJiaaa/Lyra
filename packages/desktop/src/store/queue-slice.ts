@@ -27,7 +27,7 @@ export interface QueueSlice {
 	/** 每个会话各自排着的，按发出去的先后。空了就把这个会话的键删掉，不留空数组。 */
 	queued: Record<string, QueuedMessage[]>;
 	/** 排到队尾，返回它的 id。 */
-	enqueue(sessionId: string, entry: Omit<QueuedMessage, "id" | "queuedAt">): string;
+	enqueue(sessionId: string, entry: Omit<QueuedMessage, "id">): string;
 	/** 拿走一条并把它交还给调用者——删掉是丢弃，编辑是把它放回输入框，两件事同一个动作。 */
 	dropQueued(sessionId: string, id: string): QueuedMessage | null;
 	/** 换个位置。`placement` 说的是落在目标的前面还是后面。 */
@@ -121,7 +121,7 @@ export function queueSlice(set: Set, get: Get): QueueSlice {
 		enqueue(sessionId, entry) {
 			const id = crypto.randomUUID();
 			const list = get().queued[sessionId] ?? [];
-			write(sessionId, [...list, { ...entry, id, queuedAt: Date.now() }]);
+			write(sessionId, [...list, { ...entry, id }]);
 			return id;
 		},
 

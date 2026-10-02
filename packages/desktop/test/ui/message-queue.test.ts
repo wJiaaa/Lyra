@@ -20,7 +20,7 @@ const meta = (id: string): SessionMeta => ({ id, title: id, cwd: "/test", projec
 let prompted: { sessionId: string; text: string; deliver?: string }[];
 let refuse: (() => boolean) | null;
 
-function entry(text: string, extra: Partial<QueuedMessage> = {}): Omit<QueuedMessage, "id" | "queuedAt"> {
+function entry(text: string, extra: Partial<QueuedMessage> = {}): Omit<QueuedMessage, "id"> {
 	const content: UserContent[] = [{ type: "text", text }];
 	return { content, draft: { text, attachments: [], sessionRefs: [] }, preview: text, ...extra };
 }

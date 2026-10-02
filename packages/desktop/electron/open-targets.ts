@@ -15,8 +15,7 @@
  *   terminal  open a shell in the file's directory — never *at* the file, which would run it
  *
  * Ids are stable and platform-neutral (`vscode`, not `Visual Studio Code`), because settings sync
- * between machines: a choice made on a Mac has to still mean something on a PC. The names the old
- * setting stored are accepted as aliases so nobody's choice is lost.
+ * between machines: a choice made on a Mac has to still mean something on a PC.
  */
 
 import { execFile, spawn } from "node:child_process";
@@ -26,7 +25,7 @@ import { promisify } from "node:util";
 import { app, shell } from "electron";
 import { appIcon, findApp } from "./app-icon.ts";
 import { findExecutable } from "./find-executable.ts";
-import { ALIASES, CANDIDATES, type Candidate, launchPlan, resolveTargetId, revealLabel } from "./open-target-ids.ts";
+import { CANDIDATES, type Candidate, launchPlan, resolveTargetId, revealLabel } from "./open-target-ids.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -36,13 +35,6 @@ export interface OpenTarget {
 	label: string;
 	/** A data URL of the application's own icon, where the platform can produce one. */
 	icon?: string;
-	/**
-	 * What this target used to be called in the settings file.
-	 *
-	 * Sent to the renderer so that recognising a stored value is a lookup rather than a second copy
-	 * of the alias table living over there and drifting from this one.
-	 */
-	aliases: string[];
 }
 
 /** Where a candidate's executable is on this machine, or null if it is not installed. */
@@ -100,7 +92,7 @@ export function openTargets(): Promise<OpenTarget[]> {
 }
 
 async function build(): Promise<OpenTarget[]> {
-	const found: OpenTarget[] = [{ id: "reveal", label: `在${revealLabel()}中显示`, aliases: aliasesFor("reveal") }];
+	const found: OpenTarget[] = [{ id: "reveal", label: `在${revealLabel()}中显示` }];
 
 	for (const candidate of CANDIDATES[process.platform] ?? []) {
 		const located = await locate(candidate).catch(() => null);
@@ -109,18 +101,11 @@ async function build(): Promise<OpenTarget[]> {
 		found.push({
 			id: candidate.id,
 			label: candidate.label,
-			aliases: aliasesFor(candidate.id),
 			...(icon ? { icon } : {}),
 		});
 	}
 
 	return found;
-}
-
-function aliasesFor(id: string): string[] {
-	return Object.entries(ALIASES)
-		.filter(([, target]) => target === id)
-		.map(([alias]) => alias);
 }
 
 /**

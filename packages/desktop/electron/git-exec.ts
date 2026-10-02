@@ -177,8 +177,6 @@ export interface RemoteResult {
 	error?: string;
 	/** The caller stopped it. Not a failure, and nothing should be said about it. */
 	cancelled?: boolean;
-	/** Killed for taking too long. Distinguished because git leaves nothing on stderr when it is. */
-	timedOut?: boolean;
 }
 
 /**
@@ -230,7 +228,7 @@ export async function runRemote(
 		 * Left to the generic path that string becomes the error the panel shows, which says what
 		 * was run and nothing about what went wrong.
 		 */
-		if (detail.killed) return { ok: false, timedOut: true, error: "连接远端超时" };
+		if (detail.killed) return { ok: false, error: "连接远端超时" };
 		return { ok: false, error: explainGitFailure(detail.stderr ?? detail.message ?? "") };
 	}
 }

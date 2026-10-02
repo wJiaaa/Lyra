@@ -69,7 +69,7 @@ export function ModelEditor({
 
 	/** 把一个目录条目的值填进表单。只是填一次，之后怎么改都行。 */
 	function fill(entry: { provider: { id: string }; model: CatalogModel }) {
-		const values = catalogFill(entry.provider.id, entry.model);
+		const values = catalogFill(entry.model);
 		setContextWindow(String(values.contextWindow));
 		setMaxOutput(String(values.maxOutputTokens));
 		setSupportsThinking(values.supportsThinking);

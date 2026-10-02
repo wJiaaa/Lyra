@@ -27,7 +27,6 @@ export interface InstallRecord {
 	 * collection removes these and nothing else — see `collectionDirs` in `registry.ts`.
 	 */
 	skills?: string[];
-	installedAt: string;
 }
 
 /**

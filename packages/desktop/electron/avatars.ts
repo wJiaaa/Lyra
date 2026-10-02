@@ -218,12 +218,6 @@ function guessUrl(login: string, host: string): string | null {
 	return `${host}/${encodeURIComponent(name)}.png?s=80`;
 }
 
-/** One account's picture, for the places that know a name and nothing else. */
-export async function githubAvatar(login: string): Promise<string | null> {
-	const url = guessUrl(login, "https://github.com");
-	return url ? remoteImage(url) : null;
-}
-
 /**
  * A whole list of faces in one call.
  *

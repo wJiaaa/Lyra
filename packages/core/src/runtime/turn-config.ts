@@ -213,7 +213,6 @@ export function buildTurnConfig(
 					// 派出去那一刻会话在用哪个——一轮中途换过模型的，后派的子代理跟着新的走。
 					deps.liveModel?.current()?.provider ?? deps.provider,
 					deps.liveModel?.current()?.model ?? deps.model,
-					systemPrompt,
 				);
 				return deps.delegations ? deps.delegations.hold(run, () => registered) : run;
 			},

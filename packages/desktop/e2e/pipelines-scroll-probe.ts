@@ -114,7 +114,7 @@ const app = await startApp({
 				version: 1,
 				entries: [
 					{
-						account: { id: "synthetic-forge", kind: "github", baseUrl, login: "synthetic", label: "Synthetic local Forge", avatarUrl: null, addedAt: 1, enabled: true },
+						account: { id: "synthetic-forge", kind: "github", baseUrl, login: "synthetic", label: "Synthetic local Forge", avatarUrl: null, enabled: true },
 						token: "synthetic-test-token",
 						encrypted: false,
 					},

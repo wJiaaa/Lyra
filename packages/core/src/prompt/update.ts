@@ -38,12 +38,11 @@ export function promptSections(context: PromptContext): Map<string, string> {
 /**
  * 日志里记下的上下文，去掉中间件那部分之后的样子——重启后据此还原冻结的那份。
  *
- * 中间件整段替换过的认不出原样（段落只剩一块从 0 开始的 `extension`），记录里没带段落信息的
- * 也一样（`context` 事件的 `sections` 是可选的），返回 null，调用方重新生成一份。
+ * 中间件整段替换过的认不出原样（段落只剩一块从 0 开始的 `extension`），返回 null，调用方重新生成一份。
  */
-export function promptBase(recorded: { systemPrompt: string; sections?: PromptContext["sections"] }): PromptContext | null {
+export function promptBase(recorded: { systemPrompt: string; sections: PromptContext["sections"] }): PromptContext | null {
 	const sections = recorded.sections;
-	if (!sections?.length) return null;
+	if (!sections.length) return null;
 	const extension = sections.findIndex((section) => section.source === "extension");
 	if (extension < 0) return { systemPrompt: recorded.systemPrompt, sections: sections.map((section) => ({ ...section })) };
 	const end = sections[extension].start;

@@ -285,9 +285,6 @@ function readPricing(raw: unknown): ModelPricing | undefined {
 		// Manual rates were typed by a person and outrank the catalogue; anything else is a lookup
 		// the far machine can redo for itself.
 		...(raw.source === "manual" ? { source: "manual" as const } : {}),
-		...(text(raw.catalogProvider) ? { catalogProvider: text(raw.catalogProvider) } : {}),
-		...(text(raw.catalogModel) ? { catalogModel: text(raw.catalogModel) } : {}),
-		...(text(raw.catalogVersion) ? { catalogVersion: text(raw.catalogVersion) } : {}),
 	};
 }
 

@@ -29,9 +29,8 @@ export function sessionMediaPath(name: string): string {
 /**
  * Drop oversized `"data":"…"` values from a jsonl line without allocating them.
  *
- * Display reads use `materializeJsonlLine` instead: that writes the bytes to
- * `session-media` and leaves a pointer, so the window has a file URL. This
- * helper stays for tests that only care about the strip.
+ * For display reads. A message's images were parked in `session-media` when it was written, so what
+ * is left inline here is a tool's image nested in an event, which the transcript never draws.
  */
 export function slimJsonlLine(line: string, keep = INLINE_IMAGE_CHARS): string {
 	if (line.length <= keep + 16) return line;
@@ -56,72 +55,6 @@ export function slimJsonlLine(line: string, keep = INLINE_IMAGE_CHARS): string {
 	if (!changed) return line;
 	parts.push(line.slice(last));
 	return parts.join("");
-}
-
-/**
- * 这一行是谁说的。
- *
- * `role` 在 message 记录里靠前，而要躲开的那个 base64 在后面——所以只看开头这一截就够，不必为了
- * 认一个角色把整行 `JSON.parse` 一遍（那正是这个文件存在的原因）。
- */
-function roleOf(line: string): string {
-	return /"role":"(\w+)"/.exec(line.slice(0, 400))?.[1] ?? "";
-}
-
-/**
- * First display read of an old fat line: write each oversized image to
- * `session-media` and put `media` on the line that `JSON.parse` sees.
- *
- * The log stays append-only. The window never receives empty `data` without a
- * file name — that is the blank tile after a warm switch.
- *
- * **只有会画出来的图才停盘位。** 转录里唯一渲染图片块的是用户消息（`UserMessage`）；
- * `toolResult` 那一整条在 `rows.tsx` 里 `return null`，工具的结果是另走工具卡片显示的，它
- * 携带的图片一张也不会出现在屏幕上。本机扫下来，会显示的 180 张，从不显示却照样解码、写盘、
- * 长期占着 `session-media` 的有 440 张——两倍半的活，全是白做的。
- *
- * 那些图仍然照常从 IPC 里剥掉（走 `slimJsonlLine`），所以窗口不会为它们付一分钱；只是不再为
- * 一张没人看的图写一个文件。原始字节一直在日志里，哪天工具卡片要显示图了，`display-image.ts`
- * 那条按需读的路照样取得到。
- */
-export function materializeJsonlLine(line: string, keep = INLINE_IMAGE_CHARS): string {
-	if (line.length <= keep + 16) return line;
-	if (roleOf(line) !== "user") return slimJsonlLine(line, keep);
-	const needle = '"data":"';
-	let out = "";
-	let last = 0;
-	let from = 0;
-	let changed = false;
-	while (true) {
-		const start = line.indexOf(needle, from);
-		if (start < 0) break;
-		const valueStart = start + needle.length;
-		const valueEnd = line.indexOf('"', valueStart);
-		if (valueEnd < 0) break;
-		if (valueEnd - valueStart <= keep) {
-			from = valueEnd + 1;
-			continue;
-		}
-		const data = line.slice(valueStart, valueEnd);
-		const around = nearby(line, start, valueEnd);
-		const name = persistSessionImage(data, mimeOf(around));
-		out += line.slice(last, valueStart);
-		out += around.includes('"media":') ? '"' : `","media":"${name}"`;
-		last = valueEnd + 1;
-		changed = true;
-		from = valueEnd + 1;
-	}
-	if (!changed) return line;
-	return out + line.slice(last);
-}
-
-function nearby(line: string, start: number, valueEnd: number): string {
-	return line.slice(Math.max(0, start - 96), start) + line.slice(valueEnd, Math.min(line.length, valueEnd + 96));
-}
-
-function mimeOf(around: string): string {
-	const hit = /"mimeType":"([^"]+)"/.exec(around);
-	return hit?.[1] ?? "image/png";
 }
 
 export function parkRecordPayload<T>(payload: T): T {

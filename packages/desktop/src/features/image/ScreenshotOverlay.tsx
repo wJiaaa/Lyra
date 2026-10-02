@@ -89,7 +89,6 @@ interface ScreenshotInit {
 	 */
 	session: number;
 	bounds: { x: number; y: number; width: number; height: number };
-	scaleFactor: number;
 	/**
 	 * 这串像素属于哪个色彩空间。
 	 *

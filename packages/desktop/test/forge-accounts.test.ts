@@ -20,7 +20,6 @@ function account(over: Partial<ForgeAccount> = {}): ForgeAccount {
 		baseUrl: "https://github.com",
 		login: "kittors",
 		avatarUrl: null,
-		addedAt: 1,
 		enabled: true,
 		...over,
 	};
@@ -103,18 +102,12 @@ test("a stored entry missing something essential is dropped, not defaulted", () 
 	assert.deepEqual(parsed.map((a) => a.id), ["a1"]);
 });
 
-test("a file written before `enabled` existed arrives switched on", () => {
-	const raw = { ...account() } as Partial<ForgeAccount>;
-	delete raw.enabled;
-	assert.equal(parseAccounts([raw])[0].enabled, true);
-});
-
 test("a stored address is normalised on the way in, not only on the way out", () => {
 	assert.equal(parseAccounts([account({ baseUrl: "https://gitlab.com/api/v4/" })])[0].baseUrl, "https://gitlab.com");
 });
 
-test("parsing accepts both the file's shape and a bare array", () => {
-	assert.equal(parseAccounts({ accounts: [account()] }).length, 1);
+test("parsing takes an array and nothing else", () => {
+	assert.equal(parseAccounts({ accounts: [account()] }).length, 0);
 	assert.equal(parseAccounts([account()]).length, 1);
 	assert.equal(parseAccounts(null).length, 0);
 });

@@ -113,8 +113,8 @@ async function seedOneTurn(home: string, modelPort: number) {
 	 * 写成磁盘存档而不是在界面上现问一遍，正好压中容易漏的那条路：重开应用之后面板是照着这份
 	 * 快照画出来的，主进程内存里一个 `SideChat` 实例都没有（`sideChatState` 读快照并不建实例）。
 	 */
-	await mkdir(join(home, "sidechats"), { recursive: true });
-	await writeFile(join(home, "sidechats", "qa-short.json"), JSON.stringify({ messages: [
+	await mkdir(join(home, "sidechats", "qa-short"), { recursive: true });
+	await writeFile(join(home, "sidechats", "qa-short", "default.json"), JSON.stringify({ messages: [
 		{ role: "user", content: [{ type: "text", text: "预计要多久才可以完成呢？" }], timestamp: 20 },
 		{ role: "assistant", content: [{ type: "text", text: SIDE_ANSWER }], api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason: "stop", timestamp: 21 },
 	] }));

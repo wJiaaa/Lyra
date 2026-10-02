@@ -75,7 +75,7 @@ function configuredPricing(
 	if (configured?.pricing) return { pricing: configured.pricing, source: configured.pricing.source === "catalog" ? "catalog" : "manual" };
 	// 没配价格（或供应商已删除）的历史记录，按目录估一个参考价。
 	const catalog = catalogModelFor(provider ?? { baseUrl: "" }, modelId);
-	const pricing = catalog ? catalogPricing(catalog.provider.id, catalog.model) : undefined;
+	const pricing = catalog ? catalogPricing(catalog.model) : undefined;
 	return pricing ? { pricing, source: "catalog" } : null;
 }
 

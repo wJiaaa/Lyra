@@ -88,30 +88,6 @@ export async function workspaceStat(
 	return { branch, added, removed, files: entries.length };
 }
 
-/**
- * Stage everything and commit it.
- *
- * `add -A` rather than committing only what is already staged: the agent's edits are never
- * staged, so a commit of the index alone would silently record nothing. What the bar counts is
- * what this commits — the number you looked at is the change you are approving.
- *
- * Failures come back as text rather than exceptions because they are usually actionable and
- * worth reading: an unset `user.email`, a pre-commit hook that rejected the change.
- */
-export async function commitAll(cwd: string, message: string): Promise<{ ok: boolean; error?: string }> {
-	const trimmed = message.trim();
-	if (!trimmed) return { ok: false, error: "提交信息不能为空" };
-	try {
-		await git(cwd, ["add", "-A"]);
-		await git(cwd, ["commit", "-m", trimmed]);
-		return { ok: true };
-	} catch (error) {
-		const detail = error as { stderr?: string; stdout?: string; message?: string };
-		const text = (detail.stderr || detail.stdout || detail.message || "").trim();
-		return { ok: false, error: text.split("\n").slice(0, 3).join("\n") || "提交失败" };
-	}
-}
-
 /* ---------------------------------------------------------------------------
  * The Git panel's surface.
  *

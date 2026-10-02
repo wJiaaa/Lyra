@@ -22,8 +22,8 @@ export function registerSystemIpc(): void {
 	/*
 	 * 「用什么打开」, which is a different question on every platform — see `open-targets.ts`.
 	 *
-	 * `target` is an id the renderer got from `system:openTargets`, or whatever an older version of
-	 * the settings happens to hold; both are resolved there rather than here.
+	 * `target` is an id the renderer got from `system:openTargets`, or one this machine does not
+	 * have; both are resolved there rather than here.
 	 */
 	ipcMain.handle("system:openIn", async (_event, target: string, path: string) => openWith(target, path));
 

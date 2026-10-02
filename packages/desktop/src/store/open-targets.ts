@@ -40,7 +40,7 @@ export function revealLabel(): string {
  * keeps whatever language the window opened in. Everything else on this list is an application's
  * own name and never moves; this one is a sentence, so it has to be looked up when it is used.
  */
-const reveal = (): OpenTarget => ({ id: "reveal", label: revealLabel(), aliases: [] });
+const reveal = (): OpenTarget => ({ id: "reveal", label: revealLabel() });
 
 let pending: Promise<OpenTarget[]> | null = null;
 let loaded: OpenTarget[] | null = null;
@@ -87,22 +87,13 @@ export function useOpenTargets(): OpenTarget[] {
 /**
  * Which target a stored setting names.
  *
- * By id, then by the names earlier versions stored — `aliases` comes from the main process so the
- * mapping lives in one place. An unrecognised value keeps its own text as a label: it is a choice
- * somebody made on a machine that had that application, and this one may simply not.
+ * By id. An unrecognised value keeps its own text as a label: it is a choice somebody made on a
+ * machine that had that application, and this one may simply not.
  */
 export function matchTarget(targets: OpenTarget[], stored: string | undefined): OpenTarget {
 	const value = (stored ?? "").trim();
 	if (!value) return targets[0] ?? reveal();
-	const lower = value.toLowerCase();
-	return (
-		targets.find((target) => target.id === value) ??
-		targets.find((target) => target.label === value || target.aliases.includes(lower)) ?? {
-			id: value,
-			label: value,
-			aliases: [],
-		}
-	);
+	return targets.find((target) => target.id === value) ?? { id: value, label: value };
 }
 
 /**

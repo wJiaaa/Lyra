@@ -45,7 +45,6 @@ export function computeCost(usage: Usage, model: ModelConfig): Usage {
 		cost: {
 			...cost,
 			source: p.source ?? "manual",
-			catalogVersion: p.catalogVersion,
 			rates,
 		},
 	};

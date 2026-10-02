@@ -309,7 +309,6 @@ async function remember(entry: RegistryEntry, registryName: string | undefined, 
 		sha256: cloned ? undefined : entry.sha256,
 		from: registryName,
 		...(skills ? { skills } : {}),
-		installedAt: new Date().toISOString(),
 	}).catch(() => undefined);
 }
 

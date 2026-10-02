@@ -328,8 +328,7 @@ export async function fetchRemotes(
 /**
  * Commit what is staged.
  *
- * Unlike `commitAll`, which the composer's bar uses, this one records exactly what the panel
- * shows as staged — the whole point of having an index in front of you.
+ * Exactly what the panel shows as staged — the whole point of having an index in front of you.
  */
 export async function commitStaged(cwd: string, message: string): Promise<{ ok: boolean; error?: string }> {
 	const trimmed = message.trim();

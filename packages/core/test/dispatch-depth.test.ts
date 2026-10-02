@@ -120,7 +120,6 @@ async function fromMain(options: { agents: AgentDefinition[]; entry: string; rep
 		{ description: "顶层", prompt: "开始", agentType: options.entry },
 		PROVIDER,
 		MODEL,
-		"# Environment\ncwd: /tmp\n",
 	);
 	return { answer, toolResults };
 }
@@ -170,7 +169,6 @@ test("到了深度上限，`task` 就不在工具表里了", async () => {
 		{ description: "顶层", prompt: "开始", agentType: "boss" },
 		PROVIDER,
 		MODEL,
-		"# Environment\ncwd: /tmp\n",
 	);
 
 	assert.ok(tools.length > 0);

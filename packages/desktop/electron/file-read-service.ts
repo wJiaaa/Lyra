@@ -44,7 +44,7 @@ export async function readReadableFile(path: string | null, readOnly: boolean): 
 	if (!buffer) return null;
 	const head = buffer.subarray(0, 8000);
 	if (head.includes(0)) {
-		return { text: "", readOnly, truncated: false, bytes: info.size, binary: true, modifiedAt: info.mtimeMs };
+		return { text: "", readOnly, truncated: false, bytes: info.size, binary: true };
 	}
 
 	const clipped = buffer.subarray(0, FILE_READ_CAP);
@@ -53,6 +53,5 @@ export async function readReadableFile(path: string | null, readOnly: boolean): 
 		readOnly,
 		truncated: buffer.byteLength > FILE_READ_CAP,
 		bytes: info.size,
-		modifiedAt: info.mtimeMs,
 	};
 }

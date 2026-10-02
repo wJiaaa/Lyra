@@ -135,7 +135,6 @@ test("接线：真的往下派了一层之后，第二层指着第一层的 id�
 		{ description: "顶层", prompt: "开始", agentType: "boss" },
 		PROVIDER,
 		MODEL,
-		"# Environment\ncwd: /tmp\n",
 	);
 
 	const all = registry.list();
@@ -197,7 +196,6 @@ test("面板上停掉子代理，它派出去的孙代理跟着停", async () =>
 		{ description: "顶层", prompt: "开始", agentType: "boss" },
 		PROVIDER,
 		MODEL,
-		"# Environment\ncwd: /tmp\n",
 	);
 
 	// boss 那边的 `task` 调用一停就收场了，leaf 在后台自己收尾，等它说完。

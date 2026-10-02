@@ -49,7 +49,7 @@ async function show(locale: "zh-CN" | "en", children: ReactNode) {
 test("「默认打开方式」里那一项不照抄主进程写死的中文", async () => {
 	// What the main process actually sends: a Chinese sentence, whatever language the window is in.
 	host("win32", {
-		system: { openTargets: async () => [{ id: "reveal", label: "在资源管理器中显示", aliases: [] }], openExternal: async () => {} },
+		system: { openTargets: async () => [{ id: "reveal", label: "在资源管理器中显示" }], openExternal: async () => {} },
 		settings: { layers: async () => null },
 	});
 	// Chosen, so it is the value the row shows rather than one entry of a closed menu.

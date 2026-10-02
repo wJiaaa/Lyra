@@ -10,15 +10,9 @@ import { basename, join, relative } from "node:path";
 import { git } from "./git-exec.ts";
 import { gitBranch, isGitRepo } from "./git.ts";
 import { canonicalPath } from "./path-key.ts";
-import {
-	createWorktree,
-	pruneWorktrees,
-	removeWorktree,
-	type WorktreeCreateOptions,
-	type WorktreeResult,
-} from "./git-worktrees.ts";
+import { removeWorktree } from "./git-worktrees.ts";
 
-export { createWorktree, pruneWorktrees, removeWorktree, type WorktreeCreateOptions, type WorktreeResult };
+export { removeWorktree };
 
 /** Runs a git command for its effect, turning failure into readable text rather than a throw. */
 

@@ -16,7 +16,7 @@ export function useMemoryPass(): void {
 	const cwd = useApp((s) => s.workspace?.path ?? null);
 	const running = useApp((s) => s.running);
 	const notify = useApp((s) => s.notify);
-	const enabled = useApp((s) => s.settings?.memoryExtraction === true && (s.settings?.personalization?.enableProjectMemory ?? s.settings?.personalization?.enableMemory) !== false);
+	const enabled = useApp((s) => s.settings?.memoryExtraction === true && s.settings?.personalization?.enableProjectMemory !== false);
 
 	useEffect(() => {
 		// The desktop runs its own pass; a browser through Web access has nothing to add to it.

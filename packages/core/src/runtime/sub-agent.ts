@@ -187,7 +187,6 @@ export async function runSubAgent(
 	input: { description: string; prompt: string; agentType?: string; resume?: string },
 	provider: ProviderConfig,
 	model: ModelConfig,
-	_parentSystemPrompt: string,
 ): Promise<SubAgentAnswer> {
 	/*
 	 * 续跑：还是那个子代理，带着它读过、做过的一切。
@@ -632,7 +631,6 @@ export async function runSubAgent(
 								nested,
 								runProvider,
 								runModel,
-								subAgentPrompt,
 							);
 						}
 					: undefined,

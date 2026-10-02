@@ -24,7 +24,7 @@
 import { mkdir, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { plumeHome, writeFileAtomic } from "@plume/core";
-import { isSealed, seal, unseal } from "@plume/core";
+import { seal, unseal } from "@plume/core";
 import { parseAccounts } from "./accounts.ts";
 import type { ForgeAccount } from "./types.ts";
 
@@ -35,7 +35,6 @@ interface StoredEntry {
 }
 
 interface StoredFile {
-	version: 1;
 	entries: StoredEntry[];
 }
 
@@ -75,7 +74,7 @@ async function read(): Promise<StoredFile> {
 	// No file is an answer, not a failure: this profile has never signed in to anything.
 	if (raw === null) {
 		intact = true;
-		return (loaded = { version: 1, entries: [] });
+		return (loaded = { entries: [] });
 	}
 
 	try {
@@ -96,11 +95,11 @@ async function read(): Promise<StoredFile> {
 		if (!intact) {
 			console.warn(`[forge] ${entries.length - kept.length} account(s) in forges.json were not readable by this build`);
 		}
-		return (loaded = { version: 1, entries: kept });
+		return (loaded = { entries: kept });
 	} catch {
 		intact = false;
 		console.warn("[forge] forges.json could not be parsed; it will be preserved rather than overwritten");
-		return (loaded = { version: 1, entries: [] });
+		return (loaded = { entries: [] });
 	}
 }
 
@@ -159,7 +158,7 @@ export async function accountById(id: string): Promise<ForgeAccount | null> {
 /** The secret for one account, opened. Null when there is no such account, or no opening it. */
 export async function tokenFor(id: string): Promise<string | null> {
 	const entry = (await read()).entries.find((e) => e.account.id === id);
-	if (!entry || !isSealed(entry.token)) return null;
+	if (!entry) return null;
 	return unseal(entry.token);
 }
 
@@ -173,7 +172,7 @@ export function saveAccount(account: ForgeAccount, token: string): Promise<void>
 		const entries = [...file.entries];
 		if (at < 0) entries.push(entry);
 		else entries[at] = entry;
-		await write({ version: 1, entries });
+		await write({ entries });
 	});
 }
 
@@ -187,7 +186,7 @@ export function updateAccount(id: string, patch: Partial<ForgeAccount>): Promise
 		const account = { ...file.entries[at].account, ...patch, id };
 		const entries = [...file.entries];
 		entries[at] = { ...file.entries[at], account };
-		await write({ version: 1, entries });
+		await write({ entries });
 		return account;
 	});
 }
@@ -196,6 +195,6 @@ export function removeAccount(id: string): Promise<void> {
 	return change(async () => {
 		const file = await read();
 		const entries = file.entries.filter((entry) => entry.account.id !== id);
-		if (entries.length !== file.entries.length) await write({ version: 1, entries });
+		if (entries.length !== file.entries.length) await write({ entries });
 	});
 }

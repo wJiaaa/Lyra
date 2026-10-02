@@ -1318,7 +1318,6 @@ function handOffToRenderer(
 		 * under a stationary pointer and no `pointermove` is ever delivered.
 		 */
 		cursor: { x: cursorPoint.x - bounds.x, y: cursorPoint.y - bounds.y },
-		scaleFactor: snapshot.scaleFactor,
 		/*
 		 * 这串像素该按哪个色彩空间读。
 		 *

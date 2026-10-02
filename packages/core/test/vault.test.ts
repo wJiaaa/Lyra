@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { after, beforeEach, test } from "node:test";
 
 import { loadSettings, saveSettings, settingsPath, DEFAULT_SETTINGS } from "../src/config/settings.ts";
-import { isSealed, resetVault, seal, unseal } from "../src/config/vault.ts";
+import { resetVault, seal, unseal } from "../src/config/vault.ts";
 import type { ProviderConfig, Settings } from "../src/types.ts";
 
 let home: string;
@@ -68,7 +68,7 @@ function withProviders(...providers: ProviderConfig[]): Settings {
 
 test("a sealed secret comes back, and does not contain the plaintext", async () => {
 	const sealed = await seal("sk-not-a-real-key");
-	assert.ok(isSealed(sealed), "sealed values are recognisable as such");
+	assert.ok(sealed.startsWith("v1:"), "sealed values carry the format tag unseal checks");
 	assert.ok(!sealed.includes("sk-not-a-real-key"), "the plaintext is not sitting in the ciphertext");
 	assert.equal(await unseal(sealed), "sk-not-a-real-key");
 });

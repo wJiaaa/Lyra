@@ -35,9 +35,9 @@ export type ListResult = {
 /**
  * The connection for an account, or a message saying why there is not one.
  *
- * A missing token is its own case rather than a generic failure: it means the keychain rejected
- * something it stored — a copied home directory, a keychain entry removed — and the fix is to sign
- * in again, which is worth saying out loud.
+ * A missing token is its own case rather than a generic failure: it means the vault key cannot open
+ * what it sealed — a copied home directory, a replaced key file — and the fix is to sign in again,
+ * which is worth saying out loud.
  */
 async function connect(accountId: string): Promise<ForgeConnection> {
 	const account = await accountById(accountId);
@@ -196,7 +196,6 @@ export async function signIn(input: {
 		label: input.label?.trim() || "",
 		login: "",
 		avatarUrl: null,
-		addedAt: Date.now(),
 		enabled: true,
 	};
 
@@ -211,7 +210,6 @@ export async function signIn(input: {
 			login: identity.login,
 			avatarUrl: identity.avatarUrl,
 			label: draft.label || existing?.label || defaultLabel(identity),
-			addedAt: existing?.addedAt ?? draft.addedAt,
 			enabled: true,
 			lastError: "",
 		};

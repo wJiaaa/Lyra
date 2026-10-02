@@ -42,16 +42,12 @@ import { freshTokens } from "@plume/core/tokens";
 export interface TurnMeter {
 	startedAt: number;
 	tokens: number;
-	inputTokens?: number;
-	cacheRead?: number;
 }
 
 /** A turn stopped part-way: how much it had run, and what it had spent. */
 export interface CarriedTurn {
 	elapsedMs: number;
 	tokens: number;
-	inputTokens?: number;
-	cacheRead?: number;
 }
 
 const STORAGE_PREFIX = "ly:carried:";
@@ -66,7 +62,7 @@ export function loadCarried(sessionId: string): CarriedTurn | null {
 		if (!raw) return null;
 		const parsed = JSON.parse(raw) as Partial<CarriedTurn>;
 		if (typeof parsed.elapsedMs === "number" && typeof parsed.tokens === "number") {
-			return { elapsedMs: Math.max(0, parsed.elapsedMs), tokens: Math.max(0, parsed.tokens), ...cacheCounts(parsed) };
+			return { elapsedMs: Math.max(0, parsed.elapsedMs), tokens: Math.max(0, parsed.tokens) };
 		}
 	} catch {
 		// Invalid JSON or storage error is treated as empty
@@ -103,7 +99,6 @@ export function freeze(meter: TurnMeter | undefined, now: number): CarriedTurn |
 		// time of -3s would re-light the meter in the future and count down.
 		elapsedMs: Math.max(0, now - meter.startedAt),
 		tokens: meter.tokens,
-		...cacheCounts(meter),
 	};
 }
 
@@ -115,7 +110,7 @@ export function freeze(meter: TurnMeter | undefined, now: number): CarriedTurn |
  */
 export function relight(carried: CarriedTurn | undefined | null, now: number): TurnMeter {
 	if (!carried) return { startedAt: now, tokens: 0 };
-	return { startedAt: now - carried.elapsedMs, tokens: carried.tokens, ...cacheCounts(carried) };
+	return { startedAt: now - carried.elapsedMs, tokens: carried.tokens };
 }
 
 /**
@@ -156,14 +151,6 @@ export function elapsedOf(meter: TurnMeter, now: number): number {
 	return Math.max(0, now - meter.startedAt);
 }
 
-function cacheCounts(value: { inputTokens?: number; cacheRead?: number }) {
-	return typeof value.inputTokens === "number" && Number.isFinite(value.inputTokens) && typeof value.cacheRead === "number" && Number.isFinite(value.cacheRead)
-		? { inputTokens: Math.max(0, value.inputTokens), cacheRead: Math.max(0, value.cacheRead) } : {};
-}
-
-/** The denominator includes cache writes: all input, never generated output. */
 export function addTurnUsage(meter: TurnMeter, usage: Usage): TurnMeter {
-	return { ...meter, tokens: meter.tokens + freshTokens(usage),
-		inputTokens: (meter.inputTokens ?? 0) + usage.input + usage.cacheRead + usage.cacheWrite,
-		cacheRead: (meter.cacheRead ?? 0) + usage.cacheRead };
+	return { ...meter, tokens: meter.tokens + freshTokens(usage) };
 }

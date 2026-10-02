@@ -16,7 +16,7 @@ import { test } from "node:test";
 import { isOutdated, type InstallRecord } from "../src/plugins/install-record.ts";
 
 function installed(fields: Partial<InstallRecord> = {}): InstallRecord {
-	return { id: "waza", installedAt: "2026-08-01T00:00:00.000Z", ...fields };
+	return { id: "waza", ...fields };
 }
 
 test("a moved commit is an update", () => {

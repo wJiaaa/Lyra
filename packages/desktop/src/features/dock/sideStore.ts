@@ -157,7 +157,7 @@ interface SideState {
 	seedDraft(sessionId: string | null, sideId: string, text: string): void;
 	clearDraftSeed(sessionId: string | null, sideId: string): void;
 	/** 排到队尾。这一轮干净答完之后，队首自己发出去。 */
-	enqueue(sessionId: string | null, sideId: string, entry: Omit<QueuedMessage, "id" | "queuedAt">): void;
+	enqueue(sessionId: string | null, sideId: string, entry: Omit<QueuedMessage, "id">): void;
 	/** 拿走一条并交还给调用者——删掉是丢弃，编辑是放回输入框。 */
 	dropQueued(sessionId: string | null, sideId: string, id: string): QueuedMessage | null;
 	moveQueued(sessionId: string | null, sideId: string, id: string, targetId: string, placement: "before" | "after"): boolean;
@@ -479,7 +479,7 @@ export const useSide = create<SideState>((set, get) => {
 
 		enqueue(sessionId, sideId, entry) {
 			if (!sessionId) return;
-			patch(sessionId, sideId, (slot) => ({ queued: [...slot.queued, { ...entry, id: crypto.randomUUID(), queuedAt: Date.now() }] }));
+			patch(sessionId, sideId, (slot) => ({ queued: [...slot.queued, { ...entry, id: crypto.randomUUID() }] }));
 			// 空着却排上了——多半是上一轮被停掉、队里还压着别的：由这一次推它一把。
 			queueMicrotask(() => flush(sessionId, sideId));
 		},

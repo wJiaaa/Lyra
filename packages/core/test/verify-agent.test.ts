@@ -87,7 +87,6 @@ test("父代理拿到的是失败摘要，不是完整日志", async () => {
 		{ description: "跑测试", prompt: "跑一遍测试，告诉我结果。", agentType: "verify" },
 		PROVIDER,
 		MODEL,
-		"",
 	);
 
 	assert.ok(LOG.length > 5_000, `日志得够大才有意义：${LOG.length}`);

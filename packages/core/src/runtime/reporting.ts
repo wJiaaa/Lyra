@@ -80,11 +80,9 @@ export async function describeContext(session: SessionFacts): Promise<ContextBre
 	let schemas;
 	let mcpNames;
 	if (recorded) {
-		prompt = recorded.sections
-			? { systemPrompt: recorded.systemPrompt, sections: recorded.sections }
-			: reconcilePrompt({ systemPrompt: "", sections: [] }, recorded.systemPrompt);
-		schemas = recorded.schemas ?? [];
-		mcpNames = new Set(recorded.mcpTools ?? schemas.filter(tool => tool.name.startsWith("mcp__")).map(tool => tool.name));
+		prompt = { systemPrompt: recorded.systemPrompt, sections: recorded.sections };
+		schemas = recorded.schemas;
+		mcpNames = new Set(recorded.mcpTools);
 	} else {
 		const capabilities = promptCapabilities({ settings: session.settings, tools: session.tools });
 		prompt = await loadPromptContext({

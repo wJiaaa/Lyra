@@ -72,7 +72,6 @@ import { registerCapabilitiesIpc } from "./ipc/capabilities.ts";
 import { registerExtensionsIpc } from "./ipc/extensions.ts";
 import { registerLayersIpc } from "./ipc/layers.ts";
 import { registerHooksIpc } from "./ipc/hooks.ts";
-import { registerForeignConfigsIpc } from "./ipc/foreign-configs.ts";
 import { registerProjectMemoryIpc } from "./ipc/project-memory.ts";
 import { registerSideChatIpc } from "./ipc/side-chat.ts";
 import { registerTerminalIpc, type LiveTerminal } from "./ipc/terminal.ts";
@@ -824,6 +823,5 @@ function registerIpc(): void {
 	registerExtensionsIpc();
 	registerLayersIpc();
 	registerHooksIpc();
-	registerForeignConfigsIpc();
 	registerProjectMemoryIpc({ store: () => store });
 }

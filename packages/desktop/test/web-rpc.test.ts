@@ -74,7 +74,6 @@ test("the things that would hand over the machine are all absent", () => {
 		"plugins.install",
 		"updates.install",
 		"forge.add",
-		"git.commit",
 		"web.rotateToken",
 		"web.start",
 		"settings.save",
@@ -108,14 +107,14 @@ test("read-only project files cross the web RPC without exposing write operation
 		},
 		filesRead: async (path) => {
 			calls.push(["read", path]);
-			return { text: "# Plume\n", readOnly: true, truncated: false, bytes: 7, modifiedAt: 1 };
+			return { text: "# Plume\n", readOnly: true, truncated: false, bytes: 7 };
 		},
 	});
 
 	assert.equal((await callRpc(remote, "files.list", ["/project"])).ok, true);
 	const read = await callRpc(remote, "files.read", ["/project/README.md"]);
 	assert.equal(read.ok, true);
-	assert.deepEqual(read.value, { text: "# Plume\n", readOnly: true, truncated: false, bytes: 7, modifiedAt: 1 });
+	assert.deepEqual(read.value, { text: "# Plume\n", readOnly: true, truncated: false, bytes: 7 });
 	assert.deepEqual(calls, [["list", "/project"], ["read", "/project/README.md"]]);
 
 	for (const method of ["files.remove", "files.rename", "files.importInto"]) {
@@ -287,7 +286,6 @@ test("每个 handler 都能经 callRpc 到达", async () => {
 		"subAgents.steer": ["s1", "a1", "继续检查"],
 		"subAgents.abort": ["s1", "a1"],
 		"subAgents.dismiss": ["s1", "a1"],
-		"subAgents.dismissFinished": ["s1"],
 		"sideChat.setModel": ["s1", "default", null],
 		"sideChat.state": ["s1", "default"],
 		"sideChat.ask": ["s1", "default", "检查一下"],

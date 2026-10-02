@@ -41,5 +41,4 @@ export interface QueuedMessage {
 	preview: string;
 	/** 第一张图，条上那个缩略图。 */
 	thumbnail?: { mimeType: string; data: string };
-	queuedAt: number;
 }

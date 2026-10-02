@@ -171,7 +171,6 @@ describe("scanUsage", () => {
 
 		const second = await scan([pricedProvider(2)]);
 		assert.equal(second.scanned, 1, "a price change must re-evaluate what was already read");
-		assert.equal(second.cached, 0);
 		assert.equal(second.buckets[0].cost, 2);
 	});
 
@@ -228,7 +227,6 @@ describe("scanUsage", () => {
 
 		const second = await scan();
 		assert.equal(second.scanned, 0, "nothing changed, so nothing was read");
-		assert.equal(second.cached, 1);
 		assert.deepEqual(second.buckets, first.buckets, "and the answer is the same");
 	});
 
@@ -261,7 +259,6 @@ describe("scanUsage", () => {
 
 		await (await conversation()).say(reply(AT, { input: 50 }));
 		const result = await scan();
-		assert.equal(result.cached, 1);
 		assert.equal(result.scanned, 1);
 		assert.equal(result.buckets[0].input, 150);
 		assert.equal(result.days[0].sessions, 2);
@@ -292,7 +289,6 @@ describe("scanUsage", () => {
 		await (await conversation()).say(reply(AT, { input: 7 }));
 		const result = await scan();
 		assert.equal(result.buckets[0].input, 7, "the new database's first row is counted, and the old totals are gone");
-		assert.equal(result.cached, 0);
 	});
 
 	it("a rewind does not take back what the rewound replies cost", async () => {

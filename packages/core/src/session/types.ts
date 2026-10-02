@@ -117,7 +117,7 @@ export type SessionRecord =
  */
 export interface Boundary {
 	/** Stable rewrite time; retained replies describe the old request until a newer reply arrives. */
-	at?: number;
+	at: number;
 	summary: string;
 	keptFrom: number;
 }

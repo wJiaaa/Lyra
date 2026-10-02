@@ -64,7 +64,7 @@ test("a hang is cut off, and says so", async () => {
 	const elapsed = Date.now() - started;
 
 	assert.equal(result.ok, false);
-	assert.equal(result.timedOut, true, "a killed process leaves no stderr; it has to be recognised by `killed`");
+	// A killed process leaves no stderr; it has to be recognised by `killed`.
 	assert.equal(result.error, "连接远端超时");
 	assert.ok(!result.cancelled, "a timeout is not a cancellation — one is silent and this one is not");
 	// Generously bounded: the point is that it ended near the deadline rather than at TCP's.
@@ -82,15 +82,13 @@ test("a cancellation is silent", async () => {
 	 * An aborted child is also a killed child, so asking `killed` first would report every
 	 * cancellation as a timeout — and put a red bar on screen for something the user just did.
 	 */
-	assert.ok(!result.timedOut, "a cancellation must not be reported as a timeout");
-	assert.equal(result.error, undefined, "nothing to say about a stop someone asked for");
+	assert.equal(result.error, undefined, "neither a timeout nor anything else to say about a stop someone asked for");
 });
 
 test("a refusal comes back as a reason, not as the command that failed", async () => {
 	// Port 9 discards; nothing listens, so the connection is refused immediately.
 	const result = await runRemote(dir, ["ls-remote", "http://127.0.0.1:9/x.git"], { timeoutMs: 10_000 });
 	assert.equal(result.ok, false);
-	assert.ok(!result.timedOut);
 	assert.equal(result.error, "连不上远端。");
 });
 
@@ -114,7 +112,7 @@ test("a remote that needs a login fails immediately rather than waiting for one"
 	await new Promise<void>((resolve) => server.close(() => resolve()));
 
 	assert.equal(result.ok, false);
-	assert.ok(!result.timedOut, `it hung instead of failing (${elapsed}ms)`);
+	assert.ok(elapsed < 10_000, `it hung instead of failing (${elapsed}ms)`);
 	assert.equal(result.error, "远端需要登录，这里无法输入。请先在终端里配置一次凭据。");
 });
 

@@ -46,7 +46,7 @@ async function seed(home: string): Promise<void> {
 		JSON.stringify({
 			version: 1,
 			entries: ACCOUNTS.map((account) => ({
-				account: { ...account, avatarUrl: null, addedAt: 1, enabled: true },
+				account: { ...account, avatarUrl: null, enabled: true },
 				token: "not-a-real-token",
 				encrypted: false,
 			})),

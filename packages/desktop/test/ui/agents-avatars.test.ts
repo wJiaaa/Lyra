@@ -22,7 +22,6 @@ const record = (definition: AgentDefinitionRecord["definition"], over: Partial<A
 	customized: false,
 	revision: "1",
 	raw: "",
-	shadowedSources: [],
 	...over,
 });
 

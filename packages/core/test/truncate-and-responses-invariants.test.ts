@@ -299,20 +299,6 @@ test("同一个模型自己的推理，没有 id 也要带回去", () => {
 	assert.ok(JSON.stringify(wire).includes("reasoning_text"));
 });
 
-test("老日志没有溯源字段时，保守放行而不是误删", () => {
-	// 那些字段是后加的。没有证据说它是别人的，就不能当成别人的——否则会打回 DeepSeek 那条。
-	const legacy = {
-		role: "assistant",
-		content: [{ type: "thinking", thinking: "旧", signature: "rs-old" }],
-		api: "openai-responses",
-		usage: emptyUsage(),
-		stopReason: "end",
-		timestamp: 0,
-	} as AssistantMessage;
-	const wire = toResponsesInput(askThen(legacy), { provider: "relay", model: "m" }) as Record<string, unknown>[];
-	assert.equal(wire.filter((item) => item.type === "reasoning").length, 1);
-});
-
 test("装不进 API 字符集的句柄，丢掉而不是原样发出去", () => {
 	/*
 	 * 客户报过 `Invalid 'input[14].id' … this value contained additional characters`：中转生成的 id

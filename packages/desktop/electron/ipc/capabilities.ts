@@ -25,7 +25,7 @@ export function registerCapabilitiesIpc(): void {
 	ipcMain.handle("capabilities:diff", async (_event, _kind: Kind, winner: string, loser: string) => {
 		const [before, after] = await Promise.all([readFile(winner, "utf8"), readFile(loser, "utf8")]);
 		const diff = computeDiff(before, after);
-		return { hunks: diff.hunks, added: diff.added, removed: diff.removed, winner, loser };
+		return { hunks: diff.hunks, added: diff.added, removed: diff.removed };
 	});
 
 	ipcMain.handle("capabilities:prefer", async (_event, kind: Kind, name: string, path: string) => {

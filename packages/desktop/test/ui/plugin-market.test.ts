@@ -59,12 +59,13 @@ function stubBridge(scan: Scan, settings: Partial<Settings> = {}): Stub {
 				list: async () => stub.scan,
 				fetchRegistry: async () => ({ ok: true, registry: { url: REGISTRY, name: "Test", entries } }),
 				icons: async () => ({}),
+				readme: async () => null,
 				environment: async () => [],
 				installFromRegistry: async (entry: RegistryEntry, _from?: string, replace?: boolean) => {
 					stub.installs.push({ id: entry.id, replace });
 					return { ok: true, dir: `/x/${entry.id}`, kind: entry.kind, servers: 0 };
 				},
-				updateAll: async () => ({ outdated: [], checkedAt: 1, auto: true, updating: [], failed: [], revision: 1 }),
+				updateAll: async () => ({ outdated: [], auto: true, updating: [], failed: [], revision: 1 }),
 				uninstall: async () => {},
 			},
 			settings: {
@@ -160,14 +161,14 @@ test("点「安装」发出安装，扫盘一回来卡片就是「已安装」�
 		await settle();
 		const install = [...card(view, "Superpowers").querySelectorAll("button")].find((b) => b.textContent === "安装");
 		assert.ok(install);
-		stub.scan = scanWith({ plugins: [plugin("superpowers", { origin: { id: "superpowers", commit: "b".repeat(40), installedAt: "x" } })] });
+		stub.scan = scanWith({ plugins: [plugin("superpowers", { origin: { id: "superpowers", commit: "b".repeat(40) } })] });
 		await click(install);
 		await settle();
 		assert.deepEqual(stub.installs, [{ id: "superpowers", replace: false }]);
 		assert.match(card(view, "Superpowers").textContent ?? "", /已安装/);
 
 		// 市场上的提交往前走了一步：同一张卡片变成「更新」，点下去是 replace。
-		stub.scan = scanWith({ plugins: [plugin("superpowers", { origin: { id: "superpowers", commit: "a".repeat(40), installedAt: "x" } })] });
+		stub.scan = scanWith({ plugins: [plugin("superpowers", { origin: { id: "superpowers", commit: "a".repeat(40) } })] });
 		useApp.getState().bumpExtensions();
 		await settle();
 		const update = [...card(view, "Superpowers").querySelectorAll("button")].find((b) => b.textContent?.includes("更新"));

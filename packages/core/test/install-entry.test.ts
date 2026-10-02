@@ -187,7 +187,7 @@ test("a collection installed the old way is swept up when it is updated", async 
 			await mkdir(join(bundleRoot("skill"), name), { recursive: true });
 			await writeFile(join(bundleRoot("skill"), name, "SKILL.md"), `---\nname: ${name}\ndescription: 旧版装下的技能。\n---\n`);
 		}
-		await writeFile(join(process.env.PLUME_HOME!, "installs.json"), JSON.stringify({ waza: { id: "waza", skills: ["waza-check", "waza-dropped"], installedAt: "x" } }));
+		await writeFile(join(process.env.PLUME_HOME!, "installs.json"), JSON.stringify({ waza: { id: "waza", skills: ["waza-check", "waza-dropped"] } }));
 
 		await assert.rejects(() => installEntry(entryFor("waza", repo, { kind: "skill", path: "skills" })), /已经装过/);
 		await installEntry(entryFor("waza", repo, { kind: "skill", path: "skills" }), undefined, true);

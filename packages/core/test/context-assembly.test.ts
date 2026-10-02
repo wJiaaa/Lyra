@@ -90,10 +90,10 @@ test("a disk read overlapping rewind cannot restore the discarded prompt", async
 	const reading = new Promise<void>(resolve => { announce = resolve; });
 	try {
 		await log.commit({ role: "user", content: [{ type: "text", text: "first" }], timestamp: 1 });
-		await log.recordContext("FIRST", [], []);
+		await log.recordContext("FIRST", [], [], [], { sections: [], mcpTools: [] });
 		await log.commit(reply());
 		await log.commit({ role: "user", content: [{ type: "text", text: "second" }], timestamp: 2 });
-		await log.recordContext("SECOND", [], []);
+		await log.recordContext("SECOND", [], [], [], { sections: [], mcpTools: [] });
 		log.restore([...log.messages]);
 		const originalRead = store.read.bind(store);
 		let delay = true;
@@ -119,7 +119,7 @@ test("runtime statistics reuse filtered requests and recorded sources through re
 	const root = await mkdtemp(join(tmpdir(), "plume-context-"));
 	const previous = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, PLUME_HOME: process.env.PLUME_HOME };
 	Object.assign(process.env, { HOME: root, USERPROFILE: root, PLUME_HOME: join(root, "home") });
-	const settings = { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, mcpServers: [], personalization: { enableMemory: false } };
+	const settings = { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, mcpServers: [], personalization: { enableMemory: false, enableProjectMemory: false } };
 	const store = new SessionStore(join(root, "sessions"));
 	let sent!: LlmContext;
 	let answer!: AssistantMessage;

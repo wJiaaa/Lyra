@@ -242,7 +242,7 @@ export function modelHistory(log: SessionLog, provider: ProviderConfig, model: M
 	const older = log.messages.slice(0, boundary.keptFrom);
 	const tail = log.messages.slice(boundary.keptFrom);
 	// 头部带固定的边界时间：计量据此只丢边界之前的用量（`measureTotal`），重建时取当前时间会把之后的新用量也丢掉。
-	const at = boundary.at ?? Math.max(0, ...tail.map((message) => message.timestamp));
+	const at = boundary.at;
 	if (!boundary.summary) {
 		const standing = lastRequest(older) ?? lastRequest(log.messages);
 		return [{ ...droppedMessage(standing, taskContextFromHistory(older), model), timestamp: at }, ...tail];

@@ -156,12 +156,10 @@ function fold(tally: UsageTally, row: SpendRow, providers: ProviderConfig[]): vo
  * older version of this reader is discarded and the table read from the top.
  */
 export async function scanUsage(store: SessionStorage, home = plumeHome(), providers: ProviderConfig[] = []): Promise<UsageScan> {
-	const started = Date.now();
 	const cachePath = join(home, "usage-cache.json");
 	const pricingKey = usagePricingKey(providers);
 	const source = await store.storeId();
 	const tally = await readUsageCache(cachePath, pricingKey, source);
-	const cached = tally.rows;
 
 	// A page at a time: with the cache gone, the whole table would otherwise be one array.
 	let scanned = 0;
@@ -181,7 +179,5 @@ export async function scanUsage(store: SessionStorage, home = plumeHome(), provi
 		days: await store.activeDays(),
 		buckets: [...tally.buckets].sort((a, b) => a.day.localeCompare(b.day)),
 		scanned,
-		cached,
-		tookMs: Date.now() - started,
 	};
 }

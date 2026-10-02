@@ -55,7 +55,7 @@ test("real dispatch uses configured provider and thinking on the wire configurat
 		assert.equal(config.provider.id, "b"); assert.equal(config.model.id, "b/same"); assert.equal(config.thinking, "ultra");
 		const response: AssistantMessage = { role: "assistant", content: [{ type: "text", text: "Done" }], api: provider.api, provider: "b", model: model.modelId, usage: emptyUsage(), stopReason: "stop", timestamp: 1 };
 		return response;
-	} }, { description: "Read", prompt: "Read", agentType: "explore" }, provider, model, "");
+	} }, { description: "Read", prompt: "Read", agentType: "explore" }, provider, model);
 	assert.equal(seen, true);
 });
 
@@ -72,6 +72,6 @@ test("nested dispatch resolves updated preferences without changing the already 
 			return { ...response, stopReason: "toolUse", content: [{ type: "toolCall", id: "nested", name: "task", arguments: { description: "Read", prompt: "Read", subagent_type: "explore" } }] };
 		}
 		return response;
-	} }, { description: "Delegate", prompt: "Delegate", agentType: "boss" }, provider, model, "");
+	} }, { description: "Delegate", prompt: "Delegate", agentType: "boss" }, provider, model);
 	assert.deepEqual(seen, ["a:low", "b:ultra", "a:low"]);
 });

@@ -124,7 +124,6 @@ async function dispatch(replies: AssistantMessage[], compaction: { squash: boole
 			{ description: "找登录入口", prompt: "去找", agentType: "general" },
 			PROVIDER,
 			MODEL,
-			"",
 		);
 		return { seen, requests, answer, registry };
 	} finally {

@@ -195,7 +195,7 @@ test("a plugin reports the skills the loader actually found, not the number clai
 
 test("an update is only claimed when the installed copy carries a comparable record", () => {
 	const known = plugin("waza");
-	known.origin = { id: "waza", installedAt: "2026-08-01T00:00:00.000Z", commit: "aaa" };
+	known.origin = { id: "waza", commit: "aaa" };
 	const moved: RegistryEntry = { ...entry("waza", "plugin"), commit: "bbb" };
 
 	assert.equal(merge([known], [], [], [{ from: "r", entry: moved }])[0].outdated, true);

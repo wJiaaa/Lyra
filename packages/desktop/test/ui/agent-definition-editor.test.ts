@@ -6,7 +6,7 @@ import { AgentDefinitionEditor } from "../../src/features/settings/AgentDefiniti
 import { avatarResolver } from "../../src/store/agent-avatars.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 
-const record: AgentDefinitionRecord = { id: "editor-fixture", definition: BUILTIN_AGENTS[0], scope: "builtin", editable: true, customized: false, revision: "initial", raw: "", shadowedSources: [] };
+const record: AgentDefinitionRecord = { id: "editor-fixture", definition: BUILTIN_AGENTS[0], scope: "builtin", editable: true, customized: false, revision: "initial", raw: "" };
 
 test("a failed definition save retains the draft across navigation and never reports success", async () => {
 	const previous = Object.getOwnPropertyDescriptor(window, "plume");

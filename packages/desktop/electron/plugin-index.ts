@@ -34,7 +34,7 @@ const indexes = new Map<string, { at: number; registry: Registry }>();
  * `stale` when the answer is the copy kept on disk from an earlier launch rather than this one's —
  * see `allowStale` below.
  */
-export type IndexAnswer = { ok: true; registry: Registry; fetchedAt: number; stale?: boolean } | { ok: false; message: string };
+export type IndexAnswer = { ok: true; registry: Registry; stale?: boolean } | { ok: false; message: string };
 
 /**
  * One index, from the cache when it is fresh enough.
@@ -45,7 +45,7 @@ export type IndexAnswer = { ok: true; registry: Registry; fetchedAt: number; sta
  */
 export async function readRegistry(url: string, force = false, maxAge = INDEX_CACHE_MS, allowStale = false): Promise<IndexAnswer> {
 	const hit = indexes.get(url);
-	if (!force && hit && Date.now() - hit.at < maxAge) return { ok: true, registry: hit.registry, fetchedAt: hit.at };
+	if (!force && hit && Date.now() - hit.at < maxAge) return { ok: true, registry: hit.registry };
 	/*
 	 * `allowStale`: the market page opening for the first time this launch, which would rather draw
 	 * the catalogue it showed last time *now* and replace it a moment later than draw a skeleton for
@@ -54,16 +54,16 @@ export async function readRegistry(url: string, force = false, maxAge = INDEX_CA
 	 */
 	if (!force && !hit && allowStale) {
 		const kept = await readKept(url);
-		if (kept) return { ok: true, registry: kept.registry, fetchedAt: kept.at, stale: true };
+		if (kept) return { ok: true, registry: kept.registry, stale: true };
 	}
 	try {
 		const registry = await fetchRegistry(url);
 		const at = Date.now();
 		indexes.set(url, { at, registry });
 		void keep(url, registry, at);
-		return { ok: true, registry, fetchedAt: at };
+		return { ok: true, registry };
 	} catch (cause) {
-		if (hit) return { ok: true, registry: hit.registry, fetchedAt: hit.at };
+		if (hit) return { ok: true, registry: hit.registry };
 		return { ok: false, message: cause instanceof Error ? cause.message : String(cause) };
 	}
 }

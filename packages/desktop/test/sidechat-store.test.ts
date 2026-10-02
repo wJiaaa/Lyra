@@ -55,8 +55,8 @@ test("clearing the panel clears it for next time too", async () => {
 test("a corrupt file loses the conversation rather than the panel", async () => {
 	const { loadSideChat } = await import("../electron/sidechat-store.ts");
 	const { mkdir, writeFile } = await import("node:fs/promises");
-	await mkdir(join(home, "sidechats"), { recursive: true });
-	await writeFile(join(home, "sidechats", "s5.json"), '{"messages":[{"role":"user"', "utf8");
+	await mkdir(join(home, "sidechats", "s5"), { recursive: true });
+	await writeFile(join(home, "sidechats", "s5", "default.json"), '{"messages":[{"role":"user"', "utf8");
 	assert.deepEqual(await loadSideChat("s5"), []);
 });
 
@@ -95,8 +95,7 @@ test("一个会话旁边的几个侧边聊天各存各的，按开出来的先�
 	await saveSideChat("multi", [said("第二个")], undefined, "b2");
 	await saveSideChatTranscript("multi", [said("第一个")], null, "a1");
 	await saveSideChat("multi", [said("最早那个")]);
-	// 最早那一个留在老位置，旧存档不用搬。
-	assert.deepEqual(await readdir(join(home, "sidechats", "multi")).then((names) => names.sort()), ["a1.json", "b2.json"]);
+	assert.deepEqual(await readdir(join(home, "sidechats", "multi")).then((names) => names.sort()), ["a1.json", "b2.json", "default.json"]);
 	assert.deepEqual(await listSideChats("multi"), ["default", "a1", "b2"]);
 	assert.deepEqual(await loadSideChat("multi", "a1"), [said("第一个")]);
 	assert.deepEqual(await loadSideChat("multi"), [said("最早那个")]);
@@ -169,7 +168,7 @@ function refuseRenames(t: TestContext, target: string, code: string, times = Inf
 test("on Windows a save refused for a moment is retried rather than lost", async (t) => {
 	const { loadSideChat, saveSideChat } = await import("../electron/sidechat-store.ts");
 	asWindows(t);
-	const { refused } = refuseRenames(t, "scanned.json", "EPERM", 2);
+	const { refused } = refuseRenames(t, "default.json", "EPERM", 2);
 	await saveSideChat("scanned", [said("kept")]);
 	assert.equal(refused(), 2, "the premise: the first two renames were refused");
 	assert.deepEqual(await loadSideChat("scanned"), [said("kept")]);
@@ -178,7 +177,7 @@ test("on Windows a save refused for a moment is retried rather than lost", async
 test("a save that fails leaves no temporary file behind", async (t) => {
 	const { saveSideChat } = await import("../electron/sidechat-store.ts");
 	// Not a code that means "held open": reported straight away, and it has to clean up after itself.
-	refuseRenames(t, "failing.json", "EXDEV");
+	refuseRenames(t, "default.json", "EXDEV");
 	await assert.rejects(saveSideChat("failing", [said("not saved")]), /EXDEV/);
-	assert.deepEqual((await readdir(join(home, "sidechats"))).filter((name) => name.endsWith(".tmp")), []);
+	assert.deepEqual((await readdir(join(home, "sidechats", "failing"))).filter((name) => name.endsWith(".tmp")), []);
 });

@@ -14,7 +14,6 @@ import {
 	autoCreateSessionWorktree,
 	cleanOldWorktrees,
 	createWorktree,
-	pruneWorktrees,
 	removeWorktree,
 	resolveWorktreesRoot,
 } from "../electron/git-worktrees.ts";
@@ -136,8 +135,6 @@ test("cleanOldWorktrees prunes excess worktrees above keepLimit while protecting
 	const cleanedCount = await cleanOldWorktrees(dir, cleanSettings, active);
 	assert.ok(cleanedCount >= 1);
 	assert.equal(existsSync(wt1.path), true, "active session worktree must be preserved");
-
-	await pruneWorktrees(dir);
 });
 
 /**
@@ -170,8 +167,6 @@ test("a worktree in use is protected however its path is spelled", async () => {
 
 	assert.ok(cleaned >= 1, "the idle worktrees should still be cleaned");
 	assert.equal(existsSync(keep.path), true, "the worktree in use must survive an odd spelling");
-
-	await pruneWorktrees(dir);
 });
 
 /*

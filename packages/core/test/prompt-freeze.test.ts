@@ -21,7 +21,7 @@ import { emptyUsage, type AssistantMessage, type LlmContext, type Message, type 
 
 const model: ModelConfig = { id: "fixture/model", providerId: "fixture", modelId: "model", name: "Fixture", contextWindow: 1_000_000, maxOutputTokens: 4096, supportsThinking: true, supportsImages: false, supportsTools: true };
 const provider: ProviderConfig = { id: "fixture", name: "Fixture", baseUrl: "http://127.0.0.1:1", api: "openai-responses", apiKey: "fixture", enabled: true, models: [model] };
-const settings: Settings = { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, mcpServers: [], maxConcurrentSubAgents: 4, personalization: { enableMemory: false } };
+const settings: Settings = { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, mcpServers: [], maxConcurrentSubAgents: 4, personalization: { enableMemory: false, enableProjectMemory: false } };
 const reply = (text = "done"): AssistantMessage => ({ role: "assistant", content: [{ type: "text", text }], api: provider.api, provider: provider.id, model: model.modelId, usage: emptyUsage(), stopReason: "stop", timestamp: Date.now() });
 
 const updates = (messages: readonly Message[]) => messages.filter((message) => message.role === "user" && message.promptUpdate);
@@ -90,7 +90,6 @@ test("the recorded prompt gives back the frozen head without what middleware app
 	const appended = { systemPrompt: `${head.systemPrompt}\nPLUGIN`, sections: [...head.sections, { source: "extension" as const, start: head.systemPrompt.length, end: head.systemPrompt.length + 7 }] };
 	assert.deepEqual(promptBase(appended), head);
 	assert.equal(promptBase({ systemPrompt: "X", sections: [{ source: "extension", start: 0, end: 1 }] }), null);
-	assert.equal(promptBase({ systemPrompt: "old" }), null);
 });
 
 async function fixture() {

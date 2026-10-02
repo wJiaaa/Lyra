@@ -326,7 +326,7 @@ test("子代理同样压缩后重发，每个请求带着它自己的、续跑�
 			return reply("查完了");
 		},
 	};
-	const answer = await runSubAgent(options, { description: "查", prompt: "查一下" }, PROVIDER, MODEL, "");
+	const answer = await runSubAgent(options, { description: "查", prompt: "查一下" }, PROVIDER, MODEL);
 
 	assert.equal(answer.text, "查完了");
 	assert.deepEqual(forced, [true], "强制压缩了一次");
@@ -336,10 +336,10 @@ test("子代理同样压缩后重发，每个请求带着它自己的、续跑�
 	assert.ok(events.some((event) => event.type === "subagent_event" && event.event.type === "notice"), "说明进了它自己的面板");
 
 	// 续跑接着上一次的 `view` 发，前缀相同，key 也要是同一个才落到那份缓存上。
-	await runSubAgent(options, { description: "查", prompt: "再看一眼", resume: answer.id }, PROVIDER, MODEL, "");
+	await runSubAgent(options, { description: "查", prompt: "再看一眼", resume: answer.id }, PROVIDER, MODEL);
 	assert.equal(calls, 3);
 	assert.equal(keys.at(-1), keys[0], "续跑沿用同一个 key");
-	const other = await runSubAgent(options, { description: "另一件", prompt: "别的" }, PROVIDER, MODEL, "");
+	const other = await runSubAgent(options, { description: "另一件", prompt: "别的" }, PROVIDER, MODEL);
 	assert.notEqual(other.id, answer.id);
 	assert.notEqual(keys.at(-1), keys[0], "另派的一个不共用");
 });

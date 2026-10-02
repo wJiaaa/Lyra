@@ -24,7 +24,7 @@ function bare(endpoint: ProviderConfig, modelId: string): ModelConfig {
 /** What a match fills in. */
 function filled(endpoint: ProviderConfig, modelId: string) {
 	const found = catalogModelFor(endpoint, modelId);
-	return found ? catalogFill(found.provider.id, found.model) : null;
+	return found ? catalogFill(found.model) : null;
 }
 
 const cost = (input: number, output: number, cacheRead = 0, cacheWrite = 0) => ({ input, output, cacheRead, cacheWrite });
@@ -124,12 +124,12 @@ describe("catalogue matching", () => {
 		for (const id of ["gpt-5.2-unrecognised", "gpt-5.2:free", "gemini-pro-agent", "some-private-model-v9"]) assert.equal(catalogModelFor(relay, id), null, id);
 	});
 
-	it("fills limits, capabilities and a stamped catalogue price, clamping output to the window", () => {
+	it("fills limits, capabilities and a catalogue price, clamping output to the window", () => {
 		const relay = provider("https://relay.example/v1");
 		const gpt = filled(relay, "gpt-5.2-high")!;
 		assert.deepEqual(
-			{ context: gpt.contextWindow, images: gpt.supportsImages, input: gpt.pricing?.input, cacheRead: gpt.pricing?.cacheRead, source: gpt.pricing?.source, version: gpt.pricing?.catalogVersion },
-			{ context: 400_000, images: true, input: 1.75, cacheRead: 0.175, source: "catalog", version: "pi:rev-fixture" },
+			{ context: gpt.contextWindow, images: gpt.supportsImages, input: gpt.pricing?.input, cacheRead: gpt.pricing?.cacheRead, source: gpt.pricing?.source },
+			{ context: 400_000, images: true, input: 1.75, cacheRead: 0.175, source: "catalog" },
 		);
 		assert.equal(filled(relay, "hy3-preview")?.maxOutputTokens, 256_000);
 		assert.deepEqual(gpt.thinkingOptions?.map((option) => option.id), ["off", "low", "medium", "high", "xhigh"]);

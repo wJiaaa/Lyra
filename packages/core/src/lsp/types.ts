@@ -42,25 +42,6 @@ export interface TextEdit {
 }
 
 /**
- * How the answer was obtained, which decides how much it can be trusted.
- *
- * `exact` is a language server that understands the program. `textual` is a regex over the source,
- * which is what we had — and the point of naming it is that the model reads this and behaves
- * differently. A `textual` answer to "who calls this" is a starting point, not a list.
- */
-type Confidence = "exact" | "textual";
-
-// oxlint-disable-next-line no-unused-vars -- 这一层的协议形状，和旁边用着的那几个是一组；少一个就说不清这个后端能被问什么
-interface CodeIntelResult<T> {
-	items: T[];
-	confidence: Confidence;
-	/** Why the answer is `textual`, when it is. Shown to the model verbatim. */
-	caveat?: string;
-	/** Which backend answered, for diagnostics. */
-	backend: string;
-}
-
-/**
  * One language's code intelligence.
  *
  * The interface is deliberately narrow. omp's LSP layer is 8487 lines and covers hover, completion,

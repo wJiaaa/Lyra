@@ -23,8 +23,8 @@ import type { PullRequestDetail, PullRequestSummary } from "../../../electron/ip
  * tolerant reader would have meant a list that draws and a detail pane that cannot open.
  */
 const LIST_KEY = "plume.pull-requests.v3";
-/** v3 → v4: same reason, and the detail extends the row's shape. */
-const DETAIL_KEY = "plume.pull-request-details.v4";
+/** v3 → v4: same reason, and the detail extends the row's shape. v4 → v5: every check has a name. */
+const DETAIL_KEY = "plume.pull-request-details.v5";
 /** v1 → v2: keyed by row id, which now includes the account. */
 const SEEN_KEY = "plume.pull-requests.seen.v2";
 
@@ -102,10 +102,7 @@ function readDetails(): Record<string, PullRequestDetail> {
 
 export function readDetail(id: string): PullRequestDetail | null {
 	const stored = readDetails()[id];
-	// The checks section iterates `items`; an entry written before that field existed crashed the
-	// whole pane, and would have gone on crashing until somebody cleared their storage.
 	if (!stored || typeof stored.title !== "string") return null;
-	if (stored.checks && !Array.isArray(stored.checks.items)) return null;
 	return stored;
 }
 

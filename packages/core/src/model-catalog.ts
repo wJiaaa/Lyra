@@ -184,7 +184,7 @@ export function catalogModelFor(
 	return null;
 }
 
-export function catalogPricing(providerId: string, model: CatalogModel): ModelPricing | undefined {
+export function catalogPricing(model: CatalogModel): ModelPricing | undefined {
 	if (!priced(model)) return undefined;
 	return {
 		input: model.inputPrice!,
@@ -193,14 +193,11 @@ export function catalogPricing(providerId: string, model: CatalogModel): ModelPr
 		cacheWrite: model.cacheWritePrice,
 		tiers: model.tiers,
 		source: "catalog",
-		catalogProvider: providerId,
-		catalogModel: model.id,
-		catalogVersion: modelCatalogVersion(),
 	};
 }
 
 /** 一个目录条目要填进模型配置的值。输出上限不超过窗口；全零价格的订阅制条目不填价格。 */
-export function catalogFill(providerId: string, model: CatalogModel): CatalogFill {
+export function catalogFill(model: CatalogModel): CatalogFill {
 	return {
 		contextWindow: model.contextWindow,
 		maxOutputTokens: Math.min(model.maxOutputTokens, model.contextWindow),
@@ -209,6 +206,6 @@ export function catalogFill(providerId: string, model: CatalogModel): CatalogFil
 		supportsImages: model.supportsImages,
 		// pi 的目录只收编码代理用的对话模型，都能调工具，所以没有这一项。
 		supportsTools: true,
-		pricing: catalogPricing(providerId, model),
+		pricing: catalogPricing(model),
 	};
 }

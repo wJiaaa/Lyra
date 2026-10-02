@@ -21,7 +21,7 @@ import { applyRecord, persistedPayload, recordKind } from "./apply-record.ts";
 import { beforeSessionDbClose, closeSessionDb, sessionDb, transaction } from "./db.ts";
 import { interruptedResult, openRound, type CallPhase, type LiveCall } from "./live-calls.ts";
 import { assemblePartial, flushPendingPartials, type PartialPiece } from "./partial.ts";
-import { materializeJsonlLine, parkRecordPayload, rehydrateMessages } from "./payload.ts";
+import { parkRecordPayload, rehydrateMessages, slimJsonlLine } from "./payload.ts";
 import { REPLAY_KINDS, replayRecords } from "./replay-records.ts";
 import { auxiliaryCall, spendOf, type SpendEntry, type SpendRow } from "./spend.ts";
 import type { ActiveDay, SessionStorage } from "./storage.ts";
@@ -214,7 +214,7 @@ export class SessionStore implements SessionStorage {
 			const rows = page.all(sessionId, after, READ_PAGE) as { seq: number; body: string }[];
 			for (const row of rows) {
 				after = row.seq;
-				yield JSON.parse(options?.display ? materializeJsonlLine(row.body) : row.body) as SessionRecord;
+				yield JSON.parse(options?.display ? slimJsonlLine(row.body) : row.body) as SessionRecord;
 			}
 			if (rows.length < READ_PAGE) return;
 		}
@@ -241,7 +241,7 @@ export class SessionStore implements SessionStorage {
 	private replay(sessionId: string, display: boolean) {
 		const marks = REPLAY_KINDS.map(() => "?").join(", ");
 		const rows = this.db.prepare(`SELECT body FROM records WHERE session_id = ? AND kind IN (${marks}) ORDER BY seq`).all(sessionId, ...REPLAY_KINDS) as { body: string }[];
-		return replayRecords(rows.map((row) => JSON.parse(display ? materializeJsonlLine(row.body) : row.body) as SessionRecord));
+		return replayRecords(rows.map((row) => JSON.parse(display ? slimJsonlLine(row.body) : row.body) as SessionRecord));
 	}
 
 	async load(

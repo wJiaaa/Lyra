@@ -260,8 +260,6 @@ describe("dayTotals", () => {
 			days: [day("2026-09-01", 2, 10)],
 			buckets: [bucket("2026-09-01", "relay/m", { input: 100, cacheRead: 50, cost: 0.5 })],
 			scanned: 1,
-			cached: 0,
-			tookMs: 1,
 		} as UsageScan;
 		const [totals] = dayTotals(scan);
 		assert.equal(totals.messages, 10);
@@ -271,7 +269,7 @@ describe("dayTotals", () => {
 	});
 
 	it("a day with tokens but no message record still appears", () => {
-		const scan = { days: [], buckets: [bucket("2026-09-01", "relay/m", { input: 7 })], scanned: 0, cached: 0, tookMs: 0 } as UsageScan;
+		const scan = { days: [], buckets: [bucket("2026-09-01", "relay/m", { input: 7 })], scanned: 0 } as UsageScan;
 		assert.equal(dayTotals(scan)[0]?.tokens, 7);
 	});
 });
@@ -286,8 +284,6 @@ describe("summarise", () => {
 			bucket("2026-09-02", "relay/new", { input: 10 }),
 		],
 		scanned: 3,
-		cached: 0,
-		tookMs: 5,
 	} as UsageScan;
 
 	it("a range excludes what is outside it, including from the ranking", () => {

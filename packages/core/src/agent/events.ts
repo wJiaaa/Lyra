@@ -26,8 +26,6 @@ export interface CommandRun {
  */
 export interface HookRun {
 	id: string;
-	/** 同一个事件上一起跑的那几条共用一个。 */
-	invocationId: string;
 	event: import("../hooks/config.ts").HookEventName;
 	source: import("../hooks/config.ts").HookScope;
 	command: string;
@@ -183,7 +181,7 @@ export type AgentEvent =
 	 * instead of having to have seen every event since it left.
 	 */
 	| { type: "subagents"; agents: SubAgentSummary[] }
-	| { type: "subagent_done"; id: string; steps: string[]; answer: string; status?: "done" | "failed" | "aborted"; error?: string }
+	| { type: "subagent_done"; id: string; steps: string[]; answer: string; status: "done" | "failed" | "aborted"; error?: string }
 	/**
 	 * History was summarised to fit the window.
 	 *

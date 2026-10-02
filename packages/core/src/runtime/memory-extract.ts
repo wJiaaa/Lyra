@@ -56,13 +56,6 @@ export interface ExtractionResult {
 	sessions: number;
 	/** Set when the pass did not run, with the reason. */
 	skipped?: string;
-	/**
-	 * 这几次会话里看出来的一段流程，已经写进待确认区。
-	 *
-	 * **待确认，不是已启用。** 一个自动生成的技能会改变这个 agent 以后的行为，而看到它生效的
-	 * 人多半不记得自己批准过什么——所以它先躺在 `.pending` 里等人点头。见 `managed-skills.ts`。
-	 */
-	proposedSkill?: string;
 }
 
 /**
@@ -344,8 +337,9 @@ export async function extractMemory(options: ExtractOptions): Promise<Extraction
 		 * 失败当没有：这一步是锦上添花，而记忆已经写下来了。让它把整次抽取拖失败，是拿一个
 		 * 可有可无的东西去赌一个有用的东西。
 		 */
-		const proposed = await proposeFromSessions(options).catch(() => null);
-		return { memory: clean, sessions: options.candidates.length, ...(proposed ? { proposedSkill: proposed } : {}) };
+		// What it proposes goes to `.pending`, not into use: see `managed-skills.ts`.
+		await proposeFromSessions(options).catch(() => null);
+		return { memory: clean, sessions: options.candidates.length };
 	} finally {
 		await release();
 	}

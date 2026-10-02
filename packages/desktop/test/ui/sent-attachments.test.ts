@@ -35,7 +35,7 @@ Object.defineProperty(window, "plume", {
 		host: "desktop",
 		platform: "darwin",
 		system: {
-			openTargets: async () => [{ id: "reveal", label: "在访达中显示", aliases: [] }],
+			openTargets: async () => [{ id: "reveal", label: "在访达中显示" }],
 			pathExists: async (path: string) => {
 				calls.exists.push(path);
 				return true;
@@ -47,7 +47,7 @@ Object.defineProperty(window, "plume", {
 		files: {
 			read: async (path: string) => {
 				calls.read.push(path);
-				return { text: "# 调研-UI 参考知识库\n", readOnly: true, truncated: false, bytes: 24, modifiedAt: 1 };
+				return { text: "# 调研-UI 参考知识库\n", readOnly: true, truncated: false, bytes: 24 };
 			},
 			mediaUrl: (path: string) => `ly-media://f/${encodeURIComponent(path)}`,
 		},

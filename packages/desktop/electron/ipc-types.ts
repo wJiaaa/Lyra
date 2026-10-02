@@ -23,8 +23,6 @@ import type {
 	RepoRef,
 	WorkflowRunStatus,
 	WorkflowRunSummary,
-	WorktreeCreateOptions,
-	WorktreeResult,
 } from "./git.ts";
 export type {
 	BranchList,
@@ -58,7 +56,6 @@ import type {
 	DiffHunk,
 	ExtensionDiagnostic,
 	ExtensionStats,
-	ForeignConfigLine,
 	InstallRecord,
 	LayerOverride,
 	McpBundle,
@@ -324,12 +321,6 @@ export interface PlumeApi {
 		clear(range: ClearRange): Promise<ClearResult>;
 	};
 	workspace: {
-		/**
-		 * 这个仓库里其他 AI 工具的配置，按「哪家 · 哪个目录 · 哪类 · 几条」——数字来自注册表实际
-		 * 读到的条目，不是目录在不在。`seen` 是这个项目里这条提示看过没有。
-		 */
-		foreignConfigs(cwd: string): Promise<{ lines: ForeignConfigLine[]; seen: boolean }>;
-		markForeignConfigsSeen(cwd: string): Promise<void>;
 		/** Show the project directory in the OS file manager. */
 		reveal(path: string): Promise<void>;
 		pick(): Promise<WorkspaceInfo | null>;
@@ -434,8 +425,6 @@ export interface PlumeApi {
 		 * stops it first and the row goes once the run has filed itself as aborted.
 		 */
 		dismiss(sessionId: string, id: string): Promise<"removed" | "stopping" | "unknown">;
-		/** Clear the finished ones and leave anything still running. Returns how many went. */
-		dismissFinished(sessionId: string): Promise<number>;
 	};
 	/**
 	 * The second conversation attached to a session: reads its transcript, writes nothing back.
@@ -878,7 +867,6 @@ export interface PlumeApi {
 				 */
 				session: number;
 				bounds: { x: number; y: number; width: number; height: number };
-				scaleFactor: number;
 				/** On-screen windows, front to back, in the overlay's own coordinates. Empty off macOS. */
 				windows?: { x: number; y: number; width: number; height: number; app: string }[];
 				/** Where the pointer was when the capture began, so the first highlight needs no movement. */
@@ -979,7 +967,7 @@ export interface PlumeApi {
 			kind: "skill",
 			winner: string,
 			loser: string,
-		): Promise<{ hunks: DiffHunk[]; added: number; removed: number; winner: string; loser: string }>;
+		): Promise<{ hunks: DiffHunk[]; added: number; removed: number }>;
 		/** 「改用那个」：让 `path` 这一份赢下 `kind:name`。返回写到了哪个文件。 */
 		prefer(kind: "skill", name: string, path: string): Promise<{ wroteTo: string }>;
 	};
@@ -1069,13 +1057,6 @@ export interface PlumeApi {
 		 */
 		findLocalCheckout(repo: string, candidates: string[]): Promise<string | null>;
 		/**
-		 * A GitHub account's avatar as a data URL, or null.
-		 *
-		 * Fetched in the main process on purpose: the renderer's CSP allows no remote images, and
-		 * widening it for a decoration would widen it for rendered comment bodies as well.
-		 */
-		avatar(login: string): Promise<string | null>;
-		/**
 		 * The same, for every face a list is about to draw.
 		 *
 		 * One call rather than one per row: the main process has most of them cached already, and
@@ -1094,9 +1075,7 @@ export interface PlumeApi {
 		/** Local and remote branches, for the composer's branch switcher. */
 		branches(cwd: string): Promise<BranchList>;
 		switchBranch(cwd: string, branch: string): Promise<{ ok: boolean; error?: string }>;
-		createWorktree(cwd: string, branch: string, options?: WorktreeCreateOptions): Promise<WorktreeResult>;
 		removeWorktree(cwd: string, worktreePath: string): Promise<{ ok: boolean; error?: string }>;
-		pruneWorktrees(cwd: string): Promise<{ ok: boolean; error?: string }>;
 		/**
 		 * How much is uncommitted, as three numbers.
 		 *
@@ -1104,8 +1083,6 @@ export interface PlumeApi {
 		 * session and re-runs after every turn, so it counts without building any diffs.
 		 */
 		stat(cwd: string): Promise<{ branch: string | null; added: number; removed: number; files: number }>;
-		/** Stage everything and commit it — the change the bar is counting. */
-		commit(cwd: string, message: string): Promise<{ ok: boolean; error?: string }>;
 
 		/* The Git panel's surface. Reading first, then the operations that write. */
 
@@ -1141,9 +1118,9 @@ export interface PlumeApi {
 		 * holding it. An `AbortSignal` cannot cross the IPC boundary, so the identity of the running
 		 * operation has to, and the renderer is the side that knows which button was pressed twice.
 		 *
-		 * They answer with `cancelled` and `timedOut` alongside `error` because the panel treats the
-		 * three differently: a cancellation says nothing, a timeout says so plainly, and a failure
-		 * gets whatever `explainGitFailure` made of git's own words.
+		 * They answer with `cancelled` alongside `error` because the panel treats them differently:
+		 * a cancellation says nothing, a timeout says so plainly, and a failure gets whatever
+		 * `explainGitFailure` made of git's own words.
 		 */
 		push(cwd: string, token?: string): Promise<RemoteResult>;
 		pull(cwd: string, token?: string): Promise<RemoteResult>;

@@ -288,34 +288,6 @@ test("dismissing something that is not there says so", () => {
 	assert.equal(registry.dismiss("nope"), "unknown");
 });
 
-test("clearing finished ones never touches what is still running", () => {
-	const { registry, dispatch } = harness();
-	const alive = dispatch("running");
-	dispatch("done");
-	registry.finish("done", { status: "done", answer: "" });
-	dispatch("failed");
-	registry.finish("failed", { status: "failed", error: "x" });
-
-	assert.equal(registry.dismissFinished(), 2);
-
-	assert.deepEqual(
-		registry.list().map((one) => one.id),
-		["running"],
-	);
-	assert.equal(alive.aborted, false, "clearing a list is not a way to stop work");
-});
-
-test("clearing when there is nothing finished changes nothing and announces nothing", () => {
-	// `onChange` re-broadcasts the roster to every window; firing it for a no-op is a re-render for
-	// nothing, on a path that can be hit repeatedly.
-	const { registry, dispatch, changes } = harness();
-	dispatch("s1");
-	const before = changes();
-
-	assert.equal(registry.dismissFinished(), 0);
-	assert.equal(changes(), before);
-});
-
 test("a dismissed sub-agent cannot be steered or stopped afterwards", () => {
 	// Its record is gone, so both levers are gone with it — and both have to say so rather than
 	// pretending to have worked.

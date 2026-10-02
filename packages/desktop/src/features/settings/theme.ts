@@ -117,18 +117,18 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * 它都比它坐着的那张纸深一档。`--ly-code-bg-soft` 的 5% 是同一个思路，那是给整片区域用的，
 	 * 这里是一小块，所以重一点。
 	 */
-	const inlineMode = appearance.inlineCode ?? "app";
+	const inlineMode = appearance.inlineCode;
 	const inlineFg =
 		inlineMode === "syntax"
 			? codeInk
 			: inlineMode === "custom"
-				? ((dark ? appearance.inlineCodeDarkFg : appearance.inlineCodeLightFg) ?? toHex(foreground))
+				? (dark ? appearance.inlineCodeDarkFg : appearance.inlineCodeLightFg)
 				: toHex(foreground);
 	const inlineBg =
 		inlineMode === "syntax"
 			? `color-mix(in srgb, ${codeInk} 8%, ${codeSurface})`
 			: inlineMode === "custom"
-				? ((dark ? appearance.inlineCodeDarkBg : appearance.inlineCodeLightBg) ?? veil(dark ? 0.062 : 0.05))
+				? (dark ? appearance.inlineCodeDarkBg : appearance.inlineCodeLightBg)
 				: veil(dark ? 0.062 : 0.05);
 
 	const tokens: Record<string, string> = {
@@ -180,14 +180,9 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 * 走变量而不是走属性，是因为 `rows` 只有 textarea 有，而这条高度还要管到浮在它上面的
 		 * 高亮镜像层；也因为改一次设置就该立刻看见，不必等下一次按键把高度重算一遍。
 		 */
-		/*
-		 * How code is set, beyond the family.
-		 *
-		 * Fallbacks rather than `??` on the settings object: these fields were added after the fact,
-		 * and a settings file written before they existed has to keep rendering the way it did.
-		 */
-		"--ly-code-line-height": String(appearance.codeLineHeight ?? 1.6),
-		"--ly-code-tracking": `${appearance.codeLetterSpacing ?? 0}em`,
+		// How code is set, beyond the family.
+		"--ly-code-line-height": String(appearance.codeLineHeight),
+		"--ly-code-tracking": `${appearance.codeLetterSpacing}em`,
 		/*
 		 * The surface code is drawn on, which the theme has always declared and nothing ever read.
 		 *
@@ -312,14 +307,14 @@ export function applyAppearance(input: AppearanceSettings): void {
 	root.dataset.pointerCursor = String(appearance.pointerCursor);
 	root.dataset.fontSmoothing = String(appearance.fontSmoothing);
 	root.dataset.reduceMotion = appearance.reduceMotion;
-	root.dataset.callChain = appearance.callChain ?? "collapsed";
+	root.dataset.callChain = appearance.callChain;
 	/*
 	 * 毛玻璃只有 preload 打过标记的窗口才有（macOS 主窗口），这里只跟着设置切 on / off；
 	 * 窗口那一层的材质由主进程在设置变化时换。关掉时 `<html>` 回到主题底色，开着时必须透明，
 	 * 不然一层实色盖在材质上。
 	 */
 	if (root.dataset.vibrancy) {
-		const vibrant = appearance.vibrancy !== false;
+		const vibrant = appearance.vibrancy;
 		root.dataset.vibrancy = vibrant ? "on" : "off";
 		root.style.background = vibrant ? "transparent" : "var(--color-shell)";
 	}

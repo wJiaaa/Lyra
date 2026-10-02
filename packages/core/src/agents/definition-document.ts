@@ -21,7 +21,6 @@ export interface AgentDefinitionRecord {
 	customized: boolean;
 	revision: string;
 	raw: string;
-	shadowedSources: string[];
 }
 
 export interface AgentDefinitionSave {

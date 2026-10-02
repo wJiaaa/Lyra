@@ -115,8 +115,6 @@ export interface FileContents {
 	bytes: number;
 	/** Set instead of `text` when the bytes are not text at all. */
 	binary?: boolean;
-	/** Last-modified time, so an editor can notice the file changed underneath it. */
-	modifiedAt: number;
 }
 
 export interface AgentCapabilities {
@@ -282,8 +280,6 @@ export interface PullRequestCheck {
  */
 export interface PluginUpdateState {
 	outdated: { id: string; name: string; version?: string; from: string }[];
-	/** 上次读市场索引的时刻；启动后还没看过是 null。 */
-	checkedAt: number | null;
 	/** 自动更新开着没有（设置里的 `autoUpdatePlugins`，缺省为开）。 */
 	auto: boolean;
 	updating: string[];

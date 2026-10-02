@@ -546,24 +546,6 @@ export class SubAgentRegistry {
 		return "removed";
 	}
 
-	/**
-	 * Take every finished one off, leaving whatever is still running.
-	 *
-	 * What the bar's own dismiss does: the roster is a record of this conversation's delegated work
-	 * and at some point you are done reading it. Never touches a running sub-agent — clearing the
-	 * list is not a way to stop things.
-	 */
-	dismissFinished(): number {
-		let removed = 0;
-		for (const [id, record] of this.records) {
-			if (isActive(record.status)) continue;
-			this.records.delete(id);
-			removed += 1;
-		}
-		if (removed > 0) this.onChange();
-		return removed;
-	}
-
 	/** Everything still running, for a session being torn down. */
 	abortAll(): void {
 		for (const record of this.records.values()) {

@@ -17,16 +17,8 @@ export interface MemoryEntry {
 }
 
 export interface MemoryStore {
-	version: 1;
 	entries: MemoryEntry[];
-	lastUpdatedAt: number;
 }
-
-const DEFAULT_MEMORY_STORE: MemoryStore = {
-	version: 1,
-	entries: [],
-	lastUpdatedAt: Date.now(),
-};
 
 export function memoryPath(): string {
 	return join(plumeHome(), "memory.json");
@@ -35,16 +27,12 @@ export function memoryPath(): string {
 export async function loadMemory(): Promise<MemoryStore> {
 	const p = memoryPath();
 	const raw = await readFile(p, "utf8").catch(() => null);
-	if (!raw) return { ...DEFAULT_MEMORY_STORE, entries: [] };
+	if (!raw) return { entries: [] };
 	try {
 		const parsed = JSON.parse(raw) as Partial<MemoryStore>;
-		return {
-			version: 1,
-			entries: Array.isArray(parsed.entries) ? parsed.entries : [],
-			lastUpdatedAt: parsed.lastUpdatedAt ?? Date.now(),
-		};
+		return { entries: Array.isArray(parsed.entries) ? parsed.entries : [] };
 	} catch {
-		return { ...DEFAULT_MEMORY_STORE, entries: [] };
+		return { entries: [] };
 	}
 }
 
@@ -70,15 +58,7 @@ export function invalidateMemorySnapshots(): void {
 export async function saveMemory(store: MemoryStore): Promise<void> {
 	const p = memoryPath();
 	await mkdir(dirname(p), { recursive: true });
-	const data = JSON.stringify(
-		{
-			version: 1,
-			entries: store.entries,
-			lastUpdatedAt: Date.now(),
-		},
-		null,
-		2,
-	);
+	const data = JSON.stringify({ entries: store.entries }, null, 2);
 	await writeFile(p, data, "utf8");
 	invalidateMemorySnapshots();
 }
@@ -112,11 +92,7 @@ export async function removeMemoryEntry(id: string): Promise<boolean> {
 }
 
 export async function clearAllMemory(): Promise<void> {
-	await saveMemory({
-		version: 1,
-		entries: [],
-		lastUpdatedAt: Date.now(),
-	});
+	await saveMemory({ entries: [] });
 }
 
 /** Formats memory entries for insertion into the agent's system prompt. */

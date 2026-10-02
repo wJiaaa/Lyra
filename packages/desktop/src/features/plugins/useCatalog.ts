@@ -31,11 +31,8 @@ export interface Catalog {
 	errors: { url: string; message: string }[];
 	diagnostics: PluginDiagnostic[];
 	loading: boolean;
-	localLoading: boolean;
 	/** Configured registry URLs, so an empty page can tell the difference from an empty registry. */
 	sources: string[];
-	/** When the registries last answered, for 「刚刚更新」 beside the refresh button. */
-	fetchedAt: number | null;
 	refresh: () => void;
 }
 
@@ -97,7 +94,6 @@ export function useCatalog(cwd: string): Catalog {
 	const [remote, setRemote] = useState<{ from: string; entry: RegistryEntry }[]>(() => seen.get(urlsKeyOf(settings))?.remote ?? []);
 	const [errors, setErrors] = useState<{ url: string; message: string }[]>(() => seen.get(urlsKeyOf(settings))?.errors ?? []);
 	const [loading, setLoading] = useState(() => !seen.has(urlsKeyOf(settings)));
-	const [fetchedAt, setFetchedAt] = useState<number | null>(() => seen.get(urlsKeyOf(settings))?.at ?? null);
 	/*
 	 * Bumped by 刷新, and the only thing that makes the fetch ignore the cache.
 	 *
@@ -158,9 +154,7 @@ export function useCatalog(cwd: string): Catalog {
 			const failures = results.flatMap((result, i) => (result.ok ? [] : [{ url: urls[i], message: result.message }]));
 			setErrors(failures);
 			setLoading(false);
-			const at = stale ? 0 : Date.now();
-			if (!stale) setFetchedAt(at);
-			seen.set(urlsKey, { remote: entries, errors: failures, at });
+			seen.set(urlsKey, { remote: entries, errors: failures, at: stale ? 0 : Date.now() });
 		};
 		void (async () => {
 			/*
@@ -297,9 +291,7 @@ export function useCatalog(cwd: string): Catalog {
 		errors,
 		diagnostics: local.diagnostics,
 		loading: loading || localLoading,
-		localLoading,
 		sources: urls,
-		fetchedAt,
 		refresh,
 	};
 }

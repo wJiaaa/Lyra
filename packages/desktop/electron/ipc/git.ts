@@ -7,19 +7,17 @@
  */
 
 import { ipcMain } from "electron";
-import { avatarsFor, githubAvatar } from "../avatars.ts";
+import { avatarsFor } from "../avatars.ts";
 import { findLocalCheckout } from "../git-remote.ts";
 import { generalScratchDir, type PrBrief, prScratchDir, scratchRoots, writePrBrief } from "../scratch.ts";
 import {
 	collectWorkspaceDiff,
 	readDiffBlob,
 	type DiffBlob,
-	commitAll,
 	commitDiff,
 	commitDiffSummary,
 	commitStaged,
 	createBranch,
-	createWorktree,
 	deleteBranch,
 	diffRefs,
 	gitLog,
@@ -28,7 +26,6 @@ import {
 	listBranches,
 	listRepos,
 	listWorktrees,
-	pruneWorktrees,
 	pullBranch,
 	pushBranch,
 	fetchRemotes,
@@ -37,7 +34,6 @@ import {
 	removeWorktree,
 	stagePaths,
 	switchBranch,
-	type WorktreeCreateOptions,
 	discardPaths,
 	unstagePaths,
 	workspaceStat,
@@ -137,10 +133,6 @@ export function registerGitIpc({ insideAProject }: GitIpcDeps): void {
 		return switchBranch(cwd, branch);
 	});
 
-	ipcMain.handle("git:createWorktree", async (_event, cwd: string, branch: string, options?: WorktreeCreateOptions) => {
-		if (!insideAProject(cwd)) return { ok: false, error: "该目录不在已打开的项目内" };
-		return createWorktree(cwd, branch, options);
-	});
 	ipcMain.handle("git:removeWorktree", async (_event, cwd: string, worktreePath: string) => {
 		// 两个路径都要问：`cwd` 决定问哪个仓库，`worktreePath` 是真正会被删掉的那个。
 		if (!insideAProject(cwd) || !insideAProject(worktreePath)) {
@@ -148,20 +140,8 @@ export function registerGitIpc({ insideAProject }: GitIpcDeps): void {
 		}
 		return removeWorktree(cwd, worktreePath);
 	});
-	ipcMain.handle("git:pruneWorktrees", async (_event, cwd: string) => {
-		if (!insideAProject(cwd)) return { ok: false, error: "该目录不在已打开的项目内" };
-		return pruneWorktrees(cwd);
-	});
 
 	ipcMain.handle("git:stat", async (_event, cwd: string) => workspaceStat(cwd));
-
-	ipcMain.handle("git:commit", async (_event, cwd: string, message: string) => {
-		// Same boundary as reading and writing files. Committing is the most consequential thing
-		// the renderer can ask for — it stages everything under a directory — so it is the last
-		// place to leave unchecked.
-		if (!insideAProject(cwd)) return { ok: false, error: "该目录不在已打开的项目内" };
-		return commitAll(cwd, message);
-	});
 
 	ipcMain.handle("git:repos", async (_event, root: string) => listRepos(root));
 
@@ -303,15 +283,9 @@ export function registerGitIpc({ insideAProject }: GitIpcDeps): void {
 	ipcMain.handle("scratch:general", async () => generalScratchDir());
 
 	/*
-	 * An avatar as a data URL, so the renderer never reaches out to github.com itself.
-	 *
-	 * Keeping the page's CSP narrow is worth one IPC round trip: widening `img-src` for a 20pt
-	 * circle would widen it for every rendered comment body too.
-	 */
-	ipcMain.handle("git:avatar", async (_event, login: string) => githubAvatar(login));
-
-	/*
-	 * The same thing for a whole list, which is how the pull request pane asks.
+	 * Avatars as data URLs, so the renderer never reaches out to github.com itself: widening `img-src`
+	 * for a 20pt circle would widen it for every rendered comment body too. A whole list per call,
+	 * which is how the pull request pane asks.
 	 *
 	 * Capped rather than trusted. The renderer decides how many names to send, and a list that
 	 * somehow grew unbounded would otherwise become an unbounded number of outbound requests — the

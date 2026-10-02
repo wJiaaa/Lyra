@@ -91,7 +91,6 @@ export interface Usage {
 		total: number;
 		/** How these dollar values were obtained. Absent on logs written before this field existed. */
 		source?: "manual" | "catalog" | "provider" | "mixed";
-		catalogVersion?: string;
 		/** The selected rates are stored so later catalogue updates cannot rewrite history. */
 		rates?: {
 			input: number;
@@ -125,7 +124,6 @@ export function addUsage(a: Usage, b: Usage): Usage {
 	const first = isEmptyUsage(a) ? b.cost : a.cost;
 	const second = isEmptyUsage(b) ? a.cost : b.cost;
 	const source = first.source === second.source ? first.source : "mixed";
-	const catalogVersion = first.catalogVersion === second.catalogVersion ? first.catalogVersion : undefined;
 	const sameRates =
 		first.rates !== undefined &&
 		second.rates !== undefined &&
@@ -147,7 +145,6 @@ export function addUsage(a: Usage, b: Usage): Usage {
 			cacheWrite: a.cost.cacheWrite + b.cost.cacheWrite,
 			total: a.cost.total + b.cost.total,
 			...(source !== undefined ? { source } : {}),
-			...(catalogVersion !== undefined ? { catalogVersion } : {}),
 			...(sameRates ? { rates: first.rates } : {}),
 		},
 	};

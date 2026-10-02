@@ -107,7 +107,6 @@ async function dispatch(options: {
 		{ description: "找登录入口", prompt: "去找", agentType: "general" },
 		PROVIDER,
 		MODEL,
-		"# Environment\ncwd: /tmp\n",
 	);
 
 	return { registry, events, answer, turns: turn };
@@ -190,7 +189,6 @@ test("a message steered mid-run reaches the sub-agent's own history", async () =
 		{ description: "找登录入口", prompt: "去找", agentType: "general" },
 		PROVIDER,
 		MODEL,
-		"",
 	);
 
 	assert.deepEqual(seen[0], ["去找"], "the first request is just the dispatch prompt");
@@ -229,7 +227,6 @@ test("a run that throws is marked failed, not left running", async () => {
 			{ description: "会炸的活", prompt: "去", agentType: "general" },
 			PROVIDER,
 			MODEL,
-			"",
 		),
 	);
 

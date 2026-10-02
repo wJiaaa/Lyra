@@ -173,37 +173,7 @@ export function revealLabel(platform: string = process.platform): string {
 	return REVEAL_LABEL[platform] ?? "文件管理器";
 }
 
-/**
- * The names the setting used to store, mapped onto ids.
- *
- * Only ever grows: an old value is a choice somebody made, and dropping it silently would move
- * them to whatever the default is without saying so. 「Finder」 lands on `reveal` because that is
- * what choosing it was always meant to do.
- */
-export const ALIASES: Record<string, string> = {
-	finder: "reveal",
-	explorer: "reveal",
-	files: "reveal",
-	"visual studio code": "vscode",
-	code: "vscode",
-	"vs code": "vscode",
-	cursor: "cursor",
-	zed: "zed",
-	"sublime text": "sublime",
-	xcode: "xcode",
-	terminal: "terminal",
-	iterm: "iterm",
-	"iterm2": "iterm",
-	ghostty: "ghostty",
-	"windows terminal": "windows-terminal",
-	notepad: "notepad",
-	"notepad++": "notepadpp",
-};
-
 /** An id, from whatever the settings happen to hold. */
 export function resolveTargetId(stored: string | undefined | null): string {
-	const value = (stored ?? "").trim();
-	if (!value) return "reveal";
-	if (value === "reveal") return "reveal";
-	return ALIASES[value.toLowerCase()] ?? value;
+	return (stored ?? "").trim() || "reveal";
 }

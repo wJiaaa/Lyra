@@ -34,9 +34,8 @@ export function useReadme(item: CatalogItem): ReadmeResult {
 		if (known !== undefined) return setResult({ key, value: known });
 		setResult({ key, value: undefined });
 		let alive = true;
-		// Optional: a main process from before this existed simply has no README to give.
-		const asked = bridge.plugins.readme?.(JSON.parse(key) as typeof query) ?? Promise.resolve(null);
-		void asked
+		void bridge.plugins
+			.readme(JSON.parse(key) as typeof query)
 			.then((answer) => {
 				const value = answer && answer.markdown.trim() ? answer : null;
 				KNOWN.set(key, value);

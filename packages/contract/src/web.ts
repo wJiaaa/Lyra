@@ -46,7 +46,6 @@ export const WEB_METHODS: ReadonlySet<string> = new Set([
 	"subAgents.steer",
 	"subAgents.abort",
 	"subAgents.dismiss",
-	"subAgents.dismissFinished",
 	"sideChat.setModel",
 	"sideChat.state",
 	"sideChat.ask",

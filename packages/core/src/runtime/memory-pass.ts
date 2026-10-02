@@ -48,7 +48,7 @@ export type PassVerdict = { run: true } | { run: false; reason: "never-asked" | 
  * 「问过、拒绝了」和「还没问过」对界面来说是完全相反的两件事。
  */
 export function shouldRunPass(settings: Settings, lastRunAt: number | null, now = Date.now()): PassVerdict {
-	if ((settings.personalization?.enableProjectMemory ?? settings.personalization?.enableMemory) === false) return { run: false, reason: "declined" };
+	if (settings.personalization?.enableProjectMemory === false) return { run: false, reason: "declined" };
 	if (settings.memoryExtraction === undefined) return { run: false, reason: "never-asked" };
 	if (settings.memoryExtraction === false) return { run: false, reason: "declined" };
 	if (lastRunAt !== null && now - lastRunAt < PASS_INTERVAL_MS) return { run: false, reason: "too-soon" };

@@ -140,9 +140,7 @@ export function sameIdentity(a: Pick<ForgeAccount, "kind" | "baseUrl" | "login">
  * otherwise become an account that fails every request forever, silently.
  */
 export function parseAccounts(raw: unknown): ForgeAccount[] {
-	const list = Array.isArray(raw) ? raw : Array.isArray((raw as { accounts?: unknown })?.accounts)
-		? (raw as { accounts: unknown[] }).accounts
-		: [];
+	const list = Array.isArray(raw) ? raw : [];
 
 	const out: ForgeAccount[] = [];
 	for (const entry of list) {
@@ -163,9 +161,7 @@ export function parseAccounts(raw: unknown): ForgeAccount[] {
 			login,
 			label: (typeof item.label === "string" ? item.label.trim() : "") || defaultLabel({ login, name: login, avatarUrl: null }),
 			avatarUrl: typeof item.avatarUrl === "string" ? item.avatarUrl : null,
-			addedAt: typeof item.addedAt === "number" ? item.addedAt : 0,
-			// Absent means on. A file written before this field existed should not arrive silent.
-			enabled: item.enabled !== false,
+			enabled: item.enabled === true,
 			...(typeof item.lastError === "string" && item.lastError ? { lastError: item.lastError } : {}),
 		});
 	}

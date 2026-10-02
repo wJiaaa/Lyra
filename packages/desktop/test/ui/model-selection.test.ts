@@ -39,7 +39,7 @@ test("configuration picker shares favourites/search and never selects the active
 
 test("a failed role save leaves the explicit unavailable model visible", async () => {
 	const original = useApp.getState().saveSettings;
-	Object.defineProperty(window, "plume", { configurable: true, value: { agentDefinitions: { list: async () => ({ records: BUILTIN_AGENTS.map(definition => ({ definition, id: definition.name, scope: "builtin", editable: true, customized: false, revision: "1", raw: "", shadowedSources: [] })), tools: [] }) } } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { agentDefinitions: { list: async () => ({ records: BUILTIN_AGENTS.map(definition => ({ definition, id: definition.name, scope: "builtin", editable: true, customized: false, revision: "1", raw: "" })), tools: [] }) } } });
 	/*
 	 * 给一个具体的智能体钉死一个不存在的模型，而不是借道同名的模型角色。
 	 *

@@ -55,7 +55,7 @@ async function seed(home: string): Promise<void> {
 			pluginRegistries: [],
 			skillRegistries: [],
 			alwaysAllow: [],
-			editor: { defaultOpenTarget: "Zed", showBottomPanel: true },
+			editor: { defaultOpenTarget: "zed", showBottomPanel: true },
 			appearance: { theme: process.env.PLUME_SHOT_THEME === "light" ? "light" : "dark" },
 		}),
 	);

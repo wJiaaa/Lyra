@@ -113,9 +113,6 @@ export async function unseal(sealed: string): Promise<string | null> {
 	}
 }
 
-/** Whether a stored value is one of ours, or a plaintext secret from a build that predates this. */
-export const isSealed = (value: string): boolean => value.startsWith("v1:");
-
 // ---------------------------------------------------------------------------
 // The store the secrets live in
 // ---------------------------------------------------------------------------
@@ -123,7 +120,6 @@ export const isSealed = (value: string): boolean => value.startsWith("v1:");
 const FILE = () => join(plumeHome(), "credentials.json");
 
 interface VaultFile {
-	version: 1;
 	/** Sealed values, by an opaque key the caller chooses — `provider:<id>`, `forge:<id>`. */
 	secrets: Record<string, string>;
 }
@@ -133,16 +129,16 @@ let loaded: VaultFile | null = null;
 async function read(): Promise<VaultFile> {
 	if (loaded) return loaded;
 	const raw = await readFile(FILE(), "utf8").catch(() => null);
-	if (!raw) return (loaded = { version: 1, secrets: {} });
+	if (!raw) return (loaded = { secrets: {} });
 	try {
 		const parsed = JSON.parse(raw) as { secrets?: unknown };
 		const secrets: Record<string, string> = {};
 		for (const [id, value] of Object.entries(parsed.secrets ?? {})) {
 			if (typeof value === "string") secrets[id] = value;
 		}
-		return (loaded = { version: 1, secrets });
+		return (loaded = { secrets });
 	} catch {
-		return (loaded = { version: 1, secrets: {} });
+		return (loaded = { secrets: {} });
 	}
 }
 
@@ -180,7 +176,7 @@ export async function putSecrets(entries: Record<string, string>): Promise<void>
 		if (value) secrets[id] = await seal(value);
 		else delete secrets[id];
 	}
-	await write({ version: 1, secrets });
+	await write({ secrets });
 }
 
 /** Drop everything filed under ids this predicate rejects — used to forget removed providers. */
@@ -188,5 +184,5 @@ export async function keepSecrets(keep: (id: string) => boolean): Promise<void> 
 	const file = await read();
 	const secrets: Record<string, string> = {};
 	for (const [id, value] of Object.entries(file.secrets)) if (keep(id)) secrets[id] = value;
-	if (Object.keys(secrets).length !== Object.keys(file.secrets).length) await write({ version: 1, secrets });
+	if (Object.keys(secrets).length !== Object.keys(file.secrets).length) await write({ secrets });
 }

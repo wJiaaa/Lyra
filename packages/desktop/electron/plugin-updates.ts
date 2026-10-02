@@ -52,7 +52,7 @@ interface Offer {
 }
 
 export function startPluginUpdates(deps: PluginUpdatesDeps): PluginUpdates {
-	let current: PluginUpdateState = { outdated: [], checkedAt: null, auto: autoOf(deps.settings()), updating: [], failed: [], revision: 0 };
+	let current: PluginUpdateState = { outdated: [], auto: autoOf(deps.settings()), updating: [], failed: [], revision: 0 };
 	let offers: Offer[] = [];
 	let running: Promise<PluginUpdateState> | null = null;
 	let stopped = false;
@@ -129,12 +129,8 @@ export function startPluginUpdates(deps: PluginUpdatesDeps): PluginUpdates {
 	const check = (force = false) =>
 		serial(async () => {
 			await read(force, force ? undefined : CHECK_MAX_AGE_MS);
-			const checkedAt = Date.now();
-			if (autoOf(deps.settings())) {
-				current = { ...current, checkedAt };
-				return apply(null);
-			}
-			return announce(await tally({ checkedAt }));
+			if (autoOf(deps.settings())) return apply(null);
+			return announce(await tally());
 		});
 
 	const first = setTimeout(() => void check().catch(() => undefined), FIRST_CHECK_MS);

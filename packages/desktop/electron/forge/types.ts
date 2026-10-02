@@ -42,7 +42,6 @@ export interface ForgeAccount {
 	baseUrl: string;
 	login: string;
 	avatarUrl: string | null;
-	addedAt: number;
 	/**
 	 * Off means "skip me", not "forget me".
 	 *
@@ -107,8 +106,6 @@ export interface ForgeKindInfo {
 	scopes: string;
 	/** One line about what is different here, shown under the name while choosing. */
 	note: string;
-	/** Whether a self-hosted address is the normal case rather than the exception. */
-	selfHosted: boolean;
 }
 
 export const FORGE_KINDS: ForgeKindInfo[] = [
@@ -119,7 +116,6 @@ export const FORGE_KINDS: ForgeKindInfo[] = [
 		tokenUrl: "https://github.com/settings/tokens/new?scopes=repo,read:org,read:user&description=Plume",
 		scopes: "repo · read:org · read:user",
 		note: "GitHub Enterprise 填自己的地址即可，接口一样。",
-		selfHosted: false,
 	},
 	{
 		kind: "gitlab",
@@ -128,7 +124,6 @@ export const FORGE_KINDS: ForgeKindInfo[] = [
 		tokenUrl: "https://gitlab.com/-/user_settings/personal_access_tokens?name=Plume&scopes=api",
 		scopes: "api",
 		note: "自建 GitLab 把地址换成你的域名，路径 /api/v4 由应用自己补。",
-		selfHosted: true,
 	},
 	{
 		kind: "gitee",
@@ -137,7 +132,6 @@ export const FORGE_KINDS: ForgeKindInfo[] = [
 		tokenUrl: "https://gitee.com/personal_access_tokens/new",
 		scopes: "projects · pull_requests · user_info",
 		note: "Gitee 没有跨仓库的 PR 搜索，应用会扫描你最近推送过的仓库。",
-		selfHosted: false,
 	},
 	{
 		kind: "gitea",
@@ -146,6 +140,5 @@ export const FORGE_KINDS: ForgeKindInfo[] = [
 		tokenUrl: "",
 		scopes: "read:user · read:repository · write:issue · write:repository",
 		note: "自建为主。填服务地址，例如 https://git.example.com。",
-		selfHosted: true,
 	},
 ];

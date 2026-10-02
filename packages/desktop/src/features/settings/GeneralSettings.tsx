@@ -129,8 +129,8 @@ export function GeneralSettings() {
 			detail={t("general.fileTargetDetail")}
           control={
             <InlineSelect
-              // The stored value may predate the ids, or name an application this machine does
-              // not have; either way the control shows what was chosen rather than jumping.
+              // The stored value may name an application this machine does not have; the control
+              // shows what was chosen rather than jumping.
               value={current.id}
               onChange={(defaultOpenTarget) =>
                 patch({ editor: { ...settings.editor, defaultOpenTarget } })

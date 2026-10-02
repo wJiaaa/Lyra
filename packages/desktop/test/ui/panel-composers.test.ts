@@ -197,7 +197,7 @@ test("重新开始一段侧边聊天，排着的那几句不跟过去", async ()
 
 test("侧边聊天的队伍是同一条条：没有「插进这一轮」，编辑直接是一个按钮", async () => {
 	const taken: string[] = [];
-	const items = [{ id: "q1", content: [{ type: "text" as const, text: "排着的" }], draft: { text: "排着的", attachments: [], sessionRefs: [] }, preview: "排着的", queuedAt: 1 }];
+	const items = [{ id: "q1", content: [{ type: "text" as const, text: "排着的" }], draft: { text: "排着的", attachments: [], sessionRefs: [] }, preview: "排着的" }];
 	const view = await mount(h(QueueList, { source: { items, drop: (id: string) => items.find((one) => one.id === id) ?? null, move: () => {} }, running: true, onEdit: (entry) => taken.push(entry.draft.text) }));
 	try {
 		assert.equal(view.all("[data-queue-row]").length, 1);

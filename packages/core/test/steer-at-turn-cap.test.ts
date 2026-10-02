@@ -72,7 +72,6 @@ test("子代理：检查点那一轮收尾时的插话，接着跑一段送进�
 		{ description: "d", prompt: "开始", agentType: "short" },
 		PROVIDER,
 		MODEL,
-		"",
 	);
 
 	assert.equal(sent.length, 2, "为那句插话多跑了一段");

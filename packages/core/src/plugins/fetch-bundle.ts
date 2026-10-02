@@ -40,8 +40,6 @@ const MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
 export interface FetchResult {
 	/** Which route actually worked, for the diagnostic the caller shows. */
 	via: "tarball" | "git";
-	/** Set when the tarball route was tried and failed, so the fallback can be explained. */
-	fellBackBecause?: string;
 	/**
 	 * The commit a clone actually checked out. The ledger records this, not the registry's, when the
 	 * files came from git — see `remember` in `registry.ts`.
@@ -79,7 +77,7 @@ export async function fetchBundle(entry: RegistryEntry, staging: string): Promis
 			 * has files in it fails with a message about the directory rather than about the download.
 			 */
 			await rm(staging, { recursive: true, force: true });
-			return { via: "git", fellBackBecause: because, ...(await fromGit(entry, staging)) };
+			return { via: "git", ...(await fromGit(entry, staging)) };
 		}
 	}
 

@@ -730,11 +730,6 @@ export class AgentSession {
 		return this.subAgents.dismiss(id);
 	}
 
-	/** Clear the finished ones, leaving anything still running. */
-	dismissFinishedSubAgents(): number {
-		return this.subAgents.dismissFinished();
-	}
-
 	/** Consume a durable opening message once, without appending a second copy. */
 	resumePendingPrompt(): Promise<void> {
 		if (this.pendingResume) return this.pendingResume;

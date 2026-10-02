@@ -172,7 +172,6 @@ export interface ToolContext {
 	 * to the default store on this disk.
 	 */
 	transcript?: () => Promise<Message[]>;
-	logger?: Logger;
 }
 
 export interface AskUserOption {
@@ -282,11 +281,4 @@ export interface Tool<TArgs = Record<string, unknown>> extends ToolSpec {
 	execute(args: TArgs, ctx: ToolContext): Promise<ToolResult>;
 	/** One-line summary shown in the UI while the tool runs. */
 	summarize?(args: TArgs): string;
-}
-
-export interface Logger {
-	debug(msg: string, meta?: unknown): void;
-	info(msg: string, meta?: unknown): void;
-	warn(msg: string, meta?: unknown): void;
-	error(msg: string, meta?: unknown): void;
 }

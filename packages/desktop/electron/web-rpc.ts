@@ -296,7 +296,6 @@ export const RPC: Record<string, Handler> = {
 	"subAgents.steer": async (deps, [sessionId, id, message]) => deps.live(s(sessionId))?.steerSubAgent(s(id), said(message)) ?? false,
 	"subAgents.abort": async (deps, [sessionId, id]) => deps.live(s(sessionId))?.abortSubAgent(s(id)) ?? false,
 	"subAgents.dismiss": async (deps, [sessionId, id]) => deps.live(s(sessionId))?.dismissSubAgent(s(id)) ?? "unknown",
-	"subAgents.dismissFinished": async (deps, [sessionId]) => deps.live(s(sessionId))?.dismissFinishedSubAgents() ?? 0,
 	"sideChat.setModel": async (deps, [sessionId, sideId, modelId]) => deps.sideChatSetModel(s(sessionId), s(sideId), modelId === null ? null : s(modelId)),
 	"sideChat.state": async (deps, [sessionId, sideId]) => deps.sideChatState(s(sessionId), s(sideId)),
 	"sideChat.ask": async (deps, [sessionId, sideId, content_, options]) => deps.sideChatAsk(s(sessionId), s(sideId), promptContent(content_), thinkingOnly(options)),
@@ -424,7 +423,6 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 		fail(all(str(sessionId, "sessionId"), str(id, "id"), content(message, "message"))),
 	"subAgents.abort": ([sessionId, id]) => fail(all(str(sessionId, "sessionId"), str(id, "id"))),
 	"subAgents.dismiss": ([sessionId, id]) => fail(all(str(sessionId, "sessionId"), str(id, "id"))),
-	"subAgents.dismissFinished": ([sessionId]) => fail(str(sessionId, "sessionId")),
 	"sideChat.setModel": ([sessionId, sideId, modelId]) => fail(all(str(sessionId, "sessionId"), str(sideId, "sideId"), nullableStr(modelId, "modelId"))),
 	"sideChat.state": ([sessionId, sideId]) => fail(all(str(sessionId, "sessionId"), str(sideId, "sideId"))),
 	"sideChat.ask": ([sessionId, sideId, content_, options]) =>

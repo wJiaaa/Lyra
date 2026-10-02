@@ -91,7 +91,6 @@ async function contextGivenTo(settings: Partial<Settings>): Promise<ToolContext>
 		{ description: "跑一下", prompt: "去", agentType: "general" },
 		PROVIDER,
 		MODEL,
-		"",
 	);
 
 	assert.ok(seen, "the probe tool never ran");
@@ -159,7 +158,6 @@ test("configured hooks see a delegated tool call", async () => {
 		{ description: "跑一下", prompt: "去", agentType: "general" },
 		PROVIDER,
 		MODEL,
-		"",
 	);
 
 	// With no hooks configured the call goes through, which is the baseline the wiring must not

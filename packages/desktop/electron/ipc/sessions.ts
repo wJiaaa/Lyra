@@ -349,11 +349,6 @@ export function registerSessionsIpc({
 		return session?.dismissSubAgent(id) ?? "unknown";
 	});
 
-	ipcMain.handle("subagents:dismissFinished", async (_event, sessionId: string) => {
-		const session = sessions.get(sessionId);
-		return session?.dismissFinishedSubAgents() ?? 0;
-	});
-
 	ipcMain.handle(
 		"agent:editMessage",
 		async (

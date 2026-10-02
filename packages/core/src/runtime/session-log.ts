@@ -17,12 +17,14 @@ import { promptBase } from "../prompt/update.ts";
 import type { AgentEvent, AgentEventSink, CommandRun, HookRun } from "../agent/events.ts";
 import type { SessionMeta, SessionRecordInput } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
+import type { Boundary } from "../session/types.ts";
 import { OUTPUT_SAVE_MS, KEPT_OUTPUT_CHARS, progressText } from "../session/live-calls.ts";
 import { PartialWriter } from "../session/partial.ts";
 import { parkMessage, rehydrateMessages } from "../session/payload.ts";
 import type { LlmContext, Message, ModelConfig } from "../types.ts";
 
-export type RecordedContext = Extract<AgentEvent, { type: "context" }>;
+/** A session's own context carries every field; only a sub-agent's, nested in `subagent_event`, has no sections. */
+export type RecordedContext = Required<Extract<AgentEvent, { type: "context" }>>;
 export interface RequestContext {
 	context: LlmContext;
 	model: ModelConfig;
@@ -63,7 +65,7 @@ export class SessionLog {
 	 * `keptFrom` indexes into `messages`; `summary` is empty when history was dropped without one,
 	 * which is a different thing to say and needs saying.
 	 */
-	compaction: { summary: string; keptFrom: number; at?: number } | null = null;
+	compaction: Boundary | null = null;
 
 	/**
 	 * Every place history was summarised, as positions in `messages` — the marks the window draws.
@@ -187,7 +189,6 @@ export class SessionLog {
 		if (PERSISTED_EVENTS.has(event.type) && this.meta) {
 			this.meta = (await this.store.append(this.meta, { type: "event", event })) ?? this.meta;
 		}
-		if (event.type === "context") { this.recordedContext = event; this.contextLoaded = true; this.contextStale = false; }
 		if (event.type === "command_status") {
 			const at = this.commandRuns.findIndex((run) => run.id === event.command.id);
 			if (at < 0) this.commandRuns.push(event.command); else this.commandRuns[at] = event.command;
@@ -255,12 +256,16 @@ export class SessionLog {
 	 * way to build a prompt and forget to record it. Unchanged context is not re-recorded: a
 	 * hundred-turn run would otherwise carry a hundred copies of the same system prompt.
 	 */
-	async recordContext(systemPrompt: string, toolNames: string[], skillNames: string[], schemas?: import("../types/tool.ts").ToolSpec[], details?: Pick<RecordedContext, "sections" | "mcpTools">): Promise<string> {
+	async recordContext(systemPrompt: string, toolNames: string[], skillNames: string[], schemas: import("../types/tool.ts").ToolSpec[], details: Pick<RecordedContext, "sections" | "mcpTools">): Promise<string> {
 		const tools = [...toolNames].sort();
 		const skills = [...skillNames].sort();
 		const fingerprint = `${systemPrompt}\0${tools.join(",")}\0${skills.join(",")}\0${JSON.stringify(schemas)}\0${JSON.stringify(details)}`;
 		if (fingerprint === this.lastContext) return systemPrompt;
-		await this.emit({ type: "context", systemPrompt, tools, skills, ...(schemas ? { schemas } : {}), ...details });
+		const event: RecordedContext = { type: "context", systemPrompt, tools, skills, schemas, ...details };
+		await this.emit(event);
+		this.recordedContext = event;
+		this.contextLoaded = true;
+		this.contextStale = false;
 		this.lastContext = fingerprint;
 		return systemPrompt;
 	}
@@ -278,7 +283,7 @@ export class SessionLog {
 		// 压缩边界的位置，和上下文一样按截断回退：被撤回的压缩不算数。
 		const boundaries: number[] = [];
 		for await (const record of this.store.read(this.meta.id)) {
-			if (record.type === "event" && record.event.type === "context") contexts.push({ seq: record.seq, event: record.event });
+			if (record.type === "event" && record.event.type === "context") contexts.push({ seq: record.seq, event: record.event as RecordedContext });
 			if (record.type === "event" && record.event.type === "compacted" && record.event.kept !== undefined) boundaries.push(record.seq);
 			if (record.type === "truncate") {
 				while (contexts.length && contexts.at(-1)!.seq > record.afterSeq) contexts.pop();
@@ -392,7 +397,7 @@ export class SessionLog {
 	 * These messages are already in the log — that is where they came from — so they are not
 	 * committed again, and nothing here is written.
 	 */
-	restore(messages: Message[], compaction: { summary: string; keptFrom: number; at?: number } | null = null, compactions: number[] = []): void {
+	restore(messages: Message[], compaction: Boundary | null = null, compactions: number[] = []): void {
 		// 载入、撤回、换模型都会换掉历史：历史里的 `learn` 结果可能没了，记忆快照跟着刷新。
 		this.refreshMemory();
 		this.requestContext = null;

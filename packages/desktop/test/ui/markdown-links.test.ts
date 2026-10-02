@@ -129,7 +129,7 @@ test("pressing an exit hands the file to the system and leaves the link alone", 
 				},
 			},
 			system: {
-				openTargets: async () => [{ id: "reveal", label: "在访达中显示", aliases: [] }],
+				openTargets: async () => [{ id: "reveal", label: "在访达中显示" }],
 				openPath: async (path: string) => {
 					calls.push(`openPath ${path}`);
 				},

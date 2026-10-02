@@ -103,7 +103,7 @@ try {
 	check("stopped plan is visibly paused", await app.evaluate("document.body.innerText.includes('已暂停')"), await app.evaluate("[...document.querySelectorAll('button')].find(e=>e.textContent.includes('旧目标待取消'))?.textContent"));
 	await shot("paused-plan");
 	model.set("discard");
-	await app.evaluate("window.plume.sideChat.ask('issue-demo',[{type:'text',text:'明确取消旧目标，停止并废除旧清单。'}])");
+	await app.evaluate("window.plume.sideChat.ask('issue-demo','default',[{type:'text',text:'明确取消旧目标，停止并废除旧清单。'}])");
 	await until("![...document.querySelectorAll('button')].some(e=>e.textContent.includes('旧目标待取消'))"); await pause();
 	check("side chat cancellation removes stale task card", await app.evaluate("![...document.querySelectorAll('button')].some(e=>e.textContent.includes('旧目标待取消'))"), "no task card");
 	await app.send("Page.reload"); await until("Boolean(document.querySelector('[data-ly-row=issue-demo]'))");

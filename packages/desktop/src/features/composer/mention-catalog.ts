@@ -15,8 +15,6 @@ export interface MentionItem {
 		path?: string;
 		sessionId?: string;
 		subagentId?: string;
-		pluginId?: string;
-		skillId?: string;
 	};
 }
 
@@ -161,7 +159,6 @@ export function rankMentions(
 					title: fullName,
 					description: skill.description || translate("mention.pluginSkills"),
 					kind: "plugin",
-					data: { skillId: skill.name, pluginId: skill.pluginId },
 					origin: skill.pluginId ?? translate(skill.source === "workspace" ? "sessionMenu.project" : "common.builtin"),
 				});
 			}

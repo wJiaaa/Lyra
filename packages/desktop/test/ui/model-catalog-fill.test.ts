@@ -41,7 +41,7 @@ test("按模型 ID 找到的条目一键填入，填完照样能改，保存的�
 	const provider = { id: "opencode", baseUrl: "https://opencode.ai/zen/go/v1" };
 	const found = catalogModelFor(provider, "glm-5.3");
 	assert.ok(found);
-	const expected = catalogFill(found.provider.id, found.model);
+	const expected = catalogFill(found.model);
 	let saved: ModelConfig | undefined;
 	const view = await mount(h(ModelEditor, { provider, model: null, onSave: (next) => { saved = next; }, onCancel: () => {} }));
 	try {

@@ -32,12 +32,10 @@ test("插进正在跑的回合：钟接着走，账从零起", () => {
 	 * The clock is the other half and it does carry: adding a requirement to a task in flight does not
 	 * restart how long you have been waiting on that task. See this file's header.
 	 */
-	const running = { startedAt: 1_000_000, tokens: 600, inputTokens: 4_000, cacheRead: 3_000 };
+	const running = { startedAt: 1_000_000, tokens: 600 };
 	const meter = meterFor({ running, carried: null, carryOn: false, now: 1_000_000 + 5 * MINUTE });
 	assert.equal(meter.startedAt, 1_000_000, "同一件事，等了多久还是那么久");
 	assert.equal(meter.tokens, 0, "但这一轮还没产出任何 token");
-	assert.equal(meter.inputTokens, undefined, "输入和缓存计数一起从零起");
-	assert.equal(meter.cacheRead, undefined);
 });
 
 test("「继续」是同一轮被按了暂停，钟和账一起接", () => {
@@ -154,12 +152,11 @@ test("two pauses in one turn add up rather than replacing each other", () => {
 	assert.equal(meter.tokens, 2_000);
 });
 
-test("cache input counts survive pause, continuation and disk persistence", async () => {
+test("a turn's tokens survive pause and continuation", async () => {
 	const { addTurnUsage, freeze, relight } = await import("../src/store/turn-meter.ts");
 	const { emptyUsage } = await import("@plume/core");
 	const usage = { ...emptyUsage(), input: 10, cacheRead: 80, cacheWrite: 10, output: 500 };
 	const metered = addTurnUsage({ startedAt: 100, tokens: 0 }, usage);
-	assert.equal(metered.tokens, 520); assert.equal(metered.inputTokens, 100); assert.equal(metered.cacheRead, 80);
-	const next = relight(freeze(metered, 200), 500);
-	assert.equal(next.inputTokens, 100); assert.equal(next.cacheRead, 80); assert.equal(next.tokens, 520);
+	assert.equal(metered.tokens, 520);
+	assert.equal(relight(freeze(metered, 200), 500).tokens, 520);
 });

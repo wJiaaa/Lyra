@@ -78,7 +78,7 @@ const app = await startApp({
 	seed: async (home) => {
 		await writeFile(join(home, "settings.json"), JSON.stringify({ uiLocale: "en" }));
 		// Sealed, but not by this profile's key: `unseal` gives up quietly and the keychain is never asked.
-		const account = { id: "probe", kind: "github", label: "kittors", baseUrl: "https://github.com", login: "kittors", avatarUrl: null, addedAt: 1, enabled: true };
+		const account = { id: "probe", kind: "github", label: "kittors", baseUrl: "https://github.com", login: "kittors", avatarUrl: null, enabled: true };
 		const token = `v1:${randomBytes(48).toString("base64")}`;
 		await writeFile(join(home, "forges.json"), JSON.stringify({ version: 1, entries: [{ account, token, encrypted: true }] }));
 	},

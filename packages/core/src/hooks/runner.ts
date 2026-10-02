@@ -301,12 +301,10 @@ export class HookRunner {
 				(values.length === 0 ? matchesHookMatcher(undefined, entry.matcher) : values.some((value) => matchesHookMatcher(value, entry.matcher))),
 		);
 		if (matching.length === 0) return result;
-		const invocationId = crypto.randomUUID();
 
 		for (const { entry, trusted } of matching) {
 			const base: HookRun = {
 				id: crypto.randomUUID(),
-				invocationId,
 				event: input.hookEventName,
 				source: entry.scope,
 				command: hookCommandDisplay(entry),

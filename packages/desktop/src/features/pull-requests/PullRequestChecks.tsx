@@ -27,15 +27,8 @@ const LOOK: Record<PullRequestCheck["state"], { icon: typeof Check; tone: string
 	pending: { icon: CircleDashed, tone: "text-ink-faint", label: "common.inProgress" },
 };
 
-export function PullRequestChecks({ checks }: { checks: PullRequestCheck[] | undefined }) {
-	/*
-	 * Tolerates a missing list rather than trusting the type.
-	 *
-	 * This is fed from a cache that outlives the code reading it — an entry written before checks
-	 * carried their names has the summary and no list at all. TypeScript is describing what the
-	 * server sends today; storage holds what it sent whenever the user last looked.
-	 */
-	const ordered = [...(checks ?? [])].sort((a, b) => RANK[a.state] - RANK[b.state] || a.name.localeCompare(b.name));
+export function PullRequestChecks({ checks }: { checks: PullRequestCheck[] }) {
+	const ordered = [...checks].sort((a, b) => RANK[a.state] - RANK[b.state] || a.name.localeCompare(b.name));
 
 	if (ordered.length === 0) return <p className="px-1 text-detail text-ink-faint">{translate("prChecks.noDetail")}</p>;
 

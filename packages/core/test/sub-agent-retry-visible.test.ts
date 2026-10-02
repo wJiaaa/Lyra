@@ -91,7 +91,6 @@ test("正在重连的子代理，面板上说得出它在等什么", async () =>
 		{ description: "看一眼", prompt: "去看", agentType: "explore" },
 		provider,
 		MODEL,
-		"",
 	);
 
 	assert.equal(hits, 2, "第一次空回答，重试一次之后拿到了正常的回答");

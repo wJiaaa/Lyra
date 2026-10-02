@@ -113,8 +113,6 @@ export function PersonalizationSettings() {
 			personalization: {
 				...personalization,
 				enableMemory: checked,
-				// Preserve the effective legacy value before changing the personal switch.
-				enableProjectMemory: (personalization.enableProjectMemory ?? personalization.enableMemory) !== false,
 			},
 		});
 	};
@@ -279,7 +277,7 @@ export function PersonalizationSettings() {
 					<Row
 						title={t("memory.project")}
 						detail={t("memory.projectDetail")}
-						control={<Toggle checked={(personalization.enableProjectMemory ?? personalization.enableMemory) !== false} onChange={(checked) => { if (settings) void saveSettings({ ...settings, personalization: { ...personalization, enableProjectMemory: checked } }); }} />}
+						control={<Toggle checked={personalization.enableProjectMemory !== false} onChange={(checked) => { if (settings) void saveSettings({ ...settings, personalization: { ...personalization, enableProjectMemory: checked } }); }} />}
 					/>
 					<Row
 						title={t("memory.autoProject")}

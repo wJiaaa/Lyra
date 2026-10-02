@@ -47,7 +47,6 @@ export class AgentDefinitionStore {
 				definition: { ...item, source: scope === "project" ? "workspace" : scope },
 				editable: scope === "builtin" || source.provider === "native" && dirname(source.path) === this.directory(scope, cwd),
 				customized: shadowed.some(other => other.provenance.scope === "builtin"),
-				shadowedSources: shadowed.map(other => other.provenance.scope),
 			};
 		}));
 	}

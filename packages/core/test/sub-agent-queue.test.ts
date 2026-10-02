@@ -103,7 +103,7 @@ test("排着的时候就在名单上，轮到它才开跑", async () => {
 	const holding = await gate.acquire();
 	const { registry, options } = base({ gate, admission: (signal) => gate.acquire(signal) });
 	let registered = "";
-	const run = runSubAgent({ ...options, onRegistered: (id) => (registered = id) }, { description: "审查 A", prompt: "看", agentType: "general" }, PROVIDER, MODEL, "");
+	const run = runSubAgent({ ...options, onRegistered: (id) => (registered = id) }, { description: "审查 A", prompt: "看", agentType: "general" }, PROVIDER, MODEL);
 	await new Promise((resolve) => setTimeout(resolve, 10));
 	assert.ok(registered, "一派出去就有 id——父会话放手时要说得出放下的是谁");
 	assert.equal(registry.list()[0]?.status, "queued", "闸门后面排着，名单上写着排队");
@@ -127,7 +127,7 @@ test("排着的时候被停：一轮都不跑，记作停下，名额不占", as
 		},
 	});
 	let id = "";
-	const run = runSubAgent({ ...options, onRegistered: (registered) => (id = registered) }, { description: "审查 B", prompt: "看", agentType: "general" }, PROVIDER, MODEL, "");
+	const run = runSubAgent({ ...options, onRegistered: (registered) => (id = registered) }, { description: "审查 B", prompt: "看", agentType: "general" }, PROVIDER, MODEL);
 	await new Promise((resolve) => setTimeout(resolve, 10));
 	assert.equal(registry.abort(id), true, "排着的也停得下");
 	const answer = await run;
@@ -145,7 +145,7 @@ test("会话已经停了才派出去的：不上名单、不发请求", async ()
 	stop.abort();
 	let requests = 0;
 	const { registry, options } = base({ signal: stop.signal, streamFn: async () => ((requests += 1), says("x")) });
-	const answer = await runSubAgent(options, { description: "晚到的", prompt: "看", agentType: "general" }, PROVIDER, MODEL, "");
+	const answer = await runSubAgent(options, { description: "晚到的", prompt: "看", agentType: "general" }, PROVIDER, MODEL);
 	assert.equal(requests, 0);
 	assert.equal(registry.list().length, 0);
 	assert.match(answer.text, /没有开始/);
@@ -167,7 +167,6 @@ test("子代理要授权时，卡片上写着是谁在要；名单上它显示�
 		{ description: "改 a.ts", prompt: "改", agentType: "general" },
 		PROVIDER,
 		MODEL,
-		"",
 	);
 	assert.equal(answer.text, "写好了");
 	assert.equal(asked.length, 1);
@@ -199,7 +198,7 @@ test("只读审查者也有记事本；没写清单撞上检查点时再给一�
 			return says("审查完了：两处问题");
 		},
 	});
-	const answer = await runSubAgent(options, { description: "审查", prompt: "审查一下", agentType: "review" }, PROVIDER, MODEL, "");
+	const answer = await runSubAgent(options, { description: "审查", prompt: "审查一下", agentType: "review" }, PROVIDER, MODEL);
 
 	assert.ok(seen[0].tools.includes("todo_write"), `定义里没写，清单工具照样在：${seen[0].tools.join(",")}`);
 	assert.ok(!seen[0].tools.includes("write"), "能力边界不变：只读的还是只读");
@@ -220,7 +219,7 @@ test("宽限只给一次：给过之后还是不写清单，就照常停下交�
 			return call(`r${turns}`, "read", { at: turns });
 		},
 	});
-	const answer = await runSubAgent(options, { description: "审查", prompt: "审查一下", agentType: "review" }, PROVIDER, MODEL, "");
+	const answer = await runSubAgent(options, { description: "审查", prompt: "审查一下", agentType: "review" }, PROVIDER, MODEL);
 	assert.equal(turns, 5, "两段各两轮，加上讨交接的那一轮");
 	assert.match(answer.text, /到了检查点/);
 });
@@ -253,7 +252,6 @@ test("停下一个正在派孩子的子代理，它派出去的孩子也跟着�
 		{ description: "编排", prompt: "去", agentType: "lead" },
 		PROVIDER,
 		MODEL,
-		"",
 	);
 	await started;
 	const parent = registry.list().find((one) => one.agent === "lead")!;

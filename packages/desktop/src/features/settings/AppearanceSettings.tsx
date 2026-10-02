@@ -57,12 +57,8 @@ export function AppearanceSettings() {
 	 * 算在这里而不是在用到的地方各算一遍：底色的 `onChange` 要读字色，字色那一行要读判断结果，
 	 * 两处读的必须是同一个答案。深浅两套由 `isDark` 选，和上面那张主题卡片一样。
 	 */
-	const inlineBg =
-		(isDark ? appearance.inlineCodeDarkBg : appearance.inlineCodeLightBg) ??
-		(isDark ? CODE_DEFAULTS.inlineCodeDarkBg : CODE_DEFAULTS.inlineCodeLightBg);
-	const inlineFg =
-		(isDark ? appearance.inlineCodeDarkFg : appearance.inlineCodeLightFg) ??
-		(isDark ? CODE_DEFAULTS.inlineCodeDarkFg : CODE_DEFAULTS.inlineCodeLightFg);
+	const inlineBg = isDark ? appearance.inlineCodeDarkBg : appearance.inlineCodeLightBg;
+	const inlineFg = isDark ? appearance.inlineCodeDarkFg : appearance.inlineCodeLightFg;
 	const inlineFgIsAuto = inlineFg.toUpperCase() === readableInk(inlineBg).toUpperCase();
 
 	return (
@@ -178,7 +174,7 @@ export function AppearanceSettings() {
 						<span className="block text-caption text-ink-muted">{t("appearance.lightSyntaxDetail")}</span>
 					</div>
 					<InlineSelect
-						value={appearance.codeLightTheme ?? CODE_DEFAULTS.codeLightTheme}
+						value={appearance.codeLightTheme}
 						onChange={(codeLightTheme) => patch({ codeLightTheme })}
 						options={LIGHT_CODE_THEMES.map((theme) => ({ value: theme.id, label: theme.labelKey ? t(theme.labelKey) : theme.label }))}
 					/>
@@ -190,7 +186,7 @@ export function AppearanceSettings() {
 						<span className="block text-caption text-ink-muted">{t("appearance.darkSyntaxDetail")}</span>
 					</div>
 					<InlineSelect
-						value={appearance.codeDarkTheme ?? CODE_DEFAULTS.codeDarkTheme}
+						value={appearance.codeDarkTheme}
 						onChange={(codeDarkTheme) => patch({ codeDarkTheme })}
 						options={DARK_CODE_THEMES.map((theme) => ({ value: theme.id, label: theme.labelKey ? t(theme.labelKey) : theme.label }))}
 					/>
@@ -208,7 +204,7 @@ export function AppearanceSettings() {
 						<span className="block text-caption text-ink-muted">{t("appearance.inlineCodeDetail")}</span>
 					</div>
 					<Segmented
-						value={appearance.inlineCode ?? CODE_DEFAULTS.inlineCode}
+						value={appearance.inlineCode}
 						onChange={(inlineCode) => patch({ inlineCode })}
 						options={[
 							{ value: "app", label: t("appearance.inlineCodeApp") },
@@ -227,7 +223,7 @@ export function AppearanceSettings() {
 				 * 只编辑当前深浅色的那一套，和上面「深色主题 / 浅色主题」那张卡片一样——切一次主题
 				 * 就是切一次这两行编辑的是谁，标题也跟着换，所以任何时候屏幕上的颜色都是正在看的那套。
 				 */}
-				{(appearance.inlineCode ?? CODE_DEFAULTS.inlineCode) === "custom" && (
+				{appearance.inlineCode === "custom" && (
 					<div className="flex flex-col gap-3 border-t border-line-soft pt-3">
 						<div className="flex items-center justify-between gap-3">
 							<span className="text-label text-ink">
@@ -280,7 +276,7 @@ export function AppearanceSettings() {
 						<span className="block text-caption text-ink-muted">{t("appearance.inlineCodeBorderDetail")}</span>
 					</div>
 					<Toggle
-						checked={appearance.inlineCodeBorder ?? CODE_DEFAULTS.inlineCodeBorder}
+						checked={appearance.inlineCodeBorder}
 						onChange={(inlineCodeBorder) => patch({ inlineCodeBorder })}
 					/>
 				</div>
@@ -383,7 +379,7 @@ export function AppearanceSettings() {
 					</div>
 					<div className="flex items-center gap-2">
 						<Segmented
-							value={String(appearance.codeLineHeight ?? 1.6)}
+							value={String(appearance.codeLineHeight)}
 							onChange={(height) => patch({ codeLineHeight: Number(height) })}
 							options={[
 								{ value: "1.4", label: t("appearance.compact") },
@@ -393,7 +389,7 @@ export function AppearanceSettings() {
 							]}
 						/>
 						<NumberField
-							value={appearance.codeLineHeight ?? 1.6}
+							value={appearance.codeLineHeight}
 							min={1}
 							max={3}
 							step={0.05}
@@ -412,7 +408,7 @@ export function AppearanceSettings() {
 					</div>
 					<div className="flex items-center gap-2">
 						<Segmented
-							value={String(appearance.codeLetterSpacing ?? 0)}
+							value={String(appearance.codeLetterSpacing)}
 							onChange={(spacing) => patch({ codeLetterSpacing: Number(spacing) })}
 							options={[
 								{ value: "-0.02", label: t("appearance.tighten") },
@@ -422,7 +418,7 @@ export function AppearanceSettings() {
 							]}
 						/>
 						<NumberField
-							value={appearance.codeLetterSpacing ?? 0}
+							value={appearance.codeLetterSpacing}
 							min={-0.1}
 							max={0.2}
 							step={0.01}
@@ -492,7 +488,7 @@ export function AppearanceSettings() {
 					detail={t("appearance.errorDisplayDetail")}
 					control={
 						<Segmented
-							value={appearance.errorDetail ?? "compact"}
+							value={appearance.errorDetail}
 							onChange={(errorDetail) => patch({ errorDetail })}
 							options={[
 								{ value: "compact", label: t("appearance.oneLine") },
@@ -506,7 +502,7 @@ export function AppearanceSettings() {
 					detail={t("appearance.callChainDetail")}
 					control={
 						<Segmented
-							value={appearance.callChain ?? "collapsed"}
+							value={appearance.callChain}
 							onChange={(callChain) => patch({ callChain })}
 							options={[
 								{ value: "expanded", label: t("appearance.callChainExpanded") },
@@ -520,7 +516,7 @@ export function AppearanceSettings() {
 					detail={t("appearance.panelLayoutDetail")}
 					control={
 						<Segmented
-							value={appearance.panelLayout ?? "tabs"}
+							value={appearance.panelLayout}
 							onChange={(panelLayout) => patch({ panelLayout })}
 							options={[
 								{ value: "tabs", label: t("appearance.panelLayoutTabs") },
@@ -546,7 +542,7 @@ export function AppearanceSettings() {
 					<Row
 						title={t("appearance.vibrancy")}
 						detail={t("appearance.vibrancyDetail")}
-						control={<Toggle checked={appearance.vibrancy !== false} onChange={(vibrancy) => patch({ vibrancy })} />}
+						control={<Toggle checked={appearance.vibrancy} onChange={(vibrancy) => patch({ vibrancy })} />}
 					/>
 				)}
 				<Row
