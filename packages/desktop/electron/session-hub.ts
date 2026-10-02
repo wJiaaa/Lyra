@@ -78,19 +78,26 @@ function stageSession(saved: SessionSnapshot): AgentSession {
 }
 
 export const promptSession: PlumeApi["agent"]["prompt"] = async (id, content, options) => {
-	const input = promptContent(content);
-	const requested = promptOptions(options);
-	let session: AgentSession | null;
-	try { session = await ensureLiveSession(id); }
-	finally { submitted.delete(id); }
-	if (!session) throw new Error(`Session ${id} is not open.`);
-	// Both transports return after activation; a multi-minute turn is delivered by events.
-	void (requested.resumePending ? session.resumePendingPrompt() : session.prompt(input, requested)).catch((error: unknown) => {
-		const message = error instanceof Error ? error.message : String(error);
-		broadcast(id, { type: "notice", level: "error", message });
-		broadcast(id, { type: "agent_end", reason: "error", error: message });
-	});
-	return session.meta;
+	const release = holdSessionOperation(id);
+	let handedOff = false;
+	try {
+		const input = promptContent(content);
+		const requested = promptOptions(options);
+		const session = await ensureLiveSession(id);
+		if (!session) throw new Error(`Session ${id} is not open.`);
+		// Both transports return after activation; a multi-minute turn is delivered by events.
+		const turn = requested.resumePending ? session.resumePendingPrompt() : session.prompt(input, requested);
+		handedOff = true;
+		void turn.catch((error: unknown) => {
+			const message = error instanceof Error ? error.message : String(error);
+			broadcast(id, { type: "notice", level: "error", message });
+			broadcast(id, { type: "agent_end", reason: "error", error: message });
+		}).finally(release);
+		return session.meta;
+	} finally {
+		submitted.delete(id);
+		if (!handedOff) release();
+	}
 };
 /** Disposers for each session's browser tools, keyed the same way. */
 export const browsers = new Map<string, () => void>();
@@ -106,8 +113,20 @@ export function liveSideChat(sessionId: string, sideId: string): SideChat | unde
 	return sideChats.get(sessionId)?.get(sideId);
 }
 
-/** Side chats being opened, per session: their archive is still being read, so `sideChats` has no sign of them. */
-const sideChatsOpening = new Map<string, number>();
+/** Session operations admitted before their first await, so cleanup cannot race their startup. */
+const sessionOperationHolds = new Map<string, number>();
+
+function holdSessionOperation(sessionId: string): () => void {
+	sessionOperationHolds.set(sessionId, (sessionOperationHolds.get(sessionId) ?? 0) + 1);
+	let released = false;
+	return () => {
+		if (released) return;
+		released = true;
+		const left = (sessionOperationHolds.get(sessionId) ?? 1) - 1;
+		if (left > 0) sessionOperationHolds.set(sessionId, left);
+		else sessionOperationHolds.delete(sessionId);
+	};
+}
 
 /**
  * Count the session as in use while a side chat on it opens; call what this returns once it is in place or failed.
@@ -116,12 +135,7 @@ const sideChatsOpening = new Map<string, number>();
  * in flight and deleted the conversation being opened.
  */
 export function holdForSideChat(sessionId: string): () => void {
-	sideChatsOpening.set(sessionId, (sideChatsOpening.get(sessionId) ?? 0) + 1);
-	return () => {
-		const left = (sideChatsOpening.get(sessionId) ?? 1) - 1;
-		if (left > 0) sideChatsOpening.set(sessionId, left);
-		else sideChatsOpening.delete(sessionId);
-	};
+	return holdSessionOperation(sessionId);
 }
 
 /**
@@ -150,31 +164,42 @@ export async function editSessionMessage(
 	content: Parameters<PlumeApi["agent"]["editMessage"]>[2],
 	options: Parameters<PlumeApi["agent"]["editMessage"]>[3] = {},
 ): Promise<void> {
-	const session = await ensureLiveSession(sessionId);
-	if (!session) throw new Error("找不到这个会话。");
-	if (session.running) throw new Error("请先停止当前回复，再编辑消息。");
-	// Acknowledge submission immediately; the rerun and any failure arrive on the shared stream.
-	void session.editAndResend(index, content, options).catch((error: unknown) => {
-		const message = error instanceof Error ? error.message : String(error);
-		broadcast(sessionId, { type: "notice", level: "error", message });
-		broadcast(sessionId, { type: "agent_end", reason: "error", error: message });
-	});
+	const release = holdSessionOperation(sessionId);
+	try {
+		const session = await ensureLiveSession(sessionId);
+		if (!session) throw new Error("找不到这个会话。");
+		if (session.running) throw new Error("请先停止当前回复，再编辑消息。");
+		// Acknowledge submission immediately; the rerun and any failure arrive on the shared stream.
+		void session.editAndResend(index, content, options).catch((error: unknown) => {
+			const message = error instanceof Error ? error.message : String(error);
+			broadcast(sessionId, { type: "notice", level: "error", message });
+			broadcast(sessionId, { type: "agent_end", reason: "error", error: message });
+		}).finally(release);
+	} catch (error) {
+		release();
+		throw error;
+	}
 }
 
 export async function revertSessionMessage(sessionId: string, index: number): Promise<void> {
-	const session = await ensureLiveSession(sessionId);
-	if (!session) throw new Error("找不到这个会话。");
-	if (session.running) throw new Error("回合进行中，无法撤销");
-	await session.revert(index);
-	// 整个撤空的话，旁边那几场对话就没有了依附的对象，跟着一起收掉——见 `sidechat-discard.ts`。
-	if (session.messages.length > 0) return;
-	for (const sideId of await sideChatIds(sessionId)) {
-		await discardSideChat(sessionId, sideId, {
-			mainMessagesLeft: session.messages.length,
-			live: liveSideChat(sessionId, sideId),
-			defaultModelId: deps.settings().sideChatModelId || null,
-			broadcast: (event) => broadcastSideChat(sessionId, sideId, event),
-		});
+	const release = holdSessionOperation(sessionId);
+	try {
+		const session = await ensureLiveSession(sessionId);
+		if (!session) throw new Error("找不到这个会话。");
+		if (session.running) throw new Error("回合进行中，无法撤销");
+		await session.revert(index);
+		// 整个撤空的话，旁边那几场对话就没有了依附的对象，跟着一起收掉——见 `sidechat-discard.ts`。
+		if (session.messages.length > 0) return;
+		for (const sideId of await sideChatIds(sessionId)) {
+			await discardSideChat(sessionId, sideId, {
+				mainMessagesLeft: session.messages.length,
+				live: liveSideChat(sessionId, sideId),
+				defaultModelId: deps.settings().sideChatModelId || null,
+				broadcast: (event) => broadcastSideChat(sessionId, sideId, event),
+			});
+		}
+	} finally {
+		release();
 	}
 }
 
@@ -372,11 +397,11 @@ export async function abortSession(sessionId: string): Promise<void> {
 }
 
 /**
- * Something is still going to write to this session: a turn, a prompt on its way in, a session
- * still starting, a side chat opening or answering, background work.
+ * Something is still going to write to this session: a turn, an admitted operation, a session
+ * still starting, a side chat answering, or background work.
  */
 function sessionBusy(id: string): boolean {
-	if (submitted.has(id) || initializing.has(id) || sideChatsOpening.has(id)) return true;
+	if (submitted.has(id) || initializing.has(id) || sessionOperationHolds.has(id)) return true;
 	const session = sessions.get(id);
 	if (!session) return false;
 	if (session.running || session.meta.pendingPrompt) return true;

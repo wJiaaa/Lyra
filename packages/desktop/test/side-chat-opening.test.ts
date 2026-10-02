@@ -80,6 +80,32 @@ test("a conversation whose side chat is opening is not cleared as idle", async (
 	assert.equal(hub.sideChats.has("opening1"), false);
 });
 
+test("a prompt admitted before cleanup is not cleared as idle", async () => {
+	let finishPrompt!: () => void;
+	let disposed = false;
+	const session = {
+		meta: { id: "prompt1", title: "prompt1" },
+		cwd: join(tmpdir(), "plume-prompt-opening-not-created"),
+		running: false,
+		can: { state: new Map() },
+		subAgents: { list: () => [] },
+		initialize: async () => {},
+		dispose: async () => { disposed = true; },
+		prompt: async () => new Promise<void>((resolve) => { finishPrompt = resolve; }),
+	};
+	hub.sessions.set("prompt1", session as never);
+	await hub.ensureLiveSession("prompt1");
+	const prompted = hub.promptSession("prompt1", "hello");
+
+	assert.deepEqual(await hub.deleteIdleSessions(["prompt1"]), [], "the prompt crossed its first await");
+	await prompted;
+	assert.equal(disposed, false);
+
+	finishPrompt();
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.deepEqual(await hub.deleteIdleSessions(["prompt1"]), ["prompt1"]);
+});
+
 test("a side chat whose conversation was deleted while it opened is not put in place", async () => {
 	idleSession("deleted1");
 	fixture.saves.length = 0;
