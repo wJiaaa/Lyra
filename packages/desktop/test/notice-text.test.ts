@@ -64,7 +64,7 @@ test("a notice's numbers and names are filled into the window's wording, with En
 
 test("a manual compaction's outcome follows the window's language, and an old record without a code is shown as written", () => {
 	setActiveLocale("en");
-	assert.equal(compactText({ code: "done", params: { before: 40, after: 9 } }, "已压缩上下文"), "Compacted: 40 messages are now 9. The full conversation is still there to read.");
+	assert.equal(compactText({ code: "done", params: { before: 40, after: 9 } }, "已压缩上下文"), "Compacted. Messages: 40 → 9. The full conversation is still there to read.");
 	assert.equal(compactText({ code: "failed", params: { error: "socket hang up" } }, "压缩失败"), "Compaction failed: socket hang up");
 	assert.equal(compactText({}, "压缩失败：旧记录"), "压缩失败：旧记录");
 	setActiveLocale("zh-CN");

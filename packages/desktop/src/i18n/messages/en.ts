@@ -29,7 +29,7 @@ export const en = {
 	"notice.continue-plan": { one: "Out of steps with {n} checklist item left. Carrying on.", other: "Out of steps with {n} checklist items left. Carrying on." },
 	"notice.continue-limit": "Stopped: the automatic continuations are used up. Everything so far is kept; you can continue from here.",
 	"compactNote.running": "Compacting the conversation…",
-	"compactNote.done": "Compacted: {before} messages are now {after}. The full conversation is still there to read.",
+	"compactNote.done": "Compacted. Messages: {before} → {after}. The full conversation is still there to read.",
 	"compactNote.busy": "The conversation is still running. Compact it once it finishes.",
 	"compactNote.no-model": "No model is available yet. Add a provider in Models settings.",
 	"compactNote.too-short": "The conversation is too short to compact.",
