@@ -9,23 +9,10 @@
  * thing — and what it *can do* is `SessionCapabilities`. Both are held rather than inherited, so
  * the boundary is visible at every call site.
  *
- * ---
- *
- * **还能拆到哪一步，以及为什么停在这里。**
- *
- * 2026-09-12 的审计把这个类列为 god-object：985 行、35 个公开方法、十几个分得清的职责。已经拆出去
- * 的是四个协作者——`tasks`、`approvals`、`subAgents`、`title`——它们的共同点不是「职责独立」，是
- * **要借的东西少**：`SessionTitle` 只需要六个窄回调（读设置、写日志、发事件、问用户改没改过标题、
- * 读模型 id、拿注入的流），所以它搬得干净。
- *
- * 剩下的没有再拆，判断是量出来的：这 940 行里 358 行是注释，实际代码 511 行；而 `this.log`、
- * `this.settings`、`this.emit`、`this.controller`、`this.streamFn` 这五样在里面被引用 87 次。
- * 手动压缩、驱动一轮、编辑重发、双队列 prompt 各自都不长（最大 52 行），但每一个都同时要那五样中
- * 的三四样。把它们搬出去意味着协作者收十几个回调，而一个收十几个回调的类不是协作者，是同一个
- * 对象换了个地址——读的人要在两个文件之间来回跳才能看完一件事。
- *
- * 也就是说：这个数字要再降，得先让那五样核心状态之间的关系变简单，而不是把用它们的代码搬走。
- * 那是另一件事，不该顺手在一次整改里做。
+ * 谁此刻占着历史（一次提问、一轮、一次手动压缩）由 `SessionActivity` 管，后台结果怎么攒批送回由
+ * `SessionDeliveries` 管，`session://` 的数据源在 `session-lookup.ts`。留在这里的手动压缩、编辑重发、
+ * 换模型都同时要 `log`、`settings`、`emit`、`can` 中的三四样，搬走只会让协作者收十几个回调。
+ * 拆分的来由见 ADR-0039。
  */
 
 import { randomUUID } from "node:crypto";
@@ -33,7 +20,7 @@ import type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "../agen
 import type { LiveModel, StreamFn } from "../agent/run-config.ts";
 import type { Settings } from "../config/settings.ts";
 import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem, withProjectLayer } from "../config/settings.ts";
-import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts";
+import { SESSIONS_KEY } from "../resources/more-handlers.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
 import type { ApprovalDecision, ApprovalRequest, Message, MessageAttachment, ThinkingLevel, Tool, UserContent } from "../types.ts";
@@ -51,9 +38,11 @@ import { compactionSpent, driveTurn, historyFrom, modelHistory, summaryStream } 
 import { restoreSubAgents, type Rebuild } from "./sub-agent-restore.ts";
 import { rehydrateMessages } from "../session/payload.ts";
 import { SubAgentRegistry, type SteerDisplay } from "./sub-agents.ts";
-import { DelegationWaits, deliveryMessage, type FinishedJob, type SettledDispatch } from "./delegation-waits.ts";
-import { backgroundJobs, type BackgroundJob } from "../tools/background-jobs.ts";
-import { readJob } from "../tools/bash.ts";
+import { DelegationWaits } from "./delegation-waits.ts";
+import { backgroundJobs } from "../tools/background-jobs.ts";
+import { SessionActivity, type CompactOutcome } from "./session-activity.ts";
+import { SessionDeliveries } from "./session-deliveries.ts";
+import { sessionLookup } from "./session-lookup.ts";
 import { refreshDispatchGate } from "./turn-config.ts";
 import { sessionTaskQueue, type TaskQueue } from "./task-queue.ts";
 import { stripStaleHandles } from "../agent/model-switch.ts";
@@ -84,37 +73,6 @@ export interface AgentSessionOptions {
 	titleSummaryStream?: typeof streamAssistant;
 }
 
-/**
- * 一条消息渲染成一行给人读的文本。
- *
- * 转录里工具调用占绝大多数，而对「上次我们怎么解决这个的」这个问题，有用的是**说过的话**。
- * 工具调用留一行名字：完全不提会让对话看起来像凭空得出结论，而把参数和结果都铺开，
- * 读一次别人的会话就要花掉这次会话的上下文。
- */
-function renderMessage(message: Message): string {
-	const text = message.content
-		.filter((block): block is { type: "text"; text: string } => block.type === "text")
-		.map((block) => block.text)
-		.join("\n")
-		.trim();
-
-	if (message.role === "user") return message.synthetic ? "" : `用户：${text}`;
-	if (message.role !== "assistant") return "";
-
-	const calls = message.content.flatMap((block) => (block.type === "toolCall" ? [block.name] : []));
-	const parts = [text && `助手：${text}`, calls.length > 0 && `（调用了 ${calls.join("、")}）`].filter(Boolean);
-	return parts.join("\n");
-}
-
-/**
- * 后台结果攒多久再送。
- *
- * 并行派出去的几个常常前后脚跑完——同一个模型、差不多的活，结束时间差几百毫秒是常事。攒这么
- * 一小会儿，它们就是一条消息、一个回合；不攒，就是几个回合，每一个都把整段前缀重发一遍。再长
- * 就是让先跑完的那个白等：人看得见它已经结束了，主会话却还没动。
- */
-const DELIVERY_GATHER_MS = 400;
-
 export class AgentSession {
 	readonly store: SessionStorage;
 	readonly log: SessionLog;
@@ -143,30 +101,9 @@ export class AgentSession {
 	 * 这个类里从此看不到「摘要跑到哪一步了」这种东西。
 	 */
 	private title: SessionTitle;
-	private controller: AbortController | null = null;
-	private activeTurn: Promise<void> | null = null;
-	private compactionTask: Promise<{ ok: boolean; reason?: string; before?: number; after?: number }> | null = null;
-	private pendingResume: Promise<void> | null = null;
-	private acceptingPrompt = false;
-	private abortEpoch = 0;
-	private activePrompt: Promise<void> | null = null;
+	/** 谁此刻占着历史、怎么停下它。见 `session-activity.ts`。 */
+	private readonly activity = new SessionActivity();
 	private steering: Message[] = [];
-	/**
-	 * 此刻插话还有没有人接。
-	 *
-	 * 不是 `running` 的同义词，这正是它存在的理由。取走 `steering` 的只有 loop 自己
-	 * （`drainSteering`），而 loop 的起止就是 `agent_start` 和 `agent_end` 这一对；`running`
-	 * 管的范围要大一圈——回合说完之后还有一段收尾，那段时间里 `controller` 还在，`running`
-	 * 还是 true，而取件人已经下班了。
-	 *
-	 * 这一格没分开的时候：窗口收到 `agent_end` 就把排着的那条送出来，主进程照着 `running`
-	 * 把它塞进 `steering`，然后再没有人来取——消息既不在转录里也不在队列条上，屏幕上是「发出
-	 * 去了但一点反应都没有」，而下一次发送时它会被 `drainSteering` 顺带倒出来，看起来像旧话重放。
-	 *
-	 * 在 `emit` 里翻牌而不是在 `run` 里，为的是把窗口那一端也算进来：`agent_end` 写盘、发出
-	 * 去之前这里就已经是 false，所以窗口看到「说完了」的那一刻，主进程早就不再收插话了。
-	 */
-	private steerable = false;
 	/**
 	 * 说了「等这一轮做完再说」的那些消息。
 	 *
@@ -198,22 +135,14 @@ export class AgentSession {
 	 */
 	private readonly delegations = new DelegationWaits({
 		detached: (id) => this.subAgents.background(id),
-		settled: (report) => this.collectDelivery(report),
+		settled: (report) => this.deliveries.report(report),
 	});
-	/**
-	 * 跑完了、还没送回主会话的后台结果。
-	 *
-	 * 攒一小会儿再送：并行派出去的几个常常前后脚跑完，一个一条地送，就是一个一条地开回合——
-	 * 每一次都要把整段前缀重发一遍。
-	 */
-	private deliveries: SettledDispatch[] = [];
-	/** 自己结束了、还没告诉模型的后台命令。和子代理的结果攒在同一个窗口里，一起到就是一条消息。 */
-	private finishedJobs: BackgroundJob[] = [];
+	/** 跑完了、还没送回主会话的后台结果；攒一小会儿再送。见 `session-deliveries.ts`。 */
+	private readonly deliveries: SessionDeliveries;
 	/** 剪枝器最后一次从日志放回视图时对着的那份历史；见 `preparePruner`。 */
 	private viewsSeededFor: Message[] | null = null;
 	/** Whether the previous process's sub-agents are back on the roster; see `restoreSubAgents`. */
 	private subAgentsRestored = false;
-	private deliveryTimer: ReturnType<typeof setTimeout> | null = null;
 	/** 正在跑的那一轮对「模型换了」的订阅；见 `liveModel`。 */
 	private readonly modelListeners = new Set<() => void>();
 	/**
@@ -256,7 +185,7 @@ export class AgentSession {
 		/*
 		 * 每一个出门的事件都先过这里翻牌，然后才交给宿主。
 		 *
-		 * 翻的是 `steerable`，看 loop 此刻在不在。必须挂在 log 的出口上：loop 自己
+		 * 翻的是 `activity.steerable`，看 loop 此刻在不在。必须挂在 log 的出口上：loop 自己
 		 * 的事件走 `session-turn.ts` 的 `recordTurnEvent` 直接进 `log.emit`，根本不经过
 		 * `Session.emit`——翻在那里的话 `agent_start` 一次都翻不到，`steerable` 永远是 false，
 		 * 于是插话悄悄退化成了「这一轮做完再说」，而测试照样是绿的。
@@ -265,15 +194,17 @@ export class AgentSession {
 		 * 排队出队要抢的那一拍。
 		 */
 		this.log = new SessionLog(options.store, (event) => {
-			if (event.type === "agent_start") this.steerable = true;
-			else if (event.type === "agent_end") this.steerable = false;
+			this.activity.observe(event);
 			return options.emit(event);
 		}, options.meta);
 		this.can = new SessionCapabilities(options.extraTools ?? []);
-		backgroundJobs(this.can.state).onFinished((job) => {
-			this.finishedJobs.push(job);
-			this.scheduleDeliveries();
+		this.deliveries = new SessionDeliveries({
+			activity: this.activity,
+			jobs: () => backgroundJobs(this.can.state),
+			detail: (id) => this.subAgents.detail(id),
+			submit: (message) => this.submit(message, { fromPerson: false }),
 		});
+		backgroundJobs(this.can.state).onFinished((job) => this.deliveries.jobFinished(job));
 		this.approvals = sessionApprovalGate({
 			mode: () => this.settings.permissionMode,
 			cwd: () => this.cwd,
@@ -311,7 +242,7 @@ export class AgentSession {
 	}
 
 	get running(): boolean {
-		return this.acceptingPrompt || this.controller !== null;
+		return this.activity.running;
 	}
 
 	/** Load skills, agents and MCP tools. Safe to call again after settings change. */
@@ -332,23 +263,9 @@ export class AgentSession {
 		 * `session://` 的数据源。
 		 *
 		 * 在这里而不是 `SessionCapabilities` 里，因为它要的是 store——而能力层刻意不知道会话
-		 * 是怎么存的。给的是两个方法而不是整个 store：这个地址要读转录，不该顺手获得删除会话
-		 * 的能力。
+		 * 是怎么存的。
 		 */
-		this.can.state.set(SESSIONS_KEY, {
-			recent: async (limit) =>
-				(await this.store.listSessions())
-					.filter((meta) => !meta.archived)
-					.sort((a, b) => b.updatedAt - a.updatedAt)
-					.slice(0, limit)
-					.map((meta) => ({ id: meta.id, title: meta.title ?? "", updatedAt: meta.updatedAt })),
-			transcript: async (id) => {
-				const meta = await this.store.get(id);
-				if (!meta) return null;
-				const messages = await this.store.messages(id);
-				return { title: meta.title ?? "", lines: messages.map(renderMessage).filter(Boolean) };
-			},
-		} satisfies SessionLookup);
+		this.can.state.set(SESSIONS_KEY, sessionLookup(this.store));
 		await this.restoreSubAgents();
 		/*
 		 * 扩展的 `session_start`。
@@ -475,18 +392,16 @@ export class AgentSession {
 	 * Refused mid-turn: the running loop is holding its own copy of the history and would write its
 	 * own boundary at the end of the turn, over this one.
 	 */
-	compact(instructions = ""): Promise<{ ok: boolean; reason?: string; before?: number; after?: number }> {
-		if (this.compactionTask) return this.compactionTask;
+	compact(instructions = ""): Promise<CompactOutcome> {
+		const pending = this.activity.compaction;
+		if (pending) return pending;
 		if (this.running) return Promise.resolve({ ok: false, reason: "对话正在进行中，等它结束再压缩。" });
-		const controller = new AbortController();
-		this.controller = controller;
-		this.compactionTask = this.reportCompaction(instructions, controller.signal).finally(() => {
-			this.controller = null;
-			this.compactionTask = null;
+		const task = this.activity.compact((signal) => this.reportCompaction(instructions, signal));
+		void task.finally(() => {
 			void this.watcher?.resume();
 			void this.tasks.drain();
-		});
-		return this.compactionTask;
+		}).catch(() => {});
+		return task;
 	}
 
 	private async reportCompaction(instructions: string, signal: AbortSignal) {
@@ -507,8 +422,7 @@ export class AgentSession {
 		}
 	}
 
-	private async compactHistory(instructions: string, signal: AbortSignal, commandId: string): Promise<{ ok: boolean; reason?: string; before?: number; after?: number }> {
-
+	private async compactHistory(instructions: string, signal: AbortSignal, commandId: string): Promise<CompactOutcome> {
 		const resolved = resolveModel(this.settings, this.log.meta.modelId || this.settings.defaultModelId);
 		if (!resolved) return { ok: false, reason: "还没有配置模型。" };
 
@@ -783,13 +697,13 @@ export class AgentSession {
 
 	/** Consume a durable opening message once, without appending a second copy. */
 	resumePendingPrompt(): Promise<void> {
-		if (this.pendingResume) return this.pendingResume;
+		const pending = this.activity.holding("resume");
+		if (pending) return pending;
 		if (!this.log.meta.pendingPrompt) return Promise.resolve();
-		this.acceptingPrompt = true;
-		const epoch = this.abortEpoch;
+		const mark = this.activity.mark();
 		const resume = async () => {
 			await this.cancelPendingPrompt();
-			if (this.abortEpoch !== epoch) { await this.emit({ type: "agent_end", reason: "aborted" }); return; }
+			if (this.activity.stoppedSince(mark)) { await this.emit({ type: "agent_end", reason: "aborted" }); return; }
 			/*
 			 * A fresh session restored with pendingPrompt (e.g. from the desktop new session flow)
 			 * has its first prompt already written to disk before the session object exists. Trigger
@@ -802,12 +716,13 @@ export class AgentSession {
 					await this.title.fromPrompt(first.content, first.displayText === "" ? first.skillRef?.name ?? first.sessionRefs?.[0]?.title ?? "" : first.displayText);
 				}
 			}
-			if (this.abortEpoch !== epoch) { await this.emit({ type: "agent_end", reason: "aborted" }); return; }
+			if (this.activity.stoppedSince(mark)) { await this.emit({ type: "agent_end", reason: "aborted" }); return; }
 			await this.run();
 			await this.drainPending();
 		};
-		this.pendingResume = resume().finally(() => { this.pendingResume = null; this.acceptingPrompt = false; void this.tasks.drain(); });
-		return this.pendingResume;
+		const held = this.activity.hold("resume", resume);
+		void held.finally(() => void this.tasks.drain()).catch(() => {});
+		return held;
 	}
 
 	async cancelPendingPrompt(): Promise<void> {
@@ -848,7 +763,8 @@ export class AgentSession {
 		} = {},
 	): Promise<void> {
 		// A prompt waits for the manual boundary before creating a turn against that history.
-		if (this.compactionTask) await this.compactionTask;
+		const compaction = this.activity.compaction;
+		if (compaction) await compaction;
 		const message: Message = {
 			role: "user",
 			content,
@@ -894,7 +810,7 @@ export class AgentSession {
 			 * 五分钟就白说了。而 `followUp` 说的是「这一轮做完再说」，把它插进去反而会打断
 			 * 那件本来就该先做完的事。
 			 */
-			if (options.deliver === "followUp" || !this.steerable) {
+			if (options.deliver === "followUp" || !this.activity.steerable) {
 				this.pending.push({ message, thinking: options.thinking });
 			} else {
 				this.steering.push(message);
@@ -911,8 +827,7 @@ export class AgentSession {
 		}
 
 		// Reserve the turn before the first disk write; another submission must queue during it.
-		this.acceptingPrompt = true;
-		const epoch = this.abortEpoch;
+		const mark = this.activity.mark();
 		const accept = async () => {
 			await this.cancelPendingPrompt();
 			await this.log.commit(message);
@@ -920,68 +835,12 @@ export class AgentSession {
 			await this.emit({ type: "message_end", message });
 			await options.title?.();
 
-			if (this.abortEpoch !== epoch) { await this.emit({ type: "agent_end", reason: "aborted" }); return; }
+			if (this.activity.stoppedSince(mark)) { await this.emit({ type: "agent_end", reason: "aborted" }); return; }
 			await this.run(options.thinking);
 			await this.drainPending();
 		};
-		this.activePrompt = accept();
-		try { await this.activePrompt; }
-		finally { this.activePrompt = null; this.acceptingPrompt = false; void this.tasks.drain(); }
-	}
-
-	/** 一个放了手的子代理跑完了：先攒着，一小会儿之后连同前后脚跑完的一起送。 */
-	private collectDelivery(report: SettledDispatch): void {
-		this.deliveries.push(report);
-		this.scheduleDeliveries();
-	}
-
-	private scheduleDeliveries(): void {
-		this.deliveryTimer ??= setTimeout(() => {
-			this.deliveryTimer = null;
-			void this.flushDeliveries();
-		}, DELIVERY_GATHER_MS);
-	}
-
-	/**
-	 * 把攒下的后台结果作为一条消息送回主会话。
-	 *
-	 * 主会话正在跑就插进去——下一个回合开头读到；闲着就开一个回合，让它接着用这些结论。被人
-	 * 按停的不送：停它是人的决定，拿一份半截的结果去叫醒主会话，是在跟那个决定争辩。
-	 */
-	private async flushDeliveries(): Promise<void> {
-		const settled = this.deliveries.splice(0, this.deliveries.length);
-		const reports = settled
-			.map((report) => ({ report, summary: this.subAgents.detail(report.id) }))
-			.filter(({ report, summary }) => summary?.status !== "aborted" && !report.answer?.stoppedByUser);
-		const jobs = this.takeFinishedJobs();
-		if (reports.length === 0 && jobs.length === 0) return;
-		// 手动压缩正在改写历史：等它写完边界再进来，和人发消息一样。
-		const epoch = this.abortEpoch;
-		if (this.compactionTask) await this.compactionTask;
-		/*
-		 * 等的时候人按了停止：这批报告已经从 `deliveries` 里取出来了，`abort` 清的那一下够不着它们。
-		 * 按同一个道理丢掉，不放回去——`abort` 对攒着没送的就是直接清空。
-		 */
-		if (this.abortEpoch !== epoch) return;
-		await this.submit(deliveryMessage(reports, jobs), { fromPerson: false });
-	}
-
-	/**
-	 * 攒下的后台命令，读成送达用的样子。
-	 *
-	 * 是否安静在这一刻再问一遍：攒着的那 400ms 里，模型可能已经自己用 `bash_output` 读到了结局，或者
-	 * 有人在服务面板上点了停止——前者再送是重复，后者是在跟那个决定争辩。
-	 */
-	private takeFinishedJobs(): FinishedJob[] {
-		const registry = backgroundJobs(this.can.state);
-		return this.finishedJobs
-			.splice(0, this.finishedJobs.length)
-			.filter((job) => !registry.isQuiet(job.id))
-			.map((job) => {
-				registry.observed(job.id);
-				const { status, text } = readJob(job);
-				return { id: job.id, command: job.command, description: job.description, exitCode: job.exitCode, status, failed: job.status === "failed", output: text };
-			});
+		try { await this.activity.hold("prompt", accept); }
+		finally { void this.tasks.drain(); }
 	}
 
 	/**
@@ -1008,12 +867,12 @@ export class AgentSession {
 			}
 			const next = this.pending.shift();
 			if (!next) break;
-			if (this.controller?.signal.aborted) break;
-			const epoch = this.abortEpoch;
+			if (this.activity.stopping) break;
+			const mark = this.activity.mark();
 			await this.log.commit(next.message);
 			await this.emit({ type: "message_start", message: next.message });
 			await this.emit({ type: "message_end", message: next.message });
-			if (epoch !== this.abortEpoch) break;
+			if (this.activity.stoppedSince(mark)) break;
 			await this.run(next.thinking);
 		}
 	}
@@ -1042,10 +901,10 @@ export class AgentSession {
 			return;
 		}
 
-		this.controller = new AbortController();
+		const signal = this.activity.beginTurn();
 		try {
 			await this.preparePruner();
-			this.activeTurn = driveTurn({
+			const turn = driveTurn({
 				cwd: this.cwd,
 				settings: this.settings,
 				getSettings: () => this.settings,
@@ -1053,7 +912,7 @@ export class AgentSession {
 				can: this.can,
 				provider: resolved.provider,
 				model: resolved.model,
-				signal: this.controller.signal,
+				signal,
 				thinking,
 				streamFn: this.streamFn,
 				scratchDir: scratchDir(this.log.meta.id),
@@ -1064,13 +923,12 @@ export class AgentSession {
 				delegations: this.delegations,
 				liveModel: this.liveModel,
 			});
-			await this.activeTurn;
+			this.activity.trackTurn(turn);
+			await turn;
 		} finally {
 			// Whatever the turn's own error was, it is the one that propagates.
 			await this.log.settleOrphan().catch(() => {});
-			this.activeTurn = null;
-			this.activeTurn = null;
-			this.controller = null;
+			this.activity.endTurn();
 			/*
 			 * Anything still waiting for approval would hang forever once the run is over.
 			 *
@@ -1095,10 +953,9 @@ export class AgentSession {
 
 	abort(): void {
 		void this.title.cancel();
-		this.abortEpoch++;
 		// The prompt owner records a cancelled startup before resolving, so disposal cannot race
 		// an unawaited append after the caller has already finished the opening submission.
-		this.controller?.abort();
+		this.activity.stop();
 		this.steering.length = 0;
 		/*
 		 * Explicitly, as well as through the chain.
@@ -1110,22 +967,10 @@ export class AgentSession {
 		 */
 		this.subAgents.abortAll();
 		this.approvals.rejectAll();
-		/*
-		 * 放了手的那些也不再送回来。
-		 *
-		 * 它们已经被上面那一行停下了；停下之后照样会「跑完」，而跑完的那一刻如果还有人等着送，
-		 * 一份被腰斩的结果会把刚刚停下的主会话又叫醒——屏幕上刚说完「已停止」，它又动起来了。
-		 */
+		// 放了手的、攒着没送的都不再送回来；后台命令照跑，只是结束时不再叫醒会话。见 `SessionDeliveries.clear`。
 		this.delegations.forget();
-		this.deliveries.length = 0;
-		/*
-		 * 后台命令不停——停止按钮管的是这场对话，不是人让它起的开发服务器——但它们结束时也不再叫醒
-		 * 会话。模型下一轮要知道结果，自己用 `bash_output` 去读。
-		 */
-		this.finishedJobs.length = 0;
+		this.deliveries.clear();
 		backgroundJobs(this.can.state).mute();
-		if (this.deliveryTimer) clearTimeout(this.deliveryTimer);
-		this.deliveryTimer = null;
 		/*
 		 * 排队等着的那些也一并取消。
 		 *
@@ -1141,8 +986,7 @@ export class AgentSession {
 	/** Wait for in-flight tools before discarding a plan so a late todo_write cannot restore it. */
 	async discardTaskPlan(): Promise<void> {
 		this.abort();
-		await this.activePrompt;
-		await this.activeTurn;
+		await this.activity.settled();
 		await this.tasks.discardPlan();
 		this.can.state.delete(TODOS_KEY);
 		const message: Message = {
@@ -1243,7 +1087,7 @@ export class AgentSession {
 		if (this.running) {
 			this.abort();
 			// Acceptance writes and follow-up draining also own the history, before/after driveTurn.
-			await (this.activePrompt ?? this.pendingResume)?.catch(() => {});
+			await (this.activity.holding("prompt") ?? this.activity.holding("resume"))?.catch(() => {});
 		}
 		if (!(await this.log.truncateFrom(messageIndex))) {
 			throw new Error(`Failed to truncate message at index ${messageIndex}`);
@@ -1292,7 +1136,7 @@ export class AgentSession {
 			if (typeof id === "string") dispatched.add(id);
 		}
 		// 已经跑完、正攒着等送的，不在 `delegations` 里了，要另外筛。
-		this.deliveries = this.deliveries.filter((report) => dispatched.has(report.id));
+		this.deliveries.keepOnly(dispatched);
 		for (const id of this.delegations.forgetUnless((id) => dispatched.has(id))) this.subAgents.abort(id);
 	}
 

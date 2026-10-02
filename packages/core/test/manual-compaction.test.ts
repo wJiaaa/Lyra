@@ -170,13 +170,13 @@ test("后台报告等压缩时人按了停止：压缩取消，报告也不再�
 			return reply("Merged the background report.");
 		} });
 	// 送达走的是私有的那条路：从登记簿取出报告、等压缩、再提交。这里直接驱动它，让报告落在「已取出、正等压缩」的那一格。
-	const internals = session as unknown as { collectDelivery(report: SettledDispatch): void; flushDeliveries(): Promise<void> };
+	const internals = (session as unknown as { deliveries: { report(report: SettledDispatch): void; flush(): Promise<void> } }).deliveries;
 	try {
 		await session.initialize();
 		for (let index = 0; index < 20; index++) await session.log.commit(index % 2 ? reply("notes ".repeat(300)) : { role: "user", content: [{ type: "text", text: "requirements ".repeat(200) }], timestamp: index });
 		const compaction = session.compact(); await received;
-		internals.collectDelivery({ id: "bg-1", error: "background worker crashed" });
-		const delivering = internals.flushDeliveries();
+		internals.report({ id: "bg-1", error: "background worker crashed" });
+		const delivering = internals.flush();
 		session.abort();
 		finish(reply("Retained task and decisions."));
 		assert.equal((await compaction).ok, false);
