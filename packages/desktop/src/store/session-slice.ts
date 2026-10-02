@@ -449,7 +449,8 @@ export function sessionSlice(set: Set, get: Get) {
    * into its first turn still reads 「1 条消息、0」 — which is what the hover card was showing.
    *
    * The store on the other side has the real numbers all along: every message committed to the log
-   * updates them (`SessionStore.appendExclusive`). Nothing was writing them down here.
+   * updates them (`applyRecord` in core's `session/apply-record.ts`). Nothing was writing them down
+   * here.
    *
    * Only the two figures, deliberately. Taking the whole record would bring `updatedAt` with it,
    * and the sidebar is sorted by that — pulling the row out from under a pointer that is resting on
