@@ -10,11 +10,13 @@ import type { SessionStorage } from "../session/storage.ts";
 import type { Message } from "../types.ts";
 
 /**
- * 一条消息渲染成一行给人读的文本。
+ * One message rendered as a line of human-readable text.
  *
- * 转录里工具调用占绝大多数，而对「上次我们怎么解决这个的」这个问题，有用的是**说过的话**。
- * 工具调用留一行名字：完全不提会让对话看起来像凭空得出结论，而把参数和结果都铺开，
- * 读一次别人的会话就要花掉这次会话的上下文。
+ * Tool calls make up the vast majority of a transcript, but for the question "how did we solve
+ * this last time", what is useful is **what was said**. Tool calls keep one line with their names:
+ * leaving them out entirely makes the conversation look like it reached conclusions out of thin
+ * air, while laying out their arguments and results means reading someone else's session once
+ * spends this session's context.
  */
 function renderMessage(message: Message): string {
 	const text = message.content

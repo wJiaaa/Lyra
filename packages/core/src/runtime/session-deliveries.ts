@@ -18,11 +18,13 @@ import { readJob } from "../tools/bash.ts";
 import type { Message } from "../types.ts";
 
 /**
- * 后台结果攒多久再送。
+ * How long background results are gathered before they are delivered.
  *
- * 并行派出去的几个常常前后脚跑完——同一个模型、差不多的活，结束时间差几百毫秒是常事。攒这么
- * 一小会儿，它们就是一条消息、一个回合；不攒，就是几个回合，每一个都把整段前缀重发一遍。再长
- * 就是让先跑完的那个白等：人看得见它已经结束了，主会话却还没动。
+ * Several dispatched in parallel often finish one right after another — same model, similar work,
+ * end times a few hundred milliseconds apart are common. Gathered for this short while, they are
+ * one message and one turn; not gathered, they are several turns, each resending the whole prefix.
+ * Any longer and the one that finished first waits for nothing: the person can see it is done,
+ * yet the main session has not moved.
  */
 const DELIVERY_GATHER_MS = 400;
 
@@ -43,7 +45,10 @@ export class SessionDeliveries {
 		this.deps = deps;
 	}
 
-	/** 一个放了手的子代理跑完了：先攒着，一小会儿之后连同前后脚跑完的一起送。 */
+	/**
+	 * A sub-agent that was let go has finished: hold it, and shortly deliver it together with any
+	 * that finished around the same time.
+	 */
 	report(report: SettledDispatch): void {
 		this.reports.push(report);
 		this.schedule();
@@ -55,12 +60,14 @@ export class SessionDeliveries {
 	}
 
 	/**
-	 * 停止之后，攒着没送的都不送了。
+	 * After a stop, nothing still being held is delivered.
 	 *
-	 * 被停下的子代理停下之后照样会「跑完」，而跑完的那一刻如果还有人等着送，一份被腰斩的结果会把
-	 * 刚刚停下的主会话又叫醒——屏幕上刚说完「已停止」，它又动起来了。后台命令不停（停止按钮管的是
-	 * 这场对话，不是人让它起的开发服务器），但它们结束时也不再叫醒会话：模型下一轮要知道结果，
-	 * 自己用 `bash_output` 去读。
+	 * A sub-agent that was stopped still "finishes" afterwards, and if something is waiting to
+	 * deliver it at that moment, a result cut off halfway wakes the main session that was just
+	 * stopped — the screen has only just said "stopped", and it starts moving again. Background
+	 * commands are not stopped (the stop button is for this conversation, not for the dev server
+	 * the person had it start), but they no longer wake the session when they end either: if the
+	 * model needs the result next turn, it reads it itself with `bash_output`.
 	 */
 	clear(): void {
 		this.reports.length = 0;
@@ -69,7 +76,10 @@ export class SessionDeliveries {
 		this.timer = null;
 	}
 
-	/** 已经跑完、正攒着等送的，只留派发还在历史里的那些。见 `AgentSession.stopCutDelegations`。 */
+	/**
+	 * Of the finished reports held for delivery, keep only those whose dispatch is still in the
+	 * history. See `stopCutDelegations` in `session-rewind.ts`.
+	 */
 	keepOnly(dispatched: ReadonlySet<string>): void {
 		this.reports = this.reports.filter((report) => dispatched.has(report.id));
 	}
@@ -82,10 +92,12 @@ export class SessionDeliveries {
 	}
 
 	/**
-	 * 把攒下的后台结果作为一条消息送回主会话。
+	 * Deliver the gathered background results to the main session as one message.
 	 *
-	 * 主会话正在跑就插进去——下一个回合开头读到；闲着就开一个回合，让它接着用这些结论。被人
-	 * 按停的不送：停它是人的决定，拿一份半截的结果去叫醒主会话，是在跟那个决定争辩。
+	 * If the main session is running it is spliced in — read at the start of the next turn; if it
+	 * is idle a turn is started so it can go on with these conclusions. Ones a person stopped are
+	 * not delivered: stopping it was the person's decision, and waking the main session with a
+	 * half-finished result is arguing with that decision.
 	 */
 	private async flush(): Promise<void> {
 		const settled = this.reports.splice(0, this.reports.length);
@@ -95,21 +107,25 @@ export class SessionDeliveries {
 		const jobs = this.takeFinishedJobs();
 		if (reports.length === 0 && jobs.length === 0) return;
 		const { activity } = this.deps;
-		// 手动压缩正在改写历史：等它写完边界再进来，和人发消息一样。
+		// A manual compaction is rewriting the history: wait until it has written the boundary
+		// before coming in, the same as a message from the person.
 		const mark = activity.mark();
 		if (activity.compaction) await activity.compaction;
 		/*
-		 * 等的时候人按了停止：这批报告已经取出来了，`clear` 够不着它们。按同一个道理丢掉，不放回去。
+		 * The person pressed stop while this was waiting: these reports were already taken out, so
+		 * `clear` cannot reach them. Drop them for the same reason, rather than putting them back.
 		 */
 		if (activity.stoppedSince(mark)) return;
 		await this.deps.submit(deliveryMessage(reports, jobs));
 	}
 
 	/**
-	 * 攒下的后台命令，读成送达用的样子。
+	 * The gathered background commands, read into the shape used for delivery.
 	 *
-	 * 是否安静在这一刻再问一遍：攒着的那 400ms 里，模型可能已经自己用 `bash_output` 读到了结局，或者
-	 * 有人在服务面板上点了停止——前者再送是重复，后者是在跟那个决定争辩。
+	 * Whether each is quiet is asked again at this moment: during those 400ms of gathering, the
+	 * model may have already read the outcome itself with `bash_output`, or someone may have pressed
+	 * stop in the services panel — delivering the former again is a repeat, and the latter would be
+	 * arguing with that decision.
 	 */
 	private takeFinishedJobs(): FinishedJob[] {
 		const registry = this.deps.jobs();
