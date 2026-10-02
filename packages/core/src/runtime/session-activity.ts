@@ -39,19 +39,25 @@ export class SessionActivity {
 	private compactionTask: Promise<CompactOutcome> | null = null;
 	/** Bumped by every stop. Work that awaited something compares marks before acting on it. */
 	private stops = 0;
+	private loopLive = false;
 	/**
-	 * 此刻插话还有没有人接：loop 在 `agent_start` 与 `agent_end` 之间。
+	 * Whether a steering message would be picked up right now: the loop is between `agent_start` and
+	 * `agent_end`.
 	 *
-	 * 不是 `running` 的同义词，这正是它存在的理由。取走插话的只有 loop 自己（`drainSteering`）；
-	 * `running` 管的范围要大一圈——回合说完之后还有一段收尾，那段时间里 `running` 还是 true，而
-	 * 取件人已经下班了。这一格没分开的时候：窗口收到 `agent_end` 就把排着的那条送出来，主进程照着
-	 * `running` 把它塞进插话，然后再没有人来取——屏幕上是「发出去了但一点反应都没有」，下一次发送时
-	 * 它又被顺带倒出来，看起来像旧话重放。
+	 * Not a synonym for `running`, which is why it exists. Only the loop itself takes steering
+	 * (`drainSteering`), and `running` covers a wider span — after the turn has said its last word
+	 * there is still a wind-down, during which `running` is true and nobody is collecting any more.
+	 * When the two were not separated: the window saw `agent_end` and sent the queued message, the
+	 * main process saw `running` and pushed it into steering, and nothing ever took it. On screen it
+	 * was "sent, and nothing happened"; the next send flushed it out along with itself, which looked
+	 * like an old message being replayed.
 	 *
-	 * 由会话日志的出口调 `observe` 翻牌（见 `AgentSession` 的构造函数），`agent_end` 发到窗口之前
-	 * 这里就已经是 false。
+	 * Flipped by `observe` at the session log's exit (see `AgentSession`'s constructor), so it is
+	 * already false before `agent_end` reaches the window.
 	 */
-	steerable = false;
+	get steerable(): boolean {
+		return this.loopLive;
+	}
 
 	get running(): boolean {
 		return this.reserved > 0 || this.controller !== null;
@@ -69,8 +75,8 @@ export class SessionActivity {
 
 	/** Track the loop's own start and end; see `steerable`. */
 	observe(event: AgentEvent): void {
-		if (event.type === "agent_start") this.steerable = true;
-		else if (event.type === "agent_end") this.steerable = false;
+		if (event.type === "agent_start") this.loopLive = true;
+		else if (event.type === "agent_end") this.loopLive = false;
 	}
 
 	/** Hold the session for `work`. Reserved before `work` runs its first line. */
@@ -95,14 +101,23 @@ export class SessionActivity {
 		return this.holds.get(kind) ?? null;
 	}
 
-	/** Start a turn inside a hold. The signal is what `stop` aborts. */
+	/**
+	 * Start a turn inside a hold. The signal is what `stop` aborts.
+	 *
+	 * Refused while a turn or a compaction holds the controller: two of them on one history would
+	 * each write their own replies and boundaries over the other's, and the stop button would only
+	 * reach the newer one. No path does this today — a submission while busy queues, and a resume
+	 * finds the opening message already claimed — so reaching here is a bug to see, not to absorb.
+	 */
 	beginTurn(): AbortSignal {
+		if (this.controller) throw new Error("A turn is already running on this session's history");
 		this.controller = new AbortController();
 		return this.controller.signal;
 	}
 
 	/** The turn's promise, so a caller can wait for its tools to finish writing. */
 	trackTurn(turn: Promise<void>): void {
+		if (!this.controller) throw new Error("trackTurn needs a turn begun with beginTurn");
 		this.turn = turn;
 	}
 
@@ -117,8 +132,15 @@ export class SessionActivity {
 		await this.turn;
 	}
 
-	/** Run a manual compaction, stoppable like a turn. The caller has checked that nothing is running. */
+	/**
+	 * Run a manual compaction, stoppable like a turn.
+	 *
+	 * Refused while anything holds the session: a running turn keeps its own copy of the history and
+	 * would write its boundary over this one at the end. `AgentSession.compact` answers that case
+	 * with a message; this is the guard behind it.
+	 */
 	compact(run: (signal: AbortSignal) => Promise<CompactOutcome>): Promise<CompactOutcome> {
+		if (this.running) throw new Error("Cannot compact while the session is running");
 		const controller = new AbortController();
 		this.controller = controller;
 		const task = run(controller.signal).finally(() => {

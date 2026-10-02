@@ -108,3 +108,44 @@ test("steerable follows the loop's own start and end, not the hold around it", a
 	await held;
 	assert.equal(activity.steerable, false);
 });
+
+test("a second turn on the same history is refused, not allowed to take over the stop button", () => {
+	const activity = new SessionActivity();
+	const first = activity.beginTurn();
+	assert.throws(() => activity.beginTurn(), /already running/);
+	activity.stop();
+	assert.equal(first.aborted, true, "stop still reaches the turn that is actually running");
+	activity.endTurn();
+	assert.doesNotThrow(() => activity.beginTurn(), "once it has ended, the next turn may start");
+});
+
+test("a turn cannot start while a manual compaction is rewriting the history", async () => {
+	const activity = new SessionActivity();
+	const done = gate();
+	const task = activity.compact(async () => {
+		await done.opened;
+		return { ok: true };
+	});
+	assert.throws(() => activity.beginTurn(), /already running/);
+	done.open();
+	await task;
+	assert.doesNotThrow(() => activity.beginTurn());
+});
+
+test("a compaction is refused while a hold or a turn has the session", async () => {
+	const activity = new SessionActivity();
+	const open = gate();
+	const held = activity.hold("prompt", () => open.opened);
+	assert.throws(() => activity.compact(async () => ({ ok: true })), /while the session is running/);
+	open.open();
+	await held;
+	activity.beginTurn();
+	assert.throws(() => activity.compact(async () => ({ ok: true })), /while the session is running/);
+	activity.endTurn();
+	assert.deepEqual(await activity.compact(async () => ({ ok: true })), { ok: true });
+});
+
+test("a turn's promise is only tracked for a turn that was begun", () => {
+	const activity = new SessionActivity();
+	assert.throws(() => activity.trackTurn(Promise.resolve()), /beginTurn/);
+});
