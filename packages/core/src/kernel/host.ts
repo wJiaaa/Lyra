@@ -57,7 +57,27 @@ export interface HostKernel {
 	dispose(): Promise<void>;
 }
 
+/**
+ * One host per process, enforced rather than assumed.
+ *
+ * The seams below are module-level: a second host would silently re-point sessions already running
+ * under the first, and disposing either would unbind both. Moving the seams onto the context is the
+ * fix if a process ever needs two; until then, booting a second one is an error, not a surprise.
+ */
+let booted = false;
+
 export async function bootHostKernel(settings: Settings, warn: (message: string) => void = console.warn): Promise<HostKernel> {
+	if (booted) throw new Error("bootHostKernel: a host is already running in this process; dispose it first.");
+	booted = true;
+	try {
+		return await boot(settings, warn);
+	} catch (error) {
+		booted = false;
+		throw error;
+	}
+}
+
+async function boot(settings: Settings, warn: (message: string) => void): Promise<HostKernel> {
 	/*
 	 * The kernel is built from the default set plus whatever the user has installed.
 	 *
@@ -92,11 +112,15 @@ export async function bootHostKernel(settings: Settings, warn: (message: string)
 	useScheduler(context.require<TaskScheduler>(SCHEDULER));
 	useAgentLoop(context.require<AgentLoop>(LOOP));
 	useTurnPipeline(context.require<TurnPipeline>(SESSION).all());
+	let disposed = false;
 	return {
 		context,
 		storage: context.require<SessionStorage>(STORAGE),
 		skills,
 		async dispose() {
+			// A second dispose of this host must not unbind a host booted since.
+			if (disposed) return;
+			disposed = true;
 			useLlmRegistry(null);
 			useToolRegistry(null);
 			useSandbox(null);
@@ -106,6 +130,7 @@ export async function bootHostKernel(settings: Settings, warn: (message: string)
 			useScheduler(null);
 			useAgentLoop(null);
 			useTurnPipeline(null);
+			booted = false;
 			await context.dispose();
 		},
 	};

@@ -64,6 +64,11 @@ function run(prompt: string, script: (said: string) => AssistantMessage) {
 	return { result, lines, seen };
 }
 
+test("a second host in the same process is refused, not silently swapped in", async () => {
+	// The seams are process-wide; a second boot would re-point the sessions of the first.
+	await assert.rejects(bootHostKernel(SETTINGS, () => {}), /already running/);
+});
+
 test("跑完一个任务：进度只进日志，回答是最后一段不调工具的话", async () => {
 	const { result, lines } = run("看看目录", (said) => said.includes("看看目录")
 		? says([{ type: "text", text: "先列一下目录。" }, { type: "toolCall", id: "c1", name: "ls", arguments: { path: "." } }], "toolUse")

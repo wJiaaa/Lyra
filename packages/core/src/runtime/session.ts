@@ -1147,11 +1147,7 @@ export class AgentSession {
 	 * one that was running is the one to pick up.
 	 */
 	interruptedTask(): QueuedTask | null {
-		for (let i = this.tasks.list().length - 1; i >= 0; i--) {
-			const task = this.tasks.list()[i]!;
-			if (task.status === "cancelled" && task.cancelledBy === "stop") return task;
-		}
-		return null;
+		return this.tasks.list().findLast((task) => task.status === "cancelled" && task.cancelledBy === "stop") ?? null;
 	}
 
 	private emit(event: AgentEvent): Promise<void> {

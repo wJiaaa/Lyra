@@ -49,8 +49,13 @@ export class TaskQueue {
 		this.options = options;
 	}
 
+	/**
+	 * A snapshot. Handing out the live list let callers change a task without `cancel`, `resume` or
+	 * `changed` hearing of it — and an event holding a reference would report the queue as it looked
+	 * when someone got round to reading it, not when it was sent.
+	 */
 	list(): QueuedTask[] {
-		return this.tasks;
+		return this.tasks.map((task) => ({ ...task }));
 	}
 
 	/**
@@ -70,7 +75,7 @@ export class TaskQueue {
 		this.tasks.push(task);
 		await this.options.changed();
 		void this.drain();
-		return task;
+		return { ...task };
 	}
 
 	async cancel(taskId: string): Promise<boolean> {
@@ -229,14 +234,13 @@ export class TaskQueue {
 export function sessionTaskQueue(deps: {
 	run(task: QueuedTask): Promise<void>;
 	busy(): boolean;
-	/** Given a copy, never the live list: an event holding a reference would report the queue as it
-	    looked when someone got round to reading it, not when it was sent. */
+	/** Given a snapshot, never the live list; see `TaskQueue.list`. */
 	changed(tasks: QueuedTask[]): Promise<void>;
 }): TaskQueue {
 	const queue: TaskQueue = new TaskQueue({
 		run: deps.run,
 		busy: deps.busy,
-		changed: () => deps.changed(queue.list().map((task) => ({ ...task }))),
+		changed: () => deps.changed(queue.list()),
 		newId: () => randomUUID().slice(0, 8),
 		now: () => Date.now(),
 	});

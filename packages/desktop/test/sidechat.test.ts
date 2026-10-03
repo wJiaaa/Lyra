@@ -89,21 +89,44 @@ test("a task you withdrew is not offered a way back", async () => {
 	assert.equal(q.list()[0].status, "cancelled");
 });
 
+/** A queue that runs its one task to the end, failing it when `fail` is given. */
+async function settled(fail?: string): Promise<{ q: TaskQueue; task: QueuedTask }> {
+	let busy = false;
+	let n = 0;
+	const q = new TaskQueue({
+		now: () => 1,
+		newId: () => `t${++n}`,
+		changed: async () => {},
+		run: async () => {
+			if (fail) throw new Error(fail);
+		},
+		busy: () => busy,
+	});
+	const task = await q.enqueue("一件活", "side-chat");
+	for (let i = 0; i < 100 && ["queued", "running"].includes(q.list()[0].status); i++) await new Promise((resolve) => setTimeout(resolve, 1));
+	// Hold the queue still from here, so a resumed task stays where it can be inspected.
+	busy = true;
+	return { q, task };
+}
+
 test("a failed task is offered a retry", async () => {
-	const q = queue();
-	const task = await q.enqueue("会失败的活", "side-chat");
-	// Straight to failed, the way the runner marks one that threw.
-	q.list()[0].status = "failed";
-	q.list()[0].error = "连接中断";
+	const { q, task } = await settled("连接中断");
+	assert.equal(q.list()[0].status, "failed");
 	assert.equal(isResumable(q.list()[0]), true);
 	assert.equal(await q.resume(task.id), true);
 	assert.equal(q.list()[0].status, "queued");
 });
 
 test("a finished task is not resumable — asking again is a new dispatch", async () => {
-	const q = queue();
-	const task = await q.enqueue("已经做完了", "side-chat");
-	q.list()[0].status = "done";
+	const { q, task } = await settled();
+	assert.equal(q.list()[0].status, "done");
 	assert.equal(isResumable(q.list()[0]), false);
 	assert.equal(await q.resume(task.id), false);
+});
+
+test("the list is a snapshot: changing it does not change the queue", async () => {
+	const q = queue();
+	await q.enqueue("做点什么", "side-chat");
+	q.list()[0].status = "done";
+	assert.equal(q.list()[0].status, "queued");
 });
