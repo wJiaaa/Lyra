@@ -216,7 +216,7 @@ export function addressLookups(state: ReadonlyMap<string, unknown>): Map<string,
 
 export async function runSubAgent(
 	options: SubAgentOptions,
-	input: { description: string; prompt: string; agentType?: string; resume?: string },
+	input: { description: string; prompt: string; agentType?: string; resume?: string; onResumable?: (id: string) => void },
 	provider: ProviderConfig,
 	model: ModelConfig,
 ): Promise<SubAgentAnswer> {
@@ -338,6 +338,8 @@ export async function runSubAgent(
 			queued,
 		});
 	options.onRegistered?.(id);
+	// 续跑的那一个，排着队被停也还留着上一段的上下文（见下面的 `keep`），从这里起就能再续。
+	if (earlier && registry) input.onResumable?.(id);
 	/*
 	 * What it was asked to do, as the first line of its transcript.
 	 *
@@ -399,6 +401,8 @@ export async function runSubAgent(
 		}
 		registry?.admit(id);
 	}
+	// 新派的拿到名额才有东西可留：从这里起，不管怎么停下，下面都会 `keep` 它的上下文。
+	if (!earlier && registry) input.onResumable?.(id);
 
 	/*
 	 * 它要授权的时候，主窗口得说得出是谁在要。
@@ -510,7 +514,7 @@ export async function runSubAgent(
 	/** Everything on its way out of the loop: the pane, the roster, and the step list. */
 	const relay: AgentEventSink = async (event) => {
 		// `notice` 也转：拒收恢复、超长压缩后重试这类说明是它自己的事，进它自己的面板。
-		if (event.type === "tool_start" || event.type === "request" || event.type === "retry" || event.type === "retry_settled" || event.type === "agent_end" || event.type === "turn_start" || event.type === "compacted" || event.type === "command_status" || event.type === "notice") {
+		if (event.type === "tool_start" || event.type === "tool_left" || event.type === "request" || event.type === "retry" || event.type === "retry_settled" || event.type === "agent_end" || event.type === "turn_start" || event.type === "compacted" || event.type === "command_status" || event.type === "notice") {
 			await options.emit({ type: "subagent_event", id, event });
 		}
 		// Record activity in registry for live sub-agent status line without toast spamming
@@ -569,6 +573,10 @@ export async function runSubAgent(
 	/** Whether the extra round got a delivery out of it, which changes what the answer says. */
 	let salvaged = false;
 	const checkpoint = definition.maxTurns ?? SUB_AGENT_CHECKPOINT_TURNS;
+	const pruner = sessionPruner(subState);
+	// What its compaction cut goes to the log as well, or a restart resends it whole (`subagent_views`).
+	pruner.onAdopt = (views) =>
+		void options.emit({ type: "subagent_views", id, views: views.flatMap(({ source, view }) => (source.role === "toolResult" ? [{ toolCallId: source.toolCallId, message: view }] : [])) }).catch(() => {});
 	try {
 		await options.emit({ type: "subagent_event", id, event: {
 			type: "context", systemPrompt: subAgentPrompt, tools: allowed.map(tool => tool.name),
@@ -600,7 +608,7 @@ export async function runSubAgent(
 				 * 一只表、一个裁剪器，跨检查点共用——和主会话续跑链同一个理由：跑满一段攒下的观察，
 				 * 不该在接着跑的时候清零。裁剪器放在它自己的状态图里，续跑时也还是那一个。
 				 */
-				pruner: sessionPruner(subState),
+				pruner,
 				artifacts: options.addresses?.artifacts,
 			},
 			model: {

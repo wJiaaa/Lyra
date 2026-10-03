@@ -60,6 +60,12 @@ export function withEnvironment(messages: Message[]): Message[] {
 	return out;
 }
 
+/** The date the newest environment block in `messages` states — what `withEnvironment` last told it. */
+export function environmentDate(messages: readonly Message[]): string | undefined {
+	for (let at = messages.length - 1; at >= 0; at--) if (isEnvironmentMessage(messages[at])) return dateIn(messages[at]);
+	return undefined;
+}
+
 function dateIn(message: Message): string | undefined {
 	const [only] = message.content;
 	return only?.type === "text" ? /今天是 (\d{4}-\d{2}-\d{2})/.exec(only.text)?.[1] : undefined;

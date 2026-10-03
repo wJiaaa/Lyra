@@ -49,6 +49,7 @@ export function observeSessionStorage(store: SessionStorage, changed: (change: S
 		get: (...args) => store.get(...args),
 		read: (...args) => store.read(...args),
 		messages: (...args) => store.messages(...args),
+		subAgentRecords: (...args) => store.subAgentRecords(...args),
 		/*
 		 * Opening a conversation can commit the reply a dead writer left behind (`settlePartial`).
 		 * That changes its meta inside the store, where no wrapper sees a write, so the sidebar is told

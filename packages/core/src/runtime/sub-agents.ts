@@ -563,6 +563,22 @@ export class SubAgentRegistry {
 		}
 	}
 
+	/**
+	 * 进程换过之后，把日志里读回来的放回名单（`sub-agent-restore.ts`）。
+	 *
+	 * 只放名单上还没有的：同一个进程里已经在跑、已经登记过的那一份是真的，读回来的那份只是近似。
+	 * 放回来的都已经停下，没有拉杆可拉；有上下文的，`resume` 照样认。
+	 */
+	restore(entries: readonly { summary: SubAgentSummary; messages: Message[]; conversation?: SubAgentConversation }[]): void {
+		let added = false;
+		for (const entry of entries.slice(-MAX_KEPT)) {
+			if (this.records.has(entry.summary.id)) continue;
+			this.records.set(entry.summary.id, { ...entry.summary, messages: entry.messages, steering: [], ...(entry.conversation ? { conversation: entry.conversation } : {}) });
+			added = true;
+		}
+		if (added) this.onChange();
+	}
+
 	/** Make room, oldest finished first. A running sub-agent is never retired. */
 	private retire(): void {
 		while (this.records.size >= MAX_KEPT) {

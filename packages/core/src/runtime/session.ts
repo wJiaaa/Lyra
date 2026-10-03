@@ -47,7 +47,9 @@ import { SessionLog } from "./session-log.ts";
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
 import { compactWith } from "./compaction.ts";
 import { sessionPruner } from "./aged-prune.ts";
-import { compactionSpent, driveTurn, modelHistory, summaryStream } from "./session-turn.ts";
+import { compactionSpent, driveTurn, historyFrom, modelHistory, summaryStream } from "./session-turn.ts";
+import { restoreSubAgents, type Rebuild } from "./sub-agent-restore.ts";
+import { rehydrateMessages } from "../session/payload.ts";
 import { SubAgentRegistry, type SteerDisplay } from "./sub-agents.ts";
 import { DelegationWaits, deliveryMessage, type FinishedJob, type SettledDispatch } from "./delegation-waits.ts";
 import { backgroundJobs, type BackgroundJob } from "../tools/background-jobs.ts";
@@ -209,6 +211,8 @@ export class AgentSession {
 	private finishedJobs: BackgroundJob[] = [];
 	/** 剪枝器最后一次从日志放回视图时对着的那份历史；见 `preparePruner`。 */
 	private viewsSeededFor: Message[] | null = null;
+	/** Whether the previous process's sub-agents are back on the roster; see `restoreSubAgents`. */
+	private subAgentsRestored = false;
 	private deliveryTimer: ReturnType<typeof setTimeout> | null = null;
 	/** 正在跑的那一轮对「模型换了」的订阅；见 `liveModel`。 */
 	private readonly modelListeners = new Set<() => void>();
@@ -345,6 +349,7 @@ export class AgentSession {
 				return { title: meta.title ?? "", lines: messages.map(renderMessage).filter(Boolean) };
 			},
 		} satisfies SessionLookup);
+		await this.restoreSubAgents();
 		/*
 		 * 扩展的 `session_start`。
 		 *
@@ -582,6 +587,40 @@ export class AgentSession {
 		for (const { source, view } of views) pruner.remember(source, view);
 	}
 
+	/**
+	 * 上一个进程派出去的子代理，放回名单——停下了，但能续跑。见 `sub-agent-restore.ts`。
+	 *
+	 * 只在打开时做一次：`initialize` 改设置时还会再调，而那时名单上的已经是这个进程自己的。读不出来
+	 * 就算了，名单空着和从前一样，不挡打开对话。
+	 */
+	private async restoreSubAgents(): Promise<void> {
+		if (this.subAgentsRestored) return;
+		this.subAgentsRestored = true;
+		// `then` rather than a bare call: a store that cannot answer at all throws before there is a promise to catch.
+		const records = await Promise.resolve()
+			.then(() => this.store.subAgentRecords(this.log.meta.id))
+			.catch(() => []);
+		if (records.length === 0) return;
+		// 落盘时挪出去的图片接回来，跟主会话的消息同一条路（`store.load`）。
+		const said = records.flatMap((record) => (record.type === "event" && record.event.type === "subagent_message" && record.event.message ? [record.event.message] : []));
+		const hydrated = await rehydrateMessages(said).catch(() => said);
+		const back = new Map(said.map((message, index) => [message, hydrated[index] ?? message]));
+		const readable = records.map((record) =>
+			record.type === "event" && record.event.type === "subagent_message" && back.has(record.event.message)
+				? { ...record, event: { ...record.event, message: back.get(record.event.message)! } }
+				: record,
+		);
+		const fallback = resolveModel(this.settings, this.log.meta.modelId || this.settings.defaultModelId);
+		const rebuild: Rebuild = (ran) => {
+			// The model it ran on, so the prefix is the one it sent. Gone from settings: the session's, under no id, so `runSubAgent` strips the old handles.
+			const provider = this.settings.providers.find((one) => one.enabled && one.id === ran.provider);
+			const model = provider?.models.find((one) => one.modelId === ran.model);
+			const using = provider && model ? { provider, model } : fallback;
+			return using ? { model: provider && model ? model.id : "", history: (messages, boundary) => historyFrom(messages, boundary, using.provider, using.model) } : undefined;
+		};
+		this.subAgents.restore(restoreSubAgents(readable, rebuild));
+	}
+
 	/** Drop the cached symbol index so the next `symbol` lookup re-reads it from disk. */
 	invalidateSymbolIndex(): void {
 		this.can.invalidateSymbolIndex();
@@ -735,8 +774,11 @@ export class AgentSession {
 	 * A running sub-agent that was merely un-listed would go on running with nothing able to reach
 	 * it, so this never silently orphans one; see `SubAgentRegistry.dismiss`.
 	 */
-	dismissSubAgent(id: string): "removed" | "stopping" | "unknown" {
-		return this.subAgents.dismiss(id);
+	async dismissSubAgent(id: string): Promise<"removed" | "stopping" | "unknown"> {
+		const outcome = this.subAgents.dismiss(id);
+		// Written down, or the next process reads it back from the log and lists it again.
+		if (outcome === "removed") await this.emit({ type: "subagent_dismissed", id });
+		return outcome;
 	}
 
 	/** Consume a durable opening message once, without appending a second copy. */

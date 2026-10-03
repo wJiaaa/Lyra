@@ -104,7 +104,7 @@ export interface AgentModelContext {
  * to compile in every builder until each one states what it gives. The rest of `ToolContext` is per
  * call or owned elsewhere, and the tool runner fills it in.
  */
-export type ToolEnvironment = Stated<Omit<ToolContext, "cwd" | "sessionId" | "signal" | "state" | "onProgress" | "requestApproval">> & {
+export type ToolEnvironment = Stated<Omit<ToolContext, "cwd" | "sessionId" | "signal" | "state" | "onProgress" | "ifStopped" | "requestApproval">> & {
 	cwd: string;
 };
 

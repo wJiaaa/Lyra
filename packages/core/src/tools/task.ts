@@ -114,6 +114,15 @@ export const taskTool: Tool<TaskArgs> = {
 				prompt: args.prompt,
 				agentType: requested,
 				...(resuming ? { resume: resuming } : {}),
+				/*
+				 * 整轮被停时，下面那份结果没人收得到：停止和每个调用赛跑，赢的是一句通用的「已取消」。
+				 * 那句里没有 id，用户说「继续」之后模型只能从零重派——把它读过的再读一遍。
+				 */
+				onResumable: (id) =>
+					ctx.ifStopped?.({
+						content: [{ type: "text", text: stoppedHint(id) }],
+						details: { kind: "task", description: args.description, agentType: requested, subAgentId: id, ...(resuming ? { resumed: true } : {}) },
+					}),
 			});
 			/*
 			 * The object rides in `details`, never flattened into the text.
@@ -157,6 +166,19 @@ export const taskTool: Tool<TaskArgs> = {
 		}
 	},
 };
+
+/**
+ * 整轮被停时接在「已取消」后面的那一句。
+ *
+ * 只给续跑的写法，不替模型决定要续：人按停止，可能是想换个方向。
+ */
+function stoppedHint(id: string): string {
+	return (
+		`会话被停下时，子代理 \`${id}\` 还没做完，它的上下文还在。` +
+		`用户还要这件事的话，再调一次 \`task\`，传 \`resume: "${id}"\`，prompt 里写接着做什么——它会从停下的地方继续。` +
+		"**不要**重新派一个做同样的事：新派的从零开始，会把它读过的东西再读一遍。"
+	);
+}
 
 /**
  * 结果末尾那一句：它还在，怎么接着用它。

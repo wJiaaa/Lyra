@@ -36,6 +36,7 @@ import { taskContextFromHistory } from "./task-context.ts";
 import { hookContextMessage, loadHookRunner, makeAfterToolCall, makeBeforeToolCall, makeOnStop, makePermissionRequest, runSessionStartHooks, runUserPromptSubmitHooks, type TurnHooks } from "./hooks.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
+import type { Boundary } from "../session/types.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
 import { prepareTurn } from "./turn.ts";
 import { loadPromptContext, promptCapabilities } from "./prompt-context.ts";
@@ -237,15 +238,19 @@ async function recordTurnEvent(log: SessionLog, event: AgentEvent): Promise<void
  * recomputed from the messages it was drawn from instead of going stale beside them.
  */
 export function modelHistory(log: SessionLog, provider: ProviderConfig, model: ModelConfig): Message[] {
-	const boundary = log.compaction;
-	if (!boundary) return log.messages;
+	return historyFrom(log.messages, log.compaction, provider, model);
+}
 
-	const older = log.messages.slice(0, boundary.keptFrom);
-	const tail = log.messages.slice(boundary.keptFrom);
+/** The same, for a transcript that is not a session's own — a sub-agent's read back from disk. */
+export function historyFrom(messages: Message[], boundary: Boundary | null, provider: ProviderConfig, model: ModelConfig): Message[] {
+	if (!boundary) return messages;
+
+	const older = messages.slice(0, boundary.keptFrom);
+	const tail = messages.slice(boundary.keptFrom);
 	// 头部带固定的边界时间：计量据此只丢边界之前的用量（`measureTotal`），重建时取当前时间会把之后的新用量也丢掉。
 	const at = boundary.at;
 	if (!boundary.summary) {
-		const standing = lastRequest(older) ?? lastRequest(log.messages);
+		const standing = lastRequest(older) ?? lastRequest(messages);
 		return [{ ...droppedMessage(standing, taskContextFromHistory(older), model), timestamp: at }, ...tail];
 	}
 

@@ -81,6 +81,23 @@ test("a round cut off by a dead process is answered once, each call as far as it
 	});
 });
 
+test("what a running call said it leaves behind is still said after its process died", async () => {
+	await withStore(async (store, root) => {
+		const meta = await store.create(root, "m");
+		await store.append(meta, { type: "message", message: user("go") });
+		await store.append(meta, { type: "message", message: asking("dispatch", "plain") });
+		await store.openCall(meta.id, "dispatch");
+		await store.openCall(meta.id, "plain");
+		await store.append(meta, { type: "event", event: { type: "tool_left", toolCallId: "dispatch", result: { content: [{ type: "text", text: 'resume: "s:sub:1"' }], details: { subAgentId: "s:sub:1" } } } });
+		kill(store);
+		const loaded = await new SessionStore(root).load(meta.id);
+		const [left, plain] = (loaded?.messages.slice(2) ?? []) as ToolResultMessage[];
+		assert.match(text(left!), /Plume exited while this call was running[\s\S]*resume: "s:sub:1"/, "the interruption first, then what it left");
+		assert.deepEqual(left!.details, { subAgentId: "s:sub:1", interrupted: "running" });
+		assert.doesNotMatch(text(plain!), /resume/, "only the call that said it");
+	});
+});
+
 test("a reply whose process died before any call started has every call answered as never run", async () => {
 	await withStore(async (store, root) => {
 		const meta = await store.create(root, "m");

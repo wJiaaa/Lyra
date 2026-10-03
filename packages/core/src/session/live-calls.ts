@@ -13,7 +13,7 @@
  * The choice of recording facts over resuming execution is ADR-0033.
  */
 
-import type { AssistantContent, AssistantMessage, Message, ToolResultMessage } from "../types.ts";
+import type { AssistantContent, AssistantMessage, Message, ToolResult, ToolResultMessage } from "../types.ts";
 
 /**
  * How far a call got. `pending` from the moment the reply asking for it is written; `running` from
@@ -70,8 +70,13 @@ export function openRound(messages: readonly Message[]): { reply: AssistantMessa
 	return null;
 }
 
-/** What to tell the model about a call that never returned. */
-export function interruptedResult(call: ToolCall, live: LiveCall | undefined, at: number): ToolResultMessage {
+/**
+ * What to tell the model about a call that never returned.
+ *
+ * `left` is what the call said it leaves behind (`tool_left`) — a sub-agent that can be resumed.
+ * Only a call that was running can have left anything, so the other two ignore it.
+ */
+export function interruptedResult(call: ToolCall, live: LiveCall | undefined, at: number, left?: ToolResult): ToolResultMessage {
 	const base = { role: "toolResult" as const, toolCallId: call.id, toolName: call.name, isError: true, timestamp: at };
 	if (!live || live.phase !== "running") {
 		const waited = live?.phase === "approval";
@@ -82,11 +87,10 @@ export function interruptedResult(call: ToolCall, live: LiveCall | undefined, at
 		return { ...base, content: [{ type: "text", text }], details: { cancelled: true, interrupted: waited ? "approval" : "not_started" } };
 	}
 	const output = live.output?.trim() ? `\n\nOutput before it stopped:\n${live.output.slice(-KEPT_OUTPUT_CHARS)}` : "";
-	return {
-		...base,
-		content: [{ type: "text", text: `Interrupted: Plume exited while this call was running, so it never returned. It may or may not have taken effect; check the current state before running it again.${output}` }],
-		details: { interrupted: "running" },
-	};
+	const said = { type: "text" as const, text: `Interrupted: Plume exited while this call was running, so it never returned. It may or may not have taken effect; check the current state before running it again.${output}` };
+	if (!left) return { ...base, content: [said], details: { interrupted: "running" } };
+	const details = typeof left.details === "object" && left.details !== null ? left.details : {};
+	return { ...base, content: [said, ...left.content], details: { ...details, interrupted: "running" } };
 }
 
 /** The text of a progress update, as the card shows it. */

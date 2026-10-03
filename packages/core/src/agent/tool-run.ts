@@ -155,11 +155,11 @@ export function batches<T>(items: readonly T[], parallel: (item: T) => boolean):
  * Never-resolving is the point: in a race with real work it is inert until the moment it matters,
  * and the listener is removed as soon as it does so a long turn does not accumulate one per call.
  */
-function cancelled(signal: AbortSignal | undefined, waiting: () => boolean): Promise<ToolResult> {
+function cancelled(signal: AbortSignal | undefined, result: () => ToolResult): Promise<ToolResult> {
 	if (!signal) return new Promise<ToolResult>(() => {});
-	if (signal.aborted) return Promise.resolve(cancelledResult(waiting()));
+	if (signal.aborted) return Promise.resolve(result());
 	return new Promise<ToolResult>((resolve) => {
-		signal.addEventListener("abort", () => resolve(cancelledResult(waiting())), { once: true });
+		signal.addEventListener("abort", () => resolve(result()), { once: true });
 	});
 }
 
@@ -168,11 +168,14 @@ function cancelled(signal: AbortSignal | undefined, waiting: () => boolean): Pro
  * started, and telling the model it "may have taken effect" sent it off to check for effects that
  * could not exist.
  */
-function cancelledResult(waitingForApproval = false): ToolResult {
+function cancelledResult(waitingForApproval = false, left?: ToolResult): ToolResult {
 	const text = waitingForApproval
 		? "Tool call was stopped while it waited for approval, so it never ran."
 		: "Tool execution was cancelled. Anything it had already done may have taken effect.";
-	return { ...errorResult(text), details: { cancelled: true } };
+	if (!left) return { ...errorResult(text), details: { cancelled: true } };
+	// What the tool said it leaves behind (`ToolContext.ifStopped`), after the stop itself.
+	const details = typeof left.details === "object" && left.details !== null ? left.details : {};
+	return { content: [...errorResult(text).content, ...left.content], isError: true, details: { ...details, cancelled: true } };
 }
 
 async function executeOne(
@@ -213,6 +216,7 @@ async function executeOne(
 	 * as a call that never ran (`live-calls.ts`), and read by a stop for the same reason.
 	 */
 	let waiting = false;
+	let left: ToolResult | undefined;
 	const awaitingPerson = async <T>(answer: () => Promise<T>): Promise<T> => {
 		waiting = true;
 		await emit({ type: "tool_phase", toolCallId: call.id, phase: "approval" });
@@ -246,6 +250,10 @@ async function executeOne(
 			})
 			: undefined,
 		onProgress: (partial) => void emit({ type: "tool_update", toolCallId: call.id, partial }),
+		ifStopped: (result) => {
+			left = result;
+			void emit({ type: "tool_left", toolCallId: call.id, result });
+		},
 	};
 
 	if (tools.beforeToolCall) {
@@ -317,9 +325,9 @@ async function executeOne(
 		 * Racing the signal here makes the button mean what it says. Whatever the tool is doing
 		 * carries on in the background and its result is discarded; the turn is over.
 		 */
-		result = await Promise.race([runTool({ tool: runnable, args: runArgs, ctx }), cancelled(signal, () => waiting)]);
+		result = await Promise.race([runTool({ tool: runnable, args: runArgs, ctx }), cancelled(signal, () => cancelledResult(waiting, left))]);
 	} catch (error) {
-		if (signal?.aborted) return cancelledResult(waiting);
+		if (signal?.aborted) return cancelledResult(waiting, left);
 		return errorResult(error instanceof Error ? error.message : String(error));
 	}
 	if (rerouted) result = { ...result, content: [...result.content, { type: "text", text: `[Executed with ${rerouted}; use that tool directly next time.]` }] };

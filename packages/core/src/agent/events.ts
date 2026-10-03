@@ -55,7 +55,7 @@ export type AgentEvent =
 	 * 比不显示还糟。
 	 */
 	// `notice` 是检查点上那句「清单还有 N 项，接着跑」——子代理自己的事，留在它自己的流里。
-	| { type: "subagent_event"; id: string; event: Extract<AgentEvent, { type: "tool_start" | "tool_end" | "request" | "retry" | "retry_settled" | "agent_end" | "turn_start" | "context" | "compacted" | "command_status" | "notice" }> }
+	| { type: "subagent_event"; id: string; event: Extract<AgentEvent, { type: "tool_start" | "tool_end" | "tool_left" | "request" | "retry" | "retry_settled" | "agent_end" | "turn_start" | "context" | "compacted" | "command_status" | "notice" }> }
 	| { type: "message_start"; message: Message }
 	| { type: "message_update"; message: AssistantMessage; delta: StreamEvent }
 	| { type: "message_end"; message: Message }
@@ -71,6 +71,14 @@ export type AgentEvent =
 	| { type: "tool_update"; toolCallId: string; partial: ToolResult }
 	/** A call started waiting for a person, or stopped waiting. Recorded so a crash in between is known not to have run it. */
 	| { type: "tool_phase"; toolCallId: string; phase: "approval" | "running" }
+	/**
+	 * What a call leaves behind if it never returns — see `ToolContext.ifStopped`.
+	 *
+	 * Written down because the call can end two ways without returning: stopped in this process,
+	 * where the runner appends it to "cancelled", or the process dying, where the store appends it
+	 * to "interrupted" on the next open (`settleCalls`). Only the written copy reaches the second.
+	 */
+	| { type: "tool_left"; toolCallId: string; result: ToolResult }
 	| { type: "tool_end"; toolCallId: string; toolName: string; result: ToolResult; isError: boolean }
 	| {
 			type: "approval_request";
@@ -182,6 +190,16 @@ export type AgentEvent =
 	 */
 	| { type: "subagents"; agents: SubAgentSummary[] }
 	| { type: "subagent_done"; id: string; steps: string[]; answer: string; status: "done" | "failed" | "aborted"; error?: string }
+	/**
+	 * Results a sub-agent's compaction cut, as they were sent from then on.
+	 *
+	 * The transcript keeps the originals, so a sub-agent rebuilt from the log after a restart would
+	 * resend those in full: a prefix that no longer matches, and a context that may no longer fit.
+	 * The session's own cut results are kept the same way (`views` records, `AgedToolPruner`).
+	 */
+	| { type: "subagent_views"; id: string; views: { toolCallId: string; message: Message }[] }
+	/** Taken off the roster by hand. Stays off after a restart (`runtime/sub-agent-restore.ts`). */
+	| { type: "subagent_dismissed"; id: string }
 	/**
 	 * History was summarised to fit the window.
 	 *

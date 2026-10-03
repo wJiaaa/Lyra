@@ -20,12 +20,15 @@ import { HANDOFF_SCHEMA, runSubAgent, SUB_AGENT_CHECKPOINT_TURNS } from "../src/
 import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
 import { useCompaction } from "../src/runtime/compaction.ts";
 import { taskTool } from "../src/tools/task.ts";
+import { runTools } from "../src/agent/tool-run.ts";
+import { DispatchGate } from "../src/runtime/dispatch-guard.ts";
 import { TODOS_KEY, todoTool, type TodoItem } from "../src/tools/todo.ts";
 import { SUBAGENTS_KEY } from "../src/resources/handlers.ts";
 import type { AgentDefinition } from "../src/agents-builtin.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import type { Settings } from "../src/config/settings.ts";
-import type { AssistantMessage, LlmContext, Message, ModelConfig, ProviderConfig, Tool, ToolContext } from "../src/types.ts";
+import type { ToolEnvironment } from "../src/agent/run-config.ts";
+import type { AssistantMessage, LlmContext, Message, ModelConfig, ProviderConfig, SubAgentAnswer, SubAgentInput, Tool, ToolContext } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
 const MODEL: ModelConfig = {
@@ -123,7 +126,11 @@ interface Harness {
 	events: AgentEvent[];
 	/** 每一次请求：发了哪些消息、桌上有哪些工具。 */
 	requests: { messages: Message[]; tools: string[] }[];
-	run(input: { prompt: string; resume?: string; agentType?: string }, reply: (turn: number, context: LlmContext) => AssistantMessage | Promise<AssistantMessage>, options?: { dispatchId?: string }): ReturnType<typeof runSubAgent>;
+	run(
+		input: { prompt: string; resume?: string; agentType?: string; onResumable?: (id: string) => void },
+		reply: (turn: number, context: LlmContext) => AssistantMessage | Promise<AssistantMessage>,
+		options?: { dispatchId?: string; signal?: AbortSignal; admission?: (signal: AbortSignal) => Promise<() => void> },
+	): ReturnType<typeof runSubAgent>;
 }
 
 function harness(agents: AgentDefinition[] = [GENERAL, EXPLORE]): Harness {
@@ -154,6 +161,8 @@ function harness(agents: AgentDefinition[] = [GENERAL, EXPLORE]): Harness {
 						return reply(turn++, context);
 					},
 					...(options.dispatchId ? { dispatch: { depth: 1, chain: ["general"], id: options.dispatchId } } : {}),
+					...(options.signal ? { signal: options.signal } : {}),
+					...(options.admission ? { admission: options.admission } : {}),
 				},
 				{ description: "梳理登录流程", ...input },
 				PROVIDER,
@@ -490,7 +499,8 @@ test("task routes a resume to the same sub-agent, and turns a refusal into the r
 			return { text: "好", id: first.id };
 		}),
 	);
-	assert.deepEqual(routed, { description: "接着", prompt: "再看看", agentType: "general", resume: first.id }, "it is general because that is what it was dispatched as");
+	const { onResumable: _onResumable, ...asked } = routed as SubAgentInput;
+	assert.deepEqual(asked, { description: "接着", prompt: "再看看", agentType: "general", resume: first.id }, "it is general because that is what it was dispatched as");
 	assert.equal(ok.isError, undefined);
 
 	const refused = await taskTool.execute(
@@ -501,6 +511,98 @@ test("task routes a resume to the same sub-agent, and turns a refusal into the r
 	const said = text({ role: "user", content: refused.content } as unknown as Message);
 	assert.match(said, /找不到子代理/);
 	assert.doesNotMatch(said, /Sub-agent failed/, "a refusal to act on, not a failure");
+});
+
+// ---------------------------------------------------------------------------
+// 5. 整轮被停：「已取消」里要带着能续跑的那一个
+// ---------------------------------------------------------------------------
+
+/*
+ * 真实会话（2026-10-03）：主会话在一个 explore 跑到第 19 秒时被停下，`task` 的结果只剩一句通用的
+ * 「Tool execution was cancelled」——停止和调用赛跑，赢的那一方不知道子代理是谁。用户说「继续」，
+ * 模型的原话是「上一个子代理被取消了，我需要重新派它」，同一件事从零又花了 61.6k。
+ */
+
+const taskCall = (args: Record<string, unknown>) => ({ type: "toolCall" as const, id: "t1", name: "task", arguments: args, argumentsText: JSON.stringify(args) });
+
+function stoppableTurn(registry: SubAgentRegistry, spawn: ToolContext["spawnSubAgent"], signal: AbortSignal) {
+	return runTools(
+		[taskCall({ description: "梳理", prompt: "梳理登录流程" })],
+		{
+			available: [taskTool as unknown as Tool],
+			env: { cwd: "/tmp", spawnSubAgent: spawn } as unknown as ToolEnvironment,
+			requestApproval: undefined,
+			beforeToolCall: undefined,
+			afterToolCall: undefined,
+			permissionRequest: undefined,
+		},
+		{ sessionId: "s1", signal, state: new Map<string, unknown>([[SUBAGENTS_KEY, registry], ["agents", [GENERAL, EXPLORE]]]) },
+		async () => {},
+	);
+}
+
+test("a turn stopped mid-dispatch still tells the model which sub-agent to resume, and resuming it works", async () => {
+	const h = harness();
+	const stop = new AbortController();
+	let running: Promise<SubAgentAnswer> | undefined;
+	const [message] = await stoppableTurn(
+		h.registry,
+		(input) =>
+			(running = h.run(
+				input,
+				(turn) => {
+					if (turn === 0) return reads(0);
+					// 第二次请求的时候人按了停止：供应商那边的流随之断开。
+					stop.abort();
+					return assistant([], "aborted");
+				},
+				{ signal: stop.signal },
+			)),
+		stop.signal,
+	);
+	const [row] = h.registry.list();
+	const said = text(message as Message);
+
+	assert.match(said, /^Tool execution was cancelled/, "it is still a stop, said first");
+	assert.match(said, new RegExp(`resume: "${row!.id}"`), "with the call that continues it");
+	assert.match(said, /\*\*不要\*\*重新派一个/);
+	assert.equal(message!.isError, true);
+	assert.deepEqual(
+		{ cancelled: (message!.details as { cancelled?: boolean }).cancelled, subAgentId: (message!.details as { subAgentId?: string }).subAgentId },
+		{ cancelled: true, subAgentId: row!.id },
+		"the card still reads as stopped, and can find its row by id",
+	);
+
+	// 停止那一刻它还在收尾；收完了，上下文留着。
+	await running;
+	const resumedFrom = h.requests.length;
+	const answer = await taskTool.execute(
+		{ description: "接着", prompt: "接着梳理", resume: row!.id },
+		taskContext(h.registry, (input) => h.run(input, () => says("登录在 auth.ts:42"))),
+	);
+	assert.equal(answer.isError, undefined);
+	assert.equal(h.registry.list().length, 1, "the same row, not a second one");
+	assert.match(text(h.requests[resumedFrom]!.messages.find((one) => one.role === "toolResult")), /内容：src\/file-0\.ts/, "what it read before the stop is still in its context");
+});
+
+test("one stopped while still queued has nothing to resume, so the stop says only that it was stopped", async () => {
+	const h = harness();
+	const stop = new AbortController();
+	const gate = new DispatchGate(1);
+	const held = await gate.acquire();
+	const [message] = await stoppableTurn(
+		h.registry,
+		(input) => {
+			const run = h.run(input, () => assert.fail("a queued run that was stopped never sends a request"), { signal: stop.signal, admission: (signal) => gate.acquire(signal) });
+			setTimeout(() => stop.abort(), 10);
+			return run;
+		},
+		stop.signal,
+	);
+	held();
+	const said = text(message as Message);
+	assert.match(said, /^Tool execution was cancelled/);
+	assert.doesNotMatch(said, /resume/, "pointing at a resume that would be refused costs the model a round");
 });
 
 test("the default checkpoint is still sixty rounds — what changed is what happens there, not where it is", () => {

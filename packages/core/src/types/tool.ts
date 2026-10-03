@@ -90,6 +90,15 @@ export interface ToolContext {
 	signal?: AbortSignal;
 	/** Push an in-progress result so the UI can stream long-running tools. */
 	onProgress?: (partial: ToolResult) => void;
+	/**
+	 * What this call leaves behind if the turn is stopped before it returns.
+	 *
+	 * Stop races every call (`agent/tool-run.ts`), so whatever the tool would have returned after
+	 * the stop is thrown away and the model reads only "cancelled". A call whose work outlives the
+	 * turn — a sub-agent whose context can be resumed — says so here, and the runner appends it to
+	 * that "cancelled". The latest call wins.
+	 */
+	ifStopped?: (left: ToolResult) => void;
 	/** Ask the user to approve a side-effecting operation. */
 	requestApproval?: (request: ApprovalRequest) => Promise<ApprovalDecision>;
 	/**
@@ -264,6 +273,13 @@ export interface SubAgentInput {
 	 * 地方继续。`agentType` 此时不起作用——它是谁，由它当初被派出去时定下。
 	 */
 	resume?: string;
+	/**
+	 * 从这一刻起它停下也能续跑，id 是这个。
+	 *
+	 * 给 `task` 用：整轮被停时它的返回值会被丢掉（见 `ToolContext.ifStopped`），能续跑的 id 只能
+	 * 提前递出来。新派的在拿到名额之后才叫——排着队就被停的那种什么都没留下，续不了。
+	 */
+	onResumable?: (id: string) => void;
 }
 
 export interface Tool<TArgs = Record<string, unknown>> extends ToolSpec {
