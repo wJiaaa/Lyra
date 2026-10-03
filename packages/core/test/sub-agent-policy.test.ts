@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { runSubAgent } from "../src/runtime/sub-agent.ts";
+import { toolPolicy } from "../src/runtime/tool-policy.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, Settings, Tool, ToolContext } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
@@ -114,6 +115,15 @@ test("the host allow-list reaches a delegated run", async () => {
 	const ctx = await contextGivenTo({ allowedHosts: ["example.com"] } as Partial<Settings>);
 
 	assert.deepEqual(ctx.allowedHosts, ["example.com"]);
+});
+
+test("every field of the tool policy reaches a delegated run, as the main turn derives it", async () => {
+	// One derivation for both kinds of run; a field added to `toolPolicy` is covered here unasked.
+	const settings = { permissionMode: "auto", denyCommandNetwork: true, allowedHosts: ["example.com"], searchProvider: "tavily", projects: [] } as unknown as Settings;
+	const ctx = await contextGivenTo(settings);
+	for (const [field, value] of Object.entries(toolPolicy({ thinking: "off", hooks: [], ...settings } as unknown as Settings, "/tmp"))) {
+		assert.deepEqual(ctx[field as keyof ToolContext], value, field);
+	}
 });
 
 test("previews from a delegated run are filed under the session, not the sub-agent", async () => {

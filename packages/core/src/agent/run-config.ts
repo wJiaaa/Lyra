@@ -89,7 +89,7 @@ export interface AgentRunConfig {
 	 * Replaces the provider call. Tests script turns through this so loop behaviour can be
 	 * checked without a network round trip.
 	 */
-	streamFn?: (context: LlmContext, config: AgentRunConfig) => Promise<AssistantMessage>;
+	streamFn?: (context: LlmContext, request: StreamRequest) => Promise<AssistantMessage>;
 	/** Observe the effective request after pruning, compaction and overflow recovery. */
 	onContext?: (context: LlmContext, model: ModelConfig) => void;
 	/**
@@ -146,6 +146,23 @@ export interface AgentRunConfig {
 	 * the Stop hook saying the work is not done yet, and why.
 	 */
 	onStop?: (info: { responseText: string; toolCallCount: number }) => Promise<Message | undefined>;
+}
+
+/**
+ * What a stand-in for the provider call is given: the request, not the loop's configuration.
+ *
+ * Narrow on purpose. It used to be the whole `AgentRunConfig`, so every field added to the loop
+ * widened the provider seam too, and callers outside the loop (compaction's summary) had to fake a
+ * run — empty tools, a borrowed session id — to call it.
+ */
+export interface StreamRequest {
+	provider: ProviderConfig;
+	model: ModelConfig;
+	thinking?: ThinkingLevel;
+	maxTokens?: number;
+	temperature?: number;
+	cacheKey?: string;
+	signal?: AbortSignal;
 }
 
 /** The model the session has selected right now, and when that changes. See ADR-0025. */

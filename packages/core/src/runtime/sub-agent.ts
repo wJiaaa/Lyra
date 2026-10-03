@@ -28,6 +28,8 @@ import { readPromptOverride } from "../prompt/overrides.ts";
 import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { plumeHome } from "../session/store.ts";
+import { scratchDir } from "./session-facts.ts";
+import { toolPolicy } from "./tool-policy.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { resolveSubAgentModel } from "../config/model-roles.ts";
 import { sessionPruner } from "./aged-prune.ts";
@@ -645,22 +647,15 @@ export async function runSubAgent(
 				 * same `bash` call audited in the main conversation and unaudited one level down.
 				 * Delegation is a way of organising work, not a way around what the session decided.
 				 */
-				sandboxMode: sandboxModeFor(options.settings.permissionMode),
-				sandboxNetwork: options.settings.denyCommandNetwork ? "deny" : "allow",
-				allowedHosts: options.settings.allowedHosts,
 				/*
-				 * Read here rather than inherited from the parent run, because nothing in this block is
-				 * inherited: a delegated search that fell back to "whichever provider answers" would
+				 * Derived from settings by the same function as the main turn, not inherited from the
+				 * parent run: a delegated search that fell back to "whichever provider answers" would
 				 * reach a service the user did not pick, from a run they cannot see.
 				 */
-				searchProviderId: options.settings.searchProvider ?? null,
+				...toolPolicy(options.settings, options.cwd),
 				allowedPaths: options.allowedPaths,
 				transcript: options.transcript,
-				// Derived rather than passed down: same settings, same cwd, same answer — and one
-				// fewer parameter that can be forgotten at a new call site. A delegated run reads
-				// across the project's folders exactly as the conversation that dispatched it does.
-				projectRoots: projectRootsFor(options.settings.projects, options.cwd),
-				scratchDir: join(plumeHome(), "scratch", options.sessionId),
+				scratchDir: scratchDir(options.sessionId),
 				beforeToolCall: makeBeforeToolCall(hooks),
 				afterToolCall: makeAfterToolCall(hooks),
 				permissionRequest: makePermissionRequest(hooks),

@@ -64,7 +64,8 @@ export async function streamTurn(config: AgentRunConfig, context: LlmContext, em
 	if (config.streamFn) {
 		try {
 			// The stand-in gets the same switch-aware signal, so switching is testable through it.
-			const message = await config.streamFn(context, { ...config, signal });
+			const { provider, model, thinking, maxTokens, temperature, cacheKey } = config;
+			const message = await config.streamFn(context, { provider, model, thinking, maxTokens, temperature, cacheKey, signal });
 			if (switched()) return { message, switched: true };
 			if (rejectedContent(message)) {
 				const commit = async () => {

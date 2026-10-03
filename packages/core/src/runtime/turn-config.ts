@@ -33,11 +33,10 @@ import { runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
 import type { DelegationWaits } from "./delegation-waits.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
-import { projectRootsFor } from "../config/project-roots.ts";
 import type { TurnContext } from "./turn.ts";
-import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
 import { sessionPruner } from "./aged-prune.ts";
+import { toolPolicy } from "./tool-policy.ts";
 
 export interface TurnConfigDeps {
 	sessionId: string;
@@ -105,13 +104,6 @@ export function buildTurnConfig(
 	 * 取决于「这一轮有没有派过活」——在没派活的会话里根本不存在，谁想看一眼都看不到。
 	 */
 	const gate = dispatchGate(deps);
-	/*
-	 * Read once per turn, for the same reason `sandboxMode` is decided here.
-	 *
-	 * The project list cannot change halfway through a turn in any way the turn should notice, and
-	 * a tool that looked it up itself could disagree with the one running beside it.
-	 */
-	const projectRoots = projectRootsFor(deps.settings.projects, deps.cwd);
 	return {
 
 			sessionId: deps.sessionId,
@@ -139,18 +131,8 @@ export function buildTurnConfig(
 				writePreview(plumeHome(), { ...input, sessionId: deps.sessionId }),
 			transcript: deps.transcript,
 			requestApproval: (request) => deps.requestApproval(request),
-			/*
-			 * What this turn's commands may change, derived from the permission mode.
-			 *
-			 * Derived here rather than read from settings by each tool, because it is one decision
-			 * per turn: the mode cannot change halfway through a command, and a tool that looked it
-			 * up itself could disagree with the one running beside it.
-			 */
-			sandboxMode: sandboxModeFor(deps.settings.permissionMode),
-			// The network half, stated rather than derived: no permission mode implies it.
-			sandboxNetwork: deps.settings.denyCommandNetwork ? "deny" : "allow",
-			allowedHosts: deps.settings.allowedHosts,
-			searchProviderId: deps.settings.searchProvider ?? null,
+			// Decided once per turn, the same way for every kind of run; see `tool-policy.ts`.
+			...toolPolicy(deps.settings, deps.cwd),
 			/*
 			 * 一只表，一条续跑链。
 			 *
@@ -161,7 +143,6 @@ export function buildTurnConfig(
 			pruner: sessionPruner(deps.state),
 			artifacts: deps.artifacts,
 			allowedPaths: deps.allowedPaths,
-			projectRoots,
 			/*
 			 * Queued rather than run on demand.
 			 *

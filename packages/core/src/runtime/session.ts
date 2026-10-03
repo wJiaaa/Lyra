@@ -524,7 +524,7 @@ export class AgentSession {
 			messages: history,
 			model: resolved.model,
 			provider: resolved.provider,
-			streamFn: summaryStream(this.streamFn, { sessionId: this.meta.id, cwd: this.cwd, retryPolicy: () => this.settings.retryPolicy, signal }, compactionSpent(this.log)),
+			streamFn: summaryStream(this.streamFn, { retryPolicy: () => this.settings.retryPolicy, signal }, compactionSpent(this.log)),
 			force: true,
 			// 剪掉的原文存下来，占位标记里给出 `artifact://` 地址。
 			artifacts: { keep: (tool, content) => this.can.keepArtifact(tool, content) },

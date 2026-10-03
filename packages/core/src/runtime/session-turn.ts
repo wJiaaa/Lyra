@@ -338,7 +338,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 			streamFn: input.streamFn,
 			requestApproval: input.requestApproval,
 			emit: input.emit,
-			summaryStream: summaryStream(input.streamFn, { sessionId: log.meta.id, cwd, retryPolicy: () => (input.getSettings?.() ?? input.settings).retryPolicy, signal: input.signal }, compactionSpent(log)),
+			summaryStream: summaryStream(input.streamFn, { retryPolicy: () => (input.getSettings?.() ?? input.settings).retryPolicy, signal: input.signal }, compactionSpent(log)),
 			// 压缩剪掉的大块输出存进会话，占位标记里给出 `artifact://` 地址。
 			artifacts: { keep: (tool, content) => can.keepArtifact(tool, content) },
 			beforeToolCall: makeBeforeToolCall(hooks, can.extensions),
@@ -387,7 +387,7 @@ async function settlePrompt(input: TurnInputs, fresh: PromptContext): Promise<Pr
  */
 export function summaryStream(
 	override: AgentRunConfig["streamFn"] | undefined,
-	scope: Pick<AgentRunConfig, "sessionId" | "cwd" | "retryPolicy" | "signal">,
+	scope: Pick<AgentRunConfig, "retryPolicy" | "signal">,
 	spent?: SpentOn,
 ): typeof streamAssistant {
 	const stream = unmetered(override, scope);
@@ -422,7 +422,7 @@ export function metered(stream: typeof streamAssistant, spent: SpentOn): typeof 
 
 function unmetered(
 	override: AgentRunConfig["streamFn"] | undefined,
-	scope: Pick<AgentRunConfig, "sessionId" | "cwd" | "retryPolicy" | "signal">,
+	scope: Pick<AgentRunConfig, "retryPolicy" | "signal">,
 ): typeof streamAssistant {
 	if (!override) return (provider, model, context, options) => streamAssistant(provider, model, context, { ...options, retryPolicy: options?.retryPolicy ?? scope.retryPolicy, signal: options?.signal ?? scope.signal });
 	return (provider, model, context, options) => {
@@ -431,11 +431,7 @@ function unmetered(
 		// whole message. The generator shape is the adaptor; there is nothing to yield along the way.
 		// oxlint-disable-next-line require-yield
 		async function* once(): AsyncGenerator<StreamEvent, AssistantMessage> {
-			return call({ ...context }, {
-				...scope, provider, model, messages: context.messages,
-				systemPrompt: context.systemPrompt ?? "", tools: [],
-				thinking: options?.thinking, maxTokens: options?.maxTokens, signal: options?.signal ?? scope.signal,
-			});
+			return call({ ...context }, { provider, model, thinking: options?.thinking, maxTokens: options?.maxTokens, signal: options?.signal ?? scope.signal });
 		}
 		return once();
 	};

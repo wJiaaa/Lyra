@@ -16,7 +16,7 @@ import { afterEach, test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runAgent, type AgentRunConfig } from "../src/agent/loop.ts";
+import { runAgent, type AgentRunConfig, type StreamRequest } from "../src/agent/loop.ts";
 import type { CompactHistory } from "../src/agent/compact-step.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { classifyFailure, isContextOverflow } from "../src/ai/failure.ts";
@@ -316,7 +316,7 @@ test("子代理同样压缩后重发，每个请求带着它自己的、续跑�
 		registry: new SubAgentRegistry(),
 		requestApproval: async () => "once" as const,
 		emit: async (event: AgentEvent) => { events.push(event); },
-		streamFn: async (_context: unknown, config: AgentRunConfig) => {
+		streamFn: async (_context: unknown, config: StreamRequest) => {
 			keys.push(config.cacheKey);
 			calls += 1;
 			if (calls === 1) {

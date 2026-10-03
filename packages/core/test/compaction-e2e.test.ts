@@ -333,9 +333,9 @@ async function usageRecords(root: string): Promise<Array<{ source: string; model
 }
 
 /** A summary request carries no tools; a conversation turn always does. */
-function billedSummary(): (context: unknown, config: { tools: unknown[] }) => Promise<AssistantMessage> {
-	return async (_context, config) => {
-		if (config.tools.length > 0) return reply("回复".repeat(400));
+function billedSummary(): (context: { tools: unknown[] }) => Promise<AssistantMessage> {
+	return async (context) => {
+		if (context.tools.length > 0) return reply("回复".repeat(400));
 		return { ...reply("这是摘要"), usage: { ...emptyUsage(), input: 1_234, output: 56, total: 1_290 } };
 	};
 }
