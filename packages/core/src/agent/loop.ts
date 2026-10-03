@@ -22,22 +22,7 @@ import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
 import type { AssistantContent, AssistantMessage, LlmContext, Message, ToolResultMessage } from "../types.ts";
 import type { AgentEventSink } from "./events.ts";
 
-export type {
-	AfterToolCall,
-	AgentControlContext,
-	AgentModelContext,
-	AgentRunConfig,
-	AgentRunResult,
-	AgentSessionContext,
-	AgentToolContext,
-	BeforeToolCall,
-	LiveModel,
-	PermissionRequestHook,
-	StopHook,
-	StreamFn,
-	StreamRequest,
-	ToolEnvironment,
-} from "./run-config.ts";
+export type { AgentRunConfig, AgentRunResult, LiveModel, StreamRequest } from "./run-config.ts";
 
 const DEFAULT_MAX_TURNS = 200;
 /** Empty-response retries per run; tool calls must not replenish this budget. */

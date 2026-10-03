@@ -8,7 +8,7 @@
  * Four groups, one per consumer: `stream-turn` reads only `model`, `tool-run` only `tools`, history
  * code only `session`, and the loop orchestrates all four. Handles more than one of them needs — the
  * stop signal, the session state map, the session id — belong to one group and are passed down by
- * the loop as arguments, never copied into a second group. Why: docs/adr/0034-run-config-groups.md.
+ * the loop as arguments, never copied into a second group. Why: docs/adr/0034-run-config-in-four-groups.md.
  */
 
 import type { CompactHistory } from "./compact-step.ts";
@@ -137,15 +137,17 @@ export interface AgentControlContext {
 /*
  * Exactly four groups, and no key in two of them. Checked here because only `src/` is type-checked;
  * a field that seems to belong to two groups belongs to one, and the loop passes it to the other.
+ * Either check failing makes `Checked` reject its argument, which fails `tsc`.
  */
-type Groups = { [K in keyof AgentRunConfig]: keyof AgentRunConfig[K] };
-type Shared = {
-	[A in keyof Groups]: { [B in Exclude<keyof Groups, A>]: Groups[A] & Groups[B] }[Exclude<keyof Groups, A>];
-}[keyof Groups];
-const groupsAreDisjoint: [Shared] extends [never] ? true : never = true;
-const exactlyFourGroups: [keyof AgentRunConfig] extends ["session" | "model" | "tools" | "control"] ? true : never = true;
-void groupsAreDisjoint;
-void exactlyFourGroups;
+type Keys<G extends keyof AgentRunConfig> = keyof AgentRunConfig[G];
+type Shared =
+	| (Keys<"session"> & (Keys<"model"> | Keys<"tools"> | Keys<"control">))
+	| (Keys<"model"> & (Keys<"tools"> | Keys<"control">))
+	| (Keys<"tools"> & Keys<"control">);
+type Extra = Exclude<keyof AgentRunConfig, "session" | "model" | "tools" | "control">;
+type Checked<T extends never> = T;
+// oxlint-disable-next-line no-unused-vars -- exists only to be checked by the compiler
+type RunConfigInvariants = [Checked<Shared>, Checked<Extra>];
 
 /** Replaces the provider call; see `AgentModelContext.streamFn`. */
 export type StreamFn = (context: LlmContext, request: StreamRequest) => Promise<AssistantMessage>;

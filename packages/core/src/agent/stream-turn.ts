@@ -49,12 +49,12 @@ export interface StreamScope {
 	state: Map<string, unknown> | undefined;
 }
 
-export async function streamTurn(config: AgentModelContext, context: LlmContext, scope: StreamScope, emit: AgentEventSink): Promise<TurnResult> {
-	config.onContext?.(context, config.model);
+export async function streamTurn(modelConfig: AgentModelContext, context: LlmContext, scope: StreamScope, emit: AgentEventSink): Promise<TurnResult> {
+	modelConfig.onContext?.(context, modelConfig.model);
 	// Recalculate after compaction, model switches and payload recovery, for injected streams too.
-	config = { ...config, maxTokens: contextMaxTokens(config.model, context, config.maxTokens) };
+	modelConfig = { ...modelConfig, maxTokens: contextMaxTokens(modelConfig.model, context, modelConfig.maxTokens) };
 	const { state } = scope;
-	await emit({ type: "request", provider: config.provider.id, model: config.model.modelId, thinking: config.thinking, messageCount: context.messages.length });
+	await emit({ type: "request", provider: modelConfig.provider.id, model: modelConfig.model.modelId, thinking: modelConfig.thinking, messageCount: context.messages.length });
 
 	/*
 	 * A model switch has its own controller: it means "redo with someone else", not "stop", so it
@@ -64,18 +64,18 @@ export async function streamTurn(config: AgentModelContext, context: LlmContext,
 	 */
 	const switchAbort = new AbortController();
 	let said = false;
-	const unsubscribe = config.liveModel?.onChange(() => {
-		const wanted = config.liveModel?.current();
-		if (!said && wanted && wanted.model.id !== config.model.id) switchAbort.abort();
+	const unsubscribe = modelConfig.liveModel?.onChange(() => {
+		const wanted = modelConfig.liveModel?.current();
+		if (!said && wanted && wanted.model.id !== modelConfig.model.id) switchAbort.abort();
 	});
 	const switched = () => switchAbort.signal.aborted && !scope.signal?.aborted;
 	const signal = AbortSignal.any([...(scope.signal ? [scope.signal] : []), switchAbort.signal]);
 
-	if (config.streamFn) {
+	if (modelConfig.streamFn) {
 		try {
 			// The stand-in gets the same switch-aware signal, so switching is testable through it.
-			const { provider, model, thinking, maxTokens, temperature, cacheKey } = config;
-			const message = await config.streamFn(context, { provider, model, thinking, maxTokens, temperature, cacheKey, signal });
+			const { provider, model, thinking, maxTokens, temperature, cacheKey } = modelConfig;
+			const message = await modelConfig.streamFn(context, { provider, model, thinking, maxTokens, temperature, cacheKey, signal });
 			if (switched()) return { message, switched: true };
 			if (rejectedContent(message)) {
 				const commit = async () => {
@@ -114,15 +114,15 @@ export async function streamTurn(config: AgentModelContext, context: LlmContext,
 		if (prefix) message.prefix = prefix;
 		return message;
 	};
-	const stream = stamped(streamAssistant(config.provider, config.model, context, {
+	const stream = stamped(streamAssistant(modelConfig.provider, modelConfig.model, context, {
 		onPayload: state ? (body) => { sent = payloadSegments(body); } : undefined,
 		signal,
-		thinking: config.thinking,
-		maxTokens: config.maxTokens,
-		temperature: config.temperature,
-		retryAttempts: config.retryAttempts,
-		retryPolicy: config.retryPolicy,
-		cacheKey: config.cacheKey,
+		thinking: modelConfig.thinking,
+		maxTokens: modelConfig.maxTokens,
+		temperature: modelConfig.temperature,
+		retryAttempts: modelConfig.retryAttempts,
+		retryPolicy: modelConfig.retryPolicy,
+		cacheKey: modelConfig.cacheKey,
 		// Said out loud: seconds of silence while retrying are indistinguishable from a hang.
 		onRetry: ({ delayMs, reason, failure }) => {
 			retries += 1;
@@ -156,7 +156,7 @@ export async function streamTurn(config: AgentModelContext, context: LlmContext,
 	const letGo = async (message: AssistantMessage): Promise<TurnResult> => {
 		if (started) await emit({ type: "message_end", message });
 		if (retries > 0) {
-			const to = config.liveModel?.current()?.model.name;
+			const to = modelConfig.liveModel?.current()?.model.name;
 			await emit({ type: "retry_settled", outcome: "switched", attempts: retries, ...(to ? { switchedTo: to } : {}) });
 		}
 		return { message, switched: true };

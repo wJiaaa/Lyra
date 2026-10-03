@@ -19,7 +19,8 @@
  */
 
 import type { AgentEvent } from "../agent/events.ts";
-import { runAgent, type StreamFn } from "../agent/loop.ts";
+import { runAgent } from "../agent/loop.ts";
+import type { StreamFn } from "../agent/run-config.ts";
 import { compactWith } from "./compaction.ts";
 import { compactionSpent, metered } from "./session-turn.ts";
 import { streamAssistant } from "../ai/index.ts";

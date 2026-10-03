@@ -13,7 +13,7 @@
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
 import { isAbsolute, resolve } from "node:path";
 import type { AgentEvent } from "../agent/events.ts";
-import type { AgentRunConfig, LiveModel, StreamFn } from "../agent/loop.ts";
+import type { AgentRunConfig, LiveModel, StreamFn } from "../agent/run-config.ts";
 import type { RetryPolicySource } from "../config/retry-policy.ts";
 import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";

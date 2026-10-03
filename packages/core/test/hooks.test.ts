@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { HookRun } from "../src/agent/events.ts";
-import type { AgentToolContext } from "../src/agent/loop.ts";
+import type { AgentToolContext } from "../src/agent/run-config.ts";
 import { runTools } from "../src/agent/tool-run.ts";
 import { loadProjectLayer } from "../src/config/layers.ts";
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";

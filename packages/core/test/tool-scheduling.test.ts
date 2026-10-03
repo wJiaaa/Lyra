@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { AgentToolContext } from "../src/agent/loop.ts";
+import type { AgentToolContext } from "../src/agent/run-config.ts";
 import { coerceArguments, resolveTool, withParameterHint } from "../src/agent/tool-args.ts";
 import { batches, runTools } from "../src/agent/tool-run.ts";
 import type { Context } from "../src/kernel/context.ts";

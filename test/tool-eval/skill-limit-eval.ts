@@ -71,7 +71,9 @@ await runAgent(
     tools: { available: tools, env: { cwd } },
     control: { maxTurns: 6 },
   }),
-  async (e: { type: string; toolCallId?: string; toolName?: string; isError?: boolean }) => {
+  async (e: { type: string; toolCallId?: string; toolName?: string; isError?: boolean; reason?: string; error?: string }) => {
+    // Without this a request the provider refused reads as "the model never tried bash".
+    if (e.type === "agent_end" && e.reason !== "done") say(`  运行结束：${e.reason}${e.error ? `，${e.error}` : ""}`);
     if (e.type === "tool_start" && e.toolName && e.toolCallId) pending.set(e.toolCallId, e.toolName);
     if (e.type === "tool_end" && e.toolCallId) {
       const name = pending.get(e.toolCallId);

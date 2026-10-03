@@ -30,7 +30,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "../agent/events.ts";
-import type { LiveModel, StreamFn } from "../agent/loop.ts";
+import type { LiveModel, StreamFn } from "../agent/run-config.ts";
 import type { Settings } from "../config/settings.ts";
 import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem, withProjectLayer } from "../config/settings.ts";
 import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts";

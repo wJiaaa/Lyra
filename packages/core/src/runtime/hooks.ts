@@ -8,7 +8,7 @@
  */
 
 import type { AgentEvent } from "../agent/events.ts";
-import type { AfterToolCall, BeforeToolCall, PermissionRequestHook, StopHook } from "../agent/loop.ts";
+import type { AfterToolCall, BeforeToolCall, PermissionRequestHook, StopHook } from "../agent/run-config.ts";
 import { appendHookContexts } from "../agent/tool-run.ts";
 import type { Settings } from "../config/settings.ts";
 import type { ExtensionHost } from "../extensions/host.ts";

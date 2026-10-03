@@ -10,7 +10,7 @@
  */
 
 import type { AgentEvent } from "../agent/events.ts";
-import type { AfterToolCall, AgentRunConfig, BeforeToolCall, LiveModel, PermissionRequestHook, StopHook, StreamFn, ToolEnvironment } from "../agent/loop.ts";
+import type { AfterToolCall, AgentRunConfig, BeforeToolCall, LiveModel, PermissionRequestHook, StopHook, StreamFn, ToolEnvironment } from "../agent/run-config.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Skill } from "../skills/loader.ts";

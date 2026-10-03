@@ -16,7 +16,7 @@ import type {
 } from "../src/agent/run-config.ts";
 import type { ModelConfig, ProviderConfig } from "../src/types.ts";
 
-export const TEST_MODEL: ModelConfig = {
+const TEST_MODEL: ModelConfig = {
 	id: "m",
 	modelId: "m",
 	providerId: "p",
@@ -28,7 +28,7 @@ export const TEST_MODEL: ModelConfig = {
 	supportsTools: true,
 };
 
-export const TEST_PROVIDER: ProviderConfig = {
+const TEST_PROVIDER: ProviderConfig = {
 	id: "p",
 	name: "p",
 	baseUrl: "http://localhost",
@@ -38,7 +38,7 @@ export const TEST_PROVIDER: ProviderConfig = {
 	models: [TEST_MODEL],
 };
 
-export interface RunConfigParts {
+interface RunConfigParts {
 	session?: Partial<AgentSessionContext>;
 	model?: Partial<AgentModelContext>;
 	tools?: Partial<Omit<AgentToolContext, "env">> & { env?: Partial<ToolEnvironment> };

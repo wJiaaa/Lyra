@@ -16,7 +16,7 @@ import { platform } from "node:os";
 import { commandShell } from "../platform.ts";
 import { join } from "node:path";
 import type { AgentEvent, AgentEventSink } from "../agent/events.ts";
-import type { AgentRunConfig, AgentRunResult, StreamFn } from "../agent/loop.ts";
+import type { AgentRunConfig, AgentRunResult, StreamFn } from "../agent/run-config.ts";
 import type { CompactHistory } from "../agent/compact-step.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
 import { runTurn } from "../agent/runner.ts";
