@@ -16,10 +16,11 @@
 import type { AssistantContent, AssistantMessage, Message, ToolResultMessage } from "../types.ts";
 
 /**
- * How far a call got. `running` from `tool_start` on, whatever the tool is doing; `approval` while
- * it waits for a person, which is the one stage a call is known not to have acted from.
+ * How far a call got. `pending` from the moment the reply asking for it is written; `running` from
+ * `tool_start` on, whatever the tool is doing; `approval` while it waits for a person. Only
+ * `running` may have acted.
  */
-export type CallPhase = "running" | "approval";
+export type CallPhase = "pending" | "running" | "approval";
 
 export interface CallSink {
 	/** A call is starting. Until its result is written, a dead owner leaves it for `settleCalls`. */
@@ -72,12 +73,13 @@ export function openRound(messages: readonly Message[]): { reply: AssistantMessa
 /** What to tell the model about a call that never returned. */
 export function interruptedResult(call: ToolCall, live: LiveCall | undefined, at: number): ToolResultMessage {
 	const base = { role: "toolResult" as const, toolCallId: call.id, toolName: call.name, isError: true, timestamp: at };
-	if (!live || live.phase === "approval") {
-		const text = live
+	if (!live || live.phase !== "running") {
+		const waited = live?.phase === "approval";
+		const text = waited
 			? "Not run: Plume exited while this call was waiting for approval, so it never started. Issue it again if it is still needed."
 			: "Not run: Plume exited before this call started. Issue it again if it is still needed.";
 		// Nothing happened, so not a failure: drawn like a call the person stopped.
-		return { ...base, content: [{ type: "text", text }], details: { cancelled: true, interrupted: live ? "approval" : "not_started" } };
+		return { ...base, content: [{ type: "text", text }], details: { cancelled: true, interrupted: waited ? "approval" : "not_started" } };
 	}
 	const output = live.output?.trim() ? `\n\nOutput before it stopped:\n${live.output.slice(-KEPT_OUTPUT_CHARS)}` : "";
 	return {

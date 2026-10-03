@@ -81,6 +81,28 @@ test("a round cut off by a dead process is answered once, each call as far as it
 	});
 });
 
+test("a reply whose process died before any call started has every call answered as never run", async () => {
+	await withStore(async (store, root) => {
+		const meta = await store.create(root, "m");
+		await store.append(meta, { type: "message", message: asking("first", "second") });
+		kill(store);
+		const results = (await new SessionStore(root).load(meta.id))?.messages.slice(1) as ToolResultMessage[];
+		assert.deepEqual(results.map((m) => m.toolCallId), ["first", "second"]);
+		for (const result of results) {
+			assert.match(text(result), /before this call started/);
+			assert.equal((result.details as { cancelled?: boolean }).cancelled, true);
+		}
+	});
+});
+
+test("a forked copy of a round records no calls: nobody here is about to run them", async () => {
+	await withStore(async (store, root) => {
+		const meta = await store.create(root, "m");
+		await store.append(meta, { type: "message", message: asking("copied") }, { copy: true });
+		assert.equal(sessionDb(store.path).prepare("SELECT COUNT(*) AS n FROM live_calls").get()?.n, 0);
+	});
+});
+
 test("one live call holds the whole round: the calls after it are about to start", async () => {
 	await withStore(async (store, root) => {
 		const meta = await store.create(root, "m");
@@ -108,6 +130,7 @@ test("a session records how far its calls got, and forgets each once it is answe
 		const log = new SessionLog(store, async () => {}, meta);
 		const row = () => sessionDb(store.path).prepare("SELECT phase, output FROM live_calls WHERE call_id = 'c'").get() as { phase: string; output: string | null } | undefined;
 		await log.commit(asking("c"));
+		assert.deepEqual({ ...row() }, { phase: "pending", output: null }, "on record from the reply on");
 		await log.emit({ type: "tool_start", toolCallId: "c", toolName: "bash", args: {}, summary: "bash" });
 		assert.deepEqual({ ...row() }, { phase: "running", output: null });
 		await log.emit({ type: "tool_phase", toolCallId: "c", phase: "approval" });

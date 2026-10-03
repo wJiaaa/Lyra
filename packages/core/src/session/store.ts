@@ -157,7 +157,19 @@ export class SessionStore implements SessionStorage {
 	async append(meta: Pick<SessionMeta, "id">, payload: SessionRecordInput, options: { copy?: boolean; stream?: string } = {}): Promise<SessionMeta | null> {
 		// Images go to files here, outside the transaction.
 		const parked = parkRecordPayload(payload);
-		return this.write(meta.id, parked, options.copy ?? false, Date.now(), options.stream);
+		const copy = options.copy ?? false;
+		return transaction(this.db, () => {
+			const next = this.write(meta.id, parked, copy, Date.now(), options.stream);
+			/*
+			 * A reply that asks for tools leaves its calls on record with it, before the first one starts:
+			 * a process dying in between would otherwise leave no sign that they never ran. A copy is
+			 * history that already played out elsewhere; nobody here is about to run it.
+			 */
+			if (next && !copy && parked.type === "message" && parked.message.role === "assistant") {
+				for (const block of parked.message.content) if (block.type === "toolCall") this.registerCall(meta.id, block.id, "pending");
+			}
+			return next;
+		});
 	}
 
 	/**
@@ -458,8 +470,12 @@ export class SessionStore implements SessionStorage {
 	// ---------------------------------------------------------------------------------------------
 
 	async openCall(sessionId: string, callId: string): Promise<void> {
-		const inserted = this.db.prepare("INSERT OR REPLACE INTO live_calls (session_id, call_id, phase, output, owner_pid, updated_at) SELECT id, ?, 'running', NULL, ?, ? FROM sessions WHERE id = ?")
-			.run(callId, process.pid, Date.now(), sessionId).changes;
+		this.registerCall(sessionId, callId, "running");
+	}
+
+	private registerCall(sessionId: string, callId: string, phase: CallPhase): void {
+		const inserted = this.db.prepare("INSERT OR REPLACE INTO live_calls (session_id, call_id, phase, output, owner_pid, updated_at) SELECT id, ?, ?, NULL, ?, ? FROM sessions WHERE id = ?")
+			.run(callId, phase, process.pid, Date.now(), sessionId).changes;
 		if (Number(inserted) > 0) liveCalls.add(callKey(this.path, sessionId, callId));
 	}
 
