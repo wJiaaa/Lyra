@@ -91,6 +91,18 @@ test("messages land on the sub-agent they came from", () => {
 	assert.equal(useSubAgents.getState().transcripts.s2?.length, 1);
 });
 
+test("a message the transcript read already carried is not added again when its broadcast arrives", () => {
+	// The main process writes a message to disk before broadcasting it; a read in that gap has it already.
+	const message = { role: "assistant", content: [{ type: "text", text: "读 c.ts" }], timestamp: 42 } as Message;
+	useSubAgents.setState({ transcripts: { s1: [structuredClone(message)] } });
+
+	useSubAgents.getState().append("s1", structuredClone(message));
+	assert.equal(useSubAgents.getState().transcripts.s1?.length, 1);
+
+	useSubAgents.getState().append("s1", { ...message, timestamp: 43 } as Message);
+	assert.equal(useSubAgents.getState().transcripts.s1?.length, 2, "the same words said again later are a new message");
+});
+
 test("changing conversation drops the roster with it", () => {
 	/*
 	 * The roster only arrives for the session that is running, so a stale one does not get

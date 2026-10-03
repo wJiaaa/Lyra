@@ -123,6 +123,14 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 		// Nothing has been opened for this one, so there is no list to keep in step. Opening it
 		// later reads the whole thing, including this.
 		if (!existing) return;
+		/*
+		 * Already read by `load`, and only now announced.
+		 *
+		 * The main process records a message, writes it to disk, and only then broadcasts it; a read
+		 * landing in that gap carries the message, and the broadcast arriving after it showed the same
+		 * bubble twice. Compared by value because both copies crossed IPC and share no identity.
+		 */
+		if (existing.some((one) => sameMessage(one, message))) return;
 		set({ transcripts: { ...get().transcripts, [id]: [...existing, message] } });
 	},
 
@@ -155,6 +163,11 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 		set({ agents: [], transcripts: {}, focused: null, loading: [] });
 	},
 }));
+
+/** Role and timestamp first: cheap, and they rule out almost every pair before the full comparison. */
+function sameMessage(a: Message, b: Message): boolean {
+	return a.role === b.role && a.timestamp === b.timestamp && JSON.stringify(a) === JSON.stringify(b);
+}
 
 /**
  * Running first, then the ones queued behind the gate, then the finished ones — which is the order
