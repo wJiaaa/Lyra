@@ -11,7 +11,8 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { link, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -142,4 +143,50 @@ test("改全局设置不会把项目层默默清掉", async () => {
 	const used = (session as unknown as { settings: Settings }).settings;
 	assert.equal(used.defaultModelId, "project/cheap", "项目的模型还在");
 	assert.equal(used.autoSummarizeTitle, false, "全局的新值也进来了");
+});
+
+test("the project layer is still on the moment updateSettings returns", async () => {
+	// It used to drop to global settings until the re-read landed: a stricter project approval
+	// mode was off for the length of a disk read.
+	const cwd = await project("no-gap", { defaultModelId: "project/cheap", permissionMode: "ask" });
+	const { session } = await sessionIn(cwd);
+
+	session.updateSettings({ ...GLOBAL, autoSummarizeTitle: false });
+
+	const used = (session as unknown as { settings: Settings }).settings;
+	assert.equal(used.defaultModelId, "project/cheap");
+	assert.equal(used.permissionMode, "ask");
+	assert.equal(used.autoSummarizeTitle, false);
+});
+
+test("a slower, older read of the project layer does not land over a newer one", { skip: process.platform === "win32" && "needs a FIFO" }, async () => {
+	/*
+	 * The first read is held open on a FIFO until the second has landed, then let go with stale
+	 * content — the order a slow disk can produce, made deterministic.
+	 */
+	const cwd = await project("race", { defaultModelId: "project/v1" });
+	const { session } = await sessionIn(cwd);
+	const file = join(cwd, ".plume", "config.json");
+	const handle = join(cwd, "held-fifo");
+	await rm(file);
+	execFileSync("mkfifo", [file]);
+	await link(file, handle);
+	const used = () => (session as unknown as { settings: Settings }).settings;
+
+	session.updateSettings({ ...GLOBAL, maxConcurrentSubAgents: 2 });
+	// Let the first read open the FIFO, where it blocks waiting for a writer.
+	await new Promise((resolve) => setTimeout(resolve, 100));
+
+	const fresh = join(cwd, "fresh.json");
+	await writeFile(fresh, JSON.stringify({ defaultModelId: "project/v2" }), "utf8");
+	await rename(fresh, file);
+	session.updateSettings({ ...GLOBAL, maxConcurrentSubAgents: 3 });
+	for (let i = 0; i < 100 && used().defaultModelId !== "project/v2"; i++) await new Promise((resolve) => setTimeout(resolve, 10));
+	assert.equal(used().defaultModelId, "project/v2", "the second read landed");
+
+	await writeFile(handle, JSON.stringify({ defaultModelId: "project/stale" }), "utf8");
+	await new Promise((resolve) => setTimeout(resolve, 100));
+
+	assert.equal(used().defaultModelId, "project/v2", "the stale read was discarded");
+	assert.equal(used().maxConcurrentSubAgents, 3);
 });

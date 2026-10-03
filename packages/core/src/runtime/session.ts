@@ -32,7 +32,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "../agent/events.ts";
 import type { AgentRunConfig, LiveModel } from "../agent/loop.ts";
 import type { Settings } from "../config/settings.ts";
-import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem } from "../config/settings.ts";
+import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem, withProjectLayer } from "../config/settings.ts";
 import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
@@ -127,6 +127,10 @@ export class AgentSession {
 	 * 拿已经叠过的结果再叠一次，项目的值会被当成全局的值固化下来。
 	 */
 	private globalSettings: Settings;
+	/** `.plume/config.json` as last read, laid over new global settings until the next read lands. */
+	private projectLayer: Record<string, unknown> = {};
+	/** Bumped by every read of the project layer, so a slower, older read cannot land over a newer one. */
+	private projectReads = 0;
 	/** 盯着技能和子智能体目录的那个，没有可听的目录时是 null。 */
 	private watcher: CapabilityWatcher | null = null;
 	private streamFn?: AgentRunConfig["streamFn"];
@@ -415,8 +419,11 @@ export class AgentSession {
 	 * 对话，而设置页只有一个。
 	 */
 	private async applyProjectConfig(): Promise<void> {
+		const read = ++this.projectReads;
 		const layered = await layerProjectSettings(this.globalSettings, this.cwd).catch(() => null);
-		if (!layered) return;
+		// A settings change after this read started has started its own; this one is stale.
+		if (!layered || read !== this.projectReads) return;
+		this.projectLayer = layered.layer;
 		this.settings = layered.settings;
 		this.can.state.set(PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled(this.settings));
 
@@ -584,8 +591,10 @@ export class AgentSession {
 	updateSettings(settings: Settings): void {
 		if (settings.autoSummarizeTitle === false) void this.title.cancel();
 		this.globalSettings = settings;
-		this.settings = settings;
-		this.can.state.set(PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled(settings));
+		// The project layer stays on while it is re-read; dropping it here ran stricter project
+		// settings (approval mode, concurrency) on global ones for the length of a disk read.
+		this.settings = withProjectLayer(settings, this.projectLayer);
+		this.can.state.set(PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled(this.settings));
 		for (const subject of settings.alwaysAllow) this.approvals.allow(subject);
 		/*
 		 * 并发上限当场生效，不等下一轮。
@@ -593,7 +602,7 @@ export class AgentSession {
 		 * 主会话派了四个、闸门只放一个的时候，这一轮要等四个依次跑完才结束；人这时候去设置页把
 		 * 并发调大，排着的那几个应该马上开跑，而不是等一个永远轮不到的「下一轮」。
 		 */
-		refreshDispatchGate(this.can.state, settings);
+		refreshDispatchGate(this.can.state, this.settings);
 		/*
 		 * 项目层重新叠一遍，不等这次调用。
 		 *

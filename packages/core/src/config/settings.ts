@@ -11,6 +11,7 @@ import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { withoutBom } from "../utils/bom.ts";
 import { isPlaceholder, looksSecret } from "../mcp/placeholders.ts";
 import { keepSecrets, putSecrets, secret } from "./vault.ts";
+import { loadProjectLayer, mergeLayer } from "./layers.ts";
 
 /** How much the agent may do without stopping to ask. */
 export type PermissionMode =
@@ -687,15 +688,20 @@ export async function loadSettings(): Promise<Settings> {
 export async function layerProjectSettings(
 	global: Settings,
 	cwd: string | null,
-): Promise<{ settings: Settings; refused: string[]; error?: string }> {
-	if (!cwd) return { settings: global, refused: [] };
-
-	const { loadProjectLayer, mergeLayer } = await import("./layers.ts");
+): Promise<{ settings: Settings; layer: Record<string, unknown>; refused: string[]; error?: string }> {
+	if (!cwd) return { settings: global, layer: {}, refused: [] };
 	const project = await loadProjectLayer(cwd);
-	if (Object.keys(project.config).length === 0) {
-		return { settings: global, refused: project.refused, error: project.error };
-	}
+	return { settings: withProjectLayer(global, project.config), layer: project.config, refused: project.refused, error: project.error };
+}
 
+/**
+ * Global settings with an already-read project layer over them, without touching the disk.
+ *
+ * For a session whose global settings change: re-reading the file takes a moment, and until it
+ * returns the session would otherwise run on global settings alone, its project layer dropped.
+ */
+export function withProjectLayer(global: Settings, layer: Record<string, unknown>): Settings {
+	if (Object.keys(layer).length === 0) return global;
 	/*
 	 * Merged as data and then re-normalised, rather than assigned field by field.
 	 *
@@ -703,8 +709,7 @@ export async function layerProjectSettings(
 	 * `maxConcurrentSubAgents: 500` has to meet the same ceiling a global one does, and a field-by-
 	 * field merge would be a second place those rules have to be kept in step.
 	 */
-	const merged = mergeLayer(global as unknown as Record<string, unknown>, project.config);
-	return { settings: normalizeSettings(merged), refused: project.refused, error: project.error };
+	return normalizeSettings(mergeLayer(global as unknown as Record<string, unknown>, layer));
 }
 
 /**
