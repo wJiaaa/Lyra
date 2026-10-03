@@ -199,6 +199,8 @@ const MAX_KEPT = 24;
 
 export class SubAgentRegistry {
 	private readonly records = new Map<string, SubAgentRecord>();
+	/** Messages `steer` already wrote into a transcript; see `record`. */
+	private readonly steered = new WeakSet<Message>();
 	private readonly onChange: () => void;
 	private readonly onFinish: (id: string) => void;
 
@@ -371,8 +373,13 @@ export class SubAgentRegistry {
 		this.onChange();
 	}
 
-	/** Everything the sub-agent said, as it says it. */
-	record(id: string, message: Message): void {
+	/**
+	 * Everything the sub-agent said, as it says it.
+	 *
+	 * False for a message `steer` already wrote and announced: the loop's `message_end` for it
+	 * arrives a turn later, and recording it again showed the same bubble twice in the pane.
+	 */
+	record(id: string, message: Message): boolean {
 		const found = this.records.get(id);
 		/*
 		 * Nothing to record is not the same as a message, and the order here used to decide which.
@@ -386,11 +393,13 @@ export class SubAgentRegistry {
 		 * Every other transcript in the codebase checks before it appends — `SessionLog.commit` does
 		 * it with a WeakSet. This one now does too.
 		 */
-		if (!found || !message) return;
+		if (!found || !message) return true;
+		if (this.steered.has(message)) return false;
 		found.messages.push(message);
 		// Each assistant message is one request, and arrives once — see `message_end` in `runSubAgent`.
 		if (message.role === "assistant") found.usage = addUsage(found.usage, message.usage);
 		this.onChange();
+		return true;
 	}
 
 	/** One tool call, for the reading a viewer uses to judge progress. */
@@ -489,6 +498,7 @@ export class SubAgentRegistry {
 		};
 		found.steering.push(message);
 		found.messages.push(message);
+		this.steered.add(message);
 		this.onChange();
 		/*
 		 * Returned, not just recorded, because `onChange` carries the roster and the roster has no

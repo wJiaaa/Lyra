@@ -196,6 +196,25 @@ test("a message steered mid-run reaches the sub-agent's own history", async () =
 	assert.ok(seen[1].includes("去找"), "and its original context is still there — it did not start over");
 });
 
+test("a steered message is in the transcript once, and not announced a second time when the loop takes it", async () => {
+	/*
+	 * `steer` writes and announces the message the moment it is said; the loop's `message_end` for
+	 * the same object arrives a turn later. Both used to append it, so the pane drew it twice.
+	 */
+	const { registry, events } = await dispatch({
+		replies: [callsNoop(), says("换了方向")],
+		onTurn: (turn, registry, id) => {
+			if (turn === 0) registry.steer(id, "别看测试目录");
+		},
+	});
+	const steered = (messages: readonly { role: string; content: unknown }[]) =>
+		messages.filter((m) => m.role === "user" && JSON.stringify(m.content).includes("别看测试目录")).length;
+
+	assert.equal(steered(registry.detail(registry.list()[0].id)!.messages), 1);
+	const relayed = events.flatMap((event) => (event.type === "subagent_message" ? [event.message] : []));
+	assert.equal(steered(relayed), 0, "steerSubAgent already announced it; the relay must not repeat it");
+});
+
 test("steering is refused once it has finished, rather than queued for a loop that has stopped", async () => {
 	const { registry } = await dispatch({ replies: [says("完成")] });
 	const id = registry.list()[0].id;

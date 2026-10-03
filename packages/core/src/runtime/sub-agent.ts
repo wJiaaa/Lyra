@@ -498,7 +498,8 @@ export async function runSubAgent(
 		 * transcript — durable events keep them available after reopening.
 		 */
 		if (event.type === "message_end") {
-			registry?.record(id, event.message);
+			// A steered message was announced when it was said (`steerSubAgent`); once is enough.
+			if (registry?.record(id, event.message) === false) return;
 			await options.emit({ type: "subagent_message", id, message: event.message });
 		}
 	};
