@@ -14,14 +14,27 @@
  * 要是 C 能把首次绘制压到一帧附近，那条路就是通的：内容一个字不少地留在 DOM 里，可以随便上下滚、
  * 可以搜可以复制，不用折叠也不用聚合。
  *
- * 用法：node e2e/huge-block-render-lab.mjs   然后用浏览器打开它打印的那个路径
+ * 用法：node e2e/huge-block-render-lab.mjs [会话 id]   然后用浏览器打开它打印的那个路径。
+ * 不给会话 id，就取本机会话库里最大的那条消息所在的会话。
  */
 
 import { writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-const SOURCE = "/Users/kittors/.plume/sessions/sessions.db";
-const SESSION = "2723f0cb-add6-415f-aa94-dff71d02aa7b";
+// The same place `SessionStore` reads: `$PLUME_HOME/sessions/sessions.db`.
+const SOURCE = join(process.env.PLUME_HOME || join(homedir(), ".plume"), "sessions", "sessions.db");
+const SESSION = process.argv[2] ?? largestMessageSession(SOURCE);
+
+/** The session holding the biggest message record on this machine. */
+function largestMessageSession(file) {
+	const db = new DatabaseSync(file, { readOnly: true });
+	const row = db.prepare("SELECT session_id FROM records WHERE kind = 'message' ORDER BY length(body) DESC LIMIT 1").get();
+	db.close();
+	if (!row) throw new Error(`${file} 里没有消息`);
+	return row.session_id;
+}
 
 /** 取出这个会话里最大的那个 text block——也就是真正交给 Markdown 的那段。 */
 function hugestTextBlock(file, sessionId) {

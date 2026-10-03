@@ -55,7 +55,7 @@ test("the wrap a shell is stuck with is the width it started at, not the width i
 		for (let i = 0; i < text.length; i += cols) out.push(text.slice(i, i + cols));
 		return out;
 	};
-	const line = "/Users/kittors/.zshrc:.:64: no such file or directory: /tmp/ai-bidding-uv/env";
+	const line = "/Users/me/.zshrc:.:64: no such file or directory: /tmp/project-venv/env";
 
 	// Born at 80, shown at 38: the breaks are in the wrong places and stay there.
 	const wrong = wrapAt(line, 80);

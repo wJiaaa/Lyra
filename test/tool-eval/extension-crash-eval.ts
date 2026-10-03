@@ -5,12 +5,12 @@
  * convention from a boundary: in-process there is no way to take the thread back, and the session
  * is gone. This checks that the host outlives it, and that the session's own work continues.
  */
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ExtensionHost } from "../../packages/core/src/extensions/host.ts";
+
 const say = (s = "") => process.stderr.write(s + "\n");
-const B = "/Users/kittors/Developer/opensource/Plume-tool-quality";
-const { ExtensionHost } = await import(`${B}/packages/core/src/extensions/host.ts`);
-const { mkdtemp, mkdir, writeFile } = await import("node:fs/promises");
-const { tmpdir } = await import("node:os");
-const { join } = await import("node:path");
 
 const root = await mkdtemp(join(tmpdir(), "ext-crash-"));
 const dir = join(root, "spinner");

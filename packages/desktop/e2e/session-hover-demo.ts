@@ -18,7 +18,8 @@ import { startApp, type RunningApp } from "./app.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 import { seedSessions, type FixtureSession } from "./session-fixture.ts";
 
-const REPO = "/Users/kittors/Developer/opensource/Plume";
+// This checkout: e2e → desktop → packages → root.
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const OUT_DIR = process.argv[2] ?? join(homedir(), "Desktop", "会话行虚化让位测试");
 const PORT = 9531;
 const STAMP = new Date()

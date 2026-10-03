@@ -26,7 +26,8 @@ import { MASK_PROBE } from "./mask.ts";
 import { seedSessions } from "./session-fixture.ts";
 
 const dir = process.argv[2] ?? "/tmp/plume-sidebar-fade";
-const REPO = "/Users/kittors/Developer/opensource/Plume";
+// This checkout: e2e → desktop → packages → root.
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 let failures = 0;
 function check(label: string, passed: boolean, evidence: string): void {

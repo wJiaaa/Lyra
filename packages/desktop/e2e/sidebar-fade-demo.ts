@@ -33,7 +33,8 @@ import { encode, frameGrabber, pause, type Frame } from "./record.ts";
 
 const dir = process.argv[2] ?? "/tmp/plume-fade-demo";
 const tag = process.argv[3] ?? "after";
-const REPO = "/Users/kittors/Developer/opensource/Plume";
+// This checkout: e2e → desktop → packages → root.
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const PORT = 9518;
 
 const usage = { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0, cost: { input: 0, output: 0, total: 0, cacheRead: 0, cacheWrite: 0 } };

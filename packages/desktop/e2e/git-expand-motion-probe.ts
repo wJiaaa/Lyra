@@ -14,9 +14,11 @@
  * the main thread blocking while several hundred diff rows mount.
  */
 
+import { join } from "node:path";
 import { startApp } from "./app.ts";
 
-const REPO = "/Users/kittors/Developer/opensource/Plume";
+// This checkout: e2e → desktop → packages → root.
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const settle = (ms = 800) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let failures = 0;

@@ -22,7 +22,7 @@ import { I18nProvider } from "../../src/i18n/index.ts";
 import { fileSlot, openFileOf, useOpenFile } from "../../src/store/openFile.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 
-const MD = "/Users/kittors/Desktop/调研-UI 参考知识库.md";
+const MD = "/Users/me/Desktop/调研-UI 参考知识库.md";
 const NAME = "调研-UI 参考知识库.md";
 /** 1x1 的透明 PNG——对照组那张真图片。 */
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";

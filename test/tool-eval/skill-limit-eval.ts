@@ -5,23 +5,24 @@
  * A restriction that only exists as a sentence in the prompt is a suggestion. This probe hands the
  * model a skill restricted to `read` and a task that plainly wants `bash`.
  */
-const say = (s = "") => process.stderr.write(s + "\n");
-const B = "/Users/kittors/Developer/opensource/Plume-tool-quality";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { runAgent } from "../../packages/core/src/agent/loop.ts";
+import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
+import { buildSystemPrompt } from "../../packages/core/src/prompt/system.ts";
+import { SKILLS_KEY, skillTool } from "../../packages/core/src/skills/tool.ts";
+import { bashTool } from "../../packages/core/src/tools/bash.ts";
+import { readTool } from "../../packages/core/src/tools/read.ts";
+import { runConfig } from "../../packages/core/test/run-config.ts";
 
-const { runAgent } = await import(`${B}/packages/core/src/agent/loop.ts`);
-const { runConfig } = await import(`${B}/packages/core/test/run-config.ts`);
-const { loadSettings, resolveModel } = await import(`${B}/packages/core/src/config/settings.ts`);
-const { buildSystemPrompt } = await import(`${B}/packages/core/src/prompt/system.ts`);
-const { skillTool, SKILLS_KEY } = await import(`${B}/packages/core/src/skills/tool.ts`);
-const { bashTool } = await import(`${B}/packages/core/src/tools/bash.ts`);
-const { readTool } = await import(`${B}/packages/core/src/tools/read.ts`);
-const { mkdtemp, writeFile } = await import("node:fs/promises");
-const { tmpdir } = await import("node:os");
-const { join } = await import("node:path");
+const say = (s = "") => process.stderr.write(s + "\n");
 
 const settings = await loadSettings();
-const resolved = resolveModel(settings, process.argv[2] ?? "relay/gemini-3.7-flash-high");
-if (!resolved) throw new Error("model not found");
+// The model Plume itself defaults to, unless one is named on the command line.
+const modelId = process.argv[2] ?? settings.defaultModelId;
+const resolved = resolveModel(settings, modelId);
+if (!resolved) throw new Error(`model not found: ${modelId || "(no default model set)"}`);
 
 const cwd = await mkdtemp(join(tmpdir(), "skill-limit-"));
 await writeFile(join(cwd, "notes.txt"), "第一行\n第二行\n第三行\n", "utf8");

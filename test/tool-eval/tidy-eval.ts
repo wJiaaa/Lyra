@@ -5,10 +5,10 @@
  * bookkeeping — when it decides history is safe to rewrite — not the pruning arithmetic, which the
  * unit tests already pin.
  */
+import { runAgent } from "../../packages/core/src/agent/loop.ts";
+import { runConfig } from "../../packages/core/test/run-config.ts";
+
 const say = (s = "") => process.stderr.write(s + "\n");
-const B = "/Users/kittors/Developer/opensource/Plume-tool-quality";
-const { runAgent } = await import(`${B}/packages/core/src/agent/loop.ts`);
-const { runConfig } = await import(`${B}/packages/core/test/run-config.ts`);
 
 const EMPTY = "No matches for /nothing/.\n(searched 340 files)".repeat(10);
 

@@ -19,7 +19,8 @@ import { startApp } from "./app.ts";
 
 const dir = process.argv[2] ?? "/tmp/plume-gitgraph";
 /** This repository — it has a real history with branches, which a fixture would not. */
-const REPO = "/Users/kittors/Developer/opensource/Plume";
+// This checkout: e2e → desktop → packages → root.
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 let failures = 0;
 function check(label: string, passed: boolean, evidence: string): void {
