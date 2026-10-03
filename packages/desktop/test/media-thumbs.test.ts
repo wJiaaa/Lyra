@@ -6,12 +6,12 @@
  * 「整个应用哑了 91ms」。所以下面每一条断言的都是它**没有**被多调一次。
  */
 
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cachedThumb, parkedThumb, thumbPath } from "../electron/media-thumbs.ts";
+import { cachedThumb, parkedThumb, pruneThumbs, thumbPath } from "../electron/media-thumbs.ts";
 
 const PNG = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
 
@@ -136,6 +136,22 @@ test("原图读不出来时不留下空文件", async () => {
 		assert.equal(got, null);
 		assert.equal(shrank, 0, "原图都没有还去缩");
 		assert.equal(await cachedThumb(dir, name, 128), null);
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+});
+
+test("原图删了，它的缩略图也跟着清掉；原图还在的一张不动", async () => {
+	const dir = await home();
+	try {
+		const kept = "a".repeat(40) + ".png";
+		const gone = "b".repeat(40) + ".jpg";
+		await writeFile(join(dir, kept), PNG);
+		await mkdir(join(dir, "thumbs"));
+		for (const name of [kept, gone]) for (const edge of [128, 512]) await writeFile(thumbPath(dir, name, edge), PNG);
+
+		assert.equal(await pruneThumbs(dir), 2);
+		assert.deepEqual((await readdir(join(dir, "thumbs"))).sort(), [`${"a".repeat(40)}.128.png`, `${"a".repeat(40)}.512.png`]);
 	} finally {
 		await rm(dir, { recursive: true, force: true });
 	}

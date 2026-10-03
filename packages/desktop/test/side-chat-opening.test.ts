@@ -7,6 +7,7 @@
  */
 
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { registerHooks } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -44,6 +45,11 @@ const fixture: { reads: ((snapshot: { messages: [] }) => void)[]; saves: unknown
 const hub = await import("../electron/session-hub.ts");
 const { sideChatSetModel } = await import("../electron/side-chat-service.ts");
 hooks.deregister();
+
+// Deleting a session sweeps the app's own directory; it must be a throwaway one.
+const home = await mkdtemp(join(tmpdir(), "plume-hub-"));
+process.env.PLUME_HOME = home;
+test.after(() => rm(home, { recursive: true, force: true }));
 
 hub.configureHub({ store: () => ({ deleteMany: async () => {} }) as never, settings: () => ({}) as never, window: () => null });
 
@@ -117,4 +123,15 @@ test("a side chat whose conversation was deleted while it opened is not put in p
 	await assert.rejects(opened, /not open/);
 	assert.equal(hub.sideChats.has("deleted1"), false, "it would hang off a conversation that is gone");
 	assert.deepEqual(fixture.saves, [], "and save an archive nobody owns");
+});
+
+test("deleting a conversation takes what it wrote outside the project", async () => {
+	const left = [join(home, "previews", "gone1"), join(home, "scratch", "gone1"), join(home, "sidechats", "gone1")];
+	for (const dir of left) await mkdir(dir, { recursive: true });
+	await writeFile(join(home, "sidechats", "gone1", "default.json"), "{}");
+	await mkdir(join(home, "sidechats", "kept1"), { recursive: true });
+
+	await hub.deleteSessions(["gone1"]);
+	for (const dir of left) await assert.rejects(stat(dir), `${dir} belonged to the deleted conversation`);
+	await stat(join(home, "sidechats", "kept1"));
 });

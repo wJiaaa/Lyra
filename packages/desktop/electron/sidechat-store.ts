@@ -113,3 +113,22 @@ async function writeSnapshot(path: string, snapshot: string | null): Promise<voi
 export function clearSideChat(sessionId: string, sideId = DEFAULT_SIDE_CHAT_ID): Promise<void> {
 	return saveSideChat(sessionId, [], undefined, sideId);
 }
+
+/**
+ * Everything this session's side chats left on disk, once the session itself is gone.
+ *
+ * Waits out the folder's queued writes first: a save still in flight would otherwise recreate the
+ * folder right after it was removed.
+ */
+export async function removeSideChats(sessionId: string): Promise<void> {
+	checkSession(sessionId);
+	const folder = join(dir(), sessionId);
+	await Promise.all(Array.from(writes).filter(([path]) => dirname(path) === folder).map(([, write]) => write.catch(() => {})));
+	await rm(folder, { recursive: true, force: true });
+}
+
+/** Folders whose session no longer exists: one deleted while the app was not running to follow it. */
+export async function pruneSideChats(liveSessionIds: Set<string>): Promise<void> {
+	const names = await readdir(dir()).catch(() => [] as string[]);
+	await Promise.all(names.filter((name) => !liveSessionIds.has(name)).map((name) => rm(join(dir(), name), { recursive: true, force: true }).catch(() => {})));
+}

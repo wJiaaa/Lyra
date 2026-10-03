@@ -9,7 +9,7 @@
  * keeps the map from being reachable — and therefore mutable — from six different files.
  */
 
-import { AgentSession, backgroundJobs, type AgentEvent, type SessionStorage, type Settings, type SideChat } from "@plume/core";
+import { AgentSession, backgroundJobs, plumeHome, removeSessionArtifacts, type AgentEvent, type SessionStorage, type Settings, type SideChat } from "@plume/core";
 import type { BrowserWindow } from "electron";
 import { browserState, closeSessionBrowser } from "./browser-workspace.ts";
 import { createBrowserTools } from "./browser-tools.ts";
@@ -20,7 +20,7 @@ import { createStoredSession, type InitialPrompt } from "./create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace } from "./scratch.ts";
 import { discardSideChat } from "./sidechat-discard.ts";
-import { listSideChats } from "./sidechat-store.ts";
+import { listSideChats, removeSideChats } from "./sidechat-store.ts";
 import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { eachAppWindow } from "./window.ts";
@@ -418,7 +418,9 @@ function sessionBusy(id: string): boolean {
 }
 
 /**
- * Stop these sessions and delete them. Every way a session is deleted comes through here.
+ * Stop these sessions and delete them, with what they wrote outside the project: previews, scratch
+ * files, change snapshots, side chats. Every way a session is deleted comes through here, so this
+ * is the one place that cleanup is remembered.
  *
  * Marked before anything is awaited and unmarked only once the rows are gone: in between,
  * `ensureLiveSession` answers null, so a prompt sent meanwhile is refused
@@ -429,6 +431,8 @@ export async function deleteSessions(ids: string[]): Promise<void> {
 	try {
 		await Promise.all(ids.map((id) => disposeSession(id)));
 		await deps.store().deleteMany(ids);
+		// The rows are the conversation; what is left is litter, and failing to sweep it is no reason to report the delete as failed.
+		await Promise.all(ids.flatMap((id) => [removeSessionArtifacts(plumeHome(), id), removeSideChats(id)].map((done) => done.catch(() => {}))));
 	} finally {
 		for (const id of ids) deleting.delete(id);
 	}

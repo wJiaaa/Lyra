@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -79,4 +79,31 @@ test("parkMessage does not touch a small icon", () => {
 		timestamp: 1,
 	};
 	assert.equal(parkMessage(icon), icon);
+});
+
+test("deleting a conversation takes the pictures only it showed, and keeps the ones another still shows", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "ly-payload-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = join(root, "home");
+	t.after(async () => {
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
+		await rm(root, { recursive: true, force: true });
+	});
+	const store = new SessionStore(join(root, "sessions"));
+	const picture = (fill: number): UserMessage => ({ role: "user", content: [{ type: "image", mimeType: "image/png", data: Buffer.alloc(6_100, fill).toString("base64") }], timestamp: 1 });
+	const doomed = await store.create(root, "fake/model");
+	const kept = await store.create(root, "fake/model");
+	await store.append(doomed, { type: "message", message: picture(1) });
+	await store.append(doomed, { type: "message", message: picture(2) });
+	await store.append(kept, { type: "message", message: picture(2) });
+	const files = () => readdir(join(root, "home", "session-media"));
+	assert.equal((await files()).length, 2, "the shared picture is one file");
+
+	await store.deleteMany([doomed.id]);
+	const left = await files();
+	assert.equal(left.length, 1);
+	const shown = await store.load(kept.id, { display: true });
+	const image = shown?.messages[0]?.role === "user" ? shown.messages[0].content[0] : undefined;
+	assert.equal(image?.type === "image" ? image.media : undefined, left[0], "the one still shown stays");
 });

@@ -159,6 +159,7 @@ export {
 	buildIndex,
 	indexStats,
 	loadIndex,
+	pruneIndexes,
 	saveIndex,
 	searchIndex,
 	type SymbolEntry,

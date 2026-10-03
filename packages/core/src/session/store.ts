@@ -11,6 +11,7 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
+import { rm } from "node:fs/promises";
 import { homedir, uptime } from "node:os";
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
@@ -21,7 +22,7 @@ import { applyRecord, persistedPayload, recordKind } from "./apply-record.ts";
 import { beforeSessionDbClose, closeSessionDb, sessionDb, transaction } from "./db.ts";
 import { interruptedResult, openRound, type CallPhase, type LiveCall } from "./live-calls.ts";
 import { assemblePartial, flushPendingPartials, type PartialPiece } from "./partial.ts";
-import { parkRecordPayload, rehydrateMessages, slimJsonlLine } from "./payload.ts";
+import { MAY_HOLD_MEDIA, mediaNamesIn, parkRecordPayload, rehydrateMessages, sessionMediaPath, slimJsonlLine } from "./payload.ts";
 import { REPLAY_KINDS, replayRecords } from "./replay-records.ts";
 import { auxiliaryCall, spendOf, type SpendEntry, type SpendRow } from "./spend.ts";
 import type { ActiveDay, SessionStorage } from "./storage.ts";
@@ -339,7 +340,8 @@ export class SessionStore implements SessionStorage {
 	}
 
 	/**
-	 * Delete sessions, their records and anything streaming for them — not what they spent.
+	 * Delete sessions, their records, anything streaming for them and the images only they pointed
+	 * at — not what they spent.
 	 *
 	 * Space is handed back to the file system straight after. Without it SQLite only marks the pages
 	 * free, and "clear a range" would free nothing anyone could see.
@@ -347,14 +349,29 @@ export class SessionStore implements SessionStorage {
 	async deleteMany(sessionIds: string[]): Promise<void> {
 		if (sessionIds.length === 0) return;
 		const db = this.db;
-		const streams = transaction(db, () => {
+		const { streams, orphans } = transaction(db, () => {
 			const tokens = db.prepare("SELECT token FROM partials WHERE session_id = ?");
+			const media = db.prepare(`SELECT body FROM records WHERE session_id = ? AND ${MAY_HOLD_MEDIA}`);
 			const remove = db.prepare("DELETE FROM sessions WHERE id = ?");
-			return sessionIds.flatMap((id) => {
+			const orphans = new Set<string>();
+			const streams = sessionIds.flatMap((id) => {
+				for (const row of media.all(id) as { body: string }[]) for (const name of mediaNamesIn(row.body)) orphans.add(name);
 				const found = (tokens.all(id) as { token: string }[]).map((row) => row.token);
 				remove.run(id);
 				return found;
 			});
+			/*
+			 * Parked files are named by content, so a picture pasted into two conversations is one file.
+			 * Only what no remaining record names goes. The scan reads every body that may hold a name,
+			 * and only when the deleted sessions had any. Not covered: the same bytes parked by another
+			 * session in the instant between its write and its record — a broken thumbnail, not lost text.
+			 */
+			if (orphans.size > 0) {
+				for (const row of db.prepare(`SELECT body FROM records WHERE ${MAY_HOLD_MEDIA}`).all() as { body: string }[]) {
+					for (const name of mediaNamesIn(row.body)) orphans.delete(name);
+				}
+			}
+			return { streams, orphans };
 		});
 		for (const token of streams) liveStreams.delete(token);
 		/*
@@ -370,6 +387,7 @@ export class SessionStore implements SessionStorage {
 		 * come back when the person pressed delete, rather than at some later checkpoint.
 		 */
 		db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+		await Promise.all(Array.from(orphans, (name) => rm(sessionMediaPath(name), { force: true }).catch(() => {})));
 	}
 
 	/**

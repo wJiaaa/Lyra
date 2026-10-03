@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { dirname } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { grepTool } from "../src/tools/grep.ts";
 import { globTool } from "../src/tools/glob.ts";
 import { readTool } from "../src/tools/read.ts";
@@ -28,7 +30,16 @@ test("readTool accepts file and filePath aliases", async () => {
 	assert.match(res.content[0].text, /1→import/);
 });
 
-test("symbolTool accepts query and symbol aliases", async () => {
+test("symbolTool accepts query and symbol aliases", async (t) => {
+	// The index it builds is saved under the app's home; without this every test run left one in the real one.
+	const home = await mkdtemp(join(tmpdir(), "ly-symbol-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
+	t.after(async () => {
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
+		await rm(home, { recursive: true, force: true });
+	});
 	const res = await symbolTool.execute({ query: "grepTool", path: testDir } as any, { cwd: testDir, sessionId: "s", state: new Map() });
 	assert.equal(res.isError, undefined);
 });

@@ -10,7 +10,7 @@
  * 「最后活动时间」：一条八月建、昨天还在写的会话，属于昨天。
  */
 
-import { plumeHome, removeSessionArtifacts, type SessionMeta, type SessionStorage } from "@plume/core";
+import type { SessionMeta, SessionStorage } from "@plume/core";
 
 /** 本地日期键，和用量页、扫描器用的是同一个口径——不是 ISO/UTC。 */
 function dayKey(ms: number): string {
@@ -119,7 +119,6 @@ export async function clearSessions(
 	store: SessionStorage,
 	range: ClearRange,
 	remove: (sessionIds: string[]) => Promise<string[]>,
-	home = plumeHome(),
 ): Promise<ClearResult> {
 	const sizes = await store.sizes();
 	const matched = (await store.listSessions()).filter((meta) => withinRange(meta, range));
@@ -127,7 +126,6 @@ export async function clearSessions(
 
 	const removed = await remove(matched.map((meta) => meta.id));
 	const freed = removed.reduce((sum, id) => sum + (sizes[id] ?? 0), 0);
-	await Promise.all(removed.map((id) => removeSessionArtifacts(home, id).catch(() => {})));
 
 	return { removed: removed.length, freed, skipped: matched.length - removed.length };
 }

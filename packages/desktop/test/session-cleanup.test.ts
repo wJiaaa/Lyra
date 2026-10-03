@@ -7,14 +7,10 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { beforeEach, describe, it } from "node:test";
 import type { SessionMeta, SessionStorage } from "@plume/core";
 import { clearSessions, storageUse, withinRange } from "../electron/session-cleanup.ts";
 
-let home = "";
 let index: SessionMeta[] = [];
 let sizes: Record<string, number> = {};
 
@@ -55,14 +51,9 @@ function seed(id: string, updatedAt: number, bytes = 1024): void {
 
 const at = (month: number, day: number) => new Date(2026, month - 1, day, 12, 0).getTime();
 
-beforeEach(async () => {
-	home = await mkdtemp(join(tmpdir(), "ly-cleanup-"));
+beforeEach(() => {
 	index = [];
 	sizes = {};
-});
-
-afterEach(async () => {
-	await rm(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 });
 
 describe("withinRange", () => {
@@ -128,7 +119,7 @@ describe("clearSessions", () => {
 		seed("mid", at(9, 5));
 		seed("new", at(9, 21));
 
-		const result = await clearSessions(fakeStore(), { from: "2026-09-01", to: "2026-09-10" }, never, home);
+		const result = await clearSessions(fakeStore(), { from: "2026-09-01", to: "2026-09-10" }, never);
 		assert.deepEqual(result, { removed: 1, freed: 1024, skipped: 0 });
 		assert.deepEqual(index.map((each) => each.id).sort(), ["new", "old"]);
 		assert.equal(sizes.mid, undefined, "记录也要真的没了");
@@ -137,7 +128,7 @@ describe("clearSessions", () => {
 	it("两头都空就是全删", async () => {
 		seed("a", at(8, 1));
 		seed("b", at(9, 21));
-		const result = await clearSessions(fakeStore(), { from: null, to: null }, never, home);
+		const result = await clearSessions(fakeStore(), { from: null, to: null }, never);
 		assert.equal(result.removed, 2);
 		assert.equal(index.length, 0);
 	});
@@ -147,14 +138,14 @@ describe("clearSessions", () => {
 		seed("running", at(9, 5));
 		seed("idle", at(9, 6));
 
-		const result = await clearSessions(fakeStore(), { from: null, to: null }, removeIdle((id) => id === "running"), home);
+		const result = await clearSessions(fakeStore(), { from: null, to: null }, removeIdle((id) => id === "running"));
 		assert.deepEqual(result, { removed: 1, freed: 1024, skipped: 1 });
 		assert.deepEqual(index.map((each) => each.id), ["running"]);
 	});
 
 	it("一条都没匹配上时，删除动作根本不发生", async () => {
 		seed("a", at(9, 21));
-		const result = await clearSessions(fakeStore(), { from: "2020-01-01", to: "2020-12-31" }, never, home);
+		const result = await clearSessions(fakeStore(), { from: "2020-01-01", to: "2020-12-31" }, never);
 		assert.deepEqual(result, { removed: 0, freed: 0, skipped: 0 });
 		assert.equal(index.length, 1);
 	});
@@ -163,16 +154,8 @@ describe("clearSessions", () => {
 		// 删完再量得到的是一片零，界面上就会说「释放 0 KB」——看起来像什么都没发生。
 		seed("a", at(9, 1), 4096);
 		seed("b", at(9, 2), 2048);
-		const result = await clearSessions(fakeStore(), { from: null, to: null }, never, home);
+		const result = await clearSessions(fakeStore(), { from: null, to: null }, never);
 		assert.equal(result.freed, 6144);
 	});
 
-	it("会话写在项目外的东西跟着一起走", async () => {
-		seed("a", at(9, 1));
-		await mkdir(join(home, "previews", "a"), { recursive: true });
-		await writeFile(join(home, "previews", "a", "index.html"), "<!doctype html>");
-
-		await clearSessions(fakeStore(), { from: null, to: null }, never, home);
-		await assert.rejects(stat(join(home, "previews", "a")), "预览目录是这条会话写的，它应该跟着没");
-	});
 });

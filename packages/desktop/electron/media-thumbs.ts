@@ -11,7 +11,7 @@
  * 缩放本身留在调用方（它需要 Electron 的 `nativeImage`，这里不碰），这个文件只管「算过没有」。
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 /** 缓存名里带边长：同一张图要 128 和 512 两种尺寸时，它们是两个文件，不会互相覆盖。 */
@@ -68,4 +68,18 @@ export async function parkedThumb(home: string, name: string, edge: number, deps
 /** 盘上那份，没有就 null——调用方用它跳过读原图这一步。 */
 export function cachedThumb(home: string, name: string, edge: number): Promise<Uint8Array | null> {
 	return readFile(thumbPath(home, name, edge)).catch(() => null);
+}
+
+/**
+ * 原图已经不在的缩略图。
+ *
+ * 原图跟着引用它的最后一条会话一起删（core 的 `deleteMany`），可缩略图是这边的缓存，core 不知道
+ * 它的名字，于是在启动时按原图还在不在补扫一遍。
+ */
+export async function pruneThumbs(home: string): Promise<number> {
+	const sources = new Set((await readdir(home).catch(() => [] as string[])).map((name) => name.replace(/\.[^.]+$/, "")));
+	const thumbs = await readdir(join(home, "thumbs")).catch(() => [] as string[]);
+	const orphans = thumbs.filter((name) => !sources.has(name.split(".")[0] ?? ""));
+	await Promise.all(orphans.map((name) => rm(join(home, "thumbs", name), { force: true }).catch(() => {})));
+	return orphans.length;
 }

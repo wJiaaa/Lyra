@@ -7,7 +7,9 @@ import {
 	plumeHome,
 	registerDefaultSearchProviders,
 	type HostKernel,
+	pruneIndexes,
 	pruneSessionArtifacts,
+	sessionMediaHome,
 	useSandboxRunner,
 	SessionStore,
 	SessionDbUnavailable,
@@ -28,6 +30,8 @@ import { resolveInside } from "./file-ops.ts";
 import { resolveReadablePath } from "./file-read-service.ts";
 import { loadUserImagesAt } from "./display-image.ts";
 import { captureLog } from "./screenshot-debug.ts";
+import { pruneThumbs } from "./media-thumbs.ts";
+import { pruneSideChats } from "./sidechat-store.ts";
 import { registerFilesIpc } from "./ipc/files.ts";
 import { registerFileOpsIpc } from "./ipc/file-ops.ts";
 import { scratchRoots } from "./scratch.ts";
@@ -577,14 +581,23 @@ function bindScreenshotShortcut(): void {
 	 * Previews outlive nothing. Anything belonging to a conversation that is gone goes with it,
 	 * and what remains expires on its own after a month — otherwise every sketch ever rendered
 	 * would sit in the app directory forever, since nothing else would ever think to remove it.
+	 *
+	 * `deleteSessions` already sweeps as it deletes; this catches what it could not see: sessions
+	 * removed by `pruneEmpty` above, or by a run that quit halfway.
 	 */
 	void store
 		.listSessions()
-		.then((all) => pruneSessionArtifacts(plumeHome(), new Set(all.map((s) => s.id))))
+		.then(async (all) => {
+			const live = new Set(all.map((s) => s.id));
+			await pruneSideChats(live);
+			return pruneSessionArtifacts(plumeHome(), live);
+		})
 		.then((gone) => {
 			if (gone > 0) console.log(`[plume] 清理了 ${gone} 个会话的临时文件`);
 		})
 		.catch(() => {});
+	void pruneThumbs(sessionMediaHome()).catch(() => {});
+	void pruneIndexes().catch(() => {});
 	registerDefaultSearchProviders(() => settings?.searchApiKeys);
 
 	registerIpc();

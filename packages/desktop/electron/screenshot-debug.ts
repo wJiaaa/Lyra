@@ -9,12 +9,16 @@
  *
  * Written to `screenshot-debug.log` in the app's own directory, appended, one line per event with a
  * millisecond stamp relative to the start of the capture. Cheap enough to leave on: a capture
- * produces a couple of dozen lines.
+ * produces a couple of dozen lines, about 2KB, and the file starts over once it passes `LOG_LIMIT`.
  */
 
+import { statSync, truncateSync } from "node:fs";
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { plumeHome } from "@plume/core";
+
+/** About a hundred captures: enough to cover the one being asked about, without growing for good. */
+const LOG_LIMIT = 256 * 1024;
 
 let started = 0;
 let session = 0;
@@ -33,6 +37,15 @@ function debugLogPath(): string {
 }
 
 export function beginCaptureLog(): void {
+	/*
+	 * Synchronous, before this capture's first line: its writes are fire-and-forget and may land in
+	 * any order, so an asynchronous truncate could wipe lines already written. A stat is microseconds.
+	 */
+	try {
+		if (statSync(debugLogPath()).size > LOG_LIMIT) truncateSync(debugLogPath());
+	} catch {
+		// No file yet.
+	}
 	started = Date.now();
 	session += 1;
 	seq = 0;

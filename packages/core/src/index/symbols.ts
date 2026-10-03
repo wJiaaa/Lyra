@@ -13,7 +13,7 @@
 
 import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { mkdir, readdir, readFile, stat } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rm, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { plumeHome } from "../session/store.ts";
 import { looksBinary } from "../tools/paths.ts";
@@ -152,6 +152,41 @@ export async function loadIndex(cwd: string): Promise<SymbolIndex | null> {
 		return parsed.cwd === cwd && Array.isArray(parsed.symbols) ? parsed : null;
 	} catch {
 		return null;
+	}
+}
+
+/**
+ * Remove the indexes of directories that are gone.
+ *
+ * An index is kept per directory and never expires, and a session worktree is a directory of its
+ * own: every one cleaned up left its index behind, megabytes each. Only the head of each file is
+ * read — the directory is the first field, and the rest can run to several megabytes.
+ */
+export async function pruneIndexes(): Promise<number> {
+	const root = join(plumeHome(), "index");
+	const names = (await readdir(root).catch(() => [] as string[])).filter((name) => name.endsWith(".json"));
+	let removed = 0;
+	for (const name of names) {
+		const path = join(root, name);
+		const cwd = await indexedDir(path);
+		if (cwd && (await stat(cwd).catch(() => null))) continue;
+		await rm(path, { force: true }).catch(() => {});
+		removed++;
+	}
+	return removed;
+}
+
+async function indexedDir(path: string): Promise<string | null> {
+	const file = await open(path, "r").catch(() => null);
+	if (!file) return null;
+	try {
+		const { buffer, bytesRead } = await file.read({ buffer: Buffer.alloc(8192), position: 0 });
+		const head = /^\{"cwd":("(?:[^"\\]|\\.)*")/.exec(buffer.toString("utf8", 0, bytesRead))?.[1];
+		return head ? (JSON.parse(head) as string) : null;
+	} catch {
+		return null;
+	} finally {
+		await file.close();
 	}
 }
 

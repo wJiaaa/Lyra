@@ -9,10 +9,8 @@
 
 import type { MessageAttachment } from "@plume/core";
 import {
-	plumeHome,
 	forkSession,
 	readTrajectory,
-	removeSessionArtifacts,
 	type ApprovalDecision,
 	type ContextBreakdown,
 	type SessionMeta,
@@ -159,7 +157,6 @@ export function registerSessionsIpc({
 		async (_event, sessionId: string) => {
 			const sessionMeta = await store.get(sessionId);
 			await deleteSessions([sessionId]);
-			await removeSessionArtifacts(plumeHome(), sessionId);
 
 			// If session was running in a dedicated worktree and autoCleanOld is enabled, clean it up
 			const appSettings = readSettings();
@@ -227,9 +224,6 @@ export function registerSessionsIpc({
 	ipcMain.handle("sessions:removeArchived", async () => {
 		const archived = (await store.listSessions()).filter((s) => s.archived);
 		await deleteSessions(archived.map((s) => s.id));
-		await Promise.all(
-			archived.map((s) => removeSessionArtifacts(plumeHome(), s.id)),
-		);
 		return store.listSessions();
 	});
 

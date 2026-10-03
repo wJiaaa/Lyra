@@ -121,6 +121,22 @@ async function readSessionImage(name: string): Promise<string | null> {
 	return bytes ? bytes.toString("base64") : null;
 }
 
+/**
+ * Records that may point at a parked file, as an SQL condition on `body`.
+ *
+ * A filter, not a parse: every parked name ends `.png"`, `.jpg"` or `.webp"` inside the JSON, and
+ * SQLite can rule out the rest without handing the body to JS. `mediaNamesIn` does the reading.
+ */
+export const MAY_HOLD_MEDIA = `(instr(body, '.png"') > 0 OR instr(body, '.jpg"') > 0 OR instr(body, '.webp"') > 0)`;
+
+/**
+ * Every parked file named in a record, under whatever key — a message's `media`, a browser tool's
+ * `thumbnail`. A name is the content's SHA-1, so a stray match is no real risk.
+ */
+export function mediaNamesIn(body: string): string[] {
+	return body.match(/[a-f0-9]{40}\.(?:png|jpg|webp)/g) ?? [];
+}
+
 export function safeMediaName(name: string): string {
 	const base = name.replace(/^.*[/\\]/, "");
 	if (!/^[a-f0-9]{40}\.(png|jpg|webp)$/.test(base)) return "";
