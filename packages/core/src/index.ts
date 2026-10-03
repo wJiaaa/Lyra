@@ -79,7 +79,17 @@ export { sessionHeaders } from "./ai/cache-routing.ts";
 export { USER_AGENT } from "./ai/endpoint.ts";
 export type { AgentEvent, AgentEventSink, CommandRun, HookRun, QueuedTask } from "./agent/events.ts";
 export type { TodoItem } from "./tools/todo.ts";
-export { runAgent, type AgentRunConfig, type AgentRunResult } from "./agent/loop.ts";
+export {
+	runAgent,
+	type AgentControlContext,
+	type AgentModelContext,
+	type AgentRunConfig,
+	type AgentRunResult,
+	type AgentSessionContext,
+	type AgentToolContext,
+	type StreamRequest,
+	type ToolEnvironment,
+} from "./agent/loop.ts";
 export { errorResult, textResult } from "./agent/tool-run.ts";
 export { runTurn, useAgentLoop, type AgentLoop } from "./agent/runner.ts";
 export { runTool, useToolPipeline, type ToolCall, type ToolMiddleware } from "./agent/tool-pipeline.ts";

@@ -16,7 +16,8 @@ import { afterEach, test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runAgent, type AgentRunConfig, type StreamRequest } from "../src/agent/loop.ts";
+import { runAgent, type AgentSessionContext, type StreamRequest } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import type { CompactHistory } from "../src/agent/compact-step.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { classifyFailure, isContextOverflow } from "../src/ai/failure.ts";
@@ -144,10 +145,14 @@ function fakeCompact(outcome: "ok" | "none" = "ok") {
 	return { compact, calls };
 }
 
-async function run(config: Partial<AgentRunConfig>) {
+async function run(session: Partial<AgentSessionContext>) {
 	const events: AgentEvent[] = [];
 	const result = await runAgent(
-		{ sessionId: "s", cwd: "/tmp", provider: PROVIDER, model: MODEL, systemPrompt: "", tools: [], messages: history(), retryAttempts: 1, ...config },
+		runConfig({
+			session: { sessionId: "s", systemPrompt: "", messages: history(), ...session },
+			model: { provider: PROVIDER, model: MODEL, retryAttempts: 1 },
+			tools: { available: [], env: { cwd: "/tmp" } },
+		}),
 		async (event) => { events.push(event); },
 	);
 	return { result, events };
@@ -270,7 +275,11 @@ test("被拒的那条不进日志：压缩边界落在跟发出去的同一处",
 		const sent: Message[][] = [];
 		const { compact } = fakeCompact();
 		await runAgent(
-			{ sessionId: "s", cwd: "/tmp", provider: PROVIDER, model: MODEL, systemPrompt: "", tools: [], messages: [...log.messages], retryAttempts: 1, compact, onContext: (context) => sent.push([...context.messages]) },
+			runConfig({
+				session: { sessionId: "s", systemPrompt: "", messages: [...log.messages], compact },
+				model: { provider: PROVIDER, model: MODEL, retryAttempts: 1, onContext: (context) => sent.push([...context.messages]) },
+				tools: { available: [], env: { cwd: "/tmp" } },
+			}),
 			async (event) => {
 				if (event.type === "message_end") await log.commit(event.message);
 				await log.emit(event);

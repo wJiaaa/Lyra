@@ -3,15 +3,15 @@
  *
  * The main session and each sub-agent used to derive these field by field, in two places that had
  * to be kept in step by hand; a field added to one and missed in the other runs the sub-agent under
- * a different policy without a word. Spread this into the run's config instead.
+ * a different policy without a word. Spread this into the run's `tools.env` instead.
  */
 
-import type { AgentRunConfig } from "../agent/run-config.ts";
+import type { ToolEnvironment } from "../agent/run-config.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
 import type { Settings } from "../config/settings.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 
-export type ToolPolicy = Pick<AgentRunConfig, "sandboxMode" | "sandboxNetwork" | "allowedHosts" | "searchProviderId" | "projectRoots">;
+export type ToolPolicy = Pick<ToolEnvironment, "sandboxMode" | "sandboxNetwork" | "allowedHosts" | "searchProviderId" | "projectRoots">;
 
 export function toolPolicy(settings: Settings, cwd: string): ToolPolicy {
 	return {

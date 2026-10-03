@@ -5,6 +5,7 @@ import { compactIfNeeded, summaryMessages } from "../src/runtime/compaction.ts";
 import { runAgent } from "../src/agent/loop.ts";
 import { estimateTokens } from "../src/tokens.ts";
 import { emptyUsage, type AssistantMessage, type LlmContext, type ModelConfig, type ProviderConfig } from "../src/types.ts";
+import { runConfig } from "./run-config.ts";
 
 const model: ModelConfig = { id: "test/model", providerId: "test", modelId: "model", name: "Test", contextWindow: 32_000, maxOutputTokens: 16_000, supportsThinking: false, supportsImages: false, supportsTools: true };
 const provider: ProviderConfig = { id: "test", name: "Test", api: "openai-responses", apiKey: "test", baseUrl: "http://localhost", enabled: true, models: [model] };
@@ -29,11 +30,15 @@ test("provider usage includes cache and output without counting overhead twice",
 
 test("the agent request actually receives the computed output budget", async () => {
 	let sent: number | undefined;
-	await runAgent({ sessionId: "budget", cwd: "/tmp", provider, model, systemPrompt: context.systemPrompt, messages: context.messages, tools: [], requestApproval: async () => "allow", streamFn: async (input, config) => {
-		sent = config.maxTokens;
-		assert.equal(sent, contextMaxTokens(model, input));
-		return reply();
-	} }, async () => {});
+	await runAgent(runConfig({
+		session: { sessionId: "budget", systemPrompt: context.systemPrompt, messages: context.messages },
+		model: { provider, model, streamFn: async (input, config) => {
+			sent = config.maxTokens;
+			assert.equal(sent, contextMaxTokens(model, input));
+			return reply();
+		} },
+		tools: { available: [], env: { cwd: "/tmp" }, requestApproval: async () => "allow" },
+	}), async () => {});
 	assert.ok(sent && sent < model.maxOutputTokens);
 });
 
@@ -73,10 +78,15 @@ test("summary requests use their own prompt budget and ignore retired provider m
 test("cancelling during automatic compaction does not commit it or start a model request", async () => {
 	const controller = new AbortController();
 	const events: string[] = [];
-	await runAgent({ sessionId: "abort-compact", cwd: "/tmp", provider, model, signal: controller.signal, systemPrompt: "rules", messages: [reply("history")], tools: [], requestApproval: async () => "allow",
-		compact: async () => { controller.abort(); return { messages: [], summary: "too late", kept: 0 }; },
-		streamFn: async () => { assert.fail("cancelled turn must not send a request"); },
-	}, (event) => { events.push(event.type); });
+	await runAgent(runConfig({
+		session: {
+			sessionId: "abort-compact", systemPrompt: "rules", messages: [reply("history")],
+			compact: async () => { controller.abort(); return { messages: [], summary: "too late", kept: 0 }; },
+		},
+		model: { provider, model, streamFn: async () => { assert.fail("cancelled turn must not send a request"); } },
+		tools: { available: [], env: { cwd: "/tmp" }, requestApproval: async () => "allow" },
+		control: { signal: controller.signal },
+	}), (event) => { events.push(event.type); });
 	assert.ok(!events.includes("compacted"));
 	assert.ok(events.includes("agent_end"));
 });

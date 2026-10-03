@@ -16,7 +16,8 @@ import { platform } from "node:os";
 import { commandShell } from "../platform.ts";
 import { join } from "node:path";
 import type { AgentEvent, AgentEventSink } from "../agent/events.ts";
-import type { AgentRunConfig, AgentRunResult } from "../agent/loop.ts";
+import type { AgentRunConfig, AgentRunResult, StreamFn } from "../agent/loop.ts";
+import type { CompactHistory } from "../agent/compact-step.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
 import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
@@ -132,7 +133,7 @@ export interface SubAgentOptions {
 	skills: Skill[];
 	agents: AgentDefinition[];
 	signal?: AbortSignal;
-	streamFn?: AgentRunConfig["streamFn"];
+	streamFn?: StreamFn;
 	requestApproval(request: ApprovalRequest): Promise<ApprovalDecision>;
 	emit(event: AgentEvent): Promise<void>;
 	/**
@@ -491,7 +492,7 @@ export async function runSubAgent(
 	 * The overhead handed over is this run's own: its system prompt and its own subset of the
 	 * tools, which is not what the parent carries.
 	 */
-	const compactHistory: AgentRunConfig["compact"] = (messages, model, observer, compactOptions) => {
+	const compactHistory: CompactHistory = (messages, model, observer, compactOptions) => {
 		const summarizer = resolveModelRef(options.settings, "@compact", { provider: runProvider, model });
 		return compactWith({
 			messages,
@@ -587,18 +588,26 @@ export async function runSubAgent(
 			signal: controller.signal,
 		};
 		const runConfig: AgentRunConfig = {
+			session: {
 				sessionId: id,
+				systemPrompt: subAgentPrompt,
+				messages: history,
+				state: subState,
+				// Off: it stores the rendered `view` and resumes from it, see `AgentSessionContext.environment`.
+				environment: false,
+				compact: compactHistory,
 				/*
-				 * 它自己的运行 id：带着父会话 id、又和父会话分开，续跑沿用同一个（见上面 `earlier?.id`）——
-				 * 续跑是接着上一次的 `view` 往后发，前缀逐字相同，同一个 key 才落到那份缓存上。
+				 * 一只表、一个裁剪器，跨检查点共用——和主会话续跑链同一个理由：跑满一段攒下的观察，
+				 * 不该在接着跑的时候清零。裁剪器放在它自己的状态图里，续跑时也还是那一个。
 				 */
-				cacheKey: id,
-				cwd: options.cwd,
+				pruner: sessionPruner(subState),
+				artifacts: options.addresses?.artifacts,
+			},
+			model: {
 				provider: runProvider,
 				model: runModel,
-				systemPrompt: subAgentPrompt,
-				tools: allowed,
-				messages: history,
+				// Chosen once at dispatch; a later switch in the parent reaches the next dispatch, not this run.
+				liveModel: undefined,
 				/*
 				 * The app default, deliberately — not the dispatching conversation's level.
 				 *
@@ -607,106 +616,118 @@ export async function runSubAgent(
 				 * and inheriting that level would multiply the decision by however many were sent.
 				 */
 				thinking: chosen.thinking,
+				/*
+				 * 它自己的运行 id：带着父会话 id、又和父会话分开，续跑沿用同一个（见上面 `earlier?.id`）——
+				 * 续跑是接着上一次的 `view` 往后发，前缀逐字相同，同一个 key 才落到那份缓存上。
+				 */
+				cacheKey: id,
 				retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy,
-				signal: controller.signal,
-				state: subState,
-				/*
-				 * How a sub-agent delegates further — and until now, it could not.
-				 *
-				 * `spawns` kept the `task` tool in its list and nothing was ever passed here, so a
-				 * definition that declared it could orchestrate got the tool and, from it, "sub-agents
-				 * are not available in this session". The field parsed, the tool appeared, the feature
-				 * did not exist.
-				 *
-				 * Undefined rather than a function that refuses, when this run may not spawn: the tool
-				 * is already gone from `allowed` in that case, and leaving the capability behind it
-				 * would be a second answer to the same question.
-				 */
-				spawnSubAgent: allowed.some((tool) => tool.name === "task")
-					? (nested) => {
-							/*
-							 * `spawns: ["scout", "reviewer"]` 是一份名单，不只是一个开关。
-							 *
-							 * 计划里它的作用是「读 agent 定义的人一眼看出这是个编排者，以及它会派谁」。
-							 * 只把它当布尔用，那份名单就成了注释。
-							 */
-							const allowedNames = definition.spawns;
-							const wanted = nested.agentType ?? "general";
-							/*
-							 * 续跑不过白名单：能续的只有它自己派出去的那些，派的那一刻已经过过一次了。而这里
-							 * 拿到的名字是调用时填的，不是那个子代理真正的定义——拿它来查只会冤枉人。
-							 */
-							if (nested.resume === undefined && Array.isArray(allowedNames) && !allowedNames.includes(wanted)) {
-								throw new Error(
-									`\`${definition.name}\` 只被允许派生 ${allowedNames.join("、")}，不包括 \`${wanted}\`。` +
-										`要放开，请在它的定义里把 \`${wanted}\` 加进 spawns。`,
-								);
-							}
-							/*
-							 * `nested` 而不是 `run`：这一层要先把自己的位置让出来。
-							 *
-							 * 它现在不在跑，它在等这个孩子。占着位置等同一道闸门里的位置，就是一个死锁——
-							 * 闸门收到 1 的时候必然发生，收到 4 的时候四路各派一个也一样。见 `DispatchGate.nested`。
-							 *
-							 * 正常路径下 `options.gate` 一定在（整棵派生树共用一道），走到 `??` 右边的是没有
-							 * 会话的宿主——CLI、测试，按设置里的上限开一道。
-							 */
-							const gate = options.gate ?? new DispatchGate(normalizeMaxConcurrentSubAgents(options.settings.maxConcurrentSubAgents));
-							/*
-							 * 孙代理挂在这个子代理自己的控制器上，不是会话那根：面板上单独停掉这个子代理时，
-							 * 它派出去的也要一起停。`{ ...options }` 带下去的是会话的信号，只有整轮被停才
-							 * 传得到孙代理那一层。
-							 */
-							return runSubAgent(
-								{
-									...options,
-									dispatch: here,
-									gate,
-									signal: controller.signal,
-									admission: (childAdmission ?? gate.children()).acquire,
-									onRegistered: undefined,
-								},
-								nested,
-								runProvider,
-								runModel,
-							);
-						}
-					: undefined,
-				requestApproval: ask,
-				/*
-				 * The session's policy, which does not stop applying because the work was delegated.
-				 *
-				 * Each of these was absent, and absent means "no restriction" rather than "inherit":
-				 * a sub-agent ran its commands outside the sandbox the permission mode had chosen,
-				 * reached hosts the allow-list excludes, and slipped past every configured hook — the
-				 * same `bash` call audited in the main conversation and unaudited one level down.
-				 * Delegation is a way of organising work, not a way around what the session decided.
-				 */
-				/*
-				 * Derived from settings by the same function as the main turn, not inherited from the
-				 * parent run: a delegated search that fell back to "whichever provider answers" would
-				 * reach a service the user did not pick, from a run they cannot see.
-				 */
-				...toolPolicy(options.settings, options.cwd),
-				allowedPaths: options.allowedPaths,
-				transcript: options.transcript,
-				scratchDir: scratch,
-				resources,
-				artifacts: options.addresses?.artifacts,
-				beforeToolCall: makeBeforeToolCall(hooks),
-				afterToolCall: makeAfterToolCall(hooks),
-				permissionRequest: makePermissionRequest(hooks),
-				/*
-				 * Previews go under the parent's session, not this run's own id.
-				 *
-				 * They are thrown away with the conversation that produced them, and a delegated run
-				 * is part of that conversation — filed under an id that disappears when the sub-agent
-				 * finishes, the page would outlive nothing and be found by no one.
-				 */
-				writePreview: (input) => writePreview(plumeHome(), { ...input, sessionId: options.sessionId }),
 				// Inherited, so a host that replaced the provider call replaced it for the whole
 				// tree — a sub-agent quietly dialling out would defeat the point of overriding it.
 				streamFn: options.streamFn,
+				onContext: undefined,
+			},
+			tools: {
+				available: allowed,
+				env: {
+					cwd: options.cwd,
+					/*
+					 * The session's policy, which does not stop applying because the work was delegated.
+					 *
+					 * Each of these was absent, and absent means "no restriction" rather than "inherit":
+					 * a sub-agent ran its commands outside the sandbox the permission mode had chosen,
+					 * reached hosts the allow-list excludes, and slipped past every configured hook — the
+					 * same `bash` call audited in the main conversation and unaudited one level down.
+					 * Delegation is a way of organising work, not a way around what the session decided.
+					 */
+					/*
+					 * Derived from settings by the same function as the main turn, not inherited from the
+					 * parent run: a delegated search that fell back to "whichever provider answers" would
+					 * reach a service the user did not pick, from a run they cannot see.
+					 */
+					...toolPolicy(options.settings, options.cwd),
+					allowedPaths: options.allowedPaths,
+					transcript: options.transcript,
+					scratchDir: scratch,
+					resources,
+					/*
+					 * Previews go under the parent's session, not this run's own id.
+					 *
+					 * They are thrown away with the conversation that produced them, and a delegated run
+					 * is part of that conversation — filed under an id that disappears when the sub-agent
+					 * finishes, the page would outlive nothing and be found by no one.
+					 */
+					writePreview: (input) => writePreview(plumeHome(), { ...input, sessionId: options.sessionId }),
+					/*
+					 * How a sub-agent delegates further — and until now, it could not.
+					 *
+					 * `spawns` kept the `task` tool in its list and nothing was ever passed here, so a
+					 * definition that declared it could orchestrate got the tool and, from it, "sub-agents
+					 * are not available in this session". The field parsed, the tool appeared, the feature
+					 * did not exist.
+					 *
+					 * Undefined rather than a function that refuses, when this run may not spawn: the tool
+					 * is already gone from `allowed` in that case, and leaving the capability behind it
+					 * would be a second answer to the same question.
+					 */
+					spawnSubAgent: allowed.some((tool) => tool.name === "task")
+						? (nested) => {
+								/*
+								 * `spawns: ["scout", "reviewer"]` 是一份名单，不只是一个开关。
+								 *
+								 * 计划里它的作用是「读 agent 定义的人一眼看出这是个编排者，以及它会派谁」。
+								 * 只把它当布尔用，那份名单就成了注释。
+								 */
+								const allowedNames = definition.spawns;
+								const wanted = nested.agentType ?? "general";
+								/*
+								 * 续跑不过白名单：能续的只有它自己派出去的那些，派的那一刻已经过过一次了。而这里
+								 * 拿到的名字是调用时填的，不是那个子代理真正的定义——拿它来查只会冤枉人。
+								 */
+								if (nested.resume === undefined && Array.isArray(allowedNames) && !allowedNames.includes(wanted)) {
+									throw new Error(
+										`\`${definition.name}\` 只被允许派生 ${allowedNames.join("、")}，不包括 \`${wanted}\`。` +
+											`要放开，请在它的定义里把 \`${wanted}\` 加进 spawns。`,
+									);
+								}
+								/*
+								 * `nested` 而不是 `run`：这一层要先把自己的位置让出来。
+								 *
+								 * 它现在不在跑，它在等这个孩子。占着位置等同一道闸门里的位置，就是一个死锁——
+								 * 闸门收到 1 的时候必然发生，收到 4 的时候四路各派一个也一样。见 `DispatchGate.nested`。
+								 *
+								 * 正常路径下 `options.gate` 一定在（整棵派生树共用一道），走到 `??` 右边的是没有
+								 * 会话的宿主——CLI、测试，按设置里的上限开一道。
+								 */
+								const gate = options.gate ?? new DispatchGate(normalizeMaxConcurrentSubAgents(options.settings.maxConcurrentSubAgents));
+								/*
+								 * 孙代理挂在这个子代理自己的控制器上，不是会话那根：面板上单独停掉这个子代理时，
+								 * 它派出去的也要一起停。`{ ...options }` 带下去的是会话的信号，只有整轮被停才
+								 * 传得到孙代理那一层。
+								 */
+								return runSubAgent(
+									{
+										...options,
+										dispatch: here,
+										gate,
+										signal: controller.signal,
+										admission: (childAdmission ?? gate.children()).acquire,
+										onRegistered: undefined,
+									},
+									nested,
+									runProvider,
+									runModel,
+								);
+							}
+						: undefined,
+				},
+				requestApproval: ask,
+				beforeToolCall: makeBeforeToolCall(hooks),
+				afterToolCall: makeAfterToolCall(hooks),
+				permissionRequest: makePermissionRequest(hooks),
+			},
+			control: {
+				signal: controller.signal,
 				/*
 				 * The same splice-between-turns the main session uses for a message typed mid-run.
 				 *
@@ -716,18 +737,15 @@ export async function runSubAgent(
 				 * queues it, the loop drains it, exactly as for the parent.
 				 */
 				drainSteering: registry ? () => registry.drainSteering(id) : undefined,
-				compact: compactHistory,
-				maxTurns: checkpoint,
-				/*
-				 * 一只表、一个裁剪器，跨检查点共用——和主会话续跑链同一个理由：跑满一段攒下的观察，
-				 * 不该在接着跑的时候清零。裁剪器放在它自己的状态图里，续跑时也还是那一个。
-				 */
+				// Turn-level hooks stay with the conversation that owns the turn, see above.
+				onStop: undefined,
 				repetition: new RepetitionWatch(),
-				pruner: sessionPruner(subState),
-			};
+				maxTurns: checkpoint,
+			},
+		};
 		/** 跑一段，并记下模型此刻眼里的历史。 */
 		const segment = async (messages: Message[]): Promise<AgentRunResult> => {
-			const ran = await runTurn({ ...runConfig, messages }, relay);
+			const ran = await runTurn({ ...runConfig, session: { ...runConfig.session, messages } }, relay);
 			produced.push(...ran.messages);
 			view = ran.view ?? [...messages, ...ran.messages];
 			return ran;
@@ -790,25 +808,31 @@ export async function runSubAgent(
 			const handoff = yieldTool ?? makeYieldTool(HANDOFF_SCHEMA, { mode: "permissive" });
 			const salvage = await runTurn(
 				{
-					sessionId: id,
-					// 讨交接这一轮接的也是同一份 `view`，前缀大半相同。
-					cacheKey: id,
-					cwd: options.cwd,
-					provider: runProvider,
-					model: runModel,
-					systemPrompt: subAgentPrompt,
-					// 只有 yield。剩下的工具都拿走，它就没有第二条路可走了。
-					tools: [handoff as unknown as Tool],
-					// 模型眼里的那一份：压缩过就是压缩过的。从前拼的是完整原文，压缩过的子代理在这一轮又撑爆一次。
-					messages: [...view, finalDemand(checkpoint)],
-					thinking: chosen.thinking,
-					retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy,
-					signal: controller.signal,
-					state: subState,
-					requestApproval: ask,
-					compact: compactHistory,
-					streamFn: options.streamFn,
-					maxTurns: 2,
+					session: {
+						...runConfig.session,
+						// 模型眼里的那一份：压缩过就是压缩过的。从前拼的是完整原文，压缩过的子代理在这一轮又撑爆一次。
+						messages: [...view, finalDemand(checkpoint)],
+						pruner: undefined,
+						artifacts: undefined,
+					},
+					// 同一个模型、同一个 cacheKey：讨交接这一轮接的也是同一份 `view`，前缀大半相同。
+					model: runConfig.model,
+					tools: {
+						// 只有 yield。剩下的工具都拿走，它就没有第二条路可走了。
+						available: [handoff as unknown as Tool],
+						env: { ...runConfig.tools.env, spawnSubAgent: undefined },
+						requestApproval: ask,
+						beforeToolCall: undefined,
+						afterToolCall: undefined,
+						permissionRequest: undefined,
+					},
+					control: {
+						signal: controller.signal,
+						drainSteering: undefined,
+						onStop: undefined,
+						repetition: undefined,
+						maxTurns: 2,
+					},
 				},
 				relay,
 			);

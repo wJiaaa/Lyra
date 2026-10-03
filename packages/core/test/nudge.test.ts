@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { TODOS_KEY, type TodoItem } from "../src/tools/todo.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
@@ -72,23 +73,25 @@ async function run(
 	const state = new Map<string, unknown>([[TODOS_KEY, plan]]);
 	let turn = 0;
 	const result = await runAgent(
-		{
-			sessionId: "test",
-			cwd: "/tmp",
-			provider: PROVIDER,
-			model: MODEL,
-			systemPrompt: "",
-			tools: [noop],
-			messages: [{ role: "user", content: [{ type: "text", text: "do the work" }], timestamp: 1 }],
-			maxTurns: 12,
-			// The list the agent would have written with `todo_write`.
-			state,
-			streamFn: async (context) => {
-				prompts.push([...context.messages]);
-				mutate?.(turn, state);
-				return replies[Math.min(turn++, replies.length - 1)];
+		runConfig({
+			session: {
+				sessionId: "test",
+				messages: [{ role: "user", content: [{ type: "text", text: "do the work" }], timestamp: 1 }],
+				// The list the agent would have written with `todo_write`.
+				state,
 			},
-		},
+			model: {
+				provider: PROVIDER,
+				model: MODEL,
+				streamFn: async (context) => {
+					prompts.push([...context.messages]);
+					mutate?.(turn, state);
+					return replies[Math.min(turn++, replies.length - 1)];
+				},
+			},
+			tools: { available: [noop] },
+			control: { maxTurns: 12 },
+		}),
 		() => {},
 	);
 	return { result, prompts, turns: turn };

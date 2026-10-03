@@ -13,6 +13,7 @@ import { buildSystemPrompt } from "../src/prompt/system.ts";
 import { runAgent } from "../src/agent/loop.ts";
 import type { AssistantMessage, Message } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
+import { runConfig } from "./run-config.ts";
 
 const DAY1 = new Date(2026, 8, 4, 10).getTime();
 const DAY2 = new Date(2026, 8, 5, 10).getTime();
@@ -126,14 +127,18 @@ test("一轮之内日期块留在用户消息后面，回复排在它后面，�
 	];
 	const sent: Message[][] = [];
 	const result = await runAgent(
-		{
-			sessionId: "s", cwd: "/tmp", systemPrompt: "", tools: [], messages: [user("你好")], environment: true, model,
-			provider: { id: "fake", name: "Fake", baseUrl: "http://localhost", api: "openai-responses", apiKey: "x", enabled: true, models: [model] },
-			streamFn: async (context) => {
-				sent.push(context.messages);
-				return replies[sent.length - 1];
+		runConfig({
+			session: { sessionId: "s", systemPrompt: "", messages: [user("你好")], environment: true },
+			model: {
+				model,
+				provider: { id: "fake", name: "Fake", baseUrl: "http://localhost", api: "openai-responses", apiKey: "x", enabled: true, models: [model] },
+				streamFn: async (context) => {
+					sent.push(context.messages);
+					return replies[sent.length - 1];
+				},
 			},
-		},
+			tools: { available: [], env: { cwd: "/tmp" } },
+		}),
 		async () => {},
 	);
 

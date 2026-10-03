@@ -18,6 +18,7 @@ import { compactWith } from "../src/runtime/compaction.ts";
 import { readTool } from "../src/tools/read.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
+import { runConfig } from "./run-config.ts";
 
 let cwd: string;
 const FILES = 6;
@@ -109,20 +110,18 @@ async function compactionsWhenReading(outline: boolean): Promise<{ compactions: 
 	let resultChars = 0;
 	const messages: Message[] = [{ role: "user", content: [{ type: "text", text: "把 src 下六个模块都读一遍。" }], timestamp: Date.now() }];
 	await runAgent(
-		{
-			sessionId: `compact-${outline ? "outline" : "full"}`,
-			cwd,
-			provider: PROVIDER,
-			model: MODEL,
-			systemPrompt: "你是一个读代码的助手。",
-			tools: [readTool as unknown as Tool],
-			messages,
-			maxTurns: FILES + 2,
-			temperature: 0,
-			state: new Map(),
-			streamFn: reader.stream,
-			compact: (history, model) => compactWith({ messages: history, model, provider: PROVIDER, streamFn: summaryStream }),
-		},
+		runConfig({
+			session: {
+				sessionId: `compact-${outline ? "outline" : "full"}`,
+				systemPrompt: "你是一个读代码的助手。",
+				messages,
+				state: new Map(),
+				compact: (history, model) => compactWith({ messages: history, model, provider: PROVIDER, streamFn: summaryStream }),
+			},
+			model: { provider: PROVIDER, model: MODEL, temperature: 0, streamFn: reader.stream },
+			tools: { available: [readTool as unknown as Tool], env: { cwd } },
+			control: { maxTurns: FILES + 2 },
+		}),
 		async (event) => {
 			if (event.type === "compacted") compactions += 1;
 			if (event.type === "tool_end") resultChars += event.result.content.map((c) => (c.type === "text" ? c.text.length : 0)).reduce((a, b) => a + b, 0);

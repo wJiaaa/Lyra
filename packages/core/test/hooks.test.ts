@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { HookRun } from "../src/agent/events.ts";
-import type { AgentRunConfig } from "../src/agent/loop.ts";
+import type { AgentToolContext } from "../src/agent/loop.ts";
 import { runTools } from "../src/agent/tool-run.ts";
 import { loadProjectLayer } from "../src/config/layers.ts";
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
@@ -35,6 +35,10 @@ import { loadHookRunner, makeAfterToolCall, makeBeforeToolCall, makeOnStop, make
 import { AgentSession } from "../src/runtime/session.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type Message, type Tool } from "../src/types.ts";
+import { runConfig } from "./run-config.ts";
+
+/** What `runTools` borrows from the run: who is asking, no stop, a fresh session state. */
+const runScope = () => ({ sessionId: "s", signal: undefined, state: new Map<string, unknown>() });
 
 let root: string;
 const home = process.env.PLUME_HOME;
@@ -216,22 +220,19 @@ test("工具调用：改过的参数真的被用上，allow 预先答掉工具�
 			return { content: [{ type: "text", text: decision === "reject" ? "rejected" : "ran" }] };
 		},
 	};
-	const model = { id: "m", modelId: "m", providerId: "p", name: "m", contextWindow: 1000, maxOutputTokens: 100, supportsThinking: false, supportsImages: false, supportsTools: true };
-	const base: AgentRunConfig = {
-		sessionId: "s", cwd: root, model, systemPrompt: "", messages: [], tools: [tool],
-		provider: { id: "p", name: "p", baseUrl: "http://localhost", api: "openai-responses", apiKey: "", enabled: true, models: [model] },
-		requestApproval: async (request) => { asked.push(request.title); return "once"; },
-	};
+	const base: AgentToolContext = runConfig({
+		tools: { available: [tool], env: { cwd: root }, requestApproval: async (request) => { asked.push(request.title); return "once"; } },
+	}).tools;
 	const call = { type: "toolCall" as const, id: "c1", name: "bash", arguments: { command: "ls" } };
 
 	const allow = scope(config("PreToolUse", [node(`console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'allow',updatedInput:{command:'ls -la'}}}))`)]));
-	const [allowed] = await runTools([call], { ...base, beforeToolCall: makeBeforeToolCall(allow), permissionRequest: makePermissionRequest(allow) }, new Map(), async () => {});
+	const [allowed] = await runTools([call], { ...base, beforeToolCall: makeBeforeToolCall(allow), permissionRequest: makePermissionRequest(allow) }, runScope(), async () => {});
 	assert.deepEqual(seen.at(-1), { command: "ls -la" });
 	assert.deepEqual(asked, [], "PreToolUse 放行过的调用不再问人");
 	assert.match(JSON.stringify(allowed.content), /ran/);
 
 	const deny = scope(config("PermissionRequest", [node("process.stderr.write('no');process.exit(2)")]));
-	const [denied] = await runTools([call], { ...base, beforeToolCall: makeBeforeToolCall(deny), permissionRequest: makePermissionRequest(deny) }, new Map(), async () => {});
+	const [denied] = await runTools([call], { ...base, beforeToolCall: makeBeforeToolCall(deny), permissionRequest: makePermissionRequest(deny) }, runScope(), async () => {});
 	assert.match(JSON.stringify(denied.content), /rejected/);
 	assert.deepEqual(asked, [], "钩子答了就不弹窗");
 });
@@ -249,25 +250,22 @@ test("提权只由人批：钩子的放行答不掉提权，钩子的拒绝照�
 			return { content: [{ type: "text", text: `${confined} ${unconfined}` }] };
 		},
 	};
-	const model = { id: "m", modelId: "m", providerId: "p", name: "m", contextWindow: 1000, maxOutputTokens: 100, supportsThinking: false, supportsImages: false, supportsTools: true };
-	const base: AgentRunConfig = {
-		sessionId: "s", cwd: root, model, systemPrompt: "", messages: [], tools: [tool],
-		provider: { id: "p", name: "p", baseUrl: "http://localhost", api: "openai-responses", apiKey: "", enabled: true, models: [model] },
-		requestApproval: async (request) => { asked.push(request.title); return "reject"; },
-	};
+	const base: AgentToolContext = runConfig({
+		tools: { available: [tool], env: { cwd: root }, requestApproval: async (request) => { asked.push(request.title); return "reject"; } },
+	}).tools;
 	const call = { type: "toolCall" as const, id: "c1", name: "bash", arguments: { command: "rm -rf build" } };
 
-	const [preAllowed] = await runTools([call], { ...base, beforeToolCall: async () => ({ approval: "allow" }) }, new Map(), async () => {});
+	const [preAllowed] = await runTools([call], { ...base, beforeToolCall: async () => ({ approval: "allow" }) }, runScope(), async () => {});
 	assert.match(JSON.stringify(preAllowed.content), /once reject/, "PreToolUse 放行只答掉沙箱里的那次");
 	assert.deepEqual(asked, ["escalate"]);
 
 	asked.length = 0;
-	const [hookAllowed] = await runTools([call], { ...base, permissionRequest: async () => "once" }, new Map(), async () => {});
+	const [hookAllowed] = await runTools([call], { ...base, permissionRequest: async () => "once" }, runScope(), async () => {});
 	assert.match(JSON.stringify(hookAllowed.content), /once reject/, "PermissionRequest 放行同样答不掉提权");
 	assert.deepEqual(asked, ["escalate"]);
 
 	asked.length = 0;
-	const [hookDenied] = await runTools([call], { ...base, permissionRequest: async () => "reject" }, new Map(), async () => {});
+	const [hookDenied] = await runTools([call], { ...base, permissionRequest: async () => "reject" }, runScope(), async () => {});
 	assert.match(JSON.stringify(hookDenied.content), /reject reject/);
 	assert.deepEqual(asked, [], "钩子拒绝提权不必再问人");
 });

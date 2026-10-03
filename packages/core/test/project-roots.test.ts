@@ -156,7 +156,7 @@ test("a turn built from settings carries the project's folders to its tools", ()
 		{ systemPrompt: "", messages: [], tools: [], cwd: APP },
 		"",
 	);
-	assert.deepEqual(config.projectRoots, [APP, API]);
+	assert.deepEqual(config.tools.env.projectRoots, [APP, API]);
 });
 
 test("a turn in a one-folder project carries nothing extra", () => {
@@ -178,7 +178,7 @@ test("a turn in a one-folder project carries nothing extra", () => {
 		{ systemPrompt: "", messages: [], tools: [], cwd: APP },
 		"",
 	);
-	assert.deepEqual(config.projectRoots, [APP]);
+	assert.deepEqual(config.tools.env.projectRoots, [APP]);
 });
 
 /*

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
@@ -49,23 +50,25 @@ async function runScripted(replies: AssistantMessage[], steeringQueue: Message[]
 	let turn = 0;
 
 	const result = await runAgent(
-		{
-			sessionId: "test",
-			cwd: "/tmp",
-			provider: PROVIDER,
-			model: MODEL,
-			systemPrompt: "",
-			tools: [],
-			messages: [{ role: "user", content: [{ type: "text", text: "first" }], timestamp: 1 }],
-			maxTurns: 8,
-			drainSteering: () => steeringQueue.splice(0, steeringQueue.length),
-			// Capture what the loop would have sent, and answer from the script.
-			streamFn: async (context) => {
-				seen.prompts.push([...context.messages]);
-				if (turn === 0) duringFirstTurn?.();
-				return replies[Math.min(turn++, replies.length - 1)];
+		runConfig({
+			session: {
+				sessionId: "test",
+				systemPrompt: "",
+				messages: [{ role: "user", content: [{ type: "text", text: "first" }], timestamp: 1 }],
 			},
-		},
+			model: {
+				provider: PROVIDER,
+				model: MODEL,
+				// Capture what the loop would have sent, and answer from the script.
+				streamFn: async (context) => {
+					seen.prompts.push([...context.messages]);
+					if (turn === 0) duringFirstTurn?.();
+					return replies[Math.min(turn++, replies.length - 1)];
+				},
+			},
+			tools: { available: [], env: { cwd: "/tmp" } },
+			control: { maxTurns: 8, drainSteering: () => steeringQueue.splice(0, steeringQueue.length) },
+		}),
 		(event) => {
 			seen.events.push(event);
 		},

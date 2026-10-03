@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { translatedShellCommand, TOOL_NAMES_KEY } from "../src/tools/reroute.ts";
 import { runTools } from "../src/agent/tool-run.ts";
 import { ACTIVE_SKILL_KEY } from "../src/skills/tool.ts";
-import type { AgentRunConfig } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import type { Tool } from "../src/types.ts";
 
 test("only unambiguous shell arguments translate", () => {
@@ -21,13 +21,12 @@ function fixture() {
 		executed.push(name); assert.equal(ctx.cwd, "/isolated");
 		return { content: [{ type: "text", text: JSON.stringify(args) }] };
 	} });
-	const model = { id: "m", modelId: "m", providerId: "p", name: "m", contextWindow: 1000, maxOutputTokens: 100, supportsThinking: false, supportsImages: false, supportsTools: true };
-	const config: AgentRunConfig = { sessionId: "s", cwd: "/isolated", model, provider: { id: "p", name: "p", baseUrl: "http://localhost", api: "openai-responses", apiKey: "", enabled: true, models: [model] }, tools: [tool("bash"), tool("read")], messages: [], systemPrompt: "",
+	const config = runConfig({ tools: { available: [tool("bash"), tool("read")], env: { cwd: "/isolated" },
 		beforeToolCall: async ({ toolName }) => { hooks.push(`before:${toolName}`); },
 		afterToolCall: async ({ toolName }) => { hooks.push(`after:${toolName}`); },
-	};
+	} });
 	const state = new Map<string, unknown>([[TOOL_NAMES_KEY, new Set(["bash", "read"])]]);
-	const run = (extra: Record<string, unknown> = {}) => runTools([{ type: "toolCall", id: "original", name: "bash", arguments: { command: "cat a.txt", ...extra } }], config, state, async () => {});
+	const run = (extra: Record<string, unknown> = {}) => runTools([{ type: "toolCall", id: "original", name: "bash", arguments: { command: "cat a.txt", ...extra } }], config.tools, { sessionId: config.session.sessionId, signal: undefined, state }, async () => {});
 	return { config, state, run, executed, hooks };
 }
 
@@ -46,10 +45,10 @@ test("translated calls keep the original result ID and run the hooks once, as th
 
 test("a bash hook's rejection holds, and its rewritten command is what gets translated", async () => {
 	// 守 bash 的钩子是拦命令的那道闸：改道不能让命令从它眼皮底下溜走。
-	const f = fixture(); f.config.beforeToolCall = async ({ toolName }) => toolName === "bash" ? { block: true, reason: "denied" } : undefined;
+	const f = fixture(); f.config.tools.beforeToolCall = async ({ toolName }) => toolName === "bash" ? { block: true, reason: "denied" } : undefined;
 	assert.equal((await f.run())[0].isError, true); assert.deepEqual(f.executed, []);
 
-	const g = fixture(); g.config.beforeToolCall = async () => ({ args: { command: "cat b.txt" } });
+	const g = fixture(); g.config.tools.beforeToolCall = async () => ({ args: { command: "cat b.txt" } });
 	const [result] = await g.run();
 	assert.deepEqual(g.executed, ["read"]);
 	assert.match(JSON.stringify(result.content), /b\.txt/);
@@ -65,7 +64,7 @@ test("a skill that does not allow the native tool keeps the call on bash", async
 for (const mode of ["disabled", "missing", "escalated", "background"]) test(`translation respects ${mode} execution`, async () => {
 	const f = fixture();
 	if (mode === "disabled") f.state.delete(TOOL_NAMES_KEY);
-	if (mode === "missing") f.config.tools = f.config.tools.filter(tool => tool.name !== "read");
+	if (mode === "missing") f.config.tools.available = f.config.tools.available.filter(tool => tool.name !== "read");
 	await f.run(mode === "escalated" ? { escalate: true } : mode === "background" ? { run_in_background: true } : {});
 	assert.deepEqual(f.executed, ["bash"]);
 });

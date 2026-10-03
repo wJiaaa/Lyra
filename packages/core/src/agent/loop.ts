@@ -10,7 +10,7 @@
 
 import { compactStep } from "./compact-step.ts";
 import { originalInView, REPEAT_WARN, repeatNotice, RepetitionWatch } from "./repetition.ts";
-import type { AgentRunConfig, AgentRunResult } from "./run-config.ts";
+import type { AgentModelContext, AgentRunConfig, AgentRunResult } from "./run-config.ts";
 import { rejectedContent, streamTurn, type TurnResult } from "./stream-turn.ts";
 import { failTruncatedCalls, runTools } from "./tool-run.ts";
 import { isContextOverflow } from "../ai/failure.ts";
@@ -22,7 +22,22 @@ import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
 import type { AssistantContent, AssistantMessage, LlmContext, Message, ToolResultMessage } from "../types.ts";
 import type { AgentEventSink } from "./events.ts";
 
-export type { AgentRunConfig, AgentRunResult, LiveModel, StreamRequest } from "./run-config.ts";
+export type {
+	AfterToolCall,
+	AgentControlContext,
+	AgentModelContext,
+	AgentRunConfig,
+	AgentRunResult,
+	AgentSessionContext,
+	AgentToolContext,
+	BeforeToolCall,
+	LiveModel,
+	PermissionRequestHook,
+	StopHook,
+	StreamFn,
+	StreamRequest,
+	ToolEnvironment,
+} from "./run-config.ts";
 
 const DEFAULT_MAX_TURNS = 200;
 /** Empty-response retries per run; tool calls must not replenish this budget. */
@@ -53,8 +68,8 @@ interface Run {
 	readonly state: Map<string, unknown>;
 	readonly repetition: RepetitionWatch;
 	readonly pruner: AgedToolPruner;
-	/** The config as of the current model; differs from `config` only after a live switch. */
-	active: AgentRunConfig;
+	/** The model group as of the current model; differs from `config.model` only after a live switch. */
+	active: AgentModelContext;
 	/**
 	 * Steering drained at the end of a turn, injected at the start of the next. `drainSteering`
 	 * empties the queue, so what it returned must be held here or the person's message is lost.
@@ -70,22 +85,22 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 	const run: Run = {
 		config,
 		emit,
-		messages: [...config.messages],
+		messages: [...config.session.messages],
 		produced: [],
-		state: config.state ?? new Map<string, unknown>(),
-		repetition: config.repetition ?? new RepetitionWatch(),
-		pruner: config.pruner ?? new AgedToolPruner(),
-		active: config,
+		state: config.session.state ?? new Map<string, unknown>(),
+		repetition: config.control.repetition ?? new RepetitionWatch(),
+		pruner: config.session.pruner ?? new AgedToolPruner(),
+		active: config.model,
 		carried: [],
 		nudges: 0,
 		truncations: 0,
 	};
-	const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS;
-	await emit({ type: "agent_start", sessionId: config.sessionId });
+	const maxTurns = config.control.maxTurns ?? DEFAULT_MAX_TURNS;
+	await emit({ type: "agent_start", sessionId: config.session.sessionId });
 
 	let turn = 0;
 	while (true) {
-		if (config.signal?.aborted) return finish(run, { reason: "aborted" });
+		if (config.control.signal?.aborted) return finish(run, { reason: "aborted" });
 		if (turn >= maxTurns) return finish(run, { reason: "max_turns" });
 		turn += 1;
 		await emit({ type: "turn_start", turn });
@@ -154,7 +169,7 @@ function adoptCompaction(run: Run, messages: Message[]): void {
 }
 
 function requestMessages(run: Run): Message[] {
-	return run.config.environment ? withEnvironment(run.messages) : run.messages;
+	return run.config.session.environment ? withEnvironment(run.messages) : run.messages;
 }
 
 /** Written by the person, as opposed to the runtime speaking in the user role. */
@@ -174,42 +189,42 @@ function humanSinceLastReply(messages: readonly Message[]): boolean {
 }
 
 async function takeSteering(run: Run, first: boolean): Promise<void> {
-	const steering = [...run.carried, ...(run.config.drainSteering?.() ?? [])];
+	const steering = [...run.carried, ...(run.config.control.drainSteering?.() ?? [])];
 	run.carried = [];
 	/*
 	 * A new instruction from the person ends the previous skill's tool restriction, or it would
 	 * silently refuse work they just asked for. On the first turn that includes the prompt that
 	 * started this run — the state map outlives the run. Checking only fresh steering missed both.
 	 */
-	if ((first && humanSinceLastReply(run.config.messages)) || steering.some(fromPerson)) clearActiveSkill(run.state);
+	if ((first && humanSinceLastReply(run.config.session.messages)) || steering.some(fromPerson)) clearActiveSkill(run.state);
 	for (const message of steering) await inject(run, message);
 }
 
 /** Model switch, pruning, compaction — everything that reshapes history before a request. False when stopped. */
 async function prepareHistory(run: Run): Promise<boolean> {
-	const { config } = run;
+	const { session, model, control } = run.config;
 	/*
 	 * Switch at the top of the loop. Strip every provider handle before this point rather than
 	 * comparing each message's `model`: providers report names that do not match the config
 	 * (dates, aliases), and a per-message compare strips the same model's own thinking signatures.
 	 */
-	const wanted = config.liveModel?.current();
+	const wanted = model.liveModel?.current();
 	if (wanted && wanted.model.id !== run.active.model.id) {
 		replaceHistory(run, stripStaleHandles(run.messages, run.messages.length));
-		run.active = { ...config, provider: wanted.provider, model: wanted.model };
-		config.liveModel?.adopted?.(wanted.model);
+		run.active = { ...model, provider: wanted.provider, model: wanted.model };
+		model.liveModel?.adopted?.(wanted.model);
 	}
 
 	// Decide how new results look the first time they are sent; resend sent ones as they were.
-	replaceHistory(run, run.pruner.prepare(run.messages, config.artifacts));
+	replaceHistory(run, run.pruner.prepare(run.messages, session.artifacts));
 
-	if (config.compact) {
-		const compaction = await compactStep(config, run.messages, run.active.model, run.emit, { provider: run.active.provider });
-		if (config.signal?.aborted) return false;
+	if (session.compact) {
+		const compaction = await compactStep(session, control.signal, run.messages, run.active.model, run.emit, { provider: run.active.provider });
+		if (control.signal?.aborted) return false;
 		if (compaction) adoptCompaction(run, compaction.messages);
 	}
 	// Compaction can wait on a model; cancellation during that await must prevent a new request.
-	return !config.signal?.aborted;
+	return !control.signal?.aborted;
 }
 
 /**
@@ -220,17 +235,19 @@ async function prepareHistory(run: Run): Promise<boolean> {
  * failed recovery surfaces the original error.
  */
 async function requestReply(run: Run): Promise<AssistantMessage | "switched" | "aborted"> {
-	const { config, emit } = run;
+	const { config: { session, tools, control }, emit } = run;
 	const context: LlmContext = {
-		systemPrompt: config.systemPrompt,
+		systemPrompt: session.systemPrompt,
 		messages: requestMessages(run),
-		tools: config.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
+		tools: tools.available.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
 	};
-	let reply = await streamTurn(run.active, context, emit);
+	// The session's own map, not the run's fallback: only a session that keeps one compares prefixes.
+	const scope = { signal: control.signal, state: session.state };
+	let reply = await streamTurn(run.active, context, scope, emit);
 	if (reply.switched) return "switched";
 	const resend = async (previous: TurnResult): Promise<TurnResult> => {
 		await previous.held?.discard();
-		return streamTurn(run.active, { ...context, messages: requestMessages(run) }, emit);
+		return streamTurn(run.active, { ...context, messages: requestMessages(run) }, scope, emit);
 	};
 
 	if (rejectedContent(reply.message)) {
@@ -245,15 +262,15 @@ async function requestReply(run: Run): Promise<AssistantMessage | "switched" | "
 			reply = await resend(reply);
 		}
 	}
-	if (!reply.switched && reply.message.stopReason === "error" && isContextOverflow(reply.message.failure) && config.compact) {
+	if (!reply.switched && reply.message.stopReason === "error" && isContextOverflow(reply.message.failure) && session.compact) {
 		await emit({ type: "notice", level: "warn", message: "上下文超出了模型的上限，正在压缩历史后重试。" });
 		const held = reply.held;
-		const compaction = await compactStep(config, run.messages, run.active.model, emit, { force: true, provider: run.active.provider }).catch(async (cause: unknown) => {
+		const compaction = await compactStep(session, control.signal, run.messages, run.active.model, emit, { force: true, provider: run.active.provider }).catch(async (cause: unknown) => {
 			// Commit the rejected reply before rethrowing: the transcript must say why the turn stopped.
 			await held?.commit();
 			throw cause;
 		});
-		if (config.signal?.aborted) {
+		if (control.signal?.aborted) {
 			await held?.discard();
 			return "aborted";
 		}
@@ -285,14 +302,14 @@ async function closeUnansweredCalls(run: Run, assistant: AssistantMessage): Prom
 
 /** A reply with no tool calls: the run ends unless something still deserves another turn. */
 async function endWithoutTools(run: Run, assistant: AssistantMessage, turnsLeft: boolean): Promise<Ending | undefined> {
-	const { config, emit } = run;
+	const { config: { control }, emit } = run;
 	await emit({ type: "turn_end", message: assistant, toolResults: [] });
 	/*
 	 * Steering that arrived during the final stream still deserves an answer. At the turn cap it is
 	 * left queued instead: taken here, the cap check at the top would drop it from both the
 	 * transcript and the queue, while the host sends whatever is left in the queue.
 	 */
-	run.carried = turnsLeft ? config.drainSteering?.() ?? [] : [];
+	run.carried = turnsLeft ? control.drainSteering?.() ?? [] : [];
 	if (run.carried.length > 0) return undefined;
 
 	// Cut off by the output limit is not finished: let it continue from the break, a bounded number of times.
@@ -315,11 +332,11 @@ async function endWithoutTools(run: Run, assistant: AssistantMessage, turnsLeft:
 		return undefined;
 	}
 
-	if (config.onStop && !config.signal?.aborted) {
+	if (control.onStop && !control.signal?.aborted) {
 		const responseText = assistant.content.filter((part) => part.type === "text").map((part) => part.text).join("");
 		const toolCallCount = run.produced.filter((message) => message.role === "toolResult").length;
-		const resume = await config.onStop({ responseText, toolCallCount }).catch(() => undefined);
-		if (resume && !config.signal?.aborted) {
+		const resume = await control.onStop({ responseText, toolCallCount }).catch(() => undefined);
+		if (resume && !control.signal?.aborted) {
 			await inject(run, resume);
 			return undefined;
 		}
@@ -329,7 +346,7 @@ async function endWithoutTools(run: Run, assistant: AssistantMessage, turnsLeft:
 
 /** Run the calls a reply asked for, then decide whether the run can go on. */
 async function runToolTurn(run: Run, assistant: AssistantMessage, toolCalls: ToolCall[]): Promise<Ending | undefined> {
-	const { config, state, emit } = run;
+	const { config: { session, tools, control }, state, emit } = run;
 	syncSkillContext(state, run.messages);
 	const truncated = assistant.stopReason === "length";
 	run.truncations = truncated ? run.truncations + 1 : 0;
@@ -338,10 +355,10 @@ async function runToolTurn(run: Run, assistant: AssistantMessage, toolCalls: Too
 	 * model reads next. Measured before this: nearly half the tool turns on a three-step task were a
 	 * lone todo_write.
 	 */
-	const soloTodo = toolCalls.length === 1 && toolCalls[0].name === "todo_write" && config.tools.length > 1;
+	const soloTodo = toolCalls.length === 1 && toolCalls[0].name === "todo_write" && tools.available.length > 1;
 	const toolResults = truncated
 		? await failTruncatedCalls(toolCalls, emit, TRUNCATED_CALL_REASON)
-		: await runTools(toolCalls, config, state, emit, soloTodo ? SOLO_TODO_NOTE : undefined);
+		: await runTools(toolCalls, tools, { sessionId: session.sessionId, signal: control.signal, state }, emit, soloTodo ? SOLO_TODO_NOTE : undefined);
 	keep(run, ...toolResults);
 	await emit({ type: "turn_end", message: assistant, toolResults });
 

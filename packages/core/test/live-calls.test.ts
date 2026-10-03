@@ -9,13 +9,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { AgentEvent } from "../src/agent/events.ts";
-import type { AgentRunConfig } from "../src/agent/loop.ts";
 import { runTools } from "../src/agent/tool-run.ts";
 import { SessionLog } from "../src/runtime/session-log.ts";
 import { sessionDb } from "../src/session/db.ts";
 import { KEPT_OUTPUT_CHARS } from "../src/session/live-calls.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type AssistantMessage, type Message, type Tool, type ToolResultMessage } from "../src/types.ts";
+import { runConfig } from "./run-config.ts";
 
 const user = (text: string): Message => ({ role: "user", content: [{ type: "text", text }], timestamp: 1 });
 const call = (id: string, name = "bash") => ({ type: "toolCall" as const, id, name, arguments: { command: id } });
@@ -159,19 +159,17 @@ test("a call stopped while it waited for approval is told it never ran", async (
 			return { content: [{ type: "text", text: "ran" }] };
 		},
 	};
-	const config = {
-		sessionId: "s",
-		cwd: "/tmp",
-		tools: [gated],
-		messages: [],
-		systemPrompt: "",
-		signal: controller.signal,
-		requestApproval: () => {
-			queueMicrotask(() => controller.abort());
-			return new Promise<never>(() => {});
+	const tools = runConfig({
+		tools: {
+			available: [gated],
+			env: { cwd: "/tmp" },
+			requestApproval: () => {
+				queueMicrotask(() => controller.abort());
+				return new Promise<never>(() => {});
+			},
 		},
-	} as unknown as AgentRunConfig;
-	const [result] = await runTools([call("c")], config, new Map(), async (event) => void events.push(event));
+	}).tools;
+	const [result] = await runTools([call("c")], tools, { sessionId: "s", signal: controller.signal, state: new Map() }, async (event) => void events.push(event));
 	assert.match(text(result), /waited for approval, so it never ran/);
 	assert.deepEqual(events.filter((e) => e.type === "tool_phase").map((e) => (e as { phase: string }).phase), ["approval"]);
 });

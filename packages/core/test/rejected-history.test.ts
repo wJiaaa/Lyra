@@ -16,6 +16,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { PRUNE_THRESHOLD_CHARS, stripOversizedToolResults } from "../src/runtime/prune.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
@@ -93,19 +94,17 @@ async function run(replies: AssistantMessage[]) {
 	const notices: string[] = [];
 	let at = 0;
 	const result = await runAgent(
-		{
-			sessionId: "s",
-			cwd: "/tmp",
-			provider: PROVIDER,
-			model: MODEL,
-			systemPrompt: "",
-			tools: [],
-			messages: history(),
-			streamFn: async (context) => {
-				sent.push(context.messages.map((m) => m));
-				return replies[Math.min(at++, replies.length - 1)];
+		runConfig({
+			session: { messages: history() },
+			model: {
+				provider: PROVIDER,
+				model: MODEL,
+				streamFn: async (context) => {
+					sent.push(context.messages.map((m) => m));
+					return replies[Math.min(at++, replies.length - 1)];
+				},
 			},
-		},
+		}),
 		async (event: AgentEvent) => {
 			if (event.type === "notice") notices.push(event.message);
 		},
@@ -172,19 +171,17 @@ test("with nothing oversized to drop, the refusal is reported as it is", async (
 	const small: Message[] = [{ role: "user", content: [{ type: "text", text: "你好" }], timestamp: 1 }];
 	const sent: Message[][] = [];
 	const result = await runAgent(
-		{
-			sessionId: "s",
-			cwd: "/tmp",
-			provider: PROVIDER,
-			model: MODEL,
-			systemPrompt: "",
-			tools: [],
-			messages: small,
-			streamFn: async (context) => {
-				sent.push(context.messages);
-				return rejected(400);
+		runConfig({
+			session: { messages: small },
+			model: {
+				provider: PROVIDER,
+				model: MODEL,
+				streamFn: async (context) => {
+					sent.push(context.messages);
+					return rejected(400);
+				},
 			},
-		},
+		}),
 		async () => {},
 	);
 	assert.equal(sent.length, 1, "nothing to drop means nothing to retry");

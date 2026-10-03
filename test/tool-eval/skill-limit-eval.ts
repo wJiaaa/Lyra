@@ -9,6 +9,7 @@ const say = (s = "") => process.stderr.write(s + "\n");
 const B = "/Users/kittors/Developer/opensource/Plume-tool-quality";
 
 const { runAgent } = await import(`${B}/packages/core/src/agent/loop.ts`);
+const { runConfig } = await import(`${B}/packages/core/test/run-config.ts`);
 const { loadSettings, resolveModel } = await import(`${B}/packages/core/src/config/settings.ts`);
 const { buildSystemPrompt } = await import(`${B}/packages/core/src/prompt/system.ts`);
 const { skillTool, SKILLS_KEY } = await import(`${B}/packages/core/src/skills/tool.ts`);
@@ -56,16 +57,19 @@ const pending = new Map<string, string>();
 const state = new Map<string, unknown>([[SKILLS_KEY, skills]]);
 
 await runAgent(
-  {
-    sessionId: "skill-limit", cwd, provider: resolved.provider, model: resolved.model,
-    systemPrompt, tools, state,
-    messages: [{
-      role: "user",
-      content: [{ type: "text", text: "先用 safe-reader 技能，然后统计 notes.txt 有多少行——用 wc -l 跑一下确认。" }],
-      timestamp: Date.now(),
-    }],
-    maxTurns: 6, temperature: 0,
-  },
+  runConfig({
+    session: {
+      sessionId: "skill-limit", systemPrompt, state,
+      messages: [{
+        role: "user",
+        content: [{ type: "text", text: "先用 safe-reader 技能，然后统计 notes.txt 有多少行——用 wc -l 跑一下确认。" }],
+        timestamp: Date.now(),
+      }],
+    },
+    model: { provider: resolved.provider, model: resolved.model, temperature: 0 },
+    tools: { available: tools, env: { cwd } },
+    control: { maxTurns: 6 },
+  }),
   async (e: { type: string; toolCallId?: string; toolName?: string; isError?: boolean }) => {
     if (e.type === "tool_start" && e.toolName && e.toolCallId) pending.set(e.toolCallId, e.toolName);
     if (e.type === "tool_end" && e.toolCallId) {

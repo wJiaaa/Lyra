@@ -20,6 +20,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runAgent } from "../../packages/core/src/agent/loop.ts";
+import { runConfig } from "../../packages/core/test/run-config.ts";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
 import { buildSystemPrompt } from "../../packages/core/src/prompt/system.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../../packages/core/src/lsp/manager.ts";
@@ -154,18 +155,17 @@ async function main(): Promise<void> {
 			const calls: string[] = [];
 			const runState = new Map<string, unknown>();
 			const result = await runAgent(
-				{
-					sessionId: `lsp-behaviour-${withLsp ? "with" : "without"}-${rep}`,
-					cwd,
-					provider: resolved.provider,
-					model: resolved.model,
-					systemPrompt,
-					tools,
-					messages: [{ role: "user", content: [{ type: "text", text: task }], timestamp: Date.now() }],
-					maxTurns: 6,
-					temperature: 0,
-					state: runState,
-				},
+				runConfig({
+					session: {
+						sessionId: `lsp-behaviour-${withLsp ? "with" : "without"}-${rep}`,
+						systemPrompt,
+						messages: [{ role: "user", content: [{ type: "text", text: task }], timestamp: Date.now() }],
+						state: runState,
+					},
+					model: { provider: resolved.provider, model: resolved.model, temperature: 0 },
+					tools: { available: tools, env: { cwd } },
+					control: { maxTurns: 6 },
+				}),
 				async (event: AgentEvent) => {
 					if (event.type === "tool_start") calls.push(event.toolName);
 				},

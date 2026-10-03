@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { sessionPruner, AgedToolPruner } from "../src/runtime/aged-prune.ts";
 import { emptyUsage, type Message } from "../src/types.ts";
+import { runConfig } from "./run-config.ts";
 
 const output = (size = 20_000): Message => ({ role: "toolResult", toolName: "bash", toolCallId: "c", isError: false, content: [{ type: "text", text: "😀".repeat(size) }], timestamp: 0 });
 const rounds = (n: number, size = 1): Message[] => Array.from({ length: n }, () => ({ role: "assistant", api: "openai-responses", provider: "test", model: "test", stopReason: "stop", usage: emptyUsage(), content: [{ type: "text", text: "x".repeat(size) }], timestamp: 0 }));
@@ -59,12 +60,16 @@ test("the live request path actually sends the cut view while keeping its source
 	const history = [source, ...rounds(1)];
 	const model = { id: "m", modelId: "m", providerId: "p", name: "m", contextWindow: 1_000_000, maxOutputTokens: 100, supportsThinking: false, supportsImages: false, supportsTools: true };
 	let sent: Message[] = [];
-	await runAgent({ sessionId: "t", cwd: "/test", model, provider: { id: "p", name: "p", api: "openai-responses", baseUrl: "http://localhost", apiKey: "", enabled: true, models: [model] }, messages: history, tools: [], systemPrompt: "", streamFn: async context => {
-		sent = context.messages;
-		const answer = rounds(1)[0];
-		if (answer.role !== "assistant") throw new Error("Invalid fixture");
-		return answer;
-	} }, async () => {});
+	await runAgent(runConfig({
+		session: { sessionId: "t", messages: history, systemPrompt: "" },
+		model: { model, provider: { id: "p", name: "p", api: "openai-responses", baseUrl: "http://localhost", apiKey: "", enabled: true, models: [model] }, streamFn: async context => {
+			sent = context.messages;
+			const answer = rounds(1)[0];
+			if (answer.role !== "assistant") throw new Error("Invalid fixture");
+			return answer;
+		} },
+		tools: { available: [], env: { cwd: "/test" } },
+	}), async () => {});
 	assert.notEqual(sent[0], source);
 	assert.match(JSON.stringify(sent[0].content), /characters omitted/);
 	assert.equal(source.content[0].type === "text" && source.content[0].text.length, 160_000);

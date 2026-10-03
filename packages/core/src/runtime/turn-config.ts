@@ -10,7 +10,7 @@
  */
 
 import type { AgentEvent } from "../agent/events.ts";
-import type { AgentRunConfig } from "../agent/loop.ts";
+import type { AfterToolCall, AgentRunConfig, BeforeToolCall, LiveModel, PermissionRequestHook, StopHook, StreamFn, ToolEnvironment } from "../agent/loop.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Skill } from "../skills/loader.ts";
@@ -19,6 +19,8 @@ import type { AgentDefinition } from "../tools/task.ts";
 import type {
 	ApprovalDecision,
 	ApprovalRequest,
+	LlmContext,
+	Message,
 	ModelConfig,
 	ProviderConfig,
 	ThinkingLevel,
@@ -37,6 +39,7 @@ import type { TurnContext } from "./turn.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
 import { sessionPruner } from "./aged-prune.ts";
 import { toolPolicy } from "./tool-policy.ts";
+import type { ResourceRouter } from "../resources/router.ts";
 
 export interface TurnConfigDeps {
 	sessionId: string;
@@ -63,7 +66,7 @@ export interface TurnConfigDeps {
 	 */
 	delegations?: DelegationWaits;
 	signal?: AbortSignal;
-	streamFn?: AgentRunConfig["streamFn"];
+	streamFn?: StreamFn;
 	requestApproval(request: ApprovalRequest): Promise<ApprovalDecision>;
 	emit(event: AgentEvent): Promise<void>;
 	/** The session's stream override, in the shape compaction expects. */
@@ -74,21 +77,23 @@ export interface TurnConfigDeps {
 	 * 可选：不给的时候剪掉就是没了，跟以前一样。
 	 */
 	artifacts?: ArtifactSink;
-	beforeToolCall: AgentRunConfig["beforeToolCall"];
-	afterToolCall: AgentRunConfig["afterToolCall"];
-	permissionRequest?: AgentRunConfig["permissionRequest"];
-	onStop?: AgentRunConfig["onStop"];
-	drainSteering: AgentRunConfig["drainSteering"];
+	beforeToolCall: BeforeToolCall;
+	afterToolCall: AfterToolCall;
+	permissionRequest?: PermissionRequestHook;
+	onStop?: StopHook;
+	drainSteering: () => Message[];
 	/** The session's address space. Session-scoped: its handlers hold session state. */
-	resources?: AgentRunConfig["resources"];
+	resources?: ResourceRouter;
 	/** Where `scratch://` writes for this session. */
 	scratchDir?: string;
 	/** This session's committed messages, read from its own store; see `ToolContext.transcript`. */
-	transcript?: AgentRunConfig["transcript"];
+	transcript?: () => Promise<Message[]>;
 	/** Specific files outside the workspace explicitly granted to this turn. */
 	allowedPaths?: ReadonlySet<string>;
-	/** 见 `AgentRunConfig.liveModel`：人一轮中途换了模型，从下一个请求起就换。 */
-	liveModel?: AgentRunConfig["liveModel"];
+	/** 见 `AgentModelContext.liveModel`：人一轮中途换了模型，从下一个请求起就换。 */
+	liveModel?: LiveModel;
+	/** Sees each request as it is sent; the session records it for the context inspector. */
+	onContext?: (context: LlmContext, model: ModelConfig) => void;
 }
 
 export function buildTurnConfig(
@@ -104,108 +109,69 @@ export function buildTurnConfig(
 	 * 取决于「这一轮有没有派过活」——在没派活的会话里根本不存在，谁想看一眼都看不到。
 	 */
 	const gate = dispatchGate(deps);
-	return {
-
-			sessionId: deps.sessionId,
-			// 主会话的每个请求共享同一条前缀，续跑、换轮都是它。
-			cacheKey: deps.sessionId,
-			cwd: deps.cwd,
-			provider: deps.provider,
-			model: deps.model,
-			liveModel: deps.liveModel,
-			systemPrompt,
-			tools: turn.tools,
-			messages: turn.messages,
-			thinking: thinking ?? deps.settings.thinking,
-				retryPolicy: () => (deps.getSettings?.() ?? deps.settings).retryPolicy,
-			signal: deps.signal,
-			state: deps.state,
-			/*
-			 * Previews are written under the app's directory, keyed by this session.
-			 *
-			 * The workspace is the user's project; a page produced to demonstrate an idea
-			 * is not part of it and should never turn up in `git status`. Keyed by session
-			 * so it can be thrown away with the conversation that produced it.
-			 */
-			writePreview: (input) =>
-				writePreview(plumeHome(), { ...input, sessionId: deps.sessionId }),
-			transcript: deps.transcript,
-			requestApproval: (request) => deps.requestApproval(request),
-			// Decided once per turn, the same way for every kind of run; see `tool-policy.ts`.
-			...toolPolicy(deps.settings, deps.cwd),
-			/*
-			 * 一只表，一条续跑链。
-			 *
-			 * 在这里建，而不是让 `runAgent` 自己建：续跑是拿同一份 config 再调一次 `runAgent`
-			 * （`runtime/session-turn.ts`），共用这只表，跑满两百轮攒下的观察才不会在续跑时清零。
-			 */
-			repetition: new RepetitionWatch(),
-			pruner: sessionPruner(deps.state),
-			artifacts: deps.artifacts,
-			allowedPaths: deps.allowedPaths,
-			/*
-			 * Queued rather than run on demand.
-			 *
-			 * A model asked to look at eight things dispatches eight, which is a reasonable thought
-			 * and an unreasonable amount of concurrency — eight simultaneous runs each with their
-			 * own context and their own model calls. The gate turns "do these eight" into "do these
-			 * eight, four at a time", which is what was wanted; the prompt says the number so the
-			 * model does not read the queue as slowness and try harder.
-			 *
-			 * 排队发生在 `runSubAgent` 里面（`admission`）：它先上名单、说出自己在排队，再等名额。
-			 * 外面再包一层 `delegations.hold`——父会话等它，但人一开口就放手，见 `delegation-waits.ts`。
-			 */
-			spawnSubAgent: (input) => {
-				let registered: string | undefined;
-				const run = runSubAgent(
-					{
-						sessionId: deps.sessionId,
-						cwd: deps.cwd,
-						settings: deps.settings,
-						getSettings: deps.getSettings,
-						tools: deps.tools,
-						skills: deps.skills,
-						agents: deps.agents,
-						signal: deps.signal,
-						streamFn: deps.streamFn,
-						requestApproval: (request) => deps.requestApproval(request),
-						emit: (event) => deps.emit(event),
-						// Where the run registers itself so it can be watched and steered. Absent for
-						// hosts that only want the answer — see `SubAgentOptions.registry`.
-						registry: deps.subAgents,
-						// So a delegated run compacts through the same model call this session does.
-						summaryStream: deps.summaryStream,
-						/*
-						 * 整棵派生树共用同一个闸门和同一条链。
-						 *
-						 * 闸门传下去，是因为「最多四个」如果每一层各算各的，就成了顶层四个、
-						 * 每个下面再四个。链传下去，是因为深度和自递归都只有在链上才看得出来。
-						 */
-						gate,
-						admission: (signal) => gate.acquire(signal),
-						onRegistered: (id) => {
-							registered = id;
-						},
-						dispatch: rootDispatch(),
-						allowedPaths: deps.allowedPaths,
-						transcript: deps.transcript,
-						addresses: { artifacts: deps.artifacts, lookups: addressLookups(deps.state), scratchDir: deps.scratchDir },
-					},
-					input,
-					// 派出去那一刻会话在用哪个——一轮中途换过模型的，后派的子代理跟着新的走。
-					deps.liveModel?.current()?.provider ?? deps.provider,
-					deps.liveModel?.current()?.model ?? deps.model,
-				);
-				return deps.delegations ? deps.delegations.hold(run, () => registered) : run;
+	/*
+	 * Queued rather than run on demand.
+	 *
+	 * A model asked to look at eight things dispatches eight, which is a reasonable thought
+	 * and an unreasonable amount of concurrency — eight simultaneous runs each with their
+	 * own context and their own model calls. The gate turns "do these eight" into "do these
+	 * eight, four at a time", which is what was wanted; the prompt says the number so the
+	 * model does not read the queue as slowness and try harder.
+	 *
+	 * 排队发生在 `runSubAgent` 里面（`admission`）：它先上名单、说出自己在排队，再等名额。
+	 * 外面再包一层 `delegations.hold`——父会话等它，但人一开口就放手，见 `delegation-waits.ts`。
+	 */
+	const spawnSubAgent: ToolEnvironment["spawnSubAgent"] = (input) => {
+		let registered: string | undefined;
+		const run = runSubAgent(
+			{
+				sessionId: deps.sessionId,
+				cwd: deps.cwd,
+				settings: deps.settings,
+				getSettings: deps.getSettings,
+				tools: deps.tools,
+				skills: deps.skills,
+				agents: deps.agents,
+				signal: deps.signal,
+				streamFn: deps.streamFn,
+				requestApproval: (request) => deps.requestApproval(request),
+				emit: (event) => deps.emit(event),
+				// Where the run registers itself so it can be watched and steered. Absent for
+				// hosts that only want the answer — see `SubAgentOptions.registry`.
+				registry: deps.subAgents,
+				// So a delegated run compacts through the same model call this session does.
+				summaryStream: deps.summaryStream,
+				/*
+				 * 整棵派生树共用同一个闸门和同一条链。
+				 *
+				 * 闸门传下去，是因为「最多四个」如果每一层各算各的，就成了顶层四个、
+				 * 每个下面再四个。链传下去，是因为深度和自递归都只有在链上才看得出来。
+				 */
+				gate,
+				admission: (signal) => gate.acquire(signal),
+				onRegistered: (id) => {
+					registered = id;
+				},
+				dispatch: rootDispatch(),
+				allowedPaths: deps.allowedPaths,
+				transcript: deps.transcript,
+				addresses: { artifacts: deps.artifacts, lookups: addressLookups(deps.state), scratchDir: deps.scratchDir },
 			},
-			drainSteering: deps.drainSteering,
-			resources: deps.resources,
-			scratchDir: deps.scratchDir,
-			beforeToolCall: deps.beforeToolCall,
-			afterToolCall: deps.afterToolCall,
-			permissionRequest: deps.permissionRequest,
-			onStop: deps.onStop,
-			// The session's own stream override applies here too; summarising is a model call.
+			input,
+			// 派出去那一刻会话在用哪个——一轮中途换过模型的，后派的子代理跟着新的走。
+			deps.liveModel?.current()?.provider ?? deps.provider,
+			deps.liveModel?.current()?.model ?? deps.model,
+		);
+		return deps.delegations ? deps.delegations.hold(run, () => registered) : run;
+	};
+	return {
+		session: {
+			sessionId: deps.sessionId,
+			systemPrompt,
+			messages: turn.messages,
+			state: deps.state,
+			// 日志里没有日期块，每次请求由循环按历史渲染，见 `AgentSessionContext.environment`。
+			environment: true,
 			/*
 			 * The session's own stream override applies here too; summarising is a model call.
 			 *
@@ -232,7 +198,58 @@ export function buildTurnConfig(
 					force: options?.force,
 				});
 			},
+			pruner: sessionPruner(deps.state),
+			artifacts: deps.artifacts,
+		},
+		model: {
+			provider: deps.provider,
+			model: deps.model,
+			liveModel: deps.liveModel,
+			thinking: thinking ?? deps.settings.thinking,
+			// 主会话的每个请求共享同一条前缀，续跑、换轮都是它。
+			cacheKey: deps.sessionId,
+			retryPolicy: () => (deps.getSettings?.() ?? deps.settings).retryPolicy,
 			streamFn: deps.streamFn,
+			onContext: deps.onContext,
+		},
+		tools: {
+			available: turn.tools,
+			env: {
+				cwd: deps.cwd,
+				// Decided once per turn, the same way for every kind of run; see `tool-policy.ts`.
+				...toolPolicy(deps.settings, deps.cwd),
+				allowedPaths: deps.allowedPaths,
+				spawnSubAgent,
+				resources: deps.resources,
+				scratchDir: deps.scratchDir,
+				/*
+				 * Previews are written under the app's directory, keyed by this session.
+				 *
+				 * The workspace is the user's project; a page produced to demonstrate an idea
+				 * is not part of it and should never turn up in `git status`. Keyed by session
+				 * so it can be thrown away with the conversation that produced it.
+				 */
+				writePreview: (input) =>
+					writePreview(plumeHome(), { ...input, sessionId: deps.sessionId }),
+				transcript: deps.transcript,
+			},
+			requestApproval: (request) => deps.requestApproval(request),
+			beforeToolCall: deps.beforeToolCall,
+			afterToolCall: deps.afterToolCall,
+			permissionRequest: deps.permissionRequest,
+		},
+		control: {
+			signal: deps.signal,
+			drainSteering: deps.drainSteering,
+			onStop: deps.onStop,
+			/*
+			 * 一只表，一条续跑链。
+			 *
+			 * 在这里建，而不是让 `runAgent` 自己建：续跑是拿同一份 config 再调一次 `runAgent`
+			 * （`runtime/session-turn.ts`），共用这只表，跑满两百轮攒下的观察才不会在续跑时清零。
+			 */
+			repetition: new RepetitionWatch(),
+		},
 	};
 }
 

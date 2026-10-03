@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AgentRunResult } from "../src/agent/loop.ts";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { continueWhileWorkRemains } from "../src/runtime/continuation.ts";
 import { toAnthropicMessages } from "../src/ai/anthropic-messages-request.ts";
 import { TODOS_KEY, type TodoItem } from "../src/tools/todo.ts";
@@ -345,17 +346,14 @@ const interrupted = (stopReason: "error" | "aborted"): AssistantMessage => ({
 
 async function runInterrupted(stopReason: "error" | "aborted") {
 	return runAgent(
-		{
-			sessionId: "test",
-			cwd: "/tmp",
-			provider: PROVIDER,
-			model: MODEL,
-			systemPrompt: "",
-			tools: [],
-			messages: [{ role: "user", content: [{ type: "text", text: "write the file" }], timestamp: 1 }],
-			state: new Map<string, unknown>([[TODOS_KEY, []]]),
-			streamFn: async () => interrupted(stopReason),
-		},
+		runConfig({
+			session: {
+				sessionId: "test",
+				messages: [{ role: "user", content: [{ type: "text", text: "write the file" }], timestamp: 1 }],
+				state: new Map<string, unknown>([[TODOS_KEY, []]]),
+			},
+			model: { provider: PROVIDER, model: MODEL, streamFn: async () => interrupted(stopReason) },
+		}),
 		() => {},
 	);
 }

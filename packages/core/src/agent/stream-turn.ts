@@ -7,7 +7,7 @@
  */
 
 import type { AgentEventSink } from "./events.ts";
-import type { AgentRunConfig } from "./run-config.ts";
+import type { AgentModelContext } from "./run-config.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { comparePrefix, payloadSegments, type PrefixSegment } from "../ai/prefix-fingerprint.ts";
 import { requestPrompt } from "../runtime/cache-diagnostics.ts";
@@ -40,15 +40,25 @@ export function rejectedContent(assistant: AssistantMessage): boolean {
 	return assistant.failure?.hint === "check-request";
 }
 
-export async function streamTurn(config: AgentRunConfig, context: LlmContext, emit: AgentEventSink): Promise<TurnResult> {
+/**
+ * What the request borrows from outside the `model` group: the run's stop signal, and the session
+ * state the previous request's prefix is kept in (none, no comparison).
+ */
+export interface StreamScope {
+	signal: AbortSignal | undefined;
+	state: Map<string, unknown> | undefined;
+}
+
+export async function streamTurn(config: AgentModelContext, context: LlmContext, scope: StreamScope, emit: AgentEventSink): Promise<TurnResult> {
 	config.onContext?.(context, config.model);
 	// Recalculate after compaction, model switches and payload recovery, for injected streams too.
 	config = { ...config, maxTokens: contextMaxTokens(config.model, context, config.maxTokens) };
+	const { state } = scope;
 	await emit({ type: "request", provider: config.provider.id, model: config.model.modelId, thinking: config.thinking, messageCount: context.messages.length });
 
 	/*
 	 * A model switch has its own controller: it means "redo with someone else", not "stop", so it
-	 * must not be confused with `config.signal`. Only a request that has not said anything yet
+	 * must not be confused with `scope.signal`. Only a request that has not said anything yet
 	 * (connecting, retrying) is let go — that is exactly when a person switches away from a broken
 	 * upstream. See ADR-0025.
 	 */
@@ -58,8 +68,8 @@ export async function streamTurn(config: AgentRunConfig, context: LlmContext, em
 		const wanted = config.liveModel?.current();
 		if (!said && wanted && wanted.model.id !== config.model.id) switchAbort.abort();
 	});
-	const switched = () => switchAbort.signal.aborted && !config.signal?.aborted;
-	const signal = AbortSignal.any([...(config.signal ? [config.signal] : []), switchAbort.signal]);
+	const switched = () => switchAbort.signal.aborted && !scope.signal?.aborted;
+	const signal = AbortSignal.any([...(scope.signal ? [scope.signal] : []), switchAbort.signal]);
 
 	if (config.streamFn) {
 		try {
@@ -96,16 +106,16 @@ export async function streamTurn(config: AgentRunConfig, context: LlmContext, em
 	let sent: PrefixSegment[] | undefined;
 	let prefix: AssistantMessage["prefix"] | null = null;
 	const stamp = (message: AssistantMessage): AssistantMessage => {
-		if (prefix === null && sent && config.state) {
-			const previous = config.state.get(PREFIX_KEY) as PrefixSegment[] | undefined;
+		if (prefix === null && sent && state) {
+			const previous = state.get(PREFIX_KEY) as PrefixSegment[] | undefined;
 			prefix = previous ? comparePrefix(previous, sent) : undefined;
-			if (requestPrompt(message) > 0) config.state.set(PREFIX_KEY, sent);
+			if (requestPrompt(message) > 0) state.set(PREFIX_KEY, sent);
 		}
 		if (prefix) message.prefix = prefix;
 		return message;
 	};
 	const stream = stamped(streamAssistant(config.provider, config.model, context, {
-		onPayload: config.state ? (body) => { sent = payloadSegments(body); } : undefined,
+		onPayload: state ? (body) => { sent = payloadSegments(body); } : undefined,
 		signal,
 		thinking: config.thinking,
 		maxTokens: config.maxTokens,

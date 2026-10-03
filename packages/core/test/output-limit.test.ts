@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig, type Tool } from "../src/types.ts";
 
 const model: ModelConfig = { id: "t/m", providerId: "t", modelId: "m", name: "M", contextWindow: 100_000, maxOutputTokens: 256, supportsThinking: false, supportsImages: false, supportsTools: true };
@@ -18,12 +19,16 @@ async function run(replies: AssistantMessage[], tools: Tool[] = []) {
 	const sent: Message[][] = [];
 	const events: { type: string; message?: string }[] = [];
 	const result = await runAgent(
-		{ sessionId: "s", cwd: "/tmp", provider, model, systemPrompt: "", tools, messages: [user], streamFn: async (context) => {
-			sent.push([...context.messages]);
-			const next = replies.shift();
-			if (!next) throw new Error("no more replies");
-			return next;
-		} },
+		runConfig({
+			session: { messages: [user] },
+			model: { provider, model, streamFn: async (context) => {
+				sent.push([...context.messages]);
+				const next = replies.shift();
+				if (!next) throw new Error("no more replies");
+				return next;
+			} },
+			tools: { available: tools },
+		}),
 		async (event) => { events.push(event as { type: string; message?: string }); },
 	);
 	return { result, sent, events };

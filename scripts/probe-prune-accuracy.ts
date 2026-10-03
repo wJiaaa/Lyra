@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAgent } from "../packages/core/src/agent/loop.ts";
+import { runConfig } from "../packages/core/test/run-config.ts";
 import { loadSettings } from "../packages/core/src/config/settings.ts";
 import { buildSystemPrompt } from "../packages/core/src/prompt/system.ts";
 import { editTool } from "../packages/core/src/tools/edit.ts";
@@ -102,20 +103,16 @@ async function runTask(input: {
 		isGitRepo: false,
 	});
 	const result = await runAgent(
-		{
-			sessionId: `probe-prune-${input.label}`,
-			cwd: input.cwd,
-			provider: input.provider,
-			model: input.model,
-			systemPrompt,
-			tools,
-			messages: [{ role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() }],
-			thinking: "off",
-			retryAttempts: 2,
-			maxTurns: 8,
-			signal: AbortSignal.timeout(180_000),
-			requestApproval: async () => "once",
-		},
+		runConfig({
+			session: {
+				sessionId: `probe-prune-${input.label}`,
+				systemPrompt,
+				messages: [{ role: "user", content: [{ type: "text", text: input.prompt }], timestamp: Date.now() }],
+			},
+			model: { provider: input.provider, model: input.model, thinking: "off", retryAttempts: 2 },
+			tools: { available: tools, env: { cwd: input.cwd }, requestApproval: async () => "once" },
+			control: { maxTurns: 8, signal: AbortSignal.timeout(180_000) },
+		}),
 		async () => {},
 	);
 	const produced = result.messages;

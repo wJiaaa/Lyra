@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { AgedToolPruner } from "../src/runtime/aged-prune.ts";
 import { compactIfNeeded } from "../src/runtime/compaction.ts";
 import { emptyUsage, type AssistantMessage, type LlmContext, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
@@ -15,11 +16,14 @@ const result = (id: string, text: string, uneventful = false): Message => ({ rol
 async function turn(history: Message[], pruner: AgedToolPruner, answerUsage: number) {
 	let sent: Message[] = [];
 	const produced: Message[] = [];
-	await runAgent({
-		sessionId: "s", cwd: "/test", model, provider, messages: history, tools: [], systemPrompt: "", pruner,
-		compact: (messages, active, observer) => compactIfNeeded(messages, active, provider, undefined, 0, false, undefined, undefined, undefined, observer),
-		streamFn: async (context: LlmContext) => { sent = [...context.messages]; return reply([{ type: "text", text: "ok" }], answerUsage); },
-	}, async (event) => { if (event.type === "message_end") produced.push(event.message); });
+	await runAgent(runConfig({
+		session: {
+			messages: history, pruner,
+			compact: (messages, active, observer) => compactIfNeeded(messages, active, provider, undefined, 0, false, undefined, undefined, undefined, observer),
+		},
+		model: { model, provider, streamFn: async (context: LlmContext) => { sent = [...context.messages]; return reply([{ type: "text", text: "ok" }], answerUsage); } },
+		tools: { env: { cwd: "/test" } },
+	}), async (event) => { if (event.type === "message_end") produced.push(event.message); });
 	return { sent, produced };
 }
 
@@ -57,11 +61,14 @@ test("the tail kept beside a summary is rebuilt as the cut copy that was sent", 
 	let kept: number | undefined;
 	let sent: Message[] = [];
 	const produced: Message[] = [];
-	await runAgent({
-		sessionId: "s", cwd: "/test", model, provider, messages: log, tools: [], systemPrompt: "", pruner,
-		compact: (messages, active, observer) => compactIfNeeded(messages, active, provider, async function* () { yield { type: "start" as const, partial: reply([]) }; return reply([{ type: "text", text: "summary" }]); }, 0, false, undefined, undefined, undefined, observer),
-		streamFn: async (context: LlmContext) => { sent = [...context.messages]; return reply([{ type: "text", text: "ok" }], 3_000); },
-	}, async (event) => {
+	await runAgent(runConfig({
+		session: {
+			messages: log, pruner,
+			compact: (messages, active, observer) => compactIfNeeded(messages, active, provider, async function* () { yield { type: "start" as const, partial: reply([]) }; return reply([{ type: "text", text: "summary" }]); }, 0, false, undefined, undefined, undefined, observer),
+		},
+		model: { model, provider, streamFn: async (context: LlmContext) => { sent = [...context.messages]; return reply([{ type: "text", text: "ok" }], 3_000); } },
+		tools: { env: { cwd: "/test" } },
+	}), async (event) => {
 		if (event.type === "compacted") kept = event.kept;
 		if (event.type === "message_end") produced.push(event.message);
 	});

@@ -14,6 +14,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runAgent } from "../../packages/core/src/agent/loop.ts";
+import { runConfig } from "../../packages/core/test/run-config.ts";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
 import { buildSystemPrompt } from "../../packages/core/src/prompt/system.ts";
 import { rerouteShellCommand } from "../../packages/core/src/tools/reroute.ts";
@@ -84,7 +85,12 @@ async function runOnce(task: string, withReroute: boolean, modelId: string) {
 	const systemPrompt = await buildSystemPrompt({ cwd, tools, skills: [], projectInstructions: [], platform: "darwin", modelName: resolved.model.name, isGitRepo: false });
 	const messages: Message[] = [{ role: "user", content: [{ type: "text", text: task }], timestamp: Date.now() }];
 	await runAgent(
-		{ sessionId: "reroute-eval", cwd, provider: resolved.provider, model: resolved.model, systemPrompt, tools, messages, maxTurns: 6, temperature: 0 },
+		runConfig({
+			session: { sessionId: "reroute-eval", systemPrompt, messages },
+			model: { provider: resolved.provider, model: resolved.model, temperature: 0 },
+			tools: { available: tools, env: { cwd } },
+			control: { maxTurns: 6 },
+		}),
 		async () => {},
 	);
 

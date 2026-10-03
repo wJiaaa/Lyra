@@ -13,7 +13,8 @@
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
 import { isAbsolute, resolve } from "node:path";
 import type { AgentEvent } from "../agent/events.ts";
-import type { AgentRunConfig } from "../agent/loop.ts";
+import type { AgentRunConfig, LiveModel, StreamFn } from "../agent/loop.ts";
+import type { RetryPolicySource } from "../config/retry-policy.ts";
 import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
@@ -55,7 +56,7 @@ export interface TurnInputs {
 	model: ModelConfig;
 	signal: AbortSignal;
 	thinking?: ThinkingLevel;
-	streamFn?: AgentRunConfig["streamFn"];
+	streamFn?: StreamFn;
 	scratchDir: string;
 	requestApproval: (request: ApprovalRequest) => Promise<ApprovalDecision>;
 	emit: (event: AgentEvent) => Promise<void>;
@@ -64,8 +65,8 @@ export interface TurnInputs {
 	subAgents?: SubAgentRegistry;
 	/** 这一轮在等的派发，人一开口就放手——见 `delegation-waits.ts`。 */
 	delegations?: DelegationWaits;
-	/** 这场对话此刻设定的模型——一轮之内也会变。见 `AgentRunConfig.liveModel`。 */
-	liveModel?: AgentRunConfig["liveModel"];
+	/** 这场对话此刻设定的模型——一轮之内也会变。见 `AgentModelContext.liveModel`。 */
+	liveModel?: LiveModel;
 }
 
 /**
@@ -102,7 +103,7 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 
 	const first = await runTurn(config, onEvent);
 	await continueWhileWorkRemains(first, {
-		run: (messages) => runTurn({ ...config, messages, systemPrompt }, onEvent),
+		run: (messages) => runTurn({ ...config, session: { ...config.session, messages, systemPrompt } }, onEvent),
 		// 日期块由循环在每次请求末尾接上（`environment`），续跑重建的历史里不带它。
 		messages: () => modelHistory(input.log, input.provider, input.model),
 		todos: () => (input.can.state.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
@@ -346,14 +347,12 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 			permissionRequest: makePermissionRequest(hooks),
 			onStop: makeOnStop(hooks),
 			drainSteering: input.drainSteering,
+			onContext: (context, model) => log.captureRequest(context, model),
 		},
 		turn,
 		systemPrompt,
 		input.thinking,
 	);
-
-	config.onContext = (context, model) => log.captureRequest(context, model);
-	config.environment = true;
 	return { config, systemPrompt };
 }
 
@@ -386,12 +385,18 @@ async function settlePrompt(input: TurnInputs, fresh: PromptContext): Promise<Pr
  * overridden, which leaves the real provider in place.
  */
 export function summaryStream(
-	override: AgentRunConfig["streamFn"] | undefined,
-	scope: Pick<AgentRunConfig, "retryPolicy" | "signal">,
+	override: StreamFn | undefined,
+	scope: SummaryScope,
 	spent?: SpentOn,
 ): typeof streamAssistant {
 	const stream = unmetered(override, scope);
 	return spent ? metered(stream, spent) : stream;
+}
+
+/** What a summary request inherits from the run it shortens. */
+export interface SummaryScope {
+	retryPolicy?: RetryPolicySource;
+	signal?: AbortSignal;
 }
 
 /** Where a model call made outside the conversation reports what it cost. */
@@ -421,8 +426,8 @@ export function metered(stream: typeof streamAssistant, spent: SpentOn): typeof 
 }
 
 function unmetered(
-	override: AgentRunConfig["streamFn"] | undefined,
-	scope: Pick<AgentRunConfig, "retryPolicy" | "signal">,
+	override: StreamFn | undefined,
+	scope: SummaryScope,
 ): typeof streamAssistant {
 	if (!override) return (provider, model, context, options) => streamAssistant(provider, model, context, { ...options, retryPolicy: options?.retryPolicy ?? scope.retryPolicy, signal: options?.signal ?? scope.signal });
 	return (provider, model, context, options) => {

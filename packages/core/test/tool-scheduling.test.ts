@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { AgentRunConfig } from "../src/agent/loop.ts";
+import type { AgentToolContext } from "../src/agent/loop.ts";
 import { coerceArguments, resolveTool, withParameterHint } from "../src/agent/tool-args.ts";
 import { batches, runTools } from "../src/agent/tool-run.ts";
 import type { Context } from "../src/kernel/context.ts";
@@ -14,21 +14,14 @@ import { approvalPolicy, builtInApprovalPolicy } from "../src/runtime/approval-p
 import { bashTool } from "../src/tools/bash.ts";
 import type { Tool, ToolResult } from "../src/types.ts";
 import { parseToolArguments } from "../src/utils/sse.ts";
+import { runConfig } from "./run-config.ts";
 
-const model = { id: "m", modelId: "m", providerId: "p", name: "m", contextWindow: 1000, maxOutputTokens: 100, supportsThinking: false, supportsImages: false, supportsTools: true };
-
-function config(tools: Tool[], extra: Partial<AgentRunConfig> = {}): AgentRunConfig {
-	return {
-		sessionId: "s",
-		cwd: "/tmp",
-		model,
-		provider: { id: "p", name: "p", baseUrl: "http://localhost", api: "openai-responses", apiKey: "", enabled: true, models: [model] },
-		tools,
-		messages: [],
-		systemPrompt: "",
-		...extra,
-	};
+function toolGroup(tools: Tool[], extra: Partial<AgentToolContext> = {}): AgentToolContext {
+	return runConfig({ tools: { available: tools, env: { cwd: "/tmp" }, ...extra } }).tools;
 }
+
+/** What the loop hands `runTools` beside the group: who asks, the stop, a fresh state map. */
+const scope = (signal?: AbortSignal) => ({ sessionId: "s", signal, state: new Map<string, unknown>() });
 
 const call = (id: string, name: string, args: Record<string, unknown> = {}) => ({ type: "toolCall" as const, id, name, arguments: args });
 const text = (result: { content: ToolResult["content"] }) => result.content.map((c) => (c.type === "text" ? c.text : "")).join("");
@@ -61,8 +54,8 @@ test("an edit no longer holds the reads around it hostage, and results keep call
 	const tools = [timed("read", log), timed("edit", log, "sequential")];
 	const results = await runTools(
 		[call("1", "read", { n: 1 }), call("2", "read", { n: 2 }), call("3", "edit"), call("4", "read", { n: 3 })],
-		config(tools),
-		new Map(),
+		toolGroup(tools),
+		scope(),
 		async () => {},
 	);
 	assert.deepEqual(results.map((r) => r.toolCallId), ["1", "2", "3", "4"]);
@@ -97,8 +90,8 @@ test("calls not yet started when stop is pressed are answered, not dropped", asy
 	};
 	const results = await runTools(
 		[call("1", "stop"), call("2", "edit"), call("3", "edit")],
-		config([stopper, timed("edit", log, "sequential")], { signal: controller.signal }),
-		new Map(),
+		toolGroup([stopper, timed("edit", log, "sequential")]),
+		scope(controller.signal),
 		async () => {},
 	);
 	assert.deepEqual(results.map((r) => r.toolCallId), ["1", "2", "3"]);
@@ -108,14 +101,14 @@ test("calls not yet started when stop is pressed are answered, not dropped", asy
 
 test("a tool named with the wrong case runs as the tool that was meant", async () => {
 	const log: string[] = [];
-	const results = await runTools([call("1", "Read", { n: 1 })], config([timed("read", log)]), new Map(), async () => {});
+	const results = await runTools([call("1", "Read", { n: 1 })], toolGroup([timed("read", log)]), scope(), async () => {});
 	assert.equal(results[0].isError, false);
 	assert.equal(results[0].toolName, "read");
 	assert.deepEqual(log, ["start:read1", "end:read1"]);
 });
 
 test("an unknown tool is answered with the list of tools that exist", async () => {
-	const results = await runTools([call("1", "fetch")], config([timed("read", []), timed("edit", [])]), new Map(), async () => {});
+	const results = await runTools([call("1", "fetch")], toolGroup([timed("read", []), timed("edit", [])]), scope(), async () => {});
 	assert.equal(results[0].isError, true);
 	assert.match(text(results[0]), /Available tools: read, edit\./);
 });
@@ -163,7 +156,7 @@ test("coerced arguments are what the hook and the tool both see", async () => {
 		},
 	};
 	const hooked: unknown[] = [];
-	await runTools([call("1", "todo_write", { todos: '[{"id":"a"}]' })], config([todo], { beforeToolCall: async ({ args }) => void hooked.push(args.todos) }), new Map(), async () => {});
+	await runTools([call("1", "todo_write", { todos: '[{"id":"a"}]' })], toolGroup([todo], { beforeToolCall: async ({ args }) => void hooked.push(args.todos) }), scope(), async () => {});
 	assert.deepEqual(hooked, [[{ id: "a" }]]);
 	assert.deepEqual(seen, [[{ id: "a" }]]);
 });

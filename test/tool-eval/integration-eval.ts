@@ -15,6 +15,7 @@ import { copyFile, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { runAgent } from "../../packages/core/src/agent/loop.ts";
+import { runConfig } from "../../packages/core/test/run-config.ts";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
 import { editTool } from "../../packages/core/src/tools/edit.ts";
 import { readTool } from "../../packages/core/src/tools/read.ts";
@@ -76,19 +77,18 @@ async function runTask(task: Task, modelId: string): Promise<{ passed: boolean; 
 	];
 
 	await runAgent(
-		{
-			sessionId: "integration",
-			cwd,
-			provider: resolved.provider,
-			model: resolved.model,
-			systemPrompt:
-				"You are a coding assistant working in a workspace. Read a file before editing it. " +
-				"Make exactly the change requested and nothing else. Stop when the change is made.",
-			tools: [readTool, editTool],
-			messages,
-			maxTurns: 8,
-			temperature: 0,
-		},
+		runConfig({
+			session: {
+				sessionId: "integration",
+				systemPrompt:
+					"You are a coding assistant working in a workspace. Read a file before editing it. " +
+					"Make exactly the change requested and nothing else. Stop when the change is made.",
+				messages,
+			},
+			model: { provider: resolved.provider, model: resolved.model, temperature: 0 },
+			tools: { available: [readTool, editTool], env: { cwd } },
+			control: { maxTurns: 8 },
+		}),
 		async (event: AgentEvent) => {
 			if (event.type === "turn_start") turns += 1;
 			if (event.type === "tool_end") {

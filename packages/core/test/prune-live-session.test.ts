@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { grepTool } from "../src/tools/grep.ts";
 import { emptyUsage, type Message } from "../src/types.ts";
@@ -82,28 +83,27 @@ test("the recorded blow-up session is cut on the same prepare path the loop uses
 
 	let sent: Message[] = [];
 	await runAgent(
-		{
-			sessionId: session,
-			cwd: ROOT,
-			model,
-			provider,
-			messages: [...original],
-			tools: [],
-			systemPrompt: "",
-			streamFn: async (context) => {
-				sent = context.messages;
-				return {
-					role: "assistant",
-					api: "openai-responses",
-					provider: "test",
-					model: "test",
-					stopReason: "stop",
-					usage: emptyUsage(),
-					content: [{ type: "text", text: "probe" }],
-					timestamp: Date.now(),
-				};
+		runConfig({
+			session: { sessionId: session, messages: [...original] },
+			model: {
+				model,
+				provider,
+				streamFn: async (context) => {
+					sent = context.messages;
+					return {
+						role: "assistant",
+						api: "openai-responses",
+						provider: "test",
+						model: "test",
+						stopReason: "stop",
+						usage: emptyUsage(),
+						content: [{ type: "text", text: "probe" }],
+						timestamp: Date.now(),
+					};
+				},
 			},
-		},
+			tools: { env: { cwd: ROOT } },
+		}),
 		async () => {},
 	);
 

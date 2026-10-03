@@ -16,6 +16,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runAgent } from "../../packages/core/src/agent/loop.ts";
+import { runConfig } from "../../packages/core/test/run-config.ts";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
 import { buildSystemPrompt } from "../../packages/core/src/prompt/system.ts";
 import { BUILTIN_RESOURCES } from "../../packages/core/src/resources/handlers.ts";
@@ -184,28 +185,28 @@ async function main(): Promise<void> {
 		const pending = new Map<string, string>();
 
 		const result = await runAgent(
-			{
-				sessionId: "res-eval",
-				cwd,
-				provider: resolved.provider,
-				model: resolved.model,
-				systemPrompt,
-				tools: [readTool, writeTool] as never,
-				messages: [{ role: "user", content: [{ type: "text", text: probe.task }], timestamp: Date.now() }],
-				maxTurns: 5,
-				temperature: 0,
-				resources: withoutAddresses ? undefined : router,
-				scratchDir,
-				/*
-				 * The handlers read the skill list out of here.
-				 *
-				 * Leaving it off — which the first version of this file did — makes every address
-				 * resolve against an empty session and fail, the model falls back to the filesystem,
-				 * and because the fixture also exists on disk it answers correctly anyway. The run
-				 * scored 5/5 while the feature under test was doing nothing at all.
-				 */
-				state,
-			},
+			runConfig({
+				session: {
+					sessionId: "res-eval",
+					systemPrompt,
+					messages: [{ role: "user", content: [{ type: "text", text: probe.task }], timestamp: Date.now() }],
+					/*
+					 * The handlers read the skill list out of here.
+					 *
+					 * Leaving it off — which the first version of this file did — makes every address
+					 * resolve against an empty session and fail, the model falls back to the filesystem,
+					 * and because the fixture also exists on disk it answers correctly anyway. The run
+					 * scored 5/5 while the feature under test was doing nothing at all.
+					 */
+					state,
+				},
+				model: { provider: resolved.provider, model: resolved.model, temperature: 0 },
+				tools: {
+					available: [readTool, writeTool] as never,
+					env: { cwd, resources: withoutAddresses ? undefined : router, scratchDir },
+				},
+				control: { maxTurns: 5 },
+			}),
 			async (event: AgentEvent) => {
 				if (event.type === "tool_start") {
 					const args = JSON.stringify(event.args);

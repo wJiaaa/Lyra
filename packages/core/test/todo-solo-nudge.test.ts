@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { runAgent, SOLO_TODO_NOTE } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { readTool } from "../src/tools/read.ts";
 import { todoTool } from "../src/tools/todo.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig, Tool } from "../src/types.ts";
@@ -38,19 +39,17 @@ const readCall = (id: string) => ({ type: "toolCall" as const, id, name: "read",
 async function run(script: AssistantMessage[], committed: string[] = []): Promise<Message[]> {
 	let at = 0;
 	const result = await runAgent(
-		{
-			sessionId: "solo-todo",
-			cwd,
-			provider: PROVIDER,
-			model: MODEL,
-			systemPrompt: "x",
-			tools: [todoTool, readTool] as unknown as Tool[],
-			messages: [{ role: "user", content: [{ type: "text", text: "读 a.ts" }], timestamp: Date.now() }],
-			maxTurns: 6,
-			temperature: 0,
-			state: new Map(),
-			streamFn: async () => script[Math.min(at++, script.length - 1)],
-		},
+		runConfig({
+			session: {
+				sessionId: "solo-todo",
+				systemPrompt: "x",
+				messages: [{ role: "user", content: [{ type: "text", text: "读 a.ts" }], timestamp: Date.now() }],
+				state: new Map(),
+			},
+			model: { provider: PROVIDER, model: MODEL, temperature: 0, streamFn: async () => script[Math.min(at++, script.length - 1)] },
+			tools: { available: [todoTool, readTool] as unknown as Tool[], env: { cwd } },
+			control: { maxTurns: 6 },
+		}),
 		// `message_end` 是落盘点：这里记下的就是日志里、重启后重建出来的那一份。
 		async (event) => {
 			if (event.type === "message_end" && event.message.role === "toolResult" && event.message.toolName === "todo_write") {

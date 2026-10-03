@@ -4,7 +4,7 @@
 
 | 文件 | 回答的问题 |
 | --- | --- |
-| `run-config.ts` | 一次运行拿到什么、交回什么（`AgentRunConfig` / `AgentRunResult` / `LiveModel`） |
+| `run-config.ts` | 一次运行拿到什么、交回什么（`AgentRunConfig` 的四组 / `AgentRunResult` / `LiveModel`） |
 | `loop.ts` | 还要不要再来一轮：插话、模型切换、压缩、恢复、收尾判断 |
 | `stream-turn.ts` | 一个请求怎么变成一条落定的回复：重试计数、换模型放手、拒收挂起 |
 | `tool-run.ts` | 一轮里的工具怎么跑：并行/串行、审批、钩子、停止不等工具 |
@@ -13,6 +13,29 @@
 代码里的注释只留「这里必须这样、改坏过的是哪种写法」。演进和论证在这里。成本与停止机制的
 实测数字见 [agent-cost-and-stopping.md](agent-cost-and-stopping.md)，模型切换的决定见
 [ADR-0025](../adr/0025-model-switch-applies-from-next-request.md)。
+
+## 一次运行拿到的四组配置
+
+`AgentRunConfig` 只有四个键，每组只给一类代码读（为什么这样分，见
+[ADR-0034](../adr/0034-run-config-in-four-groups.md)）：
+
+| 组 | 装什么 | 谁读 |
+| --- | --- | --- |
+| `session` | 会话 id、system prompt、历史、状态图、日期块、压缩、剪枝器、artifact 存放处 | loop、`compact-step.ts` |
+| `model` | 供应商与模型、换模型、思考等级、缓存键、重试、请求替身、请求观察 | `stream-turn.ts` |
+| `tools` | 工具表、`env`（原样交给每次调用的 `ToolContext` 部分）、审批、三个工具钩子 | `tool-run.ts` |
+| `control` | 停止信号、插话队列、Stop 钩子、重复检测、轮数上限 | loop |
+
+- **一个字段只属于一组。** 停止信号归 `control`、状态图和会话 id 归 `session`，但 `stream-turn`
+  和 `tool-run` 也要用：由 loop 作为参数交下去（`StreamScope`、`ToolRunScope`），不在第二组里再放
+  一份。`run-config.ts` 里有编译期断言，两组出现同名字段、或者顶层多出第五个键，`tsc` 都会失败。
+- **组内字段必须写出来。** 除了有通用默认值的几个数（`maxTurns`、`maxTokens`、`temperature`、
+  `retryAttempts`），每个字段都是必填的，没有就写 `undefined`。`tools.env` 由 `ToolContext` 推导：
+  给工具加一个上下文字段，主会话、子代理、侧聊三处构造都会编译失败，直到各自写明给什么。
+- **继承和覆盖按组写。** 子代理讨交接那一轮是 `{ session: { ...runConfig.session, messages }, model:
+  runConfig.model, tools: { 只剩 yield }, control: { 两轮 } }`；主会话续跑只换 `session.messages`。
+- 测试不做类型检查，统一经 `packages/core/test/run-config.ts` 的 `runConfig()` 构造，没提到的字段都是
+  `undefined`。
 
 ## 一轮的顺序
 
@@ -160,5 +183,5 @@
   诊断也算数的请求推进（`requestPrompt`），两边比的是同一对请求。
 - **`AgentRunResult.view`** 是模型眼里的整段历史（压缩、剪枝之后）。子代理续跑从它往后接，前缀才
   逐字相同；从转录重建会丢掉压缩边界、挪动日期块，缓存从第二条起全部作废。
-- **`environment`** 给主会话用：它的历史每轮从日志重建，日志里没有日期块；渲染只看消息自己的时间
+- **`session.environment`** 给主会话用：它的历史每轮从日志重建，日志里没有日期块；渲染只看消息自己的时间
   戳，同一份历史每次得到同样的字节。子代理不开，它存的就是带日期块的 `view`。

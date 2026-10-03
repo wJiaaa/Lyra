@@ -30,7 +30,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, AgentEventSink, CommandRun, QueuedTask } from "../agent/events.ts";
-import type { AgentRunConfig, LiveModel } from "../agent/loop.ts";
+import type { LiveModel, StreamFn } from "../agent/loop.ts";
 import type { Settings } from "../config/settings.ts";
 import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem, withProjectLayer } from "../config/settings.ts";
 import { SESSIONS_KEY, type SessionLookup } from "../resources/more-handlers.ts";
@@ -72,12 +72,12 @@ export interface AgentSessionOptions {
 	 */
 	extraTools?: Tool[];
 	/**
-	 * Replaces the provider call, exactly as `AgentRunConfig.streamFn` does one layer down.
+	 * Replaces the provider call, exactly as `AgentModelContext.streamFn` does one layer down.
 	 *
 	 * Exposed here so behaviour that lives in the session rather than the loop — the task
 	 * queue, in particular — can be exercised without a network round trip.
 	 */
-	streamFn?: AgentRunConfig["streamFn"];
+	streamFn?: StreamFn;
 	/** A turn override suppresses title requests unless this separate stream is supplied. */
 	titleSummaryStream?: typeof streamAssistant;
 }
@@ -133,7 +133,7 @@ export class AgentSession {
 	private projectReads = 0;
 	/** 盯着技能和子智能体目录的那个，没有可听的目录时是 null。 */
 	private watcher: CapabilityWatcher | null = null;
-	private streamFn?: AgentRunConfig["streamFn"];
+	private streamFn?: StreamFn;
 	/**
 	 * 标题那件事的全部，在 `session-title.ts` 里。
 	 *
@@ -216,7 +216,7 @@ export class AgentSession {
 	 * 这场对话此刻的模型，交给正在跑的那一轮。
 	 *
 	 * 人中途换了模型，它从下一个请求起就换；旧的上游坏了、请求正卡在重试上的，当场放手换人。
-	 * 见 `AgentRunConfig.liveModel`。
+	 * 见 `AgentModelContext.liveModel`。
 	 */
 	private readonly liveModel: LiveModel = {
 		current: () => resolveModel(this.settings, this.log.meta.modelId || this.settings.defaultModelId),
@@ -639,7 +639,7 @@ export class AgentSession {
 		 *
 		 * 从前它听不到：一轮开始时拿到的模型用到这一轮结束。旧模型的上游坏了、请求在一遍遍重试时，
 		 * 人换了模型——界面上写着新的，服务器收到的一直是旧的，直到人按停止、再编辑重发。见
-		 * `AgentRunConfig.liveModel`。
+		 * `AgentModelContext.liveModel`。
 		 */
 		if (changed) for (const listener of this.modelListeners) listener();
 		return true;

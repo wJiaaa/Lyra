@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { isRepeatNotice, originalInView, repeatNotice } from "../src/agent/repetition.ts";
 import { dropStaleResults } from "../src/runtime/stale-results.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type Tool, type ToolResultMessage } from "../src/types.ts";
@@ -39,16 +40,19 @@ test("循环与 stale-results 合起来：读到第四次，每个请求里都�
 	};
 	const script = [reads("r1"), reads("r2"), reads("r3"), reads("r4"), says("看完了")];
 	const requests: Message[][] = [];
-	await runAgent({
-		sessionId: "t", cwd: "/test", model, systemPrompt: "", messages: [{ role: "user", content: [{ type: "text", text: "读 a.ts" }], timestamp: 0 }], tools: [tool],
-		provider: { id: "p", name: "p", api: "openai-responses", baseUrl: "http://localhost", apiKey: "", enabled: true, models: [model] },
-		requestApproval: async () => "allow",
-		streamFn: async (context) => {
-			// 循环复用同一个数组，要当场拍下这一次发出去的样子。
-			requests.push([...context.messages]);
-			return script.shift() ?? says("完");
+	await runAgent(runConfig({
+		session: { sessionId: "t", messages: [{ role: "user", content: [{ type: "text", text: "读 a.ts" }], timestamp: 0 }] },
+		model: {
+			model,
+			provider: { id: "p", name: "p", api: "openai-responses", baseUrl: "http://localhost", apiKey: "", enabled: true, models: [model] },
+			streamFn: async (context) => {
+				// 循环复用同一个数组，要当场拍下这一次发出去的样子。
+				requests.push([...context.messages]);
+				return script.shift() ?? says("完");
+			},
 		},
-	}, async () => {});
+		tools: { available: [tool], env: { cwd: "/test" }, requestApproval: async () => "allow" },
+	}), async () => {});
 
 	assert.equal(requests.length, 5);
 	const last = requests.at(-1)!;
@@ -97,18 +101,24 @@ test("压缩之后的重读从头数，不被当成第三次", async () => {
 	const script = [reads("r1"), reads("r2"), reads("r3"), says("看完了")];
 	let requests = 0;
 	const sent: Message[][] = [];
-	await runAgent({
-		sessionId: "t", cwd: "/test", model, systemPrompt: "", messages: [{ role: "user", content: [{ type: "text", text: "读 a.ts" }], timestamp: 0 }], tools: [tool],
-		provider: { id: "p", name: "p", api: "openai-responses", baseUrl: "http://localhost", apiKey: "", enabled: true, models: [model] },
-		requestApproval: async () => "allow",
-		// 第三个请求之前压缩一次：前面的读取全进了摘要。
-		compact: async () => (requests === 2 ? { messages: [{ role: "user", content: [{ type: "text", text: "（摘要）读过 a.ts" }], timestamp: 0 }], summary: "读过 a.ts", kept: 0 } : null),
-		streamFn: async (context) => {
-			requests += 1;
-			sent.push([...context.messages]);
-			return script.shift() ?? says("完");
+	await runAgent(runConfig({
+		session: {
+			sessionId: "t",
+			messages: [{ role: "user", content: [{ type: "text", text: "读 a.ts" }], timestamp: 0 }],
+			// 第三个请求之前压缩一次：前面的读取全进了摘要。
+			compact: async () => (requests === 2 ? { messages: [{ role: "user", content: [{ type: "text", text: "（摘要）读过 a.ts" }], timestamp: 0 }], summary: "读过 a.ts", kept: 0 } : null),
 		},
-	}, async () => {});
+		model: {
+			model,
+			provider: { id: "p", name: "p", api: "openai-responses", baseUrl: "http://localhost", apiKey: "", enabled: true, models: [model] },
+			streamFn: async (context) => {
+				requests += 1;
+				sent.push([...context.messages]);
+				return script.shift() ?? says("完");
+			},
+		},
+		tools: { available: [tool], env: { cwd: "/test" }, requestApproval: async () => "allow" },
+	}), async () => {});
 
 	const last = sent.at(-1)!;
 	assert.equal(shown(last), 1, "压缩后读到的那份就是原文");

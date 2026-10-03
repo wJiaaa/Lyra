@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { compactStep } from "../src/agent/compact-step.ts";
-import { runAgent, type AgentRunConfig } from "../src/agent/loop.ts";
+import { runAgent, type AgentModelContext, type AgentRunConfig, type AgentSessionContext } from "../src/agent/loop.ts";
 import type { AgentEvent, CommandRun } from "../src/agent/events.ts";
 import { compactionTriggerTokens, compactWith } from "../src/runtime/compaction.ts";
 import { estimateTokens } from "../src/tokens.ts";
@@ -15,6 +15,7 @@ import { projectTrajectory } from "../src/trajectory/project.ts";
 import { classifyFailure, FailureError } from "../src/ai/failure.ts";
 import type { streamAssistant } from "../src/ai/index.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
+import { runConfig } from "./run-config.ts";
 
 const model: ModelConfig = { id: "test/model", providerId: "test", modelId: "model", name: "Test", contextWindow: 10000, maxOutputTokens: 1000, supportsThinking: false, supportsImages: false, supportsTools: true };
 const provider: ProviderConfig = { id: "test", name: "Test", baseUrl: "http://localhost", api: "anthropic-messages", apiKey: "fixture", enabled: true, models: [model] };
@@ -22,10 +23,17 @@ const user = (text: string): Message => ({ role: "user", content: [{ type: "text
 const reply = (text: string): AssistantMessage => ({ role: "assistant", content: [{ type: "text", text }], timestamp: 2, api: provider.api, provider: provider.id, model: model.id, stopReason: "stop", usage: emptyUsage() });
 const history = () => Array.from({ length: 12 }, (_, i) => [user(`request ${i} ${"x".repeat(4000)}`), reply("y".repeat(4000))]).flat();
 const success: typeof streamAssistant = async function* () { yield { type: "start", partial: reply("") }; return reply("Saved decisions and remaining work."); };
-const config = (streamFn = success, signal?: AbortSignal): AgentRunConfig => ({
-	sessionId: "test", cwd: tmpdir(), provider, model, systemPrompt: "", tools: [], messages: [], signal,
-	compact: (messages, activeModel, observer) => compactWith({ messages, model: activeModel, provider, streamFn, observer }),
+const config = (streamFn = success, signal?: AbortSignal, main?: Pick<AgentSessionContext, "messages"> & Pick<AgentModelContext, "streamFn">): AgentRunConfig => runConfig({
+	session: {
+		sessionId: "test", systemPrompt: "", messages: main?.messages ?? [],
+		compact: (messages, activeModel, observer) => compactWith({ messages, model: activeModel, provider, streamFn, observer }),
+	},
+	model: { provider, model, streamFn: main?.streamFn },
+	tools: { available: [], env: { cwd: tmpdir() } },
+	control: { signal },
 });
+/** What `compactStep` takes from a run: the session group and the stop signal. */
+const scope = (run: AgentRunConfig) => [run.session, run.control.signal] as const;
 
 test("automatic compaction records retries in order, commits completion with the boundary and keeps metadata out of the prompt", async () => {
 	const events: AgentEvent[] = [];
@@ -34,7 +42,7 @@ test("automatic compaction records retries in order, commits completion with the
 		yield { type: "start", partial: reply("") };
 		return reply("Saved summary");
 	};
-	const result = await compactStep(config(stream), history(), model, event => { events.push(event); });
+	const result = await compactStep(...scope(config(stream)), history(), model, event => { events.push(event); });
 	assert.ok(result);
 	assert.deepEqual(events.map(e => e.type === "command_status" ? e.command.automatic?.phase : e.type), ["summarizing", "retrying", "retrying", "compacted"]);
 	const end = events.at(-1);
@@ -56,7 +64,7 @@ for (const failure of ["throw", "fatal", "fatal-message", "error", "empty"] as c
 		if (failure === "fatal") throw new FailureError(classifyFailure({ from: "status", status: 401 }));
 		return failure === "empty" ? reply("") : { ...reply(""), stopReason: "error", errorMessage: "service unavailable", ...(failure === "fatal-message" ? { failure: classifyFailure({ from: "status", status: 401 }) } : {}) };
 	};
-	assert.ok(await compactStep(config(stream), history(), model, event => { events.push(event); }));
+	assert.ok(await compactStep(...scope(config(stream)), history(), model, event => { events.push(event); }));
 	const fallback = events.find(e => e.type === "command_status" && e.command.automatic?.phase === "fallback");
 	assert.ok(fallback);
 	const end = events.at(-1);
@@ -77,7 +85,7 @@ test("cancelling during summary retry records cancellation without fallback, bou
 		yield { type: "start", partial: reply("") };
 		return { ...reply(""), stopReason: "aborted" };
 	};
-	const result = await runAgent({ ...config(stream, controller.signal), messages: history(), streamFn: async () => { mainCalls++; return reply("unexpected"); } }, event => { events.push(event); });
+	const result = await runAgent(config(stream, controller.signal, { messages: history(), streamFn: async () => { mainCalls++; return reply("unexpected"); } }), event => { events.push(event); });
 	assert.equal(result.reason, "aborted");
 	assert.equal(mainCalls, 0);
 	assert.equal(events.some(e => e.type === "compacted"), false);
@@ -88,7 +96,7 @@ test("cancelling during summary retry records cancellation without fallback, bou
 
 test("below-threshold history has no phantom operation or summary call", async () => {
 	const events: AgentEvent[] = [];
-	const result = await compactStep(config(() => { throw new Error("must not call"); }), [user("hello")], model, event => { events.push(event); });
+	const result = await compactStep(...scope(config(() => { throw new Error("must not call"); })), [user("hello")], model, event => { events.push(event); });
 	assert.equal(result, null);
 	assert.deepEqual(events, []);
 });
@@ -97,7 +105,7 @@ test("a summary too big to fit falls back to dropping the oldest turns instead o
 	// 原样返回 null 的话，下一轮带着同一份超长历史再来一遍、再失败一遍。
 	const events: AgentEvent[] = [];
 	const stream: typeof streamAssistant = async function* () { yield { type: "start", partial: reply("") }; return reply("s".repeat(200000)); };
-	const result = await compactStep(config(stream), history(), model, event => { events.push(event); });
+	const result = await compactStep(...scope(config(stream)), history(), model, event => { events.push(event); });
 	assert.ok(result, "it still came back with something sendable");
 	assert.equal(result.summary, "", "by dropping, since the summary could not be used");
 	assert.ok(estimateTokens(result.messages) < compactionTriggerTokens(model.contextWindow));

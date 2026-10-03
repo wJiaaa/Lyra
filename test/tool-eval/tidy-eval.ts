@@ -8,6 +8,7 @@
 const say = (s = "") => process.stderr.write(s + "\n");
 const B = "/Users/kittors/Developer/opensource/Plume-tool-quality";
 const { runAgent } = await import(`${B}/packages/core/src/agent/loop.ts`);
+const { runConfig } = await import(`${B}/packages/core/test/run-config.ts`);
 
 const EMPTY = "No matches for /nothing/.\n(searched 340 files)".repeat(10);
 
@@ -59,14 +60,16 @@ function script(tailSize: number) {
 for (const [label, tail] of [["尾巴很小（缓存损失小）", 10], ["尾巴很大（缓存还热）", 40_000]] as const) {
   (globalThis as Record<string, unknown>).__seen = [];
   await runAgent(
-    {
-      sessionId: "tidy", cwd: "/tmp",
-      provider: { id: "p", name: "P", baseUrl: "x", api: "openai-responses", apiKey: "k", enabled: true, models: [] } as never,
-      model: { id: "m", providerId: "p", modelId: "m", name: "M", contextWindow: 100000, maxOutputTokens: 4096, supportsThinking: false, supportsImages: false, supportsTools: true } as never,
-      systemPrompt: "s", tools: [grep] as never[],
-      messages: [{ role: "user", content: [{ type: "text", text: "找一下" }], timestamp: Date.now() }],
-      maxTurns: 4, streamFn: script(tail) as never,
-    },
+    runConfig({
+      session: { sessionId: "tidy", systemPrompt: "s", messages: [{ role: "user", content: [{ type: "text", text: "找一下" }], timestamp: Date.now() }] },
+      model: {
+        provider: { id: "p", name: "P", baseUrl: "x", api: "openai-responses", apiKey: "k", enabled: true, models: [] } as never,
+        model: { id: "m", providerId: "p", modelId: "m", name: "M", contextWindow: 100000, maxOutputTokens: 4096, supportsThinking: false, supportsImages: false, supportsTools: true } as never,
+        streamFn: script(tail) as never,
+      },
+      tools: { available: [grep] as never[], env: { cwd: "/tmp" } },
+      control: { maxTurns: 4 },
+    }),
     async () => {},
   );
   const seen = (globalThis as Record<string, unknown>).__seen as string[];

@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { readAllowedTools } from "../src/skills/allowed-tools.ts";
 import { ACTIVE_SKILL_KEY, clearActiveSkill, skillRefusal, skillTool, SKILLS_KEY, syncSkillContext } from "../src/skills/tool.ts";
 import type { Skill } from "../src/skills/loader.ts";
@@ -200,23 +201,20 @@ function loopFixture() {
 		let at = 0;
 		const queue: Message[] = [];
 		const result = await runAgent(
-			{
-				sessionId: "skill-lifetime",
-				cwd: "/tmp",
-				provider: LOOP_PROVIDER,
-				model: LOOP_MODEL,
-				systemPrompt: "x",
-				tools: [skillTool, bash] as unknown as Tool[],
-				messages,
-				maxTurns: 8,
-				state,
-				drainSteering: () => queue.splice(0, queue.length),
-				streamFn: async () => {
-					at += 1;
-					if (at === options.duringTurn) queue.push(...(options.steering ?? []));
-					return script[Math.min(at - 1, script.length - 1)];
+			runConfig({
+				session: { sessionId: "skill-lifetime", systemPrompt: "x", messages, state },
+				model: {
+					provider: LOOP_PROVIDER,
+					model: LOOP_MODEL,
+					streamFn: async () => {
+						at += 1;
+						if (at === options.duringTurn) queue.push(...(options.steering ?? []));
+						return script[Math.min(at - 1, script.length - 1)];
+					},
 				},
-			},
+				tools: { available: [skillTool, bash] as unknown as Tool[], env: { cwd: "/tmp" } },
+				control: { maxTurns: 8, drainSteering: () => queue.splice(0, queue.length) },
+			}),
 			async () => {},
 		);
 		return [...messages, ...result.messages];

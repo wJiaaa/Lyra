@@ -8,7 +8,7 @@
  */
 
 import type { AgentEventSink } from "./events.ts";
-import type { AgentRunConfig } from "./run-config.ts";
+import type { AgentToolContext } from "./run-config.ts";
 import { coerceArguments, resolveTool, unknownToolMessage, withParameterHint } from "./tool-args.ts";
 import { runTool } from "./tool-pipeline.ts";
 import { skillRefusal } from "../skills/tool.ts";
@@ -27,10 +27,17 @@ import type {
 /** A tool call as it appears in an assistant message. */
 type ToolCall = Extract<AssistantContent, { type: "toolCall" }>;
 
+/** What the calls borrow from the run beyond the `tools` group: who is asking, the stop, the session state. */
+export interface ToolRunScope {
+	sessionId: string;
+	signal: AbortSignal | undefined;
+	state: Map<string, unknown>;
+}
+
 export async function runTools(
 	toolCalls: ToolCall[],
-	config: AgentRunConfig,
-	state: Map<string, unknown>,
+	tools: AgentToolContext,
+	scope: ToolRunScope,
 	emit: AgentEventSink,
 	/**
 	 * 接在每条成功结果末尾、给模型读的一句话。在提交之前接上：`message_end` 就是落盘点，之后再改，
@@ -38,7 +45,7 @@ export async function runTools(
 	 */
 	note?: string,
 ): Promise<ToolResultMessage[]> {
-	const byName = new Map(config.tools.map((t) => [t.name, t]));
+	const byName = new Map(tools.available.map((t) => [t.name, t]));
 
 	/*
 	 * Normalised before anything looks at the call — scheduling, hooks, approval and the tool all
@@ -61,7 +68,7 @@ export async function runTools(
 			summary: tool?.summarize?.(call.arguments) ?? call.name,
 		});
 
-		const result = await executeOne(tool, call, config, state, emit);
+		const result = await executeOne(tool, call, tools, scope, emit);
 		await emit({
 			type: "tool_end",
 			toolCallId: call.id,
@@ -102,7 +109,7 @@ export async function runTools(
 	const results: ToolResultMessage[] = [];
 	const groups = batches(planned, (entry) => entry.tool !== undefined && executionMode(entry.tool, entry.call.arguments) === "parallel");
 	for (const [index, group] of groups.entries()) {
-		if (config.signal?.aborted) {
+		if (scope.signal?.aborted) {
 			// Every call still gets its answer; none of these ever started.
 			const rest = groups.slice(index).flat().map((entry) => entry.call);
 			results.push(...(await failTruncatedCalls(rest, emit, "the turn was stopped before it could run")));
@@ -171,11 +178,12 @@ function cancelledResult(waitingForApproval = false): ToolResult {
 async function executeOne(
 	tool: Tool | undefined,
 	call: ToolCall,
-	config: AgentRunConfig,
-	state: Map<string, unknown>,
+	tools: AgentToolContext,
+	scope: ToolRunScope,
 	emit: AgentEventSink,
 ): Promise<ToolResult> {
-	if (!tool) return errorResult(unknownToolMessage(call.name, config.tools));
+	const { state, signal } = scope;
+	if (!tool) return errorResult(unknownToolMessage(call.name, tools.available));
 
 	/*
 	 * A loaded skill's `allowed-tools`, enforced.
@@ -215,11 +223,11 @@ async function executeOne(
 			await emit({ type: "tool_phase", toolCallId: call.id, phase: "running" });
 		}
 	};
-	const requestApproval = config.requestApproval;
+	const requestApproval = tools.requestApproval;
 	const ctx: ToolContext = {
-		cwd: config.cwd,
-		sessionId: config.sessionId,
-		signal: config.signal,
+		...tools.env,
+		sessionId: scope.sessionId,
+		signal,
 		state,
 		requestApproval: requestApproval
 			? async (request) => awaitingPerson(async () => {
@@ -231,29 +239,18 @@ async function executeOne(
 					 */
 					const escalation = request.escalation !== undefined;
 					if (preApproved && !escalation) return "once";
-					const answered = await config.permissionRequest?.({ toolName: call.name, args: call.arguments, toolCallId: call.id }, request).catch(() => undefined);
+					const answered = await tools.permissionRequest?.({ toolName: call.name, args: call.arguments, toolCallId: call.id }, request).catch(() => undefined);
 					if (answered && !(escalation && approved(answered))) return answered;
 				}
 				return requestApproval(request);
 			})
 			: undefined,
-		sandboxMode: config.sandboxMode,
-		sandboxNetwork: config.sandboxNetwork,
-		allowedHosts: config.allowedHosts,
-		searchProviderId: config.searchProviderId,
-		allowedPaths: config.allowedPaths,
-		projectRoots: config.projectRoots,
-		writePreview: config.writePreview,
-		transcript: config.transcript,
-		spawnSubAgent: config.spawnSubAgent,
-		resources: config.resources,
-		scratchDir: config.scratchDir,
 		onProgress: (partial) => void emit({ type: "tool_update", toolCallId: call.id, partial }),
 	};
 
-	if (config.beforeToolCall) {
+	if (tools.beforeToolCall) {
 		try {
-			const decision = await config.beforeToolCall({ toolName: call.name, args: call.arguments, toolCallId: call.id });
+			const decision = await tools.beforeToolCall({ toolName: call.name, args: call.arguments, toolCallId: call.id });
 			hookContexts = decision?.contexts ?? [];
 			if (decision?.block) {
 				const blocked = errorResult(decision.reason || `A hook blocked "${call.name}".`);
@@ -298,7 +295,7 @@ async function executeOne(
 	let rerouted: string | undefined;
 	if (state.has(TOOL_NAMES_KEY) && call.name === "bash" && typeof call.arguments.command === "string" && !call.arguments.escalate && !call.arguments.run_in_background) {
 		const translated = translatedShellCommand(call.arguments.command);
-		const target = translated && config.tools.find((candidate) => candidate.name === translated.name);
+		const target = translated && tools.available.find((candidate) => candidate.name === translated.name);
 		if (translated && target && !skillRefusal(state, translated.name)) {
 			runnable = target;
 			runArgs = translated.args;
@@ -320,17 +317,17 @@ async function executeOne(
 		 * Racing the signal here makes the button mean what it says. Whatever the tool is doing
 		 * carries on in the background and its result is discarded; the turn is over.
 		 */
-		result = await Promise.race([runTool({ tool: runnable, args: runArgs, ctx }), cancelled(config.signal, () => waiting)]);
+		result = await Promise.race([runTool({ tool: runnable, args: runArgs, ctx }), cancelled(signal, () => waiting)]);
 	} catch (error) {
-		if (config.signal?.aborted) return cancelledResult(waiting);
+		if (signal?.aborted) return cancelledResult(waiting);
 		return errorResult(error instanceof Error ? error.message : String(error));
 	}
 	if (rerouted) result = { ...result, content: [...result.content, { type: "text", text: `[Executed with ${rerouted}; use that tool directly next time.]` }] };
 	else result = withParameterHint(result, tool, call.arguments);
 
-	if (config.afterToolCall) {
+	if (tools.afterToolCall) {
 		try {
-			const patched = await config.afterToolCall({ toolName: call.name, args: call.arguments, result, toolCallId: call.id, contexts: hookContexts });
+			const patched = await tools.afterToolCall({ toolName: call.name, args: call.arguments, result, toolCallId: call.id, contexts: hookContexts });
 			if (patched?.result) result = patched.result;
 		} catch (error) {
 			void emit({

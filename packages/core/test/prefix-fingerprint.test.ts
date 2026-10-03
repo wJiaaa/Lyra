@@ -9,6 +9,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { comparePrefix, payloadSegments } from "../src/ai/prefix-fingerprint.ts";
 import { diagnoseCache } from "../src/runtime/cache-diagnostics.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
@@ -114,7 +115,7 @@ test("同一会话的下一次请求，回复上写着前缀是否变了、变�
 	const state = new Map<string, unknown>();
 	const user = (text: string): Message => ({ role: "user", content: [{ type: "text", text }], timestamp: 1 });
 	const turn = async (messages: Message[], systemPrompt = "sys") => {
-		const result = await runAgent({ sessionId: "s", cwd: "/tmp", provider, model, systemPrompt, tools: [], state, messages, retryAttempts: 1 }, async () => {});
+		const result = await runAgent(runConfig({ session: { systemPrompt, state, messages }, model: { provider, model, retryAttempts: 1 } }), async () => {});
 		return result.messages.find((m): m is AssistantMessage => m.role === "assistant")!;
 	};
 

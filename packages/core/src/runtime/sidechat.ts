@@ -19,7 +19,7 @@
  */
 
 import type { AgentEvent } from "../agent/events.ts";
-import { runAgent, type AgentRunConfig } from "../agent/loop.ts";
+import { runAgent, type StreamFn } from "../agent/loop.ts";
 import { compactWith } from "./compaction.ts";
 import { compactionSpent, metered } from "./session-turn.ts";
 import { streamAssistant } from "../ai/index.ts";
@@ -49,7 +49,7 @@ export interface SideChatOptions {
 	emit: SideChatSink;
 	persistModel?: (modelId: string | null) => Promise<void>;
 	persistReset?: (modelId: string | null) => Promise<void>;
-	streamFn?: AgentRunConfig["streamFn"];
+	streamFn?: StreamFn;
 	summaryStream?: typeof streamAssistant;
 }
 
@@ -88,7 +88,7 @@ export class SideChat {
 	private emitExternal: SideChatSink;
 	private persistModel: SideChatOptions["persistModel"];
 	private persistReset: SideChatOptions["persistReset"];
-	private streamFn: AgentRunConfig["streamFn"];
+	private streamFn: StreamFn | undefined;
 	private summaryStream: typeof streamAssistant | undefined;
 
 	messages: Message[] = [];
@@ -274,28 +274,66 @@ export class SideChat {
 			reading = reading.map((message) => message.role === "assistant" && (message.api !== resolved.provider.api || message.provider !== resolved.provider.id || message.model !== resolved.model.modelId)
 				? stripStaleHandles([message], 1)[0] : message);
 			await runAgent({
-				sessionId: this.cacheKey,
-				/*
-				 * 独立一个，不和主会话混用：侧聊的前缀（自己的提示词、主会话快照）跟主会话不同，同一个 key
-				 * 只会把两条互不相干的前缀挤到一处。同一次提问里的多轮工具调用共享前缀，这个 key 管的是它们。
-				 */
-				cacheKey: this.cacheKey,
-				cwd: this.main.cwd,
-				provider: resolved.provider,
-				model: resolved.model,
-				systemPrompt,
-				tools,
-				messages: reading,
-				thinking: options.thinking ?? this.main.meta.thinking ?? this.settings.thinking,
-				retryPolicy: () => this.settings.retryPolicy,
-				signal: controller.signal,
-				maxTurns: 24,
-				streamFn: this.streamFn,
-				compact: async (messages, model, observer, compactOptions) => {
-					const summarizer = resolveModelRef(this.settings, "@compact", { provider: resolved.provider, model });
-					const compacted = await compactWith({ observer, force: compactOptions?.force, messages, model, provider: resolved.provider, streamFn: metered((provider, summaryModel, context, streamOptions) => (this.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => this.settings.retryPolicy, signal: controller.signal }), compactionSpent(this.main.log)), overhead: textTokens(systemPrompt) + toolTokens(tools), summarizer });
-					reading = [...(compacted?.messages ?? messages)];
-					return compacted;
+				session: {
+					sessionId: this.cacheKey,
+					systemPrompt,
+					messages: reading,
+					state: undefined,
+					environment: false,
+					compact: async (messages, model, observer, compactOptions) => {
+						const summarizer = resolveModelRef(this.settings, "@compact", { provider: resolved.provider, model });
+						const compacted = await compactWith({ observer, force: compactOptions?.force, messages, model, provider: resolved.provider, streamFn: metered((provider, summaryModel, context, streamOptions) => (this.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => this.settings.retryPolicy, signal: controller.signal }), compactionSpent(this.main.log)), overhead: textTokens(systemPrompt) + toolTokens(tools), summarizer });
+						reading = [...(compacted?.messages ?? messages)];
+						return compacted;
+					},
+					pruner: undefined,
+					artifacts: undefined,
+				},
+				model: {
+					provider: resolved.provider,
+					model: resolved.model,
+					liveModel: undefined,
+					thinking: options.thinking ?? this.main.meta.thinking ?? this.settings.thinking,
+					/*
+					 * 独立一个，不和主会话混用：侧聊的前缀（自己的提示词、主会话快照）跟主会话不同，同一个 key
+					 * 只会把两条互不相干的前缀挤到一处。同一次提问里的多轮工具调用共享前缀，这个 key 管的是它们。
+					 */
+					cacheKey: this.cacheKey,
+					retryPolicy: () => this.settings.retryPolicy,
+					streamFn: this.streamFn,
+					onContext: undefined,
+				},
+				tools: {
+					available: tools,
+					/*
+					 * No sandbox, previews or address space: these three tools only read the main chat
+					 * or hand work to the main session, which runs it under its own policy.
+					 */
+					env: {
+						cwd: this.main.cwd,
+						sandboxMode: undefined,
+						sandboxNetwork: undefined,
+						allowedHosts: undefined,
+						searchProviderId: undefined,
+						allowedPaths: undefined,
+						projectRoots: undefined,
+						spawnSubAgent: undefined,
+						resources: undefined,
+						scratchDir: undefined,
+						writePreview: undefined,
+						transcript: undefined,
+					},
+					requestApproval: undefined,
+					beforeToolCall: undefined,
+					afterToolCall: undefined,
+					permissionRequest: undefined,
+				},
+				control: {
+					signal: controller.signal,
+					drainSteering: undefined,
+					onStop: undefined,
+					repetition: undefined,
+					maxTurns: 24,
 				},
 			}, async (event) => {
 				// Reset/abort may already have started a new run. Its events cannot own this panel.

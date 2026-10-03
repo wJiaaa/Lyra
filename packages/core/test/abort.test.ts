@@ -11,6 +11,7 @@ import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
+import { runConfig } from "./run-config.ts";
 
 const MODEL: ModelConfig = {
 	id: "fake/model",
@@ -47,27 +48,30 @@ test("aborting ends the turn even when a tool never returns", async () => {
 	const controller = new AbortController();
 
 	const run = runAgent(
-		{
-			sessionId: "s1",
-			cwd: "/tmp",
-			provider: PROVIDER,
-			model: MODEL,
-			systemPrompt: "",
-			tools: [wedged],
-			messages: [{ role: "user", content: [{ type: "text", text: "go" }], timestamp: Date.now() }],
-			signal: controller.signal,
-			streamFn: async () =>
-				({
-					role: "assistant",
-					content: [{ type: "toolCall", id: "c1", name: "wedged", arguments: {} }],
-					api: "openai-responses",
-					provider: "fake",
-					model: "model",
-					usage: emptyUsage(),
-					stopReason: "toolUse",
-					timestamp: Date.now(),
-				}) as AssistantMessage,
-		},
+		runConfig({
+			session: {
+				sessionId: "s1",
+				systemPrompt: "",
+				messages: [{ role: "user", content: [{ type: "text", text: "go" }], timestamp: Date.now() }],
+			},
+			model: {
+				provider: PROVIDER,
+				model: MODEL,
+				streamFn: async () =>
+					({
+						role: "assistant",
+						content: [{ type: "toolCall", id: "c1", name: "wedged", arguments: {} }],
+						api: "openai-responses",
+						provider: "fake",
+						model: "model",
+						usage: emptyUsage(),
+						stopReason: "toolUse",
+						timestamp: Date.now(),
+					}) as AssistantMessage,
+			},
+			tools: { available: [wedged], env: { cwd: "/tmp" } },
+			control: { signal: controller.signal },
+		}),
 		() => {},
 	);
 

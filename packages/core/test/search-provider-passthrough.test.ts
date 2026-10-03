@@ -82,13 +82,18 @@ function call(name: string, args: Record<string, unknown>): ToolCall[] {
 	return [{ type: "toolCall", id: "c1", name, arguments: args }];
 }
 
+/** Run the calls with the turn's `tools` group, as the loop does. */
+function run(calls: ToolCall[], config: AgentRunConfig) {
+	return runTools(calls, config.tools, { sessionId: config.session.sessionId, signal: config.control.signal, state: new Map() }, async () => {});
+}
+
 beforeEach(() => resetSearchProviders());
 
 test("a turn built from settings hands the chosen provider to its tools", async () => {
 	const seen: ToolContext[] = [];
 	const config = configFor({ ...DEFAULT_SETTINGS, searchProvider: "tavily" }, [probeTool(seen)]);
 
-	await runTools(call("probe", {}), config, new Map(), async () => {});
+	await run(call("probe", {}), config);
 
 	assert.equal(seen.length, 1, "the tool never ran");
 	assert.equal(seen[0].searchProviderId, "tavily");
@@ -96,7 +101,7 @@ test("a turn built from settings hands the chosen provider to its tools", async 
 
 test("a turn built from settings with no choice states that rather than leaving it out", async () => {
 	const seen: ToolContext[] = [];
-	await runTools(call("probe", {}), configFor({ ...DEFAULT_SETTINGS }, [probeTool(seen)]), new Map(), async () => {});
+	await run(call("probe", {}), configFor({ ...DEFAULT_SETTINGS }, [probeTool(seen)]));
 
 	assert.equal(seen.length, 1, "the tool never ran");
 	assert.equal(seen[0].searchProviderId, null);
@@ -107,11 +112,9 @@ test("web_search asks the provider the user picked", async () => {
 	registerSearchProvider(fakeProvider("tavily", requests));
 	registerSearchProvider(fakeProvider("exa", requests));
 
-	const [result] = await runTools(
+	const [result] = await run(
 		call("web_search", { query: "how tall is the Eiffel Tower" }),
 		configFor({ ...DEFAULT_SETTINGS, searchProvider: "tavily" }, [webSearchTool]),
-		new Map(),
-		async () => {},
 	);
 
 	assert.equal(result.isError, false, JSON.stringify(result.content));
@@ -125,7 +128,7 @@ test("web_search with no choice picks no provider on the user's behalf", async (
 	registerSearchProvider(fakeProvider("tavily", requests));
 	registerSearchProvider(fakeProvider("exa", requests));
 
-	const [result] = await runTools(call("web_search", { query: "anything" }), configFor({ ...DEFAULT_SETTINGS }, [webSearchTool]), new Map(), async () => {});
+	const [result] = await run(call("web_search", { query: "anything" }), configFor({ ...DEFAULT_SETTINGS }, [webSearchTool]));
 
 	assert.equal(result.isError, true);
 	assert.match(JSON.stringify(result.content), /SEARCH_PROVIDER_AMBIGUOUS/);

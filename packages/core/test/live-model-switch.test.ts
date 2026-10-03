@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 
 import { runAgent, type LiveModel } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
 import { AgentSession } from "../src/runtime/session.ts";
@@ -225,19 +226,22 @@ test("between two requests the next one goes to the new model, with the old one'
 	const asked: { model: string; messages: Message[] }[] = [];
 	const provider: ProviderConfig = { id: "t", name: "T", baseUrl: "http://localhost", api: "anthropic-messages", apiKey: "x", enabled: true, models: [A, B] };
 	const result = await runAgent(
-		{
-			sessionId: "s", cwd: "/tmp", provider, model: A, liveModel: watch, systemPrompt: "", tools: [flip],
-			messages: [{ role: "user", content: [{ type: "text", text: "go" }], timestamp: 1 }],
-			streamFn: async (context, config) => {
-				asked.push({ model: config.model.modelId, messages: structuredClone(context.messages) });
-				return asked.length === 1
-					? reply("model-a", [
-							{ type: "thinking", thinking: "想一想", signature: "sig-from-a" },
-							{ type: "toolCall", id: "c1", name: "flip", arguments: {}, argumentsText: "{}" },
-						], "toolUse")
-					: reply("model-b", [{ type: "text", text: "好了" }], "stop");
+		runConfig({
+			session: { messages: [{ role: "user", content: [{ type: "text", text: "go" }], timestamp: 1 }] },
+			model: {
+				provider, model: A, liveModel: watch,
+				streamFn: async (context, config) => {
+					asked.push({ model: config.model.modelId, messages: structuredClone(context.messages) });
+					return asked.length === 1
+						? reply("model-a", [
+								{ type: "thinking", thinking: "想一想", signature: "sig-from-a" },
+								{ type: "toolCall", id: "c1", name: "flip", arguments: {}, argumentsText: "{}" },
+							], "toolUse")
+						: reply("model-b", [{ type: "text", text: "好了" }], "stop");
+				},
 			},
-		},
+			tools: { available: [flip] },
+		}),
 		async () => {},
 	);
 
@@ -265,18 +269,23 @@ test("compaction after a switch to another provider is handed that provider, not
 	const compactedWith: string[] = [];
 	let calls = 0;
 	await runAgent(
-		{
-			sessionId: "s", cwd: "/tmp", provider: first, model: A, systemPrompt: "", tools: [flip],
-			liveModel: { current: () => now, onChange: () => () => {} },
-			messages: [{ role: "user", content: [{ type: "text", text: "go" }], timestamp: 1 }],
-			compact: async (_messages, model, _observer, options) => {
-				compactedWith.push(`${options?.provider?.id}/${model.modelId}`);
-				return null;
+		runConfig({
+			session: {
+				messages: [{ role: "user", content: [{ type: "text", text: "go" }], timestamp: 1 }],
+				compact: async (_messages, model, _observer, options) => {
+					compactedWith.push(`${options?.provider?.id}/${model.modelId}`);
+					return null;
+				},
 			},
-			streamFn: async () => (++calls === 1
-				? reply("model-a", [{ type: "toolCall", id: "c1", name: "flip", arguments: {}, argumentsText: "{}" }], "toolUse")
-				: reply("model-b", [{ type: "text", text: "好了" }], "stop")),
-		},
+			model: {
+				provider: first, model: A,
+				liveModel: { current: () => now, onChange: () => () => {} },
+				streamFn: async () => (++calls === 1
+					? reply("model-a", [{ type: "toolCall", id: "c1", name: "flip", arguments: {}, argumentsText: "{}" }], "toolUse")
+					: reply("model-b", [{ type: "text", text: "好了" }], "stop")),
+			},
+			tools: { available: [flip] },
+		}),
 		async () => {},
 	);
 	assert.deepEqual(compactedWith, ["p1/model-a", "p2/model-b"]);
@@ -286,14 +295,16 @@ test("without a live model nothing changes: the whole run stays on the model it 
 	const asked: string[] = [];
 	const provider: ProviderConfig = { id: "t", name: "T", baseUrl: "http://localhost", api: "anthropic-messages", apiKey: "x", enabled: true, models: [A, B] };
 	await runAgent(
-		{
-			sessionId: "s", cwd: "/tmp", provider, model: A, systemPrompt: "", tools: [],
-			messages: [{ role: "user", content: [{ type: "text", text: "go" }], timestamp: 1 }],
-			streamFn: async (_context, config) => {
-				asked.push(config.model.modelId);
-				return reply("model-a", [{ type: "text", text: "好" }], "stop");
+		runConfig({
+			session: { messages: [{ role: "user", content: [{ type: "text", text: "go" }], timestamp: 1 }] },
+			model: {
+				provider, model: A,
+				streamFn: async (_context, config) => {
+					asked.push(config.model.modelId);
+					return reply("model-a", [{ type: "text", text: "好" }], "stop");
+				},
 			},
-		},
+		}),
 		async () => {},
 	);
 	assert.deepEqual(asked, ["model-a"]);

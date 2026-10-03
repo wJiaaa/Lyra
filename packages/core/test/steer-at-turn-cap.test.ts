@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
+import { runConfig } from "./run-config.ts";
 import { runSubAgent } from "../src/runtime/sub-agent.ts";
 import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
 import type { AgentDefinition } from "../src/tools/task.ts";
@@ -32,18 +33,20 @@ const steer = (text: string): Message => ({ role: "user", content: [{ type: "tex
 test("循环：最后一轮收尾时到的插话留在队列里，不被取走丢掉", async () => {
 	const queue: Message[] = [];
 	const script = [probes(), says("做完了")];
-	const result = await runAgent({
-		sessionId: "t", cwd: "/tmp", model: MODEL, provider: PROVIDER, systemPrompt: "", tools: [NOOP],
-		messages: [steer("开始")], maxTurns: 2,
-		requestApproval: async () => "allow",
-		drainSteering: () => queue.splice(0, queue.length),
-		streamFn: async () => {
-			const next = script.shift() ?? says("多出来的一轮");
-			// 第二轮（也是最后一轮）正在说话时，人插了一句。
-			if (script.length === 0) queue.push(steer("顺便把测试也跑一下"));
-			return next;
+	const result = await runAgent(runConfig({
+		session: { sessionId: "t", systemPrompt: "", messages: [steer("开始")] },
+		model: {
+			model: MODEL, provider: PROVIDER,
+			streamFn: async () => {
+				const next = script.shift() ?? says("多出来的一轮");
+				// 第二轮（也是最后一轮）正在说话时，人插了一句。
+				if (script.length === 0) queue.push(steer("顺便把测试也跑一下"));
+				return next;
+			},
 		},
-	}, async () => {});
+		tools: { available: [NOOP], env: { cwd: "/tmp" }, requestApproval: async () => "allow" },
+		control: { maxTurns: 2, drainSteering: () => queue.splice(0, queue.length) },
+	}), async () => {});
 
 	assert.equal(result.reason, "done", "模型这一轮本来就说完了");
 	assert.equal(queue.length, 1, "那句插话还在队列里，由宿主接着发");

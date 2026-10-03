@@ -8,7 +8,7 @@
  */
 
 import type { AgentEvent } from "../agent/events.ts";
-import type { AgentRunConfig } from "../agent/loop.ts";
+import type { AfterToolCall, BeforeToolCall, PermissionRequestHook, StopHook } from "../agent/loop.ts";
 import { appendHookContexts } from "../agent/tool-run.ts";
 import type { Settings } from "../config/settings.ts";
 import type { ExtensionHost } from "../extensions/host.ts";
@@ -92,7 +92,7 @@ export async function runUserPromptSubmitHooks(scope: TurnHooks, prompt: string,
  * 只要原因不为空才继续——一个只说「别停」却不说还差什么的钩子，接着跑只会得到同一句收尾。
  * 连续三次封顶，防止一条永远不满意的钩子把这一轮拖成死循环。
  */
-export function makeOnStop(scope: TurnHooks): AgentRunConfig["onStop"] {
+export function makeOnStop(scope: TurnHooks): StopHook {
 	let continuations = 0;
 	return async ({ responseText, toolCallCount }) => {
 		if (!scope.runner.has("Stop")) return undefined;
@@ -112,7 +112,7 @@ export function makeOnStop(scope: TurnHooks): AgentRunConfig["onStop"] {
  * 扩展在前是有意的：钩子是用户自己为这台机器写的命令，扩展是别人写的代码。两者都要拦的时候，
  * 值得说出来的是用户没写的那个——自己的钩子做了什么，用户已经知道。
  */
-export function makeBeforeToolCall(scope: TurnHooks, extensions?: ExtensionHost): NonNullable<AgentRunConfig["beforeToolCall"]> {
+export function makeBeforeToolCall(scope: TurnHooks, extensions?: ExtensionHost): BeforeToolCall {
 	return async ({ toolName, args, toolCallId }) => {
 		if (extensions) {
 			const verdict = await extensions.intercept("tool_call", { toolName, args, cwd: scope.cwd });
@@ -143,7 +143,7 @@ export function makeBeforeToolCall(scope: TurnHooks, extensions?: ExtensionHost)
  *
  * 顺序执行而不是和弹窗赛跑：Plume 的确认卡片没有「被别人答掉了」这种收场，先弹再撤比晚弹一会儿更糟。
  */
-export function makePermissionRequest(scope: TurnHooks): NonNullable<AgentRunConfig["permissionRequest"]> {
+export function makePermissionRequest(scope: TurnHooks): PermissionRequestHook {
 	return async ({ toolName, args, toolCallId }, request) => {
 		if (!scope.runner.has("PermissionRequest")) return undefined;
 		const result = await scope.runner.run(
@@ -158,7 +158,7 @@ export function makePermissionRequest(scope: TurnHooks): NonNullable<AgentRunCon
 }
 
 /** 工具调用后：扩展的 `tool_result` 只观察；PostToolUse / PostToolUseFailure 的附加上下文接在结果后面。 */
-export function makeAfterToolCall(scope: TurnHooks, extensions?: ExtensionHost): NonNullable<AgentRunConfig["afterToolCall"]> {
+export function makeAfterToolCall(scope: TurnHooks, extensions?: ExtensionHost): AfterToolCall {
 	return async ({ toolName, args, result, toolCallId, contexts = [] }) => {
 		void extensions?.dispatch("tool_result", { toolName, args, ok: !result.isError }).catch(() => {});
 		const failed = result.isError === true;

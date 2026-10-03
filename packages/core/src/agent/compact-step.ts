@@ -4,7 +4,7 @@ import type { CompactionObserver } from "../types/compaction.ts";
 import type { AgentEventSink, CommandRun } from "./events.ts";
 import type { Message, ModelConfig, ProviderConfig } from "../types.ts";
 import { completedCompaction, interruptedCompaction } from "../runtime/compaction-lifecycle.ts";
-import type { AgedToolPruner } from "../runtime/aged-prune.ts";
+import type { AgentSessionContext } from "./run-config.ts";
 
 /**
  * `force`：不看 80% 线，现在就压——模型已经以「上下文超长」拒收了这次请求（`loop.ts` 的超长恢复）。
@@ -20,8 +20,8 @@ export interface CompactOptions {
 export type CompactHistory = (messages: Message[], model: ModelConfig, observer?: CompactionObserver, options?: CompactOptions) => Promise<Compaction | null>;
 
 /** The completed operation and its new model view share one durable record. */
-export async function compactStep(config: { compact?: CompactHistory; signal?: AbortSignal; pruner?: Pick<AgedToolPruner, "adopt"> }, messages: Message[], model: ModelConfig, emit: AgentEventSink, options?: CompactOptions) {
-	if (!config.compact) return null;
+export async function compactStep(session: Pick<AgentSessionContext, "compact" | "pruner">, signal: AbortSignal | undefined, messages: Message[], model: ModelConfig, emit: AgentEventSink, options?: CompactOptions) {
+	if (!session.compact) return null;
 	let command: CommandRun | undefined;
 	const report = async (next: CommandRun) => {
 		command = next;
@@ -29,8 +29,8 @@ export async function compactStep(config: { compact?: CompactHistory; signal?: A
 	};
 	let result;
 	try {
-		result = await config.compact(messages, model, {
-			signal: config.signal,
+		result = await session.compact(messages, model, {
+			signal,
 			progress: async (progress) => {
 				command ??= { id: randomUUID(), name: "compact", timestamp: Date.now(), at: messages.length, input: "", status: "running", detail: "", automatic: { phase: "summarizing", retries: 0 } };
 				const automatic = { ...command.automatic!, ...progress };
@@ -39,10 +39,10 @@ export async function compactStep(config: { compact?: CompactHistory; signal?: A
 			},
 		}, options);
 	} catch (cause) {
-		if (command) await report(config.signal?.aborted ? interruptedCompaction(command) : { ...command, status: "failed", detail: "自动压缩失败，保留最近已保存的上下文。" });
+		if (command) await report(signal?.aborted ? interruptedCompaction(command) : { ...command, status: "failed", detail: "自动压缩失败，保留最近已保存的上下文。" });
 		throw cause;
 	}
-	if (config.signal?.aborted) {
+	if (signal?.aborted) {
 		if (command) await report(interruptedCompaction(command));
 		return null;
 	}
@@ -59,6 +59,6 @@ export async function compactStep(config: { compact?: CompactHistory; signal?: A
 	 * 下一轮从日志重建出的是原文：只剪枝时根本没有边界，摘要时保留尾部也回到原文。不记下的话
 	 * 发给模型的和下一轮重建的不一致，前缀断开、实测 usage 失真。见 `AgedToolPruner`。
 	 */
-	config.pruner?.adopt(messages, result.messages, result.kept ?? (result.messages.length === messages.length ? messages.length : 0));
+	session.pruner?.adopt(messages, result.messages, result.kept ?? (result.messages.length === messages.length ? messages.length : 0));
 	return result;
 }

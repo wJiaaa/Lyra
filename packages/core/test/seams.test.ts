@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { QueuedTask } from "../src/agent/events.ts";
 import { useAgentLoop, runTurn, type AgentLoop } from "../src/agent/runner.ts";
+import { runConfig } from "./run-config.ts";
 import { runTool } from "../src/agent/tool-pipeline.ts";
 import {
 	createContext,
@@ -104,13 +105,13 @@ test("loop: a replacement drives the turn instead", async () => {
 	const seen: string[] = [];
 	const stub: AgentLoop = {
 		async run(config) {
-			seen.push(config.sessionId);
+			seen.push(config.session.sessionId);
 			return { messages: [], usage: emptyUsage(), stopReason: "stop" } as unknown as AgentRunResult;
 		},
 	};
 	useAgentLoop(stub);
 	try {
-		const result = await runTurn({ sessionId: "s1" } as never, () => {});
+		const result = await runTurn(runConfig({ session: { sessionId: "s1" } }), () => {});
 		assert.deepEqual(seen, ["s1"]);
 		assert.deepEqual(result.messages, []);
 	} finally {
