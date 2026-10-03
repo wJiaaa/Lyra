@@ -8,7 +8,7 @@
  */
 
 import type { AgentEventSink } from "./events.ts";
-import type { AgentRunConfig } from "./loop.ts";
+import type { AgentRunConfig } from "./run-config.ts";
 import { coerceArguments, resolveTool, unknownToolMessage, withParameterHint } from "./tool-args.ts";
 import { runTool } from "./tool-pipeline.ts";
 import { skillRefusal } from "../skills/tool.ts";

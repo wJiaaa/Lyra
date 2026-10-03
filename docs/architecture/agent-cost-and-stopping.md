@@ -151,6 +151,7 @@ ZCode 的快速回填熔断（没有实测信号支撑，属于「替人做决�
 ### 关联架构文档索引
 
 在动手实施本清单前，先阅读以下既有架构设计，避免破坏既定设计假设：
+- [agent-loop.md](agent-loop.md)：循环每一轮的顺序，以及每条恢复与停止路径为什么是这样。
 - [conversation-history.md](conversation-history.md)：会话历史持久化、消息信封结构、`toolCallId` 配对与投影机制。
 - [retry-policy.md](retry-policy.md)：网络请求错误分类、指纹提取与退避重试策略。
 - [interaction-quality.md](interaction-quality.md)：交互反馈、执行状态可见性与用户干预设计。

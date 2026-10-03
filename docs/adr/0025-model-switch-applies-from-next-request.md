@@ -2,7 +2,7 @@
 
 - 状态：已采纳
 - 日期：2026-09-25
-- 相关：`packages/core/src/agent/loop.ts`（`LiveModel`、`streamTurn` 的 `switchAbort`）、`runtime/session.ts`（`liveModel`、`adoptModel`）、`runtime/turn-config.ts`、`agent/events.ts`（`retry_settled` 的 `switched`）、desktop `lib/hiccup.ts`、`features/conversation/HiccupTrace.tsx`
+- 相关：`packages/core/src/agent/run-config.ts`（`LiveModel`）、`agent/stream-turn.ts`（`switchAbort`）、`runtime/session.ts`（`liveModel`、`adoptModel`）、`runtime/turn-config.ts`、`agent/events.ts`（`retry_settled` 的 `switched`）、desktop `lib/hiccup.ts`、`features/conversation/HiccupTrace.tsx`
 
 ## 背景
 
