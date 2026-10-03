@@ -29,6 +29,9 @@ import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts"
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { plumeHome } from "../session/store.ts";
 import { scratchDir } from "./session-facts.ts";
+import type { ArtifactSink } from "./prune.ts";
+import { ARTIFACTS_KEY, MCP_KEY, PLUGINS_KEY, SESSIONS_KEY } from "../resources/more-handlers.ts";
+import { buildRouter } from "./session-capabilities.ts";
 import { toolPolicy } from "./tool-policy.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { resolveSubAgentModel } from "../config/model-roles.ts";
@@ -152,6 +155,13 @@ export interface SubAgentOptions {
 	/** The dispatching conversation's messages, which is what `recall` searches from inside a delegation; see `ToolContext.transcript`. */
 	transcript?: () => Promise<Message[]>;
 	/**
+	 * What the dispatching session's addresses resolve against, so `artifact://`, `scratch://`,
+	 * `plugin://`… mean the same thing one level down, and pruned output lands where its marker's
+	 * address reads it back. `lookups` holds only the keys `addressLookups` picks, never the
+	 * parent's whole state. The router itself is the sub-agent's own; see `SUB_AGENT_SCHEMES`.
+	 */
+	addresses?: { artifacts?: ArtifactSink; lookups: ReadonlyMap<string, unknown>; scratchDir?: string };
+	/**
 	 * Where the run doing the dispatching sits in the tree. Absent means the main conversation.
 	 *
 	 * Carried rather than counted, because the two limits need different things from it: depth is
@@ -182,6 +192,25 @@ export interface SubAgentOptions {
 	 * `delegation-waits.ts`）。只属于这一次派发，不往下传给它派的孩子。
 	 */
 	onRegistered?: (id: string) => void;
+}
+
+/**
+ * The state keys a delegated run's addresses read, copied from the parent and nothing else.
+ *
+ * `skill://` is not among them: it reads `SKILLS_KEY`, which a sub-agent fills with its own skills.
+ */
+const SHARED_LOOKUPS = [ARTIFACTS_KEY, PLUGINS_KEY, MCP_KEY, SESSIONS_KEY];
+
+/**
+ * Every shipped scheme but `agent://`. Its data (`SUBAGENTS_KEY`) is not shared on purpose: the
+ * `task` tool's resume reads the same key and skips the `spawns` check, so sharing it would let a
+ * nested run resume any sub-agent in the session.
+ */
+const SUB_AGENT_SCHEMES = ["skill", "scratch", "plume", "session", "plugin", "mcp", "artifact"];
+
+/** The parent's lookups for `addresses.lookups`; see `SHARED_LOOKUPS`. */
+export function addressLookups(state: ReadonlyMap<string, unknown>): Map<string, unknown> {
+	return new Map(SHARED_LOOKUPS.flatMap((key) => (state.has(key) ? [[key, state.get(key)] as const] : [])));
 }
 
 export async function runSubAgent(
@@ -261,6 +290,9 @@ export async function runSubAgent(
 	 * 重读一遍，清单也得从头写——那正是续跑要省下的东西。
 	 */
 	const subState = earlier?.conversation.state ?? new Map<string, unknown>();
+	for (const [key, value] of options.addresses?.lookups ?? []) subState.set(key, value);
+	const resources = buildRouter(SUB_AGENT_SCHEMES);
+	const scratch = options.addresses?.scratchDir ?? scratchDir(options.sessionId);
 	subState.set(SKILLS_KEY, options.skills);
 	subState.set(AGENTS_KEY, options.agents);
 	// So the `task` tool one level down knows where it is, and can refuse a cycle by name.
@@ -409,6 +441,8 @@ export async function runSubAgent(
 		// Its own mode decides its shell, exactly as `sandboxMode` below is decided for its tools.
 		shell: commandShell(sandboxModeFor(options.settings.permissionMode)),
 		modelName: runModel.name,
+		resources: resources.schemes(),
+		scratchDir: scratch,
 		isGitRepo: await pathExists(join(options.cwd, ".git")),
 			isolatedWorktree: await isIsolatedWorktree(options.cwd),
 		appendSystemPrompt: [workingNote(definition.maxTurns ?? SUB_AGENT_CHECKPOINT_TURNS), definition.output ? yieldInstruction(definition.output).trim() : ""]
@@ -468,6 +502,7 @@ export async function runSubAgent(
 			summarizer,
 			observer,
 			force: compactOptions?.force,
+			artifacts: options.addresses?.artifacts,
 		});
 	};
 
@@ -655,7 +690,9 @@ export async function runSubAgent(
 				...toolPolicy(options.settings, options.cwd),
 				allowedPaths: options.allowedPaths,
 				transcript: options.transcript,
-				scratchDir: scratchDir(options.sessionId),
+				scratchDir: scratch,
+				resources,
+				artifacts: options.addresses?.artifacts,
 				beforeToolCall: makeBeforeToolCall(hooks),
 				afterToolCall: makeAfterToolCall(hooks),
 				permissionRequest: makePermissionRequest(hooks),

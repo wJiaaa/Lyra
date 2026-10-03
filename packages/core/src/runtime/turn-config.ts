@@ -29,7 +29,7 @@ import { compactWith } from "./compaction.ts";
 import type { ArtifactSink } from "./prune.ts";
 import { textTokens, toolTokens } from "./context.ts";
 import { writePreview } from "./previews.ts";
-import { runSubAgent } from "./sub-agent.ts";
+import { addressLookups, runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
 import type { DelegationWaits } from "./delegation-waits.ts";
 import { resolveModelRef } from "../config/model-roles.ts";
@@ -189,6 +189,7 @@ export function buildTurnConfig(
 						dispatch: rootDispatch(),
 						allowedPaths: deps.allowedPaths,
 						transcript: deps.transcript,
+						addresses: { artifacts: deps.artifacts, lookups: addressLookups(deps.state), scratchDir: deps.scratchDir },
 					},
 					input,
 					// 派出去那一刻会话在用哪个——一轮中途换过模型的，后派的子代理跟着新的走。

@@ -13,11 +13,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { runSubAgent } from "../src/runtime/sub-agent.ts";
+import { addressLookups, runSubAgent } from "../src/runtime/sub-agent.ts";
 import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, Settings, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
+import { ARTIFACTS_KEY } from "../src/resources/more-handlers.ts";
+import { readTool } from "../src/tools/read.ts";
 
 const MODEL: ModelConfig = {
 	id: "fake/model",
@@ -297,4 +299,54 @@ test("the transcript is emitted for a live window as well as recorded", async ()
 		streamed.every((event) => event.type === "subagent_message" && event.id.startsWith("s1:sub:")),
 		"each carrying which sub-agent it came from",
 	);
+});
+
+test("a delegated run reads the parent's addresses, without `agent://`", async () => {
+	/*
+	 * It used to get no router at all: `read artifact://…` from inside a delegation fell through to
+	 * the filesystem, and its own pruned output was cut with no address to read it back from.
+	 */
+	const artifacts = new Map([["a1", { id: "a1", tool: "bash", content: "第 8000 行在这里", at: 0 }]]);
+	const parentState = new Map<string, unknown>([[ARTIFACTS_KEY, artifacts], ["parentOnly", "不该过去"]]);
+	let prompt = "";
+	let read = "";
+	let turn = 0;
+
+	await runSubAgent(
+		{
+			sessionId: "s1",
+			cwd: "/tmp",
+			settings: { thinking: "off" } as unknown as Settings,
+			tools: [readTool as unknown as Tool],
+			skills: [],
+			agents: [],
+			requestApproval: async () => "allow",
+			emit: async () => {},
+			addresses: { lookups: addressLookups(parentState), scratchDir: "/tmp/plume-scratch/s1" },
+			streamFn: async (context) => {
+				if (turn === 0) prompt = context.systemPrompt;
+				if (turn === 1) {
+					const result = context.messages.findLast((m) => m.role === "toolResult");
+					read = JSON.stringify(result?.content ?? "");
+				}
+				turn += 1;
+				return turn === 1
+					? { ...says("", "toolUse"), content: [{ type: "toolCall", id: "r1", name: "read", arguments: { path: "artifact://a1" }, argumentsText: "" }] }
+					: says("读到了");
+			},
+		},
+		{ description: "取回原文", prompt: "去读", agentType: "general" },
+		PROVIDER,
+		MODEL,
+	);
+
+	assert.ok(read.includes("第 8000 行在这里"), `the artifact was not read back: ${read}`);
+	assert.ok(prompt.includes("artifact://"), "the addresses are in its prompt");
+	assert.ok(!prompt.includes("`agent://`"), "but not `agent://`, whose data it is not given");
+	assert.ok(prompt.includes("Scratch directory: /tmp/plume-scratch/s1"), "and the scratch directory, as the main prompt has it");
+});
+
+test("only the keys the addresses read are handed down, not the parent's whole state", () => {
+	const picked = addressLookups(new Map<string, unknown>([[ARTIFACTS_KEY, new Map()], ["parentOnly", 1]]));
+	assert.deepEqual([...picked.keys()], [ARTIFACTS_KEY]);
 });

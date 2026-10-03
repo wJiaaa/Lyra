@@ -201,10 +201,15 @@ export class SessionCapabilities {
 	}
 }
 
-/** A router with the shipped schemes on it. */
-function buildRouter(): ResourceRouter {
+/**
+ * A router with the shipped schemes on it — all of them, or only those named.
+ *
+ * Named for a delegated run, which builds its own: a scheme it has no data for would be advertised
+ * in its prompt and fail when used.
+ */
+export function buildRouter(schemes?: readonly string[]): ResourceRouter {
 	const router = new ResourceRouter();
-	for (const handler of BUILTIN_RESOURCES) router.register(handler);
+	for (const handler of BUILTIN_RESOURCES) if (!schemes || schemes.includes(handler.scheme)) router.register(handler);
 	return router;
 }
 
