@@ -9,6 +9,7 @@
 
 import type { MessageAttachment } from "@plume/core";
 import {
+	forkBeforeMessage,
 	forkSession,
 	readTrajectory,
 	type ApprovalDecision,
@@ -115,6 +116,11 @@ export function registerSessionsIpc({
 		"sessions:fork",
 		async (_event, sessionId: string, seq: number) =>
 			forkSession(store, sessionId, seq),
+	);
+	ipcMain.handle(
+		"sessions:forkBefore",
+		async (_event, sessionId: string, messageIndex: number, timestamp: number, title?: string) =>
+			forkBeforeMessage(store, sessionId, messageIndex, timestamp, title),
 	);
 
 	ipcMain.handle(

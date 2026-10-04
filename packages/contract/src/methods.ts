@@ -86,6 +86,7 @@ export const METHODS = {
 		trajectoryChanges: { channel: "sessions:trajectoryChanges" },
 		exportTrajectory: { channel: "sessions:exportTrajectory" },
 		fork: { channel: "sessions:fork" },
+		forkBefore: { channel: "sessions:forkBefore" },
 		remove: { channel: "sessions:remove" },
 		setArchived: { channel: "sessions:setArchived" },
 		move: { channel: "sessions:move" },

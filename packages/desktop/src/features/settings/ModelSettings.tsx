@@ -151,15 +151,21 @@ export function ModelSettings() {
 			 * 70px, and every field became a slot with one character in it. Measured against
 			 * this container rather than the window, because the settings pane is the full width
 			 * of a narrow window and a fraction of a wide one.
+			 *
+			 * From `@xl` (576px) rather than `@2xl`: at 672 a window about a thousand pixels wide stacked
+			 * the two with its settings navigation open and put them side by side with it closed, so the
+			 * page rearranged every time the navigation was toggled. At 576 the editor still keeps about 340px
+			 * — every field fits, a long model name truncates first — and that window stays side by side
+			 * either way.
 			 */}
 			{/* The query element and the queried element cannot be the same one: a container is
 			    sized by its contents, so it is only ever asked about by its descendants. */}
 			<div className="@container flex min-h-[340px] flex-1">
-				<Card className="mb-6 flex min-h-0 flex-1 flex-col @2xl:flex-row" data-ly-provider-panes="">
+				<Card className="mb-6 flex min-h-0 flex-1 flex-col @xl:flex-row" data-ly-provider-panes="">
 					{/* Each pane scrolls on its own, so a long provider list never moves the editor. */}
 					{/* The rule between the panes runs the card's full height, so the padding lives in each pane rather than on the card. */}
 					<Scroller
-						className="max-h-[168px] shrink-0 border-b border-line-soft @2xl:max-h-none @2xl:w-[232px] @2xl:border-r @2xl:border-b-0"
+						className="max-h-[168px] shrink-0 border-b border-line-soft @xl:max-h-none @xl:w-[232px] @xl:border-r @xl:border-b-0"
 						contentClassName="flex flex-col gap-0.5 p-3"
 					>
 						{p.providers.map((provider) => (
@@ -187,7 +193,7 @@ export function ModelSettings() {
 						))}
 					</Scroller>
 
-					<Scroller className="min-w-0 flex-1" contentClassName="p-4 @2xl:px-6 @2xl:py-5">
+					<Scroller className="min-w-0 flex-1" contentClassName="p-4 @xl:px-6 @xl:py-5">
 						{!p.selected ? (
 							<div className="flex h-full flex-col items-center justify-center gap-3 text-center">
 								<p className="text-label text-ink-muted">

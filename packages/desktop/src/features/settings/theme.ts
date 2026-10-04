@@ -73,6 +73,18 @@ export function applyAppearance(input: AppearanceSettings): void {
 	const rule = (step: number) =>
 		toHex(mix(background, foreground, Math.min(0.9, step * strength * (dark ? 1 : RULE_ON_LIGHT))));
 	const text = (weight: number) => toHex(mix(background, foreground, Math.min(1, weight)));
+	/*
+	 * The two text greys sit closer to the ink where the type is drawn thin.
+	 *
+	 * The interface is set at 500, and on a Mac that is PingFang Medium. YaHei has no Medium, so on
+	 * Windows the same text is its Regular, rendered with Windows' antialiasing, and a grey chosen
+	 * on the Mac washed out: the faint one measured 2.5:1 on white — 「还没有会话」, the composer's
+	 * placeholder, the off switch's 关. Only light themes: on a dark page the same thin stroke is a
+	 * light line on dark and does not fade the same way.
+	 *
+	 * `data-ly-platform` rather than `window.plume.platform`, which in a Web access browser names the desktop.
+	 */
+	const thinType = !dark && document.documentElement.dataset.lyPlatform === "win32";
 	/** A wash of the foreground at a given opacity — reads against any backdrop, including none. */
 	const veil = (alpha: number) => `color-mix(in srgb, ${toHex(foreground)} ${(alpha * 100).toFixed(1)}%, transparent)`;
 
@@ -159,8 +171,9 @@ export function applyAppearance(input: AppearanceSettings): void {
 		"--color-ink": toHex(foreground),
 		// 次要文字：正文色的 60%。最浅那档浅色 40%、深色 50%——
 		// 深色用 30% 时，深色底上的过程行（思考、工具）读不清。
-		"--color-ink-muted": text(0.6),
-		"--color-ink-faint": text(dark ? 0.5 : 0.4),
+		// Windows 浅色主题再往正文色靠一步：雅黑在那里画得更细，40% 的灰对白底只有 2.5:1。
+		"--color-ink-muted": text(thinType ? 0.68 : 0.6),
+		"--color-ink-faint": text(thinType || dark ? 0.5 : 0.4),
 		"--color-accent": accent,
 		"--color-info": accent,
 		"--ly-ui-font": appearance.uiFont,

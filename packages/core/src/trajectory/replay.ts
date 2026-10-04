@@ -30,6 +30,14 @@ export interface BoundaryAt {
 	after: number;
 }
 
+/** 不是生效边界的那些压缩：界面在第 `at` 条前画分隔线，模型视图不从那里开始。 */
+export interface DividerAt {
+	at: number;
+	summary?: string;
+	before: number;
+	after: number;
+}
+
 /**
  * 到某一点为止的消息，连同那一刻模型视图的起点。
  *
@@ -42,25 +50,37 @@ export async function historyUpTo(
 	store: Pick<SessionStore, "read">,
 	sessionId: string,
 	seq: number,
-): Promise<{ messages: Message[]; boundary: BoundaryAt | null }> {
+): Promise<{ messages: Message[]; boundary: BoundaryAt | null; dividers: DividerAt[] }> {
 	const kept: { seq: number; message: Message }[] = [];
 	let boundary: BoundaryAt | null = null;
+	/*
+	 * 其余的压缩也要带走，否则分叉里那几条分隔线就没了。截断照 `load` 的规矩丢掉越过新结尾的；
+	 * 被取代的旧边界降成分隔线，不带 `kept`——带着的话，原会话靠截断作废的边界会在分叉里复活。
+	 */
+	let dividers: DividerAt[] = [];
 	for await (const record of store.read(sessionId)) {
 		if (record.seq > seq) break;
 		if (record.type === "truncate") {
 			const cutoff = record.afterSeq;
 			while (kept.length > 0 && kept[kept.length - 1].seq > cutoff) kept.pop();
+			dividers = dividers.filter((divider) => divider.at <= kept.length);
 			if (boundary && boundary.keptFrom > kept.length) boundary = null;
 			else if (boundary) boundary.markAt = Math.min(boundary.markAt, kept.length);
 			continue;
 		}
-		if (record.type === "message") kept.push({ seq: record.seq, message: record.message });
-		else if (record.type === "event" && record.event.type === "compacted" && record.event.kept !== undefined) {
+		// A message record with no message in it is a hole `load` skips; copied, it would throw.
+		if (record.type === "message" && record.message) kept.push({ seq: record.seq, message: record.message });
+		else if (record.type === "event" && record.event.type === "compacted") {
 			const { summary, kept: count, before, after } = record.event;
+			if (count === undefined) {
+				dividers.push({ at: kept.length, summary, before, after });
+				continue;
+			}
+			if (boundary) dividers.push({ at: boundary.markAt, summary: boundary.summary, before: boundary.before, after: boundary.after });
 			boundary = { summary: summary ?? "", keptFrom: Math.max(0, kept.length - count), markAt: kept.length, before, after };
 		}
 	}
-	return { messages: kept.map((entry) => entry.message), boundary };
+	return { messages: kept.map((entry) => entry.message), boundary, dividers };
 }
 
 /**

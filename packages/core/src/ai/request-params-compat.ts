@@ -14,8 +14,8 @@
  * `supports-sampling-params` 等轴），我们没有那份普查数据——但错误串自带诊断，撞一次就够了。
  *
  * 已知的先验仍然写死，不靠学：Gemini 系拒 `effort: "none"` 是早就量到过的（错误原话
- * `none is not a valid ThinkingLevel enum value`），那条留在 `openai-responses.ts` 的 `isGemini` 里，
- * 让 Gemini 用户第一次就对，而不是先失败一次。这里的机制是给**没见过的端点**兜底的。
+ * `none is not a valid ThinkingLevel enum value`），那条是下面的 `refusesReasoningNone`，两条 OpenAI 链
+ * 共用，让 Gemini 用户第一次就对，而不是先失败一次。这里的机制是给**没见过的端点**兜底的。
  *
  * 记在内存里，不落盘，理由同另外两个轴。
  */
@@ -41,11 +41,16 @@ const SIGNALS: { pattern: RegExp; drop: DroppedParam; source: string }[] = [
 		 * 开着思考、只是某一档（比如 `xhigh`）不被接受时也会命中——学到 `reasoning-off` 之后重发的是一模
 		 * 一样的请求（开着思考时根本不读这一条），同一个 400 再来一遍，而这个模型往后关思考也被误撤了。
 		 * 调用方还会告诉我们这次到底有没有发 `none`（`learnDroppedParam` 的 `sent`），没发就不认这条。
+		 *
+		 * The last is Vertex behind a Chat Completions relay (measured 2026-09-28): `Invalid value at
+		 * 'request.generation_config.thinking_config.thinking_level' (…ThinkingLevel), "none"`. It names
+		 * both the field and the value, so it is safe to claim. The quotes arrive escaped when the
+		 * failure detail is the raw body.
 		 */
 		pattern:
-			/none is not a valid ThinkingLevel|Invalid value: ['"]none['"]|reasoning[._]effort[^.\n]{0,40}?['"`]none['"`][^.\n]{0,40}?(?:not supported|unsupported|invalid|not a valid|not allowed)/i,
+			/none is not a valid ThinkingLevel|Invalid value: ['"]none['"]|reasoning[._]effort[^.\n]{0,40}?['"`]none['"`][^.\n]{0,40}?(?:not supported|unsupported|invalid|not a valid|not allowed)|thinking_level'[^'\n]{0,200}?\\?"none\\?"/i,
 		drop: "reasoning-off",
-		source: "Gemini/Vertex 实测 + OpenAI 枚举外取值的通用说法",
+		source: "Gemini/Vertex 实测（Google 原生与 Chat Completions 中转两种原话）+ OpenAI 枚举外取值的通用说法",
 	},
 	{
 		pattern: /tool_choice/i,
@@ -83,6 +88,21 @@ const SIGNALS: { pattern: RegExp; drop: DroppedParam; source: string }[] = [
 		drop: "cache-key",
 		source: "严格端点拒未知字段时的错误串会点名字段；这个名字是唯一的",
 	},];
+
+/**
+ * Model families known to refuse an explicit `"none"` reasoning effort. Both OpenAI adapters leave the
+ * field out for them when thinking is off, instead of failing the first request and learning from it.
+ *
+ * Gemini is the family measured, on both wires. Behind one Chat Completions relay, Gemini 3.x on Vertex
+ * names the field in its 400 (the third signal above), while Gemini 2.5 only says `Request contains an
+ * invalid argument.` — a sentence no signal can safely claim, so for 2.5 this prior is all there is.
+ * It lives here rather than in an adapter because that is how it broke: the Responses adapter had the
+ * rule and the Chat Completions adapter did not, so with thinking off every Gemini request failed there.
+ */
+export function refusesReasoningNone(modelId: string): boolean {
+	const id = modelId.toLowerCase();
+	return id.includes("gemini") || id.includes("gemma");
+}
 
 /** 学到的结论：`${providerId} ${modelId}` → 这些参数别再发了。 */
 const learned = new Map<string, Set<DroppedParam>>();

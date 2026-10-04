@@ -103,6 +103,18 @@ export const SplitPane = memo(function SplitPane({
 	const key = paneKey(pane.sessionId);
 	const screen = count > 1;
 
+	/*
+	 * Kept to its tile by `overflow-hidden` and layout containment — not paint containment.
+	 *
+	 * `contain: paint` makes Chromium snap the section's origin to a whole pixel and paint everything
+	 * in it from there. Whenever the section sits between pixels, that rounding and the one inside
+	 * land differently: at 125% a pane's toolbar icons came out one device pixel left or right
+	 * depending on where the sidebar's edge happened to be, each icon on its own schedule, so every
+	 * frame of opening or closing the sidebar shook them. Measured with the layout positions fixed
+	 * to the hundredth of a pixel; without paint containment each icon lands on one column. Layout
+	 * containment still makes the section a stacking context and the containing block for its fixed
+	 * descendants, so what it holds stays inside it.
+	 */
 	return (
 		<section
 			data-ly-split-pane={key}
@@ -125,7 +137,7 @@ export const SplitPane = memo(function SplitPane({
 			 * Screens are told apart by the gap between their cards — each screen's panes are cards of
 			 * their own (see `DockPane`) — so the section adds no fill and no dividing line.
 			 */
-			className="ly-freeze absolute flex min-h-0 min-w-0 flex-col overflow-hidden contain-layout contain-paint"
+			className="ly-freeze absolute flex min-h-0 min-w-0 flex-col overflow-hidden contain-layout"
 		>
 			<SplitScreen sessionId={pane.sessionId} screen={screen} inset={inset} insetEnd={insetEnd} />
 		</section>

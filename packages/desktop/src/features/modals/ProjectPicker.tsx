@@ -1,6 +1,6 @@
 import { Check, Folder, Plus, X } from "lucide-react";
 import { useState } from "react";
-import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuSearch, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
+import { MENU_MAX_HEIGHT, MenuBody, MenuFooter, MenuItem, MenuSearch, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { ProjectDialog } from "./ProjectDialog.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { useScopedWorkspace } from "../../app/session-scope.tsx";
@@ -58,16 +58,15 @@ export function ProjectPicker({ anchor, onClose }: { anchor: Anchor; onClose: ()
 			header={<MenuSearch value={query} onChange={setQuery} placeholder={t("project.search")} />}
 			// The two ways out of the list stay put while it scrolls: neither is about a project
 			// you are looking at, and both are what you reach for when none of them is the one.
-			// 和上面的列表同一圈内衬，悬停的底色才不会一直铺到卡片边上。
 			footer={
-				<MenuBody className="p-[var(--ly-menu-inset)]">
+				<MenuFooter>
 					<MenuItem icon={<Plus size={13} strokeWidth={1.9} />} onClick={() => setCreating(true)}>
 						{t("project.new")}
 					</MenuItem>
 					<MenuItem icon={<X size={13} strokeWidth={1.9} />} onClick={() => choose(clearWorkspace)}>
 						{t("project.without")}
 					</MenuItem>
-				</MenuBody>
+				</MenuFooter>
 			}
 		>
 			<MenuBody>

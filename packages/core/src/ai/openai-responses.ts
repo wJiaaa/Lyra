@@ -28,7 +28,7 @@ import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { learnToolPairing, toolPairing } from "./tool-pairing-compat.ts";
 import { learnToolResultImages, toolResultImages } from "./tool-result-images-compat.ts";
-import { droppedParams, learnDroppedParam } from "./request-params-compat.ts";
+import { droppedParams, learnDroppedParam, refusesReasoningNone } from "./request-params-compat.ts";
 import { compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
 import { cacheRouting, sessionHeaders } from "./cache-routing.ts";
@@ -59,7 +59,6 @@ async function* streamResponses(
 	const reasoningEffort = resolveReasoningEffort(options.thinking, model);
 	const thinkingEnabled = reasoningEffort !== undefined;
 	const modelId = (model.modelId || model.id || "").toLowerCase();
-	const isGemini = modelId.includes("gemini") || modelId.includes("gemma");
 	/** 学和查都用这一对 id，见 `compat-key.ts`。排列这一轴曾经查用 `modelId`、学用 `id`，学到的永远查不到。 */
 	const scope = compatScope(provider, model);
 
@@ -116,7 +115,7 @@ async function* streamResponses(
 							},
 							...(dropped.has("include-encrypted") ? {} : { include: ["reasoning.encrypted_content"] }),
 						}
-					: isGemini || dropped.has("reasoning-off")
+					: refusesReasoningNone(modelId) || dropped.has("reasoning-off")
 						? {}
 						: { reasoning: { effort: "none" } }
 				: {}),

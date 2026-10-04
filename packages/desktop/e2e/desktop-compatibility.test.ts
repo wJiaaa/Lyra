@@ -254,3 +254,119 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 		assert.equal(await app.evaluate(`Boolean(document.querySelector('.xterm-screen[data-qa-preserved]'))`), true, "and the terminal behind it is the same one");
 	} finally { await app.stop(); }
 });
+
+/** A light, empty profile: no projects, so the sidebar shows its empty hint. */
+async function plainProfile(home: string, theme: "light" | "dark" = "light"): Promise<void> {
+	await writeFile(join(home, "window.json"), JSON.stringify({ width: 984, height: 684 }));
+	await writeFile(join(home, "settings.json"), JSON.stringify({ providers: [], mcpServers: [], hooks: [], sync: { enabled: false }, appearance: { theme } }));
+}
+
+/**
+ * The pixels actually painted in a region, decoded by the page itself.
+ *
+ * Layout positions cannot show the faults below: they were identical to the hundredth of a pixel
+ * while the painted icons moved and the corner stayed square. So these read the screenshot back —
+ * a data URL drawn into a canvas is same-origin, and Node has no PNG decoder of its own. The clip
+ * is in CSS pixels; what comes back is device pixels, `dpr` of them per CSS pixel.
+ */
+async function paintedPixels(app: RunningApp, clip: { x: number; y: number; width: number; height: number }): Promise<{ width: number; height: number; gray: number[]; rgb: number[][] }> {
+	const shot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png", clip: { ...clip, scale: 1 } });
+	return app.evaluate(`(async () => {
+		const img = new Image(); img.src = 'data:image/png;base64,${shot.data}'; await img.decode();
+		const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
+		const g = canvas.getContext('2d'); g.drawImage(img, 0, 0);
+		const px = g.getImageData(0, 0, img.width, img.height).data;
+		const gray = [], rgb = [];
+		for (let i = 0; i < px.length; i += 4) { gray.push((px[i] + px[i + 1] + px[i + 2]) / 3); rgb.push([px[i], px[i + 1], px[i + 2]]); }
+		return { width: img.width, height: img.height, gray, rgb };
+	})()`);
+}
+
+test("a pane's toolbar icons keep their pixel column wherever the sidebar's edge falls, at 125%", async (t) => {
+	/*
+	 * Opening or closing the sidebar walks the content area's left edge through fractional device
+	 * pixels, and with `contain: paint` on the split section each icon snapped against that section's
+	 * rounded origin: one device column left or right depending on the edge, icon by icon, which read
+	 * as the toolbar shaking for the length of the slide. Held at a series of edges here, since a
+	 * screenshot per animation frame is not something a test can ask for reliably.
+	 */
+	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
+	try {
+		await frames(app);
+		// The three that were reported shaking; the toolbar also holds buttons that only show on hover.
+		const toolbar = `[...document.querySelectorAll('[data-dock-header] button')].filter(b => /^(终端|浏览器|面板)/.test(b.getAttribute('aria-label') ?? '') && b.checkVisibility({ opacityProperty: true }))`;
+		const icons = await app.evaluate<{ x: number; width: number }[]>(`${toolbar}.map(b => b.getBoundingClientRect()).map(r => ({ x: r.x, width: r.width })).sort((a, b) => a.x - b.x)`);
+		assert.equal(icons.length, 3, `terminal, browser and panels are on the pane toolbar: ${JSON.stringify(icons)}`);
+		const left = Math.floor(icons[0].x) - 4, right = Math.ceil(icons.at(-1)!.x + icons.at(-1)!.width) + 4;
+		const top = await app.evaluate<number>(`Math.floor(document.querySelector('[data-dock-header] button').getBoundingClientRect().top) - 4`);
+		const dpr = await app.evaluate<number>("devicePixelRatio");
+		const edges = [0, -1, -2, -3, -5, -6, -7];
+		const rows: { edge: number; layout: number[]; painted: number[] }[] = [];
+		for (const edge of edges) {
+			await app.evaluate(`(() => { const frame = document.querySelector('aside[data-pane="beside"]').parentElement; frame.style.transition = 'none'; frame.style.marginLeft = '${edge}px'; })()`);
+			await frames(app, 4);
+			const layout = await app.evaluate<number[]>(`${toolbar}.map(b => b.getBoundingClientRect().x).sort((a, b) => a - b)`);
+			const image = await paintedPixels(app, { x: left, y: top, width: right - left, height: 36 });
+			// The ink's x-centroid inside each icon's own cell, in device pixels from the clip's edge.
+			const painted = icons.map((icon) => {
+				const from = Math.round((icon.x - left) * dpr), to = Math.round((icon.x - left + icon.width) * dpr);
+				let ink = 0, weighted = 0;
+				for (let x = from; x < to; x++) for (let y = 0; y < image.height; y++) { const v = 255 - image.gray[y * image.width + x]; ink += v; weighted += v * x; }
+				return Math.round((weighted / ink) * 100) / 100;
+			});
+			rows.push({ edge, layout, painted });
+		}
+		await app.evaluate(`(() => { const frame = document.querySelector('aside[data-pane="beside"]').parentElement; frame.style.marginLeft = ''; frame.style.transition = ''; })()`);
+		t.diagnostic(JSON.stringify({ dpr, rows }));
+		for (const row of rows) assert.deepEqual(row.layout, rows[0].layout, "the icons' layout does not move with the sidebar's edge");
+		for (const [index] of icons.entries()) {
+			const columns = new Set(rows.map((row) => row.painted[index]));
+			assert.equal(columns.size, 1, `icon ${index} is painted on one column wherever the edge is: ${[...columns].join(", ")}`);
+		}
+	} finally { await app.stop(); }
+});
+
+test("the settings column takes its final width at once when the navigation slides, and only moves", async (t) => {
+	/*
+	 * The navigation pushes the page by animating its margin, and the page used to be laid out anew
+	 * on every frame of that: in a 984px window the model page crossed its side-by-side breakpoint a
+	 * third of the way through and rearranged under the eye, and every page's text rewrapped as it
+	 * slid. Now the column goes to its final width the moment the navigation is toggled and then
+	 * only moves (`--ly-settings-hold` in `SettingsShell`).
+	 */
+	const app = await startApp({ port: 9598, seed: (home) => plainProfile(home) });
+	try {
+		await frames(app);
+		await click(app, "button:has(svg.lucide-settings)");
+		const column = `[...document.querySelectorAll('[data-ly-settings] main [class*="max-w-[900px]"]')].find(e => e.checkVisibility())`;
+		await app.evaluate(`new Promise((resolve, reject) => { let n = 240; const step = () => (${column}) ? resolve() : --n ? requestAnimationFrame(step) : reject(new Error('settings did not open')); step(); })`);
+		await frames(app, 30);
+		for (const phase of ["collapse", "expand"]) {
+			// The pointer goes there first, as a hand would: toolbar buttons take the press only once hovered.
+			const at = await app.evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('button[aria-label*="设置导航"]').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+			await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+			// Sampled until the slide has started and settled, not for a fixed count: a busy machine can
+			// take longer to deliver the press than a slide lasts.
+			await app.evaluate(`(() => { window.__qaHold = (async () => {
+				const out = []; let moved = false, still = 0;
+				for (let i = 0; i < 400 && still < 12; i++) {
+					await new Promise(requestAnimationFrame);
+					const main = document.querySelector('[data-ly-settings] main');
+					const sample = { width: Math.round((${column}).getBoundingClientRect().width * 10) / 10, left: Math.round(main.getBoundingClientRect().x * 10) / 10 };
+					const last = out.at(-1);
+					if (last && last.left !== sample.left) { moved = true; still = 0; } else if (moved) still++;
+					out.push(sample);
+				}
+				return out;
+			})(); })()`);
+			for (const type of ["mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount: 1 });
+			const samples = await app.evaluate<{ width: number; left: number }[]>("window.__qaHold");
+			const widths = [...new Set(samples.map((s) => s.width))];
+			const lefts = new Set(samples.map((s) => s.left));
+			t.diagnostic(`${phase}: widths ${JSON.stringify(widths)}, ${lefts.size} positions`);
+			assert.ok(lefts.size >= 3, `${phase}: the navigation slid, with a frame between its ends, or the widths prove nothing`);
+			assert.ok(widths.length <= 2, `${phase}: the column went straight to its final width: ${JSON.stringify(widths)}`);
+			await frames(app, 30);
+		}
+	} finally { await app.stop(); }
+});

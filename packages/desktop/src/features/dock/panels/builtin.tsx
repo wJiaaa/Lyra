@@ -18,7 +18,7 @@ import { DiffView, GitPanel } from "../../git/index.ts";
 import { SideChat, SideChatActions, SideChatTitle, closeSideChat } from "../../sidechat/index.ts";
 import { TaskPanel } from "../../task/index.ts";
 import { TerminalPane, TerminalTitle, closeTerminal } from "../../terminal/index.ts";
-import { TrajectoryPanel, useDeliveryReview } from "../../conversation/index.ts";
+import { announceUndo, TrajectoryPanel, useDeliveryReview, useDeliveryUndos, usePathMenu, useSharedDeliveryTarget } from "../../conversation/index.ts";
 import type { DeliveryFile, TurnDelivery } from "../../../../electron/turn-delivery.ts";
 import { useI18n } from "../../../i18n/index.ts";
 import { relativeTo } from "../../../lib/paths.ts";
@@ -93,10 +93,14 @@ function DeliveryPanel() {
 	// The conversation whose screen this panel is in — not whichever one has the focus.
 	const owner = useScopedSessionId();
 	const scope = useDockScope();
+	// A popped-out pane starts with an empty store; the turn it shows is on the shared record.
+	useSharedDeliveryTarget(owner);
+	// Right-click on a file's header: the same menu as the file's row on the card, minus 打开 — this
+	// pane is the turn's recorded diff, and opening the file's current contents is the card's to offer.
+	const pathMenu = usePathMenu(workspace);
 	// That conversation's own review: one opened under another screen is that screen's, and leaves this one be.
 	const target = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.target ?? null) : null));
 	const cached = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.data ?? null) : null));
-	const revision = useDeliveryReview((state) => (owner ? (state.reviews[owner]?.revision ?? 0) : 0));
 	const [data, setData] = useState<TurnDelivery | null>(cached);
 	const [undoing, setUndoing] = useState(false);
 	const undoLock = useRef(false);
@@ -119,7 +123,9 @@ function DeliveryPanel() {
 			if (live) useApp.getState().notify(String(error), "error");
 		});
 		return () => { live = false; };
-	}, [target, revision]);
+	}, [target]);
+	// Undos made on the turn's card, or in another window, change which of these files can still be undone.
+	useDeliveryUndos(target?.sessionId ?? null, target?.timestamp ?? null, setData);
 
 	const undo = async (path?: string) => {
 		if (!target || undoLock.current) return;
@@ -128,13 +134,13 @@ function DeliveryPanel() {
 		try {
 			await bridge.delivery.undo(target.sessionId, target.timestamp, path);
 			const value = await bridge.delivery.get(target.sessionId, target.timestamp);
-			setData(value);
-			useDeliveryReview.getState().setData(target.sessionId, value);
+			// To this pane and everything else showing the turn — its card, in this window or the one it popped out of.
+			announceUndo(target.sessionId, target.timestamp, value);
 			useApp.getState().notify(t("delivery.reverted"), "info");
 			if (!value.files.length) {
 				useDeliveryReview.getState().close(target.sessionId);
 				if (scope) usePaneDock.getState().close(scope, "delivery");
-			} else useDeliveryReview.getState().touch(target.sessionId);
+			}
 		} catch (error) {
 			useApp.getState().notify(String(error), "error");
 		} finally {
@@ -161,7 +167,7 @@ function DeliveryPanel() {
 			{files.map((file) => (
 				<section key={file.path} data-delivery-diff={file.path} className="mb-1">
 					<div className="ly-pin sticky top-0 z-10">
-						<div className="flex min-w-0 items-center gap-3 px-3 py-2 text-label">
+						<div className="flex min-w-0 items-center gap-3 px-3 py-2 text-label" onContextMenu={(event) => pathMenu.onContextMenu(event, { path: file.path })}>
 							{deliveryName(relative(file.path))}
 							{deliveryCounts(file.added, file.removed)}
 							<IconButton
@@ -179,6 +185,7 @@ function DeliveryPanel() {
 			))}
 		</Scroller>
 		{confirm.element}
+		{pathMenu.element}
 	</>;
 }
 
@@ -328,6 +335,13 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		unavailable: needsSession,
 		render: DeliveryPanel,
 		header: DeliveryTitle,
+		/*
+		 * "self", said rather than defaulted: which turn and which file the pane shows is renderer state
+		 * (`useDeliveryReview`), but it is also kept per conversation in localStorage, which every window
+		 * shares — so a popped-out pane reads it itself and follows it (`useSharedDeliveryTarget`), and the
+		 * diff it then fetches comes from the main process. Undeclared, it popped out as an empty pane.
+		 */
+		detach: "self",
 	},
 ];
 

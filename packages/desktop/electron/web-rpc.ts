@@ -25,6 +25,7 @@
  */
 
 import {
+	forkBeforeMessage,
 	forkSession,
 	readTrajectory,
 	withinOrIs,
@@ -166,6 +167,8 @@ export const RPC: Record<string, Handler> = {
 		readTrajectoryChanges(deps.store(), s(sessionId), typeof cursor === "string" ? cursor : undefined, deps.live(s(sessionId))?.running ?? false),
 	"sessions.fork": async (deps, [sessionId, seq]) =>
 		forkSession(deps.store(), s(sessionId), Number(seq)),
+	"sessions.forkBefore": async (deps, [sessionId, messageIndex, timestamp, title]) =>
+		forkBeforeMessage(deps.store(), s(sessionId), Number(messageIndex), Number(timestamp), typeof title === "string" ? title : undefined),
 	"sessions.create": async (deps, [cwd, modelId, initial]) =>
 		// "remote"：对面递来的附件路径不作数，见 `prompt-input.ts` 的 `PromptOrigin`。
 		deps.create(s(cwd), s(modelId), initialPrompt(initial, "remote")),
@@ -377,6 +380,8 @@ const ARGS: Record<string, (args: unknown[]) => ArgsError | null> = {
 
 	"workspace.info": ([path_]) => fail(path(path_, "path")),
 	"sessions.fork": ([sessionId, seq]) => fail(all(str(sessionId, "sessionId"), index(seq, "seq"))),
+	"sessions.forkBefore": ([sessionId, messageIndex, timestamp, title]) =>
+		fail(all(str(sessionId, "sessionId"), index(messageIndex, "messageIndex"), index(timestamp, "timestamp"), optionalStr(title, "title", 1_000))),
 	"sessions.create": ([cwd, modelId]) => fail(all(path(cwd, "cwd"), optionalStr(modelId, "modelId"))),
 	"sessions.open": ([sessionId]) => fail(str(sessionId, "sessionId")),
 	"sessions.running": ([sessionId]) => fail(str(sessionId, "sessionId")),

@@ -27,6 +27,7 @@ export const WEB_METHODS: ReadonlySet<string> = new Set([
 	"sessions.trajectory",
 	"sessions.trajectoryChanges",
 	"sessions.fork",
+	"sessions.forkBefore",
 	"sessions.remove",
 	"sessions.setArchived",
 	"sessions.move",

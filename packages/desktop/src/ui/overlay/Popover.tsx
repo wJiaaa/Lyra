@@ -687,6 +687,7 @@ export function usePopover() {
  */
 export {
 	MenuBody,
+	MenuFooter,
 	MenuItem,
 	MenuLabel,
 	MenuSearch,

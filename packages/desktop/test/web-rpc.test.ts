@@ -266,6 +266,7 @@ test("每个 handler 都能经 callRpc 到达", async () => {
 		"sessions.trajectory": ["s1"],
 		"sessions.trajectoryChanges": ["s1"],
 		"sessions.fork": ["s1", 1],
+		"sessions.forkBefore": ["s1", 2, 1_790_000_000_000, "长对话（分叉）"],
 		"sessions.remove": ["s1"],
 		"sessions.capabilities": ["s1"],
 		"sessions.setArchived": ["s1", true],

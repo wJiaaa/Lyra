@@ -44,6 +44,15 @@ export interface LayoutValue {
 	/** Whether the navigation pane is showing, in whichever form this mode uses. */
 	navOpen: boolean;
 	/**
+	 * Whether this window draws the navigation pane at all.
+	 *
+	 * A popped-out panel and a conversation in its own window have none, yet `navOpen` and
+	 * `sidebarWidth` still carry the main window's state — the open flag defaults on and the width is
+	 * the one remembered for every window. Anything that makes room for the sidebar asks this first:
+	 * the toasts did not, and in those windows they sat half a sidebar right of the middle.
+	 */
+	hasNav: boolean;
+	/**
 	 * The sidebar's width, as the user last dragged it.
 	 *
 	 * A *preference*, clamped only to its own sensible bounds. What actually fits also depends on
@@ -105,7 +114,7 @@ export interface LayoutValue {
 
 const LayoutContext = createContext<LayoutValue | null>(null);
 
-export function LayoutProvider({ children }: { children: React.ReactNode }) {
+export function LayoutProvider({ children, nav = true }: { children: React.ReactNode; nav?: boolean }) {
 	const [width, setWidth] = useState(() => window.innerWidth);
 	const mode = modeFor(width);
 	// The two forms keep separate state: entering compact must not throw a full-window drawer
@@ -213,6 +222,7 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
 			wide: mode === "wide",
 			width,
 			navOpen: compact ? drawerOpen : pushOpen,
+			hasNav: nav,
 			nativeFullScreen,
 			headerBar,
 			titlebar,
@@ -230,6 +240,7 @@ export function LayoutProvider({ children }: { children: React.ReactNode }) {
 			width,
 			drawerOpen,
 			pushOpen,
+			nav,
 			nativeFullScreen,
 			headerBar,
 			titlebar,

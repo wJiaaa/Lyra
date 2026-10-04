@@ -348,6 +348,12 @@ export interface PlumeApi {
 		exportTrajectory(sessionId: string, format: "json" | "md" | "output" | "jsonl", selection?: { id?: string; correlationId?: string }): Promise<string>;
 		/** Copy history up to `seq` into a new session, leaving this one untouched. */
 		fork(sessionId: string, seq: number): Promise<{ meta: SessionMeta; messages: number } | null>;
+		/**
+		 * Fork from just before a message the person wrote: everything before it in a new session, this
+		 * one untouched. `messageIndex` is its place in the transcript the window shows, checked against
+		 * `timestamp`; `title` names the fork in the window's language. Null when the message is not found.
+		 */
+		forkBefore(sessionId: string, messageIndex: number, timestamp: number, title?: string): Promise<{ meta: SessionMeta; messages: number } | null>;
 		remove(sessionId: string): Promise<void>;
 		/** Move a session in or out of the archive. Returns the whole list, already updated. */
 		setArchived(sessionId: string, archived: boolean): Promise<SessionMeta[]>;
