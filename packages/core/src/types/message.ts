@@ -2,8 +2,8 @@
  * The neutral message shape, and what a reply costs.
  *
  * One shape flows through the whole system. Provider adapters translate it into their wire format
- * on the way out and back on the way in, so the agent loop, the session store and the desktop UI
- * never see provider-specific JSON.
+ * on the way out and back on the way in, so the agent loop, the session store, the desktop UI and
+ * the mobile app never see provider-specific JSON.
  */
 
 // A reply records which wire format produced it, so it can be replayed to the right adapter.

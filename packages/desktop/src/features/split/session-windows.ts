@@ -15,7 +15,7 @@ interface SessionWindowsState {
 export const useSessionWindows = create<SessionWindowsState>(() => ({ sessions: [] }));
 
 export function watchSessionWindows(): () => void {
-	// No detached windows in a browser through Web access, and `windows.list` answers null there.
+	// No detached windows on a phone, and `windows.list` is not answered there.
 	if (!available("windows", "list") || !bridge.windows?.list || !bridge.windows.onChanged) return () => {};
 	const apply = (sessions: string[]) => useSessionWindows.setState({ sessions });
 	void bridge.windows.list().then((result) => apply(result.sessions)).catch(() => {});

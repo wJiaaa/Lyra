@@ -7,7 +7,7 @@ import { startProjectSession } from "../../store/project-session.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { ProjectDialog } from "./ProjectDialog.tsx";
-import { available, bridge } from "../../services/index.ts";
+import { available, bridge, onPhone } from "../../services/index.ts";
 
 /**
  * Per-project actions, hung off the row they act on.
@@ -99,11 +99,11 @@ export function ProjectMenu({
 					{t("projectMenu.newSessionHere")}
 				</MenuItem>
 
-				{/* A project is a settings entry, and the folder is on the desktop: neither is reachable
-				    from a browser through Web access. */}
-				{(available("settings", "save") || available("workspace", "reveal")) && <MenuSeparator />}
+				{/* A project is a settings entry the phone may not write (`projects` is not in
+				    phone-settings.ts), and the folder is on the desktop: neither is reachable there. */}
+				{(!onPhone() || available("workspace", "reveal")) && <MenuSeparator />}
 
-				{available("settings", "save") && (
+				{!onPhone() && (
 					<MenuItem icon={<Pencil size={13} strokeWidth={1.8} />} onClick={() => setMode("edit")}>
 						{t("projectMenu.editProject")}
 					</MenuItem>
@@ -133,7 +133,7 @@ export function ProjectMenu({
 				>
 					{t("projectMenu.archiveChats")}
 				</MenuItem>
-				{available("settings", "save") && (
+				{!onPhone() && (
 					<MenuItem icon={<X size={13} strokeWidth={1.9} />} danger onClick={() => setMode("remove")}>
 						{t("common.remove")}
 					</MenuItem>

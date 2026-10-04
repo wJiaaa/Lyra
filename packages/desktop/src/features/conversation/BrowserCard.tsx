@@ -117,7 +117,7 @@ function BrowserCard({ callId }: { callId: string }) {
 	 * 面板由主进程那一侧展开：这里发出去的命令是人按的，带着 `reveal`——跟地址栏、预览链接是同一条路。
 	 */
 	const open = async () => {
-		// No built-in browser in a browser through Web access: the page opens in a tab of this one.
+		// No built-in browser on a phone: the page opens in the phone's own browser instead.
 		if (!available("browser", "command")) {
 			if (view.url) void bridge.system.openExternal(view.url);
 			return;

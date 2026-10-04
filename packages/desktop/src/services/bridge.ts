@@ -2,18 +2,19 @@
  * The one place `window.plume` is named.
  *
  * Everything the renderer asks of the main process goes through this object, and it is reached
- * through `services/` rather than directly — 87 files used to name it, which made two questions
- * unanswerable without searching all of them: what does this window actually call, and what would
- * have to change to test any of it.
+ * through `services/` rather than directly — 87 files used to name it, which made three questions
+ * unanswerable without searching all of them: what does this window actually call, which of those
+ * calls work on a phone, and what would have to change to test any of it.
  *
- * `oxlint` enforces the rule (`no-restricted-properties` on `window.plume`), with this file,
- * `host.ts` and `web-bridge.ts` exempted. A lint rule rather than a convention because the convention held for exactly
+ * `oxlint` enforces the rule (`no-restricted-properties` on `window.plume`), with this file and
+ * `host.ts` exempted. A lint rule rather than a convention because the convention held for exactly
  * as long as somebody was watching.
  *
- * In an Electron window the object is built by the preload out of IPC channels. In a browser that
- * opened this interface through Web access there is no preload, and `web-bridge.ts` builds it out
- * of one WebSocket instead — the renderer cannot tell the difference, and that is the design. What
- * *does* differ is which methods answer: see `host.ts`.
+ * ## Two hosts
+ *
+ * On the desktop this is built by the preload out of IPC channels. On a phone it is built by
+ * `mobile/src/bridge.ts` out of HTTP and one WebSocket, and the renderer cannot tell the
+ * difference — that is the whole design. What *does* differ is which methods answer: see `host.ts`.
  */
 
 import { translate } from "../i18n/translate.ts";

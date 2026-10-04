@@ -30,7 +30,7 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 		onNavigate();
 	};
 
-	// In a browser through Web access none of the three can be reached; see `viewAvailable`.
+	// On a phone none of the three can be reached; see `viewAvailable`.
 	if (!viewAvailable("pull-requests") && !viewAvailable("scheduled") && !viewAvailable("plugins")) return null;
 
 	return (

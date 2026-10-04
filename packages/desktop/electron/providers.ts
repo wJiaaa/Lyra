@@ -5,14 +5,32 @@
  * conversation would work, and only a request shaped like a conversation's answers that.
  */
 
-import type { ProviderTestResult } from "./ipc-types.ts";
+import type { ProviderTestResult, SyncStatus } from "./ipc-types.ts";
 import { USER_AGENT, sessionHeaders, streamAssistant, type AssistantMessage, type Settings, type StreamEvent, type ThinkingLevel } from "@plume/core";
+import { getSettings } from "./app-settings.ts";
 import { nativeText } from "./i18n.ts";
 
 type Provider = Settings["providers"][number];
 
 /** How long the first token may take before the test gives up. */
 const ANSWER_TIMEOUT_MS = 30_000;
+
+/** What sync looks like when it is not running: the port it would use, and nothing else. */
+export function idleSyncStatus(): SyncStatus {
+	const settings = getSettings();
+	return {
+		running: false,
+		port: settings?.sync.port ?? 4517,
+		token: settings?.sync.token ?? null,
+		addresses: [],
+		clients: 0,
+		pairingUrl: null,
+		// Configured rather than discovered, so they are known even while the server is stopped —
+		// the settings page shows the fields either way.
+		publicUrl: settings?.sync.publicUrl?.trim() || null,
+		relayUrl: settings?.sync.relayUrl?.trim() || null,
+	};
+}
 
 /**
  * Where a provider lists its models: `/v1/models`, whether or not the base URL already ends in `/v1`.

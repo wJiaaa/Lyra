@@ -59,7 +59,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
   /*
    * Every conversation's state, not just the one on screen.
    *
-   * Turns run in conversations you are not looking at — a scheduled task, another window, an agent
+   * Turns run in conversations you are not looking at — a scheduled task, the phone, an agent
    * that stopped to ask permission twenty minutes ago. The events for those already arrive
    * here and were being dropped; folding each one into a per-session activity is what lets
    * the list say which is which.
@@ -296,7 +296,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       });
       return;
     }
-    // A turn driven from elsewhere still has to move the session up the sidebar and
+    // A turn driven from the phone still has to move the session up the sidebar and
     // update its title, even though its transcript is not on screen.
     if (event.type === "agent_end" || event.type === "turn_end") {
       void bridge.sessions
@@ -343,8 +343,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
         stopped: null,
         // The composer already started the clock when it sent, and the ~2s of session
         // setup before the agent starts is part of the wait. Overwriting it here made
-        // the elapsed time jump backwards. A turn driven from the scheduler has no
-        // composer, so it starts the clock here instead.
+        // the elapsed time jump backwards. A turn driven from the phone or the
+        // scheduler has no composer, so it starts the clock here instead.
         turnStartedAt: get().turns?.[sessionId]?.startedAt ?? get().turnStartedAt ?? Date.now(),
         turnTokens: get().turns?.[sessionId]?.tokens ?? get().turnTokens ?? 0,
         /*

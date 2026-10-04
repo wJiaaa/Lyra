@@ -14,7 +14,7 @@
   <strong>English</strong> · <a href="./README.zh-CN.md">中文</a>
 </p>
 
-A standalone agent with its own model settings, as an Electron desktop app.
+A standalone agent with its own model settings. The desktop app is Electron, the phone app is React Native, and they share one session log.
 
 This is not a shell around Claude Code or Codex. The agent loop, tools, skills, and MCP are implemented here. You bring the models, plugins, and skills.
 
@@ -97,6 +97,7 @@ Plume does not ship a model, so the first launch cannot send a message. Open Set
 - **Centered Git commit modal & branch workflows.** Commit changes through a focused dialog styled after the composer with matching border radius, breathing room, and in-place branch switching/creation. Changes support toggling between flat list and hierarchical tree view with persistent preference.
 - **Replies render what the model wrote.** User bubbles and assistant text render clean Markdown. A `mermaid` fence becomes a diagram. A path to a local file becomes a one-line chip with the filename; the full path sits on the tooltip. Side chat separates model-bound attachment payloads from display bubbles and edit inputs.
 - **Keep the computer awake while a task runs.** A switch in General settings. Closing the lid still sleeps.
+- **Mobile sync.** The phone replays the same session log: watch a turn, approve actions, keep asking. Three paths: LAN when you share a Wi-Fi, your own domain and TLS, or both ends dial out to the relay. There are no prebuilt phone packages; build one locally as described in [mobile packaging](docs/architecture/mobile-packaging.md).
 
 ## Layout
 
@@ -105,11 +106,13 @@ packages/
   core/              agent kernel: providers, loop, tools, skills, MCP, session store
   cli/               runs one task without a window, for evaluation; uses the desktop's settings
   desktop/           Electron app (main process + preload + React renderer)
+  mobile/            Expo / React Native app
   contract/          the line between the two processes; 221 methods in one place
   registry-shared/   plugin catalog index format, shared by desktop and the catalog service
+  relay/             public relay for when the phone is not on the same LAN. one file, no dependencies
 ```
 
-`core` is platform-neutral; the desktop main process drives its `AgentSession`. A set of boundary rules governs which package may import which. `pnpm arch` enforces them. See [ARCHITECTURE.md](ARCHITECTURE.md).
+`core` is platform-neutral. The desktop main process and the sync service share one `AgentSession`, so the phone and the computer do not drift. A set of boundary rules governs which package may import which. `pnpm arch` enforces them. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Run from source
 
@@ -117,6 +120,14 @@ packages/
 pnpm install
 pnpm dev
 ```
+
+The phone app is a second process:
+
+```bash
+pnpm dev:mobile
+```
+
+Enable the service under Settings → Mobile sync on desktop, then enter the address and token on the phone's pairing page.
 
 ### Without a window
 
@@ -150,7 +161,7 @@ Moving machines is a copy of `~/.plume`, made with the app closed. Copy `credent
 How plugins, skills, MCP, and sub-agents are laid out, and how the browser, the index, and hooks work:
 
 - [Extending Plume](docs/guide/extending.md): plugin directories, `SKILL.md`, MCP servers, sub-agent definitions
-- [Built-in capabilities](docs/guide/capabilities.md): the browser and its boundary, the index, hooks
+- [Built-in capabilities](docs/guide/capabilities.md): the browser and its boundary, the index, hooks, the three mobile-sync paths
 - [Architecture](ARCHITECTURE.md): package graph, the boundary rules, decision records
 
 A plugin is a bundle of skills. It does not contain MCP servers. A directory that only has `.mcp.json` is an MCP server, not a plugin. The catalog lists them separately. Installing an MCP server writes its declaration into Settings → MCP, which is the one place on the machine for every MCP server, whether you typed it or installed it.

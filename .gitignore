@@ -10,6 +10,7 @@ build/
 # nobody could see why, because locally it always looked right.
 !packages/desktop/build/
 .turbo/
+.expo/
 *.log
 .DS_Store
 .env

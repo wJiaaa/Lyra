@@ -220,9 +220,9 @@ test("a file linked in a reply offers it too, with 打开 doing what a click doe
 	assert.deepEqual(calls, [["zed", PRD]]);
 });
 
-test("in a browser opened through Web access, where nothing can be opened, a file link offers no menu", async () => {
-	// A link in a reply is drawn there as it is in a window; opening it on this machine is not offered.
-	host = "web";
+test("on the phone, where nothing can be opened, a file link offers no menu", async () => {
+	// The card is not drawn on the phone at all; a link in a reply is.
+	host = "mobile";
 	view = await inConversation(h(Markdown, { text: "文档在 [prd.md](docs/prd.md)" }));
 	await rightClick(view.find("[data-ly-file-link] a"));
 	assert.deepEqual(menus(), []);

@@ -127,27 +127,33 @@ export interface AgentCapabilities {
 	toolNames: string[];
 }
 
-/** Where Web access stands, as the settings page shows it. */
-export interface WebAccessStatus {
-	running: boolean;
-	port: number;
-	/**
-	 * Links to open in a browser, one per local-network address, best first. Each carries the
-	 * token, so each is a key to this machine; empty while the service is off.
-	 */
-	urls: string[];
-	/** Browsers connected right now. */
-	clients: number;
-	/** Why the last start failed — the port is taken, most often. Null when it did not. */
-	error: string | null;
-}
-
 export interface ProviderTestResult {
 	ok: boolean;
 	latencyMs: number;
 	message: string;
 	/** Model ids the endpoint reported, when it exposes a listing. */
 	models?: string[];
+}
+
+export interface SyncStatus {
+	running: boolean;
+	port: number;
+	token: string | null;
+	/**
+	 * This machine's own IPv4 addresses, best-first.
+	 *
+	 * Ranked rather than merely listed: a development machine holds several, and the ones belonging
+	 * to Docker bridges and VPN adapters are unreachable from the phone while looking exactly as
+	 * plausible as the real one. See `localAddresses`.
+	 */
+	addresses: string[];
+	clients: number;
+	/** Ready-to-scan pairing payload for the mobile app, over the LAN. */
+	pairingUrl: string | null;
+	/** A reverse proxy or port forward that routes to this desktop, as configured. */
+	publicUrl: string | null;
+	/** A relay both sides dial out to, as configured. See `Settings.sync.relayUrl`. */
+	relayUrl: string | null;
 }
 
 /**

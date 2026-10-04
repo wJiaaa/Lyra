@@ -91,7 +91,8 @@
     "react/hooks": "error",
     // 开着。唯一一处在测试里——测试给外层变量赋值是它的正常写法，见下面 overrides 的豁免。
     "react/globals": "error",
-    // 开着。DOM 的 `style` 收的是对象，传别的就是写错了。
+    // 开着。唯一一处在 mobile，那是 React Native：`style` 收数组和 StyleSheet id 是它的常态，
+    // 同样在 overrides 里豁免。桌面端的 DOM 里这条仍然该红。
     "react/style-prop-object": "error",
 
     /*
@@ -172,6 +173,16 @@
     },
     {
       "files": [
+        "packages/mobile/**"
+      ],
+      "rules": {
+        // React Native 的 `style` 收数组、收 StyleSheet 注册出来的 id，不只是对象字面量。
+        // 这条规则说的是 DOM 的 `style`，在 RN 这一侧它问的不是同一件事。
+        "react/style-prop-object": "off"
+      }
+    },
+    {
+      "files": [
         "packages/desktop/src/**"
       ],
       "rules": {
@@ -180,7 +191,7 @@
           {
             "object": "window",
             "property": "plume",
-            "message": "经 @/services 的 bridge 访问主进程。window.plume 只在 services/bridge.ts、services/host.ts 与 services/web-bridge.ts 里出现——87 个文件各自直接调用它时，「这个窗口到底调了什么」无法回答。"
+            "message": "经 @/services 的 bridge 访问主进程。window.plume 只在 services/bridge.ts 与 services/host.ts 里出现——87 个文件各自直接调用它时，「这个窗口到底调了什么」和「其中哪些在手机上能用」都无法回答。"
           }
         ]
       }
@@ -189,7 +200,7 @@
       "files": [
         "packages/desktop/src/services/bridge.ts",
         "packages/desktop/src/services/host.ts",
-        "packages/desktop/src/services/web-bridge.ts"
+        "packages/desktop/src/mobile/**"
       ],
       "rules": {
         "no-restricted-properties": "off"

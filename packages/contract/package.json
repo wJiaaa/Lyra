@@ -3,7 +3,7 @@
   "version": "0.9.23",
   "private": true,
   "type": "module",
-  "description": "The boundary between the renderer and the main process: what can be called",
+  "description": "The boundary between the renderer and the main process: what can be called, and from where",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

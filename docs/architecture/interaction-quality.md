@@ -527,7 +527,7 @@ ScrollText 以布局宽度判断溢出，避免把面板过渡中的缩放误认
 
 ### 移动端同步与触控基线（2026-09-06）
 
-> 移动端已于 2026-09-26 移除，见 [ADR-0026](../adr/0026-remove-mobile-and-relay.md)。本节是当时的记录。
+> 移动端曾于 2026-09-26 移除（[ADR-0026](../adr/0026-remove-mobile-and-relay.md)），2026-10-04 按上游恢复（[ADR-0036](../adr/0036-restore-mobile-and-relay.md)）。
 
 移动端继续承载桌面 renderer，不维护第二套业务页面。LAN、公网反代和 relay 使用同一套
 WebSocket RPC 与事件格式；relay 额外提供独立 renderer asset capability。手机回到前台会主动

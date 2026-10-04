@@ -503,5 +503,9 @@ export function turnSlice(set: Set, get: Get) {
     }
     if (settings) await get().saveSettings({ ...settings, thinking });
   },
+
+  async refreshSync() {
+    set({ sync: await bridge.sync.status() });
+  },
   };
 }

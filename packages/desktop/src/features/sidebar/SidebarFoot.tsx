@@ -17,7 +17,7 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 	const setView = useApp((s) => s.setView);
 	const { compact } = useLayout();
 
-	// The whole strip is the way into settings, which a browser through Web access does not have.
+	// The whole strip is the way into settings, which a host without `settings.save` does not have.
 	if (!viewAvailable("settings")) return null;
 
 	return (

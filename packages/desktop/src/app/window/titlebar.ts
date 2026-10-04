@@ -60,7 +60,7 @@ export interface TitlebarInsets {
  * 面板的标题栏右端被系统切掉一块，而左上角只剩一个孤零零浮着的侧边栏开关。一条横贯的 header 把
  * 这两头收进同一条带子里：开关在左端，系统按钮在右端，面板整体下移，不再和窗口抢那一行。
  *
- * 浏览器里（Web 访问）不是窗口，没有任何一端需要让。
+ * 手机上不是窗口，没有任何一端需要让。
  */
 export function hasHeaderBar(platform: string, windowed = true): boolean {
 	return windowed && platform !== "darwin";
@@ -74,9 +74,10 @@ export function titlebarInsets(
 	/**
 	 * Whether this is a window at all.
 	 *
-	 * In a browser opened through Web access it is not: the page has no traffic lights and no
-	 * minimise button, and reserving for them left 78px of nothing at the top left — the toggle
-	 * marooned in the middle of the row instead of at the edge every other mark below lines up on.
+	 * On a phone it is not: the interface fills the screen, there are no traffic lights and no
+	 * minimise button, and the notch is handled outside the page. Reserving for controls that do
+	 * not exist left 78px of nothing at the top left — the toggle sat marooned in the middle of the
+	 * row instead of at the edge where every other mark below it lines up.
 	 */
 	windowed = true,
 ): TitlebarInsets {

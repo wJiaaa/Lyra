@@ -1,4 +1,4 @@
-/** Side-chat operations behind the Electron IPC handlers. */
+/** Shared side-chat operations used by Electron IPC and the mobile sync transport. */
 
 import { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatEvent, type UserContent } from "@plume/core";
 import { settings } from "./app-settings.ts";

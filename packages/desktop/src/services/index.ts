@@ -3,9 +3,8 @@
  *
  * One import for callers: `import { bridge } from "@/services"`. The two files behind it answer
  * different questions — `bridge.ts` is *how* (and the only place `window.plume` is named),
- * `host.ts` is *where* (an Electron window or a browser through Web access, which methods answer
- * there, and which system the desktop runs).
+ * `host.ts` is *whether* (which methods answer in this host, and why not when they do not).
  */
 
 export { bridge } from "./bridge.ts";
-export { available, hostPlatform, onWeb } from "./host.ts";
+export { available, hostPlatform, onPhone } from "./host.ts";

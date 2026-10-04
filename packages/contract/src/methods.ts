@@ -1,18 +1,42 @@
 /**
- * Every method the renderer may call.
+ * Every method the renderer may call, and where each one may be called from.
  *
- * This list is the answer to a question that used to be answered in two places:
+ * This list is the answer to three questions that used to be answered in three places:
  *
  *   which channel does this method use      → `preload.ts`, one `invoke` per method
  *   what does it look like                  → `ipc-types.ts`, a hand-written interface
+ *   may the phone call it                   → `sync-rpc.ts`, a hand-written allowlist
  *
- * `test/methods.test.ts` compares it with `preload.ts` and every `ipcMain.handle` in the main
- * process on every run, so none of them can drift apart again. The main process was the last one
- * added and the one that mattered most: it is the end that actually answers, and it was the end
- * nothing looked at.
+ * Adding a method meant editing three files. Missing one of them failed differently each time, and
+ * the third was the worst: a method absent from the allowlist is not an error on the phone, it is
+ * *nothing* — the button is there, the tap does nothing, and no error is raised anywhere.
+ *
+ * Generated from the three files it replaces, then kept by hand. `test/methods.test.ts` compares it
+ * with `preload.ts`, `sync-rpc.ts` and every `ipcMain.handle` in the main process on every run, so
+ * none of them can drift apart again. The main process was the last one added and the one that
+ * mattered most: it is the end that actually answers, and it was the end nothing looked at.
  */
 
-export interface Method {
+/** Where a method may be called from, and — when the phone may not — why not. */
+export interface Reach {
+	/**
+	 * Callable from the phone.
+	 *
+	 * The phone runs the desktop's own renderer over the network, so every method is *reachable*;
+	 * this decides which ones answer. It is a security boundary and a product decision at once:
+	 * whoever holds the pairing token can call exactly these.
+	 */
+	remote: boolean;
+	/**
+	 * Why the phone may not call it.
+	 *
+	 * Required whenever `remote` is false, because the useful question about any of these is "should
+	 * a phone be able to do this" — and a bare `false` reads as "nobody got round to it".
+	 */
+	why?: string;
+}
+
+export interface Method extends Reach {
 	/** The IPC channel. It appears here and nowhere else, so it cannot be misspelt at a call site. */
 	channel: string;
 }
@@ -26,189 +50,215 @@ export interface Method {
  */
 export const METHODS = {
 	agentDefinitions: {
-		list: { channel: "agentdefs:list" },
-		read: { channel: "agentdefs:read" },
-		save: { channel: "agentdefs:save" },
-		remove: { channel: "agentdefs:remove" },
+		list: { channel: "agentdefs:list", remote: false, why: "Desktop definition editor reads local configuration." },
+		read: { channel: "agentdefs:read", remote: false, why: "Desktop definition editor reads local configuration." },
+		save: { channel: "agentdefs:save", remote: false, why: "Local agent definitions require the desktop editor." },
+		remove: { channel: "agentdefs:remove", remote: false, why: "Local agent definitions require the desktop editor." },
 	},
 	delivery: {
-		get: { channel: "delivery:get" },
-		undo: { channel: "delivery:undo" },
+		get: { channel: "delivery:get", remote: false, why: "本机文件差异和实现记录" },
+		undo: { channel: "delivery:undo", remote: false, why: "恢复本轮文件，要求本机审阅" },
 	},
 	services: {
-		list: { channel: "services:list" },
-		stop: { channel: "services:stop" },
-		output: { channel: "services:output" },
+		list: { channel: "services:list", remote: false, why: "读取本机进程和监听端口" },
+		stop: { channel: "services:stop", remote: false, why: "停止当前会话拥有的本机进程" },
+		output: { channel: "services:output", remote: false, why: "读取本机进程的输出" },
 	},
 	browser: {
-		state: { channel: "browser:state" },
-		command: { channel: "browser:command" },
-		attach: { channel: "browser:attach" },
-		inspect: { channel: "browser:inspect" },
-		cancelInspect: { channel: "browser:cancelInspect" },
+		state: { channel: "browser:state", remote: false, why: "浏览器在桌面端显示" },
+		command: { channel: "browser:command", remote: false, why: "控制本机网页与开发工具" },
+		attach: { channel: "browser:attach", remote: false, why: "连接本机窗口的浏览器页面" },
+		inspect: { channel: "browser:inspect", remote: false, why: "需要在本机网页中选取元素" },
+		cancelInspect: { channel: "browser:cancelInspect", remote: false, why: "本机页面检查状态" },
 	},
 	settings: {
-		get: { channel: "settings:get" },
-		save: { channel: "settings:save" },
-		layers: { channel: "settings:layers" },
+		get: { channel: "settings:get", remote: true },
+		save: { channel: "settings:save", remote: true },
+		layers: { channel: "settings:layers", remote: false, why: "读的是本机项目里的配置文件；手机只看有效值" },
 	},
 	hooks: {
-		list: { channel: "hooks:list" },
-		save: { channel: "hooks:save" },
-		remove: { channel: "hooks:remove" },
-		setEnabled: { channel: "hooks:setEnabled" },
-		trust: { channel: "hooks:trust" },
+		list: { channel: "hooks:list", remote: false, why: "钩子会在本机执行命令，只在桌面端配置" },
+		save: { channel: "hooks:save", remote: false, why: "钩子会在本机执行命令，只在桌面端配置" },
+		remove: { channel: "hooks:remove", remote: false, why: "钩子会在本机执行命令，只在桌面端配置" },
+		setEnabled: { channel: "hooks:setEnabled", remote: false, why: "钩子会在本机执行命令，只在桌面端配置" },
+		trust: { channel: "hooks:trust", remote: false, why: "钩子会在本机执行命令，只在桌面端配置" },
 	},
-	web: {
-		status: { channel: "web:status" },
-		start: { channel: "web:start" },
-		stop: { channel: "web:stop" },
-		rotateToken: { channel: "web:rotateToken" },
+	sync: {
+		status: { channel: "sync:status", remote: false, why: "同步服务由桌面端管，手机是它的客户端" },
+		start: { channel: "sync:start", remote: false, why: "同步服务由桌面端管，手机是它的客户端" },
+		stop: { channel: "sync:stop", remote: false, why: "同步服务由桌面端管，手机是它的客户端" },
+		rotateToken: { channel: "sync:rotateToken", remote: false, why: "同步服务由桌面端管，手机是它的客户端" },
 	},
 	usage: {
-		scan: { channel: "usage:scan" },
-		storage: { channel: "usage:storage" },
-		clear: { channel: "usage:clear" },
+		scan: { channel: "usage:scan", remote: false, why: "读本机日志" },
+		storage: { channel: "usage:storage", remote: false, why: "量的是本机磁盘上这些日志占了多少" },
+		/*
+		 * 手机不能删。
+		 *
+		 * 这一条删掉的是一整段时间的会话，连同它们的聊天记录，而且没有回收站。桌面端把它放在两层
+		 * 确认后面，手机上那两层不存在——一个误触就是半年的对话。
+		 */
+		clear: { channel: "usage:clear", remote: false, why: "删的是本机会话日志，不可撤销，只在桌面端问过两遍之后才做" },
 	},
 	workspace: {
-		pick: { channel: "workspace:pick" },
-		info: { channel: "workspace:info" },
-		reveal: { channel: "workspace:reveal" },
+		pick: { channel: "workspace:pick", remote: false, why: "开的是本机的文件选择对话框" },
+		info: { channel: "workspace:info", remote: true },
+		reveal: { channel: "workspace:reveal", remote: false, why: "在本机的访达/资源管理器里定位" },
 	},
 	sessions: {
-		list: { channel: "sessions:list" },
-		/* 这个会话此刻在不在跑——权威的那一份，用来和渲染层自己推出来的那份对账。 */
-		running: { channel: "sessions:running" },
-		create: { channel: "sessions:create" },
-		open: { channel: "sessions:open" },
-		transcript: { channel: "sessions:transcript" },
-		trajectory: { channel: "sessions:trajectory" },
-		trajectoryChanges: { channel: "sessions:trajectoryChanges" },
-		exportTrajectory: { channel: "sessions:exportTrajectory" },
-		fork: { channel: "sessions:fork" },
-		forkBefore: { channel: "sessions:forkBefore" },
-		remove: { channel: "sessions:remove" },
-		setArchived: { channel: "sessions:setArchived" },
-		move: { channel: "sessions:move" },
-		removeArchived: { channel: "sessions:removeArchived" },
-		capabilities: { channel: "sessions:capabilities" },
-		rename: { channel: "sessions:rename" },
-		compact: { channel: "sessions:compact" },
-		contextBreakdown: { channel: "sessions:contextBreakdown" },
+		list: { channel: "sessions:list", remote: true },
+		/*
+		 * 这个会话此刻在不在跑——权威的那一份，用来和渲染层自己推出来的那份对账。
+		 *
+		 * `remote: true`：手机端同样需要它。那边的运行状态也是事件推出来的，丢一条同样会永久卡在
+		 * 「正在跑」上，而它的连接比桌面端更容易断。
+		 */
+		running: { channel: "sessions:running", remote: true },
+		create: { channel: "sessions:create", remote: true },
+		open: { channel: "sessions:open", remote: true },
+		transcript: { channel: "sessions:transcript", remote: true },
+		trajectory: { channel: "sessions:trajectory", remote: true },
+		trajectoryChanges: { channel: "sessions:trajectoryChanges", remote: true },
+		exportTrajectory: { channel: "sessions:exportTrajectory", remote: false, why: "生成本机完整轨迹检查文件" },
+		fork: { channel: "sessions:fork", remote: true },
+		// `remote: true`, like `fork`: a copy, the original untouched — and the phone shows the same button.
+		forkBefore: { channel: "sessions:forkBefore", remote: true },
+		remove: { channel: "sessions:remove", remote: true },
+		setArchived: { channel: "sessions:setArchived", remote: true },
+		/*
+		 * `remote: true`：和归档、重命名一样是整理，不是破坏。
+		 *
+		 * 挪错了再挪回来就是了，日志一条没少——这正是它和 `removeArchived` 的区别，后者不可撤销，
+		 * 所以不让一部可能丢失的手机发起。目标项目取自同一份同步过来的项目列表，那些路径是桌面
+		 * 那台机器上的，真正搬文件的也是它。
+		 */
+		move: { channel: "sessions:move", remote: true },
+		removeArchived: { channel: "sessions:removeArchived", remote: false, why: "批量删除且不可撤销——不该由一部可能丢失的手机发起" },
+		capabilities: { channel: "sessions:capabilities", remote: true },
+		rename: { channel: "sessions:rename", remote: true },
+		compact: { channel: "sessions:compact", remote: true },
+		contextBreakdown: { channel: "sessions:contextBreakdown", remote: true },
 	},
 	agent: {
-		prompt: { channel: "agent:prompt" },
-		editMessage: { channel: "agent:editMessage" },
-		revertMessage: { channel: "agent:revertMessage" },
-		abort: { channel: "agent:abort" },
-		approve: { channel: "agent:approve" },
-		setModel: { channel: "agent:setModel" },
-		setThinking: { channel: "agent:setThinking" },
+		prompt: { channel: "agent:prompt", remote: true },
+		editMessage: { channel: "agent:editMessage", remote: true },
+		revertMessage: { channel: "agent:revertMessage", remote: true },
+		abort: { channel: "agent:abort", remote: true },
+		approve: { channel: "agent:approve", remote: true },
+		setModel: { channel: "agent:setModel", remote: true },
+		setThinking: { channel: "agent:setThinking", remote: true },
 	},
 	subAgents: {
-		list: { channel: "subagents:list" },
-		detail: { channel: "subagents:detail" },
-		steer: { channel: "subagents:steer" },
-		abort: { channel: "subagents:abort" },
-		dismiss: { channel: "subagents:dismiss" },
+		/*
+		 * 只读的那一个给手机，其余不给。
+		 *
+		 * 这一条曾经写着 `remote: false`，而 `sync-rpc.ts` 里一直实现着它——两边不一致了很久，
+		 * 而检查一致性的那条测试因为正则写成 `[a-z]+` 匹配不到 `subAgents` 的大写 A，从来没看
+		 * 见过它。以实现为准：手机上要显示一个回合里派出了哪些子智能体，那是只读的。
+		 */
+		list: { channel: "subagents:list", remote: true },
+		detail: { channel: "subagents:detail", remote: true },
+		steer: { channel: "subagents:steer", remote: true },
+		abort: { channel: "subagents:abort", remote: true },
+		dismiss: { channel: "subagents:dismiss", remote: true },
 	},
 	sideChat: {
-		setModel: { channel: "sidechat:setModel" },
-		state: { channel: "sidechat:state" },
-		ask: { channel: "sidechat:ask" },
-		editAndResend: { channel: "sidechat:editAndResend" },
-		abort: { channel: "sidechat:abort" },
-		reset: { channel: "sidechat:reset" },
-		close: { channel: "sidechat:close" },
+		setModel: { channel: "sidechat:setModel", remote: true },
+		state: { channel: "sidechat:state", remote: true },
+		ask: { channel: "sidechat:ask", remote: true },
+		editAndResend: { channel: "sidechat:editAndResend", remote: true },
+		abort: { channel: "sidechat:abort", remote: true },
+		reset: { channel: "sidechat:reset", remote: true },
+		close: { channel: "sidechat:close", remote: true },
 	},
 	tasks: {
-		list: { channel: "tasks:list" },
-		cancel: { channel: "tasks:cancel" },
-		dismiss: { channel: "tasks:dismiss" },
-		resume: { channel: "tasks:resume" },
+		list: { channel: "tasks:list", remote: true },
+		cancel: { channel: "tasks:cancel", remote: true },
+		dismiss: { channel: "tasks:dismiss", remote: true },
+		resume: { channel: "tasks:resume", remote: true },
 	},
 	files: {
-		list: { channel: "files:list" },
-		read: { channel: "files:read" },
-		document: { channel: "files:document" },
-		documentText: { channel: "files:documentText" },
-		bytes: { channel: "files:bytes" },
-		create: { channel: "files:create" },
-		rename: { channel: "files:rename" },
-		copy: { channel: "files:copy" },
-		trash: { channel: "files:trash" },
-		remove: { channel: "files:remove" },
-		uniquePath: { channel: "files:uniquePath" },
-		exists: { channel: "files:exists" },
-		importInto: { channel: "files:import" },
-		pick: { channel: "files:pick" },
+		list: { channel: "files:list", remote: true },
+		read: { channel: "files:read", remote: true },
+		document: { channel: "files:document", remote: false, why: "读写任意路径" },
+		documentText: { channel: "files:documentText", remote: false, why: "把任意字节交给主进程里的解析器" },
+		bytes: { channel: "files:bytes", remote: false, why: "读写任意路径" },
+		create: { channel: "files:create", remote: false, why: "在任意位置建文件" },
+		rename: { channel: "files:rename", remote: false, why: "读写任意路径" },
+		copy: { channel: "files:copy", remote: false, why: "读写任意路径" },
+		trash: { channel: "files:trash", remote: false, why: "读写任意路径" },
+		remove: { channel: "files:remove", remote: false, why: "读写任意路径" },
+		uniquePath: { channel: "files:uniquePath", remote: false, why: "读写任意路径" },
+		exists: { channel: "files:exists", remote: false, why: "读写任意路径" },
+		importInto: { channel: "files:import", remote: false, why: "读写任意路径" },
+		pick: { channel: "files:pick", remote: false, why: "弹出系统原生文件/目录选择框" },
 	},
 	clipboard: {
-		read: { channel: "clipboard:read" },
-		write: { channel: "clipboard:write" },
-		writeImage: { channel: "clipboard:writeImage" },
+		read: { channel: "clipboard:read", remote: false, why: "手机有自己的剪贴板" },
+		write: { channel: "clipboard:write", remote: false, why: "手机有自己的剪贴板" },
+		writeImage: { channel: "clipboard:writeImage", remote: false, why: "手机有自己的剪贴板" },
 	},
 	terminal: {
-		list: { channel: "terminal:list" },
-		listAll: { channel: "terminal:list-all" },
-		open: { channel: "terminal:open" },
-		attach: { channel: "terminal:attach" },
+		list: { channel: "terminal:list", remote: false, why: "开的是这台机器上的 shell" },
+		listAll: { channel: "terminal:list-all", remote: false, why: "开的是这台机器上的 shell" },
+		open: { channel: "terminal:open", remote: false, why: "开的是这台机器上的 shell" },
+		attach: { channel: "terminal:attach", remote: false, why: "开的是这台机器上的 shell" },
 	},
 	providers: {
-		test: { channel: "providers:test" },
-		fetchModels: { channel: "providers:fetchModels" },
-		modelCatalog: { channel: "providers:modelCatalog" },
-		updateModelCatalog: { channel: "providers:updateModelCatalog" },
+		test: { channel: "providers:test", remote: false, why: "会拿着 API key 去请求供应商，密钥不出桌面端" },
+		fetchModels: { channel: "providers:fetchModels", remote: false, why: "会拿着 API key 去请求供应商，密钥不出桌面端" },
+		modelCatalog: { channel: "providers:modelCatalog", remote: false, why: "手机用打包的目录快照就够了，目录更新在桌面端" },
+		updateModelCatalog: { channel: "providers:updateModelCatalog", remote: false, why: "去网上拉目录并改写本机缓存" },
 	},
 	commands: {
-		list: { channel: "commands:list" },
-		create: { channel: "commands:create" },
-		reveal: { channel: "commands:reveal" },
-		open: { channel: "commands:open" },
+		list: { channel: "commands:list", remote: true },
+		create: { channel: "commands:create", remote: false, why: "读本机磁盘上的命令定义" },
+		reveal: { channel: "commands:reveal", remote: false, why: "读本机磁盘上的命令定义" },
+		open: { channel: "commands:open", remote: false, why: "读本机磁盘上的命令定义" },
 	},
 	plugins: {
-		list: { channel: "plugins:list" },
-		revealDir: { channel: "plugins:revealDir" },
-		fetchRegistry: { channel: "registry:fetch" },
-		icon: { channel: "registry:icon" },
-		icons: { channel: "registry:icons" },
-		readme: { channel: "registry:readme" },
-		installFromRegistry: { channel: "registry:install" },
-		uninstall: { channel: "registry:uninstall" },
-		updates: { channel: "plugins:updates" },
-		updateAll: { channel: "plugins:updateAll" },
-		environment: { channel: "plugins:environment" },
-		mcpStatus: { channel: "plugins:mcpStatus" },
+		list: { channel: "plugins:list", remote: false, why: "装一个插件等于同意运行它的代码" },
+		revealDir: { channel: "plugins:revealDir", remote: false, why: "装一个插件等于同意运行它的代码" },
+		fetchRegistry: { channel: "registry:fetch", remote: false, why: "装一个插件等于同意运行它的代码" },
+		icon: { channel: "registry:icon", remote: false, why: "装一个插件等于同意运行它的代码" },
+		icons: { channel: "registry:icons", remote: false, why: "装一个插件等于同意运行它的代码" },
+		readme: { channel: "registry:readme", remote: false, why: "读本机装好的插件目录和它的仓库" },
+		installFromRegistry: { channel: "registry:install", remote: false, why: "装一个插件等于同意运行它的代码" },
+		uninstall: { channel: "registry:uninstall", remote: false, why: "装一个插件等于同意运行它的代码" },
+		updates: { channel: "plugins:updates", remote: false, why: "装一个插件等于同意运行它的代码" },
+		updateAll: { channel: "plugins:updateAll", remote: false, why: "装一个插件等于同意运行它的代码" },
+		environment: { channel: "plugins:environment", remote: false, why: "读本机登录环境里有哪些变量" },
+		mcpStatus: { channel: "plugins:mcpStatus", remote: false, why: "会临时连一次本机配置的 MCP 服务" },
 	},
 	windows: {
-		keepOnTop: { channel: "windows:keepOnTop" },
-		open: { channel: "windows:open" },
-		list: { channel: "windows:list" },
-		openInMain: { channel: "windows:openInMain" },
-		openPanel: { channel: "windows:openPanel" },
-		openPanelInMain: { channel: "windows:openPanelInMain" },
-		filePanelState: { channel: "windows:filePanelState" },
-		restorePanel: { channel: "windows:restorePanel" },
-		closePanel: { channel: "windows:closePanel" },
+		keepOnTop: { channel: "windows:keepOnTop", remote: false, why: "仅控制请求方的本机窗口" },
+		open: { channel: "windows:open", remote: false, why: "开的是本机的第二个窗口" },
+		list: { channel: "windows:list", remote: false, why: "开的是本机的第二个窗口" },
+		openInMain: { channel: "windows:openInMain", remote: false, why: "开的是本机的第二个窗口" },
+		openPanel: { channel: "windows:openPanel", remote: false, why: "开的是本机的第二个窗口" },
+		openPanelInMain: { channel: "windows:openPanelInMain", remote: false, why: "请主窗口开一个面板，面板窗口自己没有 dock" },
+		filePanelState: { channel: "windows:filePanelState", remote: false, why: "只向文件面板的原宿主交接未保存编辑" },
+		restorePanel: { channel: "windows:restorePanel", remote: false, why: "开的是本机的第二个窗口" },
+		closePanel: { channel: "windows:closePanel", remote: false, why: "开的是本机的第二个窗口" },
 	},
 	system: {
-		openPath: { channel: "system:openPath" },
-		openExternal: { channel: "system:openExternal" },
-		openIn: { channel: "system:openIn" },
-		openTargets: { channel: "system:openTargets" },
-		revealSkillsDir: { channel: "system:revealSkillsDir" },
-		platform: { channel: "system:platform" },
-		remoteImage: { channel: "system:remoteImage" },
-		pathExists: { channel: "system:pathExists" },
+		openPath: { channel: "system:openPath", remote: false, why: "把路径或程序交给操作系统去打开" },
+		openExternal: { channel: "system:openExternal", remote: false, why: "把路径或程序交给操作系统去打开" },
+		openIn: { channel: "system:openIn", remote: false, why: "把路径或程序交给操作系统去打开" },
+		openTargets: { channel: "system:openTargets", remote: false, why: "把路径或程序交给操作系统去打开" },
+		revealSkillsDir: { channel: "system:revealSkillsDir", remote: false, why: "把路径或程序交给操作系统去打开" },
+		platform: { channel: "system:platform", remote: false, why: "把路径或程序交给操作系统去打开" },
+		remoteImage: { channel: "system:remoteImage", remote: false, why: "把路径或程序交给操作系统去打开" },
+		pathExists: { channel: "system:pathExists", remote: false, why: "把路径或程序交给操作系统去打开" },
 	},
 	screenshot: {
-		start: { channel: "screenshot:start" },
-		finish: { channel: "screenshot:finish" },
-		cancel: { channel: "screenshot:cancel" },
-		download: { channel: "screenshot:download" },
-		pin: { channel: "screenshot:pin" },
-		pinnedCount: { channel: "screenshot:pinnedCount" },
-		pickDirectory: { channel: "screenshot:pickDirectory" },
+		start: { channel: "screenshot:start", remote: false, why: "读取整个屏幕" },
+		finish: { channel: "screenshot:finish", remote: false, why: "读取整个屏幕" },
+		cancel: { channel: "screenshot:cancel", remote: false, why: "读取整个屏幕" },
+		download: { channel: "screenshot:download", remote: false, why: "读取整个屏幕" },
+		pin: { channel: "screenshot:pin", remote: false, why: "读取整个屏幕" },
+		pinnedCount: { channel: "screenshot:pinnedCount", remote: false, why: "读取整个屏幕" },
+		pickDirectory: { channel: "screenshot:pickDirectory", remote: false, why: "读取整个屏幕" },
 	},
 	/*
 	 * 置顶在桌面的那张图片，自己的窗口在问自己的事。
@@ -218,84 +268,90 @@ export const METHODS = {
 	 * 的消息会无声地掉在地上，窗口就空着。
 	 */
 	pinnedShot: {
-		request: { channel: "pin:request" },
+		request: { channel: "pin:request", remote: false, why: "置顶窗口是桌面端独有的窗口" },
 	},
 	index: {
-		stats: { channel: "index:stats" },
-		rebuild: { channel: "index:rebuild" },
-		search: { channel: "index:search" },
+		stats: { channel: "index:stats", remote: false, why: "在整个项目上建索引，耗时且只对本机有意义" },
+		rebuild: { channel: "index:rebuild", remote: false, why: "在整个项目上建索引，耗时且只对本机有意义" },
+		search: { channel: "index:search", remote: false, why: "在整个项目上建索引，耗时且只对本机有意义" },
 	},
 	scheduler: {
-		runNow: { channel: "scheduler:runNow" },
+		runNow: { channel: "scheduler:runNow", remote: false, why: "定时任务在桌面端执行" },
 	},
 	extensions: {
-		stats: { channel: "extensions:stats" },
+		stats: { channel: "extensions:stats", remote: false, why: "扩展宿主跑在桌面端的会话里；手机端的只读展示另做" },
 	},
 	capabilities: {
-		trash: { channel: "capabilities:trash" },
-		diff: { channel: "capabilities:diff" },
-		prefer: { channel: "capabilities:prefer" },
+		trash: { channel: "capabilities:trash", remote: false, why: "将本机定义文件移入系统废纸篓" },
+		diff: { channel: "capabilities:diff", remote: false, why: "读任意路径，且只在桌面端有画 diff 的地方" },
+		prefer: { channel: "capabilities:prefer", remote: false, why: "改本机的配置文件" },
 	},
 	/* 从会话里总结出来的技能候选。 */
 	skills: {
-		pending: { channel: "skills:pending" },
-		approve: { channel: "skills:approve" },
-		reject: { channel: "skills:reject" },
+		/*
+		 * 从会话里总结出来的技能候选。
+		 *
+		 * 批准一个技能是在给这个 agent 加一条以后一直生效的规矩，而手机上没有能看清它正文的
+		 * 位置——一个在小屏上被顺手点掉的「启用」，正是这个功能最该防的那种批准。
+		 */
+		pending: { channel: "skills:pending", remote: false, why: "批准一个自动生成的技能要看清正文，那是桌面端的事" },
+		approve: { channel: "skills:approve", remote: false, why: "同上" },
+		reject: { channel: "skills:reject", remote: false, why: "同上" },
 	},
 	forge: {
-		kinds: { channel: "forge:kinds" },
-		accounts: { channel: "forge:accounts" },
-		signIn: { channel: "forge:signIn" },
-		signOut: { channel: "forge:signOut" },
-		setEnabled: { channel: "forge:setEnabled" },
-		rename: { channel: "forge:rename" },
+		kinds: { channel: "forge:kinds", remote: false, why: "代码托管的令牌不出桌面端" },
+		accounts: { channel: "forge:accounts", remote: false, why: "代码托管的令牌不出桌面端" },
+		signIn: { channel: "forge:signIn", remote: false, why: "代码托管的令牌不出桌面端" },
+		signOut: { channel: "forge:signOut", remote: false, why: "代码托管的令牌不出桌面端" },
+		setEnabled: { channel: "forge:setEnabled", remote: false, why: "代码托管的令牌不出桌面端" },
+		rename: { channel: "forge:rename", remote: false, why: "代码托管的令牌不出桌面端" },
 	},
 	git: {
-		myPullRequests: { channel: "git:myPullRequests" },
-		pullRequest: { channel: "git:pullRequest" },
-		pullRequestDiff: { channel: "git:pullRequestDiff" },
-		scratchForPullRequest: { channel: "scratch:forPullRequest" },
-		generalScratch: { channel: "scratch:general" },
-		scratchRoots: { channel: "scratch:roots" },
-		findLocalCheckout: { channel: "git:findLocalCheckout" },
-		avatars: { channel: "git:avatars" },
-		commentOnPullRequest: { channel: "git:commentOnPullRequest" },
-		reviewPullRequest: { channel: "git:reviewPullRequest" },
-		branches: { channel: "git:branches" },
-		switchBranch: { channel: "git:switchBranch" },
-		removeWorktree: { channel: "git:removeWorktree" },
-		stat: { channel: "git:stat" },
-		status: { channel: "git:status" },
-		repos: { channel: "git:repos" },
-		worktrees: { channel: "git:worktrees" },
-		init: { channel: "git:init" },
-		log: { channel: "git:log" },
-		commitDiff: { channel: "git:commitDiff" },
-		commitDiffSummary: { channel: "git:commitDiffSummary" },
-		diffRefs: { channel: "git:diffRefs" },
-		stage: { channel: "git:stage" },
-		unstage: { channel: "git:unstage" },
-		discard: { channel: "git:discard" },
-		commitStaged: { channel: "git:commitStaged" },
-		generateCommitMessage: { channel: "git:generateCommitMessage" },
-		createBranch: { channel: "git:createBranch" },
-		deleteBranch: { channel: "git:deleteBranch" },
-		push: { channel: "git:push" },
-		pull: { channel: "git:pull" },
-		fetch: { channel: "git:fetch" },
-		cancelRemote: { channel: "git:cancelRemote" },
-		releaseInfo: { channel: "git:releaseInfo" },
-		bumpVersion: { channel: "git:bumpVersion" },
-		triggerDryRun: { channel: "git:triggerDryRun" },
-		listWorkflowRuns: { channel: "git:listWorkflowRuns" },
-		workflowRunStatus: { channel: "git:workflowRunStatus" },
-		publishReleaseTag: { channel: "git:publishReleaseTag" },
+		myPullRequests: { channel: "git:myPullRequests", remote: false, why: "本机仓库操作" },
+		pullRequest: { channel: "git:pullRequest", remote: false, why: "本机仓库操作" },
+		pullRequestDiff: { channel: "git:pullRequestDiff", remote: false, why: "本机仓库操作" },
+		scratchForPullRequest: { channel: "scratch:forPullRequest", remote: false, why: "本机仓库操作" },
+		generalScratch: { channel: "scratch:general", remote: true },
+		scratchRoots: { channel: "scratch:roots", remote: true },
+		findLocalCheckout: { channel: "git:findLocalCheckout", remote: false, why: "本机仓库操作" },
+		avatars: { channel: "git:avatars", remote: false, why: "本机仓库操作" },
+		commentOnPullRequest: { channel: "git:commentOnPullRequest", remote: false, why: "本机仓库操作" },
+		reviewPullRequest: { channel: "git:reviewPullRequest", remote: false, why: "本机仓库操作" },
+		branches: { channel: "git:branches", remote: false, why: "本机仓库操作" },
+		switchBranch: { channel: "git:switchBranch", remote: false, why: "本机仓库操作" },
+		removeWorktree: { channel: "git:removeWorktree", remote: false, why: "本机仓库操作" },
+		stat: { channel: "git:stat", remote: false, why: "本机仓库操作" },
+		status: { channel: "git:status", remote: false, why: "本机仓库操作" },
+		repos: { channel: "git:repos", remote: false, why: "本机仓库操作" },
+		worktrees: { channel: "git:worktrees", remote: false, why: "本机仓库操作" },
+		init: { channel: "git:init", remote: false, why: "本机仓库操作" },
+		log: { channel: "git:log", remote: false, why: "本机仓库操作" },
+		commitDiff: { channel: "git:commitDiff", remote: false, why: "本机仓库操作" },
+		commitDiffSummary: { channel: "git:commitDiffSummary", remote: false, why: "本机仓库操作" },
+		diffRefs: { channel: "git:diffRefs", remote: false, why: "本机仓库操作" },
+		stage: { channel: "git:stage", remote: false, why: "本机仓库操作" },
+		unstage: { channel: "git:unstage", remote: false, why: "本机仓库操作" },
+		discard: { channel: "git:discard", remote: false, why: "本机仓库操作" },
+		commitStaged: { channel: "git:commitStaged", remote: false, why: "本机仓库操作" },
+		generateCommitMessage: { channel: "git:generateCommitMessage", remote: false, why: "本机仓库操作" },
+		createBranch: { channel: "git:createBranch", remote: false, why: "本机仓库操作" },
+		deleteBranch: { channel: "git:deleteBranch", remote: false, why: "本机仓库操作" },
+		push: { channel: "git:push", remote: false, why: "本机仓库操作" },
+		pull: { channel: "git:pull", remote: false, why: "本机仓库操作" },
+		fetch: { channel: "git:fetch", remote: false, why: "本机仓库操作" },
+		cancelRemote: { channel: "git:cancelRemote", remote: false, why: "本机仓库操作" },
+		releaseInfo: { channel: "git:releaseInfo", remote: false, why: "本机仓库操作" },
+		bumpVersion: { channel: "git:bumpVersion", remote: false, why: "本机仓库操作" },
+		triggerDryRun: { channel: "git:triggerDryRun", remote: false, why: "本机仓库操作" },
+		listWorkflowRuns: { channel: "git:listWorkflowRuns", remote: false, why: "本机仓库操作" },
+		workflowRunStatus: { channel: "git:workflowRunStatus", remote: false, why: "本机仓库操作" },
+		publishReleaseTag: { channel: "git:publishReleaseTag", remote: false, why: "本机仓库操作" },
 	},
 	memory: {
-		load: { channel: "memory:load" },
-		add: { channel: "memory:add" },
-		remove: { channel: "memory:remove" },
-		clear: { channel: "memory:clear" },
+		load: { channel: "memory:load", remote: false, why: "手机上没有编辑记忆的界面" },
+		add: { channel: "memory:add", remote: false, why: "手机上没有编辑记忆的界面" },
+		remove: { channel: "memory:remove", remote: false, why: "手机上没有编辑记忆的界面" },
+		clear: { channel: "memory:clear", remote: false, why: "手机上没有编辑记忆的界面" },
 	},
 	/*
 	 * 分组叫 `projectMemory`，channel 却在 `memory:` 域下。
@@ -307,16 +363,22 @@ export const METHODS = {
 	 * 于是域共用、动作带前缀。这条测试是在 `git push` 的钩子里抓到我的——它值这个位置。
 	 */
 	projectMemory: {
-		status: { channel: "memory:projectStatus" },
-		extract: { channel: "memory:projectExtract" },
-		list: { channel: "memory:projectList" },
-		forget: { channel: "memory:projectForget" },
-		forgetExtracted: { channel: "memory:projectForgetExtracted" },
-		forgetAll: { channel: "memory:projectForgetAll" },
+		/*
+		 * 后台抽取由桌面端跑，手机不参与。
+		 *
+		 * 它读的是那台机器上的会话文件、写的是那台机器上的记忆目录，而且是「空闲时跑一遍」的
+		 * 后台活——手机端连着的时候，那台机器并不空闲。
+		 */
+		status: { channel: "memory:projectStatus", remote: false, why: "后台抽取跑在桌面端" },
+		extract: { channel: "memory:projectExtract", remote: false, why: "后台抽取跑在桌面端" },
+		list: { channel: "memory:projectList", remote: false, why: "记忆页面只在桌面端；手机上没有它" },
+		forget: { channel: "memory:projectForget", remote: false, why: "记忆页面只在桌面端；手机上没有它" },
+		forgetExtracted: { channel: "memory:projectForgetExtracted", remote: false, why: "记忆页面只在桌面端；手机上没有它" },
+		forgetAll: { channel: "memory:projectForgetAll", remote: false, why: "记忆页面只在桌面端；手机上没有它" },
 	},
 	diff: {
-		workspaceDiff: { channel: "diff:workspace" },
-		blob: { channel: "diff:blob" },
+		workspaceDiff: { channel: "diff:workspace", remote: false, why: "手机上没有审阅改动的界面" },
+		blob: { channel: "diff:blob", remote: false, why: "手机上没有审阅改动的界面" },
 	},
 } as const satisfies Record<string, Record<string, Method>>;
 
@@ -324,3 +386,22 @@ export const METHODS = {
 export const CHANNELS: readonly string[] = Object.values(METHODS).flatMap((group) =>
 	Object.values(group).map((method) => method.channel),
 );
+
+/**
+ * The methods the phone may call, as `group.method`.
+ *
+ * This is what `sync-rpc.ts` implements. A method here without an implementation is a hole; an
+ * implementation without an entry here is unreachable. The test asserts both directions.
+ */
+export const REMOTE_METHODS: readonly string[] = Object.entries(METHODS).flatMap(([group, methods]) =>
+	Object.entries(methods)
+		.filter(([, method]) => method.remote)
+		.map(([name]) => `${group}.${name}`),
+);
+
+/** Look one up by `group.method`, for code that has a name and wants the rest. */
+export function methodFor(path: string): Method | undefined {
+	const [group, name] = path.split(".");
+	if (!group || !name) return undefined;
+	return (METHODS as Record<string, Record<string, Method>>)[group]?.[name];
+}

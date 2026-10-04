@@ -13,7 +13,7 @@ import { ChevronRight, Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectDialog } from "../modals/index.ts";
-import { available } from "../../services/index.ts";
+import { onPhone } from "../../services/index.ts";
 import { Collapsible } from "./Collapsible.tsx";
 import type { Grouped } from "../../lib/sidebar-grouping.ts";
 import { ProjectGroup, SESSION_PAGE } from "./ProjectGroup.tsx";
@@ -123,9 +123,9 @@ export function ProjectList({
 						 * other intent — adding one — and the list of them is where you are when
 						 * you have it.
 						 */
-						// A project is a settings entry, which a browser through Web access cannot write.
+						// A project is a settings entry, which a phone may not write (see phone-settings.ts).
 						action={
-							available("settings", "save") && <IconButton
+							!onPhone() && <IconButton
 								size="sm"
 								label={translate("project.new")}
 								onClick={() => setCreating(true)}

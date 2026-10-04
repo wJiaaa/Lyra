@@ -32,6 +32,18 @@
       ],
       "project": ["src/**/*.{ts,tsx}", "electron/**/*.ts", "shared/**/*.ts"]
     },
+    "packages/mobile": {
+      "entry": ["app/**/*.tsx", "test/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx}", "app/**/*.{ts,tsx}"],
+      // Off because knip loads `metro.config.js` to read it, and `withNativeWind` resolves
+      // `tailwind.config` by bare name from a directory knip is not in — so the run reported a
+      // module-not-found error that had nothing to do with this repository's code.
+      "metro": false
+    },
+    "packages/relay": {
+      "entry": ["server.mjs", "test/**/*.test.ts"],
+      "project": ["*.mjs"]
+    },
     "packages/registry-shared": {
       "entry": ["test/**/*.test.ts"],
       "project": ["src/**/*.ts"]
@@ -56,6 +68,21 @@
     "git-cliff",
 
     "tailwindcss",
+
+    // Named as a string by the Babel config the native build assembles, never imported by us.
+    //
+    // `expo export` does not need it declared: `babel-preset-expo` requires the plugin from its
+    // own directory. The native build takes another path — Xcode's bundle phase runs
+    // `expo export:embed`, which resolves that plugin by name from the project root, where pnpm
+    // puts only what the package declares. Without the dependency the iOS archive fails at the
+    // JavaScript bundle with "Cannot find module '@babel/plugin-transform-react-jsx'".
+    "@babel/plugin-transform-react-jsx",
+
+    // The phone app's config plugins and NativeWind's runtime, named in `app.json` and the Babel
+    // config rather than imported.
+    "expo-updates",
+    "expo-system-ui",
+    "react-native-css-interop",
     "@modelcontextprotocol/sdk"
   ],
 
@@ -63,6 +90,7 @@
   // not need them: `rg` for grep, `bwrap` for the Linux sandbox, `ffmpeg` to encode the recording
   // an e2e probe makes, `objdump` for the glibc check that runs after a Linux package is built,
   // `sips` (part of macOS) to crop an e2e probe's screenshots, `mkfifo` (part of every POSIX
-  // system) for a test that is skipped on Windows.
-  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump", "sips", "mkfifo"]
+  // system) for a test that is skipped on Windows, `tasklist` (part of Windows) for the relay test
+  // that weighs the relay process there.
+  "ignoreBinaries": ["rg", "bwrap", "ffmpeg", "objdump", "sips", "mkfifo", "tasklist"]
 }

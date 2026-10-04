@@ -1,4 +1,5 @@
 import { translate } from "../../../i18n/translate.ts";
+import { onPhone } from "../../../services/index.ts";
 import { ArrowDown, ChevronRight } from "lucide-react";
 import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { entryKey, SOURCE_LABEL, STATUS_LABEL, type Entry } from "@plume/core/trajectory-view";
@@ -14,7 +15,7 @@ export const TraceList = memo(function TraceList({ entries, selected, onSelect, 
 	focused?: ReadonlySet<string> | null; paused?: boolean; onFollowing?: (following: boolean) => void;
 	collapsed: Set<number>; onCollapse: (turn: number) => void; target: string | null;
 }) {
-	const height = 36;
+	const height = onPhone() ? 44 : 36;
 	const viewport = useRef<HTMLDivElement>(null);
 	const follow = useRef(true);
 	const [seen, setSeen] = useState(entries.length);

@@ -12,11 +12,13 @@
 import { Brain, ChevronDown } from "lucide-react";
 import { useI18n } from "../../i18n/index.ts";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
+import { onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useScopedMeta } from "../../app/session-scope.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { sessionThinking } from "../../lib/thinking.ts";
 import { EffortMenu, effortLabel, type ThinkingSelection } from "./EffortMenu.tsx";
+import { EffortMeter } from "./EffortMeter.tsx";
 import { findModel } from "./models.ts";
 
 export function EffortTrigger({
@@ -55,9 +57,16 @@ export function EffortTrigger({
 					menu.open ? "bg-card-hover text-ink" : "text-ink hover:bg-card-hover"
 				}`}
 			>
-				<Brain size={16} className="shrink-0" aria-hidden />
-				<RollingText>{label}</RollingText>
-				<ChevronDown size={14} className="shrink-0 text-ink-muted" aria-hidden />
+				{/* A phone draws the level rather than naming it, so the row is as wide in every language. */}
+				{onPhone() ? (
+					<EffortMeter level={level} model={model} />
+				) : (
+					<>
+						<Brain size={16} className="shrink-0" aria-hidden />
+						<RollingText>{label}</RollingText>
+						<ChevronDown size={14} className="shrink-0 text-ink-muted" aria-hidden />
+					</>
+				)}
 			</button>
 			{menu.open && !disabled && <EffortMenu anchor={menu.anchor} onClose={menu.close} selection={selection} />}
 		</>

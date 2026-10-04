@@ -19,7 +19,7 @@ export function slimSnapshot<T extends { messages: Message[] }>(snapshot: T): T 
 	/*
 	 * 窗口看得见的附件，它的文件面板也打得开——见 `attachment-reads.ts`。
 	 *
-	 * 挂在这里，因为这是转录交给窗口的共同出口：冷读、活会话的快照、网页访问那一侧，三条路都经过它。挂在
+	 * 挂在这里，因为这是转录交给窗口的共同出口：冷读、活会话的快照、手机那一侧，三条路都经过它。挂在
 	 * 任何一个调用方里，另外两条路上的附件点「预览」就只剩一句「无法读取」。
 	 */
 	noteAttachments(snapshot.messages);

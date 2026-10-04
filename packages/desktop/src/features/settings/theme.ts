@@ -82,7 +82,7 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * placeholder, the off switch's 关. Only light themes: on a dark page the same thin stroke is a
 	 * light line on dark and does not fade the same way.
 	 *
-	 * `data-ly-platform` rather than `window.plume.platform`, which in a Web access browser names the desktop.
+	 * `data-ly-platform` rather than `window.plume.platform`, which on a phone names the desktop.
 	 */
 	const thinType = !dark && document.documentElement.dataset.lyPlatform === "win32";
 	/** A wash of the foreground at a given opacity — reads against any backdrop, including none. */

@@ -1,6 +1,6 @@
 # ADR-0001：手机跑桌面端的界面，不自己画一套
 
-- 状态：已被 [ADR-0026](0026-remove-mobile-and-relay.md) 取代（移动端与中转已移除）
+- 状态：已采纳（曾被 ADR-0026 取代，由 [ADR-0036](0036-restore-mobile-and-relay.md) 恢复）
 - 日期：2026-09-03（追记，实现于 v0.8.36）
 - 相关：`packages/desktop/electron/sync-app.ts`、`packages/mobile/src/bridge.ts`、`packages/mobile/app/desk.tsx`
 

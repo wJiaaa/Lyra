@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Plume",
+    "slug": "plume",
+    "version": "0.9.23",
+    "icon": "../../assets/plume.png",
+    "orientation": "default",
+    "scheme": "plume",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "backgroundColor": "#171717",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.plume.app",
+      "buildNumber": "9023",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "android": {
+      "package": "dev.plume.app",
+      "versionCode": 9023,
+      "icon": "../../assets/plume.png",
+      "adaptiveIcon": {
+        "foregroundImage": "../../assets/plume.png",
+        "backgroundColor": "#171717"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "扫描桌面端的二维码，一步完成配对。"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

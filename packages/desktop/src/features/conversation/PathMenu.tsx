@@ -38,8 +38,8 @@ export interface PathMenuTarget {
  * Right-click handling for paths, and the menu that goes with it.
  *
  * `root` is the conversation's project, for 复制相对路径; a file outside it gets only the full path.
- * On a host that can open nothing — a browser through Web access — the event is left alone and no
- * menu appears, rather than a menu of rows that do nothing when pressed.
+ * On a host that can open nothing — the phone — the event is left alone and no menu appears, rather
+ * than a menu of rows that do nothing when pressed.
  */
 export function usePathMenu(root: string | null) {
 	const menu = useContextMenu<PathMenuTarget>();

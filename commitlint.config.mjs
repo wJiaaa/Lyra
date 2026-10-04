@@ -26,7 +26,7 @@ export default {
 		"scope-enum": [
 			1,
 			"always",
-			["core", "desktop", "electron", "ui", "cli", "registry", "release", "deps"],
+			["core", "desktop", "electron", "ui", "mobile", "relay", "cli", "registry", "sync", "release", "deps"],
 		],
 		"header-max-length": [2, "always", 100],
 		// Bodies carry pasted output, paths and stack traces. Wrapping those would corrupt them.

@@ -88,7 +88,7 @@
 
 **判据**：动画期间不触发 layout。只允许 `transform` / `opacity` / `filter`。
 
-**现状**：✅ 全仓扫出三处在过渡布局属性，逐个看过：
+**现状**：✅ 全仓扫出四处在过渡布局属性，逐个看过：
 
 - ✅ **已改** `motion.css` 的 `top` → `translate(x, var(--ly-preview-y))`，和进场那 4px 横移
   合成同一个 transform。问题导航的浮层在几十项之间移动时不再触发布局。
@@ -96,6 +96,7 @@
   影响被圈在输入框里出不去。
 - 例外 `composer.css:276` 的 `height`：textarea 的高度必须是真高度，`transform` 缩放会把
   里面的字一起缩。
+- 例外 `phone.css:366` 的 `padding-bottom`：手机端跟随软键盘，桌面不走这条。
 
 `grid-template-rows: 0fr→1fr`（`.ly-reveal`）也是布局动画，但它是「动到一个没人量过的
 高度」的唯一办法，同属有理由的例外。

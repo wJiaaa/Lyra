@@ -541,8 +541,7 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 			{/*
 			 * 按能力画，不按平台画。
 			 *
-			 * 浏览器里（Web 访问）这两个 API 不存在——打开的会是桌面那台机器上的文件，画出来是两个按下去
-			 * 什么都不会发生的图标，比没有更糟。
+			 * 手机上这两个 API 根本不存在——画出来是两个按下去什么都不会发生的图标，比没有更糟。
 			 * `available()` 问的正是这件事，所以这里不需要知道自己跑在什么上面。
 			 */}
 			{(canOpen || canReveal) && (

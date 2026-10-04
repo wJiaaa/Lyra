@@ -1,7 +1,7 @@
 /**
- * What a browser is allowed to send.
+ * What the phone is allowed to send.
  *
- * The old phone allowlist used one helper for this: `s(value)`, which turns anything that is not a string
+ * `sync-rpc.ts` used one helper for this: `s(value)`, which turns anything that is not a string
  * into `""`. That is not validation, it is coercion — a number, an object or a null arrives as an
  * empty string and travels on into the session store, which then looks up a session called "".
  * The failure surfaces somewhere else entirely, as a missing session rather than a bad request.
@@ -64,8 +64,9 @@ export function nullableStr(value: unknown, name: string, max = MAX_ID): Checked
 /**
  * An absolute path. Relative paths are refused here rather than resolved somewhere surprising.
  *
- * Both platforms' rules, always — not this machine's. A browser on a Mac may be driving a Windows
- * desktop, and a path is absolute according to the machine that will open it.
+ * Both platforms' rules, always — not this machine's. The phone may be paired with a Windows
+ * desktop while this check happens to be compiled for it either way, and a path is absolute
+ * according to the machine that will open it.
  *
  * `isAbsolute` rather than a regular expression, and that is a repository-specific rule with a
  * history: `risk.ts` once identified absolute paths by hand and every such check was simply false

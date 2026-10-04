@@ -502,16 +502,32 @@ export interface Settings {
 	autoUpdatePlugins?: boolean;
 	/** Rules the user chose to always allow, keyed by tool kind. */
 	alwaysAllow: string[];
-	/**
-	 * Web access: the desktop serving its own interface to browsers on the local network.
-	 *
-	 * `token` is the secret in the link the settings page hands out; it is kept here so the link
-	 * survives a restart, and never leaves this machine except inside that link.
-	 */
-	webAccess: {
+	sync: {
 		enabled: boolean;
 		port: number;
+		/** Shared secret a mobile client presents to pair. Regenerated on demand. */
 		token: string | null;
+		/**
+		 * Where the phone should be told to connect, when that is not a LAN address.
+		 *
+		 * The addresses this machine can enumerate are the ones it holds itself, and none of them
+		 * mean anything to a phone on mobile data or on the other side of a NAT. Someone reaching
+		 * this desktop through a reverse proxy, a tunnel or a port forward knows the name it answers
+		 * to and this machine cannot; it is the one fact about the connection that has to be typed.
+		 *
+		 * A host, optionally with a scheme and a port — `plume.example.com`, `https://plume.example.com`,
+		 * `203.0.113.9:8443`. Empty means pair over the LAN, which is the ordinary case.
+		 */
+		publicUrl?: string;
+		/**
+		 * The relay to reach this desktop through when neither side can hear the other.
+		 *
+		 * Distinct from `publicUrl`, which assumes something out there already routes to this
+		 * machine. A relay assumes nothing: the desktop dials *out* to it and the phone dials out
+		 * to it too, so it works from behind the kind of NAT that has no port to forward. Empty
+		 * means no relay, and the pairing code carries a LAN or public address instead.
+		 */
+		relayUrl?: string;
 	};
 	editor: {
 		defaultOpenTarget: string;
@@ -591,12 +607,12 @@ export const DEFAULT_SETTINGS: Settings = {
 	 *
 	 * Its whole point is that "never asked" is a third state, and an absent key is how that is
 	 * spelled. Written out as `undefined` it becomes a key that exists and holds nothing, which
-	 * reads to `Object.keys` as a field somebody deleted.
+	 * reads to `Object.keys` — and so to the phone-settings merge — as a field somebody deleted.
 	 */
 	pluginRegistries: [DEFAULT_PLUGIN_REGISTRY],
 	skillRegistries: [DEFAULT_SKILL_REGISTRY],
 	alwaysAllow: [],
-	webAccess: { enabled: false, port: 4517, token: null },
+	sync: { enabled: false, port: 4517, token: null },
 	editor: { defaultOpenTarget: "zed", showBottomPanel: true },
 	screenshot: DEFAULT_SCREENSHOT_SETTINGS,
 	searchApiKeys: {},
@@ -803,7 +819,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			...parsed,
 			uiLocale: normalizeUiLocale(parsed.uiLocale),
 			retryPolicy: normalizeRetryPolicy(parsed.retryPolicy),
-			webAccess: { ...DEFAULT_SETTINGS.webAccess, ...parsed.webAccess },
+			sync: { ...DEFAULT_SETTINGS.sync, ...parsed.sync },
 			editor: { ...DEFAULT_SETTINGS.editor, ...parsed.editor },
 			screenshot: { ...DEFAULT_SCREENSHOT_SETTINGS, ...parsed.screenshot },
 			personalization: { ...DEFAULT_SETTINGS.personalization, ...parsed.personalization },
@@ -823,8 +839,9 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			 * one holding `undefined`.
 			 *
 			 * The two are the same to every reader — `settings.memoryExtraction` is undefined either
-			 * way — and different to `Object.keys`, to which a key that is always there and always
-			 * undefined reads as a field somebody deleted.
+			 * way — and different to `Object.keys`, which is what the merge that keeps a phone from
+			 * dropping fields walks. A key that is always there and always undefined reads to that
+			 * merge as a field the phone deleted.
 			 */
 			...(typeof parsed.memoryExtraction === "boolean" ? { memoryExtraction: parsed.memoryExtraction } : {}),
 			subAgentProfiles: normalizeSubAgentProfiles(parsed.subAgentProfiles),
@@ -852,8 +869,8 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
  * Write the settings, with the API keys taken out of them.
  *
  * The keys go to the vault and the file gets an empty string in their place. `settings.json` is
- * the most-travelled file this app owns — it is copied between machines and pasted into bug
- * reports — and it was written world-readable with every provider key in it.
+ * the most-travelled file this app owns — it is synced to the phone, copied between machines and
+ * pasted into bug reports — and it was written world-readable with every provider key in it.
  *
  * Removed providers are forgotten in the same pass. A key whose provider is gone is a secret with
  * nothing to spend it on, and leaving it behind would mean deleting a provider does not delete its

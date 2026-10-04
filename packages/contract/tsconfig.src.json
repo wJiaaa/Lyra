@@ -5,7 +5,7 @@
      * No `lib` beyond the language, and no `types` at all.
      *
      * This is what keeps the package portable. Its three consumers are the main process, the
-     * preload and — through the renderer the Web access page loads — a browser; a `node:` type creeping in
+     * preload and — through the renderer the phone loads — a browser; a `node:` type creeping in
      * here would compile fine and then be a runtime import in a place that has no `node:`.
      */
     "lib": ["ES2023"],

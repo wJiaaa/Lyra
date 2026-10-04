@@ -1,6 +1,6 @@
 # ADR-0027：Web 访问——桌面端把自己的界面发给浏览器
 
-- 状态：已采纳
+- 状态：已被 [ADR-0036](0036-restore-mobile-and-relay.md) 取代（Web 访问已撤掉，改用手机端与同步服务）
 - 日期：2026-09-27
 - 相关：部分恢复 [ADR-0001](0001-mobile-hosts-the-desktop-renderer.md) 的「一份界面、两个宿主」；
   修订 [ADR-0026](0026-remove-mobile-and-relay.md)、[ADR-0012](0012-one-contract-not-three.md)

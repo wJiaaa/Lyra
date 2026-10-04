@@ -101,8 +101,8 @@ export function FileViewer({
 			{!richPreview && ["image", "video", "audio", "sheet", "pdf", "document"].includes(kind) ? (
 				<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
 					<FileWarning size={26} strokeWidth={1.4} className="text-ink-faint" />
-					<p className="text-label text-ink-muted">{translate("fileViewer.webNoPreview")}</p>
-					<p className="text-detail text-ink-faint">{translate("fileViewer.webTextOnly")}</p>
+					<p className="text-label text-ink-muted">{translate("fileViewer.mobileNoPreview")}</p>
+					<p className="text-detail text-ink-faint">{translate("fileViewer.textAndCode")}</p>
 				</div>
 			) : kind === "image" ? (
 				// Zoom and pan, because an icon and a screenshot are both images and neither is

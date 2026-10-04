@@ -5,8 +5,8 @@
  * 回收站), and the Linux desktops say "file manager" and Trash. Copy written for one of them sends
  * somebody on another looking for a program that is not there — 「可以在访达里找回」 on a PC.
  *
- * Chosen by the machine the files are on (`bridge.platform`): the bin in question is that
- * machine's. The words stay in the catalogs, one key per
+ * Chosen by the machine the files are on (`bridge.platform`, which on a phone is the desktop it is
+ * paired with): the bin in question is that machine's. The words stay in the catalogs, one key per
  * system, because a bin's name is not a slot to fill — French puts an article on it, and English
  * says "the Trash" but not "the File Explorer".
  */

@@ -865,6 +865,55 @@
 }
 
 /*
+ * On a device without hover the exits stay out, inside the chip after the filename.
+ *
+ * The bar assumes a pointer will stop on the chip first; on a screen that only has fingers it would
+ * never appear, and the two exits would not exist. Always visible, it cannot float either (it would
+ * cover the line above for good), so it goes back into the chip without the card's fill, hairline
+ * and shadow, and without facing the pointer (the `--ly-file-actions-x` left by the last hover would
+ * only push a gap in after the filename). The buttons keep their 22px hit area, with 3.5px of
+ * negative margin top and bottom so the line is not pushed taller.
+ *
+ * The selectors weigh the same as the rules above and win by coming last; the card's has to outweigh
+ * the `:root.dark` shadow.
+ */
+@media (hover: none) {
+  [data-ly-file-link][data-ly-file-actions-side] > [data-ly-file-actions] {
+    position: static;
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    padding: 0;
+    margin-inline: 2px -4px;
+    pointer-events: auto;
+    transition: none;
+  }
+
+  [data-ly-file-actions-bar],
+  :root.dark [data-ly-file-actions-bar] {
+    gap: 0;
+    padding: 0;
+    margin-inline-start: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  [data-ly-file-actions-bar]::after {
+    content: none;
+  }
+
+  [data-ly-file-actions-bar] > button {
+    margin-block: -3.5px;
+  }
+
+  /* A tap leaves hover stuck on; the chip should not stay dark because of it. */
+  [data-ly-file-link]:hover {
+    background: var(--color-card-hover);
+  }
+}
+
+/*
  * 一段大到画不动的正文，切开之后的那些片。
  *
  * `content-visibility: auto` 是这里唯一起作用的东西：屏幕外的片浏览器不去布局也不去画。一条

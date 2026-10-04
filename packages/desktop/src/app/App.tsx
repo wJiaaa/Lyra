@@ -22,7 +22,6 @@ import { SessionWindow } from "./window/SessionWindow.tsx";
 import { PanelWindow } from "./window/PanelWindow.tsx";
 import { watchPanelWindows } from "../features/dock/index.ts";
 import { LayoutProvider, NavPane, useLayout, useSidebarFit } from "./layout.tsx";
-import { WebConnectionBanner } from "./WebConnectionBanner.tsx";
 import { useShortcuts } from "./shortcuts.ts";
 import { useSide } from "../features/dock/index.ts";
 import { useApp } from "../store/index.ts";
@@ -41,6 +40,9 @@ import { useBrowserWorkspace } from "../features/browser/index.ts";
  * `lazy` rather than a hand-rolled dynamic import: React already knows how to hold the tree still
  * while a chunk arrives, and doing it by hand means a second state machine that has to agree with
  * the first about what "loading" means.
+ *
+ * The phone is why this is worth doing at all. It loads the same bundle over the network, and
+ * through a relay that crosses the public internet twice.
  */
 /*
  * Pointed at the component file, not at the domain's `index.ts`.
@@ -71,8 +73,9 @@ import { watchFilePanelState } from "../store/file-panel-handoff.ts";
 import { useSchedulerNotices } from "../features/scheduled/index.ts";
 import { useTerminalPrewarm } from "../features/terminal/index.ts";
 import { applyAppearance, watchSystemTheme } from "../features/settings/index.ts";
-import { bridge } from "../services/index.ts";
+import { bridge, onPhone } from "../services/index.ts";
 import { I18nProvider, useI18n } from "../i18n/index.ts";
+import { PhoneTouch } from "../mobile/PhoneTouch.tsx";
 
 export function App() {
 	const ready = useApp((s) => s.ready);
@@ -181,6 +184,12 @@ export function App() {
 			 */}
 			<ImageViewer />
 			{/*
+			 * Long press, on a phone only: the menus a pointer reaches by hovering and right-clicking.
+			 * Mounted once and listening to the document, like the drawer's own gesture — see
+			 * `PhoneTouch`.
+			 */}
+			{onPhone() && <PhoneTouch />}
+			{/*
 			 * Cut/copy/paste for every plain text field, mounted once for the same reason.
 			 *
 			 * Electron draws no context menu of its own, so without this right-clicking the composer
@@ -244,7 +253,6 @@ function Shell() {
 					<SettingsShell />
 				</LazyScreen>
 			</Activity>}
-			<WebConnectionBanner />
 		</>
 	);
 }
@@ -256,7 +264,8 @@ function Shell() {
  * the pane keeps its old contents until the chunk lands, so clicking 「插件」 would leave the
  * conversation on screen and look like the click was missed. A skeleton says the click was heard.
  *
- * Usually invisible — the chunk is on the same disk and arrives within a frame or two.
+ * Usually invisible — the chunk is on the same disk and arrives within a frame or two. It is the
+ * phone, loading the same bundle across a relay, that this is for.
  */
 function LazyScreen({ children, shape }: { children: React.ReactNode; shape: "settings" | "plugins" | "pull-requests" | "scheduled" }) {
 	const fallback =

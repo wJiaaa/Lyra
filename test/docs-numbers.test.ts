@@ -45,7 +45,7 @@ const architecture = read("ARCHITECTURE.md");
 
 test("包的数目", () => {
 	const actual = dirsIn("packages").length;
-	assert.equal(actual, 5, "先确认现数是多少，再看文档");
+	assert.equal(actual, 7, "先确认现数是多少，再看文档");
 	for (const written of counts(agents, "个包")) {
 		assert.equal(written, actual, "AGENTS.md 里写的包数和 packages/ 下的目录数对不上");
 	}
@@ -63,7 +63,7 @@ test("功能域的数目", () => {
 
 test("渲染进程顶层目录的数目", () => {
 	const actual = dirsIn("packages/desktop/src").length;
-	assert.equal(actual, 9);
+	assert.equal(actual, 10);
 	for (const source of [agents, architecture, read("docs/adr/0011-renderer-is-nine-directories.md")]) {
 		for (const written of counts(source, "个目录").concat(counts(source, "个顶层目录"))) {
 			assert.equal(written, actual);
@@ -114,7 +114,7 @@ test("e2e 稳定失败的清单，要么在 testing.md 里，要么文档承认�
 });
 
 /*
- * 版本号那八处已经有 `test/version-sync.test.ts` 守着，这里不重复。
+ * 版本号那九处已经有 `test/version-sync.test.ts` 守着，这里不重复。
  * 下面这条守的是另一件事：`pnpm arch` 的输出里必须还有那个数，否则棘轮就退回成一句口号。
  */
 test("pnpm arch 仍然把循环依赖的数目印出来", () => {

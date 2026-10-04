@@ -1,6 +1,6 @@
 # ADR-0012：进程边界写在一处，不是三处
 
-- 状态：已采纳；手机那一侧（`sync-rpc.ts` 与每个方法的 `remote` 声明）随 [ADR-0026](0026-remove-mobile-and-relay.md) 移除
+- 状态：已采纳；手机那一侧（`sync-rpc.ts` 与每个方法的 `remote` 声明）曾随 ADR-0026 移除，由 [ADR-0036](0036-restore-mobile-and-relay.md) 恢复
 - 日期：2026-09-03
 - 相关：`packages/contract/`、`packages/desktop/electron/sync-rpc.ts`
 

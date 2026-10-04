@@ -50,7 +50,7 @@ import {
 import { awaitingSubAgents } from "../../store/subAgents.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { useJobReveal } from "./job-reveal.ts";
-import { available, bridge } from "../../services/index.ts";
+import { available, bridge, onPhone } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
 /** 输入框里挂着的一份附件——和侧边聊天、子智能体那两个框是同一个形状，见 `attachments/read.ts`。 */
@@ -511,8 +511,9 @@ export function Composer({ centered = false }: {
 
 	return (
 		/*
-		 * `ly-composer-dock`: the strip along the bottom of the conversation, named so the stylesheet
-		 * can find it — see `composer.css`.
+		 * `ly-composer-dock`: the strip along the bottom of the conversation, named so the phone can
+		 * find it. It is the one thing that has to move when a keyboard slides over the window —
+		 * the transcript above it stays put and keeps its scroll position. See `--ly-keyboard`.
 		 */
 		<div className="ly-composer-dock shrink-0" data-compact={compact || undefined} data-center={centered || undefined}>
 			<div ref={column} className="mx-auto w-full max-w-[var(--ly-content)]">
@@ -701,7 +702,8 @@ export function Composer({ centered = false }: {
 						if (event.defaultPrevented) return;
 						history.keyDown(event);
 					}}
-					placeholder={t("composer.placeholder")}
+					// A phone's field is one line of a thumb's width, and the full hint wraps in most languages.
+					placeholder={t(onPhone() ? "phone.composerPlaceholder" : "composer.placeholder")}
 					onFiles={(picked) => void kit.addFiles(picked)}
 					attachments={
 						/*

@@ -17,6 +17,7 @@ import { nextPanelKind } from "../../lib/panel-instance.ts";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";
 import { MAIN_WINDOW_ROW_OFFSET, NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
+import { onPhone } from "../../services/host.ts";
 
 /*
  * The update chip used to have a slot of its own here, just past the sidebar toggle.
@@ -127,6 +128,7 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 	const { t } = useI18n();
 	const menu = usePopover();
 	const definitions = usePanelDefinitions();
+	const phone = onPhone();
 	const { compact } = useLayout();
 	const tree = usePaneDock((s) => s.trees[scope] ?? emptyDockTree);
 	const toggle = (kind: PanelKind) => toggleScopedPanel(scope, kind, { compact });
@@ -137,7 +139,7 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 		<>
 			<div className="flex items-center gap-0.5">
 				<span data-ly-panel-quick className="contents">
-				{QUICK.map((kind) => {
+				{(phone ? (["tasks", "chat"] as PanelKind[]) : QUICK).map((kind) => {
 					const def = definitions.find((entry) => entry.kind === kind);
 					// Absent rather than disabled when it cannot be opened: a row of greyed buttons
 					// is a row of things you have to read before you can ignore them. The menu still
@@ -148,7 +150,7 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 					return (
 						<ToolbarButton
 							key={kind}
-							label={`${t(def.label)} ${def.shortcut}`}
+							label={phone ? t(def.label) : `${t(def.label)} ${def.shortcut}`}
 							active={!many && has(tree, kind)}
 							onClick={() => (many ? open(nextPanelKind(kind, (each) => has(tree, each))) : toggle(kind))}
 						>
@@ -186,7 +188,7 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 								<MenuItem
 									key={def.kind}
 									icon={<def.icon size={16} strokeWidth={1.7} />}
-									hint={def.shortcut}
+									hint={phone ? undefined : def.shortcut}
 									// A tick, not a highlight: this is a set of things that are either
 									// in the window or not, and every row is independently either.
 									trailing={shown ? <Check size={13} strokeWidth={2.2} className="shrink-0 text-ink" /> : undefined}
@@ -229,6 +231,8 @@ export function WindowButtons({
 	const { titlebar } = useLayout();
 	return (
 		<div
+			/* Found by the phone's stylesheet, which puts this under the drawer rather than over it. */
+			data-ly-window-buttons=""
 			className="no-drag absolute z-[60] flex items-center gap-0.5"
 			/*
 			 * Past whatever the system drew in this corner: the traffic lights on macOS, nothing on

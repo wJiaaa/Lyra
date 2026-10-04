@@ -60,7 +60,7 @@ export function onSettingsChanged(listener: Listener): () => void {
  * 已经生效了。让异常冒出去，调用方拿到的是一个 rejected promise，于是窗口回滚显示旧值，
  * 而磁盘上是新值：一次成功的保存，看起来像一次失败，两边还对不上。
  *
- * 撞到的那次是当时的手机同步服务（已移除）：端口被另一个进程占着，启动抛了 EADDRINUSE，于是在设置页
+ * 撞到的那次是同步服务：端口被另一个进程占着，`startSync` 抛了 EADDRINUSE，于是在设置页
  * **改任何一项**都会失败——改主题、换模型、开个开关，全都一样，而屏幕上只有那个控件默默弹回去。
  */
 export async function applySettings(next: Settings): Promise<Settings> {

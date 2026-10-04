@@ -29,8 +29,8 @@ export interface HubDeps {
 	store(): SessionStorage;
 	settings(): Settings;
 	window(): BrowserWindow | null;
-	/** Events also go to connected browsers, while Web access is on. */
-	web?(): {
+	/** Events also go to connected phones, when the sync server is up. */
+	sync?(): {
 		broadcast(sessionId: string, event: AgentEvent): void;
 		broadcastSideChat(sessionId: string, sideId: string, event: import("@plume/core").SideChatUpdate): void;
 		broadcastSessionChange(change: SessionChange): void;
@@ -205,12 +205,12 @@ export async function revertSessionMessage(sessionId: string, index: number): Pr
 
 export function broadcastSessionChange(change: SessionChange): void {
 	eachAppWindow((win) => win.webContents.send("sessions:changed", change));
-	deps.web?.()?.broadcastSessionChange(change);
+	deps.sync?.()?.broadcastSessionChange(change);
 }
 
 export function broadcast(sessionId: string, event: AgentEvent): void {
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
-	deps.web?.()?.broadcast(sessionId, event);
+	deps.sync?.()?.broadcast(sessionId, event);
 	notifyAgentEvent(sessionId, event, sessions.get(sessionId)?.meta.title);
 }
 
@@ -219,7 +219,7 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
  */
 export function broadcastSideChat(sessionId: string, sideId: string, event: import("@plume/core").SideChatUpdate): void {
 	eachAppWindow((win) => win.webContents.send("sidechat:event", { sessionId, sideId, event }));
-	deps.web?.()?.broadcastSideChat(sessionId, sideId, event);
+	deps.sync?.()?.broadcastSideChat(sessionId, sideId, event);
 }
 
 export async function getOrCreateSession(cwd: string, _modelId: string): Promise<AgentSession> {

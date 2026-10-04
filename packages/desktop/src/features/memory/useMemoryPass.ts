@@ -19,7 +19,7 @@ export function useMemoryPass(): void {
 	const enabled = useApp((s) => s.settings?.memoryExtraction === true && s.settings?.personalization?.enableProjectMemory !== false);
 
 	useEffect(() => {
-		// The desktop runs its own pass; a browser through Web access has nothing to add to it.
+		// The desktop runs its own pass; a phone has nothing to add to it.
 		if (!cwd || running || !enabled || !available("projectMemory", "status")) return;
 		let cancelled = false;
 
