@@ -2,6 +2,84 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.23](https://github.com/wJiaaa/Plume/releases/tag/v0.9.23) - 2026-10-04
+<!-- plume:notes en -->
+
+### Before you update
+
+- **Conversations from 0.9.22 do not carry over.** Conversations are now kept in one database, `~/.plume/sessions/sessions.db`, instead of one file each. The old files are left where they are but are no longer read, so the sidebar starts empty after updating.
+
+### New
+
+- **Background commands report back when they finish.** When a command started in the background exits, its exit code and output go back to the conversation: into the current turn if one is running, or as a new turn if the conversation is idle. The model no longer has to keep calling `bash_output` to check on it; one real conversation spent 6 requests doing that for 3 commands. In the conversation it shows as one line with the command, whether it succeeded, and the exit code. Clicking it opens the Tasks panel at that task, where each background task expands into a read-only terminal that follows its output.
+- **"Continue" picks up the same subagent** after the app was restarted or the turn was stopped. Before, the subagent's id was lost and the model started a new one, which read the same files again. A subagent you closed in the panel stays closed after reopening.
+- **Quitting during a tool call is recorded as it happened.** After a crash, a force quit, or quitting while a tool was running, reopening the conversation shows where each call stopped. A call that was running keeps the output it had printed and is marked as possibly having taken effect. A call that was waiting for approval or had not started is grey "Stopped", and the model is told it did not run. Nothing is resumed or run again by itself.
+- **Subagents can open the `artifact://` and `scratch://` addresses** the main conversation passes them. They used to get "File not found". Long output cut from a subagent's context can now be read back in full.
+- **Replies stream in smoothly.** Text arrives at an even pace and fades in, and half-written Markdown (bold, inline code, links) no longer flickers between two renderings. Code blocks stay fast while streaming: on a 300-line block at 150 characters a second, frames over 33ms went from 358 to 1. At the bottom of the window, the transcript follows the reply smoothly instead of jumping a line at a time.
+- **Models settings, redesigned.** Providers are listed on the left, connection and models are in cards on the right. Rename and delete sit next to the on/off switch instead of in the ⋯ menu. The Test button shows the result itself: the latency when it passes, red when it fails, with the reason next to the API key.
+- **New Plume icon.** The app icon has its own background, so macOS 26 no longer puts a grey plate behind it. The Dock icon is light blue or bright blue depending on the theme.
+- A new project with no conversations yet has a row in the sidebar, so its first conversation can be started from there.
+- Show more and show less in the sidebar now animate the list height. Rows no longer appear or vanish all at once.
+- The terminal button in the title bar opens a new terminal on every press, like the side chat button. It used to stay highlighted, and a second press closed the terminal.
+
+### Fixes
+
+- **Tool calls from some OpenAI Responses servers could run with empty arguments.** Servers such as llama.cpp that leave out `output_index` could give one parallel call's arguments to another, and the first one ran with `{}`. A call whose arguments were cut off when the stream ended also ran with `{}`; in the case we reproduced, it was a truncated `rm -rf /tmp/build`. Each call now gets its own arguments, and a stream that ends in the middle of a call is retried.
+- **Compaction summaries and memory extraction now appear in Usage.** Both cost money and were never counted.
+- **Changing a global setting briefly turned off the project's `.plume/config.json`**, such as a stricter approval mode. With two quick changes in a row, an older read could also overwrite the newer setting.
+- **Deleting a conversation leaves nothing behind in `~/.plume`.** Images only that conversation used, its side chats, thumbnails, and symbol indexes (a few MB each once its worktree was gone) used to stay. Images another conversation still uses are kept. Leftovers from before are cleaned up at startup, and the screenshot debug log is capped at 256KB.
+- **A message could be lost right after sending it**, if Plume released the conversation as idle at that moment. The same could happen when editing and resending, or reverting to an earlier message.
+- **A message you sent to a running subagent showed up twice** after switching away and back, splitting its tool-call row in two. The subagent panel could also draw a message twice now and then.
+- **Opening a conversation no longer scrolls the whole history past you** when a card or image at the end loads late.
+- **Settings › Index has its own project picker**, defaulting to the first project. It used to follow the open conversation, so seeing another project's index meant opening one of its conversations, and nothing showed when the open conversation had no project.
+- Settings › Plugins, Subagents, Commands and Hooks now share one search box, card and row style, and the subagent and hook editors have breadcrumbs. Deleting a subagent moves it to the Trash, the same as commands and skills.
+- The sidebar scrolls smoothly with many projects: with 200 projects expanded, the slowest 5% of scroll frames went from 192ms to 16.8ms.
+
+### Removed
+
+- The ? circle at the bottom of the sidebar, which did not open anything, and the Guide button at the bottom of the settings navigation, which only went to Models.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 更新之前
+
+- **0.9.22 的会话不会带过来。** 会话现在存在一个数据库 `~/.plume/sessions/sessions.db` 里，不再是一条会话一个文件。旧文件原样留着，但不再读取，所以更新后侧边栏是空的。
+
+### 新功能
+
+- **后台命令跑完会自己回报。** 放到后台的命令结束后，退出码和输出直接送回会话：这一轮还在跑就插进这一轮，会话闲着就开一个新回合。模型不用再一遍遍调 `bash_output` 去查——本机一个真实会话为 3 条后台命令花了 6 次请求。对话里显示成一行：哪条命令、成功还是失败、退出码多少，点它会打开任务面板并定位到那条任务；任务面板里每条后台任务都能展开一个只读终端，实时跟着输出。
+- **应用重启或这一轮被停之后，说「继续」接上的是原来那个子智能体。** 以前子智能体的 id 丢了，模型只能重新派一个，把读过的文件再读一遍。在面板上关掉的子智能体，重开后也不会再回来。
+- **工具调用中途退出，重开时如实交代。** 崩溃、强制退出，或者工具还在跑时退出，重开会话能看到每个调用停在哪一步：正在执行的带着已经打印的输出，标明可能已经生效；等审批的和还没开始的显示为灰色「已停止」，也告诉模型它们没有执行。不会自动续跑，也不会重跑。
+- **子智能体能打开主会话交给它的 `artifact://`、`scratch://` 地址**，以前读到的是「File not found」。子智能体上下文里被剪掉的长输出，现在也能完整取回。
+- **回复平滑地出字。** 字按均匀的速度出来并逐字淡入，写到一半的 Markdown（加粗、行内代码、链接）不再在两种样子之间闪。输出中的代码块也不卡：300 行的代码块、每秒 150 字，超过 33ms 的帧从 358 帧降到 1 帧。输出到窗口底部时，对话平滑地跟着上移，不再一行一顿。
+- **模型设置页换了样子。** 左边是服务商列表，右边连接和模型各一张卡片。重命名和删除从 ⋯ 菜单里拿出来，常驻在开关旁边。「测试」的结果直接显示在按钮上：通过显示延迟，失败变红，原因写在 API Key 那一行。
+- **新的 Plume 图标。** 应用图标自带底色，macOS 26 不会再在后面垫一块灰底；Dock 图标随主题在浅蓝和亮蓝之间切换。
+- 刚建好、还没有会话的项目在侧边栏里有一行，可以从那里开第一个会话。
+- 侧边栏「展开显示」和收起时，列表高度有过渡，不再整段冒出来或消失。
+- 标题栏的终端按钮每点一次新开一个终端，和侧边聊天按钮一样。以前它开着就一直高亮，再点一下反而把终端关掉。
+
+### 修复
+
+- **部分 OpenAI Responses 服务上，工具调用可能以空参数执行。** llama.cpp 这类不带 `output_index` 的服务，并行的两个调用会串参数，前一个以 `{}` 执行；流结束时参数被截断的调用也以 `{}` 执行——我们复现的那次，原文是被截断的 `rm -rf /tmp/build`。现在每个调用拿到各自的参数，调用写到一半流就结束的，整条重试。
+- **压缩摘要和记忆提取花的钱算进「使用统计」了。** 这两类调用一直在花钱，却没有记账。
+- **改全局设置时，项目的 `.plume/config.json`（比如更严格的审批模式）会短暂失效**；连着改两次，旧的读取结果还可能盖掉新设置。
+- **删掉的会话不再在 `~/.plume` 里留东西。** 只有这条会话用到的图片、它的侧边聊天、缩略图和符号索引（工作树清掉后每个还剩几 MB）以前都留着。别的会话还在用的图片会保留。之前留下的在启动时清理，截图调试日志最多 256KB。
+- **消息刚发出去可能丢掉**：那一瞬间会话被当成闲置释放了。编辑重发、回退到之前的消息也有同样的问题。
+- **发给正在运行的子智能体的话，切走再切回会出现两遍**，还会把工具调用那一行切成两段。子智能体面板偶尔也会把同一条消息画两遍。
+- **打开会话时，末尾的卡片或图片晚到，不再把整段历史从眼前滚过去。**
+- **「设置 › 索引库」自己选项目**，默认第一个。以前跟着当前会话走：想看别的项目，只能先去打开它的某个会话；当前会话不属于任何项目时，这一页什么都没有。
+- 设置里的插件、智能体、命令、钩子四页统一成同一个搜索框、同一种卡片和行，智能体和钩子的编辑页有了面包屑。删除智能体改为移入废纸篓，和命令、技能一样。
+- 项目多时侧边栏滚动不再掉帧：200 个项目全展开，最慢的 5% 滚动帧从 192ms 降到 16.8ms。
+
+### 移除
+
+- 侧边栏底部那个点了没反应的 ? 圆圈，以及设置导航底部只会跳到模型设置的「引导」按钮。
+
+</details>
+
 ## [0.9.22](https://github.com/wJiaaa/Plume/releases/tag/v0.9.22) - 2026-09-29
 <!-- plume:notes en -->
 
