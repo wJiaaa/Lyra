@@ -436,7 +436,7 @@ function buildAppWindow(options: {
 		...(canVibrate(options.role) ? { visualEffectState: "active" as const } : {}),
 		// The chrome in the design is drawn by the renderer; keep only the traffic lights.
 		titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-		// 主窗口的顶行在浮起的卡片里，低 5px；会话和面板窗口贴顶。见 `MAIN_WINDOW_ROW_OFFSET`。
+		// The main window's lights are centred in its 40px toolbar; session and panel windows keep the 44px title bar. See `MAIN_TOOLBAR_HEIGHT`.
 		trafficLightPosition: options.role === "primary" ? MAC_MAIN_TRAFFIC_LIGHT_POSITION : MAC_TRAFFIC_LIGHT_POSITION,
 		/*
 		 * Windows/Linux draw their own controls into this strip. The colours are a starting

@@ -15,11 +15,11 @@ import { createElement as h } from "react";
 import {
 	MAC_MAIN_TRAFFIC_LIGHT_POSITION,
 	MAC_TRAFFIC_LIGHT_POSITION,
-	MAIN_WINDOW_ROW_OFFSET,
+	MAIN_TOOLBAR_HEIGHT,
 	NATIVE_HEADER_HEIGHT,
 	WINDOW_HEADER_HEIGHT,
 } from "../../shared/window-chrome.ts";
-import { FRAME_PAD, HEADER_HEIGHT, PANE_INSET } from "../../src/features/dock/geometry.ts";
+import { HEADER_HEIGHT } from "../../src/features/dock/geometry.ts";
 import { PanelWindow } from "../../src/app/window/PanelWindow.tsx";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { mount } from "../helpers/mount.ts";
@@ -33,10 +33,9 @@ test("macOS 那一侧一个像素都没动", () => {
 	assert.equal(HEADER_HEIGHT, WINDOW_HEADER_HEIGHT);
 });
 
-test("主窗口的红绿灯跟着卡片里的顶行下移，下移量就是卡片离窗口顶的距离", () => {
-	// 工作区内边距 + 卡片内缩 + 描边。卡片的几何一改，红绿灯就和卡片里的标题栏错开。
-	assert.equal(MAIN_WINDOW_ROW_OFFSET, FRAME_PAD + PANE_INSET + 1);
-	assert.equal(MAC_MAIN_TRAFFIC_LIGHT_POSITION.y, MAC_TRAFFIC_LIGHT_POSITION.y + MAIN_WINDOW_ROW_OFFSET);
+test("主窗口的红绿灯在顶栏里垂直居中", () => {
+	// 顶栏属于窗口（ADR-0038）：红绿灯 14pt，落在 40px 顶栏的中线上，横向位置和别的窗口一致。
+	assert.equal(MAC_MAIN_TRAFFIC_LIGHT_POSITION.y * 2 + 14, MAIN_TOOLBAR_HEIGHT);
 	assert.equal(MAC_MAIN_TRAFFIC_LIGHT_POSITION.x, MAC_TRAFFIC_LIGHT_POSITION.x);
 });
 
