@@ -204,6 +204,16 @@ async function main() {
 		await shot("01_单屏对话");
 		if (rule) await shot("01b_短线与侧栏分隔线放大", { x: rule.x - 60, y: 0, width: 160, height: 90 });
 
+		console.log("\n== A2 空白新对话：还没有题目，就没有那段短线");
+		await click(`[...document.querySelectorAll(".ly-nav-column button")].find((b) => b.textContent.trim() === "新对话")`);
+		await hold(900);
+		const blank = await app.evaluate<{ title: string | null; rule: boolean }>(`({ title: ${q("[data-ly-toolbar-title]")}?.textContent ?? null, rule: Boolean(${q("[data-ly-toolbar-divider]")}) })`);
+		check("新对话还没有名字：顶栏里没有标题，也没有一段孤零零的短线", blank.title === "" && !blank.rule, blank);
+		await shot("01c_空白新对话");
+		await click(q('[data-ly-row="s-config"]'));
+		await until(`${q("[data-ly-toolbar-title]")}?.textContent.includes("配置读取拆成两步")`);
+		await hold(700);
+
 		console.log("\n== B 侧栏收起与展开：顶栏标题跟着卡片走");
 		const samples = await app.evaluate<{ t: number; title: number; card: number }[]>(`(async () => {
 			const out = [];
