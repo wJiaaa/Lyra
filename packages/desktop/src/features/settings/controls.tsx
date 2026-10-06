@@ -141,7 +141,7 @@ export function Badge({ tone, children }: { tone: "ok" | "muted" | "danger" | "a
 		accent: "bg-accent/15 text-accent",
 	};
 	return (
-		<span className={`rounded-full px-2 py-0.5 text-detail leading-[18px] ${tones[tone]}`}>{children}</span>
+		<span className={`shrink-0 rounded-full px-2 py-0.5 text-detail leading-[18px] whitespace-nowrap ${tones[tone]}`}>{children}</span>
 	);
 }
 
