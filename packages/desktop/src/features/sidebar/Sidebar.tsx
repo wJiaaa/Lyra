@@ -1,7 +1,7 @@
 /**
  * The navigation pane: what you can go to, and what you have been in.
  *
- * One list: the projects, and under 「最近」 the conversations that belong to none
+ * One list: the projects, and under 「最近」 all listable conversations
  * (`sidebar/ProjectList`). Searching swaps it for every match in one flat run banded by date
  * (`sidebar/ChatList`), because matches scattered five rows down across a dozen projects is the
  * scrolling a search exists to end. The current heading is held at the top by `position: sticky`;
@@ -237,6 +237,7 @@ export function Sidebar() {
 					{!searching ? (
 						<ProjectList
 							groups={groups}
+							recent={matching}
 							collapsed={collapsed}
 							onToggleCollapsed={toggleCollapsed}
 							groupProps={(path) => ({
