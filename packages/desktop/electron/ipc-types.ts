@@ -93,7 +93,6 @@ import type {
 	RefDiff,
 	SessionSnapshot,
 	SideChatSnapshot,
-	SyncStatus,
 	WorkspaceDiffFile,
 	WorkspaceInfo,
 } from "./ipc-shapes.ts";
@@ -183,35 +182,6 @@ interface AttachedTerminal {
 	replay: string;
 }
 
-/**
- * One large transfer on the phone link, as it moves: an upload, or a large message in parts.
- *
- * Emitted by the phone's bridge (see `mobile/src/bridge-wire.ts`); the desktop never sends these.
- * `done` counts bytes the far end has acknowledged — for an upload, bytes on the desktop's disk.
- */
-interface SyncTransfer {
-	/** Stable for the life of one transfer: `u1` for an upload, `down7` / `up3` for a message. */
-	id: string;
-	kind: "upload" | "message";
-	direction: "up" | "down";
-	/** The file name for an upload; the method being answered for a message, when known. */
-	name: string | null;
-	done: number;
-	total: number;
-	state: "starting" | "active" | "paused" | "done" | "failed" | "cancelled";
-	/** Why, when `state` is `failed` — already worded for a person. */
-	error?: string;
-}
-
-/** A file a phone uploaded, as the desktop stored it. `id` is what a prompt's attachment names. */
-interface UploadedFile {
-	id: string;
-	name: string;
-	size: number;
-	mimeType: string;
-	path: string;
-}
-
 export interface PlumeApi {
 	agentDefinitions: {
 		list(projectId: string | null): Promise<{ records: AgentDefinitionRecord[]; tools: string[] }>;
@@ -249,7 +219,7 @@ export interface PlumeApi {
 	 * The operating system's own version, `process.getSystemVersion()` — "10.0.22631" on Windows 11.
 	 *
 	 * Read by the terminal, which has to tell xterm which build of ConPTY it is drawing for (see
-	 * `windowsPtyFor`). Optional because a phone's bridge has no such thing to report.
+	 * `windowsPtyFor`).
 	 */
 	systemVersion?: string;
 	/**
@@ -292,19 +262,6 @@ export interface PlumeApi {
 		onClosePanel(handler: () => void): () => void;
 		onFilePanelState(handler: (input: FilePanelVersion & { previous?: FilePanelState }) => void): () => void;
 	};
-	/**
-	 * What is displaying this interface.
-	 *
-	 * `"desktop"` — the Electron window, which has traffic lights, a mouse and a keyboard with
-	 * modifiers. `"mobile"` — a WebView on a phone, which has none of those and a thumb instead.
-	 * Absent means desktop, so nothing outside the phone has to be changed to read it.
-	 *
-	 * Deliberately not derived from the viewport. A narrow desktop window is still a desktop
-	 * window: it keeps its window controls and its hover states, and treating it as a phone would
-	 * take away both. This says which *device* is holding the app, which is a different question
-	 * from how much room it has.
-	 */
-	host?: "desktop" | "mobile";
 	settings: {
 		get(): Promise<Settings>;
 		save(settings: Settings): Promise<Settings>;
@@ -318,10 +275,10 @@ export interface PlumeApi {
 		 * Settings changed on the other side of the boundary.
 		 *
 		 * The renderer is not the only thing that writes them: installing an MCP bundle adds its
-		 * servers, uninstalling takes them away, sync rotates its token, an approval appends to
-		 * `alwaysAllow`. The main process has always broadcast this and nothing has ever listened,
-		 * so the window went on showing the settings it last saved itself — install a server from
-		 * the catalogue and the MCP page did not have it until the app was restarted.
+		 * servers, uninstalling takes them away, an approval appends to `alwaysAllow`. The main
+		 * process has always broadcast this and nothing has ever listened, so the window went on
+		 * showing the settings it last saved itself — install a server from the catalogue and the
+		 * MCP page did not have it until the app was restarted.
 		 */
 		onChanged(handler: (settings: Settings) => void): () => void;
 	};
@@ -592,13 +549,6 @@ export interface PlumeApi {
 		pathForDrop(file: File): string;
 		/** Open native dialog to pick files or directories. */
 		pick(options?: { directory?: boolean; multiple?: boolean }): Promise<string[]>;
-		/**
-		 * Phone only: stream a picked file to the desktop, a slice at a time, and answer with where
-		 * it landed. Null when this phone app or the paired desktop cannot take uploads — the caller
-		 * falls back to reading the file itself. Not an IPC method: the phone's bridge implements it
-		 * over the sync link (`mobile/src/bridge-wire.ts`), and the desktop's preload has none.
-		 */
-		upload?(file: Blob, options?: { name?: string; signal?: AbortSignal; onProgress?(transfer: SyncTransfer): void }): Promise<UploadedFile | null>;
 	};
 	/**
 	 * The system clipboard, for text.
@@ -672,19 +622,6 @@ export interface PlumeApi {
 		modelCatalog(knownRevision?: string): Promise<ModelCatalogDocument | null>;
 		/** 立即从 pi 拉一次模型目录；换上了新目录，设置会随之重新保存。 */
 		updateModelCatalog(): Promise<CatalogSyncResult>;
-	};
-	sync: {
-		status(): Promise<SyncStatus>;
-		start(): Promise<SyncStatus>;
-		stop(): Promise<SyncStatus>;
-		rotateToken(): Promise<SyncStatus>;
-		/**
-		 * Phone only: large answers and uploads as they move, for a progress bar. The same updates
-		 * are dispatched on `window` as `plume:transfer` events.
-		 */
-		onTransfer?(handler: (transfer: SyncTransfer) => void): () => void;
-		/** Phone only: what the paired desktop takes. An older phone app answers null. */
-		capabilities?(): Promise<{ wire: number; uploads: boolean; maxUpload: number } | null>;
 	};
 	commands: {
 		/**

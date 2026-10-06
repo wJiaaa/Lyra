@@ -50,7 +50,7 @@ import {
 import { awaitingSubAgents } from "../../store/subAgents.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { useJobReveal } from "./job-reveal.ts";
-import { available, bridge, onPhone } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { compactText } from "../../lib/notice-text.ts";
 import perchOpen from "../../assets/plume-perch-open.png?inline";
@@ -69,10 +69,9 @@ type Attachment = DraftAttachment;
 let handoff: { width: number; at: number } | null = null;
 const HANDOFF_WINDOW = 1000;
 
-export function Composer({ centered = false, welcome = false }: {
+export function Composer({ centered = false }: {
 	/** 欢迎页：排在标题下面那一列里，外边距由那一列给，不再是贴着底边的那一条。 */
 	centered?: boolean;
-	welcome?: boolean;
 } = {}) {
 	const { t } = useI18n();
 	// This screen's project, not the focused conversation's: a split shows several at once.
@@ -304,8 +303,6 @@ export function Composer({ centered = false, welcome = false }: {
 	const commandCwd = workspace?.path ?? scratchCwd ?? "";
 	const slash = useCommands(text, commandCwd, field, setText);
 	const pickFileForMention = useCallback(async (actionId: string) => {
-		// The picker is a dialog on the desktop's screen, not this one.
-		if (!available("files", "pick")) return null;
 		try {
 			const paths = await bridge.files.pick({ directory: actionId === "action:pick-directory", multiple: false });
 			if (!paths.length || draftKeyRef.current !== draftKey) return null;
@@ -515,9 +512,8 @@ export function Composer({ centered = false, welcome = false }: {
 
 	return (
 		/*
-		 * `ly-composer-dock`: the strip along the bottom of the conversation, named so the phone can
-		 * find it. It is the one thing that has to move when a keyboard slides over the window —
-		 * the transcript above it stays put and keeps its scroll position. See `--ly-keyboard`.
+		 * `ly-composer-dock`: the strip along the bottom of the conversation, named so the stylesheet
+		 * can find it — see `composer.css`.
 		 */
 		<div className="ly-composer-dock shrink-0" data-compact={compact || undefined} data-center={centered || undefined}>
 			<div ref={column} className="mx-auto w-full max-w-[var(--ly-content)]">
@@ -567,7 +563,7 @@ export function Composer({ centered = false, welcome = false }: {
 				 * 托盘：项目和分支坐在卡片上方露出来的那一条里。见 `composer.css` 的 `.ly-composer-tray`。
 				 */}
 				<div className="ly-composer-tray">
-					{!welcome && !onPhone() && (
+					{!centered && (
 						<div className="ly-composer-mascot" aria-hidden="true">
 							<div className="ly-composer-mascot-art">
 								<img src={perchOpen} alt="" draggable={false} width={480} height={320} />
@@ -714,8 +710,7 @@ export function Composer({ centered = false, welcome = false }: {
 						if (event.defaultPrevented) return;
 						history.keyDown(event);
 					}}
-					// A phone's field is one line of a thumb's width, and the full hint wraps in most languages.
-					placeholder={t(onPhone() ? "phone.composerPlaceholder" : "composer.placeholder")}
+					placeholder={t("composer.placeholder")}
 					onFiles={(picked) => void kit.addFiles(picked)}
 					attachments={
 						/*
@@ -737,7 +732,7 @@ export function Composer({ centered = false, welcome = false }: {
 					left={
 						<>
 							<IconButton size="composer" emphasis label={t("composer.addAttachment")} onClick={kit.picker.open} icon={<Plus size={16} strokeWidth={1.9} />} />
-							{settings?.screenshot?.enabled !== false && settings?.screenshot?.showInComposer && available("screenshot", "start") && (
+							{settings?.screenshot?.enabled !== false && settings?.screenshot?.showInComposer && (
 								<IconButton
 									size="composer"
 									emphasis
@@ -833,7 +828,7 @@ export function Composer({ centered = false, welcome = false }: {
 
 			{permissionMenu.open && <PermissionPicker anchor={permissionMenu.anchor} onClose={permissionMenu.close} />}
 			{projectMenu.open && <ProjectPicker anchor={projectMenu.anchor} onClose={projectMenu.close} />}
-			{branchMenu.open && available("git", "branches") && <BranchMenu anchor={branchMenu.anchor} onClose={branchMenu.close} />}
+			{branchMenu.open && <BranchMenu anchor={branchMenu.anchor} onClose={branchMenu.close} />}
 			{/* 句子里那一枚被右键点中时弹的菜单——见 `useComposerAttachments`。 */}
 			{kit.menu}
 		</div>

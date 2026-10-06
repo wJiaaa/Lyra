@@ -1,6 +1,6 @@
 /**
- * The sidebar's list: pinned conversations, the projects, and under 「最近」 the conversations filed
- * under neither. Only conversations pin; projects keep their list order.
+ * The sidebar's list: pinned conversations, the projects, and all conversations under 「最近」.
+ * Only conversations pin; projects keep their list order.
  */
 
 import { translate } from "../../i18n/translate.ts";
@@ -10,7 +10,6 @@ import { ChevronRight, Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectDialog } from "../modals/index.ts";
-import { onPhone } from "../../services/index.ts";
 import { Collapsible } from "./Collapsible.tsx";
 import type { Grouped } from "../../lib/sidebar-grouping.ts";
 import { ProjectGroup, SESSION_PAGE } from "./ProjectGroup.tsx";
@@ -35,6 +34,7 @@ const RECENT = "§recent";
 
 export function ProjectList({
 	groups,
+	recent,
 	collapsed,
 	onToggleCollapsed,
 	groupProps,
@@ -48,6 +48,7 @@ export function ProjectList({
 	listSettings,
 }: {
 	groups: Grouped;
+	recent: SessionMeta[];
 	collapsed: string[];
 	onToggleCollapsed: (key: string) => void;
 	/** Everything a `ProjectGroup` needs that is per-project state rather than per-project data. */
@@ -74,7 +75,7 @@ export function ProjectList({
 	const pinnedShut = collapsed.includes(PINNED);
 	const hasPinned = (groups.pinnedSessions?.length ?? 0) > 0;
 
-	if (!hasPinned && groups.projects.length === 0 && groups.loose.length === 0) {
+	if (!hasPinned && groups.projects.length === 0 && recent.length === 0) {
 		return <>{empty}</>;
 	}
 	return (
@@ -126,16 +127,15 @@ export function ProjectList({
 						 * other intent — adding one — and the list of them is where you are when
 						 * you have it.
 						 */
-						// A project is a settings entry, which a phone may not write (see phone-settings.ts).
 						action={
 							<>
 								{listSettings}
-								{!onPhone() && <IconButton
+								<IconButton
 									size="sm"
 									label={translate("project.new")}
 									onClick={() => setCreating(true)}
 									icon={<Plus size={13} strokeWidth={2} aria-hidden />}
-								/>}
+								/>
 							</>
 						}
 					>
@@ -149,26 +149,25 @@ export function ProjectList({
 				</>
 			)}
 
-			{groups.loose.length > 0 && (
-				<>
+			{recent.length > 0 && (
+				<SidebarReorderContext.Provider value={null}>
 					<SectionLabel
 						first={!hasPinned && groups.projects.length === 0}
 						section="recent"
-						sessions={groups.loose}
-						count={groups.loose.length}
+						sessions={recent}
+						count={recent.length}
 						collapsed={collapsed.includes(RECENT)}
 						onToggle={() => onToggleCollapsed(RECENT)}
 						action={groups.projects.length === 0 ? listSettings : undefined}
 					>
 						{translate("projectList.recent")}
 					</SectionLabel>
-					{/* Flat rows, the same ones a project shows — the section is what differs, not the
-					    conversation. Same gap as inside a project, so the two read as one list. */}
+					{/* Recent rows stay chronological; dragging here must not reorder their project copies. */}
 					<Collapsible open={!collapsed.includes(RECENT)}>
 						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
 							{/* 只包住行，理由见 `useUnfold`。 */}
 							<div ref={looseRows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
-								{groups.loose.slice(0, looseShown).map((session) => (
+								{recent.slice(0, looseShown).map((session) => (
 									<SessionRow
 										key={session.id}
 										session={session}
@@ -177,14 +176,14 @@ export function ProjectList({
 								))}
 							</div>
 							<ShowMore
-								hidden={Math.max(0, groups.loose.length - looseShown)}
+								hidden={Math.max(0, recent.length - looseShown)}
 								canCollapse={looseShown > SESSION_PAGE}
 								onShowMore={unfoldLoose.unfold(onLooseMore)}
 								onCollapse={unfoldLoose.fold(SESSION_PAGE, onLooseCollapse)}
 							/>
 						</div>
 					</Collapsible>
-				</>
+				</SidebarReorderContext.Provider>
 			)}
 		</SidebarReorderContext.Provider>
 	);
@@ -260,7 +259,7 @@ function SectionLabel({
 				<span
 					data-ly-section-count
 					className={`ml-auto flex min-w-5 items-center justify-end tabular-nums transition-opacity duration-[var(--ly-t-quick)] ${
-						!action ? "" : onPhone() ? "opacity-0" : "group-hover/section:opacity-0 group-has-[:focus-visible]/section:opacity-0 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-0"
+						!action ? "" : "group-hover/section:opacity-0 group-has-[:focus-visible]/section:opacity-0 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-0"
 					}`}
 				>
 					<GroupActivity sessions={sessions} collapsed={collapsed} count={count} />
@@ -269,11 +268,8 @@ function SectionLabel({
 			{action && (
 				<span
 					data-ly-section-action
-					// Held while its menu is open, which is when the pointer has left for the menu. Always
-					// shown on a phone: there is no hover to reveal it with.
-					className={`absolute right-2 bottom-1.5 flex items-center gap-0.5 transition-opacity duration-[var(--ly-t-quick)] ${
-						onPhone() ? "" : "opacity-0 group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-100"
-					}`}
+					// Held while its menu is open, which is when the pointer has left for the menu.
+					className="absolute right-2 bottom-1.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-100"
 				>
 					{action}
 				</span>

@@ -86,11 +86,6 @@ const CHECKS = [
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/sandbox-bash.test.ts"]],
 	},
 	{
-		id: "H3",
-		what: "七条 HTTP 写路由绕过手机白名单，sessions.create 的 cwd 不限项目",
-		run: ["node", ["--test", "--import", "./packages/desktop/test/setup.ts", "--experimental-strip-types", "packages/desktop/test/sync-rpc.test.ts"]],
-	},
-	{
 		id: "ISSUE-escalate",
 		what: "auto 模式下提权不问人就到沙箱外跑（策略判的是 escalate:…: 前缀串，认不出程序，rm -rf 也放行）",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/escalation-gate.test.ts", "packages/core/test/escalation.test.ts"]],
@@ -154,11 +149,6 @@ const CHECKS = [
 		id: "CORE-session-db",
 		what: "流到一半被杀的回复丢失、删会话把花销一起删掉、fork 重复计费",
 		run: ["node", ["--experimental-strip-types", "--import", "./packages/core/test/setup.ts", "--test", "packages/core/test/session-db.test.ts", "packages/core/test/session-index-race.test.ts"]],
-	},
-	{
-		id: "I4-relay",
-		what: "中转单连接内存无上限（超大帧头让缓冲永不清空）",
-		run: ["node", ["--experimental-strip-types", "--test", "packages/relay/test/relay-security.test.ts"]],
 	},
 	{
 		id: "I4-worktree",

@@ -25,7 +25,7 @@ import type { SessionMeta } from "@plume/core";
 import { freshTokens } from "@plume/core/tokens";
 import { formatTokens } from "../conversation/index.ts";
 import { hoverLayersSuppressed, onHoverLayersDismissed } from "../../ui/overlay/hover-layers.ts";
-import { chromeTop } from "../../ui/overlay/keep-clear.ts";
+import { chromeTop } from "../../ui/overlay/chrome-top.ts";
 import { portal } from "../../ui/overlay/portal.ts";
 import { baseName } from "../../lib/paths.ts";
 import { hourStyle } from "../../lib/hour-style.ts";

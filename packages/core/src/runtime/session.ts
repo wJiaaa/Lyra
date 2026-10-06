@@ -1,8 +1,8 @@
 /**
  * The runtime that turns settings + a workspace into a running agent.
  *
- * Everything user-facing goes through here: the desktop main process, the sync server and the CLI
- * all drive the same `AgentSession`, so the phone and the desktop cannot drift.
+ * Everything user-facing goes through here: the desktop main process and the CLI all drive the
+ * same `AgentSession`, so they cannot drift.
  *
  * What is left in this file is the driving: take a prompt, run a turn, stop, queue, approve. What
  * the session *has done* is `SessionLog` — the transcript and the append-only log kept as one
@@ -745,7 +745,7 @@ export class AgentSession {
 	 * What this turn asks for: the caller's word, then the conversation's, then the app's.
 	 *
 	 * Resolved here rather than at each entry point so every way of starting a turn — the desktop,
-	 * the phone through sync, a scheduled task, 「继续」 — reads the conversation's own level
+	 * a scheduled task, 「继续」 — reads the conversation's own level
 	 * without each of them having to remember to.
 	 */
 	private thinkingFor(requested?: ThinkingLevel): ThinkingLevel | undefined {

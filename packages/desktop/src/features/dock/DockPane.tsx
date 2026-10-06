@@ -265,8 +265,7 @@ export function DockPane({
 			 * terminal's and the editor's code background); `ly-dock-flat` takes its edge, corners and
 			 * shadow away.
 			 *
-			 * Anything in the air is a card, whichever it is — it is off the surface by definition. And
-			 * where there is no frame (a phone), every pane is still the card it was.
+			 * Anything in the air is a card, whichever it is — it is off the surface by definition.
 			 *
 			 * `overflow-hidden` is what makes a card's radius real: without it a scroller inside paints
 			 * its own square corners straight over the rounded ones.

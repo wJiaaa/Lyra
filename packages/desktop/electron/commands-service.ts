@@ -1,4 +1,4 @@
-/** Read-only command catalogue shared by the desktop composer and the mobile renderer. */
+/** Read-only command catalogue for the composer. */
 
 import { listCommands as listCatalogue, type CommandsList, type Settings } from "@plume/core";
 

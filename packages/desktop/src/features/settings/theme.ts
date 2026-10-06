@@ -81,8 +81,6 @@ export function applyAppearance(input: AppearanceSettings): void {
 	 * on the Mac washed out: the faint one measured 2.5:1 on white — 「还没有会话」, the composer's
 	 * placeholder, the off switch's 关. Only light themes: on a dark page the same thin stroke is a
 	 * light line on dark and does not fade the same way.
-	 *
-	 * `data-ly-platform` rather than `window.plume.platform`, which on a phone names the desktop.
 	 */
 	const thinType = !dark && document.documentElement.dataset.lyPlatform === "win32";
 	/** A wash of the foreground at a given opacity — reads against any backdrop, including none. */

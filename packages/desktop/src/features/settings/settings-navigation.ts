@@ -15,12 +15,10 @@ import {
 	Search,
 	Settings2,
 	ShieldCheck,
-	Smartphone,
 	Sparkles,
 	SquareTerminal,
 } from "lucide-react";
 import type { SettingsSection } from "../../store/index.ts";
-import { groupsFor } from "./sections-for.ts";
 import type { MessageKey } from "../../i18n/index.ts";
 
 /*
@@ -59,7 +57,6 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 		labelKey: "settings.group.data",
 		items: [
 			{ id: "index", labelKey: "settings.index", icon: Database },
-			{ id: "sync", labelKey: "settings.sync", icon: Smartphone },
 			{ id: "usage", labelKey: "settings.usage", icon: BarChart3 },
 			{ id: "storage", labelKey: "settings.storage", icon: HardDrive },
 		],
@@ -79,7 +76,7 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 ];
 
 
-/** Desktop capture works on every desktop platform; phones still use their native capture. */
-export function settingsGroups(_platform: string, phone: boolean) {
-	return groupsFor(GROUPS, phone);
+/** Desktop capture works on every desktop platform, so every platform gets the same pages. */
+export function settingsGroups(_platform: string) {
+	return GROUPS;
 }

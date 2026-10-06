@@ -24,7 +24,7 @@ import type { SessionMeta } from "@plume/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
@@ -282,17 +282,15 @@ export function SessionMenu({
 									>
 										{t("sessionMenu.splitView")}
 									</MenuItem>
-									{available("windows", "open") && (
-										<MenuItem
-											icon={<ExternalLink size={13} strokeWidth={1.8} />}
-											onClick={() => {
-												void openInNewWindow(session.id);
-												onClose();
-											}}
-										>
-											{t("sessionMenu.newWindow")}
-										</MenuItem>
-									)}
+									<MenuItem
+										icon={<ExternalLink size={13} strokeWidth={1.8} />}
+										onClick={() => {
+											void openInNewWindow(session.id);
+											onClose();
+										}}
+									>
+										{t("sessionMenu.newWindow")}
+									</MenuItem>
 								</MenuBody>
 							</Popover>
 						)}
@@ -301,7 +299,7 @@ export function SessionMenu({
 
 					<MenuSeparator />
 
-					{session.cwd && available("workspace", "reveal") && (
+					{session.cwd && (
 						<MenuItem
 							icon={<CornerUpRight size={13} strokeWidth={1.8} />}
 							onClick={() => {
@@ -317,16 +315,14 @@ export function SessionMenu({
 							{t("sessionMenu.copyCwd")}
 						</MenuItem>
 					)}
-					{available("sessions", "exportTrajectory") && (
-						<MenuItem
-							icon={<Copy size={13} strokeWidth={1.8} />}
-							onClick={() =>
-								void copy(bridge.sessions.exportTrajectory(session.id, "jsonl"), t("sessionMenu.recordsExported")).catch((error) => notify(String(error), "error"))
-							}
-						>
-							{t("sessionMenu.exportRecords")}
-						</MenuItem>
-					)}
+					<MenuItem
+						icon={<Copy size={13} strokeWidth={1.8} />}
+						onClick={() =>
+							void copy(bridge.sessions.exportTrajectory(session.id, "jsonl"), t("sessionMenu.recordsExported")).catch((error) => notify(String(error), "error"))
+						}
+					>
+						{t("sessionMenu.exportRecords")}
+					</MenuItem>
 					<MenuItem icon={<Copy size={13} strokeWidth={1.8} />} onClick={() => void copy(session.id, t("sessionMenu.sessionIdCopied"))}>
 						{t("sessionMenu.copySessionId")}
 					</MenuItem>

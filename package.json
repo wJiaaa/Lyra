@@ -3,7 +3,7 @@
   "version": "0.9.23",
   "private": true,
   "type": "module",
-  "description": "Plume — a fully self-hosted code agent with custom models, tools, skills and MCP. Desktop (Electron) + Mobile (React Native), fully synced.",
+  "description": "Plume — a fully self-hosted code agent with custom models, tools, skills and MCP. Desktop app built on Electron.",
   "engines": {
     "node": ">=24",
     "pnpm": ">=11"
@@ -11,7 +11,6 @@
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "pnpm --filter @plume/desktop dev",
-    "dev:mobile": "pnpm --filter @plume/mobile start",
     "cli": "node packages/cli/src/main.ts",
     "build": "pnpm --filter @plume/core build && pnpm --filter @plume/desktop build",
     "build:core": "pnpm --filter @plume/core build",
@@ -33,8 +32,8 @@
     "probe:prune": "node --experimental-strip-types scripts/probe-prune-accuracy.ts",
     "catalog:update": "node --experimental-strip-types scripts/update-model-catalog.ts",
     "release": "node scripts/release.mjs",
-    "arch": "depcruise --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json packages/cli/src packages/contract/src packages/core/src packages/desktop/src packages/desktop/shared packages/desktop/electron packages/mobile/src packages/mobile/app packages/registry-shared/src",
-    "arch:baseline": "depcruise --config .dependency-cruiser.cjs --output-type baseline packages/cli/src packages/contract/src packages/core/src packages/desktop/src packages/desktop/shared packages/desktop/electron packages/mobile/src packages/mobile/app packages/registry-shared/src > .dependency-cruiser-known-violations.json",
+    "arch": "depcruise --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json packages/cli/src packages/contract/src packages/core/src packages/desktop/src packages/desktop/shared packages/desktop/electron packages/registry-shared/src",
+    "arch:baseline": "depcruise --config .dependency-cruiser.cjs --output-type baseline packages/cli/src packages/contract/src packages/core/src packages/desktop/src packages/desktop/shared packages/desktop/electron packages/registry-shared/src > .dependency-cruiser-known-violations.json",
     "check:links": "node scripts/check-links.mjs",
     "style": "stylelint packages/desktop/src/**/*.css"
   },

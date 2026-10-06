@@ -16,8 +16,8 @@ test("committed cold-session changes notify every persistence path without broad
 	try {
 		let meta = await store.create(root, "model-a");
 		assert.equal(changes.length, 1);
-		meta = await store.append(meta, { type: "title", title: "Phone title" });
-		assert.equal(changes.at(-1)?.meta?.title, "Phone title");
+		meta = await store.append(meta, { type: "title", title: "Renamed title" });
+		assert.equal(changes.at(-1)?.meta?.title, "Renamed title");
 		meta = await store.append(meta, { type: "meta", meta: { ...meta, modelId: "model-b", thinking: "high" } });
 		assert.equal(changes.at(-1)?.meta?.modelId, "model-b");
 		assert.equal(changes.at(-1)?.meta?.thinking, "high");

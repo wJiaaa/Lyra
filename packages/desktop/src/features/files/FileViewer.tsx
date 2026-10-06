@@ -10,7 +10,7 @@ import { Markdown } from "../conversation/index.ts";
 import { directoryOf } from "../../lib/markdown/assets.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 
 const IMAGE = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "ico", "svg"]);
 const VIDEO = new Set(["mp4", "webm", "mov", "mkv", "m4v"]);
@@ -92,19 +92,12 @@ export function FileViewer({
 	const showSource = useOpenFile((s) => s.showSource);
 
 	const text = contents.text;
-	const richPreview = available("files", "bytes");
 
 	const media = bridge.files.mediaUrl(path);
 
 	return (
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-			{!richPreview && ["image", "video", "audio", "sheet", "pdf", "document"].includes(kind) ? (
-				<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-					<FileWarning size={26} strokeWidth={1.4} className="text-ink-faint" />
-					<p className="text-label text-ink-muted">{translate("fileViewer.mobileNoPreview")}</p>
-					<p className="text-detail text-ink-faint">{translate("fileViewer.textAndCode")}</p>
-				</div>
-			) : kind === "image" ? (
+			{kind === "image" ? (
 				// Zoom and pan, because an icon and a screenshot are both images and neither is
 				// legible at "whatever fits the pane" — see `ImagePane`.
 				<ImagePane key={path} src={media} name={name} />

@@ -2,8 +2,8 @@
  * Which model a conversation runs on and how hard it thinks — both written into its log.
  *
  * They live in the log rather than in a window because they belong to the conversation: they have
- * to survive a restart, reach the phone through the same sync every other change reaches it through,
- * and apply to a turn started from anywhere.
+ * to survive a restart, reach every window through the same log every other change reaches it
+ * through, and apply to a turn started from anywhere.
  */
 
 import { stripStaleHandles } from "../agent/model-switch.ts";

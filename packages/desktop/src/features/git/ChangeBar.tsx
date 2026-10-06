@@ -5,7 +5,7 @@ import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { openScopedPanel } from "../dock/index.ts";
 import { useDockScope, useScopedRunning, useScopedWorkspace } from "../../app/session-scope.tsx";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /**
@@ -45,7 +45,7 @@ export function ChangeBar() {
   const isRepo = workspace?.isGitRepo ?? false;
 
   const refresh = useCallback(async () => {
-    if (!cwd || !isRepo || !available("git", "stat")) {
+    if (!cwd || !isRepo) {
       setStat(null);
       return;
     }

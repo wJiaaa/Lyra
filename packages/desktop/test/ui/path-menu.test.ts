@@ -38,7 +38,6 @@ let calls: Array<[string, string]>;
 let copied: string[];
 let notices: string[];
 let gone: Set<string>;
-let host: string;
 let previous: { app: AppState; review: ReturnType<typeof useDeliveryReview.getState> };
 let view: Mounted | undefined;
 
@@ -47,14 +46,10 @@ beforeEach(() => {
 	copied = [];
 	notices = [];
 	gone = new Set();
-	host = "desktop";
 	previous = { app: useApp.getState(), review: useDeliveryReview.getState() };
 	Object.defineProperty(window, "plume", {
 		configurable: true,
 		value: {
-			get host() {
-				return host;
-			},
 			platform: "darwin",
 			system: {
 				openTargets: async () => [
@@ -218,12 +213,4 @@ test("a file linked in a reply offers it too, with 打开 doing what a click doe
 	await click(row("在 Zed 中打开"));
 	await settle();
 	assert.deepEqual(calls, [["zed", PRD]]);
-});
-
-test("on the phone, where nothing can be opened, a file link offers no menu", async () => {
-	// The card is not drawn on the phone at all; a link in a reply is.
-	host = "mobile";
-	view = await inConversation(h(Markdown, { text: "文档在 [prd.md](docs/prd.md)" }));
-	await rightClick(view.find("[data-ly-file-link] a"));
-	assert.deepEqual(menus(), []);
 });

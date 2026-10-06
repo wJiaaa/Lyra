@@ -45,7 +45,7 @@ export function AppRail() {
 			{item("scheduled", t("sidebar.scheduled"), <Clock size={17} strokeWidth={1.8} />, { count: failures, label: t("scheduled.unseenFailures", { n: failures }), tone: "danger" })}
 			{item("plugins", t("sidebar.plugins"), <Blocks size={17} strokeWidth={1.8} />, { count: waiting, label: t("sidebar.pluginUpdates", { n: waiting }), tone: "accent" })}
 			<span className="flex-1" />
-			{item("settings", t("phone.settings"), <SettingsIcon size={17} strokeWidth={1.8} />)}
+			{item("settings", t("sidebar.settings"), <SettingsIcon size={17} strokeWidth={1.8} />)}
 		</nav>
 	);
 }

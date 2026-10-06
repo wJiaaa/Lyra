@@ -3,10 +3,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { startApp } from "./app.ts";
-import { startMobile } from "./mobile-app.ts";
-
-const syncPort = 4697;
-const token = "1111111111111111111111111111abcd";
 
 test("the welcome page hides the mascot and a conversation shows it with either top-row setting", async () => {
 	for (const showTop of [true, false]) {
@@ -35,7 +31,6 @@ test("the welcome page hides the mascot and a conversation shows it with either 
 					pluginRegistries: [], skillRegistries: [], alwaysAllow: [],
 					editor: { defaultOpenTarget: "zed", showBottomPanel: showTop },
 					appearance: { theme: "dark" },
-					sync: { enabled: true, port: syncPort, token },
 				}));
 			},
 		});
@@ -62,35 +57,6 @@ test("the welcome page hides the mascot and a conversation shows it with either 
 				state = await read();
 			}
 			assert.deepEqual(state, { surface: "conversation", top: showTop, mascot: true, hero: false });
-			if (showTop) {
-				const phone = await startMobile(app.home, { host: "127.0.0.1", port: syncPort, token, platform: "darwin" }, 9897);
-				try {
-					let phoneState: { surface: string | null; mascot: boolean; host: string | null } | null = null;
-					for (let attempt = 0; attempt < 100 && phoneState?.surface !== "empty"; attempt++) {
-						phoneState = await phone.evaluate(
-							"({ surface: document.querySelector('[data-ly-chat-surface]')?.getAttribute('data-ly-chat-surface') ?? null, mascot: Boolean(document.querySelector('.ly-composer-mascot')), host: document.documentElement.dataset.plumeHost ?? null })",
-						);
-						if (phoneState.surface !== "empty") await new Promise((resolve) => setTimeout(resolve, 100));
-					}
-					assert.deepEqual(phoneState, { surface: "empty", mascot: false, host: "mobile" });
-					for (let attempt = 0; attempt < 100; attempt++) {
-						const clicked = await phone.evaluate<boolean>(
-							"(() => { const row = document.querySelector('[data-ly-row=" + JSON.stringify(id) + "] button'); if (!row) return false; row.click(); return true; })()",
-						);
-						if (clicked) break;
-						await new Promise((resolve) => setTimeout(resolve, 100));
-					}
-					for (let attempt = 0; attempt < 100 && phoneState?.surface !== "conversation"; attempt++) {
-						phoneState = await phone.evaluate(
-							"({ surface: document.querySelector('[data-ly-chat-surface]')?.getAttribute('data-ly-chat-surface') ?? null, mascot: Boolean(document.querySelector('.ly-composer-mascot')), host: document.documentElement.dataset.plumeHost ?? null })",
-						);
-						if (phoneState.surface !== "conversation") await new Promise((resolve) => setTimeout(resolve, 100));
-					}
-					assert.deepEqual(phoneState, { surface: "conversation", mascot: false, host: "mobile" });
-				} finally {
-					await phone.stop();
-				}
-			}
 		} finally {
 			await app.stop();
 		}

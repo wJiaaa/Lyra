@@ -26,7 +26,7 @@ import { type Inline, parseInline } from "../../lib/markdown/inline.ts";
 import { renderMath } from "../../lib/markdown/math.ts";
 import { stripEmoji } from "../../lib/markdown/strip-emoji.ts";
 import { completeTail } from "../../lib/markdown/stream-tail.ts";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { openFilePane, openScopedPanel } from "../dock/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
@@ -477,8 +477,6 @@ function actionsOffset(chip: HTMLElement, pointerX: number): number {
  */
 function FileLink({ href, path, children }: { href: string; path: string; children: ReactNode }) {
 	const revealLabel = useRevealLabel();
-	const canOpen = available("system", "openPath");
-	const canReveal = available("system", "openIn");
 	const caption = fileLinkCaption(textOf(children), path);
 	const look = lookFor(path.split(/[/\\]/).pop() || path, false);
 	// The file pane opens in the screen this link is drawn in: the keyboard reaches a link in a screen
@@ -538,34 +536,22 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 				<look.Icon size={13} strokeWidth={1.9} style={{ color: iconColour(look) }} />
 				<span data-ly-file-name>{caption.text}</span>
 			</a>
-			{/*
-			 * 按能力画，不按平台画。
-			 *
-			 * 手机上这两个 API 根本不存在——画出来是两个按下去什么都不会发生的图标，比没有更糟。
-			 * `available()` 问的正是这件事，所以这里不需要知道自己跑在什么上面。
-			 */}
-			{(canOpen || canReveal) && (
-				<span data-ly-file-actions>
-					<span data-ly-file-actions-bar>
-						{canOpen && (
-							<FileLinkAction
-								label={translate("openTarget.defaultApp")}
-								tipSide={buttonTip}
-								icon={<ExternalLink size={14} />}
-								onClick={() => void bridge.system.openPath(path).catch(fail)}
-							/>
-						)}
-						{canReveal && (
-							<FileLinkAction
-								label={revealLabel}
-								tipSide={buttonTip}
-								icon={<FolderOpen size={14} />}
-								onClick={() => void bridge.system.openIn("reveal", path).catch(fail)}
-							/>
-						)}
-					</span>
+			<span data-ly-file-actions>
+				<span data-ly-file-actions-bar>
+					<FileLinkAction
+						label={translate("openTarget.defaultApp")}
+						tipSide={buttonTip}
+						icon={<ExternalLink size={14} />}
+						onClick={() => void bridge.system.openPath(path).catch(fail)}
+					/>
+					<FileLinkAction
+						label={revealLabel}
+						tipSide={buttonTip}
+						icon={<FolderOpen size={14} />}
+						onClick={() => void bridge.system.openIn("reveal", path).catch(fail)}
+					/>
 				</span>
-			)}
+			</span>
 			{pathMenu.element}
 		</span>
 	);

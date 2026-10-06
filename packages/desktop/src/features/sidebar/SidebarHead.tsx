@@ -9,7 +9,6 @@
 import { Bell, Search } from "lucide-react";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useI18n } from "../../i18n/index.ts";
-import { onPhone } from "../../services/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { NoticeDot, NotificationsMenu, useNotices } from "./NotificationsMenu.tsx";
 
@@ -28,8 +27,6 @@ export function SidebarHead({
 	const { t } = useI18n();
 	const bell = usePopover();
 	const notices = useNotices();
-	// The search moved to the dock along the bottom on a phone — see `PhoneDock`.
-	if (onPhone()) return <PhoneHead />;
 	return (
 		<>
 			{/*
@@ -88,34 +85,5 @@ export function SidebarHead({
 				</div>
 			)}
 		</>
-	);
-}
-
-/**
- * The drawer's title on a phone: the name and the bell.
- */
-function PhoneHead() {
-	const { t } = useI18n();
-	const bell = usePopover();
-	const notices = useNotices();
-	return (
-		<div className="ly-phone-head">
-			<div className="min-w-0 flex-1">
-				<div className="ly-phone-head-title">Plume</div>
-			</div>
-			<button
-				type="button"
-				aria-label={t("sidebar.notifications")}
-				aria-haspopup="menu"
-				aria-expanded={bell.open}
-				data-ly-notifications-button
-				onClick={bell.toggle}
-				className="ly-phone-head-button ly-press relative"
-			>
-				<Bell size={19} strokeWidth={1.8} aria-hidden />
-				<NoticeDot top={notices.top} />
-			</button>
-			{bell.open && <NotificationsMenu anchor={bell.anchor} notices={notices} onClose={bell.close} />}
-		</div>
 	);
 }

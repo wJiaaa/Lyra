@@ -7,8 +7,8 @@
 
 | # | 决定 |
 | --- | --- |
-| [0001](0001-mobile-hosts-the-desktop-renderer.md) | 手机跑桌面端的界面，不自己画一套 |
-| [0002](0002-relay-knows-nothing.md) | 中转服务不知道令牌，房间号是它的哈希 |
+| [0001](0001-mobile-hosts-the-desktop-renderer.md) | 手机跑桌面端的界面，不自己画一套（已被 0026 取代） |
+| [0002](0002-relay-knows-nothing.md) | 中转服务不知道令牌，房间号是它的哈希（已被 0026 取代） |
 | [0003](0003-secrets-in-a-file-not-the-keychain.md) | 密钥存加密文件，不用系统钥匙串 |
 | [0004](0004-sandbox-fails-closed.md) | 沙箱拿不到约束就拒绝执行，绝不退回无保护 |
 | [0005](0005-tags-publish-directly.md) | 打 tag 直接发布，不留草稿 |
@@ -32,8 +32,8 @@
 | [0023](0023-containers-belong-to-sessions.md) | 面板只属于会话，单屏是只有一屏的分屏，窗口本身没有面板 |
 | [0024](0024-sub-agents-stop-at-checkpoints.md) | 子代理停在检查点而不是终点，上下文留着，可以续跑 |
 | [0025](0025-model-switch-applies-from-next-request.md) | 一轮之内换模型从下一个请求起就换，卡在重试上的请求当场放手 |
-| [0026](0026-remove-mobile-and-relay.md) | 移除移动端与中转服务，只保留桌面端（已被 0036 取代） |
-| [0027](0027-web-access.md) | Web 访问：桌面端把自己的界面发给局域网里的浏览器，实时同步，对话可操作（已被 0036 取代） |
+| [0026](0026-remove-mobile-and-relay.md) | 移除移动端与中转服务，只保留桌面端 |
+| [0027](0027-web-access.md) | Web 访问：桌面端把自己的界面发给局域网里的浏览器，实时同步，对话可操作（已撤回） |
 | [0028](0028-core-names-the-rule-hosts-say-it.md) | core 报的是哪条规则（给码），说成哪种语言由宿主按码翻译，不把界面语言传进 core |
 | [0029](0029-parent-lets-go-when-spoken-to.md) | 主会话等子代理时人一开口就放手，子代理在后台跑完、结果送回来 |
 | [0030](0030-plugin-market-keys-and-live-updates.md) | 插件市场一格一动作，MCP 的钥匙进保险箱，装过的东西自己跟上新版 |
@@ -42,8 +42,6 @@
 | [0033](0033-durable-facts-not-tasks.md) | 进程死掉之后靠记下的事实交代清楚，不把运行时做成可续跑的任务 |
 | [0034](0034-run-config-in-four-groups.md) | 循环的配置分成会话、模型、工具、控制四组，每个字段只属于一组，漏传由类型检查拦下 |
 | [0035](0035-fork-from-a-message.md) | 从一条消息分叉：撤回做在副本上，分叉带上压缩边界和换模型的位置 |
-| [0036](0036-restore-mobile-and-relay.md) | 按上游恢复移动端与中转，撤掉 Web 访问，好跟着上游合并 |
-| [0037](0037-sync-link-streams-large-data.md) | 手机链路上的大数据按份传、带确认窗口，中转边收边转，文件走上传而不塞进消息 |
 | [0038](0038-window-frame-toolbar-rail-cards.md) | 工作区窗口走一套外框：顶栏属于窗口，单屏标题进顶栏，去处进图标栏，侧栏和内容合成一块面板 |
 | [0039](0039-agent-core-boundaries.md) | 循环只管一轮的顺序，会话只管谁占着历史；循环不依赖 runtime |
 

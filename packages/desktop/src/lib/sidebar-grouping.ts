@@ -37,8 +37,8 @@ export interface Grouped {
 	 * Not a group. They used to be collected under a folder row called 「无项目」, which put a
 	 * project-shaped thing in the list for the one case that is defined by not being a project —
 	 * a folder you cannot open, named after the absence of the thing folders are named after.
-	 * They are simply the conversations that are not filed anywhere, and they sit under 「最近」
-	 * at the bottom, which is what they are and where they belong.
+	 * Project-less conversations remain separate here; the sidebar's 「最近」 uses all listable
+	 * conversations independently of their project or pinned placement.
 	 */
 	loose: SessionMeta[];
 }

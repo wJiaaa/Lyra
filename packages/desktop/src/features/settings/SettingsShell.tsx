@@ -3,7 +3,6 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";
-import { sectionFor } from "./sections-for.ts";
 import { settingsGroups } from "./settings-navigation.ts";
 import { SettingsNav } from "./SettingsNav.tsx";
 import type { SettingsSection } from "../../store/index.ts";
@@ -31,11 +30,10 @@ import { SkillsSettings } from "./SkillsSettings.tsx";
 import { AccessSettings } from "./AccessSettings.tsx";
 import { ForgeSettings } from "./ForgeSettings.tsx";
 import { SearchSettings } from "./SearchSettings.tsx";
-import { SyncSettings } from "./SyncSettings.tsx";
 import { StorageSettings } from "./StorageSettings.tsx";
 import { UsageSettings } from "./UsageSettings.tsx";
 import { WorktreesSettings } from "./WorktreesSettings.tsx";
-import { bridge, onPhone } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 
 /**
@@ -52,17 +50,14 @@ const SELF_SCROLLING = new Set<SettingsSection>(["models", "plugins"]);
 
 export function SettingsShell() {
 	const { t } = useI18n();
-	const wanted = useApp((s) => s.settingsSection);
+	const section = useApp((s) => s.settingsSection);
 	const setSection = useApp((s) => s.setSettingsSection);
 	const setView = useApp((s) => s.setView);
 	const { compact, navOpen, framed, toggleNav, dismissNav, sidebarWidth, titlebar } = useLayout();
 	// Synchronous, from the preload: waiting for `system.platform()` drew the first frame as macOS.
 	const platform = bridge.platform ?? "darwin";
 
-	const phone = onPhone();
-
-	const groups = settingsGroups(platform, phone);
-	const section = sectionFor(groups, wanted, phone);
+	const groups = settingsGroups(platform);
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -250,7 +245,7 @@ export function SettingsShell() {
 		 * two columns read as one undifferentiated field. The workspace already answers this: the
 		 * nav is tinted and the thing you are working in is the plain page.
 		 *
-		 * Only a phone gets here now: no toolbar band, so the toggle floats over the corner and the
+		 * No window gets here today (kept for Web access, see ADR-0027): no toolbar band, so the toggle floats over the corner and the
 		 * drag strip is laid down last, for the same DOM-order reason as the chat shell's.
 		 */
 		<div data-ly-settings className="ly-shell relative flex h-full">
@@ -265,7 +260,7 @@ export function SettingsShell() {
 	);
 }
 
-/** How far the cards stand off the window's top on a phone, where the toggle has to line up with them. */
+/** How far the cards stand off the window's top where there is no toolbar band, where the toggle has to line up with them. */
 const CARD_ROW_OFFSET = 5;
 
 /** The air above a settings page in the frame, where no title row sits over it any more. */
@@ -305,8 +300,6 @@ function SectionBody({ section }: { section: SettingsSection }) {
 			return <AccessSettings />;
 		case "forges":
 			return <ForgeSettings />;
-		case "sync":
-			return <SyncSettings />;
 		case "usage":
 			return <UsageSettings />;
 		case "storage":

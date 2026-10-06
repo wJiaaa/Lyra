@@ -6,7 +6,7 @@
  * filters. A view draws that part itself, into a slot here, through a portal: its state stays in
  * one component, and the sidebar is only where some of it is drawn.
  *
- * Without the rail — a narrow window, the phone — the sidebar is a drawer reached from every view
+ * Without the rail — a narrow window — the sidebar is a drawer reached from every view
  * alike, holding the conversations and the way to the other places, so it stays the conversation
  * list and each view draws its own parts in its own page, as before.
  */

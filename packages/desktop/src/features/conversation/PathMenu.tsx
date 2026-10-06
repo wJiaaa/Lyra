@@ -17,7 +17,7 @@ import { useRef, useState, type ReactNode } from "react";
 import type { OpenTarget } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { relativeTo } from "../../lib/paths.ts";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { openLabel, revealLabel, useOpenTarget, useOpenTargets } from "../../store/open-targets.ts";
 import { ContextMenu, useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
@@ -38,15 +38,12 @@ export interface PathMenuTarget {
  * Right-click handling for paths, and the menu that goes with it.
  *
  * `root` is the conversation's project, for 复制相对路径; a file outside it gets only the full path.
- * On a host that can open nothing — the phone — the event is left alone and no menu appears, rather
- * than a menu of rows that do nothing when pressed.
  */
 export function usePathMenu(root: string | null) {
 	const menu = useContextMenu<PathMenuTarget>();
 	return {
 		open: menu.open,
 		onContextMenu: (event: React.MouseEvent, target: PathMenuTarget) => {
-			if (!available("system", "openIn")) return;
 			menu.show(event, target);
 		},
 		element:

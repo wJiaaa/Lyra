@@ -29,8 +29,8 @@ export function NavItem({
 	/** What the count means, for a screen reader and the tooltip. */
 	badgeLabel?: string;
 }) {
-	// A drawer is reached by pointing at it rather than by muscle memory, so its rows get the
-	// taller touch-style hit area the reference mobile layout uses.
+	// A drawer is reached by pointing at it rather than by muscle memory, so its rows get a
+	// taller, touch-sized hit area.
 	const { compact } = useLayout();
 	const tone = active ? "bg-card-hover" : "hover:bg-card-hover";
 	return (

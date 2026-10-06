@@ -33,14 +33,13 @@ import { useRowLit } from "./use-row-lit.ts";
 import { HoverRow, HoverRowReveal, hoverSlot } from "../../ui/row/HoverRow.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { TimeAgo } from "../../ui/primitives/TimeAgo.tsx";
-import { onPhone } from "../../services/index.ts";
 
 /**
  * How recently a conversation must have been created for its row to drop in.
  *
  * The row appears the instant the first message is sent, so in the case this is for the gap is
- * a few milliseconds. The allowance is for the other way a row can be new — a turn started on
- * the phone, arriving with the next session list — and it has to stay short, or scrolling a
+ * a few milliseconds. The allowance is for the other way a row can be new — a turn started
+ * elsewhere, arriving with the next session list — and it has to stay short, or scrolling a
  * long sidebar would replay the entrance for whatever happens to have been made a minute ago.
  */
 const JUST_CREATED_MS = 1500;
@@ -272,28 +271,15 @@ export function SessionRow({
 			>
 				{/* In the indent the titles already had, so nothing moved to make room for it. */}
 				<SessionStatus activity={rowActivity(activity, sideRunning, active)} unread={isUnread} />
-				{onPhone() ? (
-					/*
-					 * Two lines on a phone: the title, and when it was last touched under it — so the
-					 * title keeps the whole width of a narrow drawer instead of sharing it with the age.
-					 */
-					<span className="flex min-w-0 flex-1 flex-col">
-						<ScrollText text={title} className="ly-fade-tail min-w-0" />
-						<TimeAgo iso={new Date(session.updatedAt).toISOString()} className="ly-row-when" />
-					</span>
-				) : (
-					<>
-						<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
-						{/*
-						 * 最后活动距今多久，占的是悬停按钮落下的那一角：按钮出来时它让位，两者从不同时出现。
-						 * 不管列表按哪个时间排，这里都是 updatedAt——扫一眼要回答的是「这条多久没动了」。
-						 */}
-						<TimeAgo
-							iso={new Date(session.updatedAt).toISOString()}
-							className="shrink-0 text-caption text-ink-muted transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0"
-						/>
-					</>
-				)}
+				<ScrollText text={title} className="ly-fade-tail min-w-0 flex-1" />
+				{/*
+				 * 最后活动距今多久，占的是悬停按钮落下的那一角：按钮出来时它让位，两者从不同时出现。
+				 * 不管列表按哪个时间排，这里都是 updatedAt——扫一眼要回答的是「这条多久没动了」。
+				 */}
+				<TimeAgo
+					iso={new Date(session.updatedAt).toISOString()}
+					className="shrink-0 text-caption text-ink-muted transition-opacity duration-[var(--ly-t-quick)] group-hover/row:opacity-0 group-has-[:focus-visible]/row:opacity-0"
+				/>
 			</button>
 
 			<HoverRowReveal className="rounded-r-lg">

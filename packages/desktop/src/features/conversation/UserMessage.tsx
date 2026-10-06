@@ -17,7 +17,7 @@ import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
 import { focusScreenOf, useDockScope, useScopedFromMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
-import { available, bridge, onPhone } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -220,23 +220,17 @@ export function UserMessage({
   const previewFile = async (file: { name: string; label?: string; path?: string }) => {
     const path = file.path;
     if (!path) return;
-    /*
-     * 手机那一侧答不了这一问：`system.pathExists` 不过中转，那边的桥对它一律答空——问了就只会报一句
-     * 「文件不在原处」。那边照旧直接打开，读不到由面板自己说。
-     */
-    if (available("system", "pathExists") && !(await attachmentActions.ensureThere({ name: file.label ?? file.name, path }))) return;
+    if (!(await attachmentActions.ensureThere({ name: file.label ?? file.name, path }))) return;
     void openFilePane({ path, name: baseName(path) || file.name }, screen ?? undefined)
       .catch((error: unknown) => useApp.getState().notify(String(error), "error"));
   };
 
   /**
-   * 这一份文件能不能在面板里预览，不论它在不在项目里。
-   *
-   * 只在桌面自己的窗口里成立：项目外附件的放行在桌面主进程里（`electron/attachment-reads.ts`），手机那
-   * 一侧读文件走同步服务，只认已打开的项目。那边照旧——项目里的点一下进面板，项目外的不给「预览」。
+   * 这一份文件能不能在面板里预览，不论它在不在项目里——项目外附件的放行在桌面主进程里
+   * （`electron/attachment-reads.ts`）。
    */
   const panelPreview = (file: { name: string; kind: FileKind; path?: string }) =>
-    Boolean(file.path) && !onPhone() && previewableInPanel(file.kind, file.name);
+    Boolean(file.path) && previewableInPanel(file.kind, file.name);
 
   /** 右键点在句子里某一枚标记上时，那份附件和菜单该弹在哪儿。 */
   const [markMenu, setMarkMenu] = useState<{
@@ -635,7 +629,7 @@ export function UserMessage({
           * puts its "Fork from here". Offered while a turn runs, unlike the two beside it: it changes
           * nothing here.
           */}
-        {sessionId && available("sessions", "forkBefore") && (
+        {sessionId && (
           <IconButton
             data-message-fork=""
             label={t("userMessage.fork")}

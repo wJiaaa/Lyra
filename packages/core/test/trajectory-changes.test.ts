@@ -41,11 +41,11 @@ test("tool completion updates its existing call and remains replayable for concu
 		await f.store.append(f.meta, { type: "event", event: { type: "tool_start", toolCallId: "call", toolName: "bash", args: { command: "pwd" }, summary: "pwd" } });
 		const first = await f.reader.changes(f.meta.id, undefined, true);
 		await f.store.append(f.meta, { type: "message", message: { role: "toolResult", toolCallId: "call", toolName: "bash", timestamp: 2, isError: false, content: [{ type: "text", text: "result body" }] } });
-		const [desktop, phone] = await Promise.all([
+		const [desktop, browser] = await Promise.all([
 			f.reader.changes(f.meta.id, first.cursor, true),
 			f.reader.changes(f.meta.id, first.cursor, true),
 		]);
-		assert.deepEqual(desktop, phone);
+		assert.deepEqual(desktop, browser);
 		assert.equal(desktop.reset, false);
 		assert.equal(desktop.upserts.length, 2);
 		assert.equal(desktop.upserts[0].id, first.upserts[0].id);

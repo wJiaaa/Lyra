@@ -6,7 +6,6 @@ import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { useScopedSessionId, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";
-import { onPhone } from "../../services/index.ts";
 
 /*
  * 输入框下面那一排建议：单色图标，描边胶囊，一个接一个落下来。
@@ -31,32 +30,6 @@ export function EmptyState() {
 	/** No project behind this conversation, and that was the choice — see the composer's chip. */
 	const chatting = !workspace && Boolean(scratchCwd);
 	const mark = compact ? MARK_BLOCK.compact : MARK_BLOCK.regular;
-
-	if (onPhone()) {
-		/*
-		 * The project's name kept on one line: a phone's column is narrow enough that
-		 * `aurora-notes` broke at its hyphen and the question read as two unrelated words.
-		 */
-		const [before, after] = chatting
-			? [t("empty.chat"), ""]
-			: t("empty.projectQuestion", { project: "\u0001" }).split("\u0001");
-		const name = workspace?.name ?? t("empty.noProject");
-		return (
-			<PhoneEmpty
-				heading={
-					chatting ? (
-						before
-					) : (
-						<>
-							{before}
-							<span className="whitespace-nowrap">{name}</span>
-							{after}
-						</>
-					)
-				}
-			/>
-		);
-	}
 
 	return (
 		// 欢迎页这一列是 `max-w-2xl`（672px），输入框和下面的建议都读它；进了对话再按窗格宽度分档。
@@ -102,7 +75,7 @@ export function EmptyState() {
 				</h1>
 
 				<div className="mt-11 w-full shrink-0">
-					<Composer centered welcome />
+					<Composer centered />
 				</div>
 
 				{/*
@@ -173,51 +146,5 @@ function EmptyMark({ compact }: { compact: boolean }) {
 			height={size}
 			className="ly-plume-mark shrink-0 select-none"
 		/>
-	);
-}
-
-/**
- * The same screen, shaped for a phone: the mark and the question in the middle of the empty space,
- * the four starting points in one row just above the composer.
- *
- * Above the composer because that is where the thumb already is and where the draft they fill in
- * appears. In one row that scrolls sideways because a two-by-two grid of cards took half the screen
- * on a phone and pushed the mark up under the status bar; as chips they cost one line, and the
- * last one peeking in at the edge says there are more.
- *
- * Centred rather than top-weighted, unlike the desktop. There the composer grows under a steady
- * heading; here the keyboard takes half the screen, and a heading pinned to the top of what is left
- * lands under the toolbar. The middle of the space that remains is always visible.
- */
-function PhoneEmpty({ heading }: { heading: React.ReactNode }) {
-	const { t } = useI18n();
-	// The suggestions fill this screen's composer, as on the desktop.
-	const screen = useScopedSessionId();
-	return (
-		<div data-ly-chat-surface="empty" className="flex min-h-0 flex-1 flex-col">
-			<Scroller className="flex-1" contentClassName="ly-content-gutter-compact flex min-h-full flex-col">
-				<div className="ly-phone-hero">
-					<EmptyMark compact />
-					<h1 className="ly-phone-hero-title">{heading}</h1>
-				</div>
-			</Scroller>
-
-			<div className="ly-phone-suggest" role="group" aria-label={t("phone.suggestions")}>
-				{PROMPTS.map((prompt) => (
-					<button
-						key={prompt.labelKey}
-						type="button"
-						// Into the composer, never straight to the agent — the desktop's row works the same way.
-						onClick={() => useApp.getState().setComposerDraft(t(prompt.promptKey), { sessionId: screen, replace: true })}
-						className="ly-phone-chip ly-press"
-					>
-						<prompt.icon size={16} strokeWidth={1.8} aria-hidden className="shrink-0" />
-						<span>{t(prompt.labelKey)}</span>
-					</button>
-				))}
-			</div>
-
-			<Composer welcome />
-		</div>
 	);
 }

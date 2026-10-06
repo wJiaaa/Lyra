@@ -5,8 +5,8 @@
 
 ## 一句话
 
-Plume 是一个 agent 运行时加两个前端。`packages/core` 平台无关，桌面端（Electron）
-和移动端（Expo）驱动同一个 `AgentSession`。
+Plume 是一个 agent 运行时加一个桌面端。`packages/core` 平台无关，桌面端（Electron）
+驱动它的 `AgentSession`。
 
 ## 第一原则
 
@@ -171,15 +171,13 @@ node scripts/audit-regression.mjs   # 修过的每个 bug，各自的守卫跑�
 ## 发版
 
 仓库里没有 CI 和发版流水线，推 tag 不会触发任何构建。安装包在本地用 `pnpm package` 打，
-它是唯一会执行 electron-builder 的地方——改了打包配置就在本地跑一次。手机端的 `android/`、`ios/`
-不在仓库里，由 `expo prebuild` 从 `app.json` 生成，本地怎么打见
-[docs/architecture/mobile-packaging.md](docs/architecture/mobile-packaging.md)。
+它是唯一会执行 electron-builder 的地方——改了打包配置就在本地跑一次。
 
 ```bash
 pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、推送
 ```
 
-版本号写在 9 个地方（根目录和 7 个包的 `package.json` 加手机的 `app.json`），脚本一起改，`test/version-sync.test.ts`
+版本号写在 6 个地方（根目录和 5 个包的 `package.json`），脚本一起改，`test/version-sync.test.ts`
 守着它们不跑偏；新加一个包而忘了登记，那条测试会红。
 
 ### 发版文案是手写的，中英两种语言一种都不能少
@@ -265,16 +263,14 @@ tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这
 | `packages/core/src/tools/` | 内置工具。`risk*.ts` 判定哪些命令需要人来点头 |
 | `packages/core/src/kernel/` | 插件内核：服务、事件、十条缝 |
 | `packages/cli/` | 非交互命令行，评测用：一个任务进、回答出，见 ADR-0031 |
-| `packages/desktop/electron/` | 主进程：IPC、窗口、Git、同步服务 |
-| `packages/desktop/src/` | 渲染进程。10 个目录，见 ARCHITECTURE.md |
+| `packages/desktop/electron/` | 主进程：IPC、窗口、Git |
+| `packages/desktop/src/` | 渲染进程。9 个目录，见 ARCHITECTURE.md |
 | `packages/desktop/src/features/` | 22 个功能域，跨域只经对方的 index |
 | `packages/desktop/src/ui/` | 基础组件，不读 store 不调 service |
 | `packages/desktop/src/lib/` | 纯逻辑，没有 React |
 | `packages/desktop/src/services/` | 跟主进程说话的唯一出口 |
-| `packages/contract/` | 渲染进程与主进程之间那条线，207 个方法写在一处 |
+| `packages/contract/` | 渲染进程与主进程之间那条线，203 个方法写在一处 |
 | `packages/desktop/shared/` | 两个进程共有的判断，谁也不依赖 |
-| `packages/mobile/` | Expo 外壳：配对、扫码、承载桌面端界面的 WebView |
-| `packages/relay/` | 中转服务。单文件，零依赖 |
 
 ## 提交
 
@@ -289,5 +285,5 @@ tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这
 ```
 
 type 取 `feat` `fix` `perf` `refactor` `docs` `test` `chore` `ci` `build` `revert`；
-scope 取 `core` `desktop` `electron` `ui` `mobile` `relay` `cli` `registry` `sync` `release` `deps`，
+scope 取 `core` `desktop` `electron` `ui` `cli` `registry` `release` `deps`，
 写错只警告不拦。前四个 type 会进 CHANGELOG，其余不进。
