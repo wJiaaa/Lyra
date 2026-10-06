@@ -1,7 +1,6 @@
 import { translate } from "../../../i18n/translate.ts";
 import { useEffect, useRef, useState } from "react";
 import { SourceIcon } from "./SourceIcon.tsx";
-import { available } from "../../../services/index.ts";
 import { ArrowUpRight, ArrowLeft, ChevronLeft, ChevronRight, Ellipsis, FileText, GitBranch, ScrollText as OutputIcon } from "lucide-react";
 import { openViewer } from "../../image/index.ts";
 import { SOURCE_LABEL, STATUS_LABEL, entryKey, type Entry } from "@plume/core/trajectory-view";
@@ -58,8 +57,8 @@ export function TraceInspector({ anchor, entry, all, query, onSelect, onClose, o
 			<IconButton label={t("trace.actions")} size="sm" icon={<Ellipsis size={14} />} onClick={menu.toggle} />
 		</div>
 		{menu.open && <Popover anchor={menu.anchor} onClose={menu.close} label={t("trace.actions")}><MenuBody>
-			{available("sessions", "exportTrajectory") && <MenuItem icon={<FileText size={14} />} onClick={() => { menu.close(); onExport(); }}>{t("trace.openFile")}</MenuItem>}
-			{available("sessions", "exportTrajectory") && entry.metadata && typeof entry.metadata === "object" && "outputPath" in entry.metadata && typeof entry.metadata.outputPath === "string" ? <MenuItem icon={<OutputIcon size={14} />} onClick={() => { menu.close(); onOutput(); }}>{t("trace.viewRaw")}</MenuItem> : null}
+			<MenuItem icon={<FileText size={14} />} onClick={() => { menu.close(); onExport(); }}>{t("trace.openFile")}</MenuItem>
+			{entry.metadata && typeof entry.metadata === "object" && "outputPath" in entry.metadata && typeof entry.metadata.outputPath === "string" ? <MenuItem icon={<OutputIcon size={14} />} onClick={() => { menu.close(); onOutput(); }}>{t("trace.viewRaw")}</MenuItem> : null}
 			<MenuItem icon={<GitBranch size={14} />} onClick={() => { menu.close(); onFork(); }}>{t("trace.forkHere")}</MenuItem>
 		</MenuBody></Popover>}
 		<div role="tablist" aria-label={t("trace.content")} className="flex shrink-0 gap-1 border-b border-line-soft px-2 pb-1">

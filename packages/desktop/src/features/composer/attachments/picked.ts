@@ -26,12 +26,10 @@ export interface PickedFile {
 export function pickedFrom(list: FileList | null | undefined): PickedFile[] {
 	if (!list) return [];
 	/*
-	 * 问桥本身有没有这个方法，不问 `available()`。
+	 * 问桥本身有没有这个方法。
 	 *
-	 * `available()` 查的是契约表（`@plume/contract` 的 `METHODS`），而 `pathForDrop` **不在那张表
-	 * 里**——它不是一次 IPC，是 preload 里手写的一个同步调用，`webUtils` 只有那儿有。于是这一问永远
-	 * 答 false，路径一次都没被取到过：附件条上每一份都是「粘贴进来的，磁盘上没有它」，哪怕它就是从
-	 * 访达里拖进来的。打开、在访达中显示、复制路径，三件事因此从来没有真正工作过。
+	 * `pathForDrop` 不在契约表（`@plume/contract` 的 `METHODS`）里——它不是一次 IPC，是 preload 里
+	 * 手写的一个同步调用，`webUtils` 只有那儿有。按契约表去问会永远答 false，路径一次都取不到。
 	 *
 	 * 这类判断只有一种可靠问法：那个函数在不在。
 	 */
@@ -45,13 +43,8 @@ export function pickedFrom(list: FileList | null | undefined): PickedFile[] {
 		 * 调它不会抛」，而这是一次同步调用，抛出来就直接掀掉了整个 drop 处理。
 		 */
 		try {
-			const path: unknown = bridge.files.pathForDrop(file);
-			/*
-			 * A string or nothing. An older phone app answers every method it does not know with a
-			 * function that resolves to null, so this "path" was a promise — which was sent along with
-			 * the attachment, and the desktop refused the whole message as an invalid attachment.
-			 */
-			return typeof path === "string" && path ? { file, path } : { file };
+			const path = bridge.files.pathForDrop(file);
+			return path ? { file, path } : { file };
 		} catch {
 			return { file };
 		}

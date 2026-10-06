@@ -15,7 +15,6 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useEffect } from "react";
 
 import { useI18n } from "../../i18n/index.ts";
-import { onPhone } from "../../services/index.ts";
 import { useLayout, useSidebarFit } from "../layout.tsx";
 import { goBack, goForward, useCanStep } from "../nav-history.ts";
 import { AppRail, RAIL_WIDTH } from "./AppRail.tsx";
@@ -129,7 +128,6 @@ const forwardKey = mac ? "⌘]" : "Alt+→";
  */
 export function useNavShortcuts() {
 	useEffect(() => {
-		if (onPhone()) return;
 		const typing = (target: EventTarget | null) =>
 			target instanceof HTMLElement && (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA");
 		const onKey = (event: KeyboardEvent) => {

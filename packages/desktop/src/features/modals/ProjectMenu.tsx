@@ -7,7 +7,7 @@ import { startProjectSession } from "../../store/project-session.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { ProjectDialog } from "./ProjectDialog.tsx";
-import { available, bridge, onPhone } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 
 /**
  * Per-project actions, hung off the row they act on.
@@ -99,26 +99,20 @@ export function ProjectMenu({
 					{t("projectMenu.newSessionHere")}
 				</MenuItem>
 
-				{/* A project is a settings entry the phone may not write (`projects` is not in
-				    phone-settings.ts), and the folder is on the desktop: neither is reachable there. */}
-				{(!onPhone() || available("workspace", "reveal")) && <MenuSeparator />}
+				<MenuSeparator />
 
-				{!onPhone() && (
-					<MenuItem icon={<Pencil size={13} strokeWidth={1.8} />} onClick={() => setMode("edit")}>
-						{t("projectMenu.editProject")}
-					</MenuItem>
-				)}
-				{available("workspace", "reveal") && (
-					<MenuItem
-						icon={<FolderOpen size={13} strokeWidth={1.8} />}
-						onClick={() => {
-							void bridge.workspace.reveal(path);
-							onClose();
-						}}
-					>
-						{reveal}
-					</MenuItem>
-				)}
+				<MenuItem icon={<Pencil size={13} strokeWidth={1.8} />} onClick={() => setMode("edit")}>
+					{t("projectMenu.editProject")}
+				</MenuItem>
+				<MenuItem
+					icon={<FolderOpen size={13} strokeWidth={1.8} />}
+					onClick={() => {
+						void bridge.workspace.reveal(path);
+						onClose();
+					}}
+				>
+					{reveal}
+				</MenuItem>
 
 				<MenuSeparator />
 
@@ -133,11 +127,9 @@ export function ProjectMenu({
 				>
 					{t("projectMenu.archiveChats")}
 				</MenuItem>
-				{!onPhone() && (
-					<MenuItem icon={<X size={13} strokeWidth={1.9} />} danger onClick={() => setMode("remove")}>
-						{t("common.remove")}
-					</MenuItem>
-				)}
+				<MenuItem icon={<X size={13} strokeWidth={1.9} />} danger onClick={() => setMode("remove")}>
+					{t("common.remove")}
+				</MenuItem>
 			</MenuBody>
 		</Popover>
 	);

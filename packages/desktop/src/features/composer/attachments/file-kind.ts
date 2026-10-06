@@ -78,7 +78,7 @@ export function fileKind(name: string, mimeType = ""): FileKind {
 	 *
 	 * `mimeType = ""` 只在传 `undefined` 时生效；传 `null` 的话 `mime` 就是 null，下一行当场
 	 * `null.startsWith is not a function`——而这是个渲染期的调用，整个界面跟着白。附件不都是这里
-	 * 造的：从磁盘恢复的草稿、从手机同步过来的那一份，都可能带着一个没有 `mimeType` 的旧形状，
+	 * 造的：从磁盘恢复的草稿可能带着一个没有 `mimeType` 的旧形状，
 	 * 而它们进来时是 `as Attachment[]`，类型上那个 `: string` 一次也没被检查过。
 	 */
 	const mime = typeof mimeType === "string" ? mimeType.toLowerCase() : "";
@@ -109,7 +109,7 @@ export function fileKind(name: string, mimeType = ""): FileKind {
  * 一份已经发出去的附件，该按什么门类画。
  *
  * 记下来的 `kind` 是发送那一刻 `fileKind` 的答案，绝大多数时候就是对的——但它是一段之后再没人校验过
- * 的字符串：旧版本写下的、手机同步过来的、将来哪个入口写错的，都会原样躺在转录里。而渲染端对「图片」
+ * 的字符串：旧版本写下的、将来哪个入口写错的，都会原样躺在转录里。而渲染端对「图片」
  * 这个答案的信任是一路到底的：去取像素、画成缩略图、菜单里给「复制图片」。一份 `.md` 被记成图片，
  * 屏幕上就是一张裂开的图，alt 是它的文件名。
  *

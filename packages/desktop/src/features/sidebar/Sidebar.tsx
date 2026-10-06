@@ -28,9 +28,7 @@ import { SidebarFoot } from "./SidebarFoot.tsx";
 import { SidebarHead } from "./SidebarHead.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { SessionCarryGhost } from "../split/index.ts";
-import { PhoneDock } from "./PhoneDock.tsx";
 import { useSidebarLists } from "./useSidebarLists.ts";
-import { onPhone } from "../../services/index.ts";
 import { useStickyFade } from "./useStickyFade.ts";
 import { useI18n } from "../../i18n/index.ts";
 
@@ -49,12 +47,6 @@ export function Sidebar() {
 	 * sidebar stays where the user put it.
 	 */
 	const { compact, headerBar, framed, rail: railShown, dismissNav } = useLayout();
-	/*
-	 * On a phone the pane is a drawer held in one hand, and its controls move to where the thumb is:
-	 * search, 新对话 and settings leave the top and the footer for `PhoneDock` along the bottom edge.
-	 * Everything they do is unchanged — they are the same three calls, lower down.
-	 */
-	const phone = onPhone();
 
 	const [query, setQuery] = useState("");
 	const [searching, setSearching] = useState(false);
@@ -196,30 +188,22 @@ export function Sidebar() {
 			 * macOS 才有：红绿灯画在侧边栏的左上角，侧边栏自己的内容得从它们下面开始。Windows 和 Linux
 			 * 那条 header 已经把整行占走了，侧边栏从 header 底下开始，再留一次就是 88px 的空白。
 			 */}
-			{/*
-			 * Not in a phone's drawer: there are no traffic lights, the sidebar button stays on the page
-			 * under the drawer, and the drawer's own padding keeps it clear of the status bar (see
-			 * `phone.css`). Beside the conversation — a phone on its side, a tablet — the button sits
-			 * in this row again, so the row stays.
-			 */}
-			{!headerBar && !framed && !(phone && compact) && <div className="h-[44px] shrink-0" />}
+			{!headerBar && !framed && <div className="h-[44px] shrink-0" />}
 
 			<SidebarHead searching={searching} query={query} onQuery={setQuery} onToggleSearch={toggleSearch} />
 
 			{/* Only 新对话 is pinned above the list — see `DestinationNav` for why the other three
-			    are not. On a phone it is the round button in the dock instead. */}
-			{!phone && (
-				<nav className={`flex flex-col pb-1 ${pad}`}>
-					<NavItem
-						icon={<SquarePen size={16} />}
-						label={t("sidebar.newChat")}
-						onClick={() => {
-							void newSession();
-							dismissNav();
-						}}
-					/>
-				</nav>
-			)}
+			    are not. */}
+			<nav className={`flex flex-col pb-1 ${pad}`}>
+				<NavItem
+					icon={<SquarePen size={16} />}
+					label={t("sidebar.newChat")}
+					onClick={() => {
+						void newSession();
+						dismissNav();
+					}}
+				/>
+			</nav>
 
 			{/*
 			 * Both ends soften.
@@ -297,17 +281,7 @@ export function Sidebar() {
 			</Scroller>
 
 			<SessionCarryGhost />
-			{phone ? (
-				<PhoneDock
-					searching={searching}
-					query={query}
-					onQuery={setQuery}
-					onToggleSearch={toggleSearch}
-					onNavigate={dismissNav}
-				/>
-			) : (
-				!railShown && <SidebarFoot onNavigate={dismissNav} />
-			)}
+			{!railShown && <SidebarFoot onNavigate={dismissNav} />}
 
 			{menu.open && (
 				<ListMenu

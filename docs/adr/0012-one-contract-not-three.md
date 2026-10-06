@@ -1,6 +1,6 @@
 # ADR-0012：进程边界写在一处，不是三处
 
-- 状态：已采纳；手机那一侧（`sync-rpc.ts` 与每个方法的 `remote` 声明）曾随 ADR-0026 移除，由 [ADR-0036](0036-restore-mobile-and-relay.md) 恢复
+- 状态：已采纳；手机那一侧（`sync-rpc.ts` 与每个方法的 `remote` 声明）随 [ADR-0026](0026-remove-mobile-and-relay.md) 移除
 - 日期：2026-09-03
 - 相关：`packages/contract/`、`packages/desktop/electron/sync-rpc.ts`
 
@@ -24,7 +24,7 @@
 
 ## 决定
 
-`@plume/contract`：207 个方法写在一处，每个带 channel 名和「手机能不能调」。后者为 false 时
+`@plume/contract`：203 个方法写在一处，每个带 channel 名和「手机能不能调」。后者为 false 时
 **必须附一句为什么**——这是安全边界，一个光秃秃的 false 读起来像是忘了加。
 
 契约的测试守着它与那三个文件的双向一致——`preload.ts`、`sync-rpc.ts`，以及主进程里每一个

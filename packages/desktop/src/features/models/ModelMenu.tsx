@@ -47,8 +47,7 @@ const SEARCH_FROM = 8;
  * Which provider groups are folded shut, remembered across launches.
  *
  * In `localStorage` rather than in settings: it is about what this window shows, like a sidebar
- * width, not about how the app runs — and it should not travel to the phone, where the same list
- * is a different length on a different screen.
+ * width, not about how the app runs.
  */
 const COLLAPSED_KEY = "plume.modelMenu.collapsed";
 

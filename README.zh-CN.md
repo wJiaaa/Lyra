@@ -14,7 +14,7 @@
   <a href="./README.md">English</a> · <strong>中文</strong>
 </p>
 
-一个自带模型配置的独立通用型 agent。桌面端用 Electron，手机端用 React Native，两端共用同一份会话数据。
+一个自带模型配置的独立通用型 agent，桌面端用 Electron。
 
 不是 Claude Code 或 Codex 的前端壳。agent 内核、工具集、skill 与 MCP 全部从零实现，模型由你自己配，
 插件和技能也由你自己装。
@@ -119,7 +119,6 @@ Plume 不自带模型，所以第一次打开是发不出消息的。到「设�
 - **居中 Git 提交与分支管理**：提交改动采用居中模态弹窗，与主输入框呼吸感一致；分支行可直接切换本地分支或就地新建分支，确认提交时才执行分支创建与切换；支持平铺与树形改动视图切换并持久化偏好。
 - **回复按模型写的来画。** 用户气泡与回答均支持完整 Markdown 排版。mermaid 围栏会画成图。指向本地文件的链接收成单行胶囊，只显示文件名，完整路径在悬停提示里。一条十二兆的消息也能在一帧里画完。侧边聊天分离显示文本与底层模型附件记号，重新编辑时不回填附件代码。
 - **运行期间不让电脑休眠。** 通用设置里的开关。合盖仍然会睡。
-- **移动端同步**：手机重放同一份会话日志，可以查看进行中的回合、批准操作、继续追问。三条路径：同一个 Wi-Fi 下直连、经你自己的域名和 TLS、或者两端各自往外拨到中转服务碰头。手机端没有现成的安装包，按[手机端怎么打包](docs/architecture/mobile-packaging.md)在本地打。
 
 ## 结构
 
@@ -128,13 +127,11 @@ packages/
   core/              agent 内核：provider 适配、agent loop、工具、skill、MCP、会话存储
   cli/               不开窗口跑完一个任务，给评测用；读桌面端的设置
   desktop/           Electron 应用（主进程 + preload + React 渲染进程）
-  mobile/            Expo / React Native 应用
   contract/          两个进程之间那条线，221 个方法写在一处
   registry-shared/   插件目录的索引格式，桌面端与目录服务共用
-  relay/             公网中转服务，手机不在同一个局域网时走它。单文件，零依赖
 ```
 
-`core` 与平台无关，桌面主进程和同步服务共用同一个 `AgentSession`，所以手机和电脑不会看到两份不同的状态。
+`core` 与平台无关，桌面主进程驱动它的 `AgentSession`。
 包与包之间的依赖方向由边界规则约束，`pnpm arch` 守着，见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ## 从源码跑
@@ -143,14 +140,6 @@ packages/
 pnpm install
 pnpm dev
 ```
-
-手机端另开一个：
-
-```bash
-pnpm dev:mobile
-```
-
-在桌面端「设置 → 移动端同步」启用服务，把地址和令牌填进手机端的配对页。
 
 ### 不开窗口跑（评测用）
 
@@ -192,7 +181,7 @@ pnpm cli -C ~/code/my-project --json "/review src/a.ts"   # 命令和 skill 的�
 插件、技能、MCP、子智能体的目录结构与文件格式，以及浏览器、索引库、钩子的工作方式：
 
 - [扩展 Plume](docs/guide/extending.md)：插件目录结构、`SKILL.md` 格式、MCP 服务、子智能体定义
-- [内置能力](docs/guide/capabilities.md)：浏览器与其安全边界、索引库、钩子、移动端同步的三条路径
+- [内置能力](docs/guide/capabilities.md)：浏览器与其安全边界、索引库、钩子
 - [架构](ARCHITECTURE.md)：包与包的关系、边界规则、决策记录
 
 要点：**插件是一组技能的打包，不含 MCP 服务。** 一个只有 `.mcp.json` 的目录不是插件，它是

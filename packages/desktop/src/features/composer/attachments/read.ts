@@ -20,7 +20,6 @@ import { translate } from "../../../i18n/translate.ts";
 import { bridge } from "../../../services/index.ts";
 import { useApp } from "../../../store/index.ts";
 import { fileKind, isReadableAsText, looksBinary, type FileKind } from "./file-kind.ts";
-import { LEGACY_READ_LIMIT, uploadFromPhone } from "./phone-upload.ts";
 import type { PickedFile } from "./picked.ts";
 
 /** 输入框里挂着的一份附件——三个输入框是同一个形状。 */
@@ -46,11 +45,6 @@ export interface DraftAttachment {
 	 * 和 `name` 分开：一张粘贴进来的图的 `name` 是剪贴板给的 `image.png`，而屏幕上它是「图片 1」。
 	 */
 	label?: string;
-	/**
-	 * The desktop's id for this file, when a phone uploaded it rather than putting it in the prompt.
-	 * The prompt names the upload and the desktop turns it into the path it wrote; see `phone-upload.ts`.
-	 */
-	upload?: string;
 }
 
 /**
@@ -61,11 +55,7 @@ export interface DraftAttachment {
  */
 const MAX_FILES = 8;
 
-/**
- * `owner` names the composer asking, so that a phone's uploads are drawn in the composer they were
- * dropped on and not in the other two — see `uploads.ts`.
- */
-export async function readPickedFiles(picked: PickedFile[], owner = ""): Promise<DraftAttachment[]> {
+export async function readPickedFiles(picked: PickedFile[]): Promise<DraftAttachment[]> {
 	const next: DraftAttachment[] = [];
 	/** 本该有文字却没有的那些——只有这一类要说出来。 */
 	const scanned: string[] = [];
@@ -79,22 +69,6 @@ export async function readPickedFiles(picked: PickedFile[], owner = ""): Promise
 		const kind = fileKind(file.name, file.type);
 		// 每一条出口都要带上它，所以在这里摊平一次——漏在某一条分支上，那一类附件就打不开了。
 		const from = path ? { path } : {};
-
-		// On a phone, a file that should not ride inside the prompt is streamed to the desktop first.
-		const sent = await uploadFromPhone(file, kind, isReadableAsText(kind, file.name), owner);
-		if (sent.kind === "cancelled") continue;
-		if (sent.kind === "uploaded") {
-			next.push({ id, name: file.name, mimeType: sent.file.mimeType, isText: false, kind, path: sent.file.path, upload: sent.file.upload });
-			continue;
-		}
-		// The failed upload stays in the composer as a card with 重试 (`PhoneUploads`); that is where it is said.
-		if (sent.kind === "failed") continue;
-		if (sent.kind === "unsupported" && file.size > LEGACY_READ_LIMIT) {
-			// A phone app too old to upload: named, not read — the file would not survive the trip.
-			next.push({ id, name: file.name, mimeType: file.type || "application/octet-stream", isText: false, kind, ...from });
-			useApp.getState().notify(translate("subAgent.fileUnreadable", { name: file.name }), "warn");
-			continue;
-		}
 
 		if (kind === "image") {
 			const buffer = await file.arrayBuffer();

@@ -21,7 +21,7 @@ import type { BrowserResultDetails } from "../../../shared/browser.ts";
 import { sessionMediaUrl } from "../../../shared/session-image.ts";
 import { useScopedFromToolRuns, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useI18n } from "../../i18n/index.ts";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useApp, type ToolRun } from "../../store/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
 
@@ -117,11 +117,6 @@ function BrowserCard({ callId }: { callId: string }) {
 	 * 面板由主进程那一侧展开：这里发出去的命令是人按的，带着 `reveal`——跟地址栏、预览链接是同一条路。
 	 */
 	const open = async () => {
-		// No built-in browser on a phone: the page opens in the phone's own browser instead.
-		if (!available("browser", "command")) {
-			if (view.url) void bridge.system.openExternal(view.url);
-			return;
-		}
 		try {
 			const { tabs } = await bridge.browser.state();
 			const alive = tabs.some((entry) => entry.id === view.tabId && (entry.sessionId ?? null) === (sessionId ?? null));

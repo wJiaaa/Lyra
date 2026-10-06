@@ -2,8 +2,8 @@
  * When a message was sent, in the language the window is set to.
  *
  * The row under every message formatted its time with a hard-coded "zh-CN", so an English window
- * said 「9月26日 14:28」 under each message. On a phone that row is always out — there is no hover
- * to hide it behind — which put it in every screenshot of the English interface.
+ * said 「9月26日 14:28」 under each message. On a touch screen that row is always out — there is no
+ * hover to hide it behind — which put it in every screenshot of the English interface.
  */
 
 import assert from "node:assert/strict";

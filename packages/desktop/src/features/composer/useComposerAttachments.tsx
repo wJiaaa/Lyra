@@ -14,19 +14,17 @@
  * `ensureThere` 那段。所以「打开」由调用方给；不给的话，点标记就只做预览和「在访达中显示」。
  */
 
-import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 
 import { useI18n } from "../../i18n/index.ts";
 import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
 import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu } from "./attachments/AttachmentMenu.tsx";
 import { AttachmentStrip, type StripFile } from "./attachments/AttachmentStrip.tsx";
-import { PhoneUploads } from "./attachments/PhoneUploads.tsx";
 import { useAttachmentActions } from "./attachments/actions.ts";
 import { KIND_LABEL } from "./attachments/file-kind.ts";
 import { pickedFrom, type PickedFile } from "./attachments/picked.ts";
 import { fromDataUrl, readPickedFiles, type DraftAttachment } from "./attachments/read.ts";
-import { receiveLateUploads } from "./attachments/uploads.ts";
 import { useAttachmentMarks, type AttachmentMarks } from "./useAttachmentMarks.ts";
 
 export interface ComposerAttachments<T> {
@@ -35,10 +33,7 @@ export interface ComposerAttachments<T> {
 	addFiles: (picked: PickedFile[]) => Promise<void>;
 	/** 上方那一排——只有图片。文件的全部信息就是名字，而名字已经写在句子里那枚标记上了。 */
 	strip: StripFile[];
-	/**
-	 * That row, drawn, plus a phone's uploads still in flight. The tray around it opens on
-	 * `strip.length` (and, on a phone, on an upload being listed), so an empty node costs nothing.
-	 */
+	/** That row, drawn. The tray around it opens on `strip.length`, so an empty node costs nothing. */
 	stripNode: ReactNode;
 	/** 句子里点中第 n 枚标记。 */
 	onAttachmentClick: (index: number, rect?: DOMRect) => void;
@@ -81,30 +76,6 @@ export function useComposerAttachments<T extends DraftAttachment>({
 	const textRef = useRef(text);
 	textRef.current = text;
 	const fileRef = useRef<HTMLInputElement>(null);
-	/** This composer, as far as a phone's uploads are concerned: each draws only the ones it started. */
-	const owner = useId();
-	const marksRef = useRef(marks);
-	marksRef.current = marks;
-	/*
-	 * A phone upload that failed and was retried from its card lands after `addFiles` has returned;
-	 * it is attached here, at the caret as it is now, exactly like one that arrived first time.
-	 */
-	useEffect(
-		() =>
-			receiveLateUploads(owner, (arrived) => {
-				const attachment = {
-					id: `${arrived.name}-${Date.now()}-${Math.random()}`,
-					name: arrived.name,
-					mimeType: arrived.mimeType,
-					isText: false,
-					kind: arrived.kind,
-					path: arrived.path,
-					upload: arrived.upload,
-				} as T;
-				marksRef.current.attach([attachment], field.current?.selectionStart ?? textRef.current.length);
-			}),
-		[owner, field],
-	);
 
 	/**
 	 * 带着像素的那几个，按它们在附件里的先后。
@@ -136,7 +107,7 @@ export function useComposerAttachments<T extends DraftAttachment>({
 		if (picked.length === 0) return;
 		/* 在读字节之前问一次：抽一份三百页 PDF 的文本要几百毫秒，那之后光标早不在原地了。 */
 		const caret = field.current?.selectionStart ?? textRef.current.length;
-		const next = (await readPickedFiles(picked, owner)) as T[];
+		const next = (await readPickedFiles(picked)) as T[];
 		// 标记、编号、光标落点，都在这一步里——见 `useAttachmentMarks`。
 		if (next.length > 0) marks.attach(next, caret);
 	};
@@ -164,12 +135,7 @@ export function useComposerAttachments<T extends DraftAttachment>({
 			};
 		});
 
-	/*
-	 * The images, and — on a phone — any file still on its way to the desktop. `PhoneUploads` draws
-	 * nothing when there is nothing in flight, and the phone's stylesheet opens the tray around it
-	 * while there is (`.ly-reveal:has(.ly-phone-uploads)`), so no composer has to know about uploads.
-	 */
-	const images =
+	const stripNode =
 		strip.length > 0 ? (
 			<AttachmentStrip
 				files={strip}
@@ -202,12 +168,6 @@ export function useComposerAttachments<T extends DraftAttachment>({
 				}
 			/>
 		) : null;
-	const stripNode = (
-		<>
-			{images}
-			<PhoneUploads owner={owner} />
-		</>
-	);
 
 	const onAttachmentClick = (index: number, rect?: DOMRect) => {
 		const hit = scanPlaceholders(text, attachments)[index];

@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 
 import { useApp } from "../../store/index.ts";
 import { markFor, type BundleMarks, type McpMark } from "./mcp-marks.ts";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 
 /**
  * The installed bundles' marks, read once per window and re-read when something is installed.
@@ -25,11 +25,6 @@ let inFlight: Promise<unknown> | null = null;
 const listeners = new Set<() => void>();
 
 async function load(nonce: number, cwd: string): Promise<void> {
-	// Settled as empty where the list cannot be had, rather than asked again on every mount.
-	if (!available("plugins", "list")) {
-		cached = { nonce, marks: {} };
-		return;
-	}
 	const scan = await bridge.plugins.list(cwd);
 	const marks: BundleMarks = {};
 	for (const bundle of scan.mcpBundles) {

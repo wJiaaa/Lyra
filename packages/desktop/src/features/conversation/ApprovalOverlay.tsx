@@ -8,7 +8,6 @@ import { Caret } from "../../ui/primitives/Caret.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useLayout } from "../../app/layout.tsx";
-import { onPhone } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useScopedApprovals, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useAgentAvatars } from "../../store/agent-avatars.ts";
@@ -87,15 +86,6 @@ export function ApprovalOverlay() {
 		{request.expiresAt !== undefined && <Expiry at={request.expiresAt} />}
 		{approvals.length > 1 && <span className="shrink-0 text-caption text-ink-faint">+{approvals.length - 1}</span>}
 	</>;
-	/*
-	 * On a phone the kind and the countdown go under the title instead of beside it.
-	 *
-	 * Beside it neither of them shrinks, and in English they are "Run a command" and "Expires in
-	 * 4:58": on a 390pt screen they left the title about 56pt, where `break-words` split "reworded"
-	 * into "reword" / "ed"; at 320pt it had no width at all and stood one letter to a line. Under it,
-	 * the title has the row, wraps between words, and the two small labels read as its caption.
-	 */
-	const phone = onPhone();
 	return <div data-approval-region className={`flex shrink-0 justify-center pb-2 ${compact ? "ly-content-gutter-compact" : "ly-content-gutter"}`}>
 		<div data-approval-card className="ly-glass flex w-full max-w-[var(--ly-content)] max-h-[min(560px,calc(100dvh-14rem))] flex-col overflow-hidden rounded-xl border border-line">
 			<div className="flex shrink-0 items-center gap-2 px-4 py-2.5" data-ly-avatar-host="" data-approval-head="">
@@ -118,9 +108,8 @@ export function ApprovalOverlay() {
 							{translate("approval.fromSubAgent", { name: request.from.description, agent: request.from.agent })}
 						</span>
 					)}
-					{phone && <span className="empty:hidden" data-approval-meta="">{tags}</span>}
 				</span>
-				{!phone && tags}
+				{tags}
 				<IconButton label={translate(collapsed ? "question.expand" : "question.collapse")} expanded={!collapsed} onClick={() => setCollapsedId(collapsed ? null : request.id)} icon={<Caret open={!collapsed} size={15} />} />
 			</div>
 			<Collapse open={!collapsed} keepMounted className="min-h-0" bodyClassName="flex min-h-0 flex-col overflow-hidden">{interactive ? <>

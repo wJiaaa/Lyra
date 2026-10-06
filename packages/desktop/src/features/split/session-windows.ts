@@ -6,7 +6,7 @@
  */
 
 import { create } from "zustand";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 
 interface SessionWindowsState {
 	sessions: string[];
@@ -15,8 +15,7 @@ interface SessionWindowsState {
 export const useSessionWindows = create<SessionWindowsState>(() => ({ sessions: [] }));
 
 export function watchSessionWindows(): () => void {
-	// No detached windows on a phone, and `windows.list` is not answered there.
-	if (!available("windows", "list") || !bridge.windows?.list || !bridge.windows.onChanged) return () => {};
+	if (!bridge.windows?.list || !bridge.windows.onChanged) return () => {};
 	const apply = (sessions: string[]) => useSessionWindows.setState({ sessions });
 	void bridge.windows.list().then((result) => apply(result.sessions)).catch(() => {});
 	return bridge.windows.onChanged(({ sessions }) => apply(sessions));

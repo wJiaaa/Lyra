@@ -1,6 +1,6 @@
 # ADR-0002：中转服务不知道令牌，房间号是它的哈希
 
-- 状态：已采纳（曾被 ADR-0026 取代，由 [ADR-0036](0036-restore-mobile-and-relay.md) 恢复）
+- 状态：已被 [ADR-0026](0026-remove-mobile-and-relay.md) 取代（移动端与中转已移除）
 - 日期：2026-09-03（追记，实现于 v0.8.36）
 - 相关：`packages/relay/server.mjs`、`packages/desktop/electron/sync-relay.ts`
 

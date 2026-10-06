@@ -143,13 +143,9 @@ test("转录交给窗口的那一刻记下：slimSnapshot 是三条路共同的�
 	assert.equal(await attachmentFile(file), await realpath(file));
 });
 
-test("本机新发的消息过门时就记下；远端递进来的路径到不了这里", async () => {
+test("新发的消息过门时就记下", async () => {
 	const local = await desktopFile("d.md");
-	const remote = await desktopFile("e.md");
 	const attachment = (path: string) => ({ attachments: [{ name: "x.md", kind: "text", path }] });
-
-	promptOptions(attachment(remote.file), "remote");
-	assert.equal(await attachmentFile(remote.file), null, "远端的 path 在门上就被丢了");
 
 	promptOptions(attachment(local.file));
 	assert.equal(await attachmentFile(local.file), await realpath(local.file), "刚发出去的那条，点「预览」要当场打得开");

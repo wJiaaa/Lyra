@@ -24,7 +24,7 @@ import {
 
 import { OverlayDepth } from "./Overlay.tsx";
 import { claimHoverSuppression } from "./hover-layers.ts";
-import { chromeTop, heldClear, placeBeside, safeInsets } from "./keep-clear.ts";
+import { chromeTop } from "./chrome-top.ts";
 import { Scroller } from "../scroll/Scroller.tsx";
 import { portal } from "./portal.ts";
 
@@ -160,34 +160,11 @@ const GAP = 8;
 const MARGIN = 12;
 
 /**
- * How far from each window edge a popover must stay: the margin, or clear of the host's chrome.
- *
- * On a phone the page runs under the status bar and the home indicator, so twelve pixels from the
- * top edge is under the Dynamic Island. In the desktop window the top is the toolbar's (see
- * `chromeTop`). Everywhere else the insets are zero and this is `MARGIN`.
+ * How far from each window edge a popover must stay: the margin, and at the top clear of the
+ * window's toolbar (see `chromeTop`).
  */
 function edges(): { top: number; bottom: number; left: number; right: number } {
-	const inset = safeInsets();
-	return {
-		top: Math.max(MARGIN, inset.top + GAP, chromeTop() + GAP),
-		bottom: Math.max(MARGIN, inset.bottom + GAP),
-		left: MARGIN + inset.left,
-		right: MARGIN + inset.right,
-	};
-}
-
-/**
- * How much wider a surface's named width is drawn here, declared by the host's stylesheet.
- *
- * The four widths are sized for a pointer and fourteen-pixel labels. A thumb on a phone gets the
- * same menu with larger type and taller rows, and at 190px its labels start to cut — so the phone
- * says `--ly-menu-width-scale` and every menu keeps its proportions rather than each one picking a
- * phone width of its own.
- */
-function widthScale(): number {
-	if (typeof document === "undefined" || !document.documentElement) return 1;
-	const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ly-menu-width-scale"));
-	return Number.isFinite(value) && value > 0 ? value : 1;
+	return { top: Math.max(MARGIN, chromeTop() + GAP), bottom: MARGIN, left: MARGIN, right: MARGIN };
 }
 
 /**
@@ -360,9 +337,7 @@ export function Popover({
 			const edge = edges();
 			// A menu wider than the window cannot be nudged into view — it has to give up width.
 			const limit = window.innerWidth - edge.left - edge.right;
-			const named = widthOf(resolvedWidth(width, role));
-			// A caller's own number is its own business; only the named sizes follow the host's scale.
-			const fixed = named === undefined || typeof width === "number" ? named : Math.round(named * widthScale());
+			const fixed = widthOf(resolvedWidth(width, role));
 			/*
 			 * Width first, then measure — because height depends on it.
 			 *
@@ -377,32 +352,6 @@ export function Popover({
 			// The opening scale belongs to presentation, not to the surface's layout dimensions.
 			const box = { width: element.offsetWidth, height: element.offsetHeight };
 			const w = Math.min(fixed ?? box.width, limit);
-
-			/*
-			 * Hung from a point with something to keep clear of: a long press, whose menu must not
-			 * cover the row it is about. See `keep-clear.ts` — the rest of this pass is for anchors
-			 * that are the thing being acted on, where overlapping them is the lesser harm.
-			 */
-			const clear = anchor instanceof HTMLElement ? null : heldClear();
-			if (clear) {
-				const spot = placeBeside(
-					clear.rect,
-					{ width: w, height: box.height },
-					{ top: edge.top, bottom: window.innerHeight - edge.bottom, left: edge.left, right: window.innerWidth - edge.right },
-				);
-				setPlaced(true);
-				setStyle({
-					left: spot.left,
-					top: spot.top,
-					width: fixed === undefined ? undefined : w,
-					maxWidth: limit,
-					transformOrigin: spot.origin,
-					maxHeight: Math.min(spot.maxHeight, maxHeight ?? Infinity),
-					opacity: 1,
-				});
-				clear.onPlace?.(spot);
-				return;
-			}
 
 			const fitsAbove = a.top - box.height - GAP >= edge.top;
 			const fitsBelow =

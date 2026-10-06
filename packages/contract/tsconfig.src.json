@@ -4,9 +4,8 @@
     /*
      * No `lib` beyond the language, and no `types` at all.
      *
-     * This is what keeps the package portable. Its three consumers are the main process, the
-     * preload and — through the renderer the phone loads — a browser; a `node:` type creeping in
-     * here would compile fine and then be a runtime import in a place that has no `node:`.
+     * This is what keeps the package portable. It depends on nothing, so anything may import it;
+     * a `node:` type creeping in here would compile fine and quietly change that.
      */
     "lib": ["ES2023"],
     "types": [],
@@ -14,11 +13,5 @@
     "noEmit": true,
     "composite": true
   },
-  "include": ["src/**/*.ts"],
-  /*
-   * `args.ts` is excluded on purpose — it is the one file here that needs `node:path`, and letting
-   * it into this project would mean adding `"types": ["node"]` above, which is exactly the thing
-   * this configuration exists to prevent. It has `tsconfig.node.json` to itself.
-   */
-  "exclude": ["src/args.ts"]
+  "include": ["src/**/*.ts"]
 }

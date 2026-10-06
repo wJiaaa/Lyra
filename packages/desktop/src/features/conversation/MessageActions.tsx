@@ -78,10 +78,8 @@ export function MessageActions({
 	return (
 		<div
 			/*
-			 * On a phone this row cannot be revealed by hovering, so it is always out — see the
-			 * `(hover: none)` rules in the stylesheet. Marked because it is the one such row that
-			 * repeats down the whole page, and at full strength it would compete with the
-			 * conversation it belongs to.
+			 * Revealed on hover because it repeats down the whole page, and at full strength it
+			 * would compete with the conversation it belongs to.
 			 */
 			data-ly-hover-reveal
 			className={`mt-1 flex h-6 items-center gap-1.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/msg:opacity-100 has-[:focus-visible]:opacity-100 ${className}`}
@@ -191,7 +189,7 @@ function formatTimestampTip(timestamp: number, locale: ResolvedUiLocale): string
  *
  * The month is the short form. Chinese, Japanese and Korean write it the same either way (「9月」),
  * but spelled out it made the English row "September 26 at 2:28 PM", in a caption that sits under
- * every message and on a phone never hides.
+ * every message.
  */
 function formatSentAt(timestamp: number, locale: ResolvedUiLocale): string {
 	const sent = new Date(timestamp);

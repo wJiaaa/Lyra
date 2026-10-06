@@ -1,6 +1,6 @@
 # ADR-0027：Web 访问——桌面端把自己的界面发给浏览器
 
-- 状态：已被 [ADR-0036](0036-restore-mobile-and-relay.md) 取代（Web 访问已撤掉，改用手机端与同步服务）
+- 状态：已撤回（2026-10-06，Web 访问整体移除，产品只保留桌面窗口）
 - 日期：2026-09-27
 - 相关：部分恢复 [ADR-0001](0001-mobile-hosts-the-desktop-renderer.md) 的「一份界面、两个宿主」；
   修订 [ADR-0026](0026-remove-mobile-and-relay.md)、[ADR-0012](0012-one-contract-not-three.md)
@@ -40,3 +40,11 @@ ADR-0026 删掉了移动端，也就失去了「在电脑之外看进行中的�
 
 需要跨公网访问时：优先让用户自己的反向代理 / Tailscale 解决，其次才考虑 ADR-0002 那种不知道
 令牌的中转。需要离线查看时：缓存这一份界面，仍然不画第二套。
+
+## 撤回
+
+2026-10-06 整体移除，删掉的是本文「决定」一节里的全部：主进程的 HTTP + WebSocket 服务与参数校验
+（`web-*.ts`、`@plume/contract/args`）、契约的 `WEB_METHODS`、渲染进程的 `web-bridge.ts` 与
+`onWeb()` / `available()` 分支、设置页的「Web 访问」。没有顶栏的那条布局路径（`DragBand`、`WindowButtons`、
+`titlebarInsets` 的 `windowed`）留着，以后重做 Web 访问时直接接上；眼下没有窗口走它。
+`~/.plume/settings.json` 里旧的 `webAccess` 字段不再读取，留在文件里也没有作用。

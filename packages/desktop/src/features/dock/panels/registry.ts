@@ -17,7 +17,6 @@ import type { GitCompare } from "lucide-react";
 import type { DropSide, PaneKind } from "../tree.ts";
 import type { PanelKind } from "../sideStore.ts";
 import { basePanelKind } from "../../../lib/panel-instance.ts";
-import { onPhone } from "../../../services/index.ts";
 
 interface PanelAvailability {
 	/** Inside one of the user's projects. The files and the repository mean something. */
@@ -55,16 +54,6 @@ export interface PanelDefinition {
 	 * a restart or a session switch.
 	 */
 	ephemeral?: boolean;
-	/**
-	 * Expose this panel in the phone renderer. Absent stays desktop-only.
-	 *
-	 * A flag rather than a check against the methods the panel calls, because a panel calls many
-	 * and what matters is whether it is any use at all: a terminal with no shell, a Git panel that
-	 * cannot run git, a browser tab on the wrong machine. The ones marked are the conversation's
-	 * own — its files to read, its sub-agents, side chat, tasks, trajectory — and every method they
-	 * need is marked `remote` in the contract.
-	 */
-	mobile?: boolean;
 	/** Why it cannot be opened right now, given the current state. */
 	unavailable?(state: PanelAvailability): MessageKey | undefined;
 	/**
@@ -168,9 +157,7 @@ export function registerPanels(panels: PanelDefinition[]): () => void {
 export function allPanels(): PanelDefinition[] {
 	const byKind = new Map<PanelKind, PanelDefinition>();
 	for (const set of registered) for (const panel of set) byKind.set(panel.kind, panel);
-	const panels = [...byKind.values()];
-	// Filtered here, where every consumer — the + menu, the shortcuts, the dock — already looks.
-	return onPhone() ? panels.filter((panel) => panel.mobile) : panels;
+	return [...byKind.values()];
 }
 
 /**
@@ -180,8 +167,6 @@ export function allPanels(): PanelDefinition[] {
  * kind the registry has not heard of has nothing of its own to lose.
  */
 export function detachOf(kind: PaneKind): "self" | "handoff" | "none" {
-	// A phone has no second window to move anything into.
-	if (onPhone()) return "none";
 	return panelOf(kind)?.detach ?? "self";
 }
 

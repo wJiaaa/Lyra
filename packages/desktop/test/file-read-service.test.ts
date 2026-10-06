@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { listReadableFiles, readReadableFile, resolveReadablePath } from "../electron/file-read-service.ts";
 
-test("phone file reads stay read-only and share the desktop text rules", async () => {
+test("file reads stay read-only and share the desktop text rules", async () => {
 	const root = await mkdtemp(join(tmpdir(), "plume-file-read-"));
 	try {
 		await mkdir(join(root, "src"));
@@ -30,8 +30,8 @@ test("a refused path never reaches the filesystem reader", async () => {
 	assert.equal(await readReadableFile(null, true), null);
 });
 
-test("phone file reads cannot follow a project link into a private directory", async () => {
-	const root = await mkdtemp(join(tmpdir(), "plume-phone-boundary-"));
+test("file reads cannot follow a project link into a private directory", async () => {
+	const root = await mkdtemp(join(tmpdir(), "plume-web-boundary-"));
 	try {
 		const project = join(root, "project");
 		const privateDir = join(root, "private");
@@ -46,8 +46,8 @@ test("phone file reads cannot follow a project link into a private directory", a
 	}
 });
 
-test("phone file boundaries permit contained links and projects opened through a link", async () => {
-	const root = await mkdtemp(join(tmpdir(), "plume-phone-links-"));
+test("file boundaries permit contained links and projects opened through a link", async () => {
+	const root = await mkdtemp(join(tmpdir(), "plume-web-links-"));
 	try {
 		const project = join(root, "project");
 		const source = join(project, "src");
@@ -69,8 +69,8 @@ test("phone file boundaries permit contained links and projects opened through a
 	}
 });
 
-test("a phone can list a linked project and read the exact path returned by each listing", async () => {
-	const root = await mkdtemp(join(tmpdir(), "plume-phone-browse-link-"));
+test("the file tree can list a linked project and read the exact path returned by each listing", async () => {
+	const root = await mkdtemp(join(tmpdir(), "plume-web-browse-link-"));
 	try {
 		const physical = join(root, "physical");
 		const opened = join(root, "opened");

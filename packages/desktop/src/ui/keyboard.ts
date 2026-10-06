@@ -1,4 +1,4 @@
-/** Labels describe the local keyboard, including when a phone talks to a different OS. */
+/** Labels describe the local keyboard. */
 export function macKeyboard(platform = navigator.platform): boolean {
 	return /Mac|iPhone|iPad|iPod|darwin/i.test(platform);
 }

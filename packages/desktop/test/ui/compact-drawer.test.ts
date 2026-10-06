@@ -5,7 +5,7 @@
  * window with navigation now has a toolbar across its top (`WindowFrame`): 32px on Windows and Linux,
  * 40px on macOS, z-40 and a drag region all the way across. A drawer starting at y=0 has its first
  * row — search and notifications, or settings' way back to the workspace — underneath it: not visible,
- * and a press there moves the window. Only a phone has no toolbar, and its drawer still starts at the top.
+ * and a press there moves the window.
  *
  * happy-dom does no layout; this reads the top the drawer declares. Occlusion in a real window is
  * measured separately.
@@ -38,8 +38,8 @@ function Harness() {
 }
 
 /** A 700px window — narrow enough for the drawer — on `platform`, with the drawer opened. */
-async function openDrawer(platform: string, host: "desktop" | "mobile" = "desktop") {
-	Object.defineProperty(window, "plume", { configurable: true, value: { platform, host } });
+async function openDrawer(platform: string) {
+	Object.defineProperty(window, "plume", { configurable: true, value: { platform } });
 	Object.defineProperty(window, "innerWidth", { configurable: true, value: 700 });
 	const view = await mount(h(LayoutProvider, { children: h(Harness) }));
 	assert.equal(view.find("[data-test-toggle]").getAttribute("data-compact"), "true", "700px 应当是紧凑布局");
@@ -63,15 +63,6 @@ test("macOS: the drawer starts below the 40px toolbar", async () => {
 	const { view, drawer } = await openDrawer("darwin");
 	try {
 		assert.equal(drawer.style.top, `${MAIN_TOOLBAR_HEIGHT}px`);
-	} finally {
-		await view.unmount();
-	}
-});
-
-test("a phone has no toolbar, and its drawer starts at the top", async () => {
-	const { view, drawer } = await openDrawer("darwin", "mobile");
-	try {
-		assert.equal(drawer.style.top, "");
 	} finally {
 		await view.unmount();
 	}

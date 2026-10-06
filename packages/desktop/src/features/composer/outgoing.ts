@@ -14,7 +14,7 @@ import type { MessageAttachment, UserContent } from "@plume/core";
 import { parseInvocation, parseSkillMention, resolveInvocation } from "@plume/core/commands-view";
 
 import { formatList } from "../../i18n/list.ts";
-import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentOnDesktop, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
+import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { bridge } from "../../services/index.ts";
 
 /** 附件在草稿里的样子，只取这一步用得上的几项。 */
@@ -30,8 +30,6 @@ interface OutgoingAttachment {
 	path?: string;
 	/** 界面上叫什么。正文里那枚标记写的是它，附件要按标记的位置排就得靠它配对。 */
 	label?: string;
-	/** The desktop's id for a file a phone uploaded; see `attachments/phone-upload.ts`. */
-	upload?: string;
 }
 
 export interface OutgoingDraft {
@@ -95,8 +93,6 @@ export function attachmentMeta(files: OutgoingAttachment[]): MessageAttachment[]
 		 * 对着自己带的那份表格，唯一做得到的事就是把名字显示出来。
 		 */
 		...(file.path ? { path: file.path } : {}),
-		// The desktop swaps this for the path it wrote the upload to; a phone's own path counts for nothing.
-		...(file.upload ? { upload: file.upload } : {}),
 	}));
 }
 
@@ -162,12 +158,6 @@ export function spellDraft(text: string, attachments: OutgoingAttachment[]): Use
 			flush();
 			content.push({ type: "text", text: attachmentImageLabel(file.name, label) });
 			content.push({ type: "image", data: file.data, mimeType: file.mimeType });
-			return;
-		}
-		if (file.upload && file.path) {
-			// Uploaded from a phone: on the desktop's disk, where the agent's tools can read it.
-			flush();
-			content.push({ type: "text", text: attachmentOnDesktop(file.name, file.path, file.mimeType, label) });
 			return;
 		}
 		// Attached by name and type only — see `addFiles`. Saying so is what stops the model from

@@ -480,7 +480,7 @@ export class SubAgentRegistry {
 		 *
 		 * `steering` 里放的本来就是完整的 `Message`，图片块从来都装得下——只是这个入口的签名卡在
 		 * `string` 上，于是操控框里附的图在发出去之前就没了：界面收得下、缩略图画得出、送到这里
-		 * 只剩文本附件被拼进正文。字符串那一种仍然认，手机端和旧的调用点都还在用。
+		 * 只剩文本附件被拼进正文。字符串那一种仍然认，旧的调用点还在用。
 		 */
 		const content: UserContent[] = typeof said === "string" ? [{ type: "text", text: said }] : said;
 		// 全是空白的一条只会让子代理白转一轮。`every` 对空数组返回 true，空的那一种也在里面。

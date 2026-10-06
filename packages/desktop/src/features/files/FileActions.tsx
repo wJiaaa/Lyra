@@ -19,7 +19,7 @@ import { openLabel, useOpenTarget } from "../../store/open-targets.ts";
 import { useOpenFile } from "../../store/openFile.ts";
 import { usePaneFile } from "./pane-file.tsx";
 import { fileKind } from "./FileViewer.tsx";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function FileActions() {
@@ -63,11 +63,9 @@ export function FileActions() {
 			 * path in a named app was already there with no caller. This is the one place a file is
 			 * on screen with a path in hand, so it is where it belongs.
 			 */}
-			{available("system", "openIn") && (
-				<Mark tip={openLabel(openTarget)} onClick={() => void bridge.system.openIn(openTarget.id, path)}>
-					<ExternalLink size={12} strokeWidth={1.9} />
-				</Mark>
-			)}
+			<Mark tip={openLabel(openTarget)} onClick={() => void bridge.system.openIn(openTarget.id, path)}>
+				<ExternalLink size={12} strokeWidth={1.9} />
+			</Mark>
 		</>
 	);
 }

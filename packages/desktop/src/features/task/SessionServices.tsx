@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { JobOutput } from "./JobOutput.tsx";
 import { useJobFocus } from "../../store/job-focus.ts";
 import type { SessionServices as Services } from "../../../shared/session-services.ts";
-import { available, bridge } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -22,7 +22,7 @@ export function SessionServices() {
 	const root = useRef<HTMLDivElement>(null);
 	const confirm = useConfirmer();
 	useEffect(() => {
-		if (!sessionId || !available("services", "list")) return;
+		if (!sessionId) return;
 		let live = true, timer: ReturnType<typeof setTimeout>, seen = 0;
 		const refresh = async () => {
 			clearTimeout(timer);

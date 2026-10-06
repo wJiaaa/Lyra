@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import type { BrowserCommand, BrowserState, BrowserTab } from "../../../shared/browser.ts";
-import { bridge, onPhone } from "../../services/index.ts";
+import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useSide, openScopedPanel, usePaneDock, usePanelWindows } from "../dock/index.ts";
 
@@ -60,7 +60,6 @@ function browserMounted(tabs: BrowserTab[], owner: string, recent: string[], run
 
 export function useBrowserWorkspace(): void {
 	useEffect(() => {
-		if (onPhone()) return;
 		const unsubscribe = bridge.browser.onChanged((state) => {
 			useBrowser.setState({ tabs: state.tabs, activeId: state.activeId });
 			/*

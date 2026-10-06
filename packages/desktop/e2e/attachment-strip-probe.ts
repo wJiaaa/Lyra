@@ -527,7 +527,7 @@ try {
 	 * 这是之前一直没验到的那条路。`DataTransfer` 现造的 `File` 在磁盘上没有对应物，
 	 * `webUtils.getPathForFile` 对它只能返回空串——于是每一趟探针跑下来，附件全都是「没有路径」的
 	 * 那一类，而「打开 / 在访达中显示 / 复制路径」三件事的**成功**路径一次都没走过。它们坏了很久：
-	 * 判断「取不取得到路径」用的是 `available()`，而那查的是契约表，`pathForDrop` 根本不在表里。
+	 * 判断「取不取得到路径」查的是一张不含 `pathForDrop` 的方法表。
 	 *
 	 * `DOM.setFileInputFiles` 能把一个真文件交给 `<input type=file>`，于是这条路第一次走得通。
 	 */

@@ -17,7 +17,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { ALL, ROOT, SOURCE, readVersion, writeBuildNumber, writeVersion } from "./versions.mjs";
+import { MANIFESTS, ROOT, SOURCE, readVersion, writeVersion } from "./versions.mjs";
 
 const run = promisify(execFile);
 
@@ -94,12 +94,8 @@ async function main() {
 	const existing = await must("git", ["tag", "-l", tag]);
 	if (existing) fail(`${tag} 已经存在`);
 
-	note(`写版本号（${ALL.length} 处）`);
-	for (const relative of ALL) await writeVersion(relative, version);
-
-	// The two numbers the phone installs by. They are in app.json and not in the build command
-	// because `android/` and `ios/` are generated from app.json by `expo prebuild`.
-	note(`写手机端构建号（${await writeBuildNumber(version)}）`);
+	note(`写版本号（${MANIFESTS.length} 处）`);
+	for (const relative of MANIFESTS) await writeVersion(relative, version);
 
 	note("生成 CHANGELOG");
 	const previous = await must("git", ["describe", "--tags", "--abbrev=0"]);
@@ -118,7 +114,7 @@ async function main() {
 	await writeFile(changelogPath, `${`${head}\n\n${added.trim()}\n\n${rest}`.replace(/\n{3,}/g, "\n\n").trimEnd()}\n`);
 
 	note("提交");
-	await must("git", ["add", "--", ...ALL, "CHANGELOG.md"]);
+	await must("git", ["add", "--", ...MANIFESTS, "CHANGELOG.md"]);
 	await must("git", ["commit", "-m", `chore(release): ${tag}`]);
 
 	note("打 tag");

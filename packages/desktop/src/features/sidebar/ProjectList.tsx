@@ -10,7 +10,6 @@ import { ChevronRight, Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectDialog } from "../modals/index.ts";
-import { onPhone } from "../../services/index.ts";
 import { Collapsible } from "./Collapsible.tsx";
 import type { Grouped } from "../../lib/sidebar-grouping.ts";
 import { ProjectGroup, SESSION_PAGE } from "./ProjectGroup.tsx";
@@ -126,16 +125,15 @@ export function ProjectList({
 						 * other intent — adding one — and the list of them is where you are when
 						 * you have it.
 						 */
-						// A project is a settings entry, which a phone may not write (see phone-settings.ts).
 						action={
 							<>
 								{listSettings}
-								{!onPhone() && <IconButton
+								<IconButton
 									size="sm"
 									label={translate("project.new")}
 									onClick={() => setCreating(true)}
 									icon={<Plus size={13} strokeWidth={2} aria-hidden />}
-								/>}
+								/>
 							</>
 						}
 					>
@@ -260,7 +258,7 @@ function SectionLabel({
 				<span
 					data-ly-section-count
 					className={`ml-auto flex min-w-5 items-center justify-end tabular-nums transition-opacity duration-[var(--ly-t-quick)] ${
-						!action ? "" : onPhone() ? "opacity-0" : "group-hover/section:opacity-0 group-has-[:focus-visible]/section:opacity-0 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-0"
+						!action ? "" : "group-hover/section:opacity-0 group-has-[:focus-visible]/section:opacity-0 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-0"
 					}`}
 				>
 					<GroupActivity sessions={sessions} collapsed={collapsed} count={count} />
@@ -269,11 +267,8 @@ function SectionLabel({
 			{action && (
 				<span
 					data-ly-section-action
-					// Held while its menu is open, which is when the pointer has left for the menu. Always
-					// shown on a phone: there is no hover to reveal it with.
-					className={`absolute right-2 bottom-1.5 flex items-center gap-0.5 transition-opacity duration-[var(--ly-t-quick)] ${
-						onPhone() ? "" : "opacity-0 group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-100"
-					}`}
+					// Held while its menu is open, which is when the pointer has left for the menu.
+					className="absolute right-2 bottom-1.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-100"
 				>
 					{action}
 				</span>

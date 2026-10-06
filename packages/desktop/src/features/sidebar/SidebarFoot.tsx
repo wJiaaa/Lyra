@@ -9,15 +9,12 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
 import { useI18n } from "../../i18n/index.ts";
-import { useApp, viewAvailable } from "../../store/index.ts";
+import { useApp } from "../../store/index.ts";
 
 export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 	const { t } = useI18n();
 	const setView = useApp((s) => s.setView);
 	const { compact } = useLayout();
-
-	// The whole strip is the way into settings, which a host without `settings.save` does not have.
-	if (!viewAvailable("settings")) return null;
 
 	return (
 		<div className={`ly-sidebar-foot flex shrink-0 items-center gap-2 ${compact ? "p-3" : "p-2.5"}`}>
@@ -33,7 +30,7 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 				}`}
 			>
 				<SettingsIcon size={16} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
-				<span className="min-w-0 flex-1 truncate text-label text-ink">{t("phone.settings")}</span>
+				<span className="min-w-0 flex-1 truncate text-label text-ink">{t("sidebar.settings")}</span>
 			</button>
 		</div>
 	);

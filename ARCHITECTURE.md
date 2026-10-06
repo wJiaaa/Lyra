@@ -4,8 +4,8 @@
 
 ## 一句话
 
-Plume 是一个 agent 运行时加两个前端。`packages/core` 平台无关，桌面端（Electron）和手机
-（在 WebView 里跑桌面端的界面）驱动同一个 `AgentSession`。
+Plume 是一个 agent 运行时加一个桌面端。`packages/core` 平台无关，桌面端（Electron）驱动它的
+`AgentSession`。
 
 ## 包
 
@@ -14,35 +14,14 @@ Plume 是一个 agent 运行时加两个前端。`packages/core` 平台无关，
 | `core` | agent 内核：provider 适配、agent loop、工具、skill、MCP、会话存储 | 只依赖 `registry-shared` |
 | `cli` | 非交互命令行：用桌面端的设置跑完一个任务，给评测用，见 [ADR-0031](docs/adr/0031-headless-cli-for-evaluation.md) | `core` |
 | `desktop` | Electron 应用。`electron/` 主进程，`src/` 渲染进程，`shared/` 两边共有 | `core` |
-| `mobile` | Expo 外壳：配对、扫码、承载桌面端界面的 WebView | 不依赖 `core`（Metro 没有 `node:`） |
-| `relay` | 中转服务。单文件，零依赖，两端都连不上对方时让它们碰头 | 谁也不依赖 |
 | `registry-shared` | 插件市场的契约：索引能说什么、API 答什么 | 谁也不依赖 |
-
-## 两个宿主，一份界面
-
-手机上跑的不是另一套界面，是**桌面端的那一份**——由同步服务提供，在 WebView 里加载。
-
-```
-渲染进程（一份代码）
-   ├─ Electron 窗口 ──► preload ──► IPC ──► 主进程
-   └─ 手机 WebView ──► bridge.ts（网络版 window.plume）──► WebSocket RPC ──► sync-rpc 白名单
-```
-
-界面只认识 `window.plume` 一个东西。桌面端用 preload 实现它，手机端用 HTTP 加一个 WebSocket
-实现它，界面察觉不到差别——所以两端不会各说各的。手机能调哪些方法由契约里每个方法的 `remote`
-与 `electron/sync-rpc.ts` 的白名单决定，那份名单同时是安全边界和产品决策，一个文件从头读到尾。
-
-见 [ADR-0001](docs/adr/0001-mobile-hosts-the-desktop-renderer.md)、
-[ADR-0036](docs/adr/0036-restore-mobile-and-relay.md) 与
-[移动端宿主、同步与能力边界](docs/architecture/mobile-sync.md)。手机端的 `android/`、`ios/` 不在仓库里，
-打包时由 `expo prebuild` 从 `app.json` 生成，见
-[手机端怎么打包](docs/architecture/mobile-packaging.md)。
 
 界面语言的来源、进程边界与不翻译的内容见 [界面国际化](docs/architecture/i18n.md)。
 缓存、骨架屏与空结果在视图切换时的约定见 [视图切换与加载](docs/architecture/view-loading.md)。
 模型请求的来源分段、固定预算和用量统计见 [上下文组装与统计](docs/architecture/context-assembly.md)。
+移动端与中转已移除，见 [ADR-0026](docs/adr/0026-remove-mobile-and-relay.md)；Web 访问也已移除，见 [ADR-0027](docs/adr/0027-web-access.md)。
 
-## 渲染进程的 10 个目录
+## 渲染进程的 9 个目录
 
 ```
 src/
@@ -54,7 +33,6 @@ src/
 ├── services/     跟主进程说话的唯一出口
 ├── store/        跨域共享的状态；只有一个域用的留在那个域里
 ├── styles/       样式，一个主题一个文件
-├── mobile/       只在手机宿主下生效的适配：键盘避让、抽屉手势
 └── assets/
 ```
 
@@ -81,24 +59,23 @@ src/
 由 `.dependency-cruiser.cjs` 与 `.oxlintrc.json` 执行，`pnpm arch` 与 `pnpm lint` 检查，
 pre-push 里都是必过项：
 
-1. **`core` 不 import 任何端。** 它是两个前端共用的运行时，一旦引了其中一个就不再是。
+1. **`core` 不 import 桌面端。** 它是平台无关的运行时，一旦引了桌面端就不再是。
 2. **渲染进程从 `core` 只能 `import type`**，白名单子入口除外。从根入口导入*值*会把整个
    index 拉进浏览器包，而它一路连到 `node:fs`——窗口一片空白。类型编译期就擦掉了，免费。
 3. **渲染进程不从 `electron/` 导入值。** 类型可以（那是边界的描述），值就是把另一个进程的
    模块链进了这个包。
 4. **`shared/` 谁也不依赖。** 它是两个进程共有的判断（比如「这个文件该用哪种查看器」），
    偏向任何一端就有一端用不了它。
-5. **`relay` 零依赖。** 它的全部安全性就在于：转发字节，别的什么都不知道。
-6. **`@plume/contract` 零依赖。** 它有三个消费者——主进程按它注册、preload 按它生成、
-   `sync-rpc` 按它决定手机能调什么——依赖谁就把谁拖进另外两个的构建里。
-7. **`ui/` 与 `lib/` 是叶子。** 见上一节。
-8. **`window.plume` 只在 `services/bridge.ts`。** 由 oxlint 守。
-9. **`store`/`ui`/`lib`/`services` 不伸进某个功能域里点名文件。** 第 7 条的另一半：
+5. **`@plume/contract` 零依赖。** 它有两个消费者——主进程按它注册、preload 按它生成——
+   依赖谁就把谁拖进另一个的构建里。
+6. **`ui/` 与 `lib/` 是叶子。** 见上一节。
+7. **`window.plume` 只在 `services/bridge.ts`。** 由 oxlint 守；`host.ts` 读平台，是唯一的例外。
+8. **`store`/`ui`/`lib`/`services` 不伸进某个功能域里点名文件。** 第 6 条的另一半：
    那一条只管域与域之间，从下面伸上去它看不见。壳（`app/`、`main.tsx`）不在此列——
    它们 `lazy()` 各域的整屏视图，而把那些视图放进域的出口会让打包器把整个域并回主 chunk。
 
 循环依赖是 error，垫着一份已有的 116 条的基线（`.dependency-cruiser-known-violations.json`，
-连同第 9 条那两处有理由的破例共 118 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。
+连同第 8 条那两处有理由的破例共 118 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。
 这个数字每次 `pnpm arch` 都会印出来，少一条就 `pnpm arch:baseline` 重生成一次——那是让它下降的
 正常动作，也是唯一能让它上升的动作。
 
@@ -112,7 +89,7 @@ pre-push 里都是必过项：
 
 | 想做的 | 去 |
 | --- | --- |
-| 加一个 IPC | `packages/contract/src/methods.ts` 登记 → `electron/ipc/<域>.ts` 注册 → `electron/preload.ts` 暴露；契约的测试会检查三处一致。手机默认调不到；要开放就在契约里标 `remote: true` 写明为什么，并在 `electron/sync-rpc.ts` 实现 |
+| 加一个 IPC | `packages/contract/src/methods.ts` 登记 → `electron/ipc/<域>.ts` 注册 → `electron/preload.ts` 暴露；契约的测试会检查三处一致。浏览器默认调不到；要开放就加进 `contract/src/web.ts` 并在 `electron/web-rpc.ts` 实现 |
 | 加一个内置工具 | `core/src/tools/`，经 `useToolRegistry` 那条缝 |
 | 加一个右侧面板 | `src/panels/registry.ts` 注册一条记录 |
 | 维护模型价格、能力和中转别名 | `core/src/model-catalog.ts` 与 `scripts/update-model-catalog.mjs`；`pnpm catalog:update` 更新离线数据 |
@@ -122,7 +99,7 @@ pre-push 里都是必过项：
 | 改设计 token | `src/styles.css` 的 `@theme` 段 |
 | 加一个基础组件 | `src/ui/<组>/`，配一条 `test/ui/` 的测试 |
 | 加一个功能 | `src/features/<域>/`；跨域只经对方的 index |
-| 调主进程 | `import { bridge } from "@/services"`；手机上能不能用问 `available()` |
+| 调主进程 | `import { bridge } from "@/services"` |
 | 判断命令危不危险 | `core/src/tools/risk*.ts` |
 | 发版 | `pnpm release patch` |
 

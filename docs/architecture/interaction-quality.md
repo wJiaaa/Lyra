@@ -22,7 +22,7 @@
 | 10 | 同提示词会话操作串扰 | 未发现标题充当存储 ID；已复现异步创建反序返回时旧结果抢走新选择。引入草稿选择代次和同草稿单飞，操作与缓存始终以 UUID 为准。 | 两个相同提示词对应不同 ID；重命名、归档、删除其中一个不改变另一个。初始化中停止不再启动模型；初始化中重命名经过 worktree 创建仍保留。 |
 | 11 | 暂存新文件再次修改时统计整份文件 | 未暂存视图拿 HEAD→工作区差异覆盖 status 统计。明确 Index 基准，只补对应 hunks，保留 status 给出的增减数。 | 真实 Git 仓库：新增 Hello.cs 暂存 +4，工作区替换一行显示 +1/−1；before blob 为 Index 内容。 |
 | 12 | 新增 C# 文件所有字母都是绿色 | diff 独立 grammar 路径缺少 C#，无 token 时又把整行文字染绿。复用代码高亮加载器，语法色作用于字形、增删色作用于背景。 | 真实新增 C# diff 中关键字、类型、字符串具有不同颜色；异步换文件不会显示上一个文件的 token。 |
-| 13 | “屏幕截图”打开“常规” | 导航插入 screenshot，而 sectionFor 仍解析未插入它的静态列表。平台过滤与页面解析共用同一 registry。 | macOS 的全部 20 个设置入口逐一点开，页面与 aria-current 一致；三平台及手机过滤单测覆盖。 |
+| 13 | “屏幕截图”打开“常规” | 导航插入 screenshot，而 sectionFor 仍解析未插入它的静态列表。平台过滤与页面解析共用同一 registry。 | macOS 的全部 20 个设置入口逐一点开，页面与 aria-current 一致；三平台过滤单测覆盖。 |
 | 14 | 点击刻度跳到用户提问 | 新增提问导航，支持当前位置、hover/focus 预览、点击、键盘和减少动态效果。历史跳转按 60 行窗口挂载，避免加载全部中间内容。 | 120 个问题中点击第 1 条，连续 24 帧 y=64px，转录子元素数 61；第 10 条落点 83.75px，往返另一会话后保持。 |
 
 ## 会话稳定性与性能
@@ -525,46 +525,6 @@ ScrollText 以布局宽度判断溢出，避免把面板过渡中的缩放误认
 `pnpm arch`、文档链接和差异检查通过，依赖扫描仍为 0 errors、139 条既有 advisory warnings。
 测试实例退出时清理隔离 profile；改动未提交、推送或发布。
 
-### 移动端同步与触控基线（2026-09-06）
-
-> 移动端曾于 2026-09-26 移除（[ADR-0026](../adr/0026-remove-mobile-and-relay.md)），2026-10-04 按上游恢复（[ADR-0036](../adr/0036-restore-mobile-and-relay.md)）。
-
-移动端继续承载桌面 renderer，不维护第二套业务页面。LAN、公网反代和 relay 使用同一套
-WebSocket RPC 与事件格式；relay 额外提供独立 renderer asset capability。手机回到前台会主动
-探测连接，断线时清理在途请求并阻止写操作迟到重放，恢复后重新读取设置、会话、当前转录、侧聊、
-任务和轨迹。
-
-手机面板只展示已经具备完整远程数据和操作链路的文件、文件内容、任务、侧聊、轨迹与子 Agent。
-文件访问限制在桌面已登记项目内，只允许目录列表和 512 KiB 以内文本读取；写入、终端、桌面截图、
-Git/review、内置浏览器和未声明 mobile capability 的插件面板继续隐藏。二进制和办公文档返回明确的
-不支持状态，不留下空白预览。设置页同样按能力过滤，发送到手机的 provider 密钥、认证 header、
-MCP、hook、定时任务、搜索密钥和同步令牌均被裁剪。
-
-触控样式使用真实 44×44px toolbar/composer 控件，不再以会互相覆盖的伪元素扩张命中区。必要的
-hover 操作在无 hover 设备上常显；document tooltip 与 iOS 残留 hover 关闭；Markdown、代码和
-输入框仍可选择。WebView 的安全区、状态栏、方向与深浅色跟随系统和 Plume 主题，Android 以实际
-键盘交集避让 composer，页面本身不随键盘开合跳动。
-
-真实 renderer 以 390×844 CSS viewport、DPR 2、5 点触控及 `hover:none` 运行。主工具栏、
-composer、消息操作、问题导航、侧边栏、设置导航、文件树和文件面板操作的命中区均至少
-44×44px；可见控件几何重叠为 0。文件标签原先仍只有 26px 高，关闭按钮向上越过标签行并与
-pane header 重叠 198px²；现在标签行和两个按钮均为 44px 高，重叠为 0。
-
-手机只读源码实测 `.cm-content` 同时为 `contenteditable="false"`、`aria-readonly="true"`，
-仍能选中“# 双向同步测试”；横向滚动容器为 382px，内容宽 411px，`scrollLeft` 可从 0 移至
-20px。界面没有保存、格式化或系统打开入口。设置导航只显示常规、外观、个性化、子智能体、
-关于、已归档的聊天与引导，所有行高 44px；模型供应商、MCP、Hooks、命令、截图、浏览器、
-工作树和 Forge 均未暴露。实际应用截图位于 `/tmp/plume-mobile-evidence/`，包括
-`mobile-readonly-source.png` 与 `mobile-settings-navigation.png`；页面来自真实 renderer 和
-WebSocket bridge，项目内容来自隔离 probe，不是另建 HTML 或拼接图。
-
-最终 `pnpm check`、desktop production build、Markdown 链接检查和 `git diff --check` 通过；
-`pnpm arch` 为 0 errors、145 条 advisory warnings，未放宽规则。Android 与 iOS 的 Expo
-production export 均成功。最终集成探针再次通过桌面 → 手机、手机 → 桌面消息同步、模型回复、
-LAN 文件列表、relay 只读文件和 relay renderer 资源读取。探针退出后端口、隔离 profile、
-浏览器调试监听和临时导出目录已清理。本机没有 Windows、iOS 或 Android 实机，因此原生输入法、
-系统字体、GPU、状态栏、软键盘、后台恢复和厂商 WebView 表现仍需对应硬件验证。
-
 ### 专业用量统计与离线计价目录（2026-09-06）
 
 用量页改为面向费用分析的本地仪表盘。顶部按 7、30、90 天或全部筛选，展示估算费用、供应商占比、
@@ -692,7 +652,7 @@ pi 目录按供应商端点列出模型，同一型号在不同端点的上限�
 不再保留同目录隐藏备份和进程内撤销——撤销记录随进程消失，备份文件却永远留在目录里。只读外部来源可复制到本机编辑。
 
 定义保存与模型/思考等级的即时保存分开；保存错误保留草稿。设置导航期间草稿留在内存，退出应用清除。
-模型 API 与权限保持原有链路。五个 `agentdefs:*` IPC 仅桌面可用，手机不开放本地定义文件管理。
+模型 API 与权限保持原有链路。
 分类重试与完成后的继续按钮见 [分类请求重试](retry-policy.md)。
 
 

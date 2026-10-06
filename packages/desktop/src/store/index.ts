@@ -17,7 +17,6 @@ import type { TodoItem } from "@plume/core";
 import { create } from "zustand";
 import type {
   AgentCapabilities,
-  SyncStatus,
   WorkspaceInfo,
 } from "../../electron/ipc-types.ts";
 /*
@@ -33,7 +32,7 @@ import type {
  */
 import { useSide } from "../features/dock/sideStore.ts";
 import { sideChatRunning } from "../lib/row-activity.ts";
-import { available, bridge } from "../services/index.ts";
+import { bridge } from "../services/index.ts";
 import { activeModelCatalog } from "@plume/core/model-catalog";
 import { pullModelCatalog } from "./model-catalog.ts";
 import type { ToolRun } from "./tool-run.ts";
@@ -60,26 +59,6 @@ export function useSideChatRunningKey(ids: readonly string[]): string {
  */
 type View = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins";
 
-/**
- * The method each view cannot work without, for a host where not every method answers.
- *
- * A phone may not list pull requests, run schedules or manage plugins, and a dozen places call
- * `setView` to go to one of them — a model menu's "manage", a hiccup's "open settings", the plugins
- * view's gear. Refusing here is one check where they all meet, rather than one at each of them.
- */
-const VIEW_NEEDS: Partial<Record<View, [group: string, method: string]>> = {
-  settings: ["settings", "save"],
-  "pull-requests": ["git", "myPullRequests"],
-  scheduled: ["scheduler", "runNow"],
-  plugins: ["plugins", "list"],
-};
-
-/** Whether this host can show a view at all. */
-export function viewAvailable(view: View): boolean {
-  const needs = VIEW_NEEDS[view];
-  return !needs || available(...needs);
-}
-
 export type SettingsSection =
   | "general"
   | "appearance"
@@ -99,7 +78,6 @@ export type SettingsSection =
   | "forges"
   | "usage"
   | "storage"
-  | "sync"
   | "worktrees"
   | "archived";
 
@@ -295,7 +273,7 @@ export interface AppState extends QueueSlice {
   /**
    * Transcripts already read this run, keyed by session id.
    *
-   * Re-opening a session still re-reads its log — that is how a turn driven from the phone
+   * Re-opening a session still re-reads its log — that is how a turn driven from elsewhere
    * shows up — but the cached copy goes on screen straight away, so switching back to
    * somewhere you have already been does not flash a skeleton at you.
    */
@@ -411,7 +389,6 @@ export interface AppState extends QueueSlice {
 	hookRuns: HookRun[];
   notices: { id: string; level: "info" | "warn" | "error"; message: string; sessionId?: string }[];
   capabilities: AgentCapabilities | null;
-  sync: SyncStatus | null;
 
   bootstrap(): Promise<void>;
   setView(view: View): void;
@@ -572,7 +549,6 @@ export interface AppState extends QueueSlice {
   setModel(modelId: string, options?: { asDefault?: boolean; sessionId?: string | null }): Promise<void>;
   /** How hard this conversation asks the model to think. Falls back to the app default. `sessionId` as for `setModel`. */
   setThinking(thinking: ThinkingLevel, sessionId?: string | null): Promise<void>;
-  refreshSync(): Promise<void>;
   dismissNotice(id: string): void;
   notify(message: string, level?: "info" | "warn" | "error", sessionId?: string): void;
   /**
@@ -636,7 +612,6 @@ export const useApp = create<AppState>((set, get) => ({
   todos: [],
   notices: [],
   capabilities: null,
-  sync: null,
 
   async bootstrap() {
     /*
@@ -662,9 +637,9 @@ export const useApp = create<AppState>((set, get) => ({
 		 * Subscribe before the first reads.
 		 *
 		 * A fast agent event can arrive between reading a transcript and attaching the event listener.
-		 * That gap leaves the phone one token behind until the next full refresh, which is most visible
-		 * after foregrounding on a weak network. The local bridge queues the reads already, so there is
-		 * no reason to postpone the listeners until after they answer.
+		 * That gap leaves the window one token behind until the next full refresh. The local bridge
+		 * queues the reads already, so there is no reason to postpone the listeners until after they
+		 * answer.
 		 */
 		/*
 		 * Settings the window did not write itself.
@@ -686,7 +661,7 @@ export const useApp = create<AppState>((set, get) => ({
 		);
 		/*
 		 * 磁盘上装着的东西一变（这个窗口、别的窗口、后台自动更新，谁动的手都算），扫盘的那几张列表
-		 * 跟着重扫：`revision` 就是为这个数的。手机那头没有这组方法（插件只在桌面上装），问不到就算了。
+		 * 跟着重扫：`revision` 就是为这个数的。
 		 */
 		bridge.plugins.onChanged?.((next) =>
 			set((state) => ({
@@ -737,12 +712,9 @@ export const useApp = create<AppState>((set, get) => ({
 		initialComplete = true;
 		for (const change of initialChanges) applySessionChange(change, set, get);
 		initialChanges.length = 0;
-    void get().refreshSync();
   },
 
-  setView: (view) => {
-    if (viewAvailable(view)) set({ view });
-  },
+  setView: (view) => set({ view }),
   setComposerDraft: (text, { sessionId, replace = false, attachments = [], sessionRefs = [] }) =>
     set({ composerDraft: { sessionId, text, replace, attachments, sessionRefs } }),
   setDraft: (key, draft) =>
@@ -774,15 +746,6 @@ export const useApp = create<AppState>((set, get) => ({
   bumpExtensions: () => set((state) => ({ extensionsNonce: state.extensionsNonce + 1 })),
 
   async saveSettings(settings) {
-    /*
-     * A host that may not write settings keeps what it changes — a collapsed group, a favourite
-     * model — on this page without saving it; the next change broadcast from the desktop replaces
-     * it. Writing the refusal's null into the store instead emptied `settings`.
-     */
-    if (!available("settings", "save")) {
-      set({ settings });
-      return;
-    }
     const saved = await bridge.settings.save(settings);
     set({ settings: saved });
   },

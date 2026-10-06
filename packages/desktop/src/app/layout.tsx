@@ -18,9 +18,8 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 
 import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, storedWidth } from "./layout-widths.ts";
 import { freezeMotion } from "../ui/motion/freeze.ts";
-import { useDrawerGesture, useKeyboardInset } from "../mobile/useMobileShell.ts";
 import { hasHeaderBar, overlayReserved, titlebarInsets, type TitlebarInsets } from "./window/titlebar.ts";
-import { bridge, onPhone } from "../services/index.ts";
+import { bridge } from "../services/index.ts";
 import { MAIN_TOOLBAR_HEIGHT, NATIVE_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
 
 /** Below this the sidebar and a readable content column no longer fit side by side. */
@@ -88,7 +87,7 @@ export interface LayoutValue {
 	 * and the sidebar and conversations as cards below the toolbar.
 	 *
 	 * The main window on every desktop platform; never a session or panel window, which have no
-	 * navigation, and never the phone, whose drawer and dock are a different shell. Where it is on,
+	 * navigation. Where it is on,
 	 * the toolbar owns both of the window's top corners the way the Windows header does — nothing
 	 * below it reserves room for the traffic lights or the caption buttons.
 	 */
@@ -124,7 +123,7 @@ export interface LayoutValue {
 
 /**
  * The sidebar's width, persisted in `localStorage` rather than in Settings: a per-window
- * preference with no meaning on the phone. Reading it synchronously on the first render is what
+ * preference. Reading it synchronously on the first render is what
  * stops the pane jumping from its default to the saved width a frame later.
  */
 
@@ -209,13 +208,13 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 	useEffect(() => bridge.onFullScreenChange?.(setNativeFullScreen), []);
 
 	const titlebar = useTitlebar(nativeFullScreen);
-	const headerBar = hasHeaderBar(bridge.platform ?? "darwin", !onPhone());
-	const framed = nav && !onPhone();
+	const headerBar = hasHeaderBar(bridge.platform ?? "darwin");
+	const framed = nav;
 	const toolbarHeight = framed ? (headerBar ? NATIVE_HEADER_HEIGHT : MAIN_TOOLBAR_HEIGHT) : 0;
 
 	/*
 	 * The toolbar as chrome, for whatever floats over the page: popovers and hover cards stop under it
-	 * rather than spreading over it (`chromeTop` in `ui/overlay/keep-clear.ts`). On the root, read at
+	 * rather than spreading over it (`chromeTop` in `ui/overlay/chrome-top.ts`). On the root, read at
 	 * placement time, because a popover lives in a portal and has no layout of its own to ask.
 	 */
 	useLayoutEffect(() => {
@@ -243,13 +242,6 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 		if (compact) setDrawerOpen(false);
 		else setPushOpen(false);
 	}, [compact]);
-
-	/*
-	 * The phone's two additions to the shell, mounted here because this is where the drawer's state
-	 * lives. Both are inert in a window — see `onPhone` — so a narrow desktop window is unaffected.
-	 */
-	useKeyboardInset();
-	useDrawerGesture(compact && drawerOpen, setDrawerOpen);
 
 	const value = useMemo<LayoutValue>(
 		() => ({
@@ -337,7 +329,7 @@ function useTitlebar(nativeFullScreen: boolean): TitlebarInsets {
 	}, [overlay]);
 
 	return useMemo(
-		() => titlebarInsets(bridge.platform ?? "darwin", nativeFullScreen, reserved, !onPhone()),
+		() => titlebarInsets(bridge.platform ?? "darwin", nativeFullScreen, reserved),
 		[nativeFullScreen, reserved],
 	);
 }
@@ -397,12 +389,7 @@ export function useFocusTrap(ref: React.RefObject<HTMLElement | null>, active: b
 		const focusable = () =>
 			[...container.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
 
-		/*
-		 * Not on a phone. There is no Tab key to be ready for, and the first control in the drawer is
-		 * the bell: focusing it on the way in drew a focus ring round it every time the drawer opened.
-		 * The trap still holds a keyboard that is attached — only the opening move is skipped.
-		 */
-		if (!onPhone()) focusable()[0]?.focus();
+		focusable()[0]?.focus();
 
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key !== "Tab") return;

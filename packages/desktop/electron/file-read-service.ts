@@ -34,7 +34,7 @@ export async function listReadableFiles(dir: string | null): Promise<FileEntry[]
 	);
 }
 
-/** Read one already-authorised text file, with a fixed cap shared by desktop IPC and phone sync. */
+/** Read one already-authorised text file, with a fixed cap. */
 export async function readReadableFile(path: string | null, readOnly: boolean): Promise<FileContents | null> {
 	if (!path) return null;
 	const info = await stat(path).catch(() => null);

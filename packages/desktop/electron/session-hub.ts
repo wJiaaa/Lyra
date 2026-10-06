@@ -29,12 +29,6 @@ export interface HubDeps {
 	store(): SessionStorage;
 	settings(): Settings;
 	window(): BrowserWindow | null;
-	/** Events also go to connected phones, when the sync server is up. */
-	sync?(): {
-		broadcast(sessionId: string, event: AgentEvent): void;
-		broadcastSideChat(sessionId: string, sideId: string, event: import("@plume/core").SideChatUpdate): void;
-		broadcastSessionChange(change: SessionChange): void;
-	} | null;
 }
 
 let deps: HubDeps = {
@@ -205,21 +199,18 @@ export async function revertSessionMessage(sessionId: string, index: number): Pr
 
 export function broadcastSessionChange(change: SessionChange): void {
 	eachAppWindow((win) => win.webContents.send("sessions:changed", change));
-	deps.sync?.()?.broadcastSessionChange(change);
 }
 
 export function broadcast(sessionId: string, event: AgentEvent): void {
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
-	deps.sync?.()?.broadcast(sessionId, event);
 	notifyAgentEvent(sessionId, event, sessions.get(sessionId)?.meta.title);
 }
 
 /**
- * Side-chat events have their own channel on both transports so they cannot enter the main thread.
+ * Side-chat events have their own channel so they cannot enter the main thread.
  */
 export function broadcastSideChat(sessionId: string, sideId: string, event: import("@plume/core").SideChatUpdate): void {
 	eachAppWindow((win) => win.webContents.send("sidechat:event", { sessionId, sideId, event }));
-	deps.sync?.()?.broadcastSideChat(sessionId, sideId, event);
 }
 
 export async function getOrCreateSession(cwd: string, _modelId: string): Promise<AgentSession> {

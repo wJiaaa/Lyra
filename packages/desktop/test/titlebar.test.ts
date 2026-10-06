@@ -30,12 +30,11 @@ test("native full screen takes the lights away, so the inset goes with them", ()
 	assert.deepEqual(titlebarInsets("darwin", true, NONE), { start: TOOLBAR_EDGE, end: 0 });
 });
 
-test("a phone has no window controls, so nothing is held open for them", () => {
+test("a page that is not a window has no window controls, so nothing is held open for them", () => {
 	/*
-	 * The phone reports `darwin` — it is describing the machine the session runs on, which is what
-	 * the renderer uses `platform` for. Left at that, it also inherited macOS's geometry: 78px at
-	 * the top left for traffic lights that are not there, which left the sidebar toggle marooned in
-	 * the middle of the row instead of at the edge where every mark below it lines up.
+	 * The page reports the viewer's platform, and a Mac viewer is `darwin`. Left at that it would
+	 * inherit macOS's geometry: 78px at the top left for traffic lights that are not there, the
+	 * sidebar toggle marooned in the middle of the row.
 	 */
 	assert.deepEqual(titlebarInsets("darwin", false, NONE, false), { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE });
 	assert.deepEqual(titlebarInsets("win32", false, { start: 0, end: 138 }, false), { start: TOOLBAR_EDGE, end: TOOLBAR_EDGE });
@@ -43,7 +42,7 @@ test("a phone has no window controls, so nothing is held open for them", () => {
 });
 
 test("a desktop window keeps its controls, whatever the platform", () => {
-	// The default is `windowed`, so nothing outside the phone had to be changed to read this.
+	// The default is `windowed`, so a window never has to say so.
 	assert.equal(titlebarInsets("darwin", false, NONE).start, TRAFFIC_LIGHTS_WIDTH);
 	assert.equal(titlebarInsets("win32", false, { start: 0, end: 138 }).end, 138);
 	assert.equal(hasHeaderBar("win32"), true);
