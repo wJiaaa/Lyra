@@ -53,8 +53,6 @@ import { useJobReveal } from "./job-reveal.ts";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { compactText } from "../../lib/notice-text.ts";
-import perchOpen from "../../assets/plume-perch-open.png?inline";
-import perchBlink from "../../assets/plume-perch-blink.png?inline";
 
 /** 输入框里挂着的一份附件——和侧边聊天、子智能体那两个框是同一个形状，见 `attachments/read.ts`。 */
 type Attachment = DraftAttachment;
@@ -563,14 +561,6 @@ export function Composer({ centered = false }: {
 				 * 托盘：项目和分支坐在卡片上方露出来的那一条里。见 `composer.css` 的 `.ly-composer-tray`。
 				 */}
 				<div className="ly-composer-tray">
-					{!centered && (
-						<div className="ly-composer-mascot" aria-hidden="true">
-							<div className="ly-composer-mascot-art">
-								<img src={perchOpen} alt="" draggable={false} width={480} height={320} />
-								<img src={perchBlink} alt="" draggable={false} width={480} height={320} />
-							</div>
-						</div>
-					)}
 					{/*
 					 * Where the turn will run, and what it has already changed.
 					 *
