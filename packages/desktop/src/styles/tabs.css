@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------------------
- * The sidebar's tab strip: a track with something floating in it.
+ * The tab strip (`ui/primitives/TabStrip`): a track with something floating in it.
  *
  * Written here rather than with utility classes because the obvious pair of tokens is wrong on one
  * of the two themes, and that is worth stating once where it cannot be undone by accident.
@@ -141,7 +141,7 @@
 }
 
 /*
- * The frame's one panel (ADR-0031): the sidebar and the content inside a single rounded edge, with a
+ * The frame's one panel (ADR-0038): the sidebar and the content inside a single rounded edge, with a
  * hairline between them. It sits flush against the toolbar above and the rail on the left, and stands
  * 4px off the window's right and bottom edges, as the reference draws it.
  *

@@ -27,6 +27,7 @@ import { SessionWindow } from "./window/SessionWindow.tsx";
 import { PanelWindow } from "./window/PanelWindow.tsx";
 import { watchPanelWindows } from "../features/dock/index.ts";
 import { LayoutProvider, NavPane, useLayout, useSidebarFit } from "./layout.tsx";
+import { NavSlotHost, NavSlotProvider } from "./nav-slot.tsx";
 import { useShortcuts } from "./shortcuts.ts";
 import { useSide } from "../features/dock/index.ts";
 import { useApp } from "../store/index.ts";
@@ -255,7 +256,9 @@ function Shell() {
 	return (
 		<>
 			<div className={settings ? "pointer-events-none invisible absolute inset-0" : "h-full"}>
-				<ChatShell settings={settings} />
+				<NavSlotProvider>
+					<ChatShell settings={settings} />
+				</NavSlotProvider>
 			</div>
 			{settingsVisited && <Activity mode={settings ? "visible" : "hidden"}>
 				<LazyScreen shape="settings">
@@ -508,6 +511,7 @@ function SoloScreen({ children }: { children: React.ReactNode }) {
 }
 
 function ChatShell({ settings }: { settings: boolean }) {
+	const view = useApp((s) => s.view);
 	const activeSessionId = useApp((s) => s.activeSessionId);
 	const workspace = useApp((s) => s.workspace);
 	const { compact, navOpen, framed, toggleNav, dismissNav } = useLayout();
@@ -534,7 +538,10 @@ function ChatShell({ settings }: { settings: boolean }) {
 
 	const nav = (
 		<NavPane width={sidebarDrawn} maxWidth={sidebarMax} label={t("app.sidebar")}>
-			<Sidebar />
+			{/* The conversations, or the sidebar of the view on screen — see `nav-slot.tsx`. */}
+			<NavSlotHost view={view}>
+				<Sidebar />
+			</NavSlotHost>
 		</NavPane>
 	);
 

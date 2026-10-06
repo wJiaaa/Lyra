@@ -293,8 +293,10 @@ test("with no account left, the pane is the sign-in screen rather than an empty 
 		const accounts = await window.plume.forge.accounts();
 		for (const account of accounts) await window.plume.forge.signOut(account.id);
 		// This page's own: the conversations' screens stay mounted behind it, and a browser panel has
-		// a 刷新 of its own that comes first in the document.
-		const refresh = [...document.querySelectorAll('[data-view="pull-requests"] button')].find((b) => b.getAttribute("aria-label") === "刷新");
+		// a 刷新 of its own that comes first in the document. Beside the rail the list is in the
+		// sidebar, which is this page's too.
+		const own = '[data-view="pull-requests"] button, [data-ly-nav-slot="pull-requests"] button';
+		const refresh = [...document.querySelectorAll(own)].find((b) => b.getAttribute("aria-label") === "刷新");
 		refresh?.click();
 		for (let i = 0; i < 40 && document.querySelectorAll(".ly-pr-row").length > 0; i++) {
 			await new Promise((r) => setTimeout(r, 250));
@@ -303,7 +305,7 @@ test("with no account left, the pane is the sign-in screen rather than an empty 
 			rows: document.querySelectorAll(".ly-pr-row").length,
 			tabs: document.querySelectorAll("[aria-label='账号'] button").length,
 			// An icon button since the buttons were made one shape: its name is its label, not its text.
-			button: [...document.querySelectorAll('[data-view="pull-requests"] button')].some((b) => b.getAttribute("aria-label") === "添加账号"),
+			button: [...document.querySelectorAll(own)].some((b) => b.getAttribute("aria-label") === "添加账号"),
 			text: document.body.innerText,
 		};
 	})()`);

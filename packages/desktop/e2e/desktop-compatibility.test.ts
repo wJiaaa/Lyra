@@ -298,7 +298,7 @@ test("toolbar and pane icons keep their pixel column wherever the sidebar's edge
 	 * as the toolbar shaking for the length of the slide. Held at a series of edges here, since a
 	 * screenshot per animation frame is not something a test can ask for reliably.
 	 *
-	 * Two rows since the window frame (ADR-0031). The three that were reported shaking — terminal,
+	 * Two rows since the window frame (ADR-0038). The three that were reported shaking — terminal,
 	 * browser, panels — moved up to the window's toolbar, out of the content; the icons still inside
 	 * it are a pane's own, so a pane is opened beside the conversation and its title bar is held too.
 	 */
@@ -356,7 +356,7 @@ test("toolbar and pane icons keep their pixel column wherever the sidebar's edge
 
 test("the panel's corner under the toolbar is round, whatever is drawn in it", async (t) => {
 	/*
-	 * The sidebar and the content share one panel with rounded corners (ADR-0031), and the sidebar's
+	 * The sidebar and the content share one panel with rounded corners (ADR-0038), and the sidebar's
 	 * fill is what lies in its top-left one. A fill that is not clipped by the panel paints that corner
 	 * square, and it is the corner right under the toolbar's own buttons.
 	 */

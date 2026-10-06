@@ -100,27 +100,16 @@ test("new profiles default to recently created and memory disclosure opens the a
 	await click('[data-dock-pane="file"] button[aria-label^="关闭"]');
 });
 
-test("motto persists, IME keeps confirmation keys and screenshot disabling reaches the main process",async(t)=>{
+test("IME keeps confirmation keys and screenshot disabling reaches the main process",async(t)=>{
 	await click('button:has(svg.lucide-settings)');await until(`[...document.querySelectorAll('nav')].some(e=>e.checkVisibility()&&e.innerText.includes('个性化'))`);await label("个性化","nav button");
-	await click('[aria-label="侧边栏座右铭"]');await app.send("Input.imeSetComposition",{text:"中",selectionStart:1,selectionEnd:1});
+	const field=`document.querySelector('input[placeholder^="手动添加一条用户记忆"]')`;
+	await until(`!!${field}`);await app.evaluate(`${field}.focus()`);await app.send("Input.imeSetComposition",{text:"中",selectionStart:1,selectionEnd:1});
 	await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Enter",windowsVirtualKeyCode:13});await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Enter",windowsVirtualKeyCode:13});
-	assert.ok(await app.evaluate(`!!document.querySelector('[aria-label="侧边栏座右铭"]')`));
-	await app.evaluate(`document.querySelector('[aria-label="侧边栏座右铭"]').focus()`);
-	await app.send("Input.insertText",{text:"中文输入"});await app.evaluate(`document.querySelector('[aria-label="侧边栏座右铭"]').select()`);await app.send("Input.insertText",{text:"保持好奇，认真求证。"});
-	// Empty draft keeps save disabled, so a click before React sees the text is a no-op and
-	// settings.json keeps personalization without sidebarMotto.
-	const motto="保持好奇，认真求证。";
-	await until(`document.querySelector('[aria-label="侧边栏座右铭"]').value===${JSON.stringify(motto)}`);
-	await until(`!document.querySelector('[aria-label="保存座右铭"]').disabled`);
-	await click('[aria-label="保存座右铭"]');
-	// `disabled` flips on `setSaving(true)`, before the main process writes the file.
-	// Windows CI read settings.json in that window and saw personalization without sidebarMotto.
-	await app.evaluate(`(async()=>{for(let n=0;n<200;n++){const s=await window.plume.settings.get();if(s.personalization?.sidebarMotto===${JSON.stringify(motto)})return;await new Promise(r=>setTimeout(r,25));}throw new Error('motto not in settings.get');})()`);
-	assert.equal((JSON.parse(await readFile(join(app.home,"settings.json"),"utf8"))).personalization.sidebarMotto,motto);
+	assert.ok(await app.evaluate(`!!${field}`));
 	await label("屏幕截图","nav button");await until(`document.querySelector('[data-view="screenshot"]')`);
 	const result=await app.evaluate<string>(`window.plume.screenshot.start().then(()=>"started",e=>e.message)`);assert.match(result,/已关闭/);
 	await shot("screenshot-settings-disabled");await label("返回工作区","nav button");
-	assert.match(await app.evaluate<string>("document.body.innerText"),/保持好奇/);t.diagnostic("Chromium IME composition, persisted motto and authoritative screenshot disable verified");
+	t.diagnostic("Chromium IME composition and authoritative screenshot disable verified");
 });
 
 test("engineering delivery shows net syntax diffs, a real report and a live owned service",async(t)=>{

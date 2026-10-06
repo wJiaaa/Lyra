@@ -1,58 +1,46 @@
 /**
  * What the sidebar is showing, and what its rows do.
  *
- * One list, two pools. The archive is the same two views over a different set of conversations —
- * grouped by project or banded by date, pinned, searched and paged in exactly the same way — so
- * swapping what goes in is the whole of it, and everything downstream is written once.
- *
  * Separated from the pane for the usual reason this codebase separates things: these are rules you
- * want to be able to state. Which conversations are listed, which pool they come from, and which
- * of the four actions a row offers are three questions with three answers, and none of them is
- * about layout.
+ * want to be able to state. Which conversations are listed and which actions a row offers are two
+ * questions with two answers, and neither of them is about layout. Archived conversations are
+ * 设置 › 已归档的聊天's; the sidebar does not list them.
  */
 
-import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@plume/core";
 import { useMemo } from "react";
-import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";
 import { openInPane } from "../split/index.ts";
-import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { emptiedProjects, groupSessions, listableSessions, type Grouped } from "../../lib/sidebar-grouping.ts";
 import type { SortKey } from "./ListMenu.tsx";
 import { bandByRecency, type RecencyBand } from "./recency.ts";
 import type { RowActions } from "./SessionRow.tsx";
 
 export function useSidebarLists({
-	archiveOpen,
 	query,
 	sort,
 	chatShown,
 	onOpened,
 }: {
-	archiveOpen: boolean;
 	query: string;
-	/** Which timestamp orders every list here — both halves, and the archive. */
+	/** Which timestamp orders every list here. */
 	sort: SortKey;
 	/** How many rows the flat list is currently showing, which is what gets banded. */
 	chatShown: number;
 	/** Called after a conversation is opened, so a drawer can get out of its own way. */
 	onOpened: () => void;
 }): {
-	archived: SessionMeta[];
 	groups: Grouped;
 	/** Everything matching the search, before paging — the source of the count behind 展开显示. */
 	matching: SessionMeta[];
 	bands: RecencyBand[];
 	actions: RowActions;
-	confirm: React.ReactNode;
 } {
 	const sessions = useApp((s) => s.sessions);
 	const settings = useApp((s) => s.settings);
 	const activeSessionId = useApp((s) => s.activeSessionId);
 	const scratchRoots = useApp((s) => s.scratchRoots);
 	const setSessionArchived = useApp((s) => s.setSessionArchived);
-	const deleteSession = useApp((s) => s.deleteSession);
 
 	const listable = useMemo(() => listableSessions(sessions, activeSessionId), [sessions, activeSessionId]);
 	const archived = useMemo(() => sessions.filter((s) => s.archived), [sessions]);
@@ -65,8 +53,8 @@ export function useSidebarLists({
 	 */
 	const poolSortField = sort === "createdAt" ? "createdAt" : "updatedAt";
 	const pool = useMemo(
-		() => [...(archiveOpen ? archived : listable)].sort((a, b) => b[poolSortField] - a[poolSortField]),
-		[archiveOpen, archived, listable, poolSortField],
+		() => [...listable].sort((a, b) => b[poolSortField] - a[poolSortField]),
+		[listable, poolSortField],
 	);
 
 	const emptied = useMemo(() => emptiedProjects(listable, archived), [listable, archived]);
@@ -82,14 +70,10 @@ export function useSidebarLists({
 				settings?.sessionOrder,
 				sort,
 				emptied,
-				/*
-				 * Never while the archive itself is open: in there an emptied project is exactly what
-				 * the reader came to look at, and hiding it would empty the view they opened.
-				 */
-				!archiveOpen && (settings?.hideEmptiedProjects ?? false),
-				!archiveOpen,
+				settings?.hideEmptiedProjects ?? false,
+				true,
 			),
-		[pool, settings, query, scratchRoots, sort, emptied, archiveOpen],
+		[pool, settings, query, scratchRoots, sort, emptied],
 	);
 
 	const matching = useMemo(() => {
@@ -111,50 +95,21 @@ export function useSidebarLists({
 		[matching, chatShown, poolSortField],
 	);
 
-	/*
-	 * Opening an archived conversation opens it. That is the whole of what it does.
-	 *
-	 * It used to take it out of the archive on the way in, on the reasoning that opening something is
-	 * how you take it back out — and leaving it filed while you talk in it would mean the conversation
-	 * on screen is not in the sidebar. The second half was a real problem and the first half was the
-	 * wrong answer to it: a row that files and unfiles depending on where you click is a state change
-	 * nobody asked for, made invisibly, next to a button that exists to make exactly that change.
-	 * Whether a conversation is archived is now said in one place only — the archive button on the
-	 * row — and clicking a row means what it means everywhere else in the pane.
-	 *
-	 * What makes that safe is `listableSessions`, which lets the conversation you have open through
-	 * whether or not it is filed. It is in the sidebar the whole time; the row simply offers to take
-	 * it out instead of offering to put it away. See `lib/sidebar-grouping.ts`.
-	 */
-	const confirm = useConfirmer();
 	const open = (meta: SessionMeta) => {
 		openInPane(meta);
 		onOpened();
 	};
-	const restore = (meta: SessionMeta) => void setSessionArchived(meta, false);
-	const actions: RowActions = archiveOpen
-		? {
-				onOpen: open,
-				onRestore: restore,
-				onDelete: (meta) =>
-					confirm.ask({
-						title: translate("sidebarList.deleteConfirm"),
-						detail: translate("sidebarList.deleteDetail", { title: sessionTitle(meta.title), n: meta.messageCount }),
-						confirmLabel: translate("common.delete"),
-						onConfirm: () => void deleteSession(meta),
-					}),
-			}
-		: {
-				onOpen: open,
-				onArchive: (meta) => void setSessionArchived(meta, true),
-				/*
-				 * Both directions in the live list, because one row there can be filed: the conversation
-				 * you have open. It keeps its place until you leave it, and offering it 归档 — the thing
-				 * it already is — would be a button that does nothing. The row picks by what it is; see
-				 * `SessionRow`.
-				 */
-				onRestore: restore,
-			};
+	const actions: RowActions = {
+		onOpen: open,
+		onArchive: (meta) => void setSessionArchived(meta, true),
+		/*
+		 * Both directions, because one row can be filed: the conversation you have open, which
+		 * `listableSessions` keeps in the list until you leave it. Offering it 归档 — the thing it
+		 * already is — would be a button that does nothing. The row picks by what it is; see
+		 * `SessionRow`.
+		 */
+		onRestore: (meta) => void setSessionArchived(meta, false),
+	};
 
-	return { archived, groups, matching, bands, actions, confirm: confirm.element };
+	return { groups, matching, bands, actions };
 }

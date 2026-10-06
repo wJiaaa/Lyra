@@ -105,15 +105,8 @@ function MainToolbar({ title, end, navLabels }: { title?: React.ReactNode; end?:
 					<WindowControls navOpen={navOpen} onToggleNav={toggleNav} active={compact && navOpen} labels={navLabels} />
 				</div>
 			</div>
-			<div data-ly-toolbar-middle className="relative flex h-full min-w-0 flex-1 items-center gap-1.5 pl-3.5">
-				{/*
-				 * A short rule on the line of the sidebar's divider, centred in the toolbar: the title starts
-				 * on the content's side of it, as in the reference. Short, not run into the divider below —
-				 * joined up, the two read as a wall through the window rather than a mark in the toolbar.
-				 * Only while the sidebar is open beside the content; shut or a drawer, there is nothing for it
-				 * to line up with.
-				 */}
-				{beside && rail && <span aria-hidden data-ly-toolbar-divider className="ly-toolbar-divider absolute top-1/2 left-0 h-5 w-px -translate-y-1/2" />}
+			{/* The title brings its own short rule — see `ToolbarScreenTitle`. */}
+			<div data-ly-toolbar-middle className="relative flex h-full min-w-0 flex-1 items-center gap-1.5">
 				{title}
 			</div>
 			<div className="no-drag flex shrink-0 items-center pr-1.5">{end}</div>

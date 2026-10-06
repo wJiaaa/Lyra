@@ -18,6 +18,7 @@ import { join } from "node:path";
 
 import { startApp, type AppWindow, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
+import { seedSessions } from "./session-fixture.ts";
 
 const THEME = process.argv[2] === "dark" ? "dark" : "light";
 const OUT = process.argv[3] ?? join(homedir(), "Desktop", "Plume布局改版测试");
@@ -63,19 +64,20 @@ async function seed(home: string) {
 	await mkdir(proj, { recursive: true });
 	await writeFile(join(proj, "README.md"), "# proj\n");
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: W, height: H, x: 40, y: 40 }));
-	await mkdir(join(home, "sessions", "e2e"), { recursive: true });
-	for (const session of SESSIONS) {
+	// Sessions live in the SQLite store here, not in per-session JSONL files as upstream's do.
+	await mkdir(join(home, "sessions"), { recursive: true });
+	seedSessions(home, SESSIONS.map((session) => {
 		const at = Date.now() - session.ago * 60_000;
 		const meta = { id: session.id, title: session.title, cwd: proj, projectId: "e2e", projectName: "proj", createdAt: at, updatedAt: at, modelId: "p/gpt-5.2", messageCount: 2, usage, seq: 3 };
-		await writeFile(
-			join(home, "sessions", "e2e", `${session.id}.jsonl`),
-			[
-				{ seq: 1, ts: at, type: "meta", meta },
-				{ seq: 2, ts: at, type: "message", message: { role: "user", content: [{ type: "text", text: session.q }], timestamp: at } },
-				{ seq: 3, ts: at, type: "message", message: { role: "assistant", content: [{ type: "text", text: session.a }], api: "openai-chat-completions", provider: "p", model: "gpt-5.2", usage, stopReason: "stop", timestamp: at } },
-			].map((line) => JSON.stringify(line)).join("\n") + "\n",
-		);
-	}
+		return {
+			meta,
+			records: [
+				{ ts: at, type: "meta", meta },
+				{ ts: at, type: "message", message: { role: "user", content: [{ type: "text", text: session.q }], timestamp: at } },
+				{ ts: at, type: "message", message: { role: "assistant", content: [{ type: "text", text: session.a }], api: "openai-chat-completions", provider: "p", model: "gpt-5.2", usage, stopReason: "stop", timestamp: at } },
+			],
+		} as Parameters<typeof seedSessions>[1][number];
+	}));
 	const model = { id: "p/gpt-5.2", providerId: "p", modelId: "gpt-5.2", name: "gpt-5.2", contextWindow: 128000, maxOutputTokens: 8192, supportsThinking: false, supportsImages: false, supportsTools: true };
 	await writeFile(join(home, "settings.json"), JSON.stringify({
 		version: 1,
@@ -200,6 +202,7 @@ async function main() {
 		check("标题在短线之后、落在对话这一侧", Boolean(title && rule && title.x >= rule.x + 8 && title.x <= rule.x + 24 && title.y < 40), { title, rule });
 		check("对话里不再留 44px 标题栏：转录从面板顶上开始", Boolean(content && card && Math.abs(content.y - card.y) <= 1), { content, card });
 		await shot("01_单屏对话");
+		if (rule) await shot("01b_短线与侧栏分隔线放大", { x: rule.x - 60, y: 0, width: 160, height: 90 });
 
 		console.log("\n== B 侧栏收起与展开：顶栏标题跟着卡片走");
 		const samples = await app.evaluate<{ t: number; title: number; card: number }[]>(`(async () => {
@@ -235,6 +238,7 @@ async function main() {
 		await click(q('[data-ly-rail-item="plugins"]'));
 		await hold(900);
 		check("图标栏：插件高亮，顶栏没有对话标题", (await railCurrent()) === "plugins" && (await toolbarTitle()) === null, { rail: await railCurrent(), title: await toolbarTitle() });
+		check("没有标题的页面上也没有那段短线", !(await box("[data-ly-toolbar-divider]")), await box("[data-ly-toolbar-divider]"));
 		await shot("03_插件页");
 		await click(toolbarButton(0));
 		await hold(600);
@@ -278,6 +282,7 @@ async function main() {
 		})()`);
 		const gap = split.cards.length === 2 ? split.cards[1]!.x - (split.cards[0]!.x + split.cards[0]!.w) : -1;
 		check("两屏：顶栏不再放标题，每屏各有标题栏、都在自己那一栏里", !split.toolbarTitle && split.headers.length === 2 && split.headers.every((h) => h.inCard), split);
+		check("两屏时顶栏的短线跟着标题一起走了", !(await box("[data-ly-toolbar-divider]")), await box("[data-ly-toolbar-divider]"));
 		check("两屏都从顶栏下面开始，左边那屏不再给红绿灯让位", split.cards.every((c) => c.y === 41) && split.headers.every((h) => h.pad === "10px"), split);
 		check("两屏之间只隔 1px 线（不再是两张卡片中间一道缝）", gap === 1, { gap });
 		const seamLines = await app.evaluate<number>(`[...document.querySelectorAll(".ly-splitter-line")].filter((el) => getComputedStyle(el).opacity !== "0").length`);
@@ -352,7 +357,7 @@ async function main() {
 		await hold(900);
 		await click(toolbarButton(2));
 		await hold(900);
-		const narrow = await app.evaluate<{ rail: boolean; drawerTop: number; places: string[] }>(`({ rail: Boolean(${q("[data-ly-app-rail]")}), drawerTop: Math.round(${q('aside[data-pane="drawer"]')}?.getBoundingClientRect().y ?? -1), places: [...document.querySelectorAll('aside[data-pane="drawer"] button')].map((b) => b.textContent.trim()).filter((t) => ["拉取请求", "已安排", "插件"].includes(t)) })`);
+		const narrow = await app.evaluate<{ rail: boolean; drawerTop: number; places: string[] }>(`({ rail: Boolean(${q("[data-ly-app-rail]")}), drawerTop: Math.round(${q('aside[data-pane="drawer"]')}?.getBoundingClientRect().y ?? -1), places: [...document.querySelectorAll('aside[data-pane="drawer"] button')].map((b) => b.textContent.trim()).filter((t) => ["拉取请求", "定时任务", "插件"].includes(t)) })`);
 		check("窄窗口收起图标栏，三个入口回到抽屉里，抽屉不被顶栏盖住", !narrow.rail && narrow.drawerTop === 40 && narrow.places.length === 3, narrow);
 		await shot("10_窄窗口抽屉");
 		await click(toolbarButton(2));

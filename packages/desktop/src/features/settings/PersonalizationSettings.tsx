@@ -12,7 +12,6 @@ import { Card, InlineSelect, PrimaryButton, Row, SectionTitle, TextInput, Toggle
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { bridge } from "../../services/index.ts";
 import { MemoryMeta, type MemorySource } from "./MemoryMeta.tsx";
-import { SidebarMotto } from "./SidebarMotto.tsx";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
@@ -199,7 +198,6 @@ export function PersonalizationSettings() {
 	return (
 		<div className="space-y-6 pt-2">
 			<h1 className="pb-2 text-display leading-tight font-semibold tracking-tight text-ink">{t("settings.personalization")}</h1>
-			<SidebarMotto />
 			{/* Custom Instructions */}
 			<div>
 				<div className="mb-2 flex items-center justify-between">

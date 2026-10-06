@@ -47,7 +47,7 @@ export const MAC_TRAFFIC_LIGHT_POSITION = { x: 16, y: (WINDOW_HEADER_HEIGHT - 14
 export const MAIN_TOOLBAR_HEIGHT = 40;
 
 /**
- * The icon rail down the main window's left edge (ADR-0031). Here rather than with the rail itself so
+ * The icon rail down the main window's left edge (ADR-0038). Here rather than with the rail itself so
  * what has to stand clear of it — the toasts — can read it without reaching into `app/`.
  */
 export const MAIN_RAIL_WIDTH = 48;

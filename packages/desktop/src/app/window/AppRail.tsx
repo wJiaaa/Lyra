@@ -6,7 +6,7 @@
  * scrolled, and they cost the list nothing. 对话 is first because it is where the window opens, and
  * the only way back from the other three that does not depend on remembering which one you came from.
  *
- * At the bottom, the app rather than the work: settings. The sidebar keeps 新对话 and the motto; a
+ * At the bottom, the app rather than the work: settings. The sidebar keeps 新对话 and the list; a
  * narrow window, whose sidebar is a drawer, has no rail and puts all of these back in the drawer.
  */
 

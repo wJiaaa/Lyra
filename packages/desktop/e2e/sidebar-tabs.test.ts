@@ -1,14 +1,14 @@
 /**
- * The sidebar's two lists, pinned for real.
+ * The sidebar's list, and the flat one search shows, pinned for real.
  *
  * Everything here measures boxes and reads computed style. Nothing asserts on a class name, and
- * nothing reads the store — the claim under test is "the strip stays at the top and the list goes
- * under it", and the only honest evidence for that is where things are and how much of them is
- * being drawn.
+ * nothing reads the store — the claim under test is "the project name stays at the top and the
+ * list goes under it", and the only honest evidence for that is where things are and how much of
+ * them is being drawn.
  *
  * The rows are held by `position: sticky`, so where they sit is the browser's job and not worth
  * asserting. What is worth asserting is everything around it: that the fade starts under them
- * rather than through them, that a row being pushed out cannot surface above the strip, and — the
+ * rather than through them, that a row being pushed out is gone before it reaches the edge, and — the
  * one that cost the most to learn — that a pinned row does not move while the list scrolls under
  * it. An earlier version placed these by hand from `scroll` events and lagged the compositor by a
  * frame, which is a row visibly jumping a wheel tick at a time.
@@ -18,7 +18,6 @@ import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { SIDEBAR_MIN } from "../src/app/layout-widths.ts";
 import { startApp, type RunningApp } from "./app.ts";
 import { seedSessions } from "./session-fixture.ts";
 
@@ -141,10 +140,8 @@ interface State {
 	inset: number;
 	fadeTop: number;
 	fadeBottom: number;
-	/** Where the strip sits in the list itself, before anything holds it back. */
-	railInList: number;
-	/** The strip, which is a row in the list that happens to stop at the top. */
-	strip: Pinned | null;
+	/** Where the list begins in the scroller — below the destinations when they are in it. */
+	listInList: number;
 	heads: Pinned[];
 	/** Every ordinary row in the list — conversations, 显示更多, section labels. */
 	rows: { y: number; height: number; opacity: number }[];
@@ -185,8 +182,7 @@ async function state(): Promise<State> {
 			inset: px("--ly-fade-inset"),
 			fadeTop: px("--ly-fade-top"),
 			fadeBottom: px("--ly-fade-bottom"),
-			railInList: view.querySelector("[data-ly-rail]").getBoundingClientRect().top - origin,
-			strip: pin(view.querySelector("[data-ly-rail]")),
+			listInList: view.querySelector("[data-ly-list]").getBoundingClientRect().top - origin,
 			heads: [...view.querySelectorAll("[data-ly-head]")].map(pin),
 			rows: [...view.querySelectorAll("[data-ly-row], [data-ly-fades]")].map((el) => {
 				const r = el.getBoundingClientRect();
@@ -239,145 +235,33 @@ async function click(label: string): Promise<void> {
 	await new Promise((r) => setTimeout(r, 500));
 }
 
-async function selectTab(value: "projects" | "chats"): Promise<void> {
-	await app.evaluate(`(() => { document.querySelector("[data-ly-tab='${value}']").click(); return true; })()`);
-	await new Promise((r) => setTimeout(r, 500));
-}
-
-/** Switch the interface language the way the settings page does, and wait until it is drawn. */
-async function setLocale(locale: string): Promise<void> {
-	await app.evaluate(
-		`window.plume.settings.get().then((s) => window.plume.settings.save({ ...s, uiLocale: ${JSON.stringify(locale)} }))`,
-	);
-	for (let i = 0; i < 40; i++) {
-		if ((await app.evaluate<string>("document.documentElement.lang")) === locale) break;
-		await new Promise((r) => setTimeout(r, 100));
-	}
-	// Past the knob's own transition, so what is read is where it settled.
-	await new Promise((r) => setTimeout(r, 500));
-}
-
-interface Strip {
-	knob: { left: number; right: number };
-	tabs: {
-		name: string;
-		chosen: boolean;
-		left: number;
-		right: number;
-		/** Whether the word is drawn, or the tab is its mark alone. */
-		words: boolean;
-		/** A drawn word cut short by its box. */
-		cut: boolean;
-		tip: string | null;
-		/** Where the word's glyphs are painted, when it is drawn. */
-		glyphs: { left: number; right: number } | null;
-		mark: { left: number; right: number };
-	}[];
-	/** Where the first of the buttons beside the strip begins. */
-	buttons: number;
-	rowOverflow: number;
-}
-
-/** The strip as drawn: the knob, each tab, and where the buttons beside it start. */
-async function strip(): Promise<Strip> {
-	return app.evaluate<Strip>(`(() => {
-		const rail = document.querySelector(".ly-sidebar-fill [data-ly-rail]");
-		const list = rail.querySelector("[role='tablist']");
-		const row = list.parentElement;
-		const edges = (el) => { const b = el.getBoundingClientRect(); return { left: b.left, right: b.right }; };
-		const tabs = [...list.querySelectorAll("[role='tab']")].map((tab) => {
-			const label = [...tab.querySelectorAll("span")].find((span) => span.textContent.trim());
-			// A word hidden for screen readers still has a box, one pixel wide and painting nothing.
-			const words = label.getBoundingClientRect().width > 2;
-			const range = document.createRange();
-			range.selectNodeContents(label);
-			return {
-				name: label.textContent.trim(),
-				chosen: tab.getAttribute("aria-selected") === "true",
-				...edges(tab),
-				words,
-				cut: words && label.scrollWidth > label.clientWidth,
-				tip: tab.getAttribute("data-ly-tip"),
-				glyphs: words ? edges(range) : null,
-				mark: edges(tab.querySelector("svg")),
-			};
-		});
-		const buttons = [...rail.querySelectorAll("button")].filter((b) => !b.closest("[role='tablist']"));
-		return {
-			knob: edges(list.querySelector(".ly-tabs-knob")),
-			tabs,
-			buttons: buttons.length ? buttons[0].getBoundingClientRect().left : window.innerWidth,
-			rowOverflow: row.scrollWidth - row.clientWidth,
-		};
-	})()`);
-}
-
-/** Everything that has to hold of the strip whatever the words are and however wide the pane is. */
-function assertStripHolds(at: Strip, where: string): void {
-	const chosen = at.tabs.find((tab) => tab.chosen);
-	assert.ok(chosen, `${where}: a tab is chosen`);
-	assert.ok(
-		Math.abs(at.knob.left - chosen.left) < 1 && Math.abs(at.knob.right - chosen.right) < 1,
-		`${where}: the knob is exactly the chosen tab (knob ${at.knob.left}–${at.knob.right}, tab ${chosen.left}–${chosen.right})`,
-	);
-	assert.ok(at.rowOverflow <= 1, `${where}: the row fits the width it is given (overflow ${at.rowOverflow}px)`);
-	const reach = Math.max(...at.tabs.map((tab) => Math.max(tab.right, tab.glyphs?.right ?? 0)));
-	assert.ok(reach <= at.buttons + 0.5, `${where}: nothing in the strip runs under the buttons beside it (${reach} vs ${at.buttons})`);
-	assert.ok(at.tabs.every((tab) => tab.words === chosen.words), `${where}: both tabs show their words, or neither does`);
-	if (chosen.words) {
-		for (const tab of at.tabs) assert.equal(tab.cut, false, `${where}: 「${tab.name}」 is shown whole`);
-		assert.ok(
-			chosen.glyphs && chosen.glyphs.left >= at.knob.left - 0.5 && chosen.glyphs.right <= at.knob.right + 0.5,
-			`${where}: 「${chosen.name}」 is drawn inside the knob (${JSON.stringify(chosen.glyphs)} in ${JSON.stringify(at.knob)})`,
-		);
-	} else {
-		for (const tab of at.tabs) assert.equal(tab.tip, tab.name, `${where}: the mark alone still names 「${tab.name}」 on hover`);
-		assert.ok(
-			chosen.mark.left >= at.knob.left - 0.5 && chosen.mark.right <= at.knob.right + 0.5,
-			`${where}: the chosen mark is inside the knob`,
-		);
-	}
+/** Open or close the search, which swaps the project list for the flat one. */
+async function toggleSearch(): Promise<void> {
+	await click("搜索会话");
 }
 
 /**
  * Whether the window has its icon rail, which is where 拉取请求, 已安排 and 插件 go when it does
- * (ADR-0031). Then nothing in the list is above the strip: it starts at the top, and has no way to
- * travel to it. A window too narrow for the rail puts them back in the list, above the strip.
+ * (ADR-0038). Then nothing is above the list in the scroller. A window too narrow for the rail
+ * puts them back in it, above the list.
  */
 const destinationsOnRail = () => app.evaluate<boolean>(`Boolean(document.querySelector("[data-ly-app-rail]"))`);
 
-test("at rest the strip travels with the list and nothing is erased", async () => {
+test("at rest nothing is erased", async () => {
 	const at = await scrollTo(0);
-	assert.ok(at.strip, "the strip is drawn");
-	if (await destinationsOnRail()) {
-		assert.ok(Math.abs(at.railInList) < 0.5, `nothing is above the strip, so it starts at the top: ${JSON.stringify(at)}`);
-		// Already where it is held, the strip is the pinned run from the start: the band under it is the strip itself, and no row.
-		assert.ok(Math.abs(at.inset - (at.strip?.height ?? 0)) < 0.5, `the band the mask leaves to the strip is the strip: ${JSON.stringify(at)}`);
-		assert.ok(at.heads.every((head) => head.y >= at.inset - 0.5), `and no row of the list is under it: ${JSON.stringify(at)}`);
-	} else {
-		assert.ok(at.railInList > 60, `the strip sits below the destinations, not at the top: ${JSON.stringify(at)}`);
-		assert.equal(at.inset, 0, "erasing a band of a list nobody has scrolled would delete rows");
+	if (!(await destinationsOnRail())) assert.ok(at.listInList > 60, `the list sits below the destinations: ${JSON.stringify(at)}`);
+	assert.equal(at.fadeTop, 0, "nothing is hidden above, so nothing softens");
+	for (const row of at.rows.filter((r) => r.y < 800)) {
+		assert.ok(row.opacity > 0.99, `a row at ${row.y.toFixed(1)} is drawn in full at rest (${row.opacity})`);
 	}
-	assert.equal(at.fadeTop, 0, "and nothing is hidden above, so nothing softens");
 });
 
-test("scrolled, the strip holds the top and the list goes under it", async () => {
-	const at = await scrollTo(400);
-	assert.ok(at.scrollTop > 100, "the list has scrolled well past where the strip sits in it");
-	assert.ok(Math.abs(at.strip?.y ?? -1) < 0.5, `and the strip stays at the top (${at.strip?.y})`);
-	assert.ok(
-		at.inset >= (at.strip?.height ?? 0) - 0.5,
-		`the list is softened from under the strip rather than through it (${at.inset})`,
-	);
-	assert.ok(at.fadeTop > 0 && at.fadeBottom > 0, "both edges still soften — the fades outlive the pinning");
-});
-
-test("a project name is held under the strip, and the list is erased out from under it", async () => {
+test("a project name is held at the top, and the list is erased out from under it", async () => {
 	const found = await scrollUntilPinned();
 	assert.ok(found, "some scroll position holds a heading at the rail");
 	assert.ok(found.held.text.length > 0, "and it is a real heading with a name on it");
 	/*
-	 * The erased band, not the heading's fill. If the band stopped at the strip, the rows below
+	 * The erased band, not the heading's fill. If the band stopped short of it, the rows below
 	 * would start softening while still under the project name — the first conversation in a
 	 * project, half drawn, every time.
 	 */
@@ -395,14 +279,12 @@ test("a project name is held under the strip, and the list is erased out from un
  * pinned row covering what passes under it, the list fades itself out before it gets there, and
  * the two tests after this one are what hold that up.
  */
-test("the strip and the headings paint nothing, held or not", async () => {
+test("the headings paint nothing, held or not", async () => {
 	const rest = await scrollTo(0);
-	assert.equal(rest.strip?.fill[3], 0, `the strip at rest (${rest.strip?.fill})`);
 	for (const head of rest.heads) assert.equal(head.fill[3], 0, `「${head.text}」 at rest (${head.fill})`);
 
 	const found = await scrollUntilPinned();
 	assert.ok(found, "some scroll position holds a heading at the rail");
-	assert.equal(found.at.strip?.fill[3], 0, `the held strip (${found.at.strip?.fill})`);
 	assert.equal(found.held.fill[3], 0, `「${found.held.text}」 held (${found.held.fill})`);
 });
 
@@ -427,12 +309,10 @@ test("nothing in the list is drawn under a held row", async () => {
 });
 
 /*
- * A heading on its way out travels up through where the strip is.
- *
- * The strip used to hide it with its own fill. It has none now, so the heading has to be gone
- * before the next one starts pushing it — otherwise a project name slides across the tabs.
+ * A heading on its way out has no fill to hide behind, so it has to be gone before the next one
+ * pushes it up — otherwise two project names overlap at the top edge.
  */
-test("a heading being pushed out is gone before it slides under the strip", async () => {
+test("a heading being pushed out is gone on its way up", async () => {
 	let seen = 0;
 	for (let y = 200; y <= 2200; y += 6) {
 		const at = await scrollTo(y);
@@ -445,53 +325,10 @@ test("a heading being pushed out is gone before it slides under the strip", asyn
 	assert.ok(seen > 0, "some scroll position catches a heading on its way out");
 });
 
-/*
- * The strip on its way to the rail, which is where it used to dissolve.
- *
- * The mask softens the top of the viewport and the strip travels through exactly that, so it faded
- * out as it approached, hung there as a ghost of itself, and snapped back to full strength the
- * instant it landed — a control, dimming and un-dimming, while the list around it did the right
- * thing. The list still fades above it; the band the mask leaves alone now starts at the strip
- * rather than at the top edge.
- *
- * Asserted as containment rather than by reading pixels: a row is untouched by the mask exactly
- * when it lies inside the unsoftened band, and both edges of that band are on the viewport.
- */
-test("the strip is not faded on its way to the rail", async (t) => {
-	if (await destinationsOnRail()) {
-		t.skip("the strip starts at the top: with the destinations on the icon rail there is nothing for it to travel past");
-		return;
-	}
-	let approaching: State | null = null;
-	// Somewhere in here it is partway up. Which offset depends on how tall the destinations above
-	// it are, so it is searched for rather than assumed.
-	for (let y = 40; y <= 160 && !approaching; y += 4) {
-		const at = await scrollTo(y);
-		const top = at.strip?.y ?? -1;
-		if (top > 0.5 && top < 34) approaching = at;
-	}
-	assert.ok(approaching, "some offset catches the strip partway to the rail");
-
-	const strip = approaching.strip;
-	assert.ok(strip, "the strip is on the viewport");
-	assert.ok(strip.y > 0.5, `it has not landed yet (${strip.y})`);
-	assert.ok(
-		approaching.holdTop <= strip.y + 0.5,
-		`the unsoftened band starts at or above it (band ${approaching.holdTop}, strip ${strip.y})`,
-	);
-	assert.ok(
-		approaching.inset >= strip.y + strip.height - 0.5,
-		`and reaches past its underside (band ends ${approaching.inset}, strip ends ${strip.y + strip.height})`,
-	);
-	// The list above it is still being softened — this is not "turn the fade off while scrolling".
-	assert.ok(approaching.holdTop > 0.5, `and the list above it still fades (${approaching.holdTop})`);
-	assert.ok(approaching.fadeTop > 0, "with the top fade very much on");
-});
-
-test("landed, the band goes back to the top edge", async () => {
-	const at = await scrollTo(400);
-	assert.ok(Math.abs(at.strip?.y ?? -1) < 0.5, `the strip is held (${at.strip?.y})`);
-	assert.equal(at.holdTop, 0, "nothing above it to leave unsoftened, so the band starts at the edge");
+test("landed, the band starts at the top edge", async () => {
+	const found = await scrollUntilPinned();
+	assert.ok(found, "a heading is held");
+	assert.equal(found.at.holdTop, 0, "nothing above it to leave unsoftened, so the band starts at the edge");
 });
 
 test("scrolling on past a project hands the rail to the next one", async () => {
@@ -522,14 +359,19 @@ test("scrolling on past a project hands the rail to the next one", async () => {
  * Pinned means "does not move". Once held, its offset is a constant, and this is the whole claim.
  */
 test("a pinned row does not move while a real wheel scrolls the list under it", async () => {
-	await scrollTo(700);
+	const found = await scrollUntilPinned();
+	assert.ok(found, "a heading is held");
 	await app.evaluate(`(() => {
 		const view = ${VIEW};
-		window.__wobble = { strip: [], scrolls: [] };
+		const held = [...view.querySelectorAll("[data-ly-head]")].find((el) => el.innerText.replace(/\\s+/g, " ").trim() === ${JSON.stringify(found.held.text)});
+		window.__wobble = { strip: [], scrolls: [], room: [] };
 		let frames = 0;
 		function step() {
 			const origin = view.getBoundingClientRect().top;
-			window.__wobble.strip.push(view.querySelector("[data-ly-rail]").getBoundingClientRect().top - origin);
+			window.__wobble.strip.push(held.getBoundingClientRect().top - origin);
+			// How far its project's block still reaches below it: under its own height, the next
+			// heading is pushing it out, which is moving on purpose.
+			window.__wobble.room.push(held.parentElement.getBoundingClientRect().bottom - held.getBoundingClientRect().bottom);
 			window.__wobble.scrolls.push(view.scrollTop);
 			if (++frames < 200) requestAnimationFrame(step);
 		}
@@ -538,110 +380,34 @@ test("a pinned row does not move while a real wheel scrolls the list under it", 
 	})()`);
 
 	// Small steps in both directions, the way a trackpad sends them.
-	for (let i = 0; i < 60; i++) {
+	for (let i = 0; i < 24; i++) {
 		await app.send("Input.dispatchMouseEvent", {
 			type: "mouseWheel",
 			x: 150,
 			y: 500,
 			deltaX: 0,
-			deltaY: i < 30 ? 16 : -16,
+			deltaY: i < 12 ? 4 : -4,
 			pointerType: "mouse",
 		});
 		await new Promise((r) => setTimeout(r, 16));
 	}
 	await new Promise((r) => setTimeout(r, 300));
 
-	const trace = await app.evaluate<{ strip: number[]; scrolls: number[] }>("window.__wobble");
-	const moving = trace.strip.filter((_, i) => i > 0 && trace.scrolls[i] > 100 && trace.scrolls[i] !== trace.scrolls[i - 1]);
+	const trace = await app.evaluate<{ strip: number[]; scrolls: number[]; room: number[] }>("window.__wobble");
+	const moving = trace.strip.filter(
+		(_, i) => i > 0 && trace.scrolls[i] > 100 && trace.scrolls[i] !== trace.scrolls[i - 1] && trace.room[i] > 1,
+	);
 	assert.ok(moving.length > 10, `the wheel actually scrolled the list (${moving.length} moving frames)`);
 
 	const wobble = Math.max(...moving) - Math.min(...moving);
 	assert.ok(
 		wobble < 1,
-		`the strip stayed put while the list moved under it — wobble ${wobble.toFixed(2)}px across ${moving.length} frames`,
+		`the held heading stayed put while the list moved under it — wobble ${wobble.toFixed(2)}px across ${moving.length} frames`,
 	);
 });
 
-test("the strip is the size of what is written on it, not of the pane", async () => {
-	const measured = await app.evaluate<{ strip: number; padding: number; tabs: number[]; content: number }>(`(() => {
-		const list = document.querySelector(".ly-sidebar-fill [data-ly-rail] [role='tablist']");
-		return {
-			strip: list.getBoundingClientRect().width,
-			padding: parseFloat(getComputedStyle(list).paddingLeft) + parseFloat(getComputedStyle(list).paddingRight),
-			tabs: [...list.querySelectorAll("[role='tab']")].map((el) => el.getBoundingClientRect().width),
-			content: ${VIEW}.clientWidth,
-		};
-	})()`);
-
-	const [first, second] = measured.tabs;
-	// Beyond the track's own padding, any width is the strip having been stretched.
-	assert.ok(
-		Math.abs(measured.strip - (first + second + measured.padding)) < 1.5,
-		`the strip is exactly its two tabs plus its padding (${measured.strip} vs ${first + second + measured.padding})`,
-	);
-	assert.ok(
-		measured.strip < measured.content - 40,
-		`and leaves the rest of the row to the buttons (${measured.strip} of ${measured.content})`,
-	);
-});
-
-/*
- * The selected tab has to look like the one on top.
- *
- * Every surface token in this app steps from the background toward the foreground, which means on a
- * light theme `elevated` is *darker* than the `card` under it — so the obvious pair of tokens drew
- * the selected tab as a hole rather than as a knob, and the strip read as having nothing selected.
- * Stated as a relationship rather than as a colour, because it has to hold on both themes.
- */
-test("the selected tab reads as lifted out of the track, not pressed into it", async () => {
-	const tones = await app.evaluate<{ knob: string; track: string }>(`(() => {
-		const scope = document.querySelector(".ly-sidebar-fill [data-ly-rail]");
-		return {
-			knob: getComputedStyle(scope.querySelector(".ly-tabs-knob")).backgroundColor,
-			track: getComputedStyle(scope.querySelector(".ly-tabs")).backgroundColor,
-		};
-	})()`);
-
-	const lightness = (colour: string) => {
-		const [r, g, b] = colour.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0];
-		return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-	};
-	assert.ok(
-		lightness(tones.knob) > lightness(tones.track) + 4,
-		`the knob sits above the track it is in (knob ${tones.knob}, track ${tones.track})`,
-	);
-});
-
-/*
- * The knob is the chosen tab in every language, and no word runs out of it.
- *
- * The strip was drawn for two two-character words, with a knob half the strip wide. In English
- * "Projects" is half again "Chats", and the chosen word stayed inside the knob only by a pixel of
- * luck. Asserted as what must hold whatever this machine's fonts make of each word — the
- * words whole or the marks alone, and the knob exactly the tab it is on — rather than as which of
- * the two a given language comes out as, which is `fitTabs`'s to decide and its own test's to pin.
- */
-test("in every language the knob is the chosen tab, and no word runs out of it", async () => {
-	const was = await app.evaluate<"projects" | "chats">(
-		`document.querySelector(".ly-sidebar-fill [role='tab'][aria-selected='true']").getAttribute("data-ly-tab")`,
-	);
-	try {
-		for (const locale of ["en", "zh-CN"]) {
-			await setLocale(locale);
-			for (const tab of ["projects", "chats"] as const) {
-				await selectTab(tab);
-				assertStripHolds(await strip(), `${locale}, ${tab}`);
-			}
-		}
-	} finally {
-		// Borrowed state goes back: the tests after this one read the Chinese labels.
-		await setLocale("zh-CN");
-		await selectTab(was);
-	}
-});
-
-test("「聊天」 is every conversation, banded by when it was last touched", async () => {
-	await selectTab("chats");
+test("searching shows every conversation in one run, banded by when it was last touched", async () => {
+	await toggleSearch();
 	const at = await scrollTo(0);
 	const labels = at.heads.map((head) => head.text);
 	assert.ok(labels.includes("今天"), `banded by date (${labels.join(", ")})`);
@@ -649,11 +415,13 @@ test("「聊天」 is every conversation, banded by when it was last touched", a
 
 	const rows = await app.evaluate<number>(`${VIEW}.querySelectorAll("[data-ly-tip='归档会话']").length`);
 	assert.ok(rows > PER_PROJECT, `the list is flat across projects, not one project's worth (${rows})`);
+	await toggleSearch();
 });
 
 test("a band heading pins the same way a project name does", async () => {
-	await selectTab("chats");
+	await toggleSearch();
 	const found = await scrollUntilPinned();
+	await toggleSearch();
 	assert.ok(found, "a band is held at the rail");
 	assert.ok(
 		found.at.inset >= found.held.y + found.held.height - 1,
@@ -661,158 +429,65 @@ test("a band heading pins the same way a project name does", async () => {
 	);
 });
 
-test("switching tab starts the new list at its own top, and leaves the strip where it was", async () => {
+test("closing the search starts the list at its own top, not the pane's", async () => {
 	/*
 	 * The list's top, not the pane's — and the difference is the whole of this.
 	 *
 	 * A depth into one list means nothing in another, so the new one starts at its beginning. But
-	 * zero is further up than the list begins: above it in the same scroller sit the destinations
-	 * and the strip, which are the same in all four combinations and did not change. Going to zero
-	 * threw those back on screen and shoved everything down by their height — a jump of the band's
-	 * whole height for a switch that replaced nothing in it.
+	 * zero is further up than the list begins when the destinations sit above it in the same
+	 * scroller, and they did not change. Going to zero threw them back on screen for a switch that
+	 * replaced nothing in them.
 	 */
-	await selectTab("chats");
+	await toggleSearch();
 	await scrollTo(600);
-	assert.equal((await state()).strip?.y, 0, "the strip is held before the switch");
+	await toggleSearch();
+	const kept = (await state()).scrollTop;
 
-	await selectTab("projects");
-	const at = await state();
-	assert.equal(at.strip?.y, 0, `and still held after it: ${JSON.stringify(at)}`);
-
-	// And it is exactly the offset that holds the strip: read where the strip lives in the flow by
-	// going to the actual top, which is the one place the two are the same number. With the
-	// destinations above the strip that costs an offset, which the switch keeps rather than zeroing;
-	// with them on the icon rail there is nothing above it, and the offset is zero.
-	const kept = at.scrollTop;
+	// Where the list lives in the flow, read at the actual top. With the destinations above it that
+	// costs an offset, which the switch keeps rather than zeroing; on the icon rail it is zero.
 	const top = await scrollTo(0);
-	assert.equal(kept, top.railInList, `the new list starts at its own first row: ${JSON.stringify(top)}`);
+	assert.ok(Math.abs(kept - top.listInList) < 1, `the new list starts at its own first row: kept ${kept}, list at ${top.listInList}`);
 	if (!(await destinationsOnRail())) assert.ok(kept > 0, "which costs an offset — the switch keeps one rather than zeroing it");
 });
 
-test("the archive is the same two lists over the conversations you filed away", async () => {
-	await selectTab("chats");
-	const live = await scrollTo(0);
-	const liveRows = await app.evaluate<string[]>(
-		`[...${VIEW}.querySelectorAll("[data-ly-tip='归档会话']")].map((b) => b.getAttribute("aria-label"))`,
-	);
-
-	await click("已归档的聊天");
-	const archived = await state();
-
-	const restorable = await app.evaluate<number>(`${VIEW}.querySelectorAll("[data-ly-tip='取消归档']").length`);
-	const deletable = await app.evaluate<number>(`${VIEW}.querySelectorAll("[data-ly-tip='删除']").length`);
-	assert.ok(restorable > 0, "every row offers to put itself back");
-	assert.equal(deletable, restorable, "and to be deleted — both, on every row");
-	assert.equal(
-		await app.evaluate<number>(`${VIEW}.querySelectorAll("[data-ly-tip='归档会话']").length`),
-		0,
-		"and none of them offers to be archived again",
-	);
-
-	assert.ok(archived.heads.length > 0, "still banded by date, being the 「聊天」 half");
-	assert.notDeepEqual(
-		await app.evaluate<string[]>(
-			`[...${VIEW}.querySelectorAll("[data-ly-tip='取消归档']")].map((b) => b.getAttribute("aria-label"))`,
-		),
-		liveRows,
-		"and showing different conversations than the list it replaced",
-	);
-	assert.equal(archived.scrollTop, 0, "opened at its own top");
-	assert.ok(live.strip, "the strip was there before");
-	assert.ok(archived.strip, "and is still there — the archive is a state of the list, not another pane");
-});
-
-test("the archive pins its headings too, and closing returns to the live list", async () => {
-	await selectTab("projects");
-	const found = await scrollUntilPinned();
-	assert.ok(found, "a project name is held in the archive as well");
-	assert.ok(
-		found.at.inset >= found.held.y + found.held.height - 1,
-		"and the archive's list is erased under it, same as the live one",
-	);
-
-	await click("退出归档");
-	const back = await state();
-	assert.equal(
-		await app.evaluate<number>(`${VIEW}.querySelectorAll("[data-ly-tip='取消归档']").length`),
-		0,
-		"the archive's controls are gone",
-	);
-	assert.ok(
-		(await app.evaluate<number>(`${VIEW}.querySelectorAll("[data-ly-tip='归档会话']").length`)) > 0,
-		"and the live list is back, offering to archive again",
-	);
-	// At the list's own top, with the band above it untouched — see the tab switch above for why
-	// those are two different offsets and why this is the one that does not jump.
-	assert.equal(back.strip?.y, 0, `the strip does not fall out of its rail on the way back: ${JSON.stringify(back)}`);
-	assert.equal(back.scrollTop, (await scrollTo(0)).railInList, "and the live list starts at its own first row");
-});
-
-/**
- * The narrowest the pane can be dragged, with everything still inside it.
- *
- * Last in the file because it reloads the window to apply a stored width.
- *
- * The floor used to be 208px while the strip row needs 216 plus the list's 10px of padding either
- * side — so dragging all the way in put the archive button 18px past the pane's own edge, where it
- * was simply cut in half. Nothing in that row shrank, so the overflow had nowhere to go but out.
+/*
+ * 列表设置 lives on the 「项目」 heading beside 新建项目, and like it only shows on hover — the
+ * count gives way to them. While its menu is open the pointer has gone to the menu, so the button
+ * stays rather than vanishing from under the menu it anchors.
  */
-test("at its narrowest, the strip and its buttons are still inside the pane", async () => {
-	await app.evaluate(`(() => {
-		window.localStorage.setItem("dw:sidebar-width", String(${SIDEBAR_MIN}));
-		return true;
-	})()`);
-	await app.evaluate(`location.reload()`).catch(() => {});
-	for (let i = 0; i < 40; i++) {
-		const there = await app
-			.evaluate<boolean>(`Boolean(document.querySelector(".ly-sidebar-fill [data-ly-rail]"))`)
-			.catch(() => false);
-		if (there) break;
+test("列表设置 sits beside 新建项目 on 「项目」 and shows on hover", async () => {
+	await scrollTo(0);
+	const heading = `document.querySelector(".ly-sidebar-fill [data-ly-section='projects']").parentElement`;
+	const read = () =>
+		app.evaluate<{ labels: string[]; action: number; count: number }>(`(() => {
+			const row = ${heading};
+			const action = row.querySelector("[data-ly-section-action]");
+			return {
+				labels: [...action.querySelectorAll("button")].map((b) => b.getAttribute("aria-label")),
+				action: Number(getComputedStyle(action).opacity),
+				count: Number(getComputedStyle(row.querySelector("[data-ly-section-count]")).opacity),
+			};
+		})()`);
+	const move = async (x: number, y: number) => {
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
 		await new Promise((r) => setTimeout(r, 400));
-	}
-	await new Promise((r) => setTimeout(r, 600));
+	};
 
-	const fit = await app.evaluate<{
-		pane: number;
-		rowOverflow: number;
-		lastButtonPast: number;
-		buttons: number;
-	}>(`(() => {
-		const pane = document.querySelector(".ly-sidebar-fill").getBoundingClientRect();
-		const rail = document.querySelector("[data-ly-rail]");
-		const row = rail.firstElementChild;
-		const trailing = [...rail.querySelectorAll("button")].filter((b) => !b.closest(".ly-tabs"));
-		const last = trailing[trailing.length - 1].getBoundingClientRect();
-		return {
-			pane: Math.round(pane.width),
-			// Positive means the row wants more space than it has.
-			rowOverflow: row.scrollWidth - row.clientWidth,
-			// Positive means the control is drawn past the pane's edge.
-			lastButtonPast: Math.round(last.right - pane.right),
-			buttons: trailing.length,
-		};
-	})()`);
+	await move(900, 600);
+	const rest = await read();
+	assert.deepEqual(rest.labels, ["列表设置", "新建项目"], "both controls are on the heading, list settings first");
+	assert.ok(rest.action < 0.01 && rest.count > 0.99, `at rest only the count shows: ${JSON.stringify(rest)}`);
 
-	assert.equal(fit.pane, SIDEBAR_MIN, "the pane is at its floor");
-	assert.ok(fit.buttons >= 2, "both controls beside the strip are there to be measured");
-	assert.ok(fit.rowOverflow <= 1, `the row fits the width it is given (overflow ${fit.rowOverflow}px)`);
-	assert.ok(
-		fit.lastButtonPast <= 0,
-		`the last control is inside the pane, not past its edge (${fit.lastButtonPast}px)`,
-	);
+	const centre = await app.evaluate<{ x: number; y: number }>(`(() => { const r = ${heading}.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+	await move(centre.x, centre.y);
+	const hover = await read();
+	assert.ok(hover.action > 0.99 && hover.count < 0.01, `hovered, the controls take the count's place: ${JSON.stringify(hover)}`);
 
-	/*
-	 * And in English, whose longer words reach this floor long before Chinese does.
-	 *
-	 * The row's own overflow cannot see this one. The tabs used to spill out of the strip rather
-	 * than out of the row — the strip shrank, its tabs did not — so the row measured as fitting
-	 * while the second tab sat under the list-settings button. What is asserted is where things are
-	 * drawn.
-	 */
-	try {
-		await setLocale("en");
-		assertStripHolds(await strip(), `en at ${SIDEBAR_MIN}px`);
-	} finally {
-		await setLocale("zh-CN");
-	}
+	await click("列表设置");
+	assert.ok(await app.evaluate<boolean>(`document.body.innerText.includes("排序方式")`), "the list settings menu opens");
+	await move(900, 600);
+	assert.ok((await read()).action > 0.99, "and the button stays while its menu is open");
+	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+	await new Promise((r) => setTimeout(r, 400));
+	assert.ok((await read()).action < 0.01, "closed, it hides again");
 });

@@ -264,7 +264,7 @@ test("the title bars move the window, and only the grip moves the pane", async (
 	await settledPanes();
 
 	/*
-	 * In the window frame the conversation's title bar is the window's toolbar (ADR-0031): the region
+	 * In the window frame the conversation's title bar is the window's toolbar (ADR-0038): the region
 	 * is set on the toolbar, and what is on it — the title included — is inside that region unless
 	 * it opts out. A conversation among several screens still has a bar of its own.
 	 */

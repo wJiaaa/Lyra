@@ -255,7 +255,7 @@ export function DockPane({
 			</div> : null}
 		>
 			{/*
-			 * One surface divided by hairlines, in the window frame (ADR-0031).
+			 * One surface divided by hairlines, in the window frame (ADR-0038).
 			 *
 			 * The panes were each a floating card with 4px of window between them. Inside the frame —
 			 * where the sidebar and the content are already one panel — that was a card inside a card,

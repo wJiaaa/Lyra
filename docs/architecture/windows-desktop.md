@@ -8,7 +8,7 @@ Plume 共用一份渲染界面，窗口按钮继续由 Electron 的原生 Window
 `app/window/titlebar.ts` 根据 overlay 的实际 CSS 几何计算右侧预留区；布局订阅
 `geometrychange`。原生按钮区域与应用标题栏的空间只计算一次。
 
-主窗口（工作区和设置页）顶上是一条横贯的工具栏（ADR-0031）：Windows/Linux 上它就是原生
+主窗口（工作区和设置页）顶上是一条横贯的工具栏（ADR-0038）：Windows/Linux 上它就是原生
 header，高 `NATIVE_HEADER_HEIGHT`（32px），与 Window Controls Overlay 传给系统的高度是同一个数；
 macOS 上高 `MAIN_TOOLBAR_HEIGHT`（40px），红绿灯在其中居中，顶部 y=13。侧栏和各屏的卡片都在它
 下面，不再为窗口的角让位。会话窗口和面板窗口仍是 `WINDOW_HEADER_HEIGHT`（44px）的标题栏，红绿灯

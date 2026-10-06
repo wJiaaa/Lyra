@@ -557,8 +557,6 @@ export interface Settings {
 	 * Personalization & custom instructions settings across all sessions.
 	 */
 	personalization?: {
-		/** Empty uses the active provider label in the sidebar footer. */
-		sidebarMotto?: string;
 		/** Custom instructions injected into system prompt for all sessions. */
 		customInstructions?: string;
 		/** Whether to enable persistent local memory extraction. */

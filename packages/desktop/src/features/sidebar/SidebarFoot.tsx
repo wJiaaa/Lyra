@@ -8,12 +8,11 @@
 
 import { Settings as SettingsIcon } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
+import { useI18n } from "../../i18n/index.ts";
 import { useApp, viewAvailable } from "../../store/index.ts";
-import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { activeProviderLabel } from "../../lib/sidebar-grouping.ts";
 
 export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
-	const settings = useApp((s) => s.settings);
+	const { t } = useI18n();
 	const setView = useApp((s) => s.setView);
 	const { compact } = useLayout();
 
@@ -34,29 +33,8 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 				}`}
 			>
 				<SettingsIcon size={16} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
-				<ScrollText
-					text={settings?.personalization?.sidebarMotto?.trim() || activeProviderLabel(settings?.providers ?? [])}
-					className="ly-sidebar-foot-label min-w-0 flex-1 text-label text-ink"
-				/>
+				<span className="min-w-0 flex-1 truncate text-label text-ink">{t("phone.settings")}</span>
 			</button>
-		</div>
-	);
-}
-
-/**
- * The motto, at the foot of the sidebar card, when settings lives in the rail.
- *
- * Kept because it is a setting of its own (个性化 › 侧边栏座右铭) that says where it is shown; with
- * nothing typed there it is which providers are set up, as before. Not a button any more — the gear
- * in the rail is the way to settings, and a second door to the same place reads as a different one.
- */
-export function SidebarMottoLine() {
-	const settings = useApp((s) => s.settings);
-	const text = settings?.personalization?.sidebarMotto?.trim() || activeProviderLabel(settings?.providers ?? []);
-	if (!text) return null;
-	return (
-		<div data-ly-sidebar-motto className="flex h-9 shrink-0 items-center px-4">
-			<ScrollText text={text} className="min-w-0 flex-1 text-detail text-ink-faint" />
 		</div>
 	);
 }

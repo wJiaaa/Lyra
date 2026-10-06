@@ -85,7 +85,13 @@ export function heldBand(rows: StickyRow[], fade: number): HeldBand {
 	// Sorted, because the runs below are built by walking down the pane and the callers hand these
 	// over in DOM order — which is the same thing right up until a heading is being pushed out.
 	const held = rows
-		.filter((row) => row.top <= row.rail + fade + EPSILON)
+		/*
+		 * Wholly above the viewport is not held, it is gone. Clamped to the edge below, such a row
+		 * became a run whose underside was above its own top, and the heading actually resting at
+		 * the edge was demoted to the second run — the list then went unerased under it. A strip
+		 * held at the top used to hide this by always sorting first.
+		 */
+		.filter((row) => row.bottom > 0 && row.top <= row.rail + fade + EPSILON)
 		// Clamped: a row being pushed out sits above the viewport, and the band starts at its edge.
 		.map((row) => ({ top: Math.max(row.top, 0), bottom: row.bottom }))
 		.sort((a, b) => a.top - b.top);

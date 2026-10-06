@@ -140,7 +140,7 @@ export const SplitPane = memo(function SplitPane({
 			}}
 			/*
 			 * In the window frame the screens are regions of one surface, like the panes in them, and a
-			 * hairline on the side facing a neighbour is what tells two apart (ADR-0031). Without the
+			 * hairline on the side facing a neighbour is what tells two apart (ADR-0038). Without the
 			 * frame each screen's panes are cards and the gap between them does that instead.
 			 */
 			data-edge-left={framed && pane.left > 0.001 ? "" : undefined}

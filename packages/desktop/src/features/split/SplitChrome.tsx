@@ -156,9 +156,22 @@ export function ToolbarScreenTitle() {
 	const screen = useSingleScreen();
 	if (!screen) return null;
 	return (
-		<div data-dock-header="conversation" data-ly-toolbar-title className="flex min-w-0 items-center gap-1.5">
-			<ScreenTitle sessionId={screen.sessionId} screen={false} />
-		</div>
+		<>
+			{/*
+			 * A short rule just before the title, on the line of the sidebar's divider while the sidebar is
+			 * open (the toolbar's middle starts on that line — the panel's border is the pixel before it):
+			 * the title starts on the content's side of it, as in the reference. Short, not run into the
+			 * divider below — joined up, the two read as a wall through the window rather than a mark in
+			 * the toolbar.
+			 *
+			 * It belongs to the title, not to the toolbar: drawn by the toolbar it stayed on every other page
+			 * and with several screens, marking off a title that was not there.
+			 */}
+			<span aria-hidden data-ly-toolbar-divider className="ly-toolbar-divider mr-[7px] h-5 w-px shrink-0" />
+			<div data-dock-header="conversation" data-ly-toolbar-title className="flex min-w-0 items-center gap-1.5">
+				<ScreenTitle sessionId={screen.sessionId} screen={false} />
+			</div>
+		</>
 	);
 }
 

@@ -162,7 +162,8 @@ export function SettingsShell() {
 				 * here before highlighted its border instead, which made the one button you
 				 * press most often behave unlike everything around it.
 				 */}
-				<div className={`pb-3 ${compact ? "px-3" : "px-2"}`}>
+				{/* In the frame nothing sits above it, so it takes the same 12px off the top as off the side. */}
+				<div className={`pb-3 ${framed ? "pt-2" : ""} ${compact ? "px-3" : "px-2"}`}>
 					<button
 						type="button"
 						onClick={() => {
