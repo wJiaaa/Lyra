@@ -23,6 +23,7 @@ export function TurnProcess({
 	counts,
 	work,
 	running,
+	live,
 	stateKey,
 	children,
 	trailing,
@@ -34,6 +35,14 @@ export function TurnProcess({
 	trailing?: React.ReactNode;
 	/** 正在跑的那一轮。「展开」排法下它全程摊开、没有那一行；「折叠」排法下只影响标记。 */
 	running: boolean;
+	/**
+	 * The work being pushed forward right now is in this stretch — see `liveWork` in `grouping.ts`.
+	 *
+	 * Under "Collapsed" the line is all there is of the stretch while it runs, so it carries the glide
+	 * that says a row is working (see `FlowRow`). Folded and still, a stretch that was being worked on
+	 * looked exactly like one that had finished.
+	 */
+	live?: boolean;
 	stateKey?: string;
 	children: React.ReactNode;
 }) {
@@ -68,6 +77,7 @@ export function TurnProcess({
 		<div data-ly-turn-process={running ? "running" : "done"} data-ly-turn-open={open ? "" : undefined}>
 			<FlowRow
 				icon={<Layers size={13} strokeWidth={1.8} />}
+				running={live}
 				summary={
 					// The words change as calls land; the key keeps the fade on the words. See `FlowRow`.
 					<span key={summarize(counts, work)} className="ly-fade-in">
