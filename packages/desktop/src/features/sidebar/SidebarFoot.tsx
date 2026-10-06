@@ -8,12 +8,11 @@
 
 import { Settings as SettingsIcon } from "lucide-react";
 import { useLayout } from "../../app/layout.tsx";
+import { useI18n } from "../../i18n/index.ts";
 import { useApp, viewAvailable } from "../../store/index.ts";
-import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { activeProviderLabel } from "../../lib/sidebar-grouping.ts";
 
 export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
-	const settings = useApp((s) => s.settings);
+	const { t } = useI18n();
 	const setView = useApp((s) => s.setView);
 	const { compact } = useLayout();
 
@@ -24,6 +23,7 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 		<div className={`ly-sidebar-foot flex shrink-0 items-center gap-2 ${compact ? "p-3" : "p-2.5"}`}>
 			<button
 				type="button"
+				data-ly-open-settings=""
 				onClick={() => {
 					setView("settings");
 					onNavigate();
@@ -33,10 +33,7 @@ export function SidebarFoot({ onNavigate }: { onNavigate: () => void }) {
 				}`}
 			>
 				<SettingsIcon size={16} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
-				<ScrollText
-					text={settings?.personalization?.sidebarMotto?.trim() || activeProviderLabel(settings?.providers ?? [])}
-					className="ly-sidebar-foot-label min-w-0 flex-1 text-label text-ink"
-				/>
+				<span className="min-w-0 flex-1 truncate text-label text-ink">{t("phone.settings")}</span>
 			</button>
 		</div>
 	);

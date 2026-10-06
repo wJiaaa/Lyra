@@ -128,16 +128,6 @@
   color: var(--color-ink);
 }
 
-.ly-phone-head-subtitle {
-  margin-top: 3px;
-  overflow: hidden;
-  font-size: var(--text-detail);
-  line-height: 1.35;
-  color: var(--color-ink-faint);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .ly-phone-head-button {
   display: grid;
   flex-shrink: 0;
@@ -150,42 +140,6 @@
 
 .ly-phone-head-button:active {
   background: var(--color-card-hover);
-}
-
-/*
- * The strip that switches between 项目 and 聊天, and the two controls beside it.
- *
- * 40px of strip and 8px either side — `PHONE_RAIL` in `Sidebar.tsx`, which is where the headings
- * below come to rest, has to say the same number.
- */
-[data-plume-host="mobile"] .ly-sidebar-fill [data-ly-rail] {
-  padding-block: 8px;
-}
-
-[data-plume-host="mobile"] .ly-sidebar-fill [data-ly-rail] [role="tablist"] {
-  height: 40px;
-}
-
-[data-plume-host="mobile"] .ly-sidebar-fill [data-ly-rail] [role="tab"] {
-  height: 34px;
-  padding-inline: 16px;
-  font-size: var(--text-label);
-}
-
-[data-plume-host="mobile"] .ly-sidebar-fill [data-ly-rail] [role="tab"] svg {
-  width: 15px;
-  height: 15px;
-}
-
-[data-plume-host="mobile"] .ly-sidebar-fill [data-ly-rail] button[aria-pressed] {
-  width: 40px;
-  height: 40px;
-  border-radius: 999px;
-}
-
-[data-plume-host="mobile"] .ly-sidebar-fill [data-ly-rail] button[aria-pressed] svg {
-  width: 17px;
-  height: 17px;
 }
 
 /*

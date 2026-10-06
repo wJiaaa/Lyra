@@ -12,8 +12,8 @@ import { kinds, leafOf, type DockNode, type PaneKind } from "./tree.ts";
 
 type PanelLayout = NonNullable<AppearanceSettings["panelLayout"]>;
 
-export const usePanelLayout = (): PanelLayout => useApp((s) => s.settings?.appearance.panelLayout ?? "tabs");
-export const panelLayout = (): PanelLayout => useApp.getState().settings?.appearance.panelLayout ?? "tabs";
+export const usePanelLayout = (): PanelLayout => useApp((s) => s.settings?.appearance.panelLayout ?? "split");
+export const panelLayout = (): PanelLayout => useApp.getState().settings?.appearance.panelLayout ?? "split";
 
 /** 标签的顺序就是树的顺序：新开的面板落在最后，标签也排在最后。 */
 export const panelsOf = (tree: DockNode): PaneKind[] => kinds(tree).filter((kind) => kind !== "conversation");

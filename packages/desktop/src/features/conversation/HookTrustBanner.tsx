@@ -2,7 +2,7 @@
  * 「N 个项目钩子待审核」：输入框上方的一行，提示有工作区钩子待审核。
  *
  * 项目钩子可能是别人提交进来的，没信任之前会话里跑到它们只记一笔「已阻止」。不在这里说一声，
- * 人只会觉得自己写的钩子怎么不灵。点「去审核」落到设置页的钩子，那边会直接切到项目那一栏。
+ * 人只会觉得自己写的钩子怎么不灵。点「去审核」落到设置页的钩子，并把那一页切到这个项目。
  */
 
 import { Anchor, X } from "lucide-react";
@@ -61,6 +61,7 @@ export function HookTrustBanner({ className = "" }: { className?: string }) {
 						size="xs"
 						onClick={() => {
 							const state = useApp.getState();
+							state.setHooksProject(cwd);
 							state.setSettingsSection("hooks");
 							state.setView("settings");
 						}}

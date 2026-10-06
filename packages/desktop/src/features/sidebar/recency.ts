@@ -1,7 +1,7 @@
 /**
  * Conversations ordered by when you last touched them, cut into bands.
  *
- * The 「聊天」 half of the sidebar. Its whole reason for existing is that a project orders its
+ * The flat list search shows. Its whole reason for existing is that a project orders its
  * conversations by belonging and never by recency, so the one you were in five minutes ago can be
  * anywhere in the pane. Here it is first, always.
  *

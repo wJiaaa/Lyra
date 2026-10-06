@@ -19,6 +19,9 @@ import { markFailuresSeen, useScheduledNotices } from "./notices.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { NumberField, TimeField } from "../settings/index.ts";
 import { useLayout } from "../../app/layout.tsx";
+import { NavSlot, useNavSlot } from "../../app/nav-slot.tsx";
+import { ScheduledNav } from "./ScheduledNav.tsx";
+import { useTaskStatus } from "./useTaskStatus.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { activeLocale, translate } from "../../i18n/translate.ts";
 import { useApp } from "../../store/index.ts";
@@ -36,6 +39,8 @@ export function ScheduledView() {
 	const openSession = useApp((s) => s.openSession);
 	const sessions = useApp((s) => s.sessions);
 	const { compact } = useLayout();
+	// With the rail beside it, the task list and 新建 are in the sidebar — see `nav-slot.tsx`.
+	const inSidebar = useNavSlot("scheduled") !== null;
 	/*
 	 * On screen is seen. The failures the line above the composer and the sidebar's count stood for
 	 * are the cards below — a failure that arrives while this is open included.
@@ -54,13 +59,16 @@ export function ScheduledView() {
 		});
 	const remove = (id: string) =>
 		void saveSettings({ ...settings, scheduledTasks: tasks.filter((t) => t.id !== id) });
-	const add = () =>
+	const add = () => {
+		const id = `task-${Date.now().toString(36)}`;
+		// Brought into view once it is drawn: from the sidebar it may land below the fold.
+		useScheduledNotices.setState({ focus: id });
 		void saveSettings({
 			...settings,
 			scheduledTasks: [
 				...tasks,
 				{
-					id: `task-${Date.now().toString(36)}`,
+					id,
 					name: t("scheduled.newTask"),
 					cwd: workspace?.path ?? "",
 					prompt: t("scheduled.samplePrompt"),
@@ -69,9 +77,13 @@ export function ScheduledView() {
 				},
 			],
 		});
+	};
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
+			<NavSlot view="scheduled">
+				<ScheduledNav tasks={tasks} onAdd={add} />
+			</NavSlot>
 			<Scroller className="flex-1" contentClassName={`mx-auto w-full max-w-[880px] py-6 ${compact ? "px-4" : "px-8"}`}>
 				<header className="flex flex-wrap items-start justify-between gap-3 pb-6">
 					<div>
@@ -80,7 +92,7 @@ export function ScheduledView() {
 							{t("scheduled.intro")}
 						</p>
 					</div>
-					<Button size="sm" label={t("common.new")} onClick={add} icon={<Plus size={12} strokeWidth={2} />} />
+					{!inSidebar && <Button size="sm" label={t("common.new")} onClick={add} icon={<Plus size={12} strokeWidth={2} />} />}
 				</header>
 
 				{tasks.length === 0 && (
@@ -169,16 +181,7 @@ function TaskCard({
 	onOpenLast: () => void;
 }) {
 	const { t } = useI18n();
-	/*
-	 * Whether a run is going: the session's own activity once it has any, and before that the start
-	 * the scheduler announced, which also says which session to watch — `lastSessionId` still names
-	 * the previous run until the attempt is saved. Waiting is said as waiting, because a task held on
-	 * an approval gets no further alone.
-	 */
-	const started = useScheduledNotices((s) => s.runs[task.id]);
-	const watched = started ?? task.lastSessionId;
-	const activity = useApp((s) => (watched ? s.activity[watched] : undefined));
-	const status = activity === "running" || activity === "waiting" ? activity : started && !activity ? "running" : null;
+	const status = useTaskStatus(task);
 	const card = useFocusedCard(task.id);
 	const [prompt, setPrompt] = useState(task.prompt);
 	const [name, setName] = useState(task.name);

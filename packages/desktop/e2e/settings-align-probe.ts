@@ -3,11 +3,10 @@
  *
  * `node --experimental-strip-types e2e/settings-align-probe.ts [dir]`
  *
- * 三件事：
+ * 两件事：
  *
  *   - 每一行的控件是不是落在那一行的中线上。带说明文字的行占两行高，控件贴着标题那一行时会整体
  *     偏上——一整张卡片摞起来，右边一列全体上浮。量的是左右两列各自的中心 y，差多少就是歪多少。
- *   - 座右铭输入框底下那行重复的预览是不是没了。输入框里已经写着同一句话。
  *   - 滑到 5 行，预览和真输入框是不是都跟着变高。预览要是只有自己变，那它就不是预览。
  */
 
@@ -54,8 +53,8 @@ async function seed(home: string): Promise<void> {
 			scheduledTasks: [],
 			disabledPlugins: [],
 			alwaysAllow: [],
-			appearance: { theme: "dark", sidebarMotto: "" },
-			personalization: { customInstructions: "", enableMemory: true, sidebarMotto: "写点什么" },
+			appearance: { theme: "dark" },
+			personalization: { customInstructions: "", enableMemory: true },
 		}),
 	);
 }
@@ -95,7 +94,7 @@ const openSettings = (page: string) =>
 		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 		const inSettings = () => [...document.querySelectorAll("button")].some((b) => (b.textContent || "").includes("返回工作区"));
 		if (!inSettings()) {
-			document.querySelector(".ly-sidebar-foot button")?.click();
+			document.querySelector("[data-ly-open-settings]")?.click();
 			await wait(1200);
 		}
 		if (!inSettings()) return "设置没打开";
@@ -128,25 +127,10 @@ try {
 	await mkdir(dir, { recursive: true });
 	await settle(2600);
 
-	/* ── 个性化：座右铭的重复预览、记忆卡片的图标 ── */
+	/* ── 个性化：记忆卡片的图标 ── */
 	process.stdout.write(`\n个性化\n`);
 	process.stdout.write(`  ${await openSettings("个性化")}\n`);
 	await settle(900);
-
-	const motto = await app.evaluate<{ found: boolean; input: string; extra: string[] }>(`(() => {
-		const label = [...document.querySelectorAll("h2")].find((h) => h.textContent?.includes("座右铭"));
-		const card = label?.nextElementSibling;
-		const input = card?.querySelector("input");
-		if (!card || !input) return { found: false, input: "", extra: [] };
-		// 卡片里除了输入框那一行之外，还剩下什么文字——之前剩的正是同一句话。
-		const extra = [...card.children].slice(1).map((n) => (n.textContent || "").trim()).filter(Boolean);
-		return { found: true, input: input.value, extra };
-	})()`);
-	check(
-		"座右铭输入框底下不再重复一遍",
-		motto.found && motto.extra.length === 0,
-		motto.found ? `输入框里是 ${JSON.stringify(motto.input)}，底下还剩 ${JSON.stringify(motto.extra)}` : "没找到座右铭卡片",
-	);
 
 	const memory = await app.evaluate<{ found: boolean; iconDelta: number; trashDelta: number }>(`(() => {
 		const meta = document.querySelector("[data-memory-meta]");

@@ -149,6 +149,12 @@ test("a row pushed above the viewport does not detach the one below it", () => {
 	assert.equal(band.next, band.bottom, "one run, not two");
 });
 
+test("a heading pushed wholly off the top is not held, and does not demote the one at the edge", () => {
+	// No strip: headings rest against the top edge. The outgoing one is a screen above it.
+	const band = heldBand([{ top: -356, bottom: -324, rail: 0 }, { top: 0, bottom: 32, rail: 0 }], FADE);
+	assert.deepEqual(band, { top: 0, bottom: 32, nextTop: 32, next: 32 });
+});
+
 /*
  * And the step after it: the band turned into what the mask is actually given.
  *

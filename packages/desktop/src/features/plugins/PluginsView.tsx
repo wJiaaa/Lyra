@@ -41,6 +41,8 @@ import { newMcpServer } from "../settings/index.ts";
 import { CatalogCard } from "./CatalogCard.tsx";
 import { missingOf, useEnvironment } from "./McpKeys.tsx";
 import { PluginDetail } from "./PluginDetail.tsx";
+import { PluginsNav, type Kind } from "./PluginsNav.tsx";
+import { NavSlot, useNavSlot } from "../../app/nav-slot.tsx";
 import { RegistrySources } from "./RegistrySources.tsx";
 import { byPopularity, matches, shelves, UNFILED, useCatalog, type CatalogItem } from "./useCatalog.ts";
 import type { InstallReports } from "./useInstall.ts";
@@ -49,9 +51,6 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 /** The market's own repository: where its catalogue and platform are, and where to ask for an entry. */
 const MARKET_REPO = "https://github.com/kittors/Lyra-Registry";
-
-/** Which kinds the grid shows. `all` is the market's front door; the other three narrow it. */
-type Kind = "all" | "plugin" | "mcp" | "skill";
 
 type Notice = { tone: "error" | "note"; text: string };
 
@@ -80,6 +79,8 @@ export function PluginsView() {
 	const openKey = useApp((s) => s.pluginFocus);
 	const setOpenKey = useApp((s) => s.setPluginFocus);
 	const more = usePopover();
+	// With the rail beside it, kind and category are chosen in the sidebar — see `nav-slot.tsx`.
+	const inSidebar = useNavSlot("plugins") !== null;
 
 	const reports: InstallReports = {
 		onChanged: () => catalog.refresh(),
@@ -144,17 +145,44 @@ export function PluginsView() {
 		}
 	};
 
+	/*
+	 * Drawn under a bundle's own page too, and choosing from it leaves that page for the grid: the
+	 * sidebar staying put while the page changes is what says they are the same place.
+	 */
+	const nav = (
+		<NavSlot view="plugins">
+			<PluginsNav
+				kind={kind}
+				counts={counts}
+				onKind={(next) => {
+					setOpenKey(null);
+					setKind(next);
+					setCategory(null);
+				}}
+				categories={categories}
+				category={category}
+				onCategory={(next) => {
+					setOpenKey(null);
+					setCategory(next);
+				}}
+			/>
+		</NavSlot>
+	);
+
 	const open = openKey ? (catalog.items.find((entry) => entry.key === openKey || entry.id === openKey) ?? null) : null;
 	if (open) {
 		return (
-			<PluginDetail
-				item={open}
-				installedPlugins={catalog.plugins}
-				localSkills={catalog.skills}
-				onBack={() => setOpenKey(null)}
-				onTry={startWith}
-				reports={reports}
-			/>
+			<>
+				{nav}
+				<PluginDetail
+					item={open}
+					installedPlugins={catalog.plugins}
+					localSkills={catalog.skills}
+					onBack={() => setOpenKey(null)}
+					onTry={startWith}
+					reports={reports}
+				/>
+			</>
 		);
 	}
 
@@ -178,6 +206,7 @@ export function PluginsView() {
 
 	return (
 		<div className="-mt-11 flex min-h-0 flex-1 flex-col" data-market="">
+			{nav}
 			<header className="relative z-50 flex h-11 shrink-0 items-center gap-1 px-3">
 				{/* The whole strip is the window's to drag, bar the buttons at its end. */}
 				<div className="flex-1" />
@@ -287,7 +316,7 @@ export function PluginsView() {
 					 * above the page's own title, where it read as the window's tabs rather than this
 					 * list's filter.
 					 */}
-					<div className="flex flex-col items-start gap-3 pt-5">
+					{!inSidebar && <div className="flex flex-col items-start gap-3 pt-5">
 						<TabStrip
 							label={t("market.title")}
 							value={kind}
@@ -315,7 +344,7 @@ export function PluginsView() {
 								))}
 							</div>
 						)}
-					</div>
+					</div>}
 
 					{/*
 					 * Keyed on what is being shown, so choosing another kind or shelf replays the arrival —

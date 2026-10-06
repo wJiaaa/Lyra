@@ -1,10 +1,9 @@
 /**
  * A row of tabs with one knob that slides to the chosen one.
  *
- * The sidebar's `SidebarTabs` does this for exactly two halves, and the settings pages' `Segmented`
- * does it on the card/elevated pair that reads inverted on a light theme (see `tabs.css`). This is
- * the general one: any number of tabs, each as wide as its own label, a count beside the label when
- * there is one — on the same track and knob as the sidebar, so the three read as one control.
+ * The settings pages' `Segmented` does this on the card/elevated pair that reads inverted on a light
+ * theme (see `tabs.css`). This is the general one: any number of tabs, each as wide as its own
+ * label, a count beside the label when there is one.
  *
  * Switching used to be two backgrounds swapping places in one frame: nothing travelled between the
  * old tab and the new one, so the eye had to find the change instead of following it. The knob

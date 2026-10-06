@@ -1,7 +1,7 @@
 import { composingKey, shortcutLetter } from "../../ui/keyboard.ts";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { MAIN_WINDOW_ROW_OFFSET, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
+import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";
 import { sectionFor } from "./sections-for.ts";
 import { settingsGroups } from "./settings-navigation.ts";
@@ -13,7 +13,7 @@ import { DURATION } from "../../ui/motion/tokens.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useApp } from "../../store/index.ts";
 import { ToolbarButton } from "../../app/window/WindowControls.tsx";
-import { WindowHeader } from "../../app/window/WindowToolbar.tsx";
+import { WindowFrame } from "../../app/window/WindowFrame.tsx";
 import { AgentsSettings } from "./AgentsSettings.tsx";
 import { ArchivedSettings } from "./ArchivedSettings.tsx";
 import { AppearanceSettings } from "./AppearanceSettings.tsx";
@@ -52,11 +52,10 @@ const SELF_SCROLLING = new Set<SettingsSection>(["models", "plugins"]);
 
 export function SettingsShell() {
 	const { t } = useI18n();
-	const workspaceKey = useApp((state) => state.workspace?.path ?? "");
 	const wanted = useApp((s) => s.settingsSection);
 	const setSection = useApp((s) => s.setSettingsSection);
 	const setView = useApp((s) => s.setView);
-	const { compact, navOpen, headerBar, toggleNav, dismissNav, sidebarWidth, titlebar } = useLayout();
+	const { compact, navOpen, framed, toggleNav, dismissNav, sidebarWidth, titlebar } = useLayout();
 	// Synchronous, from the preload: waiting for `system.platform()` drew the first frame as macOS.
 	const platform = bridge.platform ?? "darwin";
 
@@ -97,10 +96,6 @@ export function SettingsShell() {
 	 * has to, and then only slides; it may overhang the window's edge for the length of the slide,
 	 * where the scroller clips it. After the slide the width is the column's own again. A drawer
 	 * lies over the content rather than pushing it, so the compact layout has nothing to hold.
-	 *
-	 * The column is `main`'s content box, and `main` is a floating card (`ly-card-page`): its margins
-	 * and border are not the column's, and a hold that counted them overhung by that much and snapped
-	 * back when released.
 	 */
 	const mainRef = useRef<HTMLElement>(null);
 	const heldFor = useRef(navOpen);
@@ -110,16 +105,20 @@ export function SettingsShell() {
 		const main = mainRef.current;
 		const shell = main?.closest<HTMLElement>("[data-ly-settings]");
 		if (!main || !shell || compact || motionReduced()) return;
-		const style = getComputedStyle(main);
-		const chrome = [style.marginLeft, style.marginRight, style.borderLeftWidth, style.borderRightWidth].reduce((sum, value) => sum + (Number.parseFloat(value) || 0), 0);
-		main.style.setProperty("--ly-settings-hold", `${shell.getBoundingClientRect().width - (navOpen ? sidebarWidth : 0) - chrome}px`);
+		/*
+		 * The room the column will end up with. In the frame that is the inside of the panel (its
+		 * `clientWidth` leaves out the panel's border; the rail and the right margin are outside it)
+		 * less the section list; elsewhere, the whole shell less the list.
+		 */
+		const room = framed && main.parentElement ? main.parentElement.clientWidth : shell.getBoundingClientRect().width;
+		main.style.setProperty("--ly-settings-hold", `${room - (navOpen ? sidebarWidth : 0)}px`);
 		const release = () => main.style.removeProperty("--ly-settings-hold");
 		const timer = window.setTimeout(release, DURATION.base + 60);
 		return () => {
 			window.clearTimeout(timer);
 			release();
 		};
-	}, [navOpen, compact, sidebarWidth]);
+	}, [navOpen, compact, sidebarWidth, framed]);
 
 	/*
 	 * 开合章节列表的那颗开关，两条外壳路径共用一个。
@@ -151,6 +150,98 @@ export function SettingsShell() {
 		</ToolbarButton>
 	);
 
+	const nav = (
+		<NavPane width={sidebarWidth} label={t("app.settingsNavigation")}>
+			{/* Same as the workspace sidebar: separated by its tint, not by a rule. */}
+			<nav className="ly-sidebar-fill flex h-full w-full flex-col">
+				{/* 红绿灯那一行的空当。外框里这一行是顶栏的——见 `framed`。 */}
+				{!framed && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
+
+				{/*
+				 * Filled on hover, like the section rows below it. The outlined variant used
+				 * here before highlighted its border instead, which made the one button you
+				 * press most often behave unlike everything around it.
+				 */}
+				{/* In the frame nothing sits above it, so it takes the same 12px off the top as off the side. */}
+				<div className={`pb-3 ${framed ? "pt-2" : ""} ${compact ? "px-3" : "px-2"}`}>
+					<button
+						type="button"
+						onClick={() => {
+							setView("chat");
+							dismissNav();
+						}}
+						className={`m-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-xl px-1.5 text-left text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated ${
+							compact ? "h-[40px]" : "h-[32px]"
+						}`}
+					>
+						<ArrowLeft size={16} className="shrink-0" />
+						{t("app.backWorkspace")}
+					</button>
+				</div>
+
+				<SettingsNav
+					groups={groups}
+					section={section}
+					compact={compact}
+					label={t}
+					onPick={(id) => {
+						setSection(id);
+						dismissNav();
+					}}
+				/>
+			</nav>
+		</NavPane>
+	);
+	const main = (
+		<main ref={mainRef} className="ly-opaque ly-card-page flex min-w-0 flex-1 flex-col">
+			{/*
+			 * The window's top row used to sit here, inside the card. Below the frame's toolbar there is
+			 * no row to leave, but the pages were laid out under one — the model page's heading is `pt-2`
+			 * — so a little of that air stays.
+			 */}
+			<div className="shrink-0" style={{ height: framed ? FRAMED_TOP : WINDOW_HEADER_HEIGHT }} />
+			{/*
+			 * Most sections are a column of settings and scroll as one page. A few are
+			 * two-pane layouts whose halves scroll independently — putting those inside a page
+			 * scroller as well would give the window two nested scrollbars for one screen, and
+			 * the outer one would move the pane headers out from over their own content.
+			 */}
+			<RetainedViews active={section} limit={4} pageClassName="ly-settings-enter" render={(section) => SELF_SCROLLING.has(section) ? (
+				<div
+					className={
+						section === "plugins"
+							? "flex min-h-0 w-[var(--ly-settings-hold,100%)] flex-1 flex-col"
+							: `mx-auto flex min-h-0 w-[var(--ly-settings-hold,100%)] max-w-[900px] flex-1 flex-col pb-6 ${compact ? "px-4" : "px-9"}`
+					}
+				>
+					<SectionBody section={section} />
+				</div>
+			) : (
+			<Scroller className="flex-1">
+				<div className={`mx-auto w-[var(--ly-settings-hold,100%)] max-w-[900px] pb-16 ${compact ? "px-4" : "px-9"}`}>
+					<SectionBody section={section} />
+				</div>
+			</Scroller>
+			)} />
+		</main>
+	);
+
+	/*
+	 * The workspace's frame on every desktop: its toolbar holds the window's corners and the nav
+	 * toggle, and the rail beside the section list goes back to the workspace or on to another place.
+	 */
+	if (framed) {
+		return (
+			<WindowFrame
+				data-ly-settings=""
+				nav={nav}
+				navLabels={{ hide: t("app.hideSettingsNavigation", { shortcut: "⌘B" }), show: t("app.showSettingsNavigation", { shortcut: "⌘B" }) }}
+			>
+				{main}
+			</WindowFrame>
+		);
+	}
+
 	return (
 		/*
 		 * The page is the palest surface here, as it is in the workspace.
@@ -158,95 +249,27 @@ export function SettingsShell() {
 		 * `bg-panel` put it within one step of the navigation beside it — 245 against 244 — so the
 		 * two columns read as one undifferentiated field. The workspace already answers this: the
 		 * nav is tinted and the thing you are working in is the plain page.
+		 *
+		 * Only a phone gets here now: no toolbar band, so the toggle floats over the corner and the
+		 * drag strip is laid down last, for the same DOM-order reason as the chat shell's.
 		 */
-		<div data-ly-settings className={`ly-shell relative flex h-full ${headerBar ? "flex-col" : ""}`}>
-			{/* 有 header 的平台上，窗口的两端都收在这条带子里；没有的平台走下面那条浮动的老路。 */}
-			{headerBar && (
-				<WindowHeader navOpen={navOpen} compact={compact} onToggleNav={toggleNav}>
+		<div data-ly-settings className="ly-shell relative flex h-full">
+			{nav}
+			{main}
+			<div className="drag-region absolute inset-x-0 top-0 z-40" style={{ height: WINDOW_HEADER_HEIGHT }}>
+				<div className="no-drag absolute flex items-center gap-0.5" style={{ left: titlebar.start, top: CARD_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}>
 					{navToggle}
-				</WindowHeader>
-			)}
-			<div className={headerBar ? "ly-window-body relative flex min-h-0 flex-1" : "contents"}>
-			<NavPane width={sidebarWidth} label={t("app.settingsNavigation")}>
-				{/* Same as the workspace sidebar: separated by its tint, not by a rule. */}
-				<nav className="ly-sidebar-fill flex h-full w-full flex-col">
-					{/* 红绿灯那一行的空当。有 header 的平台上这一行已经在 header 里了——见 `hasHeaderBar`。 */}
-					{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
-
-					{/*
-					 * Filled on hover, like the section rows below it. The outlined variant used
-					 * here before highlighted its border instead, which made the one button you
-					 * press most often behave unlike everything around it.
-					 */}
-					<div className={`pb-3 ${compact ? "px-3" : "px-2"}`}>
-						<button
-							type="button"
-							onClick={() => {
-								setView("chat");
-								dismissNav();
-							}}
-							className={`m-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-xl px-1.5 text-left text-label text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink active:bg-elevated ${
-								compact ? "h-[40px]" : "h-[32px]"
-							}`}
-						>
-							<ArrowLeft size={16} className="shrink-0" />
-							{t("app.backWorkspace")}
-						</button>
-					</div>
-
-					<SettingsNav
-						groups={groups}
-						section={section}
-						compact={compact}
-						label={t}
-						onPick={(id) => {
-							setSection(id);
-							dismissNav();
-						}}
-					/>
-				</nav>
-			</NavPane>
-
-			<main ref={mainRef} className="ly-opaque ly-card-page flex min-w-0 flex-1 flex-col">
-				{!headerBar && <div className="shrink-0" style={{ height: WINDOW_HEADER_HEIGHT }} />}
-				{/*
-				 * Most sections are a column of settings and scroll as one page. A few are
-				 * two-pane layouts whose halves scroll independently — putting those inside a page
-				 * scroller as well would give the window two nested scrollbars for one screen, and
-				 * the outer one would move the pane headers out from over their own content.
-				 */}
-				<RetainedViews key={workspaceKey} active={section} limit={4} pageClassName="ly-settings-enter" render={(section) => SELF_SCROLLING.has(section) ? (
-					<div
-						className={
-							section === "plugins"
-								? "flex min-h-0 w-[var(--ly-settings-hold,100%)] flex-1 flex-col"
-								: `mx-auto flex min-h-0 w-[var(--ly-settings-hold,100%)] max-w-[900px] flex-1 flex-col pb-6 ${compact ? "px-4" : "px-9"}`
-						}
-					>
-						<SectionBody section={section} />
-					</div>
-				) : (
-				<Scroller className="flex-1">
-					<div className={`mx-auto w-[var(--ly-settings-hold,100%)] max-w-[900px] pb-16 ${compact ? "px-4" : "px-9"}`}>
-						<SectionBody section={section} />
-					</div>
-				</Scroller>
-				)} />
-			</main>
-
-			</div>
-
-			{/* Last child, for the same DOM-order reason as the chat shell's toolbar. */}
-			{!headerBar && (
-				<div className="drag-region absolute inset-x-0 top-0 z-40" style={{ height: WINDOW_HEADER_HEIGHT }}>
-					<div className="no-drag absolute flex items-center gap-0.5" style={{ left: titlebar.start, top: MAIN_WINDOW_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}>
-						{navToggle}
-					</div>
 				</div>
-			)}
+			</div>
 		</div>
 	);
 }
+
+/** How far the cards stand off the window's top on a phone, where the toggle has to line up with them. */
+const CARD_ROW_OFFSET = 5;
+
+/** The air above a settings page in the frame, where no title row sits over it any more. */
+const FRAMED_TOP = 24;
 
 function SectionBody({ section }: { section: SettingsSection }) {
 	switch (section) {

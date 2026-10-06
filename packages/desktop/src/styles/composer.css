@@ -24,6 +24,7 @@
  * 托盘整个被卡片盖住，看上去就是一张带阴影的卡片，和侧栏对话那些单独的输入框一样。
  */
 .ly-composer-tray {
+	position: relative;
   border-radius: 16px;
   background: color-mix(in srgb, var(--color-ink) 3%, transparent);
   box-shadow:
@@ -261,6 +262,50 @@
 /* 欢迎页上输入框排在标题下面，外边距由那一列自己给。 */
 .ly-composer-dock[data-center] {
 	padding: 0;
+}
+
+/* The hands overlap the tray edge while the artwork stays out of the typing area. */
+.ly-composer-mascot {
+	position: absolute;
+	right: 24px;
+	bottom: calc(100% - 6px);
+	z-index: 1;
+	width: min(96px, 24%);
+	pointer-events: none;
+}
+
+.ly-composer-mascot-art {
+	position: relative;
+	animation: ly-perch-breathe 5.6s ease-in-out infinite;
+}
+
+.ly-composer-mascot img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.ly-composer-mascot img + img {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	animation: ly-perch-blink 5.6s linear infinite;
+}
+
+@keyframes ly-perch-breathe {
+	50% { transform: translateY(-2px); }
+}
+
+@keyframes ly-perch-blink {
+	0%, 92%, 96%, 100% { opacity: 0; }
+	93%, 95% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ly-composer-mascot-art,
+	.ly-composer-mascot img + img {
+		animation: none;
+	}
 }
 
 /*

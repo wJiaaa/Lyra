@@ -65,7 +65,7 @@ test("switching every bundled locale updates visible UI without reloading or los
 
 test("the language menu exposes three aligned choices and English labels do not overflow", async () => {
 	await app.evaluate(`(async()=>{const settings=await window.plume.settings.get();await window.plume.settings.save({...settings,uiLocale:'zh-CN'});await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()`);
-	await app.evaluate(`document.querySelector('.ly-sidebar-foot button').click()`);
+	await app.evaluate(`document.querySelector('[data-ly-open-settings]').click()`);
 	await frames(20);
 	await app.evaluate(`(()=>{const b=[...document.querySelectorAll('nav button')].find((e)=>e.textContent.trim()==='常规');if(!b)throw new Error('general section missing');b.click();})()`);
 	await frames(20);

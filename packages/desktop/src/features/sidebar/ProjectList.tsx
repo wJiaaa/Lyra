@@ -1,9 +1,6 @@
 /**
- * The 「项目」 half of the sidebar: pinned conversations, the projects, and the conversations filed
- * under neither.
- *
- * Lifted out of `Sidebar` when the pane grew a second half. Nothing about the arrangement changed —
- * this is the list that was always there. Only conversations pin; projects keep their list order.
+ * The sidebar's list: pinned conversations, the projects, and under 「最近」 the conversations filed
+ * under neither. Only conversations pin; projects keep their list order.
  */
 
 import { translate } from "../../i18n/translate.ts";
@@ -48,6 +45,7 @@ export function ProjectList({
 	onReordered,
 	sort,
 	empty,
+	listSettings,
 }: {
 	groups: Grouped;
 	collapsed: string[];
@@ -60,8 +58,13 @@ export function ProjectList({
 	actions: RowActions;
 	onReordered?: () => void;
 	sort: SortKey;
-	/** What an empty list says, which differs between the sidebar and the archive. */
+	/** What an empty list says. */
 	empty: React.ReactNode;
+	/**
+	 * The list-settings button. On 「项目」 beside 新建项目, or on 「最近」 when there are no
+	 * projects — sorting still applies to 「最近」, and it must not become unreachable.
+	 */
+	listSettings: React.ReactNode;
 }) {
 	const { compact } = useLayout();
 	const reorder = useSidebarReorder(groups, sort, onReordered);
@@ -125,12 +128,15 @@ export function ProjectList({
 						 */
 						// A project is a settings entry, which a phone may not write (see phone-settings.ts).
 						action={
-							!onPhone() && <IconButton
-								size="sm"
-								label={translate("project.new")}
-								onClick={() => setCreating(true)}
-								icon={<Plus size={13} strokeWidth={2} aria-hidden />}
-							/>
+							<>
+								{listSettings}
+								{!onPhone() && <IconButton
+									size="sm"
+									label={translate("project.new")}
+									onClick={() => setCreating(true)}
+									icon={<Plus size={13} strokeWidth={2} aria-hidden />}
+								/>}
+							</>
 						}
 					>
 						{translate("projectList.projects")}
@@ -152,6 +158,7 @@ export function ProjectList({
 						count={groups.loose.length}
 						collapsed={collapsed.includes(RECENT)}
 						onToggle={() => onToggleCollapsed(RECENT)}
+						action={groups.projects.length === 0 ? listSettings : undefined}
 					>
 						{translate("projectList.recent")}
 					</SectionLabel>
@@ -222,12 +229,12 @@ function SectionLabel({
 	collapsed: boolean;
 	onToggle: () => void;
 	/**
-	 * One control that belongs to the section rather than to the fold.
+	 * Controls that belong to the section rather than to the fold — 列表设置 and 新建项目.
 	 *
 	 * Overlaid rather than placed in the row, for the same reason the project rows overlay theirs:
 	 * a second element in the flow would hold a gutter open on all three headings to serve the one
-	 * that uses it. It sits on the count's pixels and they take turns — hovering is reaching for
-	 * the button, so the count is what yields.
+	 * that uses them. They sit on the count's pixels and take turns with it — hovering is reaching
+	 * for a button, so the count is what yields.
 	 */
 	action?: React.ReactNode;
 }) {
@@ -253,7 +260,7 @@ function SectionLabel({
 				<span
 					data-ly-section-count
 					className={`ml-auto flex min-w-5 items-center justify-end tabular-nums transition-opacity duration-[var(--ly-t-quick)] ${
-						action ? "group-hover/section:opacity-0 group-has-[:focus-visible]/section:opacity-0" : ""
+						!action ? "" : onPhone() ? "opacity-0" : "group-hover/section:opacity-0 group-has-[:focus-visible]/section:opacity-0 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-0"
 					}`}
 				>
 					<GroupActivity sessions={sessions} collapsed={collapsed} count={count} />
@@ -262,7 +269,11 @@ function SectionLabel({
 			{action && (
 				<span
 					data-ly-section-action
-					className="absolute right-2 bottom-1.5 flex items-center opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100"
+					// Held while its menu is open, which is when the pointer has left for the menu. Always
+					// shown on a phone: there is no hover to reveal it with.
+					className={`absolute right-2 bottom-1.5 flex items-center gap-0.5 transition-opacity duration-[var(--ly-t-quick)] ${
+						onPhone() ? "" : "opacity-0 group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-100"
+					}`}
 				>
 					{action}
 				</span>

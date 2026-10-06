@@ -146,49 +146,6 @@ export function workspaceSlice(set: Set, get: Get) {
    * a directory picker: the menu item took you somewhere you could not do anything. Pointing it at
    * a scratch directory is what makes it a mode instead of a dead end.
    */
-  /**
-   * The sidebar switched halves on a window with nothing open — see `adoptSidebarTab` in `store.ts`
-   * for why this only ever fires then.
-   */
-  async adoptSidebarTab(tab: "projects" | "chats") {
-    const { activeSessionId, messages, workspace, parkedProject } = get();
-    // A conversation with anything in it stays exactly as it is.
-    if (activeSessionId || messages.length > 0) return;
-
-    if (tab === "chats") {
-      // Already there. A fresh install has neither a project nor a scratch directory, which is not
-      // the same thing and is the case this was reported on: 「聊天」 over an empty list, and a
-      // composer still asking which project to pick.
-      if (!workspace && get().scratchCwd) return;
-      if (workspace) set({ parkedProject: workspace.path });
-      await get().clearWorkspace();
-      return;
-    }
-
-    // Already in one, and 「项目」 is where it belongs.
-    if (workspace) return;
-
-    if (parkedProject) {
-      // Back to whichever project 「聊天」 took the window away from.
-      await get().openWorkspace(parkedProject);
-      set({ parkedProject: null });
-      return;
-    }
-
-    /*
-     * And with nothing to go back to, back to *not having chosen one* — which is a state, not a
-     * gap, and the one 「项目」 is about.
-     *
-     * This used to leave the chat where it was, on the reasoning that there is no sensible project
-     * to invent for a window that has never opened one. True, and beside the point: nothing is
-     * being invented here. The composer says 「选择项目」 and 新对话 opens the picker, which is
-     * exactly the unfinished step someone in this half of the sidebar is standing in front of.
-     * Leaving it saying 「Chat」 meant the two halves disagreed about which mode the window was in,
-     * and the one that was wrong was the one being looked at.
-     */
-    if (get().scratchCwd) set({ scratchCwd: null });
-  },
-
   async clearWorkspace() {
     const epoch = get().selectionEpoch + 1;
     set({ selectionEpoch: epoch });

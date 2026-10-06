@@ -172,6 +172,8 @@ test("a file opened from a screen's Files panel opens the file pane in that scre
 });
 
 test("tabs layout: under the file's tab is where it is, and its name still opens the tree", async () => {
+	// 默认排法已改回分栏，标签页排法要明说。
+	useApp.setState({ settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "tabs" } } });
 	useOpenFile.setState({ files: { [fileSlot("b", "file")]: { path: "/work/beta/src/lib.ts", name: "lib.ts", contents: null, opening: null, loading: false } } });
 	const b = await inScreen("b", h(FileTitle));
 	assert.equal(b.text(), "betasrclib.ts", "that screen's project, the folder, then the file");

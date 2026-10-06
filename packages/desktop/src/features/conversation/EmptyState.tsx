@@ -102,7 +102,7 @@ export function EmptyState() {
 				</h1>
 
 				<div className="mt-11 w-full shrink-0">
-					<Composer centered />
+					<Composer centered welcome />
 				</div>
 
 				{/*
@@ -217,7 +217,7 @@ function PhoneEmpty({ heading }: { heading: React.ReactNode }) {
 				))}
 			</div>
 
-			<Composer />
+			<Composer welcome />
 		</div>
 	);
 }

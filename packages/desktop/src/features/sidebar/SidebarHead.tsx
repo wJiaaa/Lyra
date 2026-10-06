@@ -10,8 +10,8 @@ import { Bell, Search } from "lucide-react";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { onPhone } from "../../services/index.ts";
-import { useApp } from "../../store/index.ts";
-import { activeProviderLabel } from "../../lib/sidebar-grouping.ts";
+import { usePopover } from "../../ui/overlay/Popover.tsx";
+import { NoticeDot, NotificationsMenu, useNotices } from "./NotificationsMenu.tsx";
 
 export function SidebarHead({
 	searching,
@@ -26,13 +26,23 @@ export function SidebarHead({
 	onToggleSearch: () => void;
 }) {
 	const { t } = useI18n();
+	const bell = usePopover();
+	const notices = useNotices();
 	// The search moved to the dock along the bottom on a phone — see `PhoneDock`.
 	if (onPhone()) return <PhoneHead />;
 	return (
 		<>
-			<div className="ly-sidebar-head flex h-[34px] shrink-0 items-center justify-between px-4">
+			{/*
+			 * `pr-2` and no gap: the two buttons are 28px, the strip's below are 24px with 4px between,
+			 * so this is what puts each on the same centre as the one under it. With `px-4` and a gap
+			 * they sat 8–10px left of them. `mt-2`: flush at 5px the name read as pressed to the edge.
+			 * `pl-5`: the name starts on the line 新对话's icon and the list's headings start on (20px);
+			 * at 16px it stood 4px out from everything under it. `mb-2`: at 4px 新对话 read as a second
+			 * line of the title rather than the first thing in the pane.
+			 */}
+			<div className="ly-sidebar-head mt-2 mb-2 flex h-[34px] shrink-0 items-center justify-between pr-2 pl-5">
 				<span className="text-title font-semibold tracking-tight text-ink">Plume</span>
-				<div className="flex items-center gap-0.5">
+				<div className="flex items-center">
 					<button
 						type="button"
 						data-ly-tip={t("sidebar.search")}
@@ -49,12 +59,21 @@ export function SidebarHead({
 						type="button"
 						data-ly-tip={t("sidebar.notifications")}
 						aria-label={t("sidebar.notifications")}
-						className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-card-hover hover:text-ink"
+						aria-haspopup="menu"
+						aria-expanded={bell.open}
+						data-ly-notifications-button
+						onClick={bell.toggle}
+						className={`relative flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-card-hover hover:text-ink ${
+							bell.open ? "bg-card-hover text-ink" : "text-ink-muted"
+						}`}
 					>
 						<Bell size={15} strokeWidth={1.9} />
+						<NoticeDot top={notices.top} />
 					</button>
 				</div>
 			</div>
+
+			{bell.open && <NotificationsMenu anchor={bell.anchor} notices={notices} onClose={bell.close} />}
 
 			{searching && (
 				<div className="px-3 pb-2">
@@ -73,25 +92,30 @@ export function SidebarHead({
 }
 
 /**
- * The drawer's title on a phone: the name, what it is set up with, and the bell.
- *
- * The line under the name is the one the desktop keeps in its footer — the motto if there is one,
- * otherwise which providers are configured. The footer is gone on a phone (its settings button is
- * in the dock), and a large title with a quiet line under it is how a phone names a list anyway.
+ * The drawer's title on a phone: the name and the bell.
  */
 function PhoneHead() {
 	const { t } = useI18n();
-	const settings = useApp((s) => s.settings);
-	const subtitle = settings?.personalization?.sidebarMotto?.trim() || activeProviderLabel(settings?.providers ?? []);
+	const bell = usePopover();
+	const notices = useNotices();
 	return (
 		<div className="ly-phone-head">
 			<div className="min-w-0 flex-1">
 				<div className="ly-phone-head-title">Plume</div>
-				{subtitle && <div className="ly-phone-head-subtitle">{subtitle}</div>}
 			</div>
-			<button type="button" aria-label={t("sidebar.notifications")} className="ly-phone-head-button ly-press">
+			<button
+				type="button"
+				aria-label={t("sidebar.notifications")}
+				aria-haspopup="menu"
+				aria-expanded={bell.open}
+				data-ly-notifications-button
+				onClick={bell.toggle}
+				className="ly-phone-head-button ly-press relative"
+			>
 				<Bell size={19} strokeWidth={1.8} aria-hidden />
+				<NoticeDot top={notices.top} />
 			</button>
+			{bell.open && <NotificationsMenu anchor={bell.anchor} notices={notices} onClose={bell.close} />}
 		</div>
 	);
 }

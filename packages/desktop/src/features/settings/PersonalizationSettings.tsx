@@ -7,11 +7,11 @@ import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import { useCallback, useEffect, useState } from "react";
 import { Brain, Check, Info, Plus, Save, Trash2 } from "lucide-react";
 import { useApp } from "../../store/index.ts";
+import { useListedProjects } from "../../store/listed-projects.ts";
 import { Card, InlineSelect, PrimaryButton, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { bridge } from "../../services/index.ts";
 import { MemoryMeta, type MemorySource } from "./MemoryMeta.tsx";
-import { SidebarMotto } from "./SidebarMotto.tsx";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
@@ -31,14 +31,25 @@ export function PersonalizationSettings() {
 	const [savedNotice, setSavedNotice] = useState(false);
 	const [memoryEntries, setMemoryEntries] = useState<{ id: string; content: string; createdAt: number; source?: MemorySource; lastInjectedAt?: number }[]>([]);
 	/*
-	 * This project's memory, beside the user's own.
+	 * A project's memory, beside the user's own.
 	 *
 	 * Two stores, two scopes: the user's preferences follow the person, the lessons and the
 	 * extracted file follow the repository. Shown together because the question is the same for
 	 * both — what does the model know about me, and is it actually reaching it.
+	 *
+	 * The project is picked here rather than taken from the open conversation, as on the index page:
+	 * following the session meant the only way to see another project's memory was to open one of
+	 * its conversations first.
 	 */
-	const workspace = useApp((s) => s.workspace);
-	const [projectMemory, setProjectMemory] = useState<Awaited<ReturnType<typeof bridge.projectMemory.list>> | null>(null);
+	const projects = useListedProjects();
+	const [picked, setPicked] = useState<string | null>(null);
+	const project = projects.find((p) => p.path === picked) ?? projects[0] ?? null;
+	const projectPath = project?.path;
+	/** Kept per project, so a slow read for the one just left cannot land on the one now picked. */
+	const [projectMemories, setProjectMemories] = useState<Record<string, Awaited<ReturnType<typeof bridge.projectMemory.list>> | null>>({});
+	/** `undefined` while reading; `null` when it could not be read. */
+	const projectMemory = projectPath ? projectMemories[projectPath] : null;
+	const hasProjectMemory = Boolean(projectMemory && (projectMemory.lessons.length > 0 || projectMemory.extracted));
 	const [newMemory, setNewMemory] = useState("");
 	const [loadingMemory, setLoadingMemory] = useState(false);
 
@@ -59,9 +70,11 @@ export function PersonalizationSettings() {
 	}, []);
 
 	const loadProjectMemory = useCallback(() => {
-		if (!workspace?.path) return;
-		void bridge.projectMemory.list(workspace.path).then(setProjectMemory).catch(() => setProjectMemory(null));
-	}, [workspace?.path]);
+		if (!projectPath) return;
+		const store = (memory: Awaited<ReturnType<typeof bridge.projectMemory.list>> | null) =>
+			setProjectMemories((current) => ({ ...current, [projectPath]: memory }));
+		void bridge.projectMemory.list(projectPath).then(store).catch(() => store(null));
+	}, [projectPath]);
 
 	useEffect(() => {
 		loadProjectMemory();
@@ -74,22 +87,22 @@ export function PersonalizationSettings() {
 	 * 界面和文件各说各话，直到下次切换项目。重读一次是一次本地文件读取，便宜得多。
 	 */
 	const forgetLesson = async (at: number) => {
-		if (!workspace?.path) return;
-		await bridge.projectMemory.forget(workspace.path, at);
+		if (!projectPath) return;
+		await bridge.projectMemory.forget(projectPath, at);
 		loadProjectMemory();
 	};
 
 	const forgetExtracted = async () => {
-		if (!workspace?.path) return;
-		await bridge.projectMemory.forgetExtracted(workspace.path);
+		if (!projectPath) return;
+		await bridge.projectMemory.forgetExtracted(projectPath);
 		loadProjectMemory();
 	};
 
 	const forgetAllProjectMemory = async () => {
-		if (!workspace?.path) return;
+		if (!projectPath) return;
 		// 不可撤销，而且删的是模型往后再也读不到的东西——先问一句。用的是这个文件既有的那种问法（见上面清空用户记忆处）。
 		if (!confirm(t("memory.confirmForgetAllProject"))) return;
-		await bridge.projectMemory.forgetAll(workspace.path);
+		await bridge.projectMemory.forgetAll(projectPath);
 		loadProjectMemory();
 	};
 
@@ -185,7 +198,6 @@ export function PersonalizationSettings() {
 	return (
 		<div className="space-y-6 pt-2">
 			<h1 className="pb-2 text-display leading-tight font-semibold tracking-tight text-ink">{t("settings.personalization")}</h1>
-			<SidebarMotto />
 			{/* Custom Instructions */}
 			<div>
 				<div className="mb-2 flex items-center justify-between">
@@ -339,68 +351,82 @@ export function PersonalizationSettings() {
 						)}
 					</div>
 				)}
-				{workspace?.path && projectMemory && (projectMemory.lessons.length > 0 || projectMemory.extracted) && (
+				{project && (
 					<div className="pt-2" data-project-memory>
 						<div className="mb-1.5 flex items-center justify-between gap-2">
-							<p className="text-caption text-ink-muted">
-								{t("personalization.rememberedFor", { name: workspace.name ?? workspace.path })}
-							</p>
+							<div className="flex min-w-0 items-center gap-2">
+								<p className="shrink-0 text-caption text-ink-muted">{t("personalization.rememberedByProject")}</p>
+								<InlineSelect
+									value={project.path}
+									onChange={setPicked}
+									options={projects.map((p) => ({ value: p.path, label: p.name, detail: p.path }))}
+									ariaLabel={t("common.project")}
+								/>
+							</div>
 							{/*
 							 * 「全部忘掉」和逐条删是两种意图，不是一个的快捷方式。
 							 *
 							 * 逐条删是在修一条错的；全部忘掉是「这个项目我重新开始」——多半发生在
 							 * 抽取跑歪了、或者仓库整个换了方向之后。一条条点二十下不是同一件事。
 							 */}
-							<Button variant="danger" size="sm" onClick={() => void forgetAllProjectMemory()} data-project-memory-clear>
-								{t("memory.forgetAllProject")}
-							</Button>
-						</div>
-						<div className="space-y-1.5">
-							{/*
-							 * 每一条都得能删掉。
-							 *
-							 * 这些会被注入这个项目的每一次请求——一条过时的记忆不是碍眼，是一句对模型
-							 * 永远重复的指示。在这之前，撤回它的唯一办法是自己去改
-							 * `~/.plume/projects` 底下那个项目的记忆目录；用户记忆早就有这颗按钮了，
-							 * 项目记忆没有，纯粹是漏了。
-							 */}
-							{projectMemory.lessons.map((lesson) => (
-								<div key={`${lesson.at}-${lesson.text}`} className="flex items-start justify-between gap-2 rounded-xl border border-line bg-card p-3" data-project-lesson>
-									<div className="min-w-0">
-										<span className="text-detail text-ink leading-relaxed break-words">{lesson.text}</span>
-										{lesson.context && <span className="block text-caption text-ink-muted">{t("personalization.appliesTo", { context: lesson.context })}</span>}
-										<MemoryMeta source="learn" createdAt={lesson.at} lastInjectedAt={lesson.lastInjectedAt} />
-									</div>
-									<IconButton
-										tone="danger"
-										label={t("memory.deleteOne")}
-										onClick={() => void forgetLesson(lesson.at)}
-										data-project-lesson-delete
-										icon={<Trash2 size={13.5} strokeWidth={1.8} />}
-									/>
-								</div>
-							))}
-							{projectMemory.extracted && (
-								<div className="flex items-start justify-between gap-2 rounded-xl border border-line bg-card p-3" data-project-extracted>
-									<div className="min-w-0">
-										<pre className="whitespace-pre-wrap font-sans text-detail text-ink leading-relaxed break-words">{projectMemory.extracted.text}</pre>
-										<MemoryMeta
-											source="extracted"
-											createdAt={projectMemory.extracted.updatedAt ?? Date.now()}
-											lastInjectedAt={projectMemory.extracted.lastInjectedAt}
-										/>
-									</div>
-									{/* 抽取出来的那一份是整体重写的，所以它只有「整份丢掉」这一个动作。下次抽取会重新写。 */}
-									<IconButton
-										tone="danger"
-										label={t("memory.deleteExtracted")}
-										onClick={() => void forgetExtracted()}
-										data-project-extracted-delete
-										icon={<Trash2 size={13.5} strokeWidth={1.8} />}
-									/>
-								</div>
+							{hasProjectMemory && (
+								<Button variant="danger" size="sm" onClick={() => void forgetAllProjectMemory()} data-project-memory-clear>
+									{t("memory.forgetAllProject")}
+								</Button>
 							)}
 						</div>
+						{!(projectMemory && (projectMemory.lessons.length > 0 || projectMemory.extracted)) ? (
+							<div className="rounded-xl border border-line/60 bg-card/40 py-8 text-center text-caption text-ink-faint" data-project-memory-empty>
+								{projectMemory === undefined ? t("memory.reading") : t("personalization.projectMemoryEmpty")}
+							</div>
+						) : (
+							<div className="space-y-1.5">
+								{/*
+								 * 每一条都得能删掉。
+								 *
+								 * 这些会被注入这个项目的每一次请求——一条过时的记忆不是碍眼，是一句对模型
+								 * 永远重复的指示。在这之前，撤回它的唯一办法是自己去改
+								 * `~/.plume/projects` 底下那个项目的记忆目录；用户记忆早就有这颗按钮了，
+								 * 项目记忆没有，纯粹是漏了。
+								 */}
+								{projectMemory.lessons.map((lesson) => (
+									<div key={`${lesson.at}-${lesson.text}`} className="flex items-start justify-between gap-2 rounded-xl border border-line bg-card p-3" data-project-lesson>
+										<div className="min-w-0">
+											<span className="text-detail text-ink leading-relaxed break-words">{lesson.text}</span>
+											{lesson.context && <span className="block text-caption text-ink-muted">{t("personalization.appliesTo", { context: lesson.context })}</span>}
+											<MemoryMeta source="learn" createdAt={lesson.at} lastInjectedAt={lesson.lastInjectedAt} />
+										</div>
+										<IconButton
+											tone="danger"
+											label={t("memory.deleteOne")}
+											onClick={() => void forgetLesson(lesson.at)}
+											data-project-lesson-delete
+											icon={<Trash2 size={13.5} strokeWidth={1.8} />}
+										/>
+									</div>
+								))}
+								{projectMemory.extracted && (
+									<div className="flex items-start justify-between gap-2 rounded-xl border border-line bg-card p-3" data-project-extracted>
+										<div className="min-w-0">
+											<pre className="whitespace-pre-wrap font-sans text-detail text-ink leading-relaxed break-words">{projectMemory.extracted.text}</pre>
+											<MemoryMeta
+												source="extracted"
+												createdAt={projectMemory.extracted.updatedAt ?? Date.now()}
+												lastInjectedAt={projectMemory.extracted.lastInjectedAt}
+											/>
+										</div>
+										{/* 抽取出来的那一份是整体重写的，所以它只有「整份丢掉」这一个动作。下次抽取会重新写。 */}
+										<IconButton
+											tone="danger"
+											label={t("memory.deleteExtracted")}
+											onClick={() => void forgetExtracted()}
+											data-project-extracted-delete
+											icon={<Trash2 size={13.5} strokeWidth={1.8} />}
+										/>
+									</div>
+								)}
+							</div>
+						)}
 					</div>
 				)}
 			</div>

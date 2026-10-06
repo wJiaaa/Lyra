@@ -1,25 +1,23 @@
 /**
  * The navigation pane: what you can go to, and what you have been in.
  *
- * Two lists rather than one. A project orders its conversations by what they belong to and 「聊天」
- * orders every conversation by when you last touched it, and no single list can be both — which is
- * why the most recent conversation used to be one of the hardest things in the pane to find. The
- * strip that switches between them is `sidebar/SidebarTabs`, the lists are `sidebar/ProjectList`
- * and `sidebar/ChatList`. The strip and the current heading are held at the top by `position:
- * sticky`; the only part of that JavaScript owns is where the fade below them starts, which is
- * `sidebar/useStickyFade` and `sidebar/sticky.ts`.
+ * One list: the projects, and under 「最近」 the conversations that belong to none
+ * (`sidebar/ProjectList`). Searching swaps it for every match in one flat run banded by date
+ * (`sidebar/ChatList`), because matches scattered five rows down across a dozen projects is the
+ * scrolling a search exists to end. The current heading is held at the top by `position: sticky`;
+ * the only part of that JavaScript owns is where the fade below it starts, which is
+ * `sidebar/useStickyFade` and `sidebar/sticky.ts`. The archive is not here: it is 设置 › 已归档的聊天.
  *
  * Only the pane itself is here. Which conversations are listed and what a row does is
  * `sidebar/useSidebarLists`; the rules underneath it are `lib/sidebar-grouping` and `sidebar/recency`.
  */
 
-import { Archive, ListFilter, SquarePen } from "lucide-react";
+import { ListFilter, SquarePen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { ArchiveToggle } from "./ArchiveToggle.tsx";
 import { ChatList, CHAT_PAGE } from "./ChatList.tsx";
 import { DestinationNav } from "./DestinationNav.tsx";
 import { ListMenu, type SortKey } from "./ListMenu.tsx";
@@ -28,7 +26,7 @@ import { SESSION_PAGE } from "./ProjectGroup.tsx";
 import { ProjectList } from "./ProjectList.tsx";
 import { SidebarFoot } from "./SidebarFoot.tsx";
 import { SidebarHead } from "./SidebarHead.tsx";
-import { SidebarTabs, StripButton, type SidebarTab } from "./SidebarTabs.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { SessionCarryGhost } from "../split/index.ts";
 import { PhoneDock } from "./PhoneDock.tsx";
 import { useSidebarLists } from "./useSidebarLists.ts";
@@ -36,19 +34,8 @@ import { onPhone } from "../../services/index.ts";
 import { useStickyFade } from "./useStickyFade.ts";
 import { useI18n } from "../../i18n/index.ts";
 
-/**
- * The strip's full height on a phone, with its breathing room — where headings come to rest.
- *
- * Declared rather than measured for the same reason as the desktop numbers below it: headings are
- * held by CSS alone, and CSS needs the number before anything has been laid out. `phone.css` sizes
- * the strip to match.
- */
-const PHONE_RAIL = 8 + 40 + 8;
-
 /** Where the folded-project list is remembered. */
 const COLLAPSED_KEY = "ly-collapsed-projects";
-/** And which half of the pane you were last in — the two are looked at on different days. */
-const TAB_KEY = "ly-sidebar-tab";
 /** And what "most recent" means, which is a preference rather than a place. */
 const SORT_KEY = "ly-sidebar-sort";
 
@@ -56,13 +43,12 @@ export function Sidebar() {
 	const { t } = useI18n();
 	const scratchRoots = useApp((s) => s.scratchRoots);
 	const newSession = useApp((s) => s.newSession);
-	const adoptSidebarTab = useApp((s) => s.adoptSidebarTab);
 	/**
 	 * As a drawer this pane covers the thing it navigates to, so anything that changes what is
 	 * behind it also has to get out of the way. Pushed, `dismissNav` does nothing and the
 	 * sidebar stays where the user put it.
 	 */
-	const { compact, headerBar, dismissNav } = useLayout();
+	const { compact, headerBar, framed, rail: railShown, dismissNav } = useLayout();
 	/*
 	 * On a phone the pane is a drawer held in one hand, and its controls move to where the thumb is:
 	 * search, 新对话 and settings leave the top and the footer for `PhoneDock` along the bottom edge.
@@ -72,22 +58,13 @@ export function Sidebar() {
 
 	const [query, setQuery] = useState("");
 	const [searching, setSearching] = useState(false);
-	const [tab, setTab] = useState<SidebarTab>(() => (localStorage.getItem(TAB_KEY) === "chats" ? "chats" : "projects"));
-	/**
-	 * Whether the list is showing the archive instead.
-	 *
-	 * Not persisted, unlike the tab. Which of the two lists you prefer is a habit; being in the
-	 * archive is an errand, and coming back to an app that opens on the things you filed away is
-	 * being handed back a task you finished.
-	 */
-	const [archiveOpen, setArchiveOpen] = useState(false);
 	/** How many rows each project is showing. Absent means the default five. */
 	const [shown, setShown] = useState<Record<string, number>>({});
 	/** The same, for the 「最近」 section — one number, because there is only ever one of it. */
 	const [looseShown, setLooseShown] = useState(SESSION_PAGE);
-	/** And for the flat 「聊天」 list, which is every conversation there is. */
+	/** And for the flat list search shows. */
 	const [chatShown, setChatShown] = useState(CHAT_PAGE);
-	/** Which timestamp orders both halves and the archive. Persisted: it is a preference, not a mode. */
+	/** Which timestamp orders the list and search results. Persisted: it is a preference, not a mode. */
 	const [sort, setSort] = useState<SortKey>(() => {
 		const val = localStorage.getItem(SORT_KEY);
 		return val === "updatedAt" ? "updatedAt" : val === "manual" ? "manual" : "createdAt";
@@ -127,57 +104,39 @@ export function Sidebar() {
 	useEffect(() => {
 		try {
 			localStorage.setItem(COLLAPSED_KEY, JSON.stringify(collapsed));
-			localStorage.setItem(TAB_KEY, tab);
 			localStorage.setItem(SORT_KEY, sort);
 		} catch {
 			// A full or disabled storage costs the memory of the choice, not the choice itself.
 		}
-	}, [collapsed, tab, sort]);
+	}, [collapsed, sort]);
 
 	const viewport = useRef<HTMLDivElement>(null);
 	/*
-	 * A different list starts at its own top — the *list's* top, not the pane's.
+	 * Opening or closing the search starts the new list at its own top — the *list's* top, not the
+	 * pane's.
 	 *
-	 * The scroller is shared by all four combinations, so without this, switching to a list that
-	 * happens to be shorter than how far you had scrolled the last one lands you somewhere in its
-	 * middle — or, if it is shorter still, at its end with a blank pane. A depth into one list means
-	 * nothing in another.
+	 * A depth into one list means nothing in another: without this, a shorter list lands you in its
+	 * middle or past its end. But zero is further up than the list begins when the destinations sit
+	 * above it in the same scroller (a drawer, no icon rail), and they did not change — going to zero
+	 * threw them back on screen. Only ever upwards; the browser's own clamp handles the rest.
 	 *
-	 * It used to go to zero, and zero is further up than the list begins. Above it in the same
-	 * scroller sit the destinations and the strip, which are the same in all four combinations and
-	 * did not change — so opening the archive from a scrolled list threw those back on screen, drove
-	 * the strip out of its rail and shoved everything down by their height. Nothing in that band had
-	 * become a different thing; it moved because the list under it did. What is replaced is the list,
-	 * so what returns to its top is the list.
-	 *
-	 * Measured off the element before the strip rather than read from `offsetTop`: the strip is
-	 * `sticky`, so once it is held its own box says where it is being *drawn*, not where it lives in
-	 * the flow — and the flow position is the whole question. Its predecessor is in the flow at every
-	 * scroll position, and the bottom of it is exactly the offset at which the strip comes to rest.
+	 * Measured off the element above the list, not the list: the list is mid-entrance (`ly-enter`)
+	 * and its box still carries the animation's offset.
 	 */
 	useEffect(() => {
 		const view = viewport.current;
 		if (!view) return;
-		const above = view.querySelector<HTMLElement>("[data-ly-rail]")?.previousElementSibling;
+		const above = view.querySelector<HTMLElement>("[data-ly-list]")?.previousElementSibling;
 		const anchor = above
 			? Math.max(0, view.scrollTop + above.getBoundingClientRect().bottom - view.getBoundingClientRect().top)
 			: 0;
-		// Only ever upwards. Below the anchor the strip is not held yet and there is nothing to keep
-		// still; the browser's own clamp handles a new list too short to reach even that far.
 		if (view.scrollTop > anchor) view.scrollTop = anchor;
-	}, [tab, archiveOpen]);
+	}, [searching]);
 
-	/*
-	 * Where headings rest: under the strip, which rests against the top edge.
-	 *
-	 * The strip's own box includes the space around it — see the padding below — so this is its full
-	 * height, and a heading stopping here lands flush under it with nothing transparent in between.
-	 */
-	const rail = phone ? PHONE_RAIL : 6 + (compact ? 38 : 28) + 6;
-	useStickyFade(viewport, 0, rail);
+	// Headings rest against the top edge: nothing is held above them any more.
+	useStickyFade(viewport, 0, 0);
 
-	const { archived, groups, matching, bands, actions, confirm } = useSidebarLists({
-		archiveOpen,
+	const { groups, matching, bands, actions } = useSidebarLists({
 		query,
 		sort,
 		chatShown,
@@ -201,51 +160,17 @@ export function Sidebar() {
 		);
 
 	/*
-	 * Searching is looking for one conversation, so it happens in the list that has all of them.
-	 *
-	 * Filtering 「项目」 does work — the projects keep their shape and lose the rows that do not
-	 * match — but the matches then sit scattered across however many projects, five rows down each,
-	 * which is the exact scrolling the flat list exists to end. The tab you were on comes back when
-	 * the search closes, unless you changed it yourself in the meantime.
+	 * Searching is looking for one conversation, so it shows every match in one flat run — see the
+	 * top of this file. Closing the search brings the project list back.
 	 */
-	const before = useRef<SidebarTab | null>(null);
 	const toggleSearch = () => {
-		if (searching) {
-			setSearching(false);
-			setQuery("");
-			if (before.current) setTab(before.current);
-			before.current = null;
-			return;
-		}
-		if (tab === "projects") {
-			before.current = tab;
-			setTab("chats");
-		}
-		setSearching(true);
-	};
-	const changeTab = (next: SidebarTab) => {
-		before.current = null;
-		setTab(next);
-		/*
-		 * And follow it, on a window with nothing open yet.
-		 *
-		 * Which half you are in is the only thing you have said about what you want to do next, and
-		 * until now the composer ignored it: 「聊天」 over an empty list still said 「选择项目」 and
-		 * 新对话 from there opened a directory picker. Guarded inside — a conversation that exists
-		 * is never disturbed by this. See `adoptSidebarTab`.
-		 */
-		void adoptSidebarTab(next);
+		if (searching) setQuery("");
+		setSearching(!searching);
 	};
 
 	const pad = compact ? "px-3" : "px-2.5";
 	const empty = query.trim() ? (
 		<p className="px-2 py-6 text-center text-detail text-ink-faint">{t("sidebar.noMatches")}</p>
-	) : archiveOpen ? (
-		<div className="px-2 py-8 text-center">
-			<Archive size={22} strokeWidth={1.5} className="mx-auto text-ink-faint" />
-			<p className="mt-2.5 text-detail text-ink-muted">{t("sidebar.noArchived")}</p>
-			<p className="mt-1 text-caption leading-relaxed text-ink-faint">{t("sidebar.archiveHint")}</p>
-		</div>
 	) : (
 		<p className="px-2 py-6 text-center text-detail leading-relaxed text-ink-faint">
 			{t("sidebar.noSessions")}
@@ -259,11 +184,11 @@ export function Sidebar() {
 		<div
 			className="ly-sidebar-fill flex h-full w-full flex-col"
 			/*
-			 * Where headings come to rest: below the strip, with a gap either side of it. Declared
-			 * here so the rows can be plain `sticky top-[var(--ly-rail)]` — CSS holds them, which is
-			 * the only way they keep up with a wheel. See `sidebar/sticky.ts`.
+			 * Where headings come to rest: the top edge, now that no control row is held above them.
+			 * Kept as a variable so the rows stay plain `sticky top-[var(--ly-rail)]` — CSS holds them,
+			 * which is the only way they keep up with a wheel. See `sidebar/sticky.ts`.
 			 */
-			style={{ "--ly-rail": `${rail}px` } as React.CSSProperties}
+			style={{ "--ly-rail": "0px" } as React.CSSProperties}
 		>
 			{/*
 			 * 给窗口顶上那一行让出的空当。
@@ -277,7 +202,7 @@ export function Sidebar() {
 			 * `phone.css`). Beside the conversation — a phone on its side, a tablet — the button sits
 			 * in this row again, so the row stays.
 			 */}
-			{!headerBar && !(phone && compact) && <div className="h-[44px] shrink-0" />}
+			{!headerBar && !framed && !(phone && compact) && <div className="h-[44px] shrink-0" />}
 
 			<SidebarHead searching={searching} query={query} onQuery={setQuery} onToggleSearch={toggleSearch} />
 
@@ -311,50 +236,21 @@ export function Sidebar() {
 			 * says the list ended there. See `.ly-fade-y`.
 			 */}
 			<Scroller className="flex-1" contentClassName={`pb-2 ${pad}`} scrollRef={viewport}>
-				<DestinationNav onNavigate={dismissNav} />
+				{/* In the frame these are the rail's; a drawer has no rail beside it, so they stay here. */}
+				{!railShown && <DestinationNav onNavigate={dismissNav} />}
 
 				{/*
-				 * The strip, in the list and held at the top of it once you scroll.
+				 * Keyed on the search, so opening or closing it replays the entrance.
 				 *
-				 * `sticky` rather than a copy placed over the pane: the list moves on the compositor,
-				 * and anything positioned from JavaScript arrives a frame after it does — which is a
-				 * row visibly wobbling by a wheel tick. `sidebar/sticky.ts` has the whole account.
-				 *
-				 * 不铺底：这一栏在 macOS 上是半透明的，不透明的底色对不上。从它底下滚过去的行和被顶出去的
-				 * 标题都在滑进来之前自己淡没了（`.ly-sidebar-fill` 的 `ly-under-pin`），这里没有东西要挡。
-				 * 上下的留白算在它自己的高度里（`rail` 就是按这个算的），标题停在它正下方。
-				 */}
-				<div data-ly-rail className="sticky top-0 z-30 py-1.5">
-					<SidebarTabs
-						tab={tab}
-						onChange={changeTab}
-						trailing={
-							<>
-								<StripButton label={t("sidebar.listSettings")} active={menu.open} onClick={menu.toggle}>
-									<ListFilter size={14} strokeWidth={1.9} />
-								</StripButton>
-								<ArchiveToggle
-									open={archiveOpen}
-									count={archived.length}
-									onToggle={() => setArchiveOpen((v) => !v)}
-								/>
-							</>
-						}
-					/>
-				</div>
-
-				{/*
-				 * Keyed on both, so switching either one replays the entrance.
-				 *
-				 * Four states share this scroller and none of them is a change to the list on screen —
-				 * they are different lists. The animation is what says so; without it the rows simply
+				 * The two share this scroller and neither is a change to the list on screen — they are
+				 * different lists. The animation is what says so; without it the rows simply
 				 * become other rows, which at a glance reads as the sidebar having reordered itself.
 				 *
-				 * `pt-3` 是标签栏和列表之间的间距，由这里统一给，两个列表的第一个标题都不再自带上间距——
-				 * 各自带的时候，项目列表比聊天列表远 16px，切换标签时标题上下跳。
+				 * `pt-3` 是上面那截和列表之间的间距，由这里统一给，两个列表的第一个标题都不再自带上间距——
+				 * 各自带的时候，项目列表比扁平列表远 16px，开关搜索时标题上下跳。
 				 */}
-				<div key={`${archiveOpen ? "archive" : "live"}-${tab}`} className="ly-enter pt-3">
-					{tab === "projects" ? (
+				<div key={searching ? "flat" : "grouped"} data-ly-list className="ly-enter pt-3">
+					{!searching ? (
 						<ProjectList
 							groups={groups}
 							collapsed={collapsed}
@@ -374,7 +270,16 @@ export function Sidebar() {
 							actions={actions}
 							empty={empty}
 							sort={sort}
-							onReordered={archiveOpen ? undefined : markManual}
+							onReordered={markManual}
+							listSettings={
+								<IconButton
+									size="sm"
+									label={t("sidebar.listSettings")}
+									menu={menu.open}
+									onClick={menu.toggle}
+									icon={<ListFilter size={13} strokeWidth={2} aria-hidden />}
+								/>
+							}
 						/>
 					) : (
 						<ChatList
@@ -401,23 +306,21 @@ export function Sidebar() {
 					onNavigate={dismissNav}
 				/>
 			) : (
-				<SidebarFoot onNavigate={dismissNav} />
+				!railShown && <SidebarFoot onNavigate={dismissNav} />
 			)}
 
 			{menu.open && (
 				<ListMenu
 					anchor={menu.anchor}
-					tab={tab}
-					archive={archiveOpen}
 					sort={sort}
 					hasManual={hasManual}
 					onSort={setSort}
+					canFold={foldable.length > 0}
 					allFolded={allFolded}
 					onFoldAll={foldAll}
 					onClose={menu.close}
 				/>
 			)}
-			{confirm}
 		</div>
 	);
 }

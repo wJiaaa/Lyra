@@ -126,9 +126,16 @@ export function useStickyFade(viewport: React.RefObject<HTMLDivElement | null>, 
 		 * 同一条下沿，再写一份给列表的行读：它们要按这条线在滑进钉住的行底下之前淡没。只写顶上那一段，
 		 * 见 `NEAR_TOP` 和 `BAND_LEAD`。线没变也要走一遍：分组是按位置挑的，刚滑进来的要补上。
 		 */
-		edge.current = next.inset;
-		for (const node of near.current) if (!node.hasAttribute("data-ly-band")) writeEdge(node, next.inset, edgeOn.current);
-		for (const node of bands) writeEdge(node, next.inset, edgeOn.current);
+		/*
+		 * Raised by however much of the fade depth has not been scrolled yet. Rows start fading 36px
+		 * below this line, so at rest the first heading — 12px down, nothing above it — was drawn at a
+		 * third of its strength while the one under it was whole. Nothing is hidden above at the top,
+		 * same as the mask's own fade (`heldBand` above); from 36px of scroll on it is the plain edge.
+		 */
+		const line = next.inset - Math.max(0, FADE_TOP - view.scrollTop);
+		edge.current = line;
+		for (const node of near.current) if (!node.hasAttribute("data-ly-band")) writeEdge(node, line, edgeOn.current);
+		for (const node of bands) writeEdge(node, line, edgeOn.current);
 	}, [viewport, gap, rail]);
 
 	const schedule = useCallback(() => {

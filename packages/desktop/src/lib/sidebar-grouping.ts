@@ -7,7 +7,6 @@
  * they belong to.
  */
 
-import { translate } from "../i18n/translate.ts";
 import type { SessionMeta } from "@plume/core";
 import { projectFolders } from "@plume/core/project-folders";
 import { orderedSessions, type SessionSortKey } from "./sidebar-order.ts";
@@ -194,12 +193,4 @@ export function isScratch(cwd: string, scratchRoots: string[]): boolean {
  */
 export function listableSessions(sessions: SessionMeta[], activeSessionId: string | null): SessionMeta[] {
 	return sessions.filter((s) => !s.archived && (s.messageCount > 0 || s.id === activeSessionId));
-}
-
-/** What the settings row says it will take you to. */
-export function activeProviderLabel(providers: { name: string; enabled: boolean; models: unknown[] }[]): string {
-	const enabled = providers.filter((p) => p.enabled);
-	if (enabled.length === 0) return translate("sidebarGrouping.noProvider");
-	const models = enabled.reduce((sum, p) => sum + p.models.length, 0);
-	return translate("sidebarGrouping.providers", { providers: enabled.map((p) => p.name).join(" · "), n: models });
 }

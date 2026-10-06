@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activeProviderLabel, groupSessions, isScratch, listableSessions } from "../src/lib/sidebar-grouping.ts";
+import { groupSessions, isScratch, listableSessions } from "../src/lib/sidebar-grouping.ts";
 
 type Session = Parameters<typeof listableSessions>[0][number];
 
@@ -199,18 +199,6 @@ test("project sessions follow custom sessionOrder only in manual sort mode", () 
 	);
 });
 
-
-test("the settings row counts models across enabled providers only", () => {
-	const label = activeProviderLabel([
-		{ name: "Relay", enabled: true, models: [1, 2] },
-		{ name: "旧的", enabled: false, models: [1] },
-	]);
-	assert.equal(label, "Relay · 2 个模型");
-});
-
-test("with nothing configured the settings row says so", () => {
-	assert.equal(activeProviderLabel([]), "未配置模型供应商");
-});
 
 test("project-less conversations are loose rows, not a project each and not a project at all", () => {
 	/*

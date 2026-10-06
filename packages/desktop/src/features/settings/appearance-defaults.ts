@@ -61,7 +61,7 @@ export const FACTORY_APPEARANCE: Appearance = {
 	diffMarkers: "color",
 	errorDetail: "compact",
 	callChain: "collapsed",
-	panelLayout: "tabs",
+	panelLayout: "split",
 	fontSmoothing: false,
 	vibrancy: true,
 };

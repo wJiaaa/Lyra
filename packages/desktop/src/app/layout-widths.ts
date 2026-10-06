@@ -8,19 +8,12 @@
 
 export const SIDEBAR_DEFAULT = 272;
 /**
- * Narrow enough to be worth dragging to, wide enough to draw the strip.
+ * Narrow enough to be worth dragging to, wide enough for the sidebar's rows.
  *
- * Measured rather than chosen: the tab strip plus the two buttons beside it comes to 216px at the
- * default type size in Chinese, and the list's own padding takes 10px either side — so the pane
- * needs 236 for the row to fit, and this leaves a few pixels over. The old floor was 208, which is
- * 28px short: dragging all the way in cut the archive button in half, because nothing in that row
- * shrinks.
- *
- * The row gives way now too (`SidebarTabs`, `fitTabs`): the tabs' padding first, then their words,
- * leaving the marks — so a larger type size, or a language with longer words, narrows the strip
- * rather than pushing a control off the edge. This number is what keeps any of that from being
- * needed in Chinese at the size almost everyone runs; English, Russian, Japanese and French
- * already need some of it at the default width.
+ * It was measured off the 项目/聊天 strip (216px in Chinese plus 10px of padding either side). The
+ * strip is gone and nothing that is left needs that much, so this is now a floor that was kept
+ * rather than one that is forced: lowering it is safe as long as the title row and a session row's
+ * trailing time still fit.
  */
 export const SIDEBAR_MIN = 240;
 /** Past this the sidebar is wider than the thing it navigates, which is not a use. */

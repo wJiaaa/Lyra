@@ -165,6 +165,11 @@ export interface AppState extends QueueSlice {
    */
   pluginsProject: string | null;
   /**
+   * 设置 › 钩子看哪个项目，null 是用户级。页内的范围选择器写它，会话里「去审核」也写它——
+   * 那是唯一该替人选项目的入口，所以由它显式写进来，而不是让设置页去猜当前会话在哪个项目。
+   */
+  hooksProject: string | null;
+  /**
    * Which bundle the catalogue should be showing, by key, or null for the grid.
    *
    * Up here rather than inside the view because it is now reached from two places: clicking a
@@ -231,15 +236,6 @@ export interface AppState extends QueueSlice {
    * what makes those two cases work at all rather than silently swallowing the first message.
    */
   scratchCwd: string | null;
-  /**
-   * The project 「聊天」 took the window away from, so 「项目」 can put it back.
-   *
-   * Switching to the chat half of the sidebar on a blank conversation switches the conversation
-   * itself out of the project — see `adoptSidebarTab`. Without somewhere to remember what it was,
-   * switching back would leave the window in no project at all, having quietly closed one nobody
-   * asked to close.
-   */
-  parkedProject: string | null;
   /**
    * Text to put in a composer, for callers that are not the composer; null while nothing waits.
    *
@@ -421,6 +417,7 @@ export interface AppState extends QueueSlice {
   setView(view: View): void;
   setSettingsSection(section: SettingsSection): void;
   setPluginsProject(path: string | null): void;
+  setHooksProject(path: string | null): void;
   /** Open one bundle's page in the catalogue, or return to the grid with null. */
   setPluginFocus(key: string | null): void;
   setExtensionsFocus(focus: { tab: ExtensionsTab; query?: string } | null): void;
@@ -463,20 +460,6 @@ export interface AppState extends QueueSlice {
   setSwitchingBranch(switching: { path: string; branch: string } | null): void;
   /** Work without a project. Sessions still run; they just have no repo behind them. */
   clearWorkspace(): Promise<void>;
-  /**
-   * Follow the sidebar into the half it just switched to — but only on a blank conversation.
-   *
-   * 「项目」 and 「聊天」 are two ways of listing the same conversations, and switching between them
-   * is normally just that: a way of looking. But on a window with nothing open yet, the half you
-   * are in is also the only statement you have made about what you want to do next, and the
-   * composer was ignoring it — 「聊天」 with an empty list still said 「选择项目」, and 新对话 from
-   * there opened a directory picker.
-   *
-   * Never over a conversation that exists. Leaving a project clears what is on screen, and doing
-   * that because someone glanced at their recent chats would be closing their work to answer a
-   * question they did not ask.
-   */
-  adoptSidebarTab(tab: "projects" | "chats"): Promise<void>;
   /**
    * Add a project from a name and one or more source folders; the first is where sessions run.
    *
@@ -609,6 +592,7 @@ export const useApp = create<AppState>((set, get) => ({
   view: "chat",
   settingsSection: "models",
   pluginsProject: null,
+  hooksProject: null,
   pluginFocus: null,
   pluginUpdates: null,
   extensionsFocus: null,
@@ -622,7 +606,6 @@ export const useApp = create<AppState>((set, get) => ({
   switchingBranch: null,
   scratchRoots: [],
   scratchCwd: null,
-  parkedProject: null,
   composerDraft: null,
   browserAttachment: null,
   drafts: {},
@@ -783,6 +766,7 @@ export const useApp = create<AppState>((set, get) => ({
     }),
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   setPluginsProject: (pluginsProject) => set({ pluginsProject }),
+  setHooksProject: (hooksProject) => set({ hooksProject }),
   setPluginFocus: (pluginFocus) => set({ pluginFocus }),
   setExtensionsFocus: (extensionsFocus) => set({ extensionsFocus }),
   openExtensions: (tab, query) =>

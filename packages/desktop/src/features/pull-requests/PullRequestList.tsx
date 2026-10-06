@@ -66,6 +66,7 @@ export function PullRequestList({
 	onAccount,
 	onAddAccount,
 	onRefresh,
+	refreshHere = true,
 }: {
 	groups: Group[];
 	/**
@@ -97,6 +98,11 @@ export function PullRequestList({
 	onAccount: (id: string | null) => void;
 	onAddAccount: () => void;
 	onRefresh: () => void;
+	/**
+	 * Whether 刷新 sits at the end of the filter row. Not in the sidebar, where it is on the title row:
+	 * at the sidebar's narrowest (240px) the three filters and it came to 254px, and it was pushed out.
+	 */
+	refreshHere?: boolean;
 }) {
 	const { t } = useI18n();
 	const [folded, setFolded] = useState<Set<string>>(readFolded);
@@ -164,12 +170,7 @@ export function PullRequestList({
 				</div>
 
 				<div className="flex-1" />
-				<IconButton
-					label={t("common.refresh")}
-					onClick={onRefresh}
-					className="no-drag"
-					icon={loading ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={1.8} />}
-				/>
+				{refreshHere && <RefreshButton loading={loading} onRefresh={onRefresh} />}
 			</div>
 
 			{/*
@@ -256,6 +257,18 @@ export function PullRequestList({
 				})}
 			</Scroller>
 		</div>
+	);
+}
+
+export function RefreshButton({ loading, onRefresh }: { loading: boolean; onRefresh: () => void }) {
+	const { t } = useI18n();
+	return (
+		<IconButton
+			label={t("common.refresh")}
+			onClick={onRefresh}
+			className="no-drag"
+			icon={loading ? <ActionSpinner size={13} /> : <RefreshCw size={13} strokeWidth={1.8} />}
+		/>
 	);
 }
 
