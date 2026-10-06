@@ -72,15 +72,26 @@ function useScreenMeta(sessionId: string | null) {
 	);
 }
 
+/**
+ * The conversation's name and the metadata behind it.
+ *
+ * A blank new conversation on a single screen has no session to name yet, so no "Untitled"; with
+ * several screens each one must say whose it is. Shared with `ToolbarScreenTitle`, which has to
+ * know whether there is a name before it draws the mark that sets one off.
+ */
+function useScreenHead(sessionId: string | null, screen: boolean) {
+	const meta = useScreenMeta(sessionId);
+	const title = meta || screen ? sessionTitle(meta?.title) : "";
+	return { meta, title };
+}
+
 function ScreenTitle({ sessionId, screen }: { sessionId: string | null; screen: boolean }) {
 	const { t } = useI18n();
-	const meta = useScreenMeta(sessionId);
+	const { meta, title } = useScreenHead(sessionId, screen);
 	const deleteSession = useApp((s) => s.deleteSession);
 	const menu = usePopover();
 	// The delete confirmation hangs here rather than in the menu: the menu unmounts once clicked. See `onRequestDelete` on `SessionMenu`.
 	const confirm = useConfirmer();
-	// A blank new conversation on a single screen has no session to name yet, so no "Untitled"; with several screens each one must say whose it is.
-	const title = meta || screen ? sessionTitle(meta?.title) : "";
 	return (
 		<>
 			{meta && <Folder size={15} strokeWidth={1.7} aria-hidden className="shrink-0 text-ink-faint" />}
@@ -154,6 +165,10 @@ function useSingleScreen(): { sessionId: string | null } | undefined {
 /** The single screen's title, drawn in the window's toolbar over the conversation's card. */
 export function ToolbarScreenTitle() {
 	const screen = useSingleScreen();
+	// A conversation nothing has named yet — a window that just opened — has no title to set off, and
+	// the rule left standing on its own marks nothing. Read before the early return below, which
+	// would otherwise skip a hook.
+	const { title } = useScreenHead(screen?.sessionId ?? null, false);
 	if (!screen) return null;
 	return (
 		<>
@@ -165,9 +180,10 @@ export function ToolbarScreenTitle() {
 			 * the toolbar.
 			 *
 			 * It belongs to the title, not to the toolbar: drawn by the toolbar it stayed on every other page
-			 * and with several screens, marking off a title that was not there.
+			 * and with several screens, marking off a title that was not there — and, for the same reason,
+			 * it waits for a title here.
 			 */}
-			<span aria-hidden data-ly-toolbar-divider className="ly-toolbar-divider mr-[7px] h-5 w-px shrink-0" />
+			{title && <span aria-hidden data-ly-toolbar-divider className="ly-toolbar-divider mr-[7px] h-5 w-px shrink-0" />}
 			<div data-dock-header="conversation" data-ly-toolbar-title className="flex min-w-0 items-center gap-1.5">
 				<ScreenTitle sessionId={screen.sessionId} screen={false} />
 			</div>
