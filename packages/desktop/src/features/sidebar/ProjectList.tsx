@@ -1,6 +1,6 @@
 /**
- * The sidebar's list: pinned conversations, the projects, and all conversations under 「最近」.
- * Only conversations pin; projects keep their list order.
+ * The sidebar's list: pinned conversations, the projects, and under 「最近」 the conversations filed
+ * under neither. Only conversations pin; projects keep their list order.
  */
 
 import { translate } from "../../i18n/translate.ts";
@@ -34,7 +34,6 @@ const RECENT = "§recent";
 
 export function ProjectList({
 	groups,
-	recent,
 	collapsed,
 	onToggleCollapsed,
 	groupProps,
@@ -48,7 +47,6 @@ export function ProjectList({
 	listSettings,
 }: {
 	groups: Grouped;
-	recent: SessionMeta[];
 	collapsed: string[];
 	onToggleCollapsed: (key: string) => void;
 	/** Everything a `ProjectGroup` needs that is per-project state rather than per-project data. */
@@ -75,7 +73,7 @@ export function ProjectList({
 	const pinnedShut = collapsed.includes(PINNED);
 	const hasPinned = (groups.pinnedSessions?.length ?? 0) > 0;
 
-	if (!hasPinned && groups.projects.length === 0 && recent.length === 0) {
+	if (!hasPinned && groups.projects.length === 0 && groups.loose.length === 0) {
 		return <>{empty}</>;
 	}
 	return (
@@ -149,25 +147,26 @@ export function ProjectList({
 				</>
 			)}
 
-			{recent.length > 0 && (
-				<SidebarReorderContext.Provider value={null}>
+			{groups.loose.length > 0 && (
+				<>
 					<SectionLabel
 						first={!hasPinned && groups.projects.length === 0}
 						section="recent"
-						sessions={recent}
-						count={recent.length}
+						sessions={groups.loose}
+						count={groups.loose.length}
 						collapsed={collapsed.includes(RECENT)}
 						onToggle={() => onToggleCollapsed(RECENT)}
 						action={groups.projects.length === 0 ? listSettings : undefined}
 					>
 						{translate("projectList.recent")}
 					</SectionLabel>
-					{/* Recent rows stay chronological; dragging here must not reorder their project copies. */}
+					{/* Flat rows, the same ones a project shows — the section is what differs, not the
+					    conversation. Same gap as inside a project, so the two read as one list. */}
 					<Collapsible open={!collapsed.includes(RECENT)}>
 						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
 							{/* 只包住行，理由见 `useUnfold`。 */}
 							<div ref={looseRows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
-								{recent.slice(0, looseShown).map((session) => (
+								{groups.loose.slice(0, looseShown).map((session) => (
 									<SessionRow
 										key={session.id}
 										session={session}
@@ -176,14 +175,14 @@ export function ProjectList({
 								))}
 							</div>
 							<ShowMore
-								hidden={Math.max(0, recent.length - looseShown)}
+								hidden={Math.max(0, groups.loose.length - looseShown)}
 								canCollapse={looseShown > SESSION_PAGE}
 								onShowMore={unfoldLoose.unfold(onLooseMore)}
 								onCollapse={unfoldLoose.fold(SESSION_PAGE, onLooseCollapse)}
 							/>
 						</div>
 					</Collapsible>
-				</SidebarReorderContext.Provider>
+				</>
 			)}
 		</SidebarReorderContext.Provider>
 	);
