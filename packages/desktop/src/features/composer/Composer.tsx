@@ -52,6 +52,8 @@ import { carryOnPrompt } from "../../store/derive.ts";
 import { useJobReveal } from "./job-reveal.ts";
 import { available, bridge, onPhone } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
+import perchOpen from "../../assets/plume-perch-open.png?inline";
+import perchBlink from "../../assets/plume-perch-blink.png?inline";
 
 /** 输入框里挂着的一份附件——和侧边聊天、子智能体那两个框是同一个形状，见 `attachments/read.ts`。 */
 type Attachment = DraftAttachment;
@@ -66,9 +68,10 @@ type Attachment = DraftAttachment;
 let handoff: { width: number; at: number } | null = null;
 const HANDOFF_WINDOW = 1000;
 
-export function Composer({ centered = false }: {
+export function Composer({ centered = false, welcome = false }: {
 	/** 欢迎页：排在标题下面那一列里，外边距由那一列给，不再是贴着底边的那一条。 */
 	centered?: boolean;
+	welcome?: boolean;
 } = {}) {
 	const { t } = useI18n();
 	// This screen's project, not the focused conversation's: a split shows several at once.
@@ -563,6 +566,14 @@ export function Composer({ centered = false }: {
 				 * 托盘：项目和分支坐在卡片上方露出来的那一条里。见 `composer.css` 的 `.ly-composer-tray`。
 				 */}
 				<div className="ly-composer-tray">
+					{!welcome && !onPhone() && (
+						<div className="ly-composer-mascot" aria-hidden="true">
+							<div className="ly-composer-mascot-art">
+								<img src={perchOpen} alt="" draggable={false} width={480} height={320} />
+								<img src={perchBlink} alt="" draggable={false} width={480} height={320} />
+							</div>
+						</div>
+					)}
 					{/*
 					 * Where the turn will run, and what it has already changed.
 					 *
