@@ -8,7 +8,11 @@
  *
  * Two shapes: a notice for the keys one page owns, and a card that lists everything the project
  * file changes, for the general page. Both read the same answer; the data is fetched once per
- * workspace and kept in a small store so five pages do not make five calls.
+ * project and kept in a small store so five pages do not make five calls.
+ *
+ * Neither follows the open conversation: which project a page talks about is either picked on the
+ * page (plugins, MCP) or every registered project at once (access, general). Reading the session's
+ * project made the page depend on which conversation was clicked last, with nothing on it saying so.
  */
 
 import { useI18n } from "../../i18n/index.ts";
@@ -22,7 +26,7 @@ import { Card } from "./controls.tsx";
 
 interface LayerState {
 	/**
-	 * 按项目分开存：插件页看的是页内选的项目，其余页看当前工作区，两页可能同时挂着（见
+	 * 按项目分开存：插件页看的是页内选的项目，权限页和通用页看全部项目，几页可能同时挂着（见
 	 * `RetainedViews`）。只存一份时，后读的那页会把先读的那页的答案顶掉。
 	 */
 	views: Record<string, ProjectLayerView | null>;
@@ -53,11 +57,17 @@ export function brief(value: unknown, max = 96): string {
 	return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-/** `cwd` 是这一页在说的项目：插件页是页内选的那个，其余是当前工作区。 */
+/** `cwd` 是这一页在说的项目：插件页是页内选的那个；没有选择器的页面用 `AllProjectsOverrideNotice`。 */
 export function ProjectOverrideNotice({ keys, cwd }: { keys: string[]; cwd: string | undefined }) {
 	const view = useLayerSync(cwd);
 	if (!view) return null;
 	return <OverrideNotice view={view} keys={keys} />;
+}
+
+/** For a page with no project picker: one notice per registered project that overrides its keys. */
+export function AllProjectsOverrideNotice({ keys }: { keys: string[] }) {
+	const projects = useApp((s) => s.settings?.projects) ?? [];
+	return projects.map((project) => <ProjectOverrideNotice key={project.path} keys={keys} cwd={project.path} />);
 }
 
 /** The notice, given its data — what a test mounts. */
@@ -99,19 +109,24 @@ export function OverrideNotice({ view, keys }: { view: ProjectLayerView; keys: s
 	);
 }
 
-/** Everything the project file changes, for the general page. */
-export function ProjectLayerCard() {
-	const view = useLayerSync(useApp((s) => s.workspace?.path));
-	if (!view || !view.exists) return null;
-	return <LayerCard view={view} />;
+/** Everything each project file changes, for the general page — every project that has one. */
+export function ProjectLayerCards() {
+	const projects = useApp((s) => s.settings?.projects) ?? [];
+	return projects.map((project) => <ProjectLayerCard key={project.path} path={project.path} name={project.name} />);
 }
 
-export function LayerCard({ view }: { view: ProjectLayerView }) {
+function ProjectLayerCard({ path, name }: { path: string; name: string }) {
+	const view = useLayerSync(path);
+	if (!view || !view.exists) return null;
+	return <LayerCard view={view} name={name} />;
+}
+
+export function LayerCard({ view, name }: { view: ProjectLayerView; name: string }) {
 	const { t } = useI18n();
 	return (
 		<Card className="mb-6">
 			<div className="px-4 py-3" data-project-layer>
-				<div className="mb-1 text-label text-ink">{t("override.projectConfig")}</div>
+				<div className="mb-1 text-label text-ink">{t("override.projectConfig", { name })}</div>
 				<p className="mb-2 font-mono text-caption text-ink-faint">{view.path}</p>
 				{view.error && <p className="mb-2 text-detail text-danger">{view.error}</p>}
 				{view.overrides.length === 0 && view.refused.length === 0 && !view.error && (

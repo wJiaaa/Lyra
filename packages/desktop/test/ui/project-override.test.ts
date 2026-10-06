@@ -47,7 +47,8 @@ test("a page whose keys the project does not touch shows nothing", async () => {
 });
 
 test("the general page lists everything, project value above the global one it displaced", async () => {
-	const view = await mount(h(LayerCard, { view: VIEW }));
+	const view = await mount(h(LayerCard, { view: VIEW, name: "repo" }));
+	assert.match(view.find("[data-project-layer]").textContent ?? "", /^repo 的项目配置/);
 	assert.equal(view.all("[data-project-layer-key]").length, 2);
 	assert.match(view.text(), /项目值 \["waza"\].*全局值 \["superpowers"\].*⚠ 被项目值整体替换，不生效/);
 	assert.equal(view.all("[data-project-layer-refused]").length, 1);

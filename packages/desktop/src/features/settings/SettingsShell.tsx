@@ -52,7 +52,6 @@ const SELF_SCROLLING = new Set<SettingsSection>(["models", "plugins"]);
 
 export function SettingsShell() {
 	const { t } = useI18n();
-	const workspaceKey = useApp((state) => state.workspace?.path ?? "");
 	const wanted = useApp((s) => s.settingsSection);
 	const setSection = useApp((s) => s.setSettingsSection);
 	const setView = useApp((s) => s.setView);
@@ -206,7 +205,7 @@ export function SettingsShell() {
 			 * scroller as well would give the window two nested scrollbars for one screen, and
 			 * the outer one would move the pane headers out from over their own content.
 			 */}
-			<RetainedViews key={workspaceKey} active={section} limit={4} pageClassName="ly-settings-enter" render={(section) => SELF_SCROLLING.has(section) ? (
+			<RetainedViews active={section} limit={4} pageClassName="ly-settings-enter" render={(section) => SELF_SCROLLING.has(section) ? (
 				<div
 					className={
 						section === "plugins"

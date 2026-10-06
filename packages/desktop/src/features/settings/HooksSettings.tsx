@@ -27,10 +27,10 @@ function matchesQuery(hook: HookView, query: string): boolean {
 
 export function HooksSettings() {
 	const { t } = useI18n();
-	const workspace = useApp((s) => s.workspace?.path) ?? null;
 	const projects = useApp((s) => s.settings?.projects) ?? [];
 	/** null 是用户级；项目被移除后回到用户级，而不是继续读一个已经不在列表里的目录。 */
-	const [projectPath, setProjectPath] = useState<string | null>(null);
+	const projectPath = useApp((s) => s.hooksProject);
+	const setProjectPath = useApp((s) => s.setHooksProject);
 	const project = projects.find((entry) => entry.path === projectPath) ?? null;
 	const cwd = project?.path ?? null;
 	const scope: HookScope = project ? "project" : "user";
@@ -58,22 +58,6 @@ export function HooksSettings() {
 		window.addEventListener("focus", refresh);
 		return () => window.removeEventListener("focus", refresh);
 	}, [refresh]);
-	/*
-	 * 从会话里「去审核」点过来的，直接落在项目那一栏。
-	 *
-	 * 只在打开时看一眼当前会话的项目：之后切回「用户」是用户自己的选择，不该被抢回去。
-	 */
-	const [landed, setLanded] = useState(false);
-	useEffect(() => {
-		if (landed || !workspace) return;
-		setLanded(true);
-		void bridge.hooks
-			.list(workspace)
-			.then((next) => {
-				if (next.project?.some((hook) => hook.trusted === false)) setProjectPath(workspace);
-			})
-			.catch(() => {});
-	}, [landed, workspace]);
 
 	async function run(id: string, action: () => Promise<HooksView>) {
 		setBusy(id);

@@ -165,6 +165,11 @@ export interface AppState extends QueueSlice {
    */
   pluginsProject: string | null;
   /**
+   * 设置 › 钩子看哪个项目，null 是用户级。页内的范围选择器写它，会话里「去审核」也写它——
+   * 那是唯一该替人选项目的入口，所以由它显式写进来，而不是让设置页去猜当前会话在哪个项目。
+   */
+  hooksProject: string | null;
+  /**
    * Which bundle the catalogue should be showing, by key, or null for the grid.
    *
    * Up here rather than inside the view because it is now reached from two places: clicking a
@@ -421,6 +426,7 @@ export interface AppState extends QueueSlice {
   setView(view: View): void;
   setSettingsSection(section: SettingsSection): void;
   setPluginsProject(path: string | null): void;
+  setHooksProject(path: string | null): void;
   /** Open one bundle's page in the catalogue, or return to the grid with null. */
   setPluginFocus(key: string | null): void;
   setExtensionsFocus(focus: { tab: ExtensionsTab; query?: string } | null): void;
@@ -609,6 +615,7 @@ export const useApp = create<AppState>((set, get) => ({
   view: "chat",
   settingsSection: "models",
   pluginsProject: null,
+  hooksProject: null,
   pluginFocus: null,
   pluginUpdates: null,
   extensionsFocus: null,
@@ -783,6 +790,7 @@ export const useApp = create<AppState>((set, get) => ({
     }),
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   setPluginsProject: (pluginsProject) => set({ pluginsProject }),
+  setHooksProject: (hooksProject) => set({ hooksProject }),
   setPluginFocus: (pluginFocus) => set({ pluginFocus }),
   setExtensionsFocus: (extensionsFocus) => set({ extensionsFocus }),
   openExtensions: (tab, query) =>

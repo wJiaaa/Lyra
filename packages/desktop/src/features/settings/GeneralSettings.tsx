@@ -4,7 +4,7 @@ import { FolderOpen, Languages } from "lucide-react";
 import { matchTarget, revealLabel, useOpenTargets } from "../../store/open-targets.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
-import { ProjectLayerCard } from "./ProjectOverrideNotice.tsx";
+import { ProjectLayerCards } from "./ProjectOverrideNotice.tsx";
 import { LOCALE_OPTIONS, useI18n } from "../../i18n/index.ts";
 import {
   Card,
@@ -55,7 +55,7 @@ export function GeneralSettings() {
 		{t("settings.general")}
       </h1>
 
-      <ProjectLayerCard />
+      <ProjectLayerCards />
 		<Card className="mb-9">
 			<Row
 				title={

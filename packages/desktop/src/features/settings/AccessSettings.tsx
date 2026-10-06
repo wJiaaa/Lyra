@@ -23,7 +23,7 @@ import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { TextInput } from "./inputs.tsx";
 import { Card, Row, SectionTitle } from "./layout.tsx";
-import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
+import { AllProjectsOverrideNotice } from "./ProjectOverrideNotice.tsx";
 import { EmptyHint, Toggle } from "./controls.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -32,7 +32,6 @@ export function AccessSettings() {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
-	const workspacePath = useApp((s) => s.workspace?.path);
 	const [host, setHost] = useState("");
 	/*
 	 * Whether the network switch is offered at all, which is a property of the machine.
@@ -66,7 +65,7 @@ export function AccessSettings() {
 				{t("access.intro")}
 			</p>
 
-			<ProjectOverrideNotice keys={["alwaysAllow", "permissionMode"]} cwd={workspacePath} />
+			<AllProjectsOverrideNotice keys={["alwaysAllow", "permissionMode"]} />
 			<SectionTitle>{t("access.alwaysAllow")}</SectionTitle>
 			<Card className="mb-6">
 				{allowed.length === 0 ? (
