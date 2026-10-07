@@ -1,5 +1,5 @@
 /**
- * The sidebar's list, and the flat one search shows, pinned for real.
+ * The sidebar's list, pinned for real.
  *
  * Everything here measures boxes and reads computed style. Nothing asserts on a class name, and
  * nothing reads the store — the claim under test is "the project name stays at the top and the
@@ -237,11 +237,6 @@ async function click(label: string): Promise<void> {
 	await new Promise((r) => setTimeout(r, 500));
 }
 
-/** Open or close the search, which swaps the project list for the flat one. */
-async function toggleSearch(): Promise<void> {
-	await click("搜索会话");
-}
-
 /**
  * Whether the window has its icon rail, which is where 拉取请求, 已安排 and 插件 go when it does
  * (ADR-0038). Then nothing is above the list in the scroller. A window too narrow for the rail
@@ -428,50 +423,6 @@ test("a pinned row does not move while a real wheel scrolls the list under it", 
 		wobble < 1,
 		`the held heading stayed put while the list moved under it — wobble ${wobble.toFixed(2)}px across ${moving.length} frames`,
 	);
-});
-
-test("searching shows every conversation in one run, banded by when it was last touched", async () => {
-	await toggleSearch();
-	const at = await scrollTo(0);
-	const labels = at.heads.map((head) => head.text);
-	assert.ok(labels.includes("今天"), `banded by date (${labels.join(", ")})`);
-	assert.ok(labels.length >= 3, "and into several bands, not one");
-
-	const rows = await app.evaluate<number>(`${VIEW}.querySelectorAll("[data-ly-tip='归档会话']").length`);
-	assert.ok(rows > PER_PROJECT, `the list is flat across projects, not one project's worth (${rows})`);
-	await toggleSearch();
-});
-
-test("a band heading pins the same way a project name does", async () => {
-	await toggleSearch();
-	const found = await scrollUntilPinned();
-	await toggleSearch();
-	assert.ok(found, "a band is held at the rail");
-	assert.ok(
-		found.at.inset >= found.held.y + found.held.height - 1,
-		"and the list is erased to its underside",
-	);
-});
-
-test("closing the search starts the list at its own top, not the pane's", async () => {
-	/*
-	 * The list's top, not the pane's — and the difference is the whole of this.
-	 *
-	 * A depth into one list means nothing in another, so the new one starts at its beginning. But
-	 * zero is further up than the list begins when the destinations sit above it in the same
-	 * scroller, and they did not change. Going to zero threw them back on screen for a switch that
-	 * replaced nothing in them.
-	 */
-	await toggleSearch();
-	await scrollTo(600);
-	await toggleSearch();
-	const kept = (await state()).scrollTop;
-
-	// Where the list lives in the flow, read at the actual top. With the destinations above it that
-	// costs an offset, which the switch keeps rather than zeroing; on the icon rail it is zero.
-	const top = await scrollTo(0);
-	assert.ok(Math.abs(kept - top.listInList) < 1, `the new list starts at its own first row: kept ${kept}, list at ${top.listInList}`);
-	if (!(await destinationsOnRail())) assert.ok(kept > 0, "which costs an offset — the switch keeps one rather than zeroing it");
 });
 
 /*

@@ -2,14 +2,13 @@
  * The navigation pane: what you can go to, and what you have been in.
  *
  * One list: the projects, and under 「最近」 the conversations that belong to none
- * (`sidebar/ProjectList`). Searching swaps it for every match in one flat run banded by date
- * (`sidebar/ChatList`), because matches scattered five rows down across a dozen projects is the
- * scrolling a search exists to end. The current heading is held at the top by `position: sticky`;
+ * (`sidebar/ProjectList`). Searching does not touch it — it opens over the window
+ * (`sidebar/CommandPalette`). The current heading is held at the top by `position: sticky`;
  * the only part of that JavaScript owns is where the fade below it starts, which is
  * `sidebar/useStickyFade` and `sidebar/sticky.ts`. The archive is not here: it is 设置 › 已归档的聊天.
  *
  * Only the pane itself is here. Which conversations are listed and what a row does is
- * `sidebar/useSidebarLists`; the rules underneath it are `lib/sidebar-grouping` and `sidebar/recency`.
+ * `sidebar/useSidebarLists`; the rules underneath it are `lib/sidebar-grouping`.
  */
 
 import { ListFilter, SquarePen } from "../../ui/icons/index.ts";
@@ -18,7 +17,6 @@ import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { ChatList, CHAT_PAGE } from "./ChatList.tsx";
 import { DestinationNav } from "./DestinationNav.tsx";
 import { ListMenu, type SortKey } from "./ListMenu.tsx";
 import { NavItem } from "./NavItem.tsx";
@@ -39,7 +37,6 @@ const SORT_KEY = "ly-sidebar-sort";
 
 export function Sidebar() {
 	const { t } = useI18n();
-	const scratchRoots = useApp((s) => s.scratchRoots);
 	const newSession = useApp((s) => s.newSession);
 	const clearWorkspace = useApp((s) => s.clearWorkspace);
 	/**
@@ -49,15 +46,11 @@ export function Sidebar() {
 	 */
 	const { compact, headerBar, framed, rail: railShown, dismissNav } = useLayout();
 
-	const [query, setQuery] = useState("");
-	const [searching, setSearching] = useState(false);
 	/** How many rows each project is showing. Absent means the default five. */
 	const [shown, setShown] = useState<Record<string, number>>({});
 	/** The same, for the 「最近」 section — one number, because there is only ever one of it. */
 	const [looseShown, setLooseShown] = useState(SESSION_PAGE);
-	/** And for the flat list search shows. */
-	const [chatShown, setChatShown] = useState(CHAT_PAGE);
-	/** Which timestamp orders the list and search results. Persisted: it is a preference, not a mode. */
+	/** Which timestamp orders the list. Persisted: it is a preference, not a mode. */
 	const [sort, setSort] = useState<SortKey>(() => {
 		const val = localStorage.getItem(SORT_KEY);
 		return val === "updatedAt" ? "updatedAt" : val === "manual" ? "manual" : "createdAt";
@@ -104,37 +97,10 @@ export function Sidebar() {
 	}, [collapsed, sort]);
 
 	const viewport = useRef<HTMLDivElement>(null);
-	/*
-	 * Opening or closing the search starts the new list at its own top — the *list's* top, not the
-	 * pane's.
-	 *
-	 * A depth into one list means nothing in another: without this, a shorter list lands you in its
-	 * middle or past its end. But zero is further up than the list begins when the destinations sit
-	 * above it in the same scroller (a drawer, no icon rail), and they did not change — going to zero
-	 * threw them back on screen. Only ever upwards; the browser's own clamp handles the rest.
-	 *
-	 * Measured off the element above the list, not the list: the list is mid-entrance (`ly-enter`)
-	 * and its box still carries the animation's offset.
-	 */
-	useEffect(() => {
-		const view = viewport.current;
-		if (!view) return;
-		const above = view.querySelector<HTMLElement>("[data-ly-list]")?.previousElementSibling;
-		const anchor = above
-			? Math.max(0, view.scrollTop + above.getBoundingClientRect().bottom - view.getBoundingClientRect().top)
-			: 0;
-		if (view.scrollTop > anchor) view.scrollTop = anchor;
-	}, [searching]);
-
 	// Headings rest against the top edge: nothing is held above them any more.
 	useStickyFade(viewport, 0, 0);
 
-	const { groups, matching, bands, actions } = useSidebarLists({
-		query,
-		sort,
-		chatShown,
-		onOpened: dismissNav,
-	});
+	const { groups, actions } = useSidebarLists({ sort, onOpened: dismissNav });
 
 	/*
 	 * Folding everything at once, which is one control rather than two.
@@ -152,19 +118,8 @@ export function Sidebar() {
 				: current.filter((path) => !foldable.includes(path)),
 		);
 
-	/*
-	 * Searching is looking for one conversation, so it shows every match in one flat run — see the
-	 * top of this file. Closing the search brings the project list back.
-	 */
-	const toggleSearch = () => {
-		if (searching) setQuery("");
-		setSearching(!searching);
-	};
-
 	const pad = compact ? "px-3" : "px-2.5";
-	const empty = query.trim() ? (
-		<p className="px-2 py-6 text-center text-detail text-ink-faint">{t("sidebar.noMatches")}</p>
-	) : (
+	const empty = (
 		<p className="px-2 py-6 text-center text-detail leading-relaxed text-ink-faint">
 			{t("sidebar.noSessions")}
 			<br />
@@ -191,7 +146,7 @@ export function Sidebar() {
 			 */}
 			{!headerBar && !framed && <div className="h-[44px] shrink-0" />}
 
-			<SidebarHead searching={searching} query={query} onQuery={setQuery} onToggleSearch={toggleSearch} />
+			<SidebarHead onOpen={actions.onOpen} />
 
 			{/* Only 新对话 is pinned above the list — see `DestinationNav` for why the other three
 			    are not. */}
@@ -224,18 +179,8 @@ export function Sidebar() {
 				{/* In the frame these are the rail's; a drawer has no rail beside it, so they stay here. */}
 				{!railShown && <DestinationNav onNavigate={dismissNav} />}
 
-				{/*
-				 * Keyed on the search, so opening or closing it replays the entrance.
-				 *
-				 * The two share this scroller and neither is a change to the list on screen — they are
-				 * different lists. The animation is what says so; without it the rows simply
-				 * become other rows, which at a glance reads as the sidebar having reordered itself.
-				 *
-				 * `pt-3` 是上面那截和列表之间的间距，由这里统一给，两个列表的第一个标题都不再自带上间距——
-				 * 各自带的时候，项目列表比扁平列表远 16px，开关搜索时标题上下跳。
-				 */}
-				<div key={searching ? "flat" : "grouped"} data-ly-list className="ly-enter pt-3">
-					{!searching ? (
+				{/* `pt-3` 是上面那截和列表之间的间距，列表的第一个标题不自带上间距。 */}
+				<div data-ly-list className="ly-enter pt-3">
 						<ProjectList
 							groups={groups}
 							collapsed={collapsed}
@@ -272,18 +217,6 @@ export function Sidebar() {
 								/>
 							}
 						/>
-					) : (
-						<ChatList
-							bands={bands}
-							scratchRoots={scratchRoots}
-							hidden={Math.max(0, matching.length - chatShown)}
-							canCollapse={chatShown > CHAT_PAGE}
-							onShowMore={() => setChatShown((n) => n + CHAT_PAGE)}
-							onCollapse={() => setChatShown(CHAT_PAGE)}
-							actions={actions}
-							empty={empty}
-						/>
-					)}
 				</div>
 			</Scroller>
 

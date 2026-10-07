@@ -4,12 +4,11 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
-import { click, frames, hover, press, shot, type as typeText, until } from "./drive.ts";
+import { click, frames, hover, openCommandPalette, press, COMMAND_PALETTE, shot, type as typeText, until } from "./drive.ts";
 import { encode, frameGrabber, startRecording, type Frame } from "./record.ts";
 import { fixtureStore } from "./session-fixture.ts";
 
 const BUTTON = 'button[aria-label="搜索会话"]';
-const INPUT = 'input[placeholder="搜索会话…"]';
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Taipei" }).replace(/[: ]/g, "-").slice(0, 16);
 
 interface Sample {
@@ -109,23 +108,17 @@ test("lucide-animated 搜索悬停只播放一次，搜索功能、布局与减�
 		check("深色主题也能播放", new Set((await sample(app)).map((s) => s.transform)).size > 1, "dark");
 		await shot(app, `${STAMP}_03_深色主题`);
 		await app.evaluate(`document.documentElement.classList.remove('dark')`);
-		await click(app, BUTTON);
-		await until(app, `document.querySelector('${INPUT}')===document.activeElement`);
-		check("点击打开搜索并聚焦输入框", await app.evaluate(`document.querySelector('${BUTTON}').getAttribute('aria-pressed')==='true'`), "输入框已聚焦");
-		await typeText(app, INPUT, "搜索动画目标");
-		await until(app, `document.querySelectorAll('[data-ly-row]').length===1`);
-		check("输入仍可筛选会话", await app.evaluate(`document.querySelector('[data-ly-row]').innerText.includes('搜索动画目标')`), "仅目标会话可见");
+		await openCommandPalette(app);
+		check("点击弹出搜索窗口并聚焦输入框", await app.evaluate(`document.querySelector('${BUTTON}').getAttribute('aria-expanded')==='true'`), "输入框已聚焦");
+		await typeText(app, COMMAND_PALETTE, "搜索动画目标");
+		await until(app, `document.querySelectorAll('[data-ly-palette-item]').length===1`);
+		check("输入仍可筛选会话", await app.evaluate(`document.querySelector('[data-ly-palette-item]').innerText.includes('搜索动画目标')`), "仅目标会话可见");
 		await shot(app, `${STAMP}_04_搜索结果`);
 		await press(app, "Escape", 27);
-		await until(app, `document.querySelector('${INPUT}')?.value===''&&document.querySelectorAll('[data-ly-row]').length===2`);
-		const cleared = await app.evaluate(`document.querySelector('${BUTTON}').getAttribute('aria-pressed')==='true'`);
-		await press(app, "Escape", 27);
-		await until(app, `!document.querySelector('${INPUT}')&&document.querySelectorAll('[data-ly-row]').length===2`);
-		check("Escape先清空筛选，再关闭搜索", cleared && await app.evaluate(`document.querySelector('${BUTTON}').getAttribute('aria-pressed')==='false'`), "两条会话恢复");
-		await click(app, BUTTON);
-		await until(app, `document.querySelector('${INPUT}')===document.activeElement`);
-		await click(app, BUTTON);
-		check("再次点击可关闭搜索", await app.evaluate(`!document.querySelector('${INPUT}')`), "开关行为保持");
+		await until(app, `!document.querySelector('${COMMAND_PALETTE}')&&document.querySelectorAll('[data-ly-row]').length===2`);
+		check("Escape关闭搜索窗口，侧栏会话不变", await app.evaluate(`document.querySelector('${BUTTON}').getAttribute('aria-expanded')==='false'`), "两条会话仍在");
+		// Escape 把焦点还给放大镜，且是键盘带来的 :focus-visible，下面量悬停前先放掉，否则量到的是「键盘聚焦不播放」。
+		await app.evaluate(`document.activeElement.blur()`);
 		for (const [width, height] of [[1200, 440], [380, 760], [380, 440]]) {
 			await cdp.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
 			await frames(app);
@@ -143,6 +136,6 @@ test("lucide-animated 搜索悬停只播放一次，搜索功能、布局与减�
 		await stopRecording?.();
 		cdp.close();
 		await app.stop();
-		if (directory && recording.length > 1) await encode(recording, join(directory, `${STAMP}_搜索悬停_${passed}of17.mp4`), 30);
+		if (directory && recording.length > 1) await encode(recording, join(directory, `${STAMP}_搜索悬停_${passed}of16.mp4`), 30);
 	}
 });

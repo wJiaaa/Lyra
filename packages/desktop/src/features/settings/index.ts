@@ -15,6 +15,7 @@ export { TextInput, InlineSelect, SecretInput } from "./inputs.tsx";
 export { newMcpServer } from "./mcp-defaults.ts";
 export { NumberField, TimeField } from "./pickers.tsx";
 export { applyAppearance, onAppearanceApplied, watchSystemTheme } from "./theme.ts";
+export { settingsGroups } from "./settings-navigation.ts";
 
 /*
  * 顶层视图不在这张表上。

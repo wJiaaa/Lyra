@@ -1,33 +1,28 @@
 /**
- * The pane's title bar, and the search that drops out of it.
+ * The pane's title bar: the app name, the search that opens `CommandPalette`, and the bell.
  *
  * The app name, and nothing more. It used to open the project picker, which put the same control
  * in two places and read as a dropdown over the whole window. Switching projects belongs on the
  * composer's project chip, next to what it actually scopes.
  */
 
+import type { SessionMeta } from "@plume/core";
+import { useState } from "react";
 import { Bell, Search } from "../../ui/icons/index.ts";
-import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { NoticeDot, NotificationsMenu, useNotices } from "./NotificationsMenu.tsx";
+import { ProjectDialog } from "../modals/index.ts";
+import { CommandPalette } from "./CommandPalette.tsx";
 
-export function SidebarHead({
-	searching,
-	query,
-	onQuery,
-	onToggleSearch,
-}: {
-	searching: boolean;
-	query: string;
-	onQuery: (query: string) => void;
-	/** Opens the field, and — pressed again or on Escape — closes it and clears what was typed. */
-	onToggleSearch: () => void;
-}) {
+export function SidebarHead({ onOpen }: { onOpen: (meta: SessionMeta) => void }) {
 	const { t } = useI18n();
 	const { compact } = useLayout();
 	const bell = usePopover();
+	const [searching, setSearching] = useState(false);
+	/** 面板里的「新建项目」：面板关掉以后由这里接着开项目对话框。 */
+	const [creating, setCreating] = useState(false);
 	const notices = useNotices();
 	return (
 		<>
@@ -48,8 +43,9 @@ export function SidebarHead({
 						type="button"
 						data-ly-tip={t("sidebar.search")}
 						aria-label={t("sidebar.search")}
-						aria-pressed={searching}
-						onClick={onToggleSearch}
+						aria-haspopup="dialog"
+						aria-expanded={searching}
+						onClick={() => setSearching(true)}
 						className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-card-hover hover:text-ink ${
 							searching ? "bg-card-hover text-ink" : "text-ink-muted"
 						}`}
@@ -75,19 +71,10 @@ export function SidebarHead({
 			</div>
 
 			{bell.open && <NotificationsMenu anchor={bell.anchor} notices={notices} onClose={bell.close} />}
-
 			{searching && (
-				<div className="px-3 pb-2">
-					<SearchField
-						autoFocus
-						size="comfortable"
-						value={query}
-						onChange={onQuery}
-						onEscape={onToggleSearch}
-						placeholder={t("sidebar.searchPlaceholder")}
-					/>
-				</div>
+				<CommandPalette onClose={() => setSearching(false)} onOpenSession={onOpen} onNewProject={() => setCreating(true)} />
 			)}
+			{creating && <ProjectDialog onClose={() => setCreating(false)} />}
 		</>
 	);
 }

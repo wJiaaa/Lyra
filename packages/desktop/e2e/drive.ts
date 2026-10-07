@@ -167,3 +167,13 @@ export async function shot(page: Pick<RunningApp, "send">, name: string): Promis
 	const image = await page.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 	await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
 }
+
+/** 命令面板的输入框。弹窗本身是它最近的 `[role="dialog"]`。 */
+export const COMMAND_PALETTE = '[role="dialog"] input[role="combobox"]';
+
+/** 点侧栏顶上的放大镜，等命令面板开出来、输入框拿到焦点。 */
+export async function openCommandPalette(page: Page): Promise<void> {
+	await click(page, 'button[aria-label="搜索会话"]');
+	await until(page, `document.activeElement?.matches(${JSON.stringify(COMMAND_PALETTE)})`);
+	await frames(page, 30);
+}

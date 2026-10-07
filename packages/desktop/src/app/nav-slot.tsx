@@ -61,8 +61,8 @@ export function NavSlot({ view, children }: { view: SlotView; children: React.Re
  * The sidebar's contents: the conversation list, or the slot of the view on screen.
  *
  * The conversation list is put away the way the workspace is (see `Workspace` in `App.tsx`) —
- * invisible and out of the flow but still laid out — so coming back finds it scrolled, searched
- * and tabbed exactly as it was left. Unmounting it cost all three.
+ * invisible and out of the flow but still laid out — so coming back finds it scrolled
+ * and tabbed exactly as it was left. Unmounting it cost both.
  */
 export function NavSlotHost({ view, children }: { view: string; children: React.ReactNode }) {
 	const { rail } = useLayout();
