@@ -35,6 +35,7 @@ export function SessionMenu({
 	onClose,
 	onRequestDelete,
 	onShowTrajectory,
+	below = false,
 }: {
 	anchor: Anchor;
 	session: SessionMeta;
@@ -53,8 +54,14 @@ export function SessionMenu({
 	 * 一路引回这里，从这里直接引它就成环了。不给就不显示这一项。
 	 */
 	onShowTrajectory?: () => void;
+	/**
+	 * 挂在触发按钮下方，而不是旁边。默认的「旁边」是给侧边栏的行用的；标题栏里的按钮在工具栏内，
+	 * 「旁边」的顶边会被压到工具栏下沿，横向却仍在按钮右侧，菜单就斜着飘在按钮右下方。
+	 */
+	below?: boolean;
 }) {
 	const { t } = useI18n();
+	const side = below ? ({ placement: "bottom", align: "start" } as const) : ({ placement: "right" } as const);
 	const splitTree = useSplit((s) => s.tree);
 	const settings = useApp((s) => s.settings);
 	const setSessionPinned = useApp((s) => s.setSessionPinned);
@@ -89,7 +96,7 @@ export function SessionMenu({
 
 	if (mode === "rename") {
 		return (
-			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" role="dialog" label={t("sessionMenu.rename")}>
+			<Popover anchor={anchor} onClose={onClose} {...side} width="compact" role="dialog" label={t("sessionMenu.rename")}>
 				<form
 					className="p-2.5"
 					onSubmit={(e) => {
@@ -130,7 +137,7 @@ export function SessionMenu({
 
 	if (mode === "projects") {
 		return (
-			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("sessionMenu.moveToProject")}>
+			<Popover anchor={anchor} onClose={onClose} {...side} width="compact" label={t("sessionMenu.moveToProject")}>
 				<MenuBody>
 					<MenuItem
 						icon={<FolderInput size={13} strokeWidth={1.8} />}
@@ -179,7 +186,7 @@ export function SessionMenu({
 
 	return (
 		<>
-			<Popover anchor={anchor} onClose={onClose} placement="right" width="compact" label={t("sessionMenu.options")}>
+			<Popover anchor={anchor} onClose={onClose} {...side} width="compact" label={t("sessionMenu.options")}>
 				<MenuBody>
 					{!session.archived && (
 						<MenuItem

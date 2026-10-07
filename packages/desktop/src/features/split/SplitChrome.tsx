@@ -106,6 +106,7 @@ function ScreenTitle({ sessionId, screen }: { sessionId: string | null; screen: 
 			{meta && menu.open && (
 				<SessionMenu
 					anchor={menu.anchor}
+					below
 					session={meta}
 					onClose={menu.close}
 					// 这条会话就在这一屏上，直接在这一屏的停靠区里开，不用像侧边栏那样先打开再等。
