@@ -50,10 +50,9 @@ export function AccountTabs({
 		 */
 		<Sideways
 			trackRef={strip}
-			outerClassName="shrink-0"
 			role="group"
 			aria-label={translate("accountTabs.account")}
-			className="flex items-center gap-1 overflow-x-auto px-3 pb-1.5"
+			className="flex shrink-0 items-center gap-1 overflow-x-auto px-3 pb-1.5"
 		>
 			<Tab label={translate("common.all")} active={active === null} onClick={() => onSelect(null)} />
 			{shown.map((account) => (

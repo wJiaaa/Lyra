@@ -1,22 +1,12 @@
 /**
- * 一条横着滚的东西，和它两头那对方向键。
+ * 一条横着滚的标签栏。
  *
- * `useSideways` 管的是「滚得动」和「看得出还没滚完」；这一层管的是「用鼠标也点得动」。三件事本
- * 来是一件：只有触摸板的人两指一划就走，只有鼠标的人在这里寸步难行——Shift + 滚轮是给知道这个
- * 手势的人准备的，而一对箭头是给所有人准备的。
+ * 普通滚轮直接横着走，触摸板两指一划照旧——见 `useSideways` 的 `plainWheel`。标签栏都长在头部或
+ * 底边，上面没有要竖着滚的东西，把滚轮让出去也没人接。
  *
- * ## 几个当时踩到的点
- *
- * **箭头不占地方。** 绝对定位浮在两端，不进 flex 流：占位置的话，一条本来刚好排得下的标签栏会
- * 因为多了两个按钮而变成排不下——按钮出现，于是更需要按钮。
- *
- * **到头就没有。** 左边到底了左箭头就不画，右边同理。画一个按下去什么也不会发生的按钮，比不画
- * 更难解释；`disabled` 也不行——那是一块灰色的东西占着位置，还是不说明任何事。
- *
- * **和渐隐是同一件事的两面。** 两者读的是同一个「这边还有没有」，所以永远同进同出：有箭头的那
- * 一侧一定是化开的，化开的那一侧一定有箭头。箭头就压在渐隐上，正好是内容淡出的地方。
- *
- * **一次滚八成，不是一整屏。** 整屏翻页会把刚看到的那个也带走，留一点重叠，眼睛才接得上。
+ * 这里从前两头各浮一枚方向键，那是给「只有鼠标、又不知道 Shift + 滚轮」的人准备的；滚轮能直接
+ * 横滚之后它们只剩下压住两端标签的那一块，于是拿掉了。附件条躺在可滚动的转录区里，滚轮得留给
+ * 上层，它还用着 `SidewaysArrow`。
  */
 
 import { ChevronLeft, ChevronRight } from "../icons/index.ts";
@@ -30,42 +20,32 @@ const STEP = 0.8;
 export function Sideways({
 	children,
 	className = "",
-	outerClassName = "",
 	trackRef,
 	...rest
 }: {
 	children: React.ReactNode;
-	/** 给真正会滚的那一层——原来写在 `overflow-x-auto` 那个 div 上的类，原样搬过来。 */
+	/** 给会滚的那一层，`overflow-x-auto` 和「我在父级里占多大」的类都写在这里。 */
 	className?: string;
-	/**
-	 * 给外面那层定位壳。
-	 *
-	 * 必须有这么一层：箭头要浮在滚动容器上方而不跟着滚，所以定位参照不能是滚动容器自己。
-	 * 原来挂在滚动容器上的 `flex-1`、`min-w-0` 这类「我在父级里占多大」的类要挪到这里来。
-	 */
-	outerClassName?: string;
 	/** 需要自己够到滚动容器的地方传进来——比如「把选中的标签滚进视野」。 */
 	trackRef?: React.RefObject<HTMLDivElement | null>;
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "className" | "children">) {
 	const own = useRef<HTMLDivElement>(null);
 	const track = trackRef ?? own;
-	const { canLeft, canRight } = useSideways(track);
+	useSideways(track, { plainWheel: true });
 	return (
-		<div className={`relative min-w-0 ${outerClassName}`}>
-			<div ref={track} className={`ly-fade-tail ${className}`} {...rest}>
-				{children}
-			</div>
-			<SidewaysArrow side="left" shown={canLeft} track={track} />
-			<SidewaysArrow side="right" shown={canRight} track={track} />
+		<div ref={track} className={`ly-fade-tail min-w-0 ${className}`} {...rest}>
+			{children}
 		</div>
 	);
 }
 
 /**
- * 单独导出，给那些没法多包一层的地方。
+ * 附件条两头的方向键：那里滚轮要留给转录区，只有鼠标的人得靠它们。
  *
- * 附件条就是：它那一层的负外边距和 `align-self: stretch` 都指望自己是 `.ly-attachments` 的直接
- * 子元素，中间插一个壳，那一排格子就整体错位。那里自己有定位壳，缺的只是这两枚。
+ * - **不占地方。** 绝对定位浮在两端、压在渐隐上，不进 flex 流——占位置的话，刚好排得下的一条会
+ *   因为多了两个按钮而排不下。定位壳由附件条自己提供。
+ * - **到头就没有。** 和渐隐读同一个「这边还有没有」，永远同进同出；`disabled` 的灰按钮不说明任何事。
+ * - **一次滚八成。** 整屏翻页会把刚看到的那个也带走，留一点重叠，眼睛才接得上。
  */
 export function SidewaysArrow({
 	side,

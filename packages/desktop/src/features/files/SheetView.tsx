@@ -125,7 +125,7 @@ export function SheetView({ path }: { path: string }) {
 			 * Always rendered, even for one sheet: it is also where the row count lives, and "how
 			 * much of this am I looking at" is the question a truncated table has to answer.
 			 */}
-			<Sideways trackRef={sheetTabs} outerClassName="shrink-0" className="flex items-center gap-1 overflow-x-auto border-t border-line px-2 py-1.5">
+			<Sideways trackRef={sheetTabs} className="flex shrink-0 items-center gap-1 overflow-x-auto border-t border-line px-2 py-1.5">
 				{data.sheets.map((entry, index) => (
 					<Button
 						key={entry.name}

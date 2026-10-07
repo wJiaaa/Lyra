@@ -7,8 +7,9 @@
  * 滚轮，而垂直滚轮在一个只能横着滚的容器上什么也不做——内容明明溢出了，滚轮转起来毫无反应，看
  * 起来就像卡住了。Shift + 滚轮是这件事在别处的通用手势，这里把它接上。
  *
- * 只接管按住 Shift 的那一下，不碰光秃秃的垂直滚轮。后者要留给上层：附件条就躺在输入框里，输入
- * 框躺在转录区里，吃掉它等于让人滚不动这一整页。
+ * 默认只接管按住 Shift 的那一下，不碰光秃秃的垂直滚轮。后者要留给上层：附件条就躺在输入框里，
+ * 输入框躺在转录区里，吃掉它等于让人滚不动这一整页。标签栏长在头部或底边，上面没有要竖着滚的
+ * 东西，传 `plainWheel` 让普通滚轮直接横着走——那里就不再需要一对方向键。
  *
  * **说明还没滚完。** 两端各一道渐隐，按滚动位置来：左边滚出去了左边才有，右边还有货右边才有。
  * 硬边缘和「刚好排满」长得一模一样，而它们的意思相反——一个是「右边还有三个标签」，另一个是
@@ -30,7 +31,10 @@ export interface SidewaysEdges {
 	canRight: boolean;
 }
 
-export function useSideways(ref: React.RefObject<HTMLElement | null>): SidewaysEdges {
+export function useSideways(
+	ref: React.RefObject<HTMLElement | null>,
+	{ plainWheel = false }: { plainWheel?: boolean } = {},
+): SidewaysEdges {
 	const [edges, setEdges] = useState<SidewaysEdges>({ canLeft: false, canRight: false });
 
 	useEffect(() => {
@@ -57,13 +61,24 @@ export function useSideways(ref: React.RefObject<HTMLElement | null>): SidewaysE
 			});
 		};
 
+		/*
+		 * 触摸板一次横划里夹着 `deltaX` 为 0 的事件，逐个判断会把那几下改成竖向量再叠上去，条子
+		 * 来回抖。一串事件里只要出现过横向量，整串都让给浏览器；停 250ms 算下一串。
+		 */
+		let lastWheelAt = -Infinity;
+		let nativeSideways = false;
 		const onWheel = (event: WheelEvent) => {
-			if (!event.shiftKey) return;
+			// Ctrl + 滚轮是缩放（触摸板捏合也报成这个），不归这里。
+			if (event.ctrlKey) return;
+			if (event.timeStamp - lastWheelAt > 250) nativeSideways = false;
+			lastWheelAt = event.timeStamp;
 			/*
 			 * 有些设备自己就把 Shift + 滚轮报成横向了（macOS 的鼠标、部分驱动），那一下 `deltaX`
 			 * 非零——再加一次就是滚两倍。让给浏览器。
 			 */
-			if (event.deltaX !== 0) return;
+			if (event.deltaX !== 0) nativeSideways = true;
+			if (nativeSideways || event.deltaY === 0) return;
+			if (!plainWheel && !event.shiftKey) return;
 			if (el.scrollWidth <= el.clientWidth) return;
 			event.preventDefault();
 			el.scrollLeft += event.deltaY;
@@ -89,7 +104,7 @@ export function useSideways(ref: React.RefObject<HTMLElement | null>): SidewaysE
 			observer.disconnect();
 			mutations.disconnect();
 		};
-	}, [ref]);
+	}, [ref, plainWheel]);
 
 	return edges;
 }

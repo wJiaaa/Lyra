@@ -73,7 +73,7 @@ export function BrowserPanel() {
 	const saved = settings?.browser?.bookmarks?.some((entry) => entry.url === tab?.url);
 	return <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-browser-panel>
 		{tabs.length > 1 && <div className="flex h-8 shrink-0 items-center gap-1 px-2" role="tablist" aria-label={t("browser.tabs")}>
-			<Sideways trackRef={tabStrip} outerClassName="flex-1" className="flex min-w-0 items-center gap-0.5 overflow-x-auto ly-scrollbar-hidden">
+			<Sideways trackRef={tabStrip} className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto ly-scrollbar-hidden">
 				{tabs.map((entry) => <div key={entry.id} className={`group/tab flex min-w-[70px] max-w-[170px] flex-1 items-center rounded-md ${entry.id === tab?.id ? "bg-card-hover text-ink" : "text-ink-faint"}`}>
 					<button type="button" role="tab" aria-selected={entry.id === tab?.id} onClick={() => { browserChose(sessionId, entry.id); void commandBrowser({ type: "select", id: entry.id }); }} className="ly-scroll flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-detail">
 						<Globe size={12} className={`shrink-0 ${entry.loading ? "ly-pulse" : ""}`} /><ScrollText text={entry.title || t("browser.newTab")} className="min-w-0 flex-1 text-left" />
