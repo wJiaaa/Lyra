@@ -83,3 +83,17 @@ test("focus released to the document still returns to the opener when the inspec
 		assert.ok(document.activeElement === state.opener);
 	} finally { await view.unmount(); state.remove(); }
 });
+
+test("related entry rows center their contents and retain selection", async () => {
+	const state = fixture();
+	let selected: Entry | undefined;
+	const view = await mount(h(TraceInspector, { ...state.props, entry: { ...first, linkedSeqs: [second.seq] }, onSelect: entry => { selected = entry; } }));
+	try {
+		const row = document.querySelector<HTMLButtonElement>(".ly-trace-inspector button.ly-item"); assert.ok(row);
+		assert.ok(row.classList.contains("items-center"));
+		assert.ok(row.classList.contains("text-left"));
+		assert.equal(row.querySelectorAll("svg").length, 2);
+		await click(row);
+		assert.equal(selected, second);
+	} finally { await view.unmount(); state.remove(); }
+});
