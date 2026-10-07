@@ -84,8 +84,8 @@
 }
 
 /*
- * macOS 主窗口的毛玻璃：窗口底层是一层半透明的底色叠在系统材质上，侧边栏自己不刷底，
- * 和卡片之间的缝一起透出这一层。浅色取背景色 70%，深色取浮层色 60%，
+ * macOS 主窗口的毛玻璃：窗口底层是一层半透明的底色叠在系统材质上，从顶栏、图标栏和面板四周的缝里
+ * 透出来；侧栏和正文都在实色的面板里，不透。浅色取背景色 70%，深色取浮层色 60%，
  * 用的是跟着外观设置走的 token，不钉死色值。
  *
  * 标记由 preload 按主进程的决定打上（`electron/window.ts` 的 `isVibrant`），没有材质的窗口不会有它，
@@ -105,15 +105,6 @@
 
 :root[data-vibrancy="on"] :is(.ly-window-body, [data-ly-workspace-window], [data-ly-settings]) {
   background: var(--ly-window-tint);
-}
-
-:root[data-vibrancy="on"] .ly-sidebar-fill {
-  background: transparent;
-}
-
-/* 抽屉盖在正文上，透明就是两层字叠在一起，照旧用不透明的侧边栏色。 */
-:root[data-vibrancy="on"] [data-pane="drawer"] .ly-sidebar-fill {
-  background: var(--color-sidebar);
 }
 
 .ly-frames {
