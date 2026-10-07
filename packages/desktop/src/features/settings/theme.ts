@@ -319,16 +319,6 @@ export function applyAppearance(input: AppearanceSettings): void {
 	root.dataset.fontSmoothing = String(appearance.fontSmoothing);
 	root.dataset.reduceMotion = appearance.reduceMotion;
 	root.dataset.callChain = appearance.callChain;
-	/*
-	 * 毛玻璃只有 preload 打过标记的窗口才有（macOS 主窗口），这里只跟着设置切 on / off；
-	 * 窗口那一层的材质由主进程在设置变化时换。关掉时 `<html>` 回到主题底色，开着时必须透明，
-	 * 不然一层实色盖在材质上。
-	 */
-	if (root.dataset.vibrancy) {
-		const vibrant = appearance.vibrancy;
-		root.dataset.vibrancy = vibrant ? "on" : "off";
-		root.style.background = vibrant ? "transparent" : "var(--color-shell)";
-	}
 	for (const listener of applied) listener();
 }
 

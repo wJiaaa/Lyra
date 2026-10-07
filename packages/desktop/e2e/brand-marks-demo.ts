@@ -80,7 +80,7 @@ function seeder(theme: "light" | "dark") {
 			join(home, "settings.json"),
 			JSON.stringify({
 				version: 1,
-				appearance: { theme, vibrancy: false },
+				appearance: { theme },
 				providers: [{ id: "all", name: "全品牌", api: "openai-chat-completions", baseUrl: "http://127.0.0.1:1/v1", apiKey: "sk-x", enabled: true, models: MODELS }],
 				mcpServers: [],
 				projects: [{ id: "e2e", name: "proj", path: project, pinned: true, lastOpenedAt: 1 }],

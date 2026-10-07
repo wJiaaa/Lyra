@@ -81,7 +81,7 @@ async function seed(home: string) {
 	const model = { id: "p/gpt-5.2", providerId: "p", modelId: "gpt-5.2", name: "gpt-5.2", contextWindow: 128000, maxOutputTokens: 8192, supportsThinking: false, supportsImages: false, supportsTools: true };
 	await writeFile(join(home, "settings.json"), JSON.stringify({
 		version: 1,
-		appearance: { theme: THEME, vibrancy: false },
+		appearance: { theme: THEME },
 		providers: [{ id: "p", name: "Local", api: "openai-chat-completions", baseUrl: "http://127.0.0.1:1/v1", apiKey: "sk-x", enabled: true, models: [model] }],
 		mcpServers: [],
 		projects: [{ id: "e2e", name: "proj", path: proj, pinned: false, lastOpenedAt: 1 }],

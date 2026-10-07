@@ -153,13 +153,6 @@ export interface AppearanceSettings {
 	 * arranged by dragging.
 	 */
 	panelLayout: "split" | "tabs";
-	/**
-	 * macOS 主窗口的毛玻璃：侧边栏透出系统材质。
-	 *
-	 * 关掉时窗口和侧边栏回到不透明的主题色——材质叠在桌面上，
-	 * 颜色跟着壁纸走，有人要的是一块颜色确定的底。
-	 */
-	vibrancy: boolean;
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
@@ -226,7 +219,6 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	panelLayout: "split",
 	// 不设 `-webkit-font-smoothing`，字按系统默认的粗细画。
 	fontSmoothing: false,
-	vibrancy: true,
 };
 
 /** A prompt the app sends on its own schedule, in a fresh session each time. */

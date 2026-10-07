@@ -51,7 +51,7 @@ async function seed(home: string) {
 	}));
 	await writeFile(join(home, "settings.json"), JSON.stringify({
 		version: 1,
-		appearance: { theme: "dark", vibrancy: false },
+		appearance: { theme: "dark" },
 		providers: [],
 		mcpServers: [],
 		projects: PROJECTS.map((name, i) => ({ id: name, name, path: join(home, name), pinned: false, lastOpenedAt: 10 - i })),

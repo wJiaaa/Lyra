@@ -63,5 +63,4 @@ export const FACTORY_APPEARANCE: Appearance = {
 	callChain: "collapsed",
 	panelLayout: "split",
 	fontSmoothing: false,
-	vibrancy: true,
 };
