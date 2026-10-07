@@ -235,6 +235,12 @@ const CHECKS = [
 		window: true,
 		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/interrupted-calls-demo.ts", "/tmp/regression-interrupted"]],
 	},
+	{
+		id: "sidebar-pin-fade",
+		what: "开发版侧栏滚动时，会话行满亮度地叠在钉住的项目或日期标题上",
+		window: true,
+		run: ["pnpm", ["--filter", "@plume/desktop", "exec", "node", "--experimental-strip-types", "--test", "--test-timeout=180000", "e2e/sidebar-pin-fade.test.ts"]],
+	},
 ];
 
 const pass = [];

@@ -8,7 +8,7 @@
  *
  * The rows are held by `position: sticky`, so where they sit is the browser's job and not worth
  * asserting. What is worth asserting is everything around it: that the fade starts under them
- * rather than through them, that a row being pushed out is gone before it reaches the edge, and — the
+ * rather than through them, that they cover what passes under them, and — the
  * one that cost the most to learn — that a pinned row does not move while the list scrolls under
  * it. An earlier version placed these by hand from `scroll` events and lagged the compositor by a
  * frame, which is a row visibly jumping a wheel tick at a time.
@@ -118,7 +118,7 @@ interface Pinned {
 	y: number;
 	height: number;
 	text: string;
-	/** How much of it is being drawn — the list fades itself out rather than being covered. */
+	/** How much of it is being drawn. A held heading is drawn in full and covers what passes under it. */
 	opacity: number;
 	/**
 	 * What it is painting, as `[r, g, b, a]` off a canvas rather than as a string.
@@ -126,8 +126,7 @@ interface Pinned {
 	 * Computed colours come back in whichever notation the declaration used — `rgb()`, `rgba()`,
 	 * `color(srgb …)` from a `color-mix()` — and comparing those as text means adding a case every
 	 * time a stylesheet changes how it spells one. Painting the colour and reading the pixel gives
-	 * one form for all of them, and `a === 0` is the question being asked here: the pane is
-	 * translucent on macOS, so a pinned row must not paint a fill of its own.
+	 * one form for all of them — compared against `pane`, the colour the sidebar is painted with.
 	 */
 	fill: [number, number, number, number];
 }
@@ -143,10 +142,12 @@ interface State {
 	/** Where the list begins in the scroller — below the destinations when they are in it. */
 	listInList: number;
 	heads: Pinned[];
-	/** Every ordinary row in the list — conversations, 显示更多, section labels. */
+	/** Every conversation row in the list. */
 	rows: { y: number; height: number; opacity: number }[];
 	/** The offset headings come to rest at, as the stylesheet has it. */
 	rail: number;
+	/** What the sidebar is painted with: the nav column's shade, or the drawer's own fill. */
+	pane: [number, number, number, number];
 }
 
 /** Everything the pane is doing right now, read off the elements the user is looking at. */
@@ -184,11 +185,12 @@ async function state(): Promise<State> {
 			fadeBottom: px("--ly-fade-bottom"),
 			listInList: view.querySelector("[data-ly-list]").getBoundingClientRect().top - origin,
 			heads: [...view.querySelectorAll("[data-ly-head]")].map(pin),
-			rows: [...view.querySelectorAll("[data-ly-row], [data-ly-fades]")].map((el) => {
+			rows: [...view.querySelectorAll("[data-ly-row]")].map((el) => {
 				const r = el.getBoundingClientRect();
 				return { y: r.top - origin, height: r.height, opacity: Number(getComputedStyle(el).opacity) };
 			}),
 			rail: Number.parseFloat(getComputedStyle(view).getPropertyValue("--ly-rail")) || 0,
+			pane: rgba(getComputedStyle(view.closest(".ly-nav-column") ?? view.closest(".ly-sidebar-fill")).backgroundColor),
 		};
 	})()`);
 }
@@ -272,53 +274,75 @@ test("a project name is held at the top, and the list is erased out from under i
 });
 
 /*
- * The pinned rows paint nothing, held or not.
+ * The headings paint the sidebar's own colour, held or not.
  *
- * The pane is translucent on macOS — the window's material shows through it — and no opaque colour
- * matches that: the desktop behind the window is not something CSS can sample. So instead of a
- * pinned row covering what passes under it, the list fades itself out before it gets there, and
- * the two tests after this one are what hold that up.
+ * The pane is opaque in both of its forms — the nav column's shade beside the content, the drawer's
+ * fill over it — so a heading that paints the same colour covers whatever passes under it and is
+ * invisible as a block at rest. A different shade would show as a band; no fill at all lets the
+ * rows show through. `misc.css` has why the list no longer fades itself out instead.
  */
-test("the headings paint nothing, held or not", async () => {
+test("the headings paint the pane's colour, held or not", async () => {
 	const rest = await scrollTo(0);
-	for (const head of rest.heads) assert.equal(head.fill[3], 0, `「${head.text}」 at rest (${head.fill})`);
+	for (const head of rest.heads) assert.deepEqual(head.fill, rest.pane, `「${head.text}」 at rest`);
 
 	const found = await scrollUntilPinned();
 	assert.ok(found, "some scroll position holds a heading at the rail");
-	assert.equal(found.held.fill[3], 0, `「${found.held.text}」 held (${found.held.fill})`);
+	assert.deepEqual(found.held.fill, found.at.pane, `「${found.held.text}」 held`);
+	assert.ok(found.held.opacity > 0.99, `「${found.held.text}」 held is drawn in full (${found.held.opacity})`);
 });
 
 /*
- * Which means a row must be gone by the time it reaches a held row.
+ * Which means a row passing under a held heading is covered by it, not drawn through it.
  *
- * Checked against the underside of everything held, which is the line the rows fade against: any
- * row whose top has crossed it is under a pinned row, and would show straight through one that no
- * longer has a fill. Rows well clear of it are untouched.
+ * Asked of the page directly: at a point where a row and a held heading overlap, the topmost thing
+ * is the heading. Rows themselves are never faded for it — the one under the heading stays whole.
  */
-test("nothing in the list is drawn under a held row", async () => {
+test("nothing in the list shows through a held row", async () => {
+	let overlaps = 0;
 	for (let y = 200; y <= 2200; y += 40) {
-		const at = await scrollTo(y);
-		for (const row of at.rows) {
-			if (row.y + row.height <= 0 || row.y >= at.inset - 0.5) continue;
-			assert.ok(row.opacity <= 0.01, `a row at ${row.y.toFixed(1)} is under the held band (${at.inset}) at opacity ${row.opacity}`);
-		}
-		for (const row of at.rows.filter((r) => r.y >= at.inset + 40 && r.y < 800)) {
-			assert.ok(row.opacity > 0.3, `a row at ${row.y.toFixed(1)}, clear of the held band, is drawn (${row.opacity})`);
-		}
+		await scrollTo(y);
+		const found = await app.evaluate<{ overlaps: number; through: string[]; faded: string[] }>(`(() => {
+			const view = ${VIEW};
+			const origin = view.getBoundingClientRect().top;
+			const through = [];
+			const faded = [];
+			let overlaps = 0;
+			for (const head of view.querySelectorAll("[data-ly-head]")) {
+				const box = head.getBoundingClientRect();
+				if (box.top - origin > 1 || box.bottom <= origin) continue;
+				for (const row of view.querySelectorAll("[data-ly-row]")) {
+					const own = row.getBoundingClientRect();
+					const top = Math.max(own.top, box.top, origin);
+					const bottom = Math.min(own.bottom, box.bottom);
+					if (Number(getComputedStyle(row).opacity) < 0.99 && own.bottom > origin) faded.push(row.innerText.trim().slice(0, 16));
+					if (bottom - top <= 2) continue;
+					overlaps++;
+					const hit = document.elementFromPoint(own.left + own.width / 2, (top + bottom) / 2);
+					if (!head.contains(hit)) through.push(row.innerText.trim().slice(0, 16));
+				}
+			}
+			return { overlaps, through, faded };
+		})()`);
+		overlaps += found.overlaps;
+		assert.deepEqual(found.through, [], `at ${y}px a row shows through a held heading`);
+		assert.deepEqual(found.faded, [], `at ${y}px a row is faded rather than covered`);
 	}
+	assert.ok(overlaps > 0, "some scroll position has a row passing under a held heading");
 });
 
 /*
- * A heading on its way out has no fill to hide behind, so it has to be gone before the next one
- * pushes it up — otherwise two project names overlap at the top edge.
+ * A heading on its way out is pushed up by the end of its own project, so the next one arrives
+ * below it rather than on top of it — two names never share the top edge.
  */
-test("a heading being pushed out is gone on its way up", async () => {
+test("a heading being pushed out is not overlapped by the next one", async () => {
 	let seen = 0;
 	for (let y = 200; y <= 2200; y += 6) {
 		const at = await scrollTo(y);
-		for (const head of at.heads.filter((h) => h.y < at.rail - 1 && h.y + h.height > 0)) {
+		const leaving = at.heads.filter((h) => h.y < at.rail - 1 && h.y + h.height > 0);
+		for (const head of leaving) {
 			seen++;
-			assert.ok(head.opacity <= 0.01, `「${head.text}」 at ${head.y.toFixed(1)}, above its rail ${at.rail}, is drawn at ${head.opacity}`);
+			const next = at.heads.find((h) => h.y > head.y);
+			if (next) assert.ok(next.y >= head.y + head.height - 0.5, `「${next.text}」 at ${next.y.toFixed(1)} overlaps 「${head.text}」 ending at ${(head.y + head.height).toFixed(1)}`);
 		}
 		if (seen >= 3) break;
 	}

@@ -49,8 +49,7 @@
  *
  * Unconditional because the panels that use it — a diff's file headings, a detail card — are
  * opaque, so a backing that matches them is invisible whether the row is held or not. The sidebar
- * does not use it: that pane is translucent on macOS, so its list fades out before reaching a held
- * row instead (`ly-under-pin`).
+ * does not use it: its pane is a different colour, and its headings paint that one (`misc.css`).
  */
 .ly-pin {
   background: var(--color-shell);

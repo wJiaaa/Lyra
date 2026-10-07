@@ -239,7 +239,7 @@ function SectionLabel({
 	return (
 		// Not a button around a button. The heading stays the fold's target; the action is a
 		// sibling laid over its trailing edge.
-		<div data-ly-fades className={`group/section relative flex w-full items-center ${first ? "" : "pt-4"}`}>
+		<div className={`group/section relative flex w-full items-center ${first ? "" : "pt-4"}`}>
 			<button
 				type="button"
 				data-ly-section={section}

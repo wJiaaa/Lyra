@@ -226,6 +226,7 @@ export async function startApp({
 	scaleFactor,
 	inspectPort,
 	reuseHome,
+	rendererUrl,
 }: {
 	/** A port per test file: two suites running at once must not share a debugger. */
 	port: number;
@@ -247,6 +248,13 @@ export async function startApp({
 	 * evaluates in the main process should not be carrying one.
 	 */
 	inspectPort?: number;
+	/**
+	 * 渲染进程从这个开发服务器加载，而不是 `out/renderer`。见 `dev-renderer.ts`。
+	 *
+	 * 只有开发构建才有的行为要靠它才看得见：StrictMode 会把每个 effect 挂载、清理、再挂载一遍，
+	 * 清理没收拾干净的状态在生产构建里永远不会被走到。
+	 */
+	rendererUrl?: string;
 }): Promise<RunningApp> {
 	/*
 	 * Refuse to start while something is already on this port.
@@ -325,6 +333,7 @@ export async function startApp({
 	 * electron-vite preview silently rebuilds per suite instead of testing the requested build.
 	 */
 	const childEnv: NodeJS.ProcessEnv = { ...process.env, PLUME_HOME: home, ELECTRON_ENABLE_LOGGING: "1", PLUME_E2E_OFFLINE_CATALOG: "1" };
+	if (rendererUrl) childEnv.ELECTRON_RENDERER_URL = rendererUrl;
 	// The app may run node --test itself; inheriting this suppresses every nested test.
 	delete childEnv.NODE_TEST_CONTEXT;
 	const app: ChildProcess = spawn(executable, argv, {

@@ -165,10 +165,14 @@
  * The hairline is drawn over the column's last pixel rather than taking one of its own. As a border it
  * took that pixel from the list: at its narrowest the column held 239px of the 240 its tab strip is
  * laid out for (`SIDEBAR_MIN`).
+ *
+ * The shade is a variable so the sidebar's pinned headings can paint the same colour over the rows
+ * passing under them (`misc.css`).
  */
 .ly-nav-column {
   position: relative;
-  background: color-mix(in oklab, var(--color-shell) 60%, var(--color-sidebar));
+  --ly-nav-fill: color-mix(in oklab, var(--color-shell) 60%, var(--color-sidebar));
+  background: var(--ly-nav-fill);
 }
 
 .ly-nav-column::after {
