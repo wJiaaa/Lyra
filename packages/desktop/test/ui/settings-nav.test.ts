@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createElement as h } from "react";
 import { Settings2, Palette, Camera } from "lucide-react";
 import { SettingsNav } from "../../src/features/settings/SettingsNav.tsx";
+import { useApp } from "../../src/store/index.ts";
 import { mount, click } from "../helpers/mount.ts";
 
 const groups = [
@@ -15,6 +16,10 @@ const groups = [
 		],
 	},
 ];
+
+test("设置页默认选择常规", () => {
+	assert.equal(useApp.getInitialState().settingsSection, "general");
+});
 
 test("the nav pill sits on the current row and follows a click", async () => {
 	let section: "general" | "appearance" | "screenshot" = "general";

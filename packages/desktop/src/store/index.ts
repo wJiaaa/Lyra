@@ -566,7 +566,7 @@ let booted = false;
 export const useApp = create<AppState>((set, get) => ({
   ready: false,
   view: "chat",
-  settingsSection: "models",
+  settingsSection: "general",
   pluginsProject: null,
   hooksProject: null,
   pluginFocus: null,
