@@ -45,6 +45,7 @@ export function ProjectList({
 	sort,
 	empty,
 	listSettings,
+	onNewLooseChat,
 }: {
 	groups: Grouped;
 	collapsed: string[];
@@ -64,6 +65,8 @@ export function ProjectList({
 	 * projects — sorting still applies to 「最近」, and it must not become unreachable.
 	 */
 	listSettings: React.ReactNode;
+	/** 「最近」 上的 +：开一段不在任何项目里的新对话，它发出去之后就落在这一节。 */
+	onNewLooseChat: () => void;
 }) {
 	const { compact } = useLayout();
 	const reorder = useSidebarReorder(groups, sort, onReordered);
@@ -156,7 +159,17 @@ export function ProjectList({
 						count={groups.loose.length}
 						collapsed={collapsed.includes(RECENT)}
 						onToggle={() => onToggleCollapsed(RECENT)}
-						action={groups.projects.length === 0 ? listSettings : undefined}
+						action={
+							<>
+								{groups.projects.length === 0 && listSettings}
+								<IconButton
+									size="sm"
+									label={translate("projectList.newLooseChat")}
+									onClick={onNewLooseChat}
+									icon={<Plus size={13} strokeWidth={2} aria-hidden />}
+								/>
+							</>
+						}
 					>
 						{translate("projectList.recent")}
 					</SectionLabel>

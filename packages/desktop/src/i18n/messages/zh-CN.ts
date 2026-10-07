@@ -2407,6 +2407,7 @@ export const zhCN = {
 	"projectList.pinned": "置顶",
 	"projectList.projects": "项目",
 	"projectList.recent": "最近",
+	"projectList.newLooseChat": "新对话（不在项目中）",
 	"mark.failed": "失败",
 	"mark.paused": "已暂停",
 	"theme.plumeDefault": "Plume 默认",

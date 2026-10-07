@@ -41,6 +41,7 @@ export function Sidebar() {
 	const { t } = useI18n();
 	const scratchRoots = useApp((s) => s.scratchRoots);
 	const newSession = useApp((s) => s.newSession);
+	const clearWorkspace = useApp((s) => s.clearWorkspace);
 	/**
 	 * As a drawer this pane covers the thing it navigates to, so anything that changes what is
 	 * behind it also has to get out of the way. Pushed, `dismissNav` does nothing and the
@@ -255,6 +256,12 @@ export function Sidebar() {
 							empty={empty}
 							sort={sort}
 							onReordered={markManual}
+							onNewLooseChat={() => {
+								// clearWorkspace 只把下一段对话指向公共目录，不切回聊天页；newSession 只会
+								// 在当前项目里开新的。两步合起来才是「在项目外开一段新对话」。
+								void clearWorkspace().then(() => newSession());
+								dismissNav();
+							}}
 							listSettings={
 								<IconButton
 									size="sm"

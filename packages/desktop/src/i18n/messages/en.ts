@@ -2239,6 +2239,7 @@ export const en = {
 	"projectList.pinned": "Pinned",
 	"projectList.projects": "Projects",
 	"projectList.recent": "Recent",
+	"projectList.newLooseChat": "New chat without a project",
 	"mark.failed": "Failed",
 	"mark.paused": "Paused",
 	"theme.plumeDefault": "Plume default",
