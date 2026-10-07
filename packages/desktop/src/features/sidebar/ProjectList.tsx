@@ -245,7 +245,7 @@ function SectionLabel({
 				data-ly-section={section}
 				aria-expanded={!collapsed}
 				onClick={onToggle}
-				className="flex min-w-0 flex-1 items-center gap-1 rounded-lg px-2 pb-1.5 text-left text-detail font-medium text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
+				className="flex h-7 min-w-0 flex-1 items-center gap-1 rounded-lg px-2 text-left text-detail font-medium text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted"
 			>
 				{children}
 				<ChevronRight
@@ -268,7 +268,11 @@ function SectionLabel({
 				<span
 					data-ly-section-action
 					// Held while its menu is open, which is when the pointer has left for the menu.
-					className="absolute right-2 bottom-1.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-100"
+					// `right-1.5 gap-0.5` is a project row's `HoverRowReveal` (`px-1.5`, `gap-0.5`), so
+					// these stand in the columns of the row actions under them; at `right-2` they were 2px
+					// left of them. `bottom-0 h-7` centres them on the heading button, the bottom 28px of
+					// this row under `pt-4`.
+					className="absolute right-1.5 bottom-0 flex h-7 items-center gap-0.5 opacity-0 transition-opacity duration-[var(--ly-t-quick)] group-hover/section:opacity-100 group-has-[:focus-visible]/section:opacity-100 group-has-[[aria-haspopup][aria-expanded=true]]/section:opacity-100"
 				>
 					{action}
 				</span>

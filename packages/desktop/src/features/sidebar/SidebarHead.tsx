@@ -8,6 +8,7 @@
 
 import { Bell, Search } from "lucide-react";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
+import { useLayout } from "../../app/layout.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { NoticeDot, NotificationsMenu, useNotices } from "./NotificationsMenu.tsx";
@@ -25,21 +26,24 @@ export function SidebarHead({
 	onToggleSearch: () => void;
 }) {
 	const { t } = useI18n();
+	const { compact } = useLayout();
 	const bell = usePopover();
 	const notices = useNotices();
 	return (
 		<>
 			{/*
-			 * `pr-2` and no gap: the two buttons are 28px, the strip's below are 24px with 4px between,
-			 * so this is what puts each on the same centre as the one under it. With `px-4` and a gap
-			 * they sat 8–10px left of them. `mt-2`: flush at 5px the name read as pressed to the edge.
-			 * `pl-5`: the name starts on the line 新对话's icon and the list's headings start on (20px);
-			 * at 16px it stood 4px out from everything under it. `mb-2`: at 4px 新对话 read as a second
-			 * line of the title rather than the first thing in the pane.
+			 * The bell sits on the column of the `+` and the row actions under it: the list's
+			 * `px-2.5`/`px-3`, the actions' 6px inset and half a 22px button, less half of this 28px one,
+			 * is `pr-[13px]`/`pr-[15px]`. `mt-2`: flush at 5px the name read as
+			 * pressed to the edge. `pl-5`: the name starts on the line 新对话's icon and the list's
+			 * headings start on (20px); at 16px it stood 4px out from everything under it. `mb-2`: at 4px
+			 * 新对话 read as a second line of the title rather than the first thing in the pane.
 			 */}
-			<div className="ly-sidebar-head mt-2 mb-2 flex h-[34px] shrink-0 items-center justify-between pr-2 pl-5">
+			<div
+				className={`ly-sidebar-head mt-2 mb-2 flex h-[34px] shrink-0 items-center justify-between pl-5 ${compact ? "pr-[15px]" : "pr-[13px]"}`}
+			>
 				<span className="text-title font-semibold tracking-tight text-ink">Plume</span>
-				<div className="flex items-center">
+				<div className="flex items-center gap-[5px]">
 					<button
 						type="button"
 						data-ly-tip={t("sidebar.search")}
