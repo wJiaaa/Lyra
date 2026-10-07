@@ -1,5 +1,5 @@
 import { INLINE_IMAGE_CHARS, persistSessionImage, type AssistantContent, type ImageContent, type Message, type UserContent } from "@plume/core";
-import { noteAttachments } from "./attachment-reads.ts";
+import { noteTranscriptFiles } from "./attachment-reads.ts";
 
 /**
  * How much of one block the window is allowed to hold.
@@ -17,12 +17,12 @@ const parked = new WeakMap<ImageContent, string>();
 
 export function slimSnapshot<T extends { messages: Message[] }>(snapshot: T): T {
 	/*
-	 * 窗口看得见的附件，它的文件面板也打得开——见 `attachment-reads.ts`。
+	 * 窗口看得见的附件和回复里的文件链接，它的文件面板也打得开——见 `attachment-reads.ts`。
 	 *
 	 * 挂在这里，因为这是转录交给窗口的共同出口：冷读和活会话的快照都经过它。挂在任何一个调用方里，
 	 * 另一条路上的附件点「预览」就只剩一句「无法读取」。
 	 */
-	noteAttachments(snapshot.messages);
+	noteTranscriptFiles(snapshot.messages);
 	const messages = slimMessagesForDisplay(snapshot.messages);
 	return messages === snapshot.messages ? snapshot : { ...snapshot, messages };
 }

@@ -23,6 +23,7 @@ import { discardSideChat } from "./sidechat-discard.ts";
 import { listSideChats, removeSideChats } from "./sidechat-store.ts";
 import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
+import { noteTranscriptFiles } from "./attachment-reads.ts";
 import { eachAppWindow } from "./window.ts";
 
 export interface HubDeps {
@@ -202,6 +203,8 @@ export function broadcastSessionChange(change: SessionChange): void {
 }
 
 export function broadcast(sessionId: string, event: AgentEvent): void {
+	// 活会话的回复不经过快照：这一轮刚交付、链着验证截图的那条，正是人马上要点的。
+	if (event.type === "message_end") noteTranscriptFiles([event.message]);
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
 	notifyAgentEvent(sessionId, event, sessions.get(sessionId)?.meta.title);
 }
