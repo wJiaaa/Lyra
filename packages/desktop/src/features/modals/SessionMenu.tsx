@@ -117,7 +117,7 @@ export function SessionMenu({
 								setDraft(session.title);
 							}
 						}}
-						className="h-8 w-full rounded-lg border border-line bg-input px-2.5 text-label text-ink placeholder:text-ink-faint focus:border-ink-faint"
+						className="ly-field w-full"
 					/>
 					<div className="flex justify-end gap-1.5 pt-2.5">
 						<Button variant="subtle" size="sm" label={t("common.cancel")} onClick={() => setMode("menu")} icon={<X size={13} strokeWidth={2} aria-hidden />} />
