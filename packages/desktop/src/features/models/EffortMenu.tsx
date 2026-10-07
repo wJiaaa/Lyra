@@ -118,23 +118,19 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 				/>
 
 				{/*
-				 * Fixed height, so a one-line description replacing a two-line one does not resize the
-				 * popover mid-drag — the control you are dragging would move out from under the pointer.
+				 * Stack every description in one grid cell: reserve only the tallest actual text,
+				 * so changing levels does not move the slider or leave a spare line below short options.
 				 */}
-				<p className="mt-2 h-[34px] text-detail leading-relaxed text-ink-faint">
-					<RollingText rollKey={supported && current ? current.id : "unsupported"} className="block">
+				<p className="mt-2 grid text-detail leading-relaxed text-ink-faint">
+					{supported && options.map((option) => (
+						<span key={option.id} aria-hidden="true" className="invisible col-start-1 row-start-1">{option.detail}</span>
+					))}
+					<RollingText rollKey={supported && current ? current.id : "unsupported"} className="col-start-1 row-start-1 block self-start">
 						{supported && current ? current.detail : t("thinking.unsupportedDetail")}
 					</RollingText>
 				</p>
 
-				{/*
-				 * What this press reaches, said where the press happens.
-				 *
-				 * The control looks exactly as it did when the level was global, and now means
-				 * something narrower — anyone who turned it up expecting every conversation to
-				 * follow has no way to find that out except by discovering it later.
-				 */}
-				<p className="text-caption text-ink-faint">{meta ? t("thinking.currentOnly") : t("thinking.newDefault")}</p>
+				{!meta && <p className="text-caption text-ink-faint">{t("thinking.newDefault")}</p>}
 
 				{/*
 				 * Kept mounted and unfolded, so it closes the same way it opens. Rendered

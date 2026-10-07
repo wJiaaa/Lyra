@@ -146,6 +146,7 @@ test("choosing a model there changes that screen's conversation, brought on stag
 
 test("the effort slider there starts at that screen's effort, and moves it", async () => {
 	view = await onScreen("b", h(EffortMenu, { anchor: { x: 20, y: 20 }, onClose: () => {} }));
+	assert.doesNotMatch(document.querySelector('[role="group"]')?.textContent ?? "", /只作用于当前会话/);
 	const slider = document.querySelector<HTMLInputElement>('input[type="range"]');
 	assert.ok(slider, "no effort slider");
 	// Off is the first stop and high the last: 乙 is off, 甲 is at the top.
@@ -155,6 +156,11 @@ test("the effort slider there starts at that screen's effort, and moves it", asy
 	for (let i = 0; i < 5 && efforts.length === 0; i++) await act(async () => {});
 	assert.deepEqual(efforts, [["b", "medium"]], "moved the focused conversation's effort");
 	assert.equal(useApp.getState().activeSessionId, "b");
+});
+
+test("未创建会话时仍保留新会话默认档位提示", async () => {
+	view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(SessionScope.Provider, { value: null }, h(EffortMenu, { anchor: { x: 20, y: 20 }, onClose: () => {} })) }));
+	assert.match(document.querySelector('[role="group"]')?.textContent ?? "", /作为新会话的默认档位/);
 });
 
 test("naming the live conversation acts as before, and the blank screen touches no conversation", async () => {

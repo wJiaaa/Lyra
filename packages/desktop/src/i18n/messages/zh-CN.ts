@@ -137,7 +137,6 @@ export const zhCN = {
 	"thinking.detail.xhigh": "更深层次的逻辑推演。",
 	"thinking.detail.max": "把预算拉满，最慢也最稳。",
 	"thinking.detail.ultra": "极致推理模式，算力全开。",
-	"thinking.currentOnly": "只作用于当前会话",
 	"thinking.newDefault": "作为新会话的默认档位",
 	"thinking.providerSupport": "供应商对推理档位的支持不一；「关闭」始终显式要求不要推理。",
 	"thinking.unsupportedDetail": "当前模型不支持推理，这项设置不会生效。",
