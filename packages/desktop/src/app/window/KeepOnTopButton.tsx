@@ -1,4 +1,4 @@
-import { Pin, PinOff } from "lucide-react";
+import { Pin, PinOff } from "../../ui/icons/index.ts";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/index.ts";
 import { bridge } from "../../services/index.ts";

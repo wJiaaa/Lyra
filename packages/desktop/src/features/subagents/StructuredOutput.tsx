@@ -23,7 +23,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import type { MessageKey } from "../../i18n/messages/index.ts";
-import { Check, TriangleAlert, X } from "lucide-react";
+import { Check, TriangleAlert, X } from "../../ui/icons/index.ts";
 import type { ReactNode } from "react";
 import { parseInline, type Inline } from "../../lib/markdown/inline.ts";
 

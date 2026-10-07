@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "../icons/index.ts";
 
 /**
  * The middle of an empty panel body.

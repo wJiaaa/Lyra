@@ -9,7 +9,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
-import { Check, ChevronDown, Eye, EyeOff } from "lucide-react";
+import { Check, ChevronDown, Eye, EyeOff } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { acceleratorLabel, composingKey, recordAccelerator } from "../../ui/keyboard.ts";
 import { MENU_MAX_HEIGHT, MenuBody, MenuItem, Popover, usePopover } from "../../ui/overlay/Popover.tsx";

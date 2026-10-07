@@ -10,7 +10,7 @@
  * narrow window, whose sidebar is a drawer, has no rail and puts all of these back in the drawer.
  */
 
-import { Blocks, Clock, GitPullRequest, House, Settings as SettingsIcon } from "lucide-react";
+import { Blocks, Clock, GitPullRequest, House, Settings as SettingsIcon } from "../../ui/icons/index.ts";
 
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";

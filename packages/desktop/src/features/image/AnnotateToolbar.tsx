@@ -30,7 +30,7 @@ import {
 	Type,
 	Undo2,
 	X,
-} from "lucide-react";
+} from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { macKeyboard, shortcutLabel, shortcutLetter } from "../../ui/keyboard.ts";
 

@@ -19,7 +19,7 @@
  * **一次滚八成，不是一整屏。** 整屏翻页会把刚看到的那个也带走，留一点重叠，眼睛才接得上。
  */
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "../icons/index.ts";
 import { useRef } from "react";
 import { translate } from "../../i18n/translate.ts";
 import { useSideways } from "./useSideways.ts";

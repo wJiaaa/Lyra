@@ -6,7 +6,7 @@
  * composer's project chip, next to what it actually scopes.
  */
 
-import { Bell, Search } from "lucide-react";
+import { Bell, Search } from "../../ui/icons/index.ts";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { useI18n } from "../../i18n/index.ts";

@@ -11,7 +11,7 @@
  * 只有一个的时候没什么可选的，那就不画下拉的箭头，也不是按钮。
  */
 
-import { ChevronDown, CircleStop } from "lucide-react";
+import { ChevronDown, CircleStop } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 
 import type { SubAgentSummary } from "@plume/core";

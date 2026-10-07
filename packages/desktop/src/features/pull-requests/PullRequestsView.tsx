@@ -10,7 +10,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";

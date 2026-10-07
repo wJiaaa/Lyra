@@ -19,7 +19,7 @@
  * 是「高矮不齐挤在一起」，而那件事靠的是对齐，不是靠把矮的那个拉高。
  */
 
-import { X } from "lucide-react";
+import { X } from "../../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 

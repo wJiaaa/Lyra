@@ -7,7 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import type { SettingsSection } from "../../store/index.ts";
 import type { MessageKey } from "../../i18n/index.ts";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "../../ui/icons/index.ts";
 
 type Group = {
 	labelKey: MessageKey;

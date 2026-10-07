@@ -15,7 +15,7 @@
  * 会话」, which is a sentence about configuration in a place meant for writing a message.
  */
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "../../ui/icons/index.ts";
 import { modelIdentity, modelTooltip } from "../../lib/model-grouping.ts";
 import { RollingText, useRolled } from "../../ui/motion/RollingText.tsx";
 import { useApp } from "../../store/index.ts";

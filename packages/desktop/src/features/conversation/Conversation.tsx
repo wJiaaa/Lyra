@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "../../ui/icons/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ApprovalOverlay } from "./ApprovalOverlay.tsx";

@@ -11,7 +11,7 @@
  * the project, creating cannot.
  */
 
-import { Folder, FolderPlus, Monitor, X } from "lucide-react";
+import { Folder, FolderPlus, Monitor, X } from "../../ui/icons/index.ts";
 import { useState } from "react";
 
 import { projectFolders } from "@plume/core/project-folders";

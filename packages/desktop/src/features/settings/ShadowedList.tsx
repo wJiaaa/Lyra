@@ -14,7 +14,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import type { DiffHunk } from "@plume/core";
-import { ArrowLeftRight, Eye, EyeOff, Layers } from "lucide-react";
+import { ArrowLeftRight, Eye, EyeOff, Layers } from "../../ui/icons/index.ts";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Card } from "./controls.tsx";

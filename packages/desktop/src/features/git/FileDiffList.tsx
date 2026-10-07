@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "../../ui/icons/index.ts";
 import { useState } from "react";
 
 import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";

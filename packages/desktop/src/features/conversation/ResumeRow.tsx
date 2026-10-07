@@ -1,4 +1,4 @@
-import { Play, RotateCcw } from "lucide-react";
+import { Play, RotateCcw } from "../../ui/icons/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useSide, sideTasksOf } from "../dock/index.ts";
 import {

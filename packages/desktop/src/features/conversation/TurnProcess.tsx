@@ -12,7 +12,7 @@ import { Collapse } from "../../ui/layout/Collapse.tsx";
  * 行的骨架和思考行、工具行是同一个（见 `FlowRow`），里面的过程挂在左边一条竖线下面。
  */
 
-import { Layers } from "lucide-react";
+import { Layers } from "../../ui/icons/index.ts";
 
 import { FlowRow } from "./FlowRow.tsx";
 import { translate } from "../../i18n/translate.ts";

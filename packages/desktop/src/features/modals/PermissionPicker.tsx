@@ -5,7 +5,7 @@ import { Folder, Terminal, Globe,
 	Hand,
 	SquareTerminal,
 	TriangleAlert,
-} from "lucide-react";
+} from "../../ui/icons/index.ts";
 import { useState } from "react";
 
 import {

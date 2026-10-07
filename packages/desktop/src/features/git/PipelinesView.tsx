@@ -21,7 +21,7 @@ import {
 	RefreshCw,
 	Tag,
 	XCircle,
-} from "lucide-react";
+} from "../../ui/icons/index.ts";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState } from "react";

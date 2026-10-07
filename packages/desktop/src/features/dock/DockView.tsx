@@ -35,7 +35,7 @@ import { fitTree, layoutPanes, layoutSplitters, type Box, type SplitterBox } fro
 import { popOutPanel } from "./popout.ts";
 import { closePane, emptyDockTree, usePaneDock } from "./pane-store.ts";
 import { allowsMany, basePanelKind, nextPanelKind, type ManyKind } from "../../lib/panel-instance.ts";
-import { Plus } from "lucide-react";
+import { Plus } from "../../ui/icons/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { DockScope } from "../../app/session-scope.tsx";
 import { canToggleMaximized } from "./visibility.ts";

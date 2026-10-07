@@ -11,7 +11,7 @@
  * a keyed one, paste the key. Every service listed has a free tier that covers ordinary use.
  */
 
-import { Check, ExternalLink, Search } from "lucide-react";
+import { Check, ExternalLink, Search } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { Card, SectionTitle } from "./layout.tsx";

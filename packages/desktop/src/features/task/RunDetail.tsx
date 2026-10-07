@@ -1,5 +1,5 @@
 import { useI18n } from "../../i18n/index.ts";
-import { History, ScrollText as OutputIcon } from "lucide-react";
+import { History, ScrollText as OutputIcon } from "../../ui/icons/index.ts";
 import type { ToolRun } from "../../store/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useDockScope, useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";

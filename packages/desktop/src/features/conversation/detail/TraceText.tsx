@@ -1,5 +1,5 @@
 import { translate } from "../../../i18n/translate.ts";
-import { Check, ChevronLeft, ChevronRight, Copy } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy } from "../../../ui/icons/index.ts";
 import { useEffect, useState } from "react";
 import { Markdown } from "../Markdown.tsx";
 import { CodeText } from "./CodeText.tsx";

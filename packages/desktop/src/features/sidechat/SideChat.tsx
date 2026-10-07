@@ -10,7 +10,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { MessageCirclePlus, RotateCcw } from "lucide-react";
+import { MessageCirclePlus, RotateCcw } from "../../ui/icons/index.ts";
 import type { Message, UserMessage } from "@plume/core";
 import { useEffect, useState } from "react";
 import { useSide, sideChatOf } from "../dock/index.ts";

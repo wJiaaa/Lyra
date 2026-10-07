@@ -1,5 +1,5 @@
 import { translate } from "../../../i18n/translate.ts";
-import { History, Coins, Crosshair, Terminal, Zap } from "lucide-react";
+import { History, Coins, Crosshair, Terminal, Zap } from "../../../ui/icons/index.ts";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { freshTokens } from "@plume/core/tokens";
 import { countBySource, entryKey, filterTrajectory, type Entry, type Source, type TrajectoryFilter } from "@plume/core/trajectory-view";

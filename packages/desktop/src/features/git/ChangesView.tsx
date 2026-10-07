@@ -1,7 +1,7 @@
 /**
  * The index, as a column you read downwards.
  */
-import { Check, FolderTree, List, Minus, Plus, RotateCcw } from "lucide-react";
+import { Check, FolderTree, List, Minus, Plus, RotateCcw } from "../../ui/icons/index.ts";
 import { useEffect, useState } from "react";
 
 import type { GitStatus, GitStatusFile, WorkspaceDiffFile } from "../../../electron/ipc-types.ts";

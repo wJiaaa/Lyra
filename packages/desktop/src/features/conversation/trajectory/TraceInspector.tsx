@@ -1,7 +1,7 @@
 import { translate } from "../../../i18n/translate.ts";
 import { useEffect, useRef, useState } from "react";
 import { SourceIcon } from "./SourceIcon.tsx";
-import { ArrowUpRight, ArrowLeft, ChevronLeft, ChevronRight, Ellipsis, FileText, GitBranch, ScrollText as OutputIcon } from "lucide-react";
+import { ArrowUpRight, ArrowLeft, ChevronLeft, ChevronRight, Ellipsis, FileText, GitBranch, ScrollText as OutputIcon } from "../../../ui/icons/index.ts";
 import { openViewer } from "../../image/index.ts";
 import { SOURCE_LABEL, STATUS_LABEL, entryKey, type Entry } from "@plume/core/trajectory-view";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";

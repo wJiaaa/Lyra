@@ -15,7 +15,7 @@
  * 标签页还在不在、打开它——都问主进程就够了，它本来就是标签页的事实来源。
  */
 
-import { Globe, PanelRightOpen } from "lucide-react";
+import { Globe, PanelRightOpen } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import type { BrowserResultDetails } from "../../../shared/browser.ts";
 import { sessionMediaUrl } from "../../../shared/session-image.ts";

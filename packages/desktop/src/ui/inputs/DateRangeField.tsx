@@ -12,7 +12,7 @@
  * 到哪天」是看出来的，不用去读两个日期再在脑子里减一下。
  */
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "../icons/index.ts";
 import { useMemo, useState } from "react";
 
 import { translate } from "../../i18n/translate.ts";

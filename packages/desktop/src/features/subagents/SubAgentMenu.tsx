@@ -17,7 +17,7 @@
  * 而不是标题里：标题本来就说了三件事，再塞一句就被截成「同时最…」。
  */
 
-import { X } from "lucide-react";
+import { X } from "../../ui/icons/index.ts";
 import { useEffect, useRef } from "react";
 import type { SubAgentSummary } from "@plume/core";
 import { rosterRows } from "../../store/subAgents.ts";

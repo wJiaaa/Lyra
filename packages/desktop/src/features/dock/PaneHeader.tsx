@@ -24,7 +24,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Maximize2, Minimize2, SquareArrowOutUpRight, X } from "lucide-react";
+import { Maximize2, Minimize2, SquareArrowOutUpRight, X } from "../../ui/icons/index.ts";
 import { HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
 import type { DropSide, PaneKind } from "./tree.ts";
 import { PaneGrip } from "./PaneGrip.tsx";

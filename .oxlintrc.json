@@ -196,6 +196,34 @@
     },
     {
       "files": [
+        "packages/desktop/src/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "lucide-react",
+                "allowTypeImports": true,
+                "message": "图标从 ui/icons/index.ts 引入：有动画版的拿到的是动画版，名字和 lucide 一样。直接从 lucide-react 引入会悄悄拿到不会动的那个。只有类型（LucideProps 等）可以直接引。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // 入口本身就是转出 lucide 的那一处。
+      "files": [
+        "packages/desktop/src/ui/icons/index.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": [
         "packages/desktop/src/lib/**"
       ],
       "rules": {
@@ -210,6 +238,11 @@
               {
                 "name": "react-dom",
                 "message": "同上：lib/ 不碰渲染。"
+              },
+              {
+                "name": "lucide-react",
+                "allowTypeImports": true,
+                "message": "图标从 ui/icons/index.ts 引入：有动画版的拿到的是动画版，名字和 lucide 一样。直接从 lucide-react 引入会悄悄拿到不会动的那个。只有类型（LucideProps 等）可以直接引。"
               }
             ]
           }

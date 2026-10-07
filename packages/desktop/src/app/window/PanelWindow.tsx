@@ -5,7 +5,7 @@
  * and this document holds it. One control puts it back in the slot it left.
  */
 
-import { AppWindow } from "lucide-react";
+import { AppWindow } from "../../ui/icons/index.ts";
 import { useEffect } from "react";
 import { SessionScope } from "../session-scope.tsx";
 import { renderPanel, renderPanelHeader, renderPanelActions, usePanelDefinitions, useSide } from "../../features/dock/index.ts";

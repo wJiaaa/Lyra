@@ -1,4 +1,4 @@
-import { Box, ChevronRight, Star } from "lucide-react";
+import { Box, ChevronRight, Star } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ModelIcon } from "./ModelIcon.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";

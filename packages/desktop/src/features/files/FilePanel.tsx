@@ -11,7 +11,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { FileText } from "lucide-react";
+import { FileText } from "../../ui/icons/index.ts";
 import { FileViewer } from "./FileViewer.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { usePaneFile } from "./pane-file.tsx";

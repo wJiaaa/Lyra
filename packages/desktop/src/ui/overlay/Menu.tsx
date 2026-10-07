@@ -9,7 +9,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Input } from "../inputs/NativeField.tsx";
-import { Search, X } from "lucide-react";
+import { Search, X } from "../icons/index.ts";
 import { createContext, useContext } from "react";
 
 import { ScrollText } from "../scroll/ScrollText.tsx";

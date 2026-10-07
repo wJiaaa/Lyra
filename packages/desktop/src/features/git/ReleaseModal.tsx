@@ -13,7 +13,7 @@ import {
 	Tag,
 	Info,
 	XCircle,
-} from "lucide-react";
+} from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReleaseInfo, WorkflowRunStatus } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";

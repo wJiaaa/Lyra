@@ -20,7 +20,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { ArrowRight, CircleAlert, Info, MessageCirclePlus, TriangleAlert, X } from "lucide-react";
+import { ArrowRight, CircleAlert, Info, MessageCirclePlus, TriangleAlert, X } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useApp } from "../../store/index.ts";

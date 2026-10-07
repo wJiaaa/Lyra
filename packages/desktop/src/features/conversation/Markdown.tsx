@@ -10,7 +10,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ExternalLink, FolderOpen } from "lucide-react";
+import { ExternalLink, FolderOpen } from "../../ui/icons/index.ts";
 import { createContext, type CSSProperties, Fragment, isValidElement, memo, type ReactNode, type SyntheticEvent, useContext, useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
 import { isMermaid, MermaidBlock } from "./MermaidBlock.tsx";

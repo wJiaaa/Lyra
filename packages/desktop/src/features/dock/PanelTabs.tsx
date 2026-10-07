@@ -7,7 +7,7 @@
  * 和终端的子标签用同一个 `ClosableTab` 与 `Sideways`：同一种东西在同一个窗口里只长一个样子。
  */
 
-import { Plus } from "lucide-react";
+import { Plus } from "../../ui/icons/index.ts";
 import { useEffect, useRef, type ReactNode } from "react";
 import { translate } from "../../i18n/translate.ts";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";

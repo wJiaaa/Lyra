@@ -6,7 +6,7 @@
  * composer, and one way back.
  */
 
-import { AppWindow } from "lucide-react";
+import { AppWindow } from "../../ui/icons/index.ts";
 import { useEffect } from "react";
 import { SessionScope } from "../session-scope.tsx";
 import { Conversation, ConversationSkeleton } from "../../features/conversation/index.ts";

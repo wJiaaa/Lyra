@@ -1,6 +1,6 @@
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { translate } from "../../i18n/translate.ts";
-import { Brain } from "lucide-react";
+import { Brain } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 
 import { FADE } from "./FadeText.tsx";

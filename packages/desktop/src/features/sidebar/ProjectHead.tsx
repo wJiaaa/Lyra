@@ -15,7 +15,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Folder, FolderOpen, MoreHorizontal, SquarePen } from "lucide-react";
+import { Folder, FolderOpen, MoreHorizontal, SquarePen } from "../../ui/icons/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectMenu } from "../modals/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";

@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { ChevronRight, Folder, FolderOpen } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen } from "../../ui/icons/index.ts";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useMemo, useState } from "react";
 import type { WorkspaceDiffFile } from "../../../electron/ipc-types.ts";

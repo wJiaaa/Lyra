@@ -12,7 +12,7 @@
  * conversation's card and nothing inside the card, as the reference layout draws it.
  */
 
-import { Folder, MoreHorizontal, X } from "lucide-react";
+import { Folder, MoreHorizontal, X } from "../../ui/icons/index.ts";
 import { PanelMenu } from "../../app/window/WindowToolbar.tsx";
 import { ToolbarButton } from "../../app/window/WindowControls.tsx";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";

@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "../icons/index.ts";
 import { IconButton } from "./IconButton.tsx";
 
 /** Keep the action's slot stable, including when only hover or keyboard focus reveals it. */

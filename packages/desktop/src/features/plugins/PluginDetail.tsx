@@ -22,7 +22,7 @@
  */
 
 import type { McpServerConfig } from "@plume/core";
-import { ArrowUp, ArrowUpRight, Cable, ChevronRight, Download, ExternalLink, FolderOpen, Globe, MoreHorizontal, Settings2, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUp, ArrowUpRight, Cable, ChevronRight, Download, ExternalLink, FolderOpen, Globe, MoreHorizontal, Settings2, Sparkles, Trash2 } from "../../ui/icons/index.ts";
 import { useEffect, useState } from "react";
 
 import { formatList, useI18n } from "../../i18n/index.ts";

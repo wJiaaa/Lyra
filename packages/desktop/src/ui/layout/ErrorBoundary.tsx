@@ -15,7 +15,7 @@
  * codebase and this is the reason.
  */
 
-import { RotateCw } from "lucide-react";
+import { RotateCw } from "../icons/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { CopyMark } from "./CopyMark.tsx";

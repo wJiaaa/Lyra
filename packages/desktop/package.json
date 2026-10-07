@@ -65,6 +65,7 @@
 		"katex": "0.18.4",
 		"koffi": "^3.1.6",
 		"mermaid": "^12.0.0",
+		"motion": "13.1.1",
 		"node-pty": "1.1.0",
 		"thinking-orbs": "^0.3.1",
 		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",

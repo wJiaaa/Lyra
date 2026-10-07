@@ -1,4 +1,4 @@
-import { ChevronDown, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronDown, RotateCcw, X, ZoomIn, ZoomOut } from "../../../ui/icons/index.ts";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { entryKey, SOURCE_LABEL, type Entry } from "@plume/core/trajectory-view";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";

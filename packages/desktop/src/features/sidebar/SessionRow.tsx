@@ -14,7 +14,7 @@ import { useI18n } from "../../i18n/index.ts";
 import type { SessionMeta } from "@plume/core";
 import { rowActivity } from "../../lib/row-activity.ts";
 import { useApp, useSideChatRunning } from "../../store/index.ts";
-import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Pin, PinOff, Trash2 } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { sessionTitle } from "../../lib/session-title.ts";

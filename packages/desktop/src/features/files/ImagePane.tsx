@@ -12,7 +12,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
+import { Maximize2, Minus, Plus, RotateCcw } from "../../ui/icons/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";
 

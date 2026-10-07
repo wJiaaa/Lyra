@@ -27,7 +27,7 @@ import {
 	Scissors,
 	SquareTerminal,
 	Trash2,
-} from "lucide-react";
+} from "../../ui/icons/index.ts";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { openLabel, useOpenTarget, useRevealLabel } from "../../store/open-targets.ts";

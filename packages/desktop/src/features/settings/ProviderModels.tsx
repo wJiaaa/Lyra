@@ -6,7 +6,7 @@
  * fill them in, and the part you come back to later.
  */
 
-import { CircleAlert, CloudDownload, Image, Lightbulb, MoreHorizontal, Pencil, Play, Plus, Star, Trash2, Wrench } from "lucide-react";
+import { CircleAlert, CloudDownload, Image, Lightbulb, MoreHorizontal, Pencil, Play, Plus, Star, Trash2, Wrench } from "../../ui/icons/index.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import type { ModelConfig } from "@plume/core";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";

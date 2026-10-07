@@ -1,4 +1,4 @@
-import { ExternalLink, Trash2 } from "lucide-react";
+import { ExternalLink, Trash2 } from "../../ui/icons/index.ts";
 import { useEffect, useState, type ReactNode } from "react";
 import { BROWSER_SEARCH_ENGINES, browserSearchCustom, type BrowserSearchEngine } from "../../../shared/browser.ts";
 import { useApp } from "../../store/index.ts";

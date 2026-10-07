@@ -16,7 +16,7 @@
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import type { McpServerConfig } from "@plume/core";
 import { looksSecret } from "@plume/core/mcp-placeholders";
-import { FolderOpen, MoreHorizontal, Plus, SlidersHorizontal, Store, Trash2 } from "lucide-react";
+import { FolderOpen, MoreHorizontal, Plus, SlidersHorizontal, Store, Trash2 } from "../../ui/icons/index.ts";
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";

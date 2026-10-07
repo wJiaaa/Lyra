@@ -20,7 +20,7 @@ import {
 	Palette,
 	Presentation,
 	Binary,
-} from "lucide-react";
+} from "../../../ui/icons/index.ts";
 import type { FileKind } from "./file-kind.ts";
 
 const ICONS: Record<FileKind, typeof File> = {

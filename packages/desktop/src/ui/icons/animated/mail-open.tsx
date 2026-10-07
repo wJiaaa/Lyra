@@ -1,0 +1,47 @@
+// lucide-animated 没有这个图标，照它的写法补的：形状是 lucide 的 mail-open，悬停时开口往上张一下。
+// 接口和触发方式的改法见 ../index.ts。
+
+import type { LucideProps } from "lucide-react";
+import type { Variants } from "motion/react";
+import { useAnimation } from "motion/react";
+import { forwardRef } from "react";
+import { useHoverAnimation } from "../useHoverAnimation.ts";
+
+const FLAP_VARIANTS: Variants = {
+	normal: { y: 0 },
+	animate: { y: [0, -1.5, 0], transition: { duration: 0.4, ease: "easeInOut" } },
+};
+
+export const MailOpenIcon = forwardRef<SVGSVGElement, LucideProps>(function MailOpenIcon({ className, size = 24, strokeWidth = 2, ...props }, ref) {
+	const controls = useAnimation();
+	const { ref: host, M } = useHoverAnimation(
+		ref,
+		() => void controls.start("animate"),
+		() => void controls.start("normal"),
+	);
+
+	return (
+		<svg
+			fill="none"
+			height={size}
+			stroke="currentColor"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			strokeWidth={strokeWidth}
+			viewBox="0 0 24 24"
+			width={size}
+			xmlns="http://www.w3.org/2000/svg"
+			ref={host}
+			className={`lucide lucide-mail-open ${className ?? ""}`.trimEnd()}
+			aria-hidden="true"
+			{...props}
+		>
+			<path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6Z" />
+			<M.path
+				animate={controls}
+				variants={FLAP_VARIANTS}
+				d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"
+			/>
+		</svg>
+	);
+});

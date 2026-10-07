@@ -9,7 +9,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import type { Plugin } from "@plume/core";
-import { ArrowUp, FolderOpen, MoreHorizontal, Store, TriangleAlert, Trash2 } from "lucide-react";
+import { ArrowUp, FolderOpen, MoreHorizontal, Store, TriangleAlert, Trash2 } from "../../ui/icons/index.ts";
 import { useState } from "react";
 
 import { Confirm } from "../../ui/overlay/Confirm.tsx";

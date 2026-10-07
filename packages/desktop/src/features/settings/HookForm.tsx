@@ -4,7 +4,7 @@
  */
 
 import type { HookDraft, HookEventName, HookScope } from "@plume/core";
-import { ChevronRight, Trash2 } from "lucide-react";
+import { ChevronRight, Trash2 } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import type { HookView } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";

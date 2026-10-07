@@ -17,7 +17,7 @@ import {
 	Sparkles,
 	Terminal,
 	Users,
-} from "lucide-react";
+} from "../../ui/icons/index.ts";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { Collapse } from "../../ui/layout/Collapse.tsx";

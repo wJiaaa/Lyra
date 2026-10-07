@@ -1,5 +1,5 @@
 import { activeModelCatalog } from "@plume/core/model-catalog";
-import { Boxes, CalendarDays, ChartLine, Layers, RefreshCw } from "lucide-react";
+import { Boxes, CalendarDays, ChartLine, Layers, RefreshCw } from "../../ui/icons/index.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { UsageScan } from "../../../electron/usage-scan.ts";

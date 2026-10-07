@@ -6,7 +6,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { GitBranch, GitCompare, GitPullRequestArrow, ArrowRightLeft, Trash2 } from "lucide-react";
+import { GitBranch, GitCompare, GitPullRequestArrow, ArrowRightLeft, Trash2 } from "../../ui/icons/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";

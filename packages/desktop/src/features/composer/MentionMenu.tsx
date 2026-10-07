@@ -1,6 +1,6 @@
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { Minimize2, Bot, FileCode, FolderArchive, MessageSquare, Paperclip, Puzzle } from "lucide-react";
+import { Minimize2, Bot, FileCode, FolderArchive, MessageSquare, Paperclip, Puzzle } from "../../ui/icons/index.ts";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";

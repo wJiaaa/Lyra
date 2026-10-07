@@ -13,7 +13,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { Code, ExternalLink, Eye, WrapText } from "lucide-react";
+import { Code, ExternalLink, Eye, WrapText } from "../../ui/icons/index.ts";
 
 import { openLabel, useOpenTarget } from "../../store/open-targets.ts";
 import { useOpenFile } from "../../store/openFile.ts";

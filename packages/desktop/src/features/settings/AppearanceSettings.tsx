@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react";
+import { RotateCcw } from "../../ui/icons/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { AppearanceSettings as Appearance } from "@plume/core";
 import { useState } from "react";

@@ -12,7 +12,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Folder } from "lucide-react";
+import { Folder } from "../../ui/icons/index.ts";
 import { openFilePane } from "../dock/index.ts";
 import { FileTree } from "./FileTree.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";

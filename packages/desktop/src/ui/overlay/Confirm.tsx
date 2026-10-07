@@ -25,7 +25,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { CircleHelp, TriangleAlert } from "lucide-react";
+import { CircleHelp, TriangleAlert } from "../icons/index.ts";
 import { Overlay } from "./Overlay.tsx";
 import { DialogAction, DialogFrame } from "./Dialog.tsx";
 

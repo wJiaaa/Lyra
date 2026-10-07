@@ -32,7 +32,7 @@
  * z-index. That is what made a pinned row appear to have the next row's text printed through it.
  */
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "../../../ui/icons/index.ts";
 
 /** Kept equal on the row's top corners and the body's bottom ones. */
 const RADIUS = "9px";

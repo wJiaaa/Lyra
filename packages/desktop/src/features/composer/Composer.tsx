@@ -1,7 +1,7 @@
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
 import { translate } from "../../i18n/translate.ts";
 import { parseInvocation, parseSkillMention } from "@plume/core/commands-view";
-import { Camera, ChevronDown, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "lucide-react";
+import { Camera, ChevronDown, CircleAlert, Folder, GitBranch, MessageSquare, Plus, X } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { ChangeBar } from "../git/index.ts";

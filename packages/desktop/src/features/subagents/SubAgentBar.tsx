@@ -19,7 +19,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 
 import type { SubAgentSummary } from "@plume/core";

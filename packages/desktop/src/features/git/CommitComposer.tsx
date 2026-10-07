@@ -6,7 +6,7 @@
  * and where send goes.
  */
 
-import { Check, Languages, Wand2 } from "lucide-react";
+import { Check, Languages, Wand2 } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { ComposerSend, ComposerShell } from "../composer/index.ts";

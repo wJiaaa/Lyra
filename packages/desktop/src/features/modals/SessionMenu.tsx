@@ -18,7 +18,7 @@ import {
 	PinOff,
 	Trash2,
 	X,
-} from "lucide-react";
+} from "../../ui/icons/index.ts";
 import { useRef, useState } from "react";
 import type { SessionMeta } from "@plume/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";

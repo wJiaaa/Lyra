@@ -6,7 +6,7 @@
  */
 
 import { shortcutLabel } from "../../ui/keyboard.ts";
-import { Camera, Eraser, FolderOpen, RotateCcw } from "lucide-react";
+import { Camera, Eraser, FolderOpen, RotateCcw } from "../../ui/icons/index.ts";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import {

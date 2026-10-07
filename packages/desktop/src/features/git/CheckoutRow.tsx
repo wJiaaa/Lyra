@@ -5,7 +5,7 @@
  * folder in-flow, like 「当前」 on the current row — not a 76px empty overlay.
  */
 
-import { FolderGit2, GitBranchPlus } from "lucide-react";
+import { FolderGit2, GitBranchPlus } from "../../ui/icons/index.ts";
 
 import type { RepoRef } from "../../../electron/git.ts";
 import { useI18n } from "../../i18n/index.ts";

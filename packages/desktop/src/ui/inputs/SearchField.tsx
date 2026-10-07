@@ -1,6 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
 import { Input } from "./NativeField.tsx";
-import { Search, X } from "lucide-react";
+import { Search, X } from "../icons/index.ts";
 import { useEffect, useRef } from "react";
 
 /**

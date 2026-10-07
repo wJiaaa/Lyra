@@ -15,7 +15,7 @@
  * 而没掉的东西和送出去的东西在眼睛里不是一回事。所以走掉的那条会被留下来播完退场，见 `leaving`。
  */
 
-import { CornerDownLeft, GripVertical, MessageSquarePlus, MoreHorizontal, PencilLine, Trash2 } from "lucide-react";
+import { CornerDownLeft, GripVertical, MessageSquarePlus, MoreHorizontal, PencilLine, Trash2 } from "../../ui/icons/index.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { QueuedMessage } from "../../store/queue-slice.ts";

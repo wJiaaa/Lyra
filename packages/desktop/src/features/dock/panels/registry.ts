@@ -13,7 +13,7 @@
 
 import type { MessageKey } from "../../../i18n/messages/index.ts";
 import type { ComponentType } from "react";
-import type { GitCompare } from "lucide-react";
+import type { GitCompare } from "../../../ui/icons/index.ts";
 import type { DropSide, PaneKind } from "../tree.ts";
 import type { PanelKind } from "../sideStore.ts";
 import { basePanelKind } from "../../../lib/panel-instance.ts";

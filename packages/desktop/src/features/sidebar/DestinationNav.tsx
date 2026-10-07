@@ -8,7 +8,7 @@
  * permanent row. A destination can be scrolled to.
  */
 
-import { AtSign, Clock, GitPullRequest } from "lucide-react";
+import { AtSign, Clock, GitPullRequest } from "../../ui/icons/index.ts";
 import { useApp } from "../../store/index.ts";
 import { NavItem } from "./NavItem.tsx";
 import { useI18n } from "../../i18n/index.ts";

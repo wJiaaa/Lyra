@@ -10,7 +10,7 @@
  * The conversation on screen is left out: you are already looking at it.
  */
 
-import { AlertTriangle, Check, Clock, Hand } from "lucide-react";
+import { AlertTriangle, Check, Clock, Hand } from "../../ui/icons/index.ts";
 
 import type { SessionActivity } from "@plume/core/activity";
 import { useI18n } from "../../i18n/index.ts";

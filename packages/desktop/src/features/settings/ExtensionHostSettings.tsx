@@ -12,7 +12,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import type { ExtensionDiagnostic, ExtensionStats } from "@plume/core";
-import { Puzzle, TriangleAlert } from "lucide-react";
+import { Puzzle, TriangleAlert } from "../../ui/icons/index.ts";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { usePluginsProject } from "./usePluginsProject.ts";

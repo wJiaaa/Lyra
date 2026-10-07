@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "../icons/index.ts";
 
 /**
  * The on/off mark this app draws for itself.

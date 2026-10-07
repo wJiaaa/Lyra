@@ -5,7 +5,7 @@
  * 人只会觉得自己写的钩子怎么不灵。点「去审核」落到设置页的钩子，并把那一页切到这个项目。
  */
 
-import { Anchor, X } from "lucide-react";
+import { Anchor, X } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "../../i18n/index.ts";
 import { bridge } from "../../services/index.ts";

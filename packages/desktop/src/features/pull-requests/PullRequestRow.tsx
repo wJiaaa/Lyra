@@ -16,7 +16,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Check, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, TriangleAlert } from "lucide-react";
+import { Check, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, TriangleAlert } from "../../ui/icons/index.ts";
 import { memo } from "react";
 import type { PullRequestSummary } from "../../../electron/ipc-types.ts";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";

@@ -6,7 +6,7 @@
  */
 
 import type { HookRun } from "@plume/core";
-import { Anchor, Ban, Check, CircleSlash, CircleX, Clock } from "lucide-react";
+import { Anchor, Ban, Check, CircleSlash, CircleX, Clock } from "../../ui/icons/index.ts";
 import { useMemo } from "react";
 import { useScopedHookRuns } from "../../app/session-scope.tsx";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";

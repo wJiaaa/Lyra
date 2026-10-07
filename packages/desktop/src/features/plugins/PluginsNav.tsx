@@ -5,7 +5,7 @@
  * kind first, because it decides which categories exist.
  */
 
-import { BookOpen, Blocks, LayoutGrid, Server } from "lucide-react";
+import { BookOpen, Blocks, LayoutGrid, Server } from "../../ui/icons/index.ts";
 
 import { NavSlotHead, NavSlotHeading, NavSlotRow } from "../../app/nav-slot.tsx";
 import { useI18n } from "../../i18n/index.ts";

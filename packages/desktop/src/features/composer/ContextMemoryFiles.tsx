@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { FileText } from "lucide-react";
+import { FileText } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import type { ContextBreakdown } from "../../../electron/ipc-types.ts";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";

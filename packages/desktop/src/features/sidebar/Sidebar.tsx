@@ -12,7 +12,7 @@
  * `sidebar/useSidebarLists`; the rules underneath it are `lib/sidebar-grouping` and `sidebar/recency`.
  */
 
-import { ListFilter, SquarePen } from "lucide-react";
+import { ListFilter, SquarePen } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
@@ -197,7 +197,7 @@ export function Sidebar() {
 			    are not. */}
 			<nav className={`flex flex-col pb-1 ${pad}`}>
 				<NavItem
-					icon={<SquarePen size={16} />}
+					icon={<SquarePen size={16} className="ly-new-chat-icon" />}
 					label={t("sidebar.newChat")}
 					onClick={() => {
 						void newSession();

@@ -9,7 +9,7 @@ import type { ModelConfig, ThinkingLevel, ThinkingOption } from "@plume/core";
  * and nothing else.
  */
 import { resolveModelThinkingOptions, resolveThinkingOption } from "@plume/core/thinking-options";
-import { CircleHelp } from "lucide-react";
+import { CircleHelp } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";

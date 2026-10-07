@@ -5,7 +5,7 @@
  * which is exactly the property that lets a plugin replace one.
  */
 
-import { Bot, FileDiff, FileText, Folder, GitCompare, Globe, History, ListTodo, MessageCirclePlus, SquareTerminal, Undo2 } from "lucide-react";
+import { Bot, FileDiff, FileText, Folder, GitCompare, Globe, History, ListTodo, MessageCirclePlus, SquareTerminal, Undo2 } from "../../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 
 import { BrowserPanel } from "../../browser/index.ts";

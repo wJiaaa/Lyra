@@ -17,7 +17,7 @@
  * Ported from Lyra-Registry's `packages/web/src/markdown.tsx`; the styles are `styles/readme.css`.
  */
 
-import { Check, ChevronRight, Info, Lightbulb, Link as LinkIcon, MessageSquareWarning, OctagonAlert, TriangleAlert, type LucideIcon } from "lucide-react";
+import { Check, ChevronRight, Info, Lightbulb, Link as LinkIcon, MessageSquareWarning, OctagonAlert, TriangleAlert, type LucideIcon } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import type { MessageKey } from "../../i18n/messages/index.ts";

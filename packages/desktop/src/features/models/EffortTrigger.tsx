@@ -9,7 +9,7 @@
  * `{ thinking }`，不给才回落到主会话），缺的只是界面和中间那几层的传递。
  */
 
-import { Brain, ChevronDown } from "lucide-react";
+import { Brain, ChevronDown } from "../../ui/icons/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { useApp } from "../../store/index.ts";

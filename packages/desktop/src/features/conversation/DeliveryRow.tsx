@@ -13,7 +13,7 @@
  */
 
 import type { DeliveredReport } from "@plume/core";
-import { CircleAlert, Terminal } from "lucide-react";
+import { CircleAlert, Terminal } from "../../ui/icons/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useAgentAvatars } from "../../store/agent-avatars.ts";

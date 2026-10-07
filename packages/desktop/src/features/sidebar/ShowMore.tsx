@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "../../ui/icons/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";

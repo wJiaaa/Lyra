@@ -1,6 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
 import type { Language } from "@codemirror/language";
-import { Check, Copy, Play, WrapText } from "lucide-react";
+import { Check, Copy, Play, WrapText } from "../../ui/icons/index.ts";
 import { type CSSProperties, memo, type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { highlightGeneration, loadFenceLanguage, onHighlightChange, sharedHighlightStyle, tokenize, tokenizeGrowing, type Grown, type Token } from "../../lib/code/highlight.ts";

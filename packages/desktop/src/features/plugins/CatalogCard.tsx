@@ -25,7 +25,7 @@
  * page and in 设置 › 插件. A card is for finding things; managing them has two places already.
  */
 
-import { ArrowUp, Check, Download, KeyRound } from "lucide-react";
+import { ArrowUp, Check, Download, KeyRound } from "../../ui/icons/index.ts";
 
 import { useI18n } from "../../i18n/index.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";

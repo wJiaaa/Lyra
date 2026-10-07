@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/index.ts";
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { MessageCircle, TriangleAlert } from "lucide-react";
+import { MessageCircle, TriangleAlert } from "../../ui/icons/index.ts";
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";

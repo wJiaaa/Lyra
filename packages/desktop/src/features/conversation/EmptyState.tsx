@@ -1,4 +1,4 @@
-import { Bug, Hammer, RefreshCw, Telescope } from "lucide-react";
+import { Bug, Hammer, RefreshCw, Telescope } from "../../ui/icons/index.ts";
 import mark from "../../assets/plume-bust.png?inline";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Composer } from "../composer/index.ts";

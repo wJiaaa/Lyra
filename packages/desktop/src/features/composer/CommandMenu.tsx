@@ -1,4 +1,4 @@
-import { Box, Eraser, FoldVertical, Settings2, SquareTerminal } from "lucide-react";
+import { Box, Eraser, FoldVertical, Settings2, SquareTerminal } from "../../ui/icons/index.ts";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";

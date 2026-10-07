@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { Check, ShieldCheck, X } from "lucide-react";
+import { Check, ShieldCheck, X } from "../../ui/icons/index.ts";
 import { useRef, useState } from "react";
 import { Button } from "../../ui/primitives/Button.tsx";
 

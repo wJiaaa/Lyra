@@ -1,4 +1,4 @@
-import { Check, Folder, Plus, X } from "lucide-react";
+import { Check, Folder, Plus, X } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { MENU_MAX_HEIGHT, MenuBody, MenuFooter, MenuItem, MenuSearch, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { ProjectDialog } from "./ProjectDialog.tsx";

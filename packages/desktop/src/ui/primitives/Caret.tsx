@@ -12,7 +12,7 @@
  * `aria-label` 管。
  */
 
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "../icons/index.ts";
 
 export function Caret({
 	open,

@@ -1,5 +1,5 @@
 import { composingKey, shortcutLetter } from "../../ui/keyboard.ts";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "../../ui/icons/index.ts";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { NavPane, useLayout } from "../../app/layout.tsx";

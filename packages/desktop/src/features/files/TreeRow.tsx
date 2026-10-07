@@ -7,7 +7,7 @@
  * where the browser's own text-drag keeps trying to take over.
  */
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "../../ui/icons/index.ts";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";
 import { iconColour, lookFor } from "../../ui/fileIcon.tsx";

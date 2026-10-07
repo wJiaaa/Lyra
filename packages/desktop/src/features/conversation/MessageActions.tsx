@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy } from "../../ui/icons/index.ts";
 import { useEffect, useState } from "react";
 
 import { useI18n, type ResolvedUiLocale } from "../../i18n/index.ts";

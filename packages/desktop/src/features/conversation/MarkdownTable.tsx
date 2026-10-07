@@ -12,7 +12,7 @@
  * table and not remembered — it is a way to look at *this* one, the same as scrolling it.
  */
 
-import { CornerDownLeft, MoveHorizontal } from "lucide-react";
+import { CornerDownLeft, MoveHorizontal } from "../../ui/icons/index.ts";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import type { Block } from "../../lib/markdown/blocks.ts";

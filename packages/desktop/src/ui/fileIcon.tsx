@@ -18,7 +18,7 @@ import {
 	Palette,
 	Settings,
 	type LucideIcon,
-} from "lucide-react";
+} from "./icons/index.ts";
 
 /**
  * What a file looks like in a list.

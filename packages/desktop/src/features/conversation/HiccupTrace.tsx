@@ -15,7 +15,7 @@
 import { CARRY_ON_PROMPTS, carryOnPrompt } from "../../store/derive.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useEffect, useState } from "react";
-import { ArrowLeftRight, ChevronRight, CircleAlert, CircleCheck, Play, Settings2 } from "lucide-react";
+import { ArrowLeftRight, ChevronRight, CircleAlert, CircleCheck, Play, Settings2 } from "../../ui/icons/index.ts";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { describeHiccup, hiccupTip, type Hiccup } from "../../lib/hiccup.ts";
 import { useScopedSessionId } from "../../app/session-scope.tsx";

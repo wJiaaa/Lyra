@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUp, ArrowUpLeft, ArrowUpRight, Columns2, ExternalLink } from "lucide-react";
+import { ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUp, ArrowUpLeft, ArrowUpRight, Columns2, ExternalLink } from "../../ui/icons/index.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { MenuItem, MenuSeparator } from "../../ui/overlay/Popover.tsx";
 import { openInNewWindow } from "./actions.ts";

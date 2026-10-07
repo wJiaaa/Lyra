@@ -17,7 +17,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import type { ProjectLayerView } from "../../../electron/ipc-types.ts";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "../../ui/icons/index.ts";
 import { useEffect } from "react";
 import { create } from "zustand";
 import { useApp } from "../../store/index.ts";

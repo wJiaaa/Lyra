@@ -11,7 +11,7 @@
  * belongs to none of their conversations, so it is said once rather than beside each of them.
  */
 
-import { Clock, X } from "lucide-react";
+import { Clock, X } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { useI18n } from "../../i18n/index.ts";

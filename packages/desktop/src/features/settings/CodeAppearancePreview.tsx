@@ -23,7 +23,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CodeThemeSpec } from "../../lib/code/themes.ts";
 import { OverlayScrollbar } from "../../ui/scroll/OverlayScrollbar.tsx";

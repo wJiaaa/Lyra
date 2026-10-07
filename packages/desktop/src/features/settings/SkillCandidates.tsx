@@ -1,5 +1,5 @@
 import type { SkillCandidate } from "@plume/core";
-import { Check, ChevronDown, Sparkles } from "lucide-react";
+import { Check, ChevronDown, Sparkles } from "../../ui/icons/index.ts";
 import { useState } from "react";
 
 import { useI18n } from "../../i18n/index.ts";

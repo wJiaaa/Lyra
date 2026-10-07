@@ -10,7 +10,7 @@ import type { ScheduledTask } from "@plume/core";
  * cost nothing; values have to come from an entry that is browser-safe on its own.
  */
 import { nextRunAt } from "@plume/core/schedule";
-import { Clock, ExternalLink, Play, Plus, Trash2 } from "lucide-react";
+import { Clock, ExternalLink, Play, Plus, Trash2 } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { motionReduced } from "../../ui/motion/reduced.ts";

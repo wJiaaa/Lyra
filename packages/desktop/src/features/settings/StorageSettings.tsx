@@ -14,7 +14,7 @@
  * 个样子。`Row` 是明确的两列：说明在左，控件在右，右边那列 `shrink-0`，什么都不会跳。
  */
 
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { bridge } from "../../services/index.ts";

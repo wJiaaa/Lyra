@@ -8,7 +8,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Bookmark, CornerDownLeft, Globe, Search } from "lucide-react";
+import { Bookmark, CornerDownLeft, Globe, Search } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { browserOmnibox, browserSearchLabel, type BrowserSearchSettings } from "../../../shared/browser.ts";
 import { useApp } from "../../store/index.ts";

@@ -18,7 +18,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Coins, FolderOpen, MessagesSquare, Zap } from "lucide-react";
+import { Coins, FolderOpen, MessagesSquare, Zap } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { SessionMeta } from "@plume/core";

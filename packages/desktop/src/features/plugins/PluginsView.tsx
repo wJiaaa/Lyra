@@ -24,7 +24,7 @@
  * never on the row.
  */
 
-import { ArrowUp, CircleAlert, Info, MoreHorizontal, Plus, RefreshCw, Settings2, Store, X } from "lucide-react";
+import { ArrowUp, CircleAlert, Info, MoreHorizontal, Plus, RefreshCw, Settings2, Store, X } from "../../ui/icons/index.ts";
 import { useMemo, useState } from "react";
 
 import { formatList, useI18n } from "../../i18n/index.ts";

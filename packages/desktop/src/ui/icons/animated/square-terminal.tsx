@@ -1,0 +1,57 @@
+// lucide-animated 没有这个图标，照它的写法补的：形状是 lucide 的 square-terminal，悬停时提示符往前一顿，光标闪两下。
+// 接口和触发方式的改法见 ../index.ts。
+
+import type { LucideProps } from "lucide-react";
+import type { Variants } from "motion/react";
+import { useAnimation } from "motion/react";
+import { forwardRef } from "react";
+import { useHoverAnimation } from "../useHoverAnimation.ts";
+
+const PROMPT_VARIANTS: Variants = {
+	normal: { x: 0 },
+	animate: { x: [0, 1.5, 0], transition: { duration: 0.4, ease: "easeInOut" } },
+};
+
+const CURSOR_VARIANTS: Variants = {
+	normal: { opacity: 1 },
+	animate: { opacity: [1, 0, 1, 0, 1], transition: { duration: 0.8, times: [0, 0.2, 0.5, 0.7, 1] } },
+};
+
+export const SquareTerminalIcon = forwardRef<SVGSVGElement, LucideProps>(function SquareTerminalIcon({ className, size = 24, strokeWidth = 2, ...props }, ref) {
+	const controls = useAnimation();
+	const { ref: host, M } = useHoverAnimation(
+		ref,
+		() => void controls.start("animate"),
+		() => void controls.start("normal"),
+	);
+
+	return (
+		<svg
+			fill="none"
+			height={size}
+			stroke="currentColor"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			strokeWidth={strokeWidth}
+			viewBox="0 0 24 24"
+			width={size}
+			xmlns="http://www.w3.org/2000/svg"
+			ref={host}
+			className={`lucide lucide-square-terminal ${className ?? ""}`.trimEnd()}
+			aria-hidden="true"
+			{...props}
+		>
+			<M.path
+				animate={controls}
+				variants={PROMPT_VARIANTS}
+				d="m7 11 2-2-2-2"
+			/>
+			<M.path
+				animate={controls}
+				variants={CURSOR_VARIANTS}
+				d="M11 13h4"
+			/>
+			<rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+		</svg>
+	);
+});

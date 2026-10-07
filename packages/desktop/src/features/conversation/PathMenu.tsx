@@ -12,7 +12,7 @@
  * that only opens the folder reads as one sentence said twice (the same call `AttachmentMenu` made).
  */
 
-import { AppWindow, ChevronRight, CornerUpRight, ExternalLink, FolderOpen, Link2 } from "lucide-react";
+import { AppWindow, ChevronRight, CornerUpRight, ExternalLink, FolderOpen, Link2 } from "../../ui/icons/index.ts";
 import { useRef, useState, type ReactNode } from "react";
 import type { OpenTarget } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";

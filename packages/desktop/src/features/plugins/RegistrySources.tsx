@@ -15,7 +15,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { CircleAlert, Library, Plus } from "lucide-react";
+import { CircleAlert, Library, Plus } from "../../ui/icons/index.ts";
 import { useState } from "react";
 
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";

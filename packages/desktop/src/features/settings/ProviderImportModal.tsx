@@ -11,7 +11,7 @@
  * and that is worth knowing before the import rather than at the next message.
  */
 
-import { CheckSquare, KeyRound, Square, Upload } from "lucide-react";
+import { CheckSquare, KeyRound, Square, Upload } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import type { ProviderConfig } from "@plume/core";
 import { useI18n } from "../../i18n/index.ts";

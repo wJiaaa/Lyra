@@ -10,7 +10,7 @@
  * in the other is two different answers to the same question.
  */
 
-import { ArrowUpDown, CalendarPlus, ChevronsDownUp, ChevronsUpDown, Clock, Check } from "lucide-react";
+import { ArrowUpDown, CalendarPlus, ChevronsDownUp, ChevronsUpDown, Clock, Check } from "../../ui/icons/index.ts";
 import { MenuBody, MenuItem, MenuLabel, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import type { SessionSortKey } from "../../lib/sidebar-order.ts";
 import { useI18n, type MessageKey } from "../../i18n/index.ts";

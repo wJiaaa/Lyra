@@ -6,7 +6,7 @@
  */
 
 import type { HookDraft, HookScope } from "@plume/core";
-import { Anchor, Plus, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Anchor, Plus, RefreshCw, ShieldCheck, TriangleAlert } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { HookView, HooksView } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";

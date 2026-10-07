@@ -17,7 +17,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { shortcutLetter } from "../../ui/keyboard.ts";
-import { Check, TriangleAlert } from "lucide-react";
+import { Check, TriangleAlert } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenshotSettings } from "@plume/core";
 import { useAnnotator } from "./Annotator.tsx";

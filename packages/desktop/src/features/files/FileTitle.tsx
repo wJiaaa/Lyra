@@ -22,7 +22,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { ChevronDown, ChevronRight, FileText, PanelLeft } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, PanelLeft } from "../../ui/icons/index.ts";
 import { Fragment } from "react";
 
 import { openFilePane, openScopedPanel, usePaneOnScreen, usePanelLayout } from "../dock/index.ts";

@@ -15,7 +15,7 @@
  * 派了不止一个时，顶上那一行就是切换器：脸叠成一摞，点开一张单子换人——见 `SubAgentHeader`。
  */
 
-import { Bot, Check, Copy, CornerLeftUp, Play, Plus, RotateCcw, TriangleAlert } from "lucide-react";
+import { Bot, Check, Copy, CornerLeftUp, Play, Plus, RotateCcw, TriangleAlert } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SubAgentSummary } from "@plume/core";

@@ -7,7 +7,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Check } from "lucide-react";
+import { Check } from "../../ui/icons/index.ts";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import type { TodoItem } from "@plume/core";
 

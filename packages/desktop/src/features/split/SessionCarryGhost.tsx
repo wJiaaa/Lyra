@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-react";
+import { MessageSquare } from "../../ui/icons/index.ts";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { subscribeSessionDrag, type SessionDragLive } from "./session-drag.ts";

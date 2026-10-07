@@ -2,7 +2,7 @@ import { translate } from "../../i18n/translate.ts";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { Plus, SquareTerminal } from "lucide-react";
+import { Plus, SquareTerminal } from "../../ui/icons/index.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { useSide } from "../dock/index.ts";

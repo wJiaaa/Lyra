@@ -1,6 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
 import { availableModels } from "@plume/core/model-roles";
-import { Box, ChevronDown } from "lucide-react";
+import { Box, ChevronDown } from "../../ui/icons/index.ts";
 import { useApp } from "../../store/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";

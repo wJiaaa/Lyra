@@ -5,7 +5,7 @@
 import { useI18n } from "../../i18n/index.ts";
 import { TextArea } from "../../ui/inputs/TextArea.tsx";
 import { useCallback, useEffect, useState } from "react";
-import { Brain, Check, Info, Plus, Save, Trash2 } from "lucide-react";
+import { Brain, Check, Info, Plus, Save, Trash2 } from "../../ui/icons/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useListedProjects } from "../../store/listed-projects.ts";
 import { Card, InlineSelect, PrimaryButton, Row, SectionTitle, TextInput, Toggle } from "./controls.tsx";

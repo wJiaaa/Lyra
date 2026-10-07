@@ -19,7 +19,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown } from "../../ui/icons/index.ts";
 
 export function BackToLatest({ show, unread, onClick }: { show: boolean; unread: number; onClick: () => void }) {
 	return (

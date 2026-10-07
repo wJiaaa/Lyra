@@ -1,4 +1,4 @@
-import { Activity, AlertCircle, ArrowDownToLine, ArrowUpFromLine, GitBranch, GitCommitHorizontal, GitCompare, RefreshCw, Sparkles, X } from "lucide-react";
+import { Activity, AlertCircle, ArrowDownToLine, ArrowUpFromLine, GitBranch, GitCommitHorizontal, GitCompare, RefreshCw, Sparkles, X } from "../../ui/icons/index.ts";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";
 import { usePaneOnScreen } from "../dock/index.ts";

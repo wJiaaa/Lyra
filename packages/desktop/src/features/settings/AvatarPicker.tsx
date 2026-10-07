@@ -6,7 +6,7 @@
  * 根本不存在。
  */
 
-import { Check } from "lucide-react";
+import { Check } from "../../ui/icons/index.ts";
 import { AVATAR_COLORS, AVATAR_SHAPES, formatAvatar, type Avatar, type AvatarColor, type AvatarShape } from "../../lib/agent-avatar.ts";
 import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
 import { COLOR_ART } from "../../ui/avatar/art.ts";

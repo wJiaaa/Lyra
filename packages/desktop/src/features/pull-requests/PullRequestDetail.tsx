@@ -7,7 +7,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { Bot, ExternalLink, GitPullRequest, Maximize2, Minimize2, RefreshCw } from "lucide-react";
+import { Bot, ExternalLink, GitPullRequest, Maximize2, Minimize2, RefreshCw } from "../../ui/icons/index.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";

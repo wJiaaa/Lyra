@@ -23,7 +23,7 @@
  */
 import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { Blocks, FileText, Server } from "lucide-react";
+import { Blocks, FileText, Server } from "../../ui/icons/index.ts";
 import { useEffect, useState } from "react";
 import { iconFit, type IconFit } from "./icon-fit.ts";
 

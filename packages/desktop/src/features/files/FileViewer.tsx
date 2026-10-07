@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { FileWarning } from "lucide-react";
+import { FileWarning } from "../../ui/icons/index.ts";
 import type { FileContents } from "../../../electron/ipc-types.ts";
 import { CodeEditor } from "../editor/index.ts";
 import { documentKind } from "../../../shared/document-kind.ts";

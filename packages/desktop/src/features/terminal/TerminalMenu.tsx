@@ -11,7 +11,7 @@
  * copies only while something is selected, and is the shell's interrupt otherwise.
  */
 
-import { ClipboardPaste, Copy } from "lucide-react";
+import { ClipboardPaste, Copy } from "../../ui/icons/index.ts";
 
 import { translate } from "../../i18n/translate.ts";
 import { macKeyboard } from "../../ui/keyboard.ts";

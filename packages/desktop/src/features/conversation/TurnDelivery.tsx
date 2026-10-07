@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { FileDiff, Files, FileText, Undo2 } from "lucide-react";
+import { FileDiff, Files, FileText, Undo2 } from "../../ui/icons/index.ts";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { DeliveryFile, TurnDelivery } from "../../../electron/turn-delivery.ts";

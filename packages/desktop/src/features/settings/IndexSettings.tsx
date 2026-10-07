@@ -1,4 +1,4 @@
-import { Database, RefreshCw } from "lucide-react";
+import { Database, RefreshCw } from "../../ui/icons/index.ts";
 import { SearchField } from "../../ui/inputs/SearchField.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";

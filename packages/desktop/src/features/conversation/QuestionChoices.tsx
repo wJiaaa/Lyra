@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { Check, SkipForward, X } from "lucide-react";
+import { Check, SkipForward, X } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ApprovalDecision, QuestionFields } from "@plume/core";
 import { Input } from "../../ui/inputs/NativeField.tsx";

@@ -14,7 +14,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { X } from "lucide-react";
+import { X } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 import { bridge } from "../../services/index.ts";
 

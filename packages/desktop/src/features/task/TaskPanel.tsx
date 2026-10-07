@@ -1,6 +1,6 @@
 import { useI18n } from "../../i18n/index.ts";
 import { SessionServices } from "./SessionServices.tsx";
-import { ListTodo } from "lucide-react";
+import { ListTodo } from "../../ui/icons/index.ts";
 import { memo, useDeferredValue, useMemo, useRef, useState } from "react";
 
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";

@@ -1,4 +1,4 @@
-import { Box } from "lucide-react";
+import { Box } from "../../ui/icons/index.ts";
 import { useId } from "react";
 
 import baichuan from "../../assets/brands/baichuan.png?inline";

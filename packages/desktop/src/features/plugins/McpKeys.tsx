@@ -15,7 +15,7 @@
 
 import type { McpNeed, McpServerConfig } from "@plume/core";
 import { isPlaceholder, looksSecret, needsOf } from "@plume/core/mcp-placeholders";
-import { Check, ExternalLink, KeyRound } from "lucide-react";
+import { Check, ExternalLink, KeyRound } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../i18n/index.ts";

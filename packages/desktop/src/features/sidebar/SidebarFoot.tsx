@@ -6,7 +6,7 @@
  * sits under.
  */
 
-import { Settings as SettingsIcon } from "lucide-react";
+import { Settings as SettingsIcon } from "../../ui/icons/index.ts";
 import { useLayout } from "../../app/layout.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";

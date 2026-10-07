@@ -17,7 +17,7 @@ import {
 	ShieldCheck,
 	Sparkles,
 	SquareTerminal,
-} from "lucide-react";
+} from "../../ui/icons/index.ts";
 import type { SettingsSection } from "../../store/index.ts";
 import type { MessageKey } from "../../i18n/index.ts";
 

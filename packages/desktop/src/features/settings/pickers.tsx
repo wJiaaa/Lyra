@@ -21,7 +21,7 @@ import {
 	stepNumber,
 } from "../../lib/number-draft.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState, type JSX } from "react";
 
 import { InlineSelect } from "./inputs.tsx";

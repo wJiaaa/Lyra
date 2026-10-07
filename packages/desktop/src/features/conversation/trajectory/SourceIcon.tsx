@@ -1,4 +1,4 @@
-import { Bell, BookOpen, Bot, Brain, Circle, FileOutput, FoldVertical, MessageCircle, Settings2, ShieldCheck, Sparkles, Terminal, User, type LucideIcon } from "lucide-react";
+import { Bell, BookOpen, Bot, Brain, Circle, FileOutput, FoldVertical, MessageCircle, Settings2, ShieldCheck, Sparkles, Terminal, User, type LucideIcon } from "../../../ui/icons/index.ts";
 import type { Source } from "@plume/core/trajectory-view";
 
 const icons: Record<Source, LucideIcon> = {

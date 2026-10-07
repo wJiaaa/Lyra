@@ -2,7 +2,7 @@ import type { ModelConfig, ModelPricing, ProviderConfig, ThinkingLevel, Thinking
 import { catalogFill, catalogModelFor, DEFAULT_MODEL_LIMITS, type CatalogModel } from "@plume/core/model-catalog";
 import { DEFAULT_THINKING_OPTIONS, THINKING_LEVELS, thinkingOptionsFor } from "@plume/core/thinking-options";
 import { ModelCatalog } from "./ModelCatalog.tsx";
-import { Box } from "lucide-react";
+import { Box } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { DialogAction, DialogFrame } from "../../ui/overlay/Dialog.tsx";
 import { Overlay } from "../../ui/overlay/Overlay.tsx";

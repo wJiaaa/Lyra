@@ -4,7 +4,7 @@
 
 import type { BuiltinCommand } from "@plume/core/commands-builtin";
 import type { SlashCommand } from "@plume/core/commands-view";
-import { FolderOpen, Plus, RefreshCw, SquareTerminal, TriangleAlert } from "lucide-react";
+import { FolderOpen, Plus, RefreshCw, SquareTerminal, TriangleAlert } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { TextInput } from "./inputs.tsx";

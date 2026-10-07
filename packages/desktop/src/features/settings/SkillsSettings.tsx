@@ -1,5 +1,5 @@
 import type { Plugin, Skill, SkillCandidate } from "@plume/core";
-import { Sparkles, TriangleAlert, WandSparkles } from "lucide-react";
+import { Sparkles, TriangleAlert, WandSparkles } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useState } from "react";
 import { RowDeleteButton } from "../../ui/primitives/RowDeleteButton.tsx";
 import { useDefinitionRemoval } from "./useDefinitionRemoval.tsx";

@@ -21,7 +21,7 @@
 
 import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { ChevronLeft, ChevronRight, Download, Maximize2, Minus, Pencil, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Maximize2, Minus, Pencil, Plus, X } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { clampZoom, wheelZoomFactor, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, zoomAt, type Point } from "./annotate.ts";

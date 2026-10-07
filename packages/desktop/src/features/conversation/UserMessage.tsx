@@ -3,7 +3,7 @@ import type {
   UserContent,
   UserMessage as UserMessageType,
 } from "@plume/core";
-import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Split, Undo2 } from "lucide-react";
+import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Split, Undo2 } from "../../ui/icons/index.ts";
 import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, KIND_LABEL, previewableInPanel, sentKind, type FileKind, type StripFile } from "../composer/index.ts";
 import { useAttachmentActions } from "../composer/index.ts";

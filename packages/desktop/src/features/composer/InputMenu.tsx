@@ -15,7 +15,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ClipboardPaste, Copy, Scissors, TextSelect } from "lucide-react";
+import { ClipboardPaste, Copy, Scissors, TextSelect } from "../../ui/icons/index.ts";
 import { useEffect, useState } from "react";
 
 import { ContextMenu } from "../../ui/overlay/ContextMenu.tsx";

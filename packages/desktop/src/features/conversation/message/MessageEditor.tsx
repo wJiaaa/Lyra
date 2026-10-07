@@ -15,7 +15,7 @@
  * is fixed here on purpose — a size prop would be an invitation for them to drift again.
  */
 
-import { Check, X } from "lucide-react";
+import { Check, X } from "../../../ui/icons/index.ts";
 import { translate } from "../../../i18n/translate.ts";
 import { Textarea } from "../../../ui/inputs/NativeField.tsx";
 import { useFieldFade } from "../../../ui/inputs/useFieldFade.ts";

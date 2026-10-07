@@ -23,7 +23,7 @@
  *     quantity, not a five-character heading.
  */
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "../icons/index.ts";
 import { type ReactNode, useState } from "react";
 
 /**

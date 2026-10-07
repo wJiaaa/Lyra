@@ -13,7 +13,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Database, Table2 } from "lucide-react";
+import { Database, Table2 } from "../../ui/icons/index.ts";
 import type { DocumentData } from "../../../electron/ipc-types.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { Text } from "../../ui/primitives/Text.tsx";

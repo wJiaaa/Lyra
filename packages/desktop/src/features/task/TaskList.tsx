@@ -1,6 +1,6 @@
 import { useI18n } from "../../i18n/index.ts";
 import type { TodoItem } from "@plume/core";
-import { ChevronDown, ListTodo, Pause, Play, RotateCw } from "lucide-react";
+import { ChevronDown, ListTodo, Pause, Play, RotateCw } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";

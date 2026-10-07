@@ -1,5 +1,5 @@
 import { useI18n } from "../../i18n/index.ts";
-import { ChevronRight, Copy, ExternalLink, Globe, Server, Square, X, CircleAlert } from "lucide-react";
+import { ChevronRight, Copy, ExternalLink, Globe, Server, Square, X, CircleAlert } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 import { JobOutput } from "./JobOutput.tsx";
 import { useJobFocus } from "../../store/job-focus.ts";

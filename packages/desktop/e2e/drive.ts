@@ -72,6 +72,39 @@ export async function click(page: Page, selector: string, name?: string, mode: N
 }
 
 /**
+ * 只移动真指针，动画用例需要从悬停起步的第一帧开始量。
+ *
+ * 落点不是它就等它出现在指针下，再原地补一次移动：行内操作按钮要等指针进了那一行才显示，
+ * 第一次移动落在行上，按钮出来时指针没动，浏览器不会再发 `pointerenter`。真鼠标会接着动，
+ * 这里只动一次，于是悬停动画时有时无。第一次就落对了不等，第一帧照样从起步开始。
+ */
+export async function hover(page: Page, selector: string, name?: string, mode: NamedMode = "exact"): Promise<void> {
+	const find = finder(selector, name, mode);
+	const label = JSON.stringify(name === undefined ? selector : `${selector} "${name}"`);
+	await until(page, find);
+	const at = await page.evaluate<Point>(`(()=>{const r=${find}.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	const landed = await page.evaluate<boolean>(`(async()=>{
+		const deadline=performance.now()+8000;let first=true;
+		while(true){
+			const e=${find},hit=document.elementFromPoint(${at.x},${at.y});
+			if(e&&e.contains(hit))return first;
+			if(performance.now()>deadline)throw new Error(${label}+' never came under the pointer: lands on '+(hit?hit.outerHTML.slice(0,160):'nothing'));
+			first=false;
+			await new Promise(requestAnimationFrame);
+		}
+	})()`);
+	if (!landed) await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+}
+
+/** 为键盘用例放置起始焦点，后续仍用真实 Tab 或方向键移动。 */
+export async function focus(page: Evaluate, selector: string, name?: string, mode: NamedMode = "exact"): Promise<void> {
+	const find = finder(selector, name, mode);
+	await until(page, find);
+	await page.evaluate(`${find}.focus()`);
+}
+
+/**
  * 往输入框里打字，替换掉原有内容。
  *
  * 走 `Input.insertText` 而不是给 `value` 赋值：受控输入框只认真实的 input 事件，直接赋值界面不动，

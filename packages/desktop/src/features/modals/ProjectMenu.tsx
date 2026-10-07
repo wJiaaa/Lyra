@@ -1,4 +1,4 @@
-import { Archive, FolderOpen, Pencil, SquarePen, X } from "lucide-react";
+import { Archive, FolderOpen, Pencil, SquarePen, X } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";

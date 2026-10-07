@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { FolderGit2, FolderOpen, RefreshCw, Trash2 } from "lucide-react";
+import { FolderGit2, FolderOpen, RefreshCw, Trash2 } from "../../ui/icons/index.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";

@@ -6,7 +6,7 @@
  */
 
 import type { ScheduledTask } from "@plume/core";
-import { Clock, Plus } from "lucide-react";
+import { Clock, Plus } from "../../ui/icons/index.ts";
 
 import { NavSlotHead, NavSlotRow } from "../../app/nav-slot.tsx";
 import { useI18n } from "../../i18n/index.ts";

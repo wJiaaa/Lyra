@@ -1,6 +1,6 @@
 import { useI18n } from "../../i18n/index.ts";
 import type { CommandRun } from "@plume/core";
-import { Check, CircleAlert, Minus, Terminal } from "lucide-react";
+import { Check, CircleAlert, Minus, Terminal } from "../../ui/icons/index.ts";
 import { FlowRow } from "./FlowRow.tsx";
 import { MessageActions } from "./MessageActions.tsx";
 import { compactText } from "../../lib/notice-text.ts";

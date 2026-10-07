@@ -6,7 +6,7 @@
 import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@plume/core";
 import { GroupActivity } from "./GroupActivity.tsx";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Plus } from "../../ui/icons/index.ts";
 import { useRef, useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectDialog } from "../modals/index.ts";

@@ -14,7 +14,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Check, X } from "lucide-react";
+import { Check, X } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { ComposerSend, ComposerShell } from "../composer/index.ts";
 

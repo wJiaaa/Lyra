@@ -1,5 +1,5 @@
 import { Collapse } from "../../ui/layout/Collapse.tsx";
-import { Wrench } from "lucide-react";
+import { Wrench } from "../../ui/icons/index.ts";
 import { FlowRow } from "./FlowRow.tsx";
 import { translate } from "../../i18n/index.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";

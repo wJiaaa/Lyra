@@ -3,7 +3,7 @@
  */
 
 import { createPortal } from "react-dom";
-import { Folder, MessageSquare } from "lucide-react";
+import { Folder, MessageSquare } from "../../ui/icons/index.ts";
 import type { DraggingItem } from "./reorder-context.ts";
 
 export function DropLineIndicator({ placement }: { placement: "before" | "after" }) {

@@ -2,7 +2,7 @@
  * What has already happened, with the graph beside it.
  */
 import { translate } from "../../i18n/translate.ts";
-import { GitCommitHorizontal } from "lucide-react";
+import { GitCommitHorizontal } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useState } from "react";
 
 import type { GitCommit, WorkspaceDiffFile } from "../../../electron/ipc-types.ts";

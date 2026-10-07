@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X } from "../icons/index.ts";
 import type { MouseEvent, ReactNode } from "react";
 import type { DataAttributes } from "./Button.tsx";
 

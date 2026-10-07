@@ -12,7 +12,7 @@
 import { useI18n } from "../../i18n/index.ts";
 import { activeLocale } from "../../i18n/translate.ts";
 import type { ModelConfig } from "@plume/core";
-import { Download, MoreHorizontal, Plus, Upload } from "lucide-react";
+import { Download, MoreHorizontal, Plus, Upload } from "../../ui/icons/index.ts";
 import { useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";

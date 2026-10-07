@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search } from "../../ui/icons/index.ts";
 
 import type { BrowserSearchEngine } from "../../../shared/browser.ts";
 

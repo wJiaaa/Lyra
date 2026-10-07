@@ -16,7 +16,7 @@
  * 关掉它只是把样子收起来——事情还在跑，工具条上那颗按钮替它转着圈，按一下就又回到这儿。
  */
 
-import { Check, ChevronDown, CloudUpload, GitBranch, GitCommitHorizontal, Languages, Plus, Upload, X } from "lucide-react";
+import { Check, ChevronDown, CloudUpload, GitBranch, GitCommitHorizontal, Languages, Plus, Upload, X } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";

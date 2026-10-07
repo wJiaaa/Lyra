@@ -1,6 +1,6 @@
 import { commitDraft, isLegalDraft } from "../../lib/number-draft.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 import { useDockScope, useScopedSessionId } from "../../app/session-scope.tsx";
 import type { BrowserCommand, BrowserSelection } from "../../../shared/browser.ts";

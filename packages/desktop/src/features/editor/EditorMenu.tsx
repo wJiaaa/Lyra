@@ -21,7 +21,7 @@ import {
 	ListOrdered,
 	Search,
 	TextSelect,
-} from "lucide-react";
+} from "../../ui/icons/index.ts";
 
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { ContextMenu } from "../../ui/overlay/ContextMenu.tsx";

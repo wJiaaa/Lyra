@@ -16,7 +16,7 @@
  * 陪着它——同一件事说两遍，就是长任务让人觉得吵的原因。
  */
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "../../ui/icons/index.ts";
 import type { ReactNode } from "react";
 
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";

@@ -1,4 +1,4 @@
-import { ArrowUp, Blocks, Cable, FolderOpen, MoreHorizontal, Plus, Puzzle, Sparkles, Store } from "lucide-react";
+import { ArrowUp, Blocks, Cable, FolderOpen, MoreHorizontal, Plus, Puzzle, Sparkles, Store } from "../../ui/icons/index.ts";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 import { useEffect, useState } from "react";
 import { Button } from "../../ui/primitives/Button.tsx";

@@ -7,7 +7,7 @@
 
 
 import { useLayoutEffect, useRef, useState } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "../../ui/icons/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
 
 export * from "./inputs.tsx";

@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { Check, GitBranch } from "lucide-react";
+import { Check, GitBranch } from "../../ui/icons/index.ts";
 import { useEffect, useState } from "react";
 import type { BranchList } from "../../../electron/ipc-types.ts";
 import { MENU_MAX_HEIGHT, MenuBody, MenuItem, MenuLabel, MenuSearch, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";

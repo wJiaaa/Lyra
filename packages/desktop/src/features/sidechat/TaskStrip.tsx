@@ -14,7 +14,7 @@
 import { useI18n } from "../../i18n/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { QueuedTask } from "@plume/core";
-import { Ban, Check, CircleDashed, Clock, OctagonPause, Play, RotateCcw, TriangleAlert, X } from "lucide-react";
+import { Ban, Check, CircleDashed, Clock, OctagonPause, Play, RotateCcw, TriangleAlert, X } from "../../ui/icons/index.ts";
 import { StatusSpinner } from "../../ui/motion/loaders.tsx";
 import { useSide, sideTasksOf } from "../dock/index.ts";
 import { useSideSessionId } from "./scope.ts";

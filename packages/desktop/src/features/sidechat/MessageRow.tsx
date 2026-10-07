@@ -12,7 +12,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import type { AssistantMessage, Message, UserContent, UserMessage } from "@plume/core";
-import { Pencil } from "lucide-react";
+import { Pencil } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { MessageActions } from "../conversation/index.ts";
 import { MessageEditor } from "../conversation/index.ts";

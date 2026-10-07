@@ -17,7 +17,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { Plus, ShieldCheck, Trash2, X } from "lucide-react";
+import { Plus, ShieldCheck, Trash2, X } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";

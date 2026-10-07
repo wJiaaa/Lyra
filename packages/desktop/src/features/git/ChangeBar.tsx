@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { GitCommitVertical } from "lucide-react";
+import { GitCommitVertical } from "../../ui/icons/index.ts";
 import { useCallback, useState } from "react";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useLiveRefresh } from "../../ui/hooks/useLiveRefresh.ts";

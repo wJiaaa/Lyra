@@ -13,7 +13,7 @@
 import { useI18n } from "../../i18n/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import type { ApiFormat, ModelConfig, ProviderConfig } from "@plume/core";
-import { Activity, Check, CircleAlert, CircleHelp, Pencil, Trash2 } from "lucide-react";
+import { Activity, Check, CircleAlert, CircleHelp, Pencil, Trash2 } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";

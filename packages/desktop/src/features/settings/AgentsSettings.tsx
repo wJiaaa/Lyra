@@ -2,7 +2,7 @@ import { BUILTIN_AGENTS } from "@plume/core/agents-builtin";
 import type { Settings } from "@plume/core";
 import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@plume/core/model-roles";
 import { resolveModelThinkingOptions, resolveThinkingOption } from "@plume/core/thinking-options";
-import { AlertCircle, Brain, Plus, Copy, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { AlertCircle, Brain, Plus, Copy, RefreshCw, RotateCcw, Trash2 } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
 import { useApp } from "../../store/index.ts";

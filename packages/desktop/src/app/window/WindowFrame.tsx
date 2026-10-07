@@ -11,7 +11,7 @@
  * Used by the workspace and by settings alike, so moving between them moves nothing but the content.
  */
 
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "../../ui/icons/index.ts";
 import { useEffect } from "react";
 
 import { useI18n } from "../../i18n/index.ts";

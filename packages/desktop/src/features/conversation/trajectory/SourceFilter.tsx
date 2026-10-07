@@ -1,5 +1,5 @@
 import { translate } from "../../../i18n/translate.ts";
-import { Check, Circle, ListFilter, RotateCcw } from "lucide-react";
+import { Check, Circle, ListFilter, RotateCcw } from "../../../ui/icons/index.ts";
 import { useState } from "react";
 import { SOURCE_LABEL, SOURCE_ORDER, STATUS_LABEL, type Source, type TrajectoryFilter } from "@plume/core/trajectory-view";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";

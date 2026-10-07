@@ -15,7 +15,7 @@
  * 否则它会压在第一行字上。
  */
 
-import { Check, Copy } from "lucide-react";
+import { Check, Copy } from "../icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 import { translate } from "../../i18n/translate.ts";
 

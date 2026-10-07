@@ -15,7 +15,7 @@
  * 人第一眼看到的是「这东西基本没用」——何况那五行说的是同一件事：这份附件在磁盘上没有对应的文件。
  */
 
-import { Copy, CornerUpRight, ExternalLink, Eye, Link2, Scissors, Trash2 } from "lucide-react";
+import { Copy, CornerUpRight, ExternalLink, Eye, Link2, Scissors, Trash2 } from "../../../ui/icons/index.ts";
 
 import { ContextMenu } from "../../../ui/overlay/ContextMenu.tsx";
 import { MenuItem, MenuSeparator } from "../../../ui/overlay/Menu.tsx";

@@ -15,7 +15,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ExternalLink, ShieldCheck } from "lucide-react";
+import { ExternalLink, ShieldCheck } from "../../ui/icons/index.ts";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useState } from "react";
 import type { ForgeKind, ForgeKindInfo } from "../../../electron/ipc-types.ts";

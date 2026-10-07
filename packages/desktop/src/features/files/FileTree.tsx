@@ -11,7 +11,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { ChevronsDownUp, FilePlus2, Filter, FolderPlus, X } from "lucide-react";
+import { ChevronsDownUp, FilePlus2, Filter, FolderPlus, X } from "../../ui/icons/index.ts";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 
 import type { FileEntry } from "../../../electron/ipc-types.ts";

@@ -9,7 +9,7 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { Check, MoreVertical } from "lucide-react";
+import { Check, MoreVertical } from "../../ui/icons/index.ts";
 import { emptyDockTree, has, toggleScopedPanel, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
 import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";

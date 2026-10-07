@@ -1,6 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@plume/core";
-import { Archive, Folder, Trash2 } from "lucide-react";
+import { Archive, Folder, Trash2 } from "../../ui/icons/index.ts";
 import { useMemo, useState } from "react";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { DialogAction } from "../../ui/overlay/Dialog.tsx";

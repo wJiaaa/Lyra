@@ -1,7 +1,7 @@
 /**
  * Which repository the panel is looking at.
  */
-import { Check, Folder, GitBranchPlus } from "lucide-react";
+import { Check, Folder, GitBranchPlus } from "../../ui/icons/index.ts";
 import { Caret } from "../../ui/primitives/Caret.tsx";
 
 import type { RepoRef } from "../../../electron/git.ts";

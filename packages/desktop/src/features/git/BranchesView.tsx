@@ -2,7 +2,7 @@
  * Branches, and the diff between any two of them.
  */
 import { Input } from "../../ui/inputs/NativeField.tsx";
-import { ArrowLeft, GitBranchPlus, X } from "lucide-react";
+import { ArrowLeft, GitBranchPlus, X } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useState } from "react";
 
 import type { GitStatus, WorkspaceDiffFile } from "../../../electron/ipc-types.ts";

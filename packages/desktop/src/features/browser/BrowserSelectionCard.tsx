@@ -11,7 +11,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Send, X } from "lucide-react";
+import { Send, X } from "../../ui/icons/index.ts";
 import { useState } from "react";
 import type { BrowserSelection } from "../../../shared/browser.ts";
 import { ComposerShell } from "../composer/index.ts";

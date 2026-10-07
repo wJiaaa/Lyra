@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { ChevronsDown, ExternalLink, Maximize2, Minimize2, RotateCw } from "lucide-react";
+import { ChevronsDown, ExternalLink, Maximize2, Minimize2, RotateCw } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
