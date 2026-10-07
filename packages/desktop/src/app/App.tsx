@@ -74,6 +74,7 @@ const SettingsShell = lazy(() =>
 import { useOpenFile } from "../store/openFile.ts";
 import { watchFilePanelState } from "../store/file-panel-handoff.ts";
 import { useSchedulerNotices } from "../features/scheduled/index.ts";
+import { useRecapArrivals } from "../features/conversation/index.ts";
 import { useTerminalPrewarm } from "../features/terminal/index.ts";
 import { applyAppearance, watchSystemTheme } from "../features/settings/index.ts";
 import { bridge } from "../services/index.ts";
@@ -125,6 +126,7 @@ export function App() {
 	 * above the composer and on the sidebar — see `features/scheduled/notices.ts`.
 	 */
 	useSchedulerNotices();
+	useRecapArrivals();
 
 	// Before the `ready` gate below, so a command sent to a window that is still booting is not
 	// dropped for the one or two frames the boot screen is up.

@@ -1,4 +1,4 @@
-import { Box, Eraser, FoldVertical, Settings2, SquareTerminal } from "../../ui/icons/index.ts";
+import { Box, Eraser, FoldVertical, History, Settings2, SquareTerminal } from "../../ui/icons/index.ts";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -58,7 +58,7 @@ export function CommandMenu({ commands, active, keyboardSelection, onPick, onHov
 		<div style={{ maxHeight: height }} className="flex flex-col">
 			<Scroller scrollRef={list} className="ly-menu-scroll min-h-0" contentClassName="p-1.5">
 				{shown.map((command, index) => {
-					const Icon = command.kind === "skill" ? Box : command.action === "compact" ? FoldVertical : command.action === "clear" ? Eraser : command.action === "manage-commands" ? Settings2 : SquareTerminal;
+					const Icon = command.kind === "skill" ? Box : command.action === "compact" ? FoldVertical : command.action === "clear" ? Eraser : command.action === "manage-commands" ? Settings2 : command.action === "recap" ? History : SquareTerminal;
 					return <div key={`${command.kind}:${command.name}`}>
 						{!shownTerm && command.kind !== shown[index - 1]?.kind && <div className="px-3 pb-1 pt-2 text-detail text-ink-faint">{t(GROUPS[command.kind])}</div>}
 						<button id={`${id}-${index}`} type="button" role={open ? "option" : undefined} tabIndex={-1}

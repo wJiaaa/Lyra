@@ -195,6 +195,8 @@ export {
 	type MemoryStore,
 } from "./runtime/memory.ts";
 export { compactIfNeeded, compactWith, useCompaction } from "./runtime/compaction.ts";
+export { recapCovers, writeRecap, type RecapOutcome } from "./runtime/session-recap.ts";
+export type { SessionRecap } from "./session/types.ts";
 export type { ContextBreakdown, ContextSegment, ContextSegmentKey, MemoryFileItem } from "./runtime/context.ts";
 export { estimateTokens } from "./tokens.ts";
 export { computeCost, costAtRates, selectPricingRates, type SelectedPricingRates } from "./utils/pricing.ts";

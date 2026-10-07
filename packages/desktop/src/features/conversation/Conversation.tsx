@@ -5,6 +5,7 @@ import { ApprovalOverlay } from "./ApprovalOverlay.tsx";
 import { BackToLatest } from "./BackToLatest.tsx";
 import { Composer } from "../composer/index.ts";
 import { ResumeRow } from "./ResumeRow.tsx";
+import { RecapRow } from "./RecapRow.tsx";
 import { HiccupRow } from "./HiccupTrace.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
@@ -247,6 +248,14 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
    */
   const blocks = useMemo(() => allBlocks.slice(range.start, range.end), [allBlocks, range.start, range.end]);
   const { scrollTo, detach } = follow;
+  const jumpToQuestion = (index: number) => {
+    // 窗口按块走，所以要的是「那条消息在哪个块里」，不是它在 Run 序列里的位置。
+    const at = allBlocks.findIndex((block) => block.runs.some((run) => run.kind === "message" && run.index === index));
+    if (at < 0) return;
+    detach();
+    range.reveal(at);
+    setJump({ sessionId: activeSessionId, index });
+  };
   useLayoutEffect(() => {
     if (!jump || jump.sessionId !== activeSessionId) return;
     const el = scrollRef.current;
@@ -550,6 +559,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
           </div>
           {/* Where the running indicator would have been, saying why it is not there. */}
           <ResumeRow />
+          <RecapRow viewport={scrollRef} questions={questions} onJump={jumpToQuestion} />
           {/*
            * The end of the transcript, as an element.
            *
@@ -571,14 +581,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
        * moment it appeared, and a control offering to move you should not itself move the thing
        * it is about.
        */}
-      {questions.length > 1 && <QuestionNav key={activeSessionId} questions={questions} viewport={scrollRef} edge={narrowColumn} onSelect={(index) => {
-        // 窗口按块走，所以要的是「那条消息在哪个块里」，不是它在 Run 序列里的位置。
-        const at = allBlocks.findIndex((block) => block.runs.some((run) => run.kind === "message" && run.index === index));
-        if (at < 0) return;
-        detach();
-        range.reveal(at);
-        setJump({ sessionId: activeSessionId, index });
-      }} />}
+      {questions.length > 1 && <QuestionNav key={activeSessionId} questions={questions} viewport={scrollRef} edge={narrowColumn} onSelect={jumpToQuestion} />}
       <BackToLatest
         show={follow.away || range.end < allBlocks.length}
         unread={follow.unread}

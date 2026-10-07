@@ -85,7 +85,7 @@ test("宿主实现了哪些动作，就拿到哪些内建命令", () => {
 		["compact"],
 	);
 	assert.deepEqual(builtinCommandsFor([]).length, 0);
-	assert.equal(builtinCommandsFor(["compact", "clear", "manage-commands"]).length, BUILTIN_COMMANDS.length);
+	assert.equal(builtinCommandsFor(["compact", "clear", "manage-commands", "recap"]).length, BUILTIN_COMMANDS.length);
 });
 
 test("每条内建命令都有说明", () => {

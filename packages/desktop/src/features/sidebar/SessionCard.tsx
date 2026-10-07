@@ -18,7 +18,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Coins, FolderOpen, MessagesSquare, Zap } from "../../ui/icons/index.ts";
+import { Coins, FolderOpen, History, MessagesSquare, Zap } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { SessionMeta } from "@plume/core";
@@ -206,6 +206,17 @@ export function SessionCard({
 			<div className="px-3 py-2">
 				<Row icon={<FolderOpen size={11.5} strokeWidth={1.9} />}>{project ?? folderName(session.cwd)}</Row>
 			</div>
+
+			{/*
+			 * 最近一次回顾，只读现成的：悬停不去请求模型，划过一列会话不该是一列账单。
+			 * 一行一件事，所以照行显示，三行封顶。
+			 */}
+			{session.recap && (
+				<div className="flex gap-1.5 px-3 py-2 text-detail text-ink-muted">
+					<span className="mt-[3px] shrink-0 text-ink-faint"><History size={11.5} strokeWidth={1.9} /></span>
+					<p className="line-clamp-3 min-w-0 whitespace-pre-line leading-[17px]">{session.recap.text}</p>
+				</div>
+			)}
 
 			{/*
 			 * Numbers last, and only the ones that mean something on their own.

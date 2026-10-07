@@ -5,5 +5,5 @@ import { listCommands as listCatalogue, type CommandsList, type Settings } from 
 export type { CommandsList, SkillEntry } from "@plume/core";
 
 export function listCommands(cwd: string, settings: Settings): Promise<CommandsList> {
-	return listCatalogue(cwd, settings, ["compact", "clear", "manage-commands"]);
+	return listCatalogue(cwd, settings, ["compact", "clear", "manage-commands", "recap"]);
 }

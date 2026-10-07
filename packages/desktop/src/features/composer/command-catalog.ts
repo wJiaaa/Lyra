@@ -14,7 +14,7 @@ export interface CommandEntry {
 
 export function commandEntries(commands: SlashCommand[], skills: SkillEntry[]): CommandEntry[] {
 	const entries: CommandEntry[] = [
-		...builtinCommandsFor(["compact", "clear", "manage-commands"]).map((command): CommandEntry => ({ ...command, kind: "builtin", origin: translate("common.builtin") })),
+		...builtinCommandsFor(["compact", "clear", "manage-commands", "recap"]).map((command): CommandEntry => ({ ...command, kind: "builtin", origin: translate("common.builtin") })),
 		...commands.map((command): CommandEntry => ({ ...command, kind: "command", origin: translate(
 				command.origin === "claude"
 					? command.scope === "workspace"

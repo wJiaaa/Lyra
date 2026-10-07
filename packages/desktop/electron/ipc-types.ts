@@ -70,6 +70,7 @@ import type {
 	RegistryEntry,
 	ScreenshotSettings,
 	SessionMeta,
+	SessionRecap,
 	Settings,
 	Skill,
 	SkillCandidate,
@@ -365,6 +366,11 @@ export interface PlumeApi {
 		compact(sessionId: string, instructions?: string): Promise<{ ok: boolean; reason?: string; code?: CompactCode; params?: NoticeParams; before?: number; after?: number }>;
 		/** Null when the session is not open — this never boots one just to answer. */
 		contextBreakdown(sessionId: string): Promise<ContextBreakdown | null>;
+		/**
+		 * 给回来的人看的回顾。已有的那版还盖得住整条转录就直接交回，不再请求模型。
+		 * `empty` 是没有可概括的对话，`model` 是没有可用的模型，`failed` 是请求没成。
+		 */
+		recap(sessionId: string): Promise<{ ok: true; recap: SessionRecap } | { ok: false; reason: "gone" | "empty" | "model" | "failed" }>;
 	};
 	agent: {
 		/**

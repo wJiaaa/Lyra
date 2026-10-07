@@ -88,6 +88,7 @@ export const METHODS = {
 		capabilities: { channel: "sessions:capabilities" },
 		rename: { channel: "sessions:rename" },
 		compact: { channel: "sessions:compact" },
+		recap: { channel: "sessions:recap" },
 		contextBreakdown: { channel: "sessions:contextBreakdown" },
 	},
 	agent: {

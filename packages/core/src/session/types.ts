@@ -8,6 +8,20 @@
 import type { AgentEvent } from "../agent/events.ts";
 import type { Message, ThinkingLevel, Usage } from "../types.ts";
 
+/**
+ * What the conversation looked like when its recap was written.
+ *
+ * `covered` is how many transcript messages it accounts for and `coveredAt` the timestamp of the
+ * last of them: a length alone cannot tell a transcript that grew from one that was rewound and
+ * grew back to the same length.
+ */
+export interface SessionRecap {
+	text: string;
+	covered: number;
+	coveredAt: number;
+	at: number;
+}
+
 export interface SessionMeta {
 	id: string;
 	title: string;
@@ -65,6 +79,8 @@ export interface SessionMeta {
 	 * name a moment later: the rename looked like it had worked, right up until the first message.
 	 */
 	titleSetByUser?: boolean;
+	/** The last recap written for a person coming back to this conversation. See `runtime/session-recap.ts`. */
+	recap?: SessionRecap;
 	/** Highest sequence number written. Readers compare against this. */
 	seq: number;
 }
@@ -81,6 +97,14 @@ export type SessionRecord =
 	 * catching up from seq N learns the session was archived, same as any other change.
 	 */
 	| { seq: number; ts: number; type: "archive"; archived: boolean }
+	/**
+	 * A recap was asked for. Carries its own usage because it was billed, and `text` is absent when
+	 * the call came back with nothing usable — the cost still counts, the old recap stays.
+	 *
+	 * Not a `usage` record plus a `meta` write: both move `updatedAt`, and the recap is generated
+	 * when someone *opens* a conversation. Looking at one must not lift it to the top of the list.
+	 */
+	| { seq: number; ts: number; type: "recap"; text?: string; covered: number; coveredAt: number; providerId: string; modelId: string; usage: Usage }
 	/**
 	 * Filed under another project: `cwd`, `projectId` and `projectName` change together.
 	 *

@@ -68,6 +68,7 @@ export function spendOf(payload: SessionRecordInput, now: number): SpendEntry[] 
 		return [{ stream: "main", kind: "call", source: "reply", provider: message.provider, model: message.model, call: callOf(message) }];
 	}
 	if (payload.type === "usage") return [auxiliaryCall(payload, now)];
+	if (payload.type === "recap") return [auxiliaryCall({ ...payload, source: "recap" }, now)];
 	if (payload.type === "truncate") return [mark("main", "rewind")];
 	if (payload.type !== "event") return [];
 	const event = payload.event;

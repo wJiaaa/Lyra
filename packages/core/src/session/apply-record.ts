@@ -44,6 +44,12 @@ export function applyRecord(base: SessionMeta, payload: SessionRecordInput, now:
 		if (payload.source === "user") next.titleSetByUser = true;
 	}
 	if (payload.type === "usage") next.usage = addUsage(base.usage, payload.usage);
+	if (payload.type === "recap") {
+		next.usage = addUsage(base.usage, payload.usage);
+		// Written when a conversation is opened; opening it is not using it. Same rule as `archive`.
+		next.updatedAt = base.updatedAt;
+		if (payload.text) next.recap = { text: payload.text, covered: payload.covered, coveredAt: payload.coveredAt, at: now };
+	}
 	if (payload.type === "archive") {
 		next.archived = payload.archived;
 		// Filing something away is not activity; the list stays sorted by last real use.

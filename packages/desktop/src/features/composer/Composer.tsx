@@ -48,6 +48,7 @@ import {
 	useScopedWorkspace,
 } from "../../app/session-scope.tsx";
 import { awaitingSubAgents } from "../../store/subAgents.ts";
+import { requestRecap } from "../../store/recap.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { useJobReveal } from "./job-reveal.ts";
 import { bridge } from "../../services/index.ts";
@@ -389,6 +390,7 @@ export function Composer({ centered = false }: {
 		if (builtin) {
 			if (attachments.length || sessionRefs.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
 			if (builtin.action === "compact" && !activeSessionId) { useApp.getState().notify(translate("composer.nothingToCompact"), "warn"); return; }
+			if (builtin.action === "recap" && !activeSessionId) { useApp.getState().notify(translate("recap.nothing"), "warn"); return; }
 			if (builtin.action !== "compact" && invocation?.rest) { useApp.getState().notify(translate("composer.commandNoArgs"), "warn"); return; }
 			setText("");
 			setDraft(draftKey, null);
@@ -397,7 +399,8 @@ export function Composer({ centered = false }: {
 			if (builtin.action === "compact" && activeSessionId) {
 				const result = await bridge.sessions.compact(activeSessionId, invocation?.rest);
 				if (!result.ok && result.reason) useApp.getState().notify(compactText(result, result.reason), "warn");
-			} else if (builtin.action === "clear") await useApp.getState().newSession();
+			} else if (builtin.action === "recap" && activeSessionId) await requestRecap(activeSessionId, true);
+			else if (builtin.action === "clear") await useApp.getState().newSession();
 			else if (builtin.action === "manage-commands") {
 				useApp.getState().setSettingsSection("commands");
 				useApp.getState().setView("settings");
