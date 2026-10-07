@@ -63,7 +63,7 @@ export function ChangeBar() {
         type="button"
         data-ly-tip={translate("changeBar.uncommitted", { n: stat.files })}
         onClick={openGit}
-        className="ly-scroll flex h-[26px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-detail transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
+        className="ly-composer-control ly-scroll flex shrink-0 items-center gap-1.5 rounded-lg px-2 text-detail transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover"
       >
         {/*
          * Travelled to, not jumped to.

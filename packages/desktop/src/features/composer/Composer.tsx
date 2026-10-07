@@ -851,7 +851,7 @@ function Chip({
 			aria-busy={busy || undefined}
 			onClick={onClick}
 			/* Dimmed while it is being changed, so the name reads as "still this, for now". */
-			className={`ly-composer-control ly-scroll flex min-w-0 items-center gap-1 rounded-full pr-2 pl-3 text-label transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] ${
+			className={`ly-composer-control ly-scroll flex min-w-0 items-center gap-1 rounded-lg pr-2 pl-3 text-label transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] ${
 				busy ? "opacity-60" : ""
 			} text-ink ${active ? "bg-card-hover" : "hover:bg-card-hover"}`}
 		>
