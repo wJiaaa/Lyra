@@ -4,26 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { MAIN_TOOLBAR_HEIGHT, NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../shared/window-chrome.ts";
 import { startApp, type RunningApp } from "./app.ts";
-import { landsOn } from "./lands-on.ts";
-
-async function frames(app: RunningApp, count = 24): Promise<void> {
-	await app.evaluate(`new Promise(resolve => {
-		let left = ${count}; const step = () => --left ? requestAnimationFrame(step) : resolve();
-		requestAnimationFrame(step);
-	})`);
-}
-
-async function click(app: RunningApp, selector: string): Promise<void> {
-	const at = await app.evaluate<{ x: number; y: number }>(`(() => {
-		const el = document.querySelector(${JSON.stringify(selector)});
-		if (!el) throw new Error('missing control: ' + ${JSON.stringify(selector)});
-		const r = el.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2;
-		${landsOn(selector)}
-		return { x, y };
-	})()`);
-	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 });
-	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });
-}
+import { click, frames } from "./drive.ts";
 
 /**
  * The conversation's terminal button. A lone screen's panel buttons are on the window's toolbar; a
@@ -115,7 +96,7 @@ for (const [scale, width, height, theme] of [
 			}));
 		} });
 		try {
-			await frames(app);
+			await frames(app, 24);
 			await headerAlignment(app);
 			const geometry = await app.evaluate<{
 				width: number; height: number; dpr: number; overflow: number; composerVisible: boolean;
@@ -165,7 +146,7 @@ for (const [scale, width, height, theme] of [
 					else if (--remaining) requestAnimationFrame(step); else reject(new Error('terminal did not open'));
 				}; step();
 			})`);
-			await frames(app);
+			await frames(app, 24);
 			await headerAlignment(app);
 			const terminal = await app.evaluate<{ visibleTabWidth: number; tabWidth: number; addHit: boolean; closeHit: boolean }>(`(() => {
 				const header = document.querySelector('[data-dock-header="terminal"]');
@@ -184,7 +165,7 @@ for (const [scale, width, height, theme] of [
 			assert.equal(await app.evaluate("document.querySelectorAll('[data-tab]').length"), 2);
 			await headerAlignment(app);
 			await click(app, 'button[aria-label*="侧边栏 "]');
-			await frames(app);
+			await frames(app, 24);
 			await headerAlignment(app);
 		} finally {
 			try {
@@ -211,10 +192,10 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 	} });
 	try {
 		// CI displays can clamp the native window; compare the same layout viewport before and after.
-		await app.send("Emulation.setDeviceMetricsOverride", { width: 1200, height: 800, deviceScaleFactor: 1, mobile: false }); await frames(app);
+		await app.send("Emulation.setDeviceMetricsOverride", { width: 1200, height: 800, deviceScaleFactor: 1, mobile: false }); await frames(app, 24);
 		await click(app, TERMINAL_BUTTON);
 		await app.evaluate(`new Promise((resolve,reject)=>{let n=240;const step=()=>{if(document.querySelector('.xterm-screen'))resolve();else if(--n)requestAnimationFrame(step);else reject(new Error('terminal did not open'));};step();})`);
-		await frames(app);
+		await frames(app, 24);
 		await app.evaluate(`document.querySelector('.xterm-screen').setAttribute('data-qa-preserved','')`);
 		const measure = () => app.evaluate<{ conversation: { left: number; top: number; width: number; height: number }; terminal: { left: number; top: number; width: number; height: number }; saved: string | null; sameTerminal: boolean }>(`(()=>{
 			const box=kind=>{const r=document.querySelector('[data-dock-pane="'+kind+'"]').getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height};};
@@ -222,7 +203,7 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 		})()`);
 		const wide = await measure();
 		assert.ok(wide.saved?.includes("terminal"), "the original layout is persisted before resizing");
-		await app.send("Emulation.setDeviceMetricsOverride", { width: 770, height: 576, deviceScaleFactor: 1, mobile: false }); await frames(app);
+		await app.send("Emulation.setDeviceMetricsOverride", { width: 770, height: 576, deviceScaleFactor: 1, mobile: false }); await frames(app, 24);
 		const narrow = await measure();
 		assert.ok(narrow.conversation.width >= 420 && narrow.conversation.height >= 260);
 		assert.ok(narrow.terminal.width >= 300 && narrow.terminal.height >= 150);
@@ -240,7 +221,7 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 			const shot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
 			await writeFile(join(directory, "dock-responsive-narrow.png"), Buffer.from(shot.data, "base64"));
 		}
-		await app.send("Emulation.setDeviceMetricsOverride", { width: 1200, height: 800, deviceScaleFactor: 1, mobile: false }); await frames(app);
+		await app.send("Emulation.setDeviceMetricsOverride", { width: 1200, height: 800, deviceScaleFactor: 1, mobile: false }); await frames(app, 24);
 		const restored = await measure();
 		t.diagnostic(JSON.stringify({ wide, narrow, splitter, restored }));
 		assert.equal(restored.saved, wide.saved); assert.equal(restored.sameTerminal, true);
@@ -257,7 +238,7 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 		 */
 		// The rail's button where there is a rail; the sidebar's row in a window too narrow for one.
 		await app.evaluate(`(document.querySelector('[data-ly-rail-item="plugins"]') ?? [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '插件' && b.checkVisibility())).setAttribute('data-qa-nav', '')`);
-		await click(app, "[data-qa-nav]"); await frames(app);
+		await click(app, "[data-qa-nav]"); await frames(app, 24);
 		assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-ly-solo-screen]')?.checkVisibility())`), true, "the catalogue is up");
 		assert.equal(await app.evaluate(`Boolean(document.querySelector('.xterm-screen[data-qa-preserved]'))`), true, "and the terminal behind it is the same one");
 	} finally { await app.stop(); }
@@ -304,7 +285,7 @@ test("toolbar and pane icons keep their pixel column wherever the sidebar's edge
 	 */
 	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
 	try {
-		await frames(app);
+		await frames(app, 24);
 		await click(app, ':is([data-ly-split-tools], [data-dock-header]) button[aria-label^="浏览器"]');
 		await app.evaluate(`new Promise((resolve, reject) => { let n = 240; const step = () => document.querySelector('[data-dock-header="browser"] [data-dock-actions] button') ? resolve() : --n ? requestAnimationFrame(step) : reject(new Error('the browser pane did not open')); step(); })`);
 		await frames(app, 40);
@@ -362,7 +343,7 @@ test("the panel's corner under the toolbar is round, whatever is drawn in it", a
 	 */
 	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
 	try {
-		await frames(app);
+		await frames(app, 24);
 		const corner = await app.evaluate<{ x: number; y: number; band: number[]; content: number[]; material: boolean } | null>(`(() => {
 			const panel = document.querySelector('[data-ly-frame-panel]');
 			if (!panel) return null;
@@ -399,7 +380,7 @@ test("the settings column takes its final width at once when the navigation slid
 	 */
 	const app = await startApp({ port: 9598, seed: (home) => plainProfile(home) });
 	try {
-		await frames(app);
+		await frames(app, 24);
 		await click(app, "[data-ly-open-settings]");
 		const column = `[...document.querySelectorAll('[data-ly-settings] main [class*="max-w-[900px]"]')].find(e => e.checkVisibility())`;
 		await app.evaluate(`new Promise((resolve, reject) => { let n = 240; const step = () => (${column}) ? resolve() : --n ? requestAnimationFrame(step) : reject(new Error('settings did not open')); step(); })`);

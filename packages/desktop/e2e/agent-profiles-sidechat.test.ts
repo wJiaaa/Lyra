@@ -9,7 +9,7 @@ import { THINKING_LEVELS, thinkingOptionsFor } from "@plume/core";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
-import { named } from "./named.ts";
+import { click, frames, openPane, shot, until } from "./drive.ts";
 import { fixtureStore, seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 let app: RunningApp;
@@ -88,8 +88,8 @@ before(async () => {
 
 afterEach(async (t) => {
 	if (!t.passed) {
-		await shot("agent-side-failure");
-		t.diagnostic(await app.evaluate<string>(`JSON.stringify({text:document.body.innerText.slice(-3000),fields:[...document.querySelectorAll('[data-dock-pane="chat"] textarea,[data-qa-target]')].map(e=>({value:e.value,text:e.textContent,rect:e.getBoundingClientRect().toJSON(),focused:e===document.activeElement})),scrolls:[...document.querySelectorAll('[data-dock-pane="chat"] .ly-scroll-view')].map(e=>({top:e.scrollTop,height:e.scrollHeight,client:e.clientHeight}))})`));
+		await shot(app, "agent-side-failure");
+		t.diagnostic(await app.evaluate<string>(`JSON.stringify({text:document.body.innerText.slice(-3000),fields:[...document.querySelectorAll('[data-dock-pane="chat"] textarea')].map(e=>({value:e.value,text:e.textContent,rect:e.getBoundingClientRect().toJSON(),focused:e===document.activeElement})),scrolls:[...document.querySelectorAll('[data-dock-pane="chat"] .ly-scroll-view')].map(e=>({top:e.scrollTop,height:e.scrollHeight,client:e.clientHeight}))})`));
 	}
 });
 after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server)); await emptyOwnTrash(); });
@@ -121,20 +121,6 @@ async function emptyOwnTrash() {
 		if (process.platform === "linux") await rm(join(spot, "..", "..", "info", `${spot.split("/").pop()}.trashinfo`), { force: true });
 	}
 }
-async function until(expression: string) {
-	await app.evaluate(`new Promise((resolve,reject)=>{let n=900;const tick=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(tick);else reject(new Error(${JSON.stringify(expression)}));};tick();})`);
-}
-async function frames(n = 15) { await app.evaluate(`new Promise(r=>{let n=${n};const f=()=>--n?requestAnimationFrame(f):r();requestAnimationFrame(f);})`); }
-async function click(selector: string) {
-	await until(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
-	await app.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`); await frames(2);
-	// Point at it first, as a person does: a row's copy and delete only take the pointer once it is over that row.
-	const over = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
-	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...over }); await frames(3);
-	await until(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return false;const r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()`);
-	const at = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();if(!e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw new Error('Obscured: '+${JSON.stringify(selector)});return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
-	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) }); await frames(3);
-}
 /**
  * 点一行智能体进编辑：整行是编辑入口，点的是名字所在的位置。
  *
@@ -143,30 +129,23 @@ async function click(selector: string) {
  */
 async function editAgent(name: string) {
 	const target = `document.querySelector('[data-agent-profile="${name}"] [aria-label="编辑 ${name}"]')`;
-	await until(`${target}?.checkVisibility()`);
-	await app.evaluate(`${target}.scrollIntoView({block:'nearest',behavior:'instant'})`); await frames(2);
+	await until(app, `${target}?.checkVisibility()`, 900);
+	await app.evaluate(`${target}.scrollIntoView({block:'nearest',behavior:'instant'})`); await frames(app, 2);
 	const at = await app.evaluate<{ x: number; y: number }>(`(()=>{const label=[...document.querySelectorAll('[data-agent-profile="${name}"] span')].find(e=>e.textContent===${JSON.stringify(name)}),r=label.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;if(document.elementFromPoint(x,y)!==${target})throw new Error('Row is not the edit target under its name');return {x,y};})()`);
-	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) }); await frames(3);
-}
-async function label(text: string, scope = "button") {
-	const match = named(text, "starts");
-	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility()&&${match})`);
-	await app.evaluate(`(()=>{document.querySelector('[data-qa-target]')?.removeAttribute('data-qa-target');[...document.querySelectorAll(${JSON.stringify(scope)})].find(e=>e.checkVisibility()&&${match}).setAttribute('data-qa-target','');})()`);
-	await click("[data-qa-target]");
+	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) }); await frames(app, 3);
 }
 async function send(text: string, scope = '[data-dock-pane="chat"]') {
 	const selector = `${scope} textarea`;
-	await until(`document.querySelector(${JSON.stringify(selector)})&&!document.querySelector(${JSON.stringify(selector)}).disabled`);
-	await until(`!document.querySelector(${JSON.stringify(scope + ' [aria-label="停止"]')})`);
-	await click(selector);
+	await until(app, `document.querySelector(${JSON.stringify(selector)})&&!document.querySelector(${JSON.stringify(selector)}).disabled`, 900);
+	await until(app, `!document.querySelector(${JSON.stringify(scope + ' [aria-label="停止"]')})`, 900);
+	await click(app, selector);
 	await app.send("Input.insertText", { text });
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
 }
 async function openSide() {
-	await click('button[aria-label="面板"]');
-	await label("侧边聊天", '[role="menuitem"]');
-	await until(`document.querySelector('[data-dock-pane="chat"] textarea')`);
+	await openPane(app, "侧边聊天");
+	await until(app, `document.querySelector('[data-dock-pane="chat"] textarea')`, 900);
 }
 /**
  * Unfold one retry rule and wait for it to stop moving.
@@ -179,10 +158,10 @@ async function openRetryRule(title: string) {
 	// Idempotent: the settings view is retained, so a rule left open earlier is still open, and
 	// clicking its heading again would fold it away rather than reveal it.
 	const head = `[...document.querySelectorAll('[data-retry-settings] button[aria-expanded]')].find(b=>b.textContent.trim().startsWith(${JSON.stringify(title)}))`;
-	if (await app.evaluate(`${head}?.getAttribute('aria-expanded')`) !== "true") await label(title);
-	await frames(30);
+	if (await app.evaluate(`${head}?.getAttribute('aria-expanded')`) !== "true") await click(app, "button", title, "starts");
+	await frames(app, 30);
 	await app.evaluate(`document.querySelector('[data-retry-settings]').scrollIntoView({block:'center',behavior:'instant'})`);
-	await frames(3);
+	await frames(app, 3);
 }
 /**
  * The upstream rule as written to disk, once it says what the edit said.
@@ -200,69 +179,63 @@ async function persistedUpstream(matches: (rule: Record<string, unknown>) => boo
 	}
 	throw new Error(`retry policy never reached disk; last was ${JSON.stringify(last)}`);
 }
-async function shot(name: string) {
-	const directory = process.env.PLUME_E2E_ARTIFACTS; if (!directory) return;
-	await mkdir(directory, { recursive: true });
-	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-	await writeFile(join(directory, name + ".png"), Buffer.from(result.data, "base64"));
-}
 
 test("agent definitions can be created without a session, edited, copied, trashed and reset to the builtin in the real settings", async t => {
-	await click('button:has(svg.lucide-settings)'); await label("智能体", "nav button");
-	await label("新建", "[data-agent-settings] button");
+	await click(app, 'button:has(svg.lucide-settings)'); await click(app, "nav button", "智能体", "starts");
+	await click(app, "[data-agent-settings] button", "新建", "starts");
 	async function fill(name: string, text: string) {
-		await click(`[aria-label="${name}"]`);
+		await click(app, `[aria-label="${name}"]`);
 		await app.evaluate(`document.querySelector('[aria-label="${name}"]').select()`);
 		await app.send("Input.insertText", { text });
 	}
 	await fill("智能体调用名", "qa-editor"); await fill("智能体用途", "真实编辑流程验证"); await fill("智能体指令", "Read the repository before answering.");
-	await label("保存"); await until(`document.querySelector('[data-agent-profile="qa-editor"]')`);
+	await click(app, "button", "保存", "starts"); await until(app, `document.querySelector('[data-agent-profile="qa-editor"]')`, 900);
 	const created = await readFile(join(app.home, "agents", "qa-editor.md"), "utf8"); assert.match(created, /Read the repository/);
-	await editAgent("general"); await fill("智能体指令", `Customized builtin instructions. ${MARK}`); await label("保存");
-	await until(`document.querySelector('[data-agent-profile="general"]').innerText.includes('已自定义')`);
+	await editAgent("general"); await fill("智能体指令", `Customized builtin instructions. ${MARK}`); await click(app, "button", "保存", "starts");
+	await until(app, `document.querySelector('[data-agent-profile="general"]').innerText.includes('已自定义')`, 900);
 	assert.match(await readFile(join(app.home, "agents", "general.md"), "utf8"), /Customized builtin/);
-	await click('[aria-label="将 general 复制为新智能体"]');
-	await until(`document.querySelector('[data-agent-editor]')`);
+	await click(app, '[aria-label="将 general 复制为新智能体"]');
+	await until(app, `document.querySelector('[data-agent-editor]')`, 900);
 	assert.equal(await app.evaluate(`document.querySelector('[aria-label="智能体指令"]').value.trim()`), `Customized builtin instructions. ${MARK}`);
-	await fill("智能体调用名", COPY); await label("保存"); await until(`document.querySelector('[data-agent-profile="${COPY}"]')`);
+	await fill("智能体调用名", COPY); await click(app, "button", "保存", "starts"); await until(app, `document.querySelector('[data-agent-profile="${COPY}"]')`, 900);
 	// Deleting goes to the system trash, as commands and skills do: no undo line, and no hidden copy left beside the others.
 	await expectTrashed(`${COPY}.md`);
-	await click(`[aria-label="删除 ${COPY}"]`); await label(TO_TRASH, '[role="dialog"] button');
-	await until(`!document.querySelector('[data-agent-profile="${COPY}"]')`);
+	await click(app, `[aria-label="删除 ${COPY}"]`); await click(app, '[role="dialog"] button', TO_TRASH, "starts");
+	await until(app, `!document.querySelector('[data-agent-profile="${COPY}"]')`, 900);
 	assert.equal(await app.evaluate(`[...document.querySelectorAll('[role="status"]')].some(e=>e.textContent.includes('撤销'))`), false);
 	await expectTrashed("general.md");
-	await click('[aria-label="恢复 general 的内置指令"]');
-	await until(`!document.querySelector('[data-agent-profile="general"]').innerText.includes('已自定义')`);
+	await click(app, '[aria-label="恢复 general 的内置指令"]');
+	await until(app, `!document.querySelector('[data-agent-profile="general"]').innerText.includes('已自定义')`, 900);
 	assert.deepEqual((await readdir(join(app.home, "agents"))).filter(name => name.endsWith(".deleted")), []);
 	for (const width of [1280, 375]) {
-		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
+		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(app);
 		await editAgent("qa-editor");
 		const measurement = await app.evaluate(`(()=>{const form=document.querySelector('[data-agent-editor]'),r=form.getBoundingClientRect();return {width:innerWidth,left:r.left,right:r.right,overflow:document.documentElement.scrollWidth-innerWidth,fields:[...form.querySelectorAll('input,textarea')].filter(e=>e.checkVisibility()).map(e=>e.getBoundingClientRect().right)};})()`);
 		assert.ok(measurement.overflow === 0 && measurement.left >= 0 && measurement.right <= width && measurement.fields.every((right: number) => right <= width), JSON.stringify(measurement));
-		t.diagnostic(JSON.stringify(measurement)); await shot(`agent-editor-${width}`); await click('[aria-label="返回智能体"]');
+		t.diagnostic(JSON.stringify(measurement)); await shot(app, `agent-editor-${width}`); await click(app, '[aria-label="返回智能体"]');
 	}
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false });
-	await label("返回工作区", "nav button");
+	await click(app, "nav button", "返回工作区", "starts");
 });
 
 test("provider and effort controls persist, align, and adapt to narrow settings", async (t) => {
-	await click('[data-ly-row="qa-long"]');
-	await click('button:has(svg.lucide-settings)'); await label("智能体", "nav button");
+	await click(app, '[data-ly-row="qa-long"]');
+	await click(app, 'button:has(svg.lucide-settings)'); await click(app, "nav button", "智能体", "starts");
 	try {
-		await until(`document.querySelector('[data-agent-profile="explore"]')`);
+		await until(app, `document.querySelector('[data-agent-profile="explore"]')`, 900);
 		assert.equal(await app.evaluate(`document.querySelectorAll('[aria-label="compact 思考等级"]').length`), 0);
-		await click('[aria-label="compact 模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
-		await until(`document.querySelector('[aria-label="compact 模型"]').dataset.lyTip.includes('第二供应商')`);
-		await click('[aria-label="explore 模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
-		await until(`document.querySelector('[aria-label="explore 模型"]').dataset.lyTip.includes('第二供应商')`);
-		await click('[aria-label="explore 思考等级"]');
+		await click(app, '[aria-label="compact 模型"]'); await click(app, '[data-model="secondary/model"] [role="menuitem"]');
+		await until(app, `document.querySelector('[aria-label="compact 模型"]').dataset.lyTip.includes('第二供应商')`, 900);
+		await click(app, '[aria-label="explore 模型"]'); await click(app, '[data-model="secondary/model"] [role="menuitem"]');
+		await until(app, `document.querySelector('[aria-label="explore 模型"]').dataset.lyTip.includes('第二供应商')`, 900);
+		await click(app, '[aria-label="explore 思考等级"]');
 		await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.startsWith('极致'));if(!e)throw new Error('No ultra');e.setAttribute('data-effort-ultra','');})()`);
-		await click('[data-effort-ultra]');
-		await until(`document.querySelector('[aria-label="explore 思考等级"]').textContent.includes('极致')`);
+		await click(app, '[data-effort-ultra]');
+		await until(app, `document.querySelector('[aria-label="explore 思考等级"]').textContent.includes('极致')`, 900);
 		const saved = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8"));
 		assert.deepEqual(saved.subAgentProfiles.explore, { modelId: "secondary/model", thinking: "ultra" });
 		for (const width of [1280, 375]) {
-			await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(30);
+			await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(app, 30);
 			const controlHeight = await app.evaluate<number>(`parseFloat(getComputedStyle(document.querySelector('[data-agent-settings]')).getPropertyValue('--ly-control'))`);
 			assert.ok(Number.isFinite(controlHeight) && controlHeight > 0, `Invalid --ly-control: ${controlHeight}`);
 			// 两颗下拉各自套了一层定宽的格子（一列列对齐），所以不再是 fieldset 的直接孩子；按「会弹出菜单」认。
@@ -270,17 +243,17 @@ test("provider and effort controls persist, align, and adapt to narrow settings"
 			t.diagnostic(JSON.stringify({ width, controlHeight, boxes })); assert.equal(boxes.length, 2);
 			assert.ok(boxes.every((box) => box.x >= 0 && box.right <= width && box.height === controlHeight));
 			if (width === 1280) assert.equal(boxes[0].y, boxes[1].y);
-			await shot(`agent-profiles-${width}`);
+			await shot(app, `agent-profiles-${width}`);
 		}
 	} finally {
-		await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
-		await label("返回工作区", "nav button");
+		await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(app);
+		await click(app, "nav button", "返回工作区", "starts");
 	}
 });
 
 test("a dispatched subagent actually calls the selected provider with ultra reasoning", async (t) => {
 	await send("MAIN_DELEGATE 派一个子智能体验证模型", '[data-dock-pane="conversation"]');
-	await until(`document.body.innerText.includes('主任务完成')`);
+	await until(app, `document.body.innerText.includes('主任务完成')`, 900);
 	const child = requests.find((request) => request.path.startsWith("/secondary"));
 	t.diagnostic(JSON.stringify(requests.map((request) => ({ path: request.path, model: request.body.model, reasoning: request.body.reasoning })))); assert.ok(child);
 	assert.equal(child.body.model, "gpt-5.6-sol"); assert.deepEqual(child.body.reasoning, { effort: "ultra", summary: "auto" });
@@ -288,7 +261,7 @@ test("a dispatched subagent actually calls the selected provider with ultra reas
 
 test("sidechat restores old answers, queries early history and full tool tails, then survives switching", async () => {
 	await openSide();
-	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('以前的侧聊回答')`);
+	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('以前的侧聊回答')`, 900);
 	/*
 	 * 名字在控件上，继承在提示里。
 	 *
@@ -304,14 +277,14 @@ test("sidechat restores old answers, queries early history and full tool tails, 
 	assert.equal(await app.evaluate(`getComputedStyle(document.querySelector('[aria-label="侧边聊天模型"]')).borderTopWidth`), "0px");
 	assert.equal(await app.evaluate(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('Legacy hidden')`), false);
 	await send("EARLY_REQUEST 主聊天最早的决策是什么？");
-	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到早期决策')`);
+	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到早期决策')`, 900);
 	await send("TOOL_TAIL_REQUEST 帮我查看工具输出的末尾。");
-	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到工具尾部')`);
-	await click('[data-ly-row="qa-short"]'); await frames();
+	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到工具尾部')`, 900);
+	await click(app, '[data-ly-row="qa-short"]'); await frames(app);
 	assert.equal(await app.evaluate(`document.querySelector('[data-dock-pane="chat"]')?.innerText.includes('查到工具尾部') ?? false`), false);
-	await click('[data-ly-row="qa-long"]');
-	await until(`document.querySelector('[data-dock-pane="chat"]')?.innerText.includes('查到工具尾部')`);
-	await shot("sidechat-main-history");
+	await click(app, '[data-ly-row="qa-long"]');
+	await until(app, `document.querySelector('[data-dock-pane="chat"]')?.innerText.includes('查到工具尾部')`, 900);
+	await shot(app, "sidechat-main-history");
 	savedSide = await readFile(join(app.home, "sidechats", "qa-long", "default.json"), "utf8");
 	assert.match(savedSide, /查到工具尾部/); assert.doesNotMatch(savedSide, /Legacy hidden/);
 	savedProfiles = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")).subAgentProfiles;
@@ -320,25 +293,25 @@ test("sidechat restores old answers, queries early history and full tool tails, 
 test("@ agents are selectable and @compact executes real compaction with the configured model", async (t) => {
 	const composer = '[data-dock-pane="conversation"] textarea';
 	for (const name of ["simple", "reason"]) {
-		await click(composer); await app.send("Input.insertText", { text: "@" + name });
-		await until(`document.querySelector('[data-mention-kind="subagent"][data-mention-title="${name}"]')?.checkVisibility()`);
+		await click(app, composer); await app.send("Input.insertText", { text: "@" + name });
+		await until(app, `document.querySelector('[data-mention-kind="subagent"][data-mention-title="${name}"]')?.checkVisibility()`, 900);
 		await app.evaluate(`document.querySelector(${JSON.stringify(composer)}).select()`);
 		await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", windowsVirtualKeyCode: 8 });
 		await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", windowsVirtualKeyCode: 8 });
 	}
 	const start = requests.length;
-	await click(composer); await app.send("Input.insertText", { text: "@compact" });
-	await click('[data-mention-kind="action"][data-mention-title="compact"]');
+	await click(app, composer); await app.send("Input.insertText", { text: "@compact" });
+	await click(app, '[data-mention-kind="action"][data-mention-title="compact"]');
 	await app.send("Input.insertText", { text: "保留 EARLY_MAIN_DECISION" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
-	await until(`document.querySelector('[data-command-status="done"]')?.innerText.includes('保留 EARLY_MAIN_DECISION')`);
+	await until(app, `document.querySelector('[data-command-status="done"]')?.innerText.includes('保留 EARLY_MAIN_DECISION')`, 900);
 	const compact = requests.slice(start).find(request => request.path.startsWith("/secondary"));
 	assert.ok(compact); assert.match(JSON.stringify(compact.body), /保留 EARLY_MAIN_DECISION/);
 	t.diagnostic(JSON.stringify({ command: "@compact", provider: compact.path }));
 	const previous = await app.evaluate<number>(`document.querySelector('[data-dock-pane="chat"]').innerText.split('查到早期决策').length`);
 	await send("EARLY_REQUEST 压缩后再次核对原始决策");
-	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.split('查到早期决策').length > ${previous}`);
+	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.split('查到早期决策').length > ${previous}`, 900);
 	savedSide = await readFile(join(app.home, "sidechats", "qa-long", "default.json"), "utf8");
 	assert.match(savedSide, /压缩后再次核对原始决策/);
 });
@@ -347,55 +320,55 @@ test("a fresh Electron process restores persisted answers and can edit the first
 	await app.stop();
 	// The harness removes its profile on exit. Replay the exact saved side file in a new isolated profile.
 	app = await startApp({ port: 9611, seed });
-	await click('[data-ly-row="qa-long"]'); await openSide();
-	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到工具尾部')`);
+	await click(app, '[data-ly-row="qa-long"]'); await openSide();
+	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到工具尾部')`, 900);
 	const point = await app.evaluate<{x: number; y: number}>(`(()=>{const r=document.querySelector('[data-dock-pane="chat"] .ly-scroll-view').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
-	await app.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: -2400 }); await frames(30);
-	await click('[data-dock-pane="chat"] button[aria-label="编辑并重新提问"]');
-	await until(`document.querySelector('[data-dock-pane="chat"] textarea')?.value.includes('以前的侧聊问题')`);
+	await app.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: -2400 }); await frames(app, 30);
+	await click(app, '[data-dock-pane="chat"] button[aria-label="编辑并重新提问"]');
+	await until(app, `document.querySelector('[data-dock-pane="chat"] textarea')?.value.includes('以前的侧聊问题')`, 900);
 	await app.evaluate(`document.querySelector('[data-dock-pane="chat"] textarea').select()`);
 	await app.send("Input.insertText", { text: "EARLY_REQUEST 编辑后查询早期决策" });
 	t.diagnostic(await app.evaluate<string>(`JSON.stringify([...document.querySelectorAll('[data-dock-pane="chat"] textarea')].map(e=>({value:e.value,rect:e.getBoundingClientRect().toJSON(),focused:e===document.activeElement})))`));
-	await label("重新提问");
-	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到早期决策')`);
+	await click(app, "button", "重新提问", "starts");
+	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到早期决策')`, 900);
 	const state = await app.evaluate<{ messages: unknown[] }>(`window.plume.sideChat.state('qa-long','default')`);
 	assert.doesNotMatch(JSON.stringify(state.messages), /以前的侧聊问题|以前的侧聊回答|TOOL_TAIL_REQUEST/);
 	assert.match(JSON.stringify(state.messages), /编辑后查询早期决策/);
 	assert.deepEqual(await app.evaluate(`window.plume.settings.get().then(s=>s.subAgentProfiles)`), savedProfiles);
-	await shot("sidechat-restored-edit");
+	await shot(app, "sidechat-restored-edit");
 });
 
 test("sidechat model selection and its default use their actual providers and survive restarting", async (t) => {
-	await click('[aria-label="侧边聊天模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
-	await until(`document.querySelector('[aria-label="侧边聊天模型"]').dataset.lyTip?.includes('第二供应商')`);
+	await click(app, '[aria-label="侧边聊天模型"]'); await click(app, '[data-model="secondary/model"] [role="menuitem"]');
+	await until(app, `document.querySelector('[aria-label="侧边聊天模型"]').dataset.lyTip?.includes('第二供应商')`, 900);
 	const start = requests.length;
 	await send("SIDE_MODEL_PROBE 使用侧聊独立模型");
-	await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`);
+	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`, 900);
 	const actual = requests.slice(start).find(request => JSON.stringify(request.body).includes("SIDE_MODEL_PROBE"));
 	assert.ok(actual); assert.ok(actual.path.startsWith("/secondary"));
 	assert.equal(await app.evaluate(`window.plume.sideChat.state('qa-long','default').then(s=>s.modelId)`), "secondary/model");
-	await click('button:has(svg.lucide-settings)'); await label("智能体", "nav button");
-	await click('[aria-label="侧边聊天默认模型"]'); await click('[data-model="secondary/model"] [role="menuitem"]');
-	await until(`document.querySelector('[aria-label="侧边聊天默认模型"]').dataset.lyTip?.includes('第二供应商')`);
+	await click(app, 'button:has(svg.lucide-settings)'); await click(app, "nav button", "智能体", "starts");
+	await click(app, '[aria-label="侧边聊天默认模型"]'); await click(app, '[data-model="secondary/model"] [role="menuitem"]');
+	await until(app, `document.querySelector('[aria-label="侧边聊天默认模型"]').dataset.lyTip?.includes('第二供应商')`, 900);
 	const stored = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")); assert.equal(stored.sideChatModelId, "secondary/model");
-	await label("返回工作区", "nav button");
-	await click('[aria-label="新的侧边聊天"]');
-	await until(`!document.querySelector('[data-dock-pane="chat"]').innerText.includes('SIDE_MODEL_PROBE')`);
+	await click(app, "nav button", "返回工作区", "starts");
+	await click(app, '[aria-label="新的侧边聊天"]');
+	await until(app, `!document.querySelector('[data-dock-pane="chat"]').innerText.includes('SIDE_MODEL_PROBE')`, 900);
 	assert.deepEqual(await app.evaluate(`window.plume.sideChat.state('qa-long','default').then(s=>({modelId:s.modelId,messages:s.messages}))`), { modelId: "secondary/model", messages: [] });
-	await send("SIDE_AFTER_RESET"); await until(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`);
+	await send("SIDE_AFTER_RESET"); await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`, 900);
 	savedSide = await readFile(join(app.home, "sidechats", "qa-long", "default.json"), "utf8");
 	await app.stop(); app = await startApp({ port: 9611, seed });
-	await click('[data-ly-row="qa-long"]'); await openSide();
-	await until(`document.querySelector('[aria-label="侧边聊天模型"]').dataset.lyTip?.includes('第二供应商')`);
+	await click(app, '[data-ly-row="qa-long"]'); await openSide();
+	await until(app, `document.querySelector('[aria-label="侧边聊天模型"]').dataset.lyTip?.includes('第二供应商')`, 900);
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-dock-pane="chat"]').innerText`), /SIDE_AFTER_RESET/);
 	t.diagnostic(JSON.stringify({ provider: actual.path, persistedModel: "secondary/model" }));
-	await shot("sidechat-independent-model");
+	await shot(app, "sidechat-independent-model");
 });
 
 
 test("retry settings apply without a save button and fixed waits last five seconds", async t => {
-	await click('button:has(svg.lucide-settings)'); await label("常规", "nav button");
-	await until(`document.querySelector('[data-retry-settings]')`);
+	await click(app, 'button:has(svg.lucide-settings)'); await click(app, "nav button", "常规", "starts");
+	await until(app, `document.querySelector('[data-retry-settings]')`, 900);
 	/*
 	 * Both rules, read off the closed card.
 	 *
@@ -406,10 +379,10 @@ test("retry settings apply without a save button and fixed waits last five secon
 		["network → 无限重试 · 每 5 秒", "upstream → 重试 10 次 · 每 5 秒"]);
 	await openRetryRule("上游故障");
 	assert.equal(await app.evaluate(`document.querySelector('[aria-label="上游故障重试间隔秒数"]').value`), "5");
-	await click('[aria-label="上游故障重试次数"]'); await app.evaluate(`document.querySelector('[aria-label="上游故障重试次数"]').select()`); await app.send("Input.insertText", { text: "4" });
-	await click('[aria-label="上游故障间隔方式"]'); await label("逐次递增", '[role="menuitem"]');
+	await click(app, '[aria-label="上游故障重试次数"]'); await app.evaluate(`document.querySelector('[aria-label="上游故障重试次数"]').select()`); await app.send("Input.insertText", { text: "4" });
+	await click(app, '[aria-label="上游故障间隔方式"]'); await click(app, '[role="menuitem"]', "逐次递增", "starts");
 	// 「最长间隔」只在逐次递增下渲染，选完菜单要等它挂上来——直接查会扑空。
-	await until(`document.querySelector('[aria-label="上游故障最长间隔秒数"]')`);
+	await until(app, `document.querySelector('[aria-label="上游故障最长间隔秒数"]')`, 900);
 	assert.equal(await app.evaluate(`document.querySelector('[aria-label="上游故障最长间隔秒数"]').value`), "30");
 	// Nothing was pressed to make this happen, because there is nothing to press.
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-retry-settings] button[type="submit"], [data-retry-settings] form').length`), 0);
@@ -417,17 +390,17 @@ test("retry settings apply without a save button and fixed waits last five secon
 	// The rule nobody touched is still the one that shipped.
 	assert.deepEqual(JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")).retryPolicy.network, { retries: null, strategy: "fixed", intervalMs: 5000, maxIntervalMs: 30000 });
 	for (const width of [1280, 375]) {
-		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
-		await click('[aria-label="上游故障重试次数"]');
+		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(app);
+		await click(app, '[aria-label="上游故障重试次数"]');
 		const measurement = await app.evaluate(`(()=>{const e=document.querySelector('[data-retry-settings]'),r=e.getBoundingClientRect();return {left:r.left,right:r.right,overflow:document.documentElement.scrollWidth-innerWidth};})()`);
 		assert.ok(measurement.left >= 0 && measurement.right <= width && measurement.overflow === 0, JSON.stringify(measurement));
-		await shot(`retry-policy-${width}`);
+		await shot(app, `retry-policy-${width}`);
 	}
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false });
-	await click('[aria-label="上游故障间隔方式"]'); await label("固定间隔", '[role="menuitem"]'); await frames();
+	await click(app, '[aria-label="上游故障间隔方式"]'); await click(app, '[role="menuitem"]', "固定间隔", "starts"); await frames(app);
 	assert.deepEqual(await persistedUpstream(rule => rule.strategy === "fixed"), { retries: 4, strategy: "fixed", intervalMs: 5000, maxIntervalMs: 30000 });
 	assert.equal(await app.evaluate(`document.querySelector('[data-retry-summary="upstream"]').textContent`), "重试 4 次 · 每 5 秒");
-	await label("返回工作区", "nav button");
+	await click(app, "nav button", "返回工作区", "starts");
 	/*
 	 * 等的是第二次请求，不是「继续」那一行。
 	 *
@@ -444,14 +417,14 @@ test("retry settings apply without a save button and fixed waits last five secon
 	for (let i = 0; i < 150 && sent().length < 2; i++) await new Promise(resolve => setTimeout(resolve, 100));
 	const probes = sent(); assert.equal(probes.length, 2, `重试没有发出第二次请求：${probes.length}`);
 	const delay = probes[1].at - probes[0].at; assert.ok(delay >= 4900 && delay < 8000, String(delay)); t.diagnostic(JSON.stringify({ fixedRetryMs: delay }));
-	await shot("composer-continue");
-	await click('button:has(svg.lucide-settings)'); await label("常规", "nav button");
-	await openRetryRule("上游故障"); await click('[aria-label="上游故障不限次数"]'); await frames();
+	await shot(app, "composer-continue");
+	await click(app, 'button:has(svg.lucide-settings)'); await click(app, "nav button", "常规", "starts");
+	await openRetryRule("上游故障"); await click(app, '[aria-label="上游故障不限次数"]'); await frames(app);
 	assert.equal((await persistedUpstream(rule => rule.retries === null)).retries, null);
-	await label("返回工作区", "nav button");
+	await click(app, "nav button", "返回工作区", "starts");
 	await send("RETRY_CANCEL_PROBE", '[data-dock-pane="conversation"]');
-	await until(`document.querySelector('[data-dock-pane="conversation"]').innerText.includes('重试')`);
-	const before = requests.length, at = Date.now(); await click('[data-dock-pane="conversation"] [aria-label="停止"]');
-	await until(`!document.querySelector('[data-dock-pane="conversation"] [aria-label="停止"]')`);
-	assert.ok(Date.now() - at < 2000); await frames(330); assert.equal(requests.length, before, "cancellation must prevent the next timed retry");
+	await until(app, `document.querySelector('[data-dock-pane="conversation"]').innerText.includes('重试')`, 900);
+	const before = requests.length, at = Date.now(); await click(app, '[data-dock-pane="conversation"] [aria-label="停止"]');
+	await until(app, `!document.querySelector('[data-dock-pane="conversation"] [aria-label="停止"]')`, 900);
+	assert.ok(Date.now() - at < 2000); await frames(app, 330); assert.equal(requests.length, before, "cancellation must prevent the next timed retry");
 });

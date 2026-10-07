@@ -6,6 +6,7 @@ import { startRecording, encode, type Frame } from "./record.ts";
 import { after, afterEach, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
+import { press } from "./drive.ts";
 import { LONG_OPTIONS, LONG_QUESTION, questionModel, seedQuestions } from "./mention-question-fixture.ts";
 
 let app: RunningApp;
@@ -69,11 +70,6 @@ async function click(target: keyof typeof targets) {
 	for (const type of ["mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount: 1 });
 }
 
-async function enter() {
-	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
-	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
-}
-
 async function appearance(theme: "dark" | "light", width: number) {
 	await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
 	await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}});})()`);
@@ -94,7 +90,7 @@ async function scrollState() {
 
 test("long questions stay readable and actionable across themes and widths with native scrolling and IME", async (t) => {
 	await click("session"); await click("composer");
-	await app.send("Input.insertText", { text: "ASK_LONG" }); await enter();
+	await app.send("Input.insertText", { text: "ASK_LONG" }); await press(app, "Enter", 13);
 	await until(async () => app.evaluate("Boolean(document.querySelector('[data-approval-card] .ly-thumb'))"));
 	assert.equal(await app.evaluate("document.querySelector('[data-approval-card] pre').textContent"), LONG_QUESTION);
 	assert.equal(await app.evaluate("document.querySelectorAll('[data-approval-card] input[aria-label=\"自定义回答\"]').length"), 1);
@@ -152,7 +148,7 @@ test("long questions stay readable and actionable across themes and widths with 
 
 test("a long final choice remains reachable through the same body scroller", async () => {
 	await appearance("dark", 1280); await click("otherSession"); await click("composer");
-	await app.send("Input.insertText", { text: "ASK_LONG" }); await enter();
+	await app.send("Input.insertText", { text: "ASK_LONG" }); await press(app, "Enter", 13);
 	await until(async () => app.evaluate("Boolean(document.querySelector('[data-approval-card] .ly-thumb'))"));
 	await appearance("light", 375);
 	await app.evaluate(`document.querySelector(${JSON.stringify(targets.lastChoice)}).scrollIntoView({block:'nearest',behavior:'instant'})`);

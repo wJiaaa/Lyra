@@ -6,6 +6,7 @@ import { startApp, type RunningApp } from "./app.ts";
 import type { SessionRecord } from "@plume/core";
 import { zhCN } from "../src/i18n/messages/zh-CN.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { frames, shot, until } from "./drive.ts";
 import { named } from "./named.ts";
 import { encode, startRecording, type Frame } from "./record.ts";
 import { settleSharedWindow } from "./shared-window.ts";
@@ -52,8 +53,7 @@ after(async () => {
  * 失败的留截图和现场，还开着的弹窗按 Escape 关掉再交给下一条。
  */
 afterEach(async (context) => settleSharedWindow(app, context as TestContext, "visual-details"));
-async function frames(n = 20) { await app.evaluate(`new Promise(r=>{let n=${n};const f=()=>--n?requestAnimationFrame(f):r();requestAnimationFrame(f);})`); }
-async function until(expression: string) { await app.evaluate(`new Promise((r,j)=>{let n=300;const f=()=>(${expression})?r():--n?requestAnimationFrame(f):j(new Error('missing: '+${JSON.stringify(expression)}));f();})`); }
+// Kept local: also waits out ancestors at opacity 0, and logs each press to qaRegistryClicks.
 async function click(selector: string) {
 	const point = (visible: boolean) => app.evaluate<{x: number; y: number}>(`(async()=>{const e=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>e.checkVisibility({visibilityProperty:true}));if(!e)throw new Error('missing '+${JSON.stringify(selector)});e.scrollIntoView({block:'nearest',behavior:'instant'});
 		const deadline=Date.now()+8000;
@@ -93,7 +93,7 @@ async function click(selector: string) {
 	await app.send("Input.dispatchMouseEvent", {type:"mouseMoved",...await point(false),buttons:0});
 	const at = await point(true);
 	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", {type,...at,button:"left",clickCount:1});
-	await frames(2);
+	await frames(app, 2);
 }
 /**
  * Click the button a page expression finds, through `click` and its visibility and hit checks.
@@ -119,12 +119,6 @@ async function clickText(text: string) {
  */
 async function clickDialogAction(text: string) {
 	await clickFound(`(()=>{const row=[...document.querySelectorAll('[data-ly-modal]')].at(-1)?.querySelector('[data-ly-dialog-actions]');if(!row)throw new Error('no open dialog has an action row');const buttons=[...row.querySelectorAll('button')];return buttons.find(e=>e.checkVisibility({visibilityProperty:true})&&${named(text)})??(()=>{throw new Error('the dialog has no '+${JSON.stringify(text)}+' action: '+buttons.map(b=>(b.textContent||'').trim()).join(' | '));})();})()`);
-}
-async function screenshot(name: string) {
-	if (!process.env.PLUME_E2E_ARTIFACTS) return;
-	await mkdir(process.env.PLUME_E2E_ARTIFACTS, {recursive:true});
-	const shot = await app.send<{data:string}>("Page.captureScreenshot", {format:"png"});
-	await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, name+".png"), Buffer.from(shot.data,"base64"));
 }
 
 async function withTouchViewport(run: () => Promise<void>) {
@@ -156,19 +150,19 @@ async function withTouchViewport(run: () => Promise<void>) {
 	} finally {
 		try { await send("Emulation.clearDeviceMetricsOverride"); }
 		finally { socket.close(); }
-		await frames();
+		await frames(app);
 	}
 }
 
 test("release preview and edit share a stable dialog and content height", async (t) => {
 	await click('[data-ly-row="qa-long"] > button');
 	await click('button[aria-label^="Git "]');
-	await until(`document.querySelector('[data-dock-pane="review"] [data-ly-tip="流水线"]')`);
+	await until(app, `document.querySelector('[data-dock-pane="review"] [data-ly-tip="流水线"]')`);
 	await click('[data-dock-pane="review"] [data-ly-tip="流水线"]');
-	await until(`document.querySelector('[aria-label="打开发版中心"]')`);
+	await until(app, `document.querySelector('[aria-label="打开发版中心"]')`);
 	await click('[aria-label="打开发版中心"]');
-	await until(`document.querySelector('[role="dialog"] textarea') || document.querySelector('[role="dialog"] [aria-label="编辑更新日志"]')`);
-	await frames();
+	await until(app, `document.querySelector('[role="dialog"] textarea') || document.querySelector('[role="dialog"] [aria-label="编辑更新日志"]')`);
+	await frames(app);
 	const size = () => app.evaluate<{height:number;top:number}>(`(()=>{const r=document.querySelector('[role="dialog"]').getBoundingClientRect();return {height:r.height,top:r.top};})()`);
 	const before = await size();
 	const sample = () => app.evaluate(`window.qaDialogFrames = new Promise(resolve=>{const samples=[];let n=30;const frame=()=>{const r=document.querySelector('[data-ly-modal]').getBoundingClientRect();samples.push({height:r.height,top:r.top});if(--n)requestAnimationFrame(frame);else resolve(samples);};requestAnimationFrame(frame);}); void 0`);
@@ -180,30 +174,30 @@ test("release preview and edit share a stable dialog and content height", async 
 	if (await app.evaluate(`Boolean(document.querySelector('[aria-label="编辑更新日志"]'))`)) await click('[aria-label="编辑更新日志"]'); else await clickText('预览');
 	await assertStable(); const after = await size();
 	t.diagnostic(JSON.stringify({before,after}));
-	await screenshot('release-center');
+	await shot(app, 'release-center');
 	assert.ok(Math.abs(before.height-after.height)<1, `dialog resized: ${before.height} -> ${after.height}`);
 	await click('[aria-label="更新日志语言"]');
 	await sample();
 	await clickText("English");
 	await assertStable();
-	await until(`document.querySelector('[role="dialog"] textarea').value.includes('Other changes')`);
+	await until(app, `document.querySelector('[role="dialog"] textarea').value.includes('Other changes')`);
 	assert.deepEqual(await size(), before);
 	await click('[aria-label="预览更新日志"]');
-	await frames(); await screenshot("release-preview");
+	await frames(app); await shot(app, "release-preview");
 	// No corner ✕ on the shared dialog shell: 「取消」 in the bottom row is the way out (ReleaseModal's actions).
 	await clickDialogAction(zhCN["common.cancel"]);
-	await until(`!document.querySelector('[data-ly-modal]')`);
+	await until(app, `!document.querySelector('[data-ly-modal]')`);
 });
 
 
 test("navigation shows fifteen compact marks and all 120 questions remain reachable", async (t) => {
 	await click('[data-dock-pane="review"] [aria-label="关闭Git"]');
-	await until(`document.querySelectorAll('.ly-question-mark').length === 15`);
+	await until(app, `document.querySelectorAll('.ly-question-mark').length === 15`);
 	await click('.ly-question-mark');
 	for (const key of ["Home", "End"]) {
 		await app.send("Input.dispatchKeyEvent", {type:"keyDown",key,windowsVirtualKeyCode:key==="Home"?36:35});
 		await app.send("Input.dispatchKeyEvent", {type:"keyUp",key,windowsVirtualKeyCode:key==="Home"?36:35});
-		await frames(30);
+		await frames(app, 30);
 		const marks = await app.evaluate<number[]>(`[...document.querySelectorAll('.ly-question-mark')].map(e=>Number(e.dataset.position))`);
 		assert.equal(marks.length,15);
 		assert.equal(key === "Home" ? marks[0] : marks.at(-1), key === "Home" ? 0 : 119);
@@ -211,9 +205,9 @@ test("navigation shows fifteen compact marks and all 120 questions remain reacha
 	const geometry = await app.evaluate(`(()=>{const e=document.querySelector('.ly-question-rail'), r=e.getBoundingClientRect();return {height:r.height,scrollHeight:e.scrollHeight,clientHeight:e.clientHeight,overflow:getComputedStyle(e).overflowY,count:document.querySelectorAll('.ly-question-mark').length};})()`);
 	assert.ok(geometry.height <= 180 && geometry.overflow === "visible",JSON.stringify(geometry));
 	const at = await app.evaluate(`(()=>{const r=document.querySelector('.ly-question-mark[data-position="117"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
-	await app.send("Input.dispatchMouseEvent", {type:"mouseMoved",...at}); await frames();
+	await app.send("Input.dispatchMouseEvent", {type:"mouseMoved",...at}); await frames(app);
 	assert.match(await app.evaluate(`document.querySelector('.ly-question-preview').textContent`), /第 118 个问题.*第 118 个回答/s);
-	await screenshot("question-neighbourhood"); t.diagnostic(JSON.stringify(geometry));
+	await shot(app, "question-neighbourhood"); t.diagnostic(JSON.stringify(geometry));
 });
 
 test("image attachments sit above their own bubble and time separators remain centered", async (t) => {
@@ -221,17 +215,17 @@ test("image attachments sit above their own bubble and time separators remain ce
 	assert.ok(geometry.imagesBottom < geometry.bubbleTop);
 	assert.equal(geometry.imagesRight,geometry.bubbleRight);
 	assert.equal(geometry.imageCount,2); assert.equal(geometry.timeAlign,"center");
-	await app.send("Input.dispatchMouseEvent", {type:"mouseMoved",x:900,y:80}); await frames();
-	await screenshot("user-images-time");t.diagnostic(JSON.stringify(geometry));
+	await app.send("Input.dispatchMouseEvent", {type:"mouseMoved",x:900,y:80}); await frames(app);
+	await shot(app, "user-images-time");t.diagnostic(JSON.stringify(geometry));
 });
 
 test("permission dialog uses grouped capabilities, animates cancel, and restores keyboard focus", async (t) => {
 	await clickText("帮我批准");
-	await until(`document.querySelector('[aria-label="权限模式"]')`);
+	await until(app, `document.querySelector('[aria-label="权限模式"]')`);
 	await click('[aria-label="权限模式"] button:has(svg.lucide-circle-alert)');
-	await until(`document.querySelector('[data-ly-modal]')`); await frames();
+	await until(app, `document.querySelector('[data-ly-modal]')`); await frames(app);
 	assert.ok(await app.evaluate(`document.querySelector('[data-ly-modal]').textContent.includes('文件和文件夹')`));
-	await screenshot("permission-dialog");
+	await shot(app, "permission-dialog");
 	await app.evaluate(`document.querySelector('[data-ly-modal] button:last-child').focus()`);
 	await app.send("Input.dispatchKeyEvent", {type:"keyDown",key:"Tab",windowsVirtualKeyCode:9});
 	await app.send("Input.dispatchKeyEvent", {type:"keyUp",key:"Tab",windowsVirtualKeyCode:9});
@@ -239,7 +233,7 @@ test("permission dialog uses grouped capabilities, animates cancel, and restores
 	await clickText("取消");
 	const leaving = await app.evaluate(`document.querySelector('[data-ly-modal]')?.classList.contains('ly-dialog-out')`);
 	assert.equal(leaving,true);
-	await until(`!document.querySelector('[data-ly-modal]')`);
+	await until(app, `!document.querySelector('[data-ly-modal]')`);
 	const focus = await app.evaluate<string>(`document.activeElement?.textContent`);
 	assert.equal(focus?.trim(), "帮我批准");
 	t.diagnostic(JSON.stringify({focus}));
@@ -247,12 +241,12 @@ test("permission dialog uses grouped capabilities, animates cancel, and restores
 
 test("project memory is visible in usage and its settings switch stops injection without erasing stored lessons", async (t) => {
 	await app.send("Input.dispatchKeyEvent", {type:"keyDown",key:"Escape",windowsVirtualKeyCode:27});
-	await app.send("Input.dispatchKeyEvent", {type:"keyUp",key:"Escape",windowsVirtualKeyCode:27}); await frames();
+	await app.send("Input.dispatchKeyEvent", {type:"keyUp",key:"Escape",windowsVirtualKeyCode:27}); await frames(app);
 	const before = await app.evaluate<{used:number;projectMemory:string}>(`window.plume.sessions.contextBreakdown('qa-long')`);
 	assert.match(before.projectMemory,/核对当前仓库/);
 	await click('button:has(svg.lucide-settings)');
-	await until(`[...document.querySelectorAll('nav button')].some(e=>${named("个性化")})`);
-	await clickText("个性化"); await frames();
+	await until(app, `[...document.querySelectorAll('nav button')].some(e=>${named("个性化")})`);
+	await clickText("个性化"); await frames(app);
 	await app.evaluate(`(()=>{const title=[...document.querySelectorAll('[data-view="personalization"] *')].find(e=>e.children.length===0&&e.textContent==='项目记忆');let row=title;while(row&&!row.querySelector('[role="switch"]'))row=row.parentElement;row.querySelector('[role="switch"]').setAttribute('data-project-switch','');})()`);
 	await app.evaluate(`(()=>{const title=[...document.querySelectorAll('[data-view="personalization"] *')].find(e=>e.children.length===0&&e.textContent==='用户记忆');let row=title;while(row&&!row.querySelector('[role="switch"]'))row=row.parentElement;row.querySelector('[role="switch"]').setAttribute('data-user-switch','');})()`);
 	await click('[data-user-switch]');
@@ -260,32 +254,32 @@ test("project memory is visible in usage and its settings switch stops injection
 	assert.match((await app.evaluate<{projectMemory:string}>(`window.plume.sessions.contextBreakdown('qa-long')`)).projectMemory, /核对当前仓库/);
 	await click('[data-user-switch]');
 	await click('[data-project-switch]');
-	await until(`document.querySelector('[data-project-switch]').getAttribute('aria-checked') === 'false'`);
+	await until(app, `document.querySelector('[data-project-switch]').getAttribute('aria-checked') === 'false'`);
 	const after = await app.evaluate<{used:number;projectMemory:string}>(`window.plume.sessions.contextBreakdown('qa-long')`);
 	assert.equal(after.projectMemory, "");
 	assert.match(await app.evaluate<string>(`window.plume.projectMemory.list(${JSON.stringify(join(app.home,"project"))}).then(r=>r.extracted.text)`), /核对当前仓库/);
-	await click('[data-project-switch]'); await frames();
+	await click('[data-project-switch]'); await frames(app);
 	assert.match((await app.evaluate<{projectMemory:string}>(`window.plume.sessions.contextBreakdown('qa-long')`)).projectMemory, /核对当前仓库/);
-	await screenshot("project-memory-settings");t.diagnostic(JSON.stringify({before:before.used,after:after.used}));
+	await shot(app, "project-memory-settings");t.diagnostic(JSON.stringify({before:before.used,after:after.used}));
 });
 
 
 test("short touch viewports keep modal actions reachable and reduced motion still dismisses", async (t) => {
 	await clickText("返回工作区");
-	await frames();
+	await frames(app);
 	await withTouchViewport(async () => {
 	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,theme:'dark',reduceMotion:'on'}}))`);
-	await frames();
+	await frames(app);
 	await clickText("帮我批准");
 	await click('[aria-label="权限模式"] button:has(svg.lucide-circle-alert)');
-	await until(`document.querySelector('[data-ly-modal]')`); await frames();
+	await until(app, `document.querySelector('[data-ly-modal]')`); await frames(app);
 	const box = await app.evaluate(`(()=>{const e=document.querySelector('[data-ly-modal]'),r=e.getBoundingClientRect();return {x:r.x,right:r.right,top:r.top,bottom:r.bottom,height:r.height,titleTop:e.querySelector('h2').getBoundingClientRect().top,scrollTop:e.querySelector('.ly-scroll-view').scrollTop,duration:getComputedStyle(e).animationDuration};})()`);
 	assert.ok(box.x>=0 && box.right<=375 && box.top>=0 && box.bottom<=480, JSON.stringify(box));
 	assert.ok(parseFloat(box.duration)<0.01, JSON.stringify(box));
 	assert.equal(box.scrollTop,0); assert.ok(box.titleTop>=box.top);
-	await screenshot("permission-dark-compact");
+	await shot(app, "permission-dark-compact");
 	await clickText("取消");
-	await until(`!document.querySelector('[data-ly-modal]')`);
+	await until(app, `!document.querySelector('[data-ly-modal]')`);
 	assert.equal((await app.evaluate<string>(`document.activeElement.textContent`)).trim(),"帮我批准");
 	t.diagnostic(JSON.stringify(box));
 	});
@@ -305,15 +299,15 @@ test("long registry lists scroll inside the dialog and nested confirmation close
 		window.qaRegistryCleanup=()=>{for(const type of types) window.removeEventListener(type,record,true); delete window.qaRegistryClicks; delete window.qaRegistryEvents; delete window.qaRegistryCleanup;};
 	})()`);
 	try {
-		await clickText("插件"); await frames();
+		await clickText("插件"); await frames(app);
 		// The sources left the header's 「添加」 menu for its ⋯, beside reload and 管理已安装 (PluginsView).
 		await click(`[data-market] header button[aria-label="${zhCN["common.more"]}"]`);
 		await clickText(zhCN["market.sources"]);
 		// The dialog no longer has a close button to wait for; its title is what says it arrived.
-		await until(`[...document.querySelectorAll('[data-ly-modal]')].some(e=>e.textContent.includes(${JSON.stringify(zhCN["registry.title"])}))`); await frames();
+		await until(app, `[...document.querySelectorAll('[data-ly-modal]')].some(e=>e.textContent.includes(${JSON.stringify(zhCN["registry.title"])}))`); await frames(app);
 	} catch (error) {
 		t.diagnostic(JSON.stringify(await app.evaluate(`({clicks:window.qaRegistryClicks,events:window.qaRegistryEvents,viewport:[innerWidth,innerHeight],native:[outerWidth,outerHeight],scale:devicePixelRatio,touch:navigator.maxTouchPoints,hover:matchMedia('(hover:hover)').matches,body:document.body.innerText.slice(-2000)})`)));
-		await screenshot("registry-open-failure");
+		await shot(app, "registry-open-failure");
 		throw error;
 	} finally {
 		await app.evaluate(`window.qaRegistryCleanup()`);
@@ -321,22 +315,22 @@ test("long registry lists scroll inside the dialog and nested confirmation close
 	const box = await app.evaluate(`(()=>{const e=document.querySelector('[data-ly-modal]'),r=e.getBoundingClientRect(),s=e.querySelector('.ly-scroll-view');return {height:r.height,top:r.top,bottom:r.bottom,overflow:s.scrollHeight>s.clientHeight,actions:e.querySelectorAll('[data-row-actions]').length};})()`);
 	assert.equal(box.actions,20); assert.equal(box.overflow,true); assert.ok(box.bottom<=800,JSON.stringify(box));
 	await click('[data-ly-modal] button[aria-label^="移除 http"]');
-	await until(`document.querySelectorAll('[data-ly-modal]').length===2`);
+	await until(app, `document.querySelectorAll('[data-ly-modal]').length===2`);
 	const layers = await app.evaluate<number[]>(`[...document.querySelectorAll('[data-ly-modal]')].map(e=>Number(getComputedStyle(e.parentElement).zIndex))`);
 	assert.ok(layers[1]>layers[0]);
 	await app.send("Input.dispatchKeyEvent", {type:"keyDown",key:"Escape",windowsVirtualKeyCode:27});
 	await app.send("Input.dispatchKeyEvent", {type:"keyUp",key:"Escape",windowsVirtualKeyCode:27});
-	await until(`document.querySelectorAll('[data-ly-modal]').length===1`);
+	await until(app, `document.querySelectorAll('[data-ly-modal]').length===1`);
 	assert.equal(await app.evaluate(`window.plume.settings.get().then(s=>s.pluginRegistries.length)`),20);
 	await withTouchViewport(async () => {
-	await frames();
+	await frames(app);
 	const narrow = await app.evaluate(`(()=>{const e=document.querySelector('[data-ly-modal]'),r=e.getBoundingClientRect(),s=e.querySelector('.ly-scroll-view');return {x:r.x,right:r.right,bottom:r.bottom,overflow:s.scrollWidth-s.clientWidth,action:getComputedStyle(e.querySelector('.ly-row-action')).opacity,touch:navigator.maxTouchPoints,hover:matchMedia('(hover: hover)').matches};})()`);
 	assert.ok(narrow.x>=0 && narrow.right<=375 && narrow.bottom<=480,JSON.stringify(narrow));
 	assert.equal(narrow.overflow,0); assert.equal(narrow.action,"1"); assert.equal(narrow.hover,false); assert.equal(narrow.touch,1);
-	await screenshot("registry-dark-compact");
+	await shot(app, "registry-dark-compact");
 	// Changes here save as they are made, so the dialog's one exit is 「完成」 (RegistrySources' actions).
 	await clickDialogAction(zhCN["common.done"]);
-	await until(`!document.querySelector('[data-ly-modal]')`);
+	await until(app, `!document.querySelector('[data-ly-modal]')`);
 	t.diagnostic(JSON.stringify({box,narrow,layers}));
 	});
 });
@@ -357,13 +351,13 @@ test("a narrow column centres the transcript instead of parking the question rai
 	 */
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false });
 	await click('[data-ly-row="qa-long"] > button');
-	await until(`document.querySelector('[data-view="qa-long"][data-active="true"] .ly-transcript')?.checkVisibility({visibilityProperty:true,opacityProperty:true}) && document.querySelectorAll('[data-view="qa-long"][data-active="true"] .ly-question-mark').length > 1`);
+	await until(app, `document.querySelector('[data-view="qa-long"][data-active="true"] .ly-transcript')?.checkVisibility({visibilityProperty:true,opacityProperty:true}) && document.querySelectorAll('[data-view="qa-long"][data-active="true"] .ly-question-mark').length > 1`);
 	const column = `(()=>{const view=document.querySelector('.ly-transcript').closest('.ly-scroll-view'),v=view.getBoundingClientRect(),c=document.querySelector('.ly-transcript').getBoundingClientRect(),rail=document.querySelector('.ly-question-nav');
 		return {width:Math.round(v.width),left:Math.round(c.left-v.left),right:Math.round(v.right-c.right),rail:rail?Math.round(rail.getBoundingClientRect().left-v.left):null}})()`;
 	// 两头都在阈值之内：520 是分界本身，拿它去量只会测到分界写在哪一侧。
 	for (const width of [380, 500]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });
-		await frames(30);
+		await frames(app, 30);
 		const box = await app.evaluate<{ width: number; left: number; right: number; rail: number | null }>(column);
 		t.diagnostic(`${width}px → ${JSON.stringify(box)}`);
 		assert.ok(box.width > 0 && box.width <= width, `量到的必须是可见正文：${JSON.stringify(box)}`);

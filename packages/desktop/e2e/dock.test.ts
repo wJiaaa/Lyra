@@ -115,6 +115,7 @@ async function dragPane(kind: string, to: { x: number; y: number }): Promise<voi
  * Deliberately not through the store. A test hook would have skipped the menu, and the menu is
  * the only way to open a panel that has no keyboard shortcut wired up — which, on a fresh profile
  * with no project and no conversation, is every panel that is not disabled.
+ * Not drive.ts's `openPane`: callers query the new pane at once and rely on the 350ms wait below.
  */
 async function openPane(label: string): Promise<void> {
 	await app.evaluate(`(async () => {

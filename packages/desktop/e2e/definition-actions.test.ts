@@ -5,8 +5,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { after, afterEach, before, test, type TestContext } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
-import { landsOn } from "./lands-on.ts";
-import { named } from "./named.ts";
+import { click, frames, shot, until } from "./drive.ts";
 import { settleSharedWindow } from "./shared-window.ts";
 
 let app: RunningApp;
@@ -57,39 +56,13 @@ after(async () => {
 // The second test starts on the settings page the first one leaves, and the first opens confirmations.
 afterEach(async (context) => settleSharedWindow(app, context as TestContext, "definition-actions"));
 
-async function frames(n = 20) {
-	await app.evaluate(`new Promise(resolve=>{let n=${n};const f=()=>--n?requestAnimationFrame(f):resolve();requestAnimationFrame(f);})`);
-}
-async function until(expression: string) {
-	await app.evaluate(`new Promise((resolve,reject)=>{let n=300;const f=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(f);else reject(new Error(${JSON.stringify(expression)}));};f();})`);
-}
 async function point(selector: string) {
 	return app.evaluate<{ x: number; y: number }>(`(()=>{const el=[...document.querySelectorAll(${JSON.stringify(selector)})].find(el=>el.checkVisibility({visibilityProperty:true}));if(!el)throw new Error(${JSON.stringify(selector)});el.scrollIntoView({block:'center',behavior:'instant'});const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 }
-async function click(selector: string) {
-	const at = await point(selector);
-	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
-	// Row actions take the pointer only once it is inside their row, so ask what is under it after moving there.
-	await app.evaluate(`(()=>{const el=[...document.querySelectorAll(${JSON.stringify(selector)})].find(el=>el.checkVisibility({visibilityProperty:true})),x=${at.x},y=${at.y};${landsOn(selector)}})()`);
-	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...at });
-	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...at });
-	await frames(2);
-}
 async function select(label: string, nav = false, counted = false) {
-	const match = named(label, counted ? "stripCount" : "exact", "b");
-	const matches = `b.checkVisibility({visibilityProperty:true})&&${match}`;
 	// Settings' own section list, not the window's icon rail: both are navigation, and both have a 插件.
 	const scope = nav ? "nav:not([data-ly-app-rail]) " : "";
-	await until(`[...document.querySelectorAll('${scope}button')].some(b=>${matches})`);
-	await app.evaluate(`(()=>{document.querySelector('[data-qa-pick]')?.removeAttribute('data-qa-pick');[...document.querySelectorAll('${scope}button')].find(b=>${matches}).setAttribute('data-qa-pick','');})()`);
-	await click('[data-qa-pick]');
-}
-async function shot(name: string) {
-	const dir = process.env.PLUME_E2E_ARTIFACTS;
-	if (!dir) return;
-	await mkdir(dir, { recursive: true });
-	const image = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-	await writeFile(join(dir, `${name}.png`), Buffer.from(image.data, "base64"));
+	await click(app, `${scope}button`, label, counted ? "stripCount" : "exact");
 }
 
 async function withTouchViewport(run: () => Promise<void>) {
@@ -121,18 +94,18 @@ async function withTouchViewport(run: () => Promise<void>) {
 	} finally {
 		try { await send("Emulation.clearDeviceMetricsOverride"); }
 		finally { socket.close(); }
-		await frames();
+		await frames(app);
 	}
 }
 
 test("command deletion fades in without shifting its row, works with keyboard/touch, and respects cancel", async (t) => {
-	await click('button[aria-label="在「行操作验证」里新建会话"]');
-	await click('button:has(svg.lucide-settings)');
+	await click(app, 'button[aria-label="在「行操作验证」里新建会话"]');
+	await click(app, 'button:has(svg.lucide-settings)');
 	await select("命令", true);
 	const selector = '[aria-label="删除命令 xiaorong"]';
-	await until(`document.querySelector('${selector}')`);
+	await until(app, `document.querySelector('${selector}')`);
 	const at = await point(selector);
-	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 10, y: 10 }); await frames();
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 10, y: 10 }); await frames(app);
 	const measure = () => app.evaluate<{ opacity: number; x: number; width: number; height: number; actionX: number }>(`(()=>{const b=document.querySelector('${selector}');const row=b.closest('[data-row-actions]');const r=row.getBoundingClientRect();return {opacity:Number(getComputedStyle(b.parentElement).opacity),x:r.x,width:r.width,height:r.height,actionX:b.getBoundingClientRect().x};})()`);
 	const resting = await measure(); assert.equal(resting.opacity, 0);
 	t.diagnostic(JSON.stringify(await app.evaluate(`({reduceMotion:document.documentElement.dataset.reduceMotion,systemReducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,transition:getComputedStyle(document.querySelector('${selector}').parentElement).transitionDuration})`)));
@@ -147,30 +120,30 @@ test("command deletion fades in without shifting its row, works with keyboard/to
 	// To a hundredth of a pixel: a row at a fractional offset reads 68.5 at rest and 68.50001525878906 mid-fade, which is no shift.
 	const settled = (box: typeof resting) => Object.fromEntries(Object.entries(box).map(([key, value]) => [key, Math.round(value * 100) / 100]));
 	assert.deepEqual(settled({ ...hovering, opacity: 0 }), settled(resting));
-	await shot("command-hover-delete");
+	await shot(app, "command-hover-delete");
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 10, y: 10 });
 	await app.evaluate(`document.querySelector('[aria-label="编辑 xiaorong"]').focus()`);
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 });
-	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 }); await frames();
+	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 }); await frames(app);
 	assert.equal(await app.evaluate(`document.activeElement.getAttribute('aria-label')`), "删除命令 xiaorong");
 	assert.equal((await measure()).opacity, 1);
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
-	await until(`document.querySelector('[role="dialog"]')`);
+	await until(app, `document.querySelector('[role="dialog"]')`);
 	assert.ok(await app.evaluate(`document.querySelector('[role="dialog"]').textContent.includes(${JSON.stringify(command)})`));
-	await select("取消"); await until(`!document.querySelector('[role="dialog"]')`); await access(command);
+	await select("取消"); await until(app, `!document.querySelector('[role="dialog"]')`); await access(command);
 	await withTouchViewport(async () => {
-		await frames(); await point(selector); await frames();
+		await frames(app); await point(selector); await frames(app);
 		const narrow = await measure();
 		t.diagnostic(JSON.stringify(await app.evaluate(`({media:['(hover: hover)','(pointer: fine)','(any-pointer: coarse)'].map(q=>[q,matchMedia(q).matches]),touch:navigator.maxTouchPoints})`)));
 		t.diagnostic(JSON.stringify({ resting, hovering, narrow, opacityFrames: samples }));
-		await shot("command-touch-delete");
+		await shot(app, "command-touch-delete");
 		assert.equal(narrow.opacity, 1);
 		assert.ok(narrow.x >= 0 && narrow.x + narrow.width <= 375, JSON.stringify(narrow));
 	});
 	trashed.push(basename(command));
-	await click(selector); await select(TO_TRASH);
-	await until(`!document.querySelector('${selector}')`);
+	await click(app, selector); await select(TO_TRASH);
+	await until(app, `!document.querySelector('${selector}')`);
 	await assert.rejects(access(command));
 	const list = await app.evaluate<{ commands: { name: string }[] }>(`window.plume.commands.list(${JSON.stringify(cwd)})`);
 	assert.ok(!list.commands.some((item) => item.name === "xiaorong"));
@@ -178,10 +151,10 @@ test("command deletion fades in without shifting its row, works with keyboard/to
 
 test("loose skill rows delete their own definitions while MCP servers and hooks ask before deleting theirs", async () => {
 	await select("插件", true); await select("技能", false, true);
-	await until(`document.querySelector('[aria-label="删除技能 loose-qa"]')`);
+	await until(app, `document.querySelector('[aria-label="删除技能 loose-qa"]')`);
 	trashed.push(basename(dirname(skill)));
-	await click('[aria-label="删除技能 loose-qa"]'); await select(TO_TRASH);
-	await until(`!document.querySelector('[aria-label="删除技能 loose-qa"]')`);
+	await click(app, '[aria-label="删除技能 loose-qa"]'); await select(TO_TRASH);
+	await until(app, `!document.querySelector('[aria-label="删除技能 loose-qa"]')`);
 	await assert.rejects(access(dirname(skill)));
 	assert.equal(await app.evaluate(`[...document.querySelectorAll('[data-row-actions]')].filter(row=>row.textContent.includes('内置')).some(row=>row.querySelector('.ly-row-action'))`), false);
 	/*
@@ -190,13 +163,13 @@ test("loose skill rows delete their own definitions while MCP servers and hooks 
 	 * other 删除 cannot pass for this one.
 	 */
 	await select("MCP", false, true);
-	await until(`document.querySelector('[aria-label="QA 服务 的更多操作"]')`);
-	await click('[aria-label="QA 服务 的更多操作"]'); await select("删除");
-	await until(`document.querySelector('[role="dialog"]')?.textContent.includes('删除 QA 服务？')`);
-	await select("取消"); await until(`!document.querySelector('[role="dialog"]')`);
+	await until(app, `document.querySelector('[aria-label="QA 服务 的更多操作"]')`);
+	await click(app, '[aria-label="QA 服务 的更多操作"]'); await select("删除");
+	await until(app, `document.querySelector('[role="dialog"]')?.textContent.includes('删除 QA 服务？')`);
+	await select("取消"); await until(app, `!document.querySelector('[role="dialog"]')`);
 	await select("钩子", true);
-	await until(`document.querySelector('[aria-label="删除这个钩子"]')`);
-	await click('[aria-label="删除这个钩子"]'); await select("取消"); await until(`!document.querySelector('[role="dialog"]')`);
+	await until(app, `document.querySelector('[aria-label="删除这个钩子"]')`);
+	await click(app, '[aria-label="删除这个钩子"]'); await select("取消"); await until(app, `!document.querySelector('[role="dialog"]')`);
 	const settings = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8"));
 	assert.equal(settings.hooks.length, 1); assert.equal(settings.mcpServers.length, 1);
 });

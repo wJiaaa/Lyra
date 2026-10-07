@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { click, frames, press, shot, until } from "./drive.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { landsOn } from "./lands-on.ts";
-import { named } from "./named.ts";
 import { fixtureStore, seedSessions, type FixtureRecord, type FixtureSession } from "./session-fixture.ts";
 
 let app: RunningApp;
@@ -39,12 +39,8 @@ before(async () => {
 });
 after(async () => { await app?.stop(); });
 afterEach(async (t) => {
-	if (!t.passed) { await shot("navigation-models-failure"); t.diagnostic(await app.evaluate<string>(`document.body.innerText.slice(-4000)`)); }
+	if (!t.passed) { await shot(app, "navigation-models-failure"); t.diagnostic(await app.evaluate<string>(`document.body.innerText.slice(-4000)`)); }
 });
-async function frames(n = 20) { await app.evaluate(`new Promise(r=>{let n=${n};const f=()=>--n?requestAnimationFrame(f):r();requestAnimationFrame(f);})`); }
-async function until(expression: string) {
-	await app.evaluate(`new Promise((resolve,reject)=>{let n=400;const f=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(f);else reject(new Error(${JSON.stringify(expression)}));};f();})`);
-}
 async function point(selector: string) {
 	return app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw new Error(${JSON.stringify(selector)});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 }
@@ -52,48 +48,24 @@ async function point(selector: string) {
 function landing(selector: string, at: { x: number; y: number }) {
 	return `(()=>{const el=document.querySelector(${JSON.stringify(selector)}),x=${at.x},y=${at.y};${landsOn(selector)}})();`;
 }
-async function click(selector: string) {
-	await app.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`);
-	const at = await point(selector);
-	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
-	await app.evaluate(landing(selector, at));
-	for (const type of ["mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount: 1 });
-	await frames(3);
-}
-async function label(text: string, scope = "nav button") {
-	const match = named(text);
-	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility({visibilityProperty:true})&&${match})`);
-	await app.evaluate(`(()=>{document.querySelector('[data-qa-target]')?.removeAttribute('data-qa-target');const e=[...document.querySelectorAll(${JSON.stringify(scope)})].find(e=>e.checkVisibility()&&${match});if(!e)throw new Error(${JSON.stringify(text)});e.setAttribute('data-qa-target','');})()`);
-	await click('[data-qa-target]');
-}
-async function key(key: string, code: number) {
-	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key, windowsVirtualKeyCode: code });
-	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key, windowsVirtualKeyCode: code }); await frames(3);
-}
-async function shot(name: string) {
-	const directory = process.env.PLUME_E2E_ARTIFACTS; if (!directory) return;
-	await mkdir(directory, { recursive: true });
-	const image = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-	await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
-}
 
 test("navigation clicks land instantly inside and outside the transcript window, with no rail movement or reopened preview", async (t) => {
-	await click('[data-ly-row="qa-long"] > button');
-	await until(`document.querySelectorAll('.ly-question-mark').length===15`);
-	await click('.ly-question-mark'); await key("Home", 36);
+	await click(app, '[data-ly-row="qa-long"] > button');
+	await until(app, `document.querySelectorAll('.ly-question-mark').length===15`);
+	await click(app, '.ly-question-mark'); await press(app, "Home", 36);
 	for (const [outside, settledHover] of [[false, true], [true, true], [false, false]]) {
 		if (outside) {
-			await key("End", 35);
+			await press(app, "End", 35);
 			const at = await point('.ly-question-rail');
 			for (let i = 0; i < 25; i++) await app.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...at, deltaX: 0, deltaY: -30 });
-			await frames(3);
+			await frames(app, 3);
 		}
-		if (!settledHover) { await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 500, y: 200 }); await frames(3); }
+		if (!settledHover) { await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 500, y: 200 }); await frames(app, 3); }
 		const position = outside ? await app.evaluate<number>(`Number(document.querySelector('.ly-question-mark').dataset.position)`) : !settledHover ? await app.evaluate<number>(`Number(document.querySelector('.ly-question-mark[aria-current="location"]').dataset.position)+1`) : 9;
 		assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-question-index="${position * 2}"]'))`), !outside);
 		const selector = `.ly-question-mark[data-position="${position}"]`;
 		const at = await point(selector);
-		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at }); await frames(settledHover ? 20 : 3);
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at }); await frames(app, settledHover ? 20 : 3);
 		if (settledHover) {
 			/*
 			 * 预览里是摘要，不是渲染过的 Markdown。
@@ -104,7 +76,7 @@ test("navigation clicks land instantly inside and outside the transcript window,
 			const excerpt = await app.evaluate<string>(`document.querySelector('.ly-question-excerpt')?.textContent ?? ""`);
 			assert.match(excerpt, /格式化回答/);
 			assert.match(excerpt, /段落标题/);
-			await shot("markdown-question-preview");
+			await shot(app, "markdown-question-preview");
 		}
 		const marks = await app.evaluate<number[]>(`[...document.querySelectorAll('.ly-question-mark')].map(e=>Number(e.dataset.position))`);
 
@@ -133,42 +105,42 @@ test("navigation clicks land instantly inside and outside the transcript window,
  * `reason`。所以这里改成在「智能体」页上点 `simple`，两个菜单本来就在同一页，不必再导航一次。
  */
 test("role and subagent menus share a bounded searchable favourite catalog without changing the active session", async (t) => {
-	await click('button:has(svg.lucide-settings)'); await label("智能体"); await frames();
+	await click(app, 'button:has(svg.lucide-settings)'); await click(app, "nav button", "智能体"); await frames(app);
 	// 标签是 `{name} 模型`——底下那句 `[aria-label="explore 模型"]` 用的就是这个格式。
-	await click('[aria-label="simple 模型"]'); await frames();
+	await click(app, '[aria-label="simple 模型"]'); await frames(app);
 	const menuGeometry = () => app.evaluate<{ height: number; right: number; bottom: number; first: string; fade: string }>(`(()=>{const m=document.querySelector('[role="menu"][aria-label="选择模型"]'),r=m.getBoundingClientRect();return {height:r.height,right:r.right,bottom:r.bottom,first:m.querySelector('[data-model]').dataset.model,fade:m.querySelector('.ly-scroll-view').style.getPropertyValue('--ly-fade-bottom')};})()`);
 	const roleMenu = await menuGeometry();
 	assert.ok(roleMenu.height <= 420); assert.equal(roleMenu.first, "p1/m1"); assert.equal(roleMenu.fade, "48px");
-	await shot("model-role-favourites");
-	await click('[data-model="p1/m1"] [role="menuitem"]'); await frames();
-	await until(`document.querySelector('[aria-label="explore 模型"]')`);
-	await click('[aria-label="explore 模型"]'); await frames();
+	await shot(app, "model-role-favourites");
+	await click(app, '[data-model="p1/m1"] [role="menuitem"]'); await frames(app);
+	await until(app, `document.querySelector('[aria-label="explore 模型"]')`);
+	await click(app, '[aria-label="explore 模型"]'); await frames(app);
 	assert.equal((await menuGeometry()).first, "p1/m1");
-	await click('[data-model="p1/m1"] [role="menuitem"]');
+	await click(app, '[data-model="p1/m1"] [role="menuitem"]');
 	// Persist sets every agent fieldset `disabled`. A click in that window is a no-op, so
 	// Windows CI read zero thinking rows after the model menu closed and the write was still
 	// in flight. Wait until explore's own save is on screen.
-	await until(`!document.querySelector('[role="menu"][aria-label="选择模型"]')`);
+	await until(app, `!document.querySelector('[role="menu"][aria-label="选择模型"]')`);
 	await app.evaluate(`(async()=>{const end=Date.now()+15000;while(Date.now()<end){const box=document.querySelector('[data-agent-profile="explore"] fieldset');const btn=document.querySelector('[aria-label="explore 思考等级"]');if(box&&!box.disabled&&(btn?.textContent??'').includes('自适应'))return;await new Promise(r=>setTimeout(r,50));}throw new Error('explore save did not land');})()`);
-	await click('[aria-label="explore 思考等级"]');
-	await until(`[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent.includes('自适应'))`);
+	await click(app, '[aria-label="explore 思考等级"]');
+	await until(app, `[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent.includes('自适应'))`);
 	const levels = await app.evaluate<string[]>(`[...document.querySelectorAll('[role="menuitem"]')].map(e=>e.textContent.trim())`);
 	assert.equal(levels.length, 3); assert.ok(levels.some((text) => text.startsWith("自适应"))); assert.ok(!levels.some((text) => text === "高"));
-	await key("Escape", 27); await frames();
+	await press(app, "Escape", 27); await frames(app);
 	for (const width of [1280, 375]) {
-		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
-		await click('[aria-label="explore 模型"]'); await frames();
+		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(app);
+		await click(app, '[aria-label="explore 模型"]'); await frames(app);
 		const geometry = await menuGeometry(); assert.ok(geometry.height <= 420 && geometry.right <= width && geometry.bottom <= 850, JSON.stringify(geometry));
-		await shot(`subagent-model-menu-${width}`);
-		await click('[role="menu"][aria-label="选择模型"] input'); await app.send("Input.insertText", { text: "gemini-relay-19" }); await frames();
+		await shot(app, `subagent-model-menu-${width}`);
+		await click(app, '[role="menu"][aria-label="选择模型"] input'); await app.send("Input.insertText", { text: "gemini-relay-19" }); await frames(app);
 		assert.equal(await app.evaluate(`document.querySelectorAll('[data-model]').length`), 3);
-		await key("Escape", 27); await frames();
+		await press(app, "Escape", 27); await frames(app);
 		t.diagnostic(JSON.stringify({ width, geometry }));
 	}
 	const saved = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8"));
 	assert.equal(saved.subAgentProfiles.simple.modelId, "p1/m1"); assert.equal(saved.subAgentProfiles.explore.modelId, "p1/m1"); assert.equal(saved.defaultModelId, "p0/m0");
-	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false }); await frames();
-	await label("返回工作区"); await frames();
+	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 850, deviceScaleFactor: 1, mobile: false }); await frames(app);
+	await click(app, "nav button", "返回工作区"); await frames(app);
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-dock-pane="conversation"]').innerText`), /同名模型/);
 	assert.equal(await app.evaluate(`window.plume.sessions.list().then(rows=>rows.find(s=>s.id==='qa-long').modelId)`), "p0/m0");
 });

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { Message } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
+import { frames, until } from "./drive.ts";
 import { seedSessions } from "./session-fixture.ts";
 
 let app: RunningApp;
@@ -39,15 +40,15 @@ before(async () => {
 	// Native work areas may clamp the saved window; this workload requires three readable columns.
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 	await app.evaluate(`document.querySelector('[data-ly-row="fullscreen"] > button').click()`);
-	await until(`document.querySelector('.ly-transcript')`);
+	await until(app, `document.querySelector('.ly-transcript')`);
 	await openPane("文件");
-	await until(`document.querySelector('[role="treeitem"][data-path$="AGENTS.md"]')`);
+	await until(app, `document.querySelector('[role="treeitem"][data-path$="AGENTS.md"]')`);
 	await app.evaluate(`document.querySelector('[role="treeitem"][data-path$="AGENTS.md"]').click()`);
-	await until(`document.querySelector('[data-dock-pane="file"] .prose-dw h2')`);
+	await until(app, `document.querySelector('[data-dock-pane="file"] .prose-dw h2')`);
 	await app.evaluate(`document.querySelector('[data-dock-header="files"] button[aria-label^="关闭"]').click()`);
 	await openPane("任务");
 	await openPane("终端");
-	await frames(30);
+	await frames(app, 30);
 	const layout = await app.evaluate<{ width: number; height: number; panes: { kind: string; width: number; height: number }[] }>(`(()=>{
 		const shown=[...document.querySelectorAll('[data-dock-pane]')].filter(el=>!el.closest('[inert]')&&el.checkVisibility({visibilityProperty:true,opacityProperty:true}));
 		// A window conversation can contain the tiled conversation; only its visible leaf owns content.
@@ -64,17 +65,12 @@ before(async () => {
 });
 after(async () => { await app?.stop(); });
 
-async function until(expression: string) {
-	await app.evaluate(`new Promise((resolve,reject)=>{let n=600;const tick=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(tick);else reject(new Error(${JSON.stringify(expression)}));};tick();})`);
-}
-async function frames(count: number) {
-	await app.evaluate(`new Promise(resolve=>{let n=${count};const tick=()=>--n?requestAnimationFrame(tick):resolve();requestAnimationFrame(tick);})`);
-}
+// Synthetic `.click()` like the rest of this file: no real pointer is left hovering the dock during frame measurements.
 async function openPane(label: string) {
 	await app.evaluate(`document.querySelector('button[aria-label="面板"]').click()`);
-	await until(`document.querySelector('[role="menuitem"]')`);
+	await until(app, `document.querySelector('[role="menuitem"]')`);
 	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.trim().startsWith(${JSON.stringify(label)})).click()`);
-	await frames(20);
+	await frames(app, 20);
 }
 
 interface Sample {
@@ -213,11 +209,11 @@ test("rapid fullscreen reversals preserve scroll and finish without a second dri
 
 test("a large editable file keeps its editor and unsaved text; reduced motion lands immediately", async () => {
 	await openPane("文件");
-	await until(`document.querySelector('[role="treeitem"][data-path$="large.ts"]')`);
+	await until(app, `document.querySelector('[role="treeitem"][data-path$="large.ts"]')`);
 	await app.evaluate(`document.querySelector('[role="treeitem"][data-path$="large.ts"]').click()`);
-	await until(`document.querySelector('[data-dock-pane="file"] .cm-content')`);
+	await until(app, `document.querySelector('[data-dock-pane="file"] .cm-content')`);
 	await app.evaluate(`document.querySelector('[data-dock-header="files"] button[aria-label^="关闭"]').click()`);
-	await frames(20);
+	await frames(app, 20);
 	await app.evaluate(`(()=>{const e=document.querySelector('[data-dock-pane="file"] .cm-content');e.focus();const range=document.createRange();range.setStart(e.querySelector('.cm-line'),0);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`);
 	await app.send("Input.insertText", { text: "// retained draft\n" });
 	for (const restore of [false, true]) {
@@ -227,7 +223,7 @@ test("a large editable file keeps its editor and unsaved text; reduced motion la
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-dock-pane="file"] .cm-content').innerText`), /retained draft/);
 	assert.doesNotMatch(await readFile(join(app.home, "project", "large.ts"), "utf8"), /retained draft/);
 	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,reduceMotion:'on'}}))`);
-	await until(`document.documentElement.dataset.reduceMotion==='on'`);
+	await until(app, `document.documentElement.dataset.reduceMotion==='on'`);
 	try {
 		for (const restore of [false, true]) {
 			const result = await measure("file", restore);

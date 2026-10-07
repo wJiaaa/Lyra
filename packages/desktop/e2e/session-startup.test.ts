@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, afterEach, before, test, type TestContext } from "node:test";
@@ -8,6 +8,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { landsOn } from "./lands-on.ts";
+import { frames, shot } from "./drive.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -64,21 +65,19 @@ else if(q.method==='tools/list')reply({tools:[]});else reply({});});`);
 after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server)); });
 afterEach(async (t) => {
 	if (t.passed) return;
-	await shot("group-loading-failure");
+	await shot(app, "group-loading-failure");
 	t.diagnostic(await app.evaluate<string>(`JSON.stringify({trace:window.qaStartupTrace,field:document.querySelector('textarea')?.value,active:document.activeElement?.outerHTML.slice(0,300),body:document.body.innerText.slice(-1600)})`));
 	t.diagnostic(await app.evaluate<string>(`JSON.stringify([...document.querySelectorAll('[class~="group/project"] > button[aria-expanded]')].map(b=>({text:b.textContent,expanded:b.getAttribute('aria-expanded'),html:b.innerHTML})))`));
 });
 
+// Kept local: every aim is logged to qaStartupTrace, which afterEach prints when a test fails.
 async function click(selector: string): Promise<void> {
 	const at = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>e.checkVisibility({visibilityProperty:true}));if(!e)throw new Error(${JSON.stringify(selector)});e.scrollIntoView({block:'nearest',behavior:'instant'});const r=e.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;window.qaStartupTrace.push({type:'aim',selector:${JSON.stringify(selector)},time:performance.now(),rect:r.toJSON(),hit:document.elementFromPoint(x,y)?.outerHTML.slice(0,240),field:document.querySelector('textarea')?.value});return {x,y};})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
 	await app.evaluate(`(()=>{const el=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>e.checkVisibility({visibilityProperty:true})),x=${at.x},y=${at.y};${landsOn(selector)}})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...at });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...at });
-	await frames(2);
-}
-async function frames(n: number): Promise<void> {
-	await app.evaluate(`new Promise(r=>{let n=${n};const f=()=>--n?requestAnimationFrame(f):r();requestAnimationFrame(f);})`);
+	await frames(app, 2);
 }
 async function submit(): Promise<{ meta: SessionMeta; elapsed: number }> {
 	await click('button[aria-label="在「交互验证」里新建会话"]');
@@ -113,14 +112,14 @@ test("slow MCP startup still creates immediate titled rows, aggregates collapsed
 	assert.equal(modelRequests, 0, "the row is present before either MCP or the provider responds");
 	assert.equal(await app.evaluate(`!!document.querySelector('[class~="group/project"] > button[aria-expanded="true"] [aria-label*="个会话正在执行"]')`), false);
 	await click('[class~="group/project"] > button[aria-expanded]');
-	await frames(20);
+	await frames(app, 20);
 	const group = await app.evaluate<{ expanded: string; label: string; hasSpinner: boolean }>(`(()=>{const b=document.querySelector('[class~="group/project"] > button[aria-expanded]');const status=b.querySelector('[aria-label*="个会话正在执行"]');return {expanded:b.getAttribute('aria-expanded'),label:status?.getAttribute('aria-label'),hasSpinner:!!status?.querySelector('svg.ly-arc')};})()`);
 	assert.equal(group.expanded, "false"); assert.equal(group.label, "1 个会话正在执行"); assert.equal(group.hasSpinner, true);
 	await click('button[aria-label="停止"]');
 	const second = await submit();
 	assert.notEqual(first.meta.id, second.meta.id); assert.equal(first.meta.title, second.meta.title);
 	await click('button[aria-label="停止"]');
-	await frames(180);
+	await frames(app, 180);
 	assert.equal(modelRequests, 0, "cancellation during initialization never starts the provider afterwards");
 	const stored = await app.evaluate<{ id: string; count: number; pending: boolean; running: boolean }[]>(`Promise.all(${JSON.stringify([first.meta, second.meta])}.map(async s=>{const t=await window.plume.sessions.transcript(s.id);return {id:s.id,count:t.messages.length,pending:!!t.meta.pendingPrompt,running:t.running};}))`);
 	assert.ok(stored.every((s) => s.count === 1 && !s.pending && !s.running));
@@ -164,17 +163,9 @@ test("collapsed group loading shares the far-right action slot without shifting 
 	await verifyGroupLoading(t, started.meta.id);
 	assert.ok(completeReply); completeReply();
 	await app.evaluate(`new Promise((resolve,reject)=>{const end=performance.now()+20000;const read=async()=>{const s=await window.plume.sessions.transcript(${JSON.stringify(started.meta.id)});if(!s.running)resolve();else if(performance.now()<end)requestAnimationFrame(()=>{void read();});else reject(new Error('turn did not complete'));};void read();})`);
-	await click('[data-qa-running-group]'); await frames(20);
+	await click('[data-qa-running-group]'); await frames(app, 20);
 	assert.equal(await app.evaluate(`!!document.querySelector('[data-qa-running-group] svg.ly-arc')`), false);
 });
-
-async function shot(name: string) {
-	const directory = process.env.PLUME_E2E_ARTIFACTS;
-	if (!directory) return;
-	await mkdir(directory, { recursive: true });
-	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-	await writeFile(join(directory, name + ".png"), Buffer.from(result.data, "base64"));
-}
 
 async function verifyGroupLoading(t: TestContext, sessionId: string) {
 	// Workspace initialization may refresh the project name; locate the group by its actual row.
@@ -187,7 +178,7 @@ if(!group)throw new Error('Running session has no project heading');group.queryS
 	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(heading + ' svg.ly-arc')})`), false);
 	await click(heading);
 	// Leave the row so its resting status can occupy the same slot as the hover actions.
-	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 600, y: 100 }); await frames(20);
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 600, y: 100 }); await frames(app, 20);
 	const measurement = `(()=>{const b=document.querySelector(${JSON.stringify(heading)}),r=b.getBoundingClientRect(),name=b.children[1].getBoundingClientRect();
 const status=b.querySelector('[aria-label*="个会话正在执行"]'),slot=status.parentElement,s=status.getBoundingClientRect(),svg=status.querySelector('svg');
 const menu=b.parentElement.querySelector('button[aria-haspopup="menu"]'),actions=menu.parentElement,m=menu.querySelector('svg').getBoundingClientRect();
@@ -199,7 +190,7 @@ return {height:r.height,nameX:name.x,nameWidth:name.width,rightInset:r.right-s.r
 	assert.equal(resting.diameter, 14); assert.ok(resting.rightInset >= 8 && resting.rightInset <= 12);
 	assert.ok(Math.abs(resting.centerY) <= 0.5); assert.ok(Math.abs(resting.menuCenterX - resting.loadingCenterX) <= 1);
 	assert.equal(resting.slotOpacity, 1); assert.equal(resting.actionsOpacity, 0);
-	await shot("group-loading-collapsed");
+	await shot(app, "group-loading-collapsed");
 	const position = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector(${JSON.stringify(heading)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...position });
 	const samples = await app.evaluate<Measurement[]>(`(async()=>{const samples=[];for(let i=0;i<24;i++){await new Promise(requestAnimationFrame);samples.push(${measurement});}return samples;})()`);
@@ -208,17 +199,17 @@ return {height:r.height,nameX:name.x,nameWidth:name.width,rightInset:r.right-s.r
 	assert.ok(new Set(samples.map((frame) => frame.fade)).size > 1, "the loading mark cycles rather than sitting still");
 	const hovered = samples.at(-1); assert.ok(hovered);
 	assert.equal(hovered.slotOpacity, 0); assert.equal(hovered.actionsOpacity, 1); assert.equal(hovered.buttonsReachable, true);
-	await shot("group-loading-hover");
-	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 600, y: 100 }); await frames(20);
+	await shot(app, "group-loading-hover");
+	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 600, y: 100 }); await frames(app, 20);
 	assert.equal((await app.evaluate<Measurement>(measurement)).slotOpacity, 1);
-	await click(heading); await frames(20);
+	await click(heading); await frames(app, 20);
 	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(heading + ' svg.ly-arc')})`), false);
-	await shot("group-loading-expanded");
+	await shot(app, "group-loading-expanded");
 	const section = '[class~="group/section"]';
 	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-arc')})`), false);
-	await click(section); await frames(20);
+	await click(section); await frames(app, 20);
 	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-arc')})`), true);
-	await click(section); await frames(20);
+	await click(section); await frames(app, 20);
 	assert.equal(await app.evaluate(`!!document.querySelector(${JSON.stringify(section + ' svg.ly-arc')})`), false);
 	t.diagnostic(JSON.stringify({ resting, hovered, sampledFrames: samples.length, slotOpacity: samples.map((frame) => frame.slotOpacity), pinnedSection: "collapsed only" }));
 }

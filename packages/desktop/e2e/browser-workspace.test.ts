@@ -6,6 +6,7 @@ import { after, afterEach, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { click, until } from "./drive.ts";
 import { landsOn } from "./lands-on.ts";
 
 let app: RunningApp;
@@ -74,31 +75,18 @@ afterEach(async (t) => {
 		if (artifact) { await mkdir(artifact, { recursive: true }); const screenshot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" }); await writeFile(join(artifact, `browser-failed-${t.name.replace(/\W/g, "-")}.png`), Buffer.from(screenshot.data, "base64")); }
 	}
 });
-async function until(expression: string) {
-	await app.evaluate(`new Promise((resolve,reject)=>{let n=1800;const f=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(f);else reject(new Error(${JSON.stringify(expression)}));};f();})`);
-}
-
-async function click(selector: string) {
-	const point = await app.evaluate<{x:number;y:number}>(`new Promise((resolve,reject)=>{let previous='',same=0,left=180;const frame=()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el){reject(new Error('Missing '+${JSON.stringify(selector)}));return;}const r=el.getBoundingClientRect(),now=JSON.stringify(r);same=now===previous?same+1:0;previous=now;if(same>=3){const x=r.x+r.width/2,y=r.y+r.height/2;try{${landsOn(selector)}}catch(error){reject(error);return;}resolve({x,y});}else if(--left)requestAnimationFrame(frame);else reject(new Error('Unstable menu'));};frame();})`);
-	await app.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...point});
-	await app.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...point});
-}
 async function menu(label: string) {
-	await click('[aria-label="浏览器菜单"]');
-	await until(`document.querySelector('[role="menuitem"]')`);
-	const index = await app.evaluate<number>(`[...document.querySelectorAll('[role="menuitem"]')].findIndex(e=>e.textContent.startsWith(${JSON.stringify(label)}))`);
-	assert.ok(index >= 0, `menu contains ${label}`);
-	await app.evaluate(`document.querySelectorAll('[data-browser-menu-target]').forEach(e=>e.removeAttribute('data-browser-menu-target'));document.querySelectorAll('[role="menuitem"]')[${index}].setAttribute('data-browser-menu-target','')`);
-	await click('[data-browser-menu-target]');
+	await click(app, '[aria-label="浏览器菜单"]');
+	await click(app, '[role="menuitem"]', label, "starts");
 }
 
 test("agent drives the user's actual browser: native input, click, viewport and screenshot", async (t) => {
 	const point = await app.evaluate<{x: number; y: number}>(`(()=>{const el=document.querySelector('[data-ly-row="qa-short"]'),r=el.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;${landsOn('[data-ly-row="qa-short"]')}return {x,y};})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...point });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...point });
-	await until(`document.querySelector('textarea[aria-label="消息"]')`);
+	await until(app, `document.querySelector('textarea[aria-label="消息"]')`, 1800);
 	await app.evaluate(`window.plume.agent.prompt('qa-short',[{type:'text',text:'BROWSER_QA 请检查浏览器'}])`);
-	await until(`document.body.innerText.includes('BROWSER_QA_DONE')`);
+	await until(app, `document.body.innerText.includes('BROWSER_QA_DONE')`, 1800);
 	const state = await app.evaluate<{ tabs: { id: string; sessionId: string; viewport: { width: number } }[] }>("window.plume.browser.state()");
 	assert.equal(state.tabs.length, 1);
 	assert.equal(state.tabs[0].sessionId, "qa-short");
@@ -115,8 +103,8 @@ test("agent drives the user's actual browser: native input, click, viewport and 
 	 */
 	assert.equal(await app.evaluate(`document.querySelector('[data-dock-pane="browser"]').hasAttribute('inert')`), true, "the panel stayed closed while the agent worked");
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-browser-card]')?.innerText ?? ''`), /Browser QA/);
-	await click('[data-browser-card] [data-browser-card-row] button');
-	await until(`!document.querySelector('[data-dock-pane="browser"]').hasAttribute('inert')`);
+	await click(app, '[data-browser-card] [data-browser-card-row] button');
+	await until(app, `!document.querySelector('[data-dock-pane="browser"]').hasAttribute('inert')`, 1800);
 	const artifact = process.env.PLUME_E2E_ARTIFACTS;
 	if (artifact) { await mkdir(artifact, { recursive: true }); const screenshot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" }); await writeFile(join(artifact, "browser-agent.png"), Buffer.from(screenshot.data, "base64")); }
 });
@@ -135,7 +123,7 @@ test("tabs preserve forms and document identity through switching and closing th
 
 test("element inspection blocks page clicks and sends a real screenshot with DOM context to the composer", async (t) => {
 	await menu("检查元素");
-	await until(`document.querySelector('[aria-label="退出检查"]')`);
+	await until(app, `document.querySelector('[aria-label="退出检查"]')`, 1800);
 	await app.evaluate(`document.querySelector('webview').executeJavaScript("new Promise(resolve=>{const f=()=>document.getElementById('__plume_inspect_layer')?resolve():requestAnimationFrame(f);f();})")`);
 	await app.evaluate(`new Promise(resolve=>{let prior='',same=0;const f=()=>{const r=document.querySelector('webview').getBoundingClientRect();const now=JSON.stringify(r);same=now===prior?same+1:0;prior=now;if(same>=3)resolve();else requestAnimationFrame(f);};f();})`);
 	// Only the host side can be asked: elementFromPoint stops at the webview, and inside it the inspect layer covers every element.
@@ -143,12 +131,12 @@ test("element inspection blocks page clicks and sends a real screenshot with DOM
 	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",...point});
 	await app.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...point});
 	await app.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...point});
-	await until(`document.querySelector('[data-browser-selection] img')?.naturalWidth > 0`);
+	await until(app, `document.querySelector('[data-browser-selection] img')?.naturalWidth > 0`, 1800);
 	assert.equal(await app.evaluate(`document.querySelector('webview').executeJavaScript("document.querySelector('#count').textContent")`), "3");
 	const dimensions = await app.evaluate(`(()=>{const e=document.querySelector('[data-browser-selection] img');return {width:e.naturalWidth,height:e.naturalHeight,selector:document.querySelector('[data-browser-selection]').innerText};})()`);
 	t.diagnostic(JSON.stringify(dimensions));
 	await app.evaluate(`document.querySelector('[aria-label="添加到对话"]').click()`);
-	await until(`document.querySelector('textarea[aria-label="消息"]').value.includes('Selector: #add')`);
+	await until(app, `document.querySelector('textarea[aria-label="消息"]').value.includes('Selector: #add')`, 1800);
 	assert.match(await app.evaluate<string>(`document.querySelector('textarea[aria-label="消息"]').value`), /Styles:.*font-family/);
 });
 
@@ -162,7 +150,7 @@ test("region selection captures the dragged bounds and native DevTools is availa
 	await app.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",buttons:1,clickCount:1,...start});
 	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",button:"left",buttons:1,...end});
 	await app.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...end});
-	await until(`document.querySelector('[data-browser-selection] img')?.naturalWidth > 0`);
+	await until(app, `document.querySelector('[data-browser-selection] img')?.naturalWidth > 0`, 1800);
 	const size=await app.evaluate<{width:number;height:number}>(`(()=>{const i=document.querySelector('[data-browser-selection] img');return {width:i.naturalWidth,height:i.naturalHeight}})()`);
 	assert.ok(size.width > size.height && size.height > 50);t.diagnostic(JSON.stringify({region:size,scale:area.scale}));
 	await app.evaluate(`document.querySelector('[aria-label="取消选择"]').click()`);
@@ -174,10 +162,10 @@ test("region selection captures the dragged bounds and native DevTools is availa
 
 test("bookmarks persist, default zoom applies to new tabs and invalid commands leave the page intact", async () => {
 	await menu("收藏网页");
-	await until(`window.plume && document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`);
-	await click('[aria-label="浏览器菜单"]');
-	await until(`[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent==='取消收藏网页')`);
-	await click('[aria-label="浏览器菜单"]');
+	await until(app, `window.plume && document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`, 1800);
+	await click(app, '[aria-label="浏览器菜单"]');
+	await until(app, `[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent==='取消收藏网页')`, 1800);
+	await click(app, '[aria-label="浏览器菜单"]');
 	const saved=JSON.parse(await readFile(join(app.home,'settings.json'),'utf8'));assert.equal(saved.browser.bookmarks[0].url,`http://127.0.0.1:${port}/page`);
 	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,browser:{...s.browser,defaultZoom:1.25}}))`);
 	await app.evaluate(`window.plume.browser.command({type:'open',url:'http://127.0.0.1:${port}/zoom',sessionId:'qa-short',newTab:true})`);
@@ -214,12 +202,12 @@ test("fullscreen keeps the native browser page and form state, with one viewport
 
 test("one navigation row, a compact menu and a icon empty state at wide and 375px widths", async (t) => {
 	await app.evaluate(`window.plume.browser.state().then(async s=>{for(const tab of s.tabs)await window.plume.browser.command({type:'close',id:tab.id})})`);
-	await until(`document.querySelector('[data-browser-empty]')`);
+	await until(app, `document.querySelector('[data-browser-empty]')`, 1800);
 	for (const theme of ["light", "dark"]) for (const width of [1200, 375]) {
 		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}}))`);
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
-		await click('[aria-label="浏览器菜单"]');
-		await until(`document.querySelector('[role="menuitem"]')`);
+		await click(app, '[aria-label="浏览器菜单"]');
+		await until(app, `document.querySelector('[role="menuitem"]')`, 1800);
 		await app.evaluate(`Promise.all(document.querySelector('[role="menuitem"]').closest('[role="menu"]').getAnimations({subtree:true}).map(a=>a.finished))`);
 		const metrics = await app.evaluate<{toolbarHeight:number;overflow:number;empty:string;tabs:number;menuWidth:number}>(`(()=>{const toolbar=document.querySelector('[data-browser-toolbar]'),menu=document.querySelector('[role="menuitem"]').closest('[role="menu"]');return {toolbarHeight:toolbar.getBoundingClientRect().height,overflow:toolbar.scrollWidth-toolbar.clientWidth,empty:document.querySelector('[data-browser-empty]').textContent,tabs:document.querySelector('[data-browser-panel]').querySelectorAll('[role="tab"]').length,menuWidth:menu.getBoundingClientRect().width}})()`);
 		assert.equal(metrics.toolbarHeight, 40); assert.equal(metrics.overflow, 0); assert.match(metrics.empty, /打开一个网页/); assert.doesNotMatch(metrics.empty, /输入网址/); assert.equal(metrics.tabs, 0); assert.equal(metrics.menuWidth, 224); t.diagnostic(JSON.stringify({theme,width,...metrics}));
@@ -227,27 +215,27 @@ test("one navigation row, a compact menu and a icon empty state at wide and 375p
 		if(directory){await mkdir(directory,{recursive:true});const shot=await app.send<{data:string}>("Page.captureScreenshot",{format:"png"});await writeFile(join(directory,`browser-menu-${theme}-${width}.png`),Buffer.from(shot.data,"base64"));}
 		await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
 		await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
-		await until(`document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`);
+		await until(app, `document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`, 1800);
 		const emptyStyle = await app.evaluate(`(()=>{const empty=document.querySelector('[data-browser-empty]'),toolbar=document.querySelector('[data-browser-toolbar]');return {background:getComputedStyle(empty).backgroundColor,container:getComputedStyle(empty.parentElement).backgroundColor,divider:getComputedStyle(toolbar).borderBottomWidth,icons:empty.querySelectorAll('svg').length};})()`);
 		assert.equal(emptyStyle.background, emptyStyle.container); assert.equal(emptyStyle.divider, "0px"); assert.equal(emptyStyle.icons, 1);
-		await click('[aria-label="地址栏或搜索"]'); assert.equal(await app.evaluate(`document.activeElement.getAttribute('aria-label')`), "地址栏或搜索");
+		await click(app, '[aria-label="地址栏或搜索"]'); assert.equal(await app.evaluate(`document.activeElement.getAttribute('aria-label')`), "地址栏或搜索");
 		if(directory){const shot=await app.send<{data:string}>("Page.captureScreenshot",{format:"png"});await writeFile(join(directory,`browser-empty-${theme}-${width}.png`),Buffer.from(shot.data,"base64"));}
 	}
 	await app.send("Emulation.clearDeviceMetricsOverride");
 	await menu("新标签页");
-	await until(`document.querySelector('webview')`);
+	await until(app, `document.querySelector('webview')`, 1800);
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-browser-empty]').textContent`), /打开一个网页/);
 	await menu("视口尺寸");
-	await until(`document.querySelector('[aria-label="视口宽度"]')`);
+	await until(app, `document.querySelector('[aria-label="视口宽度"]')`, 1800);
 	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.startsWith('手机')).setAttribute('data-mobile-preset','')`);
-	await click('[data-mobile-preset]');
+	await click(app, '[data-mobile-preset]');
 	assert.equal(await app.evaluate(`document.querySelector('webview').executeJavaScript('innerWidth')`), 312);
-	await click('[aria-label="浏览器菜单"]');
-	await click('[aria-label="重置网页缩放"]');
+	await click(app, '[aria-label="浏览器菜单"]');
+	await click(app, '[aria-label="重置网页缩放"]');
 	assert.equal(await app.evaluate(`document.querySelector('webview').executeJavaScript('innerWidth')`), 390);
 	await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
 	await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
-	await until(`document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`);
+	await until(app, `document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`, 1800);
 	await menu("关闭标签页");
-	await until(`!document.querySelector('webview')`);
+	await until(app, `!document.querySelector('webview')`, 1800);
 });

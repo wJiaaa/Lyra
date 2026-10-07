@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { frames, until } from "./drive.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
 let app: RunningApp;
@@ -10,17 +11,10 @@ const pane = '[data-dock-pane="review"]';
 const button = `${pane} button[aria-label*="全屏"]`;
 before(async () => {
 	app = await startApp({ port: 9653, seed: seedInteractions });
-	await until(`document.querySelector('[data-ly-row="qa-short"] > button')`);
+	await until(app, `document.querySelector('[data-ly-row="qa-short"] > button')`);
 	await app.evaluate(`document.querySelector('[data-ly-row="qa-short"] > button').click()`);
 });
 after(async () => { await app?.stop(); });
-
-async function frames(count: number): Promise<void> {
-	await app.evaluate(`new Promise(resolve=>{let n=${count};function tick(){if(--n<=0)resolve();else requestAnimationFrame(tick)}requestAnimationFrame(tick)})`);
-}
-async function until(expression: string): Promise<void> {
-	await app.evaluate(`new Promise((resolve,reject)=>{const end=performance.now()+10000;function tick(){if(${expression})resolve();else if(performance.now()>end)reject(Error(${JSON.stringify(expression)}));else requestAnimationFrame(tick)}tick()})`);
-}
 
 interface ButtonFrame {
 	x: number;
@@ -52,14 +46,14 @@ test("rapid native fullscreen clicks keep the header sized and anchored without 
 	for (const theme of ["light", "dark"]) for (const width of [1200, 1100]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
 		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)},reduceMotion:'off'}})})()`);
-		await until(`document.documentElement.classList.contains(${JSON.stringify(theme)})`);
+		await until(app, `document.documentElement.classList.contains(${JSON.stringify(theme)})`);
 		if (!await app.evaluate(`Boolean(document.querySelector('${pane}'))`)) {
-			await until(`document.querySelector('button[aria-label^="Git "]')`);
+			await until(app, `document.querySelector('button[aria-label^="Git "]')`);
 			await app.evaluate(`document.querySelector('button[aria-label^="Git "]').click()`);
 		}
-		await until(`document.querySelector('${button}')`);
-		await until(`document.querySelector('${pane} [data-view="changes"]')`);
-		await frames(30);
+		await until(app, `document.querySelector('${button}')`);
+		await until(app, `document.querySelector('${pane} [data-view="changes"]')`);
+		await frames(app, 30);
 		const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector('${button}'),r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
 		await app.evaluate(`(()=>{
 			const pane=document.querySelector('${pane}'),original=pane.querySelector('[data-view="changes"]');
@@ -72,9 +66,9 @@ test("rapid native fullscreen clicks keep the header sized and anchored without 
 		for (let i = 0; i < 8; i++) {
 			await app.send("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", buttons: 1, clickCount: 1 });
 			await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", buttons: 0, clickCount: 1 });
-			await frames(2);
+			await frames(app, 2);
 		}
-		await frames(30);
+		await frames(app, 30);
 		const evidence = await app.evaluate<Evidence>(`(()=>{const trace=window.__headerTrace;trace.active=false;document.removeEventListener('click',trace.listener,true);return {frames:trace.frames,clicks:trace.clicks,retained:trace.pane===document.querySelector('${pane}')&&trace.original?.isConnected,finalLabel:document.querySelector('${button}')?.getAttribute('aria-label')??null,nativePlatform:navigator.platform}})()`);
 		const visible = evidence.frames.filter((frame) => frame !== null);
 		const xRange = visible.length ? Math.max(...visible.map((frame) => frame.x)) - Math.min(...visible.map((frame) => frame.x)) : Infinity;
@@ -110,7 +104,7 @@ test("a window resize finishes the visual flight before taking over pane geometr
 	})()`);
 	assert.equal(started, true, "the resize interrupts an actual in-flight animation");
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1160, height: 820, deviceScaleFactor: 1, mobile: false });
-	await frames(2);
+	await frames(app, 2);
 	const state = await app.evaluate<{ active: number; width: number; height: number; retained: boolean }>(`(()=>{
 		const pane=document.querySelector('${pane}'),surface=pane.querySelector('[data-dock-motion]'),r=pane.querySelector('button[aria-label*="全屏"]').getBoundingClientRect();
 		return {active:pane.getAnimations({subtree:true}).filter(a=>a.id==='ly-dock-geometry'&&a.playState==='running').length,width:r.width,height:r.height,retained:!!pane.querySelector('[data-view="changes"]')};
@@ -121,24 +115,24 @@ test("a window resize finishes the visual flight before taking over pane geometr
 
 test("translated terminal tabs stay clipped before the fixed controls and reverse continuously", async (t) => {
 	await app.evaluate(`document.querySelector('${button}').click()`);
-	await frames(30);
+	await frames(app, 30);
 	// A third column cannot fit the conversation and tool floors at these viewport widths.
 	await app.evaluate(`document.querySelector('[data-dock-header="review"] button[aria-label^="关闭"]').click()`);
 	await app.evaluate(`document.querySelector('button[aria-label="面板"]').click()`);
-	await until(`document.querySelector('[role="menuitem"]')`);
+	await until(app, `document.querySelector('[role="menuitem"]')`);
 	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.trim().startsWith('终端')).click()`);
-	await until(`document.querySelector('[data-dock-pane="terminal"] [data-tab]')`);
+	await until(app, `document.querySelector('[data-dock-pane="terminal"] [data-tab]')`);
 	for (let i = 0; i < 7; i++) {
 		await app.evaluate(`document.querySelector('button[aria-label="新建终端"]').click()`);
-		await until(`document.querySelectorAll('[data-dock-pane="terminal"] [data-tab]').length===${i + 2}`);
+		await until(app, `document.querySelectorAll('[data-dock-pane="terminal"] [data-tab]').length===${i + 2}`);
 	}
 	const reports = [];
 	for (const theme of ["light", "dark"]) for (const width of [1200, 1024]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
 		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}})})()`);
-		await until(`document.documentElement.classList.contains(${JSON.stringify(theme)})`);
+		await until(app, `document.documentElement.classList.contains(${JSON.stringify(theme)})`);
 		await app.evaluate(`document.querySelector('[data-dock-grip="terminal"]').dispatchEvent(new KeyboardEvent('keydown',{key:${JSON.stringify(width === 1200 ? "ArrowRight" : "ArrowLeft")},altKey:true,bubbles:true}))`);
-		await frames(30);
+		await frames(app, 30);
 		const layout = await app.evaluate<{ viewport: number; panes: { kind: string; width: number; height: number }[] }>(`(()=>{
 			const shown=[...document.querySelectorAll('[data-dock-pane]')].filter(el=>!el.closest('[inert]')&&el.checkVisibility({visibilityProperty:true,opacityProperty:true}));
 			// Measure the tiled conversation rather than counting its outer window wrapper again.

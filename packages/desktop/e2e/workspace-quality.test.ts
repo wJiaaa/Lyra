@@ -7,6 +7,7 @@ import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { stopWorkspaceFixture } from "./workspace-quality-lifecycle.ts";
 import { named } from "./named.ts";
+import { click, openSession, press, until } from "./drive.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -67,55 +68,44 @@ afterEach(async(t)=>{
 	// for transcript text and the session service list.
 	try {
 		if (await app.evaluate(`Boolean([...document.querySelectorAll("nav button")].some(e=>${named("返回工作区")}))`)) {
-			await label("返回工作区", "nav button");
+			await click(app, "nav button", "返回工作区");
 		}
 	} catch { /* the next test has its own until() */ }
 });
-async function until(expression:string){await app.evaluate(`new Promise((resolve,reject)=>{let n=1200;const f=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(f);else reject(new Error(${JSON.stringify(expression)}));};f();})`);}
-async function click(selector:string){
-	await until(`document.querySelector(${JSON.stringify(selector)})`);
-	// Dock closure animates the toolbar; measure only after it reaches its actual hit target.
-	await app.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{})))");
-	await app.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`);
-	await app.evaluate("new Promise(requestAnimationFrame)");
-	const point=await app.evaluate<{x:number;y:number}>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'nearest',behavior:'instant'});const r=e.getBoundingClientRect();if(!e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw new Error('control is covered: '+${JSON.stringify(selector)});return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
-	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",...point});await app.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,...point});await app.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,...point});
-}
-async function label(text:string,selector="button"){const match=named(text);await app.evaluate(`(()=>{const e=[...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>${match});if(!e)throw new Error('No label '+${JSON.stringify(text)});e.setAttribute('data-qa-label','');})()`);await click('[data-qa-label]');await app.evaluate("document.querySelector('[data-qa-label]')?.removeAttribute('data-qa-label')");}
+// Kept local: lets animations finish before capturing.
 async function shot(name:string){const dir=process.env.PLUME_E2E_ARTIFACTS;if(!dir)return;await mkdir(dir,{recursive:true});await app.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{}))).then(()=>new Promise(requestAnimationFrame))");const result=await app.send<{data:string}>("Page.captureScreenshot",{format:"png"});await writeFile(join(dir,`${name}.png`),Buffer.from(result.data,"base64"));}
-async function escape(){await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",windowsVirtualKeyCode:27});await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",windowsVirtualKeyCode:27});}
 
 test("new profiles default to recently created and memory disclosure opens the actual source file",async(t)=>{
-	await click('[data-ly-row="qa-short"]');
-	await click('[aria-label="列表设置"]'); await until(`document.body.innerText.includes('最近创建')`);
-	assert.equal(await app.evaluate("localStorage.getItem('ly-sidebar-sort')"),"createdAt"); await escape();
-	await until(`document.querySelector('[aria-label^="上下文占用"]')`);await click('[aria-label^="上下文占用"]');
-	await until(`document.querySelector('[aria-label="上下文窗口用量"]')?.innerText.includes('记忆文件')`);await label("记忆文件");
+	await openSession(app, "qa-short");
+	await click(app, '[aria-label="列表设置"]'); await until(app, `document.body.innerText.includes('最近创建')`, 1200);
+	assert.equal(await app.evaluate("localStorage.getItem('ly-sidebar-sort')"),"createdAt"); await press(app, "Escape", 27);
+	await until(app, `document.querySelector('[aria-label^="上下文占用"]')`, 1200);await click(app, '[aria-label^="上下文占用"]');
+	await until(app, `document.querySelector('[aria-label="上下文窗口用量"]')?.innerText.includes('记忆文件')`, 1200);await click(app, "button", "记忆文件");
 	const reading=await app.evaluate<{border:string;paths:string[]}>(`(()=>{const p=document.querySelector('[aria-label="上下文窗口用量"]');return {border:getComputedStyle(p.querySelector('section')).borderTopWidth,paths:[...p.querySelectorAll('button[data-ly-tip]')].map(e=>e.dataset.lyTip)};})()`);
 	assert.equal(reading.border,"0px");assert.ok(reading.paths.some(p=>p.endsWith("AGENTS.md")));assert.ok(reading.paths.some(p=>p.endsWith("MEMORY.md")));
 	await shot("memory-file-disclosure");
 	await app.evaluate(`document.querySelector('[aria-label="上下文窗口用量"] button[data-ly-tip$="MEMORY.md"]').click()`);
-	await until(`document.querySelector('[data-dock-pane="file"]')?.innerText.includes('MEMORY_QA')`);
+	await until(app, `document.querySelector('[data-dock-pane="file"]')?.innerText.includes('MEMORY_QA')`, 1200);
 	t.diagnostic(JSON.stringify(reading));
-	await click('[data-dock-pane="file"] button[aria-label^="关闭"]');
+	await click(app, '[data-dock-pane="file"] button[aria-label^="关闭"]');
 });
 
 test("IME keeps confirmation keys and screenshot disabling reaches the main process",async(t)=>{
-	await click('button:has(svg.lucide-settings)');await until(`[...document.querySelectorAll('nav')].some(e=>e.checkVisibility()&&e.innerText.includes('个性化'))`);await label("个性化","nav button");
+	await click(app, 'button:has(svg.lucide-settings)');await until(app, `[...document.querySelectorAll('nav')].some(e=>e.checkVisibility()&&e.innerText.includes('个性化'))`, 1200);await click(app, "nav button", "个性化");
 	const field=`document.querySelector('input[placeholder^="手动添加一条用户记忆"]')`;
-	await until(`!!${field}`);await app.evaluate(`${field}.focus()`);await app.send("Input.imeSetComposition",{text:"中",selectionStart:1,selectionEnd:1});
+	await until(app, `!!${field}`, 1200);await app.evaluate(`${field}.focus()`);await app.send("Input.imeSetComposition",{text:"中",selectionStart:1,selectionEnd:1});
 	await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Enter",windowsVirtualKeyCode:13});await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Enter",windowsVirtualKeyCode:13});
 	assert.ok(await app.evaluate(`!!${field}`));
-	await label("屏幕截图","nav button");await until(`document.querySelector('[data-view="screenshot"]')`);
+	await click(app, "nav button", "屏幕截图");await until(app, `document.querySelector('[data-view="screenshot"]')`, 1200);
 	const result=await app.evaluate<string>(`window.plume.screenshot.start().then(()=>"started",e=>e.message)`);assert.match(result,/已关闭/);
-	await shot("screenshot-settings-disabled");await label("返回工作区","nav button");
+	await shot("screenshot-settings-disabled");await click(app, "nav button", "返回工作区");
 	t.diagnostic("Chromium IME composition and authoritative screenshot disable verified");
 });
 
 test("engineering delivery shows net syntax diffs, a real report and a live owned service",async(t)=>{
 	await app.evaluate(`window.plume.agent.prompt('qa-short',[{type:'text',text:'WORKSPACE_QA 实现并验证'}])`);
-	await until(`document.body.innerText.includes('WORKSPACE_QA_DONE')`);
-	await until(`document.querySelector('[data-turn-delivery]')?.innerText.includes('1 个文件')`);
+	await until(app, `document.body.innerText.includes('WORKSPACE_QA_DONE')`, 1200);
+	await until(app, `document.querySelector('[data-turn-delivery]')?.innerText.includes('1 个文件')`, 1200);
 	assert.equal(await readFile(join(app.home,"project","Sample.ts"),"utf8"),"export const answer = 2;\n");
 	const timestamp=await app.evaluate<number>(`window.plume.sessions.transcript('qa-short').then(s=>s.messages.findLast(m=>m.role==='assistant').timestamp)`);
 	const delivery=await app.evaluate<{reportPath:string;files:{added:number;removed:number}[];commands:{status:string}[]}>(`window.plume.delivery.get('qa-short',${timestamp})`);
@@ -123,22 +113,22 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 	assert.match(await readFile(delivery.reportPath,"utf8"),/answer = 2/);assert.match(await readFile(delivery.reportPath,"utf8"),/本轮实现与验证记录/);
 	// 等的是交付卡片自己。这里从前等「在内置浏览器打开」，可那个按钮在任务面板的服务列表里，
 	// 而任务面板要到下面第 122 行才打开——在它存在之前等它，只能等到超时。
-	await until(`document.querySelector('[data-turn-delivery] [data-delivery-file]')`);
+	await until(app, `document.querySelector('[data-turn-delivery] [data-delivery-file]')`, 1200);
 	await app.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{}))).then(()=>document.fonts.ready)");
 	await app.evaluate(`document.querySelector('[data-turn-delivery] [data-delivery-file]').scrollIntoView({block:'nearest',behavior:'instant'})`);
 	await app.evaluate("new Promise(requestAnimationFrame)");
 	const row=await app.evaluate<{x:number;y:number;height:number}>(`(()=>{const e=document.querySelector('[data-turn-delivery] [data-delivery-file]'),r=e.getBoundingClientRect();if(!e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw new Error('delivery row is covered');return {x:r.x+r.width/2,y:r.y+r.height/2,height:r.height}})()`);
-	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",x:row.x,y:row.y});await until(`document.querySelector('[aria-label="文件变更预览"] .ly-diff-add')`);
+	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",x:row.x,y:row.y});await until(app, `document.querySelector('[aria-label="文件变更预览"] .ly-diff-add')`, 1200);
 	await shot("turn-delivery-diff");
 	assert.equal(await app.evaluate(`document.querySelector('[data-turn-delivery] [data-delivery-file]').getBoundingClientRect().height`),row.height);
-	assert.ok(await app.evaluate(`document.querySelector('[aria-label="文件变更预览"]').getBoundingClientRect().bottom <= document.querySelector('[data-delivery-file]').getBoundingClientRect().top`), "the preview must stay above its file row");await escape();
+	assert.ok(await app.evaluate(`document.querySelector('[aria-label="文件变更预览"]').getBoundingClientRect().bottom <= document.querySelector('[data-delivery-file]').getBoundingClientRect().top`), "the preview must stay above its file row");await press(app, "Escape", 27);
 	// 这颗按钮现在带着「报告」两个字，可读名就是那两个字，那句长说明退到了 tooltip 上——
 	// 从前它是颗光图标的 `IconButton`，长说明只好去当 `aria-label`。同卡片的另外两颗一直是
 	// 这么找的。
-	await click('[data-turn-delivery] button[data-ly-tip="查看实现与验证记录"]');await until(`document.querySelector('[data-dock-pane="file"]')?.innerText.includes('命令与验证证据')`);
-	await shot("delivery-report-preview");await click('[data-dock-pane="file"] button[aria-label^="关闭"]');
-	await click('[aria-label="面板"]');await until(`document.querySelector('[role="menuitem"]')`);
-	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.innerText.split('\\n')[0]==='任务');if(!e)throw new Error('任务菜单不存在');e.setAttribute('data-qa-task','');})()`);await click('[data-qa-task]');
+	await click(app, '[data-turn-delivery] button[data-ly-tip="查看实现与验证记录"]');await until(app, `document.querySelector('[data-dock-pane="file"]')?.innerText.includes('命令与验证证据')`, 1200);
+	await shot("delivery-report-preview");await click(app, '[data-dock-pane="file"] button[aria-label^="关闭"]');
+	await click(app, '[aria-label="面板"]');await until(app, `document.querySelector('[role="menuitem"]')`, 1200);
+	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.innerText.split('\\n')[0]==='任务');if(!e)throw new Error('任务菜单不存在');e.setAttribute('data-qa-task','');})()`);await click(app, '[data-qa-task]');
 	/*
 	 * 端点没出现时，把探测自己的说法一起报出来。
 	 *
@@ -163,6 +153,6 @@ test("undo protects later user changes and service stop really closes the owned 
 	assert.equal(await readFile(path,"utf8"),"user added work\n");
 	await writeFile(path,"export const answer = 2;\n");
 	await app.evaluate(`window.plume.delivery.undo('qa-short',${timestamp},${JSON.stringify(path)})`);await assert.rejects(readFile(path),{code:"ENOENT"});
-	await click('[data-session-services] [aria-label="停止服务"]');await until(`document.querySelectorAll('[data-service-id]').length===0`);
+	await click(app, '[data-session-services] [aria-label="停止服务"]');await until(app, `document.querySelectorAll('[data-service-id]').length===0`, 1200);
 	const stopped=await app.evaluate<{jobs:{finishedAt?:number}[]}>("window.plume.services.list('qa-short')");assert.ok(stopped.jobs.every(j=>j.finishedAt!==undefined));
 });

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
@@ -7,6 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
+import { frames, shot } from "./drive.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -44,14 +45,11 @@ before(async () => {
 });
 afterEach(async (t) => {
 	if (!t.passed) {
-		await shot("notifications-failure");
+		await shot(app, "notifications-failure");
 		t.diagnostic(await app.evaluate<string>(`document.body.innerText.slice(-3000)`));
 	}
 });
 after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server)); });
-async function frames(count = 3) {
-	await app.evaluate(`new Promise(resolve=>{let n=${count};const frame=()=>--n?requestAnimationFrame(frame):resolve();requestAnimationFrame(frame);})`);
-}
 async function until<T = unknown>(expression: string, matches: (value: T) => boolean = Boolean) {
 	const deadline = Date.now() + 10000;
 	while (!matches(await app.evaluate<T>(expression))) {
@@ -72,11 +70,11 @@ const targets = {
 async function click(target: keyof typeof targets) {
 	const query = targets[target];
 	await until(`${query}?.checkVisibility()`);
-	await app.evaluate(`${query}.scrollIntoView({block:'nearest',behavior:'instant'})`); await frames();
+	await app.evaluate(`${query}.scrollIntoView({block:'nearest',behavior:'instant'})`); await frames(app, 3);
 	await until(`(()=>{const e=${query},r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()`);
 	const at = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=${query}.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) });
-	await frames();
+	await frames(app, 3);
 }
 async function chooseSession(id: "qa-short" | "qa-long") {
 	if (await app.evaluate<boolean>(`!!document.querySelector('button[aria-label^="显示侧边栏"]')`)) await click("showSidebar");
@@ -98,13 +96,7 @@ async function begin(prompt: string) {
 async function appearance(theme: "light" | "dark", width: number) {
 	await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
 	await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${theme === "light" ? '"light"' : '"dark"'}}});})()`);
-	await until(`document.documentElement.classList.contains(${theme === "light" ? '"light"' : '"dark"'})`); await frames(20);
-}
-async function shot(name: string) {
-	const directory = process.env.PLUME_E2E_ARTIFACTS; if (!directory) return;
-	await mkdir(directory, { recursive: true });
-	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-	await writeFile(join(directory, `${name}.png`), Buffer.from(result.data, "base64"));
+	await until(`document.documentElement.classList.contains(${theme === "light" ? '"light"' : '"dark"'})`); await frames(app, 20);
 }
 
 test("background completion stays compact in both themes and narrow windows, then opens its own conversation", async (t) => {
@@ -113,14 +105,14 @@ test("background completion stays compact in both themes and narrow windows, the
 		await appearance(theme, width);
 		const result = `完成通知回归 ${theme} ${width}`;
 		await begin(`触发后台完成 ${theme} ${width}`); assert.ok(held); reply(held, result);
-		await until(`Boolean(document.querySelector('[role="status"] button[aria-label="跳转到该会话"]'))`); await frames(20);
+		await until(`Boolean(document.querySelector('[role="status"] button[aria-label="跳转到该会话"]'))`); await frames(app, 20);
 		const metrics = await app.evaluate<{ cards: number; text: string; x: number; right: number; height: number; scroll: number; client: number; buttons: string[]; background: string; color: string; badge: { width: number; height: number; animation: string; color: string } }>(`(()=>{const action=document.querySelector('[role="status"] button[aria-label="跳转到该会话"]'),card=action.closest('[role="status"]'),r=card.getBoundingClientRect(),s=getComputedStyle(card),badge=document.querySelector('button[aria-label*="有任务已完成"] span.bg-ok'),b=badge.getBoundingClientRect();return {cards:document.querySelectorAll('[role="status"] button[aria-label="跳转到该会话"]').length,text:card.innerText,x:r.x,right:r.right,height:r.height,scroll:card.scrollWidth,client:card.clientWidth,buttons:[...card.querySelectorAll('button')].map(e=>e.getAttribute('aria-label')),background:s.backgroundColor,color:s.color,badge:{width:b.width,height:b.height,animation:getComputedStyle(badge).animationName,color:getComputedStyle(badge).backgroundColor}};})()`);
 		assert.equal(metrics.cards, 1); assert.deepEqual(metrics.buttons, ["跳转到该会话", "关闭"]);
 		assert.ok(metrics.x >= 0 && metrics.right <= width && metrics.height <= 56, JSON.stringify(metrics));
 		assert.ok(metrics.scroll <= metrics.client, "the toast has no horizontal overflow");
 		assert.deepEqual({ ...metrics.badge, color: "" }, { width: 6, height: 6, animation: "none", color: "" });
 		assert.ok(metrics.text.length < 40); surfaces.set(theme, metrics.background);
-		t.diagnostic(JSON.stringify({ theme, width, ...metrics })); await shot(`completion-${theme}-${width}`);
+		t.diagnostic(JSON.stringify({ theme, width, ...metrics })); await shot(app, `completion-${theme}-${width}`);
 		await click("jump");
 		await until<string>(`document.querySelector('.ly-transcript')?.textContent ?? ''`, (text) => text.includes(result));
 		await until(`!document.querySelector('[role="status"] button[aria-label="跳转到该会话"]')`);
@@ -149,7 +141,7 @@ test("ordinary approvals and interactive questions expose one waiting badge and 
 		assert.ok(card.left >= 0 && card.right <= scenario.width && card.top >= 0 && card.bottom <= 800, JSON.stringify(card));
 		assert.ok(card.buttons.every((b) => b.left >= card.left && b.right <= card.right && b.top >= card.top && b.bottom <= card.bottom));
 		if (scenario.name === "ask_user") assert.ok(card.text.includes("保留方案 A") && card.text.includes("保留方案 B"));
-		t.diagnostic(JSON.stringify({ scenario: scenario.name, badge, card })); await shot(`approval-${scenario.name}-${scenario.theme}-${scenario.width}`);
+		t.diagnostic(JSON.stringify({ scenario: scenario.name, badge, card })); await shot(app, `approval-${scenario.name}-${scenario.theme}-${scenario.width}`);
 		await app.evaluate(`(${scenario.cancelQuery}).setAttribute('data-qa-cancel','')`);
 		await click("cancel");
 		await until(`!document.querySelector('button[aria-label="停止"]')`);

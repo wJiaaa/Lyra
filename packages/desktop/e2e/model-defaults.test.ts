@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { DEFAULT_SETTINGS, type ModelConfig, type Settings, type Usage } from "@plume/core";
 import { startApp, type RunningApp } from "./app.ts";
-import { named } from "./named.ts";
+import { click, type, until } from "./drive.ts";
 import { fixtureStore } from "./session-fixture.ts";
 
 let app: RunningApp;
@@ -42,34 +42,6 @@ afterEach(async (t) => {
 	}
 });
 
-async function until(expression: string) {
-	await app.evaluate(`new Promise((resolve,reject)=>{const end=Date.now()+15000;const step=()=>{if(${expression})resolve();else if(Date.now()<end)requestAnimationFrame(step);else reject(new Error(${JSON.stringify(expression)}));};step();})`);
-}
-
-async function click(selector: string) {
-	await until(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
-	await app.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`);
-	// Portal placement is measured after mount; hit-test only once the painted rectangle settles.
-	await app.evaluate(`new Promise((resolve,reject)=>{let previous='',stable=0;const end=Date.now()+5000;const step=()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)return reject(new Error('Target disappeared'));const r=e.getBoundingClientRect(),current=[r.x,r.y,r.width,r.height].join(',');stable=current===previous?stable+1:0;previous=current;if(stable>=3)resolve();else if(Date.now()<end)requestAnimationFrame(step);else reject(new Error('Target kept moving'));};requestAnimationFrame(step);})`);
-	await until(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()`);
-	const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
-	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...point, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) });
-}
-
-async function label(text: string, scope = "button") {
-	const match = named(text);
-	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility()&&${match})`);
-	await app.evaluate(`(()=>{document.querySelector('[data-model-qa]')?.removeAttribute('data-model-qa');[...document.querySelectorAll(${JSON.stringify(scope)})].find(e=>e.checkVisibility()&&${match}).setAttribute('data-model-qa','');})()`);
-	await click("[data-model-qa]");
-}
-
-async function input(selector: string, value: string) {
-	await click(selector);
-	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: process.platform === "darwin" ? 4 : 2, windowsVirtualKeyCode: 65 });
-	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", windowsVirtualKeyCode: 65 });
-	await app.send("Input.insertText", { text: value });
-}
-
 async function shot(name: string) {
 	await mkdir(shots, { recursive: true });
 	const capture = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
@@ -77,11 +49,11 @@ async function shot(name: string) {
 }
 
 async function editor(modelId: string) {
-	await label("模型设置", "nav button");
-	await until(`document.querySelector('[aria-label="编辑模型"]')`);
+	await click(app, "nav button", "模型设置");
+	await until(app, `document.querySelector('[aria-label="编辑模型"]')`, 900);
 	await app.evaluate(`(()=>{document.querySelector('[data-edit-qa]')?.removeAttribute('data-edit-qa');const row=[...document.querySelectorAll('[class~="group/row"]')].find(e=>e.textContent.includes(${JSON.stringify(modelId)}));row.querySelector('[aria-label="编辑模型"]').setAttribute('data-edit-qa','');})()`);
-	await click("[data-edit-qa]");
-	await until(`document.querySelector('[data-ly-modal] input')?.value===${JSON.stringify(modelId)}`);
+	await click(app, "[data-edit-qa]");
+	await until(app, `document.querySelector('[data-ly-modal] input')?.value===${JSON.stringify(modelId)}`, 900);
 }
 
 const readFields = `(()=>{const modal=document.querySelector('[data-ly-modal]');const read=t=>[...modal.querySelectorAll('label')].find(e=>e.textContent.startsWith(t)).querySelector('input').value;return {id:read('模型 ID'),context:read('上下文窗口'),output:read('最大输出'),input:read('输入价格'),priceOut:read('输出价格'),cache:read('缓存命中价格'),toggles:[...modal.querySelectorAll('[role="switch"]')].map(e=>e.getAttribute('aria-checked')),text:modal.innerText};})()`;
@@ -90,8 +62,8 @@ const readFields = `(()=>{const modal=document.querySelector('[data-ly-modal]');
  * 内置智能体七个，见 `core/src/agents-builtin.ts`；加上「会话」那一段里的 `compact`，页面上一共八行。
  */
 test("all built-in agents can be configured before any session is created", async (t) => {
-	await click("[data-ly-open-settings]");
-	await label("智能体", "nav button");
+	await click(app, "[data-ly-open-settings]");
+	await click(app, "nav button", "智能体");
 	/*
 	 * 等数量不再变，而不是等它等于某个数。
 	 *
@@ -115,20 +87,20 @@ test("all built-in agents can be configured before any session is created", asyn
 		"compact 那一行也要能选模型，只是控件形状不同",
 	);
 	assert.equal(visible.overflow, 0);
-	await click('[aria-label="explore 模型"]');
-	await until(`document.querySelector('[data-model="relay/gemini-3.7-flash-high"] button')`);
-	await click('[data-model="relay/gemini-3.7-flash-high"] button');
-	await until(`document.querySelector('[aria-label="explore 模型"]').textContent.includes('gemini-3.7-flash-high')`);
+	await click(app, '[aria-label="explore 模型"]');
+	await until(app, `document.querySelector('[data-model="relay/gemini-3.7-flash-high"] button')`, 900);
+	await click(app, '[data-model="relay/gemini-3.7-flash-high"] button');
+	await until(app, `document.querySelector('[aria-label="explore 模型"]').textContent.includes('gemini-3.7-flash-high')`, 900);
 	const saved = await app.evaluate<Settings>("window.plume.settings.get()");
 	assert.equal(saved.subAgentProfiles?.explore.modelId, "relay/gemini-3.7-flash-high");
-	await label("返回工作区");
-	await label("新对话");
-	await click("[data-ly-open-settings]");
-	await label("智能体", "nav button");
+	await click(app, "button", "返回工作区");
+	await click(app, "button", "新对话");
+	await click(app, "[data-ly-open-settings]");
+	await click(app, "nav button", "智能体");
 	// 回到这一页，等的还是「名单不再变」——理由同上面那处。
 	await app.evaluate(`new Promise(resolve=>{let last=-1,same=0;const timer=setInterval(()=>{const n=document.querySelectorAll('[data-agent-profile]').length;same=n===last?same+1:0;last=n;if(n>0&&same>=3){clearInterval(timer);resolve();}},80);setTimeout(()=>{clearInterval(timer);resolve();},10000);})`);
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-agent-profile]').length`), 8);
-	await until(`document.querySelector('[aria-label="explore 模型"]').textContent.includes('gemini-3.7-flash-high')`);
+	await until(app, `document.querySelector('[aria-label="explore 模型"]').textContent.includes('gemini-3.7-flash-high')`, 900);
 	t.diagnostic(JSON.stringify(visible)); await shot("builtin-agents");
 });
 
@@ -139,23 +111,23 @@ test("configured models keep their values; the suggested catalogue entry fills t
 	const before = await app.evaluate<{ context: string; output: string; input: string }>(readFields);
 	assert.deepEqual({ context: before.context, output: before.output, input: before.input }, { context: "200000", output: "16384", input: "" }, "nothing rewrites a configured model");
 	// An unknown relay: the suffix is stripped and Google's own entry is suggested.
-	await until(`${suggestion}?.textContent.includes('gemini-3.7-flash')`);
+	await until(app, `${suggestion}?.textContent.includes('gemini-3.7-flash')`, 900);
 	await app.evaluate(`${suggestion}.setAttribute('data-fill-qa','')`);
-	await click("[data-fill-qa]");
+	await click(app, "[data-fill-qa]");
 	const values = await app.evaluate<{ id: string; context: string; output: string; input: string; priceOut: string; cache: string; text: string }>(readFields);
 	assert.equal(values.id, "gemini-3.7-flash-high"); assert.equal(values.context, "1048576"); assert.equal(values.output, "65536");
 	assert.equal(values.input, "0.75"); assert.equal(values.priceOut, "3.75"); assert.equal(values.cache, "0.075");
 	assert.match(values.text, /参考估算/); t.diagnostic(JSON.stringify(values)); await shot("relay-model-prices");
-	await label("取消"); await until(`!document.querySelector('[data-ly-modal]')`);
+	await click(app, "button", "取消"); await until(app, `!document.querySelector('[data-ly-modal]')`, 900);
 	await editor("deepseek-v4-flash:0731");
-	await until(`${suggestion}?.textContent.includes('deepseek-v4-flash')`);
+	await until(app, `${suggestion}?.textContent.includes('deepseek-v4-flash')`, 900);
 	await app.evaluate(`${suggestion}.setAttribute('data-fill-qa','')`);
-	await click("[data-fill-qa]");
+	await click(app, "[data-fill-qa]");
 	const images = await app.evaluate<string>(`[...document.querySelectorAll('[data-ly-modal] label')].find(e=>e.textContent.startsWith('支持图片输入')).querySelector('[role="switch"]').getAttribute('aria-checked')`);
 	assert.equal(images, "false");
 	await app.evaluate(`document.querySelector('[data-ly-modal] [role="switch"]').scrollIntoView({block:'center',behavior:'instant'})`);
 	await shot("text-only-capabilities");
-	await label("取消"); await until(`!document.querySelector('[data-ly-modal]')`);
+	await click(app, "button", "取消"); await until(app, `!document.querySelector('[data-ly-modal]')`, 900);
 });
 
 test("an unknown alias has no fake prices and can be filled from a searched entry without rewriting the request id", async () => {
@@ -163,14 +135,14 @@ test("an unknown alias has no fake prices and can be filled from a searched entr
 	const initial = await app.evaluate<{ input: string; text: string }>(readFields);
 	assert.equal(initial.input, ""); assert.match(initial.text, /从模型目录填入/);
 	assert.equal(await app.evaluate<boolean>(`Boolean(${suggestion})`), false);
-	await input('[aria-label="搜索模型目录"]', "google gemini-2.5-pro");
-	await until(`document.querySelector('[aria-label="模型目录搜索结果"] button')`);
+	await type(app, '[aria-label="搜索模型目录"]', "google gemini-2.5-pro");
+	await until(app, `document.querySelector('[aria-label="模型目录搜索结果"] button')`, 900);
 	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[aria-label="模型目录搜索结果"] button')].find(e=>e.querySelector('span').textContent==='gemini-2.5-pro'&&e.textContent.includes('google'));e.setAttribute('data-bind-qa','');})()`);
-	await click("[data-bind-qa]");
-	await until(`document.querySelector('[data-ly-modal] label input[inputmode="decimal"]')?.value==='1.25'`);
+	await click(app, "[data-bind-qa]");
+	await until(app, `document.querySelector('[data-ly-modal] label input[inputmode="decimal"]')?.value==='1.25'`, 900);
 	const fields = await app.evaluate<{ id: string; input: string }>(readFields);
 	assert.equal(fields.id, "gemini-pro-agent"); assert.equal(fields.input, "1.25");
-	await label("保存"); await until(`!document.querySelector('[data-ly-modal]')`);
+	await click(app, "button", "保存"); await until(app, `!document.querySelector('[data-ly-modal]')`, 900);
 	const saved = await app.evaluate<Settings>("window.plume.settings.get()");
 	const filled = saved.providers[0].models.find((model) => model.modelId === "gemini-pro-agent");
 	assert.equal(filled?.pricing?.input, 1.25);
@@ -178,8 +150,8 @@ test("an unknown alias has no fake prices and can be filled from a searched entr
 });
 
 test("historical relay usage produces a nonzero bill and catalogue coverage", async (t) => {
-	await label("使用统计", "nav button");
-	await until(`document.querySelector('[data-usage-dashboard="true"]')`);
+	await click(app, "nav button", "使用统计");
+	await until(app, `document.querySelector('[data-usage-dashboard="true"]')`, 900);
 	const visible = await app.evaluate<string>(`document.querySelector('[data-usage-dashboard="true"]').innerText`);
 	assert.match(visible, /\$1\.93/); assert.match(visible, /模型目录\s*100\.0%/);
 	assert.doesNotMatch(visible, /暂无价格/);

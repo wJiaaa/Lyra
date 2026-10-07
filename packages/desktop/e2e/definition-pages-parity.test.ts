@@ -15,6 +15,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
+import { shot } from "./drive.ts";
 
 let app: RunningApp;
 
@@ -65,13 +66,6 @@ async function until(expression: string, what = expression) {
 }
 async function wait(ms: number) {
 	await new Promise((resolve) => setTimeout(resolve, ms));
-}
-async function shot(name: string) {
-	const dir = process.env.PLUME_E2E_ARTIFACTS;
-	if (!dir) return;
-	await mkdir(dir, { recursive: true });
-	const image = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-	await writeFile(join(dir, `${name}.png`), Buffer.from(image.data, "base64"));
 }
 
 /*
@@ -141,7 +135,7 @@ test("the four definition pages share one search field, one card and one row", a
 	for (const page of PAGES) {
 		await open(page);
 		measured[page.nav] = await measureList(page);
-		await shot(`parity_${page.nav}`);
+		await shot(app, `parity_${page.nav}`);
 	}
 	console.log(JSON.stringify(measured));
 	// Guard against a probe that measures nothing: equal `undefined`s would pass the comparison below.
@@ -173,7 +167,7 @@ test("a search with no match leaves each page with a settings card, not a bare l
 			const s = style(text);
 			return { size: s.fontSize, color: s.color, align: s.textAlign };
 		})()`);
-		await shot(`parity_${page.nav}_无结果`);
+		await shot(app, `parity_${page.nav}_无结果`);
 		// Clear it again: the next test starts from these pages' lists.
 		await app.evaluate(`(() => {
 			${HELPERS}
@@ -205,7 +199,7 @@ test("row actions on subagents stay hidden until the row is hovered, as on comma
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: rest.x, y: rest.y });
 		await wait(400);
 		const hovered = await app.evaluate<{ opacity: string }>(probe);
-		await shot(`parity_${page.nav}_悬停`);
+		await shot(app, `parity_${page.nav}_悬停`);
 		seen[page.nav] = { rest: rest.opacity, hovered: hovered.opacity };
 	}
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 2, y: 2 });
@@ -252,7 +246,7 @@ test("the subagent editor is laid out like the hook form", async () => {
 	await until(`document.querySelector("[data-agent-editor] h1")`, "subagent editor did not open");
 	await wait(300);
 	const agent = await measureEditor("[data-agent-editor]");
-	await shot("parity_智能体编辑");
+	await shot(app, "parity_智能体编辑");
 
 	await open(PAGES[3]);
 	await app.evaluate(`(() => {
@@ -263,7 +257,7 @@ test("the subagent editor is laid out like the hook form", async () => {
 	await until(`document.querySelector("[data-ly-hook-form] h1")`, "hook form did not open");
 	await wait(300);
 	const hook = await measureEditor("[data-ly-hook-form]");
-	await shot("parity_钩子编辑");
+	await shot(app, "parity_钩子编辑");
 	console.log(JSON.stringify({ agent, hook }));
 
 	assert.equal(agent.crumb.tag, "NAV", "the subagent editor lost its breadcrumb");

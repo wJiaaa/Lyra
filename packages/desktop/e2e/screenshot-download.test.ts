@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { startApp, type AppWindow } from "./app.ts";
+import { click } from "./drive.ts";
 
 test("screenshot downloads use the chosen directory and survive an unavailable clipboard", async (t) => {
 	const app = await startApp({ port: 9831, inspectPort: 9832, seed: async home => {
@@ -64,18 +65,6 @@ test("the visible download arrow saves to Desktop or the selected directory and 
 			await pause(50);
 		}
 		throw new Error(`Not ready: ${expression}`);
-	}
-	async function click(page: AppWindow, selector: string) {
-		await until(page, `Boolean(document.querySelector(${JSON.stringify(selector)}))`);
-		await page.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`);
-		const point = await page.evaluate<{ x: number; y: number }>(`(() => {
-			const el=document.querySelector(${JSON.stringify(selector)}),r=el.getBoundingClientRect();
-			if(!el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))) throw new Error('Button is covered');
-			return {x:r.x+r.width/2,y:r.y+r.height/2};
-		})()`);
-		for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) {
-			await page.send("Input.dispatchMouseEvent", { type, ...point, button: "left", buttons: type === "mousePressed" ? 1 : 0, clickCount: type === "mouseMoved" ? 0 : 1 });
-		}
 	}
 	async function hold(ms = 1100) {
 		if (!overlay || !process.env.PLUME_E2E_RECORD_DIR) return;

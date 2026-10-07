@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { promisify } from "node:util";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
+import { frames, openPane, shot } from "./drive.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
@@ -69,10 +70,6 @@ after(async () => {
 	);
 });
 
-async function frames(count = 12): Promise<void> {
-	await app.evaluate(`new Promise(resolve=>{let n=0;function tick(){if(++n>=${count})resolve();else requestAnimationFrame(tick)}requestAnimationFrame(tick)})`);
-}
-
 async function until(expression: string): Promise<void> {
 	await app.evaluate(`new Promise((resolve,reject)=>{const end=performance.now()+10000;function tick(){if(${expression})resolve();else if(performance.now()>end)reject(Error('UI condition timed out: '+${JSON.stringify(expression)}+'; '+document.body.innerText.slice(-1600)));else requestAnimationFrame(tick)}tick()})`);
 }
@@ -104,10 +101,9 @@ async function click(expression: string): Promise<void> {
 }
 
 async function openGit(): Promise<void> {
-	await click(`document.querySelector('button[aria-label="面板"]')`);
-	await click(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.trim().startsWith('Git'))`);
+	await openPane(app, "Git");
 	await until(tab("流水线"));
-	await frames();
+	await frames(app, 12);
 }
 
 async function closeGit(): Promise<void> {
@@ -135,31 +131,25 @@ async function startTrace(): Promise<void> {
 	await app.evaluate(`(()=>{const trace={frames:[],active:true,pending:true,start:performance.now()};window.__pipelineTrace=trace;function tick(){const e=document.querySelector('${view}'),r=e?.getBoundingClientRect(),visible=!!e&&e.checkVisibility()&&r.width>0&&r.height>0,text=visible?e.innerText:'';trace.frames.push({t:performance.now()-trace.start,visible,text,header:text.includes('CI / CD 流水线'),empty:/暂无(?:流水线)?运行记录/.test(text),row:text.includes('Synthetic cached run'),loading:visible&&!!e.querySelector('[aria-busy="true"],.ly-skeleton'),pending:trace.pending,actions:visible&&!!e.querySelector('button[aria-label="刷新流水线"]'),width:r?.width??0,overflow:visible?e.scrollWidth-e.clientWidth:0});if(trace.active)requestAnimationFrame(tick)}requestAnimationFrame(tick)})()`);
 }
 
-async function screenshot(name: string): Promise<void> {
-	if (!artifacts) return;
-	const shot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-	await writeFile(join(artifacts, `${name}.png`), Buffer.from(shot.data, "base64"));
-}
-
 async function capture(name: string, enter: () => Promise<void>, withRun: boolean): Promise<Frame[]> {
 	hold = true;
 	const previousRequests = requests;
 	await startTrace();
 	await enter();
-	await frames(2);
-	await screenshot(`${name}-pending`);
+	await frames(app, 2);
+	await shot(app, `${name}-pending`);
 	const deadline = Date.now() + 10000;
 	while (Date.now() < deadline) {
 		if (requests > previousRequests) break;
-		await frames(2);
+		await frames(app, 2);
 	}
 	assert.ok(requests > previousRequests, `${name}: a real Forge request starts`);
-	await frames(18);
+	await frames(app, 18);
 	await app.evaluate(`window.__pipelineTrace.pending=false`);
 	release(withRun);
 	await until(`document.querySelector('${view}')?.innerText.includes(${JSON.stringify(withRun ? "Synthetic cached run" : "运行记录")})`);
-	await frames();
-	await screenshot(`${name}-settled`);
+	await frames(app, 12);
+	await shot(app, `${name}-settled`);
 	const result = await app.evaluate<Frame[]>(`(()=>{window.__pipelineTrace.active=false;return window.__pipelineTrace.frames})()`);
 	if (artifacts) await writeFile(join(artifacts, `${name}.json`), JSON.stringify({ source: "Synthetic local HTTP Forge responses; real Electron application, native clicks, normal IPC and visible DOM frames", frames: result }, null, 2));
 	return result.filter((frame) => frame.visible);
@@ -177,17 +167,17 @@ test("pipeline loading and retained refresh never flash an unrelated list or los
 		hasRun = false;
 		await openGit();
 		const cold = await capture(`${name}-cold`, () => click(tab("流水线")), false);
-		await click(tab("改动")); await frames();
+		await click(tab("改动")); await frames(app, 12);
 		const retained = await capture(`${name}-activity-empty`, () => click(tab("流水线")), false);
 		await closeGit(); await openGit();
 		const remount = await capture(`${name}-remount-empty`, () => click(tab("流水线")), false);
 		// A genuine response writes the populated cache before testing a retained refresh.
 		hasRun = true;
-		await click(tab("改动")); await frames();
+		await click(tab("改动")); await frames(app, 12);
 		await click(tab("流水线"));
 		await until(`document.querySelector('${view}')?.innerText.includes('Synthetic cached run')`);
-		await frames();
-		await click(tab("改动")); await frames();
+		await frames(app, 12);
+		await click(tab("改动")); await frames(app, 12);
 		const cached = await capture(`${name}-activity-cached`, () => click(tab("流水线")), true);
 		for (const [scenario, samples] of [["cold", cold], ["activity-empty", retained], ["remount-empty", remount], ["activity-cached", cached]] as const) {
 			const headerFrames = samples.filter((frame) => frame.header && !frame.row);

@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
+import { click, frames, shot, until } from "./drive.ts";
 
 const CDP_PORT = 9611;
 const MODEL_PORT = 9612;
@@ -144,49 +145,6 @@ after(async () => {
 	await cleanupFixture(() => app?.stop(), () => closeListeningServer(model));
 });
 
-async function until(expression: string, frames = 900): Promise<void> {
-	await app.evaluate(
-		`new Promise((resolve, reject) => { let n = ${frames}; const tick = () => { if (${expression}) resolve(); else if (--n) requestAnimationFrame(tick); else reject(new Error(${JSON.stringify(`timed out: ${expression}`)})); }; tick(); })`,
-	);
-}
-
-async function frames(n = 10): Promise<void> {
-	await app.evaluate(`new Promise((resolve) => { let n = ${n}; const f = () => (--n ? requestAnimationFrame(f) : resolve()); requestAnimationFrame(f); })`);
-}
-
-/** A real press where the element is drawn, after checking nothing covers that point. */
-async function click(selector: string): Promise<void> {
-	const quoted = JSON.stringify(selector);
-	await until(`document.querySelector(${quoted})?.checkVisibility()`);
-	await app.evaluate(`document.querySelector(${quoted}).scrollIntoView({ block: "nearest", behavior: "instant" })`);
-	await frames(2);
-	// Something still unfolding clips its own contents, so wait until the centre is really this element.
-	await until(`(() => { const e = document.querySelector(${quoted}); if (!e) return false; const r = e.getBoundingClientRect(); return e.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); })()`);
-	const at = await app.evaluate<{ x: number; y: number }>(
-		`(() => { const e = document.querySelector(${quoted}); const r = e.getBoundingClientRect(); const x = r.x + r.width / 2; const y = r.y + r.height / 2; if (!e.contains(document.elementFromPoint(x, y))) throw new Error("covered: " + ${quoted}); return { x, y }; })()`,
-	);
-	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) {
-		await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) });
-	}
-	await frames(3);
-}
-
-/** The visible button whose text starts with `text`. */
-async function press(text: string): Promise<void> {
-	const pick = `[...document.querySelectorAll("button")].find((e) => e.checkVisibility() && ((e.textContent || "").trim().startsWith(${JSON.stringify(text)}) || (e.getAttribute("aria-label") || "").startsWith(${JSON.stringify(text)})))`;
-	await until(`Boolean(${pick})`);
-	await app.evaluate(`(() => { document.querySelector("[data-qa-target]")?.removeAttribute("data-qa-target"); ${pick}.setAttribute("data-qa-target", ""); })()`);
-	await click("[data-qa-target]");
-}
-
-async function shot(name: string): Promise<void> {
-	const directory = process.env.PLUME_E2E_ARTIFACTS;
-	if (!directory) return;
-	await mkdir(directory, { recursive: true });
-	const result = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-	await writeFile(join(directory, `${name}.png`), Buffer.from(result.data, "base64"));
-}
-
 /** From the main process to the main window, as `notify` in `main.ts` sends it. */
 async function sendFromMain(notice: Record<string, unknown>): Promise<void> {
 	await app.main(
@@ -202,8 +160,8 @@ const text = (selector: string) => `(document.querySelector(${JSON.stringify(sel
 
 test("a task's start shows on its card, and a failure on the card, above the composer and on the sidebar", async (t) => {
 	// ── The schedule, from the sidebar. ──
-	await press("已安排");
-	await until(`document.querySelector('[data-scheduled-task="alpha"]')?.checkVisibility()`);
+	await click(app, "button", "已安排", "starts");
+	await until(app, `document.querySelector('[data-scheduled-task="alpha"]')?.checkVisibility()`, 900);
 
 	/*
 	 * ── Alpha, run for real. ──
@@ -224,13 +182,13 @@ test("a task's start shows on its card, and a failure on the card, above the com
 		};
 		requestAnimationFrame(tick);
 	})()`);
-	await click('[data-scheduled-task="alpha"] button[data-ly-tip="立即运行一次"]');
-	await until(`document.querySelector('[data-scheduled-task="alpha"] [data-scheduled-status="running"]')`);
+	await click(app, '[data-scheduled-task="alpha"] button[data-ly-tip="立即运行一次"]');
+	await until(app, `document.querySelector('[data-scheduled-task="alpha"] [data-scheduled-status="running"]')`, 900);
 	assert.match(await app.evaluate<string>(text('[data-scheduled-task="alpha"] [data-scheduled-status]')), /正在执行/);
-	await shot("1-card-running");
+	await shot(app, "1-card-running");
 
 	// The turn ends when the scripted model answers, and the card stops saying it is going.
-	await until(`!document.querySelector('[data-scheduled-task="alpha"] [data-scheduled-status]')`, 1800);
+	await until(app, `!document.querySelector('[data-scheduled-task="alpha"] [data-scheduled-status]')`, 1800);
 	await app.evaluate(`window.__stopTimeline = true`);
 	assert.ok(modelRequests >= 1, "the run never reached the model");
 	const timeline = await app.evaluate<{ at: number; card: string | null; row: boolean; notices: number }[]>(`window.__timeline`);
@@ -251,8 +209,8 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	assert.equal(await app.evaluate<string>(`window.plume.settings.get().then((s) => s.scheduledTasks.find((t) => t.id === "alpha").lastSessionId)`), alphaSession);
 
 	// ── Beta cannot start: its sessions have nowhere to go. ──
-	await click('[data-scheduled-task="beta"] button[data-ly-tip="立即运行一次"]');
-	await until(`document.querySelector('[data-scheduled-task="beta"] [data-scheduled-error]')`);
+	await click(app, '[data-scheduled-task="beta"] button[data-ly-tip="立即运行一次"]');
+	await until(app, `document.querySelector('[data-scheduled-task="beta"] [data-scheduled-error]')`, 900);
 	const reason = await app.evaluate<string>(text('[data-scheduled-task="beta"] [data-scheduled-error]'));
 	assert.match(reason, /^失败：.*EEXIST/, reason);
 	const refused = (await app.evaluate<{ taskId: string; kind: string; message: string; sessionId?: string }[]>(`window.__notices`)).at(-1);
@@ -261,61 +219,61 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	assert.equal(refused?.sessionId, undefined);
 	assert.match(refused?.message ?? "", /^已安排任务「Beta」无法启动：.*EEXIST/);
 	// On the schedule it is the card that says it; nothing is left counted as unseen.
-	await frames(5);
+	await frames(app, 5);
 	assert.ok(await app.evaluate<boolean>(noBadge), "the sidebar counts a failure that is on screen");
-	await shot("2-card-cannot-start");
+	await shot(app, "2-card-cannot-start");
 
 	// ── In a conversation: Beta again, and this time nobody is looking at its card. ──
-	await press("新对话");
-	await until(`document.querySelector("textarea")?.checkVisibility()`);
+	await click(app, "button", "新对话", "starts");
+	await until(app, `document.querySelector("textarea")?.checkVisibility()`, 900);
 	await app.evaluate(`window.plume.scheduler.runNow("beta")`);
-	await until(`${line("beta")}?.checkVisibility()`);
+	await until(app, `${line("beta")}?.checkVisibility()`, 900);
 	assert.match(await app.evaluate<string>(`${line("beta")}.textContent`), /已安排任务「Beta」无法启动/);
-	await until(`document.querySelector(${JSON.stringify(badge(1))})`);
+	await until(app, `document.querySelector(${JSON.stringify(badge(1))})`, 900);
 	/*
 	 * Above the main composer, in the dock that holds the conversation's own textarea — measured once
 	 * the line has finished unfolding, which is when its row no longer clips it. Mid-way the row is
 	 * shorter than the line, and the line's box reaches down past what is drawn of it.
 	 */
-	await until(`(() => { const alert = ${line("beta")}; return Boolean(alert) && alert.closest(".ly-reveal").getBoundingClientRect().bottom >= alert.getBoundingClientRect().bottom; })()`);
+	await until(app, `(() => { const alert = ${line("beta")}; return Boolean(alert) && alert.closest(".ly-reveal").getBoundingClientRect().bottom >= alert.getBoundingClientRect().bottom; })()`, 900);
 	assert.ok(
 		await app.evaluate<boolean>(
 			`(() => { const alert = ${line("beta")}; const shell = alert.closest(".ly-composer-dock")?.querySelector("textarea")?.closest(".ly-composer"); return Boolean(shell) && alert.getBoundingClientRect().bottom <= shell.getBoundingClientRect().top; })()`,
 		),
 		"the line is not above the composer",
 	);
-	await shot("3-composer-line");
+	await shot(app, "3-composer-line");
 
 	// ── A turn of Alpha's that fails after it started, as the scheduler sends it. ──
 	await sendFromMain({ taskId: "alpha", kind: "failed", level: "error", message: "已安排任务「Alpha」失败：rate limited", sessionId: alphaSession });
-	await until(`${line("alpha")}?.checkVisibility()`);
+	await until(app, `${line("alpha")}?.checkVisibility()`, 900);
 	assert.equal(await app.evaluate<string>(text("[data-scheduled-alert-others]")), "另有 1 个");
-	await until(`document.querySelector(${JSON.stringify(badge(2))})`);
-	await shot("4-two-failures");
+	await until(app, `document.querySelector(${JSON.stringify(badge(2))})`, 900);
+	await shot(app, "4-two-failures");
 
 	// ── 查看: the schedule, Alpha's card in view and lit, nothing unseen any more. ──
-	await click("[data-scheduled-alert-look]");
-	await until(`document.querySelector('[data-scheduled-task="alpha"]')?.checkVisibility()`);
+	await click(app, "[data-scheduled-alert-look]");
+	await until(app, `document.querySelector('[data-scheduled-task="alpha"]')?.checkVisibility()`, 900);
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-scheduled-task="alpha"]').className`), /border-accent/);
-	await until(noBadge);
+	await until(app, noBadge, 900);
 	// Past the workspace's own exit, whose `transition-all` controls linger over the page for a moment;
 	// still well inside the 1.2s the card stays lit.
-	await frames(24);
-	await shot("5-card-looked-at");
+	await frames(app, 24);
+	await shot(app, "5-card-looked-at");
 
 	// Back in the conversation the line has gone.
-	await press("新对话");
-	await until(`document.querySelector("textarea")?.checkVisibility()`);
-	await frames(30);
+	await click(app, "button", "新对话", "starts");
+	await until(app, `document.querySelector("textarea")?.checkVisibility()`, 900);
+	await frames(app, 30);
 	assert.ok(await app.evaluate<boolean>(`!${line("alpha")} && !${line("beta")}`), "the line outlived being seen");
 
 	// ── 知道了 on the line clears it, and the count with it. ──
 	await sendFromMain({ taskId: "alpha", kind: "failed", level: "error", message: "已安排任务「Alpha」失败：rate limited", sessionId: alphaSession });
-	await until(`${line("alpha")}?.checkVisibility()`);
-	await until(`document.querySelector(${JSON.stringify(badge(1))})`);
-	await click("[data-scheduled-alert-dismiss]");
-	await until(`!${line("alpha")}`);
-	await until(noBadge);
-	await frames(30);
-	await shot("6-dismissed");
+	await until(app, `${line("alpha")}?.checkVisibility()`, 900);
+	await until(app, `document.querySelector(${JSON.stringify(badge(1))})`, 900);
+	await click(app, "[data-scheduled-alert-dismiss]");
+	await until(app, `!${line("alpha")}`, 900);
+	await until(app, noBadge, 900);
+	await frames(app, 30);
+	await shot(app, "6-dismissed");
 });

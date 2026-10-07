@@ -44,6 +44,12 @@ pnpm --filter @plume/desktop exec node --test --experimental-strip-types e2e/tra
 （`--test-concurrency=1`）：三个窗口抢一台笔记本会让量布局的测试失败，而那是最糟的红——被测
 的代码本身没问题。
 
+在窗口里的操作走 `e2e/drive.ts`：`until`、`click`、`type`、`press`、`openPane`、`openSession`、
+`shot`。`click` 先移动指针，等元素位置稳定、动画结束，并确认落点就是目标元素，然后才按下；
+落点被别的元素挡住时直接报错，并说出落在了谁身上。以前每个测试文件各写一份，写法逐渐不一致，
+有的直接 `.click()`，侧栏收起时点空了也不报错。只有某个文件确实有不同需要（点击前要埋点、
+要按表达式而不是选择器找元素），才在那个文件里留一份自己的实现。
+
 测试直接启动 Electron 二进制，由 desktop 的 `package.json` 定位 `out/main/index.js`，保留
 原来的 `app.getAppPath()`。运行前先 `pnpm build`；每个测试文件
 不会再经 `electron-vite preview` 重建，因而测的是同一个构建，Windows 也不需要通过 shell

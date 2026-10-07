@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { startApp, closeListeningServer, type RunningApp } from "./app.ts";
+import { click, frames, shot } from "./drive.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
 let app: RunningApp;
@@ -52,47 +53,34 @@ after(async () => { try { await app?.stop(); } finally { await closeListeningSer
 async function until(expression: string) {
 	await app.evaluate(`new Promise((resolve,reject)=>{const end=performance.now()+15000;function tick(){if(${expression})resolve();else if(performance.now()<end)requestAnimationFrame(tick);else reject(Error(${JSON.stringify(expression)}+'; '+document.body.innerText.slice(-1000)))}tick()})`);
 }
-async function frames(n = 20) { await app.evaluate(`new Promise(r=>{let n=${n};function tick(){if(--n)requestAnimationFrame(tick);else r()}requestAnimationFrame(tick)})`); }
-async function click(selector: string) {
-	await until(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
-	await app.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`); await frames();
-	const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();if(!e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw Error('Obscured '+${JSON.stringify(selector)});return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
-	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...point, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) });
-}
 async function send(text: string) {
-	await click('[data-dock-pane="conversation"] textarea');
+	await click(app, '[data-dock-pane="conversation"] textarea');
 	await app.send("Input.insertText", { text });
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
 }
-afterEach(async t => { if (!t.passed) await screenshot("delivery-failure"); });
-async function screenshot(name: string) {
-	const dir = process.env.PLUME_E2E_ARTIFACTS; if (!dir) return;
-	await mkdir(dir, { recursive: true });
-	const shot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
-	await writeFile(join(dir, name + ".png"), Buffer.from(shot.data, "base64"));
-}
+afterEach(async t => { if (!t.passed) await shot(app, "delivery-failure"); });
 
 test("real file changes produce one temporary card with internal expansion and stable themed diff previews", async t => {
-	await click('[data-ly-row="qa-short"]');
+	await click(app, '[data-ly-row="qa-short"]');
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-turn-delivery]').length`), 0);
 	await send("修改五个文件用于验证变更卡片");
 	await until(`document.querySelector('[data-turn-delivery]')?.textContent.includes('已编辑 5 个文件')`);
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-turn-delivery]').length`), 1);
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-turn-delivery] [data-delivery-file]:not([inert] *)').length`), 3);
 	assert.ok(await app.evaluate(`[...document.querySelectorAll('[data-dock-pane="conversation"] a')].some(e=>e.textContent.includes('实现说明'))`));
-	await click('[data-dock-pane="conversation"] a[href$="README.md"]');
+	await click(app, '[data-dock-pane="conversation"] a[href$="README.md"]');
 	await until(`document.querySelector('[data-dock-pane="file"]')?.innerText.includes('QA fixture')`);
-	await click('[data-turn-delivery] [aria-expanded="false"]'); await frames();
+	await click(app, '[data-turn-delivery] [aria-expanded="false"]'); await frames(app);
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-turn-delivery] [data-delivery-file]:not([inert] *)').length`), 5);
-	await click('[data-turn-delivery] [aria-expanded="true"]'); await frames();
+	await click(app, '[data-turn-delivery] [aria-expanded="true"]'); await frames(app);
 	for (const theme of ["light", "dark"]) {
 		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}});})()`);
 		await until(`document.documentElement.style.colorScheme===${JSON.stringify(theme)}&&!document.documentElement.hasAttribute('data-theme-switching')`);
-		await app.evaluate(`document.querySelector('[data-turn-delivery]').scrollIntoView({block:'center',behavior:'instant'})`); await frames();
+		await app.evaluate(`document.querySelector('[data-turn-delivery]').scrollIntoView({block:'center',behavior:'instant'})`); await frames(app);
 		const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector('[data-delivery-file]').getBoundingClientRect();return {x:r.x+50,y:r.y+r.height/2}})()`);
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
-		await until(`document.querySelector('[aria-label="文件变更预览"]')?.textContent.includes('export const')`); await frames();
+		await until(`document.querySelector('[aria-label="文件变更预览"]')?.textContent.includes('export const')`); await frames(app);
 		const metrics = await app.evaluate<{ preview: DOMRect; row: DOMRect; card: DOMRect; overflow: number; cards: number; inset: { left: number; right: number; bottom: number }; gap: number; below: number; bar: number; fill: number; codePad: number; rowFill: number }>(`(()=>{const e=document.querySelector('[aria-label="文件变更预览"]'),p=e.getBoundingClientRect(),s=e.querySelector('.ly-diff-scroll'),d=s.getBoundingClientRect(),row=document.querySelector('[data-delivery-file]').getBoundingClientRect(),view=e.querySelector('.ly-scroll-view');
 			return {preview:p.toJSON(),row:row.toJSON(),card:document.querySelector('[data-turn-delivery]').getBoundingClientRect().toJSON(),overflow:Math.max(0,p.right-innerWidth),cards:document.querySelectorAll('[data-turn-delivery]').length,
 			 inset:{left:d.left-p.left,right:p.right-d.right,bottom:p.bottom-Math.min(d.bottom,p.bottom)},gap:row.top-p.bottom,below:p.top-row.bottom,bar:document.querySelector('[data-ly-main-toolbar]')?.getBoundingClientRect().bottom??0,
@@ -143,9 +131,9 @@ test("real file changes produce one temporary card with internal expansion and s
 		assert.ok(metrics.rowFill !== null && metrics.rowFill <= 0, `增删行的底色也要铺满：还差 ${metrics.rowFill}px`);
 		assert.ok(metrics.codePad >= 8, `代码那一列要留出滑块的落脚处，否则最右边几个字符会被压住：${metrics.codePad}px`);
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: metrics.preview.x + 40, y: metrics.preview.y + 35 });
-		await frames();
+		await frames(app);
 		assert.ok(await app.evaluate(`document.querySelector('[aria-label="文件变更预览"]')?.checkVisibility()`), "the diff remains readable when moving into its popup");
-		await screenshot(`delivery-${theme}`);
+		await shot(app, `delivery-${theme}`);
 		// 等它真的关掉，不是等够几帧：这些用例共用一个窗口，留着的浮层正好盖在下一条要点的按钮上。
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 15, y: 75 });
 		await until(`!document.querySelector('[aria-label="文件变更预览"]')`);
@@ -176,7 +164,7 @@ test("real file changes produce one temporary card with internal expansion and s
 	 */
 	const place = `(()=>{const e=document.querySelector('[aria-label="文件变更预览"]');if(!e)return '（关了）';const r=e.getBoundingClientRect();return Math.round(r.x)+','+Math.round(r.y)+' '+e.textContent.slice(0,16)})()`;
 	// 量在入场之后：`ly-pop-in` 是一段 scale，量在中途拿到的是 0.95 倍的它，和位置无关。
-	await frames();
+	await frames(app);
 	const settled = await app.evaluate<string>(place);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: last.x, y: last.top - 12 });
 	await new Promise((resolve) => setTimeout(resolve, 500));
@@ -223,7 +211,7 @@ test("real file changes produce one temporary card with internal expansion and s
 	 * 中间那一帧就是录屏里的闪烁。观察挂在 click 之前，点的过程里预览不许出现。
 	 */
 	await app.evaluate(`(()=>{window.__deliveryPreviewFlashed=false;const watch=new MutationObserver(()=>{if(document.querySelector('[aria-label="文件变更预览"]'))window.__deliveryPreviewFlashed=true});watch.observe(document.body,{childList:true,subtree:true});window.__deliveryPreviewWatch=watch})()`);
-	await click('[data-turn-delivery] [data-delivery-file]');
+	await click(app, '[data-turn-delivery] [data-delivery-file]');
 	assert.equal(await app.evaluate(`(()=>{window.__deliveryPreviewWatch.disconnect();return window.__deliveryPreviewFlashed})()`), false, "点文件行不该闪出悬停预览");
 	await until(`document.querySelector('[data-dock-pane="delivery"] .ly-diff-scroll')?.textContent.includes('export const')`);
 	assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-ly-modal]'))`), false, "点文件不该弹出审核窗");
@@ -235,11 +223,11 @@ test("real file changes produce one temporary card with internal expansion and s
 	t.diagnostic(JSON.stringify({ fileName, one }));
 	assert.equal(one.diffs, 1, "点一个文件只审这一轮里的那一份 diff");
 	assert.ok(one.text.includes(fileName), "面板标题或正文要带着这个文件");
-	await screenshot("delivery-turn-diff");
+	await shot(app, "delivery-turn-diff");
 
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 15, y: 75 });
 	await until(`!document.querySelector('[aria-label="文件变更预览"]')`);
-	await click('[data-turn-delivery] button[data-ly-tip="审核全部文件改动"]');
+	await click(app, '[data-turn-delivery] button[data-ly-tip="审核全部文件改动"]');
 	await until(`document.querySelectorAll('[data-dock-pane="delivery"] [data-delivery-diff]').length>=3`);
 	assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-ly-modal]'))`), false, "审核不该弹出窗");
 	assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-dock-pane="review"]'))`), false, "审核不该打开 Git");
@@ -249,7 +237,7 @@ test("real file changes produce one temporary card with internal expansion and s
 	})()`);
 	t.diagnostic(JSON.stringify({ fileName, review }));
 	assert.ok(review.pane && review.diffs >= 3, "审核要打开这一轮全部文件的 diff");
-	await screenshot("delivery-turn-review");
+	await shot(app, "delivery-turn-review");
 });
 
 /*
@@ -262,7 +250,7 @@ test("a preview opening above a row near the top stops under the window's toolba
 	const hover = async () => {
 		const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector('[data-delivery-file]').getBoundingClientRect();return {x:r.x+50,y:r.y+r.height/2}})()`);
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
-		await until(`${preview}?.textContent.includes('export const')`); await frames();
+		await until(`${preview}?.textContent.includes('export const')`); await frames(app);
 	};
 	const leave = async () => {
 		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 15, y: 300 });
@@ -270,18 +258,18 @@ test("a preview opening above a row near the top stops under the window's toolba
 	};
 	const bar = await app.evaluate<number>(`document.querySelector('[data-ly-main-toolbar]')?.getBoundingClientRect().bottom ?? 0`);
 	// How tall the preview is with room to spare, which decides where its row has to be.
-	await app.evaluate(`document.querySelector('[data-turn-delivery]').scrollIntoView({block:'center',behavior:'instant'})`); await frames();
+	await app.evaluate(`document.querySelector('[data-turn-delivery]').scrollIntoView({block:'center',behavior:'instant'})`); await frames(app);
 	await hover();
 	const height = await app.evaluate<number>(`${preview}.getBoundingClientRect().height`);
 	await leave();
 	// The row's top where an above-placement kept only 12px from the window's edge reaches 10px into the toolbar.
 	const target = bar - 10 + 8 + height;
-	await app.evaluate(`(()=>{const row=document.querySelector('[data-delivery-file]'),view=row.closest('.ly-scroll-view');view.scrollTop+=row.getBoundingClientRect().top-${target};})()`); await frames();
+	await app.evaluate(`(()=>{const row=document.querySelector('[data-delivery-file]'),view=row.closest('.ly-scroll-view');view.scrollTop+=row.getBoundingClientRect().top-${target};})()`); await frames(app);
 	const row = await app.evaluate<number>(`document.querySelector('[data-delivery-file]').getBoundingClientRect().top`);
 	await hover();
 	const box = await app.evaluate<{ top: number; bottom: number }>(`(()=>{const r=${preview}.getBoundingClientRect();return {top:r.top,bottom:r.bottom}})()`);
 	t.diagnostic(JSON.stringify({ bar, height, target, row, box }));
-	await screenshot("delivery-preview-under-toolbar");
+	await shot(app, "delivery-preview-under-toolbar");
 	assert.ok(Math.abs(row - target) < 40, `the row is where the old rule went wrong, or this proves nothing: ${row} vs ${target}`);
 	assert.ok(box.top >= bar, `the preview spreads over the toolbar: its top at ${box.top}, the toolbar's bottom at ${bar}`);
 	await leave();
@@ -295,7 +283,7 @@ test("local material readers reject links outside an opened project", async () =
 });
 
 test("undo uses the stored changes, and the next answer cannot retain the previous turn's card", async () => {
-	await click('[data-turn-delivery] button[data-ly-tip="撤销这次文件改动"]');
+	await click(app, '[data-turn-delivery] button[data-ly-tip="撤销这次文件改动"]');
 	await until(`document.querySelector('[role="dialog"]')`);
 	await app.evaluate(`(()=>{const button=[...document.querySelectorAll('[role="dialog"] button')].find(e=>e.textContent.includes('撤销改动'));if(!button)throw Error('Missing confirm');button.click()})()`);
 	/*

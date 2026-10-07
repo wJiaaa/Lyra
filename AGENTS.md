@@ -157,6 +157,13 @@ node scripts/audit-regression.mjs   # 修过的每个 bug，各自的守卫跑�
 `encode` 合成。照着同目录的 `input-history-demo.ts` 或 `attachments-demo.ts` 写，剧本部分换掉
 就行。
 
+**操作窗口一律用 `packages/desktop/e2e/drive.ts`，不要自己写选择器去点。** 等待（`until`）、
+真鼠标点击（`click`）、打字、按键、开面板（`openPane`）、进会话（`openSession`）、截图都在
+那里。一次性的验证脚本也一样，直接 import。手写 `.click()` 在这里是错的：对 `[data-ly-row]`
+那层 div 调 `.click()` 不会切换会话，`aria-current` 也不挂在那一层上。曾有一次验证就因为这样
+连着重开了六次 Electron，前五次都在猜选择器。要用的 fixture 内容（会话 id、轨迹条目）先去读
+`*-fixture.ts`，不要猜。`drive.ts` 缺一种操作就补进去，不要在自己的文件里另抄一份。
+
 **拍窗口，不拍屏幕。** 抓全屏会把用户手边的私人窗口一起录进去——这不是美观问题。screencast
 只拍这一个 `BrowserWindow`，其他窗口从来不在画面里。
 

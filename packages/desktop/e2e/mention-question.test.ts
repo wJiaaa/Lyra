@@ -6,6 +6,7 @@ import { startRecording, encode, type Frame } from "./record.ts";
 import { after, afterEach, before, test } from "node:test";
 import type { SessionSnapshot } from "../electron/ipc-types.ts";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
+import { press } from "./drive.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { questionModel, REFERENCE_TITLE, seedQuestions } from "./mention-question-fixture.ts";
 
@@ -81,10 +82,6 @@ async function input(text: string, target: "composer" | "custom" = "composer") {
 	const value = target === "composer" ? "document.querySelector('main textarea').value" : `document.querySelector('input[aria-label="自定义回答"]').value`;
 	await until(async () => await app.evaluate(value) === text);
 }
-async function enter() {
-	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
-	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
-}
 async function session(id: SessionId) {
 	await click(id);
 	await until(id === "qa-long"
@@ -148,7 +145,7 @@ test("same-title references survive draft switching and fit dark, light and narr
 		}
 	}
 	await appearance("dark", 1280);
-	await input("REFERENCE_SEND"); await enter();
+	await input("REFERENCE_SEND"); await press(app, "Enter", 13);
 	await until(`document.querySelectorAll('.ly-user-bubble [data-ly-tip="点击切换至该会话"]').length === 2 && !document.querySelector('button[aria-label="停止"]')`);
 	const state = await snapshot("qa-long");
 	const sent = state.messages.findLast((message) => message.role === "user");
@@ -165,7 +162,7 @@ test("same-title references survive draft switching and fit dark, light and narr
 test("real ask_user returns choices and custom answers to their own pending sessions", async (t) => {
 	await session("qa-long");
 	const aBefore = (await snapshot("qa-long")).messages.filter((message) => message.role === "user").length;
-	await input("ASK_OWNER"); await enter();
+	await input("ASK_OWNER"); await press(app, "Enter", 13);
 	await until(`document.querySelector('pre')?.textContent === '请选择本次实现方式' || [...document.querySelectorAll('pre')].some(e=>e.textContent==='请选择本次实现方式')`);
 	assert.equal(await app.evaluate(`document.querySelectorAll('input[aria-label="自定义回答"]').length`), 0);
 	const aRequests = requests.length;
@@ -174,7 +171,7 @@ test("real ask_user returns choices and custom answers to their own pending sess
 	await until(`![...document.querySelectorAll('pre')].some(e=>e.checkVisibility()&&e.textContent==='请选择本次实现方式')`);
 	assert.equal(requests.length, aRequests, "switching sessions does not answer the pending tool");
 	const bBefore = (await snapshot("qa-short")).messages.filter((message) => message.role === "user").length;
-	await input("ASK_CUSTOM"); await enter();
+	await input("ASK_CUSTOM"); await press(app, "Enter", 13);
 	await until(`Boolean(document.querySelector('input[aria-label="自定义回答"]'))`);
 	await appearance("light", 375);
 	const question = await app.evaluate<{ left: number; right: number; width: number; inputs: number }>(`(()=>{const e=document.querySelector('input[aria-label="自定义回答"]').closest('.ly-glass'),r=e.getBoundingClientRect();return {left:r.left,right:r.right,width:innerWidth,inputs:e.querySelectorAll('input[aria-label="自定义回答"]').length};})()`);

@@ -21,7 +21,7 @@ import { after, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
-import { named } from "./named.ts";
+import { click, frames } from "./drive.ts";
 
 const CDP_PORT = 9637;
 const STEP_MS = 3000;
@@ -102,9 +102,6 @@ after(async () => {
 	await cleanupFixture(() => app?.stop(), () => closeListeningServer(model));
 });
 
-async function frames(n = 15) {
-	await app.evaluate(`new Promise(r=>{let n=${n};const f=()=>--n?requestAnimationFrame(f):r();requestAnimationFrame(f);})`);
-}
 async function until(expression: string, ms = 30000) {
 	const end = Date.now() + ms;
 	while (Date.now() < end) {
@@ -113,26 +110,11 @@ async function until(expression: string, ms = 30000) {
 	}
 	throw new Error(`等不到：${expression}`);
 }
-/** 真鼠标：先挪过去，问一句落点上是不是它，再按。 */
-async function click(selector: string) {
-	await until(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
-	await app.evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'nearest',behavior:'instant'})`);
-	await frames(2);
-	const at = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;const hit=document.elementFromPoint(x,y);if(!e.contains(hit))throw new Error('被挡住了：'+${JSON.stringify(selector)}+' → '+(hit?hit.outerHTML.slice(0,120):'nothing'));return {x,y};})()`);
-	for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, ...(type === "mouseMoved" ? {} : { button: "left", clickCount: 1 }) });
-	await frames(3);
-}
-async function label(text: string, scope = "button") {
-	const match = named(text, "starts");
-	await until(`[...document.querySelectorAll(${JSON.stringify(scope)})].some(e=>e.checkVisibility()&&${match})`);
-	await app.evaluate(`(()=>{document.querySelector('[data-qa-target]')?.removeAttribute('data-qa-target');[...document.querySelectorAll(${JSON.stringify(scope)})].find(e=>e.checkVisibility()&&${match}).setAttribute('data-qa-target','');})()`);
-	await click("[data-qa-target]");
-}
 const faceMap = () => app.evaluate<Record<string, string>>(`Object.fromEntries([...document.querySelectorAll('[data-agent-profile]')].flatMap(row=>{const f=row.querySelector('.ly-avatar');return f?[[row.dataset.agentProfile,f.dataset.avatar]]:[];}))`);
 
 test("设置页：九个智能体九张脸；指针进来那一行的脸真的弹了一下、眼睛跟着指针，没人碰也会自己眨眼", async () => {
-	await click('button:has(svg.lucide-settings)');
-	await label("智能体", "nav button");
+	await click(app, 'button:has(svg.lucide-settings)');
+	await click(app, "nav button", "智能体", "starts");
 	await until(`document.querySelectorAll('[data-agent-profile] .ly-avatar').length === 9`);
 	faces = await faceMap();
 	assert.equal(new Set(Object.values(faces)).size, 9, `互不相同：${JSON.stringify(faces)}`);
@@ -142,7 +124,7 @@ test("设置页：九个智能体九张脸；指针进来那一行的脸真的�
 	// 把真指针挪到 explore 那一行的描述上，逐帧读那张脸的缩放——果冻那一下要真的画出来。
 	const target = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector('[data-agent-profile="explore"] p').getBoundingClientRect();return {x:r.x+20,y:r.y+r.height/2};})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: target.x - 200, y: target.y - 60 });
-	await frames(4);
+	await frames(app, 4);
 	const sampling = app.evaluate<{ widest: number; last: string }>(`new Promise(resolve=>{const g=document.querySelector('[data-agent-profile="explore"] .ly-avatar-squish');let widest=1,n=0;const f=()=>{const m=getComputedStyle(g).transform;const a=m.startsWith('matrix(')?Number(m.slice(7).split(',')[0]):1;widest=Math.max(widest,a);if(++n<60)requestAnimationFrame(f);else resolve({widest,last:getComputedStyle(g).transform});};requestAnimationFrame(f);})`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: target.x, y: target.y });
 	const jelly = await sampling;
@@ -151,7 +133,7 @@ test("设置页：九个智能体九张脸；指针进来那一行的脸真的�
 
 	// 指针在脸的右边：眼睛往右看。
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: target.x + 180, y: target.y });
-	await frames(20);
+	await frames(app, 20);
 	const look = await app.evaluate<string>(`getComputedStyle(document.querySelector('[data-agent-profile="explore"] .ly-avatar')).getPropertyValue('--ly-look-x')`);
 	assert.ok(Number.parseFloat(look) > 1, `眼睛往右挪了 ${look}`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 5, y: 5 });
@@ -162,19 +144,19 @@ test("设置页：九个智能体九张脸；指针进来那一行的脸真的�
 });
 
 test("新建：一进来就是一张没人用的脸，随机能换、能挑，存下去的就是屏幕上那张", async () => {
-	await label("新增智能体");
+	await click(app, "button", "新增智能体", "starts");
 	await until(`document.querySelector('[data-agent-editor] [data-agent-avatar]')`);
 	const shown = () => app.evaluate<string>(`document.querySelector('[data-agent-avatar]').dataset.agentAvatar`);
 	const fresh = await shown();
 	assert.ok(!Object.values(faces).includes(fresh), `新脸 ${fresh} 不和任何人重复`);
-	await click("[data-agent-shuffle]");
+	await click(app, "[data-agent-shuffle]");
 	const rolled = await shown();
 	assert.ok(rolled !== fresh && !Object.values(faces).includes(rolled), `换了一张：${rolled}`);
 
-	await click('[aria-label="换个形象"]');
+	await click(app, '[aria-label="换个形象"]');
 	await until(`document.querySelector('[data-avatar-picker]')`);
 	// 挑一个和别人都不撞的颜色：天蓝。
-	await click('[data-avatar-picker] [data-avatar-color="sky"]');
+	await click(app, '[data-avatar-picker] [data-avatar-color="sky"]');
 	const chosen = await shown();
 	assert.ok(chosen.endsWith("-sky"), chosen);
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
@@ -182,11 +164,11 @@ test("新建：一进来就是一张没人用的脸，随机能换、能挑，�
 	await until(`!document.querySelector('[data-avatar-picker]')`);
 
 	for (const [field, text] of [["智能体调用名", NEW_AGENT], ["智能体用途", "测试用的整理员"], ["智能体指令", "Tidy the docs."]] as const) {
-		await click(`[aria-label="${field}"]`);
+		await click(app, `[aria-label="${field}"]`);
 		await app.evaluate(`document.querySelector('[aria-label="${field}"]').select()`);
 		await app.send("Input.insertText", { text });
 	}
-	await label("保存");
+	await click(app, "button", "保存", "starts");
 	await until(`document.querySelector('[data-agent-profile="${NEW_AGENT}"] .ly-avatar')`);
 	faces = await faceMap();
 	assert.equal(faces[NEW_AGENT], chosen, "列表上是存下去的那张");
@@ -197,8 +179,8 @@ test("新建：一进来就是一张没人用的脸，随机能换、能挑，�
 });
 
 test("派发：闸门只放一个，排队的两个也在；点卡片面板翻过去；做完换成弯眼", async () => {
-	await label("返回工作区", "nav button");
-	await click('[data-ly-row="qa-short"]');
+	await click(app, "nav button", "返回工作区", "starts");
+	await click(app, '[data-ly-row="qa-short"]');
 	await app.evaluate(`(() => {
 		const field = document.querySelector("main textarea");
 		Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set.call(field, "AVATAR-DEMO 分头查一下");
@@ -221,19 +203,19 @@ test("派发：闸门只放一个，排队的两个也在；点卡片面板翻�
 	const header = '[data-dock-pane="subagents"] [data-sub-header]';
 	await until(`[...document.querySelectorAll('${header} [data-pile-face] .ly-avatar')].filter(a=>a.dataset.mood!=='waiting').length >= 2`, STEP_MS * 5);
 	// 面板顶上的切换器：点开是一张单子，两个在跑、一个在排队（排着的也在名单上）；点另一行，面板翻过去。
-	await click(`${header} [data-sub-switch]`);
+	await click(app, `${header} [data-sub-switch]`);
 	await until(`document.querySelectorAll('[data-sub-menu] [data-sub-row]').length === 3 && document.querySelectorAll('[data-sub-menu] [data-sub-queued]').length === 1`);
 	const before = await app.evaluate<string>(`document.querySelector('${header} [data-sub-title]').textContent`);
 	await app.evaluate(`[...document.querySelectorAll('[data-sub-menu] [data-sub-row]')].find(r=>r.dataset.selected!=='true'&&!r.dataset.subQueued).querySelector('[role=menuitem]').setAttribute('data-qa-pick','')`);
-	await click("[data-qa-pick]");
+	await click(app, "[data-qa-pick]");
 	await until(`!document.querySelector('[data-sub-menu]') && document.querySelector('${header} [data-sub-title]').textContent !== ${JSON.stringify(before)}`);
 
 	// 再点对话里第一张派发卡片：面板翻回它那一页。
 	await app.evaluate(`document.querySelector('main [data-ly-run] > button')?.setAttribute('data-qa-run','')`);
-	await click("[data-qa-run]");
+	await click(app, "[data-qa-run]");
 	await until(`[...document.querySelectorAll('main [data-ly-run] div[data-ly-avatar-host] > button')].length === 3`);
 	await app.evaluate(`document.querySelector('main [data-ly-run] div[data-ly-avatar-host] > button').setAttribute('data-qa-card','')`);
-	await click("[data-qa-card]");
+	await click(app, "[data-qa-card]");
 	await until(`document.querySelector('${header} [data-sub-title]')?.textContent === "找登录入口"`);
 
 	/*
@@ -245,7 +227,7 @@ test("派发：闸门只放一个，排队的两个也在；点卡片面板翻�
 });
 
 test("@ 菜单：智能体是设置页上的同一张脸", async () => {
-	await click("main textarea");
+	await click(app, "main textarea");
 	await app.send("Input.insertText", { text: "@" });
 	await until(`document.querySelectorAll('.ly-mention-menu [data-mention-kind="subagent"] .ly-avatar').length >= 10`);
 	const menu = await app.evaluate<Record<string, string>>(`Object.fromEntries([...document.querySelectorAll('.ly-mention-menu [data-mention-kind="subagent"]')].map(r=>[r.dataset.mentionTitle,r.querySelector('.ly-avatar').dataset.avatar]))`);
@@ -262,10 +244,10 @@ test("@ 菜单：智能体是设置页上的同一张脸", async () => {
 });
 
 test("调度页：并发上限是八个座位，点第三个就设成三", async () => {
-	await click('button:has(svg.lucide-settings)');
-	await label("子智能体调度", "nav button");
+	await click(app, 'button:has(svg.lucide-settings)');
+	await click(app, "nav button", "子智能体调度", "starts");
 	await until(`document.querySelectorAll('[data-concurrency-slots] [data-seat]').length === 8`);
-	await click('[data-concurrency-slots] [data-seat="3"]');
+	await click(app, '[data-concurrency-slots] [data-seat="3"]');
 	await until(`document.querySelectorAll('[data-concurrency-slots] [data-awake]').length === 3`);
 	let saved = 0;
 	for (let attempt = 0; attempt < 50 && saved !== 3; attempt++) {
@@ -273,5 +255,5 @@ test("调度页：并发上限是八个座位，点第三个就设成三", async
 		if (saved !== 3) await new Promise((r) => setTimeout(r, 100));
 	}
 	assert.equal(saved, 3, "写进了 settings.json");
-	await label("返回工作区", "nav button");
+	await click(app, "nav button", "返回工作区", "starts");
 });

@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
-import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { startApp, closeListeningServer, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
-import { landsOn } from "./lands-on.ts";
+import { click, openPane, openSession, press, shot, type, until } from "./drive.ts";
 import { seedTrajectory } from "./trajectory-fixture.ts";
 
 let app: RunningApp;
@@ -30,7 +28,7 @@ before(async () => {
 	app = await startApp({ port: 9618, seed: async home => { await seedInteractions(home, address.port); await seedTrajectory(home); } });
 });
 after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server)); });
-afterEach(async t => { if (!t.passed) { t.diagnostic(await trajectoryGeometry()); await shot("failure"); t.diagnostic(await app.evaluate(`document.body.innerText.slice(-7000)`)); } });
+afterEach(async t => { if (!t.passed) { t.diagnostic(await trajectoryGeometry()); await shot(app, "failure"); t.diagnostic(await app.evaluate(`document.body.innerText.slice(-7000)`)); } });
 
 async function trajectoryGeometry(): Promise<string> {
 	return app.evaluate(`JSON.stringify((()=>{
@@ -49,97 +47,61 @@ async function trajectoryGeometry(): Promise<string> {
 	})())`);
 }
 
-async function until(expression: string, target: Pick<RunningApp, "evaluate"> = app) {
-	await target.evaluate(`new Promise((resolve,reject)=>{let n=300;const f=()=>{if(${expression})resolve();else if(--n)requestAnimationFrame(f);else reject(new Error(${JSON.stringify(expression)}));};f();})`);
-}
-async function openPane(label: string) {
-	await app.evaluate(`document.querySelector('button[aria-label="面板"]').click()`);
-	await until(`document.querySelector('[role="menuitem"]')`);
-	await until(`[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent.includes(${JSON.stringify(label)}))`);
-	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.includes(${JSON.stringify(label)})).click()`);
-}
-async function shot(name: string, target: Pick<RunningApp, "send"> = app) {
-	const directory = process.env.PLUME_E2E_ARTIFACTS; if (!directory) return;
-	await mkdir(directory, { recursive: true });
-	const data = await target.send<{data: string}>("Page.captureScreenshot", { format: "png" });
-	await writeFile(join(directory, `${name}.png`), Buffer.from(data.data, "base64"));
-}
-
 async function settle() {
 	await app.evaluate(`Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{})))`);
 }
-async function clickControl(selector: string) {
-	await until(`document.querySelector(${JSON.stringify(selector)})?.checkVisibility()`);
-	await settle();
-	const p = await app.evaluate<{x: number; y: number}>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2,hit=document.elementFromPoint(x,y);if(!e.contains(hit))throw new Error('control is covered: '+JSON.stringify({selector:${JSON.stringify(selector)},x,y,hit:hit?.outerHTML.slice(0,1000),layers:document.elementsFromPoint(x,y).slice(0,5).map(n=>({tag:n.tagName,className:n.className,role:n.getAttribute('role'),inert:!!n.closest('[inert]')}))}));return {x,y};})()`);
-	await app.send("Input.dispatchMouseEvent", {type:"mouseMoved", ...p});
-	await app.send("Input.dispatchMouseEvent", {type:"mousePressed", ...p, button:"left", clickCount:1});
-	await app.send("Input.dispatchMouseEvent", {type:"mouseReleased", ...p, button:"left", clickCount:1});
-}
 async function clickEntry() {
-	if (await app.evaluate(`document.querySelector("[data-trajectory]").clientHeight < 240`)) await clickControl('[aria-label="全屏：轨迹"]');
+	if (await app.evaluate(`document.querySelector("[data-trajectory]").clientHeight < 240`)) await click(app, '[aria-label="全屏：轨迹"]');
 	await settle();
 	await app.evaluate(`(()=>{const v=document.querySelector('[data-trace-list]').closest('.ly-scroll-view');const h=v.querySelector('[role=listitem]').getBoundingClientRect().height;v.scrollTop=Math.ceil(v.scrollTop/h)*h;})()`);
-	await until(`Boolean([...document.querySelectorAll('[data-trace-entry]')].find(e=>{const r=e.getBoundingClientRect();const v=e.closest('.ly-scroll-view').getBoundingClientRect();return r.top>=v.top && r.bottom<=v.bottom && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}))`);
+	await until(app, `Boolean([...document.querySelectorAll('[data-trace-entry]')].find(e=>{const r=e.getBoundingClientRect();const v=e.closest('.ly-scroll-view').getBoundingClientRect();return r.top>=v.top && r.bottom<=v.bottom && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}))`);
 	await app.evaluate(`for(const e of document.querySelectorAll('[data-trace-entry]')){const r=e.getBoundingClientRect(),v=e.closest('.ly-scroll-view').getBoundingClientRect();if(r.top>=v.top && r.bottom<=v.bottom && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))){e.setAttribute('data-trace-hit','');break;}}`);
-	await clickControl('[data-trace-hit]');
+	await click(app, '[data-trace-hit]');
 	await app.evaluate(`document.querySelector('[data-trace-hit]')?.removeAttribute('data-trace-hit')`);
 }
 async function escape() {
-	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
-	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", windowsVirtualKeyCode: 27 });
+	await press(app, "Escape", 27);
 	await settle();
 }
 async function timeline() {
-	if (await app.evaluate(`document.querySelector("[data-trajectory]").clientHeight < 240`)) await clickControl('[aria-label="全屏：轨迹"]');
-	if (await app.evaluate(`document.querySelector('button[aria-label="时间概览"]').getAttribute('aria-expanded') === 'false'`)) await clickControl('button[aria-label="时间概览"]');
-	await until(`document.querySelector('[data-trace-timeline] canvas')?.checkVisibility()`);
+	if (await app.evaluate(`document.querySelector("[data-trajectory]").clientHeight < 240`)) await click(app, '[aria-label="全屏：轨迹"]');
+	if (await app.evaluate(`document.querySelector('button[aria-label="时间概览"]').getAttribute('aria-expanded') === 'false'`)) await click(app, 'button[aria-label="时间概览"]');
+	await until(app, `document.querySelector('[data-trace-timeline] canvas')?.checkVisibility()`);
 	await settle();
 	return app.evaluate<{x: number; y: number; width: number}>(`(()=>{const e=document.querySelector('[data-trace-timeline] canvas'),r=e.getBoundingClientRect();if(r.left<0||r.right>innerWidth||r.top<0||r.bottom>innerHeight||document.elementFromPoint(r.x+r.width/2,r.y+40)!==e)throw new Error('timeline is clipped or covered');return {x:r.x,y:r.y,width:r.width};})()`);
 }
 async function menuAction(label: string) {
-	await clickControl('[aria-label="轨迹操作"]');
-	await until(`[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent===${JSON.stringify(label)})`);
+	await click(app, '[aria-label="轨迹操作"]');
+	await until(app, `[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent===${JSON.stringify(label)})`);
 	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent===${JSON.stringify(label)}).setAttribute('data-trace-action','')`);
-	await clickControl('[data-trace-action]');
+	await click(app, '[data-trace-action]');
 }
 
 test("manual compression is traceable with its command, summary and lifecycle while the panel stays mounted", async (t) => {
-	await clickRow("qa-long");
-	await until(`document.querySelector('main').textContent.includes('第 120 个回答')`);
-	await openPane("轨迹");
-	await until(`document.querySelector('[data-dock-pane="trajectory"]')?.querySelector('[data-trace-entry]')`);
+	await openSession(app, "qa-long");
+	await until(app, `document.querySelector('main').textContent.includes('第 120 个回答')`);
+	await openPane(app, "轨迹");
+	await until(app, `document.querySelector('[data-dock-pane="trajectory"]')?.querySelector('[data-trace-entry]')`);
 	await app.evaluate(`document.querySelector('main textarea').focus()`);
 	await app.send("Input.insertText", { text: "/compact 保留关键决策" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
-	await until(`document.querySelector('[data-command-status="done"]')`);
+	await until(app, `document.querySelector('[data-command-status="done"]')`);
 	const persisted = await app.evaluate<{source: string; summary: string; detail: string; command?: string}[]>(`(async()=>{const m=(await window.plume.sessions.list()).find(m=>m.id==='qa-long');return window.plume.sessions.trajectory(m.id);})()`);
 	t.diagnostic(JSON.stringify(persisted.filter(e => e.source === "compaction")));
-	await shot("trajectory-manual");
+	await shot(app, "trajectory-manual");
 	assert.ok(persisted.some(e => e.command === "/compact 保留关键决策"), "the durable command lifecycle must be projected, not just the message counts");
 	assert.ok(persisted.some(e => e.detail.includes("轨迹验证摘要")), "the stored summary must be inspectable");
-	await until(`document.querySelector('[data-dock-pane="trajectory"]')?.textContent.includes('/compact')`);
+	await until(app, `document.querySelector('[data-dock-pane="trajectory"]')?.textContent.includes('/compact')`);
 	await app.evaluate(`[...document.querySelectorAll('[data-trace-entry]')].find(e=>e.textContent.includes('/compact')).click()`);
-	await until(`document.querySelector('.ly-trace-inspector')?.textContent.includes('轨迹验证摘要')`);
-	await shot("manual-detail");
+	await until(app, `document.querySelector('.ly-trace-inspector')?.textContent.includes('轨迹验证摘要')`);
+	await shot(app, "manual-detail");
 });
 
-async function clickRow(id: string) {
-	const at = await app.evaluate<{x: number; y: number}>(`(()=>{const el=document.querySelector('[data-ly-row="${id}"]'),r=el.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;${landsOn(`[data-ly-row="${id}"]`)}return {x,y};})()`);
-	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 });
-	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });
-}
-async function search(selector: string, text: string) {
-	await app.evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.focus();e.select();})()`);
-	await app.send("Input.insertText", { text });
-}
-
 test("7500+ trajectory entries remain bounded; full output search and inspector selection do not shift rows", async (t) => {
-	await clickRow("10000000-0000-4000-8000-000000000001");
-	await until(`document.querySelector('[data-ly-row="10000000-0000-4000-8000-000000000001"][aria-current]') || document.querySelector('main').textContent.includes('执行并验证构建')`);
-	await openPane("轨迹");
-	await until(`Boolean(document.querySelector('[data-trace-count] [data-ly-tip="2500 次工具"]'))`);
+	await openSession(app, "10000000-0000-4000-8000-000000000001");
+	await openPane(app, "轨迹");
+	await until(app, `Boolean(document.querySelector('[data-trace-count] [data-ly-tip="2500 次工具"]'))`);
 	const baseline = await app.evaluate(`(()=>{const s=document.querySelector('[data-dock-pane="trajectory"] .ly-scroll-view');return {rows:document.querySelectorAll('[data-trace-entry]').length,top:s.scrollTop,height:s.scrollHeight};})()`);
 	t.diagnostic(await trajectoryGeometry());
 	assert.ok(baseline.rows < 55 && baseline.top > 200000, JSON.stringify(baseline));
@@ -159,13 +121,13 @@ test("7500+ trajectory entries remain bounded; full output search and inspector 
 		`甩到底时画的行数应当停在预留上限附近，实测 ${Math.max(...sample.map((frame: {rows: number}) => frame.rows))}`,
 	);
 	t.diagnostic(JSON.stringify({ baseline, maxFrame: Math.max(...sample.map((frame: {ms: number}) => frame.ms)), maxRows: Math.max(...sample.map((frame: {rows: number}) => frame.rows)) }));
-	await search('[data-trajectory] input', "TAIL_SENTINEL");
-	await until(`document.querySelectorAll('[data-trace-entry]').length === 2`);
+	await type(app, '[data-trajectory] input', "TAIL_SENTINEL");
+	await until(app, `document.querySelectorAll('[data-trace-entry]').length === 2`);
 	await settle();
 	const beforeSelection = await app.evaluate<number[]>(`[...document.querySelectorAll('[data-trace-entry]')].map(e=>e.getBoundingClientRect().top)`);
 	assert.equal(beforeSelection.length, 2);
 	await clickEntry();
-	await until(`document.querySelector('.ly-trace-inspector')?.textContent.includes('TAIL_SENTINEL')`);
+	await until(app, `document.querySelector('.ly-trace-inspector')?.textContent.includes('TAIL_SENTINEL')`);
 	const stable = await app.evaluate(`new Promise(resolve=>{const out=[];let n=20;const f=()=>{out.push([...document.querySelectorAll('[data-trace-entry]')].map(e=>e.getBoundingClientRect().top));if(--n)requestAnimationFrame(f);else resolve(out);};requestAnimationFrame(f);})`);
 	assert.ok(stable.every((frame: number[]) => frame.length === 2 && JSON.stringify(frame) === JSON.stringify(beforeSelection)), "inspecting a record must not animate or shift its ledger row");
 	await app.evaluate(`Object.defineProperty(navigator.clipboard,'writeText',{configurable:true,value:async text=>{document.documentElement.dataset.traceCopy=text;}})`);
@@ -174,20 +136,20 @@ test("7500+ trajectory entries remain bounded; full output search and inspector 
 		const copied = await app.evaluate<string>(`document.documentElement.dataset.traceCopy`);
 		assert.ok(copied.length > 12000 && copied.endsWith("TAIL_SENTINEL"));
 	} finally { await app.evaluate(`delete navigator.clipboard.writeText;delete document.documentElement.dataset.traceCopy`); }
-	await shot("long-trace-inspector");
+	await shot(app, "long-trace-inspector");
 });
 
 test("task execution search includes omitted text, links to its trajectory and opens the complete raw output", async () => {
-	await openPane("任务");
-	await until(`document.querySelector('[data-task-records]')`);
-	await search('[data-dock-pane="tasks"] input', "TAIL_SENTINEL");
-	await until(`document.querySelectorAll('[data-task-record]').length === 1`);
+	await openPane(app, "任务");
+	await until(app, `document.querySelector('[data-task-records]')`);
+	await type(app, '[data-dock-pane="tasks"] input', "TAIL_SENTINEL");
+	await until(app, `document.querySelectorAll('[data-task-record]').length === 1`);
 	await app.evaluate(`document.querySelector('[data-task-record] button').click()`);
-	await until(`document.querySelector('[data-dock-pane="tasks"]')?.textContent.includes('TAIL_SENTINEL')`);
+	await until(app, `document.querySelector('[data-dock-pane="tasks"]')?.textContent.includes('TAIL_SENTINEL')`);
 	await app.evaluate(`document.querySelector('[data-dock-pane="tasks"] [aria-label="在轨迹中查看这次调用"]').click()`);
-	await until(`document.querySelector('.ly-trace-inspector')?.textContent.includes('trace-run-2499')`);
-	await clickControl('[aria-label="记录操作"]');
-	await until(`[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent==='查看完整原始输出')`);
+	await until(app, `document.querySelector('.ly-trace-inspector')?.textContent.includes('trace-run-2499')`);
+	await click(app, '[aria-label="记录操作"]');
+	await until(app, `[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent==='查看完整原始输出')`);
 	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent==='查看完整原始输出').click()`);
 	const read = await app.evaluate(`(async()=>{const m=(await window.plume.sessions.list()).find(m=>m.id==='10000000-0000-4000-8000-000000000001');const p=await window.plume.sessions.exportTrajectory(m.id,'output',{correlationId:'trace-run-2499'});const r=await window.plume.files.read(p);return {path:p,read:r?{bytes:r.bytes,truncated:r.truncated,tail:r.text.slice(-20)}:null};})()`);
 	assert.ok(read.read, JSON.stringify(read));
@@ -200,84 +162,84 @@ test("task execution search includes omitted text, links to its trajectory and o
 		await app.evaluate("new Promise(requestAnimationFrame)");
 	}
 	assert.ok(host, "raw output has a docked or detached file surface");
-	await until(`document.querySelector('.cm-content')?.textContent.includes('RAW_LOG')`, host);
+	await until(host, `document.querySelector('.cm-content')?.textContent.includes('RAW_LOG')`);
 	const paths = await host.evaluate<string[]>(`[...document.querySelectorAll('[data-ly-tip]')].map(e=>e.getAttribute('data-ly-tip'))`);
 	assert.ok(paths.some(path => path.includes("build.log")), JSON.stringify(paths));
-	await shot("task-raw-output", host);
+	await shot(host, "task-raw-output");
 });
 
 test("session switching never renders the previous trace selection or filter contents", async () => {
-	await clickRow("qa-short");
-	await until(`document.querySelector('main').textContent.includes('第 5 个回答')`);
-	await openPane("轨迹");
-	await until(`document.querySelector('[data-trajectory]') && !document.querySelector('[data-trace-count] [data-ly-tip="2500 次工具"]')`);
+	await openSession(app, "qa-short");
+	await until(app, `document.querySelector('main').textContent.includes('第 5 个回答')`);
+	await openPane(app, "轨迹");
+	await until(app, `document.querySelector('[data-trajectory]') && !document.querySelector('[data-trace-count] [data-ly-tip="2500 次工具"]')`);
 	assert.equal(await app.evaluate(`document.querySelector('[data-trajectory]').textContent.includes('trace-run-2499')`), false);
 	assert.equal(await app.evaluate(`document.querySelector('[data-trajectory] input').value`), "");
-	await clickRow("10000000-0000-4000-8000-000000000001");
-	await until(`document.querySelector('[data-trace-count]')?.textContent.includes('7503/7503')`);
+	await openSession(app, "10000000-0000-4000-8000-000000000001");
+	await until(app, `document.querySelector('[data-trace-count]')?.textContent.includes('7503/7503')`);
 	assert.equal(await app.evaluate(`Boolean(document.querySelector('.ly-trace-inspector'))`), false, "returning to the source session must not replay an already handled trace link");
-	await clickRow("qa-long");
-	await until(`document.querySelector('[data-trajectory]').textContent.includes('/compact')`);
+	await openSession(app, "qa-long");
+	await until(app, `document.querySelector('[data-trajectory]').textContent.includes('/compact')`);
 	assert.equal(await app.evaluate(`document.querySelector('[data-trajectory]').textContent.includes('trace-run-2499')`), false);
 });
 
 test("time-range selection, turn folding and model timing are queryable through the real controls", async () => {
-	await clickRow("10000000-0000-4000-8000-000000000001");
-	await until(`document.querySelector('[data-trace-count]')?.textContent.includes('7503/7503')`);
+	await openSession(app, "10000000-0000-4000-8000-000000000001");
+	await until(app, `document.querySelector('[data-trace-count]')?.textContent.includes('7503/7503')`);
 	await settle();
 	const box = await timeline();
 	box.y += 24;
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x + box.width * 0.25, y: box.y, button: "left", clickCount: 1 });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + box.width * 0.75, y: box.y, button: "left", buttons: 1 });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x + box.width * 0.75, y: box.y, button: "left", clickCount: 1 });
-	await until(`!document.querySelector('[data-trace-count]').textContent.startsWith('7503/')`);
+	await until(app, `!document.querySelector('[data-trace-count]').textContent.startsWith('7503/')`);
 	const filtered = await app.evaluate<string>(`document.querySelector('[data-trace-count]').textContent`);
 	const count = Number(filtered.match(/聚焦 (\d+) 条/)?.[1]); assert.ok(count > 3000 && count < 4500, filtered);
-	await clickControl('[aria-label="重置时间范围"]');
-	await until(`document.querySelector('[data-trace-count]').textContent.startsWith('7503/')`);
+	await click(app, '[aria-label="重置时间范围"]');
+	await until(app, `document.querySelector('[data-trace-count]').textContent.startsWith('7503/')`);
 	await escape();
 	await menuAction('收起所有轮次');
-	await until(`document.querySelectorAll('[data-trace-entry]').length < 5`);
+	await until(app, `document.querySelectorAll('[data-trace-entry]').length < 5`);
 	await menuAction('展开所有轮次');
-	await until(`document.querySelectorAll('[data-trace-entry]').length > 5`);
-	await clickControl('[aria-label="筛选轨迹"]');
-	await until(`Boolean(document.querySelector('[role="menu"][aria-label="筛选轨迹"]'))`);
+	await until(app, `document.querySelectorAll('[data-trace-entry]').length > 5`);
+	await click(app, '[aria-label="筛选轨迹"]');
+	await until(app, `Boolean(document.querySelector('[role="menu"][aria-label="筛选轨迹"]'))`);
 	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.startsWith('模型请求')).click()`);
 	await app.send('Input.dispatchKeyEvent', {type:'keyDown',key:'Escape',windowsVirtualKeyCode:27});
 	await app.send('Input.dispatchKeyEvent', {type:'keyUp',key:'Escape',windowsVirtualKeyCode:27});
-	await until(`document.querySelector('[data-trace-count]').textContent.startsWith('2500/') && document.querySelector('[data-trace-entry]')`);
+	await until(app, `document.querySelector('[data-trace-count]').textContent.startsWith('2500/') && document.querySelector('[data-trace-entry]')`);
 	await clickEntry();
-	await until(`document.querySelector('.ly-trace-inspector [role="tab"]')`);
+	await until(app, `document.querySelector('.ly-trace-inspector [role="tab"]')`);
 	await app.evaluate(`[...document.querySelectorAll('.ly-trace-inspector [role="tab"]')].find(e=>e.textContent==='信息').click()`);
 	await settle();
 	const timingVisible = await app.evaluate(`(()=>{const e=[...document.querySelectorAll('.ly-trace-inspector dt')].find(e=>e.textContent==='首 Token').nextElementSibling;e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return e.textContent==='120 ms' && !e.closest('[aria-hidden=true],[inert]') && e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()`);
 	assert.equal(timingVisible, true, "model timing must be visibly expanded, not merely mounted");
-	await until(`document.querySelector('.ly-trace-inspector')?.textContent.includes('首 Token')`);
+	await until(app, `document.querySelector('.ly-trace-inspector')?.textContent.includes('首 Token')`);
 	const details = await app.evaluate<string>(`document.querySelector('.ly-trace-inspector').textContent`);
 	assert.ok(details.includes("120 ms") && details.includes("80 ms") && details.includes("Token 用量"), details);
-	await clickControl('[aria-label="返回记录"]');
+	await click(app, '[aria-label="返回记录"]');
 	const modelBox = await timeline();
 	const toolLane = { x: modelBox.x + modelBox.width / 2, y: modelBox.y + 26 };
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", x: toolLane.x, y: toolLane.y - 16, button: "left", clickCount: 1 });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: toolLane.x, y: toolLane.y - 16, button: "left", clickCount: 1 });
-	await until(`document.querySelector('.ly-trace-inspector [data-trace-inspector-header]')?.textContent.includes('模型请求')`);
-	await clickControl('[aria-label="返回记录"]');
+	await until(app, `document.querySelector('.ly-trace-inspector [data-trace-inspector-header]')?.textContent.includes('模型请求')`);
+	await click(app, '[aria-label="返回记录"]');
 	const toolBox = await timeline();
 	toolLane.x = toolBox.x + toolBox.width / 2; toolLane.y = toolBox.y + 26;
 	await app.send("Input.dispatchMouseEvent", { type: "mousePressed", ...toolLane, button: "left", clickCount: 1 });
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...toolLane, button: "left", clickCount: 1 });
-	await until(`document.querySelector('.ly-trace-inspector [data-trace-inspector-header]')?.textContent.includes('工具调用')`);
+	await until(app, `document.querySelector('.ly-trace-inspector [data-trace-inspector-header]')?.textContent.includes('工具调用')`);
 });
 
 test("trajectory controls fit both themes and narrow panes; a brush stays local until release", async (t) => {
-	await clickRow("10000000-0000-4000-8000-000000000001");
-	await clickControl('[aria-label="返回记录"]');
-	await until(`!document.querySelector('.ly-trace-inspector')`);
+	await openSession(app, "10000000-0000-4000-8000-000000000001");
+	await click(app, '[aria-label="返回记录"]');
+	await until(app, `!document.querySelector('.ly-trace-inspector')`);
 	for (const theme of ["dark", "light"]) {
 		for (const width of [1280, 375]) {
 			await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}}))`);
 			await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
-			await until(`innerWidth===${width} && document.documentElement.classList.contains(${JSON.stringify(theme)})`);
+			await until(app, `innerWidth===${width} && document.documentElement.classList.contains(${JSON.stringify(theme)})`);
 			await settle();
 			const geometry = await app.evaluate(`(()=>{const p=document.querySelector('[data-trajectory]'),r=p.getBoundingClientRect(),toolbar=p.querySelector('[role="toolbar"]');return {width:innerWidth,overflow:document.documentElement.scrollWidth-innerWidth,pane:{left:r.left,right:r.right},actions:[...toolbar.querySelectorAll('button')].map(b=>({left:b.getBoundingClientRect().left,right:b.getBoundingClientRect().right,icons:b.querySelectorAll('svg').length})),controls:p.querySelector('.ly-scroll-view').getBoundingClientRect().top-r.top,ledgerHeight:p.querySelector('.ly-scroll-view').clientHeight,fadeTop:parseFloat(getComputedStyle(p.querySelector('.ly-scroll-view')).getPropertyValue('--ly-fade-top')),fadeBottom:parseFloat(getComputedStyle(p.querySelector('.ly-scroll-view')).getPropertyValue('--ly-fade-bottom')),paneHeight:r.height};})()`);
 			assert.ok(geometry.overflow <= 0, JSON.stringify(geometry));
@@ -285,32 +247,32 @@ test("trajectory controls fit both themes and narrow panes; a brush stays local 
 			assert.ok(geometry.controls >= 0 && geometry.controls < 200 && geometry.ledgerHeight >= 36, JSON.stringify(geometry));
 			assert.ok(geometry.actions.every((b: { left: number; right: number; icons: number }) => b.icons > 0 && b.left >= geometry.pane.left && b.right <= geometry.pane.right));
 			t.diagnostic(JSON.stringify({ theme, ...geometry }));
-			await clickControl('[aria-label="筛选轨迹"]');
-			await until(`document.querySelector('[role="menu"][aria-label="筛选轨迹"]')?.checkVisibility()`);
+			await click(app, '[aria-label="筛选轨迹"]');
+			await until(app, `document.querySelector('[role="menu"][aria-label="筛选轨迹"]')?.checkVisibility()`);
 			await settle();
 			const menu = await app.evaluate(`(()=>{const p=document.querySelector('[role="menu"][aria-label="筛选轨迹"]'),r=p.getBoundingClientRect(),buttons=[...p.querySelectorAll('[role="menuitem"]')];return {left:r.left,right:r.right,width:innerWidth,icons:buttons.map(b=>b.querySelectorAll('svg').length),disabled:buttons.filter(b=>b.disabled).length};})()`);
 			assert.ok(menu.left >= 0 && menu.right <= menu.width, JSON.stringify(menu));
 			assert.ok(menu.icons.every((count: number) => count > 0)); assert.equal(menu.disabled, 0);
-			await shot(`trajectory-filter-${theme}-${width}`);
+			await shot(app, `trajectory-filter-${theme}-${width}`);
 			await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
 			await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", windowsVirtualKeyCode: 27 });
 			await settle();
-			await shot(`trajectory-${theme}-${width}`);
+			await shot(app, `trajectory-${theme}-${width}`);
 			await clickEntry();
 			await settle();
 			const detail = await app.evaluate(`(()=>{const p=document.querySelector('.ly-trace-inspector'),r=p.getBoundingClientRect(),s=p.querySelector('[role=tabpanel]');return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:innerWidth,height:innerHeight,body:s.clientHeight};})()`);
 			assert.ok(detail.left>=0 && detail.right<=detail.width && detail.top>=0 && detail.bottom<=detail.height && detail.body>120, JSON.stringify(detail));
-			await shot(`trajectory-detail-${theme}-${width}`);
-			await clickControl('[aria-label="返回记录"]');
+			await shot(app, `trajectory-detail-${theme}-${width}`);
+			await click(app, '[aria-label="返回记录"]');
 			await timeline();
-			await shot(`trajectory-timeline-${theme}-${width}`);
+			await shot(app, `trajectory-timeline-${theme}-${width}`);
 			await escape();
 		}
 	}
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
 	await settle();
 	await timeline();
-	await clickControl('[aria-label="重置时间范围"]');
+	await click(app, '[aria-label="重置时间范围"]');
 	const before = await app.evaluate<string>(`document.querySelector('[data-trace-count]').textContent`);
 	const r = await timeline();
 	const listBeforeBrush = await app.evaluate(`(()=>{const e=document.querySelector('[data-trace-list]').closest('.ly-scroll-view');return {top:e.getBoundingClientRect().top,scroll:e.scrollTop,height:e.scrollHeight};})()`);
@@ -322,11 +284,11 @@ test("trajectory controls fit both themes and narrow panes; a brush stays local 
 		assert.equal(await app.evaluate<string>(`document.querySelector('[data-trace-count]').textContent`), before, "the list must not re-filter during the brush preview");
 	}
 	await app.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: r.x + r.width * .7, y: r.y, button: "left", clickCount: 1 });
-	await until(`document.querySelector('[data-trace-count]').textContent!==${JSON.stringify(before)}`);
+	await until(app, `document.querySelector('[data-trace-count]').textContent!==${JSON.stringify(before)}`);
 	const listAfterBrush = await app.evaluate(`(()=>{const e=document.querySelector('[data-trace-list]').closest('.ly-scroll-view');return {top:e.getBoundingClientRect().top,scroll:e.scrollTop,height:e.scrollHeight};})()`);
 	assert.deepEqual(listAfterBrush, listBeforeBrush, "range focus preserves list position and geometry");
 	assert.deepEqual(await app.evaluate(`['缩小时间范围','放大时间范围','重置时间范围'].map(label=>{const r=document.querySelector('[aria-label="'+label+'"]').getBoundingClientRect();return [r.x,r.y,r.width,r.height];})`), zoomPositions);
-	await shot("trajectory-range-committed");
+	await shot(app, "trajectory-range-committed");
 	await app.evaluate(`document.querySelector('[data-trace-timeline] canvas').focus()`);
 	for (const [key, code] of [["End", 35], ["ArrowLeft", 37]] as const) {
 		await app.send("Input.dispatchKeyEvent", { type: "keyDown", key, windowsVirtualKeyCode: code });
@@ -335,6 +297,6 @@ test("trajectory controls fit both themes and narrow panes; a brush stays local 
 	}
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13 });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
-	await until(`Boolean(document.querySelector('.ly-trace-inspector')) && document.querySelector('[data-trace-timeline] canvas')?.checkVisibility()`);
-	await until(`document.querySelector('.ly-trace-inspector').contains(document.activeElement)`);
+	await until(app, `Boolean(document.querySelector('.ly-trace-inspector')) && document.querySelector('[data-trace-timeline] canvas')?.checkVisibility()`);
+	await until(app, `document.querySelector('.ly-trace-inspector').contains(document.activeElement)`);
 });
