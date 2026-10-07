@@ -99,6 +99,21 @@ export async function openPane(page: Page, label: string): Promise<void> {
 	await click(page, '[role="menuitem"]', label, "starts");
 }
 
+/** 弹窗本身的选择器，开出来以后量尺寸、找滑块和帮助按钮都从它往下找。 */
+export const EFFORT_MENU = '[role="group"][aria-label="推理强度"]';
+
+/**
+ * 点开输入框那一行的推理强度弹窗，等它挂上再走完过渡。`within` 圈定是哪一个输入框：主区是 `main`，
+ * 分屏和侧边聊天各有一颗同名按钮。
+ *
+ * 弹窗底部「新会话默认」那行只在还没有会话时出现，量高度、拍前后对比之前先确认 fixture 落在哪种状态。
+ */
+export async function openEffortMenu(page: Page, within = "main"): Promise<void> {
+	await click(page, `${within} button[aria-label^="推理强度"]`);
+	await until(page, `document.querySelector(${JSON.stringify(EFFORT_MENU)})`);
+	await frames(page, 60);
+}
+
 /**
  * 在侧栏点开一个会话，等它真的成了当前会话。
  *
