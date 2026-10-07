@@ -15,7 +15,7 @@ import type { Message, UserMessage } from "@plume/core";
 import { useEffect, useState } from "react";
 import { useSide, sideChatOf } from "../dock/index.ts";
 import { useSideTarget } from "./target.ts";
-import { BackToLatest, spokenText } from "../conversation/index.ts";
+import { BackToLatest, spokenText, useAnswering } from "../conversation/index.ts";
 import { sideIdOfPanel } from "../../lib/panel-instance.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -23,7 +23,7 @@ import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
 import { tailSignature } from "../../ui/scroll/signature.ts";
 import { ThinkingLine } from "../conversation/index.ts";
 import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
-import { lastIsSettled, MessageRow, rowKey } from "./MessageRow.tsx";
+import { MessageRow, rowKey } from "./MessageRow.tsx";
 import { SideComposer } from "./SideComposer.tsx";
 import { TaskStrip } from "./TaskStrip.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -46,6 +46,8 @@ export function SideChat() {
 	useEffect(() => {
 		void useSide.getState().attachChat(sessionId, sideId);
 	}, [sessionId, sideId]);
+	// 正文正在流进来，运行行让开。见底下 `SideThinking` 那一处。
+	const answering = useAnswering(messages);
 
 	/*
 	 * The same rule the main transcript follows, from the same place.
@@ -112,7 +114,13 @@ export function SideChat() {
 						 * made the panel read as a different application. Elapsed time and tokens are
 						 * the main session's to report — this one has nothing to count.
 						 */}
-						{running && lastIsSettled(messages) && <SideThinking messages={messages} />}
+						{/*
+						 * 一整轮都挂着，只在正文流进来时让开——和主转录同一个判据（`useAnswering`）。
+						 *
+						 * 从前是「最后一条回复里有工具调用就收起」：参数流式、工具在跑的那几秒里它整行消失，
+						 * 跑完再淡入回来，一轮里来回几十次，每次都把底下推上推下。
+						 */}
+						{running && !answering && <SideThinking messages={messages} />}
 						{/* The end of it, so that having seen the newest reply is a fact rather than a
 						    guess made from how far down you are. See `useFollowBottom`. */}
 						<div ref={follow.tailRef} aria-hidden className="h-px w-full shrink-0" />

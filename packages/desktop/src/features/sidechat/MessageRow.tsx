@@ -23,6 +23,7 @@ import { ThinkingBlock } from "../conversation/index.ts";
 import { segments, ToolRun } from "../conversation/index.ts";
 import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { hasContent } from "./reply.ts";
 
 export function MessageRow({ message, index, live }: {
 	message: Message;
@@ -39,6 +40,7 @@ export function MessageRow({ message, index, live }: {
 		return <UserRow index={index} message={message} />;
 	}
 
+	if (!hasContent(message)) return null;
 	return <AssistantRow message={message} live={live} />;
 }
 
@@ -197,14 +199,4 @@ function AssistantRow({ message, live }: { message: AssistantMessage; live?: boo
 export function rowKey(message: Message, index: number): string {
 	if (message.role === "toolResult") return `tr-${message.toolCallId}`;
 	return `${message.role}-${message.timestamp}-${index}`;
-}
-
-/**
- * Whether the reply has stopped producing anything, so "思考中…" is the truth rather than a
- * spinner sitting under text that is already being written.
- */
-export function lastIsSettled(messages: Message[]): boolean {
-	const last = messages[messages.length - 1];
-	if (!last || last.role !== "assistant") return true;
-	return !last.content.some((c) => (c.type === "text" && c.text) || c.type === "toolCall");
 }
