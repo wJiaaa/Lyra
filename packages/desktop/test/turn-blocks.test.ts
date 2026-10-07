@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Message } from "@plume/core";
 
-import { turnBlocks, type Run } from "../src/features/conversation/grouping.ts";
+import { turnBlocks, wholeTurns, type Run, type TurnStats } from "../src/features/conversation/grouping.ts";
 
 const ask = (text: string, index: number): Run => ({
 	kind: "message",
@@ -197,4 +197,80 @@ test("the transcript window pages by block, not by run", async () => {
 	assert.match(source, /allBlocks\.slice\(range\.start, range\.end\)/, "切的要是块");
 	assert.ok(!/allRuns\.slice\(range/.test(source), "切 Run 就是那个「点了没反应」的写法");
 	assert.match(source, /turnBlocks\(allRuns\)/, "要先分块再开窗，顺序反过来等于没改");
+});
+
+
+/*
+ * 一轮外面那一行「已工作 Ns」：跑完后把回答之前的一切收起来，只露出回答。
+ *
+ * 它只管收起与否——收进去的块必须原样留着，否则点开后过程的画法变了，调用链那两种排法跑完后就
+ * 长成一个样（出过一次）。判错边界的后果和上面一样不报错：把回答收进去，人只看到一行「已工作 22s」；
+ * 把失败收进去，出过事的那一轮看上去和顺利跑完的一样。
+ */
+const answer = (text: string, index: number, durationMs: number): Run => ({
+	...(say(text, index) as Extract<Run, { kind: "message" }>),
+	turnStats: { durationMs } as TurnStats,
+});
+
+const settledTurn = () => [
+	ask("改一下", 0), say("我先看一下配置。", 1), work(1), say("找到了，接着改。", 2), thinkingOnly(3), work(2), answer("改好了。", 4, 22_400),
+];
+
+test("跑完的一轮，回答之前的一切收进那一行，块原样留着", () => {
+	const segments = turnBlocks(settledTurn());
+	const blocks = wholeTurns(segments, false);
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "fold", "plain"]);
+	const fold = blocks[1];
+	assert.ok(fold.kind === "fold");
+	assert.deepEqual(fold.blocks, segments.slice(1, -1), "开头那句、两段过程和中间那句，一个不少、一个不改");
+	assert.equal(fold.durationMs, 22_400, "时长取自回答那一条的账");
+	assert.equal(fold.running, false);
+});
+
+test("那一行跑前跑后是同一个身份", () => {
+	const list = settledTurn();
+	const live = wholeTurns(turnBlocks(list.slice(0, -1)), true);
+	const done = wholeTurns(turnBlocks(list), false);
+	const before = live.find((b) => b.kind === "fold");
+	const after = done.find((b) => b.kind === "fold");
+	assert.ok(before?.kind === "fold" && after?.kind === "fold");
+	assert.equal(before.key, after.key, "表变成开关时不该被卸掉重建，展开过的不会自己合上");
+});
+
+test("跑着的那一轮：表贴在开口那句底下，内容照常排在后面", () => {
+	const list = [...settledTurn(), ask("再改一处", 5), think(6), work(1), say("我先看一下。", 7), work(1)];
+	const segments = turnBlocks(list);
+	const blocks = wholeTurns(segments, true);
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "fold", "plain", "plain", "fold", "process", "plain", "process"]);
+	const live = blocks[4];
+	assert.ok(live.kind === "fold" && live.running && live.blocks.length === 0, "跑着时只有一行表，什么都不收");
+	assert.deepEqual(blocks.slice(5), segments.slice(-3));
+});
+
+test("刚发出去、还什么都没回来时，表已经在了", () => {
+	assert.deepEqual(wholeTurns(turnBlocks([ask("跑一下", 0)]), true).map((b) => b.kind), ["plain", "fold"]);
+});
+
+test("没有回答的一轮不加那一行", () => {
+	// 停在半路、一句话都没说出来——收起来就什么都看不到了。
+	const list = [ask("跑一下", 0), think(1), work(1), thinkingOnly(2), work(2)];
+	assert.deepEqual(wholeTurns(turnBlocks(list), false), turnBlocks(list));
+});
+
+test("回答前面没有过程的一轮不加那一行", () => {
+	assert.deepEqual(wholeTurns(turnBlocks([ask("你好", 0), say("你好。", 1)]), false).map((b) => b.kind), ["plain", "plain"]);
+	assert.deepEqual(wholeTurns(turnBlocks([ask("说两句", 0), say("一。", 1), say("二。", 2)]), false).map((b) => b.kind), ["plain", "plain", "plain"]);
+});
+
+test("失败留在外面，只收它之后的那一截", () => {
+	const failed: Run = { kind: "message", message: { role: "assistant", content: [], stopReason: "error" } as Message, index: 2, upTo: 0 };
+	const list = [ask("跑一下", 0), work(1), failed, work(1), say("接着说。", 3), work(1), answer("好了。", 5, 1_000)];
+	const blocks = wholeTurns(turnBlocks(list), false);
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "process", "plain", "fold", "plain"]);
+	assert.equal(blocks[2].kind === "plain" && blocks[2].runs[0], failed);
+});
+
+test("回答之后还有活，那一段留在回答后面", () => {
+	const list = [ask("跑一下", 0), work(1), answer("好了。", 1, 1_000), work(1)];
+	assert.deepEqual(wholeTurns(turnBlocks(list), false).map((b) => b.kind), ["plain", "fold", "plain", "process"]);
 });

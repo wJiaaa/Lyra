@@ -34,8 +34,8 @@ export function FlowRow({
 	className = "",
 	...rest
 }: {
-	/** 前置图标，常驻。它说的是这一行是什么，不参与展开/收起。 */
-	icon: ReactNode;
+	/** 前置图标，常驻。它说的是这一行是什么，不参与展开/收起。不给就没有这一格（跑完的一整轮那一行）。 */
+	icon?: ReactNode;
 	/** 这一行是什么。不参与压缩——先被吃掉的永远该是摘要。 */
 	title?: ReactNode;
 	/** 这一行做了什么。长了两头化开、鼠标放上去自己读出来；运行中它是唯一带动效的东西。 */
@@ -60,7 +60,7 @@ export function FlowRow({
 	const body = (
 		<>
 			{/* 图标一直在：它说的是这一行是什么（在想 / 在动手 / 在跑命令），不该被别的东西顶掉。 */}
-			<span className="ly-flow-lead">{icon}</span>
+			{icon !== undefined && <span className="ly-flow-lead">{icon}</span>}
 			{title && <span className="ly-flow-title font-medium text-ink-faint">{title}</span>}
 			{title && summary ? <span className="ly-flow-dot" aria-hidden /> : null}
 			{/*

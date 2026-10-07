@@ -135,7 +135,7 @@ function formatDurationBadge(durationMs?: number, sseDurationMs?: number, tokens
  *
  * 曾经写作 `(secs % 60).toFixed(0)`，于是 119.7 秒印出来是「1m 60s」。
  */
-function formatSpan(ms: number): string {
+export function formatSpan(ms: number): string {
 	const secs = ms / 1000;
 	if (secs < 60) return `${secs.toFixed(1)}s`;
 	const whole = Math.floor(secs);
@@ -173,7 +173,7 @@ function formatDurationTip(
 	return lines.join("\n");
 }
 
-function formatTimestampTip(timestamp: number, locale: ResolvedUiLocale): string {
+export function formatTimestampTip(timestamp: number, locale: ResolvedUiLocale): string {
 	return new Date(timestamp).toLocaleString(locale, {
 		year: "numeric",
 		month: "2-digit",
@@ -191,7 +191,7 @@ function formatTimestampTip(timestamp: number, locale: ResolvedUiLocale): string
  * but spelled out it made the English row "September 26 at 2:28 PM", in a caption that sits under
  * every message.
  */
-function formatSentAt(timestamp: number, locale: ResolvedUiLocale): string {
+export function formatSentAt(timestamp: number, locale: ResolvedUiLocale): string {
 	const sent = new Date(timestamp);
 	const sameYear = sent.getFullYear() === new Date().getFullYear();
 	return sent.toLocaleString(locale, {

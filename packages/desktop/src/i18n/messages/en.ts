@@ -2132,6 +2132,8 @@ export const en = {
 	"turnProcess.thinking": { one: "{n} thought", other: "{n} thoughts" },
 	"turnProcess.separator": " · ",
 	"turnProcess.thoughtOnly": "Thought for a while",
+	"turnProcess.worked": "Worked for {d}",
+	"turnProcess.working": "Working for {d}",
 	"thinking.redacted": "The thinking was withheld by a safety filter",
 	"common.copy2": "Copy",
 	"common.send": "Send",

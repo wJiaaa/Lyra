@@ -2306,6 +2306,8 @@ export const zhCN = {
 	"turnProcess.thinking": "思考 {n} 次",
 	"turnProcess.separator": " · ",
 	"turnProcess.thoughtOnly": "思考了一会儿",
+	"turnProcess.worked": "已工作 {d}",
+	"turnProcess.working": "已工作 {d}",
 	"thinking.redacted": "思考内容已被安全过滤",
 	"common.copy2": "复制",
 	"common.send": "发送",

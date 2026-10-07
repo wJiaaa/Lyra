@@ -646,7 +646,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
  *
  * 收的是**连续的一段**过程，不是一整轮。中间那些「已定位到两个原因……」是模型在向人汇报，把它们
  * 连同整轮一起收进去，收起之后就只剩最后一句，前面的汇报全看不到了。所以话把过程切成几段，
- * 每段各有自己的那一行。
+ * 每段各有自己的那一行。一轮外面那一行「已工作 Ns」在这之上另套一层，见 `wholeTurns`。
  *
  * 在 Run 这一层分，不在渲染时分：这是一条关于转录形状的规则，规则性的东西要能单独测。
  */
@@ -735,4 +735,86 @@ export function turnBlocks(list: Run[]): TurnBlock[] {
 		at = end;
 	}
 	return out;
+}
+
+/**
+ * 一轮外面那一行「已工作 Ns」，照 t3code：跑的时候它是这一轮的头，表在走；跑完之后它把回答之前的
+ * 一切收起来，只露出回答。
+ *
+ * 它只管看不看得见，不管怎么画：收进去的块原样留着，点开后和没有这一行时一模一样，过程照旧由调用链
+ * 的两种排法决定。曾经把收进去的过程重新并成一段来画，于是两种排法跑完后长成一个样，设置形同虚设。
+ *
+ * 收的是过程和中间的话。断线还在等、放弃了、一条什么都没说出来的失败，是这一轮出过事的证据，碰到就
+ * 停在它后面；回答之后的东西不动。没有回答、或者回答前面根本没有过程的一轮，不加这一行。
+ */
+interface TurnFold {
+	kind: "fold";
+	/** 收起时藏起来的块。跑着的那一轮是空的：它只有一行表，内容照常排在下面。 */
+	blocks: TurnBlock[];
+	turn: number;
+	running: boolean;
+	/** 跑完的这一轮用了多久，取自回答那一条的账，和回答底下的徽章同一个数。 */
+	durationMs?: number;
+	/** 这一轮开口那一行的身份。跑前跑后不变，表变成开关时这一行不会被卸掉重建。 */
+	key: string;
+	/** 这一轮从什么时候起的：人发出那句话的时刻。 */
+	startedAt?: number;
+}
+
+export type TranscriptBlock = TurnBlock | TurnFold;
+
+export function blockRuns(block: TranscriptBlock): Run[] {
+	return block.kind === "fold" ? block.blocks.flatMap((inner) => inner.runs) : block.runs;
+}
+
+export function wholeTurns(blocks: TurnBlock[], running: boolean): TranscriptBlock[] {
+	const live = running ? blocks[blocks.length - 1]?.turn : undefined;
+	const out: TranscriptBlock[] = [];
+	let at = 0;
+	while (at < blocks.length) {
+		const turn = blocks[at].turn;
+		let end = at;
+		while (end < blocks.length && blocks[end].turn === turn) end++;
+		const group = blocks.slice(at, end);
+		out.push(...(turn === live ? liveTurn(group) : foldTurn(group)));
+		at = end;
+	}
+	return out;
+}
+
+/** 跑着的那一轮：开口那一行底下先放表，其余照常。 */
+function liveTurn(group: TurnBlock[]): TranscriptBlock[] {
+	const head = group[0];
+	if (!opensBlock(head.runs[0])) return group;
+	return [head, { kind: "fold", blocks: [], turn: head.turn, running: true, key: runKey(head.runs[0]) }, ...group.slice(1)];
+}
+
+function foldTurn(group: TurnBlock[]): TranscriptBlock[] {
+	let answer = group.length - 1;
+	while (answer >= 0 && !(group[answer].kind === "plain" && isAnswer(group[answer].runs[0]))) answer--;
+	if (answer < 0) return group;
+	let start = answer;
+	while (start > 0 && (group[start - 1].kind === "process" || isAnswer(group[start - 1].runs[0]))) start--;
+	const hidden = group.slice(start, answer);
+	if (!hidden.some((block) => block.kind === "process")) return group;
+	const run = group[answer].runs[0];
+	return [
+		...group.slice(0, start),
+		{
+			kind: "fold",
+			blocks: hidden,
+			turn: group[answer].turn,
+			running: false,
+			durationMs: run.kind === "message" ? run.turnStats?.durationMs : undefined,
+			key: runKey(group[0].runs[0]),
+			startedAt: group[0].runs[0].kind === "message" ? group[0].runs[0].message.timestamp : undefined,
+		},
+		...group.slice(answer),
+	];
+}
+
+/** 模型说出口的一句话——中间的汇报和最终的回答长得一样，位置决定它是哪一种。 */
+function isAnswer(run: Run): boolean {
+	if (run.kind !== "message" || run.message.role !== "assistant") return false;
+	return run.message.content.slice(run.from ?? 0, run.upTo).some((block) => block.type === "text" && block.text.trim());
 }

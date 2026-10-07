@@ -13,7 +13,7 @@ import { BrowserCards } from "./BrowserCard.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
-import { isNudge, runs, runKey, turnBlocks, type Run } from "./grouping.ts";
+import { blockRuns, isNudge, runs, runKey, turnBlocks, wholeTurns, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
 import { describeCalls, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
@@ -22,6 +22,7 @@ import { QuestionNav } from "./QuestionNav.tsx";
 import { questionsIn, timeSeparators } from "./question-navigation.ts";
 import { MessageRow } from "./rows.tsx";
 import { TurnProcess } from "./TurnProcess.tsx";
+import { TurnElapsed } from "./TurnElapsed.tsx";
 import { DispatchFaces, useDispatches } from "./DelegationCard.tsx";
 import { useTranscriptWindow } from "./view-state.ts";
 import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
@@ -124,7 +125,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
    * 按块开窗之后，翻一次必然多出整轮——必然看得见。收起的轮次不花钱（`TurnProcess` 收起时不渲染
    * 里面的东西），所以一次多带几轮也不再是负担。
    */
-  const allBlocks = useMemo(() => turnBlocks(allRuns), [allRuns]);
+  const allBlocks = useMemo(() => wholeTurns(turnBlocks(allRuns), running), [allRuns, running]);
   const range = useTranscriptWindow(activeSessionId, WINDOW_TURNS, allBlocks.length);
   const [jump, setJump] = useState<{ sessionId: string | null; index: number } | null>(null);
   const { compact } = useLayout();
@@ -250,7 +251,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
   const { scrollTo, detach } = follow;
   const jumpToQuestion = (index: number) => {
     // 窗口按块走，所以要的是「那条消息在哪个块里」，不是它在 Run 序列里的位置。
-    const at = allBlocks.findIndex((block) => block.runs.some((run) => run.kind === "message" && run.index === index));
+    const at = allBlocks.findIndex((block) => blockRuns(block).some((run) => run.kind === "message" && run.index === index));
     if (at < 0) return;
     detach();
     range.reveal(at);
@@ -417,7 +418,16 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
            * 这里只负责把过程那一块套进 `TurnProcess`。
            */}
           <div className="flex flex-col gap-2.5" data-ly-transcript-rows>
-          {blocks.map((block) => {
+          {blocks.map(function drawBlock(block): React.ReactNode {
+            // 一轮外面那一行「已工作 Ns」：只管收起与否，里面的块照原样画。见 `wholeTurns`。
+            if (block.kind === "fold") {
+              const turnKey = `${activeSessionId}:turn:${block.key}`;
+              return (
+                <TurnElapsed key={turnKey} stateKey={turnKey} running={block.running} durationMs={block.durationMs} startedAt={block.startedAt}>
+                  {block.blocks.map(drawBlock)}
+                </TurnElapsed>
+              );
+            }
             const draw = (run: Run) =>
             /*
 						 * Automatic compaction belongs on the running indicator. An explicitly submitted

@@ -151,6 +151,11 @@
   display: none;
 }
 
+/* 一轮外面那一行「已工作 Ns」除外：它不归调用链管，箭头是它唯一说「点开有东西」的记号。见 `TurnElapsed`。 */
+:root[data-call-chain="expanded"] [data-ly-turn-head] > .ly-flow-row .ly-flow-chevron {
+  display: revert;
+}
+
 /*
  * 一整轮的过程，是一块，所以行距只有一种。
  *
