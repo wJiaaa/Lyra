@@ -22,7 +22,8 @@ import { translate } from "../../i18n/translate.ts";
 import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 
 import { useLayout } from "../../app/layout.tsx";
-import { toolbarReserved } from "../../app/window/WindowControls.tsx";
+import { SidebarIcon, ToolbarButton, toolbarReserved } from "../../app/window/WindowControls.tsx";
+import { useToolbarSlot } from "../../app/window/toolbar-slot.ts";
 import { freezeMotion } from "../../ui/motion/freeze.ts";
 import { useApp } from "../../store/index.ts";
 import { companionOf, renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
@@ -47,6 +48,8 @@ import { useBoxSize } from "./useBoxSize.ts";
 import { useDockDrag } from "./useDockDrag.ts";
 import { activeTab, panelsOf, tabbedTree, usePanelLayout } from "./tabs.ts";
 import { PanelTabs, type AddablePanel, type PanelTab } from "./PanelTabs.tsx";
+import { PaneActions } from "./PaneHeader.tsx";
+import { ToolbarPanelBar } from "./ToolbarPanelBar.tsx";
 
 const WHOLE: Box = { left: 0, top: 0, width: 1, height: 1 };
 
@@ -157,9 +160,13 @@ export function DockView({
 	const focusedPane = usePaneDock((s) => s.focused[scope] ?? "conversation");
 	const rememberedTab = usePaneDock((s) => s.tab[scope]);
 	const tabShare = usePaneDock((s) => s.tabShare);
+	const tabsCollapsed = usePaneDock((s) => s.tabsCollapsed);
 	const tabbed = usePanelLayout() === "tabs";
 	const { compact } = useLayout();
 	const definitions = usePanelDefinitions();
+	const toolbarSlot = useToolbarSlot();
+	// 顶栏只在对话页属于这一屏；插件目录这类页面盖在上面时，这一屏还挂着，标签条不能留在顶栏里。
+	const chatInFront = useApp((s) => s.view === "chat");
 	const containerRef = useRef<HTMLDivElement>(null);
 	const host = useMemo<DockDragHost>(
 		() => ({
@@ -227,14 +234,24 @@ export function DockView({
 	 */
 	const panels = tabbed ? panelsOf(tree) : [];
 	const tab = tabbed ? activeTab(tree, rememberedTab) : null;
-	const shown = tabbed ? tabbedTree(tab, tabShare) : tree;
+	/*
+	 * 单屏（标题栏由窗口顶栏画，`header === null`）的标签页排法：标签条和这一栏的按钮上到顶栏，
+	 * 栏里不再留那一行，见 `ToolbarPanelBar`。窄窗口下一格盖满整屏，标签条留在格子里。
+	 */
+	const lifted = tabbed && header === null && !compact && toolbarSlot !== null;
+	/*
+	 * 右栏收起：画的树里只剩对话，面板照旧挂着（隐藏），展开时终端、页面都还在。只在 `lifted` 时算数——
+	 * 展开的开关在顶栏里，分屏或窄窗口下没有它，收着就再也打不开了。
+	 */
+	const folded = lifted && tabsCollapsed && tab !== null;
+	const shown = tabbed ? tabbedTree(folded ? null : tab, tabShare) : tree;
 	/** 一个标签借谁的格子画：标签页排法下所有面板都在当前标签那一格。 */
 	const slotOf = (kind: PaneKind): PaneKind => (tab && panels.includes(kind) ? tab : kind);
 	const fitted = compact || !size ? shown : fitTree(shown, size, paneFloor);
 	const laid = layoutPanes(fitted);
 
 	// 标签页排法下全屏的是整栏，不是某一个标签：切标签不该退出全屏。
-	const tabsMaximized = tabbed && tab && maximized?.panes.some((kind) => kind !== "conversation") ? { ...maximized, panes: [tab] } : null;
+	const tabsMaximized = tabbed && tab && !folded && maximized?.panes.some((kind) => kind !== "conversation") ? { ...maximized, panes: [tab] } : null;
 	const focus = compact ? null : tabbed ? tabsMaximized : maximized;
 	const stacked = Boolean(focus && focus.panes.length === 2 && (!size || size.width < PANEL_MIN_WIDTH_PX * 2));
 	// The renderer decides which way a maximised pair goes; the store needs it on the way out.
@@ -313,6 +330,20 @@ export function DockView({
 		const Title = definitions.find((entry) => entry.kind === basePanelKind(kind))?.tabTitle;
 		return Title ? <Title scope={scope} kind={kind} fallback={label} /> : undefined;
 	};
+	const maximizeOf = (kind: PaneKind): (() => void) | undefined =>
+		!canToggleMaximized(kind, { compact, maximized })
+			? undefined
+			: tabbed
+				? () => {
+						const dock = usePaneDock.getState();
+						if (dock.maximized[scope]) dock.restore(scope);
+						else dock.toggleMaximized(scope, kind);
+					}
+				: () => usePaneDock.getState().toggleMaximized(scope, kind, companionOf(kind as PanelKind)?.kind);
+	const popOutOf = (kind: PaneKind): (() => void) | undefined =>
+		kind === "conversation" || detachOf(kind) === "none"
+			? undefined
+			: () => void popOutPanel({ scope, kind: kind as PanelKind, sessionId: sessionOf(scope) });
 	const tabs: PanelTab[] = panels.map((kind) => {
 		const def = definitions.find((entry) => entry.kind === basePanelKind(kind));
 		const label = def ? translate(def.label) : kind;
@@ -324,6 +355,21 @@ export function DockView({
 				.filter((def) => !def.unavailable && def.listed !== false && (allowsMany(def.kind) || !panels.includes(def.kind)))
 				.map((def) => ({ kind: def.kind, label: translate(def.label), icon: <def.icon size={16} strokeWidth={1.7} />, shortcut: def.shortcut }))
 		: [];
+
+	/** 收起、展开右栏的开关，在窗口顶栏最右，和左边那颗侧栏开关成镜像。 */
+	const columnToggle = (
+		<ToolbarButton
+			label={translate(folded ? "pane.showColumn" : "pane.hideColumn")}
+			onClick={() => {
+				const dock = usePaneDock.getState();
+				// 全屏的是这一栏；收起它也就不再全屏，展开回来是平常的样子。
+				if (!folded && dock.maximized[scope]) dock.restore(scope);
+				dock.setTabsCollapsed(!folded);
+			}}
+		>
+			<SidebarIcon side="right" open={!folded} />
+		</ToolbarButton>
+	);
 
 	return (
 		<DockScope.Provider value={scope}>
@@ -433,24 +479,12 @@ export function DockView({
 								}
 								inset={inset}
 								insetEnd={insetEnd}
-								onToggleMaximized={
-									!canToggleMaximized(kind, { compact, maximized })
-										? undefined
-										: tabbed
-											? () => {
-													const dock = usePaneDock.getState();
-													if (dock.maximized[scope]) dock.restore(scope);
-													else dock.toggleMaximized(scope, kind);
-												}
-											: () => usePaneDock.getState().toggleMaximized(scope, kind, companionOf(kind as PanelKind)?.kind)
-								}
+								onToggleMaximized={maximizeOf(kind)}
 								// 标签页排法下关闭在标签自己身上，标题栏不再放第二个。
 								onClose={conversation || tabbed ? undefined : () => closePane(scope, kind)}
-								onPopOut={
-									conversation || detachOf(kind) === "none"
-										? undefined
-										: () => void popOutPanel({ scope, kind: kind as PanelKind, sessionId: sessionOf(scope) })
-								}
+								onPopOut={popOutOf(kind)}
+								// 标题栏上了顶栏的面板不画自己的那一行，也不留它的高度。
+								chrome={conversation || !lifted}
 								onFocus={() => usePaneDock.getState().focus(scope, kind)}
 								onLanded={landed}
 								reserveHeader={!conversation || header !== null}
@@ -475,7 +509,7 @@ export function DockView({
 									 */
 									<>
 										{tabbed && panelHeader && (
-											<div data-dock-subheader={kind} className="flex shrink-0 items-center px-2 pb-1">
+											<div data-dock-subheader={kind} className={`flex shrink-0 items-center px-2 pb-1 ${lifted ? "pt-1" : ""}`}>
 												{panelHeader}
 											</div>
 										)}
@@ -486,6 +520,31 @@ export function DockView({
 						);
 					})}
 				</div>
+				{lifted && chatInFront && tab && toolbarSlot && (
+					<ToolbarPanelBar
+						slot={toolbarSlot}
+						dock={containerRef}
+						left={(focusBox(tab) ?? laid.find((entry) => entry.kind === tab) ?? WHOLE).left}
+						collapsed={folded}
+					>
+						{folded ? (
+							<div className="no-drag flex shrink-0 items-center">{columnToggle}</div>
+						) : (
+							<>
+								<PanelTabs scope={scope} tabs={tabs} addable={addable} current={tab} />
+								<PaneActions
+									kind={tab}
+									label={tabs.find((entry) => entry.kind === tab)?.label ?? tab}
+									maximized={Boolean(focus)}
+									actions={renderPanelActions(tab as PanelKind)}
+									onToggleMaximized={maximizeOf(tab)}
+									onPopOut={popOutOf(tab)}
+									after={columnToggle}
+								/>
+							</>
+						)}
+					</ToolbarPanelBar>
+				)}
 			</div>
 		</DockScope.Provider>
 	);

@@ -371,9 +371,9 @@ export function toggleScopedPanel(scope: string, kind: PanelKind, options: { com
 	const dock = usePaneDock.getState();
 	const tree = dock.tree(scope);
 	if (has(tree, kind)) {
-		// 标签页排法下，开着但在后台的标签也是「想看它」：切过去，不关。
-		const behind = options.compact ? dock.focused[scope] !== kind : panelLayout() === "tabs" && activeTab(tree, dock.tab[scope]) !== kind;
-		if (behind) dock.focus(scope, kind);
+		// 标签页排法下，开着但在后台的标签也是「想看它」：切过去，不关。右栏收着时也一样，展开它。
+		const behind = options.compact ? dock.focused[scope] !== kind : panelLayout() === "tabs" && (dock.tabsCollapsed || activeTab(tree, dock.tab[scope]) !== kind);
+		if (behind) dock.open(scope, kind);
 		else dock.close(scope, kind);
 		return;
 	}

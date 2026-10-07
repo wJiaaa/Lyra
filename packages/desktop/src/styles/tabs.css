@@ -369,3 +369,20 @@
 :root[data-layout="compact"] ::-webkit-scrollbar-thumb {
   border-width: 1.5px;
 }
+
+/*
+ * 右栏的按钮画在窗口顶栏里时（`ToolbarPanelBar`），和顶栏自己的按钮一个大小：28px 的按钮、13px 的图标。
+ * 这几颗本来是窗格标题栏的 20px 按钮，面板自己带的那些（侧边聊天的「新对话」、文件的几颗）也是，
+ * 放进顶栏后和旁边一排 28px 的挨着，一眼就是两种东西。在这里统一，面板定义不用知道自己被画在哪。
+ * 开关本身就是顶栏按钮（`data-ly-toolbar-button`），不动它。
+ */
+[data-ly-toolbar-panel] [data-dock-actions] button:not([data-ly-toolbar-button]) {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-lg);
+}
+
+[data-ly-toolbar-panel] [data-dock-actions] button:not([data-ly-toolbar-button]) svg {
+  width: 13px;
+  height: 13px;
+}

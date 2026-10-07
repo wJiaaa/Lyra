@@ -1796,6 +1796,8 @@ export const en = {
 	"pane.closeOne": "Close {label}",
 	"pane.tabs": "Panel tabs",
 	"pane.addTab": "Add panel",
+	"pane.hideColumn": "Hide side panel",
+	"pane.showColumn": "Show side panel",
 	"pane.openAnother": "Open another {label}",
 	"pane.openInNewWindow": "Open in a new window",
 	"pane.restoreToDock": "Return to its place",

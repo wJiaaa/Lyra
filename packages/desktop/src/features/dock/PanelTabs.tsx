@@ -52,7 +52,8 @@ export function PanelTabs({
 	}, [current, tabs.length]);
 
 	return (
-		<div className="no-drag flex min-w-0 flex-1 items-center gap-0.5">
+		// 不撑满：标签后面的空白留给拖窗口——在窗口顶栏里（见 `ToolbarPanelBar`）那是能拖动窗口的地方。
+		<div className="no-drag flex min-w-0 items-center gap-0.5">
 			{/* 不占满：「+」紧跟在最后一个标签后面，标签多到放不下时条被压窄，「+」停在右端。 */}
 			<Sideways
 				trackRef={strip}

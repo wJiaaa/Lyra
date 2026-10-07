@@ -192,7 +192,11 @@ export function ToolbarScreenTitle() {
 	);
 }
 
-/** The single screen's panel buttons, at the toolbar's far end. */
+/**
+ * The single screen's panel buttons, at the end of the conversation's part of the toolbar: the window's
+ * far end while no panel column is open, the column's edge while one is (its tab strip takes the corner
+ * in the tabs layout — see `ToolbarPanelBar`).
+ */
 export function ToolbarScreenTools() {
 	const screen = useSingleScreen();
 	if (!screen) return null;

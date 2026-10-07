@@ -1963,6 +1963,8 @@ export const zhCN = {
 	"pane.closeOne": "关闭{label}",
 	"pane.tabs": "面板标签",
 	"pane.addTab": "添加面板",
+	"pane.hideColumn": "收起右侧面板",
+	"pane.showColumn": "展开右侧面板",
 	"pane.openAnother": "再开一个{label}",
 	"pane.openInNewWindow": "在新窗口中打开",
 	"pane.restoreToDock": "回到原来的位置",

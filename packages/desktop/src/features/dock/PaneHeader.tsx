@@ -179,49 +179,81 @@ export function PaneHeader({
 			 */}
 			{draggable && !maximized && <PaneGrip kind={kind} label={label} carried={carried} onDragStart={onDragStart} onMove={onMove} onArrowMove={onArrowMove} />}
 
+			<PaneActions kind={kind} label={label} maximized={maximized} actions={actions} onToggleMaximized={onToggleMaximized} onPopOut={onPopOut} onClose={onClose} />
+		</div>
+	);
+}
+
+/**
+ * A pane's own controls: what the panel brings, then pop out, full screen and close.
+ *
+ * Its own component because the tabs layout draws them in the window's toolbar instead of the pane's
+ * bar (see `ToolbarPanelBar`), and the two places must offer the same buttons.
+ */
+export function PaneActions({
+	kind,
+	label,
+	maximized,
+	actions,
+	onToggleMaximized,
+	onPopOut,
+	onClose,
+	after,
+}: {
+	kind: PaneKind;
+	label: string;
+	maximized: boolean;
+	actions?: React.ReactNode;
+	onToggleMaximized?: () => void;
+	onPopOut?: () => void;
+	onClose?: () => void;
+	/** 排在最后、和这几颗同一组同样间距的按钮：顶栏里收起右栏的开关。 */
+	after?: React.ReactNode;
+}) {
+	/*
+	 * The controls stop the press from reaching the bar underneath them.
+	 *
+	 * They sit inside the drag target, so without this every click on ✕ also begins a drag
+	 * — which does not visibly break anything, but leaves the pane lifted for the length
+	 * of the click and the layout flickering under it.
+	 */
+	return (
+		<div data-dock-actions className="no-drag relative z-[1] ml-auto flex shrink-0 items-center gap-0.5">
+			{actions}
 			{/*
-			 * The controls stop the press from reaching the bar underneath them.
+			 * Only where there is something to maximise *from*.
 			 *
-			 * They sit inside the drag target, so without this every click on ✕ also begins a drag
-			 * — which does not visibly break anything, but leaves the pane lifted for the length
-			 * of the click and the layout flickering under it.
+			 * The conversation is what the window is already showing — offering to make it
+			 * fill the window is offering to do nothing. In the collapsed layout the same is
+			 * true of every pane, since one of them is all there is room for. Both of those are the
+			 * dock's call, not this component's — see `onToggleMaximized`.
 			 */}
-			<div data-dock-actions className="no-drag relative z-[1] ml-auto flex shrink-0 items-center gap-0.5">
-				{actions}
-				{/*
-				 * Only where there is something to maximise *from*.
-				 *
-				 * The conversation is what the window is already showing — offering to make it
-				 * fill the window is offering to do nothing. In the collapsed layout the same is
-				 * true of every pane, since one of them is all there is room for. Both of those are the
-				 * dock's call, not this component's — see `onToggleMaximized`.
-				 */}
-				{onPopOut && (
-					<HeaderButton
-						tip={translate("pane.openInNewWindow")}
-						label={translate("pane.openInNewWindow")}
-						onClick={onPopOut}
-					>
-						<span data-ly-pop-out={kind} className="flex items-center justify-center">
-							<SquareArrowOutUpRight size={12} strokeWidth={1.9} />
-						</span>
-					</HeaderButton>
-				)}
-				{onToggleMaximized && (
-					<HeaderButton
-						tip={translate(maximized ? "pane.exitFullScreen" : "common.fullScreen")}
-						label={translate(maximized ? "pane.exitFullScreenOne" : "pane.fullScreenOne", { label })}
-						onClick={onToggleMaximized}
-					>
-						{maximized ? <Minimize2 size={12} strokeWidth={2} /> : <Maximize2 size={12} strokeWidth={2} />}
-					</HeaderButton>
-				)}
-				{onClose && (
-					<HeaderButton tip={translate("pane.closeOne", { label })} label={translate("pane.closeOne", { label })} onClick={onClose}>
-						<X size={12} strokeWidth={2.2} />
-					</HeaderButton>
-				)}
-			</div>
+			{onPopOut && (
+				<HeaderButton
+					tip={translate("pane.openInNewWindow")}
+					label={translate("pane.openInNewWindow")}
+					onClick={onPopOut}
+				>
+					<span data-ly-pop-out={kind} className="flex items-center justify-center">
+						<SquareArrowOutUpRight size={12} strokeWidth={1.9} />
+					</span>
+				</HeaderButton>
+			)}
+			{onToggleMaximized && (
+				<HeaderButton
+					tip={translate(maximized ? "pane.exitFullScreen" : "common.fullScreen")}
+					label={translate(maximized ? "pane.exitFullScreenOne" : "pane.fullScreenOne", { label })}
+					onClick={onToggleMaximized}
+				>
+					{maximized ? <Minimize2 size={12} strokeWidth={2} /> : <Maximize2 size={12} strokeWidth={2} />}
+				</HeaderButton>
+			)}
+			{onClose && (
+				<HeaderButton tip={translate("pane.closeOne", { label })} label={translate("pane.closeOne", { label })} onClick={onClose}>
+					<X size={12} strokeWidth={2.2} />
+				</HeaderButton>
+			)}
+			{after}
 		</div>
 	);
 }

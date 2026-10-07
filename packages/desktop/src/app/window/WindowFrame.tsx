@@ -12,13 +12,14 @@
  */
 
 import { ArrowLeft, ArrowRight } from "../../ui/icons/index.ts";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { useI18n } from "../../i18n/index.ts";
 import { useLayout, useSidebarFit } from "../layout.tsx";
 import { goBack, goForward, useCanStep } from "../nav-history.ts";
 import { AppRail, RAIL_WIDTH } from "./AppRail.tsx";
 import { TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";
+import { ToolbarSlot } from "./toolbar-slot.ts";
 
 export function WindowFrame({
 	nav,
@@ -34,31 +35,34 @@ export function WindowFrame({
 	navLabels?: { hide: string; show: string };
 	/** Drawn over the content's card: the open conversation's title, when there is one. */
 	toolbarTitle?: React.ReactNode;
-	/** At the toolbar's far end: the open conversation's panel buttons. */
+	/** After the title, at the end of the conversation's part of the toolbar: its panel buttons. */
 	toolbarEnd?: React.ReactNode;
 	children: React.ReactNode;
 } & Record<`data-${string}`, string | boolean | undefined>) {
 	const { rail } = useLayout();
+	const [slot, setSlot] = useState<HTMLElement | null>(null);
 	return (
-		<div {...rest} className="ly-shell ly-framed relative flex h-full flex-col overflow-hidden">
-			<MainToolbar title={toolbarTitle} end={toolbarEnd} navLabels={navLabels} />
-			<div className="ly-window-body relative flex min-h-0 flex-1">
-				{rail && <AppRail />}
-				{/*
-				 * One panel for the sidebar and the content, after the reference: a single rounded edge
-				 * round both, and a hairline between them that the toolbar's separator continues upwards.
-				 * They used to be two cards with the window showing between them, which made the content
-				 * read as a separate thing set down beside the list rather than the other half of it.
-				 *
-				 * It also clips the sidebar as it slides shut — it slides by a negative margin, and
-				 * unclipped it would pass under the rail on its way out.
-				 */}
-				<div data-ly-frame-panel className={`ly-frame-panel relative flex min-w-0 flex-1 overflow-hidden ${rail ? "" : "ml-1"}`}>
-					{nav}
-					{children}
+		<ToolbarSlot.Provider value={slot}>
+			<div {...rest} className="ly-shell ly-framed relative flex h-full flex-col overflow-hidden">
+				<MainToolbar title={toolbarTitle} end={toolbarEnd} navLabels={navLabels} slotRef={setSlot} />
+				<div className="ly-window-body relative flex min-h-0 flex-1">
+					{rail && <AppRail />}
+					{/*
+					 * One panel for the sidebar and the content, after the reference: a single rounded edge
+					 * round both, and a hairline between them that the toolbar's separator continues upwards.
+					 * They used to be two cards with the window showing between them, which made the content
+					 * read as a separate thing set down beside the list rather than the other half of it.
+					 *
+					 * It also clips the sidebar as it slides shut — it slides by a negative margin, and
+					 * unclipped it would pass under the rail on its way out.
+					 */}
+					<div data-ly-frame-panel className={`ly-frame-panel relative flex min-w-0 flex-1 overflow-hidden ${rail ? "" : "ml-1"}`}>
+						{nav}
+						{children}
+					</div>
 				</div>
 			</div>
-		</div>
+		</ToolbarSlot.Provider>
 	);
 }
 
@@ -72,7 +76,17 @@ export function WindowFrame({
  * cluster itself, so the title in the middle starts over the content's card and follows the sidebar
  * as it is dragged, opened and closed.
  */
-function MainToolbar({ title, end, navLabels }: { title?: React.ReactNode; end?: React.ReactNode; navLabels?: { hide: string; show: string } }) {
+function MainToolbar({
+	title,
+	end,
+	navLabels,
+	slotRef,
+}: {
+	title?: React.ReactNode;
+	end?: React.ReactNode;
+	navLabels?: { hide: string; show: string };
+	slotRef: (element: HTMLElement | null) => void;
+}) {
 	const { t } = useI18n();
 	const { titlebar, toolbarHeight, navOpen, compact, rail, toggleNav } = useLayout();
 	const { drawn } = useSidebarFit();
@@ -87,7 +101,9 @@ function MainToolbar({ title, end, navLabels }: { title?: React.ReactNode; end?:
 		<div
 			data-ly-main-toolbar
 			className="drag-region relative z-40 flex shrink-0 items-center"
-			style={{ height: toolbarHeight, paddingRight: titlebar.end }}
+			// 6px 是右端按钮离窗口边的距离。放在这一行而不是最后那组按钮上：右栏开着时最后一组是它的
+			// 标签条（见 `ToolbarPanelBar`），收着时是会话的按钮，谁在最后都离边一样远，彼此之间只隔按钮间的 2px。
+			style={{ height: toolbarHeight, paddingRight: titlebar.end + 6 }}
 		>
 			<div
 				// Tracks the sidebar's slide, and freezes with it while its edge is dragged.
@@ -108,7 +124,13 @@ function MainToolbar({ title, end, navLabels }: { title?: React.ReactNode; end?:
 			<div data-ly-toolbar-middle className="relative flex h-full min-w-0 flex-1 items-center gap-1.5">
 				{title}
 			</div>
-			<div className="no-drag flex shrink-0 items-center pr-1.5">{end}</div>
+			<div data-ly-toolbar-end className="no-drag flex shrink-0 items-center">{end}</div>
+			{/*
+			 * The panel column's tab strip, over the column — see `ToolbarPanelBar`. After `end`, so the
+			 * conversation's buttons stop at the column's edge and the column's own sit in the corner.
+			 * Empty, and so nothing, while no column is open.
+			 */}
+			<div ref={slotRef} data-ly-toolbar-slot className="flex h-full shrink-0 items-center" />
 		</div>
 	);
 }

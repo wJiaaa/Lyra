@@ -49,6 +49,26 @@ export function readTabShare(): number {
 	}
 }
 
+/** 右侧那一栏收起来没有，和宽度一样全窗口一份、重开还在：它是「右边那一栏」的状态，不是某个会话的。 */
+const COLLAPSED_KEY = "dw:panedock:tabs-collapsed";
+
+export function readTabsCollapsed(): boolean {
+	try {
+		return window.localStorage.getItem(COLLAPSED_KEY) === "1";
+	} catch {
+		return false;
+	}
+}
+
+export function writeTabsCollapsed(collapsed: boolean): void {
+	try {
+		if (collapsed) window.localStorage.setItem(COLLAPSED_KEY, "1");
+		else window.localStorage.removeItem(COLLAPSED_KEY);
+	} catch {
+		// 存储关了，这次会话里照样收着，下次回到展开。
+	}
+}
+
 export function writeTabShare(share: number): void {
 	try {
 		window.localStorage.setItem(SHARE_KEY, String(share));

@@ -8,6 +8,9 @@ import { LayoutProvider } from "../../src/app/layout.tsx";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { registerPanels } from "../../src/features/dock/panels/registry.ts";
 import { toggleScopedPanel } from "../../src/features/dock/popout.ts";
+import { panelsOf } from "../../src/features/dock/tabs.ts";
+import { has } from "../../src/features/dock/tree.ts";
+import { ToolbarSlot } from "../../src/app/window/toolbar-slot.ts";
 import { useApp } from "../../src/store/index.ts";
 import { translate } from "../../src/i18n/translate.ts";
 import { click, mount } from "../helpers/mount.ts";
@@ -67,5 +70,64 @@ test("tabs layout: every panel stays mounted in one right-hand pane, and only th
 		await view.unmount();
 		unregister();
 		usePaneDock.setState({ trees: {}, focused: {}, tab: {} });
+	}
+});
+
+test("tabs layout, one screen: the tab strip sits in the window's toolbar, and the column folds away without closing anything", async () => {
+	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin" } });
+	window.localStorage.clear();
+	useApp.setState({ view: "chat", settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "tabs" } } });
+	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, tab: {}, tabShare: 0.4, tabsCollapsed: false, host: null });
+	const unregister = registerPanels([
+		{ kind: "terminal", label: "common.terminal", icon: Terminal, shortcut: "", render: () => h("input", { "data-test-terminal": "" }) },
+		{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "", render: () => h("input", { "data-test-browser": "" }) },
+	]);
+	const scope = "lifted";
+	// 窗口顶栏里那个位置：`WindowFrame` 给的就是这样一个空元素。
+	const toolbar = document.createElement("div");
+	const slot = document.createElement("div");
+	toolbar.append(slot);
+	document.body.append(toolbar);
+	const view = await mount(h(LayoutProvider, { children: h(ToolbarSlot.Provider, { value: slot, children: h(DockView, { scope, header: null, children: h("textarea") }) }) }));
+	const pane = (kind: string) => view.find(`[data-dock-pane="${kind}"]`) as HTMLElement;
+	const toggle = () => slot.querySelector(`button[aria-label="${translate("pane.hideColumn")}"], button[aria-label="${translate("pane.showColumn")}"]`) as HTMLElement;
+	try {
+		await act(() => { usePaneDock.getState().open(scope, "terminal"); });
+		await act(() => { usePaneDock.getState().open(scope, "browser"); });
+		const terminal = view.find("[data-test-terminal]");
+		assert.equal(slot.querySelectorAll("[data-panel-tab]").length, 2, "the tabs are not in the toolbar");
+		assert.equal(view.all("[data-dock-header]").length, 0, "the column still draws a title row of its own");
+
+		// 收起：右栏不画了，标签条跟着走，顶栏里只剩开关；面板没关，终端还是那一个。
+		await click(toggle());
+		assert.equal(usePaneDock.getState().tabsCollapsed, true);
+		assert.equal(pane("browser").inert, true);
+		assert.equal(pane("terminal").inert, true);
+		assert.equal(slot.querySelectorAll("[data-panel-tab]").length, 0);
+		assert.equal(toggle().getAttribute("aria-label")?.startsWith(translate("pane.showColumn")), true);
+		assert.deepEqual(panelsOf(usePaneDock.getState().tree(scope)), ["terminal", "browser"], "folding closed a panel");
+
+		// 收着时按工具栏的「浏览器」，是展开去看它，不是把它关掉。
+		await act(() => { toggleScopedPanel(scope, "browser"); });
+		assert.equal(usePaneDock.getState().tabsCollapsed, false);
+		assert.equal(pane("browser").inert, false);
+		assert.ok(has(usePaneDock.getState().tree(scope), "browser"));
+
+		// 再收起，用开关展开：回到原来那一格，终端没被重建。
+		await click(toggle());
+		await click(toggle());
+		assert.equal(pane("browser").inert, false);
+		assert.ok(view.find("[data-test-terminal]") === terminal, "folding remounted the panel");
+
+		// 收着时开一个面板，也会展开。
+		await click(toggle());
+		await act(() => { usePaneDock.getState().open(scope, "terminal"); });
+		assert.equal(usePaneDock.getState().tabsCollapsed, false);
+		assert.equal(pane("terminal").inert, false);
+	} finally {
+		await view.unmount();
+		toolbar.remove();
+		unregister();
+		usePaneDock.setState({ trees: {}, focused: {}, tab: {}, tabsCollapsed: false });
 	}
 });

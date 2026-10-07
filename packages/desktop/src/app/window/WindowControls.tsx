@@ -125,13 +125,15 @@ export function ToolbarButton({
 }
 
 /** The sidebar pane fills in while it is open, so the icon reflects state without moving. */
-function SidebarIcon({ open }: { open: boolean }) {
+/** 侧栏开关的图标；`side="right"` 是它的镜像，给右侧那一栏的开关用（见 `features/dock/DockView.tsx`）。 */
+export function SidebarIcon({ open, side = "left" }: { open: boolean; side?: "left" | "right" }) {
+	const edge = side === "left" ? 9.5 : 14.5;
 	return (
 		<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
 			<rect x="3" y="4" width="18" height="16" rx="2.5" />
-			<line x1="9.5" y1="4" x2="9.5" y2="20" />
+			<line x1={edge} y1="4" x2={edge} y2="20" />
 			<rect
-				x="3"
+				x={side === "left" ? 3 : edge}
 				y="4"
 				width="6.5"
 				height="16"

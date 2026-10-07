@@ -19,7 +19,7 @@ import type { DragState } from "./drag-host.ts";
 import { dropTree, flushTree, paneStorageKey, readTree, writeTree } from "./persist.ts";
 import { MIN_FRACTION, paneFloor } from "./geometry.ts";
 import { defaultDrop, dropFits, placePanel } from "./place.ts";
-import { clampTabShare, panelsOf, readTabShare, writeTabShare } from "./tabs.ts";
+import { clampTabShare, panelsOf, readTabsCollapsed, readTabShare, writeTabsCollapsed, writeTabShare } from "./tabs.ts";
 import { panelInstance } from "../../lib/panel-instance.ts";
 import { panelOf } from "./panels/registry.ts";
 import {
@@ -81,6 +81,11 @@ interface PaneDockState {
 	tab: Record<string, PaneKind>;
 	/** 标签页排法下右侧那一栏占多宽，全窗口一份。 */
 	tabShare: number;
+	/**
+	 * 标签页排法下右侧那一栏收起来了：面板都还开着、还挂着，只是不画。全窗口一份。
+	 * 只在单屏起作用——收起后开关在窗口顶栏里，分屏时每格的标题栏里没有它，见 `DockView`。
+	 */
+	tabsCollapsed: boolean;
 	drag: ScopedDrag | null;
 	/**
 	 * Which screen's browser hosts the pages nobody else is showing.
@@ -110,6 +115,7 @@ interface PaneDockState {
 	moveAlong(scope: string, kind: PaneKind, side: DropSide): boolean;
 	setShare(scope: string, path: number[], index: number, fraction: number, floor?: number): void;
 	setTabShare(share: number): void;
+	setTabsCollapsed(collapsed: boolean): void;
 	even(scope: string, path: number[], index: number): void;
 	restoreLayout(scope: string, tree: DockNode): void;
 	toggleMaximized(scope: string, kind: PaneKind, partner?: PaneKind): void;
@@ -236,6 +242,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		crossRatio: {},
 		tab: {},
 		tabShare: readTabShare(),
+		tabsCollapsed: readTabsCollapsed(),
 		drag: null,
 		host: null,
 
@@ -307,6 +314,8 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		 * and the usual edge otherwise, drawn squeezed. The floors choose *where*, never *whether*.
 		 */
 		open(scope, kind, at) {
+			// 要一个面板就是要看它：右栏收着的话先展开，否则点了终端什么也看不见。
+			get().setTabsCollapsed(false);
 			const state = get();
 			const tree = state.tree(scope);
 			if (has(tree, kind)) {
@@ -408,6 +417,12 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			if (Math.abs(next - get().tabShare) < 1e-6) return;
 			set({ tabShare: next });
 			writeTabShare(next);
+		},
+
+		setTabsCollapsed(collapsed) {
+			if (get().tabsCollapsed === collapsed) return;
+			set({ tabsCollapsed: collapsed });
+			writeTabsCollapsed(collapsed);
 		},
 
 		even(scope, path, index) {
