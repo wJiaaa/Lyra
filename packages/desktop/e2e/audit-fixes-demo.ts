@@ -1,15 +1,7 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * 审计整改的两批改动，在真窗口里各量一个数，边验边录。
- *
- * 两批各自缺的证据不一样（原先的 C1 查的是设置里的「工具」页，那一页已删）：
- *
- *   **H2**（新加的「禁止命令联网」开关）。这一节是这一轮才有的，单测里没有它，而它在 Windows 上
- *   长得不一样（那台机器上的沙箱断不了网，所以不给开关、给一句说明）。
- *
- *   **I1**（四条漏网的硬编码中文）。改成 `t()` 之后 happy-dom 的组件测试能证明键存在，证明不了它
- *   在真窗口里被读出来——而这四条本来就是「检查说绿、实际有洞」的产物。这里切一次语言，看同一个
- *   位置的字跟着变，那是键真的接上了才会发生的事。
+ * 在真窗口里切换语言，验证浏览器自定义搜索地址的 aria-label 确实接上了 i18n。
+ * 组件测试能证明键存在，真窗口中的同一个输入框随语言变化才证明它被读到了。
  *
  * 用法：node --experimental-strip-types e2e/audit-fixes-demo.ts [输出目录]
  */
@@ -59,7 +51,7 @@ async function seed(home: string): Promise<void> {
 	const records = [
 		{ seq: 1, ts: at, type: "meta", meta },
 		record(2, "user", "这一轮改了哪些东西？"),
-		record(3, "assistant", "工具清单归一、命令分类器加固、沙箱多了一条网络轴。"),
+		record(3, "assistant", "工具清单归一、命令分类器加固、浏览器文案按界面语言显示。"),
 	];
 	seedSessions(home, [{ meta, records }]);
 
@@ -144,57 +136,8 @@ try {
 	await mkdir(OUT_DIR, { recursive: true });
 	await pause(2600);
 
-	// H2：新加的那一节
-	console.log("\n\x1b[1mH2：访问授权页的「命令联网」一节\x1b[0m");
-	const toAccess = await openSettings(drive, "访问授权");
-	check(toAccess, "设置导航里有「访问授权」这一项");
-	await pause(1200);
-
-	const network = await app.evaluate<{
-		heading: boolean;
-		title: string | null;
-		detail: string | null;
-		hasSwitch: boolean;
-		checked: string | null;
-	}>(`(() => {
-		const headings = [...document.querySelectorAll("*")].filter((el) => el.children.length === 0 && el.innerText?.trim() === "命令联网");
-		const row = [...document.querySelectorAll("[data-settings-row]")].find((r) => /禁止命令联网/.test(r.innerText));
-		const sw = row?.querySelector('[role="switch"]');
-		return {
-			heading: headings.length > 0,
-			title: row ? row.innerText.split("\\n")[0].trim() : null,
-			detail: row ? (row.innerText.split("\\n")[1] ?? "").trim() : null,
-			hasSwitch: Boolean(sw),
-			checked: sw ? sw.getAttribute("aria-checked") : null,
-		};
-	})()`);
-	check(network.heading, "小节标题「命令联网」画出来了");
-	check(network.title === "禁止命令联网", `行标题是「禁止命令联网」（实际：${network.title}）`);
-	check(Boolean(network.detail && network.detail.includes("localhost")), "说明里讲了 localhost 不受影响");
-	check(network.hasSwitch, "这台机器（macOS）上给的是开关，不是那句「保证不了」");
-	check(network.checked === "false", `默认是关的（aria-checked=${network.checked}）`);
-	await pause(900);
-
-	// 开关真的写得进设置里吗——这一节的全部意义就是让这个值可配。
-	const marked = await app.evaluate<boolean>(
-		`(() => { const row = [...document.querySelectorAll("[data-settings-row]")].find((r) => /禁止命令联网/.test(r.innerText)); const sw = row?.querySelector('[role="switch"]'); if (!sw) return false; sw.setAttribute("data-probe-switch", ""); return true; })()`,
-	);
-	check(marked, "找得到那个开关，可以点它");
-	if (marked) {
-		await drive.click("[data-probe-switch]");
-		await pause(1400);
-		const after = await app.evaluate<string | null>(
-			`document.querySelector('[data-probe-switch]')?.getAttribute("aria-checked") ?? null`,
-		);
-		check(after === "true", `点一下之后是开的（aria-checked=${after}）`);
-		await pause(800);
-		// 关回去，免得这份 profile 留着一个开着的网络禁令。
-		await drive.click("[data-probe-switch]");
-		await pause(1000);
-	}
-
 	// I1：切语言，看同一个位置的字跟着走
-	console.log("\n\x1b[1mI1：四条文案真的走了 i18n\x1b[0m");
+	console.log("\n\x1b[1mI1：浏览器搜索地址文案真的走了 i18n\x1b[0m");
 	const toBrowser = await openSettings(drive, "浏览器");
 	check(toBrowser, "设置导航里有「浏览器」这一项");
 	await pause(1200);
@@ -262,33 +205,9 @@ try {
 	);
 	await pause(900);
 
-	const toAccessEn = await openSettings(drive, "Access");
-	check(toAccessEn, "英文导航里有 Access");
-	await pause(1200);
-	/*
-	 * 按这一节自己的标题找，不按 `/network/`。
-	 *
-	 * 权限模式那一行的说明里也有 "network"（`Plume can ... access the network without approval`），
-	 * 它排在前面，于是断言拿着那一行变绿——而那一行和这一轮的改动毫无关系。
-	 */
-	const enNetwork = await app.evaluate<{ title: string | null; detail: string | null }>(`(() => {
-		const row = [...document.querySelectorAll("[data-settings-row]")].find((r) => /Keep commands off the network/i.test(r.innerText));
-		if (!row) return { title: null, detail: null };
-		const lines = row.innerText.split("\\n");
-		return { title: lines[0].trim(), detail: (lines[1] ?? "").trim() };
-	})()`);
-	check(
-		Boolean(enNetwork.title && !/[\u4e00-\u9fa5]/.test(enNetwork.title)),
-		`这一轮新加的那一节也跟着切了（${enNetwork.title}）`,
-	);
-	check(
-		Boolean(enNetwork.detail && /localhost/.test(enNetwork.detail)),
-		"英文说明里同样讲了 localhost",
-	);
-	await pause(1500);
 } finally {
 	await stop();
-	const video = join(OUT_DIR, "审计整改两批改动.mp4");
+	const video = join(OUT_DIR, "浏览器搜索地址国际化.mp4");
 	await encode(frames, video, 12, 1200).catch((error: unknown) => console.error("录像失败：", error));
 	console.log(`\n录像：${video}（${frames.length} 帧）`);
 	await app.stop();
@@ -296,7 +215,7 @@ try {
 
 console.log(
 	failures.length === 0
-		? "\n\x1b[32m两批改动在真窗口里全部成立\x1b[0m"
+		? "\n\x1b[32m浏览器搜索地址文案在真窗口里随语言切换\x1b[0m"
 		: `\n\x1b[31m${failures.length} 条没成立：\x1b[0m\n  ${failures.join("\n  ")}`,
 );
 // 不用 process.exit：它会吞掉上面 finally 里可能抛出的异常。

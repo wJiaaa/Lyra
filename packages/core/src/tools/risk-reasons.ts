@@ -62,13 +62,9 @@ export const RISK_REASONS = {
 	"write-outside-project": "写入当前项目之外的位置",
 
 	// Network — `assessNetwork`.
-	"cloud-metadata": "云元数据地址（这是取实例凭据的地方）",
-	loopback: "本机回环地址",
-	"private-network": "私有网段地址",
 	"unparsable-url": "解析不了的地址",
 	"unsupported-protocol": "不支持的协议 {protocol}",
 	"credentials-in-url": "地址里带着账号密码",
-	"local-service-write": "本机服务，但这个请求会改动它",
 	"method-writes": "{method} 会改动对方的数据",
 } as const;
 

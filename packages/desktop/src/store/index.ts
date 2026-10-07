@@ -74,7 +74,6 @@ export type SettingsSection =
   | "hooks"
   | "index"
   | "search"
-  | "access"
   | "forges"
   | "usage"
   | "storage"

@@ -284,18 +284,6 @@ export interface Settings {
 	/** Which search provider to use when more than one is usable. */
 	searchProvider?: string | null;
 	/**
-	 * Internal hosts the agent may reach, named one at a time.
-	 *
-	 * Private addresses are refused rather than asked about, because a prompt showing
-	 * `169.254.169.254` is a question almost nobody can answer. Somebody who genuinely runs a
-	 * service on their own network needs a way to say so — and this is it: a decision made once,
-	 * while thinking about it, rather than mid-turn.
-	 *
-	 * Matched by hostname. It cannot open a private address reached through a public name, which
-	 * is the shape of an attack rather than a configuration anybody intends.
-	 */
-	allowedHosts?: string[];
-	/**
 	 * Plume 开着的时候，别让这台电脑睡。
 	 *
 	 * 开着的时候主进程持有一个系统级的「别休眠」声明（`electron/keep-awake.ts`），保证不息屏、
@@ -379,20 +367,6 @@ export interface Settings {
 	 */
 	favoriteModelIds?: string[];
 	permissionMode: PermissionMode;
-	/**
-	 * Whether shell commands may reach the network.
-	 *
-	 * A second axis rather than a fourth permission mode, because it does not sit anywhere on the
-	 * existing scale: `auto` is chosen by people who want the agent to edit the project without
-	 * being asked, and that is orthogonal to whether it may also `curl` something. Folding the two
-	 * together would have meant the only way to take the network away was also to take away the
-	 * file access that makes the mode useful.
-	 *
-	 * Off by default. The command classifier is a blacklist and will keep missing spellings, so
-	 * this is the structural answer for anyone who wants one — but turning it on stops
-	 * `pnpm install` and `git push`, which is a decision the user has to make rather than inherit.
-	 */
-	denyCommandNetwork?: boolean;
 	thinking: ThinkingLevel;
 	retryPolicy?: RetryPolicy;
 	/** Last level chosen above "off", restored when fast mode is switched back off. */
@@ -583,7 +557,6 @@ export const DEFAULT_SETTINGS: Settings = {
 	editor: { defaultOpenTarget: "zed", showBottomPanel: true },
 	screenshot: DEFAULT_SCREENSHOT_SETTINGS,
 	searchApiKeys: {},
-	allowedHosts: [],
 	personalization: {
 		customInstructions: "",
 		enableMemory: true,
@@ -780,10 +753,14 @@ async function keepUnreadable(path: string): Promise<void> {
  * be kept in step with this one.
  */
 export function normalizeSettings(parsed: Partial<Settings>): Settings {
+		// 已删除的网络配置不再进入内存或随其他设置重新保存。
+		const current = { ...parsed } as Record<string, unknown>;
+		delete current.allowedHosts;
+		delete current.denyCommandNetwork;
 		// Merge against defaults so a field the file does not mention takes its default.
 		return {
 			...DEFAULT_SETTINGS,
-			...parsed,
+			...current,
 			uiLocale: normalizeUiLocale(parsed.uiLocale),
 			retryPolicy: normalizeRetryPolicy(parsed.retryPolicy),
 			editor: { ...DEFAULT_SETTINGS.editor, ...parsed.editor },

@@ -29,7 +29,6 @@ import {
 	canonicalPath,
 	seatbeltArgs,
 	type SandboxEnforcement,
-	type SandboxNetwork,
 	type SandboxPolicy,
 } from "./policy.ts";
 import { SANDBOX_RUNNER_FLAG } from "./runner-flag.ts";
@@ -75,11 +74,7 @@ export interface BackendHooks {
 /** Which runners each platform could use, in preference order. */
 const PLATFORM_RUNNERS: Partial<Record<NodeJS.Platform, readonly Exclude<Runner, "none">[]>> = {
 	darwin: ["seatbelt"],
-	/*
-	 * `bwrap` first where it works: it is the only one that can deny the network while leaving
-	 * loopback open, and it confines the command in a mount namespace rather than by rule.
-	 * Landlock is what works everywhere else.
-	 */
+	// bwrap confines files in a mount namespace; Landlock works where namespaces are unavailable.
 	linux: ["bwrap", "landlock"],
 	win32: ["windows-acl"],
 };
@@ -104,25 +99,6 @@ function enforcementOf(runner: Exclude<Runner, "none">): SandboxEnforcement {
 	if (runner === "landlock") return landlockAbi() >= 3 ? "full" : "partial";
 	return "full";
 }
-
-/**
- * Which runners can keep the network half of a policy.
- *
- * The Windows runner works by restricting the process token's access to file objects, which is a
- * statement about the filesystem and nothing else — there is no network in it. So a policy that
- * denies the network is refused there rather than partly applied: this file's own rule is that the
- * one thing a sandbox must never do is run the command anyway while the UI says it is confined,
- * and "the writes are confined and the sockets are not" is exactly that, one axis down.
- *
- * Landlock can, from ABI 4 — and its probe is run with the network denied, so a kernel that
- * cannot is found out there rather than here.
- */
-const ENFORCES_NETWORK: Record<Exclude<Runner, "none">, boolean> = {
-	seatbelt: true,
-	bwrap: true,
-	landlock: true,
-	"windows-acl": false,
-};
 
 // ---------------------------------------------------------------------------------------------
 // Our own runner process
@@ -176,7 +152,6 @@ function runnerArgv(runner: "landlock" | "windows-acl", policy: SandboxPolicy): 
 		const temp = privateTemp(workspace);
 		args.push("--temp", temp, "--temp-sid", tempWriteSid(temp));
 	}
-	if (runner === "landlock" && policy.network === "deny") args.push("--network", "deny");
 	args.push("--");
 	return { command: process.execPath, args, env: { ELECTRON_RUN_AS_NODE: "1" } };
 }
@@ -203,11 +178,10 @@ function privateTemp(workspace: string): string {
  * it accepts the rest. `true` is the command because it exists everywhere, writes nothing, and its
  * exit code is unambiguous — `cmd.exe /c exit 0` being Windows' spelling of it.
  */
-function probeRunner(runner: Exclude<Runner, "none">, seatbeltExec: string, network: SandboxNetwork): { ok: boolean; why?: string } {
+function probeRunner(runner: Exclude<Runner, "none">, seatbeltExec: string): { ok: boolean; why?: string } {
 	const policy: SandboxPolicy = {
 		mode: "read-only",
 		workspaceRoot: runner === "windows-acl" ? process.cwd() : "/",
-		network,
 	};
 	try {
 		let probe: ReturnType<typeof spawnSync>;
@@ -277,25 +251,16 @@ export function resetProbeCache(): void {
  * a broken `sandbox-exec`. What the caller does about it is the caller's decision; what this
  * function must not do is pretend.
  */
-export function selectRunner(hooks: BackendHooks = {}, network: SandboxNetwork = "allow"): Runner {
+export function selectRunner(hooks: BackendHooks = {}): Runner {
 	const platform = hooks.platform ?? process.platform;
 	const seatbeltExec = hooks.seatbeltExec ?? "/usr/bin/sandbox-exec";
 	for (const runner of hooks.runners ?? PLATFORM_RUNNERS[platform] ?? []) {
-		/*
-		 * Probed and cached per axis, not once for both.
-		 *
-		 * The network forms are a separate question from the file forms — a `sandbox-exec` can
-		 * accept one profile and reject another — and a single shared answer would resolve it in
-		 * whichever direction happened to be asked first. Worse in one direction than the other:
-		 * one shared `false` would take away file confinement from a host that has it, because
-		 * this host cannot deny the network.
-		 */
-		const key = `${platform}:${runner}:${seatbeltExec}:${network}:${runnerEntry ?? ""}`;
+		const key = `${platform}:${runner}:${seatbeltExec}:${runnerEntry ?? ""}`;
 		let ok = probed.get(key);
 		if (ok === undefined) {
 			if (hooks.probe) ok = hooks.probe(runner);
 			else {
-				const verdict = probeRunner(runner, seatbeltExec, network);
+				const verdict = probeRunner(runner, seatbeltExec);
 				ok = verdict.ok;
 				if (verdict.why) probeFailures.set(`${platform}:${runner}`, verdict.why);
 			}
@@ -314,27 +279,15 @@ export function selectRunner(hooks: BackendHooks = {}, network: SandboxNetwork =
  * which case running unconfined was a decision somebody made rather than something that happened.
  */
 export function confine(policy: SandboxPolicy, hooks: BackendHooks = {}): Confinement | null {
-	/*
-	 * `danger-full-access` is the absence of a sandbox — but only of the file half.
-	 *
-	 * A policy that names no file confinement and still denies the network is a real combination,
-	 * and returning `null` for it would hand back an unwrapped command whose policy said otherwise.
-	 */
-	if (policy.mode === "danger-full-access" && policy.network !== "deny") return null;
+	if (policy.mode === "danger-full-access") return null;
 
-	const network = policy.network ?? "allow";
-	const runner = selectRunner(hooks, network);
+	const runner = selectRunner(hooks);
 	if (runner === "none") {
 		const platform = hooks.platform ?? process.platform;
 		const reasons = [...probeFailures].filter(([key]) => key.startsWith(`${platform}:`)).map(([key, why]) => `${key.split(":")[1]}：${why}`);
 		throw new SandboxUnavailableError(
 			`这台机器上没有可用的沙箱后端（平台 ${platform}），无法以「${policy.mode}」模式运行。` +
 				(reasons.length ? `原因：${reasons.join("；")}` : ""),
-		);
-	}
-	if (network === "deny" && !ENFORCES_NETWORK[runner]) {
-		throw new SandboxUnavailableError(
-			`${runner} 后端只能约束文件写入，不能断开网络；「禁止命令联网」在这台机器上无法保证。`,
 		);
 	}
 
@@ -347,11 +300,6 @@ export function confine(policy: SandboxPolicy, hooks: BackendHooks = {}): Confin
 		};
 	}
 	if (runner === "windows-acl" || runner === "landlock") {
-		/*
-		 * `danger-full-access` 带着断网到这里，原样传过去：Landlock 只管网络、一条写规则都不加。
-		 * 以前按「两个受限模式里更宽的那个」发成 workspace-write，于是这台机器上完全访问只能写工作区，
-		 * 和 Seatbelt、bwrap 的回答不一样。Windows 不会走到这里——它断不了网，上面已经拒绝。
-		 */
 		const wrap = runnerArgv(runner, policy);
 		return { command: wrap.command, args: wrap.args, runner, enforcement: enforcementOf(runner), env: wrap.env };
 	}
@@ -439,39 +387,3 @@ const DENIAL_PATTERNS = [
  */
 const GENERIC_DENIAL = /\b(?:permission denied|access is denied)\b|\baccess to the path\b.*\bis denied\b/i;
 const NOT_A_DENIAL = /permission denied \(publickey|permission denied, please try again/i;
-
-/**
- * Whether this output is what a denied *network* looks like.
- *
- * Only meaningful when the caller already knows the network was denied, and the signature says so
- * by asking for the policy rather than just the text. That is not caution about naming: a denied
- * socket is genuinely indistinguishable from being offline. Measured under a real profile on
- * macOS 25 — `curl` says `Could not resolve host` (exit 6) for a name and
- * `Couldn't connect to server` (exit 7) for an address, and a program using sockets directly gets
- * `EPERM`. Of those, only `EPERM` is unlike an ordinary network failure; the other two are
- * character-for-character what a laptop on a train prints.
- *
- * So the policy is the evidence and the text only confirms the shape. Reading the text alone would
- * mean telling the model "policy denied this" every time a flaky registry timed out, which teaches
- * it to disbelieve the marker — the one thing the marker cannot afford.
- */
-export function looksNetworkDenied(output: string, network: SandboxNetwork | undefined): boolean {
-	if (network !== "deny") return false;
-	return NETWORK_DENIAL_PATTERNS.some((pattern) => pattern.test(output));
-}
-
-const NETWORK_DENIAL_PATTERNS = [
-	/\bcould not resolve host\b/i,
-	/\bcouldn't connect to server\b/i,
-	/\bcould not resolve proxy\b/i,
-	/\bconnect EPERM\b/i,
-	/\bEPERM\b.*\bconnect\b/i,
-	/\bconnect EACCES\b/i,
-	/\bnetwork is unreachable\b/i,
-	/\btemporary failure in name resolution\b/i,
-	/\bname or service not known\b/i,
-	// `git` wraps curl's line in its own, and npm/pnpm report the registry rather than the host.
-	/\bunable to access\b.*\bcould not resolve\b/i,
-	/\bENOTFOUND\b/,
-	/\bEAI_AGAIN\b/,
-];

@@ -121,9 +121,8 @@ test("the machine's own ports are not the internet", () => {
 /*
  * This used to assert that everything leaving the machine asks a person, and it was the rule that
  * made the app interrupt a turn to confirm reading a documentation page. Reading is now allowed,
- * writing is asked about, and reaching inward is refused outright — see `risk-network.test.ts` for
- * the full table. What survives here is the part that was always right: a name that merely looks
- * like loopback is not loopback.
+ * writing is asked about, and internal destinations follow the same rule — see
+ * `risk-network.test.ts` for the full table.
  */
 test("reading the public web no longer interrupts anybody", () => {
 	for (const remote of ["https://example.com", "https://raw.githubusercontent.com/x/y"]) {
@@ -135,9 +134,8 @@ test("a request that changes something at the other end still asks", () => {
 	assert.equal(assessNetwork({ url: "https://example.com/x", method: "POST" }).decision, "ask");
 });
 
-test("reaching inward is refused rather than asked about", () => {
-	assert.equal(assessNetwork({ url: "http://192.168.1.5" }).decision, "refuse");
-	// A hostname that merely contains "localhost" is not the loopback.
+test("内网地址与公网地址一样可以读取，无效地址仍被拒绝", () => {
+	assert.equal(assessNetwork({ url: "http://192.168.1.5" }).decision, "allow");
 	assert.equal(assessNetwork({ url: "https://localhost.evil.com/" }).decision, "allow");
 	assert.equal(assessNetwork({ url: "not a url" }).decision, "refuse");
 });

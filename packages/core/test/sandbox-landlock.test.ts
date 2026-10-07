@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { confine, resetProbeCache } from "../src/sandbox/backend.ts";
 import { deviceRights, landlockAbi, landlockRules, parseLandlockArgs, writeRights } from "../src/sandbox/linux/landlock.ts";
-import type { SandboxMode, SandboxNetwork } from "../src/sandbox/policy.ts";
+import type { SandboxMode } from "../src/sandbox/policy.ts";
 
 const abi = landlockAbi();
 const skip = process.platform === "linux" && abi >= 2 ? false : `no usable Landlock here (platform ${process.platform}, ABI ${abi})`;
@@ -45,18 +45,15 @@ test("read-only allows back only the devices; workspace-write adds the project a
 
 test("the argv contract refuses what it does not recognise", () => {
 	assert.deepEqual(parseLandlockArgs(["--workspace", "/w", "--mode", "read-only", "--", "true"]).command, ["true"]);
-	assert.equal(parseLandlockArgs(["--workspace", "/w", "--mode", "workspace-write", "--network", "deny", "--", "true"]).network, "deny");
 	assert.throws(() => parseLandlockArgs(["--workspace", "/w", "--mode", "full", "--", "true"]), /--mode/);
-	assert.equal(parseLandlockArgs(["--workspace", "/w", "--mode", "danger-full-access", "--network", "deny", "--", "true"]).mode, "danger-full-access");
-	assert.throws(() => parseLandlockArgs(["--workspace", "/w", "--mode", "danger-full-access", "--", "true"]), /network deny/);
-	assert.deepEqual(landlockRules({ workspace: "/w", mode: "danger-full-access" }, 4), [], "只管网络时一条路径规则都不加");
+	assert.throws(() => parseLandlockArgs(["--workspace", "/w", "--mode", "danger-full-access", "--", "true"]), /--mode/);
 	assert.throws(() => parseLandlockArgs(["--workspace", "--mode", "read-only", "--", "true"]), /缺少值/);
 	assert.throws(() => parseLandlockArgs(["--workspace", "/w", "--mode", "read-only"]), /--/);
 });
 
 /** Run one command through the Landlock runner the way `LocalSandbox` would. */
-function run(command: string, cwd: string, mode: SandboxMode, network: SandboxNetwork = "allow"): Promise<{ code: number | null; signal: NodeJS.Signals | null; out: string }> {
-	const wrap = confine({ mode, workspaceRoot: cwd, network }, { runners: ["landlock"] });
+function run(command: string, cwd: string, mode: SandboxMode): Promise<{ code: number | null; signal: NodeJS.Signals | null; out: string }> {
+	const wrap = confine({ mode, workspaceRoot: cwd }, { runners: ["landlock"] });
 	assert.ok(wrap, "a confined mode must be wrapped");
 	assert.equal(wrap.runner, "landlock");
 	return new Promise((resolve) => {
@@ -120,18 +117,6 @@ test("the command's status and death are the runner's", { skip }, async (t) => {
 	assert.equal(killed.signal, "SIGTERM", JSON.stringify(killed));
 	// How the runner was started is not something the command inherits.
 	assert.equal((await run('printf %s "$ELECTRON_RUN_AS_NODE"', ws, "workspace-write")).out, "");
-});
-
-test("a denied network refuses TCP", { skip: skip || (abi < 4 ? `Landlock ABI ${abi} cannot deny the network` : false) }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "plume-ll-net-"));
-	t.after(() => rm(ws, { recursive: true, force: true }));
-
-	// A non-routable address: unconfined, the connection would hang, so a hang is its own verdict.
-	const script =
-		"setTimeout(() => { console.log('hung'); process.exit(2); }, 3000); " +
-		"require('net').connect(9, '192.0.2.1').on('connect', () => console.log('connected')).on('error', (e) => { console.log('refused', e.code); process.exit(1); })";
-	const r = await run(`'${process.execPath}' -e "${script}"`, ws, "workspace-write", "deny");
-	assert.match(r.out, /refused EACCES/, r.out);
 });
 
 /*

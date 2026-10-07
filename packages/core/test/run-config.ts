@@ -79,8 +79,6 @@ export function runConfig(parts: RunConfigParts = {}): AgentRunConfig {
 			env: {
 				cwd: "/tmp",
 				sandboxMode: undefined,
-				sandboxNetwork: undefined,
-				allowedHosts: undefined,
 				searchProviderId: undefined,
 				allowedPaths: undefined,
 				projectRoots: undefined,

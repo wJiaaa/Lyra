@@ -44,10 +44,6 @@ test("a risky write names the rule it broke", () => {
 });
 
 test("a refused or questioned request names the rule, with the values its sentence needs", () => {
-	const metadata = assessNetwork({ url: "http://169.254.169.254/latest/meta-data/" });
-	assert.ok(metadata.decision === "refuse");
-	assert.equal(metadata.code, "cloud-metadata");
-
 	const protocol = assessNetwork({ url: "ftp://example.com/file" });
 	assert.ok(protocol.decision === "refuse");
 	assert.equal(protocol.code, "unsupported-protocol");

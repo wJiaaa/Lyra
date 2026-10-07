@@ -11,7 +11,7 @@
  * project and kept in a small store so five pages do not make five calls.
  *
  * Neither follows the open conversation: which project a page talks about is either picked on the
- * page (plugins, MCP) or every registered project at once (access, general). Reading the session's
+ * page (plugins, MCP) or every registered project at once (general). Reading the session's
  * project made the page depend on which conversation was clicked last, with nothing on it saying so.
  */
 
@@ -27,7 +27,7 @@ import { configProblemText } from "../../lib/notice-text.ts";
 
 interface LayerState {
 	/**
-	 * 按项目分开存：插件页看的是页内选的项目，权限页和通用页看全部项目，几页可能同时挂着（见
+	 * 按项目分开存：插件页看的是页内选的项目，通用页看全部项目，几页可能同时挂着（见
 	 * `RetainedViews`）。只存一份时，后读的那页会把先读的那页的答案顶掉。
 	 */
 	views: Record<string, ProjectLayerView | null>;
@@ -58,17 +58,11 @@ export function brief(value: unknown, max = 96): string {
 	return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-/** `cwd` 是这一页在说的项目：插件页是页内选的那个；没有选择器的页面用 `AllProjectsOverrideNotice`。 */
+/** `cwd` 是这一页在说的项目，来自页内的项目选择器。 */
 export function ProjectOverrideNotice({ keys, cwd }: { keys: string[]; cwd: string | undefined }) {
 	const view = useLayerSync(cwd);
 	if (!view) return null;
 	return <OverrideNotice view={view} keys={keys} />;
-}
-
-/** For a page with no project picker: one notice per registered project that overrides its keys. */
-export function AllProjectsOverrideNotice({ keys }: { keys: string[] }) {
-	const projects = useApp((s) => s.settings?.projects) ?? [];
-	return projects.map((project) => <ProjectOverrideNotice key={project.path} keys={keys} cwd={project.path} />);
 }
 
 /** The notice, given its data — what a test mounts. */

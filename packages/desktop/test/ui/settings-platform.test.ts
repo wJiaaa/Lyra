@@ -10,7 +10,6 @@ import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h, type ComponentType } from "react";
 import { DEFAULT_SETTINGS, type Settings } from "@plume/core";
 
-import { AccessSettings } from "../../src/features/settings/AccessSettings.tsx";
 import { AppearanceSettings } from "../../src/features/settings/AppearanceSettings.tsx";
 import { GeneralSettings } from "../../src/features/settings/GeneralSettings.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";
@@ -67,7 +66,7 @@ test("字体平滑只在 macOS 上出现：-webkit-font-smoothing 在别的系�
  * 平台从 preload 同步读，不等 IPC。
  *
  * 这里的 `system.platform()` 故意永远不回来：只要还有哪一页在等它，第一帧画的就是初值
- * "darwin"——Windows 上先亮出一颗其实开不了的断网开关、通用页先写着 darwin，回包之后才改口。
+ * "darwin"——通用页先写着 darwin，回包之后才改口。
  */
 const neverAnswers = () => new Promise<string>(() => {});
 
@@ -77,14 +76,6 @@ function windowsHost() {
 		settings: { layers: async () => null },
 	});
 }
-
-test("权限页第一帧就按 Windows 画：断网开关不出现，换成那句为什么", async () => {
-	windowsHost();
-	await look(AccessSettings, (view) => {
-		assert.ok(view.text().includes("断不了网"), "Windows 上应直接说明断网做不到");
-		assert.ok(!view.host.querySelector('[aria-label="禁止命令联网"]'), "Windows 上不该先画出断网开关");
-	});
-});
 
 test("通用页第一帧写的就是这台机器的平台", async () => {
 	windowsHost();

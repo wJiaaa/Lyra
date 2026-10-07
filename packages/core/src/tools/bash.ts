@@ -3,12 +3,11 @@ import { createOutputLog } from "./output-log.ts";
 import { randomUUID } from "node:crypto";
 import { backgroundJobs, type BackgroundJob, type BackgroundJobs } from "./background-jobs.ts";
 import { rerouteShellCommand, TOOL_NAMES_KEY } from "./reroute.ts";
-import { getSandbox, looksDenied, looksNetworkDenied, selectRunner } from "../sandbox/index.ts";
+import { getSandbox, looksDenied, selectRunner } from "../sandbox/index.ts";
 import {
 	approveEscalation,
 	escalationHint,
 	ESCALATION_TARGETS,
-	networkDenialMarker,
 	sandboxDenialMarker,
 	validateEscalationArgs,
 } from "./escalation.ts";
@@ -342,16 +341,9 @@ export const bashTool: Tool<BashArgs> = {
 		/** Set when the command outlives this call: its log then stays open for the job that continues it. */
 		let handedOff = false;
 		const result = await new Promise<ToolResult>((resolve) => {
-			/*
-			 * `mode` may have been widened by an escalation just now; `network` never is.
-			 *
-			 * The file modes are a scale, so `escalate` has somewhere to move along. The network is
-			 * one switch with one position, and `escalation.ts` deliberately offers no grant for it
-			 * — so this reads the turn's setting rather than anything decided above.
-			 */
 			let child: SandboxProcess;
 			try {
-				child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, network: ctx.sandboxNetwork, shell });
+				child = getSandbox().run(args.command, { cwd: ctx.cwd, mode, shell });
 			} catch (error) {
 				// A sandbox that cannot confine says so by throwing; the model gets the sentence, not a crash.
 				resolve(errorResult(`Failed to start command: ${error instanceof Error ? error.message : String(error)}`));
@@ -473,16 +465,7 @@ export const bashTool: Tool<BashArgs> = {
 				const denied =
 					ranUnder !== undefined &&
 					ranUnder !== "danger-full-access" &&
-					looksDenied(output(), selectRunner({}, ctx.sandboxNetwork ?? "allow"));
-				/*
-				 * And the same for the network, which needs it more.
-				 *
-				 * A write denial at least prints something recognisable; a denied socket prints
-				 * `Could not resolve host`, so without this the model spends its remaining turns
-				 * retrying, switching registries and blaming DNS. The policy is what identifies it
-				 * — see `looksNetworkDenied`, which will not answer without being told the policy.
-				 */
-				const cutOff = looksNetworkDenied(output(), ctx.sandboxNetwork);
+					looksDenied(output(), selectRunner());
 				/*
 				 * Whether it failed, read the way a person reads it — see `exit-status.ts`. `grep`
 				 * finding nothing and `gh pr checks` reporting pending checks are answers.
@@ -498,7 +481,6 @@ export const bashTool: Tool<BashArgs> = {
 				const leftBehind = lingering ? adoptJob(ctx, args, lingering, undefined) : undefined;
 				const markers = [
 					...(denied ? [sandboxDenialMarker(ranUnder), escalationHint("command")] : []),
-					...(cutOff ? [networkDenialMarker()] : []),
 					...(leftBehind
 						? [
 								`[processes it started in the background are still running and holding its output — background job ${leftBehind}. ` +
@@ -517,10 +499,9 @@ export const bashTool: Tool<BashArgs> = {
 						...(signal ? { signal } : {}),
 						...(reading.meaning && !reading.failed ? { exitMeaning: reading.meaning } : {}),
 						...(denied ? { denied: true } : {}),
-						...(cutOff ? { networkDenied: true } : {}),
 						...(leftBehind ? { jobId: leftBehind } : {}),
 					},
-					isError: reading.failed || denied || cutOff,
+					isError: reading.failed || denied,
 				});
 			});
 		});
@@ -615,7 +596,7 @@ async function startBackground(args: BashArgs, ctx: ToolContext, shell: CommandS
 	const id = randomUUID();
 	let child: SandboxProcess;
 	try {
-		child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, network: ctx.sandboxNetwork, shell });
+		child = getSandbox().run(args.command, { cwd: ctx.cwd, mode: ctx.sandboxMode, shell });
 	} catch (error) {
 		await outputLog?.close();
 		return errorResult(`Failed to start command: ${error instanceof Error ? error.message : String(error)}`);

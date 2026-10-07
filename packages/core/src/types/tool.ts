@@ -6,7 +6,7 @@
  * one context object rather than through imports, which is what lets a host substitute any of it.
  */
 
-import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
+import type { SandboxMode } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
 import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
 import type { Message, UserContent } from "./message.ts";
@@ -109,15 +109,6 @@ export interface ToolContext {
 	 * and the tests working without building one.
 	 */
 	sandboxMode?: SandboxMode;
-	/**
-	 * Whether this turn's commands may reach anything but this machine.
-	 *
-	 * The other half of the sandbox, and independent of `sandboxMode` on purpose — see
-	 * `sandbox/policy.ts`. Absent means `allow`, so nothing composed before this existed changes.
-	 */
-	sandboxNetwork?: SandboxNetwork;
-	/** Internal hosts the user allowed by name; see `Settings.allowedHosts`. */
-	allowedHosts?: readonly string[];
 	/*
 	 * The search provider the user picked in settings, carried to `web_search`.
 	 *

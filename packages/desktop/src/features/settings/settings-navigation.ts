@@ -14,7 +14,6 @@ import {
 	Palette,
 	Search,
 	Settings2,
-	ShieldCheck,
 	Sparkles,
 	SquareTerminal,
 } from "../../ui/icons/index.ts";
@@ -50,7 +49,6 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 			{ id: "commands", labelKey: "settings.commands", icon: SquareTerminal },
 			{ id: "hooks", labelKey: "settings.hooks", icon: Anchor },
 			{ id: "search", labelKey: "settings.search", icon: Search },
-			{ id: "access", labelKey: "settings.access", icon: ShieldCheck },
 		],
 	},
 	{

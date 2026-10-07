@@ -3,8 +3,8 @@
  *
  * `runSubAgent` built its `runTurn` config from scratch, and everything it did not name came out
  * unset — which for each of these means "no restriction" rather than "inherit". So a sub-agent ran
- * its commands outside the sandbox the permission mode had chosen, reached hosts the allow-list
- * excludes, and slipped past every configured hook: the same `bash` call audited in the main
+ * its commands outside the sandbox the permission mode had chosen and slipped past every
+ * configured hook: the same `bash` call audited in the main
  * conversation and unaudited one level down.
  *
  * None of that is visible in a diff of the sub-agent's own file — the fields are simply not there —
@@ -16,6 +16,7 @@ import { test } from "node:test";
 
 import { runSubAgent } from "../src/runtime/sub-agent.ts";
 import { toolPolicy } from "../src/runtime/tool-policy.ts";
+import { normalizeSettings } from "../src/config/settings.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, Settings, Tool, ToolContext } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
@@ -111,15 +112,9 @@ test("each permission mode reaches the sub-agent as its own sandbox", async () =
 	assert.equal((await contextGivenTo({ permissionMode: "full" })).sandboxMode, "danger-full-access");
 });
 
-test("the host allow-list reaches a delegated run", async () => {
-	const ctx = await contextGivenTo({ allowedHosts: ["example.com"] } as Partial<Settings>);
-
-	assert.deepEqual(ctx.allowedHosts, ["example.com"]);
-});
-
 test("every field of the tool policy reaches a delegated run, as the main turn derives it", async () => {
 	// One derivation for both kinds of run; a field added to `toolPolicy` is covered here unasked.
-	const settings = { permissionMode: "auto", denyCommandNetwork: true, allowedHosts: ["example.com"], searchProvider: "tavily", projects: [] } as unknown as Settings;
+	const settings = { permissionMode: "auto", searchProvider: "tavily", projects: [] } as unknown as Settings;
 	const ctx = await contextGivenTo(settings);
 	for (const [field, value] of Object.entries(toolPolicy({ thinking: "off", hooks: [], ...settings } as unknown as Settings, "/tmp"))) {
 		assert.deepEqual(ctx[field as keyof ToolContext], value, field);
@@ -173,4 +168,12 @@ test("configured hooks see a delegated tool call", async () => {
 	// With no hooks configured the call goes through, which is the baseline the wiring must not
 	// change; that the hooks are consulted at all is what `makeBeforeToolCall` being passed proves.
 	assert.equal(asked, "ran");
+});
+
+test("旧网络配置被丢弃，始终允许记录继续保留在配置中", () => {
+	const stored = { allowedHosts: ["nas.local"], denyCommandNetwork: true, alwaysAllow: ["bash:git status"] };
+	const settings = normalizeSettings(stored);
+	assert.ok(!("allowedHosts" in settings));
+	assert.ok(!("denyCommandNetwork" in settings));
+	assert.deepEqual(settings.alwaysAllow, stored.alwaysAllow);
 });

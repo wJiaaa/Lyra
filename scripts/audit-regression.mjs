@@ -82,7 +82,7 @@ const CHECKS = [
 	},
 	{
 		id: "H2",
-		what: "密钥读侧无审批，以及沙箱网络轴配了传不下去",
+		what: "密钥读侧无审批，以及沙箱约束与执行不一致",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/sandbox-bash.test.ts"]],
 	},
 	{
@@ -137,7 +137,7 @@ const CHECKS = [
 	},
 	{
 		id: "CORE-tools",
-		what: "宿主 git 执行仓库配置里的程序、bash 输出反复截断、web_fetch 重绑定、搜索截断不告知、MCP 顺序与上限、完全访问加断网变只读",
+		what: "宿主 git 执行仓库配置里的程序、bash 输出反复截断、web_fetch 连接地址漂移、搜索截断不告知、MCP 顺序与上限",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/file-changes.test.ts", "packages/core/test/bash-output.test.ts", "packages/core/test/web-fetch.test.ts", "packages/core/test/glob-truncation.test.ts", "packages/core/test/mcp-client.test.ts", "packages/core/test/sandbox-policy.test.ts"]],
 	},
 	{
@@ -221,13 +221,13 @@ const CHECKS = [
 		id: "ISSUE-escalate-always-window",
 		what: "跑起来的桌面端里，提权卡片还有「以后不再问」吗；允许列表里写着的那条还替人答吗",
 		window: true,
-		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/escalation-approval-probe.ts", "/tmp/regression-escalate"]],
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/escalation-approval-probe.ts"]],
 	},
 	{
-		id: "C1-window",
-		what: "那五个工具在跑起来的桌面端里真的出现在工具清单上吗",
+		id: "I1-window",
+		what: "浏览器自定义搜索地址的文案是否随界面语言切换",
 		window: true,
-		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/audit-fixes-demo.ts", "/tmp/regression-tools"]],
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/audit-fixes-demo.ts"]],
 	},
 	{
 		id: "crash-mid-call-window",

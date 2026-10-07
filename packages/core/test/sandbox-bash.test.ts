@@ -14,7 +14,9 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { createServer } from "node:http";
+import { homedir, networkInterfaces, tmpdir } from "node:os";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { test } from "node:test";
 import { bashTool } from "../src/tools/bash.ts";
@@ -22,14 +24,12 @@ import { selectRunner } from "../src/sandbox/backend.ts";
 import { resetSystemShell } from "../src/platform.ts";
 import { useSandbox } from "../src/sandbox/index.ts";
 import type { SandboxProcess } from "../src/kernel/services.ts";
-import type { SandboxMode, SandboxNetwork } from "../src/sandbox/policy.ts";
+import type { SandboxMode } from "../src/sandbox/policy.ts";
 import type { ToolContext, ToolResult } from "../src/types.ts";
 import { shellFor } from "./shell-for.ts";
 
 const confined = selectRunner() !== "none";
 const skip = confined ? false : "this host has no sandbox backend";
-/** The Windows token governs files only, and the backend refuses a denied network there. */
-const netSkip = confined && selectRunner({}, "deny") !== "windows-acl" ? false : "this host's sandbox cannot deny the network";
 
 /*
  * Commands are spelled for the shell each mode runs in — see `shell-for.ts`. On Windows a confined
@@ -151,57 +151,11 @@ test("an ordinary failure is not dressed up as a denial", { skip }, async (t) =>
 	assert.equal((result.details as { denied?: boolean }).denied, undefined);
 });
 
-/*
- * The network axis, asked at the seam rather than at the socket.
- *
- * This is the file's opening paragraph applied to the other half: the profile that denies the
- * network was generated correctly, and was never handed to anything. `denyCommandNetwork` reached
- * `ToolContext`, and from there went only into the *judgement* of the output — so the setting read
- * as on, `curl` returned 200, and a genuine outage got labelled a policy decision. Nothing about
- * the wiring was visible from any test that ran a real command, because on a host with a working
- * network both the enforced and the unenforced arrangement print the same thing.
- *
- * A recording sandbox rather than a socket, because the question here is "was it asked for". The
- * two tests below that one answer "was it obeyed".
- */
 function immediateExit(): SandboxProcess {
 	let exited: ((code: number | null) => void) | undefined;
 	setImmediate(() => exited?.(0));
 	return { onOutput() {}, onExit(listener) { exited = listener; }, onError() {}, kill() {} };
 }
-
-test("what the turn decided about the network is what the sandbox is told", async (t) => {
-	const asked: Array<{ mode?: SandboxMode; network?: SandboxNetwork }> = [];
-	useSandbox({
-		run(_command, options) {
-			asked.push({ mode: options.mode, network: options.network });
-			return immediateExit();
-		},
-	});
-	t.after(() => useSandbox(null));
-
-	const ctx = (network: SandboxNetwork | undefined): ToolContext => ({
-		cwd: tmpdir(),
-		sessionId: "test",
-		state: new Map(),
-		sandboxMode: "workspace-write",
-		sandboxNetwork: network,
-	});
-
-	await bashTool.execute({ command: "echo hi" }, ctx("deny"));
-	assert.equal(asked[0]?.network, "deny", "设置里禁了联网，沙箱却没被告知——那条设置就是假的");
-
-	// The background path spawns separately and had the same omission.
-	await bashTool.execute({ command: "echo hi", run_in_background: true }, ctx("deny"));
-	assert.equal(asked[1]?.network, "deny", "后台命令是同一台机器上的同一条命令");
-
-	await bashTool.execute({ command: "echo hi" }, ctx("allow"));
-	assert.equal(asked[2]?.network, "allow");
-
-	// Absent stays absent: a host that never heard of this axis keeps the behaviour it had.
-	await bashTool.execute({ command: "echo hi" }, ctx(undefined));
-	assert.equal(asked[3]?.network, undefined);
-});
 
 test("the shell a command runs in is the one its session announced, escalated or not", async (t) => {
 	/*
@@ -256,32 +210,40 @@ test("the shell a command runs in is the one its session announced, escalated or
 	]);
 });
 
-test("a denied network is denied, and an allowed one is not", { skip: netSkip }, async (t) => {
-	const ws = await mkdtemp(join(tmpdir(), "plume-sb-net-"));
-	t.after(() => rm(ws, { recursive: true, force: true }));
 
-	// `-sS` rather than `-s`: the denial marker is matched against what the command printed, so a
-	// command whose errors are silenced cannot demonstrate that the matching works.
-	const reach = async (network: SandboxNetwork) =>
-		(await bashTool.execute(
-			{ command: "curl -sS -m 5 -o /dev/null -w '%{http_code}' https://example.com" },
-			{ cwd: ws, sessionId: "test", state: new Map(), sandboxMode: "workspace-write", sandboxNetwork: network },
-		)) as ToolResult;
-
-	/*
-	 * The control runs first and decides whether the assertion below means anything: on a host
-	 * with no route out, a denial and an outage are the same observation, and asserting on the
-	 * denied case alone would pass for the wrong reason on exactly the machines that need it most.
-	 */
-	const allowed = textOf(await reach("allow"));
-	if (!allowed.includes("200")) {
-		t.skip(`这台机器出不去网（对照组拿到 ${JSON.stringify(allowed.slice(0, 60))}），拒绝与断网无法区分`);
+test("命令在所有文件权限模式下都可以联网", { skip }, async (t) => {
+	// 非回环地址才能发现「只允许 localhost」的回归；临时服务避免依赖公网 TLS 和可用性。
+	const address = Object.values(networkInterfaces()).flat().find((entry) => entry?.family === "IPv4" && !entry.internal)?.address;
+	if (!address) {
+		t.skip("this host has no non-loopback IPv4 address");
 		return;
 	}
-
-	const denied = await reach("deny");
-	assert.ok(!textOf(denied).includes("200"), `联网本该被拒: ${textOf(denied)}`);
-	// And it is reported as a decision rather than as the flaky wifi it looks like.
-	assert.match(textOf(denied), /sandbox: 联网被拒/);
-	assert.equal((denied.details as { networkDenied?: boolean }).networkDenied, true);
+	const ws = await mkdtemp(join(tmpdir(), "plume-sb-net-"));
+	t.after(() => rm(ws, { recursive: true, force: true }));
+	const server = createServer((_req, res) => {
+		res.writeHead(200, { "content-type": "text/plain", connection: "close" });
+		res.end("ok");
+	});
+	t.after(() => new Promise<void>((resolve) => {
+		server.closeAllConnections();
+		server.close(() => resolve());
+	}));
+	await new Promise<void>((resolve, reject) => {
+		server.once("error", reject);
+		server.listen(0, address, resolve);
+	});
+	const url = `http://${address}:${(server.address() as AddressInfo).port}/`;
+	const curl = process.platform === "win32" ? "curl.exe" : "curl";
+	const sink = process.platform === "win32" ? "NUL" : "/dev/null";
+	const reach = (mode: SandboxMode) => run(ws, mode, `${curl} --noproxy '*' -sS -m 5 -o ${sink} -w '%{http_code}' ${url}`);
+	const control = await reach("danger-full-access");
+	if (control.isError || !/^200\b/.test(textOf(control))) {
+		t.skip(`本机无法访问测试服务，对照组结果：${textOf(control).slice(0, 80)}`);
+		return;
+	}
+	for (const mode of ["read-only", "workspace-write"] as const) {
+		const result = await reach(mode);
+		assert.match(textOf(result), /^200\b/, `${mode}: ${textOf(result)}`);
+		assert.equal(result.isError, false);
+	}
 });

@@ -7,8 +7,7 @@
  * gate found the line and the command ran unconfined. A command `auto` stops on its own is the control, because the card is
  * shared: it has to keep all three answers.
  *
- * Measured from what is drawn, not from what was sent: the buttons' own text, and the list the
- * settings page shows.
+ * Measured from what is drawn, not from what was sent: the buttons' own text, while the allow-list is seeded in the configuration file.
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -171,32 +170,14 @@ async function main() {
 		const commandShot = await shot("2-普通命令对照");
 		await refuse();
 
-		const opened = await app.evaluate<boolean>(`(async () => {
-			const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-			const hit = (text) => {
-				const el = [...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === text);
-				el?.click();
-				return Boolean(el);
-			};
-			if (!hit("访问授权")) {
-				document.querySelector("[data-ly-open-settings]")?.click();
-				await wait(1300);
-				if (!hit("访问授权")) return false;
-			}
-			await wait(900);
-			return true;
-		})()`);
-		const listShot = await shot("3-访问授权列表");
-
-		console.log(JSON.stringify({ escalation, command, opened }, null, 2));
-		console.log("截图:", escalationShot, commandShot, listShot);
+		console.log(JSON.stringify({ escalation, command }, null, 2));
+		console.log("截图:", escalationShot, commandShot);
 		const checks: [string, boolean][] = [
 			["允许列表里写着这条提权，卡片照样弹出来", escalation.detail === "echo hi"],
 			["提权卡片只有「拒绝」和「允许一次」", escalation.buttons.join("|") === "拒绝|允许一次"],
 			["提权卡片领头的是模型给的理由", escalation.reason.includes("../dist")],
 			["提权卡片没有横向溢出", escalation.overflowX === 0],
 			["普通命令的卡片三个答案都在", command.buttons.join("|") === "拒绝|以后不再问|允许一次"],
-			["访问授权页打开了", opened],
 		];
 		console.log("\n=== 判定 ===");
 		let bad = 0;

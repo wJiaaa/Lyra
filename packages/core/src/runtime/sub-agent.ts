@@ -644,8 +644,8 @@ export async function runSubAgent(
 					 *
 					 * Each of these was absent, and absent means "no restriction" rather than "inherit":
 					 * a sub-agent ran its commands outside the sandbox the permission mode had chosen,
-					 * reached hosts the allow-list excludes, and slipped past every configured hook — the
-					 * same `bash` call audited in the main conversation and unaudited one level down.
+					 * and slipped past every configured hook — the same `bash` call audited in the main
+					 * conversation and unaudited one level down.
 					 * Delegation is a way of organising work, not a way around what the session decided.
 					 */
 					/*

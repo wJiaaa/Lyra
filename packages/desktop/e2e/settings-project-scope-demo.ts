@@ -2,9 +2,9 @@
 /**
  * 设置页不再跟着「当前会话在哪个项目」走——在真窗口里，开着 B 项目的会话去看 A 项目的东西。
  *
- * 从前有三处读的是当前会话的项目：常规页的「项目配置」、访问授权页的覆盖提示、个性化页的项目记忆。
+ * 从前常规页的「项目配置」和个性化页的项目记忆读的是当前会话的项目。
  * 设置外壳还按会话项目给整组页面换 key，换个会话回来，页内选过的范围全被重置。这里逐条验：
- *   - 会话开在 Beta，常规页照样列出 Alpha 的项目配置，访问授权页照样提示 Alpha 改写了权限模式；
+ *   - 会话开在 Beta，常规页照样列出 Alpha 的项目配置；
  *   - 项目记忆可以在页内选到 Alpha，读到它的两条记忆；切到 Beta 显示「还没有记住什么」；
  *   - 会话里「去审核」点过去，钩子页落在 Beta 那一栏（这是唯一替人选项目的入口，改成了显式写）；
  *   - 命令页选了 Alpha，回去换一个会话再回来，还是 Alpha。
@@ -144,16 +144,7 @@ async function main(): Promise<void> {
 		check("Alpha 那张卡说的是 permissionMode", (await count("[data-project-layer-key='permissionMode']")) === 1, await text("[data-project-layer-key]"));
 		await shot("常规页_两个项目的配置");
 
-		console.log("\n③ 访问授权页：会话在 Beta，照样提示 Alpha 改写了权限模式");
-		await section("访问授权");
-		await ui.until(`[...document.querySelectorAll("[data-project-override-key='permissionMode']")].some((e) => e.checkVisibility())`, 15000).catch(() => {});
-		const overrides = await visible("[data-project-override]");
-		check("出现 permissionMode 被改写的提示", overrides.some((one) => one.includes("permissionMode")), overrides.join(" | "));
-		check("提示指向 Alpha 的配置文件", overrides.some((one) => one.includes(join(alpha, ".plume", "config.json"))), overrides.join(" | "));
-		check("Beta 没有改写这一页的键，不出提示", !overrides.some((one) => one.includes(beta)), overrides.join(" | "));
-		await shot("访问授权页_Alpha的覆盖提示");
-
-		console.log("\n④ 个性化页：项目记忆在页内选项目");
+		console.log("\n③ 个性化页：项目记忆在页内选项目");
 		await section("个性化");
 		await ui.until(`document.querySelector("[data-project-memory] [data-ly-select]")`, 15000);
 		await app.evaluate(`document.querySelector("[data-project-memory]").scrollIntoView({ block: "center" })`);
@@ -179,7 +170,7 @@ async function main(): Promise<void> {
 		await pause(800);
 		await shot("个性化页_Beta没有记忆");
 
-		console.log("\n⑤ 会话里点「去审核」，钩子页落在 Beta");
+		console.log("\n④ 会话里点「去审核」，钩子页落在 Beta");
 		await backToChat();
 		await ui.click("[data-ly-hook-trust-banner] button");
 		await pause(1500);
@@ -188,7 +179,7 @@ async function main(): Promise<void> {
 		check("列出了 Beta 那条待信任的钩子", (await visible("main")).join("").includes("echo beta"), "");
 		await shot("钩子页_落在Beta");
 
-		console.log("\n⑥ 命令页选 Alpha，回去换到 Alpha 的会话再回来，选择还在");
+		console.log("\n⑤ 命令页选 Alpha，回去换到 Alpha 的会话再回来，选择还在");
 		await section("命令");
 		await clickText("[data-ly-project-scope]", /.*/.toString());
 		await pause(600);

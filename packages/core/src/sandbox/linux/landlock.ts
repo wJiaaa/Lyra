@@ -19,16 +19,11 @@
  * so are unrestricted — the same promise Seatbelt's `(deny file-write*)` makes. Device files stay
  * writable in every mode (`/dev/null` above all, which a shell cannot run without), and creating or
  * deleting nodes in `/dev` does not.
- *
- * The network: Landlock (ABI 4, Linux 6.7) can refuse TCP `connect`, but only by port, never by
- * address — so unlike `bwrap --unshare-net` it cannot leave loopback open. A denied network here
- * denies local TCP too, and older kernels cannot deny it at all, in which case the probe says so and
- * nothing is claimed.
  */
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { writableRoots, type SandboxNetwork } from "../policy.ts";
+import { writableRoots, type ConfinedSandboxMode } from "../policy.ts";
 import { libc } from "./libc.ts";
 
 // syscall numbers: asm-generic, the same on x86_64 and aarch64 — added in 5.13, after the tables merged.
@@ -59,8 +54,6 @@ const FS = {
 	/** ABI 3: `truncate(2)` by path. */
 	TRUNCATE: 1n << 14n,
 } as const;
-/** `LANDLOCK_ACCESS_NET_CONNECT_TCP`, ABI 4. */
-const NET_CONNECT_TCP = 1n << 1n;
 
 /**
  * The write-type rights this kernel can govern, which is what the ruleset handles.
@@ -87,9 +80,7 @@ export function deviceRights(abi: number): bigint {
 /** What the runner is told: the same vocabulary as the other backends. */
 export interface LandlockArgs {
 	workspace: string;
-	/** `danger-full-access` 只在断网时出现：文件不受约束，只处理网络。 */
-	mode: "read-only" | "workspace-write" | "danger-full-access";
-	network: SandboxNetwork;
+	mode: ConfinedSandboxMode;
 	command: string[];
 }
 
@@ -107,8 +98,6 @@ export interface LandlockRule {
  * sandbox that grants `/tmp` and not `/dev/shm` breaks them for no reason it could state.
  */
 export function landlockRules(args: Pick<LandlockArgs, "workspace" | "mode">, abi: number): LandlockRule[] {
-	// 不处理文件权限时加任何路径规则都是 EINVAL，也没有意义。
-	if (args.mode === "danger-full-access") return [];
 	const rules: LandlockRule[] = [{ path: "/dev", rights: deviceRights(abi) }];
 	if (args.mode !== "workspace-write") return rules;
 	for (const root of writableRoots({ mode: "workspace-write", workspaceRoot: args.workspace })) {
@@ -151,30 +140,21 @@ export function parseLandlockArgs(argv: readonly string[]): LandlockArgs {
 	}
 	const workspace = options.get("workspace");
 	const mode = options.get("mode");
-	const network = options.get("network") ?? "allow";
 	if (!workspace) throw new Error("缺少 --workspace");
-	if (mode !== "read-only" && mode !== "workspace-write" && mode !== "danger-full-access") {
-		throw new Error(`--mode 只能是 read-only、workspace-write 或 danger-full-access，收到 ${mode}`);
+	if (mode !== "read-only" && mode !== "workspace-write") {
+		throw new Error(`--mode 只能是 read-only 或 workspace-write，收到 ${mode}`);
 	}
-	if (network !== "allow" && network !== "deny") throw new Error(`--network 只能是 allow 或 deny，收到 ${network}`);
-	// 不约束文件又不断网，就没有任何要做的事，不该启动这个 runner。
-	if (mode === "danger-full-access" && network !== "deny") throw new Error("danger-full-access 只在 --network deny 时由这个 runner 执行");
-	return { workspace, mode, network, command };
+	return { workspace, mode, command };
 }
 
 /** Apply the policy to this process. Everything it starts afterwards inherits it, irrevocably. */
 function restrictSelf(args: LandlockArgs): void {
 	const api = libc();
 	const abi = landlockAbi();
-	const filesHandled = args.mode !== "danger-full-access";
-	if (filesHandled && abi < 2) throw new Error(`这个内核的 Landlock ABI 是 ${abi}，不足以约束写入（需要 2 以上）`);
-	if (args.network === "deny" && abi < 4) throw new Error(`这个内核的 Landlock ABI 是 ${abi}，断不了网络（需要 4 以上）`);
+	if (abi < 2) throw new Error(`这个内核的 Landlock ABI 是 ${abi}，不足以约束写入（需要 2 以上）`);
 
-	const netHandled = args.network === "deny" ? NET_CONNECT_TCP : 0n;
-	const attr = Buffer.alloc(netHandled ? 16 : 8);
-	// 文件权限一项都不处理，就是不限制文件：内核只要求两项里至少处理一项。
-	attr.writeBigUInt64LE(filesHandled ? writeRights(abi) : 0n, 0);
-	if (netHandled) attr.writeBigUInt64LE(netHandled, 8);
+	const attr = Buffer.alloc(8);
+	attr.writeBigUInt64LE(writeRights(abi), 0);
 	const ruleset = api.syscall(SYS_LANDLOCK_CREATE_RULESET, attr, attr.length, 0);
 	if (ruleset < 0) throw new Error(`landlock_create_ruleset 失败（errno ${api.errno()}）`);
 

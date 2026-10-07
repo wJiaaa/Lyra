@@ -6,13 +6,7 @@
  * which paths are writable, and a pure function is the part you can actually test. The impure half
  * (probing a runner, wrapping an argv) lives in `local.ts`.
  *
- * The mode governs **file effects only**, and the network is a second, independent axis. They are
- * not folded into one setting because they are not ordered the same way: a project the agent may
- * write to is also a project it usually needs `pnpm install` for, so "more file access" does not
- * imply "more network" or the reverse. Keeping them separate is what lets `workspace-write` with
- * the network denied be a coherent answer — the mode people actually want when they are running
- * something they have not read.
- *
+ * The mode governs file effects only. Commands may reach the network in every mode.
  * Process visibility is still not in the vocabulary.
  */
 
@@ -29,7 +23,7 @@ import { tmpdir } from "node:os";
  */
 export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 
-/** 约束文件的模式。`danger-full-access` 只在断网时到达后端，那时它只约束网络。 */
+/** 文件写入受到约束的模式。 */
 export type ConfinedSandboxMode = Exclude<SandboxMode, "danger-full-access">;
 
 /**
@@ -41,27 +35,10 @@ export type ConfinedSandboxMode = Exclude<SandboxMode, "danger-full-access">;
  */
 export type SandboxEnforcement = "full" | "partial";
 
-/**
- * Whether a confined command may reach the network, other than this machine.
- *
- * `deny` is what makes the command classifier's remaining gaps survivable. That classifier is a
- * blacklist over command text, so it will always miss a spelling — but almost everything it is
- * trying to prevent needs a socket to matter: uploading a file, fetching a script to run, pushing
- * to a remote. Denying the socket is one rule instead of an unbounded number of patterns, and it
- * is enforced by the kernel rather than by a regular expression that has to have been right.
- *
- * Loopback is deliberately not included in the denial. The agent starts dev servers and then
- * checks them, and a policy that stops it reading `http://localhost:5173` would be turned off on
- * the first afternoon.
- */
-export type SandboxNetwork = "allow" | "deny";
-
 export interface SandboxPolicy {
 	mode: SandboxMode;
 	/** Absolute path `workspace-write` may write under. Canonicalised here, not by the caller. */
 	workspaceRoot: string;
-	/** Defaults to `allow`, so a policy written before this axis existed means what it did. */
-	network?: SandboxNetwork;
 }
 
 /**
@@ -137,35 +114,12 @@ function sbplString(path: string): string {
  */
 export function seatbeltArgs(policy: SandboxPolicy): string[] {
 	const forms = ["(version 1)", "(allow default)"];
-	/*
-	 * `danger-full-access` 到这里只可能是「文件不限、网络断开」：文件这一半一条都不写。
-	 * 之前不看模式照写 `(deny file-write*)`，而这个模式的可写根是空的，结果成了只读。
-	 */
 	if (policy.mode !== "danger-full-access") {
 		forms.push("(deny file-write*)", `(allow file-write* (literal ${sbplString("/dev/null")}))`);
 		const roots = writableRoots(policy);
 		if (roots.length > 0) {
 			forms.push(`(allow file-write* ${roots.map((root) => `(subpath ${sbplString(root)})`).join(" ")})`);
 		}
-	}
-	/*
-	 * `network-outbound` and `network-bind` by name, not `network*`, and the order matters.
-	 *
-	 * Measured on macOS 25, because the shapes are not interchangeable. `(deny network*)` with
-	 * loopback allowed back makes an external connection *hang* until the caller's own timeout —
-	 * five seconds of nothing per blocked command, which reads as a network problem rather than a
-	 * decision. Denying `network-outbound` specifically and allowing loopback back fails in 15ms
-	 * with `Couldn't connect to server`, which is a command that is over and can be reported.
-	 *
-	 * `network-bind` for the local side so a dev server can still listen; the agent starting one
-	 * and then reading it is the case this whole exception exists for.
-	 */
-	if (policy.network === "deny") {
-		forms.push(
-			"(deny network-outbound)",
-			`(allow network-outbound (remote ip ${sbplString("localhost:*")}))`,
-			`(allow network-bind (local ip ${sbplString("localhost:*")}))`,
-		);
 	}
 	return ["-p", forms.join(" ")];
 }
@@ -177,15 +131,9 @@ export function seatbeltArgs(policy: SandboxPolicy): string[] {
  * the mount-namespace way of saying the same thing the Seatbelt profile says. `--die-with-parent`
  * so a killed turn does not leave the wrapped command running, and `--dev`/`--proc` because a
  * namespace without them is missing the two things almost every program expects to exist.
- *
- * `--unshare-net` only when the network axis asks for it, never as part of a file mode. A network
- * namespace of its own comes with a loopback interface and nothing else, which is the same answer
- * the Seatbelt profile gives by a different route: this machine yes, anywhere else no.
  */
 export function bwrapArgs(policy: SandboxPolicy): string[] {
-	// `danger-full-access`（只断网）整个根可写绑回去，理由同 `seatbeltArgs`。
 	const args = [policy.mode === "danger-full-access" ? "--bind" : "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--die-with-parent"];
 	for (const root of writableRoots(policy)) args.push("--bind", root, root);
-	if (policy.network === "deny") args.push("--unshare-net");
 	return args;
 }

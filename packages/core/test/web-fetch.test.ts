@@ -58,12 +58,6 @@ test("credentials in the URL are refused before any request goes out", async () 
 	assert.match(textOf(result), /账号密码|Refused/);
 });
 
-test("a private address is refused", async () => {
-	const result = await run("http://169.254.169.254/latest/meta-data/");
-	assert.ok(result.isError);
-	assert.match(textOf(result), /Refused/);
-});
-
 test("a non-http scheme is refused", async () => {
 	const result = await run("file:///etc/passwd");
 	assert.ok(result.isError);
@@ -150,10 +144,9 @@ test("a body past the limit is refused while streaming, compressed or not", asyn
 	assert.match(textOf(await run(`${base}/small`)), /compressed hello/);
 });
 
-test("the connection goes to the address that was checked, not to a second DNS answer", async () => {
+test("内网域名可以抓取，连接使用首次解析的地址", async () => {
 	/*
-	 * DNS rebinding：校验时答一个可以去的地址，连接时再解析一次就答另一个。这里校验看到的是
-	 * 127.0.0.1（测试服务器），之后任何一次解析都答一个不可达的内网地址——连接若重新解析就到不了。
+	 * 内网域名解析到测试服务器，后续解析答不可达地址：若仍按私有网段拦截，或连接时重新解析，都会失败。
 	 */
 	respond = () => ({ status: 200, headers: { "content-type": "text/plain" }, body: "pinned" });
 	const original = { promises: dns.promises.lookup, callback: dns.lookup };
@@ -166,7 +159,7 @@ test("the connection goes to the address that was checked, not to a second DNS a
 	}) as typeof dns.lookup;
 	syncBuiltinESMExports();
 	try {
-		const result = await run(`${base.replace("127.0.0.1", "localhost")}/`);
+		const result = await run(`${base.replace("127.0.0.1", "intranet.plume.test")}/`);
 		assert.ok(!result.isError, textOf(result));
 		assert.match(textOf(result), /pinned/);
 		assert.equal(checks, 1, "每一跳只解析一次");

@@ -29,7 +29,6 @@ export { sandboxModeFor } from "./mode-for.ts";
 export {
 	confine,
 	looksDenied,
-	looksNetworkDenied,
 	selectRunner,
 	resetProbeCache,
 	SandboxUnavailableError,
@@ -46,6 +45,5 @@ export {
 	type ConfinedSandboxMode,
 	type SandboxEnforcement,
 	type SandboxMode,
-	type SandboxNetwork,
 	type SandboxPolicy,
 } from "./policy.ts";

@@ -116,11 +116,6 @@ test("Linux falls back to Landlock where bwrap cannot run", () => {
 	assert.equal(wrap.runner, "landlock");
 	assert.equal(wrap.env?.ELECTRON_RUN_AS_NODE, "1");
 	assert.ok(wrap.args.includes("--plume-sandbox-runner"));
-	const denied = confine({ mode: "workspace-write", workspaceRoot: "/work", network: "deny" }, { platform: "linux", probe: (runner) => runner === "landlock" });
-	assert.ok(denied?.args.includes("--network"), "the network half reaches the runner");
-	// 完全访问 + 断网原样传给 runner，而不是被当成 workspace-write：那样文件写入就被约束了。
-	const full = confine({ mode: "danger-full-access", workspaceRoot: "/work", network: "deny" }, { platform: "linux", probe: (runner) => runner === "landlock" });
-	assert.equal(full?.args[full.args.indexOf("--mode") + 1], "danger-full-access");
 });
 
 test("read-only carries no capability SID on Windows either", () => {

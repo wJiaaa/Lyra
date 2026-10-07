@@ -20,7 +20,7 @@ import { osPipe } from "./linux/libc.ts";
 import type { Sandbox, SandboxProcess } from "../kernel/services.ts";
 import { confine } from "./backend.ts";
 import { commandEnv } from "./login-path.ts";
-import type { SandboxMode, SandboxNetwork } from "./policy.ts";
+import type { SandboxMode } from "./policy.ts";
 
 /**
  * Set in the child's environment, because nobody is there to answer a prompt.
@@ -67,7 +67,7 @@ const DRAIN_AFTER_EXIT_MS = 250;
 export class LocalSandbox implements Sandbox {
 	run(
 		command: string,
-		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork; shell?: CommandShell },
+		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; shell?: CommandShell },
 	): SandboxProcess {
 		// The shell the command was written for; without one, the shell this mode runs (see `commandShell`).
 		const shell = options.shell ?? commandShell(options.mode);
@@ -87,18 +87,7 @@ export class LocalSandbox implements Sandbox {
 		 * command through one more process, and it is the only arrangement where the confinement
 		 * is applied *before* the shell exists rather than around a shell that is already running.
 		 */
-		/*
-		 * A network denial is enough on its own to need a wrapper.
-		 *
-		 * `options.mode` being absent means the host composed no file confinement — which it does
-		 * for the CLI and the tests — and that says nothing about the network axis. Reading only
-		 * `mode` here would have let "deny the network" be configured and then not happen.
-		 */
-		const network = options.network ?? "allow";
-		const wrap =
-			options.mode || network === "deny"
-				? confine({ mode: options.mode ?? "danger-full-access", workspaceRoot: options.cwd, network })
-				: null;
+		const wrap = options.mode ? confine({ mode: options.mode, workspaceRoot: options.cwd }) : null;
 		/*
 		 * stdin is `/dev/null`, not a pipe.
 		 *

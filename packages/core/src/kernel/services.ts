@@ -6,7 +6,7 @@ import type { ArtifactSink } from "../agent/prune.ts";
 import type { TurnMiddleware } from "../runtime/turn.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { ApprovalRequest, Message, ModelConfig, Provider, ProviderConfig, Tool } from "../types.ts";
-import type { SandboxMode, SandboxNetwork } from "../sandbox/policy.ts";
+import type { SandboxMode } from "../sandbox/policy.ts";
 import type { CommandShell } from "../platform.ts";
 import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
 
@@ -124,19 +124,13 @@ export interface Sandbox {
 	 * it must throw rather than run the command anyway. Omitting it means the caller is not asking
 	 * for confinement — the CLI and the tests, which have no permission mode to map from.
 	 *
-	 * `network` is the same promise about the other axis, and it has to be named here or it cannot
-	 * be asked for: an implementation may accept a wider options object than the interface
-	 * declares, so `LocalSandbox` honouring `network` while this signature omitted it compiled
-	 * fine and left every caller unable to pass it. The setting existed, the enforcement existed,
-	 * and nothing connected them.
-	 *
 	 * `shell` is the shell the command was written for, when the caller knows it — the bash tool
 	 * does, because it told the model which one (`commandShell`). Absent, an implementation runs its
 	 * own default for `mode`.
 	 */
 	run(
 		command: string,
-		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; network?: SandboxNetwork; shell?: CommandShell },
+		options: { cwd: string; env?: Record<string, string>; mode?: SandboxMode; shell?: CommandShell },
 	): SandboxProcess;
 }
 

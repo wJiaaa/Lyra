@@ -27,7 +27,6 @@ import { IndexSettings } from "./IndexSettings.tsx";
 import { BrowserSettings } from "./BrowserSettings.tsx";
 import { ScreenshotSettings } from "./ScreenshotSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
-import { AccessSettings } from "./AccessSettings.tsx";
 import { ForgeSettings } from "./ForgeSettings.tsx";
 import { SearchSettings } from "./SearchSettings.tsx";
 import { StorageSettings } from "./StorageSettings.tsx";
@@ -296,8 +295,6 @@ function SectionBody({ section }: { section: SettingsSection }) {
 			return <CommandsSettings />;
 		case "search":
 			return <SearchSettings />;
-		case "access":
-			return <AccessSettings />;
 		case "forges":
 			return <ForgeSettings />;
 		case "usage":

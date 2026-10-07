@@ -50,18 +50,13 @@
 Landlock 在 Ubuntu、Fedora、Debian 的内核里默认启用，无特权进程可以约束自己，约束对子进程
 继承且去不掉。它回答的正是这个沙箱问的问题：哪些目录可写。当初担心的「原生编译链」也没有
 出现——几个系统调用经 koffi 直接调 libc（`sandbox/linux/libc.ts`），和 Windows 受限令牌走的是
-同一套 FFI。顺序是 `bwrap` 优先：只有它能断网又留着本机回环；Landlock 按端口断网，连本机 TCP
-一起断，老内核断不了，探测时如实报告。
+同一套 FFI。当前优先使用 bwrap 的文件挂载约束，无法使用命名空间时再选择 Landlock。
 
 同一时期还修了 Windows：runner 在 app 里从来没启动过（Electron 按 Node 跑时把
 `--plume-sandbox-runner` 当成自己的选项，`bad option`，退出码 9，见 `sandbox/runner-entry.ts`），
 受限令牌也因为结构体偏移写错一直建不起来，默认模式下同样什么都不跑。Windows 上受约束的命令为什么改在 PowerShell 里跑，
 见 [ADR-0022](0022-windows-confined-commands-in-powershell.md)。
 
-## 2026-09-27 补：完全访问 + 禁止联网只断网
+## 2026-10-07 补：网络访问不经过文件沙箱
 
-「完全访问」加「禁止命令联网」是一个真实的组合：文件不约束，网络断开。以前 Seatbelt 不看模式照写
-`(deny file-write*)`、bwrap 照写 `--ro-bind / /`，而这个模式没有可写根，结果**全部写入被拒**；
-Landlock 则被当成 workspace-write 发过去，只能写工作区——三个后端三种答案。现在三者一致：
-Seatbelt 只写网络规则，bwrap 把根可写地绑回去再 `--unshare-net`，Landlock 只处理网络、不处理任何
-文件权限。Windows 的受限令牌断不了网，这个组合在那里照旧明确拒绝，而不是只约束一半。
+命令统一允许联网；当前沙箱只约束文件写入，`danger-full-access` 不经过沙箱。

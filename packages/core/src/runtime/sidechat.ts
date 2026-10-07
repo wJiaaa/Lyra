@@ -313,8 +313,6 @@ export class SideChat {
 					env: {
 						cwd: this.main.cwd,
 						sandboxMode: undefined,
-						sandboxNetwork: undefined,
-						allowedHosts: undefined,
 						searchProviderId: undefined,
 						allowedPaths: undefined,
 						projectRoots: undefined,

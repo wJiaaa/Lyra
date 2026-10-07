@@ -26,21 +26,6 @@ test("danger-full-access is not a confined mode, so it derives nothing either", 
 	assert.deepEqual(writableRoots({ mode: "danger-full-access", workspaceRoot: "/some/project" }), []);
 });
 
-test("full access with the network denied confines the network and not one file write", () => {
-	// 完全访问 + 断网以前在两个后端上都成了只读：拒绝写入的那一半不看模式。
-	const policy = { mode: "danger-full-access", workspaceRoot: "/some/project", network: "deny" } as const;
-	const profile = profileOf(seatbeltArgs(policy));
-	assert.ok(!profile.includes("file-write"), profile);
-	assert.ok(profile.includes("(deny network-outbound)"), profile);
-	const bwrap = bwrapArgs(policy);
-	assert.deepEqual(bwrap.slice(0, 3), ["--bind", "/", "/"]);
-	assert.ok(!bwrap.includes("--ro-bind"));
-	assert.ok(bwrap.includes("--unshare-net"));
-	// 受限模式照旧。
-	assert.ok(profileOf(seatbeltArgs({ ...policy, mode: "workspace-write" })).includes("(deny file-write*)"));
-	assert.equal(bwrapArgs({ ...policy, mode: "read-only" })[0], "--ro-bind");
-});
-
 test("workspace-write grants the workspace and the temp areas", () => {
 	const roots = writableRoots({ mode: "workspace-write", workspaceRoot: realpathSync.native(tmpdir()) });
 	assert.ok(roots.length > 0);
@@ -162,11 +147,4 @@ test("bwrap binds each writable root back over the read-only mount", () => {
 	const bindIndexes = args.map((a, i) => (a === "--bind" ? i : -1)).filter((i) => i >= 0);
 	assert.ok(bindIndexes.length > 0);
 	for (const i of bindIndexes) assert.equal(args[i + 1], args[i + 2], "a bind maps a path onto itself");
-});
-
-test("bwrap does not take the network away", () => {
-	// This vocabulary is about file effects. Unsharing the net here would break every command that
-	// fetches something, while claiming to be about writes.
-	const args = bwrapArgs({ mode: "workspace-write", workspaceRoot: "/p" });
-	assert.ok(!args.some((a) => a.startsWith("--unshare")), args.join(" "));
 });
