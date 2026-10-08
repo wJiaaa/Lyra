@@ -121,7 +121,8 @@ export function useDelegation({ block, run, stopReason, dispatch, detached }: {
 		// 计时从它真正开跑算，不从派发算：排队的那段不是它的时间。
 		startedAt: summary?.startedAt ?? run?.startedAt,
 		mark: <AgentAvatar avatar={avatarOf(view.agent)} size={18} mood={view.state} seed={view.agent} host="[data-ly-avatar-host]" />,
-		aside: <span className="max-w-[40%] shrink-0 truncate font-mono text-caption text-ink-faint">@{view.agent}</span>,
+		// 上限按字数，不按百分比：折叠样式下它落在按内容定宽的尾部里，40% 量的是尾部自己，名字只剩「@rev…」。
+		aside: <span className="max-w-[16ch] shrink-0 truncate font-mono text-caption text-ink-faint">@{view.agent}</span>,
 		onOpen: open,
 		openLabel: t("subAgent.openInPanel", { name: view.agent }),
 		pending: view.state === "waiting" ? t("subAgent.queued") : undefined,

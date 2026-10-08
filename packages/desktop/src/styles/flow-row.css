@@ -23,6 +23,12 @@
    */
   display: flex;
   align-items: center;
+  /*
+   * 按内容宽，装不下才封顶在一整列。撑满一列时，挂在行上的 `data-ly-tip` 对着整列居中，
+   * 字在左边、提示框飘在中间。
+   */
+  width: fit-content;
+  max-width: 100%;
   height: 24px;
   min-width: 0;
   border-radius: 6px;
