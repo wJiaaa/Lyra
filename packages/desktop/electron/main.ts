@@ -11,6 +11,7 @@ import {
 	pruneSessionArtifacts,
 	sessionMediaHome,
 	useSandboxRunner,
+	usePreviewInspector,
 	SessionStore,
 	SessionDbUnavailable,
 	primeCommandPath,
@@ -64,7 +65,8 @@ import {
 	useTrayPresence,
 } from "./window.ts";
 import { registerWindowsIpc } from "./ipc/windows.ts";
-import { MEDIA_SCHEME, PREVIEW_SCHEME, registerPreviewProtocols } from "./preview-protocol.ts";
+import { INSPECT_PARTITION, MEDIA_SCHEME, PREVIEW_SCHEME, registerPreviewProtocols } from "./preview-protocol.ts";
+import { inspectPreview, registerPreviewThemeIpc } from "./preview-inspect.ts";
 import { guardWebviews, installPermissionHandlers } from "./window-security.ts";
 import { registerGitIpc } from "./ipc/git.ts";
 import { registerUsageIpc } from "./ipc/usage.ts";
@@ -546,7 +548,7 @@ function bindScreenshotShortcut(): void {
 	 * Electron's default grants whatever a page asks for. That is wrong here: the browser panel
 	 * hosts other people's sites, and without a handler one of them can simply have the camera.
 	 */
-	installPermissionHandlers([BROWSER_PARTITION]);
+	installPermissionHandlers([BROWSER_PARTITION, INSPECT_PARTITION]);
 
 	/*
 	 * The media scheme resolves both sides before it compares them.
@@ -570,6 +572,9 @@ function bindScreenshotShortcut(): void {
 			return images[ref.imageIndex] ?? null;
 		},
 	});
+	// The model learns about a broken preview from its own tool result, not from the reader. See `preview-inspect.ts`.
+	usePreviewInspector(inspectPreview);
+	registerPreviewThemeIpc();
 	// Clear out sessions that were reserved and never used — including any left over from
 	// when clicking "新对话" created one up front.
 	const pruned = await store.pruneEmpty().catch(() => 0);

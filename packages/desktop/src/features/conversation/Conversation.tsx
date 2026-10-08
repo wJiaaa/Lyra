@@ -458,6 +458,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
               <ToolRunGroup
                 key={`${activeSessionId}:${runKey(run)}`}
                 calls={run.calls}
+                shown={run.shown}
                 /*
                  * The run being worked on keeps its highlight moving — and only that one, so the
                  * transcript never claims two things are happening at once.

@@ -1,17 +1,24 @@
 import { translate } from "../../i18n/translate.ts";
 import { ChevronsDown, ExternalLink, Maximize2, Minimize2, RotateCw } from "../../ui/icons/index.ts";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { openScopedPanel } from "../dock/index.ts";
 import { useSide } from "../dock/index.ts";
 import { useDockScope, useScopedSessionId } from "../../app/session-scope.tsx";
+import { bridge } from "../../services/index.ts";
+import { useApp } from "../../store/index.ts";
+import { onAppearanceApplied } from "../settings/index.ts";
+import { HEIGHT_MESSAGE, PREVIEW_MAX_HEIGHT, THEME_MESSAGE, previewFragment, readOpenRequest, type PreviewTheme } from "../../../shared/preview.ts";
+import { previewTheme } from "./preview-theme.ts";
 
 export interface PreviewInfo {
 	id: string;
 	sessionId: string;
 	title: string;
 	entry: string;
+	/** Written against the theme variables — see `PreviewRecord.themed` in core. */
+	themed?: boolean;
 }
 
 /**
@@ -24,7 +31,7 @@ export interface PreviewInfo {
 const MIN_HEIGHT = 160;
 /** Below this, the page has not really told us anything — see where this is used. */
 const MEANINGFUL_HEIGHT = 90;
-const MAX_HEIGHT = 720;
+const MAX_HEIGHT = PREVIEW_MAX_HEIGHT;
 /** Used while measuring, and if the page never reports anything. */
 const DEFAULT_HEIGHT = 440;
 /** A page whose height depends on its own height would otherwise resize forever. */
@@ -33,6 +40,8 @@ const MAX_ADJUSTMENTS = 8;
 const PROBE_TIMEOUT_MS = 1500;
 /** How long to keep collecting measurements before committing to one. */
 const PROBE_SETTLE_MS = 400;
+/** How long a link request waits for the click that sent it to be known here — see the link handler. */
+const LINK_RECHECK_MS = 200;
 
 function previewUrl(preview: PreviewInfo): string {
 	return `ly-preview://${preview.sessionId}/${preview.id}/${preview.entry}`;
@@ -114,14 +123,92 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	const sessionId = useScopedSessionId();
 	const screen = useDockScope();
 	const show = () => {
-		useSide.getState().openPreview(preview, sessionId);
+		// The panel's tab cannot be told about a later theme change; it takes the one in force now.
+		useSide.getState().openPreview({ ...preview, fragment: preview.themed ? previewFragment({ theme: previewTheme(null) }) : undefined }, sessionId);
 		openScopedPanel("browser", screen ?? undefined);
 	};
 
 	/*
+	 * The theme, handed over before the page's first paint and again whenever it changes.
+	 *
+	 * The address is settled in a layout effect, after the card is in the document: the page's
+	 * `--background` is whatever is painted behind the card, and that cannot be read from a card
+	 * that is not there yet. It is fixed from then on — a new address is a reload, and a reload is a
+	 * page that loses whatever the reader had done in it. Later themes go in by message.
+	 */
+	const host = useRef<HTMLDivElement>(null);
+	const [src, setSrc] = useState<string | null>(null);
+	const [look, setLook] = useState<{ scheme: PreviewTheme["scheme"]; surface: string } | null>(null);
+	const wear = (theme: PreviewTheme | undefined) =>
+		setLook(theme ? { scheme: theme.scheme, surface: theme.vars["--background"] ?? "transparent" } : null);
+	const url = previewUrl(preview);
+	const { themed: wantsTheme } = preview;
+	/*
+	 * Keyed on the page and the run, not on the record object: the transcript is re-read from disk
+	 * and hands back an equal record that is a new object, and a new address is a reload. A rerun is
+	 * a reload on purpose, and takes the theme in force now rather than the one the first load had.
+	 */
+	useLayoutEffect(() => {
+		const theme = wantsTheme ? previewTheme(host.current) : undefined;
+		wear(theme);
+		setSrc(`${url}${previewFragment({ inline: true, theme })}`);
+	}, [url, wantsTheme, nonce]);
+	const postTheme = useCallback(() => {
+		if (!preview.themed) return;
+		const theme = previewTheme(host.current);
+		wear(theme);
+		frame.current?.contentWindow?.postMessage({ [THEME_MESSAGE]: theme }, "*");
+	}, [preview]);
+	useEffect(() => (preview.themed ? onAppearanceApplied(postTheme) : undefined), [preview.themed, postTheme]);
+
+	/*
+	 * A link in the page, opened where the reader's links go.
+	 *
+	 * The page cannot open anything itself (see `withPreviewBridge`); it asks. Asked is not the same
+	 * as clicked, though — a script can ask on load, or on a timer, as often as it likes. So the ask
+	 * counts only while this frame has the focus and the reader has just used the app, which a page
+	 * cannot arrange from inside its sandbox. It can still wait for the reader's next click
+	 * anywhere in it, which is the same reach any link in it already has.
+	 */
+	useEffect(() => {
+		const timers = new Set<ReturnType<typeof setTimeout>>();
+		const used = () =>
+			document.activeElement === frame.current && (!navigator.userActivation || navigator.userActivation.isActive);
+		function open(url: string) {
+			const state = useApp.getState();
+			if (state.settings?.browser?.openLinks === "builtin" && !url.startsWith("mailto:")) {
+				void bridge.browser.command({ type: "open", url, sessionId, newTab: true }).catch((error: unknown) => state.notify(String(error), "error"));
+				openScopedPanel("browser", screen ?? undefined);
+			} else void bridge.system.openExternal(url);
+		}
+		function onMessage(event: MessageEvent) {
+			if (event.source !== frame.current?.contentWindow) return;
+			const url = readOpenRequest(event.data);
+			if (!url) return;
+			if (used()) return open(url);
+			/*
+			 * Asked once more, a moment later. The page runs in another process, and the click that
+			 * focused and activated it reaches this document after the message it sent: measured in
+			 * the real window, a link clicked straight after a click elsewhere in the app arrived
+			 * with the focus still on the app's own button, and nothing opened.
+			 */
+			const timer = setTimeout(() => {
+				timers.delete(timer);
+				if (used()) open(url);
+			}, LINK_RECHECK_MS);
+			timers.add(timer);
+		}
+		window.addEventListener("message", onMessage);
+		return () => {
+			window.removeEventListener("message", onMessage);
+			for (const timer of timers) clearTimeout(timer);
+		};
+	}, [sessionId, screen]);
+
+	/*
 	 * Grow to the page, within reason.
 	 *
-	 * The height comes from the page itself (see `withHeightReporter` in the main process), which
+	 * The height comes from the page itself (see `withPreviewBridge` in the main process), which
 	 * means it can move in response to being resized — a layout written against the viewport
 	 * reports whatever it was just given, and taking that at face value would walk the card down
 	 * the screen one message at a time. Three things stop that: the value is clamped, tiny
@@ -141,7 +228,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 		function onMessage(event: MessageEvent) {
 			// Identified by the window it came from — a sandboxed frame has no origin to check.
 			if (event.source !== frame.current?.contentWindow) return;
-			const asked = (event.data as { __dwPreviewHeight?: unknown })?.__dwPreviewHeight;
+			const asked = (event.data as Record<string, unknown> | null)?.[HEIGHT_MESSAGE];
 			if (typeof asked !== "number" || !Number.isFinite(asked)) return;
 
 			if (!state.settled) {
@@ -201,8 +288,16 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	// Held back until it has been measured, so the probe height is never a frame anyone sees.
 	const visible = ready && measured !== null;
 
+	/*
+	 * A themed page is part of the reply: no frame, on the conversation's own background, its left
+	 * edge on the text's. A page from before the theme existed keeps its card — it paints its own
+	 * white page, and without an edge that is a white slab dropped into the conversation.
+	 */
+	const themed = look !== null;
 	return (
 		<div
+			ref={host}
+			data-ly-preview={themed ? "themed" : "card"}
 			style={{ height }}
 			/*
 			 * No animation while measuring.
@@ -211,7 +306,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			 * height is not at that height yet — it is somewhere on the way there. The page loaded
 			 * mid-transition and reported the height it happened to see, which was the old one.
 			 */
-			className={`ly-enter relative my-2.5 overflow-hidden rounded-[12px] border border-line-soft ${
+			className={`ly-enter relative my-2.5 overflow-hidden ${themed ? "" : "rounded-[12px] border border-line-soft"} ${
 				measured === null ? "" : "transition-[height] duration-[var(--ly-t-slow)]"
 			}`}
 		>
@@ -222,21 +317,34 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			 * dark theme is a flash bright enough to be the most noticeable thing about the whole
 			 * feature. Holding it back until the page has painted costs nothing and removes it.
 			 */}
-			<div className="h-full w-full bg-card">
-				<iframe
-					ref={frame}
-					key={nonce}
-					/*
-					 * `#ly-inline` tells the page it is in the transcript rather than the panel, and
-					 * a fragment does it without touching the request — same URL, same file, one
-					 * fetch. The injected stylesheet keys off it to stop the page scrolling here.
-					 */
-					src={`${previewUrl(preview)}#ly-inline`}
-					title={preview.title}
-					sandbox="allow-scripts allow-pointer-lock allow-forms allow-modals"
-					onLoad={() => setReady(true)}
-					className={`block h-full w-full transition-opacity duration-[var(--ly-t-base)] ${visible ? "opacity-100" : "opacity-0"}`}
-				/>
+			<div className={`h-full w-full ${themed ? "" : "bg-card"}`}>
+				{/* Not mounted before its address is settled: a frame with no `src` loads a blank page and reports it loaded. */}
+				{src && (
+					<iframe
+						ref={frame}
+						key={nonce}
+						/*
+						 * `#ly-inline` tells the page it is in the transcript rather than the panel, and
+						 * a fragment does it without touching the request — same URL, same file, one
+						 * fetch. The injected stylesheet keys off it to stop the page scrolling here.
+						 */
+						src={src}
+						title={preview.title}
+						sandbox="allow-scripts allow-pointer-lock allow-forms allow-modals"
+						onLoad={() => {
+							setReady(true);
+							// A theme that changed while the page was loading never reached it.
+							postTheme();
+						}}
+						/*
+						 * The frame's scheme is the page's. A frame whose scheme differs from its
+						 * document's paints an opaque canvas under it, and a themed page would sit on a
+						 * white or black slab instead of on the conversation.
+						 */
+						style={look ? { colorScheme: look.scheme } : undefined}
+						className={`block h-full w-full transition-opacity duration-[var(--ly-t-base)] ${visible ? "opacity-100" : "opacity-0"}`}
+					/>
+				)}
 			</div>
 
 			{/*
@@ -263,7 +371,9 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 					data-ly-tip={translate("preview.longer")}
 					aria-label={translate("preview.longer")}
 					onClick={show}
-					className="absolute inset-x-0 bottom-0 flex h-14 items-end justify-center bg-gradient-to-t from-card via-card/80 to-transparent pb-2"
+					// Into whatever is behind the page: the card's own colour, or the conversation's when there is no card.
+					style={look ? { ["--ly-preview-fade" as string]: look.surface } : undefined}
+					className={`absolute inset-x-0 bottom-0 flex h-14 items-end justify-center bg-gradient-to-t ${themed ? "from-(--ly-preview-fade) via-(--ly-preview-fade)/80" : "from-card via-card/80"} to-transparent pb-2`}
 				>
 					{/* Solid, not frosted: this card scrolls inside the transcript, and a masked scroller
 					    is a backdrop root — the blur would never arrive. See `.ly-glass-solid`. */}
@@ -283,25 +393,39 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 				 * reports exactly the height it was given, so there is nothing to measure and grow
 				 * to. The default suits a diagram or a form; anything built to fill a screen gets
 				 * cropped at the bottom, and this is the one click that fixes it.
+				 *
+				 * Not on a themed page. It is written to size itself to its content (no `100vh`, see
+				 * `previewTool`), so it is already as tall as it is: the click only added blank space
+				 * under it — and with no card edge, a blank stretch of conversation with nothing to say
+				 * where the page ends. More room for a page like that is the panel.
 				 */}
-				<IconButton
-					icon={tall ? <Minimize2 size={12} strokeWidth={1.9} /> : <Maximize2 size={12} strokeWidth={1.9} />}
-					label={translate(tall ? "preview.fitHeight" : "preview.maximise")}
-					size="sm"
-					tipSide="top"
-					onClick={() => setTall((value) => !value)}
-				/>
+				{!themed && (
+					<IconButton
+						icon={tall ? <Minimize2 size={12} strokeWidth={1.9} /> : <Maximize2 size={12} strokeWidth={1.9} />}
+						label={translate(tall ? "preview.fitHeight" : "preview.maximise")}
+						size="sm"
+						tipSide="top"
+						onClick={() => setTall((value) => !value)}
+					/>
+				)}
 				<IconButton
 					icon={<RotateCw size={12} strokeWidth={1.9} />}
 					label={translate("preview.rerun")}
 					size="sm"
 					tipSide="top"
 					onClick={() => {
-						// A fresh run may draw something a different size, so measure it again.
-						survey.current = { settled: false, tallest: 0, adjustments: 0, timer: null };
+						/*
+						 * A fresh run may draw something a different size, so measure it again — in the
+						 * same record, reset in place. The listener holds on to that object; swapping in
+						 * a new one left it reading the old, already settled one, and the page never
+						 * showed again. The card keeps its height meanwhile: dropping to the default and
+						 * back was a jump in the conversation for a page that is usually the same size.
+						 */
+						const state = survey.current;
+						if (state.timer) clearTimeout(state.timer);
+						Object.assign(state, { settled: false, tallest: 0, adjustments: 0, timer: null });
 						setOverflowing(false);
 						setReady(false);
-						setMeasured(null);
 						setNonce((value) => value + 1);
 					}}
 				/>

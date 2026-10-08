@@ -282,6 +282,7 @@ const extras = {
 	
 	setWindowTheme: (colors: { color: string; headerColor: string; symbolColor: string }) =>
 		ipcRenderer.send("window:theme", colors),
+	setPreviewTheme: (theme) => ipcRenderer.send("preview:theme", theme),
 	onFullScreenChange: (handler) => {
 		const listener = (_e: Electron.IpcRendererEvent, full: boolean) => handler(full);
 		ipcRenderer.on("window:fullscreen", listener);

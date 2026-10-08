@@ -14,6 +14,7 @@ export { FileTitle } from "./FileTitle.tsx";
 export { FileTabTitle, closeFile } from "./pane-file.tsx";
 export { PreviewCard } from "./PreviewCard.tsx";
 export type { PreviewInfo } from "./PreviewCard.tsx";
+export { useSharedPreviewTheme } from "./share-preview-theme.ts";
 export { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 /*
  * 「用什么打开」搬去了 `store/open-targets.ts`。

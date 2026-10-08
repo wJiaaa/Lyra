@@ -158,6 +158,7 @@ const ToolRunGroup = function ToolRun({
   live,
   runs,
   flat,
+  shown,
 }: {
   calls: Call[];
   /** Whether this is the run being worked on right now — decided in `grouping.ts`, not here. */
@@ -172,6 +173,8 @@ const ToolRunGroup = function ToolRun({
   flat?: boolean;
   /** Records for a transcript outside the main session — see `LiveToolCard`. */
   runs?: Record<string, ToolRunState>;
+  /** A page put up for the reader: drawn as itself, with no line over it in either layout. See `Run`. */
+  shown?: boolean;
 }) {
   /*
    * Primitives, not the map.
@@ -221,6 +224,7 @@ const ToolRunGroup = function ToolRun({
     <LiveToolCard key={block.id} block={block} stopReason={stopReason} runs={runs} dispatch={byCall.get(block.id)} />
   ));
 
+  if (shown) return <>{cards}</>;
   // `contents`, so each call sits in the surrounding column's own gap; the attribute keeps the run findable.
   if (flat && chain === "collapsed") return <div data-ly-run={live ? "running" : "done"} className="contents">{cards}</div>;
 

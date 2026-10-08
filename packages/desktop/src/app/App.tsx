@@ -76,6 +76,7 @@ import { watchFilePanelState } from "../store/file-panel-handoff.ts";
 import { useSchedulerNotices } from "../features/scheduled/index.ts";
 import { useRecapArrivals } from "../features/conversation/index.ts";
 import { useTerminalPrewarm } from "../features/terminal/index.ts";
+import { useSharedPreviewTheme } from "../features/files/index.ts";
 import { applyAppearance, watchSystemTheme } from "../features/settings/index.ts";
 import { bridge } from "../services/index.ts";
 import { I18nProvider, useI18n } from "../i18n/index.ts";
@@ -92,6 +93,7 @@ export function App() {
 	// A shell running before the terminal is opened, so opening it costs nothing. Idle-scheduled
 	// and idempotent — see `terminal-prewarm.ts`.
 	useTerminalPrewarm();
+	useSharedPreviewTheme();
 	// Whose files these are. Owned here rather than by the file pane, which is not always mounted.
 	useProjectFiles();
 

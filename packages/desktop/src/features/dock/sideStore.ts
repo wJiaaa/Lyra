@@ -61,6 +61,8 @@ interface BrowserPreview {
 	sessionId: string;
 	title: string;
 	entry: string;
+	/** Handed to the page with its address — the theme it wears in the panel. See `shared/preview.ts`. */
+	fragment?: string;
 }
 
 /**

@@ -35,6 +35,7 @@ export type {
 	WorkflowRunSummary,
 };
 import type { TrayCommand } from "./tray-menu.ts";
+import type { PreviewTheme } from "../shared/preview.ts";
 import type { SchedulerNotice } from "./scheduler.ts";
 export type { SchedulerNotice } from "./scheduler.ts";
 export type { DocumentData } from "./documents.ts";
@@ -768,6 +769,8 @@ export interface PlumeApi {
 	 * 系统画的那三颗按钮落在 header 里，所以它们身下那块要跟 header 同色，而不是跟窗口同色。
 	 */
 	setWindowTheme(colors: { color: string; headerColor: string; symbolColor: string }): void;
+	/** The theme a generated page is given, for the one place that loads it without a card — `preview-inspect.ts`. */
+	setPreviewTheme(theme: PreviewTheme): void;
 	/**
 	 * Native full screen, reported by the window because the page cannot detect it.
 	 *

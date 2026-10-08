@@ -163,7 +163,8 @@ export interface ToolContext {
 		title: string;
 		files: { path: string; content: string }[];
 		entry?: string;
-	}) => Promise<{ id: string; sessionId: string; title: string; entry: string; dir: string }>;
+		themed?: boolean;
+	}) => Promise<{ id: string; sessionId: string; title: string; entry: string; dir: string; themed?: boolean }>;
 	/**
 	 * Every message this session ever committed, truncated ones included — what `recall` searches.
 	 *

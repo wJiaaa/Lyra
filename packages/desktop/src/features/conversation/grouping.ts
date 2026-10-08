@@ -59,7 +59,12 @@ export type Run =
 	 * about the shape of the conversation, not about whether the agent is currently running, so the
 	 * caller still asks that separately: a run can be the newest work in a turn that has since ended.
 	 */
-	| { kind: "tools"; calls: Call[]; live?: boolean };
+	/*
+	 * `shown` is a run of one: a page the agent put up for the reader with `preview`. It is the
+	 * turn's result rather than its work, so it is never folded away with the work — see `isProcess`
+	 * and `foldTurn`.
+	 */
+	| { kind: "tools"; calls: Call[]; live?: boolean; shown?: true };
 
 /* 「继续」那一句怎么认，搬到了 `lib/spoken.ts`——输入框也要用它，见那边的说明。 */
 export { isNudge };
@@ -426,10 +431,12 @@ function spoken(content: AssistantContent[]): number {
  * Returns true when React may skip the render.
  */
 export function sameRun(
-	before: { calls: Call[]; live?: boolean; runs?: object },
-	after: { calls: Call[]; live?: boolean; runs?: object },
+	before: { calls: Call[]; live?: boolean; runs?: object; shown?: boolean },
+	after: { calls: Call[]; live?: boolean; runs?: object; shown?: boolean },
 ): boolean {
 	if (before.live !== after.live) return false;
+	// A preview that failed stops being a page and joins the work, keeping its key — the one change here that leaves `calls` alone.
+	if (before.shown !== after.shown) return false;
 	// Injected records are rebuilt whenever their transcript grows, and a new map is the only sign
 	// that a call in this group has finished — nothing there subscribes to them.
 	if (before.runs !== after.runs) return false;
@@ -478,12 +485,24 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 	 */
 	const rowOfCalls = new Map<number, number>();
 
+	/*
+	 * A preview whose call failed showed nothing — the host refuses a page that throws — so it is work
+	 * like any other call and folds with it. Still running counts as shown: it is about to be a page.
+	 * A `check` never shows anything — it is the model looking at its page before the reader does.
+	 */
+	const failed = new Set<string>();
+	for (const message of messages) if (message.role === "toolResult" && message.isError) failed.add(message.toolCallId);
+	const shows = (call: Call) => call.block.name === "preview" && !failed.has(call.block.id) && call.block.arguments?.check !== true;
+
 	/** Extend the run this lands in, or start one. Empty batches leave the transcript alone. */
 	const work = (calls: Call[], from: number) => {
 		if (calls.length === 0) return;
-		const last = out[out.length - 1];
-		if (last?.kind === "tools") last.calls.push(...calls);
-		else out.push({ kind: "tools", calls });
+		for (const call of calls) {
+			const last = out[out.length - 1];
+			if (shows(call)) out.push({ kind: "tools", calls: [call], shown: true });
+			else if (last?.kind === "tools" && !last.shown) last.calls.push(call);
+			else out.push({ kind: "tools", calls: [call] });
+		}
 		rowOfCalls.set(from, out.length - 1);
 	};
 
@@ -668,7 +687,8 @@ export interface TurnBlock {
 
 /** 这一条 run 是不是「过程」——相对于说出口的话。 */
 function isProcess(run: Run): boolean {
-	if (run.kind === "tools" || run.kind === "compaction") return true;
+	if (run.kind === "tools") return !run.shown;
+	if (run.kind === "compaction") return true;
 	/*
 	 * A dropped connection is process once it is over — recovered, or moved to another model — and
 	 * news while it is not. Waiting, it is the countdown to the retry, and under the default call chain
@@ -789,13 +809,26 @@ function liveTurn(group: TurnBlock[]): TranscriptBlock[] {
 	return [head, { kind: "fold", blocks: [], turn: head.turn, running: true, key: runKey(head.runs[0]) }, ...group.slice(1)];
 }
 
+/** A page put up for the reader — see `shown` on `Run`. */
+function isShown(block: TurnBlock): boolean {
+	const run = block.runs[0];
+	return block.kind === "plain" && run.kind === "tools" && run.shown === true;
+}
+
 function foldTurn(group: TurnBlock[]): TranscriptBlock[] {
 	let answer = group.length - 1;
 	while (answer >= 0 && !(group[answer].kind === "plain" && isAnswer(group[answer].runs[0]))) answer--;
 	if (answer < 0) return group;
 	let start = answer;
-	while (start > 0 && (group[start - 1].kind === "process" || isAnswer(group[start - 1].runs[0]))) start--;
-	const hidden = group.slice(start, answer);
+	while (start > 0 && (group[start - 1].kind === "process" || isAnswer(group[start - 1].runs[0]) || isShown(group[start - 1]))) start--;
+	/*
+	 * 收起来的是过程，不是结果。agent 放出来给人看的页面从这一段里拎出来，摆在「已工作」那一行之后、
+	 * 回答之前——照 t3code：页面在回答上面，回答只补页面没说的。留在原地的话，要么被收进去看不见，
+	 * 要么把这一段从中间切开，「已工作」只收得到它后面那一截。
+	 */
+	const stretch = group.slice(start, answer);
+	const pages = stretch.filter(isShown);
+	const hidden = stretch.filter((block) => !isShown(block));
 	if (!hidden.some((block) => block.kind === "process")) return group;
 	const run = group[answer].runs[0];
 	return [
@@ -809,6 +842,7 @@ function foldTurn(group: TurnBlock[]): TranscriptBlock[] {
 			key: runKey(group[0].runs[0]),
 			startedAt: group[0].runs[0].kind === "message" ? group[0].runs[0].message.timestamp : undefined,
 		},
+		...pages,
 		...group.slice(answer),
 	];
 }

@@ -19,13 +19,13 @@ const hooks = registerHooks({
 		return nextResolve(specifier, context);
 	},
 });
-const { withHeightReporter } = await import("../electron/preview-protocol.ts");
+const { withPreviewBridge } = await import("../electron/preview-protocol.ts");
 hooks.deregister();
 
 test("注入不改动页面自己的 head 标签，哪怕里面有 $ 序列", () => {
 	const head = `<head data-note="$' $& $\` $$">`;
 	const page = `<!doctype html><html>${head}<title>t</title></head><body><p>BODY-MARK</p></body></html>`;
-	const out = withHeightReporter(page);
+	const out = withPreviewBridge(page);
 
 	assert.ok(out.includes(head), "页面原有的 head 标签必须一字不差地留着");
 	assert.equal(out.split("BODY-MARK").length - 1, 1, "正文只能出现一次——$' 会把 head 之后的整页再抄进属性里");
@@ -36,7 +36,7 @@ test("注入不改动页面自己的 head 标签，哪怕里面有 $ 序列", ()
 });
 
 test("没有 head 的页面，注入内容放在最前面", () => {
-	const out = withHeightReporter("<p>bare</p>");
+	const out = withPreviewBridge("<p>bare</p>");
 	assert.ok(out.startsWith("<style>"));
 	assert.ok(out.endsWith("</script><p>bare</p>"));
 });

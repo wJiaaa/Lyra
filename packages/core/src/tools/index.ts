@@ -42,7 +42,7 @@ export { recallTool } from "./recall.ts";
 export { displayPath, resolveWorkspacePath } from "./paths.ts";
 export { hasRead, markRead, readTool } from "./read.ts";
 export { AGENTS_KEY, BUILTIN_AGENTS, taskTool, type AgentDefinition } from "./task.ts";
-export { previewTool } from "./preview.ts";
+export { previewTool, usePreviewInspector, type PreviewInspection, type PreviewInspector } from "./preview.ts";
 export { readTodos, todoTool, TODOS_KEY, type TodoItem } from "./todo.ts";
 export { askUserTool } from "./ask-user.ts";
 export { htmlToText, webFetchTool } from "./web.ts";

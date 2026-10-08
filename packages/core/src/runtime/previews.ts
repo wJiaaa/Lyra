@@ -28,6 +28,13 @@ export interface PreviewRecord {
 	dir: string;
 	entry: string;
 	createdAt: number;
+	/**
+	 * Written expecting the app's theme variables — see `previewTool`.
+	 *
+	 * Absent on pages from before the theme existed. They were written for a white page, and handing
+	 * them a dark background and light text would turn their own dark text unreadable.
+	 */
+	themed?: boolean;
 }
 
 /**
@@ -57,7 +64,7 @@ function safeRelative(path: string): string | null {
  */
 export async function writePreview(
 	home: string,
-	options: { id: string; sessionId: string; title: string; files: PreviewFile[]; entry?: string },
+	options: { id: string; sessionId: string; title: string; files: PreviewFile[]; entry?: string; themed?: boolean },
 ): Promise<PreviewRecord> {
 	const dir = join(sessionDir(previewsHome(home), options.sessionId), options.id);
 	await mkdir(dir, { recursive: true });
@@ -81,6 +88,7 @@ export async function writePreview(
 		dir,
 		entry,
 		createdAt: Date.now(),
+		...(options.themed ? { themed: true } : {}),
 	};
 	await writeFile(join(dir, ".preview.json"), JSON.stringify(record), "utf8");
 	return record;

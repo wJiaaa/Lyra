@@ -58,7 +58,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 				if (run.kind === "tools") {
 					// Which run is being worked on is `grouping.ts`'s answer; whether anyone is working on
 					// it at all is this panel's. The same pair as in `Conversation`.
-					return <ToolRun key={runKey(run)} calls={run.calls} live={Boolean(isLive && run.live)} runs={toolRuns} />;
+					return <ToolRun key={runKey(run)} calls={run.calls} live={Boolean(isLive && run.live)} runs={toolRuns} shown={run.shown} />;
 				}
 
 				const { message, upTo } = run;

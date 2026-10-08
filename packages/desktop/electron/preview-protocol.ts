@@ -15,10 +15,13 @@ import { nativeImage, net, protocol, session } from "electron";
 import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "../shared/session-image.ts";
 import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@plume/core";
 import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
+import { HEIGHT_MESSAGE, INLINE_KEY, OPEN_MESSAGE, THEME_KEY, THEME_MESSAGE } from "../shared/preview.ts";
 import { attachmentFile } from "./attachment-reads.ts";
 
 export const MEDIA_SCHEME = "ly-media";
 export const PREVIEW_SCHEME = "ly-preview";
+/** Where `preview-inspect.ts` loads pages: a session of its own, in memory, so nothing a page leaves behind outlives the check. */
+export const INSPECT_PARTITION = "ly-preview-inspect";
 
 /**
  * The theme the very first painted frame should already be wearing.
@@ -38,7 +41,33 @@ export const PREVIEW_SCHEME = "ly-preview";
  */
 /** Enough of a MIME table for a self-contained page; anything else is served as bytes. */
 /**
- * Let a preview say how tall it wants to be.
+ * What a themed page starts from: the reply's own type, on no background of its own — the card is
+ * transparent, so a page that paints nothing sits on the conversation itself.
+ */
+const THEMED_BASE =
+	"html{color:var(--foreground);font-family:var(--font-sans);font-size:var(--font-size,14px);line-height:1.5;-webkit-font-smoothing:antialiased;text-size-adjust:100%}" +
+	"body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}";
+
+/**
+ * How tall a page's content is — the measuring the card's height comes from (see the reporter in
+ * `withPreviewBridge`). Exported so the check in `preview-inspect.ts` gets the same number: a window
+ * asked for its document's height answers with at least the window's own.
+ */
+export const MEASURE_HEIGHT = `function(){
+var b=document.body,d=document.documentElement;
+if(!b||!d)return 0;
+var scroll=Math.max(b.scrollHeight,d.scrollHeight);
+if(scroll>d.clientHeight+2)return scroll;
+var keep=[[b,b.style.height,b.style.minHeight],[d,d.style.height,d.style.minHeight]];
+b.style.height="auto";b.style.minHeight="0";
+d.style.height="auto";d.style.minHeight="0";
+var natural=Math.max(b.scrollHeight,b.offsetHeight);
+for(var i=0;i<keep.length;i++){keep[i][0].style.height=keep[i][1];keep[i][0].style.minHeight=keep[i][2];}
+return natural;
+}`;
+
+/**
+ * Let a preview say how tall it wants to be, wear the app's theme, and hand its links to the app.
  *
  * The card cannot ask: the page is on its own origin inside a sandbox with no same-origin, so
  * nothing in the app can read its layout. The page can volunteer the number, though, and
@@ -47,7 +76,7 @@ export const PREVIEW_SCHEME = "ly-preview";
  * Injected rather than required of the agent, because a page that had to remember to include
  * this would sometimes forget, and the sizing would be right only some of the time.
  */
-export function withHeightReporter(html: string): string {
+export function withPreviewBridge(html: string): string {
 	/*
 	 * Two ways to measure, because either one alone is wrong half the time.
 	 *
@@ -80,38 +109,79 @@ export function withHeightReporter(html: string): string {
 	 * needs more room has the side panel, where scrolling is what you came for. `ly-inline` is set
 	 * by the card and by nothing else, so the same file scrolls normally when opened there.
 	 */
-	const style = `<style>html.ly-inline,html.ly-inline body{overflow:hidden!important}html{scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}</style>`;
-	const script = `<script>(function(){
+	const style = `<style>html.ly-inline,html.ly-inline body{overflow:hidden!important}html{scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}</style><style id="ly-theme"></style>`;
+	/*
+	 * The theme arrives in the fragment, so it is on the page before the first paint rather than a
+	 * frame after it — a dark page that flashed white on every load was the thing to avoid. Written
+	 * into a stylesheet at the top of the head, not onto the element, so the page's own `:root` rules
+	 * still win. Later changes come by message from the card. The base rules come with the theme and
+	 * only with it: a page written before there was a theme expects a white page with black text.
+	 *
+	 * In the conversation the fragment is dropped once read, so a page's own hash routing never sees
+	 * it. In the panel it stays: the page is a browser tab there, and a reload has to find it again.
+	 * The panel also has no card behind the page, so there the page paints the background itself.
+	 */
+	const theme = `var H=location.hash.slice(1).split("&"),inline=false,theme=null;
+for(var i=0;i<H.length;i++){if(H[i]===${JSON.stringify(INLINE_KEY)})inline=true;else if(H[i].indexOf(${JSON.stringify(`${THEME_KEY}=`)})===0){try{theme=JSON.parse(decodeURIComponent(H[i].slice(${THEME_KEY.length + 1})))}catch(e){}}}
 /* Set before first paint, so the page is never briefly scrollable. */
-if(location.hash==="#ly-inline"&&document.documentElement)document.documentElement.className+=" ly-inline";
-var last=0;
-function measure(){
-var b=document.body,d=document.documentElement;
-if(!b||!d)return 0;
-var scroll=Math.max(b.scrollHeight,d.scrollHeight);
-if(scroll>d.clientHeight+2)return scroll;
-var keep=[[b,b.style.height,b.style.minHeight],[d,d.style.height,d.style.minHeight]];
-b.style.height="auto";b.style.minHeight="0";
-d.style.height="auto";d.style.minHeight="0";
-var natural=Math.max(b.scrollHeight,b.offsetHeight);
-for(var i=0;i<keep.length;i++){keep[i][0].style.height=keep[i][1];keep[i][0].style.minHeight=keep[i][2];}
-return natural;
+if(inline&&document.documentElement)document.documentElement.className+=" ly-inline";
+var sheet=document.getElementById("ly-theme");
+function wear(t){
+if(!sheet||!t||typeof t!=="object"||!t.vars||typeof t.vars!=="object")return;
+var c=":root{color-scheme:"+(t.scheme==="light"?"light":"dark")+";";
+for(var k in t.vars){if(/^--[a-z0-9-]+$/.test(k))c+=k+":"+String(t.vars[k]).replace(/[;{}<>]/g,"")+";";}
+sheet.textContent=c+"}"+${JSON.stringify(THEMED_BASE)}+(parent===window?"html{background:var(--background)}":"");
 }
+wear(theme);
+if(parent!==window&&(inline||theme)){try{history.replaceState(history.state,"",location.pathname+location.search)}catch(e){}}
+addEventListener("message",function(e){var d=e.data;if(theme&&e.source===parent&&parent!==window&&d&&typeof d==="object"&&d[${JSON.stringify(THEME_MESSAGE)}])wear(d[${JSON.stringify(THEME_MESSAGE)}]);});`;
+	/*
+	 * A link that leaves the page goes to the user's browser, by way of the app.
+	 *
+	 * Left alone it would navigate the frame, and the conversation's frame policy only admits our own
+	 * scheme — so the reader clicked a link and the page turned into an error. The sandbox gives the
+	 * page no popups, so it cannot open a window itself either; it asks, and the card decides (only
+	 * while the reader is actually using it, see `PreviewCard`). Listened for last, so a page that
+	 * handles its own links and cancels the click keeps doing that. In the panel the page is the top
+	 * document of a browser tab, and links there navigate the tab the way any page's do.
+	 */
+	const links = `function ask(u){try{parent.postMessage({${JSON.stringify(OPEN_MESSAGE)}:u},"*")}catch(e){}}
+if(parent!==window){
+addEventListener("click",function(e){
+if(!e.isTrusted||e.defaultPrevented||e.button!==0)return;
+var p=e.composedPath?e.composedPath():[],a=null;
+for(var i=0;i<p.length;i++){var n=p[i];if(n&&n.tagName&&String(n.tagName).toLowerCase()==="a"&&n.hasAttribute&&n.hasAttribute("href")){a=n;break;}}
+if(!a)return;
+var u;try{u=new URL(a.getAttribute("href"),document.baseURI)}catch(x){return}
+if(!/^(https?|mailto):$/.test(u.protocol))return;
+e.preventDefault();ask(u.href);
+});
+window.open=function(u){try{var v=new URL(String(u),document.baseURI);if(/^(https?|mailto):$/.test(v.protocol))ask(v.href)}catch(e){}return null};
+}`;
+	const script = `<script>(function(){
+${theme}
+${links}
+var last=0;
+var measure=${MEASURE_HEIGHT};
 function report(){
 /* A pixel of slack. Sub-pixel layout rounds up as often as down, and with overflow hidden the
    difference is not a scrollbar any more — it is a clipped row of text. */
 var h=measure();if(h)h+=2;
-if(h&&Math.abs(h-last)>2){last=h;try{parent.postMessage({__dwPreviewHeight:h},"*")}catch(e){}}
+if(h&&Math.abs(h-last)>2){last=h;try{parent.postMessage({${JSON.stringify(HEIGHT_MESSAGE)}:h},"*")}catch(e){}}
 }
 addEventListener("load",report);addEventListener("resize",report);
 if(window.ResizeObserver&&document.documentElement)new ResizeObserver(report).observe(document.documentElement);
 setTimeout(report,50);setTimeout(report,200);setTimeout(report,500);setTimeout(report,1200);
 })();</script>`;
 	// Before the page's own scripts, so a page that never finishes loading still reports.
-	const head = html.match(/<head[^>]*>/i);
+	// `<head` followed by a space or `>` only: `<header>` is not a head, and injecting into it themes the page a beat late.
+	const head = html.match(/<head(?:\s[^>]*)?>/i);
 	// A function as the replacement: the tag is the page's own text, and a `$'` or `$&` in it would
 	// otherwise be read as a pattern and copy the rest of the document into the attribute.
 	if (head) return html.replace(head[0], () => `${head[0]}${style}${script}`);
+	// Never ahead of the doctype: anything before it puts the page in quirks mode.
+	const doctype = html.match(/^\s*<!doctype[^>]*>/i);
+	if (doctype) return html.replace(doctype[0], () => `${doctype[0]}${style}${script}`);
 	return style + script + html;
 }
 
@@ -293,10 +363,12 @@ export function registerPreviewProtocols(options: {
 		const body = await readFile(target).catch(() => null);
 		if (!body) return new Response("not found", { status: 404 });
 		const type = contentTypeFor(target);
-		const payload = type.startsWith("text/html") ? withHeightReporter(body.toString("utf8")) : body;
+		const payload = type.startsWith("text/html") ? withPreviewBridge(body.toString("utf8")) : body;
 		return new Response(payload, { headers: { "content-type": type } });
 	};
 
 	protocol.handle(PREVIEW_SCHEME, servePreview);
 	session.fromPartition(browserPartition).protocol.handle(PREVIEW_SCHEME, servePreview);
+	// And on the session the out-of-sight check loads pages in, for the same reason. See `preview-inspect.ts`.
+	session.fromPartition(INSPECT_PARTITION).protocol.handle(PREVIEW_SCHEME, servePreview);
 }
