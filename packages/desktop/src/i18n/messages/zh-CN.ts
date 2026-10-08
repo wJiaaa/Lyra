@@ -1190,7 +1190,7 @@ export const zhCN = {
 	"userMessage.undoConfirmDetail": "撤销此消息将同时清除该消息之后的所有回复与操作记录。",
 	"userMessage.undoConfirm": "撤销",
 	"toolCard.outputRunning": "输出（进行中）",
-	"toolCard.image": "[图片 {mime}]",
+	"toolCard.image": "{summary} 的第 {n} 张图片",
 	"toolCard.mcpServer": "MCP：{name}",
 	"toolCard.waiting": "等待输出…",
 	"toolCard.stopped": "已停止",

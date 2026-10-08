@@ -23,7 +23,8 @@ import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { lastUserMessageIndex } from "../../lib/revert-draft.ts";
-import { SESSION_THUMB_EDGE, sessionMediaUrl } from "../../../shared/session-image.ts";
+import { SESSION_THUMB_EDGE } from "../../../shared/session-image.ts";
+import { imageBlockSrc } from "./image-block.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 /**
  * A message you sent, with the two things you want from one afterwards: to copy it, and to
@@ -37,16 +38,8 @@ import { IconButton } from "../../ui/primitives/IconButton.tsx";
 type ImageBlock = Extract<UserContent, { type: "image" }>;
 
 function imageSrc(block: ImageBlock | undefined, path: string | undefined): { src?: string; full?: string } {
-	if (block?.media) {
-		return {
-			src: sessionMediaUrl(block.media, SESSION_THUMB_EDGE),
-			full: sessionMediaUrl(block.media),
-		};
-	}
-	if (block?.data) {
-		const url = `data:${block.mimeType};base64,${block.data}`;
-		return { src: url, full: url };
-	}
+	const refs = block && imageBlockSrc(block, SESSION_THUMB_EDGE);
+	if (refs) return refs;
 	if (path) {
 		const url = bridge.files.mediaUrl(path);
 		return { src: url, full: url };

@@ -32,6 +32,8 @@ import { useMcpMark } from "./useMcpMark.ts";
 import { useTranscriptDisclosure } from "./view-state.ts";
 import { stoppedByUser } from "./tool-status.ts";
 import { translate, useI18n } from "../../i18n/index.ts";
+import { openFromEvent } from "../image/index.ts";
+import { imageBlockSrc } from "./image-block.ts";
 
 const ICONS: Record<string, typeof FileText> = {
 	read: FileText,
@@ -99,6 +101,7 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 	const stopped = status === "error" && stoppedByUser(result);
 	const failed = status === "error" && !stopped;
 	const { command: _command, ...rest } = args as Record<string, unknown>;
+	const output = result ? resultText(result) : "";
 
 	// A visible timer is the honest signal that a long command is still going.
 	const mountedAt = useRef(Date.now());
@@ -152,12 +155,15 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 			{result && (
 				<Section
 					title={stopped ? t("toolCard.stopped") : failed ? t("common.error") : running ? t("toolCard.outputRunning") : t("common.result")}
-					mono
+					mono={output !== ""}
 					tone={failed ? "danger" : "muted"}
 				>
-					<Scroller className="max-h-[420px]" overscroll="auto">
-						{resultText(result)}
-					</Scroller>
+					{output !== "" && (
+						<Scroller className="max-h-[420px]" overscroll="auto">
+							{output}
+						</Scroller>
+					)}
+					<ResultImages result={result} summary={summary} spaced={output !== ""} />
 				</Section>
 			)}
 		</>
@@ -317,7 +323,40 @@ function ToolMark({ mark, Icon, running, size = 13 }: { mark: McpMark | null; Ic
 
 function resultText(result: ToolResult): string {
 	return result.content
-		.map((block) => (block.type === "text" ? block.text : translate("toolCard.image", { mime: block.mimeType })))
+		.flatMap((block) => (block.type === "text" ? [block.text] : []))
 		.join("\n")
 		.slice(0, 20000);
+}
+
+/**
+ * A tool that returned a picture shows the picture.
+ *
+ * `read` on a PNG, a browser screenshot, an MCP image: the model saw pixels, and the card used to
+ * say `[图片 image/png]` in their place — the one thing in the call you would open it to look at.
+ * Drawn at twice the CSS height so a parked thumbnail stays sharp on a retina screen; a click opens
+ * the full picture in the viewer.
+ */
+const RESULT_THUMB_HEIGHT = 160;
+
+function ResultImages({ result, summary, spaced }: { result: ToolResult; summary: string; spaced: boolean }) {
+	const images = result.content.flatMap((block) => {
+		const refs = block.type === "image" ? imageBlockSrc(block, RESULT_THUMB_HEIGHT * 2) : null;
+		return refs ? [refs] : [];
+	});
+	if (images.length === 0) return null;
+	const gallery = images.map((image, index) => ({ src: image.full, alt: translate("toolCard.image", { summary, n: index + 1 }) }));
+	return (
+		<div className={`flex flex-wrap gap-2 ${spaced ? "mt-2" : ""}`}>
+			{images.map((image, index) => (
+				<button key={index} type="button" className="block cursor-zoom-in" onClick={(event) => openFromEvent(event, gallery, index)}>
+					<img
+						alt={gallery[index]?.alt}
+						src={image.src}
+						style={{ maxHeight: RESULT_THUMB_HEIGHT }}
+						className="max-w-full rounded-lg border border-line-soft object-contain"
+					/>
+				</button>
+			))}
+		</div>
+	);
 }

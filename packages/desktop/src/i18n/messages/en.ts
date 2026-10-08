@@ -1016,7 +1016,7 @@ export const en = {
 	"userMessage.undoConfirmDetail": "This also removes every reply and action after it.",
 	"userMessage.undoConfirm": "Undo",
 	"toolCard.outputRunning": "Output (still running)",
-	"toolCard.image": "[image {mime}]",
+	"toolCard.image": "Image {n} from {summary}",
 	"toolCard.mcpServer": "MCP: {name}",
 	"toolCard.waiting": "Waiting for output…",
 	"toolCard.stopped": "Stopped",
