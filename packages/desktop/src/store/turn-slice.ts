@@ -187,10 +187,16 @@ export function turnSlice(set: Set, get: Get) {
 				get().notify(translate("turn.sentButStale", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 				return true;
 			}
+			/*
+			 * A new conversation's opening message is already in it — `create` wrote it there, and this
+			 * call only starts the turn. Reporting it unsent made the composer put it back in the field it
+			 * came from, which is the blank draft: deleting a conversation while it was still starting, or
+			 * a start that failed, left that prompt waiting in the next new conversation as well.
+			 */
 			// A later prompt owns this session even after its optimistic message is acknowledged.
 			if (prompting.get(id) !== submission) {
 				get().notify(translate("turn.sendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
-				return false;
+				return resumePending;
 			}
 			const cached = get().sessionCache[id];
 			set({ activity: { ...get().activity, [id]: "failed" }, turns: without(get().turns, id),
@@ -198,7 +204,7 @@ export function turnSlice(set: Set, get: Get) {
 			});
 			if (get().activeSessionId === id) set({ running: false, stopped: "error", pendingUserMessage: null, turnStartedAt: null });
 			get().notify(translate("turn.sendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
-			return false;
+			return resumePending;
 		} finally { if (prompting.get(id) === submission) prompting.delete(id); }
 		return true;
 	},

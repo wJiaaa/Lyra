@@ -35,7 +35,10 @@ export function CommandMenu({ commands, active, keyboardSelection, onPick, onHov
 	useLayoutEffect(() => {
 		const anchor = panel.current?.parentElement;
 		if (!anchor) return;
-		const measure = () => setHeight(Math.max(0, Math.min(340, anchor.getBoundingClientRect().top - 12)));
+		// Up to the pane's top, not the window's: the window toolbar sits above the pane and over this menu,
+		// and with the composer mid-window in an empty conversation the first rows went under it.
+		const pane = anchor.closest("[data-dock-pane]");
+		const measure = () => setHeight(Math.max(0, Math.min(340, anchor.getBoundingClientRect().top - (pane?.getBoundingClientRect().top ?? 0) - 12)));
 		measure();
 		const observer = new ResizeObserver(measure);
 		observer.observe(anchor);

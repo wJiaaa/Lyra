@@ -78,6 +78,21 @@ test("a failed capability refresh does not turn an accepted prompt into a retrya
 	assert.ok(useApp.getState().notices.every(notice => !notice.message.startsWith("发送失败")));
 });
 
+test("a new conversation that fails to start still counts its opening message as sent", async () => {
+	// `create` wrote the message into the session; reported unsent, the composer put it back in the
+	// blank draft and the next new conversation opened with it.
+	Object.defineProperty(window, "plume", { configurable: true, value: {
+		sessions: { create: async () => snapshot("a"), capabilities: async () => null },
+		agent: { prompt: async () => { throw new Error("Session a is not open."); } },
+		git: { generalScratch: async () => "/test" },
+	} });
+	assert.equal(await useApp.getState().send(content), true);
+	assert.ok(useApp.getState().notices.some(notice => notice.message.includes("Session a is not open.")), "the failure is still said");
+
+	// A message to a conversation that already exists was never written anywhere else; it goes back.
+	assert.equal(await useApp.getState().send(content, { sessionId: "a" }), false);
+});
+
 test("undoing the last user message cuts the tail and fills the composer", async () => {
 	const active = snapshot("a");
 	useApp.setState({
