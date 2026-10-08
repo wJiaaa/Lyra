@@ -96,9 +96,15 @@ test("设计 token 解析得出值，不是空字符串", async () => {
 test("外壳有背景色，不是透明", async () => {
 	const painted = await app.evaluate<{ body: string; shell: string | null }>(`
 		(() => {
+			/*
+			 * With the window's material on (\`data-vibrancy\`, see tabs.css) the body is cleared on
+			 * purpose so the material shows, and the tint is painted one level in, on the window body.
+			 */
+			const vibrant = document.documentElement.dataset.vibrancy === "on";
+			const base = vibrant ? document.querySelector(".ly-window-body, [data-ly-workspace-window]") : document.body;
 			const shell = document.querySelector(".ly-shell");
 			return {
-				body: getComputedStyle(document.body).backgroundColor,
+				body: base ? getComputedStyle(base).backgroundColor : "rgba(0, 0, 0, 0)",
 				shell: shell ? getComputedStyle(shell).backgroundColor : null,
 			};
 		})()

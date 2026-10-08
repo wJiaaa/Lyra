@@ -33,7 +33,7 @@ export function ChangeBar() {
    * other conversation.
    */
   const screen = useDockScope();
-  const openGit = () => openScopedPanel("review", undefined, screen ?? undefined);
+  const openGit = () => openScopedPanel("review", screen ?? undefined);
 
   const [stat, setStat] = useState<{
     added: number;

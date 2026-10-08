@@ -110,7 +110,7 @@ function ScreenTitle({ sessionId, screen }: { sessionId: string | null; screen: 
 					session={meta}
 					onClose={menu.close}
 					// 这条会话就在这一屏上，直接在这一屏的停靠区里开，不用像侧边栏那样先打开再等。
-					onShowTrajectory={() => openScopedPanel("trajectory", undefined, paneKey(sessionId))}
+					onShowTrajectory={() => openScopedPanel("trajectory", paneKey(sessionId))}
 					onRequestDelete={() =>
 						confirm.ask({
 							title: t("sidebarList.deleteConfirm"),

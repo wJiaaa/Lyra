@@ -44,7 +44,7 @@ async function headerAlignment(app: RunningApp): Promise<void> {
 			const center = pane.getBoundingClientRect().top + ${WINDOW_HEADER_HEIGHT / 2};
 			const kind = pane.getAttribute('data-dock-pane');
 			for (const icon of pane.querySelectorAll('[data-dock-header] svg')) measure(icon, center, kind + ' svg');
-			for (const button of pane.querySelectorAll('[data-dock-header] button:not([data-dock-grip])')) measure(button, center, kind + ' ' + (button.getAttribute('aria-label') || 'button'));
+			for (const button of pane.querySelectorAll('[data-dock-header] button')) measure(button, center, kind + ' ' + (button.getAttribute('aria-label') || 'button'));
 		}
 		const header = document.querySelector('[data-ly-main-toolbar]');
 		const band = header ? header.getBoundingClientRect() : null;
@@ -142,27 +142,30 @@ for (const [scale, width, height, theme] of [
 			await click(app, TERMINAL_BUTTON);
 			await app.evaluate(`new Promise((resolve, reject) => {
 				let remaining = 240; const step = () => {
-					if (document.querySelector('[data-tab]') && document.querySelector('.xterm-screen')) resolve();
+					if (document.querySelector('[data-panel-tab="terminal"]') && document.querySelector('.xterm-screen')) resolve();
 					else if (--remaining) requestAnimationFrame(step); else reject(new Error('terminal did not open'));
 				}; step();
 			})`);
 			await frames(app, 24);
 			await headerAlignment(app);
+			// A terminal is a tab of the panel column: its tab, its close and 「添加面板」 stay on screen and under the pointer.
 			const terminal = await app.evaluate<{ visibleTabWidth: number; tabWidth: number; addHit: boolean; closeHit: boolean }>(`(() => {
-				const header = document.querySelector('[data-dock-header="terminal"]');
-				const tab = header.querySelector('[data-tab]'); const r = tab.getBoundingClientRect();
-				const strip = tab.parentElement.getBoundingClientRect();
-				const hit = label => { const b = header.querySelector('[aria-label="' + label + '"]');
-					const r = b.getBoundingClientRect(); return b.contains(document.elementFromPoint(r.x+r.width/2, r.y+r.height/2)); };
+				// Hidden panes keep their own copy of the tab row mounted; the one on screen is the one that counts.
+				const shown = selector => [...document.querySelectorAll(selector)].find(e => e.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
+				const tab = shown('[data-panel-tab="terminal"]'); const r = tab.getBoundingClientRect();
+				const strip = tab.closest('[role="tablist"]').getBoundingClientRect();
+				const hit = b => { if (!b) return false; const r = b.getBoundingClientRect(); return b.contains(document.elementFromPoint(r.x+r.width/2, r.y+r.height/2)); };
 				return { visibleTabWidth: Math.max(0, Math.min(r.right, strip.right)-Math.max(r.left, strip.left)),
-					tabWidth: r.width, addHit: hit('新建终端'), closeHit: hit('关闭终端') };
+					tabWidth: r.width, addHit: hit(shown('button[aria-label="添加面板"]')),
+					closeHit: hit(tab.querySelector('[aria-label="关闭终端"]')) };
 			})()`);
 			t.diagnostic(JSON.stringify(terminal));
-			assert.ok(terminal.visibleTabWidth >= terminal.tabWidth - 1, "the first terminal tab is fully reachable in every layout");
+			assert.ok(terminal.visibleTabWidth >= terminal.tabWidth - 1, "the terminal tab is fully reachable in every layout");
 			assert.ok(terminal.addHit && terminal.closeHit);
-			await click(app, '[data-dock-header="terminal"] button[aria-label="新建终端"]');
+			await click(app, ':is([data-dock-pane]:not([inert]), [data-ly-toolbar-panel]) button[aria-label="添加面板"]');
+			await click(app, '[role="menuitem"]', "终端", "starts");
 			await frames(app, 60);
-			assert.equal(await app.evaluate("document.querySelectorAll('[data-tab]').length"), 2);
+			assert.equal(await app.evaluate(`new Set([...document.querySelectorAll('[data-panel-tab^="terminal"]')].map(e => e.dataset.panelTab)).size`), 2);
 			await headerAlignment(app);
 			await click(app, 'button[aria-label*="侧边栏 "]');
 			await frames(app, 24);
@@ -207,8 +210,8 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 		const narrow = await measure();
 		assert.ok(narrow.conversation.width >= 420 && narrow.conversation.height >= 260);
 		assert.ok(narrow.terminal.width >= 300 && narrow.terminal.height >= 150);
-		// A pair that cannot hold both floors side by side turns into a column — see `fitTree`
-		// and `COLUMN_LIMIT`. Overlap-in-row is for more than two columns, not this 770 case.
+		// The conversation and a tab that cannot hold both floors side by side turn into a column —
+		// see `fitTree`.
 		assert.ok(Math.abs(narrow.terminal.left - narrow.conversation.left) < 1);
 		assert.ok(Math.abs(narrow.terminal.top - narrow.conversation.top - narrow.conversation.height) < 1);
 		assert.equal(narrow.saved, wide.saved); assert.equal(narrow.sameTerminal, true);
@@ -271,6 +274,9 @@ async function paintedPixels(app: RunningApp, clip: { x: number; y: number; widt
 	})()`);
 }
 
+/** A pane's own buttons: on the window toolbar while its column is beside the conversation, in its own title row once stacked under it. */
+const PANE_ACTIONS = `':is([data-ly-toolbar-panel], [data-dock-pane]:not([inert])) [data-dock-actions]:not([data-ly-split-tools]) button'`;
+
 test("toolbar and pane icons keep their pixel column wherever the sidebar's edge falls, at 125%", async (t) => {
 	/*
 	 * Opening or closing the sidebar walks the content area's left edge through fractional device
@@ -281,18 +287,20 @@ test("toolbar and pane icons keep their pixel column wherever the sidebar's edge
 	 *
 	 * Two rows since the window frame (ADR-0038). The three that were reported shaking — terminal,
 	 * browser, panels — moved up to the window's toolbar, out of the content; the icons still inside
-	 * it are a pane's own, so a pane is opened beside the conversation and its title bar is held too.
+	 * it are a pane's own, so a pane is opened beside the conversation and its buttons are held too —
+	 * on one screen they ride up into the window's toolbar with the pane's tab, unless the pane is
+	 * stacked under the conversation (this window is too narrow for both across), when they stay in its title row.
 	 */
 	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
 	try {
 		await frames(app, 24);
 		await click(app, ':is([data-ly-split-tools], [data-dock-header]) button[aria-label^="浏览器"]');
-		await app.evaluate(`new Promise((resolve, reject) => { let n = 240; const step = () => document.querySelector('[data-dock-header="browser"] [data-dock-actions] button') ? resolve() : --n ? requestAnimationFrame(step) : reject(new Error('the browser pane did not open')); step(); })`);
+		await app.evaluate(`new Promise((resolve, reject) => { let n = 240; const step = () => document.querySelector(${PANE_ACTIONS}) ? resolve() : --n ? requestAnimationFrame(step) : reject(new Error('the browser pane did not open')); step(); })`);
 		await frames(app, 40);
 		// The toolbar also holds buttons that only show on hover; those are not drawn, so not counted.
 		const rows = {
 			toolbar: `[...document.querySelectorAll('[data-ly-split-tools] button')].filter(b => /^(终端|浏览器|面板)/.test(b.getAttribute('aria-label') ?? '') && b.checkVisibility({ opacityProperty: true }))`,
-			pane: `[...document.querySelectorAll('[data-dock-header="browser"] [data-dock-actions] button')].filter(b => b.checkVisibility({ opacityProperty: true }))`,
+			pane: `[...document.querySelectorAll(${PANE_ACTIONS})].filter(b => b.checkVisibility({ opacityProperty: true }))`,
 		};
 		const dpr = await app.evaluate<number>("devicePixelRatio");
 		const placed: Record<string, { icons: { x: number; width: number }[]; clip: { x: number; y: number; width: number; height: number } }> = {};
@@ -302,7 +310,8 @@ test("toolbar and pane icons keep their pixel column wherever the sidebar's edge
 			placed[name] = { icons, clip: { x: left, y: Math.floor(Math.min(...icons.map((icon) => icon.y))) - 4, width: right - left, height: 36 } };
 		}
 		assert.equal(placed.toolbar.icons.length, 3, `terminal, browser and panels are on the window's toolbar: ${JSON.stringify(placed.toolbar.icons)}`);
-		assert.ok(placed.pane.icons.length >= 2, `the browser pane's title bar has its buttons: ${JSON.stringify(placed.pane.icons)}`);
+		// Stacked, the title row shows only what is not hover-revealed — one icon is enough to hold to a column.
+		assert.ok(placed.pane.icons.length >= 1, `the browser pane's buttons are drawn: ${JSON.stringify(placed.pane.icons)}`);
 		const edges = [0, -1, -2, -3, -5, -6, -7];
 		const samples: { edge: number; row: string; layout: number[]; painted: number[] }[] = [];
 		for (const edge of edges) {
@@ -327,9 +336,13 @@ test("toolbar and pane icons keep their pixel column wherever the sidebar's edge
 		for (const name of Object.keys(rows)) {
 			const mine = samples.filter((sample) => sample.row === name);
 			for (const sample of mine) assert.deepEqual(sample.layout, mine[0].layout, `${name}: the icons' layout does not move with the sidebar's edge`);
+			/*
+			 * The fault is a whole device column. Less than half of one is not: in the window's toolbar the
+			 * same icon reads 60.43–60.46 with the edge held still, frame to frame.
+			 */
 			for (const [index] of placed[name].icons.entries()) {
-				const columns = new Set(mine.map((sample) => sample.painted[index]));
-				assert.equal(columns.size, 1, `${name}: icon ${index} is painted on one column wherever the edge is: ${[...columns].join(", ")}`);
+				const columns = mine.map((sample) => sample.painted[index]);
+				assert.ok(Math.max(...columns) - Math.min(...columns) < 0.5, `${name}: icon ${index} is painted on one column wherever the edge is: ${[...new Set(columns)].join(", ")}`);
 			}
 		}
 	} finally { await app.stop(); }

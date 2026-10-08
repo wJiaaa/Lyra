@@ -25,10 +25,9 @@ const VERSION = 1;
 /**
  * How long a change waits before it is written.
  *
- * The pane widths write on every frame of a drag, which is right for one short number. A tree is
- * a whole JSON document and a splitter drag produces one per frame, so this one waits — long
- * enough to collapse a drag into a single write, short enough that closing the app right after
- * letting go still saves what you did.
+ * A tree is a whole JSON document, so a burst of changes — several tabs closed in a row — waits to
+ * become one write: long enough to collapse the burst, short enough that closing the app right
+ * after still saves what you did.
  */
 const SAVE_DELAY = 120;
 
@@ -137,8 +136,8 @@ function withoutFileTabs(tree: DockNode): DockNode {
 /*
  * 每把钥匙一份待写值，只留最新的那个。
  *
- * 一次持续一秒的分隔线拖拽会调六十次 `writeTree`，而它应该只产生一次写。按 key 留最新值而不是
- * 排一条队，是这一点无论拖多久都成立的原因。
+ * 连着关几个标签会调好几次 `writeTree`，而它应该只产生一次写。按 key 留最新值而不是排一条队，
+ * 是这一点无论连着改多少次都成立的原因。
  */
 let timer: number | undefined;
 /**

@@ -85,8 +85,8 @@ before(async () => {
 			await seedInteractions(home, modelPort);
 			const path = join(home, "settings.json");
 			const settings = JSON.parse(await readFile(path, "utf8"));
-			// 思考关着 → 调度落在「省着派」，闸门一次只放一个：排队的那两个正是要看的东西。
-			Object.assign(settings, { autoSummarizeTitle: false, permissionMode: "full", thinking: "off", retryAttempts: 0 });
+			// 闸门一次只放一个（`maxConcurrentSubAgents`，默认 4）：排队的那两个正是要看的东西。
+			Object.assign(settings, { autoSummarizeTitle: false, permissionMode: "full", thinking: "off", retryAttempts: 0, maxConcurrentSubAgents: 1 });
 			await writeFile(path, JSON.stringify(settings));
 			await mkdir(join(home, "agents"), { recursive: true });
 			await writeFile(join(home, "agents", "docs-writer.md"), "---\nname: docs-writer\ndescription: 整理与改写项目文档\ntools: [read]\navatar: ghost-plum\n---\nYou write documentation.\n");
@@ -112,12 +112,13 @@ async function until(expression: string, ms = 30000) {
 }
 const faceMap = () => app.evaluate<Record<string, string>>(`Object.fromEntries([...document.querySelectorAll('[data-agent-profile]')].flatMap(row=>{const f=row.querySelector('.ly-avatar');return f?[[row.dataset.agentProfile,f.dataset.avatar]]:[];}))`);
 
-test("设置页：九个智能体九张脸；指针进来那一行的脸真的弹了一下、眼睛跟着指针，没人碰也会自己眨眼", async () => {
+test("设置页：八个智能体八张脸；指针进来那一行的脸真的弹了一下、眼睛跟着指针，没人碰也会自己眨眼", async () => {
 	await click(app, 'button:has(svg.lucide-settings)');
 	await click(app, "nav button", "智能体", "starts");
-	await until(`document.querySelectorAll('[data-agent-profile] .ly-avatar').length === 9`);
+	// 七个内置（`core/src/agents-builtin.ts`）加上文件里那个 docs-writer；「会话」那一段的 compact 没有脸。
+	await until(`document.querySelectorAll('[data-agent-profile] .ly-avatar').length === 8`);
 	faces = await faceMap();
-	assert.equal(new Set(Object.values(faces)).size, 9, `互不相同：${JSON.stringify(faces)}`);
+	assert.equal(new Set(Object.values(faces)).size, 8, `互不相同：${JSON.stringify(faces)}`);
 	assert.equal(faces.general, "circle-blue");
 	assert.equal(faces["docs-writer"], "ghost-plum", "文件里写的那张");
 
@@ -125,7 +126,8 @@ test("设置页：九个智能体九张脸；指针进来那一行的脸真的�
 	const target = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector('[data-agent-profile="explore"] p').getBoundingClientRect();return {x:r.x+20,y:r.y+r.height/2};})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: target.x - 200, y: target.y - 60 });
 	await frames(app, 4);
-	const sampling = app.evaluate<{ widest: number; last: string }>(`new Promise(resolve=>{const g=document.querySelector('[data-agent-profile="explore"] .ly-avatar-squish');let widest=1,n=0;const f=()=>{const m=getComputedStyle(g).transform;const a=m.startsWith('matrix(')?Number(m.slice(7).split(',')[0]):1;widest=Math.max(widest,a);if(++n<60)requestAnimationFrame(f);else resolve({widest,last:getComputedStyle(g).transform});};requestAnimationFrame(f);})`);
+	// A second by the clock, not 60 frames: on a 120Hz panel 60 frames end before the 640ms jelly has settled.
+	const sampling = app.evaluate<{ widest: number; last: string }>(`new Promise(resolve=>{const g=document.querySelector('[data-agent-profile="explore"] .ly-avatar-squish');let widest=1;const end=performance.now()+1000;const f=()=>{const m=getComputedStyle(g).transform;const a=m.startsWith('matrix(')?Number(m.slice(7).split(',')[0]):1;widest=Math.max(widest,a);if(performance.now()<end)requestAnimationFrame(f);else resolve({widest,last:getComputedStyle(g).transform});};requestAnimationFrame(f);})`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: target.x, y: target.y });
 	const jelly = await sampling;
 	assert.ok(jelly.widest > 1.06, `进来那一下被压扁了（最宽 ${jelly.widest.toFixed(3)} 倍）`);
@@ -144,7 +146,7 @@ test("设置页：九个智能体九张脸；指针进来那一行的脸真的�
 });
 
 test("新建：一进来就是一张没人用的脸，随机能换、能挑，存下去的就是屏幕上那张", async () => {
-	await click(app, "button", "新增智能体", "starts");
+	await click(app, "button", "新建");
 	await until(`document.querySelector('[data-agent-editor] [data-agent-avatar]')`);
 	const shown = () => app.evaluate<string>(`document.querySelector('[data-agent-avatar]').dataset.agentAvatar`);
 	const fresh = await shown();
@@ -172,7 +174,7 @@ test("新建：一进来就是一张没人用的脸，随机能换、能挑，�
 	await until(`document.querySelector('[data-agent-profile="${NEW_AGENT}"] .ly-avatar')`);
 	faces = await faceMap();
 	assert.equal(faces[NEW_AGENT], chosen, "列表上是存下去的那张");
-	assert.equal(new Set(Object.values(faces)).size, Object.keys(faces).length, "十张，还是互不相同");
+	assert.equal(new Set(Object.values(faces)).size, Object.keys(faces).length, "九张，还是互不相同");
 	const file = await readFile(join(app.home, "agents", `${NEW_AGENT}.md`), "utf8");
 	assert.match(file, new RegExp(`^avatar: ${chosen}$`, "m"), "写进了定义文件");
 	assert.match(file, /^name: qa-avatar$/m, "新文件是块状 YAML，一行一个字段");
@@ -189,7 +191,7 @@ test("派发：闸门只放一个，排队的两个也在；点卡片面板翻�
 	})()`);
 	await until(`document.querySelectorAll('[data-ly-subagent-bar] [data-avatar-pile] .ly-avatar').length >= 3`);
 	// 不止一个：输入框上方那一行是一摞叠着的脸，不是一排并排的。
-	const bar = await app.evaluate<{ moods: string[]; faces: string[]; text: string; menu: string | null }>(`(()=>{const bar=document.querySelector('[data-ly-subagent-bar]');const all=[...bar.querySelectorAll('[data-avatar-pile] .ly-avatar')];return {moods:all.map(a=>a.dataset.mood),faces:all.map(a=>a.dataset.avatar),text:bar.textContent,menu:bar.getAttribute('aria-haspopup')};})()`);
+	const bar = await app.evaluate<{ moods: string[]; faces: string[]; text: string; menu: string | null }>(`(()=>{const bar=[...document.querySelectorAll('[data-ly-subagent-bar]')].find(b=>b.querySelector('[data-avatar-pile] .ly-avatar'));const all=[...bar.querySelectorAll('[data-avatar-pile] .ly-avatar')];return {moods:all.map(a=>a.dataset.mood),faces:all.map(a=>a.dataset.avatar),text:bar.textContent,menu:bar.getAttribute('aria-haspopup')};})()`);
 	assert.deepEqual(bar.moods, ["working", "waiting", "waiting"], `一个在干活，两个在排队：${bar.moods}`);
 	assert.deepEqual(bar.faces, [faces.general, faces[NEW_AGENT], faces.reason], "排队的也是各自的脸——包括刚建的那个");
 	assert.match(bar.text, /2 个排队中/);
@@ -229,7 +231,7 @@ test("派发：闸门只放一个，排队的两个也在；点卡片面板翻�
 test("@ 菜单：智能体是设置页上的同一张脸", async () => {
 	await click(app, "main textarea");
 	await app.send("Input.insertText", { text: "@" });
-	await until(`document.querySelectorAll('.ly-mention-menu [data-mention-kind="subagent"] .ly-avatar').length >= 10`);
+	await until(`document.querySelectorAll('.ly-mention-menu [data-mention-kind="subagent"] .ly-avatar').length >= 9`);
 	const menu = await app.evaluate<Record<string, string>>(`Object.fromEntries([...document.querySelectorAll('.ly-mention-menu [data-mention-kind="subagent"]')].map(r=>[r.dataset.mentionTitle,r.querySelector('.ly-avatar').dataset.avatar]))`);
 	for (const [name, face] of Object.entries(faces)) assert.equal(menu[name], face, `${name} 在两处是同一张脸`);
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", windowsVirtualKeyCode: 27 });
@@ -241,19 +243,4 @@ test("@ 菜单：智能体是设置页上的同一张脸", async () => {
 	assert.equal(token.face, faces[NEW_AGENT]);
 	assert.equal(token.mirror, token.field, "镜像层和 textarea 一字不差");
 	await app.evaluate(`(()=>{const f=document.querySelector('main textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(f,'');f.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-});
-
-test("调度页：并发上限是八个座位，点第三个就设成三", async () => {
-	await click(app, 'button:has(svg.lucide-settings)');
-	await click(app, "nav button", "子智能体调度", "starts");
-	await until(`document.querySelectorAll('[data-concurrency-slots] [data-seat]').length === 8`);
-	await click(app, '[data-concurrency-slots] [data-seat="3"]');
-	await until(`document.querySelectorAll('[data-concurrency-slots] [data-awake]').length === 3`);
-	let saved = 0;
-	for (let attempt = 0; attempt < 50 && saved !== 3; attempt++) {
-		saved = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")).maxConcurrentSubAgents;
-		if (saved !== 3) await new Promise((r) => setTimeout(r, 100));
-	}
-	assert.equal(saved, 3, "写进了 settings.json");
-	await click(app, "nav button", "返回工作区", "starts");
 });

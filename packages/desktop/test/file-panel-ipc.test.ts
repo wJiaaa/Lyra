@@ -143,32 +143,29 @@ test("application quit does not enter a window-return handshake", async () => {
 /*
  * 面板窗口请主窗口开一个面板——它自己没有 dock。
  *
- * `beside` 是个布局提示（挨着谁、哪一边），转发前要逐字段验：它最终会被当成落点塞进主窗口的
- * dock 状态，而发起方是另一个渲染进程。见 `docs/architecture/split-window-conflicts.md` 第七节。
+ * 转发的东西逐字段重建：发起方是另一个渲染进程，它多带的字段一个也不该进主窗口。
+ * 见 `docs/architecture/split-window-conflicts.md` 第七节。
  */
-test("openPanelInMain validates the kind and the layout hint before forwarding", async () => {
+test("openPanelInMain validates the kind and forwards nothing it was not asked to", async () => {
 	const panel = fixture.makeWindow();
 	fixture.openedInMain.length = 0;
 	assert.deepEqual(await call("windows:openPanelInMain", panel, { kind: "file" }), { ok: true });
 	assert.deepEqual(fixture.openedInMain, [{ kind: "file" }]);
 
 	fixture.openedInMain.length = 0;
-	assert.deepEqual(await call("windows:openPanelInMain", panel, { kind: "file", beside: { kind: "files", side: "bottom", share: 0.3 } }), { ok: true });
-	assert.deepEqual(fixture.openedInMain, [{ kind: "file", beside: { kind: "files", side: "bottom", share: 0.3 } }]);
+	// 旧版本的面板窗口还会带一个「挨着谁」的布局提示；面板只有标签页一种排法之后它没有意义，不转发。
+	assert.deepEqual(await call("windows:openPanelInMain", panel, { kind: "file", beside: { kind: "files", side: "bottom" } }), { ok: true });
+	assert.deepEqual(fixture.openedInMain, [{ kind: "file" }]);
 
 	fixture.openedInMain.length = 0;
-	assert.deepEqual(await call("windows:openPanelInMain", panel, { kind: "terminal:k1", beside: { kind: "file:k2", side: "right" } }), { ok: true }, "后开的那几格按种类认");
-	assert.deepEqual(fixture.openedInMain, [{ kind: "terminal:k1", beside: { kind: "file:k2", side: "right" } }]);
+	assert.deepEqual(await call("windows:openPanelInMain", panel, { kind: "terminal:k1" }), { ok: true }, "后开的那几格按种类认");
+	assert.deepEqual(fixture.openedInMain, [{ kind: "terminal:k1" }]);
 
 	for (const bad of [
 		undefined,
 		{ kind: "settings" },
 		{ kind: "settings:k1" },
 		{ kind: "terminal:../x" },
-		{ kind: "file", beside: { kind: "file", side: "sideways" } },
-		{ kind: "file", beside: { kind: "not-a-panel", side: "left" } },
-		{ kind: "file", beside: { kind: "files", side: "left", share: 4 } },
-		{ kind: "file", beside: "files" },
 	]) {
 		fixture.openedInMain.length = 0;
 		assert.deepEqual(await call("windows:openPanelInMain", panel, bad), { ok: false }, JSON.stringify(bad));

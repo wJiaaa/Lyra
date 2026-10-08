@@ -163,8 +163,10 @@ const UI = `
 		const tip = (element.dataset.lyTip || "").trim();
 		return visible === text || aria === text || tip === text;
 	};
-	const click = (element) => element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+	const click = (element) => { if (!element) throw new Error("nothing to click"); element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); };
 	const byText = (selector, text) => [...document.querySelectorAll(selector)].find((element) => element.checkVisibility({ visibilityProperty: true }) && named(element, text));
+	// A provider's row leads with its initial (「R Relay」), so it is found by how its name ends.
+	const provider = (name) => [...document.querySelectorAll("button")].find((element) => element.checkVisibility({ visibilityProperty: true }) && label(element).endsWith(name));
 	const heatmap = () => {
 		const scroller = [...document.querySelectorAll("div")].find((d) => d.className.includes("justify-content:safe_center"));
 		if (!scroller) throw new Error("heatmap scroller not found");
@@ -747,7 +749,7 @@ test("the model editor follows catalogue values and offers upstream references f
 	const values = await ui<{ context: string; output: string; input: string; outputPrice: string; cacheRead: string; cacheWrite: string; source: string; manualSource: string; relayMatched: boolean }>(`
 		click(byText("nav button", "模型设置"));
 		await wait(300);
-		click(byText("button", "OpenAI 官方"));
+		click(provider("OpenAI 官方"));
 		await wait(200);
 		click(byText("button", "添加模型"));
 		await wait(200);
@@ -774,7 +776,7 @@ test("the model editor follows catalogue values and offers upstream references f
 		const manualSource = [...document.querySelectorAll("p")].find((element) => label(element).includes("当前使用手动填写的价格"))?.innerText || "";
 		click(byText("button", "取消"));
 		await wait(150);
-		click(byText("button", "Relay"));
+		click(provider("Relay"));
 		await wait(150);
 		click(byText("button", "添加模型"));
 		await wait(150);

@@ -62,7 +62,7 @@ beforeEach(() => {
 		sessions: [A, B], sessionCache: { b: parked(B) }, workspaceByPath: { [BETA.path]: BETA },
 		notify: () => {},
 	});
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	usePaneDock.getState().rememberSize("a", ROOMY);
 	usePaneDock.getState().rememberSize("b", ROOMY);
 });

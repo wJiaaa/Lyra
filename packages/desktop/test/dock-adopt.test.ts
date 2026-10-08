@@ -54,7 +54,7 @@ const withPanel = (kind: PaneKind): DockNode => ({
 function launch(): void {
 	flushTree();
 	saved.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, crossRatio: {}, drag: null, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 }
 
 /** Write a layout to disk as if a previous session had left it there. */

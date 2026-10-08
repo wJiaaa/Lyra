@@ -79,7 +79,7 @@ export function rowActions(actions: RowActions, session: SessionMeta) {
  */
 function showTrajectory(session: SessionMeta, open: () => void): void {
 	open();
-	const show = () => openScopedPanel("trajectory", undefined, session.id);
+	const show = () => openScopedPanel("trajectory", session.id);
 	if (usePaneDock.getState().size(session.id)) {
 		show();
 		return;

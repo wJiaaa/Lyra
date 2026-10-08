@@ -9,7 +9,6 @@
  * 面板只属于会话：每一屏一个 `DockView`，布局都在 `usePaneDock` 里按会话存。窗口本身没有面板。
  */
 
-export { companionOf } from "./panels/definitions.tsx";
 export { useSide, sideChatOf, sideTasksOf } from "./sideStore.ts";
 export { emptyDockTree, usePaneDock } from "./pane-store.ts";
 export { DockView, startInset } from "./DockView.tsx";
@@ -29,4 +28,3 @@ export { renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions
 export { useBoxSize } from "./useBoxSize.ts";
 export type { PanelKind } from "./sideStore.ts";
 export { has } from "./tree.ts";
-export { usePanelLayout } from "./tabs.ts";

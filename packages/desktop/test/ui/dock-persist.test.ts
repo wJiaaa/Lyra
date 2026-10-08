@@ -28,7 +28,7 @@ const pair = (a: PaneKind, b: PaneKind): DockNode => ({
 
 function clear(): void {
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	usePanelWindows.setState({ panels: [], opening: [] });
 	provideScope(() => null);
 }
@@ -72,7 +72,7 @@ test("分屏里开的面板存得下，也读得回来", () => {
 	assert.ok(window.localStorage.getItem(paneStorageKey("sess-a")), "开完没落盘，刷新一次就没了");
 
 	// 换一个干净的内存状态，模拟刷新之后
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null });
+	usePaneDock.setState({ trees: {}, sizes: {} });
 	usePaneDock.getState().hydrate("sess-a", ALLOWED);
 	const tree = usePaneDock.getState().tree("sess-a");
 	assert.ok(JSON.stringify(tree).includes("terminal"), "刷新之后那一屏的终端没回来");

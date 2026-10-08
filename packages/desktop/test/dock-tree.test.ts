@@ -21,53 +21,13 @@ import {
 	insert,
 	kinds,
 	leafOf,
-	areAdjacent,
-	move,
-	moveAlong,
-	nodeAt,
 	normalize,
-	pathTo,
-	pruneTo,
 	remove,
-	resize,
 	type Axis,
 	type DockNode,
 	type DockSplit,
 	type PaneKind,
 } from "../src/features/dock/tree.ts";
-
-test("parallel keyboard moves exchange neighbors and preserve each pane's share", () => {
-	const tree: DockNode = { type: "split", dir: "row", children: [leafOf("conversation"), leafOf("browser"), leafOf("terminal")], sizes: [0.5, 0.3, 0.2] };
-	const moved = moveAlong(tree, "browser", "left");
-	assert.ok(moved && moved.type === "split");
-	assert.deepEqual(kinds(moved), ["browser", "conversation", "terminal"]);
-	assert.deepEqual(moved.sizes, [0.3, 0.5, 0.2]);
-	assert.deepEqual(moveAlong(moved, "browser", "right"), tree);
-	assert.equal(moveAlong(moved, "browser", "left"), moved);
-	assert.equal(moveAlong(tree, "browser", "top"), null);
-	invariants(moved);
-});
-
-test("keyboard movement follows the immediate split axis without disturbing other columns", () => {
-	const stack: DockNode = { type: "split", dir: "col", children: [leafOf("browser"), leafOf("terminal")], sizes: [0.6, 0.4] };
-	const tree: DockNode = { type: "split", dir: "row", children: [leafOf("conversation"), stack], sizes: [0.5, 0.5] };
-	const moved = moveAlong(tree, "terminal", "top");
-	assert.ok(moved && moved.type === "split");
-	assert.equal(moved.children[0], tree.children[0]);
-	assert.deepEqual(nodeAt(moved, [1]), { type: "split", dir: "col", children: [leafOf("terminal"), leafOf("browser")], sizes: [0.4, 0.6] });
-	assert.equal(moveAlong(tree, "terminal", "left"), null);
-	const crossed = moveAlong(tree, "conversation", "right");
-	assert.ok(crossed && crossed.type === "split");
-	assert.equal(crossed.children[0], stack);
-	invariants(moved);
-	invariants(crossed);
-});
-
-test("a lone or absent pane never starts a keyboard split", () => {
-	const tree = defaultTree();
-	assert.equal(moveAlong(tree, "conversation", "right"), tree);
-	assert.equal(moveAlong(tree, "browser", "bottom"), tree);
-});
 
 function invariants(node: DockNode, what = "tree"): DockNode {
 	const seen = new Set<PaneKind>();
@@ -102,17 +62,6 @@ function invariants(node: DockNode, what = "tree"): DockNode {
 	return node;
 }
 
-/** The share of the split at `path` that the child at `index` holds. */
-function shareAt(tree: DockNode, path: number[], index: number): number {
-	let node: DockNode = tree;
-	for (const step of path) {
-		assert.equal(node.type, "split");
-		node = (node as DockSplit).children[step];
-	}
-	assert.equal(node.type, "split");
-	return (node as DockSplit).sizes[index];
-}
-
 test("the default layout is the conversation, alone", () => {
 	const tree = invariants(defaultTree());
 	assert.deepEqual(tree, leafOf("conversation"));
@@ -133,30 +82,6 @@ test("dropping on a pane's edge splits that pane in half, on the axis the side i
 		assert.deepEqual(kinds(tree), order, `${side} puts the new pane on the ${side}`);
 		assert.deepEqual((tree as DockSplit).sizes, [0.5, 0.5], "a split is halves");
 	}
-});
-
-test("dropping on the dock's own edge makes an outermost column rather than splitting a pane", () => {
-	const two = insert(defaultTree(), "terminal", { side: "bottom", kind: "conversation" });
-	const tree = invariants(insert(two, "review", { side: "right", kind: null }));
-
-	// The column runs the whole height beside both of the others, so the root is a row of two:
-	// the original column, then the new pane.
-	assert.equal(tree.type, "split");
-	const root = tree as DockSplit;
-	assert.equal(root.dir, "row");
-	assert.equal(root.children.length, 2);
-	assert.deepEqual(kinds(tree), ["conversation", "terminal", "review"]);
-	// Alongside rather than halving: the pane it joins keeps the bulk of the dock.
-	assert.ok(root.sizes[0] > root.sizes[1], "the existing layout keeps the larger share");
-});
-
-test("a second drop on the dock's edge joins that outer split instead of nesting another", () => {
-	let tree = insert(defaultTree(), "terminal", { side: "right", kind: null });
-	tree = invariants(insert(tree, "review", { side: "right", kind: null }));
-
-	const root = tree as DockSplit;
-	assert.equal(root.children.length, 3, "three columns, not a column holding a column");
-	assert.deepEqual(kinds(tree), ["conversation", "terminal", "review"]);
 });
 
 test("a pane dropped beside one in a matching split becomes a sibling, sharing that pane's space", () => {
@@ -217,39 +142,6 @@ test("closing something that is not open is a no-op", () => {
 	assert.equal(remove(tree, "terminal"), tree);
 });
 
-test("moving a pane keeps it, and puts it where it was aimed", () => {
-	// chat | terminal, then terminal is dragged under the conversation.
-	let tree = insert(defaultTree(), "terminal", { side: "right", kind: "conversation" });
-	tree = invariants(move(tree, "terminal", { side: "bottom", kind: "conversation" }));
-
-	assert.equal((tree as DockSplit).dir, "col", "it is a column now");
-	assert.deepEqual(kinds(tree), ["conversation", "terminal"]);
-});
-
-test("moving a pane out of a split collapses what it leaves behind", () => {
-	// chat | (terminal over review) — then review is dragged to the far left.
-	let tree = insert(defaultTree(), "terminal", { side: "right", kind: "conversation" });
-	tree = insert(tree, "review", { side: "bottom", kind: "terminal" });
-	tree = invariants(move(tree, "review", { side: "left", kind: "conversation" }));
-
-	// The column that held terminal and review is gone: terminal is a plain sibling again.
-	assert.deepEqual(kinds(tree), ["review", "conversation", "terminal"]);
-	const root = tree as DockSplit;
-	assert.equal(root.dir, "row");
-	assert.equal(root.children.length, 3);
-	for (const child of root.children) assert.equal(child.type, "leaf");
-});
-
-test("a pane dropped on itself stays where it is", () => {
-	const tree = insert(defaultTree(), "terminal", { side: "right", kind: "conversation" });
-	assert.equal(move(tree, "terminal", { side: "left", kind: "terminal" }), tree);
-});
-
-test("the only pane in the dock cannot be moved out of it", () => {
-	const tree = defaultTree();
-	assert.equal(move(tree, "conversation", { side: "right", kind: null }), tree);
-});
-
 test("normalize flattens a same-axis nesting and keeps the proportions it implied", () => {
 	// A row holding a row: chat at 0.5, and inside the other half, terminal and review at 3:1.
 	const nested: DockNode = {
@@ -293,96 +185,4 @@ test("normalize survives a split with more children than can clear the floor", (
 	const root = tree as DockSplit;
 	// 20 × 8% is more than a whole, so an even split is the only distribution left.
 	for (const share of root.sizes) assert.ok(Math.abs(share - 0.05) < 1e-6);
-});
-
-test("pathTo finds a pane, and misses cleanly", () => {
-	let tree = insert(defaultTree(), "terminal", { side: "right", kind: "conversation" });
-	tree = insert(tree, "review", { side: "bottom", kind: "terminal" });
-	assert.deepEqual(pathTo(tree, "conversation"), [0]);
-	assert.deepEqual(pathTo(tree, "review"), [1, 1]);
-	assert.equal(pathTo(tree, "files"), null);
-});
-
-test("resizing moves one boundary and leaves every other pane alone", () => {
-	// A row of three at 50/25/25.
-	let tree = insert(defaultTree(), "terminal", { side: "right", kind: "conversation" });
-	tree = insert(tree, "review", { side: "right", kind: "terminal" });
-
-	const after = invariants(resize(tree, [], 0, 0.6));
-	assert.equal(shareAt(after, [], 0), 0.6, "the pane being dragged got what was asked");
-	// The pair traded between themselves: 0.75 − 0.6.
-	assert.ok(Math.abs(shareAt(after, [], 1) - 0.15) < 1e-6);
-	assert.equal(shareAt(after, [], 2), 0.25, "the pane past the handle did not move at all");
-});
-
-test("resizing stops at the floor rather than pushing a pane out of existence", () => {
-	const tree = insert(defaultTree(), "terminal", { side: "right", kind: "conversation" });
-	const wide = invariants(resize(tree, [], 0, 5));
-	assert.ok(Math.abs(shareAt(wide, [], 0) - (1 - MIN_FRACTION)) < 1e-6);
-	assert.ok(Math.abs(shareAt(wide, [], 1) - MIN_FRACTION) < 1e-6);
-
-	const narrow = invariants(resize(tree, [], 0, -3));
-	assert.ok(Math.abs(shareAt(narrow, [], 0) - MIN_FRACTION) < 1e-6);
-});
-
-test("resizing through a path that leads nowhere changes nothing", () => {
-	const tree = insert(defaultTree(), "terminal", { side: "right", kind: "conversation" });
-	assert.equal(resize(tree, [4, 1], 0, 0.6), tree);
-	assert.equal(resize(tree, [], 7, 0.6), tree, "and neither does a handle that does not exist");
-});
-
-test("panes side by side are adjacent, even as two of three in one row", () => {
-	// conversation | files | file — the shape opening a file actually produces.
-	let tree = insert(defaultTree(), "files", { side: "right", kind: "conversation" });
-	tree = insert(tree, "file", { side: "right", kind: "files" });
-	assert.deepEqual(kinds(tree), ["conversation", "files", "file"]);
-	assert.equal(areAdjacent(tree, "files", "file"), true);
-	assert.equal(areAdjacent(tree, "conversation", "files"), true);
-	assert.equal(areAdjacent(tree, "conversation", "file"), false, "with something in between");
-});
-
-test("panes with something between them are not adjacent", () => {
-	/*
-	 * Dragged apart, a declared pair is two ordinary panes. Treating them as a pair anyway would
-	 * mean full screen occasionally swallowing whatever sat between them.
-	 */
-	let tree = insert(defaultTree(), "files", { side: "left", kind: "conversation" });
-	tree = insert(tree, "file", { side: "right", kind: "conversation" });
-	assert.deepEqual(kinds(tree), ["files", "conversation", "file"]);
-	assert.equal(areAdjacent(tree, "files", "file"), false);
-});
-
-test("a pane is not adjacent to one that is not there", () => {
-	const tree = insert(defaultTree(), "files", { side: "right", kind: "conversation" });
-	assert.equal(areAdjacent(tree, "files", "file"), false);
-});
-
-test("pruning to a pair keeps their order and their proportions", () => {
-	let tree = insert(defaultTree(), "files", { side: "right", kind: "conversation" });
-	tree = insert(tree, "file", { side: "right", kind: "files" });
-	// The file's share of the row is doubled, so the pair is 1:2 between themselves.
-	tree = resize(tree, [], 1, 0.1);
-
-	const pair = pruneTo(tree, new Set<PaneKind>(["files", "file"]));
-	assert.ok(pair);
-	assert.deepEqual(kinds(pair!), ["files", "file"], "the tree is still left of the file");
-	const split = pair as DockSplit;
-	// Re-shared to fill the dock, keeping the ratio they had between them.
-	assert.ok(Math.abs(split.sizes[0] + split.sizes[1] - 1) < 1e-6);
-	assert.ok(split.sizes[1] > split.sizes[0], "and the file is still the larger of the two");
-});
-
-test("pruning to one pane gives that pane, and to none gives nothing", () => {
-	let tree = insert(defaultTree(), "files", { side: "right", kind: "conversation" });
-	tree = insert(tree, "file", { side: "right", kind: "files" });
-	assert.deepEqual(pruneTo(tree, new Set<PaneKind>(["file"])), leafOf("file"));
-	assert.equal(pruneTo(tree, new Set<PaneKind>(["terminal"])), null);
-});
-
-test("nodeAt walks a path, and refuses one that leads nowhere", () => {
-	const tree = insert(defaultTree(), "files", { side: "right", kind: "conversation" });
-	assert.deepEqual(nodeAt(tree, [0]), leafOf("conversation"));
-	assert.deepEqual(nodeAt(tree, []), tree);
-	assert.equal(nodeAt(tree, [5]), null);
-	assert.equal(nodeAt(tree, [0, 0]), null, "a leaf has no children to walk into");
 });

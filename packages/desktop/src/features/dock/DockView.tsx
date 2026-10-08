@@ -19,34 +19,28 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { useLayout } from "../../app/layout.tsx";
 import { SidebarIcon, ToolbarButton, toolbarReserved } from "../../app/window/WindowControls.tsx";
 import { useToolbarSlot } from "../../app/window/toolbar-slot.ts";
 import { freezeMotion } from "../../ui/motion/freeze.ts";
 import { useApp } from "../../store/index.ts";
-import { companionOf, renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
-import { pct } from "./css.ts";
-import { cardRoom, HEADER_PAD, PANEL_MIN_WIDTH_PX, paneFloor } from "./geometry.ts";
+import { renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
+import { cardRoom, HEADER_PAD, paneFloor } from "./geometry.ts";
 import { DockPane } from "./DockPane.tsx";
-import { PaneGrip } from "./PaneGrip.tsx";
 import { Splitter } from "./Splitter.tsx";
-import { fitTree, layoutPanes, layoutSplitters, type Box, type SplitterBox } from "./layout.ts";
+import { fitTree, layoutPanes, layoutSplitters, type Box } from "./layout.ts";
 import { popOutPanel } from "./popout.ts";
-import { closePane, emptyDockTree, usePaneDock } from "./pane-store.ts";
-import { allowsMany, basePanelKind, nextPanelKind, type ManyKind } from "../../lib/panel-instance.ts";
-import { Plus } from "../../ui/icons/index.ts";
-import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { emptyDockTree, usePaneDock } from "./pane-store.ts";
+import { allowsMany, basePanelKind } from "../../lib/panel-instance.ts";
 import { DockScope } from "../../app/session-scope.tsx";
 import { canToggleMaximized } from "./visibility.ts";
-import type { DockDragHost } from "./drag-host.ts";
 import type { PanelKind } from "./sideStore.ts";
-import { has, kinds, type PaneKind } from "./tree.ts";
+import { kinds, type PaneKind } from "./tree.ts";
 import { detachOf } from "./panels/registry.ts";
 import { useBoxSize } from "./useBoxSize.ts";
-import { useDockDrag } from "./useDockDrag.ts";
-import { activeTab, panelsOf, tabbedTree, usePanelLayout } from "./tabs.ts";
+import { activeTab, panelsOf, tabbedTree } from "./tabs.ts";
 import { PanelTabs, type AddablePanel, type PanelTab } from "./PanelTabs.tsx";
 import { PaneActions } from "./PaneHeader.tsx";
 import { ToolbarPanelBar } from "./ToolbarPanelBar.tsx";
@@ -148,7 +142,7 @@ export function DockView({
 	 * The conversation's own title bar, given the insets it owes the window's corners.
 	 *
 	 * `null` when the window's toolbar draws it instead (one screen, in the frame): the conversation's
-	 * card then starts with the transcript, and keeps only the grip it is moved by.
+	 * card then starts with the transcript.
 	 */
 	header: ((insets: ScreenInsets) => ReactNode) | null;
 	insets?: ScreenInsets;
@@ -156,35 +150,17 @@ export function DockView({
 	children: ReactNode;
 }) {
 	const tree = usePaneDock((s) => s.trees[scope] ?? emptyDockTree);
-	const maximized = usePaneDock((s) => s.maximized[scope] ?? null);
+	const maximized = usePaneDock((s) => s.maximized[scope] ?? false);
 	const focusedPane = usePaneDock((s) => s.focused[scope] ?? "conversation");
 	const rememberedTab = usePaneDock((s) => s.tab[scope]);
 	const tabShare = usePaneDock((s) => s.tabShare);
 	const tabsCollapsed = usePaneDock((s) => s.tabsCollapsed);
-	const tabbed = usePanelLayout() === "tabs";
 	const { compact } = useLayout();
 	const definitions = usePanelDefinitions();
 	const toolbarSlot = useToolbarSlot();
 	// 顶栏只在对话页属于这一屏；插件目录这类页面盖在上面时，这一屏还挂着，标签条不能留在顶栏里。
 	const chatInFront = useApp((s) => s.view === "chat");
 	const containerRef = useRef<HTMLDivElement>(null);
-	const host = useMemo<DockDragHost>(
-		() => ({
-			floor: paneFloor,
-			tree: () => usePaneDock.getState().tree(scope),
-			restore: () => usePaneDock.getState().restore(scope),
-			beginDrag: (drag) => usePaneDock.getState().beginDrag(scope, drag),
-			preview: (rest, kind, at) => usePaneDock.getState().preview(scope, rest, kind, at),
-			dragTo: (pointer, at) => usePaneDock.getState().dragTo(pointer, at),
-			endDrag: (cancelled) => usePaneDock.getState().endDrag(cancelled),
-			currentDrag: () => {
-				const drag = usePaneDock.getState().drag;
-				return drag?.scope === scope ? drag : null;
-			},
-		}),
-		[scope],
-	);
-	const { carried, start, landed } = useDockDrag(containerRef, host);
 	const size = useBoxSize(containerRef);
 
 	/*
@@ -221,86 +197,39 @@ export function DockView({
 	useEffect(() => () => usePaneDock.getState().forget(scope), [scope]);
 
 	/*
-	 * The tree as stored, and the tree as it should be drawn at this screen's size.
-	 *
-	 * `fitted` is what everything here uses — panes, splitters and the drag's hit test — because it
-	 * is what is on screen. `tree` keeps the shares that were actually dragged to, so a wider screen
-	 * returns the layout to them. A screen that cannot hold its floors draws them anyway, the first
-	 * pane in a row covered rather than reflowed; it never evicts a pane.
+	 * 画的是「对话 + 当前标签」这棵两格的树，其余面板借当前标签的位置、隐藏着挂在那儿。存的树不动，
+	 * 见 `tabs.ts`。`fitted` 是按这一屏的尺寸量过的那棵：画不下下限时照画，行首那格被盖住而不是重排。
 	 */
+	const panels = panelsOf(tree);
+	const tab = activeTab(tree, rememberedTab);
 	/*
-	 * 标签页排法：画的是「对话 + 当前标签」这棵两格的树，其余面板借当前标签的位置、隐藏着挂在那儿。
-	 * 存的树不动，见 `tabs.ts`。
+	 * 单屏（标题栏由窗口顶栏画，`header === null`）：标签条和这一栏的按钮上到顶栏，栏里不再留那一行，
+	 * 见 `ToolbarPanelBar`。窄窗口下一格盖满整屏，标签条留在格子里。
+	 * 放不下并排、面板排到对话下面时也留在格子里：那时右边没有这一栏，顶栏那段还得让给会话的按钮，
+	 * 768 宽实测只剩 164px，标签被挤得只露出图标。
 	 */
-	const panels = tabbed ? panelsOf(tree) : [];
-	const tab = tabbed ? activeTab(tree, rememberedTab) : null;
-	/*
-	 * 单屏（标题栏由窗口顶栏画，`header === null`）的标签页排法：标签条和这一栏的按钮上到顶栏，
-	 * 栏里不再留那一行，见 `ToolbarPanelBar`。窄窗口下一格盖满整屏，标签条留在格子里。
-	 */
-	const lifted = tabbed && header === null && !compact && toolbarSlot !== null;
+	const pair = !compact && size && tab ? fitTree(tabbedTree(tab, tabShare), size, paneFloor) : null;
+	const stacked = pair?.type === "split" && pair.dir === "col";
+	const lifted = header === null && !compact && toolbarSlot !== null && !stacked;
 	/*
 	 * 右栏收起：画的树里只剩对话，面板照旧挂着（隐藏），展开时终端、页面都还在。只在 `lifted` 时算数——
 	 * 展开的开关在顶栏里，分屏或窄窗口下没有它，收着就再也打不开了。
 	 */
 	const folded = lifted && tabsCollapsed && tab !== null;
-	const shown = tabbed ? tabbedTree(folded ? null : tab, tabShare) : tree;
-	/** 一个标签借谁的格子画：标签页排法下所有面板都在当前标签那一格。 */
+	const shown = tabbedTree(folded ? null : tab, tabShare);
+	/** 一个标签借谁的格子画：所有面板都在当前标签那一格。 */
 	const slotOf = (kind: PaneKind): PaneKind => (tab && panels.includes(kind) ? tab : kind);
 	const fitted = compact || !size ? shown : fitTree(shown, size, paneFloor);
 	const laid = layoutPanes(fitted);
 
-	// 标签页排法下全屏的是整栏，不是某一个标签：切标签不该退出全屏。
-	const tabsMaximized = tabbed && tab && !folded && maximized?.panes.some((kind) => kind !== "conversation") ? { ...maximized, panes: [tab] } : null;
-	const focus = compact ? null : tabbed ? tabsMaximized : maximized;
-	const stacked = Boolean(focus && focus.panes.length === 2 && (!size || size.width < PANEL_MIN_WIDTH_PX * 2));
-	// The renderer decides which way a maximised pair goes; the store needs it on the way out.
-	useEffect(() => {
-		if (maximized) usePaneDock.getState().setMaximizedAxis(scope, stacked ? "col" : "row");
-	}, [scope, maximized, stacked]);
+	// 全屏的是整栏，不是某一个标签：切标签不该退出全屏。
+	const focus = !compact && tab && !folded && maximized ? tab : null;
+	const focusBox = (kind: PaneKind): Box | null => (focus === kind ? WHOLE : null);
+	const boxes = focus ? laid.filter((box) => box.kind === focus) : laid;
 
-	const focusBox = (kind: PaneKind): Box | null => {
-		if (!focus) return null;
-		const at = focus.panes.indexOf(kind);
-		if (at < 0) return null;
-		if (focus.panes.length === 1) return WHOLE;
-		const share = at === 0 ? focus.ratio : 1 - focus.ratio;
-		const offset = at === 0 ? 0 : focus.ratio;
-		return stacked ? { left: 0, top: offset, width: 1, height: share } : { left: offset, top: 0, width: share, height: 1 };
-	};
-
-	const boxes = focus ? laid.filter((box) => focus.panes.includes(box.kind)) : laid;
-
-	// One boundary while a pair is full screen, none when a single pane fills the screen.
-	const focusSeam: SplitterBox | null =
-		focus && focus.panes.length === 2
-			? {
-					path: [],
-					index: 0,
-					dir: stacked ? "col" : "row",
-					share: focus.ratio,
-					pair: 1,
-					split: WHOLE,
-					left: stacked ? 0 : focus.ratio,
-					top: stacked ? focus.ratio : 0,
-					width: stacked ? 1 : 0,
-					height: stacked ? 0 : 1,
-				}
-			: null;
-
-	/*
-	 * Apply a boundary drag. Read from the store rather than from a variable captured above: a drag
-	 * holds this callback for its whole length, and full screen is exactly the case distinguished.
-	 */
-	const applyShare = (share: number, handle: SplitterBox) => {
-		const dock = usePaneDock.getState();
-		// 那条分隔线的近侧是对话，标签栏拿剩下的。
-		if (tabbed) dock.setTabShare(1 - share);
-		else if (dock.maximized[scope]) dock.setMaximizedRatio(scope, share);
-		else dock.setShare(scope, handle.path, handle.index, share);
-	};
-
-	const splitters = compact ? [] : focus ? (focusSeam ? [focusSeam] : []) : layoutSplitters(fitted);
+	// 那条分隔线的近侧是对话，标签栏拿剩下的。
+	const applyShare = (share: number) => usePaneDock.getState().setTabShare(1 - share);
+	const splitters = compact || focus ? [] : layoutSplitters(fitted);
 
 	/*
 	 * The order panes are *mounted* in, which is not the order they are laid out in.
@@ -311,13 +240,11 @@ export function DockView({
 	 * shows them without a reload. Assigned during render and idempotent.
 	 */
 	const order = useRef<PaneKind[]>(["conversation", "browser"]);
-	// 标签页排法下后台标签不在画的树里，但仍要挂着——它们就是被隐藏的那些 pane。
-	const present = tabbed ? kinds(tree) : laid.map((box) => box.kind);
-	// A carried pane has been lifted out of the tree and is still the thing in your hand.
-	const live = carried && !present.includes(carried.kind) ? [...present, carried.kind] : present;
+	// 后台标签不在画的树里，但仍要挂着——它们就是被隐藏的那些 pane。
+	const present = kinds(tree);
 	order.current = [
-		...order.current.filter((kind) => live.includes(kind) || kind === "browser"),
-		...live.filter((kind) => !order.current.includes(kind)),
+		...order.current.filter((kind) => present.includes(kind) || kind === "browser"),
+		...present.filter((kind) => !order.current.includes(kind)),
 	];
 
 	const at = (box: Box & { kind: PaneKind }) => ({ ...box, ...focusBox(box.kind) });
@@ -333,13 +260,7 @@ export function DockView({
 	const maximizeOf = (kind: PaneKind): (() => void) | undefined =>
 		!canToggleMaximized(kind, { compact, maximized })
 			? undefined
-			: tabbed
-				? () => {
-						const dock = usePaneDock.getState();
-						if (dock.maximized[scope]) dock.restore(scope);
-						else dock.toggleMaximized(scope, kind);
-					}
-				: () => usePaneDock.getState().toggleMaximized(scope, kind, companionOf(kind as PanelKind)?.kind);
+			: () => usePaneDock.getState().toggleMaximized(scope);
 	const popOutOf = (kind: PaneKind): (() => void) | undefined =>
 		kind === "conversation" || detachOf(kind) === "none"
 			? undefined
@@ -350,11 +271,9 @@ export function DockView({
 		return { kind, label, icon: def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined, title: titleOf(kind, label) };
 	});
 	// 和顶栏「⋮」菜单同一个口径：开不了的、不在菜单里列的都不给。能开好几个的开着也还能再开一个。
-	const addable: AddablePanel[] = tabbed
-		? definitions
-				.filter((def) => !def.unavailable && def.listed !== false && (allowsMany(def.kind) || !panels.includes(def.kind)))
-				.map((def) => ({ kind: def.kind, label: translate(def.label), icon: <def.icon size={16} strokeWidth={1.7} />, shortcut: def.shortcut }))
-		: [];
+	const addable: AddablePanel[] = definitions
+		.filter((def) => !def.unavailable && def.listed !== false && (allowsMany(def.kind) || !panels.includes(def.kind)))
+		.map((def) => ({ kind: def.kind, label: translate(def.label), icon: <def.icon size={16} strokeWidth={1.7} />, shortcut: def.shortcut }));
 
 	/** 收起、展开右栏的开关，在窗口顶栏最右，和左边那颗侧栏开关成镜像。 */
 	const columnToggle = (
@@ -374,43 +293,21 @@ export function DockView({
 	return (
 		<DockScope.Provider value={scope}>
 			<div className="ly-dock relative flex min-h-0 min-w-0 flex-1 flex-col">
-				{/* Marked so the drop geometry can be measured from outside — see `e2e/dock.test.ts`. */}
+				{/* Marked so the dock's box can be measured from outside — see `e2e/dock.test.ts`. */}
 				<div ref={containerRef} data-dock-panes={scope} data-ly-pane-dock={scope} className="relative min-h-0 min-w-0 flex-1">
 					{splitters.map((handle) => (
 						<Splitter
-							// The full-screen boundary is its own component, never a reused one: its path
-							// collides with the first real boundary, and a reused instance keeps that one's
-							// listeners — the drag simply never started.
-							key={focus ? "maximised-seam" : `${handle.path.join(".")}:${handle.index}`}
+							key={`${handle.path.join(".")}:${handle.index}`}
 							handle={handle}
 							containerRef={containerRef}
-							onResize={(share) => applyShare(share, handle)}
-							onEven={() => applyShare(0.5, handle)}
+							onResize={applyShare}
+							onEven={() => applyShare(0.5)}
 						/>
 					))}
 
-					{/*
-					 * Where the carried pane would land. The panes staying put have already made room;
-					 * this says the room is for you. Not while landing — the pane is on its way there.
-					 */}
-					{carried &&
-						!carried.landing &&
-						(() => {
-							const target = boxes.find((box) => box.kind === carried.kind);
-							if (!target) return null;
-							return (
-								<div
-									aria-hidden
-									data-dock-drop
-									className="ly-dock-drop pointer-events-none absolute"
-									style={{ left: pct(target.left), top: pct(target.top), width: pct(target.width), height: pct(target.height) }}
-								/>
-							);
-						})()}
-
 					{order.current.map((kind) => {
 						const placed = boxes.find((box) => box.kind === kind);
-						if (!placed && carried?.kind !== kind && !present.includes(kind) && kind !== "browser") return null;
+						if (!placed && !present.includes(kind) && kind !== "browser") return null;
 						const conversation = kind === "conversation";
 						const base = basePanelKind(kind);
 						const def = definitions.find((entry) => entry.kind === base);
@@ -418,12 +315,7 @@ export function DockView({
 						const icon = !conversation && def ? <def.icon size={12.5} strokeWidth={1.8} /> : undefined;
 						const slot = slotOf(kind);
 						const box = compact ? WHOLE : (focusBox(slot) ?? laid.find((entry) => entry.kind === slot) ?? WHOLE);
-						const moving = carried?.kind === kind;
-						const draggable = !compact && !tabbed && live.length > 1;
 						const panelHeader = conversation ? null : renderPanelHeader(kind as PanelKind);
-						const onDragStart = (event: React.PointerEvent<HTMLElement>) => start(kind, event);
-						const onMove = (side: "left" | "right" | "top" | "bottom") => usePaneDock.getState().moveTo(scope, kind, { side, kind: null });
-						const onArrowMove = (side: "left" | "right" | "top" | "bottom") => usePaneDock.getState().moveAlong(scope, kind, side);
 						const inset = startCorner === kind ? insets.start : 0;
 						const insetEnd = endCorner === kind ? insets.end : 0;
 						return (
@@ -434,81 +326,34 @@ export function DockView({
 								label={label}
 								icon={icon}
 								maximized={Boolean(focus) && Boolean(placed)}
-								carried={moving ? carried.rect : null}
-								landing={moving && carried.landing}
+								hidden={compact ? kind !== focusedPane : !placed}
 								/*
-								 * A pane in the air is never hidden, whatever the tree says: it has been
-								 * lifted out of the tree and is positioned against the window.
-								 */
-								hidden={compact ? kind !== focusedPane : !placed && !moving}
-								/*
-								 * 标签页排法下新开一个标签，是在这一栏正显示着的那一格上顶替它：旧的那格立刻透明，
+								 * 新开一个标签，是在这一栏正显示着的那一格上顶替它：旧的那格立刻透明，
 								 * 新的那格要是再从透明淡入，中间 150ms 整栏（连同标签条）都是空的，看着就是闪了一下。
 								 * 这一栏本来就有面板时不淡入；这一栏从无到有（第一个面板）才是真的出现，照旧淡入。
 								 */
-								quietEntrance={tabbed && !conversation && panels.length > 1}
-								draggable={draggable}
-								onDragStart={onDragStart}
-								onMove={onMove}
-								onArrowMove={onArrowMove}
-								actions={
-									conversation ? undefined : (
-										<>
-											{renderPanelActions(kind as PanelKind)}
-											{/* 分栏排法没有顶上那个「+」，能开好几个的面板在自己头上给一个。 */}
-											{!tabbed && allowsMany(base) && (
-												<IconButton
-													size="xs"
-													label={translate("pane.openAnother", { label })}
-													onClick={() => {
-														const dock = usePaneDock.getState();
-														dock.open(scope, nextPanelKind(base as ManyKind, (each) => has(dock.tree(scope), each)));
-													}}
-													icon={<Plus size={12} strokeWidth={2} />}
-												/>
-											)}
-										</>
-									)
-								}
-								title={
-									conversation ? undefined : tabbed ? (
-										<PanelTabs scope={scope} tabs={tabs} addable={addable} current={kind} />
-									) : (
-										panelHeader ?? titleOf(kind, label)
-									)
-								}
+								quietEntrance={!conversation && panels.length > 1}
+								actions={conversation ? undefined : renderPanelActions(kind as PanelKind)}
+								title={conversation ? undefined : <PanelTabs scope={scope} tabs={tabs} addable={addable} current={kind} />}
 								inset={inset}
 								insetEnd={insetEnd}
 								onToggleMaximized={maximizeOf(kind)}
-								// 标签页排法下关闭在标签自己身上，标题栏不再放第二个。
-								onClose={conversation || tabbed ? undefined : () => closePane(scope, kind)}
 								onPopOut={popOutOf(kind)}
 								// 标题栏上了顶栏的面板不画自己的那一行，也不留它的高度。
 								chrome={conversation || !lifted}
 								onFocus={() => usePaneDock.getState().focus(scope, kind)}
-								onLanded={landed}
 								reserveHeader={!conversation || header !== null}
-								customHeader={
-									conversation ? (
-										<>
-											{/* A card, like every pane — see `DockPane`. */}
-											{header?.({ start: cardRoom(inset), end: cardRoom(insetEnd) })}
-											{draggable && !maximized && (
-												<PaneGrip kind={kind} label={label} carried={moving} onDragStart={onDragStart} onMove={onMove} onArrowMove={onArrowMove} />
-											)}
-										</>
-									) : undefined
-								}
+								// A card, like every pane — see `DockPane`.
+								customHeader={conversation ? <>{header?.({ start: cardRoom(inset), end: cardRoom(insetEnd) })}</> : undefined}
 							>
 								{conversation ? (
 									children
 								) : (
 									/*
-									 * 两种排法同一个结构：切换排法时面板正文的位置不变，终端和浏览器才不会被重建。
-									 * 标签页排法下标题栏让给了标签条，面板自己的标题控件（文件的路径、交付的文件名）挪到它下面一行。
+									 * 标题栏让给了标签条，面板自己的标题控件（文件的路径、交付的文件名）挪到它下面一行。
 									 */
 									<>
-										{tabbed && panelHeader && (
+										{panelHeader && (
 											<div data-dock-subheader={kind} className={`flex shrink-0 items-center px-2 pb-1 ${lifted ? "pt-1" : ""}`}>
 												{panelHeader}
 											</div>

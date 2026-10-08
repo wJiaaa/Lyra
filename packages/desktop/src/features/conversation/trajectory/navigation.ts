@@ -6,7 +6,7 @@ export const useTraceFocus = create<{ sessionId: string; correlationId: string; 
 export function showTrace(sessionId: string, correlationId: string): void {
 	useTraceFocus.setState(state => ({ sessionId, correlationId, nonce: state.nonce + 1 }));
 	// In that conversation's screen — a screen's dock is keyed by its conversation — not the focused one.
-	openScopedPanel("trajectory", undefined, sessionId);
+	openScopedPanel("trajectory", sessionId);
 }
 
 export function consumeTraceFocus(nonce: number): void {

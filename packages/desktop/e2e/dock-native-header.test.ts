@@ -8,7 +8,8 @@ import { seedInteractions } from "./interaction-fixture.ts";
 
 let app: RunningApp;
 const pane = '[data-dock-pane="review"]';
-const button = `${pane} button[aria-label*="全屏"]`;
+// 单屏时这一栏的按钮在窗口顶栏里，见 `ToolbarPanelBar`。
+const button = '[data-ly-toolbar-panel] button[aria-label*="全屏"]';
 before(async () => {
 	app = await startApp({ port: 9653, seed: seedInteractions });
 	await until(app, `document.querySelector('[data-ly-row="qa-short"] > button')`);
@@ -21,28 +22,16 @@ interface ButtonFrame {
 	y: number;
 	width: number;
 	height: number;
-	rightGap: number;
-	paneRight: number;
-	paddingEnd: number;
-	headingGap: number;
-	cardGap: number;
 }
 interface Evidence {
 	frames: (ButtonFrame | null)[];
 	clicks: (string | null)[];
 	retained: boolean;
 	finalLabel: string | null;
-	nativePlatform: string;
 }
 
-test("rapid native fullscreen clicks keep the header sized and anchored without hitting close", async (t) => {
+test("rapid fullscreen clicks keep the button sized and anchored, and never close the panel", async (t) => {
 	const failures: string[] = [];
-	/*
-	 * Two widths at which Git sits beside the conversation. Only there does full screen grow the pane
-	 * leftwards under a button that stays put. Below about 1050px with the sidebar and the rail open the
-	 * dock cannot hold both floors side by side, Git goes under the conversation, and full screen has to
-	 * bring its title bar up to the top — a second click at the same point lands in the changes list.
-	 */
 	for (const theme of ["light", "dark"]) for (const width of [1200, 1100]) {
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
 		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)},reduceMotion:'off'}})})()`);
@@ -58,7 +47,7 @@ test("rapid native fullscreen clicks keep the header sized and anchored without 
 		await app.evaluate(`(()=>{
 			const pane=document.querySelector('${pane}'),original=pane.querySelector('[data-view="changes"]');
 			const trace=window.__headerTrace={active:true,frames:[],clicks:[],pane,original};
-			function tick(){const e=document.querySelector('${button}'),r=e?.getBoundingClientRect(),p=pane.getBoundingClientRect(),h=pane.querySelector('[data-dock-header]'),heading=pane.querySelector('[data-dock-heading-slot] > [data-dock-heading]'),surface=pane.querySelector('[data-dock-motion]'),card=pane.querySelector('.ly-dock-card');trace.frames.push(r?{x:r.x,y:r.y,width:r.width,height:r.height,rightGap:p.right-r.right,paneRight:p.right,paddingEnd:parseFloat(getComputedStyle(h).paddingRight),headingGap:heading.getBoundingClientRect().left-surface.getBoundingClientRect().left,cardGap:heading.getBoundingClientRect().left-card.getBoundingClientRect().left}:null);if(trace.active)requestAnimationFrame(tick)}requestAnimationFrame(tick);
+			function tick(){const r=document.querySelector('${button}')?.getBoundingClientRect();trace.frames.push(r?{x:r.x,y:r.y,width:r.width,height:r.height}:null);if(trace.active)requestAnimationFrame(tick)}requestAnimationFrame(tick);
 			trace.listener=e=>trace.clicks.push(e.target.closest('button')?.getAttribute('aria-label')??null);
 			document.addEventListener('click',trace.listener,true);
 		})()`);
@@ -69,22 +58,14 @@ test("rapid native fullscreen clicks keep the header sized and anchored without 
 			await frames(app, 2);
 		}
 		await frames(app, 30);
-		const evidence = await app.evaluate<Evidence>(`(()=>{const trace=window.__headerTrace;trace.active=false;document.removeEventListener('click',trace.listener,true);return {frames:trace.frames,clicks:trace.clicks,retained:trace.pane===document.querySelector('${pane}')&&trace.original?.isConnected,finalLabel:document.querySelector('${button}')?.getAttribute('aria-label')??null,nativePlatform:navigator.platform}})()`);
+		const evidence = await app.evaluate<Evidence>(`(()=>{const trace=window.__headerTrace;trace.active=false;document.removeEventListener('click',trace.listener,true);return {frames:trace.frames,clicks:trace.clicks,retained:trace.pane===document.querySelector('${pane}')&&trace.original?.isConnected,finalLabel:document.querySelector('${button}')?.getAttribute('aria-label')??null}})()`);
 		const visible = evidence.frames.filter((frame) => frame !== null);
 		const xRange = visible.length ? Math.max(...visible.map((frame) => frame.x)) - Math.min(...visible.map((frame) => frame.x)) : Infinity;
-		const headingRange = Math.max(...visible.map((frame) => frame.headingGap)) - Math.min(...visible.map((frame) => frame.headingGap));
-		t.diagnostic(JSON.stringify({ theme, width, platform: evidence.nativePlatform, clicks: evidence.clicks, frames: visible.length, xRange, headingRange, cardGap: [Math.min(...visible.map(f=>f.cardGap)),Math.max(...visible.map(f=>f.cardGap))], paddingEnd: visible[0]?.paddingEnd }));
-		if (evidence.frames.some((frame) => frame === null)) failures.push(`${theme}/${width}: Git was closed by a fullscreen click`);
+		t.diagnostic(JSON.stringify({ theme, width, clicks: evidence.clicks, frames: visible.length, xRange }));
+		if (evidence.frames.some((frame) => frame === null)) failures.push(`${theme}/${width}: the fullscreen button went away mid-sequence`);
 		if (!evidence.retained || evidence.finalLabel !== "全屏：Git") failures.push(`${theme}/${width}: content or final state was lost`);
 		if (evidence.clicks.length !== 8 || evidence.clicks.some((label, i) => label !== (i % 2 ? "退出全屏：Git" : "全屏：Git"))) failures.push(`${theme}/${width}: a native click missed its fullscreen control`);
-		if (xRange > 0.5 || visible.some((frame) => Math.abs(frame.width - 20) > 0.5 || Math.abs(frame.height - 20) > 0.5 || Math.abs(frame.rightGap - (visible[0]?.rightGap ?? 0)) > 0.5)) failures.push(`${theme}/${width}: header geometry drifted while its right boundary stayed fixed`);
-		if (headingRange > 0.5 || visible.some((frame) => frame.cardGap < 0)) failures.push(`${theme}/${width}: title left its visual card during reversal`);
-		const headerPad = await app.evaluate<number>(`(()=>{const h=document.querySelector('[data-ly-window-header]');return h?parseFloat(getComputedStyle(h).paddingRight):0;})()`);
-		// Caption buttons live on the window header. A pane that still sits on that row must
-		// reserve them itself; once the header exists, 6px pane padding is correct.
-		if (/Win/.test(evidence.nativePlatform) && headerPad <= 6 && !(visible[0] && visible[0].paddingEnd > 6)) {
-			failures.push(`${theme}/${width}: Windows titlebar controls were not reserved`);
-		}
+		if (xRange > 0.5 || visible.some((frame) => Math.abs(frame.width - visible[0]!.width) > 0.5 || Math.abs(frame.height - visible[0]!.height) > 0.5)) failures.push(`${theme}/${width}: the button moved or changed size while it was being clicked`);
 		if (process.env.PLUME_E2E_ARTIFACTS) {
 			await mkdir(process.env.PLUME_E2E_ARTIFACTS, { recursive: true });
 			await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, `native-header-${theme}-${width}.json`), JSON.stringify(evidence, null, 2));
@@ -96,9 +77,10 @@ test("rapid native fullscreen clicks keep the header sized and anchored without 
 });
 
 test("a window resize finishes the visual flight before taking over pane geometry", async (t) => {
+	const size = await app.evaluate<{ width: number; height: number }>(`(()=>{const r=document.querySelector('${button}').getBoundingClientRect();return {width:r.width,height:r.height}})()`);
 	const started = await app.evaluate<boolean>(`(async()=>{
 		const pane=document.querySelector('${pane}'),surface=pane.querySelector('[data-dock-motion]');
-		pane.querySelector('button[aria-label^="全屏"]').click();
+		document.querySelector('${button}').click();
 		await new Promise(requestAnimationFrame);
 		return surface.getAnimations().some(a=>a.id==='ly-dock-geometry'&&a.playState==='running');
 	})()`);
@@ -106,91 +88,9 @@ test("a window resize finishes the visual flight before taking over pane geometr
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1160, height: 820, deviceScaleFactor: 1, mobile: false });
 	await frames(app, 2);
 	const state = await app.evaluate<{ active: number; width: number; height: number; retained: boolean }>(`(()=>{
-		const pane=document.querySelector('${pane}'),surface=pane.querySelector('[data-dock-motion]'),r=pane.querySelector('button[aria-label*="全屏"]').getBoundingClientRect();
+		const pane=document.querySelector('${pane}'),r=document.querySelector('${button}').getBoundingClientRect();
 		return {active:pane.getAnimations({subtree:true}).filter(a=>a.id==='ly-dock-geometry'&&a.playState==='running').length,width:r.width,height:r.height,retained:!!pane.querySelector('[data-view="changes"]')};
 	})()`);
 	t.diagnostic(JSON.stringify(state));
-	assert.deepEqual(state, { active: 0, width: 20, height: 20, retained: true });
-});
-
-test("translated terminal tabs stay clipped before the fixed controls and reverse continuously", async (t) => {
-	await app.evaluate(`document.querySelector('${button}').click()`);
-	await frames(app, 30);
-	// A third column cannot fit the conversation and tool floors at these viewport widths.
-	await app.evaluate(`document.querySelector('[data-dock-header="review"] button[aria-label^="关闭"]').click()`);
-	await app.evaluate(`document.querySelector('button[aria-label="面板"]').click()`);
-	await until(app, `document.querySelector('[role="menuitem"]')`);
-	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.trim().startsWith('终端')).click()`);
-	await until(app, `document.querySelector('[data-dock-pane="terminal"] [data-tab]')`);
-	for (let i = 0; i < 7; i++) {
-		await app.evaluate(`document.querySelector('button[aria-label="新建终端"]').click()`);
-		await until(app, `document.querySelectorAll('[data-dock-pane="terminal"] [data-tab]').length===${i + 2}`);
-	}
-	const reports = [];
-	for (const theme of ["light", "dark"]) for (const width of [1200, 1024]) {
-		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
-		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}})})()`);
-		await until(app, `document.documentElement.classList.contains(${JSON.stringify(theme)})`);
-		await app.evaluate(`document.querySelector('[data-dock-grip="terminal"]').dispatchEvent(new KeyboardEvent('keydown',{key:${JSON.stringify(width === 1200 ? "ArrowRight" : "ArrowLeft")},altKey:true,bubbles:true}))`);
-		await frames(app, 30);
-		const layout = await app.evaluate<{ viewport: number; panes: { kind: string; width: number; height: number }[] }>(`(()=>{
-			const shown=[...document.querySelectorAll('[data-dock-pane]')].filter(el=>!el.closest('[inert]')&&el.checkVisibility({visibilityProperty:true,opacityProperty:true}));
-			// Measure the tiled conversation rather than counting its outer window wrapper again.
-			const leaves=shown.filter(el=>!shown.some(child=>child!==el&&el.contains(child)));
-			return {viewport:innerWidth,panes:leaves.map(el=>{const r=el.getBoundingClientRect();return {kind:el.dataset.dockPane,width:r.width,height:r.height}})};
-		})()`);
-		assert.equal(layout.viewport, width);
-		assert.deepEqual(layout.panes.map(pane => pane.kind).sort(), ["conversation", "terminal"]);
-		for (const pane of layout.panes) {
-			assert.ok(pane.width >= (pane.kind === "conversation" ? 420 : 300) - 0.5, JSON.stringify(pane));
-			assert.ok(pane.height >= (pane.kind === "conversation" ? 260 : 150) - 0.5, JSON.stringify(pane));
-		}
-		assert.equal((await app.windows()).filter(window => window.boot.kind === "panel").length, 0, "terminal header is tested inside the readable dock");
-		type Sample = { hit: boolean; boundary: boolean; noDrag: boolean; titleVisible: boolean; width: number; height: number; round: number; frame: number; tabs: { left: number; right: number; wide: boolean; own: boolean }[]; strip: { left: number; right: number }; edge: number; paneWidth: number };
-		const report = await app.evaluate<{ samples: Sample[]; deltas: number[]; retained: boolean }>(`(async()=>{
-			const pane=document.querySelector('[data-dock-pane="terminal"]'),title=pane.querySelector('[data-dock-heading-slot] > [data-dock-heading]'),original=pane.querySelector('.xterm-screen');
-			const frame=()=>new Promise(requestAnimationFrame),rect=()=>[...pane.querySelectorAll('[data-dock-heading]')].flatMap(e=>{const r=e.getBoundingClientRect();return [r.x,r.y]});
-			const samples=[],deltas=[];
-			for(let i=0;i<8;i++){
-				const from=rect();pane.querySelector('button[aria-label*="全屏"]').click();await Promise.resolve();const to=rect();deltas.push(Math.max(...from.map((n,i)=>Math.abs(n-to[i]))));
-				for(let j=0;j<(i<2?20:2);j++){
-					await frame();const actions=pane.querySelector('[data-dock-actions]'),slot=pane.querySelector('[data-dock-heading-slot]'),r=pane.querySelector('button[aria-label*="全屏"]').getBoundingClientRect();
-					const strip=title.querySelector('.ly-fade-tail').getBoundingClientRect(),edge=actions.getBoundingClientRect().left;
-					const boundary=[...pane.querySelectorAll('[data-dock-heading]:not([data-dock-grip])')].every(e=>{const clip=getComputedStyle(e).clipPath,inset=clip==='none'?0:parseFloat(clip.slice(6,-1).split(' ')[1]);return e.getBoundingClientRect().right-inset<=edge+.5});
-					// 每个标签自己的可见窗口，留着给失败时看：宽度归零还是中心点被别人接了，改的地方不一样。
-					const tabs=[...title.querySelectorAll('[data-tab] > button:first-child')].map(b=>{const q=b.getBoundingClientRect(),left=Math.max(q.left,strip.left,0),right=Math.min(q.right,strip.right,edge,innerWidth);return {left:Math.round(left),right:Math.round(right),wide:right-left>1,own:b.contains(document.elementFromPoint((left+right)/2,q.y+q.height/2))};});
-					/*
-					 * 有没有宽度，而不是中心点归不归它。
-					 *
-					 * 这条在 Windows 上反复红，诊断指到 round 1 的第 7 帧：六个标签都还有 35px 可见，
-					 * 但 elementFromPoint 全部落到别的元素上——那一刻整条标签栏正随着全屏切换在滑，
-					 * 命中测试量的是动画时序，不是可见性。
-					 *
-					 * 去掉它不留缺口：actions 有没有被盖住由 hit 独立守着（每个按钮九个采样点都要
-					 * 命中自己），标签有没有越过 actions 由 boundary 守着。这里要守的是最后一件事
-					 * ——裁剪不能把标签裁到一个不剩。
-					 */
-					const titleVisible=tabs.some(t=>t.wide);
-					samples.push({hit:[...actions.querySelectorAll('button')].every(b=>{const r=b.getBoundingClientRect();return [.15,.5,.85].every(x=>[.15,.5,.85].every(y=>b.contains(document.elementFromPoint(r.x+r.width*x,r.y+r.height*y))))}),boundary:boundary&&slot.getBoundingClientRect().right<=edge,noDrag:getComputedStyle(title.firstElementChild).getPropertyValue('-webkit-app-region')==='no-drag',titleVisible,width:r.width,height:r.height,round:i,frame:j,tabs,strip:{left:Math.round(strip.left),right:Math.round(strip.right)},edge:Math.round(edge),paneWidth:Math.round(pane.getBoundingClientRect().width)});
-				}
-			}
-			for(let i=0;i<30;i++)await frame();return {samples,deltas,retained:original===pane.querySelector('.xterm-screen')};
-		})()`);
-		reports.push({ theme, width, ...report });
-		t.diagnostic(JSON.stringify({ theme, width, samples: report.samples.length, maxReversal: Math.max(...report.deltas), hit: report.samples.every(s=>s.hit), retained: report.retained }));
-		/*
-		 * 六个条件揉在一句里，坏了也不说是哪一个。
-		 *
-		 * 这条在 Windows 上红过，日志里只有这句话——按钮被盖住、标签越界、尺寸不是 20，读起来
-		 * 一模一样。把第一个不合格的采样连同它自己的字段打出来，下次的报告自己会说是哪一条。
-		 *
-		 * 握把也挂 data-dock-heading，好跟着几何动画走；它在卡片正中、顶边，300px 的 Windows
-		 * 面板上那个中心已经越过操作键。标题必须让开，握把不必。
-		 */
-		const bad = report.samples.find(s => !(s.hit && s.boundary && s.noDrag && s.titleVisible && s.width === 20 && s.height === 20));
-		assert.ok(!bad, `terminal tabs remain visible without covering or scaling pane actions — ${JSON.stringify({ theme, width, bad })}`);
-		assert.ok(report.deltas.every(delta=>delta < 1), "title and grip reverse from their visible positions");
-		assert.equal(report.retained, true);
-	}
-	if (process.env.PLUME_E2E_ARTIFACTS) await writeFile(join(process.env.PLUME_E2E_ARTIFACTS, "terminal-header-motion.json"), JSON.stringify(reports, null, 2));
+	assert.deepEqual(state, { active: 0, ...size, retained: true });
 });

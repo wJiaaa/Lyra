@@ -64,7 +64,7 @@ beforeEach(() => {
 		sessions: [meta("a", ALPHA), meta("b", BETA)], sessionCache: {}, workspaceByPath: { [BETA.path]: BETA }, settings: null,
 	});
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	// Both screens measured, focus on 甲's — what `SplitWorkspace` reports for this split.
 	usePaneDock.getState().rememberSize("a", { width: 1200, height: 900 });
 	usePaneDock.getState().rememberSize("b", { width: 1200, height: 900 });

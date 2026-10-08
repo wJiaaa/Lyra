@@ -5,6 +5,7 @@ import { createServer, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { promisify } from "node:util";
+import { seal } from "@plume/core";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { frames, openPane, shot } from "./drive.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
@@ -55,7 +56,15 @@ before(async () => {
 		await seedInteractions(home);
 		project = join(home, "project");
 		await promisify(execFile)("git", ["remote", "add", "origin", `${baseUrl}/fixture/repo.git`], { cwd: project });
-		await writeFile(join(home, "forges.json"), JSON.stringify({ entries: [{ account: { id: "synthetic-forge", kind: "github", baseUrl, login: "synthetic", label: "Synthetic local Forge", avatarUrl: null, enabled: true }, token: "synthetic-test-token", encrypted: false }] }));
+		/*
+		 * Sealed with the profile's own key, the way the app files it. A plaintext token reads as no
+		 * token since 224c2b77, and the pane then asked an anonymous https://127.0.0.1 instead of this
+		 * server — an empty list, and not one request here.
+		 */
+		const previous = process.env.PLUME_HOME;
+		process.env.PLUME_HOME = home;
+		const token = await seal("synthetic-test-token").finally(() => { if (previous === undefined) delete process.env.PLUME_HOME; else process.env.PLUME_HOME = previous; });
+		await writeFile(join(home, "forges.json"), JSON.stringify({ entries: [{ account: { id: "synthetic-forge", kind: "github", baseUrl, login: "synthetic", label: "Synthetic local Forge", avatarUrl: null, enabled: true }, token }] }));
 	} });
 	await until(`document.querySelector('[data-ly-row="qa-short"] > button')`);
 	await click(`document.querySelector('[data-ly-row="qa-short"] > button')`);
@@ -108,7 +117,8 @@ async function openGit(): Promise<void> {
 
 async function closeGit(): Promise<void> {
 	if (!await app.evaluate(`Boolean(document.querySelector('${pane}'))`)) return;
-	await click(`document.querySelector('[data-dock-header="review"] button[aria-label^="关闭"]')`);
+	// A hidden pane keeps its own copy of the tab row mounted; the one to press is the one on screen.
+	await click(`[...document.querySelectorAll('[data-panel-tab="review"] button[aria-label^="关闭"]')].find((e)=>e.checkVisibility({visibilityProperty:true,opacityProperty:true}))`);
 	await until(`!document.querySelector('${pane}')`);
 }
 

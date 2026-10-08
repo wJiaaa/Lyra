@@ -33,9 +33,11 @@ test("hover and wheel leave scroll ownership with the pointer; arrows reveal the
 	const afterHover = await app.evaluate<number>(`${view}.scrollTop`);
 	t.diagnostic(JSON.stringify({ before, afterHover }));
 	assert.equal(afterHover, before, "hovering a partially visible row must not pull it into the viewport");
-	await app.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaY: 180, deltaX: 0 }); await frames(app);
+	await app.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaY: 180, deltaX: 0 });
+	// By the clock: the wheel scrolls smoothly over a fixed time, and 20 frames is half of that on a 120Hz screen.
+	await app.evaluate(`new Promise((r) => setTimeout(r, 400))`);
 	const wheelTop = await app.evaluate<number>(`${view}.scrollTop`);
-	assert.ok(wheelTop > before + 100, "the wheel moves the list under the stationary pointer");
+	assert.ok(wheelTop > before + 100, `the wheel moves the list under the stationary pointer: ${before} → ${wheelTop}`);
 	await frames(app); assert.equal(await app.evaluate(`${view}.scrollTop`), wheelTop);
 	for (let i = 0; i < 14; i++) await press(app, "ArrowDown", 40);
 	const selected = await app.evaluate<{top:number;bottom:number;viewTop:number;viewBottom:number}>(`(()=>{const r=document.querySelector('.ly-command-menu [aria-selected="true"]').getBoundingClientRect(),v=${view}.getBoundingClientRect();return {top:r.top,bottom:r.bottom,viewTop:v.top,viewBottom:v.bottom}})()`);
@@ -51,9 +53,10 @@ test("menu thumbs stay inside their rounded surfaces in both themes and narrow w
 		await openMenu();
 		for (const top of [0, 100000]) {
 			await app.evaluate(`${view}.scrollTop=${top}`); await frames(app);
-			const metrics = await app.evaluate<{top:number;bottom:number;right:number;gap:number;left:number;panelRight:number}>(`(()=>{const m=document.querySelector('.ly-command-menu'),r=m.getBoundingClientRect(),thumb=m.querySelector('.ly-thumb').getBoundingClientRect(),row=m.querySelector('[role="option"]').getBoundingClientRect();return {top:thumb.top-r.top,bottom:r.bottom-thumb.bottom,right:r.right-thumb.right,gap:thumb.left-row.right,left:r.left,panelRight:r.right}})()`);
+			const metrics = await app.evaluate<{inset:number;top:number;bottom:number;right:number;gap:number;left:number;panelRight:number}>(`(()=>{const m=document.querySelector('.ly-command-menu'),r=m.getBoundingClientRect(),thumb=m.querySelector('.ly-thumb').getBoundingClientRect(),row=m.querySelector('[role="option"]').getBoundingClientRect();return {inset:parseFloat(getComputedStyle(m).getPropertyValue('--ly-menu-inset')),top:thumb.top-r.top,bottom:r.bottom-thumb.bottom,right:r.right-thumb.right,gap:thumb.left-row.right,left:r.left,panelRight:r.right}})()`);
 			t.diagnostic(JSON.stringify({theme,width,...metrics}));
-			assert.ok(metrics.top >= 6 && metrics.bottom >= 6 && metrics.right >= 6 && metrics.gap >= 4, JSON.stringify(metrics));
+			// Inside the rounded clip by the menu's one inset (`--ly-menu-inset`, 4px since 8df9a654), whatever it is tuned to.
+			assert.ok(metrics.top >= metrics.inset && metrics.bottom >= metrics.inset && metrics.right >= metrics.inset && metrics.gap >= 4, JSON.stringify(metrics));
 			assert.ok(metrics.left >= 0 && metrics.panelRight <= width);
 		}
 		if (process.env.PLUME_E2E_ARTIFACTS) {

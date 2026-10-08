@@ -4,13 +4,12 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { emptyDockTree, usePaneDock } from "../src/features/dock/pane-store.ts";
-import { has } from "../src/features/dock/tree.ts";
-import { fitTree, layoutPanes } from "../src/features/dock/layout.ts";
-import { paneFloor } from "../src/features/dock/geometry.ts";
+import { has, leafOf, type DockNode } from "../src/features/dock/tree.ts";
+import { insertTab, panelsOf } from "../src/features/dock/tabs.ts";
 import { toggleScopedPanel } from "../src/features/dock/popout.ts";
 
 function resetPaneDock(): void {
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, host: null });
 }
 
 test("opening a panel is local to that conversation screen", () => {
@@ -27,20 +26,6 @@ test("closing the last panel returns the screen to a lone conversation", () => {
 	usePaneDock.getState().close("a", "terminal");
 	assert.deepEqual(usePaneDock.getState().tree("a"), emptyDockTree);
 	assert.equal("a" in usePaneDock.getState().trees, true, "an empty loaded dock must not be confused with an unread one");
-});
-
-test("a share that did not move keeps the stored tree", () => {
-	resetPaneDock();
-	usePaneDock.getState().open("a", "terminal");
-	const first = usePaneDock.getState().trees;
-	const share = usePaneDock.getState().tree("a").type === "split" ? usePaneDock.getState().tree("a").sizes[0] : 0.5;
-	usePaneDock.getState().setShare("a", [], 0, share ?? 0.5);
-	assert.equal(usePaneDock.getState().trees, first);
-	usePaneDock.getState().setShare("a", [], 0, 0.55);
-	const moved = usePaneDock.getState().trees;
-	assert.notEqual(moved, first);
-	usePaneDock.getState().setShare("a", [], 0, 0.55);
-	assert.equal(usePaneDock.getState().trees, moved);
 });
 
 test("toggle puts a panel away when it is already on that screen", () => {
@@ -62,73 +47,38 @@ test("in the narrow layout a panel hidden behind the conversation is brought for
 	assert.equal(has(usePaneDock.getState().tree("a"), "review"), false, "and pressed again while in front, it goes");
 });
 
-test("moving a panel stays inside that screen's tree", () => {
+test("a new panel is the last tab, and one already open is brought forward rather than added", () => {
 	resetPaneDock();
-	usePaneDock.getState().open("a", "browser");
-	usePaneDock.getState().moveTo("a", "browser", { side: "bottom", kind: "conversation" });
-	assert.equal(has(usePaneDock.getState().tree("a"), "browser"), true);
-	assert.equal(has(usePaneDock.getState().tree("b"), "browser"), false);
-	const tree = usePaneDock.getState().tree("a");
-	assert.equal(tree.type, "split");
-	if (tree.type === "split") assert.equal(tree.dir, "col");
+	const dock = usePaneDock.getState();
+	for (const kind of ["browser", "terminal", "files"] as const) assert.equal(dock.open("a", kind), true);
+	assert.deepEqual(panelsOf(usePaneDock.getState().tree("a")), ["browser", "terminal", "files"]);
+	dock.open("a", "browser");
+	assert.deepEqual(panelsOf(usePaneDock.getState().tree("a")), ["browser", "terminal", "files"], "no second browser");
+	assert.equal(usePaneDock.getState().tab.a, "browser", "it is the one in front");
 });
 
-test("the first panel is a column at the screen's edge and the next stacks below it — measured or not", () => {
-	/*
-	 * One rule whatever the screen: a single screen always opened its first panel as a column taking
-	 * about a third, and a split screen used to halve the conversation instead. A panel belongs to the
-	 * conversation, so it opens the same way wherever the conversation is on screen.
-	 */
-	for (const measured of [true, false]) {
-		resetPaneDock();
-		if (measured) usePaneDock.getState().rememberSize("a", { width: 1200, height: 700 });
-		assert.equal(usePaneDock.getState().open("a", "browser"), true);
-		assert.deepEqual(layoutPanes(usePaneDock.getState().tree("a")).map(({ kind, left, width }) => ({ kind, left, width })), [
-			{ kind: "conversation", left: 0, width: 0.7 }, { kind: "browser", left: 0.7, width: 0.3 },
-		], measured ? "measured" : "not yet measured");
-		assert.equal(usePaneDock.getState().open("a", "terminal"), true);
-		const boxes = layoutPanes(usePaneDock.getState().tree("a"));
-		assert.deepEqual(boxes.map(({ kind, top, height }) => ({ kind, top, height })), [
-			{ kind: "conversation", top: 0, height: 1 },
-			{ kind: "browser", top: 0, height: 0.5 },
-			{ kind: "terminal", top: 0.5, height: 0.5 },
-		]);
-	}
+test("a panel coming home can ask for its old place in the row of tabs", () => {
+	resetPaneDock();
+	const dock = usePaneDock.getState();
+	for (const kind of ["browser", "terminal"] as const) dock.open("a", kind);
+	dock.open("a", "files", 1);
+	assert.deepEqual(panelsOf(usePaneDock.getState().tree("a")), ["browser", "files", "terminal"]);
+	dock.open("a", "review", 0);
+	dock.open("a", "tasks", 99);
+	assert.deepEqual(panelsOf(usePaneDock.getState().tree("a")), ["review", "browser", "files", "terminal", "tasks"]);
 });
 
-test("five panes fit when the tile has room for every readable minimum", () => {
-	resetPaneDock();
-	const span = { width: 1200, height: 700 };
-	usePaneDock.getState().rememberSize("a", span);
-	for (const kind of ["browser", "terminal", "files", "review"] as const) assert.equal(usePaneDock.getState().open("a", kind), true);
-	const boxes = layoutPanes(fitTree(usePaneDock.getState().tree("a"), span, paneFloor));
-	assert.equal(boxes.length, 5);
-	for (const box of boxes) {
-		assert.ok(box.width * span.width >= paneFloor(box.kind).width - 0.01);
-		assert.ok(box.height * span.height >= paneFloor(box.kind).height - 0.01);
-		assert.ok(box.left + box.width <= 1.00001 && box.top + box.height <= 1.00001);
-		for (const other of boxes) {
-			if (other === box) continue;
-			assert.ok(box.left + box.width <= other.left + 0.00001 || other.left + other.width <= box.left + 0.00001 || box.top + box.height <= other.top + 0.00001 || other.top + other.height <= box.top + 0.00001);
-		}
-	}
-});
-
-test("a move the screen cannot hold is kept as asked and drawn squeezed, never refused", () => {
-	/*
-	 * The floors choose how a layout is drawn, never whether a person's arrangement stands. A
-	 * 504px screen cannot put a panel beside a 420px conversation, so it is drawn stacked — and the
-	 * arrangement asked for is what a wider screen shows again.
-	 */
-	resetPaneDock();
-	const span = { width: 504, height: 424 };
-	usePaneDock.getState().rememberSize("a", span);
-	assert.equal(usePaneDock.getState().open("a", "browser", { side: "bottom", kind: "conversation" }), true);
-	usePaneDock.getState().moveTo("a", "browser", { side: "right", kind: "conversation" });
-	const stored = usePaneDock.getState().tree("a");
-	assert.ok(stored.type === "split" && stored.dir === "row", "the stored tree is what was asked for");
-	const drawn = fitTree(stored, span, paneFloor);
-	assert.ok(drawn.type === "split" && drawn.dir === "col", "and it is drawn the way it fits");
+test("insertTab keeps the order however the stored tree happens to be shaped", () => {
+	// A layout saved before panels were tabs: a column of two beside the conversation.
+	const stored: DockNode = {
+		type: "split",
+		dir: "row",
+		children: [leafOf("conversation"), { type: "split", dir: "col", children: [leafOf("browser"), leafOf("terminal")], sizes: [0.5, 0.5] }],
+		sizes: [0.7, 0.3],
+	};
+	assert.deepEqual(panelsOf(insertTab(stored, "files")), ["browser", "terminal", "files"]);
+	assert.deepEqual(panelsOf(insertTab(stored, "files", 1)), ["browser", "files", "terminal"]);
+	assert.deepEqual(panelsOf(insertTab(leafOf("conversation"), "files")), ["files"]);
 });
 
 test("every screen's title bar is handed to its dock, so it covers the transcript and never a panel", async () => {

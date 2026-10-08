@@ -170,7 +170,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 	const openTurn = (path?: string) => {
 		hideHover();
 		useDeliveryReview.getState().open({ sessionId, timestamp, path: path ?? null }, data);
-		openScopedPanel("delivery", undefined, screen ?? undefined);
+		openScopedPanel("delivery", screen ?? undefined);
 	};
 	const remaining = files.length - PREVIEW_FILES;
 	const relative = (path: string) => workspace ? relativeTo(workspace, path) : path;

@@ -9,7 +9,7 @@
  * depth — it gets unmounted and remounted. For most panels that would only lose a scroll position.
  * For the terminal it kills the shell and its scrollback; for the browser it reloads the page. The
  * old panel already knew this, which is why it kept every tab mounted and merely hid the ones
- * behind. Dragging panes around makes the same promise, and it has to be kept the same way.
+ * behind, and switching tabs makes the same promise.
  *
  * So the tree is never rendered. It is *measured*: turned into a flat list of boxes in fractions
  * of the dock, and the panes are drawn as one flat, stable list positioned absolutely. React sees
@@ -17,7 +17,7 @@
  * which is also what makes the rearrangement animate for free.
  */
 
-import { COLUMN_LIMIT, EPSILON } from "./geometry.ts";
+import { EPSILON } from "./geometry.ts";
 import type { Axis, DockNode, PaneKind } from "./tree.ts";
 
 /**
@@ -233,23 +233,6 @@ function floorOf(node: DockNode, axis: Axis, floor: (kind: PaneKind) => Floor): 
 }
 
 /**
- * Whether this tree still clears every pane's floor inside `span`.
- *
- * Asked *before* a pane is inserted or moved. `fitTree` can keep drawing a tree that does not
- * clear its floors — it overlaps along a row — which is how a 2×2 tile produced a conversation
- * sliver. The honest answer here is no, and the caller pops the pane out instead of committing.
- */
-export function clearsFloors(
-	node: DockNode,
-	span: { width: number; height: number },
-	floor: (kind: PaneKind) => Floor,
-): boolean {
-	if (!(span.width > 0) || !(span.height > 0)) return false;
-	return floorOf(node, "row", floor) <= span.width + EPSILON
-		&& floorOf(node, "col", floor) <= span.height + EPSILON;
-}
-
-/**
  * The tree as it should be *drawn*, with every pane at or above its floor.
  *
  * Separate from the tree that is stored, and deliberately so: the stored one keeps the shares the
@@ -257,7 +240,7 @@ export function clearsFloors(
  * layout expressed against a particular window size, which is the only frame in which "too small
  * to read" means anything.
  */
-export function fitTree(node: DockNode, span: { width: number; height: number }, floor: (kind: PaneKind) => Floor, preserveAxis = false): DockNode {
+export function fitTree(node: DockNode, span: { width: number; height: number }, floor: (kind: PaneKind) => Floor): DockNode {
 	if (node.type === "leaf") return node;
 	if (!(span.width > 0) || !(span.height > 0)) return node;
 
@@ -270,23 +253,10 @@ export function fitTree(node: DockNode, span: { width: number; height: number },
 	};
 	const other = node.dir === "row" ? "col" : "row";
 	/*
-	 * Turning the arrangement on its side is worth it for a pair, and not for a crowd.
-	 *
-	 * Clearing every floor is necessary and is not sufficient, which is what this used to assume.
-	 * Two panes that will not fit side by side are both usable stacked, and that is the Windows case
-	 * this was written for — a 498px dock, a conversation and a terminal, where a column is the only
-	 * arrangement in which you can read either of them.
-	 *
-	 * Four is a different thing wearing the same arithmetic. Every pane clears its 150px floor and
-	 * the answer is still a column of full-width strips: the arrangement someone had made, replaced
-	 * on the layout's own initiative by one they did not ask for and cannot drag back — because this
-	 * runs on every render and re-derives it every frame. That is what "the window feels locked" was.
-	 *
-	 * Past `COLUMN_LIMIT` the room is not there to be found by rotating, and the honest answer is
-	 * that the row keeps its shape and overflows instead — see `fitSizes`.
+	 * The conversation and one tab: two panes that will not fit side by side are both usable
+	 * stacked — a 498px dock on Windows, a conversation and a terminal.
 	 */
-	const worthTurning = node.children.length <= COLUMN_LIMIT;
-	const dir = !preserveAxis && !fits(node.dir) && worthTurning && fits(other) ? other : node.dir;
+	const dir = !fits(node.dir) && fits(other) ? other : node.dir;
 	const along = dir === "row" ? span.width : span.height;
 	const sizes = node.children.map((_, i) => (node.sizes[i] ?? 0) * along);
 	const floors = node.children.map((child) => floorOf(child, dir, floor));
@@ -302,7 +272,6 @@ export function fitTree(node: DockNode, span: { width: number; height: number },
 				child,
 				dir === "row" ? { width: fitted[i], height: span.height } : { width: span.width, height: fitted[i] },
 				floor,
-				preserveAxis,
 			),
 		),
 	};

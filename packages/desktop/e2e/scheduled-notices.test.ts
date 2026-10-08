@@ -5,7 +5,7 @@
  * it: a task started, failed or could not start, and the window never said so. This runs one task
  * for real — the ▶ on its card, a session, a scripted model — and makes another fail to start for
  * real, then follows each notice to where it is shown now: the task's card, the line above the
- * composer, the count on the sidebar's 已安排.
+ * composer, the count on the rail's 定时任务.
  *
  * A turn that fails after it started (`prompt()` rejecting) cannot be brought about from outside, so
  * that one is sent from the main process in the shape the scheduler sends it. The scheduler's own
@@ -13,10 +13,10 @@
  */
 
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { after, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
@@ -32,9 +32,17 @@ let app: RunningApp;
 let model: Server;
 let modelRequests = 0;
 
-/** Where the session store keeps a project's sessions: `core/session/store.ts`, `projectIdFor`. */
-function projectId(cwd: string): string {
-	return createHash("sha256").update(cwd).digest("hex").slice(0, 16);
+/**
+ * Makes the session store refuse `blocked`'s sessions, the way a full disk refuses a write.
+ *
+ * Sessions live in one SQLite file, so there is no per-project folder left to block. A trigger on that
+ * file fails only that project's insert; the other project runs normally. Added once the app has made
+ * the file — the first run creates it — and SQLite's schema check makes the open connection see it.
+ */
+function refuseSessions(home: string, project: string): void {
+	const db = new DatabaseSync(join(home, "sessions", "sessions.db"));
+	db.exec(`CREATE TRIGGER refuse_blocked BEFORE INSERT ON sessions WHEN json_extract(NEW.meta, '$.projectName') = '${project}' BEGIN SELECT RAISE(ABORT, 'database or disk is full'); END`);
+	db.close();
 }
 
 function reply(res: ServerResponse, text: string): void {
@@ -68,13 +76,6 @@ async function seed(home: string): Promise<void> {
 	const blocked = join(home, "blocked");
 	await mkdir(project, { recursive: true });
 	await mkdir(blocked, { recursive: true });
-	/*
-	 * `blocked`'s sessions would be kept in a folder named after its path. A file in that place
-	 * makes creating one fail the way a full or read-only disk would — `mkdir` refuses — and the
-	 * scheduler reports that the task could not start. Only that project's; the other runs normally.
-	 */
-	await mkdir(join(home, "sessions"), { recursive: true });
-	await writeFile(join(home, "sessions", projectId(blocked)), "not a folder");
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 900, x: 0, y: 0 }));
 	// Both have just run, so neither is due until its ▶ is pressed.
 	const ran = Date.now();
@@ -152,7 +153,7 @@ async function sendFromMain(notice: Record<string, unknown>): Promise<void> {
 	);
 }
 
-// The count is the end of the rail button's name (「已安排 · 1 个任务运行失败」); in a drawer it is the badge's own.
+// The count is the end of the rail button's name (「定时任务 · 1 个任务运行失败」); in a drawer it is the badge's own.
 const badge = (n: number) => `[aria-label$=" ${n} 个任务运行失败"], [aria-label="${n} 个任务运行失败"]`;
 const noBadge = `!document.querySelector('[aria-label$="个任务运行失败"]')`;
 const line = (taskId: string) => `document.querySelector('.ly-reveal[data-open="true"] [data-scheduled-alert="${taskId}"]')`;
@@ -160,7 +161,7 @@ const text = (selector: string) => `(document.querySelector(${JSON.stringify(sel
 
 test("a task's start shows on its card, and a failure on the card, above the composer and on the sidebar", async (t) => {
 	// ── The schedule, from the sidebar. ──
-	await click(app, "button", "已安排", "starts");
+	await click(app, "button", "定时任务", "starts");
 	await until(app, `document.querySelector('[data-scheduled-task="alpha"]')?.checkVisibility()`, 900);
 
 	/*
@@ -203,32 +204,35 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	assert.equal(started[0].taskId, "alpha");
 	assert.equal(started[0].kind, "started");
 	assert.equal(started[0].level, "info");
-	assert.equal(started[0].message, "已安排任务「Alpha」开始运行");
+	assert.equal(started[0].message, "定时任务「Alpha」开始运行");
 	const alphaSession = started[0].sessionId;
 	assert.ok(alphaSession, "a started run names its session");
 	assert.equal(await app.evaluate<string>(`window.plume.settings.get().then((s) => s.scheduledTasks.find((t) => t.id === "alpha").lastSessionId)`), alphaSession);
 
 	// ── Beta cannot start: its sessions have nowhere to go. ──
+	refuseSessions(app.home, "blocked");
 	await click(app, '[data-scheduled-task="beta"] button[data-ly-tip="立即运行一次"]');
 	await until(app, `document.querySelector('[data-scheduled-task="beta"] [data-scheduled-error]')`, 900);
 	const reason = await app.evaluate<string>(text('[data-scheduled-task="beta"] [data-scheduled-error]'));
-	assert.match(reason, /^失败：.*EEXIST/, reason);
+	assert.match(reason, /^失败：.*disk is full/, reason);
 	const refused = (await app.evaluate<{ taskId: string; kind: string; message: string; sessionId?: string }[]>(`window.__notices`)).at(-1);
 	assert.equal(refused?.taskId, "beta");
 	assert.equal(refused?.kind, "cannotStart");
 	assert.equal(refused?.sessionId, undefined);
-	assert.match(refused?.message ?? "", /^已安排任务「Beta」无法启动：.*EEXIST/);
+	assert.match(refused?.message ?? "", /^定时任务「Beta」无法启动：.*disk is full/);
 	// On the schedule it is the card that says it; nothing is left counted as unseen.
 	await frames(app, 5);
 	assert.ok(await app.evaluate<boolean>(noBadge), "the sidebar counts a failure that is on screen");
 	await shot(app, "2-card-cannot-start");
 
 	// ── In a conversation: Beta again, and this time nobody is looking at its card. ──
+	// The schedule page keeps its own list in the sidebar; 新对话 is on the conversations side.
+	await click(app, "button", "对话");
 	await click(app, "button", "新对话", "starts");
 	await until(app, `document.querySelector("textarea")?.checkVisibility()`, 900);
 	await app.evaluate(`window.plume.scheduler.runNow("beta")`);
 	await until(app, `${line("beta")}?.checkVisibility()`, 900);
-	assert.match(await app.evaluate<string>(`${line("beta")}.textContent`), /已安排任务「Beta」无法启动/);
+	assert.match(await app.evaluate<string>(`${line("beta")}.textContent`), /定时任务「Beta」无法启动/);
 	await until(app, `document.querySelector(${JSON.stringify(badge(1))})`, 900);
 	/*
 	 * Above the main composer, in the dock that holds the conversation's own textarea — measured once
@@ -245,7 +249,7 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	await shot(app, "3-composer-line");
 
 	// ── A turn of Alpha's that fails after it started, as the scheduler sends it. ──
-	await sendFromMain({ taskId: "alpha", kind: "failed", level: "error", message: "已安排任务「Alpha」失败：rate limited", sessionId: alphaSession });
+	await sendFromMain({ taskId: "alpha", kind: "failed", level: "error", message: "定时任务「Alpha」失败：rate limited", sessionId: alphaSession });
 	await until(app, `${line("alpha")}?.checkVisibility()`, 900);
 	assert.equal(await app.evaluate<string>(text("[data-scheduled-alert-others]")), "另有 1 个");
 	await until(app, `document.querySelector(${JSON.stringify(badge(2))})`, 900);
@@ -262,13 +266,14 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	await shot(app, "5-card-looked-at");
 
 	// Back in the conversation the line has gone.
+	await click(app, "button", "对话");
 	await click(app, "button", "新对话", "starts");
 	await until(app, `document.querySelector("textarea")?.checkVisibility()`, 900);
 	await frames(app, 30);
 	assert.ok(await app.evaluate<boolean>(`!${line("alpha")} && !${line("beta")}`), "the line outlived being seen");
 
 	// ── 知道了 on the line clears it, and the count with it. ──
-	await sendFromMain({ taskId: "alpha", kind: "failed", level: "error", message: "已安排任务「Alpha」失败：rate limited", sessionId: alphaSession });
+	await sendFromMain({ taskId: "alpha", kind: "failed", level: "error", message: "定时任务「Alpha」失败：rate limited", sessionId: alphaSession });
 	await until(app, `${line("alpha")}?.checkVisibility()`, 900);
 	await until(app, `document.querySelector(${JSON.stringify(badge(1))})`, 900);
 	await click(app, "[data-scheduled-alert-dismiss]");

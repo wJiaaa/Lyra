@@ -38,7 +38,7 @@ beforeEach(() => {
 		sessions: [meta("a", ALPHA.path), meta("c", CHAT)], sessionCache: {}, workspaceByPath: { [ALPHA.path]: ALPHA },
 		scratchRoots: ["/plume/workspaces"], settings: null, parkedDraft: null,
 	});
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	window.localStorage.clear();
 });
 

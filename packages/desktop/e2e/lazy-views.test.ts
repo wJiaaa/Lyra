@@ -77,7 +77,7 @@ test("定时任务页同样", async () => {
 });
 
 test("切回对话，界面完整", async () => {
-	await navigate("聊天");
+	await navigate("对话");
 	await new Promise((resolve) => setTimeout(resolve, 600));
 	const alive = await app.evaluate<number>(`document.querySelector("#root")?.children.length ?? 0`);
 	assert.ok(alive > 0, "切回对话之后根节点是空的");

@@ -45,7 +45,7 @@ test("Git tabs own their toolbar actions without duplicate refresh or extra acti
 });
 
 test("question excerpts use bounded ellipsis without a text mask or separator", async (t) => {
-	await app.evaluate(`document.querySelector('[data-dock-pane="review"] [aria-label="关闭Git"]').click()`);
+	await app.evaluate(`document.querySelector('[data-panel-tab="review"] [aria-label="关闭Git"]').click()`);
 	await until(app, `document.querySelector('.ly-question-mark')`);
 	const point = await app.evaluate<{ x: number; y: number }>(`(()=>{const e=document.querySelector('.ly-question-mark'),r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });

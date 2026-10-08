@@ -1,22 +1,24 @@
 /**
- * 标签页式的面板排法——设置 › 外观 › 面板。
+ * 面板的排法：所有面板收进对话右侧同一格，每个一个标签。
  *
- * 存的树不变：打开、关闭、弹出、持久化照旧按树走，`has(tree, kind)` 在哪儿都还是「开着没有」，
- * 切回分栏时面板也就回到原来的位置。变的只是画法：所有面板收进右侧同一格，只画当前那个，其余隐藏
- * 但不卸载——终端的 shell、浏览器的页面切标签不会重来。
+ * 存的还是一棵树：打开、关闭、弹出、持久化照旧按树走，`has(tree, kind)` 在哪儿都还是「开着没有」，
+ * 标签的先后就是树里的先后。画的时候只画当前那个，其余隐藏但不卸载——终端的 shell、浏览器的页面
+ * 切标签不会重来。
  */
 
-import type { AppearanceSettings } from "@plume/core";
-import { useApp } from "../../store/index.ts";
-import { kinds, leafOf, type DockNode, type PaneKind } from "./tree.ts";
-
-type PanelLayout = NonNullable<AppearanceSettings["panelLayout"]>;
-
-export const usePanelLayout = (): PanelLayout => useApp((s) => s.settings?.appearance.panelLayout ?? "split");
-export const panelLayout = (): PanelLayout => useApp.getState().settings?.appearance.panelLayout ?? "split";
+import { insert, kinds, leafOf, type DockNode, type PaneKind } from "./tree.ts";
 
 /** 标签的顺序就是树的顺序：新开的面板落在最后，标签也排在最后。 */
 export const panelsOf = (tree: DockNode): PaneKind[] => kinds(tree).filter((kind) => kind !== "conversation");
+
+/** 把面板放成第 `index` 个标签；不给或超出就排在最后。 */
+export function insertTab(tree: DockNode, kind: PaneKind, index = Number.POSITIVE_INFINITY): DockNode {
+	const panels = panelsOf(tree);
+	const at = Math.max(0, Math.min(index, panels.length));
+	return at < panels.length
+		? insert(tree, kind, { side: "left", kind: panels[at] })
+		: insert(tree, kind, { side: "right", kind: panels.at(-1) ?? "conversation" });
+}
 
 /** 当前标签：记着的那个还开着就是它，否则是最后一个。一个面板都没开时为 null。 */
 export function activeTab(tree: DockNode, remembered: PaneKind | undefined): PaneKind | null {

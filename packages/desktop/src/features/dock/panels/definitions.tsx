@@ -33,16 +33,6 @@ export function usePanelDefinitions(): ResolvedPanel[] {
 	return allPanels().map((panel) => ({ ...panel, unavailable: panel.unavailable?.(state) }));
 }
 
-/**
- * Where a panel belongs, if it belongs beside another one.
- *
- * Read from the registry rather than restated at the call site, so a panel's idea of where it goes
- * lives with the panel — and so a plugin's does too.
- */
-export function companionOf(kind: PanelKind) {
-	return panelOf(kind)?.companion;
-}
-
 /** What a tab shows. A kind with no registered panel renders nothing rather than crashing. */
 export function renderPanel(kind: PanelKind) {
 	const panel = panelOf(kind);

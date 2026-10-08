@@ -53,7 +53,8 @@ before(async () => {
 		}));
 		await writeFile(join(plugin, "skills", "rebase", "SKILL.md"), "---\nname: rebase\ndescription: 在用户要求整理提交历史时，按仓库约定执行交互式变基并说明每一步。\n---\n\n变基。\n");
 	} });
-	await app.evaluate(`document.querySelector(".ly-sidebar-foot button")?.dispatchEvent(new MouseEvent("click",{bubbles:true}))`);
+	// The rail's gear when the rail is shown, the sidebar foot's otherwise; both carry this mark.
+	await app.evaluate(`[...document.querySelectorAll("[data-ly-open-settings]")].find((b) => b.checkVisibility())?.dispatchEvent(new MouseEvent("click",{bubbles:true}))`);
 	await until(`document.querySelector("[data-ly-settings]")`);
 });
 
@@ -82,6 +83,8 @@ const HELPERS = `
 `;
 
 async function open(page: (typeof PAGES)[number]) {
+	// Settings is loaded on first open: its shell is up before its navigation is.
+	await until(`(() => { ${HELPERS} return [...document.querySelectorAll("[data-ly-settings] nav button")].some((b) => shown(b) && b.textContent.trim() === ${JSON.stringify(page.nav)}); })()`, `settings nav: ${page.nav}`);
 	await app.evaluate(`(() => {
 		${HELPERS}
 		const button = [...document.querySelectorAll("[data-ly-settings] nav button")].find((b) => shown(b) && b.textContent.trim() === ${JSON.stringify(page.nav)});

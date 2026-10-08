@@ -1,7 +1,7 @@
 /**
- * The dock, dragged for real.
+ * The dock — the conversation and the column of panel tabs beside it — in a real window.
  *
- * Everything here acts through synthesised pointer events and then measures
+ * Everything here acts through the controls a person uses and then measures
  * `getBoundingClientRect`. Nothing reads the store, and nothing asserts on a class name: the claim
  * being tested is "the pane ends up *there*", and the only honest evidence for it is where the
  * pane actually is on screen.
@@ -56,60 +56,6 @@ async function panes(): Promise<Record<string, Rect>> {
 }
 
 /**
- * Drag a pane by its grip to a point, in steps, and let go.
- *
- * The grip, not the title bar: it is the only thing that starts a drag, which is the point of it.
- *
- * Several moves rather than one, because the drag only begins after the pointer has travelled past
- * its threshold and the landing region is recomputed per move — a single jump would test neither.
- * `pointerdown` carries `buttons: 1`, without which the handler treats it as a hover.
- */
-async function dragPane(kind: string, to: { x: number; y: number }): Promise<void> {
-	await app.evaluate(`(async () => {
-		const header = document.querySelector('[data-dock-grip="${kind}"]');
-		if (!header) throw new Error("no grip for ${kind}");
-		const box = header.getBoundingClientRect();
-		const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-		const send = (type, x, y) => header.dispatchEvent(new PointerEvent(type, {
-			pointerId: 1, isPrimary: true, bubbles: true, cancelable: true,
-			clientX: x, clientY: y, buttons: type === "pointerup" ? 0 : 1,
-		}));
-		const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-		send("pointerdown", from.x, from.y);
-		await frame();
-		for (let step = 1; step <= 8; step++) {
-			const t = step / 8;
-			window.dispatchEvent(new PointerEvent("pointermove", {
-				pointerId: 1, isPrimary: true, bubbles: true,
-				clientX: from.x + (${to.x} - from.x) * t,
-				clientY: from.y + (${to.y} - from.y) * t,
-				buttons: 1,
-			}));
-			await frame();
-		}
-		window.dispatchEvent(new PointerEvent("pointerup", {
-			pointerId: 1, isPrimary: true, bubbles: true, clientX: ${to.x}, clientY: ${to.y}, buttons: 0,
-		}));
-		/*
-		 * Wait for the pane to be handed back to the dock, not for a number of milliseconds.
-		 *
-		 * Landing is two frames plus a transition, and how long that actually takes depends on the
-		 * machine and on how the compositor felt about the last few frames. A fixed wait measured
-		 * the geometry 96% of the way through the flight and called a correct layout wrong.
-		 */
-		/*
-		 * Wait for the pane to be handed back to the dock, not for a number of milliseconds.
-		 *
-		 * Landing is two frames plus a transition, and how long that actually takes depends on the
-		 * machine and on how the compositor felt about the last few frames. A fixed wait measured
-		 * the geometry most of the way through the flight and called a correct layout wrong.
-		 */
-		await window.__dockSettled();
-	})()`);
-}
-
-/**
  * Open a panel the way a person does: the toolbar's panel menu, then the row for it.
  *
  * Deliberately not through the store. A test hook would have skipped the menu, and the menu is
@@ -131,12 +77,12 @@ async function openPane(label: string): Promise<void> {
 	})()`);
 }
 
-/** Back to one pane, by closing the others the way the ✕ on each header does. */
+/** Back to one pane, by closing every tab the way the ✕ on each one does. */
 async function resetDock(): Promise<void> {
 	await app.evaluate(`(async () => {
 		for (let guard = 0; guard < 12; guard++) {
 			// A closed browser keeps its page mounted; only controls visible to the user can close panes.
-			const close = [...document.querySelectorAll('[data-dock-header]:not([data-dock-header="conversation"]) button[aria-label^="关闭"]')].find(el => el.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
+			const close = [...document.querySelectorAll('[data-panel-tab] button[aria-label^="关闭"]')].find(el => el.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
 			if (!close) break;
 			close.click();
 			await new Promise((r) => setTimeout(r, 120));
@@ -145,7 +91,7 @@ async function resetDock(): Promise<void> {
 	})()`);
 }
 
-/** The dock's own box, which is what every drop is measured against. */
+/** The dock's own box, which is what every pane is measured against. */
 async function dockBox(): Promise<Rect> {
 	return app.evaluate(`(() => {
 		const el = document.querySelector("[data-dock-panes]");
@@ -160,13 +106,12 @@ const near = (a: number, b: number, slack = 2) => Math.abs(a - b) <= slack;
  * Wait until the dock stops moving.
  *
  * Every assertion in this file is geometric, so every one of them has to be taken after the
- * animations have finished — and "finished" is not a number of milliseconds. It is a flight home
- * whose start depends on two `requestAnimationFrame`s, plus the rearrangement transition, plus
- * whatever the compositor was busy with. Polling until two consecutive measurements agree waits
- * exactly as long as it needs to, and a fixed wait does not: an earlier version of this suite
- * measured a correct layout 96% of the way through the flight and called it a failure.
+ * animations have finished — and "finished" is not a number of milliseconds. Polling until
+ * consecutive measurements agree waits exactly as long as it needs to, and a fixed wait does not:
+ * an earlier version of this suite measured a correct layout most of the way through a transition
+ * and called it a failure.
  *
- * Installed once as a page function so the drag helper and the assertions can share it.
+ * Installed once as a page function, and again after a reload.
  */
 async function installSettle(): Promise<void> {
 	await app.evaluate(`(() => {
@@ -178,11 +123,10 @@ async function installSettle(): Promise<void> {
 					const b = el.getBoundingClientRect();
 					return el.dataset.dockPane + ":" + [b.left, b.top, b.width, b.height].map(Math.round).join(",");
 				}).join("|");
-				const carrying = Boolean(document.querySelector(".ly-dock-pane-carried"));
 				// Three agreeing measurements, not two. A transition that has been asked for but has
 				// not started yet holds still for a frame, and two samples cannot tell that apart
 				// from having finished — which is a test that passes or fails on timing alone.
-				if (!carrying && now === last) {
+				if (now === last) {
 					if (++steady >= 2) return;
 				} else {
 					steady = 0;
@@ -244,21 +188,13 @@ test("the conversation offers neither close nor full screen — it is what the w
 	);
 });
 
-test("the title bars move the window, and only the grip moves the pane", async () => {
+test("the title bars move the window, and their buttons do not", async () => {
 	/*
 	 * This is a regression test with a short and embarrassing history: confining the drag band to
 	 * the sidebar left the whole top edge of the window undraggable, because the dock reaches it
 	 * now and nothing up there claimed the job. It is checked as computed style because that is
 	 * what Electron actually composites — the window manager reads these regions, and no amount of
 	 * clicking in a test can observe a window that did or did not move.
-	 */
-	/*
-	 * 先开出第二个面板，因为 grip 只在有得可搬的时候才画。
-	 *
-	 * `DockView` 传的是 `draggable={!compact && live.length > 1}`：只有一个面板时，把手不存在
-	 * ——没有别的位置可以把它搬过去。这条测试原来直接就去量 grip 的 app-region，于是量到的是
-	 * `null`，从写下那天起就是红的。它验的东西是对的（标题栏能拖窗口、把手只搬面板），缺的是
-	 * 那个前置条件。
 	 */
 	await resetDock();
 	await openPane("任务");
@@ -274,12 +210,10 @@ test("the title bars move the window, and only the grip moves the pane", async (
 		const bar = document.querySelector('[data-ly-main-toolbar]') ? '[data-ly-main-toolbar]' : '[data-dock-header="conversation"]';
 		return {
 			bar: region(bar),
-			grip: region('[data-dock-grip="conversation"]'),
 			controls: region(bar + ' .no-drag'),
 		};
 	})()`);
 	assert.equal(regions.bar, "drag", "the title bar moves the window");
-	assert.equal(regions.grip, "no-drag", "the grip moves the pane instead");
 	assert.equal(regions.controls, "no-drag", "and the buttons are pressable rather than draggable");
 });
 
@@ -298,109 +232,16 @@ test("opening a panel puts it beside the conversation, sharing the dock exactly"
 	assert.ok(boxes.conversation.width > boxes.tasks.width, "the conversation keeps the larger share");
 });
 
-test("a second panel stacks under the first rather than squeezing the conversation again", async () => {
+test("a second panel opens as another tab in the same column, not as a pane of its own", async () => {
+	const first = await settledPanes();
 	await openPane("浏览器");
 	const boxes = await settledPanes();
-	assert.deepEqual(Object.keys(boxes).sort(), ["browser", "conversation", "tasks"]);
+	assert.deepEqual(Object.keys(boxes).sort(), ["browser", "conversation"], "the new tab is the one showing");
 
-	assert.ok(near(boxes.tasks.left, boxes.browser.left), "same column");
-	assert.ok(near(boxes.tasks.bottom, boxes.browser.top), "one above the other");
-	assert.ok(near(boxes.conversation.right, boxes.tasks.left), "the conversation did not move");
-});
-
-test("dragging a pane onto the bottom band of another puts it underneath", async () => {
-	await resetDock();
-	await openPane("任务");
-	const before = await settledPanes();
-
-	// 88% down the conversation is inside its bottom band (28%) and clear of the dock's own edge.
-	await dragPane("tasks", {
-		x: before.conversation.left + before.conversation.width / 2,
-		y: before.conversation.top + before.conversation.height * 0.88,
-	});
-
-	const after = await settledPanes();
-	const dock = await dockBox();
-	assert.ok(near(after.conversation.left, after.tasks.left), "same column now");
-	assert.ok(near(after.conversation.width, after.tasks.width));
-	assert.ok(near(after.conversation.bottom, after.tasks.top), "and tasks is below");
-	assert.ok(near(after.conversation.height + after.tasks.height, dock.height), "filling the dock");
-});
-
-test("dragging onto a left band puts the pane in front of the one it landed on", async () => {
-	await resetDock();
-	await openPane("任务");
-	const before = await settledPanes();
-
-	await dragPane("tasks", {
-		x: before.conversation.left + before.conversation.width * 0.12,
-		y: before.conversation.top + before.conversation.height / 2,
-	});
-
-	const after = await settledPanes();
-	assert.ok(near(after.tasks.top, after.conversation.top), "same row");
-	assert.ok(after.tasks.left < after.conversation.left, "and tasks is now the left-hand one");
-	assert.ok(near(after.tasks.right, after.conversation.left), "still tiling exactly");
-});
-
-
-
-test("a pane picked up and put down over nothing returns to where it was", async () => {
-	await resetDock();
-	await openPane("任务");
-	const before = await settledPanes();
-	const dock = await dockBox();
-
-	/*
-	 * Out through an edge band and back to the dead centre, which is not a landing region.
-	 *
-	 * This is the case that used to lose the pane outright: the drag lifts it out of the tree, so
-	 * "leave the layout alone" would mean leaving it with the pane missing. Releasing over nothing
-	 * has to actively put the whole arrangement back.
-	 */
-	await dragPane("tasks", { x: dock.left + dock.width / 2, y: dock.top + dock.height / 2 });
-
-	const after = await settledPanes();
-	assert.deepEqual(Object.keys(after).sort(), ["conversation", "tasks"], "the pane came back");
-	for (const kind of ["conversation", "tasks"]) {
-		assert.ok(near(before[kind].left, after[kind].left), `${kind} left`);
-		assert.ok(near(before[kind].width, after[kind].width), `${kind} width`);
-	}
-});
-
-test("a splitter moves the two panes it divides and no others", async () => {
-	await resetDock();
-	await openPane("任务");
-	await openPane("浏览器");
-	const before = await settledPanes();
-
-	// The handle between tasks and trajectory: the horizontal boundary in the right-hand column.
-	const moved = await app.evaluate<number>(`(async () => {
-		const handles = [...document.querySelectorAll('[data-dock-panes] [role="separator"][aria-orientation="horizontal"]')];
-		const handle = handles[0];
-		if (!handle) throw new Error("no horizontal splitter");
-		const b = handle.getBoundingClientRect();
-		const x = b.left + b.width / 2;
-		const y = b.top + b.height / 2;
-		const send = (type, cx, cy) => handle.dispatchEvent(new PointerEvent(type, {
-			pointerId: 2, isPrimary: true, bubbles: true, cancelable: true,
-			clientX: cx, clientY: cy, buttons: type === "pointerup" ? 0 : 1,
-		}));
-		const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-		send("pointerdown", x, y);
-		await frame();
-		for (let step = 1; step <= 6; step++) { send("pointermove", x, y + (60 * step) / 6); await frame(); }
-		send("pointerup", x, y + 60);
-		await frame();
-		return 60;
-	})()`);
-
-	const after = await settledPanes();
-	assert.ok(near(after.tasks.height, before.tasks.height + moved, 3), "the pane above grew by the drag");
-	assert.ok(near(after.browser.height, before.browser.height - moved, 3), "and the one below shrank by it");
-	// The pane on the other side of the column boundary is untouched — this is one edge, not a reflow.
-	assert.ok(near(after.conversation.height, before.conversation.height), "the conversation's height");
-	assert.ok(near(after.conversation.width, before.conversation.width), "and its width");
+	assert.ok(near(boxes.browser.left, first.tasks.left) && near(boxes.browser.width, first.tasks.width), "in the column the first one had");
+	assert.ok(near(boxes.conversation.width, first.conversation.width), "the conversation did not move");
+	const tabs = await app.evaluate<string[]>(`[...document.querySelectorAll('[role="tablist"] [data-panel-tab]')].filter((t) => t.checkVisibility()).map((t) => t.dataset.panelTab)`);
+	assert.deepEqual(tabs, ["tasks", "browser"], "and both are tabs, the new one last");
 });
 
 test("squeezing the conversation past its floor moves the squeeze onward, without overlapping", async () => {
@@ -451,56 +292,6 @@ test("squeezing the conversation past its floor moves the squeeze onward, withou
 	);
 });
 
-test("a panel to the left of the conversation never slices it — the near edge holds", async () => {
-	/*
-	 * The reported bug, in one test.
-	 *
-	 * With a panel on its left, squeezing the conversation used to make it grow *backwards* to
-	 * reach its minimum width — under the panel it had just been squeezed by. Panels draw on top,
-	 * so what you saw was the conversation with its left-hand side cut off and its centred content
-	 * half-hidden. Overlapping is fine and is the whole design; being sliced is not.
-	 */
-	await resetDock();
-	await openPane("任务");
-
-	// Put the panel on the conversation's left, then drag the seam between them far right.
-	await app.evaluate(`(async () => {
-		const grip = document.querySelector('[data-dock-grip="tasks"]');
-		grip.focus();
-		grip.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", altKey: true, bubbles: true, cancelable: true }));
-		await new Promise((r) => setTimeout(r, 450));
-	})()`);
-
-	const moved = await settledPanes();
-	assert.ok(moved.tasks.left < moved.conversation.left, "the panel is on the left now");
-
-	await app.evaluate(`(async () => {
-		const handle = document.querySelector('[data-dock-panes] [role="separator"][aria-orientation="vertical"]');
-		const b = handle.getBoundingClientRect();
-		const x = b.left + b.width / 2;
-		const y = b.top + b.height / 2;
-		const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-		handle.dispatchEvent(new PointerEvent("pointerdown", {
-			pointerId: 8, isPrimary: true, bubbles: true, cancelable: true, clientX: x, clientY: y, buttons: 1,
-		}));
-		await frame();
-		for (let step = 1; step <= 10; step++) {
-			window.dispatchEvent(new PointerEvent("pointermove", {
-				pointerId: 8, isPrimary: true, bubbles: true, clientX: x + (1400 * step) / 10, clientY: y, buttons: 1,
-			}));
-			await frame();
-		}
-		window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 8, isPrimary: true, bubbles: true, clientX: x + 1400, clientY: y, buttons: 0 }));
-		await frame();
-	})()`);
-
-	const after = await settledPanes();
-	assert.ok(
-		after.conversation.left >= after.tasks.right - 1,
-		`the conversation stayed clear of the panel: it starts at ${Math.round(after.conversation.left)}, the panel ends at ${Math.round(after.tasks.right)}`,
-	);
-});
-
 test("maximising a pane covers the dock, and Escape gives it back", async () => {
 	await resetDock();
 	await openPane("任务");
@@ -508,8 +299,8 @@ test("maximising a pane covers the dock, and Escape gives it back", async () => 
 	const dock = await dockBox();
 
 	await app.evaluate(`(async () => {
-		const header = document.querySelector('[data-dock-header="tasks"]');
-		[...header.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? "").startsWith("全屏")).click();
+		// On the column's own bar — in the window's toolbar on a single screen, see ToolbarPanelBar.
+		[...document.querySelectorAll('button[aria-label^="全屏"]')].find((b) => b.checkVisibility()).click();
 		await new Promise((r) => setTimeout(r, 350));
 	})()`);
 
@@ -532,15 +323,14 @@ test("maximising a pane covers the dock, and Escape gives it back", async () => 
 		const wasOpen=dockLeft()>100;
 		if(wasOpen){toggle().click();await wait()}
 		const bar=toggle().getBoundingClientRect();
-		const header=document.querySelector('[data-dock-header="tasks"]');
-		const first=[...header.querySelectorAll('[data-dock-heading] *')].map(e=>e.getBoundingClientRect()).filter(r=>r.width>0&&r.height>0).sort((a,b)=>a.left-b.left)[0];
-		const out={reserved:Math.round(bar.right),from:first?Math.round(first.left):null,top:first?Math.round(first.top):null,under:Math.round(bar.bottom),label:header.textContent.trim().slice(0,12)};
+		const first=document.querySelector('[data-dock-pane="tasks"] [data-dock-content]')?.getBoundingClientRect();
+		const out={reserved:Math.round(bar.right),from:first?Math.round(first.left):null,top:first?Math.round(first.top):null,under:Math.round(bar.bottom)};
 		// 量完就还回去：后面几条断言比的是侧边栏开着时量的宽度。
 		if(wasOpen){toggle().click();await wait()}
 		return out})()`);
-	assert.ok(covered.from !== null && covered.top !== null, `全屏的面板要有个标题可量：${JSON.stringify(covered)}`);
+	assert.ok(covered.from !== null && covered.top !== null, `全屏的面板要有内容可量：${JSON.stringify(covered)}`);
 	// In the window frame the system's buttons are on the toolbar and every pane is below it: clearing them from below is clearing them.
-	assert.ok(covered.from >= covered.reserved || covered.top >= covered.under, `全屏后标题不能压在系统按钮下：${JSON.stringify(covered)}`);
+	assert.ok(covered.from >= covered.reserved || covered.top >= covered.under, `全屏后内容不能压在系统按钮下：${JSON.stringify(covered)}`);
 
 	await app.evaluate(`(async () => {
 		window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
@@ -552,33 +342,11 @@ test("maximising a pane covers the dock, and Escape gives it back", async () => 
 	assert.ok(near(boxes.conversation.width, before.conversation.width));
 });
 
-test("a pane can be moved with the keyboard, which a drag alone would put out of reach", async () => {
-	await resetDock();
-	await openPane("任务");
-	const before = await settledPanes();
-	assert.ok(before.tasks.left > before.conversation.left, "it starts on the right");
-
-	// ⌥← sends it to the dock's left edge. Focus the header first, the way Tab would.
-	await app.evaluate(`(async () => {
-		// The grip is the keyboard route too, and it is a real button, so Tab reaches it.
-		const grip = document.querySelector('[data-dock-grip="tasks"]');
-		grip.focus();
-		grip.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", altKey: true, bubbles: true, cancelable: true }));
-		await new Promise((r) => setTimeout(r, 350));
-	})()`);
-
-	const after = await settledPanes();
-	assert.ok(after.tasks.left < after.conversation.left, "and ends up on the left");
-	assert.ok(near(after.tasks.right, after.conversation.left), "still tiling exactly");
-	assert.ok(near(after.tasks.top, after.conversation.top), "and still in one row");
-});
-
-test("closing a pane gives its room to what is left", async () => {
+test("closing the last tab gives its room back to the conversation", async () => {
 	await resetDock();
 	await openPane("任务");
 	await app.evaluate(`(async () => {
-		const header = document.querySelector('[data-dock-header="tasks"]');
-		[...header.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? "").startsWith("关闭")).click();
+		document.querySelector('[data-panel-tab="tasks"] button[aria-label^="关闭"]').click();
 		await new Promise((r) => setTimeout(r, 350));
 	})()`);
 
@@ -627,10 +395,7 @@ test("a narrow window shows one pane and a picker, and widening restores the lay
 test("the layout survives a reload, which is what per-conversation persistence rests on", async () => {
 	await resetDock();
 	await openPane("任务");
-	await dragPane("tasks", await settledPanes().then((b) => ({
-		x: b.conversation.left + b.conversation.width / 2,
-		y: b.conversation.top + b.conversation.height * 0.88,
-	})));
+	await openPane("浏览器");
 	const before = await settledPanes();
 
 	await app.evaluate(`(async () => {
@@ -656,9 +421,11 @@ test("the layout survives a reload, which is what per-conversation persistence r
 	await installSettle();
 
 	const after = await settledPanes();
-	assert.deepEqual(Object.keys(after).sort(), ["conversation", "tasks"], "both panes came back");
-	assert.ok(near(after.conversation.height, before.conversation.height, 4), "at the height it was left at");
-	assert.ok(near(after.tasks.top, before.tasks.top, 4), "and in the same place");
+	assert.deepEqual(Object.keys(after).sort(), ["browser", "conversation"], "the column came back, on the tab it was left on");
+	assert.ok(near(after.conversation.width, before.conversation.width, 4), "at the width it was left at");
+	assert.ok(near(after.browser.left, before.browser.left, 4), "and in the same place");
+	const tabs = await app.evaluate<string[]>(`[...document.querySelectorAll('[role="tablist"] [data-panel-tab]')].filter((t) => t.checkVisibility()).map((t) => t.dataset.panelTab)`);
+	assert.deepEqual(tabs, ["tasks", "browser"], "with both tabs");
 });
 
 test("screens that are not a conversation have no panels at all, and leave the conversation's alone", async () => {

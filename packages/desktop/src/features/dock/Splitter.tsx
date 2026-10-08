@@ -1,11 +1,8 @@
 /**
  * The draggable boundary between two panes: the gap the cards leave between them.
  *
- * What appears is a short grip *at the pointer*, not a rule down the whole edge — the same
- * treatment the sidebar's handle uses, and for the same reason. A full-length line reads as a
- * border, a permanent piece of the layout, when what it means is "this particular spot can be
- * dragged". A grip that follows the pointer says that and nothing else, and leaves the boundary
- * looking the same whether or not you happen to be near it.
+ * What appears is a line along the whole seam, only while the pointer is on it or dragging — the
+ * same treatment the sidebar's handle uses; see `ResizeHandle` for why it is no longer a short grip.
  *
  * The target is a nine-pixel strip centred on the seam, the narrowest a pointer finds reliably.
  *
@@ -16,7 +13,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { useEffect, useRef, useState } from "react";
 import { freezeMotion } from "../../ui/motion/freeze.ts";
-import { GRIP_SPAN, SPLITTER_HIT, SPLITTER_STEP } from "./geometry.ts";
+import { SPLITTER_HIT, SPLITTER_STEP } from "./geometry.ts";
 import { shareFromPointer, type SplitterBox } from "./layout.ts";
 import { pct } from "./css.ts";
 
@@ -57,21 +54,18 @@ export function Splitter({
 	const report = useRef(onResize);
 	report.current = onResize;
 	/**
-	 * Where along the seam the grip sits, in pixels from the strip's start.
-	 *
-	 * Null until the pointer arrives, so nothing is drawn on a boundary nobody is reaching for.
-	 * Held as state rather than read from CSS because it also has to survive the drag: once the
-	 * pointer leaves the nine-pixel strip this element stops receiving moves, and a grip that
-	 * vanished mid-drag would leave you dragging an invisible edge.
+	 * Whether the line is showing. State rather than `:hover` because it also has to survive the
+	 * drag: once the pointer leaves the nine-pixel strip this element is no longer hovered, and a
+	 * line that vanished mid-drag would leave you dragging an invisible edge.
 	 */
-	const [grip, setGrip] = useState<number | null>(null);
+	const [lit, setLit] = useState(false);
 	const track = useRef<HTMLDivElement>(null);
 	/**
 	 * The dock's box, measured on the press and reused for the drag.
 	 *
 	 * The first `getBoundingClientRect` after the DOM has been touched is not a read: the browser
 	 * lays the document out again, synchronously, to answer it. Pressing here changes the DOM —
-	 * the grip appears, the panes are frozen — so the first measurement of the drag was paying for
+	 * the line lights up, the panes are frozen — so the first measurement of the drag was paying for
 	 * a full layout of the transcript behind it. Measured on a real session it took 61ms while
 	 * every later frame of the same drag took under two.
 	 *
@@ -144,7 +138,7 @@ export function Splitter({
 			dragging.current = false;
 			dock.current = null;
 			setActive(false);
-			// A drag almost always ends somewhere else — that is the point of it — so the grip is
+			// A drag almost always ends somewhere else — that is the point of it — so the line is
 			// only kept if the pointer happens to have come to rest back on the seam.
 			const box = track.current?.getBoundingClientRect();
 			const over =
@@ -153,7 +147,7 @@ export function Splitter({
 				event.clientX <= box.right &&
 				event.clientY >= box.top &&
 				event.clientY <= box.bottom;
-			if (!over) setGrip(null);
+			if (!over) setLit(false);
 		};
 		window.addEventListener("pointermove", onMove);
 		window.addEventListener("pointerup", stop);
@@ -170,20 +164,10 @@ export function Splitter({
 	return (
 		<div
 			ref={track}
-			onPointerEnter={(event) => {
-				const box = event.currentTarget.getBoundingClientRect();
-				const next = row ? event.clientY - box.top : event.clientX - box.left;
-				setGrip((current) => (current !== null && Math.round(current) === Math.round(next) ? current : next));
-			}}
-			onPointerMove={(event) => {
-				if (dragging.current) return;
-				const box = event.currentTarget.getBoundingClientRect();
-				const next = row ? event.clientY - box.top : event.clientX - box.left;
-				setGrip((current) => (current !== null && Math.round(current) === Math.round(next) ? current : next));
-			}}
+			onPointerEnter={() => setLit(true)}
 			// Stays put while dragging: by then the pointer is usually well outside the strip.
 			onPointerLeave={() => {
-				if (!dragging.current) setGrip(null);
+				if (!dragging.current) setLit(false);
 			}}
 			role="separator"
 			aria-orientation={row ? "vertical" : "horizontal"}
@@ -196,7 +180,7 @@ export function Splitter({
 				// Left button only: a right-click here should not start a silent drag.
 				if (event.button !== 0) return;
 				event.preventDefault();
-				// While the layout is still clean, before the freeze and the grip change it.
+				// While the layout is still clean, before the freeze and the line change it.
 				dock.current = containerRef.current?.getBoundingClientRect() ?? null;
 				dragging.current = true;
 				setActive(true);
@@ -232,36 +216,14 @@ export function Splitter({
 			className={`ly-splitter absolute z-20 ${row ? "cursor-col-resize" : "cursor-row-resize"}`}
 		>
 			{/*
-			 * A short rounded bar at the pointer, on the seam itself.
-			 *
-			 * Clamped away from the ends so it never rides up into a title bar or out of the pane
-			 * below — at those extremes it stops travelling rather than sliding out of view.
+			 * A rounded bar the length of the seam, on the seam itself.
 			 */}
-			{grip !== null && (
+			{lit && (
 				<span
 					aria-hidden
-					/*
-					 * Sized inline rather than with utilities: the length is a shared constant, and a
-					 * class name built from a template is not something the CSS build can see.
-					 */
-					style={
-						row
-							? {
-									top: `clamp(${GRIP_SPAN / 2 + 8}px, ${grip}px, calc(100% - ${GRIP_SPAN / 2 + 8}px))`,
-									left: "50%",
-									height: GRIP_SPAN,
-									width: 3,
-								}
-							: {
-									left: `clamp(${GRIP_SPAN / 2 + 8}px, ${grip}px, calc(100% - ${GRIP_SPAN / 2 + 8}px))`,
-									top: "50%",
-									width: GRIP_SPAN,
-									height: 3,
-								}
-					}
-					className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors duration-[var(--ly-t-quick)] ${
-						active ? "bg-accent" : "bg-ink-faint/45"
-					}`}
+					className={`pointer-events-none absolute rounded-full transition-colors duration-[var(--ly-t-quick)] ${
+						row ? "inset-y-0 left-1/2 w-[3px] -translate-x-1/2" : "inset-x-0 top-1/2 h-[3px] -translate-y-1/2"
+					} ${active ? "bg-accent" : "bg-ink-faint/45"}`}
 				/>
 			)}
 		</div>

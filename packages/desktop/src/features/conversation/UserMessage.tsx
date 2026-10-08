@@ -443,7 +443,7 @@ export function UserMessage({
                 const targetPath = list?.skills?.find((skill: SkillEntry) => skill.name === skillRef.name && skill.pluginId === skillRef.pluginId)?.path;
                 if (targetPath) {
                   const fileName = targetPath.split(/[/\\]/).pop() || `${skillRef?.name} (SKILL.md)`;
-                  void openFilePane({ path: targetPath, name: fileName }, screen ?? undefined, { kind: "conversation", side: "right", share: 0.45 });
+                  void openFilePane({ path: targetPath, name: fileName }, screen ?? undefined);
                 } else {
                   useApp.getState().notify(t("userMessage.skillMissing", { name: skillRef?.name ?? "" }), "warn");
                 }

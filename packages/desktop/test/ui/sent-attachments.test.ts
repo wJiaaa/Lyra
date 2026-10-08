@@ -65,7 +65,7 @@ function reset(): void {
 	calls.exists.length = 0;
 	window.localStorage.clear();
 	useOpenFile.getState().clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	provideScope(() => "s");
 	usePaneDock.getState().rememberSize("s", { width: 1200, height: 900 });
 }

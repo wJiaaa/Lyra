@@ -113,6 +113,8 @@ test("command deletion fades in without shifting its row, works with keyboard/to
 	await app.evaluate(`(()=>{const b=document.querySelector('${selector}');b.closest('[data-row-actions]').addEventListener('mouseenter',()=>{b._hoverSamples=(async()=>{const values=[];for(let n=0;n<20;n++){await new Promise(requestAnimationFrame);values.push(Number(getComputedStyle(b.parentElement).opacity));}return values;})()},{once:true});})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
 	const samples = await app.evaluate<number[]>(`document.querySelector('${selector}')._hoverSamples`);
+	// Twenty frames is 333ms at 60Hz but 167ms at 120Hz, where the 150ms fade's tail is still easing in.
+	await frames(app, 20);
 	const hovering = await measure();
 	t.diagnostic(JSON.stringify({ opacityFrames: samples }));
 	assert.equal(hovering.opacity, 1);
@@ -150,7 +152,10 @@ test("command deletion fades in without shifting its row, works with keyboard/to
 });
 
 test("loose skill rows delete their own definitions while MCP servers and hooks ask before deleting theirs", async () => {
-	await select("插件", true); await select("技能", false, true);
+	await select("插件", true);
+	// The page opens on the user's own scope; a project's loose skills show once that project is the one looked at.
+	await click(app, 'button[aria-label="查看的项目"]'); await click(app, '[role="menuitem"]', "行操作验证");
+	await select("技能", false, true);
 	await until(app, `document.querySelector('[aria-label="删除技能 loose-qa"]')`);
 	trashed.push(basename(dirname(skill)));
 	await click(app, '[aria-label="删除技能 loose-qa"]'); await select(TO_TRASH);
@@ -168,8 +173,12 @@ test("loose skill rows delete their own definitions while MCP servers and hooks 
 	await until(app, `document.querySelector('[role="dialog"]')?.textContent.includes('删除 QA 服务？')`);
 	await select("取消"); await until(app, `!document.querySelector('[role="dialog"]')`);
 	await select("钩子", true);
-	await until(app, `document.querySelector('[aria-label="删除这个钩子"]')`);
-	await click(app, '[aria-label="删除这个钩子"]'); await select("取消"); await until(app, `!document.querySelector('[role="dialog"]')`);
+	// A hook is deleted from its own form: open the row, then 删除 at the foot of the form.
+	await click(app, "[data-ly-hook-row]"); await click(app, "button", "删除");
+	await until(app, `document.querySelector('[role="dialog"]')`);
+	await click(app, '[role="dialog"] button', "取消"); await until(app, `!document.querySelector('[role="dialog"]')`);
 	const settings = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8"));
-	assert.equal(settings.hooks.length, 1); assert.equal(settings.mcpServers.length, 1);
+	// Hooks are kept grouped by event (`{ events: { PreToolUse: [{ hooks: [...] }] } }`), as seeded above.
+	const hooks = Object.values(settings.hooks.events as Record<string, { hooks: unknown[] }[]>).flat().flatMap((group) => group.hooks);
+	assert.equal(hooks.length, 1); assert.equal(settings.mcpServers.length, 1);
 });

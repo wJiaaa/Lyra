@@ -140,7 +140,7 @@ export function CodeBlock({ lang, code, fade = false }: { lang: string; code: st
 						tip={translate("codeBlock.runInTerminal")}
 						onClick={() => {
 							// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
-							const at = openScopedPanel("terminal", undefined, screen ?? undefined);
+							const at = openScopedPanel("terminal", screen ?? undefined);
 							// For that terminal, wherever the request landed: a command nobody's terminal takes is lost.
 							useSide.getState().runInTerminal(commandFrom(code), at);
 						}}

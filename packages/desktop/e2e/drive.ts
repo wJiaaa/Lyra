@@ -147,6 +147,13 @@ export async function openEffortMenu(page: Page, within = "main"): Promise<void>
 	await frames(page, 60);
 }
 
+/** 打开设置并切到某一页（按左侧导航里写的名字，比如「外观」），再等它画完。 */
+export async function openSettings(page: Page, section: string): Promise<void> {
+	await click(page, "[data-ly-open-settings]");
+	await click(page, "nav button", section);
+	await frames(page, 20);
+}
+
 /**
  * 在侧栏点开一个会话，等它真的成了当前会话。
  *

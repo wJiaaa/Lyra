@@ -252,11 +252,15 @@ test("the conversation has something for the meter to report", async () => {
 
 test("a row with room keeps its meter and its label", async () => {
 	/*
-	 * 440px is under both of the old breakpoints — the meter went at 480 and the label at 420 — and
-	 * at this width the row has both, with the name still comfortably readable. That is the whole
-	 * report: things disappearing while there was plainly space for them.
+	 * 480px is where the old breakpoint dropped the meter (`@max-[480px]`), and at this width the row
+	 * has both, with the name still comfortably readable. That is the whole report: things
+	 * disappearing while there was plainly space for them.
+	 *
+	 * It was 440, under the label's old 420 as well. The row has since grown — the ZCode-aligned type
+	 * and controls — and at 440 the name would now be ~79px with the label beside it, under
+	 * MIN_NAME_WIDTH: giving the label up there is the rule working, not the old fault.
 	 */
-	const row = await at(440);
+	const row = await at(480);
 	assert.equal(row.meterShown, true, `the context meter went at ${row.shell}px with room to spare`);
 	assert.equal(row.labelShown, true, "and so did 完全访问");
 	assert.equal(row.fit, 0, "nothing was given up");

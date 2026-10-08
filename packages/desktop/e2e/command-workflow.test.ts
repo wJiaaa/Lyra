@@ -101,12 +101,16 @@ test("narrow layouts, long drafts and IME keep the native input aligned and do n
 		t.diagnostic(JSON.stringify(bounds)); assert.ok(bounds.left >= 0 && bounds.right <= bounds.width && bounds.top >= 0);
 		const row = '[role="option"][data-index="3"]';
 		const center = await app.evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(row)}).getBoundingClientRect();return {x:r.x+50,y:r.y+r.height/2};})()`);
-		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...center }); await frames(app, 50);
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...center });
+		// By the clock, not by frames: the marquee waits 300ms and then moves in time, and 50 frames is half as long on a 120Hz screen.
+		await app.evaluate(`new Promise((r) => setTimeout(r, 850))`);
 		const movement = await app.evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(row)});return {x:new DOMMatrixReadOnly(getComputedStyle(r.querySelector('.ly-marquee-track')).transform).m41,icon:r.querySelector('svg').getBoundingClientRect().x,origin:r.lastElementChild.getBoundingClientRect().x};})()`);
 		assert.ok(movement.x < -10, JSON.stringify(movement));
 		await frames(app, 20);
 		assert.deepEqual(await app.evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(row)});return {icon:r.querySelector('svg').getBoundingClientRect().x,origin:r.lastElementChild.getBoundingClientRect().x};})()`), { icon: movement.icon, origin: movement.origin });
-		await app.evaluate(`document.querySelector('[role="listbox"] .ly-scroll-view').scrollTop = 150`); await frames(app);
+		await app.evaluate(`document.querySelector('[role="listbox"] .ly-scroll-view').scrollTop = 150`);
+		// The fades transition over a fixed time; read them once that has passed, not after a frame count.
+		await app.evaluate(`new Promise((r) => setTimeout(r, 400))`);
 		const fades = await app.evaluate(`(()=>{const s=getComputedStyle(document.querySelector('[role="listbox"] .ly-scroll-view'));return [s.getPropertyValue('--ly-fade-top'),s.getPropertyValue('--ly-fade-bottom')];})()`);
 		assert.deepEqual(fades, ["36px", "48px"]);
 		await app.evaluate(`(async()=>{const s=await window.plume.settings.get();await window.plume.settings.save({...s,appearance:{...s.appearance,reduceMotion:'on'}});})()`); await frames(app);

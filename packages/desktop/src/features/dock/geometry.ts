@@ -3,7 +3,7 @@ import type { PaneKind } from "./tree.ts";
 /**
  * The numbers the dock is built out of.
  *
- * Kept apart from the components so the pure layout code — the tree, the drop test — can be read
+ * Kept apart from the components so the pure layout code — the tree, the fitting — can be read
  * and tested without pulling React in behind them.
  */
 
@@ -15,8 +15,7 @@ import type { PaneKind } from "./tree.ts";
  * repeatedly is what makes a layout creep. The pixel floor is a separate, simpler thing —
  * `min-width`/`min-height` on the pane itself, enforced by the browser.
  *
- * 8% rather than something smaller: below this a pane is a sliver you cannot read or aim at, and
- * a drag that lands there looks like the pane was lost rather than moved.
+ * 8% rather than something smaller: below this a pane is a sliver you cannot read or aim at.
  */
 export const MIN_FRACTION = 0.08;
 
@@ -51,9 +50,6 @@ export const PANEL_MIN_HEIGHT_PX = 150;
 /**
  * How small each kind may be drawn.
  *
- * One definition, shared by the renderer and the drag's hit test — they have to agree, or the drop
- * regions sit somewhere other than the panes they belong to.
- *
  * The conversation's floor being much larger than a panel's is what decides who gives way:
  * squeezing a row pushes the panels down to their floors before the conversation moves at all.
  */
@@ -61,24 +57,6 @@ export const paneFloor = (kind: PaneKind): { width: number; height: number } =>
 	kind === "conversation"
 		? { width: CONVERSATION_MIN_WIDTH_PX, height: CONVERSATION_MIN_HEIGHT_PX }
 		: { width: PANEL_MIN_WIDTH_PX, height: PANEL_MIN_HEIGHT_PX };
-
-/** Tiling does not make text or controls usable at a smaller size. */
-export const tilePaneFloor = paneFloor;
-
-/**
- * How many panes may share one column before that stops being a layout.
- *
- * Two. A pane sharing a column with one other still holds something worth looking at; a fourth in
- * the same column leaves each of them a couple of rows tall, which is not a terminal or a diff, it
- * is a hint that one exists.
- *
- * Two decisions ask this same question. `defaultDrop` asks it of a column it is about to add to —
- * a full column hands the next panel to a new one. `fitTree` asks it of a row it is considering
- * turning on its side to fit a narrow window: stacking two panes that would not fit side by side
- * keeps both usable and is worth doing, and stacking four produces the column of full-width strips
- * that made people ask why the layout had been taken away from them.
- */
-export const COLUMN_LIMIT = 2;
 
 /** Floating-point slack. Shares are compared, added and re-normalised constantly. */
 export const EPSILON = 1e-6;
@@ -95,23 +73,6 @@ export function panePaintMinWidth(kind: PaneKind, boxWidth: number, maximized: b
 	if (maximized || boxWidth >= 1 - EPSILON) return undefined;
 	return paneFloor(kind).width;
 }
-
-/**
- * How much of a pane's width or height counts as its edge, for the drop test.
- *
- * 28% leaves a centre region that is comfortably larger than any of the four bands, which is what
- * makes "I did not mean to split anything" the easy gesture rather than a lucky one.
- */
-export const EDGE_BAND = 0.28;
-
-/**
- * How far in from the dock's outer edge a drop lands on the *root* instead of on a pane.
- *
- * In pixels, not a share: this is a target the hand aims at, and a target that grows with the
- * window is one you have to re-learn every time the window changes. 26 is a little over a
- * fingertip's worth of slop at pointer precision.
- */
-export const ROOT_BAND = 26;
 
 /**
  * The pane title bar, which is also the window's top row.
@@ -160,40 +121,6 @@ export function cardRoom(room: number): number {
 export const HEADER_PAD = 10;
 
 /**
- * The grip's target: how far it reaches around the mark it draws.
- *
- * The mark is 36×3, which is far too small to aim at, so the pressable area is bigger than the
- * thing you see. Bigger, but not unbounded — the point of moving the drag off the whole title bar
- * is that pressing the bar should do nothing, so this stays a patch around the mark rather than a
- * strip across the pane.
- */
-export const GRIP_WIDTH = 64;
-export const GRIP_REACH = 17;
-
-/**
- * How far below the top of the header the mark itself is drawn.
- *
- * The grip says "this card can be picked up", and the one place that says it without saying
- * anything else is the top edge — above the title, above the buttons, where nothing else lives.
- * It used to be drawn level with the title instead, which read as a third item in that row rather
- * than as a handle belonging to the card.
- *
- * Four rather than zero. Flush with the edge reads as a rendering seam, and the card's own corner
- * radius is curving away right there. It is also what keeps the grip clear of the buttons: those
- * are 20px tall and centred in the header, so they start 8px down, and a 3px mark at 4 sits above
- * them — which matters on a pane narrow enough that the pane's centre and the buttons overlap.
- */
-export const GRIP_TOP = 4;
-
-/**
- * How far the pointer may travel before a press on a header becomes a drag.
- *
- * Without a threshold every click on a header — to focus a pane, to hit its close button — starts
- * a one-pixel drag, and the layout flickers under the pointer on an ordinary click.
- */
-export const DRAG_THRESHOLD = 4;
-
-/**
  * The splitter's grab area, straddling the boundary between two panes.
  *
  * Same 9px as `ResizeHandle` uses on the sidebar, for the same reason: it is the smallest strip
@@ -203,6 +130,3 @@ export const SPLITTER_HIT = 9;
 
 /** Keyboard resizing, per press, as a share. Shift multiplies it. */
 export const SPLITTER_STEP = 0.02;
-
-/** How long the splitter's grip is: enough to read as a handle, short enough not to read as a border. */
-export const GRIP_SPAN = 30;

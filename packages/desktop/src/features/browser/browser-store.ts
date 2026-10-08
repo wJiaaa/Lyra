@@ -73,7 +73,7 @@ export function useBrowserWorkspace(): void {
 			 */
 			const revealed = state.tabs.find((tab) => tab.id === state.activeId);
 			// Into the screen of the conversation that owns the page — the one the address bar was in.
-			if (state.reveal && revealed && browserOwner(revealed.sessionId) === browserOwner(useApp.getState().activeSessionId)) openScopedPanel("browser", undefined, revealed.sessionId ?? "@draft");
+			if (state.reveal && revealed && browserOwner(revealed.sessionId) === browserOwner(useApp.getState().activeSessionId)) openScopedPanel("browser", revealed.sessionId ?? "@draft");
 		});
 		void bridge.browser.state().then((state) => useBrowser.setState(state));
 		const unwatch = useSide.subscribe((state, previous) => {

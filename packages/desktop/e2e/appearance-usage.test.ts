@@ -41,10 +41,7 @@ function replyRecord(seq: number, at: number, tokens: number) {
 
 async function seed(home: string): Promise<void> {
 	const root = join(home, "project");
-	await mkdir(join(root, "src"), { recursive: true });
-	await writeFile(join(root, "src", "one.ts"), "export const one = 1\n");
-	await writeFile(join(root, "src", "two.ts"), "export const two = 2\n");
-	await writeFile(join(root, "src", "three.ts"), "export const three = 3\n");
+	await mkdir(root, { recursive: true });
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900, x: 0, y: 0 }));
 
 	/*
@@ -152,14 +149,6 @@ const UI = `
 	const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 	const label = (el) => el.innerText.replace(/\\s+/g, " ").trim();
 	const click = (el) => el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-	const item = (text) => [...document.querySelectorAll("[role=menuitem]")].find((i) => label(i).startsWith(text));
-	const openMenu = (el) => {
-		const b = el.getBoundingClientRect();
-		el.dispatchEvent(new MouseEvent("contextmenu", {
-			bubbles: true, cancelable: true, button: 2,
-			clientX: Math.round(b.left + 8), clientY: Math.round(b.top + 8),
-		}));
-	};
 	/*
 	 * The width the conversation column is actually drawn at.
 	 *
@@ -180,67 +169,6 @@ test("the welcome composer is a 672px column", async () => {
 	// 宽度不再是设置项：欢迎页是 `max-w-2xl`，对话里按窗格宽度分三档（见 composer.css）。
 	const width = await ui<number | null>(`return measure();`);
 	assert.equal(width, 672);
-});
-
-test("a tab's menu closes the ones it says it will", async () => {
-	const outcome = await ui<{ opened: string[]; afterRight: string[]; afterOthers: string[]; rightDisabled: boolean }>(`
-		// Open the files pane from the dock's panel menu.
-		const panelButton = [...document.querySelectorAll("button")].find((b) => (b.dataset.lyTip || "").includes("面板"));
-		if (panelButton) { click(panelButton); await wait(300); }
-		const filesRow = [...document.querySelectorAll("[role=menuitem]")].find((i) => label(i).startsWith("文件"));
-		if (filesRow) { click(filesRow); await wait(700); }
-
-		const tree = () => [...document.querySelectorAll("[role=treeitem]")];
-		const open = async (suffix) => {
-			const row = tree().find((r) => (r.getAttribute("data-path") || "").endsWith(suffix));
-			if (!row) throw new Error("tree row not found: " + suffix + " of " + tree().length);
-			click(row.querySelector("button") ?? row);
-			await wait(450);
-		};
-		const src = tree().find((r) => (r.getAttribute("data-path") || "").endsWith("/src"));
-		if (src) { click(src.querySelector("button") ?? src); await wait(450); }
-
-		await open("one.ts");
-		await open("two.ts");
-		await open("three.ts");
-
-		const tabs = () => [...document.querySelectorAll("[data-file-tab]")].map((t) => t.getAttribute("data-file-tab").split("/").pop());
-		const opened = tabs();
-
-		// Right-click the first tab and close everything to its right.
-		const first = document.querySelectorAll("[data-file-tab]")[0];
-		openMenu(first);
-		await wait(300);
-		const rightRow = item("关闭右侧");
-		const rightDisabled = rightRow ? rightRow.hasAttribute("disabled") || rightRow.getAttribute("aria-disabled") === "true" : true;
-		click(rightRow);
-		await wait(400);
-		const afterRight = tabs();
-
-		// Then reopen two and close the others from the second tab's menu.
-		await open("two.ts");
-		await open("three.ts");
-		const second = document.querySelectorAll("[data-file-tab]")[1];
-		openMenu(second);
-		await wait(300);
-		click(item("关闭其他"));
-		await wait(400);
-		return { opened, afterRight, afterOthers: tabs(), rightDisabled };
-	`);
-
-	assert.deepEqual(outcome.opened, ["one.ts", "two.ts", "three.ts"], "three files open, three tabs");
-	assert.equal(outcome.rightDisabled, false, "with tabs to the right, the row is live");
-	/*
-	 * 这两条以前期望的是空数组，注释写着「the strip is gone below two tabs」。
-	 *
-	 * 也就是说，它读到的空不是「标签关光了」，而是「标签行不画了」——剩一个标签时整条行会消失，
-	 * 于是数 `[data-file-tab]` 数出来是零。测试因此对两个不同的结果给出同一个答案：关掉右边的两个
-	 * 和关掉全部三个，在它眼里一模一样。屏幕上也一模一样，这正是当初被当成 bug 报上来的东西。
-	 *
-	 * 行现在留着了，这两条也就能问出它们本来想问的：关闭右侧留下了哪个，关闭其他又留下了哪个。
-	 */
-	assert.deepEqual(outcome.afterRight, ["one.ts"], "关闭右侧 closes what is to the right, and leaves the one you asked from");
-	assert.deepEqual(outcome.afterOthers, ["two.ts"], "关闭其他 leaves exactly the tab it was asked from");
 });
 
 test("the usage page reports what is in the logs", async () => {

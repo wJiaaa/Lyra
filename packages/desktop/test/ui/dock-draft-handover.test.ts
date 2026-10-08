@@ -28,7 +28,7 @@ let unregister: () => void = () => {};
 beforeEach(() => {
 	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin" } });
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	useApp.setState({ draftBecame: null });
 	unregister = registerPanels([{
 		kind: "terminal", label: "common.terminal", icon: Terminal, shortcut: "",

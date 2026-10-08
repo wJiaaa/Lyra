@@ -30,13 +30,7 @@ async function seed(home: string): Promise<void> {
 	await writeFile(join(root, "src", "main.ts"), "export const a = 1\n");
 	await writeFile(join(root, "src", "deep", "inner.txt"), "nested\n");
 	await writeFile(join(root, "docs", "notes.md"), "# notes\n");
-	/*
-	 * A window wide enough for the panel to have two columns in it.
-	 *
-	 * The default is 980, where a full-screen panel is still under the width at which the tree and
-	 * the file sit side by side — so the layout claim below would be tested against the stacked
-	 * arrangement, which is not the arrangement it is about. `window.json` is read at launch.
-	 */
+	// Wider than the default 980, so the panel column is drawn at an ordinary width. `window.json` is read at launch.
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 860, x: 0, y: 0 }));
 	await writeFile(
 		join(home, "settings.json"),
@@ -237,12 +231,12 @@ test("the clipboard round-trips through the main process", async () => {
 });
 
 /** What the layout check reads off the window, plus the steps it took to get there. */
-test("opening a file gives it a pane of its own, beside the tree rather than inside it", async () => {
+test("opening a file gives it a tab of its own rather than a viewer inside the tree", async () => {
 	/*
 	 * The tree and the open file used to be two halves of one panel, with their own breakpoint and
 	 * their own draggable seam — one component reimplementing, for two boxes only, what the dock
-	 * does for every pane. As two panes they can be split either way, resized, closed or made full
-	 * screen independently, and the tree gets the whole panel when nothing is open.
+	 * does for every pane. As two panels each is a tab of its own, closed or made full screen
+	 * independently, and the tree gets the whole panel when nothing is open.
 	 */
 	await openFilePanel();
 
@@ -258,39 +252,16 @@ test("opening a file gives it a pane of its own, beside the tree rather than ins
 		await wait(700);
 	`);
 
-	const opened = await app.evaluate<{
-		panes: string[];
-		files: { left: number; top: number; width: number; height: number } | null;
-		file: { left: number; top: number; width: number; height: number } | null;
-		hasEditor: boolean;
-		closable: boolean;
-	}>(`(() => {
-		const box = (kind) => {
-			const el = document.querySelector('[data-dock-pane="' + kind + '"]');
-			if (!el) return null;
-			const b = el.getBoundingClientRect();
-			return { left: b.left, top: b.top, width: b.width, height: b.height };
-		};
-		const header = document.querySelector('[data-dock-header="file"]');
-		return {
-			panes: [...document.querySelectorAll("[data-dock-pane]")].map((el) => el.dataset.dockPane),
-			files: box("files"),
-			file: box("file"),
-			// The file's contents, rather than the tree's: proof it landed in the new pane.
-			hasEditor: Boolean(document.querySelector('[data-dock-pane="file"] .ly-cm, [data-dock-pane="file"] .ly-markdown')),
-			closable: Boolean(header && [...header.querySelectorAll("button")].some((b) => (b.getAttribute("aria-label") ?? "").startsWith("关闭"))),
-		};
-	})()`);
+	const opened = await app.evaluate<{ panes: string[]; hasEditor: boolean; closable: boolean }>(`(() => ({
+		panes: [...document.querySelectorAll("[data-dock-pane]")].map((el) => el.dataset.dockPane),
+		// The file's contents, rather than the tree's: proof it landed in the new pane.
+		hasEditor: Boolean(document.querySelector('[data-dock-pane="file"] .ly-cm, [data-dock-pane="file"] .ly-markdown')),
+		closable: Boolean(document.querySelector('[data-panel-tab="file"] button[aria-label^="关闭"]')),
+	}))()`);
 
 	assert.ok(opened.panes.includes("file"), "the file opened a pane of its own");
-	assert.ok(opened.files && opened.file, "and both panes are on screen");
-	// Two panes, not one box inside another: they do not overlap.
-	const [tree, file] = [opened.files!, opened.file!];
-	const apart = file.left >= tree.left + tree.width - 1 || tree.left >= file.left + file.width - 1 ||
-		file.top >= tree.top + tree.height - 1 || tree.top >= file.top + file.height - 1;
-	assert.ok(apart, `the panes sit apart: tree ${JSON.stringify(tree)}, file ${JSON.stringify(file)}`);
 	assert.ok(opened.hasEditor, "and the file's contents are in the new pane");
-	assert.ok(opened.closable, "which can be closed like any other pane");
+	assert.ok(opened.closable, "which is a tab that can be closed like any other");
 
 	// The tree no longer holds a viewer of its own.
 	const insideTree = await app.evaluate<boolean>(
@@ -322,7 +293,7 @@ test("新建文件 puts a field in the tree, and Enter creates what was typed", 
 	t.diagnostic(JSON.stringify(state));
 	assert.equal(await readFile(join(project, "src", "through-the-menu.ts"), "utf8"), "");
 	assert.deepEqual(state.selected, [join(project, "src", "through-the-menu.ts")], "the new file is selected");
-	assert.equal(state.editor, true, "and open in the pane beside the tree");
+	assert.equal(state.editor, true, "and open in a tab of its own");
 });
 
 test("F2 renames in place, with the extension left out of the selection", async () => {
@@ -530,269 +501,4 @@ test("a toast goes on its own once nothing is holding it", async () => {
 
 	assert.equal(gone.atFirst, 1);
 	assert.equal(gone.later, 0, "it is still there, so nothing would ever clear a stack of them");
-});
-
-test("the tree and the file are a pair: stacked together, side by side full screen", async () => {
-	/*
-	 * They are one tool between them — a tree with nothing open is a list, and a file with no tree
-	 * is one file you cannot leave. So the file opens *against* the tree rather than wherever new
-	 * panes go, and making either full screen brings the other: the point of enlarging a file is to
-	 * read it properly, which is no use if you then cannot reach the next one.
-	 *
-	 * Stacked while they share a column, because splitting a column again leaves a tree too narrow
-	 * for a filename. Side by side once they have the dock to themselves.
-	 */
-	await openFilePanel();
-	await ui(`
-		const target = row("README.md") ?? row("src/main.ts");
-		if (!target) throw new Error("no file to open");
-		click(target);
-		await wait(700);
-	`);
-
-	const beside = await app.evaluate<Record<string, { left: number; top: number; width: number; height: number }>>(`(() => {
-		const out = {};
-		for (const el of document.querySelectorAll("[data-dock-pane]")) {
-			if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
-			const b = el.getBoundingClientRect();
-			out[el.dataset.dockPane] = { left: b.left, top: b.top, width: b.width, height: b.height };
-		}
-		return out;
-	})()`);
-	assert.ok(beside.files && beside.file, "both are open");
-	assert.ok(Math.abs(beside.file.left - beside.files.left) < 2, "the file is in the tree's column");
-	assert.ok(beside.file.top > beside.files.top, "under it, rather than beside it in a narrower column");
-	assert.ok(
-		Math.abs(beside.file.height - beside.files.height) < 4,
-		`and evenly, since you are looking at both: ${Math.round(beside.files.height)} / ${Math.round(beside.file.height)}`,
-	);
-
-	// Full screen from the file's own header.
-	const maximise = `(async () => {
-		const header = document.querySelector('[data-dock-header="file"]');
-		[...header.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? "").startsWith("全屏") || (b.getAttribute("aria-label") ?? "").startsWith("退出全屏")).click();
-		await new Promise((r) => setTimeout(r, 600));
-	})()`;
-	await app.evaluate(maximise);
-
-	const full = await app.evaluate<{ visible: string[]; span: number; dock: number; files: number; file: number; side: boolean }>(`(() => {
-		const visible = [];
-		const width = {};
-		let left = Infinity;
-		let right = -Infinity;
-		for (const el of document.querySelectorAll("[data-dock-pane]")) {
-			if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
-			visible.push(el.dataset.dockPane);
-			const b = el.getBoundingClientRect();
-			width[el.dataset.dockPane] = b.width;
-			left = Math.min(left, b.left);
-			right = Math.max(right, b.right);
-		}
-		const dock = document.querySelector("[data-dock-panes]").getBoundingClientRect();
-		const boxes = ["files", "file"].map((k) => document.querySelector('[data-dock-pane="' + k + '"]').getBoundingClientRect());
-		return {
-			visible,
-			span: right - left,
-			dock: dock.width,
-			files: width.files ?? 0,
-			file: width.file ?? 0,
-			side: Math.abs(boxes[0].top - boxes[1].top) < 2 && boxes[1].left > boxes[0].left,
-		};
-	})()`);
-	assert.deepEqual(full.visible.sort(), ["file", "files"], "the pair fills the dock, and nothing else is drawn");
-	assert.ok(Math.abs(full.span - full.dock) < 4, "between them they cover it");
-	/*
-	 * The file takes most of the room, as it does in every editor. Checked here rather than in the
-	 * ordinary layout, where a narrow dock puts both of them on their 300px floor and the ratio
-	 * cannot be seen.
-	 */
-	assert.ok(full.file > full.files, `the file is the larger of the two: ${Math.round(full.files)} / ${Math.round(full.file)}`);
-
-	// And back.
-	await app.evaluate(maximise);
-	const restored = await app.evaluate<string[]>(`
-		[...document.querySelectorAll("[data-dock-pane]")].filter((el) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true })).map((el) => el.dataset.dockPane)
-	`);
-	assert.ok(restored.includes("conversation"), "the conversation is back");
-});
-
-test("the boundary inside a maximised pair can still be dragged", async () => {
-	/*
-	 * Full screen used to raise its panes above everything, which buried the splitter between them
-	 * — a maximised tree and file could not be resized at all. The panes it is not showing are
-	 * hidden outright, so there was never anything for the extra layer to cover.
-	 *
-	 * The share also has to be translated on the way back. The focused layout re-shares the pair to
-	 * fill the dock, so what is read off the handle sums to 1 there and to less than that in the
-	 * tree being stored.
-	 */
-	await openFilePanel();
-	await ui(`
-		const target = row("README.md") ?? row("src/main.ts");
-		click(target);
-		await wait(700);
-	`);
-	await app.evaluate(`(async () => {
-		const header = document.querySelector('[data-dock-header="file"]');
-		[...header.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? "").startsWith("全屏")).click();
-		await new Promise((r) => setTimeout(r, 600));
-	})()`);
-
-	const widths = () =>
-		app.evaluate<Record<string, number>>(`(() => {
-			const out = {};
-			for (const el of document.querySelectorAll("[data-dock-pane]")) {
-				if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
-				out[el.dataset.dockPane] = el.getBoundingClientRect().width;
-			}
-			return out;
-		})()`);
-
-	const before = await widths();
-	assert.ok(before.files && before.file, "the pair is what is on screen");
-
-	// The seam has to be reachable: nothing may be drawn over it.
-	const onTop = await app.evaluate<string | null>(`(() => {
-		const h = document.querySelector('[data-dock-panes] [role="separator"][aria-orientation="vertical"]');
-		if (!h) return null;
-		const b = h.getBoundingClientRect();
-		const el = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-		return el ? el.getAttribute("role") : null;
-	})()`);
-	assert.equal(onTop, "separator", "the splitter is what the pointer would land on");
-
-	await app.evaluate(`(async () => {
-		const handle = document.querySelector('[data-dock-panes] [role="separator"][aria-orientation="vertical"]');
-		const b = handle.getBoundingClientRect();
-		const x = b.left + b.width / 2;
-		const y = b.top + b.height / 2;
-		const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-		handle.dispatchEvent(new PointerEvent("pointerdown", {
-			pointerId: 12, isPrimary: true, bubbles: true, cancelable: true, clientX: x, clientY: y, buttons: 1,
-		}));
-		await frame();
-		await frame();
-		for (let step = 1; step <= 8; step++) {
-			window.dispatchEvent(new PointerEvent("pointermove", {
-				pointerId: 12, isPrimary: true, bubbles: true, clientX: x - (240 * step) / 8, clientY: y, buttons: 1,
-			}));
-			await frame();
-		}
-		window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 12, isPrimary: true, bubbles: true, clientX: x - 240, clientY: y, buttons: 0 }));
-		await new Promise((r) => setTimeout(r, 500));
-	})()`);
-
-	const after = await widths();
-	assert.ok(
-		after.files < before.files - 100,
-		`the tree narrowed: ${Math.round(before.files)} to ${Math.round(after.files)} (file ${Math.round(before.file)} to ${Math.round(after.file)})`,
-	);
-	assert.ok(after.file > before.file + 100, "and the file took the room");
-	assert.ok(
-		Math.abs(after.files + after.file - (before.files + before.file)) < 4,
-		"between them they still fill the dock",
-	);
-
-	await app.evaluate(`(async () => {
-		window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-		await new Promise((r) => setTimeout(r, 400));
-	})()`);
-});
-
-test("dragged apart, the pair is two ordinary panes again", async (t) => {
-	/*
-	 * The pairing is declared in the registry, but honouring it regardless of where the panes have
-	 * been moved would mean full screen occasionally swallowing whatever sits between them.
-	 */
-	// Three columns need 420 + 300 + 300px after the sidebar; at 1280px the row is squeezed instead.
-	await app.send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 860, deviceScaleFactor: 1, mobile: false });
-
-	/*
-	 * From an empty dock, because this asserts on the *whole* row of panes.
-	 *
-	 * The layout is remembered, and these tests share one profile — so a panel opened by an earlier
-	 * test is still there when this one runs, and the assertion failed on a pane it never mentioned.
-	 * Closing them here states the precondition instead of inheriting it.
-	 */
-	await app.evaluate(`(async () => {
-		for (let guard = 0; guard < 12; guard++) {
-			/*
-			 * Only a close button that is on screen. The browser pane is always mounted and, closed,
-			 * is only transparent and inert — its button came first every time, closing it does
-			 * nothing, and this spun twelve times without ever emptying the dock.
-			 */
-			const close = [...document.querySelectorAll('[data-dock-header]:not([data-dock-header="conversation"]) button[aria-label^="关闭"]')]
-				.find((b) => b.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
-			if (!close) break;
-			close.click();
-			await new Promise((r) => setTimeout(r, 140));
-		}
-		await new Promise((r) => setTimeout(r, 300));
-	})()`);
-
-	await openFilePanel();
-	await ui(`
-		const target = row("README.md") ?? row("src/main.ts");
-		click(target);
-		await wait(700);
-	`);
-
-	// Send the file to the far left, putting the conversation between it and the tree.
-	await app.evaluate(`(async () => {
-		const grip = document.querySelector('[data-dock-grip="file"]');
-		grip.focus();
-		grip.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", altKey: true, bubbles: true, cancelable: true }));
-		await new Promise((r) => setTimeout(r, 600));
-	})()`);
-
-	const order = await app.evaluate<string[]>(`
-		[...document.querySelectorAll("[data-dock-pane]")]
-			.filter((el) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
-			.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)
-			.map((el) => el.dataset.dockPane)
-	`);
-	t.diagnostic(JSON.stringify(await app.evaluate(`({ width: innerWidth, dock: document.querySelector("[data-dock-panes]").getBoundingClientRect().toJSON(), panes: [...document.querySelectorAll("[data-dock-pane]")].map(el => ({ kind: el.dataset.dockPane, box: el.getBoundingClientRect().toJSON() })) })`)));
-	assert.deepEqual(order, ["file", "conversation", "files"], "they are no longer neighbours");
-
-	/*
-	 * At the former fixture width the row does not fit, and it stays a row.
-	 *
-	 * It used to be turned into a column of full-width strips. A row of three that does not fit now
-	 * keeps its shape, and the first pane takes the whole shortfall — drawn at its minimum and
-	 * overlapping its neighbour rather than squeezed below it; a turned axis is only for rows of two.
-	 * What this is here for holds either way: the conversation still separates the pair. Only the
-	 * panes on screen are counted — the browser pane is always mounted, closed as transparent and
-	 * inert, and a filter on display alone read it as a fourth pane.
-	 */
-	await app.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 860, deviceScaleFactor: 1, mobile: false });
-	await app.evaluate(`new Promise(resolve => { let frames = 20; const tick = () => --frames ? requestAnimationFrame(tick) : resolve(); requestAnimationFrame(tick); })`);
-	const squeezed = await app.evaluate<{ kind: string; left: number; top: number; bottom: number }[]>(`[...document.querySelectorAll("[data-dock-pane]")]
-		.filter(el => el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
-		.map(el => { const r = el.getBoundingClientRect(); return { kind: el.dataset.dockPane, left: r.left, top: r.top, bottom: r.bottom }; })
-		.sort((a, b) => a.left - b.left)`);
-	t.diagnostic(JSON.stringify({ width: 1280, squeezed }));
-	assert.deepEqual(squeezed.map(pane => pane.kind), ["file", "conversation", "files"], "the conversation still separates the squeezed pair");
-	for (const pane of squeezed.slice(1)) {
-		assert.ok(
-			Math.abs(pane.top - squeezed[0].top) < 1 && Math.abs(pane.bottom - squeezed[0].bottom) < 1,
-			`a row of three keeps its shape rather than turning into a column of strips: ${JSON.stringify(squeezed)}`,
-		);
-	}
-
-	await app.evaluate(`(async () => {
-		const header = document.querySelector('[data-dock-header="file"]');
-		[...header.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? "").startsWith("全屏")).click();
-		await new Promise((r) => setTimeout(r, 600));
-	})()`);
-
-	const visible = await app.evaluate<string[]>(`
-		[...document.querySelectorAll("[data-dock-pane]")].filter((el) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true })).map((el) => el.dataset.dockPane)
-	`);
-	assert.deepEqual(visible, ["file"], "so full screen is just the one pane");
-
-	// Leave the dock as it was found: these two tests are the only ones here that rearrange it.
-	await app.evaluate(`(async () => {
-		window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-		await new Promise((r) => setTimeout(r, 400));
-	})()`);
 });

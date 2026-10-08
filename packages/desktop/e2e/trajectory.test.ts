@@ -183,8 +183,15 @@ test("session switching never renders the previous trace selection or filter con
 	assert.equal(await app.evaluate(`document.querySelector('[data-trajectory]').textContent.includes('trace-run-2499')`), false);
 });
 
+// 面板是右栏的标签，同一时间只画一个；前面几条留在前面的可能是任务或文件。
+async function showTrajectory() {
+	await click(app, '[data-panel-tab="trajectory"] [role="tab"]');
+	await settle();
+}
+
 test("time-range selection, turn folding and model timing are queryable through the real controls", async () => {
 	await openSession(app, "10000000-0000-4000-8000-000000000001");
+	await showTrajectory();
 	await until(app, `document.querySelector('[data-trace-count]')?.textContent.includes('7503/7503')`);
 	await settle();
 	const box = await timeline();
@@ -233,6 +240,7 @@ test("time-range selection, turn folding and model timing are queryable through 
 
 test("trajectory controls fit both themes and narrow panes; a brush stays local until release", async (t) => {
 	await openSession(app, "10000000-0000-4000-8000-000000000001");
+	await showTrajectory();
 	await click(app, '[aria-label="返回记录"]');
 	await until(app, `!document.querySelector('.ly-trace-inspector')`);
 	for (const theme of ["dark", "light"]) {

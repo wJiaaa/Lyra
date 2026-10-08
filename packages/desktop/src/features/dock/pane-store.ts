@@ -10,61 +10,17 @@
  * 每条修一个症状，又在别处埋一个：任务面板分屏后横跨两屏、回到单屏的面板压在标题栏下面、打开
  * 网址冒出第二个浏览器、切一次焦点页面重载一次。架构决定见 `docs/adr/0023-containers-belong-to-sessions.md`。
  *
- * 这个文件只管数据：树、全屏、窄窗口时正显示哪一块、拖动中的临时状态。画成什么样是 `DockView` 的事。
+ * 这个文件只管数据：树、全屏、窄窗口时正显示哪一块、当前标签。画成什么样是 `DockView` 的事。
  */
 
 import { create } from "zustand";
-import { sameDrop } from "./drop.ts";
-import type { DragState } from "./drag-host.ts";
 import { dropTree, flushTree, paneStorageKey, readTree, writeTree } from "./persist.ts";
-import { MIN_FRACTION, paneFloor } from "./geometry.ts";
-import { defaultDrop, dropFits, placePanel } from "./place.ts";
-import { clampTabShare, panelsOf, readTabsCollapsed, readTabShare, writeTabsCollapsed, writeTabShare } from "./tabs.ts";
+import { clampTabShare, insertTab, panelsOf, readTabsCollapsed, readTabShare, writeTabsCollapsed, writeTabShare } from "./tabs.ts";
 import { panelInstance } from "../../lib/panel-instance.ts";
 import { panelOf } from "./panels/registry.ts";
-import {
-	areAdjacent,
-	defaultTree,
-	has,
-	insert,
-	kinds,
-	lift,
-	move,
-	moveAlong,
-	nodeAt,
-	pathTo,
-	remove,
-	resize,
-	type Axis,
-	type DockNode,
-	type DropAt,
-	type DropSide,
-	type PaneKind,
-} from "./tree.ts";
+import { defaultTree, has, kinds, remove, type DockNode, type PaneKind } from "./tree.ts";
 
 export const emptyDockTree: DockNode = defaultTree();
-
-/**
- * What is filling one screen's dock, and how the room is divided when it is a pair.
- *
- * A pair, because the file tree and the open file are one tool between them: enlarging half of it
- * to read something leaves you unable to reach the next thing. `ratio` is the first pane's share
- * *of the two*, held here rather than derived from the tree — see `restore` for how it goes back.
- */
-export interface Maximized {
-	panes: PaneKind[];
-	ratio: number;
-	axis: Axis;
-}
-
-/** Where a pane asks to land, and how much of its partner's room it wants when it has one. */
-export type Placement = DropAt & { share?: number };
-
-interface ScopedDrag extends DragState {
-	scope: string;
-	/** What was full screen before the drag lifted it, so a cancel can put it back. */
-	maximized: Maximized | null;
-}
 
 type Span = { width: number; height: number };
 
@@ -72,21 +28,19 @@ interface PaneDockState {
 	trees: Record<string, DockNode>;
 	/** Each live screen's measured size. A scope with no size is not on screen right now. */
 	sizes: Record<string, Span>;
-	maximized: Record<string, Maximized | null>;
+	/** 这一屏的右栏铺满了整屏。全屏的是整栏，不是某个标签：切标签、开新标签都还在全屏里。 */
+	maximized: Record<string, boolean>;
 	/** Which pane the narrow layout is showing, and which one the keyboard is on. */
 	focused: Record<string, PaneKind>;
-	/** A pair's split while full screen has it on the *other* axis from its dock. */
-	crossRatio: Record<string, number>;
-	/** 标签页排法下，每一屏最后看的那个面板。见 `tabs.ts`。 */
+	/** 每一屏最后看的那个面板。见 `tabs.ts`。 */
 	tab: Record<string, PaneKind>;
-	/** 标签页排法下右侧那一栏占多宽，全窗口一份。 */
+	/** 右侧那一栏占多宽，全窗口一份。 */
 	tabShare: number;
 	/**
-	 * 标签页排法下右侧那一栏收起来了：面板都还开着、还挂着，只是不画。全窗口一份。
+	 * 右侧那一栏收起来了：面板都还开着、还挂着，只是不画。全窗口一份。
 	 * 只在单屏起作用——收起后开关在窗口顶栏里，分屏时每格的标题栏里没有它，见 `DockView`。
 	 */
 	tabsCollapsed: boolean;
-	drag: ScopedDrag | null;
 	/**
 	 * Which screen's browser hosts the pages nobody else is showing.
 	 *
@@ -106,39 +60,19 @@ interface PaneDockState {
 	forget(scope: string): void;
 	rememberSize(scope: string, span: Span): void;
 	setHost(scope: string | null): void;
-	open(scope: string, kind: PaneKind, at?: Placement): boolean;
+	/** `index`：放成第几个标签，收回弹出的面板时用；不给就排在最后。 */
+	open(scope: string, kind: PaneKind, index?: number): boolean;
 	close(scope: string, kind: PaneKind): void;
 	/** Put a panel away wherever it is open. For the panels whose contents are one shared thing. */
 	closeEverywhere(kind: PaneKind): void;
 	focus(scope: string, kind: PaneKind): void;
-	moveTo(scope: string, kind: PaneKind, at: DropAt): void;
-	moveAlong(scope: string, kind: PaneKind, side: DropSide): boolean;
-	setShare(scope: string, path: number[], index: number, fraction: number, floor?: number): void;
 	setTabShare(share: number): void;
 	setTabsCollapsed(collapsed: boolean): void;
-	even(scope: string, path: number[], index: number): void;
 	restoreLayout(scope: string, tree: DockNode): void;
-	toggleMaximized(scope: string, kind: PaneKind, partner?: PaneKind): void;
-	setMaximizedRatio(scope: string, ratio: number): void;
-	setMaximizedAxis(scope: string, axis: Axis): void;
-	/** Leave full screen, keeping whatever the boundary was dragged to. */
+	toggleMaximized(scope: string): void;
+	/** Leave full screen. */
 	restore(scope: string): void;
-	preview(scope: string, rest: DockNode, kind: PaneKind, at: DropAt | null): void;
-	beginDrag(scope: string, drag: DragState): void;
-	dragTo(pointer: { x: number; y: number }, at: DropAt | null): void;
-	endDrag(cancelled?: boolean): void;
 }
-
-/** How small either half of a maximised pair may get, as a share of the two. */
-const PAIR_MIN = 0.15;
-
-/**
- * How a pair divides the dock when full screen turns it on its side.
- *
- * A tree and a file stacked in a column open even — you are looking at both. Laid side by side
- * they are an editor, and an editor gives the tree a column and the file the rest.
- */
-const FULL_SCREEN_RATIO = 0.3;
 
 /** Write to memory, and through to disk — a bare conversation is "nothing stored", not a row. */
 function persist(scope: string, tree: DockNode): void {
@@ -146,83 +80,16 @@ function persist(scope: string, tree: DockNode): void {
 	else writeTree(paneStorageKey(scope), tree);
 }
 
-/**
- * Give a freshly opened pane the share its panel asked for, out of what it shares with its partner.
- *
- * `insert` halves whatever it splits, which is the right default and the wrong one for a pair: a
- * file tree wants a column and the file wants the rest. Expressed as *this pane's* share of the
- * two, so a panel declares how much room it needs without knowing which side it landed on.
- */
-function withShare(tree: DockNode, kind: PaneKind, partner: PaneKind, share: number): DockNode {
-	const path = pathTo(tree, kind);
-	const partnerPath = pathTo(tree, partner);
-	if (!path || path.length === 0 || !partnerPath) return tree;
-	const parent = path.slice(0, -1);
-	// Only siblings have a boundary between them to move.
-	if (parent.join() !== partnerPath.slice(0, -1).join()) return tree;
-	const split = nodeAt(tree, parent);
-	if (split?.type !== "split") return tree;
-	const at = path[path.length - 1];
-	const beside = partnerPath[partnerPath.length - 1];
-	if (Math.abs(at - beside) !== 1) return tree;
-	// `resize` names a boundary by the child on its near side, so ask for the near one's share.
-	const near = Math.min(at, beside);
-	const pair = (split.sizes[near] ?? 0) + (split.sizes[near + 1] ?? 0);
-	const mine = at === near ? share : 1 - share;
-	return resize(tree, parent, near, mine * pair);
-}
-
-/** The boundary between two adjacent panes, named the way `resize` needs it. */
-function seamOf(tree: DockNode, panes: PaneKind[]): { path: number[]; index: number } | null {
-	const [one, other] = panes;
-	const first = pathTo(tree, one);
-	const second = pathTo(tree, other);
-	if (!first || !second || first.length !== second.length) return null;
-	const parent = first.slice(0, -1);
-	if (parent.join() !== second.slice(0, -1).join()) return null;
-	const near = Math.min(first[first.length - 1], second[second.length - 1]);
-	return { path: parent, index: near };
-}
-
-/** What the first of a pair currently holds, as a share of the two. Half for anything else. */
-function ratioOf(tree: DockNode, panes: PaneKind[]): number {
-	if (panes.length !== 2) return 0.5;
-	const seam = seamOf(tree, panes);
-	if (!seam) return 0.5;
-	const split = nodeAt(tree, seam.path);
-	if (split?.type !== "split") return 0.5;
-	const near = split.sizes[seam.index] ?? 0;
-	const far = split.sizes[seam.index + 1] ?? 0;
-	return near + far > 0 ? near / (near + far) : 0.5;
-}
-
-/**
- * What is left of full screen once the tree has changed shape.
- *
- * Panes that are no longer there stop being part of it; when none of them are, full screen is over.
- * Nothing else is reconsidered — the ratio and the axis describe a pair that is still a pair.
- */
-function survivingMaximized(maximized: Maximized | null, present: PaneKind[]): Maximized | null {
-	if (!maximized) return null;
-	const panes = maximized.panes.filter((kind) => present.includes(kind));
-	if (panes.length === 0) return null;
-	return panes.length === maximized.panes.length ? maximized : { ...maximized, panes };
-}
-
 const isBare = (tree: DockNode | null | undefined): boolean => !tree || (tree.type === "leaf" && tree.kind === "conversation");
 
 export const usePaneDock = create<PaneDockState>((set, get) => {
-	/**
-	 * Every structural change goes through here, so nothing changes a tree without saving it.
-	 *
-	 * `save` is false for the frames of a drag: those trees are provisional, and one of them is a
-	 * tree with the carried pane missing entirely — exactly what a crash mid-drag must not leave.
-	 */
-	const commit = (scope: string, tree: DockNode, extra?: { focused?: PaneKind; maximized?: Maximized | null }, save = true) => {
+	/** Every structural change goes through here, so nothing changes a tree without saving it. */
+	const commit = (scope: string, tree: DockNode, extra?: { focused?: PaneKind; maximized?: boolean }) => {
 		const state = get();
 		const present = kinds(tree);
 		const focused = extra?.focused ?? state.focused[scope] ?? "conversation";
-		const maximized = extra && "maximized" in extra ? (extra.maximized ?? null) : survivingMaximized(state.maximized[scope] ?? null, present);
+		// 最后一个面板关掉了，右栏没了，全屏也就结束。
+		const maximized = (extra?.maximized ?? state.maximized[scope] ?? false) && panelsOf(tree).length > 0;
 		const tab = focused !== "conversation" && present.includes(focused) ? { ...state.tab, [scope]: focused } : state.tab;
 		set({
 			tab,
@@ -231,7 +98,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			focused: { ...state.focused, [scope]: present.includes(focused) ? focused : "conversation" },
 			maximized: { ...state.maximized, [scope]: maximized },
 		});
-		if (save) persist(scope, tree);
+		persist(scope, tree);
 	};
 
 	return {
@@ -239,11 +106,9 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		sizes: {},
 		maximized: {},
 		focused: {},
-		crossRatio: {},
 		tab: {},
 		tabShare: readTabShare(),
 		tabsCollapsed: readTabsCollapsed(),
-		drag: null,
 		host: null,
 
 		tree: (scope) => get().trees[scope] ?? emptyDockTree,
@@ -271,7 +136,6 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		},
 
 		forget(scope) {
-			if (get().drag?.scope === scope) get().endDrag(true);
 			/*
 			 * 只忘掉内存里那份，盘上的留着。
 			 *
@@ -280,7 +144,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			 */
 			flushTree();
 			set((state) => {
-				if (!(scope in state.trees) && !(scope in state.sizes) && state.drag?.scope !== scope) return state;
+				if (!(scope in state.trees) && !(scope in state.sizes)) return state;
 				const trees = { ...state.trees };
 				const sizes = { ...state.sizes };
 				const maximized = { ...state.maximized };
@@ -291,7 +155,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 				delete sizes[scope];
 				delete maximized[scope];
 				delete focused[scope];
-				return { trees, sizes, maximized, focused, tab, drag: state.drag?.scope === scope ? null : state.drag };
+				return { trees, sizes, maximized, focused, tab };
 			});
 		},
 
@@ -306,46 +170,16 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			if (get().host !== scope) set({ host: scope });
 		},
 
-		/**
-		 * Open a pane, or bring it forward if it is already open.
-		 *
-		 * A panel with a declared partner lands beside it when the partner is here. Everything else
-		 * lands where a new panel goes — the edge that keeps every pane readable when there is one,
-		 * and the usual edge otherwise, drawn squeezed. The floors choose *where*, never *whether*.
-		 */
-		open(scope, kind, at) {
+		/** Open a pane, or bring it forward if it is already open. */
+		open(scope, kind, index) {
 			// 要一个面板就是要看它：右栏收着的话先展开，否则点了终端什么也看不见。
 			get().setTabsCollapsed(false);
-			const state = get();
-			const tree = state.tree(scope);
+			const tree = get().tree(scope);
 			if (has(tree, kind)) {
 				get().focus(scope, kind);
 				return true;
 			}
-			const paired = Boolean(at && at.kind !== null && has(tree, at.kind));
-			const span = state.sizes[scope];
-			// The same rule a single screen always had: the first panel is a column at the screen's edge.
-			const usual = defaultDrop(tree);
-			// The asked-for edge only counts while its neighbour is actually here.
-			const asked = at && (at.kind === null || has(tree, at.kind)) ? { side: at.side, kind: at.kind } : null;
-			let drop: DropAt;
-			if (paired && asked) drop = asked;
-			else if (asked && (!span || dropFits(tree, span, paneFloor, kind, asked))) drop = asked;
-			else drop = (span ? placePanel(tree, span, paneFloor, kind) : null) ?? asked ?? usual;
-			let next = insert(tree, kind, drop);
-			if (paired && at?.kind && at.share !== undefined) next = withShare(next, kind, at.kind, at.share);
-			/*
-			 * Opened beside a pane that is full screen? Then it is full screen too — clicking a file in
-			 * a maximised tree is the case. Anything else ends full screen, because the panel that was
-			 * just asked for would otherwise open behind the maximised one.
-			 */
-			const current = state.maximized[scope] ?? null;
-			const partner = paired && at?.kind && current?.panes.includes(at.kind) ? current : null;
-			const panes = partner ? kinds(next).filter((each) => each === kind || partner.panes.includes(each)) : null;
-			commit(scope, next, {
-				focused: kind,
-				maximized: partner && panes ? { ...partner, panes, ratio: ratioOf(next, panes) } : null,
-			});
+			commit(scope, insertTab(tree, kind, index), { focused: kind });
 			return true;
 		},
 
@@ -383,35 +217,6 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			});
 		},
 
-		/*
-		 * Rearranging ends full screen: full screen is "show me only this", moving a pane is "show me
-		 * where everything goes", and a pane in flight is briefly out of the tree.
-		 */
-		moveTo(scope, kind, at) {
-			const tree = get().tree(scope);
-			const rest = lift(tree, kind);
-			if (!rest) return;
-			// With one neighbour, a keyboard edge move divides that pair evenly, like a leaf drop.
-			const target = at.kind === null && rest.type === "leaf" ? { ...at, kind: rest.kind } : at;
-			commit(scope, move(tree, kind, target), { maximized: null });
-		},
-
-		moveAlong(scope, kind, side) {
-			const tree = get().tree(scope);
-			const next = moveAlong(tree, kind, side);
-			if (!next) return false;
-			if (next !== tree) commit(scope, next, { maximized: null });
-			return true;
-		},
-
-		setShare(scope, path, index, fraction, floor) {
-			const tree = get().tree(scope);
-			const next = resize(tree, path, index, fraction, floor);
-			if (next === tree) return;
-			set({ trees: { ...get().trees, [scope]: next } });
-			persist(scope, next);
-		},
-
 		setTabShare(share) {
 			const next = clampTabShare(share);
 			if (Math.abs(next - get().tabShare) < 1e-6) return;
@@ -425,123 +230,24 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			writeTabsCollapsed(collapsed);
 		},
 
-		even(scope, path, index) {
-			get().setShare(scope, path, index, 0.5);
-		},
-
 		restoreLayout(scope, tree) {
-			commit(scope, tree, { maximized: null });
+			commit(scope, tree, { maximized: false });
 		},
 
-		/**
-		 * Fill this screen with the pane — or with the pair it belongs to, when the partner is right
-		 * beside it. Only this screen: another conversation on the window is not touched.
-		 */
-		toggleMaximized(scope, kind, partner) {
+		/** 右栏铺满这一屏，或者退回来。只动这一屏：窗口里另一段对话不受影响。 */
+		toggleMaximized(scope) {
 			const state = get();
-			const tree = state.tree(scope);
-			if (!has(tree, kind)) return;
-			if (state.maximized[scope]?.panes.includes(kind)) {
+			if (state.maximized[scope]) {
 				get().restore(scope);
 				return;
 			}
-			const together = partner && has(tree, partner) && areAdjacent(tree, kind, partner);
-			const panes = together ? kinds(tree).filter((each) => each === kind || each === partner) : [kind];
-			// The axis is provisional: the renderer decides it from how much room there is, and says so.
-			const seam = seamOf(tree, panes);
-			const split = seam && nodeAt(tree, seam.path);
-			const axis: Axis = split?.type === "split" ? split.dir : "row";
-			set({ maximized: { ...state.maximized, [scope]: { panes, ratio: ratioOf(tree, panes), axis } } });
+			if (panelsOf(state.tree(scope)).length === 0) return;
+			set({ maximized: { ...state.maximized, [scope]: true } });
 		},
 
-		setMaximizedRatio(scope, ratio) {
-			const maximized = get().maximized[scope];
-			if (!maximized) return;
-			set({ maximized: { ...get().maximized, [scope]: { ...maximized, ratio: Math.min(1 - PAIR_MIN, Math.max(PAIR_MIN, ratio)) } } });
-		},
-
-		/**
-		 * The renderer decides the axis — it is the only thing that knows how much room there is —
-		 * and turning the pair on its side changes which remembered proportion applies.
-		 */
-		setMaximizedAxis(scope, axis) {
-			const state = get();
-			const maximized = state.maximized[scope];
-			if (!maximized || maximized.axis === axis) return;
-			const tree = state.tree(scope);
-			const seam = seamOf(tree, maximized.panes);
-			const split = seam && nodeAt(tree, seam.path);
-			const docked = split?.type === "split" ? split.dir : axis;
-			const ratio = axis === docked ? ratioOf(tree, maximized.panes) : (state.crossRatio[scope] ?? FULL_SCREEN_RATIO);
-			set({ maximized: { ...state.maximized, [scope]: { ...maximized, axis, ratio } } });
-		},
-
-		/*
-		 * Written back scaled: the pair filled the screen and now holds part of a row again, so what
-		 * survives is the ratio between them. Only on the panes' own axis — how wide you made the tree
-		 * side by side says nothing about how tall you want it back in its column.
-		 */
 		restore(scope) {
-			const state = get();
-			const maximized = state.maximized[scope];
-			if (!maximized) return;
-			set({ maximized: { ...state.maximized, [scope]: null } });
-			if (maximized.panes.length !== 2) return;
-			const tree = state.tree(scope);
-			const seam = seamOf(tree, maximized.panes);
-			if (!seam) return;
-			const split = nodeAt(tree, seam.path);
-			if (split?.type !== "split") return;
-			if (split.dir !== maximized.axis) {
-				set({ crossRatio: { ...get().crossRatio, [scope]: maximized.ratio } });
-				return;
-			}
-			const pair = (split.sizes[seam.index] ?? 0) + (split.sizes[seam.index + 1] ?? 0);
-			const next = resize(tree, seam.path, seam.index, maximized.ratio * pair, MIN_FRACTION * pair);
-			set({ trees: { ...get().trees, [scope]: next } });
-			persist(scope, next);
-		},
-
-		/**
-		 * Show what a drop would do, by inserting into the layout the carried pane has left.
-		 *
-		 * `rest`, never the current tree: applying the next preview to the previewed layout would make
-		 * each answer depend on the one before, and it oscillates. Never written to disk — only
-		 * `endDrag` commits a drag.
-		 */
-		preview(scope, rest, kind, at) {
-			commit(scope, at ? insert(rest, kind, at) : rest, { maximized: null }, false);
-		},
-
-		beginDrag(scope, drag) {
-			const maximized = get().maximized[scope] ?? null;
-			set({ drag: { ...drag, scope, maximized }, maximized: { ...get().maximized, [scope]: null } });
-		},
-
-		/*
-		 * Only when the landing place changes, which is the only part of this anyone renders from.
-		 * The pointer is kept current without costing a render.
-		 */
-		dragTo(pointer, at) {
-			const drag = get().drag;
-			if (!drag) return;
-			if (drag.at === at || sameDrop(drag.at, at)) {
-				drag.pointer = pointer;
-				return;
-			}
-			set({ drag: { ...drag, pointer, at } });
-		},
-
-		/*
-		 * Put the layout back when the drag lands nowhere — and it has to be put back, not left: while
-		 * a drag is in flight the carried pane is not in the tree. Escape takes the same path.
-		 */
-		endDrag(cancelled) {
-			const drag = get().drag;
-			if (!drag) return;
-			set({ drag: null });
-			if (cancelled || !drag.at) commit(drag.scope, drag.before, { maximized: drag.maximized });
-			else persist(drag.scope, get().tree(drag.scope));
+			if (!get().maximized[scope]) return;
+			set({ maximized: { ...get().maximized, [scope]: false } });
 		},
 	};
 });

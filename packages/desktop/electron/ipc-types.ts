@@ -117,8 +117,6 @@ export type { ForgeAccount, ForgeKind, ForgeKindInfo } from "./forge/types.ts";
  */
 interface PanelInMain {
 	kind: string;
-	/** A pane to sit next to, and on which side — a layout hint, validated before it reaches a dock. */
-	beside?: { kind: string; side: string; share?: number };
 	/** The screen the panel was popped out of, where the request was made. */
 	scope?: string;
 	/** For the file pane: the file to open. */

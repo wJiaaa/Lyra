@@ -26,16 +26,14 @@ const HIT_WIDTH = 9;
 const INSIDE = 1;
 /** Keyboard resizing, per press. Shift multiplies it, the way nudging does everywhere else. */
 const STEP = 16;
-/** Long enough to read as a grab handle, short enough not to read as a border. */
-const GRIP_HEIGHT = 30;
 
 /**
  * The draggable edge of a pane.
  *
- * What appears is a short grip at the pointer, not a rule down the whole edge. A full-height line
- * reads as a border — a permanent piece of the layout — when the thing it means is "this
- * particular spot can be dragged". A grip that follows the pointer says that and nothing else,
- * and it leaves the boundary looking the same whether or not you happen to be near it.
+ * What appears is a line down the whole edge, and only while the pointer is on it or dragging.
+ * It used to be a 30px grip following the pointer, on the grounds that a full-height line reads as
+ * a border; but it is never there at rest, so it cannot be mistaken for layout, and a stub that
+ * slides along with the pointer looked like an artefact rather than "this whole edge moves".
  *
  * The target straddles the boundary with almost all of it on the neighbour's side, which is what
  * keeps it clear of the scrollbar inside the pane — see `INSIDE`. Whoever renders this has to give
@@ -68,14 +66,11 @@ export function ResizeHandle({
 	const track = useRef<HTMLDivElement>(null);
 	const [active, setActive] = useState(false);
 	/*
-	 * Where along the edge the grip sits, in pixels from the top of the handle.
-	 *
-	 * Null until the pointer arrives, so nothing is drawn on a pane nobody is reaching for. Held
-	 * as state rather than read from a CSS variable because it also has to survive the drag: once
-	 * the pointer leaves the 9px strip the handle stops receiving moves, and a grip that vanished
-	 * mid-drag would leave you dragging an invisible edge.
+	 * Whether the line is showing. State rather than `:hover` because it also has to survive the
+	 * drag: once the pointer leaves the 9px strip the handle is no longer hovered, and a line that
+	 * vanished mid-drag would leave you dragging an invisible edge.
 	 */
-	const [grip, setGrip] = useState<number | null>(null);
+	const [lit, setLit] = useState(false);
 	const start = useRef({ x: 0, width: 0 });
 
 	useEffect(() => {
@@ -114,14 +109,14 @@ export function ResizeHandle({
 			if (!frame) frame = requestAnimationFrame(apply);
 		};
 		/*
-		 * Let go of the grip too, unless the pointer came to rest back on the edge.
+		 * Put the line out too, unless the pointer came to rest back on the edge.
 		 *
 		 * A drag almost always ends somewhere else — that is the point of it — and `mouseleave`
 		 * cannot report that, because the pointer left this element long before the button came up.
 		 */
 		const stop = (event: MouseEvent) => {
 			setActive(false);
-			if (!over(track.current, event)) setGrip(null);
+			if (!over(track.current, event)) setLit(false);
 		};
 
 		window.addEventListener("mousemove", onMove);
@@ -157,20 +152,20 @@ export function ResizeHandle({
 	 *
 	 * It is not delivered when the pointer crosses the whole element between two frames — a quick
 	 * flick past a nine-pixel strip does exactly that — and it is not delivered at all when the
-	 * pointer leaves the window, which is the case somebody notices: the grip stays lit on an edge
+	 * pointer leaves the window, which is the case somebody notices: the line stays lit on an edge
 	 * nothing is near, and nothing will ever come along to put it out.
 	 *
-	 * So the question is asked the other way round. While a grip is showing, every pointer move
+	 * So the question is asked the other way round. While the line is showing, every pointer move
 	 * anywhere re-checks whether it is still over this strip, and leaving the document or the
 	 * window at all settles it immediately. Only while not dragging — during a drag the pointer is
-	 * meant to be far away and the grip is meant to follow it.
+	 * meant to be far away and the line is meant to stay.
 	 */
 	useEffect(() => {
-		if (grip === null || active) return;
+		if (!lit || active) return;
 		const check = (event: MouseEvent) => {
-			if (!over(track.current, event)) setGrip(null);
+			if (!over(track.current, event)) setLit(false);
 		};
-		const gone = () => setGrip(null);
+		const gone = () => setLit(false);
 		// `mouseout` with no relatedTarget is the pointer crossing the window's own boundary.
 		const out = (event: MouseEvent) => {
 			if (!event.relatedTarget) gone();
@@ -183,7 +178,7 @@ export function ResizeHandle({
 			document.removeEventListener("mouseout", out);
 			window.removeEventListener("blur", gone);
 		};
-	}, [grip, active]);
+	}, [lit, active]);
 
 	return (
 		<div
@@ -195,14 +190,12 @@ export function ResizeHandle({
 			aria-valuemax={max}
 			tabIndex={0}
 			ref={track}
-			onMouseEnter={(event) => setGrip(event.clientY - event.currentTarget.getBoundingClientRect().top)}
-			onMouseMove={(event) => {
-				if (active) return;
-				setGrip(event.clientY - event.currentTarget.getBoundingClientRect().top);
-			}}
+			onMouseEnter={() => setLit(true)}
+			// Again on move: the window-level check above can put it out while the pointer is still here.
+			onMouseMove={() => setLit(true)}
 			onMouseLeave={() => {
 				// Stays put while dragging: the pointer is usually well outside the strip by then.
-				if (!active) setGrip(null);
+				if (!active) setLit(false);
 			}}
 			onMouseDown={(event) => {
 				// Left button only: a right-click here should not start a silent drag.
@@ -225,25 +218,17 @@ export function ResizeHandle({
 			}}
 			// Pushed out by everything except `INSIDE`, so the strip lands beyond the pane's edge.
 			style={{ width: HIT_WIDTH, [edge === "end" ? "right" : "left"]: INSIDE - HIT_WIDTH }}
-			className="group/resize absolute top-0 bottom-0 z-30 cursor-col-resize [--ly-grip:30px]"
+			className="group/resize absolute top-0 bottom-0 z-30 cursor-col-resize"
 		>
 			{/*
-			 * The grip: a short rounded bar centred on the pointer, pinned to the boundary itself.
-			 *
-			 * The boundary is now the *near* edge of this strip rather than its far one, because the
-			 * strip stepped over to the neighbour's side. Drawn there rather than in the middle of
-			 * the hit area, so what appears under the pointer is still the seam between two panes
-			 * and not a mark floating in the content.
-			 *
-			 * Clamped away from the ends so it never collides with the window controls above or
-			 * the status row below — at those extremes it stops travelling rather than sliding out
-			 * of the pane.
+			 * Drawn on the boundary itself — the *near* edge of this strip, since the strip stepped
+			 * over to the neighbour's side — so what lights up is the seam between two panes and not
+			 * a mark floating in the content.
 			 */}
-			{grip !== null && (
+			{lit && (
 				<span
 					aria-hidden
-					style={{ top: `clamp(${GRIP_HEIGHT / 2 + 8}px, ${grip}px, calc(100% - ${GRIP_HEIGHT / 2 + 8}px))` }}
-					className={`absolute h-[var(--ly-grip)] w-[3px] -translate-y-1/2 rounded-full transition-colors duration-[var(--ly-t-quick)] ${
+					className={`absolute top-0 bottom-0 w-[3px] rounded-full transition-colors duration-[var(--ly-t-quick)] ${
 						edge === "end" ? "left-0" : "right-0"
 					} ${active ? "bg-accent" : "bg-ink-faint/45"}`}
 				/>

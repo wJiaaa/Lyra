@@ -3,7 +3,7 @@
  *
  * The pane's header used to say 「文件内容」 — a label naming the pane's own category, on a pane
  * whose category is never in doubt, taking the one row that could have said *which file*. Worse,
- * that was the state the pane was most often left in: the tree is a companion that gets closed, and
+ * that was the state the pane was most often left in: the tree gets closed, and
  * with it gone this pane became a file with no name and no way to reach another one.
  *
  * So the name is the control. It says what is open, and — when there is no tree on screen — pressing
@@ -12,21 +12,18 @@
  * all work here because it *is* that component. Which folders are open is shared state
  * (`store/fileTree.ts`), so a tree opened here is open in the panel and the other way round.
  *
- * Only when there is no tree on screen. With the tree pane beside this one the dropdown would be a
- * second copy of a list you are already looking at, and a control that opens one is a control that
- * does nothing worth doing — so the name is just a name then. What counts as "on screen" is not
- * "open": maximising this pane on its own covers the tree, and a narrow window shows one pane at a
- * time. See `paneVisible`.
+ * Only when there is no tree on screen, where the dropdown would be a second copy of a list you are
+ * already looking at. What counts as "on screen" is not "open": the tree is usually a tab behind
+ * this one, and a narrow window shows one pane at a time. See `usePaneOnScreen`.
  *
- * 标签页排法下前面再补上它所在的目录——见 `FileDirs`。
+ * 名字前面再补上它所在的目录——见 `FileDirs`。
  */
 
 import { useI18n } from "../../i18n/index.ts";
 import { ChevronDown, ChevronRight, FileText, PanelLeft } from "../../ui/icons/index.ts";
 import { Fragment } from "react";
 
-import { openFilePane, openScopedPanel, usePaneOnScreen, usePanelLayout } from "../dock/index.ts";
-import { companionOf } from "../dock/index.ts";
+import { openFilePane, openScopedPanel, usePaneOnScreen } from "../dock/index.ts";
 import { useProjectFolders } from "../../store/project-folders.ts";
 import { useDockScope, useScopedWorkspace } from "../../app/session-scope.tsx";
 import { useOpenFile } from "../../store/openFile.ts";
@@ -61,14 +58,13 @@ export function FileTitle() {
 	const empty = usePaneFile((s) => !s.path && !s.opening);
 	const menu = usePopover();
 	const treeOnScreen = useTreeOnScreen();
-	const tabbed = usePanelLayout() === "tabs";
 
 	/*
-	 * 标签页排法下，标签上已经写着文件名，这一行前面补上它在哪：项目 › 目录 › 文件名。文件名照旧
-	 * 点得开下拉树。图标换成文件自己的，和树里、标签上认的是同一个样子。
+	 * 标签上已经写着文件名，这一行前面补上它在哪：项目 › 目录 › 文件名。文件名照旧点得开下拉树。
+	 * 图标换成文件自己的，和树里、标签上认的是同一个样子。
 	 */
-	const dirs = tabbed ? <FileDirs folders={folders} path={path} /> : null;
-	const look = tabbed && name ? lookFor(name, false) : null;
+	const dirs = <FileDirs folders={folders} path={path} />;
+	const look = name ? lookFor(name, false) : null;
 	const icon = look ? (
 		<look.Icon size={12.5} strokeWidth={1.75} className="shrink-0" style={{ color: iconColour(look) }} />
 	) : (
@@ -144,7 +140,7 @@ export function FileTitle() {
 						<button
 							type="button"
 							onClick={() => {
-								openScopedPanel("files", companionOf("files"), screen ?? undefined);
+								openScopedPanel("files", screen ?? undefined);
 								menu.close();
 							}}
 							className="flex w-full items-center gap-1.5 px-3 py-2 text-detail text-ink-muted transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover hover:text-ink"

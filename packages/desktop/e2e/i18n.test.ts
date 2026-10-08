@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
-import { frames, shot } from "./drive.ts";
+import { frames, shot, until } from "./drive.ts";
 import { landsOn } from "./lands-on.ts";
 
 let app: RunningApp;
@@ -67,7 +67,8 @@ test("switching every bundled locale updates visible UI without reloading or los
 test("the language menu exposes three aligned choices and English labels do not overflow", async () => {
 	await app.evaluate(`(async()=>{const settings=await window.plume.settings.get();await window.plume.settings.save({...settings,uiLocale:'zh-CN'});await new Promise((resolve)=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()`);
 	await app.evaluate(`document.querySelector('[data-ly-open-settings]').click()`);
-	await frames(app, 20);
+	// Settings is loaded on first open; its navigation arrives a moment after the click.
+	await until(app, `[...document.querySelectorAll('nav button')].some((e)=>e.textContent.trim()==='常规')`);
 	await app.evaluate(`(()=>{const b=[...document.querySelectorAll('nav button')].find((e)=>e.textContent.trim()==='常规');if(!b)throw new Error('general section missing');b.click();})()`);
 	await frames(app, 20);
 	const menu = await app.evaluate<{ count: number; marks: string[]; maxHeight: number }>(`(async()=>{

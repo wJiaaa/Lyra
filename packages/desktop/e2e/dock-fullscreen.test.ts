@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { Message } from "@plume/core";
@@ -37,7 +37,7 @@ async function seed(home: string) {
 
 before(async () => {
 	app = await startApp({ port: 9712, seed });
-	// Native work areas may clamp the saved window; this workload requires three readable columns.
+	// Native work areas may clamp the saved window; the conversation and the panel column must both stay readable.
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 	await app.evaluate(`document.querySelector('[data-ly-row="fullscreen"] > button').click()`);
 	await until(app, `document.querySelector('.ly-transcript')`);
@@ -45,7 +45,7 @@ before(async () => {
 	await until(app, `document.querySelector('[role="treeitem"][data-path$="AGENTS.md"]')`);
 	await app.evaluate(`document.querySelector('[role="treeitem"][data-path$="AGENTS.md"]').click()`);
 	await until(app, `document.querySelector('[data-dock-pane="file"] .prose-dw h2')`);
-	await app.evaluate(`document.querySelector('[data-dock-header="files"] button[aria-label^="关闭"]').click()`);
+	await closeTab("files");
 	await openPane("任务");
 	await openPane("终端");
 	await frames(app, 30);
@@ -56,7 +56,8 @@ before(async () => {
 		return {width:innerWidth,height:innerHeight,panes:leaves.map(el=>{const r=el.getBoundingClientRect();return {kind:el.dataset.dockPane,width:r.width,height:r.height}})};
 	})()`);
 	assert.deepEqual([layout.width, layout.height], [1440, 900]);
-	assert.deepEqual(layout.panes.map(pane => pane.kind).sort(), ["conversation", "file", "tasks", "terminal"]);
+	// 面板是右栏的标签：同一时间画对话和当前那一个，其余的挂着但看不见。
+	assert.deepEqual(layout.panes.map(pane => pane.kind).sort(), ["conversation", "terminal"]);
 	for (const pane of layout.panes) {
 		assert.ok(pane.width >= (pane.kind === "conversation" ? 420 : 300) - 0.5, JSON.stringify(pane));
 		assert.ok(pane.height >= (pane.kind === "conversation" ? 260 : 150) - 0.5, JSON.stringify(pane));
@@ -66,6 +67,17 @@ before(async () => {
 after(async () => { await app?.stop(); });
 
 // Synthetic `.click()` like the rest of this file: no real pointer is left hovering the dock during frame measurements.
+/** 面板全在右栏的标签里，全屏和关闭都在当前那个标签的那排按钮上——单屏时它们在窗口顶栏里。 */
+const TOOLBAR = "[data-ly-toolbar-panel]";
+async function select(kind: string) {
+	await app.evaluate(`document.querySelector('[data-panel-tab="${kind}"] [role="tab"]').click()`);
+	await frames(app, 20);
+}
+async function closeTab(kind: string) {
+	await app.evaluate(`document.querySelector('[data-panel-tab="${kind}"] button[aria-label^="关闭"]').click()`);
+	await frames(app, 20);
+}
+
 async function openPane(label: string) {
 	await app.evaluate(`document.querySelector('button[aria-label="面板"]').click()`);
 	await until(app, `document.querySelector('[role="menuitem"]')`);
@@ -109,7 +121,7 @@ async function measure(kind: string, restore: boolean): Promise<Measurement> {
 		const longFrames=[]; const loaf=new PerformanceObserver(list=>longFrames.push(...list.getEntries().map(e=>({...e.toJSON(),scripts:e.scripts.map(s=>s.toJSON())})))); loaf.observe({entryTypes:['long-animation-frame']});
 		await new Promise(requestAnimationFrame); resizes=0;
 		const out=[]; let previous=performance.now();
-		pane.querySelector('button[aria-label^="${label}"]').click();
+		document.querySelector('${TOOLBAR} button[aria-label^="${label}"]').click();
 		for(let i=0;i<40;i++) {
 			await new Promise(requestAnimationFrame); const now=performance.now(), box=surface.getBoundingClientRect();
 			out.push({interval:now-previous,left:box.left,top:box.top,width:box.width,height:box.height,layoutWidth:pane.offsetWidth,layoutHeight:pane.offsetHeight}); previous=now;
@@ -127,6 +139,7 @@ function geometry(frame: Sample): string {
 test("fullscreen and restore retain heavy pane contents and resize each surface once", async (t) => {
 	const measurements = [];
 	for (const kind of ["file", "tasks", "terminal"]) {
+		await select(kind);
 		for (const restore of [false, true]) {
 			const result = await measure(kind, restore);
 			measurements.push({ kind, restore, ...result });
@@ -149,6 +162,7 @@ test("fullscreen and restore retain heavy pane contents and resize each surface 
 });
 
 test("thousands of records stay bounded, retain an open detail and reach both list boundaries", async (t) => {
+	await select("tasks");
 	const result = await app.evaluate<{ initial: number; bottom: { count: number; last: string; openRetained: boolean }; top: { count: number; first: string; openRetained: boolean; height: number }; beforeHeight: number }>(`(async()=>{
 		const pane=document.querySelector('[data-dock-pane="tasks"]'), scroll=pane.querySelector('.ly-scroll-view');
 		const frame=()=>new Promise(requestAnimationFrame);
@@ -186,6 +200,7 @@ test("thousands of records stay bounded, retain an open detail and reach both li
 });
 
 test("rapid fullscreen reversals preserve scroll and finish without a second drift", async (t) => {
+	await select("file");
 	const result = await app.evaluate<{ deltas: number[]; tail: string[]; scroll: number; hiddenInteractive: boolean; animations: number }>(`(async()=>{
 		const pane=document.querySelector('[data-dock-pane="file"]'), scroll=pane.querySelector('.ly-scroll-view');
 		scroll.scrollTop=1200;
@@ -194,10 +209,11 @@ test("rapid fullscreen reversals preserve scroll and finish without a second dri
 		const deltas=[];
 		for(let i=0;i<8;i++) {
 			await frame();await frame();const from=rect();
-			pane.querySelector('button[aria-label^="'+(i%2?'退出全屏':'全屏')+'"]').click();
+			document.querySelector('${TOOLBAR} button[aria-label^="'+(i%2?'退出全屏':'全屏')+'"]').click();
 			await Promise.resolve();const to=rect();deltas.push(Math.max(...from.map((n,i)=>Math.abs(n-to[i]))));
 		}
-		for(let i=0;i<20;i++)await frame();const tail=[];
+		// Settle by the clock: twenty frames are 167ms on a 120Hz panel, short of the 220ms geometry transition.
+		const settle=performance.now()+400;while(performance.now()<settle)await frame();const tail=[];
 		for(let i=0;i<10;i++){await frame();tail.push(rect().map(Math.round).join(','));}
 		return {deltas,tail,scroll:scroll.scrollTop,hiddenInteractive:[...document.querySelectorAll('[data-dock-pane][inert]')].some(e=>getComputedStyle(e).opacity!=='0'),animations:surface.getAnimations().length};
 	})()`);
@@ -207,21 +223,20 @@ test("rapid fullscreen reversals preserve scroll and finish without a second dri
 	assert.equal(result.hiddenInteractive, false); assert.equal(result.animations, 0);
 });
 
-test("a large editable file keeps its editor and unsaved text; reduced motion lands immediately", async () => {
+test("a large file keeps its editor across fullscreen; reduced motion lands immediately", async () => {
+	// Each open file is a tab of its own; with the earlier file still in `file`, large.ts would open beside it as `file:<id>`.
+	if (await app.evaluate(`Boolean(document.querySelector('[data-panel-tab="file"]'))`)) await closeTab("file");
 	await openPane("文件");
 	await until(app, `document.querySelector('[role="treeitem"][data-path$="large.ts"]')`);
 	await app.evaluate(`document.querySelector('[role="treeitem"][data-path$="large.ts"]').click()`);
 	await until(app, `document.querySelector('[data-dock-pane="file"] .cm-content')`);
-	await app.evaluate(`document.querySelector('[data-dock-header="files"] button[aria-label^="关闭"]').click()`);
-	await frames(app, 20);
-	await app.evaluate(`(()=>{const e=document.querySelector('[data-dock-pane="file"] .cm-content');e.focus();const range=document.createRange();range.setStart(e.querySelector('.cm-line'),0);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`);
-	await app.send("Input.insertText", { text: "// retained draft\n" });
+	await closeTab("files");
+	await select("file");
+	// 文件面板从 bae6d712 起是只读预览，打不进字，这里只守编辑器实例在全屏来回之间不被重建。
 	for (const restore of [false, true]) {
 		const result = await measure("file", restore);
 		assert.ok(Object.values(result.retained).every(Boolean)); assert.ok(result.resizes <= 3);
 	}
-	assert.match(await app.evaluate<string>(`document.querySelector('[data-dock-pane="file"] .cm-content').innerText`), /retained draft/);
-	assert.doesNotMatch(await readFile(join(app.home, "project", "large.ts"), "utf8"), /retained draft/);
 	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,reduceMotion:'on'}}))`);
 	await until(app, `document.documentElement.dataset.reduceMotion==='on'`);
 	try {

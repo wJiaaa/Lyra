@@ -129,19 +129,18 @@ async function openPlugins(): Promise<void> {
 }
 
 /**
- * Move to one of the page's three tabs.
+ * Move to one of the page's kinds.
  *
- * Looked for inside the market's own tab list, because 插件 is both a tab on this page and the entry
- * in the sidebar that opened it — and the sidebar comes first in the DOM. Taking the first match
- * anywhere clicks the navigation, which lands back where we already are and looks exactly like a
- * tab that refused to switch.
+ * They are rows in the sidebar now (`PluginsNav`), each marked `data-market-kind` — looked for by that
+ * mark, because 插件 is also the rail's name for this page, and taking the first match anywhere would
+ * land back where we already are and look exactly like a kind that refused to switch.
  */
 async function switchTab(label: string): Promise<void> {
 	await app.evaluate(`(() => {
-		// The strip shows a count after each label (MCP 3); the label is what is matched.
-		const tab = [...document.querySelectorAll("[data-market] [role=tab]")].find((b) => b.checkVisibility({ visibilityProperty: true }) && b.textContent?.replace(/\\d+$/, "").trim() === ${JSON.stringify(label)});
-		if (!tab) throw new Error("no tab called " + ${JSON.stringify(label)});
-		tab.click();
+		// Each row shows a count after its label (MCP 3); the label is what is matched.
+		const row = [...document.querySelectorAll("[data-market-kind]")].find((b) => b.checkVisibility({ visibilityProperty: true }) && b.textContent?.replace(/\\d+$/, "").trim() === ${JSON.stringify(label)});
+		if (!row) throw new Error("no kind called " + ${JSON.stringify(label)});
+		(row.matches("button") ? row : row.querySelector("button") ?? row).click();
 		return true;
 	})()`);
 }

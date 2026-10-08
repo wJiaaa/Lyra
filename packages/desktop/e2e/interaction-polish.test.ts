@@ -64,6 +64,8 @@ test("every visible settings navigation resolves to its own page, including scre
 test("skills have fades at the actual hidden edges and retain their reading position across tabs", async (t) => {
 	await click(app, '[data-qa-section="plugins"]');
 	await until(app, `[...document.querySelectorAll('[data-view="plugins"]')].some(e=>e.checkVisibility({visibilityProperty:true}))`);
+	// The page opens on the user's own scope; a project's pending skills show once that project is the one looked at.
+	await click(app, 'button[aria-label="查看的项目"]'); await click(app, '[role="menuitem"]', "交互验证");
 	await app.evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.checkVisibility({visibilityProperty:true})&&/^技能/.test(b.textContent));b.setAttribute('data-qa-skills','');})()`);
 	await click(app, '[data-qa-skills]');
 	/*
@@ -104,7 +106,7 @@ test("Git uses Index counts, colours added C# syntax, aligns checkout branches a
 	const colors = await app.evaluate<{ token: string; color: string }[]>(`[...document.querySelectorAll('.ly-diff-add span[class^="ͼ"]')].map(e=>({token:e.textContent,color:getComputedStyle(e).color}))`);
 	assert.ok(new Set(colors.map((entry) => entry.color)).size >= 3, JSON.stringify(colors));
 	await shot(app, "git-csharp");
-	await click(app, '[data-dock-pane="review"] [data-ly-tip="分支"]');
+	await click(app, '[data-dock-pane="review"] button[aria-label="分支"]');
 	await until(app, `document.querySelector('[data-view="branches"]')?.textContent.includes('second-checkout')`);
 	const aligned = await app.evaluate<number[]>(`[...document.querySelectorAll('[data-view="branches"] button[data-ly-tip]')].filter(b=>b.dataset.lyTip.includes('project')||b.dataset.lyTip.includes('second-checkout')).map(b=>b.lastElementChild.getBoundingClientRect().right)`);
 	assert.equal(aligned.length, 2); assert.ok(Math.abs(aligned[0] - aligned[1]) < 1, JSON.stringify(aligned));

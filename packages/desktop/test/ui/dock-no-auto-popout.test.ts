@@ -35,22 +35,22 @@ function watchWindows(): { opened: unknown[] } {
 
 function reset(): void {
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	// The workspace answers "which screen" — here a single screen, `tile`.
 	provideScope(() => "tile");
 }
 
-test("a tile with no room for a panel takes it rather than opening a window", () => {
+test("a small tile takes a panel rather than opening a window", () => {
 	reset();
 	const { opened } = watchWindows();
-	// 700×400 clears no edge for a 300×150 panel beside a 420×260 conversation.
+	// Too small to hold a 300px panel beside a 420px conversation: it is drawn squeezed, in the tile.
 	usePaneDock.getState().rememberSize("tile", { width: 700, height: 400 });
 	openScopedPanel("terminal");
 	assert.ok(has(usePaneDock.getState().tree("tile"), "terminal"), "the panel landed in the screen, squeezed");
 	assert.deepEqual(opened, [], "opening a panel is not a request for a second window");
 });
 
-test("toggling a panel into a tile with no room does not open a window either", () => {
+test("toggling a panel into a small tile does not open a window either", () => {
 	reset();
 	const { opened } = watchWindows();
 	usePaneDock.getState().rememberSize("tile", { width: 700, height: 400 });

@@ -431,7 +431,7 @@ export function FileTree({
 							// 叫一个终端来接这条命令。已经有的会被聚焦而不是再开一个。
 							// In this tree's screen, and run by that screen's terminal: the keyboard reaches the menu
 							// without giving the screen the focus, and both used to follow the focus.
-							const at = openScopedPanel("terminal", undefined, screen ?? undefined);
+							const at = openScopedPanel("terminal", screen ?? undefined);
 							runInTerminal(`cd '${dir.replaceAll("'", "'\\''")}'`, at);
 						},
 						newFile: (dir) => startCreate(dir, "file"),

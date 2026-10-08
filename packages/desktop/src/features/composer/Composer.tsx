@@ -19,7 +19,7 @@ import { commandEntries } from "./command-catalog.ts";
 import { ScheduledAlert } from "../scheduled/index.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
-import { companionOf, openFilePane, openScopedPanel, useSide } from "../dock/index.ts";
+import { openFilePane, openScopedPanel, useSide } from "../dock/index.ts";
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { ContextMeter } from "./ContextMeter.tsx";
 import { EffortTrigger } from "../models/index.ts";
@@ -83,7 +83,7 @@ export function Composer({ centered = false }: {
 	// A count, not the list: a selector that builds an array hands back a new one on every store tick.
 	const unfinished = useScopedTodos().filter((todo) => todo.status !== "completed").length;
 	const activeSessionId = useScopedSessionId();
-	useJobReveal(activeSessionId, useCallback(() => void openScopedPanel("tasks", companionOf("tasks"), activeSessionId ?? undefined), [activeSessionId]));
+	useJobReveal(activeSessionId, useCallback(() => void openScopedPanel("tasks", activeSessionId ?? undefined), [activeSessionId]));
 	// "底部面板" in Settings → 常规. Saved but read by nothing until now.
 	const showBottomPanel = useApp((s) => s.settings?.editor.showBottomPanel) ?? true;
 	// A switch in this screen's repository — a switch under the screen beside it is not this chip's to show.
@@ -526,7 +526,7 @@ export function Composer({ centered = false }: {
 				 * files apart from one that was stuck. The bar is that line, and it opens the pane.
 				 */}
 				{/* Into this conversation's own screen: the announcement is not a click, so the focus says nothing. */}
-				<SubAgentBar onOpen={() => openScopedPanel("subagents", companionOf("subagents"), activeSessionId ?? "@draft")} />
+				<SubAgentBar onOpen={() => openScopedPanel("subagents", activeSessionId ?? "@draft")} />
 				{/*
 				 * A scheduled task failed, in a session nobody was watching. Said where someone is —
 				 * and only on the screen in front, which `ScheduledAlert` decides for itself.
@@ -552,7 +552,7 @@ export function Composer({ centered = false }: {
 						 */
 						onAside={(taken) => {
 							// Beside the conversation it was queued in, which the keyboard can reach without focusing it.
-							openScopedPanel("chat", companionOf("chat"), activeSessionId);
+							openScopedPanel("chat", activeSessionId);
 							// 开的是最早那一个侧边聊天，问的也是它。
 							void useSide.getState().ask(activeSessionId, DEFAULT_SIDE_CHAT_ID, taken.content);
 						}}

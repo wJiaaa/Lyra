@@ -10,7 +10,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { useEffect, useRef, useState } from "react";
 import { freezeMotion } from "../../ui/motion/freeze.ts";
-import { GRIP_SPAN, SPLITTER_HIT, SPLITTER_STEP, pct, shareFromPointer, type SplitterBox } from "./layout.ts";
+import { SPLITTER_HIT, SPLITTER_STEP, pct, shareFromPointer, type SplitterBox } from "./layout.ts";
 import { holdSplitPersist } from "./persist.ts";
 
 export function Splitter({
@@ -31,7 +31,7 @@ export function Splitter({
 	const dragging = useRef(false);
 	const report = useRef(onResize);
 	report.current = onResize;
-	const [grip, setGrip] = useState<number | null>(null);
+	const [lit, setLit] = useState(false);
 	const track = useRef<HTMLDivElement>(null);
 	const dock = useRef<DOMRect | null>(null);
 
@@ -80,7 +80,7 @@ export function Splitter({
 				event.clientX <= box.right &&
 				event.clientY >= box.top &&
 				event.clientY <= box.bottom;
-			if (!over) setGrip(null);
+			if (!over) setLit(false);
 		};
 		window.addEventListener("pointermove", onMove);
 		window.addEventListener("pointerup", stop);
@@ -97,19 +97,9 @@ export function Splitter({
 		<div
 			ref={track}
 			data-ly-split-handle
-			onPointerEnter={(event) => {
-				const box = event.currentTarget.getBoundingClientRect();
-				const next = row ? event.clientY - box.top : event.clientX - box.left;
-				setGrip((current) => (current !== null && Math.round(current) === Math.round(next) ? current : next));
-			}}
-			onPointerMove={(event) => {
-				if (dragging.current) return;
-				const box = event.currentTarget.getBoundingClientRect();
-				const next = row ? event.clientY - box.top : event.clientX - box.left;
-				setGrip((current) => (current !== null && Math.round(current) === Math.round(next) ? current : next));
-			}}
+			onPointerEnter={() => setLit(true)}
 			onPointerLeave={() => {
-				if (!dragging.current) setGrip(null);
+				if (!dragging.current) setLit(false);
 			}}
 			role="separator"
 			aria-orientation={row ? "vertical" : "horizontal"}
@@ -163,27 +153,12 @@ export function Splitter({
 					row ? "inset-y-0 left-1/2 w-px -translate-x-1/2" : "inset-x-0 top-1/2 h-px -translate-y-1/2"
 				}`}
 			/>
-			{grip !== null && (
+			{lit && (
 				<span
 					aria-hidden
-					style={
-						row
-							? {
-									top: `clamp(${GRIP_SPAN / 2 + 8}px, ${grip}px, calc(100% - ${GRIP_SPAN / 2 + 8}px))`,
-									left: "50%",
-									height: GRIP_SPAN,
-									width: 3,
-								}
-							: {
-									left: `clamp(${GRIP_SPAN / 2 + 8}px, ${grip}px, calc(100% - ${GRIP_SPAN / 2 + 8}px))`,
-									top: "50%",
-									width: GRIP_SPAN,
-									height: 3,
-								}
-					}
-					className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors duration-[var(--ly-t-quick)] ${
-						active ? "bg-accent" : "bg-ink-faint/45"
-					}`}
+					className={`pointer-events-none absolute rounded-full transition-colors duration-[var(--ly-t-quick)] ${
+						row ? "inset-y-0 left-1/2 w-[3px] -translate-x-1/2" : "inset-x-0 top-1/2 h-[3px] -translate-y-1/2"
+					} ${active ? "bg-accent" : "bg-ink-faint/45"}`}
 				/>
 			)}
 		</div>

@@ -41,7 +41,7 @@ async function seed(home: string): Promise<void> {
 		scheduledTasks: [],
 		disabledPlugins: [],
 		alwaysAllow: [],
-		appearance: { theme: "dark", panelLayout: "tabs" },
+		appearance: { theme: "dark" },
 	}));
 	const projectId = createHash("sha256").update(project).digest("hex").slice(0, 16);
 	const zero = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };

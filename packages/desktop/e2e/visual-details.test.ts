@@ -157,8 +157,9 @@ async function withTouchViewport(run: () => Promise<void>) {
 test("release preview and edit share a stable dialog and content height", async (t) => {
 	await click('[data-ly-row="qa-long"] > button');
 	await click('button[aria-label^="Git "]');
-	await until(app, `document.querySelector('[data-dock-pane="review"] [data-ly-tip="流水线"]')`);
-	await click('[data-dock-pane="review"] [data-ly-tip="流水线"]');
+	// By its name, not its tooltip: a Git pane wide enough to spell its tabs out gives them no tooltip.
+	await until(app, `document.querySelector('[data-dock-pane="review"] button[aria-label="流水线"]')`);
+	await click('[data-dock-pane="review"] button[aria-label="流水线"]');
 	await until(app, `document.querySelector('[aria-label="打开发版中心"]')`);
 	await click('[aria-label="打开发版中心"]');
 	await until(app, `document.querySelector('[role="dialog"] textarea') || document.querySelector('[role="dialog"] [aria-label="编辑更新日志"]')`);
@@ -191,7 +192,7 @@ test("release preview and edit share a stable dialog and content height", async 
 
 
 test("navigation shows fifteen compact marks and all 120 questions remain reachable", async (t) => {
-	await click('[data-dock-pane="review"] [aria-label="关闭Git"]');
+	await click('[data-panel-tab="review"] [aria-label="关闭Git"]');
 	await until(app, `document.querySelectorAll('.ly-question-mark').length === 15`);
 	await click('.ly-question-mark');
 	for (const key of ["Home", "End"]) {
@@ -256,7 +257,8 @@ test("project memory is visible in usage and its settings switch stops injection
 	await click('[data-project-switch]');
 	await until(app, `document.querySelector('[data-project-switch]').getAttribute('aria-checked') === 'false'`);
 	const after = await app.evaluate<{used:number;projectMemory:string}>(`window.plume.sessions.contextBreakdown('qa-long')`);
-	assert.equal(after.projectMemory, "");
+	// Absent rather than empty: the breakdown leaves out a section the prompt does not have (`runtime/context.ts`).
+	assert.equal(after.projectMemory ?? "", "");
 	assert.match(await app.evaluate<string>(`window.plume.projectMemory.list(${JSON.stringify(join(app.home,"project"))}).then(r=>r.extracted.text)`), /核对当前仓库/);
 	await click('[data-project-switch]'); await frames(app);
 	assert.match((await app.evaluate<{projectMemory:string}>(`window.plume.sessions.contextBreakdown('qa-long')`)).projectMemory, /核对当前仓库/);
@@ -299,7 +301,9 @@ test("long registry lists scroll inside the dialog and nested confirmation close
 		window.qaRegistryCleanup=()=>{for(const type of types) window.removeEventListener(type,record,true); delete window.qaRegistryClicks; delete window.qaRegistryEvents; delete window.qaRegistryCleanup;};
 	})()`);
 	try {
-		await clickText("插件"); await frames(app);
+		await clickText("插件");
+		// The page is lazy: for its first moments it is a skeleton with no header to press.
+		await until(app, `document.querySelector('[data-market] header button[aria-label="${zhCN["common.more"]}"]')`);
 		// The sources left the header's 「添加」 menu for its ⋯, beside reload and 管理已安装 (PluginsView).
 		await click(`[data-market] header button[aria-label="${zhCN["common.more"]}"]`);
 		await clickText(zhCN["market.sources"]);
@@ -350,6 +354,8 @@ test("a narrow column centres the transcript instead of parking the question rai
 	 * 个面板的 1400px 窗口，对话列同样只有四百多像素，一样偏。
 	 */
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false });
+	// The test before this one ends on 插件, whose own list is what the sidebar shows there.
+	await clickText("对话");
 	await click('[data-ly-row="qa-long"] > button');
 	await until(app, `document.querySelector('[data-view="qa-long"][data-active="true"] .ly-transcript')?.checkVisibility({visibilityProperty:true,opacityProperty:true}) && document.querySelectorAll('[data-view="qa-long"][data-active="true"] .ly-question-mark').length > 1`);
 	const column = `(()=>{const view=document.querySelector('.ly-transcript').closest('.ly-scroll-view'),v=view.getBoundingClientRect(),c=document.querySelector('.ly-transcript').getBoundingClientRect(),rail=document.querySelector('.ly-question-nav');

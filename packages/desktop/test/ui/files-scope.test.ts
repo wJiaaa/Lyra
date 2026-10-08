@@ -92,7 +92,7 @@ beforeEach(() => {
 	useFileTreeStore.setState({ children: {}, expanded: new Set() });
 	useOpenFile.setState({ files: {}, last: null, open: async (_slot, entry) => void opened.push(entry.path) });
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	usePaneDock.getState().rememberSize("a", { width: 1200, height: 900 });
 	usePaneDock.getState().rememberSize("b", { width: 1200, height: 900 });
 	provideScope(() => "a");
@@ -171,9 +171,8 @@ test("a file opened from a screen's Files panel opens the file pane in that scre
 	assert.ok(!has(usePaneDock.getState().tree("a"), "file"), "it opened beside the conversation that has focus");
 });
 
-test("tabs layout: under the file's tab is where it is, and its name still opens the tree", async () => {
-	// 默认排法已改回分栏，标签页排法要明说。
-	useApp.setState({ settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "tabs" } } });
+test("under the file's tab is where it is, and its name still opens the tree", async () => {
+	useApp.setState({ settings: { ...DEFAULT_SETTINGS } });
 	useOpenFile.setState({ files: { [fileSlot("b", "file")]: { path: "/work/beta/src/lib.ts", name: "lib.ts", contents: null, opening: null, loading: false } } });
 	const b = await inScreen("b", h(FileTitle));
 	assert.equal(b.text(), "betasrclib.ts", "that screen's project, the folder, then the file");
@@ -183,9 +182,8 @@ test("tabs layout: under the file's tab is where it is, and its name still opens
 	assert.ok(listed.includes("/work/beta/lib.ts"), `the dropdown listed ${JSON.stringify(listed)}`);
 });
 
-test("split layout: the tree under the open file's name lists that screen's project, and hands off to that screen", async () => {
-	// 分栏排法没有那排标签，名字和它背后的下拉树照旧。
-	useApp.setState({ settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "split" } } });
+test("the tree under the open file's name lists that screen's project, and hands off to that screen", async () => {
+	useApp.setState({ settings: { ...DEFAULT_SETTINGS } });
 	useOpenFile.setState({ files: { [fileSlot("b", "file")]: { path: "/work/beta/lib.ts", name: "lib.ts", contents: null, opening: null, loading: false } } });
 	const b = await inScreen("b", h(FileTitle));
 	await click(b.find("button"));

@@ -425,21 +425,6 @@ async function main() {
 		results.push(
 			await measure(
 				app,
-				"pane carried across the dock",
-				`(async () => {
-					const grip = document.querySelector('[data-dock-pane]:not([data-dock-pane="conversation"]) [data-dock-grip]');
-					if (!grip) throw new Error("no grip for the panel pane");
-					const box = grip.getBoundingClientRect();
-					const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-					await window.__drag(grip, from, { x: 380, y: 620 }, 45, true);
-					await new Promise((r) => setTimeout(r, 500));
-				})()`,
-			),
-		);
-
-		results.push(
-			await measure(
-				app,
 				"sidebar edge drag",
 				`(async () => {
 					const handle = document.querySelector('[aria-label="调整侧边栏宽度"]');

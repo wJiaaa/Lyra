@@ -1,7 +1,7 @@
 /**
  * A solo view puts the workspace away on its first frame, and gives it back on its first frame.
  *
- * 已安排, 插件 and 拉取请求 put the workspace away with `visibility: hidden` rather than tearing it
+ * 定时任务, 插件 and 拉取请求 put the workspace away with `visibility: hidden` rather than tearing it
  * down (see `Workspace` in `src/app/App.tsx`). That reaches only what inherits it: an element that
  * transitions `visibility` stays visible for the length of its transition, and `transition-all`
  * transitions it. The suggestion cards, the send button and the title bar's panel buttons all had
@@ -137,25 +137,25 @@ function summary(found: string[]): string {
 	return [...counts].slice(0, 20).map(([name, n]) => `\n  ${n}× ${name}`).join("");
 }
 
-test("the first frame of 已安排 has nothing of the workspace on it", async () => {
+test("the first frame of 定时任务 has nothing of the workspace on it", async () => {
 	// The composer and the panel buttons are what painted through before; wait for them. A lone screen's panel buttons are on the window's toolbar.
 	await waitFor(`${WORKSPACE}?.querySelector('button[data-composer-send]') && document.querySelector('[data-ly-split-tools] [data-ly-toolbar-button], [data-view="chat"] [data-ly-toolbar-button]')`, "the conversation");
 	await pause(800);
 
 	await armFirstFrame("hidden");
-	await clickSidebar("已安排");
+	await clickSidebar("定时任务");
 	const { frames, found } = await firstFrame();
 
-	assert.ok(frames < 120, "the workspace was never put away — the click did not reach 已安排");
+	assert.ok(frames < 120, "the workspace was never put away — the click did not reach 定时任务");
 	assert.equal(found.length, 0, `still painting on the first frame the workspace was hidden:${summary(found)}`);
 });
 
 test("coming back, nothing in the workspace arrives a frame late", async () => {
 	await pause(500);
 	await armFirstFrame("visible");
-	await clickSidebar("新对话");
+	await clickSidebar("对话");
 	const { frames, found } = await firstFrame();
 
-	assert.ok(frames < 120, "the workspace never came back — the click did not reach 新对话");
+	assert.ok(frames < 120, "the workspace never came back — the click did not reach 对话");
 	assert.equal(found.length, 0, `hidden on the workspace's first frame back, visible after:${summary(found)}`);
 });

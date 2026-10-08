@@ -7,7 +7,7 @@ import { startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { stopWorkspaceFixture } from "./workspace-quality-lifecycle.ts";
 import { named } from "./named.ts";
-import { click, openSession, press, until } from "./drive.ts";
+import { click, hover, openSession, press, until } from "./drive.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -87,7 +87,7 @@ test("new profiles default to recently created and memory disclosure opens the a
 	await app.evaluate(`document.querySelector('[aria-label="上下文窗口用量"] button[data-ly-tip$="MEMORY.md"]').click()`);
 	await until(app, `document.querySelector('[data-dock-pane="file"]')?.innerText.includes('MEMORY_QA')`, 1200);
 	t.diagnostic(JSON.stringify(reading));
-	await click(app, '[data-dock-pane="file"] button[aria-label^="关闭"]');
+	await click(app, '[data-panel-tab="file"] button[aria-label^="关闭"]');
 });
 
 test("IME keeps confirmation keys and screenshot disabling reaches the main process",async(t)=>{
@@ -116,9 +116,15 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 	await until(app, `document.querySelector('[data-turn-delivery] [data-delivery-file]')`, 1200);
 	await app.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{}))).then(()=>document.fonts.ready)");
 	await app.evaluate(`document.querySelector('[data-turn-delivery] [data-delivery-file]').scrollIntoView({block:'nearest',behavior:'instant'})`);
-	await app.evaluate("new Promise(requestAnimationFrame)");
+	/*
+	 * The transcript is still settling when the card arrives — the turn's 已工作 line and the recap
+	 * land after it and move the row by ~90px. A pointer placed before that hovered whatever slid
+	 * under it, or sat still while the row slid under it and never entered it. Measured once it has
+	 * held still for 600ms.
+	 */
+	await app.evaluate(`new Promise((resolve,reject)=>{const end=performance.now()+8000;let box='',since=performance.now();const tick=()=>{const r=document.querySelector('[data-turn-delivery] [data-delivery-file]').getBoundingClientRect(),now=[r.x,r.y,r.width,r.height].map(Math.round).join();if(now!==box){box=now;since=performance.now();}if(performance.now()-since>=600)resolve();else if(performance.now()>end)reject(new Error('the delivery row never held still: '+box));else requestAnimationFrame(tick);};tick();})`);
 	const row=await app.evaluate<{x:number;y:number;height:number}>(`(()=>{const e=document.querySelector('[data-turn-delivery] [data-delivery-file]'),r=e.getBoundingClientRect();if(!e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)))throw new Error('delivery row is covered');return {x:r.x+r.width/2,y:r.y+r.height/2,height:r.height}})()`);
-	await app.send("Input.dispatchMouseEvent",{type:"mouseMoved",x:row.x,y:row.y});await until(app, `document.querySelector('[aria-label="文件变更预览"] .ly-diff-add')`, 1200);
+	await hover(app, '[data-turn-delivery] [data-delivery-file]');await until(app, `document.querySelector('[aria-label="文件变更预览"] .ly-diff-add')`, 1200);
 	await shot("turn-delivery-diff");
 	assert.equal(await app.evaluate(`document.querySelector('[data-turn-delivery] [data-delivery-file]').getBoundingClientRect().height`),row.height);
 	assert.ok(await app.evaluate(`document.querySelector('[aria-label="文件变更预览"]').getBoundingClientRect().bottom <= document.querySelector('[data-delivery-file]').getBoundingClientRect().top`), "the preview must stay above its file row");await press(app, "Escape", 27);
@@ -126,7 +132,7 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 	// 从前它是颗光图标的 `IconButton`，长说明只好去当 `aria-label`。同卡片的另外两颗一直是
 	// 这么找的。
 	await click(app, '[data-turn-delivery] button[data-ly-tip="查看实现与验证记录"]');await until(app, `document.querySelector('[data-dock-pane="file"]')?.innerText.includes('命令与验证证据')`, 1200);
-	await shot("delivery-report-preview");await click(app, '[data-dock-pane="file"] button[aria-label^="关闭"]');
+	await shot("delivery-report-preview");await click(app, '[data-panel-tab="file"] button[aria-label^="关闭"]');
 	await click(app, '[aria-label="面板"]');await until(app, `document.querySelector('[role="menuitem"]')`, 1200);
 	await app.evaluate(`(()=>{const e=[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.innerText.split('\\n')[0]==='任务');if(!e)throw new Error('任务菜单不存在');e.setAttribute('data-qa-task','');})()`);await click(app, '[data-qa-task]');
 	/*
@@ -149,10 +155,18 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 test("undo protects later user changes and service stop really closes the owned listener",async()=>{
 	const path=join(app.home,"project","Sample.ts");await writeFile(path,"user added work\n");
 	const timestamp=await app.evaluate<number>(`window.plume.sessions.transcript('qa-short').then(s=>s.messages.findLast(m=>m.role==='assistant').timestamp)`);
-	assert.match(await app.evaluate<string>(`window.plume.delivery.undo('qa-short',${timestamp},${JSON.stringify(path)}).then(()=>"undone",e=>e.message)`),/没有可安全撤销/);
+	/*
+	 * Undone by the path the delivery names, as its card does. That one is the resolved path — on macOS
+	 * a temp home is /var/… and the change is recorded under /private/var/… — so passing the home's own
+	 * spelling matched no file, and the refusal below was met for the wrong reason.
+	 */
+	const recorded=await app.evaluate<string>(`window.plume.delivery.get('qa-short',${timestamp}).then(d=>d.files.find(f=>f.path.endsWith('Sample.ts')).path)`);
+	assert.match(await app.evaluate<string>(`window.plume.delivery.undo('qa-short',${timestamp},${JSON.stringify(recorded)}).then(()=>"undone",e=>e.message)`),/没有可安全撤销/);
 	assert.equal(await readFile(path,"utf8"),"user added work\n");
 	await writeFile(path,"export const answer = 2;\n");
-	await app.evaluate(`window.plume.delivery.undo('qa-short',${timestamp},${JSON.stringify(path)})`);await assert.rejects(readFile(path),{code:"ENOENT"});
-	await click(app, '[data-session-services] [aria-label="停止服务"]');await until(app, `document.querySelectorAll('[data-service-id]').length===0`, 1200);
+	await app.evaluate(`window.plume.delivery.undo('qa-short',${timestamp},${JSON.stringify(recorded)})`);await assert.rejects(readFile(path),{code:"ENOENT"});
+	await click(app, '[data-session-services] [aria-label="停止服务"]');
+	// An ended job keeps its row, marked ended and without its stop buttons: its output is wanted most once it exits (SessionServices).
+	await until(app, `document.querySelectorAll('[data-service-id]:not([data-service-ended])').length===0&&!document.querySelector('[data-session-services] [aria-label="停止服务"]')`, 1200);
 	const stopped=await app.evaluate<{jobs:{finishedAt?:number}[]}>("window.plume.services.list('qa-short')");assert.ok(stopped.jobs.every(j=>j.finishedAt!==undefined));
 });

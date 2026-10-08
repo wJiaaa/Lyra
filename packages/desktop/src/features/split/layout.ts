@@ -34,7 +34,6 @@ const FULL: Box = { left: 0, top: 0, width: 1, height: 1 };
 
 export const SPLITTER_HIT = 9;
 export const SPLITTER_STEP = 0.02;
-export const GRIP_SPAN = 30;
 
 function slice(rect: Box, dir: Axis, offset: number, share: number): Box {
 	return dir === "row"

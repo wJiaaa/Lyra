@@ -23,7 +23,7 @@ import { useOpenFile } from "../../src/store/openFile.ts";
 
 function reset(scope: string | null): void {
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	provideScope(() => scope);
 }
 
@@ -84,12 +84,12 @@ test("不是点出来的请求（比如子智能体开工的通报）落在它�
 	reset("sess-a");
 	usePaneDock.getState().rememberSize("sess-a", ROOMY);
 	usePaneDock.getState().rememberSize("sess-b", ROOMY);
-	openScopedPanel("subagents", undefined, "sess-b");
+	openScopedPanel("subagents", "sess-b");
 	assert.ok(has(usePaneDock.getState().tree("sess-b"), "subagents"), "开工的是 b 的子智能体");
 	assert.ok(!has(usePaneDock.getState().tree("sess-a"), "subagents"), "焦点在 a，不代表通报属于 a");
 
 	// 点名的那一屏不在屏上时，退回人所在的那一屏，而不是写进一棵没人画的树。
-	openScopedPanel("tasks", undefined, "sess-gone");
+	openScopedPanel("tasks", "sess-gone");
 	assert.ok(has(usePaneDock.getState().tree("sess-a"), "tasks"));
 });
 
@@ -114,9 +114,9 @@ test("面板窗口：请求转给主窗口，不动本地的树", () => {
 		windows: { openPanelInMain: async (input: unknown) => { asked.push(input); return { ok: true }; } },
 	});
 	try {
-		openScopedPanel("file", { kind: "files", side: "bottom" });
+		openScopedPanel("file");
 		// 带上弹出它的那一屏：主窗口的焦点常常在别的屏上。
-		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-a" }]);
+		assert.deepEqual(asked, [{ kind: "file", scope: "sess-a" }]);
 		assert.deepEqual(usePaneDock.getState().trees, {}, "面板窗口里的树是没人画的，往里写等于把点击吞掉");
 	} finally {
 		Reflect.deleteProperty(window, "plume");
@@ -138,8 +138,8 @@ test("a panel window's request names the screen it was popped out of, and the fi
 		windows: { openPanelInMain: async (input: unknown) => { asked.push(input); return { ok: true }; } },
 	});
 	try {
-		void openFilePane({ path: "/work/beta/lib.ts", name: "lib.ts" }, undefined, { kind: "files", side: "bottom" });
-		assert.deepEqual(asked, [{ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } }]);
+		void openFilePane({ path: "/work/beta/lib.ts", name: "lib.ts" });
+		assert.deepEqual(asked, [{ kind: "file", scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } }]);
 	} finally {
 		Reflect.deleteProperty(window, "plume");
 	}
@@ -167,7 +167,7 @@ test("the main window opens what a panel window asked for in the screen it came 
 	useOpenFile.setState({ open: async (_slot, entry) => { opened.push(entry.path); } });
 	const stop = watchPanelWindows();
 	try {
-		asked?.({ kind: "file", beside: { kind: "files", side: "bottom" }, scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } });
+		asked?.({ kind: "file", scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } });
 		// The pane opens once the file has been read.
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		assert.deepEqual(opened, ["/work/beta/lib.ts"], "the file clicked in the panel window was not opened here");

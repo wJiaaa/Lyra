@@ -115,7 +115,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	const screen = useDockScope();
 	const show = () => {
 		useSide.getState().openPreview(preview, sessionId);
-		openScopedPanel("browser", undefined, screen ?? undefined);
+		openScopedPanel("browser", screen ?? undefined);
 	};
 
 	/*

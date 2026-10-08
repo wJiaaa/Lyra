@@ -18,8 +18,8 @@ import { click, mount } from "../helpers/mount.ts";
 test("tabs layout: every panel stays mounted in one right-hand pane, and only the current tab shows", async () => {
 	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin" } });
 	window.localStorage.clear();
-	useApp.setState({ settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "tabs" } } });
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, tab: {}, tabShare: 0.4, host: null });
+	useApp.setState({ settings: { ...DEFAULT_SETTINGS} });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, tabShare: 0.4, host: null });
 	const unregister = registerPanels([
 		{ kind: "terminal", label: "common.terminal", icon: Terminal, shortcut: "", render: () => h("input", { "data-test-terminal": "" }) },
 		{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "", render: () => h("input", { "data-test-browser": "" }) },
@@ -51,7 +51,6 @@ test("tabs layout: every panel stays mounted in one right-hand pane, and only th
 		assert.equal(pane("browser").style.width, "40.000000%");
 		assert.equal(pane("browser").inert, false);
 		assert.equal(pane("terminal").inert, true);
-		assert.equal(view.all("[data-dock-grip]").length, 0, "the tabs layout has nothing to drag");
 
 		// 点标签切过去，终端的 DOM 还是原来那一个。
 		await click(pane("browser").querySelector('[data-panel-tab="terminal"] [role="tab"]')!);
@@ -76,8 +75,8 @@ test("tabs layout: every panel stays mounted in one right-hand pane, and only th
 test("tabs layout, one screen: the tab strip sits in the window's toolbar, and the column folds away without closing anything", async () => {
 	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin" } });
 	window.localStorage.clear();
-	useApp.setState({ view: "chat", settings: { ...DEFAULT_SETTINGS, appearance: { ...DEFAULT_SETTINGS.appearance, panelLayout: "tabs" } } });
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, tab: {}, tabShare: 0.4, tabsCollapsed: false, host: null });
+	useApp.setState({ view: "chat", settings: { ...DEFAULT_SETTINGS} });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, tabShare: 0.4, tabsCollapsed: false, host: null });
 	const unregister = registerPanels([
 		{ kind: "terminal", label: "common.terminal", icon: Terminal, shortcut: "", render: () => h("input", { "data-test-terminal": "" }) },
 		{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "", render: () => h("input", { "data-test-browser": "" }) },

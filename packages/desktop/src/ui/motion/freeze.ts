@@ -32,12 +32,9 @@ const FREEZABLE = ".ly-dock-pane, .ly-freeze";
  * An attribute, not a class, and this is not a stylistic choice.
  *
  * React owns `className` on these elements and writes the whole attribute whenever the string it
- * renders changes — which is exactly what putting a pane down does, since `carried` going null
- * drops `ly-dock-pane-carried` from it. A class added here by hand is silently wiped by that
- * write, and the pane it was holding still is released in the same frame it changes positioning
- * models: it then eases from its `fixed` pixel values to its `absolute` percentages, which
- * describe the same place in different numbers. What that looks like is a clean flight home
- * followed by a second, wrong drift — the pane flickering as it lands.
+ * renders changes. A class added here by hand is silently wiped by that write, and the pane it was
+ * holding still is released in the middle of the gesture — it then eases into a layout it should
+ * have jumped to, a second, wrong drift.
  *
  * React does not touch attributes it was not given, so this survives the render.
  */

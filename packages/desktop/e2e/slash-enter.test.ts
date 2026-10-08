@@ -8,7 +8,7 @@
  * saying so. That is the whole of 「选了指令按回车一点反应都没有」.
  *
  * No model is configured here on purpose: what is being checked is that the command *ran*, and
- * 「还没有配置模型」 is the built-in saying so out loud.
+ * 「还没有可用的模型」 is the built-in saying so out loud.
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -121,7 +121,7 @@ const field = () => app.evaluate<string>(`document.querySelector("textarea")?.va
 /** Whatever the built-in said, if it said anything. */
 const feedback = () =>
 	app.evaluate<string>(
-		`(/已把之前的对话压缩|还没有配置模型|对话还太短|已经够紧凑|找不到这个会话|正在进行中/.exec(document.body.innerText) ?? [""])[0]`,
+		`(/已把之前的对话压缩|还没有可用的模型|对话还太短|已经够紧凑|找不到这个会话|正在进行中/.exec(document.body.innerText) ?? [""])[0]`,
 	);
 
 test("the list offers a command as it is typed", async () => {
@@ -150,5 +150,5 @@ test("a name typed in full runs on the first Enter", async () => {
 	await settle(2000);
 
 	assert.equal(await field(), "", "the composer cleared, which is a command having been taken");
-	assert.match(await feedback(), /还没有配置模型/, "and the built-in answered");
+	assert.match(await feedback(), /还没有可用的模型/, "and the built-in answered");
 });

@@ -115,7 +115,7 @@ test("tabs preserve forms and document identity through switching and closing th
 	await app.evaluate(`window.plume.browser.command({type:'open',url:'http://127.0.0.1:${port}/second',sessionId:'qa-short',newTab:true})`);
 	await app.evaluate(`window.plume.browser.command({type:'select',id:${JSON.stringify(original)}})`);
 	assert.equal(await app.evaluate(`document.querySelector('[data-browser-page="${original}"]').executeJavaScript("document.body.dataset.identity")`), "retained");
-	await app.evaluate(`document.querySelector('[data-dock-pane="browser"] [aria-label="关闭浏览器"]').click()`);
+	await app.evaluate(`document.querySelector('[data-panel-tab="browser"] [aria-label="关闭浏览器"]').click()`);
 	await app.evaluate(`window.plume.browser.command({type:'select',id:${JSON.stringify(original)}})`);
 	assert.equal(await app.evaluate(`document.querySelector('[data-browser-page="${original}"]').executeJavaScript("document.querySelector('#name').value")`), "测试输入");
 });
@@ -184,12 +184,12 @@ test("bookmarks persist, default zoom applies to new tabs and invalid commands l
 
 test("fullscreen keeps the native browser page and form state, with one viewport resize per direction", async (t) => {
 	const result=await app.evaluate<{same:boolean;identity:string;value:string;resizes:number[]}>(`(async()=>{
-		const pane=document.querySelector('[data-dock-pane="browser"]');
 		const state=await window.plume.browser.state(),page=document.querySelector('[data-browser-page="'+state.activeId+'"]'),id=page.getWebContentsId();
 		const resizes=[];let count=0;const observer=new ResizeObserver(()=>count++);observer.observe(page);
 		for(const label of ['全屏','退出全屏']) {
 			await new Promise(requestAnimationFrame);count=0;
-			pane.querySelector('button[aria-label^="'+label+'"]').click();
+			// A lone screen's panel buttons sit on the window toolbar, beside the column's tabs.
+			document.querySelector('[data-ly-toolbar-panel] button[aria-label^="'+label+'"]').click();
 			for(let i=0;i<25;i++)await new Promise(requestAnimationFrame);resizes.push(count);
 		}
 		observer.disconnect();

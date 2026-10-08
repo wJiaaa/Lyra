@@ -87,7 +87,7 @@ beforeEach(() => {
 		sessions: [A], sessionCache: {}, workspaceByPath: {},
 		notify: () => {},
 	});
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	usePaneDock.getState().rememberSize("a", { width: 1200, height: 900 });
 });
 

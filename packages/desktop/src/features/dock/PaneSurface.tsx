@@ -3,7 +3,6 @@ import { motionReduced } from "../../ui/motion/reduced.ts";
 import { DURATION, EASING } from "../../ui/motion/tokens.ts";
 
 interface Props extends HTMLAttributes<HTMLDivElement> {
-	carried: boolean;
 	isHidden: boolean;
 	/** 挂上来时不淡入——它不是新出现的一块，是顶替同一位置上已经在显示的那一块。见 `DockView`。 */
 	quietEntrance?: boolean;
@@ -28,7 +27,7 @@ export class PaneSurface extends Component<Props, Record<string, never>, Snapsho
 	override getSnapshotBeforeUpdate(previous: Props): Snapshot | null {
 		const element = this.surface.current;
 		const root = this.element.current;
-		if (!element || !root || previous.carried || this.props.carried || previous.isHidden || this.props.isHidden) return null;
+		if (!element || !root || previous.isHidden || this.props.isHidden) return null;
 		const from = previous.style;
 		const to = this.props.style;
 		if (from?.left === to?.left && from?.top === to?.top && from?.width === to?.width && from?.height === to?.height) return null;
@@ -39,16 +38,7 @@ export class PaneSurface extends Component<Props, Record<string, never>, Snapsho
 	}
 
 	override componentDidUpdate(_previous: Props, _state: Record<string, never>, snapshot: Snapshot | null) {
-		const root = this.element.current;
-		// The top layer escapes paint containment without reparenting a live webview or shell.
-		if (root && this.props.carried && !_previous.carried) {
-			root.setAttribute("popover", "manual");
-			root.showPopover();
-		} else if (root && !this.props.carried && _previous.carried) {
-			root.hidePopover();
-			root.removeAttribute("popover");
-		}
-		if (!snapshot && !this.props.carried && !this.props.isHidden) return;
+		if (!snapshot && !this.props.isHidden) return;
 		for (const motion of this.motions) motion.cancel();
 		this.motions = [];
 		const element = this.surface.current;
@@ -83,12 +73,11 @@ export class PaneSurface extends Component<Props, Record<string, never>, Snapsho
 	}
 
 	override componentWillUnmount() {
-		if (this.element.current?.matches(":popover-open")) this.element.current.hidePopover();
 		for (const motion of this.motions) motion.cancel();
 	}
 
 	override render() {
-		const { carried: _carried, isHidden: _hidden, quietEntrance: _quiet, header, children, ...props } = this.props;
+		const { isHidden: _hidden, quietEntrance: _quiet, header, children, ...props } = this.props;
 		if (this.props.isHidden) this.retained = true;
 		return <div {...props} ref={this.element} inert={this.props.isHidden} data-dock-retained={this.retained ? "" : undefined}>
 			{header}

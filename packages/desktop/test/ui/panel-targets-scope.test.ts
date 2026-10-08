@@ -105,7 +105,7 @@ beforeEach(() => {
 	useTerminals.setState({ tabs: [], active: "", activeByScope: {} });
 	useBrowser.setState({ tabs: [], activeId: null });
 	window.localStorage.clear();
-	usePaneDock.setState({ trees: {}, sizes: {}, drag: null, maximized: {}, focused: {}, crossRatio: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	// Both screens measured, focus on 甲's — what `SplitWorkspace` reports for this split.
 	usePaneDock.getState().rememberSize("a", ROOMY);
 	usePaneDock.getState().rememberSize("b", ROOMY);

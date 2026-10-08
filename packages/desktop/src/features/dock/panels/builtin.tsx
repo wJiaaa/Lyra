@@ -34,14 +34,6 @@ import { useDockScope, useScopedProjectPath, useScopedSessionId } from "../../..
 import { registerPanels, type PanelDefinition } from "./registry.ts";
 
 /**
- * The tree's portion when it opens beside the file.
- *
- * Enough for a filename at a couple of levels of indent, and no more: what anyone is reading is on
- * the other side of the boundary. Matches the proportion full screen gives the pair.
- */
-const TREE_SHARE = 0.3;
-
-/**
  * 子智能体面板，带着「把一份文件打开到旁边」这件事。
  *
  * 那个域不能引 dock（dock 的门后面挂着整棵面板树，会绕回它自己），而操控框里点开一枚文件标记，
@@ -196,29 +188,14 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		icon: Folder,
 		shortcut: "⌘P",
 		unavailable: needsWorkspace,
-		/*
-		 * To the left of the file, and narrower than it.
-		 *
-		 * This is the direction that only happens when the file pane is already there and the tree
-		 * is being asked for — from the dropdown's 「在面板中打开」, usually with the file filling the
-		 * window. There is width to give in that situation, and names belong on the left of what
-		 * they name. `share` is the tree's own portion: enough for a filename, no more.
-		 *
-		 * The other direction — opening the file when the tree is already here — stacks instead, so
-		 * the tree keeps the column width it has. See the `file` panel below.
-		 */
-		companion: { kind: "file", side: "left", share: TREE_SHARE },
 		render: FileBrowser,
 	},
 	/*
-	 * The open file, beside the tree rather than inside it.
+	 * The open file, in a tab of its own rather than inside the tree.
 	 *
 	 * Opened by clicking a file rather than from the menu, most of the time — but it is listed
 	 * there like any other pane, because once you have closed it the menu is how you say you want
 	 * it back without having to find a file to click.
-	 *
-	 * Paired with the tree in both directions: between them they are a file browser, and either
-	 * one alone is half a tool.
 	 */
 	{
 		kind: "file",
@@ -226,20 +203,6 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		icon: FileText,
 		shortcut: "⌥⌘P",
 		unavailable: needsWorkspace,
-		/*
-		 * Under the tree, not beside it.
-		 *
-		 * Clicking a file is the common way this pane opens, and the tree is already occupying a
-		 * column — putting the file next to it splits that column again, and a dock column halved
-		 * gives a tree too narrow for a filename and a file too narrow for a line of code. Height is
-		 * what a column has to spare, so height is what the file takes.
-		 *
-		 * Note this is deliberately not the mirror of the tree's own companion. The two describe
-		 * different situations rather than one arrangement: this one is "the tree is here and needs
-		 * to keep its width", and the tree's is "the file is already filling the space, make room at
-		 * the side for names".
-		 */
-		companion: { kind: "files", side: "bottom" },
 		// The open file and how it is being read move with it — `file-panel-handoff.ts` is that code.
 		detach: "handoff",
 		render: FilePanel,
@@ -247,7 +210,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		 * The file's name in place of the pane's, with the tree behind it.
 		 *
 		 * 「文件内容」 names a category nobody was in doubt about, on the one row that could have said
-		 * which file — and this pane is very often the one left open after its companion tree has been
+		 * which file — and this pane is very often the one left open after the tree has been
 		 * closed, at which point it had neither a name nor a way to reach another file. See `FileTitle`.
 		 */
 		header: FileTitle,

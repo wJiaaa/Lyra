@@ -141,10 +141,23 @@ async function ask(text: string): Promise<void> {
 }
 
 /** Wait until the running indicator is on screen, or give up and say so. */
+/*
+ * Shown, not just mounted. The running line folds while prose is arriving (`conversation/answering.ts`)
+ * and this model's opening words do exactly that, so the canvas exists folded away until the stream
+ * has sat still for `STALL_MS`. Folded, the orb is off screen and pauses itself — measured then, a
+ * correct orb read as one that never animates.
+ */
 async function waitForRunning(): Promise<boolean> {
 	for (let i = 0; i < 60; i++) {
 		const there = await app.evaluate<boolean>(
-			`Boolean(document.querySelector("main [data-ly-running] canvas"))`,
+			`(() => {
+				const canvas = document.querySelector("main [data-ly-running] canvas");
+				const reveal = canvas?.closest(".ly-reveal");
+				if (!canvas || !reveal || reveal.getAttribute("data-open") !== "true") return false;
+				if (!canvas.checkVisibility({ visibilityProperty: true, opacityProperty: true })) return false;
+				if (reveal.getAnimations({ subtree: true }).some((a) => a.playState === "running" && Number.isFinite(a.effect?.getComputedTiming().endTime))) return false;
+				return reveal.getBoundingClientRect().bottom >= canvas.getBoundingClientRect().bottom;
+			})()`,
 		);
 		if (there) return true;
 		await new Promise((r) => setTimeout(r, 250));
@@ -181,11 +194,16 @@ async function readInk(): Promise<Ink> {
 			// Rec. 601 luma, which is close enough for "is this ink light or dark".
 			sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
 		}
-		const paneCss = getComputedStyle(document.querySelector("main")).backgroundColor;
+		// The surface under the ink: the nearest ancestor that paints a background. \`main\` itself is
+		// transparent since the workspace became a card, and read as black it passed dark by luck.
 		const probe = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
-		probe.fillStyle = paneCss;
-		probe.fillRect(0, 0, 1, 1);
-		const p = probe.getImageData(0, 0, 1, 1).data;
+		let p = [0, 0, 0, 0];
+		for (let el = canvas.parentElement; el && p[3] === 0; el = el.parentElement) {
+			probe.clearRect(0, 0, 1, 1);
+			probe.fillStyle = getComputedStyle(el).backgroundColor;
+			probe.fillRect(0, 0, 1, 1);
+			p = probe.getImageData(0, 0, 1, 1).data;
+		}
 		return {
 			painted,
 			luminance: painted ? sum / painted : 0,

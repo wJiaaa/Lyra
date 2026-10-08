@@ -139,10 +139,13 @@ test("a pane that is genuinely new still arrives rather than appearing", async (
 		el.style.cssText = "position:absolute;left:0;top:0;width:10px;height:10px;pointer-events:none";
 		host.appendChild(el);
 		const out = [];
-		for (let i = 0; i < 10; i++) {
+		// By the clock rather than a frame count: ten frames are 167ms at 60Hz but 83ms at 120Hz, inside the fade.
+		const end = performance.now() + 250;
+		do {
 			out.push(Number(getComputedStyle(el).opacity));
 			await frame();
-		}
+		} while (performance.now() < end);
+		out.push(Number(getComputedStyle(el).opacity));
 		el.remove();
 		return out;
 	})()`);
@@ -211,104 +214,4 @@ for (const motion of ["off", "on"]) test(`a pane the adoption brings in lands ra
 		[],
 		`a pane faded itself in while the dock was settling: ${samples.join(" ")}`,
 	);
-});
-
-/**
- * A pane that has landed stays landed.
- *
- * Carried, a pane is `fixed` and placed in pixels against the window; docked, it is `absolute` and
- * placed in percentages against the dock. The two describe the same place in different numbers, so
- * the frame that hands it back must not be allowed to interpolate between them — it would ease
- * from the place the pane already is to the same place expressed differently, which is one clean
- * flight home followed by a second, wrong drift.
- *
- * Suppressing that is the job of the freeze in `motion-freeze.ts`, and the freeze is applied as an
- * *attribute* for one specific reason this test exists to hold: React owns `className` on the pane
- * and rewrites the whole attribute when `carried` goes null, which silently wiped a class added by
- * hand. Everything still looked correct — the layout was right, the tests were green — and the
- * pane visibly flickered as it was put down, which is only visible over consecutive frames.
- *
- * So it is measured over consecutive frames, from `getBoundingClientRect`.
- */
-for (const motion of ["off", "on"]) test(`a pane put down does not drift after it arrives (reduced motion ${motion})`, async (t) => {
-	await app.evaluate(`document.documentElement.dataset.reduceMotion = ${motion === "on" ? '"on"' : '"off"'}`);
-	// One panel beside the conversation, then carry it to the bottom of the dock and let go.
-	const positions = await app.evaluate<{ left: number; top: number; width: number }[]>(`(async () => {
-		const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-		const frame = () => new Promise((r) => requestAnimationFrame(r));
-
-		if (!document.querySelector('[data-dock-pane="terminal"]')) {
-			document.querySelector('button[aria-label="面板"]').click();
-			await wait(250);
-			[...document.querySelectorAll('[role="menuitem"]')].find((i) => i.textContent.trim().startsWith("终端"))?.click();
-			await wait(900);
-		}
-
-		const grip = document.querySelector('[data-dock-grip="terminal"]');
-		if (!grip) throw new Error("no grip for the terminal pane");
-		const box = grip.getBoundingClientRect();
-		const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-		/*
-		 * To the right-hand edge, which is where the two coordinate systems disagree most.
-		 *
-		 * Carried, the pane is placed against the window; docked, against the dock — and the dock
-		 * starts where the sidebar ends. The same number therefore means two places a sidebar's
-		 * width apart, so a landing that re-reads it lands wrong by exactly that much. Dropping
-		 * near the left of the dock would hide the bug behind a small difference.
-		 */
-		const dock = document.querySelector("[data-dock-panes]").getBoundingClientRect();
-		const to = { x: dock.right - dock.width * 0.12, y: dock.top + dock.height / 2 };
-		const at = (type, x, y, buttons) => new PointerEvent(type, {
-			pointerId: 1, isPrimary: true, bubbles: true, cancelable: true, clientX: x, clientY: y, buttons,
-		});
-
-		grip.dispatchEvent(at("pointerdown", from.x, from.y, 1));
-		await frame();
-		for (let i = 1; i <= 10; i++) {
-			window.dispatchEvent(at("pointermove", from.x + (to.x - from.x) * (i / 10), from.y + (to.y - from.y) * (i / 10), 1));
-			await frame();
-		}
-		window.dispatchEvent(at("pointerup", to.x, to.y, 0));
-
-		/*
-		 * Sample every frame from the release until well past the flight.
-		 *
-		 * The flight home is a real movement and is expected here; what must not happen is a second
-		 * one after it has settled. So the whole tail is recorded and the assertion looks at the end
-		 * of it, where the pane is supposed to have stopped.
-		 */
-		const out = [];
-		for (let i = 0; i < 60; i++) {
-			const pane = document.querySelector('[data-dock-pane="terminal"]');
-			const b = pane.getBoundingClientRect();
-			out.push({ left: Math.round(b.left), top: Math.round(b.top), width: Math.round(b.width) });
-			await frame();
-		}
-		return out;
-	})()`);
-
-	/*
-	 * "Arrived, then left again" — not "is it still moving at the end".
-	 *
-	 * Checking only the tail would pass with the bug present, and did: the wrong second movement is
-	 * over within a dozen frames, long before the samples run out. What identifies it is the shape.
-	 * The pane reaches its final position, holds it for a frame or two, and then jumps away and
-	 * eases back — so the test finds the first frame at the final position and asserts nothing
-	 * after it disagrees.
-	 */
-	const final = positions[positions.length - 1];
-	t.diagnostic(JSON.stringify({ motion, positions }));
-	// Position and size can finish on different frames; one must not hide a jump in another.
-	for (const dimension of ["left", "top", "width"] as const) {
-		const same = (p: { left: number; top: number; width: number }) => Math.abs(p[dimension] - final[dimension]) <= 1;
-		const arrived = positions.findIndex(same);
-		assert.ok(arrived >= 0, `the pane's ${dimension} never reached a resting value`);
-		const after = positions.slice(arrived);
-		const moved = after.findIndex((p) => !same(p));
-		assert.equal(moved, -1,
-			`the pane's ${dimension} arrived at ${final[dimension]} on frame ${arrived} and then moved again` +
-				(moved >= 0 ? ` to ${after[moved][dimension]}` : "") +
-				`.\n${dimension} per frame: ${positions.map((p) => p[dimension]).join(" ")}`,
-		);
-	}
 });

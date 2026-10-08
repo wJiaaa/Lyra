@@ -12,7 +12,7 @@
  * table.
  *
  * **Coming back goes to the conversation it left from.** If that conversation is on screen the panel
- * returns to its old slot; if not, pressing 「收回」 brings the conversation back on screen first,
+ * returns to its old tab position; if not, pressing 「收回」 brings the conversation back on screen first,
  * because docking a panel somewhere nobody can see looks exactly like losing it.
  */
 
@@ -22,14 +22,11 @@ import { bridge } from "../../services/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
 import { fileSlot, openFileOf, useOpenFile } from "../../store/openFile.ts";
 import { allowsMany, basePanelKind, nextPanelKind } from "../../lib/panel-instance.ts";
-import { paneFloor } from "./geometry.ts";
-import { clearsFloors } from "./layout.ts";
-import { dropFits, homeOf, placePanel } from "./place.ts";
-import { emptyDockTree, usePaneDock, type Placement } from "./pane-store.ts";
-import { has, insert, kinds, remove, type DockNode, type DropAt, type DropSide, type PaneKind } from "./tree.ts";
+import { emptyDockTree, usePaneDock } from "./pane-store.ts";
+import { has, kinds, remove, type DockNode, type PaneKind } from "./tree.ts";
 import { paneStorageKey, readTree, sanitize, writeTree } from "./persist.ts";
-import { allPanels, detachOf, panelOf } from "./panels/registry.ts";
-import { activeTab, panelLayout } from "./tabs.ts";
+import { allPanels, detachOf } from "./panels/registry.ts";
+import { activeTab, insertTab, panelsOf } from "./tabs.ts";
 import type { PanelKind } from "./sideStore.ts";
 
 interface PanelWindowRef {
@@ -40,7 +37,8 @@ interface PanelWindowRef {
 
 interface Home {
 	scope: string;
-	at: DropAt | null;
+	/** 走之前是第几个标签。旧版本写下的记录没有它，收回时排在最后。 */
+	index?: number | null;
 	before?: unknown;
 	rest?: unknown;
 }
@@ -49,7 +47,7 @@ interface Home {
  * 面板弹出去之前是从哪儿走的——这份记录要活过刷新。
  *
  * 面板窗口的寿命独立于主窗口的刷新，所以这份记录的寿命也该如此：存 localStorage，和布局同一个
- * 去处。它很小（kind → scope/at），坏数据当作「没有记录」。
+ * 去处。它很小（kind → scope/index），坏数据当作「没有记录」。
  */
 const HOMES_KEY = "dw:homes";
 
@@ -148,7 +146,7 @@ export async function popOutPanel(input: { scope: string; kind: PanelKind; sessi
 	const previousHome = !has(tree, input.kind) ? homes.get(homeKey(input.scope, input.kind)) : undefined;
 	const home: Home = previousHome ?? {
 		scope: input.scope,
-		at: has(tree, input.kind) ? homeOf(tree, input.kind) : null,
+		index: has(tree, input.kind) ? panelsOf(tree).indexOf(input.kind) : null,
 		before: tree,
 		rest: remove(tree, input.kind),
 	};
@@ -167,8 +165,7 @@ export async function popOutPanel(input: { scope: string; kind: PanelKind; sessi
 			// Rollback is a transaction, not a new placement request: a failed window must not lose its pane.
 			const current = usePaneDock.getState().tree(input.scope);
 			if (has(tree, input.kind) && !has(current, input.kind)) {
-				const at = home.at && (home.at.kind === null || has(current, home.at.kind)) ? home.at : ({ side: "right", kind: null } as const);
-				const restored = JSON.stringify(home.rest) === JSON.stringify(current) ? tree : insert(current, input.kind, at);
+				const restored = JSON.stringify(home.rest) === JSON.stringify(current) ? tree : insertTab(current, input.kind, home.index ?? undefined);
 				usePaneDock.getState().restoreLayout(input.scope, restored);
 			}
 			if (previousHome) homes.set(homeKey(input.scope, input.kind), previousHome);
@@ -178,7 +175,7 @@ export async function popOutPanel(input: { scope: string; kind: PanelKind; sessi
 	return opened;
 }
 
-/** Restore exact geometry only while the remaining dock still matches the departure snapshot. */
+/** Restore the exact tab order only while the remaining dock still matches the departure snapshot. */
 export function restoredHomeTree(home: { before?: unknown; rest?: unknown } | undefined, tree: DockNode, kind: PaneKind): DockNode | null {
 	if (!home?.before || JSON.stringify(home.rest) !== JSON.stringify(tree)) return null;
 	const restored = sanitize(home.before, [...kinds(tree), kind]);
@@ -188,19 +185,15 @@ export function restoredHomeTree(home: { before?: unknown; rest?: unknown } | un
 /** Put the panel back into a screen that is on screen and has measured itself. */
 function dockIntoLive(kind: PanelKind, scope: string, home: Home | undefined): boolean {
 	const dock = usePaneDock.getState();
-	const span = dock.size(scope);
-	if (!span) return false;
+	if (!dock.size(scope)) return false;
 	const tree = dock.tree(scope);
 	if (has(tree, kind)) return true;
 	const snapshot = restoredHomeTree(home, tree, kind);
-	if (snapshot && clearsFloors(snapshot, span, paneFloor)) {
+	if (snapshot) {
 		dock.restoreLayout(scope, snapshot);
 		return true;
 	}
-	const preferred = home?.at ?? null;
-	const at = preferred && dropFits(tree, span, paneFloor, kind, preferred) ? preferred : placePanel(tree, span, paneFloor, kind);
-	// A screen with no room still takes it back, drawn squeezed — the floors choose where, never whether.
-	return dock.open(scope, kind, (at ?? preferred ?? undefined) as Placement | undefined);
+	return dock.open(scope, kind, home?.index ?? undefined);
 }
 
 /**
@@ -214,8 +207,7 @@ function dockIntoStored(kind: PanelKind, scope: string, home: Home | undefined):
 	const tree = inMemory ?? readTree(paneStorageKey(scope), allowed) ?? emptyDockTree;
 	if (has(tree, kind)) return;
 	const snapshot = restoredHomeTree(home, tree, kind);
-	const at = home?.at && (home.at.kind === null || has(tree, home.at.kind)) ? home.at : ({ side: "right", kind: null } as const);
-	const next = snapshot ?? insert(tree, kind, at);
+	const next = snapshot ?? insertTab(tree, kind, home?.index ?? undefined);
 	if (inMemory) dock.restoreLayout(scope, next);
 	else writeTree(paneStorageKey(scope), next);
 }
@@ -259,7 +251,7 @@ async function dockBack(kind: PanelKind, scope: string, reveal: boolean): Promis
  * a command for the terminal — can address the same screen, including when `target` was not on
  * screen and the request fell back to the focused one. Null when no screen in this window took it.
  */
-export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side: DropSide; share?: number }, target?: string): string | null {
+export function openScopedPanel(kind: PanelKind, target?: string): string | null {
 	/*
 	 * A panel window has no dock, so the request goes to the window that does.
 	 *
@@ -268,7 +260,7 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 	 * `docs/architecture/split-window-conflicts.md` §7.
 	 */
 	if (inPanelWindow()) {
-		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain(inMain(kind, beside, target));
+		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain(inMain(kind, target));
 		return null;
 	}
 	/*
@@ -284,7 +276,7 @@ export function openScopedPanel(kind: PanelKind, beside?: { kind: PaneKind; side
 		if (bridge.windows?.openPanel) void bridge.windows.openPanel({ kind, scope, sessionId: sessionOf(scope), ...(basePanelKind(kind) === "file" ? { fileState: filePanelSnapshot(fileSlot(scope, kind)) } : {}) });
 		return scope;
 	}
-	usePaneDock.getState().open(scope, kind, beside);
+	usePaneDock.getState().open(scope, kind);
 	return scope;
 }
 
@@ -300,13 +292,9 @@ function screenFor(target: string | undefined): string | null {
  * window's focus is on some other screen as often as not. The file, for a file pane, is named by
  * `openFilePane`: this window's open-file store is its own.
  */
-function inMain(kind: PanelKind, beside: { kind: PaneKind; side: DropSide; share?: number } | undefined, target: string | undefined) {
+function inMain(kind: PanelKind, target: string | undefined) {
 	const scope = target ?? bridge.bootWindow?.panelScope ?? undefined;
-	return {
-		kind,
-		...(beside ? { beside } : {}),
-		...(scope ? { scope } : {}),
-	};
+	return { kind, ...(scope ? { scope } : {}) };
 }
 
 /**
@@ -314,20 +302,13 @@ function inMain(kind: PanelKind, beside: { kind: PaneKind; side: DropSide; share
  *
  * 每个文件是顶上那排标签里的一个，各看各的文件（`store/openFile.ts`）。已经有一格开着它就切过去；
  * 有一格空着——从菜单或「+」开出来还没选文件的——就用那一格；最早那一格 `file` 不在树上就用它
- * （它弹出去了，文件就进那个窗口，和从前一样）；标签页排法下再不然新开一格。
- *
- * 分栏排法下没有那排标签：每点一个文件就多劈一格，几下就把屏切碎了，所以换掉正在看的那一格里
- * 的文件。要并排看两个文件，用那一格头上的「再开一个」。
+ * （它弹出去了，文件就进那个窗口，和从前一样）；再不然新开一格。
  *
  * 读到了才开出那一格；读不到由调用方说。
  */
-export function openFilePane(
-	file: { path: string; name: string },
-	target?: string,
-	beside: { kind: PaneKind; side: DropSide; share?: number } | undefined = panelOf("file")?.companion,
-): Promise<void> {
+export function openFilePane(file: { path: string; name: string }, target?: string): Promise<void> {
 	if (inPanelWindow()) {
-		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain({ ...inMain("file", beside, target), file });
+		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain({ ...inMain("file", target), file });
 		return Promise.resolve();
 	}
 	const scope = screenFor(target);
@@ -340,19 +321,16 @@ export function openFilePane(
 		const open = openFileOf(files, fileSlot(scope, kind));
 		return open.opening ?? open.path;
 	};
-	const focused = dock.focused[scope];
 	const kind =
 		panes.find((each) => showing(each) === file.path) ??
 		panes.find((each) => !showing(each)) ??
-		(panelLayout() === "tabs" || panes.length === 0
-			? nextPanelKind("file", (each) => has(tree, each))
-			: focused && panes.includes(focused) ? focused : panes[0]!);
+		nextPanelKind("file", (each) => has(tree, each));
 	/*
 	 * Read first, then show. A file that cannot be read does not leave an empty tab behind, and a
 	 * pane already showing something keeps showing it — the caller says what went wrong.
 	 */
 	return files.open(fileSlot(scope, kind), file).then(() => {
-		openScopedPanel(kind as PanelKind, beside, scope);
+		openScopedPanel(kind as PanelKind, scope);
 	});
 }
 
@@ -371,8 +349,8 @@ export function toggleScopedPanel(scope: string, kind: PanelKind, options: { com
 	const dock = usePaneDock.getState();
 	const tree = dock.tree(scope);
 	if (has(tree, kind)) {
-		// 标签页排法下，开着但在后台的标签也是「想看它」：切过去，不关。右栏收着时也一样，展开它。
-		const behind = options.compact ? dock.focused[scope] !== kind : panelLayout() === "tabs" && (dock.tabsCollapsed || activeTab(tree, dock.tab[scope]) !== kind);
+		// 开着但在后台的标签也是「想看它」：切过去，不关。右栏收着时也一样，展开它。
+		const behind = options.compact ? dock.focused[scope] !== kind : dock.tabsCollapsed || activeTab(tree, dock.tab[scope]) !== kind;
 		if (behind) dock.open(scope, kind);
 		else dock.close(scope, kind);
 		return;
@@ -436,10 +414,9 @@ export function watchPanelWindows(): () => void {
 	 * came from while that screen is here, and in the one with focus once it is not. The file is read
 	 * through this window's own file boundary, as a click here would read it.
 	 */
-	const stopOpen = bridge.windows.onOpenPanel?.(({ kind, beside, scope, file }) => {
-		const near = beside as { kind: PaneKind; side: DropSide; share?: number } | undefined;
-		if (file && basePanelKind(kind) === "file") void openFilePane(file, scope, near);
-		else openScopedPanel(kind as PanelKind, near, scope);
+	const stopOpen = bridge.windows.onOpenPanel?.(({ kind, scope, file }) => {
+		if (file && basePanelKind(kind) === "file") void openFilePane(file, scope);
+		else openScopedPanel(kind as PanelKind, scope);
 	}) ?? (() => {});
 	const stopRestore = bridge.windows.onRestorePanel(({ kind, scope, fileState }) => {
 		const restore = async () => {

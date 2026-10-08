@@ -1,19 +1,8 @@
 /**
  * A pane's title bar: what it is, and the things you can do to it.
  *
- * **Only the grip moves the pane.** The grip is a short bar near the top edge, and it is both the
- * only way to move the pane and the only thing that says the pane can be moved. One small target
- * meaning exactly one thing beats a large one meaning several.
- *
- * It fades in as the pointer comes into the pane rather than sitting there permanently — a mark
- * that is always visible on every pane is five marks competing for attention in a window where
- * nothing is being moved. Keyed to the *pane* because the bar it sits on cannot answer: a
- * `drag-region` gets its mouse events taken by the window manager, so `:hover` there never fires.
- *
- * **Everything else moves the window.** That falls out of the first rule rather than competing
- * with it: with the pane's drag confined to the grip, the rest of the bar is free to be what a
- * title bar normally is. Losing this is what made the window undraggable for a while — the dock
- * reaches the top edge now, so if these bars do not move the window, nothing up there does.
+ * **The bar moves the window.** The dock reaches the top edge, so if these bars do not move the
+ * window, nothing up there does — losing this is what made the window undraggable for a while.
  *
  * `drag-region` on the bar, `no-drag` on everything you can press. Electron composites the two by
  * walking the document in order, so the holes have to come after the region they are cut out of —
@@ -24,10 +13,9 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Maximize2, Minimize2, SquareArrowOutUpRight, X } from "../../ui/icons/index.ts";
+import { Maximize2, Minimize2, SquareArrowOutUpRight } from "../../ui/icons/index.ts";
 import { HEADER_HEIGHT, HEADER_PAD } from "./geometry.ts";
-import type { DropSide, PaneKind } from "./tree.ts";
-import { PaneGrip } from "./PaneGrip.tsx";
+import type { PaneKind } from "./tree.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 export function PaneHeader({
@@ -35,28 +23,18 @@ export function PaneHeader({
 	label,
 	icon,
 	maximized,
-	draggable,
-	carried,
 	hideTitle,
 	title,
-	onDragStart,
-	onMove,
-	onArrowMove,
 	actions,
 	inset,
 	insetEnd,
 	onToggleMaximized,
 	onPopOut,
-	onClose,
 }: {
 	kind: PaneKind;
 	label: string;
 	icon?: React.ReactNode;
 	maximized: boolean;
-	/** False in the collapsed layout, where there is nowhere for a pane to be dropped. */
-	draggable: boolean;
-	/** The pane is in the air, so the grip shows that the hand is still on it. */
-	carried: boolean;
 	/**
 	 * Draw the bar without a name.
 	 *
@@ -66,10 +44,6 @@ export function PaneHeader({
 	hideTitle?: boolean;
 	/** Drawn in place of the name, for a panel whose header is a control. */
 	title?: React.ReactNode;
-	onDragStart: (event: React.PointerEvent<HTMLElement>) => void;
-	/** ⌥ and an arrow, for the same rearrangement without a pointer. */
-	onMove: (side: DropSide) => void;
-	onArrowMove: (side: DropSide) => boolean;
 	/**
 	 * Controls belonging to what the pane holds, left of the pane's own.
 	 *
@@ -95,20 +69,12 @@ export function PaneHeader({
 	insetEnd?: number;
 	/**
 	 * Absent where full screen means nothing — the conversation, which is already what the dock is
-	 * showing, and the collapsed layout, where one pane is all there is room for.
-	 *
-	 * Decided by the dock and passed in, rather than inferred here from `draggable`. It used to be
-	 * `canMaximize && draggable`, and `draggable` is false whenever the dock is showing a single
-	 * pane — which is precisely what maximising a pane on its own produces. So the control removed
-	 * itself on arrival: every pane without a companion could be made full screen and then only
-	 * closed, with an Esc nothing on screen mentioned as the way back. Whether a pane can be
-	 * dragged and whether it can leave full screen are different questions.
+	 * showing, and the collapsed layout, where one pane is all there is room for. Decided by the
+	 * dock and passed in; see `canToggleMaximized`.
 	 */
 	onToggleMaximized?: () => void;
 	/** Leave the dock for a real window. Absent on the conversation. */
 	onPopOut?: () => void;
-	/** Absent for the conversation, which is not a pane you can put away. */
-	onClose?: () => void;
 }) {
 	return (
 		<div
@@ -119,11 +85,6 @@ export function PaneHeader({
 				// 6px is `pr-1.5`, which is what this row used before there was anything to clear.
 				paddingRight: (insetEnd ?? 0) + 6,
 			}}
-			/*
-			 * `touch-none` so a trackpad drag moves the pane instead of scrolling whatever is
-			 * underneath. Without it the browser claims the gesture before the first pointermove
-			 * arrives, and the pane simply never picks up.
-			 */
 			className="drag-region group/header relative flex shrink-0 items-center gap-1.5"
 		>
 			{/*
@@ -147,45 +108,13 @@ export function PaneHeader({
 				</div>
 			</div>
 
-			{/*
-			 * The grip: a short bar at the top edge, centred on the pane, and the only thing that
-			 * moves the pane.
-			 *
-			 * Centred on the *pane*, which is why it is a child of the header rather than of the
-			 * title's box. It lived in that box for a while and was centred within it, and the
-			 * middle of "whatever the buttons left over" is visibly left of the middle of the card —
-			 * by half the actions' width, so the more buttons a panel has the further off it sits.
-			 * Here, `left: 50%` resolves against the header's padding box, which spans the card
-			 * regardless of what the two paddings are reserving for traffic lights or captions.
-			 *
-			 * What made centring on the header unworkable before was drawing the mark level with
-			 * the title: on a 300px right-edge pane, where Windows reserves ~138px for its caption
-			 * buttons, the middle of the header is on top of full-screen and close. The top edge
-			 * settles that — at `GRIP_TOP` the mark is above the row the buttons sit in, so the two
-			 * cannot collide even when they do line up, and the actions keep their own layer
-			 * (`z-[1]` below) so a press still reaches the button rather than the grip.
-			 *
-			 * Absolute also keeps it out of the row's flow: a long title would otherwise push it
-			 * off centre, and the one thing a handle must do is be in the same place every time.
-			 *
-			 * A real button, not a decoration, because it carries the keyboard route too. Dragging
-			 * is the whole interaction here and a drag is one of the few gestures with no keyboard
-			 * equivalent at all; without this the dock would be unusable without a mouse. Focused
-			 * arrows preview a destination, Enter commits, and Escape cancels. Alt+arrows preserve
-			 * the immediate edge-move shortcut.
-			 *
-			 * `touch-none` so a trackpad drag moves the pane instead of scrolling what is under it;
-			 * without it the browser claims the gesture before the first move arrives.
-			 */}
-			{draggable && !maximized && <PaneGrip kind={kind} label={label} carried={carried} onDragStart={onDragStart} onMove={onMove} onArrowMove={onArrowMove} />}
-
-			<PaneActions kind={kind} label={label} maximized={maximized} actions={actions} onToggleMaximized={onToggleMaximized} onPopOut={onPopOut} onClose={onClose} />
+			<PaneActions kind={kind} label={label} maximized={maximized} actions={actions} onToggleMaximized={onToggleMaximized} onPopOut={onPopOut} />
 		</div>
 	);
 }
 
 /**
- * A pane's own controls: what the panel brings, then pop out, full screen and close.
+ * A pane's own controls: what the panel brings, then pop out and full screen. Closing is on the tab.
  *
  * Its own component because the tabs layout draws them in the window's toolbar instead of the pane's
  * bar (see `ToolbarPanelBar`), and the two places must offer the same buttons.
@@ -197,7 +126,6 @@ export function PaneActions({
 	actions,
 	onToggleMaximized,
 	onPopOut,
-	onClose,
 	after,
 }: {
 	kind: PaneKind;
@@ -206,17 +134,10 @@ export function PaneActions({
 	actions?: React.ReactNode;
 	onToggleMaximized?: () => void;
 	onPopOut?: () => void;
-	onClose?: () => void;
 	/** 排在最后、和这几颗同一组同样间距的按钮：顶栏里收起右栏的开关。 */
 	after?: React.ReactNode;
 }) {
-	/*
-	 * The controls stop the press from reaching the bar underneath them.
-	 *
-	 * They sit inside the drag target, so without this every click on ✕ also begins a drag
-	 * — which does not visibly break anything, but leaves the pane lifted for the length
-	 * of the click and the layout flickering under it.
-	 */
+	// `no-drag`: the bar around them moves the window, and a press here is meant for the button.
 	return (
 		<div data-dock-actions className="no-drag relative z-[1] ml-auto flex shrink-0 items-center gap-0.5">
 			{actions}
@@ -246,11 +167,6 @@ export function PaneActions({
 					onClick={onToggleMaximized}
 				>
 					{maximized ? <Minimize2 size={12} strokeWidth={2} /> : <Maximize2 size={12} strokeWidth={2} />}
-				</HeaderButton>
-			)}
-			{onClose && (
-				<HeaderButton tip={translate("pane.closeOne", { label })} label={translate("pane.closeOne", { label })} onClick={onClose}>
-					<X size={12} strokeWidth={2.2} />
 				</HeaderButton>
 			)}
 			{after}

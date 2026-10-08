@@ -4,7 +4,8 @@
  * Fixtures need records the store would never produce on its own — a fixed clock, a damaged
  * message, five thousand turns in one go — so they bypass `append` and insert rows. Everything a
  * reader relies on is still filled in the way `append` would: one sessions row carrying the final
- * meta, records numbered from 1, and the spend rows those records imply.
+ * meta, records numbered from 1, the spend rows those records imply, and images parked in the
+ * profile's `session-media` — the transcript no longer shows a large image left inline in a record.
  */
 
 import { join } from "node:path";
@@ -13,6 +14,7 @@ import type { SessionRecordInput } from "../../core/src/session/types.ts";
 import { SessionStore } from "../../core/src/session/store.ts";
 import { closeSessionDb, sessionDb, transaction } from "../../core/src/session/db.ts";
 import { recordKind } from "../../core/src/session/apply-record.ts";
+import { parkRecordPayload } from "../../core/src/session/payload.ts";
 import { spendOf } from "../../core/src/session/spend.ts";
 
 /** A record as a fixture writes it. `seq` is only used to resolve a truncate's `afterSeq`; rows are renumbered from 1. */
@@ -56,7 +58,7 @@ export function seedSessions(home: string, sessions: FixtureSession[]): SessionM
 				const insert = db.prepare("INSERT INTO records (session_id, seq, ts, kind, body) VALUES (?, ?, ?, ?, ?)");
 				const spend = db.prepare("INSERT INTO spend (session_id, stream, kind, ts, source, provider, model, call) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 				for (const row of rows) {
-					let payload = row.payload;
+					let payload = parkIn(home, row.payload);
 					if (payload.type === "truncate") payload = { ...payload, afterSeq: renumbered.get(payload.afterSeq) ?? payload.afterSeq };
 					insert.run(final.id, row.seq, row.ts, recordKind(payload), JSON.stringify({ seq: row.seq, ts: row.ts, ...payload }));
 					for (const entry of spendOf(payload, row.ts)) {
@@ -70,6 +72,18 @@ export function seedSessions(home: string, sessions: FixtureSession[]): SessionM
 		closeSessionDb(path);
 	}
 	return seeded;
+}
+
+/** `append`'s parking, aimed at this profile: core finds `session-media` through `PLUME_HOME`. */
+function parkIn(home: string, payload: SessionRecordInput): SessionRecordInput {
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
+	try {
+		return parkRecordPayload(payload);
+	} finally {
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
+	}
 }
 
 /** Every session in `home`, most recent first — what the sidebar will list. */

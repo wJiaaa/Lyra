@@ -50,9 +50,11 @@ async function shot(name: string) {
 
 async function editor(modelId: string) {
 	await click(app, "nav button", "模型设置");
-	await until(app, `document.querySelector('[aria-label="编辑模型"]')`, 900);
-	await app.evaluate(`(()=>{document.querySelector('[data-edit-qa]')?.removeAttribute('data-edit-qa');const row=[...document.querySelectorAll('[class~="group/row"]')].find(e=>e.textContent.includes(${JSON.stringify(modelId)}));row.querySelector('[aria-label="编辑模型"]').setAttribute('data-edit-qa','');})()`);
+	// 编辑在每一行的「更多」菜单里，行上没有单独的按钮。
+	await until(app, `[...document.querySelectorAll('[class~="group/row"]')].some(e=>e.textContent.includes(${JSON.stringify(modelId)}))`, 900);
+	await app.evaluate(`(()=>{document.querySelector('[data-edit-qa]')?.removeAttribute('data-edit-qa');const row=[...document.querySelectorAll('[class~="group/row"]')].find(e=>e.textContent.includes(${JSON.stringify(modelId)}));row.querySelector('[aria-label="更多操作"]').setAttribute('data-edit-qa','');})()`);
 	await click(app, "[data-edit-qa]");
+	await click(app, '[role="menuitem"]', "编辑模型");
 	await until(app, `document.querySelector('[data-ly-modal] input')?.value===${JSON.stringify(modelId)}`, 900);
 }
 

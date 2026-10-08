@@ -616,7 +616,7 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 					 * the panel for the live conversation — the keyboard reached this link without making
 					 * its screen live, and the page would have loaded where nobody could see it.
 					 */
-					if (screen) openScopedPanel("browser", undefined, screen);
+					if (screen) openScopedPanel("browser", screen);
 				} else void bridge.system.openExternal(href);
 			}}
 		>

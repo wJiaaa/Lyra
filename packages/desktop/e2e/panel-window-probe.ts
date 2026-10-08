@@ -7,9 +7,8 @@
  * 是 `startApp` 从前只连主窗口那一个 CDP target。`app.windows()` 补上了这条路，这个文件就是
  * 那一列。
  *
- * 和 `split-matrix-probe.ts` 分开放，因为这里的每一条都要开第二个窗口，而那边每一条开头都
- * 假定只有一个。两边共用的规矩仍然成立：**每条场景自己负责前置状态**，判据取自 DOM 和主进程
- * 的窗口列表，不问 store——store 说的是「我们以为放哪了」。
+ * 规矩：**每条场景自己负责前置状态**，判据取自 DOM 和主进程的窗口列表，不问 store——store
+ * 说的是「我们以为放哪了」。
  *
  * 用法：node --experimental-strip-types e2e/panel-window-probe.ts [场景前缀，如 S1 或 S12]
  */
