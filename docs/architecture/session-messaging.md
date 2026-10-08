@@ -56,8 +56,9 @@ wait_for_session ─▶ 钉住收到那条消息的那一次运行（electron/pe
 进对话的是一条 `synthetic` 的 user 消息，带 `peer` 字段（`core/src/types/message.ts`）。给模型读的
 正文由 `core/src/runtime/peer-letters.ts` 拼：开头一段说明这不是用户说的话、不构成授权、做完把结果
 写在这一轮最后一条回复里；每条消息套 `<session-message from="名字 [ref]" cwd="…">`。界面上画成一行
-（`PeerLetterRow`），点开读全文、一下跳到发消息的会话。对收到的一方，这是一件新的事，开新的一轮
-（`grouping.ts` 的 `opensTurn`）。
+（`PeerLetterRow`），点开读全文、一下跳到发消息的会话。它把空闲的收件方叫醒时，对收到的一方是一件
+新的事，开新的一轮；`steer` 插进正在跑的那一轮时（循环接进去的那一刻给消息打上 `steered`），它是这一
+轮的输入，不另开一轮（`grouping.ts` 的 `opensTurn`）。
 
 `fromPerson: false`：消息不是人开口，不放开正在等的子代理，也不清技能限制。
 

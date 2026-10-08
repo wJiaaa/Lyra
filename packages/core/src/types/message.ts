@@ -275,6 +275,14 @@ export interface UserMessage {
 	 */
 	peer?: PeerLetter[];
 	/**
+	 * 被正在跑的那次运行接了进去，而不是开了一次新的运行。
+	 *
+	 * 循环把它接进去的那一刻打上（`agent/loop.ts` 的 `takeSteering`），因为只有那里知道它到底进没
+	 * 进去：会话忙时收下的话，循环没来得及取的，会排到下一次运行开头，那时它开的是新的一次。界面
+	 * 靠它分辨送达是把空闲的会话叫醒了，还是插在一轮中间——后者不是新的一轮。
+	 */
+	steered?: true;
+	/**
 	 * The files that were attached, by name and kind — never their contents.
 	 *
 	 * A text attachment's body is expanded into the prompt, which is what the model needs and the

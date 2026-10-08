@@ -182,7 +182,11 @@ async function takeSteering(run: Run, first: boolean): Promise<void> {
 	 * started this run — the state map outlives the run. Checking only fresh steering missed both.
 	 */
 	if ((first && humanSinceLastReply(run.config.session.messages)) || steering.some(fromPerson)) clearActiveSkill(run.state);
-	for (const message of steering) await inject(run, message);
+	for (const message of steering) {
+		// 原地打标记而不是复制：子代理的插话在说出口时已经按身份登记过一次（`steerSubAgent`），换一个对象会再登记一遍。
+		if (message.role === "user") message.steered = true;
+		await inject(run, message);
+	}
 }
 
 /** Model switch, pruning, compaction — everything that reshapes history before a request. False when stopped. */

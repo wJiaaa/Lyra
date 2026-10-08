@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedSessions } from "./session-fixture.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
+import { click } from "./drive.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume后台命令通知测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
@@ -194,14 +195,37 @@ try {
 
 	// 3. 跑着时结束：模型在跑 5 秒的活，2 秒的测试先结束——插进同一轮，不另开一轮。
 	await say("BG_STEER 后台跑测试，同时去改文档");
-	await until(`document.querySelectorAll('[data-delivery-kind="job"]').length === 3`, 20_000);
 	await until(`document.querySelector("main")?.innerText.includes("两件事都做完了")`, 20_000);
+	await until(`!document.querySelector('[data-composer-send="stop"]')`, 20_000);
 	await pause(1200);
 	await shot("04_跑着时结束_插进同一轮");
 	const text = await transcript();
-	const at = { work: text.lastIndexOf("执行命令 2 个"), row: text.lastIndexOf("后台命令完成"), done: text.indexOf("两件事都做完了") };
-	check("测试的结束行排在「执行命令 2 个」之后、最终回答之前", at.work >= 0 && at.work < at.row && at.row < at.done, at);
 	check("中间没有出现「测试还没回来」——它在这一轮里就被读到了", !text.includes("测试还没回来"), "absent");
+	/*
+	 * 量的是 DOM 里谁在谁前面、谁装着谁。送达行插在一轮中间，是这段过程里的一步：它和前后的工具收在
+	 * 同一行过程里，不在外面另起一行把过程切成两段。
+	 */
+	const between = `(()=>{
+		const leaf=(text)=>[...document.querySelectorAll("main *")].filter((node)=>node.textContent?.includes(text)&&![...node.children].some((child)=>child.textContent?.includes(text))).at(-1);
+		const ask=leaf("BG_STEER"),done=leaf("两件事都做完了");
+		return (node)=>Boolean(ask.compareDocumentPosition(node)&Node.DOCUMENT_POSITION_FOLLOWING)&&Boolean(node.compareDocumentPosition(done)&Node.DOCUMENT_POSITION_FOLLOWING);
+	})()`;
+	const processes = await running.evaluate<number>(`[...document.querySelectorAll("[data-ly-turn-process]")].filter(${between}).length`);
+	check("问题和回答之间只有一段过程，没被送达切成两段", processes === 1, { processes });
+	// 给要点的那一行做个记号，再用真鼠标点：前面几轮也各有一段过程。
+	await running.evaluate(`[...document.querySelectorAll("[data-ly-turn-process]")].filter(${between})[0]?.querySelector("button")?.setAttribute("data-probe-target","process")`);
+	if (!(await running.evaluate<boolean>(`Boolean(document.querySelector('[data-probe-target="process"]')?.closest("[data-ly-turn-process]")?.hasAttribute("data-ly-turn-open"))`))) {
+		await click(running, '[data-probe-target="process"]');
+	}
+	await pause(1000);
+	await shot("05_点开过程_送达行在里面");
+	const inside = await running.evaluate<{ rows: number; text: string; process: string }>(`(()=>{
+		const process=[...document.querySelectorAll("[data-ly-turn-process]")].filter(${between})[0];
+		const row=process?.querySelector('[data-delivery-kind="job"]');
+		return {rows:process?.querySelectorAll('[data-delivery-kind="job"]').length??0,text:row?.innerText.replace(/\\s+/g," ").trim()??"",process:process?.querySelector("button")?.innerText.replace(/\\s+/g," ").trim()??""};
+	})()`);
+	check("测试的结束行在这一段过程里", inside.rows === 1 && inside.text === "后台命令完成 跑单元测试", inside);
+	check("过程那一行是一整段：执行命令 2 个", /执行命令 2 个/.test(inside.process), inside.process);
 
 	await pause(1000);
 } finally {

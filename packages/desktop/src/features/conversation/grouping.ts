@@ -264,11 +264,14 @@ function resumesTurn(messages: Message[], index: number): boolean {
 /**
  * Whether this message is a person starting a turn, rather than the runtime keeping one going.
  *
- * 后台子智能体的结果送回来也算开了一轮：主智能体是被它叫醒的，那一轮的时长和花销是它的，不该
- * 并进人上一次问的那一轮里。另一个会话发来的消息同理：对收到的一方，那是一件新的事。
+ * 运行时递来的东西——后台结果、另一个会话的消息——要看它是不是把空闲的会话叫醒了：叫醒的那一轮
+ * 是被它开的，时长和花销归它，不该并进人上一次问的那一轮。插在一轮中间的（`steered`）不是：主智能体
+ * 一直在干活，把它算成新的一轮，一段没断过的工作就被切成几段。
  */
 function opensTurn(message: Message): boolean {
-	return message.role === "user" && (!message.synthetic || Boolean(message.delivery) || Boolean(message.peer)) && !isNudge(message);
+	if (message.role !== "user" || isNudge(message)) return false;
+	if (!message.synthetic) return true;
+	return Boolean(message.delivery || message.peer) && !message.steered;
 }
 
 /**
@@ -339,7 +342,7 @@ function liveWork(messages: Message[], live: number, rowOfCalls: Map<number, num
 		const message = messages[at];
 		if (message.role === "user") {
 			// The runtime's own messages are not the person speaking; see `opensTurn`.
-			if ((message.synthetic && !message.delivery && !message.peer) || isNudge(message)) continue;
+			if (!opensTurn(message)) continue;
 			return -1;
 		}
 		// A tool result is the contents of a card, not a step of its own.
@@ -563,8 +566,9 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		 * two at a line nobody can see.
 		 */
 		/*
-		 * 送回来的结果是例外，它是一道缝：主智能体收尾之后被它叫醒，重新干起来。不画出来，读的人
-		 * 看到的是主智能体说完一段话、隔了几分钟又自己动了起来。
+		 * 送回来的结果和另一个会话的消息要画出来。把空闲的会话叫醒的那种是一道缝：不画，读的人看到的
+		 * 是主智能体说完一段话、隔了几分钟又自己动了起来。插在一轮中间的那种只是这段工作里的一步，
+		 * 见 `isProcess`。
 		 */
 		if (message.role === "user" && (message.synthetic || isNudge(message)) && !message.delivery && !message.peer) continue;
 
@@ -697,8 +701,14 @@ function isProcess(run: Run): boolean {
 	 * it is the turn's last word and carries its 继续; folded, it was gone the moment the turn ended.
 	 */
 	if (run.kind === "hiccup") return run.hiccup.outcome !== "waiting" && run.hiccup.outcome !== "gave_up";
+	if (run.kind !== "message") return false;
+	/*
+	 * 插在一轮中间的送达是这段工作里的一步，和它前后的工具一起收。画在外面，它会把一段连续的过程
+	 * 切成两行。叫醒会话的那一种开了一轮（`opensTurn`），留在外面；另一个会话的来信有正文要读，也留在外面。
+	 */
+	if (run.message.role === "user") return Boolean(run.message.delivery) && !run.message.peer && !opensTurn(run.message);
 	// `lead` 的那一条是开头的推理被单独拆出来的行，见 `leadingThinking`。
-	return run.kind === "message" && (run.lead === true || thinkingOnly(run));
+	return run.lead === true || thinkingOnly(run);
 }
 
 /**
@@ -714,9 +724,14 @@ function thinkingOnly(run: Extract<Run, { kind: "message" }>): boolean {
 	return own.some((block) => block.type === "thinking") && !own.some((block) => block.type === "text" && block.text.trim());
 }
 
+/** 过程里的一次推理。同在过程里的送达不是，它不进「思考 N 次」。 */
+function reasoning(run: Run): boolean {
+	return run.kind === "message" && run.message.role === "assistant";
+}
+
 /** 一条 run 是不是「人开的口」——新一轮从这里开始。 */
 function opensBlock(run: Run): boolean {
-	return run.kind === "command" || (run.kind === "message" && run.message.role === "user");
+	return run.kind === "command" || (run.kind === "message" && opensTurn(run.message));
 }
 
 export function turnBlocks(list: Run[]): TurnBlock[] {
@@ -741,13 +756,13 @@ export function turnBlocks(list: Run[]): TurnBlock[] {
 		 * 只有重连、压缩这类标记、没有一次推理或工具的一段，不值得一行「思考了一会儿」——原样摊开。
 		 */
 		const body = list.slice(at, end);
-		if (body.some((item) => item.kind === "tools" || item.kind === "message")) {
+		if (body.some((item) => item.kind === "tools" || reasoning(item))) {
 			out.push({
 				kind: "process",
 				runs: body,
 				counts: {
 					tools: body.reduce((n, item) => n + (item.kind === "tools" ? item.calls.length : 0), 0),
-					thinking: body.filter((item) => item.kind === "message").length,
+					thinking: body.filter(reasoning).length,
 				},
 				turn,
 			});
