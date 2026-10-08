@@ -59,6 +59,9 @@ const EASE = EASING.out;
 /** The flight's transition, as a string: FLIP has to restore this exact value after suppressing it. */
 const FLIGHT = `transform ${DURATION}ms ${EASE}, opacity ${DURATION}ms ${EASE}`;
 
+/** The crop moves with the flight, so the picture lands as exactly what the thumbnail shows. See `cropAt`. */
+const CROP = `clip-path ${DURATION}ms ${EASE}`;
+
 const CENTRED: Point = { x: 0, y: 0 };
 
 /**
@@ -250,15 +253,19 @@ export function ImageViewer() {
 		const to = el.getBoundingClientRect();
 		if (to.width === 0 || to.height === 0) return;
 
+		const picture = el.querySelector("img");
 		el.style.transition = "none";
 		el.style.transform = atThumbnail(from, to);
+		if (picture) {
+			picture.style.transition = "none";
+			picture.style.clipPath = cropAt(source.current, picture, from, to);
+		}
 		/*
 		 * Not quite from nothing, and not quite from solid.
 		 *
-		 * A single scale means the picture starts out filling the thumbnail's square the way the
-		 * thumbnail's own `cover` crop does — which also means the parts the crop cuts off are
-		 * hanging outside it on the first frame. Coming up from mostly-transparent covers that, and
-		 * it gives the arrival somewhere to travel *from* other than pure geometry.
+		 * The parts the thumbnail's `cover` cuts off are clipped by `cropAt` now, not hidden by this.
+		 * What the fade still does is give the arrival somewhere to travel *from* other than pure
+		 * geometry.
 		 */
 		el.style.opacity = "0.4";
 		void el.offsetWidth;
@@ -273,6 +280,10 @@ export function ImageViewer() {
 		el.style.transition = FLIGHT;
 		el.style.transform = "";
 		el.style.opacity = "1";
+		if (picture) {
+			picture.style.transition = CROP;
+			picture.style.clipPath = uncropped(picture);
+		}
 	}, [shown, leaving]);
 
 	/**
@@ -337,19 +348,23 @@ export function ImageViewer() {
 		const from = origin.current;
 		if (el && from) {
 			const to = el.getBoundingClientRect();
-			if (to.width > 0) el.style.transform = atThumbnail(from, to);
+			const picture = el.querySelector("img");
+			if (to.width > 0) {
+				el.style.transform = atThumbnail(from, to);
+				if (picture) {
+					picture.style.transition = CROP;
+					picture.style.clipPath = cropAt(source.current, picture, from, to);
+				}
+			}
 			/*
-			 * Fades a little, never out.
+			 * No fade on the way back, not even a partial one.
 			 *
-			 * This used to go to zero over exactly the time the shrink takes, so the picture was
-			 * invisible about halfway back and the last half of the journey — the half where it
-			 * actually arrives on the thumbnail — played to nobody. What it looked like was the
-			 * picture blinking out, which is precisely the "sudden" being complained about.
-			 *
-			 * It stays visible all the way down instead, and lands on the thumbnail at the moment
-			 * the thumbnail comes back. The mirror of the 0.4 the flight out starts from.
+			 * Going to zero made the picture blink out halfway home. Going to 0.35 was worse in a
+			 * quieter way: the `out` curve has it on the thumbnail by ~120ms while the opacity is
+			 * still easing down, so for the second half of the flight a dimmed copy sat over the
+			 * hidden thumbnail — it read as a shadow — and then snapped to the real colours. At full
+			 * opacity the last frame is the thumbnail, and the swap cannot be seen.
 			 */
-			el.style.opacity = "0.35";
 		}
 
 		window.setTimeout(() => {
@@ -803,8 +818,47 @@ function decode(dataUrl: string): Blob {
 function atThumbnail(from: DOMRect, to: DOMRect): string {
 	const dx = from.left + from.width / 2 - (to.left + to.width / 2);
 	const dy = from.top + from.height / 2 - (to.top + to.height / 2);
-	const scale = Math.max(from.width / to.width, from.height / to.height, 0.01);
-	return `translate(${dx}px, ${dy}px) scale(${scale})`;
+	return `translate(${dx}px, ${dy}px) scale(${thumbnailScale(from, to)})`;
+}
+
+function thumbnailScale(from: DOMRect, to: DOMRect): number {
+	return Math.max(from.width / to.width, from.height / to.height, 0.01);
+}
+
+/**
+ * The crop that makes the full-size picture, scaled onto the thumbnail, look exactly like it.
+ *
+ * The flight scales the picture to *cover* the thumbnail, so whatever the thumbnail's own `cover`
+ * cuts off hangs outside it — a portrait landing on the 80px square of a sent message arrived
+ * 80×120 and then snapped to 80×80. The corners scale too: `rounded-xl` at a quarter size is a 3px
+ * corner arriving on an 8px one. One `inset()` answers both, in the picture's own unscaled pixels.
+ *
+ * The radius is read from the thumbnail because every place that opens the viewer rounds
+ * differently (8, 10, 14px), and a tool result rounds the `<img>` inside its button rather than
+ * the button. Nothing readable → the picture keeps its own radius, scaled like the rest.
+ */
+function cropAt(thumbnail: HTMLElement | null, picture: HTMLElement, from: DOMRect, to: DOMRect): string {
+	const scale = thumbnailScale(from, to);
+	const x = Math.max(0, (to.width - from.width / scale) / 2);
+	const y = Math.max(0, (to.height - from.height / scale) / 2);
+	const radius = [thumbnail, thumbnail?.querySelector("img")].map(pixelRadius).find((r) => r > 0);
+	return `inset(${y}px ${x}px round ${radius ? radius / scale : pixelRadius(picture)}px)`;
+}
+
+/**
+ * Nothing cut off, and the picture's own corners.
+ *
+ * Not `none`: a transition needs two `inset()`s to interpolate between, and `none` would snap.
+ */
+function uncropped(picture: HTMLElement): string {
+	return `inset(0px round ${pixelRadius(picture)}px)`;
+}
+
+function pixelRadius(el: Element | null | undefined): number {
+	if (!el) return 0;
+	const value = getComputedStyle(el).borderTopLeftRadius;
+	// A percentage is relative to the thumbnail's box, which is not the picture's; not worth converting.
+	return value.endsWith("px") ? Number.parseFloat(value) : 0;
 }
 
 /** A `data:` URL is already the file; an anchor is the whole of "save as" for one. */
