@@ -30,25 +30,22 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 	const [offset, setOffset] = useState({ x: 0, y: 0 });
 	const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
 	const [fitted, setFitted] = useState(1);
+	/*
+	 * Whether a change of scale should glide. Only once someone has zoomed.
+	 *
+	 * The first fit is not a zoom: before the picture loads there is no size to fit, so it sat at
+	 * 100% — a 1200×1800 screenshot drawn at full size — and then the same 90ms meant for the wheel
+	 * shrank it into the pane every time a file was opened.
+	 */
+	const [gliding, setGliding] = useState(false);
 
 	// A different file starts over, rather than inheriting the last one's zoom.
 	useEffect(() => {
 		setScale(null);
 		setOffset({ x: 0, y: 0 });
 		setNatural(null);
+		setGliding(false);
 	}, [src]);
-
-	/** What "fit" currently means, in the same units as an explicit zoom. */
-	const measureFit = useCallback(() => {
-		const box = viewport.current?.getBoundingClientRect();
-		if (!box || !natural) return 1;
-		// Never enlarge to fit: a 16px icon blown up to fill the pane is not what fitting means.
-		return Math.min(1, (box.width - 24) / natural.width, (box.height - 24) / natural.height);
-	}, [natural]);
-
-	useEffect(() => {
-		setFitted(measureFit());
-	}, [measureFit]);
 
 	const effective = scale ?? fitted;
 
@@ -77,6 +74,7 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 				}));
 			}
 			setScale(to);
+			setGliding(true);
 		},
 		[scale, fitted],
 	);
@@ -99,6 +97,7 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 	const reset = () => {
 		setScale(null);
 		setOffset({ x: 0, y: 0 });
+		setGliding(true);
 	};
 
 	return (
@@ -134,8 +133,12 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 					alt={name}
 					draggable={false}
 					onLoad={(event) => {
-						const element = event.currentTarget;
-						setNatural({ width: element.naturalWidth, height: element.naturalHeight });
+						const size = { width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight };
+						const box = viewport.current?.getBoundingClientRect();
+						// Fitted in the same update that reveals it, so the first frame shown is already the fit.
+						// Never enlarge to fit: a 16px icon blown up to fill the pane is not what fitting means.
+						setFitted(box ? Math.min(1, (box.width - 24) / size.width, (box.height - 24) / size.height) : 1);
+						setNatural(size);
 					}}
 					className="absolute top-1/2 left-1/2 max-w-none origin-center select-none"
 					style={{
@@ -143,7 +146,8 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 						// Nearest-neighbour once past 3×: at that point the interesting question is
 						// which pixel is which, and smoothing is actively in the way.
 						imageRendering: effective >= 3 ? "pixelated" : "auto",
-						transition: drag.current ? "none" : "transform 90ms linear",
+						visibility: natural ? "visible" : "hidden",
+						transition: drag.current || !gliding ? "none" : "transform 90ms linear",
 					}}
 				/>
 			</div>
@@ -156,7 +160,10 @@ export function ImagePane({ src, name }: { src: string; name: string }) {
 					icon={<Maximize2 size={12} strokeWidth={1.9} />}
 					label={translate("common.actualSize")}
 					size="sm"
-					onClick={() => setScale(1)}
+					onClick={() => {
+						setScale(1);
+						setGliding(true);
+					}}
 				/>
 				<IconButton icon={<RotateCcw size={12} strokeWidth={1.9} />} label={translate("common.fitWindow")} size="sm" onClick={reset} />
 				<span className="ml-1">
