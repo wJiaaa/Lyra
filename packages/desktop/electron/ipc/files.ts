@@ -11,7 +11,8 @@ import { referenceFile } from "../reference-files.ts";
  */
 
 import { readableArtifact } from "../readable-artifacts.ts";
-import { dialog, ipcMain } from "electron";
+import { dialog, ipcMain, net } from "electron";
+import { MEDIA_SCHEME } from "../preview-protocol.ts";
 import { readFile, stat } from "node:fs/promises";
 import { getWindow } from "../window.ts";
 import { documentKind } from "../../shared/document-kind.ts";
@@ -85,6 +86,14 @@ export function registerFilesIpc({ projectRoots }: FilesIpcDeps): void {
 		const info = await stat(path).catch(() => null);
 		if (!info?.isFile() || info.size > DOCUMENT_READ_CAP) return null;
 		return readFile(path).catch(() => null);
+	});
+
+	// 只认 `ly-media://`：`net.fetch` 走的是同一个协议处理器，能读到的和 `<img>` 能显示的是同一批。
+	ipcMain.handle("files:media", async (_event, url: string): Promise<{ data: Uint8Array; mimeType: string } | null> => {
+		if (!url.startsWith(`${MEDIA_SCHEME}://`)) return null;
+		const response = await net.fetch(url).catch(() => null);
+		if (!response?.ok) return null;
+		return { data: new Uint8Array(await response.arrayBuffer()), mimeType: response.headers.get("content-type") ?? "image/png" };
 	});
 
 	/*

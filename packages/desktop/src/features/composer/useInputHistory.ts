@@ -20,6 +20,7 @@ import type { Message } from "@plume/core";
  * 的东西（侧边聊天、子智能体也用），经大门去引对话域就连成了「输入框 → 对话 → 输入框」的环。
  */
 import { spokenByPerson } from "../../lib/spoken.ts";
+import { withParkedPixels } from "../../services/index.ts";
 import { attachmentsFrom, type RestoredAttachment } from "./attachments/restore.ts";
 
 export interface InputHistory {
@@ -63,13 +64,30 @@ export function useInputHistory({
 		draft.current = { text: "", attachments: [] };
 	}, [resetKey]);
 
+	/** 最后一次按到的是哪一条：读回大图要等一下，等回来时已经翻走了就不再装进去。 */
+	const latest = useRef(-1);
+
 	const apply = useCallback(
 		(next: number) => {
 			setIndex(next);
+			latest.current = next;
 			if (next === -1) onPick(draft.current.text, draft.current.attachments);
 			else {
 				const entry = entries[next];
-				onPick(entry?.text ?? "", entry ? attachmentsFrom(entry.message) : []);
+				const restored = entry ? attachmentsFrom(entry.message) : [];
+				if (restored.some((attachment) => !attachment.data && attachment.media)) {
+					// 先读回像素再一起装：先装再换会让人在这几毫秒里打的字被第二次装填冲掉。
+					void withParkedPixels(restored).then((full) => {
+						if (latest.current !== next) return;
+						onPick(entry?.text ?? "", full);
+						requestAnimationFrame(() => {
+							const el = field.current;
+							if (el) el.setSelectionRange(el.value.length, el.value.length);
+						});
+					});
+					return;
+				}
+				onPick(entry?.text ?? "", restored);
 			}
 			/*
 			 * 光标落到最后。

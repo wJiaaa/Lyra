@@ -64,6 +64,7 @@ const KIND: Record<string, MessageKey> = {
 	web_search: "tools.webSearch",
 	task: "tools.delegate",
 	preview: "tools.preview",
+	generate_image: "tools.generateImage",
 	symbol: "tools.symbol",
 	/*
 	 * 技能、学习、回忆、语言服务、问一句——这五个从前不在表里，一律落到「使用 …」。
@@ -95,6 +96,7 @@ const ACTIVITY: [RegExp, string, (match: RegExpMatchArray) => string][] = [
 	[/^Find (.+)$/, "glob", (m) => m[1]],
 	[/^Search "(.+)"$/, "grep", (m) => m[1]],
 	[/^Fetch (.+)$/, "web_fetch", (m) => m[1]],
+	[/^Generate image (.+)$/, "generate_image", (m) => m[1]],
 ];
 
 export function describeActivity(summary: string): string {

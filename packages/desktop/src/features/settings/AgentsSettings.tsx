@@ -203,6 +203,11 @@ export function AgentsSettings() {
 							<ModelSelect ariaLabel={t("agents.memoryModel")} showIcon={false} value={settings.memoryModelId ?? ""} inheritLabel={t("agents.followDefaultModel")} inheritedModelId={settings.defaultModelId ?? undefined} inheritedSource={t("common.default")} inheritDetail={t("agents.memoryModelDetail")} disabled={saving}
 								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, memoryModelId: modelId || null }); }} />
 						</SettingRow>
+						{/* 出图没有「跟随」可言：对话模型画不了图，不选就是不能用。 */}
+						<SettingRow name={t("agents.imageModel")} detail={t("agents.imageModelDetail")}>
+							<ModelSelect ariaLabel={t("agents.imageModel")} showIcon={false} value={settings.imageModelId ?? ""} inheritLabel={t("agents.imageModelNone")} inheritDetail={t("agents.imageModelDetail")} disabled={saving}
+								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, imageModelId: modelId || null }); }} />
+						</SettingRow>
 					</AgentList>
 				</section>}
 			</div>

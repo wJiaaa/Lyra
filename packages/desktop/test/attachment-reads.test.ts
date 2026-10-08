@@ -97,6 +97,18 @@ test("消息里记下的附件，面板只读地读得到；它旁边的文件�
 	assert.ok(bytes && Buffer.from(bytes).toString("utf8").startsWith("# 调研"), "文档视图走的字节那扇门也认");
 });
 
+test("生成图落盘的那几张，面板读得到；同一工具名以外的结果、旁边的文件都不算", async () => {
+	const { file, sibling } = await desktopFile("generated.png", "png-bytes");
+	const result = (toolName: string, paths: unknown) => ({ role: "toolResult", toolCallId: "c1", toolName, content: [], details: { kind: toolName, paths }, isError: false, timestamp: 1 }) as unknown as Message;
+	noteTranscriptFiles([result("bash", [file])]);
+	assert.equal(await attachmentFile(file), null, "别的工具在 details 里写的路径不放行");
+	noteTranscriptFiles([result("generate_image", "not-an-array")]);
+	noteTranscriptFiles([result("generate_image", [file])]);
+	const bytes = (await call("files:bytes", file)) as Uint8Array | null;
+	assert.equal(bytes && Buffer.from(bytes).toString("utf8"), "png-bytes");
+	assert.equal(await attachmentFile(sibling), null, "只放行画出来的那一张");
+});
+
 test("ly-media 那扇门同样只认记下的那一份", async () => {
 	const { file, sibling } = await desktopFile("合同.pdf", "%PDF-1.4");
 	const media = fixture.protocols.get("ly-media");

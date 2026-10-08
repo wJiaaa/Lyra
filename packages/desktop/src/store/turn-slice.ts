@@ -12,7 +12,7 @@ import { prune, todosFrom, without } from "./derive.ts";
 import { howItStopped } from "./turn-stop.ts";
 import { loadCarried, meterFor, saveCarried } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
-import { bridge } from "../services/index.ts";
+import { bridge, withParkedPixels } from "../services/index.ts";
 import { draftFromUserMessage } from "../lib/revert-draft.ts";
 import { outlivingTurn } from "../lib/approval-scope.ts";
 
@@ -348,9 +348,11 @@ export function turnSlice(set: Set, get: Get) {
       await bridge.agent.revertMessage(sessionId, index);
       if (get().activeSessionId !== sessionId) return;
       const draft = draftFromUserMessage(message as UserMessage);
+      const attachments = await withParkedPixels(draft.attachments);
+      if (get().activeSessionId !== sessionId) return;
       get().setComposerDraft(draft.text, {
         sessionId,
-        attachments: draft.attachments,
+        attachments,
         sessionRefs: draft.sessionRefs,
       });
     } catch (cause) {
@@ -399,9 +401,11 @@ export function turnSlice(set: Set, get: Get) {
     // Another conversation was opened meanwhile: that is the newer choice, and the draft is not its.
     if (get().activeSessionId !== forked.meta.id) return;
     const draft = draftFromUserMessage(message);
+    const attachments = await withParkedPixels(draft.attachments);
+    if (get().activeSessionId !== forked.meta.id) return;
     get().setComposerDraft(draft.text, {
       sessionId: forked.meta.id,
-      attachments: draft.attachments,
+      attachments,
       sessionRefs: draft.sessionRefs,
     });
   },

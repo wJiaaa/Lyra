@@ -9,3 +9,5 @@
 
 export { openFromEvent, openViewer } from "./viewer-store.ts";
 export { ImageViewer } from "./ImageViewer.tsx";
+/* 一张图离开应用的几条路：预览器的按钮和会话里生成图的右键菜单走的是同一份。 */
+export { copyImage, imageDataUrl, saveImage } from "./image-out.ts";

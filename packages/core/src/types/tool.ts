@@ -10,6 +10,7 @@ import type { SandboxMode } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
 import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
 import type { Message, UserContent } from "./message.ts";
+import type { ModelConfig, ProviderConfig } from "./provider.ts";
 
 export type { RiskCode, RiskParams };
 
@@ -117,6 +118,13 @@ export interface ToolContext {
 	 * Absent or null means none was picked, which is a case `search/index.ts` decides.
 	 */
 	searchProviderId?: string | null;
+	/**
+	 * 设置里选的图片生成模型，连同它的供应商，带给 `generate_image`。
+	 *
+	 * 和搜索服务一样是人的决定：工具读不到设置，模型也不该替人挑花谁的钱。`null` 是没选或选的
+	 * 那个已被删掉、停用，工具据此告诉人去哪里选。
+	 */
+	imageModel?: { provider: ProviderConfig; model: ModelConfig } | null;
 	/**
 	 * Specific files outside the workspace explicitly granted to this turn
 	 * (e.g. user-attached files from messages in this session).

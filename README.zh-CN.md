@@ -109,7 +109,7 @@ Plume 不自带模型，所以第一次打开是发不出消息的。到「设�
   - 文件与代码：`read` `write` `edit` `ls` `glob` `grep` `symbol` `lsp`
   - 执行命令：`bash` `bash_output`
   - 会话与记忆：`todo_write` `task` `skill` `recall` `learn` `ask_user`
-  - 网络与预览：`web_fetch` `web_search` `preview`
+  - 网络与预览：`web_fetch` `web_search` `preview` `generate_image`
 - **Skill**：`SKILL.md` + YAML frontmatter。只有名称和描述进系统提示，正文在模型调用 `skill` 工具时才注入。装几十个技能也不烧上下文。
 - **MCP**：stdio / Streamable HTTP / SSE 三种传输，工具以 `mcp__<服务>__<工具>` 命名注入，不会和内置工具撞名。
 - **子智能体**：`task` 工具把工作交给拥有独立上下文窗口的子 agent，只把结论带回主对话。内置七个：`general` `explore` `review` `verify` `plan` `simple` `reason`，可用 `.plume/agents/*.md` 扩展。

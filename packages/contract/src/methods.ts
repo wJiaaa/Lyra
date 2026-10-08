@@ -135,6 +135,7 @@ export const METHODS = {
 		document: { channel: "files:document" },
 		documentText: { channel: "files:documentText" },
 		bytes: { channel: "files:bytes" },
+		media: { channel: "files:media" },
 		create: { channel: "files:create" },
 		rename: { channel: "files:rename" },
 		copy: { channel: "files:copy" },

@@ -46,6 +46,7 @@ const BUILTIN_TOOLS = [
 	"web_fetch",
 	"web_search",
 	"preview",
+	"generate_image",
 ];
 
 /** Case, `_` and `-` tell no two tools apart here, and Claude Code writes ours without the `_`. */

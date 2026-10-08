@@ -50,6 +50,15 @@ export async function click(page: Page, selector: string, name?: string, mode: N
 	await frames(page, 2);
 }
 
+/** 右键：落点规则和 `click` 一样，按的是右键，弹的是应用自己的右键菜单。 */
+export async function contextClick(page: Page, selector: string, name?: string, mode: NamedMode = "exact"): Promise<void> {
+	const at = await settle(page, selector, name, mode);
+	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	await page.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "right", clickCount: 1 });
+	await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "right", clickCount: 1 });
+	await frames(page, 2);
+}
+
 /** 长按：落点规则和 `click` 一样，按下后停 `ms` 再松开。手机界面的长按菜单走它。 */
 export async function hold(page: Page, selector: string, name?: string, ms = 600, mode: NamedMode = "exact"): Promise<void> {
 	const at = await settle(page, selector, name, mode);

@@ -45,3 +45,113 @@
 :root[data-reduce-motion="on"] .ly-skeleton::after {
   animation: none;
 }
+
+/* ---------------------------------------------------------------------------
+ * 画布：`generate_image` 等图时的那块底板
+ *
+ * 两层同一套网格的点阵。底下一层淡，透过两团柔边的光斑露出来，光斑在板上游；上面一层更亮、
+ * 点更大，只在一条斜向光带里看得见，光带从左上扫到右下——扫过的那一片点亮起来又暗下去，点阵
+ * 读起来是活的。只有光斑没有光带的那一版，点子本身一动不动，看上去就是一张静止的图。
+ * 亮度仍然压着：它占着的是一张还没来的图，不该比那张图更抢眼。
+ *
+ * 静止位置写在规则本身而不是只写在关键帧里：关掉动效时总开关让动画瞬间跑完、弹回原值，停下来
+ * 的就是这一帧——光斑停在板上，光带停在板外，仍然是一块有点阵的板，而不是一片空白。
+ * ------------------------------------------------------------------------- */
+
+.ly-canvas {
+  position: relative;
+  background: color-mix(in oklab, var(--color-ink) 5%, transparent);
+}
+
+.ly-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--color-ink) 42%, transparent) 0.8px,
+    transparent 1.3px
+  );
+  background-size: 9px 9px;
+  background-position: center;
+  /* 遮罩只读 alpha，用哪种不透明的颜色都一样；这里取主题色，免得为一个 `#000` 把文件加进豁免表。 */
+  mask-image:
+    radial-gradient(closest-side, var(--color-ink), transparent),
+    radial-gradient(closest-side, var(--color-ink), transparent);
+  mask-size:
+    90% 90%,
+    75% 75%;
+  mask-position:
+    100% 0%,
+    0% 75%;
+  mask-repeat: no-repeat;
+  transition: opacity var(--ly-t-slow) ease;
+  animation: ly-canvas-drift 3.2s ease-in-out infinite alternate;
+}
+
+.ly-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* 这一层画在图上面，收起来之后也还在那儿，不能挡住点图。 */
+  pointer-events: none;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--color-ink) 70%, transparent) 1.1px,
+    transparent 1.6px
+  );
+  background-size: 9px 9px;
+  background-position: center;
+  /*
+   * 遮罩是板的 2.5 倍大，光带在遮罩正中：位置 0% 和 100% 时光带都在板外，中间那一段扫过板。
+   * 静止值取 0%，关掉动效后这一层就整片不见。
+   */
+  mask-image: linear-gradient(
+    135deg,
+    transparent 40%,
+    var(--color-ink) 50%,
+    transparent 60%
+  );
+  mask-size: 250% 250%;
+  mask-position: 0% 0%;
+  mask-repeat: no-repeat;
+  transition: opacity var(--ly-t-slow) ease;
+  animation: ly-canvas-sweep 2.4s ease-in-out infinite;
+}
+
+/* 图载入了就把点阵收掉：盖在图底下也是一直在重绘。亮的那层画在图上面，更得收。 */
+.ly-canvas[data-ly-canvas="done"]::before,
+.ly-canvas[data-ly-canvas="done"]::after {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes ly-canvas-sweep {
+  from {
+    mask-position: 100% 100%;
+  }
+  to {
+    mask-position: 0% 0%;
+  }
+}
+
+@keyframes ly-canvas-drift {
+  0% {
+    mask-position:
+      100% 0%,
+      0% 75%;
+  }
+  50% {
+    mask-position:
+      35% 100%,
+      75% 15%;
+  }
+  100% {
+    mask-position:
+      0% 15%,
+      100% 100%;
+  }
+}

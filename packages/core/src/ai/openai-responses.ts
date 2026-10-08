@@ -188,6 +188,8 @@ async function* streamResponses(
 	let incompleteReason: string | undefined;
 	/** 模型拒答时说的话：`response.refusal.delta`，或完成的 message 里 `type: "refusal"` 的那段。 */
 	let refusal = "";
+	/** 收到过、但这里不认识的输出项类型（`image_generation_call`、`web_search_call` 这类服务端工具）。 */
+	const unsupported = new Set<string>();
 	/** 这次尝试收到过几个能看懂的事件——用来分辨「模型没话说」和「中转发来一团别的东西」。 */
 	let framesSeen = 0;
 	/** 收到过收尾事件（`response.completed` / `.incomplete`）——没有它就说明流是断的，不是说完了。 */
@@ -225,6 +227,7 @@ async function* streamResponses(
 		inventedIds.clear();
 		incompleteReason = undefined;
 		refusal = "";
+		unsupported.clear();
 		framesSeen = 0;
 		settled = false;
 		firstTokenTime = null;
@@ -441,7 +444,10 @@ async function* streamResponses(
 							if (!tracked) {
 								const kind =
 									item.type === "function_call" ? "toolCall" : item.type === "reasoning" ? "thinking" : item.type === "message" ? "text" : undefined;
-								if (!kind) break;
+								if (!kind) {
+									if (item.type) unsupported.add(String(item.type));
+									break;
+								}
 								if (kind === "toolCall") {
 									partial.content.push({
 										type: "toolCall",
@@ -554,6 +560,27 @@ async function* streamResponses(
 				}
 
 				// 拒答：和另外两条链同一个出口，判成内容策略、不重试。从前它落成一条空回答被重试，所以排在空回答之前。
+				/*
+				 * 回复里只有一个认不出的输出项，是这一轮唯一的「内容」被扔掉了，不是模型没话说。
+				 *
+				 * 实测（2026-10-08）：CLIProxyAPI 的「图像生成行为」为「已启用」时，会往每个 Codex 请求里自己加
+				 * 一个 `image_generation` 内置工具；模型出图时调它而不调 `generate_image`，回来的是一个
+				 * `image_generation_call` 加一条空 message。从前那条空 message 被当成空回复，自动「继续」三次、
+				 * 每次都再出一张图、每次都扔掉，最后才报「连续返回空回复」。
+				 *
+				 * 判成不重试：同样的请求再发一遍还是同样的结果。说出是哪一种，人才知道该去改哪儿。
+				 */
+				const said = partial.content.some((c) => (c.type === "text" && c.text.trim()) || c.type === "toolCall");
+				if (unsupported.size > 0 && !said && !refusal.trim()) {
+					const kinds = [...unsupported].join("、");
+					const failure = classifyFailure({ from: "stream", message: `模型返回了不支持的内容：${kinds}`, spent: true });
+					throw new FailureError({
+						...failure,
+						kind: "fatal",
+						detail: `回复里只有 ${kinds}，没有正文或工具调用。多半是中转往请求里加了服务端工具（比如 CLIProxyAPI 的「图像生成行为」为「已启用」），在中转那边改成「仅透传」或关掉即可。`,
+					});
+				}
+
 				if (refusal.trim()) {
 					throw new FailureError(classifyFailure({ from: "stream", message: `${REFUSAL_MESSAGE}：${refusal.trim()}`, spent: true }));
 				}

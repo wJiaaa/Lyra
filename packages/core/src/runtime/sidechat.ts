@@ -314,6 +314,7 @@ export class SideChat {
 						cwd: this.main.cwd,
 						sandboxMode: undefined,
 						searchProviderId: undefined,
+						imageModel: undefined,
 						allowedPaths: undefined,
 						projectRoots: undefined,
 						spawnSubAgent: undefined,

@@ -7,11 +7,12 @@
  */
 
 import type { ToolEnvironment } from "../agent/run-config.ts";
+import { resolveModel } from "../config/models.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
 import type { Settings } from "../config/settings.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 
-export type ToolPolicy = Pick<ToolEnvironment, "sandboxMode" | "searchProviderId" | "projectRoots">;
+export type ToolPolicy = Pick<ToolEnvironment, "sandboxMode" | "searchProviderId" | "imageModel" | "projectRoots">;
 
 export function toolPolicy(settings: Settings, cwd: string): ToolPolicy {
 	return {
@@ -21,6 +22,7 @@ export function toolPolicy(settings: Settings, cwd: string): ToolPolicy {
 		 */
 		sandboxMode: sandboxModeFor(settings.permissionMode),
 		searchProviderId: settings.searchProvider ?? null,
+		imageModel: resolveModel(settings, settings.imageModelId ?? null),
 		projectRoots: projectRootsFor(settings.projects, cwd),
 	};
 }

@@ -36,6 +36,7 @@ export { computeDiff, formatDiff, type DiffHunk, type DiffLine, type FileDiff } 
 export { editTool } from "./edit.ts";
 export { globToRegExp, globTool } from "./glob.ts";
 export { grepTool } from "./grep.ts";
+export { generateImageTool } from "./image.ts";
 export { invalidateIndex, symbolTool } from "./symbol.ts";
 export { lsTool } from "./ls.ts";
 export { recallTool } from "./recall.ts";

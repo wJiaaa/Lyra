@@ -20,8 +20,7 @@
  */
 
 import { useI18n } from "../../i18n/index.ts";
-import { translate } from "../../i18n/translate.ts";
-import { ChevronLeft, ChevronRight, Download, Maximize2, Minus, Pencil, Plus, X } from "../../ui/icons/index.ts";
+import { ChevronLeft, ChevronRight, Copy, Download, Maximize2, Minus, Pencil, Plus, X } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { clampZoom, wheelZoomFactor, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, zoomAt, type Point } from "./annotate.ts";
@@ -29,9 +28,9 @@ import { useAnnotator } from "./Annotator.tsx";
 import { AnnotateCanvas, STAGE_FIT } from "./AnnotateCanvas.tsx";
 import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
 import { useLayout } from "../../app/layout.tsx";
-import { useApp } from "../../store/index.ts";
 import { EASING } from "../../ui/motion/tokens.ts";
 import { closeViewer, stepViewer, useViewer, type ViewerImage } from "./viewer-store.ts";
+import { copyImage, saveImage } from "./image-out.ts";
 import { portal } from "../../ui/overlay/portal.ts";
 
 /**
@@ -638,7 +637,10 @@ export function ImageViewer() {
 						<ViewerButton label={t("viewer.annotate")} onClick={() => setEditing(true)}>
 							<Pencil size={15} strokeWidth={1.9} />
 						</ViewerButton>
-						<ViewerButton label={t("viewer.saveAs")} onClick={() => download(image.src)}>
+						<ViewerButton label={t("viewer.copy")} onClick={() => void copyImage(image.src)}>
+							<Copy size={15} strokeWidth={1.9} />
+						</ViewerButton>
+						<ViewerButton label={t("viewer.saveAs")} onClick={() => void saveImage(image.src)}>
 							<Download size={15} strokeWidth={1.9} />
 						</ViewerButton>
 						<ViewerButton label={t("viewer.closeEsc")} onClick={dismiss}>
@@ -715,7 +717,7 @@ export function ImageViewer() {
 							}
 							// Always copy marked-up result to clipboard on save if it's not a pure in-place replacement
 							// or if user wants clipboard integration
-							void toClipboard(dataUrl);
+							void copyImage(dataUrl);
 							setEditing(false);
 							dismiss();
 						};
@@ -764,40 +766,6 @@ function ViewerButton({
 			{children}
 		</button>
 	);
-}
-
-/**
- * The marked-up copy, ready to paste.
- *
- * PNG because that is what `ClipboardItem` takes and what every paste target understands. Falls
- * back to saving a file if the clipboard refuses — which it does when the window is not focused,
- * and losing the annotation to a permissions rule would be the worst of the options.
- */
-async function toClipboard(dataUrl: string) {
-	try {
-		await navigator.clipboard.write([new ClipboardItem({ "image/png": decode(dataUrl) })]);
-		useApp.getState().notify(translate("viewer.copied"));
-	} catch {
-		// The clipboard refuses while the window is not focused, and refuses entirely on some
-		// platforms. Losing the annotation to that would be the worst of the outcomes.
-		download(dataUrl);
-		useApp.getState().notify(translate("viewer.clipboardUnavailable"), "warn");
-	}
-}
-
-/**
- * A `data:` URL to a `Blob`, by hand.
- *
- * `fetch(dataUrl)` is the tidy way to do this and it does not work here: the renderer's content
- * policy rejects `data:` as a fetch target, so every copy failed with `TypeError: Failed to fetch`
- * and fell through to the download it was meant to replace. `atob` has no such opinion.
- */
-function decode(dataUrl: string): Blob {
-	const comma = dataUrl.indexOf(",");
-	const binary = atob(dataUrl.slice(comma + 1));
-	const bytes = new Uint8Array(binary.length);
-	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-	return new Blob([bytes], { type: "image/png" });
 }
 
 /**
@@ -859,12 +827,4 @@ function pixelRadius(el: Element | null | undefined): number {
 	const value = getComputedStyle(el).borderTopLeftRadius;
 	// A percentage is relative to the thumbnail's box, which is not the picture's; not worth converting.
 	return value.endsWith("px") ? Number.parseFloat(value) : 0;
-}
-
-/** A `data:` URL is already the file; an anchor is the whole of "save as" for one. */
-function download(src: string) {
-	const link = document.createElement("a");
-	link.href = src;
-	link.download = `image-${Date.now()}.png`;
-	link.click();
 }

@@ -7,6 +7,8 @@ type RestoredAttachment = {
 	mimeType: string;
 	kind?: string;
 	data?: string;
+	/** 像素已经挪进 `session-media` 时的文件名；装回输入框前由 `withParkedPixels` 读回来。 */
+	media?: string;
 	text?: string;
 	isText: boolean;
 	path?: string;
@@ -29,6 +31,18 @@ export function lastUserMessageIndex(messages: Message[]): number {
 		if (message.role === "user" && !message.synthetic) return i;
 	}
 	return -1;
+}
+
+/**
+ * 一张图的像素，或者像素所在的文件名。
+ *
+ * 会话日志把大图挪进 `session-media`，块里只剩 `media` 名字、`data` 是空串——真实照片几乎都超过
+ * 内联上限。只拷 `data` 的话，撤回、分叉后再发出去的就是一行「contents not included」，模型根本
+ * 没看到那张图。
+ */
+export function pixelsOf(image: ImageBlock): { data?: string; media?: string } {
+	if (image.data) return { data: image.data };
+	return image.media ? { media: image.media } : {};
 }
 
 function bodyText(block: string): string | undefined {
@@ -63,7 +77,7 @@ export function draftFromUserMessage(message: UserMessage): RestoredDraft {
 			mimeType: file.mimeType ?? image?.mimeType ?? "application/octet-stream",
 			isText: Boolean(isText),
 			...(kind ? { kind } : {}),
-			...(image ? { data: image.data } : {}),
+			...(image ? pixelsOf(image) : {}),
 			...(body ? { text: bodyText(body.text) } : {}),
 			...(file.path ? { path: file.path } : {}),
 			...(file.label ? { label: file.label } : {}),
@@ -75,7 +89,7 @@ export function draftFromUserMessage(message: UserMessage): RestoredDraft {
 			name: "",
 			mimeType: images[imageAt].mimeType,
 			kind: "image",
-			data: images[imageAt].data,
+			...pixelsOf(images[imageAt]),
 			isText: false,
 		});
 	}

@@ -515,6 +515,14 @@ export interface PlumeApi {
 		 */
 		bytes(path: string): Promise<Uint8Array | null>;
 		/**
+		 * The bytes behind a `ly-media://` URL.
+		 *
+		 * The window's origin is `file://` and the scheme is not CORS-enabled, so the renderer can show
+		 * these pictures but cannot read them: `fetch` is refused and a canvas they are drawn on is
+		 * tainted. Copying, saving or attaching one needs its bytes, and only this side can get them.
+		 */
+		media(url: string): Promise<{ data: Uint8Array; mimeType: string } | null>;
+		/**
 		 * 一份文档里的字，抽给模型读——PDF、Word、Excel、PowerPoint，以及压缩包的清单。
 		 *
 		 * 收字节不收路径：服务的是输入框里拖进来的文件，那些是浏览器的 `File`，本来就没有磁盘路径。

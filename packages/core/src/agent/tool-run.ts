@@ -415,7 +415,7 @@ function hookApprovalRequest(toolName: string, args: Record<string, unknown>, re
 		: toolName === "write" ? "write"
 		: toolName === "edit" ? "edit"
 		: ["read", "ls", "grep", "glob"].includes(toolName) ? "read"
-		: toolName === "web_fetch" || toolName === "web_search" ? "network"
+		: toolName === "web_fetch" || toolName === "web_search" || toolName === "generate_image" ? "network"
 		: "mcp";
 	return {
 		kind,

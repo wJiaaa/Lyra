@@ -54,6 +54,11 @@ export function summarizeToolCall(name: string, args: Record<string, unknown>): 
 			return `Skill: ${str("name") ?? ""}`.trim() || "Skill";
 		case "web_fetch":
 			return `Fetch ${str("url") ?? ""}`.trim() || "Fetch URL";
+		case "generate_image": {
+			// 和 core 的 `generateImageTool.summarize` 同一句，`describeActivity` 认的是它。
+			const prompt = str("prompt")?.trim().split("\n")[0];
+			return prompt ? `Generate image ${prompt.slice(0, 80)}` : "Generate image";
+		}
 		default:
 			// MCP tools are named mcp__<server>__<tool>; show the readable half.
 			if (name.startsWith("mcp__")) {

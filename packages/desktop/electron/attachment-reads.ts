@@ -14,6 +14,10 @@
  * 照规矩放在桌面上，回复里链过去，点开却只有「读不到这个文件」。这一类 core 那边没有对应：它不让模型多读
  * 任何东西，只让人点得开模型指给他看的那一个文件——同样精确到文件、同样只读，点不点由人决定。
  *
+ * 还有一类是生成图落盘的那一份：`generate_image` 的结果在 `details.paths` 里记着它在 `session-media` 下的
+ * 位置，卡片右键「在新标签页中打开」交给面板的就是这个路径。一样精确到文件、一样只读——放行的是这次画
+ * 出来的那几张，不是整个 `session-media`。
+ *
  * 路径只从主进程自己经手的记录里来：交给窗口的转录（`slimSnapshot`）、活会话里每一条收尾的消息
  * （`session-hub.ts` 的 `broadcast`），和本机递进来、过了 `prompt-input.ts` 那道门的新消息。远端递进来的 `path` 在那道门上就被丢掉了，到不了这里；窗口随口报
  * 一个路径也换不来通行——这里没有任何一个 IPC 入口。
@@ -35,7 +39,7 @@ export function noteAttachmentPath(path: unknown): void {
 }
 
 /**
- * 记下这批消息里人自己带进来的文件，和助手回复里链过去的文件。
+ * 记下这批消息里人自己带进来的文件、助手回复里链过去的文件，和生成图落盘的文件。
  *
  * 转录里躺着的是没人再校验过的数据：稀疏数组的空洞、缺了 `attachments` 的老消息、形状不对的一项，
  * 都只是跳过，不抛——这是交转录给窗口的必经之路，在这里抛出去，会话就打不开了。
@@ -48,6 +52,9 @@ export function noteTranscriptFiles(messages: readonly Message[]): void {
 			for (const block of message.content) {
 				if (block?.type === "text" && typeof block.text === "string") for (const path of linkedPaths(block.text)) noteAttachmentPath(path);
 			}
+		} else if (message?.role === "toolResult" && message.toolName === "generate_image") {
+			const paths = (message.details as { paths?: unknown } | undefined)?.paths;
+			if (Array.isArray(paths)) for (const path of paths) noteAttachmentPath(path);
 		}
 	}
 }

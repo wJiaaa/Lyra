@@ -346,6 +346,8 @@ export interface Settings {
 	titleModelId?: string | null;
 	/** Model for the background memory pass; null follows `defaultModelId`, since it runs in no session. */
 	memoryModelId?: string | null;
+	/** Model behind `generate_image`; null means none was picked, and the tool says where to pick one. */
+	imageModelId?: string | null;
 	/**
 	 * Models pinned to the top of the picker, in the order they were starred.
 	 *

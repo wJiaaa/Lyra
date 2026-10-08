@@ -19,6 +19,7 @@
 
 import type { Message, UserContent } from "@plume/core";
 
+import { pixelsOf } from "../../../lib/revert-draft.ts";
 import type { FileKind } from "./file-kind.ts";
 
 /** 输入框里一份附件的形状，和 `Composer` 里的 `Attachment` 对得上。 */
@@ -28,6 +29,8 @@ export interface RestoredAttachment {
 	mimeType: string;
 	kind?: FileKind;
 	data?: string;
+	/** 见 `lib/revert-draft.ts` 的 `pixelsOf`。 */
+	media?: string;
 	text?: string;
 	isText: boolean;
 }
@@ -70,7 +73,7 @@ export function attachmentsFrom(message: Message): RestoredAttachment[] {
 		const kind = meta.kind as FileKind | undefined;
 		if (mimeType.startsWith("image/") || meta.kind === "image") {
 			const block = images[imageAt++];
-			return { id, name: meta.name, mimeType: mimeType || block?.mimeType || "image/png", kind, data: block?.data, isText: false };
+			return { id, name: meta.name, mimeType: mimeType || block?.mimeType || "image/png", kind, ...(block ? pixelsOf(block) : {}), isText: false };
 		}
 		const text = bodies[bodyAt++] ? unwrap(bodies[bodyAt - 1]!.text) : undefined;
 		return {

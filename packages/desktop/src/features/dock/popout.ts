@@ -17,6 +17,7 @@
  */
 
 import { create } from "zustand";
+import { provideFileOpener } from "../../app/file-opener.ts";
 import { flushSync } from "react-dom";
 import { bridge } from "../../services/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
@@ -333,6 +334,9 @@ export function openFilePane(file: { path: string; name: string }, target?: stri
 		openScopedPanel(kind as PanelKind, scope);
 	});
 }
+
+// 会话里生成图的「在新标签页中打开」从这里进来，见 `provideFileOpener`。
+provideFileOpener(openFilePane);
 
 /**
  * The toolbar button and the shortcut: open it here, or put it away.

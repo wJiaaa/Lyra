@@ -38,3 +38,19 @@ test("draftFromUserMessage prefers displayText and keeps image pixels", () => {
 	assert.equal(draft.attachments[1].path, "/tmp/notes.md");
 	assert.deepEqual(draft.sessionRefs, [{ id: "s1", title: "Earlier" }]);
 });
+
+test("draftFromUserMessage keeps the file name of an image parked in session-media", () => {
+	// 真实照片几乎都超过内联上限：日志里的块只剩 media 名字。只拷 data 的话，重发出去是一行「contents not included」。
+	const message = {
+		role: "user",
+		content: [
+			{ type: "text", text: "改成竹林" },
+			{ type: "image", mimeType: "image/png", data: "", media: "5448dd02.png" },
+		],
+		attachments: [{ name: "689839.PNG", kind: "image", mimeType: "image/png" }],
+		timestamp: 1,
+	} as UserMessage;
+	const [image] = draftFromUserMessage(message).attachments;
+	assert.equal(image.data, undefined);
+	assert.equal(image.media, "5448dd02.png");
+});

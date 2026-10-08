@@ -368,3 +368,33 @@ test("多段推理摘要之间补一个空行，不把上一段末句和下一�
 	const thinking = message.content.find((c) => c.type === "thinking");
 	assert.equal(thinking?.type === "thinking" && thinking.thinking, "**看目录**\n先列出文件。\n\n**查测试**\n再跑测试。");
 });
+
+test("只有一个认不出的服务端工具项时，说出它是什么，不当成空回复重试", async () => {
+	// CLIProxyAPI「图像生成行为」为已启用时的实测形状：一个 image_generation_call，加一条空 message。
+	const sse = lossyStream([
+		{ type: "image_generation_call", id: "ig_1", status: "completed", result: "iVBORw0KGgo=" },
+		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "" }] },
+	]);
+	let requests = 0;
+	const stream = openaiResponsesProvider.stream(
+		provider,
+		model,
+		{ systemPrompt: "", messages: [{ role: "user", content: [{ type: "text", text: "画只猫" }], timestamp: 0 }], tools: [] },
+		{
+			// oxlint-disable-next-line no-explicit-any -- 测试里塞一个假 fetch，并数它被叫了几次
+			fetch: (async () => (requests++, new Response(sse, { status: 200, headers: { "content-type": "text/event-stream" } }))) as any,
+			retryAttempts: 3,
+		},
+	);
+	let last: AssistantMessage | undefined;
+	while (true) {
+		const next = await stream.next();
+		if (next.done) {
+			last = next.value;
+			break;
+		}
+	}
+	assert.equal(last?.stopReason, "error");
+	assert.match(last?.errorMessage ?? "", /image_generation_call/);
+	assert.equal(requests, 1, "同样的请求再发也是同样的结果，不该重试");
+});

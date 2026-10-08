@@ -80,6 +80,7 @@ export function runConfig(parts: RunConfigParts = {}): AgentRunConfig {
 				cwd: "/tmp",
 				sandboxMode: undefined,
 				searchProviderId: undefined,
+				imageModel: undefined,
 				allowedPaths: undefined,
 				projectRoots: undefined,
 				spawnSubAgent: undefined,
