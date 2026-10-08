@@ -106,14 +106,29 @@ pnpm install
 只在三种情况下跑：`node_modules` 不存在、新开的 worktree、这次要改 `package.json` 或
 lockfile。依赖已经装好时，每轮都跑一遍什么也确认不了，只多一次往返。
 
-## 改动之后（必须全过）
+## 改动之后：只验这次改到的
 
-```bash
-pnpm check       # lint（--deny-warnings）→ 链接 → 样式 → i18n → typecheck → arch → test
-node scripts/audit-regression.mjs   # 修过的每个 bug，各自的守卫跑一遍
-```
+全量不归你跑。`git commit` 的钩子会对暂存的文件跑 lint、样式、i18n，`git push` 的钩子会跑
+完整的 `pnpm check` 和 `pnpm knip`（见 CONTRIBUTING.md）。在这之前每轮全量跑一遍 `pnpm check`，
+几分钟里大半是在复查没动过的包；已经全绿以后只加了一个文件又全量跑一遍，什么也没多确认。
 
-`arch` 查的是依赖方向，规则见 ARCHITECTURE.md 的「边界」。
+按改了什么挑：
+
+| 改了什么 | 跑什么 |
+| --- | --- |
+| `.ts` / `.tsx` | `pnpm exec oxlint --deny-warnings <改过的文件>`，加所在包的 `pnpm --filter <包> typecheck` |
+| 有测试覆盖的代码，或新写的测试 | 只跑那几个测试文件，命令照所在包 `package.json` 里 `test` 的写法：core 和 desktop 的单元测试带 `--import ./test/setup.ts`，desktop 的 `test/ui` 照 `test:ui` |
+| 新文件、跨包或跨功能域的 import | `pnpm arch`——查依赖方向，规则见 ARCHITECTURE.md 的「边界」 |
+| CSS | `pnpm style` |
+| 界面文案、i18n 词条 | `pnpm i18n` |
+| Markdown 里的链接 | `pnpm check:links` |
+| `audit-regression` 里登记过的 bug 附近的代码 | 只跑那一条：脚本里每条都写着自己的 `run` |
+
+- **过了的不重跑。** 一项检查通过以后，只有它查的那部分又被改了才再跑。
+- **全量只在改了大家都依赖的东西时跑**：`package.json`、lockfile、tsconfig、lint/样式规则、
+  `packages/contract`、构建配置。
+- **`audit-regression --window` 会把每条要真窗口的都起一遍 Electron**，只在改动确实碰到那几条
+  守着的地方时才加，平时单跑相关的那一条。
 
 ### 验证跟着改动的大小走
 
@@ -122,7 +137,7 @@ node scripts/audit-regression.mjs   # 修过的每个 bug，各自的守卫跑�
 
 **小改动**：只删改文案、只调一处间距或颜色等数值，没有新的状态、条件分支或交互。
 
-- `pnpm check` 照跑，`audit-regression` 照跑
+- 检查照上面那张表挑，改的是文案就只有 `pnpm i18n` 和那个文件的 lint
 - 拍改动前、改动后各一张截图，不录视频
 - **截图要真看**：被删掉或被挪动的那一块，四周的留白和对齐有没有跟着变。删掉一行说明以后
   底部留白没收，这件事 `pnpm check` 查不出来，只能从截图里看出来
