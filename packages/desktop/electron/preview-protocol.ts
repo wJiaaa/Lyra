@@ -15,7 +15,7 @@ import { nativeImage, net, protocol, session } from "electron";
 import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "../shared/session-image.ts";
 import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@plume/core";
 import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
-import { HEIGHT_MESSAGE, INLINE_KEY, OPEN_MESSAGE, THEME_KEY, THEME_MESSAGE } from "../shared/preview.ts";
+import { HEIGHT_MESSAGE, INLINE_KEY, OPEN_MESSAGE, THEME_KEY, THEME_MESSAGE, WIDTH_KEY } from "../shared/preview.ts";
 import { attachmentFile } from "./attachment-reads.ts";
 
 export const MEDIA_SCHEME = "ly-media";
@@ -167,7 +167,7 @@ function report(){
 /* A pixel of slack. Sub-pixel layout rounds up as often as down, and with overflow hidden the
    difference is not a scrollbar any more — it is a clipped row of text. */
 var h=measure();if(h)h+=2;
-if(h&&Math.abs(h-last)>2){last=h;try{parent.postMessage({${JSON.stringify(HEIGHT_MESSAGE)}:h},"*")}catch(e){}}
+if(h&&Math.abs(h-last)>2){last=h;try{parent.postMessage({${JSON.stringify(HEIGHT_MESSAGE)}:h,${JSON.stringify(WIDTH_KEY)}:document.documentElement.clientWidth},"*")}catch(e){}}
 }
 addEventListener("load",report);addEventListener("resize",report);
 if(window.ResizeObserver&&document.documentElement)new ResizeObserver(report).observe(document.documentElement);

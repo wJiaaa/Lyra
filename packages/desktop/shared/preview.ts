@@ -16,6 +16,12 @@ export const PREVIEW_CHECK_WIDTH = 720;
 
 /** Page → app: the height the page needs. */
 export const HEIGHT_MESSAGE = "__dwPreviewHeight";
+/**
+ * Page → app, alongside the height: the width the page was measured at. Its own, not the frame's
+ * as read by the card — the message arrives a moment after the measurement, and in a resize the
+ * frame has already moved on by then.
+ */
+export const WIDTH_KEY = "__lyPreviewWidth";
 /** Page → app: the reader clicked a link that leaves the page. */
 export const OPEN_MESSAGE = "__lyPreviewOpen";
 /** App → page: the theme changed. */

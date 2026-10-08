@@ -9,7 +9,8 @@ import { useDockScope, useScopedSessionId } from "../../app/session-scope.tsx";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { onAppearanceApplied } from "../settings/index.ts";
-import { HEIGHT_MESSAGE, PREVIEW_MAX_HEIGHT, THEME_MESSAGE, previewFragment, readOpenRequest, type PreviewTheme } from "../../../shared/preview.ts";
+import { HEIGHT_MESSAGE, PREVIEW_MAX_HEIGHT, THEME_MESSAGE, WIDTH_KEY, previewFragment, readOpenRequest, type PreviewTheme } from "../../../shared/preview.ts";
+import { followHeight } from "./preview-height.ts";
 import { previewTheme } from "./preview-theme.ts";
 
 export interface PreviewInfo {
@@ -34,8 +35,6 @@ const MEANINGFUL_HEIGHT = 90;
 const MAX_HEIGHT = PREVIEW_MAX_HEIGHT;
 /** Used while measuring, and if the page never reports anything. */
 const DEFAULT_HEIGHT = 440;
-/** A page whose height depends on its own height would otherwise resize forever. */
-const MAX_ADJUSTMENTS = 8;
 /** If the reporter never runs — blocked, broken, or a page with no head — stop waiting. */
 const PROBE_TIMEOUT_MS = 1500;
 /** How long to keep collecting measurements before committing to one. */
@@ -113,7 +112,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	 * never report again. The measurement then timed out and every preview came back the same
 	 * default height.
 	 */
-	const survey = useRef({ settled: false, tallest: 0, adjustments: 0, timer: null as ReturnType<typeof setTimeout> | null });
+	const survey = useRef({ settled: false, tallest: 0, adjustments: 0, width: null as number | null, timer: null as ReturnType<typeof setTimeout> | null });
 	/*
 	 * Into this screen's browser, as a page of this screen's conversation.
 	 *
@@ -228,8 +227,12 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 		function onMessage(event: MessageEvent) {
 			// Identified by the window it came from — a sandboxed frame has no origin to check.
 			if (event.source !== frame.current?.contentWindow) return;
-			const asked = (event.data as Record<string, unknown> | null)?.[HEIGHT_MESSAGE];
+			const data = event.data as Record<string, unknown> | null;
+			const asked = data?.[HEIGHT_MESSAGE];
 			if (typeof asked !== "number" || !Number.isFinite(asked)) return;
+			const width = data?.[WIDTH_KEY];
+			const resized = typeof width === "number" && state.width !== null && width !== state.width;
+			if (typeof width === "number") state.width = width;
 
 			if (!state.settled) {
 				/*
@@ -256,17 +259,19 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 				return;
 			}
 			/*
-			 * After that, the page may only ask for more.
-			 *
-			 * It is now being measured at its own height, so "I need exactly what I was given" is
-			 * the answer every elastic layout returns, and honouring it would just be the card
-			 * agreeing with itself. Growth is different: content that overflows the settled height
-			 * is content that would otherwise be cut off — a detail panel opening, a list loading.
+			 * After that, the page may only ask for more — unless it was measured at a new width, which
+			 * is a new measurement. See `followHeight`. Growth at the same width is content that would
+			 * otherwise be cut off: a detail panel opening, a list loading.
 			 */
-			note(asked);
+			if (resized) {
+				state.adjustments = 0;
+				// What was cut off at the narrow width may fit at this one.
+				setOverflowing(asked > MAX_HEIGHT + 8);
+			} else note(asked);
 			setMeasured((current) => {
-				const next = clamp(asked);
-				if (current === null || next <= current + 8 || state.adjustments >= MAX_ADJUSTMENTS) return current;
+				if (current === null) return current;
+				const next = followHeight({ current, next: clamp(asked), resized, adjustments: state.adjustments });
+				if (next === null) return current;
 				state.adjustments++;
 				rememberHeight(preview, next);
 				return next;
