@@ -43,12 +43,31 @@ function finder(selector: string, name?: string, mode: NamedMode = "exact"): str
  *   看来是可见的，按下去什么也没按到；上一条用例没关掉的遮罩也是这样挡住后面每一次点击的。
  */
 export async function click(page: Page, selector: string, name?: string, mode: NamedMode = "exact"): Promise<void> {
+	const at = await settle(page, selector, name, mode);
+	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	await page.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 });
+	await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });
+	await frames(page, 2);
+}
+
+/** 长按：落点规则和 `click` 一样，按下后停 `ms` 再松开。手机界面的长按菜单走它。 */
+export async function hold(page: Page, selector: string, name?: string, ms = 600, mode: NamedMode = "exact"): Promise<void> {
+	const at = await settle(page, selector, name, mode);
+	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	await page.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 });
+	await new Promise((resolve) => setTimeout(resolve, ms));
+	await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });
+	await frames(page, 2);
+}
+
+/** 等目标停稳并确实在指针下，返回按下去的坐标。 */
+async function settle(page: Page, selector: string, name: string | undefined, mode: NamedMode): Promise<Point> {
 	const find = finder(selector, name, mode);
 	const label = JSON.stringify(name === undefined ? selector : `${selector} "${name}"`);
 	await until(page, find);
 	const near = await page.evaluate<Point>(`(()=>{const e=${find};e.scrollIntoView({block:'nearest',behavior:'instant'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...near });
-	const at = await page.evaluate<Point>(`(async()=>{
+	return page.evaluate<Point>(`(async()=>{
 		const deadline=performance.now()+8000;let previous='',last='';
 		while(true){
 			const e=${find};
@@ -65,10 +84,6 @@ export async function click(page: Page, selector: string, name?: string, mode: N
 			await new Promise(requestAnimationFrame);
 		}
 	})()`);
-	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
-	await page.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 });
-	await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });
-	await frames(page, 2);
 }
 
 /**

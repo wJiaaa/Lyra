@@ -5,7 +5,7 @@ import { CopyButton, useCopy } from "./copy.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { DiffStat } from "./ToolSheet.tsx";
 import { describeCalls, diffStat, sumStats, toolIcon, toolSubject, toolVerb } from "./tools.ts";
-import { Breathing, Button, Icon, Txt, styles, useTheme } from "./ui.tsx";
+import { Appear, Breathing, Button, Chevron, Icon, Txt, styles, useTheme } from "./ui.tsx";
 import type { T } from "./i18n.ts";
 
 function duration(ms: number, t: T): string {
@@ -47,26 +47,25 @@ function Thinking({ item, t }: { item: Extract<FeedItem, { kind: "thinking" }>; 
 	const [open, setOpen] = useState(false);
 	const preview = item.text.trim().split("\n")[0] ?? "";
 	return <View>
-		<Line icon={<Icon name="cpu" size={14} color={theme.faint} />} label={t("thinkingLabel")} expanded={open} live={item.live} onPress={() => setOpen(!open)} trailing={<Icon name={open ? "chevron-up" : "chevron-down"} size={13} color={theme.faint} />}>
+		<Line icon={<Icon name="cpu" size={14} color={theme.faint} />} label={t("thinkingLabel")} expanded={open} live={item.live} onPress={() => setOpen(!open)} trailing={<Chevron open={open} />}>
 			<Text style={{ fontWeight: "500" }}>{item.live ? t("thinkingLive") : t("thinkingLabel")}</Text>
 			{!open && preview ? <Text style={{ color: theme.faint }}>{`  ${preview}`}</Text> : ""}
 		</Line>
-		{open && <View style={{ marginLeft: 9, paddingLeft: 19, borderLeftWidth: 1, borderLeftColor: theme.line, marginTop: 2, marginBottom: 6 }}>
+		{open && <Appear><View style={{ marginLeft: 9, paddingLeft: 19, borderLeftWidth: 1, borderLeftColor: theme.line, marginTop: 2, marginBottom: 6 }}>
 			<Text selectable style={{ color: theme.muted, fontSize: 14, lineHeight: 22 }}>{item.text.trim()}</Text>
-		</View>}
+		</View></Appear>}
 	</View>;
 }
 
-/** 做完的一轮的过程：用了多久、做了哪几类事、改了多少行。点开把原样内容接在下面。 */
+/** 做完的一轮的过程：做了哪几类事、改了多少行。点开把原样内容接在下面。 */
 function Fold({ item, expanded, toggle, t }: { item: Extract<FeedItem, { kind: "fold" }>; expanded: boolean; toggle(key: string): void; t: T }) {
 	const theme = useTheme();
 	const summary = [item.thinking ? t("thoughtTimes", { n: item.thinking }) : "", item.steps.length ? describeCalls(item.steps, t) : ""].filter(Boolean).join(" · ");
 	const failed = item.steps.some((step) => step.failed);
 	// 收起时下面一道发丝线：把「过程」和「结论」隔开，回头翻的时候眼睛直接落到线下的回答上。
 	return <View style={{ paddingTop: 4, paddingBottom: 4, marginBottom: expanded ? 2 : 6, borderBottomWidth: expanded ? 0 : StyleSheet.hairlineWidth, borderBottomColor: theme.line }}>
-		<Line icon={<Icon name={failed ? "alert-circle" : "check"} size={14} color={failed ? theme.danger : theme.faint} />} label={`${t("worked", { d: duration(item.durationMs, t) })} ${summary}`} expanded={expanded} onPress={() => toggle(item.key)} trailing={<><DiffStat stat={sumStats(item.steps.map((step) => step.details))} /><Icon name={expanded ? "chevron-up" : "chevron-down"} size={13} color={theme.faint} /></>}>
-			<Text style={{ fontWeight: "500" }}>{t("worked", { d: duration(item.durationMs, t) })}</Text>
-			{summary ? <Text style={{ color: theme.faint }}>{`  ${summary}`}</Text> : ""}
+		<Line icon={<Icon name={failed ? "alert-circle" : "check"} size={14} color={failed ? theme.danger : theme.faint} />} label={summary} expanded={expanded} onPress={() => toggle(item.key)} trailing={<><DiffStat stat={sumStats(item.steps.map((step) => step.details))} /><Chevron open={expanded} /></>}>
+			<Text style={{ fontWeight: "500" }}>{summary}</Text>
 		</Line>
 	</View>;
 }
@@ -113,9 +112,9 @@ function ErrorCard({ item, retry, t }: { item: Extract<FeedItem, { kind: "error"
 
 /**
  * 列表里的一行。展开的那一轮过程（`nested`）挂在左边一条细线上，和它的摘要行连成一组，
- * 收起时整组一起消失——不然展开后分不清哪几步属于哪一轮。
+ * 收起时整组一起消失——不然展开后分不清哪几步属于哪一轮。`appear`：这一行是刚点开才长出来的，淡入一次。
  */
-export const FeedRow = memo(function FeedRow({ item, nested, expanded, toggle, openStep, retry, t }: { item: FeedItem; nested: boolean; expanded: boolean; toggle(key: string): void; openStep(step: Step): void; retry?: (text: string) => void; t: T }) {
+export const FeedRow = memo(function FeedRow({ item, nested, appear = false, expanded, toggle, openStep, retry, t }: { item: FeedItem; nested: boolean; appear?: boolean; expanded: boolean; toggle(key: string): void; openStep(step: Step): void; retry?: (text: string) => void; t: T }) {
 	const theme = useTheme();
 	const body = item.kind === "user" ? <UserBubble item={item} t={t} />
 		: item.kind === "steps" ? <View style={{ paddingVertical: 2 }}>{item.steps.map((step) => <StepRow key={step.id} step={step} live={item.live} open={openStep} t={t} />)}</View>
@@ -125,5 +124,5 @@ export const FeedRow = memo(function FeedRow({ item, nested, expanded, toggle, o
 		: item.kind === "error" ? <ErrorCard item={item} retry={retry} t={t} />
 		: <View style={{ paddingTop: 6, paddingBottom: 2 }}><Markdown text={item.text} streaming={item.live} t={t} /></View>;
 	if (!nested) return body;
-	return <View style={{ marginLeft: 9, paddingLeft: 17, borderLeftWidth: 1, borderLeftColor: theme.line }}>{body}</View>;
+	return <Appear active={appear}><View style={{ marginLeft: 9, paddingLeft: 17, borderLeftWidth: 1, borderLeftColor: theme.line }}>{body}</View></Appear>;
 });

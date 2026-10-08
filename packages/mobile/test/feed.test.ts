@@ -52,10 +52,10 @@ test("做完的一轮：过程折成一行，最终回答和结尾留在外面�
 	assert.ok(fold.kind === "fold");
 	assert.equal(fold.steps.length, 2);
 	assert.equal(fold.thinking, 1);
-	assert.equal(fold.durationMs, 3500, "从这句话到最后一条回复结束");
 	assert.deepEqual(fold.children.map((item) => item.kind), ["thinking", "steps", "text", "steps"], "中间的旁白也算过程");
 	const footer = feed[3]!;
 	assert.ok(footer.kind === "footer" && footer.text === "改好了");
+	assert.equal(footer.durationMs, 3500, "耗时从这句话到最后一条回复结束");
 	const rows = flatten(feed, new Set([fold.key]));
 	assert.deepEqual(rows.map((row) => row.item.kind), ["user", "fold", "thinking", "steps", "text", "steps", "text", "footer"]);
 	assert.deepEqual(rows.map((row) => row.nested), [false, false, true, true, true, true, false, false], "只有展开的过程挂在细线上");

@@ -3,8 +3,8 @@ import { Pressable, SectionList, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientState, RemoteClient, SessionMeta } from "@plume/client-runtime";
 import { NewSessionSheet } from "./NewSessionSheet.tsx";
-import { Sheet } from "./Sheet.tsx";
-import { Field, Group, GroupRow, Header, Icon, IconButton, ProjectMark, StatusDot, Txt, styles, useTheme } from "./ui.tsx";
+import { SessionActions } from "./SessionActions.tsx";
+import { Field, Header, Icon, IconButton, ProjectMark, StatusDot, Txt, styles, useTheme } from "./ui.tsx";
 import { ago, groupSessions, visibleSessions } from "./sessions.ts";
 import type { T } from "./i18n.ts";
 
@@ -94,12 +94,6 @@ export function SessionsScreen({ state, client, onSettings, onOpen, onCreated, e
 			</View>}
 		/>
 		{creating && state.bootstrap && <NewSessionSheet bootstrap={state.bootstrap} client={client} close={() => setCreating(false)} created={onCreated} error={error} t={t} />}
-		{held && <Sheet title={held.title || t("newSession")} close={() => setHeld(null)} closeLabel={t("close")}>
-			{(dismiss) => <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-				<Group style={{ backgroundColor: theme.card }}>
-					<GroupRow first icon={held.archived ? "rotate-ccw" : "archive"} label={t(held.archived ? "restore" : "archive")} danger={!held.archived} chevron={false} disabled={!online || running.includes(held.id)} onPress={() => { const target = held; dismiss(); void client.archive(target.id, !target.archived).catch(error); }} />
-				</Group>
-			</View>}
-		</Sheet>}
+		{held && <SessionActions title={held.title || t("newSession")} meta={held} running={running.includes(held.id)} online={online} archive={() => client.archive(held.id, !held.archived)} close={() => setHeld(null)} error={error} t={t} />}
 	</View>;
 }

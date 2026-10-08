@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, type ComponentProps, type ReactNode } from "react";
-import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, Easing, Platform, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type TextStyle, type ViewStyle } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
 
 /*
@@ -85,12 +85,16 @@ export function IconButton({ name, label, onPress, disabled = false, filled = fa
 	</Pressable>;
 }
 
-/** `compact` 是列表顶上的搜索框那一档：38 高，和下面一排筛选连在一起读，不和表单字段一样厚。 */
-export function Field({ icon, style, compact = false, ...props }: TextInputProps & { icon?: IconName; compact?: boolean }) {
+/**
+ * `compact` 是列表顶上的搜索框那一档：38 高，和下面一排筛选连在一起读，不和表单字段一样厚。
+ * `trailing` 是贴在框内右侧的控件（比如改名的确认钮），右内衬随之收窄，让它和框的圆角同心。
+ */
+export function Field({ icon, style, compact = false, trailing, ...props }: TextInputProps & { icon?: IconName; compact?: boolean; trailing?: ReactNode }) {
 	const theme = useTheme();
-	return <View style={[styles.field, compact && styles.fieldCompact, { backgroundColor: theme.card }, props.multiline && { alignItems: "flex-start" }]}>
+	return <View style={[styles.field, compact && styles.fieldCompact, { backgroundColor: theme.card }, props.multiline && { alignItems: "flex-start" }, trailing ? { paddingRight: 8 } : null]}>
 		{icon && <Icon name={icon} size={compact ? 16 : 17} color={theme.faint} />}
 		<TextInput placeholderTextColor={theme.faint} selectionColor={theme.accent} {...props} style={[styles.fieldInput, compact && styles.fieldInputCompact, { color: theme.ink }, style]} />
+		{trailing}
 	</View>;
 }
 
@@ -174,6 +178,31 @@ export function Breathing({ children, active = true }: { children: ReactNode; ac
 		return () => loop.stop();
 	}, [active, value]);
 	return <Animated.View style={{ opacity: value, flex: 1, minWidth: 0 }}>{children}</Animated.View>;
+}
+
+/**
+ * 刚出现的东西从上方 6px 淡入：展开一轮过程、点开思考时，新长出来的几行是「落下来」的，而不是凭空跳出。
+ * 只在挂载时播一次，`active` 为假时直接就位——列表虚拟化会在滚回来时重新挂载同一行，那时不该再播。
+ */
+export function Appear({ children, active = true }: { children: ReactNode; active?: boolean }) {
+	const value = useRef(new Animated.Value(active ? 0 : 1)).current;
+	useEffect(() => {
+		if (active) Animated.timing(value, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver }).start();
+		// oxlint-disable-next-line react-hooks/exhaustive-deps -- 动画只属于挂载那一刻，active 之后的变化不该重播
+	}, [value]);
+	return <Animated.View style={{ opacity: value, transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }) }] }}>{children}</Animated.View>;
+}
+
+/** 展开 / 收起的箭头转过去，而不是换一枚图标：转的过程本身就在说「这里开了」。 */
+export function Chevron({ open, size = 13, color }: { open: boolean; size?: number; color?: string }) {
+	const theme = useTheme();
+	const value = useRef(new Animated.Value(open ? 1 : 0)).current;
+	useEffect(() => {
+		Animated.timing(value, { toValue: open ? 1 : 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver }).start();
+	}, [open, value]);
+	return <Animated.View style={{ transform: [{ rotate: value.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "180deg"] }) }] }}>
+		<Icon name="chevron-down" size={size} color={color ?? theme.faint} />
+	</Animated.View>;
 }
 
 export function Banner({ message, onDismiss, dismissLabel }: { message: string; onDismiss?: () => void; dismissLabel?: string }) {

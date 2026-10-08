@@ -11,10 +11,11 @@ import { pickImages, MAX_IMAGES, type Attachment } from "./attachments.ts";
 import { buildFeed, findStep, flatten, type Step } from "./feed.ts";
 import { FeedRow } from "./MessageRow.tsx";
 import { PlanBar } from "./PlanBar.tsx";
+import { SessionActions } from "./SessionActions.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { ToolSheet } from "./ToolSheet.tsx";
 import { latestTodos } from "./tools.ts";
-import { Button, Field, GroupRow, Group, Header, Icon, IconButton, ProjectMark, StatusDot, Txt, floating, styles, useTheme } from "./ui.tsx";
+import { GroupRow, Group, Header, Icon, IconButton, ProjectMark, StatusDot, Txt, floating, styles, useTheme } from "./ui.tsx";
 import { avatar } from "./avatar.ts";
 import type { T } from "./i18n.ts";
 
@@ -79,28 +80,6 @@ function useAnswering(messages: Message[]): boolean {
 	return key !== null && !stalled;
 }
 
-function ActionsSheet({ state, client, close, error, t }: { state: ClientState; client: RemoteClient; close(): void; error(cause: unknown): void; t: T }) {
-	const theme = useTheme();
-	const session = state.session;
-	const online = state.status === "connected";
-	const [title, setTitle] = useState(session?.meta.title ?? "");
-	const [busy, setBusy] = useState(false);
-	return <Sheet title={t("more")} close={close} closeLabel={t("close")}>
-		{(dismiss) => <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, gap: 16 }}>
-			<View style={{ gap: 8 }}>
-				<Field accessibilityLabel={t("title")} placeholder={t("title")} value={title} onChangeText={setTitle} returnKeyType="done" />
-				<Button label={t("rename")} busy={busy} disabled={!online || !title.trim() || title.trim() === session?.meta.title} onPress={() => { setBusy(true); void client.rename(title.trim()).then(dismiss).catch(error).finally(() => setBusy(false)); }} />
-			</View>
-			<Group style={{ backgroundColor: theme.card }}>
-				<GroupRow first icon={session?.meta.archived ? "rotate-ccw" : "archive"} label={t(session?.meta.archived ? "restore" : "archive")} danger={!session?.meta.archived} chevron={false} disabled={!online || !!session?.running} onPress={() => {
-					const id = state.activeId;
-					if (id) void client.archive(id, !session?.meta.archived).then(() => { close(); client.closeSession(); }).catch(error);
-				}} />
-			</Group>
-		</ScrollView>}
-	</Sheet>;
-}
-
 export function ChatScreen({ state, client, back, error, draft, setDraft, t }: { state: ClientState; client: RemoteClient; back(): void; error(cause: unknown): void; draft: string; setDraft(value: string): void; t: T }) {
 	const theme = useTheme();
 	const { height } = useWindowDimensions();
@@ -150,9 +129,11 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 			else if (picked.length) setAttachments((current) => [...current, ...picked].slice(0, MAX_IMAGES));
 		}).catch(error);
 	}
+	/** 最近一次点开折叠的时刻：紧跟着挂载的那几行是点开长出来的，淡入；之后滚动重新挂载的不播。 */
+	const opened = useRef(0);
 	const toggle = useCallback((key: string) => setExpanded((current) => {
 		const next = new Set(current);
-		if (!next.delete(key)) next.add(key);
+		if (!next.delete(key)) { next.add(key); opened.current = Date.now(); }
 		return next;
 	}), []);
 	const openStep = useCallback((target: Step) => setStepId(target.id), []);
@@ -201,7 +182,7 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 				}}
 				scrollEventThrottle={100}
 				onContentSizeChange={() => { if (follow.current) bottom(false); }}
-				renderItem={({ item: row }) => <FeedRow item={row.item} nested={row.nested} expanded={expanded.has(row.item.key)} toggle={toggle} openStep={openStep} retry={online && !running ? retry : undefined} t={t} />}
+				renderItem={({ item: row }) => <FeedRow item={row.item} nested={row.nested} appear={row.nested && Date.now() - opened.current < 400} expanded={expanded.has(row.item.key)} toggle={toggle} openStep={openStep} retry={online && !running ? retry : undefined} t={t} />}
 				ListFooterComponent={running && !answering && rows.length > 0 ? <RunningLine messages={visible} waiting={!pending ? null : pending.kind === "interactive" ? "question" : "approval"} t={t} /> : null}
 				ListEmptyComponent={<View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 10, paddingHorizontal: 24 }}>
 					<Image source={avatar} accessibilityIgnoresInvertColors style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.grouped, marginBottom: 6 }} />
@@ -255,6 +236,16 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 			</View>}
 		</Sheet>}
 		{step && <ToolSheet step={step} running={running} close={() => setStepId(null)} t={t} />}
-		{sheet === "actions" && <ActionsSheet state={state} client={client} close={() => setSheet(null)} error={error} t={t} />}
+		{sheet === "actions" && session && <SessionActions
+			meta={session.meta}
+			running={running}
+			online={online}
+			close={() => setSheet(null)}
+			rename={(title) => client.rename(title)}
+			// 归档后这个会话就不在「最近」里了，留在聊天页只会对着一个看不见的会话，直接回列表。
+			archive={() => client.archive(session.meta.id, !session.meta.archived).then(() => client.closeSession())}
+			error={error}
+			t={t}
+		/>}
 	</KeyboardAvoidingView>;
 }

@@ -11,7 +11,7 @@ export type FeedItem =
 	| { kind: "steps"; key: string; steps: Step[]; live: boolean }
 	| { kind: "error"; key: string; text: string; retry?: string }
 	/** 一轮做完以后，最终回答之前的思考和工具调用收成这一行；`children` 是展开后的原样内容。 */
-	| { kind: "fold"; key: string; children: FeedItem[]; steps: Step[]; thinking: number; durationMs: number }
+	| { kind: "fold"; key: string; children: FeedItem[]; steps: Step[]; thinking: number }
 	| { kind: "footer"; key: string; text: string; timestamp: number; durationMs: number };
 
 type Turn = { user: Extract<FeedItem, { kind: "user" }> | null; items: FeedItem[]; start: number; end: number };
@@ -22,8 +22,8 @@ type Turn = { user: Extract<FeedItem, { kind: "user" }> | null; items: FeedItem[
  * 工具调用和它的结果在存储里是两条消息，中间可能还夹着别的调用；手机上它们是同一行「一步」，
  * 结果按 toolCallId 回填。相邻的步骤并进同一组，正文或思考把组切开。
  *
- * 一轮从一句用户消息到下一句。做完的那一轮只留最终回答，前面的过程折成一行「已工作 1:23」
- * ——和桌面同一个做法：回头翻的时候要看的是结论，过程想看再点开。正在跑的那一轮不折，
+ * 一轮从一句用户消息到下一句。做完的那一轮只留最终回答，前面的过程折成一行「思考 2 次 · 读取文件 3 个」
+ * ——回头翻的时候要看的是结论，过程想看再点开。正在跑的那一轮不折，
  * 正在发生的事收进一行摘要里，等于什么都没告诉人。
  */
 export function buildFeed(messages: Message[], running = false): FeedItem[] {
@@ -85,7 +85,7 @@ function settle(turn: Turn, live: boolean, last: boolean): FeedItem[] {
 	const steps = process.flatMap((item) => item.kind === "steps" ? item.steps : []);
 	const thinking = process.filter((item) => item.kind === "thinking").length;
 	const body: FeedItem[] = steps.length || thinking
-		? [{ kind: "fold", key: `${process[0]!.key}-fold`, children: process, steps, thinking, durationMs }, ...final]
+		? [{ kind: "fold", key: `${process[0]!.key}-fold`, children: process, steps, thinking }, ...final]
 		: turn.items;
 	const answer = final.filter((item) => item.kind === "text").map((item) => item.text).join("\n\n");
 	if (answer) body.push({ kind: "footer", key: `${final.at(-1)!.key}-footer`, text: answer, timestamp: turn.end, durationMs });

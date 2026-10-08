@@ -8,7 +8,7 @@ import { crc32, deflateSync } from "node:zlib";
 import { test } from "node:test";
 import { RemoteClient } from "@plume/client-runtime";
 import { startApp, closeListeningServer } from "./app.ts";
-import { click, frames, openSettings, press, shot, type, until } from "./drive.ts";
+import { click, frames, hold, openSettings, press, shot, type, until } from "./drive.ts";
 import { lyraRelay } from "./lyra-relay-fixture.ts";
 import { questionModel } from "./mention-question-fixture.ts";
 import { replyWork, WORK_PROMPT } from "./mobile-work-fixture.ts";
@@ -69,6 +69,19 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 		await until(app, "matchMedia('(prefers-color-scheme: dark)').matches");
 		await frames(app, 10);
 	}
+	/**
+	 * 一段动作里某个元素逐帧的位移和透明度。`target` 每帧重新求值：换页时容器是新挂载的那一个。
+	 * 量的是用户看到的那段动画本身——只看终态，动画整个没播也是绿的。
+	 */
+	let samples = 0;
+	async function sample(target: string, action: () => Promise<void>): Promise<Array<{ x: number; y: number; o: number; r: number }>> {
+		const slot = `__samples${samples++}`;
+		await app.evaluate(`(() => { const out = window.${slot} = []; const end = performance.now() + 900; const tick = () => { const e = ${target}; if (e) { const style = getComputedStyle(e); const m = new DOMMatrix(style.transform === "none" ? "" : style.transform); out.push({ x: Math.round(m.m41 * 10) / 10, y: Math.round(m.m42 * 10) / 10, o: Math.round(Number(style.opacity) * 100) / 100, r: Math.round(Math.atan2(m.m12, m.m11) * 180 / Math.PI) }); } if (performance.now() < end) requestAnimationFrame(tick); }; requestAnimationFrame(tick); })()`);
+		await action();
+		await new Promise((resolve) => setTimeout(resolve, 950));
+		return app.evaluate(`window.${slot}`);
+	}
+	const PAGE = `document.querySelector('[data-testid="page"]')`;
 	const video: Frame[] = [];
 	const stopRecording = process.env.PLUME_E2E_ARTIFACTS ? await startRecording(9393, video) : null;
 	context.after(async () => { await stopRecording?.(); if (video.length > 1 && process.env.PLUME_E2E_ARTIFACTS) await encode(video, join(process.env.PLUME_E2E_ARTIFACTS, `${stamp}-mobile-flow.mp4`)); });
@@ -112,8 +125,10 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	await click(app, '[role="button"][aria-label="新会话"]');
 	await until(app, 'Boolean(document.querySelector(\'[role="button"][aria-label="开始会话"]\'))');
 	await frames(app, 30); await shot(app, `${stamp}-mobile-new-session`);
-	await click(app, '[role="button"][aria-label="开始会话"]');
+	const push = await sample(PAGE, () => click(app, '[role="button"][aria-label="开始会话"]'));
 	await until(app, 'Boolean(document.querySelector(\'textarea[aria-label="给 Plume 发消息…"]\'))');
+	assert.ok(push.some((frame) => frame.x > 8 && frame.o < 1), `进聊天页从右边滑入：${JSON.stringify(push)}`);
+	assert.deepEqual({ x: push.at(-1)!.x, o: push.at(-1)!.o }, { x: 0, o: 1 }, "滑入后停在原位");
 	await type(app, 'textarea[aria-label="给 Plume 发消息…"]', "ASK_OWNER");
 	await click(app, '[role="button"][aria-label="发送消息"]');
 	await until(app, 'document.body.innerText.includes("请选择本次实现方式")');
@@ -183,14 +198,20 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	const steps = new Set(reveal.lengths).size;
 	assert.ok(steps >= 6 && reveal.lengths.every((n, i) => i === 0 || n >= reveal.lengths[i - 1]! - 2), `后半段分帧放出、只增不减：${steps} 档 ${JSON.stringify(reveal.lengths.slice(-40))}`);
 	assert.ok(reveal.faded >= 3, `放字时有正在淡入的字：${reveal.faded} 帧`);
-	await until(app, 'document.body.innerText.includes("有问题随时说。") && document.body.innerText.includes("已工作")', 1800);
+	await until(app, `document.body.innerText.includes("有问题随时说。") && [...document.querySelectorAll('[role="button"]')].some((e) => (e.getAttribute("aria-label") || "").includes("修改文件") && e.getAttribute("aria-label") !== "修改文件 README.md")`, 1800);
 	assert.ok(!await app.evaluate<boolean>(`Boolean([...document.querySelectorAll('[role="button"]')].find((e) => (e.getAttribute("aria-label") || "").startsWith("计划 ")))`), "计划做完、任务停了，计划条收起");
 	await frames(app, 30); await shot(app, `${stamp}-mobile-work`); await lightShot("mobile-work");
 	assert.ok(await app.evaluate<boolean>('document.body.innerText.includes("+3") && !document.body.innerText.includes("−0")'), "改动行数挂在摘要上，为零的一侧不写");
 	await until(app, AT_BOTTOM, 120);
 	assert.ok(!await app.evaluate<boolean>(`Boolean(document.querySelector('[aria-label="回到底部"]'))`), "回答一下子长出来时仍跟到底部");
-	await click(app, '[role="button"]', "更新清单 2 个", "includes");
+	const chevron = `(() => { const fold = [...document.querySelectorAll('[role="button"]')].find((e) => (e.getAttribute("aria-label") || "").includes("修改文件")); return fold && [...fold.querySelectorAll("div")].filter((e) => e.style.transform.includes("rotate")).at(-1); })()`;
+	const nestedRow = `(() => { let e = [...document.querySelectorAll('[role="button"]')].find((e) => e.getAttribute("aria-label") === "修改文件 README.md"); while (e && !e.style.transform.includes("translateY")) e = e.parentElement; return e; })()`;
+	const turn = sample(chevron, () => new Promise((resolve) => setTimeout(resolve, 600)));
+	const drop = await sample(nestedRow, () => click(app, '[role="button"]', "更新清单 2 个", "includes"));
+	const turned = await turn;
 	await until(app, `Boolean([...document.querySelectorAll('[role="button"]')].find((e) => e.getAttribute("aria-label") === "修改文件 README.md"))`);
+	assert.ok(drop.some((frame) => frame.o < 1 && frame.y < 0) && drop.at(-1)!.o === 1 && drop.at(-1)!.y === 0, `展开后过程行淡入落下：${JSON.stringify(drop)}`);
+	assert.ok(turned.some((frame) => Math.abs(frame.r) > 10 && Math.abs(frame.r) < 170) && Math.abs(turned.at(-1)!.r) === 180, `展开箭头转过去而不是换图标：${JSON.stringify(turned)}`);
 	await frames(app, 20); await shot(app, `${stamp}-mobile-work-expanded`);
 	await click(app, '[role="button"]', "修改文件 README.md");
 	await until(app, 'document.body.innerText.includes("手机端改的这一行。")');
@@ -205,11 +226,20 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	const list = await app.evaluate<Array<{ id: string }>>("window.plume.sessions.list()");
 	assert.equal(list.length, 1, "桌面与手机共用同一份存储");
 	await click(app, '[aria-label="会话操作"]');
+	await until(app, 'Boolean(document.querySelector(\'input[aria-label="会话名称"]\'))');
+	await frames(app, 30); await shot(app, `${stamp}-mobile-actions`); await lightShot("mobile-actions");
 	await type(app, 'input[aria-label="会话名称"]', "手机联调");
+	await frames(app, 10); await shot(app, `${stamp}-mobile-actions-rename`);
 	await click(app, '[aria-label="重命名"]');
 	await until(app, 'document.body.innerText.includes("手机联调")');
-	await click(app, '[aria-label="返回"]');
-	await shot(app, `${stamp}-mobile-sessions`); await lightShot("mobile-sessions");
+	const pop = await sample(PAGE, () => click(app, '[aria-label="返回"]'));
+	assert.ok(pop.some((frame) => frame.x < -8 && frame.o < 1), `返回时列表从左边滑入：${JSON.stringify(pop)}`);
+	await frames(app, 10); await shot(app, `${stamp}-mobile-sessions`); await lightShot("mobile-sessions");
+	await hold(app, '[role="button"]', "手机联调");
+	await until(app, `Boolean([...document.querySelectorAll('[role="button"]')].find((e) => e.getAttribute("aria-label") === "归档会话"))`);
+	await frames(app, 30); await shot(app, `${stamp}-mobile-hold-actions`); await lightShot("mobile-hold-actions");
+	await press(app, "Escape", 27);
+	await until(app, `![...document.querySelectorAll('[role="button"]')].some((e) => e.getAttribute("aria-label") === "归档会话")`);
 	await click(app, '[aria-label="设置"]');
 	await frames(app, 10); await shot(app, `${stamp}-mobile-settings`); await lightShot("mobile-settings");
 	await click(app, '[aria-label="断开并忘记这台电脑"]');
