@@ -3,7 +3,8 @@ import type { Message } from "@plume/client-runtime";
 export interface Step { id: string; name: string; args: unknown; output?: string; details?: unknown; failed: boolean; done: boolean }
 interface FeedImage { data: string; mimeType: string }
 export type FeedItem =
-	| { kind: "user"; key: string; text: string; images: FeedImage[]; timestamp: number }
+	/** `text` 是气泡里给人看的那句，`prompt` 是当初发给模型的原文——重试要发的是后者。 */
+	| { kind: "user"; key: string; text: string; prompt: string; images: FeedImage[]; timestamp: number }
 	| { kind: "text"; key: string; text: string }
 	| { kind: "thinking"; key: string; text: string; live: boolean }
 	| { kind: "steps"; key: string; steps: Step[]; live: boolean }
@@ -32,9 +33,10 @@ export function buildFeed(messages: Message[], running = false): FeedItem[] {
 	messages.forEach((message, index) => {
 		const base = `${message.timestamp}-${index}`;
 		if (message.role === "user") {
-			const text = message.content.flatMap((part) => part.type === "text" ? [part.text] : []).join("\n");
+			const prompt = message.content.flatMap((part) => part.type === "text" ? [part.text] : []).join("\n");
 			const images = message.content.flatMap((part) => part.type === "image" ? [{ data: part.data, mimeType: part.mimeType }] : []);
-			open({ kind: "user", key: base, text, images, timestamp: message.timestamp }, message.timestamp);
+			// 桌面在正文后面缀的会话引用、技能展开是写给模型的；人发的那句存在 displayText 里，和桌面气泡一样只画它。
+			open({ kind: "user", key: base, text: message.displayText ?? prompt, prompt, images, timestamp: message.timestamp }, message.timestamp);
 			return;
 		}
 		const current: Turn = turn ?? open(null, message.timestamp);
@@ -74,7 +76,7 @@ function settle(turn: Turn, live: boolean, last: boolean): FeedItem[] {
 		return [...head, ...turn.items];
 	}
 	// 只有最后一轮的错误给「重试」：更早的那句早就被后来的对话接过去了，再发一遍是另一件事。
-	if (last && turn.user?.text.trim() && !turn.user.images.length) for (const item of turn.items) if (item.kind === "error") item.retry = turn.user.text;
+	if (last && turn.user?.prompt.trim() && !turn.user.images.length) for (const item of turn.items) if (item.kind === "error") item.retry = turn.user.prompt;
 	let cut = turn.items.length;
 	while (cut > 0 && (turn.items[cut - 1]!.kind === "text" || turn.items[cut - 1]!.kind === "error")) cut--;
 	const process = turn.items.slice(0, cut);

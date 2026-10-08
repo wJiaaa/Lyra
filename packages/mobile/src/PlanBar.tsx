@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { Sheet } from "./Sheet.tsx";
 import { TodoList } from "./ToolSheet.tsx";
 import type { Todo } from "./tools.ts";
-import { Icon, useTheme } from "./ui.tsx";
+import { Icon, floating, useTheme } from "./ui.tsx";
 import type { T } from "./i18n.ts";
 
 /**
@@ -18,7 +18,7 @@ export function PlanBar({ todos, running, t }: { todos: Todo[]; running: boolean
 	if (!todos.length || (done === todos.length && !running)) return null;
 	const active = todos.find((todo) => todo.status === "in_progress");
 	return <>
-		<Pressable accessibilityRole="button" accessibilityLabel={t("planProgress", { done, total: todos.length })} onPress={() => setOpen(true)} style={({ pressed }) => ({ marginHorizontal: 12, marginBottom: 6, minHeight: 36, borderRadius: 18, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.grouped, borderWidth: 1, borderColor: theme.lineSoft, opacity: pressed ? 0.75 : 1 })}>
+		<Pressable accessibilityRole="button" accessibilityLabel={t("planProgress", { done, total: todos.length })} onPress={() => setOpen(true)} style={({ pressed }) => [floating(theme), { marginHorizontal: 12, marginBottom: 4, minHeight: 38, borderRadius: 19, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 8, opacity: pressed ? 0.75 : 1 }]}>
 			<Icon name="check-square" size={14} color={theme.accent} />
 			<Text style={{ color: theme.ink, fontSize: 13, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{t("planProgress", { done, total: todos.length })}</Text>
 			{active && <Text numberOfLines={1} style={{ flex: 1, color: theme.muted, fontSize: 13 }}>{active.activeForm || active.content}</Text>}

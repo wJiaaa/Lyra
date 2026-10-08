@@ -71,3 +71,13 @@ test("空白正文和思考不占行", () => {
 	const feed = buildFeed([assistant([{ type: "thinking", thinking: "  " }, { type: "text", text: "\n" }], { stopReason: "error", errorMessage: "401" })]);
 	assert.deepEqual(feed.map((item) => item.kind), ["error"]);
 });
+
+test("气泡只画人发的那句：桌面缀上的会话引用不进气泡，重试仍发原文", () => {
+	const sent = "算一下\n\n[Referenced context]\n- \"你好\": read \"session://abc\" for the referenced conversation.";
+	const feed = buildFeed([{ ...user(sent), displayText: "算一下" } as Message, assistant([], { stopReason: "error", errorMessage: "429" })]);
+	const bubble = feed[0]!; const error = feed[1]!;
+	assert.ok(bubble.kind === "user" && bubble.text === "算一下");
+	assert.ok(error.kind === "error" && error.retry === sent);
+	const old = buildFeed([user("老消息没有 displayText")])[0]!;
+	assert.ok(old.kind === "user" && old.text === "老消息没有 displayText", "升级前的消息退回正文");
+});

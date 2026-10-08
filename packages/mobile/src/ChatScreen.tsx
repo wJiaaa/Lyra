@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Animated, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ClientState, RemoteClient } from "@plume/client-runtime";
 import { ApprovalCard } from "./ApprovalCard.tsx";
@@ -12,7 +12,8 @@ import { PlanBar } from "./PlanBar.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { ToolSheet } from "./ToolSheet.tsx";
 import { latestTodos } from "./tools.ts";
-import { Button, Field, GroupRow, Group, Header, Icon, IconButton, StatusDot, Txt, nativeDriver, styles, useTheme } from "./ui.tsx";
+import { Button, Field, GroupRow, Group, Header, Icon, IconButton, ProjectMark, StatusDot, Txt, floating, nativeDriver, styles, useTheme } from "./ui.tsx";
+import { avatar } from "./avatar.ts";
 import type { T } from "./i18n.ts";
 
 type ScrollNode = { addEventListener(type: string, listener: () => void, options?: { passive: boolean }): void; removeEventListener(type: string, listener: () => void): void };
@@ -40,7 +41,7 @@ function Working({ since, t }: { since: number | null; t: T }) {
 	const theme = useTheme();
 	const [now, setNow] = useState(Date.now());
 	useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
-	return <View accessibilityLiveRegion="polite" style={{ height: 34, borderRadius: 17, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: theme.elevated, borderWidth: 1, borderColor: theme.line }}>
+	return <View accessibilityLiveRegion="polite" style={[floating(theme), { height: 36, borderRadius: 18, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 9 }]}>
 		<Pulse />
 		<Text style={{ color: theme.ink, fontSize: 13, fontWeight: "500" }}>{t("working")}</Text>
 		{since !== null && <Text style={{ color: theme.muted, fontSize: 13, fontVariant: ["tabular-nums"] }}>{clock(now - since)}</Text>}
@@ -79,6 +80,7 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 	const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
 	const [stepId, setStepId] = useState<string | null>(null);
 	const [following, setFollowing] = useState(true);
+	const [scrolled, setScrolled] = useState(false);
 	const list = useRef<FlatList>(null);
 	const follow = useRef(true);
 	/** 人最后一次亲手滚它的时间；手指还按着时是 Infinity。 */
@@ -131,22 +133,22 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 	 */
 	function bottom(animated: boolean) { (list.current?.getNativeScrollRef() as ScrollView | null | undefined)?.scrollToEnd({ animated }); }
 	function toEnd() { follow.current = true; setFollowing(true); bottom(true); }
-	const subtitle = <View style={[styles.row, { gap: 6, marginTop: 2 }]}>
-		{!online && <StatusDot status={state.status} size={6} />}
+	const subtitle = <View style={[styles.row, { gap: 5, marginTop: 1 }]}>
+		{online ? <ProjectMark name={session?.meta.projectName} size={12} /> : <StatusDot status={state.status} size={6} />}
 		<Text numberOfLines={1} style={{ color: theme.muted, fontSize: 12, flexShrink: 1 }}>{online ? session?.meta.projectName || t("scratch") : t(state.status)}</Text>
 	</View>;
 	// KeyboardAvoidingView 拿自己 onLayout 的 y（相对父级）去减键盘的屏幕坐标；这一页在 App 的 SafeAreaView
 	// 里，从顶部安全区下沿才开始，不补这一段，垫高就少一个刘海，输入框下半截压在键盘后面。
 	return <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={insets.top}>
-		<Header title={session?.meta.title || t("newSession")} subtitle={subtitle} onBack={back} backLabel={t("back")}>
-			<IconButton name="more-horizontal" label={t("more")} onPress={() => setSheet("actions")} disabled={!session} />
+		<Header title={session?.meta.title || t("newSession")} subtitle={subtitle} onBack={back} backLabel={t("back")} divided={scrolled}>
+			<IconButton name="more-horizontal" label={t("more")} onPress={() => setSheet("actions")} disabled={!session} filled size={18} />
 		</Header>
 		<View style={{ flex: 1 }}>
 			{state.loading && !session ? <View style={{ flex: 1, justifyContent: "center" }}><ActivityIndicator color={theme.muted} /></View> : <FlatList
 				ref={list}
 				data={rows}
 				keyExtractor={(row) => row.item.key}
-				contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 18, paddingTop: 4, paddingBottom: 56 }}
+				contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 56 }}
 				keyboardShouldPersistTaps="handled"
 				keyboardDismissMode="interactive"
 				onScrollBeginDrag={() => { touched.current = Infinity; }}
@@ -155,6 +157,8 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 				onLayout={() => { if (follow.current) bottom(false); }}
 				onScroll={({ nativeEvent: event }) => {
 					const atEnd = event.contentOffset.y + event.layoutMeasurement.height >= event.contentSize.height - 80;
+					const below = event.contentOffset.y > 2;
+					if (below !== scrolled) setScrolled(below);
 					/*
 					 * 只有人自己往上翻才停止跟随。回答一下子长出一大段、计划条出现把列表压矮时，滚动事件
 					 * 拿着旧位置看起来不在底部——按位置判断就会把跟随误关，后面的回答停在屏幕外。
@@ -168,14 +172,14 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 				onContentSizeChange={() => { if (follow.current) bottom(false); }}
 				renderItem={({ item: row }) => <FeedRow item={row.item} nested={row.nested} expanded={expanded.has(row.item.key)} toggle={toggle} openStep={openStep} retry={online && !running ? retry : undefined} t={t} />}
 				ListEmptyComponent={<View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 10, paddingHorizontal: 24 }}>
-					<View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: theme.grouped, alignItems: "center", justifyContent: "center", marginBottom: 6 }}><Icon name="feather" size={24} color={theme.accent} /></View>
-					<Txt kind="heading" tone="strong">{t("welcome")}</Txt>
-					<Txt kind="sub" tone="muted" style={{ textAlign: "center" }}>{t("welcomeHint")}</Txt>
+					<Image source={avatar} accessibilityIgnoresInvertColors style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.grouped, marginBottom: 6 }} />
+					<Txt kind="heading" tone="strong" style={{ fontSize: 18, lineHeight: 24, fontWeight: "700" }}>{t("welcome")}</Txt>
+					<Txt kind="sub" tone="muted" style={{ textAlign: "center", maxWidth: 300 }}>{t("welcomeHint")}</Txt>
 				</View>}
 			/>}
 			<View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 10, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8 }}>
 				{running && !pending && <Working since={since} t={t} />}
-				{!following && rows.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel={t("scrollDown")} onPress={toEnd} style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: theme.elevated, borderWidth: 1, borderColor: theme.line, opacity: pressed ? 0.7 : 1 })}><Icon name="arrow-down" size={16} /></Pressable>}
+				{!following && rows.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel={t("scrollDown")} onPress={toEnd} style={({ pressed }) => [floating(theme), { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.7 : 1 }]}><Icon name="chevron-down" size={18} /></Pressable>}
 			</View>
 		</View>
 		{!online && <View style={[styles.row, { marginHorizontal: 12, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, backgroundColor: theme.grouped }]}>

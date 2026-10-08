@@ -1,6 +1,6 @@
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { Attachment } from "./attachments.ts";
-import { Icon, useTheme } from "./ui.tsx";
+import { Icon, floating, useTheme } from "./ui.tsx";
 import type { T } from "./i18n.ts";
 
 function Chip({ label, value, onPress, disabled }: { label: string; value: string; onPress(): void; disabled: boolean }) {
@@ -16,6 +16,9 @@ function Chip({ label, value, onPress, disabled }: { label: string; value: strin
  *
  * 发送和停止共用一个位置：任务在跑、框里没字时它是停止，开始打字它变回发送。两颗按钮并排
  * 时，跑着的任务旁边永远有一颗按不了的发送，而真正想按的停止被挤到了中间。
+ *
+ * 停止画成反色圆（正文色底、页面色方块），不用红：红色实心圆在输入框角上一直亮着，像一个报错；
+ * 停止是常规操作，反色已经足够醒目。
  */
 export function Composer({ draft, setDraft, attachments, attach, detach, canAttach, send, stop, sending, running, online, ready, model, thinking, pickModel, pickThinking, t }: { draft: string; setDraft(value: string): void; attachments: Attachment[]; attach(): void; detach(index: number): void; canAttach: boolean; send(): void; stop(): void; sending: boolean; running: boolean; online: boolean; ready: boolean; model: string; thinking: string | null; pickModel(): void; pickThinking(): void; t: T }) {
 	const theme = useTheme();
@@ -23,7 +26,7 @@ export function Composer({ draft, setDraft, attachments, attach, detach, canAtta
 	const stopping = running && !filled;
 	const canSend = online && ready && !sending && filled;
 	const active = stopping ? online : canSend;
-	return <View style={{ marginHorizontal: 12, marginBottom: 8, borderRadius: 24, borderWidth: 1, borderColor: theme.line, backgroundColor: theme.grouped, paddingTop: 4, paddingBottom: 6, paddingHorizontal: 6 }}>
+	return <View style={[floating(theme), { marginHorizontal: 12, marginTop: 4, marginBottom: 8, borderRadius: 26, paddingTop: 4, paddingBottom: 8, paddingHorizontal: 8 }]}>
 		{attachments.length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 2 }}>
 			{attachments.map((image, index) => <View key={image.uri}>
 				<Image accessibilityLabel={t("image")} source={{ uri: image.uri }} style={{ width: 58, height: 58, borderRadius: 12, backgroundColor: theme.card }} />
@@ -41,11 +44,11 @@ export function Composer({ draft, setDraft, attachments, attach, detach, canAtta
 			onChangeText={setDraft}
 			multiline
 			editable={online && ready && !sending}
-			style={{ minHeight: 44, maxHeight: 160, paddingHorizontal: 10, paddingTop: 11, paddingBottom: 6, color: theme.ink, fontSize: 16, lineHeight: 22 }}
+			style={{ minHeight: 44, maxHeight: 160, paddingHorizontal: 8, paddingTop: 11, paddingBottom: 6, color: theme.strong, fontSize: 16, lineHeight: 22 }}
 		/>
 		<View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
-			{canAttach && <Pressable accessibilityRole="button" accessibilityLabel={t("attach")} disabled={!online || !ready || sending} onPress={attach} hitSlop={6} style={({ pressed }) => ({ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? theme.card : "transparent", opacity: !online || !ready || sending ? 0.4 : 1 })}>
-				<Icon name="plus" size={19} color={theme.muted} />
+			{canAttach && <Pressable accessibilityRole="button" accessibilityLabel={t("attach")} disabled={!online || !ready || sending} onPress={attach} hitSlop={6} style={({ pressed }) => ({ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: theme.line, backgroundColor: pressed ? theme.card : "transparent", opacity: !online || !ready || sending ? 0.4 : 1 })}>
+				<Icon name="plus" size={18} color={theme.muted} />
 			</Pressable>}
 			<Chip label={t("model")} value={model} onPress={pickModel} disabled={!online || !ready} />
 			{thinking !== null && <Chip label={t("thinking")} value={thinking} onPress={pickThinking} disabled={!online || !ready} />}
@@ -57,9 +60,9 @@ export function Composer({ draft, setDraft, attachments, attach, detach, canAtta
 				disabled={!active}
 				onPress={stopping ? stop : send}
 				hitSlop={6}
-				style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: stopping ? theme.danger : active ? theme.accent : theme.card, opacity: pressed ? 0.75 : 1 })}
+				style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: stopping ? theme.strong : active ? theme.accent : theme.card, opacity: stopping && !online ? 0.4 : pressed ? 0.75 : 1 })}
 			>
-				{sending ? <ActivityIndicator size="small" color={theme.onAccent} /> : stopping ? <View style={{ width: 11, height: 11, borderRadius: 2, backgroundColor: theme.onAccent }} /> : <Icon name="arrow-up" size={18} color={active ? theme.onAccent : theme.faint} />}
+				{sending ? <ActivityIndicator size="small" color={theme.onAccent} /> : stopping ? <View style={{ width: 11, height: 11, borderRadius: 3, backgroundColor: theme.elevated }} /> : <Icon name="arrow-up" size={18} color={active ? theme.onAccent : theme.faint} />}
 			</Pressable>
 		</View>
 	</View>;

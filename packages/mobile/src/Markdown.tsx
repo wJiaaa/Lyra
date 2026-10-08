@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { Linking, ScrollView, Text, View } from "react-native";
+import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import Display, { type RenderRules } from "react-native-markdown-display";
 import { CopyButton } from "./copy.tsx";
 import { mono, useTheme } from "./ui.tsx";
@@ -9,12 +9,12 @@ import type { T } from "./i18n.ts";
 function CodeBlock({ code, language, t }: { code: string; language: string; t: T }) {
 	const theme = useTheme();
 	const text = code.replace(/\n$/, "");
-	return <View style={{ marginVertical: 8, borderRadius: 12, backgroundColor: theme.grouped, borderWidth: 1, borderColor: theme.lineSoft, overflow: "hidden" }}>
-		<View style={{ flexDirection: "row", alignItems: "center", paddingLeft: 12, paddingRight: 4, minHeight: 32, borderBottomWidth: 1, borderBottomColor: theme.lineSoft }}>
-			<Text style={{ flex: 1, color: theme.muted, fontSize: 11, fontFamily: mono }}>{language || "text"}</Text>
+	return <View style={{ marginVertical: 8, borderRadius: 12, backgroundColor: theme.grouped, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.line, overflow: "hidden" }}>
+		<View style={{ flexDirection: "row", alignItems: "center", paddingLeft: 12, paddingRight: 4, minHeight: 32 }}>
+			<Text style={{ flex: 1, color: theme.faint, fontSize: 11, fontFamily: mono, letterSpacing: 0.6, textTransform: "uppercase" }}>{language || "text"}</Text>
 			<CopyButton text={text} label={t("copyCode")} copiedLabel={t("copied")} caption />
 		</View>
-		<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10 }}>
+		<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 2, paddingBottom: 12 }}>
 			<Text selectable style={{ color: theme.ink, fontFamily: mono, fontSize: 12.5, lineHeight: 19 }}>{text}</Text>
 		</ScrollView>
 	</View>;

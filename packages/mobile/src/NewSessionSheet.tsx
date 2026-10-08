@@ -13,7 +13,7 @@ export function NewSessionSheet({ bootstrap, client, close, created, error, t }:
 	const [modelId, setModelId] = useState(bootstrap.defaultModelId || bootstrap.models[0]?.id || "");
 	const [picking, setPicking] = useState(false);
 	const [busy, setBusy] = useState(false);
-	const projects = [...bootstrap.projects.map((project) => ({ value: project.id, label: project.name, detail: project.path })), { value: "scratch", label: t("scratch") }];
+	const projects = [...bootstrap.projects.map((project) => ({ value: project.id, label: project.name, detail: project.path, mark: project.name })), { value: "scratch", label: t("scratch"), mark: "" }];
 	const models = bootstrap.models.map((model) => ({ value: model.id, label: model.name, detail: model.provider }));
 	const model = models.find((item) => item.value === modelId);
 	return <Sheet title={t("newSession")} close={close} closeLabel={t("close")} tall footer={(dismiss) => <Button

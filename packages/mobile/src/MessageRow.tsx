@@ -1,11 +1,11 @@
 import { memo, useState, type ReactNode } from "react";
-import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { FeedItem, Step } from "./feed.ts";
 import { CopyButton, useCopy } from "./copy.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { DiffStat } from "./ToolSheet.tsx";
 import { describeCalls, diffStat, sumStats, toolIcon, toolSubject, toolVerb } from "./tools.ts";
-import { Button, Icon, Txt, styles, useTheme } from "./ui.tsx";
+import { Breathing, Button, Icon, Txt, styles, useTheme } from "./ui.tsx";
 import type { T } from "./i18n.ts";
 
 function duration(ms: number, t: T): string {
@@ -14,12 +14,19 @@ function duration(ms: number, t: T): string {
 }
 const clockOf = (timestamp: number) => { const date = new Date(timestamp); return `${date.getHours()}:${String(date.getMinutes()).padStart(2, "0")}`; };
 
-/** 摘要、步骤、思考共用的一行：左边 20 宽的图标槽和正文的字对齐，不另起卡片。 */
-function Line({ icon, label, onPress, expanded, children, trailing }: { icon: ReactNode; label: string; onPress(): void; expanded?: boolean; children: ReactNode; trailing?: ReactNode }) {
+/**
+ * 摘要、步骤、思考共用的一行：像日志一样安静——一枚淡色图标、一行淡色字，不套卡片、不打勾。
+ * 正在跑的那一行整行呼吸（`live`），比一圈转圈更不抢眼，又看得出它在动。
+ */
+function Line({ icon, label, onPress, expanded, live = false, children, trailing }: { icon: ReactNode; label: string; onPress(): void; expanded?: boolean; live?: boolean; children: ReactNode; trailing?: ReactNode }) {
 	const theme = useTheme();
-	return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={expanded === undefined ? undefined : { expanded }} onPress={onPress} style={({ pressed }) => [styles.row, { minHeight: 34, gap: 8, borderRadius: 10, marginHorizontal: -8, paddingHorizontal: 8 }, pressed && { backgroundColor: theme.card }]}>
-		<View style={{ width: 20, alignItems: "center" }}>{icon}</View>
-		<Text numberOfLines={1} style={{ flex: 1, fontSize: 14, lineHeight: 19, color: theme.muted }}>{children}</Text>
+	return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={expanded === undefined ? undefined : { expanded }} onPress={onPress} style={({ pressed }) => [styles.row, { minHeight: 32, gap: 8, borderRadius: 8, marginHorizontal: -8, paddingHorizontal: 8 }, pressed && { backgroundColor: theme.grouped }]}>
+		<Breathing active={live}>
+			<View style={[styles.row, { gap: 8 }]}>
+				<View style={{ width: 20, alignItems: "center" }}>{icon}</View>
+				<Text numberOfLines={1} style={{ flex: 1, fontSize: 14, lineHeight: 19, color: theme.muted }}>{children}</Text>
+			</View>
+		</Breathing>
 		{trailing}
 	</Pressable>;
 }
@@ -28,12 +35,10 @@ function StepRow({ step, live, open, t }: { step: Step; live: boolean; open(step
 	const theme = useTheme();
 	const verb = toolVerb(step.name, t);
 	const subject = toolSubject(step.name, step.args);
-	const spinning = live && !step.done;
-	const icon = spinning ? <ActivityIndicator size="small" color={theme.muted} style={{ transform: [{ scale: 0.7 }] }} />
-		: <Icon name={step.failed ? "alert-circle" : toolIcon(step.name)} size={15} color={step.failed ? theme.danger : theme.muted} />;
-	return <Line icon={icon} label={`${verb} ${subject}`} onPress={() => open(step)} trailing={<><DiffStat stat={diffStat(step.details)} /><Icon name="chevron-right" size={13} color={theme.faint} /></>}>
-		<Text style={{ color: step.failed ? theme.danger : theme.ink, fontWeight: "500" }}>{verb}</Text>
-		{subject ? `  ${subject}` : ""}
+	const icon = <Icon name={step.failed ? "alert-circle" : toolIcon(step.name)} size={14} color={step.failed ? theme.danger : theme.faint} />;
+	return <Line icon={icon} label={`${verb} ${subject}`} live={live && !step.done} onPress={() => open(step)} trailing={<DiffStat stat={diffStat(step.details)} />}>
+		<Text style={{ color: step.failed ? theme.danger : theme.muted, fontWeight: "500" }}>{verb}</Text>
+		{subject ? <Text style={{ color: theme.faint }}>{`  ${subject}`}</Text> : ""}
 	</Line>;
 }
 
@@ -42,9 +47,9 @@ function Thinking({ item, t }: { item: Extract<FeedItem, { kind: "thinking" }>; 
 	const [open, setOpen] = useState(false);
 	const preview = item.text.trim().split("\n")[0] ?? "";
 	return <View>
-		<Line icon={<Icon name="cpu" size={15} color={theme.muted} />} label={t("thinkingLabel")} expanded={open} onPress={() => setOpen(!open)} trailing={<Icon name={open ? "chevron-up" : "chevron-down"} size={13} color={theme.faint} />}>
-			<Text style={{ color: theme.ink, fontWeight: "500" }}>{item.live ? t("thinkingLive") : t("thinkingLabel")}</Text>
-			{!open && preview ? `  ${preview}` : ""}
+		<Line icon={<Icon name="cpu" size={14} color={theme.faint} />} label={t("thinkingLabel")} expanded={open} live={item.live} onPress={() => setOpen(!open)} trailing={<Icon name={open ? "chevron-up" : "chevron-down"} size={13} color={theme.faint} />}>
+			<Text style={{ fontWeight: "500" }}>{item.live ? t("thinkingLive") : t("thinkingLabel")}</Text>
+			{!open && preview ? <Text style={{ color: theme.faint }}>{`  ${preview}`}</Text> : ""}
 		</Line>
 		{open && <View style={{ marginLeft: 9, paddingLeft: 19, borderLeftWidth: 1, borderLeftColor: theme.line, marginTop: 2, marginBottom: 6 }}>
 			<Text selectable style={{ color: theme.muted, fontSize: 14, lineHeight: 22 }}>{item.text.trim()}</Text>
@@ -57,10 +62,11 @@ function Fold({ item, expanded, toggle, t }: { item: Extract<FeedItem, { kind: "
 	const theme = useTheme();
 	const summary = [item.thinking ? t("thoughtTimes", { n: item.thinking }) : "", item.steps.length ? describeCalls(item.steps, t) : ""].filter(Boolean).join(" · ");
 	const failed = item.steps.some((step) => step.failed);
-	return <View style={{ paddingVertical: 2 }}>
-		<Line icon={<Icon name={failed ? "alert-circle" : "check-circle"} size={15} color={failed ? theme.danger : theme.muted} />} label={`${t("worked", { d: duration(item.durationMs, t) })} ${summary}`} expanded={expanded} onPress={() => toggle(item.key)} trailing={<><DiffStat stat={sumStats(item.steps.map((step) => step.details))} /><Icon name={expanded ? "chevron-up" : "chevron-down"} size={13} color={theme.faint} /></>}>
-			<Text style={{ color: theme.ink, fontWeight: "500" }}>{t("worked", { d: duration(item.durationMs, t) })}</Text>
-			{summary ? `  ${summary}` : ""}
+	// 收起时下面一道发丝线：把「过程」和「结论」隔开，回头翻的时候眼睛直接落到线下的回答上。
+	return <View style={{ paddingTop: 4, paddingBottom: 4, marginBottom: expanded ? 2 : 6, borderBottomWidth: expanded ? 0 : StyleSheet.hairlineWidth, borderBottomColor: theme.line }}>
+		<Line icon={<Icon name={failed ? "alert-circle" : "check"} size={14} color={failed ? theme.danger : theme.faint} />} label={`${t("worked", { d: duration(item.durationMs, t) })} ${summary}`} expanded={expanded} onPress={() => toggle(item.key)} trailing={<><DiffStat stat={sumStats(item.steps.map((step) => step.details))} /><Icon name={expanded ? "chevron-up" : "chevron-down"} size={13} color={theme.faint} /></>}>
+			<Text style={{ fontWeight: "500" }}>{t("worked", { d: duration(item.durationMs, t) })}</Text>
+			{summary ? <Text style={{ color: theme.faint }}>{`  ${summary}`}</Text> : ""}
 		</Line>
 	</View>;
 }
@@ -68,8 +74,8 @@ function Fold({ item, expanded, toggle, t }: { item: Extract<FeedItem, { kind: "
 function UserBubble({ item, t }: { item: Extract<FeedItem, { kind: "user" }>; t: T }) {
 	const theme = useTheme();
 	const [copied, copy] = useCopy();
-	return <View style={{ alignItems: "flex-end", paddingTop: 20, paddingBottom: 8, gap: 6 }}>
-		{item.images.length > 0 && <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 6, maxWidth: "86%" }}>
+	return <View style={{ alignItems: "flex-end", paddingTop: 22, paddingBottom: 10, gap: 6 }}>
+		{item.images.length > 0 && <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 6, maxWidth: "85%" }}>
 			{item.images.map((image, index) => image.data
 				? <Image key={index} accessibilityLabel={t("image")} source={{ uri: `data:${image.mimeType};base64,${image.data}` }} style={{ width: 96, height: 96, borderRadius: 14, backgroundColor: theme.card }} />
 				// 存储里的大图在回放时被剥掉了字节，只剩电脑上的引用；手机拿不到，就老实说图在电脑上。
@@ -78,8 +84,8 @@ function UserBubble({ item, t }: { item: Extract<FeedItem, { kind: "user" }>; t:
 					<Text numberOfLines={2} style={{ color: theme.faint, fontSize: 10, textAlign: "center" }}>{t("unavailable")}</Text>
 				</View>)}
 		</View>}
-		{!!item.text && <Pressable accessibilityHint={t("copy")} onLongPress={() => copy(item.text)} delayLongPress={350} style={({ pressed }) => ({ maxWidth: "86%", backgroundColor: theme.card, borderRadius: 20, borderTopRightRadius: 6, paddingHorizontal: 15, paddingVertical: 10, opacity: pressed ? 0.85 : 1 })}>
-			<Text style={{ color: theme.ink, fontSize: 16, lineHeight: 23 }}>{item.text}</Text>
+		{!!item.text && <Pressable accessibilityHint={t("copy")} onLongPress={() => copy(item.text)} delayLongPress={350} style={({ pressed }) => ({ maxWidth: "85%", backgroundColor: theme.bubble, borderRadius: 20, paddingHorizontal: 15, paddingVertical: 10, opacity: pressed ? 0.85 : 1 })}>
+			<Text style={{ color: theme.strong, fontSize: 16, lineHeight: 23 }}>{item.text}</Text>
 		</Pressable>}
 		{copied && <Txt kind="caption" tone="success">{t("copied")}</Txt>}
 	</View>;

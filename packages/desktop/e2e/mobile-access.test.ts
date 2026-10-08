@@ -55,6 +55,20 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	} });
 	context.after(async () => { await app.stop(); await closeListeningServer(web); await closeListeningServer(model.server); });
 	const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+	/**
+	 * 同一屏再拍一张亮色：手机跟随系统，亮色是很多人真正看到的那一套，只验暗色等于只验了一半。
+	 * 切的是桌面的外观设置而不是 CDP 的 setEmulatedMedia——后者在 Electron 里不改 prefers-color-scheme，
+	 * 设置会写进 nativeTheme，这一页的媒体查询跟着变。
+	 */
+	async function lightShot(name: string) {
+		const theme = (value: string) => app.evaluate(`window.plume.settings.get().then((s) => window.plume.settings.save({ ...s, appearance: { ...s.appearance, theme: ${JSON.stringify(value)} } }))`);
+		await theme("light");
+		await until(app, "!matchMedia('(prefers-color-scheme: dark)').matches");
+		await frames(app, 20); await shot(app, `${stamp}-${name}-light`);
+		await theme("dark");
+		await until(app, "matchMedia('(prefers-color-scheme: dark)').matches");
+		await frames(app, 10);
+	}
 	const video: Frame[] = [];
 	const stopRecording = process.env.PLUME_E2E_ARTIFACTS ? await startRecording(9393, video) : null;
 	context.after(async () => { await stopRecording?.(); if (video.length > 1 && process.env.PLUME_E2E_ARTIFACTS) await encode(video, join(process.env.PLUME_E2E_ARTIFACTS, `${stamp}-mobile-flow.mp4`)); });
@@ -80,11 +94,12 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	await assert.rejects(rpc.createSession("../outside", "qa/model"), /Project no longer exists/);
 	await assert.rejects(rpc.createSession(rpc.getSnapshot().bootstrap!.projects[0]!.id, "missing/model"), /Model no longer exists/);
 	await app.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-	await app.send("Emulation.setLocaleOverride", { locale: "zh-CN" });
+	// 系统语言给英文：手机界面默认中文，不跟系统走。下面的选择器全是中文，默认一旦变回跟随系统，这条用例第一步就停。
+	await app.send("Emulation.setLocaleOverride", { locale: "en-US" });
 	await app.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] });
 	await app.send("Page.navigate", { url: `http://127.0.0.1:${webPort}` });
 	await until(app, 'Boolean(document.querySelector(\'input[aria-label="桌面地址"]\'))');
-	await frames(app, 30); await shot(app, `${stamp}-mobile-connect`);
+	await frames(app, 30); await shot(app, `${stamp}-mobile-connect`); await lightShot("mobile-connect");
 	// 界面这条走中转，上面的 rpc 走直连：两条路都要落到同一个桌面会话运行时上。
 	await click(app, '[role="button"][aria-label="经中转"]');
 	await until(app, 'Boolean(document.querySelector(\'input[aria-label="中转服务器地址"]\'))');
@@ -102,7 +117,7 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	await type(app, 'textarea[aria-label="给 Plume 发消息…"]', "ASK_OWNER");
 	await click(app, '[role="button"][aria-label="发送消息"]');
 	await until(app, 'document.body.innerText.includes("请选择本次实现方式")');
-	await frames(app, 20); await shot(app, `${stamp}-mobile-approval`);
+	await frames(app, 20); await shot(app, `${stamp}-mobile-approval`); await lightShot("mobile-approval");
 	await click(app, '[role="radio"]', "更新实现");
 	await click(app, '[role="button"][aria-label="提交回答"]');
 	await until(app, 'document.body.innerText.includes("原会话已收到回答。")');
@@ -139,7 +154,7 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	await frames(app, 10); await shot(app, `${stamp}-mobile-plan`);
 	await until(app, 'document.body.innerText.includes("有问题随时说。") && document.body.innerText.includes("已工作")', 1800);
 	assert.ok(!await app.evaluate<boolean>(`Boolean([...document.querySelectorAll('[role="button"]')].find((e) => (e.getAttribute("aria-label") || "").startsWith("计划 ")))`), "计划做完、任务停了，计划条收起");
-	await frames(app, 30); await shot(app, `${stamp}-mobile-work`);
+	await frames(app, 30); await shot(app, `${stamp}-mobile-work`); await lightShot("mobile-work");
 	assert.ok(await app.evaluate<boolean>('document.body.innerText.includes("+3") && !document.body.innerText.includes("−0")'), "改动行数挂在摘要上，为零的一侧不写");
 	await until(app, AT_BOTTOM, 120);
 	assert.ok(!await app.evaluate<boolean>(`Boolean(document.querySelector('[aria-label="回到底部"]'))`), "回答一下子长出来时仍跟到底部");
@@ -163,9 +178,9 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	await click(app, '[aria-label="重命名"]');
 	await until(app, 'document.body.innerText.includes("手机联调")');
 	await click(app, '[aria-label="返回"]');
-	await shot(app, `${stamp}-mobile-sessions`);
+	await shot(app, `${stamp}-mobile-sessions`); await lightShot("mobile-sessions");
 	await click(app, '[aria-label="设置"]');
-	await frames(app, 10); await shot(app, `${stamp}-mobile-settings`);
+	await frames(app, 10); await shot(app, `${stamp}-mobile-settings`); await lightShot("mobile-settings");
 	await click(app, '[aria-label="断开并忘记这台电脑"]');
 	await until(app, 'Boolean(document.querySelector(\'input[aria-label="桌面地址"]\'))');
 });

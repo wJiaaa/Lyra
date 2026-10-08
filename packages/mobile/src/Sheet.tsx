@@ -30,9 +30,9 @@ export function Sheet({ title, close, children, footer, closeLabel, tall = false
 				<Pressable accessibilityRole="button" accessibilityLabel={closeLabel} onPress={dismiss} style={{ flex: 1 }} />
 			</Animated.View>
 			<View pointerEvents="box-none" style={{ flex: 1, justifyContent: "flex-end" }}>
-				<Animated.View accessibilityViewIsModal style={{ backgroundColor: theme.grouped, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: height * (tall ? 0.92 : 0.8), paddingBottom: Math.max(insets.bottom, 16), width: "100%", maxWidth: 720, alignSelf: "center", transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [height * 0.5, 0] }) }] }}>
-					<View style={{ alignItems: "center", paddingTop: 8 }}><View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: theme.faint, opacity: 0.6 }} /></View>
-					<View style={{ flexDirection: "row", alignItems: "center", paddingLeft: 20, paddingRight: 8, paddingTop: 6, paddingBottom: 4 }}>
+				<Animated.View accessibilityViewIsModal style={{ backgroundColor: theme.elevated, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: height * (tall ? 0.92 : 0.8), paddingBottom: Math.max(insets.bottom, 16), width: "100%", maxWidth: 720, alignSelf: "center", transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [height * 0.5, 0] }) }] }}>
+					<View style={{ alignItems: "center", paddingTop: 7 }}><View style={{ width: 36, height: 5, borderRadius: 3, backgroundColor: theme.line }} /></View>
+					<View style={{ flexDirection: "row", alignItems: "center", paddingLeft: 20, paddingRight: 10, paddingTop: 6, paddingBottom: 6 }}>
 						<Text numberOfLines={1} style={{ flex: 1, color: theme.strong, fontSize: 17, fontWeight: "700" }}>{title}</Text>
 						<IconButton name="x" label={closeLabel} onPress={dismiss} filled size={18} />
 					</View>

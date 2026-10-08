@@ -16,7 +16,7 @@ type Route = "connect" | "sessions" | "chat" | "settings";
 
 export default function App() {
 	const theme = useColorScheme() === "light" ? light : dark;
-	const [locale, setLocale] = useState<Locale>(new Intl.DateTimeFormat().resolvedOptions().locale.startsWith("zh") ? "zh" : "en");
+	const [locale, setLocale] = useState<Locale>("zh");
 	const t = useMemo(() => translate(locale), [locale]);
 	const state = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
 	const [route, setRoute] = useState<Route>("connect");

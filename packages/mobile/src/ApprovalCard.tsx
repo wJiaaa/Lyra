@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { ApprovalDecision, SessionSnapshot } from "@plume/client-runtime";
-import { Button, Icon, Txt, styles, useTheme } from "./ui.tsx";
+import { Button, Icon, Txt, floating, styles, useTheme } from "./ui.tsx";
 import type { T } from "./i18n.ts";
 
 /**
@@ -36,14 +36,14 @@ export function ApprovalCard({ request, answer, disabled, error, t }: { request:
 		const values = [...selected, ...(typed ? [typed] : [])];
 		submit({ answer: multi ? values : typed || selected[0] });
 	}
-	return <View style={{ marginHorizontal: 12, marginBottom: 8, borderRadius: 20, borderWidth: 1, borderColor: theme.line, backgroundColor: theme.grouped, maxHeight: "100%" }}>
+	return <View style={[floating(theme), { marginHorizontal: 12, marginBottom: 6, borderRadius: 22, maxHeight: "100%" }]}>
 		<ScrollView contentContainerStyle={{ padding: 16, gap: 10 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
 			<View style={[styles.row, { gap: 8 }]}>
-				<Icon name={interactive ? "help-circle" : "shield"} size={15} color={theme.warning} />
+				<View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: theme.warningSoft, alignItems: "center", justifyContent: "center" }}><Icon name={interactive ? "help-circle" : "shield"} size={13} color={theme.warning} /></View>
 				<Txt kind="eyebrow" tone="warning" style={{ flex: 1 }}>{t(interactive ? "question" : "approval")}</Txt>
 				{left !== null && !expired && <Txt kind="caption" tone={left <= 30 ? "danger" : "muted"}>{left >= 60 ? t("expiresInMinutes", { n: Math.ceil(left / 60) }) : t("expiresIn", { n: left })}</Txt>}
 			</View>
-			<Txt kind="heading" tone="strong" selectable>{request.title}</Txt>
+			<Txt kind="heading" tone="strong" selectable style={{ fontSize: 18, lineHeight: 24, fontWeight: "700" }}>{request.title}</Txt>
 			{request.detail && <Txt kind="sub" tone="muted" selectable>{request.detail}</Txt>}
 			{request.reason && <Txt kind="caption" tone="muted" selectable>{request.reason}</Txt>}
 			{options.length > 0 && <View style={{ gap: 8, marginTop: 2 }}>
@@ -58,7 +58,7 @@ export function ApprovalCard({ request, answer, disabled, error, t }: { request:
 						accessibilityState={{ checked, disabled: inert }}
 						disabled={inert}
 						onPress={() => setSelected(multi ? checked ? selected.filter((value) => value !== label) : [...selected, label] : [label])}
-						style={({ pressed }) => [styles.row, { minHeight: 50, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 16, borderWidth: 1, borderColor: checked ? theme.accent : theme.line, backgroundColor: checked ? theme.accentSoft : pressed ? theme.card : "transparent" }]}
+						style={({ pressed }) => [styles.row, { minHeight: 50, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14, borderWidth: 1, borderColor: checked ? theme.accent : "transparent", backgroundColor: checked ? theme.accentSoft : theme.card, opacity: pressed ? 0.7 : 1 }]}
 					>
 						<View style={{ flex: 1, gap: 2 }}>
 							<Text style={{ color: theme.ink, fontSize: 15, fontWeight: checked ? "600" : "400" }}>{label}</Text>
