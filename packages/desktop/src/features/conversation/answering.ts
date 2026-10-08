@@ -24,41 +24,5 @@
  *     and none of them are the answer still coming in.
  */
 
-import type { Message } from "@plume/core";
-
-/**
- * How long prose may sit unchanged before the line comes back.
- *
- * Chunks land tens of milliseconds apart while a model is actually writing, so this is never
- * reached mid-sentence and the line does not flicker during an ordinary reply. It is short enough
- * that a stall is admitted while someone is still looking at the screen rather than after they have
- * given up on it.
- */
-export const STALL_MS = 2_500;
-
-/**
- * The length of the prose being written at the tail of the transcript, or `null` if nothing is.
- *
- * A length rather than a boolean because the caller needs to know when it *changes* — that is what
- * says the stream is still alive. Growing text is a new value; a stalled stream is the same value
- * for as long as the stall lasts.
- *
- * `null` covers every way of not currently writing: no messages, the last one is not a reply, the
- * reply has settled (`pending` is the only unfinished state), or its last block is a call or
- * reasoning rather than text.
- */
-export function proseLength(messages: Message[]): number | null {
-	const last = messages[messages.length - 1];
-	if (last?.role !== "assistant" || last.stopReason !== "pending") return null;
-	const block = last.content[last.content.length - 1];
-	if (block?.type !== "text") return null;
-	/*
-	 * Whitespace is not the answer starting.
-	 *
-	 * A text block is opened empty and filled by the deltas that follow, so treating its arrival as
-	 * prose would fold the line away a beat early and — the turn still being unfinished — flap it
-	 * back a moment later.
-	 */
-	const text = block.text.trim();
-	return text.length > 0 ? text.length : null;
-}
+// 判断本身挪到了 `@plume/client-runtime/running`：手机消息流末尾那一行要和这里同时收起、同时回来。
+export { proseLength, STALL_MS } from "@plume/client-runtime/running";

@@ -14,6 +14,7 @@ import {
 } from "../../app/session-scope.tsx";
 import { freshTokens } from "@plume/core/tokens";
 import { formatTokens } from "../../lib/format-tokens.ts";
+import { formatElapsed } from "@plume/client-runtime/running";
 import { useLiveRate, useProducedChars } from "./useLiveRate.ts";
 
 /**
@@ -288,15 +289,4 @@ export function RunningIndicator() {
 			 */}
 		</div>
 	);
-}
-
-export function formatElapsed(ms: number): string {
-	const total = Math.max(0, Math.floor(ms / 1000));
-	const minutes = Math.floor(total / 60);
-	const seconds = total % 60;
-	if (minutes >= 60) {
-		const hours = Math.floor(minutes / 60);
-		return `${hours}h ${minutes % 60}m`;
-	}
-	return minutes > 0 ? `${minutes}m ${String(seconds).padStart(2, "0")}s` : `${seconds}s`;
 }

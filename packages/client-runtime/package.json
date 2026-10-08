@@ -3,7 +3,7 @@
   "version": "0.9.23",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts", "./messages": "./src/message-event.ts" },
+  "exports": { ".": "./src/index.ts", "./messages": "./src/message-event.ts", "./running": "./src/running.ts", "./stream-tail": "./src/stream-tail.ts" },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test --experimental-strip-types test/*.test.ts"

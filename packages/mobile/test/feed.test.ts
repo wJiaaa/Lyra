@@ -28,6 +28,15 @@ test("工具调用与结果按 id 合成一步，相邻步骤并成一组，正�
 	assert.ok(last.kind === "steps" && !last.steps[0]!.done, "还没回结果的一步保持进行中");
 });
 
+test("只有还在跑的一轮、排在最后的那段正文按流式放字；正文后面接了工具或这一轮停了，都不算", () => {
+	const writing = buildFeed([user("写"), assistant([call("a", "read", { path: "a" })]), result("a", "ok"), assistant([{ type: "text", text: "先看" }, { type: "text", text: "写到一半" }])], true);
+	assert.deepEqual(writing.filter((item) => item.kind === "text").map((item) => item.kind === "text" && !!item.live), [false, true]);
+	const calling = buildFeed([user("写"), assistant([{ type: "text", text: "先看看" }, call("b", "read", { path: "a" })])], true);
+	assert.ok(calling.every((item) => item.kind !== "text" || !item.live));
+	const done = buildFeed([user("写"), assistant([{ type: "text", text: "好了" }])], false);
+	assert.ok(done.every((item) => item.kind !== "text" || !item.live));
+});
+
 test("做完的一轮：过程折成一行，最终回答和结尾留在外面，展开后原样接回", () => {
 	const messages = [
 		user("改一下", 1000),

@@ -5,7 +5,8 @@ interface FeedImage { data: string; mimeType: string }
 export type FeedItem =
 	/** `text` 是气泡里给人看的那句，`prompt` 是当初发给模型的原文——重试要发的是后者。 */
 	| { kind: "user"; key: string; text: string; prompt: string; images: FeedImage[]; timestamp: number }
-	| { kind: "text"; key: string; text: string }
+	/** `live`：这一轮还在跑、它是最后一项——回复正在往外写，按桌面的节奏放字。 */
+	| { kind: "text"; key: string; text: string; live?: boolean }
 	| { kind: "thinking"; key: string; text: string; live: boolean }
 	| { kind: "steps"; key: string; steps: Step[]; live: boolean }
 	| { kind: "error"; key: string; text: string; retry?: string }
@@ -72,7 +73,7 @@ function settle(turn: Turn, live: boolean, last: boolean): FeedItem[] {
 	if (live) {
 		const tail = turn.items.at(-1);
 		for (const item of turn.items) if (item.kind === "steps") item.live = true;
-		if (tail?.kind === "thinking") tail.live = true;
+		if (tail?.kind === "thinking" || tail?.kind === "text") tail.live = true;
 		return [...head, ...turn.items];
 	}
 	// 只有最后一轮的错误给「重试」：更早的那句早就被后来的对话接过去了，再发一遍是另一件事。

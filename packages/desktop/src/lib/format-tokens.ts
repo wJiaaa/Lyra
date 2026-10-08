@@ -7,11 +7,7 @@
  *
  * Here rather than beside the running indicator that first needed it, because four surfaces now
  * print the same figure — the meter, a session card, a sub-agent's row and its bar — and a number
- * that reads differently in two of them is two numbers.
+ * that reads differently in two of them is two numbers. The phone's running line prints it too, so
+ * the rule itself lives in `@plume/client-runtime/running`.
  */
-export function formatTokens(count: number): string {
-	if (count >= 1_000_000_000) return `${(count / 1_000_000_000).toFixed(1)}B`;
-	if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
-	if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
-	return String(count);
-}
+export { formatTokens } from "@plume/client-runtime/running";

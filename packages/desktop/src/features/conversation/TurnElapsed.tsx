@@ -20,7 +20,7 @@ import { translate } from "../../i18n/translate.ts";
 import { useScopedTurnMeter } from "../../app/session-scope.tsx";
 import { FlowRow } from "./FlowRow.tsx";
 import { formatSentAt, formatSpan, formatTimestampTip } from "./MessageActions.tsx";
-import { formatElapsed } from "./RunningIndicator.tsx";
+import { formatElapsed } from "@plume/client-runtime/running";
 import { useTranscriptDisclosure } from "./view-state.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { Text } from "../../ui/primitives/Text.tsx";

@@ -123,7 +123,7 @@ export const FeedRow = memo(function FeedRow({ item, nested, expanded, toggle, o
 		: item.kind === "fold" ? <Fold item={item} expanded={expanded} toggle={toggle} t={t} />
 		: item.kind === "footer" ? <Footer item={item} t={t} />
 		: item.kind === "error" ? <ErrorCard item={item} retry={retry} t={t} />
-		: <View style={{ paddingTop: 6, paddingBottom: 2 }}><Markdown text={item.text} t={t} /></View>;
+		: <View style={{ paddingTop: 6, paddingBottom: 2 }}><Markdown text={item.text} streaming={item.live} t={t} /></View>;
 	if (!nested) return body;
 	return <View style={{ marginLeft: 9, paddingLeft: 17, borderLeftWidth: 1, borderLeftColor: theme.line }}>{body}</View>;
 });

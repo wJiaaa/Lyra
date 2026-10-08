@@ -118,6 +118,7 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	await click(app, '[role="button"][aria-label="发送消息"]');
 	await until(app, 'document.body.innerText.includes("请选择本次实现方式")');
 	await frames(app, 20); await shot(app, `${stamp}-mobile-approval`); await lightShot("mobile-approval");
+	assert.equal(await app.evaluate<string | null>(`document.querySelector('[data-testid="running-line"]')?.textContent ?? null`), "等待你的回答", "等人回答时运行行和桌面一样换成「等待你的回答」");
 	await click(app, '[role="radio"]', "更新实现");
 	await click(app, '[role="button"][aria-label="提交回答"]');
 	await until(app, 'document.body.innerText.includes("原会话已收到回答。")');
@@ -143,7 +144,7 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	await click(app, '[role="button"][aria-label="发送消息"]');
 	await until(app, 'Boolean(document.querySelector(\'img[src^="data:image/jpeg"]\')) && !document.querySelector(\'[aria-label="移除图片"]\')');
 	while (model.requests.length === asked) await new Promise((resolve) => setTimeout(resolve, 50));
-	await until(app, '!document.body.innerText.includes("正在工作")');
+	await until(app, '!document.querySelector(\'[data-testid="running-line"]\')');
 	assert.ok(JSON.stringify(model.requests.at(-1)).includes("image/jpeg"), "发前压成 JPEG，图随消息到了模型");
 	// 真干活的一轮：做完以后过程折成一行，最终回答带代码块和结尾。
 	await type(app, 'textarea[aria-label="给 Plume 发消息…"]', WORK_PROMPT);
@@ -151,7 +152,37 @@ test("独立手机界面操作真实桌面运行时与授权", { timeout: 120_00
 	// 跑命令那一步模型会停一下（见 mobile-work-fixture），计划条趁这时候拍。
 	await until(app, `Boolean([...document.querySelectorAll('[role="button"]')].find((e) => (e.getAttribute("aria-label") || "").startsWith("计划 ")))`, 1800);
 	await until(app, AT_BOTTOM, 120);
+	// 运行行是消息流的最后一行，跟着内容滚；说法和桌面 RunningIndicator 一样：「短语… · 计时」，不写「正在工作」。
+	const runningLine = await app.evaluate<string | null>(`(() => { const list = [...document.querySelectorAll("div")].filter((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.innerText.includes("DO_WORK")).at(-1); return list?.querySelector('[data-testid="running-line"]')?.textContent ?? null; })()`);
+	assert.match(runningLine ?? "", /^[A-Z][^…]*…·\d+(s|m \d{2}s)/, `运行行在消息列表里，照桌面的格式：${runningLine}`);
 	await frames(app, 10); await shot(app, `${stamp}-mobile-plan`);
+	// 回答前半段落下时运行行和桌面一样收起；字停住超过 STALL_MS 它回来（两段之间停多久见 mobile-work-fixture）。
+	const line = 'Boolean(document.querySelector(\'[data-testid="running-line"]\'))';
+	await until(app, 'document.body.innerText.includes("手机端这次做了三件事")', 1800);
+	assert.ok(!await app.evaluate<boolean>(line), "回复正在出字，运行行收起");
+	await frames(app, 10); await shot(app, `${stamp}-mobile-answering`);
+	await until(app, `${line} && !document.body.innerText.includes("有问题随时说。")`, 400);
+	await frames(app, 10); await shot(app, `${stamp}-mobile-answer-stalled`);
+	/*
+	 * 后半段（约 100 字）一次到达，照桌面的节奏分很多帧放出来、新字淡入，而不是整段蹦出来。量的是屏幕上
+	 * 那段回答逐帧的字数（运行行的字扣掉）和有没有半透明的字。
+	 */
+	const reveal = await app.evaluate<{ lengths: number[]; faded: number }>(`new Promise((resolve) => {
+		const lengths = []; let faded = 0; const end = performance.now() + 2500;
+		const tick = () => {
+			const list = [...document.querySelectorAll("div")].filter((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.innerText.includes("DO_WORK")).at(-1);
+			const text = list ? list.innerText : "";
+			const at = text.indexOf("手机端这次做了三件事");
+			const line = list?.querySelector('[data-testid="running-line"]')?.innerText ?? "";
+			lengths.push(at < 0 ? 0 : text.slice(at).replace(line, "").length);
+			if (list && [...list.querySelectorAll("span")].some((e) => /rgba\\(.*, 0?\\.\\d+\\)/.test(getComputedStyle(e).color))) faded++;
+			if (performance.now() < end && !text.includes("有问题随时说。")) requestAnimationFrame(tick); else resolve({ lengths, faded });
+		};
+		tick();
+	})`);
+	const steps = new Set(reveal.lengths).size;
+	assert.ok(steps >= 6 && reveal.lengths.every((n, i) => i === 0 || n >= reveal.lengths[i - 1]! - 2), `后半段分帧放出、只增不减：${steps} 档 ${JSON.stringify(reveal.lengths.slice(-40))}`);
+	assert.ok(reveal.faded >= 3, `放字时有正在淡入的字：${reveal.faded} 帧`);
 	await until(app, 'document.body.innerText.includes("有问题随时说。") && document.body.innerText.includes("已工作")', 1800);
 	assert.ok(!await app.evaluate<boolean>(`Boolean([...document.querySelectorAll('[role="button"]')].find((e) => (e.getAttribute("aria-label") || "").startsWith("计划 ")))`), "计划做完、任务停了，计划条收起");
 	await frames(app, 30); await shot(app, `${stamp}-mobile-work`); await lightShot("mobile-work");

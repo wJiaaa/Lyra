@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { ClientState, RemoteClient } from "@plume/client-runtime";
+import type { ClientState, Message, RemoteClient } from "@plume/client-runtime";
+import { formatElapsed, formatTokens, phraseFor, proseLength, STALL_MS } from "@plume/client-runtime/running";
+import { activityOf } from "./activity.ts";
 import { ApprovalCard } from "./ApprovalCard.tsx";
 import { ChoiceSheet } from "./ChoiceSheet.tsx";
 import { Composer } from "./Composer.tsx";
@@ -12,40 +14,69 @@ import { PlanBar } from "./PlanBar.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { ToolSheet } from "./ToolSheet.tsx";
 import { latestTodos } from "./tools.ts";
-import { Button, Field, GroupRow, Group, Header, Icon, IconButton, ProjectMark, StatusDot, Txt, floating, nativeDriver, styles, useTheme } from "./ui.tsx";
+import { Button, Field, GroupRow, Group, Header, Icon, IconButton, ProjectMark, StatusDot, Txt, floating, styles, useTheme } from "./ui.tsx";
 import { avatar } from "./avatar.ts";
 import type { T } from "./i18n.ts";
 
 type ScrollNode = { addEventListener(type: string, listener: () => void, options?: { passive: boolean }): void; removeEventListener(type: string, listener: () => void): void };
 
-function clock(ms: number): string {
-	const seconds = Math.max(0, Math.floor(ms / 1000));
-	return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-/** 三个依次亮起的点：说明它在动，又不像转圈那样抢眼。 */
-function Pulse() {
-	const theme = useTheme();
-	const value = useRef(new Animated.Value(0)).current;
-	useEffect(() => {
-		const loop = Animated.loop(Animated.timing(value, { toValue: 3, duration: 1200, useNativeDriver: nativeDriver }));
-		loop.start();
-		return () => loop.stop();
-	}, [value]);
-	return <View style={{ flexDirection: "row", gap: 3 }}>
-		{[0, 1, 2].map((index) => <Animated.View key={index} style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: theme.accent, opacity: value.interpolate({ inputRange: [0, index, index + 0.5, index + 1, 3], outputRange: [0.25, 0.25, 1, 0.25, 0.25], extrapolate: "clamp" }) }} />)}
-	</View>;
-}
-
-function Working({ since, t }: { since: number | null; t: T }) {
+/**
+ * 正在跑的那一轮的最后一行，照桌面 `RunningIndicator`：`Thinking… · 12s · 本轮 3.2k tokens`。
+ *
+ * 词表、选词和读数格式都来自 `@plume/client-runtime/running`，和桌面同一份；在干什么从消息里推，见
+ * `activity.ts`。桌面图标位是 `thinking-orbs` 的画布小球，手机画不了，用系统的转圈。桌面行尾的
+ * tok/s 是按流式字数估的，手机拿不到同样的数据，不放。等人授权或回答时整行换成「等待你的…」，
+ * 和桌面一样——这时候它什么都没在做，计时和词都不该再走。
+ *
+ * 放在消息流末尾而不是浮在输入框上：下一段内容就从这里长出来。回复正文在往外流时收起，和桌面一样，
+ * 见下面的 `useAnswering`。
+ */
+function RunningLine({ messages, waiting, t }: { messages: Message[]; waiting: "question" | "approval" | null; t: T }) {
 	const theme = useTheme();
 	const [now, setNow] = useState(Date.now());
-	useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
-	return <View accessibilityLiveRegion="polite" style={[floating(theme), { height: 36, borderRadius: 18, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 9 }]}>
-		<Pulse />
-		<Text style={{ color: theme.ink, fontSize: 13, fontWeight: "500" }}>{t("working")}</Text>
-		{since !== null && <Text style={{ color: theme.muted, fontSize: 13, fontVariant: ["tabular-nums"] }}>{clock(now - since)}</Text>}
+	// 词换得比秒慢：跟着秒走一秒换四次是噪音，只在活儿变了才换又会在长安装里一动不动。和桌面同一个节奏。
+	const [tick, setTick] = useState(0);
+	useEffect(() => {
+		const timer = setInterval(() => setNow(Date.now()), 500);
+		const words = setInterval(() => setTick((n) => n + 1), 4200);
+		return () => { clearInterval(timer); clearInterval(words); };
+	}, []);
+	const line = [styles.row, { minHeight: 32, gap: 8, marginTop: 6 }];
+	const meta = { color: theme.faint, fontSize: 13, lineHeight: 18, fontVariant: ["tabular-nums" as const] };
+	// testID 对应桌面的 `data-ly-running`：「这一轮还在不在跑」从外面问的是这个标记，不是某个加载动画长什么样。
+	const spinner = <View style={{ width: 20, alignItems: "center" }}><ActivityIndicator size="small" color={theme.muted} style={{ transform: [{ scale: 0.7 }] }} /></View>;
+	if (waiting) return <View testID="running-line" accessibilityLiveRegion="polite" style={line}>
+		{spinner}
+		<Text style={{ color: theme.muted, fontSize: 13, lineHeight: 18 }}>{t(waiting === "question" ? "waitingAnswer" : "waitingApproval")}</Text>
 	</View>;
+	const { mood, startedAt, tokens } = activityOf(messages, now);
+	const elapsed = startedAt ? now - startedAt : 0;
+	return <View testID="running-line" accessibilityLiveRegion="polite" style={[line, { flexWrap: "wrap", rowGap: 2 }]}>
+		{spinner}
+		<Text style={{ color: theme.muted, fontSize: 13, lineHeight: 18 }}>{phraseFor(mood, tick, elapsed)}…</Text>
+		{startedAt !== null && <><Text style={meta}>·</Text><Text style={meta}>{formatElapsed(elapsed)}</Text></>}
+		{tokens > 0 && <><Text style={meta}>·</Text><Text style={meta}>{t("turnTokens", { n: formatTokens(tokens) })}</Text></>}
+	</View>;
+}
+
+/**
+ * 回复正文此刻正在落下来——这时运行行收起，和桌面 `useAnswering` 同一个判断、同一个钟。
+ *
+ * 字停着不长 `STALL_MS` 就当它不在写了：停住的流和刚长过的流从消息里看一模一样，只能靠计时分开。
+ * 每次长度变化重开一个定时器，而不是整段回复里一直跑一个 tick。
+ */
+function useAnswering(messages: Message[]): boolean {
+	const prose = proseLength(messages);
+	// 带上条数：新一条回复的第一块恰好和上一条最后一样长时，计时也要从新回复算起。
+	const key = prose === null ? null : `${messages.length}:${prose}`;
+	const [stalled, setStalled] = useState(false);
+	useEffect(() => {
+		setStalled(false);
+		if (key === null) return;
+		const timer = setTimeout(() => setStalled(true), STALL_MS);
+		return () => clearTimeout(timer);
+	}, [key]);
+	return key !== null && !stalled;
 }
 
 function ActionsSheet({ state, client, close, error, t }: { state: ClientState; client: RemoteClient; close(): void; error(cause: unknown): void; t: T }) {
@@ -100,11 +131,11 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 	const model = state.bootstrap?.models.find((entry) => entry.id === session?.meta.modelId);
 	const visible = useMemo(() => session?.messages.filter((message) => message.role !== "user" || !message.synthetic || message.delivery || message.peer) ?? [], [session?.messages]);
 	const running = !!session?.running;
+	const answering = useAnswering(visible);
 	const feed = useMemo(() => buildFeed(visible, running), [visible, running]);
 	const rows = useMemo(() => flatten(feed, expanded), [feed, expanded]);
 	const todos = useMemo(() => latestTodos(visible), [visible]);
 	const step = stepId ? findStep(feed, stepId) : null;
-	const since = running ? [...visible].reverse().find((message) => message.role === "user")?.timestamp ?? null : null;
 	const pending = session?.pendingApprovals[0];
 	const thinking = model?.thinkingOptions.length ? model.thinkingOptions.find((option) => option.value === (session?.meta.thinking ?? state.bootstrap?.thinking))?.label ?? session?.meta.thinking ?? state.bootstrap?.thinking ?? "" : null;
 	function send() {
@@ -148,7 +179,7 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 				ref={list}
 				data={rows}
 				keyExtractor={(row) => row.item.key}
-				contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 56 }}
+				contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 }}
 				keyboardShouldPersistTaps="handled"
 				keyboardDismissMode="interactive"
 				onScrollBeginDrag={() => { touched.current = Infinity; }}
@@ -171,6 +202,7 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 				scrollEventThrottle={100}
 				onContentSizeChange={() => { if (follow.current) bottom(false); }}
 				renderItem={({ item: row }) => <FeedRow item={row.item} nested={row.nested} expanded={expanded.has(row.item.key)} toggle={toggle} openStep={openStep} retry={online && !running ? retry : undefined} t={t} />}
+				ListFooterComponent={running && !answering && rows.length > 0 ? <RunningLine messages={visible} waiting={!pending ? null : pending.kind === "interactive" ? "question" : "approval"} t={t} /> : null}
 				ListEmptyComponent={<View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 10, paddingHorizontal: 24 }}>
 					<Image source={avatar} accessibilityIgnoresInvertColors style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.grouped, marginBottom: 6 }} />
 					<Txt kind="heading" tone="strong" style={{ fontSize: 18, lineHeight: 24, fontWeight: "700" }}>{t("welcome")}</Txt>
@@ -178,7 +210,6 @@ export function ChatScreen({ state, client, back, error, draft, setDraft, t }: {
 				</View>}
 			/>}
 			<View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 10, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8 }}>
-				{running && !pending && <Working since={since} t={t} />}
 				{!following && rows.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel={t("scrollDown")} onPress={toEnd} style={({ pressed }) => [floating(theme), { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.7 : 1 }]}><Icon name="chevron-down" size={18} /></Pressable>}
 			</View>
 		</View>
