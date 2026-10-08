@@ -8,6 +8,7 @@
 	"types": "./src/index.ts",
 	"exports": {
 		".": "./src/index.ts",
+		"./client-types": "./src/client-types.ts",
 		"./thinking-options": "./src/ai/thinking-options.ts",
 		"./tokens": "./src/tokens.ts",
 		"./activity": "./src/activity.ts",

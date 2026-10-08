@@ -36,6 +36,14 @@
       "entry": ["test/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
+    "packages/client-runtime": {
+      "entry": ["src/index.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/mobile": {
+      "entry": ["index.ts", "test/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
     ".": {
       // Each of these is a command someone runs by hand or a hook runs for them. Nothing imports
       // them, which is the point, and without this they read as unused files.

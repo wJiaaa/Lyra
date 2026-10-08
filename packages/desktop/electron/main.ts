@@ -51,6 +51,8 @@ import { observeSessionStorage } from "./session-storage.ts";
 import { broadcastSessionChange } from "./session-hub.ts";
 import { fetchEndpointModels, testProvider } from "./providers.ts";
 import { registerSessionsIpc } from "./ipc/sessions.ts";
+import { registerMobileIpc } from "./ipc/mobile.ts";
+import { closeMobileAccess, configureMobileAccess, mobileBroadcast } from "./mobile-access.ts";
 import {
 	appIconPath,
 	followThemeWithDockIcon,
@@ -502,6 +504,7 @@ function bindScreenshotShortcut(): void {
 	 */
 	onSettingsChanged(async (next) => {
 		settings = next;
+		mobileBroadcast({ type: "bootstrap_changed" });
 		applyNativeAppearance();
 		refreshMenu();
 		bindScreenshotShortcut();
@@ -519,7 +522,11 @@ function bindScreenshotShortcut(): void {
 		setInterval(() => void syncModelCatalog(), MODEL_CATALOG_SYNC_INTERVAL_MS).unref();
 	}
 	useSettingsSource(() => settings);
-	configureHub({ store: () => store, settings: () => settings, window: getWindow });
+	configureHub({ store: () => store, settings: () => settings, window: getWindow, remoteEvent: mobileBroadcast });
+	await configureMobileAccess(join(plumeHome(), "mobile-access.json"), {
+		store: () => store, settings: () => settings,
+		saveSettings: async (next) => void (await applySettings(next)),
+	}).catch((cause) => console.error("Mobile access could not start:", cause));
 	// Before the window exists, so its very first frame gets the right material.
 	applyNativeAppearance();
 
@@ -770,6 +777,7 @@ app.on("before-quit", async () => {
 	 * what this event is. Anything awaited below happens long after Electron has moved on.
 	 */
 	beginQuit();
+	void closeMobileAccess();
 	unregisterScreenshotShortcut();
 	// The overlay outlives every capture on purpose, so it has to be let go of here or the process
 	// has a window left open and never finishes quitting. Pinned pictures outlive it too.
@@ -789,6 +797,7 @@ app.on("before-quit", async () => {
 });
 
 function registerIpc(): void {
+	registerMobileIpc();
 	registerDeliveryIpc(() => store);
 	registerRunningServicesIpc();
 	registerBrowserIpc(getPrimaryWindow, () => settings.browser ?? {});

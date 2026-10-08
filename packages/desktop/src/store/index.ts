@@ -61,6 +61,7 @@ type View = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins";
 
 export type SettingsSection =
   | "general"
+  | "mobile"
   | "appearance"
   | "personalization"
   | "models"

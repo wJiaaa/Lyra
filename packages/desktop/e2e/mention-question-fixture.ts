@@ -11,7 +11,7 @@ export const LONG_OPTIONS = Array.from({ length: 6 }, (_, index) => `${index + 1
 export const REFERENCE_TITLE = "同名会话：" + "跨平台交互与上下文引用验收_LongReferenceTitle_".repeat(8);
 
 /** Controlled model responses still traverse the real provider, tool runner and approval IPC. */
-export function questionModel() {
+export function questionModel(script?: (messages: unknown[], res: ServerResponse) => boolean) {
 	const requests: Array<{ messages: unknown[] }> = [];
 	const server = createServer((req, res) => {
 		let raw = "";
@@ -20,6 +20,7 @@ export function questionModel() {
 			const body: unknown = JSON.parse(raw);
 			assert.ok(body && typeof body === "object" && "messages" in body && Array.isArray(body.messages));
 			requests.push({ messages: body.messages });
+			if (script?.(body.messages, res)) return;
 			// The provider appends an environment message after the actual prompt or tool result.
 			const content = JSON.stringify(body.messages.slice(-3));
 			res.writeHead(200, { "content-type": "text/event-stream" });

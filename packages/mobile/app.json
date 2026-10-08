@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Plume",
+    "slug": "plume-mobile",
+    "version": "0.9.23",
+    "scheme": "plume",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "updates": { "enabled": false },
+    "icon": "../../assets/plume.png",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.plume.mobile",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "连接你的桌面 Plume，查看任务并继续对话。",
+        "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true }
+      }
+    },
+    "android": { "package": "app.plume.mobile", "softwareKeyboardLayoutMode": "resize" },
+    "plugins": ["./plugins/with-scene-lifecycle.cjs", ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }], "expo-secure-store", ["expo-camera", { "cameraPermission": "扫描桌面 Plume 的配对二维码，或拍照发给 Plume。", "recordAudioAndroid": false }], ["expo-image-picker", { "photosPermission": "从相册选图片发给 Plume。", "cameraPermission": "扫描桌面 Plume 的配对二维码，或拍照发给 Plume。", "microphonePermission": false }]],
+    "web": { "bundler": "metro", "favicon": "../../assets/plume.png" }
+  }
+}

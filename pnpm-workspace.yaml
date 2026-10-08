@@ -2,9 +2,14 @@ packages:
   - "packages/*"
 
 # Introduced because native Android tools enforce MAX_PATH on Windows, including paths inside
-# pnpm's store. The Android build is gone; the value stays because changing it makes every existing
-# checkout purge and reinstall node_modules.
+# pnpm's store. 原生手机端也沿用此限制，避免 Windows 安装路径过长。
 virtualStoreDirMaxLength: 16
+
+# Markdown 渲染器依赖的旧版 markdown-it 在 Node 用内置 punycode；原生端需要显式依赖。
+packageExtensions:
+  "markdown-it@10":
+    dependencies:
+      punycode: "^2.3.1"
 
 allowBuilds:
   # Downloads the Electron binary.

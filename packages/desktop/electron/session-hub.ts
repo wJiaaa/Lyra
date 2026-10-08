@@ -32,6 +32,7 @@ export interface HubDeps {
 	store(): SessionStorage;
 	settings(): Settings;
 	window(): BrowserWindow | null;
+	remoteEvent?(event: import("@plume/client-runtime").RemoteEvent): void;
 }
 
 let deps: HubDeps = {
@@ -215,11 +216,13 @@ export async function revertSessionMessage(sessionId: string, index: number): Pr
 }
 
 export function broadcastSessionChange(change: SessionChange): void {
+	deps.remoteEvent?.({ type: "session_changed", change });
 	eachAppWindow((win) => win.webContents.send("sessions:changed", change));
 }
 
 export function broadcast(sessionId: string, event: AgentEvent): void {
 	peers.observe(sessionId, event);
+	deps.remoteEvent?.({ type: "agent_event", sessionId, event });
 	// 活会话的回复不经过快照：这一轮刚交付、链着验证截图的那条，正是人马上要点的。
 	if (event.type === "message_end") noteTranscriptFiles([event.message]);
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));

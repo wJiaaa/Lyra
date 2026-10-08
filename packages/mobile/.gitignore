@@ -1,0 +1,4 @@
+# Expo 的本地缓存，和 `expo prebuild` 生成的原生工程：都能从 app.json 与插件重新生成，进仓库只会和模板版本打架。
+.expo/
+ios/
+android/

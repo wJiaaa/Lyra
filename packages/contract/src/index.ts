@@ -5,6 +5,7 @@
  */
 
 export { CHANNELS, METHODS, type Method } from "./methods.ts";
+export { MOBILE_METHODS, type MobileMethod, type MobileAccessStatus } from "./mobile.ts";
 
 /**
  * 一个会话旁边最早的那个侧边聊天。

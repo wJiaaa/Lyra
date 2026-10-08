@@ -183,6 +183,13 @@ interface AttachedTerminal {
 }
 
 export interface PlumeApi {
+	mobile: {
+		status(): Promise<import("@plume/contract").MobileAccessStatus>;
+		start(port: number): Promise<import("@plume/contract").MobileAccessStatus>;
+		stop(): Promise<import("@plume/contract").MobileAccessStatus>;
+		rotateToken(): Promise<import("@plume/contract").MobileAccessStatus>;
+		setRelay(url: string): Promise<import("@plume/contract").MobileAccessStatus>;
+	};
 	agentDefinitions: {
 		list(projectId: string | null): Promise<{ records: AgentDefinitionRecord[]; tools: string[] }>;
 		read(projectId: string | null, id: string): Promise<AgentDefinitionRecord>;

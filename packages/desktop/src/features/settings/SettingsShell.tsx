@@ -18,6 +18,7 @@ import { ArchivedSettings } from "./ArchivedSettings.tsx";
 import { AppearanceSettings } from "./AppearanceSettings.tsx";
 import { CommandsSettings } from "./CommandsSettings.tsx";
 import { GeneralSettings } from "./GeneralSettings.tsx";
+import { MobileSettings } from "./MobileSettings.tsx";
 import { PersonalizationSettings } from "./PersonalizationSettings.tsx";
 import { McpSettings } from "./McpSettings.tsx";
 import { ModelSettings } from "./ModelSettings.tsx";
@@ -269,6 +270,8 @@ function SectionBody({ section }: { section: SettingsSection }) {
 	switch (section) {
 		case "general":
 			return <GeneralSettings />;
+		case "mobile":
+			return <MobileSettings />;
 		case "appearance":
 			return <AppearanceSettings />;
 		case "personalization":

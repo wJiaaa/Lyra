@@ -207,7 +207,7 @@ node scripts/audit-regression.mjs   # 修过的每个 bug，各自的守卫跑�
 pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、推送
 ```
 
-版本号写在 6 个地方（根目录和 5 个包的 `package.json`），脚本一起改，`test/version-sync.test.ts`
+版本号写在 9 个地方（根目录、7 个包的 `package.json` 与手机 `app.json`），脚本一起改，`test/version-sync.test.ts`
 守着它们不跑偏；新加一个包而忘了登记，那条测试会红。
 
 ### 发版文案是手写的，中英两种语言一种都不能少
@@ -299,7 +299,7 @@ tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这
 | `packages/desktop/src/ui/` | 基础组件，不读 store 不调 service |
 | `packages/desktop/src/lib/` | 纯逻辑，没有 React |
 | `packages/desktop/src/services/` | 跟主进程说话的唯一出口 |
-| `packages/contract/` | 渲染进程与主进程之间那条线，204 个方法写在一处 |
+| `packages/contract/` | 渲染进程与主进程之间那条线，209 个方法写在一处 |
 | `packages/desktop/shared/` | 两个进程共有的判断，谁也不依赖 |
 
 ## 提交

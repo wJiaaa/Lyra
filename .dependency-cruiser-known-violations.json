@@ -8032,45 +8032,6 @@
   },
   {
     "type": "cycle",
-    "from": "packages/desktop/src/store/apply-event.ts",
-    "to": "packages/desktop/src/store/message-event.ts",
-    "unresolvedTo": "./message-event.ts",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/desktop/src/store/message-event.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/store/index.ts",
-        "dependencyTypes": [
-          "local",
-          "type-only",
-          "import",
-          "pre-compilation-only"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/store/apply-event.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "packages/desktop/src/store/cached-event.ts",
     "to": "packages/desktop/src/store/derive.ts",
     "unresolvedTo": "./derive.ts",
@@ -8085,52 +8046,6 @@
     "cycle": [
       {
         "name": "packages/desktop/src/store/derive.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/store/index.ts",
-        "dependencyTypes": [
-          "local",
-          "type-only",
-          "import",
-          "pre-compilation-only"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/store/apply-event.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      },
-      {
-        "name": "packages/desktop/src/store/cached-event.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "packages/desktop/src/store/cached-event.ts",
-    "to": "packages/desktop/src/store/message-event.ts",
-    "unresolvedTo": "./message-event.ts",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "packages/desktop/src/store/message-event.ts",
         "dependencyTypes": [
           "local",
           "import"

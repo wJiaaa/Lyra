@@ -25,6 +25,13 @@ export interface Method {
  * written.
  */
 export const METHODS = {
+	mobile: {
+		status: { channel: "mobile:status" },
+		start: { channel: "mobile:start" },
+		stop: { channel: "mobile:stop" },
+		rotateToken: { channel: "mobile:rotateToken" },
+		setRelay: { channel: "mobile:setRelay" },
+	},
 	agentDefinitions: {
 		list: { channel: "agentdefs:list" },
 		read: { channel: "agentdefs:read" },

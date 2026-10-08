@@ -55,6 +55,7 @@
 		"@lezer/common": "^1.5.2",
 		"@lezer/highlight": "^1.2.3",
 		"@plume/contract": "workspace:*",
+		"@plume/client-runtime": "workspace:*",
 		"@plume/core": "workspace:*",
 		"@plume/registry-shared": "workspace:*",
 		"@modelcontextprotocol/sdk": "1.30.0",
@@ -69,7 +70,8 @@
 		"node-pty": "1.1.0",
 		"thinking-orbs": "^0.3.1",
 		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-		"yaml": "2.9.0"
+		"yaml": "2.9.0",
+		"qrcode": "^1.5.4"
 	},
 	"devDependencies": {
 		"@electron/rebuild": "^4.2.0",
@@ -77,6 +79,7 @@
 		"@types/react": "19.2.18",
 		"@types/react-dom": "19.2.5",
 		"@types/ws": "8.18.1",
+		"@types/qrcode": "^1.5.6",
 		"@vitejs/plugin-react": "6.1.1",
 		"electron": "43.4.1",
 		"electron-builder": "26.15.3",

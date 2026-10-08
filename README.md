@@ -267,7 +267,7 @@ Or one piece:
 
 ```bash
 pnpm lint          # oxlint, --deny-warnings: a warning is a failure
-pnpm typecheck     # 5 packages
+pnpm typecheck     # 7 packages
 pnpm test          # unit tests, including component tests. node:test, not vitest or jest
 pnpm arch          # dependency direction, a couple of seconds
 pnpm package       # this machine's installer. the only place besides a release that runs electron-builder

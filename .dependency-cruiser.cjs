@@ -15,6 +15,24 @@
 module.exports = {
 	forbidden: [
 		{
+			name: "mobile-and-client-runtime-stay-portable",
+			severity: "error",
+			from: { path: "^packages/(mobile|client-runtime)/src/" },
+			to: { path: "^packages/(desktop|cli)/|^(node:|electron$)", dependencyTypesNot: ["type-only"] },
+		},
+		{
+			name: "mobile-core-imports-are-types-only",
+			severity: "error",
+			from: { path: "^packages/(mobile|client-runtime)/src/" },
+			to: { path: "^packages/core/", dependencyTypesNot: ["type-only"] },
+		},
+		{
+			name: "client-runtime-has-no-ui",
+			severity: "error",
+			from: { path: "^packages/client-runtime/src/" },
+			to: { path: "^packages/mobile/|node_modules/(react|react-native|expo)(/|$)" },
+		},
+		{
 			name: "no-circular",
 			comment:
 				"A cycle between *values* is how a module ends up half-initialised at runtime: one of " +

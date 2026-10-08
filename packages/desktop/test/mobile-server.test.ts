@@ -1,0 +1,54 @@
+import assert from "node:assert/strict";
+import { once } from "node:events";
+import { test } from "node:test";
+import { WebSocket } from "ws";
+import { RemoteClient } from "@plume/client-runtime";
+import { MobileServer } from "../electron/mobile-server.ts";
+
+test("手机通道鉴权、RPC 白名单、实时事件和断线恢复", async (context) => {
+	const calls: string[] = [];
+	const bootstrap = { name: "Plume", projects: [], models: [], defaultModelId: "", thinking: "off", sessions: [{ id: "one", updatedAt: 1 }], runningSessionIds: [] };
+	const invoke: ConstructorParameters<typeof MobileServer>[1] = async (method) => {
+		calls.push(method);
+		if (method === "bootstrap") return bootstrap;
+		if (method === "sessions.get") return { meta: { id: "one" }, messages: [], running: false, pendingApprovals: [] };
+		if (method === "agent.prompt") server.broadcast({ type: "agent_event", sessionId: "one", event: { type: "agent_start", sessionId: "one" } });
+		return null;
+	};
+	let server = new MobileServer("test-pair-token", invoke);
+	const port = await server.start(0, "127.0.0.1");
+	context.after(() => server.stop());
+	const connection = { url: `http://127.0.0.1:${port}`, token: "test-pair-token" };
+	const denied = new WebSocket(`ws://127.0.0.1:${port}/mobile?token=test-pair-token`);
+	await once(denied, "open");
+	denied.send(JSON.stringify({ type: "auth", token: "wrong" }));
+	const [denial] = await once(denied, "message");
+	assert.equal(JSON.parse(String(denial)).type, "auth_error");
+	assert.equal(server.clients, 0);
+	const socket = new WebSocket(`ws://127.0.0.1:${port}/mobile`);
+	await once(socket, "open"); socket.send(JSON.stringify({ type: "auth", token: connection.token })); await once(socket, "message");
+	socket.send(JSON.stringify({ type: "rpc", id: "bad", method: "files.read", args: ["/etc/passwd"] }));
+	const [unsupported] = await once(socket, "message");
+	assert.equal(JSON.parse(String(unsupported)).ok, false);
+	assert.deepEqual(calls, []);
+	socket.close();
+	const client = new RemoteClient();
+	context.after(() => client.disconnect());
+	await client.connect(connection);
+	await client.openSession("one");
+	await client.prompt("hello");
+	assert.equal(client.getSnapshot().session?.running, true);
+	server.broadcast({ type: "agent_event", sessionId: "one", event: { type: "approval_request", requestId: "ask", toolCallId: "call", kind: "bash", title: "Run?", detail: "pwd", subject: "pwd" } });
+	await new Promise((resolve) => setTimeout(resolve, 25));
+	assert.equal(client.getSnapshot().session?.pendingApprovals[0]?.id, "ask");
+	await client.approve("ask", "once");
+	await server.stop();
+	server = new MobileServer(connection.token, invoke);
+	await server.start(port, "127.0.0.1");
+	await new Promise<void>((resolve, reject) => {
+		const timeout = setTimeout(() => { unsubscribe(); reject(new Error("重连超时")); }, 3000);
+		const unsubscribe = client.subscribe(() => { if (calls.filter((method) => method === "bootstrap").length >= 2 && client.getSnapshot().status === "connected" && !client.getSnapshot().loading) { clearTimeout(timeout); unsubscribe(); resolve(); } });
+	});
+	assert.equal(client.getSnapshot().status, "connected");
+	assert.equal(calls.filter((method) => method === "agent.prompt").length, 1, "重连不能重放写请求");
+});
