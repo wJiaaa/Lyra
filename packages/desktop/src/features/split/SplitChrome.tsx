@@ -95,7 +95,8 @@ function ScreenTitle({ sessionId, screen }: { sessionId: string | null; screen: 
 	return (
 		<>
 			{meta && <Folder size={15} strokeWidth={1.7} aria-hidden className="shrink-0 text-ink-faint" />}
-			<span data-ly-screen-title className="min-w-0 truncate text-label font-semibold text-ink select-none">{title}</span>
+			{/* 不加粗：同一句话在侧栏和这里各画一遍，侧栏那份是常规字重，顶栏加粗就成两种标题。 */}
+			<span data-ly-screen-title className="min-w-0 truncate text-label text-ink select-none">{title}</span>
 			{meta && (
 				<div className="no-drag flex shrink-0">
 					<ToolbarButton label={t("split.sessionActions")} onClick={menu.toggle} active={menu.open}>
