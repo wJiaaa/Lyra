@@ -252,8 +252,6 @@ try {
 	check("B 正忙着自己的事：A 的消息排在后面，不插进去", seen.handoffSent.includes("waits until its current work is done"), seen.handoffSent.slice(0, 200));
 	check("A 等到的是 B 处理这封信的那一次，不是 B 自己那件事的结论", seen.wait.includes("v1.2.3 已推送") && !seen.wait.includes("自己的检查"), { took, wait: seen.wait.slice(0, 200) });
 	check("A 只为人那一句开了一轮", seen.turnsInA === 1 && !(await main()).includes("多余的一轮"), seen.turnsInA);
-	const turns = ((await main()).split("PEER_HANDOFF").at(-1)?.match(/已工作/g) ?? []).length;
-	check("人那一句之后只有一个「已工作」：交接、等待、回答是同一轮", turns === 1, turns);
 	check("A 的对话里没有回执行，也没有运行时原文", (await visible("main [data-peer-row]")) === 0 && !(await leaked()), await visible("main [data-peer-row]"));
 
 	// 2. B 那边：先做完自己那件，消息另起一次，一行「来自 发版 A」。

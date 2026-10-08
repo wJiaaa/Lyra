@@ -16,7 +16,7 @@ export function named(text: string, mode: NamedMode = "exact", el = "e"): string
 		: `(${el}.textContent||"").trim()`;
 	const aria = `(${el}.getAttribute("aria-label")||"").trim()`;
 	const tip = `(${el}.dataset.lyTip||"").trim()`;
-	// 同一种行出现好几次、名字里只有中间那一段能区分它们时用（比如两轮各有一行「已工作 …」）。
+	// 同一种行出现好几次、名字里只有中间那一段能区分它们时用。
 	if (mode === "includes") {
 		return `(${visible}.includes(${needle})||${aria}.includes(${needle})||${tip}.includes(${needle}))`;
 	}

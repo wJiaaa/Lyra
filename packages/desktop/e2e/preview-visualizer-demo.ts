@@ -153,11 +153,10 @@ const LAYOUT = `(() => {
 	const frame = frames.find((f) => f.checkVisibility({ opacityProperty: true }) && f.getBoundingClientRect().height > 40);
 	const card = frame?.parentElement?.parentElement;
 	const answer = [...document.querySelectorAll("main p")].find((p) => p.innerText.includes(${JSON.stringify(ANSWER)}));
-	const head = document.querySelector("main [data-ly-turn-elapsed='done']");
 	const rect = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom }; };
 	return {
 		frames: frames.length,
-		frame: rect(frame), card: rect(card), answer: rect(answer), head: rect(head),
+		frame: rect(frame), card: rect(card), answer: rect(answer),
 		kind: card?.dataset.lyPreview ?? null,
 		browserCards: document.querySelectorAll("main [data-browser-card]").length,
 		border: card ? getComputedStyle(card).borderTopWidth : null,
@@ -171,7 +170,6 @@ interface Layout {
 	frame: { x: number; y: number; w: number; h: number; bottom: number } | null;
 	card: { x: number; y: number; w: number; h: number; bottom: number } | null;
 	answer: { x: number; y: number; w: number; h: number; bottom: number } | null;
-	head: { x: number; y: number; w: number; h: number; bottom: number } | null;
 	kind: string | null;
 	browserCards: number;
 	border: string | null;
@@ -267,9 +265,9 @@ async function main() {
 		check("对话里只有发布的那一张页面（检查不画卡片，也没有浏览器卡片）", done.frames === 1 && done.browserCards === 0, `${done.frames} 个预览 iframe，${done.browserCards} 张浏览器卡片`);
 		check("回合结束后页面仍然看得见", done.frame !== null && done.frame.h > 150, JSON.stringify(done.frame));
 		check(
-			"页面在「已工作」那一行之后、回答之前",
-			Boolean(done.frame && done.answer && done.head && done.head.bottom <= done.frame.y && done.frame.bottom <= done.answer.y),
-			JSON.stringify({ head: done.head, frame: done.frame, answer: done.answer }),
+			"页面在回答之前",
+			Boolean(done.frame && done.answer && done.frame.bottom <= done.answer.y),
+			JSON.stringify({ frame: done.frame, answer: done.answer }),
 		);
 		check("页面没有卡片边框，是回复的一部分", done.kind === "themed" && done.border === "0px", `${done.kind} / ${done.border}`);
 		if (done.card) {
