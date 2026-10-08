@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { availableModels } from "@plume/core/model-roles";
+import { availableModels } from "@plume/core/model-choice";
 import { Box, ChevronDown } from "../../ui/icons/index.ts";
 import { useApp } from "../../store/index.ts";
 import { usePopover } from "../../ui/overlay/Popover.tsx";

@@ -30,7 +30,7 @@ import { mainChatSnapshot, readMainChatTool } from "./sidechat-history.ts";
 import { stripStaleHandles } from "../agent/model-switch.ts";
 import type { Settings } from "../config/settings.ts";
 import { resolveModel } from "../config/settings.ts";
-import { resolveModelRef } from "../config/model-roles.ts";
+import { compactionModel } from "../config/model-choice.ts";
 import type { Message, MessageAttachment, ThinkingLevel, UserContent } from "../types.ts";
 import type { AgentSession } from "./session.ts";
 
@@ -282,7 +282,7 @@ export class SideChat {
 					state: undefined,
 					environment: false,
 					compact: async (messages, model, observer, compactOptions) => {
-						const summarizer = resolveModelRef(this.settings, "@compact", { provider: resolved.provider, model });
+						const summarizer = compactionModel(this.settings, { provider: resolved.provider, model });
 						const compacted = await compactWith({ observer, force: compactOptions?.force, messages, model, provider: resolved.provider, streamFn: metered((provider, summaryModel, context, streamOptions) => (this.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => this.settings.retryPolicy, signal: controller.signal }), compactionSpent(this.main.log)), overhead: textTokens(systemPrompt) + toolTokens(tools), summarizer });
 						reading = [...(compacted?.messages ?? messages)];
 						return compacted;

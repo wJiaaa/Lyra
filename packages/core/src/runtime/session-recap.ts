@@ -13,7 +13,7 @@
 
 import { streamAssistant } from "../ai/index.ts";
 import { resolveModel } from "../config/models.ts";
-import { resolveModelRef } from "../config/model-roles.ts";
+import { resolveModelRef } from "../config/model-choice.ts";
 import type { Settings } from "../config/settings.ts";
 import type { SessionRecap, SessionRecordInput } from "../session/types.ts";
 import type { Message } from "../types.ts";
@@ -122,7 +122,7 @@ export async function writeRecap(options: {
 	messages: readonly Message[];
 	previous?: SessionRecap;
 	settings: Settings;
-	/** 会话自己的模型，空串表示跟默认。优先用 `@fast`。 */
+	/** 会话自己的模型，空串表示跟默认。设置里选了 `recapModelId` 就用它。 */
 	modelId: string;
 	stream?: typeof streamAssistant;
 	signal?: AbortSignal;
@@ -131,7 +131,8 @@ export async function writeRecap(options: {
 	if (!source) return { skipped: "empty" };
 	const resolved = resolveModel(options.settings, options.modelId || options.settings.defaultModelId);
 	if (!resolved) return { skipped: "model" };
-	const chosen = resolveModelRef(options.settings, "@fast", resolved);
+	// 设置里单独选过就用它；没选或选的已被删掉，用会话自己的模型。
+	const chosen = resolveModelRef(options.settings, options.settings.recapModelId, resolved);
 	const input = [
 		`上一版回顾：\n${source.previous ?? "（无）"}`,
 		`新增的对话：\n${source.material}`,

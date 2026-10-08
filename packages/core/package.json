@@ -14,7 +14,7 @@
 		"./trajectory-view": "./src/trajectory-view.ts",
 		"./commands-view": "./src/commands-view.ts",
 		"./schedule": "./src/config/schedule.ts",
-		"./model-roles": "./src/config/model-roles.ts",
+		"./model-choice": "./src/config/model-choice.ts",
 		"./project-folders": "./src/config/project-folders.ts",
 		"./retry-policy": "./src/config/retry-policy.ts",
 		"./agents-builtin": "./src/agents-builtin.ts",

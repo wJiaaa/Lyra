@@ -371,14 +371,7 @@ export {
 	THINKING_LEVELS,
 } from "./ai/thinking-options.ts";
 export { lastPassAt, PASS_INTERVAL_MS, runMemoryPass, shouldRunPass } from "./runtime/memory-pass.ts";
-export {
-	MODEL_ROLES,
-	ROLE_DESCRIPTIONS,
-	parseModelRef,
-	resolveModelRef,
-	roleStatus,
-	type ModelRole,
-} from "./config/model-roles.ts";
+export { parseModelRef, resolveModelRef } from "./config/model-choice.ts";
 export { layerOverrides, loadProjectLayer, projectConfigPath, type ConfigProblem, type LayerOverride } from "./config/layers.ts";
 export { extensionDirs } from "./runtime/session-capabilities.ts";
 export { validateManifest, type ExtensionDiagnostic, type ExtensionEventStats, type ExtensionStats } from "./extensions/types.ts";

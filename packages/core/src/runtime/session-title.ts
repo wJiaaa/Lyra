@@ -19,7 +19,7 @@
 
 import { streamAssistant } from "../ai/index.ts";
 import { resolveModel } from "../config/models.ts";
-import { resolveModelRef } from "../config/model-roles.ts";
+import { resolveModelRef } from "../config/model-choice.ts";
 import type { Settings } from "../config/settings.ts";
 import type { SessionRecordInput } from "../session/store.ts";
 import type { UserContent } from "../types.ts";
@@ -110,7 +110,8 @@ export class SessionTitle {
 		const settings = this.deps.settings();
 		const resolved = resolveModel(settings, this.deps.modelId() || settings.defaultModelId);
 		if (!resolved) return;
-		const chosen = resolveModelRef(settings, "@fast", resolved);
+		// 设置里单独选过就用它；没选或选的已被删掉，用会话自己的模型。
+		const chosen = resolveModelRef(settings, settings.titleModelId, resolved);
 		const controller = new AbortController();
 		this.abort = controller;
 		const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(TITLE_SUMMARY_TIMEOUT_MS)]);

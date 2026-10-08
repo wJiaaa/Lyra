@@ -96,22 +96,17 @@ test("navigation clicks land instantly inside and outside the transcript window,
 });
 
 /*
- * 模型角色那一页已经不在了。
- *
- * 从前「模型设置」里单独列着 default/compact/fast/deep/review 五个角色，这条测试就是去那儿点
- * `fast` 的。后来角色并进了「智能体」——每个内置智能体自己一行，选出来的模型写进
- * `subAgentProfiles`，`modelRoles` 只剩读旧配置时的兜底（见 `config/model-roles.ts` 的
- * `withAgentProfile`）；同一次改动里 `fast` 和 `deep` 也按「任务的形状」改名成了 `simple` 和
- * `reason`。所以这里改成在「智能体」页上点 `simple`，两个菜单本来就在同一页，不必再导航一次。
+ * 每个内置智能体在「智能体」页上自己一行，选出来的模型写进 `subAgentProfiles`（见
+ * `config/model-choice.ts` 的 `withAgentProfile`）。这里点 `simple`。
  */
-test("role and subagent menus share a bounded searchable favourite catalog without changing the active session", async (t) => {
+test("session and subagent menus share a bounded searchable favourite catalog without changing the active session", async (t) => {
 	await click(app, 'button:has(svg.lucide-settings)'); await click(app, "nav button", "智能体"); await frames(app);
 	// 标签是 `{name} 模型`——底下那句 `[aria-label="explore 模型"]` 用的就是这个格式。
 	await click(app, '[aria-label="simple 模型"]'); await frames(app);
 	const menuGeometry = () => app.evaluate<{ height: number; right: number; bottom: number; first: string; fade: string }>(`(()=>{const m=document.querySelector('[role="menu"][aria-label="选择模型"]'),r=m.getBoundingClientRect();return {height:r.height,right:r.right,bottom:r.bottom,first:m.querySelector('[data-model]').dataset.model,fade:m.querySelector('.ly-scroll-view').style.getPropertyValue('--ly-fade-bottom')};})()`);
 	const roleMenu = await menuGeometry();
 	assert.ok(roleMenu.height <= 420); assert.equal(roleMenu.first, "p1/m1"); assert.equal(roleMenu.fade, "48px");
-	await shot(app, "model-role-favourites");
+	await shot(app, "model-favourites");
 	await click(app, '[data-model="p1/m1"] [role="menuitem"]'); await frames(app);
 	await until(app, `document.querySelector('[aria-label="explore 模型"]')`);
 	await click(app, '[aria-label="explore 模型"]'); await frames(app);

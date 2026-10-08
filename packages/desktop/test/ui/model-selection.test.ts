@@ -37,19 +37,12 @@ test("configuration picker shares favourites/search and never selects the active
 	} finally { await view.unmount(); useApp.setState({ setModel: original }); }
 });
 
-test("a failed role save leaves the explicit unavailable model visible", async () => {
+test("a failed agent model save leaves the explicit unavailable model visible", async () => {
 	const original = useApp.getState().saveSettings;
 	Object.defineProperty(window, "plume", { configurable: true, value: { agentDefinitions: { list: async () => ({ records: BUILTIN_AGENTS.map(definition => ({ definition, id: definition.name, scope: "builtin", editable: true, customized: false, revision: "1", raw: "" })), tools: [] }) } } });
-	/*
-	 * 给一个具体的智能体钉死一个不存在的模型，而不是借道同名的模型角色。
-	 *
-	 * 这条原来写的是 `modelRoles: { fast: … }`，靠的是「智能体 `fast`」和「模型角色 `fast`」恰好同名
-	 * ——`agentProfile` 会把同名角色的旧绑定当成这个智能体的配置。智能体改叫 `simple` 之后那层巧合
-	 * 没了，而这条要测的从来不是巧合，是「显式选了一个用不了的模型，保存又失败时，界面还得照实说」。
-	 * 旧名下的配置能不能被新名读到，是 core 的 `agent-rename` 在管。
-	 */
-	const agent = BUILTIN_AGENTS.find((definition) => definition.model === "@fast");
-	assert.ok(agent, "应该有一个内置智能体跟着 @fast 角色走");
+	// 要测的是「显式选了一个用不了的模型，保存又失败时，界面还得照实说」，挑哪个内置智能体都一样。
+	const agent = BUILTIN_AGENTS.find((definition) => definition.name === "simple");
+	assert.ok(agent, "simple 该是内置的");
 	useApp.setState({ activeSessionId: null, capabilities: null, settings: { ...settings, subAgentProfiles: { [agent.name]: { modelId: "missing/model" } } }, saveSettings: async () => { throw new Error("disk full"); } });
 	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(AgentsSettings) }));
 	try {

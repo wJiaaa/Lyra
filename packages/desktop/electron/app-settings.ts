@@ -1,5 +1,5 @@
 import { normalizeRetryPolicy } from "@plume/core";
-import { normalizeSubAgentProfiles } from "@plume/core/model-roles";
+import { normalizeSubAgentProfiles } from "@plume/core/model-choice";
 /**
  * The app's settings, in one place that owns them.
  *

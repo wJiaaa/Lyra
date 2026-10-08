@@ -340,6 +340,12 @@ export interface Settings {
 	defaultModelId: string | null;
 	/** Default for new side chats; null follows the main conversation. */
 	sideChatModelId?: string | null;
+	/** Model for session recaps; null follows the session's model. */
+	recapModelId?: string | null;
+	/** Model for smart session titles; null follows the session's model. */
+	titleModelId?: string | null;
+	/** Model for the background memory pass; null follows `defaultModelId`, since it runs in no session. */
+	memoryModelId?: string | null;
 	/**
 	 * Models pinned to the top of the picker, in the order they were starred.
 	 *
@@ -416,8 +422,8 @@ export interface Settings {
 	 */
 	maxConcurrentSubAgents: number;
 	/**
-	 * Per-agent model and thinking overrides, by agent name. An entry named after a role (`compact`,
-	 * `fast`, `deep`, `review`) is also what `@compact` and friends resolve to — see `model-roles.ts`.
+	 * Per-agent model and thinking overrides, by agent name. `compact` is the compaction model — see
+	 * `compactionModel` in `model-choice.ts`.
 	 */
 	subAgentProfiles?: Record<string, SubAgentProfile>;
 	/**

@@ -132,6 +132,20 @@ test("writeRecap returns a billed record, with text only when the reply is usabl
 	assert.deepEqual(await writeRecap({ messages, settings: { ...SETTINGS, providers: [] }, modelId: "" }), { skipped: "model" });
 });
 
+test("writeRecap uses the chosen recap model, else the session's model", async () => {
+	const messages = [user("修登录", 10), assistant("修好了", 20)];
+	const recapModel: ModelConfig = { ...MODEL, id: "test/recap", modelId: "recap" };
+	const settings = { ...SETTINGS, providers: [{ ...PROVIDER, models: [MODEL, recapModel] }] };
+	const used = async (extra: object) => {
+		const outcome = await writeRecap({ messages, settings: { ...settings, ...extra }, modelId: "", stream: stream(assistant("修好了登录", 0)) });
+		assert.ok("record" in outcome);
+		return outcome.record.modelId;
+	};
+	assert.equal(await used({ recapModelId: recapModel.id }), "recap");
+	assert.equal(await used({ recapModelId: "test/removed" }), "model");
+	assert.equal(await used({ recapModelId: null }), "model");
+});
+
 test("a recap record keeps the list order, counts its cost, and an empty one keeps the old recap", async () => {
 	const root = await mkdtemp(join(tmpdir(), "ly-recap-"));
 	try {

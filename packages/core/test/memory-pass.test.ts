@@ -221,6 +221,29 @@ test("抽取的花销记进用量表——它不属于任何一个会话", async
 	}
 });
 
+test("抽取用设置里单独选的模型，没选或已被删掉就用默认模型", async () => {
+	const small = { ...MODEL, id: "p/small", modelId: "small" };
+	const providers = [{ ...PROVIDER, models: [MODEL, small] }] as never;
+	const used = async (over: Partial<Settings>) => {
+		const dir = await mkdtemp(join(tmpdir(), "ly-pass-model-"));
+		try {
+			await seedSession(dir, "s4", ["a", "b", "c", "d", "e", "f"], 20 * 60 * 60 * 1000);
+			let model = "";
+			const stream = ((_provider: unknown, chosen: { id: string }, ...rest: never[]) => {
+				model = chosen.id;
+				return (scripted("- 一条") as (...a: never[]) => unknown)(...rest);
+			}) as never;
+			await runMemoryPass({ cwd: dir, settings: settings({ providers, ...over }), storage: STORAGE, stream });
+			return model;
+		} finally {
+			await rm(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+		}
+	};
+	assert.equal(await used({ memoryModelId: "p/small" }), "p/small");
+	assert.equal(await used({ memoryModelId: "p/removed" }), "p/m");
+	assert.equal(await used({}), "p/m");
+});
+
 test("the project-memory off switch blocks automatic extraction at the runtime boundary", () => {
 	assert.deepEqual(shouldRunPass(settings({ personalization: { enableProjectMemory: false }, memoryExtraction: true }), null), { run: false, reason: "declined" });
 });

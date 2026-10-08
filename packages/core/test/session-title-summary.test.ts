@@ -23,11 +23,11 @@ const SESSION_MODEL: ModelConfig = {
 	supportsTools: true,
 };
 
-const FAST_MODEL: ModelConfig = {
-	id: "test/fast-model",
+const OTHER_MODEL: ModelConfig = {
+	id: "test/other-model",
 	providerId: "test-p",
-	modelId: "fast-model",
-	name: "Fast Model",
+	modelId: "other-model",
+	name: "Other Model",
 	contextWindow: 50_000,
 	maxOutputTokens: 2048,
 	supportsThinking: false,
@@ -42,7 +42,7 @@ const PROVIDER: ProviderConfig = {
 	api: "openai-responses",
 	apiKey: "x",
 	enabled: true,
-	models: [SESSION_MODEL, FAST_MODEL],
+	models: [SESSION_MODEL, OTHER_MODEL],
 };
 
 function reply(text = "ok"): AssistantMessage {
@@ -180,11 +180,11 @@ test("long prompt (> 12 chars) uses immediate fallback then rewrites with summar
 	}
 });
 
-test("prefers fast model when the fast role is configured, falls back to session model otherwise", { timeout: 5000 }, async () => {
+test("the title model chosen in settings outranks the session's model", { timeout: 5000 }, async () => {
 	const { store, cleanup } = await harness();
 	try {
 		const modelsUsed: string[] = [];
-		const meta = await store.create(process.cwd(), SESSION_MODEL.id);
+		const meta = await store.create(process.cwd(), OTHER_MODEL.id);
 		const summaryApplied = Promise.withResolvers<void>();
 
 		const session = new AgentSession({
@@ -194,15 +194,15 @@ test("prefers fast model when the fast role is configured, falls back to session
 			settings: {
 				...DEFAULT_SETTINGS,
 				providers: [PROVIDER],
-				defaultModelId: SESSION_MODEL.id,
-				subAgentProfiles: { fast: { modelId: FAST_MODEL.id } },
+				defaultModelId: OTHER_MODEL.id,
+				titleModelId: SESSION_MODEL.id,
 			},
-			emit: (event) => { if (event.type === "title" && event.title === "使用fast总结") summaryApplied.resolve(); },
+			emit: (event) => { if (event.type === "title" && event.title === "指定模型总结") summaryApplied.resolve(); },
 			titleSummaryStream: (_provider, model) => {
 				// oxlint-disable-next-line require-yield
 				return (async function* () {
 					modelsUsed.push(model.id);
-					return reply("使用fast总结");
+					return reply("指定模型总结");
 				})();
 			},
 			streamFn: async () => reply("日常回复"),
@@ -211,7 +211,7 @@ test("prefers fast model when the fast role is configured, falls back to session
 		await session.prompt([{ type: "text", text: "这是一条超过十二个字符的非常长的提示词内容" }]);
 		await summaryApplied.promise;
 
-		assert.deepEqual(modelsUsed, [FAST_MODEL.id], "Summary should run with the configured @fast model");
+		assert.deepEqual(modelsUsed, [SESSION_MODEL.id]);
 
 		await session.dispose();
 	} finally {

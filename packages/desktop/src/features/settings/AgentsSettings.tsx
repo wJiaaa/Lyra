@@ -1,6 +1,6 @@
 import { BUILTIN_AGENTS } from "@plume/core/agents-builtin";
 import type { Settings } from "@plume/core";
-import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@plume/core/model-roles";
+import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@plume/core/model-choice";
 import { resolveModelThinkingOptions, resolveThinkingOption } from "@plume/core/thinking-options";
 import { AlertCircle, Brain, Plus, Copy, RefreshCw, RotateCcw, Trash2 } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -189,6 +189,19 @@ export function AgentsSettings() {
 						<SettingRow name={t("agents.sidechatModel")} detail={t("agents.sidechatModelDetail")}>
 							<ModelSelect ariaLabel={t("agents.sidechatModel")} showIcon={false} value={settings.sideChatModelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} inheritDetail={t("agents.sidechatModelDetail")} disabled={saving}
 								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, sideChatModelId: modelId || null }); }} />
+						</SettingRow>
+						<SettingRow name={t("agents.recapModel")} detail={t("agents.recapModelDetail")}>
+							<ModelSelect ariaLabel={t("agents.recapModel")} showIcon={false} value={settings.recapModelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} inheritDetail={t("agents.recapModelDetail")} disabled={saving}
+								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, recapModelId: modelId || null }); }} />
+						</SettingRow>
+						<SettingRow name={t("agents.titleModel")} detail={t("agents.titleModelDetail")}>
+							<ModelSelect ariaLabel={t("agents.titleModel")} showIcon={false} value={settings.titleModelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} inheritDetail={t("agents.titleModelDetail")} disabled={saving}
+								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, titleModelId: modelId || null }); }} />
+						</SettingRow>
+						{/* 记忆整理不在哪个会话里跑，没选时用的是新会话的默认模型，不是「主会话」。 */}
+						<SettingRow name={t("agents.memoryModel")} detail={t("agents.memoryModelDetail")}>
+							<ModelSelect ariaLabel={t("agents.memoryModel")} showIcon={false} value={settings.memoryModelId ?? ""} inheritLabel={t("agents.followDefaultModel")} inheritedModelId={settings.defaultModelId ?? undefined} inheritedSource={t("common.default")} inheritDetail={t("agents.memoryModelDetail")} disabled={saving}
+								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, memoryModelId: modelId || null }); }} />
 						</SettingRow>
 					</AgentList>
 				</section>}

@@ -184,7 +184,7 @@ export const COMPACTION = "compaction";
  * desktop lost was not cosmetic: `overhead` is the system prompt and the tool schemas, and a
  * budget computed without them lands over the line it was aiming for and then compacts on every
  * single turn; `artifacts` is what makes the `artifact://` address in a pruned placeholder real;
- * `summarizer` is the `@compact` model role. Three features were off on the only host that ships.
+ * `summarizer` is the model chosen for `compact`. Three features were off on the only host that ships.
  *
  * A field added here now reaches every implementation or fails to compile.
  */

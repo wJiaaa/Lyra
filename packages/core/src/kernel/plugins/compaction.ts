@@ -19,7 +19,7 @@ class SummaryCompaction implements CompactionStrategy {
 		 *
 		 * This used to pass the first four and let `compactIfNeeded` default the rest, which meant
 		 * that binding the built-in strategy — what the desktop does at boot — turned off the
-		 * overhead accounting, artifact storage and the `@compact` model role. The built-in policy
+		 * overhead accounting, artifact storage and the `compact` model. The built-in policy
 		 * should behave the same whether or not a context is in the picture.
 		 */
 		return compactIfNeeded(

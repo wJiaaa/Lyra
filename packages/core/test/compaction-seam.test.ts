@@ -6,7 +6,7 @@
  * ran with no overhead accounting (the threshold ignored the system prompt and every tool schema,
  * which is the case the code's own comment says lands over the line and then compacts on every
  * turn), no artifact sink (so a pruned placeholder advertised an `artifact://` address that had
- * nothing behind it) and no summarizer (so the `@compact` model role was ignored). All three
+ * nothing behind it) and no summarizer (so the `compact` model was ignored). All three
  * type-checked. None of it was visible.
  *
  * These tests fail against that shape and are cheap to keep, which is the point: the request is

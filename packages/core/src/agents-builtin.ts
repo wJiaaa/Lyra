@@ -10,11 +10,9 @@ export interface AgentDefinition {
 	/** Tool names the sub-agent may use. `"*"` means every tool the parent has. */
 	tools: string[] | "*";
 	/**
-	 * Which model runs this agent: a role (`@fast`), a model id, or a priority list of either.
-	 *
-	 * A list is what makes a definition portable. `["@fast", "anthropic/claude-haiku-4-5"]` says
-	 * "whatever this machine calls fast, and failing that, this specific one" — a definition naming
-	 * only a concrete model works where it was written and nowhere else.
+	 * Which model runs this agent: a model id, or a priority list of them. Whatever this machine
+	 * cannot find falls through, ending at the session's model. A model picked for this agent in
+	 * settings outranks all of it.
 	 *
 	 * This field existed and was read by nothing: every sub-agent ran on the dispatching session's
 	 * model regardless of what its definition asked for.
@@ -85,14 +83,6 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 		tools: ["read", "glob", "grep", "ls", "bash"],
 		source: "builtin",
 		/*
-		 * Fan-out work, so `@fast` if the machine has one configured.
-		 *
-		 * Exploration is the case the role exists for: several of these run at once, each reading
-		 * many files, and none of them is doing the reasoning that justifies an expensive model.
-		 * Unset roles fall through to the session's model, so this costs nothing by default.
-		 */
-		model: "@fast",
-		/*
 		 * `summary` and `report` are separate on purpose, and the split is the whole design.
 		 *
 		 * `summary` is what the parent reads to decide what to do next, so it has to stay short
@@ -137,11 +127,9 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 		tools: ["read", "glob", "grep", "ls", "bash"],
 		source: "builtin",
 		/*
-		 * `@review` is meant to point at a different model family from the one that wrote the code.
-		 * A model's blind spots correlate with its own output — asking it to review its own work
-		 * gets agreement rather than review.
+		 * Worth giving a different model family in settings: a model's blind spots correlate with
+		 * its own output — asking it to review its own work gets agreement rather than review.
 		 */
-		model: "@review",
 		output: {
 			type: "object",
 			required: ["summary", "findings"],
@@ -194,7 +182,6 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 			"(the `✖` line, the `FAIL` line, the `FAILED` line) — the test's name as the runner printed it, not your " +
 			"paraphrase of it.",
 		tools: ["read", "bash"],
-		model: "@fast",
 		output: {
 			type: "object",
 			required: ["passed", "summary", "failures"],
@@ -220,8 +207,7 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 		source: "builtin",
 	},
 	/*
-	 * 只读规划。`@deep`——这是四个角色里唯一一个「贵一点值得」的场合：规划错了，后面每一步
-	 * 都在错的方向上花钱。不给写工具，所以它没法「顺手先改一点」。
+	 * 只读规划。不给写工具，所以它没法「顺手先改一点」。
 	 */
 	{
 		name: "plan",
@@ -232,7 +218,6 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 			"ordered steps each naming the files it touches, the risks you can see, and what you could not determine " +
 			"from the code alone. Do not write or edit anything. Do not pad: three real steps beat ten vague ones.",
 		tools: ["read", "glob", "grep", "ls"],
-		model: "@deep",
 		output: {
 			type: "object",
 			required: ["steps", "risks", "unknowns"],
@@ -258,14 +243,14 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
 	/*
 	 * 描述是模型挑人时读的原文。以前写「边界清楚的小改动」，等于邀请它把一两步就能做完的活也派出去
 	 * ——派一次的成本是一整轮从零开始的运行，小活自己做永远更便宜。它值得存在的场合是量大而机械的活，
-	 * 交给便宜的模型批量做完。
+	 * 派出去批量做完。
 	 */
 	{
-		name: "simple", description: "量大但机械、边界清楚的改动，交给便宜模型批量做完", avatar: "pill-brown", model: "@fast", tools: "*", source: "builtin",
+		name: "simple", description: "量大但机械、边界清楚的改动，批量做完", avatar: "pill-brown", tools: "*", source: "builtin",
 		systemPrompt: "Complete the delegated task efficiently. Read the necessary context, make only requested changes, verify them and report the result concisely.",
 	},
 	{
-		name: "reason", description: "先想清楚再动手的难题", avatar: "triangle-orange", model: "@deep", tools: "*", source: "builtin",
+		name: "reason", description: "先想清楚再动手的难题", avatar: "triangle-orange", tools: "*", source: "builtin",
 		systemPrompt: "Investigate the delegated problem carefully. Ground decisions in evidence, implement the requested solution, verify the result and report remaining uncertainty.",
 	},
 ];

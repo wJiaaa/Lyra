@@ -14,13 +14,13 @@
  *   **节流。** 一次抽取要读几十个会话，问一次模型。每小时跑一遍不会得到更好的记忆，只会得到
  *   更高的账单。
  *
- *   **模型。** `@fast`，跟计划一致：读几十段转录、输出一个列表，便宜比聪明要紧得多。
+ *   **模型。** 设置里单独选的 `memoryModelId`：读几十段转录、输出一个列表，便宜比聪明要紧得多。
  */
 
 import { join } from "node:path";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import type { Settings } from "../config/settings.ts";
-import { agentProfile, resolveModelRef } from "../config/model-roles.ts";
+import { resolveModelRef } from "../config/model-choice.ts";
 import { resolveModel } from "../config/settings.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import { streamAssistant as realStream } from "../ai/index.ts";
@@ -60,16 +60,11 @@ export function shouldRunPass(settings: Settings, lastRunAt: number | null, now 
 	return { run: true };
 }
 
-/**
- * 抽取用哪个模型：`@fast`，退回会话默认。
- *
- * 这正是那个角色存在的理由——读几十段转录、输出一个列表，便宜比聪明要紧得多。
- */
+/** 抽取用哪个模型：设置里单独选的，没选或已被删掉就用新会话的默认模型。 */
 function passModel(settings: Settings): { provider: ProviderConfig; model: ModelConfig } | null {
 	const fallback = resolveModel(settings, settings.defaultModelId ?? "");
-	if (fallback) return resolveModelRef(settings, "@fast", fallback);
-	const fast = agentProfile(settings, "fast").modelId;
-	return fast ? resolveModel(settings, fast) : null;
+	if (fallback) return resolveModelRef(settings, settings.memoryModelId, fallback);
+	return settings.memoryModelId ? resolveModel(settings, settings.memoryModelId) : null;
 }
 
 /** 上次跑完的时间戳，没跑过就是 null。 */

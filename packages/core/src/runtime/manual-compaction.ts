@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentEventSink, CommandRun } from "../agent/events.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
 import type { StreamFn } from "../agent/run-config.ts";
-import { resolveModelRef } from "../config/model-roles.ts";
+import { compactionModel } from "../config/model-choice.ts";
 import { resolveModel, type Settings } from "../config/settings.ts";
 import { compactWith } from "./compaction.ts";
 import type { CompactOutcome } from "./session-activity.ts";
@@ -62,7 +62,7 @@ async function compactHistory(parts: CompactionParts, instructions: string, sign
 	const history = modelHistory(log, resolved.provider, resolved.model);
 	if (history.length <= 6) return { ok: false, reason: "对话还太短，没什么可压缩的。", code: "too-short" };
 
-	const summarizer = resolveModelRef(parts.settings(), "@compact", resolved);
+	const summarizer = compactionModel(parts.settings(), resolved);
 	/*
 	 * Through the seam, not around it.
 	 *

@@ -6,8 +6,8 @@ import type { RetryPolicySource } from "../config/retry-policy.ts";
  * sentence (threshold of 12 characters). Before the summary lands, the session is given an
  * immediate fallback title sliced from the raw prompt so the sidebar is never left blank.
  *
- * When configured, the `@fast` role model is preferred to keep the summary lightweight and cheap;
- * otherwise it falls back to the session's active model.
+ * The model chosen in settings (`titleModelId`) is used when set; otherwise the session's active
+ * model.
  */
 
 import type { streamAssistant } from "../ai/index.ts";

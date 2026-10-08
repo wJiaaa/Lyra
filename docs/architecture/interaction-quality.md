@@ -54,7 +54,7 @@ projectId 和初始化期间用户设置的标题。
 - `release-version.md` 固定“6 个 package.json”和旧路径，把强制 Release dry run 降为推荐，固化旧发布操作。
 - `dual-repo-release-sync.md` 绑定两个具体仓库的协作关系，应声明项目适用范围，不能当成跨项目通用流程。
 
-进一步使用用户当前配置的 `@fast` 模型，从 37 份符合条件的真实会话中选择 4 份发布相关历史，进行
+进一步使用一个便宜模型，从 37 份符合条件的真实会话中选择 4 份发布相关历史，进行
 无工具调用的提案验证。第一次仅加强提示词仍生成了遗漏当前 AGENTS、手动 add/tag/push 的提案，
 因此没有把“格式合格”当作语义合格。
 
@@ -276,13 +276,14 @@ Git、设置路由、输入框、显示缩放、会话创建和插件/定义删�
 
 “设置 → 智能体”的每个有效定义右侧提供供应商/模型与思考等级选择。配置存入
 `subAgentProfiles[agentName]`，具体模型使用包含供应商的本地 id，同名上游模型不混淆。
-优先级是本机单独配置、定义中的模型引用/角色、派发会话的模型；思考等级依次取单独配置、
+优先级是本机单独配置、定义中的模型 id、派发会话的模型；思考等级依次取单独配置、
 已解析定义的后缀、全局默认，并按实际模型能力显示和执行。切换模型时清除旧等级，非推理模型
 不提供无效档位。明确指定的供应商被禁用或模型被删除时，显示失效状态并拒绝派发，不悄悄换用
 另一供应商。恢复继承删除该智能体的本地覆盖。
 
-`fast`、`deep` 与已有 `review` 都是真实内置定义，设置目录、`@` 选择和 `task` 派发读取同一目录。
-`@compact`、`@fast` 等角色读取 `subAgentProfiles` 里同名的那一项，没有单独的角色字段。`compact` 只提供压缩模型选择，`@compact` 与 `/compact`
+内置定义都在同一个目录里，设置目录、`@` 选择和 `task` 派发读取同一目录。
+`subAgentProfiles.compact` 是压缩模型；智能标题、会话回顾、记忆整理各有自己的设置字段
+（`titleModelId`、`recapModelId`、`memoryModelId`），都在「会话」分组里选，没选时跟随会话模型。`compact` 只提供压缩模型选择，`@compact` 与 `/compact`
 共用内置压缩执行链，并保留附加指令；它不注册成可由 `task` 派发的普通智能体。
 
 每次派发读取最新设置，递归派发沿用同一读取入口；已经开始的模型请求继续使用原配置。
@@ -401,8 +402,8 @@ macOS 跳过；桌面构建、Markdown 链接检查和 `git diff --check` 通过
 回答输入仍限 600 字符，显示高度限 5.5em，底边渐隐；加粗、标题、列表、行内代码不再显示为
 原始 Markdown 标记。点击隐藏不播放退出位移动画，hover 预览仍使用原有轻量过渡。
 
-模型角色、子智能体与聊天复用同一个 ModelMenu：收藏置顶、供应商分组、搜索、品牌图标、
-上下文大小、名称与继承说明的横向渐隐滚动一致。配置模式只保存对应角色或子智能体配置，
+会话分组的模型选择、子智能体与聊天复用同一个 ModelMenu：收藏置顶、供应商分组、搜索、品牌图标、
+上下文大小、名称与继承说明的横向渐隐滚动一致。配置模式只保存对应设置项或子智能体配置，
 不调用会话 setModel，也不显示会话专属的关闭思考/设为默认操作。继承与明确选择分开表示，
 失效模型保留失效提示，保存失败可见。模型菜单上限 420px，设置中的普通下拉上限 340px，
 并受可用视口约束；不同供应商的同名模型在菜单与已选控件中都带供应商名。
@@ -421,7 +422,7 @@ macOS 跳过；桌面构建、Markdown 链接检查和 `git diff --check` 通过
 随后 24 帧宽度不变，落点恒为 40.21875px。桌面 1280px 与窄窗口 375px 下模型菜单均不超过 420px，收藏置顶，
 搜索后的跨供应商结果正确，自定义推理菜单只显示配置声明的等级及继承项。
 
-本轮系统回归覆盖问题导航、Markdown、模型角色、子智能体实际请求、侧聊完整历史与压缩恢复、
+本轮系统回归覆盖问题导航、Markdown、模型选择、子智能体实际请求、侧聊完整历史与压缩恢复、
 Git Index 统计和 C# 高亮、设置路由、弹窗稳定性、图片布局、分组 loading、即时创建会话。
 共 29 项不同的 Electron 用例通过，最后一次导航/视觉细节复验为 9/9。
 `pnpm check`：2798 项、2797 通过、0 失败、1 项 Windows 专属跳过；构建、文档链接和差异检查
@@ -432,7 +433,7 @@ QuestionNav 复用已有 Markdown → CodeBlock → 文件面板 → 会话的�
 `/tmp/plume-navigation-arch.log`、`/tmp/plume-navigation-e2e.log`、
 `/tmp/plume-navigation-final-e2e.log`、`/tmp/plume-navigation-last-e2e.log`。
 实际应用截图位于 `/tmp/plume-navigation-evidence/`，包含 `markdown-question-preview.png`、
-`model-role-favourites.png`、`subagent-model-menu-1280.png`、`subagent-model-menu-375.png`。
+`model-favourites.png`、`subagent-model-menu-1280.png`、`subagent-model-menu-375.png`。
 Windows 原生渲染和真实供应商能力仍需对应环境验证；macOS 测试实例及隔离 profile 自动清理。
 
 ### 工作区工具、交付证据与记忆文件（2026-09-06）

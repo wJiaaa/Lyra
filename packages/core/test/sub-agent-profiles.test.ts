@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_SETTINGS, normalizeSettings } from "../src/config/settings.ts";
-import { normalizeSubAgentProfiles, parseModelRef, resolveSubAgentModel } from "../src/config/model-roles.ts";
+import { normalizeSubAgentProfiles, parseModelRef, resolveSubAgentModel } from "../src/config/model-choice.ts";
 import { runSubAgent } from "../src/runtime/sub-agent.ts";
 import { THINKING_LEVELS, thinkingOptionsFor } from "../src/ai/thinking-options.ts";
 import { BUILTIN_AGENTS, taskTool } from "../src/tools/task.ts";
@@ -10,7 +10,7 @@ import { emptyUsage, type AssistantMessage, type ModelConfig, type ProviderConfi
 const model: ModelConfig = { id: "a/same", providerId: "a", modelId: "gpt-5.6-sol", name: "Same name", contextWindow: 128000, maxOutputTokens: 4096, supportsThinking: true, thinkingOptions: thinkingOptionsFor(THINKING_LEVELS), supportsImages: false, supportsTools: true };
 const provider: ProviderConfig = { id: "a", name: "A", api: "openai-responses", apiKey: "test", baseUrl: "http://localhost", enabled: true, models: [model] };
 const second: ProviderConfig = { ...provider, id: "b", name: "B", models: [{ ...model, providerId: "b", id: "b/same" }] };
-const settings: Settings = { ...DEFAULT_SETTINGS, providers: [provider, second], defaultModelId: model.id, thinking: "low", subAgentProfiles: { fast: { modelId: model.id } } };
+const settings: Settings = { ...DEFAULT_SETTINGS, providers: [provider, second], defaultModelId: model.id, thinking: "low" };
 const fallback = { model, provider };
 const explore = BUILTIN_AGENTS.find((agent) => agent.name === "explore");
 assert.ok(explore);
@@ -19,7 +19,7 @@ test("local profile selects the exact provider, outranks the definition, and inh
 	const chosen = resolveSubAgentModel({ ...settings, subAgentProfiles: { explore: { modelId: "b/same", thinking: "ultra" } } }, explore, fallback);
 	assert.equal(chosen.provider.id, "b"); assert.equal(chosen.model.id, "b/same"); assert.equal(chosen.thinking, "ultra");
 	assert.equal(resolveSubAgentModel(settings, explore, fallback).provider.id, "a");
-	assert.equal(resolveSubAgentModel(settings, { ...explore, model: "@fast:xhigh" }, fallback).thinking, "xhigh");
+	assert.equal(resolveSubAgentModel(settings, { ...explore, model: "a/same:xhigh" }, fallback).thinking, "xhigh");
 	for (const level of ["minimal", "xhigh", "max", "ultra"]) assert.deepEqual(parseModelRef(`a/same:${level}`), { id: "a/same", thinking: level });
 	assert.deepEqual(parseModelRef("kimi:256k"), { id: "kimi:256k" });
 });
@@ -35,10 +35,10 @@ test("thinking follows model capability, including custom levels and non-reasoni
 	const basicSettings = { ...settings, thinking: "ultra", providers: [{ ...provider, models: [basic] }] };
 	// 继承来的档位模型没有时就近取，「极致」落到默认四档里最深的那档。
 	assert.equal(resolveSubAgentModel(basicSettings, explore, { provider, model: basic }).thinking, "high");
-	assert.throws(() => resolveSubAgentModel({ ...basicSettings, subAgentProfiles: { ...settings.subAgentProfiles, explore: { thinking: "ultra" } } }, explore, fallback), /不支持思考等级/);
+	assert.throws(() => resolveSubAgentModel({ ...basicSettings, subAgentProfiles: { explore: { thinking: "ultra" } } }, explore, { provider, model: basic }), /不支持思考等级/);
 	const custom = { ...model, thinkingOptions: [{ id: "deep-custom", label: "Custom", detail: "Custom effort" }] };
-	assert.equal(resolveSubAgentModel({ ...settings, providers: [{ ...provider, models: [custom] }], subAgentProfiles: { ...settings.subAgentProfiles, explore: { thinking: "deep-custom" } } }, explore, fallback).thinking, "deep-custom");
-	assert.equal(resolveSubAgentModel({ ...settings, providers: [{ ...provider, models: [{ ...model, supportsThinking: false }] }] }, explore, fallback).thinking, "off");
+	assert.equal(resolveSubAgentModel({ ...settings, subAgentProfiles: { explore: { thinking: "deep-custom" } } }, explore, { provider, model: custom }).thinking, "deep-custom");
+	assert.equal(resolveSubAgentModel(settings, explore, { provider, model: { ...model, supportsThinking: false } }).thinking, "off");
 });
 
 test("normalization retains valid overrides and discards malformed imported settings", () => {

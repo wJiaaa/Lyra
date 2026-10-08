@@ -34,7 +34,7 @@ import { writePreview } from "./previews.ts";
 import { addressLookups, runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
 import type { DelegationWaits } from "./delegation-waits.ts";
-import { resolveModelRef } from "../config/model-roles.ts";
+import { compactionModel } from "../config/model-choice.ts";
 import type { TurnContext } from "./turn.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
@@ -184,7 +184,7 @@ export function buildTurnConfig(
 			compact: (messages, model, observer, options) => {
 				// 一轮中途换过模型的，供应商跟着 loop 此刻的走，见 `CompactOptions.provider`。
 				const provider = options?.provider ?? deps.provider;
-				const summarizer = resolveModelRef(deps.settings, "@compact", { provider, model });
+				const summarizer = compactionModel(deps.settings, { provider, model });
 				return compactWith({
 					messages,
 					model,

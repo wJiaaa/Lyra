@@ -123,7 +123,7 @@ test("title summary is enabled initially and its switch persists without row ove
 	await verifyRow("title");
 });
 
-test("compact model role persists and clearing it returns to the session model", async () => {
+test("compact model persists and clearing it returns to the session model", async () => {
 	await section("智能体");
 	await waitFor(`Boolean(${compactButton})`);
 	// 没设过的时候，控件显示的是继承来的那个模型，底下一行标着来源——「同会话模型」是它单行
@@ -133,13 +133,7 @@ test("compact model role persists and clearing it returns to the session model",
 	await waitFor('Boolean(document.querySelector("[role=menuitem]"))');
 	await click('[...document.querySelectorAll("[role=menuitem]")].find((item) => item.innerText.includes("Summary model"))');
 	await waitFor(`(${compactButton}).innerText.includes("Summary model")`);
-	/*
-	 * 存的地方也换了。
-	 *
-	 * 这一页现在走 `withAgentProfile`：写进 `subAgentProfiles[name]`，并把同名的 `modelRoles`
-	 * 删掉——`compact` 恰好两边都叫这个名字，所以旧字段读起来永远是空的。见
-	 * `core/src/config/model-roles.ts`。
-	 */
+	// 这一页走 `withAgentProfile`：写进 `subAgentProfiles[name]`。见 `core/src/config/model-choice.ts`。
 	const saved = async () => JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")) as { subAgentProfiles?: Record<string, { modelId?: string }> };
 	assert.equal((await saved()).subAgentProfiles?.compact?.modelId, "fixture/summary");
 	await click(compactButton);

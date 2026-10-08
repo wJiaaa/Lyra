@@ -22,7 +22,7 @@ import { RepetitionWatch } from "../agent/repetition.ts";
 import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
-import { resolveModelRef } from "../config/model-roles.ts";
+import { compactionModel } from "../config/model-choice.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
 import { today, withEnvironment } from "../prompt/environment.ts";
 import { readPromptOverride } from "../prompt/overrides.ts";
@@ -35,7 +35,7 @@ import { ARTIFACTS_KEY, MCP_KEY, PLUGINS_KEY, SESSIONS_KEY } from "../resources/
 import { buildRouter } from "./session-capabilities.ts";
 import { toolPolicy } from "./tool-policy.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
-import { resolveSubAgentModel } from "../config/model-roles.ts";
+import { resolveSubAgentModel } from "../config/model-choice.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
 import { compactWith } from "./compaction.ts";
 import { continueWhileWorkRemains, type ContinuationDeps } from "./continuation.ts";
@@ -497,7 +497,7 @@ export async function runSubAgent(
 	 * tools, which is not what the parent carries.
 	 */
 	const compactHistory: CompactHistory = (messages, model, observer, compactOptions) => {
-		const summarizer = resolveModelRef(options.settings, "@compact", { provider: runProvider, model });
+		const summarizer = compactionModel(options.settings, { provider: runProvider, model });
 		return compactWith({
 			messages,
 			model,

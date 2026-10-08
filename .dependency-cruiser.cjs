@@ -80,7 +80,7 @@ module.exports = {
 				"first Node built-in and the window is blank. Types are erased at compile time and cost " +
 				"nothing. The listed sub-entries are the ones written to be browser-safe. " +
 				"加进这份名单前要真的确认：`config/models` 是把 `resolveModel`/`availableModels` 从 " +
-				"`settings.ts`（顶上就是 node:fs、node:os）里抽出来才安全的，`config/model-roles` 只依赖它，" +
+				"`settings.ts`（顶上就是 node:fs、node:os）里抽出来才安全的，`config/model-choice` 只依赖它，" +
 				"`config/retry-policy` 一个 import 都没有——两个接口、两个常量和三个纯函数。" +
 				"`runtime/delegation` 同样只有一个 `import type`，进名单是因为设置页要算「这一轮实际几个」，" +
 				"而那个数字必须跟闸门真正拦人的那个来自同一份代码——界面自己算一遍，迟早会跟运行时说的不一样。" +
@@ -100,7 +100,7 @@ module.exports = {
 				path: "^packages/core/src",
 				pathNot:
 					"^packages/core/src/(types|tokens|activity|trajectory-view|commands-view|model-catalog|agents-builtin|platform)\\.ts$" +
-					"|^packages/core/src/(config/schedule|config/model-roles|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|ai/thinking-options|runtime/delegation)\\.ts$",
+					"|^packages/core/src/(config/schedule|config/model-choice|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|ai/thinking-options|runtime/delegation)\\.ts$",
 				dependencyTypesNot: ["type-only"],
 			},
 		},

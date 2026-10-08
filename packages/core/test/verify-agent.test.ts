@@ -103,7 +103,6 @@ test("父代理拿到的是失败摘要，不是完整日志", async () => {
 test("verify 只有 read 和 bash——一个会修东西的验证者会在报告之前顺手修掉", () => {
 	const verify = BUILTIN_AGENTS.find((a) => a.name === "verify");
 	assert.deepEqual(verify?.tools, ["read", "bash"]);
-	assert.equal(verify?.model, "@fast", "验证是扇出型工作，便宜的模型就够");
 });
 
 test("plan 没有任何写工具", () => {
@@ -114,7 +113,6 @@ test("plan 没有任何写工具", () => {
 	const plan = BUILTIN_AGENTS.find((a) => a.name === "plan");
 	assert.ok(plan, "plan 该是内置的");
 	assert.ok(Array.isArray(plan.tools) && !plan.tools.some((t) => ["edit", "write", "bash"].includes(t)), `不该有写工具：${JSON.stringify(plan.tools)}`);
-	assert.equal(plan.model, "@deep", "规划错了后面每一步都在错的方向上花钱——这是唯一一个贵一点值得的场合");
 });
 
 test("两个都声明了 output schema，父代理拿到的是结构化的", () => {
