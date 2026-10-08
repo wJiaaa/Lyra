@@ -132,6 +132,7 @@ export class AgentSession {
 	 * 主会话在等的派发：人一开口就放手，放了手的跑完后结果送回来。见 `delegation-waits.ts`。
 	 */
 	private readonly delegations = new DelegationWaits({
+		spoken: () => this.inbox.spoken,
 		detached: (id) => this.subAgents.background(id),
 		settled: (report) => this.deliveries.report(report),
 	});

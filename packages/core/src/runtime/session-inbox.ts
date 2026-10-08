@@ -39,6 +39,17 @@ export class SessionInbox {
 		return this.steering.splice(0, this.steering.length);
 	}
 
+	/**
+	 * 有人说的话排着，循环还没取走。
+	 *
+	 * 等派发的地方据此不再干等（`delegation-waits.ts`）。只在人开口那一刻放手是不够的：话常常是在
+	 * 模型还在写回复时说的，那段回复写完才派出子代理，开口那一刻手上没有等待可放，接下来的等待就把
+	 * 这句话一直压到子代理全部跑完。人是不是在说话，判断和循环清技能限制时用的同一条（`fromPerson`）。
+	 */
+	get spoken(): boolean {
+		return this.steering.some((message) => message.role === "user" && !message.synthetic);
+	}
+
 	get empty(): boolean {
 		return this.queued.length === 0 && this.steering.length === 0;
 	}

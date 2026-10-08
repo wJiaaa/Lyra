@@ -16,6 +16,7 @@ import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { deliveryMessage } from "../src/runtime/delegation-waits.ts";
+import { SessionInbox } from "../src/runtime/session-inbox.ts";
 import { AgedToolPruner } from "../src/agent/aged-prune.ts";
 import { FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../src/agent/prune.ts";
 import { SessionStore } from "../src/session/store.ts";
@@ -80,7 +81,7 @@ async function until(check: () => boolean, what: string, ms = 5000) {
  * 主会话的每一轮按它看到的东西决定说什么：还没派过就派；看到送达就合并。子代理的请求认得出来——
  * 它手里没有 `task`。
  */
-async function harness() {
+async function harness(options: { firstReply?: Promise<void> } = {}) {
 	const root = await mkdtemp(join(tmpdir(), "ly-detach-"));
 	const home = join(root, "home");
 	await mkdir(home, { recursive: true });
@@ -107,6 +108,8 @@ async function harness() {
 			// 末尾那块是运行时接的 `<env>`，不是送达——往回找。
 			if (context.messages.some((message) => message.role === "user" && message.delivery)) return says("合并后的结论：a.ts:12 要补空值判断。");
 			if (!context.messages.some((message) => message.role === "toolResult")) {
+				// 派活的那段回复还在流：测试在这时插话。
+				await options.firstReply;
 				return assistant(
 					[{ type: "toolCall", id: "t1", name: "task", arguments: { description: "审查 a.ts", prompt: "看看 a.ts", subagent_type: "general" }, argumentsText: "{}" }],
 					"toolUse",
@@ -168,6 +171,37 @@ test("人一开口，父会话就不再干等：先回应人，子代理在后�
 	} finally {
 		await h.cleanup();
 	}
+});
+
+test("人在派活的那段回复还在流时开口：之后才开始的等待也当场放手，不把那句话压到子代理跑完", async () => {
+	const reply = deferred();
+	const h = await harness({ firstReply: reply.promise });
+	try {
+		const first = h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
+		await until(() => h.main.length === 1, "派活的那段回复在流");
+		// 这时手上还没有等待可放：话排进去，等这段回复写完才会被读到。
+		await h.session.prompt([{ type: "text", text: "算了 不用了" }]);
+		reply.resolve();
+		await first;
+
+		assert.equal(h.main.length, 2, "子代理没交差，这一轮已经往下走了");
+		const detached = h.main[1].messages.find((message) => message.role === "toolResult");
+		assert.match(detached ? textOf(detached) : "", /转到后台继续跑/);
+		assert.ok(h.main[1].messages.some((message) => message.role === "user" && textOf(message) === "算了 不用了"), "下一轮开头就读到了那句话");
+		assert.equal(h.session.subAgents.list()[0]?.status, "running", "子代理照样在后台跑");
+	} finally {
+		await h.cleanup();
+	}
+});
+
+test("排着的只有运行时的消息时照旧等：送达不是人在说话", () => {
+	const inbox = new SessionInbox();
+	inbox.accept({ message: deliveryMessage([], []) }, "steer", true);
+	assert.equal(inbox.spoken, false);
+	inbox.accept({ message: { role: "user", content: [{ type: "text", text: "停下" }], timestamp: 1 } }, "steer", true);
+	assert.equal(inbox.spoken, true);
+	inbox.takeSteering();
+	assert.equal(inbox.spoken, false, "取走之后就没有没读到的话了");
 });
 
 test("放手之后人按了停止：后台那个也停，停下的结果不再把主会话叫醒", async () => {

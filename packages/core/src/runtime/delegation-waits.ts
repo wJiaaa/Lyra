@@ -7,7 +7,8 @@
  * 一句插话等了两分多钟才被读到）。
  *
  * 所以人一开口，父会话就不再干等：还在等的那几个 `task` 当场交回一句「它转到后台了」，这一轮
- * 接着往下走，下一个回合开头就读到人刚说的话。子代理不受打扰，照样跑完；跑完之后，结果由运行时
+ * 接着往下走，下一个回合开头就读到人刚说的话。话说出口之后、被读到之前才开始的等待也一样当场
+ * 放手（`spoken`）：话常常是在模型还在写回复时说的，那段回复里派出的子代理晚于这句话。子代理不受打扰，照样跑完；跑完之后，结果由运行时
  * 作为一条消息送回主会话（`Session` 那边决定是插进正在跑的那一轮，还是开一个新回合）。
  *
  * 为什么不是「一直都在后台跑」：大多数时候父会话就是要等结果才能往下做，让它每次都派完就走、
@@ -29,6 +30,8 @@ export interface SettledDispatch {
 }
 
 export interface DelegationWaitHooks {
+	/** 人说的话已经排着、还没被读到：这时开始的等待当场放手。 */
+	spoken(): boolean;
 	/** 放手了：登记簿上标一下它转到后台了。 */
 	detached(id: string): void;
 	/** 放了手的那个跑完了：把结果送回主会话。 */
@@ -85,6 +88,8 @@ export class DelegationWaits {
 					else settle({ error: error instanceof Error ? error.message : String(error) });
 				},
 			);
+			// `runSubAgent` 在第一个 await 之前就登记了，所以这时 `id()` 已经有了，放手的结果照样送得回来。
+			if (this.hooks.spoken()) release();
 		});
 	}
 
@@ -107,6 +112,7 @@ export class DelegationWaits {
 					if (this.held.delete(release)) reject(error);
 				},
 			);
+			if (this.hooks.spoken()) release();
 		});
 	}
 
