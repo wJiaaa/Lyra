@@ -17,7 +17,7 @@ import { projectFolders } from "./project-folders.ts";
 import type { ProjectEntry } from "./settings.ts";
 
 /** The same containment rule `read-access.ts` uses: strict about the separator, so `p-old` ⊄ `p`. */
-function within(root: string, path: string): boolean {
+export function within(root: string, path: string): boolean {
 	const rel = relative(resolve(root), resolve(path));
 	return rel === "" || !(rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel));
 }

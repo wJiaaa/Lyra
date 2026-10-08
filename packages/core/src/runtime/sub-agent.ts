@@ -639,6 +639,8 @@ export async function runSubAgent(
 				available: allowed,
 				env: {
 					cwd: options.cwd,
+					// 人说话的对象是主会话，不是它；它也拿不到需要这个的工具（`sessionOnly`）。
+					untilSpokenTo: undefined,
 					/*
 					 * The session's policy, which does not stop applying because the work was delegated.
 					 *

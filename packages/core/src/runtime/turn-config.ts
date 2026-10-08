@@ -129,7 +129,7 @@ export function buildTurnConfig(
 				cwd: deps.cwd,
 				settings: deps.settings,
 				getSettings: deps.getSettings,
-				tools: deps.tools,
+				tools: deps.tools.filter((tool) => !tool.sessionOnly),
 				skills: deps.skills,
 				agents: deps.agents,
 				signal: deps.signal,
@@ -220,6 +220,7 @@ export function buildTurnConfig(
 				...toolPolicy(deps.settings, deps.cwd),
 				allowedPaths: deps.allowedPaths,
 				spawnSubAgent,
+				untilSpokenTo: deps.delegations ? (run) => deps.delegations!.until(run) : undefined,
 				resources: deps.resources,
 				scratchDir: deps.scratchDir,
 				/*

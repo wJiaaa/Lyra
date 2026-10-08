@@ -45,10 +45,12 @@ import {
 	useScopedStopped,
 	useScopedSubAgents,
 	useScopedTodos,
+	useScopedToolRuns,
 	useScopedWorking,
 	useScopedWorkspace,
 } from "../../app/session-scope.tsx";
 import { awaitingSubAgents } from "../../store/subAgents.ts";
+import { awaitingSession } from "../../store/tool-run.ts";
 import { requestRecap } from "../../store/recap.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { useJobReveal } from "./job-reveal.ts";
@@ -100,8 +102,10 @@ export function Composer({ centered = false }: {
 	 *
 	 * 这时候说的话直接送进去，不排队：排队等的是「这一轮做完」，而这一轮在等子智能体，可能是十几
 	 * 分钟。送进去之后运行时让主会话放手、先回应人，子智能体留在后台跑完（`delegation-waits.ts`）。
+	 * 在等另一个会话做完（`wait_for_session`）也一样。
 	 */
-	const parked = awaitingSubAgents(useScopedSubAgents()) && running;
+	const waitingOnSession = awaitingSession(useScopedToolRuns());
+	const parked = (awaitingSubAgents(useScopedSubAgents()) || waitingOnSession) && running;
 	const { compact } = useLayout();
 	const column = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {

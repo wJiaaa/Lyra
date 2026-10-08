@@ -2561,6 +2561,10 @@ export const zhCN = {
 	"web.disconnected": "与桌面端的连接已断开，请稍后重试",
 	"web.noResponse": "桌面端没有响应",
 	"web.callFailed": "调用失败",
+	"peers.from": "来自 {name}",
+	"peers.letter": "其他会话的消息",
+	"peers.open": "打开这个会话",
+	"peers.sessionGone": "这个会话已经不在了",
 } as const;
 
 export type MessageKey = keyof typeof zhCN;

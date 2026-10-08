@@ -317,6 +317,7 @@ export class SideChat {
 						allowedPaths: undefined,
 						projectRoots: undefined,
 						spawnSubAgent: undefined,
+						untilSpokenTo: undefined,
 						resources: undefined,
 						scratchDir: undefined,
 						writePreview: undefined,

@@ -15,7 +15,8 @@ import type { SessionActivity } from "./session-activity.ts";
 import type { SubAgentSummary } from "../types/sub-agent.ts";
 import type { BackgroundJob, BackgroundJobs } from "../tools/background-jobs.ts";
 import { readJob } from "../tools/bash.ts";
-import type { Message } from "../types.ts";
+import type { Message, PeerLetter, UserContent } from "../types.ts";
+import { peerMessage } from "./peer-letters.ts";
 
 /**
  * How long background results are gathered before they are delivered.
@@ -32,13 +33,22 @@ export interface DeliveryDeps {
 	activity: SessionActivity;
 	jobs: () => BackgroundJobs;
 	detail: (id: string) => SubAgentSummary | null;
-	submit: (message: Message) => Promise<void>;
+	/** `followUp`：会话忙着时排到这一轮之后，而不是插进去。 */
+	submit: (message: Message, deliver?: "followUp") => Promise<void>;
+	/** 一次送达收了尾（送了或丢了）；会话据此重新看一眼自己是不是空闲了。 */
+	settled: () => void;
 }
 
 export class SessionDeliveries {
 	private reports: SettledDispatch[] = [];
 	private finishedJobs: BackgroundJob[] = [];
+	/** 其他会话发来的消息；和后台结果一起攒，一起送，见 `peer-letters.ts`。 */
+	private letters: PeerLetter[] = [];
+	/** 要排到收件方这一轮之后的那些：插进去会打断它手上的事，单独成一条、排队送。 */
+	private queuedLetters: PeerLetter[] = [];
 	private timer: ReturnType<typeof setTimeout> | null = null;
+	/** 已经取出、还没交到会话手里的那一次送达；这期间也不算空闲。 */
+	private flushing = false;
 	private readonly deps: DeliveryDeps;
 
 	constructor(deps: DeliveryDeps) {
@@ -59,6 +69,17 @@ export class SessionDeliveries {
 		this.schedule();
 	}
 
+	/** 另一个会话的消息到了；和同一时刻到的其他东西合成一条再送。 */
+	letter(letter: PeerLetter, deliver: "steer" | "followUp" = "steer"): void {
+		(deliver === "followUp" ? this.queuedLetters : this.letters).push(letter);
+		this.schedule();
+	}
+
+	/** 没有攒着待送的东西。会话判断空闲时要看它：攒着的那一条四百毫秒后就会开一轮。 */
+	get empty(): boolean {
+		return this.timer === null && !this.flushing && this.reports.length === 0 && this.finishedJobs.length === 0 && this.letters.length === 0 && this.queuedLetters.length === 0;
+	}
+
 	/**
 	 * After a stop, nothing still being held is delivered.
 	 *
@@ -72,6 +93,8 @@ export class SessionDeliveries {
 	clear(): void {
 		this.reports.length = 0;
 		this.finishedJobs.length = 0;
+		this.letters.length = 0;
+		this.queuedLetters.length = 0;
 		if (this.timer) clearTimeout(this.timer);
 		this.timer = null;
 	}
@@ -87,7 +110,11 @@ export class SessionDeliveries {
 	private schedule(): void {
 		this.timer ??= setTimeout(() => {
 			this.timer = null;
-			void this.flush();
+			this.flushing = true;
+			void this.flush().finally(() => {
+				this.flushing = false;
+				this.deps.settled();
+			});
 		}, DELIVERY_GATHER_MS);
 	}
 
@@ -105,7 +132,9 @@ export class SessionDeliveries {
 			.map((report) => ({ report, summary: this.deps.detail(report.id) }))
 			.filter(({ report, summary }) => summary?.status !== "aborted" && !report.answer?.stoppedByUser);
 		const jobs = this.takeFinishedJobs();
-		if (reports.length === 0 && jobs.length === 0) return;
+		const letters = this.letters.splice(0, this.letters.length);
+		const queued = this.queuedLetters.splice(0, this.queuedLetters.length);
+		if (reports.length === 0 && jobs.length === 0 && letters.length === 0 && queued.length === 0) return;
 		const { activity } = this.deps;
 		// A manual compaction is rewriting the history: wait until it has written the boundary
 		// before coming in, the same as a message from the person.
@@ -116,7 +145,11 @@ export class SessionDeliveries {
 		 * `clear` cannot reach them. Drop them for the same reason, rather than putting them back.
 		 */
 		if (activity.stoppedSince(mark)) return;
-		await this.deps.submit(deliveryMessage(reports, jobs));
+		if (reports.length + jobs.length + letters.length > 0) {
+			await this.deps.submit(combined(reports.length + jobs.length > 0 ? deliveryMessage(reports, jobs) : null, letters));
+		}
+		// 会话闲着时这一条照样开一轮；忙着（或上面那条刚开了一轮）就排到那一轮之后。
+		if (queued.length > 0) await this.deps.submit(peerMessage(queued), "followUp");
 	}
 
 	/**
@@ -138,4 +171,15 @@ export class SessionDeliveries {
 				return { id: job.id, command: job.command, description: job.description, exitCode: job.exitCode, status, failed: job.status === "failed", output: text };
 			});
 	}
+}
+
+/**
+ * 同一刻到的后台结果和来信合成一条：一条消息、一个回合。分开送的话，闲着的会话会为第一条开一轮，
+ * 第二条排在后面再开一轮，每一轮都把整段前缀重发一遍。
+ */
+function combined(delivery: Message | null, letters: PeerLetter[]): Message {
+	if (letters.length === 0 && delivery) return delivery;
+	const mail = peerMessage(letters);
+	if (!delivery || delivery.role !== "user" || mail.role !== "user") return mail;
+	return { ...delivery, peer: letters, content: [...(mail.content as UserContent[]), ...(delivery.content as UserContent[])] };
 }

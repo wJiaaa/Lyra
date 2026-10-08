@@ -88,6 +88,28 @@ export class DelegationWaits {
 		});
 	}
 
+	/**
+	 * 等一件不是派发的事（宿主的工具在等另一个会话做完），同样人一开口就放手：交回 `null`。
+	 *
+	 * 和 `hold` 的差别是放手之后没有东西要送回来——那件事不归这个会话管，要不要再等由模型决定。
+	 */
+	until<T>(run: Promise<T>): Promise<T | null> {
+		return new Promise<T | null>((resolve, reject) => {
+			const release = () => {
+				if (this.held.delete(release)) resolve(null);
+			};
+			this.held.add(release);
+			run.then(
+				(value) => {
+					if (this.held.delete(release)) resolve(value);
+				},
+				(error: unknown) => {
+					if (this.held.delete(release)) reject(error);
+				},
+			);
+		});
+	}
+
 	/** 人开口了：正在等的全部放手。返回放了几个。 */
 	release(): number {
 		const all = [...this.held];

@@ -265,10 +265,10 @@ function resumesTurn(messages: Message[], index: number): boolean {
  * Whether this message is a person starting a turn, rather than the runtime keeping one going.
  *
  * 后台子智能体的结果送回来也算开了一轮：主智能体是被它叫醒的，那一轮的时长和花销是它的，不该
- * 并进人上一次问的那一轮里。
+ * 并进人上一次问的那一轮里。另一个会话发来的消息同理：对收到的一方，那是一件新的事。
  */
 function opensTurn(message: Message): boolean {
-	return message.role === "user" && (!message.synthetic || Boolean(message.delivery)) && !isNudge(message);
+	return message.role === "user" && (!message.synthetic || Boolean(message.delivery) || Boolean(message.peer)) && !isNudge(message);
 }
 
 /**
@@ -339,7 +339,7 @@ function liveWork(messages: Message[], live: number, rowOfCalls: Map<number, num
 		const message = messages[at];
 		if (message.role === "user") {
 			// The runtime's own messages are not the person speaking; see `opensTurn`.
-			if ((message.synthetic && !message.delivery) || isNudge(message)) continue;
+			if ((message.synthetic && !message.delivery && !message.peer) || isNudge(message)) continue;
 			return -1;
 		}
 		// A tool result is the contents of a card, not a step of its own.
@@ -566,7 +566,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		 * 送回来的结果是例外，它是一道缝：主智能体收尾之后被它叫醒，重新干起来。不画出来，读的人
 		 * 看到的是主智能体说完一段话、隔了几分钟又自己动了起来。
 		 */
-		if (message.role === "user" && (message.synthetic || isNudge(message)) && !message.delivery) continue;
+		if (message.role === "user" && (message.synthetic || isNudge(message)) && !message.delivery && !message.peer) continue;
 
 		if (message.role !== "assistant") {
 			out.push({ kind: "message", message, index, upTo: message.content.length });

@@ -2387,4 +2387,8 @@ export const en = {
 	"web.disconnected": "Lost the connection to the desktop — try again in a moment",
 	"web.noResponse": "The desktop did not respond",
 	"web.callFailed": "The call failed",
+	"peers.from": "From {name}",
+	"peers.letter": "Message from another session",
+	"peers.open": "Open that session",
+	"peers.sessionGone": "That session no longer exists",
 } satisfies MessageCatalog;

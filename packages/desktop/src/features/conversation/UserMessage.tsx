@@ -12,17 +12,17 @@ import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
 import { baseName } from "../../lib/paths.ts";
 import { useMemo, useState } from "react";
 import { BubbleText } from "./BubbleText.tsx";
+import { jumpToSession } from "./jump-to-session.ts";
 import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
-import { focusScreenOf, useDockScope, useScopedFromMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
+import { useDockScope, useScopedFromMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { lastUserMessageIndex } from "../../lib/revert-draft.ts";
-import { afterPaint } from "../../lib/after-paint.ts";
 import { SESSION_THUMB_EDGE, sessionMediaUrl } from "../../../shared/session-image.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 /**
@@ -465,24 +465,7 @@ export function UserMessage({
                 type="button"
                 data-ly-tip={t("userMessage.jumpToSession")}
                 onClick={() => {
-                  const target = useApp.getState().sessions.find((s) => s.id === sRef.id);
-                  if (target) {
-                    /*
-                     * Where it was pressed. A press on another screen focuses that screen first, so the
-                     * conversation took its place; the keyboard reaches the capsule without that press,
-                     * and it replaced the screen with focus instead. This screen takes the live slot the
-                     * way the press does, and the split does the rest — in place of this screen, or by
-                     * moving the focus to the screen already showing it.
-                     */
-                    if (sessionId !== useApp.getState().activeSessionId) focusScreenOf(sessionId);
-                    const epoch = useApp.getState().previewSession(target);
-                    void afterPaint().then(() => {
-                      if (useApp.getState().selectionEpoch !== epoch) return;
-                      void useApp.getState().openSession(target);
-                    });
-                  } else {
-                    useApp.getState().notify(t("userMessage.sessionMissing", { title: sRef.title }), "warn");
-                  }
+                  if (!jumpToSession(sessionId, sRef.id)) useApp.getState().notify(t("userMessage.sessionMissing", { title: sRef.title }), "warn");
                 }}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-line-soft bg-card-hover/80 px-2 py-0.5 text-caption font-medium text-ink-muted transition-colors hover:bg-card-hover hover:text-ink active:scale-[0.98]"
               >

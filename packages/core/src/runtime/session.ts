@@ -25,7 +25,7 @@ import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsPr
 import { SESSIONS_KEY } from "../resources/more-handlers.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
 import type { SessionStorage } from "../session/storage.ts";
-import type { ApprovalDecision, ApprovalRequest, Message, MessageAttachment, ThinkingLevel, Tool, UserContent } from "../types.ts";
+import type { ApprovalDecision, ApprovalRequest, Message, MessageAttachment, PeerLetter, ThinkingLevel, Tool, UserContent } from "../types.ts";
 import { ApprovalGate, sessionApprovalGate } from "./approvals.ts";
 import type { ContextBreakdown } from "./context.ts";
 import { describeContext, describeSession, type SessionFacts, type SessionStatus } from "./reporting.ts";
@@ -141,6 +141,8 @@ export class AgentSession {
 	private viewsSeededFor: Message[] | null = null;
 	/** Whether the previous process's sub-agents are back on the roster; see `restoreSubAgents`. */
 	private subAgentsRestored = false;
+	/** 等着这个会话闲下来的人；见 `whenIdle`。 */
+	private readonly idleWaiters: Array<() => void> = [];
 	/** 正在跑的那一轮对「模型换了」的订阅；见 `liveModel`。 */
 	private readonly modelListeners = new Set<() => void>();
 	/**
@@ -200,7 +202,8 @@ export class AgentSession {
 			activity: this.activity,
 			jobs: () => backgroundJobs(this.can.state),
 			detail: (id) => this.subAgents.detail(id),
-			submit: (message) => this.submit(message, { fromPerson: false }),
+			submit: (message, deliver) => this.submit(message, { fromPerson: false, deliver }),
+			settled: () => this.checkIdle(),
 		});
 		backgroundJobs(this.can.state).onFinished((job) => this.deliveries.jobFinished(job));
 		this.approvals = sessionApprovalGate({
@@ -241,6 +244,54 @@ export class AgentSession {
 
 	get running(): boolean {
 		return this.activity.running;
+	}
+
+	/** 这一刻真正生效的设置：应用的那一份叠上项目层。宿主要按它判断模式，而不是按全局那份。 */
+	get settingsInEffect(): Settings {
+		return this.settings;
+	}
+
+	/**
+	 * 手上什么都没有了：不在跑、没有攒着待送的结果、任务队列里没有等着的。
+	 *
+	 * 比 `running` 宽。一轮刚收尾时 `running` 已经为假，可排队的任务马上就要开下一轮，攒着的
+	 * 后台结果四百毫秒后也要开一轮——那时候告诉别人「它闲了」，对方接过手去，两边就同时在动。
+	 */
+	get idle(): boolean {
+		return !this.running && this.deliveries.empty && !this.tasks.list().some((task) => task.status === "queued" || task.status === "running");
+	}
+
+	/** 下一次 `idle` 成立时兑现；此刻就闲着则立刻兑现。会话被处置时随之兑现，等的人自己再看它还在不在。 */
+	whenIdle(): Promise<void> {
+		return new Promise((resolve) => {
+			this.idleWaiters.push(resolve);
+			this.checkIdle();
+		});
+	}
+
+	/**
+	 * 另一个会话发来的一条消息。
+	 *
+	 * 和后台结果走同一条路：攒一小会儿，闲着就开一轮。忙着时 `followUp` 排到这一轮做完之后，
+	 * `steer` 插进这一轮。不是人开口，所以不放开正在等的子代理，也不清技能限制——见 `submit` 的
+	 * `fromPerson`。
+	 */
+	receive(letter: PeerLetter, deliver: "steer" | "followUp" = "steer"): void {
+		this.deliveries.letter(letter, deliver);
+	}
+
+	/**
+	 * 隔一拍再看。
+	 *
+	 * 回合收尾时排队的任务是 `void this.tasks.drain()` 拉起来的，同一拍里它还没来得及占住会话；
+	 * 当场判断会把「下一件马上开始」看成「闲了」。
+	 */
+	private checkIdle(): void {
+		if (this.idleWaiters.length === 0) return;
+		setTimeout(() => {
+			if (!this.idle) return;
+			for (const resolve of this.idleWaiters.splice(0, this.idleWaiters.length)) resolve();
+		}, 0);
 	}
 
 	/** Load skills, agents and MCP tools. Safe to call again after settings change. */
@@ -607,7 +658,10 @@ export class AgentSession {
 			await this.drainPending();
 		};
 		const held = this.activity.hold("resume", resume);
-		void held.finally(() => void this.tasks.drain()).catch(() => {});
+		void held.finally(() => {
+			void this.tasks.drain();
+			this.checkIdle();
+		}).catch(() => {});
 		return held;
 	}
 
@@ -717,7 +771,10 @@ export class AgentSession {
 			await this.drainPending();
 		};
 		try { await this.activity.hold("prompt", accept); }
-		finally { void this.tasks.drain(); }
+		finally {
+			void this.tasks.drain();
+			this.checkIdle();
+		}
 	}
 
 	/**
@@ -840,6 +897,8 @@ export class AgentSession {
 		// Stop means stop. Letting the queue carry on after the button was pressed would be
 		// the opposite of what pressing it asks for.
 		void this.tasks.cancelAll();
+		// 闲着时按停，攒着的来信被清掉了，没有哪个回合收尾会再替等的人看一眼。
+		this.checkIdle();
 	}
 
 	/** Wait for in-flight tools before discarding a plan so a late todo_write cannot restore it. */

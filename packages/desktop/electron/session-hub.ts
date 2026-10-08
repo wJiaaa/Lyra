@@ -25,6 +25,8 @@ import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { noteTranscriptFiles } from "./attachment-reads.ts";
 import { eachAppWindow } from "./window.ts";
+import { createPeerRouter } from "./session-peers.ts";
+import { createPeerTools } from "./peer-tools.ts";
 
 export interface HubDeps {
 	store(): SessionStorage;
@@ -55,6 +57,19 @@ const abortedWhileStarting = new Set<string>();
 /** Chosen for deletion and not gone yet: nothing new may start on them. See `deleteIdleSessions`. */
 const deleting = new Set<string>();
 
+/**
+ * 会话之间的消息。只认已经起来、没在退场的：还在初始化的那个没有工具也没有项目层，正在删的
+ * 那个收了消息也没人读。
+ */
+const peers = createPeerRouter({
+	live: () => Array.from(sessions.entries())
+		.filter(([id]) => ready.has(id) && !retiring.has(id) && !deleting.has(id))
+		.map(([, session]) => session),
+	settings: () => deps.settings(),
+});
+/** 每个会话都有的那三件工具；状态全在 `peers` 里，所以一份就够。 */
+const peerTools = createPeerTools(peers);
+
 export async function createSession(cwd: string, modelId: string, initial?: InitialPrompt): Promise<SessionSnapshot> {
 	const saved = await createStoredSession(deps.store(), deps.settings(), cwd, modelId, initialPrompt(initial));
 	stageSession(saved);
@@ -65,7 +80,7 @@ export async function createSession(cwd: string, modelId: string, initial?: Init
 function stageSession(saved: SessionSnapshot): AgentSession {
 	const browser = createBrowserTools();
 	const session = new AgentSession({ cwd: saved.meta.cwd, settings: deps.settings(), store: deps.store(), meta: saved.meta,
-		extraTools: browser.tools, emit: (event) => broadcast(saved.meta.id, event) });
+		extraTools: [...browser.tools, ...peerTools], emit: (event) => broadcast(saved.meta.id, event) });
 	session.restore(saved.messages);
 	sessions.set(saved.meta.id, session);
 	browsers.set(saved.meta.id, browser.dispose);
@@ -80,6 +95,7 @@ export const promptSession: PlumeApi["agent"]["prompt"] = async (id, content, op
 		const requested = promptOptions(options);
 		const session = await ensureLiveSession(id);
 		if (!session) throw new Error(`Session ${id} is not open.`);
+		peers.personSpoke(id);
 		// Both transports return after activation; a multi-minute turn is delivered by events.
 		const turn = requested.resumePending ? session.resumePendingPrompt() : session.prompt(input, requested);
 		handedOff = true;
@@ -203,6 +219,7 @@ export function broadcastSessionChange(change: SessionChange): void {
 }
 
 export function broadcast(sessionId: string, event: AgentEvent): void {
+	peers.observe(sessionId, event);
 	// 活会话的回复不经过快照：这一轮刚交付、链着验证截图的那条，正是人马上要点的。
 	if (event.type === "message_end") noteTranscriptFiles([event.message]);
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
@@ -238,7 +255,7 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 		cwd: sessionCwd,
 		settings: appSettings,
 		store: deps.store(),
-		extraTools: browser.tools,
+		extraTools: [...browser.tools, ...peerTools],
 		emit: (event: AgentEvent) => broadcast(session.meta.id, event),
 	});
 	await session.initialize();
@@ -300,6 +317,8 @@ export async function snapshot(session: AgentSession): Promise<SessionSnapshot> 
 
 /** Tear down a live session's agent, MCP servers and browser. Safe to call for unknown ids. */
 export async function disposeSession(sessionId: string): Promise<void> {
+	// 先于处置：处置会让等它的人醒来，那时它的链和「在等谁」都该已经清掉。
+	peers.forget(sessionId);
 	retiring.add(sessionId);
 	submitted.delete(sessionId);
 	try { await initializing.get(sessionId); } catch { /* Failed initialization still owns resources to release. */ }

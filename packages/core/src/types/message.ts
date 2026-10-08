@@ -268,6 +268,13 @@ export interface UserMessage {
 	 */
 	delivery?: DeliveredReport[];
 	/**
+	 * 另一个会话的模型发来的消息——不是看着这个面板的人说的话。
+	 *
+	 * `content` 是给模型读的那份（外面套着 `<session-message>`）；这一项给界面画成「来自 X」，
+	 * 并让回信的那一方接上同一条链（见 `runtime/peer-letters.ts`）。
+	 */
+	peer?: PeerLetter[];
+	/**
 	 * The files that were attached, by name and kind — never their contents.
 	 *
 	 * A text attachment's body is expanded into the prompt, which is what the model needs and the
@@ -297,6 +304,26 @@ export interface DeliveredReport {
 	status: "done" | "failed" | "aborted";
 	/** 没做完就停下了（检查点、原地打转、上游出错）——报告是阶段性的。 */
 	incomplete?: boolean;
+}
+
+/**
+ * 另一个会话发来的一条消息。
+ *
+ * 只有这一种：要等对方做完，发件方自己调 `wait_for_session`，结果作为那次调用的返回值回来，
+ * 不由运行时另递回执（见 docs/adr/0040-session-messaging.md）。
+ */
+export interface PeerLetter {
+	/** 这一封的 id：发件方等的是收到它的那一次运行，见桌面端的 `peer-runs.ts`。旧记录里没有。 */
+	id?: string;
+	/** 对方会话的 id，界面据此跳过去。 */
+	sessionId: string;
+	/** 寄出那一刻对方的地址，`名字 [ref]`；要再找它时原样当作 `to`。 */
+	from: string;
+	text: string;
+	/** 对方的工作目录，跨项目时路径的意思会变，模型要知道是从哪儿说的。 */
+	cwd?: string;
+	/** 这封信所在的往来链，按经手的会话 id 排；跳数上限在桌面端的 `peer-policy.ts`。 */
+	chain?: string[];
 }
 
 export interface RequestPrefix {

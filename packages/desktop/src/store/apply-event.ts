@@ -123,7 +123,9 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
    * 看的是名单：主会话派出去、还没完、也还没转到后台的那几个。每次名单一变都会来一次，送过一次
    * 之后它们就被标成后台了，不会一条接一条地把队伍全送进去。
    */
-  if (event.type === "subagents" && (get().queued[sessionId]?.length ?? 0) > 0 && awaitingSubAgents(event.agents)) {
+  // 主会话开始等另一个会话做完（`wait_for_session`）时同理：排着的队首送进去，运行时让它放手。
+  const parks = event.type === "subagents" ? awaitingSubAgents(event.agents) : event.type === "tool_start" && event.toolName === "wait_for_session";
+  if (parks && (get().queued[sessionId]?.length ?? 0) > 0) {
     const activity = get().activity[sessionId];
     if (activity === "running" || activity === "waiting") {
       queueMicrotask(() => {

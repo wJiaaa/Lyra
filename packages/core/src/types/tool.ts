@@ -138,6 +138,13 @@ export interface ToolContext {
 	 * flattening it, so the renderer and `agent://` can both index into it.
 	 */
 	spawnSubAgent?: (input: SubAgentInput) => Promise<SubAgentAnswer>;
+	/**
+	 * 等一件不在这一轮里的事，但人一开口就放手：放手时交回 `null`。
+	 *
+	 * 插话只在两轮之间才有人取，卡在等待上的工具调用会把人说的话压到它返回为止。只有主会话给
+	 * （见 `delegation-waits.ts`）；没有它，工具就一直等到底。
+	 */
+	untilSpokenTo?: <T>(run: Promise<T>) => Promise<T | null>;
 	/** Shared per-session scratch space (todo list, file read cache, ...). */
 	state: Map<string, unknown>;
 	/**
@@ -286,6 +293,13 @@ export interface Tool<TArgs = Record<string, unknown>> extends ToolSpec {
 	executionModeFor?(args: TArgs): "parallel" | "sequential";
 	/** Tools that mutate the workspace go through the approval flow. */
 	mutating?: boolean;
+	/**
+	 * 只给会话本身，派出去的子代理拿不到。
+	 *
+	 * 定义里 `tools: "*"` 的子代理继承会话的全部工具，宿主注入的也在内。跨会话通信是会话之间的事：
+	 * 子代理以会话的名义给别人写信，回信却送回会话，子代理自己永远收不到。
+	 */
+	sessionOnly?: boolean;
 	execute(args: TArgs, ctx: ToolContext): Promise<ToolResult>;
 	/** One-line summary shown in the UI while the tool runs. */
 	summarize?(args: TArgs): string;
