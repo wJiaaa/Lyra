@@ -129,8 +129,8 @@ const SAMPLE = `(() => {
 	return {
 		running: Boolean(document.querySelector('main button[aria-label="停止"]')),
 		folds: [...document.querySelectorAll("main [data-ly-turn-process]")].map((el) => el.dataset.lyTurnProcess),
-		foldGlides: document.querySelectorAll("main [data-ly-turn-process] > button .ly-glide").length,
-		glides: document.querySelectorAll("main .ly-glide").length,
+		foldGlides: document.querySelectorAll("main [data-ly-turn-process] > button .ly-glide:not([data-ly-scroll-dup])").length,
+		glides: document.querySelectorAll("main .ly-glide:not([data-ly-scroll-dup])").length,
 		drop: outside.map((el) => el.innerText.replace(/\\s+/g, " ").trim()).join(" / "),
 		line: [...document.querySelectorAll("main [data-ly-turn-process] > button .ly-flow-summary")].map((el) => el.innerText.trim()).join(" / "),
 	};

@@ -205,7 +205,7 @@ const SAMPLE = `(() => {
 	return {
 		marks: rows.map((row) => row.dataset.lyRun),
 		folds: [...document.querySelectorAll("main [data-ly-turn-process]")].map((fold) => fold.dataset.lyTurnProcess),
-		glides: document.querySelectorAll("main .ly-glide").length,
+		glides: document.querySelectorAll("main .ly-glide:not([data-ly-scroll-dup])").length,
 		// The stop button is the store's own answer to whether a turn is running.
 		running: Boolean(document.querySelector('main [aria-label="停止"]')),
 		// The summary by its class: the button's first span is the icon slot, which reads as nothing.

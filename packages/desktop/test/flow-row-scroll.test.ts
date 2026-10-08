@@ -58,7 +58,12 @@ test("过程行停下来之后也是虚化加悬停自读", async () => {
 	const source = await read("src/features/conversation/FlowRow.tsx");
 	assert.match(source, /ui\/scroll\/ScrollText/);
 	// 正在写的那一句不换壳：字尾顶右另有一套，而且它是帧循环直接写进 DOM 的。
-	assert.match(source, /\{followEnd \? summary : <ScrollText text=\{summary\} \/>\}/);
+	assert.match(source, /\{followEnd \? summary : <ScrollText text=\{summary\} textClassName=\{running \? "ly-glide" : ""\} \/>\}/);
+	// 扫光挂在装字的那一层，不挂在外层：外层的 `background-clip: text` 裁不到悬停滚动时被单独合成的字，整句会消失。
+	assert.match(source, /running && followEnd \? "ly-glide" : ""/);
+	const scroll = await read("src/ui/scroll/ScrollText.tsx");
+	assert.match(scroll, /<span ref=\{body\} className=\{`inline-block \$\{textClassName\}`\}>/);
+	assert.match(scroll, /className=\{`absolute top-0 inline-block invisible \$\{textClassName\}`\}/);
 	// 悬停自读的钩子属于整行。
 	assert.match(source, /const shell = `ly-flow-row ly-scroll /);
 });

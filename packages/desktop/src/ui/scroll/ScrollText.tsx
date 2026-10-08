@@ -22,7 +22,22 @@ const SPEED = 46;
  * when the pointer crosses it. The parent row carries `ly-scroll`, which is what the hover
  * rules in styles.css key off.
  */
-export function ScrollText({ text, className = "" }: { text: ReactNode; className?: string }) {
+export function ScrollText({
+	text,
+	className = "",
+	textClassName = "",
+}: {
+	text: ReactNode;
+	className?: string;
+	/**
+	 * Put on the spans that hold the glyphs — the text and its looping copy — not on the box.
+	 *
+	 * For anything painted through the text itself (`background-clip: text`, the running glide). On
+	 * the box it is clipped to glyphs in the box's own layer, and the marquee's transform lifts the
+	 * track into a layer of its own: on hover the whole line went blank.
+	 */
+	textClassName?: string;
+}) {
 	const box = useRef<HTMLSpanElement>(null);
 	const body = useRef<HTMLSpanElement>(null);
 	/** 越出盒子的那一截，和悬停时读不到的那一截——后者把控件占掉的宽度也算进去。 */
@@ -122,7 +137,7 @@ export function ScrollText({ text, className = "" }: { text: ReactNode; classNam
 			}
 		>
 			<span className={scrolls ? "ly-marquee-track ly-scroll-text-track" : "inline-block"}>
-				<span ref={body} className="inline-block">
+				<span ref={body} className={`inline-block ${textClassName}`}>
 					{text}
 				</span>
 				{/* The duplicate must not change the flex basis and feed back into overflow measurement. */}
@@ -130,7 +145,7 @@ export function ScrollText({ text, className = "" }: { text: ReactNode; classNam
 					<span
 						aria-hidden
 						data-ly-scroll-dup
-						className="absolute top-0 inline-block invisible"
+						className={`absolute top-0 inline-block invisible ${textClassName}`}
 						style={{ left: width + GAP }}
 					>
 						{text}

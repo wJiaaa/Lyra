@@ -70,6 +70,9 @@ export function FlowRow({
 			 * key 放外层的话，句子每多一个从句（「读取文件 8 个」变成 9 个）React 就换掉正在扫光的那个
 			 * 元素，光就跳回起点——一次忙碌的运行里每秒好几次，那是闪烁不是扫过。光属于这一行（它和
 			 * 这段活一样长命），淡入属于那些字（变的是它们）。
+			 *
+			 * 不逐字写的时候，光交给 `ScrollText` 里装字的那两个 span（同样不随句子重建）。挂在这一层的话，
+			 * 悬停一滚，滚动的那层被单独合成，这里的 `background-clip: text` 裁不到它的字，整句就没了。
 			 */}
 			{/*
 			 * 正在逐字写的那一句借 `ly-fade-edge` 的遮罩：两头化开，深浅由 flow-row.css 说了算。
@@ -77,7 +80,7 @@ export function FlowRow({
 			 */}
 			{summary !== undefined && summary !== null && summary !== "" && (
 				<span
-					className={`ly-flow-summary ${running ? "ly-glide" : ""} ${followEnd ? "ly-fade-edge" : ""}`}
+					className={`ly-flow-summary ${running && followEnd ? "ly-glide" : ""} ${followEnd ? "ly-fade-edge" : ""}`}
 					data-follow-end={followEnd ? "" : undefined}
 				>
 					{/*
@@ -91,7 +94,7 @@ export function FlowRow({
 					 * 而且那一句是帧循环直接写进 DOM 的——`ScrollText` 会把它复制一份做无缝循环，复制件
 					 * 拿不到那支 ref，一行字就此分叉成两句。
 					 */}
-					{followEnd ? summary : <ScrollText text={summary} />}
+					{followEnd ? summary : <ScrollText text={summary} textClassName={running ? "ly-glide" : ""} />}
 				</span>
 			)}
 			{trailing && <span className="ly-flow-trail">{trailing}</span>}

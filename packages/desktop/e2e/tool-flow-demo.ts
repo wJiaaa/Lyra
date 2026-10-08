@@ -127,7 +127,7 @@ try {
 			groupHeads: document.querySelectorAll("main [data-ly-run] > button").length,
 			outside: [...document.querySelectorAll("main [data-ly-tool], main [data-ly-thinking]")].filter((row) => !row.closest("[data-ly-process-rail]")).length,
 			rows: [...document.querySelectorAll("main [data-ly-tool]")].map((row) => row.innerText.replace(/\\s+/g, " ").trim()),
-			glides: document.querySelectorAll("main .ly-glide").length,
+			glides: document.querySelectorAll("main .ly-glide:not([data-ly-scroll-dup])").length,
 			rail: Boolean(proc?.querySelector("[data-ly-process-rail]") && getComputedStyle(proc.querySelector("[data-ly-process-rail]")).borderLeftWidth !== "0px"),
 		};
 	})()`);
