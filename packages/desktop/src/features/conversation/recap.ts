@@ -18,13 +18,16 @@ export function watchRecapArrivals(): () => void {
 	let away: { sessionId: string; since: number; ended: boolean } | null = null;
 
 	const unsubscribe = useApp.subscribe((state, previous) => {
+		/*
+		 * 人开口了：回顾的事办完了。只认人发出去的那一条，不认「新的一轮开始」——子智能体的结果送回
+		 * 来也会开始一轮，那时人还没接上。切走再切回来也不收：回顾一直留着，直到人说话或者自己点掉。
+		 * 切会话那一次不算：缓存里带回来的是那个会话以前发的那条。
+		 */
+		const sent = state.pendingUserMessage;
+		if (sent && sent !== previous.pendingUserMessage && state.activeSessionId === previous.activeSessionId && sent.message.role === "user" && !sent.message.synthetic && sent.sessionId) dismissRecap(sent.sessionId);
 		if (state.activeSessionId !== previous.activeSessionId) {
 			const left = previous.activeSessionId;
-			if (left) {
-				if (!previous.loadingSession) seen.set(left, previous.messages.length);
-				// 卡片说的是「刚回来」的事，人走开再回来就不是同一次回来了。
-				dismissRecap(left);
-			}
+			if (left && !previous.loadingSession) seen.set(left, previous.messages.length);
 			const arrived = state.activeSessionId;
 			// 打开会话时这个标记在同一次 set 里被清掉，所以要从 previous 读。
 			const outcome = arrived ? previous.activity[arrived] : undefined;
@@ -33,9 +36,7 @@ export function watchRecapArrivals(): () => void {
 		}
 		const id = state.activeSessionId;
 		if (!id || state.running === previous.running) return;
-		// 新的一轮开始了：人已经接上了，卡片的事办完了。
-		if (state.running) dismissRecap(id);
-		else if (away?.sessionId === id) away.ended = true;
+		if (!state.running && away?.sessionId === id) away.ended = true;
 	});
 
 	const onBlur = () => {

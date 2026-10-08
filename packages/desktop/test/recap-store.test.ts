@@ -29,7 +29,7 @@ const offer = (id: string) => useRecaps.getState().offers[id];
 
 beforeEach(() => {
 	useRecaps.setState({ offers: {} });
-	useApp.setState({ activeSessionId: "a", messages: [message, message], loadingSession: false, running: false, activity: {} });
+	useApp.setState({ activeSessionId: "a", messages: [message, message], loadingSession: false, running: false, activity: {}, pendingUserMessage: null });
 	reply = async () => ({ ok: true, recap: { text: "做完了", covered: 1, coveredAt: 1, at: 1 } });
 });
 
@@ -73,15 +73,47 @@ describe("arrivals", () => {
 		}
 	});
 
-	it("leaves it alone when nothing ended while away, and drops it once a new turn starts", () => {
+	it("leaves it alone when nothing ended while away", () => {
 		const stop = watchRecapArrivals();
 		try {
 			listeners.get("blur")?.();
 			listeners.get("focus")?.();
 			assert.equal(offer("a"), undefined);
+		} finally {
+			stop();
+		}
+	});
 
+	it("keeps it through switching away and back, and through a turn nobody asked for", () => {
+		const stop = watchRecapArrivals();
+		try {
 			offerRecap("a", null);
+			useApp.setState({ activeSessionId: "b", messages: [] });
+			useApp.setState({ activeSessionId: "a", messages: [message, message] });
+			assert.equal(offer("a")?.status, "measuring", "切走再切回来还在");
+
+			// 子智能体的结果送回来，主智能体自己开了一轮。
 			useApp.setState({ running: true });
+			useApp.setState({ running: false });
+			assert.equal(offer("a")?.status, "measuring", "不是人开的口");
+
+			// 切回来时缓存带回的是以前那一条，不算这一次发的。
+			useApp.setState({ activeSessionId: "b", messages: [] });
+			useApp.setState({ activeSessionId: "a", messages: [message, message], pendingUserMessage: { sessionId: "a", message } });
+			assert.equal(offer("a")?.status, "measuring", "切会话带回来的旧消息");
+		} finally {
+			stop();
+		}
+	});
+
+	it("drops it once you send something, but not for a synthetic message", () => {
+		const stop = watchRecapArrivals();
+		try {
+			offerRecap("a", null);
+			useApp.setState({ pendingUserMessage: { sessionId: "a", message: { ...message, synthetic: true } }, running: true });
+			assert.equal(offer("a")?.status, "measuring");
+
+			useApp.setState({ pendingUserMessage: { sessionId: "a", message: { ...message, timestamp: 2 } } });
 			assert.equal(offer("a"), undefined);
 		} finally {
 			stop();

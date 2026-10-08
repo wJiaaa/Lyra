@@ -1,7 +1,7 @@
 /**
  * 写给回来的人看的会话回顾：做到哪了、还剩什么、要不要他动手。
  *
- * 和压缩摘要是两回事。那份写给模型，长、结构化，只在上下文快满时才有；这份写给人，三行以内，
+ * 和压缩摘要是两回事。那份写给模型，长、结构化，只在上下文快满时才有；这份写给人，一句话，
  * 不进模型的上下文——混进去既花 token，又让模型把自己写的概括当成事实。
  *
  * 增量地写，做法照 synara 的 thread recap：上一版回顾加上那之后新增的对话，让模型改写成新的
@@ -21,8 +21,8 @@ import { filesSeen } from "./compaction.ts";
 import { taskContextFromHistory } from "./task-context.ts";
 
 const RECAP_TIMEOUT_MS = 20_000;
-const RECAP_MAX_LINES = 3;
-const RECAP_LINE_CHARS = 120;
+/** 提示词要 120 字以内；硬上限留些余量，模型数字数和我们数码点不总是一致，差几个字不该被截断。 */
+const RECAP_CHARS = 160;
 /** 第一版要有足够的来龙去脉；之后只看新增的那几条。 */
 const FIRST_MESSAGES = 8;
 const DELTA_MESSAGES = 6;
@@ -33,8 +33,8 @@ const CHANGED_FILES = 8;
 const RECAP_SYSTEM = [
 	"你在为一段编程助手的对话写回顾，读者是离开一阵后回来的用户。他要一眼知道：在做什么、做到哪了、接下来要他做什么。",
 	"规则：",
-	`1. 最多 ${RECAP_MAX_LINES} 行，每行一件事，每行不超过 40 个字；`,
-	"2. 先说最近完成的具体工作，再说没做完的、卡住的，或需要用户决定的事；",
+	"1. 只写一句话，不超过 120 个字，不换行；",
+	"2. 先说最近完成的具体工作，有没做完的、卡住的，或需要用户决定的事，接在同一句里；",
 	"3. 只写素材里有的事实，不编造完成的工作、文件、测试或决定；",
 	"4. 使用与对话相同的语言；",
 	"5. 只输出回顾正文：不加标题、前缀、编号、项目符号或 Markdown；",
@@ -97,16 +97,14 @@ export function recapSource(messages: readonly Message[], previous?: SessionReca
 	return { material, state: state.join("\n"), ...(continues ? { previous: previous.text } : {}) };
 }
 
-/** 模型偶尔还是会加编号、符号或前缀；按行剥掉，最多留三行。 */
+/** 模型偶尔还是会加编号、符号或前缀，或者不听话写成几行；按行剥掉，只留第一句。 */
 export function cleanRecap(raw: string): string {
 	const text = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/^```[a-z]*\n?([\s\S]*?)```$/i, "$1");
-	return text
+	const first = text
 		.split("\n")
 		.map((line) => line.trim().replace(/^(?:[-*•·]|\d+[.、)])\s*/, "").replace(/^(?:回顾|Recap)\s*[:：]\s*/i, "").trim())
-		.filter(Boolean)
-		.slice(0, RECAP_MAX_LINES)
-		.map((line) => squeeze(line, RECAP_LINE_CHARS))
-		.join("\n");
+		.find(Boolean);
+	return first ? squeeze(first, RECAP_CHARS) : "";
 }
 
 export type RecapOutcome =

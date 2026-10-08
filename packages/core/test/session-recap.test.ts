@@ -53,8 +53,8 @@ function stream(reply: AssistantMessage, seen?: string[]) {
 	}) as unknown as Parameters<typeof writeRecap>[0]["stream"];
 }
 
-test("cleanRecap strips list marks and prefixes, and keeps at most three lines", () => {
-	assert.equal(cleanRecap("回顾：\n- 拆了 SessionCard\n2. 补了测试\n• 剩 Windows 路径\n* 第四行"), "拆了 SessionCard\n补了测试\n剩 Windows 路径");
+test("cleanRecap strips list marks and prefixes, and keeps only the first sentence", () => {
+	assert.equal(cleanRecap("回顾：\n- 拆了 SessionCard\n2. 补了测试\n• 剩 Windows 路径"), "拆了 SessionCard");
 	assert.equal(cleanRecap("<think>想一想</think>Recap: fixed the login bug"), "fixed the login bug");
 	assert.equal(cleanRecap("   \n\n"), "");
 });

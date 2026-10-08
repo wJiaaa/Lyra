@@ -19,6 +19,7 @@ import { commandEntries } from "./command-catalog.ts";
 import { ScheduledAlert } from "../scheduled/index.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
+import { RecapBar } from "./RecapBar.tsx";
 import { openFilePane, openScopedPanel, useSide } from "../dock/index.ts";
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { ContextMeter } from "./ContextMeter.tsx";
@@ -527,6 +528,8 @@ export function Composer({ centered = false }: {
 				 */}
 				{/* Into this conversation's own screen: the announcement is not a click, so the focus says nothing. */}
 				<SubAgentBar onOpen={() => openScopedPanel("subagents", activeSessionId ?? "@draft")} />
+				{/* 回到一个你不在时跑完的会话，一句话回顾。按会话重挂：换个对话，上一个的回顾不该跟着收合过来。 */}
+				<RecapBar key={activeSessionId} />
 				{/*
 				 * A scheduled task failed, in a session nobody was watching. Said where someone is —
 				 * and only on the screen in front, which `ScheduledAlert` decides for itself.
