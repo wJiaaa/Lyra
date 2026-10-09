@@ -26,3 +26,5 @@
 `pnpm --filter @plume/mobile typecheck`、`pnpm --filter @plume/mobile test`、`pnpm check`。
 
 `pnpm --filter @plume/mobile web` 用 React Native Web 预览同一套手机组件；`pnpm --filter @plume/mobile build:web` 导出预览。原生开发构建可在包目录执行 `pnpm exec expo run:ios` / `pnpm exec expo run:android`，需对应平台 SDK。iOS 27 要求 App 采用 UIScene 生命周期，否则启动即退出；`plugins/with-scene-lifecycle.cjs` 在 prebuild 时接上 Expo 的 `ExpoAppSceneDelegate`，Expo 模板自带后可删。应用标识为 `app.plume.mobile`，配对 deep link scheme 为 `plume`；Expo Go 内使用扫码或手动输入，安装独立开发构建后可直接打开 `plume://pair` 链接。
+
+可侧载的 Android APK 由 GitHub Actions 的「安装包」工作流打出（平台选 `android`），见 [CONTRIBUTING.md](../../CONTRIBUTING.md#在-github-构建安装包)。

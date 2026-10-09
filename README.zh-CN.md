@@ -21,27 +21,20 @@
 
 ## 下载
 
-装好的包在 [Releases](https://github.com/wJiaaa/Plume/releases/latest)，每个版本都带全部系统和
-架构。挑你这台机器的那一个：
+装好的包在 [Releases](https://github.com/wJiaaa/Lyra/releases/latest)。挑你这台机器的那一个：
 
 | 系统 | 架构 | 下载 |
 | --- | --- | --- |
 | macOS | Apple 芯片 | `Plume-<版本>-arm64.dmg` |
 | macOS | Intel | `Plume-<版本>-x64.dmg` |
 | Windows | x64 | `Plume-<版本>-x64.exe` |
-| Windows | Arm（骁龙笔记本、Surface Pro X） | `Plume-<版本>-arm64.exe` |
-| Linux | x64 | `Plume-<版本>-x86_64.AppImage` 或 `Plume-<版本>-amd64.deb` |
-| Linux | arm64（树莓派、Ampere、Mac 上的 Linux 虚拟机） | `Plume-<版本>-arm64.AppImage` 或 `Plume-<版本>-arm64.deb` |
+| Android | arm64 | `Plume-<版本>-arm64-v8a.apk`（手机 App，连桌面上的 Plume 用） |
 
-不知道自己是哪个架构：macOS 看「关于本机」的芯片一行，Windows 看「设置 → 系统 → 系统信息」的
-「系统类型」，Linux 跑 `uname -m`（`x86_64` 取 x64，`aarch64` 取 arm64）。
+不知道自己是哪个架构：macOS 看「关于本机」的芯片一行。
 
-AppImage 和 deb 二选一：AppImage 不用装，`chmod +x` 之后直接运行，哪个发行版都行；deb 是
-Debian、Ubuntu 这一系的包管理器格式，`sudo apt install ./Plume-<版本>-amd64.deb`。
-
-剩下四个文件一般用不上：两个 `.zip` 是同一个 macOS 应用的压缩包，`Plume-<版本>.exe` 是 x64 与
-arm64 合一的 Windows 安装包（两百多 MB，上面那两个各一百多 MB，能确定架构就别下它），
-`SHA256SUMS` 是全部文件的校验值。
+剩下的文件一般用不上：两个 `.zip` 是同一个 macOS 应用的压缩包，给应用内更新原地替换用；
+`SHA256SUMS` 是全部文件的校验值。装好之后应用会自己检查更新，只安装校验对得上的包，
+校验值读不到就不装。
 
 ## 第一次打开
 

@@ -20,22 +20,18 @@ This is not a shell around Claude Code or Codex. The agent loop, tools, skills, 
 
 ## Download
 
-Installers live on [Releases](https://github.com/wJiaaa/Plume/releases/latest). Every release includes every OS and architecture. Pick the file for this machine:
+Installers live on [Releases](https://github.com/wJiaaa/Lyra/releases/latest). Pick the file for this machine:
 
 | OS | Architecture | File |
 | --- | --- | --- |
 | macOS | Apple silicon | `Plume-<version>-arm64.dmg` |
 | macOS | Intel | `Plume-<version>-x64.dmg` |
 | Windows | x64 | `Plume-<version>-x64.exe` |
-| Windows | Arm (Snapdragon laptops, Surface Pro X) | `Plume-<version>-arm64.exe` |
-| Linux | x64 | `Plume-<version>-x86_64.AppImage` or `Plume-<version>-amd64.deb` |
-| Linux | arm64 (Raspberry Pi, Ampere, a Linux VM on a Mac) | `Plume-<version>-arm64.AppImage` or `Plume-<version>-arm64.deb` |
+| Android | arm64 | `Plume-<version>-arm64-v8a.apk` (the phone app, which connects to Plume on your computer) |
 
-If you are not sure which architecture you have: on macOS look at the chip line in About This Mac, on Windows look at System type under Settings → System → About, on Linux run `uname -m` (`x86_64` is x64, `aarch64` is arm64).
+If you are not sure which Mac you have, look at the chip line in About This Mac.
 
-AppImage or deb, not both. AppImage needs no installer: `chmod +x` and run it on any distribution. The `.deb` is for Debian and Ubuntu: `sudo apt install ./Plume-<version>-amd64.deb`.
-
-Four other files are usually not what you want. The two `.zip` files are macOS archives of the same app. `Plume-<version>.exe` is a combined Windows installer for x64 and arm64, about 230 MB; the per-arch installers are about 110 MB each, so use those if you know the architecture. `SHA256SUMS` is the digest list.
+The other files are usually not what you want. The two `.zip` files are the same macOS app, used by in-app updates to replace it in place. `SHA256SUMS` is the digest list. Once installed, the app checks for updates itself and installs only a package whose digest matches; if the digests cannot be read, it does not install.
 
 ## First launch
 

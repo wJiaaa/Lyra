@@ -236,6 +236,7 @@ export { UserIcon as User } from "./animated/user.tsx";
 export { UserPlusIcon as UserPlus } from "./animated/user-plus.tsx";
 export { UsersIcon as Users } from "./animated/users.tsx";
 export { WandSparklesIcon as Wand2, WandSparklesIcon as WandSparkles } from "./animated/wand-sparkles.tsx";
+export { WifiOffIcon as WifiOff } from "./animated/wifi-off.tsx";
 export { WrenchIcon as Wrench } from "./animated/wrench.tsx";
 export { XIcon as X } from "./animated/x.tsx";
 export { ZapIcon as Zap } from "./animated/zap.tsx";

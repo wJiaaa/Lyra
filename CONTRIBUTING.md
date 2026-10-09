@@ -30,16 +30,38 @@ pnpm dev         # 桌面端
 
 推之前跑 `pnpm check` 和 `pnpm knip`；hooks 也会替你跑。
 
-## 在 GitHub 构建 Windows 安装包
+## 在 GitHub 构建安装包
 
-将 `.github/workflows/windows-package.yml` 提交并推送到默认分支后，在 GitHub 的 **Actions** 页面
-选择 **Windows x64 安装包** → **Run workflow**，选择要构建的分支并运行。
+`.github/workflows/package.yml` 做两件事：
 
-成功后，在该次运行页面的 **Artifacts** 下载 `Plume-Windows-x64`，解压即可得到
-`Plume-<version>-x64.exe`。产物保留 14 天。
+- **推 `v*` tag 时**（`pnpm release` 的最后一步）：Windows、macOS、Android 都打，再连同
+  `SHA256SUMS` 发布到公开仓库 [`wJiaaa/Lyra`](https://github.com/wJiaaa/Lyra/releases) 的
+  Release，正文取 CHANGELOG 里这个版本的说明。应用内更新从那里检查和下载。
+- **手动运行时**：在 **Actions** 页面选择 **安装包** → **Run workflow**，选分支和平台（`all`、
+  `windows`、`macos`、`android`），只打包、上传 Artifacts，不发布。私有仓库里 macOS runner
+  按 10 倍计分钟，只要一个平台时单独选它。
 
-工作流在 Windows runner 上构建桌面端并核验原生模块架构，仅手动触发，不自动发布 Release，
-也不需要签名凭据。安装包未做 Windows 代码签名，安装时可能出现未知发布者或 SmartScreen 提示；
+发布前要配一次 secret：建一个只授权 `wJiaaa/Lyra`、Contents 读写的 fine-grained token，存为
+本仓库的 Actions secret `LYRA_RELEASE_TOKEN`。默认的 `GITHUB_TOKEN` 写不了别的仓库。
+
+手动运行的产物在该次运行页面的 **Artifacts** 下载，保留 14 天：
+
+| Artifact | 内容 |
+| --- | --- |
+| `Plume-Windows-x64` | `Plume-<version>-x64.exe` |
+| `Plume-macOS` | arm64 与 x64 各一个 `.dmg` 和 `.zip`（zip 给应用内更新原地替换用） |
+| `Plume-Android` | `Plume-<version>-arm64-v8a.apk`，手机 App |
+
+桌面端在各自平台的 runner 上构建并核验原生模块架构；Android 先 `expo prebuild` 生成原生工程，
+再用 Gradle 打 release APK。都不需要签名凭据，代价是：
+
+- Windows 安装包未做代码签名，安装时可能出现未知发布者或 SmartScreen 提示。
+- macOS 是 ad-hoc 签名，没有公证。从浏览器下载后首次打开会被拦下，需要到「系统设置 → 隐私与
+  安全性」里点「仍要打开」；每装一个新版本（包括应用内更新），macOS 都当成新应用，屏幕录制等
+  权限要重新授权。
+- Android APK 用 Expo 模板自带的公开调试密钥签名，可以侧载安装、新版本覆盖旧版本，但不能上架
+  应用商店；只含 arm64-v8a，32 位手机和 x86 模拟器装不上。手机 App 没有应用内更新。
+
 构建成功不代表已验证实际安装和运行。
 
 ## 代码约定
@@ -101,7 +123,7 @@ pnpm test:e2e
 ```
 packages/core      Agent 运行时：循环、工具、技能、会话日志、插件内核。平台无关。
 packages/desktop   Electron 应用。electron/ 是主进程，src/ 是渲染进程。
-.github/           手动 Windows 打包工作流、Issue 与 PR 模板、CODEOWNERS
+.github/           手动打包工作流（Windows、macOS、Android）、Issue 与 PR 模板、CODEOWNERS
 ```
 
 core 不依赖桌面端，它是平台无关的运行时，桌面端驱动它的 `AgentSession`。

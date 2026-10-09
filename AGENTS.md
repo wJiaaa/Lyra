@@ -215,10 +215,15 @@ lockfile。依赖已经装好时，每轮都跑一遍什么也确认不了，只
 
 ## 发版
 
-仓库没有自动检查 CI 或发版流水线，推 tag 不会触发构建。安装包可在本地用 `pnpm package` 打；
-Windows x64 也可手动运行 `.github/workflows/windows-package.yml`，产物在 Actions 的 Artifacts 中
-保留 14 天，不签名、不自动发布 Release，操作见 CONTRIBUTING.md。两条路径都复用桌面端的
-`package` 脚本执行 electron-builder 并核验原生模块架构；改了打包配置要在对应平台验证产物。
+仓库没有自动检查 CI。打 tag 就是发版：推 `v*` 触发 `.github/workflows/package.yml`，在各自的
+runner 上打 Windows x64、macOS（arm64 与 x64 的 dmg、zip）和 Android APK，汇总后加一份
+`SHA256SUMS`，**直接发布到公开仓库 `wJiaaa/Lyra` 的 Release**——代码仓库是私有的，应用内更新
+（`electron/ipc/updates.ts` 的 `REPO`）只能从那里读。发布要用 Actions secret
+`LYRA_RELEASE_TOKEN`（对 `wJiaaa/Lyra` 有 Contents 读写权限的 token），没配就只在最后一步红。
+
+同一个工作流也能手动运行，按平台只打包、上传 Artifacts，不发布，操作见 CONTRIBUTING.md。
+本地 `pnpm package` 也能打。所有路径都复用桌面端的 `package` 脚本执行 electron-builder 并核验
+原生模块架构；改了打包配置要在对应平台验证产物。
 
 ```bash
 pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、推送
@@ -312,11 +317,11 @@ tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这
 | `packages/cli/` | 非交互命令行，评测用：一个任务进、回答出，见 ADR-0031 |
 | `packages/desktop/electron/` | 主进程：IPC、窗口、Git |
 | `packages/desktop/src/` | 渲染进程。9 个目录，见 ARCHITECTURE.md |
-| `packages/desktop/src/features/` | 22 个功能域，跨域只经对方的 index |
+| `packages/desktop/src/features/` | 23 个功能域，跨域只经对方的 index |
 | `packages/desktop/src/ui/` | 基础组件，不读 store 不调 service |
 | `packages/desktop/src/lib/` | 纯逻辑，没有 React |
 | `packages/desktop/src/services/` | 跟主进程说话的唯一出口 |
-| `packages/contract/` | 渲染进程与主进程之间那条线，210 个方法写在一处 |
+| `packages/contract/` | 渲染进程与主进程之间那条线，218 个方法写在一处 |
 | `packages/desktop/shared/` | 两个进程共有的判断，谁也不依赖 |
 
 ## 提交

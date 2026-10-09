@@ -15,6 +15,7 @@ import { NavButtons, ToolbarButton } from "../../app/window/WindowControls.tsx";
 import { WindowHeader } from "../../app/window/WindowToolbar.tsx";
 import { AgentsSettings } from "./AgentsSettings.tsx";
 import { ArchivedSettings } from "./ArchivedSettings.tsx";
+import { AboutSettings } from "./AboutSettings.tsx";
 import { AppearanceSettings } from "./AppearanceSettings.tsx";
 import { CommandsSettings } from "./CommandsSettings.tsx";
 import { GeneralSettings } from "./GeneralSettings.tsx";
@@ -235,8 +236,8 @@ export function SettingsShell() {
 				<div className="drag-region absolute inset-x-0 top-0 z-40" style={{ height: WINDOW_HEADER_HEIGHT }}>
 					<div className="no-drag absolute flex items-center gap-0.5" style={{ left: titlebar.start, top: MAIN_WINDOW_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}>
 						<NavButtons />
-					</div>
 						{navToggle}
+					</div>
 				</div>
 			)}
 		</div>
@@ -283,6 +284,8 @@ function SectionBody({ section }: { section: SettingsSection }) {
 			return <StorageSettings />;
 		case "worktrees":
 			return <WorktreesSettings />;
+		case "about":
+			return <AboutSettings />;
 		case "archived":
 			return <ArchivedSettings />;
 		default:
