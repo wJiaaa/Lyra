@@ -46,9 +46,21 @@ export function PanelTabs({
 	const strip = useRef<HTMLDivElement>(null);
 	const menu = usePopover();
 
-	// 新开的标签排在最后，可能在右边界外面；让当前那个待在视野里。
+	/*
+	 * 新开的标签排在最后，可能在右边界外面；让当前那个待在视野里。
+	 *
+	 * 只滚标签条自己，不用 `scrollIntoView`：它连 `overflow: hidden` 的祖先也一起滚。右栏收着时开新面板，
+	 * 这一栏正从右边外面滑进来（`column-slide.ts`），标签在窗口外，整块内容区被滚开 173px、随滑动一帧帧
+	 * 退回来，看着就是抖了一下。标签和标签条在同一个变换里，两个盒子相减，滑动的位移正好抵掉。
+	 */
 	useEffect(() => {
-		strip.current?.querySelector(`[data-panel-tab="${current}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+		const track = strip.current;
+		const tab = track?.querySelector(`[data-panel-tab="${current}"]`);
+		if (!track || !tab) return;
+		const outer = track.getBoundingClientRect();
+		const inner = tab.getBoundingClientRect();
+		if (inner.left < outer.left) track.scrollLeft -= outer.left - inner.left;
+		else if (inner.right > outer.right) track.scrollLeft += inner.right - outer.right;
 	}, [current, tabs.length]);
 
 	return (

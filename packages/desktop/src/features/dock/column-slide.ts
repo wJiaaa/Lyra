@@ -9,6 +9,10 @@
  * 只认人切换收起、展开（`tabsCollapsed` 变了）的那一下。`folded` 还会因为别的变：切回一个会话时，
  * 头一帧它的布局还没从盘上读回来、没有当前标签，`folded` 是假，读回来那一帧才变真——同一屏、
  * 什么也没点，却被当成刚点了收起，面板整个亮出来再滑走，看着就是「打开了又闪一下关上」。
+ *
+ * 这一栏从无到有（一个标签都没有时开了第一个）也是展开，照同一段画。它不经过 `folded`，原先对话
+ * 一帧缩掉 466px、正文当场重排，面板再在原地淡入，中间右边空着一块。读回布局时当前标签同样是从
+ * 无到有，那时挂着 `data-dock-settling`（`DockView` 的 `settle`），不算。
  */
 
 import { useLayoutEffect, useRef, type RefObject } from "react";
@@ -32,13 +36,16 @@ export function useColumnSlide(
 	open: { conversation: Box; panel: Box } | null,
 ): void {
 	const collapsed = usePaneDock((s) => s.tabsCollapsed);
-	const last = useRef({ scope, folded, collapsed });
+	const last = useRef({ scope, tab, folded, collapsed });
 	const motions = useRef<Animation[]>([]);
 	const hold = useRef<(() => void) | null>(null);
 	useLayoutEffect(() => {
 		const previous = last.current;
-		last.current = { scope, folded, collapsed };
-		if (previous.scope !== scope || previous.folded === folded || previous.collapsed === collapsed) return;
+		last.current = { scope, tab, folded, collapsed };
+		if (previous.scope !== scope) return;
+		const toggled = previous.folded !== folded && previous.collapsed !== collapsed;
+		const appeared = previous.tab === null && tab !== null && !folded && !document.documentElement.hasAttribute("data-dock-settling");
+		if (!toggled && !appeared) return;
 		const area = dock.current;
 		const paneOf = (kind: PaneKind | null) => [...(area?.children ?? [])].find((child): child is HTMLElement => child instanceof HTMLElement && child.dataset.dockPane === kind);
 		const conversation = paneOf("conversation");
