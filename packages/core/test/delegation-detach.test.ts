@@ -187,7 +187,8 @@ test("人在派活的那段回复还在流时开口：之后才开始的等待�
 		assert.equal(h.main.length, 2, "子代理没交差，这一轮已经往下走了");
 		const detached = h.main[1].messages.find((message) => message.role === "toolResult");
 		assert.match(detached ? textOf(detached) : "", /转到后台继续跑/);
-		assert.ok(h.main[1].messages.some((message) => message.role === "user" && textOf(message) === "算了 不用了"), "下一轮开头就读到了那句话");
+		// 发给模型时插话前后各套着一句说明（`prompt/steering.ts`），原话在里面。
+		assert.ok(h.main[1].messages.some((message) => message.role === "user" && textOf(message).includes("算了 不用了")), "下一轮开头就读到了那句话");
 		assert.equal(h.session.subAgents.list()[0]?.status, "running", "子代理照样在后台跑");
 	} finally {
 		await h.cleanup();
