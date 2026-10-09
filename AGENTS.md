@@ -220,6 +220,9 @@ runner 上打 Windows x64、macOS（arm64 与 x64 的 dmg、zip）和 Android AP
 `SHA256SUMS`，**直接发布到公开仓库 `wJiaaa/Lyra` 的 Release**——代码仓库是私有的，应用内更新
 （`electron/ipc/updates.ts` 的 `REPO`）只能从那里读。发布要用 Actions secret
 `LYRA_RELEASE_TOKEN`（对 `wJiaaa/Lyra` 有 Contents 读写权限的 token），没配就只在最后一步红。
+macOS 包用自签证书 `Plume Code Signing` 签名（secrets `MAC_CERTIFICATE_P12`、
+`MAC_CERTIFICATE_PASSWORD`，由 `.github/scripts/prepare-signing.sh` 导入），发版时缺证书或签成
+ad-hoc 直接失败——ad-hoc 包会让每台机器更新后丢掉屏幕录制等授权。
 
 同一个工作流也能手动运行，按平台只打包、上传 Artifacts，不发布，操作见 CONTRIBUTING.md。
 本地 `pnpm package` 也能打。所有路径都复用桌面端的 `package` 脚本执行 electron-builder 并核验

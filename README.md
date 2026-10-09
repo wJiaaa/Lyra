@@ -39,7 +39,7 @@ The packages are not signed with a paid certificate, so each OS blocks the first
 
 ### First open on macOS
 
-The published build is ad-hoc signed. There is no Apple Developer certificate and no notarization. A double-click hits Gatekeeper: "cannot be opened because the developer cannot be verified." Two ways through:
+The published build is signed with a self-signed certificate. There is no Apple Developer certificate and no notarization. A double-click hits Gatekeeper: "cannot be opened because the developer cannot be verified." Two ways through:
 
 - Open System Settings → Privacy & Security, click Open Anyway, and confirm with your password. (Right-click → Open no longer gets past Gatekeeper since macOS 15.)
 - Or drop the quarantine flag:
@@ -52,7 +52,7 @@ If the dialog says the app is damaged rather than unverified, that is a 0.6.0 or
 
 ### Screenshots go black after a macOS update
 
-Screenshots use the system Screen Recording permission. Ad-hoc signing produces a different signature on every build, so after an update macOS sometimes no longer treats this as the same app. The entry is still listed under System Settings → Privacy & Security → Screen Recording, but the capture is black or fails outright.
+Screenshots use the system Screen Recording permission. Builds up to 0.9.24 were ad-hoc signed, which gives every build a different signature, so after an update macOS sometimes no longer treats it as the same app. Later builds are signed with one certificate and keep the permission across updates; the first update onto them can still need this once. The entry is still listed under System Settings → Privacy & Security → Screen Recording, but the capture is black or fails outright.
 
 Clear this app's record so it can ask again:
 

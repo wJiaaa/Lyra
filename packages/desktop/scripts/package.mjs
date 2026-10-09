@@ -20,7 +20,7 @@
  *     ["set-key-partition-list", "-S", "apple-tool:,apple:", "-s", "-k", password, keychainFile]
  *
  * which fails with "The user name or passphrase you entered is not correct" — about a password
- * that is correct. So the keychain is prepared by whoever is calling (see `release.yml`), and all
+ * that is correct. So the keychain is prepared by whoever is calling (see `.github/scripts/prepare-signing.sh`), and all
  * that is needed here is the name to sign under.
  */
 

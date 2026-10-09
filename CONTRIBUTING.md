@@ -53,12 +53,15 @@ pnpm dev         # 桌面端
 | `Plume-Android` | `Plume-<version>-arm64-v8a.apk`，手机 App |
 
 桌面端在各自平台的 runner 上构建并核验原生模块架构；Android 先 `expo prebuild` 生成原生工程，
-再用 Gradle 打 release APK。都不需要签名凭据，代价是：
+再用 Gradle 打 release APK。签名的情况：
 
 - Windows 安装包未做代码签名，安装时可能出现未知发布者或 SmartScreen 提示。
-- macOS 是 ad-hoc 签名，没有公证。从浏览器下载后首次打开会被拦下，需要到「系统设置 → 隐私与
-  安全性」里点「仍要打开」；每装一个新版本（包括应用内更新），macOS 都当成新应用，屏幕录制等
-  权限要重新授权。
+- macOS 用自签证书 `Plume Code Signing` 签名（`packages/desktop/scripts/make-signing-cert.sh`
+  生成，存在 Actions secrets `MAC_CERTIFICATE_P12` 与 `MAC_CERTIFICATE_PASSWORD`）。同一张证书
+  签出来的版本，macOS 认作同一个应用，更新后屏幕录制等权限不丢。没有公证，从浏览器下载后首次
+  打开仍会被拦下，需要到「系统设置 → 隐私与安全性」里点「仍要打开」。推 tag 发版时缺证书或
+  签出来是 ad-hoc 会直接失败；手动打包缺证书只警告，打出 ad-hoc 包。**不要换证书**：换了之后
+  每台机器的授权都要重来一遍。
 - Android APK 用 Expo 模板自带的公开调试密钥签名，可以侧载安装、新版本覆盖旧版本，但不能上架
   应用商店；只含 arm64-v8a，32 位手机和 x86 模拟器装不上。手机 App 没有应用内更新。
 

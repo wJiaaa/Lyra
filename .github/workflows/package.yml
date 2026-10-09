@@ -78,10 +78,27 @@ jobs:
       - name: 构建 core
         run: pnpm build:core
 
-      # runner 的钥匙串里没有签名证书，package.mjs 会退回 ad-hoc 签名，见 electron-builder.yml 里 mac.identity 的说明。
+      # 自签证书 Plume Code Signing（make-signing-cert.sh 生成）导进临时钥匙串，package.mjs 找到它就用它签。
+      # 证书签名让每次更新在 macOS 看来是同一个应用，屏幕录制等权限不会被重置；ad-hoc 签名做不到，
+      # 见 electron-builder.yml 里 mac.identity 的说明。发版（推 tag）时缺证书直接失败，手动打包只警告
+      - name: 准备签名证书
+        timeout-minutes: 5
+        env:
+          REQUIRE_SIGNING: ${{ github.event_name == 'push' }}
+          MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+        run: bash .github/scripts/prepare-signing.sh
+
       # zip 给应用内更新用：它直接装着 Plume.app，可以原地替换；dmg 给第一次手动安装
       - name: 构建 macOS 安装包（arm64 与 x64）并核验原生模块架构
         run: pnpm --filter @plume/desktop package --mac dmg zip --arm64 --x64 --publish never
+
+      # 证书没导进去时 electron-builder 会悄悄退回 ad-hoc，包照样能装能跑，只是权限每次更新都被重置
+      - name: 核验签名身份
+        env:
+          REQUIRE_SIGNING: ${{ github.event_name == 'push' }}
+          HAVE_CERT: ${{ secrets.MAC_CERTIFICATE_P12 != '' }}
+        run: bash .github/scripts/check-signature.sh
 
       - name: 上传安装包
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
