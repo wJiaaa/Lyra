@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, test } from "node:test";
+import { after, afterEach, beforeEach, test } from "node:test";
 import { createElement as h } from "react";
 import { DEFAULT_SETTINGS, type SessionMeta } from "@plume/core";
 import { LayoutProvider } from "../../src/app/layout.tsx";
@@ -16,13 +16,22 @@ let view: Mounted | undefined;
 beforeEach(() => {
 	previous = useApp.getState();
 	localStorage.clear();
-	Object.defineProperty(window, "plume", { configurable: true, value: {} });
+	Object.defineProperty(window, "plume", {
+		configurable: true,
+		value: { updates: { check: async () => ({ available: false }), state: async () => ({ at: "idle" }), onProgress: () => () => {} } },
+	});
 	useApp.setState({
 		settings: { ...DEFAULT_SETTINGS, projects, pinnedSessionIds: ["pinned"] },
 		sessions: [session("a1", "/a", 10), session("b1", "/b", 30), session("loose", "/scratch/general", 20), session("pinned", "/a", 40)],
 		activeSessionId: null, activity: {}, turns: {}, notices: [], scratchRoots: ["/scratch"],
 	});
 });
+
+/*
+ * 侧栏底部挂着更新徽标，它一挂上就开始每 6 小时查一次更新，定时器刻意从不停（见
+ * `features/update/store.ts` 的 `start`）。不在收尾时作废这扇窗的定时器，整个文件跑完也不退出。
+ */
+after(() => (window as unknown as { happyDOM: { abort(): Promise<void> } }).happyDOM.abort());
 
 afterEach(async () => {
 	await view?.unmount();
