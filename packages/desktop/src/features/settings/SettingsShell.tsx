@@ -234,9 +234,9 @@ export function SettingsShell() {
 			{!headerBar && (
 				<div className="drag-region absolute inset-x-0 top-0 z-40" style={{ height: WINDOW_HEADER_HEIGHT }}>
 					<div className="no-drag absolute flex items-center gap-0.5" style={{ left: titlebar.start, top: MAIN_WINDOW_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}>
-						{navToggle}
 						<NavButtons />
 					</div>
+						{navToggle}
 				</div>
 			)}
 		</div>

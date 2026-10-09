@@ -59,7 +59,7 @@ export function DragBand({ navOpen, sidebarWidth }: { navOpen: boolean; sidebarW
  * macOS 没有这个组件，那里走的是上面的 `DragBand` + 浮在角上的 `WindowButtons`——红绿灯在左上
  * 角，面板的第一行就是窗口的顶行，一行当两行用。理由和这条带子存在的理由都写在 `hasHeaderBar`。
  *
- * 这里的排布只有一件事：左端 `titlebar.start` 处放侧边栏开关、后退和前进，右端空出 `titlebar.end` 给系统的
+ * 这里的排布只有一件事：左端 `titlebar.start` 处放后退、前进和侧边栏开关，右端空出 `titlebar.end` 给系统的
  * 最小化/最大化/关闭。中间整片都是拖拽区，开关那一小块是 `no-drag` 挖出来的洞——DOM 顺序在这里
  * 仍然是规矩，洞必须写在带子后面，否则会被重新盖上。
  *
@@ -76,7 +76,7 @@ export function WindowHeader({
 	compact: boolean;
 	onToggleNav: () => void;
 	/**
-	 * 后退、前进之前放什么，默认是工作区那个侧边栏开关。
+	 * 后退、前进之后放什么，默认是工作区那个侧边栏开关。
 	 *
 	 * 设置页要传自己的：那里的开关开合的是章节列表而不是会话列表，两者的说明文字不是同一句话，
 	 * 而屏幕朗读器读到的就是这句话。图标是同一个，因为做的是同一件事。
@@ -96,8 +96,8 @@ export function WindowHeader({
 			style={{ height: NATIVE_HEADER_HEIGHT, paddingLeft: titlebar.start, paddingRight: titlebar.end }}
 		>
 			<div className="no-drag flex items-center gap-0.5">
-				{children ?? <WindowControls navOpen={navOpen} onToggleNav={onToggleNav} active={compact && navOpen} />}
 				<NavButtons />
+				{children ?? <WindowControls navOpen={navOpen} onToggleNav={onToggleNav} active={compact && navOpen} />}
 			</div>
 		</div>
 	);
@@ -241,8 +241,8 @@ export function WindowButtons({
 			// 和红绿灯同一条线：主窗口的顶行在卡片里，低 `MAIN_WINDOW_ROW_OFFSET`。
 			style={{ left: titlebar.start, top: MAIN_WINDOW_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}
 		>
-			<WindowControls navOpen={navOpen} onToggleNav={onToggleNav} active={compact && navOpen} />
 			<NavButtons />
+			<WindowControls navOpen={navOpen} onToggleNav={onToggleNav} active={compact && navOpen} />
 		</div>
 	);
 }

@@ -21,7 +21,7 @@ const TOOLBAR_GAP = 10;
 /**
  * How much of the window's top-left corner belongs to the window rather than to the content.
  *
- * Whatever the system draws there *and* the sidebar toggle, back and forward: with the sidebar closed, that toggle
+ * Whatever the system draws there *and* back, forward and the sidebar toggle: with the sidebar closed, that toggle
  * is the only way back to it, and it floats over whatever the dock has put in that corner. A pane
  * that only cleared the lights drew its own title straight underneath the button — the terminal's
  * first tab ended up on top of it, so the tab was hard to read and the button, still there and
@@ -31,14 +31,14 @@ const TOOLBAR_GAP = 10;
  * see `useTitlebar`. It was a constant back when only macOS was drawn correctly.
  */
 export function toolbarReserved(start: number): number {
-	// Three buttons, `gap-0.5` between them.
-	return start + TOOLBAR_BUTTON * 3 + 2 * 2 + TOOLBAR_GAP;
+	// Three buttons: `gap-1.5` between back and forward, `gap-0.5` before the toggle.
+	return start + TOOLBAR_BUTTON * 3 + 6 + 2 + TOOLBAR_GAP;
 }
 
 /**
  * The button beside the traffic lights: show or hide the sidebar.
  *
- * Back and forward sit after it (`NavButtons`); whoever renders the two owns the positioning and
+ * Back and forward sit before it (`NavButtons`); whoever renders the two owns the positioning and
  * the `no-drag` region — these are only the buttons.
  */
 export function WindowControls({
@@ -91,14 +91,15 @@ export function NavButtons() {
 	const canBack = useCanStep(-1);
 	const canForward = useCanStep(1);
 	return (
-		<>
+		// A little wider apart than the row's `gap-0.5`: two arrows that close read as one glyph.
+		<span className="flex items-center gap-1.5">
 			<ToolbarButton label={`${translate("toolbar.back")} ${mac ? "⌘[" : "Alt+←"}`} onClick={() => void goBack()} disabled={!canBack}>
 				<ArrowLeft size={15} strokeWidth={1.9} />
 			</ToolbarButton>
 			<ToolbarButton label={`${translate("toolbar.forward")} ${mac ? "⌘]" : "Alt+→"}`} onClick={() => void goForward()} disabled={!canForward}>
 				<ArrowRight size={15} strokeWidth={1.9} />
 			</ToolbarButton>
-		</>
+		</span>
 	);
 }
 
