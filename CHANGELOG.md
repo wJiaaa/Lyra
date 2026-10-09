@@ -2,6 +2,32 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.25](https://github.com/wJiaaa/Plume/releases/tag/v0.9.25) - 2026-10-09
+<!-- plume:notes en -->
+
+### Before you update
+
+- **On macOS, screen recording and other permissions have to be granted once more, and this is the last time.** The Mac build is now signed with a certificate instead of ad-hoc. macOS used to treat every update as a different app and drop its permissions; from this version on, updates keep them. The first update onto this version still counts as a different app.
+
+### Fixes
+
+- In the subagent panel, a tool row no longer sits flush against the thinking row after it. Rows were 0px apart there and 12px everywhere else, so the transcript read as pairs; every row is now 10px apart, the same as in the main conversation and side chat.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 更新之前
+
+- **macOS 上屏幕录制等权限要再授权一次，这是最后一次。** Mac 安装包改用证书签名，不再是 ad-hoc 签名。以前 macOS 把每次更新都当成另一个应用，授权跟着作废；从这一版起，更新后授权会保留。只是第一次更新到这一版时，它仍被当成另一个应用。
+
+### 修复
+
+- 子智能体面板里，工具行不再和下一步的思考行贴在一起。以前这两行之间是 0px、其他行之间是 12px，看上去一对一对的；现在每行之间都是 10px，和主会话、侧边聊天一样。
+
+</details>
+
 ## [0.9.24](https://github.com/wJiaaa/Plume/releases/tag/v0.9.24) - 2026-10-09
 <!-- plume:notes en -->
 
