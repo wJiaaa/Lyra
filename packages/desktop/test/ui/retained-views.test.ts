@@ -79,3 +79,46 @@ test("头一回露面的那一页才播进场，回来的不播", async () => {
 		await view.unmount();
 	}
 });
+
+test("回来的那一页，里面的 CSS 动画在下一帧之前跳到终点，不从头重演", async () => {
+	/*
+	 * 这条守的是「切回会话，回复底下那行操作又长一遍、整条回复跳 38px」。
+	 *
+	 * `display: none` 一撤，CSS 动画按规范从头再播；离开期间写完的回复则要等回来、store 订阅重新
+	 * 挂上才补进来，是紧跟着的另一次提交。happy-dom 不跑动画，所以递给页面一组假的，只问哪些被跳
+	 * 到了终点。
+	 */
+	const finished: string[] = [];
+	let caughtUp = false;
+	Object.defineProperty(HTMLElement.prototype, "getAnimations", {
+		configurable: true,
+		value(this: HTMLElement) {
+			const inner = this.firstElementChild;
+			const timing = (target: Element | null, endTime: number) => ({ target, getComputedTiming: () => ({ endTime }) });
+			const css = (name: string, target: Element | null, endTime: number) => ({ animationName: name, effect: timing(target, endTime), finish: () => finished.push(`${this.dataset.view}:${name}`) });
+			return [
+				css("切回时重播的展开", inner, 220),
+				...(caughtUp ? [css("回来后才补上的展开", inner, 220)] : []),
+				css("页面自己的到达", this, 150),
+				css("转圈", inner, Infinity),
+				{ effect: timing(inner, 220), finish: () => finished.push(`${this.dataset.view}:animate() 起的滑入`) },
+			];
+		},
+	});
+	const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+	const render = (id: string) => h("div", { id }, id);
+	const view = await mount(h(RetainedViews, { active: "a", render, pageClassName: "" }));
+	try {
+		await view.rerender(h(RetainedViews, { active: "b", render, pageClassName: "" }));
+		await nextFrame();
+		assert.deepEqual(finished, [], "头一回进 b，它的动画是真的在进场，不该碰");
+
+		await view.rerender(h(RetainedViews, { active: "a", render, pageClassName: "" }));
+		caughtUp = true;
+		await nextFrame();
+		assert.deepEqual(finished, ["a:切回时重播的展开", "a:回来后才补上的展开"]);
+	} finally {
+		await view.unmount();
+		Reflect.deleteProperty(HTMLElement.prototype, "getAnimations");
+	}
+});

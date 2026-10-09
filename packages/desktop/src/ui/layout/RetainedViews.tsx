@@ -47,13 +47,20 @@ export function RetainedViews<T extends string>({
 		seen.current.add(active);
 	}, [active]);
 	const pages = useRef(new Map<T, HTMLDivElement>());
+	/** 上过屏的页面元素。再次轮到它时，它是从 `display: none` 里回来的，而不是新挂上的。 */
+	const shownBefore = useRef(new WeakSet<HTMLDivElement>());
 	const previous = useRef(active);
 	useLayoutEffect(() => {
 		const from = previous.current;
 		previous.current = active;
-		if (!slide || from === active || motionReduced()) return;
 		const page = pages.current.get(active);
 		if (!page) return;
+		const returning = shownBefore.current.has(page);
+		shownBefore.current.add(page);
+		if (from === active) return;
+		const frame = returning ? requestAnimationFrame(() => finishReplayedAnimations(page)) : 0;
+		const stop = () => cancelAnimationFrame(frame);
+		if (!slide || motionReduced()) return stop;
 		// From the side the new tab is on: moving right along the strip, the page arrives from the right.
 		const direction = Math.sign(slide.indexOf(active) - slide.indexOf(from)) || 1;
 		page.animate(
@@ -63,6 +70,7 @@ export function RetainedViews<T extends string>({
 			],
 			{ duration: DURATION.base, easing: EASING.out },
 		);
+		return stop;
 	}, [active, slide]);
 	let keys = recent;
 	if (recent[recent.length - 1] !== active) {
@@ -86,4 +94,28 @@ export function RetainedViews<T extends string>({
 			</div>
 		</Activity>
 	))}</>;
+}
+
+/**
+ * 回来的那一页，里面的 CSS 动画不重演。
+ *
+ * `display: none` 一撤，页面里挂着动画 class 的元素按规范会把动画从头再播一遍。那些动画说的都是
+ * 「刚刚发生」：回复写完时底下那行操作从 0 长到 24px、排队的消息展开、头像做一次表情。回到一段
+ * 早就在那里的对话，什么也没刚发生——可那一行每次切回都重新长一遍，整条回复跟着跳 38px。
+ *
+ * 在下一帧画出来之前做，不在显示它的那次提交里做。藏着的页面不跟 store 同步（订阅也是 effect，
+ * 跟着一起拆了），离开期间写完的回复要等回来、订阅重新挂上才补进来——那是紧跟着的另一次提交，
+ * 当场处理会漏掉它，而它同样是在补账，不是此刻发生的事。两次提交都落在第一帧之前，逐帧量过。
+ *
+ * 页面自己那层（`pageClassName`）不算：那是换页本身的到达动画，每次换页都该有。转圈、呼吸这种
+ * 没有终点的照常跑——它们也没法跳到终点，`finish()` 会抛错。
+ */
+function finishReplayedAnimations(page: HTMLElement): void {
+	for (const animation of page.getAnimations({ subtree: true })) {
+		// 只认 CSS 动画：`animate()` 起的（比如上面的滑入）不会因为 display 而重播。
+		if (!("animationName" in animation)) continue;
+		const effect = animation.effect as KeyframeEffect | null;
+		if (!effect || effect.target === page) continue;
+		if (Number.isFinite(effect.getComputedTiming().endTime)) animation.finish();
+	}
 }
