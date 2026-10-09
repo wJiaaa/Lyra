@@ -21,7 +21,7 @@ const TOOLBAR_GAP = 10;
 /**
  * How much of the window's top-left corner belongs to the window rather than to the content.
  *
- * Whatever the system draws there *and* back, forward and the sidebar toggle: with the sidebar closed, that toggle
+ * Whatever the system draws there *and* the sidebar toggle, back and forward: with the sidebar closed, that toggle
  * is the only way back to it, and it floats over whatever the dock has put in that corner. A pane
  * that only cleared the lights drew its own title straight underneath the button — the terminal's
  * first tab ended up on top of it, so the tab was hard to read and the button, still there and
@@ -38,7 +38,7 @@ export function toolbarReserved(start: number): number {
 /**
  * The button beside the traffic lights: show or hide the sidebar.
  *
- * Back and forward sit before it (`NavButtons`); whoever renders the two owns the positioning and
+ * Back and forward sit after it (`NavButtons`); whoever renders the two owns the positioning and
  * the `no-drag` region — these are only the buttons.
  */
 export function WindowControls({
