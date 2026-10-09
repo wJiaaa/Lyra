@@ -22,7 +22,8 @@ import { translate } from "../../i18n/translate.ts";
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { useLayout } from "../../app/layout.tsx";
-import { SidebarIcon, ToolbarButton, toolbarReserved } from "../../app/window/WindowControls.tsx";
+import { ToolbarButton, toolbarReserved } from "../../app/window/WindowControls.tsx";
+import { Columns2 } from "../../ui/icons/index.ts";
 import { freezeMotion } from "../../ui/motion/freeze.ts";
 import { useApp } from "../../store/index.ts";
 import { renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
@@ -318,14 +319,14 @@ export function DockView({
 		dock.setTabsCollapsed(!folded);
 	};
 	const foldButton = canFold && tab && !folded ? (
-		<ToolbarButton label={translate("pane.hideColumn")} onClick={toggleColumn}>
-			<SidebarIcon side="right" open />
+		<ToolbarButton label={translate("pane.hideColumn")} onClick={toggleColumn} active>
+			<Columns2 size={15} strokeWidth={1.8} />
 		</ToolbarButton>
 	) : undefined;
 	// 正被关掉的那一下不给：滑完右栏就没了，这颗开关只会闪一下。
 	const unfoldButton = folded && !closing ? (
 		<ToolbarButton label={translate("pane.showColumn")} onClick={toggleColumn}>
-			<SidebarIcon side="right" open={false} />
+			<Columns2 size={15} strokeWidth={1.8} />
 		</ToolbarButton>
 	) : undefined;
 
