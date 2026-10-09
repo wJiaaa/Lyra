@@ -20,16 +20,13 @@
  */
 
 import { useLayoutEffect, useRef, type RefObject } from "react";
-import { holdColumns } from "../../app/hold-column-width.ts";
+import { EASE_OUT, holdColumns } from "../../app/hold-column-width.ts";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { DURATION } from "../../ui/motion/tokens.ts";
 import { pct } from "./css.ts";
 import { closeNow, usePaneDock } from "./pane-store.ts";
 import type { Box } from "./layout.ts";
 import type { PaneKind } from "./tree.ts";
-
-/** 侧栏那条：`NavPane` 上的 Tailwind `ease-out`。 */
-const EASE_OUT = "cubic-bezier(0, 0, 0.2, 1)";
 
 export function useColumnSlide(
 	dock: RefObject<HTMLElement | null>,
@@ -44,7 +41,6 @@ export function useColumnSlide(
 	const collapsed = usePaneDock((s) => s.tabsCollapsed);
 	const last = useRef({ scope, tab, folded, collapsed, leaving });
 	const motions = useRef<Animation[]>([]);
-	const hold = useRef<(() => void) | null>(null);
 	/** 上一段滑的是哪一格。接着画时只有同一格才从它眼下的位置接，换了一格的从起点来。 */
 	const slid = useRef<HTMLElement | null>(null);
 	/** 标成离开、还没真关的那一个。人在这期间又把它开回来，`leaving` 就被清掉了，这里也就不关。 */
@@ -85,9 +81,6 @@ export function useColumnSlide(
 		const now = running ? { width: conversation.getBoundingClientRect().width, x: same ? new DOMMatrix(getComputedStyle(panel).transform).m41 : null, opacity: same ? Number(getComputedStyle(panel).opacity) : null } : null;
 		for (const motion of motions.current) motion.cancel();
 		slid.current = panel;
-		// 上一段的释放在 `finished` 之后才轮到，那时会把这一段刚定下的列宽也一起清掉，所以在这里先放。
-		hold.current?.();
-		hold.current = null;
 
 		// 面板那一格的宽度：对话让出、面板滑过的都是这一段。
 		const shift = room.width * open.panel.width;
@@ -108,19 +101,10 @@ export function useColumnSlide(
 			options,
 		);
 		motions.current = [widen, slide];
-		/*
-		 * 对话的正文列一开始就排成终点的宽度，滑动期间不逐帧换行——和侧栏开合同一个办法。收起时
-		 * 对话变宽，终点那一栏在眼下的格子里放不下，放不下的那截就先伸出去让卡片裁着，卡片右缘
-		 * 退到哪露到哪（`wide`）。
-		 */
-		const release = holdColumns([{ pane: conversation, from: from.width, to: to.width }], { wide: true });
-		hold.current = release;
+		// 对话的正文从眼下的宽度和位置一路走到终点，左右两条边都只朝一个方向——和侧栏开合同一个办法。
+		holdColumns(conversation, widen);
 		const left = leaves ? pending.current : null;
 		const done = () => {
-			if (hold.current === release) {
-				release();
-				hold.current = null;
-			}
 			// 滑完了，或者被下一段接走了：两种都轮到真关。开回来的那种 `leaving` 已经清了，不会关。
 			if (left && pending.current === left) settle.current();
 		};

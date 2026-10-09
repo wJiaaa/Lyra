@@ -64,8 +64,8 @@ export function NavPane({
 	}, [compact]);
 
 	/*
-	 * The content beside the pane is laid out at its final width as the slide starts, not walked
-	 * through every width in between — see `hold-column-width.ts` for the two motions that made.
+	 * The text beside the pane moves to its final width and place in one straight motion, rather than
+	 * following the pane through its breakpoints — see `hold-column-width.ts`.
 	 * A layout effect, so the first frame of the slide is already painted with it.
 	 */
 	const frame = useRef<HTMLDivElement>(null);
@@ -74,8 +74,8 @@ export function NavPane({
 		if (wasOpen.current === navOpen) return;
 		wasOpen.current = navOpen;
 		if (!frame.current || compact || snap || motionReduced()) return;
-		return holdColumnWidth(frame.current, navOpen ? width : 0);
-	}, [navOpen, compact, snap, width]);
+		return holdColumnWidth(frame.current);
+	}, [navOpen, compact, snap]);
 
 	const pane = (
 		<aside

@@ -198,7 +198,7 @@
  * 左右各 16px 内衬之后的输入框宽度。
  *
  * 写在窗格的直接子元素上再往下继承：容器查询只能改容器里面的元素，改不了容器自己。
- * 侧栏开合的那一段滑动里，它被行内值临时钉在终点宽度上，见 `app/hold-column-width.ts`。
+ * 侧栏、右栏开合的那一段滑动里，读它的那几栏由动画从起点的宽度和位置直接走到终点，见 `app/hold-column-width.ts`。
  */
 @container ly-pane (width >= 864px) {
 	.ly-dock-pane > * {
@@ -210,15 +210,6 @@
 	.ly-dock-pane > * {
 		--ly-content: min(calc(100cqw - 416px), 1120px);
 	}
-}
-
-/*
- * 右栏收起、侧栏收起那一段滑动里，对话这一格从窄变宽（`features/dock/column-slide.ts`、
- * `app/hold-column-width.ts`）。正文列按终点宽度排，放不下的那截伸到卡片右缘外面被裁掉；
- * `mx-auto` 放不下时贴左，左缘不动。不这样它只能跟着格子逐帧变宽，整段转录每帧重排一次。滚动区本来就是 `overflow-x: hidden`，不会冒出横向滚动条。
- */
-.ly-dock-pane[data-ly-column-wide] [class*="max-w-[var(--ly-content)]"] {
-	width: var(--ly-content);
 }
 
 @container ly-chat (width < 360px) {

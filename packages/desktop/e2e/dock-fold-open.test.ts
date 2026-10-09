@@ -51,7 +51,7 @@ after(async () => {
 	await app?.stop();
 });
 
-interface Sample { left: number; width: number; scrolled: number; panel: number | null; opacity: number | null }
+interface Sample { left: number; width: number; scrolled: number; panel: number | null; opacity: number | null; text: number; textRight: number }
 
 /** 从菜单点下 `label` 那一刻起逐帧量，滑动走完再多量几帧。菜单先开好，免得采样窗口落在等菜单上。 */
 async function openWhileSampling(label: string, kind: string): Promise<Sample[]> {
@@ -66,7 +66,8 @@ async function openWhileSampling(label: string, kind: string): Promise<Sample[]>
 			let scrolled = 0;
 			for (let e = conversation; e; e = e.parentElement) scrolled = Math.max(scrolled, Math.abs(e.scrollLeft));
 			const box = conversation.getBoundingClientRect();
-			out.push({ left: box.left, width: box.width, scrolled, panel: panel ? panel.getBoundingClientRect().left : null, opacity: panel ? Number(getComputedStyle(panel).opacity) : null });
+			const column = conversation.querySelector('.ly-transcript').getBoundingClientRect();
+			out.push({ left: box.left, width: box.width, scrolled, panel: panel ? panel.getBoundingClientRect().left : null, opacity: panel ? Number(getComputedStyle(panel).opacity) : null, text: column.left, textRight: column.right });
 			if (--n) requestAnimationFrame(f); else resolve(out);
 		};
 		requestAnimationFrame(f);
@@ -82,6 +83,17 @@ function assertSlidIn(samples: Sample[], name: string): void {
 	for (const [i, left] of panels.entries()) if (i) assert.ok(left <= panels[i - 1]!, `${name}面板往回退了一下：${panels.join(" ")}`);
 }
 
+/**
+ * 正文那一栏的一条边一路朝终点走，不先反着跳一下。它第一帧就按终点宽度排、位置却还交给 `mx-auto` 在
+ * 正滑动的格子里居中时，1440 宽的窗口开右栏，变窄的那一栏先在宽格子里居中、往右跳约 110px，再随格子
+ * 变窄退回左边。左右两缘都量：宽度一下变完，总有一条边逆着走。
+ */
+function assertTextOneWay(texts: number[], name: string): void {
+	const direction = Math.sign(texts.at(-1)! - texts[0]!);
+	const back = texts.slice(1).map((left, i) => (left - texts[i]!) * direction).filter((step) => step < -0.5);
+	assert.equal(back.length, 0, `${name}正文反着动了：${texts.map(Math.round).join(" ")}`);
+}
+
 test("一个标签都没有时开第一个：对话逐帧让出，面板从右边滑进来、不再原地淡入", async () => {
 	await shot(app, "dock-fold-open-00-没有面板");
 	const samples = await openWhileSampling("终端", "terminal");
@@ -95,6 +107,8 @@ test("一个标签都没有时开第一个：对话逐帧让出，面板从右�
 	assert.ok(Math.min(...steps) >= 0, `对话那一格中途又变宽了：${widths.join(" ")}`);
 	assert.equal(new Set(samples.map((sample) => Math.round(sample.left))).size, 1, "对话那一格的左缘动了");
 	assertSlidIn(samples, "终端");
+	assertTextOneWay(samples.map((sample) => sample.text), "开第一个面板：");
+	assertTextOneWay(samples.map((sample) => sample.textRight), "开第一个面板（右缘）：");
 	// 和对话让出的宽度一起走：对话缩到一半时，面板已经不是透明的了。
 	const half = (widths[0]! + widths.at(-1)!) / 2;
 	const middle = samples.find((sample) => sample.width <= half);
@@ -102,7 +116,7 @@ test("一个标签都没有时开第一个：对话逐帧让出，面板从右�
 });
 
 test("关掉最后一个面板：对话逐帧补回全宽，面板滑出去以后才真关", async () => {
-	const run = app.evaluate<{ width: number; panel: number | null; opacity: number | null; unfold: boolean }[]>(`new Promise((resolve) => {
+	const run = app.evaluate<{ width: number; panel: number | null; opacity: number | null; unfold: boolean; text: number; textRight: number }[]>(`new Promise((resolve) => {
 		const out = [];
 		let n = 60;
 		const f = () => {
@@ -112,6 +126,8 @@ test("关掉最后一个面板：对话逐帧补回全宽，面板滑出去以�
 				panel: panel ? panel.getBoundingClientRect().left : null,
 				opacity: panel ? Number(getComputedStyle(panel).opacity) : null,
 				unfold: Boolean(document.querySelector('button[aria-label="展开右侧面板"]')),
+				text: document.querySelector('[data-dock-pane="conversation"] .ly-transcript').getBoundingClientRect().left,
+				textRight: document.querySelector('[data-dock-pane="conversation"] .ly-transcript').getBoundingClientRect().right,
 			});
 			if (--n) requestAnimationFrame(f); else resolve(out);
 		};
@@ -132,6 +148,8 @@ test("关掉最后一个面板：对话逐帧补回全宽，面板滑出去以�
 	for (const [i, sample] of sliding.entries()) if (i) assert.ok(sample.panel! >= sliding[i - 1]!.panel!, "面板往回退了一下");
 	assert.equal(samples.at(-1)!.panel, null, "滑完以后面板还挂着，没有真关");
 	assert.ok(!samples.some((sample) => sample.unfold), "滑出去那一下冒出了「展开右侧面板」");
+	assertTextOneWay(samples.map((sample) => sample.text), "关掉最后一个：");
+	assertTextOneWay(samples.map((sample) => sample.textRight), "关掉最后一个（右缘）：");
 });
 
 test("右栏收着时开新面板：对话不跳，内容区不被滚开，新面板照样滑进来", async () => {
@@ -150,6 +168,8 @@ test("右栏收着时开新面板：对话不跳，内容区不被滚开，新�
 	const scrolled = Math.max(...samples.map((sample) => sample.scrolled));
 	assert.equal(scrolled, 0, `内容区被滚开了 ${scrolled}px`);
 	assertSlidIn(samples, "文件");
+	assertTextOneWay(samples.map((sample) => sample.text), "展开：");
+	assertTextOneWay(samples.map((sample) => sample.textRight), "展开（右缘）：");
 });
 
 test("标签多到放不下时，新开的那个滚进标签条的视野", async () => {
