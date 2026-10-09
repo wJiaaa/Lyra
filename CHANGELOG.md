@@ -2,6 +2,94 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.24](https://github.com/wJiaaa/Plume/releases/tag/v0.9.24) - 2026-10-09
+<!-- plume:notes en -->
+
+### Before you update
+
+- **0.9.23 cannot update itself, so install this version by hand.** From 0.9.24 on, Plume finds and installs new versions on its own. Installers are now published on [wJiaaa/Lyra](https://github.com/wJiaaa/Lyra/releases).
+- **On macOS, screen recording and other permissions have to be granted once more.** This build is signed differently from 0.9.23, so macOS treats it as a different app.
+
+### New
+
+- **Settings › About and in-app updates are back.** About shows the version you are on and what changed in it, and checks for a newer one: at launch and every 6 hours, or as often as you set there. When there is one, a small dot appears at the end of the Settings row in the sidebar. A download can be paused and resumed, and a package whose checksum does not match the release's `SHA256SUMS` is not installed.
+- **An Android app.** `Plume-<version>-arm64-v8a.apk` connects to Plume on your computer and carries on its conversations from the phone. Pair it with the QR code in Settings › Mobile access; when the phone is not on the same network, it can go through a relay.
+- **Conversations can hand work to each other.** The model can send a message to another conversation, wait for it to finish, and get the result back as the answer, without you copying text between the two.
+- **Images in conversations.** The model can generate images. Images can be copied, brought into a chat from the right-click menu, or opened in a panel. Images a tool reads back show in its card; click one to see it full size.
+- **Pages the agent draws are part of the reply.** They sit between the work and the answer, follow the app's theme, and are no longer folded away with the work. The model loads each page off screen first and sees a screenshot; a page that throws an error is not shown.
+- **Fork from a message.** "Fork from here" on one of your messages starts a new conversation from just before it and puts that message back in the input box. The original conversation is not changed.
+- **Command palette.** The magnifier at the top of the sidebar opens one dialog for finding conversations and running commands.
+- **A recap when you come back.** Open a conversation that finished while you were away, and one sentence above the input box says where it got to. It stays until you start typing.
+- **Smart titles, recaps and memory tidying each choose their own model** in Settings › Subagents › Conversation. Before, they read a hidden `@fast` role that nothing in Settings could change.
+- **Files in replies have a right-click menu**: open in Zed, open with, reveal in Finder, copy path.
+- **Something you say while the agent is working is marked as said mid-task**, so the model answers it and then carries on with the original task. If it is still writing a reply that hands work to a subagent, it answers you without waiting for the subagent to finish.
+- **A new window layout.** The sidebar is back on frosted glass with its content on cards, and the title bar and icon rail are gone. The sidebar holds one list of chats; Pull requests, Scheduled and Plugins put their own navigation there. A + next to Chats starts a conversation outside any project. The right column's tabs move up into the window's title bar, the column can be collapsed, and tabs that do not fit scroll with the mouse wheel.
+- Icons move a little when you hover over them.
+
+### Fixes
+
+- **Opening or closing the sidebar or the right column no longer makes the conversation jump.** Text used to rewrap mid-slide, the input box jumped at both ends, and the right panel shook; it now slides straight to where it ends up.
+- **Test connection on Chat Completions relays no longer fails with 404**, and Gemini with reasoning off is no longer rejected.
+- **A link in a reply to a file outside the project opened as "Cannot read this file".** It now opens the file.
+- **On Windows, Chinese punctuation is no longer drawn in SimSun.** Chinese text size, grey and weight now match the Mac.
+- **A new conversation that failed to start no longer leaves its first message in the next new conversation's input box.**
+- Runtime notices, `/compact` results and project config warnings follow the interface language. A manual compaction no longer says "1 messages".
+- Closing an image preview no longer puts a grey veil over the thumbnail, and the file panel no longer draws an image at full size before shrinking it into the panel.
+- Coming back to a conversation no longer replays the animation at the bottom of the reply.
+
+### Removed
+
+- **Web access**, which opened the desktop app in a browser. The phone now uses the Android app.
+- **The network access switches and allow list.** Commands and web fetches can reach public, local network and localhost addresses. The file sandbox, approval for writes and checks on fetched pages still apply.
+- **Side-by-side panels.** Panels open as tabs only, and the drag handle went with them.
+- The "frosted sidebar" switch, which no longer did anything to the sidebar.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 更新之前
+
+- **0.9.23 没法自己更新，这一版要手动安装。** 从 0.9.24 起，Plume 会自己发现新版本并安装。安装包改在 [wJiaaa/Lyra](https://github.com/wJiaaa/Lyra/releases) 发布。
+- **macOS 上屏幕录制等权限要再授权一次。** 这一版和 0.9.23 的签名不同，macOS 把它当成另一个应用。
+
+### 新功能
+
+- **「设置 › 关于」和应用内更新回来了。** 关于页写着当前版本和这一版改了什么，并检查有没有更新：启动时查一次，之后每 6 小时查一次，间隔可以在这里改。有新版本时，侧栏底部「设置」那一行末尾会出现一个小圆点。下载可以暂停、接着下，安装包的校验值和发布里的 `SHA256SUMS` 对不上就不装。
+- **Android App。** `Plume-<版本>-arm64-v8a.apk` 连上电脑上的 Plume，在手机上接着它的会话干活。在「设置 › 手机连接」扫二维码配对；手机和电脑不在同一个网络时，可以经中转连接。
+- **会话之间可以互相交代事情。** 模型能给另一个会话发消息、等它做完，结果作为回答拿回来，不用你在两个对话之间来回复制。
+- **对话里的图片。** 模型能生成图片；图片可以复制、从右键菜单带进聊天，或者在面板里打开。工具读回来的图片直接显示在卡片里，点开看大图。
+- **agent 画的页面成了回复的一部分。** 页面排在工作过程和回答之间，跟着应用主题换色，不再随工作过程一起收起。发布前模型先在屏幕外加载一遍、看到截图；抛异常的页面不展示。
+- **从某条消息分叉。** 在自己的消息上点「从这里分叉」，新会话从这条之前开始，这条回到输入框；原来的会话不动。
+- **命令面板。** 侧栏顶上的放大镜打开一个弹窗，会话和命令都在里面找。
+- **回来时有一句回顾。** 打开一个在你离开时跑完的会话，输入框上方一句话说明它做到了哪一步，你开始打字才收起。
+- **智能标题、会话回顾、记忆整理各自选模型**，在「设置 › 智能体 › 会话」里。以前它们读的是一个设置页上改不了的隐藏角色 `@fast`。
+- **回复里的文件可以右键了**：在 Zed 中打开、打开方式、在访达中显示、复制路径。
+- **agent 干活时你插的话，会注明是工作中说的**，模型回应完接着做原来的事。它正在写一条派活给子智能体的回复时，你插话也不用等子智能体跑完才有回应。
+- **窗口换了排法。** 侧栏回到毛玻璃上，内容各是一张卡片，顶栏和图标栏去掉了。侧栏只留一张聊天列表，拉取请求、定时任务、插件三页把各自的导航放进侧栏；「聊天」旁边的 + 直接开一段不属于任何项目的对话。右栏的标签条并进窗口顶栏，右栏可以收起，标签排不下时用鼠标滚轮横着滚。
+- 鼠标移到图标上时，图标会动一下。
+
+### 修复
+
+- **开合侧栏或右栏时，对话不再跳。** 以前正文边滑边重新断行，输入框首尾各跳一下，右侧面板跟着抖；现在一路滑到终点。
+- **Chat Completions 中转上「测试连接」不再报 404**，关掉推理的 Gemini 也不再被拒。
+- **回复里指向项目外文件的链接，点开只显示「读不到这个文件」。** 现在能打开。
+- **Windows 上中文标点不再是宋体**，汉字字号、灰字和粗细与 Mac 一致。
+- **新对话没能启动时，开头那句话不再留到下一个新对话的输入框里。**
+- 运行时提示、`/compact` 的结果和项目配置的问题都跟着界面语言走；英文界面手动压缩后不再写「1 messages」。
+- 关闭图片预览时缩略图上不再罩一层灰；文件面板打开图片时，不再先按原尺寸画出来再缩进面板。
+- 切回会话时，回复底部的展开动画不再重播一遍。
+
+### 移除
+
+- **Web 访问**（在浏览器里打开桌面应用）。手机上改用 Android App。
+- **网络访问开关和白名单。** 命令和网页抓取可以访问公网、局域网和本机地址；文件沙箱、写操作审批和抓取页面的校验照旧生效。
+- **面板分栏排法。** 面板只以标签页打开，拖动面板的把手一起去掉。
+- 「毛玻璃侧边栏」开关，它早就管不到侧栏了。
+
+</details>
+
 ## [0.9.23](https://github.com/wJiaaa/Plume/releases/tag/v0.9.23) - 2026-10-04
 <!-- plume:notes en -->
 
