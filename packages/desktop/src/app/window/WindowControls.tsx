@@ -145,7 +145,7 @@ export function ToolbarButton({
 }
 
 /** The sidebar pane fills in while it is open, so the icon reflects state without moving. */
-export function SidebarIcon({ open }: { open: boolean }) {
+function SidebarIcon({ open }: { open: boolean }) {
 	return (
 		<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
 			<rect x="3" y="4" width="18" height="16" rx="2.5" />
