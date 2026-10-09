@@ -15,7 +15,7 @@
 
 import { create } from "zustand";
 import { dropTree, flushTree, paneStorageKey, readTree, writeTree } from "./persist.ts";
-import { clampTabShare, insertTab, panelsOf, readTabsCollapsed, readTabShare, writeTabsCollapsed, writeTabShare } from "./tabs.ts";
+import { insertTab, panelsOf, readTabsCollapsed, readTabWidth, writeTabsCollapsed, writeTabWidth } from "./tabs.ts";
 import { panelInstance } from "../../lib/panel-instance.ts";
 import { panelOf } from "./panels/registry.ts";
 import { defaultTree, has, kinds, remove, type DockNode, type PaneKind } from "./tree.ts";
@@ -34,8 +34,8 @@ interface PaneDockState {
 	focused: Record<string, PaneKind>;
 	/** 每一屏最后看的那个面板。见 `tabs.ts`。 */
 	tab: Record<string, PaneKind>;
-	/** 右侧那一栏占多宽，全窗口一份。 */
-	tabShare: number;
+	/** 右侧那一栏多宽，像素，全窗口一份。还没定过时为 null，见 `tabs.ts`。 */
+	tabWidth: number | null;
 	/**
 	 * 右侧那一栏收起来了：面板都还开着、还挂着，只是不画。全窗口一份。
 	 * 只在单屏起作用——收起后开关在窗口顶栏里，分屏时每格的标题栏里没有它，见 `DockView`。
@@ -66,7 +66,7 @@ interface PaneDockState {
 	/** Put a panel away wherever it is open. For the panels whose contents are one shared thing. */
 	closeEverywhere(kind: PaneKind): void;
 	focus(scope: string, kind: PaneKind): void;
-	setTabShare(share: number): void;
+	setTabWidth(width: number): void;
 	setTabsCollapsed(collapsed: boolean): void;
 	restoreLayout(scope: string, tree: DockNode): void;
 	toggleMaximized(scope: string): void;
@@ -107,7 +107,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		maximized: {},
 		focused: {},
 		tab: {},
-		tabShare: readTabShare(),
+		tabWidth: readTabWidth(),
 		tabsCollapsed: readTabsCollapsed(),
 		host: null,
 
@@ -217,11 +217,13 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 			});
 		},
 
-		setTabShare(share) {
-			const next = clampTabShare(share);
-			if (Math.abs(next - get().tabShare) < 1e-6) return;
-			set({ tabShare: next });
-			writeTabShare(next);
+		setTabWidth(width) {
+			if (!Number.isFinite(width) || width <= 0) return;
+			// 取到 0.01px：占比乘回像素的浮点误差不该变成一次写入。
+			const next = Math.round(width * 100) / 100;
+			if (next === get().tabWidth) return;
+			set({ tabWidth: next });
+			writeTabWidth(next);
 		},
 
 		setTabsCollapsed(collapsed) {

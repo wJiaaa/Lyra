@@ -17,6 +17,7 @@ import type { PaneKind } from "./tree.ts";
 export function DockPane({
 	kind,
 	box,
+	across,
 	label,
 	icon,
 	maximized,
@@ -36,6 +37,8 @@ export function DockPane({
 }: {
 	kind: PaneKind;
 	box: Box;
+	/** 横向的位置换成这一对，见 `DockView` 里右栏为什么按像素从右边量。 */
+	across?: { left: string; width: string };
 	label: string;
 	icon?: React.ReactNode;
 	maximized: boolean;
@@ -87,9 +90,9 @@ export function DockPane({
 			onPointerDownCapture={onFocus}
 			// `absolute` against the dock in percentages, so a window resize is the browser's problem.
 			style={{
-				left: pct(box.left),
+				left: across?.left ?? pct(box.left),
 				top: pct(box.top),
-				width: pct(box.width),
+				width: across?.width ?? pct(box.width),
 				height: pct(box.height),
 				/*
 				 * The pixel floor, which a share cannot express.

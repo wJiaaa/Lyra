@@ -18,7 +18,7 @@ test("tabs layout: every panel stays mounted in one right-hand pane, and only th
 	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin" } });
 	window.localStorage.clear();
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS} });
-	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, tabShare: 0.4, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, tabWidth: null, host: null });
 	const unregister = registerPanels([
 		{ kind: "terminal", label: "common.terminal", icon: Terminal, shortcut: "", render: () => h("input", { "data-test-terminal": "" }) },
 		{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "", render: () => h("input", { "data-test-browser": "" }) },
@@ -75,7 +75,7 @@ test("tabs layout, one screen: the column folds from its own card, comes back fr
 	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin" } });
 	window.localStorage.clear();
 	useApp.setState({ view: "chat", settings: { ...DEFAULT_SETTINGS} });
-	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, tabShare: 0.4, tabsCollapsed: false, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, tabWidth: null, tabsCollapsed: false, host: null });
 	const unregister = registerPanels([
 		{ kind: "terminal", label: "common.terminal", icon: Terminal, shortcut: "", render: () => h("input", { "data-test-terminal": "" }) },
 		{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "", render: () => h("input", { "data-test-browser": "" }) },

@@ -27,7 +27,7 @@ test("侧边聊天开着时再从「+」开一次是新的一格；关掉后开�
 	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin", sideChat: { close: async (sessionId: string, sideId: string) => void closed.push([sessionId, sideId]) } } });
 	window.localStorage.clear();
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS} });
-	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, tabShare: 0.4, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, tabWidth: null, host: null });
 	// 替换掉内置的那一项，关掉后开的那一格时要做的事也照内置的写。
 	const unregister = registerPanels([{ kind: "chat", label: "dock.sideChat", icon: MessageCirclePlus, shortcut: "", render: Chat,
 		closeInstance: (sessionId, sideId) => void useSide.getState().close(sessionId, sideId) }]);

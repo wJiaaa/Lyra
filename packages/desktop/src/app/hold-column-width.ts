@@ -46,10 +46,15 @@ export function holdColumnWidth(frame: HTMLElement, navAfter: number): () => voi
 	const scale = (room.offsetWidth + navNow - navAfter) / room.offsetWidth;
 	if (Math.abs(scale - 1) < 0.001) return () => {};
 
-	// Every pane is placed in shares of the dock, so its destination is its width scaled with the dock's.
-	const panes = [...main.querySelectorAll<HTMLElement>(".ly-dock-pane")].filter((pane) => pane.parentElement);
+	/*
+	 * Each screen is a share of the viewport and scales with it; inside a screen, the panel column beside
+	 * the conversation is pixels from the right (`across` in `DockView`) and keeps its width, so whatever
+	 * the screen gains or loses is the conversation's alone. Held, that panel's column would take a
+	 * destination it never reaches — its composer jumped 115px narrower on the first frame.
+	 */
+	const panes = [...main.querySelectorAll<HTMLElement>(".ly-dock-pane")].filter((pane) => pane.parentElement && !pane.style.width.endsWith("px"));
 	const unhold = holdColumns(
-		panes.map((pane) => ({ pane, from: pane.offsetWidth, to: pane.offsetWidth * scale })),
+		panes.map((pane) => ({ pane, from: pane.offsetWidth, to: pane.offsetWidth + pane.parentElement!.offsetWidth * (scale - 1) })),
 		{ wide: true },
 	);
 

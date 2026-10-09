@@ -40,7 +40,7 @@ import { kinds, type PaneKind } from "./tree.ts";
 import { detachOf } from "./panels/registry.ts";
 import { useBoxSize } from "./useBoxSize.ts";
 import { useColumnSlide } from "./column-slide.ts";
-import { activeTab, panelsOf, tabbedTree } from "./tabs.ts";
+import { activeTab, clampTabShare, legacyTabShare, panelsOf, tabbedTree } from "./tabs.ts";
 import { PanelTabs, type AddablePanel, type PanelTab } from "./PanelTabs.tsx";
 
 const WHOLE: Box = { left: 0, top: 0, width: 1, height: 1 };
@@ -156,7 +156,7 @@ export function DockView({
 	const maximized = usePaneDock((s) => s.maximized[scope] ?? false);
 	const focusedPane = usePaneDock((s) => s.focused[scope] ?? "conversation");
 	const rememberedTab = usePaneDock((s) => s.tab[scope]);
-	const tabShare = usePaneDock((s) => s.tabShare);
+	const tabWidth = usePaneDock((s) => s.tabWidth);
 	const tabsCollapsed = usePaneDock((s) => s.tabsCollapsed);
 	const { compact } = useLayout();
 	const definitions = usePanelDefinitions();
@@ -196,12 +196,18 @@ export function DockView({
 	}, [scope, size]);
 	useEffect(() => () => usePaneDock.getState().forget(scope), [scope]);
 
+	// 右栏还没有像素宽（头一次打开、或旧版只存了占比）：按这一屏眼下的宽度定下来，之后就不再跟着变。
+	useLayoutEffect(() => {
+		if (tabWidth === null && size) usePaneDock.getState().setTabWidth(legacyTabShare() * size.width);
+	}, [tabWidth, size]);
+
 	/*
 	 * 画的是「对话 + 当前标签」这棵两格的树，其余面板借当前标签的位置、隐藏着挂在那儿。存的树不动，
 	 * 见 `tabs.ts`。`fitted` 是按这一屏的尺寸量过的那棵：画不下下限时照画，行首那格被盖住而不是重排。
 	 */
 	const panels = panelsOf(tree);
 	const tab = activeTab(tree, rememberedTab);
+	const tabShare = clampTabShare(size && tabWidth !== null ? tabWidth / size.width : legacyTabShare());
 	/*
 	 * 标题栏、标签条和收起右栏的开关都在各自的卡片里，单屏也一样。它们曾经上到窗口顶栏（2026-10-07），
 	 * 可顶栏里有没有东西要看开着什么：插件、设置这类页面、没开右栏时，顶栏那一大段就空着。
@@ -233,8 +239,23 @@ export function DockView({
 	const boxes = focus ? laid.filter((box) => box.kind === focus) : laid;
 
 	// 那条分隔线的近侧是对话，标签栏拿剩下的。
-	const applyShare = (share: number) => usePaneDock.getState().setTabShare(1 - share);
+	const applyShare = (share: number) => {
+		if (size) usePaneDock.getState().setTabWidth(clampTabShare(1 - share) * size.width);
+	};
 	const splitters = compact || focus ? [] : layoutSplitters(fitted);
+
+	/*
+	 * 并排时右栏从右边量、写成像素：侧栏开合、拖窗口时这一屏变宽变窄，浏览器直接让对话那一格吸收，
+	 * 右栏原地不动。写成占比的话，要等量到新尺寸、重渲染一遍才改回来——每一帧都慢一拍，而且样式
+	 * 一变 `PaneSurface` 就当成一次挪动去补间。像素取自排过下限的那棵，挤到下限时照旧由 `fitTree` 定。
+	 */
+	const docked = !compact && !focus && size && fitted.type === "split" && fitted.dir === "row" ? laid.find((box) => box.kind !== "conversation") : undefined;
+	const anchored = docked ? Math.round(docked.width * size!.width * 100) / 100 : null;
+	const across = (box: Box): { left: string; width: string } | undefined => {
+		// 整屏大小的那一格（藏着的浏览器）不在这一行里。
+		if (anchored === null || box.width > 1 - 1e-6) return undefined;
+		return box.left < 1e-6 ? { left: "0%", width: `calc(100% - ${anchored}px)` } : { left: `calc(100% - ${anchored}px)`, width: `${anchored}px` };
+	};
 
 	/*
 	 * The order panes are *mounted* in, which is not the order they are laid out in.
@@ -310,6 +331,7 @@ export function DockView({
 							containerRef={containerRef}
 							onResize={applyShare}
 							onEven={() => applyShare(0.5)}
+							at={anchored === null ? undefined : `calc(100% - ${anchored}px)`}
 						/>
 					))}
 
@@ -331,6 +353,7 @@ export function DockView({
 								key={kind}
 								kind={kind}
 								box={box}
+								across={across(box)}
 								label={label}
 								icon={icon}
 								maximized={Boolean(focus) && Boolean(placed)}

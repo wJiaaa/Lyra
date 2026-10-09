@@ -25,12 +25,15 @@ export function Splitter({
 	containerRef,
 	onResize,
 	onEven,
+	at,
 }: {
 	handle: SplitterBox;
 	containerRef: React.RefObject<HTMLElement | null>;
 	onResize: (share: number) => void;
 	/** Double-click: give the two panes either side of this boundary equal room. */
 	onEven: () => void;
+	/** 横向位置换成这个，和两边格子同一种写法：见 `DockView` 里的 `across`。 */
+	at?: string;
 }) {
 	const row = handle.dir === "row";
 	const [active, setActive] = useState(false);
@@ -221,7 +224,7 @@ export function Splitter({
 			style={
 				row
 					? {
-							left: pct(handle.left),
+							left: at ?? pct(handle.left),
 							top: pct(handle.top),
 							height: pct(handle.height),
 							width: SPLITTER_HIT,
