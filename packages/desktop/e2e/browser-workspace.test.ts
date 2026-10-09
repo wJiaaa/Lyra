@@ -188,8 +188,7 @@ test("fullscreen keeps the native browser page and form state, with one viewport
 		const resizes=[];let count=0;const observer=new ResizeObserver(()=>count++);observer.observe(page);
 		for(const label of ['全屏','退出全屏']) {
 			await new Promise(requestAnimationFrame);count=0;
-			// A lone screen's panel buttons sit on the window toolbar, beside the column's tabs.
-			document.querySelector('[data-ly-toolbar-panel] button[aria-label^="'+label+'"]').click();
+			document.querySelector('[data-dock-pane="browser"] button[aria-label^="'+label+'"]').click();
 			for(let i=0;i<25;i++)await new Promise(requestAnimationFrame);resizes.push(count);
 		}
 		observer.disconnect();

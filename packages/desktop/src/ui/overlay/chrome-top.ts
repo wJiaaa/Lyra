@@ -1,6 +1,6 @@
 /**
- * How much of the window's top belongs to the window's own toolbar (`--ly-chrome-top`, set by the
- * layout while there is one — see `framed` in `app/layout.tsx`). Zero in a window with no toolbar.
+ * How much of the window's top belongs to the window's own header band (`--ly-chrome-top`, set by
+ * the layout while there is one — see `headerBar` in `app/layout.tsx`). Zero on macOS, which has none.
  *
  * Floating surfaces stop under it. They used to be kept only from the window's edge, so a preview
  * opening upwards from a row near the top of the conversation spread over the toolbar: its title,

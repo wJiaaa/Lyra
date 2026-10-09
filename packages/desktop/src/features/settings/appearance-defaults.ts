@@ -62,4 +62,5 @@ export const FACTORY_APPEARANCE: Appearance = {
 	errorDetail: "compact",
 	callChain: "collapsed",
 	fontSmoothing: false,
+	vibrancy: true,
 };

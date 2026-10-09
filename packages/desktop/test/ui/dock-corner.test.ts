@@ -53,7 +53,7 @@ test("原生全屏不豁免让位，只是让得少一些", () => {
 	/*
 	 * 这一条是回归。
 	 *
-	 * 全屏拿走的是红绿灯，不是侧边栏开关。让位的量跟着 `titlebarInsets` 自己变小——78 变 12——
+	 * 全屏拿走的是红绿灯，不是侧边栏开关。让位的量跟着 `titlebarInsets` 自己变小——86 变 12——
 	 * 但**不能变成零**，否则开关就压在标签栏上了。
 	 */
 	const windowed = titlebarInsets("darwin", false, { start: 0, end: 0 });

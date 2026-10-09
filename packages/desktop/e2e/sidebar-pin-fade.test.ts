@@ -1,7 +1,9 @@
 /**
  * 侧栏钉住的标题盖住从它底下滑过去的会话：不压字、标题底下不空一截、标题自己不淡。
  *
- * 标题铺的是侧栏自己的底色（`misc.css`），会话行不再自己淡出。遮罩只在钉住的标题下沿往下做一段柔化，
+ * 没有毛玻璃时标题铺侧栏自己的底色（`misc.css`）；macOS 的毛玻璃下侧栏和标题都是透明的，改由会话行
+ * 在滑进标题底下时自己淡没（`tabs.css` 的 `ly-under-head`），所以那里量的是每一行画出了多少，不是谁
+ * 在最上层——透明的标题照样接得住命中测试，按命中测试判断，满亮度压字也是绿的。遮罩只在钉住的标题下沿往下做一段柔化，
  * 那条下沿由 `useStickyFade` 逐帧量出来。这一步停过一次：清理时取消了排着的那一帧却没把记号归零，
  * effect 重跑之后 `schedule` 永远以为「已经排上了」，测量停在第一帧。只有开发构建会重跑（StrictMode），
  * 所以两种构建各走一遍——只跑生产构建的话，这条用例在出事的时候是绿的。
@@ -85,6 +87,13 @@ const MEASURE = `(() => {
 	const paint = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
 	const rgba = (css) => { paint.clearRect(0, 0, 1, 1); paint.fillStyle = css; paint.fillRect(0, 0, 1, 1); return [...paint.getImageData(0, 0, 1, 1).data].join(","); };
 	const pane = rgba(getComputedStyle(view.closest(".ly-nav-column") ?? view.closest(".ly-sidebar-fill")).backgroundColor);
+	const glass = document.documentElement.getAttribute("data-vibrancy") === "on";
+	/* 一行画出了多少：自己的不透明度乘上淡出动画写在 filter 里的那一份。 */
+	const drawn = (row) => {
+		const own = parseFloat(getComputedStyle(row).opacity);
+		const m = /opacity\\(([\\d.]+)\\)/.exec(getComputedStyle(row).filter);
+		return own * (m ? parseFloat(m[1]) : 1);
+	};
 	const heads = [...view.querySelectorAll("[data-ly-head]")]
 		.map((head) => ({ head, box: head.getBoundingClientRect() }))
 		.filter(({ box }) => box.top - origin < 1 && box.bottom - origin > 0);
@@ -101,12 +110,15 @@ const MEASURE = `(() => {
 			const own = row.getBoundingClientRect();
 			const top = Math.max(own.top, box.top, origin);
 			const bottom = Math.min(own.bottom, box.bottom);
-			if (bottom - top > 2) {
+			if (glass) {
+				/* 过了一半，行里的字就到了标题的字那一带：这时必须已经淡没。 */
+				if (bottom - top >= own.height / 2 && drawn(row) > 0.01) showing.push(name + " 底下透出 " + row.textContent.trim().slice(0, 12) + "（画出 " + drawn(row).toFixed(2) + "）");
+			} else if (bottom - top > 2) {
 				const hit = document.elementFromPoint(own.left + own.width / 2, (top + bottom) / 2);
 				if (!head.contains(hit)) showing.push(name + " 底下透出 " + row.textContent.trim().slice(0, 12));
 			}
 			const rowTop = own.top - origin;
-			const rowOpacity = parseFloat(getComputedStyle(row).opacity);
+			const rowOpacity = drawn(row);
 			if (box.top - origin > -0.5 && rowTop >= edge && rowTop < edge + 30 && rowOpacity < 0.95) {
 				hidden.push(name + " 底下的 " + row.textContent.trim().slice(0, 12) + "（不透明度 " + rowOpacity.toFixed(2) + "）");
 			}

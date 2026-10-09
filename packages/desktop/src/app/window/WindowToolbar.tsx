@@ -10,13 +10,13 @@
 import { translate } from "../../i18n/translate.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { Check, MoreVertical } from "../../ui/icons/index.ts";
-import { emptyDockTree, has, toggleScopedPanel, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
+import { emptyDockTree, has, openScopedPanel, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
 import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";
 import { nextPanelKind } from "../../lib/panel-instance.ts";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
-import { TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";
-import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
+import { NavButtons, TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";
+import { MAIN_WINDOW_ROW_OFFSET, NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 
 /*
  * The update chip used to have a slot of its own here, just past the sidebar toggle.
@@ -25,12 +25,6 @@ import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
  * Nothing about the toolbar was wrong for it except the size of the claim: the corner of the
  * window is where the window's own controls are, and a version number is not one of them.
  */
-
-/**
- * How far the first row of cards stands off the window's top where there is no toolbar band — a
- * host without the frame's toolbar. No desktop window is one; kept for Web access (ADR-0027).
- */
-const CARD_ROW_OFFSET = 5;
 
 /**
  * The strip of window that can be dragged to move it.
@@ -54,8 +48,58 @@ export function DragBand({ navOpen, sidebarWidth }: { navOpen: boolean; sidebarW
 			 * no draggable pixels; a little more than the toggle's own start is what makes the
 			 * corner grabbable without claiming the pane title next to it.
 			 */
-			style={{ height: WINDOW_HEADER_HEIGHT + CARD_ROW_OFFSET, width: navOpen ? sidebarWidth : titlebar.start + TOOLBAR_BUTTON }}
+			style={{ height: WINDOW_HEADER_HEIGHT + MAIN_WINDOW_ROW_OFFSET, width: navOpen ? sidebarWidth : titlebar.start + TOOLBAR_BUTTON }}
 		/>
+	);
+}
+
+/**
+ * Windows 和 Linux 的那条 header：横贯窗口顶端，两头各归其主。
+ *
+ * macOS 没有这个组件，那里走的是上面的 `DragBand` + 浮在角上的 `WindowButtons`——红绿灯在左上
+ * 角，面板的第一行就是窗口的顶行，一行当两行用。理由和这条带子存在的理由都写在 `hasHeaderBar`。
+ *
+ * 这里的排布只有一件事：左端 `titlebar.start` 处放后退、前进和侧边栏开关，右端空出 `titlebar.end` 给系统的
+ * 最小化/最大化/关闭。中间整片都是拖拽区，开关那一小块是 `no-drag` 挖出来的洞——DOM 顺序在这里
+ * 仍然是规矩，洞必须写在带子后面，否则会被重新盖上。
+ *
+ * 左上角跟着窗口圆角走。Windows 11 自己会把窗口裁成圆角，一条方角的带子压在那个圆里，转角处会
+ * 透出窗口的底色——一个不属于任何界面元素的深色小三角。
+ */
+export function WindowHeader({
+	navOpen,
+	compact,
+	onToggleNav,
+	children,
+}: {
+	navOpen: boolean;
+	compact: boolean;
+	onToggleNav: () => void;
+	/**
+	 * 后退、前进之后放什么，默认是工作区那个侧边栏开关。
+	 *
+	 * 设置页要传自己的：那里的开关开合的是章节列表而不是会话列表，两者的说明文字不是同一句话，
+	 * 而屏幕朗读器读到的就是这句话。图标是同一个，因为做的是同一件事。
+	 */
+	children?: React.ReactNode;
+}) {
+	const { titlebar } = useLayout();
+	return (
+		<div
+			data-ly-window-header
+			className="drag-region ly-window-header relative z-40 flex shrink-0 items-center"
+			/*
+			 * 这个组件只在 `headerBar` 那条分支里渲染（见 `App.tsx`），也就是只在 Windows 和
+			 * Linux 上——所以高度直接取原生那一档，不必再判一次平台。它和
+			 * `titleBarOverlay.height` 是同一个常量，带子和系统按钮因此不会错开。
+			 */
+			style={{ height: NATIVE_HEADER_HEIGHT, paddingLeft: titlebar.start, paddingRight: titlebar.end }}
+		>
+			<div className="no-drag flex items-center gap-0.5">
+				<NavButtons />
+				{children ?? <WindowControls navOpen={navOpen} onToggleNav={onToggleNav} active={compact && navOpen} />}
+			</div>
+		</div>
 	);
 }
 
@@ -84,9 +128,7 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 	const { t } = useI18n();
 	const menu = usePopover();
 	const definitions = usePanelDefinitions();
-	const { compact } = useLayout();
 	const tree = usePaneDock((s) => s.trees[scope] ?? emptyDockTree);
-	const toggle = (kind: PanelKind) => toggleScopedPanel(scope, kind, { compact });
 	const open = (kind: PanelKind) => void usePaneDock.getState().open(scope, kind);
 	const close = (kind: PanelKind) => usePaneDock.getState().close(scope, kind);
 
@@ -100,14 +142,18 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 					// is a row of things you have to read before you can ignore them. The menu still
 					// lists them, with the reason.
 					if (!def || def.unavailable) return null;
-					// 侧边聊天和终端能开好几个：每点一次再开一个，和标签栏「+」一样，所以也没有开着/关着之分。
+					/*
+					 * 只管打开，不是开关，也不亮。侧边聊天和终端能开好几个：每点一次再开一个，和标签栏「+」一样。
+					 * 浏览器和 Git 只有一个：开着就切过去，右栏收着就展开，不会再点一下把它关掉。
+					 * 它们曾经按「开着没有」常亮，可右栏收起时面板看不见、按钮还亮着，读起来像是开着却找不到；
+					 * 开着哪些看标签条，关掉在标签上或「⋮」菜单里。
+					 */
 					const many = kind === "chat" || kind === "terminal";
 					return (
 						<ToolbarButton
 							key={kind}
 							label={`${t(def.label)} ${def.shortcut}`}
-							active={!many && has(tree, kind)}
-							onClick={() => (many ? open(nextPanelKind(kind, (each) => has(tree, each))) : toggle(kind))}
+							onClick={() => (many ? open(nextPanelKind(kind, (each) => has(tree, each))) : openScopedPanel(kind, scope))}
 						>
 							<def.icon size={13} strokeWidth={1.9} />
 						</ToolbarButton>
@@ -192,9 +238,10 @@ export function WindowButtons({
 			 * Windows and Linux — where this used to sit 78px in anyway, out of line with the marks
 			 * directly below it and adrift from the edge. `useTitlebar` is the whole rule.
 			 */
-			// On the first card's title row, which stands `CARD_ROW_OFFSET` off the window's top.
-			style={{ left: titlebar.start, top: CARD_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}
+			// 和红绿灯同一条线：主窗口的顶行在卡片里，低 `MAIN_WINDOW_ROW_OFFSET`。
+			style={{ left: titlebar.start, top: MAIN_WINDOW_ROW_OFFSET, height: WINDOW_HEADER_HEIGHT }}
 		>
+			<NavButtons />
 			<WindowControls navOpen={navOpen} onToggleNav={onToggleNav} active={compact && navOpen} />
 		</div>
 	);

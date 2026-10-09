@@ -11,9 +11,9 @@ import { RollingText } from "../../ui/motion/RollingText.tsx";
  * second press unpredictable. The count is what is left, not what a press will reveal — how much
  * more there is is the question being asked.
  *
- * Shared by a project's block and by the 「最近」 section, which both cap what they show for the
- * same reason: forty rows under one heading is a wall, and the way back from it used to be a
- * single 收起 that threw away however far you had read.
+ * Only a project's block uses it: forty rows under one heading is a wall, and the way back from it
+ * used to be a single 收起 that threw away however far you had read. The 「聊天」 section lists
+ * every row and folds only from its heading.
  *
  * Indented so its icon aligns with the session status icons above it (pl-2 and 14px slot),
  * with the title starting at 30px to align with session titles.
@@ -47,6 +47,7 @@ export function ShowMore({
 			<button
 				key="more"
 				type="button"
+				data-ly-show-more=""
 				onClick={onShowMore}
 				className={`group/more flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-2 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted ${heightClass}`}
 			>
@@ -69,6 +70,7 @@ export function ShowMore({
 			<button
 				key="collapse"
 				type="button"
+				data-ly-show-more=""
 				onClick={onCollapse}
 				className={`group/more flex w-full min-w-0 items-center gap-2 rounded-lg pl-2 pr-2 text-left text-label text-ink-faint transition-colors duration-[var(--ly-t-quick)] hover:text-ink-muted ${heightClass}`}
 			>
@@ -83,7 +85,7 @@ export function ShowMore({
 	}
 
 	return (
-		<div key="split" className={`flex w-full min-w-0 items-center justify-between gap-1 rounded-lg ${heightClass}`}>
+		<div key="split" data-ly-show-more="" className={`flex w-full min-w-0 items-center justify-between gap-1 rounded-lg ${heightClass}`}>
 			<button
 				type="button"
 				onClick={onShowMore}

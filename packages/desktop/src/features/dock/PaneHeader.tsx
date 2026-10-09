@@ -30,6 +30,7 @@ export function PaneHeader({
 	insetEnd,
 	onToggleMaximized,
 	onPopOut,
+	after,
 }: {
 	kind: PaneKind;
 	label: string;
@@ -75,6 +76,8 @@ export function PaneHeader({
 	onToggleMaximized?: () => void;
 	/** Leave the dock for a real window. Absent on the conversation. */
 	onPopOut?: () => void;
+	/** Last in the row, after full screen: the toggle that folds the panel column away. */
+	after?: React.ReactNode;
 }) {
 	return (
 		<div
@@ -85,7 +88,12 @@ export function PaneHeader({
 				// 6px is `pr-1.5`, which is what this row used before there was anything to clear.
 				paddingRight: (insetEnd ?? 0) + 6,
 			}}
-			className="drag-region group/header relative flex shrink-0 items-center gap-1.5"
+			/*
+			 * `inset` 是给左上角红绿灯和侧栏开关的让位，侧栏一开合就变。时长和曲线跟 `app/panes.tsx`
+			 * 里侧栏的 `margin-left` 同一套：硬切时点下去那一帧标题先跳约 170px、再随整栏滑回来，像闪了
+			 * 一下；同步过渡后两段位移叠成一段单向滑动。
+			 */
+			className="drag-region group/header relative flex shrink-0 items-center gap-1.5 transition-[padding-left] duration-[var(--ly-t-base)] ease-out"
 		>
 			{/*
 			 * A panel may put a control here instead of its name — the terminal's tab strip does,
@@ -108,18 +116,15 @@ export function PaneHeader({
 				</div>
 			</div>
 
-			<PaneActions kind={kind} label={label} maximized={maximized} actions={actions} onToggleMaximized={onToggleMaximized} onPopOut={onPopOut} />
+			<PaneActions kind={kind} label={label} maximized={maximized} actions={actions} onToggleMaximized={onToggleMaximized} onPopOut={onPopOut} after={after} />
 		</div>
 	);
 }
 
 /**
  * A pane's own controls: what the panel brings, then pop out and full screen. Closing is on the tab.
- *
- * Its own component because the tabs layout draws them in the window's toolbar instead of the pane's
- * bar (see `ToolbarPanelBar`), and the two places must offer the same buttons.
  */
-export function PaneActions({
+function PaneActions({
 	kind,
 	label,
 	maximized,
@@ -134,7 +139,7 @@ export function PaneActions({
 	actions?: React.ReactNode;
 	onToggleMaximized?: () => void;
 	onPopOut?: () => void;
-	/** 排在最后、和这几颗同一组同样间距的按钮：顶栏里收起右栏的开关。 */
+	/** 排在最后、和这几颗同一组同样间距的按钮：收起右栏的开关。 */
 	after?: React.ReactNode;
 }) {
 	// `no-drag`: the bar around them moves the window, and a press here is meant for the button.

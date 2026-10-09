@@ -7,6 +7,9 @@
  * 放不下时跟着窗格一路长到终点——总之不会在「只平移」之后再变宽。
  *
  * 量的是转录那一栏的盒子，逐帧采样；右栏开着的那一遍是「放不下终点宽度」的情形。
+ *
+ * 顶栏的标题也跟着量：它左边给红绿灯和侧栏开关的让位（`startInset`）随侧栏开合变，硬切时点下去
+ * 那一帧标题先反向跳约 170px、再随整栏滑回来，看上去是一闪。
  */
 
 import assert from "node:assert/strict";
@@ -48,7 +51,7 @@ after(async () => {
 	await app?.stop();
 });
 
-interface Sample { left: number; width: number; held: boolean }
+interface Sample { left: number; width: number; held: boolean; title: number }
 
 /** 点一下侧栏开关，逐帧量转录那一栏，直到滑动结束后再多量几帧。 */
 async function slide(label: string): Promise<Sample[]> {
@@ -57,7 +60,8 @@ async function slide(label: string): Promise<Sample[]> {
 		const step = () => {
 			const pane = document.querySelector('.ly-dock-pane[data-ly-pane-slot="conversation"]');
 			const box = document.querySelector('.ly-transcript').getBoundingClientRect();
-			out.push({ left: box.left, width: box.width, held: [...pane.children].some((c) => c.style.getPropertyValue('--ly-content')) });
+			const title = document.querySelector('[data-ly-screen-title]').getBoundingClientRect().left;
+			out.push({ left: box.left, width: box.width, held: [...pane.children].some((c) => c.style.getPropertyValue('--ly-content')), title });
 			if (performance.now() - t0 < 900) requestAnimationFrame(step); else resolve(out);
 		};
 		requestAnimationFrame(step);
@@ -98,6 +102,23 @@ function assertNoSlideThenWiden(samples: Sample[], what: string): void {
 		assert.ok(later < 1, `${what}：只平移了几帧之后宽度又变了 ${later.toFixed(1)}px`);
 	}
 }
+
+/** 标题一路朝终点走：有一帧反着动，就是先跳过去再滑回来。 */
+function assertTitleOneWay(samples: Sample[], what: string): void {
+	const direction = Math.sign(samples.at(-1)!.title - samples[0].title);
+	assert.notEqual(direction, 0, `${what}：标题根本没动`);
+	const back = samples.slice(1).map((sample, index) => (sample.title - samples[index].title) * direction).filter((step) => step < -0.5);
+	assert.equal(back.length, 0, `${what}：标题反着动了 ${back.map((step) => step.toFixed(1)).join(", ")}px`);
+}
+
+test("侧栏收起与展开，顶栏标题一路滑到终点，不先反向跳一下", async () => {
+	const hide = await slide("隐藏侧边栏");
+	assertTitleOneWay(hide, "收起");
+	await frames(app, 30);
+	const show = await slide("显示侧边栏");
+	assertTitleOneWay(show, "展开");
+	await frames(app, 30);
+});
 
 test("侧栏收起与展开，对话栏宽度不会在平移之后再变一次", async () => {
 	const hide = await slide("隐藏侧边栏");

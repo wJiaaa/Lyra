@@ -200,17 +200,11 @@ test("the title bars move the window, and their buttons do not", async () => {
 	await openPane("任务");
 	await settledPanes();
 
-	/*
-	 * In the window frame the conversation's title bar is the window's toolbar (ADR-0038): the region
-	 * is set on the toolbar, and what is on it — the title included — is inside that region unless
-	 * it opts out. A conversation among several screens still has a bar of its own.
-	 */
 	const regions = await app.evaluate<Record<string, string | null>>(`(() => {
 		const region = (sel) => { const el = document.querySelector(sel); return el ? getComputedStyle(el).webkitAppRegion : null; };
-		const bar = document.querySelector('[data-ly-main-toolbar]') ? '[data-ly-main-toolbar]' : '[data-dock-header="conversation"]';
 		return {
-			bar: region(bar),
-			controls: region(bar + ' .no-drag'),
+			bar: region('[data-dock-header="conversation"]'),
+			controls: region('[data-dock-header="conversation"] .no-drag'),
 		};
 	})()`);
 	assert.equal(regions.bar, "drag", "the title bar moves the window");
@@ -240,7 +234,7 @@ test("a second panel opens as another tab in the same column, not as a pane of i
 
 	assert.ok(near(boxes.browser.left, first.tasks.left) && near(boxes.browser.width, first.tasks.width), "in the column the first one had");
 	assert.ok(near(boxes.conversation.width, first.conversation.width), "the conversation did not move");
-	const tabs = await app.evaluate<string[]>(`[...document.querySelectorAll('[role="tablist"] [data-panel-tab]')].filter((t) => t.checkVisibility()).map((t) => t.dataset.panelTab)`);
+	const tabs = await app.evaluate<string[]>(`[...document.querySelectorAll('[data-dock-pane]:not([inert]) [role="tablist"] [data-panel-tab]')].filter((t) => t.checkVisibility()).map((t) => t.dataset.panelTab)`);
 	assert.deepEqual(tabs, ["tasks", "browser"], "and both are tabs, the new one last");
 });
 
@@ -299,7 +293,7 @@ test("maximising a pane covers the dock, and Escape gives it back", async () => 
 	const dock = await dockBox();
 
 	await app.evaluate(`(async () => {
-		// On the column's own bar — in the window's toolbar on a single screen, see ToolbarPanelBar.
+		// On the column's own title bar.
 		[...document.querySelectorAll('button[aria-label^="全屏"]')].find((b) => b.checkVisibility()).click();
 		await new Promise((r) => setTimeout(r, 350));
 	})()`);
@@ -424,7 +418,7 @@ test("the layout survives a reload, which is what per-conversation persistence r
 	assert.deepEqual(Object.keys(after).sort(), ["browser", "conversation"], "the column came back, on the tab it was left on");
 	assert.ok(near(after.conversation.width, before.conversation.width, 4), "at the width it was left at");
 	assert.ok(near(after.browser.left, before.browser.left, 4), "and in the same place");
-	const tabs = await app.evaluate<string[]>(`[...document.querySelectorAll('[role="tablist"] [data-panel-tab]')].filter((t) => t.checkVisibility()).map((t) => t.dataset.panelTab)`);
+	const tabs = await app.evaluate<string[]>(`[...document.querySelectorAll('[data-dock-pane]:not([inert]) [role="tablist"] [data-panel-tab]')].filter((t) => t.checkVisibility()).map((t) => t.dataset.panelTab)`);
 	assert.deepEqual(tabs, ["tasks", "browser"], "with both tabs");
 });
 
@@ -448,7 +442,7 @@ test("screens that are not a conversation have no panels at all, and leave the c
 	const visit = (label: string) =>
 		app.evaluate(`(async () => {
 			const want = ${JSON.stringify(label)};
-			// The places are icon buttons in the rail now; their accessible name is the word.
+			// The places are rows in the sidebar; an icon-only one would answer to its accessible name.
 			const item = [...document.querySelectorAll("button, a")].find((el) => el.textContent.trim() === want || el.getAttribute("aria-label") === want);
 			if (!item) throw new Error("no sidebar item " + want);
 			item.click();

@@ -23,7 +23,8 @@ const OUT_DIR = process.argv[3] ?? join(homedir(), "Desktop", "Plume标签条滚
 const PORT = 9495;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 const SESSION = "tabs-wheel";
-const STRIP = '[data-ly-toolbar-panel] [role="tablist"]';
+const CARD = '[data-dock-pane]:not([inert]):not([data-dock-pane="conversation"])';
+const STRIP = `${CARD} [role="tablist"]`;
 
 async function seed(home: string): Promise<void> {
 	const project = join(home, "project");
@@ -80,7 +81,7 @@ try {
 		const el = document.querySelector(${JSON.stringify(STRIP)});
 		const r = el.getBoundingClientRect();
 		const style = getComputedStyle(el);
-		const arrows = [...document.querySelectorAll('[data-ly-toolbar-panel] button[aria-label="往左滚"], [data-ly-toolbar-panel] button[aria-label="往右滚"]')].filter((b) => getComputedStyle(b).opacity !== "0").length;
+		const arrows = [...document.querySelectorAll('${CARD} button[aria-label="往左滚"], ${CARD} button[aria-label="往右滚"]')].filter((b) => getComputedStyle(b).opacity !== "0").length;
 		return {
 			scrollLeft: Math.round(el.scrollLeft), max: Math.round(el.scrollWidth - el.clientWidth),
 			tabs: el.querySelectorAll("[data-panel-tab]").length, arrows,
@@ -106,7 +107,7 @@ try {
 	for (let i = 0; i < 8; i++) {
 		const { max } = await measure();
 		if (max > 120) break;
-		await click(page, '[data-ly-toolbar-panel] button[aria-label="添加面板"]');
+		await click(page, `${CARD} button[aria-label="添加面板"]`);
 		await click(page, '[role="menuitem"]', "侧边聊天", "starts");
 		await frames(page, 30);
 		await pause(300);
@@ -164,7 +165,7 @@ try {
 	await pause(700);
 	const picked = await page.evaluate<boolean>(`Boolean(document.querySelector(${JSON.stringify(`${STRIP} [data-panel-tab="${last}"] [aria-selected="true"]`)}))`);
 	check("滚到最右后，最右那个标签点得中", picked, last);
-	await click(page, '[data-ly-toolbar-panel] button[aria-label="添加面板"]');
+	await click(page, `${CARD} button[aria-label="添加面板"]`);
 	const menu = await page.evaluate<boolean>(`Boolean(document.querySelector('[role="menuitem"]'))`);
 	await capture("加号菜单");
 	check("「+」还在、点得开", menu, menu);

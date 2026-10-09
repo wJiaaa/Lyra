@@ -49,7 +49,13 @@ export class PaneSurface extends Component<Props, Record<string, never>, Snapsho
 		if (!before.width || !before.height || !after.width || !after.height) return;
 		const dx = before.left - after.left;
 		const dy = before.top - after.top;
-		if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(before.width - after.width) < 0.5 && Math.abs(before.height - after.height) < 0.5) return;
+		/*
+		 * A pane anchored at its corner lands at its new size. Its neighbour takes over the space on the
+		 * far side in one frame, so all a scale could show is the near side squeezed: opening the right
+		 * panel stretched the conversation's question rail 28px to 47px, pushed it 10px right and slid the
+		 * text and the card's own edge back — a shudder on the side that was meant to stay put.
+		 */
+		if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
 		const options = { id: "ly-dock-geometry", duration: DURATION.base, easing: EASING.out };
 		this.motions.push(element.animate([
 			{ transform: `translate(${dx}px, ${dy}px) scale(${before.width / after.width}, ${before.height / after.height})` },

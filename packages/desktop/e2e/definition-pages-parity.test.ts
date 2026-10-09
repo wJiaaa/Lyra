@@ -53,7 +53,7 @@ before(async () => {
 		}));
 		await writeFile(join(plugin, "skills", "rebase", "SKILL.md"), "---\nname: rebase\ndescription: 在用户要求整理提交历史时，按仓库约定执行交互式变基并说明每一步。\n---\n\n变基。\n");
 	} });
-	// The rail's gear when the rail is shown, the sidebar foot's otherwise; both carry this mark.
+	// The sidebar foot's gear.
 	await app.evaluate(`[...document.querySelectorAll("[data-ly-open-settings]")].find((b) => b.checkVisibility())?.dispatchEvent(new MouseEvent("click",{bubbles:true}))`);
 	await until(`document.querySelector("[data-ly-settings]")`);
 });

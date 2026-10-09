@@ -23,7 +23,6 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { useLayout } from "../../app/layout.tsx";
 import { SidebarIcon, ToolbarButton, toolbarReserved } from "../../app/window/WindowControls.tsx";
-import { useToolbarSlot } from "../../app/window/toolbar-slot.ts";
 import { freezeMotion } from "../../ui/motion/freeze.ts";
 import { useApp } from "../../store/index.ts";
 import { renderPanel, renderPanelActions, renderPanelHeader, usePanelDefinitions } from "./panels/definitions.tsx";
@@ -40,10 +39,9 @@ import type { PanelKind } from "./sideStore.ts";
 import { kinds, type PaneKind } from "./tree.ts";
 import { detachOf } from "./panels/registry.ts";
 import { useBoxSize } from "./useBoxSize.ts";
+import { useColumnSlide } from "./column-slide.ts";
 import { activeTab, panelsOf, tabbedTree } from "./tabs.ts";
 import { PanelTabs, type AddablePanel, type PanelTab } from "./PanelTabs.tsx";
-import { PaneActions } from "./PaneHeader.tsx";
-import { ToolbarPanelBar } from "./ToolbarPanelBar.tsx";
 
 const WHOLE: Box = { left: 0, top: 0, width: 1, height: 1 };
 
@@ -75,7 +73,7 @@ export function cornerReserved(start: number): number {
  * nothing on Windows and Linux, whose header band takes both ends of the window once for everyone.
  * **Native full screen does not excuse it**: full screen takes the traffic lights away, not the
  * toggle, which stays and is the only way back with the sidebar closed. What full screen changes is
- * how much — `titlebarInsets` drops `start` from 78 to 12.
+ * how much — `titlebarInsets` drops `start` from 86 to 12.
  */
 export function startInset({ headerBar, navOpen, start }: { headerBar: boolean; navOpen: boolean; start: number }): number {
 	return headerBar || navOpen ? 0 : cornerReserved(start);
@@ -133,18 +131,23 @@ const NO_INSETS: ScreenInsets = { start: 0, end: 0 };
 export function DockView({
 	scope,
 	header,
+	foldable = false,
 	insets = NO_INSETS,
 	children,
 }: {
 	/** The conversation this screen shows — its session id, or `@draft` for the blank one. */
 	scope: string;
 	/**
-	 * The conversation's own title bar, given the insets it owes the window's corners.
-	 *
-	 * `null` when the window's toolbar draws it instead (one screen, in the frame): the conversation's
-	 * card then starts with the transcript.
+	 * The conversation's own title bar, given the insets it owes the window's corners, and what to put
+	 * at the end of its buttons — the toggle that brings a folded panel column back.
 	 */
-	header: ((insets: ScreenInsets) => ReactNode) | null;
+	header: (insets: ScreenInsets, after?: ReactNode) => ReactNode;
+	/**
+	 * The panel column can be folded away: the only screen. Not with several screens —
+	 * whether the column is folded is one setting for the window, and a toggle in one screen would
+	 * fold them all.
+	 */
+	foldable?: boolean;
 	insets?: ScreenInsets;
 	/** The transcript and composer. */
 	children: ReactNode;
@@ -157,9 +160,6 @@ export function DockView({
 	const tabsCollapsed = usePaneDock((s) => s.tabsCollapsed);
 	const { compact } = useLayout();
 	const definitions = usePanelDefinitions();
-	const toolbarSlot = useToolbarSlot();
-	// 顶栏只在对话页属于这一屏；插件目录这类页面盖在上面时，这一屏还挂着，标签条不能留在顶栏里。
-	const chatInFront = useApp((s) => s.view === "chat");
 	const containerRef = useRef<HTMLDivElement>(null);
 	const size = useBoxSize(containerRef);
 
@@ -203,24 +203,29 @@ export function DockView({
 	const panels = panelsOf(tree);
 	const tab = activeTab(tree, rememberedTab);
 	/*
-	 * 单屏（标题栏由窗口顶栏画，`header === null`）：标签条和这一栏的按钮上到顶栏，栏里不再留那一行，
-	 * 见 `ToolbarPanelBar`。窄窗口下一格盖满整屏，标签条留在格子里。
-	 * 放不下并排、面板排到对话下面时也留在格子里：那时右边没有这一栏，顶栏那段还得让给会话的按钮，
-	 * 768 宽实测只剩 164px，标签被挤得只露出图标。
+	 * 标题栏、标签条和收起右栏的开关都在各自的卡片里，单屏也一样。它们曾经上到窗口顶栏（2026-10-07），
+	 * 可顶栏里有没有东西要看开着什么：插件、设置这类页面、没开右栏时，顶栏那一大段就空着。
+	 *
+	 * 开关展开时在这一栏的按钮最后，收起时在会话标题栏的按钮最后。窄窗口下一格盖满整屏、放不下并排而
+	 * 面板排到对话下面时没有右边这一栏，也就没有这颗开关。
 	 */
 	const pair = !compact && size && tab ? fitTree(tabbedTree(tab, tabShare), size, paneFloor) : null;
 	const stacked = pair?.type === "split" && pair.dir === "col";
-	const lifted = header === null && !compact && toolbarSlot !== null && !stacked;
+	const canFold = foldable && !compact && !stacked;
 	/*
-	 * 右栏收起：画的树里只剩对话，面板照旧挂着（隐藏），展开时终端、页面都还在。只在 `lifted` 时算数——
-	 * 展开的开关在顶栏里，分屏或窄窗口下没有它，收着就再也打不开了。
+	 * 右栏收起：画的树里只剩对话，面板照旧挂着（隐藏），展开时终端、页面都还在。只在有开关时算数——
+	 * 分屏或窄窗口下没有它，收着就再也打不开了。
 	 */
-	const folded = lifted && tabsCollapsed && tab !== null;
+	const folded = canFold && tabsCollapsed && tab !== null;
 	const shown = tabbedTree(folded ? null : tab, tabShare);
 	/** 一个标签借谁的格子画：所有面板都在当前标签那一格。 */
 	const slotOf = (kind: PaneKind): PaneKind => (tab && panels.includes(kind) ? tab : kind);
 	const fitted = compact || !size ? shown : fitTree(shown, size, paneFloor);
 	const laid = layoutPanes(fitted);
+	const openBoxes = pair && tab ? layoutPanes(pair) : [];
+	const openConversation = openBoxes.find((box) => box.kind === "conversation");
+	const openPanel = openBoxes.find((box) => box.kind === tab);
+	useColumnSlide(containerRef, scope, tab, folded, openConversation && openPanel ? { conversation: openConversation, panel: openPanel } : null);
 
 	// 全屏的是整栏，不是某一个标签：切标签不该退出全屏。
 	const focus = !compact && tab && !folded && maximized ? tab : null;
@@ -275,20 +280,23 @@ export function DockView({
 		.filter((def) => !def.unavailable && def.listed !== false && (allowsMany(def.kind) || !panels.includes(def.kind)))
 		.map((def) => ({ kind: def.kind, label: translate(def.label), icon: <def.icon size={16} strokeWidth={1.7} />, shortcut: def.shortcut }));
 
-	/** 收起、展开右栏的开关，在窗口顶栏最右，和左边那颗侧栏开关成镜像。 */
-	const columnToggle = (
-		<ToolbarButton
-			label={translate(folded ? "pane.showColumn" : "pane.hideColumn")}
-			onClick={() => {
-				const dock = usePaneDock.getState();
-				// 全屏的是这一栏；收起它也就不再全屏，展开回来是平常的样子。
-				if (!folded && dock.maximized[scope]) dock.restore(scope);
-				dock.setTabsCollapsed(!folded);
-			}}
-		>
-			<SidebarIcon side="right" open={!folded} />
+	/** 收起、展开右栏。展开时这一栏标题栏里的小按钮，收起时会话标题栏里和旁边一样大的那颗。 */
+	const toggleColumn = () => {
+		const dock = usePaneDock.getState();
+		// 全屏的是这一栏；收起它也就不再全屏，展开回来是平常的样子。
+		if (!folded && dock.maximized[scope]) dock.restore(scope);
+		dock.setTabsCollapsed(!folded);
+	};
+	const foldButton = canFold && tab && !folded ? (
+		<ToolbarButton label={translate("pane.hideColumn")} onClick={toggleColumn}>
+			<SidebarIcon side="right" open />
 		</ToolbarButton>
-	);
+	) : undefined;
+	const unfoldButton = folded ? (
+		<ToolbarButton label={translate("pane.showColumn")} onClick={toggleColumn}>
+			<SidebarIcon side="right" open={false} />
+		</ToolbarButton>
+	) : undefined;
 
 	return (
 		<DockScope.Provider value={scope}>
@@ -334,17 +342,15 @@ export function DockView({
 								 */
 								quietEntrance={!conversation && panels.length > 1}
 								actions={conversation ? undefined : renderPanelActions(kind as PanelKind)}
+								after={kind === tab ? foldButton : undefined}
 								title={conversation ? undefined : <PanelTabs scope={scope} tabs={tabs} addable={addable} current={kind} />}
 								inset={inset}
 								insetEnd={insetEnd}
 								onToggleMaximized={maximizeOf(kind)}
 								onPopOut={popOutOf(kind)}
-								// 标题栏上了顶栏的面板不画自己的那一行，也不留它的高度。
-								chrome={conversation || !lifted}
 								onFocus={() => usePaneDock.getState().focus(scope, kind)}
-								reserveHeader={!conversation || header !== null}
 								// A card, like every pane — see `DockPane`.
-								customHeader={conversation ? <>{header?.({ start: cardRoom(inset), end: cardRoom(insetEnd) })}</> : undefined}
+								customHeader={conversation ? <>{header({ start: cardRoom(inset), end: cardRoom(insetEnd) }, unfoldButton)}</> : undefined}
 							>
 								{conversation ? (
 									children
@@ -354,7 +360,7 @@ export function DockView({
 									 */
 									<>
 										{panelHeader && (
-											<div data-dock-subheader={kind} className={`flex shrink-0 items-center px-2 pb-1 ${lifted ? "pt-1" : ""}`}>
+											<div data-dock-subheader={kind} className="flex shrink-0 items-center px-2 pb-1">
 												{panelHeader}
 											</div>
 										)}
@@ -365,31 +371,6 @@ export function DockView({
 						);
 					})}
 				</div>
-				{lifted && chatInFront && tab && toolbarSlot && (
-					<ToolbarPanelBar
-						slot={toolbarSlot}
-						dock={containerRef}
-						left={(focusBox(tab) ?? laid.find((entry) => entry.kind === tab) ?? WHOLE).left}
-						collapsed={folded}
-					>
-						{folded ? (
-							<div className="no-drag flex shrink-0 items-center">{columnToggle}</div>
-						) : (
-							<>
-								<PanelTabs scope={scope} tabs={tabs} addable={addable} current={tab} />
-								<PaneActions
-									kind={tab}
-									label={tabs.find((entry) => entry.kind === tab)?.label ?? tab}
-									maximized={Boolean(focus)}
-									actions={renderPanelActions(tab as PanelKind)}
-									onToggleMaximized={maximizeOf(tab)}
-									onPopOut={popOutOf(tab)}
-									after={columnToggle}
-								/>
-							</>
-						)}
-					</ToolbarPanelBar>
-				)}
 			</div>
 		</DockScope.Provider>
 	);

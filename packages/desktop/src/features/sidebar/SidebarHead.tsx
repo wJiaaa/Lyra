@@ -29,13 +29,16 @@ export function SidebarHead({ onOpen }: { onOpen: (meta: SessionMeta) => void })
 			{/*
 			 * The bell sits on the column of the `+` and the row actions under it: the list's
 			 * `px-2.5`/`px-3`, the actions' 6px inset and half a 22px button, less half of this 28px one,
-			 * is `pr-[13px]`/`pr-[15px]`. `mt-2`: flush at 5px the name read as
-			 * pressed to the edge. `pl-5`: the name starts on the line 新对话's icon and the list's
-			 * headings start on (20px); at 16px it stood 4px out from everything under it. `mb-2`: at 4px
-			 * 新对话 read as a second line of the title rather than the first thing in the pane.
+			 * is `pr-[13px]`/`pr-[15px]`. No top margin, and the row as tall as the buttons (28px):
+			 * the buttons' top lands on the top edge of the card beside the sidebar, which sits flush under
+			 * the toolbar (`.ly-frame-panel`); any gap here and the two tops read as misaligned.
+			 * `pl-5`: the name starts on the line 新对话's icon and the list's
+			 * headings start on (20px); at 16px it stood 4px out from everything under it. `mb-[11px]`:
+			 * 11px from the buttons to 新对话, as before; at 4px it read as a second line of the title
+			 * rather than the first thing in the pane.
 			 */}
 			<div
-				className={`ly-sidebar-head mt-2 mb-2 flex h-[34px] shrink-0 items-center justify-between pl-5 ${compact ? "pr-[15px]" : "pr-[13px]"}`}
+				className={`ly-sidebar-head mb-[11px] flex h-7 shrink-0 items-center justify-between pl-5 ${compact ? "pr-[15px]" : "pr-[13px]"}`}
 			>
 				<span className="text-title font-semibold tracking-tight text-ink">Plume</span>
 				<div className="flex items-center gap-[5px]">

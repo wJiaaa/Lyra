@@ -8,8 +8,7 @@ import { seedInteractions } from "./interaction-fixture.ts";
 
 let app: RunningApp;
 const pane = '[data-dock-pane="review"]';
-// 单屏时这一栏的按钮在窗口顶栏里，见 `ToolbarPanelBar`。
-const button = '[data-ly-toolbar-panel] button[aria-label*="全屏"]';
+const button = `${pane} button[aria-label*="全屏"]`;
 before(async () => {
 	app = await startApp({ port: 9653, seed: seedInteractions });
 	await until(app, `document.querySelector('[data-ly-row="qa-short"] > button')`);

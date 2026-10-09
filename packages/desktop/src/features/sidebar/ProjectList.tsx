@@ -7,16 +7,14 @@ import { translate } from "../../i18n/translate.ts";
 import type { SessionMeta } from "@plume/core";
 import { GroupActivity } from "./GroupActivity.tsx";
 import { ChevronRight, Plus } from "../../ui/icons/index.ts";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useLayout } from "../../app/layout.tsx";
 import { ProjectDialog } from "../modals/index.ts";
 import { Collapsible } from "./Collapsible.tsx";
 import type { Grouped } from "../../lib/sidebar-grouping.ts";
-import { ProjectGroup, SESSION_PAGE } from "./ProjectGroup.tsx";
+import { ProjectGroup } from "./ProjectGroup.tsx";
 import { rowActions, SessionRow, type RowActions } from "./SessionRow.tsx";
-import { ShowMore } from "./ShowMore.tsx";
 import { useSidebarReorder } from "./useSidebarReorder.ts";
-import { useUnfold } from "./useUnfold.ts";
 import { SidebarReorderContext } from "./reorder-context.ts";
 import type { SortKey } from "./ListMenu.tsx";
 import { CarriedPill } from "./DropIndicator.tsx";
@@ -37,9 +35,6 @@ export function ProjectList({
 	collapsed,
 	onToggleCollapsed,
 	groupProps,
-	looseShown,
-	onLooseMore,
-	onLooseCollapse,
 	actions,
 	onReordered,
 	sort,
@@ -52,9 +47,6 @@ export function ProjectList({
 	onToggleCollapsed: (key: string) => void;
 	/** Everything a `ProjectGroup` needs that is per-project state rather than per-project data. */
 	groupProps: (path: string) => Omit<React.ComponentProps<typeof ProjectGroup>, "group" | "active">;
-	looseShown: number;
-	onLooseMore: () => void;
-	onLooseCollapse: () => void;
 	actions: RowActions;
 	onReordered?: () => void;
 	sort: SortKey;
@@ -71,8 +63,6 @@ export function ProjectList({
 	const { compact } = useLayout();
 	const reorder = useSidebarReorder(groups, sort, onReordered);
 	const [creating, setCreating] = useState(false);
-	const looseRows = useRef<HTMLDivElement>(null);
-	const unfoldLoose = useUnfold(looseRows);
 	const pinnedShut = collapsed.includes(PINNED);
 	const hasPinned = (groups.pinnedSessions?.length ?? 0) > 0;
 
@@ -174,25 +164,17 @@ export function ProjectList({
 						{translate("projectList.recent")}
 					</SectionLabel>
 					{/* Flat rows, the same ones a project shows — the section is what differs, not the
-					    conversation. Same gap as inside a project, so the two read as one list. */}
+					    conversation. Same gap as inside a project, so the two read as one list.
+					    No pager: every chat is listed, and the heading still folds the whole section. */}
 					<Collapsible open={!collapsed.includes(RECENT)}>
 						<div className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
-							{/* 只包住行，理由见 `useUnfold`。 */}
-							<div ref={looseRows} className={`flex flex-col ${compact ? "gap-[5px]" : "gap-[2px]"}`}>
-								{groups.loose.slice(0, looseShown).map((session) => (
-									<SessionRow
-										key={session.id}
-										session={session}
-										{...rowActions(actions, session)}
-									/>
-								))}
-							</div>
-							<ShowMore
-								hidden={Math.max(0, groups.loose.length - looseShown)}
-								canCollapse={looseShown > SESSION_PAGE}
-								onShowMore={unfoldLoose.unfold(onLooseMore)}
-								onCollapse={unfoldLoose.fold(SESSION_PAGE, onLooseCollapse)}
-							/>
+							{groups.loose.map((session) => (
+								<SessionRow
+									key={session.id}
+									session={session}
+									{...rowActions(actions, session)}
+								/>
+							))}
 						</div>
 					</Collapsible>
 				</>

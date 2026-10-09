@@ -10,7 +10,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { useEffect, useRef, useState } from "react";
 import { freezeMotion } from "../../ui/motion/freeze.ts";
-import { SPLITTER_HIT, SPLITTER_STEP, pct, shareFromPointer, type SplitterBox } from "./layout.ts";
+import { GRIP_SPAN, SPLITTER_HIT, SPLITTER_STEP, pct, shareFromPointer, type SplitterBox } from "./layout.ts";
 import { holdSplitPersist } from "./persist.ts";
 
 export function Splitter({
@@ -31,9 +31,11 @@ export function Splitter({
 	const dragging = useRef(false);
 	const report = useRef(onResize);
 	report.current = onResize;
-	const [lit, setLit] = useState(false);
+	const [grip, setGrip] = useState<number | null>(null);
 	const track = useRef<HTMLDivElement>(null);
 	const dock = useRef<DOMRect | null>(null);
+	/** Where the strip starts along the seam, from the press: the seam only moves across itself. */
+	const along = useRef(0);
 
 	useEffect(() => {
 		if (!active) return;
@@ -62,6 +64,8 @@ export function Splitter({
 			const container = dock.current ?? containerRef.current?.getBoundingClientRect();
 			if (!container) return;
 			report.current(shareFromPointer(current.current, row ? event.clientX : event.clientY, container));
+			// The grip keeps to the pointer along the seam through the drag, not where the press landed.
+			setGrip((row ? event.clientY : event.clientX) - along.current);
 		};
 
 		const onMove = (event: PointerEvent) => {
@@ -80,7 +84,7 @@ export function Splitter({
 				event.clientX <= box.right &&
 				event.clientY >= box.top &&
 				event.clientY <= box.bottom;
-			if (!over) setLit(false);
+			if (!over) setGrip(null);
 		};
 		window.addEventListener("pointermove", onMove);
 		window.addEventListener("pointerup", stop);
@@ -97,9 +101,19 @@ export function Splitter({
 		<div
 			ref={track}
 			data-ly-split-handle
-			onPointerEnter={() => setLit(true)}
+			onPointerEnter={(event) => {
+				const box = event.currentTarget.getBoundingClientRect();
+				const next = row ? event.clientY - box.top : event.clientX - box.left;
+				setGrip((current) => (current !== null && Math.round(current) === Math.round(next) ? current : next));
+			}}
+			onPointerMove={(event) => {
+				if (dragging.current) return;
+				const box = event.currentTarget.getBoundingClientRect();
+				const next = row ? event.clientY - box.top : event.clientX - box.left;
+				setGrip((current) => (current !== null && Math.round(current) === Math.round(next) ? current : next));
+			}}
 			onPointerLeave={() => {
-				if (!dragging.current) setLit(false);
+				if (!dragging.current) setGrip(null);
 			}}
 			role="separator"
 			aria-orientation={row ? "vertical" : "horizontal"}
@@ -112,6 +126,8 @@ export function Splitter({
 				if (event.button !== 0) return;
 				event.preventDefault();
 				dock.current = containerRef.current?.getBoundingClientRect() ?? null;
+				const strip = event.currentTarget.getBoundingClientRect();
+				along.current = row ? strip.top : strip.left;
 				dragging.current = true;
 				setActive(true);
 			}}
@@ -145,20 +161,27 @@ export function Splitter({
 			}
 			className={`ly-splitter absolute z-20 ${row ? "cursor-col-resize" : "cursor-row-resize"}`}
 		>
-			<span
-				aria-hidden
-				// Drawn only under the pointer, like the dock's: the screens' own edges draw the boundary at
-				// rest, and a second line on top of the first doubled it.
-				className={`ly-splitter-line pointer-events-none absolute bg-line ${
-					row ? "inset-y-0 left-1/2 w-px -translate-x-1/2" : "inset-x-0 top-1/2 h-px -translate-y-1/2"
-				}`}
-			/>
-			{lit && (
+			{grip !== null && (
 				<span
 					aria-hidden
-					className={`pointer-events-none absolute rounded-full transition-colors duration-[var(--ly-t-quick)] ${
-						row ? "inset-y-0 left-1/2 w-[3px] -translate-x-1/2" : "inset-x-0 top-1/2 h-[3px] -translate-y-1/2"
-					} ${active ? "bg-accent" : "bg-ink-faint/45"}`}
+					style={
+						row
+							? {
+									top: `clamp(${GRIP_SPAN / 2 + 8}px, ${grip}px, calc(100% - ${GRIP_SPAN / 2 + 8}px))`,
+									left: "50%",
+									height: GRIP_SPAN,
+									width: 3,
+								}
+							: {
+									left: `clamp(${GRIP_SPAN / 2 + 8}px, ${grip}px, calc(100% - ${GRIP_SPAN / 2 + 8}px))`,
+									top: "50%",
+									width: GRIP_SPAN,
+									height: 3,
+								}
+					}
+					className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors duration-[var(--ly-t-quick)] ${
+						active ? "bg-accent" : "bg-ink-faint/45"
+					}`}
 				/>
 			)}
 		</div>

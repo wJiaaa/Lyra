@@ -7,7 +7,7 @@
  * it. The rules — what is the same place, what a step passes over — are `lib/nav-history.ts`.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { create } from "zustand";
 
 import { EMPTY_HISTORY, record, sameEntry, step, type NavEntry, type NavHistory, type NavSnapshot } from "../lib/nav-history.ts";
@@ -78,4 +78,42 @@ export function useCanStep(direction: -1 | 1): boolean {
 		() => step(history, direction, { activeSessionId, exists: (id) => sessions.some((session) => session.id === id) || Boolean(sessionCache[id]) }) !== null,
 		[history, direction, activeSessionId, sessions, sessionCache],
 	);
+}
+
+const mac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+
+/**
+ * ⌘[ and ⌘] on macOS, Alt+← and Alt+→ elsewhere, and the mouse's own back and forward buttons.
+ *
+ * Not while typing: in a text field those keys belong to the field, and leaving the conversation
+ * because a word was being selected would lose the place being typed into.
+ *
+ * Mounted once, by the window's `Shell`, not by each view: the workspace stays mounted under
+ * settings, so a listener per view would take every press twice and go back two places.
+ */
+export function useNavShortcuts() {
+	useEffect(() => {
+		const typing = (target: EventTarget | null) =>
+			target instanceof HTMLElement && (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA");
+		const onKey = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || event.repeat || typing(event.target)) return;
+			const back = mac ? event.metaKey && !event.altKey && !event.shiftKey && event.code === "BracketLeft" : event.altKey && !event.ctrlKey && event.key === "ArrowLeft";
+			const forward = mac ? event.metaKey && !event.altKey && !event.shiftKey && event.code === "BracketRight" : event.altKey && !event.ctrlKey && event.key === "ArrowRight";
+			if (!back && !forward) return;
+			event.preventDefault();
+			void (back ? goBack() : goForward());
+		};
+		// Buttons 3 and 4 are the side buttons on a mouse; `mouseup`, so the press itself is not taken.
+		const onMouse = (event: MouseEvent) => {
+			if (event.button !== 3 && event.button !== 4) return;
+			event.preventDefault();
+			void (event.button === 3 ? goBack() : goForward());
+		};
+		window.addEventListener("keydown", onKey);
+		window.addEventListener("mouseup", onMouse);
+		return () => {
+			window.removeEventListener("keydown", onKey);
+			window.removeEventListener("mouseup", onMouse);
+		};
+	}, []);
 }

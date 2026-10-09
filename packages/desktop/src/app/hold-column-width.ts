@@ -36,53 +36,23 @@ export function holdColumnWidth(frame: HTMLElement, navAfter: number): () => voi
 	const main = frame.parentElement?.querySelector<HTMLElement>(":scope > main");
 	if (!main || main.offsetWidth === 0) return () => {};
 	const navNow = frame.offsetWidth + Number.parseFloat(getComputedStyle(frame).marginLeft);
-	const scale = (main.offsetWidth + navNow - navAfter) / main.offsetWidth;
+	/*
+	 * The panes are shares of the split viewport, not of `main`: around the viewport is the workspace's
+	 * own padding (`.ly-frames`), which stays put while the viewport takes the whole of the change.
+	 */
+	const room = main.querySelector<HTMLElement>("[data-ly-split-viewport]") ?? main;
+	const scale = (room.offsetWidth + navNow - navAfter) / room.offsetWidth;
 	if (Math.abs(scale - 1) < 0.001) return () => {};
 
 	// Every pane is placed in shares of the dock, so its destination is its width scaled with the dock's.
 	const panes = [...main.querySelectorAll<HTMLElement>(".ly-dock-pane")].filter((pane) => pane.parentElement);
-	const probe = (pane: HTMLElement, width: number) => {
-		const box = document.createElement("div");
-		box.className = "ly-dock-pane";
-		box.style.cssText = `position:absolute;left:0;top:0;height:0;visibility:hidden;pointer-events:none;width:${width}px`;
-		const column = box.appendChild(document.createElement("div"));
-		column.style.width = "var(--ly-content)";
-		// Beside the pane, so the probe inherits whatever `--ly-content` the pane does when no query matches.
-		pane.parentElement?.appendChild(box);
-		return { box, column };
-	};
-	const probes = panes.map((pane) => [probe(pane, pane.offsetWidth), probe(pane, pane.offsetWidth * scale)] as const);
-	// All inserted before any is read: one layout for the lot.
-	const caps = probes.map((pair) => pair.map(({ column }) => Number.parseFloat(getComputedStyle(column).width)));
-	for (const { box } of probes.flat()) box.remove();
-
-	const held: HTMLElement[] = [];
-	panes.forEach((pane, index) => {
-		const [capFrom, capTo] = caps[index];
-		if (!(capFrom > 0 && capTo > 0)) return;
-		const from = pane.offsetWidth;
-		const to = from * scale;
-		const box = (width: number) => `(100% - 100cqw + ${width}px)`;
-		const start = `min(${box(from)}, ${capFrom}px)`;
-		const end = `min(${box(to)}, ${capTo}px)`;
-		const value =
-			to < from
-				? end
-				: // The straight line from start to end, unless the end fits already — then it is the end.
-					`max(${start} + (${end} - ${start}) * ((100cqw - ${from}px) / ${to - from}px), ${end} - max(${end} - ${box(from)}, 0px) * 10000)`;
-		// Inline, on the elements the stylesheet sets it on (`.ly-dock-pane > *`), so it wins over the query.
-		for (const child of pane.children) {
-			if (!(child instanceof HTMLElement)) continue;
-			child.style.setProperty("--ly-content", `calc(${value})`);
-			held.push(child);
-		}
-	});
+	const unhold = holdColumns(panes.map((pane) => ({ pane, from: pane.offsetWidth, to: pane.offsetWidth * scale })));
 
 	let released = false;
 	const release = () => {
 		if (released) return;
 		released = true;
-		for (const element of held) element.style.removeProperty("--ly-content");
+		unhold();
 		frame.removeEventListener("transitionend", onEnd);
 		window.clearTimeout(timer);
 	};
@@ -92,4 +62,72 @@ export function holdColumnWidth(frame: HTMLElement, navAfter: number): () => voi
 	frame.addEventListener("transitionend", onEnd);
 	const timer = window.setTimeout(release, FALLBACK_MS);
 	return release;
+}
+
+/**
+ * Hold each pane's column at the width it will have at `to`, for a pane going from `from` pixels wide
+ * to `to`, and hand back the release. The sidebar's slide above, and the right column's in `DockView`.
+ *
+ * `wide`: a column that does not fit yet takes its destination width anyway and runs past the pane's
+ * right edge, where the card clips it (`[data-ly-column-wide]` in `dock.css`). Only where that edge is
+ * moving out of the way — the right column folding, see `column-slide.ts`. Beside the sidebar it stays
+ * put, and the cut would sit there for the whole slide.
+ */
+export function holdColumns(panes: { pane: HTMLElement; from: number; to: number }[], { wide = false } = {}): () => void {
+	/*
+	 * How much narrower than its pane the pane's inside is: the card's inset and border. The breakpoints
+	 * read the pane's width, but `100cqw` in `--ly-content` resolves where it is used, against the
+	 * nearest size container — the conversation's own, inside the card. So the probe holds its column in
+	 * a container that much narrower, and the held value below counts in the inside's widths.
+	 */
+	const card = (pane: HTMLElement) => pane.offsetWidth - (pane.querySelector<HTMLElement>("[data-dock-content]")?.offsetWidth ?? pane.offsetWidth);
+	const probe = (pane: HTMLElement, width: number) => {
+		const box = document.createElement("div");
+		box.className = "ly-dock-pane";
+		box.style.cssText = `position:absolute;left:0;top:0;height:0;visibility:hidden;pointer-events:none;width:${width}px`;
+		const inside = box.appendChild(document.createElement("div"));
+		inside.style.cssText = `container-type:inline-size;width:${width - card(pane)}px`;
+		const column = inside.appendChild(document.createElement("div"));
+		column.style.width = "var(--ly-content)";
+		// Beside the pane, so the probe inherits whatever `--ly-content` the pane does when no query matches.
+		pane.parentElement?.appendChild(box);
+		return { box, column };
+	};
+	const probes = panes.map(({ pane, from, to }) => [probe(pane, from), probe(pane, to)] as const);
+	// All inserted before any is read: one layout for the lot.
+	const caps = probes.map((pair) => pair.map(({ column }) => Number.parseFloat(getComputedStyle(column).width)));
+	for (const { box } of probes.flat()) box.remove();
+
+	const held: HTMLElement[] = [];
+	const widened: HTMLElement[] = [];
+	panes.forEach(({ pane, from: paneFrom, to: paneTo }, index) => {
+		const [capFrom, capTo] = caps[index];
+		if (!(capFrom > 0 && capTo > 0)) return;
+		const inset = card(pane);
+		const from = paneFrom - inset;
+		const to = paneTo - inset;
+		const box = (width: number) => `(100% - 100cqw + ${width}px)`;
+		const start = `min(${box(from)}, ${capFrom}px)`;
+		const end = `min(${box(to)}, ${capTo}px)`;
+		const value =
+			to < from || wide
+				? end
+				: // The straight line from start to end, unless the end fits already — then it is the end.
+					`max(${start} + (${end} - ${start}) * ((100cqw - ${from}px) / ${to - from}px), ${end} - max(${end} - ${box(from)}, 0px) * 10000)`;
+		if (wide && to > from) {
+			pane.setAttribute("data-ly-column-wide", "");
+			widened.push(pane);
+		}
+		// Inline, on the elements the stylesheet sets it on (`.ly-dock-pane > *`), so it wins over the query.
+		for (const child of pane.children) {
+			if (!(child instanceof HTMLElement)) continue;
+			child.style.setProperty("--ly-content", `calc(${value})`);
+			held.push(child);
+		}
+	});
+
+	return () => {
+		for (const element of held) element.style.removeProperty("--ly-content");
+		for (const pane of widened) pane.removeAttribute("data-ly-column-wide");
+	};
 }

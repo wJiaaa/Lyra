@@ -121,98 +121,62 @@
 }
 
 /*
- * The frame (`WindowFrame`): the toolbar and the icon rail sit on the window's own colour, and
- * everything below the toolbar is a card. The body under the toolbar paints nothing of its own — the
- * shell already has; with the macOS material a second translucent coat would make the body a shade
- * heavier than the toolbar above it, and the seam between them would show.
- */
-.ly-framed .ly-window-body,
-:root[data-vibrancy="on"] .ly-framed .ly-window-body {
-  background: transparent;
-}
-
-/*
- * The frame's one panel (ADR-0038): the sidebar and the content inside a single rounded edge, with a
- * hairline between them. It sits flush against the toolbar above and the rail on the left, and stands
- * 4px off the window's right and bottom edges, as the reference draws it.
+ * The sidebar's column stands on the window. On macOS it paints nothing and the material shows
+ * through; elsewhere it takes the sidebar's shade, the same as the native header above it
+ * (`.ly-window-header`) and the drawer. Beside it every pane is a card of its own (`DockPane`,
+ * `.ly-card-page`), 4px off its neighbours, the sidebar and the window's edges: `.ly-frames`'
+ * padding and each card's inset.
  *
- * `--ly-frame-line` is resolved here, on the frame, so the hairlines inside keep this colour even where
- * a pane recolours its own ink — the terminal and the editor take the code theme's.
- */
-.ly-framed {
-  --ly-frame-line: color-mix(in srgb, var(--color-ink) 10%, transparent);
-}
-
-.ly-frame-panel {
-  margin: 0 4px 4px 0;
-  border: 1px solid var(--ly-frame-line);
-  border-radius: var(--radius-panel);
-  background: var(--color-shell);
-}
-
-/*
- * The sidebar's column: a shade off the content, and the hairline that divides the two.
- *
- * The hairline is drawn over the column's last pixel rather than taking one of its own. As a border it
- * took that pixel from the list: at its narrowest the column held 239px of the 240 its tab strip is
- * laid out for (`SIDEBAR_MIN`).
- *
- * The shade is a variable so the sidebar's pinned headings can paint the same colour over the rows
- * passing under them (`misc.css`).
+ * `--ly-nav-fill` is what the pinned headings paint over the rows passing under them (`misc.css`).
+ * On the material there is no flat colour that matches what shows through, so the heading blurs
+ * what is under it instead — see below.
  */
 .ly-nav-column {
-  position: relative;
-  --ly-nav-fill: color-mix(in oklab, var(--color-shell) 60%, var(--color-sidebar));
+  --ly-nav-fill: var(--color-sidebar);
   background: var(--ly-nav-fill);
 }
 
-.ly-nav-column::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 0 auto;
-  z-index: 2;
-  width: 1px;
-  background: var(--ly-frame-line);
-  pointer-events: none;
+:root[data-vibrancy="on"] .ly-nav-column {
+  background: transparent;
 }
 
 .ly-nav-column .ly-sidebar-fill {
   background: transparent;
 }
 
-/* The short rule in the toolbar on the same line as that hairline. */
-.ly-toolbar-divider {
-  background: var(--ly-frame-line);
-}
-
 /*
- * Inside the panel nothing is a card. The content, its screens and the panes in them are regions of
- * the panel's surface, divided by the same hairline — see the note on the card in `DockPane`.
+ * Headings on the material stay clear, and the rows sliding under a pinned one fade out as they go.
+ *
+ * No fill can cover them here: an opaque one was a slab of another colour on the glass, a veil on
+ * every heading a lighter band on each project name, and `backdrop-filter` blurs nothing from inside
+ * the sidebar's scroller — measured, the titles passed under the heading sharp. So the rows go
+ * instead, each over the stretch where it is under the heading: the scroller's own view timeline,
+ * inset by the heading's height (`ProjectHead`, 32px beside the content), runs on the compositor
+ * with the scroll. This is not the fade 9ed4578d removed — that one emptied rows before they reached
+ * the heading and left a gap under it; these are only ever going while already beneath it.
+ *
+ * `filter`, not `opacity`: the row's own opacity is the drag's dimming, and an animation on it holds
+ * it at 1 for as long as the row exists.
  */
-.ly-framed .ly-frames {
-  padding: 0;
+@keyframes ly-under-head {
+  from {
+    filter: opacity(1);
+  }
+
+  to {
+    filter: opacity(0);
+  }
 }
 
-.ly-framed .ly-card-page {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
+:root[data-vibrancy="on"] .ly-nav-column .ly-sidebar-fill [data-ly-head] {
+  background: transparent;
 }
 
-.ly-dock-card.ly-dock-flat {
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.ly-dock-card.ly-dock-flat[data-edge-left],
-.ly-split-screen[data-edge-left] {
-  border-left: 1px solid var(--ly-frame-line);
-}
-
-.ly-dock-card.ly-dock-flat[data-edge-top],
-.ly-split-screen[data-edge-top] {
-  border-top: 1px solid var(--ly-frame-line);
+:root[data-vibrancy="on"] .ly-nav-column [data-ly-head] + * :is([data-ly-row], [data-ly-show-more]) {
+  animation: ly-under-head linear both;
+  animation-timeline: view(block 32px 0);
+  /* Gone by halfway: a row's text is mid-height, and by then it has reached the heading's own. */
+  animation-range: exit 0% exit 50%;
 }
 
 .ly-opaque {
@@ -370,19 +334,20 @@
   border-width: 1.5px;
 }
 
+
 /*
- * 右栏的按钮画在窗口顶栏里时（`ToolbarPanelBar`），和顶栏自己的按钮一个大小：28px 的按钮、13px 的图标。
- * 这几颗本来是窗格标题栏的 20px 按钮，面板自己带的那些（侧边聊天的「新对话」、文件的几颗）也是，
- * 放进顶栏后和旁边一排 28px 的挨着，一眼就是两种东西。在这里统一，面板定义不用知道自己被画在哪。
- * 开关本身就是顶栏按钮（`data-ly-toolbar-button`），不动它。
+ * 右栏卡片标题栏的按钮和对话卡片标题栏的一个大小：28px 的按钮、13px 的图标。两张卡片的标题栏
+ * 在同一行上，这几颗本来是窗格标题栏的 20px 按钮，面板自己带的那些（侧边聊天的「新对话」、文件的
+ * 几颗）也是，挨着对话那边一排 28px 的，一眼就是两种东西。在这里统一，面板定义不用知道自己被画在
+ * 哪。顶栏式的按钮（`data-ly-toolbar-button`，收起右栏那颗）本来就是这个大小，不动它。
  */
-[data-ly-toolbar-panel] [data-dock-actions] button:not([data-ly-toolbar-button]) {
+.ly-dock-pane [data-dock-actions]:not([data-ly-split-tools]) button:not([data-ly-toolbar-button]) {
   width: 28px;
   height: 28px;
   border-radius: var(--radius-lg);
 }
 
-[data-ly-toolbar-panel] [data-dock-actions] button:not([data-ly-toolbar-button]) svg {
+.ly-dock-pane [data-dock-actions]:not([data-ly-split-tools]) button:not([data-ly-toolbar-button]) svg {
   width: 13px;
   height: 13px;
 }

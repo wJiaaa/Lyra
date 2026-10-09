@@ -237,16 +237,9 @@ async function click(label: string): Promise<void> {
 	await new Promise((r) => setTimeout(r, 500));
 }
 
-/**
- * Whether the window has its icon rail, which is where 拉取请求, 已安排 and 插件 go when it does
- * (ADR-0038). Then nothing is above the list in the scroller. A window too narrow for the rail
- * puts them back in it, above the list.
- */
-const destinationsOnRail = () => app.evaluate<boolean>(`Boolean(document.querySelector("[data-ly-app-rail]"))`);
-
 test("at rest nothing is erased", async () => {
 	const at = await scrollTo(0);
-	if (!(await destinationsOnRail())) assert.ok(at.listInList > 60, `the list sits below the destinations: ${JSON.stringify(at)}`);
+	assert.ok(at.listInList > 60, `the list sits below the destinations: ${JSON.stringify(at)}`);
 	assert.equal(at.fadeTop, 0, "nothing is hidden above, so nothing softens");
 	for (const row of at.rows.filter((r) => r.y < 800)) {
 		assert.ok(row.opacity > 0.99, `a row at ${row.y.toFixed(1)} is drawn in full at rest (${row.opacity})`);

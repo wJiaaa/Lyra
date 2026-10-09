@@ -10,7 +10,6 @@ import { registerPanels } from "../../src/features/dock/panels/registry.ts";
 import { toggleScopedPanel } from "../../src/features/dock/popout.ts";
 import { panelsOf } from "../../src/features/dock/tabs.ts";
 import { has } from "../../src/features/dock/tree.ts";
-import { ToolbarSlot } from "../../src/app/window/toolbar-slot.ts";
 import { useApp } from "../../src/store/index.ts";
 import { translate } from "../../src/i18n/translate.ts";
 import { click, mount } from "../helpers/mount.ts";
@@ -72,7 +71,7 @@ test("tabs layout: every panel stays mounted in one right-hand pane, and only th
 	}
 });
 
-test("tabs layout, one screen: the tab strip sits in the window's toolbar, and the column folds away without closing anything", async () => {
+test("tabs layout, one screen: the column folds from its own card, comes back from the conversation's header, and folding closes nothing", async () => {
 	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin" } });
 	window.localStorage.clear();
 	useApp.setState({ view: "chat", settings: { ...DEFAULT_SETTINGS} });
@@ -82,28 +81,27 @@ test("tabs layout, one screen: the tab strip sits in the window's toolbar, and t
 		{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "", render: () => h("input", { "data-test-browser": "" }) },
 	]);
 	const scope = "lifted";
-	// 窗口顶栏里那个位置：`WindowFrame` 给的就是这样一个空元素。
-	const toolbar = document.createElement("div");
-	const slot = document.createElement("div");
-	toolbar.append(slot);
-	document.body.append(toolbar);
-	const view = await mount(h(LayoutProvider, { children: h(ToolbarSlot.Provider, { value: slot, children: h(DockView, { scope, header: null, children: h("textarea") }) }) }));
+	// 对话卡片的标题栏：`after` 是 DockView 交给它的那颗展开按钮。
+	const view = await mount(h(LayoutProvider, { children: h(DockView, { scope, header: (_insets, after) => h("div", { "data-test-header": "" }, after), foldable: true, children: h("textarea") }) }));
 	const pane = (kind: string) => view.find(`[data-dock-pane="${kind}"]`) as HTMLElement;
-	const toggle = () => slot.querySelector(`button[aria-label="${translate("pane.hideColumn")}"], button[aria-label="${translate("pane.showColumn")}"]`) as HTMLElement;
+	const header = () => view.find("[data-test-header]") as HTMLElement;
+	const fold = () => pane(usePaneDock.getState().tab[scope]!).querySelector(`button[aria-label^="${translate("pane.hideColumn")}"]`) as HTMLElement;
+	const unfold = () => header().querySelector(`button[aria-label^="${translate("pane.showColumn")}"]`) as HTMLElement;
+	const toggle = () => (usePaneDock.getState().tabsCollapsed ? unfold() : fold());
 	try {
 		await act(() => { usePaneDock.getState().open(scope, "terminal"); });
 		await act(() => { usePaneDock.getState().open(scope, "browser"); });
 		const terminal = view.find("[data-test-terminal]");
-		assert.equal(slot.querySelectorAll("[data-panel-tab]").length, 2, "the tabs are not in the toolbar");
-		assert.equal(view.all("[data-dock-header]").length, 0, "the column still draws a title row of its own");
+		assert.equal(pane("browser").querySelectorAll("[data-panel-tab]").length, 2, "the column's card lost its tab strip");
+		assert.ok(fold(), "the column's card has no fold button");
+		assert.equal(unfold(), null, "the conversation offers to unfold a column that is open");
 
-		// 收起：右栏不画了，标签条跟着走，顶栏里只剩开关；面板没关，终端还是那一个。
+		// 收起：右栏不画了，展开按钮到了对话的标题栏；面板没关，终端还是那一个。
 		await click(toggle());
 		assert.equal(usePaneDock.getState().tabsCollapsed, true);
 		assert.equal(pane("browser").inert, true);
 		assert.equal(pane("terminal").inert, true);
-		assert.equal(slot.querySelectorAll("[data-panel-tab]").length, 0);
-		assert.equal(toggle().getAttribute("aria-label")?.startsWith(translate("pane.showColumn")), true);
+		assert.ok(unfold(), "nothing in the conversation's header brings the column back");
 		assert.deepEqual(panelsOf(usePaneDock.getState().tree(scope)), ["terminal", "browser"], "folding closed a panel");
 
 		// 收着时按工具栏的「浏览器」，是展开去看它，不是把它关掉。
@@ -125,7 +123,6 @@ test("tabs layout, one screen: the tab strip sits in the window's toolbar, and t
 		assert.equal(pane("terminal").inert, false);
 	} finally {
 		await view.unmount();
-		toolbar.remove();
 		unregister();
 		usePaneDock.setState({ trees: {}, focused: {}, tab: {}, tabsCollapsed: false });
 	}

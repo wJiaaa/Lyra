@@ -180,26 +180,6 @@
   border-style: dashed;
 }
 
-/*
- * The splitter is the gap between two cards, so it draws nothing until you reach for it.
- *
- * It used to paint a hairline down the boundary. The cards' own edges say where that is now, and a
- * third line between two borders was one more edge in a frame meant to read as a few sheets of
- * paper. What is left is the nine-pixel target and a mark that appears under the pointer — the
- * same bargain the sidebar's handle makes.
- */
-.ly-splitter-line {
-  opacity: 0;
-  transition:
-    opacity var(--ly-t-quick) var(--ly-e-soft),
-    background-color var(--ly-t-quick) var(--ly-e-soft);
-}
-
-.ly-splitter:hover .ly-splitter-line,
-.ly-splitter:focus-visible .ly-splitter-line {
-  opacity: 1;
-}
-
 /* The narrow layout's pane picker, above the one pane on show. */
 .ly-dock-bar {
   border-bottom: 1px solid var(--color-line-soft);
@@ -230,6 +210,15 @@
 	.ly-dock-pane > * {
 		--ly-content: min(calc(100cqw - 416px), 1120px);
 	}
+}
+
+/*
+ * 右栏收起那一段滑动里，对话这一格从窄变宽（`features/dock/column-slide.ts`）。正文列按终点宽度
+ * 排，放不下的那截伸到卡片右缘外面被裁掉；`mx-auto` 放不下时贴左，左缘不动。不这样它只能跟着
+ * 格子逐帧变宽，整段转录每帧重排一次。滚动区本来就是 `overflow-x: hidden`，不会冒出横向滚动条。
+ */
+.ly-dock-pane[data-ly-column-wide] [class*="max-w-[var(--ly-content)]"] {
+	width: var(--ly-content);
 }
 
 @container ly-chat (width < 360px) {

@@ -2,25 +2,22 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { MAIN_TOOLBAR_HEIGHT, NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../shared/window-chrome.ts";
+import { MAIN_WINDOW_ROW_OFFSET, NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../shared/window-chrome.ts";
 import { startApp, type RunningApp } from "./app.ts";
 import { click, frames } from "./drive.ts";
 
-/**
- * The conversation's terminal button. A lone screen's panel buttons are on the window's toolbar; a
- * screen among several carries them in its own title bar.
- */
-const TERMINAL_BUTTON = ':is([data-ly-split-tools], [data-dock-header]) button[aria-label^="终端 "]';
+/** The conversation's terminal button, in its card's title bar. */
+const TERMINAL_BUTTON = '[data-dock-header] button[aria-label^="终端 "]';
 
 /**
  * Every control in the window's top rows sits on its row's centre line.
  *
  * Two rows, two heights — see `shared/window-chrome.ts`. Dock pane title bars are
  * `WINDOW_HEADER_HEIGHT` on every platform, so their controls centre half of that below each
- * pane's own top. The window's own row is the toolbar (`WindowFrame`): `MAIN_TOOLBAR_HEIGHT` on
- * macOS, where the traffic lights centre on it, and `NATIVE_HEADER_HEIGHT` on Windows and Linux,
- * where it is as tall as the system's caption buttons. Everything on it — back, forward, the
- * sidebar toggle, the open conversation's panel buttons — centres on that row.
+ * card's own top. The window's own row is not one number: Windows and Linux draw a header of
+ * `NATIVE_HEADER_HEIGHT` and the sidebar toggle rides on it, while macOS has no header and the
+ * toggle floats in the corner on the cards' title row, `MAIN_WINDOW_ROW_OFFSET` down, where the
+ * traffic lights centre too.
  *
  * The header's line is measured rather than assumed. When the band became 32px this compared the
  * toggle and the caption buttons with a hard-coded 22, and a comparison with a constant only says
@@ -41,16 +38,17 @@ async function headerAlignment(app: RunningApp): Promise<void> {
 			if (error > 0.5) drift.push(name + ': ' + (r.y + r.height / 2).toFixed(2) + ' vs ' + center.toFixed(2));
 		};
 		for (const pane of document.querySelectorAll('[data-dock-pane]')) {
-			const center = pane.getBoundingClientRect().top + ${WINDOW_HEADER_HEIGHT / 2};
+			// Centred in the card's top 44px: the card stands its inset and its border inside the pane.
+			const card = pane.querySelector('.ly-dock-card');
+			const center = (card ? card.getBoundingClientRect().top + card.clientTop : pane.getBoundingClientRect().top) + ${WINDOW_HEADER_HEIGHT / 2};
 			const kind = pane.getAttribute('data-dock-pane');
 			for (const icon of pane.querySelectorAll('[data-dock-header] svg')) measure(icon, center, kind + ' svg');
 			for (const button of pane.querySelectorAll('[data-dock-header] button')) measure(button, center, kind + ' ' + (button.getAttribute('aria-label') || 'button'));
 		}
-		const header = document.querySelector('[data-ly-main-toolbar]');
+		const header = document.querySelector('[data-ly-window-header]');
 		const band = header ? header.getBoundingClientRect() : null;
-		const headerCenter = band ? band.top + band.height / 2 : ${WINDOW_HEADER_HEIGHT / 2};
-		const toolbar = header ? [...header.querySelectorAll('button')] : [];
-		for (const button of new Set([...toolbar, ...document.querySelectorAll('button[aria-label*="侧边栏 "], button[aria-label*="设置导航 "]')])) {
+		const headerCenter = band ? band.top + band.height / 2 : ${MAIN_WINDOW_ROW_OFFSET + WINDOW_HEADER_HEIGHT / 2};
+		for (const button of document.querySelectorAll('button[aria-label*="侧边栏 "], button[aria-label*="设置导航 "]')) {
 			const name = button.getAttribute('aria-label');
 			measure(button, headerCenter, name); measure(button.querySelector('svg'), headerCenter, name + ' svg');
 		}
@@ -62,9 +60,10 @@ async function headerAlignment(app: RunningApp): Promise<void> {
 	assert.ok(geometry.controls >= 2, `header controls are visible: ${JSON.stringify(geometry)}`);
 	// Chromium quantizes a card's 1px border at fractional DPI; allow at most half a CSS pixel.
 	assert.ok(geometry.maxError <= 0.5, `header centre-line drift: ${JSON.stringify(geometry)}`);
-	// The toolbar is the native height wherever the system draws caption buttons into it.
-	const toolbarHeight = process.platform === "darwin" ? MAIN_TOOLBAR_HEIGHT : NATIVE_HEADER_HEIGHT;
-	assert.ok(geometry.headerHeight !== null && Math.abs(geometry.headerHeight - toolbarHeight) <= 0.5, `the toolbar is ${toolbarHeight}px: ${JSON.stringify(geometry)}`);
+	// `WindowHeader` is only ever drawn at the native height, whichever platform draws it.
+	if (geometry.headerHeight !== null) {
+		assert.ok(Math.abs(geometry.headerHeight - NATIVE_HEADER_HEIGHT) <= 0.5, `the header is ${NATIVE_HEADER_HEIGHT}px: ${JSON.stringify(geometry)}`);
+	}
 	if (geometry.overlayCenter !== null) {
 		assert.ok(Math.abs(geometry.overlayCenter - geometry.headerCenter) <= 0.5, `native overlay shares the header centre line: ${JSON.stringify(geometry)}`);
 	}
@@ -104,11 +103,11 @@ for (const [scale, width, height, theme] of [
 			}>(`(() => {
 				const overlay = navigator.windowControlsOverlay;
 				const edge = overlay?.visible ? overlay.getTitlebarAreaRect().right : innerWidth;
-				const header = document.querySelector('[data-ly-main-toolbar]');
+				const header = document.querySelector('[data-ly-window-header]');
 				const input = document.querySelector('textarea').getBoundingClientRect();
-				// Caption buttons sit on the toolbar. Pane titles are the next row; their x
+				// Caption buttons sit on the window header. Pane titles are the next row; their x
 				// crossing the overlay edge is not a collision.
-				const buttons = [...header.querySelectorAll('button')];
+				const buttons = [...(header ?? document).querySelectorAll(header ? 'button' : '[data-dock-header] button')];
 				return { width: innerWidth, height: innerHeight, dpr: devicePixelRatio,
 					overflow: document.documentElement.scrollWidth - innerWidth,
 					composerVisible: input.left >= 0 && input.right <= innerWidth && input.bottom <= innerHeight && input.height > 20,
@@ -162,13 +161,15 @@ for (const [scale, width, height, theme] of [
 			t.diagnostic(JSON.stringify(terminal));
 			assert.ok(terminal.visibleTabWidth >= terminal.tabWidth - 1, "the terminal tab is fully reachable in every layout");
 			assert.ok(terminal.addHit && terminal.closeHit);
-			await click(app, ':is([data-dock-pane]:not([inert]), [data-ly-toolbar-panel]) button[aria-label="添加面板"]');
+			await click(app, '[data-dock-pane]:not([inert]) button[aria-label="添加面板"]');
 			await click(app, '[role="menuitem"]', "终端", "starts");
 			await frames(app, 60);
 			assert.equal(await app.evaluate(`new Set([...document.querySelectorAll('[data-panel-tab^="terminal"]')].map(e => e.dataset.panelTab)).size`), 2);
 			await headerAlignment(app);
 			await click(app, 'button[aria-label*="侧边栏 "]');
-			await frames(app, 24);
+			// Closing the sidebar can give the panel room beside the conversation, and its card then slides
+			// over from under it for a dozen frames after the sidebar's own slide; this measures the rest.
+			await frames(app, 60);
 			await headerAlignment(app);
 		} finally {
 			try {
@@ -239,8 +240,7 @@ test("a regular window reflows the dock without losing panes or overwriting the 
 		 * and the terminal was disposed while the catalogue was up and rebuilt on the way back
 		 * (ADR-0023, point 8).
 		 */
-		// The rail's button where there is a rail; the sidebar's row in a window too narrow for one.
-		await app.evaluate(`(document.querySelector('[data-ly-rail-item="plugins"]') ?? [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '插件' && b.checkVisibility())).setAttribute('data-qa-nav', '')`);
+		await app.evaluate(`[...document.querySelectorAll('aside button')].find((b) => b.textContent.trim() === '插件' && b.checkVisibility()).setAttribute('data-qa-nav', '')`);
 		await click(app, "[data-qa-nav]"); await frames(app, 24);
 		assert.equal(await app.evaluate(`Boolean(document.querySelector('[data-ly-solo-screen]')?.checkVisibility())`), true, "the catalogue is up");
 		assert.equal(await app.evaluate(`Boolean(document.querySelector('.xterm-screen[data-qa-preserved]'))`), true, "and the terminal behind it is the same one");
@@ -274,8 +274,8 @@ async function paintedPixels(app: RunningApp, clip: { x: number; y: number; widt
 	})()`);
 }
 
-/** A pane's own buttons: on the window toolbar while its column is beside the conversation, in its own title row once stacked under it. */
-const PANE_ACTIONS = `':is([data-ly-toolbar-panel], [data-dock-pane]:not([inert])) [data-dock-actions]:not([data-ly-split-tools]) button'`;
+/** A pane's own buttons, in its card's title bar. */
+const PANE_ACTIONS = `'[data-dock-pane]:not([inert]) [data-dock-actions]:not([data-ly-split-tools]) button'`;
 
 test("toolbar and pane icons keep their pixel column wherever the sidebar's edge falls, at 125%", async (t) => {
 	/*
@@ -285,11 +285,9 @@ test("toolbar and pane icons keep their pixel column wherever the sidebar's edge
 	 * as the toolbar shaking for the length of the slide. Held at a series of edges here, since a
 	 * screenshot per animation frame is not something a test can ask for reliably.
 	 *
-	 * Two rows since the window frame (ADR-0038). The three that were reported shaking — terminal,
-	 * browser, panels — moved up to the window's toolbar, out of the content; the icons still inside
-	 * it are a pane's own, so a pane is opened beside the conversation and its buttons are held too —
-	 * on one screen they ride up into the window's toolbar with the pane's tab, unless the pane is
-	 * stacked under the conversation (this window is too narrow for both across), when they stay in its title row.
+	 * Two rows: the three that were reported shaking — terminal, browser, panels — on the conversation's
+	 * title bar, and a pane's own buttons on its card's, so a pane is opened beside the conversation
+	 * (or stacked under it, when this window is too narrow for both across) and its buttons are held too.
 	 */
 	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
 	try {
@@ -309,7 +307,7 @@ test("toolbar and pane icons keep their pixel column wherever the sidebar's edge
 			const left = Math.floor(icons[0].x) - 4, right = Math.ceil(icons.at(-1)!.x + icons.at(-1)!.width) + 4;
 			placed[name] = { icons, clip: { x: left, y: Math.floor(Math.min(...icons.map((icon) => icon.y))) - 4, width: right - left, height: 36 } };
 		}
-		assert.equal(placed.toolbar.icons.length, 3, `terminal, browser and panels are on the window's toolbar: ${JSON.stringify(placed.toolbar.icons)}`);
+		assert.equal(placed.toolbar.icons.length, 3, `terminal, browser and panels are on the conversation's title bar: ${JSON.stringify(placed.toolbar.icons)}`);
 		// Stacked, the title row shows only what is not hover-revealed — one icon is enough to hold to a column.
 		assert.ok(placed.pane.icons.length >= 1, `the browser pane's buttons are drawn: ${JSON.stringify(placed.pane.icons)}`);
 		const edges = [0, -1, -2, -3, -5, -6, -7];
@@ -337,49 +335,14 @@ test("toolbar and pane icons keep their pixel column wherever the sidebar's edge
 			const mine = samples.filter((sample) => sample.row === name);
 			for (const sample of mine) assert.deepEqual(sample.layout, mine[0].layout, `${name}: the icons' layout does not move with the sidebar's edge`);
 			/*
-			 * The fault is a whole device column. Less than half of one is not: in the window's toolbar the
-			 * same icon reads 60.43–60.46 with the edge held still, frame to frame.
+			 * The fault is a whole device column. Less than half of one is not: the same icon reads
+			 * 60.43–60.46 with the edge held still, frame to frame.
 			 */
 			for (const [index] of placed[name].icons.entries()) {
 				const columns = mine.map((sample) => sample.painted[index]);
 				assert.ok(Math.max(...columns) - Math.min(...columns) < 0.5, `${name}: icon ${index} is painted on one column wherever the edge is: ${[...new Set(columns)].join(", ")}`);
 			}
 		}
-	} finally { await app.stop(); }
-});
-
-test("the panel's corner under the toolbar is round, whatever is drawn in it", async (t) => {
-	/*
-	 * The sidebar and the content share one panel with rounded corners (ADR-0038), and the sidebar's
-	 * fill is what lies in its top-left one. A fill that is not clipped by the panel paints that corner
-	 * square, and it is the corner right under the toolbar's own buttons.
-	 */
-	const app = await startApp({ port: 9598, scaleFactor: 1.25, seed: (home) => plainProfile(home) });
-	try {
-		await frames(app, 24);
-		const corner = await app.evaluate<{ x: number; y: number; band: number[]; content: number[]; material: boolean } | null>(`(() => {
-			const panel = document.querySelector('[data-ly-frame-panel]');
-			if (!panel) return null;
-			const r = panel.getBoundingClientRect();
-			// A computed colour can come back as oklab() or color(); a canvas reads any of them back as sRGB.
-			const rgb = (css) => { const c = document.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d'); g.fillStyle = css; g.fillRect(0, 0, 1, 1); return [...g.getImageData(0, 0, 1, 1).data].slice(0, 3); };
-			const fill = (el) => { for (; el; el = el.parentElement) { const bg = getComputedStyle(el).backgroundColor; if (bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return bg; } return 'white'; };
-			return { x: r.x, y: r.y, band: rgb(fill(panel.parentElement)), content: rgb(fill(document.elementFromPoint(r.x + 8, r.y + 8))),
-				material: document.documentElement.dataset.vibrancy === 'on' };
-		})()`);
-		assert.ok(corner, "the window has its panel");
-		// On the macOS material the window under the corner is the system's, not a colour the page knows.
-		if (corner.material) { t.skip("the corner shows the system's material, which a screenshot does not hold"); return; }
-		const image = await paintedPixels(app, { x: corner.x, y: corner.y, width: 12, height: 12 });
-		const dpr = image.width / 12;
-		const at = (x: number, y: number) => image.rgb[Math.floor(y * dpr) * image.width + Math.floor(x * dpr)];
-		const near = (a: number[], b: number[]) => a.every((v, i) => Math.abs(v - b[i]) <= 2);
-		const outside = at(0, 0), inside = at(8, 8);
-		t.diagnostic(JSON.stringify({ corner, outside, inside }));
-		// The very corner is the window showing through; well inside the curve is the panel's own fill.
-		assert.ok(near(outside, corner.band), `the corner shows the window's colour, not the panel's: ${JSON.stringify({ outside, band: corner.band })}`);
-		assert.ok(near(inside, corner.content), `inside the curve is the panel's fill: ${JSON.stringify({ inside, content: corner.content })}`);
-		assert.ok(!near(corner.band, corner.content), "window and panel differ, or the corner proves nothing");
 	} finally { await app.stop(); }
 });
 

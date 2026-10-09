@@ -12,14 +12,12 @@
 import { translate } from "../../i18n/translate.ts";
 import { ArrowLeft } from "../../ui/icons/index.ts";
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import type { PullRequestDetail as Detail } from "../../../electron/ipc-types.ts";
 import { useLayout } from "../../app/layout.tsx";
-import { NavSlotHead, useNavSlot } from "../../app/nav-slot.tsx";
 import { toolbarReserved } from "../../app/window/WindowControls.tsx";
 import { useApp } from "../../store/index.ts";
 import { PullRequestDetail, type PrTab } from "./PullRequestDetail.tsx";
-import { PullRequestList, RefreshButton } from "./PullRequestList.tsx";
+import { PullRequestList } from "./PullRequestList.tsx";
 import { ReviewBar } from "./ReviewBar.tsx";
 import { usePullRequests } from "./usePullRequests.ts";
 import { bridge } from "../../services/index.ts";
@@ -66,9 +64,7 @@ export function prInsets({
 }
 
 export function PullRequestsView() {
-	const { compact, navOpen, headerBar, titlebar, toggleNav } = useLayout();
-	// With the rail beside it, the sidebar is this view's and the list lives there — see `nav-slot.tsx`.
-	const slot = useNavSlot("pull-requests");
+	const { compact, navOpen, headerBar, titlebar } = useLayout();
 	/*
 	 * Reviewing happens in two postures, and the list is only wanted in one of them.
 	 *
@@ -193,16 +189,7 @@ export function PullRequestsView() {
 	 *   - Windows/Linux：开关在那条横贯的 header 里，面板整体在它底下，也不用让
 	 *   - 其余情况：**谁在窗口最左边谁让**——列表滑走了就是详情，否则是列表
 	 */
-	const { list: listInset, detail: detailInset } = slot
-		? { list: 0, detail: 0 }
-		: prInsets({ navOpen, headerBar, compact, expanded, selected: !!pr.selected, start: titlebar.start });
-	/*
-	 * With the list in the sidebar, filling the width is putting the sidebar away, so the detail's
-	 * button does that and reads the sidebar for whether it is expanded. No insets then: that only
-	 * happens in the frame, whose toolbar owns the window's corners.
-	 */
-	const filled = slot ? !navOpen : expanded;
-	const toggleFilled = slot ? toggleNav : () => setExpanded((open) => !open);
+	const { list: listInset, detail: detailInset } = prInsets({ navOpen, headerBar, compact, expanded, selected: !!pr.selected, start: titlebar.start });
 	// 让出去的那段从列表栏外面加，不从 300 里扣——扣掉之后三个筛选挤不下，「由我创建」被截掉一半。
 	const listWidth = LIST_WIDTH + listInset;
 
@@ -227,7 +214,6 @@ export function PullRequestsView() {
 			onAccount={pr.setAccount}
 			onAddAccount={openAccountSettings}
 			onRefresh={pr.refresh}
-			refreshHere={!slot}
 		/>
 	);
 
@@ -247,8 +233,8 @@ export function PullRequestsView() {
 				error={pr.detailError}
 				onRefresh={pr.refreshDetail}
 				onOpenChat={openChat}
-				expanded={filled}
-				onToggleExpanded={toggleFilled}
+				expanded={expanded}
+				onToggleExpanded={() => setExpanded((open) => !open)}
 				tab={tab}
 				onTab={setTab}
 			/>
@@ -274,25 +260,6 @@ export function PullRequestsView() {
 					list
 				)}
 			</div>
-		);
-	}
-
-	// The list in the sidebar, the detail alone in the page.
-	if (slot) {
-		return (
-			<>
-				{createPortal(
-					<>
-						<NavSlotHead title={translate("sidebar.pullRequests")}>
-							{/* Nothing to refresh before an account is added; the list is the sign-in screen then. */}
-							{!(pr.accountsReady && pr.accounts.length === 0) && <RefreshButton loading={pr.loading} onRefresh={pr.refresh} />}
-						</NavSlotHead>
-						{list}
-					</>,
-					slot,
-				)}
-				<div className="-mt-11 flex min-h-0 flex-1 flex-col">{detail}</div>
-			</>
 		);
 	}
 

@@ -130,3 +130,6 @@ export const SPLITTER_HIT = 9;
 
 /** Keyboard resizing, per press, as a share. Shift multiplies it. */
 export const SPLITTER_STEP = 0.02;
+
+/** How long the splitter's grip is: enough to read as a handle, short enough not to read as a border. */
+export const GRIP_SPAN = 30;

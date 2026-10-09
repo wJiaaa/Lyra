@@ -33,7 +33,6 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 		labelKey: "settings.group.basic",
 		items: [
 			{ id: "general", labelKey: "settings.general", icon: Settings2 },
-			{ id: "mobile", labelKey: "mobile.title", icon: Globe },
 			{ id: "appearance", labelKey: "settings.appearance", icon: Palette },
 			{ id: "personalization", labelKey: "settings.personalization", icon: Sparkles },
 			{ id: "models", labelKey: "settings.models", icon: Layers },
@@ -58,6 +57,7 @@ const GROUPS: { labelKey: MessageKey; items: { id: SettingsSection; labelKey: Me
 			{ id: "index", labelKey: "settings.index", icon: Database },
 			{ id: "usage", labelKey: "settings.usage", icon: BarChart3 },
 			{ id: "storage", labelKey: "settings.storage", icon: HardDrive },
+			{ id: "mobile", labelKey: "mobile.title", icon: Globe },
 		],
 	},
 	{

@@ -67,8 +67,8 @@ before(async () => {
 after(async () => { await app?.stop(); });
 
 // Synthetic `.click()` like the rest of this file: no real pointer is left hovering the dock during frame measurements.
-/** 面板全在右栏的标签里，全屏和关闭都在当前那个标签的那排按钮上——单屏时它们在窗口顶栏里。 */
-const TOOLBAR = "[data-ly-toolbar-panel]";
+/** 面板全在右栏的标签里，全屏和关闭都在当前那个标签的卡片标题栏上。 */
+const TOOLBAR = '[data-dock-pane]:not([inert]):not([data-dock-pane="conversation"])';
 async function select(kind: string) {
 	await app.evaluate(`document.querySelector('[data-panel-tab="${kind}"] [role="tab"]').click()`);
 	await frames(app, 20);

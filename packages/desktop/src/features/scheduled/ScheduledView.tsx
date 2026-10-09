@@ -19,8 +19,6 @@ import { markFailuresSeen, useScheduledNotices } from "./notices.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { NumberField, TimeField } from "../settings/index.ts";
 import { useLayout } from "../../app/layout.tsx";
-import { NavSlot, useNavSlot } from "../../app/nav-slot.tsx";
-import { ScheduledNav } from "./ScheduledNav.tsx";
 import { useTaskStatus } from "./useTaskStatus.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { activeLocale, translate } from "../../i18n/translate.ts";
@@ -39,8 +37,6 @@ export function ScheduledView() {
 	const openSession = useApp((s) => s.openSession);
 	const sessions = useApp((s) => s.sessions);
 	const { compact } = useLayout();
-	// With the rail beside it, the task list and 新建 are in the sidebar — see `nav-slot.tsx`.
-	const inSidebar = useNavSlot("scheduled") !== null;
 	/*
 	 * On screen is seen. The failures the line above the composer and the sidebar's count stood for
 	 * are the cards below — a failure that arrives while this is open included.
@@ -61,7 +57,7 @@ export function ScheduledView() {
 		void saveSettings({ ...settings, scheduledTasks: tasks.filter((t) => t.id !== id) });
 	const add = () => {
 		const id = `task-${Date.now().toString(36)}`;
-		// Brought into view once it is drawn: from the sidebar it may land below the fold.
+		// Brought into view once it is drawn: added at the end, it may land below the fold.
 		useScheduledNotices.setState({ focus: id });
 		void saveSettings({
 			...settings,
@@ -81,9 +77,6 @@ export function ScheduledView() {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<NavSlot view="scheduled">
-				<ScheduledNav tasks={tasks} onAdd={add} />
-			</NavSlot>
 			<Scroller className="flex-1" contentClassName={`mx-auto w-full max-w-[880px] py-6 ${compact ? "px-4" : "px-8"}`}>
 				<header className="flex flex-wrap items-start justify-between gap-3 pb-6">
 					<div>
@@ -92,7 +85,7 @@ export function ScheduledView() {
 							{t("scheduled.intro")}
 						</p>
 					</div>
-					{!inSidebar && <Button size="sm" label={t("common.new")} onClick={add} icon={<Plus size={12} strokeWidth={2} />} />}
+					<Button size="sm" label={t("common.new")} onClick={add} icon={<Plus size={12} strokeWidth={2} />} />
 				</header>
 
 				{tasks.length === 0 && (

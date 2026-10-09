@@ -5,7 +5,7 @@
  * it: a task started, failed or could not start, and the window never said so. This runs one task
  * for real — the ▶ on its card, a session, a scripted model — and makes another fail to start for
  * real, then follows each notice to where it is shown now: the task's card, the line above the
- * composer, the count on the rail's 定时任务.
+ * composer, the count on the sidebar's 定时任务.
  *
  * A turn that fails after it started (`prompt()` rejecting) cannot be brought about from outside, so
  * that one is sent from the main process in the shape the scheduler sends it. The scheduler's own
@@ -153,7 +153,7 @@ async function sendFromMain(notice: Record<string, unknown>): Promise<void> {
 	);
 }
 
-// The count is the end of the rail button's name (「定时任务 · 1 个任务运行失败」); in a drawer it is the badge's own.
+// The count is the end of the sidebar row's name (「定时任务 · 1 个任务运行失败」), or the badge's own.
 const badge = (n: number) => `[aria-label$=" ${n} 个任务运行失败"], [aria-label="${n} 个任务运行失败"]`;
 const noBadge = `!document.querySelector('[aria-label$="个任务运行失败"]')`;
 const line = (taskId: string) => `document.querySelector('.ly-reveal[data-open="true"] [data-scheduled-alert="${taskId}"]')`;
@@ -226,8 +226,6 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	await shot(app, "2-card-cannot-start");
 
 	// ── In a conversation: Beta again, and this time nobody is looking at its card. ──
-	// The schedule page keeps its own list in the sidebar; 新对话 is on the conversations side.
-	await click(app, "button", "对话");
 	await click(app, "button", "新对话", "starts");
 	await until(app, `document.querySelector("textarea")?.checkVisibility()`, 900);
 	await app.evaluate(`window.plume.scheduler.runNow("beta")`);
@@ -266,7 +264,6 @@ test("a task's start shows on its card, and a failure on the card, above the com
 	await shot(app, "5-card-looked-at");
 
 	// Back in the conversation the line has gone.
-	await click(app, "button", "对话");
 	await click(app, "button", "新对话", "starts");
 	await until(app, `document.querySelector("textarea")?.checkVisibility()`, 900);
 	await frames(app, 30);

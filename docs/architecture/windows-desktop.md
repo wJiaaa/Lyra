@@ -8,11 +8,11 @@ Plume 共用一份渲染界面，窗口按钮继续由 Electron 的原生 Window
 `app/window/titlebar.ts` 根据 overlay 的实际 CSS 几何计算右侧预留区；布局订阅
 `geometrychange`。原生按钮区域与应用标题栏的空间只计算一次。
 
-主窗口（工作区和设置页）顶上是一条横贯的工具栏（ADR-0038）：Windows/Linux 上它就是原生
-header，高 `NATIVE_HEADER_HEIGHT`（32px），与 Window Controls Overlay 传给系统的高度是同一个数；
-macOS 上高 `MAIN_TOOLBAR_HEIGHT`（40px），红绿灯在其中居中，顶部 y=13。侧栏和各屏的卡片都在它
-下面，不再为窗口的角让位。会话窗口和面板窗口仍是 `WINDOW_HEADER_HEIGHT`（44px）的标题栏，红绿灯
-y=15。macOS 原生红绿灯直径为 14pt，不能按 12pt 定位，否则原生按钮会低 1pt。
+主窗口（工作区和设置页）在 Windows/Linux 上顶着一条原生 header，高 `NATIVE_HEADER_HEIGHT`（32px），
+与 Window Controls Overlay 传给系统的高度是同一个数，后退、前进和侧栏开关在它左端，下面的内容不为窗口的角
+让位。macOS 上没有这条带子：红绿灯在侧栏左上角，三颗按钮浮在它旁边，每张卡片的标题栏就是窗口的顶行，整排
+低 `MAIN_WINDOW_ROW_OFFSET`（5px）和卡片对齐，红绿灯 y=20；侧栏收起时碰到左上角的卡片给它们让位。会话窗口
+和面板窗口是 `WINDOW_HEADER_HEIGHT`（44px）的标题栏，红绿灯 y=15。macOS 原生红绿灯直径为 14pt，不能按 12pt 定位，否则原生按钮会低 1pt。
 
 `PaneHeader` 负责标题控件可用宽度：标题使用系统按钮和面板动作之外的剩余空间。
 `TerminalTabs` 不再把这个空间折半，新增终端按钮始终位于横向滚动区域外。

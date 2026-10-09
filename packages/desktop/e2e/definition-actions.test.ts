@@ -60,8 +60,7 @@ async function point(selector: string) {
 	return app.evaluate<{ x: number; y: number }>(`(()=>{const el=[...document.querySelectorAll(${JSON.stringify(selector)})].find(el=>el.checkVisibility({visibilityProperty:true}));if(!el)throw new Error(${JSON.stringify(selector)});el.scrollIntoView({block:'center',behavior:'instant'});const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 }
 async function select(label: string, nav = false, counted = false) {
-	// Settings' own section list, not the window's icon rail: both are navigation, and both have a 插件.
-	const scope = nav ? "nav:not([data-ly-app-rail]) " : "";
+	const scope = nav ? "nav " : "";
 	await click(app, `${scope}button`, label, counted ? "stripCount" : "exact");
 }
 

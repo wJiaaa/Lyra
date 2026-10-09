@@ -8,10 +8,12 @@
  */
 
 /** A toolbar button, and the gap after it. Shared so what sits beside one can clear it. */
+import { ArrowLeft, ArrowRight } from "../../ui/icons/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { shortcutLabel } from "../../ui/keyboard.ts";
 import { useApp } from "../../store/index.ts";
 import { unreadActivity } from "../../lib/session-notifications.ts";
+import { goBack, goForward, useCanStep } from "../nav-history.ts";
 
 export const TOOLBAR_BUTTON = 28;
 const TOOLBAR_GAP = 10;
@@ -19,7 +21,7 @@ const TOOLBAR_GAP = 10;
 /**
  * How much of the window's top-left corner belongs to the window rather than to the content.
  *
- * Whatever the system draws there *and* the sidebar toggle: with the sidebar closed, that toggle
+ * Whatever the system draws there *and* back, forward and the sidebar toggle: with the sidebar closed, that toggle
  * is the only way back to it, and it floats over whatever the dock has put in that corner. A pane
  * that only cleared the lights drew its own title straight underneath the button — the terminal's
  * first tab ended up on top of it, so the tab was hard to read and the button, still there and
@@ -29,16 +31,15 @@ const TOOLBAR_GAP = 10;
  * see `useTitlebar`. It was a constant back when only macOS was drawn correctly.
  */
 export function toolbarReserved(start: number): number {
-	return start + TOOLBAR_BUTTON + TOOLBAR_GAP;
+	// Three buttons, `gap-0.5` between them.
+	return start + TOOLBAR_BUTTON * 3 + 2 * 2 + TOOLBAR_GAP;
 }
 
 /**
  * The button beside the traffic lights: show or hide the sidebar.
  *
- * Back and forward used to live here too. There is nothing to go back to: this is one window
- * with panes, not a stack of pages, so both were permanently inert.
- *
- * Whoever renders it owns the positioning and the `no-drag` region; this is only the button.
+ * Back and forward sit before it (`NavButtons`); whoever renders the two owns the positioning and
+ * the `no-drag` region — these are only the buttons.
  */
 export function WindowControls({
 	navOpen,
@@ -78,6 +79,24 @@ export function WindowControls({
 						<span aria-hidden="true" className={`absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full ${unread === "waiting" ? "bg-accent" : unread === "failed" ? "bg-danger" : "bg-ok"}`} />
 					)}
 				</span>
+			</ToolbarButton>
+		</>
+	);
+}
+
+const mac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform);
+
+/** Back and forward through the views and conversations this window has shown — see `nav-history.ts`. */
+export function NavButtons() {
+	const canBack = useCanStep(-1);
+	const canForward = useCanStep(1);
+	return (
+		<>
+			<ToolbarButton label={`${translate("toolbar.back")} ${mac ? "⌘[" : "Alt+←"}`} onClick={() => void goBack()} disabled={!canBack}>
+				<ArrowLeft size={15} strokeWidth={1.9} />
+			</ToolbarButton>
+			<ToolbarButton label={`${translate("toolbar.forward")} ${mac ? "⌘]" : "Alt+→"}`} onClick={() => void goForward()} disabled={!canForward}>
+				<ArrowRight size={15} strokeWidth={1.9} />
 			</ToolbarButton>
 		</>
 	);

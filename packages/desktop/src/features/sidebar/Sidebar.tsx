@@ -44,12 +44,10 @@ export function Sidebar() {
 	 * behind it also has to get out of the way. Pushed, `dismissNav` does nothing and the
 	 * sidebar stays where the user put it.
 	 */
-	const { compact, headerBar, framed, rail: railShown, dismissNav } = useLayout();
+	const { compact, headerBar, dismissNav } = useLayout();
 
 	/** How many rows each project is showing. Absent means the default five. */
 	const [shown, setShown] = useState<Record<string, number>>({});
-	/** The same, for the 「最近」 section — one number, because there is only ever one of it. */
-	const [looseShown, setLooseShown] = useState(SESSION_PAGE);
 	/** Which timestamp orders the list. Persisted: it is a preference, not a mode. */
 	const [sort, setSort] = useState<SortKey>(() => {
 		const val = localStorage.getItem(SORT_KEY);
@@ -144,7 +142,7 @@ export function Sidebar() {
 			 * macOS 才有：红绿灯画在侧边栏的左上角，侧边栏自己的内容得从它们下面开始。Windows 和 Linux
 			 * 那条 header 已经把整行占走了，侧边栏从 header 底下开始，再留一次就是 88px 的空白。
 			 */}
-			{!headerBar && !framed && <div className="h-[44px] shrink-0" />}
+			{!headerBar && <div className="h-[44px] shrink-0" />}
 
 			<SidebarHead onOpen={actions.onOpen} />
 
@@ -176,8 +174,7 @@ export function Sidebar() {
 			 * says the list ended there. See `.ly-fade-y`.
 			 */}
 			<Scroller className="flex-1" contentClassName={`pb-2 ${pad}`} scrollRef={viewport}>
-				{/* In the frame these are the rail's; a drawer has no rail beside it, so they stay here. */}
-				{!railShown && <DestinationNav onNavigate={dismissNav} />}
+				<DestinationNav onNavigate={dismissNav} />
 
 				{/* `pt-3` 是上面那截和列表之间的间距，列表的第一个标题不自带上间距。 */}
 				<div data-ly-list className="ly-enter pt-3">
@@ -194,9 +191,6 @@ export function Sidebar() {
 								onCollapse: () => setShown((prev) => ({ ...prev, [path]: SESSION_PAGE })),
 								actions,
 							})}
-							looseShown={looseShown}
-							onLooseMore={() => setLooseShown((n) => n + SESSION_PAGE)}
-							onLooseCollapse={() => setLooseShown(SESSION_PAGE)}
 							actions={actions}
 							empty={empty}
 							sort={sort}
@@ -221,7 +215,7 @@ export function Sidebar() {
 			</Scroller>
 
 			<SessionCarryGhost />
-			{!railShown && <SidebarFoot onNavigate={dismissNav} />}
+			<SidebarFoot onNavigate={dismissNav} />
 
 			{menu.open && (
 				<ListMenu

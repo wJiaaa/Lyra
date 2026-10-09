@@ -293,9 +293,8 @@ test("with no account left, the pane is the sign-in screen rather than an empty 
 		const accounts = await window.plume.forge.accounts();
 		for (const account of accounts) await window.plume.forge.signOut(account.id);
 		// This page's own: the conversations' screens stay mounted behind it, and a browser panel has
-		// a 刷新 of its own that comes first in the document. Beside the rail the list is in the
-		// sidebar, which is this page's too.
-		const own = '[data-view="pull-requests"] button, [data-ly-nav-slot="pull-requests"] button';
+		// a 刷新 of its own that comes first in the document.
+		const own = '[data-view="pull-requests"] button';
 		const refresh = [...document.querySelectorAll(own)].find((b) => b.getAttribute("aria-label") === "刷新");
 		refresh?.click();
 		for (let i = 0; i < 40 && document.querySelectorAll(".ly-pr-row").length > 0; i++) {

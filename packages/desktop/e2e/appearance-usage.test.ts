@@ -173,7 +173,7 @@ test("the welcome composer is a 672px column", async () => {
 
 test("the usage page reports what is in the logs", async () => {
 	const page = await ui<{ tiles: string[]; hasBars: boolean; models: string[]; heading: string | null }>(`
-		// Settings → 使用统计, the way it is reached: the settings door, on the rail or in the drawer's footer.
+		// Settings → 使用统计, the way it is reached: the settings door in the sidebar's footer.
 		const gear = document.querySelector("[data-ly-open-settings]");
 		if (gear) { click(gear); await wait(500); }
 		const nav = [...document.querySelectorAll("button")].find((b) => label(b) === "使用统计");

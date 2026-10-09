@@ -1,14 +1,11 @@
 /**
- * The sidebar drawer in a narrow window starts below the window's toolbar.
+ * 窄窗口里的侧边栏抽屉，在有 header 的平台上从 header 底下开始。
  *
- * Below 760px the sidebar is a drawer laid over the conversation, `fixed` from y=0. Every desktop
- * window with navigation now has a toolbar across its top (`WindowFrame`): 32px on Windows and Linux,
- * 40px on macOS, z-40 and a drag region all the way across. A drawer starting at y=0 has its first
- * row — search and notifications, or settings' way back to the workspace — underneath it: not visible,
- * and a press there moves the window.
+ * 宽度不到 760 时侧边栏变成一张盖在对话上的抽屉，`fixed` 从窗口顶上 y=0 画起。Windows 和 Linux
+ * 顶上还有一条 32px 的 header，z-40、不透明、整条是拖拽区——抽屉最上面那一行（搜索、通知两颗
+ * 按钮，设置页的「返回工作区」）被它整个盖住：看不见，也按不到，按下去是在拖窗口。
  *
- * happy-dom does no layout; this reads the top the drawer declares. Occlusion in a real window is
- * measured separately.
+ * happy-dom 不排版，这里量的是抽屉自己声明的上沿；真窗口里的遮挡要另外量。
  */
 
 import assert from "node:assert/strict";
@@ -17,7 +14,7 @@ import { createElement as h } from "react";
 
 import { LayoutProvider, useLayout } from "../../src/app/layout.tsx";
 import { NavPane } from "../../src/app/panes.tsx";
-import { MAIN_TOOLBAR_HEIGHT, NATIVE_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
+import { NATIVE_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
 import { click, mount } from "../helpers/mount.ts";
 
 const width = Object.getOwnPropertyDescriptor(window, "innerWidth");
@@ -59,10 +56,10 @@ test("Windows、Linux：抽屉从 header 底下开始，最上面一行不被盖
 	}
 });
 
-test("macOS: the drawer starts below the 40px toolbar", async () => {
+test("macOS 没有那条 header，抽屉照旧从顶上开始", async () => {
 	const { view, drawer } = await openDrawer("darwin");
 	try {
-		assert.equal(drawer.style.top, `${MAIN_TOOLBAR_HEIGHT}px`);
+		assert.equal(drawer.style.top, "");
 	} finally {
 		await view.unmount();
 	}

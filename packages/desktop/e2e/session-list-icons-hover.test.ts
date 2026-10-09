@@ -132,7 +132,7 @@ test("会话列表里的 lucide-animated 图标悬停播放、移出复位，点
 		await until(app, `!document.querySelector('button[aria-label="${archived}"]')`);
 		check("点归档仍会把会话移出列表", true, archived);
 
-		await click(app, '[data-ly-rail-item="settings"]');
+		await click(app, "[data-ly-open-settings]");
 		await click(app, "button", "已归档的聊天");
 		const remove = 'button[aria-label="删除「已归档会话」"]';
 		// 已归档页按项目分组，组默认收着，行里的按钮点不到。

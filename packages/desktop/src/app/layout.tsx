@@ -20,7 +20,7 @@ import { SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, storedWidth } from "./layout
 import { freezeMotion } from "../ui/motion/freeze.ts";
 import { hasHeaderBar, overlayReserved, titlebarInsets, type TitlebarInsets } from "./window/titlebar.ts";
 import { bridge } from "../services/index.ts";
-import { MAIN_TOOLBAR_HEIGHT, NATIVE_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
+import { NATIVE_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
 
 /** Below this the sidebar and a readable content column no longer fit side by side. */
 const COMPACT_MAX = 760;
@@ -82,20 +82,6 @@ export interface LayoutValue {
 	 * 那 44px 的空当。规则和它的理由在 `hasHeaderBar`。
 	 */
 	headerBar: boolean;
-	/**
-	 * The workspace window drawn in its frame: a toolbar across the top, the icon rail on the left,
-	 * and the sidebar and conversations as cards below the toolbar.
-	 *
-	 * The main window on every desktop platform; never a session or panel window, which have no
-	 * navigation. Where it is on,
-	 * the toolbar owns both of the window's top corners the way the Windows header does — nothing
-	 * below it reserves room for the traffic lights or the caption buttons.
-	 */
-	framed: boolean;
-	/** How tall that toolbar is: `MAIN_TOOLBAR_HEIGHT` on macOS, the native header's height elsewhere. 0 when not framed. */
-	toolbarHeight: number;
-	/** The icon rail is drawn: framed, and wide enough that the sidebar is beside the content rather than a drawer. */
-	rail: boolean;
 	/**
 	 * How much of the window's top row the system has taken, at each end.
 	 *
@@ -209,19 +195,18 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 
 	const titlebar = useTitlebar(nativeFullScreen);
 	const headerBar = hasHeaderBar(bridge.platform ?? "darwin");
-	const framed = nav;
-	const toolbarHeight = framed ? (headerBar ? NATIVE_HEADER_HEIGHT : MAIN_TOOLBAR_HEIGHT) : 0;
 
 	/*
-	 * The toolbar as chrome, for whatever floats over the page: popovers and hover cards stop under it
-	 * rather than spreading over it (`chromeTop` in `ui/overlay/chrome-top.ts`). On the root, read at
-	 * placement time, because a popover lives in a portal and has no layout of its own to ask.
+	 * The Windows and Linux header band as chrome, for whatever floats over the page: popovers and
+	 * hover cards stop under it rather than spreading over the caption buttons and the strip the window
+	 * is dragged by (`chromeTop` in `ui/overlay/chrome-top.ts`). On the root, read at placement time,
+	 * because a popover lives in a portal and has no layout of its own to ask.
 	 */
 	useLayoutEffect(() => {
 		const root = document.documentElement;
-		if (toolbarHeight > 0) root.style.setProperty("--ly-chrome-top", `${toolbarHeight}px`);
+		if (headerBar) root.style.setProperty("--ly-chrome-top", `${NATIVE_HEADER_HEIGHT}px`);
 		else root.style.removeProperty("--ly-chrome-top");
-	}, [toolbarHeight]);
+	}, [headerBar]);
 
 	// Crossing the breakpoint in either direction dismisses the drawer; it is a transient
 	// overlay, and carrying it across a reflow leaves it stranded over the wrong layout.
@@ -253,9 +238,6 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 			hasNav: nav,
 			nativeFullScreen,
 			headerBar,
-			framed,
-			toolbarHeight,
-			rail: framed && !compact,
 			titlebar,
 			sidebarWidth,
 			setSidebarWidth,
@@ -274,8 +256,6 @@ export function LayoutProvider({ children, nav = true }: { children: React.React
 			nav,
 			nativeFullScreen,
 			headerBar,
-			framed,
-			toolbarHeight,
 			titlebar,
 			sidebarWidth,
 			setSidebarWidth,

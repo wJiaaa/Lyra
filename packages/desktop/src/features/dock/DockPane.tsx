@@ -7,7 +7,6 @@
  * at its destination and composites the movement, without reflowing every intermediate width.
  */
 
-import { useLayout } from "../../app/layout.tsx";
 import { PaneHeader } from "./PaneHeader.tsx";
 import { PaneSurface } from "./PaneSurface.tsx";
 import { pct } from "./css.ts";
@@ -31,8 +30,8 @@ export function DockPane({
 	onPopOut,
 	onFocus,
 	chrome = true,
-	reserveHeader = true,
 	customHeader,
+	after,
 	children,
 }: {
 	kind: PaneKind;
@@ -67,23 +66,13 @@ export function DockPane({
 	 * its own title bar, and this shared dock chrome would sit above them as a fifth strip.
 	 */
 	chrome?: boolean;
-	/**
-	 * Whether the card keeps its header's 44px at the top. False for a conversation whose title bar
-	 * the window's toolbar draws: the header layer stays, and takes no room.
-	 */
-	reserveHeader?: boolean;
 	customHeader?: React.ReactNode;
+	/** After the pane's own buttons: the toggle that folds the panel column away. */
+	after?: React.ReactNode;
 	children: React.ReactNode;
 }) {
-	/*
-	 * In the window frame the panes are flush regions of one surface, divided by hairlines (see the
-	 * note on the card below). `edges` are the sides that border a neighbour, where the hairline goes.
-	 */
-	const { framed } = useLayout();
-	const flat = framed;
-	const edges = { left: box.left > 0.001, top: box.top > 0.001 };
 	/** Where the card's inside starts within the pane's box: its inset and its border. */
-	const edge = flat ? 0 : PANE_INSET + 1;
+	const edge = PANE_INSET + 1;
 	const edgeRoom = (room?: number) => (room ? cardRoom(room) : room);
 	const paintMinWidth = panePaintMinWidth(kind, box.width, maximized);
 
@@ -137,14 +126,8 @@ export function DockPane({
 			 */
 			data-pane={kind}
 			className={`ly-dock-pane group/pane absolute flex min-w-0 flex-col ${kind !== "conversation" ? "z-10" : "z-0"}`}
-			/*
-			 * The title bar sits inside the card, centred in the card's top 44px.
-			 *
-			 * Flat, it lies over the hairline rather than stepping past it. Stepping past it moved the title
-			 * a pixel whenever the line came or went — on every full screen and back — and put the bar's
-			 * centre a pixel off its row. The bar is transparent, so the line still shows through it.
-			 */
-			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: flat ? 0 : edge, background: "transparent" }}>
+			/* The title bar sits inside the card, centred in the card's top 44px. */
+			header={chrome ? <div className="ly-dock-chrome absolute inset-x-0 top-0 z-[1]" style={{ margin: edge, background: "transparent" }}>
 				{customHeader ?? <PaneHeader
 					kind={kind}
 					label={label}
@@ -153,6 +136,7 @@ export function DockPane({
 					hideTitle={kind === "conversation"}
 					title={title}
 					actions={actions}
+					after={after}
 					inset={edgeRoom(inset)}
 					insetEnd={edgeRoom(insetEnd)}
 					onToggleMaximized={onToggleMaximized}
@@ -161,27 +145,18 @@ export function DockPane({
 			</div> : null}
 		>
 			{/*
-			 * One surface divided by hairlines, in the window frame (ADR-0038).
+			 * Every pane a card, with 4px of window between it and its neighbour (ADR-0038).
 			 *
-			 * The panes were each a floating card with 4px of window between them. Inside the frame —
-			 * where the sidebar and the content are already one panel — that was a card inside a card,
-			 * and opening a terminal or a second screen put more gaps and corners into the content than
-			 * content. So in the frame a pane is flush with its neighbours and a 1px line marks the
-			 * boundary, as the sidebar's is marked. `ly-dock-card` stays for the colours it carries (the
-			 * terminal's and the editor's code background); `ly-dock-flat` takes its edge, corners and
-			 * shadow away.
+			 * In the frame they were once flush regions of one panel divided by hairlines, because that
+			 * panel held the sidebar too and a card in it was a card inside a card. The sidebar is out of
+			 * it now and the panel draws nothing, so a pane is again the outermost card there is.
 			 *
 			 * `overflow-hidden` is what makes a card's radius real: without it a scroller inside paints
 			 * its own square corners straight over the rounded ones.
 			 */}
-			<div
-				className={`ly-dock-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${flat ? "ly-dock-flat" : ""}`}
-				data-edge-left={flat && edges.left ? "" : undefined}
-				data-edge-top={flat && edges.top ? "" : undefined}
-				style={flat ? undefined : { margin: PANE_INSET }}
-			>
+			<div className="ly-dock-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ margin: PANE_INSET }}>
 			{/* Controls keep their endpoint geometry while this retained surface composites its resize. */}
-			{chrome && reserveHeader && <div aria-hidden className="shrink-0" style={{ height: HEADER_HEIGHT }} />}
+			{chrome && <div aria-hidden className="shrink-0" style={{ height: HEADER_HEIGHT }} />}
 			<div data-dock-content={kind} className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
 			</div>
 		</PaneSurface>

@@ -6,10 +6,10 @@
  * conversation: terminal, browser, Git and the overflow open and close panels in this screen, and
  * their pressed state is this screen's; with several screens it also closes one.
  *
- * Where the halves are drawn depends on how many screens there are. Several: each in its own screen's
- * card, as `SplitChrome`, covering the transcript only — the panels beside it carry their own headers.
- * One: in the window's toolbar (`ToolbarScreenTitle` / `ToolbarScreenTools`), with the title over the
- * conversation's card and nothing inside the card, as the reference layout draws it.
+ * Both are drawn in the screen's own card, as `SplitChrome`, covering the transcript only — the
+ * panels beside it carry their own headers. With one screen they once went up into the window's
+ * toolbar; how much of the toolbar that filled then depended on what was open, and with no
+ * conversation in front it stood empty.
  */
 
 import { Folder, MoreHorizontal, X } from "../../ui/icons/index.ts";
@@ -26,20 +26,21 @@ import { usePopover } from "../../ui/overlay/Popover.tsx";
 import { closePane } from "./actions.ts";
 import { paneKey } from "./pane-key.ts";
 import { SplitMoveItems } from "./SplitMoveItems.tsx";
-import { leafCount, firstSession } from "./tree.ts";
-import { useSplit } from "./store.ts";
 
 export function SplitChrome({
 	sessionId,
 	screen,
 	inset,
 	insetEnd,
+	after,
 }: {
 	sessionId: string | null;
 	/** More than one conversation on the window. */
 	screen: boolean;
 	inset: number;
 	insetEnd: number;
+	/** Last among the tools: the toggle that brings a folded panel column back. */
+	after?: React.ReactNode;
 }) {
 	return (
 		<header
@@ -51,10 +52,11 @@ export function SplitChrome({
 				paddingLeft: inset + 10,
 				paddingRight: insetEnd + 6,
 			}}
-			className="drag-region flex shrink-0 items-center gap-1.5"
+			// 让位跟侧栏同一段滑动，见 `PaneHeader`。
+			className="drag-region flex shrink-0 items-center gap-1.5 transition-[padding-left] duration-[var(--ly-t-base)] ease-out"
 		>
 			<ScreenTitle sessionId={sessionId} screen={screen} />
-			<ScreenTools sessionId={sessionId} screen={screen} />
+			<ScreenTools sessionId={sessionId} screen={screen} after={after} />
 		</header>
 	);
 }
@@ -76,8 +78,7 @@ function useScreenMeta(sessionId: string | null) {
  * The conversation's name and the metadata behind it.
  *
  * A blank new conversation on a single screen has no session to name yet, so no "Untitled"; with
- * several screens each one must say whose it is. Shared with `ToolbarScreenTitle`, which has to
- * know whether there is a name before it draws the mark that sets one off.
+ * several screens each one must say whose it is.
  */
 function useScreenHead(sessionId: string | null, screen: boolean) {
 	const meta = useScreenMeta(sessionId);
@@ -127,7 +128,7 @@ function ScreenTitle({ sessionId, screen }: { sessionId: string | null; screen: 
 	);
 }
 
-function ScreenTools({ sessionId, screen }: { sessionId: string | null; screen: boolean }) {
+function ScreenTools({ sessionId, screen, after }: { sessionId: string | null; screen: boolean; after?: React.ReactNode }) {
 	const { t } = useI18n();
 	return (
 		<div data-ly-split-tools data-dock-actions className="no-drag relative z-[1] ml-auto flex shrink-0 items-center gap-0.5">
@@ -148,58 +149,7 @@ function ScreenTools({ sessionId, screen }: { sessionId: string | null; screen: 
 					</span>
 				</ToolbarButton>
 			)}
+			{after}
 		</div>
 	);
-}
-
-/**
- * The one screen the window shows, when it shows exactly one conversation view — what the toolbar
- * draws the title bar for. `undefined` when there is no such screen: several screens, or another
- * view (the plugin catalogue, settings) in front of the conversations.
- */
-function useSingleScreen(): { sessionId: string | null } | undefined {
-	const single = useSplit((s) => leafCount(s.tree) === 1);
-	const sessionId = useSplit((s) => firstSession(s.tree));
-	const chat = useApp((s) => s.view === "chat");
-	return single && chat ? { sessionId } : undefined;
-}
-
-/** The single screen's title, drawn in the window's toolbar over the conversation's card. */
-export function ToolbarScreenTitle() {
-	const screen = useSingleScreen();
-	// A conversation nothing has named yet — a window that just opened — has no title to set off, and
-	// the rule left standing on its own marks nothing. Read before the early return below, which
-	// would otherwise skip a hook.
-	const { title } = useScreenHead(screen?.sessionId ?? null, false);
-	if (!screen) return null;
-	return (
-		<>
-			{/*
-			 * A short rule just before the title, on the line of the sidebar's divider while the sidebar is
-			 * open (the toolbar's middle starts on that line — the panel's border is the pixel before it):
-			 * the title starts on the content's side of it, as in the reference. Short, not run into the
-			 * divider below — joined up, the two read as a wall through the window rather than a mark in
-			 * the toolbar.
-			 *
-			 * It belongs to the title, not to the toolbar: drawn by the toolbar it stayed on every other page
-			 * and with several screens, marking off a title that was not there — and, for the same reason,
-			 * it waits for a title here.
-			 */}
-			{title && <span aria-hidden data-ly-toolbar-divider className="ly-toolbar-divider mr-[7px] h-5 w-px shrink-0" />}
-			<div data-dock-header="conversation" data-ly-toolbar-title className="flex min-w-0 items-center gap-1.5">
-				<ScreenTitle sessionId={screen.sessionId} screen={false} />
-			</div>
-		</>
-	);
-}
-
-/**
- * The single screen's panel buttons, at the end of the conversation's part of the toolbar: the window's
- * far end while no panel column is open, the column's edge while one is (its tab strip takes the corner
- * in the tabs layout — see `ToolbarPanelBar`).
- */
-export function ToolbarScreenTools() {
-	const screen = useSingleScreen();
-	if (!screen) return null;
-	return <ScreenTools sessionId={screen.sessionId} screen={false} />;
 }
