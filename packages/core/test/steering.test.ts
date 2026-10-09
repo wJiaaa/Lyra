@@ -119,3 +119,19 @@ test("a steering message keeps its place after the turn it interrupted", async (
 		"interjection",
 	);
 });
+
+test("an interjection reaches the model with a note that the original task goes on, the transcript keeps the words as typed", async () => {
+	const queue: Message[] = [];
+	const delivery: Message = { role: "user", synthetic: true, content: [{ type: "text", text: "（运行时送达）" }], timestamp: 3 };
+	const { result, seen } = await runScripted([reply("working"), reply("adjusted, carrying on")], queue, () => {
+		queue.push({ role: "user", content: [{ type: "text", text: "use tabs" }], timestamp: 2 }, delivery);
+	});
+
+	const texts = (m: Message | undefined) => (m?.role === "user" ? m.content.map((c) => (c.type === "text" ? c.text : "")) : []);
+	const sent = seen.prompts[1].filter((m) => m.role === "user");
+	const said = texts(sent.find((m) => texts(m).includes("use tabs")));
+	assert.equal(said.length, 3, "wrapped before and after, the person's own block untouched in between");
+	assert.match(said[2], /接着把原来的任务做完/);
+	assert.deepEqual(texts(sent.find((m) => m.role === "user" && m.synthetic)), ["（运行时送达）"], "runtime deliveries carry their own framing");
+	assert.deepEqual(texts(result.messages.find((m) => texts(m).includes("use tabs"))), ["use tabs"], "the note is never written to the transcript");
+});

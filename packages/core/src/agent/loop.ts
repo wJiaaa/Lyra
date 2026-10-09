@@ -18,6 +18,7 @@ import { stripOversizedToolResults } from "./prune.ts";
 import { AgedToolPruner } from "./aged-prune.ts";
 import { stripStaleHandles } from "./model-switch.ts";
 import { withEnvironment } from "../prompt/environment.ts";
+import { withSteeringNote } from "../prompt/steering.ts";
 import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
 import type { AssistantContent, AssistantMessage, LlmContext, Message, ToolResultMessage } from "../types.ts";
 import type { AgentEventSink } from "./events.ts";
@@ -154,7 +155,7 @@ function adoptCompaction(run: Run, messages: Message[]): void {
 }
 
 function requestMessages(run: Run): Message[] {
-	return run.config.session.environment ? withEnvironment(run.messages) : run.messages;
+	return withSteeringNote(run.config.session.environment ? withEnvironment(run.messages) : run.messages);
 }
 
 /** Written by the person, as opposed to the runtime speaking in the user role. */
