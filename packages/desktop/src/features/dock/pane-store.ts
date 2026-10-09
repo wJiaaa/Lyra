@@ -42,6 +42,11 @@ interface PaneDockState {
 	 */
 	tabsCollapsed: boolean;
 	/**
+	 * 人关掉了这一屏最后一个面板，它正滑出去、还没真关。滑完由 `column-slide.ts` 关，见 `closePane`。
+	 * 只活这一段动画，不存盘。
+	 */
+	leaving: Record<string, PaneKind>;
+	/**
 	 * Which screen's browser hosts the pages nobody else is showing.
 	 *
 	 * Set by the workspace: the screen that has been on screen longest. See `useBrowserPages`.
@@ -63,6 +68,8 @@ interface PaneDockState {
 	/** `index`：放成第几个标签，收回弹出的面板时用；不给就排在最后。 */
 	open(scope: string, kind: PaneKind, index?: number): boolean;
 	close(scope: string, kind: PaneKind): void;
+	/** 关最后一个面板的第一步：先标成正在离开，见 `closePane`。 */
+	leave(scope: string, kind: PaneKind): void;
 	/** Put a panel away wherever it is open. For the panels whose contents are one shared thing. */
 	closeEverywhere(kind: PaneKind): void;
 	focus(scope: string, kind: PaneKind): void;
@@ -109,6 +116,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		tab: {},
 		tabWidth: readTabWidth(),
 		tabsCollapsed: readTabsCollapsed(),
+		leaving: {},
 		host: null,
 
 		tree: (scope) => get().trees[scope] ?? emptyDockTree,
@@ -150,12 +158,14 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 				const maximized = { ...state.maximized };
 				const focused = { ...state.focused };
 				const tab = { ...state.tab };
+				const leaving = { ...state.leaving };
 				delete tab[scope];
 				delete trees[scope];
 				delete sizes[scope];
 				delete maximized[scope];
 				delete focused[scope];
-				return { trees, sizes, maximized, focused, tab };
+				delete leaving[scope];
+				return { trees, sizes, maximized, focused, tab, leaving };
 			});
 		},
 
@@ -174,6 +184,17 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		open(scope, kind, index) {
 			// 要一个面板就是要看它：右栏收着的话先展开，否则点了终端什么也看不见。
 			get().setTabsCollapsed(false);
+			/*
+			 * 最后一个面板正滑出去时又要开一个：要的就是它，那就不关了，滑回来；要的是别的，它照样关掉，
+			 * 不然刚点了关的那个会作为后台标签留下来。
+			 */
+			const leaving = get().leaving[scope];
+			if (leaving) {
+				const rest = { ...get().leaving };
+				delete rest[scope];
+				set({ leaving: rest });
+				if (leaving !== kind) closeNow(scope, leaving);
+			}
 			const tree = get().tree(scope);
 			if (has(tree, kind)) {
 				get().focus(scope, kind);
@@ -184,6 +205,11 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		},
 
 		close(scope, kind) {
+			if (get().leaving[scope] === kind) {
+				const leaving = { ...get().leaving };
+				delete leaving[scope];
+				set({ leaving });
+			}
 			const state = get();
 			const tree = state.tree(scope);
 			if (!has(tree, kind)) return;
@@ -198,6 +224,11 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 				set({ tab });
 			}
 			commit(scope, remove(tree, kind));
+		},
+
+		leave(scope, kind) {
+			if (get().leaving[scope] === kind) return;
+			set({ leaving: { ...get().leaving, [scope]: kind } });
 		},
 
 		closeEverywhere(kind) {
@@ -257,10 +288,23 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 /**
  * 人点了 ✕：关掉这一格。
  *
- * 和 `usePaneDock.close` 分开，因为那个也是弹出窗口时把面板从树里拿走的那一步，不能带副作用。
+ * 和 `usePaneDock.close` 分开，因为那个也是弹出窗口时把面板从树里拿走的那一步，不能带副作用，
+ * 也不能等：弹出要在同一个 `flushSync` 里把浏览器页面交出去。
  * 后开的那几格关掉就没了，手上的东西交给面板自己收——见 `PanelDefinition.closeInstance`。
+ *
+ * 关的是这一屏最后一个面板时，右栏整个没了，要照收起的样子滑出去，见 `column-slide.ts`。面板
+ * 一关就卸载、终端也被杀掉，没法在关掉之后再演退场，所以先只标成正在离开，滑完再真关。这一屏
+ * 不在界面上（没量过尺寸）就没人来滑，直接关。
  */
 export function closePane(scope: string, kind: PaneKind): void {
+	const dock = usePaneDock.getState();
+	const panels = panelsOf(dock.tree(scope));
+	if (panels.length === 1 && panels[0] === kind && dock.sizes[scope]) dock.leave(scope, kind);
+	else closeNow(scope, kind);
+}
+
+/** 不等动画，现在就关。 */
+export function closeNow(scope: string, kind: PaneKind): void {
 	usePaneDock.getState().close(scope, kind);
 	const instance = panelInstance(kind);
 	if (instance) panelOf(kind)?.closeInstance?.(scope, instance);

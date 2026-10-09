@@ -1,8 +1,9 @@
 /**
- * 右栏从无到有、收着时开新面板，都照展开的样子滑进来，内容区不跳。
+ * 右栏从无到有、收着时开新面板，都照展开的样子滑进来，内容区不跳；关掉最后一个照收起的样子滑出去。
  *
  * 一个标签都没有时开第一个面板，原先不走展开那一段：对话一帧缩掉 466px、正文当场重排，面板再在
- * 原地淡入，右边先空着一块。现在和展开一样，对话逐帧让出、面板从右边滑进来。
+ * 原地淡入，右边先空着一块。现在和展开一样，对话逐帧让出、面板从右边滑进来。反过来关掉最后一个，
+ * 原先对话一帧弹回全宽、面板当场消失；现在面板先滑出去，滑完才真关。
  *
  * 新面板从右边外面滑进来（`column-slide.ts`），那一刻它的标签在窗口外。标签条原先用 `scrollIntoView`
  * 把当前标签拉进视野，而它连 `overflow: hidden` 的祖先也一起滚：1440 宽的窗口里整块内容区先被滚开
@@ -100,7 +101,42 @@ test("一个标签都没有时开第一个：对话逐帧让出，面板从右�
 	assert.ok(middle?.opacity !== null && middle!.opacity! > 0.3, `对话缩到一半时面板的不透明度是 ${middle?.opacity}`);
 });
 
+test("关掉最后一个面板：对话逐帧补回全宽，面板滑出去以后才真关", async () => {
+	const run = app.evaluate<{ width: number; panel: number | null; opacity: number | null; unfold: boolean }[]>(`new Promise((resolve) => {
+		const out = [];
+		let n = 60;
+		const f = () => {
+			const panel = document.querySelector('[data-dock-pane="terminal"]');
+			out.push({
+				width: document.querySelector('[data-dock-pane="conversation"]').getBoundingClientRect().width,
+				panel: panel ? panel.getBoundingClientRect().left : null,
+				opacity: panel ? Number(getComputedStyle(panel).opacity) : null,
+				unfold: Boolean(document.querySelector('button[aria-label="展开右侧面板"]')),
+			});
+			if (--n) requestAnimationFrame(f); else resolve(out);
+		};
+		requestAnimationFrame(f);
+	})`);
+	await click(app, '[data-dock-pane]:not([inert]) button[aria-label="关闭终端"]');
+	const samples = await run;
+	await shot(app, "dock-fold-open-00-关掉最后一个");
+
+	const widths = samples.map((sample) => Math.round(sample.width));
+	const steps = widths.slice(1).map((width, i) => width - widths[i]!);
+	assert.ok(widths.at(-1)! - widths[0]! > 300, `对话那一格没有补回全宽：${widths.join(" ")}`);
+	assert.ok(Math.max(...steps) < 120, `对话那一格一帧弹宽了 ${Math.max(...steps)}px：${widths.join(" ")}`);
+	assert.ok(Math.min(...steps) >= 0, `对话那一格中途又变窄了：${widths.join(" ")}`);
+	// 滑的那几帧面板还在，一路往右、越来越淡；滑完就卸载了。
+	const sliding = samples.filter((sample) => sample.panel !== null && sample.opacity! > 0 && sample.opacity! < 1);
+	assert.ok(sliding.length > 5, `面板没有滑出去：${samples.map((sample) => `${Math.round(sample.panel ?? -1)}/${sample.opacity}`).join(" ")}`);
+	for (const [i, sample] of sliding.entries()) if (i) assert.ok(sample.panel! >= sliding[i - 1]!.panel!, "面板往回退了一下");
+	assert.equal(samples.at(-1)!.panel, null, "滑完以后面板还挂着，没有真关");
+	assert.ok(!samples.some((sample) => sample.unfold), "滑出去那一下冒出了「展开右侧面板」");
+});
+
 test("右栏收着时开新面板：对话不跳，内容区不被滚开，新面板照样滑进来", async () => {
+	await openPane(app, "终端");
+	await frames(app, 40);
 	await click(app, 'button[aria-label="收起右侧面板"]');
 	await frames(app, 40);
 	await shot(app, "dock-fold-open-01-收起");

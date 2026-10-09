@@ -23,7 +23,7 @@ import { bridge } from "../../services/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
 import { fileSlot, openFileOf, useOpenFile } from "../../store/openFile.ts";
 import { allowsMany, basePanelKind, nextPanelKind } from "../../lib/panel-instance.ts";
-import { emptyDockTree, usePaneDock } from "./pane-store.ts";
+import { closePane, emptyDockTree, usePaneDock } from "./pane-store.ts";
 import { has, kinds, remove, type DockNode, type PaneKind } from "./tree.ts";
 import { paneStorageKey, readTree, sanitize, writeTree } from "./persist.ts";
 import { allPanels, detachOf } from "./panels/registry.ts";
@@ -356,7 +356,7 @@ export function toggleScopedPanel(scope: string, kind: PanelKind, options: { com
 		// 开着但在后台的标签也是「想看它」：切过去，不关。右栏收着时也一样，展开它。
 		const behind = options.compact ? dock.focused[scope] !== kind : dock.tabsCollapsed || activeTab(tree, dock.tab[scope]) !== kind;
 		if (behind) dock.open(scope, kind);
-		else dock.close(scope, kind);
+		else closePane(scope, kind);
 		return;
 	}
 	dock.open(scope, kind);

@@ -10,7 +10,7 @@
 import { translate } from "../../i18n/translate.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { Check, MoreVertical } from "../../ui/icons/index.ts";
-import { emptyDockTree, has, openScopedPanel, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
+import { closePane, emptyDockTree, has, openScopedPanel, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
 import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";
 import { nextPanelKind } from "../../lib/panel-instance.ts";
@@ -130,7 +130,7 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 	const definitions = usePanelDefinitions();
 	const tree = usePaneDock((s) => s.trees[scope] ?? emptyDockTree);
 	const open = (kind: PanelKind) => void usePaneDock.getState().open(scope, kind);
-	const close = (kind: PanelKind) => usePaneDock.getState().close(scope, kind);
+	const close = (kind: PanelKind) => closePane(scope, kind);
 
 	return (
 		<>

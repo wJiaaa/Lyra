@@ -10,7 +10,7 @@
  */
 
 export { useSide, sideChatOf, sideTasksOf } from "./sideStore.ts";
-export { emptyDockTree, usePaneDock } from "./pane-store.ts";
+export { closePane, emptyDockTree, usePaneDock } from "./pane-store.ts";
 export { DockView, startInset } from "./DockView.tsx";
 export type { ScreenInsets } from "./DockView.tsx";
 export { usePaneOnScreen } from "./scope-context.ts";

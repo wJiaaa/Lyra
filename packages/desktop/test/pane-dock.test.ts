@@ -3,13 +3,13 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { emptyDockTree, usePaneDock } from "../src/features/dock/pane-store.ts";
+import { closePane, emptyDockTree, usePaneDock } from "../src/features/dock/pane-store.ts";
 import { has, leafOf, type DockNode } from "../src/features/dock/tree.ts";
 import { insertTab, panelsOf } from "../src/features/dock/tabs.ts";
 import { toggleScopedPanel } from "../src/features/dock/popout.ts";
 
 function resetPaneDock(): void {
-	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, host: null });
+	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, leaving: {}, host: null });
 }
 
 test("opening a panel is local to that conversation screen", () => {
@@ -34,6 +34,51 @@ test("toggle puts a panel away when it is already on that screen", () => {
 	assert.equal(has(usePaneDock.getState().tree("a"), "review"), true);
 	toggleScopedPanel("a", "review");
 	assert.equal(has(usePaneDock.getState().tree("a"), "review"), false);
+});
+
+/** A screen on show: `closePane` only defers to the slide when something is there to draw it. */
+function onScreen(scope: string): void {
+	usePaneDock.getState().rememberSize(scope, { width: 1164, height: 800 });
+}
+
+test("closing the last panel by hand marks it leaving and keeps it open until the slide closes it", () => {
+	resetPaneDock();
+	onScreen("a");
+	usePaneDock.getState().open("a", "terminal");
+	closePane("a", "terminal");
+	assert.equal(usePaneDock.getState().leaving.a, "terminal");
+	assert.equal(has(usePaneDock.getState().tree("a"), "terminal"), true, "the panel has to stay mounted to be drawn leaving");
+	usePaneDock.getState().close("a", "terminal");
+	assert.equal(usePaneDock.getState().leaving.a, undefined, "closing for real ends the leaving");
+});
+
+test("only the last panel leaves; any other, or a screen not on show, closes at once", () => {
+	resetPaneDock();
+	onScreen("a");
+	usePaneDock.getState().open("a", "terminal");
+	usePaneDock.getState().open("a", "files");
+	closePane("a", "terminal");
+	assert.equal(has(usePaneDock.getState().tree("a"), "terminal"), false);
+	assert.equal(usePaneDock.getState().leaving.a, undefined);
+
+	usePaneDock.getState().open("b", "terminal");
+	closePane("b", "terminal");
+	assert.equal(has(usePaneDock.getState().tree("b"), "terminal"), false, "nobody would ever finish a slide for a screen that is not drawn");
+});
+
+test("asking for the leaving panel again keeps it; asking for another still closes the leaving one", () => {
+	resetPaneDock();
+	onScreen("a");
+	usePaneDock.getState().open("a", "terminal");
+	closePane("a", "terminal");
+	usePaneDock.getState().open("a", "terminal");
+	assert.equal(usePaneDock.getState().leaving.a, undefined);
+	assert.equal(has(usePaneDock.getState().tree("a"), "terminal"), true);
+
+	closePane("a", "terminal");
+	usePaneDock.getState().open("a", "files");
+	assert.equal(usePaneDock.getState().leaving.a, undefined);
+	assert.deepEqual(panelsOf(usePaneDock.getState().tree("a")), ["files"], "the one just closed must not linger as a background tab");
 });
 
 test("in the narrow layout a panel hidden behind the conversation is brought forward, not closed", () => {

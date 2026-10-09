@@ -158,6 +158,7 @@ export function DockView({
 	const rememberedTab = usePaneDock((s) => s.tab[scope]);
 	const tabWidth = usePaneDock((s) => s.tabWidth);
 	const tabsCollapsed = usePaneDock((s) => s.tabsCollapsed);
+	const leaving = usePaneDock((s) => s.leaving[scope] ?? null);
 	const { compact } = useLayout();
 	const definitions = usePanelDefinitions();
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -221,8 +222,11 @@ export function DockView({
 	/*
 	 * 右栏收起：画的树里只剩对话，面板照旧挂着（隐藏），展开时终端、页面都还在。只在有开关时算数——
 	 * 分屏或窄窗口下没有它，收着就再也打不开了。
+	 *
+	 * 最后一个面板正被关掉（`closing`）时也画成收起：它照收起的样子滑出去，滑完才真关，见 `closePane`。
 	 */
-	const folded = canFold && tabsCollapsed && tab !== null;
+	const closing = leaving !== null && leaving === tab;
+	const folded = canFold && (tabsCollapsed || closing) && tab !== null;
 	const shown = tabbedTree(folded ? null : tab, tabShare);
 	/** 一个标签借谁的格子画：所有面板都在当前标签那一格。 */
 	const slotOf = (kind: PaneKind): PaneKind => (tab && panels.includes(kind) ? tab : kind);
@@ -236,7 +240,7 @@ export function DockView({
 	 * 上下排的时候也不是从右边进来。这两种照旧原地淡入，见下面的 `quietEntrance`。
 	 */
 	const slides = canFold && openConversation && openPanel ? { conversation: openConversation, panel: openPanel } : null;
-	useColumnSlide(containerRef, scope, tab, folded, slides);
+	useColumnSlide(containerRef, scope, tab, folded, slides, leaving);
 
 	// 全屏的是整栏，不是某一个标签：切标签不该退出全屏。
 	const focus = !compact && tab && !folded && maximized ? tab : null;
@@ -318,7 +322,8 @@ export function DockView({
 			<SidebarIcon side="right" open />
 		</ToolbarButton>
 	) : undefined;
-	const unfoldButton = folded ? (
+	// 正被关掉的那一下不给：滑完右栏就没了，这颗开关只会闪一下。
+	const unfoldButton = folded && !closing ? (
 		<ToolbarButton label={translate("pane.showColumn")} onClick={toggleColumn}>
 			<SidebarIcon side="right" open={false} />
 		</ToolbarButton>
