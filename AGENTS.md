@@ -215,8 +215,10 @@ lockfile。依赖已经装好时，每轮都跑一遍什么也确认不了，只
 
 ## 发版
 
-仓库里没有 CI 和发版流水线，推 tag 不会触发任何构建。安装包在本地用 `pnpm package` 打，
-它是唯一会执行 electron-builder 的地方——改了打包配置就在本地跑一次。
+仓库没有自动检查 CI 或发版流水线，推 tag 不会触发构建。安装包可在本地用 `pnpm package` 打；
+Windows x64 也可手动运行 `.github/workflows/windows-package.yml`，产物在 Actions 的 Artifacts 中
+保留 14 天，不签名、不自动发布 Release，操作见 CONTRIBUTING.md。两条路径都复用桌面端的
+`package` 脚本执行 electron-builder 并核验原生模块架构；改了打包配置要在对应平台验证产物。
 
 ```bash
 pnpm release patch       # 写版本号、生成 CHANGELOG、提交、打 tag、推送

@@ -1,0 +1,42 @@
+name: Windows x64 安装包
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建 core
+        run: pnpm build:core
+
+      - name: 构建 Windows x64 安装包并核验原生模块架构
+        run: pnpm --filter @plume/desktop package --win nsis --x64 --publish never
+
+      - name: 上传安装包
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: Plume-Windows-x64
+          path: packages/desktop/release/Plume-*-x64.exe
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

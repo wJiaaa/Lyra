@@ -10,7 +10,7 @@ pnpm dev         # 桌面端
 ```
 
 `pnpm install` 会跑 `lefthook install`。之后 `git commit` 会 lint 你暂存的文件，
-`git push` 会跑 `pnpm check` 和 `pnpm knip`。仓库没有 CI，这就是最后一道检查。
+`git push` 会跑 `pnpm check` 和 `pnpm knip`。仓库没有自动检查 CI，手动打包工作流不替代这些检查。
 要临时跳过：`LEFTHOOK=0 git commit …`——但那样问题就没有别的地方会被发现。
 
 ## 命令
@@ -29,6 +29,18 @@ pnpm dev         # 桌面端
 | `pnpm package` | 打出桌面端安装包 |
 
 推之前跑 `pnpm check` 和 `pnpm knip`；hooks 也会替你跑。
+
+## 在 GitHub 构建 Windows 安装包
+
+将 `.github/workflows/windows-package.yml` 提交并推送到默认分支后，在 GitHub 的 **Actions** 页面
+选择 **Windows x64 安装包** → **Run workflow**，选择要构建的分支并运行。
+
+成功后，在该次运行页面的 **Artifacts** 下载 `Plume-Windows-x64`，解压即可得到
+`Plume-<version>-x64.exe`。产物保留 14 天。
+
+工作流在 Windows runner 上构建桌面端并核验原生模块架构，仅手动触发，不自动发布 Release，
+也不需要签名凭据。安装包未做 Windows 代码签名，安装时可能出现未知发布者或 SmartScreen 提示；
+构建成功不代表已验证实际安装和运行。
 
 ## 代码约定
 
@@ -89,7 +101,7 @@ pnpm test:e2e
 ```
 packages/core      Agent 运行时：循环、工具、技能、会话日志、插件内核。平台无关。
 packages/desktop   Electron 应用。electron/ 是主进程，src/ 是渲染进程。
-.github/           Issue 与 PR 模板、CODEOWNERS
+.github/           手动 Windows 打包工作流、Issue 与 PR 模板、CODEOWNERS
 ```
 
 core 不依赖桌面端，它是平台无关的运行时，桌面端驱动它的 `AgentSession`。
