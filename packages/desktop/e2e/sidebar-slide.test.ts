@@ -3,10 +3,12 @@
  *
  * 对话栏的宽度跟着窗格走，中间有一段平台（`dock.css` 的 `--ly-content`：窗格 992–1280px 时一直是 864）。
  * 侧栏滑动时窗格扫过这段平台，对话栏就先只平移、过了 1280 才开始变宽换行，一次点击看起来是两下。
- * 现在滑动期间宽度钉在终点（`app/hold-column-width.ts`）：要么第一帧就是终点宽度、之后只平移，要么
- * 放不下时跟着窗格一路长到终点——总之不会在「只平移」之后再变宽。
+ * 现在滑动期间宽度钉在终点（`app/hold-column-width.ts`）：第一帧就是终点宽度、之后只平移。右栏开着时
+ * 终点在起点放不下，也照样第一帧到位，伸出卡片的那截被裁掉——它原先跟着窗格逐帧变宽，每变一点
+ * 整段文字就重新断一次行，一次收起断了六次，看上去是文字在抖。
  *
- * 量的是转录那一栏的盒子，逐帧采样；右栏开着的那一遍是「放不下终点宽度」的情形。
+ * 量的是转录那一栏的盒子、正文里一个字相对这一栏的位置、输入框那一栏的宽度，逐帧采样。输入框和
+ * 转录量 `100cqw` 的容器不是同一个，钉错过一次：滑动开始和结束时它各自跳了 6px。
  *
  * 顶栏的标题也跟着量：它左边给红绿灯和侧栏开关的让位（`startInset`）随侧栏开合变，硬切时点下去
  * 那一帧标题先反向跳约 170px、再随整栏滑回来，看上去是一闪。
@@ -51,7 +53,7 @@ after(async () => {
 	await app?.stop();
 });
 
-interface Sample { left: number; width: number; held: boolean; title: number }
+interface Sample { left: number; width: number; held: boolean; title: number; glyph: string; composer: number }
 
 /** 点一下侧栏开关，逐帧量转录那一栏，直到滑动结束后再多量几帧。 */
 async function slide(label: string): Promise<Sample[]> {
@@ -61,7 +63,13 @@ async function slide(label: string): Promise<Sample[]> {
 			const pane = document.querySelector('.ly-dock-pane[data-ly-pane-slot="conversation"]');
 			const box = document.querySelector('.ly-transcript').getBoundingClientRect();
 			const title = document.querySelector('[data-ly-screen-title]').getBoundingClientRect().left;
-			out.push({ left: box.left, width: box.width, held: [...pane.children].some((c) => c.style.getPropertyValue('--ly-content')), title });
+			const text = [...document.querySelectorAll('.ly-transcript *')].flatMap((el) => [...el.childNodes]).find((node) => node.nodeType === 3 && node.data.length > 200);
+			const range = document.createRange(); range.setStart(text, 150); range.setEnd(text, 151);
+			const at = range.getBoundingClientRect();
+			const glyph = Math.round(at.left - box.left) + ',' + Math.round(at.top - box.top);
+			const composer = [...pane.querySelectorAll('[class*="max-w-[var(--ly-content)]"]')].find((el) => el.querySelector('textarea, [contenteditable="true"]')).getBoundingClientRect().width;
+			const held = [...pane.querySelectorAll('*')].some((el) => el.style.getPropertyValue('--ly-content'));
+			out.push({ left: box.left, width: box.width, held, title, glyph, composer });
 			if (performance.now() - t0 < 900) requestAnimationFrame(step); else resolve(out);
 		};
 		requestAnimationFrame(step);
@@ -83,24 +91,20 @@ function assertSettled(samples: Sample[], what: string): void {
 	assert.equal(samples.at(-1)?.held, false, `${what}：滑完了宽度还钉着`);
 }
 
-/** 终点放得下：宽度在动起来的第一帧就到位，之后只平移。旧的两个方向都是宽度分好几帧变、夹着一段只平移。 */
+/**
+ * 宽度在动起来的第一帧就到位，之后只平移。旧的两个方向都是宽度分好几帧变、夹着一段只平移。
+ *
+ * 正文只断两种行：起点的和终点的。输入框的宽度也只变一下。
+ */
 function assertWidthAtOnce(samples: Sample[], what: string): void {
 	assertSettled(samples, what);
 	const [, ...rest] = moving(samples);
 	const later = rest.reduce((sum, { dw }) => sum + Math.abs(dw), 0);
 	assert.ok(later < 1, `${what}：第一帧之后宽度又变了 ${later.toFixed(1)}px`);
-}
-
-/** 终点放不下：宽度跟着窗格一路长，不许先连着几帧只平移、再接着变宽——那就是第二下。 */
-function assertNoSlideThenWiden(samples: Sample[], what: string): void {
-	assertSettled(samples, what);
-	const frames = moving(samples);
-	for (let index = 0; index + 3 < frames.length; index++) {
-		const run = frames.slice(index, index + 3);
-		if (!run.every(({ dl, dw }) => Math.abs(dl) > 1 && Math.abs(dw) < 0.05)) continue;
-		const later = frames.slice(index + 3).reduce((sum, { dw }) => sum + Math.abs(dw), 0);
-		assert.ok(later < 1, `${what}：只平移了几帧之后宽度又变了 ${later.toFixed(1)}px`);
-	}
+	const layouts = samples.map(({ glyph }) => glyph).filter((glyph, index, all) => index === 0 || glyph !== all[index - 1]);
+	assert.ok(layouts.length <= 2, `${what}：正文重新断了 ${layouts.length - 1} 次行（${layouts.join(" → ")}）`);
+	const steps = samples.slice(1).map((sample, index) => sample.composer - samples[index].composer).filter((step) => Math.abs(step) > 0.5);
+	assert.ok(steps.length <= 1, `${what}：输入框宽度变了 ${steps.length} 次（${steps.map((step) => step.toFixed(1)).join(", ")}px）`);
 }
 
 /** 标题一路朝终点走：有一帧反着动，就是先跳过去再滑回来。 */
@@ -130,13 +134,12 @@ test("侧栏收起与展开，对话栏宽度不会在平移之后再变一次",
 	assert.ok(Math.abs(show.at(-1)!.width - hide[0].width) < 0.5, "展开回来应当是原来的宽度");
 });
 
-test("右栏开着、终点宽度一开始放不下时，对话栏跟着窗格一路长过去", async () => {
+test("右栏开着、终点宽度一开始放不下时，对话栏也是第一帧到位，正文不逐帧换行", async () => {
 	await click(app, "button", "终端", "starts");
 	await frames(app, 60);
 	const hide = await slide("隐藏侧边栏");
-	assertNoSlideThenWiden(hide, "收起");
+	assertWidthAtOnce(hide, "收起");
 	await frames(app, 30);
-	// 往窄里走总放得下，所以这一向仍是第一帧到位。
 	const show = await slide("显示侧边栏");
 	assertWidthAtOnce(show, "展开");
 	assert.ok(Math.abs(show.at(-1)!.width - hide[0].width) < 0.5, "展开回来应当是原来的宽度");

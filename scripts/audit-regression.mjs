@@ -243,7 +243,7 @@ const CHECKS = [
 	},
 	{
 		id: "sidebar-slide",
-		what: "侧栏收起或展开时，右边的对话栏先只平移、再变宽换行，一次点击动了两下",
+		what: "侧栏收起或展开时，右边的对话栏先只平移、再变宽换行，一次点击动了两下；右栏开着时收起，正文边滑边重新断行、输入框首尾各跳一下",
 		window: true,
 		run: ["pnpm", ["--filter", "@plume/desktop", "exec", "node", "--experimental-strip-types", "--test", "--test-timeout=180000", "e2e/sidebar-slide.test.ts"]],
 	},

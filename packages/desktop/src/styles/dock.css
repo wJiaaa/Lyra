@@ -213,9 +213,9 @@
 }
 
 /*
- * 右栏收起那一段滑动里，对话这一格从窄变宽（`features/dock/column-slide.ts`）。正文列按终点宽度
- * 排，放不下的那截伸到卡片右缘外面被裁掉；`mx-auto` 放不下时贴左，左缘不动。不这样它只能跟着
- * 格子逐帧变宽，整段转录每帧重排一次。滚动区本来就是 `overflow-x: hidden`，不会冒出横向滚动条。
+ * 右栏收起、侧栏收起那一段滑动里，对话这一格从窄变宽（`features/dock/column-slide.ts`、
+ * `app/hold-column-width.ts`）。正文列按终点宽度排，放不下的那截伸到卡片右缘外面被裁掉；
+ * `mx-auto` 放不下时贴左，左缘不动。不这样它只能跟着格子逐帧变宽，整段转录每帧重排一次。滚动区本来就是 `overflow-x: hidden`，不会冒出横向滚动条。
  */
 .ly-dock-pane[data-ly-column-wide] [class*="max-w-[var(--ly-content)]"] {
 	width: var(--ly-content);

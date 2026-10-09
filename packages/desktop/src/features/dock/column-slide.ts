@@ -74,8 +74,8 @@ export function useColumnSlide(
 		motions.current = [widen, slide];
 		/*
 		 * 对话的正文列一开始就排成终点的宽度，滑动期间不逐帧换行——和侧栏开合同一个办法。收起时
-		 * 对话变宽，终点那一栏在眼下的格子里放不下：侧栏那边只能跟着格子逐帧变宽，这里卡片右缘
-		 * 正跟着面板往外退，放不下的那截就先伸出去让卡片裁着，退到哪露到哪（`wide`）。
+		 * 对话变宽，终点那一栏在眼下的格子里放不下，放不下的那截就先伸出去让卡片裁着，卡片右缘
+		 * 退到哪露到哪（`wide`）。
 		 */
 		const release = holdColumns([{ pane: conversation, from: from.width, to: to.width }], { wide: true });
 		hold.current = release;
