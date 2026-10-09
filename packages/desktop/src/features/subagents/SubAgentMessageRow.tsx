@@ -51,7 +51,11 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 	const lastReply = isLive || !echo ? -1 : messages.findLastIndex((message) => message.role === "assistant");
 
 	return (
-		<div className="flex flex-col">
+		/*
+		 * 行距放在列表上，和侧边聊天、主会话一样。从前靠每段自带的 `mb-3`，而工具那一段没有，
+		 * 于是工具行和下一步的思考行贴成一对、每对之间再空 12px。
+		 */
+		<div className="flex flex-col gap-2.5">
 			{transcriptRuns.map((run) => {
 				if (run.kind === "compaction") return null;
 
@@ -68,7 +72,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 					if (message.synthetic) return null;
 					if (fromParent(message, run.index)) return <TaskBrief key={runKey(run)} message={message} resumed={run.index > 0} />;
 					return (
-						<div key={runKey(run)} className="group/msg ly-enter mb-3 flex flex-col items-end">
+						<div key={runKey(run)} className="group/msg ly-enter flex flex-col items-end">
 							{/* 和侧边聊天同一个气泡——见 `SpokenBubble`。 */}
 							<SpokenBubble message={message} renderText={(plain) => <Markdown text={plain} />} />
 							<MessageActions timestamp={message.timestamp} text={spokenText(message)} className="pr-1" />
@@ -85,7 +89,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 					 * 是它说完一段话，下一段就凭空知道了答案。
 					 */
 					return (
-						<div key={runKey(run)} className="ly-enter mb-3 flex flex-col gap-2.5">
+						<div key={runKey(run)} className="ly-enter flex flex-col gap-2.5">
 							{segments(message.content.slice(from, upTo)).map((segment, position) => {
 								if (segment.kind === "tools") {
 									return (
@@ -152,7 +156,7 @@ function TaskBrief({ message, resumed }: { message: UserMessage; resumed: boolea
 	const [open, setOpen] = useState(false);
 	const long = text.length > BRIEF_CHARS || text.split("\n").length > BRIEF_LINES;
 	return (
-		<section data-sub-brief="" data-resumed={resumed || undefined} className="ly-enter mb-3 min-w-0 rounded-xl border border-line-soft bg-card/40 px-3.5 pt-1.5 pb-2.5">
+		<section data-sub-brief="" data-resumed={resumed || undefined} className="ly-enter min-w-0 rounded-xl border border-line-soft bg-card/40 px-3.5 pt-1.5 pb-2.5">
 			<header className="mb-1 flex h-6 items-center gap-1.5 text-caption text-ink-faint">
 				<CornerRightDown size={12.5} strokeWidth={2} aria-hidden className="shrink-0" />
 				<span>{translate("subAgent.brief")}</span>
