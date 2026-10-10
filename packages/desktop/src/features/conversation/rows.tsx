@@ -212,6 +212,8 @@ function AssistantRow({
                 text={block.thinking}
                 redacted={block.redacted === true}
                 live={newest === true && at === upTo - 1 && (running || message.stopReason === "pending")}
+                // 字还在到：后面没有别的块了。接着说话、调工具之后它就写完了，哪怕这一轮还要跑很久。
+                writing={message.stopReason === "pending" && at === message.content.length - 1}
               />
             );
           }

@@ -34,6 +34,20 @@ const TYPE = {
 	ceiling: 210,
 	/** Seconds allowed to absorb whatever is waiting; the rate follows from it. */
 	catchUp: 0.9,
+	/**
+	 * 一句写完至少停多久，毫秒。
+	 *
+	 * 没有它，一句的寿命就是打它要的时间：二十个字在上限速度下是 0.1 秒，下一句紧跟着清空重写，
+	 * 一串又短又快的推理在行上只是一阵闪烁，一个字也读不到。
+	 */
+	dwell: 1200,
+	/**
+	 * 最多还排着几句。落后得比这多，中间的句子跳过、直接去写最新的。
+	 *
+	 * 停留让行比模型慢，慢就会越积越多；一句一句全补上，行上说的就是几十秒前的事。宁可少写几句，
+	 * 写出来的那句要读得完、而且是新的。
+	 */
+	queue: 2,
 } as const;
 
 /**
@@ -47,17 +61,47 @@ const TYPE = {
  * 一半的字尾被顶在右边，看到的永远是最新的那几个字。停下来之后它就是一条普通的收起行：开头那句
  * 话，装不下就两头化开，鼠标放上去它自己读出来（见 `FlowRow` 里的 `ScrollText`）。点开是全文。
  */
-export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string; redacted: boolean; live?: boolean; stateKey?: string }) {
+export function ThinkingBlock({
+	text,
+	redacted,
+	live,
+	writing = live,
+	stateKey,
+}: {
+	text: string;
+	redacted: boolean;
+	/** 这是眼下的那段推理，要把它写出来。 */
+	live?: boolean;
+	/** 字还在到。省略时同 `live`：只能看见这条消息自己的调用方，两件事是同一件。 */
+	writing?: boolean;
+	stateKey?: string;
+}) {
 	const [open, setOpen] = useTranscriptDisclosure(stateKey);
 	const runs = useMemo(() => thinkingRuns(text), [text]);
 	const span = useRef<HTMLSpanElement>(null);
+	/*
+	 * 写完了没有，由行自己说，不由 `live` 说。
+	 *
+	 * 主转录里的 `live` 是「这一轮还在跑、这是最新的推理」：推理后面接着说话、派子任务，子任务跑
+	 * 几分钟，它就一直是真的，行就一直顶着渐隐、正文一直是纯文本尾巴。反过来，下一条回复一到它立刻
+	 * 变假，一句打到一半的字被一刀切回第一句——又短又快的推理连成串时，每一行都是这么断的。
+	 *
+	 * 所以 `live` 只负责开始；结束是字不再到（`writing` 落下）、而且行上已经写到最后一句并停够了。
+	 * 再变成 `live` 时重新开始：挂上那一刻这一轮还没被认出在跑，过一下才是。
+	 */
+	const [drained, setDrained] = useState(!live);
+	const [wasLive, setWasLive] = useState(live);
+	if (live !== wasLive) {
+		setWasLive(live);
+		if (live) setDrained(false);
+	}
 	/*
 	 * 关掉动效时不写字，直接给最新的一句。
 	 *
 	 * 这里没有「时长可以缩短」的东西，只有「帧可以不跑」——正是 `motionReduced` 那份注释说的情形。
 	 */
-	const typing = live === true && !motionReduced();
-	useTyped(runs, typing, span);
+	const typing = !drained && !motionReduced();
+	useTyped(runs, typing, writing === true, span, () => setDrained(true));
 
 	if (!text && !redacted) return null;
 
@@ -66,7 +110,7 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
 	 *
 	 * 在这里渲染当前那一句的话，下一个 token 到达时 React 会把循环刚写进去的字覆盖掉。
 	 */
-	const settled = live ? (typing ? "" : runs[runs.length - 1] ?? "") : runs[0] ?? text;
+	const settled = typing ? "" : writing ? runs[runs.length - 1] ?? "" : runs[0] ?? text;
 
 	return (
 		<div data-ly-thinking="">
@@ -97,7 +141,7 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
 			 * 收起后不留子树：留着的话，隐藏的正文照样随每个 token 重排，展开过一次的思考在收起之后
 			 * 仍把流式中的窗口拖在 20 帧上下。重新展开只是再解析一遍，17 万字也不到一毫秒。
 			 */}
-			<Collapse open={open && !redacted} bodyClassName="mt-1.5 border-l-2 border-line pl-3"><ThinkingBody text={text} live={live === true} /></Collapse>
+			<Collapse open={open && !redacted} bodyClassName="mt-1.5 border-l-2 border-line pl-3"><ThinkingBody text={text} live={writing === true} /></Collapse>
 		</div>
 	);
 }
@@ -164,10 +208,12 @@ function ThinkingBody({ text, live }: { text: string; live: boolean }) {
  * 新写的字和正文一样淡入（见 `FadeText`），也是直接在 DOM 上做：新字各是一个淡入的 span，淡完就并回
  * 开头那段纯文本，行里始终只有正在淡的那几个 span。
  */
-function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement | null>): void {
-	const state = useRef({ runs, total: 0, shown: 0 });
+function useTyped(runs: string[], live: boolean, writing: boolean, span: RefObject<HTMLSpanElement | null>, onDrained: () => void): void {
+	// `at`：正在写第几句；`shown`：这一句写了多少字；`hold`：写完的这一句停到什么时候。
+	const state = useRef({ runs, writing, onDrained, at: 0, shown: 0, hold: 0 });
 	state.current.runs = runs;
-	state.current.total = runs.reduce((n, run) => n + run.length, 0);
+	state.current.writing = writing;
+	state.current.onDrained = onDrained;
 
 	useEffect(() => {
 		if (!live) return;
@@ -181,14 +227,32 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 			const delta = Math.min(0.1, Math.max(0, (now - last) / 1000));
 			last = now;
 			const here = state.current;
-			if (here.shown > here.total) here.shown = here.total;
-			const backlog = here.total - here.shown;
+			const runs = here.runs;
+			const end = runs.length - 1;
+			if (here.at > end) here.at = Math.max(0, end);
+			// 这一句写完、停够了，后面还有，就换下一句。
+			if (here.at < end && here.shown >= runs[here.at].length && now >= here.hold) {
+				here.at++;
+				here.shown = 0;
+			}
+			// 还没动笔的这一句后面排得太多（一次到了一大段，或者停留期间又来了好几句）：跳到最新那几句。
+			if (here.shown === 0 && here.at < runs.length - TYPE.queue) here.at = runs.length - TYPE.queue;
+			const run = runs[here.at] ?? "";
+			if (here.shown > run.length) here.shown = run.length;
+			const backlog = run.length - here.shown;
 			if (backlog > 0) {
 				const rate = Math.min(TYPE.ceiling, Math.max(TYPE.floor, backlog / TYPE.catchUp));
-				here.shown = Math.min(here.total, here.shown + rate * delta);
-				const next = revealed(here.runs, here.shown);
+				here.shown = Math.min(run.length, here.shown + rate * delta);
+				if (here.shown >= run.length) here.hold = now + TYPE.dwell;
+				const next = run.slice(0, Math.floor(here.shown));
 				const element = span.current;
-				if (element && element.textContent !== next) {
+				/*
+				 * 一个字都还没有的新句子不写。
+				 *
+				 * 写下去就是把上一句清空成一行空白，等下一帧才有字：一行摘要在两句之间闪一下空，读起来
+				 * 像是它死了。
+				 */
+				if (element && next && element.textContent !== next) {
 					write(element, next, now, delta * 1000, fading);
 					/*
 					 * 这一句现在有没有超出行宽——超出了才给两头加渐隐。
@@ -220,6 +284,11 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 						row.style.minWidth = `min(${Math.ceil(width)}px, 100%)`;
 					}
 				}
+			}
+			// 字不再来、最后一句写完也停够了：这一行写完了，交还给 React 画成收起行。
+			else if (!here.writing && here.at >= end && now >= here.hold) {
+				here.onDrained();
+				return;
 			}
 			// 淡完的字并回纯文本。没有新字的帧也要做，不然最后几个字一直是 span。
 			while (fading.length > 0 && now - fading[0].born >= FADE) {
@@ -263,22 +332,4 @@ function write(element: HTMLSpanElement, next: string, now: number, frame: numbe
 		element.append(span);
 		fading.push({ span, born });
 	});
-}
-
-/**
- * 写到第 `shown` 个字时，屏幕上是哪一句、写了多少。
- *
- * 句子按顺序消耗，所以就是这个计数落在的那一句。正好落在边界上时保持上一句，而不是开始下一句：
- * 还没开始的句子渲染出来是空串，一行摘要在两段之间闪一下空白，读起来像是它死了。
- */
-function revealed(runs: string[], shown: number): string {
-	let left = Math.floor(shown);
-	let held = "";
-	for (const run of runs) {
-		if (left <= 0) break;
-		if (left < run.length) return run.slice(0, left);
-		left -= run.length;
-		held = run;
-	}
-	return held;
 }
