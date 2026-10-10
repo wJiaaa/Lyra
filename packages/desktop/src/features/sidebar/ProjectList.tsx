@@ -140,10 +140,15 @@ export function ProjectList({
 				</>
 			)}
 
+			{/*
+			 * 包成一块，「聊天」只在这一块里吸顶：滚进聊天区才停在顶上，往回滚时最后一个项目名把它顶走，
+			 * 和项目名之间不抢位置。分区间的 `pt-4` 也挪到这一层，留在标题上会跟着钉住，顶上空一条。
+			 */}
 			{groups.loose.length > 0 && (
-				<>
+				<div className={!hasPinned && groups.projects.length === 0 ? "" : "pt-4"}>
 					<SectionLabel
-						first={!hasPinned && groups.projects.length === 0}
+						first
+						held
 						section="recent"
 						sessions={groups.loose}
 						count={groups.loose.length}
@@ -177,7 +182,7 @@ export function ProjectList({
 							))}
 						</div>
 					</Collapsible>
-				</>
+				</div>
 			)}
 		</SidebarReorderContext.Provider>
 	);
@@ -194,14 +199,18 @@ export function ProjectList({
  * The count only shows while shut. Open, the rows are the count; shut, it is the difference
  * between "folded" and "empty", which are otherwise the same picture.
  *
- * Not pinned, unlike a project name. There are at most two of these and they divide the list into
- * runs rather than label a place in it — a heading that says 「置顶」 held at the top of the pane
- * while you scroll through the projects under it tells you nothing you did not already know, and
- * it would be competing for the one rail the project names need.
+ * 「置顶」 and 「项目」 are not pinned. They divide the list into runs rather than label a place in
+ * it — 「项目」 held at the top while you scroll through the projects under it tells you nothing you
+ * did not already know, and it would be competing for the rail the project names need.
+ *
+ * 「聊天」 is (`held`). It has no pager and is often the longest run in the pane, and once the
+ * project names have all scrolled away nothing says whose conversations these are. It is held only
+ * within its own block, which starts after the last project's — so there is no rail to compete for.
  */
 function SectionLabel({
 	children,
 	first,
+	held,
 	section,
 	count,
 	sessions,
@@ -216,6 +225,11 @@ function SectionLabel({
 	 * `pt-4` 是分区之间的间隔；列表顶上和标签栏之间的间距由 `Sidebar` 的列表容器统一给。
 	 */
 	first?: boolean;
+	/**
+	 * 在所在块里吸顶，像项目名那样。`data-ly-head` 让它拿到同一层底色（`misc.css`）、毛玻璃下的
+	 * 淡出（`tabs.css`），以及滚动遮罩的避让（`useStickyFade`）。
+	 */
+	held?: boolean;
 	section: "pinned" | "projects" | "recent";
 	count: number;
 	sessions: SessionMeta[];
@@ -234,7 +248,10 @@ function SectionLabel({
 	return (
 		// Not a button around a button. The heading stays the fold's target; the action is a
 		// sibling laid over its trailing edge.
-		<div className={`group/section relative flex w-full items-center ${first ? "" : "pt-4"}`}>
+		<div
+			data-ly-head={held || undefined}
+			className={`group/section flex w-full items-center ${held ? "sticky top-[var(--ly-rail)] z-20" : "relative"} ${first ? "" : "pt-4"}`}
+		>
 			<button
 				type="button"
 				data-ly-section={section}

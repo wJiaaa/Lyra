@@ -43,6 +43,8 @@ const PROJECTS = [
 	"theta-project",
 ];
 const PER_PROJECT = 9;
+/** 比一屏长，滚到底时「聊天」那一节的标题有地方被钉住。 */
+const CHATS = 30;
 
 before(async () => {
 	app = await startApp({ port: 9730, seed });
@@ -85,6 +87,24 @@ async function seed(home: string): Promise<void> {
 			});
 			n++;
 		}
+	}
+	// 一节「聊天」排在项目后面：`workspaces/` 下的会话不属于任何项目（`electron/scratch.ts`）。
+	for (let i = 0; i < CHATS; i++) {
+		const updatedAt = now - 100 * DAY - i * 60_000;
+		metas.push({
+			id: `chat${i}`,
+			title: `聊天 ${i + 1}`,
+			cwd: join(home, "workspaces", "general"),
+			projectId: "general",
+			projectName: "general",
+			createdAt: updatedAt - 60_000,
+			updatedAt,
+			modelId: "m",
+			messageCount: 4,
+			usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+			seq: 1,
+			archived: false,
+		});
 	}
 
 	seedSessions(home, metas.map((meta) => ({ meta, records: [] })));
@@ -458,4 +478,25 @@ test("列表设置 sits beside 新建项目 on 「项目」 and shows on hover",
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
 	await new Promise((r) => setTimeout(r, 400));
 	assert.ok((await read()).action < 0.01, "closed, it hides again");
+});
+
+/*
+ * 「聊天」那一节不分页、往往是整栏最长的一段，滚进去以后顶上要有它的标题，和项目名一样；往回滚到
+ * 项目区，它跟着自己那一块落下去，不和项目名抢顶上那一格。
+ */
+test("「聊天」 is held at the top while you are inside it, and gives the rail back above it", async () => {
+	const height = await app.evaluate<number>(`${VIEW}.scrollHeight`);
+	const bottom = await scrollTo(height);
+	const chats = bottom.heads.find((head) => head.text.startsWith("聊天"));
+	assert.ok(chats, `「聊天」 is one of the pinned headings: ${JSON.stringify(bottom.heads.map((h) => h.text))}`);
+	assert.ok(Math.abs(chats.y - bottom.rail) < 1, `at the bottom of the list it rests on the rail (${chats.y})`);
+	assert.deepEqual(chats.fill, bottom.pane, "and paints the pane's colour over the rows passing under it");
+
+	const above = await scrollTo(bottom.scrollTop - 900);
+	const back = above.heads.find((head) => head.text.startsWith("聊天"));
+	assert.ok(back && back.y > bottom.rail + 1, `scrolled back into the projects it has gone down with its block (${back?.y})`);
+	assert.ok(
+		above.heads.some((head) => !head.text.startsWith("聊天") && Math.abs(head.y - above.rail) < 1),
+		"and a project name holds the rail again",
+	);
 });
