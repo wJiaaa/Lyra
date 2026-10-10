@@ -186,7 +186,7 @@ function ThinkingBody({ text, live }: { text: string; live: boolean }) {
 		>
 			{live ? (
 				<div className="whitespace-pre-wrap break-words text-label leading-[1.75] tracking-[0.025em] text-ink-faint">
-					{hidden > 0 && <div className="mb-2 italic">{translate("thinking.earlier", { count: hidden.toLocaleString() })}</div>}
+					{hidden > 0 && <div className="mb-2 italic">{translate("thinking.earlier", { n: hidden.toLocaleString() })}</div>}
 					{tail}
 				</div>
 			) : (

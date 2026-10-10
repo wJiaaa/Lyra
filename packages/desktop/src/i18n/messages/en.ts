@@ -2210,7 +2210,7 @@ export const en = {
 	"turnProcess.separator": " · ",
 	"turnProcess.thoughtOnly": "Thought for a while",
 	"thinking.redacted": "The thinking was withheld by a safety filter",
-	"thinking.earlier": "{count} earlier characters; the full text shows once it finishes",
+	"thinking.earlier": { one: "{n} earlier character; the full text shows once it finishes", other: "{n} earlier characters; the full text shows once it finishes" },
 	"common.copy2": "Copy",
 	"common.send": "Send",
 	"common.reading": "Reading",

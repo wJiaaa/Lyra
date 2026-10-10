@@ -2386,7 +2386,7 @@ export const zhCN = {
 	"turnProcess.separator": " · ",
 	"turnProcess.thoughtOnly": "思考了一会儿",
 	"thinking.redacted": "思考内容已被安全过滤",
-	"thinking.earlier": "前面还有 {count} 字，想完后可看全文",
+	"thinking.earlier": "前面还有 {n} 字，想完后可看全文",
 	"common.copy2": "复制",
 	"common.send": "发送",
 	"common.reading": "正在读取",

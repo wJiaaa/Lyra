@@ -7,7 +7,7 @@
  */
 
 /** How much of a reasoning still being written the open body keeps on screen, in characters. */
-export const LIVE_TAIL = 16_000;
+const LIVE_TAIL = 16_000;
 
 /** How far the tail's start moves at a time. */
 const TAIL_STEP = 4_000;
