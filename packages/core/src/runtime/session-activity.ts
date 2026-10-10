@@ -136,6 +136,22 @@ export class SessionActivity {
 	}
 
 	/**
+	 * Wait until nothing holds the session: every hold, the turn inside it, a compaction.
+	 *
+	 * Looped because a hold can start another before letting go — the prompt hold drains what was
+	 * queued behind it. `settled` waits for one hold kind only; a session busy with a resumed
+	 * opening prompt would have been "settled" while still running.
+	 */
+	async quiet(): Promise<void> {
+		while (this.running) {
+			const pending = [...this.holds.values(), this.turn, this.compactionTask].filter((each) => each !== null);
+			// Nothing left to wait on yet still reserved: the caller goes ahead and is treated as busy.
+			if (pending.length === 0) return;
+			await Promise.allSettled(pending);
+		}
+	}
+
+	/**
 	 * Run a manual compaction, stoppable like a turn.
 	 *
 	 * Refused while anything holds the session: a running turn keeps its own copy of the history and

@@ -6,7 +6,8 @@
  *
  * 四件事各有各的出口，因为它们真的是四件不同的事：
  *
- *   插进这一轮   原来忙时的默认行为，现在退成一个按钮：这条现在就送出去，不打断正在跑的那一轮。
+ *   现在就发     停下正在跑的那一轮，拿这一条重新开始。不做成「插进这一轮」：插话要等模型写完手上
+ *                这一步才被读到，那可以是好几分钟，按下去像是什么也没发生。
  *   删除         不想说了。
  *   编辑         这一条整份退回输入框——附件和引用一起——所以它先从条上消失，再落回输入框里。
  *   拖动         多条排着的时候，先后顺序是能改的，而改的过程要看得见：让位的那几条自己滑开。
@@ -40,15 +41,15 @@ interface Leaving {
  *
  * 主会话的队伍在 app store 里（`queue-slice.ts`），侧边聊天的在它自己的 store 里——两个对话、两条
  * 队，但条是同一条：同样的行、同样的拖动、同样的「编辑就是整份退回输入框」。做不到的事就不给：
- * 侧边聊天没有「插进这一轮」，也没有「拿到侧边聊天去问」。
+ * 侧边聊天没有「现在就发」，也没有「拿到侧边聊天去问」。
  */
 export interface QueueSource {
 	items: QueuedMessage[];
 	/** 拿走一条并交还——删掉和编辑是同一个动作。 */
 	drop: (id: string) => QueuedMessage | null;
 	move: (id: string, targetId: string, placement: "before" | "after") => void;
-	/** 现在就送出去，不打断正在跑的那一轮。 */
-	steer?: (id: string) => void;
+	/** 停下正在跑的那一轮，拿这一条重新开始。 */
+	sendNow?: (id: string) => void;
 	/** 拿到侧边聊天去问。 */
 	aside?: (id: string) => void;
 }
@@ -78,12 +79,12 @@ export function QueuedMessages({
 	const items = useApp((state) => state.queued[sessionId] ?? NONE);
 	const moveQueued = useApp((state) => state.moveQueued);
 	const dropQueued = useApp((state) => state.dropQueued);
-	const steerQueued = useApp((state) => state.steerQueued);
+	const sendQueuedNow = useApp((state) => state.sendQueuedNow);
 	const source: QueueSource = {
 		items,
 		drop: (id) => dropQueued(sessionId, id),
 		move: (id, targetId, placement) => void moveQueued(sessionId, id, targetId, placement),
-		steer: (id) => void steerQueued(sessionId, id),
+		sendNow: (id) => void sendQueuedNow(sessionId, id),
 		/* 同样从队列里取走：一句话只该被问一次。 */
 		...(onAside
 			? {
@@ -131,6 +132,7 @@ export function QueueList({ source, running, onEdit }: { source: QueueSource; ru
 			onEdit={onEdit}
 			label={t("composer.queueLabel")}
 			status={running ? t("composer.queueWaiting") : t("composer.queueHeld")}
+			nowLabel={running ? t("composer.queueNow") : t("composer.queueSendNow")}
 		/>
 	);
 }
@@ -154,6 +156,7 @@ function Rows({
 	onEdit,
 	label,
 	status,
+	nowLabel,
 }: {
 	source: QueueSource;
 	rows: { entry: QueuedMessage; leaving: boolean }[];
@@ -161,6 +164,8 @@ function Rows({
 	label: string;
 	/** 这一条在等什么，写在它的悬停说明里。 */
 	status: string;
+	/** 「现在就发」按下去会怎样：跑着的时候要先停下那一轮，停着的时候就是发出去。 */
+	nowLabel: string;
 }) {
 	const list = useRef<HTMLDivElement>(null);
 	const [drag, setDrag] = useState<Drag | null>(null);
@@ -264,6 +269,7 @@ function Rows({
 					settling={settling}
 					offset={offsetOf(index)}
 					status={status}
+					nowLabel={nowLabel}
 					onEdit={onEdit}
 					onDragStart={startDrag}
 					onDragMove={moveDrag}
@@ -285,6 +291,7 @@ function Row({
 	settling,
 	offset,
 	status,
+	nowLabel,
 	onEdit,
 	onDragStart,
 	onDragMove,
@@ -300,6 +307,7 @@ function Row({
 	settling: boolean;
 	offset: number;
 	status: string;
+	nowLabel: string;
 	onEdit: (entry: QueuedMessage) => void;
 	onDragStart: (index: number, id: string, event: React.PointerEvent) => void;
 	onDragMove: (event: React.PointerEvent) => void;
@@ -379,11 +387,11 @@ function Row({
 					 * 事，而它们正是这个功能存在的理由。淡到不抢，指过去才亮，比藏起来诚实。
 					 */}
 					<div className="flex shrink-0 items-center gap-1 text-ink-faint">
-						{source.steer && (
+						{source.sendNow && (
 							<IconButton
-								data-queue-steer
-								label={t("composer.queueSteer")}
-								onClick={() => source.steer?.(entry.id)}
+								data-queue-now
+								label={nowLabel}
+								onClick={() => source.sendNow?.(entry.id)}
 								icon={<CornerDownLeft size={13.5} strokeWidth={1.9} />}
 							/>
 						)}
@@ -395,7 +403,7 @@ function Row({
 							icon={<Trash2 size={13.5} strokeWidth={1.9} />}
 						/>
 						{/* 侧边聊天的条上只有「编辑」一样，就直接是那一样——一个只装一行的菜单是多点一下。 */}
-						{source.aside || source.steer ? (
+						{source.aside || source.sendNow ? (
 							<IconButton
 								data-queue-more
 								label={t("composer.queueMore")}

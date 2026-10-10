@@ -95,7 +95,7 @@ export function initialPrompt(value: unknown): InitialPrompt | undefined {
 export function promptOptions(
 	value: unknown,
 ): Omit<InitialPrompt, "content"> & {
-	deliver?: "steer" | "followUp";
+	deliver?: "steer" | "followUp" | "interrupt";
 	resumePending?: boolean;
 } {
 	if (value === undefined || value === null) return {};
@@ -103,7 +103,7 @@ export function promptOptions(
 	const { synthetic, deliver, resumePending } = value;
 	if (synthetic !== undefined && typeof synthetic !== "boolean") throw new Error("synthetic must be boolean");
 	if (resumePending !== undefined && typeof resumePending !== "boolean") throw new Error("resumePending must be boolean");
-	if (deliver !== undefined && deliver !== "steer" && deliver !== "followUp") throw new Error("Invalid delivery mode");
+	if (deliver !== undefined && deliver !== "steer" && deliver !== "followUp" && deliver !== "interrupt") throw new Error("Invalid delivery mode");
 	return {
 		...(synthetic === undefined ? {} : { synthetic }),
 		...(deliver === undefined ? {} : { deliver }),

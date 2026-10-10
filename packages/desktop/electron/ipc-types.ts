@@ -394,7 +394,7 @@ export interface PlumeApi {
 		 * `synthetic` marks a message the app composed on the user's behalf — 「继续」 — so the
 		 * transcript does not show it as something they typed. See `Session.prompt`.
 		 */
-		prompt(sessionId: string, content: UserContent[], options?: { synthetic?: boolean; deliver?: "steer" | "followUp"; resumePending?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[] }): Promise<SessionMeta>;
+		prompt(sessionId: string, content: UserContent[], options?: { synthetic?: boolean; deliver?: "steer" | "followUp" | "interrupt"; resumePending?: boolean; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[] }): Promise<SessionMeta>;
 		/**
 		 * Replace a message and re-run from there, discarding everything after it.
 		 *

@@ -35,12 +35,21 @@ export interface QueueSlice {
 	/** 发队首。这一轮干净收尾之后由事件调它。 */
 	flushQueue(sessionId: string): Promise<void>;
 	/**
-	 * 现在就把这一条交出去，不打断正在跑的那一轮。
+	 * 把这一条插进正在跑的那一轮，不打断它。
 	 *
-	 * 也就是原来忙时的默认行为——插进这一轮。空闲时它和普通发送是同一件事，因为空闲时两种投递本来
-	 * 就没有区别（见 `Session.prompt`）。
+	 * 不给人按：插话要等模型写完手上这一步才被读到，那可以是好几分钟，按下去像是什么也没发生。
+	 * 留给运行时自己判断「这一轮此刻不在干活」的时候用——主会话卡在等子代理上（见 `apply-event`）。
+	 * 空闲时它和普通发送是同一件事（见 `Session.prompt`）。
 	 */
 	steerQueued(sessionId: string, id: string): Promise<void>;
+	/**
+	 * 「现在就发」：停下正在跑的那一轮，拿这一条重新开始。
+	 *
+	 * 被停掉的回复写到哪儿留到哪儿，模型下一次读得到；这一条发给模型时带着「在你工作时发来、打断了
+	 * 你」的说明（`@plume/core` 的 `interrupting`）。条上其余几条不动，新的这一轮干净收尾后照常往下走。
+	 * 空闲时就是普通发送。
+	 */
+	sendQueuedNow(sessionId: string, id: string): Promise<void>;
 }
 
 export function queueSlice(set: Set, get: Get): QueueSlice {
@@ -82,7 +91,7 @@ export function queueSlice(set: Set, get: Get): QueueSlice {
 	 * 先取走再发，是因为条上那一行要在按下去的那一刻就走人——发送要跨一次 IPC，等它回来再收行，
 	 * 中间那段时间人会以为没点着。代价是失败要能还原，所以位置也一起记着。
 	 */
-	const dispatch = async (sessionId: string, id: string, deliver?: "steer"): Promise<void> => {
+	const dispatch = async (sessionId: string, id: string, deliver?: "steer" | "interrupt"): Promise<void> => {
 		if (sending.has(sessionId)) return;
 		const taken = take(sessionId, id);
 		if (!taken) return;
@@ -164,6 +173,10 @@ export function queueSlice(set: Set, get: Get): QueueSlice {
 
 		async steerQueued(sessionId, id) {
 			await dispatch(sessionId, id, "steer");
+		},
+
+		async sendQueuedNow(sessionId, id) {
+			await dispatch(sessionId, id, "interrupt");
 		},
 	};
 }

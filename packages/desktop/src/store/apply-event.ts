@@ -40,6 +40,7 @@ import { foldRetry, settleHiccups } from "../lib/hiccup.ts";
 import { bridge } from "../services/index.ts";
 import { sessionTitle } from "../lib/session-title.ts";
 import { completionNotice } from "../lib/session-notifications.ts";
+import { dropHandoff, takeHandoff } from "./handoff.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -58,6 +59,12 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
 	const completion = completionNotice(event, get().activity[sessionId] ?? null);
   recordReadEvent(sessionId, event);
   /*
+   * 被「现在就发」停下的那一轮的收尾：转录照样落定，会话不放下——新的一轮几十毫秒后就开始。
+   * 下面凡是 `agent_end` 会把会话放下的地方都看它。见 `handoff.ts`。
+   */
+  const handoff = event.type === "agent_end" && event.reason === "aborted" && takeHandoff(sessionId);
+  if (event.type === "agent_start") dropHandoff(sessionId);
+  /*
    * Every conversation's state, not just the one on screen.
    *
    * Turns run in conversations you are not looking at — a scheduled task, another window, an agent
@@ -67,7 +74,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
    */
   {
     const current = get().activity[sessionId] ?? null;
-    const settled = nextActivity(event, current);
+    const settled = handoff ? current : nextActivity(event, current);
     /*
      * A conversation you are watching cannot finish unread.
      *
@@ -211,7 +218,7 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        * length of whichever leg happened to be last.
        */
       next = meter ?? relight(get().carried[sessionId], Date.now());
-    } else if (event.type === "agent_end") {
+    } else if (event.type === "agent_end" && !handoff) {
       next = undefined;
       /*
        * Frozen for 继续, but only for the two endings 继续 is offered for.
@@ -287,7 +294,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
 		}
     const cached = get().sessionCache[sessionId];
     if (cached) {
-      const next = cachedEvent(cached, event);
+      const settled = cachedEvent(cached, event);
+      const next = handoff && settled.state ? { ...settled, state: { ...settled.state, running: true, stopped: null } } : settled;
       if (next !== cached) set({ sessionCache: { ...get().sessionCache, [sessionId]: next } });
     }
 
@@ -564,16 +572,17 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        */
       const settled = settleTail(get().messages, event);
       set({
-        running: false,
+        // 被「现在就发」停下的那一轮：会话不放下，表也不收，新的一轮马上接上。
+        running: handoff,
         retrying: null,
         // 主会话自己的问题跟着这一轮走；后台子智能体的还等着人，见 `outlivingTurn`。
         approvals: outlivingTurn(get().approvals),
         compactedAt: null,
         pendingUserMessage: null,
-        turnStartedAt: null,
+        ...(handoff ? {} : { turnStartedAt: null }),
         messages: settled,
         commandRuns: get().commandRuns.map(run => run.automatic && run.status === "running" ? { ...run, status: "cancelled", detail: translate("compact.autoInterrupted") } : run),
-        stopped: howItStopped(settled, event.reason),
+        stopped: handoff ? null : howItStopped(settled, event.reason),
       });
       void bridge.sessions
         .list()

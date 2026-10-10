@@ -111,12 +111,60 @@ test("还在跑就不出队，哪怕收到过一次收尾", async () => {
 	assert.equal(useApp.getState().queued.a?.length, 1);
 });
 
-test("「现在就发」是插进这一轮，不打断它", async () => {
+test("插话留给运行时自己用：送进这一轮，不打断它", async () => {
 	const id = useApp.getState().enqueue("a", entry("插一句"));
 	useApp.setState({ running: true, activity: { a: "running" } });
 	await useApp.getState().steerQueued("a", id);
 	assert.deepEqual(prompted, [{ sessionId: "a", text: "插一句", deliver: "steer" }]);
 	assert.deepEqual(useApp.getState().queued, {});
+});
+
+test("「现在就发」停下这一轮重新开始：这句话等运行时提交了再进转录，条上其余的不动", async () => {
+	useApp.getState().enqueue("a", entry("先看这个"));
+	const id = useApp.getState().enqueue("a", entry("别动生产库"));
+	useApp.setState({ running: true, activity: { a: "running" } });
+	await useApp.getState().sendQueuedNow("a", id);
+	assert.deepEqual(prompted, [{ sessionId: "a", text: "别动生产库", deliver: "interrupt" }]);
+	assert.deepEqual(useApp.getState().queued.a?.map((item) => item.preview), ["先看这个"]);
+	// 被停掉的那条回复还没收尾，先画进去它就排到了那条回复前面。
+	assert.deepEqual(useApp.getState().messages, []);
+	assert.equal(useApp.getState().pendingUserMessage, null);
+	assert.equal(useApp.getState().running, true, "按下去之后还是在跑，不是停下了");
+});
+
+test("「现在就发」停下的那一轮收尾时，会话不放下：不闪「已暂停」，表接着走", async () => {
+	const id = useApp.getState().enqueue("a", entry("别动生产库"));
+	useApp.setState({ running: true, activity: { a: "running" }, turns: { a: { startedAt: 1000, tokens: 50 } }, turnStartedAt: 1000 });
+	await useApp.getState().sendQueuedNow("a", id);
+
+	useApp.getState().applyEvent("a", { type: "agent_end", reason: "aborted" });
+	assert.equal(useApp.getState().running, true);
+	assert.equal(useApp.getState().stopped, null, "「已暂停 · 继续」那一行看的就是它");
+	assert.equal(useApp.getState().activity.a, "running");
+	assert.equal(useApp.getState().turns.a?.startedAt, 1000, "同一件事，表不清零");
+
+	// 这几十毫秒里人又按了停止：那是真的停下，照常处理。
+	useApp.getState().applyEvent("a", { type: "agent_end", reason: "aborted" });
+	assert.equal(useApp.getState().running, false);
+	assert.equal(useApp.getState().stopped, "user");
+});
+
+test("会话在打断送到之前自己跑完了：新一轮开始时记号收掉，之后的停止照常算停止", async () => {
+	const id = useApp.getState().enqueue("a", entry("别动生产库"));
+	useApp.setState({ running: true, activity: { a: "running" } });
+	await useApp.getState().sendQueuedNow("a", id);
+
+	useApp.getState().applyEvent("a", { type: "agent_start", sessionId: "a" });
+	useApp.getState().applyEvent("a", { type: "agent_end", reason: "aborted" });
+	assert.equal(useApp.getState().running, false);
+	assert.equal(useApp.getState().stopped, "user");
+});
+
+test("停着的时候「现在就发」就是发出去，照常先画进转录", async () => {
+	const id = useApp.getState().enqueue("a", entry("接着说"));
+	await useApp.getState().sendQueuedNow("a", id);
+	assert.deepEqual(prompted, [{ sessionId: "a", text: "接着说", deliver: "interrupt" }]);
+	assert.equal(useApp.getState().messages.length, 1);
 });
 
 test("发不出去的那一条回到原来的位置，不是队尾", async () => {

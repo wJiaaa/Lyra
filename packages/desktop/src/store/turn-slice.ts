@@ -15,6 +15,7 @@ import type { AppState } from "./index.ts";
 import { bridge, withParkedPixels } from "../services/index.ts";
 import { draftFromUserMessage } from "../lib/revert-draft.ts";
 import { outlivingTurn } from "../lib/approval-scope.ts";
+import { dropHandoff, expectHandoff } from "./handoff.ts";
 
 type Get = () => AppState;
 type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void;
@@ -40,7 +41,7 @@ export function turnSlice(set: Set, get: Get) {
 		return get().activeSessionId === sessionId;
 	};
 	return {
-	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null } = {}) {
+	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp" | "interrupt"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null } = {}) {
 		const { workspace, settings, scratchCwd, selectionEpoch: epoch } = get();
 		// `null` is the blank conversation, named on purpose; only leaving it out means "the live one".
 		let sessionId = options.sessionId === undefined ? get().activeSessionId : options.sessionId;
@@ -99,11 +100,22 @@ export function turnSlice(set: Set, get: Get) {
 		// 接哪一块、哪一半接哪一半不接，规则和它的三份道理都在 `meterFor` 上。
 		const meter = meterFor({ running, carried: carriedMeter, carryOn: Boolean(options.carryOn && sessionId), now: Date.now() });
 		if (sessionId) saveCarried(sessionId, null);
+		/*
+		 * 打断正在跑的那一轮时，这句话先不画进转录。
+		 *
+		 * 被停掉的那条回复还在流，要等运行时收尾（`agent_end`）才落定；运行时等它落定之后才提交这句话
+		 * （`AgentSession.prompt` 的 `interrupt`）。先画进去，它就排在那条回复前面，回复收尾时又长到它
+		 * 下面——读起来是先说了话、模型才接着写完上一段。等 `message_start` 带它进来，顺序和磁盘上一致。
+		 */
+		const busy = sessionId ? get().activity[sessionId] : undefined;
+		const optimistic = !(options.deliver === "interrupt" && (busy === "running" || busy === "waiting"));
+		// 被停下的那一轮收尾时别把会话放下，见 `handoff.ts`。
+		if (!optimistic && sessionId) expectHandoff(sessionId);
 		if (ownsSelection()) set({
-			messages: [...get().messages, pending], pendingUserMessage: { sessionId: sessionId ?? null, message: pending },
+			...(optimistic ? { messages: [...get().messages, pending], pendingUserMessage: { sessionId: sessionId ?? null, message: pending } } : {}),
 			running: true, stopped: null, turnStartedAt: meter.startedAt, turnTokens: meter.tokens,
 		});
-		else if (sessionId) {
+		else if (sessionId && optimistic) {
 			const cached = get().sessionCache[sessionId];
 			if (cached) {
 				set({
@@ -183,6 +195,7 @@ export function turnSlice(set: Set, get: Get) {
 			if (get().activeSessionId === id) set({ capabilities });
 		} catch (cause) {
 			// Once acknowledged, a failed follow-up read must not invite a duplicate submission.
+			if (!accepted) dropHandoff(id);
 			if (accepted) {
 				get().notify(translate("turn.sentButStale", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 				return true;

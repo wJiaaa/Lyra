@@ -109,14 +109,14 @@ test("自动出队的那一行，也要走完同一段退场", async () => {
 	await view.unmount();
 });
 
-test("「现在就发」把这一条插进正在跑的这一轮", async () => {
+test("「现在就发」停下这一轮，拿点的那一条重新开始", async () => {
 	useApp.getState().enqueue("a", entry("先看这个"));
 	useApp.getState().enqueue("a", entry("再看那个"));
 	const view = await mount(strip());
 
-	await click(view.all("[data-queue-steer]")[1]!);
+	await click(view.all("[data-queue-now]")[1]!);
 	await act(async () => {});
-	assert.deepEqual(prompted, [{ text: "再看那个", deliver: "steer" }], "点哪一条发哪一条，而且不打断这一轮");
+	assert.deepEqual(prompted, [{ text: "再看那个", deliver: "interrupt" }], "点哪一条发哪一条，而且是打断着发");
 	assert.deepEqual(useApp.getState().queued.a?.map((item) => item.preview), ["先看这个"]);
 	await view.unmount();
 });

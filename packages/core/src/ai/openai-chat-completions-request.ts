@@ -148,7 +148,8 @@ export function toChatCompletionsMessages(
 					text = text ? `${text}\n${NO_VISION_PLACEHOLDER}` : NO_VISION_PLACEHOLDER;
 				}
 				const prevMsg = index > 0 ? sanitized[index - 1] : undefined;
-				if (prevMsg?.role === "assistant" && prevMsg.stopReason === "aborted" && !message.synthetic) {
+				// 打断这一轮的那句话自己带着说明（`prompt/steering.ts`），这里再加一句就说了两遍。
+				if (prevMsg?.role === "assistant" && prevMsg.stopReason === "aborted" && !message.synthetic && !message.interrupting) {
 					text = `[System note: Your previous response was interrupted by the user to provide new instructions. Abandon the interrupted thought and focus entirely on the latest user request below.]\n\n${text}`;
 				}
 				out.push({ role: "user", content: text });

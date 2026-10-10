@@ -185,13 +185,13 @@ test("侧边聊天正在答的时候按回车是排队：答完自己发出去�
 	}
 });
 
-test("侧边聊天的队伍是同一条条：没有「插进这一轮」，编辑直接是一个按钮", async () => {
+test("侧边聊天的队伍是同一条条：没有「现在就发」，编辑直接是一个按钮", async () => {
 	const taken: string[] = [];
 	const items = [{ id: "q1", content: [{ type: "text" as const, text: "排着的" }], draft: { text: "排着的", attachments: [], sessionRefs: [] }, preview: "排着的" }];
 	const view = await mount(h(QueueList, { source: { items, drop: (id: string) => items.find((one) => one.id === id) ?? null, move: () => {} }, running: true, onEdit: (entry) => taken.push(entry.draft.text) }));
 	try {
 		assert.equal(view.all("[data-queue-row]").length, 1);
-		assert.equal(view.all("[data-queue-steer]").length, 0, "侧边聊天没有「插进这一轮」");
+		assert.equal(view.all("[data-queue-now]").length, 0, "侧边聊天没有「现在就发」");
 		assert.equal(view.all("[data-queue-more]").length, 0, "只剩编辑一样，就不藏进菜单");
 		await click(view.find("[data-queue-edit]"));
 		assert.deepEqual(taken, ["排着的"]);

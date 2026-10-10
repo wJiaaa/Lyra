@@ -283,6 +283,15 @@ export interface UserMessage {
 	 */
 	steered?: true;
 	/**
+	 * 这句话打断了正在跑的那一轮：会话先停下手上的事，再拿它开新的一轮（`AgentSession.prompt` 的
+	 * `deliver: "interrupt"`，排队条上的「现在就发」）。
+	 *
+	 * 只在真的打断了什么时才打上——会话闲着时它就是一句普通的话。发给模型时据此说清楚它是在模型
+	 * 工作时说的、上一条回复是被它截断的（`prompt/steering.ts`）；不说的话，模型看到的只是自己写到
+	 * 一半的回复后面跟着一条新消息，分不清那半截是被人停下的还是自己断的。
+	 */
+	interrupting?: true;
+	/**
 	 * The files that were attached, by name and kind — never their contents.
 	 *
 	 * A text attachment's body is expanded into the prompt, which is what the model needs and the

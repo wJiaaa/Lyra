@@ -695,14 +695,30 @@ export class AgentSession {
 			 *
 			 * 空闲时两者一样，都是开一个新回合——差别只存在于有东西正在跑的时候，而这正是它
 			 * 唯一需要被区分的时候。
+			 *
+			 * `interrupt` 是第三种：停下这一轮，拿这句话重新开始。空闲时同样就是开一个新回合。
 			 */
-			deliver?: "steer" | "followUp";
+			deliver?: "steer" | "followUp" | "interrupt";
 			displayText?: string;
 			skillRef?: { name: string; path?: string; pluginId?: string };
 			sessionRefs?: Array<{ id: string; title: string }>;
 			attachments?: MessageAttachment[];
 		} = {},
 	): Promise<void> {
+		/*
+		 * `interrupt`：停下正在跑的，等它把半截回复和工具结果都落了盘，再拿这句开新的一轮。
+		 *
+		 * 插话要等模型写完手上这一步——一次思考加一大段输出可以是好几分钟，按下去之后什么也没发生。
+		 * 停止用的就是停止按钮那一套（`abort`），半截回复怎么留、没跑完的工具怎么答，和按停一样。
+		 * 等到会话完全放手才提交，不然这句话会落在被停掉那一轮的回复前面，或者被当成插话收进去又
+		 * 随停止一起清掉。
+		 */
+		let interrupting = false;
+		if (options.deliver === "interrupt" && this.running) {
+			this.abort();
+			await this.activity.quiet();
+			interrupting = true;
+		}
 		// A prompt waits for the manual boundary before creating a turn against that history.
 		const compaction = this.activity.compaction;
 		if (compaction) await compaction;
@@ -716,11 +732,12 @@ export class AgentSession {
 			...(options.skillRef ? { skillRef: options.skillRef } : {}),
 			...(options.sessionRefs?.length ? { sessionRefs: options.sessionRefs } : {}),
 			...(options.attachments?.length ? { attachments: options.attachments } : {}),
+			...(interrupting ? { interrupting: true as const } : {}),
 		};
 
 		return this.submit(message, {
 			thinking: options.thinking,
-			deliver: options.deliver,
+			deliver: options.deliver === "interrupt" ? undefined : options.deliver,
 			fromPerson: true,
 			// Names the conversation after its opening line — unless it already has a name someone
 			// chose, which this must not overwrite. See `SessionMeta.titleSetByUser`.
