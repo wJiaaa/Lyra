@@ -40,18 +40,24 @@ const GLIDE_MS = 420;
  */
 const HOLD_MS = 900;
 /**
- * 贴着底部时，内容长高了多少以内是「追过去」而不是「一步到位」。
+ * 贴着底部时，内容长高了多少以内算「输出」，计进输出速度（`FLOW_TAU`）。
  *
  * 回复写到底部时，每起一行转录长高一行（二十几像素）。从前每一次都当场把位置写到底，于是整段
  * 回复一顿一顿地往上顶，一行一顿。这么小的一截改成追：滑过去而不是跳过去，一行接一行连成一条平稳的
- * 上移，新的那行字也正在淡入，两者合在一起才是一条流。
- *
- * 更大的一块（一张工具卡、一段展开的输出）不用弹簧，按 `SWEEP_MS` 缓出滑过去：弹簧从静止起步，
- * 几百像素要追近半秒。超过一屏的（打开会话、一次倒进来一大篇）仍然一步到位，滑那么远是让人等。
+ * 上移，新的那行字也正在淡入，两者合在一起才是一条流。超过一屏的（打开会话、一次倒进来一大篇）
+ * 一步到位。
  */
 const CHASE_MAX = 200;
-/** 比 `CHASE_MAX` 大、不超过一屏的长高，滑过去用多久。 */
-const SWEEP_MS = 240;
+/**
+ * 追的时候最多落后底部多少，约一行半。
+ *
+ * 追是先让内容长出来、下一帧起才挪，落后的那一截里是转录最底下的东西——运行行、刚长出来的那块。
+ * 正文一帧几像素，落后在 `CHASE_LAG` 上下，看不出来；界面块的一个元素、一张工具卡是整块到的，
+ * 从前这一截照样追（更大的按 240ms 缓出滑），量到运行行被压到视口下沿以下 129px、21 帧，
+ * 人看到的是「思考那一行一直跳」。所以超出这一截的部分在长高的同一帧就写掉，只留一行半给弹簧追：
+ * 上面的旧内容一帧挪上去一截，眼睛盯着的最底下那一行最多下沉一行半。
+ */
+const LAG_MAX = 40;
 /**
  * 追的快慢：一个临界阻尼的弹簧，这是它的角频率（每毫秒）。
  *
@@ -199,8 +205,6 @@ export function useFollowBottom({
 	const size = useRef({ content: 0, view: 0 });
 	/** 最近小幅长高的总量，按 `FLOW_TAU` 衰减；除以 `FLOW_TAU` 就是输出速度（像素/毫秒）。 */
 	const flow = useRef({ amount: 0, at: 0 });
-	/** 正在进行的一次缓出滑动：从哪儿、什么时候开始。终点是实时的底部。 */
-	const sweep = useRef<{ from: number; at: number } | null>(null);
 	const restoredSurface = useRef<string | null | undefined>(undefined);
 	const selectedSurface = useRef<string | null | undefined>(undefined);
 	const restore = useRef<FollowSnapshot | undefined>(undefined);
@@ -333,7 +337,7 @@ export function useFollowBottom({
 	}, []);
 
 	/**
-	 * 跟随底部时把位置送到底：小幅长高用弹簧追，大一些的缓出滑过去，其余一步到位——见 `CHASE_MAX`。
+	 * 跟随底部时把位置送到底：一屏以内的长高用弹簧追、最多落后 `LAG_MAX`，其余一步到位——见 `CHASE_MAX`。
 	 *
 	 * 两个入口共用它：内容签名变了（布局 effect）和尺寸变了（`onResize`），流式输出时两者每帧
 	 * 都会来，所以「已经在追」本身就是继续追的理由，第二个入口不能把它打断成一步到位。
@@ -361,25 +365,22 @@ export function useFollowBottom({
 			if (!slide) {
 				cancelAnimationFrame(chase.current);
 				chase.current = 0;
-				sweep.current = null;
 				write(el, target);
 				return;
 			}
-			if (grew > CHASE_MAX) sweep.current = { from: reading.scrollTop, at: now };
+			// 这里跑在布局之后、绘制之前（布局 effect 或 `ResizeObserver` 回调），写掉的这一截当帧生效。
+			if (target - reading.scrollTop > LAG_MAX) write(el, target - LAG_MAX);
 			if (moving) return;
 
 			// 位置自己记一份小数：浏览器会把 `scrollTop` 取整到物理像素，每帧挪不到半个像素的那几帧
 			// 读回来原地不动，拿读回来的值接着算就永远差那一点。
-			let position = reading.scrollTop;
+			let position = el.scrollTop;
 			let velocity = 0;
 			let last = 0;
 			const step = (now: number) => {
 				chase.current = 0;
 				// 读者滚开了、按住了东西、或者换了会话：不追了。
-				if (state.current !== "following" || anchor.current || !el.isConnected) {
-					sweep.current = null;
-					return;
-				}
+				if (state.current !== "following" || anchor.current || !el.isConnected) return;
 				const here = read(el);
 				if (isDegenerate(here)) return;
 				// 别人挪过（浏览器夹住、原生锚定），以实际位置为准。
@@ -388,24 +389,14 @@ export function useFollowBottom({
 				const dt = last ? Math.min(50, Math.max(0, now - last)) : 16;
 				last = now;
 				const end = visualBottom(here);
-				let next: number;
-				const sliding = sweep.current;
-				if (sliding) {
-					// 三次缓出，和回到底部那一段同一条曲线；结束时速度是零，接回弹簧不会顿。
-					const progress = Math.min(1, (now - sliding.at) / SWEEP_MS);
-					next = (sliding.from - end) * (1 - progress) ** 3;
-					velocity = 0;
-					if (progress >= 1) sweep.current = null;
-				} else {
-					const rate = (flow.current.amount * Math.exp(-(now - flow.current.at) / FLOW_TAU)) / FLOW_TAU;
-					const omega = Math.max(CHASE_OMEGA, (2 * rate) / CHASE_LAG);
-					// 临界阻尼弹簧的精确解，步长再大也不会冲过头或者发散。
-					const offset = position - end;
-					const decay = Math.exp(-omega * dt);
-					const pull = velocity + omega * offset;
-					next = (offset + pull * dt) * decay;
-					velocity = (velocity - omega * pull * dt) * decay;
-				}
+				const rate = (flow.current.amount * Math.exp(-(now - flow.current.at) / FLOW_TAU)) / FLOW_TAU;
+				const omega = Math.max(CHASE_OMEGA, (2 * rate) / CHASE_LAG);
+				// 临界阻尼弹簧的精确解，步长再大也不会冲过头或者发散。
+				const offset = position - end;
+				const decay = Math.exp(-omega * dt);
+				const pull = velocity + omega * offset;
+				const next = (offset + pull * dt) * decay;
+				velocity = (velocity - omega * pull * dt) * decay;
 				if (next >= -0.5) {
 					// 多写一个像素让浏览器夹到真正的底，理由见 `targetScrollTop`。
 					write(el, end + 1);
@@ -618,6 +609,11 @@ export function useFollowBottom({
 
 		cancelAnimationFrame(glide.current);
 		state.current = nextState(state.current, { kind: "user-return" }, reading);
+		/*
+		 * 回去比按住的那一下新。转录里的按钮发出一句话，按下时 `hold` 记了它；不在这里放掉，气泡一画进来
+		 * `settle` 就把按钮放回原处，刚落到底又被拉回去——量过，离底 113px 停了 850ms，自己的话看不见。
+		 */
+		anchor.current = null;
 
 		const land = () => {
 			const settled = read(el);
@@ -715,7 +711,6 @@ export function useFollowBottom({
 		cancelAnimationFrame(glide.current);
 		cancelAnimationFrame(chase.current);
 		chase.current = 0;
-		sweep.current = null;
 		size.current = { content: 0, view: 0 };
 		cancelAnimationFrame(clearWritten.current);
 		written.current = null;

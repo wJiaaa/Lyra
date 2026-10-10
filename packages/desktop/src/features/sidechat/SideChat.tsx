@@ -12,10 +12,10 @@
 import { translate } from "../../i18n/translate.ts";
 import { MessageCirclePlus } from "../../ui/icons/index.ts";
 import type { Message, UserMessage } from "@plume/core";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSide, sideChatOf } from "../dock/index.ts";
-import { useSideTarget } from "./target.ts";
-import { BackToLatest, spokenText, useAnswering } from "../conversation/index.ts";
+import { sideInterfaceKey, useSideTarget } from "./target.ts";
+import { BackToLatest, InterfaceHost, spokenText, useAnswering } from "../conversation/index.ts";
 import { sideIdOfPanel } from "../../lib/panel-instance.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -35,6 +35,30 @@ export function SideChat() {
 	const error = useSide((s) => sideChatOf(s, sessionId, sideId).error);
 	const ask = useSide((s) => s.ask);
 	const abort = useSide((s) => s.abort);
+	/*
+	 * 这里的界面块往这个侧边聊天说话。不给的话块里的 `send` 按会话说（`sayFor`）——说进的是主对话：
+	 * 人在侧边点了一下，话出现在另一边。和侧边输入框发出去的走同一条：这一轮还在答、或者队里压着别的，
+	 * 就排进输入框上方那条；否则直接问。
+	 */
+	const host = useMemo(
+		() =>
+			sessionId
+				? {
+						key: sideInterfaceKey(sessionId, sideId),
+						say: (words: string, content: string) => {
+							const side = useSide.getState();
+							const blocks = [{ type: "text" as const, text: content }];
+							const chat = sideChatOf(side, sessionId, sideId);
+							if (chat.running || chat.queued.length > 0) {
+								side.enqueue(sessionId, sideId, { content: blocks, displayText: words, draft: { text: words, attachments: [], sessionRefs: [] }, preview: words });
+								return;
+							}
+							void side.ask(sessionId, sideId, blocks, { displayText: words, attachments: [] });
+						},
+					}
+				: null,
+		[sessionId, sideId],
+	);
 
 	/*
 	 * 这一屏的那份对话，由这个面板自己去拉。
@@ -102,9 +126,11 @@ export function SideChat() {
 					 */}
 					{/* Bottom padding leaves 「回到最新」 somewhere to float that is not the newest reply. */}
 					<div className="mx-auto flex w-full max-w-[var(--ly-content)] flex-col gap-2.5 pt-3 pb-[var(--ly-bottom-inset)]">
-						{messages.map((message, index) => (
-							<MessageRow key={rowKey(message, index)} message={message} index={index} live={running && index === lastReply} />
-						))}
+						<InterfaceHost.Provider value={host}>
+							{messages.map((message, index) => (
+								<MessageRow key={rowKey(message, index)} message={message} index={index} live={running && index === lastReply} />
+							))}
+						</InterfaceHost.Provider>
 						{/*
 						 * The same line the main transcript shows while it waits, minus the meter.
 						 *

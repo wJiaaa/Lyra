@@ -22,9 +22,14 @@ module.exports = {
 		},
 		{
 			name: "mobile-core-imports-are-types-only",
+			comment:
+				"手机端只认 core 的类型。唯一的例外是 `ui-language/` 里给渲染用的那几个文件：整个目录一个 import " +
+				"都不出去，和桌面渲染进程白名单里的是同一批。手机把回复里的 ```ui 画出来，读块的规则必须和提示词、" +
+				"检查、桌面端是同一份——抄一份过去，就是模型学的写法在手机上被读成另一个样子。经 " +
+				"`@plume/client-runtime/ui-language` 转出去，手机不直接依赖 core。",
 			severity: "error",
 			from: { path: "^packages/(mobile|client-runtime)/src/" },
-			to: { path: "^packages/core/", dependencyTypesNot: ["type-only"] },
+			to: { path: "^packages/core/", pathNot: "^packages/core/src/ui-language/(index|catalog|chart|check|expression|parse)\\.ts$", dependencyTypesNot: ["type-only"] },
 		},
 		{
 			name: "client-runtime-has-no-ui",
@@ -111,6 +116,8 @@ module.exports = {
 				"归了组、却每读一个文件弹一次窗。" +
 				"`mcp/placeholders` 也只有一个 `import type`：「这台服务还缺哪几个值」界面上画、连接时拦，" +
 				"两处必须是同一个答案——设置页说齐了、启动时却报缺，比两处都不说更糟。" +
+				"`ui-language/` 整个目录一个 import 都不出去：界面块的解析、检查与组件表，模型在提示词里读到的、" +
+				"运行时回报给它的、桌面端画出来的，必须是同一份规则——两处各写一遍，就是模型学的属性被渲染器悄悄丢掉。" +
 				"这一条是在真窗口里撞出来又验回去的——先看到过一整屏空白。",
 			severity: "error",
 			from: { path: "^packages/desktop/src" },
@@ -118,7 +125,8 @@ module.exports = {
 				path: "^packages/core/src",
 				pathNot:
 					"^packages/core/src/(types|tokens|activity|trajectory-view|commands-view|model-catalog|agents-builtin|platform)\\.ts$" +
-					"|^packages/core/src/(config/schedule|config/model-choice|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|ai/thinking-options|runtime/delegation)\\.ts$",
+					"|^packages/core/src/(config/schedule|config/model-choice|config/models|config/project-folders|config/retry-policy|commands/builtin|plugins/install-record|mcp/placeholders|ai/thinking-options|runtime/delegation)\\.ts$" +
+					"|^packages/core/src/ui-language/(index|catalog|chart|check|expression|parse)\\.ts$",
 				dependencyTypesNot: ["type-only"],
 			},
 		},

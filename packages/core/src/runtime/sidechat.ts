@@ -33,6 +33,7 @@ import { resolveModel } from "../config/settings.ts";
 import { compactionModel } from "../config/model-choice.ts";
 import type { Message, MessageAttachment, ThinkingLevel, UserContent } from "../types.ts";
 import type { AgentSession } from "./session.ts";
+import { interfacePrompt } from "../ui-language/prompt.ts";
 
 export type SideChatUpdate = AgentEvent | { type: "side_model"; modelId: string | null };
 export type SideChatEvent = SideChatUpdate & { sideRevision: number };
@@ -395,7 +396,11 @@ export class SideChat {
 			"# 回答风格",
 			"",
 			"简短、直接、说人话。用中文。不要复述用户已经知道的东西。",
-		].join("\n");
+			/*
+			 * 侧边聊天画得出界面块（和主对话同一个渲染），按钮说的话发回这个侧边聊天。不教就不会写——
+			 * 把几种做法摆在一起比、让人点一个，正是来侧边问的那类事。没有 `preview`，那半句不提。
+			 */
+		].join("\n") + interfacePrompt({ preview: false });
 	}
 
 	private async emit(event: SideChatUpdate): Promise<void> {

@@ -253,3 +253,12 @@ test("同一个会话旁边的几个侧边聊天，缓存 key 各用各的；最
 	await another.ask([{ type: "text", text: "二" }]);
 	assert.deepEqual(keys, [`${main.meta.id}:side`, `${main.meta.id}:side:k1`]);
 });
+
+test("侧边聊天的提示词教界面块，但不指向它没有的 preview", async (t) => {
+	let system = "";
+	const { chat } = await fixture(t, { emit: () => {}, streamFn: async (context) => { system = (context as { systemPrompt?: string }).systemPrompt ?? ""; return reply(); } });
+	await chat.ask([{ type: "text", text: "比一下这三种做法" }]);
+	assert.match(system, /Interface blocks:/);
+	assert.match(system, /<Button send=/);
+	assert.doesNotMatch(system, /preview/);
+});

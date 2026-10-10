@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
 import { Window } from "happy-dom";
-import { previewFragment, readOpenRequest, OPEN_MESSAGE, type PreviewTheme } from "../shared/preview.ts";
+import { previewFragment, readOpenRequest, readSendRequest, OPEN_MESSAGE, SEND_MESSAGE, type PreviewTheme } from "../shared/preview.ts";
 import { readableOn } from "../src/features/files/preview-theme.ts";
 
 // `preview-protocol.ts` registers Electron protocols; nothing here touches them, so a hollow module will do.
@@ -65,11 +65,18 @@ test("没有主题的旧页面什么样式都不加", async () => {
 	assert.equal(inline, true, "ly-inline 照旧生效");
 });
 
-test("面板里的页面是顶层文档：自己铺底色，片段留着给刷新用", async () => {
+test("面板里的页面是顶层文档：自己铺底色、留出边距，片段留着给刷新用", async () => {
 	const fragment = previewFragment({ theme });
 	const { sheet, hash } = await load(fragment);
-	assert.match(sheet, /html\{background:var\(--background\)\}$/);
+	assert.match(sheet, /html\{background:var\(--background\)\}/);
+	assert.match(sheet, /html\{padding:24px 28px\}$/, "对话里左边沿是正文的，面板里是窗口的，贴着它就挤了");
 	assert.equal(hash, fragment);
+});
+
+test("检查窗口也是顶层文档，但按对话里的样子载入：不加边距，截图和对话里一样", async () => {
+	const { sheet } = await load(previewFragment({ inline: true, theme }));
+	assert.match(sheet, /html\{background:var\(--background\)\}$/);
+	assert.doesNotMatch(sheet, /padding/);
 });
 
 test("<header> 不是 <head>，没有 head 的页面注入在 doctype 之后", () => {
@@ -89,6 +96,27 @@ test("页面请求打开的地址只放行网页和邮件", () => {
 	}
 	assert.equal(readOpenRequest(null), null);
 	assert.equal(readOpenRequest("https://example.com"), null);
+});
+
+test("页面替人说的话：去掉首尾空白，空的、不是文字的、长成一篇文档的都不算", () => {
+	assert.equal(readSendRequest({ [SEND_MESSAGE]: "  方案 B，12 人，按年付 \n" }), "方案 B，12 人，按年付");
+	for (const text of ["", "   ", 42, null, { text: "x" }, "x".repeat(2001)]) {
+		assert.equal(readSendRequest({ [SEND_MESSAGE]: text }), null, String(text).slice(0, 20));
+	}
+	assert.equal(readSendRequest({ [OPEN_MESSAGE]: "https://example.com" }), null, "a link is not a message");
+	assert.equal(readSendRequest("hi"), null);
+});
+
+test("plume.send 在顶层文档（侧栏里）没有对话可说，返回 false", async () => {
+	const window = new Window({
+		url: "ly-preview://sess/page/index.html",
+		settings: { enableJavaScriptEvaluation: true, suppressInsecureJavaScriptEnvironmentWarning: true } as never,
+	});
+	window.document.write(withPreviewBridge(PAGE));
+	const plume = (window as unknown as { plume?: { send(text: unknown): boolean } }).plume;
+	assert.equal(typeof plume?.send, "function");
+	assert.equal(plume?.send("hi"), false);
+	await window.happyDOM.close();
 });
 
 test("主色上的字色按亮度选黑或白", () => {

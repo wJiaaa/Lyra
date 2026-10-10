@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { browserAddressLike, browserOmnibox, browserSearchCustom, browserUrl, parseBrowserCommand } from "../shared/browser.ts";
+import { browserAddressLike, browserLocalPage, browserOmnibox, browserSearchCustom, browserUrl, parseBrowserCommand } from "../shared/browser.ts";
 
 test("browser IPC validates untyped commands and does not allow privileged navigation", () => {
 	for (const url of ["file:///etc/passwd", "javascript:alert(1)", "data:text/html,hi", "devtools://inspect"]) assert.throws(() => browserUrl(url));
@@ -29,7 +29,19 @@ test("a query goes to the configured engine, and a broken custom template falls 
 	// `&`, `#` and `?` have to survive as part of the query rather than becoming URL structure.
 	assert.equal(browserOmnibox("a&b#c?d").url, "https://www.bing.com/search?q=a%26b%23c%3Fd");
 	// The address bar refuses what the browser refuses, instead of quietly searching for it.
-	assert.throws(() => browserOmnibox("file:///etc/passwd"));
+	assert.throws(() => browserOmnibox("devtools://inspect"));
+	// `file:` goes to the main process, which opens only an .html file, and only as a copy (`readLocalPage`).
+	assert.equal(browserOmnibox("file:///etc/passwd").url, "file:///etc/passwd");
 	for (const template of ["https://s.example.com/find", "javascript:alert(%s)", "not a url %s"]) assert.throws(() => browserSearchCustom(template), undefined, template);
 	assert.equal(browserSearchCustom(" https://s.example.com/find?q=%s "), "https://s.example.com/find?q=%s");
+});
+
+test("本地 HTML：地址栏和 IPC 认出来交给主进程拷贝，网页本身仍然打不开 file:", () => {
+	for (const text of ["file:///Users/a/page.html", "/Users/a/飞机.html", "C:\\Users\\a\\page.html", "c:/a/page.html"]) assert.equal(browserLocalPage(text), true, text);
+	for (const text of ["example.com", "https://a.com/page.html", "localhost:3000", "天气", "ly-preview://s/p/index.html"]) assert.equal(browserLocalPage(text), false, text);
+	assert.deepEqual(browserOmnibox(" /Users/a/page.html "), { kind: "open", url: "/Users/a/page.html", query: "/Users/a/page.html" });
+	assert.equal(parseBrowserCommand({ type: "open", url: "file:///Users/a/page.html", sessionId: null }).type, "open");
+	assert.deepEqual(parseBrowserCommand({ type: "navigate", id: "tab", url: "/Users/a/page.html" }), { type: "navigate", id: "tab", url: "/Users/a/page.html" });
+	// 守在 webview 前面的那道仍然拒绝：本地文件只以预览目录里的副本出现。
+	assert.throws(() => browserUrl("file:///Users/a/page.html"));
 });

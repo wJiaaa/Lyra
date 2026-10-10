@@ -3,14 +3,16 @@ import { ChevronsDown, ExternalLink, Maximize2, Minimize2, RotateCw } from "../.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useSide } from "../dock/index.ts";
 import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { onAppearanceApplied } from "../settings/index.ts";
-import { HEIGHT_MESSAGE, PREVIEW_MAX_HEIGHT, THEME_MESSAGE, WIDTH_KEY, previewFragment, readOpenRequest, type PreviewTheme } from "../../../shared/preview.ts";
-import { followHeight } from "./preview-height.ts";
+import { HEIGHT_MESSAGE, PREVIEW_MAX_HEIGHT, THEME_MESSAGE, WIDTH_KEY, previewFragment, readOpenRequest, readSendRequest, type PreviewTheme } from "../../../shared/preview.ts";
+import { MAX_ADJUSTMENTS, followHeight } from "./preview-height.ts";
 import { previewTheme } from "./preview-theme.ts";
+import { sayFor } from "../../store/say.ts";
 
 export interface PreviewInfo {
 	id: string;
@@ -31,6 +33,12 @@ export interface PreviewInfo {
 const MIN_HEIGHT = 160;
 /** Below this, the page has not really told us anything — see where this is used. */
 const MEANINGFUL_HEIGHT = 90;
+/**
+ * The floor for a themed page, which is written to be as tall as its content (`previewTool`), so
+ * what it reports is its height. Held to 160 a row of three badges stood on 60px of empty
+ * conversation, with no card edge to say the page had ended.
+ */
+const THEMED_MIN_HEIGHT = 40;
 const MAX_HEIGHT = PREVIEW_MAX_HEIGHT;
 /** Used while measuring, and if the page never reports anything. */
 const DEFAULT_HEIGHT = 440;
@@ -40,6 +48,8 @@ const PROBE_TIMEOUT_MS = 1500;
 const PROBE_SETTLE_MS = 400;
 /** How long a link request waits for the click that sent it to be known here — see the link handler. */
 const LINK_RECHECK_MS = 200;
+/** One press, one message: a handler that asks twice for one press, or a double-click, says it once. */
+const SEND_GAP_MS = 1500;
 
 function previewUrl(preview: PreviewInfo): string {
 	return `ly-preview://${preview.sessionId}/${preview.id}/${preview.entry}`;
@@ -64,7 +74,8 @@ function previewUrl(preview: PreviewInfo): string {
  * walking the disk. The agent wrote this code; it is not trusted with anything but its own
  * canvas.
  */
-const clamp = (value: number) => Math.round(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, value)));
+const floor = (preview: PreviewInfo) => (preview.themed ? THEMED_MIN_HEIGHT : MIN_HEIGHT);
+const clamp = (value: number, preview: PreviewInfo) => Math.round(Math.min(MAX_HEIGHT, Math.max(floor(preview), value)));
 
 /*
  * A preview is measured once and remembered.
@@ -80,7 +91,7 @@ function recallHeight(preview: PreviewInfo): number | null {
 	try {
 		const raw = localStorage.getItem(`${HEIGHT_KEY}${preview.sessionId}/${preview.id}`);
 		const value = raw === null ? Number.NaN : Number(raw);
-		return Number.isFinite(value) ? clamp(value) : null;
+		return Number.isFinite(value) ? clamp(value, preview) : null;
 	} catch {
 		return null;
 	}
@@ -94,15 +105,28 @@ function rememberHeight(preview: PreviewInfo, height: number): void {
 	}
 }
 
-export function PreviewCard({ preview }: { preview: PreviewInfo }) {
+export function PreviewCard({ preview, startHeight, onShown }: {
+	preview: PreviewInfo;
+	/** The height the draft of this page got to (`PreviewDraft`): where the card starts, so the swap does not jump. */
+	startHeight?: number;
+	/** Once the page is on screen — the draft over it can go. */
+	onShown?: () => void;
+}) {
 	const [nonce, setNonce] = useState(0);
 	const [tall, setTall] = useState(false);
 	const [ready, setReady] = useState(false);
 	/** The page wants more room than a card in a transcript is allowed to take. */
 	const [overflowing, setOverflowing] = useState(false);
+	/**
+	 * Opened to the whole page by the reader: how tall the card was before (`from`, where the way in
+	 * stays put — see the button), how tall it is now, and how often it has followed the page since.
+	 */
+	const [full, setFull] = useState<{ from: number; height: number; adjustments: number } | null>(null);
+	/** The page's latest height, whatever the card made of it. */
+	const latest = useRef(0);
 	const frame = useRef<HTMLIFrameElement>(null);
 	// Straight from the last time this preview was measured, so the first frame is already right.
-	const [measured, setMeasured] = useState<number | null>(() => recallHeight(preview));
+	const [measured, setMeasured] = useState<number | null>(() => recallHeight(preview) ?? (startHeight === undefined ? null : clamp(startHeight, preview)));
 	/*
 	 * Measurement state outlives a render, and has to.
 	 *
@@ -120,7 +144,15 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	 * that owns it, see `reveal` in `useBrowserWorkspace`.
 	 */
 	const sessionId = useScopedSessionId();
+	/*
+	 * Between the press and the page being up. That can be seconds — the panel's code loads the first
+	 * time, the page has to attach — and a button that shows nothing for that long reads as missed and
+	 * gets pressed again.
+	 */
+	const opening = useSide((state) => state.browserTarget?.kind === "preview" && state.browserTarget.preview.id === preview.id && state.browserTarget.preview.sessionId === preview.sessionId);
 	const show = () => {
+		// Not disabled, which would fade the spinner to nothing; a second press just has nothing to add.
+		if (opening) return;
 		// The panel's tab cannot be told about a later theme change; it takes the one in force now.
 		useSide.getState().openPreview({ ...preview, fragment: preview.themed ? previewFragment({ theme: previewTheme(null) }) : undefined }, sessionId);
 	};
@@ -159,13 +191,15 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	useEffect(() => (preview.themed ? onAppearanceApplied(postTheme) : undefined), [preview.themed, postTheme]);
 
 	/*
-	 * A link in the page, opened where the reader's links go.
+	 * A link in the page, opened where the reader's links go; or a button in it speaking for the
+	 * reader (`plume.send`), said in this conversation.
 	 *
-	 * The page cannot open anything itself (see `withPreviewBridge`); it asks. Asked is not the same
+	 * The page cannot do either itself (see `withPreviewBridge`); it asks. Asked is not the same
 	 * as clicked, though — a script can ask on load, or on a timer, as often as it likes. So the ask
 	 * counts only while this frame has the focus and the reader has just used the app, which a page
 	 * cannot arrange from inside its sandbox. It can still wait for the reader's next click
-	 * anywhere in it, which is the same reach any link in it already has.
+	 * anywhere in it, which is the same reach any link in it already has. A message is also said once
+	 * however many times one press asks (`SEND_GAP_MS`).
 	 */
 	useEffect(() => {
 		const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -177,11 +211,19 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 				void bridge.browser.command({ type: "open", url, sessionId, newTab: true }).catch((error: unknown) => state.notify(String(error), "error"));
 			} else void bridge.system.openExternal(url);
 		}
+		let said = 0;
+		function say(text: string) {
+			if (!sessionId || Date.now() - said < SEND_GAP_MS) return;
+			said = Date.now();
+			sayFor(sessionId, text);
+		}
 		function onMessage(event: MessageEvent) {
 			if (event.source !== frame.current?.contentWindow) return;
 			const url = readOpenRequest(event.data);
-			if (!url) return;
-			if (used()) return open(url);
+			const text = readSendRequest(event.data);
+			const act = url ? () => open(url) : text ? () => say(text) : null;
+			if (!act) return;
+			if (used()) return act();
 			/*
 			 * Asked once more, a moment later. The page runs in another process, and the click that
 			 * focused and activated it reaches this document after the message it sent: measured in
@@ -190,7 +232,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			 */
 			const timer = setTimeout(() => {
 				timers.delete(timer);
-				if (used()) open(url);
+				if (used()) act();
 			}, LINK_RECHECK_MS);
 			timers.add(timer);
 		}
@@ -227,6 +269,12 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			const data = event.data as Record<string, unknown> | null;
 			const asked = data?.[HEIGHT_MESSAGE];
 			if (typeof asked !== "number" || !Number.isFinite(asked)) return;
+			latest.current = asked;
+			/*
+			 * Opened, the card is the page's height, both ways — a tab switched in the page may be shorter.
+			 * Capped like the settled card is: a box sized in `vh` grows with every height it is given.
+			 */
+			setFull((open) => (open && open.adjustments < MAX_ADJUSTMENTS && Math.abs(asked - open.height) > 2 ? { ...open, height: Math.max(floor(preview), asked), adjustments: open.adjustments + 1 } : open));
 			const width = data?.[WIDTH_KEY];
 			const resized = typeof width === "number" && state.width !== null && width !== state.width;
 			if (typeof width === "number") state.width = width;
@@ -250,8 +298,9 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 					 * A page built entirely out of percentages has no height of its own to report,
 					 * and what comes back is the sum of a few collapsed boxes. Better to give it
 					 * the default and let it fill that than to squeeze it into its own collapse.
+					 * A themed page is short when it is short — see `THEMED_MIN_HEIGHT`.
 					 */
-					commit(state.tallest < MEANINGFUL_HEIGHT ? DEFAULT_HEIGHT : clamp(state.tallest));
+					commit(state.tallest < (preview.themed ? THEMED_MIN_HEIGHT : MEANINGFUL_HEIGHT) ? DEFAULT_HEIGHT : clamp(state.tallest, preview));
 				}, PROBE_SETTLE_MS);
 				return;
 			}
@@ -267,7 +316,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			} else note(asked);
 			setMeasured((current) => {
 				if (current === null) return current;
-				const next = followHeight({ current, next: clamp(asked), resized, adjustments: state.adjustments });
+				const next = followHeight({ current, next: clamp(asked, preview), resized, adjustments: state.adjustments });
 				if (next === null) return current;
 				state.adjustments++;
 				rememberHeight(preview, next);
@@ -286,9 +335,14 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	}, [preview]);
 
 	// Asking for more space is a decision the page does not get to overrule.
-	const height = tall ? MAX_HEIGHT : (measured ?? DEFAULT_HEIGHT);
+	const height = full ? full.height : tall ? MAX_HEIGHT : (measured ?? DEFAULT_HEIGHT);
 	// Held back until it has been measured, so the probe height is never a frame anyone sees.
 	const visible = ready && measured !== null;
+	const shown = useRef(onShown);
+	shown.current = onShown;
+	useEffect(() => {
+		if (visible) shown.current?.();
+	}, [visible]);
 
 	/*
 	 * A themed page is part of the reply: no frame, on the conversation's own background, its left
@@ -360,22 +414,32 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			 * and solid the moment the pointer arrives, which is a hover this document does own.
 			 */}
 			{/*
-			 * Say so when there is more below.
+			 * Say so when there is more below, and open it here when pressed.
 			 *
 			 * The page does not scroll inside the card — that is what stops it swallowing the wheel
-			 * and jittering against its own edge — so a page taller than the ceiling is simply cut
-			 * off, and silently cutting content off is worse than the scrollbar ever was. The panel
-			 * is where a page this size belongs anyway.
+			 * and jittering against its own edge — so a page taller than the ceiling is folded at it.
+			 * Pressed, the card takes the page's whole height in place; the panel is the button at the
+			 * top right, for when the reader wants it out of the conversation.
+			 *
+			 * Opened, the button fades but stays where it was pressed rather than going with the card's
+			 * bottom or leaving: the transcript keeps what was pressed still while it grows
+			 * (`useFollowBottom.hold`), and a button that moved or left would let a transcript at its
+			 * end follow the growth down to the page's last line, past everything just opened.
 			 */}
-			{overflowing && !tall && (
+			{((overflowing && !tall) || full) && (
 				<button
 					type="button"
 					data-ly-tip={translate("preview.longer")}
 					aria-label={translate("preview.longer")}
-					onClick={show}
+					aria-hidden={full ? true : undefined}
+					inert={full ? true : undefined}
+					onClick={() => setFull({ from: height, height: Math.max(height, latest.current), adjustments: 0 })}
+					style={{
+						...(look ? { ["--ly-preview-fade" as string]: look.surface } : {}),
+						...(full ? { top: `calc(${full.from}px - 3.5rem)` } : {}),
+					}}
 					// Into whatever is behind the page: the card's own colour, or the conversation's when there is no card.
-					style={look ? { ["--ly-preview-fade" as string]: look.surface } : undefined}
-					className={`absolute inset-x-0 bottom-0 flex h-14 items-end justify-center bg-gradient-to-t ${themed ? "from-(--ly-preview-fade) via-(--ly-preview-fade)/80" : "from-card via-card/80"} to-transparent pb-2`}
+					className={`absolute inset-x-0 flex h-14 items-end justify-center bg-gradient-to-t transition-opacity duration-[var(--ly-t-base)] ${full ? "pointer-events-none opacity-0" : "bottom-0"} ${themed ? "from-(--ly-preview-fade) via-(--ly-preview-fade)/80" : "from-card via-card/80"} to-transparent pb-2`}
 				>
 					{/* Solid, not frosted: this card scrolls inside the transcript, and a masked scroller
 					    is a backdrop root — the blur would never arrive. See `.ly-glass-solid`. */}
@@ -399,15 +463,20 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 				 * Not on a themed page. It is written to size itself to its content (no `100vh`, see
 				 * `previewTool`), so it is already as tall as it is: the click only added blank space
 				 * under it — and with no card edge, a blank stretch of conversation with nothing to say
-				 * where the page ends. More room for a page like that is the panel.
+				 * where the page ends. More room for a page like that is the panel. Opened to the whole
+				 * page from the fold, though, it is the way back, and a themed page has no other.
 				 */}
-				{!themed && (
+				{(!themed || full) && (
 					<IconButton
-						icon={tall ? <Minimize2 size={12} strokeWidth={1.9} /> : <Maximize2 size={12} strokeWidth={1.9} />}
-						label={translate(tall ? "preview.fitHeight" : "preview.maximise")}
+						icon={tall || full ? <Minimize2 size={12} strokeWidth={1.9} /> : <Maximize2 size={12} strokeWidth={1.9} />}
+						label={translate(tall || full ? "preview.fitHeight" : "preview.maximise")}
 						size="sm"
 						tipSide="top"
-						onClick={() => setTall((value) => !value)}
+						onClick={() => {
+							// Opened to the whole page is bigger still, and this is the way back from it too.
+							if (full) setFull(null);
+							else setTall((value) => !value);
+						}}
 					/>
 				)}
 				<IconButton
@@ -427,13 +496,14 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 						if (state.timer) clearTimeout(state.timer);
 						Object.assign(state, { settled: false, tallest: 0, adjustments: 0, timer: null });
 						setOverflowing(false);
+						setFull(null);
 						setReady(false);
 						setNonce((value) => value + 1);
 					}}
 				/>
 				<IconButton
-					icon={<ExternalLink size={12} strokeWidth={1.9} />}
-					label={translate("preview.openInPanel")}
+					icon={opening ? <ActionSpinner size={12} /> : <ExternalLink size={12} strokeWidth={1.9} />}
+					label={translate(opening ? "preview.openingInPanel" : "preview.openInPanel")}
 					size="sm"
 					tipSide="top"
 					onClick={show}

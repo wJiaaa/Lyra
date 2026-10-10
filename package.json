@@ -30,6 +30,7 @@
     "test:e2e": "pnpm --filter @plume/desktop test:e2e",
     "audit:sessions": "node --experimental-strip-types scripts/session-audit.ts",
     "audit:prune": "node --experimental-strip-types scripts/session-prune-audit.ts",
+    "audit:interface": "node --experimental-strip-types scripts/interface-audit.ts",
     "dump:session": "node --experimental-strip-types scripts/session-dump.ts",
     "probe:parallel": "node --experimental-strip-types scripts/probe-parallel-calls.ts",
     "probe:prune": "node --experimental-strip-types scripts/probe-prune-accuracy.ts",

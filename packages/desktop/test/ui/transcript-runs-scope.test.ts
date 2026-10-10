@@ -42,7 +42,7 @@ const RUNS: Record<string, ToolRunState> = {
 	[ls.id]: record(ls, { content: [{ type: "text", text: "README.md" }], details: undefined }),
 	[edit.id]: record(edit, { content: [{ type: "text", text: "已修改" }], details: { added: 5, removed: 2 } }),
 	[shown.id]: record(shown, { content: [{ type: "text", text: "预览已生成" }], details: { preview: { id: "p1", sessionId: "b", title: "乙的页面", entry: "index.html" } } }),
-	[visit.id]: record(visit, { content: [], details: { kind: "browser", tabId: "t1", url: "http://127.0.0.1:5173/", title: "乙打开的页面", thumbnail: "b.jpg", opened: true } }),
+	[visit.id]: record(visit, { content: [], details: { kind: "browser", tabId: "t1", url: "http://127.0.0.1:5173/", title: "乙打开的页面", opened: true } }),
 };
 
 function beside(): Cache[string] {

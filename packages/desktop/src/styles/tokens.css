@@ -219,3 +219,29 @@
   --text-code--weight: 400;
   --text-code--tracking: var(--ly-code-tracking, 0em);
 }
+
+/*
+ * What the app has no token for: chart hues and a warning colour. Its palette is one accent and three
+ * states, and a chart needs several colours that sit together — these follow the accent as its
+ * neighbours, per scheme, so none vanishes against the page. Interface blocks in a reply draw with
+ * them, and `preview-theme.ts` reads them off the root for generated pages: one list, so a chart in a
+ * reply and a chart in a page beside it are the same colours.
+ */
+:root {
+  --ly-chart-1: var(--color-accent);
+  --ly-chart-2: #0d9488;
+  --ly-chart-3: #d97706;
+  --ly-chart-4: #9333ea;
+  --ly-chart-5: #e11d48;
+  --ly-chart-6: #65a30d;
+  --ly-warning: #d97706;
+}
+
+:root.dark {
+  --ly-chart-2: #2dd4bf;
+  --ly-chart-3: #fbbf24;
+  --ly-chart-4: #c084fc;
+  --ly-chart-5: #fb7185;
+  --ly-chart-6: #a3e635;
+  --ly-warning: #fbbf24;
+}

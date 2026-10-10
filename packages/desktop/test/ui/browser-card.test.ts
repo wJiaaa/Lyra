@@ -11,7 +11,8 @@ import { afterEach, beforeEach, test } from "node:test";
 import { createElement as h } from "react";
 import type { BrowserCommand, BrowserResultDetails, BrowserTab } from "../../shared/browser.ts";
 import { SessionScope } from "../../src/app/session-scope.tsx";
-import { BrowserCards } from "../../src/features/conversation/BrowserCard.tsx";
+import { BrowserCards, laterPageOpens } from "../../src/features/conversation/BrowserCard.tsx";
+import type { TurnBlock } from "../../src/features/conversation/grouping.ts";
 import { translate } from "../../src/i18n/translate.ts";
 import { useApp, type ToolRun } from "../../src/store/index.ts";
 import { click, mount } from "../helpers/mount.ts";
@@ -65,12 +66,12 @@ function tab(id: string, sessionId: string): BrowserTab {
 	return { id, sessionId, url: ADDRESS, title: "", loading: false, canGoBack: false, canGoForward: false, zoom: 1, viewport: null };
 }
 
-const OPEN_A: BrowserResultDetails = { kind: "browser", tabId: "t1", url: `${ADDRESS}a`, title: "页面 A", thumbnail: "a.jpg", opened: true };
-const CLICK_A: BrowserResultDetails = { kind: "browser", tabId: "t1", url: `${ADDRESS}a`, title: "页面 A 点过之后", thumbnail: "a2.jpg" };
+const OPEN_A: BrowserResultDetails = { kind: "browser", tabId: "t1", url: `${ADDRESS}a`, title: "页面 A", opened: true };
+const CLICK_A: BrowserResultDetails = { kind: "browser", tabId: "t1", url: `${ADDRESS}a`, title: "页面 A 点过之后" };
 const READ_A: BrowserResultDetails = { kind: "browser", tabId: "t1", url: `${ADDRESS}a`, title: "页面 A 点过之后" };
-const OPEN_B: BrowserResultDetails = { kind: "browser", tabId: "t1", url: `${ADDRESS}b`, title: "页面 B", thumbnail: "b.jpg", opened: true };
-const CLICK_B: BrowserResultDetails = { kind: "browser", tabId: "t1", url: `${ADDRESS}b`, title: "页面 B", thumbnail: "b2.jpg" };
-const OTHER: BrowserResultDetails = { kind: "browser", tabId: "t2", url: "https://example.com/", title: "别的标签", thumbnail: "other.jpg" };
+const OPEN_B: BrowserResultDetails = { kind: "browser", tabId: "t1", url: `${ADDRESS}b`, title: "页面 B", opened: true };
+const CLICK_B: BrowserResultDetails = { kind: "browser", tabId: "t1", url: `${ADDRESS}b`, title: "页面 B" };
+const OTHER: BrowserResultDetails = { kind: "browser", tabId: "t2", url: "https://example.com/", title: "别的标签" };
 
 test("a card follows its tab through later calls — past other tabs and calls without a picture — and stops at that tab's next open", async () => {
 	useApp.setState({
@@ -88,14 +89,13 @@ test("a card follows its tab through later calls — past other tabs and calls w
 		const card = first.find("[data-browser-card]");
 		assert.ok(card.textContent?.includes("页面 A 点过之后"), card.textContent ?? "");
 		assert.ok(card.textContent?.includes("127.0.0.1:5173"), "the host, not the whole address");
-		assert.ok(first.find("[data-browser-card] img").getAttribute("src")?.endsWith("/a2.jpg"), "the newest picture before the next open");
+		assert.equal(first.all("[data-browser-card] img").length, 0, "no picture: the page itself is in the panel, and a picture would pass for a preview");
 	} finally {
 		await first.unmount();
 	}
 	const second = await mount(h(BrowserCards, { calls: ["open-b"] }));
 	try {
 		assert.ok(second.find("[data-browser-card]").textContent?.includes("页面 B"));
-		assert.ok(second.find("[data-browser-card] img").getAttribute("src")?.endsWith("/b2.jpg"));
 	} finally {
 		await second.unmount();
 	}
@@ -160,4 +160,39 @@ test("a tab of the same id owned by another conversation is not this card's page
 	} finally {
 		await view.unmount();
 	}
+});
+
+/** 改一次页面、开个新标签再看一遍：每次都是新标签页，地址只差一个 `?v=`。 */
+const VERSION = (n: number, tabId: string): BrowserResultDetails => ({ kind: "browser", tabId, url: `${ADDRESS}plane.html?v=${n}`, title: "大飞机", opened: true });
+
+test("one page reopened in new tabs through a turn is one card, the last one — even when the last is in a later stretch", async () => {
+	useApp.setState({ toolRuns: records(
+		record("v1", "browser_open", VERSION(1, "t1")),
+		record("v2", "browser_open", VERSION(2, "t2")),
+		record("other", "browser_open", OTHER),
+		record("v3", "browser_open", VERSION(3, "t3")),
+		record("failed", "browser_open", undefined, { status: "error", args: { url: `${ADDRESS}plane.html?v=4` } }),
+	) });
+	const here = await mount(h(BrowserCards, { calls: ["v1", "v2", "other"], later: ["v3", "failed"] }));
+	try {
+		const cards = here.all("[data-browser-card]");
+		assert.equal(cards.length, 1, "v1 and v2 are the same page as v3, which comes later in the turn");
+		assert.ok(cards[0].textContent?.includes("别的标签"), cards[0].textContent ?? "");
+	} finally {
+		await here.unmount();
+	}
+	const last = await mount(h(BrowserCards, { calls: ["v3"], later: ["failed"] }));
+	try {
+		const cards = last.all("[data-browser-card]");
+		assert.equal(cards.length, 1, "a reopen that failed leaves no card, so it takes nothing away");
+		assert.ok(last.find("[data-browser-card] [data-ly-tip]").getAttribute("data-ly-tip")?.endsWith("?v=3"), "the last version's address");
+	} finally {
+		await last.unmount();
+	}
+});
+
+test("what comes later is counted within the turn, and only from stretches that draw cards", () => {
+	const opens = (...ids: string[]) => [{ kind: "tools", calls: ids.map((id) => ({ block: { id, name: "browser_open" } })) }];
+	const block = (turn: number, kind: TurnBlock["kind"], ...ids: string[]) => ({ kind, turn, counts: { tools: ids.length, thinking: 0 }, runs: opens(...ids) }) as unknown as TurnBlock;
+	assert.deepEqual(laterPageOpens([block(1, "process", "a"), block(1, "plain", "b"), block(1, "process", "c"), block(2, "process", "d")]), [["c"], ["c"], [], []]);
 });

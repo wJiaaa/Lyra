@@ -32,6 +32,7 @@ const zh = {
 	settings: "设置", connection: "连接", desktop: "电脑", refresh: "重新读取", language: "语言", languageValue: "简体中文",
 	about: "关于", aboutText: "独立的手机界面，和电脑上的 Plume 共用同一份会话。文件、终端和截图仍在电脑上操作。",
 	disconnect: "断开并忘记这台电脑",
+	interfaceOnComputer: "按钮和输入要回到电脑上操作", interfaceOn: "开", interfaceOff: "关",
 	cancel: "取消", close: "关闭", back: "返回", dismiss: "关闭提示",
 };
 const en: Record<keyof typeof zh, string> = {
@@ -68,6 +69,7 @@ const en: Record<keyof typeof zh, string> = {
 	settings: "Settings", connection: "Connection", desktop: "Computer", refresh: "Reload", language: "Language", languageValue: "English",
 	about: "About", aboutText: "A separate phone interface that shares conversations with Plume on your computer. Files, terminal and screenshots stay on the computer.",
 	disconnect: "Disconnect and forget this computer",
+	interfaceOnComputer: "Buttons and fields work on your computer", interfaceOn: "On", interfaceOff: "Off",
 	cancel: "Cancel", close: "Close", back: "Back", dismiss: "Dismiss",
 };
 export type Locale = "zh" | "en";

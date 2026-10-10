@@ -1,0 +1,66 @@
+/*
+ * Interface blocks in a reply (`features/conversation/interface/`). Their chart hues and warning
+ * colour are tokens (`--ly-chart-*`, `--ly-warning` in `tokens.css`), shared with preview pages.
+ */
+
+@layer components {
+  .ly-ui {
+    --ly-ui-gap: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ly-ui-gap);
+    min-width: 0;
+    letter-spacing: normal;
+    line-height: 1.5;
+  }
+
+  .ly-ui [data-gap="md"] {
+    --ly-ui-gap: 0.75rem;
+  }
+  .ly-ui [data-gap="sm"] {
+    --ly-ui-gap: 0.5rem;
+  }
+  .ly-ui [data-gap="lg"] {
+    --ly-ui-gap: 1.25rem;
+  }
+
+  /*
+   * As many columns as asked for, and fewer when each would be narrower than a figure needs: the
+   * block is written once and read in a side chat as well as a full-width pane.
+   */
+  .ly-ui-grid {
+    display: grid;
+    gap: var(--ly-ui-gap);
+    grid-template-columns: repeat(auto-fit, minmax(max(9.5rem, calc((100% - (var(--ly-ui-cols) - 1) * var(--ly-ui-gap)) / var(--ly-ui-cols))), 1fr));
+  }
+
+  /*
+   * Fields side by side in a row share it, and wrap below a width a label and a value still fit in.
+   * Only in a row: in a column the same `flex-basis` is a height, and each field stood 10rem tall.
+   */
+  .ly-ui-row > [data-ly-ui-field] {
+    flex: 1 1 10rem;
+  }
+
+  .ly-ui-tone-info {
+    --ly-ui-tone: var(--color-info);
+  }
+  .ly-ui-tone-ok {
+    --ly-ui-tone: var(--color-ok);
+  }
+  .ly-ui-tone-warning {
+    --ly-ui-tone: var(--ly-warning);
+  }
+  .ly-ui-tone-danger {
+    --ly-ui-tone: var(--color-danger);
+  }
+  .ly-ui-tone-accent {
+    --ly-ui-tone: var(--color-accent);
+  }
+
+  .ly-ui-chart text {
+    fill: var(--color-ink-muted);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+}

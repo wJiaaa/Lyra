@@ -12,13 +12,14 @@ import type { AssistantMessage, Message } from "@plume/core";
 import { TurnDeliveryCard } from "./TurnDelivery.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
+import { copyableReply } from "./interface/interface-text.ts";
 import { HookRunsAction } from "./HookRunsAction.tsx";
 import { ThinkingBlock } from "./ThinkingBlock.tsx";
 import { DeliveryRow } from "./DeliveryRow.tsx";
 import { PeerLetterRow } from "./PeerLetterRow.tsx";
 import { conversationTime } from "./question-navigation.ts";
 import { UserMessage } from "./UserMessage.tsx";
-import { useScopedRunning } from "../../app/session-scope.tsx";
+import { useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { isNudge, type TurnStats } from "./grouping.ts";
 import { LiveToolCard, segments, ToolRun as ToolRunGroup } from "./runs.tsx";
@@ -166,6 +167,7 @@ function AssistantRow({
 }) {
   // This transcript's turn: the focused screen's set reasoning cut short here typing itself out again.
   const running = useScopedRunning();
+  const sessionId = useScopedSessionId();
   /*
    * 这条回复是不是看着它写完的：挂上的时候还在写。只有这种，底下那行操作在写完时展开出来——
    * 一下子多出一行，贴着底部的转录会整段往上跳。打开一段历史时它们本来就在，不演。
@@ -257,7 +259,7 @@ function AssistantRow({
         <MessageActions
           className={watched ? "ly-actions-in" : undefined}
           timestamp={message.timestamp}
-          text={text}
+          text={() => copyableReply(text, sessionId)}
           durationMs={turnStats?.durationMs ?? message.durationMs}
           requestMs={turnStats?.requestMs ?? message.durationMs}
           sseDurationMs={turnStats?.sseDurationMs ?? message.sseDurationMs}

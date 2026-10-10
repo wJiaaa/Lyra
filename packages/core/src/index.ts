@@ -321,6 +321,8 @@ export {
 	taskTool,
 	previewTool,
 	usePreviewInspector,
+	readLocalPage,
+	readLocalPageFor,
 	type PreviewInspection,
 	type PreviewInspector,
 	readTodos,

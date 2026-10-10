@@ -15,7 +15,7 @@ import { nativeImage, net, protocol, session } from "electron";
 import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "../shared/session-image.ts";
 import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@plume/core";
 import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
-import { HEIGHT_MESSAGE, INLINE_KEY, OPEN_MESSAGE, THEME_KEY, THEME_MESSAGE, WIDTH_KEY } from "../shared/preview.ts";
+import { HEIGHT_MESSAGE, INLINE_KEY, OPEN_MESSAGE, PREVIEW_THEMED_BASE, SEND_MESSAGE, THEME_KEY, THEME_MESSAGE, WIDTH_KEY } from "../shared/preview.ts";
 import { attachmentFile } from "./attachment-reads.ts";
 
 export const MEDIA_SCHEME = "ly-media";
@@ -40,13 +40,6 @@ export const INSPECT_PARTITION = "ly-preview-inspect";
  * layer; the window has to be told.
  */
 /** Enough of a MIME table for a self-contained page; anything else is served as bytes. */
-/**
- * What a themed page starts from: the reply's own type, on no background of its own — the card is
- * transparent, so a page that paints nothing sits on the conversation itself.
- */
-const THEMED_BASE =
-	"html{color:var(--foreground);font-family:var(--font-sans);font-size:var(--font-size,14px);line-height:1.5;-webkit-font-smoothing:antialiased;text-size-adjust:100%}" +
-	"body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}";
 
 /**
  * How tall a page's content is — the measuring the card's height comes from (see the reporter in
@@ -119,7 +112,11 @@ export function withPreviewBridge(html: string): string {
 	 *
 	 * In the conversation the fragment is dropped once read, so a page's own hash routing never sees
 	 * it. In the panel it stays: the page is a browser tab there, and a reload has to find it again.
-	 * The panel also has no card behind the page, so there the page paints the background itself.
+	 * The panel also has no card behind the page, so there the page paints the background itself —
+	 * and keeps a margin: in the conversation its left edge is the text's, in a tab of its own that
+	 * edge is the window's, and the page sat flush against it. On `html`, which a page's own
+	 * `*{margin:0;padding:0}` does not outrank. Not with `ly-inline`: the check window loads the page
+	 * the way the card does, and its screenshots are of the conversation's page.
 	 */
 	const theme = `var H=location.hash.slice(1).split("&"),inline=false,theme=null;
 for(var i=0;i<H.length;i++){if(H[i]===${JSON.stringify(INLINE_KEY)})inline=true;else if(H[i].indexOf(${JSON.stringify(`${THEME_KEY}=`)})===0){try{theme=JSON.parse(decodeURIComponent(H[i].slice(${THEME_KEY.length + 1})))}catch(e){}}}
@@ -130,7 +127,7 @@ function wear(t){
 if(!sheet||!t||typeof t!=="object"||!t.vars||typeof t.vars!=="object")return;
 var c=":root{color-scheme:"+(t.scheme==="light"?"light":"dark")+";";
 for(var k in t.vars){if(/^--[a-z0-9-]+$/.test(k))c+=k+":"+String(t.vars[k]).replace(/[;{}<>]/g,"")+";";}
-sheet.textContent=c+"}"+${JSON.stringify(THEMED_BASE)}+(parent===window?"html{background:var(--background)}":"");
+sheet.textContent=c+"}"+${JSON.stringify(PREVIEW_THEMED_BASE)}+(parent===window?"html{background:var(--background)}":"")+(parent===window&&!inline?"html{padding:24px 28px}":"");
 }
 wear(theme);
 if(parent!==window&&(inline||theme)){try{history.replaceState(history.state,"",location.pathname+location.search)}catch(e){}}
@@ -158,9 +155,18 @@ e.preventDefault();ask(u.href);
 });
 window.open=function(u){try{var v=new URL(String(u),document.baseURI);if(/^(https?|mailto):$/.test(v.protocol))ask(v.href)}catch(e){}return null};
 }`;
+	/*
+	 * A button in the page that answers for the reader: `plume.send(text)` becomes their next message.
+	 *
+	 * Asked for, like a link, and the card decides the same way — only straight after the reader
+	 * pressed something in it, never on load or on a timer (see `PreviewCard`). `false` where there is
+	 * no conversation to say it in: the side panel, where the page is the top document of a tab.
+	 */
+	const send = `window.plume={send:function(t){if(parent===window||typeof t!=="string")return false;try{parent.postMessage({${JSON.stringify(SEND_MESSAGE)}:t},"*")}catch(e){return false}return true}};`;
 	const script = `<script>(function(){
 ${theme}
 ${links}
+${send}
 var last=0;
 var measure=${MEASURE_HEIGHT};
 function report(){

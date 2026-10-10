@@ -26,15 +26,13 @@ export interface BrowserState { tabs: BrowserTab[]; activeId: string | null }
  * What a browser tool leaves in its result's `details`, for the card the conversation draws.
  *
  * Never shown to the model — `details` stays in this process — so it can say what the card needs
- * without costing a token. `thumbnail` is a file name in `session-media` (see `browserThumbnail`),
- * so the session log carries a name rather than the pixels.
+ * without costing a token.
  */
 export interface BrowserResultDetails {
 	kind: "browser";
 	tabId?: string;
 	url?: string;
 	title?: string;
-	thumbnail?: string;
 	/** Set by `browser_open`: where a card starts. Later calls on the same tab only update it. */
 	opened?: boolean;
 }
@@ -62,6 +60,19 @@ export function browserUrl(raw: string): string {
 	const url = new URL(/^[a-z][\w+.-]*:/i.test(text) && !/^[\w.-]+:\d/.test(text) ? text : `https://${text}`);
 	if (!["http:", "https:", "ly-preview:"].includes(url.protocol) && url.href !== "about:blank") throw new Error("只允许网页地址或 Plume 本地预览");
 	return url.href;
+}
+
+/**
+ * A page on this disk: `file://…`, or a path spelled from the root (`/…`, `C:\…`).
+ *
+ * Never handed to a page as it is — `browserUrl` still refuses `file:`, because a guest that can
+ * load `file:///` can read the disk. The main process turns it into a copy under the previews
+ * directory first (`electron/local-page.ts`), which is what lets a page an agent wrote open here
+ * without a server, and keep opening after one would have stopped.
+ */
+export function browserLocalPage(raw: string): boolean {
+	const text = raw.trim();
+	return /^file:\/\//i.test(text) || text.startsWith("/") || /^[a-z]:[\\/]/i.test(text);
 }
 
 export type BrowserSearchEngine = "bing" | "google" | "baidu" | "duckduckgo" | "custom";
@@ -148,6 +159,7 @@ export interface BrowserOmnibox { kind: "open" | "search"; url: string; query: s
 /** What the address bar does with what was typed. Throws for an address the browser must refuse. */
 export function browserOmnibox(raw: string, settings?: BrowserSearchSettings): BrowserOmnibox {
 	const text = raw.trim();
+	if (browserLocalPage(text)) return { kind: "open", url: text, query: text };
 	if (!text || browserAddressLike(text)) return { kind: "open", url: browserUrl(text), query: text };
 	return { kind: "search", url: browserSearchUrl(text, settings), query: text };
 }
@@ -163,17 +175,22 @@ export function browserViewport(value: BrowserViewport | null): BrowserViewport 
 	return { width: value.width, height: value.height };
 }
 
+/** Where an `open` or `navigate` goes: a page on the web, or one on this disk for the main process to copy. */
+function browserTarget(raw: string): string {
+	return browserLocalPage(raw) ? raw.trim() : browserUrl(raw);
+}
+
 /** IPC data is not made safe by a TypeScript annotation. */
 export function parseBrowserCommand(value: unknown): BrowserCommand {
 	if (!value || typeof value !== "object" || !("type" in value)) throw new Error("无效的浏览器操作");
 	if (value.type === "open") {
 		if (!("url" in value) || typeof value.url !== "string" || !("sessionId" in value) || (value.sessionId !== null && typeof value.sessionId !== "string") || ("newTab" in value && typeof value.newTab !== "boolean")) throw new Error("无效的打开请求");
-		return { type: "open", url: browserUrl(value.url), sessionId: value.sessionId, newTab: "newTab" in value && value.newTab === true };
+		return { type: "open", url: browserTarget(value.url), sessionId: value.sessionId, newTab: "newTab" in value && value.newTab === true };
 	}
 	if (!("id" in value) || typeof value.id !== "string") throw new Error("需要标签 ID");
 	const id = value.id;
 	switch (value.type) {
-		case "navigate": if (!("url" in value) || typeof value.url !== "string") throw new Error("需要网址"); return { type: "navigate", id, url: browserUrl(value.url) };
+		case "navigate": if (!("url" in value) || typeof value.url !== "string") throw new Error("需要网址"); return { type: "navigate", id, url: browserTarget(value.url) };
 		case "select": case "close": case "back": case "forward": case "reload": case "devtools": return { type: value.type, id };
 		case "zoom": if (!("factor" in value) || typeof value.factor !== "number") throw new Error("需要缩放比例"); return { type: "zoom", id, factor: browserZoom(value.factor) };
 		case "resize": if (!("width" in value) || typeof value.width !== "number" || !("height" in value) || typeof value.height !== "number") throw new Error("需要页面尺寸"); return { type: "resize", id, width: value.width, height: value.height };

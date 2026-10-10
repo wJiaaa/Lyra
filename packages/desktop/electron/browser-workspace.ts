@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { nativeImage, webContents, type BrowserWindow, type NativeImage, type WebContents } from "electron";
-import { browserUrl, browserViewport, browserZoom, type BrowserCommand, type BrowserPointer, type BrowserState, type BrowserTab } from "../shared/browser.ts";
+import { browserLocalPage, browserUrl, browserViewport, browserZoom, type BrowserCommand, type BrowserPointer, type BrowserState, type BrowserTab } from "../shared/browser.ts";
 import { eachAppWindow } from "./window.ts";
+import { openLocalPage } from "./local-page.ts";
 
 interface Tab { size?: {width: number; height: number}; scale?: number; state: BrowserTab; contents?: WebContents; ready: Promise<WebContents>; resolve: (contents: WebContents) => void; reject: (error: Error) => void }
 const tabs = new Map<string, Tab>();
@@ -70,16 +71,24 @@ function refresh(tab: Tab): void {
 /**
  * Load a page into this conversation's current tab, or into a new one.
  *
- * `reveal` is whether the panel comes forward for it, and only a person asks for that: the address
- * bar, a bookmark, a preview link. An agent opening a page to debug it used to pull the panel over
- * the conversation, and then again on every click it made there (`selectBrowser`), even after it
- * had just been closed. Its pages load and run the same either way — the panel is kept mounted
- * while closed, see `DockView` — and the conversation shows a card to open them from.
+ * `reveal` is whether the panel comes forward for it: for whoever opens a page — the address bar, a
+ * bookmark, a preview link, an agent's `browser_open` — so the page is seen where it opened. Never for
+ * what an agent does in a page afterwards (`selectBrowser`): that once pulled the panel over the
+ * conversation on every click, straight after it had been closed. Pages load and run the same either
+ * way — the panel is kept mounted while closed, see `DockView`.
  */
 export async function openBrowser(url: string, sessionId: string | null, newTab = false, reveal = true): Promise<string> {
 	const location = browserUrl(url);
 	const current = tabs.get(activeBySession.get(sessionKey(sessionId)) ?? "");
-	const existing = !newTab && current?.state.sessionId === sessionId ? current : undefined;
+	/*
+	 * A new tab for a page this conversation already has open is the same page twice. Pressing a
+	 * preview's 「在侧栏中打开」 again while the panel was still coming up gave two identical tabs, and
+	 * an agent checking its page after every edit gave one per check, all counting towards the limit
+	 * below. That tab is loaded again instead — a local page's copy has a fixed address and may have
+	 * just been rewritten. Not `about:blank`: that is the 「+」 button, and two empty tabs are asked for.
+	 */
+	const twin = newTab && location !== "about:blank" ? [...tabs.values()].find((tab) => tab.state.sessionId === sessionId && tab.state.url === location) : undefined;
+	const existing = twin ?? (!newTab && current?.state.sessionId === sessionId ? current : undefined);
 	if (existing) return loadInto(existing, location, reveal);
 	if (tabs.size >= 20) throw new Error("最多打开 20 个标签，请先关闭不用的页面");
 	const id = randomUUID();
@@ -160,14 +169,28 @@ export function attachBrowser(id: string, contentsId: number, sender: WebContent
 }
 
 export async function browserCommand(command: BrowserCommand): Promise<BrowserState> {
-	if (command.type === "open") { await openBrowser(command.url, command.sessionId, command.newTab); return browserState(); }
+	if (command.type === "open") {
+		const url = browserLocalPage(command.url) ? await openLocalPage(command.url, command.sessionId) : command.url;
+		await openBrowser(url, command.sessionId, command.newTab);
+		return browserState();
+	}
 	if (command.type === "close") { closeBrowser(command.id); return browserState(); }
 	const tab = tabs.get(command.id);
 	// A ResizeObserver notification may arrive after the user closed its guest.
 	if (!tab && command.type === "resize") return browserState();
 	if (!tab) throw new Error("浏览器标签已关闭");
 	// 地址栏是某一个网页的：右栏里每个网页一个标签，「这个会话当前那一页」不一定是正在打字的这一页。
-	if (command.type === "navigate") { await loadInto(tab, command.url, false); return browserState(); }
+	if (command.type === "navigate") {
+		const url = browserLocalPage(command.url) ? await openLocalPage(command.url, tab.state.sessionId) : command.url;
+		try {
+			await loadInto(tab, url, false);
+		} catch (error) {
+			// 加载失败 `did-fail-load` 已写进 `tab.state.error`，面板里那行字就是它；`ERR_ABORTED` 是被下一次导航顶掉，本就不该报。
+			// 再抛一次，同一件事就以一条 `Error invoking remote method …` 的提示再报一遍。没有 `errno` 的（面板没就绪）照常抛。
+			if (!(error instanceof Error && "errno" in error)) throw error;
+		}
+		return browserState();
+	}
 	if (command.type === "resize") {
 		if (!Number.isFinite(command.width) || !Number.isFinite(command.height) || command.width <= 0 || command.height <= 0) throw new Error("无效的页面尺寸");
 		tab.size = { width: command.width, height: command.height }; fitViewport(tab); return browserState();
@@ -244,29 +267,6 @@ function fitViewport(tab: Tab): void {
 	else contents.disableDeviceEmulation();
 }
 export function browserScale(id: string): number { return tabs.get(id)?.scale ?? 1; }
-
-/** The card's picture: pixels across (its 420 CSS pixels on a 2× screen), and its shape — the top of the page. */
-const THUMB_WIDTH = 840;
-const THUMB_RATIO = 0.5;
-
-/**
- * The top of what a tab shows, small, as JPEG — the picture on the conversation's browser card.
- *
- * `capturePage` takes its rectangle in the page's CSS pixels and hands back device pixels; `resize`
- * then counts output pixels. So the crop is asked for in the one and the width given in the other.
- * `null` for a tab with no page behind it: a picture is not worth waking a sleeping page for.
- */
-export async function browserThumbnail(id: string): Promise<Buffer | null> {
-	const tab = tabs.get(id);
-	const contents = tab?.contents;
-	if (!tab?.size || !contents || contents.isDestroyed()) return null;
-	const width = Math.round(tab.size.width);
-	const height = Math.round(Math.min(tab.size.height, tab.size.width * THUMB_RATIO));
-	if (width <= 0 || height <= 0) return null;
-	const image = await contents.capturePage({ x: 0, y: 0, width, height });
-	if (image.isEmpty()) return null;
-	return onWhite(image.resize({ width: THUMB_WIDTH, quality: "good" })).toJPEG(72);
-}
 
 /**
  * A capture flattened onto white — the canvas any browser draws under a page.

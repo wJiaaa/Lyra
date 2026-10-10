@@ -80,12 +80,12 @@ export function useBrowserWorkspace(): void {
 		const unsubscribe = bridge.browser.onChanged((state) => {
 			useBrowser.setState({ tabs: state.tabs, activeId: state.activeId, loaded: true });
 			/*
-			 * A page becomes a tab only when a person asked, and only in a screen showing its conversation.
+			 * A page becomes a tab when it is opened, and only in a screen showing its conversation.
 			 *
-			 * `reveal` is set by the main process for a new page, a bookmark, a preview link or a card's
-			 * 「打开」 — never for an agent's own pages, which run with no tab of their own (see
-			 * `openBrowser`) until someone opens them from the card. It used to mean any page opening,
-			 * which dropped the panel over your work each time an agent opened or clicked something.
+			 * `reveal` is set by the main process for a new page, a bookmark, a preview link, a card's
+			 * 「打开」 or an agent's `browser_open` — never for what an agent then does in the page (see
+			 * `openBrowser`). It used to mean any change of tab, which dropped the panel over your work
+			 * each time an agent clicked something.
 			 *
 			 * Into the screen of the conversation that owns the page, and nowhere if none shows it: a
 			 * screen showing another conversation would get a tab of a page that is not its own. That is
@@ -103,7 +103,10 @@ export function useBrowserWorkspace(): void {
 			const url = target.kind === "url" ? target.url : `ly-preview://${target.preview.sessionId}/${target.preview.id}/${target.preview.entry}${target.preview.fragment ?? ""}`;
 			// The conversation that asked, when it said: a preview pressed in a screen without focus is that screen's page.
 			const owner = target.kind === "preview" && target.sessionId !== undefined ? target.sessionId : useApp.getState().activeSessionId;
-			void commandBrowser({ type: "open", url, sessionId: owner, newTab: true });
+			// Cleared once the page is up, so the button that asked can say it is still opening until then.
+			void commandBrowser({ type: "open", url, sessionId: owner, newTab: true }).finally(() => {
+				if (useSide.getState().browserTarget === target) useSide.setState({ browserTarget: null });
+			});
 		});
 		return () => { unsubscribe(); unwatch(); };
 	}, []);

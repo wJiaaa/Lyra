@@ -72,7 +72,7 @@ test("停在代码围栏或公式块里时什么都不做", () => {
 
 test("围栏的开头行写完之前不画，收尾行写到一半不露出来", () => {
 	assert.equal(completeTail("看：\n\n```t"), "看：\n\n", "语言名写到一半，标题会从 t 变成 ts");
-	assert.deepEqual(parseMarkdown(completeTail("```ts\nx\n")), [{ kind: "code", lang: "ts", code: "x" }], "刚进来的换行不先画成空行");
+	assert.deepEqual(parseMarkdown(completeTail("```ts\nx\n")), [{ kind: "code", lang: "ts", code: "x", open: true }], "刚进来的换行不先画成空行");
 	assert.equal(completeTail("```ts\nx\n``"), "```ts\nx");
 });
 

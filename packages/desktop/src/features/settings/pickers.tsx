@@ -55,7 +55,8 @@ export function Slider({
 	min?: number;
 	max?: number;
 	step?: number;
-	width?: number;
+	/** A length in pixels, or any CSS width — `"100%"` for a slider that fills its row. */
+	width?: number | string;
 	label: string;
 }): JSX.Element {
 	/*

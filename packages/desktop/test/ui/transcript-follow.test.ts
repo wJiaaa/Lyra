@@ -250,13 +250,13 @@ test("a viewport shrinking under a composer that grew keeps following", async ()
 	await view.unmount();
 });
 
-test("一张工具卡那么大的长高缓出滑到底；超过一屏的一步到位", async () => {
+test("整块到的一大截当帧追到只差一行半，剩下的滑过去；超过一屏的一步到位", async () => {
 	const { view, el } = await open("sweep");
 	await arrives(view, "sweep", 1, 300);
 	await act(async () => controls.onResize(el));
-	assert.ok(el.scrollTop < bottom(), "三百像素不当场跳过去");
-	await act(() => new Promise<void>((resolve) => setTimeout(resolve, 120)));
-	assert.ok(el.scrollTop > bottom() - 300 && el.scrollTop < bottom(), `正在滑，实际 ${el.scrollTop}/${bottom()}`);
+	// 量过：从前整块到的长高整段慢慢追，转录最底下那一行被压到视口下沿以下 129px。
+	assert.ok(el.scrollTop >= bottom() - 40, `长高的同一帧就最多落后 40px，实际差 ${bottom() - el.scrollTop}`);
+	assert.ok(el.scrollTop < bottom(), "最后一截仍然是追，不是跳");
 	await slid();
 	assert.equal(el.scrollTop, bottom(), "滑到底");
 

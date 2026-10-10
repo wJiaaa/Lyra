@@ -12,7 +12,8 @@ import { translate } from "../../i18n/translate.ts";
 export type Block =
 	| { kind: "heading"; level: number; text: string; align?: Align }
 	| { kind: "paragraph"; text: string }
-	| { kind: "code"; lang: string; code: string }
+	/** `open`: the closing fence has not been written — the block is still coming in. */
+	| { kind: "code"; lang: string; code: string; open?: boolean }
 	| { kind: "list"; ordered: boolean; items: ListItem[] }
 	| { kind: "quote"; text: string }
 	| { kind: "rule" }
@@ -84,8 +85,9 @@ function parseBlocks(lines: string[], starts?: number[]): Block[] {
 			i++;
 			while (i < lines.length && !new RegExp(`^\\s*${marker === "`" ? "```" : "~~~"}+\\s*$`).test(lines[i]))
 				code.push(lines[i++]);
+			const open = i >= lines.length;
 			i++;
-			push({ kind: "code", lang, code: code.join("\n") });
+			push(open ? { kind: "code", lang, code: code.join("\n"), open } : { kind: "code", lang, code: code.join("\n") });
 			continue;
 		}
 

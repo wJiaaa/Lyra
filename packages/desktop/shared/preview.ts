@@ -8,11 +8,18 @@
  * that silently stops working, with no error anywhere.
  */
 
-/** The tallest a page is drawn in the conversation; taller ones are cut off and offered the panel. */
+/** The tallest a page is drawn in the conversation before it is folded; the reader can open the rest in place. */
 export const PREVIEW_MAX_HEIGHT = 720;
 
 /** The width a page is checked at before the model is told whether it fits: the default reply column. */
 export const PREVIEW_CHECK_WIDTH = 720;
+
+/**
+ * How far down a check's screenshot goes. The whole page, since the reader can open it whole — a check
+ * that showed the first 720px sent a model off to write the middle and the end as pages of their own
+ * and check those, one call each. Bounded, because an image is paid for by its area.
+ */
+export const PREVIEW_CHECK_MAX_HEIGHT = 2160;
 
 /** Page → app: the height the page needs. */
 export const HEIGHT_MESSAGE = "__dwPreviewHeight";
@@ -24,8 +31,19 @@ export const HEIGHT_MESSAGE = "__dwPreviewHeight";
 export const WIDTH_KEY = "__lyPreviewWidth";
 /** Page → app: the reader clicked a link that leaves the page. */
 export const OPEN_MESSAGE = "__lyPreviewOpen";
+/** Page → app: the reader pressed something in the page that speaks for them — see `readSendRequest`. */
+export const SEND_MESSAGE = "__lyPreviewSend";
 /** App → page: the theme changed. */
 export const THEME_MESSAGE = "__lyPreviewTheme";
+
+/**
+ * What a themed page starts from: the reply's own type, on no background of its own — the card is
+ * transparent, so a page that paints nothing sits on the conversation itself. The page served by the
+ * main process and the draft drawn while it is written (`PreviewDraft`) both start here.
+ */
+export const PREVIEW_THEMED_BASE =
+	"html{color:var(--foreground);font-family:var(--font-sans);font-size:var(--font-size,14px);line-height:1.5;-webkit-font-smoothing:antialiased;text-size-adjust:100%}" +
+	"body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}";
 
 /** Fragment keys. `ly-inline` says the page is in the conversation rather than the panel. */
 export const INLINE_KEY = "ly-inline";
@@ -64,4 +82,19 @@ export function readOpenRequest(data: unknown): string | null {
 	} catch {
 		return null;
 	}
+}
+
+/** Longer than anything a button says for someone; a page sending more is not sending a choice. */
+const MAX_SEND_LENGTH = 2000;
+
+/**
+ * What a page asked to say to the agent for the reader (`plume.send` in the page), when it is a
+ * message at all: text, not blank, not a document.
+ */
+export function readSendRequest(data: unknown): string | null {
+	if (typeof data !== "object" || data === null) return null;
+	const text = (data as Record<string, unknown>)[SEND_MESSAGE];
+	if (typeof text !== "string") return null;
+	const trimmed = text.trim();
+	return trimmed && trimmed.length <= MAX_SEND_LENGTH ? trimmed : null;
 }

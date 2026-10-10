@@ -12,7 +12,7 @@
 
 import type { PreviewInspection } from "@plume/core";
 import { BrowserWindow, ipcMain, type NativeImage } from "electron";
-import { PREVIEW_CHECK_WIDTH, PREVIEW_MAX_HEIGHT, previewFragment, type PreviewTheme } from "../shared/preview.ts";
+import { PREVIEW_CHECK_MAX_HEIGHT, PREVIEW_CHECK_WIDTH, PREVIEW_MAX_HEIGHT, previewFragment, type PreviewTheme } from "../shared/preview.ts";
 import { INSPECT_PARTITION, MEASURE_HEIGHT } from "./preview-protocol.ts";
 
 /** Long enough for a CDN script and a first render; a page that is still loading after this is reported as it stands. */
@@ -48,14 +48,15 @@ function where(sourceId: string, line: number): string {
 
 export async function inspectPreview(
 	preview: { sessionId: string; id: string; entry: string; themed?: boolean },
-	options: { screenshot?: boolean } = {},
+	options: { screenshot?: boolean; width?: number } = {},
 ): Promise<PreviewInspection | null> {
+	const width = options.width ?? PREVIEW_CHECK_WIDTH;
 	// Loaded the way the card loads it: inline, and with the theme when the page was written for one.
 	const fragment = previewFragment({ inline: true, ...(preview.themed && theme ? { theme } : {}) });
 	const url = `ly-preview://${preview.sessionId}/${preview.id}/${preview.entry.split("/").map(encodeURIComponent).join("/")}${fragment}`;
 	const window = new BrowserWindow({
 		show: false,
-		width: PREVIEW_CHECK_WIDTH,
+		width,
 		height: PREVIEW_MAX_HEIGHT,
 		useContentSize: true,
 		webPreferences: {
@@ -97,8 +98,14 @@ export async function inspectPreview(
 			.executeJavaScript(`Math.ceil((${MEASURE_HEIGHT})()) + 2`, true)
 			.then((value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : undefined))
 			.catch(() => undefined);
-		const screenshot = options.screenshot ? await capture(window, height, () => frame) : undefined;
-		return { exceptions, errors, ...(height === undefined ? {} : { height, limit: PREVIEW_MAX_HEIGHT }), ...(screenshot ? { screenshot } : {}) };
+		const shot = options.screenshot ? await capture(window, width, height, () => frame) : undefined;
+		return {
+			exceptions,
+			errors,
+			...(height === undefined ? {} : { height, limit: PREVIEW_MAX_HEIGHT }),
+			...(shot ? { screenshot: shot.image, shotHeight: shot.height } : {}),
+			...(options.width === undefined ? {} : { width }),
+		};
 	} catch {
 		return exceptions.length + errors.length > 0 ? { exceptions, errors } : null;
 	} finally {
@@ -106,11 +113,11 @@ export async function inspectPreview(
 	}
 }
 
-/** What the conversation would show: the column's width, the page's own height up to where the card cuts it off. */
-async function capture(window: BrowserWindow, height: number | undefined, latest: () => NativeImage | null): Promise<{ data: string; mimeType: string } | undefined> {
+/** The page at the width it was loaded at, its own height down to `PREVIEW_CHECK_MAX_HEIGHT`. */
+async function capture(window: BrowserWindow, width: number, height: number | undefined, latest: () => NativeImage | null): Promise<{ image: { data: string; mimeType: string }; height: number } | undefined> {
 	try {
-		const tall = Math.min(Math.max(height ?? PREVIEW_MAX_HEIGHT, 1), PREVIEW_MAX_HEIGHT);
-		window.setContentSize(PREVIEW_CHECK_WIDTH, tall);
+		const tall = Math.min(Math.max(height ?? PREVIEW_MAX_HEIGHT, 1), PREVIEW_CHECK_MAX_HEIGHT);
+		window.setContentSize(width, tall);
 		window.webContents.invalidate();
 		/*
 		 * Wait for a frame of the new size. "A frame after the resize" is not enough: the resize lands
@@ -119,14 +126,14 @@ async function capture(window: BrowserWindow, height: number | undefined, latest
 		 */
 		const fits = (image: NativeImage) => {
 			const size = image.getSize();
-			return size.width > 0 && Math.abs((size.height * PREVIEW_CHECK_WIDTH) / size.width - tall) <= 2;
+			return size.width > 0 && Math.abs((size.height * width) / size.width - tall) <= 2;
 		};
 		let shot = latest();
 		for (let waited = 0; !(shot && fits(shot)) && waited < 2000; waited += 50) {
 			await pause(50);
 			shot = latest();
 		}
-		return shot && fits(shot) ? { data: shot.toPNG().toString("base64"), mimeType: "image/png" } : undefined;
+		return shot && fits(shot) ? { image: { data: shot.toPNG().toString("base64"), mimeType: "image/png" }, height: tall } : undefined;
 	} catch {
 		return undefined;
 	}

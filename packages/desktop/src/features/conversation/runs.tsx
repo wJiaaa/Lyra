@@ -7,7 +7,7 @@
 
 import { memo } from "react";
 import type { AssistantContent, AssistantMessage } from "@plume/core";
-import { PreviewCard, type PreviewInfo } from "../files/index.ts";
+import { PreviewCall, PreviewCard, type PreviewInfo } from "../files/index.ts";
 import { ToolCard } from "./ToolCard.tsx";
 import { DispatchFaces, useDelegation, useDispatches } from "./DelegationCard.tsx";
 import { describeRun } from "./ToolGroup.tsx";
@@ -122,27 +122,30 @@ function PlainToolCard({ block, run, stopReason, runs, turnRunning }: {
   runs?: Record<string, ToolRunState>;
   turnRunning: boolean;
 }) {
-  /*
-   * A preview replaces its own tool card.
-   *
-   * The card would say "预览已生成" above the thing itself, which is a caption nobody needs —
-   * the page is right there, and it is the result.
-   */
-  const preview = (run?.result?.details as { preview?: PreviewInfo } | undefined)?.preview;
-  if (preview) return <PreviewCard preview={preview} />;
-  return (
+  const status = run?.status ?? toolCardFallback(stopReason, runs ? false : turnRunning);
+  // `title`: a preview's, read from its arguments while they are still being written — see `PreviewCall`.
+  const card = (title?: string) => (
     <ToolCard
       stateKey={runs ? undefined : `tool-${block.id}`}
       toolName={block.name}
       args={block.arguments}
       // Core's English summary ("Read src/a.ts") said the way the turn line says it; see `describeActivity`.
-      summary={describeActivity(run?.summary ?? block.name)}
+      summary={describeActivity(run?.summary ?? title ?? block.name)}
       // 没有记录时说什么，以及为什么不能只看这条消息定没定稿：见 `tool-status.ts`。
-      status={run?.status ?? toolCardFallback(stopReason, runs ? false : turnRunning)}
+      status={status}
       result={run?.result}
       startedAt={run?.startedAt}
     />
   );
+  /*
+   * A preview replaces its own tool card — drawn while it is written, then the page.
+   *
+   * The card would say "预览已生成" above the thing itself, which is a caption nobody needs —
+   * the page is right there, and it is the result.
+   */
+  if (block.name !== "preview") return card();
+  const preview = (run?.result?.details as { preview?: PreviewInfo } | undefined)?.preview;
+  return <PreviewCall block={block} served={Boolean(preview)} page={(handover) => preview && <PreviewCard preview={preview} {...handover} />} live={status === "running"} written={Boolean(run)} fallback={card} />;
 }
 
 

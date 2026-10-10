@@ -1,33 +1,26 @@
-import { persistSessionImage, type Tool, type ToolResult } from "@plume/core";
-import type { BrowserResultDetails } from "../shared/browser.ts";
+import { readLocalPageFor, type Tool, type ToolResult } from "@plume/core";
+import { browserLocalPage, type BrowserResultDetails } from "../shared/browser.ts";
+import { localPagePath, localPageUrl } from "./local-page.ts";
 import { actBrowser, readBrowser, type BrowserAction } from "./browser-actions.ts";
-import { awakeBrowser, browserContents, browserCommand, browserState, browserThumbnail, closeSessionBrowser, onWhite, openBrowser, selectBrowser } from "./browser-workspace.ts";
+import { awakeBrowser, browserContents, browserCommand, browserState, closeSessionBrowser, onWhite, openBrowser, selectBrowser } from "./browser-workspace.ts";
 
 function result(value: unknown, details: BrowserResultDetails = { kind: "browser" }): ToolResult {
 	return { content: [{ type: "text", text: `<browser-data untrusted="true">\n${JSON.stringify(value, null, 2)}\n</browser-data>` }], details };
 }
 
-/** The actions after which the page looks different, and the card gets a new picture. */
-const REDRAWS: ReadonlySet<string> = new Set(["click", "type", "press", "scroll"]);
-
 /**
  * What the conversation's card for this tab should say after a call — see `BrowserResultDetails`.
  *
- * Best effort, all of it: a card without a picture is still a card, and nothing here may turn an
- * action that worked into a tool call that failed.
+ * Best effort: nothing here may turn an action that worked into a tool call that failed.
  */
-async function view(id: string, picture: boolean, opened = false): Promise<BrowserResultDetails> {
+function view(id: string, opened = false): BrowserResultDetails {
 	const details: BrowserResultDetails = { kind: "browser", tabId: id, ...(opened ? { opened } : {}) };
 	try {
 		const contents = browserContents(id);
 		details.url = contents.getURL();
 		details.title = contents.getTitle();
-		if (picture) {
-			const jpeg = await browserThumbnail(id);
-			if (jpeg) details.thumbnail = persistSessionImage(jpeg.toString("base64"), "image/jpeg");
-		}
 	} catch {
-		// The tab closed under us, or the capture failed: the card says what is known.
+		// The tab closed under us: the card says what is known.
 	}
 	return details;
 }
@@ -40,8 +33,8 @@ function actionName(value: unknown): value is BrowserAction["action"] { return A
 /**
  * All tools operate the same tabs as the user, scoped by the trusted runtime context.
  *
- * None of them opens the panel: an agent's pages run with it closed, and the conversation shows a
- * card to open them from. See `openBrowser`.
+ * Only `browser_open` brings the panel forward, so the person sees the page the agent went to; the
+ * clicks and typing after it do not — see `openBrowser` for what that once did.
  */
 export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 	const owners = new Set<string>();
@@ -56,21 +49,30 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 	const tools: Tool[] = [
 		{
 			name: "browser_open", executionMode: "sequential", mutating: true,
-			description: "Open a URL in Plume's built-in browser. It runs in the background; the user opens it from the conversation when they want to watch. Reuses this session's selected tab unless newTab is true. Returns tabId and rendered text plus interactive elements. Supports http/https and Plume previews.",
+			description: "Open a URL in Plume's built-in browser, in the side panel beside the conversation. Reuses this session's selected tab unless newTab is true; a page this session already has open is reloaded in its own tab rather than opened twice. Returns tabId and rendered text plus interactive elements. Supports http/https and Plume previews. " +
+				"A local .html file opens by its path (absolute, relative to the workspace, or file://) as a copy of that one file at a fixed address — open it again after changing it; never start a server to open one. " +
+				"To look at a page you wrote, use preview with its path and check: true instead: you get the screenshot and console errors, and the user sees nothing until you publish. Use this tool for pages you need to click through or type into.",
 			parameters: { type: "object", properties: { url: { type: "string" }, newTab: { type: "boolean" } }, required: ["url"], additionalProperties: false },
 			async execute(args, ctx) {
 				try {
 					if (typeof args.url !== "string") throw new Error("url 必须是地址文本");
-					const url = new URL(args.url);
+					let target = args.url;
+					// No scheme and an .html name never parsed as a URL anyway, so reading it as a path takes nothing away.
+					if (browserLocalPage(target) || (!/^[a-z][\w+.-]*:/i.test(target) && /\.html?$/i.test(target.trim()))) {
+						const page = await readLocalPageFor(ctx, localPagePath(target));
+						if ("error" in page) throw new Error(page.error);
+						target = await localPageUrl(page.content, page.absolute, ctx.sessionId);
+					}
+					const url = new URL(target);
 					if (!["http:", "https:", "ly-preview:"].includes(url.protocol)) throw new Error("只允许网页和本地预览地址");
 					if (ctx.requestApproval && url.protocol !== "ly-preview:") {
 						const approval = await ctx.requestApproval({ kind: "network", title: `打开 ${url.host}`, detail: url.href, subject: url.origin });
 						if (approval === "reject") throw new Error("用户拒绝这次访问");
 					}
 					owners.add(ctx.sessionId);
-					const id = await openBrowser(url.href, ctx.sessionId, args.newTab === true, false);
+					const id = await openBrowser(url.href, ctx.sessionId, args.newTab === true);
 					const page = await readBrowser(id);
-					return result({ tabId: id, page }, await view(id, true, true));
+					return result({ tabId: id, page }, view(id, true));
 				} catch (error) { return fail(error); }
 			},
 		},
@@ -86,7 +88,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 					for (const name of ["x", "y"] as const) { const value = args[name]; if (value !== undefined) { if (typeof value !== "number") throw new Error(`${name} 必须是数字`); action[name] = value; } }
 					const id = await current(args.tabId, ctx.sessionId);
 					const outcome = await actBrowser(id, action, ctx.sessionId);
-					return result(outcome, await view(id, REDRAWS.has(action.action)));
+					return result(outcome, view(id));
 				} catch (error) { return fail(error); }
 			},
 		},
@@ -116,7 +118,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 						if (typeof args.width !== "number" || typeof args.height !== "number") throw new Error("width 和 height 必须一起提供");
 						await browserCommand({ type: "viewport", id, viewport: { width: args.width, height: args.height } });
 					}
-					return result(await actBrowser(id, { action: "eval", expression: "({width:innerWidth,height:innerHeight,devicePixelRatio})" }, ctx.sessionId), await view(id, true));
+					return result(await actBrowser(id, { action: "eval", expression: "({width:innerWidth,height:innerHeight,devicePixelRatio})" }, ctx.sessionId), view(id));
 				} catch (error) { return fail(error); }
 			},
 		},
@@ -129,7 +131,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 					const id = await current(args.tabId, ctx.sessionId);
 					const contents = browserContents(id, ctx.sessionId);
 					// On white, as the page appears in any browser — see `onWhite` for what came back without it.
-					return { content: [{ type: "image", data: onWhite(await contents.capturePage()).toPNG().toString("base64"), mimeType: "image/png" }], details: await view(id, true) };
+					return { content: [{ type: "image", data: onWhite(await contents.capturePage()).toPNG().toString("base64"), mimeType: "image/png" }], details: view(id) };
 				} catch (error) { return fail(error); }
 			},
 		},

@@ -35,6 +35,8 @@ provider 接口。provider 缓存由各适配器处理。
 - 项目记忆与用户记忆按会话冻结，压缩（有边界）、撤回、重新载入时重读；`learn` 和后台抽取不再
   逐轮改 system prompt。人在设置里删改记忆立即作废快照；手工编辑文件、其他会话的 `learn` 等到
   下一次重读。重读到的变化在压缩时直接进新开头，其余时候作为增量接在末尾。`learned.md` 里没有时间戳的手写条目按文件修改时间标日期，同一份文件产出同一份字节。
+- 界面块（回复里的 ```ui）的说明是 `interface` 段，只在加载了 `preview` 时出现，由 `ui-language` 的组件表生成。
+  模型写错的地方由循环在请求时附在下一条人说的话后面（`withInterfaceNotes`），和日期块一样按历史渲染、不进日志。
 - 什么活值得派写在 `task` 工具描述里，是固定文字，不随推理等级或设置变。提示词里只有子代理名单
   和一句并发上限；上限单独是 `delegation` 段，改 `maxConcurrentSubAgents` 时走增量，数字和闸门宽度
   都由 `normalizeMaxConcurrentSubAgents` 从同一个设置算出。

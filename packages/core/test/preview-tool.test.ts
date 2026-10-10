@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -112,6 +112,28 @@ test("检查：截图回给模型，用户看不到；之后只传 id 发布", a
 	assert.equal(elsewhere.isError, true);
 });
 
+test("检查带 width：按那个宽度检查，夹在 320–1600；截图没截到底时说截到了哪", async (t) => {
+	const ctx = await context(t);
+	const asked: (Parameters<PreviewInspector>[1])[] = [];
+	usePreviewInspector(async (_preview, options) => {
+		asked.push(options);
+		return { exceptions: [], errors: [], height: 3000, limit: 720, screenshot: { data: "iVBOR", mimeType: "image/png" }, shotHeight: 2160, ...(options?.width ? { width: options.width } : {}) };
+	});
+	t.after(() => usePreviewInspector(null));
+
+	const phone = await previewTool.execute({ html: "<p>ok</p>", check: true, width: 390 }, ctx);
+	assert.equal(asked[0]?.width, 390);
+	assert.match(text(phone), /按 390px 宽检查/);
+	assert.match(text(phone), /截图是整页的前 2160px/);
+	await previewTool.execute({ html: "<p>ok</p>", check: true, width: 99999 }, ctx);
+	assert.equal(asked[1]?.width, 1600);
+	await previewTool.execute({ html: "<p>ok</p>", check: true }, ctx);
+	assert.equal(asked[2]?.width, undefined, "不给就是对话的宽度，由宿主定");
+	// 直接发布不截图，也就没有宽度可言。
+	await previewTool.execute({ html: "<p>ok</p>", width: 390 }, ctx);
+	assert.equal(asked[3]?.width, undefined);
+});
+
 test("直接发布不要截图；检查时抛异常的页面，照原样发布会被拒", async (t) => {
 	const ctx = await context(t);
 	const asked: unknown[] = [];
@@ -130,4 +152,47 @@ test("直接发布不要截图；检查时抛异常的页面，照原样发布�
 
 	await previewTool.execute({ html: "<p>ok</p>" }, ctx);
 	assert.deepEqual(asked, [true, false]);
+});
+
+test("path：把磁盘上的 HTML 拷进预览目录展示，不跟随主题；之后改原文件不影响这一份", async (t) => {
+	const ctx = await context(t);
+	await writeFile(join(ctx.cwd, "飞机.html"), "<h1>v1</h1>");
+	const result = await previewTool.execute({ path: "飞机.html" }, ctx);
+	const record = (result.details as { preview: { themed?: boolean; dir: string; entry: string; title: string } }).preview;
+	assert.equal(record.entry, "index.html", "文件名不必是能进地址的字符，入口一律叫 index.html");
+	assert.equal(record.title, "飞机.html");
+	assert.equal(record.themed, undefined, "自己写成整页的文件，套上对话的主题会变样");
+	await writeFile(join(ctx.cwd, "飞机.html"), "<h1>v2</h1>");
+	assert.equal(await readFile(join(record.dir, "index.html"), "utf8"), "<h1>v1</h1>");
+});
+
+test("path：本会话 scratch 里的页面是 agent 照说明写的，跟随主题", async (t) => {
+	const ctx = await context(t);
+	// 和真实情形一样放在工作区外面：那里读取判定给回的是真实路径，macOS 的临时目录 /var/… 会变成 /private/var/…。
+	const scratchDir = join(ctx.cwd, "..", `${ctx.cwd.split(/[\\/]/).at(-1)}-scratch`, "sess");
+	t.after(() => rm(join(scratchDir, ".."), { recursive: true, force: true }));
+	await mkdir(scratchDir, { recursive: true });
+	await writeFile(join(scratchDir, "index.html"), "<p>x</p>");
+	const result = await previewTool.execute({ path: join(scratchDir, "index.html") }, { ...ctx, scratchDir });
+	assert.equal((result.details as { preview: { themed?: boolean } }).preview.themed, true);
+	// 名字以 scratch 目录开头、却不在它里面的兄弟目录，照旧是自成一页的文件。
+	await mkdir(`${scratchDir}-other`);
+	await writeFile(join(`${scratchDir}-other`, "index.html"), "<p>x</p>");
+	const sibling = await previewTool.execute({ path: join(`${scratchDir}-other`, "index.html") }, { ...ctx, scratchDir });
+	assert.equal((sibling.details as { preview: { themed?: boolean } }).preview.themed, undefined);
+});
+
+test("path：不是 .html、不存在、敏感文件都不展示", async (t) => {
+	const ctx = await context(t);
+	await writeFile(join(ctx.cwd, "notes.txt"), "x");
+	assert.match(text(await previewTool.execute({ path: "notes.txt" }, ctx)), /只能打开 \.html/);
+	assert.match(text(await previewTool.execute({ path: "missing.html" }, ctx)), /没有找到文件/);
+	// 和 `read` 走同一道读取判定：密钥目录要人点头，人拒绝了就不展示。
+	await mkdir(join(ctx.cwd, ".gnupg"));
+	await writeFile(join(ctx.cwd, ".gnupg", "page.html"), "<p>x</p>");
+	let asked = 0;
+	const refused = await previewTool.execute({ path: ".gnupg/page.html" }, { ...ctx, requestApproval: async () => { asked++; return "reject"; } });
+	assert.equal(asked, 1);
+	assert.equal(refused.isError, true);
+	assert.equal((refused.details as { preview?: unknown } | undefined)?.preview, undefined);
 });

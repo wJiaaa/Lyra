@@ -15,3 +15,8 @@ export function useSideTarget(): { sessionId: string | null; sideId: string } {
 	const kind = usePanelKind();
 	return { sessionId, sideId: (kind && sideIdOfPanel(kind)) || DEFAULT_SIDE_CHAT_ID };
 }
+
+/** 侧边聊天里界面块的状态记在哪个 key 下：同一段原文在主对话和每个侧边聊天各记各的。 */
+export function sideInterfaceKey(sessionId: string, sideId: string): string {
+	return `${sessionId}/side/${sideId}`;
+}

@@ -39,8 +39,11 @@ export function MessageActions({
 	children,
 }: {
 	timestamp: number;
-	/** What the copy button puts on the clipboard. */
-	text: string;
+	/**
+	 * What the copy button puts on the clipboard. A function is asked at the press: what it copies
+	 * can change after this row last rendered — a reply's interface block is set by the reader.
+	 */
+	text: string | (() => string);
 	className?: string;
 	/**
 	 * 这一轮实际跑了多久：墙钟，工具和子代理的时间都在里面。见 `grouping.ts` 的 `TurnStats`。
@@ -105,7 +108,7 @@ export function MessageActions({
 			<IconButton
 				label={translate("messageActions.copyThis")}
 				onClick={() => {
-					void navigator.clipboard.writeText(text).then(() => setCopied(true));
+					void navigator.clipboard.writeText(typeof text === "function" ? text() : text).then(() => setCopied(true));
 				}}
 				icon={copied ? <Check size={12.5} strokeWidth={2.2} className="ly-pop text-ok" /> : <Copy size={12.5} strokeWidth={1.8} />}
 			/>

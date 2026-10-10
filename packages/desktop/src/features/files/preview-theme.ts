@@ -13,17 +13,6 @@
 
 import type { PreviewTheme } from "../../../shared/preview.ts";
 
-/*
- * What the app has no token for. Charts need several hues that sit together, and the app's palette
- * is one accent and three states; these follow the accent as its neighbours, tuned per scheme so
- * none of them vanishes against the page.
- */
-const CHART = {
-	dark: ["#2dd4bf", "#fbbf24", "#c084fc", "#fb7185", "#a3e635"],
-	light: ["#0d9488", "#d97706", "#9333ea", "#e11d48", "#65a30d"],
-};
-const WARNING = { dark: "#fbbf24", light: "#d97706" };
-
 /** The colour actually painted behind `element`: the first ancestor with a background of its own. */
 function surfaceBehind(element: Element | null): string | null {
 	for (let at = element; at; at = at.parentElement) {
@@ -86,13 +75,14 @@ export function previewTheme(host: Element | null): PreviewTheme {
 		"--accent-foreground": readableOn(accent),
 		"--success": read("--color-ok"),
 		"--info": read("--color-info"),
-		"--warning": WARNING[scheme],
+		// Hues the app keeps for charts and warnings, per scheme, in `tokens.css` — interface blocks wear the same.
+		"--warning": read("--ly-warning"),
 		"--danger": danger,
 		"--destructive": danger,
 		"--code-background": read("--ly-code-bg") || card,
 		"--code-foreground": read("--ly-code-fg") || ink,
 		"--chart-1": accent,
-		...Object.fromEntries(CHART[scheme].map((colour, index) => [`--chart-${index + 2}`, colour])),
+		...Object.fromEntries([2, 3, 4, 5, 6].map((index) => [`--chart-${index}`, read(`--ly-chart-${index}`)])),
 		"--radius": "10px",
 		"--font-sans": getComputedStyle(document.body).fontFamily,
 		"--font-mono": read("--ly-code-font") || read("--font-mono"),

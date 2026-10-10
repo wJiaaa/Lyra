@@ -1,10 +1,11 @@
-import { memo, useMemo, type ReactNode } from "react";
+import { memo, useCallback, useMemo, type ReactNode } from "react";
 import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import Display, { MarkdownIt, type RenderRules } from "react-native-markdown-display";
 import { completeTail } from "@plume/client-runtime/stream-tail";
 import { splitBlocks } from "./markdown-chunks.ts";
 import { useSmoothText } from "./smooth-text.ts";
 import { CopyButton } from "./copy.tsx";
+import { InterfaceBlock } from "./Interface.tsx";
 import { mono, useTheme } from "./ui.tsx";
 import type { T } from "./i18n.ts";
 
@@ -101,10 +102,16 @@ export const Markdown = memo(function Markdown({ text, streaming = false, t }: {
 		tr: { borderBottomWidth: 1, borderColor: theme.lineSoft },
 		td: { padding: 8 },
 	}), [theme]);
+	const table = useCallback((source: string) => <Display style={style} markdownit={markdown}>{source}</Display>, [style]);
 	const rules = useMemo<RenderRules>(() => ({
-		fence: (node) => <CodeBlock key={node.key} code={node.content} language={((node as { sourceInfo?: string }).sourceInfo ?? "").trim().split(/\s+/)[0] ?? ""} t={t} />,
+		fence: (node) => {
+			const language = ((node as { sourceInfo?: string }).sourceInfo ?? "").trim().split(/\s+/)[0] ?? "";
+			// ```ui 是回复里的界面块：画出来，画不出来时才退回源码。
+			if (language.toLowerCase() === "ui") return <InterfaceBlock key={node.key} source={node.content} fallback={<CodeBlock code={node.content} language={language} t={t} />} table={table} t={t} />;
+			return <CodeBlock key={node.key} code={node.content} language={language} t={t} />;
+		},
 		code_block: (node) => <CodeBlock key={node.key} code={node.content} language="" t={t} />,
-	}), [t]);
+	}), [t, table]);
 	/*
 	 * 正在写的最后一块另配一套规则：正文段落走 `TailText`，末尾刚放出来的字淡入。每次渲染新建，
 	 * 计数器跟着这一次渲染走；前面那些块用上面那套不变的规则，原文没变就不重画。

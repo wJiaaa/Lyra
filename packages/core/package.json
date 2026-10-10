@@ -24,7 +24,8 @@
 		"./commands-builtin": "./src/commands/builtin.ts",
 		"./install-record": "./src/plugins/install-record.ts",
 		"./mcp-placeholders": "./src/mcp/placeholders.ts",
-		"./sandbox-runner": "./src/sandbox/runner-entry.ts"
+		"./sandbox-runner": "./src/sandbox/runner-entry.ts",
+		"./ui-language": "./src/ui-language/index.ts"
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.json",

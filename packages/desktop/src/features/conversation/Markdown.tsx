@@ -10,10 +10,12 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ExternalLink, FolderOpen } from "../../ui/icons/index.ts";
+import { ExternalLink, FolderOpen, Globe } from "../../ui/icons/index.ts";
 import { createContext, type CSSProperties, Fragment, isValidElement, memo, type ReactNode, type SyntheticEvent, useContext, useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "./CodeBlock.tsx";
 import { isMermaid, MermaidBlock } from "./MermaidBlock.tsx";
+import { InterfaceBlock } from "./interface/InterfaceBlock.tsx";
+import { isInterface } from "./interface/interface-text.ts";
 import { MarkdownTable } from "./MarkdownTable.tsx";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -217,6 +219,13 @@ function renderBlock(block: Block, preview = false, fade = false): ReactNode {
 			 */
 			if (isMermaid(block.lang)) {
 				return <MermaidBlock code={block.code} fallback={<CodeBlock lang={block.lang} code={block.code} fade={fade} />} />;
+			}
+			/*
+			 * ```ui 画成界面（`InterfaceBlock`）。还在写、而且围栏没收口的那一块只给看不给点：写完之前，
+			 * 它的选项还在一个一个长出来。画不出来时退回代码，理由同上。
+			 */
+			if (isInterface(block.lang)) {
+				return <InterfaceBlock source={block.code} writing={Boolean(block.open) && fade} fallback={<CodeBlock lang={block.lang} code={block.code} fade={fade} />} />;
 			}
 			return <CodeBlock lang={block.lang} code={block.code} fade={fade} />;
 		case "rule":
@@ -492,6 +501,13 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 		void openFilePane({ path, name }, screen ?? undefined).catch((error: unknown) => useApp.getState().notify(String(error), "error"));
 	};
 	const fail = (error: unknown) => useApp.getState().notify(String(error), "error");
+	// A page the agent wrote is something to look at, not only source to read: the click still opens the source.
+	const page = /\.html?$/i.test(path);
+	const scoped = useContext(SessionScope);
+	const openPage = () => {
+		const state = useApp.getState();
+		void bridge.browser.command({ type: "open", url: path, sessionId: scoped === undefined ? state.activeSessionId : scoped, newTab: true }).catch(fail);
+	};
 	const place = (event: SyntheticEvent<HTMLElement>, pointerX?: number) => {
 		// Already inside the bar: leave it where it is, or it moves out from under the pointer.
 		if (event.target instanceof Element && event.target.closest("[data-ly-file-actions]")) return;
@@ -538,6 +554,7 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 			</a>
 			<span data-ly-file-actions>
 				<span data-ly-file-actions-bar>
+					{page && <FileLinkAction label={translate("openTarget.builtinBrowser")} tipSide={buttonTip} icon={<Globe size={14} />} onClick={openPage} />}
 					<FileLinkAction
 						label={translate("openTarget.defaultApp")}
 						tipSide={buttonTip}

@@ -57,6 +57,7 @@
 @import "./styles/pull-requests.css";
 @import "./styles/trajectory.css";
 @import "./styles/avatar.css";
+@import "./styles/interface.css";
 
 /*
  * `dark:` follows the app's theme, not the system's. Tailwind's default is the

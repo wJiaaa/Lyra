@@ -9,7 +9,7 @@ import { useRecapMeasure } from "./recap-measure.ts";
 import { HiccupRow } from "./HiccupTrace.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
-import { BrowserCards } from "./BrowserCard.tsx";
+import { BrowserCards, laterPageOpens, pageOpens } from "./BrowserCard.tsx";
 import { GeneratedImages } from "./ImageCanvas.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
@@ -249,6 +249,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
    * 而这条转录在一轮里每个 token 都会重渲染。
    */
   const blocks = useMemo(() => allBlocks.slice(range.start, range.end), [allBlocks, range.start, range.end]);
+  // 按整条转录算，不按窗口：同一轮后面那几块可能还没进窗口，卡片照样要知道自己不是最后一张。
+  const laterPages = useMemo(() => laterPageOpens(allBlocks), [allBlocks]);
   const { scrollTo, detach } = follow;
   const jumpToQuestion = (index: number) => {
     // 窗口按块走，所以要的是「那条消息在哪个块里」，不是它在 Run 序列里的位置。
@@ -419,7 +421,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
            * 这里只负责把过程那一块套进 `TurnProcess`。
            */}
           <div className="flex flex-col gap-2.5" data-ly-transcript-rows>
-          {blocks.map((block) => {
+          {blocks.map((block, at) => {
             const draw = (run: Run) =>
             /*
 						 * Automatic compaction belongs on the running indicator. An explicitly submitted
@@ -485,7 +487,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
              * 在对话里仅有的痕迹（面板不再自己弹出来，见 `BrowserCard`）。紧跟在这一段后面，跑的时候就
              * 在「打开页面」那段工作底下，跑完之后还在那一行底下，位置不动。
              */
-            const pages = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "browser_open").map(({ block: call }) => call.id) : []));
+            const pages = pageOpens(block);
             // 这一段里生成的图，同样画在过程块外面，见 `GeneratedImages`。
             const drawn = block.runs.flatMap((run) => (run.kind === "tools" ? run.calls.filter(({ block: call }) => call.name === "generate_image").map(({ block: call }) => call.id) : []));
             // 这一轮派出去的子智能体。收起之后「调用工具 N 个」那一行尾巴上还挂着它们的脸。
@@ -509,7 +511,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
                 >
                   {block.runs.map(draw)}
                 </TurnProcess>
-                {pages.length > 0 && <BrowserCards calls={pages} />}
+                {pages.length > 0 && <BrowserCards calls={pages} later={laterPages[range.start + at]} />}
                 {drawn.length > 0 && <GeneratedImages calls={drawn} />}
               </Fragment>
             );

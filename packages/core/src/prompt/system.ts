@@ -23,6 +23,7 @@ import type { Tool } from "../types.ts";
 import { PromptBuilder, type PromptContext } from "./context.ts";
 import { budgetInstructions } from "./budget.ts";
 import { formatSkills } from "./skills.ts";
+import { interfacePrompt } from "../ui-language/prompt.ts";
 
 export interface SystemPromptInput {
 	cwd: string;
@@ -218,6 +219,11 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 	prompt.add("identity", identity);
 	prompt.add("guidelines", `\n\nGuidelines:\n${guidelines.map((g) => `- ${g}`).join("\n")}`);
 	prompt.add("boundaries", `\n\nBoundaries:\n${BOUNDARIES.map((b) => `- ${b}`).join("\n")}`);
+	/*
+	 * 界面块只对画得出它的端说。判据借 `preview`：只有桌面端加载它，而画界面块的也只有桌面端——
+	 * 命令行、评测里说了也画不出来，还每次请求都要为它付一份。
+	 */
+	if (input.tools.some((tool) => tool.name === "preview")) prompt.add("interface", interfacePrompt());
 	prompt.add("environment", `\n\nEnvironment:
 - Platform: ${input.platform}${input.shell ? `\n- Shell: ${input.shell.label}` : ""}${shellRules.map((rule) => `\n- ${rule}`).join("")}
 - Git repository: ${input.isGitRepo ? "yes" : "no"}

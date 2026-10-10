@@ -97,14 +97,13 @@ test("agent drives the user's actual browser: native input, click, viewport and 
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-browser-cursor]').length`), 1);
 	assert.equal(results.some((item) => typeof item === "object" && item !== null && "is_error" in item && item.is_error), false, JSON.stringify(results));
 	/*
-	 * All of that ran with no tab for the page: an agent's pages work in the background and the
-	 * conversation keeps a card for them (see `openBrowser`, `BrowserCard`). The person opens the
-	 * page from that card — the pane it already ran in, now on the tab strip — which is also what
-	 * leaves it open for the cases below.
+	 * `browser_open` brought the page up in the panel, where the person watched the rest happen (see
+	 * `openBrowser`); the conversation keeps a one-line card for it, without a picture (`BrowserCard`).
 	 */
 	const pane = `document.querySelector('[data-dock-pane="browser:${state.tabs[0].id}"]')`;
-	assert.equal(await app.evaluate(`${pane}.hasAttribute('inert')`), true, "the page had no tab while the agent worked");
+	assert.equal(await app.evaluate(`${pane}.hasAttribute('inert')`), false, "the page opened in the panel");
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-browser-card]')?.innerText ?? ''`), /Browser QA/);
+	assert.equal(await app.evaluate(`document.querySelectorAll('[data-browser-card] img').length`), 0);
 	await click(app, '[data-browser-card] [data-browser-card-row] button');
 	await until(app, `!${pane}.hasAttribute('inert')`, 1800);
 	const artifact = process.env.PLUME_E2E_ARTIFACTS;
@@ -178,7 +177,7 @@ test("bookmarks persist, default zoom applies to new tabs and invalid commands l
 	const id=await app.evaluate<string>(`window.plume.browser.state().then(s=>s.activeId)`);
 	assert.equal(await app.evaluate(`window.plume.browser.state().then(s=>s.tabs.find(t=>t.id===s.activeId).zoom)`),1.25);
 	assert.match(await app.evaluate<string>(`window.plume.browser.command({type:'viewport',id:${JSON.stringify(id)},viewport:{width:0,height:800}}).then(()=>'',e=>e.message)`),/视口范围/);
-	assert.match(await app.evaluate<string>(`window.plume.browser.command({type:'open',url:'file:///etc/passwd',sessionId:'qa-short'}).then(()=>'',e=>e.message)`),/只允许/);
+	assert.match(await app.evaluate<string>(`window.plume.browser.command({type:'open',url:'file:///etc/passwd',sessionId:'qa-short'}).then(()=>'',e=>e.message)`),/只能打开 \.html 文件/);
 	assert.equal(await app.evaluate(`document.querySelector('[data-browser-page="${id}"]').executeJavaScript('document.title')`),'Browser QA');
 	await app.evaluate(`window.plume.browser.command({type:'close',id:${JSON.stringify(id)}})`);
 	assert.equal(await app.evaluate(`window.plume.browser.state().then(s=>s.tabs.some(t=>t.id===${JSON.stringify(id)}))`),false);

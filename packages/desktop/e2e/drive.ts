@@ -50,6 +50,20 @@ export async function click(page: Page, selector: string, name?: string, mode: N
 	await frames(page, 2);
 }
 
+/**
+ * 点 iframe 里的一处。框里的文档是另一个源，这一侧选不到里面的元素，只能按框内坐标点：
+ * 框本身照 `click` 的规则停稳、确实在指针下，再从它的左上角量 `offset`。
+ */
+export async function clickInFrame(page: Page, frame: string, offset: Point): Promise<void> {
+	await settle(page, frame, undefined, "exact");
+	const box = await page.evaluate<Point>(`(()=>{const r=${finder(frame)}.getBoundingClientRect();return {x:r.x,y:r.y};})()`);
+	const at = { x: box.x + offset.x, y: box.y + offset.y };
+	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	await page.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 });
+	await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 });
+	await frames(page, 2);
+}
+
 /** 右键：落点规则和 `click` 一样，按的是右键，弹的是应用自己的右键菜单。 */
 export async function contextClick(page: Page, selector: string, name?: string, mode: NamedMode = "exact"): Promise<void> {
 	const at = await settle(page, selector, name, mode);

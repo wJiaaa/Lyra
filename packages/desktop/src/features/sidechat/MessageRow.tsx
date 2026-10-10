@@ -14,10 +14,10 @@ import { translate } from "../../i18n/translate.ts";
 import type { AssistantMessage, Message, UserContent, UserMessage } from "@plume/core";
 import { Pencil } from "../../ui/icons/index.ts";
 import { useState } from "react";
-import { MessageActions } from "../conversation/index.ts";
+import { copyableReply, MessageActions } from "../conversation/index.ts";
 import { MessageEditor } from "../conversation/index.ts";
 import { useSide, sideChatOf } from "../dock/index.ts";
-import { useSideTarget } from "./target.ts";
+import { sideInterfaceKey, useSideTarget } from "./target.ts";
 import { Markdown, SpokenBubble, spokenText } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
 import { segments, ToolRun } from "../conversation/index.ts";
@@ -189,7 +189,7 @@ function AssistantRow({ message, live }: { message: AssistantMessage; live?: boo
 			 * is still arriving offers to copy half a sentence.
 			 */}
 			{message.stopReason !== "pending" && spoken.trim() && (
-				<MessageActions timestamp={message.timestamp} text={spoken} />
+				<MessageActions timestamp={message.timestamp} text={() => copyableReply(spoken, sessionId ? sideInterfaceKey(sessionId, sideId) : null)} />
 			)}
 		</div>
 	);
