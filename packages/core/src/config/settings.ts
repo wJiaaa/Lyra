@@ -351,6 +351,8 @@ export interface Settings {
 	sideChatModelId?: string | null;
 	/** Model for smart session titles; null follows the session's model. */
 	titleModelId?: string | null;
+	/** Model for the session summary in the environment card; null follows the session's model. */
+	summaryModelId?: string | null;
 	/** Model for the background memory pass; null follows `defaultModelId`, since it runs in no session. */
 	memoryModelId?: string | null;
 	/** Model behind `generate_image`; null means none was picked, and the tool says where to pick one. */

@@ -15,6 +15,8 @@ export { KIND_LABEL, sentKind } from "./attachments/file-kind.ts";
 export type { FileKind } from "./attachments/file-kind.ts";
 /* 发出去的附件给不给「预览」：右边的文件面板打开它，看得到的是不是它本身。 */
 export { previewableInPanel } from "./attachments/display.ts";
+/* 句子里哪几段是 @ 引用：环境卡片要从说过的话里认回引用过的文件，认法得和输入框写进去的是同一套。 */
+export { findMentionRanges } from "./mention-catalog.ts";
 /*
  * 「带了哪几个文件」那一排，输入框上方和气泡外面是同一个。
  *

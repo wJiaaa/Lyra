@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp } from "../../ui/icons/index.ts";
 import { translate } from "../../i18n/translate.ts";
-import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { ApprovalOverlay } from "./ApprovalOverlay.tsx";
 import { BackToLatest } from "./BackToLatest.tsx";
 import { Composer } from "../composer/index.ts";
@@ -8,6 +8,8 @@ import { ResumeRow } from "./ResumeRow.tsx";
 import { HiccupRow } from "./HiccupTrace.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
+import { environmentCard, useEnvironmentCard } from "../../store/environment-card.ts";
+import { clearTranscriptJump, useTranscriptJump } from "../../store/transcript-jump.ts";
 import { BrowserCards, laterPageOpens, pageOpens } from "./BrowserCard.tsx";
 import { GeneratedImages } from "./ImageCanvas.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
@@ -59,6 +61,14 @@ import {
  * edge and both sides get 28px.
  */
 const NARROW_COLUMN = 520;
+/*
+ * 环境卡片那一条：卡片 300 宽，右边距 12，和正文之间再留 12。
+ *
+ * 栏够宽（让出这一条以后正文还有 `NARROW_COLUMN`）时正文和输入框整体往左让，卡片不盖住任何字；
+ * 不够宽就像任务清单一样浮在正文上——这时让位会把正文挤成一条缝。
+ */
+const ENVIRONMENT_CARD = 300;
+const ENVIRONMENT_LANE = ENVIRONMENT_CARD + 24;
 
 export const Conversation = memo(function Conversation({ sessionId: _sessionId }: { sessionId?: string | null } = {}) {
   /*
@@ -136,6 +146,10 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
    */
   const column = useRef<HTMLDivElement>(null);
   const [roomToFloat, setRoomToFloat] = useState(false);
+  const [roomToDock, setRoomToDock] = useState(false);
+  const EnvironmentCard = environmentCard();
+  const environmentOpen = useEnvironmentCard((state) => state.open) && activeSessionId !== null && EnvironmentCard !== null;
+  const docked = environmentOpen && roomToDock;
   /*
    * Too narrow to spend 48px on the question rail and leave the column looking centred.
    *
@@ -151,6 +165,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
     let frame = 0;
     const read = () => {
       setRoomToFloat(element.clientWidth >= 320 + 32 + 420);
+      setRoomToDock(element.clientWidth >= ENVIRONMENT_LANE + NARROW_COLUMN);
       setNarrowColumn(element.clientWidth < NARROW_COLUMN);
     };
     const measure = () => {
@@ -258,6 +273,15 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
     range.reveal(at);
     setJump({ sessionId: activeSessionId, index });
   };
+  // 从转录以外要求跳到某一问（环境卡片里的「第 N 轮」）：照问题导航那条路走。
+  const externalJump = useTranscriptJump((state) => state.jump);
+  useEffect(() => {
+    if (!externalJump || externalJump.sessionId !== activeSessionId) return;
+    clearTranscriptJump();
+    jumpToQuestion(externalJump.index);
+    // `jumpToQuestion` is rebuilt every render; the request is what this reacts to.
+    // oxlint-disable-next-line exhaustive-deps
+  }, [externalJump, activeSessionId]);
   useLayoutEffect(() => {
     if (!jump || jump.sessionId !== activeSessionId) return;
     const el = scrollRef.current;
@@ -284,7 +308,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
   }, [jump, activeSessionId, range.start, range.end, allBlocks.length, scrollRef, scrollTo]);
 
   return (
-    <div ref={column} data-ly-chat-surface="conversation" className="flex min-h-0 flex-1 flex-col">
+    <div ref={column} data-ly-chat-surface="conversation" className="relative flex min-h-0 flex-1 flex-col">
+      {docked && EnvironmentCard && <EnvironmentLane card={EnvironmentCard} floatTasks={roomToFloat} />}
       {/*
        * The transcript and the button that scrolls it, in a box of their own.
        *
@@ -293,7 +318,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
        * message. What it offers is about the transcript, so the transcript is what it is
        * positioned against.
        */}
-      <div className="@container relative flex min-h-0 flex-1 flex-col">
+      <div className="@container relative flex min-h-0 flex-1 flex-col" style={docked ? { marginRight: ENVIRONMENT_LANE } : undefined}>
+      {environmentOpen && !docked && EnvironmentCard && <EnvironmentLane card={EnvironmentCard} floatTasks={roomToFloat} />}
       {/*
        * Over the transcript when there is room beside it, in the column when there is not.
        *
@@ -311,7 +337,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
        * corner is sitting on top of the reply rather than beside it. Measured here, against the
        * column it would cover.
        */}
-      {roomToFloat && (
+      {roomToFloat && !environmentOpen && (
         <div className="pointer-events-none absolute top-3 right-4 z-20 w-[320px]">
           <TaskList placement="floating" />
         </div>
@@ -602,7 +628,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
        * already resting. A normal-flow card now reserves its own height, so the transcript
        * scrolls above the decision instead of disappearing behind it.
        */}
-      <div className="relative shrink-0">
+      <div className="relative shrink-0" style={docked ? { marginRight: ENVIRONMENT_LANE } : undefined}>
         <ApprovalOverlay />
         <HookTrustBanner className={`${gutter} pb-1.5`} />
         {/*
@@ -621,6 +647,25 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
     </div>
   );
 });
+
+/**
+ * 环境卡片，和开着它时的任务清单——叠成一列，卡片在上。
+ *
+ * 两样都想要右上角那一块：任务清单本来就浮在那里。各占一个角会让一张盖住另一张，于是卡片开着时
+ * 清单搬进这一列，排在卡片下面；卡片太长就自己滚，清单始终看得见。
+ */
+function EnvironmentLane({ card: Card, floatTasks }: { card: ComponentType; floatTasks: boolean }) {
+  return (
+    <div className="pointer-events-none absolute top-3 right-3 bottom-3 z-20 flex flex-col gap-3" style={{ width: ENVIRONMENT_CARD }}>
+      <Card />
+      {floatTasks && (
+        <div className="shrink-0">
+          <TaskList placement="floating" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Stand-in for a transcript that is still being read off disk.

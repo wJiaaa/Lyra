@@ -9,6 +9,8 @@
 
 export { Avatar } from "./Avatar.tsx";
 export { useAccountActions, useForgeAccounts } from "./useForgeAccounts.ts";
+/* 这一页上次拉到的那份列表：环境卡片按当前分支从里面找 PR，先用它，不够新再去问 GitHub。 */
+export { readList as cachedPullRequests } from "./pr-cache.ts";
 
 /*
  * 顶层视图不在这张表上。

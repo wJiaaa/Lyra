@@ -21,6 +21,7 @@ import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace } from "./scratch.ts";
 import { discardSideChat } from "./sidechat-discard.ts";
 import { listSideChats, removeSideChats } from "./sidechat-store.ts";
+import { removeSummary } from "./session-summary.ts";
 import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { noteTranscriptFiles } from "./attachment-reads.ts";
@@ -448,7 +449,7 @@ export async function deleteSessions(ids: string[]): Promise<void> {
 		await Promise.all(ids.map((id) => disposeSession(id, "deleted")));
 		await deps.store().deleteMany(ids);
 		// The rows are the conversation; what is left is litter, and failing to sweep it is no reason to report the delete as failed.
-		await Promise.all(ids.flatMap((id) => [removeSessionArtifacts(plumeHome(), id), removeSideChats(id)].map((done) => done.catch(() => {}))));
+		await Promise.all(ids.flatMap((id) => [removeSessionArtifacts(plumeHome(), id), removeSideChats(id), removeSummary(id)].map((done) => done.catch(() => {}))));
 	} finally {
 		for (const id of ids) deleting.delete(id);
 	}

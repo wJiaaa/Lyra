@@ -42,6 +42,7 @@ import {
 	touchSession,
 } from "../session-hub.ts";
 import { slimSnapshot } from "../display-transcript.ts";
+import { readSummary, summarize } from "../session-summary.ts";
 import { steerDisplay } from "../prompt-input.ts";
 
 export interface SessionsIpcDeps {
@@ -60,6 +61,11 @@ export function registerSessionsIpc({
 	ipcMain.handle("sessions:exportTrajectory", (_event, sessionId: string, format: TrajectoryExportFormat, selection?: { id?: string; correlationId?: string }) => exportTrajectory(store, sessionId, format, selection, sessions.get(sessionId)?.running ?? false));
 
 	ipcMain.handle("sessions:list", async () => store.listSessions());
+
+	ipcMain.handle("sessions:summary", (_event, sessionId: string) => readSummary(sessionId));
+	// 正在跑的会话以它手里的为准：这一轮的消息可能还没全落盘。
+	ipcMain.handle("sessions:summarize", (_event, sessionId: string) =>
+		summarize(sessionId, { store, settings: readSettings(), liveMessages: sessions.get(sessionId)?.messages }));
 
 	/*
 	 * 这个会话此刻在不在跑——权威的那一份。

@@ -282,8 +282,8 @@ Git、设置路由、输入框、显示缩放、会话创建和插件/定义删�
 另一供应商。恢复继承删除该智能体的本地覆盖。
 
 内置定义都在同一个目录里，设置目录、`@` 选择和 `task` 派发读取同一目录。
-`subAgentProfiles.compact` 是压缩模型；智能标题、记忆整理各有自己的设置字段
-（`titleModelId`、`memoryModelId`），都在「会话」分组里选，没选时跟随会话模型。`compact` 只提供压缩模型选择，`@compact` 与 `/compact`
+`subAgentProfiles.compact` 是压缩模型；智能标题、会话摘要、记忆整理各有自己的设置字段
+（`titleModelId`、`summaryModelId`、`memoryModelId`），都在「会话」分组里选，没选时跟随会话模型。`compact` 只提供压缩模型选择，`@compact` 与 `/compact`
 共用内置压缩执行链，并保留附加指令；它不注册成可由 `task` 派发的普通智能体。
 
 每次派发读取最新设置，递归派发沿用同一读取入口；已经开始的模型请求继续使用原配置。

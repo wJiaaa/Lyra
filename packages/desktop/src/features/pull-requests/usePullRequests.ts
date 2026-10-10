@@ -21,6 +21,7 @@ import { reloadAccounts, useForgeAccounts } from "./useForgeAccounts.ts";
 import { acknowledge, baseline, mergeLists, pruneSeen, sameDetail, sameSeen, unseenOf } from "./pr-sync.ts";
 import { type RefreshReason, useLiveRefresh } from "./useLiveRefresh.ts";
 import { bridge } from "../../services/index.ts";
+import { usePullRequestFocus } from "../../store/pull-request-focus.ts";
 
 export type { Filter, Group } from "./pr-groups.ts";
 
@@ -286,6 +287,21 @@ export function usePullRequests({
 	);
 	const groups = useMemo(() => groupFor(visible, filter, query), [visible, filter, query]);
 	const unseen = useMemo(() => unseenOf(items, seen), [items, seen]);
+
+	/*
+	 * 从别处点进来要看某一个（环境卡片里当前分支的那个 PR）：清掉筛选，选中它。
+	 *
+	 * 筛选要一起清——停在「只看待我审阅」上时，那一行可能根本不在列表里，选中了也看不出是哪一个。
+	 */
+	const focus = usePullRequestFocus((state) => state.focus);
+	useEffect(() => {
+		if (!focus) return;
+		usePullRequestFocus.setState({ focus: null });
+		setAccount(null);
+		setFilter("all");
+		setQuery("");
+		setSelected({ accountId: focus.accountId, repo: focus.repo, number: focus.number });
+	}, [focus]);
 
 	useEffect(() => {
 		if (!autoSelect || selected || groups.length === 0) return;

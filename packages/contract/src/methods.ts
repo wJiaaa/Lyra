@@ -96,6 +96,9 @@ export const METHODS = {
 		rename: { channel: "sessions:rename" },
 		compact: { channel: "sessions:compact" },
 		contextBreakdown: { channel: "sessions:contextBreakdown" },
+		/* 环境卡片里那段摘要：读存着的那份，和要一份新的。 */
+		summary: { channel: "sessions:summary" },
+		summarize: { channel: "sessions:summarize" },
 	},
 	agent: {
 		prompt: { channel: "agent:prompt" },
@@ -114,6 +117,8 @@ export const METHODS = {
 		dismiss: { channel: "subagents:dismiss" },
 	},
 	sideChat: {
+		/* 这个会话有存档的侧边聊天，按开出来的先后——环境卡片要把没挂在面板上的也列出来。 */
+		list: { channel: "sidechat:list" },
 		setModel: { channel: "sidechat:setModel" },
 		state: { channel: "sidechat:state" },
 		ask: { channel: "sidechat:ask" },

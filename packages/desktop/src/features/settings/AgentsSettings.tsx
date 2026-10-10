@@ -194,6 +194,10 @@ export function AgentsSettings() {
 							<ModelSelect ariaLabel={t("agents.titleModel")} showIcon={false} value={settings.titleModelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} inheritDetail={t("agents.titleModelDetail")} disabled={saving}
 								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, titleModelId: modelId || null }); }} />
 						</SettingRow>
+						<SettingRow name={t("agents.summaryModel")} detail={t("agents.summaryModelDetail")}>
+							<ModelSelect ariaLabel={t("agents.summaryModel")} showIcon={false} value={settings.summaryModelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} inheritDetail={t("agents.summaryModelDetail")} disabled={saving}
+								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, summaryModelId: modelId || null }); }} />
+						</SettingRow>
 						{/* 记忆整理不在哪个会话里跑，没选时用的是新会话的默认模型，不是「主会话」。 */}
 						<SettingRow name={t("agents.memoryModel")} detail={t("agents.memoryModelDetail")}>
 							<ModelSelect ariaLabel={t("agents.memoryModel")} showIcon={false} value={settings.memoryModelId ?? ""} inheritLabel={t("agents.followDefaultModel")} inheritedModelId={settings.defaultModelId ?? undefined} inheritedSource={t("common.default")} inheritDetail={t("agents.memoryModelDetail")} disabled={saving}

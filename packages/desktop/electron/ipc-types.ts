@@ -56,6 +56,7 @@ import type { ClearRange, ClearResult, StorageUse } from "./session-cleanup.ts";
 import type { UsageScan } from "./usage-scan.ts";
 export type { OpenTarget } from "./open-targets.ts";
 import type { OpenTarget } from "./open-targets.ts";
+import type { StoredSummary, SummarizeResult } from "./session-summary.ts";
 
 export type UpdatePhase = DownloadPhase;
 
@@ -384,6 +385,10 @@ export interface PlumeApi {
 		compact(sessionId: string, instructions?: string): Promise<{ ok: boolean; reason?: string; code?: CompactCode; params?: NoticeParams; before?: number; after?: number }>;
 		/** Null when the session is not open — this never boots one just to answer. */
 		contextBreakdown(sessionId: string): Promise<ContextBreakdown | null>;
+		/** 存着的那份摘要，没有就是 null。 */
+		summary(sessionId: string): Promise<StoredSummary | null>;
+		/** 要一份新的。没有新消息时不发请求，答的是存着的那份；失败时 `error` 说为什么，`summary` 仍是上一份。 */
+		summarize(sessionId: string): Promise<SummarizeResult>;
 	};
 	agent: {
 		/**
@@ -452,6 +457,8 @@ export interface PlumeApi {
 	 * 见 `sidechat-store.ts`。
 	 */
 	sideChat: {
+		/** 有存档的那几个的 id，按开出来的先后；没开过口的不在里面。 */
+		list(sessionId: string): Promise<string[]>;
 		/** Null when this session has never had one opened. */
 		state(sessionId: string, sideId: string): Promise<SideChatSnapshot | null>;
 		setModel(sessionId: string, sideId: string, modelId: string | null): Promise<void>;

@@ -14,8 +14,10 @@ import {
 	tasksList,
 	tasksResume,
 } from "../side-chat-service.ts";
+import { listSideChats } from "../sidechat-store.ts";
 
 export function registerSideChatIpc(): void {
+	ipcMain.handle("sidechat:list", (_event, sessionId: string) => listSideChats(sessionId));
 	ipcMain.handle("sidechat:setModel", (_event, sessionId: string, sideId: string, modelId: string | null) => sideChatSetModel(sessionId, sideId, modelId));
 	ipcMain.handle("sidechat:state", (_event, sessionId: string, sideId: string) => sideChatState(sessionId, sideId));
 	ipcMain.handle("sidechat:ask", (_event, sessionId: string, sideId: string, content: UserContent[], options?: SideAskOptions) => sideChatAsk(sessionId, sideId, content, options));

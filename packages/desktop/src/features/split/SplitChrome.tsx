@@ -20,6 +20,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";
 import { SessionMenu } from "../modals/index.ts";
+import { EnvironmentToggle } from "../environment/index.ts";
 import { openScopedPanel } from "../dock/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { usePopover } from "../../ui/overlay/Popover.tsx";
@@ -135,6 +136,7 @@ function ScreenTools({ sessionId, screen, after }: { sessionId: string | null; s
 			<PanelMenu
 				scope={paneKey(sessionId)}
 				extras={screen && sessionId ? (onClose) => <SplitMoveItems sessionId={sessionId} onClose={onClose} includeWindow /> : undefined}
+				beforeMore={sessionId ? <EnvironmentToggle /> : null}
 			/>
 			{screen && sessionId && (
 				<ToolbarButton

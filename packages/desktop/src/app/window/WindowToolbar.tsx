@@ -123,7 +123,16 @@ const QUICK: PanelKind[] = ["chat", "terminal", "browser", "review"];
  * closes and reports on that conversation's panels. There is no window-wide set of panels for a
  * button to be about.
  */
-export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose: () => void) => React.ReactNode }) {
+export function PanelMenu({
+	scope,
+	extras,
+	beforeMore,
+}: {
+	scope: string;
+	extras?: (onClose: () => void) => React.ReactNode;
+	/** Sits between the quick buttons and 「⋮」: a toggle that belongs with them, such as the environment card's. */
+	beforeMore?: React.ReactNode;
+}) {
 	const { t } = useI18n();
 	const menu = usePopover();
 	const definitions = usePanelDefinitions();
@@ -158,6 +167,7 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 					);
 				})}
 				</span>
+				{beforeMore}
 
 				{/* The overflow mark every toolbar uses for "the rest of it". */}
 				<ToolbarButton label={translate("toolbar.panels")} onClick={menu.toggle} active={menu.open}>
