@@ -88,6 +88,28 @@ function persist(scope: string, tree: DockNode): void {
 
 const isBare = (tree: DockNode | null | undefined): boolean => !tree || (tree.type === "leaf" && tree.kind === "conversation");
 
+/**
+ * 盘上替这一屏存着的布局，也就是 `hydrate` 会读回内存的那一棵；什么都没存（或存的只是对话本身）时为 null。
+ *
+ * 单独拿出来，是因为 `DockView` 换到这一屏的那次渲染就要用它，等不到 `hydrate`——见那边的说明。
+ */
+export function storedTree(scope: string, allowed: PaneKind[], trees: Record<string, DockNode>, options?: { draftFrom?: string }): DockNode | null {
+	const stored = readTree(paneStorageKey(scope), allowed);
+	if (!isBare(stored)) return stored;
+	/*
+	 * 空白对话发出第一条消息、拿到 id 的那一下。
+	 *
+	 * 人常在开口之前先把面板摆好——那正是准备干活的时候。这时新 id 名下什么都没有，读新钥匙
+	 * 只会读到空，刚摆好的布局就被扔了。只在调用方明说「这是刚从空白对话变来的」时才搬：
+	 * 点开一个本来就存在、只是没存过布局的会话，看起来一模一样，却不该继承草稿的面板。
+	 */
+	if (options?.draftFrom) {
+		const draft = trees[options.draftFrom] ?? readTree(paneStorageKey(options.draftFrom), allowed);
+		if (!isBare(draft)) return draft;
+	}
+	return null;
+}
+
 export const usePaneDock = create<PaneDockState>((set, get) => {
 	/** Every structural change goes through here, so nothing changes a tree without saving it. */
 	const commit = (scope: string, tree: DockNode, extra?: { focused?: PaneKind; maximized?: boolean }) => {
@@ -124,20 +146,8 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		hydrate(scope, allowed, options) {
 			// Memory is newer than disk: a screen that remounts keeps what it had.
 			if (get().trees[scope]) return;
-			const stored = readTree(paneStorageKey(scope), allowed);
-			let tree = isBare(stored) ? null : stored;
-			/*
-			 * 空白对话发出第一条消息、拿到 id 的那一下。
-			 *
-			 * 人常在开口之前先把面板摆好——那正是准备干活的时候。这时新 id 名下什么都没有，读新钥匙
-			 * 只会读到空，刚摆好的布局就被扔了。只在调用方明说「这是刚从空白对话变来的」时才搬：
-			 * 点开一个本来就存在、只是没存过布局的会话，看起来一模一样，却不该继承草稿的面板。
-			 */
-			if (!tree && options?.draftFrom) {
-				const draft = get().trees[options.draftFrom] ?? readTree(paneStorageKey(options.draftFrom), allowed);
-				if (!isBare(draft)) tree = draft;
-			}
-			if (!tree || isBare(tree)) return;
+			const tree = storedTree(scope, allowed, get().trees, options);
+			if (!tree) return;
 			set({ trees: { ...get().trees, [scope]: tree } });
 			persist(scope, tree);
 		},

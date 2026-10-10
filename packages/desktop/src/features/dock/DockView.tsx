@@ -19,7 +19,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 
 import { useLayout } from "../../app/layout.tsx";
 import { ToolbarButton, toolbarReserved } from "../../app/window/WindowControls.tsx";
@@ -32,7 +32,7 @@ import { DockPane } from "./DockPane.tsx";
 import { Splitter } from "./Splitter.tsx";
 import { fitTree, layoutPanes, layoutSplitters, type Box } from "./layout.ts";
 import { popOutPanel } from "./popout.ts";
-import { emptyDockTree, usePaneDock } from "./pane-store.ts";
+import { emptyDockTree, storedTree, usePaneDock } from "./pane-store.ts";
 import { allowsMany, basePanelKind } from "../../lib/panel-instance.ts";
 import { DockScope } from "../../app/session-scope.tsx";
 import { canToggleMaximized } from "./visibility.ts";
@@ -153,7 +153,7 @@ export function DockView({
 	/** The transcript and composer. */
 	children: ReactNode;
 }) {
-	const tree = usePaneDock((s) => s.trees[scope] ?? emptyDockTree);
+	const held = usePaneDock((s) => s.trees[scope]);
 	const maximized = usePaneDock((s) => s.maximized[scope] ?? false);
 	const focusedPane = usePaneDock((s) => s.focused[scope] ?? "conversation");
 	const rememberedTab = usePaneDock((s) => s.tab[scope]);
@@ -176,6 +176,18 @@ export function DockView({
 	 */
 	const allowed = useRef<PaneKind[]>([]);
 	allowed.current = ["conversation", ...definitions.filter((def) => !def.ephemeral).map((def) => def.kind)];
+	/*
+	 * 换到这一屏的那次渲染就画它自己的布局，不等下面的 `hydrate`。
+	 *
+	 * layout effect 先子后父：对话在这一次提交里就按记住的 `scrollTop` 恢复位置，那时 `hydrate`
+	 * 还没跑，画的是没有面板的默认布局，对话那一栏是满宽。满宽时正文矮，记住的位置要是离底部近，
+	 * 就被浏览器夹到满宽的最大值；面板随后回来、栏变窄，位置不会再变回去。量到过：开着面板的会话，
+	 * 从底部往上翻一点再切走切回，读着的那一段下移 270px。
+	 *
+	 * 不带 `draftFrom`：刚发出去的新对话没有要恢复的位置，草稿的面板晚一次提交搬过来没有影响。
+	 */
+	const stored = useMemo(() => storedTree(scope, allowed.current, {}), [scope]);
+	const tree = held ?? stored ?? emptyDockTree;
 	const previousScope = useRef<string | null>(null);
 	useLayoutEffect(() => {
 		const from = previousScope.current;
