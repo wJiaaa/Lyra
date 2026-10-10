@@ -158,6 +158,21 @@ test("a turn stopped between a tool result and the reply counts as cut short", (
 	assert.equal(wasCutShort(complete), false);
 });
 
+test("ticking the plan after the answer, when asked, is a finished turn; ticking it unasked and stopping is not", () => {
+	const tick = [
+		{ role: "assistant", content: [{ type: "toolCall", id: "t1", name: "todo_write", arguments: { todos: [] } }], stopReason: "toolUse", timestamp: 4 },
+		{ role: "toolResult", toolCallId: "t1", toolName: "todo_write", content: [{ type: "text", text: "Task list updated" }], timestamp: 5 },
+	] as unknown as Message[];
+	const note = { role: "user", content: [{ type: "text", text: "（自动提示）任务清单里还有 1 项没勾" }], timestamp: 3, synthetic: true } as Message;
+	const answered = [asked, reply("stop", "做完了"), note, ...tick];
+	assert.equal(wasCutShort(answered), false, "the answer is above the tick");
+	assert.equal(howItStopped(answered, "done"), null);
+
+	// 没被问到、自己勾完清单就停了：回答确实还没来。
+	assert.equal(wasCutShort([asked, ...tick]), true);
+	assert.equal(wasCutShort([asked, reply("stop", "做完了"), ...tick]), true);
+});
+
 // ---------------------------------------------------------------------------
 // How the turn stopped
 // ---------------------------------------------------------------------------

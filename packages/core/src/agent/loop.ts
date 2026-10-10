@@ -20,6 +20,7 @@ import { stripStaleHandles } from "./model-switch.ts";
 import { withEnvironment } from "../prompt/environment.ts";
 import { withSteeringNote } from "../prompt/steering.ts";
 import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
+import { readTodos, todoTool, type TodoItem } from "../tools/todo.ts";
 import type { AssistantContent, AssistantMessage, LlmContext, Message, ToolResultMessage } from "../types.ts";
 import type { AgentEventSink } from "./events.ts";
 
@@ -39,6 +40,28 @@ const EMPTY_REPLY_NUDGE = "（自动继续）上一条回复没有正文。请�
 /** Appended to a lone todo_write's result. The wording names the cost, not just the rule. */
 export const SOLO_TODO_NOTE =
 	"（这一轮只调了 todo_write，没有做任何实际工作。从下一轮起，把清单更新和真正的下一步——读文件、改代码、跑命令——放在同一次回复里；单独更新清单是浪费一次往返。）";
+
+/** 清单多少轮没被碰过就提一句。写清单和提醒都把计数清零，所以两次提醒之间也至少隔这么多轮。 */
+const PLAN_REMINDER_EVERY = 10;
+
+/**
+ * Said between rounds like `repeatHint`, so it costs no request of its own.
+ *
+ * 不接在工具结果末尾：那一轮最后一条常常是报错，模型的注意力全在报错上，接在后面的话 2333f4e9 重放
+ * 三次一次都没被读到。措辞也量过：「下一次有实际动作时顺手勾掉」是一句可以往后拖的话，五次里只照做
+ * 一次；「现在就对一遍、这次回复里带上」五次全照做，四次和下一步放在同一次回复里。
+ */
+export function stalePlanNote(todos: TodoItem[]): string {
+	return `（自动提示）任务清单已经 ${PLAN_REMINDER_EVERY} 轮没更新了，当前是：\n${todos.map((todo, index) => `${index + 1}. [${todo.status}] ${todo.content}`).join("\n")}\n` +
+		"现在就对一遍：已经做完的勾成 completed，正在做的标 in_progress。这次回复里带上 todo_write，和你的下一步操作放在一起。";
+}
+
+/** Said once when a run ends on prose while its plan still claims a step is under way. */
+export function openPlanNote(open: TodoItem[]): string {
+	return `（自动提示）任务清单里还有 ${open.length} 项没勾：\n${open.map((todo) => `- [${todo.status}] ${todo.content}`).join("\n")}\n` +
+		"已经做完的，用 todo_write 勾成 completed；要等用户回复的保持原样；真是漏做了，就接着做完。" +
+		"只更新清单时不要写正文——上面的回答用户已经看到了。";
+}
 
 type ToolCall = Extract<AssistantContent, { type: "toolCall" }>;
 type Ending = { reason: AgentRunResult["reason"]; error?: string; retryable?: boolean };
@@ -65,6 +88,10 @@ interface Run {
 	nudges: number;
 	/** Consecutive replies that hit the output limit; reset by one that did not. */
 	truncations: number;
+	/** `asked`: the reply being handled answers `openPlanNote`. Once per run, then `spent`. */
+	planCheck: "unasked" | "asked" | "spent";
+	/** Tool rounds since the list was written or `stalePlanNote` was last said. */
+	sincePlan: number;
 }
 
 export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Promise<AgentRunResult> {
@@ -80,6 +107,8 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		carried: [],
 		nudges: 0,
 		truncations: 0,
+		planCheck: "unasked",
+		sincePlan: 0,
 	};
 	const maxTurns = config.control.maxTurns ?? DEFAULT_MAX_TURNS;
 	await emit({ type: "agent_start", sessionId: config.session.sessionId });
@@ -294,6 +323,7 @@ async function closeUnansweredCalls(run: Run, assistant: AssistantMessage): Prom
 /** A reply with no tool calls: the run ends unless something still deserves another turn. */
 async function endWithoutTools(run: Run, assistant: AssistantMessage, turnsLeft: boolean): Promise<Ending | undefined> {
 	const { config: { control }, emit } = run;
+	answersPlanCheck(run);
 	await emit({ type: "turn_end", message: assistant, toolResults: [] });
 	/*
 	 * Steering that arrived during the final stream still deserves an answer. At the turn cap it is
@@ -332,7 +362,49 @@ async function endWithoutTools(run: Run, assistant: AssistantMessage, turnsLeft:
 			return undefined;
 		}
 	}
+
+	/*
+	 * 正文写完了，清单却还说某一步「正在做」：问它一次。
+	 *
+	 * 不违背上面「有正文就交还给人」：这不是替它续跑，它可以原样保留清单结束。要问是因为漏勾很常见——
+	 * 2026-10-10 `2333f4e9` 五步全做完，思考里写着「Let me finalize the todos」，回复里却没有这次调用，
+	 * 清单停在 1/5，界面说它停在第 2 步。排在 Stop 钩子后面，钩子看到的是真正的回答。
+	 *
+	 * 只看 in_progress：一轮都收尾了还说「正在做」，清单和事实自相矛盾。剩下的全是 pending，是它有意
+	 * 停在那一步前面（多半在等人确认）——真实模型上量过，那种情况问了也只是原样再交一遍清单，白花一次请求。
+	 */
+	const open = readTodos(run.state).filter((todo) => todo.status !== "completed");
+	if (open.some((todo) => todo.status === "in_progress") && run.planCheck === "unasked" && turnsLeft && run.config.tools.available.some((tool) => tool.name === todoTool.name)) {
+		run.planCheck = "asked";
+		await inject(run, synthetic(openPlanNote(open)));
+		return undefined;
+	}
 	return { reason: "done" };
+}
+
+/**
+ * 清单还有没勾的项，却已经 `PLAN_REMINDER_EVERY` 轮没被碰过：把整张清单念给它听。
+ *
+ * 收尾时那一问是兜底，这一句才是让清单一路跟着事走的那个：`2333f4e9` 写完清单后 45 轮没再碰过它。
+ * 这一轮里自己写了清单的不算——它刚碰过。
+ */
+function stalePlan(run: Run, toolCalls: ToolCall[]): string | undefined {
+	if (toolCalls.some((call) => call.name === todoTool.name)) {
+		run.sincePlan = 0;
+		return undefined;
+	}
+	run.sincePlan += 1;
+	const todos = readTodos(run.state);
+	if (run.sincePlan < PLAN_REMINDER_EVERY || todos.every((todo) => todo.status === "completed")) return undefined;
+	run.sincePlan = 0;
+	return stalePlanNote(todos);
+}
+
+/** Whether the reply being handled answers `openPlanNote`. Either way the question is spent. */
+function answersPlanCheck(run: Run): boolean {
+	if (run.planCheck !== "asked") return false;
+	run.planCheck = "spent";
+	return true;
 }
 
 /** Run the calls a reply asked for, then decide whether the run can go on. */
@@ -346,7 +418,8 @@ async function runToolTurn(run: Run, assistant: AssistantMessage, toolCalls: Too
 	 * model reads next. Measured before this: nearly half the tool turns on a three-step task were a
 	 * lone todo_write.
 	 */
-	const soloTodo = toolCalls.length === 1 && toolCalls[0].name === "todo_write" && tools.available.length > 1;
+	const settling = answersPlanCheck(run);
+	const soloTodo = !settling && toolCalls.length === 1 && toolCalls[0].name === "todo_write" && tools.available.length > 1;
 	const toolResults = truncated
 		? await failTruncatedCalls(toolCalls, emit, TRUNCATED_CALL_REASON)
 		: await runTools(toolCalls, tools, { sessionId: session.sessionId, signal: control.signal, state }, emit, soloTodo ? SOLO_TODO_NOTE : undefined);
@@ -359,10 +432,17 @@ async function runToolTurn(run: Run, assistant: AssistantMessage, toolCalls: Too
 	 */
 	if (toolResults.some((result) => result.terminate === true)) return { reason: "done" };
 
+	// 回答 `openPlanNote` 时只动了清单：回答在上面，人已经看过了，不再要一段新正文。
+	if (settling && toolCalls.every((call) => call.name === todoTool.name) && toolResults.every((result) => !result.isError)) return { reason: "done" };
+
 	if (truncated && run.truncations > MAX_TRUNCATED_REPLIES) {
 		return { reason: "error", error: "回复连续多次在工具参数写到一半时达到输出长度上限，已停下。可以让它把内容拆小，或换一个输出上限更大的模型。" };
 	}
-	return answerRepeats(run, toolCalls, toolResults);
+	const ending = await answerRepeats(run, toolCalls, toolResults);
+	if (ending) return ending;
+	const stale = stalePlan(run, toolCalls);
+	if (stale) await inject(run, synthetic(stale));
+	return undefined;
 }
 
 /**
