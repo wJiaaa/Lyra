@@ -7,7 +7,6 @@ import {
 	sideChatAsk,
 	sideChatClose,
 	sideChatEditAndResend,
-	sideChatReset,
 	sideChatState,
 	sideChatSetModel,
 	tasksCancel,
@@ -23,7 +22,6 @@ export function registerSideChatIpc(): void {
 	ipcMain.handle("sidechat:editAndResend", (_event, sessionId: string, sideId: string, index: number, content: UserContent[], options?: SideAskOptions) =>
 		sideChatEditAndResend(sessionId, sideId, index, content, options));
 	ipcMain.handle("sidechat:abort", (_event, sessionId: string, sideId: string) => sideChatAbort(sessionId, sideId));
-	ipcMain.handle("sidechat:reset", (_event, sessionId: string, sideId: string) => sideChatReset(sessionId, sideId));
 	ipcMain.handle("sidechat:close", (_event, sessionId: string, sideId: string) => sideChatClose(sessionId, sideId));
 	ipcMain.handle("tasks:list", (_event, sessionId: string) => tasksList(sessionId));
 	ipcMain.handle("tasks:cancel", (_event, sessionId: string, taskId: string) => tasksCancel(sessionId, taskId));

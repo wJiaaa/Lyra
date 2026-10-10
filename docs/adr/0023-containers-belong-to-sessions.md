@@ -2,7 +2,7 @@
 
 - 状态：已采纳
 - 日期：2026-09-24
-- 相关：`features/dock/pane-store.ts`、`dock/DockView.tsx`、`dock/popout.ts`、`dock/persist.ts`、`split/SplitWorkspace.tsx`、`split/SplitPane.tsx`、`split/SplitChrome.tsx`、`split/session-drag.ts`、`browser/browser-store.ts`（`useBrowserPages`）、`app/session-scope.tsx`、`store/subAgents.ts`
+- 相关：`features/dock/pane-store.ts`、`dock/DockView.tsx`、`dock/popout.ts`、`dock/persist.ts`、`split/SplitWorkspace.tsx`、`split/SplitPane.tsx`、`split/SplitChrome.tsx`、`split/session-drag.ts`、`browser/browser-store.ts`（`browserPages`）、`app/session-scope.tsx`、`store/subAgents.ts`
 - 取代：[split-window-conflicts.md](../architecture/split-window-conflicts.md) 里「两层容器」这个前提；那份清单的 C0、C1 都出自它
 
 ## 背景
@@ -53,10 +53,11 @@
 **四、内容按屏取，不按焦点取。** 任务、子代理、轨迹、交付卡片、浏览器标签……每一屏都读自己会话的
 数据（`SessionScope` / `useScoped*`）。不在焦点上的会话，子代理名单保留在 `rosters` 里。
 
-**五、网页不换父节点。** `<webview>` 一旦换了父节点就会重新加载。每一屏都挂着自己的浏览器面板，
-关闭时只是隐藏（opacity 0 + inert），并且始终承载自己会话的页面。不在任何屏上、但还要保持加载的页面
+**五、网页不换父节点。** `<webview>` 一旦换了父节点就会重新加载。一个网页是右栏里的一个标签
+（`browser:<网页 id>`），每一屏给它承载的每一页挂着一格，还没成为标签时只是隐藏（opacity 0 + inert），
+人从卡片上「打开」时同一格放上标签条（`PanelDefinition.residents`）。不在任何屏上、但还要保持加载的页面
 （最近看过的、智能体正在操作的），由在屏上最久的那一屏（`host`）承载。哪一屏承载哪些页面与焦点
-无关：切焦点、开关浏览器面板都不会搬动页面。
+无关：切焦点、切标签、收起右栏都不会搬动页面；关掉一个网页标签就是关掉那一页。
 
 **六、一个会话只有一把钥匙。** 布局只读写 `dw:panedock:<会话>`；窗口层的 `dw:dock:<会话>` 和
 `dw:dock:at` 不再存在。
@@ -107,7 +108,7 @@
 
 **付出的**：
 
-- 每一屏的浏览器面板一直挂着。每个会话自己的页面在它上屏期间都保持加载，即使面板关着也一样。
+- 每一屏承载的网页一直挂着。每个会话自己的页面在它上屏期间都保持加载，即使还没成为标签也一样。
   最多四屏，而且这些页面本来就是在屏上的会话的。
 - 会话离开屏幕时（被替换、被关掉），它的页面会交给 `host` 在后台重新加载一次，前提是这些页面仍在
   「最近看过」的范围内。改之前也是这样。

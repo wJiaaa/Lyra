@@ -10,10 +10,9 @@
 import { translate } from "../../i18n/translate.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { Check, MoreVertical } from "../../ui/icons/index.ts";
-import { closePane, emptyDockTree, has, openScopedPanel, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
+import { closePane, emptyDockTree, has, showScopedPanel, usePaneDock, usePanelDefinitions } from "../../features/dock/index.ts";
 import type { PanelKind } from "../../features/dock/index.ts";
 import { useLayout } from "../layout.tsx";
-import { nextPanelKind } from "../../lib/panel-instance.ts";
 import { MenuBody, MenuItem, MenuLabel, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
 import { NavButtons, TOOLBAR_BUTTON, ToolbarButton, WindowControls } from "./WindowControls.tsx";
 import { MAIN_WINDOW_ROW_OFFSET, NATIVE_HEADER_HEIGHT, WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
@@ -129,7 +128,7 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 	const menu = usePopover();
 	const definitions = usePanelDefinitions();
 	const tree = usePaneDock((s) => s.trees[scope] ?? emptyDockTree);
-	const open = (kind: PanelKind) => void usePaneDock.getState().open(scope, kind);
+	const open = (kind: PanelKind) => showScopedPanel(scope, kind);
 	const close = (kind: PanelKind) => closePane(scope, kind);
 
 	return (
@@ -143,17 +142,16 @@ export function PanelMenu({ scope, extras }: { scope: string; extras?: (onClose:
 					// lists them, with the reason.
 					if (!def || def.unavailable) return null;
 					/*
-					 * 只管打开，不是开关，也不亮。侧边聊天和终端能开好几个：每点一次再开一个，和标签栏「+」一样。
-					 * 浏览器和 Git 只有一个：开着就切过去，右栏收着就展开，不会再点一下把它关掉。
+					 * 只管打开，不是开关，也不亮——和快捷键是同一件事，见 `showScopedPanel`。侧边聊天和终端能开好几个：
+					 * 每点一次再开一个，和标签栏「+」一样。只能开一个的：开着就切过去，右栏收着就展开，不会再点一下把它关掉。
 					 * 它们曾经按「开着没有」常亮，可右栏收起时面板看不见、按钮还亮着，读起来像是开着却找不到；
 					 * 开着哪些看标签条，关掉在标签上或「⋮」菜单里。
 					 */
-					const many = kind === "chat" || kind === "terminal";
 					return (
 						<ToolbarButton
 							key={kind}
 							label={`${t(def.label)} ${def.shortcut}`}
-							onClick={() => (many ? open(nextPanelKind(kind, (each) => has(tree, each))) : openScopedPanel(kind, scope))}
+							onClick={() => showScopedPanel(scope, kind)}
 						>
 							<def.icon size={13} strokeWidth={1.9} />
 						</ToolbarButton>

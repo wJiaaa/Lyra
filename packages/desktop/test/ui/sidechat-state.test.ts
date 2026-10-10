@@ -12,7 +12,7 @@ function deferred<T>() {
 	return { resolve, promise };
 }
 function api(state: (id: string) => Promise<SideChatSnapshot | null>, ask = async () => {}) {
-	Object.defineProperty(window, "plume", { configurable: true, value: { sideChat: { state, ask, reset: async () => {}, abort: async () => {} }, tasks: { list: async () => [] } } });
+	Object.defineProperty(window, "plume", { configurable: true, value: { sideChat: { state, ask, abort: async () => {}, close: async () => {} }, tasks: { list: async () => [] } } });
 }
 afterEach(async () => {
 	await useSide.getState().attach(null);
@@ -54,6 +54,19 @@ test("A to B to A cannot be overwritten by the first A read", async () => {
 	last.resolve({ modelId: null, messages: [user("Current A")], running: false }); await newA;
 	first.resolve({ modelId: null, messages: [user("Stale A")], running: true }); await oldA;
 	assert.deepEqual(useSide.getState().chats.a?.default?.messages, [user("Current A")]); assert.equal(useSide.getState().chats.a?.default?.running, false);
+});
+
+test("最早那一个关掉再开，是一段能接着说话的新对话：关掉时挡事件的那道闸跟着拿掉", async () => {
+	api(async () => ({ modelId: null, messages: [user("Old question")], running: false, revision: 0 }));
+	await useSide.getState().attachChat("a", "default");
+	await useSide.getState().close("a", "default");
+	useSide.getState().applyEvent("a", "default", { type: "agent_end", reason: "aborted", sideRevision: 1 });
+	assert.equal(useSide.getState().chats.a?.default, undefined, "关掉之后，路上的事件不能把它画回来");
+	api(async () => null);
+	await useSide.getState().attachChat("a", "default");
+	assert.deepEqual(useSide.getState().chats.a?.default?.messages, [], "重开是空的，不是上一段");
+	useSide.getState().applyEvent("a", "default", { type: "message_start", message: user("New question"), sideRevision: 1 });
+	assert.deepEqual(useSide.getState().chats.a?.default?.messages, [user("New question")], "重开之后的事件照常画上去");
 });
 
 test("failed submission shows an error and releases the composer instead of leaving a pending run", async () => {

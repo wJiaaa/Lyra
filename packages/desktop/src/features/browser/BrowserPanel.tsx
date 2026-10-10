@@ -2,50 +2,59 @@ import { commitDraft, isLegalDraft } from "../../lib/number-draft.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
-import { useDockScope, useScopedSessionId } from "../../app/session-scope.tsx";
+import { useDockScope, usePanelKind, useScopedSessionId } from "../../app/session-scope.tsx";
 import type { BrowserCommand, BrowserSelection } from "../../../shared/browser.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
 import { Popover, MenuBody, MenuItem, MenuSeparator, usePopover } from "../../ui/overlay/Popover.tsx";
 import { AddressBar } from "./AddressBar.tsx";
 import { BrowserPage } from "./BrowserPage.tsx";
 import { BrowserSelectionCard } from "./BrowserSelectionCard.tsx";
-import { browserChose, browserOwner, browserVisited, commandBrowser, useBrowser, useBrowserView, useBrowserPages } from "./browser-store.ts";
-import { Sideways } from "../../ui/scroll/Sideways.tsx";
+import { browserVisited, closeBrowserTab, commandBrowser, dropBrowserTab, useBrowser, useBrowserHosted } from "./browser-store.ts";
+import { panelInstance } from "../../lib/panel-instance.ts";
 
 const VIEW_W = { min: 240, max: 3840, step: 1 };
 const VIEW_H = { min: 240, max: 2160, step: 1 };
 
+/**
+ * 网页标签上写这一页的标题；空白页和还没有标题的页是「新标签页」。
+ *
+ * 没有 `<title>` 的页面，Chromium 报上来的标题就是地址本身——空白页于是写着「about:blank」。
+ */
+export function BrowserTabTitle({ kind, fallback }: { scope: string; kind: string; fallback: string }) {
+	const { t } = useI18n();
+	const id = panelInstance(kind);
+	const tab = useBrowser((state) => state.tabs.find((entry) => entry.id === id));
+	if (!tab) return <>{fallback}</>;
+	return <>{tab.url === "about:blank" || !tab.title || tab.title === "about:blank" ? t("browser.newTab") : tab.title}</>;
+}
+
+/**
+ * 一个网页：右栏的一个标签就是一页，`browser:<网页 id>`。
+ *
+ * 页面上的 `<webview>` 只在这一屏托管这一页时才挂（`useBrowserHosted`）——同一页在两处各挂一个，就是
+ * 两个页面。网页没了（agent 关了它、会话删了、重启之后存盘的布局里还记着它），这一格自己退下。
+ */
 export function BrowserPanel() {
 	const { t } = useI18n();
 	const all = useBrowser((state) => state.tabs);
-	const activeId = useBrowser((state) => state.activeId);
+	const loaded = useBrowser((state) => state.loaded);
 	const scope = useDockScope();
+	const kind = usePanelKind();
 	const sessionId = useScopedSessionId();
-	const chosen = useBrowserView((state) => state.chosen);
-	const owner = browserOwner(sessionId);
+	const id = kind ? panelInstance(kind) : null;
+	const tab = all.find((entry) => entry.id === id);
+	const hosted = useBrowserHosted(scope, id);
 	useEffect(() => { browserVisited(sessionId); }, [sessionId]);
-	/*
-	 * A conversation sees its own tabs, and only its own.
-	 *
-	 * They were always owned by one — that is what scopes the agent's tools — but the panel showed
-	 * every tab there was, so switching conversations left the same page on screen and made the
-	 * ownership invisible. The tab on screen is this conversation's current one: what the main
-	 * process last selected if that belongs here, else the one this conversation was left on.
-	 */
-	const tabs = all.filter((entry) => browserOwner(entry.sessionId) === owner);
-	const selectedHere = tabs.find((entry) => entry.id === activeId)?.id;
-	useEffect(() => { if (selectedHere) browserChose(sessionId, selectedHere); }, [sessionId, selectedHere]);
-	const tab = tabs.find((entry) => entry.id === activeId) ?? tabs.find((entry) => entry.id === chosen[owner]) ?? tabs.at(-1);
-	const mounted = useBrowserPages(all, sessionId, scope);
+	useEffect(() => {
+		if (loaded && !tab && scope && kind) dropBrowserTab(scope, kind);
+	}, [loaded, tab, scope, kind]);
 	const settings = useApp((state) => state.settings);
 	const saveSettings = useApp((state) => state.saveSettings);
 	const addressInput = useRef<HTMLInputElement>(null);
-	const tabStrip = useRef<HTMLDivElement>(null);
 	const [selection, setSelection] = useState<BrowserSelection | null>(null);
 	const [inspecting, setInspecting] = useState<string | null>(null);
 	const inspection = useRef({ generation: 0, id: "" });
@@ -56,7 +65,8 @@ export function BrowserPanel() {
 	const blank = !tab || tab.url === "about:blank";
 	useEffect(() => { setSelection(null); setInspecting(null); }, [tab?.id, tab?.url]);
 	const command = (type: "back" | "forward" | "reload" | "devtools") => { if (tab) void commandBrowser({ type, id: tab.id }); };
-	const open = (url: string, newTab = false) => void commandBrowser({ type: "open", url, sessionId, newTab });
+	const go = (url: string) => { if (tab) void commandBrowser({ type: "navigate", id: tab.id, url }); };
+	const open = (url: string) => void commandBrowser({ type: "open", url, sessionId, newTab: true });
 	const mark = async () => {
 		if (!tab || !settings) return;
 		const list = settings.browser?.bookmarks ?? [];
@@ -72,22 +82,11 @@ export function BrowserPanel() {
 	};
 	const saved = settings?.browser?.bookmarks?.some((entry) => entry.url === tab?.url);
 	return <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-browser-panel>
-		{tabs.length > 1 && <div className="flex h-8 shrink-0 items-center gap-1 px-2" role="tablist" aria-label={t("browser.tabs")}>
-			<Sideways trackRef={tabStrip} className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto ly-scrollbar-hidden">
-				{tabs.map((entry) => <div key={entry.id} className={`group/tab flex min-w-[70px] max-w-[170px] flex-1 items-center rounded-md ${entry.id === tab?.id ? "bg-card-hover text-ink" : "text-ink-faint"}`}>
-					<button type="button" role="tab" aria-selected={entry.id === tab?.id} onClick={() => { browserChose(sessionId, entry.id); void commandBrowser({ type: "select", id: entry.id }); }} className="ly-scroll flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-detail">
-						<Globe size={12} className={`shrink-0 ${entry.loading ? "ly-pulse" : ""}`} /><ScrollText text={entry.title || t("browser.newTab")} className="min-w-0 flex-1 text-left" />
-					</button>
-					<IconButton size="sm" label={t("browser.closeOne", { title: entry.title || t("browser.newTab") })} icon={<X size={11} />} onClick={() => void commandBrowser({ type: "close", id: entry.id })} />
-				</div>)}
-			</Sideways>
-			<IconButton size="sm" label={t("browser.newTab")} icon={<Plus size={14} />} onClick={() => open("about:blank", true)} />
-		</div>}
 		<div className="flex h-10 shrink-0 items-center gap-1 px-2" data-browser-toolbar>
 			<IconButton size="sm" label={t("browser.back")} icon={<ArrowLeft size={13} />} disabled={!tab?.canGoBack} onClick={() => command("back")} />
 			<IconButton size="sm" label={t("browser.forward")} icon={<ArrowRight size={13} />} disabled={!tab?.canGoForward} onClick={() => command("forward")} />
 			<IconButton size="sm" label={t("common.refresh")} icon={<RotateCw size={13} className={tab?.loading ? "ly-pulse" : ""} />} disabled={!tab} onClick={() => command("reload")} />
-			<AddressBar url={tab?.url ?? "about:blank"} bookmarks={settings?.browser?.bookmarks ?? []} search={settings?.browser} onOpen={(url) => open(url)} inputRef={addressInput} />
+			<AddressBar url={tab?.url ?? "about:blank"} bookmarks={settings?.browser?.bookmarks ?? []} search={settings?.browser} onOpen={go} inputRef={addressInput} />
 			<IconButton label={t("browser.menu")} menu={options.open} data-inspecting={inspecting ? "" : undefined} onClick={(event) => { setMenu("actions"); options.toggle(event); }}
 				className="aria-expanded:bg-card-hover aria-expanded:text-ink data-[inspecting]:bg-card-hover data-[inspecting]:text-ink" icon={<Ellipsis size={16} />} />
 		</div>
@@ -96,7 +95,7 @@ export function BrowserPanel() {
 		</div>}
 		{tab?.error && <p role="status" className="px-3 py-2 text-detail text-danger">{tab.error}</p>}
 		<div className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-shell">
-			{mounted.map((entry) => <BrowserPage key={entry.id} tab={entry} active={entry.id === tab?.id} />)}
+			{tab && hosted && <BrowserPage tab={tab} />}
 			{/* 标题就够了：地址栏就在正上方，说明它怎么用的那一句和那枚跳过去的按钮都是在解释一个不需要解释的东西。 */}
 			{blank && <div className="absolute inset-0 flex flex-col bg-shell" data-browser-empty><PanelEmpty icon={Globe} title={t("browser.openPage")} /></div>}
 		</div>
@@ -110,8 +109,8 @@ export function BrowserPanel() {
 			</form>}>
 			<MenuBody>
 				{menu === "actions" && <>
-					<MenuItem icon={<Plus size={14} />} onClick={() => { open("about:blank", true); options.close(); }}>{t("browser.newTab")}</MenuItem>
-					<MenuItem icon={<X size={14} />} disabled={!tab} onClick={() => { if (tab) void commandBrowser({ type: "close", id: tab.id }); options.close(); }}>{t("browser.closeTab")}</MenuItem>
+					<MenuItem icon={<Plus size={14} />} onClick={() => { open("about:blank"); options.close(); }}>{t("browser.newTab")}</MenuItem>
+					<MenuItem icon={<X size={14} />} disabled={!scope || !kind} onClick={() => { if (scope && kind) closeBrowserTab(scope, kind); options.close(); }}>{t("browser.closeTab")}</MenuItem>
 					<MenuItem icon={<Bookmark size={14} fill={saved ? "currentColor" : "none"} />} disabled={blank} onClick={() => { void mark(); options.close(); }}>{t(saved ? "browser.unbookmark" : "browser.bookmark")}</MenuItem>
 					<MenuItem icon={<Bookmark size={14} />} trailing={<ChevronRight size={13} />} onClick={() => setMenu("bookmarks")}>{t("browser.bookmarks")}</MenuItem>
 					<MenuSeparator />
@@ -128,7 +127,7 @@ export function BrowserPanel() {
 					<MenuItem icon={<Scan size={14} />} disabled={!tab} hint={tab?.viewport ? `${tab.viewport.width} × ${tab.viewport.height}` : t("browser.fit")} trailing={<ChevronRight size={13} />} onClick={() => { setWidth(String(tab?.viewport?.width ?? 1440)); setHeight(String(tab?.viewport?.height ?? 900)); setMenu("viewport"); }}>{t("browser.viewport")}</MenuItem>
 				</>}
 				{menu === "viewport" && tab && [{ label: t("browser.fitWindow"), viewport: null }, { label: t("browser.phonePreset"), viewport: { width: 390, height: 844 } }, { label: t("browser.tabletPreset"), viewport: { width: 768, height: 1024 } }, { label: t("browser.desktopPreset"), viewport: { width: 1440, height: 900 } }].map((preset) => <MenuItem key={preset.label} selected={tab.viewport?.width === preset.viewport?.width && tab.viewport?.height === preset.viewport?.height} onClick={() => { void commandBrowser({ type: "viewport", id: tab.id, viewport: preset.viewport } satisfies BrowserCommand); options.close(); }}>{preset.label}</MenuItem>)}
-				{menu === "bookmarks" && (settings?.browser?.bookmarks?.length ? settings.browser.bookmarks.map((entry) => <MenuItem key={entry.url} detail={entry.url} onClick={() => { open(entry.url, true); options.close(); }}>{entry.title}</MenuItem>) : <p className="px-2 py-4 text-center text-detail text-ink-faint">{t("browser.noBookmarks")}</p>)}
+				{menu === "bookmarks" && (settings?.browser?.bookmarks?.length ? settings.browser.bookmarks.map((entry) => <MenuItem key={entry.url} detail={entry.url} onClick={() => { open(entry.url); options.close(); }}>{entry.title}</MenuItem>) : <p className="px-2 py-4 text-center text-detail text-ink-faint">{t("browser.noBookmarks")}</p>)}
 			</MenuBody>
 		</Popover>}
 	</div>;

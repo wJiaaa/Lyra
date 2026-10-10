@@ -8,14 +8,14 @@
 import { Bot, FileDiff, FileText, Folder, GitCompare, Globe, History, ListTodo, MessageCirclePlus, SquareTerminal, Undo2 } from "../../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 
-import { BrowserPanel } from "../../browser/index.ts";
+import { BrowserPanel, BrowserTabTitle, browserResidentsOf, closeBrowser, newBrowserPage, subscribeBrowserResidents } from "../../browser/index.ts";
 import { FileBrowser } from "../../files/index.ts";
 import { FilePanel } from "../../files/index.ts";
 import { SubAgentPanel } from "../../subagents/index.ts";
 import { FileActions } from "../../files/index.ts";
 import { FileTitle, FileTabTitle, closeFile } from "../../files/index.ts";
 import { DiffView, GitPanel } from "../../git/index.ts";
-import { SideChat, SideChatActions, SideChatTitle, closeSideChat } from "../../sidechat/index.ts";
+import { SideChat, SideChatTitle, closeSideChat } from "../../sidechat/index.ts";
 import { TaskPanel } from "../../task/index.ts";
 import { TerminalPane, TerminalTitle, closeTerminal } from "../../terminal/index.ts";
 import { announceUndo, TrajectoryPanel, useDeliveryReview, useDeliveryUndos, usePathMenu, useSharedDeliveryTarget } from "../../conversation/index.ts";
@@ -28,7 +28,7 @@ import { useConfirmer } from "../../../ui/overlay/Confirm.tsx";
 import { PanelEmpty } from "../../../ui/layout/PanelEmpty.tsx";
 import { IconButton } from "../../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../../ui/scroll/Scroller.tsx";
-import { usePaneDock } from "../pane-store.ts";
+import { closeNow } from "../pane-store.ts";
 import { openFilePane } from "../popout.ts";
 import { useDockScope, useScopedProjectPath, useScopedSessionId } from "../../../app/session-scope.tsx";
 import { registerPanels, type PanelDefinition } from "./registry.ts";
@@ -130,8 +130,8 @@ function DeliveryPanel() {
 			announceUndo(target.sessionId, target.timestamp, value);
 			useApp.getState().notify(t("delivery.reverted"), "info");
 			if (!value.files.length) {
-				useDeliveryReview.getState().close(target.sessionId);
-				if (scope) usePaneDock.getState().close(scope, "delivery");
+				if (scope) closeNow(scope, "delivery");
+				else useDeliveryReview.getState().close(target.sessionId);
 			}
 		} catch (error) {
 			useApp.getState().notify(String(error), "error");
@@ -217,7 +217,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		actions: FileActions,
 		// 每个打开的文件是顶上的一个标签，写它的文件名——见 `openFilePane`。
 		tabTitle: FileTabTitle,
-		closeInstance: closeFile,
+		onClose: closeFile,
 	},
 	/*
 	 * Delegated work, in a pane of its own.
@@ -241,9 +241,8 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		shortcut: "⌥⌘S",
 		unavailable: needsSession,
 		render: SideChat,
-		actions: SideChatActions,
 		tabTitle: SideChatTitle,
-		closeInstance: closeSideChat,
+		onClose: closeSideChat,
 	},
 	{
 		kind: "terminal",
@@ -258,7 +257,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		 */
 		render: TerminalPane,
 		tabTitle: TerminalTitle,
-		closeInstance: closeTerminal,
+		onClose: closeTerminal,
 	},
 	{ kind: "tasks", label: "common.tasks", icon: ListTodo, shortcut: "⌘J", render: TaskPanel },
 	{
@@ -277,7 +276,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 	 * typed into a form, and whatever the page itself was holding. A button that silently reloads
 	 * your page is worse than no button.
 	 */
-	{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "⌘T", detach: "none", render: BrowserPanel },
+	{ kind: "browser", label: "browser.title", icon: Globe, shortcut: "⌘T", detach: "none", render: BrowserPanel, tabTitle: BrowserTabTitle, create: newBrowserPage, residents: { subscribe: subscribeBrowserResidents, get: browserResidentsOf }, onClose: closeBrowser },
 	{ kind: "review", label: "common.git", icon: GitCompare, shortcut: "⌘⇧R", unavailable: needsWorkspace, render: GitPanel },
 	/*
 	 * This turn's recorded diffs — opened from the delivery card, not the +
@@ -293,6 +292,8 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		unavailable: needsSession,
 		render: DeliveryPanel,
 		header: DeliveryTitle,
+		// 关掉就不再审阅这一轮：卡片上「正在看」的标记和弹出窗口读的那份记录一起清掉。
+		onClose: (scope) => { if (scope !== "@draft") useDeliveryReview.getState().close(scope); },
 		/*
 		 * "self", said rather than defaulted: which turn and which file the pane shows is renderer state
 		 * (`useDeliveryReview`), but it is also kept per conversation in localStorage, which every window

@@ -50,6 +50,7 @@ export interface BrowserSelection {
 }
 export type BrowserCommand =
 	| { type: "open"; url: string; sessionId: string | null; newTab?: boolean }
+	| { type: "navigate"; id: string; url: string }
 	| { type: "select" | "close" | "back" | "forward" | "reload" | "devtools"; id: string }
 	| { type: "zoom"; id: string; factor: number }
 	| { type: "resize"; id: string; width: number; height: number }
@@ -172,6 +173,7 @@ export function parseBrowserCommand(value: unknown): BrowserCommand {
 	if (!("id" in value) || typeof value.id !== "string") throw new Error("需要标签 ID");
 	const id = value.id;
 	switch (value.type) {
+		case "navigate": if (!("url" in value) || typeof value.url !== "string") throw new Error("需要网址"); return { type: "navigate", id, url: browserUrl(value.url) };
 		case "select": case "close": case "back": case "forward": case "reload": case "devtools": return { type: value.type, id };
 		case "zoom": if (!("factor" in value) || typeof value.factor !== "number") throw new Error("需要缩放比例"); return { type: "zoom", id, factor: browserZoom(value.factor) };
 		case "resize": if (!("width" in value) || typeof value.width !== "number" || !("height" in value) || typeof value.height !== "number") throw new Error("需要页面尺寸"); return { type: "resize", id, width: value.width, height: value.height };

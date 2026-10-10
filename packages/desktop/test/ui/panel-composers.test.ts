@@ -64,7 +64,7 @@ beforeEach(() => {
 				abort: async () => true,
 				dismiss: async () => "removed",
 			},
-			sideChat: { ask: async () => undefined, editAndResend: async () => undefined, reset: async () => undefined, state: async () => null },
+			sideChat: { ask: async () => undefined, editAndResend: async () => undefined, state: async () => null },
 			tasks: { list: async () => [] },
 		},
 	});
@@ -183,16 +183,6 @@ test("侧边聊天正在答的时候按回车是排队：答完自己发出去�
 	} finally {
 		useSide.setState({ ask: original });
 	}
-});
-
-test("重新开始一段侧边聊天，排着的那几句不跟过去", async () => {
-	const store = useSide.getState();
-	useSide.setState({ chats: { s: { default: { ...sideChatOf(useSide.getState(), "s", "default"), running: true } } } });
-	store.enqueue("s", "default", { content: [{ type: "text", text: "问上一段的" }], draft: { text: "问上一段的", attachments: [], sessionRefs: [] }, preview: "问上一段的" });
-	assert.equal(sideChatOf(useSide.getState(), "s", "default").queued.length, 1);
-	useSide.setState({ chats: { s: { default: { ...sideChatOf(useSide.getState(), "s", "default"), running: false } } } });
-	await store.reset("s", "default");
-	assert.equal(sideChatOf(useSide.getState(), "s", "default").queued.length, 0);
 });
 
 test("侧边聊天的队伍是同一条条：没有「插进这一轮」，编辑直接是一个按钮", async () => {

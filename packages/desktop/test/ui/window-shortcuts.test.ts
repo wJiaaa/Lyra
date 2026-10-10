@@ -45,6 +45,9 @@ test("global toggles leave consumed, composing and repeating keys alone", async 
 
 test("every advertised panel shortcut opens its panel, including a home terminal", async () => {
 	const { opened, restore } = recordOpens();
+	// ⌘T 开的是一个新网页：先由主进程开出来，标签随后跟着它出现，见 `PanelDefinition.create`。
+	const pages: unknown[] = [];
+	Reflect.set(window, "plume", { browser: { command: async (command: unknown) => { pages.push(command); return { tabs: [], activeId: null }; } } });
 	const view = await mount(h(Harness, { toggleNav() {} }));
 	try {
 		for (const [key, code, extra, kind] of [
@@ -57,9 +60,11 @@ test("every advertised panel shortcut opens its panel, including a home terminal
 			// happy-dom aliases AltGraph to Alt; Chromium distinguishes these modifiers.
 			Object.defineProperty(event, "getModifierState", { value: () => false });
 			await fire(view.find("textarea"), event);
-			assert.equal(opened.at(-1), kind);
+			if (kind === "browser") assert.deepEqual(pages, [{ type: "open", url: "about:blank", sessionId: "test", newTab: true }]);
+			else assert.equal(opened.at(-1), kind);
 		}
 	} finally {
+		Reflect.deleteProperty(window, "plume");
 		restore();
 		await view.unmount();
 	}

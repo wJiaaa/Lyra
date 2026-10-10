@@ -263,7 +263,7 @@ export function SplitWorkspace() {
 	/*
 	 * Which screen's browser keeps the pages nobody else is showing: the one that has been on screen
 	 * longest. Stable across a conversation switching in and out of a screen, so a page does not
-	 * reload because the conversation beside it changed — see `useBrowserPages`.
+	 * reload because the conversation beside it changed — see `browserPages` in `browser-store.ts`.
 	 */
 	const hostKey = identities.current.reduce<PaneIdentity | null>((oldest, slot) => (!oldest || slot.key < oldest.key ? slot : oldest), null);
 	const host = hostKey ? paneKey(hostKey.sessionId) : null;

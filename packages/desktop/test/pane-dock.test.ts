@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { closePane, emptyDockTree, usePaneDock } from "../src/features/dock/pane-store.ts";
 import { has, leafOf, type DockNode } from "../src/features/dock/tree.ts";
 import { insertTab, panelsOf } from "../src/features/dock/tabs.ts";
-import { toggleScopedPanel } from "../src/features/dock/popout.ts";
+import { showScopedPanel, usePanelWindows } from "../src/features/dock/popout.ts";
 
 function resetPaneDock(): void {
 	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, leaving: {}, host: null });
@@ -28,12 +28,31 @@ test("closing the last panel returns the screen to a lone conversation", () => {
 	assert.equal("a" in usePaneDock.getState().trees, true, "an empty loaded dock must not be confused with an unread one");
 });
 
-test("toggle puts a panel away when it is already on that screen", () => {
+test("按钮和快捷键只开不关：只能开一个的再按一次还开着", () => {
 	resetPaneDock();
-	toggleScopedPanel("a", "review");
+	showScopedPanel("a", "review");
 	assert.equal(has(usePaneDock.getState().tree("a"), "review"), true);
-	toggleScopedPanel("a", "review");
-	assert.equal(has(usePaneDock.getState().tree("a"), "review"), false);
+	showScopedPanel("a", "review");
+	assert.deepEqual(panelsOf(usePaneDock.getState().tree("a")), ["review"], "没关，也没多出一格");
+});
+
+test("能开好几个的，每按一次再开一格；最早那一格弹出去了也算占着", () => {
+	resetPaneDock();
+	showScopedPanel("a", "terminal");
+	showScopedPanel("a", "terminal");
+	const open = panelsOf(usePaneDock.getState().tree("a"));
+	assert.equal(open.length, 2);
+	assert.equal(open[0], "terminal");
+	assert.match(open[1]!, /^terminal:[a-z0-9]+$/);
+
+	resetPaneDock();
+	usePanelWindows.setState({ panels: [{ kind: "chat", scope: "a" }], opening: [] });
+	try {
+		showScopedPanel("a", "chat");
+		const chats = panelsOf(usePaneDock.getState().tree("a"));
+		assert.equal(chats.length, 1);
+		assert.match(chats[0]!, /^chat:[a-z0-9]+$/, "弹出去的那个 `chat` 不能在右栏再画一份");
+	} finally { usePanelWindows.setState({ panels: [], opening: [] }); }
 });
 
 /** A screen on show: `closePane` only defers to the slide when something is there to draw it. */
@@ -85,11 +104,11 @@ test("in the narrow layout a panel hidden behind the conversation is brought for
 	resetPaneDock();
 	usePaneDock.getState().open("a", "review");
 	usePaneDock.getState().focus("a", "conversation");
-	toggleScopedPanel("a", "review", { compact: true });
+	showScopedPanel("a", "review");
 	assert.equal(has(usePaneDock.getState().tree("a"), "review"), true, "pressing its button asked to see it");
 	assert.equal(usePaneDock.getState().focused.a, "review");
-	toggleScopedPanel("a", "review", { compact: true });
-	assert.equal(has(usePaneDock.getState().tree("a"), "review"), false, "and pressed again while in front, it goes");
+	showScopedPanel("a", "review");
+	assert.equal(has(usePaneDock.getState().tree("a"), "review"), true, "pressed again while in front, it stays");
 });
 
 test("a new panel is the last tab, and one already open is brought forward rather than added", () => {

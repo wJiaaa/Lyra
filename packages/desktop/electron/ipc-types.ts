@@ -472,9 +472,7 @@ export interface PlumeApi {
 		 */
 		editAndResend(sessionId: string, sideId: string, index: number, content: UserContent[], options?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
 		abort(sessionId: string, sideId: string): Promise<void>;
-		/** Throw the conversation away and start fresh. The main session is untouched. */
-		reset(sessionId: string, sideId: string): Promise<void>;
-		/** 关掉这一个：停下，存档一起删掉。 */
+		/** 关掉这一个：停下，存档一起删掉。重开就是一段新的，主会话不受影响。 */
 		close(sessionId: string, sideId: string): Promise<void>;
 		onEvent(handler: (payload: { sessionId: string; sideId: string; event: import("@plume/core").SideChatUpdate }) => void): () => void;
 	};

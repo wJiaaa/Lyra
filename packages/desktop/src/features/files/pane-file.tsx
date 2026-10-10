@@ -29,7 +29,7 @@ export function FileTabTitle({ scope, kind, fallback }: { scope: string; kind: s
 	return <>{path ? baseName(path) : fallback}</>;
 }
 
-/** 后开的那一格关掉：它看着的文件一起放下。 */
-export function closeFile(scope: string, instance: string): void {
-	useOpenFile.getState().drop(fileSlot(scope, `file:${instance}`));
+/** 关掉一格文件面板：它看着的文件一起放下，最早那一格也一样。 */
+export function closeFile(scope: string, kind: string): void {
+	useOpenFile.getState().drop(fileSlot(scope, kind));
 }

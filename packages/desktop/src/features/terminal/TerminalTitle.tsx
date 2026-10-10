@@ -5,7 +5,7 @@
  */
 
 import { panelInstance } from "../../lib/panel-instance.ts";
-import { useTerminals } from "../../store/terminals.ts";
+import { savedTerminal, useTerminals } from "../../store/terminals.ts";
 import { bridge } from "../../services/index.ts";
 import { terminalSlot } from "./scope.ts";
 
@@ -18,10 +18,14 @@ export function TerminalTitle({ scope, kind, fallback }: { scope: string; kind: 
 	return <>{title ?? fallback}</>;
 }
 
-/** 后开的那一格关掉：它看着的 shell 一起结束，不留一个谁也够不着的 pty。 */
-export function closeTerminal(scope: string, instance: string): void {
-	const slot = terminalSlot(scope, instance)!;
-	const id = useTerminals.getState().activeByScope[slot];
+/**
+ * 关掉一格终端：它看着的 shell 一起结束，最早那一格也一样。
+ *
+ * 弹出去的那一格是在另一个窗口里选的 shell，这个窗口的 store 未必知道，所以也看两边共用的那条记录。
+ */
+export function closeTerminal(scope: string, kind: string): void {
+	const slot = terminalSlot(scope, panelInstance(kind))!;
+	const id = useTerminals.getState().activeByScope[slot] || savedTerminal(slot);
 	if (id) {
 		bridge.terminal.kill(id);
 		useTerminals.getState().remove(id);

@@ -6,7 +6,7 @@ import { after, afterEach, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
-import { click, until } from "./drive.ts";
+import { click, closeTab, until } from "./drive.ts";
 import { landsOn } from "./lands-on.ts";
 
 let app: RunningApp;
@@ -76,7 +76,7 @@ afterEach(async (t) => {
 	}
 });
 async function menu(label: string) {
-	await click(app, '[aria-label="浏览器菜单"]');
+	await click(app, '[data-dock-pane]:not([inert]) [aria-label="浏览器菜单"]');
 	await click(app, '[role="menuitem"]', label, "starts");
 }
 
@@ -97,27 +97,33 @@ test("agent drives the user's actual browser: native input, click, viewport and 
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-browser-cursor]').length`), 1);
 	assert.equal(results.some((item) => typeof item === "object" && item !== null && "is_error" in item && item.is_error), false, JSON.stringify(results));
 	/*
-	 * All of that ran with the panel closed: an agent's pages work in the background and the
+	 * All of that ran with no tab for the page: an agent's pages work in the background and the
 	 * conversation keeps a card for them (see `openBrowser`, `BrowserCard`). The person opens the
-	 * panel from that card — which is also what leaves it open for the cases below.
+	 * page from that card — the pane it already ran in, now on the tab strip — which is also what
+	 * leaves it open for the cases below.
 	 */
-	assert.equal(await app.evaluate(`document.querySelector('[data-dock-pane="browser"]').hasAttribute('inert')`), true, "the panel stayed closed while the agent worked");
+	const pane = `document.querySelector('[data-dock-pane="browser:${state.tabs[0].id}"]')`;
+	assert.equal(await app.evaluate(`${pane}.hasAttribute('inert')`), true, "the page had no tab while the agent worked");
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-browser-card]')?.innerText ?? ''`), /Browser QA/);
 	await click(app, '[data-browser-card] [data-browser-card-row] button');
-	await until(app, `!document.querySelector('[data-dock-pane="browser"]').hasAttribute('inert')`, 1800);
+	await until(app, `!${pane}.hasAttribute('inert')`, 1800);
 	const artifact = process.env.PLUME_E2E_ARTIFACTS;
 	if (artifact) { await mkdir(artifact, { recursive: true }); const screenshot = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" }); await writeFile(join(artifact, "browser-agent.png"), Buffer.from(screenshot.data, "base64")); }
 });
 
-test("tabs preserve forms and document identity through switching and closing the panel", async () => {
+test("pages keep forms and document identity through switching tabs, and closing one page closes only that one", async () => {
 	const original = await app.evaluate<string>("window.plume.browser.state().then(s=>s.activeId)");
-	await app.evaluate(`document.querySelector('webview').executeJavaScript("document.body.dataset.identity='retained'")`);
+	const page = (id: string) => `document.querySelector('[data-browser-page="${id}"]')`;
+	await app.evaluate(`${page(original)}.executeJavaScript("document.body.dataset.identity='retained'")`);
 	await app.evaluate(`window.plume.browser.command({type:'open',url:'http://127.0.0.1:${port}/second',sessionId:'qa-short',newTab:true})`);
-	await app.evaluate(`window.plume.browser.command({type:'select',id:${JSON.stringify(original)}})`);
-	assert.equal(await app.evaluate(`document.querySelector('[data-browser-page="${original}"]').executeJavaScript("document.body.dataset.identity")`), "retained");
-	await app.evaluate(`document.querySelector('[data-panel-tab="browser"] [aria-label="关闭浏览器"]').click()`);
-	await app.evaluate(`window.plume.browser.command({type:'select',id:${JSON.stringify(original)}})`);
-	assert.equal(await app.evaluate(`document.querySelector('[data-browser-page="${original}"]').executeJavaScript("document.querySelector('#name').value")`), "测试输入");
+	const second = await app.evaluate<string>("window.plume.browser.state().then(s=>s.activeId)");
+	await until(app, `document.querySelector('[data-dock-pane="browser:${second}"]:not([inert])')`, 1800);
+	await click(app, `[data-dock-pane="browser:${second}"] [data-panel-tab="browser:${original}"] [role="tab"]`);
+	await until(app, `document.querySelector('[data-dock-pane="browser:${original}"]:not([inert])')`, 1800);
+	assert.equal(await app.evaluate(`${page(original)}.executeJavaScript("document.body.dataset.identity")`), "retained");
+	await closeTab(app, `browser:${second}`);
+	assert.deepEqual(await app.evaluate<string[]>("window.plume.browser.state().then(s=>s.tabs.map(t=>t.id))"), [original], "only that page closed");
+	assert.equal(await app.evaluate(`${page(original)}.executeJavaScript("document.querySelector('#name').value")`), "测试输入");
 });
 
 
@@ -162,10 +168,10 @@ test("region selection captures the dragged bounds and native DevTools is availa
 
 test("bookmarks persist, default zoom applies to new tabs and invalid commands leave the page intact", async () => {
 	await menu("收藏网页");
-	await until(app, `window.plume && document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`, 1800);
-	await click(app, '[aria-label="浏览器菜单"]');
+	await until(app, `window.plume && document.querySelector('[data-dock-pane]:not([inert]) [aria-label="浏览器菜单"][aria-expanded="false"]')`, 1800);
+	await click(app, '[data-dock-pane]:not([inert]) [aria-label="浏览器菜单"]');
 	await until(app, `[...document.querySelectorAll('[role="menuitem"]')].some(e=>e.textContent==='取消收藏网页')`, 1800);
-	await click(app, '[aria-label="浏览器菜单"]');
+	await click(app, '[data-dock-pane]:not([inert]) [aria-label="浏览器菜单"]');
 	const saved=JSON.parse(await readFile(join(app.home,'settings.json'),'utf8'));assert.equal(saved.browser.bookmarks[0].url,`http://127.0.0.1:${port}/page`);
 	await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,browser:{...s.browser,defaultZoom:1.25}}))`);
 	await app.evaluate(`window.plume.browser.command({type:'open',url:'http://127.0.0.1:${port}/zoom',sessionId:'qa-short',newTab:true})`);
@@ -188,7 +194,7 @@ test("fullscreen keeps the native browser page and form state, with one viewport
 		const resizes=[];let count=0;const observer=new ResizeObserver(()=>count++);observer.observe(page);
 		for(const label of ['全屏','退出全屏']) {
 			await new Promise(requestAnimationFrame);count=0;
-			document.querySelector('[data-dock-pane="browser"] button[aria-label^="'+label+'"]').click();
+			document.querySelector('[data-dock-pane="browser:'+state.activeId+'"] button[aria-label^="'+label+'"]').click();
 			for(let i=0;i<25;i++)await new Promise(requestAnimationFrame);resizes.push(count);
 		}
 		observer.disconnect();
@@ -201,11 +207,14 @@ test("fullscreen keeps the native browser page and form state, with one viewport
 
 test("one navigation row, a compact menu and a icon empty state at wide and 375px widths", async (t) => {
 	await app.evaluate(`window.plume.browser.state().then(async s=>{for(const tab of s.tabs)await window.plume.browser.command({type:'close',id:tab.id})})`);
-	await until(app, `document.querySelector('[data-browser-empty]')`, 1800);
+	await until(app, `!document.querySelector('[data-dock-pane^="browser:"]')`, 1800);
+	// 网页全关了，标签也就都没了；工具栏的「浏览器」开一页空白的。
+	await click(app, '[data-ly-panel-quick] button[aria-label^="浏览器"]');
+	await until(app, `document.querySelector('[data-dock-pane]:not([inert]) [data-browser-empty]')`, 1800);
 	for (const theme of ["light", "dark"]) for (const width of [1200, 375]) {
 		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}}))`);
 		await app.send("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false });
-		await click(app, '[aria-label="浏览器菜单"]');
+		await click(app, '[data-dock-pane]:not([inert]) [aria-label="浏览器菜单"]');
 		await until(app, `document.querySelector('[role="menuitem"]')`, 1800);
 		await app.evaluate(`Promise.all(document.querySelector('[role="menuitem"]').closest('[role="menu"]').getAnimations({subtree:true}).map(a=>a.finished))`);
 		const metrics = await app.evaluate<{toolbarHeight:number;overflow:number;empty:string;tabs:number;menuWidth:number}>(`(()=>{const toolbar=document.querySelector('[data-browser-toolbar]'),menu=document.querySelector('[role="menuitem"]').closest('[role="menu"]');return {toolbarHeight:toolbar.getBoundingClientRect().height,overflow:toolbar.scrollWidth-toolbar.clientWidth,empty:document.querySelector('[data-browser-empty]').textContent,tabs:document.querySelector('[data-browser-panel]').querySelectorAll('[role="tab"]').length,menuWidth:menu.getBoundingClientRect().width}})()`);
@@ -214,27 +223,36 @@ test("one navigation row, a compact menu and a icon empty state at wide and 375p
 		if(directory){await mkdir(directory,{recursive:true});const shot=await app.send<{data:string}>("Page.captureScreenshot",{format:"png"});await writeFile(join(directory,`browser-menu-${theme}-${width}.png`),Buffer.from(shot.data,"base64"));}
 		await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
 		await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
-		await until(app, `document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`, 1800);
+		await until(app, `document.querySelector('[data-dock-pane]:not([inert]) [aria-label="浏览器菜单"][aria-expanded="false"]')`, 1800);
 		const emptyStyle = await app.evaluate(`(()=>{const empty=document.querySelector('[data-browser-empty]'),toolbar=document.querySelector('[data-browser-toolbar]');return {background:getComputedStyle(empty).backgroundColor,container:getComputedStyle(empty.parentElement).backgroundColor,divider:getComputedStyle(toolbar).borderBottomWidth,icons:empty.querySelectorAll('svg').length};})()`);
 		assert.equal(emptyStyle.background, emptyStyle.container); assert.equal(emptyStyle.divider, "0px"); assert.equal(emptyStyle.icons, 1);
 		await click(app, '[aria-label="地址栏或搜索"]'); assert.equal(await app.evaluate(`document.activeElement.getAttribute('aria-label')`), "地址栏或搜索");
 		if(directory){const shot=await app.send<{data:string}>("Page.captureScreenshot",{format:"png"});await writeFile(join(directory,`browser-empty-${theme}-${width}.png`),Buffer.from(shot.data,"base64"));}
 	}
 	await app.send("Emulation.clearDeviceMetricsOverride");
+	// 菜单里的「新标签页」再开一页，是右栏里的又一个标签。
+	const shown = "document.querySelector('[data-dock-pane]:not([inert]) webview')";
+	const browserTabs = "document.querySelectorAll('[data-dock-pane]:not([inert]) [data-panel-tab^=\"browser:\"]').length";
 	await menu("新标签页");
-	await until(app, `document.querySelector('webview')`, 1800);
-	assert.match(await app.evaluate<string>(`document.querySelector('[data-browser-empty]').textContent`), /打开一个网页/);
+	await until(app, `${browserTabs} === 2 && ${shown}`, 1800);
+	assert.match(await app.evaluate<string>(`document.querySelector('[data-dock-pane]:not([inert]) [data-browser-empty]').textContent`), /打开一个网页/);
 	await menu("视口尺寸");
 	await until(app, `document.querySelector('[aria-label="视口宽度"]')`, 1800);
 	await app.evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(e=>e.textContent.startsWith('手机')).setAttribute('data-mobile-preset','')`);
 	await click(app, '[data-mobile-preset]');
-	assert.equal(await app.evaluate(`document.querySelector('webview').executeJavaScript('innerWidth')`), 312);
-	await click(app, '[aria-label="浏览器菜单"]');
+	assert.equal(await app.evaluate(`${shown}.executeJavaScript('innerWidth')`), 312);
+	await click(app, '[data-dock-pane]:not([inert]) [aria-label="浏览器菜单"]');
 	await click(app, '[aria-label="重置网页缩放"]');
-	assert.equal(await app.evaluate(`document.querySelector('webview').executeJavaScript('innerWidth')`), 390);
+	assert.equal(await app.evaluate(`${shown}.executeJavaScript('innerWidth')`), 390);
 	await app.send("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
 	await app.send("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});
-	await until(app, `document.querySelector('[aria-label="浏览器菜单"][aria-expanded="false"]')`, 1800);
+	await until(app, `document.querySelector('[data-dock-pane]:not([inert]) [aria-label="浏览器菜单"][aria-expanded="false"]')`, 1800);
+	// 「关闭标签页」关的是这一页，剩下那一页还在；把它叫到前面再关一次，网页就都没了。
+	// （窄窗口一次只画一格，关掉前台那一格回到的是对话，所以要叫一下。）
+	await menu("关闭标签页");
+	await until(app, `document.querySelectorAll('[data-dock-pane^="browser:"]').length === 1`, 1800);
+	await app.evaluate(`window.plume.browser.state().then(s=>window.plume.browser.command({type:'select',id:s.tabs[0].id}))`);
+	await until(app, `${browserTabs} === 1`, 1800);
 	await menu("关闭标签页");
 	await until(app, `!document.querySelector('webview')`, 1800);
 });

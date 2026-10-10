@@ -10,7 +10,7 @@ import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
-import { openFilePane, openScopedPanel, usePaneDock } from "../dock/index.ts";
+import { closeNow, openFilePane, openScopedPanel } from "../dock/index.ts";
 import { useDockScope, useScopedMessages, useScopedProjectPath, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { DiffView } from "../git/index.ts";
 import { latestDeliveryTimestamp } from "./delivery-state.ts";
@@ -137,8 +137,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 			// This conversation's review, and only while it shows this turn: another turn's is not this undo's to touch.
 			const showing = useDeliveryReview.getState().reviews[sessionId]?.target.timestamp === timestamp;
 			if (showing && !value.files.length) {
-				useDeliveryReview.getState().close(sessionId);
-				usePaneDock.getState().close(sessionId, "delivery");
+				closeNow(sessionId, "delivery");
 			}
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 		finally { undoLock.current = false; if (live.current) setUndoing(false); }

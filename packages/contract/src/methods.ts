@@ -120,7 +120,6 @@ export const METHODS = {
 		ask: { channel: "sidechat:ask" },
 		editAndResend: { channel: "sidechat:editAndResend" },
 		abort: { channel: "sidechat:abort" },
-		reset: { channel: "sidechat:reset" },
 		close: { channel: "sidechat:close" },
 	},
 	tasks: {

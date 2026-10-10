@@ -3,9 +3,8 @@ import { ChevronsDown, ExternalLink, Maximize2, Minimize2, RotateCw } from "../.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import { openScopedPanel } from "../dock/index.ts";
 import { useSide } from "../dock/index.ts";
-import { useDockScope, useScopedSessionId } from "../../app/session-scope.tsx";
+import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { onAppearanceApplied } from "../settings/index.ts";
@@ -114,17 +113,16 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 	 */
 	const survey = useRef({ settled: false, tallest: 0, adjustments: 0, width: null as number | null, timer: null as ReturnType<typeof setTimeout> | null });
 	/*
-	 * Into this screen's browser, as a page of this screen's conversation.
+	 * A page of this screen's conversation, whichever screen has the focus.
 	 *
-	 * Both used to follow the focus. The keyboard presses these buttons in a screen without giving
-	 * it the focus, and the page became a tab of the conversation beside it, in that one's panel.
+	 * It used to follow the focus. The keyboard presses these buttons in a screen without giving it
+	 * the focus, and the page became a tab of the conversation beside it. Its tab opens in the screen
+	 * that owns it, see `reveal` in `useBrowserWorkspace`.
 	 */
 	const sessionId = useScopedSessionId();
-	const screen = useDockScope();
 	const show = () => {
 		// The panel's tab cannot be told about a later theme change; it takes the one in force now.
 		useSide.getState().openPreview({ ...preview, fragment: preview.themed ? previewFragment({ theme: previewTheme(null) }) : undefined }, sessionId);
-		openScopedPanel("browser", screen ?? undefined);
 	};
 
 	/*
@@ -177,7 +175,6 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			const state = useApp.getState();
 			if (state.settings?.browser?.openLinks === "builtin" && !url.startsWith("mailto:")) {
 				void bridge.browser.command({ type: "open", url, sessionId, newTab: true }).catch((error: unknown) => state.notify(String(error), "error"));
-				openScopedPanel("browser", screen ?? undefined);
 			} else void bridge.system.openExternal(url);
 		}
 		function onMessage(event: MessageEvent) {
@@ -202,7 +199,7 @@ export function PreviewCard({ preview }: { preview: PreviewInfo }) {
 			window.removeEventListener("message", onMessage);
 			for (const timer of timers) clearTimeout(timer);
 		};
-	}, [sessionId, screen]);
+	}, [sessionId]);
 
 	/*
 	 * Grow to the page, within reason.

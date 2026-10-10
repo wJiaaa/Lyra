@@ -1,19 +1,20 @@
 /**
  * 能开好几个的面板，每一个在布局树里占的那一格叫什么。
  *
- * 面板在树里按 kind 认，同一种只能有一格（`tree.ts` 的不变式 2）。侧边聊天、终端和打开的文件一个
+ * 面板在树里按 kind 认，同一种只能有一格（`tree.ts` 的不变式 2）。侧边聊天、终端、打开的文件和网页一个
  * 会话可以开好几个，于是最早那一个仍是 `chat` / `terminal` / `file`，后开的每个是 `<种类>:<id>`：kind 本身就是它的
  * 身份，布局存盘、弹出窗口、顶上的标签都不用另外记它是哪一个。查注册表时它们都按种类认——见
- * `basePanelKind`。
+ * `basePanelKind`。网页没有「最早那一格」：每一格都是 `browser:<网页 id>`，id 由主进程开出网页时给，
+ * 见 `PanelDefinition.create`。
  *
- * 不在面板里再套一层子标签：一个会话旁边的几个侧边聊天、几个终端、几个文件，都是顶上那排标签里的一个。
+ * 不在面板里再套一层子标签：一个会话旁边的几个侧边聊天、几个终端、几个文件、几个网页，都是顶上那排标签里的一个。
  *
  * 放在 `lib` 而不是 dock 里：面板自己也要从 kind 认出自己是哪一个，去引 dock 的大门会连成环。
  */
 
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 
-const MANY = ["chat", "terminal", "file"] as const;
+const MANY = ["chat", "terminal", "file", "browser"] as const;
 export type ManyKind = (typeof MANY)[number];
 
 /** 后开的那几格。 */
@@ -28,7 +29,7 @@ function split(kind: string): { base: ManyKind; instance: string } | null {
 }
 
 /** 这种面板能不能开好几个。 */
-export function allowsMany(kind: string): boolean {
+export function allowsMany(kind: string): kind is ManyKind {
 	return (MANY as readonly string[]).includes(kind);
 }
 

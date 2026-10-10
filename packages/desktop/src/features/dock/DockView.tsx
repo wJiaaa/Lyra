@@ -38,7 +38,7 @@ import { DockScope } from "../../app/session-scope.tsx";
 import { canToggleMaximized } from "./visibility.ts";
 import type { PanelKind } from "./sideStore.ts";
 import { kinds, type PaneKind } from "./tree.ts";
-import { detachOf } from "./panels/registry.ts";
+import { detachOf, useResidentPanes } from "./panels/registry.ts";
 import { useBoxSize } from "./useBoxSize.ts";
 import { useColumnSlide } from "./column-slide.ts";
 import { activeTab, clampTabShare, legacyTabShare, panelsOf, tabbedTree } from "./tabs.ts";
@@ -160,6 +160,7 @@ export function DockView({
 	const tabWidth = usePaneDock((s) => s.tabWidth);
 	const tabsCollapsed = usePaneDock((s) => s.tabsCollapsed);
 	const leaving = usePaneDock((s) => s.leaving[scope] ?? null);
+	const residents = useResidentPanes(scope);
 	const { compact } = useLayout();
 	const definitions = usePanelDefinitions();
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -271,16 +272,18 @@ export function DockView({
 	 * The order panes are *mounted* in, which is not the order they are laid out in.
 	 *
 	 * Moving an <iframe> or a <webview> in the DOM reloads it, so new panes are appended and an
-	 * existing pane's node is only ever removed, never relocated. The browser is always mounted,
-	 * hidden when closed: its pages keep running while the panel is put away, and opening it again
-	 * shows them without a reload. Assigned during render and idempotent.
+	 * existing pane's node is only ever removed, never relocated. Every page this screen hosts has its
+	 * pane mounted, hidden while it is not a tab here (`PanelDefinition.residents`): an agent opens and
+	 * drives pages nobody has opened a tab for, and those pages need a document to live in. Opening one
+	 * from its card puts that same pane on the tab strip. Assigned during render and idempotent.
 	 */
-	const order = useRef<PaneKind[]>(["conversation", "browser"]);
+	const order = useRef<PaneKind[]>(["conversation"]);
 	// 后台标签不在画的树里，但仍要挂着——它们就是被隐藏的那些 pane。
 	const present = kinds(tree);
+	const kept = [...present, ...residents.filter((kind) => !present.includes(kind))];
 	order.current = [
-		...order.current.filter((kind) => present.includes(kind) || kind === "browser"),
-		...present.filter((kind) => !order.current.includes(kind)),
+		...order.current.filter((kind) => kept.includes(kind)),
+		...kept.filter((kind) => !order.current.includes(kind)),
 	];
 
 	const at = (box: Box & { kind: PaneKind }) => ({ ...box, ...focusBox(box.kind) });
@@ -348,7 +351,6 @@ export function DockView({
 
 					{order.current.map((kind) => {
 						const placed = boxes.find((box) => box.kind === kind);
-						if (!placed && !present.includes(kind) && kind !== "browser") return null;
 						const conversation = kind === "conversation";
 						const base = basePanelKind(kind);
 						const def = definitions.find((entry) => entry.kind === base);

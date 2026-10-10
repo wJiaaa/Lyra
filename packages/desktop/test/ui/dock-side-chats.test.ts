@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { act, createElement as h } from "react";
 import { MessageCirclePlus } from "lucide-react";
 import { DEFAULT_SETTINGS } from "@plume/core";
+import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { DockView } from "../../src/features/dock/DockView.tsx";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { usePanelKind } from "../../src/app/session-scope.tsx";
@@ -14,6 +15,7 @@ import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { useSide } from "../../src/features/dock/sideStore.ts";
 import { registerPanels } from "../../src/features/dock/panels/registry.ts";
 import { kinds } from "../../src/features/dock/tree.ts";
+import { sideIdOfPanel } from "../../src/lib/panel-instance.ts";
 import { useApp } from "../../src/store/index.ts";
 import { translate } from "../../src/i18n/translate.ts";
 import { click, mount } from "../helpers/mount.ts";
@@ -22,15 +24,15 @@ function Chat() {
 	return h("div", { "data-test-chat": usePanelKind() ?? "" });
 }
 
-test("侧边聊天开着时再从「+」开一次是新的一格；关掉后开的那一格，它的对话一起删", async () => {
+test("侧边聊天开着时再从「+」开一次是新的一格；关掉哪一格，它的对话都一起删", async () => {
 	const closed: string[][] = [];
 	Object.defineProperty(window, "plume", { configurable: true, value: { platform: "darwin", sideChat: { close: async (sessionId: string, sideId: string) => void closed.push([sessionId, sideId]) } } });
 	window.localStorage.clear();
 	useApp.setState({ settings: { ...DEFAULT_SETTINGS} });
 	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, tabWidth: null, host: null });
-	// 替换掉内置的那一项，关掉后开的那一格时要做的事也照内置的写。
+	// 替换掉内置的那一项，关掉时要做的事也照内置的写。
 	const unregister = registerPanels([{ kind: "chat", label: "dock.sideChat", icon: MessageCirclePlus, shortcut: "", render: Chat,
-		closeInstance: (sessionId, sideId) => void useSide.getState().close(sessionId, sideId) }]);
+		onClose: (sessionId, kind) => void useSide.getState().close(sessionId, sideIdOfPanel(kind)!) }]);
 	const scope = "s1";
 	const view = await mount(h(LayoutProvider, { children: h(DockView, { scope, header: () => null, children: h("textarea") }) }));
 	const addFrom = async (kind: string) => {
@@ -58,9 +60,9 @@ test("侧边聊天开着时再从「+」开一次是新的一格；关掉后开�
 		assert.ok(!kinds(usePaneDock.getState().tree(scope)).includes(extra));
 		assert.deepEqual(closed, [[scope, extra.slice("chat:".length)]]);
 
-		// 最早那一个只是收起，对话留着。
+		// 最早那一个也一样：关掉就删，不是收起。
 		await click(view.find('[data-dock-pane="chat"] [data-panel-tab="chat"] button[aria-label]:not([role="tab"])'));
-		assert.equal(closed.length, 1);
+		assert.deepEqual(closed, [[scope, extra.slice("chat:".length)], [scope, DEFAULT_SIDE_CHAT_ID]]);
 	} finally {
 		await view.unmount();
 		unregister();

@@ -12,7 +12,7 @@
  */
 
 import type { MessageKey } from "../../../i18n/messages/index.ts";
-import type { ComponentType } from "react";
+import { useMemo, useSyncExternalStore, type ComponentType } from "react";
 import type { GitCompare } from "../../../ui/icons/index.ts";
 import type { PaneKind } from "../tree.ts";
 import type { PanelKind } from "../sideStore.ts";
@@ -92,12 +92,33 @@ export interface PanelDefinition {
 	 */
 	tabTitle?: ComponentType<{ scope: string; kind: PaneKind; fallback: string }>;
 	/**
-	 * 人关掉后开的那一格（`<种类>:<id>`）时，它手上的东西怎么收。
+	 * 这一格被关掉时，放掉它自己的东西：侧边聊天的对话、终端的 shell、文件面板打开的文件、浏览器的网页。
 	 *
-	 * 最早那一格关掉只是收起，工具栏和快捷键还能原样叫回来；后开的那几格关掉就再没有入口了，留着
-	 * 只是一个够不着的对话、一个没人看的 shell。弹出窗口也会把面板从树里拿走，那不算关，不走这里。
+	 * 右栏的每个标签就是一个浏览器标签页——关了就是没了，重开是新的。没有「最早那一格关掉只算收起」：
+	 * 那样每种面板各留一份关不掉的东西，重开时又冒出来。凡是关的入口——标签上的 ✕、「⋮」菜单、
+	 * 人关掉弹出去的那个窗口——都汇到 `closeNow` 和 `watchPanelWindows`，在那里调这一个。
+	 *
+	 * 不丢东西的是另外几件事：切标签、收起右栏、弹出与收回窗口、换会话。它们不走这里。设置一类的偏好
+	 * （Git 的树形视图、终端的尺寸）不属于哪一格，也不在这里收。`kind` 是这一格的 kind，
+	 * 能开好几个的面板据此认出是哪一个，见 `lib/panel-instance.ts`。
 	 */
-	closeInstance?: (scope: string, instance: string) => void;
+	onClose?: (scope: string, kind: PaneKind) => void;
+	/**
+	 * 再开一个这种面板由它自己来，代替往树上放一格。
+	 *
+	 * 浏览器是这样的：一个标签就是一个网页（`browser:<网页 id>`），得先由主进程开出网页、有了 id，
+	 * 标签才跟着出现（`useBrowserWorkspace` 里的 `reveal`）。工具栏按钮、快捷键、「+」和「⋮」菜单
+	 * 都经 `showScopedPanel`，在那里先问这一个。
+	 */
+	create?: (scope: string) => void;
+	/**
+	 * 不在这一屏的标签条上、也要一直挂着的格子。
+	 *
+	 * 浏览器的网页是这样的：agent 在后台开的、驱动着的页面要有个文档可活，而 `<webview>` 挪一下就是
+	 * 重载。所以一页从开出来起就待在自己那一格里，藏着；人点「打开」时把同一格放上标签条，原地亮出来，
+	 * 见 `DockView` 的 `order`。`get` 只读状态，变了由 `subscribe` 通知——见 `useResidentPanes`。
+	 */
+	residents?: { subscribe: (listener: () => void) => () => void; get: (scope: string) => readonly PaneKind[] };
 	/**
 	 * Drawn in the header's controls, left of full screen and close.
 	 *
@@ -140,6 +161,27 @@ export function allPanels(): PanelDefinition[] {
  */
 export function detachOf(kind: PaneKind): "self" | "handoff" | "none" {
 	return panelOf(kind)?.detach ?? "self";
+}
+
+function subscribeResidents(listener: () => void): () => void {
+	const stops = allPanels().flatMap((panel) => (panel.residents ? [panel.residents.subscribe(listener)] : []));
+	return () => {
+		for (const stop of stops) stop();
+	};
+}
+
+/**
+ * 这一屏一直挂着的格子，见 `PanelDefinition.residents`。
+ *
+ * 拼成一个字符串当快照：值没变就是同一个快照，状态里无关的变动不让这一屏重画。kind 里没有空格。
+ */
+export function useResidentPanes(scope: string): PaneKind[] {
+	const key = useSyncExternalStore(subscribeResidents, () =>
+		allPanels()
+			.flatMap((panel) => panel.residents?.get(scope) ?? [])
+			.join(" "),
+	);
+	return useMemo(() => (key ? (key.split(" ") as PaneKind[]) : []), [key]);
 }
 
 /** 这一格用的是哪个注册项。后开的那几格用的是它们种类的那一个，见 `panel-instance.ts`。 */

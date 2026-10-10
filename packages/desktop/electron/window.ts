@@ -521,7 +521,11 @@ function buildAppWindow(options: {
 	win.on("closed", () => {
 		appWindows.delete(win);
 		if (options.role === "primary") mainWindow = null;
-		if (options.role === "aux" || options.role === "panel") broadcastSessionWindows();
+		/*
+		 * 退出时不报：主窗口把「面板窗口不见了」读成人关掉了它，会把那一格的东西放掉（侧边聊天的
+		 * 对话也删了）。退出时它们该留着，下次启动照记录放回来——见渲染进程 `popout.ts` 的 `watchPanelWindows`。
+		 */
+		if ((options.role === "aux" || options.role === "panel") && !quitting) broadcastSessionWindows();
 	});
 
 	win.once("ready-to-show", () => {

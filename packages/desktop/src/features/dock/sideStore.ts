@@ -145,7 +145,6 @@ interface SideState {
 	close(sessionId: string | null, sideId: string): Promise<void>;
 	ask(sessionId: string | null, sideId: string, content: UserContent[], meta?: SideSendMeta): Promise<void>;
 	abort(sessionId: string | null, sideId: string): Promise<void>;
-	reset(sessionId: string | null, sideId: string): Promise<void>;
 	/** Change a question already asked and answer from there. Everything after it is dropped. */
 	editAndResend(sessionId: string | null, sideId: string, index: number, content: UserContent[], meta?: SideSendMeta): Promise<void>;
 	setModel(sessionId: string | null, sideId: string, modelId: string | null): Promise<void>;
@@ -191,7 +190,12 @@ function displayOf(meta?: SideSendMeta): { displayText?: string; attachments?: M
 
 /** 正在拉快照的那几个侧边聊天，键是 `chatKey`。拉的过程中到的事件先攒在这里。 */
 const reads = new Map<string, { events: (SideChatUpdate & { sideRevision?: number })[] }>();
-/** 关掉了的。路上还没到的事件不能把它画回来；id 不会再用，所以只进不出。 */
+/**
+ * 关掉了的。路上还没到的事件不能把它画回来。
+ *
+ * 后开的那几个 id 不会再用；最早那一个的 id 关掉再开还是它，再拉一次（`attachChat`）就是重新开了，
+ * 从这里拿掉。那时旧的那一轮还没到的事件，主进程已经不发了，见 `side-chat-service.ts` 的 `retired`。
+ */
 const closed = new Set<string>();
 
 function chatKey(sessionId: string, sideId: string): string {
@@ -260,10 +264,11 @@ export const useSide = create<SideState>((set, get) => {
 	/**
 	 * 把这一个侧边聊天的对话拉过来。
 	 *
-	 * 同一个正在拉的时候再叫一次会被挡掉（`reads`），`force` 是「刚刚重置过，必须重读」。
+	 * 同一个正在拉的时候再叫一次会被挡掉（`reads`），`force` 是「手上那份可能过时了，必须重读」。
 	 */
 	const attachChat = async (sessionId: string, sideId: string, force = false) => {
 		const key = chatKey(sessionId, sideId);
+		closed.delete(key);
 		if (reads.has(key) && !force) return;
 		/*
 		 * 只有从没拉过的那一次才算「加载中」。
@@ -408,19 +413,6 @@ export const useSide = create<SideState>((set, get) => {
 			if (!sessionId) return;
 			try { await bridge.sideChat.abort(sessionId, sideId); }
 			catch (error) { get().applyEvent(sessionId, sideId, { type: "notice", level: "error", message: String(error) }); }
-		},
-
-		async reset(sessionId, sideId) {
-			if (!sessionId || sideChatOf(get(), sessionId, sideId).loading) return;
-			// 重新开始：排着的那几句是问给上一段对话的，不跟过来。
-			patch(sessionId, sideId, { loading: true, error: null, queued: NO_QUEUE });
-			try {
-				await bridge.sideChat.reset(sessionId, sideId);
-				await attachChat(sessionId, sideId, true);
-			} catch (error) {
-				patch(sessionId, sideId, { loading: false });
-				get().applyEvent(sessionId, sideId, { type: "notice", level: "error", message: String(error) });
-			}
 		},
 
 		async cancelTask(sessionId, taskId) {

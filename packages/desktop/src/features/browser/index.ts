@@ -7,7 +7,7 @@
  * 它短是件好事。要往里加之前先想想，是不是那件事本来就该发生在这个域里面。
  */
 
-export { BrowserPanel } from "./BrowserPanel.tsx";
+export { BrowserPanel, BrowserTabTitle } from "./BrowserPanel.tsx";
 export { useBrowserWorkspace } from "./browser-store.ts";
 
-export { commandBrowser } from "./browser-store.ts";
+export { browserResidentsOf, closeBrowser, commandBrowser, newBrowserPage, subscribeBrowserResidents } from "./browser-store.ts";

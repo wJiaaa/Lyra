@@ -47,7 +47,8 @@ async function panes(): Promise<Record<string, Rect>> {
 		for (const el of document.querySelectorAll("[data-dock-pane]")) {
 			if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
 			const b = el.getBoundingClientRect();
-			out[el.dataset.dockPane] = {
+			// 一个网页一格（browser:<网页 id>），id 每次不同；这里只关心它是浏览器。
+			out[el.dataset.dockPane.replace(/^browser:.*/, "browser")] = {
 				left: b.left, top: b.top, width: b.width, height: b.height, right: b.right, bottom: b.bottom,
 			};
 		}
@@ -234,7 +235,7 @@ test("a second panel opens as another tab in the same column, not as a pane of i
 
 	assert.ok(near(boxes.browser.left, first.tasks.left) && near(boxes.browser.width, first.tasks.width), "in the column the first one had");
 	assert.ok(near(boxes.conversation.width, first.conversation.width), "the conversation did not move");
-	const tabs = await app.evaluate<string[]>(`[...document.querySelectorAll('[data-dock-pane]:not([inert]) [role="tablist"] [data-panel-tab]')].filter((t) => t.checkVisibility()).map((t) => t.dataset.panelTab)`);
+	const tabs = await app.evaluate<string[]>(`[...document.querySelectorAll('[data-dock-pane]:not([inert]) [role="tablist"] [data-panel-tab]')].filter((t) => t.checkVisibility()).map((t) => t.dataset.panelTab.replace(/^browser:.*/, "browser"))`);
 	assert.deepEqual(tabs, ["tasks", "browser"], "and both are tabs, the new one last");
 });
 
@@ -418,7 +419,7 @@ test("the layout survives a reload, which is what per-conversation persistence r
 	assert.deepEqual(Object.keys(after).sort(), ["browser", "conversation"], "the column came back, on the tab it was left on");
 	assert.ok(near(after.conversation.width, before.conversation.width, 4), "at the width it was left at");
 	assert.ok(near(after.browser.left, before.browser.left, 4), "and in the same place");
-	const tabs = await app.evaluate<string[]>(`[...document.querySelectorAll('[data-dock-pane]:not([inert]) [role="tablist"] [data-panel-tab]')].filter((t) => t.checkVisibility()).map((t) => t.dataset.panelTab)`);
+	const tabs = await app.evaluate<string[]>(`[...document.querySelectorAll('[data-dock-pane]:not([inert]) [role="tablist"] [data-panel-tab]')].filter((t) => t.checkVisibility()).map((t) => t.dataset.panelTab.replace(/^browser:.*/, "browser"))`);
 	assert.deepEqual(tabs, ["tasks", "browser"], "with both tabs");
 });
 

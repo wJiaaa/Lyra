@@ -156,6 +156,18 @@ export async function openPane(page: Page, label: string): Promise<void> {
 	await click(page, '[role="menuitem"]', label, "starts");
 }
 
+/**
+ * 点面板标签上的 ✕ 关掉这一格，等它的标签从标签条上消失（最后一格要先滑出去）。`kind` 是标签的 `data-panel-tab`。
+ *
+ * 每一格都画着同一条标签条，没在前台的那几格 `inert` 着、叠在后面，DOM 里却可能排在前面——只找前台那一格的。
+ * 等的是标签而不是那一格本身：网页那一格要等主进程把网页关掉才卸下。
+ */
+export async function closeTab(page: Page, kind: string): Promise<void> {
+	const tab = `[data-dock-pane]:not([inert]) [data-panel-tab="${kind}"]`;
+	await click(page, `${tab} button:not([role="tab"])`);
+	await until(page, `!document.querySelector(${JSON.stringify(tab)})`, 900);
+}
+
 /** 弹窗本身的选择器，开出来以后量尺寸、找滑块和帮助按钮都从它往下找。 */
 export const EFFORT_MENU = '[role="group"][aria-label="推理强度"]';
 

@@ -9,7 +9,7 @@ import { THINKING_LEVELS, thinkingOptionsFor } from "@plume/core";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
-import { click, frames, openPane, shot, until } from "./drive.ts";
+import { click, closeTab, frames, openPane, shot, until } from "./drive.ts";
 import { fixtureStore, seedSessions, type FixtureRecord } from "./session-fixture.ts";
 
 let app: RunningApp;
@@ -352,7 +352,8 @@ test("sidechat model selection and its default use their actual providers and su
 	await until(app, `document.querySelector('[aria-label="侧边聊天默认模型"]').dataset.lyTip?.includes('第二供应商')`, 900);
 	const stored = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")); assert.equal(stored.sideChatModelId, "secondary/model");
 	await click(app, "nav button", "返回工作区", "starts");
-	await click(app, '[aria-label="新的侧边聊天"]');
+	// 关掉就删：重开是空的，模型回到设置里的默认。
+	await closeTab(app, "chat"); await openSide();
 	await until(app, `!document.querySelector('[data-dock-pane="chat"]').innerText.includes('SIDE_MODEL_PROBE')`, 900);
 	assert.deepEqual(await app.evaluate(`window.plume.sideChat.state('qa-long','default').then(s=>({modelId:s.modelId,messages:s.messages}))`), { modelId: "secondary/model", messages: [] });
 	await send("SIDE_AFTER_RESET"); await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`, 900);

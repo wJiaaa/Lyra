@@ -23,11 +23,11 @@ import { bridge } from "../../services/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
 import { fileSlot, openFileOf, useOpenFile } from "../../store/openFile.ts";
 import { allowsMany, basePanelKind, nextPanelKind } from "../../lib/panel-instance.ts";
-import { closePane, emptyDockTree, usePaneDock } from "./pane-store.ts";
+import { emptyDockTree, usePaneDock } from "./pane-store.ts";
 import { has, kinds, remove, type DockNode, type PaneKind } from "./tree.ts";
 import { paneStorageKey, readTree, sanitize, writeTree } from "./persist.ts";
-import { allPanels, detachOf } from "./panels/registry.ts";
-import { activeTab, insertTab, panelsOf } from "./tabs.ts";
+import { allPanels, detachOf, panelOf } from "./panels/registry.ts";
+import { insertTab, panelsOf } from "./tabs.ts";
 import type { PanelKind } from "./sideStore.ts";
 
 interface PanelWindowRef {
@@ -339,27 +339,26 @@ export function openFilePane(file: { path: string; name: string }, target?: stri
 provideFileOpener(openFilePane);
 
 /**
- * The toolbar button and the shortcut: open it here, or put it away.
+ * 工具栏那排按钮、快捷键、标签条的「+」和「⋮」菜单：能开好几个的（终端、侧边聊天、文件、网页）再开一个，
+ * 只能开一个的开着就切过去——右栏收着就展开，弹出去了就把那个窗口叫到前面。从不关，关只在标签上的 ✕
+ * 和「⋮」菜单里。自己会开的（网页）交给它自己，见 `PanelDefinition.create`。
  *
- * In the narrow layout a panel that is open but behind the conversation is brought forward rather
- * than closed — pressing its button is asking to see it, and closing it would be the opposite.
+ * 快捷键从前是开关：开着又在前台就关掉。关掉就是没了（`PanelDefinition.onClose`），顺手多按一下就把
+ * 正在跑的 shell 结束了；能开好几个的面板，开关也开不出第二个。
+ *
+ * 「最早那一格占没占」连弹出去的也算：它不在树上，只问树会在右栏再开一个同样的 `chat`，
+ * 两处画着同一段对话。
  */
-export function toggleScopedPanel(scope: string, kind: PanelKind, options: { compact?: boolean } = {}): void {
-	if (isPopped(scope, kind)) {
-		if (!bridge.windows?.openPanel) return;
-		void bridge.windows.openPanel({ kind, scope, sessionId: sessionOf(scope) });
+export function showScopedPanel(scope: string, kind: PanelKind): void {
+	const create = panelOf(kind)?.create;
+	if (create) return create(scope);
+	const tree = usePaneDock.getState().tree(scope);
+	const next = allowsMany(kind) ? nextPanelKind(kind, (each) => has(tree, each) || isPopped(scope, each)) : kind;
+	if (isPopped(scope, next)) {
+		if (bridge.windows?.openPanel) void bridge.windows.openPanel({ kind: next, scope, sessionId: sessionOf(scope) });
 		return;
 	}
-	const dock = usePaneDock.getState();
-	const tree = dock.tree(scope);
-	if (has(tree, kind)) {
-		// 开着但在后台的标签也是「想看它」：切过去，不关。右栏收着时也一样，展开它。
-		const behind = options.compact ? dock.focused[scope] !== kind : dock.tabsCollapsed || activeTab(tree, dock.tab[scope]) !== kind;
-		if (behind) dock.open(scope, kind);
-		else closePane(scope, kind);
-		return;
-	}
-	dock.open(scope, kind);
+	usePaneDock.getState().open(scope, next);
 }
 
 /**
@@ -398,11 +397,16 @@ export function watchPanelWindows(): () => void {
 		}
 		/*
 		 * 一个面板窗口不见了，而它不是被「收回」收走的——那条路自己会清记录，清完窗口才关。
-		 * 剩下的就是人主动关掉了它：关掉就是关掉，面板不该自己跑回来，但那条记录也不该留着。
+		 * 剩下的就是人主动关掉了它：和在标签上点 ✕ 是一回事，面板不回来，它自己的东西一起放掉
+		 * （`PanelDefinition.onClose`）。退出应用时主进程不报这一下，那些面板下次启动照记录放回来，
+		 * 见 `adoptOrphans`。有没有记录就是分辨「收回」和「关掉」的那一下。
 		 */
 		for (const gone of before) {
 			if (panels.some((panel) => panel.scope === gone.scope && panel.kind === gone.kind)) continue;
-			homes.delete(homeKey(gone.scope, gone.kind));
+			const key = homeKey(gone.scope, gone.kind);
+			if (!homes.get(key)) continue;
+			homes.delete(key);
+			panelOf(gone.kind as PanelKind)?.onClose?.(gone.scope, gone.kind as PanelKind);
 		}
 	};
 	void bridge.windows

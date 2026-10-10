@@ -250,7 +250,7 @@ test("a web link on the screen without focus opens in that conversation's browse
 	await click(view.find('a[href="https://example.com/docs"]'));
 	await settle();
 	assert.deepEqual(browser.opened(), [{ url: "https://example.com/docs", sessionId: "b" }], "the page became a tab of the conversation with focus");
-	assert.deepEqual(openedIn("browser"), { a: false, b: true }, "the browser opened beside the conversation with focus");
+	assert.deepEqual(openedIn("browser:tab-1"), { a: false, b: true }, "the page opened as a tab beside the conversation with focus");
 });
 
 test("「在终端运行」 on the screen without focus opens the terminal in that screen", async () => {
@@ -374,7 +374,7 @@ test("a preview on the screen without focus opens in that conversation's browser
 	await click(view.find('button[aria-label="在侧栏中打开"]'));
 	await settle();
 	assert.deepEqual(browser.opened(), [{ url: "ly-preview://b/p1/index.html", sessionId: "b" }], "the page became a tab of the conversation with focus");
-	assert.deepEqual(openedIn("browser"), { a: false, b: true }, "the browser opened beside the conversation with focus");
+	assert.deepEqual(openedIn("browser:tab-1"), { a: false, b: true }, "the page opened as a tab beside the conversation with focus");
 });
 
 // ─── Panels and the composer ───────────────────────────────────────────────────────────────────

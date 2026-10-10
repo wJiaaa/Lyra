@@ -58,10 +58,14 @@ test("再开的一格终端起一个新 shell，不接手没人看的那个；�
 		assert.equal(chosen["s#k1"], "new1", "再开的那一格是一个新的 shell");
 		assert.deepEqual(opened, ["new1"]);
 
-		closeTerminal("s", "k1");
+		closeTerminal("s", "terminal:k1");
 		assert.deepEqual(killed, ["new1"]);
 		assert.equal(useTerminals.getState().activeByScope["s#k1"], undefined);
 		assert.equal(useTerminals.getState().activeByScope.s, "idle", "别的那格不受影响");
+
+		// 最早那一格也一样：关了就是没了，不留一个重开时再接回来的 shell。
+		closeTerminal("s", "terminal");
+		assert.deepEqual(killed, ["new1", "idle"]);
 	} finally {
 		await extra.unmount();
 		await first.unmount();

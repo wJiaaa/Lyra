@@ -7,13 +7,13 @@
  *
  * What each one needs arrives as a parameter rather than being reached for, so this can be read
  * without knowing how the shell stores its state. The dock is the exception and is reached for
- * directly: every panel shortcut means the same thing to it — "put this pane in front, or take it
- * away" — and threading eight identical callbacks through the shell to say so taught nobody
- * anything.
+ * directly: every panel shortcut means the same thing to it — the toolbar button's "show me one",
+ * see `showScopedPanel` — and threading eight identical callbacks through the shell to say so taught
+ * nobody anything.
  */
 
 import { useEffect } from "react";
-import { currentScope, toggleScopedPanel, usePaneDock } from "../features/dock/index.ts";
+import { currentScope, showScopedPanel, usePaneDock } from "../features/dock/index.ts";
 import type { PanelKind } from "../features/dock/index.ts";
 import { composingKey, shortcutLetter } from "../ui/keyboard.ts";
 
@@ -38,11 +38,11 @@ export function useShortcuts(deps: ShortcutDeps): void {
 	useEffect(() => {
 		if (!enabled) return;
 
-		/** Open the pane in the screen being worked in, or put it away if it is already there. */
+		/** The toolbar button's press, in the screen being worked in. It never closes anything. */
 		const panel = (kind: PanelKind, allowed: unknown) => {
 			if (!allowed) return;
 			const scope = currentScope();
-			if (scope) toggleScopedPanel(scope, kind, { compact });
+			if (scope) showScopedPanel(scope, kind);
 		};
 
 		const onKey = (event: KeyboardEvent) => {

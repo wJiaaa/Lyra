@@ -28,7 +28,7 @@ import { stripEmoji } from "../../lib/markdown/strip-emoji.ts";
 import { completeTail } from "../../lib/markdown/stream-tail.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
-import { openFilePane, openScopedPanel } from "../dock/index.ts";
+import { openFilePane } from "../dock/index.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
 import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 import { SessionScope, useDockScope, useScopedProjectPath } from "../../app/session-scope.tsx";
@@ -596,7 +596,6 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 	const project = useScopedProjectPath();
 	// Context reads, not subscriptions: only a press needs them, and it reads the store then.
 	const scoped = useContext(SessionScope);
-	const screen = useDockScope();
 	const safe = href.startsWith("http://") || href.startsWith("https://");
 	const path = safe ? null : resolveAsset(baseDir ?? project ?? (isAbsolutePath(href) ? "/" : undefined), href.replace(/:\d+(?:-\d+)?$/, ""));
 	if (preview || (!safe && !path)) return <>{children}</>;
@@ -610,13 +609,8 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 				if (state.settings?.browser?.openLinks === "builtin" && !event.shiftKey) {
 					// A tab of this screen's conversation, whichever screen has the focus.
 					const sessionId = scoped === undefined ? state.activeSessionId : scoped;
+					// Its tab opens in this screen, live or not — see `reveal` in `useBrowserWorkspace`.
 					void bridge.browser.command({ type: "open", url: href, sessionId, newTab: true }).catch((error: unknown) => state.notify(String(error), "error"));
-					/*
-					 * Brought forward here rather than left to the main process's reveal, which only opens
-					 * the panel for the live conversation — the keyboard reached this link without making
-					 * its screen live, and the page would have loaded where nobody could see it.
-					 */
-					if (screen) openScopedPanel("browser", screen);
 				} else void bridge.system.openExternal(href);
 			}}
 		>

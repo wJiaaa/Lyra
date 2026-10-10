@@ -16,7 +16,6 @@
 import { create } from "zustand";
 import { dropTree, flushTree, paneStorageKey, readTree, writeTree } from "./persist.ts";
 import { insertTab, panelsOf, readTabsCollapsed, readTabWidth, writeTabsCollapsed, writeTabWidth } from "./tabs.ts";
-import { panelInstance } from "../../lib/panel-instance.ts";
 import { panelOf } from "./panels/registry.ts";
 import { defaultTree, has, kinds, remove, type DockNode, type PaneKind } from "./tree.ts";
 
@@ -49,7 +48,7 @@ interface PaneDockState {
 	/**
 	 * Which screen's browser hosts the pages nobody else is showing.
 	 *
-	 * Set by the workspace: the screen that has been on screen longest. See `useBrowserPages`.
+	 * Set by the workspace: the screen that has been on screen longest. See `browserPages` in `browser-store.ts`.
 	 */
 	host: string | null;
 
@@ -286,11 +285,11 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 });
 
 /**
- * 人点了 ✕：关掉这一格。
+ * 关掉这一格：标签上的 ✕、「⋮」菜单都走这里，关掉就是没了。快捷键和工具栏按钮只开不关，见 `showScopedPanel`。
  *
  * 和 `usePaneDock.close` 分开，因为那个也是弹出窗口时把面板从树里拿走的那一步，不能带副作用，
  * 也不能等：弹出要在同一个 `flushSync` 里把浏览器页面交出去。
- * 后开的那几格关掉就没了，手上的东西交给面板自己收——见 `PanelDefinition.closeInstance`。
+ * 这一格自己的东西交给面板放掉——见 `PanelDefinition.onClose`。
  *
  * 关的是这一屏最后一个面板时，右栏整个没了，要照收起的样子滑出去，见 `column-slide.ts`。面板
  * 一关就卸载、终端也被杀掉，没法在关掉之后再演退场，所以先只标成正在离开，滑完再真关。这一屏
@@ -306,8 +305,7 @@ export function closePane(scope: string, kind: PaneKind): void {
 /** 不等动画，现在就关。 */
 export function closeNow(scope: string, kind: PaneKind): void {
 	usePaneDock.getState().close(scope, kind);
-	const instance = panelInstance(kind);
-	if (instance) panelOf(kind)?.closeInstance?.(scope, instance);
+	panelOf(kind)?.onClose?.(scope, kind);
 }
 
 /**

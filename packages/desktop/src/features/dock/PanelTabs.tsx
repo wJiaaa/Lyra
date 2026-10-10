@@ -15,8 +15,9 @@ import { ClosableTab } from "../../ui/primitives/ClosableTab.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Sideways } from "../../ui/scroll/Sideways.tsx";
 import { closePane, usePaneDock } from "./pane-store.ts";
-import { has, type PaneKind } from "./tree.ts";
-import { allowsMany, nextPanelKind, type ManyKind } from "../../lib/panel-instance.ts";
+import type { PaneKind } from "./tree.ts";
+import { showScopedPanel } from "./popout.ts";
+import type { PanelKind } from "./sideStore.ts";
 
 export interface PanelTab {
 	kind: PaneKind;
@@ -104,10 +105,8 @@ export function PanelTabs({
 								icon={panel.icon}
 								hint={panel.shortcut}
 								onClick={() => {
-									const dock = usePaneDock.getState();
-									// 能开好几个的（侧边聊天、终端）开着的时候，再点一次是再开一个，不是切回那一个。
-									const kind = allowsMany(panel.kind) ? nextPanelKind(panel.kind as ManyKind, (each) => has(dock.tree(scope), each)) : panel.kind;
-									dock.open(scope, kind);
+									// 能开好几个的开着的时候，再点一次是再开一个，不是切回那一个。
+									showScopedPanel(scope, panel.kind as PanelKind);
 									menu.close();
 								}}
 							>

@@ -6,19 +6,19 @@ import { motionReduced } from "../../ui/motion/reduced.ts";
 
 declare global { interface HTMLWebViewElement { getWebContentsId(): number } }
 
-/** Stable DOM order and src retain page history, forms and scripts while switching tabs. */
-export function BrowserPage({ tab, active }: { tab: BrowserTab; active: boolean }) {
+/** A stable node and `src` keep the page's history, forms and scripts while its tab is hidden or moved. */
+export function BrowserPage({ tab }: { tab: BrowserTab }) {
 	const ref = useRef<HTMLWebViewElement | null>(null);
 	const [initialUrl] = useState(tab.url);
 	const [size, setSize] = useState({ width: 0, height: 0 });
 	const ring = useRef<HTMLDivElement | null>(null);
 	const pointer = tab.pointer;
 	useEffect(() => {
-		if (!ring.current || !active || (pointer?.action !== "click" && pointer?.action !== "type")) return;
+		if (!ring.current || (pointer?.action !== "click" && pointer?.action !== "type")) return;
 		if (motionReduced()) return;
 		const animation = ring.current.animate([{ opacity: 0.6, transform: "scale(0.4)" }, { opacity: 0, transform: "scale(1.5)" }], { duration: 320, easing: "ease-out" });
 		return () => animation.cancel();
-	}, [pointer?.sequence, pointer?.action, active]);
+	}, [pointer?.sequence, pointer?.action]);
 	useEffect(() => {
 		const page = ref.current;
 		if (!page) return;
@@ -39,25 +39,12 @@ export function BrowserPage({ tab, active }: { tab: BrowserTab; active: boolean 
 	const x = Math.max(0, Math.min(size.width - 1, (pointer?.x ?? 0) * tab.zoom * scale));
 	const y = Math.max(0, Math.min(size.height - 1, (pointer?.y ?? 0) * tab.zoom * scale));
 	/*
-	 * Inherited when this tab is the active one, never asserted.
-	 *
-	 * `visibility` is inherited, and a descendant that declares `visible` comes back into view even
-	 * inside an ancestor that is `hidden` — that is the property's defining behaviour, not a quirk.
-	 * So `visibility: "visible"` here reached past the one thing that puts the whole workspace away:
-	 * opening settings hides it with `invisible` (see `Shell` in `app/App.tsx`, which cannot use
-	 * `display: none` without losing the transcript's scroll position), and this webview was the one
-	 * element that ignored it. The browser's page went on painting over the settings pane.
-	 *
-	 * `undefined` leaves the property alone: the active tab is visible exactly when whatever contains
-	 * it is. The inactive ones still assert `hidden`, which is what keeps the tab strip working.
+	 * No `visibility` or `pointer-events` of its own, ever: both are inherited, and asserting them
+	 * here reached past the ancestors that switch them off. `visible` painted the page over settings
+	 * (which hides the workspace with `invisible`, see `Shell` in `app/App.tsx`); `auto` let the page,
+	 * a process of its own, swallow a drag that `inertPanes` had switched off for the pane.
 	 */
-	/*
-	 * `pointer-events` the same way, and for a worse reason. `auto` here reached past the one thing
-	 * that stops a page taking the pointer during a drag — `inertPanes` sets `none` on the pane, and
-	 * an explicit `auto` below it switches the page back on. The page is a process of its own: a drag
-	 * crossing it, or letting go over it, went to the page and never came back to this document.
-	 */
-	return <div className="absolute inset-0" style={{ visibility: active ? undefined : "hidden", pointerEvents: active ? undefined : "none" }}>
+	return <div className="absolute inset-0">
 		<webview ref={ref} src={initialUrl} partition="persist:ly-browser" data-browser-page={tab.id} className="absolute inset-0 h-full w-full bg-white" />
 		{pointer && <>
 			<div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-10" style={{ transform: `translate(${x}px, ${y}px)` }}>

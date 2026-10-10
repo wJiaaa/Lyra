@@ -80,18 +80,7 @@ export async function openBrowser(url: string, sessionId: string | null, newTab 
 	const location = browserUrl(url);
 	const current = tabs.get(activeBySession.get(sessionKey(sessionId)) ?? "");
 	const existing = !newTab && current?.state.sessionId === sessionId ? current : undefined;
-	if (existing) {
-		existing.state.error = undefined;
-		existing.state.url = location;
-		// `wanted`, because this tab may be asleep: nothing mounts it while its conversation is off
-		// screen, and `readyBrowser` below would wait out its full timeout for a page nobody built.
-		existing.state.wanted = true;
-		selectTab(existing);
-		publish(reveal);
-		const contents = await readyBrowser(existing);
-		await contents.loadURL(location);
-		return existing.state.id;
-	}
+	if (existing) return loadInto(existing, location, reveal);
 	if (tabs.size >= 20) throw new Error("最多打开 20 个标签，请先关闭不用的页面");
 	const id = randomUUID();
 	let resolve!: (contents: WebContents) => void;
@@ -105,6 +94,19 @@ export async function openBrowser(url: string, sessionId: string | null, newTab 
 	publish(reveal);
 	await readyBrowser(tab);
 	return id;
+}
+
+async function loadInto(tab: Tab, location: string, reveal: boolean): Promise<string> {
+	tab.state.error = undefined;
+	tab.state.url = location;
+	// `wanted`, because this tab may be asleep: nothing mounts it while its conversation is off
+	// screen, and `readyBrowser` below would wait out its full timeout for a page nobody built.
+	tab.state.wanted = true;
+	selectTab(tab);
+	publish(reveal);
+	const contents = await readyBrowser(tab);
+	await contents.loadURL(location);
+	return tab.state.id;
 }
 
 async function readyBrowser(tab: Tab): Promise<WebContents> {
@@ -164,6 +166,8 @@ export async function browserCommand(command: BrowserCommand): Promise<BrowserSt
 	// A ResizeObserver notification may arrive after the user closed its guest.
 	if (!tab && command.type === "resize") return browserState();
 	if (!tab) throw new Error("浏览器标签已关闭");
+	// 地址栏是某一个网页的：右栏里每个网页一个标签，「这个会话当前那一页」不一定是正在打字的这一页。
+	if (command.type === "navigate") { await loadInto(tab, command.url, false); return browserState(); }
 	if (command.type === "resize") {
 		if (!Number.isFinite(command.width) || !Number.isFinite(command.height) || command.width <= 0 || command.height <= 0) throw new Error("无效的页面尺寸");
 		tab.size = { width: command.width, height: command.height }; fitViewport(tab); return browserState();

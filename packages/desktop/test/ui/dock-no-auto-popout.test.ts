@@ -10,7 +10,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { openScopedPanel, popOutPanel, provideScope, toggleScopedPanel } from "../../src/features/dock/popout.ts";
+import { openScopedPanel, popOutPanel, provideScope, showScopedPanel } from "../../src/features/dock/popout.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { has } from "../../src/features/dock/tree.ts";
 import "../../src/features/dock/panels/builtin.tsx";
@@ -54,7 +54,7 @@ test("toggling a panel into a small tile does not open a window either", () => {
 	reset();
 	const { opened } = watchWindows();
 	usePaneDock.getState().rememberSize("tile", { width: 700, height: 400 });
-	toggleScopedPanel("tile", "terminal");
+	showScopedPanel("tile", "terminal");
 	assert.ok(has(usePaneDock.getState().tree("tile"), "terminal"), "the panel landed in the tile");
 	assert.deepEqual(opened, [], "the toolbar button is not a request for a second window either");
 });

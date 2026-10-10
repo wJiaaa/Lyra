@@ -7,6 +7,11 @@ import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { isSideId, loadSideChatSnapshot, saveSideChatTranscript, saveSideChat } from "./sidechat-store.ts";
 
 const opening = new Map<string, Promise<SideChat | null>>();
+/**
+ * 关掉了的实例。中止的那一轮还会收个尾（`agent_end: aborted` 之类），而最早那一个侧边聊天关掉再开
+ * 用的是同一个 id——这些尾巴不能落进重新开的那一段里。
+ */
+const retired = new WeakSet<SideChat>();
 
 function reportError(sessionId: string, sideId: string, error: unknown): void {
 	const message = error instanceof Error ? error.message : String(error);
@@ -41,7 +46,7 @@ async function ensureSideChat(sessionId: string, sideId: string): Promise<SideCh
 			persistModel: (modelId) => saveSideChat(sessionId, chat.messages, modelId, sideId),
 			persistReset: (modelId) => saveSideChat(sessionId, [], modelId, sideId),
 			emit: async (event: SideChatEvent) => {
-				broadcastSideChat(sessionId, sideId, event);
+				if (!retired.has(chat)) broadcastSideChat(sessionId, sideId, event);
 				if (event.type === "message_end" && event.message.role === "assistant" && event.message.usage) {
 					try {
 						await main.log.append({
@@ -117,12 +122,6 @@ export function sideChatAbort(sessionId: string, sideId: string): void {
 	liveSideChat(sessionId, sideId)?.abort();
 }
 
-export async function sideChatReset(sessionId: string, sideId: string): Promise<void> {
-	const chat = await ensureSideChat(sessionId, sideId);
-	if (!chat) throw new Error(`Session ${sessionId} is not open.`);
-	await chat.restart();
-}
-
 /**
  * 关掉一个侧边聊天：停下、从内存里拿掉、存档删掉。
  *
@@ -132,7 +131,11 @@ export async function sideChatClose(sessionId: string, sideId: string): Promise<
 	checkSideId(sideId);
 	await opening.get(`${sessionId}/${sideId}`)?.catch(() => null);
 	const chats = sideChats.get(sessionId);
-	chats?.get(sideId)?.reset();
+	const chat = chats?.get(sideId);
+	if (chat) {
+		retired.add(chat);
+		chat.reset();
+	}
 	chats?.delete(sideId);
 	if (chats?.size === 0) sideChats.delete(sessionId);
 	await saveSideChat(sessionId, [], undefined, sideId);
