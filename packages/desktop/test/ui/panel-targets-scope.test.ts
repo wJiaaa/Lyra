@@ -244,7 +244,7 @@ test("a relative file link on the screen without focus opens that screen's proje
 	assert.deepEqual(openedIn("file"), { a: false, b: true }, "the file pane opened beside the conversation with focus");
 });
 
-test("a bare file name in a reply opens the one file in that screen's project it can mean; two of them, no guess", async () => {
+test("a bare file name in a reply opens the one file in that screen's project it can mean; two of them, the reader picks", async () => {
 	const asked: [string, string][] = [];
 	plume.files = {
 		locate: async (root: string, relative: string) => {
@@ -257,9 +257,15 @@ test("a bare file name in a reply opens the one file in that screen's project it
 	await settle();
 	const [approvals, toolRun] = [...view.host.querySelectorAll("[data-ly-file-link] a")];
 	await click(approvals!);
+	assert.equal(toolRun!.closest("[data-ly-file-link]")?.querySelector("[data-ly-file-actions]"), null, "两颗出口只对一个文件，同名的多份时不给");
 	await click(toolRun!);
 	assert.deepEqual(asked, [[BETA.path, "approvals.ts"], [BETA.path, "tool-run.ts"]], "asked the project of the screen the reply is in");
-	assert.deepEqual(opened, [`${BETA.path}/packages/core/src/runtime/approvals.ts`, `${BETA.path}/tool-run.ts`]);
+	// 不猜，也不按工作目录拼出一个不存在的 `tool-run.ts`：列出两份各在哪个目录（相对项目），让人选。
+	const rows = [...document.querySelectorAll<HTMLElement>('[role="menu"] [role="menuitem"]')];
+	assert.deepEqual(rows.map((row) => row.textContent), ["a", "b"]);
+	await click(rows[1]!);
+	assert.deepEqual(opened, [`${BETA.path}/packages/core/src/runtime/approvals.ts`, `${BETA.path}/b/tool-run.ts`]);
+	assert.equal(document.querySelector('[role="menu"]'), null, "选完就收起");
 });
 
 test("a web link on the screen without focus opens in that conversation's browser, in that screen", async () => {

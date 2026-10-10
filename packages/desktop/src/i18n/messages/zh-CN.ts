@@ -2378,6 +2378,7 @@ export const zhCN = {
 	"conversation.showEarlier": "显示更早的 {n} 轮（共 {total} 轮）",
 	"conversation.showEarlierRest": "显示更早的 {n} 轮",
 	"markdown.image": "图片",
+	"markdown.fileChoices": "项目里有 {count} 个同名文件",
 	"questionNav.pick": "选择问题",
 	"questionNav.goTo": "跳转到第 {n} 个问题：{text}",
 	"thinking.process": "思考过程",

@@ -37,7 +37,8 @@ import { SessionScope, useDockScope, useScopedProjectPath } from "../../app/sess
 import { useSmoothText } from "./useSmoothText.ts";
 import { FadeText } from "./FadeText.tsx";
 import { usePathMenu } from "./PathMenu.tsx";
-import { useLocatedPath } from "./located-path.ts";
+import { useLocatedPaths } from "./located-path.ts";
+import { FileChoices } from "./FileChoices.tsx";
 
 /**
  * What this text is, beyond the characters in it.
@@ -485,7 +486,7 @@ function actionsOffset(chip: HTMLElement, pointerX: number): number {
  * into the height of a line. How it shows, how it hides and what happens on a device without hover
  * are all in `markdown.css`, under `[data-ly-file-actions]`.
  */
-function FileLink({ href, path, children }: { href: string; path: string; children: ReactNode }) {
+function FileLink({ href, path, choices, children }: { href: string; path: string; choices?: readonly string[]; children: ReactNode }) {
 	const revealLabel = useRevealLabel();
 	const caption = fileLinkCaption(textOf(children), path);
 	const look = lookFor(path.split(/[/\\]/).pop() || path, false);
@@ -493,7 +494,13 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 	// without the press that would have given that screen the focus.
 	const screen = useDockScope();
 	// Right-click: the same menu a file the turn edited offers, with 打开 doing what a click does.
-	const pathMenu = usePathMenu(useScopedProjectPath());
+	const project = useScopedProjectPath();
+	const pathMenu = usePathMenu(project);
+	/*
+	 * The name is in the project more than once — `ResponseSelector.java` in three modules. `path` is
+	 * then only the working-directory guess, which names nothing; a click asks which one instead.
+	 */
+	const [picking, setPicking] = useState<HTMLElement | null>(null);
 	const [side, setSide] = useState<"above" | "below">("above");
 	/** Pixels from the chip's left edge to the bar's; `null` keeps it right, for focus, which has no pointer to face. */
 	const [offset, setOffset] = useState<number | null>(null);
@@ -543,31 +550,42 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 				data-ly-tip-side={side === "below" ? "top" : undefined}
 				onClick={(event) => {
 					event.preventDefault();
-					openFile();
+					if (choices) setPicking(event.currentTarget);
+					else openFile();
 				}}
-				onContextMenu={(event) => pathMenu.onContextMenu(event, { path, onOpen: openFile })}
+				onContextMenu={(event) => {
+					if (!choices) return pathMenu.onContextMenu(event, { path, onOpen: openFile });
+					event.preventDefault();
+					setPicking(event.currentTarget);
+				}}
 			>
 				<look.Icon size={13} strokeWidth={1.9} style={{ color: iconColour(look) }} />
 				<span data-ly-file-name>{caption.text}</span>
 			</a>
-			<span data-ly-file-actions>
-				<span data-ly-file-actions-bar>
-					{page && <FileLinkAction label={translate("openTarget.builtinBrowser")} tipSide={buttonTip} icon={<Globe size={14} />} onClick={openPage} />}
-					<FileLinkAction
-						label={translate("openTarget.defaultApp")}
-						tipSide={buttonTip}
-						icon={<ExternalLink size={14} />}
-						onClick={() => void withFileThere(path, (there) => bridge.system.openPath(there))}
-					/>
-					<FileLinkAction
-						label={revealLabel}
-						tipSide={buttonTip}
-						icon={<FolderOpen size={14} />}
-						onClick={() => void withFileThere(path, (there) => bridge.system.openIn("reveal", there))}
-					/>
+			{/* Both exits act on one file, and which one is the question the click asks. */}
+			{!choices && (
+				<span data-ly-file-actions>
+					<span data-ly-file-actions-bar>
+						{page && <FileLinkAction label={translate("openTarget.builtinBrowser")} tipSide={buttonTip} icon={<Globe size={14} />} onClick={openPage} />}
+						<FileLinkAction
+							label={translate("openTarget.defaultApp")}
+							tipSide={buttonTip}
+							icon={<ExternalLink size={14} />}
+							onClick={() => void withFileThere(path, (there) => bridge.system.openPath(there))}
+						/>
+						<FileLinkAction
+							label={revealLabel}
+							tipSide={buttonTip}
+							icon={<FolderOpen size={14} />}
+							onClick={() => void withFileThere(path, (there) => bridge.system.openIn("reveal", there))}
+						/>
+					</span>
 				</span>
-			</span>
+			)}
 			{pathMenu.element}
+			{choices && picking && (
+				<FileChoices anchor={picking} paths={choices} root={project} onPick={(choice) => void openFilePane(choice, screen ?? undefined)} onClose={() => setPicking(null)} />
+			)}
 		</span>
 	);
 }
@@ -616,14 +634,14 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 	const guess = safe ? null : resolveAsset(baseDir ?? project ?? (isAbsolutePath(href) ? "/" : undefined), target);
 	/*
 	 * `approvals.ts:125` joined to the working directory mostly names nothing: models write the bare
-	 * name, or a path relative to some package. The one file in the project it can only mean wins — see
-	 * `located-path.ts`. Not under a `baseDir`: that is the document's own folder, and its relative
-	 * paths are written for it.
+	 * name, or a path relative to some package. The one file in the project it can only mean wins; with
+	 * several of that name the link lets the reader pick — see `located-path.ts`. Not under a `baseDir`:
+	 * that is the document's own folder, and its relative paths are written for it.
 	 */
-	const located = useLocatedPath(guess && !baseDir && project && !isAbsolutePath(target) ? project : null, target);
-	const path = located ?? guess;
+	const located = useLocatedPaths(guess && !baseDir && project && !isAbsolutePath(target) ? project : null, target);
+	const path = located.length === 1 ? located[0] : guess;
 	if (preview || (!safe && !path)) return <>{children}</>;
-	if (path) return <FileLink href={href} path={path}>{children}</FileLink>;
+	if (path) return <FileLink href={href} path={path} choices={located.length > 1 ? located : undefined}>{children}</FileLink>;
 	return (
 		<a
 			href={href}

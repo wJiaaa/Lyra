@@ -2202,6 +2202,7 @@ export const en = {
 	"conversation.showEarlier": { one: "Show {n} earlier turn ({total} in all)", other: "Show {n} earlier turns ({total} in all)" },
 	"conversation.showEarlierRest": "Show {n} earlier",
 	"markdown.image": "Image",
+	"markdown.fileChoices": "{count} files with this name in the project",
 	"questionNav.pick": "Pick a question",
 	"questionNav.goTo": "Go to question {n}: {text}",
 	"thinking.process": "Its thinking",
