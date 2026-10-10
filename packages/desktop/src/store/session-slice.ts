@@ -205,6 +205,14 @@ export function sessionSlice(set: Set, get: Get) {
 	async openSessionById(id: string) {
 		// A cold lookup is already a navigation choice, before its metadata arrives.
 		const epoch = get().previewSessionId(id);
+		/*
+		 * The row is lit on the strength of an id alone; when that id turns out to name nothing, put
+		 * the selection back. Left pending, no row in the list is the current one — and the id can
+		 * come from outside the app now (`plume://open-session`), where a stale one is ordinary.
+		 */
+		const release = () => {
+			if (get().pendingSessionId === id) set({ pendingSessionId: null });
+		};
 		let target = get().sessions.find((session) => session.id === id);
 		if (!target) {
 			try {
@@ -215,11 +223,12 @@ export function sessionSlice(set: Set, get: Get) {
 				if (target && !get().sessions.some((session) => session.id === id)) set({ sessions: [...get().sessions, target] });
 			} catch (cause) {
 				if (get().selectionEpoch !== epoch) return false;
+				release();
 				get().notify(translate("sessionSlice.openFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 				return false;
 			}
 		}
-		if (!target) { get().notify(translate("sessionSlice.gone"), "warn"); return false; }
+		if (!target) { release(); get().notify(translate("sessionSlice.gone"), "warn"); return false; }
 		await get().openSession(target);
 		return true;
 	},

@@ -107,6 +107,16 @@ test("notification navigation resolves an unloaded target and respects newer nav
 	assert.equal(useApp.getState().activeSessionId, "a");
 });
 
+test("a target that no longer exists says so and leaves the current session selected", async () => {
+	assert.equal(await useApp.getState().openSessionById("deleted"), false);
+	assert.equal(useApp.getState().activeSessionId, "a");
+	assert.equal(useApp.getState().pendingSessionId, null, "the row lit for a missing session must be let go, or no row is current");
+	assert.deepEqual(useApp.getState().notices.map((notice) => notice.level), ["warn"]);
+	list = async () => { throw new Error("offline"); };
+	assert.equal(await useApp.getState().openSessionById("unreadable"), false);
+	assert.equal(useApp.getState().pendingSessionId, null, "the same when the list could not be read");
+});
+
 test("cold tray commands use the same ID lookup as the toast action", async () => {
 	function Harness() { useTrayCommands(); return null; }
 	useApp.setState({ sessions: [] });
