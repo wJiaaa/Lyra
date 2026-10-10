@@ -174,6 +174,8 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 		let raf = 0;
 		let last = performance.now();
 		const fading: { span: HTMLSpanElement; born: number }[] = [];
+		let row: HTMLElement | null = null;
+		let widest = 0;
 		const step = (now: number) => {
 			// 夹住，免得一个切到后台的窗口回来时把缺席的那段时间一帧花完。
 			const delta = Math.min(0.1, Math.max(0, (now - last) / 1000));
@@ -202,6 +204,21 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 						const clipped = element.getBoundingClientRect().width > shell.clientWidth + 0.5;
 						if (clipped !== shell.hasAttribute("data-clipped")) shell.toggleAttribute("data-clipped", clipped);
 					}
+					/*
+					 * 写着的时候，这一行只变宽不变窄。
+					 *
+					 * 行是按内容宽的（`flow-row.css` 的 `fit-content`），而换一句就清空重写：整行从一整列
+					 * 缩回只剩图标，箭头跳回左边再被字一路推回去，一段几分钟的推理里来回几十次；正好在
+					 * 那一刻点行中间，点到的是空白。到过的宽度就留着，换句时字从左边重写，箭头和可点的
+					 * 范围原地不动。`100%` 封顶，是因为 `min-width` 压过 `max-width`，列变窄时不能撑出去。
+					 * 写完就还给 `fit-content`：那时摘要换成第一句，宽度本来就要变。
+					 */
+					row ??= element.closest<HTMLElement>(".ly-flow-row");
+					const width = row?.getBoundingClientRect().width ?? 0;
+					if (row && width > widest + 0.5) {
+						widest = width;
+						row.style.minWidth = `min(${Math.ceil(width)}px, 100%)`;
+					}
 				}
 			}
 			// 淡完的字并回纯文本。没有新字的帧也要做，不然最后几个字一直是 span。
@@ -214,7 +231,10 @@ function useTyped(runs: string[], live: boolean, span: RefObject<HTMLSpanElement
 			raf = requestAnimationFrame(step);
 		};
 		raf = requestAnimationFrame(step);
-		return () => cancelAnimationFrame(raf);
+		return () => {
+			cancelAnimationFrame(raf);
+			row?.style.removeProperty("min-width");
+		};
 	}, [live, span]);
 }
 
