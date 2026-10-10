@@ -31,12 +31,13 @@ import { completeTail } from "../../lib/markdown/stream-tail.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { openFilePane } from "../dock/index.ts";
-import { useRevealLabel } from "../../store/open-targets.ts";
+import { useRevealLabel, withFileThere } from "../../store/open-targets.ts";
 import { iconColour, lookFor } from "../../ui/fileIcon.tsx";
 import { SessionScope, useDockScope, useScopedProjectPath } from "../../app/session-scope.tsx";
 import { useSmoothText } from "./useSmoothText.ts";
 import { FadeText } from "./FadeText.tsx";
 import { usePathMenu } from "./PathMenu.tsx";
+import { useLocatedPath } from "./located-path.ts";
 
 /**
  * What this text is, beyond the characters in it.
@@ -496,10 +497,7 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 	const [side, setSide] = useState<"above" | "below">("above");
 	/** Pixels from the chip's left edge to the bar's; `null` keeps it right, for focus, which has no pointer to face. */
 	const [offset, setOffset] = useState<number | null>(null);
-	const openFile = () => {
-		const name = path.split(/[/\\]/).pop() || path;
-		void openFilePane({ path, name }, screen ?? undefined).catch((error: unknown) => useApp.getState().notify(String(error), "error"));
-	};
+	const openFile = () => void openFilePane(path, screen ?? undefined);
 	const fail = (error: unknown) => useApp.getState().notify(String(error), "error");
 	// A page the agent wrote is something to look at, not only source to read: the click still opens the source.
 	const page = /\.html?$/i.test(path);
@@ -559,13 +557,13 @@ function FileLink({ href, path, children }: { href: string; path: string; childr
 						label={translate("openTarget.defaultApp")}
 						tipSide={buttonTip}
 						icon={<ExternalLink size={14} />}
-						onClick={() => void bridge.system.openPath(path).catch(fail)}
+						onClick={() => void withFileThere(path, (there) => bridge.system.openPath(there))}
 					/>
 					<FileLinkAction
 						label={revealLabel}
 						tipSide={buttonTip}
 						icon={<FolderOpen size={14} />}
-						onClick={() => void bridge.system.openIn("reveal", path).catch(fail)}
+						onClick={() => void withFileThere(path, (there) => bridge.system.openIn("reveal", there))}
 					/>
 				</span>
 			</span>
@@ -614,7 +612,16 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 	// Context reads, not subscriptions: only a press needs them, and it reads the store then.
 	const scoped = useContext(SessionScope);
 	const safe = href.startsWith("http://") || href.startsWith("https://");
-	const path = safe ? null : resolveAsset(baseDir ?? project ?? (isAbsolutePath(href) ? "/" : undefined), href.replace(/:\d+(?:-\d+)?$/, ""));
+	const target = href.replace(/:\d+(?:-\d+)?$/, "");
+	const guess = safe ? null : resolveAsset(baseDir ?? project ?? (isAbsolutePath(href) ? "/" : undefined), target);
+	/*
+	 * `approvals.ts:125` joined to the working directory mostly names nothing: models write the bare
+	 * name, or a path relative to some package. The one file in the project it can only mean wins — see
+	 * `located-path.ts`. Not under a `baseDir`: that is the document's own folder, and its relative
+	 * paths are written for it.
+	 */
+	const located = useLocatedPath(guess && !baseDir && project && !isAbsolutePath(target) ? project : null, target);
+	const path = located ?? guess;
 	if (preview || (!safe && !path)) return <>{children}</>;
 	if (path) return <FileLink href={href} path={path}>{children}</FileLink>;
 	return (

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createElement as h } from "react";
 import { Markdown } from "../../src/features/conversation/Markdown.tsx";
 import { provideScope } from "../../src/features/dock/popout.ts";
+import { useApp } from "../../src/store/index.ts";
 import { click, fire, mount } from "../helpers/mount.ts";
 
 test("named local Markdown artifacts open through the file reader and preserve their labels", async () => {
@@ -130,6 +131,7 @@ test("pressing an exit hands the file to the system and leaves the link alone", 
 			},
 			system: {
 				openTargets: async () => [{ id: "reveal", label: "在访达中显示" }],
+				pathExists: async (path: string) => path !== "/project/gone.md",
 				openPath: async (path: string) => {
 					calls.push(`openPath ${path}`);
 				},
@@ -152,6 +154,19 @@ test("pressing an exit hands the file to the system and leaves the link alone", 
 		);
 	} finally {
 		await view.unmount();
+	}
+	// 文件不在了：不交给系统——「在访达中显示」一个不在的文件会打开它的上级目录，像是显示错了文件。
+	useApp.setState({ notices: [] });
+	calls.length = 0;
+	const gone = await mount(h(Markdown, { text: "[gone.md](gone.md)", baseDir: "/project" }));
+	try {
+		const [open, reveal] = gone.all("[data-ly-file-actions] button");
+		await click(open!);
+		await click(reveal!);
+		assert.deepEqual(calls, [], "不在的文件不交给系统");
+		assert.equal(useApp.getState().notices.length, 2, "每按一次说一次它不在了");
+	} finally {
+		await gone.unmount();
 		if (previous) Object.defineProperty(window, "plume", previous);
 		else Reflect.deleteProperty(window, "plume");
 	}

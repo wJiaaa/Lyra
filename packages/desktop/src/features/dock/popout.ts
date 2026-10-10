@@ -25,6 +25,7 @@ import { useApp } from "../../store/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
 import { fileSlot, openFileOf, useOpenFile } from "../../store/openFile.ts";
 import { allowsMany, basePanelKind, nextPanelKind } from "../../lib/panel-instance.ts";
+import { baseName } from "../../lib/paths.ts";
 import { emptyDockTree, usePaneDock } from "./pane-store.ts";
 import { has, kinds, remove, type DockNode, type PaneKind } from "./tree.ts";
 import { paneStorageKey, readTree, sanitize, writeTree } from "./persist.ts";
@@ -307,10 +308,14 @@ function inMain(kind: PanelKind, target: string | undefined) {
  * 有一格空着——从菜单或「+」开出来还没选文件的——就用那一格；最早那一格 `file` 不在树上就用它
  * （它弹出去了，文件就进那个窗口，和从前一样）；再不然新开一格。
  *
- * 读到了才开出那一格；读不到就在这里说一声。调用方十来处，有一半是 `void openFilePane(…)`，各自去接只会
- * 漏掉那一半。
+ * 点一个路径打开文件，各处都走这一扇门，所以这一扇门把事办完：
+ * - 标签叫磁盘上的文件名，不收调用方给的名字。面板按扩展名决定怎么画，附件标记上那个人起的名字
+ *   没有扩展名，`.md` 就画不成文档。
+ * - 读到了才开出那一格；读不到在这里说一声，说清读的是哪儿。从不 reject：调用方十来处，从前各自
+ *   `.catch(notify)`，有一半没接。
  */
-export function openFilePane(file: { path: string; name: string }, target?: string): Promise<void> {
+export function openFilePane(path: string, target?: string): Promise<void> {
+	const file = { path, name: baseName(path) || path };
 	if (inPanelWindow()) {
 		if (bridge.windows?.openPanelInMain) void bridge.windows.openPanelInMain({ ...inMain("file", target), file });
 		return Promise.resolve();
@@ -427,7 +432,7 @@ export function watchPanelWindows(): () => void {
 	 * through this window's own file boundary, as a click here would read it.
 	 */
 	const stopOpen = bridge.windows.onOpenPanel?.(({ kind, scope, file }) => {
-		if (file && basePanelKind(kind) === "file") void openFilePane(file, scope);
+		if (file && basePanelKind(kind) === "file") void openFilePane(file.path, scope);
 		else openScopedPanel(kind as PanelKind, scope);
 	}) ?? (() => {});
 	const stopRestore = bridge.windows.onRestorePanel(({ kind, scope, fileState }) => {

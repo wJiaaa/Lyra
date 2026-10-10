@@ -9,7 +9,9 @@
  * Addresses open where links in the conversation open (`settings.browser.openLinks`); Shift sends
  * one to the system browser instead, as it does there. Paths open in the file pane, and only paths
  * that `files.exists` confirms — which answers only inside an open project, so a path the shell
- * printed cannot open a file the file pane would refuse.
+ * printed cannot open a file the file pane would refuse. A relative one that is not there is looked
+ * for in the project the way a reply's links are: `pnpm --filter desktop typecheck` prints paths
+ * relative to `packages/desktop`, not to the project the terminal is in.
  */
 
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -21,6 +23,8 @@ export interface LinkActions {
 	/** Where a relative path is relative to — the terminal's project; `""` when there is none. */
 	base(): string;
 	exists(path: string): Promise<boolean>;
+	/** The one file in the project a relative path can mean, or null — see `services/locate.ts`. */
+	locate(relative: string): Promise<string | null>;
 	openUrl(url: string, external: boolean): void;
 	openFile(path: string): void;
 }
@@ -79,6 +83,8 @@ function readLine(line: IBufferLine): { text: string; cellAt: number[] } {
 	return { text, cellAt };
 }
 
+const ABSOLUTE = /^([A-Za-z]:)?[\\/]/;
+
 /** How long an answer from `exists` is trusted: hovering a line asks for every path on it. */
 const EXISTS_TTL = 5_000;
 
@@ -100,13 +106,15 @@ export function fileLinks(terminal: Terminal, actions: LinkActions): ILinkProvid
 			const candidates = pathsIn(text).flatMap((match) => {
 				const path = resolveAsset(base || "/", match.path);
 				// Relative with no project to be relative to: nothing to resolve it against.
-				if (!path || (!base && !/^([A-Za-z]:)?[\\/]/.test(match.path))) return [];
+				if (!path || (!base && !ABSOLUTE.test(match.path))) return [];
 				return [{ match, path }];
 			});
 			if (candidates.length === 0) return callback(undefined);
-			void Promise.all(candidates.map(({ path }) => exists(path))).then((answers) => {
+			const target = async ({ match, path }: (typeof candidates)[number]) =>
+				(await exists(path)) ? path : ABSOLUTE.test(match.path) ? null : actions.locate(match.path).catch(() => null);
+			void Promise.all(candidates.map(target)).then((targets) => {
 				const links: ILink[] = candidates
-					.filter((_, i) => answers[i])
+					.flatMap(({ match }, i) => (targets[i] ? [{ match, path: targets[i] }] : []))
 					.map(({ match, path }) => ({
 						text: match.text,
 						range: {

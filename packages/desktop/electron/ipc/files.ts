@@ -14,6 +14,7 @@ import { readableArtifact } from "../readable-artifacts.ts";
 import { dialog, ipcMain, net } from "electron";
 import { MEDIA_SCHEME } from "../preview-protocol.ts";
 import { readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
 import { getWindow } from "../window.ts";
 import { documentKind } from "../../shared/document-kind.ts";
 import { readDatabase, readWorkbook, type DocumentData } from "../documents.ts";
@@ -21,6 +22,7 @@ import { extractDocumentText, type ExtractedText } from "@plume/core";
 import type { FileContents, FileEntry } from "../ipc-types.ts";
 import { listReadableFiles, readReadableFile, resolveReadablePath } from "../file-read-service.ts";
 import { attachmentFile } from "../attachment-reads.ts";
+import { locateInProject } from "../file-locate.ts";
 
 export interface FilesIpcDeps {
 	projectRoots(): readonly string[];
@@ -124,6 +126,10 @@ export function registerFilesIpc({ projectRoots }: FilesIpcDeps): void {
 		return documentKind(path) === "database" ? readDatabase(path) : readWorkbook(path);
 	});
 
+	ipcMain.handle("files:locate", async (_event, root: string, relative: string): Promise<string[]> => {
+		const dir = await projectPath(root);
+		return dir ? (await locateInProject(dir, relative)).map((path) => join(root, path)) : [];
+	});
 	ipcMain.handle("files:read", async (_event, raw: string): Promise<FileContents | null> => {
 		const writable = await projectPath(raw);
 		const path = writable ?? readableArtifact(raw) ?? await referenceFile(raw) ?? await attachmentFile(raw);

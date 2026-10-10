@@ -161,7 +161,7 @@ export function FileTitle() {
 									 * 不然和树上点一样，开成顶上的一个标签。
 									 */
 									if (empty || !screen) void useOpenFile.getState().open(slot, entry);
-									else void openFilePane(entry, screen);
+									else void openFilePane(entry.path, screen);
 									/*
 									 * Picking a file is the end of the errand, so the tree goes away.
 									 *

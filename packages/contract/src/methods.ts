@@ -142,6 +142,7 @@ export const METHODS = {
 		remove: { channel: "files:remove" },
 		uniquePath: { channel: "files:uniquePath" },
 		exists: { channel: "files:exists" },
+		locate: { channel: "files:locate" },
 		importInto: { channel: "files:import" },
 		pick: { channel: "files:pick" },
 	},

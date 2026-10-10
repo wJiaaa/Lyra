@@ -19,7 +19,7 @@ import { useI18n } from "../../i18n/index.ts";
 import { relativeTo } from "../../lib/paths.ts";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
-import { openLabel, revealLabel, useOpenTarget, useOpenTargets } from "../../store/open-targets.ts";
+import { openLabel, revealLabel, useOpenTarget, useOpenTargets, withFileThere } from "../../store/open-targets.ts";
 import { ContextMenu, useContextMenu } from "../../ui/overlay/ContextMenu.tsx";
 import { MenuBody, MenuItem, MenuSeparator } from "../../ui/overlay/Menu.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
@@ -70,23 +70,10 @@ function PathMenu({
 	const { t } = useI18n();
 	const editor = useOpenTarget();
 	const targets = useOpenTargets();
-	const name = target.path.split(/[\\/]/).pop() || target.path;
 	const relative = root ? relativeTo(root, target.path) : null;
 	const inside = relative !== null && relative !== target.path && !relative.startsWith("..");
 
-	/*
-	 * The file may have moved since the turn that wrote it. Asked first, because revealing a path that
-	 * is gone opens its parent folder instead — which looks like showing the wrong file rather than
-	 * saying the file is not there.
-	 */
-	const withFile = async (act: (path: string) => Promise<unknown>) => {
-		const here = await bridge.system.pathExists(target.path).catch(() => false);
-		if (!here) {
-			useApp.getState().notify(t("attachment.gone", { name }), "warn");
-			return;
-		}
-		await act(target.path).catch((error: unknown) => useApp.getState().notify(String(error), "error"));
-	};
+	const withFile = (act: (path: string) => Promise<unknown>) => withFileThere(target.path, act);
 	const copy = (text: string, isRelative: boolean) => {
 		void bridge.clipboard.write(text);
 		useApp.getState().notify(t(isRelative ? "fileAction.relativePathCopied" : "fileAction.pathCopied"));

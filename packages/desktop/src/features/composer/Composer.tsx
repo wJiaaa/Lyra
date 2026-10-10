@@ -232,9 +232,9 @@ export function Composer({ centered = false }: {
 		setText,
 		field,
 		/* 标记点开的文件进右边的文件面板——这个组件本来就引着 dock，那件事在这里做。 */
-		openFile: (path, name) => {
+		openFile: (path) => {
 			// In this composer's screen, as the sub-agent bar does: the keyboard reaches it without focusing it.
-			void openFilePane({ path, name }, activeSessionId ?? "@draft");
+			void openFilePane(path, activeSessionId ?? "@draft");
 		},
 	});
 	const { marks } = kit;

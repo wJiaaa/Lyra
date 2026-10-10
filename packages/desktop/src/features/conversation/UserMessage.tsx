@@ -9,7 +9,6 @@ import { AttachmentMenu, AttachmentStrip, displayName, KIND_LABEL, previewableIn
 import { useAttachmentActions } from "../composer/index.ts";
 import { openFilePane } from "../dock/index.ts";
 import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
-import { baseName } from "../../lib/paths.ts";
 import { useMemo, useState } from "react";
 import { BubbleText } from "./BubbleText.tsx";
 import { jumpToSession } from "./jump-to-session.ts";
@@ -214,8 +213,7 @@ export function UserMessage({
     const path = file.path;
     if (!path) return;
     if (!(await attachmentActions.ensureThere({ name: file.label ?? file.name, path }))) return;
-    void openFilePane({ path, name: baseName(path) || file.name }, screen ?? undefined)
-      .catch((error: unknown) => useApp.getState().notify(String(error), "error"));
+    void openFilePane(path, screen ?? undefined);
   };
 
   /**
@@ -435,8 +433,7 @@ export function UserMessage({
                 const list = await bridge.commands.list(cmdCwd).catch(() => null);
                 const targetPath = list?.skills?.find((skill: SkillEntry) => skill.name === skillRef.name && skill.pluginId === skillRef.pluginId)?.path;
                 if (targetPath) {
-                  const fileName = targetPath.split(/[/\\]/).pop() || `${skillRef?.name} (SKILL.md)`;
-                  void openFilePane({ path: targetPath, name: fileName }, screen ?? undefined);
+                  void openFilePane(targetPath, screen ?? undefined);
                 } else {
                   useApp.getState().notify(t("userMessage.skillMissing", { name: skillRef?.name ?? "" }), "warn");
                 }

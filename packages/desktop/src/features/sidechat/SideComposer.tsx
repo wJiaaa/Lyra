@@ -57,9 +57,7 @@ export function SideComposer({
 	// The screen this side chat is docked in, where a file marked here opens — not the one with focus.
 	const screen = useDockScope();
 	/** 标记点开的文件进右边的文件面板——和主输入框同一个去处，开在这一屏。 */
-	const openFile = (path: string, name: string) => {
-		void openFilePane({ path, name }, screen ?? undefined);
-	};
+	const openFile = (path: string) => void openFilePane(path, screen ?? undefined);
 	const modelId = useSide((s) => sideChatOf(s, sessionId, sideId).modelId);
 	const loading = useSide((s) => sideChatOf(s, sessionId, sideId).loading);
 	const thinking = useSide((s) => sideChatOf(s, sessionId, sideId).thinking);

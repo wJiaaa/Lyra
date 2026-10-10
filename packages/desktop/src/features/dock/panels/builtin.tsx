@@ -42,7 +42,7 @@ import { registerPanels, type PanelDefinition } from "./registry.ts";
 function SubAgentPane() {
 	return (
 		<SubAgentPanel
-			openFile={(path, name) => void openFilePane({ path, name })}
+			openFile={(path) => void openFilePane(path)}
 		/>
 	);
 }

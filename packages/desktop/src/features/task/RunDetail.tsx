@@ -19,7 +19,7 @@ export function RunDetail({ run, query = "" }: { run: ToolRun; query?: string })
 		if (!meta) return;
 		try {
 			const path = await bridge.sessions.exportTrajectory(meta.id, "output", { correlationId: run.toolCallId });
-			await openFilePane({ path, name: path.split(/[\\/]/).pop() || path }, screen ?? undefined);
+			await openFilePane(path, screen ?? undefined);
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 	};
 	const output = (run.result?.content ?? []).filter(part => part.type === "text").map(part => part.text).join("\n");

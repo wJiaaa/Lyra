@@ -138,7 +138,7 @@ test("a panel window's request names the screen it was popped out of, and the fi
 		windows: { openPanelInMain: async (input: unknown) => { asked.push(input); return { ok: true }; } },
 	});
 	try {
-		void openFilePane({ path: "/work/beta/lib.ts", name: "lib.ts" });
+		void openFilePane("/work/beta/lib.ts");
 		assert.deepEqual(asked, [{ kind: "file", scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } }]);
 	} finally {
 		Reflect.deleteProperty(window, "plume");

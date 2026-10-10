@@ -19,9 +19,8 @@ import { showing, useCloseQuestion } from "./close-guard.ts";
 import { Confirm } from "../../ui/overlay/Confirm.tsx";
 import { TerminalSearch } from "./TerminalSearch.tsx";
 import { linkify } from "./links.ts";
-import { baseName } from "../../lib/paths.ts";
 import { CODE_DEFAULTS, onAppearanceApplied } from "../settings/index.ts";
-import { bridge } from "../../services/index.ts";
+import { bridge, locateFile } from "../../services/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
 
 /**
@@ -345,11 +344,11 @@ export function TerminalPane() {
 		linkify(terminal, {
 			base: () => linkContext.current.cwd,
 			exists: (path) => bridge.files.exists(path),
-			openFile: (path) => {
-				void openFilePane({ path, name: baseName(path) }, linkContext.current.scope).catch((error: unknown) =>
-					useApp.getState().notify(String(error), "error"),
-				);
+			locate: (relative) => {
+				const base = linkContext.current.cwd;
+				return base ? locateFile(base, relative) : Promise.resolve(null);
 			},
+			openFile: (path) => void openFilePane(path, linkContext.current.scope),
 			// As a link in the conversation opens — see `Link` in `Markdown.tsx`.
 			openUrl: (url, external) => {
 				const state = useApp.getState();

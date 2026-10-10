@@ -30,15 +30,15 @@ afterEach(() => {
 });
 
 test("一个文件一个标签，开过的切回去，不重复开", async () => {
-	await openFilePane({ path: "/repo/a.ts", name: "a.ts" });
-	await openFilePane({ path: "/repo/b.ts", name: "b.ts" });
+	await openFilePane("/repo/a.ts");
+	await openFilePane("/repo/b.ts");
 	const [first, second] = fileTabs();
 	assert.equal(fileTabs().length, 2);
 	assert.equal(first, "file");
 	assert.equal(shown(first!), "/repo/a.ts");
 	assert.equal(shown(second!), "/repo/b.ts");
 
-	await openFilePane({ path: "/repo/a.ts", name: "a.ts" });
+	await openFilePane("/repo/a.ts");
 	assert.equal(fileTabs().length, 2, "a.ts 已经有一个标签了");
 	assert.equal(usePaneDock.getState().tab.s, "file", "切到开着 a.ts 的那个标签");
 });
@@ -46,17 +46,30 @@ test("一个文件一个标签，开过的切回去，不重复开", async () =>
 test("读不到的文件不开出空标签，说一声读的是哪儿；开着的那格照旧", async () => {
 	Reflect.set(window, "plume", { files: { read: async (path: string) => (path.endsWith("missing.mjs") ? null : { text: path, truncated: false }) } });
 	useApp.setState({ notices: [] });
-	await openFilePane({ path: "/repo/a.ts", name: "a.ts" });
-	await openFilePane({ path: "/repo/missing.mjs", name: "missing.mjs" });
+	await openFilePane("/repo/a.ts");
+	await openFilePane("/repo/missing.mjs");
 	assert.deepEqual(fileTabs(), ["file"]);
 	assert.equal(shown("file"), "/repo/a.ts");
 	assert.equal(openFileOf(useOpenFile.getState(), fileSlot("s", "file")).loading, false);
 	assert.match(useApp.getState().notices.at(-1)?.message ?? "", /\/repo\/missing\.mjs/);
 });
 
+test("读文件的调用本身失败了，也是一句读不到，不往外抛", async () => {
+	Reflect.set(window, "plume", { files: { read: async () => { throw new Error("ipc gone"); } } });
+	useApp.setState({ notices: [] });
+	await openFilePane("/repo/a.ts");
+	assert.deepEqual(fileTabs(), []);
+	assert.match(useApp.getState().notices.at(-1)?.message ?? "", /\/repo\/a\.ts/);
+});
+
+test("标签叫磁盘上的文件名", async () => {
+	await openFilePane("/repo/docs/说明.md");
+	assert.equal(openFileOf(useOpenFile.getState(), fileSlot("s", "file")).name, "说明.md");
+});
+
 test("从「+」开出来还空着的那格先用上", async () => {
 	usePaneDock.getState().open("s", "file");
-	await openFilePane({ path: "/repo/a.ts", name: "a.ts" });
+	await openFilePane("/repo/a.ts");
 	assert.deepEqual(fileTabs(), ["file"]);
 	assert.equal(shown("file"), "/repo/a.ts");
 });

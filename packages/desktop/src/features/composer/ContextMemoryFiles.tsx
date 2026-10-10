@@ -27,7 +27,7 @@ export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdow
 				<button key={file.path} type="button" data-ly-tip={file.path} className="group/file ly-scroll flex w-full items-center gap-1.5 rounded-lg py-1 text-detail text-ink-faint transition-colors hover:text-ink"
 					onClick={() => {
 						onOpen();
-						void openFilePane({ path: file.path, name: file.path.split(/[\\/]/).pop() || file.path }, screen ?? undefined);
+						void openFilePane(file.path, screen ?? undefined);
 					}}>
 					<FileText size={12} strokeWidth={1.8} className="shrink-0" />
 					<ScrollText text={file.path} className="min-w-0 flex-1 text-left font-mono text-caption" />

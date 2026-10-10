@@ -57,7 +57,7 @@ export function FileBrowser() {
 				 * A file already open in a tab is switched to rather than opened twice, and a closed file
 				 * pane is brought back by the click that needs it — see `openFilePane`.
 				 */
-				void openFilePane(entry, screen ?? undefined);
+				void openFilePane(entry.path, screen ?? undefined);
 			}}
 			onMoved={(from, to) => useOpenFile.getState().moved(from, to)}
 			onRemoved={(paths) => useOpenFile.getState().removed(paths)}

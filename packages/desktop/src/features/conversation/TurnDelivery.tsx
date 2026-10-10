@@ -163,8 +163,7 @@ function Delivery({ sessionId, timestamp }: { sessionId: string; timestamp: numb
 	const report = data.reportPath;
 	const openInFilePane = (path: string) => {
 		hideHover();
-		void openFilePane({ path, name: path.split(/[\\/]/).pop() || path }, screen ?? undefined)
-			.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
+		void openFilePane(path, screen ?? undefined);
 	};
 	const openTurn = (path?: string) => {
 		hideHover();

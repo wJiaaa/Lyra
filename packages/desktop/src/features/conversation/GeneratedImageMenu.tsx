@@ -27,7 +27,7 @@ export function GeneratedImageMenu({ anchor, image, onClose }: { anchor: { x: nu
 	if (!anchor || !image) return null;
 
 	const openInPane = (path: string) => {
-		void openFileInScreen({ path, name: path.split(/[\\/]/).pop() || path }, screen ?? undefined).catch((error: unknown) => useApp.getState().notify(String(error), "error"));
+		void openFileInScreen(path, screen ?? undefined);
 	};
 
 	const addToChat = async () => {

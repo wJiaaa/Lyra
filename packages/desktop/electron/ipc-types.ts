@@ -568,6 +568,8 @@ export interface PlumeApi {
 		/** A name nothing in `dir` uses yet — `report copy.md` — for duplicating and pasting. */
 		uniquePath(dir: string, name: string): Promise<FileOpResult>;
 		exists(path: string): Promise<boolean>;
+		/** What a relative path written in a reply points at inside the project `root` — see `file-locate.ts`. */
+		locate(root: string, relative: string): Promise<string[]>;
 		/** Copy paths in from outside the app; only the destination is inside the project. */
 		importInto(sources: string[], dir: string): Promise<FileOpResult>;
 		/**

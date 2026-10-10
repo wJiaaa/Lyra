@@ -7,14 +7,14 @@
  * 这一层不画任何东西，只有行为和它的前置判断。
  */
 
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 
 import { abilitiesOf, type Abilities } from "./display.ts";
 import { parentOf } from "../../../lib/paths.ts";
 import { bridge } from "../../../services/index.ts";
 import { useApp } from "../../../store/index.ts";
 import { useI18n } from "../../../i18n/context.tsx";
-import { useOpenTarget } from "../../../store/open-targets.ts";
+import { useOpenTarget, withFileThere } from "../../../store/open-targets.ts";
 
 /** 动作要认识这份附件的哪几件事。 */
 
@@ -69,34 +69,19 @@ interface AttachmentActions {
 	openOrPreview(target: OpenTargetOption, originRect?: DOMRect): void;
 }
 
+/*
+ * 动手之前先确认文件还在：转录活得比文件久，一条消息记下的是发送那一刻的位置。和对话里的文件链接、
+ * 右键菜单同一个问法，见 `withFileThere`；说「不在了」时用附件标记上的名字。
+ */
+const withFile = (file: ActionTarget, act: (path: string) => unknown) =>
+	file.path ? withFileThere(file.path, act, file.name) : Promise.resolve();
+
 export function useAttachmentActions(): AttachmentActions {
 	const { t } = useI18n();
 	const target = useOpenTarget();
 	const projects = useApp((s) => s.settings?.projects);
 	const roots = useMemo(() => projects?.map((project) => project.path) ?? [], [projects]);
 
-	/**
-	 * 动手之前先确认文件还在。
-	 *
-	 * 转录活得比文件久，这是设计使然：一条消息记下的是发送那一刻的位置，之后文件会被改名、挪走、
-	 * 清掉。少了这一问，「在访达中显示」在文件已经不在时会去打开它的上级目录——看起来像是显示错了
-	 * 文件，而不是文件没了。
-	 *
-	 * 不能用 `files.exists`：那个按已打开的项目解析路径，项目外一律答 false，而附件绝大多数来自
-	 * 项目外。见 `system:pathExists`。
-	 */
-	const withFile = useCallback(
-		async (file: ActionTarget, act: (path: string) => void | Promise<void>) => {
-			if (!file.path) return;
-			const here = await bridge.system.pathExists(file.path).catch(() => false);
-			if (!here) {
-				useApp.getState().notify(t("attachment.gone", { name: file.name }), "warn");
-				return;
-			}
-			await act(file.path);
-		},
-		[t],
-	);
 
 	return useMemo(
 		() => ({
@@ -146,6 +131,6 @@ export function useAttachmentActions(): AttachmentActions {
 				}
 			},
 		}),
-		[roots, target, withFile, t],
+		[roots, target, t],
 	);
 }

@@ -21,6 +21,7 @@ import type { OpenTarget } from "../../electron/ipc-types.ts";
 import { useApp } from "./index.ts";
 import { bridge, hostPlatform } from "../services/index.ts";
 import { systemWord } from "../lib/system-words.ts";
+import { baseName } from "../lib/paths.ts";
 
 /**
  * 「在访达中显示」 — showing a file where it lives, in this platform's words and the window's language.
@@ -118,4 +119,25 @@ export function useOpenTarget(): OpenTarget {
  */
 export function useRevealLabel(): string {
 	return revealLabel();
+}
+
+/**
+ * Hand a path to the system only while it is still there.
+ *
+ * The file may have moved since the turn that wrote it, or a reply may name one that never existed.
+ * Asked first, because revealing a path that is gone opens its parent folder instead — which looks
+ * like showing the wrong file rather than saying the file is not there. The menu, a file link's
+ * hover buttons and an attachment's actions all go through here, so they say the same thing about
+ * the same file.
+ */
+export async function withFileThere(path: string, act: (path: string) => unknown, name = baseName(path) || path): Promise<void> {
+	// `system.pathExists`, not `files.exists`: that one answers only inside an open project, and an attachment is usually from outside one.
+	const here = await bridge.system.pathExists(path).catch(() => false);
+	if (!here) {
+		useApp.getState().notify(translate("attachment.gone", { name }), "warn");
+		return;
+	}
+	await Promise.resolve()
+		.then(() => act(path))
+		.catch((error: unknown) => useApp.getState().notify(String(error), "error"));
 }

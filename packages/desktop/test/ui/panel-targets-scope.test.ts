@@ -244,6 +244,24 @@ test("a relative file link on the screen without focus opens that screen's proje
 	assert.deepEqual(openedIn("file"), { a: false, b: true }, "the file pane opened beside the conversation with focus");
 });
 
+test("a bare file name in a reply opens the one file in that screen's project it can mean; two of them, no guess", async () => {
+	const asked: [string, string][] = [];
+	plume.files = {
+		locate: async (root: string, relative: string) => {
+			asked.push([root, relative]);
+			return relative === "approvals.ts" ? [`${BETA.path}/packages/core/src/runtime/approvals.ts`] : [`${BETA.path}/a/tool-run.ts`, `${BETA.path}/b/tool-run.ts`];
+		},
+	};
+	view = await inScreen("b", h(Markdown, { text: "见 `approvals.ts:125`，还有 `tool-run.ts:246`" }));
+	await until(() => asked.length === 2);
+	await settle();
+	const [approvals, toolRun] = [...view.host.querySelectorAll("[data-ly-file-link] a")];
+	await click(approvals!);
+	await click(toolRun!);
+	assert.deepEqual(asked, [[BETA.path, "approvals.ts"], [BETA.path, "tool-run.ts"]], "asked the project of the screen the reply is in");
+	assert.deepEqual(opened, [`${BETA.path}/packages/core/src/runtime/approvals.ts`, `${BETA.path}/tool-run.ts`]);
+});
+
 test("a web link on the screen without focus opens in that conversation's browser, in that screen", async () => {
 	const browser = fakeBrowser();
 	plume.browser = browser.api;

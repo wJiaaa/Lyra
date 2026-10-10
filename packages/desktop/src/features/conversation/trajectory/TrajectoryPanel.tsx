@@ -75,7 +75,7 @@ function SessionTrajectory() {
 		if (!meta) return;
 		try {
 			const path = await bridge.sessions.exportTrajectory(meta.id, format, entry ? { id: entryKey(entry) } : undefined);
-			await openFilePane({ path, name: path.split(/[\\/]/).pop() || path }, screen ?? undefined);
+			await openFilePane(path, screen ?? undefined);
 			setSelected(null);
 		} catch (error) { useApp.getState().notify(String(error), "error"); }
 	};

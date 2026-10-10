@@ -122,7 +122,8 @@ export const useOpenFile = create<OpenFileState>((set, get) => {
 			 */
 			patch(slot, { opening: entry.path, loading: true });
 			try {
-				const read = await bridge.files.read(entry.path);
+				// A failed call is the same answer as an empty one: nothing to show.
+				const read = await bridge.files.read(entry.path).catch(() => null);
 				// A second open into this pane while this was in flight wins.
 				if (openFileOf(get(), slot).opening !== entry.path) return true;
 				/*

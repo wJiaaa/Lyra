@@ -6,12 +6,12 @@
  * conversation, and importing the dock from there would close a loop. A `.ts` file of its own
  * because `popout.ts` registers it and the node tests load that file, which cannot import `.tsx`.
  */
-let fileOpener: ((file: { path: string; name: string }, screen?: string) => Promise<void>) | null = null;
+let fileOpener: ((path: string, screen?: string) => Promise<void>) | null = null;
 
 export function provideFileOpener(open: typeof fileOpener): void {
 	fileOpener = open;
 }
 
-export function openFileInScreen(file: { path: string; name: string }, screen?: string): Promise<void> {
-	return fileOpener?.(file, screen) ?? Promise.resolve();
+export function openFileInScreen(path: string, screen?: string): Promise<void> {
+	return fileOpener?.(path, screen) ?? Promise.resolve();
 }

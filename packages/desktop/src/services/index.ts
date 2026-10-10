@@ -9,3 +9,4 @@
 export { bridge } from "./bridge.ts";
 export { hostPlatform } from "./host.ts";
 export { withParkedPixels } from "./media.ts";
+export { locatedFile, locateFile } from "./locate.ts";
