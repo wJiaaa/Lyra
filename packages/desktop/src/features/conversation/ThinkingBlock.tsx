@@ -1,13 +1,14 @@
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { translate } from "../../i18n/translate.ts";
 import { Brain } from "../../ui/icons/index.ts";
-import { useEffect, useMemo, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import { FADE } from "./FadeText.tsx";
 import { FlowRow } from "./FlowRow.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { motionReduced } from "../../ui/motion/reduced.ts";
-import { thinkingRuns } from "./thinking-ticker.ts";
+import { thinkingRuns, thinkingTail } from "./thinking-ticker.ts";
+import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useTranscriptDisclosure } from "./view-state.ts";
 
 /**
@@ -92,8 +93,62 @@ export function ThinkingBlock({ text, redacted, live, stateKey }: { text: string
 				{...(redacted ? {} : { onToggle: () => { setOpen((v) => !v); } })}
 				label={translate("thinking.process")}
 			/>
-			<Collapse open={open && !redacted} bodyClassName="mt-1.5 border-l-2 border-line pl-3" keepMounted><Markdown text={text} streaming={typing && open} className="text-label text-ink-faint" /></Collapse>
+			{/*
+			 * 收起后不留子树：留着的话，隐藏的正文照样随每个 token 重排，展开过一次的思考在收起之后
+			 * 仍把流式中的窗口拖在 20 帧上下。重新展开只是再解析一遍，17 万字也不到一毫秒。
+			 */}
+			<Collapse open={open && !redacted} bodyClassName="mt-1.5 border-l-2 border-line pl-3"><ThinkingBody text={text} live={live === true} /></Collapse>
 		</div>
+	);
+}
+
+/**
+ * 点开之后的全文，装在一个限高、自己滚动的框里。
+ *
+ * 还在写的时候只放纯文本的尾巴（见 `thinkingTail`）。整段 Markdown 逐字淡入地跟着流写，每个
+ * token 都要把越来越长的全文重排一遍：实测一段 17 万字的推理展开着写，主线程五秒里占满四秒半，
+ * 窗口只剩四五帧，耗时几乎全在浏览器的样式与布局，不在解析。写完再换成 Markdown，那一次很便宜。
+ *
+ * 限高对写完的也成立：一段几十屏的推理整个摊开，会把真正的回复推到很远的地方去。
+ *
+ * 跟着底部走，用户往上翻了就不跟；从历史里点开的从头读，所以初值取 `live`。
+ *
+ * 往上翻的时候窗口的起点也停住（`held`）。不停的话尾巴每前进一步就从顶上切掉几千字，正在读的那段
+ * 被抽走，滚动位置被夹回底部，跟随又自己接上了——按每秒两千字算，每两秒一次，往上根本翻不动。
+ * 停住期间框里的纯文本会长过 `LIVE_TAIL`，回到底部就收回去。
+ */
+function ThinkingBody({ text, live }: { text: string; live: boolean }) {
+	const viewport = useRef<HTMLDivElement>(null);
+	const pinned = useRef(live);
+	const [held, setHeld] = useState<number | null>(null);
+	const cut = useMemo(() => (live ? thinkingTail(text) : { tail: text, hidden: 0 }), [text, live]);
+	const hidden = held !== null && held < cut.hidden ? held : cut.hidden;
+	const tail = hidden === cut.hidden ? cut.tail : text.slice(hidden);
+
+	useLayoutEffect(() => {
+		const element = viewport.current;
+		if (element && pinned.current) element.scrollTop = element.scrollHeight;
+	}, [tail, live]);
+
+	return (
+		<Scroller
+			className="max-h-[min(320px,40vh)]"
+			overscroll="auto"
+			scrollRef={viewport}
+			onScroll={(element) => {
+				pinned.current = element.scrollHeight - element.scrollTop - element.clientHeight < 8;
+				if (live && pinned.current !== (held === null)) setHeld(pinned.current ? null : hidden);
+			}}
+		>
+			{live ? (
+				<div className="whitespace-pre-wrap break-words text-label leading-[1.75] tracking-[0.025em] text-ink-faint">
+					{hidden > 0 && <div className="mb-2 italic">{translate("thinking.earlier", { count: hidden.toLocaleString() })}</div>}
+					{tail}
+				</div>
+			) : (
+				<Markdown text={text} className="text-label text-ink-faint" />
+			)}
+		</Scroller>
 	);
 }
 
