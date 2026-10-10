@@ -33,7 +33,7 @@ test("点已发送文档的标记，打开的是那个文件", async () => {
 		running: false,
 		notices: [],
 	} as never);
-	useOpenFile.setState({ open: async (_slot, entry) => void opened.push(entry.path) });
+	useOpenFile.setState({ open: async (_slot, entry) => { opened.push(entry.path); return true; } });
 	// 文件开在人所在的那一屏；没有屏的窗口里没有文件面板可开。
 	provideScope(() => "s");
 

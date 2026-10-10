@@ -2332,6 +2332,7 @@ export const zhCN = {
 	"traceList.step": "步骤 {step} · {duration}",
 	"filePanel.pickOne": "选择一个文件查看内容",
 	"filePanel.unreadable": "读不到这个文件",
+	"filePanel.unreadableAt": "读不到 {path}",
 	"gitPanel.needProject": "打开项目后查看",
 	"gitPanel.diagnose": "诊断并修复",
 	"gitPanel.initRepo": "初始化仓库",

@@ -101,7 +101,7 @@ beforeEach(() => {
 		settings: { projects: [{ path: ALPHA.path, name: ALPHA.name }, { path: BETA.path, name: BETA.name }], editor: {}, browser: { openLinks: "builtin" }, appearance: {} } as unknown as AppState["settings"],
 		notify: () => {},
 	});
-	useOpenFile.setState({ open: async (_slot, entry) => { opened.push(entry.path); } });
+	useOpenFile.setState({ open: async (_slot, entry) => { opened.push(entry.path); return true; } });
 	useTerminals.setState({ tabs: [], active: "", activeByScope: {} });
 	useBrowser.setState({ tabs: [], activeId: null });
 	window.localStorage.clear();

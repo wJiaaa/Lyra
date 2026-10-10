@@ -2156,6 +2156,7 @@ export const en = {
 	"traceList.step": "Step {step} · {duration}",
 	"filePanel.pickOne": "Pick a file to see what is in it",
 	"filePanel.unreadable": "This file cannot be read",
+	"filePanel.unreadableAt": "Cannot read {path}",
 	"gitPanel.needProject": "Open a project to see it",
 	"gitPanel.diagnose": "Work out what is wrong",
 	"gitPanel.initRepo": "Set up a repository",

@@ -164,7 +164,7 @@ test("the main window opens what a panel window asked for in the screen it came 
 	});
 	const opened: string[] = [];
 	const previous = useOpenFile.getState();
-	useOpenFile.setState({ open: async (_slot, entry) => { opened.push(entry.path); } });
+	useOpenFile.setState({ open: async (_slot, entry) => { opened.push(entry.path); return true; } });
 	const stop = watchPanelWindows();
 	try {
 		asked?.({ kind: "file", scope: "sess-b", file: { path: "/work/beta/lib.ts", name: "lib.ts" } });

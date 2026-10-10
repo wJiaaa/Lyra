@@ -20,6 +20,8 @@ import { create } from "zustand";
 import { provideFileOpener } from "../../app/file-opener.ts";
 import { flushSync } from "react-dom";
 import { bridge } from "../../services/index.ts";
+import { translate } from "../../i18n/translate.ts";
+import { useApp } from "../../store/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
 import { fileSlot, openFileOf, useOpenFile } from "../../store/openFile.ts";
 import { allowsMany, basePanelKind, nextPanelKind } from "../../lib/panel-instance.ts";
@@ -305,7 +307,8 @@ function inMain(kind: PanelKind, target: string | undefined) {
  * 有一格空着——从菜单或「+」开出来还没选文件的——就用那一格；最早那一格 `file` 不在树上就用它
  * （它弹出去了，文件就进那个窗口，和从前一样）；再不然新开一格。
  *
- * 读到了才开出那一格；读不到由调用方说。
+ * 读到了才开出那一格；读不到就在这里说一声。调用方十来处，有一半是 `void openFilePane(…)`，各自去接只会
+ * 漏掉那一半。
  */
 export function openFilePane(file: { path: string; name: string }, target?: string): Promise<void> {
 	if (inPanelWindow()) {
@@ -328,10 +331,11 @@ export function openFilePane(file: { path: string; name: string }, target?: stri
 		nextPanelKind("file", (each) => has(tree, each));
 	/*
 	 * Read first, then show. A file that cannot be read does not leave an empty tab behind, and a
-	 * pane already showing something keeps showing it — the caller says what went wrong.
+	 * pane already showing something keeps showing it.
 	 */
-	return files.open(fileSlot(scope, kind), file).then(() => {
-		openScopedPanel(kind as PanelKind, scope);
+	return files.open(fileSlot(scope, kind), file).then((shown) => {
+		if (shown) openScopedPanel(kind as PanelKind, scope);
+		else useApp.getState().notify(translate("filePanel.unreadableAt", { path: file.path }), "warn");
 	});
 }
 

@@ -90,7 +90,7 @@ beforeEach(() => {
 		activity: {}, settings: null,
 	});
 	useFileTreeStore.setState({ children: {}, expanded: new Set() });
-	useOpenFile.setState({ files: {}, last: null, open: async (_slot, entry) => void opened.push(entry.path) });
+	useOpenFile.setState({ files: {}, last: null, open: async (_slot, entry) => { opened.push(entry.path); return true; } });
 	window.localStorage.clear();
 	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, host: null });
 	usePaneDock.getState().rememberSize("a", { width: 1200, height: 900 });

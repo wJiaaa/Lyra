@@ -262,3 +262,11 @@ test("侧边聊天的提示词教界面块，但不指向它没有的 preview", 
 	assert.match(system, /<Button send=/);
 	assert.doesNotMatch(system, /preview/);
 });
+
+test("侧边聊天的提示词要文件写成带工作目录的绝对路径，只写文件名点开的是根目录下不存在的文件", async (t) => {
+	let system = "";
+	const { main, chat } = await fixture(t, { emit: () => {}, streamFn: async (context) => { system = (context as { systemPrompt?: string }).systemPrompt ?? ""; return reply(); } });
+	await chat.ask([{ type: "text", text: "那个脚本在哪" }]);
+	assert.ok(system.includes(`主会话的工作目录是 ${main.cwd}`));
+	assert.match(system, /绝对路径/);
+});

@@ -16,7 +16,7 @@ function fixture(id: string) {
 	const meta: SessionMeta = { id, projectId: "p", projectName: "QA", cwd: "/tmp", title: "Focus", createdAt: 1, updatedAt: 1, messageCount: 1, seq: 1, modelId: "qa", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
 	const reads: { id: string; resolve: (changes: TrajectoryChanges) => void }[] = [];
 	const exports: { format: string; entry?: { id: string }; resolve: (path: string) => void; reject: (error: Error) => void }[] = [];
-	const files: { path: string; resolve: () => void; reject: (error: Error) => void }[] = [];
+	const files: { path: string; resolve: (shown: boolean) => void; reject: (error: Error) => void }[] = [];
 	const panes: string[] = [], errors: string[] = [];
 	const listeners = new Set<(payload: { sessionId: string; event: AgentEvent }) => void>();
 	const previousBridge = Object.getOwnPropertyDescriptor(window, "plume");
@@ -32,7 +32,7 @@ function fixture(id: string) {
 	// Panels open in the screen the person is in; record which ones were asked for.
 	provideScope(() => id);
 	usePaneDock.setState({ open: (_scope, kind) => { panes.push(kind); return true; } });
-	useOpenFile.setState({ open: (_slot, entry) => new Promise<void>((resolve, reject) => files.push({ path: entry.path, resolve, reject })) });
+	useOpenFile.setState({ open: (_slot, entry) => new Promise<boolean>((resolve, reject) => files.push({ path: entry.path, resolve, reject })) });
 	useTraceFocus.setState({ sessionId: "", correlationId: "", nonce: 0 });
 	return { meta, reads, exports, files, panes, errors, listeners, restore() {
 		useApp.setState(app); usePaneDock.setState(dock); useOpenFile.setState(file); useTraceFocus.setState(focus); provideScope(() => null);
@@ -113,14 +113,14 @@ test("viewing a trace file retains the inspector on failure and closes only afte
 		assert.ok(inspector()); assert.match(state.errors[1], /file read failed/); assert.ok(!state.panes.includes("file"));
 		await action("在文件中查看完整记录");
 		await act(async () => state.exports[2].resolve("/tmp/record.json"));
-		await act(async () => state.files[1].resolve());
+		await act(async () => state.files[1].resolve(true));
 		assert.equal(state.panes.at(-1), "file"); assert.equal(inspector(), null);
 		await act(async () => showTrace(state.meta.id, correlationId));
 		await action("查看完整原始输出");
 		assert.equal(state.exports[3].format, "output");
 		await act(async () => state.exports[3].resolve("/tmp/trace-output.txt"));
 		assert.ok(inspector());
-		await act(async () => state.files[2].resolve());
+		await act(async () => state.files[2].resolve(true));
 		assert.equal(state.panes.at(-1), "file"); assert.equal(inspector(), null);
 	} finally { await view.unmount(); state.restore(); }
 });

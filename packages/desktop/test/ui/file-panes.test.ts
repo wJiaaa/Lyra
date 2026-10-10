@@ -10,6 +10,7 @@ import { openFilePane, provideScope } from "../../src/features/dock/popout.ts";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
 import { kinds } from "../../src/features/dock/tree.ts";
 import { fileSlot, openFileOf, useOpenFile } from "../../src/store/openFile.ts";
+import { useApp } from "../../src/store/index.ts";
 
 const fileTabs = () => kinds(usePaneDock.getState().tree("s")).filter((kind) => kind === "file" || kind.startsWith("file:"));
 const shown = (kind: string) => openFileOf(useOpenFile.getState(), fileSlot("s", kind)).path;
@@ -40,6 +41,17 @@ test("一个文件一个标签，开过的切回去，不重复开", async () =>
 	await openFilePane({ path: "/repo/a.ts", name: "a.ts" });
 	assert.equal(fileTabs().length, 2, "a.ts 已经有一个标签了");
 	assert.equal(usePaneDock.getState().tab.s, "file", "切到开着 a.ts 的那个标签");
+});
+
+test("读不到的文件不开出空标签，说一声读的是哪儿；开着的那格照旧", async () => {
+	Reflect.set(window, "plume", { files: { read: async (path: string) => (path.endsWith("missing.mjs") ? null : { text: path, truncated: false }) } });
+	useApp.setState({ notices: [] });
+	await openFilePane({ path: "/repo/a.ts", name: "a.ts" });
+	await openFilePane({ path: "/repo/missing.mjs", name: "missing.mjs" });
+	assert.deepEqual(fileTabs(), ["file"]);
+	assert.equal(shown("file"), "/repo/a.ts");
+	assert.equal(openFileOf(useOpenFile.getState(), fileSlot("s", "file")).loading, false);
+	assert.match(useApp.getState().notices.at(-1)?.message ?? "", /\/repo\/missing\.mjs/);
 });
 
 test("从「+」开出来还空着的那格先用上", async () => {

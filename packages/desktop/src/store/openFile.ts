@@ -77,8 +77,12 @@ interface OpenFileState {
 	setWrap(wrap: boolean): void;
 	setShowSource(showSource: boolean): void;
 
-	/** Show this file in that pane, replacing whatever it showed. */
-	open(slot: string, entry: Pick<FileEntry, "path" | "name">): Promise<void>;
+	/**
+	 * Show this file in that pane, replacing whatever it showed.
+	 *
+	 * `false` when the file could not be read: the pane keeps what it had, and the caller says so.
+	 */
+	open(slot: string, entry: Pick<FileEntry, "path" | "name">): Promise<boolean>;
 	/**
 	 * A rename or a move the open files have to survive.
 	 *
@@ -120,10 +124,16 @@ export const useOpenFile = create<OpenFileState>((set, get) => {
 			try {
 				const read = await bridge.files.read(entry.path);
 				// A second open into this pane while this was in flight wins.
-				if (openFileOf(get(), slot).opening !== entry.path) return;
+				if (openFileOf(get(), slot).opening !== entry.path) return true;
+				/*
+				 * Nothing there — a bare `name.mjs` in a reply resolves against the project root. Written into
+				 * the pane, that was a tab of its own saying 「读不到这个文件」 over a file that was never opened.
+				 */
+				if (!read) return false;
 				// Together, so the pane never shows one file's name over another file's contents.
 				patch(slot, { path: entry.path, name: entry.name, contents: read });
 				set({ last: entry.path, showSource: false });
+				return true;
 			} finally {
 				if (openFileOf(get(), slot).opening === entry.path) patch(slot, { loading: false, opening: null });
 			}
