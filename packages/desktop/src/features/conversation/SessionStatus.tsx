@@ -2,7 +2,7 @@ import type { MessageKey } from "../../i18n/messages/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { SessionActivity } from "@plume/core/activity";
 
-import { StatusSpinner } from "../../ui/motion/loaders.tsx";
+import { BreatheLoader } from "../../ui/motion/loaders.tsx";
 
 /** Keys, looked up when the row is drawn — this table is built at import time. */
 const LABEL: Record<SessionActivity, MessageKey> = {
@@ -41,11 +41,17 @@ export function SessionStatus({ activity, unread = false }: { activity: SessionA
 		>
 			{activity === "running" ? (
 				/*
-				 * 比槽位小一圈：14px 的槽画 12px 的环，和同列 7px 的点放在一起不至于太重。虚线环六段
-				 * 等分、没有端点，一列里好几行同时在转也不会各自勾一下视线。
+				 * 比槽位小一圈，不填满。
+				 *
+				 * 波纹每口气的末尾会涨到满宽，所以给足 14px 的话，它每个周期顶点都要碰到邻居。12px
+				 * 上最宽的那圈仍然让得开行距，而核心——一眼真正读到的就是它——保持着其余状态那些点
+				 * 的大小。
+				 *
+				 * 这一处没有跟着换成 `StatusSpinner`：一列会话可能同时好几行在跑，而这一列还要用来
+				 * 读标题。并排三四个各自在转，读标题时旁边总有东西在动。
 				 */
-				<span data-ly-status-mark="running" className="flex text-accent">
-					<StatusSpinner size={12} />
+				<span data-ly-status-mark="running">
+					<BreatheLoader size={12} />
 				</span>
 			) : (
 				/*

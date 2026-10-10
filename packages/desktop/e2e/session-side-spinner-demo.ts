@@ -1,6 +1,6 @@
 /* oxlint-disable no-console -- real-window verification prints measured evidence */
 /**
- * 侧边聊天在跑时，侧栏对应那一行要显示转圈。
+ * 侧边聊天在跑时，侧栏对应那一行要亮起呼吸灯。
  *
  * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/session-side-spinner-demo.ts`
@@ -15,7 +15,7 @@ import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 import { seedSessions } from "./session-fixture.ts";
 
-const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume侧边聊天转圈测试");
+const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume会话呼吸灯测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
 const PORT = 9796;
 const INSPECT = 9797;
@@ -111,8 +111,8 @@ function rowProbe(id: string): string {
 		const row=document.querySelector('[data-ly-row=${JSON.stringify(id)}]');
 		if(!row) return {found:false,mark:null,spin:false,spinning:false};
 		const mark=row.querySelector('[data-ly-status-mark]')?.getAttribute('data-ly-status-mark')||null;
-		const spin=row.querySelector('svg.ly-dash');
-		const spinning=spin?getComputedStyle(spin.querySelector('circle')).animationName.includes('ly-spin'):false;
+		const spin=row.querySelector('.ly-breathe');
+		const spinning=spin?getComputedStyle(spin.querySelector('i')).animationName.includes('ly-breathe-wave'):false;
 		return {found:true,mark,spin:Boolean(spin),spinning};
 	})()`;
 }
@@ -191,6 +191,23 @@ try {
 		live,
 	);
 	await hold(1600);
+	const core = `(()=>{const b=document.querySelector('[data-ly-row="${A}"] .ly-breathe b');const s=getComputedStyle(b);return {color:s.backgroundColor,width:b.getBoundingClientRect().width}})()`;
+	const samples: { color: string; width: number }[] = [];
+	for (let i = 0; i < 6; i++) {
+		samples.push(await app.evaluate(core));
+		await pause(400);
+	}
+	const widths = samples.map((s) => s.width);
+	check(
+		"breathing core walks the hue and stays about 7px",
+		new Set(samples.map((s) => s.color)).size >= 3 && Math.max(...widths) <= 7.6 && Math.min(...widths) >= 6.6,
+		samples,
+	);
+	await app.send("Page.captureScreenshot", { format: "png" }).then((p) =>
+		mkdir(out, { recursive: true }).then(() =>
+			writeFile(join(out, `${stamp}_01_运行中的会话行.png`), Buffer.from((p as { data: string }).data, "base64")),
+		),
+	);
 
 	await click(`[data-ly-row="${B}"] > button`);
 	await pause(400);
@@ -243,7 +260,7 @@ try {
 	await app?.stop();
 	await mkdir(out, { recursive: true });
 	const pass = checks.filter((item) => item.ok).length;
-	const name = `${stamp}_侧边聊天转圈_${pass}of${checks.length}`;
+	const name = `${stamp}_会话行呼吸灯_${pass}of${checks.length}`;
 	await writeFile(join(out, `${name}.json`), JSON.stringify({ checks }, null, 2));
 	if (frames.length) await encode(frames, join(out, `${name}.mp4`), 60);
 	console.log(`Evidence: ${join(out, name)} (${frames.length} captured frames)`);
