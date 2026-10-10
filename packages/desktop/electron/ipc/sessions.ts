@@ -44,6 +44,7 @@ import {
 import { slimSnapshot } from "../display-transcript.ts";
 import { readSummary, summarize } from "../session-summary.ts";
 import { steerDisplay } from "../prompt-input.ts";
+import { ownWorkspace } from "../scratch.ts";
 
 export interface SessionsIpcDeps {
 	store(): SessionStorage;
@@ -214,7 +215,8 @@ export function registerSessionsIpc({
 			if (sessions.get(sessionId)?.running) return { ok: false as const, reason: "running" as const };
 			await disposeSession(sessionId, "moved");
 			try {
-				const meta = await store.move(sessionId, cwd, projectName);
+				// 「从项目中移除」 lands in a directory of its own, the same as a new chat — see `ownWorkspace`.
+				const meta = await store.move(sessionId, await ownWorkspace(cwd), projectName);
 				if (!meta) return { ok: false as const, reason: "gone" as const };
 				return { ok: true as const, meta };
 			} catch (cause) {

@@ -18,7 +18,7 @@ import type { SessionChange } from "./ipc-shapes.ts";
 import type { SessionSnapshot, PlumeApi } from "./ipc-types.ts";
 import { createStoredSession, type InitialPrompt } from "./create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
-import { ensureSessionWorkspace } from "./scratch.ts";
+import { ensureSessionWorkspace, ownWorkspace } from "./scratch.ts";
 import { discardSideChat } from "./sidechat-discard.ts";
 import { listSideChats, removeSideChats } from "./sidechat-store.ts";
 import { removeSummary } from "./session-summary.ts";
@@ -73,7 +73,8 @@ const peers = createPeerRouter({
 const peerTools = createPeerTools(peers);
 
 export async function createSession(cwd: string, modelId: string, initial?: InitialPrompt): Promise<SessionSnapshot> {
-	const saved = await createStoredSession(deps.store(), deps.settings(), cwd, modelId, initialPrompt(initial));
+	// 「不在项目中工作」 arrives as the shared `general`; each conversation runs in a directory of its own.
+	const saved = await createStoredSession(deps.store(), deps.settings(), await ownWorkspace(cwd), modelId, initialPrompt(initial));
 	stageSession(saved);
 	if (initial) submitted.add(saved.meta.id);
 	return saved;

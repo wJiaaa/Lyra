@@ -17,8 +17,9 @@
  * from remote input, so every character outside a safe set is replaced rather than trusted.
  */
 
+import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { plumeHome, within } from "@plume/core";
 
 /** Everything outside this becomes a dash, which also flattens `owner/name` into one segment. */
@@ -99,14 +100,36 @@ export async function prScratchDir(repo: string, number: number): Promise<string
 }
 
 /**
- * The working directory for a conversation with no subject at all — 「不在项目中工作」.
+ * Where a new conversation with no subject at all — 「不在项目中工作」 — is opened from.
  *
- * One shared directory rather than one per session: without a pull request there is nothing to
- * derive a stable name from, and a fresh folder per conversation would pile up empty directories
- * nobody ever looks in.
+ * Not where it runs. Until the first message there is no conversation, so the window needs one
+ * stable path to stand for "no project": the composer keys its draft on it, the sidebar files it
+ * under 聊天. The moment a session is created on it, `ownWorkspace` swaps it for a directory of
+ * the session's own.
  */
 export async function generalScratchDir(): Promise<string> {
 	const dir = join(workspacesRoot(), "general");
+	await mkdir(dir, { recursive: true });
+	return dir;
+}
+
+/**
+ * The directory a session is actually stored under, given the one it was asked for.
+ *
+ * `general` used to be where every project-less conversation ran, side by side. The agent's first
+ * `ls` then showed it the files every earlier chat had left behind, and it read them as the
+ * user's project: a to-do list came back styled after a landing page from another conversation.
+ * The project-level state keyed on the directory — memory, pending skills — was shared the same
+ * way. So each one gets its own, dated the way Codex files its temporary chats.
+ *
+ * The old reason for sharing — one folder per conversation piles up empty directories — no longer
+ * holds: this runs when a session is stored, which is on its first message, not on 新对话.
+ * Conversations already in `general` stay there; their transcripts are keyed by that path.
+ */
+export async function ownWorkspace(cwd: string, now = new Date()): Promise<string> {
+	if (resolve(cwd) !== resolve(workspacesRoot(), "general")) return cwd;
+	const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+	const dir = join(workspacesRoot(), "chats", day, randomUUID().slice(0, 8));
 	await mkdir(dir, { recursive: true });
 	return dir;
 }

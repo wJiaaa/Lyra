@@ -165,6 +165,8 @@ export function turnSlice(set: Set, get: Get) {
 					...(ownsSelection() ? {
 						activeSessionId: sessionId, draftBecame: sessionId, meta: listed, messages, toolRuns: {}, approvals: [],
 						loadingSession: false, pendingUserMessage: null,
+						// 不在项目里的对话由主进程分了自己的目录（`ownWorkspace`），不再是发出去的那个 `general`。
+						...(get().workspace ? {} : { scratchCwd: listed.cwd }),
 					} : {}),
 				});
 			} catch (cause) {

@@ -11,9 +11,9 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { ensureSessionWorkspace, prChatSlug } from "../electron/scratch.ts";
+import { ensureSessionWorkspace, generalScratchDir, ownWorkspace, prChatSlug, prScratchDir } from "../electron/scratch.ts";
 
 test("owner/name becomes one path component", () => {
 	const slug = prChatSlug("kittors/plume", 42);
@@ -76,4 +76,31 @@ test("a conversation's directory is put back when it has gone missing", async (t
 	const elsewhere = join(home, "..", "somebody-elses-project");
 	assert.equal(await ensureSessionWorkspace(elsewhere), false);
 	assert.ok(!existsSync(elsewhere));
+});
+
+test("each project-less conversation gets a directory of its own", async (t) => {
+	const home = await mkdtemp(join(tmpdir(), "plume-own-"));
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = home;
+	t.after(async () => {
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
+		await rm(home, { recursive: true, force: true });
+	});
+
+	// Sharing `general` let one chat's `ls` find every earlier chat's files and take them as the user's project.
+	const general = await generalScratchDir();
+	const day = new Date(2026, 9, 11);
+	const first = await ownWorkspace(general, day);
+	const second = await ownWorkspace(general, day);
+	assert.notEqual(first, second);
+	for (const dir of [first, second]) {
+		assert.equal(dirname(dir), join(home, "workspaces", "chats", "2026-10-11"));
+		assert.ok(existsSync(dir));
+	}
+
+	// A project, or a pull request review, is meant to be shared by its conversations.
+	const review = await prScratchDir("kittors/plume", 9);
+	assert.equal(await ownWorkspace(review), review);
+	assert.equal(await ownWorkspace("/Users/someone/project"), "/Users/someone/project");
 });
