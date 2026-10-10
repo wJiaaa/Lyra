@@ -51,6 +51,7 @@ export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
 	const line = describeHiccup(hiccup, now);
 	const tip = hiccupTip(hiccup);
 	const failed = hiccup.outcome === "gave_up";
+	const expandable = Boolean(hiccup.detail && hiccup.detail !== hiccup.summary);
 
 	/*
 	 * 放弃了的那条给一个底，其余的不给。
@@ -66,6 +67,25 @@ export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
 		? "flex w-full max-w-[62ch] flex-col gap-1.5 rounded-xl border border-line bg-card px-3.5 py-3"
 		: "flex w-fit max-w-full flex-col gap-1.5 px-0.5";
 
+	const lead = (
+		<>
+			<Icon outcome={hiccup.outcome} />
+			{/*
+			 * 一行，超出就省略号——不换行，不撑高。
+			 *
+			 * `min-w-0` 是这里真正干活的那个：flex 的子项默认不肯缩到内容宽度以下，少了它
+			 * `truncate` 一个字都截不掉，一句长错误会把整条转录顶宽。
+			 */}
+			<span
+				data-ly-tip={tip}
+				data-ly-tip-side="top"
+				className={`min-w-0 flex-1 truncate tabular-nums ${failed ? "text-label text-ink-muted" : "text-detail text-ink-faint"}`}
+			>
+				{line}
+			</span>
+		</>
+	);
+
 	return (
 		/* 外面这层只管它和上下两行之间的距离——`shell` 管的是这条记录自己长什么样。 */
 		<div data-hiccup-trace>
@@ -78,35 +98,28 @@ export function HiccupRow({ hiccup }: { hiccup: Hiccup }) {
 			 * 字号就又歪了。
 			 */}
 			<div className="flex min-w-0 items-center gap-2.5">
-				<Icon outcome={hiccup.outcome} />
 				{/*
-				 * 一行，超出就省略号——不换行，不撑高。
-				 *
-				 * `min-w-0` 是这里真正干活的那个：flex 的子项默认不肯缩到内容宽度以下，少了它
-				 * `truncate` 一个字都截不掉，一句长错误会把整条转录顶宽。
+				 * 有原文可看时，图标、那行字和箭头整段是一颗按钮：点在字上也能展开，键盘也落得到——别的
+				 * 过程行都是整行可点，这一行曾经只认末尾那颗箭头。「继续」留在按钮外面当兄弟，按钮里
+				 * 不能再套按钮（同 `ProjectList` 的分组标题）。
 				 */}
-				<span
-					data-ly-tip={tip}
-					data-ly-tip-side="top"
-					className={`min-w-0 flex-1 truncate tabular-nums ${failed ? "text-label text-ink-muted" : "text-detail text-ink-faint"}`}
-				>
-					{line}
-				</span>
-				{/*
-				 * 原文有得看时才给这个。
-				 *
-				 * 它是一句「还有更多」，不是一个待办：所以是行末一个小小的字，不是一个带框的
-				 * 按钮，也不是从前那个顶在错误前面、点开才知道里面是什么的箭头。
-				 */}
-				{hiccup.detail && hiccup.detail !== hiccup.summary && (
-					<IconButton
-						size="xs"
-						label={translate(open ? "common.collapse" : "common.details")}
-						expanded={open}
+				{expandable ? (
+					<button
+						type="button"
+						aria-expanded={open}
 						onClick={() => setOpen((was) => !was)}
-						icon={<ChevronRight size={10} strokeWidth={2} aria-hidden className={`transition-transform duration-[var(--ly-t-quick)] ${open ? "rotate-90" : ""}`} />}
-					/>
-				)}
+						className="group/hiccup flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-left"
+					>
+						{lead}
+						{/*
+						 * 它是一句「还有更多」，不是一个待办：所以是行末一个小小的箭头，不是一个带框的
+						 * 按钮，也不是从前那个顶在错误前面、点开才知道里面是什么的箭头。
+						 */}
+						<span className="flex h-5 w-5 shrink-0 items-center justify-center text-ink-faint transition-colors duration-[var(--ly-t-quick)] group-hover/hiccup:text-ink-muted">
+							<ChevronRight size={10} strokeWidth={2} aria-hidden className={`transition-transform duration-[var(--ly-t-quick)] ${open ? "rotate-90" : ""}`} />
+						</span>
+					</button>
+				) : lead}
 				{failed && <Next hint={hiccup.hint} />}
 			</div>
 			{/*

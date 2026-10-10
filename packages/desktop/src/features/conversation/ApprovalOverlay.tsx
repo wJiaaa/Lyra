@@ -5,7 +5,6 @@ import { translate } from "../../i18n/translate.ts";
 import { MessageCircle, TriangleAlert } from "../../ui/icons/index.ts";
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { Caret } from "../../ui/primitives/Caret.tsx";
-import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { useApp } from "../../store/index.ts";
@@ -88,7 +87,15 @@ export function ApprovalOverlay() {
 	</>;
 	return <div data-approval-region className={`flex shrink-0 justify-center pb-2 ${compact ? "ly-content-gutter-compact" : "ly-content-gutter"}`}>
 		<div data-approval-card className="ly-glass flex w-full max-w-[var(--ly-content)] max-h-[min(560px,calc(100dvh-14rem))] flex-col overflow-hidden rounded-xl border border-line">
-			<div className="flex shrink-0 items-center gap-2 px-4 py-2.5" data-ly-avatar-host="" data-approval-head="">
+			{/* 标题栏整条是收放的按钮，不只是右端那颗箭头：点在标题上也能收起，键盘也落得到。里面没有别的可点的东西。 */}
+			<button
+				type="button"
+				aria-expanded={!collapsed}
+				onClick={() => setCollapsedId(collapsed ? null : request.id)}
+				className="group/head flex w-full shrink-0 cursor-pointer items-center gap-2 px-4 py-2.5 text-left"
+				data-ly-avatar-host=""
+				data-approval-head=""
+			>
 				{/*
 				 * 子智能体在问的，脸替掉那枚警告图标，标题下面一行小字说是谁。
 				 *
@@ -110,8 +117,8 @@ export function ApprovalOverlay() {
 					)}
 				</span>
 				{tags}
-				<IconButton label={translate(collapsed ? "question.expand" : "question.collapse")} expanded={!collapsed} onClick={() => setCollapsedId(collapsed ? null : request.id)} icon={<Caret open={!collapsed} size={15} />} />
-			</div>
+				<span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center text-ink-faint transition-colors duration-[var(--ly-t-quick)] group-hover/head:text-ink"><Caret open={!collapsed} size={15} /></span>
+			</button>
 			<Collapse open={!collapsed} keepMounted className="min-h-0" bodyClassName="flex min-h-0 flex-col overflow-hidden">{interactive ? <>
 				<p className="shrink-0 px-4 pb-1 text-caption text-ink-muted">{translate("question.fullAccessNote")}</p>
 				<QuestionChoices key={request.id} options={request.options ?? []} allowCustomInput={request.allowCustomInput !== false} selectionMode={request.selectionMode} allowSkip={request.allowSkip !== false} defaultOptionIndex={request.defaultOptionIndex} answer={decision => respond(request.id, decision, sessionId ?? undefined)}>{context}</QuestionChoices>

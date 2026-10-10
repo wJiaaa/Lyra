@@ -209,8 +209,7 @@ try {
 
 	// 展开：一整页原文收在一个限高可滚的盒子里。
 	await app.evaluate(`(() => {
-		const buttons = [...document.querySelectorAll("[data-hiccup] button")];
-		buttons.find((b) => b.textContent?.trim() === "详情")?.click();
+		document.querySelector("[data-hiccup] button[aria-expanded]")?.click();
 		return true;
 	})()`);
 	await pause(700);

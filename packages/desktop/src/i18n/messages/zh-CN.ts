@@ -81,8 +81,6 @@ export const zhCN = {
 	"question.selectOne": "选择一项",
 	"question.selectMany": "可选择多项",
 	"question.skipDefault": "跳过将采用：{choice}",
-	"question.collapse": "收起提问或审批",
-	"question.expand": "展开提问或审批",
 	"question.fullAccessNote": "这是业务提问。完全访问免除操作审批，仍需你决定问题的答案。",
 	"question.expiresIn": "{time} 后失效",
 

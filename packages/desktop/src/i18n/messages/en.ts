@@ -83,8 +83,6 @@ export const en = {
 	"question.selectOne": "Select one option",
 	"question.selectMany": "Select one or more options",
 	"question.skipDefault": "Skipping uses: {choice}",
-	"question.collapse": "Collapse question or approval",
-	"question.expand": "Expand question or approval",
 	"question.fullAccessNote": "This asks for your decision. Full access skips action approvals; it does not answer questions for you.",
 	"question.expiresIn": "Expires in {time}",
 

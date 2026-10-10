@@ -248,6 +248,26 @@ test("folding the card keeps the body mounted and drives the reveal grid", async
 	} finally { await view.unmount(); useApp.setState(previous, true); }
 });
 
+test("clicking the card's title folds it, not only the caret", async () => {
+	const previous = useApp.getState();
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
+	useApp.setState({
+		activeSessionId: "fold-title",
+		approvals: [{ id: "question", kind: "interactive", title: "需要你的意见", detail: "选一个", options: ["继续"], allowCustomInput: true }],
+	});
+	const view = await mount(h(LayoutProvider, { children: h(ApprovalOverlay) }));
+	try {
+		await click(view.find("[data-approval-title]"));
+		assert.equal(view.find(".ly-reveal").getAttribute("data-open"), "false", "the title folds the card");
+		await click(view.find("[data-approval-title]"));
+		assert.equal(view.find(".ly-reveal").getAttribute("data-open"), "true", "and opens it again");
+		const head = view.find("[data-approval-head]");
+		assert.equal(head.tagName, "BUTTON", "the head itself is the toggle, so the keyboard reaches it");
+		assert.equal(head.getAttribute("aria-expanded"), "true");
+		assert.equal(head.querySelectorAll("button").length, 0, "no button inside a button");
+	} finally { await view.unmount(); useApp.setState(previous, true); }
+});
+
 test("a pending question replaces the thinking mutter with the dashed waiting line", async () => {
 	const prior = useApp.getState();
 	useApp.setState({

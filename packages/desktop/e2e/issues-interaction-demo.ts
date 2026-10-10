@@ -66,8 +66,8 @@ try {
 	check("recommendation is not implicit consent", selected === 0, selected);
 	await click('input[aria-label="自定义回答"]');
 	await app.send("Input.insertText", { text: "收起后仍应保留中文草稿" }); await pause();
-	await click('button[aria-label="收起提问或审批"]'); await pause();
-	await click('button[aria-label="展开提问或审批"]'); await pause();
+	await click('[data-approval-head][aria-expanded="true"]'); await pause();
+	await click('[data-approval-head][aria-expanded="false"]'); await pause();
 	const draft = await app.evaluate("document.querySelector('input[aria-label=\"自定义回答\"]').value");
 	check("collapse preserves answer draft", draft === "收起后仍应保留中文草稿", draft);
 	for (const width of [1500, 375]) for (const theme of ["dark", "light"]) {
