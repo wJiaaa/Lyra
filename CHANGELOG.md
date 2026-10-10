@@ -2,6 +2,80 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.26](https://github.com/wJiaaa/Plume/releases/tag/v0.9.26) - 2026-10-10
+<!-- plume:notes en -->
+
+### New
+
+- **"Send now" stops the current turn and starts over with your message.** It used to wait until the model finished the step it was on. In one real conversation that step was three and a half minutes of thinking plus a long page of HTML, so for four minutes pressing it did nothing. Now the new request goes out right away. Whatever the model had written stays in the conversation, and it reads that on the next request.
+- **Replies can draw interface blocks.** A ` ```ui ` block in a reply renders as the app's own controls. A button in it sends a message for you along with the values in the block, then shows "Sent". Side chat can draw them too, and the Android app shows them read-only.
+- **Page previews show up inside the conversation**, drawn while they are being written. Pages taller than 720px are folded; "Show all" opens them in place, and the corner button opens them in the panel. Local HTML files open without starting a server.
+- **The terminal finds the same tools as your own terminal.** When Plume was launched from the Dock, brew, mise and starship were missing because the shell didn't start as a login shell. On macOS it now does; on Windows, Git Bash starts with `--login`, and a new terminal sees tools installed after Plume started.
+- **More in the terminal:** ⌘-click (Ctrl-click on Windows and Linux) opens a URL or a path like `src/a.ts:12:3`. ⌘F or Ctrl+Shift+F finds text. Dropping a file from the Finder or the file tree inserts its quoted path without running anything. The tab shows the program running in it, and closing a terminal while a program is running asks first. Text after an emoji is no longer one column off.
+- **Closing a tab in the right column closes it for good.** Side chat used to come back with its old content; now closing it deletes it, and the Reset button is gone. Shortcuts and toolbar buttons only open panels: pressing the terminal shortcut twice used to end the running shell.
+- **The browser opens one page per tab.** The address bar loads into its own page; with several pages open, it used to load into whichever page the conversation had used last. Pages the agent opens run in the background until you click the card to open them.
+- **The Code font menu lists monospaced fonts installed on your computer**, such as PT Mono or Maple Mono, after the presets. "(not installed)" now shows on presets you don't have. Before, every name counted as installed, even made-up ones.
+- **Other apps can open a specific conversation** with `plume://open-session?id=<id>` (macOS). Notch panels like Vibe Island can now jump straight to it instead of only bringing Plume to the front.
+
+### Fixes
+
+- **The task list no longer stops halfway.** In one conversation all five steps were done while the list still said 1 of 5. When unchecked items haven't been updated for 10 turns, the list is read back to the model; when a turn ends with an item still in progress, the model is asked once to update it.
+- **Bare file names in replies and in the terminal open the right file.** Models often write just `approvals.ts:125`, or a path relative to a subfolder. If the path doesn't exist from the project root, Plume looks for the file in the project and uses it when exactly one matches.
+- Clicking a file that can't be read no longer opens an empty "Cannot read this file" tab. A message says which path it tried. "Show in the Finder" on a deleted file no longer opens the folder it used to be in.
+- **The conversation hover card counts turns instead of messages.** Every tool result used to count, so one turn with forty tool calls showed eighty-odd messages. A second row shows input, output and cache reads; input plus output is the session usage.
+- The cache hit rate on that card covers only the main conversation. Subagents, titles and compaction each start their own prefix, and mixed in they could hide a broken cache. A rate below 100% is no longer rounded up to 100%.
+- **Expanding reasoning while it's being written no longer freezes the window.** Replaying a real 170,000-character reasoning, the window dropped to 4–6 frames per second; it now stays at 120. While it's being written, the expanded text sits in a box up to 320px tall and shows only the latest part as plain text. The full Markdown comes back when it finishes.
+- The thinking row no longer shrinks back to its icon each time a new sentence starts, so clicking the middle of it no longer lands on nothing.
+- A finished thinking row settles on its first sentence right away instead of waiting for the whole turn. When short bursts of reasoning come one after another, each sentence is written out and stays for about a second; before, most were cut off halfway.
+- **Opening or closing the sidebar or the right column no longer makes the conversation jump.** Scrolled up, it jumped by about 120px; at the bottom, it flashed. The text column is now 864px wide and stays centered in wider panes instead of rewrapping. It no longer widens to 1120px in panes over 1280px.
+- Switching between light and dark mode no longer makes the window buttons on macOS jump.
+- The title of an approval card or a "Connection dropped" row can be clicked to fold it, not only the arrow at the end.
+- Opening a conversation that no longer exists, from a notification for example, no longer leaves nothing highlighted in the sidebar.
+- With oh-my-zsh's tmux plugin set to autostart, reading your login environment no longer times out at every launch and comes back empty.
+
+### Removed
+
+- **The recap above the input box**, along with `/recap` and its model setting. It spent tokens every time you opened a conversation and added them to that conversation's usage. What it already spent stays in Settings › Usage.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **「现在就发」改成停下这一轮、拿你这句话重新开始。** 以前它要等模型把手上这一步做完。真实会话里那一步是三分半的思考加一大段 HTML，按下去四分多钟没有动静。现在新请求当场发出；被停下的回复写到哪儿就留到哪儿，模型下一次请求读得到。
+- **回复里能画界面块。** 回复里的 ` ```ui ` 块画成应用自己的控件，块里的按钮会替你发一句话、带上块里填的值，发过的显示「已发送」。侧边聊天也能画，Android App 上只读显示。
+- **网页预览直接长在对话里**，边写边显示。比 720px 高的先折起来，「展开全部」在原地展开，右上角才开进面板。本地 HTML 不用起服务器就能打开。
+- **终端里找得到你自己终端里的那些工具了。** 从程序坞启动 Plume 时，shell 没按登录方式启动，brew、mise、starship 全都找不到。现在 macOS 上按登录 shell 启动；Windows 上 Git Bash 带 `--login`，Plume 开着时新装的工具，新开的终端也能看到。
+- **终端还多了几样：** ⌘ 点（Windows、Linux 上 Ctrl 点）打开网址和 `src/a.ts:12:3` 这样的路径；⌘F 或 Ctrl+Shift+F 查找；从访达或文件树拖进文件，只插入加了引号的路径，不回车执行。标签上写着正在跑的程序名，程序还在跑时关终端会先问一句。emoji 后面的字不再错开一格。
+- **右栏的标签关了就是关了。** 侧边聊天以前关掉再开还是原来的内容，现在关掉即删除，「重置」按钮去掉了。快捷键和工具栏按钮只负责打开：以前按两下终端快捷键，会把正在跑的 shell 结束掉。
+- **浏览器一个网页一个标签。** 地址栏只加载到自己那一页；以前开着几个网页时，会加载到会话最后用过的那一页上。agent 开的网页在后台跑，点卡片才变成标签。
+- **代码字体菜单列出本机装的等宽字体**，比如 PT Mono、Maple Mono，排在预设后面。没装的预设现在会标「（未安装）」——以前任何名字都算装了，连编出来的也是。
+- **别的应用能直接打开某个会话**：`plume://open-session?id=<会话 id>`（macOS）。Vibe Island 这类刘海面板点卡片时，能落到那个会话上，不再只是把 Plume 带到前台。
+
+### 修复
+
+- **任务清单不再停在中途。** 有个会话五步都做完了，清单还停在 1/5。现在清单有没勾的项、又 10 轮没更新，就把整张清单念给模型听；一轮结束时还有「进行中」的项，就问模型一次。
+- **回复和终端里只写了文件名的路径能点开。** 模型常只写 `approvals.ts:125`，或者写相对某个子目录的路径。从项目根拼不出来时，Plume 在项目里找，只有一个同名文件才打开它。
+- 点开读不到的文件，不再开出一个只写着「读不到这个文件」的空标签，而是提示一句读的是哪个路径。文件已删掉时，「在访达中显示」不再打开它原来所在的文件夹。
+- **会话悬停卡片数的是轮次，不再是消息条数。** 以前每条工具结果都算一条，一轮跑四十次工具就是八十多条。卡片加了第二行：输入、输出、读缓存，输入加输出就是全程用量。
+- 卡片上的缓存命中只算主对话。子智能体、起标题、压缩各起一段前缀，混在一起时主对话的缓存坏了也看不出来。不足 100% 的命中率不再四舍五入成 100%。
+- **推理还在写时展开，窗口不再卡住。** 拿一段 17 万字的真实推理回放，以前窗口掉到每秒 4–6 帧，现在稳在 120 帧。写着的时候正文放在最高 320px 的框里，只显示最后一段纯文本；写完换回完整的 Markdown。
+- 思考行写着时不再每换一句就缩回只剩图标，点行的中间不会点空。
+- 思考写完，行马上收成第一句，不再等整轮跑完。短推理一段接一段时，每句都会写完、停留一秒左右；以前大多写到一半就被切掉。
+- **开合侧栏或右栏时，对话不再跳。** 往上翻着时会一下跳开约 120px，停在底部时会闪一下。正文栏改成固定 864px，窗格更宽时居中，不再重新断行；代价是 1280px 以上的窗格里正文不再放宽到 1120px。
+- macOS 上切换明暗主题时，左上角红绿灯不再上下跳一下。
+- 审批卡片和「连接中断」那一行，点标题文字也能收起展开，不只是末尾的箭头。
+- 从通知等地方打开一个已经不存在的会话后，侧栏里不再一个高亮的会话都没有。
+- 用了 oh-my-zsh 的 tmux 插件并打开自启时，读取登录环境不再每次启动都等到超时、拿回空结果。
+
+### 移除
+
+- **输入框上方的会话回顾**，连同 `/recap` 和回顾模型设置。它在每次打开会话时自己花 token，还算进那个会话的用量。已经花掉的仍在「设置 › 使用统计」里。
+
+</details>
+
 ## [0.9.25](https://github.com/wJiaaa/Plume/releases/tag/v0.9.25) - 2026-10-09
 <!-- plume:notes en -->
 
