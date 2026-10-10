@@ -67,11 +67,20 @@ function iconLocation(): IconLocation {
  * `nativeTheme` already carries the theme setting — `applyNativeAppearance` writes `themeSource` —
  * so one listener covers both changing the setting and the system switching under "system". Once
  * the app quits the dock goes back to the bundle icon, whose variant is the system's choice.
+ *
+ * On a theme change the icon is swapped late, not at once. AppKit lays the title bar out again for
+ * the new appearance, dropping the traffic lights back to the system's spot, and Electron only moves
+ * them back to `trafficLightPosition` a tick later. `setIcon` in between pushes that interim frame
+ * to the screen — the lights jumped up for 50–70ms on most switches. A `setTimeout(0)` still lands
+ * before Electron's fix-up and still jumped; 150ms did not, measured frame by frame.
  */
+const DOCK_ICON_DELAY_MS = 150;
+
 export function followThemeWithDockIcon(): void {
 	if (process.platform !== "darwin") return;
 	const where = iconLocation();
 	let shown: boolean | undefined;
+	let pending: ReturnType<typeof setTimeout> | undefined;
 	const apply = () => {
 		const dark = nativeTheme.shouldUseDarkColors;
 		// `updated` also fires for contrast and transparency changes; the icon only cares about this.
@@ -82,7 +91,10 @@ export function followThemeWithDockIcon(): void {
 		shown = dark;
 	};
 	apply();
-	nativeTheme.on("updated", apply);
+	nativeTheme.on("updated", () => {
+		clearTimeout(pending);
+		pending = setTimeout(apply, DOCK_ICON_DELAY_MS);
+	});
 }
 
 /**
