@@ -91,4 +91,19 @@ export function registerSystemIpc(): void {
 		clipboard.writeImage(image);
 		return true;
 	});
+
+	/*
+	 * 窗口里的一块区域进剪贴板：对话里 agent 做的页面，连同人刚在里面点出来的那一状态。
+	 *
+	 * 页面跑在另一个进程的沙箱框里，渲染进程读不到它的像素，只有窗口自己合成出来的那一帧里有它。
+	 * 坐标是页面的 CSS 像素，`capturePage` 要的是窗口坐标，差一个缩放（同 `browser-inspect.ts`）。
+	 */
+	ipcMain.handle("clipboard:capture", async (event, rect: { x: number; y: number; width: number; height: number }) => {
+		if (!rect || ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) || rect.width < 1 || rect.height < 1) return false;
+		const zoom = event.sender.getZoomFactor();
+		const image = await event.sender.capturePage({ x: Math.round(rect.x * zoom), y: Math.round(rect.y * zoom), width: Math.round(rect.width * zoom), height: Math.round(rect.height * zoom) });
+		if (image.isEmpty()) return false;
+		clipboard.writeImage(image);
+		return true;
+	});
 }

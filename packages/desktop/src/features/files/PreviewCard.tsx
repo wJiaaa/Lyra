@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { ChevronsDown, ExternalLink, Maximize2, Minimize2, RotateCw } from "../../ui/icons/index.ts";
+import { Check, ChevronsDown, Copy, ExternalLink, Maximize2, Minimize2, RotateCw } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -13,6 +13,7 @@ import { HEIGHT_MESSAGE, PREVIEW_MAX_HEIGHT, THEME_MESSAGE, WIDTH_KEY, previewFr
 import { MAX_ADJUSTMENTS, followHeight } from "./preview-height.ts";
 import { previewTheme } from "./preview-theme.ts";
 import { sayFor } from "../../store/say.ts";
+import { usePreviewCopy } from "./preview-copy.ts";
 
 export interface PreviewInfo {
 	id: string;
@@ -166,6 +167,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 	 * page that loses whatever the reader had done in it. Later themes go in by message.
 	 */
 	const host = useRef<HTMLDivElement>(null);
+	const { capturing, copied, copy } = usePreviewCopy(host);
 	const [src, setSrc] = useState<string | null>(null);
 	const [look, setLook] = useState<{ scheme: PreviewTheme["scheme"]; surface: string } | null>(null);
 	const wear = (theme: PreviewTheme | undefined) =>
@@ -426,7 +428,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 			 * (`useFollowBottom.hold`), and a button that moved or left would let a transcript at its
 			 * end follow the growth down to the page's last line, past everything just opened.
 			 */}
-			{((overflowing && !tall) || full) && (
+			{((overflowing && !tall) || full) && !capturing && (
 				<button
 					type="button"
 					data-ly-tip={translate("preview.longer")}
@@ -451,7 +453,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 
 			{/* Solid for the same reason as above — and this one sits over an arbitrary rendered page,
 			    where a translucent strip with nothing blurred behind it is the least readable of all. */}
-			<div className="ly-glass-solid absolute top-2 right-2 flex items-center gap-0.5 rounded-lg p-0.5 opacity-45 transition-opacity duration-[var(--ly-t-quick)] hover:opacity-100 has-[:focus-visible]:opacity-100">
+			<div className={`ly-glass-solid absolute top-2 right-2 flex items-center gap-0.5 rounded-lg p-0.5 ${capturing ? "invisible" : ""} opacity-45 transition-opacity duration-[var(--ly-t-quick)] hover:opacity-100 has-[:focus-visible]:opacity-100`}>
 				{/*
 				 * Taller, because the frame cannot ask for a size.
 				 *
@@ -500,6 +502,13 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 						setReady(false);
 						setNonce((value) => value + 1);
 					}}
+				/>
+				<IconButton
+					icon={copied ? <Check size={12} strokeWidth={2.2} className="ly-pop text-ok" /> : <Copy size={12} strokeWidth={1.9} />}
+					label={translate(copied ? "preview.copiedImage" : "preview.copyImage")}
+					size="sm"
+					tipSide="top"
+					onClick={() => void copy()}
 				/>
 				<IconButton
 					icon={opening ? <ActionSpinner size={12} /> : <ExternalLink size={12} strokeWidth={1.9} />}

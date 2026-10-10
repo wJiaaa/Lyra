@@ -602,6 +602,13 @@ export interface PlumeApi {
 		 * False when the data URL decoded to nothing.
 		 */
 		writeImage(dataUrl: string): Promise<boolean>;
+		/**
+		 * What this window is showing inside `rect` (CSS pixels of the calling page), onto the clipboard
+		 * as a picture. For a page an agent made: it runs in a frame of another process, which the
+		 * renderer cannot read the pixels of, so the window is asked instead. False when the area is
+		 * empty or captured nothing.
+		 */
+		capture(rect: { x: number; y: number; width: number; height: number }): Promise<boolean>;
 	};
 	/** A real pseudo-terminal, one per tab. */
 	terminal: {

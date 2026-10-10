@@ -154,6 +154,7 @@ export const METHODS = {
 		read: { channel: "clipboard:read" },
 		write: { channel: "clipboard:write" },
 		writeImage: { channel: "clipboard:writeImage" },
+		capture: { channel: "clipboard:capture" },
 	},
 	terminal: {
 		list: { channel: "terminal:list" },
