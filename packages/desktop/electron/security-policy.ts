@@ -75,8 +75,11 @@ export function isWebviewSourceAllowed(src: string): boolean {
  *
  * Our own renderer needs almost nothing: everything it does with the machine goes through IPC,
  * where it can be reasoned about. Guests get nothing.
+ *
+ * `local-fonts` lets the code font menu list installed faces. Refused, `queryLocalFonts` does not
+ * fail — it returns an empty list, and the menu silently shrinks to its presets.
  */
-const GRANTED = new Set(["clipboard-sanitized-write", "fullscreen"]);
+const GRANTED = new Set(["clipboard-sanitized-write", "fullscreen", "local-fonts"]);
 
 export function isPermissionGranted(url: string, permission: string, devServer?: string): boolean {
 	return isOurPage(url, devServer) && GRANTED.has(permission);

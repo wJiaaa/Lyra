@@ -46,3 +46,17 @@ test("names are unique, or the menu would have two rows that look the same", () 
 	const labels = CODE_FONTS.map((f) => f.label);
 	assert.equal(new Set(labels).size, labels.length);
 });
+
+test("a face picked from the installed list is recognised from its stack alone", () => {
+	// Before the list comes back, or after the face is uninstalled, the menu must not fall to 自定义.
+	const stack = '"Maple Mono NF CN", ui-monospace, Menlo, "PingFang SC", monospace';
+	const match = matchCodeFont(stack);
+	assert.equal(match?.label, "Maple Mono NF CN");
+	assert.equal(match?.stack, stack);
+});
+
+test("a preset stays the preset when its stack has the installed shape", () => {
+	// JetBrains Mono's preset is that same shape; the row must be the preset, not a lookalike.
+	const preset = CODE_FONTS.find((font) => font.family === "JetBrains Mono")!;
+	assert.equal(matchCodeFont(preset.stack), preset);
+});

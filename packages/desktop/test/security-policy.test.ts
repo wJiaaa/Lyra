@@ -107,10 +107,11 @@ test("webview：无论标签怎么写，客人都拿不到主人的钥匙", () =
 	assert.equal(asked.sandbox, true);
 });
 
-test("权限：自己的页面只拿到两项", () => {
+test("权限：自己的页面只拿到三项", () => {
 	const ours = "file:///app/index.html";
 	assert.equal(isPermissionGranted(ours, "fullscreen"), true);
 	assert.equal(isPermissionGranted(ours, "clipboard-sanitized-write"), true);
+	assert.equal(isPermissionGranted(ours, "local-fonts"), true);
 
 	// 自己的页面也不需要这些：要用摄像头会走 IPC，而不是问浏览器要。
 	for (const permission of ["media", "geolocation", "notifications", "midi", "openExternal", "clipboard-read"]) {
@@ -119,7 +120,7 @@ test("权限：自己的页面只拿到两项", () => {
 });
 
 test("权限：客人页面一项都没有", () => {
-	for (const permission of ["fullscreen", "clipboard-sanitized-write", "media", "notifications", "geolocation"]) {
+	for (const permission of ["fullscreen", "clipboard-sanitized-write", "local-fonts", "media", "notifications", "geolocation"]) {
 		assert.equal(isPermissionGranted("https://example.com", permission), false, `客人不该拿到 ${permission}`);
 		assert.equal(isPermissionGranted("", permission), false, "没有 URL 时一律拒绝");
 	}

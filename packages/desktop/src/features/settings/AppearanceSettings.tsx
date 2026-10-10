@@ -1,7 +1,7 @@
 import { RotateCcw } from "../../ui/icons/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import type { AppearanceSettings as Appearance } from "@plume/core";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../../store/index.ts";
 import { bridge } from "../../services/index.ts";
 import { Card, InlineSelect, Row, SectionTitle, Segmented, TextInput, Toggle } from "./controls.tsx";
@@ -10,7 +10,7 @@ import { findCodeTheme, LIGHT_CODE_THEMES, DARK_CODE_THEMES } from "../../lib/co
 import { CodeAppearancePreview } from "./CodeAppearancePreview.tsx";
 import { InlineCodeSpecimen } from "./InlineCodeSpecimen.tsx";
 import { CODE_DEFAULTS, FACTORY_APPEARANCE } from "./appearance-defaults.ts";
-import { CODE_FONTS, fontAvailable, matchCodeFont } from "./code-fonts.ts";
+import { CODE_FONTS, fontAvailable, matchCodeFont, queryInstalledFonts, type LocalFonts } from "./code-fonts.ts";
 
 /** The sentinel the font menu uses for 「自定义…」; never stored as a font stack. */
 const CUSTOM_FONT = "__custom__";
@@ -40,6 +40,20 @@ export function AppearanceSettings() {
 	 * from before this menu existed is still editable without picking 自定义 first.
 	 */
 	const [customFont, setCustomFont] = useState(false);
+	/*
+	 * Asked each time the page opens rather than once per window: it takes ~200ms, off the main
+	 * path, and a face installed while the app is running then shows up without a restart.
+	 */
+	const [localFonts, setLocalFonts] = useState<LocalFonts | null>(null);
+	useEffect(() => {
+		let live = true;
+		void queryInstalledFonts().then((found) => {
+			if (live) setLocalFonts(found);
+		});
+		return () => {
+			live = false;
+		};
+	}, []);
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
 	const saveSettings = useApp((s) => s.saveSettings);
@@ -60,6 +74,11 @@ export function AppearanceSettings() {
 	const inlineBg = isDark ? appearance.inlineCodeDarkBg : appearance.inlineCodeLightBg;
 	const inlineFg = isDark ? appearance.inlineCodeDarkFg : appearance.inlineCodeLightFg;
 	const inlineFgIsAuto = inlineFg.toUpperCase() === readableInk(inlineBg).toUpperCase();
+
+	const currentFont = matchCodeFont(appearance.codeFont);
+	const fontOptions = [...CODE_FONTS, ...(localFonts?.extra ?? [])];
+	// A face picked earlier and since uninstalled, or the list not back yet: still the selected row.
+	if (currentFont && !fontOptions.some((font) => font.stack === currentFont.stack)) fontOptions.push(currentFont);
 
 	return (
 		<div className="pt-2">
@@ -320,7 +339,7 @@ export function AppearanceSettings() {
 						<span className="block text-caption text-ink-muted">{t("appearance.codeFontDetail")}</span>
 					</div>
 					<InlineSelect
-						value={matchCodeFont(appearance.codeFont)?.stack ?? CUSTOM_FONT}
+						value={currentFont?.stack ?? CUSTOM_FONT}
 						onChange={(next) => {
 							if (next === CUSTOM_FONT) {
 								setCustomFont(true);
@@ -330,16 +349,19 @@ export function AppearanceSettings() {
 							patch({ codeFont: next });
 						}}
 						options={[
-							...CODE_FONTS.map((font) => {
+							...fontOptions.map((font) => {
 								const name = font.labelKey ? t(font.labelKey) : font.label;
-								return { value: font.stack, label: fontAvailable(font) ? name : t("appearance.fontNotInstalled", { name }) };
+								return {
+									value: font.stack,
+									label: fontAvailable(font, localFonts) ? name : t("appearance.fontNotInstalled", { name }),
+								};
 							}),
 							{ value: CUSTOM_FONT, label: t("appearance.custom") },
 						]}
 					/>
 				</div>
 
-				{(customFont || !matchCodeFont(appearance.codeFont)) && (
+				{(customFont || !currentFont) && (
 					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-line-soft pt-3">
 						<div className="flex-1 min-w-0">
 							<span className="block text-label font-medium text-ink">{t("appearance.customStack")}</span>
