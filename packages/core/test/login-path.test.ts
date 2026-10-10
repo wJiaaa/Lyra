@@ -11,9 +11,12 @@
  */
 
 import assert from "node:assert/strict";
-import { delimiter, dirname } from "node:path";
+import { existsSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { delimiter, dirname, join } from "node:path";
 import { test } from "node:test";
-import { commandPath, FALLBACK_DIRS, forgetCommandPath, primeCommandPath } from "../src/sandbox/login-path.ts";
+import { commandEnv, commandPath, FALLBACK_DIRS, forgetCommandPath, primeCommandPath } from "../src/sandbox/login-path.ts";
 
 /** Exactly what launchd hands a double-clicked app on macOS. */
 const GUI = "/usr/bin:/bin:/usr/sbin:/sbin";
@@ -135,6 +138,40 @@ test("what the shell answers, and what it costs", { skip: posix }, async (t) => 
 		for (const dir of dirs(GUI)) assert.ok(answer.includes(dir), `${dir} was dropped`);
 		assert.equal(new Set(answer).size, answer.length, "duplicates in the shell's answer");
 	});
+});
+
+test("a ~/.zshrc that would autostart tmux does not swallow the ask", { skip: posix || (!existsSync("/bin/zsh") && "no zsh on this host") }, async () => {
+	/*
+	 * The oh-my-zsh tmux plugin's own condition, without tmux: with autostart on and nothing saying
+	 * it already happened, the startup file never returns. Unguarded, the ask ran into its timeout
+	 * on both flag sets and came back with nothing.
+	 */
+	const home = await mkdtemp(join(tmpdir(), "plume-login-path-"));
+	await writeFile(
+		join(home, ".zshrc"),
+		"ZSH_TMUX_AUTOSTART=true\nif [[ $ZSH_TMUX_AUTOSTART == true && $ZSH_TMUX_AUTOSTARTED != true ]]; then sleep 30; fi\nexport PLUME_PROBE_RC=1\n",
+	);
+	const saved = { SHELL: process.env.SHELL, HOME: process.env.HOME, ZDOTDIR: process.env.ZDOTDIR };
+	process.env.SHELL = "/bin/zsh";
+	process.env.HOME = home;
+	delete process.env.ZDOTDIR;
+	try {
+		await asGuiLaunch(async () => {
+			const started = Date.now();
+			await primeCommandPath();
+			assert.ok(Date.now() - started < 4_000, `the ask waited ${Date.now() - started}ms`);
+			const env = commandEnv({ PATH: GUI });
+			assert.equal(env.PLUME_PROBE_RC, "1", "~/.zshrc's exports did not come back");
+			// What the ask set for itself is not the user's, and must not reach the commands run with it.
+			for (const key of ["DISABLE_AUTO_UPDATE", "ZSH_TMUX_AUTOSTARTED", "ZSH_TMUX_AUTOSTART"]) assert.equal(env[key], undefined, key);
+		});
+	} finally {
+		for (const [key, value] of Object.entries(saved)) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+		await rm(home, { recursive: true, force: true });
+	}
 });
 
 test("an empty PATH is treated as starved rather than as a shell's answer", { skip: posix }, () => {

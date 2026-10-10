@@ -104,6 +104,17 @@ const ASK_TIMEOUT_MS = 5_000;
 const ASKABLE = new Set(["bash", "zsh", "sh", "dash", "ksh", "fish"]);
 
 /**
+ * Set only for the shell being asked, so startup files cannot turn the ask into a session.
+ *
+ * oh-my-zsh's tmux plugin with autostart on execs into tmux from `~/.zshrc`: the ask never reaches
+ * the line that prints the environment and runs into the timeout on every launch. The plugin
+ * checks `ZSH_TMUX_AUTOSTARTED` before starting, and `.zshrc` sets `ZSH_TMUX_AUTOSTART=true` itself,
+ * so both are needed. `DISABLE_AUTO_UPDATE` keeps oh-my-zsh from checking for updates on the way.
+ * Taken from deepseek-harness's `login-shell-environment.ts`, which met the same problem.
+ */
+const ASK_ENV = { DISABLE_AUTO_UPDATE: "true", ZSH_TMUX_AUTOSTARTED: "true", ZSH_TMUX_AUTOSTART: "false" };
+
+/**
  * Variables that describe the shell that answered, or this app, rather than the user.
  *
  * `PWD` and `SHLVL` are the answering shell's own state; the terminal ones would tell a command it
@@ -114,7 +125,7 @@ const ASKABLE = new Set(["bash", "zsh", "sh", "dash", "ksh", "fish"]);
 const NOT_THE_USERS = new Set([
 	"PWD", "OLDPWD", "SHLVL", "_", "PS1", "PS2", "PS3", "PS4", "PROMPT", "RPROMPT", "COLUMNS", "LINES",
 	"TERM", "COLORTERM", "WINDOWID", "STY", "SHELL_SESSION_ID", "ZSH_EXECUTION_STRING",
-	"ELECTRON_RUN_AS_NODE", "ELECTRON_NO_ATTACH_CONSOLE",
+	"ELECTRON_RUN_AS_NODE", "ELECTRON_NO_ATTACH_CONSOLE", ...Object.keys(ASK_ENV),
 ]);
 const NOT_THE_USERS_PREFIX = /^(TERM_|ITERM_|TMUX|KITTY_|WEZTERM_|ALACRITTY_|VTE_|GHOSTTY_)/;
 
@@ -174,7 +185,7 @@ function capture(file: string, args: string[]): Promise<string | undefined> {
 		try {
 			child = spawn(file, args, {
 				stdio: ["ignore", "pipe", "ignore"],
-				env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+				env: { ...process.env, ...ASK_ENV, ELECTRON_RUN_AS_NODE: "1" },
 				windowsHide: true,
 			});
 		} catch {
