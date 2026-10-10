@@ -174,7 +174,7 @@ export function lookFor(name: string, isDirectory: boolean, expanded = false): F
  *
  * 认不出时调用方往往有更好的说法——附件标记知道自己是 Word 还是压缩包，那份门类图标比一张灰纸有用。
  */
-export function knownLook(name: string): FileLook | null {
+function knownLook(name: string): FileLook | null {
 	const look = lookFor(name, false);
 	return look === NEUTRAL ? null : look;
 }
