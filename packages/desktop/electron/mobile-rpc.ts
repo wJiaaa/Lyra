@@ -64,7 +64,7 @@ export async function mobileRpc(deps: MobileRpcDeps, method: MobileMethod, args:
 	if (method === "sessions.archive") {
 		if (typeof args[1] !== "boolean") throw new Error("Invalid archive flag");
 		if (sessions.get(id)?.running) throw new Error("Stop the session before archiving");
-		if (args[1]) await disposeSession(id);
+		if (args[1]) await disposeSession(id, "archived");
 		await store.setArchived(id, args[1]);
 		return;
 	}

@@ -84,8 +84,16 @@ Agent 光标由面板覆盖层绘制，采用圆润的黑色箭头、白色描�
   在设置页逐条点「信任」。信任按内容指纹记在 `~/.plume/hook-trust.json`，改过的钩子要重新信任；
   在设置页里亲手新建或修改的项目钩子自动信任。
 
-七个事件：`SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、
-`PostToolUseFailure`、`Stop`。
+九个事件：`SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、
+`PostToolUseFailure`、`Stop`、`StopFailure`、`SessionEnd`。
+
+- `SessionStart` 在会话第一次发消息时跑，不是打开会话时。
+- `StopFailure` 在一轮没有正常收尾时跑（正常收尾走 `Stop`），输入带 `reason`：`error`、`aborted`
+  （按了停止）、`max_turns`、`stalled`，出错时另有 `error`。匹配器匹配的就是 `reason`。
+- `SessionEnd` 在跑过 `SessionStart` 的会话被释放时跑，`reason` 是 `deleted`、`archived`、`moved`、
+  `evicted`（同时开着的会话太多，最久没用的那个被收起，再发消息会重新触发 `SessionStart`）、
+  `quit`（退出应用，最多等 2 秒）或 `exit`（命令行跑完）。
+- 这两个事件只观察，输出和退出码都不影响任何东西。
 
 ```json
 {

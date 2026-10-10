@@ -1,18 +1,19 @@
 /**
  * 钩子接进一轮对话的地方。
  *
- * 七个事件各有各的挂点：SessionStart 和 UserPromptSubmit 在一轮开始前（`session-turn.ts`），
+ * 九个事件各有各的挂点：SessionStart 和 UserPromptSubmit 在一轮开始前（`session-turn.ts`），
  * PreToolUse / PermissionRequest / PostToolUse / PostToolUseFailure 围着每一次工具调用
- * （`agent/tool-run.ts`），Stop 在模型不再调用工具、准备收尾的那一刻（`agent/loop.ts`）。
+ * （`agent/tool-run.ts`），Stop 在模型不再调用工具、准备收尾的那一刻（`agent/loop.ts`），
+ * StopFailure 在一轮没能正常收尾之后（`session-turn.ts`），SessionEnd 在会话被释放时（`session.ts`）。
  * 这里把 `HookRunner` 的结论翻译成这几处各自听得懂的形状。
  */
 
 import type { AgentEvent } from "../agent/events.ts";
-import type { AfterToolCall, BeforeToolCall, PermissionRequestHook, StopHook } from "../agent/run-config.ts";
+import type { AfterToolCall, AgentRunResult, BeforeToolCall, PermissionRequestHook, StopHook } from "../agent/run-config.ts";
 import { appendHookContexts } from "../agent/tool-run.ts";
 import type { Settings } from "../config/settings.ts";
 import type { ExtensionHost } from "../extensions/host.ts";
-import { hookEntries, normalizeHooksConfig, readProjectHooks } from "../hooks/config.ts";
+import { hookEntries, normalizeHooksConfig, readProjectHooks, type SessionEndReason } from "../hooks/config.ts";
 import { createHookRunner, hookMatchValues, type HookInput, type HookRunner } from "../hooks/runner.ts";
 import { trustedHookDigests } from "../hooks/trust.ts";
 import type { Message } from "../types.ts";
@@ -84,6 +85,28 @@ export async function runSessionStartHooks(scope: TurnHooks, source: "startup" |
 export async function runUserPromptSubmitHooks(scope: TurnHooks, prompt: string, attachmentsSummary?: string) {
 	if (!scope.runner.has("UserPromptSubmit")) return { additionalContexts: [] };
 	return scope.runner.run({ ...base(scope, "UserPromptSubmit"), prompt, ...(attachmentsSummary ? { attachmentsSummary } : {}) }, { signal: scope.signal });
+}
+
+/**
+ * 一轮以出错、中断、轮数用尽或原地打转结束之后。只观察，输出不读——这一轮已经结束了，没有什么可拦的。
+ *
+ * 不传 `signal`：按了停止的那一轮，信号早就是 aborted，传下去钩子一起步就被判成 cancelled，
+ * 而「被人停下」恰恰是最需要告诉外面的那种结局。
+ */
+export async function runStopFailureHooks(scope: TurnHooks, ending: Pick<AgentRunResult, "reason" | "error" | "messages">): Promise<void> {
+	if (!scope.runner.has("StopFailure")) return;
+	const last = ending.messages.findLast((message) => message.role === "assistant");
+	const responseText = last?.content.map((part) => (part.type === "text" ? part.text : "")).join("");
+	await scope.runner.run(
+		{ ...base(scope, "StopFailure"), reason: ending.reason, ...(ending.error ? { error: ending.error } : {}), ...(responseText ? { responseText } : {}) },
+		{ matchValues: [ending.reason] },
+	);
+}
+
+/** 会话被释放时。同样只观察、不传 `signal`：调用方已经停下了这个会话。 */
+export async function runSessionEndHooks(scope: TurnHooks, reason: SessionEndReason): Promise<void> {
+	if (!scope.runner.has("SessionEnd")) return;
+	await scope.runner.run({ ...base(scope, "SessionEnd"), reason }, { matchValues: [reason] });
 }
 
 /**

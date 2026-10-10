@@ -149,6 +149,7 @@ async function compatibleStdin(input: HookInput): Promise<{ value: string; clean
 		compatible.last_assistant_message = input.responseText;
 		compatible.stop_hook_active = input.stopHookActive;
 	}
+	if (input.hookEventName === "StopFailure" && input.responseText !== undefined) compatible.last_assistant_message = input.responseText;
 	const dir = await mkdtemp(join(tmpdir(), "plume-hook-"));
 	const transcriptPath = join(dir, "transcript.jsonl");
 	const line = (role: "user" | "assistant", text: unknown) => `${JSON.stringify({ message: { role, content: [{ type: "text", text: String(text ?? "") }] } })}\n`;

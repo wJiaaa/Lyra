@@ -9,7 +9,7 @@
  * keeps the map from being reachable — and therefore mutable — from six different files.
  */
 
-import { AgentSession, backgroundJobs, plumeHome, removeSessionArtifacts, type AgentEvent, type SessionStorage, type Settings, type SideChat } from "@plume/core";
+import { AgentSession, backgroundJobs, plumeHome, removeSessionArtifacts, type AgentEvent, type SessionEndReason, type SessionStorage, type Settings, type SideChat } from "@plume/core";
 import type { BrowserWindow } from "electron";
 import { browserState, closeSessionBrowser } from "./browser-workspace.ts";
 import { createBrowserTools } from "./browser-tools.ts";
@@ -318,14 +318,14 @@ export async function snapshot(session: AgentSession): Promise<SessionSnapshot> 
 	});
 }
 
-/** Tear down a live session's agent, MCP servers and browser. Safe to call for unknown ids. */
-export async function disposeSession(sessionId: string): Promise<void> {
+/** Tear down a live session's agent, MCP servers and browser. Safe to call for unknown ids. `reason` is what SessionEnd hooks see. */
+export async function disposeSession(sessionId: string, reason: SessionEndReason): Promise<void> {
 	// 先于处置：处置会让等它的人醒来，那时它的链和「在等谁」都该已经清掉。
 	peers.forget(sessionId);
 	retiring.add(sessionId);
 	submitted.delete(sessionId);
 	try { await initializing.get(sessionId); } catch { /* Failed initialization still owns resources to release. */ }
-	await sessions.get(sessionId)?.dispose();
+	await sessions.get(sessionId)?.dispose(reason);
 	closeSessionBrowser(sessionId);
 	browsers.get(sessionId)?.();
 	browsers.delete(sessionId);
@@ -445,7 +445,7 @@ function sessionBusy(id: string): boolean {
 export async function deleteSessions(ids: string[]): Promise<void> {
 	for (const id of ids) deleting.add(id);
 	try {
-		await Promise.all(ids.map((id) => disposeSession(id)));
+		await Promise.all(ids.map((id) => disposeSession(id, "deleted")));
 		await deps.store().deleteMany(ids);
 		// The rows are the conversation; what is left is litter, and failing to sweep it is no reason to report the delete as failed.
 		await Promise.all(ids.flatMap((id) => [removeSessionArtifacts(plumeHome(), id), removeSideChats(id)].map((done) => done.catch(() => {}))));
@@ -470,6 +470,6 @@ async function evictStaleSessions(keep: string): Promise<void> {
 		// its session would silently throw that conversation away.
 		if (id === keep || sessionBusy(id) || sideChats.has(id)) continue;
 		if (browserState().tabs.some((tab) => tab.sessionId === id)) continue;
-		await disposeSession(id);
+		await disposeSession(id, "evicted");
 	}
 }

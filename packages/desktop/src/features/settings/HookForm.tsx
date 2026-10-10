@@ -14,7 +14,7 @@ import { Toggle } from "./controls.tsx";
 import { Select, TextInput } from "./inputs.tsx";
 import { Card, Field } from "./layout.tsx";
 
-const EVENTS: HookEventName[] = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest", "PostToolUse", "PostToolUseFailure", "Stop"];
+const EVENTS: HookEventName[] = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest", "PostToolUse", "PostToolUseFailure", "Stop", "StopFailure", "SessionEnd"];
 
 function parseCustom(text: string): Record<string, unknown> | undefined | null {
 	if (!text.trim()) return undefined;

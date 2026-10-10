@@ -21,6 +21,7 @@
 import type { AgentEvent, AgentEventSink, QueuedTask } from "../agent/events.ts";
 import type { LiveModel, StreamFn } from "../agent/run-config.ts";
 import type { Settings } from "../config/settings.ts";
+import type { SessionEndReason } from "../hooks/config.ts";
 import { describeSettingsProblem, layerProjectSettings, resolveModel, settingsProblem, withProjectLayer } from "../config/settings.ts";
 import { SESSIONS_KEY } from "../resources/more-handlers.ts";
 import type { Boundary, SessionMeta } from "../session/store.ts";
@@ -35,7 +36,8 @@ import { scratchDir, sessionFacts } from "./session-facts.ts";
 import { SessionLog } from "./session-log.ts";
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
-import { driveTurn, historyFrom, modelHistory } from "./session-turn.ts";
+import { driveTurn, historyFrom, modelHistory, SESSION_START_KEY } from "./session-turn.ts";
+import { loadHookRunner, runSessionEndHooks } from "./hooks.ts";
 import { restoreSubAgents, type Rebuild } from "./sub-agent-restore.ts";
 import { rehydrateMessages } from "../session/payload.ts";
 import { SubAgentRegistry, type SteerDisplay } from "./sub-agents.ts";
@@ -1067,8 +1069,26 @@ export class AgentSession {
 		await this.emit({ type: "title", title: cleanTitle });
 	}
 
-	async dispose(): Promise<void> {
+	/**
+	 * SessionEnd 钩子：这个会话不再活着了。只在 SessionStart 跑过时跑，跑一次。
+	 *
+	 * 先停、再等这一轮收完尾才跑：被停下的那一轮还有 StopFailure 要发，它要排在 SessionEnd 前面——
+	 * 外面的看板先收到「结束」再收到「这一轮失败了」，会把刚撤掉的卡片又建出来。没配这个钩子就什么
+	 * 都不动，不替调用方停下一个正在跑的会话。
+	 */
+	async end(reason: SessionEndReason): Promise<void> {
+		if (!this.can.state.get(SESSION_START_KEY)) return;
+		this.can.state.delete(SESSION_START_KEY);
+		const runner = await loadHookRunner({ settings: this.settings, cwd: this.cwd });
+		if (!runner.has("SessionEnd")) return;
 		this.abort();
+		await this.activity.quiet().catch(() => {});
+		await runSessionEndHooks({ runner, cwd: this.cwd, sessionId: this.log.meta.id, permissionMode: this.settings.permissionMode }, reason);
+	}
+
+	async dispose(reason: SessionEndReason = "other"): Promise<void> {
+		this.abort();
+		await this.end(reason).catch(() => {});
 		// A host may delete the log as soon as disposal returns; finish any title write first.
 		await this.title.pending();
 		// 没人关的 fs.watch 会一直拿着描述符，而一天里会开关几十个会话。

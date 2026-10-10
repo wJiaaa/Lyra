@@ -789,7 +789,18 @@ app.on("browser-window-created", (_event, win) => {
 	});
 });
 
-app.on("before-quit", async () => {
+/*
+ * 会话的 SessionEnd 钩子在这一次退出里跑过没有。
+ *
+ * 下面那句「await 的东西都发生在 Electron 走了以后」对钩子是致命的：读配置、起进程都是异步的，
+ * 进程先没了，外面的看板就永远收不到这个会话结束了。所以第一次退出先拦下来，让每个会话收尾，
+ * 最多等 `SESSION_END_GRACE_MS`，再真正退出。没配 SessionEnd 的会话收尾只是读一遍配置，
+ * 退出慢不了几毫秒。
+ */
+let sessionsEnded = false;
+const SESSION_END_GRACE_MS = 2_000;
+
+app.on("before-quit", async (event) => {
 	/*
 	 * First, and synchronously.
 	 *
@@ -798,6 +809,14 @@ app.on("before-quit", async () => {
 	 * what this event is. Anything awaited below happens long after Electron has moved on.
 	 */
 	beginQuit();
+	if (!sessionsEnded && sessions.size > 0) {
+		event.preventDefault();
+		sessionsEnded = true;
+		const ended = Promise.all([...sessions.values()].map((s) => s.end("quit").catch(() => {})));
+		await Promise.race([ended, new Promise((resolve) => setTimeout(resolve, SESSION_END_GRACE_MS))]);
+		app.quit();
+		return;
+	}
 	void closeMobileAccess();
 	unregisterScreenshotShortcut();
 	// The overlay outlives every capture on purpose, so it has to be let go of here or the process
@@ -811,7 +830,7 @@ app.on("before-quit", async () => {
 	// Shells are real child processes; without this they outlive the window that opened them.
 	for (const terminal of terminals.values()) terminal.pty.kill();
 	terminals.clear();
-	await Promise.all([...sessions.values()].map((s) => s.dispose()));
+	await Promise.all([...sessions.values()].map((s) => s.dispose("quit")));
 	// Unwinds every capability the plugins installed, in the reverse of the order they arrived.
 	await kernel?.dispose();
 	kernel = null;

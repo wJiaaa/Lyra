@@ -20,10 +20,14 @@ export const HOOK_EVENTS = [
 	"PostToolUse",
 	"PostToolUseFailure",
 	"Stop",
+	"StopFailure",
+	"SessionEnd",
 ] as const;
 
 export type HookEventName = (typeof HOOK_EVENTS)[number];
 export type HookScope = "user" | "project";
+/** SessionEnd 的 `reason`，也是它的 matcher 匹配的值。 */
+export type SessionEndReason = "deleted" | "archived" | "moved" | "evicted" | "quit" | "exit" | "other";
 
 export const DEFAULT_HOOK_TIMEOUT_MS = 60_000;
 export const DEFAULT_HOOK_MAX_OUTPUT_BYTES = 32_768;

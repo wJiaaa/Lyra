@@ -132,6 +132,6 @@ export async function runOnce(options: RunOptions): Promise<RunResult> {
 	} finally {
 		options.signal?.removeEventListener("abort", stop);
 		// MCP servers are child processes; without this they outlive the run.
-		await session.dispose();
+		await session.dispose("exit");
 	}
 }

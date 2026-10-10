@@ -33,7 +33,7 @@ import type {
 } from "../types.ts";
 import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction.ts";
 import { taskContextFromHistory } from "./task-context.ts";
-import { hookContextMessage, loadHookRunner, makeAfterToolCall, makeBeforeToolCall, makeOnStop, makePermissionRequest, runSessionStartHooks, runUserPromptSubmitHooks, type TurnHooks } from "./hooks.ts";
+import { hookContextMessage, loadHookRunner, makeAfterToolCall, makeBeforeToolCall, makeOnStop, makePermissionRequest, runSessionStartHooks, runStopFailureHooks, runUserPromptSubmitHooks, type TurnHooks } from "./hooks.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
 import type { Boundary } from "../session/types.ts";
@@ -102,8 +102,13 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 	 */
 	void can.extensions.dispatch("turn_start", { cwd, sessionId: log.meta.id }).catch(() => {});
 
-	const first = await runTurn(config, onEvent);
-	await continueWhileWorkRemains(first, {
+	// 抛出来的异常也是一种没收尾，照样告诉 StopFailure，再原样往上抛。
+	const failed = async (error: unknown): Promise<never> => {
+		await runStopFailureHooks(hooks, { reason: "error", error: error instanceof Error ? error.message : String(error), messages: [] }).catch(() => {});
+		throw error;
+	};
+	const first = await runTurn(config, onEvent).catch(failed);
+	const final = await continueWhileWorkRemains(first, {
 		run: (messages) => runTurn({ ...config, session: { ...config.session, messages, systemPrompt } }, onEvent),
 		// 日期块由循环在每次请求末尾接上（`environment`），续跑重建的历史里不带它。
 		messages: () => modelHistory(input.log, input.provider, input.model),
@@ -127,13 +132,17 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 		 * 覆盖着它；换个不带重试预算的调用者就该打开。
 		 */
 		requestRetriesHandled: true,
-	});
+	}).catch(failed);
+	if (final.reason !== "done") await runStopFailureHooks(hooks, final).catch(() => {});
 
 	void can.extensions.dispatch("turn_end", { cwd, sessionId: log.meta.id, messages: log.messages.length }).catch(() => {});
 }
 
-/** 这个会话的 SessionStart 钩子跑过没有。存在会话的 state 里：会话活多久，它就只跑一次。 */
-const SESSION_START_KEY = "hooks:sessionStartRan";
+/**
+ * 这个会话的 SessionStart 钩子跑过没有。存在会话的 state 里：会话活多久，它就只跑一次。
+ * SessionEnd 也认它（`AgentSession.end`）：开过头的会话才收尾，两头成对。
+ */
+export const SESSION_START_KEY = "hooks:sessionStartRan";
 
 /**
  * 一轮开始前的两个钩子：会话里的第一轮先跑 SessionStart，每一轮都跑 UserPromptSubmit。

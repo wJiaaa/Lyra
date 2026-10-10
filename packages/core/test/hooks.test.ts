@@ -330,3 +330,50 @@ test("UserPromptSubmit 查的是人刚发的那句，不是同一轮先注入的
 		await session.dispose();
 	}
 });
+
+test("StopFailure 在被停下的那一轮照样跑，SessionEnd 排在它后面，只给开过头的会话", async () => {
+	const cwd = join(root, "session-end");
+	await mkdir(cwd, { recursive: true });
+	const trace = join(cwd, "trace.txt");
+	const model = { id: "p/m", modelId: "m", providerId: "p", name: "m", contextWindow: 100_000, maxOutputTokens: 1000, supportsThinking: false, supportsImages: false, supportsTools: true };
+	const provider = { id: "p", name: "p", baseUrl: "http://localhost", api: "openai-responses" as const, apiKey: "x", enabled: true, models: [model] };
+	const append = (line: string) => node(`${READ_STDIN}require('node:fs').appendFileSync(${JSON.stringify(trace)},${line}+'\\n')});`);
+	const hooks: HooksConfig = { events: {
+		Stop: [{ hooks: [append("'stop'")] }],
+		StopFailure: [{ hooks: [append("input.reason")] }],
+		SessionEnd: [{ hooks: [append("'end:'+input.reason")] }],
+	} };
+	const lines = async () => (await readFile(trace, "utf8").catch(() => "")).split("\n").filter(Boolean);
+	const reply = (stopReason: "stop" | "aborted") => ({ role: "assistant" as const, content: [{ type: "text" as const, text: "ok" }], api: "openai-responses" as const, provider: "p", model: "m", usage: emptyUsage(), stopReason, timestamp: Date.now() });
+	let streaming!: () => void;
+	const started = new Promise<void>((resolve) => { streaming = resolve; });
+	let turns = 0;
+	const make = () => new AgentSession({
+		cwd,
+		settings: { ...DEFAULT_SETTINGS, providers: [provider], defaultModelId: model.id, mcpServers: [], hooks },
+		store: new SessionStore(join(cwd, "sessions")),
+		emit: () => {},
+		streamFn: async (context, request) => {
+			if (context.tools.length === 0 || ++turns === 1) return reply("stop");
+			// 第二轮挂住，直到会话被释放时停下它。
+			streaming();
+			await new Promise((resolve) => request.signal?.addEventListener("abort", resolve, { once: true }));
+			return reply("aborted");
+		},
+	});
+
+	const idle = make();
+	await idle.initialize();
+	await idle.dispose("deleted");
+	assert.deepEqual(await lines(), [], "没发过消息的会话没有 SessionStart，也就没有 SessionEnd");
+
+	const session = make();
+	await session.initialize();
+	await session.prompt([{ type: "text", text: "第一句" }]);
+	assert.deepEqual(await lines(), ["stop"], "正常收尾只走 Stop");
+	const running = session.prompt([{ type: "text", text: "第二句" }]);
+	await started;
+	await session.dispose("deleted");
+	await running.catch(() => {});
+	assert.deepEqual(await lines(), ["stop", "aborted", "end:deleted"]);
+});

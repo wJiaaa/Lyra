@@ -231,6 +231,7 @@ export {
 	type HookEventName,
 	type HookScope,
 	type HooksConfig,
+	type SessionEndReason,
 } from "./hooks/config.ts";
 export { trustHookDigests, trustedHookDigests } from "./hooks/trust.ts";
 export { hookCommandDisplay } from "./hooks/runner.ts";

@@ -206,7 +206,7 @@ export function registerSessionsIpc({
 		"sessions:move",
 		async (_event, sessionId: string, cwd: string, projectName: string) => {
 			if (sessions.get(sessionId)?.running) return { ok: false as const, reason: "running" as const };
-			await disposeSession(sessionId);
+			await disposeSession(sessionId, "moved");
 			try {
 				const meta = await store.move(sessionId, cwd, projectName);
 				if (!meta) return { ok: false as const, reason: "gone" as const };
@@ -221,7 +221,7 @@ export function registerSessionsIpc({
 		"sessions:setArchived",
 		async (_event, sessionId: string, archived: boolean) => {
 			// An archived session has no reason to keep its MCP servers and browser alive.
-			if (archived) await disposeSession(sessionId);
+			if (archived) await disposeSession(sessionId, "archived");
 			await store.setArchived(sessionId, archived);
 			return store.listSessions();
 		},
