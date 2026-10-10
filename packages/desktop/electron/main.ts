@@ -88,6 +88,7 @@ import { registerScreenshotIpc } from "./ipc/screenshot.ts";
 import { destroyScreenshotOverlay, dismissStrayOverlay, isScreenshotOverlay, registerScreenshotShortcut, unregisterScreenshotShortcut, warmScreenshotOverlay } from "./screenshot.ts";
 import { destroyPinnedShots, isPinnedShot } from "./screenshot-pin.ts";
 import { configureNotify } from "./notify.ts";
+import { sessionFromUrl } from "./deep-link.ts";
 import { applicationMenuTemplate } from "./app-menu.ts";
 import { shortcutFailureKey } from "./accelerator.ts";
 import { nativeTranslator, resolveNativeLocale, setInterfaceLocaleSource } from "./i18n.ts";
@@ -146,6 +147,24 @@ if (process.platform === "win32") app.setAppUserModelId("dev.plume.app");
 if (!app.requestSingleInstanceLock()) app.exit(0);
 
 app.on("second-instance", () => reveal());
+
+/*
+ * Another app asking for a conversation by URL — a card in Vibe Island, say. See `deep-link.ts`.
+ *
+ * Registered here rather than once the app is ready: when the URL is what launched the app, macOS
+ * delivers it before `ready`. There is no window then, and a command sent to a window still
+ * loading is dropped without a trace, so it waits for the first window's renderer. Any later URL
+ * finds that promise long settled and goes straight through.
+ */
+let firstWindowLoaded: () => void = () => {};
+const firstWindow = new Promise<void>((resolve) => {
+	firstWindowLoaded = resolve;
+});
+app.on("open-url", (event, url) => {
+	event.preventDefault();
+	const id = sessionFromUrl(url);
+	if (id) void firstWindow.then(() => sendToRenderer(`open-session:${id}`));
+});
 
 /** Private scheme the renderer uses to preview images and video from the open project. */
 
@@ -613,6 +632,7 @@ function bindScreenshotShortcut(): void {
 
 	registerIpc();
 	createWindow();
+	getWindow()?.webContents.once("did-finish-load", firstWindowLoaded);
 	bindScreenshotShortcut();
 	/*
 	 * Build the capture overlay now, while nothing is waiting on it.

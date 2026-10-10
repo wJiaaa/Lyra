@@ -72,6 +72,15 @@ mac:
     - "!**/node_modules/@koromix/koffi-!(darwin-${arch})/**"
     - "!**/node_modules/node-pty/prebuilds/!(darwin-${arch})/**"
   category: public.app-category.developer-tools
+  # The URL scheme another app uses to open one conversation: `plume://open-session?id=…`
+  # (`electron/deep-link.ts`). This is what writes `CFBundleURLTypes` into Info.plist, and without
+  # it macOS never delivers the URL — the handler in `main.ts` is then code nothing can reach.
+  #
+  # Under `mac` rather than at the top level: `open-url` is a macOS event, and declaring the
+  # scheme on Windows or Linux would register a handler that starts the app and opens nothing.
+  protocols:
+    - name: Plume
+      schemes: [plume]
   # Relative to `buildResources`, not to the project.
   #
   # This said `build/icon.icns`, and `buildResources` is already `build` — so it looked for
