@@ -296,6 +296,15 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
  * 不在界面上（没量过尺寸）就没人来滑，直接关。
  */
 export function closePane(scope: string, kind: PaneKind): void {
+	const ask = panelOf(kind)?.confirmClose;
+	if (ask) {
+		void ask(scope, kind).then((close) => close && closeAsked(scope, kind));
+		return;
+	}
+	closeAsked(scope, kind);
+}
+
+function closeAsked(scope: string, kind: PaneKind): void {
 	const dock = usePaneDock.getState();
 	const panels = panelsOf(dock.tree(scope));
 	if (panels.length === 1 && panels[0] === kind && dock.sizes[scope]) dock.leave(scope, kind);

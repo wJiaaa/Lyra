@@ -9,4 +9,5 @@
 
 export { TerminalPane } from "./TerminalPane.tsx";
 export { TerminalTitle, closeTerminal } from "./TerminalTitle.tsx";
+export { confirmCloseTerminal } from "./close-guard.ts";
 export { useTerminalPrewarm } from "./prewarm.ts";

@@ -31,6 +31,8 @@ interface TerminalsState {
 	sync(tabs: TerminalTab[]): void;
 	add(tab: TerminalTab, scope?: string): void;
 	remove(id: string): void;
+	/** What the shell is running now — see `TerminalTab.process`. */
+	setProcess(id: string, process: string | null): void;
 	select(id: string, scope?: string): void;
 	/** 这一格不在了：不再记它在看哪个 shell。 */
 	forget(scope: string): void;
@@ -84,6 +86,11 @@ export const useTerminals = create<TerminalsState>((set, get) => ({
 			 */
 			active: id === active ? (rest[0]?.id ?? "") : active,
 		});
+	},
+
+	setProcess: (id, process) => {
+		if (!get().tabs.some((tab) => tab.id === id && (tab.process ?? null) !== process)) return;
+		set({ tabs: get().tabs.map((tab) => (tab.id === id ? { ...tab, process } : tab)) });
 	},
 
 	select: (id, scope) => {

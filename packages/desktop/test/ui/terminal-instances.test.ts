@@ -42,6 +42,7 @@ test("再开的一格终端起一个新 shell，不接手没人看的那个；�
 		kill: (id: string) => { killed.push(id); },
 		onData: () => () => {},
 		onExit: () => () => {},
+		onProcess: () => () => {},
 	} });
 	window.localStorage.clear();
 	useTerminals.setState({ tabs: [], active: "", activeByScope: {} });

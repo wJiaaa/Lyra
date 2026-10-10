@@ -1,17 +1,25 @@
 import { translate } from "../../i18n/translate.ts";
 import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon } from "@xterm/addon-search";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { Plus, SquareTerminal } from "../../ui/icons/index.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useApp } from "../../store/index.ts";
-import { useSide } from "../dock/index.ts";
+import { openFilePane, useSide } from "../dock/index.ts";
 import { savedTerminal, useTerminals } from "../../store/terminals.ts";
 import { useTerminalScope } from "./scope.ts";
 import { rememberTerminalSize } from "./prewarm.ts";
 import { paletteFromTheme, typography } from "../../ui/terminal/palette.ts";
 import { terminalKey, windowsPtyFor } from "./terminal-keys.ts";
 import { TerminalMenu } from "./TerminalMenu.tsx";
+import { matchShellWidths } from "./addons.ts";
+import { carriesPaths, dropText, droppedPaths } from "./drop.ts";
+import { showing, useCloseQuestion } from "./close-guard.ts";
+import { Confirm } from "../../ui/overlay/Confirm.tsx";
+import { TerminalSearch } from "./TerminalSearch.tsx";
+import { linkify } from "./links.ts";
+import { baseName } from "../../lib/paths.ts";
 import { CODE_DEFAULTS, onAppearanceApplied } from "../settings/index.ts";
 import { bridge } from "../../services/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
@@ -42,6 +50,9 @@ export function TerminalPane() {
 	/** Flips once the pty exists, so a queued command knows when it can be written. */
 	const [ready, setReady] = useState(false);
 	const fit = useRef<FitAddon | null>(null);
+	const search = useRef<SearchAddon | null>(null);
+	/** How many times find has been asked for; 0 is closed. See `TerminalSearch`. */
+	const [finding, setFinding] = useState(0);
 	/** Held in a ref as well as state: the data handler runs before React re-renders. */
 	const sessionId = useRef<string | null>(null);
 	/** Which attach this pane is the owner of, so a superseded cleanup cannot mute the shell. */
@@ -60,6 +71,10 @@ export function TerminalPane() {
 	const [menu, setMenu] = useState<{ at: { x: number; y: number }; selection: string } | null>(null);
 	// The shared tab list includes background shells, even while this pane has no active connection.
 	useEffect(() => bridge.terminal.onExit(({ id }) => useTerminals.getState().remove(id)), []);
+	useEffect(() => bridge.terminal.onProcess(({ id, process }) => useTerminals.getState().setProcess(id, process)), []);
+	/** Closing this tab while it runs something is asked here — see `close-guard.ts`. */
+	const question = useCloseQuestion((state) => (active && state.asking?.id === active ? state.asking : null));
+	useEffect(() => (active ? showing(active) : undefined), [active]);
 
 	/*
 	 * Run what the transcript handed over.
@@ -114,6 +129,9 @@ export function TerminalPane() {
 	 * be starts in `~` — which is what a terminal does everywhere else on the machine.
 	 */
 	const startingCwd = () => scopedCwd;
+	/** For the links, which the terminal is built with once and asks long after — see `links.ts`. */
+	const linkContext = useRef({ cwd: scopedCwd, scope });
+	linkContext.current = { cwd: scopedCwd, scope };
 
 	/*
 	 * Find out what is already running before drawing anything.
@@ -309,6 +327,10 @@ export function TerminalPane() {
 		terminal.attachCustomKeyEventHandler((event) => {
 			const action = terminalKey(event, terminal.hasSelection());
 			if (action === "shell") return true;
+			if (action === "find" && event.type === "keydown") {
+				event.preventDefault();
+				setFinding((count) => count + 1);
+			}
 			if (action === "copy" && event.type === "keydown") {
 				event.preventDefault();
 				const text = terminal.getSelection();
@@ -319,6 +341,28 @@ export function TerminalPane() {
 		});
 		const fitter = new FitAddon();
 		terminal.loadAddon(fitter);
+		matchShellWidths(terminal);
+		linkify(terminal, {
+			base: () => linkContext.current.cwd,
+			exists: (path) => bridge.files.exists(path),
+			openFile: (path) => {
+				void openFilePane({ path, name: baseName(path) }, linkContext.current.scope).catch((error: unknown) =>
+					useApp.getState().notify(String(error), "error"),
+				);
+			},
+			// As a link in the conversation opens — see `Link` in `Markdown.tsx`.
+			openUrl: (url, external) => {
+				const state = useApp.getState();
+				if (state.settings?.browser?.openLinks === "builtin" && !external) {
+					const { scope: owner } = linkContext.current;
+					const sessionId = owner === undefined ? state.activeSessionId : owner === "@draft" ? null : owner;
+					void bridge.browser.command({ type: "open", url, sessionId, newTab: true }).catch((error: unknown) => state.notify(String(error), "error"));
+				} else void bridge.system.openExternal(url);
+			},
+		});
+		const searcher = new SearchAddon();
+		terminal.loadAddon(searcher);
+		search.current = searcher;
 		terminal.open(element);
 		fitter.fit();
 		term.current = terminal;
@@ -351,6 +395,7 @@ export function TerminalPane() {
 			terminal.dispose();
 			term.current = null;
 			fit.current = null;
+			search.current = null;
 		};
 	}, []);
 
@@ -366,6 +411,8 @@ export function TerminalPane() {
 
 		// Whatever the previous tab left on screen is not this tab's. The replay below redraws it.
 		terminal.reset();
+		// So are its matches.
+		setFinding(0);
 
 		let disposed = false;
 		/*
@@ -543,6 +590,20 @@ export function TerminalPane() {
 					event.preventDefault();
 					setMenu({ at: { x: event.clientX, y: event.clientY }, selection: terminal.getSelection() });
 				}}
+				onDragOver={(event) => {
+					if (empty || !carriesPaths(event.dataTransfer)) return;
+					event.preventDefault();
+					event.dataTransfer.dropEffect = "copy";
+				}}
+				onDrop={(event) => {
+					const terminal = term.current;
+					if (!terminal || empty || !carriesPaths(event.dataTransfer)) return;
+					event.preventDefault();
+					// Through `paste`, like the menu's: typed at the prompt, never run.
+					const text = dropText(droppedPaths(event.dataTransfer), bridge.platform ?? "darwin");
+					if (text) terminal.paste(text);
+					terminal.focus();
+				}}
 			/>
 			{menu && (
 				<TerminalMenu
@@ -592,6 +653,25 @@ export function TerminalPane() {
 						icon={<Plus size={16} strokeWidth={1.9} aria-hidden />}
 					/>
 				</div>
+			)}
+			{finding > 0 && search.current && !empty && (
+				<TerminalSearch
+					search={search.current}
+					request={finding}
+					onClose={() => {
+						setFinding(0);
+						term.current?.focus();
+					}}
+				/>
+			)}
+			{question && (
+				<Confirm
+					title={translate("terminal.closeRunning", { process: question.process })}
+					detail={translate("terminal.closeRunningDetail", { process: question.process })}
+					confirmLabel={translate("terminal.closeRunningConfirm")}
+					onConfirm={() => question.answer(true)}
+					onCancel={() => question.answer(false)}
+				/>
 			)}
 			{exited !== null && (
 				<div className="shrink-0 px-3 pb-2 text-detail text-ink-faint">

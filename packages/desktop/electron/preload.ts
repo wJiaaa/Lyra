@@ -279,6 +279,11 @@ const extras = {
 			ipcRenderer.on("terminal:exit", listener);
 			return () => ipcRenderer.removeListener("terminal:exit", listener);
 		},
+		onProcess: (handler) => {
+			const listener = (_e: Electron.IpcRendererEvent, payload: Parameters<typeof handler>[0]) => handler(payload);
+			ipcRenderer.on("terminal:process", listener);
+			return () => ipcRenderer.removeListener("terminal:process", listener);
+		},
 	},
 	
 	setWindowTheme: (colors: { color: string; headerColor: string; symbolColor: string }) =>

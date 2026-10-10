@@ -220,3 +220,64 @@ export async function openCommandPalette(page: Page): Promise<void> {
 	await until(page, `document.activeElement?.matches(${JSON.stringify(COMMAND_PALETTE)})`);
 	await frames(page, 30);
 }
+
+/** 修饰键在 CDP 里的位：Alt 1、Ctrl 2、⌘ 4、Shift 8，可以相加。 */
+export const MODIFIER = { alt: 1, ctrl: 2, meta: 4, shift: 8 } as const;
+
+/**
+ * 终端里某段字的中心点，用来点它、悬停它。
+ *
+ * 终端的字不是元素，选择器够不着：按 xterm 画出来的行逐个文本节点找，量的是画面上那几个字的位置，
+ * 不是按列数推算——前面有中文时，一个字占两格，推出来的列会错开。
+ */
+export async function terminalText(page: Evaluate, text: string): Promise<Point> {
+	const at = await page.evaluate<Point | null>(`(()=>{
+		const want=${JSON.stringify(text)};
+		for(const row of document.querySelectorAll('.xterm-rows > div')){
+			if(!row.checkVisibility({visibilityProperty:true}))continue;
+			const walker=document.createTreeWalker(row,NodeFilter.SHOW_TEXT);
+			const nodes=[];let all='';
+			for(let n;(n=walker.nextNode());){nodes.push([n,all.length]);all+=n.data;}
+			const i=all.indexOf(want);if(i<0)continue;
+			const range=document.createRange();
+			const place=(offset,end)=>{for(const [n,s] of nodes){if(offset<=s+n.data.length&&(offset<s+n.data.length||end)){(end?range.setEnd:range.setStart).call(range,n,offset-s);return;}}};
+			place(i,false);place(i+want.length,true);
+			const r=range.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;
+			// 收在背后的那格也算「可见」，要的是真落在指针下的那一处。
+			if(!row.closest('.xterm')?.contains(document.elementFromPoint(x,y)))continue;
+			return {x,y};
+		}
+		return null;
+	})()`);
+	if (!at) throw new Error(`terminal shows no ${JSON.stringify(text)}`);
+	return at;
+}
+
+/** 在一个点上点一下，可以按着修饰键——⌘ 点开终端里的链接就靠它。 */
+export async function clickAt(page: Page, at: Point, modifiers = 0): Promise<void> {
+	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at, modifiers });
+	await frames(page, 2);
+	await page.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, modifiers, button: "left", clickCount: 1 });
+	await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, modifiers, button: "left", clickCount: 1 });
+	await frames(page, 2);
+}
+
+/**
+ * 把东西拖到一个元素上放下：从访达拖来的文件给 `files`（磁盘上的路径），应用里拖出来的给 `items`。
+ *
+ * 走 `Input.dispatchDragEvent`，和真拖拽一样经过 dragenter、dragover、drop，页面拿到的是一份真的
+ * `DataTransfer`——`webUtils.getPathForFile` 也只认这种来的 `File`。
+ */
+export async function dropOn(
+	page: Page,
+	selector: string,
+	data: { files?: string[]; items?: { mimeType: string; data: string }[] },
+): Promise<void> {
+	await until(page, finder(selector));
+	const at = await page.evaluate<Point>(`(()=>{const r=${finder(selector)}.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+	const payload = { items: data.items ?? [], ...(data.files ? { files: data.files } : {}), dragOperationsMask: 1 };
+	for (const type of ["dragEnter", "dragOver", "drop"]) {
+		await page.send("Input.dispatchDragEvent", { type, ...at, data: payload });
+	}
+	await frames(page, 2);
+}

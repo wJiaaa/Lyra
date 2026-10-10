@@ -33,6 +33,8 @@ import { win32 } from "node:path";
 import type { IPty } from "node-pty";
 import { envValue, findExecutable } from "./find-executable.ts";
 import { nativeTranslator, type NativeLocale } from "./i18n.ts";
+import { shellEnv } from "./terminal-env.ts";
+import { watchForeground } from "./terminal-foreground.ts";
 
 /**
  * One shell, and enough of what it has said to redraw it.
@@ -75,12 +77,16 @@ export interface LiveTerminal {
 	epoch: number;
 	/** Concurrent views identify both their connection and its renderer for crash cleanup. */
 	connections: Map<number, number>;
+	/** What it is running besides the shell; absent for a tab whose shell never started. */
+	foreground?: ReturnType<typeof watchForeground>;
 }
 
 /** One shell in a directory, as the tab strip lists it. */
 export interface TerminalTab {
 	id: string;
 	title: string;
+	/** The program in the foreground when it is not the shell — see `terminal-foreground.ts`. */
+	process?: string | null;
 }
 
 /** What a pane gets back when it connects. */
@@ -103,6 +109,8 @@ export interface TerminalDeps {
 	/** The machine's own, unless a test is standing in for Windows. */
 	platform?: string;
 	env?: NodeJS.ProcessEnv;
+	/** The environment as of now, where it can change under a running app — see `terminal-env.ts`. */
+	currentEnv?: () => NodeJS.ProcessEnv;
 	findExecutable?: (command: string) => string | null;
 	/**
 	 * The language tab names are written in, already resolved from the settings and the system.
@@ -127,6 +135,26 @@ export function pickShell(platform: string, env: NodeJS.ProcessEnv, find: (comma
 	const systemRoot = envValue(env, "SystemRoot", platform);
 	const inbox = systemRoot ? win32.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe") : null;
 	return find("pwsh.exe") ?? find("powershell.exe") ?? (inbox ? find(inbox) : null) ?? envValue(env, "ComSpec", platform) ?? "cmd.exe";
+}
+
+/**
+ * How that shell is started: on macOS, and for Git Bash on Windows, as a login shell.
+ *
+ * Terminal.app and iTerm2 both do this, and the user's environment depends on it. Plume launched
+ * from the Dock inherits launchd's `/usr/bin:/bin:/usr/sbin:/sbin`, and a non-login zsh skips
+ * `/etc/zprofile` (path_helper) and `~/.zprofile` — where `brew shellenv` normally lives. The
+ * `.zshrc` that followed then failed on `mise`, `zoxide` and `starship` one after another, and the
+ * terminal had neither the user's prompt nor their tools. Linux terminal emulators conventionally
+ * start non-login shells, and on Windows `-l` means nothing to PowerShell or cmd.
+ *
+ * Git Bash is the exception there. Its own window runs `bash --login -i`, which reads `/etc/profile`
+ * and `~/.bash_profile`; started bare, it read only `~/.bashrc`, and whatever someone keeps in
+ * `.bash_profile` was missing from Plume's tab alone.
+ */
+export function shellArgs(platform: string, shell = ""): string[] {
+	if (platform === "darwin") return ["-l"];
+	if (platform === "win32" && win32.basename(shell).toLowerCase() === "bash.exe") return ["--login"];
+	return [];
 }
 
 /**
@@ -163,6 +191,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 	const env = host.env ?? process.env;
 	const find = host.findExecutable ?? ((command: string) => findExecutable(command, { platform, env }));
 	const titleOf = (live: LiveTerminal): string => tabTitle(live.number, host.locale?.() ?? "zh-CN");
+	const tabOf = (id: string, live: LiveTerminal): TerminalTab => ({ id, title: titleOf(live), process: live.foreground?.current ?? null });
 	/** Where a terminal for this path actually starts: the project, or home if it is not one. */
 	// `homedir()`, not `process.env.HOME`: Windows spells it `USERPROFILE` and leaves `HOME` unset,
 	// so reading the variable there fell through to the process's own directory.
@@ -180,7 +209,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 	const list = (cwd: string): TerminalTab[] =>
 		[...terminals]
 			.filter(([, live]) => live.cwd === resolve(cwd))
-			.map(([id, live]) => ({ id, title: titleOf(live) }));
+			.map(([id, live]) => tabOf(id, live));
 
 	/**
 	 * Every shell there is, whatever directory it was started in.
@@ -192,7 +221,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 	 * the current project, so changing projects swapped it for a different set and moving to no
 	 * project at all emptied it, while every one of those shells carried on running unseen.
 	 */
-	const listAll = (): TerminalTab[] => [...terminals].map(([id, live]) => ({ id, title: titleOf(live) }));
+	const listAll = (): TerminalTab[] => [...terminals].map(([id, live]) => tabOf(id, live));
 
 	/**
 	 * Start another shell here.
@@ -212,13 +241,12 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 		const shell = pickShell(platform, env, find);
 		let child: IPty;
 		try {
-			child = spawnPty(shell, [], {
+			child = spawnPty(shell, shellArgs(platform, shell), {
 				name: "xterm-256color",
 				cols: Math.max(2, cols),
 				rows: Math.max(2, rows),
 				cwd: dir,
-				// TERM is what makes a shell emit colour and use cursor addressing at all.
-				env: { ...env, TERM: "xterm-256color" } as Record<string, string>,
+				env: shellEnv(platform, host.currentEnv?.() ?? env),
 			});
 		} catch (error) {
 			return openUnavailable(id, dir, attached, error);
@@ -234,9 +262,15 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 			touched: ++clock,
 			epoch: 1,
 			connections: new Map(),
+			foreground: watchForeground(child, shell, (process) => {
+				eachWindow((win) => {
+					if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("terminal:process", { id, process });
+				});
+			}),
 		};
 
 		child.onData((data) => {
+			live.foreground?.poke();
 			live.scrollback.push(data);
 			live.bytes += data.length;
 			while (live.bytes > SCROLLBACK_BYTES && live.scrollback.length > 1) {
@@ -247,6 +281,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 			});
 		});
 		child.onExit(({ exitCode }) => {
+			live.foreground?.dispose();
 			terminals.delete(id);
 			eachWindow((win) => {
 				if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("terminal:exit", { id, code: exitCode });
@@ -397,6 +432,7 @@ export function createTerminalRegistry({ terminals, spawnPty, projectPath, insid
 		try {
 			terminals.get(id)?.pty.kill();
 		} catch {}
+		terminals.get(id)?.foreground?.dispose();
 		terminals.delete(id);
 	};
 
@@ -421,6 +457,7 @@ function retireIdle(terminals: Map<string, LiveTerminal>, keep: string): void {
 		}
 		if (!oldest) return;
 		oldest[1].pty.kill();
+		oldest[1].foreground?.dispose();
 		terminals.delete(oldest[0]);
 	}
 }

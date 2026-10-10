@@ -35,6 +35,7 @@ test("a background shell exit drops it without replacing this pane's shell or it
 		attach: async (id: string) => ({ id, epoch: 2, replay: "" }),
 		detach: (id: string) => { detached.push(id); },
 		onData: () => () => {},
+		onProcess: () => () => {},
 		onExit: (listener: (event: { id: string; code: number }) => void) => {
 			exits.add(listener);
 			return () => { exits.delete(listener); };

@@ -180,6 +180,8 @@ export interface ProjectLayerView {
 export interface TerminalTab {
 	id: string;
 	title: string;
+	/** The program in the foreground when it is not the shell; `null` at the prompt and on Windows. */
+	process?: string | null;
 }
 
 /** What a pane gets back when it connects to a shell. */
@@ -640,6 +642,8 @@ export interface PlumeApi {
 		kill(id: string): void;
 		onData(handler: (payload: { id: string; data: string }) => void): () => void;
 		onExit(handler: (payload: { id: string; code: number }) => void): () => void;
+		/** The foreground program changed — see `TerminalTab.process`. */
+		onProcess(handler: (payload: { id: string; process: string | null }) => void): () => void;
 	};
 	providers: {
 		test(providerId: string, modelId?: string): Promise<ProviderTestResult>;

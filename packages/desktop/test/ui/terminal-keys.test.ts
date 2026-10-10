@@ -54,6 +54,15 @@ test("Mac 上一切照旧：⌘ 不进 shell，复制粘贴走编辑菜单", () 
 	assert.equal(terminalKey(key("s", "KeyS", { ctrlKey: true, altKey: true }), false, "MacIntel"), "shell");
 });
 
+test("查找：Mac 上是 ⌘F，别处是 Ctrl+Shift+F；单按 Ctrl+F 仍是 readline 的光标右移", () => {
+	assert.equal(terminalKey(key("f", "KeyF", { metaKey: true }), false, "MacIntel"), "find");
+	assert.equal(terminalKey(key("f", "KeyF", { metaKey: true, shiftKey: true }), false, "MacIntel"), "shell");
+	assert.equal(terminalKey(key("f", "KeyF", { ctrlKey: true }), false, "MacIntel"), "shell");
+	assert.equal(terminalKey(key("F", "KeyF", { ctrlKey: true, shiftKey: true }), false, "Win32"), "find");
+	assert.equal(terminalKey(key("f", "KeyF", { ctrlKey: true }), false, "Win32"), "shell");
+	assert.equal(terminalKey(key("F", "KeyF", { ctrlKey: true, shiftKey: true }), false, "Linux x86_64"), "find");
+});
+
 test("Windows 的 pty 如实告诉 xterm：后端和版本号", () => {
 	assert.deepEqual(windowsPtyFor("win32", "10.0.22631"), { backend: "conpty", buildNumber: 22631 });
 	// Below 18309 node-pty falls back to winpty; xterm has to hear the same.
@@ -117,6 +126,7 @@ test("终端面板把这些接上：windowsPty、按键处理、右键菜单", a
 			detach: () => {},
 			onData: () => () => {},
 			onExit: () => () => {},
+			onProcess: () => () => {},
 		},
 		clipboard: {
 			write: async (text: string) => { written.push(text); },

@@ -13,7 +13,9 @@ export function TerminalTitle({ scope, kind, fallback }: { scope: string; kind: 
 	const slot = terminalSlot(scope, panelInstance(kind));
 	const title = useTerminals((state) => {
 		const id = slot === undefined ? state.active : state.activeByScope[slot];
-		return state.tabs.find((tab) => tab.id === id)?.title;
+		const tab = state.tabs.find((entry) => entry.id === id);
+		// 「终端 1 · node」：开着 dev server 的那一格，不用点开就认得出来。
+		return tab && (tab.process ? `${tab.title} · ${tab.process}` : tab.title);
 	});
 	return <>{title ?? fallback}</>;
 }

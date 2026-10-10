@@ -21,8 +21,11 @@ const ASSET = /\.(png|jpe?g|gif|svg|webp|ico|css)(\?[a-z]+)?$/i;
  */
 const STUBS = {
 	"@xterm/xterm":
-		"export class Terminal { constructor(options) { Object.defineProperty(this, 'options', { value: { ...options }, writable: true, configurable: true, enumerable: true }); } open() {} write() {} dispose() {} loadAddon() {} attachCustomKeyEventHandler(handler) { this.customKeyEventHandler = handler; } }",
+		"export class Terminal { constructor(options) { Object.defineProperty(this, 'options', { value: { ...options }, writable: true, configurable: true, enumerable: true }); } open() {} write() {} dispose() {} loadAddon() {} attachCustomKeyEventHandler(handler) { this.customKeyEventHandler = handler; } registerLinkProvider() { return { dispose() {} }; } unicode = { activeVersion: '6' }; }",
 	"@xterm/addon-fit": "export class FitAddon { fit() {} activate() {} dispose() {} }",
+	"@xterm/addon-unicode11": "export class Unicode11Addon { activate() {} dispose() {} }",
+	"@xterm/addon-search": "export class SearchAddon { activate() {} dispose() {} findNext() { return false; } findPrevious() { return false; } clearDecorations() {} onDidChangeResults() { return { dispose() {} }; } }",
+	"@xterm/addon-web-links": "export class WebLinksAddon { activate() {} dispose() {} }",
 };
 
 export async function resolve(specifier, context, next) {

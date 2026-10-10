@@ -78,6 +78,7 @@ async function mountTerminal(t: import("node:test").TestContext, appearance: App
 			detach: () => {},
 			onData: () => () => {},
 			onExit: () => () => {},
+			onProcess: () => () => {},
 		},
 	});
 	window.localStorage.clear();

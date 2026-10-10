@@ -211,6 +211,7 @@ function fakeShells() {
 		attached,
 		api: {
 			onExit: () => () => {},
+			onProcess: () => () => {},
 			onData: () => () => {},
 			listAll: async () => tabs,
 			list: async (cwd: string) => tabs.filter((tab) => tab.id === byDirectory[cwd]),

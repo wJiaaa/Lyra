@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createTerminalRegistry, pickShell, type LiveTerminal } from "../electron/terminal-registry.ts";
+import { createTerminalRegistry, pickShell, shellArgs, type LiveTerminal } from "../electron/terminal-registry.ts";
 
 const PWSH = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
 const POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
@@ -62,4 +62,50 @@ test("a SHELL that is a real Windows path is still honoured", () => {
 test("everywhere else SHELL is the answer, as it always was", () => {
 	assert.equal(pickShell("linux", { SHELL: "/usr/bin/fish" }, finder([])), "/usr/bin/fish");
 	assert.equal(pickShell("darwin", {}, finder([])), "/bin/bash");
+});
+
+test("on macOS the shell starts as a login shell, so ~/.zprofile runs as it does in Terminal.app", () => {
+	const spawned: string[][] = [];
+	const registry = (platform: string) =>
+		createTerminalRegistry({
+			terminals: new Map<string, LiveTerminal>(),
+			spawnPty: (_file, args) => {
+				spawned.push(args);
+				return { pid: 1, onData() {}, onExit() {}, write() {}, resize() {}, kill() {} } as never;
+			},
+			insideAProject: () => false,
+			eachWindow: () => {},
+			platform,
+			env: { SHELL: "/bin/zsh" },
+			findExecutable: finder([PWSH]),
+		});
+	registry("darwin").open("/proj", 80, 24);
+	registry("linux").open("/proj", 80, 24);
+	registry("win32").open("C:\\proj", 80, 24);
+	assert.deepEqual(spawned, [["-l"], [], []]);
+	assert.deepEqual(shellArgs("darwin"), ["-l"]);
+});
+
+test("Git Bash on Windows starts as a login shell, as its own window does; PowerShell and cmd take nothing", () => {
+	assert.deepEqual(shellArgs("win32", "C:\\Program Files\\Git\\bin\\bash.exe"), ["--login"]);
+	assert.deepEqual(shellArgs("win32", "C:\\Program Files\\Git\\bin\\BASH.EXE"), ["--login"]);
+	assert.deepEqual(shellArgs("win32", PWSH), []);
+	assert.deepEqual(shellArgs("win32", "C:\\Windows\\system32\\cmd.exe"), []);
+});
+
+test("the shell is told it runs in xterm.js, not in whatever terminal launched Plume", () => {
+	let env: Record<string, string> = {};
+	createTerminalRegistry({
+		terminals: new Map<string, LiveTerminal>(),
+		spawnPty: (_file, _args, options) => {
+			env = options.env as Record<string, string>;
+			return { pid: 1, onData() {}, onExit() {}, write() {}, resize() {}, kill() {} } as never;
+		},
+		insideAProject: () => false,
+		eachWindow: () => {},
+		platform: "darwin",
+		env: { SHELL: "/bin/zsh", TERM: "dumb", COLORTERM: "" },
+	}).open("/proj", 80, 24);
+	assert.equal(env.TERM, "xterm-256color");
+	assert.equal(env.COLORTERM, "truecolor");
 });

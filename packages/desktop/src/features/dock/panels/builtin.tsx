@@ -17,7 +17,7 @@ import { FileTitle, FileTabTitle, closeFile } from "../../files/index.ts";
 import { DiffView, GitPanel } from "../../git/index.ts";
 import { SideChat, SideChatTitle, closeSideChat } from "../../sidechat/index.ts";
 import { TaskPanel } from "../../task/index.ts";
-import { TerminalPane, TerminalTitle, closeTerminal } from "../../terminal/index.ts";
+import { TerminalPane, TerminalTitle, closeTerminal, confirmCloseTerminal } from "../../terminal/index.ts";
 import { announceUndo, TrajectoryPanel, useDeliveryReview, useDeliveryUndos, usePathMenu, useSharedDeliveryTarget } from "../../conversation/index.ts";
 import type { DeliveryFile, TurnDelivery } from "../../../../electron/turn-delivery.ts";
 import { useI18n } from "../../../i18n/index.ts";
@@ -258,6 +258,7 @@ const BUILTIN_PANELS: PanelDefinition[] = [
 		render: TerminalPane,
 		tabTitle: TerminalTitle,
 		onClose: closeTerminal,
+		confirmClose: confirmCloseTerminal,
 	},
 	{ kind: "tasks", label: "common.tasks", icon: ListTodo, shortcut: "⌘J", render: TaskPanel },
 	{

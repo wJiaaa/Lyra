@@ -15,9 +15,11 @@ import { composingKey, macKeyboard, shortcutLetter } from "../../ui/keyboard.ts"
  *   paste  keep xterm away from it, so the browser's own paste lands in xterm's input and is
  *          sent from there (bracketed-paste aware)
  *   app    keep xterm away from it, so the window's shortcut handler gets it
+ *   find   open the terminal's search: ⌘F on a Mac, Ctrl+Shift+F elsewhere — plain Ctrl+F is
+ *          readline's forward-char, and Windows Terminal draws the same line
  *   shell  xterm's, as always
  */
-export type TerminalKey = "copy" | "paste" | "app" | "shell";
+export type TerminalKey = "copy" | "paste" | "app" | "find" | "shell";
 
 /**
  * The shortcuts that have to work with the terminal focused, as the letter pressed with Ctrl+Alt:
@@ -49,9 +51,15 @@ const APP_WITH_CTRL_ALT = new Set(["s", "p", "a"]);
  *     click away. The Ctrl+Shift ones the app uses (Ctrl+Shift+R) xterm already lets through.
  */
 export function terminalKey(event: KeyboardEvent, hasSelection: boolean, platform = navigator.platform): TerminalKey {
-	if (macKeyboard(platform) || composingKey(event) || event.metaKey || !event.ctrlKey) return "shell";
+	if (composingKey(event)) return "shell";
+	if (macKeyboard(platform)) {
+		const find = event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && shortcutLetter(event) === "f";
+		return find ? "find" : "shell";
+	}
+	if (event.metaKey || !event.ctrlKey) return "shell";
 	const letter = shortcutLetter(event);
 	if (!event.altKey) {
+		if (event.shiftKey && letter === "f") return "find";
 		if (event.shiftKey && letter === "c") return "copy";
 		if (event.shiftKey && letter === "v") return "paste";
 		if (!event.shiftKey && letter === "c" && hasSelection) return "copy";

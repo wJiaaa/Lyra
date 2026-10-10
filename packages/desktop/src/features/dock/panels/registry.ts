@@ -104,6 +104,13 @@ export interface PanelDefinition {
 	 */
 	onClose?: (scope: string, kind: PaneKind) => void;
 	/**
+	 * 关之前要不要先问一句。`false` 就不关。
+	 *
+	 * 只给「关了会丢掉正在进行的东西」的面板用——终端里跑着的程序。只在 `closePane` 里问：那是人点
+	 * ✕ 和「⋮」菜单走的路；关掉弹出去的窗口由系统决定，问不了。
+	 */
+	confirmClose?: (scope: string, kind: PaneKind) => Promise<boolean>;
+	/**
 	 * 再开一个这种面板由它自己来，代替往树上放一格。
 	 *
 	 * 浏览器是这样的：一个标签就是一个网页（`browser:<网页 id>`），得先由主进程开出网页、有了 id，
