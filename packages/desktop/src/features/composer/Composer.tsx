@@ -51,6 +51,7 @@ import {
 import { awaitingSubAgents } from "../../store/subAgents.ts";
 import { awaitingSession } from "../../store/tool-run.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
+import { takePageStates } from "../../store/page-state.ts";
 import { useJobReveal } from "./job-reveal.ts";
 import { bridge } from "../../services/index.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -411,11 +412,14 @@ export function Composer({ centered = false }: {
 
 		const referencedSessions = sessionRefs;
 		const composed = { text: trimmed, attachments, sessionRefs: referencedSessions };
-		const outgoing = await buildOutgoing(composed, commandCwd, () =>
+		const built = await buildOutgoing(composed, commandCwd, () =>
 			// A disk scan must not dispatch an obsolete draft or erase edits made while it was pending.
 			draftKeyRef.current === draftKey && textRef.current === text && attachmentsRef.current === attachments && sessionRefsRef.current === sessionRefs,
 		);
-		if (!outgoing) return;
+		if (!built) return;
+		// 人在对话里的页面上调过的东西，跟着这句话交给模型；气泡里只有人打的字。见 `page-state.ts`。
+		const states = activeSessionId ? takePageStates(activeSessionId) : "";
+		const outgoing = states ? { ...built, content: [...built.content, { type: "text" as const, text: states }], displayText: built.displayText ?? trimmed } : built;
 
 		setText("");
 		setAttachments([]);

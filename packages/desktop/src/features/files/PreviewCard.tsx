@@ -9,10 +9,11 @@ import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { onAppearanceApplied } from "../settings/index.ts";
-import { HEIGHT_MESSAGE, PREVIEW_MAX_HEIGHT, THEME_MESSAGE, WIDTH_KEY, previewFragment, readOpenRequest, readSendRequest, type PreviewTheme } from "../../../shared/preview.ts";
+import { HEIGHT_MESSAGE, PREVIEW_MAX_HEIGHT, THEME_MESSAGE, WIDTH_KEY, previewFragment, readOpenRequest, readSendRequest, readStateRequest, type PreviewTheme } from "../../../shared/preview.ts";
 import { MAX_ADJUSTMENTS, followHeight } from "./preview-height.ts";
 import { previewTheme } from "./preview-theme.ts";
 import { sayFor } from "../../store/say.ts";
+import { markPageStatePending, readPageState, savePageState } from "../../store/page-state.ts";
 import { usePreviewCopy } from "./preview-copy.ts";
 
 export interface PreviewInfo {
@@ -182,8 +183,9 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 	useLayoutEffect(() => {
 		const theme = wantsTheme ? previewTheme(host.current) : undefined;
 		wear(theme);
-		setSrc(`${url}${previewFragment({ inline: true, theme })}`);
-	}, [url, wantsTheme, nonce]);
+		// What the reader left it at, read here and not kept: the page saves its own later states, and a rerun reads them again.
+		setSrc(`${url}${previewFragment({ inline: true, theme, state: readPageState(preview.sessionId, preview.id) })}`);
+	}, [url, wantsTheme, nonce, preview.sessionId, preview.id]);
 	const postTheme = useCallback(() => {
 		if (!preview.themed) return;
 		const theme = previewTheme(host.current);
@@ -194,7 +196,8 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 
 	/*
 	 * A link in the page, opened where the reader's links go; or a button in it speaking for the
-	 * reader (`plume.send`), said in this conversation.
+	 * reader (`plume.send`), said in this conversation. A state the page saves (`plume.setState`) is
+	 * kept whenever it comes, and is the reader's — to be told to the model — on the same terms.
 	 *
 	 * The page cannot do either itself (see `withPreviewBridge`); it asks. Asked is not the same
 	 * as clicked, though — a script can ask on load, or on a timer, as often as it likes. So the ask
@@ -223,9 +226,12 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 			if (event.source !== frame.current?.contentWindow) return;
 			const url = readOpenRequest(event.data);
 			const text = readSendRequest(event.data);
-			const act = url ? () => open(url) : text ? () => say(text) : null;
+			const state = readStateRequest(event.data);
+			// Kept straight away whoever asked; only whether the model hears of it waits on the reader.
+			const kept = state === null ? null : savePageState(preview.sessionId, preview.id, preview.title, state, used());
+			const act = url ? () => open(url) : text ? () => say(text) : kept === "changed" ? () => markPageStatePending(preview.sessionId, preview.id) : null;
 			if (!act) return;
-			if (used()) return act();
+			if (used()) return state === null ? act() : undefined;
 			/*
 			 * Asked once more, a moment later. The page runs in another process, and the click that
 			 * focused and activated it reaches this document after the message it sent: measured in
@@ -243,7 +249,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 			window.removeEventListener("message", onMessage);
 			for (const timer of timers) clearTimeout(timer);
 		};
-	}, [sessionId]);
+	}, [sessionId, preview.sessionId, preview.id, preview.title]);
 
 	/*
 	 * Grow to the page, within reason.

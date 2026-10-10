@@ -125,3 +125,15 @@ test("主色上的字色按亮度选黑或白", () => {
 	assert.equal(readableOn("rgb(255, 255, 255)"), "#111111");
 	assert.equal(readableOn("not a colour"), "#ffffff");
 });
+
+test("a page starts from the state it saved, handed back in the fragment", async () => {
+	const window = new Window({
+		url: `ly-preview://sess/page/index.html${previewFragment({ inline: true, state: { volume: 72 } })}`,
+		settings: { enableJavaScriptEvaluation: true, suppressInsecureJavaScriptEnvironmentWarning: true } as never,
+	});
+	window.document.write(withPreviewBridge(PAGE));
+	const plume = (window as unknown as { plume: { state: unknown } }).plume;
+	// An object of the page's own realm: compared as JSON, not by prototype.
+	assert.equal(JSON.stringify(plume.state), '{"volume":72}');
+	await window.happyDOM.close();
+});

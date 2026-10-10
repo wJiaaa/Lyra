@@ -10,12 +10,16 @@
 
 import { translate } from "../i18n/translate.ts";
 import { useApp } from "./index.ts";
+import { takePageStates } from "./page-state.ts";
 
 /**
- * `text` is what the reader sees in their bubble; `content` what the model gets, when it is more —
+ * `text` is what the reader sees in their bubble; `spoken` what the model gets, when it is more —
  * an interface block's button sends the values the reader set along with its words.
  */
-export function sayFor(sessionId: string, text: string, content = text): void {
+export function sayFor(sessionId: string, text: string, spoken = text): void {
+	// What the reader set in the conversation's pages goes with it, as with a message typed in the composer.
+	const states = takePageStates(sessionId);
+	const content = states ? `${spoken}\n\n${states}` : spoken;
 	const state = useApp.getState();
 	const blocks = [{ type: "text" as const, text: content }];
 	const display = content === text ? {} : { displayText: text };

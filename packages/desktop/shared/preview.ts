@@ -33,6 +33,8 @@ export const WIDTH_KEY = "__lyPreviewWidth";
 export const OPEN_MESSAGE = "__lyPreviewOpen";
 /** Page → app: the reader pressed something in the page that speaks for them — see `readSendRequest`. */
 export const SEND_MESSAGE = "__lyPreviewSend";
+/** Page → app: what the page saved for itself (`plume.setState`), as JSON text. */
+export const STATE_MESSAGE = "__lyPreviewState";
 /** App → page: the theme changed. */
 export const THEME_MESSAGE = "__lyPreviewTheme";
 
@@ -48,6 +50,8 @@ export const PREVIEW_THEMED_BASE =
 /** Fragment keys. `ly-inline` says the page is in the conversation rather than the panel. */
 export const INLINE_KEY = "ly-inline";
 export const THEME_KEY = "ly-theme";
+/** What the page saved last time, handed back before its scripts run as `plume.state`. */
+export const STATE_KEY = "ly-state";
 
 export interface PreviewTheme {
 	scheme: "dark" | "light";
@@ -59,10 +63,11 @@ export interface PreviewTheme {
  * The fragment a page is loaded with. A fragment rather than a query, so the request — and the
  * file served — is the same however the page is being shown.
  */
-export function previewFragment(options: { inline?: boolean; theme?: PreviewTheme }): string {
+export function previewFragment(options: { inline?: boolean; theme?: PreviewTheme; state?: unknown }): string {
 	const parts: string[] = [];
 	if (options.inline) parts.push(INLINE_KEY);
 	if (options.theme) parts.push(`${THEME_KEY}=${encodeURIComponent(JSON.stringify(options.theme))}`);
+	if (options.state !== undefined && options.state !== null) parts.push(`${STATE_KEY}=${encodeURIComponent(JSON.stringify(options.state))}`);
 	return parts.length > 0 ? `#${parts.join("&")}` : "";
 }
 
@@ -84,6 +89,9 @@ export function readOpenRequest(data: unknown): string | null {
 	}
 }
 
+/** As much as a page may keep, serialized. More than a reader's choices; less than a document pasted into the next message. */
+export const MAX_PAGE_STATE = 16 * 1024;
+
 /** Longer than anything a button says for someone; a page sending more is not sending a choice. */
 const MAX_SEND_LENGTH = 2000;
 
@@ -97,4 +105,11 @@ export function readSendRequest(data: unknown): string | null {
 	if (typeof text !== "string") return null;
 	const trimmed = text.trim();
 	return trimmed && trimmed.length <= MAX_SEND_LENGTH ? trimmed : null;
+}
+
+/** The JSON a page asked to keep (`plume.setState`), when it is text at all — `page-state.ts` decides whether it is kept. */
+export function readStateRequest(data: unknown): string | null {
+	if (typeof data !== "object" || data === null) return null;
+	const json = (data as Record<string, unknown>)[STATE_MESSAGE];
+	return typeof json === "string" ? json : null;
 }

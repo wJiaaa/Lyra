@@ -61,6 +61,8 @@ export const previewTool: Tool<PreviewArgs> = {
 		"Links open in the user's browser. " +
 		"A button can answer for the user: `plume.send(text)` in its click handler sends text as the user's next message to you — put what they chose in it (\"Plan B, 12 seats, yearly\"), so you can act on it without asking. " +
 		"It counts only for a press, never on load, a timer or input changes, and returns false where there is no conversation (the side panel). " +
+		"`plume.state` is what the page saved last time (null at first); `plume.setState(value)` saves JSON up to 16 KB. Save what the reader sets — a choice, a slider — when they set it, and start from `plume.state`, so the page opens as they left it; " +
+		"what they changed reaches you as <page-state> after their next message. " +
 		"A page whose script throws is not shown: the error comes back so you can fix it and call again. " +
 		"To check the page before publishing it, pass `check: true`: it is loaded out of sight and you get back a screenshot of the whole page (to 2160px) at the conversation's width with the current theme, its console errors and its height; the user sees it being written but it is not published. " +
 		"Add `width` to see it at another width — 390 for a phone, 1440 for a desktop — in the same call, rather than writing variants of the page to check. " +

@@ -15,7 +15,7 @@ import { nativeImage, net, protocol, session } from "electron";
 import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "../shared/session-image.ts";
 import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@plume/core";
 import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
-import { HEIGHT_MESSAGE, INLINE_KEY, OPEN_MESSAGE, PREVIEW_THEMED_BASE, SEND_MESSAGE, THEME_KEY, THEME_MESSAGE, WIDTH_KEY } from "../shared/preview.ts";
+import { HEIGHT_MESSAGE, INLINE_KEY, MAX_PAGE_STATE, OPEN_MESSAGE, PREVIEW_THEMED_BASE, SEND_MESSAGE, STATE_KEY, STATE_MESSAGE, THEME_KEY, THEME_MESSAGE, WIDTH_KEY } from "../shared/preview.ts";
 import { attachmentFile } from "./attachment-reads.ts";
 
 export const MEDIA_SCHEME = "ly-media";
@@ -119,7 +119,8 @@ export function withPreviewBridge(html: string): string {
 	 * the way the card does, and its screenshots are of the conversation's page.
 	 */
 	const theme = `var H=location.hash.slice(1).split("&"),inline=false,theme=null;
-for(var i=0;i<H.length;i++){if(H[i]===${JSON.stringify(INLINE_KEY)})inline=true;else if(H[i].indexOf(${JSON.stringify(`${THEME_KEY}=`)})===0){try{theme=JSON.parse(decodeURIComponent(H[i].slice(${THEME_KEY.length + 1})))}catch(e){}}}
+var saved=null;
+for(var i=0;i<H.length;i++){if(H[i]===${JSON.stringify(INLINE_KEY)})inline=true;else if(H[i].indexOf(${JSON.stringify(`${THEME_KEY}=`)})===0){try{theme=JSON.parse(decodeURIComponent(H[i].slice(${THEME_KEY.length + 1})))}catch(e){}}else if(H[i].indexOf(${JSON.stringify(`${STATE_KEY}=`)})===0){try{saved=JSON.parse(decodeURIComponent(H[i].slice(${STATE_KEY.length + 1})))}catch(e){}}}
 /* Set before first paint, so the page is never briefly scrollable. */
 if(inline&&document.documentElement)document.documentElement.className+=" ly-inline";
 var sheet=document.getElementById("ly-theme");
@@ -130,7 +131,7 @@ for(var k in t.vars){if(/^--[a-z0-9-]+$/.test(k))c+=k+":"+String(t.vars[k]).repl
 sheet.textContent=c+"}"+${JSON.stringify(PREVIEW_THEMED_BASE)}+(parent===window?"html{background:var(--background)}":"")+(parent===window&&!inline?"html{padding:24px 28px}":"");
 }
 wear(theme);
-if(parent!==window&&(inline||theme)){try{history.replaceState(history.state,"",location.pathname+location.search)}catch(e){}}
+if(parent!==window&&(inline||theme||saved!==null)){try{history.replaceState(history.state,"",location.pathname+location.search)}catch(e){}}
 addEventListener("message",function(e){var d=e.data;if(theme&&e.source===parent&&parent!==window&&d&&typeof d==="object"&&d[${JSON.stringify(THEME_MESSAGE)}])wear(d[${JSON.stringify(THEME_MESSAGE)}]);});`;
 	/*
 	 * A link that leaves the page goes to the user's browser, by way of the app.
@@ -161,8 +162,15 @@ window.open=function(u){try{var v=new URL(String(u),document.baseURI);if(/^(http
 	 * Asked for, like a link, and the card decides the same way — only straight after the reader
 	 * pressed something in it, never on load or on a timer (see `PreviewCard`). `false` where there is
 	 * no conversation to say it in: the side panel, where the page is the top document of a tab.
+	 *
+	 * `plume.state` is what the page saved last time, `plume.setState(value)` saves it again: JSON,
+	 * up to `MAX_PAGE_STATE`, kept by the card (`page-state.ts`). Serialized here so a page learns at
+	 * the call that a value cannot be kept, not later from a card that silently dropped it. The panel
+	 * has no card to keep it, so there it is `null` and `false`.
 	 */
-	const send = `window.plume={send:function(t){if(parent===window||typeof t!=="string")return false;try{parent.postMessage({${JSON.stringify(SEND_MESSAGE)}:t},"*")}catch(e){return false}return true}};`;
+	const send = `window.plume={send:function(t){if(parent===window||typeof t!=="string")return false;try{parent.postMessage({${JSON.stringify(SEND_MESSAGE)}:t},"*")}catch(e){return false}return true},
+state:saved,
+setState:function(v){if(parent===window)return false;var j;try{j=JSON.stringify(v===undefined?null:v)}catch(e){return false}if(typeof j!=="string"||j.length>${MAX_PAGE_STATE})return false;try{parent.postMessage({${JSON.stringify(STATE_MESSAGE)}:j},"*")}catch(e){return false}window.plume.state=JSON.parse(j);return true}};`;
 	const script = `<script>(function(){
 ${theme}
 ${links}
