@@ -1,9 +1,12 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * 派活的那段回复还在写时插一句话：子代理派出去之后，主会话不再干等它，几秒内回应那句话。边验边录。
+ * 派活的那段回复还在写时说一句话：子代理派出去之后，主会话不再干等它，几秒内回应那句话。边验边录。
  *
  * 从前「人一开口就放手」只在开口那一刻放一次：话说出口时子代理还没派，放了 0 个；那段回复写完才派
  * 出子代理，接下来的等待把这句话一直压到子代理全部跑完（真实会话里 45 秒，直到人又说了一句「停下啊」）。
+ *
+ * 忙时回车现在是排队，「现在就发」是停下这一轮——都不是插话。插话留给运行时自己：看出主会话在等
+ * 子代理时，把排队条的队首插进去（`store/apply-event.ts`），那一刻才放手。所以这里说完就等着，不点按钮。
  *
  * 假模型是本地的 Anthropic 流式接口：主会话第一段回复先写一句话，停住，等探针放行才吐出 `task` 调用；
  * 子代理的请求一直不答——它在跑，跑多久都不该挡住主会话。
@@ -137,13 +140,12 @@ async function main_(): Promise<void> {
 		await until(app, `document.querySelector('[data-dock-pane="conversation"]')?.innerText.includes("派一个子代理")`, 1200);
 		await pause(1000);
 
-		console.log("二、这时插一句「算了 不用了」，点「现在就发」——子代理还没派出去");
+		console.log("二、这时说一句「算了 不用了」，它排在输入框上面——子代理还没派出去");
 		await send(STEER);
 		await until(app, `document.querySelector('[data-queue-row]')`, 600);
-		await click(app, "[data-queue-row] [data-queue-steer]");
 		await pause(1200);
-		await screenshot("回复写到一半时插话");
-		check("插话时子代理还没派出去", subRequests === 0, `${subRequests} 个子代理请求`);
+		await screenshot("回复写到一半时说话");
+		check("说话时子代理还没派出去", subRequests === 0, `${subRequests} 个子代理请求`);
 
 		console.log("三、那段回复写完，派出子代理；子代理一直不交差");
 		const releasedAt = Date.now();
@@ -154,10 +156,11 @@ async function main_(): Promise<void> {
 			await pause(100);
 		}
 		await pause(1200);
-		await screenshot("主会话回应了插话");
+		await screenshot("主会话回应了那句话");
 		check("子代理派出去了，而且还在跑（它的请求一直没答）", subRequests >= 1 && held.length >= 1, `${subRequests} 个子代理请求，挂着 ${held.length} 个`);
 		check("子代理没交差，主会话几秒内就回应了那句话", answeredAfter >= 0 && answeredAfter < 5000, answeredAfter < 0 ? "15 秒内没回应" : `${answeredAfter}ms`);
 		check("主会话的第 2 个请求里带着那句话", main[1]?.includes(STEER) ?? false, main[1] ? "没带" : "没有第 2 个请求");
+		check("排队条空了：主会话开始等子代理时，那句话被送了进去", !(await app.evaluate<boolean>(`!!document.querySelector('[data-queue-row]:not([data-leaving="true"])')`)), "还排在条上");
 		check("第 2 个请求里，那个子代理的结果是「转到后台继续跑」", main[1]?.includes("转到后台继续跑") ?? false, main[1]?.slice(0, 200) ?? "没有第 2 个请求");
 		console.log(`   回应耗时：${answeredAfter}ms`);
 		await pause(1000);
@@ -169,7 +172,7 @@ async function main_(): Promise<void> {
 		await closeListeningServer(model);
 	}
 	const passed = checks.filter((c) => c.ok).length;
-	await encode(frames, join(OUT_DIR, `${STAMP}_${LABEL}_回复写到一半时插话_${passed}of${checks.length}.mp4`), undefined, 1500);
+	await encode(frames, join(OUT_DIR, `${STAMP}_${LABEL}_回复写到一半时说话_${passed}of${checks.length}.mp4`), undefined, 1500);
 	console.log(`\n${passed}/${checks.length} 通过，录像与截图在 ${OUT_DIR}`);
 	if (passed !== checks.length) process.exitCode = 1;
 }

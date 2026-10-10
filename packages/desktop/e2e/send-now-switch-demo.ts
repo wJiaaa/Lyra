@@ -1,15 +1,18 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * 「现在就发」之后切走再切回来，那句话和正在写的回复都还在；模型接着回答它。边验边录。
+ * 「现在就发」之后切走再切回来，那句话、被停下的半截回复、新一轮正在写的回复都还在。边验边录。
  *
- * 从前切回来时窗口拿主进程的转录整份替换屏幕，而那份转录里只有已经落盘的消息：插进这一轮的话
- * 要等循环在下一个请求开头取走才落盘，正在流的回复要等收尾。两样一起从屏幕上消失，只剩一行
- * 「Thinking…」，看上去像模型再也不回了。
+ * 从前切回来时窗口拿主进程的转录整份替换屏幕，而那份转录里只有已经落盘的消息：正在流的回复要等
+ * 收尾才落盘。替换之后它从屏幕上消失，只剩一行「Thinking…」，看上去像模型再也不回了
+ * （`lib/transcript.ts` 的 `withInFlight` 就是为这个留的）。
  *
- * 假模型是本地的 Anthropic 流式接口：第一轮吐几段之后停住不收尾——这正是最难看的那种时刻，
- * 回复不再增长，屏幕上也就没有任何东西能把它带回来——探针说结束才结束；第二轮正常答完。
+ * 「现在就发」现在是停下这一轮、拿那句话重新开始，所以切走的时候屏幕上同时有三样只能靠它保住或
+ * 刚落盘的东西：被停下的那条回复、刚提交的那句话、新一轮还在流的回复。
  *
- * 用法：node --experimental-strip-types e2e/steer-switch-demo.ts [标签，如「修复前」] [输出目录]
+ * 假模型是本地的 Anthropic 流式接口：每一轮吐几段之后停住不收尾——这正是最难看的那种时刻，
+ * 回复不再增长，屏幕上也就没有任何东西能把它带回来。第一轮只会被停下；第二轮探针说结束才结束。
+ *
+ * 用法：node --experimental-strip-types e2e/send-now-switch-demo.ts [标签，如「修复前」] [输出目录]
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -21,7 +24,7 @@ import { seedInteractions } from "./interaction-fixture.ts";
 import { driver, encode, pause, startRecording, type Frame } from "./record.ts";
 
 const LABEL = process.argv[2] ?? "修复后";
-const OUT_DIR = process.argv[3] ?? join(homedir(), "Desktop", "Plume插话切换测试");
+const OUT_DIR = process.argv[3] ?? join(homedir(), "Desktop", "Plume现在就发切换测试");
 const PORT = 9741;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 const FIRST = "第一句：把迁移脚本跑一遍";
@@ -41,14 +44,16 @@ const held: ServerResponse[] = [];
 const bodies: string[] = [];
 
 function sse(res: ServerResponse, type: string, data: object): void {
-	res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
+	// 被停下的那一轮，连接已经被客户端关掉了。
+	if (!res.writableEnded && !res.destroyed) res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
 }
 
 function finish(res: ServerResponse): void {
+	sse(res, "content_block_delta", { index: 0, delta: { type: "text_delta", text: "生产库没有碰。" } });
 	sse(res, "content_block_stop", { index: 0 });
 	sse(res, "message_delta", { delta: { stop_reason: "end_turn" }, usage: { output_tokens: 40 } });
 	sse(res, "message_stop", {});
-	res.end();
+	if (!res.destroyed) res.end();
 }
 
 function startModel(): Server {
@@ -62,16 +67,15 @@ function startModel(): Server {
 			sse(res, "content_block_start", { index: 0, content_block: { type: "text", text: "" } });
 			const lines = turn === 1
 				? ["第 1 轮：先看一下迁移脚本里有哪几步。", "\n\n脚本分三段：建表、回填、切换。"]
-				: ["第 2 轮：好，只跑测试库。", "\n\n已经把连接串换成测试库，生产库没有碰。"];
+				: ["第 2 轮：好，只跑测试库。", "\n\n已经把连接串换成测试库，"];
 			let n = 0;
 			const timer = setInterval(() => {
 				sse(res, "content_block_delta", { index: 0, delta: { type: "text_delta", text: lines[n] } });
 				n += 1;
 				if (n < lines.length) return;
 				clearInterval(timer);
-				// The first turn goes quiet without finishing; the second one ends on its own.
-				if (turn === 1) held.push(res);
-				else setTimeout(() => finish(res), 600);
+				// Every turn goes quiet without finishing: the first is only ever stopped, the second waits for the probe.
+				held.push(res);
 			}, 500);
 		});
 	});
@@ -147,11 +151,13 @@ async function main(): Promise<void> {
 		await pause(1000);
 		await screenshot("追加的那句在排队条上");
 
-		console.log("三、点「现在就发」");
-		await click("[data-queue-row] [data-queue-steer]");
+		console.log("三、点「现在就发」：第一轮停下，拿那句话重新开始");
+		await click("[data-queue-row] [data-queue-now]");
+		await d.until(`document.querySelector('[data-dock-pane="conversation"]')?.innerText.includes("换成测试库")`, 20000);
 		await pause(1200);
 		await screenshot("点了现在就发");
 		check("点完之后那句进了转录", (await steeredCount()) === 1, `${await steeredCount()} 条`);
+		check("模型当场收到了第 2 个请求", bodies.length === 2, `${bodies.length} 个`);
 
 		console.log("四、切到另一个会话，再切回来");
 		await click('[data-ly-row="qa-long"]');
@@ -161,16 +167,17 @@ async function main(): Promise<void> {
 		await screenshot("切回来之后");
 		const back = await paneText();
 		check("切回来之后，刚发出的那句还在", (await steeredCount()) === 1, `${await steeredCount()} 条`);
-		check("切回来之后，模型正在写的回复还在", back.includes("回填、切换"), back.slice(-200).replace(/\s+/g, " "));
-		check("这时模型还只收到 1 个请求（那句要等这一步写完才被取走）", bodies.length === 1, `${bodies.length} 个`);
+		check("切回来之后，被停下的那半截回复还在", back.includes("回填、切换"), back.slice(-200).replace(/\s+/g, " "));
+		check("切回来之后，新一轮正在写的回复还在", back.includes("换成测试库"), back.slice(-200).replace(/\s+/g, " "));
+		check("顺序是：半截回复 → 那句话 → 新回复", back.indexOf("回填、切换") < back.indexOf(STEERED) && back.indexOf(STEERED) < back.indexOf("换成测试库"), back.slice(-300).replace(/\s+/g, " "));
 
-		console.log("五、模型把这一步写完，循环取走那句，接着回答");
+		console.log("五、新一轮写完");
 		for (const res of held.splice(0)) finish(res);
 		await d.until(`document.querySelector('[data-dock-pane="conversation"]')?.innerText.includes("生产库没有碰")`, 20000);
 		await d.until(`!document.querySelector('[data-composer-send="stop"]')`, 20000);
 		await pause(1200);
 		await screenshot("模型回答了那句");
-		check("模型的第 2 个请求里带着那句", bodies[1]?.includes(STEERED) ?? false, bodies[1] ? "没带" : "没有第 2 个请求");
+		check("模型的第 2 个请求里带着那句，并说明它打断了模型", (bodies[1]?.includes(STEERED) && bodies[1].includes("（打断）")) ?? false, bodies[1] ? "没带" : "没有第 2 个请求");
 		check("那句在转录里只有一条，没有重复", (await steeredCount()) === 1, `${await steeredCount()} 条`);
 		check("第 2 轮的回答画出来了", (await paneText()).includes("生产库没有碰"), "没看到");
 		await pause(1000);
@@ -181,7 +188,7 @@ async function main(): Promise<void> {
 		await closeListeningServer(model);
 	}
 	const passed = checks.filter((c) => c.ok).length;
-	await encode(frames, join(OUT_DIR, `${STAMP}_${LABEL}_插话后切走再切回_${passed}of${checks.length}.mp4`), undefined, 1500);
+	await encode(frames, join(OUT_DIR, `${STAMP}_${LABEL}_现在就发后切走再切回_${passed}of${checks.length}.mp4`), undefined, 1500);
 	console.log(`\n${passed}/${checks.length} 通过，录像与截图在 ${OUT_DIR}`);
 	if (passed !== checks.length) process.exitCode = 1;
 }

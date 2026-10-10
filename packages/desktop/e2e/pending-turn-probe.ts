@@ -20,6 +20,7 @@ import { createServer, type Server, type ServerResponse } from "node:http";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, type RunningApp } from "./app.ts";
+import { click } from "./drive.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { encode, startRecording, type Frame } from "./record.ts";
 
@@ -63,6 +64,8 @@ function startModel(): Server {
 
 				// 拟标题那一次不带工具定义，别让它把闸门用掉——见 `fake-model-probe-pitfalls`。
 				if (body.includes("todo_write")) await held;
+				// 被「现在就发」停下的那一轮，连接已经被客户端关掉了。
+				if (res.destroyed) return;
 
 				sse(res, { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "，第一轮写完了。" } });
 				sse(res, { type: "content_block_stop", index: 0 });
@@ -197,26 +200,30 @@ async function main(): Promise<void> {
 		check("第二条落在队列条上，没挤进转录", queued.queued.length === 1, queued.queued.join("/") || "队列条是空的");
 
 		/*
-		 * 把它从队列条上「插进这一轮」——这就是用户看到的那一刻。
+		 * 在队列条上点「现在就发」——这就是用户看到的那一刻。
 		 *
-		 * 这一步带的是 `deliver: "steer"`，所以界面不排队、直接发：气泡当场画进转录。而后台这会儿
-		 * 正忙着写上一条，收到之后只是把它记下来，**不会广播「我受理了」**。于是气泡在转录里站着，
-		 * 底下那行小字说的是什么，就是这次要验的东西。
+		 * 第一轮被停下，运行时等它放手之后才提交这一条、开新的一轮，气泡要等那时才进转录（先画进去会
+		 * 排到被停下的回复前面）。新的一轮同样写一句就卡住，于是气泡在转录里站着、底下那一行在等，
+		 * 那一行站在哪儿，就是这次要验的东西。
 		 */
-		console.log("\n【三】把它插进这一轮：气泡进转录，转圈要跟着站到它底下");
-		await evaluate(`(() => { const b = document.querySelector('[data-queue-steer]'); if (b) b.click(); return !!b; })()`);
-		await settle(90);
+		console.log("\n【三】点「现在就发」：第一轮停下，气泡进转录，转圈要跟着站到它底下");
+		await click(app, "[data-queue-now]");
+		await until(`[...document.querySelectorAll('[data-question-index]')].some((e) => e.textContent.includes('第二条消息'))`, 5000);
+		await settle(60);
 		const pending = await evaluate<Skeleton>(SKELETON);
-		show("插进去之后：", pending);
+		show("点了之后：", pending);
 		check("第二条的气泡进了转录", pending.rows.some((r) => r.kind === "人说的" && r.text.includes("第二条消息")), "转录里找不到它");
 		check("转圈站在新气泡底下", below(pending, "第二条消息"), describe(pending));
 
-		console.log("\n【四】放行第一轮：转圈仍旧跟着最后那条气泡");
+		console.log("\n【四】放行新的一轮：转圈仍旧跟着最后那条气泡");
 		release?.();
 		await settle(150);
 		const after = await evaluate<Skeleton>(SKELETON);
-		show("第一轮收尾之后：", after);
-		check("第二条真的被答了", after.rows.filter((r) => r.kind === "模型写的" && /第一轮写完了/.test(r.text)).length >= 2, "只看到一条回答");
+		show("新的一轮收尾之后：", after);
+		const asked = after.rows.find((r) => r.kind === "人说的" && r.text.includes("第二条消息"));
+		const replies = after.rows.filter((r) => r.kind === "模型写的" && r.text.includes("第一轮开始写了"));
+		check("被停下的那半截留在第二条上面", replies.some((r) => asked !== undefined && r.y < asked.y && !r.text.includes("写完了")), "气泡上面找不到它");
+		check("第二条真的被答了", replies.some((r) => asked !== undefined && r.y > asked.y && r.text.includes("写完了")), "气泡下面没有写完的回答");
 		/*
 		 * 这一条钉的是「不许再长回来」。
 		 *
