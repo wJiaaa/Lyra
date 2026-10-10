@@ -68,6 +68,12 @@
 - **复制为图片**：右上角按钮截的是主窗口里这张卡片此刻的画面（`clipboard:capture`，`preview-copy.ts`），所以人在页面里
   点出来的状态也在图里；离屏窗口重新载入的是没人碰过的页面。截之前藏起卡片自己的按钮，范围裁到对话可见的部分，折在
   720px 的页面只截露出来的那一段。
+- **调整设计**：页面用 `plume.tweak({ label, onChange })` 登记滑块、颜色、开关、下拉（`.slider/.color/.toggle/.select(obj, key, …)`，
+  每组最多 12 个，最多 12 组），卡片右上角出现「调整设计」，面板画在页面下面（`PreviewTweaks`），用设置页的控件。动一下
+  就是一条消息进页面：改 `obj[key]`、调一次 `onChange`，不经过模型。「看原样」切回页面自己的值，「重置」撤掉全部调整；
+  只有「按这组设置修改」会说话：气泡里是「调整设计：圆角 18px → 24px」，模型收到 `<design-settings>`，只列改过的项。
+  页面报来的控件和面板发回的值都先过 `readTweaks` / `tweakValue`。已知上限：模型按这组设置改，要重写整页 HTML 再发布，
+  `preview` 还没有按 id 局部修改。
 - **自检**：工具交付前，主进程在离屏窗口（`electron/preview-inspect.ts`）里加载一遍。脚本抛了未捕获异常就不展示，
   异常回给模型去修；其他控制台报错与超高照常展示，只在结果里告诉模型。检查本身失败不影响交付。
 - **先看再发**：`check: true` 只检查不展示，结果里带一张截图（默认 720px 宽，`width` 可指定 320–1600；当前主题；整页，最多 2160px）和报错、高度。
@@ -86,7 +92,7 @@
   只是卡片在附和自己）；宽度变了是一次新测量，变矮也跟（`features/files/preview-height.ts`）。之前只许变高时，开侧边
   面板让页面折行变高，收起面板后卡片停在窄时的高度，页面底下留一大片空白。
 
-真窗口验证：`e2e/preview-visualizer-demo.ts`；随宽度定高见 `e2e/preview-height-demo.ts`。
+真窗口验证：`e2e/preview-visualizer-demo.ts`；随宽度定高见 `e2e/preview-height-demo.ts`；复制、状态与调整设计见 `e2e/preview-page-tools-demo.ts`。
 
 ## 回复里的界面块
 

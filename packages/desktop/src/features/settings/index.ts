@@ -14,6 +14,7 @@ export { Segmented, Toggle } from "./controls.tsx";
 export { TextInput, InlineSelect, SecretInput, Select } from "./inputs.tsx";
 export { newMcpServer } from "./mcp-defaults.ts";
 export { NumberField, Slider, TimeField } from "./pickers.tsx";
+export { ColorField } from "./appearance-controls.tsx";
 export { applyAppearance, onAppearanceApplied, watchSystemTheme } from "./theme.ts";
 export { settingsGroups } from "./settings-navigation.ts";
 

@@ -1,5 +1,5 @@
 import { translate } from "../../i18n/translate.ts";
-import { Check, ChevronsDown, Copy, ExternalLink, Maximize2, Minimize2, RotateCw } from "../../ui/icons/index.ts";
+import { Check, ChevronsDown, Copy, ExternalLink, Maximize2, Minimize2, RotateCw, SlidersHorizontal } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
@@ -15,6 +15,8 @@ import { previewTheme } from "./preview-theme.ts";
 import { sayFor } from "../../store/say.ts";
 import { markPageStatePending, readPageState, savePageState } from "../../store/page-state.ts";
 import { usePreviewCopy } from "./preview-copy.ts";
+import { tweakMessage, usePreviewTweaks } from "./preview-tweaks.ts";
+import { PreviewTweaks } from "./PreviewTweaks.tsx";
 
 export interface PreviewInfo {
 	id: string;
@@ -169,6 +171,11 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 	 */
 	const host = useRef<HTMLDivElement>(null);
 	const { capturing, copied, copy } = usePreviewCopy(host);
+	const tweaks = usePreviewTweaks(frame, nonce);
+	const [tuning, setTuning] = useState(false);
+	/** The adjustments last sent from the panel, so the same ones are not sent twice. */
+	const [sentTweaks, setSentTweaks] = useState<string | null>(null);
+	const tweaksKey = JSON.stringify(tweaks.changes.map(({ control, to }) => [control.id, to]));
 	const [src, setSrc] = useState<string | null>(null);
 	const [look, setLook] = useState<{ scheme: PreviewTheme["scheme"]; surface: string } | null>(null);
 	const wear = (theme: PreviewTheme | undefined) =>
@@ -359,6 +366,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 	 */
 	const themed = look !== null;
 	return (
+		<>
 		<div
 			ref={host}
 			data-ly-preview={themed ? "themed" : "card"}
@@ -509,6 +517,16 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 						setNonce((value) => value + 1);
 					}}
 				/>
+				{tweaks.groups.length > 0 && (
+					<IconButton
+						icon={<SlidersHorizontal size={12} strokeWidth={1.9} />}
+						label={translate("preview.tweak")}
+						active={tuning}
+						size="sm"
+						tipSide="top"
+						onClick={() => setTuning((open) => !open)}
+					/>
+				)}
 				<IconButton
 					icon={copied ? <Check size={12} strokeWidth={2.2} className="ly-pop text-ok" /> : <Copy size={12} strokeWidth={1.9} />}
 					label={translate(copied ? "preview.copiedImage" : "preview.copyImage")}
@@ -525,5 +543,23 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 				/>
 			</div>
 		</div>
+		{tuning && tweaks.groups.length > 0 && (
+			<PreviewTweaks
+				groups={tweaks.groups}
+				current={tweaks.current}
+				changed={tweaks.changes.length}
+				sent={sentTweaks === tweaksKey}
+				onSet={tweaks.set}
+				onReset={tweaks.reset}
+				onPeek={tweaks.peek}
+				onSend={() => {
+					if (!sessionId || !tweaks.changes.length) return;
+					const { text, spoken } = tweakMessage(preview.title, tweaks.changes);
+					sayFor(sessionId, text, spoken);
+					setSentTweaks(tweaksKey);
+				}}
+			/>
+		)}
+		</>
 	);
 }

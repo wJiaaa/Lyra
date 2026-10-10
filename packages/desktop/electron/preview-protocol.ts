@@ -15,7 +15,7 @@ import { nativeImage, net, protocol, session } from "electron";
 import { parseSessionImageUrl, SESSION_IMAGE_HOST, SESSION_MEDIA_HOST } from "../shared/session-image.ts";
 import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@plume/core";
 import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
-import { HEIGHT_MESSAGE, INLINE_KEY, MAX_PAGE_STATE, OPEN_MESSAGE, PREVIEW_THEMED_BASE, SEND_MESSAGE, STATE_KEY, STATE_MESSAGE, THEME_KEY, THEME_MESSAGE, WIDTH_KEY } from "../shared/preview.ts";
+import { HEIGHT_MESSAGE, INLINE_KEY, MAX_PAGE_STATE, MAX_TWEAK_CONTROLS, MAX_TWEAK_GROUPS, OPEN_MESSAGE, PREVIEW_THEMED_BASE, SEND_MESSAGE, STATE_KEY, STATE_MESSAGE, THEME_KEY, THEME_MESSAGE, TWEAK_SET_MESSAGE, TWEAKS_MESSAGE, WIDTH_KEY } from "../shared/preview.ts";
 import { attachmentFile } from "./attachment-reads.ts";
 
 export const MEDIA_SCHEME = "ly-media";
@@ -171,10 +171,29 @@ window.open=function(u){try{var v=new URL(String(u),document.baseURI);if(/^(http
 	const send = `window.plume={send:function(t){if(parent===window||typeof t!=="string")return false;try{parent.postMessage({${JSON.stringify(SEND_MESSAGE)}:t},"*")}catch(e){return false}return true},
 state:saved,
 setState:function(v){if(parent===window)return false;var j;try{j=JSON.stringify(v===undefined?null:v)}catch(e){return false}if(typeof j!=="string"||j.length>${MAX_PAGE_STATE})return false;try{parent.postMessage({${JSON.stringify(STATE_MESSAGE)}:j},"*")}catch(e){return false}window.plume.state=JSON.parse(j);return true}};`;
+	/*
+	 * Design controls the reader can play with: `plume.tweak({ label, onChange })` gives a group, and
+	 * `.slider/.color/.toggle/.select(obj, key, options)` binds `obj[key]` to one control.
+	 *
+	 * The page only says what can be adjusted; the panel is the app's (`PreviewTweaks`), in the app's
+	 * own controls. The whole list goes out once per task however many are added in it, and comes back
+	 * as values to put on the bound objects — then each group touched redraws once. Nothing here can
+	 * speak to the model: what the reader settles on is sent from the panel, by a press in the app.
+	 */
+	const tweaks = `var groups=[],queued=false;
+function post(){queued=false;try{parent.postMessage({${JSON.stringify(TWEAKS_MESSAGE)}:groups.map(function(g){return{label:g.label,controls:g.controls.map(function(c){var o=c.opts;return{id:c.id,kind:c.kind,label:c.label,value:c.obj[c.key],min:o.min,max:o.max,step:o.step,unit:o.unit,options:o.options}})}})},"*")}catch(e){}}
+window.plume.tweak=function(o){o=o||{};var g={label:String(o.label||""),onChange:typeof o.onChange==="function"?o.onChange:null,controls:[]},api={};
+if(groups.length<${MAX_TWEAK_GROUPS})groups.push(g);
+function add(kind){return function(obj,key,opts){opts=opts&&typeof opts==="object"?opts:{};if(obj&&typeof obj==="object"&&groups.indexOf(g)>=0&&g.controls.length<${MAX_TWEAK_CONTROLS}){g.controls.push({id:groups.indexOf(g)+"."+g.controls.length,kind:kind,obj:obj,key:String(key),label:String(opts.label||key),opts:opts});if(!queued&&parent!==window){queued=true;Promise.resolve().then(post)}}return api}}
+api.slider=add("slider");api.color=add("color");api.toggle=add("toggle");api.select=add("select");return api};
+addEventListener("message",function(e){var d=e.data;if(e.source!==parent||parent===window||!d||typeof d!=="object"||!Array.isArray(d[${JSON.stringify(TWEAK_SET_MESSAGE)}]))return;
+var touched=[];d[${JSON.stringify(TWEAK_SET_MESSAGE)}].forEach(function(s){groups.forEach(function(g){g.controls.forEach(function(c){if(s&&c.id===s.id){c.obj[c.key]=s.value;if(touched.indexOf(g)<0)touched.push(g)}})})});
+touched.forEach(function(g){if(g.onChange)try{g.onChange()}catch(x){console.error(x)}});});`;
 	const script = `<script>(function(){
 ${theme}
 ${links}
 ${send}
+${tweaks}
 var last=0;
 var measure=${MEASURE_HEIGHT};
 function report(){
