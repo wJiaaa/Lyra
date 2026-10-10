@@ -7,6 +7,7 @@ import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Split, Undo2 } from "
 import { openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, KIND_LABEL, previewableInPanel, sentKind, type FileKind, type StripFile } from "../composer/index.ts";
 import { useAttachmentActions } from "../composer/index.ts";
+import { TokenGlyph, tokenLook } from "../../ui/fileIcon.tsx";
 import { openFilePane } from "../dock/index.ts";
 import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
 import { useMemo, useState } from "react";
@@ -480,11 +481,13 @@ export function UserMessage({
             renderText={(plain) => <Markdown text={plain} />}
             renderFile={(file, at) => {
               const segment = { file };
+              const look = tokenLook(segment.file.name, segment.file.kind);
               return (
                 <span
                   key={at}
                   className="ly-attachment-token"
                   data-kind={segment.file.kind}
+                  data-glyph={look ? "" : undefined}
                   /* 只有名字进了提示词的那些：图标淡一档。气泡里还多一句悬停说明。 */
                   data-bodiless={segment.file.bodiless ? "" : undefined}
                   data-ly-tip={segment.file.bodiless ? t("composer.filenameOnly") : undefined}
@@ -496,6 +499,7 @@ export function UserMessage({
                         path: segment.file.path,
                         src: segment.file.src,
                         isImage: Boolean(segment.file.src || segment.file.kind === "image"),
+                        isFolder: segment.file.kind === "folder",
                         /*
                          * 发出去的文件，项目外的也进得了面板——面板打开它看得到东西的话。其余的照旧：项目里
                          * 的进面板，项目外的在访达中指出来。
@@ -523,6 +527,7 @@ export function UserMessage({
                     setMarkMenu({ point: { x: event.clientX, y: event.clientY }, file: segment.file });
                   }}
                 >
+                  {look && <TokenGlyph look={look} />}
                   {segment.file.label ?? segment.file.name}
                 </span>
               );

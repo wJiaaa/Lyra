@@ -17,6 +17,7 @@ import {
 	FileText,
 	FileType,
 	FileVideo,
+	Folder,
 	Palette,
 	Presentation,
 	Binary,
@@ -36,6 +37,7 @@ const ICONS: Record<FileKind, typeof File> = {
 	font: FileType,
 	binary: Binary,
 	text: File,
+	folder: Folder,
 };
 
 /**
@@ -56,6 +58,7 @@ const TONES: Record<FileKind, string> = {
 	font: "text-[#0ea5e9]",
 	binary: "text-ink-faint",
 	text: "text-ink-muted",
+	folder: "text-ink-muted",
 };
 
 export function FileKindIcon({ kind, size = 14 }: { kind: FileKind; size?: number }) {

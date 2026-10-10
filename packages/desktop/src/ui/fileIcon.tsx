@@ -169,7 +169,34 @@ export function lookFor(name: string, isDirectory: boolean, expanded = false): F
 	return BY_EXTENSION[lower.slice(dot + 1)] ?? NEUTRAL;
 }
 
+/**
+ * 只给认得出的：名字和扩展名都对不上时返回 `null`，而不是那个灰色的通用图标。
+ *
+ * 认不出时调用方往往有更好的说法——附件标记知道自己是 Word 还是压缩包，那份门类图标比一张灰纸有用。
+ */
+export function knownLook(name: string): FileLook | null {
+	const look = lookFor(name, false);
+	return look === NEUTRAL ? null : look;
+}
+
 /** Resolve to the hex that reads against the current theme. */
 export function iconColour(look: FileLook): string {
 	return document.documentElement.classList.contains("dark") ? look.dark : look.light;
+}
+
+/**
+ * 附件标记前面那枚图标该是什么：和文件树、回复里的文件链接同一张表。
+ *
+ * 标记原先只按门类画（`.ly-attachment-token[data-kind]` 那十几枚），`starship.toml`、`a.ts`、`x.json`
+ * 都落在「文本」那一档，是同一张灰纸，文件夹也只是另一种灰。表里认不出的（Word、表格、压缩包……）
+ * 返回 `null`，由门类图标接着画——那些本来就按常见配色挑过，比通用的灰纸强。
+ */
+export function tokenLook(name: string | undefined, kind?: string): FileLook | null {
+	if (kind === "folder") return lookFor(name ?? "", true);
+	return name ? knownLook(name) : null;
+}
+
+/** 画出来的那一枚。大小和位置由 `.ly-token-glyph` 定，和门类图标住同一个位置。 */
+export function TokenGlyph({ look }: { look: FileLook }) {
+	return <look.Icon aria-hidden strokeWidth={2} className="ly-token-glyph" style={{ color: iconColour(look) }} />;
 }

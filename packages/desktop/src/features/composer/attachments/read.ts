@@ -64,8 +64,17 @@ export async function readPickedFiles(picked: PickedFile[]): Promise<DraftAttach
 		useApp.getState().notify(translate("composer.tooManyFiles", { count: MAX_FILES, dropped: picked.length - MAX_FILES }), "warn");
 	}
 
-	for (const { file, path } of picked.slice(0, MAX_FILES)) {
+	for (const { file, path, directory } of picked.slice(0, MAX_FILES)) {
 		const id = `${file.name}-${Date.now()}-${Math.random()}`;
+		/*
+		 * 文件夹只记位置，在句子里和文件一样是一枚标记，图标换成文件夹。
+		 *
+		 * 把整个目录读进 prompt 既装不下也没必要：模型手里有读目录的工具，它缺的只是「在哪」。
+		 */
+		if (directory && path) {
+			next.push({ id, name: file.name, mimeType: "inode/directory", isText: false, kind: "folder", path });
+			continue;
+		}
 		const kind = fileKind(file.name, file.type);
 		// 每一条出口都要带上它，所以在这里摊平一次——漏在某一条分支上，那一类附件就打不开了。
 		const from = path ? { path } : {};

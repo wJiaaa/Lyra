@@ -164,7 +164,9 @@ export function useAttachmentMarks<F extends MarkableFile>({
 				end,
 				kind: file.kind ?? (file.isText ? "text" : fileKind(file.name ?? "", file.mimeType ?? "")),
 				// 正文和像素都没进提示词的那些——模型只拿到一个名字，图标淡一档说这件事。
-				...(!file.isText && !file.data ? { bodiless: true } : {}),
+				// 文件夹送过去的是它的路径，不算「只有名字」。
+				...(!file.isText && !file.data && file.kind !== "folder" ? { bodiless: true } : {}),
+				name: file.name,
 			})),
 		[attachments],
 	);

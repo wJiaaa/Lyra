@@ -29,6 +29,8 @@ interface OpenTargetOption extends ActionTarget {
 	src?: string;
 	mimeType?: string;
 	isImage?: boolean;
+	/** 一个文件夹：打开它本身，不进面板、也不只是在访达里选中它。 */
+	isFolder?: boolean;
 	/**
 	 * 项目外也进得了右边的文件面板。
 	 *
@@ -108,6 +110,10 @@ export function useAttachmentActions(): AttachmentActions {
 				useApp.getState().notify(t("attachment.pathCopied"), "info");
 			},
 			openOrPreview: (targetItem, originRect) => {
+				if (targetItem.isFolder && targetItem.path) {
+					void withFile(targetItem, (path) => bridge.system.openPath(path));
+					return;
+				}
 				if (targetItem.isImage || targetItem.src || targetItem.mimeType?.startsWith("image/")) {
 					if (targetItem.onPreviewImage) {
 						targetItem.onPreviewImage(originRect);

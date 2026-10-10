@@ -570,28 +570,37 @@ textarea.ly-composer-text[data-highlighted="true"] {
 }
 
 /*
- * 底色画在 `.ly-token-paint` 上，不画在整枚标记上。
+ * 输入框里那一枚怎么排：`【` + 名字 + `】` 的总宽一点不能变，里面怎么分随意。
  *
- * 输入框是镜像层：`【】` 必须留着占位，textarea 里有这两个字，改宽度后面整段都会错位。所以
- * `.ly-token-body` 自己不铺底、不加水平内边距。胶囊只包图标和名字；收尾那个 `】` 仍占满 1em，
- * 用负边距叠回 inset，左右看起来一样宽，格子一个没动。
+ * 这一层是铺在 textarea 上的镜像，`【】` 两个字必须留着占位——textarea 里有它们，标记的总宽差一点，
+ * 后面整段字就和底下的光标、选区错位。但光标永远停不进标记里面（见 `clampToPlaceholders`），所以只有
+ * **总宽**要对得上：两个方括号一共让出来 2em，图标、留白、外边距都从这 2em 里分。
  *
- * `--ly-token-inset` 是左右共用的那一点：图标离左边这么远，名字离右边也这么远。
- */
-/*
- * 气泡里那一枚没有这层壳，底色直接上在标记本身。
+ *   标记前 0.2em | 底色 [ 0.26em | 图标 0.92em | 0.2em | 名字 | 0.26em ] | 标记后 0.16em
  *
- * 两边的结构不一样：输入框那边是镜像层，方括号必须留着占位；气泡里渲染的是名字本身，没有方括号，整枚就是名字。
+ * 怎么分是靠相对定位挪画面，不动排版：`.ly-token-paint` 整体右移 `--ly-token-before`，名字再右移
+ * `--ly-token-shift`；底色多出来的右内边距由收尾那个 `】` 的负外边距叠回去。字符一格没动。
+ *
+ * 一度是图标只住在 `【` 那 1em 里、名字紧跟着、`】` 那一格大半空在标记外面——图标要么小得认不出，
+ * 要么贴着名字、贴着底色左沿。
  */
 .ly-token-body {
-  --ly-token-inset: 0.2em;
+  --ly-token-before: 0.2em;
+  --ly-token-pad: 0.26em;
+  --ly-token-glyph-size: 0.92em;
+  --ly-token-gap: 0.2em;
+  --ly-token-end: 0.26em;
+  /* 名字从排版位置（`【` 之后 1em）挪到图标后面要走多远。 */
+  --ly-token-shift: calc(var(--ly-token-pad) + var(--ly-token-glyph-size) + var(--ly-token-gap) - 1em);
   padding: 0;
   margin: 0;
   background: none;
 }
 
 .ly-token-paint {
-  padding: 2px var(--ly-token-inset) 2px 0;
+  position: relative;
+  left: var(--ly-token-before);
+  padding: 2px calc(var(--ly-token-shift) + var(--ly-token-end)) 2px 0;
   margin: 0;
   border-radius: 5px;
   background: color-mix(in srgb, var(--color-ink-faint) 13%, transparent);
@@ -601,10 +610,20 @@ textarea.ly-composer-text[data-highlighted="true"] {
   transition: background-color var(--ly-t-quick) var(--ly-e-soft);
 }
 
-.ly-token-body > .ly-token-bracket:last-child {
-  margin-left: calc(var(--ly-token-inset) * -1);
+.ly-token-name {
+  position: relative;
+  left: var(--ly-token-shift);
 }
 
+.ly-token-body > .ly-token-bracket:last-child {
+  margin-left: calc((var(--ly-token-shift) + var(--ly-token-end)) * -1);
+}
+
+/*
+ * 气泡里那一枚没有这层壳，底色直接上在标记本身。
+ *
+ * 两边的结构不一样：输入框那边是镜像层，方括号必须留着占位；气泡里渲染的是名字本身，没有方括号，整枚就是名字。
+ */
 /* 用户输入是 14px / 24px、不加字距；气泡里的 Markdown 跟着它，不跟回复正文。 */
 .ly-user-bubble .prose-dw {
   line-height: 24px;
@@ -679,14 +698,14 @@ textarea.ly-composer-text[data-highlighted="true"] {
   position: absolute;
   top: 50%;
   /*
-   * 图标住在那一格里，离左边缘 `--ly-token-inset`，和胶囊右边留白同一数值。
+   * 图标住在那一格里，大小和起笔见 `.ly-token-body` 上的两个变量。
    *
-   * 方括号是一整格（1em）。原先 `left: 0.02em` 几乎贴边，右边却空出整个 `】`。现在图标从 inset
-   * 起笔，0.64em 宽，格子里还剩 0.16em 给名字；怎么分都不影响后面的字。
+   * 方括号是一整格（1em），图标再大也只能在这一格里分：宽度一点都加不了，加了后面整段字就和
+   * textarea 错位。
    */
-  left: var(--ly-token-inset, 0.2em);
-  width: 0.64em;
-  height: 0.64em;
+  left: var(--ly-token-pad);
+  width: var(--ly-token-glyph-size);
+  height: var(--ly-token-glyph-size);
   transform: translateY(-50%);
   background: var(--ly-glyph) center / contain no-repeat;
 }
@@ -700,6 +719,44 @@ textarea.ly-composer-text[data-highlighted="true"] {
   margin-right: 0.34em;
   vertical-align: -0.15em;
   background: var(--ly-glyph) center / contain no-repeat;
+}
+
+/*
+ * 认得出文件类型的那些，图标是一个真的元素（`TokenGlyph`，和文件树同一张表），门类那枚背景图让开。
+ *
+ * 位置和大小照抄门类图标：输入框的镜像里它住在头一个方括号那一格、一个像素都不占；气泡里它排在名字
+ * 前面。
+ */
+.ly-attachment-token[data-glyph] .ly-token-bracket:first-child::before,
+.ly-user-bubble .ly-attachment-token[data-glyph]::before {
+  content: none;
+}
+
+/*
+ * 竖向居中不用 `transform`：文件树那几枚图标是带动画的（`ui/icons/animated`），motion 会往 svg
+ * 上写一条行内的 `transform: scale(1)` / `rotate(0)`，把这里的 `translateY(-50%)` 整条盖掉——图标
+ * 掉下去半个身位，压在名字的第一个字上。上下贴死再 `margin: auto` 居中，没有可被覆盖的东西。
+ */
+.ly-token-bracket > .ly-token-glyph {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--ly-token-pad);
+  width: var(--ly-token-glyph-size);
+  height: var(--ly-token-glyph-size);
+  margin: auto 0;
+}
+
+.ly-user-bubble .ly-attachment-token > .ly-token-glyph {
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 0.34em;
+  vertical-align: -0.15em;
+}
+
+.ly-attachment-token[data-bodiless] .ly-token-glyph {
+  opacity: 0.42;
 }
 
 .ly-attachment-token[data-kind="image"] {

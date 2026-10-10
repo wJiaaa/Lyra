@@ -33,6 +33,7 @@ export interface RestoredAttachment {
 	media?: string;
 	text?: string;
 	isText: boolean;
+	path?: string;
 }
 
 /**
@@ -74,6 +75,10 @@ export function attachmentsFrom(message: Message): RestoredAttachment[] {
 		if (mimeType.startsWith("image/") || meta.kind === "image") {
 			const block = images[imageAt++];
 			return { id, name: meta.name, mimeType: mimeType || block?.mimeType || "image/png", kind, ...(block ? pixelsOf(block) : {}), isText: false };
+		}
+		/* 文件夹没有正文块可配，只有路径——丢了路径它就什么也指不到了。 */
+		if (kind === "folder") {
+			return { id, name: meta.name, mimeType: mimeType || "inode/directory", kind, isText: false, ...(meta.path ? { path: meta.path } : {}) };
 		}
 		const text = bodies[bodyAt++] ? unwrap(bodies[bodyAt - 1]!.text) : undefined;
 		return {

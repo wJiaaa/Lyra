@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { buildOutgoing } from "../src/features/composer/outgoing.ts";
-import { placeholderFor } from "../src/lib/attachment-placeholders.ts";
+import { isAttachmentBody, placeholderFor } from "../src/lib/attachment-placeholders.ts";
 
 const png = { name: "shot.png", mimeType: "image/png", kind: "image", data: "AAAA", isText: false };
 const doc = { name: "notes.md", mimeType: "text/markdown", kind: "text", text: "hello", isText: true };
@@ -113,4 +113,21 @@ test("正文里的标记决定附件插在句子的哪一处", async () => {
 	 * 「这条消息带了什么」，句子里这一枚答的是「我这句话说的是哪一个」。
 	 */
 	assert.equal(outgoing.displayText, text, "气泡里那句话还认得出它说的是哪一个附件");
+});
+
+test("文件夹送过去的是它的完整路径，编辑已发出的消息时认得出它不是人打的字", async () => {
+	const folder = { name: "pi", mimeType: "inode/directory", kind: "folder", isText: false, path: "/Users/me/pi" };
+	const alone = await buildOutgoing(draft("看看这个目录", [folder]), "/tmp");
+	assert.ok(alone);
+	const [line] = alone.content;
+	assert.equal(line.type, "text");
+	assert.ok(line.type === "text" && line.text.includes('[Attached folder: pi — folder at "/Users/me/pi"'), "单独一个文件夹叫 Attached folder，带路径");
+	assert.ok(line.type === "text" && isAttachmentBody(line.text));
+	assert.deepEqual(alone.attachments, [{ name: "pi", kind: "folder", mimeType: "inode/directory", path: "/Users/me/pi" }]);
+
+	const mixed = await buildOutgoing(draft("对照一下", [folder, doc]), "/tmp");
+	assert.ok(mixed);
+	const first = mixed.content[0];
+	assert.ok(first.type === "text" && first.text.startsWith("\n\n[Attachment 1 of 2, folder: pi — folder at"));
+	assert.ok(first.type === "text" && isAttachmentBody(first.text));
 });

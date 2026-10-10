@@ -179,6 +179,7 @@ export function useComposerAttachments<T extends DraftAttachment>({
 				src: hit.file.data && !hit.file.isText ? `data:${hit.file.mimeType};base64,${hit.file.data}` : undefined,
 				mimeType: hit.file.mimeType,
 				isImage: !hit.file.isText && Boolean(hit.file.data),
+				isFolder: hit.file.kind === "folder",
 				onPreviewImage: (originRect) => previewImage(hit.file, originRect),
 				...(openFile ? { onOpenFile: openFile } : {}),
 			},

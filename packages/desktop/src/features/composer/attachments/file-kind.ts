@@ -29,7 +29,9 @@ export type FileKind =
 	| "design"
 	| "font"
 	| "binary"
-	| "text";
+	| "text"
+	/** 一整个目录。不从名字猜出来，只有拖进来时 `webkitGetAsEntry` 说它是目录才会是它，见 `picked.ts`。 */
+	| "folder";
 
 const BY_EXTENSION: Record<string, FileKind> = {
 	png: "image", jpg: "image", jpeg: "image", gif: "image", webp: "image", bmp: "image",
@@ -187,4 +189,5 @@ export const KIND_LABEL: Record<FileKind, MessageKey> = {
 	font: "fileKind.font",
 	binary: "fileKind.binary",
 	text: "fileKind.text",
+	folder: "fileKind.folder",
 };

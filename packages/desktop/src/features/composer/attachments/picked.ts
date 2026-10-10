@@ -21,6 +21,8 @@ export interface PickedFile {
 	 * `pathForDrop` 是 Electron 的东西。
 	 */
 	path?: string;
+	/** 拖进来的是一个目录。它没有字节可读，只记路径，见 `readPickedFiles`。 */
+	directory?: true;
 }
 
 export function pickedFrom(list: FileList | null | undefined): PickedFile[] {
@@ -52,20 +54,23 @@ export function pickedFrom(list: FileList | null | undefined): PickedFile[] {
 }
 
 /**
- * 拖进来的一批，文件夹单独拣出来。
+ * 拖进来的一批，认出其中哪些是文件夹。
  *
- * 文件夹在 `files` 里也是一个 `File`：没有类型、读它的字节会失败。当附件读，结果是一条「无法读取」
- * 和一个什么都没收下的输入框。它该是一条 `@` 引用——和「@ → 选择文件夹」落下的是同一种东西，所以
- * 这里只交出它的路径。取不到路径的（浏览器里跑）就没有，不当错报。
+ * 文件夹在 `files` 里也是一个 `File`：没有类型、读它的字节会失败。当文件读，结果是一条「无法读取」
+ * 和一个什么都没收下的输入框。所以这里给它打上 `directory`，由读取那一步收成一份文件夹附件——只
+ * 带路径，不读内容。取不到路径的（浏览器里跑）丢掉：没有路径的文件夹什么也指不到，不当错报。
+ *
+ * 和文件留在同一份清单里、按拖进来的先后：从前文件夹单独拣出来写成一条 `@` 引用，一串绝对路径
+ * 横在输入框里，次序也和附件那一排脱了钩。
  *
  * 是不是文件夹只有 `items` 答得出，而且同样只在 drop 事件里答得出。`files` 就是按顺序排的那几个
  * `kind === "file"` 的 item，所以按下标对得上。这些都在第一个 `await` 之前取完——函数返回时
  * `DataTransfer` 已经空了，之后只剩手里的 `File` 和路径。
  *
  * `webkitGetAsEntry()` 也可能答不上来（返回 null）。那时读一个字节试试：文件夹读不出字节，而一份
- * 读不出字节、却有路径的东西，当附件只会落一条「无法读取」，写成引用至少还指得到它。
+ * 读不出字节、却有路径的东西，当文件读只会落一条「无法读取」，当文件夹至少还指得到它。
  */
-export async function droppedFrom(transfer: DataTransfer): Promise<{ files: PickedFile[]; folders: string[] }> {
+export async function droppedFrom(transfer: DataTransfer): Promise<PickedFile[]> {
 	const entries = Array.from(transfer.items).filter((item) => item.kind === "file");
 	const dropped = pickedFrom(transfer.files).map((picked, index) => ({
 		picked,
@@ -73,13 +78,12 @@ export async function droppedFrom(transfer: DataTransfer): Promise<{ files: Pick
 		directory: entries[index]?.webkitGetAsEntry()?.isDirectory,
 	}));
 
-	const files: PickedFile[] = [];
-	const folders: string[] = [];
+	const out: PickedFile[] = [];
 	for (const { picked, directory } of dropped) {
 		const folder =
 			directory ?? (picked.path !== undefined && !(await picked.file.slice(0, 1).arrayBuffer().then(() => true, () => false)));
-		if (!folder) files.push(picked);
-		else if (picked.path) folders.push(picked.path);
+		if (!folder) out.push(picked);
+		else if (picked.path) out.push({ ...picked, directory: true });
 	}
-	return { files, folders };
+	return out;
 }

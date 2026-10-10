@@ -1,6 +1,7 @@
 import type { CommandDecoration } from "./command-catalog.ts";
 import type { Avatar } from "../../lib/agent-avatar.ts";
 import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
+import { TokenGlyph, tokenLook } from "../../ui/fileIcon.tsx";
 
 interface MentionDecoration {
 	start: number;
@@ -20,7 +21,7 @@ export interface ComposerDecorations {
 	 * 它就该消失。画成一枚标签而不是一串方括号，是因为方括号在中文里是普通标点——不画出来的话，
 	 * 「这个【重要】」和真正的引用长得一模一样。
 	 */
-	attachments?: { start: number; end: number; kind?: string; bodiless?: boolean }[];
+	attachments?: { start: number; end: number; kind?: string; bodiless?: boolean; name?: string }[];
 	/**
 	 * 还没上屏的那几个字母，正在等着被选成一个字。
 	 *
@@ -39,6 +40,8 @@ interface TextSpan {
 	kind?: string;
 	/** 只有名字进了提示词，内容没有——图标淡一档说这件事。 */
 	bodiless?: boolean;
+	/** 附件的文件名（不是标记上写的短名）：图标按它的扩展名挑，见 `TokenGlyph`。 */
+	name?: string;
 	/** 首尾那对 `【】` 单独包一层画成透明——留位不留形，见下面组装 span 的地方。 */
 	brackets?: boolean;
 }
@@ -53,6 +56,7 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 		kind?: string;
 		/** 同上，只有名字进了提示词的那些。 */
 		bodiless?: boolean;
+		name?: string;
 		avatar?: Avatar;
 	}
 
@@ -88,6 +92,7 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 					className: "ly-attachment-token",
 					...(a.kind ? { kind: a.kind } : {}),
 					...(a.bodiless ? { bodiless: true } : {}),
+					...(a.name ? { name: a.name } : {}),
 				});
 			}
 		}
@@ -124,6 +129,7 @@ function buildDecoratedSpans(value: string, decoration: ComposerDecorations): Te
 			className: seg.className,
 			...(seg.kind ? { kind: seg.kind } : {}),
 			...(seg.bodiless ? { bodiless: true } : {}),
+			...(seg.name ? { name: seg.name } : {}),
 			...(seg.avatar ? { avatar: seg.avatar } : {}),
 			/*
 			 * 附件标记的那对方括号留着占位，但不画出来。
@@ -185,22 +191,31 @@ export function CommandText({
 			 */}
 			<div className="ly-field-fade absolute inset-0 overflow-hidden">
 				<div ref={mirror} className="ly-composer-text whitespace-pre-wrap break-words" data-command-mirror>
-					{spans.map((s, idx) =>
-						s.className ? (
-							<span key={idx} className={s.className} data-kind={s.kind} data-bodiless={s.bodiless ? "" : undefined}>
+					{spans.map((s, idx) => {
+						const look = s.brackets ? tokenLook(s.name, s.kind) : null;
+						return s.className ? (
+							<span
+								key={idx}
+								className={s.className}
+								data-kind={s.kind}
+								data-bodiless={s.bodiless ? "" : undefined}
+								data-glyph={look ? "" : undefined}
+							>
 								{s.brackets && s.text.length > 2 ? (
 									/*
-									 * 底色只包图标和名字，收尾那个 `】` 仍占满 1em，但不进胶囊。
+									 * 底色只包图标和名字，收尾那个 `】` 不进胶囊。
 									 *
 									 * 两端方括号必须留在镜像里：textarea 里有这两个字，删掉或改宽度，后面整段
-									 * 都会错位。原先把 `】` 也画进底色，右边就空出整整一格，左边图标却贴着边。
-									 * 底色改画在 `.ly-token-paint` 上，右侧只留和左边一样的 inset；`】` 用负边
-									 * 距叠回那一点 inset，字符格子一个都没动。
+									 * 都会错位。图标、名字和底色在这 2em 里怎么挪，见 `misc.css` 的
+									 * `.ly-token-body`——只挪画面，字符格子一个都没动。
 									 */
 									<span className="ly-token-body">
 										<span className="ly-token-paint">
-											<span className="ly-token-bracket">{s.text.slice(0, 1)}</span>
-											{s.text.slice(1, -1)}
+											<span className="ly-token-bracket">
+												{s.text.slice(0, 1)}
+												{look && <TokenGlyph look={look} />}
+											</span>
+											<span className="ly-token-name">{s.text.slice(1, -1)}</span>
 										</span>
 										<span className="ly-token-bracket">{s.text.slice(-1)}</span>
 									</span>
@@ -224,8 +239,8 @@ export function CommandText({
 							</span>
 						) : (
 							<span key={idx}>{s.text}</span>
-						),
-					)}
+						);
+					})}
 					{/* A native textarea reserves a line after a trailing newline; an empty div line collapses. */}
 					{value.endsWith("\n") && "\u200b"}
 					{commandHint && (

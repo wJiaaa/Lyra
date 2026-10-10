@@ -38,7 +38,7 @@ export function placeholderFor(name: string): string {
 export function attachmentLabel(position: { index: number; total: number; kind?: string; kindIndex: number; kindTotal: number }): string {
 	const { index, total, kind, kindIndex, kindTotal } = position;
 	const within = kind && kindTotal > 1 ? `, ${kind} ${kindIndex} of ${kindTotal}` : kind ? `, ${kind}` : "";
-	return total > 1 ? `Attachment ${index} of ${total}${within}` : `Attached file`;
+	return total > 1 ? `Attachment ${index} of ${total}${within}` : kind === "folder" ? "Attached folder" : "Attached file";
 }
 
 /** How a text attachment's contents are spelled into the prompt, named and fenced. */
@@ -49,6 +49,16 @@ export function attachmentBody(name: string, text: string, label = "Attached fil
 /** How a file that could not be read is spelled instead — so the model does not answer as if it had. */
 export function attachmentStub(name: string, mimeType?: string, label = "Attached file"): string {
 	return `\n\n[${label}: ${name}${mimeType ? ` (${mimeType})` : ""} — contents not included]\n\n`;
+}
+
+/**
+ * 一个文件夹怎么写进 prompt：只给位置，内容由模型自己用工具去读。
+ *
+ * 位置必须是完整路径。从前文件夹写成正文里的一条 `@"/绝对/路径"`，模型拿到的就是那串路径；换成
+ * 卡片之后，这一行是它唯一还能拿到路径的地方。
+ */
+export function attachmentFolder(name: string, path: string, label = "Attached folder"): string {
+	return `\n\n[${label}: ${name} — folder at ${JSON.stringify(path)}; contents not included, read it with your tools if needed]\n\n`;
 }
 
 /**
@@ -74,7 +84,7 @@ export function attachmentImageLabel(name: string, label: string): string {
  * 消息时，附件正文被当成人打的字，跟着编辑框一起没了。
  */
 export function isAttachmentBody(text: string): boolean {
-	return /^\n\n(?:### |\[)(?:Attached file|Attachment \d+)[:,]/.test(text) || /^\n\n(?:### |\[)Attachment \d+ of \d+/.test(text);
+	return /^\n\n(?:### |\[)(?:Attached (?:file|folder)|Attachment \d+)[:,]/.test(text) || /^\n\n(?:### |\[)Attachment \d+ of \d+/.test(text);
 }
 
 type Segment<File> = { kind: "text"; text: string } | { kind: "file"; file: File };

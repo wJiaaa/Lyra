@@ -1,6 +1,7 @@
 import { Textarea } from "../../ui/inputs/NativeField.tsx";
 import { useFieldFade } from "../../ui/inputs/useFieldFade.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { CommandText } from "./CommandText.tsx";
 import type { ComposerDecorations } from "./CommandText.tsx";
@@ -53,8 +54,17 @@ export function ComposerShell({
 	onBlur,
 	commandMenu,
 	onAttachmentClick,
+	dropZone,
 }: {
 	onAttachmentClick?: (index: number, rect?: DOMRect) => void;
+	/**
+	 * 拖放收在哪一块上：一个祖先的选择器。给了，文件拖到那一整块上任何一处都能放，并盖一层蒙版说
+	 * 「松开即可添加」；不给，只有输入框自己收。
+	 *
+	 * 只在输入框是那一块的主角时给（主会话那一栏）。侧边聊天和子智能体的框挤在面板里，面板里还有
+	 * 别的东西在收拖放（文件树、终端），整块接管会抢走它们的。
+	 */
+	dropZone?: string;
 	decoration?: ComposerDecorations;
 	onSelect?: () => void;
 	onFocus?: () => void;
@@ -124,6 +134,98 @@ export function ComposerShell({
 		document.execCommand("insertText", false, `${lead}${paths.map(formatMention).join(" ")}${trail}`);
 		onChange(el.value);
 	};
+	/*
+	 * 收下一次拖放。同步读，就在这儿：事件返回之后 `DataTransfer` 就空了，路径也就无从问起。
+	 */
+	const receive = (transfer: DataTransfer) => {
+		if (!onFiles) return;
+		const tree = transfer.getData(DRAGGED_PATHS);
+		if (tree) {
+			// 从文件树拖来的，文件和文件夹都是项目里的路径：和 `@` 菜单里选中一样，写成引用。
+			mention(JSON.parse(tree) as string[]);
+			return;
+		}
+		// 该同步取的，`droppedFrom` 在返回之前就取完了；剩下的只是认不准的那几个要读一下。
+		void droppedFrom(transfer).then((dropped) => {
+			if (dropped.length > 0) onFiles(dropped);
+		});
+	};
+	const receiveRef = useRef(receive);
+	receiveRef.current = receive;
+	const shell = useRef<HTMLDivElement>(null);
+	/** 拖着文件悬在 `dropZone` 上时，那一块在屏幕上的位置和圆角——蒙版照着它盖。 */
+	const [dragOver, setDragOver] = useState<{ rect: DOMRect; radius: string } | null>(null);
+	const accepting = Boolean(onFiles);
+	useEffect(() => {
+		const root = shell.current;
+		if (!accepting || !root) return;
+		const zone = (dropZone ? root.closest<HTMLElement>(dropZone) : null) ?? root;
+		const wide = zone !== root;
+		/*
+		 * 进出要数着。
+		 *
+		 * `dragenter`/`dragleave` 在这一块里的每个子元素上都会成对地来一遍，从转录拖到输入框上会先「进」
+		 * 输入框再「离开」转录。只看最后一个事件的话，蒙版在两者之间闪一下。
+		 */
+		let depth = 0;
+		// 只认文件和文件树里的路径：拖一段字进来仍然是浏览器自己的事。
+		const carries = (event: DragEvent) => Boolean(event.dataTransfer?.types.some((type) => type === "Files" || type === DRAGGED_PATHS));
+		/*
+		 * 兜底：拖动还在这一块上时，浏览器每隔几百毫秒就补一次 `dragover`（规范给的是 350ms 上下）。
+		 * 一秒没等到，就是拖放已经在别处结束了——取消一次拖动不保证有成对的 `dragleave`，蒙版不能
+		 * 因此一直盖着。
+		 */
+		let quiet: ReturnType<typeof setTimeout> | undefined;
+		const reset = () => {
+			clearTimeout(quiet);
+			depth = 0;
+			setDragOver(null);
+		};
+		const alive = () => {
+			clearTimeout(quiet);
+			quiet = setTimeout(reset, 1000);
+		};
+		const enter = (event: DragEvent) => {
+			if (!carries(event)) return;
+			event.preventDefault();
+			depth += 1;
+			if (wide && depth === 1) setDragOver({ rect: zone.getBoundingClientRect(), radius: getComputedStyle(zone).borderRadius });
+			if (wide) alive();
+		};
+		const over = (event: DragEvent) => {
+			if (!carries(event)) return;
+			event.preventDefault();
+			if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+			if (wide) alive();
+		};
+		const leave = (event: DragEvent) => {
+			if (!carries(event)) return;
+			depth = Math.max(0, depth - 1);
+			if (depth === 0) setDragOver(null);
+		};
+		const drop = (event: DragEvent) => {
+			if (!carries(event) || !event.dataTransfer) return;
+			event.preventDefault();
+			reset();
+			receiveRef.current(event.dataTransfer);
+		};
+		zone.addEventListener("dragenter", enter);
+		zone.addEventListener("dragover", over);
+		zone.addEventListener("dragleave", leave);
+		zone.addEventListener("drop", drop);
+		// 拖到别处放下、或者按 Esc 取消，这一块收不到成对的 `dragleave`。
+		window.addEventListener("dragend", reset);
+		window.addEventListener("drop", reset);
+		return () => {
+			clearTimeout(quiet);
+			zone.removeEventListener("dragenter", enter);
+			zone.removeEventListener("dragover", over);
+			zone.removeEventListener("dragleave", leave);
+			zone.removeEventListener("drop", drop);
+			window.removeEventListener("dragend", reset);
+			window.removeEventListener("drop", reset);
+		};
+	}, [accepting, dropZone]);
 	const mirror = useRef<HTMLDivElement>(null);
 	/*
 	 * 两头化开的那两个长度，写在 `.ly-scroll-host` 上。
@@ -265,28 +367,26 @@ export function ComposerShell({
        * open, this field is 350px.
        */
       className="ly-composer @container rounded-2xl border bg-transparent transition-[border-color] duration-[var(--ly-t-quick)] ease-[var(--ly-e-soft)]"
-      onDragOver={onFiles ? (e) => e.preventDefault() : undefined}
-      onDrop={
-        onFiles
-          ? (e) => {
-              e.preventDefault();
-              // 同步读，就在这儿：事件返回之后 `DataTransfer` 就空了，路径也就无从问起。
-              const tree = e.dataTransfer.getData(DRAGGED_PATHS);
-              if (tree) {
-                // 从文件树拖来的，文件和文件夹都是项目里的路径：和 `@` 菜单里选中一样，写成引用。
-                mention(JSON.parse(tree) as string[]);
-                return;
-              }
-              // 该同步取的，`droppedFrom` 在返回之前就取完了；剩下的只是认不准的那几个要读一下。
-              void droppedFrom(e.dataTransfer).then(({ files, folders }) => {
-                // 先落引用：`addFiles` 同步记下的光标就在引用之后，附件标记接着排，不会贴在引用前面。
-                mention(folders);
-                if (files.length > 0) onFiles(files);
-              });
-            }
-          : undefined
-      }
+      ref={shell}
     >
+      {dragOver &&
+        createPortal(
+          <div
+            data-ly-drop-overlay=""
+            aria-hidden
+            className="ly-drop-overlay"
+            style={{
+              left: dragOver.rect.left,
+              top: dragOver.rect.top,
+              width: dragOver.rect.width,
+              height: dragOver.rect.height,
+              borderRadius: dragOver.radius,
+            }}
+          >
+            <span className="ly-drop-overlay-label">{t("composer.dropToAdd")}</span>
+          </div>,
+          document.body,
+        )}
       {hint}
       {attachments}
 

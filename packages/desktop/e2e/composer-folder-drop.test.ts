@@ -1,8 +1,11 @@
 /**
- * 往输入框里拖文件夹，落下的是一条 `@` 引用，不是一条「无法读取」。
+ * 往会话里拖文件夹，落下的是一枚和文件一样的标记（图标是文件夹），不是一条「无法读取」，也不是一串绝对路径。
  *
- * 文件夹在 `dataTransfer.files` 里也是一个 `File`，从前被当附件去读字节，读失败，弹一条提示，输入框
- * 里什么都没有。文件树里拖出来的路径更糟：输入框吞掉了这次 drop，却只看 `files`，而那里是空的。
+ * 文件夹在 `dataTransfer.files` 里也是一个 `File`，最早被当附件去读字节，读失败，弹一条提示，输入框
+ * 里什么都没有；后来写成正文里的 `@"/绝对/路径"`，一长串横在输入框里。文件树里拖出来的路径仍是
+ * 引用：输入框曾经吞掉了这次 drop，却只看 `files`，而那里是空的。
+ *
+ * 拖放不必瞄准输入框：拖到会话卡片的任何一处都能放，悬着时盖一层「松开即可添加」。
  *
  * 系统拖放走 `Input.dispatchDragEvent` 带真实路径：只有这样，`webkitGetAsEntry` 和
  * `webUtils.getPathForFile` 答的才是真话——页面里自己拼的 `DataTransfer` 装不进一个文件夹。
@@ -47,6 +50,9 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const FIELD = `document.querySelector(".ly-composer textarea")`;
 const value = () => app.evaluate<string>(`${FIELD}.value`);
 const unreadable = () => app.evaluate<boolean>(`document.body.innerText.includes("无法读取")`);
+/** 输入框里画成文件夹的那几枚标记，各自写着什么。 */
+const folderMarks = () =>
+	app.evaluate<string[]>(`[...document.querySelectorAll('.ly-composer .ly-attachment-token[data-kind="folder"]')].map((el) => el.textContent)`);
 
 /** 等某个条件成立，成立不了就把最后一次看到的交给断言去说。 */
 async function until<T>(read: () => Promise<T>, ok: (value: T) => boolean, ms = 5_000): Promise<T> {
@@ -75,10 +81,11 @@ async function dropFromSystem(paths: string[]): Promise<void> {
 	for (const type of ["dragEnter", "dragOver", "drop"]) await app.send("Input.dispatchDragEvent", { type, ...at, data });
 }
 
-test("系统里拖进一个文件夹和一个文件：文件夹写成引用，文件照旧当附件", async () => {
+test("系统里拖进一个文件夹和一个文件：两个都是标记，文件夹画成文件夹，次序不变", async () => {
 	await dropFromSystem([join(outside, "folderA"), join(outside, "b.txt")]);
 	const text = await until(value, (t) => t.includes("【b.txt】"));
-	assert.equal(text.trim(), `@"${join(outside, "folderA")}" 【b.txt】`);
+	assert.equal(text.trim(), "【folderA】【b.txt】");
+	assert.deepEqual(await until(folderMarks, (marks) => marks.length > 0), ["【folderA】"]);
 	assert.equal(await unreadable(), false, "文件夹不该再被当附件去读");
 });
 
@@ -90,7 +97,8 @@ test("认不出是不是文件夹时（webkitGetAsEntry 返回 null），读不�
 	try {
 		await dropFromSystem([join(outside, "folderA"), join(outside, "b.txt")]);
 		const text = await until(value, (t) => t.includes("【b.txt】"));
-		assert.equal(text.trim(), `@"${join(outside, "folderA")}" 【b.txt】`);
+		assert.equal(text.trim(), "【folderA】【b.txt】");
+		assert.deepEqual(await until(folderMarks, (marks) => marks.length > 0), ["【folderA】"]);
 		assert.equal(await unreadable(), false, "回退路径上文件夹也不该落成「无法读取」");
 	} finally {
 		await app.evaluate(`DataTransferItem.prototype.webkitGetAsEntry = window.__entry`);
@@ -126,4 +134,23 @@ test("从文件树拖一个文件夹进来：写成引用", async () => {
 	})()`);
 	const text = await until(value, (t) => t.includes("@"));
 	assert.equal(text.trim(), `@"${join(root, "src")}"`);
+});
+
+test("拖到会话卡片的空处：悬着时盖一层蒙版，松开就收进输入框", async () => {
+	const at = await app.evaluate<{ x: number; y: number }>(
+		`(() => { const r = document.querySelector("[data-ly-chat-surface]").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + 60 }; })()`,
+	);
+	assert.equal(await app.evaluate<boolean>(`${FIELD}.closest(".ly-composer").contains(document.elementFromPoint(${at.x}, ${at.y}))`), false, "落点不该在输入框上");
+	const data = { items: [], files: [join(outside, "folderA")], dragOperationsMask: 1 };
+	await app.send("Input.dispatchDragEvent", { type: "dragEnter", ...at, data });
+	await app.send("Input.dispatchDragEvent", { type: "dragOver", ...at, data });
+	const shown = await until(
+		() => app.evaluate<string | null>(`document.querySelector("[data-ly-drop-overlay]")?.innerText ?? null`),
+		(label) => label !== null,
+	);
+	assert.equal(shown, "松开即可添加");
+	await app.send("Input.dispatchDragEvent", { type: "drop", ...at, data });
+	assert.equal((await until(value, (t) => t.includes("【folderA】"))).trim(), "【folderA】");
+	assert.deepEqual(await until(folderMarks, (marks) => marks.length === 1), ["【folderA】"]);
+	assert.equal(await app.evaluate<boolean>(`!!document.querySelector("[data-ly-drop-overlay]")`), false, "放下之后蒙版要撤掉");
 });

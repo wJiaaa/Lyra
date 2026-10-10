@@ -14,7 +14,7 @@ import type { MessageAttachment, UserContent } from "@plume/core";
 import { parseInvocation, parseSkillMention, resolveInvocation } from "@plume/core/commands-view";
 
 import { formatList } from "../../i18n/list.ts";
-import { attachmentBody, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
+import { attachmentBody, attachmentFolder, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
 import { bridge } from "../../services/index.ts";
 
 /** 附件在草稿里的样子，只取这一步用得上的几项。 */
@@ -158,6 +158,11 @@ export function spellDraft(text: string, attachments: OutgoingAttachment[]): Use
 			flush();
 			content.push({ type: "text", text: attachmentImageLabel(file.name, label) });
 			content.push({ type: "image", data: file.data, mimeType: file.mimeType });
+			return;
+		}
+		if (file.kind === "folder" && file.path) {
+			flush();
+			content.push({ type: "text", text: attachmentFolder(file.name, file.path, label) });
 			return;
 		}
 		// Attached by name and type only — see `addFiles`. Saying so is what stops the model from

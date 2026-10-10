@@ -384,3 +384,34 @@
 :root.dark .ly-plume-mark {
   filter: drop-shadow(0 0 1.5px color-mix(in srgb, var(--color-ink) 35%, transparent));
 }
+
+/*
+ * 拖着文件悬在会话卡片上时盖的那一层。
+ *
+ * 位置和圆角是拖进来那一刻从那张会话卡片上量的（行内样式），挂在 body 上、`fixed`，所以不用改卡片
+ * 自己的定位，也不会被它里面哪一层 `overflow: hidden` 裁掉。整层不接事件：拖放事件要照常
+ * 落到底下那一栏上，放下时由它收。
+ */
+.ly-drop-overlay {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--color-accent) 12%, rgb(0 0 0 / 0.38));
+  animation: ly-scrim-in 140ms ease-out;
+}
+
+.ly-drop-overlay-label {
+  padding: 7px 16px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 60%, transparent);
+  border-radius: 10px;
+  /* 不随主题变：深底白字在亮暗两套里都读得清。 */
+  background: color-mix(in srgb, var(--color-accent) 72%, rgb(11 26 51));
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.28);
+  color: rgb(255 255 255);
+  font-size: 14px;
+  font-weight: 500;
+  animation: ly-dialog-in 180ms var(--ly-e-out);
+}

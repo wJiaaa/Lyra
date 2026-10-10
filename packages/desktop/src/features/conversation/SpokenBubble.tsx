@@ -15,6 +15,7 @@ import type { UserContent, UserMessage } from "@plume/core";
 
 import { translate } from "../../i18n/translate.ts";
 import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
+import { TokenGlyph, tokenLook } from "../../ui/fileIcon.tsx";
 import { openFromEvent } from "../image/index.ts";
 import { BubbleText } from "./BubbleText.tsx";
 
@@ -52,11 +53,15 @@ export function SpokenBubble({ message, renderText, className = "" }: { message:
 					 * 这里的标签只认名字，不带动作：这两个面板没有能承接「打开」的地方（文件面板属于主窗口），
 					 * 先认出它、画成一枚标签，不给一条点了没反应的路。
 					 */
-					renderFile={(file, at) => (
-						<span key={at} className="ly-attachment-token" data-kind={file.kind}>
-							{file.label ?? file.name}
-						</span>
-					)}
+					renderFile={(file, at) => {
+						const look = tokenLook(file.name, file.kind);
+						return (
+							<span key={at} className="ly-attachment-token" data-kind={file.kind} data-glyph={look ? "" : undefined}>
+								{look && <TokenGlyph look={look} />}
+								{file.label ?? file.name}
+							</span>
+						);
+					}}
 				/>
 			)}
 			{images.length > 0 && (
