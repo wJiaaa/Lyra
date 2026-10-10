@@ -170,7 +170,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 	 * page that loses whatever the reader had done in it. Later themes go in by message.
 	 */
 	const host = useRef<HTMLDivElement>(null);
-	const { capturing, copied, copy } = usePreviewCopy(host);
+	const { capturing, copied, copy } = usePreviewCopy(frame, latest);
 	const tweaks = usePreviewTweaks(frame, nonce);
 	const [tuning, setTuning] = useState(false);
 	/** The adjustments last sent from the panel, so the same ones are not sent twice. */
@@ -377,8 +377,11 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 			 * The probe works by observing the page at a deliberately small height, and an animated
 			 * height is not at that height yet — it is somewhere on the way there. The page loaded
 			 * mid-transition and reported the height it happened to see, which was the old one.
+			 *
+			 * Square while copying: the page moves through the card a slice at a time
+			 * (`usePreviewCopy`), and round corners would cut into every slice.
 			 */
-			className={`ly-enter relative my-2.5 overflow-hidden ${themed ? "" : "rounded-[12px] border border-line-soft"} ${
+			className={`ly-enter relative my-2.5 overflow-hidden ${themed ? "" : `border border-line-soft ${capturing ? "" : "rounded-[12px]"}`} ${
 				measured === null ? "" : "transition-[height] duration-[var(--ly-t-slow)]"
 			}`}
 		>

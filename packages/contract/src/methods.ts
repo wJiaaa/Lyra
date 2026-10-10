@@ -154,7 +154,6 @@ export const METHODS = {
 		read: { channel: "clipboard:read" },
 		write: { channel: "clipboard:write" },
 		writeImage: { channel: "clipboard:writeImage" },
-		capture: { channel: "clipboard:capture" },
 	},
 	terminal: {
 		list: { channel: "terminal:list" },
@@ -200,6 +199,7 @@ export const METHODS = {
 	},
 	windows: {
 		keepOnTop: { channel: "windows:keepOnTop" },
+		capture: { channel: "windows:capture" },
 		open: { channel: "windows:open" },
 		list: { channel: "windows:list" },
 		openInMain: { channel: "windows:openInMain" },
