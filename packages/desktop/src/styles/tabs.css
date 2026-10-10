@@ -314,11 +314,14 @@
   /*
    * Max width of the chat column.
    *
-   * 窄窗格里铺满；窗格宽了以后按三档收窄，规则写在 `dock.css` 的窗格容器查询里。
+   * 一个定值，窄窗格里铺满、宽了只居中，不随窗格分档变宽。分档时宽度对窗格宽度一会儿斜率 1、
+   * 一会儿是平台，864 处还有一道 54px 的断崖：侧栏、右栏开合时正文先平移再变宽、边缘反着跳，
+   * 为了盖住它在动画里接管正文那一栏，又和滚动锚定、跟随底部轮流打架。定值下宽窗口开合只是平移，
+   * 不重新断行。
    * Applied as a max — a hard width overflowed the window and cut the send button in half once
    * the padding was added, and it leaves the column free to shrink with a narrow pane.
    */
-  --ly-content: 100%;
+  --ly-content: 864px;
 }
 
 /*

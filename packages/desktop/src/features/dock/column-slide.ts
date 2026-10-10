@@ -1,7 +1,8 @@
 /**
  * 右栏收起、展开，照左边侧栏开合的样子动：面板保持自己的宽度从右边滑进、淡入，对话那一格跟着
  * 让出（收起时跟着补上）同样的宽度，两边同一条曲线、同一段时长，接缝始终贴在一起。侧栏是
- * `NavPane` 的 margin 过渡加 `holdColumnWidth`，这里是同一件事的镜像。
+ * `NavPane` 的 margin 过渡，这里是同一件事的镜像。对话里的正文只跟着这一格的宽度排版，这里不碰它；
+ * 宽度变了阅读位置不动，由滚动区自己管（`ui/scroll/useFollowBottom.ts`）。
  *
  * 面板收起只是藏起来（`[inert]` 立刻透明，展开回来也不过渡，见 `dock.css`），对话那一格的宽度
  * 由布局一步写到终点（`PaneSurface` 不缩放角上不动的格子）。所以这两段都要由这里从起点画过去。
@@ -20,13 +21,15 @@
  */
 
 import { useLayoutEffect, useRef, type RefObject } from "react";
-import { EASE_OUT, holdColumns } from "../../app/hold-column-width.ts";
 import { motionReduced } from "../../ui/motion/reduced.ts";
 import { DURATION } from "../../ui/motion/tokens.ts";
 import { pct } from "./css.ts";
 import { closeNow, usePaneDock } from "./pane-store.ts";
 import type { Box } from "./layout.ts";
 import type { PaneKind } from "./tree.ts";
+
+/** `NavPane` 的 Tailwind `ease-out`：两边同一条曲线。 */
+const EASE_OUT = "cubic-bezier(0, 0, 0.2, 1)";
 
 export function useColumnSlide(
 	dock: RefObject<HTMLElement | null>,
@@ -101,8 +104,6 @@ export function useColumnSlide(
 			options,
 		);
 		motions.current = [widen, slide];
-		// 对话的正文从眼下的宽度和位置一路走到终点，左右两条边都只朝一个方向——和侧栏开合同一个办法。
-		holdColumns(conversation, widen);
 		const left = leaves ? pending.current : null;
 		const done = () => {
 			// 滑完了，或者被下一段接走了：两种都轮到真关。开回来的那种 `leaving` 已经清了，不会关。

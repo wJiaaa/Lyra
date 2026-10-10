@@ -230,6 +230,18 @@ export function useFollowBottom({
 	 */
 	const anchor = useRef<{ el: HTMLElement; top: number; until: number } | null>(null);
 
+	/*
+	 * 读者眼前那一块（见 `firstInView`）、它离视口顶多远，以及记下时视口有多宽。
+	 *
+	 * 宽度一变正文就重新断行，上面的内容跟着变高变矮。浏览器的滚动锚定在这里不补：窄窗格里开合
+	 * 侧栏，不靠这里时眼前那一段一路被带走 171px；停在离底部 150px 处收起侧栏，画面一帧上跳 123px、
+	 * 几乎贴底，展开又跳回来。侧栏、右栏开合，拖分隔线、拖窗口都走这一处。
+	 *
+	 * 只管宽度变了的那一帧，也只在读者滚开时管：跟着底部的由 `pin` 送到底，按住东西的由 `settle`。
+	 * 曾经由侧栏动画接管正文那一栏的宽度来补这件事，它和跟随底部、浏览器的滚动夹位轮流打架。
+	 */
+	const place = useRef<{ node: Element; top: number; width: number } | null>(null);
+
 	const read = (el: HTMLDivElement): Reading => ({
 		scrollTop: el.scrollTop,
 		scrollHeight: el.scrollHeight,
@@ -278,6 +290,36 @@ export function useFollowBottom({
 			const drift = held.el.getBoundingClientRect().top - held.top;
 			if (Math.abs(drift) >= 1) write(el, el.scrollTop + drift);
 			return true;
+		},
+		[write],
+	);
+
+	/**
+	 * 记下读者眼前那一行；跟着底部的不用记。
+	 *
+	 * 滚动事件里也要记（读者滚到了别处），但宽度已经变了的那一帧不行：滚动事件派发时，这一帧的
+	 * 新宽度和重新断行已经排好了，这时记下的是漂过之后的位置，`keepPlace` 就量不到漂移。量到过：
+	 * 补偿写下去的下一帧，它自己的滚动事件把基准换掉，一半的帧白白漂走 24px。那一帧留给 `onResize`。
+	 */
+	const remember = useCallback((el: HTMLDivElement, scrolled = false) => {
+		if (scrolled && place.current && el.clientWidth !== place.current.width) return;
+		place.current = null;
+		if (state.current !== "detached") return;
+		const edge = el.getBoundingClientRect().top;
+		const node = firstInView(el, edge);
+		if (node) place.current = { node, top: node.getBoundingClientRect().top - edge, width: el.clientWidth };
+	}, []);
+
+	/**
+	 * 宽度变了，把眼前那一行放回原来的高度。和 `settle` 一样只碰 `scrollTop`，在 `ResizeObserver`
+	 * 的回调里同步跑完。按屏幕上的位置量：哪一帧浏览器自己锚定过，这里就量到没漂，不会补两遍。
+	 */
+	const keepPlace = useCallback(
+		(el: HTMLDivElement) => {
+			const kept = place.current;
+			if (!kept || state.current !== "detached" || el.clientWidth === kept.width || !kept.node.isConnected) return;
+			const drift = kept.node.getBoundingClientRect().top - el.getBoundingClientRect().top - kept.top;
+			if (Math.abs(drift) >= 0.5) write(el, el.scrollTop + drift);
 		},
 		[write],
 	);
@@ -497,6 +539,7 @@ export function useFollowBottom({
 			// Our own write, arriving as an event. It says nothing about what the reader wants.
 			if (written.current !== null && Math.abs(reading.scrollTop - written.current) < 1) {
 				written.current = null;
+				remember(el, true);
 				publish(reading);
 				return;
 			}
@@ -512,9 +555,10 @@ export function useFollowBottom({
 			 * take it off. Gestures are heard where they happen, in `intend`.
 			 */
 			state.current = nextState(state.current, { kind: "arrived" }, reading);
+			remember(el, true);
 			publish(reading);
 		},
-		[publish, ready, surfaceId],
+		[publish, ready, surfaceId, remember],
 	);
 
 	/**
@@ -536,13 +580,16 @@ export function useFollowBottom({
 			}
 			// 手里按着东西的时候，跟随底部让路——细节见 `settle`。
 			if (settle(el)) {
+				remember(el);
 				publish(read(el));
 				return;
 			}
 			if (state.current === "following") pin(el);
+			else keepPlace(el);
+			remember(el);
 			publish(read(el));
 		},
-		[publish, write, ready, surfaceId, settle, pin],
+		[publish, write, ready, surfaceId, settle, pin, keepPlace, remember],
 	);
 
 	/**
@@ -675,6 +722,7 @@ export function useFollowBottom({
 		touchY.current = 0;
 		restoredSurface.current = undefined;
 		selectedSurface.current = surfaceId;
+		place.current = null;
 		current.current = makeMarker(count, tail);
 		restore.current = surfaceId ? readFollow(namespace, surfaceId) : undefined;
 		state.current = restore.current?.following === false ? "detached" : "following";
@@ -771,4 +819,21 @@ export function useFollowBottom({
 		glide.current = requestAnimationFrame(step);
 	}, [detach, publish, write]);
 	return { scrollRef, tailRef, away, unread, returnToBottom, onScroll, onResize, onUserScroll: intend, detach, scrollTo, hold, settle };
+}
+
+/**
+ * 读者眼前的第一块：按文档顺序第一个从 `edge` 或更下面开始的元素。
+ *
+ * 不取被视口顶边切开的那一块：一段纯文字被切开时，它自己重新断行，锚在它的顶上，露出来的那几行
+ * 照样会动（量到过 22px）。一段文字比整个视口还高、里面没有别的开头时就找不到，那次不补。
+ */
+function firstInView(parent: Element, edge: number): Element | null {
+	for (const child of parent.children) {
+		const box = child.getBoundingClientRect();
+		if (box.bottom <= edge) continue;
+		if (box.top >= edge) return child;
+		const inner = firstInView(child, edge);
+		if (inner) return inner;
+	}
+	return null;
 }

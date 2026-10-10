@@ -11,12 +11,10 @@
  */
 
 import { translate } from "../i18n/translate.ts";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ResizeHandle } from "../ui/layout/ResizeHandle.tsx";
 import { useFocusTrap, useLayout } from "./layout.tsx";
 import { NATIVE_HEADER_HEIGHT } from "../../shared/window-chrome.ts";
-import { motionReduced } from "../ui/motion/reduced.ts";
-import { holdColumnWidth } from "./hold-column-width.ts";
 
 /**
  * The shell's navigation pane, in whichever form the window can afford.
@@ -62,20 +60,6 @@ export function NavPane({
 		const id = window.setTimeout(() => setSnap(false), 60);
 		return () => window.clearTimeout(id);
 	}, [compact]);
-
-	/*
-	 * The text beside the pane moves to its final width and place in one straight motion, rather than
-	 * following the pane through its breakpoints — see `hold-column-width.ts`.
-	 * A layout effect, so the first frame of the slide is already painted with it.
-	 */
-	const frame = useRef<HTMLDivElement>(null);
-	const wasOpen = useRef(navOpen);
-	useLayoutEffect(() => {
-		if (wasOpen.current === navOpen) return;
-		wasOpen.current = navOpen;
-		if (!frame.current || compact || snap || motionReduced()) return;
-		return holdColumnWidth(frame.current);
-	}, [navOpen, compact, snap]);
 
 	const pane = (
 		<aside
@@ -136,7 +120,6 @@ export function NavPane({
 		 * Only the invisible hit area stepped aside.
 		 */
 		<div
-			ref={frame}
 			/*
 			 * `ly-freeze`: this frame's margin is what makes the sidebar push the content aside, so
 			 * dragging its edge changes the margin every frame — and an eased margin trails the

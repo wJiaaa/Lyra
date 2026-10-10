@@ -192,26 +192,6 @@
 	container: ly-chat ly-pane / inline-size;
 }
 
-/*
- * 对话那一栏（转录和输入框）有多宽：窗格窄于 864 铺满；864–1279 是
- * `min(100% - 96px, 896px)`；1280 起是 `min(100% - 384px, 1152px)`。这是那一栏减掉
- * 左右各 16px 内衬之后的输入框宽度。
- *
- * 写在窗格的直接子元素上再往下继承：容器查询只能改容器里面的元素，改不了容器自己。
- * 侧栏、右栏开合的那一段滑动里，读它的那几栏由动画从起点的宽度和位置直接走到终点，见 `app/hold-column-width.ts`。
- */
-@container ly-pane (width >= 864px) {
-	.ly-dock-pane > * {
-		--ly-content: min(calc(100cqw - 128px), 864px);
-	}
-}
-
-@container ly-pane (width >= 1280px) {
-	.ly-dock-pane > * {
-		--ly-content: min(calc(100cqw - 416px), 1120px);
-	}
-}
-
 @container ly-chat (width < 360px) {
 	[data-ly-split-chrome] [data-ly-panel-quick] {
 		display: none;
