@@ -135,6 +135,8 @@ export class SessionStore implements SessionStorage {
 			...(options.thinking ? { thinking: options.thinking } : {}),
 			messageCount: 0,
 			usage: emptyUsage(),
+			turns: 0,
+			replyUsage: emptyUsage(),
 			seq: 0,
 		};
 		const db = this.db;
@@ -215,7 +217,24 @@ export class SessionStore implements SessionStorage {
 
 	async listSessions(): Promise<SessionMeta[]> {
 		const rows = this.db.prepare("SELECT meta FROM sessions ORDER BY updated_at DESC").all() as { meta: string }[];
-		return rows.map((row) => JSON.parse(row.meta) as SessionMeta);
+		return rows.map((row) => this.withStats(JSON.parse(row.meta) as SessionMeta));
+	}
+
+	/**
+	 * `turns` and `replyUsage` for a session written before they existed, counted from its log once.
+	 *
+	 * Stored on the meta row without a record: they follow from records already written, so filling
+	 * them in is not something that happened to the conversation and must move neither `seq` nor
+	 * `updatedAt`. The `seq` guard drops the write if another writer got in first; the next listing
+	 * counts again.
+	 */
+	private withStats(meta: SessionMeta): SessionMeta {
+		if (meta.turns !== undefined && meta.replyUsage) return meta;
+		const rows = this.db.prepare("SELECT body FROM records WHERE session_id = ? AND kind IN ('message', 'truncate') ORDER BY seq").all(meta.id) as { body: string }[];
+		const { turns, replyUsage } = replayRecords(rows.map((row) => JSON.parse(row.body) as SessionRecord));
+		const filled = { ...meta, turns, replyUsage };
+		this.db.prepare("UPDATE sessions SET meta = ? WHERE id = ? AND seq = ?").run(JSON.stringify(filled), meta.id, meta.seq);
+		return filled;
 	}
 
 	/** Stream records, optionally only those newer than `sinceSeq`. */
@@ -303,6 +322,8 @@ export class SessionStore implements SessionStorage {
 		}
 		meta.messageCount = messages.length;
 		meta.usage = settledUsage(meta.usage, replayed.usage);
+		meta.turns = replayed.turns;
+		meta.replyUsage = replayed.replyUsage;
 		return { meta, messages, entries, compactions: replayed.compactions, compaction: replayed.compaction, commandRuns: replayed.commandRuns, hookRuns: replayed.hookRuns };
 	}
 
@@ -325,10 +346,11 @@ export class SessionStore implements SessionStorage {
 			// The seq to keep is the one just before the record carrying the doomed message.
 			const truncated = this.write(sessionId, { type: "truncate", afterSeq: entries[target].seq - 1 }, false);
 			if (!truncated) return null;
-			const usage = settledUsage(truncated.usage, this.replay(sessionId, false).usage);
+			const replayed = this.replay(sessionId, false);
+			const counts = { messageCount: target, usage: settledUsage(truncated.usage, replayed.usage), turns: replayed.turns, replyUsage: replayed.replyUsage };
 			// The meta row tracks message count; a truncate is the one write that lowers it.
-			const corrected = this.write(sessionId, { type: "meta", meta: { ...truncated, messageCount: target, usage } }, false) ?? truncated;
-			return { meta: { ...corrected, messageCount: target, usage }, kept: entries.slice(0, target).map((entry) => entry.message) };
+			const corrected = this.write(sessionId, { type: "meta", meta: { ...truncated, ...counts } }, false) ?? truncated;
+			return { meta: { ...corrected, ...counts }, kept: entries.slice(0, target).map((entry) => entry.message) };
 		});
 		if (!cut) return null;
 		return { meta: cut.meta, messages: await rehydrateMessages(cut.kept) };

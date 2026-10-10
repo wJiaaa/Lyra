@@ -33,6 +33,9 @@ export interface Replayed {
 	compaction: Boundary | null;
 	/** Everything the surviving transcript spent, sub-agents and side calls included. */
 	usage: Usage;
+	/** See `SessionMeta.turns` and `SessionMeta.replyUsage`. */
+	turns: number;
+	replyUsage: Usage;
 }
 
 export function replayRecords(records: Iterable<SessionRecord>): Replayed {
@@ -84,9 +87,14 @@ export function replayRecords(records: Iterable<SessionRecord>): Replayed {
 		}
 	}
 
-	let usage = auxiliaryUsage;
+	let replyUsage = emptyUsage();
+	let turns = 0;
+	for (const { message } of entries) {
+		if (message.role === "assistant" && message.usage) replyUsage = addUsage(replyUsage, message.usage);
+		else if (message.role === "user" && !message.synthetic) turns += 1;
+	}
+	let usage = addUsage(auxiliaryUsage, replyUsage);
 	for (const entry of subagentEntries) if (entry.usage) usage = addUsage(usage, entry.usage);
-	for (const { message } of entries) if (message.role === "assistant" && message.usage) usage = addUsage(usage, message.usage);
 
 	return {
 		entries,
@@ -95,5 +103,7 @@ export function replayRecords(records: Iterable<SessionRecord>): Replayed {
 		commandRuns: [...commandRuns.values()].map(({ run }) => (run.status === "running" ? interruptedCompaction(run) : run)),
 		hookRuns: [...hookRuns.values()].map(({ run }) => run),
 		usage,
+		turns,
+		replyUsage,
 	};
 }

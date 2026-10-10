@@ -117,8 +117,7 @@ test("engineering delivery shows net syntax diffs, a real report and a live owne
 	await app.evaluate("Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished.catch(()=>{}))).then(()=>document.fonts.ready)");
 	await app.evaluate(`document.querySelector('[data-turn-delivery] [data-delivery-file]').scrollIntoView({block:'nearest',behavior:'instant'})`);
 	/*
-	 * The transcript is still settling when the card arrives — the recap lands after it and moves
-	 * the row. A pointer placed before that hovered whatever slid
+	 * The transcript is still settling when the card arrives, and moves the row. A pointer placed before that hovered whatever slid
 	 * under it, or sat still while the row slid under it and never entered it. Measured once it has
 	 * held still for 600ms.
 	 */

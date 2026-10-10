@@ -8,20 +8,6 @@
 import type { AgentEvent } from "../agent/events.ts";
 import type { Message, ThinkingLevel, Usage } from "../types.ts";
 
-/**
- * What the conversation looked like when its recap was written.
- *
- * `covered` is how many transcript messages it accounts for and `coveredAt` the timestamp of the
- * last of them: a length alone cannot tell a transcript that grew from one that was rewound and
- * grew back to the same length.
- */
-export interface SessionRecap {
-	text: string;
-	covered: number;
-	coveredAt: number;
-	at: number;
-}
-
 export interface SessionMeta {
 	id: string;
 	title: string;
@@ -33,6 +19,21 @@ export interface SessionMeta {
 	modelId: string;
 	messageCount: number;
 	usage: Usage;
+	/**
+	 * Messages a person sent: the length of the conversation as anyone would count it. `messageCount`
+	 * also counts every reply and tool result, so one turn that ran forty tools read as eighty-odd.
+	 *
+	 * Absent on sessions written before it existed, until `listSessions` fills it in from the log.
+	 */
+	turns?: number;
+	/**
+	 * What the main conversation's own replies spent: `usage` without sub-agents and side calls.
+	 *
+	 * The cache hit rate is read off this. Those other calls each start a prefix of their own, so
+	 * mixed in they pull the rate down, and they hide the one question it answers — whether the
+	 * conversation's prefix keeps being reused. Absent on old sessions, like `turns`.
+	 */
+	replyUsage?: Usage;
 	archived?: boolean;
 	/** A submitted opening message is durable before its runtime is initialized. */
 	pendingPrompt?: boolean;
@@ -79,8 +80,6 @@ export interface SessionMeta {
 	 * name a moment later: the rename looked like it had worked, right up until the first message.
 	 */
 	titleSetByUser?: boolean;
-	/** The last recap written for a person coming back to this conversation. See `runtime/session-recap.ts`. */
-	recap?: SessionRecap;
 	/** Highest sequence number written. Readers compare against this. */
 	seq: number;
 }
@@ -97,14 +96,6 @@ export type SessionRecord =
 	 * catching up from seq N learns the session was archived, same as any other change.
 	 */
 	| { seq: number; ts: number; type: "archive"; archived: boolean }
-	/**
-	 * A recap was asked for. Carries its own usage because it was billed, and `text` is absent when
-	 * the call came back with nothing usable — the cost still counts, the old recap stays.
-	 *
-	 * Not a `usage` record plus a `meta` write: both move `updatedAt`, and the recap is generated
-	 * when someone *opens* a conversation. Looking at one must not lift it to the top of the list.
-	 */
-	| { seq: number; ts: number; type: "recap"; text?: string; covered: number; coveredAt: number; providerId: string; modelId: string; usage: Usage }
 	/**
 	 * Filed under another project: `cwd`, `projectId` and `projectName` change together.
 	 *

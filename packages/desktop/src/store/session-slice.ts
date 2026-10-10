@@ -461,7 +461,7 @@ export function sessionSlice(set: Set, get: Get) {
    * updates them (`applyRecord` in core's `session/apply-record.ts`). Nothing was writing them down
    * here.
    *
-   * Only the two figures and the recap, deliberately. Taking the whole record would bring `updatedAt` with it,
+   * Only the figures, deliberately. Taking the whole record would bring `updatedAt` with it,
    * and the sidebar is sorted by that — pulling the row out from under a pointer that is resting on
    * it, to show a fresher number, would be a worse trade than the stale number.
    */
@@ -471,7 +471,7 @@ export function sessionSlice(set: Set, get: Get) {
     set({
       sessions: get().sessions.map((s) =>
         s.id === sessionId
-          ? { ...s, messageCount: latest.messageCount, usage: latest.usage, recap: latest.recap }
+          ? { ...s, messageCount: latest.messageCount, usage: latest.usage, turns: latest.turns, replyUsage: latest.replyUsage }
           : s,
       ),
     });

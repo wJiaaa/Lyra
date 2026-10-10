@@ -5,7 +5,6 @@ import { ApprovalOverlay } from "./ApprovalOverlay.tsx";
 import { BackToLatest } from "./BackToLatest.tsx";
 import { Composer } from "../composer/index.ts";
 import { ResumeRow } from "./ResumeRow.tsx";
-import { useRecapMeasure } from "./recap-measure.ts";
 import { HiccupRow } from "./HiccupTrace.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
@@ -211,7 +210,6 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
     tail: tailSignature(messages, toolProgress),
   });
   const scrollRef = follow.scrollRef;
-  useRecapMeasure(scrollRef, questions);
 
   /*
    * Sending puts you back at the bottom, wherever you had scrolled to.

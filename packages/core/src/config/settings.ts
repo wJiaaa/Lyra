@@ -349,8 +349,6 @@ export interface Settings {
 	defaultModelId: string | null;
 	/** Default for new side chats; null follows the main conversation. */
 	sideChatModelId?: string | null;
-	/** Model for session recaps; null follows the session's model. */
-	recapModelId?: string | null;
 	/** Model for smart session titles; null follows the session's model. */
 	titleModelId?: string | null;
 	/** Model for the background memory pass; null follows `defaultModelId`, since it runs in no session. */

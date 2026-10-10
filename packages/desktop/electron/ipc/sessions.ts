@@ -42,7 +42,6 @@ import {
 	touchSession,
 } from "../session-hub.ts";
 import { slimSnapshot } from "../display-transcript.ts";
-import { recapSession } from "../session-recap.ts";
 import { steerDisplay } from "../prompt-input.ts";
 
 export interface SessionsIpcDeps {
@@ -278,8 +277,6 @@ export function registerSessionsIpc({
 		if (!session) return { ok: false as const, reason: "找不到这个会话。" };
 		return session.compact(instructions);
 	});
-
-	ipcMain.handle("sessions:recap", (_event, sessionId: string) => recapSession(store, readSettings, sessionId, sessions.get(sessionId)));
 
 	ipcMain.handle(
 		"sessions:capabilities",

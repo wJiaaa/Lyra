@@ -18,7 +18,7 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Coins, FolderOpen, History, MessagesSquare, Zap } from "../../ui/icons/index.ts";
+import { ArrowDownToLine, ArrowUpFromLine, Coins, Database, FolderOpen, MessagesSquare, Zap } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { SessionMeta } from "@plume/core";
@@ -79,11 +79,23 @@ function when(at: number, locale: ResolvedUiLocale): string {
  * Cache writes belong in the denominator. They are input that was sent and paid for at full rate;
  * leaving them out inflates the rate on exactly the providers that report them — an Anthropic turn
  * that wrote 5k to the cache and read 20k from it is a 80% hit, not the 99% it used to read as.
+ *
+ * Over the conversation's own replies (`replyUsage`), the way ZCode and deepseek-harness count it.
+ * Sub-agents, titles and compaction each start a prefix of their own; mixed in, they pulled the
+ * rate down and could hide a main loop whose cache had stopped working. `usage` only for a row
+ * that has not been counted yet.
  */
-function cacheHitRate(usage: SessionMeta["usage"]): number | null {
+function cacheHitRate(session: SessionMeta): number | null {
+	const usage = session.replyUsage ?? session.usage;
 	const sent = usage.input + usage.cacheRead + usage.cacheWrite;
 	if (sent <= 0) return null;
 	return usage.cacheRead / sent;
+}
+
+/** Whole percent, except that something short of 100% never reads as 100%: 99.96% shows 99.9%. */
+function percent(rate: number): string {
+	const whole = Math.round(rate * 100);
+	return whole === 100 && rate < 1 ? `${(Math.floor(rate * 1000) / 10).toFixed(1)}%` : `${whole}%`;
 }
 
 /**
@@ -178,7 +190,7 @@ export function SessionCard({
 	}, [anchor]);
 
 	const usage = session.usage;
-	const hit = cacheHitRate(usage);
+	const hit = cacheHitRate(session);
 
 	return portal(<div
 			ref={card}
@@ -208,34 +220,29 @@ export function SessionCard({
 			</div>
 
 			{/*
-			 * 最近一次回顾，只读现成的：悬停不去请求模型，划过一列会话不该是一列账单。
-			 * 一行一件事，所以照行显示，三行封顶。
-			 */}
-			{session.recap && (
-				<div className="flex gap-1.5 px-3 py-2 text-detail text-ink-muted">
-					<span className="mt-[3px] shrink-0 text-ink-faint"><History size={11.5} strokeWidth={1.9} /></span>
-					<p className="line-clamp-3 min-w-0 whitespace-pre-line leading-[17px]">{session.recap.text}</p>
-				</div>
-			)}
-
-			{/*
 			 * Numbers last, and only the ones that mean something on their own.
 			 *
-			 * Message count answers "how long is this", tokens answer "what did it cost", and the
-			 * hit rate answers "was most of that re-read for free" — which is the one that changes
-			 * what anyone does next, and the one nothing in the app was showing.
+			 * Turns answer "how long is this", tokens answer "what did it cost", and the hit rate
+			 * answers "was most of that re-read for free" — which is the one that changes what anyone
+			 * does next. Turns rather than `messageCount`, which counts every tool result as well.
 			 *
 			 * 「用量」 is fresh tokens, not `usage.total`. The total counts every cache read again,
 			 * so a long agentic session reported half a billion tokens beside a 95% hit rate — two
-			 * figures describing the same fact, with nothing connecting them and the alarming one
-			 * first. What is left is the number the hit rate is a comment on.
+			 * figures describing the same fact, the alarming one first. The second row says what it is
+			 * made of — input and output add up to it — and how much was re-read on top, which it
+			 * leaves out. Here rather than in a tooltip, because the card ignores the pointer.
+			 *
+			 * A grid, so the two rows share columns: sized like `Stat` describes, by the widest of each
+			 * column, with the outer ones on the card's edges. Every cell is always drawn, a dash where
+			 * there is nothing to say, or a missing cell would shift the rest out of their columns.
 			 */}
-			<div className="flex items-start justify-between gap-2 px-3 py-2">
-				<Stat icon={<MessagesSquare size={11} strokeWidth={2} />} label={translate("sessionCard.messages")} value={String(session.messageCount)} />
+			<div className="grid grid-cols-[repeat(3,auto)] justify-between gap-x-2 gap-y-2 px-3 py-2">
+				<Stat icon={<MessagesSquare size={11} strokeWidth={2} />} label={translate("sessionCard.turns")} value={session.turns === undefined ? "–" : String(session.turns)} />
 				<Stat icon={<Zap size={11} strokeWidth={2} />} label={translate("sessionCard.usage")} value={formatTokens(freshTokens(usage))} />
-				{hit !== null && (
-					<Stat icon={<Coins size={11} strokeWidth={2} />} label={translate("sessionCard.cache")} value={`${Math.round(hit * 100)}%`} />
-				)}
+				<Stat icon={<Coins size={11} strokeWidth={2} />} label={translate("sessionCard.cache")} value={hit === null ? "–" : percent(hit)} />
+				<Stat icon={<ArrowDownToLine size={11} strokeWidth={2} />} label={translate("sessionCard.input")} value={formatTokens(usage.input + usage.cacheWrite)} />
+				<Stat icon={<ArrowUpFromLine size={11} strokeWidth={2} />} label={translate("sessionCard.output")} value={formatTokens(usage.output)} />
+				<Stat icon={<Database size={11} strokeWidth={2} />} label={translate("sessionCard.cacheRead")} value={formatTokens(usage.cacheRead)} />
 			</div>
 		</div>);
 }

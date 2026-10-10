@@ -1,7 +1,7 @@
 /**
  * Which model runs a sub-agent or a background job, decided by what this machine chose in settings.
  *
- * Each job has its own row in settings (an agent by name, `compact`, the title, recap and memory
+ * Each job has its own row in settings (an agent by name, `compact`, the title and memory
  * models), and an unset row follows the session's model.
  */
 

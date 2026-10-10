@@ -33,4 +33,3 @@ export { showTrace } from "./trajectory/navigation.ts";
 export { Conversation, ConversationSkeleton } from "./Conversation.tsx";
 export { EmptyState } from "./EmptyState.tsx";
 /* 回到会话时的那张回顾卡：壳挂到达的监听。 */
-export { useRecapArrivals } from "./recap.ts";

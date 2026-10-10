@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { SessionStore } from "../src/session/store.ts";
 import type { Message } from "../src/types.ts";
@@ -199,6 +200,11 @@ test("subagent usage is dropped when parent turn is truncated, but auxiliary usa
 		type: "message",
 		message: { role: "user", content: [{ type: "text", text: "q2" }], timestamp: 3 },
 	});
+	// The runtime speaking on the user's side is not a turn.
+	meta = await store.append(meta, {
+		type: "message",
+		message: { role: "user", content: [{ type: "text", text: "<sub-agent report>" }], timestamp: 3, synthetic: true },
+	});
 	meta = await store.append(meta, {
 		type: "event",
 		event: {
@@ -231,6 +237,8 @@ test("subagent usage is dropped when parent turn is truncated, but auxiliary usa
 	});
 
 	assert.equal(meta.usage.total, 60 + 120 + 550 + 230); // 960
+	assert.equal(meta.turns, 2);
+	assert.equal(meta.replyUsage?.total, 120 + 230, "replies only: no sub-agent, no side call");
 
 	// Truncate from messageIndex 2 (the second user message)
 	const truncated = await store.truncateFrom(meta.id, 2);
@@ -239,6 +247,8 @@ test("subagent usage is dropped when parent turn is truncated, but auxiliary usa
 
 	// Expected surviving usage: auxUsage (60) + turn 1 assistant (120) = 180
 	assert.equal(truncated.meta.usage.total, 180, "truncated meta in return value has surviving usage");
+	assert.equal(truncated.meta.turns, 1);
+	assert.equal(truncated.meta.replyUsage?.total, 120);
 
 	const loaded = await store.load(meta.id);
 	assert.ok(loaded);
@@ -248,4 +258,33 @@ test("subagent usage is dropped when parent turn is truncated, but auxiliary usa
 	const indexed = (await store.listSessions()).find((s) => s.id === meta.id);
 	assert.ok(indexed);
 	assert.equal(indexed.usage.total, 180, "index.json has surviving usage");
+});
+
+test("a session written before turns and reply usage existed gets them counted once, without moving it", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "ly-store-stats-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	const store = new SessionStore(root);
+	const meta = await store.create("/tmp/project", "model");
+	await store.append(meta, { type: "message", message: { role: "user", content: [{ type: "text", text: "q" }], timestamp: 1 } });
+	await store.append(meta, { type: "message", message: { ...assistant(), usage: { ...emptyUsage(), input: 10, cacheRead: 90, total: 100 } } });
+	await store.append(meta, { type: "message", message: toolResult("a") });
+
+	// What an older build left in the row: neither field.
+	const db = new DatabaseSync(store.path);
+	db.prepare("UPDATE sessions SET meta = json_remove(meta, '$.turns', '$.replyUsage') WHERE id = ?").run(meta.id);
+	const before = (await store.get(meta.id))!;
+	assert.equal(before.turns, undefined);
+
+	// Not counted from zero by the next write: that would leave it short of every turn before it.
+	await store.append(meta, { type: "message", message: { role: "user", content: [{ type: "text", text: "q2" }], timestamp: 2 } });
+	assert.equal((await store.get(meta.id))!.turns, undefined);
+
+	const listed = (await store.listSessions()).find((s) => s.id === meta.id)!;
+	assert.equal(listed.turns, 2);
+	assert.equal(listed.replyUsage?.cacheRead, 90);
+	const stored = (await store.get(meta.id))!;
+	assert.equal(stored.turns, 2, "written back, so the next listing does not count again");
+	assert.equal(stored.seq, before.seq + 1);
+	assert.equal(stored.updatedAt, listed.updatedAt);
+	db.close();
 });

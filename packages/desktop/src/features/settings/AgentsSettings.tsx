@@ -190,10 +190,6 @@ export function AgentsSettings() {
 							<ModelSelect ariaLabel={t("agents.sidechatModel")} showIcon={false} value={settings.sideChatModelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} inheritDetail={t("agents.sidechatModelDetail")} disabled={saving}
 								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, sideChatModelId: modelId || null }); }} />
 						</SettingRow>
-						<SettingRow name={t("agents.recapModel")} detail={t("agents.recapModelDetail")}>
-							<ModelSelect ariaLabel={t("agents.recapModel")} showIcon={false} value={settings.recapModelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} inheritDetail={t("agents.recapModelDetail")} disabled={saving}
-								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, recapModelId: modelId || null }); }} />
-						</SettingRow>
 						<SettingRow name={t("agents.titleModel")} detail={t("agents.titleModelDetail")}>
 							<ModelSelect ariaLabel={t("agents.titleModel")} showIcon={false} value={settings.titleModelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} inheritDetail={t("agents.titleModelDetail")} disabled={saving}
 								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, titleModelId: modelId || null }); }} />

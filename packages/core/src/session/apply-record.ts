@@ -37,19 +37,18 @@ export function applyRecord(base: SessionMeta, payload: SessionRecordInput, now:
 	}
 	if (payload.type === "message") {
 		next.messageCount = base.messageCount + 1;
-		if (payload.message.role === "assistant") next.usage = addUsage(base.usage, payload.message.usage);
+		// Left absent on a session that predates these fields: `listSessions` counts them from the log, all at once.
+		if (payload.message.role === "user" && !payload.message.synthetic && base.turns !== undefined) next.turns = base.turns + 1;
+		if (payload.message.role === "assistant") {
+			next.usage = addUsage(base.usage, payload.message.usage);
+			if (base.replyUsage) next.replyUsage = addUsage(base.replyUsage, payload.message.usage);
+		}
 	}
 	if (payload.type === "title") {
 		next.title = payload.title;
 		if (payload.source === "user") next.titleSetByUser = true;
 	}
 	if (payload.type === "usage") next.usage = addUsage(base.usage, payload.usage);
-	if (payload.type === "recap") {
-		next.usage = addUsage(base.usage, payload.usage);
-		// Written when a conversation is opened; opening it is not using it. Same rule as `archive`.
-		next.updatedAt = base.updatedAt;
-		if (payload.text) next.recap = { text: payload.text, covered: payload.covered, coveredAt: payload.coveredAt, at: now };
-	}
 	if (payload.type === "archive") {
 		next.archived = payload.archived;
 		// Filing something away is not activity; the list stays sorted by last real use.

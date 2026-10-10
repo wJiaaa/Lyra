@@ -19,7 +19,6 @@ import { commandEntries } from "./command-catalog.ts";
 import { ScheduledAlert } from "../scheduled/index.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
-import { RecapBar } from "./RecapBar.tsx";
 import { openFilePane, openScopedPanel, useSide } from "../dock/index.ts";
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { ContextMeter } from "./ContextMeter.tsx";
@@ -51,7 +50,6 @@ import {
 } from "../../app/session-scope.tsx";
 import { awaitingSubAgents } from "../../store/subAgents.ts";
 import { awaitingSession } from "../../store/tool-run.ts";
-import { requestRecap } from "../../store/recap.ts";
 import { carryOnPrompt } from "../../store/derive.ts";
 import { useJobReveal } from "./job-reveal.ts";
 import { bridge } from "../../services/index.ts";
@@ -395,7 +393,6 @@ export function Composer({ centered = false }: {
 		if (builtin) {
 			if (attachments.length || sessionRefs.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
 			if (builtin.action === "compact" && !activeSessionId) { useApp.getState().notify(translate("composer.nothingToCompact"), "warn"); return; }
-			if (builtin.action === "recap" && !activeSessionId) { useApp.getState().notify(translate("recap.nothing"), "warn"); return; }
 			if (builtin.action !== "compact" && invocation?.rest) { useApp.getState().notify(translate("composer.commandNoArgs"), "warn"); return; }
 			setText("");
 			setDraft(draftKey, null);
@@ -404,8 +401,7 @@ export function Composer({ centered = false }: {
 			if (builtin.action === "compact" && activeSessionId) {
 				const result = await bridge.sessions.compact(activeSessionId, invocation?.rest);
 				if (!result.ok && result.reason) useApp.getState().notify(compactText(result, result.reason), "warn");
-			} else if (builtin.action === "recap" && activeSessionId) await requestRecap(activeSessionId, true);
-			else if (builtin.action === "clear") await useApp.getState().newSession();
+			} else if (builtin.action === "clear") await useApp.getState().newSession();
 			else if (builtin.action === "manage-commands") {
 				useApp.getState().setSettingsSection("commands");
 				useApp.getState().setView("settings");
@@ -532,8 +528,6 @@ export function Composer({ centered = false }: {
 				 */}
 				{/* Into this conversation's own screen: the announcement is not a click, so the focus says nothing. */}
 				<SubAgentBar onOpen={() => openScopedPanel("subagents", activeSessionId ?? "@draft")} />
-				{/* 回到一个你不在时跑完的会话，一句话回顾。按会话重挂：换个对话，上一个的回顾不该跟着收合过来。 */}
-				<RecapBar key={activeSessionId} />
 				{/*
 				 * A scheduled task failed, in a session nobody was watching. Said where someone is —
 				 * and only on the screen in front, which `ScheduledAlert` decides for itself.
