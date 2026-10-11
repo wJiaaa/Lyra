@@ -1,11 +1,12 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { createInterface } from "node:readline";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, join, relative, sep } from "node:path";
+import { basename, dirname, join, relative, sep } from "node:path";
 import type { Readable } from "node:stream";
 import { errorResult } from "./result.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { globToRegExp } from "./glob.ts";
+import { gitListedFiles } from "./grep-files.ts";
 import { formatMatchWindow, formatMatchWindowAt, utf8ByteOffsetToIndex, type MatchOptions } from "./long-line.ts";
 import { looksBinary } from "./paths.ts";
 import { authorizeRead } from "./read-access.ts";
@@ -115,8 +116,13 @@ export const grepTool: Tool<GrepArgs> = {
 			if (!authorized.ok) return errorResult(authorized.message);
 			root = authorized.absolute;
 		}
+		/*
+		 * 结果里的路径相对谁写。搜一个文件时 ripgrep 报的是传进去的绝对路径，按 `root` 去剥前缀剥不掉，
+		 * 每一行都顶着整条绝对路径；按它所在的目录剥，就和兜底扫描器一样只剩文件名。
+		 */
+		const base = (await stat(root).catch(() => null))?.isFile() ? dirname(root) : root;
 
-		const viaRipgrep = await runRipgrep(normalizedArgs, root, ctx);
+		const viaRipgrep = await runRipgrep(normalizedArgs, root, base, ctx);
 		if (viaRipgrep) return viaRipgrep;
 
 		/*
@@ -129,7 +135,7 @@ export const grepTool: Tool<GrepArgs> = {
 		 * JavaScript for a query ripgrep answers in milliseconds.
 		 */
 		if (!compiles(normalizedArgs.pattern)) {
-			const literally = await runRipgrep(normalizedArgs, root, ctx, true);
+			const literally = await runRipgrep(normalizedArgs, root, base, ctx, true);
 			if (literally) return literally;
 		}
 		return runFallback(normalizedArgs, root, ctx);
@@ -145,12 +151,22 @@ function compiles(pattern: string): boolean {
 	}
 }
 
-async function runRipgrep(args: GrepArgs, root: string, ctx: ToolContext, literal = false): Promise<ToolResult | null> {
+/**
+ * 用哪个 ripgrep。
+ *
+ * 桌面端把随安装包带的那份写进 `PLUME_RIPGREP`。没有它就只能指望用户的 `PATH` 里碰巧装了 `rg`——
+ * 没装就整个退回 JavaScript 兜底，慢几十倍，而且从界面上看不出任何区别。
+ */
+function ripgrepCommand(): string {
+	return process.env.PLUME_RIPGREP?.trim() || "rg";
+}
+
+async function runRipgrep(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal = false): Promise<ToolResult | null> {
 	const limit = Math.min(args.limit ?? MAX_MATCHES, MAX_MATCHES);
-	if (args.files_only) return runRipgrepText(args, root, ctx, literal, limit, true);
-	const fromJson = await runRipgrepJson(args, root, ctx, literal, limit);
+	if (args.files_only) return runRipgrepText(args, root, base, ctx, literal, limit, true);
+	const fromJson = await runRipgrepJson(args, root, base, ctx, literal, limit);
 	if (fromJson) return fromJson;
-	return runRipgrepText(args, root, ctx, literal, limit, false);
+	return runRipgrepText(args, root, base, ctx, literal, limit, false);
 }
 
 /**
@@ -158,7 +174,7 @@ async function runRipgrep(args: GrepArgs, root: string, ctx: ToolContext, litera
  * beat searching the formatted line again — a lookaround or engine mismatch
  * used to drop us back on the line head.
  */
-async function runRipgrepJson(args: GrepArgs, root: string, ctx: ToolContext, literal: boolean, limit: number): Promise<ToolResult | null> {
+async function runRipgrepJson(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal: boolean, limit: number): Promise<ToolResult | null> {
 	// `--crlf` so `$` matches before a `\r\n`: without it `foo$` never matched a line of a CRLF file.
 	const argv = ["--json", "--crlf", "--max-count", String(limit)];
 	if (literal) argv.push("--fixed-strings");
@@ -189,7 +205,7 @@ async function runRipgrepJson(args: GrepArgs, root: string, ctx: ToolContext, li
 		if (!keep) return true;
 		const raw = (event.data?.lines?.text ?? "").replace(/\r?\n$/, "");
 		const lineNo = event.data?.line_number ?? 0;
-		const rel = pathText.startsWith(`${root}${sep}`) ? pathText.slice(root.length + 1) : pathText;
+		const rel = pathText.startsWith(`${base}${sep}`) ? pathText.slice(base.length + 1) : pathText;
 		const byteStart = event.type === "match" ? event.data?.submatches?.[0]?.start : undefined;
 		const matchAt = typeof byteStart === "number" ? utf8ByteOffsetToIndex(raw, byteStart) : undefined;
 		lines.push(shortenLine(`${rel}:${lineNo}:${raw}`, args.pattern, { literal, ignoreCase: args.case_insensitive }, matchAt));
@@ -198,7 +214,7 @@ async function runRipgrepJson(args: GrepArgs, root: string, ctx: ToolContext, li
 	return run && ripgrepResult(run, args, limit, literal, completed, capped);
 }
 
-async function runRipgrepText(args: GrepArgs, root: string, ctx: ToolContext, literal: boolean, limit: number, filesOnly: boolean): Promise<ToolResult | null> {
+async function runRipgrepText(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal: boolean, limit: number, filesOnly: boolean): Promise<ToolResult | null> {
 	const argv = ["--no-heading", "--with-filename", "--line-number", "--color=never", "--crlf", "--max-count", String(limit)];
 	if (literal) argv.push("--fixed-strings");
 	if (args.case_insensitive) argv.push("-i");
@@ -208,7 +224,7 @@ async function runRipgrepText(args: GrepArgs, root: string, ctx: ToolContext, li
 	argv.push("--", args.pattern, root);
 	const run = await collectRipgrep(argv, ctx, (line, lines, keep) => {
 		if (!keep) return true;
-		const shown = line.startsWith(`${root}${sep}`) ? line.slice(root.length + 1) : line;
+		const shown = line.startsWith(`${base}${sep}`) ? line.slice(base.length + 1) : line;
 		lines.push(shortenLine(shown, args.pattern, { literal, ignoreCase: args.case_insensitive }));
 		return true;
 	}, limit);
@@ -265,7 +281,7 @@ function collectRipgrep(
 			 * tool hung until the turn was aborted, then answered "No matches". stdin is closed so
 			 * ripgrep has nothing to wait on; `windowsHide` keeps a console from flashing up.
 			 */
-			child = spawn("rg", argv, { cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+			child = spawn(ripgrepCommand(), argv, { cwd: ctx.cwd, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
 		} catch {
 			resolve(null);
 			return;
@@ -337,6 +353,12 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 		 */
 		const text = buffer.toString("utf8");
 		const fileLines = (text.startsWith("\uFEFF") ? text.slice(1) : text).split(/\r?\n/);
+		/*
+		 * 已经输出到第几行。相邻两处命中的上下文重叠时，重叠的行只出一次，和 ripgrep 一样。
+		 * 原先每处命中各自吐前后 N 行：四个变量挨着定义、带 3 行上下文，同一段出现了三遍——历史会话里
+		 * 带上下文的搜索过半如此，模型读到的是一页重复，看着像命中比实际多得多。
+		 */
+		let shownTo = -1;
 
 		for (let i = 0; i < fileLines.length && lines.length < limit; i++) {
 			const found = regex.exec(fileLines[i]);
@@ -350,9 +372,11 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 				return;
 			}
 			const opts = { literal, ignoreCase: args.case_insensitive };
-			for (let c = Math.max(0, i - contextLines); c <= Math.min(fileLines.length - 1, i + contextLines); c++) {
+			const last = Math.min(fileLines.length - 1, i + contextLines);
+			for (let c = Math.max(0, i - contextLines, shownTo + 1); c <= last; c++) {
 				lines.push(shortenLine(`${rel}:${c + 1}:${fileLines[c]}`, args.pattern, opts, c === i ? found.index : undefined));
 			}
+			shownTo = Math.max(shownTo, last);
 		}
 	};
 
@@ -374,7 +398,15 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 	};
 
 	if ((await stat(root).catch(() => null))?.isFile()) await scanFile(root);
-	else await walk(root);
+	else {
+		const listed = await gitListedFiles(root);
+		if (!listed) await walk(root);
+		else for (const full of listed) {
+			if (lines.length >= limit || ctx.signal?.aborted) break;
+			if (globRegex && !globRegex.test(relative(root, full).split(sep).join("/"))) continue;
+			await scanFile(full);
+		}
+	}
 	// 满了就停，没扫完的部分还有多少命中不知道——所以要说「可能还有」，不能当成全部。
 	return formatMatches(lines, args, limit, literal, lines.length, "", lines.length >= limit);
 }
