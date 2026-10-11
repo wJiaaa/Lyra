@@ -513,9 +513,10 @@ test("a file marked in the side chat composer of the screen without focus opens 
 	plume.files = { pathForDrop: () => "/work/beta/notes.md" };
 	view = await inScreen("b", h(SideComposer, { side: null }));
 	const drop = new Event("drop", { bubbles: true, cancelable: true });
-	// 一个真的 DataTransfer 该有的都给上：drop 先问是不是文件树拖来的路径（`getData`），再按 `items` 拣出文件夹。
+	// 一个真的 DataTransfer 该有的都给上：先看 `types` 里有没有文件（拖一段字进来不归输入框管），再问是不是文件树拖来的路径（`getData`），最后按 `items` 拣出文件夹。
 	Object.defineProperty(drop, "dataTransfer", {
 		value: {
+			types: ["Files"],
 			files: [new File(["# notes"], "notes.md", { type: "text/markdown" })],
 			items: [{ kind: "file", webkitGetAsEntry: () => ({ isDirectory: false }) }],
 			getData: () => "",
