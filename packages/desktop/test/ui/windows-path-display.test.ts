@@ -23,7 +23,7 @@ test("会话悬停卡片的文件夹行只写文件夹名", async () => {
 		messageCount: 3,
 		updatedAt: Date.now(),
 		createdAt: Date.now(),
-		usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, total: 15 },
+		usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, total: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 	};
 	const anchor = { left: 0, right: 200, top: 0, bottom: 24, width: 200, height: 24, x: 0, y: 0, toJSON: () => ({}) };
 	const view = await mount(h(SessionCard, { session: session as never, anchor: anchor as DOMRect }));
