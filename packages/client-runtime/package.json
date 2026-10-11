@@ -9,5 +9,5 @@
     "test": "node --test --experimental-strip-types test/*.test.ts"
   },
   "dependencies": { "@plume/core": "workspace:*", "@plume/contract": "workspace:*" },
-  "devDependencies": { "typescript": "5.9.3", "@types/node": "24.13.3" }
+  "devDependencies": { "typescript": "6.0.3", "@types/node": "24.13.3" }
 }
