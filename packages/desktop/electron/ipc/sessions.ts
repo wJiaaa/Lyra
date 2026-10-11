@@ -341,6 +341,13 @@ export function registerSessionsIpc({
 		return session?.subAgents.detail(id) ?? null;
 	});
 
+	ipcMain.handle("subagents:contextBreakdown", async (_event, sessionId: string, id: string) => {
+		const session = sessions.get(sessionId);
+		const detail = session ? await session.subAgentContextBreakdown(id) : null;
+		for (const file of [...(detail?.memoryFiles ?? []), ...(detail?.projectMemoryFiles ?? [])]) grantArtifactRead(file.path);
+		return detail;
+	});
+
 	ipcMain.handle("subagents:list", async (_event, sessionId: string) => {
 		const session = sessions.get(sessionId);
 		return session?.subAgents.list() ?? [];

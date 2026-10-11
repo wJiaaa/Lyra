@@ -7,7 +7,7 @@ import type { ContextBreakdown, ContextSegmentKey } from "../../../electron/ipc-
 import { useScopedCompactions, useScopedRunning } from "../../app/session-scope.tsx";
 import { findModel } from "../models/index.ts";
 import { Popover, usePopover } from "../../ui/overlay/Popover.tsx";
-import { formatTokens } from "../conversation/index.ts";
+import { formatTokens } from "../../lib/format-tokens.ts";
 import { bridge } from "../../services/index.ts";
 import { ContextMemoryFiles } from "./ContextMemoryFiles.tsx";
 
@@ -29,16 +29,26 @@ export function ContextMeter({
 	settings,
 	modelId,
 	sessionId,
+	subAgentId,
+	running: runningHere,
+	openFile,
 }: {
 	messages: Message[];
 	settings: Settings | null;
+	/** Null when only the runtime knows the model — a sub-agent's; the window then comes with the reading. */
 	modelId: string | null;
 	sessionId: string | null;
+	/** One of this session's sub-agents rather than the session itself. */
+	subAgentId?: string;
+	/** Whether what is measured is mid-turn, when that is not the screen's own conversation. */
+	running?: boolean;
+	/** Where a memory file listed under the reading opens: the file pane beside this input. */
+	openFile?: (path: string, name: string) => void;
 }) {
 	const { t } = useI18n();
 	const popover = usePopover();
-	const [snapshot, setSnapshot] = useState<{ sessionId: string; modelId: string | null; detail: ContextBreakdown | null; error?: string } | null>(null);
-	const current = snapshot?.sessionId === sessionId && snapshot.modelId === modelId ? snapshot : null;
+	const [snapshot, setSnapshot] = useState<{ sessionId: string; modelId: string | null; subAgentId?: string; detail: ContextBreakdown | null; error?: string } | null>(null);
+	const current = snapshot?.sessionId === sessionId && snapshot.modelId === modelId && snapshot.subAgentId === subAgentId ? snapshot : null;
 	const detail = current?.detail;
 	const hasMessages = messages.length > 0;
 	/*
@@ -49,7 +59,8 @@ export function ContextMeter({
 	 * a turn still running here.
 	 */
 	const compacted = useScopedCompactions().length;
-	const running = useScopedRunning();
+	const scopedRunning = useScopedRunning();
+	const running = runningHere ?? scopedRunning;
 	const open = popover.open;
 	const revision = open || !running ? messages.length : 0;
 
@@ -57,18 +68,19 @@ export function ContextMeter({
 	useEffect(() => {
 		if (!sessionId || !hasMessages) return;
 		let cancelled = false;
-		void bridge.sessions.contextBreakdown(sessionId).then((result) => {
-			if (!cancelled) setSnapshot({ sessionId, modelId, detail: result, error: result ? undefined : t("context.unavailable") });
+		const reading = subAgentId ? bridge.subAgents.contextBreakdown(sessionId, subAgentId) : bridge.sessions.contextBreakdown(sessionId);
+		void reading.then((result) => {
+			if (!cancelled) setSnapshot({ sessionId, modelId, subAgentId, detail: result, error: result ? undefined : t("context.unavailable") });
 		}, (error: unknown) => {
-			if (!cancelled) setSnapshot({ sessionId, modelId, detail: null, error: error instanceof Error ? error.message : String(error) });
+			if (!cancelled) setSnapshot({ sessionId, modelId, subAgentId, detail: null, error: error instanceof Error ? error.message : String(error) });
 		});
 		return () => {
 			cancelled = true;
 		};
-	}, [open, sessionId, modelId, hasMessages, revision, compacted, running, settings, t]);
+	}, [open, sessionId, modelId, subAgentId, hasMessages, revision, compacted, running, settings, t]);
 
-	const model = findModel(settings, modelId);
-	if (!model || model.contextWindow <= 0) return null;
+	const limit = detail?.limit ?? findModel(settings, modelId)?.contextWindow ?? 0;
+	if (limit <= 0) return null;
 	/*
 	 * Nothing to report until something has been said.
 	 *
@@ -80,7 +92,6 @@ export function ContextMeter({
 
 	// Both readings use the model history, which can differ from the visible transcript.
 	const used = detail?.used ?? 0;
-	const limit = detail?.limit ?? model.contextWindow;
 	const ratio = Math.min(1, used / limit);
 	const percent = Math.round(ratio * 100);
 	// The runtime starts compacting well before the window is actually full, so "nearly full"
@@ -156,7 +167,10 @@ export function ContextMeter({
 									share={Math.max(0, limit - used) / limit}
 								/>
 								{!detail.measured && <p className="text-micro text-ink-faint">{t("context.estimateNote")}</p>}
-								<ContextMemoryFiles detail={detail} onOpen={popover.close} />
+								<ContextMemoryFiles detail={detail} onOpen={openFile && ((path, name) => {
+									popover.close();
+									openFile(path, name);
+								})} />
 
 							</div>
 						) : current?.error ? (

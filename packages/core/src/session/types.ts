@@ -34,6 +34,17 @@ export interface SessionMeta {
 	 * conversation's prefix keeps being reused. Absent on old sessions, like `turns`.
 	 */
 	replyUsage?: Usage;
+	/** 主对话里模型回了几次，一次请求一步；子智能体内部的来回不算。缺省同 `turns`。 */
+	steps?: number;
+	/** `usage` 里子智能体花掉的那部分，卡片据此把用量拆开。缺省同 `turns`。 */
+	subagentUsage?: Usage;
+	/**
+	 * 这个会话旁边所有侧边聊天的用量之和。
+	 *
+	 * 侧边聊天是自己的会话，花的记在自己的 `usage` 上；只有不带子会话的 `listSessions` 在返回时算上，
+	 * 不写盘——侧边聊天关掉就连记录一起删了，存一份在父会话上只会和它对不上。
+	 */
+	sideUsage?: Usage;
 	archived?: boolean;
 	/** A submitted opening message is durable before its runtime is initialized. */
 	pendingPrompt?: boolean;

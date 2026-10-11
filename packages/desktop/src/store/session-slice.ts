@@ -471,7 +471,7 @@ export function sessionSlice(set: Set, get: Get) {
     set({
       sessions: get().sessions.map((s) =>
         s.id === sessionId
-          ? { ...s, messageCount: latest.messageCount, usage: latest.usage, turns: latest.turns, replyUsage: latest.replyUsage }
+          ? { ...s, messageCount: latest.messageCount, usage: latest.usage, turns: latest.turns, replyUsage: latest.replyUsage, steps: latest.steps, subagentUsage: latest.subagentUsage, sideUsage: latest.sideUsage }
           : s,
       ),
     });

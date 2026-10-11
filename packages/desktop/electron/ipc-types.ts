@@ -432,6 +432,8 @@ export interface PlumeApi {
 		list(sessionId: string): Promise<SubAgentSummary[]>;
 		/** Everything one sub-agent has said. Null if the session is closed or the id is unknown. */
 		detail(sessionId: string, id: string): Promise<SubAgentDetail | null>;
+		/** Where one sub-agent's context window is going, the same reading as `sessions.contextBreakdown`. */
+		contextBreakdown(sessionId: string, id: string): Promise<ContextBreakdown | null>;
 		/**
 		 * Say something to a running sub-agent.
 		 *

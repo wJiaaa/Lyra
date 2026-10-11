@@ -17,7 +17,7 @@ import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { CommandRun, HookRun } from "../agent/events.ts";
 import type { AssistantMessage, Message, ToolResult, Usage } from "../types.ts";
-import { emptyUsage } from "../types.ts";
+import { addUsage, emptyUsage } from "../types.ts";
 import { applyRecord, persistedPayload, recordKind } from "./apply-record.ts";
 import { beforeSessionDbClose, closeSessionDb, sessionDb, transaction } from "./db.ts";
 import { interruptedResult, openRound, type CallPhase, type LiveCall } from "./live-calls.ts";
@@ -138,6 +138,8 @@ export class SessionStore implements SessionStorage {
 			usage: emptyUsage(),
 			turns: 0,
 			replyUsage: emptyUsage(),
+			steps: 0,
+			subagentUsage: emptyUsage(),
 			seq: 0,
 		};
 		const db = this.db;
@@ -223,11 +225,19 @@ export class SessionStore implements SessionStorage {
 	async listSessions(options: { children?: boolean } = {}): Promise<SessionMeta[]> {
 		const rows = this.db.prepare("SELECT meta FROM sessions ORDER BY updated_at DESC").all() as { meta: string }[];
 		const metas = rows.map((row) => JSON.parse(row.meta) as SessionMeta);
-		return (options.children ? metas : metas.filter((meta) => !meta.parentId)).map((meta) => this.withStats(meta));
+		if (options.children) return metas.map((meta) => this.withStats(meta));
+		const sides = new Map<string, Usage>();
+		for (const meta of metas) if (meta.parentId) sides.set(meta.parentId, addUsage(sides.get(meta.parentId) ?? emptyUsage(), meta.usage));
+		return metas.filter((meta) => !meta.parentId).map((meta) => {
+			const counted = this.withStats(meta);
+			const sideUsage = sides.get(meta.id);
+			return sideUsage ? { ...counted, sideUsage } : counted;
+		});
 	}
 
 	/**
-	 * `turns` and `replyUsage` for a session written before they existed, counted from its log once.
+	 * `turns`, `replyUsage`, `steps` and `subagentUsage` for a session written before they existed,
+	 * counted from its log once.
 	 *
 	 * Stored on the meta row without a record: they follow from records already written, so filling
 	 * them in is not something that happened to the conversation and must move neither `seq` nor
@@ -235,10 +245,10 @@ export class SessionStore implements SessionStorage {
 	 * counts again.
 	 */
 	private withStats(meta: SessionMeta): SessionMeta {
-		if (meta.turns !== undefined && meta.replyUsage) return meta;
-		const rows = this.db.prepare("SELECT body FROM records WHERE session_id = ? AND kind IN ('message', 'truncate') ORDER BY seq").all(meta.id) as { body: string }[];
-		const { turns, replyUsage } = replayRecords(rows.map((row) => JSON.parse(row.body) as SessionRecord));
-		const filled = { ...meta, turns, replyUsage };
+		if (meta.turns !== undefined && meta.replyUsage && meta.steps !== undefined && meta.subagentUsage) return meta;
+		const rows = this.db.prepare("SELECT body FROM records WHERE session_id = ? AND kind IN ('message', 'subagent_message', 'truncate') ORDER BY seq").all(meta.id) as { body: string }[];
+		const { turns, replyUsage, steps, subagentUsage } = replayRecords(rows.map((row) => JSON.parse(row.body) as SessionRecord));
+		const filled = { ...meta, turns, replyUsage, steps, subagentUsage };
 		this.db.prepare("UPDATE sessions SET meta = ? WHERE id = ? AND seq = ?").run(JSON.stringify(filled), meta.id, meta.seq);
 		return filled;
 	}
@@ -330,6 +340,8 @@ export class SessionStore implements SessionStorage {
 		meta.usage = settledUsage(meta.usage, replayed.usage);
 		meta.turns = replayed.turns;
 		meta.replyUsage = replayed.replyUsage;
+		meta.steps = replayed.steps;
+		meta.subagentUsage = replayed.subagentUsage;
 		return { meta, messages, entries, compactions: replayed.compactions, compaction: replayed.compaction, commandRuns: replayed.commandRuns, hookRuns: replayed.hookRuns };
 	}
 
@@ -353,7 +365,7 @@ export class SessionStore implements SessionStorage {
 			const truncated = this.write(sessionId, { type: "truncate", afterSeq: entries[target].seq - 1 }, false);
 			if (!truncated) return null;
 			const replayed = this.replay(sessionId, false);
-			const counts = { messageCount: target, usage: settledUsage(truncated.usage, replayed.usage), turns: replayed.turns, replyUsage: replayed.replyUsage };
+			const counts = { messageCount: target, usage: settledUsage(truncated.usage, replayed.usage), turns: replayed.turns, replyUsage: replayed.replyUsage, steps: replayed.steps, subagentUsage: replayed.subagentUsage };
 			// The meta row tracks message count; a truncate is the one write that lowers it.
 			const corrected = this.write(sessionId, { type: "meta", meta: { ...truncated, ...counts } }, false) ?? truncated;
 			return { meta: { ...corrected, ...counts }, kept: entries.slice(0, target).map((entry) => entry.message) };

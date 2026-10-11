@@ -58,64 +58,83 @@ export function buildContextBreakdown(input: {
 	projectMemoryFiles?: { path: string; content: string }[];
 	sections?: PromptSection[];
 }): ContextBreakdown {
-	const sources = input.sections?.map(section => ({
+	const guessedSources = input.sections?.map(section => ({
 		...section,
 		// Allocate rounding along the contiguous prompt so every token belongs to exactly one section.
 		tokens: textTokens(input.systemPrompt.slice(0, section.end)) - textTokens(input.systemPrompt.slice(0, section.start)),
 	}));
-	const sourceTokens = (source: PromptSection["source"]) => sources?.filter(section => section.source === source).reduce((sum, section) => sum + section.tokens, 0) ?? 0;
-	const projectMemory = sources ? sourceTokens("projectMemory") : textTokens(input.projectMemory ?? "");
-	const skills = sources ? sourceTokens("skills") : textTokens(input.skillCatalogue);
-	const memoryFiles: MemoryFileItem[] = sources ? sources.filter(section => section.source === "projectInstructions" && section.path).map(section => ({ path: section.path!, tokens: section.tokens })) : input.projectInstructions.map((file) => ({
-		path: file.path,
-		tokens: textTokens(file.content),
-	}));
-	const memory = sources ? sourceTokens("projectInstructions") : memoryFiles.reduce((acc, f) => acc + f.tokens, 0);
+	const sourceTokens = (source: PromptSection["source"]) => guessedSources?.filter(section => section.source === source).reduce((sum, section) => sum + section.tokens, 0) ?? 0;
+	const guessedMemoryFiles = guessedSources ? [] : input.projectInstructions.map((file) => ({ path: file.path, tokens: textTokens(file.content) }));
+	const guessed = {
+		messages: estimateTokens(input.messages),
+		systemTools: toolTokens(input.builtinTools),
+		mcpTools: toolTokens(input.mcpTools),
+		skills: guessedSources ? sourceTokens("skills") : textTokens(input.skillCatalogue),
+		memory: guessedSources ? sourceTokens("projectInstructions") : guessedMemoryFiles.reduce((acc, f) => acc + f.tokens, 0),
+		projectMemory: guessedSources ? sourceTokens("projectMemory") : textTokens(input.projectMemory ?? ""),
+		systemPrompt: 0,
+	} satisfies Record<ContextSegmentKey, number>;
 	/*
 	 * The prompt minus the parts listed separately.
 	 *
 	 * They are embedded in the prompt string, so counting them as their own segments and leaving
 	 * the prompt whole would report a total larger than anything that gets sent.
 	 */
-	const systemPrompt = Math.max(0, textTokens(input.systemPrompt) - skills - memory - projectMemory);
-
-	const systemTools = toolTokens(input.builtinTools);
-	const mcpTools = toolTokens(input.mcpTools);
-	const overhead = systemTools + mcpTools + skills + systemPrompt + memory + projectMemory;
+	guessed.systemPrompt = Math.max(0, textTokens(input.systemPrompt) - guessed.skills - guessed.memory - guessed.projectMemory);
 
 	/*
-	 * The provider's number is the total, not the conversation's share.
+	 * The provider's number is the total; every segment is still a characters-per-token guess.
 	 *
-	 * `usage.input` covers everything that went up — prompt, tool schemas and history together.
-	 * Treating it as the message segment and then adding the others alongside would report a
-	 * context far larger than anything actually sent. So the measured figure anchors the total
-	 * and the conversation is what is left after the fixed overhead, which also parks the
-	 * estimator's error on the one segment that is too big to be sensitive to it.
+	 * `usage.input` covers everything that went up — prompt, tool schemas and history together —
+	 * so it anchors the total rather than being added beside the others. What it cannot say is
+	 * which segment the guess was wrong about. Taking the conversation as "total minus guessed
+	 * overhead" parked the whole error on it, on the theory that it is the biggest segment; at the
+	 * start of a conversation it is the smallest. With a tokenizer denser than 3.5 characters per
+	 * token (glm-5.3-flash), the overhead alone out-guessed a 14.4k request and "你好" showed no
+	 * conversation at all. So the measured total is spread over the guesses in proportion.
 	 */
 	const total = measureTotal(input.messages);
-	const messages = total.measured ? Math.max(0, total.tokens - overhead) : estimateTokens(input.messages);
+	const keys = Object.keys(guessed) as ContextSegmentKey[];
+	const guessedTotal = keys.reduce((sum, key) => sum + guessed[key], 0);
+	const scaleTotal = scaler(total.measured && guessedTotal > 0 ? total.tokens / guessedTotal : 1);
+	const sized = Object.fromEntries(keys.map(key => [key, scaleTotal(guessed[key])])) as Record<ContextSegmentKey, number>;
+	// The per-file and per-section rows are parts of a segment, so they are scaled to sum to it.
+	const within = (key: ContextSegmentKey) => scaler(guessed[key] > 0 ? sized[key] / guessed[key] : 0);
+	const sourceScalers = new Map<PromptSection["source"], (tokens: number) => number>();
+	const segmentOf = (source: PromptSection["source"]): ContextSegmentKey => source === "skills" ? "skills" : source === "projectInstructions" ? "memory" : source === "projectMemory" ? "projectMemory" : "systemPrompt";
+	const sources = guessedSources?.map(section => {
+		let scale = sourceScalers.get(section.source);
+		if (!scale) sourceScalers.set(section.source, scale = within(segmentOf(section.source)));
+		return { ...section, tokens: scale(section.tokens) };
+	});
+	const fileRows = (source: PromptSection["source"]) => sources?.filter(section => section.source === source && section.path).map(section => ({ path: section.path!, tokens: section.tokens }));
+	const scaleMemory = within("memory");
+	const memoryFiles: MemoryFileItem[] = fileRows("projectInstructions") ?? guessedMemoryFiles.map(file => ({ ...file, tokens: scaleMemory(file.tokens) }));
+	const scaleProjectMemory = within("projectMemory");
 
-	const segments = ([
-		{ key: "messages", tokens: messages },
-		{ key: "systemTools", tokens: systemTools },
-		{ key: "mcpTools", tokens: mcpTools },
-		{ key: "skills", tokens: skills },
-		{ key: "systemPrompt", tokens: systemPrompt },
-		{ key: "memory", tokens: memory },
-		{ key: "projectMemory", tokens: projectMemory },
-	] satisfies ContextSegment[])
+	const segments = keys.map(key => ({ key, tokens: sized[key] }))
 		.filter((segment) => segment.tokens > 0)
 		.sort((a, b) => b.tokens - a.tokens);
 
 	return {
 		sources,
 		projectMemory: sources ? sources.filter(section => section.source === "projectMemory").map(section => input.systemPrompt.slice(section.start, section.end)).join("") || undefined : input.projectMemory,
-		projectMemoryFiles: sources ? sources.filter(section => section.source === "projectMemory" && section.path).map(section => ({ path: section.path!, tokens: section.tokens })) : input.projectMemoryFiles?.map((file) => ({ path: file.path, tokens: textTokens(file.content) })),
+		projectMemoryFiles: fileRows("projectMemory") ?? input.projectMemoryFiles?.map((file) => ({ path: file.path, tokens: scaleProjectMemory(textTokens(file.content)) })),
 		limit: input.model.contextWindow,
 		segments,
-		used: messages + overhead,
+		used: keys.reduce((sum, key) => sum + sized[key], 0),
 		measured: total.measured,
 		memoryFiles: memoryFiles.length > 0 ? memoryFiles : undefined,
+	};
+}
+
+/** Rounds the running sum rather than each part, so scaled parts still add up to the scaled whole. */
+function scaler(factor: number): (tokens: number) => number {
+	let seen = 0;
+	return (tokens) => {
+		const before = Math.round(seen * factor);
+		seen += tokens;
+		return Math.round(seen * factor) - before;
 	};
 }
 

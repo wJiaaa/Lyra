@@ -9,8 +9,7 @@
  * nothing that could change one.
  */
 
-import type { Settings } from "../config/settings.ts";
-import { resolveModel } from "../config/settings.ts";
+import type { Settings, resolveModel } from "../config/settings.ts";
 import type { McpManager, McpServerStatus } from "../mcp/client.ts";
 import type { Plugin, PluginDiagnostic } from "../plugins/loader.ts";
 import type { Skill, SkillDiagnostic } from "../skills/loader.ts";
@@ -70,10 +69,12 @@ export async function describeSession(session: SessionFacts): Promise<SessionSta
 	};
 }
 
-/** Report the captured request; only sessions without a recorded prompt need a source preview. */
-export async function describeContext(session: SessionFacts): Promise<ContextBreakdown | null> {
-	const resolved = resolveModel(session.settings, session.meta.modelId || session.settings.defaultModelId);
-	if (!resolved) return null;
+/**
+ * Report the captured request; only sessions without a recorded prompt need a source preview.
+ *
+ * `resolved` is the model the session runs on, which only the session knows: a side chat follows its parent's.
+ */
+export async function describeContext(session: SessionFacts, resolved: NonNullable<ReturnType<typeof resolveModel>>): Promise<ContextBreakdown> {
 	const recorded = await session.readContext();
 	const request = session.requestContext;
 	let prompt;

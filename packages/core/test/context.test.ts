@@ -106,3 +106,30 @@ test("cache creation tokens count toward the context window", () => {
 	const result = buildContextBreakdown({ ...fixed, messages: [asked, response] });
 	assert.equal(result.used, 9800);
 });
+
+test("a short conversation keeps its share when the overhead is guessed above the measured total", () => {
+	// The fixed overhead guesses to 1500; a denser tokenizer measured the whole request at 1200.
+	const result = buildContextBreakdown({ ...fixed, messages: [asked, reply({ input: 1150, cacheRead: 0, output: 50 })] });
+	const messages = result.segments.find((s) => s.key === "messages");
+
+	assert.equal(result.used, 1200);
+	assert.equal(result.segments.reduce((sum, s) => sum + s.tokens, 0), 1200);
+	assert.ok(messages && messages.tokens > 0, "\"你好\" is still in the request; a row of zero says it is not");
+});
+
+test("per-file rows still add up to their segment once the guess is scaled to the measured total", () => {
+	const systemPrompt = `${"b".repeat(700)}${"m".repeat(350)}${"n".repeat(700)}${"p".repeat(350)}`;
+	const sections = [
+		{ source: "identity", start: 0, end: 700 },
+		{ source: "projectInstructions", start: 700, end: 1050, path: "/a/AGENTS.md" },
+		{ source: "projectInstructions", start: 1050, end: 1750, path: "/b/AGENTS.md" },
+		{ source: "projectMemory", start: 1750, end: 2100, path: "/memory/MEMORY.md" },
+	] as const;
+	const result = buildContextBreakdown({ ...fixed, systemPrompt, sections: [...sections], projectInstructions: [], skillCatalogue: "", messages: [asked, reply({ input: 1000, cacheRead: 0, output: 7 })] });
+	const at = (key: string) => result.segments.find((s) => s.key === key)?.tokens ?? 0;
+
+	assert.equal(result.used, 1007);
+	assert.equal(result.memoryFiles?.reduce((sum, f) => sum + f.tokens, 0), at("memory"));
+	assert.equal(result.projectMemoryFiles?.reduce((sum, f) => sum + f.tokens, 0), at("projectMemory"));
+	assert.equal(result.sources?.reduce((sum, s) => sum + s.tokens, 0), at("systemPrompt") + at("memory") + at("projectMemory"));
+});

@@ -29,7 +29,7 @@ afterEach(() => useApp.setState({ sessions: [] }));
 async function figures(session: SessionMeta): Promise<string[]> {
 	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(SessionCard, { session, anchor: new DOMRect(0, 0, 240, 28) }) }));
 	try {
-		const grid = document.body.querySelector("[data-ly-session-card]")!.lastElementChild!;
+		const grid = document.body.querySelector("[data-ly-session-figures]")!;
 		return [...grid.children].map((stat) => stat.textContent ?? "");
 	} finally {
 		await view.unmount();
@@ -60,4 +60,27 @@ test("a row not yet counted dashes its turns and rates over everything", async (
 test("nothing sent yet is a dash, not a 0% hit rate", async () => {
 	const stats = await figures(meta({ turns: 0 }));
 	assert.equal(stats[2], "缓存命中–");
+});
+
+test("steps ride beside turns once they have been counted", async () => {
+	const stats = await figures(meta({ turns: 2, steps: 41 }));
+	assert.equal(stats[0], "轮次2 轮 · 41 步");
+});
+
+test("side chats join the totals and the breakdown names who spent what", async () => {
+	const stats = await figures(meta({
+		turns: 1,
+		steps: 3,
+		// 主会话 1.0k 里有 400 是子智能体花的。
+		usage: usage({ input: 800, output: 200, cacheRead: 100 }),
+		subagentUsage: usage({ input: 300, output: 100 }),
+		replyUsage: usage({ input: 500, output: 100, cacheRead: 100 }),
+		sideUsage: usage({ input: 1500, output: 500, cacheRead: 900 }),
+	}));
+	assert.deepEqual(stats, ["轮次1 轮 · 3 步", "全程用量3.0k", "缓存命中17%", "输入2.3k", "输出700", "读缓存1.0k", "主会话600", "侧边聊天2.0k", "子智能体400"]);
+});
+
+test("a conversation with nothing beside it has no breakdown", async () => {
+	const stats = await figures(meta({ turns: 1, usage: usage({ input: 10 }), subagentUsage: usage({}) }));
+	assert.equal(stats.length, 6);
 });

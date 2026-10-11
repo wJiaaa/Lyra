@@ -219,6 +219,11 @@ export function Composer({ centered = false }: {
 	}, [browserAttachment, draftKey]);
 	const field = useRef<HTMLTextAreaElement>(null);
 	/*
+	 * 标记、上下文用量里列出的文件，都开进右边的文件面板——这个组件本来就引着 dock，那件事在这里做。
+	 * 开在这个输入框所在的那一屏，和子智能体那一条一样：键盘够得着它，不必先让它拿到焦点。
+	 */
+	const openFile = (path: string) => void openFilePane(path, activeSessionId ?? "@draft");
+	/*
 	 * 正文里那些标记的一生，都在这里面。
 	 *
 	 * 抽出去是因为侧边聊天和子智能体的输入框也要它——它们此前收得下文件，句子里却什么也没有，于是
@@ -230,11 +235,7 @@ export function Composer({ centered = false }: {
 		setAttachments,
 		setText,
 		field,
-		/* 标记点开的文件进右边的文件面板——这个组件本来就引着 dock，那件事在这里做。 */
-		openFile: (path) => {
-			// In this composer's screen, as the sub-agent bar does: the keyboard reaches it without focusing it.
-			void openFilePane(path, activeSessionId ?? "@draft");
-		},
+		openFile,
 	});
 	const { marks } = kit;
 	/*
@@ -808,7 +809,7 @@ export function Composer({ centered = false }: {
 							 * already given up its words for a larger saving.
 							 */}
 							<div data-ly-fit-drop="2" className="flex shrink-0 items-center">
-								<ContextMeter messages={messages} settings={settings} modelId={modelId} sessionId={activeSessionId} />
+								<ContextMeter messages={messages} settings={settings} modelId={modelId} sessionId={activeSessionId} openFile={openFile} />
 							</div>
 
 							<ModelTrigger modelId={modelId} ariaLabel={t("composer.selectModel")} />

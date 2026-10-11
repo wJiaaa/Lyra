@@ -33,9 +33,11 @@ export interface Replayed {
 	compaction: Boundary | null;
 	/** Everything the surviving transcript spent, sub-agents and side calls included. */
 	usage: Usage;
-	/** See `SessionMeta.turns` and `SessionMeta.replyUsage`. */
+	/** See `SessionMeta.turns`, `replyUsage`, `steps` and `subagentUsage`. */
 	turns: number;
 	replyUsage: Usage;
+	steps: number;
+	subagentUsage: Usage;
 }
 
 export function replayRecords(records: Iterable<SessionRecord>): Replayed {
@@ -89,12 +91,16 @@ export function replayRecords(records: Iterable<SessionRecord>): Replayed {
 
 	let replyUsage = emptyUsage();
 	let turns = 0;
+	let steps = 0;
 	for (const { message } of entries) {
-		if (message.role === "assistant" && message.usage) replyUsage = addUsage(replyUsage, message.usage);
-		else if (message.role === "user" && !message.synthetic) turns += 1;
+		if (message.role === "assistant") {
+			steps += 1;
+			if (message.usage) replyUsage = addUsage(replyUsage, message.usage);
+		} else if (message.role === "user" && !message.synthetic) turns += 1;
 	}
-	let usage = addUsage(auxiliaryUsage, replyUsage);
-	for (const entry of subagentEntries) if (entry.usage) usage = addUsage(usage, entry.usage);
+	let subagentUsage = emptyUsage();
+	for (const entry of subagentEntries) if (entry.usage) subagentUsage = addUsage(subagentUsage, entry.usage);
+	const usage = addUsage(addUsage(auxiliaryUsage, replyUsage), subagentUsage);
 
 	return {
 		entries,
@@ -105,5 +111,7 @@ export function replayRecords(records: Iterable<SessionRecord>): Replayed {
 		usage,
 		turns,
 		replyUsage,
+		steps,
+		subagentUsage,
 	};
 }

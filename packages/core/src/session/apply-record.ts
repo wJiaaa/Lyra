@@ -34,6 +34,7 @@ export function applyRecord(base: SessionMeta, payload: SessionRecordInput, now:
 	 */
 	if (payload.type === "event" && payload.event.type === "subagent_message" && payload.event.message.role === "assistant") {
 		next.usage = addUsage(base.usage, payload.event.message.usage);
+		if (base.subagentUsage) next.subagentUsage = addUsage(base.subagentUsage, payload.event.message.usage);
 	}
 	if (payload.type === "message") {
 		next.messageCount = base.messageCount + 1;
@@ -42,6 +43,7 @@ export function applyRecord(base: SessionMeta, payload: SessionRecordInput, now:
 		if (payload.message.role === "assistant") {
 			next.usage = addUsage(base.usage, payload.message.usage);
 			if (base.replyUsage) next.replyUsage = addUsage(base.replyUsage, payload.message.usage);
+			if (base.steps !== undefined) next.steps = base.steps + 1;
 		}
 	}
 	if (payload.type === "title") {
@@ -64,6 +66,8 @@ export function applyRecord(base: SessionMeta, payload: SessionRecordInput, now:
 	if (payload.type === "meta") {
 		// A meta record carries caller-side changes such as the selected model.
 		Object.assign(next, payload.meta, { id: base.id, seq: next.seq, updatedAt: next.updatedAt, usage: payload.meta.usage ?? next.usage });
+		// 从列表里拿来的 meta 带着算出来的 `sideUsage`，写回去就成了一份过期的存档。
+		delete next.sideUsage;
 		// A model/settings snapshot cannot undo an explicit name chosen while it was in flight.
 		if (base.titleSetByUser) {
 			next.title = base.title;

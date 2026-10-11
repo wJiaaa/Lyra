@@ -239,6 +239,8 @@ test("subagent usage is dropped when parent turn is truncated, but auxiliary usa
 	assert.equal(meta.usage.total, 60 + 120 + 550 + 230); // 960
 	assert.equal(meta.turns, 2);
 	assert.equal(meta.replyUsage?.total, 120 + 230, "replies only: no sub-agent, no side call");
+	assert.equal(meta.steps, 2, "one per reply; the sub-agent's round trip is not a step");
+	assert.equal(meta.subagentUsage?.total, 550);
 
 	// Truncate from messageIndex 2 (the second user message)
 	const truncated = await store.truncateFrom(meta.id, 2);
@@ -249,6 +251,8 @@ test("subagent usage is dropped when parent turn is truncated, but auxiliary usa
 	assert.equal(truncated.meta.usage.total, 180, "truncated meta in return value has surviving usage");
 	assert.equal(truncated.meta.turns, 1);
 	assert.equal(truncated.meta.replyUsage?.total, 120);
+	assert.equal(truncated.meta.steps, 1);
+	assert.equal(truncated.meta.subagentUsage?.total, 0, "the delegation went with the turn it belonged to");
 
 	const loaded = await store.load(meta.id);
 	assert.ok(loaded);
@@ -271,7 +275,7 @@ test("a session written before turns and reply usage existed gets them counted o
 
 	// What an older build left in the row: neither field.
 	const db = new DatabaseSync(store.path);
-	db.prepare("UPDATE sessions SET meta = json_remove(meta, '$.turns', '$.replyUsage') WHERE id = ?").run(meta.id);
+	db.prepare("UPDATE sessions SET meta = json_remove(meta, '$.turns', '$.replyUsage', '$.steps', '$.subagentUsage') WHERE id = ?").run(meta.id);
 	const before = (await store.get(meta.id))!;
 	assert.equal(before.turns, undefined);
 
@@ -282,9 +286,33 @@ test("a session written before turns and reply usage existed gets them counted o
 	const listed = (await store.listSessions()).find((s) => s.id === meta.id)!;
 	assert.equal(listed.turns, 2);
 	assert.equal(listed.replyUsage?.cacheRead, 90);
+	assert.equal(listed.steps, 1);
+	assert.equal(listed.subagentUsage?.total, 0);
 	const stored = (await store.get(meta.id))!;
 	assert.equal(stored.turns, 2, "written back, so the next listing does not count again");
 	assert.equal(stored.seq, before.seq + 1);
 	assert.equal(stored.updatedAt, listed.updatedAt);
 	db.close();
+});
+
+test("a session listed on its own carries what its side chats spent, without storing it", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "ly-store-sides-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	const store = new SessionStore(root);
+	const parent = await store.create("/tmp/project", "model");
+	const alone = await store.create("/tmp/project", "model");
+	for (const sideId of ["a", "b"]) {
+		const side = await store.create("/tmp/project", "model", "side", { parentId: parent.id, sideId });
+		await store.append(side, { type: "message", message: { ...assistant(), usage: { ...emptyUsage(), input: 100, output: 10, total: 110 } } });
+	}
+
+	const listed = await store.listSessions();
+	assert.deepEqual(listed.map((meta) => meta.id).sort(), [parent.id, alone.id].sort(), "side chats stay out of the list");
+	assert.equal(listed.find((meta) => meta.id === parent.id)?.sideUsage?.total, 220);
+	assert.equal(listed.find((meta) => meta.id === alone.id)?.sideUsage, undefined);
+
+	// 拿列表里那份写回去，也不能把算出来的数存进档。
+	const fromList = listed.find((meta) => meta.id === parent.id)!;
+	await store.append(fromList, { type: "meta", meta: { ...fromList, title: "renamed" } });
+	assert.equal((await store.get(parent.id))!.sideUsage, undefined);
 });

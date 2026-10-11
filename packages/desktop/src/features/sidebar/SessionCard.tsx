@@ -18,10 +18,10 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ArrowDownToLine, ArrowUpFromLine, Coins, Database, FolderOpen, MessagesSquare, Zap } from "../../ui/icons/index.ts";
+import { ArrowDownToLine, ArrowUpFromLine, Bot, Coins, Database, FolderOpen, MessageCircle, MessageSquare, MessagesSquare, Zap } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { SessionMeta } from "@plume/core";
+import type { SessionMeta, Usage } from "@plume/core";
 import { freshTokens } from "@plume/core/tokens";
 import { formatTokens } from "../conversation/index.ts";
 import { hoverLayersSuppressed, onHoverLayersDismissed } from "../../ui/overlay/hover-layers.ts";
@@ -90,6 +90,34 @@ function cacheHitRate(session: SessionMeta): number | null {
 	const sent = usage.input + usage.cacheRead + usage.cacheWrite;
 	if (sent <= 0) return null;
 	return usage.cacheRead / sent;
+}
+
+/** 卡片只读这四个数；`addUsage` 在 core 根入口上，渲染进程拿不到它的值。 */
+type Figures = Pick<Usage, "input" | "output" | "cacheRead" | "cacheWrite">;
+
+function plus(a: Figures, b: Figures): Figures {
+	return { input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite };
+}
+
+/**
+ * 全程用量拆成三份：主会话自己（连同标题、压缩这些附带调用）、侧边聊天、子智能体。
+ *
+ * 侧边聊天自己派出去的子智能体算在侧边聊天里——按「花在哪段对话上」分，不按「谁干的活」分。
+ */
+function usageParts(session: SessionMeta): { main: number; side: number; subagents: number } {
+	const subagents = session.subagentUsage ? freshTokens(session.subagentUsage) : 0;
+	return {
+		main: Math.max(0, freshTokens(session.usage) - subagents),
+		side: session.sideUsage ? freshTokens(session.sideUsage) : 0,
+		subagents,
+	};
+}
+
+/** 「3 轮 · 41 步」；没数过步数的旧会话只有轮数，两样都没有是一道横线。 */
+function turnsText(session: SessionMeta): string {
+	if (session.turns === undefined) return "–";
+	if (session.steps === undefined) return String(session.turns);
+	return translate("sessionCard.turnsSteps", { turns: session.turns, steps: session.steps });
 }
 
 /** Whole percent, except that something short of 100% never reads as 100%: 99.96% shows 99.9%. */
@@ -189,8 +217,9 @@ export function SessionCard({
 		setAt({ left: Math.max(GAP, left), top });
 	}, [anchor]);
 
-	const usage = session.usage;
+	const usage = session.sideUsage ? plus(session.usage, session.sideUsage) : session.usage;
 	const hit = cacheHitRate(session);
+	const parts = usageParts(session);
 
 	return portal(<div
 			ref={card}
@@ -236,13 +265,24 @@ export function SessionCard({
 			 * column, with the outer ones on the card's edges. Every cell is always drawn, a dash where
 			 * there is nothing to say, or a missing cell would shift the rest out of their columns.
 			 */}
-			<div className="grid grid-cols-[repeat(3,auto)] justify-between gap-x-2 gap-y-2 px-3 py-2">
-				<Stat icon={<MessagesSquare size={11} strokeWidth={2} />} label={translate("sessionCard.turns")} value={session.turns === undefined ? "–" : String(session.turns)} />
+			<div data-ly-session-figures="" className="grid grid-cols-[repeat(3,auto)] justify-between gap-x-2 gap-y-2 px-3 py-2">
+				<Stat icon={<MessagesSquare size={11} strokeWidth={2} />} label={translate("sessionCard.turns")} value={turnsText(session)} />
 				<Stat icon={<Zap size={11} strokeWidth={2} />} label={translate("sessionCard.usage")} value={formatTokens(freshTokens(usage))} />
 				<Stat icon={<Coins size={11} strokeWidth={2} />} label={translate("sessionCard.cache")} value={hit === null ? "–" : percent(hit)} />
 				<Stat icon={<ArrowDownToLine size={11} strokeWidth={2} />} label={translate("sessionCard.input")} value={formatTokens(usage.input + usage.cacheWrite)} />
 				<Stat icon={<ArrowUpFromLine size={11} strokeWidth={2} />} label={translate("sessionCard.output")} value={formatTokens(usage.output)} />
 				<Stat icon={<Database size={11} strokeWidth={2} />} label={translate("sessionCard.cacheRead")} value={formatTokens(usage.cacheRead)} />
+				{/*
+				 * 全程用量是谁花的，第三行，和上面共用三列。只有主会话时不画：那一行只会把「全程用量」再说一遍。
+				 * 试过在网格下面写成一行「主会话 7.9k · 侧边聊天 4.9k · 子智能体 2.2k」，248px 放不下，末尾被截掉。
+				 */}
+				{(parts.side > 0 || parts.subagents > 0) && (
+					<>
+						<Stat icon={<MessageSquare size={11} strokeWidth={2} />} label={translate("sessionCard.partMain")} value={formatTokens(parts.main)} />
+						<Stat icon={<MessageCircle size={11} strokeWidth={2} />} label={translate("sessionCard.partSide")} value={formatTokens(parts.side)} />
+						<Stat icon={<Bot size={11} strokeWidth={2} />} label={translate("sessionCard.partSubagents")} value={formatTokens(parts.subagents)} />
+					</>
+				)}
 			</div>
 		</div>);
 }

@@ -26,7 +26,7 @@ import { compactionModel } from "../config/model-choice.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
 import { today, withEnvironment } from "../prompt/environment.ts";
 import { readPromptOverride } from "../prompt/overrides.ts";
-import { buildSystemPrompt, loadProjectInstructions } from "../prompt/system.ts";
+import { buildPromptContext, loadProjectInstructions } from "../prompt/system.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { plumeHome } from "../session/store.ts";
 import { scratchDir } from "./session-facts.ts";
@@ -426,7 +426,7 @@ export async function runSubAgent(
 	};
 
 	// Build a complete, standalone system prompt for sub-agents
-	const subAgentPrompt = await buildSystemPrompt({
+	const { systemPrompt: subAgentPrompt, sections: promptSections } = await buildPromptContext({
 		cwd: options.cwd,
 		projectRoots: projectRootsFor(options.settings.projects, options.cwd),
 		tools: allowed,
@@ -580,7 +580,7 @@ export async function runSubAgent(
 	try {
 		await options.emit({ type: "subagent_event", id, event: {
 			type: "context", systemPrompt: subAgentPrompt, tools: allowed.map(tool => tool.name),
-			skills: options.skills.map(skill => skill.name),
+			skills: options.skills.map(skill => skill.name), sections: promptSections,
 			schemas: allowed.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters })),
 		} });
 		/*

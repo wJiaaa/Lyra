@@ -35,7 +35,8 @@ export function applySessionChange(change: SessionChange, set: Set, get: () => A
 	if ((!meta || justArchived) && get().activeSessionId === id) void get().newSession({ keepView: true });
 	set((state) => {
 		const sessions = state.sessions.filter((session) => session.id !== id);
-		if (meta) sessions.push(meta);
+		// 变化里的 meta 是存档那一份，没有列表才算的侧边聊天用量；沿用上一份，等下次读列表再更新。
+		if (meta) sessions.push(previous?.sideUsage && !meta.sideUsage ? { ...meta, sideUsage: previous.sideUsage } : meta);
 		sessions.sort((a, b) => b.updatedAt - a.updatedAt);
 		const sessionCache = { ...state.sessionCache };
 		const drafts = { ...state.drafts };

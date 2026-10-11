@@ -23,6 +23,7 @@ import { sessionThinking } from "../../lib/thinking.ts";
 import {
 	ComposerSend,
 	ComposerShell,
+	ContextMeter,
 	attachmentMeta,
 	spellDraft,
 	type DraftAttachment,
@@ -232,6 +233,8 @@ export function SideComposer({
 				}
 				right={
 					<>
+						{/* 和主输入框同一只表，量的是这一格自己的会话：跟着主会话时，窗口也是主会话那个模型的。 */}
+						<ContextMeter messages={messages} settings={settings} modelId={modelId || model?.id || null} sessionId={sideId_} running={running} openFile={openFile} />
 						{/*
 						 * 和主输入框同一枚，不是一个长得像它的。继承没被藏起来，只是挪进了提示里——见 `inheriting`。
 						 */}

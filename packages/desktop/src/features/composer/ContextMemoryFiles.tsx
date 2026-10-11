@@ -4,16 +4,15 @@ import { useState } from "react";
 import type { ContextBreakdown } from "../../../electron/ipc-types.ts";
 import { Disclosure } from "../../ui/layout/Disclosure.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { formatTokens } from "../conversation/index.ts";
-import { openFilePane } from "../dock/index.ts";
-import { useDockScope } from "../../app/session-scope.tsx";
+import { formatTokens } from "../../lib/format-tokens.ts";
 
 /** The paths come from the prompt sources, never guessed from the renderer's workspace. */
-export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdown; onOpen: () => void }) {
+/**
+ * Opening a file is the caller's: each input sits in a different place — a screen, a side chat, the sub-agent
+ * pane — and knows which file pane is beside it. Importing the dock here instead closed a loop back to this domain.
+ */
+export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdown; onOpen?: (path: string, name: string) => void }) {
 	const [open, setOpen] = useState(false);
-	// The meter is this screen's, and so is the file pane a file here opens — the popover is a portal,
-	// but it is still inside this screen as far as React is concerned.
-	const screen = useDockScope();
 	const files = [...(detail.memoryFiles ?? []), ...(detail.projectMemoryFiles ?? [])];
 	const tokens = detail.segments.filter((segment) => segment.key === "memory" || segment.key === "projectMemory")
 		.reduce((total, segment) => total + segment.tokens, 0);
@@ -24,11 +23,8 @@ export function ContextMemoryFiles({ detail, onOpen }: { detail: ContextBreakdow
 			</span>
 		}>
 			{files.map((file) => (
-				<button key={file.path} type="button" data-ly-tip={file.path} className="group/file ly-scroll flex w-full items-center gap-1.5 rounded-lg py-1 text-detail text-ink-faint transition-colors hover:text-ink"
-					onClick={() => {
-						onOpen();
-						void openFilePane(file.path, screen ?? undefined);
-					}}>
+				<button key={file.path} type="button" disabled={!onOpen} data-ly-tip={file.path} className="group/file ly-scroll flex w-full items-center gap-1.5 rounded-lg py-1 text-detail text-ink-faint transition-colors hover:text-ink"
+					onClick={() => onOpen?.(file.path, file.path.split(/[\\/]/).pop() ?? file.path)}>
 					<FileText size={12} strokeWidth={1.8} className="shrink-0" />
 					<ScrollText text={file.path} className="min-w-0 flex-1 text-left font-mono text-caption" />
 					<span className="shrink-0 tabular-nums">{formatTokens(file.tokens)}</span>

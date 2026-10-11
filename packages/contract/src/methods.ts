@@ -112,6 +112,7 @@ export const METHODS = {
 	subAgents: {
 		list: { channel: "subagents:list" },
 		detail: { channel: "subagents:detail" },
+		contextBreakdown: { channel: "subagents:contextBreakdown" },
 		steer: { channel: "subagents:steer" },
 		abort: { channel: "subagents:abort" },
 		dismiss: { channel: "subagents:dismiss" },

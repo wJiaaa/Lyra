@@ -11,7 +11,7 @@ import { emptyUsage, type AssistantMessage, type LlmContext, type ModelConfig, t
 
 const model: ModelConfig = { id: "qa/model", modelId: "model", providerId: "qa", name: "QA", contextWindow: 128000, maxOutputTokens: 4096, supportsThinking: true, supportsImages: true, supportsTools: true };
 const provider: ProviderConfig = { id: "qa", name: "QA", api: "anthropic-messages", baseUrl: "http://localhost", apiKey: "test", enabled: true, models: [model] };
-const otherModel: ModelConfig = { ...model, id: "other/model", providerId: "other" };
+const otherModel: ModelConfig = { ...model, id: "other/model", providerId: "other", contextWindow: 256_000 };
 const other: ProviderConfig = { ...provider, id: "other", api: "openai-responses", models: [otherModel] };
 const settings: Settings = { ...DEFAULT_SETTINGS, providers: [provider, other], defaultModelId: model.id };
 
@@ -92,6 +92,12 @@ test("没定模型和思考强度的侧边聊天跟着主会话，每次提问�
 	await side.prompt(say("three"));
 	assert.deepEqual(used.map((entry) => entry.model), [model.id, otherModel.id, model.id]);
 	assert.equal(used[0].thinking, "high");
+});
+
+test("跟着主会话的侧边聊天，上下文用量按主会话那个模型的窗口量", async (t) => {
+	const { main, side } = await fixture(t, async (_context, request) => reply(undefined, request));
+	await main.setModel(otherModel.id);
+	assert.equal((await side.contextBreakdown())?.limit, otherModel.contextWindow);
 });
 
 test("跟着主会话换了一家模型，上一家的推理句柄不再发出去", async (t) => {

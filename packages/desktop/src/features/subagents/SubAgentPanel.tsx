@@ -18,7 +18,7 @@
 import { Bot, Check, Copy, CornerLeftUp, Play, Plus, RotateCcw, TriangleAlert } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { SubAgentSummary } from "@plume/core";
+import type { Message, SubAgentSummary } from "@plume/core";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { rosterOrder, useSubAgents } from "../../store/subAgents.ts";
@@ -28,6 +28,7 @@ import {
 	attachmentMeta,
 	ComposerSend,
 	ComposerShell,
+	ContextMeter,
 	type DraftAttachment,
 	spellDraft,
 	useComposerAttachments,
@@ -49,6 +50,8 @@ import { Button } from "../../ui/primitives/Button.tsx";
 import { fromParent, SubAgentTranscript } from "./SubAgentMessageRow.tsx";
 import { bridge } from "../../services/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
+
+const NO_MESSAGES: Message[] = [];
 
 /** 在应用里打开一个磁盘上的文件——由挂这个面板的那一层给，见 `dock/panels/builtin.tsx`。 */
 type OpenFile = (path: string, name: string) => void;
@@ -211,7 +214,7 @@ function Transcript({ agent, agents, sessionId, openFile }: {
 			{agent.status === "running" && sessionId ? (
 				<Steer agent={agent} sessionId={sessionId} openFile={openFile} />
 			) : (
-				<IdleComposer placeholder={t("subAgent.finishedSteer")} agent={agent} />
+				<IdleComposer placeholder={t("subAgent.finishedSteer")} agent={agent} sessionId={sessionId} openFile={openFile} />
 			)}
 		</>
 	);
@@ -366,7 +369,7 @@ function Redispatch({ agent }: { agent: SubAgentSummary }) {
  * window's bottom became two, then one, and the remaining cards sat on a
  * different line. A disabled twin holds the slot.
  */
-function IdleComposer({ placeholder, agent }: { placeholder: string; agent?: SubAgentSummary }) {
+function IdleComposer({ placeholder, agent, sessionId, openFile }: { placeholder: string; agent?: SubAgentSummary; sessionId?: string | null; openFile?: OpenFile }) {
 	const { t } = useI18n();
 	const avatarOf = useAgentAvatars();
 	return (
@@ -392,7 +395,12 @@ function IdleComposer({ placeholder, agent }: { placeholder: string; agent?: Sub
 						)}
 					</>
 				}
-				right={<ComposerSend running={false} disabled onSend={() => undefined} onStop={() => undefined} />}
+				right={
+					<>
+						{agent && sessionId && <SubAgentMeter agent={agent} sessionId={sessionId} openFile={openFile} />}
+						<ComposerSend running={false} disabled onSend={() => undefined} onStop={() => undefined} />
+					</>
+				}
 			/>
 		</div>
 	);
@@ -504,9 +512,21 @@ function Steer({ agent, sessionId, openFile }: { agent: SubAgentSummary; session
 						</span>
 					</>
 				}
-				right={<ComposerSend running={false} disabled={empty || sending} onSend={() => void send()} onStop={() => undefined} />}
+				right={
+					<>
+						<SubAgentMeter agent={agent} sessionId={sessionId} openFile={openFile} />
+						<ComposerSend running={false} disabled={empty || sending} onSend={() => void send()} onStop={() => undefined} />
+					</>
+				}
 			/>
 			{kit.menu}
 		</div>
 	);
+}
+
+/** 它自己的上下文窗口，和主输入框同一只表。模型只有运行时知道（派它时按定义选的），窗口随读数一起来。 */
+function SubAgentMeter({ agent, sessionId, openFile }: { agent: SubAgentSummary; sessionId: string; openFile?: OpenFile }) {
+	const settings = useApp((s) => s.settings);
+	const messages = useSubAgents((s) => s.transcripts[agent.id]) ?? NO_MESSAGES;
+	return <ContextMeter messages={messages} settings={settings} modelId={null} sessionId={sessionId} subAgentId={agent.id} running={agent.status === "running"} openFile={openFile} />;
 }

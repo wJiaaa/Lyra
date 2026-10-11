@@ -23,7 +23,7 @@ import { PartialWriter } from "../session/partial.ts";
 import { parkMessage, rehydrateMessages } from "../session/payload.ts";
 import type { LlmContext, Message, ModelConfig } from "../types.ts";
 
-/** A session's own context carries every field; only a sub-agent's, nested in `subagent_event`, has no sections. */
+/** A session's own context carries every field; a sub-agent's, nested in `subagent_event`, has no MCP list, and older ones no sections. */
 export type RecordedContext = Required<Extract<AgentEvent, { type: "context" }>>;
 export interface RequestContext {
 	context: LlmContext;

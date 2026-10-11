@@ -41,6 +41,7 @@ import { loadHookRunner, runSessionEndHooks } from "./hooks.ts";
 import { restoreSubAgents, type Rebuild } from "./sub-agent-restore.ts";
 import { rehydrateMessages } from "../session/payload.ts";
 import { SubAgentRegistry, type SteerDisplay } from "./sub-agents.ts";
+import { describeSubAgentContext, SubAgentContexts } from "./sub-agent-context.ts";
 import { DelegationWaits } from "./delegation-waits.ts";
 import { backgroundJobs } from "../tools/background-jobs.ts";
 import { SessionActivity, type CompactOutcome } from "./session-activity.ts";
@@ -140,6 +141,8 @@ export class AgentSession {
 		 */
 		(id) => this.approvals.rejectWhere((request) => request.from?.subAgentId === id),
 	);
+	/** 子代理最近一次发出去的系统提示词和工具表，它的上下文用量按这个算。 */
+	private readonly subAgentContexts = new SubAgentContexts();
 	/**
 	 * 主会话在等的派发：人一开口就放手，放了手的跑完后结果送回来。见 `delegation-waits.ts`。
 	 */
@@ -211,6 +214,7 @@ export class AgentSession {
 		 */
 		this.log = new SessionLog(options.store, (event) => {
 			this.activity.observe(event);
+			this.subAgentContexts.observe(event);
 			return options.emit(event);
 		}, options.meta);
 		const sideTools = options.parent ? sideChatTools(options.parent, () => this.modelInEffect()) : [];
@@ -457,9 +461,21 @@ export class AgentSession {
 	}
 
 	async contextBreakdown(): Promise<ContextBreakdown | null> {
-		const resolved = resolveModel(this.settings, this.log.meta.modelId || this.settings.defaultModelId);
+		// 侧边聊天没选模型时跟着主会话，量的窗口也得是那一个。
+		const resolved = resolveModel(this.settings, this.modelIdInEffect());
 		if (!resolved) return null;
-		return describeContext({ ...this.facts(), messages: modelHistory(this.log, resolved.provider, resolved.model) });
+		return describeContext({ ...this.facts(), messages: modelHistory(this.log, resolved.provider, resolved.model) }, resolved);
+	}
+
+	async subAgentContextBreakdown(id: string): Promise<ContextBreakdown | null> {
+		const detail = this.subAgents.detail(id);
+		if (!detail) return null;
+		const seen = await this.subAgentContexts.get(id, () => this.store.read(this.log.meta.id));
+		return describeSubAgentContext({
+			detail, seen, settings: this.settings,
+			fallback: resolveModel(this.settings, this.modelIdInEffect())?.model,
+			mcpNames: new Set(this.can.mcp.allTools().map((tool) => tool.name)),
+		});
 	}
 
 	private facts(): SessionFacts {

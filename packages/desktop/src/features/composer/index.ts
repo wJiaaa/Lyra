@@ -9,6 +9,7 @@
 
 export { Composer } from "./Composer.tsx";
 export { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
+export { ContextMeter } from "./ContextMeter.tsx";
 export { InputMenu } from "./InputMenu.tsx";
 /* 转录里那条消息也要按门类画附件图标——同一套门类，同一个图标，不该有第二份。 */
 export { KIND_LABEL, sentKind } from "./attachments/file-kind.ts";

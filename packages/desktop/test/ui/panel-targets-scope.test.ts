@@ -445,13 +445,15 @@ test("exporting from the trace panel of the screen without focus opens the file 
 	assert.deepEqual(openedIn("file"), { a: false, b: true }, "the export opened beside the conversation with focus");
 });
 
-test("a memory file in the context meter of the screen without focus opens in that screen", async () => {
+// 开在哪一屏由挂这只表的输入框决定（主输入框用的是它标记文件那一个 `openFile`，见上一条），这里只交出路径。
+test("a memory file in the context meter is handed to the input it sits in, not opened on its own", async () => {
 	const detail: ContextBreakdown = { limit: 200_000, used: 10, measured: false, segments: [{ key: "memory", tokens: 10 }], memoryFiles: [{ path: "/work/beta/CLAUDE.md", tokens: 10 }] };
-	view = await inScreen("b", h(ContextMemoryFiles, { detail, onOpen() {} }));
+	const handed: [string, string][] = [];
+	view = await inScreen("b", h(ContextMemoryFiles, { detail, onOpen: (path: string, name: string) => handed.push([path, name]) }));
 	await click(view.find("button[aria-expanded]"));
 	await click(view.find('button[data-ly-tip="/work/beta/CLAUDE.md"]'));
-	assert.deepEqual(opened, ["/work/beta/CLAUDE.md"]);
-	assert.deepEqual(openedIn("file"), { a: false, b: true }, "the memory file opened beside the conversation with focus");
+	assert.deepEqual(handed, [["/work/beta/CLAUDE.md", "CLAUDE.md"]]);
+	assert.deepEqual(opened, [], "the row itself no longer reaches into the dock");
 });
 
 test("taking a queued message to the side chat, on the screen without focus, opens the side chat in that screen", async () => {
