@@ -53,15 +53,22 @@ export function PanelTabs({
 	 * 只滚标签条自己，不用 `scrollIntoView`：它连 `overflow: hidden` 的祖先也一起滚。右栏收着时开新面板，
 	 * 这一栏正从右边外面滑进来（`column-slide.ts`），标签在窗口外，整块内容区被滚开 173px、随滑动一帧帧
 	 * 退回来，看着就是抖了一下。标签和标签条在同一个变换里，两个盒子相减，滑动的位移正好抵掉。
+	 *
+	 * 跟着标签的尺寸再对一次：网页刚开时标签写的是「新标签页」，标题加载出来才变宽，只在开的那一刻对齐，
+	 * 变宽的那一截连同 ✕ 就留在了右边界外。观察器挂上时会先回调一次，开新标签那一刻的对齐也由它做。
 	 */
 	useEffect(() => {
 		const track = strip.current;
 		const tab = track?.querySelector(`[data-panel-tab="${current}"]`);
 		if (!track || !tab) return;
-		const outer = track.getBoundingClientRect();
-		const inner = tab.getBoundingClientRect();
-		if (inner.left < outer.left) track.scrollLeft -= outer.left - inner.left;
-		else if (inner.right > outer.right) track.scrollLeft += inner.right - outer.right;
+		const observer = new ResizeObserver(() => {
+			const outer = track.getBoundingClientRect();
+			const inner = tab.getBoundingClientRect();
+			if (inner.left < outer.left) track.scrollLeft -= outer.left - inner.left;
+			else if (inner.right > outer.right) track.scrollLeft += inner.right - outer.right;
+		});
+		observer.observe(tab);
+		return () => observer.disconnect();
 	}, [current, tabs.length]);
 
 	return (
@@ -85,7 +92,8 @@ export function PanelTabs({
 					>
 						<span className="flex items-center gap-1.5">
 							{icon && <span className="flex shrink-0 items-center">{icon}</span>}
-							{title ?? label}
+							{/* 标签不收缩、✕ 跟在名字后面：网页标题有多长标签就多宽，✕ 被挤出标签条，得滚过去才点得到。 */}
+							<span className="max-w-40 truncate">{title ?? label}</span>
 						</span>
 					</ClosableTab>
 				))}

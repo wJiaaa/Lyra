@@ -89,7 +89,7 @@ export function SideChatTitle({ scope, kind, fallback }: { scope: string; kind: 
 	const listed = useSide((s) => sideOf(s, scope, sideId)?.title ?? "");
 	// 缓存里那份跟着 `title` 事件走，比列表里那份先到。
 	const title = useApp((s) => (id ? s.sessionCache[id]?.meta.title : undefined)) ?? listed;
-	return title ? <span className="max-w-40 truncate" data-ly-tip={title}>{title}</span> : <>{fallback}</>;
+	return title ? <span data-ly-tip={title}>{title}</span> : <>{fallback}</>;
 }
 
 /**
