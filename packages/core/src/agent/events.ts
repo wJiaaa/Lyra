@@ -116,7 +116,8 @@ export type AgentEvent =
 	 * 比不显示还糟。
 	 */
 	// `notice` 是检查点上那句「清单还有 N 项，接着跑」——子代理自己的事，留在它自己的流里。
-	| { type: "subagent_event"; id: string; event: Extract<AgentEvent, { type: "tool_start" | "tool_end" | "tool_left" | "request" | "retry" | "retry_settled" | "agent_end" | "turn_start" | "context" | "compacted" | "command_status" | "notice" }> }
+	// `hook_run` 同理：子代理里跑的钩子归它自己的面板，`at` 是它自己转录里的位置（`SubAgentRegistry.hookRun`）。
+	| { type: "subagent_event"; id: string; event: Extract<AgentEvent, { type: "tool_start" | "tool_end" | "tool_left" | "request" | "retry" | "retry_settled" | "agent_end" | "turn_start" | "context" | "compacted" | "command_status" | "notice" | "hook_run" }> }
 	| { type: "message_start"; message: Message }
 	| { type: "message_update"; message: AssistantMessage; delta: StreamEvent }
 	| { type: "message_end"; message: Message }

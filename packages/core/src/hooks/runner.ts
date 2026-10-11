@@ -41,6 +41,7 @@ export interface HookInput {
 	sessionId: string;
 	cwd: string;
 	agentName?: string;
+	agentId?: string;
 	permissionMode?: string;
 	[key: string]: unknown;
 }
@@ -134,6 +135,8 @@ async function compatibleStdin(input: HookInput): Promise<{ value: string; clean
 		session_id: input.sessionId,
 		permission_mode: input.permissionMode,
 		agent_type: input.agentName,
+		// Claude Code 给子代理里的工具事件带 `agent_id` 和 `agent_type`，照它的名字。
+		agent_id: input.agentId,
 	};
 	if (typeof input.toolName === "string") {
 		compatible.tool_name = input.toolName;

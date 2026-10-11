@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import type { Message, SubAgentSummary } from "@plume/core";
+import type { HookRun, Message, SubAgentSummary } from "@plume/core";
 import { rosterOrder, useSubAgents } from "../src/store/subAgents.ts";
 
 function summary(over: Partial<SubAgentSummary> & { id: string }): SubAgentSummary {
@@ -34,7 +34,7 @@ function said(text: string): Message {
 }
 
 beforeEach(() => {
-	useSubAgents.setState({ agents: [], transcripts: {}, focused: null, loading: [], rosters: {} });
+	useSubAgents.setState({ agents: [], transcripts: {}, hookRuns: {}, focused: null, loading: [], rosters: {} });
 });
 
 test("a roster event becomes the roster", () => {
@@ -328,4 +328,53 @@ test("putting finished sub-agents away does so for that conversation only", () =
 	const { rosters } = useSubAgents.getState();
 	assert.deepEqual(rosters.a?.map((one) => one.id), ["a-run"]);
 	assert.deepEqual(rosters.b?.map((one) => one.id), ["b-done"], "the other conversation's list is not touched");
+});
+
+function hook(id: string, status: HookRun["status"], at = 2): HookRun {
+	return { id, event: "PreToolUse", source: "user", command: "node check.js", toolName: "bash", status, startedAt: 1, at };
+}
+
+test("子代理的钩子只记给打开过的转录，同一条先开始后结局按 id 换掉，不进主会话的钩子", () => {
+	/*
+	 * 照 ZCode 的做法，子代理里跑的钩子归它自己的面板。走真的分发：拼错一个 case，面板上就永远
+	 * 没有那颗按钮，而什么日志都不会说为什么。
+	 */
+	const writes: Record<string, unknown>[] = [];
+	const state = { activity: {}, turns: {}, queued: {}, sessionCache: {}, activeSessionId: "sess", messages: [], toolRuns: {}, hookRuns: [] } as never;
+	const send = (run: HookRun) =>
+		applyAgentEvent("sess", { type: "subagent_event", id: "s1", event: { type: "hook_run", run } }, (patch: Record<string, unknown>) => void writes.push(patch), () => state);
+
+	send(hook("h1", "running"));
+	assert.equal(useSubAgents.getState().hookRuns.s1, undefined, "没人打开过，不攒一份没人读的单子");
+
+	useSubAgents.setState({ transcripts: { s1: [] } });
+	send(hook("h1", "running"));
+	send(hook("h1", "blocked"));
+	assert.deepEqual(useSubAgents.getState().hookRuns.s1?.map((run) => [run.id, run.status]), [["h1", "blocked"]]);
+	assert.ok(!writes.some((patch) => "hookRuns" in patch), "主会话那颗钩子按钮里没有它");
+});
+
+test("打开时读回来的钩子和读的时候刚到的合在一起，刚到的更新", async () => {
+	(globalThis as { window?: unknown }).window = {
+		plume: {
+			subAgents: {
+				detail: async () => {
+					// 读的路上，h2 开始了、h1 有了结局。
+					useSubAgents.setState({ transcripts: { s1: [said("一")] }, hookRuns: { s1: [hook("h1", "failed"), hook("h2", "running", 4)] } });
+					return { messages: [said("一")], hookRuns: [hook("h0", "success", 1), hook("h1", "running")] };
+				},
+			},
+		},
+	};
+
+	await useSubAgents.getState().load("sess", "s1");
+
+	assert.deepEqual(
+		useSubAgents.getState().hookRuns.s1?.map((run) => [run.id, run.status]),
+		[
+			["h0", "success"],
+			["h1", "failed"],
+			["h2", "running"],
+		],
+	);
 });

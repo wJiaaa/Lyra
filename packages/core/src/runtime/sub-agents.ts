@@ -27,6 +27,7 @@
  * 从对话里的工具调用倒推「还有三个在排队」，而那条推算在人插话、父会话不再等它们之后就断了。
  */
 
+import type { HookRun } from "../agent/events.ts";
 import { addUsage, emptyUsage, type Message, type MessageAttachment, type UserContent } from "../types/message.ts";
 import type { SubAgentStatus, SubAgentSummary } from "../types/sub-agent.ts";
 
@@ -66,6 +67,8 @@ export interface SubAgentConversation {
 /** A summary plus everything it said, for the pane showing one of them. */
 export interface SubAgentDetail extends SubAgentSummary {
 	messages: Message[];
+	/** 它跑过的钩子，`at` 是它自己转录里的位置；面板据此归到它的那一段。没跑过就没有。 */
+	hookRuns?: HookRun[];
 }
 
 /**
@@ -112,7 +115,7 @@ export class SubAgentRegistry {
 
 	/** Newest last, which is the order a tab strip reads in. */
 	list(): SubAgentSummary[] {
-		return [...this.records.values()].map(({ messages: _messages, steering: _steering, abort: _abort, conversation, ...rest }) => ({
+		return [...this.records.values()].map(({ messages: _messages, hookRuns: _hookRuns, steering: _steering, abort: _abort, conversation, ...rest }) => ({
 			...rest,
 			...(conversation && !isActive(rest.status) ? { resumable: true } : {}),
 		}));
@@ -293,6 +296,23 @@ export class SubAgentRegistry {
 		return true;
 	}
 
+	/**
+	 * 一次钩子运行，盖上它在这个子代理转录里的位置再交回去。
+	 *
+	 * 同一条钩子先报「开始」再报结局，按 id 替换，位置以第一次为准——和 `SessionLog` 给主会话盖的
+	 * 是同一个规矩，只是数的是它自己的转录：主会话那边的位置对它的面板没有意义。
+	 */
+	hookRun(id: string, run: HookRun): HookRun {
+		const found = this.records.get(id);
+		if (!found) return run;
+		const runs = (found.hookRuns ??= []);
+		const at = runs.findIndex((known) => known.id === run.id);
+		const stamped = { ...run, at: at >= 0 ? runs[at].at : found.messages.length };
+		if (at < 0) runs.push(stamped);
+		else runs[at] = stamped;
+		return stamped;
+	}
+
 	/** One tool call, for the reading a viewer uses to judge progress. */
 	activity(id: string, summary: string): void {
 		const found = this.records.get(id);
@@ -460,11 +480,17 @@ export class SubAgentRegistry {
 	 * 只放名单上还没有的：同一个进程里已经在跑、已经登记过的那一份是真的，读回来的那份只是近似。
 	 * 放回来的都已经停下，没有拉杆可拉；有上下文的，`resume` 照样认。
 	 */
-	restore(entries: readonly { summary: SubAgentSummary; messages: Message[]; conversation?: SubAgentConversation }[]): void {
+	restore(entries: readonly { summary: SubAgentSummary; messages: Message[]; hookRuns?: HookRun[]; conversation?: SubAgentConversation }[]): void {
 		let added = false;
 		for (const entry of entries.slice(-MAX_KEPT)) {
 			if (this.records.has(entry.summary.id)) continue;
-			this.records.set(entry.summary.id, { ...entry.summary, messages: entry.messages, steering: [], ...(entry.conversation ? { conversation: entry.conversation } : {}) });
+			this.records.set(entry.summary.id, {
+				...entry.summary,
+				messages: entry.messages,
+				...(entry.hookRuns?.length ? { hookRuns: entry.hookRuns } : {}),
+				steering: [],
+				...(entry.conversation ? { conversation: entry.conversation } : {}),
+			});
 			added = true;
 		}
 		if (added) this.onChange();

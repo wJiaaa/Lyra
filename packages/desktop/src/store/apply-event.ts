@@ -471,6 +471,11 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       useSubAgents.getState().append(event.id, event.message);
       break;
 
+    // 子代理里跑的钩子归它自己的面板，不进上面主会话的 `hookRuns`。
+    case "subagent_event":
+      if (event.event.type === "hook_run") useSubAgents.getState().hookRun(event.id, event.event.run);
+      break;
+
     case "retry":
       // Stamped on arrival: the delay is counted from now, and the countdown reads the clock.
       set({

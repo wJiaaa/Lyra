@@ -34,14 +34,20 @@ export async function subAgentRunConfig(options: SubAgentOptions, dispatched: Di
 	 * 一轮开始和收尾的钩子不跟：那是这场对话的开头和结尾，不是这个子代理的。
 	 * 扩展也跟着下去（`options.extensions`），理由同上。
 	 *
-	 * `hook_run` 事件没有往下传：子代理的钩子照样跑，只是不进界面和会话日志。
+	 * 它跑的钩子记在它自己名下（`subagent_event`），进它自己的面板，不进主对话那个钩子按钮——
+	 * 和 ZCode 一样：子代理的调用被拦下时，主对话看得到那次调用失败，是哪条钩子拦的去它那里看。
 	 */
 	const hooks = await loadTurnHooks({
 		settings: options.settings,
 		cwd: options.cwd,
 		sessionId: options.sessionId,
 		agentName: definition.name,
+		agentId: id,
 		signal: controller.signal,
+		emit: async (event) => {
+			if (event.type !== "hook_run") return;
+			await options.emit({ type: "subagent_event", id, event: { ...event, run: registry?.hookRun(id, event.run) ?? event.run } });
+		},
 	});
 	return {
 		session: {

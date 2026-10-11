@@ -26,6 +26,8 @@ export interface TurnHooks {
 	cwd: string;
 	sessionId: string;
 	agentName?: string;
+	/** 子代理自己的 id：同一种子代理并行派了几个时，钩子靠它分得出是哪一个。 */
+	agentId?: string;
 	permissionMode?: string;
 	signal?: AbortSignal;
 }
@@ -60,6 +62,7 @@ function base(scope: TurnHooks, event: HookInput["hookEventName"]): HookInput {
 		cwd: scope.cwd,
 		timestamp: new Date().toISOString(),
 		...(scope.agentName ? { agentName: scope.agentName } : {}),
+		...(scope.agentId ? { agentId: scope.agentId } : {}),
 		...(scope.permissionMode ? { permissionMode: scope.permissionMode } : {}),
 	};
 }

@@ -186,7 +186,9 @@ export class SessionLog {
 			// 只落终态：「开始了」对一份事后读的记录没有信息量，终态才说得出它拦没拦、为什么。
 			if (stamped.status !== "running" && this.meta) this.meta = (await this.store.append(this.meta, { type: "event", event })) ?? this.meta;
 		}
-		if (PERSISTED_EVENTS.has(event.type) && this.meta) {
+		// 子代理的钩子同上，只落终态。
+		const hookStarted = event.type === "subagent_event" && event.event.type === "hook_run" && event.event.run.status === "running";
+		if (PERSISTED_EVENTS.has(event.type) && !hookStarted && this.meta) {
 			this.meta = (await this.store.append(this.meta, { type: "event", event })) ?? this.meta;
 		}
 		if (event.type === "command_status") {

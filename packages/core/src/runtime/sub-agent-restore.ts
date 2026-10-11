@@ -12,7 +12,7 @@
  * 拼），压缩剪过的结果从 `subagent_views` 换回剪过的那份。见 ADR-0024。
  */
 
-import type { AgentEvent } from "../agent/events.ts";
+import type { AgentEvent, HookRun } from "../agent/events.ts";
 import { environmentDate, today, withEnvironment } from "../prompt/environment.ts";
 import { interruptedResult } from "../session/live-calls.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
@@ -30,6 +30,8 @@ export interface RestoredSubAgent {
 	summary: SubAgentSummary;
 	/** What the pane shows: the transcript as it was written. */
 	messages: Message[];
+	/** 它跑过的钩子，各自的终态；`at` 落盘时就盖好了。 */
+	hookRuns: HookRun[];
 	/** Absent when there is no model to rebuild a compacted history against. */
 	conversation?: SubAgentConversation;
 }
@@ -54,6 +56,7 @@ interface Draft {
 	/** Calls that got as far as `tool_start` — the ones that may have acted. */
 	started: Set<string>;
 	left: Map<string, ToolResult>;
+	hookRuns: Map<string, HookRun>;
 	lastSeen: number;
 }
 
@@ -96,6 +99,7 @@ export function restoreSubAgents(records: readonly SessionRecord[], rebuild?: Re
 				draft.summary.lastActivity = inner.summary;
 			}
 			if (inner.type === "tool_left") draft.left.set(inner.toolCallId, inner.result);
+			if (inner.type === "hook_run") draft.hookRuns.set(inner.run.id, inner.run);
 		} else {
 			draft.summary.status = event.status;
 			draft.summary.endedAt = record.ts;
@@ -111,7 +115,7 @@ export function restoreSubAgents(records: readonly SessionRecord[], rebuild?: Re
 			draft.summary.endedAt = draft.lastSeen;
 		}
 		const target = rebuild?.(draft.ran);
-		return { summary: draft.summary, messages: draft.messages, ...(target ? { conversation: conversationOf(draft, target) } : {}) };
+		return { summary: draft.summary, messages: draft.messages, hookRuns: [...draft.hookRuns.values()], ...(target ? { conversation: conversationOf(draft, target) } : {}) };
 	});
 }
 
@@ -150,6 +154,7 @@ function dispatched(drafts: Map<string, Draft>, event: Event<"subagent">, at: nu
 		boundary: null,
 		started: new Set(),
 		left: new Map(),
+		hookRuns: new Map(),
 		lastSeen: at,
 	});
 }

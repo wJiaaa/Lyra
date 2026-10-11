@@ -10,6 +10,7 @@
 export { BackToLatest } from "./BackToLatest.tsx";
 export { Markdown } from "./Markdown.tsx";
 export { MessageActions } from "./MessageActions.tsx";
+export { HookRunsButton } from "./HookRunsAction.tsx";
 export { formatTokens } from "../../lib/format-tokens.ts";
 export { SessionStatus } from "./SessionStatus.tsx";
 export { ThinkingBlock } from "./ThinkingBlock.tsx";

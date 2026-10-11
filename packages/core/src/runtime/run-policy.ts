@@ -51,8 +51,9 @@ export function inheritedToolEnv(input: {
 /**
  * 这一次运行的钩子：读当前的钩子配置，并说清楚是谁在问。
  *
- * `agentName` 只有子代理给——同一个 `bash` 调用，钩子要分得出是主对话还是哪个子代理发的。
- * `emit` 只有主会话给：每次钩子运行作为 `hook_run` 事件进它的日志。
+ * `agentName`、`agentId` 只有子代理给——同一个 `bash` 调用，钩子要分得出是主对话还是哪个子代理发的；
+ * 同一种子代理并行派了几个，`agentId` 分得出是哪一个。
+ * `emit` 把每次钩子运行作为 `hook_run` 交出去：主会话直接进它的日志，子代理包进 `subagent_event`。
  */
 export async function loadTurnHooks(input: {
 	settings: Settings;
@@ -60,6 +61,7 @@ export async function loadTurnHooks(input: {
 	sessionId: string;
 	signal: AbortSignal | undefined;
 	agentName?: string;
+	agentId?: string;
 	emit?: (event: AgentEvent) => Promise<void>;
 }): Promise<TurnHooks> {
 	return {
@@ -67,6 +69,7 @@ export async function loadTurnHooks(input: {
 		cwd: input.cwd,
 		sessionId: input.sessionId,
 		agentName: input.agentName,
+		agentId: input.agentId,
 		permissionMode: input.settings.permissionMode,
 		signal: input.signal,
 	};

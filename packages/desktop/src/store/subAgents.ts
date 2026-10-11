@@ -15,7 +15,7 @@
  */
 
 import { create } from "zustand";
-import type { Message, SubAgentSummary } from "@plume/core";
+import type { HookRun, Message, SubAgentSummary } from "@plume/core";
 import { freshTokens } from "@plume/core/tokens";
 import { bridge } from "../services/index.ts";
 
@@ -24,6 +24,8 @@ interface SubAgentState {
 	agents: SubAgentSummary[];
 	/** Transcripts, by sub-agent id, for the ones that have been opened. */
 	transcripts: Record<string, Message[]>;
+	/** 它们跑过的钩子，和转录同进同出：打开时一起读，之后跟着事件补。 */
+	hookRuns: Record<string, HookRun[]>;
 	/** Which one the pane is showing, or null for none open yet. */
 	focused: string | null;
 	/**
@@ -60,6 +62,8 @@ interface SubAgentState {
 	forgetFinished(sessionId: string): void;
 	/** One message, as the sub-agent writes it. Ignored for a transcript nobody has opened. */
 	append(id: string, message: Message): void;
+	/** One hook run, started or settled. Ignored for a transcript nobody has opened, like `append`. */
+	hookRun(id: string, run: HookRun): void;
 	focus(id: string | null): void;
 	/**
 	 * 有人要看某一个——在对话里点了它的派发卡片。
@@ -79,6 +83,7 @@ interface SubAgentState {
 export const useSubAgents = create<SubAgentState>((set, get) => ({
 	agents: [],
 	transcripts: {},
+	hookRuns: {},
 	focused: null,
 	loading: [],
 	rosters: {},
@@ -134,6 +139,11 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 		set({ transcripts: { ...get().transcripts, [id]: [...existing, message] } });
 	},
 
+	hookRun(id, run) {
+		if (!get().transcripts[id]) return;
+		set({ hookRuns: { ...get().hookRuns, [id]: upsert(get().hookRuns[id] ?? [], run) } });
+	},
+
 	focus(id) {
 		set({ focused: id });
 	},
@@ -153,16 +163,27 @@ export const useSubAgents = create<SubAgentState>((set, get) => ({
 			 */
 			const arrived = detail?.messages ?? [];
 			const since = get().transcripts[id] ?? [];
-			set({ transcripts: { ...get().transcripts, [id]: arrived.length >= since.length ? arrived : since } });
+			// 读的时候到了的那几条钩子更新，压在读回来的那份上面。
+			const runs = (get().hookRuns[id] ?? []).reduce(upsert, detail?.hookRuns ?? []);
+			set({
+				transcripts: { ...get().transcripts, [id]: arrived.length >= since.length ? arrived : since },
+				hookRuns: { ...get().hookRuns, [id]: runs },
+			});
 		} finally {
 			set({ loading: get().loading.filter((each) => each !== id) });
 		}
 	},
 
 	clear() {
-		set({ agents: [], transcripts: {}, focused: null, loading: [] });
+		set({ agents: [], transcripts: {}, hookRuns: {}, focused: null, loading: [] });
 	},
 }));
+
+/** 同一条钩子先报开始、再报结局，按 id 换掉；两次的位置运行时盖的是同一个（`SubAgentRegistry.hookRun`）。 */
+function upsert(runs: readonly HookRun[], run: HookRun): HookRun[] {
+	const at = runs.findIndex((known) => known.id === run.id);
+	return at < 0 ? [...runs, run] : runs.map((known, index) => (index === at ? run : known));
+}
 
 /** Role and timestamp first: cheap, and they rule out almost every pair before the full comparison. */
 function sameMessage(a: Message, b: Message): boolean {

@@ -14,9 +14,9 @@
 
 import { translate } from "../../i18n/translate.ts";
 import { CornerRightDown } from "../../ui/icons/index.ts";
-import { memo, useMemo, useState } from "react";
-import type { Message, UserMessage } from "@plume/core";
-import { MessageActions, ModelSwitchRow, runs, runKey, segments, SpokenBubble, spokenText, ToolRun } from "../conversation/index.ts";
+import { Fragment, memo, useMemo, useState } from "react";
+import type { HookRun, Message, UserMessage } from "@plume/core";
+import { HookRunsButton, MessageActions, ModelSwitchRow, runs, runKey, segments, SpokenBubble, spokenText, ToolRun } from "../conversation/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
 import { subAgentRuns } from "./runs.ts";
@@ -32,10 +32,13 @@ export function fromParent(message: Message, index: number): boolean {
 
 export const SubAgentTranscript = memo(function SubAgentTranscript({
 	messages,
+	hookRuns,
 	isLive,
 	echo,
 }: {
 	messages: Message[];
+	/** 它跑过的钩子，`at` 是这份转录里的位置。 */
+	hookRuns?: readonly HookRun[];
 	isLive?: boolean;
 	/**
 	 * 下面那张「回报给主 Agent」卡片里已经写着的那段话。
@@ -49,6 +52,14 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 	const transcriptRuns = useMemo(() => runs(messages), [messages]);
 	const toolRuns = useMemo(() => subAgentRuns(messages), [messages]);
 	const lastReply = isLive || !echo ? -1 : messages.findLastIndex((message) => message.role === "assistant");
+	/*
+	 * 钩子按段归：派出去那一句、或者续跑补的那一句开一段，到下一段之前为止——同主会话一轮一个按钮，
+	 * 放在这一段收尾的地方。跑着的那一段不放，跑完才有，也和主会话一样。
+	 */
+	const starts = useMemo(() => messages.flatMap((message, index) => (fromParent(message, index) ? [index] : [])), [messages]);
+	const stretchHooks = (start: number, end: number) => (
+		<StretchHooks key={`hooks-${start}`} runs={(hookRuns ?? []).filter((run) => run.at > start && run.at <= end)} />
+	);
 
 	return (
 		/*
@@ -71,7 +82,15 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 				const from = run.from ?? 0;
 				if (message.role === "user") {
 					if (message.synthetic) return null;
-					if (fromParent(message, run.index)) return <TaskBrief key={runKey(run)} message={message} resumed={run.index > 0} />;
+					if (fromParent(message, run.index)) {
+						const previous = starts.findLast((start) => start < run.index);
+						return (
+							<Fragment key={runKey(run)}>
+								{previous !== undefined && stretchHooks(previous, run.index)}
+								<TaskBrief message={message} resumed={run.index > 0} />
+							</Fragment>
+						);
+					}
 					return (
 						<div key={runKey(run)} className="group/msg ly-enter flex flex-col items-end">
 							{/* 和侧边聊天同一个气泡——见 `SpokenBubble`。 */}
@@ -138,9 +157,21 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 
 				return null;
 			})}
+			{!isLive && starts.length > 0 && stretchHooks(starts.at(-1)!, Infinity)}
 		</div>
 	);
 });
+
+/** 一段里跑过的钩子；一条都没有就什么也不画，不在列表里留一道空隙。 */
+function StretchHooks({ runs }: { runs: readonly HookRun[] }) {
+	if (runs.length === 0) return null;
+	// 往回收：列表的行距是两段话之间的距离，这一排属于上面那句回复，和主会话里的操作排一样贴着它。
+	return (
+		<div data-sub-hooks="" className="-mt-1.5 -ml-1.5 flex h-6 items-center">
+			<HookRunsButton runs={runs} />
+		</div>
+	);
+}
 
 /** 长到这个份上，先收起来：一份交代得很细的任务能有几十行，摊开就把它干的活推到屏幕外。 */
 const BRIEF_LINES = 8;

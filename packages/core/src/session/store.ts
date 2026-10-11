@@ -289,16 +289,16 @@ export class SessionStore implements SessionStorage {
 	 * What the session's sub-agents left in the log, in order: enough to list them again and to
 	 * continue one after the process that ran them is gone (`runtime/sub-agent-restore.ts`).
 	 *
-	 * Of their nested events only the three that shape their history: where they compacted, which
-	 * calls started, and what a call left behind. The rest (requests, contexts) are the bulk of the
-	 * log and say nothing a resume needs.
+	 * Of their nested events only the three that shape their history — where they compacted, which
+	 * calls started, and what a call left behind — and the hooks they ran, for their pane. The rest
+	 * (requests, contexts) are the bulk of the log and say nothing a resume or the pane needs.
 	 */
 	async subAgentRecords(sessionId: string): Promise<SessionRecord[]> {
 		this.settle(sessionId);
 		const rows = this.db
 			.prepare(
 				`SELECT body FROM records WHERE session_id = ? AND (kind IN ('subagent', 'subagent_message', 'subagent_done', 'subagent_views', 'subagent_dismissed', 'truncate')
-					OR (kind = 'subagent_event' AND json_extract(body, '$.event.event.type') IN ('compacted', 'tool_start', 'tool_left'))) ORDER BY seq`,
+					OR (kind = 'subagent_event' AND json_extract(body, '$.event.event.type') IN ('compacted', 'tool_start', 'tool_left', 'hook_run'))) ORDER BY seq`,
 			)
 			.all(sessionId) as { body: string }[];
 		return rows.map((row) => JSON.parse(row.body) as SessionRecord);

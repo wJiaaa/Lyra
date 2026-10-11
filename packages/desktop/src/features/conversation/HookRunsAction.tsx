@@ -37,9 +37,14 @@ function duration(ms: number | undefined): string {
 
 /** `from` 是这一轮开口的那条消息，`to` 是收尾那条回复之后的位置；钩子的 `at` 落在两者之间就归这一轮。 */
 export function HookRunsAction({ from, to }: { from: number; to: number }) {
-	const { t } = useI18n();
 	const all = useScopedHookRuns();
 	const runs = useMemo(() => all.filter((run) => run.at > from && run.at <= to), [all, from, to]);
+	return <HookRunsButton runs={runs} />;
+}
+
+/** 按钮和点开的那张单子本身；子代理面板拿它自己的那份钩子来用（`SubAgentTranscript`）。 */
+export function HookRunsButton({ runs }: { runs: readonly HookRun[] }) {
+	const { t } = useI18n();
 	const popover = usePopover();
 	if (runs.length === 0) return null;
 	const troubled = runs.some((run) => run.status === "blocked" || run.status === "failed" || run.status === "timed_out");

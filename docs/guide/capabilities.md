@@ -121,7 +121,15 @@ Agent 光标由面板覆盖层绘制，采用圆润的黑色箭头、白色描�
   钩子的 deny 照常生效。
 - `Stop` 钩子要求继续并给出原因时，这一轮会接着跑，最多连续三次。
 
-每一轮跑过哪些钩子、结果如何，在回复下方的操作栏里点钩子图标查看。
+每一轮跑过哪些钩子、结果如何，在回复下方的操作栏里点钩子图标查看。子智能体里的工具调用同样经过
+`PreToolUse` / `PostToolUse` 等钩子，输入里多两个字段（主对话里没有）：`agentName`（`agent_type`）是
+子智能体的名字，比如 `general`；`agentId`（`agent_id`）是这一个子智能体自己的 id，同一种并行派了
+几个时靠它区分。字段名与 Claude Code 一致。它们的运行记录在子智能体自己的面板里：每一段（派出去的
+那一次、每次续跑）收尾处有一个钩子图标，主对话的图标里不列它们。
+
+和 Claude Code 还差的：内置子智能体的 `agent_type` 用的是 Plume 的名字（`explore`、`general`），
+不是 Claude Code 的 `Explore`、`general-purpose`；子智能体也不触发 `Stop`。**待做**：
+`SubagentStart` / `SubagentStop` 两个事件——派出一个子智能体、它跑完时各触发一次，现在还没有。
 
 ## 从别的应用打开会话
 

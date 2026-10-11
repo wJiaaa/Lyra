@@ -126,6 +126,7 @@ function Transcript({ agent, agents, sessionId, openFile }: {
 }) {
 	const { t } = useI18n();
 	const messages = useSubAgents((s) => s.transcripts[agent.id]);
+	const hookRuns = useSubAgents((s) => s.hookRuns[agent.id]);
 	const loading = useSubAgents((s) => s.loading.includes(agent.id));
 
 	/*
@@ -164,6 +165,7 @@ function Transcript({ agent, agents, sessionId, openFile }: {
 				) : (
 					<SubAgentTranscript
 						messages={messages}
+						hookRuns={hookRuns}
 						isLive={agent.status === "running"}
 						// 回报是一段话的时候，那段话只在回报卡片里画一次——见 `echo`。
 						echo={agent.answer && !(agent.output && hasContent(agent.output)) ? agent.answer : undefined}
