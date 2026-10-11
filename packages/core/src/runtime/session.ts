@@ -57,7 +57,7 @@ import { TODOS_KEY } from "../tools/todo.ts";
 import { manualCompaction, type CompactionParts } from "./manual-compaction.ts";
 import { adoptModelSwitch, recordModel, recordThinking } from "./session-model.ts";
 import { rewind, type RewindParts } from "./session-rewind.ts";
-import { changedPaths, mainChatContext, SIDE_CHAT_PROMPT, sideChangesNote, sideChatTools } from "./side-session.ts";
+import { changedPaths, mainChatContext, SIDE_CHAT_PROFILE, sideChangesNote, sideChatTools } from "./side-session.ts";
 
 export interface AgentSessionOptions {
 	cwd: string;
@@ -919,7 +919,7 @@ export class AgentSession {
 				subAgents: this.subAgents,
 				delegations: this.delegations,
 				liveModel: this.liveModel,
-				appendSystemPrompt: parent ? SIDE_CHAT_PROMPT : undefined,
+				profile: parent ? SIDE_CHAT_PROFILE : undefined,
 				context: async () => parent ? mainChatContext(this.log.messages, parent, resolved.model) : this.takeSideChanges(),
 			});
 			this.activity.trackTurn(turn);

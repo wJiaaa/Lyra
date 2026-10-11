@@ -39,7 +39,7 @@ import type { SessionLog } from "./session-log.ts";
 import type { Boundary } from "../session/types.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
 import { prepareTurn } from "./turn.ts";
-import { loadPromptContext, promptCapabilities } from "./prompt-context.ts";
+import { loadPromptContext, promptCapabilities, type PromptProfile } from "./prompt-context.ts";
 import { reconcilePrompt, type PromptContext } from "../prompt/context.ts";
 import { currentSections, diffSections, promptSections, promptUpdateMessage } from "../prompt/update.ts";
 import { buildTurnConfig } from "./turn-config.ts";
@@ -68,8 +68,8 @@ export interface TurnInputs {
 	delegations?: DelegationWaits;
 	/** 这场对话此刻设定的模型——一轮之内也会变。见 `AgentModelContext.liveModel`。 */
 	liveModel?: LiveModel;
-	/** 接在系统提示末尾的一段，侧边聊天用它说明自己的处境。见 `side-session.ts`。 */
-	appendSystemPrompt?: string;
+	/** 侧边聊天：自己的身份和准则、一小组工具。见 `side-session.ts` 和 `PromptProfile`。 */
+	profile?: PromptProfile;
 	/**
 	 * 这一轮开始前要让模型知道的事：侧边聊天附上主会话的进展，主会话收到侧边聊天改过的文件。
 	 * 进日志、界面不画，和钩子给的上下文一样。
@@ -312,7 +312,10 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 	const memoryEnabled = projectMemoryEnabled(settings);
 	can.state.set(PROJECT_MEMORY_ENABLED_KEY, memoryEnabled);
 
-	const { tools, dispatchLimits } = promptCapabilities({ settings, tools: can.tools });
+	// 名单外的工具不止是不提：不在这一轮的工具表里，模型叫也叫不到。
+	const profile = input.profile;
+	const allowed = profile ? can.tools.filter((tool) => profile.tools.has(tool.name)) : can.tools;
+	const { tools, dispatchLimits } = promptCapabilities({ settings, tools: allowed });
 
 	/*
 	 * Where `agent://` finds the sub-agents this session dispatched.
@@ -329,7 +332,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 		modelName: input.model.name, scratchDir: input.scratchDir,
 		resources: can.resources.schemes(),
 		dispatchLimits,
-		appendSystemPrompt: input.appendSystemPrompt,
+		profile: input.profile,
 	}));
 	const turn = await prepareTurn({
 		cwd, tools, systemPrompt: prompt.systemPrompt,

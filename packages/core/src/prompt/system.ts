@@ -111,13 +111,24 @@ export interface SystemPromptInput {
 	 */
 	identityOverride?: string;
 	/**
-	 * 子代理的身份：它定义里的那段话，原样放在最前面，取代 Plume 的身份段。
+	 * 子代理的身份：它定义里的那段话，原样放在最前面，取代 Plume 的身份段。侧边聊天也走这里
+	 * （`runtime/side-session.ts` 的 `SIDE_CHAT_PROFILE`），理由相同。
 	 *
 	 * 不走 `identityOverride`：那是项目文件，按模板渲染；子代理定义可能来自用户写的 markdown，
 	 * 里面的 `{{` 只是正文。以前子代理没有这一项，于是开头读到的是「You are Plume」，自己的角色
 	 * 追加在整段提示词的末尾——同一段提示词里两个身份，先到的那个占上风。
 	 */
 	identity?: string;
+	/**
+	 * 换掉内置准则的整份清单，和 `identity` 一起用：侧边聊天的准则是它自己的，主会话那十几条是写给
+	 * 接一整件任务的 agent 的。见 `runtime/side-session.ts`。
+	 */
+	guidelines?: string[];
+	/**
+	 * 画得出界面块的端。省略时看有没有 `preview`（只有桌面端加载它）；侧边聊天在桌面端、却不带
+	 * `preview`，所以要明说。
+	 */
+	interfaceBlocks?: boolean;
 	/**
 	 * 换掉内置的行为准则，来自 `.plume/prompts/guidelines.md`。
 	 *
@@ -195,9 +206,10 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 	 * 隔离那条跟着内置的一起走，所以 `.plume/prompts/guidelines.md` 换掉内置准则时它也一起换掉——
 	 * `guidelinesOverride` 的语义就是「内置那些我自己来写」。
 	 */
-	const guidelines = input.guidelinesOverride?.trim()
-		? parseGuidelines(input.guidelinesOverride)
-		: [...BASE_GUIDELINES, isolationGuideline(input)];
+	const guidelines = input.guidelines
+		?? (input.guidelinesOverride?.trim()
+			? parseGuidelines(input.guidelinesOverride)
+			: [...BASE_GUIDELINES, isolationGuideline(input)]);
 	/*
 	 * Shell 的写法是环境的一部分，不是可以被项目准则换掉的偏好；只在 `bash` 加载时才说。
 	 */
@@ -223,7 +235,8 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 	 * 界面块只对画得出它的端说。判据借 `preview`：只有桌面端加载它，而画界面块的也只有桌面端——
 	 * 命令行、评测里说了也画不出来，还每次请求都要为它付一份。
 	 */
-	if (input.tools.some((tool) => tool.name === "preview")) prompt.add("interface", interfacePrompt());
+	const preview = input.tools.some((tool) => tool.name === "preview");
+	if (input.interfaceBlocks ?? preview) prompt.add("interface", interfacePrompt({ preview }));
 	prompt.add("environment", `\n\nEnvironment:
 - Platform: ${input.platform}${input.shell ? `\n- Shell: ${input.shell.label}` : ""}${shellRules.map((rule) => `\n- ${rule}`).join("")}
 - Git repository: ${input.isGitRepo ? "yes" : "no"}
