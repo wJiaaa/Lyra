@@ -36,10 +36,19 @@ export interface SymbolIndex {
 	symbols: SymbolEntry[];
 	/** Files skipped because they were binary or too large. */
 	skipped: number;
+	/** `INDEX_VERSION` at build time; an index without it was built by the rules before it. */
+	version?: number;
+	/** The walk stopped at `MAX_SYMBOLS`: files after that point are not in the index at all. */
+	truncated?: boolean;
 }
 
 const MAX_FILE_BYTES = 800_000;
 const MAX_SYMBOLS = 40_000;
+/**
+ * Bumped when the indexing rules change, so an index built under the old ones is rebuilt rather
+ * than trusted. 2: bindings only at the top level (see `buildIndex`).
+ */
+export const INDEX_VERSION = 2;
 
 const SKIP_DIRS = new Set([
 	"node_modules", ".git", "dist", "build", "out", ".next", ".nuxt", "target", "vendor",
@@ -118,6 +127,15 @@ export async function buildIndex(cwd: string, signal?: AbortSignal): Promise<Sym
 				for (const { kind, re } of PATTERNS) {
 					const match = re.exec(line);
 					if (!match) continue;
+					/*
+					 * Bindings only at the top level — the same rule the `read` outline settled on. The
+					 * `const` pattern matches every local inside a function body just as happily, and on
+					 * this repository those were 36 000 of 52 000 matches: the walk hit `MAX_SYMBOLS`
+					 * halfway through the alphabet, and everything after `desktop/src/ui/icons` —
+					 * `Popover.tsx` among it — was never indexed. `symbol` then answered "not found" for
+					 * functions that plainly exist, and the agent went back to grep.
+					 */
+					if (kind === "const" && /^\s/.test(line)) break;
 					symbols.push({ name: match[1], kind, file: rel, line: i + 1, text: line.trim().slice(0, 200) });
 					break;
 				}
@@ -126,7 +144,7 @@ export async function buildIndex(cwd: string, signal?: AbortSignal): Promise<Sym
 	};
 
 	await walk(cwd);
-	return { cwd, builtAt: Date.now(), fileCount, symbols, skipped };
+	return { cwd, builtAt: Date.now(), fileCount, symbols, skipped, version: INDEX_VERSION, truncated: symbols.length >= MAX_SYMBOLS };
 }
 
 // ---------------------------------------------------------------------------

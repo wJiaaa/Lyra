@@ -43,6 +43,31 @@ test("partial reads retain their boundaries after edits shift line numbers", asy
 	assert.equal(await readFile(path, "utf8"), "a\ninserted\nB\nc\nd\n");
 });
 
+test("编辑结果带着改动处的新行号，下一次 patch 不用先重读", async (t) => {
+	const original = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
+	const { path, ctx } = await fixture(t, original);
+	await readTool.execute({ path }, ctx);
+	const first = await editTool.execute({ path, tag: snapshotTag(original), patch: "INSERT AFTER 3\n+x1\n+x2\nREPLACE 15-15\n+fifteen" }, ctx);
+	const shown = text(first);
+	// 改动处加上下各一行；15 行往下挪了两行，成了 17。
+	assert.match(shown, /^ 3→line 3\n 4→x1\n 5→x2\n 6→line 4$/m);
+	assert.match(shown, /^16→line 14\n17→fifteen\n18→line 16$/m);
+	assert.doesNotMatch(shown, /line 10/, "离改动远的行不回显");
+
+	const tag = /New tag: ([0-9A-F]{4})/.exec(shown)![1];
+	assert.notEqual((await editTool.execute({ path, tag, patch: "REPLACE 17-17\n+FIFTEEN" }, ctx)).isError, true);
+	assert.match(await readFile(path, "utf8"), /line 14\nFIFTEEN\nline 16/);
+});
+
+test("改动太大时只给新行号范围，不把整段回显", async (t) => {
+	const { path, ctx } = await fixture(t, "a\nb\n");
+	await readTool.execute({ path }, ctx);
+	const payload = Array.from({ length: 80 }, (_, i) => `+n${i}`).join("\n");
+	const shown = text(await editTool.execute({ path, tag: snapshotTag("a\nb\n"), patch: `INSERT AFTER 1\n${payload}` }, ctx));
+	assert.match(shown, /Changed regions now at lines 1-82/);
+	assert.doesNotMatch(shown, /n40/);
+});
+
 test("copying the current tag cannot bypass a stale read record", async (t) => {
 	const { path, ctx } = await fixture(t);
 	await readTool.execute({ path }, ctx);

@@ -22,8 +22,15 @@
 import { CODE_EXTENSIONS, PATTERNS } from "../index/symbols.ts";
 import { charWindow, formatCharWindow, MAX_LINE_CHARS } from "./long-line.ts";
 
-/** Below this, folding is not worth the indirection. */
-const MIN_LINES = 80;
+/**
+ * Below this, folding is not worth the indirection.
+ *
+ * It was 80. Measured on one machine's session history: files under 300 lines were folded 123
+ * times, and 120 ranged reads of the same files followed — each one a request that resent the whole
+ * conversation, 11.6M tokens between them, against 1.4M saved by not carrying the full text. Above
+ * 300 the two come within a factor of two and folding stays.
+ */
+const MIN_LINES = 300;
 /** A run shorter than this stays verbatim: the marker would cost as much as the lines. */
 const MIN_RUN = 4;
 /** If folding does not remove at least this share of the file, return the original. */

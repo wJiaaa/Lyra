@@ -22,11 +22,11 @@
 import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { withTextFile } from "./file-write.ts";
-import { computeDiff, formatDiff } from "./diff.ts";
+import { computeDiff, formatDiff, type FileDiff } from "./diff.ts";
 import { applyHunks, parsePatch, PATCH_SYNTAX, PatchError, snapshotTag, type Hunk } from "./hunk.ts";
-import { indexToLineCol } from "./long-line.ts";
+import { formatCharWindow, indexToLineCol, MAX_LINE_CHARS } from "./long-line.ts";
 import { displayPath, resolveWorkspacePath } from "./paths.ts";
-import { markEdited, readRecord, readVersion, wasShown, wasShownChars } from "./read-state.ts";
+import { markEdited, markReadRanges, readRecord, readVersion, wasShown, wasShownChars } from "./read-state.ts";
 import { decodeInput, decodeText, encodeText, type TextLayout } from "./text-layout.ts";
 
 interface EditArgs {
@@ -109,13 +109,16 @@ export const editTool: Tool<EditArgs> = {
 
 				const changeId = await write(encodeText(after, layout));
 				markEdited(ctx, absolute, before, after, hunks);
+				// One line of context, not the preview's three: every line shown becomes editable, so show only what anchors the change.
+				const view = changedView(computeDiff(before, after, 1), after);
+				markReadRanges(ctx, absolute, after, view.ranges);
 
 				return {
 					content: [
 						{
 							type: "text",
 							// The new tag is the one the model needs if it edits this file again this turn.
-							text: `Edited ${shown}: ${summary}, +${diff.added} -${diff.removed}. New tag: ${snapshotTag(after)}`,
+							text: `Edited ${shown}: ${summary}, +${diff.added} -${diff.removed}. New tag: ${snapshotTag(after)}${view.text}`,
 						},
 					],
 					details: {
@@ -133,6 +136,43 @@ export const editTool: Tool<EditArgs> = {
 		}
 	},
 };
+
+/** Above this many lines the echo costs more than the re-read it saves; the line ranges alone are given. */
+const MAX_ECHO_LINES = 60;
+
+/**
+ * The changed regions as they now read, under their new line numbers.
+ *
+ * Without this the model re-read the file after almost every edit: line numbers shift with the
+ * change, and the next patch has to name the new ones. In the session history 71 of 154
+ * successful edits were followed straight away by a read of the same file — a round trip each,
+ * resending the whole conversation, to learn what this result already knows.
+ *
+ * The lines shown are marked as read, so the next patch may name them. A line too long to show
+ * whole is windowed like `read` does and left unmarked: editing it still needs `char_offset`.
+ */
+function changedView(diff: FileDiff, after: string): { text: string; ranges: [number, number][] } {
+	const lines = after.endsWith("\n") ? after.slice(0, -1).split("\n") : after.split("\n");
+	const blocks = diff.hunks.map((hunk) => hunk.lines.flatMap((line) => (line.newLine === undefined ? [] : [line.newLine])));
+	const total = blocks.reduce((sum, block) => sum + block.length, 0);
+	if (total === 0) return { text: "", ranges: [] };
+	if (total > MAX_ECHO_LINES) {
+		const spans = blocks.filter((block) => block.length).map((block) => `${block[0]}-${block.at(-1)}`);
+		return { text: `\nChanged regions now at lines ${spans.join(", ")}; read them before patching there again.`, ranges: [] };
+	}
+	const width = String(Math.max(...blocks.flat())).length;
+	const ranges: [number, number][] = [];
+	const rendered = blocks.map((block) =>
+		block
+			.map((lineNo) => {
+				const text = lines[lineNo - 1] ?? "";
+				if (text.length <= MAX_LINE_CHARS) ranges.push([lineNo, lineNo]);
+				return `${String(lineNo).padStart(width, " ")}→${text.length <= MAX_LINE_CHARS ? text : formatCharWindow(text)}`;
+			})
+			.join("\n"),
+	);
+	return { text: `\nNow reads, with the new line numbers:\n${rendered.join("\n     ⋯\n")}`, ranges };
+}
 
 type Outcome = { after: string; summary: string; hunks?: Hunk[] } | { error: string };
 

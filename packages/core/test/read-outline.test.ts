@@ -17,7 +17,7 @@ import { readTool } from "../src/tools/read.ts";
 import type { ToolContext } from "../src/types.ts";
 
 /** A file with real structure: declarations, doc comments, and bodies worth folding. */
-function sourceFile(functions = 12): string {
+function sourceFile(functions = 24): string {
 	const head = `/**\n * Module header.\n * Explains why this exists.\n */\n\nimport { a } from "./a.ts";\nimport { b } from "./b.ts";\n\n`;
 	const body = Array.from({ length: functions }, (_, i) => {
 		const filler = Array.from({ length: 8 }, (_, j) => `\tconst step${j} = compute(${i}, ${j});`).join("\n");
@@ -92,6 +92,13 @@ test("an explicit window is never folded", async () => {
 	assert.match(text, /const step0/, "body lines must be present in a windowed read");
 });
 
+test("a source file under 300 lines comes back whole — folding it costs more requests than it saves", async () => {
+	const content = sourceFile(20);
+	assert.ok(linesOf(content).length < 300);
+	const { file, ctx } = await fixture("mod.ts", content);
+	assert.doesNotMatch(textOf(await readTool.execute({ path: file } as never, ctx)), /⋯ \d+ lines/);
+});
+
 test("a file we cannot parse is returned verbatim", async () => {
 	// Long, but not a language whose declarations the patterns know.
 	const prose = Array.from({ length: 200 }, (_, i) => `line ${i} of ordinary prose`).join("\n") + "\n";
@@ -101,7 +108,7 @@ test("a file we cannot parse is returned verbatim", async () => {
 });
 
 test("a file that is nearly all declarations is not folded — there is nothing to save", () => {
-	const decls = Array.from({ length: 120 }, (_, i) => `export const value${i} = ${i};`).join("\n") + "\n";
+	const decls = Array.from({ length: 400 }, (_, i) => `export const value${i} = ${i};`).join("\n") + "\n";
 	assert.equal(outline("types.ts", decls, linesOf(decls)), null);
 });
 

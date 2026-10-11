@@ -326,6 +326,38 @@ for (const session of sessions) {
 	}
 }
 
+/*
+ * 读和改之间多出来的那几轮。
+ *
+ * - 折叠之后又按段读：结构视图本意是让模型只读需要的那段，可要改、要读懂的文件，最后常被一段段
+ *   读完——分 7 次读到 712 行里的 661 行，比一次读完多跑 6 轮。
+ * - 改完紧接着重读：`edit` 按行号定位，改完行号就变了，模型要再读一遍才知道新行号。
+ */
+let outlinedReads = 0;
+let rangedAfterOutline = 0;
+let editsOk = 0;
+let readAfterEdit = 0;
+const pathOf = (call: Call) => (call.args as { path?: unknown } | undefined)?.path;
+for (const session of sessions) {
+	const folded = new Set<string>();
+	for (const [i, call] of session.calls.entries()) {
+		const path = pathOf(call);
+		if (typeof path !== "string") continue;
+		const result = session.results.get(call.id) as { isError?: boolean; details?: { outlined?: boolean } } | undefined;
+		if (call.name === "read") {
+			const args = call.args as { offset?: unknown; limit?: unknown };
+			if (result?.details?.outlined) {
+				outlinedReads++;
+				folded.add(path);
+			} else if (folded.has(path) && (args.offset !== undefined || args.limit !== undefined)) rangedAfterOutline++;
+		}
+		if (call.name !== "edit" || !result || result.isError) continue;
+		editsOk++;
+		const next = session.calls.slice(i + 1).find((later) => pathOf(later) === path && (later.name === "read" || later.name === "edit"));
+		if (next?.name === "read") readAfterEdit++;
+	}
+}
+
 // ---------------------------------------------------------------------------
 // 4. 重复检测这条闸门实际拦下了什么——用生产代码重放，不是照着它重写一份
 // ---------------------------------------------------------------------------
@@ -631,6 +663,10 @@ if (asJson) {
 					reredTokens: tk(rereadChars),
 					identical: identicalCalls,
 					identicalTokens: tk(identicalChars),
+					outlined: outlinedReads,
+					rangedAfterOutline,
+					editsOk,
+					readAfterEdit,
 				},
 				repetition: { exactWarns, intentWarns, corrected, savedTokens: tk(correctedChars), wouldStop, worstEver },
 				pruneGain: Object.fromEntries(
@@ -722,6 +758,11 @@ console.log(
 	`  参数一字不差：      ${identicalCalls} 次 (${share(identicalCalls, readCalls)})，` +
 		`${tk(identicalChars).toLocaleString()} token —— 这些是纯重复`,
 );
+console.log(
+	`  折叠成结构视图：    ${outlinedReads} 次，之后又按段读同一文件 ${rangedAfterOutline} 次` +
+		`（平均 ${outlinedReads ? (rangedAfterOutline / outlinedReads).toFixed(1) : "0"} 次）`,
+);
+console.log(`  edit 成功后下一步就是重读同一文件：${readAfterEdit} / ${editsOk} 次 (${share(readAfterEdit, editsOk)})`);
 
 console.log("\n── 4. 重复检测这条闸门 ──");
 console.log(`  警告：exact(≥${REPEAT_WARN}) ${exactWarns} 次，intent ${intentWarns} 次`);
