@@ -39,8 +39,7 @@ interface SkillArgs {
 export const skillTool: Tool<SkillArgs> = {
 	name: "skill",
 	description:
-		"Load a skill's instructions into the conversation. When the task matches a skill listed in the " +
-		"system prompt, load it before starting your own approach. The instructions come back as the tool result and take precedence over your default approach.",
+		"Load a skill's instructions. They come back as the result and take precedence over your default approach.",
 	parameters: {
 		type: "object",
 		properties: {

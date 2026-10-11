@@ -30,14 +30,11 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const generateImageTool: Tool<ImageArgs> = {
 	name: "generate_image",
 	description:
-		"Generate an image from a text prompt with the image model the user chose in settings. " +
-		"The image is shown to the user right in the conversation and returned to you, along with the path of the saved file; " +
-		"copy that file into the project when the user wants the image there. " +
-		"Don't link the image or repeat its path in your reply unless the user asks for the file — they are already looking at it. " +
-		"Write the prompt as a full description — subject, style, composition, colours, any text to render — in the language that describes it best. " +
-		"To edit, restyle or keep the subject of existing images, pass them as references: `images` when every one has a local file path, " +
-		"otherwise `recent_images` — the smallest count of the latest images in this conversation (attached by the user, read, or generated) that includes them all. " +
-		"Never pass both; leave both out for a brand-new image.",
+		"Generate an image with the image model chosen in settings. It is shown to the user in the conversation and returned to you with its saved path; " +
+		"copy the file into the project when they want it there, and otherwise don't link it or repeat the path — they are already looking at it. " +
+		"Describe subject, style, composition, colours and any text to render, in the language that describes it best. " +
+		"To edit, restyle or keep the subject of existing images, pass references: `images` when every one has a local path, otherwise `recent_images` — " +
+		"the smallest count of this conversation's latest images (attached, read or generated) that includes them all. Never both; neither for a new image.",
 	parameters: {
 		type: "object",
 		properties: {

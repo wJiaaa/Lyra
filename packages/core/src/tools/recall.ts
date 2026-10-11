@@ -43,14 +43,16 @@ interface RecallArgs {
 export const recallTool: Tool<RecallArgs> = {
 	name: "recall",
 	description:
-		"Search the full transcript of this session, including messages that context compaction has since removed from view. Use it to recover the exact wording of an earlier request, a file's earlier contents, a command's exact output, or any detail a summary condensed. Matching is case-insensitive; every space-separated term must appear in the message. A long message is quoted as its opening, the passages around your terms, and its ending; to read another part of it, search again adding a term from that part. Images cannot be replayed — a match that carried one says so, and the only way to see it again is to ask the user to resend it.",
+		"Search this session's full transcript, including what compaction removed: an earlier request's exact wording, a file's earlier contents, a command's exact output. " +
+		"Case-insensitive; every space-separated term must appear in the message. A long message is quoted as its opening, the passages around your terms and its ending — " +
+		"search again with a term from another part to see that part. Images cannot be replayed; ask the user to resend one.",
 	parameters: {
 		type: "object",
 		properties: {
 			query: {
 				type: "string",
 				description:
-					"Terms to look for. All of them must appear in a message for it to match, so start broad — one distinctive word — and add terms only if there are too many results.",
+					"Terms that must all appear. Start with one distinctive word; add terms only if there are too many results.",
 			},
 			limit: {
 				type: "number",
@@ -59,7 +61,7 @@ export const recallTool: Tool<RecallArgs> = {
 			offset: {
 				type: "number",
 				description:
-					"How many of the newest matches to skip, for walking backwards through a long result set. 0 (the default) is the newest page; the footer of every answer tells you the exact offset that reaches the next one.",
+					"Newest matches to skip, to page backwards. Each answer's footer gives the offset of the next page.",
 			},
 		},
 		required: ["query"],

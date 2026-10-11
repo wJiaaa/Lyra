@@ -47,11 +47,11 @@ test("sections cover the emitted prompt exactly and attribute bounded instructio
 test("skill budgets preserve discoverability, escaping and hidden-skill policy", () => {
 	const skill = (index: number): Skill => ({ name: `skill-${index}`, description: "😀".repeat(300), path: `/fixture/${index}/SKILL.md`, dir: `/fixture/${index}`, content: "BODY_MUST_STAY_LAZY", source: "workspace", disableModelInvocation: false });
 	const small = formatSkills([skill(0), { ...skill(1), disableModelInvocation: true }]);
-	assert.equal([...small.match(/<description>(.*?)<\/description>/)![1]].length, 250);
+	assert.equal([...small.match(/^- skill-0: (.*)$/m)![1]].length, 250);
 	assert.ok(!small.includes("skill-1") && !small.includes("BODY_MUST_STAY_LAZY"));
 	const catalogue = formatSkills(Array.from({ length: 150 }, (_, i) => skill(i)));
-	assert.ok(!catalogue.includes("<description>"));
-	assert.equal((catalogue.match(/<name>/g) ?? []).length, 150);
+	assert.ok(!catalogue.includes("😀"));
+	assert.equal((catalogue.match(/^- skill-\d+$/gm) ?? []).length, 150);
 	assert.match(formatSkills([{ ...skill(0), name: "a&b", description: "<example>" }]), /a&amp;b/);
 });
 

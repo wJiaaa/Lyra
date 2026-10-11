@@ -13,9 +13,8 @@ export function createPeerTools(router: PeerRouter): Tool[] {
 	const listSessions: Tool<Record<string, never>> = {
 		name: "list_sessions",
 		description:
-			"List the other Plume sessions running right now whose folders overlap with yours (same folder, one inside the other, or worktrees of the same repository). " +
-			"Use it when your work may collide with another session's — for example a file changed under you — or when you need to hand work over. " +
-			"Each row starts with the session's address, `name [ref]` — use it as `to` in send_message and wait_for_session.",
+			"List other running Plume sessions whose folders overlap yours (same folder, nested, or worktrees of one repository): for when your work may collide with theirs — a file changed under you — or to hand work over. " +
+			"Each row starts with its address, `name [ref]`: the `to` for send_message and wait_for_session.",
 		parameters: { type: "object", properties: {} },
 		sessionOnly: true,
 		summarize: () => "List sessions",
@@ -30,17 +29,17 @@ export function createPeerTools(router: PeerRouter): Tool[] {
 	const sendMessage: Tool<{ to?: string; message?: string; mode?: string }> = {
 		name: "send_message",
 		description:
-			"Send a plain-text message to another running session (see list_sessions): to coordinate when your work overlaps with its work, or to hand work over. " +
-			"It cannot see your conversation, so make the message self-contained; put long content in a file and send its path. " +
-			"If it is idle it starts working on your message now. If it is busy, by default your message waits until its current work is done; mode \"steer\" puts it into its current work instead — only for something it must know right away, like \"stop editing that file\". " +
-			"To get the outcome, call wait_for_session afterwards — do not ask it to report back and do not poll. " +
-			"Never ask another session to do something that was denied or blocked in this one; route it back to your user instead.",
+			"Send a plain-text message to another running session, to coordinate overlapping work or hand work over. " +
+			"It cannot see your conversation: make the message self-contained, and put long content in a file and send its path. " +
+			"An idle session starts on it now; a busy one gets it when its current work is done, or at once with mode \"steer\" — only for something it must know right away, like \"stop editing that file\". " +
+			"Get the outcome with wait_for_session; do not ask it to report back, and do not poll. " +
+			"Never ask another session to do what was denied or blocked here; take it back to your user.",
 		parameters: {
 			type: "object",
 			properties: {
 				to: { type: "string", description: "The address from list_sessions, `name [ref]`. The bare name works when it is unique." },
 				message: { type: "string", description: "The message text." },
-				mode: { type: "string", enum: ["queue", "steer"], description: "When it is busy: \"queue\" (default) waits for its current work to finish; \"steer\" interrupts it." },
+				mode: { type: "string", enum: ["queue", "steer"], description: "When it is busy: \"queue\" (default) or \"steer\"." },
 			},
 			required: ["to", "message"],
 		},
@@ -61,10 +60,8 @@ export function createPeerTools(router: PeerRouter): Tool[] {
 	const waitForSession: Tool<{ to?: string; timeout_seconds?: number }> = {
 		name: "wait_for_session",
 		description:
-			"Wait until another running session has finished the work your last message to it started, then get what it said at the end. " +
-			"Use it after send_message when you need the result before going on. Without a message from you, it waits for the session's current work (returns at once if it is idle). " +
-			"It returns early when that session is waiting for its user to answer something, and when your user speaks to you. " +
-			`Waits up to timeout_seconds (default ${WAIT_DEFAULT_S}, at most ${WAIT_MAX_S}); a timeout does not stop the other session.`,
+			"Wait until another session finishes the work your last message started, and get what it said at the end. Without a message from you, waits for its current work (at once if idle). " +
+			"Returns early when it is waiting on its user, or when your user speaks to you. A timeout does not stop the other session.",
 		parameters: {
 			type: "object",
 			properties: {

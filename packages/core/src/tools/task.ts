@@ -30,19 +30,14 @@ interface TaskArgs {
 export const taskTool: Tool<TaskArgs> = {
 	name: "task",
 	description:
-		"Run a sub-agent with its own context window and report back only its final answer. " +
-		"A sub-agent starts from nothing: it cannot see your context, the prompt you write is all it knows, and what it reads and thinks never reaches you — only its conclusion does. " +
-		"So two kinds of work are worth delegating: work whose intermediate output is large and whose conclusion is all you need (sweeping dozens of files for one answer, running something with long output to get its failures), " +
+		"Run a sub-agent in its own context window; only its final answer comes back. It starts from nothing — your `prompt` is all it knows, and it cannot ask you questions. " +
+		"Two kinds of work are worth delegating: work whose intermediate output is large and whose conclusion is all you need (sweeping dozens of files for one answer, running something with long output for its failures), " +
 		"and a sizeable piece of work that does not depend on what you are doing. " +
-		"Do everything else yourself: a change you can make in a step or two, part of what you are writing right now (such as tests for the function you just wrote), " +
+		"Do everything else yourself: a change of a step or two, part of what you are writing now (such as tests for the function you just wrote), " +
 		"or work you could only hand off after spelling out its interfaces and conventions — spelling those out costs as much as doing it. " +
-		"Agents with write tools edit files directly, and their risky actions are asked of the user in this window like yours. " +
-		"Several calls in one reply run in parallel and extra ones wait in a queue, so dispatch independent pieces together rather than one per reply. " +
-		"When you run several at once, have each skip builds, lints and tests and verify once yourself at the end; pieces that need a shared interface which does not exist yet are not independent — write the interface first, or do not split. " +
-		"The sub-agent cannot ask you questions, so put everything it needs in `prompt`. " +
-		"Each call starts a fresh sub-agent with an empty context, unless you pass `resume` with the id of one you dispatched earlier: " +
-		"then that same sub-agent continues with everything it already read and did, and `prompt` is what you tell it next. " +
-		"A sub-agent that stopped before finishing keeps its context: continue it with `resume` rather than dispatching the same work again.",
+		"Agents with write tools edit files directly; their risky actions are asked of the user here, like yours. " +
+		"Calls in one reply run in parallel (extra ones queue), so dispatch independent pieces together; have each skip builds, lints and tests, and verify once yourself at the end. " +
+		"Pieces that need a shared interface which does not exist yet are not independent — write the interface first, or do not split.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -55,7 +50,8 @@ export const taskTool: Tool<TaskArgs> = {
 			resume: {
 				type: "string",
 				description:
-					"The id of a sub-agent you dispatched earlier (given at the end of its result). It continues from where it stopped, with its whole context — use this rather than dispatching the same work again.",
+					"Id of a sub-agent you dispatched earlier (given at the end of its result). It continues with its whole context, and `prompt` is what you tell it next. " +
+					"Use it rather than dispatching the same work again, including for one that stopped before finishing.",
 			},
 		},
 		required: ["description", "prompt"],

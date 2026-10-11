@@ -187,17 +187,10 @@ export const bashTool: Tool<BashArgs> = {
 	 * see `shellGuidance`.
 	 */
 	description:
-		"Run a shell command in the workspace. Prefer the dedicated tools over their shell equivalents: read over `cat`/`head`/`tail`, " +
-		"edit over `sed`, glob over `find`, grep over shell `grep`. Quote paths that may contain spaces. " +
-		"Every call starts fresh in the workspace root: a `cd`, variables " +
-		"and functions do not carry over, so chain dependent steps in one command (`cd sub && make`). Use `run_in_background: true` for long-running processes such as dev servers " +
-		"and for slow commands you do not need to wait on; keep working meanwhile. The result says whether the job's exit will be reported " +
-		"to you; if not, read its output with `bash_output`. A command still running when the default timeout passes is moved " +
-		"to the background instead of being killed; an explicit `timeout` is a hard limit. " +
-		"Commands may run under a file sandbox. A blocked write is reported as a policy denial, not a bug in the " +
-		"command — do not retry it another way. When one is denied and a wider mode would let it through, retry that " +
-		"exact command once with `escalate` and `justification`; the user is asked, and the grant covers only that call. " +
-		"Never escalate up front: only after this session has actually denied the same access.",
+		"Run a shell command. Prefer the dedicated tools: read over `cat`/`head`/`tail`, edit over `sed`, glob over `find`, grep over shell `grep`. " +
+		"Every call starts fresh in the workspace root — `cd`, variables and functions do not carry over — so chain dependent steps (`cd sub && make`). " +
+		"Quote paths that may contain spaces. Use `run_in_background: true` for dev servers and slow commands you need not wait on, and keep working; " +
+		"the result says whether its exit will be reported to you, otherwise read it with `bash_output`.",
 	parameters: {
 		type: "object",
 		properties: {

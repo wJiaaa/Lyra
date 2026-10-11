@@ -15,9 +15,7 @@ interface WriteArgs {
 export const writeTool: Tool<WriteArgs> = {
 	name: "write",
 	description:
-		"Write a file, creating parent directories as needed. Overwrites the whole file. " +
-		"To modify part of an existing file, prefer `edit` — it is safer and cheaper. " +
-		"You must `read` an existing file before overwriting it.",
+		"Write a whole file, creating parent directories. To change part of an existing file use `edit`; read an existing file before overwriting it.",
 	parameters: {
 		type: "object",
 		properties: {

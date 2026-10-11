@@ -49,9 +49,10 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 	const tools: Tool[] = [
 		{
 			name: "browser_open", executionMode: "sequential", mutating: true,
-			description: "Open a URL in Plume's built-in browser, in the side panel beside the conversation. Reuses this session's selected tab unless newTab is true; a page this session already has open is reloaded in its own tab rather than opened twice. Returns tabId and rendered text plus interactive elements. Supports http/https and Plume previews. " +
-				"A local .html file opens by its path (absolute, relative to the workspace, or file://) as a copy of that one file at a fixed address — open it again after changing it; never start a server to open one. " +
-				"To look at a page you wrote, use preview with its path and check: true instead: you get the screenshot and console errors, and the user sees nothing until you publish. Use this tool for pages you need to click through or type into.",
+			description: "Open an http(s) URL or a Plume preview in the built-in browser beside the conversation; returns tabId, the rendered text and interactive elements. " +
+				"Reuses this session's selected tab unless newTab; a page already open here is reloaded in its own tab. " +
+				"A local .html file opens by path as a copy of that one file — open it again after changing it; never start a server for it. " +
+				"To look at a page you wrote, use preview with its path and check: true instead. This tool is for pages you need to click through or type into.",
 			parameters: { type: "object", properties: { url: { type: "string" }, newTab: { type: "boolean" } }, required: ["url"], additionalProperties: false },
 			async execute(args, ctx) {
 				try {
@@ -78,7 +79,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 		},
 		{
 			name: "browser_act", executionMode: "sequential", mutating: true,
-			description: "Operate a tab belonging to this session. click/type/hover require a CSS selector observed in the current page. type replaces the focused editable value through native browser input. scroll accepts x/y pixel deltas. press accepts a named key. eval accepts a JavaScript expression. Use read and screenshot to verify instead of fixed sleeps.",
+			description: "Operate this session's tab. click/type/hover take a CSS selector seen in the current page; type replaces the focused field's value; scroll takes x/y pixel deltas; press, a named key; eval, a JavaScript expression. Verify with read or screenshot, not fixed sleeps.",
 			parameters: { type: "object", properties: { action: { type: "string", enum: [...ACTIONS] }, tabId: { type: "string" }, selector: { type: "string" }, text: { type: "string" }, expression: { type: "string" }, x: { type: "number" }, y: { type: "number" } }, required: ["action"], additionalProperties: false },
 			async execute(args, ctx) {
 				try {
@@ -94,7 +95,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 		},
 		{
 			name: "browser_tabs", executionMode: "sequential", mutating: true,
-			description: "List visible browser tabs owned by the current session, or select/close one by tabId. Other sessions' pages are not accessible.",
+			description: "List this session's browser tabs, or select/close one by tabId.",
 			parameters: { type: "object", properties: { action: { type: "string", enum: ["list", "select", "close"] }, tabId: { type: "string" } }, required: ["action"], additionalProperties: false },
 			async execute(args, ctx) {
 				try {
@@ -107,7 +108,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 		},
 		{
 			name: "browser_viewport", executionMode: "sequential", mutating: true,
-			description: "Set zoom (0.25–3) and/or width/height in viewport pixels (CSS pixels at zoom 1; 240–3840 × 240–2160). reset restores the panel's viewport. Returns the actual innerWidth/innerHeight and devicePixelRatio.",
+			description: "Set zoom (0.25–3) and/or width and height in CSS pixels (240–3840 × 240–2160); reset restores the panel's viewport. Returns innerWidth, innerHeight and devicePixelRatio.",
 			parameters: { type: "object", properties: { tabId: { type: "string" }, zoom: { type: "number" }, width: { type: "number" }, height: { type: "number" }, reset: { type: "boolean" } }, additionalProperties: false },
 			async execute(args, ctx) {
 				try {
@@ -124,7 +125,7 @@ export function createBrowserTools(): { tools: Tool[]; dispose: () => void } {
 		},
 		{
 			name: "browser_screenshot", executionMode: "sequential",
-			description: "Capture the current session's tab as PNG. This is the real rendered page, including its current scroll position and viewport.",
+			description: "Capture this session's tab as rendered, at its current scroll position and viewport, as a PNG.",
 			parameters: { type: "object", properties: { tabId: { type: "string" } }, additionalProperties: false },
 			async execute(args, ctx) {
 				try {

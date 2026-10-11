@@ -274,7 +274,7 @@ export function applyHunks(hunks: Hunk[], content: string): string {
  * file header. Examples of *syntax* are useful; an example of a *value the model must copy from
  * elsewhere* is an invitation to copy the example.
  */
-export const PATCH_SYNTAX = `Operations, one header line each. Payload lines start with "+".
+export const PATCH_SYNTAX = `Operations, one header line each; payload lines start with "+":
 
 REPLACE <start>-<end>
 +replacement line 1
@@ -286,18 +286,9 @@ INSERT AFTER <line>
 DELETE <start>-<end>
 
 Rules:
-- This is NOT a unified diff. NEVER write "-" lines and never write "@@" headers: the range in the
-  operation header is the deletion. A "-" line would be written into the file as source.
-- Line numbers are the ORIGINAL numbers shown in the file. They NEVER shift, however many
-  operations you write.
-- A payload line is everything after the leading "+", verbatim, including indentation. A blank
-  line is a bare "+".
-- Within one operation, either every payload line carries "+" or none of them do. Mixing is
-  rejected, because there is then no way to tell which lines are meant literally.
-- The range names the original lines you are replacing; the payload may be longer or shorter.
-- NEVER widen a range to retype lines you are keeping — use INSERT AFTER instead.
-- To remove lines use DELETE, never REPLACE with an empty payload.
-- Ranges must not overlap. An insertion cannot sit inside a replaced/deleted range, and each
-  insertion anchor may occur only once. Inserting after the range's final line is allowed.
-  One line is REPLACE 7-7.
-- Put every change to one file in one patch: several operations in one call is normal.`;
+- NOT a unified diff: NEVER write "-" lines or "@@" headers. The header's range is the deletion; a "-" line would be written into the file as source.
+- Line numbers are the ORIGINAL ones shown by read. They NEVER shift, however many operations you write.
+- A payload line is everything after the "+", verbatim with its indentation; a blank line is a bare "+". Within one operation, either every payload line has "+" or none does.
+- The payload may be longer or shorter than its range. NEVER widen a range to retype lines you keep — use INSERT AFTER. Remove lines with DELETE, not an empty REPLACE.
+- Ranges must not overlap, an insertion cannot sit inside a replaced or deleted range (after its last line is fine), and each insertion anchor occurs once. One line is REPLACE 7-7.
+- Put every change to one file in one patch.`;

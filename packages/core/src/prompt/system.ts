@@ -331,19 +331,15 @@ function formatSubagents(agents: AgentDefinition[]): string {
 	const lines = [
 		"",
 		"",
-		"These sub-agents are available to the `task` tool. Pass the one whose description fits as `subagent_type`. When the user explicitly requests @name from this list, dispatch that named agent for the requested task.",
+		"Sub-agents for the `task` tool's `subagent_type`: pass the one whose description fits. When the user asks for @name from this list, dispatch that agent.",
 		"",
 		"<available_subagents>",
 	];
 
+	// One line each, as the skill catalogue: the tags cost more than most descriptions.
 	for (const agent of agents) {
-		lines.push("  <subagent>");
-		lines.push(`    <name>${escapeXml(agent.name)}</name>`);
-		lines.push(`    <description>${escapeXml(agent.description)}</description>`);
-		lines.push(
-			`    <tools>${agent.tools === "*" ? "all" : escapeXml((agent.tools as string[]).join(", "))}</tools>`,
-		);
-		lines.push("  </subagent>");
+		const tools = agent.tools === "*" ? "all" : (agent.tools as string[]).join(", ");
+		lines.push(`- ${escapeXml(agent.name)}: ${escapeXml(agent.description.replace(/\s+/g, " ").trim())} (tools: ${escapeXml(tools)})`);
 	}
 
 	lines.push("</available_subagents>");

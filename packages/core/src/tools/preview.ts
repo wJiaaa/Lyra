@@ -47,33 +47,24 @@ export const previewTool: Tool<PreviewArgs> = {
 	name: "preview",
 	description:
 		"Show a self-contained web page inline in the conversation, above your reply; the user can also open it in the side panel. " +
-		"Use it when the answer is something to look at or interact with — a chart, a diagram, a table to explore, a demo or game, a layout put up for approval — " +
-		"not to display code for reading, where a fenced block is better. " +
-		"Pass `html` for a single file, or `files` for several (the entry defaults to index.html). Inline your CSS and JS; libraries may be loaded from a CDN over https. " +
-		"The user watches the page appear while you write it, before any script runs: write it in order — styles in <head>, then the markup, then scripts at the end of <body> — and write as markup (text, layout, inline SVG) whatever does not need a script to exist. " +
-		"The page runs sandboxed, with no access to the user's machine or the app. " +
-		"It sits directly in the reply, as wide as the text column (about 700px, narrower in split views): leave html and body without a background, " +
-		"use no outer card, border or page title, use fluid widths, give charts fixed pixel heights, and never size anything with 100vh or height:100% — " +
-		"the frame grows to fit the content, and a page taller than a screen is folded there until the user opens it. " +
-		"The app's theme is on :root as CSS variables and follows light/dark live; use them instead of fixed colours: " +
+		"Use it when the answer is something to look at or use — a chart, a diagram, a table to explore, a demo or game, a layout for approval — not to show code for reading. " +
+		"Pass `html`, or `files` for several. Inline CSS and JS; libraries may come from a CDN over https. " +
+		"The page appears while you write it, before any script runs: styles in <head>, then the markup, then scripts at the end of <body>, and write as markup (text, layout, inline SVG) whatever needs no script. " +
+		"It runs sandboxed, with no access to the user's machine or the app. " +
+		"It sits in the reply at the text column's width (about 700px, narrower in split views): no background on html or body, no outer card, border or page title, " +
+		"fluid widths, fixed pixel heights for charts, never 100vh or height:100% — the frame grows to fit. " +
+		"Use the theme's CSS variables on :root, which follow light/dark live, instead of fixed colours: " +
 		"--background --foreground --muted --muted-foreground --card --border --primary --primary-foreground --success --warning --danger " +
 		"--code-background --code-foreground --chart-1 … --chart-6 --radius --font-sans --font-mono. " +
-		"Links open in the user's browser. " +
-		"A button can answer for the user: `plume.send(text)` in its click handler sends text as the user's next message to you — put what they chose in it (\"Plan B, 12 seats, yearly\"), so you can act on it without asking. " +
-		"It counts only for a press, never on load, a timer or input changes, and returns false where there is no conversation (the side panel). " +
-		"`plume.state` is what the page saved last time (null at first); `plume.setState(value)` saves JSON up to 16 KB. Save what the reader sets — a choice, a slider — when they set it, and start from `plume.state`, so the page opens as they left it; " +
-		"what they changed reaches you as <page-state> after their next message. " +
-		"When the page is a design the reader may want to fine-tune — a component, a card, a layout — offer the knobs: `plume.tweak({ label, onChange })` returns a group with " +
-		"`.slider(obj, key, { label, min, max, step, unit })`, `.color(obj, key, { label })` (#rrggbb), `.toggle(obj, key, { label })` and `.select(obj, key, { label, options })`, each binding `obj[key]` (up to 12 a group). " +
-		"The app draws the panel; when a control moves it sets the property and calls `onChange`, so keep `onChange` a redraw from `obj`. What the reader settles on comes back as <design-settings> for you to write into the page. " +
-		"A page whose script throws is not shown: the error comes back so you can fix it and call again. " +
-		"To check the page before publishing it, pass `check: true`: it is loaded out of sight and you get back a screenshot of the whole page (to 2160px) at the conversation's width with the current theme, its console errors and its height; the user sees it being written but it is not published. " +
-		"Add `width` to see it at another width — 390 for a phone, 1440 for a desktop — in the same call, rather than writing variants of the page to check. " +
-		"When the user is to pick one of the things the page shows, keep the picking out of the page: put it in an interface block in your reply, under the page. " +
-		"Fix and check again as needed, then publish the checked page with just its `id` — don't send the html again. " +
-		"To show an HTML file already on disk, pass its `path` instead of its content: a copy of that one file is shown, so call again after changing it, and keep its CSS, JS and images inline or on https. " +
-		"Never start a server (python -m http.server and the like) to look at a local page. " +
-		"This is the way to look at a preview: don't serve it yourself or open it with the browser tools. The user already sees a published page, so don't describe it in your reply.",
+		"`plume.send(text)` in a click handler sends text as the user's next message to you — put what they chose in it (\"Plan B, 12 seats, yearly\"). Only on a press, never on load, a timer or input changes. " +
+		"`plume.state` is what the page saved last (null at first); `plume.setState(value)` saves up to 16 KB of JSON. Save what the reader sets when they set it and start from `plume.state`; " +
+		"their changes reach you as <page-state> after their next message. " +
+		"For a design they may want to fine-tune, offer knobs: `plume.tweak({ label, onChange })` returns a group with `.slider(obj, key, { label, min, max, step, unit })`, " +
+		"`.color(obj, key, { label })` (#rrggbb), `.toggle(obj, key, { label })` and `.select(obj, key, { label, options })`, each binding `obj[key]` (up to 12 a group). " +
+		"A moved control sets the property and calls `onChange`, so keep `onChange` a redraw from `obj`. What they settle on comes back as <design-settings> for you to write into the page. " +
+		"When the user is to pick one of the things the page shows, put the picking in an interface block under the page, not in it. " +
+		"Check a page with `check: true` and fix it until it is right, then publish it with just its `id`. " +
+		"Never start a server or open a page with the browser tools to look at it. Don't describe a published page in your reply — the user already sees it.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -92,11 +83,11 @@ export const previewTool: Tool<PreviewArgs> = {
 					additionalProperties: false,
 				},
 			},
-			path: { type: "string", description: "An .html file already on disk, absolute or relative to the workspace, shown instead of `html`/`files`." },
+			path: { type: "string", description: "An .html file on disk, shown instead of `html`/`files`. A copy of that one file: call again after changing it, and keep its CSS, JS and images inline or on https." },
 			entry: { type: "string", description: "Which file to load. Defaults to index.html." },
 			check: { type: "boolean", description: "Load the page out of sight and return a screenshot, console errors and height, without publishing it." },
-			width: { type: "number", description: "With check: the width to load it at, 320–1600. Defaults to the conversation's width." },
-			id: { type: "string", description: "Publish a page already sent with `check: true`, by the id that call returned. Pass nothing else with it." },
+			width: { type: "number", description: "With check: the width to load it at, 320–1600 — 390 for a phone, 1440 for a desktop — instead of writing variants. Defaults to the conversation's width." },
+			id: { type: "string", description: "Publish a page checked with `check: true`, by the id that call returned. Pass nothing else — not the html again." },
 		},
 		required: [],
 		additionalProperties: false,

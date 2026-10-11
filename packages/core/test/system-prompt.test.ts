@@ -33,7 +33,7 @@ test("advice about a tool lives in that tool's description, not in the guideline
 	assert.match(prompt, /Be concise/, "base guidelines still apply");
 });
 
-test("skills contribute names and locations, never their bodies", async () => {
+test("skills contribute names and descriptions, never their bodies or locations", async () => {
 	const skill: Skill = {
 		name: "release-notes",
 		description: "Write release notes.",
@@ -46,8 +46,9 @@ test("skills contribute names and locations, never their bodies", async () => {
 
 	const prompt = await buildSystemPrompt({ ...BASE, tools: builtinTools(), skills: [skill] });
 	assert.match(prompt, /<available_skills>/);
-	assert.match(prompt, /<name>release-notes<\/name>/);
-	assert.match(prompt, /<location>\/tmp\/project\/\.plume\/skills\/release-notes<\/location>/);
+	assert.match(prompt, /^- release-notes: Write release notes\.$/m);
+	// The directory arrives with the body when the skill is loaded (`formatSkillInvocation`).
+	assert.doesNotMatch(prompt, /\/tmp\/project\/\.plume\/skills\/release-notes/);
 	// The body is what the `skill` tool loads on demand; putting it here defeats the design.
 	assert.doesNotMatch(prompt, /SECRET BODY/);
 });
@@ -70,8 +71,8 @@ test("a skill hidden from the model is not advertised", async () => {
 test("sub-agents are listed so the model can pick a subagent_type", async () => {
 	const prompt = await buildSystemPrompt({ ...BASE, tools: builtinTools(), agents: BUILTIN_AGENTS });
 	assert.match(prompt, /<available_subagents>/);
-	for (const agent of BUILTIN_AGENTS) assert.match(prompt, new RegExp(`<name>${agent.name}</name>`));
-	assert.match(prompt, /<tools>read, glob, grep, ls, bash<\/tools>/, "explore's restricted tool set is shown");
+	for (const agent of BUILTIN_AGENTS) assert.match(prompt, new RegExp(`^- ${agent.name}: `, "m"));
+	assert.match(prompt, /^- explore: .*\(tools: read, glob, grep, ls, bash\)$/m, "explore's restricted tool set is shown");
 });
 
 test("sub-agents are omitted when the task tool is not loaded", async () => {

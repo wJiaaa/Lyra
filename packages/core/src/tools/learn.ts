@@ -23,18 +23,11 @@ interface LearnArgs {
 export const learnTool: Tool<LearnArgs> = {
 	name: "learn",
 	description:
-		"Record something about this project that will be useful in a future session. It is injected into the prompt " +
-		"from the next session onwards. When the user corrects your approach in a way that will apply again in this repository, record it here.\n\n" +
-		"Record:\n" +
-		"- a correction the user made that will apply again in this repository\n" +
-		"- a convention that is not visible from the code (the build command, why something is done an odd way)\n" +
-		"- a trap you fell into and got out of, that you would fall into again\n\n" +
-		"Do NOT record:\n" +
-		"- where code lives, what a function is called, what a file contains — reading the code answers those, " +
-		"and a note about them goes stale silently\n" +
-		"- anything specific to this one task\n" +
-		"- anything already in the git history\n\n" +
-		"A stale entry is worse than a missing one, because it will be believed.",
+		"Record a lesson about this project for future sessions; it is injected into the prompt from the next session on.\n\n" +
+		"Record: a correction from the user that will apply again in this repository; a convention the code does not show (the build command, why something is done an odd way); " +
+		"a trap you fell into and would fall into again.\n\n" +
+		"Do NOT record: where code lives, what a function is called or what a file contains — reading the code answers those, and such notes go stale silently; " +
+		"anything specific to this one task; anything already in the git history. A stale entry is worse than a missing one, because it will be believed.",
 	parameters: {
 		type: "object",
 		properties: {
