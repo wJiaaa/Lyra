@@ -449,7 +449,7 @@ export function compactionSpent(log: Pick<SessionLog, "append">): SpentOn {
  * stream serves the loop, `/compact` and every delegated run; a stream that throws reports nothing,
  * as the title summary does.
  */
-export function metered(stream: typeof streamAssistant, spent: SpentOn): typeof streamAssistant {
+function metered(stream: typeof streamAssistant, spent: SpentOn): typeof streamAssistant {
 	return (provider, model, context, options) =>
 		(async function* (): AsyncGenerator<StreamEvent, AssistantMessage> {
 			const message = yield* stream(provider, model, context, options);

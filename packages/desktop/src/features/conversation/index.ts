@@ -9,7 +9,6 @@
 
 export { BackToLatest } from "./BackToLatest.tsx";
 export { Markdown } from "./Markdown.tsx";
-export { copyableReply } from "./interface/interface-text.ts";
 export { MessageActions } from "./MessageActions.tsx";
 export { formatTokens } from "../../lib/format-tokens.ts";
 export { SessionStatus } from "./SessionStatus.tsx";
@@ -17,10 +16,6 @@ export { ThinkingBlock } from "./ThinkingBlock.tsx";
 export { DetailCard } from "./detail/DetailCard.tsx";
 export { runs, runKey } from "./grouping.ts";
 export { ModelSwitchRow } from "./ModelSwitchRow.tsx";
-export { MessageEditor } from "./message/MessageEditor.tsx";
-export { ThinkingLine } from "./message/ThinkingLine.tsx";
-/* 「正文是不是正在流进来」——侧边聊天的运行行也按它让开，见 `answering.ts`。 */
-export { useAnswering } from "./useAnswering.ts";
 export { ToolRun, segments } from "./runs.tsx";
 /* 人说的一句话画成气泡——侧边聊天和子智能体面板共用，见 `SpokenBubble`。 */
 export { SpokenBubble, spokenText } from "./SpokenBubble.tsx";

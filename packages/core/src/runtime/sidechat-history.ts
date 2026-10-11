@@ -16,7 +16,7 @@ export function mainMessageText(message: Message): string {
 }
 
 /** How much of the main chat rides along with one question; the tool below reaches the rest. */
-export function mainChatBudget(model: ModelConfig): number {
+function mainChatBudget(model: ModelConfig): number {
 	return Math.max(256, Math.min(12000, Math.floor(model.contextWindow * 0.08)));
 }
 

@@ -41,7 +41,7 @@ export { displayName } from "./attachments/display.ts";
  * 把草稿摊成内容块的那一步，和给人看的那一份。三个输入框（主的、侧边聊天、子智能体）共用——句子里
  * 那枚标记的一生在 `useComposerAttachments` 里面，见下。
  */
-export { attachmentMeta, spellDraft, type OutgoingMeta } from "./outgoing.ts";
+export { attachmentMeta, spellDraft } from "./outgoing.ts";
 /*
  * 一个输入框收下附件之后的那一整套，和它还没发出去的那份草稿。
  *
