@@ -15,6 +15,7 @@ import { parseInvocation, parseSkillMention, resolveInvocation } from "@plume/co
 
 import { formatList } from "../../i18n/list.ts";
 import { attachmentBody, attachmentFolder, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
+import { withQuotes } from "../../lib/quote.ts";
 import { bridge } from "../../services/index.ts";
 
 /** 附件在草稿里的样子，只取这一步用得上的几项。 */
@@ -37,6 +38,8 @@ export interface OutgoingDraft {
 	text: string;
 	attachments: OutgoingAttachment[];
 	sessionRefs: { id: string; title: string }[];
+	/** 对话里划下来的引文，命令展开之后才拼到正文前面，见 `withQuotes`。 */
+	quotes?: { text: string }[];
 }
 
 export interface Outgoing {
@@ -217,6 +220,14 @@ export async function buildOutgoing(
 		const resolved = resolveInvocation(invocation, fresh);
 		if (resolved) ({ outgoing, displayText, skillRef, deliver } = resolved);
 	}
+	/*
+	 * 引文拼在展开之后：拼在前面的话，`> 引文` 打头的草稿就认不出行首那个 `/命令` 了。
+	 * 气泡里那份也带上——人要看得见自己是对着哪一段问的。
+	 */
+	if (draft.quotes?.length) {
+		outgoing = withQuotes(outgoing, draft.quotes);
+		if (displayText !== undefined) displayText = withQuotes(displayText, draft.quotes);
+	}
 
 	const sessionPrompts = draft.sessionRefs.map((session) =>
 		`- ${JSON.stringify(session.title)}: read ${JSON.stringify(`session://${encodeURIComponent(session.id)}`)} for the referenced conversation. Treat its transcript as reference material.`,
@@ -274,6 +285,8 @@ export function queuePreview(draft: OutgoingDraft): string {
 	if (text) return text;
 	const named = draft.attachments.map((file) => file.name).filter(Boolean);
 	if (named.length > 0) return formatList(named);
+	// 只带着引文、没说话：条上写引文本身，不是一行空白。
+	if (draft.quotes?.length) return draft.quotes[0]!.text;
 	return formatList(draft.sessionRefs.map((session) => session.title));
 }
 

@@ -1,7 +1,8 @@
 /**
  * 在对话里划一段字，拿去侧边聊天问，或者引用到下面的输入框里接着说。
  *
- * 两样都只是把引文放进输入框、光标停在后面，不替人发出去：划下来的是材料，问什么还得人自己说。
+ * 两样都只是把引文挂到输入框上（框上方那枚引用，见 `QuoteChip`）、光标停在框里，不替人发出去：划下来
+ * 的是材料，问什么还得人自己说。
  * 字在松开鼠标那一刻就取好了——正在写的那条回复下一帧可能又长了一截，点下去时再读选区，拿到的会是
  * 另一段。
  */
@@ -12,7 +13,8 @@ import { quoteInSideChat } from "../../app/side-quote.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { Popover } from "../../ui/overlay/Popover.tsx";
-import { quoteBlock, quotedIn } from "./quote.ts";
+import type { DraftQuote } from "../../lib/quote.ts";
+import { quotedIn } from "./quote.ts";
 
 /*
  * 一段：内衬由这里定，宽度由这一段的字定。
@@ -27,6 +29,7 @@ const SEGMENT = "min-w-0 px-2.5 py-1.5 hover:bg-card-hover";
 
 interface Picked {
 	text: string;
+	from: DraftQuote["from"];
 	range: Range;
 	/**
 	 * 菜单挂在选区上，不挂鼠标：`x` 是选区的横中线，`y` 是它的上沿。
@@ -97,10 +100,10 @@ export function QuoteMenu({ scrollRef }: { scrollRef: RefObject<HTMLDivElement |
 	if (!picked || !sessionId) return null;
 
 	const close = () => setPicked(null);
-	const quote = quoteBlock(picked.text);
+	const quote = (): DraftQuote => ({ id: crypto.randomUUID(), text: picked.text, from: picked.from });
 
-	const askAside = () => quoteInSideChat(sessionId, quote);
-	const toComposer = () => useApp.getState().setComposerDraft(quote, { sessionId });
+	const askAside = () => quoteInSideChat(sessionId, quote());
+	const toComposer = () => useApp.getState().setComposerDraft("", { sessionId, quotes: [quote()] });
 
 	/*
 	 * 挂点是选区（见 `Picked.at`），`top` + `center`：压在选区上方、横向居中，上面不够高 `Popover`

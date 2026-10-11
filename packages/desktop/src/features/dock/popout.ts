@@ -390,10 +390,10 @@ export function sideChatFor(scope: string, reuse: boolean): string | null {
 	return sideIdOfPanel(kind);
 }
 
-// 对话里划词「在侧边聊天中提问」从这里进来：引文落进那一格的输入框，问什么由人接着写。
-provideSideQuote((sessionId, text) => {
+// 对话里划词「在侧边聊天中提问」从这里进来：引文挂到那一格的输入框上，问什么由人接着写。
+provideSideQuote((sessionId, quote) => {
 	const sideId = sideChatFor(sessionId, true);
-	if (sideId) useSide.getState().seedDraft(sessionId, sideId, text);
+	if (sideId) useSide.getState().seedQuote(sessionId, sideId, quote);
 });
 
 /**

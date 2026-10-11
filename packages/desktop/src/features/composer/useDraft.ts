@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import { useApp } from "../../store/index.ts";
+import type { DraftQuote } from "../../lib/quote.ts";
 import type { DraftAttachment } from "./attachments/read.ts";
 
 export interface Draft<T> {
@@ -24,6 +25,9 @@ export interface Draft<T> {
 	setText: Dispatch<SetStateAction<string>>;
 	attachments: T[];
 	setAttachments: Dispatch<SetStateAction<T[]>>;
+	/** 从对话里划下来的引文，画在框上方，不在字里。见 `lib/quote.ts`。 */
+	quotes: DraftQuote[];
+	setQuotes: Dispatch<SetStateAction<DraftQuote[]>>;
 	/** 发出去了：框清空，存着的那份也扔掉。 */
 	clear: () => void;
 }
@@ -33,11 +37,12 @@ interface Held<T> {
 	owner: string | null;
 	text: string;
 	attachments: T[];
+	quotes: DraftQuote[];
 }
 
 function stored<T>(key: string | null): Held<T> {
 	const saved = key ? useApp.getState().drafts[key] : undefined;
-	return { owner: key, text: saved?.text ?? "", attachments: (saved?.attachments as T[] | undefined) ?? [] };
+	return { owner: key, text: saved?.text ?? "", attachments: (saved?.attachments as T[] | undefined) ?? [], quotes: saved?.quotes ?? [] };
 }
 
 export function useDraft<T extends DraftAttachment>(key: string | null): Draft<T> {
@@ -54,13 +59,13 @@ export function useDraft<T extends DraftAttachment>(key: string | null): Draft<T
 	useEffect(() => {
 		const before = live.current;
 		if (before.owner === key) return;
-		if (before.owner) useApp.getState().setDraft(before.owner, { text: before.text, attachments: before.attachments });
+		if (before.owner) useApp.getState().setDraft(before.owner, { text: before.text, attachments: before.attachments, quotes: before.quotes });
 		setHeld(stored<T>(key));
 	}, [key]);
 
 	/* 打一个字存一次——存到这份字的主人名下。还没换过来的那一帧不存：那是上一个人的字。 */
 	useEffect(() => {
-		if (held.owner && held.owner === key) useApp.getState().setDraft(held.owner, { text: held.text, attachments: held.attachments });
+		if (held.owner && held.owner === key) useApp.getState().setDraft(held.owner, { text: held.text, attachments: held.attachments, quotes: held.quotes });
 	}, [key, held]);
 
 	const setText = useCallback<Dispatch<SetStateAction<string>>>(
@@ -71,11 +76,15 @@ export function useDraft<T extends DraftAttachment>(key: string | null): Draft<T
 		(next) => setHeld((was) => ({ ...was, attachments: typeof next === "function" ? next(was.attachments) : next })),
 		[],
 	);
+	const setQuotes = useCallback<Dispatch<SetStateAction<DraftQuote[]>>>(
+		(next) => setHeld((was) => ({ ...was, quotes: typeof next === "function" ? next(was.quotes) : next })),
+		[],
+	);
 
 	const clear = () => {
-		setHeld((was) => ({ ...was, text: "", attachments: [] }));
+		setHeld((was) => ({ ...was, text: "", attachments: [], quotes: [] }));
 		if (live.current.owner) useApp.getState().setDraft(live.current.owner, null);
 	};
 
-	return { text: shown.text, setText, attachments: shown.attachments, setAttachments, clear };
+	return { text: shown.text, setText, attachments: shown.attachments, setAttachments, quotes: shown.quotes, setQuotes, clear };
 }

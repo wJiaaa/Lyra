@@ -16,6 +16,7 @@ import { create } from "zustand";
 
 import { bridge } from "../../services/index.ts";
 import type { PanelInstanceKind } from "../../lib/panel-instance.ts";
+import type { DraftQuote } from "../../lib/quote.ts";
 
 /**
  * What can occupy a pane. One of each at a time — two diffs of one worktree is not a thing.
@@ -67,8 +68,11 @@ interface SideState {
 	sides: Record<string, Record<string, SessionMeta>>;
 	/** 主会话的任务队列，按会话存——几个侧边聊天派的活排在同一条队里。 */
 	tasks: Record<string, QueuedTask[]>;
-	/** 等着被放回某个侧边聊天输入框的那句话，键是 `sideKey`；计数让同一句退回两次也算两次。 */
-	draftSeeds: Record<string, { text: string; nonce: number }>;
+	/**
+	 * 等着被放进某个侧边聊天输入框的东西，键是 `sideKey`；计数让同一句退回两次也算两次。
+	 * `text` 进框里接着写（退回的任务），`quotes` 挂到框上方那枚引用上（对话里划下的一段）。
+	 */
+	draftSeeds: Record<string, { text: string; quotes: DraftQuote[]; nonce: number }>;
 
 	/**
 	 * A command the user asked to run, waiting for the terminal to pick it up.
@@ -125,6 +129,8 @@ interface SideState {
 	resumeTask(sessionId: string | null, taskId: string): Promise<void>;
 	/** Hand text back to the composer — see the note on the implementation. */
 	seedDraft(sessionId: string | null, sideId: string, text: string): void;
+	/** 对话里划下的一段，交给那一格的输入框挂成引用。 */
+	seedQuote(sessionId: string | null, sideId: string, quote: DraftQuote): void;
 	clearDraftSeed(sessionId: string | null, sideId: string): void;
 	setTasks(sessionId: string, tasks: QueuedTask[]): void;
 }
@@ -278,7 +284,19 @@ export const useSide = create<SideState>((set, get) => {
 		seedDraft(sessionId, sideId, text) {
 			if (!sessionId) return;
 			const key = sideKey(sessionId, sideId);
-			set((state) => ({ draftSeeds: { ...state.draftSeeds, [key]: { text, nonce: (state.draftSeeds[key]?.nonce ?? 0) + 1 } } }));
+			set((state) => {
+				const was = state.draftSeeds[key];
+				return { draftSeeds: { ...state.draftSeeds, [key]: { text, quotes: was?.quotes ?? [], nonce: (was?.nonce ?? 0) + 1 } } };
+			});
+		},
+
+		seedQuote(sessionId, sideId, quote) {
+			if (!sessionId) return;
+			const key = sideKey(sessionId, sideId);
+			set((state) => {
+				const was = state.draftSeeds[key];
+				return { draftSeeds: { ...state.draftSeeds, [key]: { text: was?.text ?? "", quotes: [...(was?.quotes ?? []), quote], nonce: (was?.nonce ?? 0) + 1 } } };
+			});
 		},
 
 		clearDraftSeed(sessionId, sideId) {

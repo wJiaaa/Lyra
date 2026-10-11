@@ -5,6 +5,7 @@
  */
 
 import type { UserContent } from "@plume/core";
+import type { DraftQuote } from "../lib/quote.ts";
 
 /** 附件在草稿里的样子。和 `drafts` 里的同一种东西，因为「编辑」要把它原样放回去。 */
 interface QueuedAttachment {
@@ -22,6 +23,8 @@ interface QueuedDraft {
 	text: string;
 	attachments: QueuedAttachment[];
 	sessionRefs: { id: string; title: string }[];
+	/** 对话里划下来的引文，「编辑」时回到框上方那枚引用里，而不是变回框里的字。 */
+	quotes?: DraftQuote[];
 }
 
 export interface QueuedMessage {

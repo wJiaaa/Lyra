@@ -113,13 +113,13 @@ test("划词提问：聚焦输入框不滚动外层容器，侧聊仍从右边�
 	assert.equal(scrolled, 0, "聚焦侧聊输入框把外层容器横向滚开了");
 	assertSlidIn(samples, "划词提问：");
 	assert.equal(new Set(samples.map((sample) => Math.round(sample.left))).size, 1, "主对话左缘被滚动带走了");
-	const field = await app.evaluate<{ text: string; focused: boolean; caret: number }>(`(() => {
+	const field = await app.evaluate<{ text: string; focused: boolean; chip: string | null }>(`(() => {
 		const el = document.querySelector('[data-dock-pane="chat"] textarea');
-		return { text: el.value, focused: document.activeElement === el, caret: el.selectionStart };
+		return { text: el.value, focused: document.activeElement === el, chip: document.querySelector('[data-dock-pane="chat"] [data-ly-quote-chip]')?.textContent ?? null };
 	})()`);
-	assert.ok(field.text.includes(`> ${quoted}\n\n`), "引文没有填入侧聊输入框");
+	assert.equal(field.chip, "1 条对话引用", "引文没有挂到侧聊输入框上");
+	assert.equal(field.text, "", "引文不该写进侧聊输入框的字里");
 	assert.ok(field.focused, "侧聊输入框没有自动聚焦");
-	assert.equal(field.caret, field.text.length, "光标没有放在引文后面");
 	await closeTab(app, "chat");
 	await frames(app, 20);
 });

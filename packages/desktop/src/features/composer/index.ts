@@ -57,4 +57,5 @@ export { useInputHistory } from "./useInputHistory.ts";
  * 忙的时候说出口的话排在哪儿、长什么样。主会话和侧边聊天是两条队、同一条条——见 `QueueSource`。
  */
 export { QueueList } from "./QueuedMessages.tsx";
+export { QuoteChip } from "./QuoteChip.tsx";
 export { queuePreview, queueThumbnail } from "./outgoing.ts";

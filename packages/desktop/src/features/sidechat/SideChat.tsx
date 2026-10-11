@@ -16,7 +16,7 @@ import { translate } from "../../i18n/translate.ts";
 import { MessageCirclePlus } from "../../ui/icons/index.ts";
 import { useEffect } from "react";
 import { loadSide, sideOf, useSide } from "../dock/index.ts";
-import { useSideTarget } from "./target.ts";
+import { sideDraftKey, useSideTarget } from "./target.ts";
 import { Conversation } from "../conversation/index.ts";
 import { sideIdOfPanel } from "../../lib/panel-instance.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
@@ -93,12 +93,16 @@ export function SideChatTitle({ scope, kind, fallback }: { scope: string; kind: 
 }
 
 /**
- * 关掉一个侧边聊天：停下，会话连同记录一起删，最早那一个也一样。
+ * 关掉一个侧边聊天：停下，会话连同记录一起删，最早那一个也一样。输入框里没发出去的字和引文也扔掉。
  *
  * 关掉就是不要了。从前最早那一个关掉只算收起，重开还是上一段，于是要清空只能找面板上那颗「重置」，
- * 而「关掉又打开，旧的还在」本身就被当成了毛病。
+ * 而「关掉又打开，旧的还在」本身就被当成了毛病。草稿从前漏在这条之外：会话删了，框里划进来的引文
+ * 还在，重开一格又原样摆回来。
  */
 export function closeSideChat(scope: string, kind: string): void {
 	const sideId = sideIdOfPanel(kind);
-	if (sideId) void useSide.getState().close(scope, sideId);
+	if (!sideId) return;
+	void useSide.getState().close(scope, sideId);
+	useSide.getState().clearDraftSeed(scope, sideId);
+	useApp.getState().setDraft(sideDraftKey(scope, sideId), null);
 }

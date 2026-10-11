@@ -1,6 +1,7 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
  * 对话里划一段拿去侧边聊天问、引用到输入框，以及 `/btw`——在真窗口里用真鼠标划、真键盘打，边验边录。
+ * 引文挂在输入框上方那枚「N 条对话引用」上（`QuoteChip`），发出去才拼成引用块；关掉侧边聊天，没发的引文跟着扔。
  *
  * 模型是本地的假服务：只看侧边聊天有没有被问到、主会话有没有被打扰，不在乎答了什么。
  *
@@ -12,7 +13,7 @@ import { createServer, type ServerResponse } from "node:http";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
-import { click, dragSelect, frames, openSession, press, shot, textSpan, type, until } from "./drive.ts";
+import { click, closeTab, dragSelect, frames, hover, openSession, press, shot, textSpan, type, until } from "./drive.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
@@ -26,6 +27,11 @@ const QUOTABLE = `${MAIN} [data-ly-quote]`;
 const MENU = '[data-ly-popover][role="menu"]';
 const COMPOSER = `${MAIN} textarea`;
 const SIDE_FIELD = '[data-dock-pane^="chat"]:not([inert]) textarea';
+const SIDE_CHIP = '[data-dock-pane^="chat"]:not([inert]) [data-ly-quote-chip]';
+const SIDE_SURFACE = '[data-dock-pane^="chat"]:not([inert]) [data-ly-chat-surface="side-chat"]';
+const MAIN_CHIP = `${MAIN} [data-ly-quote-chip]`;
+const CARD = "[data-ly-quote-card]";
+const ASK = "这段是什么意思";
 const CHAT_TABS = `[...new Set([...document.querySelectorAll('[data-panel-tab^="chat"]')].map(e=>e.dataset.panelTab))].length`;
 const SIDE_ANSWER = "旁问收到：这一轮在核对滚动位置。";
 const BTW = "这一轮在干什么";
@@ -81,6 +87,12 @@ const menuPlacement = () =>
 			centered:Math.abs(mid(r)-mid(s))<1,above:Math.abs(r.bottom+8-s.top)<1};})()`,
 	);
 
+/** 一个输入框此刻的样子：框里的字、焦点，和框上方那枚引用写的是什么（没有就是 null）。 */
+const field = (input: string, chip: string) =>
+	app.evaluate<{ value: string; focused: boolean; chip: string | null }>(
+		`(()=>{const e=document.querySelector('${input}');return {value:e.value,focused:e===document.activeElement,chip:document.querySelector('${chip}')?.textContent??null};})()`,
+	);
+
 async function run(): Promise<void> {
 	await mkdir(OUT_DIR, { recursive: true });
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -122,34 +134,97 @@ async function run(): Promise<void> {
 		await shot(app, `${STAMP}_01_划词后菜单在鼠标处`);
 		await pause(1000);
 
-		console.log("\n2. 在侧边聊天中提问：开出侧边聊天，引文在输入框里，光标在后面");
+		console.log("\n2. 在侧边聊天中提问：开出侧边聊天，引文挂成框上方那枚引用，框里是空的、光标在里面");
 		await click(app, `${MENU} [role="menuitem"]`, "在侧边聊天中提问");
-		await until(app, `document.querySelector('${SIDE_FIELD}')?.value`);
+		await until(app, `document.querySelector('${SIDE_CHIP}')`);
 		await frames(app, 20);
-		const seeded = await app.evaluate<{ value: string; focused: boolean; caret: number }>(
-			`(()=>{const e=document.querySelector('${SIDE_FIELD}');return {value:e.value,focused:e===document.activeElement,caret:e.selectionStart};})()`,
-		);
-		check("侧边输入框里是引用块，后面空一行", seeded.value === "> 隔离测试文本\n\n", seeded.value);
-		check("光标在侧边输入框末尾", seeded.focused && seeded.caret === seeded.value.length, seeded);
+		const seeded = await field(SIDE_FIELD, SIDE_CHIP);
+		check("侧边输入框上方是「1 条对话引用」", seeded.chip === "1 条对话引用", seeded.chip);
+		check("引文不在框里的字里，框是空的", seeded.value === "", seeded.value);
+		check("光标在侧边输入框里", seeded.focused, seeded);
 		check("菜单收起了", !(await app.evaluate<boolean>(`Boolean(document.querySelector('${MENU}'))`)), "还在");
-		check("没有发出任何请求——只放进输入框，不替人问", requests.length === 0, requests.length);
-		await shot(app, `${STAMP}_02_引文落进侧边聊天输入框`);
+		check("没有发出任何请求——只挂到输入框上，不替人问", requests.length === 0, requests.length);
+		await shot(app, `${STAMP}_02_引文挂到侧边聊天输入框上`);
 		await pause(1000);
 
-		console.log("\n3. 再划一段：前台就是这格侧边聊天，接在后面，不另开");
+		console.log("\n3. 再划一段：前台就是这格侧边聊天，引用变成两条，不另开");
 		const second = await textSpan(app, QUOTABLE, "第 5 个回答");
 		await dragSelect(app, second.start, second.end);
 		await until(app, `document.querySelector('${MENU}')`);
 		await frames(app, 12);
 		await click(app, `${MENU} [role="menuitem"]`, "在侧边聊天中提问");
-		await until(app, `document.querySelector('${SIDE_FIELD}')?.value.includes('第 5 个回答')`);
-		const both = await app.evaluate<string>(`document.querySelector('${SIDE_FIELD}').value`);
-		check("两段引文都在同一个输入框里", both === "> 隔离测试文本\n\n> 第 5 个回答\n\n", both);
+		await until(app, `document.querySelector('${SIDE_CHIP}')?.textContent==='2 条对话引用'`);
+		check("两段引文挂在同一个输入框上", (await field(SIDE_FIELD, SIDE_CHIP)).chip === "2 条对话引用", await field(SIDE_FIELD, SIDE_CHIP));
 		check("右栏仍只有一格侧边聊天", (await app.evaluate<number>(CHAT_TABS)) === 1, await app.evaluate<number>(CHAT_TABS));
 		await shot(app, `${STAMP}_03_第二段接在同一格`);
 		await pause(1000);
 
-		console.log("\n4. 跨了两条消息的选区不弹菜单");
+		console.log("\n4. 指上去：卡片里是两段引文和出处，删掉一条");
+		await hover(app, SIDE_CHIP);
+		await until(app, `document.querySelectorAll('${CARD}').length===2`);
+		await frames(app, 20);
+		const cards = await app.evaluate<{ text: string; source: string }[]>(
+			`[...document.querySelectorAll('${CARD}')].map(e=>({text:e.querySelector('p').textContent,source:e.querySelectorAll('p')[1].textContent}))`,
+		);
+		check("卡片里按先后是两段引文", cards.map((each) => each.text).join("|") === "隔离测试文本|第 5 个回答", cards);
+		check("出处写着「助手消息」", cards.every((each) => each.source === "助手消息"), cards);
+		const cardAt = await app.evaluate<{ above: boolean; aligned: boolean }>(
+			`(()=>{const c=document.querySelector('${SIDE_CHIP}').getBoundingClientRect();const p=document.querySelector('${CARD}').closest('[data-ly-popover]').getBoundingClientRect();return {above:p.bottom<=c.top,aligned:Math.abs(p.left-c.left)<1};})()`,
+		);
+		check("卡片在胶囊上方、左边对齐", cardAt.above && cardAt.aligned, cardAt);
+		await shot(app, `${STAMP}_04_指上去看到两段引文`);
+		await pause(1000);
+		await click(app, `${CARD}:nth-child(2) button`);
+		await until(app, `document.querySelectorAll('${CARD}').length===1`);
+		await frames(app, 12);
+		check("删掉一条后剩「1 条对话引用」", (await field(SIDE_FIELD, SIDE_CHIP)).chip === "1 条对话引用", await field(SIDE_FIELD, SIDE_CHIP));
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 300, y: 300 });
+		await until(app, `!document.querySelector('${CARD}')`);
+		await shot(app, `${STAMP}_05_删掉一条`);
+		await pause(800);
+
+		console.log("\n5. 打一句话发出去：模型收到的是引用块加问题，胶囊收掉");
+		await type(app, SIDE_FIELD, ASK);
+		await frames(app, 6);
+		await press(app, "Enter", 13);
+		await until(app, `${JSON.stringify(SIDE_SURFACE)}&&[...document.querySelectorAll(${JSON.stringify(SIDE_SURFACE)})].some(e=>e.textContent.includes(${JSON.stringify(SIDE_ANSWER)}))`);
+		await frames(app, 20);
+		const asked1 = requests.at(-1);
+		check("侧边聊天被问到，引文排在问题前面", Boolean(asked1?.side && asked1.text.includes(JSON.stringify(`> 隔离测试文本\n\n${ASK}`).slice(1, -1))), asked1?.text.slice(0, 200));
+		// 侧边聊天的请求里带着主会话的上下文，那里本来就有「第 5 个回答」：只看它有没有作为引用块被问出去。
+		check("删掉的那一段没有跟着发出去", !asked1?.text.includes("> 第 5 个回答"), "带上了");
+		const sent = await field(SIDE_FIELD, SIDE_CHIP);
+		check("发完框空了、胶囊没了", sent.value === "" && sent.chip === null, sent);
+		await shot(app, `${STAMP}_06_带着引文发出去`);
+		await pause(1000);
+
+		console.log("\n6. 关掉侧边聊天再划词提问：之前没发的引文不会回来");
+		const fourth = await textSpan(app, QUOTABLE, "第 5 个回答");
+		await dragSelect(app, fourth.start, fourth.end);
+		await until(app, `document.querySelector('${MENU}')`);
+		await frames(app, 12);
+		await click(app, `${MENU} [role="menuitem"]`, "在侧边聊天中提问");
+		await until(app, `document.querySelector('${SIDE_CHIP}')`);
+		await closeTab(app, "chat");
+		await frames(app, 30);
+		const fifth = await textSpan(app, QUOTABLE, "隔离测试文本");
+		await dragSelect(app, fifth.start, fifth.end);
+		await until(app, `document.querySelector('${MENU}')`);
+		await frames(app, 12);
+		await click(app, `${MENU} [role="menuitem"]`, "在侧边聊天中提问");
+		await until(app, `document.querySelector('${SIDE_CHIP}')`);
+		await frames(app, 30);
+		check("重开后只有这一次的「1 条对话引用」", (await field(SIDE_FIELD, SIDE_CHIP)).chip === "1 条对话引用", await field(SIDE_FIELD, SIDE_CHIP));
+		await hover(app, SIDE_CHIP);
+		await until(app, `document.querySelector('${CARD}')`);
+		const reopened = await app.evaluate<string[]>(`[...document.querySelectorAll('${CARD} p:first-child')].map(e=>e.textContent)`);
+		check("卡片里是这次划的，不是关掉前那段", reopened.join("|") === "隔离测试文本", reopened);
+		await shot(app, `${STAMP}_07_关掉重开不留旧引文`);
+		await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 300, y: 300 });
+		await until(app, `!document.querySelector('${CARD}')`);
+		await pause(1000);
+
+		console.log("\n7. 跨了两条消息的选区不弹菜单");
 		const question = await textSpan(app, `${MAIN} [data-question-index]`, "第 5 个问题");
 		const reply = await textSpan(app, QUOTABLE, "第 5 个回答");
 		await dragSelect(app, question.start, reply.end);
@@ -157,37 +232,36 @@ async function run(): Promise<void> {
 		const crossed = await app.evaluate<{ selected: string; menu: boolean }>(`({selected:getSelection().toString(),menu:Boolean(document.querySelector('${MENU}'))})`);
 		check("选区确实跨了问题和回答", crossed.selected.includes("第 5 个问题") && crossed.selected.includes("第 5 个回答"), crossed.selected.slice(0, 60));
 		check("跨消息时没有菜单", !crossed.menu, crossed);
-		await shot(app, `${STAMP}_04_跨消息不弹菜单`);
+		await shot(app, `${STAMP}_08_跨消息不弹菜单`);
 		await pause(1000);
 
-		console.log("\n5. 引用到输入框：落进主输入框，光标在后面");
+		console.log("\n8. 引用到输入框：主输入框上方也是一枚引用，框里空着、光标在里面");
 		const third = await textSpan(app, QUOTABLE, "稳定布局");
 		await dragSelect(app, third.start, third.end);
 		await until(app, `document.querySelector('${MENU}')`);
 		await frames(app, 12);
 		await click(app, `${MENU} [role="menuitem"]`, "引用到输入框");
-		await until(app, `document.querySelector('${COMPOSER}')?.value`);
+		await until(app, `document.querySelector('${MAIN_CHIP}')`);
 		await frames(app, 20);
-		const main = await app.evaluate<{ value: string; focused: boolean; caret: number }>(
-			`(()=>{const e=document.querySelector('${COMPOSER}');return {value:e.value,focused:e===document.activeElement,caret:e.selectionStart};})()`,
-		);
-		check("主输入框里是引用块", main.value === "> 稳定布局\n\n", main.value);
-		check("光标在主输入框末尾", main.focused && main.caret === main.value.length, main);
-		check("侧边聊天那边没被动到", (await app.evaluate<string>(`document.querySelector('${SIDE_FIELD}').value`)) === both, "变了");
-		await shot(app, `${STAMP}_05_引用到主输入框`);
+		const main = await field(COMPOSER, MAIN_CHIP);
+		check("主输入框上方是「1 条对话引用」，框里空着", main.chip === "1 条对话引用" && main.value === "", main);
+		check("光标在主输入框里", main.focused, main);
+		check("侧边聊天那边没被动到", (await field(SIDE_FIELD, SIDE_CHIP)).chip === "1 条对话引用", await field(SIDE_FIELD, SIDE_CHIP));
+		await shot(app, `${STAMP}_09_引用到主输入框`);
 		await pause(1000);
 
-		console.log("\n6. 打 / 能看到 btw");
+		console.log("\n9. 打 / 能看到 btw");
 		await type(app, COMPOSER, "/bt");
 		await until(app, `[...document.querySelectorAll('[data-command-kind="builtin"]')].some(e=>e.getAttribute('aria-label')?.startsWith('btw'))`);
 		await frames(app, 12);
 		const listed = await app.evaluate<string>(`[...document.querySelectorAll('[data-command-kind="builtin"]')].map(e=>e.getAttribute('aria-label')).find(l=>l.startsWith('btw'))`);
 		check("命令菜单里有 /btw 和它的说明", listed.includes("另开一个侧边聊天问这句话"), listed);
-		await shot(app, `${STAMP}_06_命令菜单里的btw`);
+		await shot(app, `${STAMP}_10_命令菜单里的btw`);
 		await pause(1000);
 
-		console.log("\n7. /btw 一句话：新开一格侧边聊天问出去，主对话里什么也不留");
+		console.log("\n10. /btw 一句话：新开一格侧边聊天问出去，主输入框上的引文跟着走，主对话里什么也不留");
 		const asked = await app.evaluate<number>(`document.querySelectorAll('${MAIN} [data-question-index]').length`);
+		const before = requests.length;
 		await type(app, COMPOSER, `/btw ${BTW}`);
 		await frames(app, 6);
 		await press(app, "Enter", 13);
@@ -197,10 +271,13 @@ async function run(): Promise<void> {
 		check("新开了第二格侧边聊天", (await app.evaluate<number>(CHAT_TABS)) === 2, await app.evaluate<number>(CHAT_TABS));
 		const sideText = await app.evaluate<string>(`document.querySelector('[data-dock-pane^="chat"]:not([inert]) [data-ly-chat-surface="side-chat"]').textContent`);
 		check("那一格里是这句问话和回答", sideText.includes(BTW) && sideText.includes(SIDE_ANSWER) && !sideText.includes("/btw"), sideText.slice(0, 80));
-		check("问的是侧边聊天，主会话一次也没被请求", requests.length === 1 && requests[0].side && requests[0].text.includes(BTW), requests.map((each) => ({ side: each.side, asked: each.text.includes(BTW) })));
+		const btw = requests.slice(before);
+		check("问的是侧边聊天，主会话一次也没被请求", btw.length === 1 && btw[0]!.side && btw[0]!.text.includes(BTW), btw.map((each) => ({ side: each.side, asked: each.text.includes(BTW) })));
+		check("主输入框上的引文跟着这句话走了", Boolean(btw[0]?.text.includes(JSON.stringify(`> 稳定布局\n\n${BTW}`).slice(1, -1))), btw[0]?.text.slice(0, 200));
 		check("主对话里没有多出一条", (await app.evaluate<number>(`document.querySelectorAll('${MAIN} [data-question-index]').length`)) === asked, asked);
-		check("主输入框清空了", (await app.evaluate<string>(`document.querySelector('${COMPOSER}').value`)) === "", "没清");
-		await shot(app, `${STAMP}_07_btw开出新一格`);
+		const cleared = await field(COMPOSER, MAIN_CHIP);
+		check("主输入框清空了，引用也收掉了", cleared.value === "" && cleared.chip === null, cleared);
+		await shot(app, `${STAMP}_11_btw开出新一格`);
 		await pause(1500);
 	} finally {
 		await stop();

@@ -38,6 +38,7 @@ import { pullModelCatalog } from "./model-catalog.ts";
 import type { ToolRun } from "./tool-run.ts";
 export type { ToolRun } from "./tool-run.ts";
 import type { Hiccup } from "../lib/hiccup.ts";
+import type { DraftQuote } from "../lib/quote.ts";
 
 /**
  * 这个会话旁边有没有侧边聊天还在答。
@@ -107,6 +108,7 @@ interface ComposerDraft {
   replace: boolean;
   attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
   sessionRefs?: Array<{ id: string; title: string }>;
+  quotes?: DraftQuote[];
 }
 
 interface PendingApproval extends QuestionFields {
@@ -239,7 +241,7 @@ export interface AppState extends QueueSlice {
   browserAttachment: { text: string; dataUrl: string; draftKey: string } | null;
   setComposerDraft(
     text: string,
-    options: Pick<ComposerDraft, "sessionId" | "attachments" | "sessionRefs"> & { replace?: boolean },
+    options: Pick<ComposerDraft, "sessionId" | "attachments" | "sessionRefs" | "quotes"> & { replace?: boolean },
   ): void;
 
   /**
@@ -248,8 +250,8 @@ export interface AppState extends QueueSlice {
    * - `new:scratch` for blank session without a project (Chat / 不在项目中工作)
    * - `<sessionId>` for drafts typed in an existing session
    */
-  drafts: Record<string, { text: string; attachments: { id: string; name: string; mimeType: string; data?: string; text?: string; isText?: boolean }[]; sessionRefs?: Array<{ id: string; title: string }> }>;
-  setDraft(key: string, draft: { text: string; attachments?: { id: string; name: string; mimeType: string; data?: string; text?: string; isText?: boolean }[]; sessionRefs?: Array<{ id: string; title: string }> } | null): void;
+  drafts: Record<string, { text: string; attachments: { id: string; name: string; mimeType: string; data?: string; text?: string; isText?: boolean }[]; sessionRefs?: Array<{ id: string; title: string }>; quotes?: DraftQuote[] }>;
+  setDraft(key: string, draft: { text: string; attachments?: { id: string; name: string; mimeType: string; data?: string; text?: string; isText?: boolean }[]; sessionRefs?: Array<{ id: string; title: string }>; quotes?: DraftQuote[] } | null): void;
 
   activeSessionId: string | null;
   /**
@@ -727,11 +729,11 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   setView: (view) => set({ view }),
-  setComposerDraft: (text, { sessionId, replace = false, attachments = [], sessionRefs = [] }) =>
-    set({ composerDraft: { sessionId, text, replace, attachments, sessionRefs } }),
+  setComposerDraft: (text, { sessionId, replace = false, attachments = [], sessionRefs = [], quotes = [] }) =>
+    set({ composerDraft: { sessionId, text, replace, attachments, sessionRefs, quotes } }),
   setDraft: (key, draft) =>
     set((state) => {
-      if (!draft || (!draft.text.trim() && (!draft.attachments || draft.attachments.length === 0) && !draft.sessionRefs?.length)) {
+      if (!draft || (!draft.text.trim() && (!draft.attachments || draft.attachments.length === 0) && !draft.sessionRefs?.length && !draft.quotes?.length)) {
         if (!state.drafts[key]) return state;
         const copy = { ...state.drafts };
         delete copy[key];
@@ -744,6 +746,7 @@ export const useApp = create<AppState>((set, get) => ({
             text: draft.text,
             attachments: draft.attachments ?? [],
             sessionRefs: draft.sessionRefs,
+            ...(draft.quotes?.length ? { quotes: draft.quotes } : {}),
           },
         },
       };

@@ -193,6 +193,7 @@ export { PlayIcon as Play } from "./animated/play.tsx";
 export { PlusIcon as Plus } from "./animated/plus.tsx";
 export { PresentationIcon as Presentation } from "./animated/presentation.tsx";
 export { PuzzleIcon as Puzzle } from "./animated/puzzle.tsx";
+export { QuoteIcon as Quote } from "./animated/quote.tsx";
 export { Redo2Icon as Redo2 } from "./animated/redo-2.tsx";
 export { RefreshCwIcon as RefreshCw } from "./animated/refresh-cw.tsx";
 export { RocketIcon as Rocket } from "./animated/rocket.tsx";

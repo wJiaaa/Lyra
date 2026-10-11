@@ -15,3 +15,8 @@ export function useSideTarget(): { sessionId: string | null; sideId: string } {
 	const kind = usePanelKind();
 	return { sessionId, sideId: (kind && sideIdOfPanel(kind)) || DEFAULT_SIDE_CHAT_ID };
 }
+
+/** 这个侧边聊天的草稿存在 `useApp.drafts` 的哪个键下。最早那一个沿用一个会话只有一个侧边聊天时的键。 */
+export function sideDraftKey(sessionId: string, sideId: string): string {
+	return sideId === DEFAULT_SIDE_CHAT_ID ? `side:${sessionId}` : `side:${sessionId}:${sideId}`;
+}

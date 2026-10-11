@@ -11,15 +11,15 @@ import { useI18n } from "../../i18n/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import type { Message, SessionMeta } from "@plume/core";
 import type { QueuedMessage } from "../../store/queue-slice.ts";
-import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { Plus } from "../../ui/icons/index.ts";
 import { useEffect, useRef } from "react";
 import { findModel } from "../models/index.ts";
 import { askSide, openFilePane, setSideModel, setSideThinking, sideKey, useSide } from "../dock/index.ts";
-import { useSideTarget } from "./target.ts";
+import { sideDraftKey, useSideTarget } from "./target.ts";
 import { useDockScope, useScopedMeta } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
 import { sessionThinking } from "../../lib/thinking.ts";
+import { withQuotes } from "../../lib/quote.ts";
 import {
 	ComposerSend,
 	ComposerShell,
@@ -28,6 +28,7 @@ import {
 	spellDraft,
 	type DraftAttachment,
 	QueueList,
+	QuoteChip,
 	queuePreview,
 	queueThumbnail,
 	useComposerAttachments,
@@ -73,11 +74,11 @@ export function SideComposer({
 	const messages = useApp((s) => (sideId_ ? (s.sessionCache[sideId_]?.messages ?? NO_MESSAGES) : NO_MESSAGES));
 	const queued = useApp((s) => (sideId_ ? (s.queued[sideId_] ?? NO_QUEUE) : NO_QUEUE));
 	/*
-	 * 草稿按侧边聊天存，和主输入框同一个仓库——面板关了、换个会话再回来，打了一半的话还在。
-	 * 从前它是这个组件自己的 state，面板一关就没了。最早那一个沿用一个会话只有一个侧边聊天时的 key。
+	 * 草稿按侧边聊天存，和主输入框同一个仓库——换个会话再回来，打了一半的话还在。关掉面板就是不要
+	 * 这个侧边聊天了，草稿跟着扔，见 `closeSideChat`。
 	 */
-	const draftKey = sessionId ? (sideId === DEFAULT_SIDE_CHAT_ID ? `side:${sessionId}` : `side:${sessionId}:${sideId}`) : null;
-	const { text, setText, attachments, setAttachments, clear } = useDraft<DraftAttachment>(draftKey);
+	const draftKey = sessionId ? sideDraftKey(sessionId, sideId) : null;
+	const { text, setText, attachments, setAttachments, quotes, setQuotes, clear } = useDraft<DraftAttachment>(draftKey);
 	const field = useRef<HTMLTextAreaElement>(null);
 	/*
 	 * 收附件的那一整套，和主输入框是同一份：八个的上限、PDF 抽字、上方只摆图片（文件在句子里那枚
@@ -108,19 +109,27 @@ export function SideComposer({
 	 */
 	const draftSeed = useSide((s) => (sessionId ? s.draftSeeds[sideKey(sessionId, sideId)] : undefined));
 	useEffect(() => {
-		if (!draftSeed) return;
-		// 和主输入框接一段进来时一样空一行：只隔一个换行，两段引文在 Markdown 里会并成同一个引用块。
-		setText((was) => (was.trim() ? `${was.replace(/\s+$/, "")}\n\n${draftSeed.text}` : draftSeed.text));
+		if (!draftSeed || !sessionId) return;
+		/*
+		 * 从仓库现取，不用闭包里那份：面板这一下才开时，StrictMode 会把这个 effect 连跑两遍，第二遍的
+		 * `draftSeed` 还是旧值，同一段引文就接了两份。仓库里那份第一遍已经取走，第二遍读到的是空。
+		 */
+		const seed = useSide.getState().draftSeeds[sideKey(sessionId, sideId)];
+		if (!seed) return;
 		useSide.getState().clearDraftSeed(sessionId, sideId);
-		// 送来的是半句话（退回的任务、对话里划下的一段），下一步总是接着写：光标放到末尾。
+		const { text: handed, quotes: quoted } = seed;
+		// 只隔一个换行，两段在 Markdown 里会并成同一段：和主输入框接一段进来时一样空一行。
+		if (handed) setText((was) => (was.trim() ? `${was.replace(/\s+$/, "")}\n\n${handed}` : handed));
+		if (quoted.length) setQuotes((was) => [...was, ...quoted]);
+		// 送来的是半句话（退回的任务）或要问的材料（划下的一段），下一步总是接着写：光标放到末尾。
 		const el = field.current;
 		if (!el) return;
 		// 面板还在从右侧滑入，默认聚焦会滚动外层容器、抵消滑入位移。
 		el.focus({ preventScroll: true });
 		requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length));
-	}, [draftSeed, sessionId, sideId, setText]);
+	}, [draftSeed, sessionId, sideId, setText, setQuotes]);
 
-	const empty = !text.trim() && attachments.length === 0;
+	const empty = !text.trim() && attachments.length === 0 && quotes.length === 0;
 
 	function submit() {
 		const trimmed = text.trim();
@@ -130,8 +139,10 @@ export function SideComposer({
 		 * 人打的那些字（`【图片 1】` 这样的标记留着），和附件的名字门类——没有这一份，气泡里摆的是
 		 * 写给模型的 `### Attached file: …`。
 		 */
-		const content = spellDraft(trimmed, attachments);
-		const sent = { displayText: trimmed, attachments: attachmentMeta(attachments) };
+		// 引文到这一刻才拼回引用块，排在要问的话前面——模型和气泡看到的都和从前一样。
+		const said = withQuotes(trimmed, quotes);
+		const content = spellDraft(said, attachments);
+		const sent = { displayText: said, attachments: attachmentMeta(attachments) };
 		/*
 		 * 正在答的时候，排到后面，而不是什么都不发生。
 		 *
@@ -140,14 +151,14 @@ export function SideComposer({
 		 * 别的时候也排——不然新说的这句会越过前面那几句先到。
 		 */
 		if (sideId_ && (running || queued.length > 0)) {
-			const composed = { text: trimmed, attachments, sessionRefs: [] };
+			const composed = { text: trimmed, attachments, sessionRefs: [], quotes };
 			const thumbnail = queueThumbnail(composed);
 			const app = useApp.getState();
 			app.enqueue(sideId_, {
 				content,
 				displayText: sent.displayText,
 				...(sent.attachments.length ? { attachments: sent.attachments } : {}),
-				draft: { text: trimmed, attachments, sessionRefs: [] },
+				draft: { text: trimmed, attachments, sessionRefs: [], quotes },
 				preview: queuePreview(composed),
 				...(thumbnail ? { thumbnail } : {}),
 			});
@@ -165,9 +176,10 @@ export function SideComposer({
 	};
 
 	/** 排着的那一条退回来：整份草稿——字和附件——接在框里已有的后面。 */
-	const restoreQueued = (entry: { draft: { text: string; attachments: unknown[] } }) => {
+	const restoreQueued = (entry: { draft: { text: string; attachments: unknown[]; quotes?: typeof quotes } }) => {
 		setText((current) => (current.trim() ? `${current.trimEnd()}\n\n${entry.draft.text}` : entry.draft.text));
 		setAttachments((current) => [...current, ...(entry.draft.attachments as DraftAttachment[])]);
+		if (entry.draft.quotes?.length) setQuotes((current) => [...current, ...entry.draft.quotes!]);
 		const el = field.current;
 		if (!el) return;
 		el.focus();
@@ -228,8 +240,11 @@ export function SideComposer({
 					 * 和主输入框同一排：只有图片，文件在句子里那枚标记上。只在真有图时展开，不然贴进来一个
 					 * 文件，输入框上沿平白高出一道空的内衬。
 					 */
-					<div className="ly-reveal" data-open={kit.strip.length > 0 ? "true" : "false"}>
-						<div className="ly-composer-attachments">{kit.stripNode}</div>
+					<div className="ly-reveal" data-open={kit.strip.length > 0 || quotes.length > 0 ? "true" : "false"}>
+						<div className="ly-composer-attachments">
+							{quotes.length > 0 && <QuoteChip quotes={quotes} onRemove={(id) => setQuotes((was) => was.filter((quote) => quote.id !== id))} />}
+							{kit.stripNode}
+						</div>
 					</div>
 				}
 				left={

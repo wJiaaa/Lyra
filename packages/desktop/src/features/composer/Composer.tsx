@@ -8,6 +8,8 @@ import { ChangeBar } from "../git/index.ts";
 import { CommandMenu } from "./CommandMenu.tsx";
 import { QueuedMessages } from "./QueuedMessages.tsx";
 import { buildOutgoing, queuePreview, queueThumbnail } from "./outgoing.ts";
+import { QuoteChip } from "./QuoteChip.tsx";
+import type { DraftQuote } from "../../lib/quote.ts";
 import type { QueuedMessage } from "../../store/queue-slice.ts";
 import { MentionMenu } from "./MentionMenu.tsx";
 import { useMention } from "./useMention.ts";
@@ -141,6 +143,10 @@ export function Composer({ centered = false }: {
 	const sessionRefsRef = useRef(sessionRefs);
 	sessionRefsRef.current = sessionRefs;
 	const [attachments, setAttachments] = useState<Attachment[]>(() => (savedDraft?.attachments as Attachment[]) ?? []);
+	/** 对话里划下来的引文，画成框上方那枚「N 条对话引用」，发出去时才拼进正文。见 `QuoteChip`。 */
+	const [quotes, setQuotes] = useState<DraftQuote[]>(() => savedDraft?.quotes ?? []);
+	const quotesRef = useRef(quotes);
+	quotesRef.current = quotes;
 
 	/*
 	 * 这一轮留下的活，和「继续」该发的那句话——没有就是 `null`。
@@ -172,7 +178,7 @@ export function Composer({ centered = false }: {
 	 * 「继续推进当前任务」，而没有任务在推进，它在等一个地名。一次白跑的往返。
 	 */
 	const continueReady = Boolean(activeSessionId) && !working && !text.trim() && !attachments.length && !sessionRefs.length
-		&& carryOn !== null;
+		&& !quotes.length && carryOn !== null;
 	const textRef = useRef(text);
 	textRef.current = text;
 	const attachmentsRef = useRef(attachments);
@@ -186,7 +192,7 @@ export function Composer({ centered = false }: {
 		const prevKey = draftKeyRef.current;
 		if (prevKey !== draftKey) {
 			// Save draft for the key we are leaving.
-			setDraft(prevKey, { text: textRef.current, attachments: attachmentsRef.current, sessionRefs: sessionRefsRef.current });
+			setDraft(prevKey, { text: textRef.current, attachments: attachmentsRef.current, sessionRefs: sessionRefsRef.current, quotes: quotesRef.current });
 			draftKeyRef.current = draftKey;
 
 			// Restore draft for the key we just moved to.
@@ -194,6 +200,7 @@ export function Composer({ centered = false }: {
 			setText(nextDraft?.text ?? "");
 			setSessionRefs(nextDraft?.sessionRefs ?? []);
 			setAttachments((nextDraft?.attachments as Attachment[]) ?? []);
+			setQuotes(nextDraft?.quotes ?? []);
 		}
 	}, [draftKey, setDraft]);
 
@@ -201,8 +208,8 @@ export function Composer({ centered = false }: {
 	 * Persist changes to current draft in the store so switching away (or remounting) preserves it.
 	 */
 	useEffect(() => {
-		setDraft(draftKey, { text, attachments, sessionRefs });
-	}, [text, attachments, sessionRefs, draftKey, setDraft]);
+		setDraft(draftKey, { text, attachments, sessionRefs, quotes });
+	}, [text, attachments, sessionRefs, quotes, draftKey, setDraft]);
 
 	/*
 	 * Text left here by something outside the composer — a suggestion card, a review, an error.
@@ -268,7 +275,8 @@ export function Composer({ centered = false }: {
 		useApp.setState({ composerDraft: null });
 		const files = draft.attachments ?? [];
 		const refs = draft.sessionRefs ?? [];
-		if (!draft.text && !files.length && !refs.length) return;
+		const quoted = draft.quotes ?? [];
+		if (!draft.text && !files.length && !refs.length && !quoted.length) return;
 		if (draft.text) {
 			setText((current) =>
 				draft.replace || !current.trim() ? draft.text : `${current.trimEnd()}\n\n${draft.text}`,
@@ -278,6 +286,7 @@ export function Composer({ centered = false }: {
 		if (refs.length) {
 			setSessionRefs((current) => [...new Map([...current, ...refs].map((ref) => [ref.id, ref])).values()]);
 		}
+		if (quoted.length) setQuotes((current) => [...current, ...quoted]);
 		/*
 		 * The caret is coming to this screen, so the screen takes the live slot — what a press on it
 		 * does. A card or a panel button reached by keyboard got here with no press, and left the caret
@@ -366,7 +375,7 @@ export function Composer({ centered = false }: {
 
 	async function submitOnce(release: () => void) {
 		const trimmed = text.trim();
-		if (!trimmed && attachments.length === 0 && sessionRefs.length === 0) {
+		if (!trimmed && attachments.length === 0 && sessionRefs.length === 0 && quotes.length === 0) {
 			if (!continueReady || !carryOn) return;
 			/*
 			 * `carryOn` 那三句会被 `grouping.ts` 按原文认出来，配上 `carryOn: true`，这一轮的耗时
@@ -400,15 +409,16 @@ export function Composer({ centered = false }: {
 		 */
 		if (builtin?.action === "aside") {
 			if (!activeSessionId) { useApp.getState().notify(translate("composer.asideNeedsSession"), "warn"); return; }
-			const question = { text: invocation?.rest ?? "", attachments, sessionRefs };
+			const question = { text: invocation?.rest ?? "", attachments, sessionRefs, quotes };
 			setText("");
 			setAttachments([]);
 			setSessionRefs([]);
+			setQuotes([]);
 			setDraft(draftKey, null);
 			release();
 			const sideId = sideChatFor(activeSessionId, false);
 			// 只打了 `/btw`：开出那一格就够了，话到那边去说。
-			if (!sideId || (!question.text && !attachments.length && !sessionRefs.length)) return;
+			if (!sideId || (!question.text && !attachments.length && !sessionRefs.length && !quotes.length)) return;
 			const built = await buildOutgoing(question, commandCwd);
 			if (!built) return;
 			void askSide(activeSessionId, sideId, built.content, {
@@ -425,7 +435,7 @@ export function Composer({ centered = false }: {
 			if (!activeSessionId) { useApp.getState().notify(translate("plan.needsSession"), "warn"); return; }
 			const planOn = meta?.planMode === true;
 			if (!invocation?.rest) {
-				if (attachments.length || sessionRefs.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
+				if (attachments.length || sessionRefs.length || quotes.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
 				setText("");
 				setDraft(draftKey, null);
 				release();
@@ -439,7 +449,7 @@ export function Composer({ centered = false }: {
 		 * `setGoal`），这里不再走 `send`，否则同一句话会进对话两次。目标挂在会话上，没有会话就没处挂。
 		 */
 		if (builtin?.action === "goal") {
-			if (attachments.length || sessionRefs.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
+			if (attachments.length || sessionRefs.length || quotes.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
 			if (!activeSessionId) { useApp.getState().notify(translate("goal.needsSession"), "warn"); return; }
 			setText("");
 			setDraft(draftKey, null);
@@ -448,7 +458,7 @@ export function Composer({ centered = false }: {
 			return;
 		}
 		if (builtin && builtin.action !== "plan") {
-			if (attachments.length || sessionRefs.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
+			if (attachments.length || sessionRefs.length || quotes.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
 			if (builtin.action === "compact" && !activeSessionId) { useApp.getState().notify(translate("composer.nothingToCompact"), "warn"); return; }
 			if (builtin.action !== "compact" && invocation?.rest) { useApp.getState().notify(translate("composer.commandNoArgs"), "warn"); return; }
 			setText("");
@@ -469,10 +479,10 @@ export function Composer({ centered = false }: {
 		const referencedSessions = sessionRefs;
 		// `/plan 要规划的事` 发出去的只是后半句：开关已经拨过了，`/plan` 留在气泡里模型会当成一条它不认识的命令。
 		const said = builtin?.action === "plan" ? invocation?.rest ?? "" : trimmed;
-		const composed = { text: said, attachments, sessionRefs: referencedSessions };
+		const composed = { text: said, attachments, sessionRefs: referencedSessions, quotes };
 		const built = await buildOutgoing(composed, commandCwd, () =>
 			// A disk scan must not dispatch an obsolete draft or erase edits made while it was pending.
-			draftKeyRef.current === draftKey && textRef.current === text && attachmentsRef.current === attachments && sessionRefsRef.current === sessionRefs,
+			draftKeyRef.current === draftKey && textRef.current === text && attachmentsRef.current === attachments && sessionRefsRef.current === sessionRefs && quotesRef.current === quotes,
 		);
 		if (!built) return;
 		// 人在对话里的页面上调过的东西，跟着这句话交给模型；气泡里只有人打的字。见 `page-state.ts`。
@@ -482,6 +492,7 @@ export function Composer({ centered = false }: {
 		setText("");
 		setAttachments([]);
 		setSessionRefs([]);
+		setQuotes([]);
 		setDraft(draftKey, null);
 		release();
 
@@ -501,7 +512,7 @@ export function Composer({ centered = false }: {
 				...(outgoing.skillRef ? { skillRef: outgoing.skillRef } : {}),
 				...(outgoing.sessionRefs?.length ? { sessionRefs: outgoing.sessionRefs } : {}),
 				...(outgoing.attachments?.length ? { attachments: outgoing.attachments } : {}),
-				draft: { text: trimmed, attachments, sessionRefs: referencedSessions },
+				draft: { text: trimmed, attachments, sessionRefs: referencedSessions, quotes },
 				preview: queuePreview(composed),
 				...(queueThumbnail(composed) ? { thumbnail: queueThumbnail(composed)! } : {}),
 			});
@@ -529,12 +540,13 @@ export function Composer({ centered = false }: {
 		if (!accepted) {
 			// A transport rejection must preserve the original files and command text for retry.
 			const newer = useApp.getState().drafts[draftKey];
-			const restored = { text: newer?.text ? `${text}\n${newer.text}` : text, attachments: [...attachments, ...(newer?.attachments ?? [])], sessionRefs: [...new Map([...referencedSessions, ...(newer?.sessionRefs ?? [])].map(ref => [ref.id, ref])).values()] };
+			const restored = { text: newer?.text ? `${text}\n${newer.text}` : text, attachments: [...attachments, ...(newer?.attachments ?? [])], sessionRefs: [...new Map([...referencedSessions, ...(newer?.sessionRefs ?? [])].map(ref => [ref.id, ref])).values()], quotes: [...quotes, ...(newer?.quotes ?? [])] };
 			setDraft(draftKey, restored);
 			if (draftKeyRef.current === draftKey) {
 				setText(current => current ? `${text}\n${current}` : text);
 				setAttachments(current => [...attachments, ...current]);
 				setSessionRefs(current => [...new Map([...referencedSessions, ...current].map(ref => [ref.id, ref])).values()]);
+				setQuotes(current => [...quotes, ...current]);
 			}
 		}
 	}
@@ -561,6 +573,7 @@ export function Composer({ centered = false }: {
 		setText((current) => (current.trim() ? `${current.trimEnd()}\n\n${entry.draft.text}` : entry.draft.text));
 		setAttachments((current) => [...current, ...(entry.draft.attachments as Attachment[])]);
 		setSessionRefs((current) => [...new Map([...current, ...entry.draft.sessionRefs].map((ref) => [ref.id, ref])).values()]);
+		if (entry.draft.quotes?.length) setQuotes((current) => [...current, ...entry.draft.quotes!]);
 		const el = field.current;
 		if (!el) return;
 		el.focus();
@@ -783,8 +796,9 @@ export function Composer({ centered = false }: {
 						 * `attachments.length` 开，贴进来一个压缩包，这一行就撑开一道空的内衬——输入框上沿平白
 						 * 高出 12px，里面什么都没有。
 						 */
-						<div className="ly-reveal" data-open={kit.strip.length > 0 || sessionRefs.length > 0 ? "true" : "false"} data-ly-composer-attachments="">
+						<div className="ly-reveal" data-open={kit.strip.length > 0 || sessionRefs.length > 0 || quotes.length > 0 ? "true" : "false"} data-ly-composer-attachments="">
 							<div className="ly-composer-attachments">
+								{quotes.length > 0 && <QuoteChip quotes={quotes} onRemove={(id) => setQuotes((was) => was.filter((quote) => quote.id !== id))} />}
 								{sessionRefs.length > 0 && (
 									<div className="flex flex-wrap gap-2">
 										{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex h-8 max-w-[240px] items-center gap-1.5 rounded-[10px] border border-line-soft bg-card pr-1.5 pl-2 text-caption text-ink-muted transition-colors hover:text-ink"><MessageSquare size={12} className="shrink-0" /><span className="min-w-0 truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
@@ -875,13 +889,13 @@ export function Composer({ centered = false }: {
 							<EffortTrigger modelId={modelId} />
 
 							{/* 正忙时按下去是排队而不是插话，所以它说的也不再是「发送」——见 `submitOnce`。 */}
-							<div className="ly-queue-send" data-visible={running && Boolean(text.trim() || attachments.length || sessionRefs.length)} inert={!running || !(text.trim() || attachments.length || sessionRefs.length)}><div><ComposerSend running={false} active={running && Boolean(text.trim() || attachments.length || sessionRefs.length)} disabled={!running || !(text.trim() || attachments.length || sessionRefs.length)} tip={t("composer.queueWaiting")} onSend={() => void submit()} onStop={() => void abort(activeSessionId ?? undefined)} /></div></div>
+							<div className="ly-queue-send" data-visible={running && Boolean(text.trim() || attachments.length || sessionRefs.length || quotes.length)} inert={!running || !(text.trim() || attachments.length || sessionRefs.length || quotes.length)}><div><ComposerSend running={false} active={running && Boolean(text.trim() || attachments.length || sessionRefs.length || quotes.length)} disabled={!running || !(text.trim() || attachments.length || sessionRefs.length || quotes.length)} tip={t("composer.queueWaiting")} onSend={() => void submit()} onStop={() => void abort(activeSessionId ?? undefined)} /></div></div>
 							<ComposerSend
 								running={running}
 								continueReady={continueReady}
 								// 说的和转录下面那行「继续」一样，因为按下去是同一件事。
 								tip={continueReady ? translate("composer.finishUnfinished") : undefined}
-								disabled={!continueReady && !text.trim() && attachments.length === 0 && sessionRefs.length === 0}
+								disabled={!continueReady && !text.trim() && attachments.length === 0 && sessionRefs.length === 0 && quotes.length === 0}
 								onSend={() => void submit()}
 								onStop={() => void abort(activeSessionId ?? undefined)}
 							/>

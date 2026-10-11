@@ -193,7 +193,7 @@ function AssistantRow({
   // `group/msg` is what reveals the row below, and it names the whole reply as the target.
   // `data-ly-quote`: a selection inside one reply can be quoted, see `QuoteMenu`.
   return (
-    <div data-ly-quote="" className="group/msg ly-enter flex flex-col gap-2.5">
+    <div data-ly-quote="assistant" className="group/msg ly-enter flex flex-col gap-2.5">
       {/*
        * Grouped before rendering, not after.
        *
