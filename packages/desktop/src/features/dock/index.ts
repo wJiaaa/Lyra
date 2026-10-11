@@ -22,6 +22,7 @@ export {
 	provideReveal,
 	provideScope,
 	showScopedPanel,
+	sideChatFor,
 	watchPanelWindows,
 	usePanelWindows,
 } from "./popout.ts";

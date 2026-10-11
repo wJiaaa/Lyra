@@ -22,6 +22,7 @@ import { describeCalls, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx
 import { CommandRunRow } from "./CommandRunRow.tsx";
 import { HookTrustBanner } from "./HookTrustBanner.tsx";
 import { QuestionNav } from "./QuestionNav.tsx";
+import { QuoteMenu } from "./QuoteMenu.tsx";
 import { questionsIn, timeSeparators } from "./question-navigation.ts";
 import { MessageRow } from "./rows.tsx";
 import { TurnProcess } from "./TurnProcess.tsx";
@@ -620,6 +621,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
        * moment it appeared, and a control offering to move you should not itself move the thing
        * it is about.
        */}
+      {/* 侧边聊天里划下的一段拿去侧边聊天问，问的就是它自己——只有主对话有。 */}
+      {!side && <QuoteMenu scrollRef={scrollRef} />}
       {questions.length > 1 && !side && <QuestionNav key={activeSessionId} questions={questions} viewport={scrollRef} edge={narrowColumn} onSelect={jumpToQuestion} />}
       <BackToLatest
         show={follow.away || range.end < allBlocks.length}

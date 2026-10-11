@@ -19,7 +19,7 @@ import { commandEntries } from "./command-catalog.ts";
 import { ScheduledAlert } from "../scheduled/index.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
-import { askSide, openFilePane, openScopedPanel } from "../dock/index.ts";
+import { askSide, openFilePane, openScopedPanel, sideChatFor } from "../dock/index.ts";
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { ContextMeter } from "./ContextMeter.tsx";
 import { EffortTrigger } from "../models/index.ts";
@@ -392,6 +392,29 @@ export function Composer({ centered = false }: {
 		 * that still held `/compact` while it ran would invite a second press.
 		 */
 		const builtin = invocation ? commandEntries([], []).find((entry) => entry.name === invocation.name) : undefined;
+		/*
+		 * `/btw`：这句话拿到新开的一格侧边聊天去问，这个对话里什么也不留——不排队，也不打断正在跑的这一轮。
+		 * 附件和会话引用跟着这句话走，和排队消息的「在侧边聊天中打开」一样。
+		 */
+		if (builtin?.action === "aside") {
+			if (!activeSessionId) { useApp.getState().notify(translate("composer.asideNeedsSession"), "warn"); return; }
+			const question = { text: invocation?.rest ?? "", attachments, sessionRefs };
+			setText("");
+			setAttachments([]);
+			setSessionRefs([]);
+			setDraft(draftKey, null);
+			release();
+			const sideId = sideChatFor(activeSessionId, false);
+			// 只打了 `/btw`：开出那一格就够了，话到那边去说。
+			if (!sideId || (!question.text && !attachments.length && !sessionRefs.length)) return;
+			const built = await buildOutgoing(question, commandCwd);
+			if (!built) return;
+			void askSide(activeSessionId, sideId, built.content, {
+				...(built.displayText !== undefined ? { displayText: built.displayText } : {}),
+				...(built.attachments?.length ? { attachments: built.attachments } : {}),
+			});
+			return;
+		}
 		if (builtin) {
 			if (attachments.length || sessionRefs.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
 			if (builtin.action === "compact" && !activeSessionId) { useApp.getState().notify(translate("composer.nothingToCompact"), "warn"); return; }

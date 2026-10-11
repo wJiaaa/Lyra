@@ -377,7 +377,7 @@ export function UserMessage({
   }
 
   return (
-    <div data-question-index={index} className="group/msg ly-enter flex flex-col items-end">
+    <div data-question-index={index} data-ly-quote="" className="group/msg ly-enter flex flex-col items-end">
       {/*
        * Always visible, not folded into the hover row below.
        *

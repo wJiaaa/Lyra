@@ -267,6 +267,46 @@ export async function terminalText(page: Evaluate, text: string): Promise<Point>
 	return at;
 }
 
+/**
+ * 页面里某段字的首尾两点（首字左缘、末字右缘，竖直取行中），用来拖选它。
+ *
+ * 只在 `within` 里第一个看得见、含着这段字的文本节点里找：要选的是画面上的那几个字，按元素中心
+ * 拖，起止点会落在段落的空白处，选下来的是半行别的东西。
+ */
+export async function textSpan(page: Evaluate, within: string, text: string): Promise<{ start: Point; end: Point }> {
+	const span = await page.evaluate<{ start: Point; end: Point } | null>(`(()=>{
+		const want=${JSON.stringify(text)};
+		for(const root of document.querySelectorAll(${JSON.stringify(within)})){
+			if(!root.checkVisibility({visibilityProperty:true}))continue;
+			const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+			for(let n;(n=walker.nextNode());){
+				const i=n.data.indexOf(want);if(i<0)continue;
+				const range=document.createRange();
+				range.setStart(n,i);range.setEnd(n,i+1);const a=range.getBoundingClientRect();
+				range.setStart(n,i+want.length-1);range.setEnd(n,i+want.length);const b=range.getBoundingClientRect();
+				// 滚出视口的那一处 \`checkVisibility\` 也说看得见，要的是真在指针下的。
+				if(!root.contains(document.elementFromPoint(a.left+1,a.top+a.height/2)))continue;
+				return {start:{x:a.left+1,y:a.top+a.height/2},end:{x:b.right-1,y:b.top+b.height/2}};
+			}
+		}
+		return null;
+	})()`);
+	if (!span) throw new Error(`${within} shows no ${JSON.stringify(text)}`);
+	return span;
+}
+
+/** 按下、分几步拖过去、松开——真鼠标划一段字，页面收到的是完整的 mousedown / mousemove / mouseup。 */
+export async function dragSelect(page: Page, from: Point, to: Point, steps = 8): Promise<void> {
+	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...from });
+	await page.send("Input.dispatchMouseEvent", { type: "mousePressed", ...from, button: "left", clickCount: 1 });
+	for (let i = 1; i <= steps; i++) {
+		const at = { x: from.x + ((to.x - from.x) * i) / steps, y: from.y + ((to.y - from.y) * i) / steps };
+		await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at, button: "left", buttons: 1 });
+	}
+	await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...to, button: "left", clickCount: 1 });
+	await frames(page, 4);
+}
+
 /** 在一个点上点一下，可以按着修饰键——⌘ 点开终端里的链接就靠它。 */
 export async function clickAt(page: Page, at: Point, modifiers = 0): Promise<void> {
 	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at, modifiers });

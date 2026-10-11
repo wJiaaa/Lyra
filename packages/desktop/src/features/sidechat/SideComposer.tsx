@@ -109,8 +109,14 @@ export function SideComposer({
 	const draftSeed = useSide((s) => (sessionId ? s.draftSeeds[sideKey(sessionId, sideId)] : undefined));
 	useEffect(() => {
 		if (!draftSeed) return;
-		setText((was) => (was.trim() ? `${was.replace(/\s+$/, "")}\n${draftSeed.text}` : draftSeed.text));
+		// 和主输入框接一段进来时一样空一行：只隔一个换行，两段引文在 Markdown 里会并成同一个引用块。
+		setText((was) => (was.trim() ? `${was.replace(/\s+$/, "")}\n\n${draftSeed.text}` : draftSeed.text));
 		useSide.getState().clearDraftSeed(sessionId, sideId);
+		// 送来的是半句话（退回的任务、对话里划下的一段），下一步总是接着写：光标放到末尾。
+		const el = field.current;
+		if (!el) return;
+		el.focus();
+		requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length));
 	}, [draftSeed, sessionId, sideId, setText]);
 
 	const empty = !text.trim() && attachments.length === 0;

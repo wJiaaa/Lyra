@@ -3,10 +3,11 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { closePane, emptyDockTree, usePaneDock } from "../src/features/dock/pane-store.ts";
 import { has, leafOf, type DockNode } from "../src/features/dock/tree.ts";
 import { insertTab, panelsOf } from "../src/features/dock/tabs.ts";
-import { showScopedPanel, usePanelWindows } from "../src/features/dock/popout.ts";
+import { showScopedPanel, sideChatFor, usePanelWindows } from "../src/features/dock/popout.ts";
 
 function resetPaneDock(): void {
 	usePaneDock.setState({ trees: {}, sizes: {}, maximized: {}, focused: {}, tab: {}, leaving: {}, host: null });
@@ -53,6 +54,26 @@ test("能开好几个的，每按一次再开一格；最早那一格弹出去�
 		assert.equal(chats.length, 1);
 		assert.match(chats[0]!, /^chat:[a-z0-9]+$/, "弹出去的那个 `chat` 不能在右栏再画一份");
 	} finally { usePanelWindows.setState({ panels: [], opening: [] }); }
+});
+
+test("划词去侧边聊天：前台是侧边聊天就接着用它，否则新开一格；`/btw` 总是新开", () => {
+	resetPaneDock();
+	const first = sideChatFor("a", true);
+	assert.equal(first, DEFAULT_SIDE_CHAT_ID, "一格都没有时开的是最早那一格");
+	assert.deepEqual(panelsOf(usePaneDock.getState().tree("a")), ["chat"]);
+
+	assert.equal(sideChatFor("a", true), DEFAULT_SIDE_CHAT_ID, "前台就是它，接着用，不多开");
+	assert.equal(panelsOf(usePaneDock.getState().tree("a")).length, 1);
+
+	const fresh = sideChatFor("a", false);
+	assert.ok(fresh && fresh !== DEFAULT_SIDE_CHAT_ID, "`/btw` 不接进正在聊的那一格");
+	assert.equal(panelsOf(usePaneDock.getState().tree("a")).length, 2);
+	assert.equal(usePaneDock.getState().tab.a, `chat:${fresh}`, "新开的那一格到前台");
+
+	usePaneDock.getState().open("a", "terminal");
+	const beside = sideChatFor("a", true);
+	assert.ok(beside && beside !== DEFAULT_SIDE_CHAT_ID && beside !== fresh, "前台是终端时不去翻后台的侧边聊天，新开一格");
+	assert.equal(usePaneDock.getState().tab.a, `chat:${beside}`);
 });
 
 /** A screen on show: `closePane` only defers to the slide when something is there to draw it. */

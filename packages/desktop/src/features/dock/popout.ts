@@ -18,20 +18,21 @@
 
 import { create } from "zustand";
 import { provideFileOpener } from "../../app/file-opener.ts";
+import { provideSideQuote } from "../../app/side-quote.ts";
 import { flushSync } from "react-dom";
 import { bridge } from "../../services/index.ts";
 import { translate } from "../../i18n/translate.ts";
 import { useApp } from "../../store/index.ts";
 import { applyFilePanelState, filePanelSnapshot } from "../../store/file-panel-handoff.ts";
 import { fileSlot, openFileOf, useOpenFile } from "../../store/openFile.ts";
-import { allowsMany, basePanelKind, nextPanelKind } from "../../lib/panel-instance.ts";
+import { allowsMany, basePanelKind, nextPanelKind, sideIdOfPanel } from "../../lib/panel-instance.ts";
 import { baseName } from "../../lib/paths.ts";
 import { emptyDockTree, usePaneDock } from "./pane-store.ts";
 import { has, kinds, remove, type DockNode, type PaneKind } from "./tree.ts";
 import { paneStorageKey, readTree, sanitize, writeTree } from "./persist.ts";
 import { allPanels, detachOf, panelOf } from "./panels/registry.ts";
-import { insertTab, panelsOf } from "./tabs.ts";
-import type { PanelKind } from "./sideStore.ts";
+import { activeTab, insertTab, panelsOf } from "./tabs.ts";
+import { useSide, type PanelKind } from "./sideStore.ts";
 
 interface PanelWindowRef {
 	kind: string;
@@ -369,6 +370,31 @@ export function showScopedPanel(scope: string, kind: PanelKind): void {
 	}
 	usePaneDock.getState().open(scope, next);
 }
+
+/**
+ * 拿一段话去侧边聊天时落在哪一格，返回那一格的侧边聊天 id。
+ *
+ * `reuse`：右栏前台正好是这个会话的一个侧边聊天，就接着用它——划了一段又一段，问的多半是同一件事，
+ * 每段一个新标签会把右栏挤满。`/btw` 不接着用：它是一句新的旁问，而且会立刻发出去，接进一格正在答
+ * 的侧边聊天只会排在后面。都不是就照工具栏按钮的规矩再开一格。
+ *
+ * 面板窗口里没有右栏，请求转给主窗口也拿不回是哪一格，返回 null。
+ */
+export function sideChatFor(scope: string, reuse: boolean): string | null {
+	if (inPanelWindow()) return null;
+	const dock = usePaneDock.getState();
+	const tree = dock.tree(scope);
+	const front = reuse && !dock.tabsCollapsed ? activeTab(tree, dock.tab[scope]) : null;
+	const kind = front && sideIdOfPanel(front) ? front : nextPanelKind("chat", (each) => has(tree, each) || isPopped(scope, each));
+	dock.open(scope, kind);
+	return sideIdOfPanel(kind);
+}
+
+// 对话里划词「在侧边聊天中提问」从这里进来：引文落进那一格的输入框，问什么由人接着写。
+provideSideQuote((sessionId, text) => {
+	const sideId = sideChatFor(sessionId, true);
+	if (sideId) useSide.getState().seedDraft(sessionId, sideId, text);
+});
 
 /**
  * 启动时发现的孤儿：盘上有回家记录，却没有对应的面板窗口。

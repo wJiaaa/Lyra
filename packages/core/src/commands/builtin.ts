@@ -11,7 +11,9 @@ export type CommandAction =
 	/** 开一个新对话。 */
 	| "clear"
 	/** 打开命令管理界面。没有界面的宿主不实现它，于是不提供这条命令。 */
-	| "manage-commands";
+	| "manage-commands"
+	/** 另开一个侧边聊天问这句话。没有侧边聊天的宿主不实现它。 */
+	| "aside";
 
 export interface BuiltinCommand {
 	name: string;
@@ -30,6 +32,7 @@ export const BUILTIN_COMMANDS: BuiltinCommand[] = [
 	{ name: "compact", description: "把之前的对话压缩成摘要，腾出上下文", action: "compact", argumentHint: "可选：希望摘要保留的内容" },
 	{ name: "clear", description: "开一个新对话", action: "clear" },
 	{ name: "commands", description: "管理斜杠命令，或新建一个", action: "manage-commands" },
+	{ name: "btw", description: "另开一个侧边聊天问这句话，不进这个对话", action: "aside", argumentHint: "要问的话" },
 ];
 
 /** 宿主实现了哪些动作，就提供哪些内建命令。 */
