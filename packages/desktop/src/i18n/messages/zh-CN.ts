@@ -2320,7 +2320,7 @@ export const zhCN = {
 	"sessionCard.yesterday": "昨天",
 	"sessionCard.daysAgo": "{n} 天前",
 	"sessionCard.turns": "轮次",
-	"sessionCard.turnsSteps": "{turns} 轮 · {steps} 步",
+	"sessionCard.turnsSteps": "{turns} 轮 · {n} 步",
 	"sessionCard.tokens": "tokens",
 	"sessionCard.mainCache": "主会话缓存命中",
 	"sessionCard.unpriced": "未定价",

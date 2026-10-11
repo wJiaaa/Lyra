@@ -23,7 +23,7 @@ export function ModelSwitchRow({ from, to }: { from: ModelUsed; to: ModelUsed })
 	return (
 		<div data-ly-model-switch className="flex items-center gap-3 py-1 text-caption text-ink-faint">
 			<span aria-hidden className="h-px min-w-6 flex-1 bg-line-soft" />
-			<span className="flex min-w-0 items-center gap-1.5" title={text}>
+			<span className="flex min-w-0 items-center gap-1.5" data-ly-tip={text}>
 				<ArrowRightLeft size={12} strokeWidth={1.8} aria-hidden className="shrink-0" />
 				<span className="truncate">{text}</span>
 			</span>

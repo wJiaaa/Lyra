@@ -139,7 +139,7 @@ const tokensOrDash = (n: number) => (n > 0 ? formatTokens(n) : "–");
 function turnsText(session: SessionMeta): string {
 	if (session.turns === undefined) return "–";
 	if (session.steps === undefined) return String(session.turns);
-	return translate("sessionCard.turnsSteps", { turns: session.turns, steps: session.steps });
+	return translate("sessionCard.turnsSteps", { turns: session.turns, n: session.steps });
 }
 
 /** Whole percent, except that something short of 100% never reads as 100%: 99.96% shows 99.9%. */

@@ -108,6 +108,7 @@ test("an English sentence that counts something has a form for one", () => {
 	const exempt: Record<string, string> = {
 		"sheet.rowsOf": "only shown once a sheet passes MAX_ROWS (2000), so total is never 1",
 		"modelSettings.catalogStatus": "count is the whole model catalogue, thousands of entries, never 1",
+		"markdown.fileChoices": "the picker only opens when more than one file has the name, so count is never 1",
 	};
 	const source = MESSAGE_CATALOGS["zh-CN"] as Record<MessageKey, string>;
 	const measured = /\{(\w+)\} ?(?:个|次|条|项|行|列|处|份|张|篇|位|台|页|组|轮|天|小时|分钟|秒|字|名|件|段|层|步|遍|场|批|封|token)/g;
