@@ -105,6 +105,23 @@ POSIX 结束进程组，普通停止使用 `SIGTERM`，强制结束使用 `SIGKI
 验证运行 `node --experimental-strip-types packages/desktop/e2e/edit-safety-demo.ts`（先 `pnpm build`），
 使用临时项目和本地模型协议服务，录制编辑、差异审阅与撤销到桌面 `Plume编辑工具测试` 目录。
 
+### 代码导航（`lsp` 工具）
+
+按文件扩展名路由：TypeScript/JavaScript 走随包的 `tsserver`；Python（basedpyright 或 pyright）、
+Go（gopls）、Rust（rust-analyzer）、C/C++（clangd）走标准 LSP（stdio），服务器表在
+`core/src/lsp/servers.ts`，加一种语言就是加一行。这些服务器不随包附带，只用本机 PATH（经
+`commandEnv`，从图标启动时也能找到 shell 里配的目录）上找得到的；Windows 上按 PATHEXT 找到
+npm 装的 `.cmd` 并经 `cmd.exe` 启动，回收时按进程树结束。找不到时退回同语言文件的文本搜索，结果里
+写明「这个语言没有可用的语言服务器（需要安装 …）」；`rename` 在没有服务器时照旧拒绝。
+
+每台服务器第一次被问才起，起不来三秒内就先给文本答案，空闲十分钟回收（`lsp/manager.ts`）。
+每次提问前从磁盘重读文件，变了就整篇 `didChange`，所以 agent 改过文件后的回答不按旧内容算。
+发给服务器的路径换成真实路径、收回来再换回项目根，避免符号链接下的项目（macOS 的 `/var` →
+`/private/var`）同一个文件被当成两个。clangd 会在项目里写 `.cache/clangd/index`，这是它自己的行为。
+
+回归入口：`packages/core/test/lsp-stdio.test.ts`（路由、降级提示、URI 与 Windows 路径、分帧）、
+`packages/core/test/lsp-stdio-server.test.ts`（对着假服务器走完握手、改文件后重问、诊断、回收）。
+
 ### 快照与撤销
 
 write/edit 在变更前保存 before/after 快照，并在批准后重新核对基线，避免覆盖等待期间的修改。

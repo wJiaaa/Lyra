@@ -53,6 +53,11 @@ export interface CodeIntelBackend {
 	name: string;
 	/** File extensions this backend can answer for, lowercase and dotted. */
 	extensions: string[];
+	/**
+	 * What to install when `available()` is false, for the sentence the tool returns instead. Absent
+	 * for a backend that ships with the app (tsserver), where "not installed" cannot happen.
+	 */
+	install?: string;
 	/** Whether the backend can run at all — a binary that is not installed is not an error. */
 	available(): Promise<boolean>;
 	/** Bring it up for a project root. Safe to call repeatedly. */

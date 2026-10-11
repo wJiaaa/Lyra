@@ -13,8 +13,13 @@
  */
 
 import { extname } from "node:path";
+import { LANGUAGE_SERVERS } from "./servers.ts";
+import { StdioLspBackend } from "./stdio.ts";
 import { TsServerBackend } from "./tsserver.ts";
 import type { CodeIntelBackend } from "./types.ts";
+
+/** TypeScript 走 tsserver，其余按 `servers.ts` 那张表，每种语言一台、各自懒启动。 */
+const defaultBackends = (): CodeIntelBackend[] => [new TsServerBackend(), ...LANGUAGE_SERVERS.map((spec) => new StdioLspBackend(spec))];
 
 /**
  * How long a first call may block on a server that is still starting.
@@ -40,7 +45,7 @@ export class CodeIntelManager {
 	private readonly idleMs: number;
 	private idleTimer: ReturnType<typeof setTimeout> | null = null;
 
-	constructor(backends: CodeIntelBackend[] = [new TsServerBackend()], options: { idleMs?: number } = {}) {
+	constructor(backends: CodeIntelBackend[] = defaultBackends(), options: { idleMs?: number } = {}) {
 		this.backends = backends;
 		this.idleMs = options.idleMs ?? IDLE_MS;
 	}
@@ -110,6 +115,21 @@ export class CodeIntelManager {
 		// 起来了就开始计时——起不来的不计，它没占着什么。
 		if (backend.ready()) this.touch();
 		return won && backend.ready() ? backend : null;
+	}
+
+	/**
+	 * `acquire` 给了 null 之后，为什么——写进工具结果里的那句话。
+	 *
+	 * `acquire` 把几种情况并成一个 null，是因为调用方在每种情况下做的事一样：退回文本搜索。
+	 * 说的话却不一样，而说清楚正是降级可以被接受的前提：「没装 gopls」是人能去解决的，
+	 * 「还在启动」是等一下就好的。没有为这种文件配置任何服务器时返回 null，工具照旧只说文本搜索。
+	 */
+	async unavailable(file: string): Promise<string | null> {
+		const backend = this.backendFor(file);
+		if (!backend) return null;
+		if (!(await backend.available())) return `这个语言没有可用的语言服务器（需要安装 ${backend.install ?? backend.name}）。`;
+		if (!backend.ready()) return `语言服务器 ${backend.name} 还没有就绪（正在启动或启动失败），这次先用文本搜索。`;
+		return null;
 	}
 
 	async dispose(): Promise<void> {

@@ -13,12 +13,13 @@
 
 import assert from "node:assert/strict";
 import childProcess, { ChildProcess, type SpawnOptions } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { test, type TestContext } from "node:test";
+import { StdioLspBackend } from "../src/lsp/stdio.ts";
 import { TsServerBackend } from "../src/lsp/tsserver.ts";
 import { grepTool } from "../src/tools/grep.ts";
 
@@ -88,4 +89,23 @@ test("grep 起 rg 不开控制台窗口", async (t) => {
 	for (const call of rg) assert.equal(call.options.windowsHide, true);
 	// rg「不在」之后由内置扫描接手：截下 spawn 没有改变工具的答案。
 	assert.match(result.content.map((part) => ("text" in part ? part.text : "")).join(""), /a\.txt:1:needle/);
+});
+
+test("起标准 LSP 服务器（gopls、clangd 这些）也不开控制台窗口", async (t) => {
+	/* 每种语言各一台，空闲回收后再问又起一次；PATH 上放一个同名文件让它被找到，spawn 本身被截下。 */
+	const bin = await tempDir(t);
+	const name = process.platform === "win32" ? "plume-hide-ls.exe" : "plume-hide-ls";
+	await writeFile(join(bin, name), "");
+	await chmod(join(bin, name), 0o755);
+	const saved = process.env.PATH;
+	process.env.PATH = `${bin}${delimiter}${saved ?? ""}`;
+	t.after(() => {
+		process.env.PATH = saved;
+	});
+	const backend = new StdioLspBackend({ name: "hide", languages: { ".x": "x" }, commands: [{ command: "plume-hide-ls", args: [] }], install: "-" });
+	const calls = recordSpawns(t);
+	await assert.rejects(backend.start(bin), "截下来的进程一出生就报没有这个程序");
+	assert.equal(calls.length, 1);
+	assert.equal(calls[0].file, join(bin, name));
+	assert.equal(calls[0].options.windowsHide, true);
 });

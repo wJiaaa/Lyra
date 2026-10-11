@@ -12,7 +12,7 @@
  * true statement.
  */
 
-import { relative, resolve } from "node:path";
+import { extname, relative, resolve } from "node:path";
 import { errorResult } from "./result.ts";
 import { textualReferences, TEXTUAL_CAVEAT } from "../lsp/fallback.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
@@ -29,8 +29,6 @@ interface LspArgs {
 	symbol?: string;
 	newName?: string;
 }
-
-const SEARCHABLE = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 
 export const lspTool: Tool<LspArgs> = {
 	name: "lsp",
@@ -73,6 +71,8 @@ export const lspTool: Tool<LspArgs> = {
 
 		const manager = getManager(ctx);
 		const backend = await manager.acquire(absolute, ctx.cwd).catch(() => null);
+		// 没有服务器时那句「为什么」：没装什么、还在启动。模型据此知道下面是文本搜索，也能转告人去装。
+		const why = backend ? null : await manager.unavailable(absolute).catch(() => null);
 
 		if (args.operation === "diagnostics") {
 			if (!backend) {
@@ -82,7 +82,7 @@ export const lspTool: Tool<LspArgs> = {
 				 * answer a question nobody asked while looking like an answer to this one.
 				 */
 				return {
-					content: [{ type: "text", text: "这个文件没有可用的语言服务器，拿不到类型诊断。可以用 bash 跑一次类型检查。" }],
+					content: [{ type: "text", text: `${why ?? "这个文件没有可用的语言服务器。"}拿不到类型诊断。可以用 bash 跑一次类型检查或编译。` }],
 				};
 			}
 			const found = await backend.diagnostics(absolute);
@@ -109,7 +109,8 @@ export const lspTool: Tool<LspArgs> = {
 				 * whole layer exists to prevent — it is the one that silently drops callsites.
 				 */
 				return errorResult(
-					"没有语言服务器，不能安全地重命名——文本替换会漏掉别名导入和重导出链，而且不会报错。" +
+					(why ?? "") +
+						"没有语言服务器，不能安全地重命名——文本替换会漏掉别名导入和重导出链，而且不会报错。" +
 						"改用 `lsp references` 看清楚有哪些地方，再逐个 edit。",
 				);
 			}
@@ -136,16 +137,21 @@ export const lspTool: Tool<LspArgs> = {
 
 		if (args.operation === "definition") {
 			return {
-				content: [{ type: "text", text: "没有语言服务器。用 `symbol` 工具查定义，或者用 `grep` 搜声明。" }],
+				content: [{ type: "text", text: `${why ?? "没有语言服务器。"}用 \`symbol\` 工具查定义，或者用 \`grep\` 搜声明。` }],
 			};
 		}
 
 		const name = args.symbol ?? position.word;
 		if (!name) return errorResult("没有语言服务器时，需要 `symbol` 才能做文本搜索。");
-		const files = (await walkFiles(ctx.cwd, SEARCHABLE, 8)) ?? [];
+		/*
+		 * 只搜同一种语言的文件：负责这个文件的服务器认哪些扩展名，就搜哪些；没有服务器认领的，
+		 * 就搜同扩展名的。从前写死成 TS/JS 那一组，Python 项目里的文本搜索一个 `.py` 都不看。
+		 */
+		const searchable = manager.backendFor(absolute)?.extensions ?? [extname(absolute).toLowerCase()];
+		const files = (await walkFiles(ctx.cwd, searchable, 8)) ?? [];
 		const found = await textualReferences(files, name, ctx.cwd);
 		return {
-			content: [{ type: "text", text: `${render(found, ctx.cwd, "textual")}\n\n${TEXTUAL_CAVEAT}` }],
+			content: [{ type: "text", text: `${render(found, ctx.cwd, "textual")}\n\n${why ? `${why}\n` : ""}${TEXTUAL_CAVEAT}` }],
 			details: { kind: "lsp", operation: "references", confidence: "textual", count: found.length },
 		};
 	},
@@ -180,7 +186,8 @@ async function locate(args: LspArgs, absolute: string): Promise<{ line: number; 
 
 	const lines = content.split("\n");
 	const word = new RegExp(`\\b${args.symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
-	const declaration = new RegExp(`\\b(?:function|class|const|let|var|interface|type|enum)\\s+${args.symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+	// 后半截是 Python 的 def、Go 的 func、Rust 的 fn/struct/trait/mod/static——接进来的几种语言声明名字的写法。
+	const declaration = new RegExp(`\\b(?:function|class|const|let|var|interface|type|enum|def|func|fn|struct|trait|mod|static)\\s+${args.symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
 
 	let firstUse: { line: number; column: number } | null = null;
 	for (let i = 0; i < lines.length; i += 1) {
