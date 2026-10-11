@@ -2404,6 +2404,7 @@ export const en = {
 	"memoryMeta.injectedAt": "last used {when}",
 	"terminal.shellExitedCode": "The shell exited (code {code}).",
 	"conversation.showLaterN": "Show {n} later",
+	"conversation.modelSwitched": "Switched model {from} → {to}",
 	"delivery.editedN": { one: "{n} file edited", other: "{n} files edited" },
 	"index.recordsWhat": "The index records, for functions, classes, interfaces, types and constants, their",
 	"forgeSignIn.needsScopes": "Needs",

@@ -16,7 +16,7 @@ import { translate } from "../../i18n/translate.ts";
 import { CornerRightDown } from "../../ui/icons/index.ts";
 import { memo, useMemo, useState } from "react";
 import type { Message, UserMessage } from "@plume/core";
-import { MessageActions, runs, runKey, segments, SpokenBubble, spokenText, ToolRun } from "../conversation/index.ts";
+import { MessageActions, ModelSwitchRow, runs, runKey, segments, SpokenBubble, spokenText, ToolRun } from "../conversation/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
 import { subAgentRuns } from "./runs.ts";
@@ -58,6 +58,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 		<div className="flex flex-col gap-2.5">
 			{transcriptRuns.map((run) => {
 				if (run.kind === "compaction") return null;
+				if (run.kind === "model") return <ModelSwitchRow key={runKey(run)} from={run.from} to={run.to} />;
 
 				if (run.kind === "tools") {
 					// Which run is being worked on is `grouping.ts`'s answer; whether anyone is working on

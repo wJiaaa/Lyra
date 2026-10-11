@@ -2580,6 +2580,7 @@ export const zhCN = {
 	"memoryMeta.injectedAt": "最后注入 {when}",
 	"terminal.shellExitedCode": "shell 已退出（代码 {code}）。",
 	"conversation.showLaterN": "显示后面的 {n} 轮",
+	"conversation.modelSwitched": "模型已切换 {from} → {to}",
 	"delivery.editedN": "已编辑 {n} 个文件",
 	"index.recordsWhat": "索引记录函数、类、接口、类型和常量的",
 	"forgeSignIn.needsScopes": "需要",
