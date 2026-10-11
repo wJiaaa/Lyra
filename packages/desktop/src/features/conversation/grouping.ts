@@ -34,6 +34,11 @@ export type Run =
 	/** 连接抖了一下，画在它抖的那个位置上。见 `lib/hiccup.ts` 的 `at`。 */
 	| { kind: "hiccup"; hiccup: Hiccup }
 	/**
+	 * 从这里起换了一个模型回答。按回复上记的模型认，不按「切换」那个动作认：只在菜单里换一下、
+	 * 一句没发，转录里什么也没发生。`at` 是它插在哪一条消息之前。
+	 */
+	| { kind: "model"; at: number; from: ModelUsed; to: ModelUsed }
+	/**
 	 * A message, and how much of it is this row's.
 	 *
 	 * `upTo` is a count of content blocks: everything from there to the end is tool work, which
@@ -65,6 +70,9 @@ export type Run =
 	 */
 	| { kind: "tools"; calls: Call[]; live?: boolean; shown?: true };
 
+/** 一条回复是谁答的。同一个模型名挂在两家服务商底下是两个模型，所以两样一起比。 */
+export type ModelUsed = { provider: string; model: string };
+
 /* 「继续」那一句怎么认，搬到了 `lib/spoken.ts`——输入框也要用它，见那边的说明。 */
 export { isNudge };
 
@@ -84,6 +92,7 @@ export function runKey(run: Run): string {
 	if (run.kind === "compaction") return `compaction-${run.at}`;
 	if (run.kind === "command") return `command-${run.command.id}`;
 	if (run.kind === "hiccup") return `hiccup-${run.hiccup.id}`;
+	if (run.kind === "model") return `model-${run.at}`;
 	if (run.kind === "tools") return `tools-${run.calls[0]?.block.id ?? "empty"}`;
 	return run.key ?? `${run.message.role}-${run.message.timestamp}-${run.index}`;
 }
@@ -515,6 +524,17 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 	 * one backward scan per row. On a session of several thousand messages that difference is the
 	 * whole cost: the scan was being run for every visible reply, on every render of the transcript.
 	 */
+	/*
+	 * 上一条回复是哪个模型答的。换了就落一条分隔：换在两轮之间的，落在开这一轮的那句话上面——
+	 * 人是先换模型再开口的；换在一轮当中的（跑着的时候换，下一步才生效），落在第一条新回复上面。
+	 */
+	let used: ModelUsed | null = null;
+	const answeredBy = (message: AssistantMessage, at: number) => {
+		const next = { provider: message.provider, model: message.model };
+		if (used && (used.provider !== next.provider || used.model !== next.model)) out.push({ kind: "model", at, from: used, to: next });
+		used = next;
+	};
+
 	let clock = newClock();
 	let currentTodos: ReturnType<typeof todosFrom> = [];
 	for (const [index, message] of messages.entries()) {
@@ -572,10 +592,19 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		if (message.role === "user" && (message.synthetic || isNudge(message)) && !message.delivery && !message.peer) continue;
 
 		if (message.role !== "assistant") {
+			if (opensTurn(message)) {
+				// 这一轮的第一条回复。下一句人话先到说明这句没得到回答，那就不归它管。
+				for (let ahead = index + 1; ahead < messages.length; ahead++) {
+					const next = messages[ahead];
+					if (next.role === "assistant") answeredBy(next, index);
+					if (next.role === "assistant" || opensTurn(next)) break;
+				}
+			}
 			out.push({ kind: "message", message, index, upTo: message.content.length });
 			continue;
 		}
 
+		answeredBy(message, index);
 		const think = leadingThinking(message.content);
 		const own = beforeTrailingCalls(message.content);
 		const calls: Call[] = [];

@@ -6,6 +6,7 @@ import { BackToLatest } from "./BackToLatest.tsx";
 import { Composer } from "../composer/index.ts";
 import { ResumeRow } from "./ResumeRow.tsx";
 import { HiccupRow } from "./HiccupTrace.tsx";
+import { ModelSwitchRow } from "./ModelSwitchRow.tsx";
 import { RunningIndicator } from "./RunningIndicator.tsx";
 import { TaskList } from "../task/index.ts";
 import { environmentCard, useEnvironmentCard } from "../../store/environment-card.ts";
@@ -458,6 +459,8 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
              */
             run.kind === "compaction" ? null : run.kind === "command" ? <CommandRunRow key={`${activeSessionId}:${runKey(run)}`} command={run.command} /> : run.kind === "hiccup" ? (
               <HiccupRow key={`${activeSessionId}:${runKey(run)}`} hiccup={run.hiccup} />
+            ) : run.kind === "model" ? (
+              <ModelSwitchRow key={`${activeSessionId}:${runKey(run)}`} from={run.from} to={run.to} />
             ) : run.kind === "message" ? (
               <MessageRow
                 key={`${activeSessionId}:${runKey(run)}`}

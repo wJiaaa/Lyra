@@ -16,6 +16,7 @@ export { SessionStatus } from "./SessionStatus.tsx";
 export { ThinkingBlock } from "./ThinkingBlock.tsx";
 export { DetailCard } from "./detail/DetailCard.tsx";
 export { runs, runKey } from "./grouping.ts";
+export { ModelSwitchRow } from "./ModelSwitchRow.tsx";
 export { MessageEditor } from "./message/MessageEditor.tsx";
 export { ThinkingLine } from "./message/ThinkingLine.tsx";
 /* 「正文是不是正在流进来」——侧边聊天的运行行也按它让开，见 `answering.ts`。 */
