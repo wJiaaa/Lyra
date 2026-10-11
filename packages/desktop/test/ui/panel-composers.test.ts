@@ -8,20 +8,22 @@
  *     的停止键；
  *   - 子智能体转录：主 Agent 交代的任务画成任务卡片，人说的话画成气泡（不是整篇附件正文），夹在
  *     一条回复中间的工具调用不会凭空消失；
- *   - 侧边聊天正在答的时候按回车是排队，答完自己发出去；编辑一句带文件的问题，文件跟着过去；
- *   - 侧边聊天的工具调用和主会话一样收成一行。
+ *   - 侧边聊天正在答的时候按回车是排队，排在它自己的会话上；编辑一句带文件的问题，文件跟着过去，
+ *     而且就在侧边聊天里改，不把它请到主列上去。
+ *
+ * 侧边聊天的转录就是主会话的 `Conversation`（它是一个会话），工具调用怎么收、气泡画什么由那边的测试管。
  */
 
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { act, createElement as h } from "react";
 
-import type { Message, SubAgentSummary, UserContent } from "@plume/core";
+import type { Message, SessionMeta, SubAgentSummary, UserContent } from "@plume/core";
 import { SubAgentPanel } from "../../src/features/subagents/SubAgentPanel.tsx";
 import { SubAgentTranscript } from "../../src/features/subagents/SubAgentMessageRow.tsx";
-import { MessageRow } from "../../src/features/sidechat/MessageRow.tsx";
 import { QueueList } from "../../src/features/composer/QueuedMessages.tsx";
-import { sideChatOf, useSide } from "../../src/features/dock/sideStore.ts";
+import { SideComposer } from "../../src/features/sidechat/SideComposer.tsx";
+import { useSide } from "../../src/features/dock/sideStore.ts";
 import { useApp } from "../../src/store/index.ts";
 import { useSubAgents } from "../../src/store/subAgents.ts";
 import { click, fire, mount, press } from "../helpers/mount.ts";
@@ -49,9 +51,11 @@ async function type(field: HTMLTextAreaElement, text: string): Promise<void> {
 }
 
 let steered: unknown[][];
+let edited: unknown[][];
 
 beforeEach(() => {
 	steered = [];
+	edited = [];
 	useApp.setState({ activeSessionId: "s", messages: [], toolRuns: {}, drafts: {} });
 	Object.defineProperty(window, "plume", {
 		configurable: true,
@@ -64,7 +68,8 @@ beforeEach(() => {
 				abort: async () => true,
 				dismiss: async () => "removed",
 			},
-			sideChat: { ask: async () => undefined, editAndResend: async () => undefined, state: async () => null },
+			agent: { editMessage: async (...args: unknown[]) => void edited.push(args) },
+			sideChat: { list: async () => [], open: async () => side },
 			tasks: { list: async () => [] },
 		},
 	});
@@ -72,8 +77,17 @@ beforeEach(() => {
 
 afterEach(() => {
 	useSubAgents.setState({ agents: [], transcripts: {}, focused: null, loading: [] });
-	useSide.setState({ chats: {} });
+	useSide.setState({ sides: {} });
+	useApp.setState({ sessionCache: {}, queued: {} });
 });
+
+const side: SessionMeta = { id: "side1", parentId: "s", sideId: "default", title: "", cwd: "/p", projectId: "p", projectName: "p", createdAt: 1, updatedAt: 1, modelId: "", messageCount: 2, usage: zero, seq: 3 };
+
+/** 侧边聊天那个会话在缓存里的样子——它从不上台，转录只在这里。 */
+function cacheSide(messages: Message[], running: boolean) {
+	useSide.setState({ sides: { s: { default: side } } });
+	useApp.setState({ sessionCache: { side1: { meta: side, messages, toolRuns: {}, state: { running, approvals: [], todos: [], compactions: [], stopped: null, retrying: null, capabilities: null, pendingUserMessage: null } } } });
+}
 
 test("子智能体的草稿按子智能体存：给 A 写到一半切到 B，那半句话不跟过去", async () => {
 	useSubAgents.setState({ agents: [running("a"), running("b", { startedAt: Date.now() - 1000 })], transcripts: { a: [brief("去找 A")], b: [brief("去找 B")] }, focused: "a", loading: [] });
@@ -151,37 +165,19 @@ test("子智能体转录：交代的任务是一张卡片，人说的话是气�
 	}
 });
 
-test("侧边聊天正在答的时候按回车是排队：答完自己发出去，被停下就不发", async () => {
-	const asked: UserContent[][] = [];
-	useSide.setState({ chats: {} });
-	const original = useSide.getState().ask;
-	useSide.setState({ ask: async (_sessionId, _sideId, content) => void asked.push(content) });
+test("侧边聊天正在答的时候按回车是排队：排在它自己的会话上，不插进主会话", async () => {
+	cacheSide([{ role: "user", content: [{ type: "text", text: "先问一句" }], timestamp: 1 }], true);
+	const view = await mount(h(SideComposer, { side }));
 	try {
-		const store = useSide.getState();
-		useSide.setState({ chats: { s: { default: { ...sideChatOf(useSide.getState(), "s", "default"), running: true } } } });
-		store.enqueue("s", "default", { content: [{ type: "text", text: "还有一件" }], draft: { text: "还有一件", attachments: [], sessionRefs: [] }, preview: "还有一件" });
-		store.enqueue("s", "default", { content: [{ type: "text", text: "再一件" }], draft: { text: "再一件", attachments: [], sessionRefs: [] }, preview: "再一件" });
-		await new Promise((resolve) => queueMicrotask(() => resolve(undefined)));
-		assert.equal(asked.length, 0, "还在答，不插进去");
-		assert.deepEqual(sideChatOf(useSide.getState(), "s", "default").queued.map((one) => one.preview), ["还有一件", "再一件"]);
-
-		// 换个顺序，条上改得了先后。
-		const [first, second] = sideChatOf(useSide.getState(), "s", "default").queued;
-		assert.ok(store.moveQueued("s", "default", second!.id, first!.id, "before"));
-		assert.deepEqual(sideChatOf(useSide.getState(), "s", "default").queued.map((one) => one.preview), ["再一件", "还有一件"]);
-
-		store.applyEvent("s", "default", { type: "agent_end", reason: "aborted" } as never);
-		await new Promise((resolve) => queueMicrotask(() => resolve(undefined)));
-		assert.equal(asked.length, 0, "按了停止，排着的不接着灌进去");
-
-		useSide.setState({ chats: { s: { default: { ...sideChatOf(useSide.getState(), "s", "default"), running: true } } } });
-		store.applyEvent("s", "default", { type: "agent_end", reason: "done" } as never);
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		assert.equal(asked.length, 1, "答完了，队首接上");
-		assert.deepEqual(asked[0], [{ type: "text", text: "再一件" }]);
-		assert.deepEqual(sideChatOf(useSide.getState(), "s", "default").queued.map((one) => one.preview), ["还有一件"]);
+		const field = view.find<HTMLTextAreaElement>("textarea");
+		await type(field, "还有一件");
+		await press(field, "Enter");
+		await act(async () => {});
+		assert.deepEqual(useApp.getState().queued.side1?.map((one) => one.preview), ["还有一件"]);
+		assert.equal(useApp.getState().queued.s, undefined, "主会话的队伍不动");
+		assert.equal(view.find<HTMLTextAreaElement>("textarea").value, "");
 	} finally {
-		useSide.setState({ ask: original });
+		await view.unmount();
 	}
 });
 
@@ -200,10 +196,7 @@ test("侧边聊天的队伍是同一条条：没有「现在就发」，编辑�
 	}
 });
 
-test("侧边聊天里编辑一句带文件的问题：文件和给人看的那一份都跟着过去", async () => {
-	const resent: { content: UserContent[]; meta: unknown }[] = [];
-	const original = useSide.getState().editAndResend;
-	useSide.setState({ editAndResend: async (_sessionId, _sideId, _index, content, meta) => void resent.push({ content, meta }) });
+test("侧边聊天里编辑一句带文件的问题：文件跟着过去，就在侧边聊天里改，主列不换人", async () => {
 	const message: Message = {
 		role: "user",
 		content: [{ type: "text", text: "总结【报告.md】" }, { type: "text", text: "\n\n### Attached file: 报告.md\n```\n正文\n```" }],
@@ -211,34 +204,12 @@ test("侧边聊天里编辑一句带文件的问题：文件和给人看的那�
 		attachments: [{ name: "报告.md", kind: "text" }],
 		timestamp: 1,
 	};
-	const view = await mount(h(MessageRow, { message, index: 0 }));
-	try {
-		await click(view.find("button[aria-label='编辑并重新提问']"));
-		const field = view.find<HTMLTextAreaElement>("textarea");
-		await type(field, "只总结第一章【报告.md】");
-		await press(field, "Enter", { metaKey: true });
-		if (resent.length === 0) await press(field, "Enter");
-		assert.equal(resent.length, 1);
-		const texts = resent[0]!.content.map((block) => (block.type === "text" ? block.text : ""));
-		assert.ok(texts.some((text) => text.includes("### Attached file: 报告.md")), `文件正文跟着过去：${JSON.stringify(texts)}`);
-		assert.deepEqual(resent[0]!.meta, { displayText: "只总结第一章【报告.md】", attachments: [{ name: "报告.md", kind: "text" }] });
-	} finally {
-		useSide.setState({ editAndResend: original });
-		await view.unmount();
-	}
-});
-
-test("侧边聊天的工具调用收成一行，和主会话一样", async () => {
-	const message = reply([
-		{ type: "toolCall", id: "r1", name: "read", arguments: { path: "a.ts" } },
-		{ type: "toolCall", id: "r2", name: "read", arguments: { path: "b.ts" } },
-		{ type: "toolCall", id: "r3", name: "read", arguments: { path: "c.ts" } },
-	], "toolUse");
-	const view = await mount(h(MessageRow, { message, index: 1 }));
-	try {
-		assert.equal(view.all("[data-ly-run]").length, 1, `三次读取收成一行：${view.text()}`);
-		assert.match(view.find("[data-ly-run]").textContent ?? "", /3/, "那一行说的是「3 个」");
-	} finally {
-		await view.unmount();
-	}
+	cacheSide([message, reply([{ type: "text", text: "旧的回答" }])], false);
+	await useApp.getState().editMessage(0, [{ type: "text", text: "只总结第一章" }, message.content[1] as UserContent], { displayText: "只总结第一章", attachments: message.attachments }, "side1");
+	assert.equal(edited.length, 1);
+	assert.equal(edited[0]![0], "side1");
+	assert.equal(useApp.getState().activeSessionId, "s", "主列还是主会话");
+	const cached = useApp.getState().sessionCache.side1!;
+	assert.deepEqual(cached.messages.map((one) => (one.role === "user" ? one.displayText : one.role)), ["只总结第一章"], "旧的回答先撤下，新问题画上");
+	assert.equal(cached.state?.running, true);
 });

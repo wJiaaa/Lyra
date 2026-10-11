@@ -24,7 +24,6 @@ import {
 	configureHub,
 	getOrCreateSession,
 	sessions,
-	sideChats,
 } from "./session-hub.ts";
 import { canonicalPath } from "./canonical-path.ts";
 import { resolveInside } from "./file-ops.ts";
@@ -32,7 +31,6 @@ import { resolveReadablePath } from "./file-read-service.ts";
 import { loadUserImagesAt } from "./display-image.ts";
 import { captureLog } from "./screenshot-debug.ts";
 import { pruneThumbs } from "./media-thumbs.ts";
-import { pruneSideChats } from "./sidechat-store.ts";
 import { registerFilesIpc } from "./ipc/files.ts";
 import { registerFileOpsIpc } from "./ipc/file-ops.ts";
 import { scratchRoots } from "./scratch.ts";
@@ -529,7 +527,6 @@ function bindScreenshotShortcut(): void {
 		refreshMenu();
 		bindScreenshotShortcut();
 		for (const session of sessions.values()) session.updateSettings(next);
-		for (const chats of sideChats.values()) for (const chat of chats.values()) chat.updateSettings(next);
 		const win = getWindow();
 		if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
 			win.webContents.send("settings:changed", next);
@@ -616,12 +613,9 @@ function bindScreenshotShortcut(): void {
 	 * removed by `pruneEmpty` above, or by a run that quit halfway.
 	 */
 	void store
-		.listSessions()
-		.then(async (all) => {
-			const live = new Set(all.map((s) => s.id));
-			await pruneSideChats(live);
-			return pruneSessionArtifacts(plumeHome(), live);
-		})
+		// 侧边聊天也有自己的暂存与改动记录，不能当成没人认领的扫掉。
+		.listSessions({ children: true })
+		.then((all) => pruneSessionArtifacts(plumeHome(), new Set(all.map((s) => s.id))))
 		.then((gone) => {
 			if (gone > 0) console.log(`[plume] 清理了 ${gone} 个会话的临时文件`);
 		})

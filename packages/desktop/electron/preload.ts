@@ -244,13 +244,6 @@ const extras = {
 			return () => ipcRenderer.removeListener("agent:event", listener);
 		},
 	},
-	sideChat: {
-		onEvent: (handler) => {
-			const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof handler>[0]) => handler(payload);
-			ipcRenderer.on("sidechat:event", listener);
-			return () => ipcRenderer.removeListener("sidechat:event", listener);
-		},
-	},
 	files: {
 		mediaUrl: (path) => `ly-media://f/${encodeURIComponent(path)}`,
 		/*

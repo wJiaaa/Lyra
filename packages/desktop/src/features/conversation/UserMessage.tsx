@@ -17,7 +17,7 @@ import { Markdown } from "./Markdown.tsx";
 import { MessageActions } from "./MessageActions.tsx";
 import { MessageEditor } from "./message/MessageEditor.tsx";
 import { useApp } from "../../store/index.ts";
-import { useDockScope, useScopedFromMessages, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
+import { useDockScope, useScopedFromMessages, useScopedMeta, useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
 import { bridge } from "../../services/index.ts";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 import { useI18n } from "../../i18n/index.ts";
@@ -178,6 +178,11 @@ export function UserMessage({
 	// And the screen a file this message names opens in — the same fault, for the file pane.
 	const screen = useDockScope();
 	const running = useScopedRunning();
+	/*
+	 * 侧边聊天里只有编辑重问。撤回要把话放回输入框、分叉要开一个新会话，两样都是对着主对话那个
+	 * 输入框和会话列表说的，侧边聊天两样都没有。
+	 */
+	const aside = useScopedMeta()?.parentId !== undefined;
 	const editMessage = useApp((s) => s.editMessage);
 	const revertMessage = useApp((s) => s.revertMessage);
 	const forkFrom = useApp((s) => s.forkFrom);
@@ -364,6 +369,8 @@ export function UserMessage({
             setEditing(false);
             setDraft(text);
           }}
+          // 侧边面板只有两三百像素宽，320 会把它吞掉；按钮也照侧边聊天一直的说法叫「重新提问」。
+          {...(aside ? { confirmLabel: t("sideMessage.reask"), maxHeight: 220 } : {})}
         />
       </div>
     );
@@ -569,7 +576,7 @@ export function UserMessage({
         text={text}
         className="pr-1"
       >
-        <IconButton
+        {!aside && <IconButton
           data-message-undo=""
           label={running ? t("userMessage.undoRunning") : t("userMessage.undo")}
           ariaLabel={t("userMessage.undo")}
@@ -590,9 +597,9 @@ export function UserMessage({
             });
           }}
           icon={<Undo2 size={12.5} strokeWidth={1.8} />}
-        />
+        />}
         <IconButton
-          label={running ? t("userMessage.turnRunning") : t("userMessage.editResend")}
+          label={running ? t(aside ? "sideMessage.busy" : "userMessage.turnRunning") : t(aside ? "sideMessage.editAndReask" : "userMessage.editResend")}
           explainDisabled
           disabled={running}
           onClick={() => {
@@ -607,7 +614,7 @@ export function UserMessage({
           * puts its "Fork from here". Offered while a turn runs, unlike the two beside it: it changes
           * nothing here.
           */}
-        {sessionId && (
+        {sessionId && !aside && (
           <IconButton
             data-message-fork=""
             label={t("userMessage.fork")}

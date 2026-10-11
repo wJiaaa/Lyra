@@ -68,6 +68,13 @@ export interface TurnInputs {
 	delegations?: DelegationWaits;
 	/** 这场对话此刻设定的模型——一轮之内也会变。见 `AgentModelContext.liveModel`。 */
 	liveModel?: LiveModel;
+	/** 接在系统提示末尾的一段，侧边聊天用它说明自己的处境。见 `side-session.ts`。 */
+	appendSystemPrompt?: string;
+	/**
+	 * 这一轮开始前要让模型知道的事：侧边聊天附上主会话的进展，主会话收到侧边聊天改过的文件。
+	 * 进日志、界面不画，和钩子给的上下文一样。
+	 */
+	context?: () => Promise<Message | null>;
 }
 
 /**
@@ -88,6 +95,8 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 		signal: input.signal,
 	};
 	if (!(await runPromptHooks(input, hooks))) return;
+	// 在钩子之后：UserPromptSubmit 要查的是人刚说的那句，往回找第一条 user 消息，先注入就会查到这一条。
+	await injectMessage(input, (await input.context?.()) ?? null);
 	const { config, systemPrompt } = await assembleTurn(input, hooks);
 
 	/*
@@ -320,6 +329,7 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 		modelName: input.model.name, scratchDir: input.scratchDir,
 		resources: can.resources.schemes(),
 		dispatchLimits,
+		appendSystemPrompt: input.appendSystemPrompt,
 	}));
 	const turn = await prepareTurn({
 		cwd, tools, systemPrompt: prompt.systemPrompt,

@@ -105,7 +105,6 @@ import type {
 	PullRequestSummary,
 	RefDiff,
 	SessionSnapshot,
-	SideChatSnapshot,
 	WorkspaceDiffFile,
 	WorkspaceInfo,
 } from "./ipc-shapes.ts";
@@ -452,38 +451,18 @@ export interface PlumeApi {
 		dismiss(sessionId: string, id: string): Promise<"removed" | "stopping" | "unknown">;
 	};
 	/**
-	 * The second conversation attached to a session: reads its transcript, writes nothing back.
+	 * 一个会话旁边的侧边聊天，按「会话 + 面板自己的 id」认。最早那一个叫 `"default"`。
 	 *
-	 * Its events ride a separate channel from `agent.onEvent` for the obvious reason — they
-	 * describe a different conversation, and mixing them would paint side-chat replies into
-	 * the main transcript.
-	 */
-	/**
-	 * 一个会话旁边可以开好几个侧边聊天，`sideId` 指的是其中哪一个。最早那一个叫 `"default"`，
-	 * 见 `sidechat-store.ts`。
+	 * 侧边聊天本身是一个会话（`SessionMeta.parentId`）：问、停、编辑重问、换模型都走 `agent`，
+	 * 读记录走 `sessions.transcript`。这里只有面板要的两件事。
 	 */
 	sideChat: {
-		/** 有存档的那几个的 id，按开出来的先后；没开过口的不在里面。 */
-		list(sessionId: string): Promise<string[]>;
-		/** Null when this session has never had one opened. */
-		state(sessionId: string, sideId: string): Promise<SideChatSnapshot | null>;
-		setModel(sessionId: string, sideId: string, modelId: string | null): Promise<void>;
-		/**
-		 * `displayText` 与 `attachments` 是给面板画气泡用的，和主会话存的是同一份——
-		 * 不给的话，给模型看的附件正文会原样出现在气泡里。见 core 的 `SideAskOptions`。
-		 */
-		ask(sessionId: string, sideId: string, content: UserContent[], options?: { thinking?: ThinkingLevel; displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
-		/**
-		 * Replace a question already asked and answer from there, dropping everything after it.
-		 *
-		 * The same act as editing a message in the main conversation, and for the same reason: a
-		 * question that came out wrong, re-asked below the old one, leaves the model reading both.
-		 */
-		editAndResend(sessionId: string, sideId: string, index: number, content: UserContent[], options?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<void>;
-		abort(sessionId: string, sideId: string): Promise<void>;
-		/** 关掉这一个：停下，存档一起删掉。重开就是一段新的，主会话不受影响。 */
+		/** 这个会话旁边的侧边聊天会话。 */
+		list(sessionId: string): Promise<SessionMeta[]>;
+		/** 这一格背后的会话，没有就建一个——第一次提问之前调用。 */
+		open(sessionId: string, sideId: string): Promise<SessionMeta>;
+		/** 关掉这一个：停下，会话连同记录一起删掉。重开就是一段新的，主会话不受影响。 */
 		close(sessionId: string, sideId: string): Promise<void>;
-		onEvent(handler: (payload: { sessionId: string; sideId: string; event: import("@plume/core").SideChatUpdate }) => void): () => void;
 	};
 	/** Work the side chat handed to a session, waiting for it to be free. */
 	tasks: {

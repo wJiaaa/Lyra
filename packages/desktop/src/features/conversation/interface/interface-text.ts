@@ -124,7 +124,7 @@ export function interfaceText(source: string, set: Record<string, unknown> = {})
 	return nodes(parsed, { ...initialState(parsed), ...set }, "\n\n");
 }
 
-/** A reply's text with each finished ```ui block in it as text — see the top of this file. `scope` is the blocks' state key (`InterfaceHost`). */
+/** A reply's text with each finished ```ui block in it as text — see the top of this file. `scope` is the blocks' state key (the session id). */
 export function copyableReply(markdown: string, scope: string | null): string {
 	if (!/^\s*(```|~~~)+ui\s*$/im.test(markdown)) return markdown;
 	return parseMarkdownChunks(markdown)

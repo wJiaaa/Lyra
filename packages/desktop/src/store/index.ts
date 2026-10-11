@@ -9,7 +9,7 @@ import { applyAgentEvent } from "./apply-event.ts";
 import type { Cache, TurnStop } from "./derive.ts";
 import { howItStopped } from "./turn-stop.ts";
 import { sessionSlice } from "./session-slice.ts";
-import { readSelectedSession } from "./session-read.ts";
+import { readSelectedSession, readSideSession } from "./session-read.ts";
 import { queueSlice, type QueueSlice } from "./queue-slice.ts";
 import { turnSlice } from "./turn-slice.ts";
 import { workspaceSlice } from "./workspace-slice.ts";
@@ -31,7 +31,7 @@ import type {
  * below the features rather than beside them, so it is not one domain reaching into another.
  */
 import { useSide } from "../features/dock/sideStore.ts";
-import { sideChatRunning } from "../lib/row-activity.ts";
+import { sideChatRunning, sideSessionIds } from "../lib/row-activity.ts";
 import { bridge } from "../services/index.ts";
 import { activeModelCatalog } from "@plume/core/model-catalog";
 import { pullModelCatalog } from "./model-catalog.ts";
@@ -39,12 +39,19 @@ import type { ToolRun } from "./tool-run.ts";
 export type { ToolRun } from "./tool-run.ts";
 import type { Hiccup } from "../lib/hiccup.ts";
 
+/**
+ * 这个会话旁边有没有侧边聊天还在答。
+ *
+ * 两步取：先从侧边聊天那边取它旁边那几个会话的 id（拼成一个串，没变就不重画），再看它们的活动状态。
+ */
 export function useSideChatRunning(sessionId: string): boolean {
-	return useSide((state) => sideChatRunning(state, sessionId));
+	const sides = useSide((state) => sideSessionIds(state, [sessionId]));
+	return useApp((state) => sideChatRunning(sides, state.activity, sessionId));
 }
 
 export function useSideChatRunningKey(ids: readonly string[]): string {
-	return useSide((state) => ids.filter((id) => sideChatRunning(state, id)).join("\0"));
+	const sides = useSide((state) => sideSessionIds(state, ids));
+	return useApp((state) => ids.filter((id) => sideChatRunning(sides, state.activity, id)).join("\0"));
 }
 
 /**
@@ -630,6 +637,9 @@ export const useApp = create<AppState>((set, get) => ({
 		let connectionInterrupted = false;
 		const initialChanges: SessionChange[] = [];
 		bridge.sessions.onChanged((change) => {
+			// 侧边聊天会话记在它那一格上；没了的时候不知道它是不是侧边聊天（`meta` 是 null），问一下就是。
+			if (change.meta?.parentId) useSide.getState().noteSide(change.meta);
+			else if (!change.meta) useSide.getState().forgetSide(change.id);
 			if (!initialComplete) initialChanges.push(change);
 			else applySessionChange(change, set, get);
 		});
@@ -676,9 +686,6 @@ export const useApp = create<AppState>((set, get) => ({
 			.catch(() => {});
 		bridge.agent.onEvent(({ sessionId, event }) =>
 			get().applyEvent(sessionId, event),
-		);
-		bridge.sideChat.onEvent(({ sessionId, sideId, event }) =>
-			useSide.getState().applyEvent(sessionId, sideId, event),
 		);
 		if (typeof window !== "undefined") {
 			window.addEventListener("plume:connection", (event) => {
@@ -837,6 +844,9 @@ async function refreshRemoteState(
 			}
 			await readSelectedSession(current, set, get, true);
 			await useSide.getState().attach(active.id, true);
+			// 开着的侧边聊天也一样：断开的那段时间里到的事件没收到，按磁盘上的重读一遍。
+			const sides = Object.values(useSide.getState().sides[active.id] ?? {}).filter((side) => get().sessionCache[side.id]);
+			await Promise.all(sides.map((side) => readSideSession(side, set, get)));
 		}
 	} catch (cause) {
 		get().notify(translate("store.resyncFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");

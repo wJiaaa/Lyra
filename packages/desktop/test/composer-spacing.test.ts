@@ -60,6 +60,6 @@ test("pane composers use the shared pad, not a one-off gutter", async () => {
 	assert.doesNotMatch(side, /px-3\.5 pt-3/);
 	assert.doesNotMatch(sub, /px-3\.5 pt-3/);
 	assert.match(conversation, /ly-content-gutter/);
-	assert.match(chat, /ly-content-gutter/);
-	assert.doesNotMatch(chat, /contentClassName="px-3"/);
+	// 侧边聊天的转录就是主会话那一份，边距跟着它走。
+	assert.match(chat, /<Conversation side/);
 });

@@ -69,7 +69,7 @@ afterEach(async () => {
 
 /** The side chat as it sits in a screen's dock: that screen's dock, beside that screen's conversation. */
 function sideChatIn(id: string): Promise<Mounted> {
-	const body = h(SideComposer, { running: false, onSend() {}, onStop() {} });
+	const body = h(SideComposer, { side: null });
 	return mount(h(I18nProvider, { locale: "zh-CN", children: h(DockScope.Provider, { value: id }, h(SessionScope.Provider, { value: id }, body)) }));
 }
 
@@ -95,4 +95,11 @@ test("the side chat under the screen with focus still names its own conversation
 	view = await sideChatIn("a");
 	assert.equal(view.find('button[aria-label="侧边聊天模型"]').textContent?.trim(), "QA 2");
 	assert.equal(view.find('button[aria-label^="推理强度"]').getAttribute("aria-label"), "推理强度：高");
+});
+
+test("before its first question a side chat names the default the settings will open it with", async () => {
+	// 第一问才建会话，建的时候用的是设置里的侧边聊天默认模型；在那之前写「跟随主会话」就是说错了。
+	useApp.setState({ settings: { ...settings, sideChatModelId: "qa/model-2" } });
+	view = await sideChatIn("b");
+	assert.equal(view.find('button[aria-label="侧边聊天模型"]').textContent?.trim(), "QA 2");
 });

@@ -28,7 +28,7 @@ export interface ActiveDay {
 
 export interface SessionStorage extends PartialSink, CallSink {
 	/** `options.thinking` is written into the first record; see `SessionMeta.thinking` for why every new session gets one. */
-	create(cwd: string, modelId: string, title?: string, options?: Pick<SessionMeta, "thinking">): Promise<SessionMeta>;
+	create(cwd: string, modelId: string, title?: string, options?: Pick<SessionMeta, "thinking" | "parentId" | "sideId">): Promise<SessionMeta>;
 	/**
 	 * Add one record and return the meta it produced. Never rewrites what is already there.
 	 * `copy` marks history carried over from another session, whose cost was counted there.
@@ -53,8 +53,8 @@ export interface SessionStorage extends PartialSink, CallSink {
 		hookRuns?: HookRun[];
 		compaction: Boundary | null;
 	} | null>;
-	/** Most recently used first. */
-	listSessions(): Promise<SessionMeta[]>;
+	/** Most recently used first. Side chats only when `children` asks for them; see `SessionMeta.parentId`. */
+	listSessions(options?: { children?: boolean }): Promise<SessionMeta[]>;
 	truncateFrom(sessionId: string, messageIndex: number): Promise<{ meta: SessionMeta; messages: Message[] } | null>;
 	setArchived(sessionId: string, archived: boolean): Promise<SessionMeta | null>;
 	/** Re-file a session under another project: a new `cwd`, and with it a new `projectId`. */

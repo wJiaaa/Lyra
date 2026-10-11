@@ -40,9 +40,14 @@ export function cacheIsFresh(cached: Cache[string] | undefined, meta: SessionMet
 	return Boolean(cached && !cached.dirty && !cached.state?.running && cached.meta.seq === meta.seq);
 }
 
-/** Drop the least recently used entries, never the one being opened. */
+/**
+ * Drop the least recently used entries, never the one being opened.
+ *
+ * 侧边聊天也不丢：它只活在缓存里（不会被选成当前会话），面板开着就一直从这里读。丢了它，面板就停在
+ * 加载上，而它不会被谁再读一遍。关掉一格时它随会话一起删（`applySessionChange`），不靠这里。
+ */
 export function prune(cache: Cache, keep: string): Cache {
-  const ids = Object.keys(cache);
+  const ids = Object.keys(cache).filter((id) => !cache[id]!.meta.parentId);
   if (ids.length <= CACHE_LIMIT) return cache;
   const next = { ...cache };
   // Insertion order is recency order here: entries are re-added as sessions are visited.

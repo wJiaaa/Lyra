@@ -16,7 +16,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
-import { seedSessions } from "./session-fixture.ts";
+import type { Message, SessionMeta } from "@plume/core";
+import { seedSessions, sideSession } from "./session-fixture.ts";
 
 const OUT = join(homedir(), "Desktop", "Plume撤回空会话测试");
 const ONLY_MESSAGE = "你可以看看 /Users/me/Documents/项目资料 这里面有啥吗？";
@@ -45,13 +46,14 @@ async function surfaceState() {
 		resumeRow: string; composerDraft: string; transcriptRows: number; composers: number;
 		taskCard: string; taskCardAt: string; sidePanel: string;
 	}>(`(()=>{
-		const pane = document.querySelector('[data-ly-split-pane]') || document.body;
+		// 主列那一格：侧边面板也有输入框，量「只有一个输入框」不能把它算进来。
+		const pane = document.querySelector('[data-dock-pane="conversation"]') || document.querySelector('[data-ly-split-pane]') || document.body;
 		const surfaceEl = pane.querySelector('[data-ly-chat-surface]');
 		const heading = pane.querySelector('[data-ly-chat-surface="empty"] h1');
 		// 「已暂停 · ▶」那一行：认它里面的继续按钮，别认样式。
 		const resume = pane.querySelector('[data-resume-continue]');
 		const row = resume ? resume.closest('div') : null;
-		const textarea = pane.querySelector('main textarea') || document.querySelector('textarea');
+		const textarea = pane.querySelector('textarea');
 		/*
 		 * 那张计划卡片，和旁边那场对话：两样都不该比它们讲的那段历史活得更久。
 		 *
@@ -65,7 +67,7 @@ async function surfaceState() {
 			surface: surfaceEl ? surfaceEl.getAttribute('data-ly-chat-surface') : '(没有主列)',
 			hasEmptyMark: !!pane.querySelector('[data-ly-chat-surface="empty"] img'),
 			heading: heading ? heading.textContent.trim() : '',
-			cards: pane.querySelectorAll('[data-ly-chat-surface="empty"] .grid button').length,
+			cards: pane.querySelectorAll('[data-ly-chat-surface="empty"] .ly-draft-chip').length,
 			resumeRow: row ? row.textContent.trim() : '',
 			composerDraft: textarea ? textarea.value : '(没有输入框)',
 			transcriptRows: pane.querySelectorAll('[data-ly-transcript-rows] > *').length,
@@ -110,15 +112,14 @@ async function seedOneTurn(home: string, modelPort: number) {
 	/*
 	 * 旁边那场对话，讲的全是主会话里的事。
 	 *
-	 * 写成磁盘存档而不是在界面上现问一遍，正好压中容易漏的那条路：重开应用之后面板是照着这份
-	 * 快照画出来的，主进程内存里一个 `SideChat` 实例都没有（`sideChatState` 读快照并不建实例）。
+	 * 种在库里而不是在界面上现问一遍，正好压中容易漏的那条路：应用刚起来，侧边聊天会话只在库里，
+	 * 主进程内存里没有它的活会话，面板是照着读回来的记录画的。撤空要删的是库里那一个。
 	 */
-	await mkdir(join(home, "sidechats", "qa-short"), { recursive: true });
-	await writeFile(join(home, "sidechats", "qa-short", "default.json"), JSON.stringify({ messages: [
+	const side: Message[] = [
 		{ role: "user", content: [{ type: "text", text: "预计要多久才可以完成呢？" }], timestamp: 20 },
 		{ role: "assistant", content: [{ type: "text", text: SIDE_ANSWER }], api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason: "stop", timestamp: 21 },
-	] }));
-	const meta = { id: "qa-short", title: "查看国网项目开发目录", projectId, projectName: "交互验证", cwd, createdAt: 1, updatedAt: 2, modelId: "qa/model", messageCount: messages.length, usage, seq: messages.length + 1 };
+	];
+	const meta: SessionMeta = { id: "qa-short", title: "查看国网项目开发目录", projectId, projectName: "交互验证", cwd, createdAt: 1, updatedAt: 2, modelId: "qa/model", messageCount: messages.length, usage, seq: messages.length + 1 };
 	seedSessions(home, [
 		{
 			meta,
@@ -126,6 +127,7 @@ async function seedOneTurn(home: string, modelPort: number) {
 				...messages.map((message, i) => ({ type: "message", message, seq: i + 1, ts: 1 })),
 				{ type: "meta", meta, seq: meta.seq, ts: 2 }],
 		},
+		sideSession(meta, side),
 	]);
 }
 
@@ -156,6 +158,7 @@ async function main() {
 	const clicked = await app.evaluate<boolean>(`(()=>{const b=document.querySelector('[data-message-undo]'); if(!b) return false; b.click(); return true;})()`);
 	await settle(1800);
 	const after = await surfaceState();
+	const sidesLeft = await app.evaluate<number>(`window.plume.sideChat.list('qa-short').then((list)=>list.length)`);
 	const afterShot = await shot("2-撤回后");
 
 	/*
@@ -165,7 +168,7 @@ async function main() {
 	 * 画——它是被顶掉的，不是被清掉的。留着的那份计划要等主列回到转录那一面才会重新露头，而
 	 * 撤回把刚才那句话放回了输入框，直接发出去就是最短的一条路。
 	 */
-	await app.evaluate(`(()=>{const t=document.querySelector('main textarea'); if(t) t.focus(); return !!t;})()`);
+	await app.evaluate(`(()=>{const t=document.querySelector('[data-dock-pane="conversation"] textarea'); if(t) t.focus(); return !!t;})()`);
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
 	await settle(2600);
@@ -199,10 +202,11 @@ async function main() {
 		["空状态的标题在", after.heading.length > 0],
 		["四张卡片都在", after.cards === 4],
 		["「已暂停」那一行没了", after.resumeRow === ""],
-		["撤回的话回到了输入框", after.composerDraft.includes("国网项目开发")],
+		["撤回的话回到了输入框", after.composerDraft.includes(ONLY_MESSAGE)],
 		["只有一个输入框", after.composers === 1],
 		["撤回后侧边聊天里那句旧结论没了", !after.sidePanel.includes(SIDE_ANSWER)],
 		["侧边面板还开着，只是空了", after.sidePanel !== "(面板没开)"],
+		["侧边聊天会话从库里删了", sidesLeft === 0],
 		["重新说一句之后回到转录", resent.surface === "conversation"],
 		["那张计划卡片没有跟着回来", !resent.taskCard.includes(PLAN_STEP)],
 		["侧边聊天也没有自己回来", !resent.sidePanel.includes(SIDE_ANSWER)],

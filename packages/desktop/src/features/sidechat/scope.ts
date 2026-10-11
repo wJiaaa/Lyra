@@ -9,7 +9,7 @@
  * 开头那段说明了它的三种取值）。`undefined` 是「不在任何一屏里」——面板窗口——那时回落到
  * 当前会话，正是从前的行为。
  *
- * 这里只回答「是谁」，取数留在各个组件里（`useSide((s) => sideChatOf(s, sessionId).…)`）。
+ * 这里只回答「是谁」，取数留在各个组件里（`useSide((s) => sideOf(s, sessionId, sideId))`）。
  * 把取数也搬进来会让这个文件 import `dock` 的大门，而那扇门后面接着 `DockView → 面板注册表
  * → 回到 sidechat`——一个新的环，`pnpm arch` 当场红。`features/terminal/scope.ts` 是同一个
  * 位置上的同一种东西。

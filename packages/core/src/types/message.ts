@@ -244,6 +244,13 @@ export interface UserMessage {
 	 * 面板上它不该画成人发的气泡：那不是看着面板的人说的。
 	 */
 	origin?: "side-chat" | "parent";
+	/**
+	 * 侧边聊天每次提问前附上的主会话进展，读到了哪里。
+	 *
+	 * 只附上次之后新增的那一段，所以下一次要知道从哪接着读；`lastAt` 是读到的最后一条的时间戳，
+	 * 主会话被撤回、同一位置换成了别的消息时对不上，就整段重读。见 `runtime/side-session.ts`。
+	 */
+	mainChat?: { seen: number; lastAt: number };
 	/** Clean user input text for UI display, excluding injected skill or session instructions. */
 	displayText?: string;
 	/** Skill triggered by this prompt, along with its filesystem path for viewing. */

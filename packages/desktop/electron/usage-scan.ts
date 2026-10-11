@@ -11,9 +11,8 @@
  * the total here is what was billed, not what happens to still be on disk. The table only grows, so
  * a pass reads just the rows after the last one it folded in (`usage-cache.json`).
  *
- * Side chats are covered without reading `~/.plume/sidechats`: every side-chat reply is also written
- * to the conversation it belongs to as a `usage` record (`source: "side-chat"`), and that becomes a
- * row here. Reading the snapshots as well would count each of them twice.
+ * Side chats need nothing of their own: each is a session (`SessionMeta.parentId`), and its replies
+ * are rows here like any other conversation's.
  */
 
 import { writeFile } from "node:fs/promises";

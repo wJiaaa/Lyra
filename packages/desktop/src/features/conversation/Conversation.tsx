@@ -70,7 +70,12 @@ const NARROW_COLUMN = 520;
 const ENVIRONMENT_CARD = 300;
 const ENVIRONMENT_LANE = ENVIRONMENT_CARD + 24;
 
-export const Conversation = memo(function Conversation({ sessionId: _sessionId }: { sessionId?: string | null } = {}) {
+/**
+ * `side`：画的是一格侧边聊天（`SessionScope` 指向那个会话）。转录、工具卡、审批和主对话完全一样；
+ * 主对话外围那几样——环境卡片、任务清单、「接着做」、问题导航、钩子提示、输入框——不画，输入框由
+ * 侧边聊天自己摆在底下。
+ */
+export const Conversation = memo(function Conversation({ sessionId: _sessionId, side = false }: { sessionId?: string | null; side?: boolean } = {}) {
   /*
    * 转录的入口，也是那道闸门的位置。
    *
@@ -148,7 +153,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
   const [roomToFloat, setRoomToFloat] = useState(false);
   const [roomToDock, setRoomToDock] = useState(false);
   const EnvironmentCard = environmentCard();
-  const environmentOpen = useEnvironmentCard((state) => state.open) && activeSessionId !== null && EnvironmentCard !== null;
+  const environmentOpen = useEnvironmentCard((state) => state.open) && !side && activeSessionId !== null && EnvironmentCard !== null;
   const docked = environmentOpen && roomToDock;
   /*
    * Too narrow to spend 48px on the question rail and leave the column looking centred.
@@ -308,7 +313,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
   }, [jump, activeSessionId, range.start, range.end, allBlocks.length, scrollRef, scrollTo]);
 
   return (
-    <div ref={column} data-ly-chat-surface="conversation" className="relative flex min-h-0 flex-1 flex-col">
+    <div ref={column} data-ly-chat-surface={side ? "side-chat" : "conversation"} className="relative flex min-h-0 flex-1 flex-col">
       {docked && EnvironmentCard && <EnvironmentLane card={EnvironmentCard} floatTasks={roomToFloat} />}
       {/*
        * The transcript and the button that scrolls it, in a box of their own.
@@ -337,7 +342,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
        * corner is sitting on top of the reply rather than beside it. Measured here, against the
        * column it would cover.
        */}
-      {roomToFloat && !environmentOpen && (
+      {roomToFloat && !environmentOpen && !side && (
         <div className="pointer-events-none absolute top-3 right-4 z-20 w-[320px]">
           <TaskList placement="floating" />
         </div>
@@ -354,7 +359,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
          * twelfth of a 380px pane, and the whole transcript sits to the right of its own box. Below
          * `NARROW_COLUMN` the rail moves to the very edge and 28px each side clears it evenly.
          */
-        contentClassName={questions.length > 1 ? (narrowColumn ? "px-7" : "pl-12 pr-4 @min-[600px]:pr-8") : gutter}
+        contentClassName={questions.length > 1 && !side ? (narrowColumn ? "px-7" : "pl-12 pr-4 @min-[600px]:pr-8") : gutter}
         onScroll={follow.onScroll}
         onResize={follow.onResize}
         onUserScroll={follow.onUserScroll}
@@ -590,7 +595,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
             </div>
           </div>
           {/* Where the running indicator would have been, saying why it is not there. */}
-          <ResumeRow />
+          {!side && <ResumeRow />}
           {/*
            * The end of the transcript, as an element.
            *
@@ -612,7 +617,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
        * moment it appeared, and a control offering to move you should not itself move the thing
        * it is about.
        */}
-      {questions.length > 1 && <QuestionNav key={activeSessionId} questions={questions} viewport={scrollRef} edge={narrowColumn} onSelect={jumpToQuestion} />}
+      {questions.length > 1 && !side && <QuestionNav key={activeSessionId} questions={questions} viewport={scrollRef} edge={narrowColumn} onSelect={jumpToQuestion} />}
       <BackToLatest
         show={follow.away || range.end < allBlocks.length}
         unread={follow.unread}
@@ -630,19 +635,19 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId }
        */}
       <div className="relative shrink-0" style={docked ? { marginRight: ENVIRONMENT_LANE } : undefined}>
         <ApprovalOverlay />
-        <HookTrustBanner className={`${gutter} pb-1.5`} />
+        {!side && <HookTrustBanner className={`${gutter} pb-1.5`} />}
         {/*
          * 只有卡片在的时候才留那道缝。清单是空的（或者做完收起了）时这一层什么都不画，
          * 却照样垫着 6px，输入框上方平白多出一截空白。
          */}
-        {!roomToFloat && (
+        {!roomToFloat && !side && (
           <div className={`${gutter} has-[[data-ly-task-list]]:pb-1.5`} data-ly-task-inline="">
             <div className="mx-auto w-full max-w-[var(--ly-content)]">
               <TaskList placement="inline" />
             </div>
           </div>
         )}
-        <Composer />
+        {!side && <Composer />}
       </div>
     </div>
   );

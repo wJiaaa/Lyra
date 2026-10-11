@@ -72,17 +72,6 @@ export interface SessionSnapshot {
 	hookRuns?: import("@plume/core").HookRun[];
 }
 
-/**
- * The side chat's own transcript. Memory-only by design — it is gone when the app restarts,
- * and never reaches the session log.
- */
-export interface SideChatSnapshot {
-	modelId: string | null;
-	revision?: number;
-	messages: import("@plume/core").Message[];
-	running: boolean;
-}
-
 export interface FileEntry {
 	name: string;
 	/** Absolute, so the renderer never has to join paths itself. */

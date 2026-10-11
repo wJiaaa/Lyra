@@ -56,6 +56,7 @@ import { TODOS_KEY } from "../tools/todo.ts";
 import { manualCompaction, type CompactionParts } from "./manual-compaction.ts";
 import { adoptModelSwitch, recordModel, recordThinking } from "./session-model.ts";
 import { rewind, type RewindParts } from "./session-rewind.ts";
+import { changedPaths, mainChatContext, SIDE_CHAT_PROMPT, sideChangesNote, sideChatTools } from "./side-session.ts";
 
 export interface AgentSessionOptions {
 	cwd: string;
@@ -77,6 +78,13 @@ export interface AgentSessionOptions {
 	streamFn?: StreamFn;
 	/** A turn override suppresses title requests unless this separate stream is supplied. */
 	titleSummaryStream?: typeof streamAssistant;
+	/**
+	 * 这是哪个会话的侧边聊天。给了它，这个会话就带上侧边聊天的提示词和三件工具，每次提问前读到
+	 * 父会话的进展，模型和思考强度没定时跟着父会话。见 `side-session.ts`。
+	 *
+	 * 是活的对象而不是 id：工具要能当场让父会话停下、排活。宿主保证父会话比它活得久。
+	 */
+	parent?: AgentSession;
 }
 
 export class AgentSession {
@@ -84,6 +92,8 @@ export class AgentSession {
 	readonly log: SessionLog;
 	readonly can: SessionCapabilities;
 	cwd: string;
+	/** 侧边聊天挂在哪个会话旁边；普通会话是 null。见 `AgentSessionOptions.parent`。 */
+	readonly parent: AgentSession | null;
 
 	private settings: Settings;
 	/**
@@ -155,7 +165,7 @@ export class AgentSession {
 	 * 见 `AgentModelContext.liveModel`。
 	 */
 	private readonly liveModel: LiveModel = {
-		current: () => resolveModel(this.settings, this.log.meta.modelId || this.settings.defaultModelId),
+		current: () => resolveModel(this.settings, this.modelIdInEffect()),
 		onChange: (listener) => {
 			this.modelListeners.add(listener);
 			return () => this.modelListeners.delete(listener);
@@ -168,9 +178,12 @@ export class AgentSession {
 		busy: () => this.running,
 		changed: (tasks) => this.emit({ type: "tasks", tasks }),
 	});
+	/** 侧边聊天改过、这个会话还没被告知的文件；下一轮开头说一次。见 `noteSideChanges`。 */
+	private readonly sideChanges = new Set<string>();
 
 	constructor(options: AgentSessionOptions) {
 		this.cwd = options.cwd;
+		this.parent = options.parent ?? null;
 		this.settings = options.settings;
 		this.globalSettings = options.settings;
 		this.store = options.store;
@@ -200,7 +213,8 @@ export class AgentSession {
 			this.activity.observe(event);
 			return options.emit(event);
 		}, options.meta);
-		this.can = new SessionCapabilities(options.extraTools ?? []);
+		const sideTools = options.parent ? sideChatTools(options.parent, () => this.modelInEffect()) : [];
+		this.can = new SessionCapabilities([...(options.extraTools ?? []), ...sideTools]);
 		this.deliveries = new SessionDeliveries({
 			activity: this.activity,
 			jobs: () => backgroundJobs(this.can.state),
@@ -564,6 +578,21 @@ export class AgentSession {
 		void this.applyProjectConfig();
 	}
 
+	/**
+	 * 这一轮该用的模型：自己定了就用自己的；侧边聊天没定，跟着父会话；再没有就是应用默认。
+	 *
+	 * 「跟着父会话」是每次现取，不是开出来时抄一份——父会话中途换了模型，侧边聊天下一问就跟上。
+	 */
+	private modelIdInEffect(): string {
+		return this.log.meta.modelId || this.parent?.meta.modelId || this.settings.defaultModelId || "";
+	}
+
+	private modelInEffect() {
+		const resolved = resolveModel(this.settings, this.modelIdInEffect());
+		if (!resolved) throw new Error("No model is configured.");
+		return resolved.model;
+	}
+
 	/** Pick or change the model this session runs on, at any point. See `recordModel`. */
 	async setModel(modelId: string): Promise<boolean> {
 		const changed = await recordModel(this.log, modelId);
@@ -742,8 +771,9 @@ export class AgentSession {
 			deliver: options.deliver === "interrupt" ? undefined : options.deliver,
 			fromPerson: true,
 			// Names the conversation after its opening line — unless it already has a name someone
-			// chose, which this must not overwrite. See `SessionMeta.titleSetByUser`.
-			title: async () => {
+			// chose, which this must not overwrite. See `SessionMeta.titleSetByUser`. A side chat's tab
+			// is labelled with its first question as asked, so it does not pay for a summary.
+			title: this.parent ? () => this.nameAfterQuestion(content, options.displayText) : async () => {
 				if (!this.log.meta.titleSetByUser && this.log.messages.filter((m) => m.role === "user").length === 1) {
 					await this.title.fromPrompt(content, options.displayText === "" ? options.skillRef?.name ?? options.sessionRefs?.[0]?.title ?? "" : options.displayText);
 				}
@@ -826,12 +856,12 @@ export class AgentSession {
 	 * without each of them having to remember to.
 	 */
 	private thinkingFor(requested?: ThinkingLevel): ThinkingLevel | undefined {
-		return requested ?? this.log.meta.thinking ?? undefined;
+		return requested ?? this.log.meta.thinking ?? this.parent?.meta.thinking ?? undefined;
 	}
 
 	private async run(requested?: ThinkingLevel): Promise<void> {
 		const thinking = this.thinkingFor(requested);
-		const resolved = resolveModel(this.settings, this.log.meta.modelId || this.settings.defaultModelId);
+		const resolved = resolveModel(this.settings, this.modelIdInEffect());
 		if (!resolved) {
 			await this.emit({
 				type: "notice",
@@ -842,6 +872,15 @@ export class AgentSession {
 			await this.emit({ type: "agent_end", reason: "error", error: "no_model" });
 			return;
 		}
+
+		const parent = this.parent;
+		/*
+		 * 跟着父会话的侧边聊天换模型不经过 `setModel`，切换点没人记。上一条回复不是这个模型写的，
+		 * 就在这里记下——它带着的推理句柄换一家就会被整个拒收。见 `stripStaleHandles`。
+		 */
+		const last = parent ? this.log.messages.findLast((message) => message.role === "assistant") : undefined;
+		if (last?.role === "assistant" && (last.provider !== resolved.provider.id || last.api !== resolved.provider.api || last.model !== resolved.model.modelId)) adoptModelSwitch(this.log);
+		const start = this.log.messages.length;
 
 		const signal = this.activity.beginTurn();
 		try {
@@ -864,6 +903,8 @@ export class AgentSession {
 				subAgents: this.subAgents,
 				delegations: this.delegations,
 				liveModel: this.liveModel,
+				appendSystemPrompt: parent ? SIDE_CHAT_PROMPT : undefined,
+				context: async () => parent ? mainChatContext(this.log.messages, parent, resolved.model) : this.takeSideChanges(),
 			});
 			this.activity.trackTurn(turn);
 			await turn;
@@ -878,6 +919,11 @@ export class AgentSession {
 			 * 收掉就等于替人答了「不行」。它们停下时由登记簿那一头收回（见 `subAgents` 的 `onFinish`）。
 			 */
 			this.approvals.rejectWhere((request) => !request.from);
+		}
+
+		if (parent) {
+			const paths = await changedPaths(this.log.meta.id, this.log.messages.slice(start)).catch(() => []);
+			if (paths.length > 0) parent.noteSideChanges(paths);
 		}
 
 		/*
@@ -933,6 +979,33 @@ export class AgentSession {
 		};
 		await this.log.commit(message);
 		await this.emit({ type: "message_end", message });
+	}
+
+	/** 侧边聊天的标签写它问的第一句话，原样取第一行，不请模型概括。 */
+	private async nameAfterQuestion(content: UserContent[], displayText?: string): Promise<void> {
+		if (this.log.meta.title || this.log.messages.filter((message) => message.role === "user" && !message.synthetic).length !== 1) return;
+		const said = displayText || content.map((block) => (block.type === "text" ? block.text : "")).join("");
+		const title = said.trim().split("\n")[0]?.trim().slice(0, 80);
+		if (!title) return;
+		await this.log.append({ type: "title", title, source: "auto" });
+		await this.emit({ type: "title", title });
+	}
+
+	/**
+	 * 一个侧边聊天改了这些文件。不开新的一轮、也不插进正在跑的那一轮：下一轮开头说一次。
+	 *
+	 * 防覆盖靠的不是这句话，是 `edit`/`write` 的读取哈希——读过之后被改过的文件写不进去。这句话管的
+	 * 是另一件事：它对那几个文件的印象已经过时了，接着往下推之前该重读。
+	 */
+	noteSideChanges(paths: string[]): void {
+		for (const path of paths) this.sideChanges.add(path);
+	}
+
+	private takeSideChanges(): Message | null {
+		if (this.sideChanges.size === 0) return null;
+		const note = sideChangesNote([...this.sideChanges]);
+		this.sideChanges.clear();
+		return note;
 	}
 
 	// -------------------------------------------------------------------------

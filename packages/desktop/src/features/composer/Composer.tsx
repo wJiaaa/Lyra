@@ -19,7 +19,7 @@ import { commandEntries } from "./command-catalog.ts";
 import { ScheduledAlert } from "../scheduled/index.ts";
 import { ComposerSend, ComposerShell } from "./ComposerShell.tsx";
 import { SubAgentBar } from "../subagents/index.ts";
-import { openFilePane, openScopedPanel, useSide } from "../dock/index.ts";
+import { askSide, openFilePane, openScopedPanel } from "../dock/index.ts";
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { ContextMeter } from "./ContextMeter.tsx";
 import { EffortTrigger } from "../models/index.ts";
@@ -552,14 +552,17 @@ export function Composer({ centered = false }: {
 						running={running}
 						onEdit={restoreQueued}
 						/*
-						 * 拿到侧边聊天去问：它碰不到项目，读得到这个对话在做什么但不写进去——「这句话我先问问，
+						 * 拿到侧边聊天去问：它读得到这个对话在做什么，自己的问答不写进这个对话——「这句话我先问问，
 						 * 别占用正在跑的这一轮」正是它的用途。
 						 */
 						onAside={(taken) => {
 							// Beside the conversation it was queued in, which the keyboard can reach without focusing it.
 							openScopedPanel("chat", activeSessionId);
 							// 开的是最早那一个侧边聊天，问的也是它。
-							void useSide.getState().ask(activeSessionId, DEFAULT_SIDE_CHAT_ID, taken.content);
+							void askSide(activeSessionId, DEFAULT_SIDE_CHAT_ID, taken.content, {
+								...(taken.displayText !== undefined ? { displayText: taken.displayText } : {}),
+								...(taken.attachments?.length ? { attachments: taken.attachments } : {}),
+							});
 						}}
 					/>
 				)}

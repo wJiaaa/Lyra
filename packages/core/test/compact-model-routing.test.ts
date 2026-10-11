@@ -6,7 +6,6 @@ import { test } from "node:test";
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
 import { compactIfNeeded } from "../src/runtime/compaction.ts";
 import { AgentSession } from "../src/runtime/session.ts";
-import { SideChat } from "../src/runtime/sidechat.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
 
@@ -39,30 +38,6 @@ test("automatic main compaction routes the override to the configured provider a
 	await session.initialize();
 	for (const message of history()) await session.log.commit(message);
 	await session.prompt([{ type: "text", text: "Continue" }]);
-	assert.deepEqual(summaries, [{ provider: summaryProvider.id, model: summarizer.id }]);
-});
-
-test("automatic side-chat compaction uses the same configured summarizer", async (t) => {
-	const root = await mkdtemp(join(tmpdir(), "ly-side-compact-route-"));
-	const store = new SessionStore(join(root, "sessions"));
-	const main = new AgentSession({ cwd: root, settings, store, meta: await store.create(root, model.id), emit: () => {} });
-	t.after(async () => { await main.dispose(); await rm(root, { recursive: true, force: true }); });
-	const summaries: { provider: string; model: string }[] = [];
-	const side = new SideChat({
-		main, settings, emit: () => {},
-		streamFn: async (_context, config) => {
-			assert.equal(config.model.id, model.id, "side answers still follow the main model");
-			return reply("Done");
-		},
-		summaryStream: async function* (selectedProvider, selectedModel) {
-			summaries.push({ provider: selectedProvider.id, model: selectedModel.id });
-			const message = reply("Earlier questions retained.");
-			yield { type: "done", message };
-			return message;
-		},
-	});
-	side.restore(history());
-	await side.ask([{ type: "text", text: "Continue" }]);
 	assert.deepEqual(summaries, [{ provider: summaryProvider.id, model: summarizer.id }]);
 });
 

@@ -9,7 +9,6 @@
 
 export { BackToLatest } from "./BackToLatest.tsx";
 export { Markdown } from "./Markdown.tsx";
-export { InterfaceHost } from "./interface/InterfaceBlock.tsx";
 export { copyableReply } from "./interface/interface-text.ts";
 export { MessageActions } from "./MessageActions.tsx";
 export { formatTokens } from "../../lib/format-tokens.ts";

@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mainChatSnapshot, mainMessageText, readMainChatTool } from "../src/runtime/sidechat-history.ts";
+import type { AgentSession } from "../src/runtime/session.ts";
+import { mainChatExcerpt, mainMessageText, readMainChatTool as bind } from "../src/runtime/sidechat-history.ts";
 import { emptyUsage, type Message, type ModelConfig, type ToolResult } from "../src/types.ts";
 
 const model: ModelConfig = { id: "test/model", providerId: "test", modelId: "model", name: "Test", contextWindow: 128000, maxOutputTokens: 4096, supportsThinking: true, supportsTools: true, supportsImages: true };
 const ctx = { cwd: process.cwd(), sessionId: "unrelated-caller", state: new Map<string, unknown>() };
+/** The tool reads the main session live; these tests only need its id and messages. */
+const readMainChatTool = (id: string, messages: Message[], selected: ModelConfig) => bind({ meta: { id }, messages } as unknown as AgentSession, () => selected);
 const user = (text: string): Message => ({ role: "user", timestamp: 1, content: [{ type: "text", text }] });
 interface Page {
 	sessionId: string; totalMessages: number;
@@ -32,9 +35,9 @@ test("every character of a long tool result can be paged without overlap or loss
 
 test("hundreds of messages keep the snapshot bounded and early or late keyword matches stay searchable", async () => {
 	const messages = Array.from({ length: 500 }, (_, index) => user(`${index}: ${"detail ".repeat(300)} ${index === 0 || index === 499 ? "NEEDLE" : "other"}`));
-	const snapshot = mainChatSnapshot(messages, model);
-	assert.ok(JSON.stringify(snapshot).length < 14000);
-	assert.match(JSON.stringify(snapshot), /并非完整记录/);
+	const excerpt = mainChatExcerpt(messages, 0, model);
+	assert.ok(excerpt.length < 14000);
+	assert.match(excerpt, /Only the most recent part is shown/);
 	const tool = readMainChatTool("main", messages, model);
 	const first = page(await tool.execute({ query: "needle", limit: 1 }, ctx));
 	assert.equal(first.messages[0].index, 0); assert.match(first.messages[0].text, /NEEDLE/);

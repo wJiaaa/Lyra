@@ -34,19 +34,22 @@ const REPLY = `两种做法，挑一个：
 </Card>
 \`\`\``;
 
-/** 每个请求：是不是侧边聊天的、系统提示词、最后一句人说的话。 */
-const requests: { side: boolean; system: string; last: string }[] = [];
+/** 每个请求：是不是侧边聊天的、系统提示词、最后一句人说的话、带了哪些工具。 */
+const requests: { side: boolean; system: string; last: string; tools: string[] }[] = [];
 
 function fakeModel() {
 	return createServer((req: IncomingMessage, res: ServerResponse) => {
 		let body = "";
 		req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
 		req.on("end", async () => {
-			const parsed = JSON.parse(body) as { system?: unknown; messages: { role: string; content: unknown }[] };
+			const parsed = JSON.parse(body) as { system?: unknown; tools?: { name: string }[]; messages: { role: string; content: unknown }[] };
 			const system = JSON.stringify(parsed.system ?? "");
-			const last = JSON.stringify(parsed.messages.findLast((message) => message.role === "user" && !JSON.stringify(message.content).startsWith('[{"type":"text","text":"<env>'))?.content ?? "");
-			const side = system.includes("侧边助手");
-			requests.push({ side, system, last });
+			// 人说的最后一句：跳过环境说明，也跳过侧边聊天每次提问后附上的主会话进展。
+			const last = JSON.stringify(parsed.messages.findLast((message) => message.role === "user" && !/^\[\{"type":"text","text":"<(env|main-session)>/.test(JSON.stringify(message.content)))?.content ?? "");
+			// 侧边聊天是一个会话，提示词和主会话同出一源；认它靠只有它才有的工具。
+			const tools = parsed.tools?.map((tool) => tool.name) ?? [];
+			const side = tools.includes("read_main_chat");
+			requests.push({ side, system, last, tools });
 			const text = side && last.includes("SIDE_UI") ? REPLY : "收到。";
 			const emit = (type: string, data: object) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
 			res.writeHead(200, { "content-type": "text/event-stream" });
@@ -123,7 +126,9 @@ try {
 	await until(app, `document.querySelector('${PANE} [data-ly-interface="ready"]')`, 900);
 	await pause(800);
 	const asked = requests.find((request) => request.side);
-	check("侧边聊天的提示词里有界面块那一段，没提它没有的 preview", Boolean(asked?.system.includes("Interface blocks:")) && !asked?.system.includes("preview"), asked?.system.length);
+	// 侧边聊天和主会话工具一样，`preview` 也在；提示词提不提它，要和手里有没有这件工具对得上。
+	const pointsAtPreview = Boolean(asked?.system.includes("is `preview`'s job"));
+	check("侧边聊天的提示词里有界面块那一段，提不提 preview 和它有没有这件工具一致", Boolean(asked?.system.includes("Interface blocks:")) && pointsAtPreview === Boolean(asked?.tools.includes("preview")), { tools: asked?.tools.includes("preview"), pointsAtPreview });
 	await shot(app, "01_侧边画出界面块");
 
 	console.log("\n二、选 B，按「就这个」");

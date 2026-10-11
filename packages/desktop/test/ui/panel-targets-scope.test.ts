@@ -458,7 +458,8 @@ test("taking a queued message to the side chat, on the screen without focus, ope
 	plume.commands = { list: async () => ({ commands: [], skills: [], agents: [] }) };
 	plume.sessions = { contextBreakdown: async () => null, list: async () => [] };
 	const asked: Array<string | null> = [];
-	useSide.setState({ ask: async (sessionId) => { asked.push(sessionId); } });
+	// 问到哪个会话旁边，看它找的是谁旁边的那一格；之后的发送不归这条测试管，停在这里。
+	plume.sideChat = { list: async () => [], open: (sessionId: string) => { asked.push(sessionId); return new Promise(() => {}); } };
 	useApp.getState().enqueue("b", { content: [{ type: "text", text: "先问问" }], draft: { text: "先问问", attachments: [], sessionRefs: [] }, preview: "先问问" });
 	// Through the composer: the queue is handed its way to the side chat from there (`onAside`).
 	view = await inScreen("b", h(Composer));
@@ -508,7 +509,7 @@ test("a file marked in the composer of the screen without focus opens in that sc
 
 test("a file marked in the side chat composer of the screen without focus opens in that screen", async () => {
 	plume.files = { pathForDrop: () => "/work/beta/notes.md" };
-	view = await inScreen("b", h(SideComposer, { running: false, onSend() {}, onStop() {} }));
+	view = await inScreen("b", h(SideComposer, { side: null }));
 	const drop = new Event("drop", { bubbles: true, cancelable: true });
 	// 一个真的 DataTransfer 该有的都给上：drop 先问是不是文件树拖来的路径（`getData`），再按 `items` 拣出文件夹。
 	Object.defineProperty(drop, "dataTransfer", {

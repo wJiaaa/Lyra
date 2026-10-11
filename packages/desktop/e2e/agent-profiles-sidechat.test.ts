@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { access, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type ServerResponse } from "node:http";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, afterEach, before, test } from "node:test";
 import { THINKING_LEVELS, thinkingOptionsFor } from "@plume/core";
@@ -10,7 +10,7 @@ import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { click, closeTab, frames, openPane, shot, until } from "./drive.ts";
-import { fixtureStore, seedSessions, type FixtureRecord } from "./session-fixture.ts";
+import { fixtureStore, seedSessions, sideSession, type FixtureRecord } from "./session-fixture.ts";
 
 let app: RunningApp;
 let server: Server;
@@ -18,7 +18,13 @@ let port = 0;
 const requests: { path: string; body: Record<string, unknown>; at: number }[] = [];
 let retryProbeFailures = 0;
 let savedProfiles: unknown;
-let savedSide = "";
+/*
+ * 一份 profile 跑完整个套件，重启用 `reuseHome` 接着用它。
+ *
+ * 「重启之后还在吗」只能在同一份数据上问；从前是把上一轮的侧聊存档读出来、在新的一次性目录里
+ * 重放一遍，那量到的是重放，不是持久化。
+ */
+let home = "";
 function anthropic(res: ServerResponse, text: string, tool?: { name: string; input: Record<string, unknown> }) {
 	const emit = (type: string, data: object) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
 	emit("message_start", { message: { id: "qa", role: "assistant", content: [], usage: { input_tokens: 100, output_tokens: 0 } } });
@@ -47,7 +53,6 @@ async function seed(home: string) {
 	settings.providers.push({ ...settings.providers[0], id: "secondary", name: "第二供应商", api: "openai-responses", baseUrl: `http://127.0.0.1:${port}/secondary`, models: [{ ...model, providerId: "secondary", id: "secondary/model" }] });
 	settings.thinking = "off";
 	settings.projectMemory = false;
-	if (savedProfiles) settings.subAgentProfiles = savedProfiles;
 	await writeFile(path, JSON.stringify(settings));
 	// Real session logs with controlled data, not a substituted renderer or screenshot mockup.
 	const store = fixtureStore(home);
@@ -58,10 +63,19 @@ async function seed(home: string) {
 	const edited: FixtureRecord[] = JSON.parse(JSON.stringify(records).replace("qa-long 第 1 个问题：", "EARLY_MAIN_DECISION=使用索引作为基准。qa-long 第 1 个问题："));
 	const longTool = { role: "toolResult", toolName: "read", toolCallId: "old-read", content: [{ type: "text", text: "long output ".repeat(6000) + "TOOL_TAIL_VALUE=末尾证据已保留" }], isError: false, timestamp: 3000 } as const;
 	edited.push({ type: "message", message: longTool, ts: 3000 });
-	seedSessions(home, [{ meta, records: edited }]);
-	await mkdir(join(home, "sidechats", "qa-long"), { recursive: true });
-	const historical = { messages: [{ role: "user", synthetic: true, timestamp: 1, content: [{ type: "text", text: "Legacy hidden main snapshot" }] }, { role: "user", timestamp: 2, content: [{ type: "text", text: "以前的侧聊问题" }] }, { role: "assistant", timestamp: 3, api: "anthropic-messages", provider: "qa", model: "model", content: [{ type: "text", text: "以前的侧聊回答" }], usage: meta.usage, stopReason: "stop" }] };
-	await writeFile(join(home, "sidechats", "qa-long", "default.json"), savedSide || JSON.stringify(historical));
+	// 旁边已经聊过一段的侧边聊天：问题后面跟着当时附上的主会话进展，那一条不该画出来。
+	const side = sideSession(meta, [
+		{ role: "user", timestamp: 2, content: [{ type: "text", text: "以前的侧聊问题" }] },
+		{ role: "user", synthetic: true, timestamp: 2, content: [{ type: "text", text: "<main-session>\nSEEDED_MAIN_CONTEXT\n</main-session>" }] },
+		{ role: "assistant", timestamp: 3, api: "anthropic-messages", provider: "qa", model: "model", content: [{ type: "text", text: "以前的侧聊回答" }], usage: meta.usage, stopReason: "stop" },
+	]);
+	seedSessions(home, [{ meta, records: edited }, side]);
+}
+/** `qa-long` 旁边 `default` 那一格背后的会话：它的模型和记录。关掉之后、下一问之前，没有。 */
+function sideOfQaLong() {
+	return app.evaluate<{ modelId: string; messages: unknown[] } | null>(
+		`(async()=>{const side=(await window.plume.sideChat.list('qa-long')).find(s=>s.sideId==='default');if(!side)return null;const t=await window.plume.sessions.transcript(side.id);return {modelId:side.modelId,messages:t?.messages??[]};})()`,
+	);
 }
 before(async () => {
 	server = createServer((req, res) => {
@@ -74,16 +88,20 @@ before(async () => {
 			const side = body.tools?.some((tool: { name: string }) => tool.name === "read_main_chat");
 			const last = body.messages?.at(-1)?.content ?? [];
 			const text = typeof last === "string" ? last : JSON.stringify(last);
+			// 主会话的进展附在问题后面，所以问题可能是倒数第二条。
+			const asked = JSON.stringify(body.messages?.slice(-2) ?? []);
 			if (side) {
 				if (text.includes('"tool_result"')) anthropic(res, text.includes("TOOL_TAIL_VALUE") ? "查到工具尾部：末尾证据已保留。" : text.includes("EARLY_MAIN_DECISION") ? "查到早期决策：使用索引作为基准。" : "查不到证据，测试应该失败。");
-				else anthropic(res, "", { name: "read_main_chat", input: { query: text.includes("TOOL_TAIL_REQUEST") ? "TOOL_TAIL_VALUE" : "EARLY_MAIN_DECISION" } });
+				else anthropic(res, "", { name: "read_main_chat", input: { query: asked.includes("TOOL_TAIL_REQUEST") ? "TOOL_TAIL_VALUE" : "EARLY_MAIN_DECISION" } });
 			} else if (body.tools?.some((tool: { name: string }) => tool.name === "task") && raw.includes("MAIN_DELEGATE") && !raw.includes("SUBAGENT_DONE")) anthropic(res, "", { name: "task", input: { description: "验证指定模型", prompt: "CHILD_MODEL_PROBE", subagent_type: "explore" } });
 			else anthropic(res, "主任务完成，保留已验证的关键决策。");
 		});
 	});
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 	const address = server.address(); assert.ok(address && typeof address !== "string"); port = address.port;
-	app = await startApp({ port: 9611, seed });
+	home = await mkdtemp(join(tmpdir(), "plume-e2e-"));
+	await seed(home);
+	app = await startApp({ port: 9611, reuseHome: home });
 });
 
 afterEach(async (t) => {
@@ -92,7 +110,7 @@ afterEach(async (t) => {
 		t.diagnostic(await app.evaluate<string>(`JSON.stringify({text:document.body.innerText.slice(-3000),fields:[...document.querySelectorAll('[data-dock-pane="chat"] textarea')].map(e=>({value:e.value,text:e.textContent,rect:e.getBoundingClientRect().toJSON(),focused:e===document.activeElement})),scrolls:[...document.querySelectorAll('[data-dock-pane="chat"] .ly-scroll-view')].map(e=>({top:e.scrollTop,height:e.scrollHeight,client:e.clientHeight}))})`));
 	}
 });
-after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server)); await emptyOwnTrash(); });
+after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server), () => (home ? rm(home, { recursive: true, force: true }) : undefined)); await emptyOwnTrash(); });
 
 /*
  * Removing a subagent puts its file in the real system trash, so this test leaves its marker in
@@ -144,6 +162,9 @@ async function send(text: string, scope = '[data-dock-pane="chat"]') {
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
 }
 async function openSide() {
+	// 同一份 profile 重启，面板布局跟着留下来：已经开着的再点一次菜单就是关掉它。
+	const open = `document.querySelector('[data-dock-pane="chat"]:not([inert]) textarea')?.checkVisibility()`;
+	if (await app.evaluate<boolean>(`Boolean(${open})`)) return;
 	await openPane(app, "侧边聊天");
 	await until(app, `document.querySelector('[data-dock-pane="chat"] textarea')`, 900);
 }
@@ -259,7 +280,7 @@ test("a dispatched subagent actually calls the selected provider with ultra reas
 	assert.equal(child.body.model, "gpt-5.6-sol"); assert.deepEqual(child.body.reasoning, { effort: "ultra", summary: "auto" });
 });
 
-test("sidechat restores old answers, queries early history and full tool tails, then survives switching", async () => {
+test("sidechat shows its earlier exchange, queries early history and full tool tails, then survives switching", async () => {
 	await openSide();
 	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('以前的侧聊回答')`, 900);
 	/*
@@ -275,7 +296,7 @@ test("sidechat restores old answers, queries early history and full tool tails, 
 	assert.match(sideModel.text, /主供应商.*同名模型/, `同名的模型要把厂商说出来：${JSON.stringify(sideModel)}`);
 	assert.match(sideModel.tip, /随主会话/, `继承没被藏掉，只是挪进了提示：${JSON.stringify(sideModel)}`);
 	assert.equal(await app.evaluate(`getComputedStyle(document.querySelector('[aria-label="侧边聊天模型"]')).borderTopWidth`), "0px");
-	assert.equal(await app.evaluate(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('Legacy hidden')`), false);
+	assert.equal(await app.evaluate(`document.querySelector('[data-dock-pane="chat"]').innerText.includes('SEEDED_MAIN_CONTEXT')`), false);
 	await send("EARLY_REQUEST 主聊天最早的决策是什么？");
 	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到早期决策')`, 900);
 	await send("TOOL_TAIL_REQUEST 帮我查看工具输出的末尾。");
@@ -285,8 +306,7 @@ test("sidechat restores old answers, queries early history and full tool tails, 
 	await click(app, '[data-ly-row="qa-long"]');
 	await until(app, `document.querySelector('[data-dock-pane="chat"]')?.innerText.includes('查到工具尾部')`, 900);
 	await shot(app, "sidechat-main-history");
-	savedSide = await readFile(join(app.home, "sidechats", "qa-long", "default.json"), "utf8");
-	assert.match(savedSide, /查到工具尾部/); assert.doesNotMatch(savedSide, /Legacy hidden/);
+	assert.match(JSON.stringify((await sideOfQaLong())?.messages), /查到工具尾部/);
 	savedProfiles = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")).subAgentProfiles;
 });
 
@@ -312,28 +332,28 @@ test("@ agents are selectable and @compact executes real compaction with the con
 	const previous = await app.evaluate<number>(`document.querySelector('[data-dock-pane="chat"]').innerText.split('查到早期决策').length`);
 	await send("EARLY_REQUEST 压缩后再次核对原始决策");
 	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.split('查到早期决策').length > ${previous}`, 900);
-	savedSide = await readFile(join(app.home, "sidechats", "qa-long", "default.json"), "utf8");
-	assert.match(savedSide, /压缩后再次核对原始决策/);
+	assert.match(JSON.stringify((await sideOfQaLong())?.messages), /压缩后再次核对原始决策/);
 });
 
 test("a fresh Electron process restores persisted answers and can edit the first visible question", async (t) => {
 	await app.stop();
-	// The harness removes its profile on exit. Replay the exact saved side file in a new isolated profile.
-	app = await startApp({ port: 9611, seed });
+	app = await startApp({ port: 9611, reuseHome: home });
 	await click(app, '[data-ly-row="qa-long"]'); await openSide();
 	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到工具尾部')`, 900);
 	const point = await app.evaluate<{x: number; y: number}>(`(()=>{const r=document.querySelector('[data-dock-pane="chat"] .ly-scroll-view').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 	await app.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: -2400 }); await frames(app, 30);
-	await click(app, '[data-dock-pane="chat"] button[aria-label="编辑并重新提问"]');
-	await until(app, `document.querySelector('[data-dock-pane="chat"] textarea')?.value.includes('以前的侧聊问题')`, 900);
-	await app.evaluate(`document.querySelector('[data-dock-pane="chat"] textarea').select()`);
+	// 和主会话同一个气泡：就地编辑，侧边聊天的按钮照旧叫「编辑并重新提问」「重新提问」。
+	const first = '[data-dock-pane="chat"] [data-question-index="0"]';
+	await click(app, `${first} button[aria-label="编辑并重新提问"]`);
+	await until(app, `document.querySelector('${first} textarea')?.value.includes('以前的侧聊问题')`, 900);
+	await app.evaluate(`document.querySelector('${first} textarea').select()`);
 	await app.send("Input.insertText", { text: "EARLY_REQUEST 编辑后查询早期决策" });
 	t.diagnostic(await app.evaluate<string>(`JSON.stringify([...document.querySelectorAll('[data-dock-pane="chat"] textarea')].map(e=>({value:e.value,rect:e.getBoundingClientRect().toJSON(),focused:e===document.activeElement})))`));
-	await click(app, "button", "重新提问", "starts");
+	await click(app, `${first} button`, "重新提问", "starts");
 	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('查到早期决策')`, 900);
-	const state = await app.evaluate<{ messages: unknown[] }>(`window.plume.sideChat.state('qa-long','default')`);
-	assert.doesNotMatch(JSON.stringify(state.messages), /以前的侧聊问题|以前的侧聊回答|TOOL_TAIL_REQUEST/);
-	assert.match(JSON.stringify(state.messages), /编辑后查询早期决策/);
+	const messages = JSON.stringify((await sideOfQaLong())?.messages);
+	assert.doesNotMatch(messages, /以前的侧聊问题|以前的侧聊回答|TOOL_TAIL_REQUEST/);
+	assert.match(messages, /编辑后查询早期决策/);
 	assert.deepEqual(await app.evaluate(`window.plume.settings.get().then(s=>s.subAgentProfiles)`), savedProfiles);
 	await shot(app, "sidechat-restored-edit");
 });
@@ -346,19 +366,21 @@ test("sidechat model selection and its default use their actual providers and su
 	await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`, 900);
 	const actual = requests.slice(start).find(request => JSON.stringify(request.body).includes("SIDE_MODEL_PROBE"));
 	assert.ok(actual); assert.ok(actual.path.startsWith("/secondary"));
-	assert.equal(await app.evaluate(`window.plume.sideChat.state('qa-long','default').then(s=>s.modelId)`), "secondary/model");
+	assert.equal((await sideOfQaLong())?.modelId, "secondary/model");
 	await click(app, 'button:has(svg.lucide-settings)'); await click(app, "nav button", "智能体", "starts");
 	await click(app, '[aria-label="侧边聊天默认模型"]'); await click(app, '[data-model="secondary/model"] [role="menuitem"]');
 	await until(app, `document.querySelector('[aria-label="侧边聊天默认模型"]').dataset.lyTip?.includes('第二供应商')`, 900);
 	const stored = JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")); assert.equal(stored.sideChatModelId, "secondary/model");
 	await click(app, "nav button", "返回工作区", "starts");
-	// 关掉就删：重开是空的，模型回到设置里的默认。
+	// 关掉就删：重开是空的，会话等下一问才建，建的时候用设置里的默认模型。
 	await closeTab(app, "chat"); await openSide();
 	await until(app, `!document.querySelector('[data-dock-pane="chat"]').innerText.includes('SIDE_MODEL_PROBE')`, 900);
-	assert.deepEqual(await app.evaluate(`window.plume.sideChat.state('qa-long','default').then(s=>({modelId:s.modelId,messages:s.messages}))`), { modelId: "secondary/model", messages: [] });
+	assert.equal(await sideOfQaLong(), null);
+	// 还没开口时就写着设置里的默认，不写「跟随主会话」——答话的就是它。
+	assert.match(await app.evaluate<string>(`document.querySelector('[aria-label="侧边聊天模型"]').dataset.lyTip ?? ''`), /第二供应商/);
 	await send("SIDE_AFTER_RESET"); await until(app, `document.querySelector('[data-dock-pane="chat"]').innerText.includes('SUBAGENT_DONE')`, 900);
-	savedSide = await readFile(join(app.home, "sidechats", "qa-long", "default.json"), "utf8");
-	await app.stop(); app = await startApp({ port: 9611, seed });
+	assert.equal((await sideOfQaLong())?.modelId, "secondary/model");
+	await app.stop(); app = await startApp({ port: 9611, reuseHome: home });
 	await click(app, '[data-ly-row="qa-long"]'); await openSide();
 	await until(app, `document.querySelector('[aria-label="侧边聊天模型"]').dataset.lyTip?.includes('第二供应商')`, 900);
 	assert.match(await app.evaluate<string>(`document.querySelector('[data-dock-pane="chat"]').innerText`), /SIDE_AFTER_RESET/);

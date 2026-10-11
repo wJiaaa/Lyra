@@ -1,19 +1,21 @@
 /**
  * The same surface as the main composer, at panel scale.
  *
- * Not the main `Composer` component itself: that one sends to the active session, carries the
- * project and branch chips, and takes image attachments. None of that applies here — this
- * conversation has no project of its own and cannot act on one.
+ * Not the main `Composer` component itself: that one sends to the active session and carries the
+ * project and branch chips, slash commands and mentions. This one speaks to the session behind its
+ * panel, which it creates on the first question (`askSide`), and follows the main session's model
+ * unless told otherwise.
  */
 
 import { useI18n } from "../../i18n/index.ts";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
-import type { UserContent } from "@plume/core";
+import type { Message, SessionMeta } from "@plume/core";
+import type { QueuedMessage } from "../../store/queue-slice.ts";
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { Plus } from "../../ui/icons/index.ts";
 import { useEffect, useRef } from "react";
 import { findModel } from "../models/index.ts";
-import { useSide, sideChatOf, openFilePane } from "../dock/index.ts";
+import { askSide, openFilePane, setSideModel, setSideThinking, sideKey, useSide } from "../dock/index.ts";
 import { useSideTarget } from "./target.ts";
 import { useDockScope, useScopedMeta } from "../../app/session-scope.tsx";
 import { useApp } from "../../store/index.ts";
@@ -24,7 +26,6 @@ import {
 	attachmentMeta,
 	spellDraft,
 	type DraftAttachment,
-	type OutgoingMeta,
 	QueueList,
 	queuePreview,
 	queueThumbnail,
@@ -34,17 +35,17 @@ import {
 } from "../composer/index.ts";
 import { EffortTrigger, ModelTrigger } from "../models/index.ts";
 
+const NO_MESSAGES: Message[] = [];
+const NO_QUEUE: QueuedMessage[] = [];
+
 export function SideComposer({
-	running,
+	side,
 	disabled,
-	onSend,
-	onStop,
 }: {
-	running: boolean;
+	/** The session behind this panel; null until the first question creates it. */
+	side: SessionMeta | null;
 	/** No session to be beside; the field stays visible but inert rather than vanishing. */
 	disabled?: boolean;
-	onSend: (content: UserContent[], meta: OutgoingMeta) => void;
-	onStop: () => void;
 }) {
 	const { t } = useI18n();
 	const settings = useApp((s) => s.settings);
@@ -58,11 +59,18 @@ export function SideComposer({
 	const screen = useDockScope();
 	/** 标记点开的文件进右边的文件面板——和主输入框同一个去处，开在这一屏。 */
 	const openFile = (path: string) => void openFilePane(path, screen ?? undefined);
-	const modelId = useSide((s) => sideChatOf(s, sessionId, sideId).modelId);
-	const loading = useSide((s) => sideChatOf(s, sessionId, sideId).loading);
-	const thinking = useSide((s) => sideChatOf(s, sessionId, sideId).thinking);
-	const messages = useSide((s) => sideChatOf(s, sessionId, sideId).messages);
-	const queued = useSide((s) => sideChatOf(s, sessionId, sideId).queued);
+	const sideId_ = side?.id ?? null;
+	/*
+	 * 空串是跟着主会话，见 core `AgentSession.modelIdInEffect`。会话还没建时，第一问会按设置里的
+	 * 「侧边聊天默认模型」建（`openSideSession`），这里先照那个画，不然写着「跟随主会话」答话的却是另一个。
+	 */
+	const modelId = (side ? side.modelId : settings?.sideChatModelId) || null;
+	const thinking = side?.thinking ?? null;
+	/** 这一格的会话已经建了、记录还没读进来。 */
+	const loading = useApp((s) => sideId_ !== null && !s.sessionCache[sideId_]);
+	const running = useApp((s) => (sideId_ ? (s.sessionCache[sideId_]?.state?.running ?? false) : false));
+	const messages = useApp((s) => (sideId_ ? (s.sessionCache[sideId_]?.messages ?? NO_MESSAGES) : NO_MESSAGES));
+	const queued = useApp((s) => (sideId_ ? (s.queued[sideId_] ?? NO_QUEUE) : NO_QUEUE));
 	/*
 	 * 草稿按侧边聊天存，和主输入框同一个仓库——面板关了、换个会话再回来，打了一半的话还在。
 	 * 从前它是这个组件自己的 state，面板一关就没了。最早那一个沿用一个会话只有一个侧边聊天时的 key。
@@ -97,7 +105,7 @@ export function SideComposer({
 	 * substituted when something is already half-typed: losing what you were writing to recover
 	 * something you asked for is a bad trade.
 	 */
-	const draftSeed = useSide((s) => sideChatOf(s, sessionId, sideId).draftSeed);
+	const draftSeed = useSide((s) => (sessionId ? s.draftSeeds[sideKey(sessionId, sideId)] : undefined));
 	useEffect(() => {
 		if (!draftSeed) return;
 		setText((was) => (was.trim() ? `${was.replace(/\s+$/, "")}\n${draftSeed.text}` : draftSeed.text));
@@ -108,7 +116,7 @@ export function SideComposer({
 
 	function submit() {
 		const trimmed = text.trim();
-		if (empty || disabled) return;
+		if (empty || disabled || !sessionId) return;
 		/*
 		 * 和主输入框同一段：附件按标记在句子里的先后排，每份自带「第几张、共几张」。再交一份给人看的：
 		 * 人打的那些字（`【图片 1】` 这样的标记留着），和附件的名字门类——没有这一份，气泡里摆的是
@@ -123,10 +131,11 @@ export function SideComposer({
 		 * 排在输入框上方那条上，这一轮答完自己发出去；条上改得了、删得掉、排得出先后。队里还压着
 		 * 别的时候也排——不然新说的这句会越过前面那几句先到。
 		 */
-		if (running || queued.length > 0) {
+		if (sideId_ && (running || queued.length > 0)) {
 			const composed = { text: trimmed, attachments, sessionRefs: [] };
 			const thumbnail = queueThumbnail(composed);
-			useSide.getState().enqueue(sessionId, sideId, {
+			const app = useApp.getState();
+			app.enqueue(sideId_, {
 				content,
 				displayText: sent.displayText,
 				...(sent.attachments.length ? { attachments: sent.attachments } : {}),
@@ -134,12 +143,18 @@ export function SideComposer({
 				preview: queuePreview(composed),
 				...(thumbnail ? { thumbnail } : {}),
 			});
+			// 空着却排上了——上一轮被停掉、队里还压着别的：由这一次推它一把，和主输入框一样。
+			if (!running) void app.flushQueue(sideId_);
 			clear();
 			return;
 		}
 		clear();
-		onSend(content, sent);
+		void askSide(sessionId, sideId, content, sent);
 	}
+
+	const stop = () => {
+		if (sideId_) void useApp.getState().abort(sideId_);
+	};
 
 	/** 排着的那一条退回来：整份草稿——字和附件——接在框里已有的后面。 */
 	const restoreQueued = (entry: { draft: { text: string; attachments: unknown[] } }) => {
@@ -162,12 +177,12 @@ export function SideComposer({
 	return (
 		// Same cap as the transcript above it, so the field stays under the messages it answers.
 		<div className="ly-composer-pad mx-auto w-full max-w-[var(--ly-content)] shrink-0">
-			{sessionId && (
+			{sideId_ && (
 				<QueueList
 					source={{
 						items: queued,
-						drop: (id) => useSide.getState().dropQueued(sessionId, sideId, id),
-						move: (id, targetId, placement) => void useSide.getState().moveQueued(sessionId, sideId, id, targetId, placement),
+						drop: (id) => useApp.getState().dropQueued(sideId_, id),
+						move: (id, targetId, placement) => void useApp.getState().moveQueued(sideId_, id, targetId, placement),
 					}}
 					running={running}
 					onEdit={restoreQueued}
@@ -230,7 +245,7 @@ export function SideComposer({
 								inheritLabel: t("sideChat.followMainLong"),
 								inheritDetail: modelName ?? t("sideChat.noModel"),
 								onChange: (value) => {
-									void useSide.getState().setModel(sessionId, sideId, value || null);
+									if (sessionId) void setSideModel(sessionId, sideId, value);
 								},
 							}}
 						/>
@@ -243,16 +258,18 @@ export function SideComposer({
 							selection={{
 								modelId: modelId || model?.id,
 								value: thinking ?? sessionThinking(meta, settings),
-								onChange: (level) => useSide.getState().setThinking(sessionId, sideId, level),
+								onChange: (level) => {
+									if (sessionId) void setSideThinking(sessionId, sideId, level);
+								},
 							}}
 						/>
 						{/* 正在答的时候按下去是排队，所以它说的也不再是「发送」——和主输入框同一个说法。 */}
 						<div className="ly-queue-send" data-visible={running && !empty} inert={!running || empty}>
 							<div>
-								<ComposerSend running={false} active={running && !empty} disabled={!running || empty} tip={t("composer.queueWaiting")} onSend={submit} onStop={onStop} />
+								<ComposerSend running={false} active={running && !empty} disabled={!running || empty} tip={t("composer.queueWaiting")} onSend={submit} onStop={stop} />
 							</div>
 						</div>
-						<ComposerSend running={running} disabled={empty || disabled} onSend={submit} onStop={onStop} />
+						<ComposerSend running={running} disabled={empty || disabled} onSend={submit} onStop={stop} />
 					</>
 				}
 			/>

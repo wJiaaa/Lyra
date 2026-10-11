@@ -38,6 +38,7 @@ import {
 	abortSession,
 	promptSession,
 	sessions,
+	sideSessionsOf,
 	snapshot,
 	touchSession,
 } from "../session-hub.ts";
@@ -212,12 +213,15 @@ export function registerSessionsIpc({
 	ipcMain.handle(
 		"sessions:move",
 		async (_event, sessionId: string, cwd: string, projectName: string) => {
-			if (sessions.get(sessionId)?.running) return { ok: false as const, reason: "running" as const };
+			// 旁边的侧边聊天也在那个目录里动手，同样要停着才能搬。
+			const sides = await sideSessionsOf([sessionId]);
+			if ([sessionId, ...sides.map((side) => side.id)].some((id) => sessions.get(id)?.running)) return { ok: false as const, reason: "running" as const };
 			await disposeSession(sessionId, "moved");
 			try {
 				// 「从项目中移除」 lands in a directory of its own, the same as a new chat — see `ownWorkspace`.
 				const meta = await store.move(sessionId, await ownWorkspace(cwd), projectName);
 				if (!meta) return { ok: false as const, reason: "gone" as const };
+				for (const side of sides) await store.move(side.id, meta.cwd, meta.projectName);
 				return { ok: true as const, meta };
 			} catch (cause) {
 				return { ok: false as const, reason: "failed" as const, message: cause instanceof Error ? cause.message : String(cause) };
@@ -427,7 +431,7 @@ export function registerSessionsIpc({
 				await live.setThinking(thinking);
 				return;
 			}
-			const meta = (await store.listSessions()).find((s) => s.id === sessionId);
+			const meta = await store.get(sessionId);
 			if (!meta) return;
 			// Present-and-undefined rather than absent; see the note in `Session.setThinking`.
 			const next: SessionMeta = { ...meta, thinking: thinking ?? undefined };

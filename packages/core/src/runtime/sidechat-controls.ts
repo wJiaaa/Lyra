@@ -1,15 +1,15 @@
 import { textResult } from "../agent/tool-run.ts";
 import type { Tool } from "../types.ts";
-import type { AgentSession } from "./session.ts";
+import type { MainSession } from "./side-main.ts";
 
 /**
- * Delegating work without giving the side chat filesystem access.
+ * Handing work to the main session instead of doing it here.
  *
- * It does not touch the workspace — it puts a note in the main session's queue and returns.
- * Everything that could actually change a file happens later, in the main session, under the
- * same approval rules as anything the user typed themselves.
+ * The side chat can change files itself; this is for work that belongs to what the main session
+ * is doing. It puts a note in the main session's queue and returns, and the main session runs it
+ * later under the same approval rules as anything the user typed themselves.
  */
-export function dispatchTaskTool(main: AgentSession): Tool<{ instruction: string }> {
+export function dispatchTaskTool(main: MainSession): Tool<{ instruction: string }> {
 	return {
 		name: "dispatch_task",
 		description:
@@ -52,7 +52,7 @@ export function dispatchTaskTool(main: AgentSession): Tool<{ instruction: string
  * These take effect immediately, because that is what a control is. They cannot change a file, run
  * a command or read anything: the whole surface is stop, carry on, and what is it doing.
  */
-export function controlMainTool(main: AgentSession): Tool<{ action: string; discardPlan?: boolean }> {
+export function controlMainTool(main: MainSession): Tool<{ action: string; discardPlan?: boolean }> {
 	return {
 		name: "control_main",
 		description:

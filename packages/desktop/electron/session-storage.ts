@@ -61,7 +61,7 @@ export function observeSessionStorage(store: SessionStorage, changed: (change: S
 			if (loaded && before && loaded.meta.seq !== before.seq) changed({ id: loaded.meta.id, projectId: loaded.meta.projectId, meta: loaded.meta });
 			return loaded;
 		},
-		listSessions: () => store.listSessions(),
+		listSessions: (...args) => store.listSessions(...args),
 		// Startup maintenance runs before clients connect.
 		pruneEmpty: (...args) => store.pruneEmpty(...args),
 		// Streaming a reply and the settings pages' reads change nothing the sidebar shows.

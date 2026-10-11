@@ -9,7 +9,7 @@
  */
 
 import { join } from "node:path";
-import type { SessionMeta } from "@plume/core";
+import type { Message, SessionMeta } from "@plume/core";
 import type { SessionRecordInput } from "../../core/src/session/types.ts";
 import { SessionStore } from "../../core/src/session/store.ts";
 import { closeSessionDb, sessionDb, transaction } from "../../core/src/session/db.ts";
@@ -84,6 +84,27 @@ function parkIn(home: string, payload: SessionRecordInput): SessionRecordInput {
 		if (previous === undefined) delete process.env.PLUME_HOME;
 		else process.env.PLUME_HOME = previous;
 	}
+}
+
+/**
+ * 一个会话旁边的侧边聊天，照运行时建出来的样子：同一个目录、`parentId` 指回去、自己不定模型。
+ *
+ * 侧边聊天就是一个会话（ADR-0043），种它就是种一个带 `parentId` 的会话；交给 `seedSessions` 一起写。
+ */
+export function sideSession(parent: SessionMeta, messages: Message[], extra: Partial<SessionMeta> = {}): FixtureSession {
+	const first = messages.find((message) => message.role === "user" && !message.synthetic);
+	const title = first?.role === "user" && typeof first.content !== "string" ? (first.content.find((part) => part.type === "text")?.text ?? "") : "";
+	const meta: SessionMeta = {
+		...parent,
+		id: `${parent.id}-side`,
+		title,
+		modelId: "",
+		messageCount: messages.length,
+		parentId: parent.id,
+		sideId: "default",
+		...extra,
+	};
+	return { meta, records: [{ type: "meta", meta, ts: 1 }, ...messages.map((message) => ({ type: "message" as const, message, ts: 1 }))] };
 }
 
 /** Every session in `home`, most recent first — what the sidebar will list. */

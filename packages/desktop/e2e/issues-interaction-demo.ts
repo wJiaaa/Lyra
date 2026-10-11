@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { startApp, closeListeningServer } from "./app.ts";
+import { openPane } from "./drive.ts";
 import { startRecording, encode, type Frame } from "./record.ts";
 import { issueModel, seedIssues } from "./issues-fixture.ts";
 
@@ -29,8 +30,8 @@ async function click(selector: string) {
 	const at = await app.evaluate<{ x: number; y: number }>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
 	for (const type of ["mousePressed", "mouseReleased"]) await app.send("Input.dispatchMouseEvent", { type, ...at, button: "left", clickCount: 1 });
 }
-async function send(text: string) {
-	await click('[data-dock-pane="conversation"] textarea');
+async function send(text: string, pane = "conversation") {
+	await click(`[data-dock-pane="${pane}"] textarea`);
 	await app.send("Input.insertText", { text });
 	await app.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
 	await app.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 });
@@ -103,7 +104,9 @@ try {
 	check("stopped plan is visibly paused", await app.evaluate("document.body.innerText.includes('已暂停')"), await app.evaluate("[...document.querySelectorAll('button')].find(e=>e.textContent.includes('旧目标待取消'))?.textContent"));
 	await shot("paused-plan");
 	model.set("discard");
-	await app.evaluate("window.plume.sideChat.ask('issue-demo','default',[{type:'text',text:'明确取消旧目标，停止并废除旧清单。'}])");
+	// 从侧边聊天面板说这句话：侧边聊天是这个会话旁边的子会话，它调 `control_main` 废掉主会话的旧清单。
+	await openPane(app, "侧边聊天");
+	await send("明确取消旧目标，停止并废除旧清单。", "chat");
 	await until("![...document.querySelectorAll('button')].some(e=>e.textContent.includes('旧目标待取消'))"); await pause();
 	check("side chat cancellation removes stale task card", await app.evaluate("![...document.querySelectorAll('button')].some(e=>e.textContent.includes('旧目标待取消'))"), "no task card");
 	await app.send("Page.reload"); await until("Boolean(document.querySelector('[data-ly-row=issue-demo]'))");

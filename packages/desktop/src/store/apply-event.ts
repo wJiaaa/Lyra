@@ -30,7 +30,7 @@ import { freeze, relight, saveCarried } from "./turn-meter.ts";
  * The rule this bends is `features-through-the-front-door`, and it is bent knowingly: `store/` is
  * below the features rather than beside them, so it is not one domain reaching into another.
  */
-import { useSide } from "../features/dock/sideStore.ts";
+import { sideParentOf, useSide } from "../features/dock/sideStore.ts";
 import { awaitingSubAgents, useSubAgents } from "./subAgents.ts";
 import { outlivingTurn } from "../lib/approval-scope.ts";
 import type { AppState } from "./index.ts";
@@ -287,7 +287,9 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
   if (sessionId !== get().activeSessionId) {
 		// Delegated work of a conversation that is on screen without being the live one.
 		if (event.type === "subagents") useSubAgents.getState().retain(sessionId, event.agents);
-		if (completion) {
+		const aside = sideParentOf(useSide.getState(), sessionId) !== null;
+		// 侧边聊天答完不另报：人就在它旁边那一格里等着，报一声是把同一件事说两遍。
+		if (completion && !aside) {
 			const target = get().sessions.find((session) => session.id === sessionId);
 			const who = target ? translate("applyEvent.named", { title: sessionTitle(target.title) }) : translate("applyEvent.task");
 			get().notify(`${who}${completion.text}`, completion.level, sessionId);
@@ -308,8 +310,9 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       return;
     }
     // A turn driven from elsewhere still has to move the session up the sidebar and
-    // update its title, even though its transcript is not on screen.
-    if (event.type === "agent_end" || event.type === "turn_end") {
+    // update its title, even though its transcript is not on screen. A side chat is not in the
+    // sidebar; what changes about it arrives through `sessions:changed`.
+    if (!aside && (event.type === "agent_end" || event.type === "turn_end")) {
       void bridge.sessions
         .list()
 				.then((sessions) => set({ sessions }))

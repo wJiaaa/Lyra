@@ -1,9 +1,7 @@
 /**
  * 排在输入框上方的一条，长什么样。
  *
- * 单独一个文件、只有类型：主会话的队列（`queue-slice.ts`）和侧边聊天的队列（`features/dock/sideStore.ts`）
- * 是两条队、同一种东西。后者要是去 `queue-slice.ts` 拿这个类型，就经它连回了 `store/index.ts`——
- * 而 `store/index.ts` 本来就引着侧边聊天的 store，`pnpm arch` 当场报一个新的环。连 `import type` 都算。
+ * 单独一个文件、只有类型，`queue-slice.ts` 从这里转出去。侧边聊天也是会话，排的是同一条队（按它自己的会话 id）。
  */
 
 import type { UserContent } from "@plume/core";

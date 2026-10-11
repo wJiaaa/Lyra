@@ -10,6 +10,6 @@ export { MOBILE_METHODS, type MobileMethod, type MobileAccessStatus } from "./mo
 /**
  * 一个会话旁边最早的那个侧边聊天。
  *
- * 侧边栏点开就是它；后开的那些由界面起 id，见主进程的 `sidechat-store.ts`。
+ * 侧边栏点开就是它；后开的那些由界面起 id（`panel-instance.ts`），记在侧边聊天会话的 `sideId` 上。
  */
 export const DEFAULT_SIDE_CHAT_ID = "default";

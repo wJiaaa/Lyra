@@ -6,6 +6,14 @@ type Set = (partial: Partial<AppState> | ((state: AppState) => Partial<AppState>
 /** A committed directory change must reach both the sidebar and the selected conversation. */
 export function applySessionChange(change: SessionChange, set: Set, get: () => AppState): void {
 	const { id, meta } = change;
+	/*
+	 * 侧边聊天会话不进会话列表：它记在它那一格上（`store/index.ts` 收到变化时记过去），面板从缓存里画它。
+	 * 没了的时候走下面那条路就对了：列表里本来没有它，缓存里那份随之删掉。
+	 */
+	if (meta?.parentId) {
+		set((state) => (state.sessionCache[id] ? { sessionCache: { ...state.sessionCache, [id]: { ...state.sessionCache[id], meta } } } : {}));
+		return;
+	}
 	const previous = get().sessions.find((session) => session.id === id);
 	if (meta && previous && meta.seq < previous.seq) return;
 	/*

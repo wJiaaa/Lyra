@@ -1,95 +1,55 @@
 /**
  * The conversation beside the conversation.
  *
- * A scratchpad that can see what the main session is doing but does not write into it. Anything
- * that needs doing gets dispatched to that session's queue instead, which is what `TaskStrip`
- * below the messages reports on.
+ * A session of its own (`SessionMeta.parentId`), so its transcript is drawn by the same
+ * `Conversation` the main column uses — same rows, tool cards, approvals — pointed at it through
+ * `SessionScope`. It can read and change the project like the main session, reads what the main
+ * session is doing before each question, and can hand work to the main session's queue, which is
+ * what `TaskStrip` below the messages reports on.
  *
- * Only the arrangement lives here: a message is `sidechat/MessageRow`, the dispatched work is
- * `sidechat/TaskStrip`, and the field is `sidechat/SideComposer`.
+ * The session behind a panel is created on the first question (`askSide`); until then the panel
+ * shows its empty state. What sits under the transcript — `TaskStrip` and `SideComposer` — stays in
+ * the main session's scope: the queue is the main session's, and 「跟随主会话」 follows it.
  */
 
 import { translate } from "../../i18n/translate.ts";
 import { MessageCirclePlus } from "../../ui/icons/index.ts";
-import type { Message, UserMessage } from "@plume/core";
-import { useEffect, useMemo, useState } from "react";
-import { useSide, sideChatOf } from "../dock/index.ts";
-import { sideInterfaceKey, useSideTarget } from "./target.ts";
-import { BackToLatest, InterfaceHost, spokenText, useAnswering } from "../conversation/index.ts";
+import { useEffect } from "react";
+import { loadSide, sideOf, useSide } from "../dock/index.ts";
+import { useSideTarget } from "./target.ts";
+import { Conversation } from "../conversation/index.ts";
 import { sideIdOfPanel } from "../../lib/panel-instance.ts";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
-import { Scroller } from "../../ui/scroll/Scroller.tsx";
-import { useFollowBottom } from "../../ui/scroll/useFollowBottom.ts";
-import { tailSignature } from "../../ui/scroll/signature.ts";
-import { ThinkingLine } from "../conversation/index.ts";
-import { moodFor, phraseFor } from "../../lib/thinking-words.ts";
-import { MessageRow, rowKey } from "./MessageRow.tsx";
+import { SessionScope } from "../../app/session-scope.tsx";
+import { useApp } from "../../store/index.ts";
 import { SideComposer } from "./SideComposer.tsx";
 import { TaskStrip } from "./TaskStrip.tsx";
 
 export function SideChat() {
 	const { sessionId, sideId } = useSideTarget();
-	const messages = useSide((s) => sideChatOf(s, sessionId, sideId).messages);
-	const running = useSide((s) => sideChatOf(s, sessionId, sideId).running);
-	const loading = useSide((s) => sideChatOf(s, sessionId, sideId).loading);
-	const error = useSide((s) => sideChatOf(s, sessionId, sideId).error);
-	const ask = useSide((s) => s.ask);
-	const abort = useSide((s) => s.abort);
+	const side = useSide((s) => sideOf(s, sessionId, sideId));
 	/*
-	 * 这里的界面块往这个侧边聊天说话。不给的话块里的 `send` 按会话说（`sayFor`）——说进的是主对话：
-	 * 人在侧边点了一下，话出现在另一边。和侧边输入框发出去的走同一条：这一轮还在答、或者队里压着别的，
-	 * 就排进输入框上方那条；否则直接问。
-	 */
-	const host = useMemo(
-		() =>
-			sessionId
-				? {
-						key: sideInterfaceKey(sessionId, sideId),
-						say: (words: string, content: string) => {
-							const side = useSide.getState();
-							const blocks = [{ type: "text" as const, text: content }];
-							const chat = sideChatOf(side, sessionId, sideId);
-							if (chat.running || chat.queued.length > 0) {
-								side.enqueue(sessionId, sideId, { content: blocks, displayText: words, draft: { text: words, attachments: [], sessionRefs: [] }, preview: words });
-								return;
-							}
-							void side.ask(sessionId, sideId, blocks, { displayText: words, attachments: [] });
-						},
-					}
-				: null,
-		[sessionId, sideId],
-	);
-
-	/*
-	 * 这一屏的那份对话，由这个面板自己去拉。
+	 * 这一屏的会话旁边有哪几格、任务队列里有什么，由这个面板自己去拉。
 	 *
 	 * 从前只有 `ChatShell` 拉一次「当前会话」的，于是分屏里另一屏的侧边聊天要么是空的，要么画
-	 * 的是别人的。面板知道自己属于谁，就该自己开口要；`attach` 是幂等的，重复叫不会多拉。
+	 * 的是别人的。面板知道自己属于谁，就该自己开口要；`attach` 重复叫不会出错。
 	 */
 	useEffect(() => {
-		void useSide.getState().attachChat(sessionId, sideId);
-	}, [sessionId, sideId]);
-	// 正文正在流进来，运行行让开。见底下 `SideThinking` 那一处。
-	const answering = useAnswering(messages);
-
+		void useSide.getState().attach(sessionId);
+	}, [sessionId]);
+	const sideSessionId = side?.id ?? null;
+	useEffect(() => {
+		if (side) void loadSide(side);
+		// 换了一个会话才重读；同一个会话的 meta 变了（标题、模型）不用。
+		// oxlint-disable-next-line exhaustive-deps
+	}, [sideSessionId]);
 	/*
-	 * The same rule the main transcript follows, from the same place.
-	 *
-	 * This panel used to keep its own: a lone `pinned` ref, a 60px slack where the conversation had
-	 * 80, no reaction to the panel being resized, and no way back down once you had scrolled up. The
-	 * ref was the worst of it — it never reset, so scrolling up here and then switching the main
-	 * conversation left the incoming session's side chat parked at an offset that belonged to the
-	 * one before it.
+	 * 有话可画才画转录。还没读进来的时候看记录里有没有：有就交给转录画它的加载，没有就是空的那一格。
 	 */
-	/** 正在答的那一条——它末尾那段工具调用亮着，别的都已经是记录了。 */
-	const lastReply = messages.findLastIndex((message) => message.role === "assistant");
-	const follow = useFollowBottom({
-		// 每个侧边聊天各记各的滚动位置：切个标签回来，还停在刚才读到的地方。
-		surfaceId: sessionId ? `${sessionId}:${sideId}` : null,
-		namespace: "sidechat",
-		live: running,
-		count: messages.length,
-		tail: tailSignature(messages, running ? "run" : ""),
+	const said = useApp((s) => {
+		if (!side) return false;
+		const cached = s.sessionCache[side.id];
+		return cached ? cached.messages.length > 0 || cached.state?.running === true : side.messageCount > 0;
 	});
 
 	return (
@@ -100,120 +60,40 @@ export function SideChat() {
 				<PanelEmpty icon={MessageCirclePlus} title={translate("dock.sideChat")}>
 					{translate("sideChat.needSession")}
 				</PanelEmpty>
-			) : loading && messages.length === 0 ? (
-				<div role="status" className="flex flex-1 items-center justify-center text-label text-ink-faint">{translate("sideChat.loading")}</div>
-			) : messages.length === 0 ? (
+			) : side && said ? (
+				<SessionScope.Provider value={side.id}>
+					<Conversation side />
+				</SessionScope.Provider>
+			) : (
 				<PanelEmpty icon={MessageCirclePlus} title={translate("dock.sideChat")}>
 					{translate("sideChat.empty")}
 				</PanelEmpty>
-			) : (
-				<div className="relative flex min-h-0 flex-1 flex-col">
-				<Scroller
-					className="flex-1"
-					scrollRef={follow.scrollRef}
-					contentClassName="ly-content-gutter"
-					onScroll={follow.onScroll}
-					onResize={follow.onResize}
-					onUserScroll={follow.onUserScroll}
-				>
-					{/*
-					 * Capped and centred, exactly as the main transcript is.
-					 *
-					 * At panel width this changes nothing. Full screen it is the difference between
-					 * a conversation and a wall of text a metre wide — prose stops being readable
-					 * somewhere around 90 characters, and the panel is over twice that when it
-					 * takes the whole column.
-					 */}
-					{/* Bottom padding leaves 「回到最新」 somewhere to float that is not the newest reply. */}
-					<div className="mx-auto flex w-full max-w-[var(--ly-content)] flex-col gap-2.5 pt-3 pb-[var(--ly-bottom-inset)]">
-						<InterfaceHost.Provider value={host}>
-							{messages.map((message, index) => (
-								<MessageRow key={rowKey(message, index)} message={message} index={index} live={running && index === lastReply} />
-							))}
-						</InterfaceHost.Provider>
-						{/*
-						 * The same line the main transcript shows while it waits, minus the meter.
-						 *
-						 * Both conversations are waiting on a model and should say so the same way; a
-						 * spinner and the words 「思考中…」 next to the main transcript's orb and phrase
-						 * made the panel read as a different application. Elapsed time and tokens are
-						 * the main session's to report — this one has nothing to count.
-						 */}
-						{/*
-						 * 一整轮都挂着，只在正文流进来时让开——和主转录同一个判据（`useAnswering`）。
-						 *
-						 * 从前是「最后一条回复里有工具调用就收起」：参数流式、工具在跑的那几秒里它整行消失，
-						 * 跑完再淡入回来，一轮里来回几十次，每次都把底下推上推下。
-						 */}
-						{running && !answering && <SideThinking messages={messages} />}
-						{/* The end of it, so that having seen the newest reply is a fact rather than a
-						    guess made from how far down you are. See `useFollowBottom`. */}
-						<div ref={follow.tailRef} aria-hidden className="h-px w-full shrink-0" />
-					</div>
-				</Scroller>
-				{/*
-				 * The way back, which this panel never had.
-				 *
-				 * It streams like the main transcript does, so scrolling up to read something while a
-				 * reply is arriving leaves you with no route back to it but dragging — and "back" keeps
-				 * moving while the reply is still being written.
-				 */}
-				<BackToLatest show={follow.away} unread={follow.unread} onClick={follow.returnToBottom} />
-				</div>
 			)}
 
 			<TaskStrip />
-			{error && <p role="alert" className="ly-content-gutter py-2 text-label text-danger">{error}</p>}
-
-			<SideComposer
-				running={running}
-				disabled={!sessionId || loading}
-				onSend={(content, meta) => void ask(sessionId, sideId, content, meta)}
-				onStop={() => void abort(sessionId, sideId)}
-			/>
+			<SideComposer side={side} disabled={!sessionId} />
 		</div>
 	);
 }
 
 /**
- * The side chat's own "working" line.
- *
- * Its own component so the phrase can advance on a timer without re-rendering the whole panel on
- * every tick — the transcript above it can be long, and a list that repaints four times a second
- * while the model thinks is the kind of thing that makes a window feel heavy.
- *
- * The mood is read off what is actually on screen, the same way `RunningIndicator` reads it: a
- * `text` block still arriving means composing, anything else means thinking.
- */
-function SideThinking({ messages }: { messages: Message[] }) {
-	const [tick, setTick] = useState(0);
-	useEffect(() => {
-		const id = setInterval(() => setTick((t) => t + 1), 2600);
-		return () => clearInterval(id);
-	}, []);
-
-	const last = messages[messages.length - 1];
-	const writing =
-		last?.role === "assistant" && last.content.some((block) => block.type === "text" && block.text.length > 0);
-	const mood = moodFor(undefined, undefined, false, writing);
-	return <ThinkingLine mood={mood} phrase={phraseFor(mood, tick, 0)} />;
-}
-
-/**
  * 侧边聊天那个标签上写什么：它问的第一句话，还没开口的写「侧边聊天」。
  *
- * 一个会话旁边开了好几个时，一排「侧边聊天」分不出谁是谁。见 `PanelDefinition.tabTitle`；`scope`
- * 就是这一屏的会话 id。
+ * 一个会话旁边开了好几个时，一排「侧边聊天」分不出谁是谁。标题是会话自己的（第一次提问时由运行时
+ * 取那句话的第一行，见 core `AgentSession.nameAfterQuestion`）。见 `PanelDefinition.tabTitle`；
+ * `scope` 就是这一屏的会话 id。
  */
 export function SideChatTitle({ scope, kind, fallback }: { scope: string; kind: string; fallback: string }) {
 	const sideId = sideIdOfPanel(kind) ?? "";
-	const first = useSide((s) => sideChatOf(s, scope, sideId).messages.find((message): message is UserMessage => message.role === "user"));
-	const title = first ? spokenText(first).split("\n")[0]?.trim() : "";
+	const id = useSide((s) => sideOf(s, scope, sideId)?.id ?? null);
+	const listed = useSide((s) => sideOf(s, scope, sideId)?.title ?? "");
+	// 缓存里那份跟着 `title` 事件走，比列表里那份先到。
+	const title = useApp((s) => (id ? s.sessionCache[id]?.meta.title : undefined)) ?? listed;
 	return title ? <span className="max-w-40 truncate" data-ly-tip={title}>{title}</span> : <>{fallback}</>;
 }
 
 /**
- * 关掉一个侧边聊天：停下、存档一起删，最早那一个也一样。
+ * 关掉一个侧边聊天：停下，会话连同记录一起删，最早那一个也一样。
  *
  * 关掉就是不要了。从前最早那一个关掉只算收起，重开还是上一段，于是要清空只能找面板上那颗「重置」，
  * 而「关掉又打开，旧的还在」本身就被当成了毛病。

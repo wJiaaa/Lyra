@@ -1,8 +1,8 @@
 /**
  * What the side chat has handed over, and where it got to.
  *
- * The side chat cannot act on the project itself, so anything that needs doing is dispatched to the
- * main session's queue. This is the receipt for that — one line per task, in a panel two hundred
+ * Work that belongs to what the main session is doing is dispatched to its queue rather than done
+ * here. This is the receipt for that — one line per task, in a panel two hundred
  * pixels wide, which is the constraint that decides everything below.
  *
  * No fill, no border, no expander. It had all three: a rule above it, a tinted background, a
@@ -144,7 +144,8 @@ function TaskRow({ task }: { task: QueuedTask }) {
 							label={t("taskStrip.runNow")}
 							onClick={() => {
 								void cancelTask(sessionId, task.id);
-								void send([{ type: "text", text: task.text }]);
+								// 交给派活的那个会话，不是窗口里正看着的那个——分屏时两者不是同一个。
+								void send([{ type: "text", text: task.text }], { sessionId: sessionId ?? undefined });
 							}}
 							icon={<Play size={11} strokeWidth={2} />}
 						/>

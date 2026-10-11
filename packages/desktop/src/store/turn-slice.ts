@@ -8,7 +8,7 @@
 
 import { translate } from "../i18n/translate.ts";
 import type { ApprovalDecision, Message, MessageAttachment, ThinkingLevel, UserContent, UserMessage } from "@plume/core";
-import { prune, todosFrom, without } from "./derive.ts";
+import { prune, rebuildToolRuns, todosFrom, without } from "./derive.ts";
 import { howItStopped } from "./turn-stop.ts";
 import { loadCarried, meterFor, saveCarried } from "./turn-meter.ts";
 import type { AppState } from "./index.ts";
@@ -39,6 +39,48 @@ export function turnSlice(set: Set, get: Get) {
 		await get().openSession(meta);
 		// Another conversation was opened while this one was being read: that is the newer choice.
 		return get().activeSessionId === sessionId;
+	};
+	/** 侧边聊天会话：只活在缓存里，从不上台。 */
+	const aside = (sessionId: string | undefined): sessionId is string => Boolean(sessionId && get().sessionCache[sessionId]?.meta.parentId);
+	/*
+	 * 侧边聊天里的编辑重问，就地改它在缓存里的那份。
+	 *
+	 * 主对话的那条路先把会话请上台（`onStage`），而侧边聊天不在会话列表里，请不上去；硬请上去，主列就
+	 * 换成了侧边聊天。它的转录本来就在缓存里画，规矩和主对话那条一样：先剪掉、再发，没被接住就放回去。
+	 */
+	const editAside = async (sessionId: string, index: number, content: UserContent[], meta: { displayText?: string; attachments?: MessageAttachment[] }) => {
+		const cached = get().sessionCache[sessionId];
+		if (!cached || cached.state?.running) return;
+		const before = { cached, activity: get().activity[sessionId] };
+		const kept = cached.messages.slice(0, index);
+		const pending: Message = {
+			role: "user",
+			content,
+			timestamp: Date.now(),
+			...(meta.displayText !== undefined ? { displayText: meta.displayText } : {}),
+			...(meta.attachments?.length ? { attachments: meta.attachments } : {}),
+		};
+		set({
+			sessionCache: { ...get().sessionCache, [sessionId]: {
+				...cached,
+				messages: [...kept, pending],
+				toolRuns: rebuildToolRuns(kept),
+				...(cached.state ? { state: { ...cached.state, running: true, stopped: null, todos: todosFrom(kept), approvals: outlivingTurn(cached.state.approvals), pendingUserMessage: { sessionId, message: pending } } } : {}),
+			} },
+			activity: { ...get().activity, [sessionId]: "running" },
+			turns: { ...get().turns, [sessionId]: { startedAt: Date.now(), tokens: 0 } },
+		});
+		try {
+			await bridge.agent.editMessage(sessionId, index, content, meta);
+		} catch (cause) {
+			if (get().sessionCache[sessionId]?.messages.includes(pending)) {
+				const activity = { ...get().activity };
+				if (before.activity) activity[sessionId] = before.activity;
+				else delete activity[sessionId];
+				set({ sessionCache: { ...get().sessionCache, [sessionId]: before.cached }, activity, turns: without(get().turns, sessionId) });
+			}
+			get().notify(translate("turn.resendFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
+		}
 	};
 	return {
 	async send(content: UserContent[], options: { synthetic?: boolean; carryOn?: boolean; deliver?: "steer" | "followUp" | "interrupt"; displayText?: string; skillRef?: { name: string; path?: string; pluginId?: string }; sessionRefs?: Array<{ id: string; title: string }>; attachments?: MessageAttachment[]; sessionId?: string | null } = {}) {
@@ -233,9 +275,10 @@ export function turnSlice(set: Set, get: Get) {
    * for the same reason it does when the wording changes.
    */
   async retryFrom(index: number, sessionId?: string) {
+    const side = aside(sessionId);
     // A conversation on another screen is brought on stage first; see `onStage`.
-    if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
-    const messages = get().messages;
+    if (!side && sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
+    const messages = side ? get().sessionCache[sessionId]!.messages : get().messages;
     for (let i = Math.min(index, messages.length - 1); i >= 0; i--) {
       const message = messages[i];
       if (message.role === "user" && !message.synthetic) {
@@ -243,7 +286,7 @@ export function turnSlice(set: Set, get: Get) {
         await get().editMessage(i, message.content, {
           ...(message.displayText !== undefined ? { displayText: message.displayText } : {}),
           ...(message.attachments?.length ? { attachments: message.attachments } : {}),
-        });
+        }, side ? sessionId : undefined);
         return;
       }
     }
@@ -255,6 +298,7 @@ export function turnSlice(set: Set, get: Get) {
     meta: { displayText?: string; attachments?: MessageAttachment[] } = {},
     target?: string,
   ) {
+    if (aside(target)) return editAside(target, index, content, meta);
     // A conversation on another screen is brought on stage first; see `onStage`.
     if (target && target !== get().activeSessionId && !(await onStage(target))) return;
     const sessionId = get().activeSessionId;

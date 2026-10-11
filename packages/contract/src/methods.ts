@@ -117,13 +117,8 @@ export const METHODS = {
 		dismiss: { channel: "subagents:dismiss" },
 	},
 	sideChat: {
-		/* 这个会话有存档的侧边聊天，按开出来的先后——环境卡片要把没挂在面板上的也列出来。 */
 		list: { channel: "sidechat:list" },
-		setModel: { channel: "sidechat:setModel" },
-		state: { channel: "sidechat:state" },
-		ask: { channel: "sidechat:ask" },
-		editAndResend: { channel: "sidechat:editAndResend" },
-		abort: { channel: "sidechat:abort" },
+		open: { channel: "sidechat:open" },
 		close: { channel: "sidechat:close" },
 	},
 	tasks: {

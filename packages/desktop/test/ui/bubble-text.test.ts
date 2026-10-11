@@ -3,9 +3,9 @@
  *
  * 两件事在这里钉住：
  *
- * 一、**主会话和侧边聊天画的是同一件东西**。侧边聊天从前把所有文本块拼起来直接摊开，于是
- *    `### Attached file: image.png` 这种写给模型的记号原样出现在人眼前，而同一条消息在主会话
- *    里画的是一枚胶囊。现在两边都先看 `displayText`。
+ * 一、**气泡画的是人打的那句话**。`### Attached file: image.png` 这种写给模型的记号不该出现在人眼前
+ *    ——侧边聊天从前就这样摊开过。现在侧边聊天也是会话，和主会话用同一个 `UserMessage`，都先看
+ *    `displayText`。
  *
  * 二、**markdown 走不走，看有没有附件标记**。没有标记就整段交给 markdown（`# 需求1` 是标题，
  *    不是一行井号）；有标记就保持行内，否则块级的 markdown 会把一句话切成三行。
@@ -14,7 +14,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement as h } from "react";
-import { MessageRow } from "../../src/features/sidechat/MessageRow.tsx";
 import { UserMessage } from "../../src/features/conversation/UserMessage.tsx";
 import { mount } from "../helpers/mount.ts";
 
@@ -48,7 +47,7 @@ test("带附件标记的那一句保持行内，不被 markdown 切成几行", a
 	} finally { await view.unmount(); }
 });
 
-test("侧边聊天画的是人打的那句话，不是展开给模型的那一串", async () => {
+test("气泡画的是人打的那句话，不是展开给模型的那一串", async () => {
 	/*
 	 * `content` 是送给模型的：附件正文被展开进去，带着 `### Attached file:` 的标题。
 	 * `displayText` 是同一条消息里人实际打的字。气泡要画后者。
@@ -63,7 +62,7 @@ test("侧边聊天画的是人打的那句话，不是展开给模型的那一�
 		attachments: [{ name: "image.png", label: "图片 1", kind: "image" }],
 		timestamp: 0,
 	};
-	const view = await mount(h(MessageRow, { index: 0, message }));
+	const view = await mount(h(UserMessage, { index: 0, message }));
 	try {
 		const bubble = view.find(".ly-user-bubble");
 		const shown = bubble.textContent ?? "";
@@ -74,13 +73,13 @@ test("侧边聊天画的是人打的那句话，不是展开给模型的那一�
 });
 
 test("老消息没有 displayText 时，仍然照原来的拼法画出来", async () => {
-	// 升级之前发的侧边聊天消息没有这两个字段——少一枚胶囊，好过整条消息不见。
+	// 早先发的消息没有这两个字段——少一枚胶囊，好过整条消息不见。
 	const message = {
 		role: "user" as const,
 		content: [{ type: "text" as const, text: "一条老消息" }],
 		timestamp: 0,
 	};
-	const view = await mount(h(MessageRow, { index: 0, message }));
+	const view = await mount(h(UserMessage, { index: 0, message }));
 	try {
 		assert.ok((view.find(".ly-user-bubble").textContent ?? "").includes("一条老消息"));
 	} finally { await view.unmount(); }

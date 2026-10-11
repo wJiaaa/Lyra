@@ -17,21 +17,12 @@
  * If drawing throws anyway, the block falls back to its source as code — the reply stays readable.
  */
 
-import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { initialState, parseBlock } from "@plume/core/ui-language";
 import { useScopedSessionId } from "../../../app/session-scope.tsx";
 import { sayFor } from "../../../store/say.ts";
 import { recall, remember, stateKey, type BlockState } from "./interface-state.ts";
 import { renderNodes, type Scope } from "./render.tsx";
-
-/**
- * Where the blocks in a transcript other than a session's own speak, and keep their state.
- *
- * Without it a block's `send` says its words in the session (`sayFor`) — which, for a block in a side
- * chat, is the main conversation: the reader pressed a button beside one chat and the words turned up
- * in the other. `key` keeps a side chat's blocks apart from the main one's under the same source.
- */
-export const InterfaceHost = createContext<{ key: string; say: (words: string, content: string) => void } | null>(null);
 
 function same(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
 	const keys = Object.keys(a);
@@ -90,10 +81,9 @@ function Growing({ active, children }: { active: boolean; children: ReactNode })
 
 export function InterfaceBlock({ source, writing, fallback }: { source: string; writing: boolean; fallback: ReactNode }) {
 	const sessionId = useScopedSessionId();
-	const host = useContext(InterfaceHost);
 	const parsed = useMemo(() => parseBlock(source), [source]);
 	const initial = useMemo(() => initialState(parsed.nodes), [parsed]);
-	const key = stateKey(host?.key ?? sessionId, source);
+	const key = stateKey(sessionId, source);
 	// Only a finished block has a key worth remembering under: while it is written the text changes every frame.
 	const fresh = (): BlockState & { key: string } => ({ key, ...(writing ? { values: {} } : recall(key)) });
 	const [own, setOwn] = useState(fresh);
@@ -108,8 +98,7 @@ export function InterfaceBlock({ source, writing, fallback }: { source: string; 
 		depth: 0,
 		set: (next) => setOwn((was) => ({ ...was, values: { ...was.values, ...next } })),
 		send: (words) => {
-			if (host) host.say(words, spoken(words, values));
-			else if (sessionId) sayFor(sessionId, words, spoken(words, values));
+			if (sessionId) sayFor(sessionId, words, spoken(words, values));
 			else return;
 			setOwn((was) => ({ ...was, sent: { words, values } }));
 		},

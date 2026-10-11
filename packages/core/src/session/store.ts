@@ -120,7 +120,7 @@ export class SessionStore implements SessionStorage {
 		return row ? (JSON.parse(row.meta) as SessionMeta) : null;
 	}
 
-	async create(cwd: string, modelId: string, title = "New session", options: Pick<SessionMeta, "thinking"> = {}): Promise<SessionMeta> {
+	async create(cwd: string, modelId: string, title = "New session", options: Pick<SessionMeta, "thinking" | "parentId" | "sideId"> = {}): Promise<SessionMeta> {
 		// One reading of the clock for the whole creation, so `createdAt`, `updatedAt` and the first record agree.
 		const now = Date.now();
 		const meta: SessionMeta = {
@@ -133,6 +133,7 @@ export class SessionStore implements SessionStorage {
 			updatedAt: now,
 			modelId,
 			...(options.thinking ? { thinking: options.thinking } : {}),
+			...(options.parentId ? { parentId: options.parentId, sideId: options.sideId } : {}),
 			messageCount: 0,
 			usage: emptyUsage(),
 			turns: 0,
@@ -215,9 +216,14 @@ export class SessionStore implements SessionStorage {
 		return this.metaOf(sessionId);
 	}
 
-	async listSessions(): Promise<SessionMeta[]> {
+	/**
+	 * 侧边聊天默认不在其中：它们是别的会话的一部分，不是一段可以单独翻出来的对话。会话列表、
+	 * `session://`、记忆整理、按日期清理都不该看到它们；要连它们一起的（窗口按 id 找会话）明说。
+	 */
+	async listSessions(options: { children?: boolean } = {}): Promise<SessionMeta[]> {
 		const rows = this.db.prepare("SELECT meta FROM sessions ORDER BY updated_at DESC").all() as { meta: string }[];
-		return rows.map((row) => this.withStats(JSON.parse(row.meta) as SessionMeta));
+		const metas = rows.map((row) => JSON.parse(row.meta) as SessionMeta);
+		return (options.children ? metas : metas.filter((meta) => !meta.parentId)).map((meta) => this.withStats(meta));
 	}
 
 	/**
@@ -387,9 +393,13 @@ export class SessionStore implements SessionStorage {
 	 * Space is handed back to the file system straight after. Without it SQLite only marks the pages
 	 * free, and "clear a range" would free nothing anyone could see.
 	 */
-	async deleteMany(sessionIds: string[]): Promise<void> {
-		if (sessionIds.length === 0) return;
+	async deleteMany(requested: string[]): Promise<void> {
+		if (requested.length === 0) return;
 		const db = this.db;
+		// 侧边聊天跟着父会话走：父会话没了，挂在它旁边的那几段也就没有了归属。
+		const sessionIds = [...requested, ...(db.prepare("SELECT id, json_extract(meta, '$.parentId') AS parent FROM sessions WHERE json_extract(meta, '$.parentId') IS NOT NULL").all() as { id: string; parent: string }[])
+			.filter((row) => requested.includes(row.parent) && !requested.includes(row.id))
+			.map((row) => row.id)];
 		const { streams, orphans } = transaction(db, () => {
 			const tokens = db.prepare("SELECT token FROM partials WHERE session_id = ?");
 			const media = db.prepare(`SELECT body FROM records WHERE session_id = ? AND ${MAY_HOLD_MEDIA}`);

@@ -70,6 +70,28 @@ function stashInCache(
 	});
 }
 
+const sideReads = new Set<string>();
+
+/**
+ * 侧边聊天会话读进缓存，面板从那里画。
+ *
+ * 不走 `readSelectedSession`：那条路一次只读一个，读的过程中又点了别的会话，排着的那一个会被换掉——
+ * 侧边聊天就再也读不到，面板一直停在加载上。它也从不是当前会话，用不着那条路上管当前会话的那些事。
+ * 读的过程中到的事件照样先攒着，读完叠上去，正在答的那一段不会丢。
+ */
+export async function readSideSession(meta: SessionMeta, set: Set, get: Get): Promise<void> {
+	if (sideReads.has(meta.id)) return;
+	sideReads.add(meta.id);
+	const events = beginSessionRead(meta.id);
+	try {
+		const snapshot = await bridge.sessions.transcript(meta.id);
+		if (snapshot) stashInCache(meta, snapshot, events, set, get);
+	} finally {
+		endSessionRead(meta.id);
+		sideReads.delete(meta.id);
+	}
+}
+
 export async function readSelectedSession(meta: SessionMeta, set: Set, get: Get, resync = false, options: SessionReadOptions = {}): Promise<void> {
 	const cacheOnly = options.cacheOnly === true;
 	const cached = get().sessionCache[meta.id];

@@ -2,9 +2,9 @@
 /**
  * 在侧边栏里删掉一个会话，它写在项目外的东西是不是跟着走了，别人还在用的那张图是不是还在。
  *
- * 两个会话共用一张图（按内容寻址，盘上只有一份），要删的那个另有一张只有它用的图、一份侧边聊天
- * 存档、一个预览目录、一个草稿目录。另外放三样启动时该被补扫掉的：会话已经不在的侧边聊天目录、
- * 原图已经不在的缩略图、目录已经不在的符号索引。
+ * 两个会话共用一张图（按内容寻址，盘上只有一份），要删的那个另有一张只有它用的图、一个侧边聊天
+ * 会话、一个预览目录、一个草稿目录。另外放两样启动时该被补扫掉的：原图已经不在的缩略图、目录已经
+ * 不在的符号索引。
  *
  * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/session-cleanup-demo.ts`
@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { persistSessionImage, type SessionMeta } from "@plume/core";
 
 import { startApp, type RunningApp } from "./app.ts";
-import { seedSessions } from "./session-fixture.ts";
+import { seedSessions, sideSession } from "./session-fixture.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume删会话清理测试");
@@ -48,16 +48,16 @@ function session(id: string, title: string, images: string[], updatedAt: number)
 }
 
 await mkdir(cwd, { recursive: true });
-seedSessions(home, [session("doomed", "要删的会话", [unique, shared], 3), session("kept", "留下的会话", [shared], 2)]);
-const doomedLeft = [join(home, "sidechats", "doomed"), join(home, "previews", "doomed"), join(home, "scratch", "doomed")];
+const doomed = session("doomed", "要删的会话", [unique, shared], 3);
+const kept = session("kept", "留下的会话", [shared], 2);
+const asked = (text: string) => [{ role: "user" as const, content: [{ type: "text" as const, text }], timestamp: 1 }];
+// 侧边聊天是挂在会话旁边的会话（ADR-0043）：删会话要连它一起删，别的会话旁边那个不碰。
+seedSessions(home, [doomed, kept, sideSession(doomed.meta, asked("侧边问一句")), sideSession(kept.meta, asked("留下的侧边问一句"))]);
+const doomedLeft = [join(home, "previews", "doomed"), join(home, "scratch", "doomed")];
 for (const dir of doomedLeft) await mkdir(dir, { recursive: true });
-await writeFile(join(home, "sidechats", "doomed", "default.json"), JSON.stringify({ messages: [{ role: "user", content: [{ type: "text", text: "侧边问一句" }], timestamp: 1 }] }));
 await writeFile(join(home, "previews", "doomed", "index.html"), "<!doctype html>");
 await writeFile(join(home, "scratch", "doomed", "sample.csv"), "a,b\n");
-await mkdir(join(home, "sidechats", "kept"), { recursive: true });
-await writeFile(join(home, "sidechats", "kept", "default.json"), JSON.stringify({ messages: [] }));
-// Startup sweep: a side chat folder with no session, a thumbnail with no source, an index of a directory that is gone.
-await mkdir(join(home, "sidechats", "ghost"), { recursive: true });
+// Startup sweep: a thumbnail with no source, an index of a directory that is gone.
 await mkdir(join(home, "session-media", "thumbs"), { recursive: true });
 await writeFile(join(home, "session-media", "thumbs", `${"c".repeat(40)}.128.png`), "x");
 await mkdir(join(home, "index"), { recursive: true });
@@ -82,6 +82,7 @@ try {
 	app = running;
 	stopRecording = await startRecording(PORT, frames);
 	await running.evaluate("document.fonts.ready");
+	const sides = (id: string) => running.evaluate<string[]>(`window.plume.sideChat.list(${JSON.stringify(id)}).then((list)=>list.map((meta)=>meta.id))`);
 	const until = async (expression: string, ms = 20_000) => {
 		for (let i = 0; i < ms / 100; i++) {
 			if (await running.evaluate(`Boolean(${expression})`)) return;
@@ -112,17 +113,15 @@ try {
 	await until(`document.querySelector('[data-ly-row="doomed"]')`);
 	// The startup sweep runs in the background right after launch.
 	await pause(1500);
-	check("启动补扫：没有会话的侧边聊天目录被删", !(await exists(join(home, "sidechats", "ghost"))), { ghost: await exists(join(home, "sidechats", "ghost")) });
 	check("启动补扫：原图不在的缩略图被删", (await readdir(join(home, "session-media", "thumbs"))).length === 0, await readdir(join(home, "session-media", "thumbs")));
 	check("启动补扫：目录不在的符号索引被删，目录还在的留下", JSON.stringify((await readdir(join(home, "index"))).sort()) === JSON.stringify(["1111111111111111.json"]), await readdir(join(home, "index")));
-	check("还在的会话的侧边聊天没被补扫碰", await exists(join(home, "sidechats", "kept", "default.json")), {});
 
 	await press(await center('[data-ly-row="doomed"]'));
 	await until(`[...document.querySelectorAll('main img')].filter((img)=>img.checkVisibility()).length >= 2`);
 	await pause(1200);
 	await shot("01_删除前_要删的会话里两张图");
-	const before = { media: (await readdir(join(home, "session-media"))).filter((name) => name.endsWith(".png")).sort(), left: await Promise.all(doomedLeft.map(exists)) };
-	check("删除前：两张图、侧边聊天、预览、草稿都在", before.media.length === 2 && before.left.every(Boolean), before);
+	const before = { media: (await readdir(join(home, "session-media"))).filter((name) => name.endsWith(".png")).sort(), left: await Promise.all(doomedLeft.map(exists)), sides: await sides("doomed") };
+	check("删除前：两张图、侧边聊天会话、预览、草稿都在", before.media.length === 2 && before.left.every(Boolean) && before.sides.length === 1, before);
 
 	// Only an archived session can be deleted: archive it from the sidebar, then delete it on the archive page.
 	await press(await center('[data-ly-row="doomed"]'), "right");
@@ -152,8 +151,10 @@ try {
 	check("只有它用的那张图跟着删了", !media.includes(unique), { unique: digest(unique).slice(0, 8), media: media.map((name) => digest(name).slice(0, 8)) });
 	check("另一个会话还在用的那张留下", media.includes(shared), { shared: digest(shared).slice(0, 8) });
 	const left = Object.fromEntries(await Promise.all(doomedLeft.map(async (dir) => [dir.slice(home.length + 1), await exists(dir)])));
-	check("侧边聊天、预览、草稿目录都没了", Object.values(left).every((present) => !present), left);
-	check("留下的会话的侧边聊天还在", await exists(join(home, "sidechats", "kept", "default.json")), {});
+	check("预览、草稿目录都没了", Object.values(left).every((present) => !present), left);
+	const transcript = await running.evaluate<unknown>(`window.plume.sessions.transcript("doomed-side").then((snapshot)=>snapshot?.meta?.id ?? null, (error)=>String(error))`);
+	check("它的侧边聊天会话跟着删了", (await sides("doomed")).length === 0 && transcript === null, { list: await sides("doomed"), transcript });
+	check("留下的会话的侧边聊天会话还在", JSON.stringify(await sides("kept")) === JSON.stringify(["kept-side"]), await sides("kept"));
 
 	await press(await center('[data-ly-row="kept"]'));
 	await until(`[...document.querySelectorAll('main img')].some((img)=>img.checkVisibility()&&img.complete&&img.naturalWidth>0)`);

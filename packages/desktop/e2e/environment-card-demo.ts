@@ -21,7 +21,7 @@ import { crc32, deflateSync } from "node:zlib";
 
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { click, frames, openSession, openSettings, until } from "./drive.ts";
-import { seedSessions, type FixtureRecord } from "./session-fixture.ts";
+import { seedSessions, sideSession, type FixtureRecord } from "./session-fixture.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume环境面板测试");
@@ -174,16 +174,12 @@ async function seed(home: string, modelPort: number): Promise<void> {
 	const meta = { id: SESSION, title: "登录页改版", cwd, projectId, projectName: "登录页改版", createdAt: base, updatedAt: clock, modelId: "qa/model", messageCount: messages.length, usage, seq: 0 };
 	records.push({ type: "meta", meta, seq: 0, ts: base } as FixtureRecord);
 	for (const message of messages) records.push({ type: "message", message, ts: (message as { timestamp: number }).timestamp } as FixtureRecord);
-	seedSessions(home, [{ meta: meta as never, records }]);
-
-	// 一段侧边聊天的存档：卡片要先问主进程有哪几段，再把没挂出来的拉过来写标题。
-	await mkdir(join(home, "sidechats", SESSION), { recursive: true });
-	await writeFile(join(home, "sidechats", SESSION, "default.json"), JSON.stringify({
-		messages: [
-			{ role: "user", content: [{ type: "text", text: "第三方登录按钮放上面还是下面？" }], timestamp: base + 30 * 60_000 },
-			{ role: "assistant", content: [{ type: "text", text: "放在表单下面，和设计稿一致。" }], api: "anthropic-messages", provider: "qa", model: "model", usage, stopReason: "stop", timestamp: base + 31 * 60_000 },
-		],
-	}));
+	// 一段侧边聊天：它是挂在这个会话旁边的一个会话。卡片先问主进程这个会话旁边有哪几段，再写标题。
+	const side = sideSession(meta as never, [
+		{ role: "user", content: [{ type: "text", text: "第三方登录按钮放上面还是下面？" }], timestamp: base + 30 * 60_000 },
+		{ role: "assistant", content: [{ type: "text", text: "放在表单下面，和设计稿一致。" }], api: "anthropic-messages", provider: "qa", model: "model", usage, stopReason: "stop", timestamp: base + 31 * 60_000 },
+	] as never, { createdAt: base + 30 * 60_000, updatedAt: base + 31 * 60_000 });
+	seedSessions(home, [{ meta: meta as never, records }, side]);
 
 	const model = (id: string, name: string) => ({ id: `qa/${id}`, providerId: "qa", modelId: id, name, contextWindow: 128000, maxOutputTokens: 4096, supportsImages: true, supportsTools: true, supportsThinking: false });
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900, x: 40, y: 40 }));
@@ -340,7 +336,7 @@ try {
 	const narrow = await $<{ column: number; docked: boolean }>(`(()=>{const c=document.querySelector("[data-ly-environment]");const styled=[...document.querySelectorAll("main [style]")].some((e)=>e.style.marginRight==="324px");return {column:document.querySelector('[data-ly-chat-surface="conversation"]').clientWidth,docked:styled};})()`);
 	check("对话列不够宽（< 844px）时不让位，卡片浮在对话上", narrow.column >= 844 ? narrow.docked : !narrow.docked, narrow);
 
-	// 7. 侧边聊天：存档里的那一段列出来，标题是它问的第一句；点了在右侧打开
+	// 7. 侧边聊天：这个会话旁边的那一段列出来，标题是它问的第一句；点了在右侧打开
 	const side = await $<string>(`document.querySelector("[data-ly-environment-side-chat]")?.innerText.replace(/\\s+/g," ").trim() ?? ""`);
 	check("侧边聊天一行，写着它问的那句话", side.startsWith("第三方登录按钮放上面还是下面？"), side);
 	await click(page, "[data-ly-environment-side-chat]");

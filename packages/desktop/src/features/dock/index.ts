@@ -9,7 +9,8 @@
  * 面板只属于会话：每一屏一个 `DockView`，布局都在 `usePaneDock` 里按会话存。窗口本身没有面板。
  */
 
-export { useSide, sideChatOf, sideTasksOf } from "./sideStore.ts";
+export { useSide, sideKey, sideOf, sideTasksOf } from "./sideStore.ts";
+export { askSide, loadSide, setSideModel, setSideThinking } from "./side-ask.ts";
 export { closeNow, closePane, emptyDockTree, usePaneDock } from "./pane-store.ts";
 export { DockView, startInset } from "./DockView.tsx";
 export type { ScreenInsets } from "./DockView.tsx";

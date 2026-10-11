@@ -37,7 +37,6 @@
 	"electron/screenshot.ts": 1,
 	"electron/service-listeners.ts": 3,
 	"electron/session-hub.ts": 4,
-	"electron/side-chat-service.ts": 1,
 	"electron/trajectory-export.ts": 7,
 	"electron/tray-menu.ts": 1,
 	"electron/turn-delivery.ts": 4

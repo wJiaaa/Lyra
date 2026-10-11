@@ -1,144 +1,36 @@
-/** Side-chat operations behind the Electron IPC handlers. */
-
-import { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatEvent, type UserContent } from "@plume/core";
-import { settings } from "./app-settings.ts";
-import { broadcastSideChat, ensureLiveSession, holdForSideChat, installSideChat, liveSideChat, sessions, sideChats } from "./session-hub.ts";
-import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
-import { isSideId, loadSideChatSnapshot, saveSideChatTranscript, saveSideChat } from "./sidechat-store.ts";
-
-const opening = new Map<string, Promise<SideChat | null>>();
 /**
- * 关掉了的实例。中止的那一轮还会收个尾（`agent_end: aborted` 之类），而最早那一个侧边聊天关掉再开
- * 用的是同一个 id——这些尾巴不能落进重新开的那一段里。
- */
-const retired = new WeakSet<SideChat>();
-
-function reportError(sessionId: string, sideId: string, error: unknown): void {
-	const message = error instanceof Error ? error.message : String(error);
-	broadcastSideChat(sessionId, sideId, { type: "notice", level: "error", message });
-	broadcastSideChat(sessionId, sideId, { type: "agent_end", reason: "error", error: message });
-}
-
-function checkSideId(sideId: string): void {
-	if (!isSideId(sideId)) throw new Error("Invalid side-chat id");
-}
-
-async function ensureSideChat(sessionId: string, sideId: string): Promise<SideChat | null> {
-	checkSideId(sideId);
-	const existing = liveSideChat(sessionId, sideId);
-	if (existing) {
-		existing.updateSettings(settings());
-		return existing;
-	}
-	const key = `${sessionId}/${sideId}`;
-	const pending = opening.get(key);
-	if (pending) return pending;
-
-	const release = holdForSideChat(sessionId);
-	const operation = (async () => {
-		const main = await ensureLiveSession(sessionId);
-		if (!main) return null;
-		const chat: SideChat = new SideChat({
-			main,
-			// 最早那一个不带 id，缓存 key 和从前一样。
-			...(sideId === DEFAULT_SIDE_CHAT_ID ? {} : { sideId }),
-			settings: settings(),
-			persistModel: (modelId) => saveSideChat(sessionId, chat.messages, modelId, sideId),
-			persistReset: (modelId) => saveSideChat(sessionId, [], modelId, sideId),
-			emit: async (event: SideChatEvent) => {
-				if (!retired.has(chat)) broadcastSideChat(sessionId, sideId, event);
-				if (event.type === "message_end" && event.message.role === "assistant" && event.message.usage) {
-					try {
-						await main.log.append({
-							type: "usage",
-							source: "side-chat",
-							providerId: event.message.provider,
-							modelId: event.message.model,
-							usage: event.message.usage,
-						});
-					} catch (error) {
-						console.error("[sidechat] Failed to record usage", error);
-					}
-				}
-				if (event.type !== "message_end" && event.type !== "rewound") return;
-				// 关掉之后还在收尾的那一轮不能把存档写回来。
-				if (liveSideChat(sessionId, sideId) !== chat) return;
-				try {
-					await saveSideChatTranscript(sessionId, chat.messages, chat.state().modelId, sideId);
-				} catch (error) {
-					console.error("[sidechat] Failed to persist transcript", error);
-					broadcastSideChat(sessionId, sideId, {
-						type: "notice",
-						level: "error",
-						message: "侧边聊天保存失败，请检查存储空间与目录权限。",
-					});
-				}
-			},
-		});
-		const snapshot = await loadSideChatSnapshot(sessionId, sideId);
-		chat.restore(snapshot.messages, snapshot.modelId);
-		return installSideChat(sessionId, main, sideId, chat) ? chat : null;
-	})();
-	opening.set(key, operation);
-	try {
-		return await operation;
-	} finally {
-		release();
-		if (opening.get(key) === operation) opening.delete(key);
-	}
-}
-
-
-export async function sideChatState(sessionId: string, sideId: string) {
-	checkSideId(sideId);
-	const existing = liveSideChat(sessionId, sideId);
-	if (existing) return existing.state();
-	const { messages, modelId = settings().sideChatModelId || null } = await loadSideChatSnapshot(sessionId, sideId);
-	const created = await opening.get(`${sessionId}/${sideId}`) ?? liveSideChat(sessionId, sideId);
-	return created ? created.state() : { messages: restoredSideChatMessages(messages), modelId, running: false, revision: 0 };
-}
-
-export async function sideChatSetModel(sessionId: string, sideId: string, modelId: string | null): Promise<void> {
-	if (modelId !== null && typeof modelId !== "string") throw new Error("Invalid side-chat model");
-	const chat = await ensureSideChat(sessionId, sideId);
-	if (!chat) throw new Error(`Session ${sessionId} is not open.`);
-	await chat.setModel(modelId);
-}
-
-export async function sideChatAsk(sessionId: string, sideId: string, content: UserContent[], options?: SideAskOptions): Promise<void> {
-	const chat = await ensureSideChat(sessionId, sideId);
-	if (!chat) throw new Error(`Session ${sessionId} is not open.`);
-	// 不给 `thinking` 就回落到主会话，再回落到全局设置——见 `sidechat.ts` 的 `run`。
-	void chat.ask(content, options ?? {}).catch((error: unknown) => reportError(sessionId, sideId, error));
-}
-
-export async function sideChatEditAndResend(sessionId: string, sideId: string, index: number, content: UserContent[], options?: SideAskOptions): Promise<void> {
-	const chat = await ensureSideChat(sessionId, sideId);
-	if (!chat) throw new Error(`Session ${sessionId} is not open.`);
-	void chat.editAndResend(index, content, options ?? {}).catch((error: unknown) => reportError(sessionId, sideId, error));
-}
-
-export function sideChatAbort(sessionId: string, sideId: string): void {
-	liveSideChat(sessionId, sideId)?.abort();
-}
-
-/**
- * 关掉一个侧边聊天：停下、从内存里拿掉、存档删掉。
+ * Side chats and the work they hand over, behind the Electron IPC handlers.
  *
- * 不经过 `ensureSideChat`——关一个没开过的不该先把主会话拉起来。
+ * A side chat is a session of its own (see core `side-session.ts`); everything said in it goes
+ * through the same `agent:*` calls as the main conversation. What is left here is the panel's way
+ * of naming one — its session plus the panel's own id — and the queue of work it dispatched.
  */
+
+import type { SessionMeta } from "@plume/core";
+import { deleteSessions, openSideSession, sessions, sideSessionsOf } from "./session-hub.ts";
+
+const SIDE_ID = /^[a-z0-9]{1,32}$/;
+
+function checkSideId(sideId: unknown): asserts sideId is string {
+	// 界面生成的 id：时间戳加随机数的 base36。它也进了会话的 meta，不能是任意字符串。
+	if (typeof sideId !== "string" || !SIDE_ID.test(sideId)) throw new Error("Invalid side-chat id");
+}
+
+/** 这个会话旁边的那几个侧边聊天：面板据此找到自己背后的会话，环境卡片据此列出没挂出来的。 */
+export function sideChatList(sessionId: string): Promise<SessionMeta[]> {
+	return sideSessionsOf([sessionId]);
+}
+
+/** The session behind a panel, created on the first question. */
+export function sideChatOpen(sessionId: string, sideId: string): Promise<SessionMeta> {
+	checkSideId(sideId);
+	return openSideSession(sessionId, sideId);
+}
+
+/** 关掉一格：会话连同它的记录一起删掉。重开就是一段新的，主会话不受影响。 */
 export async function sideChatClose(sessionId: string, sideId: string): Promise<void> {
 	checkSideId(sideId);
-	await opening.get(`${sessionId}/${sideId}`)?.catch(() => null);
-	const chats = sideChats.get(sessionId);
-	const chat = chats?.get(sideId);
-	if (chat) {
-		retired.add(chat);
-		chat.reset();
-	}
-	chats?.delete(sideId);
-	if (chats?.size === 0) sideChats.delete(sessionId);
-	await saveSideChat(sessionId, [], undefined, sideId);
+	await deleteSessions((await sideSessionsOf([sessionId])).filter((meta) => meta.sideId === sideId).map((meta) => meta.id));
 }
 
 export function tasksList(sessionId: string) {

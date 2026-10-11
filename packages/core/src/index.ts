@@ -238,7 +238,6 @@ export { hookCommandDisplay } from "./hooks/runner.ts";
 export type { SessionStatus } from "./runtime/reporting.ts";
 export { AgentSession, type AgentSessionOptions,  } from "./runtime/session.ts";
 export { summarizeSession } from "./runtime/session-summary.ts";
-export { SideChat, restoredSideChatMessages, type SideAskOptions, type SideChatOptions, type SideChatState, type SideChatEvent, type SideChatUpdate } from "./runtime/sidechat.ts";
 export {
 	plumeHome,
 	projectIdFor,

@@ -2,6 +2,10 @@
 /**
  * 侧边聊天在跑时，侧栏对应那一行要亮起呼吸灯。
  *
+ * 侧边聊天是挂在会话旁边的一个会话（ADR-0043），它的事件和主会话走同一条 `agent:event`，只是
+ * `sessionId` 是它自己的。这里种一个旁边带侧边聊天的会话，再从主进程往那条通道发它的开始和结束——
+ * 窗口收到的和真跑一轮时一模一样，又不必让一个假模型拖着不答。
+ *
  * 用法：先 `pnpm --filter @plume/desktop build`，再
  * `node --experimental-strip-types packages/desktop/e2e/session-side-spinner-demo.ts`
  */
@@ -13,7 +17,7 @@ import { join } from "node:path";
 
 import { startApp, type RunningApp } from "./app.ts";
 import { encode, pause, startRecording, type Frame } from "./record.ts";
-import { seedSessions } from "./session-fixture.ts";
+import { seedSessions, sideSession } from "./session-fixture.ts";
 
 const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume会话呼吸灯测试");
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 19);
@@ -21,6 +25,7 @@ const PORT = 9796;
 const INSPECT = 9797;
 const A = "spin-a";
 const B = "spin-b";
+const SIDE = `${A}-side`;
 const PROJECT = "转圈项目";
 const WINDOW =
 	'process._linkedBinding("electron_browser_window").BrowserWindow.getAllWindows()' +
@@ -83,7 +88,12 @@ async function seed(home: string): Promise<void> {
 			],
 		});
 	}
-	seedSessions(home, sessions);
+	const parent = sessions[0]!.meta;
+	const side = sideSession(parent as never, [
+		{ role: "user", content: [{ type: "text", text: "主会话卡在哪了？" }], timestamp: 20 },
+		{ role: "assistant", content: [{ type: "text", text: "它在等你批一条命令。" }], api: "anthropic-messages", provider: "qa", model: "qa", usage, stopReason: "stop", timestamp: 21 },
+	] as never);
+	seedSessions(home, [...sessions, side] as never);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1180, height: 780, x: 40, y: 40 }));
 	await writeFile(
 		join(home, "settings.json"),
@@ -157,7 +167,7 @@ try {
 	async function emit(sessionId: string, type: "agent_start" | "agent_end") {
 		const event = type === "agent_end" ? { type, reason: "aborted" } : { type };
 		await app!.main(
-			`${WINDOW}.webContents.send("sidechat:event", ${JSON.stringify({ sessionId, event })})`,
+			`${WINDOW}.webContents.send("agent:event", ${JSON.stringify({ sessionId, event })})`,
 		);
 	}
 
@@ -175,9 +185,11 @@ try {
 		`[...document.querySelectorAll('[role="menuitem"]')].find((e) => e.textContent.trim().startsWith("侧边聊天"))?.click()`,
 	);
 	await until(`Boolean(document.querySelector('[data-dock-pane="chat"] textarea.ly-composer-text'))`);
+	// 面板认出了旁边那个会话，它的记录画出来了，窗口才知道它是 A 的。
+	await until(`document.querySelector('[data-dock-pane="chat"]')?.innerText.includes('它在等你批一条命令')`);
 	await hold(800);
 
-	await emit(A, "agent_start");
+	await emit(SIDE, "agent_start");
 	await until(`document.querySelector('[data-ly-row="${A}"] [data-ly-status-mark="running"]')`);
 	const live = await app.evaluate<{ mark: string | null; spin: boolean; spinning: boolean; side: boolean }>(
 		`(()=>{
@@ -239,7 +251,7 @@ try {
 	await click(`[data-ly-project="${PROJECT}"] button[aria-expanded]`);
 	await until(`Boolean(document.querySelector('[data-ly-row="${A}"]')?.checkVisibility())`);
 
-	await emit(A, "agent_end");
+	await emit(SIDE, "agent_end");
 	await until(`document.querySelector('[data-ly-row="${A}"] [data-ly-status-mark="idle"]')`);
 	const stopped = await app.evaluate<{ a: unknown; group: string | null }>(
 		`({a:${rowProbe(A)},group:document.querySelector('[data-ly-group-running]')?.getAttribute('data-ly-group-running')||null})`,

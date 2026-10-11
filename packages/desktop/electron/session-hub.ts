@@ -9,7 +9,7 @@
  * keeps the map from being reachable — and therefore mutable — from six different files.
  */
 
-import { AgentSession, backgroundJobs, plumeHome, removeSessionArtifacts, type AgentEvent, type SessionEndReason, type SessionStorage, type Settings, type SideChat } from "@plume/core";
+import { AgentSession, backgroundJobs, plumeHome, removeSessionArtifacts, type AgentEvent, type SessionEndReason, type SessionMeta, type SessionStorage, type Settings } from "@plume/core";
 import type { BrowserWindow } from "electron";
 import { browserState, closeSessionBrowser } from "./browser-workspace.ts";
 import { createBrowserTools } from "./browser-tools.ts";
@@ -19,9 +19,8 @@ import type { SessionSnapshot, PlumeApi } from "./ipc-types.ts";
 import { createStoredSession, type InitialPrompt } from "./create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace, ownWorkspace } from "./scratch.ts";
-import { discardSideChat } from "./sidechat-discard.ts";
-import { listSideChats, removeSideChats } from "./sidechat-store.ts";
 import { removeSummary } from "./session-summary.ts";
+import { nativeText } from "./i18n.ts";
 import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { noteTranscriptFiles } from "./attachment-reads.ts";
@@ -64,8 +63,9 @@ const deleting = new Set<string>();
  * 那个收了消息也没人读。
  */
 const peers = createPeerRouter({
+	// 侧边聊天不是能单独来往的对话：它是父会话的一部分，`list_sessions` 里不该出现。
 	live: () => Array.from(sessions.entries())
-		.filter(([id]) => ready.has(id) && !retiring.has(id) && !deleting.has(id))
+		.filter(([id, session]) => !session.parent && ready.has(id) && !retiring.has(id) && !deleting.has(id))
 		.map(([, session]) => session),
 	settings: () => deps.settings(),
 });
@@ -80,7 +80,17 @@ export async function createSession(cwd: string, modelId: string, initial?: Init
 	return saved;
 }
 
-function stageSession(saved: SessionSnapshot): AgentSession {
+function stageSession(saved: SessionSnapshot, parent?: AgentSession): AgentSession {
+	/*
+	 * 侧边聊天不带浏览器和会话间通信：网页是父会话那一屏的，来往的信也该写给父会话。它要的那三件
+	 * 由 core 按 `parent` 加上。
+	 */
+	if (parent) {
+		const side = new AgentSession({ cwd: saved.meta.cwd, settings: deps.settings(), store: deps.store(), meta: saved.meta, parent, emit: (event) => broadcast(saved.meta.id, event) });
+		side.restore(saved.messages);
+		sessions.set(saved.meta.id, side);
+		return side;
+	}
 	const browser = createBrowserTools();
 	const session = new AgentSession({ cwd: saved.meta.cwd, settings: deps.settings(), store: deps.store(), meta: saved.meta,
 		extraTools: [...browser.tools, ...peerTools], emit: (event) => broadcast(saved.meta.id, event) });
@@ -115,18 +125,6 @@ export const promptSession: PlumeApi["agent"]["prompt"] = async (id, content, op
 };
 /** Disposers for each session's browser tools, keyed the same way. */
 export const browsers = new Map<string, () => void>();
-/**
- * Side chats, built on first use and dropped with the session.
- *
- * 一个会话可以同时开好几个，里面一层按侧边聊天的 id 分——见 `@plume/contract` 的 `DEFAULT_SIDE_CHAT_ID`。
- * 一个都没有的会话不留空的那一层：回收会话时按「这里有没有它」判断它旁边是不是还有对话。
- */
-export const sideChats = new Map<string, Map<string, SideChat>>();
-
-export function liveSideChat(sessionId: string, sideId: string): SideChat | undefined {
-	return sideChats.get(sessionId)?.get(sideId);
-}
-
 /** Session operations admitted before their first await, so cleanup cannot race their startup. */
 const sessionOperationHolds = new Map<string, number>();
 
@@ -142,35 +140,54 @@ function holdSessionOperation(sessionId: string): () => void {
 	};
 }
 
+/** 父会话旁边的侧边聊天，按存储里的记录：没起来的也算。 */
+export async function sideSessionsOf(parentIds: string[]): Promise<SessionMeta[]> {
+	const parents = new Set(parentIds);
+	return (await deps.store().listSessions({ children: true })).filter((meta) => meta.parentId !== undefined && parents.has(meta.parentId));
+}
+
+/** 起着的那些。回收、处置父会话时要先管它们。 */
+function liveSides(parentId: string): AgentSession[] {
+	return Array.from(sessions.values()).filter((session) => session.parent?.meta.id === parentId);
+}
+
+const opening = new Map<string, Promise<SessionMeta>>();
+
 /**
- * Count the session as in use while a side chat on it opens; call what this returns once it is in place or failed.
+ * 面板上那一格对应的会话，没有就建一个。
  *
- * Taken before the first await. A clear by date that ran while the archive was read found nothing
- * in flight and deleted the conversation being opened.
+ * 面板按「父会话 + 自己的 id」认它，和会话 id 无关；会话到第一次提问时才建，所以开着不问的那一格
+ * 不留空会话。同一格同时开两次（连点、两个窗口）拿到的是同一个。
  */
-export function holdForSideChat(sessionId: string): () => void {
-	return holdSessionOperation(sessionId);
+export function openSideSession(parentId: string, sideId: string): Promise<SessionMeta> {
+	const key = `${parentId}/${sideId}`;
+	const pending = opening.get(key);
+	if (pending) return pending;
+	const operation = (async () => {
+		// 建的这一下父会话算在忙：「按时间清理」不能恰好在这时把人正在开口的那条对话删掉。
+		const release = holdSessionOperation(parentId);
+		try {
+			const existing = (await sideSessionsOf([parentId])).find((meta) => meta.sideId === sideId);
+			if (existing) return existing;
+			const parent = await deps.store().get(parentId);
+			if (!parent || parent.parentId || deleting.has(parentId)) throw new Error(nativeText("sessions.sideParentGone"));
+			const settings = deps.settings();
+			// 模型留空就是跟着父会话；设置里给了侧边聊天默认模型才用它。见 `AgentSession.modelIdInEffect`。
+			const meta = await deps.store().create(sessions.get(parentId)?.cwd ?? parent.cwd, settings.sideChatModelId || "", "", { parentId, sideId });
+			// 建的过程中父会话被点名删了：删除时它还不在，没被一起带走，这里补上，不留一个挂在空处的会话。
+			if (deleting.has(parentId) || !(await deps.store().get(parentId))) {
+				await deps.store().deleteMany([meta.id]);
+				throw new Error(nativeText("sessions.sideParentGone"));
+			}
+			return meta;
+		} finally {
+			release();
+		}
+	})();
+	opening.set(key, operation);
+	void operation.finally(() => opening.delete(key)).catch(() => {});
+	return operation;
 }
-
-/**
- * Put an opened side chat in place; false when `main` was stopped or deleted while it opened.
- * Installed anyway, it would outlive `disposeSession`'s sweep and keep saving an archive for a conversation that is gone.
- */
-export function installSideChat(sessionId: string, main: AgentSession, sideId: string, chat: SideChat): boolean {
-	if (sessions.get(sessionId) !== main || retiring.has(sessionId) || deleting.has(sessionId)) return false;
-	const chats = sideChats.get(sessionId) ?? new Map<string, SideChat>();
-	chats.set(sideId, chat);
-	sideChats.set(sessionId, chats);
-	return true;
-}
-
-/** 这个会话旁边有哪些侧边聊天：有存档的，加上这次开着、还没来得及存下东西的。 */
-async function sideChatIds(sessionId: string): Promise<string[]> {
-	const ids = new Set(await listSideChats(sessionId));
-	for (const id of sideChats.get(sessionId)?.keys() ?? []) ids.add(id);
-	return Array.from(ids);
-}
-
 
 export async function editSessionMessage(
 	sessionId: string,
@@ -202,40 +219,29 @@ export async function revertSessionMessage(sessionId: string, index: number): Pr
 		if (!session) throw new Error("找不到这个会话。");
 		if (session.running) throw new Error("回合进行中，无法撤销");
 		await session.revert(index);
-		// 整个撤空的话，旁边那几场对话就没有了依附的对象，跟着一起收掉——见 `sidechat-discard.ts`。
+		// 整个撤空的话，旁边那几场对话就没有了依附的对象，跟着一起收掉。面板留着，下一问是新的一段。
 		if (session.messages.length > 0) return;
-		for (const sideId of await sideChatIds(sessionId)) {
-			await discardSideChat(sessionId, sideId, {
-				mainMessagesLeft: session.messages.length,
-				live: liveSideChat(sessionId, sideId),
-				defaultModelId: deps.settings().sideChatModelId || null,
-				broadcast: (event) => broadcastSideChat(sessionId, sideId, event),
-			});
-		}
+		await deleteSessions((await sideSessionsOf([sessionId])).map((meta) => meta.id));
 	} finally {
 		release();
 	}
 }
 
 export function broadcastSessionChange(change: SessionChange): void {
-	deps.remoteEvent?.({ type: "session_changed", change });
+	// 手机上没有侧边聊天面板，侧边聊天会话推过去只会出现在它的会话列表里。
+	if (!change.meta?.parentId) deps.remoteEvent?.({ type: "session_changed", change });
 	eachAppWindow((win) => win.webContents.send("sessions:changed", change));
 }
 
 export function broadcast(sessionId: string, event: AgentEvent): void {
 	peers.observe(sessionId, event);
-	deps.remoteEvent?.({ type: "agent_event", sessionId, event });
+	// 侧边聊天是开着面板、人正看着问的，不发系统通知；手机端也不认识这种会话。
+	const side = Boolean(sessions.get(sessionId)?.parent);
+	if (!side) deps.remoteEvent?.({ type: "agent_event", sessionId, event });
 	// 活会话的回复不经过快照：这一轮刚交付、链着验证截图的那条，正是人马上要点的。
 	if (event.type === "message_end") noteTranscriptFiles([event.message]);
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
-	notifyAgentEvent(sessionId, event, sessions.get(sessionId)?.meta.title);
-}
-
-/**
- * Side-chat events have their own channel so they cannot enter the main thread.
- */
-export function broadcastSideChat(sessionId: string, sideId: string, event: import("@plume/core").SideChatUpdate): void {
-	eachAppWindow((win) => win.webContents.send("sidechat:event", { sessionId, sideId, event }));
+	if (!side) notifyAgentEvent(sessionId, event, sessions.get(sessionId)?.meta.title);
 }
 
 export async function getOrCreateSession(cwd: string, _modelId: string): Promise<AgentSession> {
@@ -322,6 +328,8 @@ export async function snapshot(session: AgentSession): Promise<SessionSnapshot> 
 
 /** Tear down a live session's agent, MCP servers and browser. Safe to call for unknown ids. `reason` is what SessionEnd hooks see. */
 export async function disposeSession(sessionId: string, reason: SessionEndReason): Promise<void> {
+	// 侧边聊天的工具拿着父会话本身（让它停、给它排活），父会话走了它们就没有可拿的了：先走。
+	await Promise.all(liveSides(sessionId).map((side) => disposeSession(side.meta.id, reason)));
 	// 先于处置：处置会让等它的人醒来，那时它的链和「在等谁」都该已经清掉。
 	peers.forget(sessionId);
 	retiring.add(sessionId);
@@ -331,10 +339,6 @@ export async function disposeSession(sessionId: string, reason: SessionEndReason
 	closeSessionBrowser(sessionId);
 	browsers.get(sessionId)?.();
 	browsers.delete(sessionId);
-	// A side chat reads its session's live message list; without the session it has nothing
-	// to read, so it goes at the same time.
-	for (const chat of sideChats.get(sessionId)?.values() ?? []) chat.reset();
-	sideChats.delete(sessionId);
 	sessions.delete(sessionId);
 	ready.delete(sessionId);
 	retiring.delete(sessionId);
@@ -367,7 +371,10 @@ async function startStoredSession(sessionId: string): Promise<AgentSession | nul
 	if (!session) {
 		const loaded = await store.load(sessionId);
 		if (!loaded || retiring.has(sessionId)) return null;
-		session = stageSession({ meta: loaded.meta, messages: loaded.messages, running: false, pendingApprovals: [] });
+		// 侧边聊天要父会话先起来：它每一问都读父会话，工具也直接拿着父会话。
+		const parent = loaded.meta.parentId ? await ensureLiveSession(loaded.meta.parentId) : undefined;
+		if (parent === null || retiring.has(sessionId)) return null;
+		session = stageSession({ meta: loaded.meta, messages: loaded.messages, running: false, pendingApprovals: [] }, parent);
 		session.restore(loaded.messages, loaded.compaction, loaded.compactions);
 		session.log.commandRuns = loaded.commandRuns ?? [];
 		session.log.hookRuns = loaded.hookRuns ?? [];
@@ -407,7 +414,7 @@ export async function abortSession(sessionId: string): Promise<void> {
 		await session.cancelPendingPrompt();
 	} else {
 		const store = deps.store();
-		const meta = (await store.listSessions()).find((meta) => meta.id === sessionId);
+		const meta = await store.get(sessionId);
 		if (!meta?.pendingPrompt) return;
 		await store.append(meta, { type: "meta", meta: { ...meta, pendingPrompt: undefined } });
 	}
@@ -423,7 +430,7 @@ function sessionBusy(id: string): boolean {
 	const session = sessions.get(id);
 	if (!session) return false;
 	if (session.running || session.meta.pendingPrompt) return true;
-	if (Array.from(sideChats.get(id)?.values() ?? []).some((chat) => chat.running)) return true;
+	if (liveSides(id).some((side) => sessionBusy(side.meta.id))) return true;
 	if (backgroundJobs(session.can.state).list().some((job) => job.status === "running" || job.status === "stopping")) return true;
 	/*
 	 * 主会话已经收尾、子代理还在后台跑的，也是一场进行中的对话。
@@ -444,13 +451,16 @@ function sessionBusy(id: string): boolean {
  * `ensureLiveSession` answers null, so a prompt sent meanwhile is refused
  * instead of starting on a conversation about to vanish.
  */
-export async function deleteSessions(ids: string[]): Promise<void> {
+export async function deleteSessions(requested: string[]): Promise<void> {
+	for (const id of requested) deleting.add(id);
+	// 侧边聊天跟着父会话删（存储那头也会连带删掉行），这里补上它们在库外留下的东西。
+	const ids = [...requested, ...(await sideSessionsOf(requested)).map((meta) => meta.id)];
 	for (const id of ids) deleting.add(id);
 	try {
 		await Promise.all(ids.map((id) => disposeSession(id, "deleted")));
 		await deps.store().deleteMany(ids);
 		// The rows are the conversation; what is left is litter, and failing to sweep it is no reason to report the delete as failed.
-		await Promise.all(ids.flatMap((id) => [removeSessionArtifacts(plumeHome(), id), removeSideChats(id), removeSummary(id)].map((done) => done.catch(() => {}))));
+		await Promise.all(ids.flatMap((id) => [removeSessionArtifacts(plumeHome(), id), removeSummary(id)].map((done) => done.catch(() => {}))));
 	} finally {
 		for (const id of ids) deleting.delete(id);
 	}
@@ -466,11 +476,14 @@ export async function deleteIdleSessions(ids: string[]): Promise<string[]> {
 /** Retire the least recently used sessions, never one mid-turn and never the current one. */
 async function evictStaleSessions(keep: string): Promise<void> {
 	// Snapshotted with `entries()`, not spread: this loop deletes from the map as it goes.
-	for (const [id] of Array.from(sessions.entries())) {
-		if (sessions.size <= MAX_LIVE_SESSIONS) break;
-		// An open side chat is a conversation in progress, same as a running turn — evicting
-		// its session would silently throw that conversation away.
-		if (id === keep || sessionBusy(id) || sideChats.has(id)) continue;
+	/*
+	 * 侧边聊天不占名额、也不单独回收：它跟着父会话起落。旁边开着侧边聊天的会话不回收——那是一段
+	 * 正在进行的对话，和正在跑的一轮一样。
+	 */
+	const counted = () => Array.from(sessions.values()).filter((session) => !session.parent).length;
+	for (const [id, session] of Array.from(sessions.entries())) {
+		if (counted() <= MAX_LIVE_SESSIONS) break;
+		if (session.parent || id === keep || sessionBusy(id) || liveSides(id).length > 0) continue;
 		if (browserState().tabs.some((tab) => tab.sessionId === id)) continue;
 		await disposeSession(id, "evicted");
 	}

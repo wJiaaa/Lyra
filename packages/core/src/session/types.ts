@@ -80,6 +80,19 @@ export interface SessionMeta {
 	 * name a moment later: the rename looked like it had worked, right up until the first message.
 	 */
 	titleSetByUser?: boolean;
+	/**
+	 * 这是哪个会话的侧边聊天。
+	 *
+	 * 侧边聊天是一个完整的会话——同样的循环、工具、审批和记录——只是挂在另一个会话旁边：不进
+	 * 会话列表，跟着父会话删除，提问时读得到父会话。见 `runtime/side-session.ts`。
+	 */
+	parentId?: string;
+	/**
+	 * 父会话旁边的哪一格：面板自己的 id（最早那一格是 `default`）。
+	 *
+	 * 面板的开关、多开、弹出窗口都按这个 id 走，和会话 id 无关——会话到第一次提问时才建。
+	 */
+	sideId?: string;
 	/** Highest sequence number written. Readers compare against this. */
 	seq: number;
 }
