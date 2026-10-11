@@ -41,12 +41,8 @@ interface TodoArgs {
 export const todoTool: Tool<TodoArgs> = {
 	name: "todo_write",
 	description:
-		"Record and update the task list for the current piece of work. Call it when a task has three or more steps. " +
-		"Write the plan here in the same reply as your first real action, and mark steps done in the same reply as the " +
-		"next action (or the one that finishes the work) — a reply that only updates the list wastes a round trip. " +
-		"Exactly one item may be `in_progress` at a time. " +
-		"Send the complete list every time — it replaces the previous one. " +
-		"Never let this be the only tool call in a reply: update the list in the same reply as the next real step.",
+		"Record the task list for work of three or more steps. Send the complete list every time — it replaces the previous one; exactly one item may be `in_progress`. " +
+		"Never let this be the only tool call in a reply: write the plan with your first real action, and mark steps done with the next one (or the one that finishes the work).",
 	parameters: {
 		type: "object",
 		properties: {

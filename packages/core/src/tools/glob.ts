@@ -27,14 +27,12 @@ interface GlobArgs {
 export const globTool: Tool<GlobArgs> = {
 	name: "glob",
 	description:
-		"Find files by name with a glob pattern, newest first; to find them by content, use grep. Put the glob in `pattern` (aliases: `query`, `search`). " +
-		"Supports `*`, `?`, `**` and `{a,b}` alternation — for example `src/**/*.{ts,tsx}`. Build and dependency directories are skipped automatically.",
+		"Find files by name, newest first; to search contents, use grep. Supports `*`, `?`, `**` and `{a,b}`, e.g. `src/**/*.{ts,tsx}`. " +
+		"Build and dependency directories are skipped.",
 	parameters: {
 		type: "object",
 		properties: {
-			pattern: { type: "string", description: "Glob pattern, relative to the search root. Prefer this field; `query` and `search` are aliases." },
-			query: { type: "string", description: "Alias for pattern." },
-			search: { type: "string", description: "Alias for pattern." },
+			pattern: { type: "string", description: "Glob pattern, relative to the search root." },
 			path: { type: "string", description: "Directory to search. Defaults to the workspace root." },
 			limit: { type: "number", description: "Maximum number of matches. Default 500." },
 		},

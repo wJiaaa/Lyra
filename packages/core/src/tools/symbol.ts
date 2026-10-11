@@ -30,19 +30,15 @@ async function getIndex(ctx: ToolContext): Promise<SymbolIndex> {
 export const symbolTool: Tool<SymbolArgs> = {
 	name: "symbol",
 	description:
-		"Look up where a symbol is defined. Searches an index of function, class, interface, type and constant " +
-		"declarations across the workspace and returns file:line for each match, best match first. " +
-		"Faster and far more precise than grepping for a name that appears at every call site.",
+		"Find where a symbol is declared: file:line for each matching function, class, interface, type or constant, best match first. " +
+		"More precise than grepping a name that appears at every call site.",
 	parameters: {
 		type: "object",
 		properties: {
 			name: { type: "string", description: "Symbol name or a fragment of it." },
-			query: { type: "string", description: "Alias for name." },
-			symbol: { type: "string", description: "Alias for name." },
-			pattern: { type: "string", description: "Alias for name." },
 			kind: {
 				type: "string",
-				description: "Restrict to one kind: function, class, interface, type, enum, const, def, func, struct, method.",
+				description: "function, class, interface, type, enum, const, def, func, struct or method.",
 			},
 			limit: { type: "number", description: "Maximum matches. Default 40." },
 		},

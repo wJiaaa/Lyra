@@ -102,7 +102,7 @@ try {
 	const sent = requests[0].system.map(block => block.text).join("");
 	check("实际请求包含项目规则截断提示", sent.includes("Instructions truncated at 100 KiB"), Buffer.byteLength(sent));
 	const skills = sent.match(/<available_skills>([\s\S]*?)<\/available_skills>/)?.[1] ?? "";
-	check("技能软预算保留130个名称并移除描述", (skills.match(/<name>fixture-/g) ?? []).length === 130 && !skills.includes("<description>"), skills.length);
+	check("技能软预算保留130个名称并移除描述", (skills.match(/^- fixture-\d+$/gm) ?? []).length === 130 && !skills.includes("这是隔离测试用的技能目录描述"), skills.length);
 	check("工具过滤与实际请求一致", !requests[0].tools?.some(tool => tool.name === "task" || tool.name === "learn"), requests[0].tools?.length);
 	check("段落统计等于实际system字符串估算", first.sources!.reduce((sum, source) => sum + source.tokens, 0) === Math.ceil(sent.length / 3.5), { tokens: first.sources!.reduce((sum, source) => sum + source.tokens, 0), expected: Math.ceil(sent.length / 3.5), characters: sent.length, end: first.sources!.at(-1)?.end });
 	check("分项统计之和等于总量", first.segments.reduce((sum, segment) => sum + segment.tokens, 0) === first.used, first.used);

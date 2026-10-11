@@ -69,15 +69,12 @@ interface GrepArgs {
 export const grepTool: Tool<GrepArgs> = {
 	name: "grep",
 	description:
-		"Search file contents with a regular expression. Uses ripgrep when it is installed and falls back to a built-in " +
-		"scanner otherwise. Put the regex in `pattern` (aliases: `query`, `search`). Narrow the search with `glob` (e.g. `*.ts`) and use `context` to include surrounding lines. " +
-		"A matching line longer than 2000 characters returns a window around the hit and names `char_offset` so `read` can open more of that line.",
+		"Search file contents with a regular expression. A matching line over 2000 characters comes back as a window around the hit, " +
+		"with the `char_offset` that lets `read` open more of it.",
 	parameters: {
 		type: "object",
 		properties: {
-			pattern: { type: "string", description: "Regular expression to search for. Prefer this field; `query` and `search` are aliases." },
-			query: { type: "string", description: "Alias for pattern." },
-			search: { type: "string", description: "Alias for pattern." },
+			pattern: { type: "string", description: "Regular expression to search for." },
 			path: { type: "string", description: "Directory or file to search. Defaults to the workspace root." },
 			glob: { type: "string", description: "Only search files matching this glob, e.g. `**/*.ts`." },
 			case_insensitive: { type: "boolean", description: "Ignore case." },

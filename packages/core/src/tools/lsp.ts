@@ -44,14 +44,13 @@ export const lspTool: Tool<LspArgs> = {
 	 * *instead of* is what makes the choice concrete.
 	 */
 	description:
-		"Ask the language server about a symbol.\n\n" +
-		"- `references` — every place a symbol is used, including aliased imports (`import { a as b }`) and re-export chains that `grep` cannot see. " +
-		"Use this, not `grep`, to find who uses a symbol before changing or renaming it: a rename driven by grep looks complete and leaves callers broken with no error.\n" +
-		"- `definition` — where a symbol comes from, following re-export chains.\n" +
-		"- `diagnostics` — type errors in one file, without running a full build.\n" +
-		"- `rename` — every edit needed to rename a symbol across the project, computed by the server.\n\n" +
-		"Give `line` and `column` when you know them (from a `read`), or `symbol` to have the position found for you. " +
-		"When no language server is available the answer falls back to a text search and says so.",
+		"Ask the language server about a symbol.\n" +
+		"- `references` — every use, including aliased imports (`import { a as b }`) and re-export chains that `grep` cannot see. " +
+		"Use this, not `grep`, to find callers before changing or renaming a symbol: a grep-driven rename looks complete and leaves callers broken.\n" +
+		"- `definition` — where it comes from, through re-exports.\n" +
+		"- `diagnostics` — type errors in one file, without a build.\n" +
+		"- `rename` — every edit for a project-wide rename.\n" +
+		"Give `line`/`column` from a read, or `symbol` to have it located. Without a language server it falls back to a text search and says so.",
 	parameters: {
 		type: "object",
 		properties: {

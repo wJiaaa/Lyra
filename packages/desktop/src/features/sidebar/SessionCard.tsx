@@ -18,12 +18,13 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { ArrowDownToLine, ArrowUpFromLine, Bot, Coins, Database, FolderOpen, MessageCircle, MessageSquare, MessagesSquare, Zap } from "../../ui/icons/index.ts";
+import { ArrowDownToLine, ArrowUpFromLine, Bot, FolderOpen, MessageCircle, MessageSquare, MessagesSquare } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { SessionMeta, Usage } from "@plume/core";
 import { freshTokens } from "@plume/core/tokens";
 import { formatTokens } from "../conversation/index.ts";
+import { formatCost } from "../settings/index.ts";
 import { hoverLayersSuppressed, onHoverLayersDismissed } from "../../ui/overlay/hover-layers.ts";
 import { chromeTop } from "../../ui/overlay/chrome-top.ts";
 import { portal } from "../../ui/overlay/portal.ts";
@@ -92,19 +93,19 @@ function cacheHitRate(session: SessionMeta): number | null {
 	return usage.cacheRead / sent;
 }
 
-/** 卡片只读这四个数；`addUsage` 在 core 根入口上，渲染进程拿不到它的值。 */
-type Figures = Pick<Usage, "input" | "output" | "cacheRead" | "cacheWrite">;
+/** 卡片要的那几个数；`addUsage` 在 core 根入口上，渲染进程拿不到它的值。 */
+type Spent = Pick<Usage, "input" | "output" | "cacheRead" | "cacheWrite"> & { cost: Pick<Usage["cost"], "total"> };
 
-function plus(a: Figures, b: Figures): Figures {
-	return { input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite };
+function plus(a: Spent, b: Spent): Spent {
+	return { input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite, cost: { total: a.cost.total + b.cost.total } };
 }
 
 /**
- * 全程用量拆成三份：主会话自己（连同标题、压缩这些附带调用）、侧边聊天、子智能体。
+ * 花在哪段对话上：主会话自己（连标题、压缩这些附带调用）、侧边聊天、子智能体，三格加起来是总 token。
  *
  * 侧边聊天自己派出去的子智能体算在侧边聊天里——按「花在哪段对话上」分，不按「谁干的活」分。
  */
-function usageParts(session: SessionMeta): { main: number; side: number; subagents: number } {
+function sources(session: SessionMeta): { main: number; side: number; subagents: number } {
 	const subagents = session.subagentUsage ? freshTokens(session.subagentUsage) : 0;
 	return {
 		main: Math.max(0, freshTokens(session.usage) - subagents),
@@ -112,6 +113,27 @@ function usageParts(session: SessionMeta): { main: number; side: number; subagen
 		subagents,
 	};
 }
+
+/**
+ * 一个总数：主会话、子智能体、侧边聊天都在里面，各自的钱在它们自己出现的地方。
+ *
+ * 价格是请求当时按单价记下的。花了 token 却是 0 美元，是模型没定价，不是免费——写「未定价」，
+ * 不写 $0.00；什么都没发过的会话是一道横线。
+ */
+function costText(spent: Spent): { text: string; priced: boolean } {
+	const cost = formatCost(spent.cost.total);
+	if (cost) return { text: cost, priced: true };
+	return { text: freshTokens(spent) > 0 ? translate("sessionCard.unpriced") : "–", priced: false };
+}
+
+/** 今天的只写钟点，别的日子带上月日：开始时间要的是「哪一天」，相对天数在右上角已经有了。 */
+function startedAt(at: number, locale: ResolvedUiLocale): string {
+	const time = new Date(at).toLocaleTimeString(locale, { hour: hourStyle(locale), minute: "2-digit" });
+	if (new Date(at).toDateString() === new Date().toDateString()) return time;
+	return `${new Date(at).toLocaleDateString(locale, { month: "numeric", day: "numeric" })} ${time}`;
+}
+
+const tokensOrDash = (n: number) => (n > 0 ? formatTokens(n) : "–");
 
 /** 「3 轮 · 41 步」；没数过步数的旧会话只有轮数，两样都没有是一道横线。 */
 function turnsText(session: SessionMeta): string {
@@ -217,9 +239,11 @@ export function SessionCard({
 		setAt({ left: Math.max(GAP, left), top });
 	}, [anchor]);
 
-	const usage = session.sideUsage ? plus(session.usage, session.sideUsage) : session.usage;
+	// 侧边聊天是自己的会话，花的不在 `usage` 里；总数连它们一起算才名副其实。
+	const spent: Spent = session.sideUsage ? plus(session.usage, session.sideUsage) : session.usage;
+	const cost = costText(spent);
 	const hit = cacheHitRate(session);
-	const parts = usageParts(session);
+	const from = sources(session);
 
 	return portal(<div
 			ref={card}
@@ -249,41 +273,41 @@ export function SessionCard({
 			</div>
 
 			{/*
-			 * Numbers last, and only the ones that mean something on their own.
+			 * 钱先说，单独放大：「这段对话花了多少」是这张卡最常被问的一句。它右边的小字是 token 总数和
+			 * 命中率——命中率只算主对话（见 `cacheHitRate`），所以标签上写明是主会话的，免得被读成
+			 * 旁边那个总数的命中率。
 			 *
-			 * Turns answer "how long is this", tokens answer "what did it cost", and the hit rate
-			 * answers "was most of that re-read for free" — which is the one that changes what anyone
-			 * does next. Turns rather than `messageCount`, which counts every tool result as well.
+			 * 「token」是 fresh tokens，不是 `usage.total`：total 把每次读缓存又算一遍，一段长会话会在
+			 * 95% 命中旁边报出五亿 token。读缓存放在最底下那行小字里，不和它们并列。
+			 */}
+			<div className="flex items-baseline justify-between gap-2 px-3 pt-1.5 pb-0.5">
+				<span data-ly-session-cost="" className={cost.priced ? "text-heading font-semibold text-ink tabular-nums" : "text-body text-ink-faint"}>{cost.text}</span>
+				<span className="text-right text-caption leading-[15px] text-ink-faint">
+					<span className="font-medium text-ink-muted tabular-nums">{formatTokens(freshTokens(spent))}</span> {translate("sessionCard.tokens")}
+					<br />
+					{translate("sessionCard.mainCache")} <span className="font-medium text-ink-muted tabular-nums">{hit === null ? "–" : percent(hit)}</span>
+				</span>
+			</div>
+
+			{/*
+			 * 两行共用三列：上面是这段对话有多长、进出多少，下面是 token 花在哪段对话上，三格加起来就是
+			 * 上面那个总数。没开过侧边聊天、没派过子智能体，那一格是横线不是 0，一眼看出「这次没有」。
 			 *
-			 * 「用量」 is fresh tokens, not `usage.total`. The total counts every cache read again,
-			 * so a long agentic session reported half a billion tokens beside a 95% hit rate — two
-			 * figures describing the same fact, the alarming one first. The second row says what it is
-			 * made of — input and output add up to it — and how much was re-read on top, which it
-			 * leaves out. Here rather than in a tooltip, because the card ignores the pointer.
-			 *
-			 * A grid, so the two rows share columns: sized like `Stat` describes, by the widest of each
-			 * column, with the outer ones on the card's edges. Every cell is always drawn, a dash where
-			 * there is nothing to say, or a missing cell would shift the rest out of their columns.
+			 * 每一格都画，没话可说就是横线，否则缺一格后面的会挪出它们的列。轮次而不是 `messageCount`：
+			 * 后者连每个工具结果都算，一轮跑四十个工具读出来是八十多。
 			 */}
 			<div data-ly-session-figures="" className="grid grid-cols-[repeat(3,auto)] justify-between gap-x-2 gap-y-2 px-3 py-2">
 				<Stat icon={<MessagesSquare size={11} strokeWidth={2} />} label={translate("sessionCard.turns")} value={turnsText(session)} />
-				<Stat icon={<Zap size={11} strokeWidth={2} />} label={translate("sessionCard.usage")} value={formatTokens(freshTokens(usage))} />
-				<Stat icon={<Coins size={11} strokeWidth={2} />} label={translate("sessionCard.cache")} value={hit === null ? "–" : percent(hit)} />
-				<Stat icon={<ArrowDownToLine size={11} strokeWidth={2} />} label={translate("sessionCard.input")} value={formatTokens(usage.input + usage.cacheWrite)} />
-				<Stat icon={<ArrowUpFromLine size={11} strokeWidth={2} />} label={translate("sessionCard.output")} value={formatTokens(usage.output)} />
-				<Stat icon={<Database size={11} strokeWidth={2} />} label={translate("sessionCard.cacheRead")} value={formatTokens(usage.cacheRead)} />
-				{/*
-				 * 全程用量是谁花的，第三行，和上面共用三列。只有主会话时不画：那一行只会把「全程用量」再说一遍。
-				 * 试过在网格下面写成一行「主会话 7.9k · 侧边聊天 4.9k · 子智能体 2.2k」，248px 放不下，末尾被截掉。
-				 */}
-				{(parts.side > 0 || parts.subagents > 0) && (
-					<>
-						<Stat icon={<MessageSquare size={11} strokeWidth={2} />} label={translate("sessionCard.partMain")} value={formatTokens(parts.main)} />
-						<Stat icon={<MessageCircle size={11} strokeWidth={2} />} label={translate("sessionCard.partSide")} value={formatTokens(parts.side)} />
-						<Stat icon={<Bot size={11} strokeWidth={2} />} label={translate("sessionCard.partSubagents")} value={formatTokens(parts.subagents)} />
-					</>
-				)}
+				<Stat icon={<ArrowDownToLine size={11} strokeWidth={2} />} label={translate("sessionCard.input")} value={formatTokens(spent.input + spent.cacheWrite)} />
+				<Stat icon={<ArrowUpFromLine size={11} strokeWidth={2} />} label={translate("sessionCard.output")} value={formatTokens(spent.output)} />
+				<Stat icon={<MessageSquare size={11} strokeWidth={2} />} label={translate("sessionCard.partMain")} value={tokensOrDash(from.main)} />
+				<Stat icon={<MessageCircle size={11} strokeWidth={2} />} label={translate("sessionCard.partSide")} value={tokensOrDash(from.side)} />
+				<Stat icon={<Bot size={11} strokeWidth={2} />} label={translate("sessionCard.partSubagents")} value={tokensOrDash(from.subagents)} />
 			</div>
+
+			<p data-ly-session-foot="" className="truncate px-3 pb-2.5 text-caption text-ink-faint tabular-nums">
+				{translate("sessionCard.started", { at: startedAt(session.createdAt, resolvedLocale) })} · {translate("sessionCard.readCache", { n: formatTokens(spent.cacheRead) })}
+			</p>
 		</div>);
 }
 

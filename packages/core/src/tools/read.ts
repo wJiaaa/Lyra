@@ -35,26 +35,19 @@ function extensionOf(path: string): string {
 export const readTool: Tool<ReadArgs> = {
 	name: "read",
 	description:
-		"Read a file from the workspace. Read a file before editing it, and enough of it to understand the surrounding code. " +
-		"Text files come back with a `[path#TAG]` header — quote that TAG when you " +
-		"edit — and 1-indexed line numbers in `NNNN→content` form.\n\n" +
-		"Reading a long source file with no `offset`/`limit` returns its STRUCTURE: imports, declarations and their " +
-		"doc comments, with each body replaced by `⋯ N lines (from-to)`. To see a folded body, read that range — never guess at it. " +
-		"Short files, data files and explicit `offset`/`limit` windows always come back verbatim.\n\n" +
-		"A line longer than 2000 characters is a window, not the line head. Continue with `char_offset` (1-indexed). " +
-		"grep names that offset when a match sits past the first window.\n\n" +
-		"Images are returned to you as actual images.",
+		"Read a file. Text comes back with a `[path#TAG]` header — quote that TAG when you edit — and 1-indexed lines as `NNNN→content`. " +
+		"A long source file read without `offset`/`limit` comes back as its STRUCTURE: declarations and doc comments, each body folded to " +
+		"`⋯ N lines (from-to)`. Read that range to see a body — never guess at it. Short files, data files and `offset`/`limit` windows are verbatim. " +
+		"A line over 2000 characters comes back as a window; continue it with `char_offset`. Images come back as images.",
 	parameters: {
 		type: "object",
 		properties: {
 			path: { type: "string", description: "File path, absolute or relative to the workspace root." },
-			file: { type: "string", description: "Alias for path." },
-			filePath: { type: "string", description: "Alias for path." },
 			offset: { type: "number", description: "1-indexed line to start from." },
 			limit: { type: "number", description: "Maximum number of lines to return. Defaults to 2000." },
 			char_offset: {
 				type: "number",
-				description: "1-indexed character to start from on each selected line. Use when a previous read or grep said a line was longer than 2000 characters.",
+				description: "1-indexed character to start from on each line, for a line read or grep said was over 2000 characters.",
 			},
 		},
 		required: ["path"],

@@ -43,13 +43,10 @@ interface EditArgs {
 export const editTool: Tool<EditArgs> = {
 	name: "edit",
 	description:
-		"Edit a file. Preferred form: `tag` + `patch`, naming the ORIGINAL line numbers from the read output " +
-		"and giving only the replacement lines. You may only edit lines you have actually seen: if `read` folded a region " +
-		"away as `⋯`, read that range first. If the file changed since you read it the edit is rejected — re-read and redo it.\n\n" +
+		"Edit a file. Preferred: `patch`, always with the `tag` from read's header, naming ORIGINAL line numbers and giving only the replacement lines. " +
+		"Only edit lines you have seen — read a range folded as `⋯` first. If the file changed since you read it the edit is rejected; re-read and redo it.\n\n" +
 		PATCH_SYNTAX +
-		"\n\nLegacy form: `old_string` + `new_string` replaces an exact, unique byte sequence. " +
-		"Prefer the patch form — it does not require reproducing existing bytes, it can make several " +
-		"changes in one call, and it is rejected rather than misapplied when it does not fit.",
+		"\n\nLegacy: `old_string` + `new_string` replaces one exact, unique match. Prefer the patch form.",
 	parameters: {
 		type: "object",
 		properties: {
