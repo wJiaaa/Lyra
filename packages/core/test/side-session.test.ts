@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -71,14 +71,21 @@ test("主会话撤回、同一位置换了别的消息，下一问整段重读",
 	assert.match(latest, /REPLACED_MAIN_FACT/);
 });
 
-test("侧边聊天带着主会话的全部工具，加上只有它有的三件，提示词说明它的处境", async (t) => {
+test("侧边聊天只拿一小组工具和自己的一份提示词，不是主会话那一套", async (t) => {
 	let seen: LlmContext | undefined;
-	const { side } = await fixture(t, async (context) => { seen = context; return reply(); });
+	const { root, side } = await fixture(t, async (context) => { seen = context; return reply(); });
+	await writeFile(join(root, "AGENTS.md"), "PROJECT_RULE_MARKER");
 	await side.prompt(say("hi"));
-	const names = seen!.tools?.map((tool) => tool.name) ?? [];
-	for (const name of ["read_main_chat", "dispatch_task", "control_main", "write", "edit", "bash"]) assert.ok(names.includes(name), `${name} is available`);
-	assert.match(seen!.systemPrompt ?? "", /Side chat:/);
-	assert.doesNotMatch(seen!.systemPrompt ?? "", /用中文/, "the side chat answers in the person's language, not a fixed one");
+	const names = seen!.tools?.map((tool) => tool.name).sort() ?? [];
+	assert.deepEqual(names, ["bash", "bash_output", "control_main", "dispatch_task", "edit", "glob", "grep", "ls", "read", "read_main_chat", "web_fetch", "web_search", "write"]);
+	const prompt = seen!.systemPrompt ?? "";
+	// 只有它自己的身份，而且在最前面——它从前读到的是「You are Plume, a coding agent」，于是自称编程助手。
+	assert.ok(prompt.startsWith("You are Plume's side assistant"), prompt.slice(0, 120));
+	assert.doesNotMatch(prompt, /You are Plume, a coding agent/);
+	assert.doesNotMatch(prompt, /PROJECT_RULE_MARKER/, "project instructions are read before editing, not carried on every question");
+	assert.match(prompt, /Boundaries:/, "the boundaries hold here as everywhere");
+	assert.match(prompt, /Interface blocks:/, "the panel draws them, preview or not");
+	assert.doesNotMatch(prompt, /用中文/, "the side chat answers in the person's language, not a fixed one");
 });
 
 test("没定模型和思考强度的侧边聊天跟着主会话，每次提问时现取", async (t) => {

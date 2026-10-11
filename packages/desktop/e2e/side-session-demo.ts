@@ -116,6 +116,10 @@ try {
 	await pause(1000);
 	const first = requests.find((one) => one.side);
 	check("侧边聊天的请求里带着主会话的记录", Boolean(first?.raw.includes("<main-session>") && first.raw.includes("qa-short 第 1 个问题")), first?.raw.slice(0, 200));
+	const system = first ? JSON.stringify((JSON.parse(first.raw) as { system?: unknown }).system ?? "") : "";
+	check("侧边聊天的系统提示以它自己的身份开头，没有主会话那段身份", system.slice(0, 200).includes("You are Plume's side assistant") && !system.includes("You are Plume, a coding agent"), system.slice(0, 200));
+	const tools = first ? ((JSON.parse(first.raw) as { tools?: { name: string }[] }).tools ?? []).map((tool) => tool.name).sort() : [];
+	check("侧边聊天只带一小组工具，没有派子代理、清单、预览这些", tools.length <= 13 && !tools.some((name) => ["task", "todo_write", "preview", "skill"].includes(name)), tools);
 	check("侧边聊天的转录是主会话那一套（side-chat 表面里有用户气泡）", await app.evaluate<boolean>(`Boolean(document.querySelector('${SIDE} [data-ly-chat-surface="side-chat"] .ly-user-bubble'))`));
 	check("主列里没有侧边聊天的回答", !(await mainText()).includes("SIDE_ANSWER"));
 	const tab = await app.evaluate<string>(`document.querySelector('[data-panel-tab="chat"]')?.innerText.trim() ?? ''`);
