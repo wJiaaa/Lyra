@@ -30,7 +30,7 @@ Plume 是一个 agent 运行时加桌面端与原生手机端。`packages/core` 
 src/
 ├── main.tsx      入口
 ├── app/          窗口怎么装起来：布局、快捷键、启动屏、窗口按钮、对话独立窗
-├── features/     23 个用户看得见的域，各自一个目录
+├── features/     24 个用户看得见的域，各自一个目录
 ├── ui/           谁都能用的组件——换个产品也成立
 ├── lib/          纯逻辑：没有 React，没有主进程，不需要 DOM 就能测
 ├── services/     跟主进程说话的唯一出口
@@ -80,8 +80,8 @@ pre-push 里都是必过项：
    它们；压缩、审批、钩子、中途换模型都经 `AgentRunConfig` 交进来。循环自己做的历史剪枝在 `agent/`，
    token 估算在 `tokens.ts`。类型也算——从 `runtime/` 拿一个类型，下一次就是拿一个值。
 
-循环依赖是 error，垫着一份已有的 114 条的基线（`.dependency-cruiser-known-violations.json`，
-连同第 8 条那两处有理由的破例共 116 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。
+循环依赖是 error，垫着一份已有的 109 条的基线（`.dependency-cruiser-known-violations.json`，
+连同第 8 条那两处有理由的破例共 111 条）：新加一条会让 `pnpm arch` 变红，已有那些照旧通过。
 这个数字每次 `pnpm arch` 都会印出来，少一条就 `pnpm arch:baseline` 重生成一次——那是让它下降的
 正常动作，也是唯一能让它上升的动作。
 
@@ -90,7 +90,7 @@ pre-push 里都是必过项：
 `export {} from "./forge/index.ts"` 断掉的。每一次下降都由 `test/docs-numbers.test.ts` 逼着改
 这一段：它要求这里写的数和基线里的一样多。最近一次是循环的契约类型拆进 `agent/run-config.ts`
 （118 → 116）：`tool-run.ts` 不再为了类型回头引用 `agent/loop.ts`，经过它闭合的两条环随之消失。
-手机端共享消息合并函数时移除了它对桌面 store 类型的反向引用，循环基线进一步从 116 降到 114。
+手机端共享消息合并函数时移除了它对桌面 store 类型的反向引用，循环基线进一步从 116 降到 114。侧边聊天改成会话、旧的侧聊消息行删掉之后，经过它和输入框上下文表的五条环跟着消失，降到 109。
 
 ## 要做某件事，去哪
 
