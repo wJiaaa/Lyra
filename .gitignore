@@ -16,6 +16,8 @@ build/
 .env.local
 release/
 packages/desktop/out/
+# 随安装包带的 ripgrep，由 `packages/desktop/scripts/fetch-ripgrep.mjs` 按平台下载。
+packages/desktop/vendor/
 packages/core/dist/
 
 # Wrangler's local state: the simulated D1 database, R2 objects and KV entries `wrangler dev`

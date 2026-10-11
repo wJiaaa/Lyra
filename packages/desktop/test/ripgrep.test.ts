@@ -1,0 +1,38 @@
+/**
+ * 主进程去找的 ripgrep，就是安装包放进去的那一份。
+ *
+ * 两处对不上时什么也不报：应用照常启动，`grep` 工具找不到随包的 rg 就去 `PATH`，找不到再退回
+ * JavaScript 扫描——只是每次搜索慢几十倍。
+ */
+
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+import { parse } from "yaml";
+import { bundledRipgrep } from "../electron/ripgrep.ts";
+
+const desktop = dirname(dirname(fileURLToPath(import.meta.url)));
+type Resources = { from: string; to: string; filter?: string[] }[];
+const config = parse(readFileSync(join(desktop, "electron-builder.yml"), "utf8")) as Record<"mac" | "win" | "linux", { extraResources: Resources }> & { beforePack: string };
+
+for (const [key, platform] of [["mac", "darwin"], ["win", "win32"], ["linux", "linux"]] as const) {
+	test(`${platform}：打包放的位置和主进程找的位置是同一个`, () => {
+		const entry = config[key].extraResources.find((resource) => resource.to === "ripgrep");
+		assert.ok(entry, `${key}.extraResources 里没有 ripgrep`);
+		const exe = platform === "win32" ? "rg.exe" : "rg";
+		assert.ok(entry.filter?.includes(exe), `过滤规则把 ${exe} 本身滤掉了`);
+
+		const packaged = bundledRipgrep({ platform, arch: "arm64", packaged: true, appPath: "/app.asar", resourcesPath: "/res" });
+		assert.equal(packaged, join("/res", entry.to, exe));
+
+		// 开发时直接读 fetch-ripgrep.mjs 放的目录，打包时 `${arch}` 展开成的也是这个目录。
+		const dev = bundledRipgrep({ platform, arch: "arm64", packaged: false, appPath: desktop, resourcesPath: "" });
+		assert.equal(dev, join(desktop, entry.from.replace("${arch}", "arm64"), exe));
+	});
+}
+
+test("打包前由 fetch-ripgrep.mjs 备好正在打的那一份", () => {
+	assert.equal(config.beforePack, "./scripts/fetch-ripgrep.mjs");
+});

@@ -204,6 +204,16 @@ for (const [name, build] of Object.entries(BUILDS)) {
 		);
 	}
 
+	/*
+	 * ripgrep：`fetch-ripgrep.mjs` 按正在打的架构下载，同一台机器一次打两个架构时，最容易出的错
+	 * 就是两份都拿了本机那一份。缺了它安装包照样能用，只是搜索退回慢几十倍的兜底，没人会发现。
+	 */
+	const rg = join(dir, build.resources, "ripgrep", build.platform === "win32" ? "rg.exe" : "rg");
+	const rgArch = binaryArch(rg);
+	checked++;
+	if (rgArch == null) problems.push(`${name}: ripgrep missing or unreadable at ${rg.slice(dir.length + 1)}`);
+	else if (rgArch !== "universal" && rgArch !== build.arch) problems.push(`${name}: ripgrep is ${rgArch}, expected ${build.arch}`);
+
 	console.log(`[arch] ${name}: ${binaries.length} native ${binaries.length === 1 ? "module" : "modules"}, ${build.arch}`);
 }
 

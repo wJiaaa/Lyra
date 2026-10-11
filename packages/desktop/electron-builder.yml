@@ -45,6 +45,13 @@ extraResources:
     filter:
       - "*.png"
 
+# ripgrep, which core's `grep` tool runs and the main process points it at (`electron/ripgrep.ts`).
+# Without one the tool falls back to a JavaScript scan tens of times slower, and a GUI launch's
+# `PATH` never has the user's `rg` on it — so every installed copy was on the fallback. The hook
+# downloads the copy for the platform and architecture being packaged into `vendor/ripgrep/`,
+# pinned by sha256; each platform's `extraResources` below takes it from there.
+beforePack: ./scripts/fetch-ripgrep.mjs
+
 # Each build keeps only its own copy of the per-platform prebuilts.
 #
 # `supportedArchitectures` in `pnpm-workspace.yaml` installs every platform's `koffi`, because a
@@ -98,6 +105,9 @@ mac:
   # The dock icons the running app switches between with its theme (`followThemeWithDockIcon`),
   # read by path at runtime. Added to the top-level `extraResources`, as under `win`.
   extraResources:
+    - from: vendor/ripgrep/darwin-${arch}
+      to: ripgrep
+      filter: ["rg", "COPYING", "LICENSE-MIT", "UNLICENSE"]
     - from: build/dock-light.png
       to: build/dock-light.png
     - from: build/dock-dark.png
@@ -163,6 +173,9 @@ win:
   # top-level `extraResources` rather than replacing it — electron-builder concatenates the two.
   # macOS does not need it: the bundle's .icns is what the dock and notifications use there.
   extraResources:
+    - from: vendor/ripgrep/win32-${arch}
+      to: ripgrep
+      filter: ["rg.exe", "COPYING", "LICENSE-MIT", "UNLICENSE"]
     - from: build/icon.png
       to: build/icon.png
   icon: icon.png
@@ -182,6 +195,9 @@ linux:
     - "!**/node_modules/node-pty/prebuilds/!(linux-${arch})/**"
   # See the note under `win`.
   extraResources:
+    - from: vendor/ripgrep/linux-${arch}
+      to: ripgrep
+      filter: ["rg", "COPYING", "LICENSE-MIT", "UNLICENSE"]
     - from: build/icon.png
       to: build/icon.png
   icon: icon.png
