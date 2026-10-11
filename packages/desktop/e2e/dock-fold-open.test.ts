@@ -19,7 +19,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
-import { click, frames, openPane, openSession, shot } from "./drive.ts";
+import { click, closeTab, dragSelect, frames, openPane, openSession, shot, textSpan, until } from "./drive.ts";
 import { seedSessions } from "./session-fixture.ts";
 
 const ID = "dock-fold-open";
@@ -53,11 +53,9 @@ after(async () => {
 
 interface Sample { left: number; width: number; scrolled: number; panel: number | null; opacity: number | null; text: number; textRight: number }
 
-/** 从菜单点下 `label` 那一刻起逐帧量，滑动走完再多量几帧。菜单先开好，免得采样窗口落在等菜单上。 */
-async function openWhileSampling(label: string, kind: string): Promise<Sample[]> {
-	await click(app, 'button[aria-label="面板"]');
-	await frames(app, 30);
-	const run = app.evaluate<Sample[]>(`new Promise((resolve) => {
+/** rAF 后再取样，避免同一帧后面的聚焦、光标回调还没跑完，读到尚未画出的布局。 */
+function sampleOpening(kind: string): Promise<Sample[]> {
+	return app.evaluate<Sample[]>(`new Promise((resolve) => {
 		const out = [];
 		let n = 50;
 		const f = () => {
@@ -68,10 +66,17 @@ async function openWhileSampling(label: string, kind: string): Promise<Sample[]>
 			const box = conversation.getBoundingClientRect();
 			const column = conversation.querySelector('.ly-transcript').getBoundingClientRect();
 			out.push({ left: box.left, width: box.width, scrolled, panel: panel ? panel.getBoundingClientRect().left : null, opacity: panel ? Number(getComputedStyle(panel).opacity) : null, text: column.left, textRight: column.right });
-			if (--n) requestAnimationFrame(f); else resolve(out);
+			if (--n) requestAnimationFrame(() => setTimeout(f, 0)); else resolve(out);
 		};
-		requestAnimationFrame(f);
+		requestAnimationFrame(() => setTimeout(f, 0));
 	})`);
+}
+
+/** 菜单先开好，免得采样窗口落在等菜单上。 */
+async function openWhileSampling(label: string, kind: string): Promise<Sample[]> {
+	await click(app, 'button[aria-label="面板"]');
+	await frames(app, 30);
+	const run = sampleOpening(kind);
 	await click(app, '[role="menuitem"]', label, "starts");
 	return run;
 }
@@ -93,6 +98,31 @@ function assertTextOneWay(texts: number[], name: string): void {
 	const back = texts.slice(1).map((left, i) => (left - texts[i]!) * direction).filter((step) => step < -0.5);
 	assert.equal(back.length, 0, `${name}正文反着动了：${texts.map(Math.round).join(" ")}`);
 }
+
+test("划词提问：聚焦输入框不滚动外层容器，侧聊仍从右边滑入", async (t) => {
+	const quoted = "这是一段足够长的文字";
+	const span = await textSpan(app, '[data-ly-chat-surface="conversation"] [data-ly-quote]', quoted);
+	await dragSelect(app, span.start, span.end);
+	await until(app, `document.querySelector('[data-ly-popover][role="menu"]')`);
+	await frames(app, 20);
+	const run = sampleOpening("chat");
+	await click(app, '[role="menuitem"]', "在侧边聊天中提问");
+	const samples = await run;
+	const scrolled = Math.max(...samples.map((sample) => sample.scrolled));
+	t.diagnostic(`外层最大横向滚动 ${scrolled}px；侧聊左缘 ${samples.find((sample) => sample.panel !== null)?.panel} → ${samples.at(-1)?.panel}px`);
+	assert.equal(scrolled, 0, "聚焦侧聊输入框把外层容器横向滚开了");
+	assertSlidIn(samples, "划词提问：");
+	assert.equal(new Set(samples.map((sample) => Math.round(sample.left))).size, 1, "主对话左缘被滚动带走了");
+	const field = await app.evaluate<{ text: string; focused: boolean; caret: number }>(`(() => {
+		const el = document.querySelector('[data-dock-pane="chat"] textarea');
+		return { text: el.value, focused: document.activeElement === el, caret: el.selectionStart };
+	})()`);
+	assert.ok(field.text.includes(`> ${quoted}\n\n`), "引文没有填入侧聊输入框");
+	assert.ok(field.focused, "侧聊输入框没有自动聚焦");
+	assert.equal(field.caret, field.text.length, "光标没有放在引文后面");
+	await closeTab(app, "chat");
+	await frames(app, 20);
+});
 
 test("一个标签都没有时开第一个：对话逐帧让出，面板从右边滑进来、不再原地淡入", async () => {
 	await shot(app, "dock-fold-open-00-没有面板");

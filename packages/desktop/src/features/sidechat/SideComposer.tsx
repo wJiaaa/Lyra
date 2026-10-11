@@ -115,7 +115,8 @@ export function SideComposer({
 		// 送来的是半句话（退回的任务、对话里划下的一段），下一步总是接着写：光标放到末尾。
 		const el = field.current;
 		if (!el) return;
-		el.focus();
+		// 面板还在从右侧滑入，默认聚焦会滚动外层容器、抵消滑入位移。
+		el.focus({ preventScroll: true });
 		requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length));
 	}, [draftSeed, sessionId, sideId, setText]);
 
