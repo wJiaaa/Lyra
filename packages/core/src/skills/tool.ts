@@ -1,4 +1,4 @@
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "../tools/result.ts";
 import type { Message, Tool, ToolResult } from "../types.ts";
 import { createHash } from "node:crypto";
 import { formatSkillInvocation, type Skill } from "./loader.ts";

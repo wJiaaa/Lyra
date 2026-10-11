@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, relative } from "node:path";
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { authorizeRead } from "./read-access.ts";
 

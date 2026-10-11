@@ -39,6 +39,6 @@ test("compaction does not cut a result the model has not seen yet when it is wit
 		{ role: "assistant", api: "openai-responses", provider: "p", model: "m", stopReason: "toolUse", usage: { ...emptyUsage(), input: 500 }, content: [{ type: "toolCall", id: "r", name: "read", arguments: { path: "a" } }], timestamp: 0 },
 		fresh,
 	];
-	const result = await compactIfNeeded(history, model, provider, undefined, 0);
+	const result = await compactIfNeeded({ messages: history, model, provider, overhead: 0 });
 	assert.equal(result?.messages.find((message) => message.role === "toolResult") ?? fresh, fresh);
 });

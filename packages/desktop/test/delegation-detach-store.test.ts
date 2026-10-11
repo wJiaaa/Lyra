@@ -27,7 +27,7 @@ const { applyAgentEvent } = await import("../src/store/apply-event.ts");
 
 const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 function summary(over: Partial<SubAgentSummary> & { id: string }): SubAgentSummary {
-	return { agent: "review", description: over.id, status: "running", startedAt: Date.now(), toolCalls: 0, depth: 1, usage, ...over };
+	return { agent: "review", description: over.id, status: "running", startedAt: Date.now(), toolCalls: 0, usage, ...over };
 }
 
 function harness(over: Record<string, unknown> = {}) {
@@ -66,11 +66,8 @@ test("子智能体都转到后台了、或者主会话没在跑：不动队伍",
 	background.dispatch({ type: "subagents", agents: [summary({ id: "a", background: true })] });
 	const idle = harness({ activity: {} });
 	idle.dispatch({ type: "subagents", agents: [summary({ id: "a" })] });
-	const nested = harness();
-	// 子智能体自己派的孩子不算——主会话等的是它们的父亲。
-	nested.dispatch({ type: "subagents", agents: [summary({ id: "kid", depth: 2 })] });
 	await new Promise((resolve) => setTimeout(resolve, 0));
-	assert.deepEqual([...background.steered, ...idle.steered, ...nested.steered], []);
+	assert.deepEqual([...background.steered, ...idle.steered], []);
 	assert.equal(awaitingSubAgents([summary({ id: "done", status: "done" })]), false);
 });
 

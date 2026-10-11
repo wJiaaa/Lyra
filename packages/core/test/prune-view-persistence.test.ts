@@ -19,7 +19,7 @@ async function turn(history: Message[], pruner: AgedToolPruner, answerUsage: num
 	await runAgent(runConfig({
 		session: {
 			messages: history, pruner,
-			compact: (messages, active, observer) => compactIfNeeded(messages, active, provider, undefined, 0, false, undefined, undefined, undefined, observer),
+			compact: (messages, active, observer) => compactIfNeeded({ messages, model: active, provider, observer }),
 		},
 		model: { model, provider, streamFn: async (context: LlmContext) => { sent = [...context.messages]; return reply([{ type: "text", text: "ok" }], answerUsage); } },
 		tools: { env: { cwd: "/test" } },
@@ -64,7 +64,7 @@ test("the tail kept beside a summary is rebuilt as the cut copy that was sent", 
 	await runAgent(runConfig({
 		session: {
 			messages: log, pruner,
-			compact: (messages, active, observer) => compactIfNeeded(messages, active, provider, async function* () { yield { type: "start" as const, partial: reply([]) }; return reply([{ type: "text", text: "summary" }]); }, 0, false, undefined, undefined, undefined, observer),
+			compact: (messages, active, observer) => compactIfNeeded({ messages, model: active, provider, streamFn: async function* () { yield { type: "start" as const, partial: reply([]) }; return reply([{ type: "text", text: "summary" }]); }, observer }),
 		},
 		model: { model, provider, streamFn: async (context: LlmContext) => { sent = [...context.messages]; return reply([{ type: "text", text: "ok" }], 3_000); } },
 		tools: { env: { cwd: "/test" } },

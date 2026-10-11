@@ -101,7 +101,7 @@ function base(overrides: Partial<Parameters<typeof runSubAgent>[0]> = {}) {
 test("排着的时候就在名单上，轮到它才开跑", async () => {
 	const gate = new DispatchGate(1);
 	const holding = await gate.acquire();
-	const { registry, options } = base({ gate, admission: (signal) => gate.acquire(signal) });
+	const { registry, options } = base({ admission: (signal) => gate.acquire(signal) });
 	let registered = "";
 	const run = runSubAgent({ ...options, onRegistered: (id) => (registered = id) }, { description: "审查 A", prompt: "看", agentType: "general" }, PROVIDER, MODEL);
 	await new Promise((resolve) => setTimeout(resolve, 10));
@@ -119,7 +119,6 @@ test("排着的时候被停：一轮都不跑，记作停下，名额不占", as
 	const holding = await gate.acquire();
 	let requests = 0;
 	const { registry, events, options } = base({
-		gate,
 		admission: (signal) => gate.acquire(signal),
 		streamFn: async () => {
 			requests += 1;
@@ -222,42 +221,4 @@ test("宽限只给一次：给过之后还是不写清单，就照常停下交�
 	const answer = await runSubAgent(options, { description: "审查", prompt: "审查一下", agentType: "review" }, PROVIDER, MODEL);
 	assert.equal(turns, 5, "两段各两轮，加上讨交接的那一轮");
 	assert.match(answer.text, /到了检查点/);
-});
-
-test("停下一个正在派孩子的子代理，它派出去的孩子也跟着停", async () => {
-	const ORCHESTRATOR: AgentDefinition = { name: "lead", description: "编排", systemPrompt: "lead", tools: "*", spawns: ["review"], source: "builtin" };
-	const gate = new DispatchGate(4);
-	const { registry, options } = base({ agents: [ORCHESTRATOR, REVIEW, WRITER], gate });
-	const { taskTool } = await import("../src/tools/task.ts");
-	let childStarted: () => void = () => {};
-	const started = new Promise<void>((resolve) => (childStarted = resolve));
-	const run = runSubAgent(
-		{
-			...options,
-			tools: [read, taskTool as unknown as Tool],
-			streamFn: async (context) => {
-				// 孩子：手里没有 `task` 的那个。一直读下去，直到被停。
-				if (!context.tools.some((tool) => tool.name === "task")) {
-					childStarted();
-					await new Promise((resolve) => setTimeout(resolve, 20));
-					return call(`c${Date.now()}${Math.random()}`, "read", { at: Math.random() });
-				}
-				// 父亲：派一个孩子，然后等。
-				if (!context.messages.some((message) => message.role === "toolResult")) {
-					return call("t", "task", { description: "细看", prompt: "看", subagent_type: "review" });
-				}
-				return says("收到");
-			},
-		},
-		{ description: "编排", prompt: "去", agentType: "lead" },
-		PROVIDER,
-		MODEL,
-	);
-	await started;
-	const parent = registry.list().find((one) => one.agent === "lead")!;
-	registry.abort(parent.id);
-	await run;
-	await new Promise((resolve) => setTimeout(resolve, 60));
-	const child = registry.list().find((one) => one.agent === "review")!;
-	assert.equal(child.status, "aborted", "孩子挂在父亲自己的绳子上，父亲一停它就停");
 });

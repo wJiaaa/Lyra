@@ -199,13 +199,35 @@ export interface CompactionRequest {
 	 * Passed through rather than reached for, because summarising is itself a model call: a host
 	 * that replaced how requests are made must have replaced this one too, or a session with a
 	 * stubbed provider quietly dials out when it runs out of room.
+	 *
+	 * It is also what lets compaction be exercised without a model. Compaction is hard to observe in
+	 * the wild — it happens once, deep in a long run, and the evidence is that a number went down.
+	 * Being able to drive it directly is the only way to know the cut lands where it should.
 	 */
 	streamFn?: typeof streamAssistant;
-	/** What the request carries besides the conversation: the system prompt and every tool schema. */
+	/**
+	 * What the request carries besides the conversation: the system prompt and every tool schema.
+	 *
+	 * Passed in because it is fixed while the conversation is not. A budget that treats the two as
+	 * one shrinks the prompt and the schemas on paper whenever the conversation is cut — and they
+	 * are sent in full every time, so the result lands above the line it was aiming for.
+	 */
 	overhead?: number;
-	/** Compact now, whatever the conversation currently weighs — what `/compact` sets. */
+	/**
+	 * Compact now, whatever the conversation currently weighs — what `/compact` sets.
+	 *
+	 * Someone who has just finished one piece of work and is about to start another knows something
+	 * the threshold cannot: that the last two hours are done with, and carrying them into the next
+	 * thing is what will make it drift. Waiting for 80% would summarise the new work along with the old.
+	 */
 	force?: boolean;
-	/** Where cut-out originals are kept so `artifact://` can fetch them back. */
+	/**
+	 * Where cut-out originals are kept so `artifact://` can fetch them back.
+	 *
+	 * Optional: without it pruning behaves as it always did, and what is cut is gone. With it, the
+	 * placeholder's "the full result stays in the session" is true for the model for the first time —
+	 * it cannot read the transcript, but it can read an address.
+	 */
 	artifacts?: ArtifactSink;
 	/** `/compact <instructions>`, and the signal that cancels it. */
 	manual?: { instructions?: string; signal?: AbortSignal };

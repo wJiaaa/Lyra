@@ -32,8 +32,9 @@ Plume 内置七种子智能体：`general`、`explore`、`review`、`verify`、`
 要先把接口约定写清楚才能交出去的，自己做。没有设置页，也不随思考等级变化。
 
 同时运行的子智能体最多 4 个，超出的排队而不是被拒绝；配置文件里的 `maxConcurrentSubAgents`
-可调，范围 1–8，写盘后下一轮即用新值。派生最多嵌套 2 层，同一条派生链上不能再派同一个
-agent。见 `runtime/dispatch-guard.ts`。
+可调，范围 1–8，写盘后下一轮即用新值。只有主对话能派：子智能体拿不到 `task` 工具，不能再派
+子智能体，agent 定义里写的 `spawns` 不再生效。见 `runtime/dispatch-guard.ts`、
+`runtime/sub-agent-dispatch.ts`。
 
 ## 浏览器
 

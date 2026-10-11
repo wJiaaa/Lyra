@@ -1,23 +1,17 @@
 /**
- * Three limits on delegation, none of which is optional.
+ * Two limits on delegation, neither of which is optional.
  *
  * Sub-agents are the one feature where a bad prompt costs real money rather than a wasted turn:
- * an agent that dispatches twelve at once, or one that dispatches something which dispatches it
- * back, spends without any of the usual signals that something has gone wrong. All three failures
- * look like the system working hard.
- *
- * The limits are enforced in different places on purpose:
+ * an agent that dispatches twelve at once spends without any of the usual signals that something
+ * has gone wrong. It looks like the system working hard.
  *
  *   Concurrency is a queue rather than a refusal. Wanting to look at eight things is a reasonable
  *   thought; running eight at once is what is unreasonable, and the correct answer to "do these
  *   eight" is to do them, four at a time.
  *
- *   Depth removes the `task` tool from the run instead of refusing calls to it. A model cannot
- *   want a tool it was never shown, and an error after the fact costs a turn to discover something
- *   that was never going to work.
- *
- *   Self-recursion is a refusal, because it is always a mistake. `explore → reviewer → explore` is
- *   a prompt written wrong, and it burns money fast enough that failing loudly is the kindness.
+ *   Only the main conversation dispatches. A sub-agent is never shown the `task` tool (see
+ *   `sub-agent-dispatch.ts`), so there is no tree to bound: no depth limit, no cycle check, and no
+ *   parent waiting on its own children inside this gate.
  */
 
 /** How many sub-agents may run at once. Beyond this they queue. */
@@ -44,62 +38,6 @@ export function normalizeMaxConcurrentSubAgents(value: unknown): number {
 		? Math.min(MAX_CONCURRENT_SUB_AGENTS, Math.floor(value))
 		: DEFAULT_MAX_CONCURRENT;
 }
-/** How deep dispatch may nest. The main conversation is 0. */
-export const DEFAULT_MAX_DEPTH = 2;
-
-export const DISPATCH_KEY = "dispatchChain";
-
-/** Where this run sits in the tree, carried down through each dispatch. */
-export interface DispatchContext {
-	/** 0 for the main conversation. */
-	depth: number;
-	/** Agent names from the root down to and including this run. */
-	chain: string[];
-	/**
-	 * The registry id of the run this context belongs to; the main conversation has none.
-	 *
-	 * `chain` says what kind of agent dispatched this one; this says which. Two `explore` runs
-	 * fanned out by the same orchestrator have the same chain, and the lineage the pane draws
-	 * needs to tell them apart.
-	 */
-	id?: string;
-}
-
-export function rootDispatch(): DispatchContext {
-	return { depth: 0, chain: [] };
-}
-
-export function childDispatch(parent: DispatchContext, agent: string, id?: string): DispatchContext {
-	return { depth: parent.depth + 1, chain: [...parent.chain, agent], ...(id ? { id } : {}) };
-}
-
-/**
- * Why a dispatch cannot proceed, or undefined when it can.
- *
- * Returns the sentence the model will read. It names the limit and what to do instead, because
- * "refused" without either is a message a model can only respond to by trying again.
- */
-export function refuseDispatch(
-	context: DispatchContext,
-	agent: string,
-	limits: { maxDepth?: number } = {},
-): string | undefined {
-	const maxDepth = limits.maxDepth ?? DEFAULT_MAX_DEPTH;
-
-	if (context.depth >= maxDepth) {
-		return `派生已经到了第 ${context.depth} 层，上限是 ${maxDepth}。这一层的活自己做完，不要再往下派。`;
-	}
-
-	if (context.chain.includes(agent)) {
-		return (
-			`\`${agent}\` 已经在这条派生链上（${[...context.chain, agent].join(" → ")}），不能再派它一次。` +
-			`这种环通常是提示词写歪了——把要做的事直接说清楚，或者换一个 agent。`
-		);
-	}
-
-	return undefined;
-}
-
 /**
  * A semaphore that queues rather than rejects.
  *
@@ -218,82 +156,6 @@ export class DispatchGate {
 		});
 	}
 
-	/**
-	 * 派生里的派生：先把自己的位置让出来，再让孩子按正常规则进。一个父代理调一次，它派的孩子都走这里。
-	 *
-	 * 整棵派生树共用一道闸门（这是对的——不然「最多四个」会变成每层四个）。但一个正在派孩子的
-	 * 子代理，这一刻并没有在跑模型，它在等。占着位置等，而等的正是同一道闸门里的位置，那就是
-	 * 一个死锁：闸门开到 1 的时候，第二层永远进不来，整棵树停在那里，界面上是一个「派发子任务」
-	 * 转到超时。
-	 *
-	 * 四个子代理各派一个孙代理、`limit` 是 4，同样谁也进不去；宽度设成 1 时则是必然。
-	 *
-	 * 让位属于父亲，不属于每个孩子：第一个孩子进来时让一次，最后一个孩子走了才取回。按孩子让的话，
-	 * 父亲一次并行派四个就让了四次，宽度 1 时四个孩子同时在跑，计数却一直是 1。
-	 *
-	 * 让出的位置不主动放给队列，是留给孩子的：它下一行就要进来，而这个位置本来就是它父亲的。
-	 * 取回的时候不排队，无条件加回去——排队等的可能正是自己刚让出去的那个位置，而那个位置上的人
-	 * 在等自己。宁可有那么一瞬多出一个，也不要一个永远解不开的环。
-	 */
-	children(): { acquire(signal?: AbortSignal): Promise<() => void>; run<T>(body: () => Promise<T>, signal?: AbortSignal): Promise<T> } {
-		let present = 0;
-		let yielded = false;
-		// 正常走的孩子：它的名额转给父亲（调用方随后 `release` 抵掉）。
-		const leave = () => {
-			present -= 1;
-			if (present === 0 && yielded) {
-				yielded = false;
-				this.active += 1;
-			}
-		};
-		/*
-		 * 没排上就被叫停的孩子：没有名额可转。父亲有空位就拿，没有就排在队首等下一个空出来的——无条件加回去
-		 * 会让宽度 1 时父亲和刚被放进来的别人同时在跑。这时父亲已经没有在跑的孩子，占着名额的都不在等它，
-		 * 排队不会成环。等待不听停止信号：父亲之后一定会还自己的名额，没拿回来就还，计数会变成负的。
-		 */
-		const abandon = async () => {
-			present -= 1;
-			if (present !== 0 || !yielded) return;
-			yielded = false;
-			if (this.active < this.limit) this.active += 1;
-			else await new Promise<void>((resolve) => this.waiting.unshift(resolve));
-		};
-		const acquire = async (signal?: AbortSignal): Promise<() => void> => {
-			// 走到这里的一定是个已经拿到名额的子代理；0 只可能是没有会话的宿主临时开的一道新闸门。
-			if (present === 0 && this.active > 0) {
-				yielded = true;
-				this.active -= 1;
-			}
-			present += 1;
-			let release: () => void;
-			try {
-				release = await this.acquire(signal);
-			} catch (error) {
-				await abandon();
-				throw error;
-			}
-			let returned = false;
-			return () => {
-				if (returned) return;
-				returned = true;
-				// 先让父亲取回名额，再还孩子的：反过来的话，还回去的那一个先被排队的人拿走，父亲再无条件加回来，就超了宽度。
-				leave();
-				release();
-			};
-		};
-		return {
-			acquire,
-			async run(body, signal) {
-				const release = await acquire(signal);
-				try {
-					return await body();
-				} finally {
-					release();
-				}
-			},
-		};
-	}
-
 	/** 在宽度允许的范围内依次放行，名额在这里记账。 */
 	private admit(): void {
 		while (this.active < this.limit) {
@@ -336,11 +198,11 @@ function cancelled(signal?: AbortSignal): DispatchCancelled {
  * 模型自己一轮一个地喂，每一个都早到一整轮。所以现在说的是「一起派，排队不用你管」，数字只用来
  * 解释为什么有的回来得晚。
  */
-export function concurrencyNote(limit: number, maxDepth: number): string {
+export function concurrencyNote(limit: number): string {
 	return (
 		"互不依赖的几件事，在同一条回复里一起派出去（一次发出多个 `task` 调用）：" +
 		`最多 ${limit} 个子代理同时跑，多出来的自动排队，前面的跑完一个就补上一个——排队不用你管，也不多花钱。` +
 		"别为了等前一个的结果而一轮只派一个，那样每多派一个就多等一整轮。" +
-		`派生最多嵌套 ${maxDepth} 层。`
+		"子代理自己不能再派子代理，要拆的活由你来拆。"
 	);
 }

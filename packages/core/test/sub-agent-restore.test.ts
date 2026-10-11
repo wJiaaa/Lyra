@@ -233,13 +233,13 @@ test("a resume is the same row again, and its plan comes back with it", () => {
 });
 
 test("one dispatched in a stretch the conversation was rewound past is gone, like the turn that sent it", () => {
-	const records = [...log(dispatch("s:sub:1"), message(call("a"), "s:sub:1"), dispatch("s:sub:2", { parentId: "s:sub:1" })), { seq: 4, ts: 2_000, type: "truncate", afterSeq: 2 } as SessionRecord];
+	const records = [...log(dispatch("s:sub:1"), message(call("a"), "s:sub:1"), dispatch("s:sub:2")), { seq: 4, ts: 2_000, type: "truncate", afterSeq: 2 } as SessionRecord];
 	assert.deepEqual(restoreSubAgents(records, rebuild).map((one) => one.summary.id), ["s:sub:1"]);
 });
 
-test("a nested one is one level down, and without a model to rebuild against the rows come back without a context", () => {
-	const restored = restoreSubAgents(log(dispatch("s:sub:1"), dispatch("s:sub:2", { parentId: "s:sub:1" })));
-	assert.deepEqual(restored.map((one) => [one.summary.depth, one.summary.parentId ?? null, one.conversation === undefined]), [[1, null, true], [2, "s:sub:1", true]]);
+test("without a model to rebuild against, the rows come back without a context", () => {
+	const restored = restoreSubAgents(log(dispatch("s:sub:1"), dispatch("s:sub:2")));
+	assert.deepEqual(restored.map((one) => [one.summary.id, one.conversation === undefined]), [["s:sub:1", true], ["s:sub:2", true]]);
 });
 
 test("the roster takes them back once, and keeps what it already has", () => {

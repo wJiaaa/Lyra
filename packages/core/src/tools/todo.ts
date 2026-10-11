@@ -1,4 +1,4 @@
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import type { Message, Tool, ToolContext, ToolResult } from "../types.ts";
 
 export interface TodoItem {

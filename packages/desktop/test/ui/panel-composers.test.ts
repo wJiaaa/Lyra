@@ -31,7 +31,7 @@ import { click, fire, mount, press } from "../helpers/mount.ts";
 const zero = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 
 function running(id: string, over: Partial<SubAgentSummary> = {}): SubAgentSummary {
-	return { id, agent: "explore", description: `任务 ${id}`, status: "running", startedAt: Date.now() - 2000, toolCalls: 0, depth: 1, usage: zero, ...over };
+	return { id, agent: "explore", description: `任务 ${id}`, status: "running", startedAt: Date.now() - 2000, toolCalls: 0, usage: zero, ...over };
 }
 
 function brief(text: string): Message {

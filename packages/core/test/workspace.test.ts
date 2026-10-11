@@ -158,7 +158,7 @@ test("every place that builds a system prompt says which kind of workspace it is
 		sites.add(file.replaceAll("\\", "/").slice(root.replaceAll("\\", "/").length));
 	}
 	// Execution and reporting share a loader; dispatch still assembles its own workspace context.
-	for (const file of ["runtime/prompt-context.ts", "runtime/sub-agent.ts"]) {
+	for (const file of ["runtime/prompt-context.ts", "runtime/sub-agent-prompt.ts"]) {
 		assert.ok(sites.has(file), `${file} 的组装入口没有声明工作区类型`);
 	}
 });

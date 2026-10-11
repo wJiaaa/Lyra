@@ -26,7 +26,6 @@ function summary(over: Partial<SubAgentSummary> & { id: string; tokens?: number;
 		startedAt: 1000,
 		endedAt: 2000,
 		toolCalls: 0,
-		depth: 1,
 		usage: { input: tokens, output: 0, cacheRead: 0, cacheWrite: 0, total: tokens, cost: { input: cost, output: 0, cacheRead: 0, cacheWrite: 0, total: cost } },
 		...rest,
 	};
@@ -38,58 +37,12 @@ beforeEach(() => {
 	useSubAgents.setState({ agents: [], transcripts: {}, focused: null, loading: [] });
 });
 
-test("单子按派生树排：上级在前、下级缩进，上级那一行记的是整枝的账", async () => {
-	const picked: string[] = [];
-	const view = await mount(
-		h(SubAgentMenu, {
-			agents: [
-				summary({ id: "other", tokens: 200, cost: 0.02, startedAt: 1800 }),
-				summary({ id: "boss", agent: "orchestrator", tokens: 1000, cost: 0.1 }),
-				summary({ id: "leaf", agent: "explore", parentId: "boss", depth: 2, tokens: 500, cost: 0.05, startedAt: 1500 }),
-			],
-			current: "leaf",
-			sessionId: null,
-			onPick: (id: string) => picked.push(id),
-		}),
-	);
-	try {
-		const rows = view.all<HTMLElement>("[data-sub-row]");
-		assert.deepEqual(
-			rows.map((row) => [row.dataset.subRow, row.dataset.subLevel]),
-			[
-				["boss", "1"],
-				["leaf", "2"],
-				["other", "1"],
-			],
-			"上级在它派出去的那几个前面，层级说的是谁派的",
-		);
-		const indent = (row: HTMLElement) => Number.parseFloat(row.style.paddingLeft || "0");
-		assert.ok(indent(rows[1]) > indent(rows[0]), `下级往里缩：${indent(rows[1])} vs ${indent(rows[0])}`);
-		assert.equal(indent(rows[2]), indent(rows[0]), "第二个根和第一个齐平");
-
-		// 上级那一行是整枝的——派它出去一共花了多少——不是它自己那一份。
-		assert.match(rows[0].querySelector("[data-sub-figures]")?.textContent ?? "", /1\.5k · \$0\.15/);
-		assert.match(rows[0].querySelector("[data-sub-figures]")?.getAttribute("data-ly-tip") ?? "", /1\.0k · \$0\.10/, "它自己那一份放在提示里");
-		assert.match(rows[1].querySelector("[data-sub-figures]")?.textContent ?? "", /500 · \$0\.05$/);
-		assert.equal(view.all("[data-sub-total]").length, 0, "整批的合计不在这里——那笔钱进了这一轮的总数");
-
-		assert.equal(rows[1].dataset.selected, "true");
-		assert.equal(rows[1].querySelector("[role=menuitem]")?.getAttribute("aria-current"), "true");
-		assert.equal(view.all("button[aria-label^='关闭'], button[aria-label^='停止并关闭']").length, 0, "不知道是哪个会话，就不画 ×");
-
-		await click(rows[2].querySelector("[role=menuitem]") as HTMLElement);
-		assert.deepEqual(picked, ["other"]);
-	} finally {
-		await view.unmount();
-	}
-});
-
 test("不足一分钱写 <$0.01，没有价钱的只写 token——便宜不是免费，不知道也不是", async () => {
 	const view = await mount(
 		h(SubAgentMenu, {
 			agents: [
 				summary({ id: "a", tokens: 3000, cost: 0.02 }),
-				summary({ id: "a1", parentId: "a", depth: 2, tokens: 520, cost: 0.0018 }),
+				summary({ id: "a1", tokens: 520, cost: 0.0018 }),
 				summary({ id: "b", tokens: 4000 }),
 			],
 			current: null,

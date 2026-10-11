@@ -1,6 +1,6 @@
 import type { Stats } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { snapshotTag } from "./hunk.ts";
 import { charWindow, formatCharWindow, longLineFooter, MAX_LINE_CHARS } from "./long-line.ts";

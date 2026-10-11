@@ -4,7 +4,7 @@ import { request as httpsRequest } from "node:https";
 import type { LookupFunction } from "node:net";
 import { pipeline, type Readable } from "node:stream";
 import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { htmlToText } from "./html-text.ts";
 import { assessNetwork } from "./risk-network.ts";

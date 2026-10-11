@@ -28,7 +28,7 @@ import type { Compaction, CompactionObserver, CompactionFault } from "../types/c
 import type { CompactionRequest, CompactionStrategy } from "../kernel/services.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { estimateTokens } from "../tokens.ts";
-import { allowance, dropUneventful, FRESH_RESULT_MAX_CHARS, pruneToolResults, type ArtifactSink } from "../agent/prune.ts";
+import { allowance, dropUneventful, FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../agent/prune.ts";
 import { dropStaleResults } from "./stale-results.ts";
 import { measureTotal, textTokens } from "../tokens.ts";
 import { stripStaleHandles } from "../agent/model-switch.ts";
@@ -197,67 +197,24 @@ export function useCompaction(next: CompactionStrategy | null): void {
  * and both hand over the whole request. They did not always: this took seven positional arguments
  * and forwarded four of them to the strategy, so a host that bound one (the desktop does) lost
  * the overhead, the artifact sink and the `@compact` summarizer without a word. The request is an
- * object now so that adding to it cannot leave a caller silently short.
+ * object now so that adding to it cannot leave a caller silently short — and the built-in policy
+ * takes the same object, so there is no second place that spells the fields out one by one.
  */
 export function compactWith(request: CompactionRequest): Promise<Compaction | null> {
 	if (strategy) return strategy.compact(request);
-	return compactIfNeeded(
-		request.messages,
-		request.model,
-		request.provider,
-		request.streamFn ?? streamAssistant,
-		request.overhead ?? 0,
-		request.force ?? false,
-		request.artifacts,
-		request.manual,
-		request.summarizer,
-		request.observer,
-	);
+	return compactIfNeeded(request);
 }
 
-export async function compactIfNeeded(
-	messages: Message[],
-	model: ModelConfig,
-	provider: ProviderConfig,
-	/**
-	 * How to reach the model, injected so this can be exercised without one.
-	 *
-	 * Compaction is hard to observe in the wild — it happens once, deep in a long run, and the
-	 * evidence is that a number went down. Being able to drive it directly is the only way to
-	 * know the cut lands where it should.
-	 */
-	streamFn: typeof streamAssistant = streamAssistant,
-	/**
-	 * What the request carries besides the conversation: the system prompt and every tool schema.
-	 *
-	 * Passed in because it is fixed while the conversation is not. A budget that treats the two as
-	 * one shrinks the prompt and the schemas on paper whenever the conversation is cut — and they
-	 * are sent in full every time, so the result lands above the line it was aiming for.
-	 */
-	overhead = 0,
-	/**
-	 * Compact now, whatever the conversation currently weighs.
-	 *
-	 * What `/compact` sets. Someone who has just finished one piece of work and is about to start
-	 * another knows something the threshold cannot: that the last two hours are done with, and
-	 * carrying them into the next thing is what will make it drift. Waiting for 80% would summarise
-	 * the new work along with the old.
-	 */
-	force = false,
-	/**
-	 * 剪掉的原文往哪儿存，让 `artifact://` 能取回。
-	 *
-	 * 可选：不给的时候剪枝的行为跟以前完全一样，剪掉就是没了。给了之后，占位标记里那句
-	 * 「完整结果留在会话里」才第一次对模型成立——它读不到转录，读得到地址。
-	 */
-	artifacts?: ArtifactSink,
-	manual?: { instructions?: string; signal?: AbortSignal },
-	/**
-	 * Selects the summarizer without changing the active model's compaction threshold or tail budget.
-	 */
-	summarizer?: { provider: ProviderConfig; model: ModelConfig },
-	observer?: CompactionObserver,
-): Promise<Compaction | null> {
+/**
+ * The built-in policy. What each field of the request is for is documented on `CompactionRequest`;
+ * the defaults are applied here and only here, so no caller has a copy of them to drift.
+ */
+export async function compactIfNeeded(request: CompactionRequest): Promise<Compaction | null> {
+	const { model, provider, artifacts, manual, summarizer, observer } = request;
+	const streamFn = request.streamFn ?? streamAssistant;
+	const overhead = request.overhead ?? 0;
+	const force = request.force ?? false;
+	let messages = request.messages;
 	/*
 	 * The provider's own count, not our estimate of it.
 	 *

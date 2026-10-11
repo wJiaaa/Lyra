@@ -17,7 +17,7 @@
  * matched. This answers in messages, trimmed, oldest first.
  */
 
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import { SessionStore } from "../session/store.ts";
 import type { Message, Tool, ToolResult } from "../types.ts";
 

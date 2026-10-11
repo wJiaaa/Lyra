@@ -11,7 +11,7 @@
  * is whether reading the code would tell you: if it would, the code is the record.
  */
 
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import { MAX_LESSON_CHARS, PROJECT_MEMORY_ENABLED_KEY, recordLesson } from "../runtime/project-memory.ts";
 import type { Tool, ToolResult } from "../types.ts";
 

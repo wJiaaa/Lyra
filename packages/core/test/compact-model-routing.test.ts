@@ -51,12 +51,12 @@ for (const target of [{ provider: summaryProvider, model: summarizer }, { provid
 		messages.splice(1, 0, signed);
 		const before = structuredClone(messages);
 		let sent: Message[] = [];
-		const compacted = await compactIfNeeded(messages, model, provider, async function* (_provider, _model, context) {
+		const compacted = await compactIfNeeded({ messages, model, provider, streamFn: async function* (_provider, _model, context) {
 			sent = context.messages;
 			const message = reply("Summary");
 			yield { type: "done", message };
 			return message;
-		}, 0, true, undefined, undefined, target);
+		}, force: true, summarizer: target });
 		assert.ok(compacted);
 		assert.doesNotMatch(JSON.stringify(sent), /source-signature|source-encrypted/);
 		assert.match(JSON.stringify(sent), /Reasoning text/);

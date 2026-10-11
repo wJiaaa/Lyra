@@ -43,7 +43,7 @@ export function renderAgentDocument(draft: AgentDraft, raw?: string, builtin?: A
 	if (document.errors.length || !isMap(document.contents)) throw new Error("智能体元数据必须是有效的 YAML 对象");
 	if (builtin) {
 		// 脸也跟着走：改一下内置的指令，不该顺手把它变成另一个人。
-		for (const key of ["model", "output", "schemaMode", "spawns", "avatar"] as const) {
+		for (const key of ["model", "output", "schemaMode", "avatar"] as const) {
 			if (builtin[key] !== undefined) document.set(key, builtin[key]);
 		}
 	}

@@ -193,7 +193,7 @@ export function isActive(one: Pick<SubAgentSummary, "status">): boolean {
  * 转到后台的那些不算：主会话已经不等它们了。
  */
 export function awaitingSubAgents(roster: readonly SubAgentSummary[]): boolean {
-	return roster.some((one) => one.depth === 1 && isActive(one) && !one.background);
+	return roster.some((one) => isActive(one) && !one.background);
 }
 
 /** What a sub-agent has spent, in the two numbers a person reads: tokens, and dollars when priced. */
@@ -201,22 +201,6 @@ export interface RosterFigures {
 	tokens: number;
 	/** 0 when the model has no pricing — which is "unknown", and is shown as nothing rather than as free. */
 	cost: number;
-}
-
-/** One sub-agent in its lineage: the ones it dispatched, and what the whole branch has spent. */
-export interface RosterNode {
-	agent: SubAgentSummary;
-	/**
-	 * 1 for a root. What the indent is drawn from — not `depth`, because an orphan whose parent was
-	 * retired from the roster is a root here at depth 2, and indenting it under nothing would draw a
-	 * parent that is not there.
-	 */
-	level: number;
-	children: RosterNode[];
-	/** Its own figures, for the row. */
-	own: RosterFigures;
-	/** Its own plus every descendant's — what a root shows, since that is what dispatching it cost. */
-	branch: RosterFigures;
 }
 
 /**
@@ -229,57 +213,4 @@ export interface RosterNode {
  */
 export function figuresOf(agent: SubAgentSummary): RosterFigures {
 	return { tokens: agent.usage ? freshTokens(agent.usage) : 0, cost: agent.usage?.cost.total ?? 0 };
-}
-
-function addFigures(a: RosterFigures, b: RosterFigures): RosterFigures {
-	return { tokens: a.tokens + b.tokens, cost: a.cost + b.cost };
-}
-
-/**
- * The roster as the tree it came from.
- *
- * Every summary names its parent, so the tree is a fold over the list rather than a second
- * structure kept in step with it. A sub-agent whose parent has been retired from the roster
- * becomes a root: it is still work that happened, and a branch with no visible root would be
- * work that vanished. Siblings keep `rosterOrder` — running first, then by start.
- */
-export function rosterTree(agents: SubAgentSummary[]): RosterNode[] {
-	const known = new Set(agents.map((one) => one.id));
-	const byParent = new Map<string | null, SubAgentSummary[]>();
-	/*
-	 * 父亲指回自己（或者绕成一个圈）的那几条，当成根。
-	 *
-	 * 正常的登记簿不会这样——父亲在孩子之前登记，孩子的 id 是新铸的——但这份名单是跨进程传过来的
-	 * 数据，一条坏的记录不该让整个面板在递归里爆栈。沿着父亲往上走，走回自己就是圈。
-	 */
-	const parentOf = new Map(agents.map((one) => [one.id, one.parentId && known.has(one.parentId) ? one.parentId : null]));
-	const circular = (id: string) => {
-		const seen = new Set([id]);
-		for (let at = parentOf.get(id); at; at = parentOf.get(at)) {
-			if (seen.has(at)) return true;
-			seen.add(at);
-		}
-		return false;
-	};
-	for (const one of rosterOrder(agents)) {
-		const parent = circular(one.id) ? null : (parentOf.get(one.id) ?? null);
-		byParent.set(parent, [...(byParent.get(parent) ?? []), one]);
-	}
-	const build = (agent: SubAgentSummary, level: number): RosterNode => {
-		const children = (byParent.get(agent.id) ?? []).map((child) => build(child, level + 1));
-		const own = figuresOf(agent);
-		return { agent, level, children, own, branch: children.reduce((sum, child) => addFigures(sum, child.branch), own) };
-	};
-	return (byParent.get(null) ?? []).map((root) => build(root, 1));
-}
-
-/** The tree flattened back into rows, parents before their children — the order an indented list reads in. */
-export function rosterRows(agents: SubAgentSummary[]): RosterNode[] {
-	const rows: RosterNode[] = [];
-	const walk = (node: RosterNode) => {
-		rows.push(node);
-		for (const child of node.children) walk(child);
-	};
-	for (const root of rosterTree(agents)) walk(root);
-	return rows;
 }

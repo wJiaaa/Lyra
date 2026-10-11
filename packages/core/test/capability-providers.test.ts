@@ -75,24 +75,25 @@ test("a custom agent replaces the built-in of the same name", async () => {
 	assert.equal(shadowed.shadowedBy?.provider, "native", "and says who replaced it");
 });
 
-test("an agent file can say whom it dispatches and what it must return", async () => {
+test("an agent file can say what it must return, and a leftover `spawns` is ignored", async () => {
 	/*
-	 * `spawns`, `output` and `schemaMode` were declared on the type, enforced in `runSubAgent`
-	 * and tested with definitions built in memory — and never read from a file. No definition
-	 * anyone could write was able to delegate or to promise an object, so the lineage the pane
-	 * draws and the schema-rendered reply could not occur outside a test.
+	 * `output` and `schemaMode` were declared on the type, enforced in `runSubAgent` and tested with
+	 * definitions built in memory — and never read from a file, so the schema-rendered reply could
+	 * not occur outside a test.
+	 *
+	 * `spawns` is read no more: only the main conversation dispatches. Files written while it was
+	 * honoured still carry the line, and it must not reach the definition.
 	 */
 	const result = await registry().load<AgentDefinition>("agent", { cwd: project });
 	const boss = result.items.find((a) => a.name === "boss");
 	const lead = result.items.find((a) => a.name === "lead");
 	const general = result.items.find((a) => a.name === "general");
 	assert.ok(boss && lead && general);
-	assert.equal(boss.spawns, "*");
-	assert.deepEqual(lead.spawns, ["scout", "reviewer"], "a list is a list, not a switch");
+	assert.equal("spawns" in boss, false, "a leftover `spawns: \"*\"` does not reach the definition");
+	assert.equal("spawns" in lead, false);
 	assert.equal(lead.schemaMode, "strict", "`schema-mode` reaches the camelCase field");
 	assert.equal(lead.output?.type, "object");
 	assert.deepEqual(Object.keys((lead.output as { properties: Record<string, unknown> }).properties), ["where"]);
-	assert.equal(general.spawns, undefined, "the default stays: nobody dispatches unless the file says so");
 	assert.equal(general.output, undefined);
 	// 检查点间隔：`max-turns` 读成 camelCase；写成 0 这种没法用的数就当没写，而不是让它每一轮都被叫停。
 	assert.equal(boss.maxTurns, 25, "`max-turns` reaches the camelCase field");

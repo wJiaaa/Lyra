@@ -13,7 +13,7 @@
  */
 
 import { relative, resolve } from "node:path";
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import { textualReferences, TEXTUAL_CAVEAT } from "../lsp/fallback.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import type { CodeLocation } from "../lsp/types.ts";

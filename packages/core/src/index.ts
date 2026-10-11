@@ -97,7 +97,8 @@ export type {
 	StreamRequest,
 	ToolEnvironment,
 } from "./agent/run-config.ts";
-export { errorResult, textResult } from "./agent/tool-run.ts";
+export { textResult } from "./agent/tool-run.ts";
+export { errorResult } from "./tools/result.ts";
 /** 一个会话算在哪些目录里；桌面端判断两个会话能不能互相通信时用。 */
 export { projectRootsFor, within as pathWithin } from "./config/project-roots.ts";
 export { runTurn, useAgentLoop, type AgentLoop } from "./agent/runner.ts";

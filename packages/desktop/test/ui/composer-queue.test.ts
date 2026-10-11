@@ -144,7 +144,7 @@ test("主智能体只是在等子智能体：按下去直接送进去，不排�
 	 */
 	setup();
 	const { useSubAgents } = await import("../../src/store/subAgents.ts");
-	const waitingOn = { id: "a:sub:1", agent: "review", description: "审查", status: "running" as const, startedAt: Date.now(), toolCalls: 0, depth: 1, usage };
+	const waitingOn = { id: "a:sub:1", agent: "review", description: "审查", status: "running" as const, startedAt: Date.now(), toolCalls: 0, usage };
 	useSubAgents.setState({ agents: [waitingOn], rosters: { a: [waitingOn] } });
 	const view = await mount(composer());
 	try {
@@ -162,7 +162,7 @@ test("主智能体只是在等子智能体：按下去直接送进去，不排�
 test("转到后台的子智能体不算：主智能体已经不等它了，这时候照常排队", async () => {
 	setup();
 	const { useSubAgents } = await import("../../src/store/subAgents.ts");
-	const background = { id: "a:sub:1", agent: "review", description: "审查", status: "running" as const, startedAt: Date.now(), toolCalls: 0, depth: 1, usage, background: true };
+	const background = { id: "a:sub:1", agent: "review", description: "审查", status: "running" as const, startedAt: Date.now(), toolCalls: 0, usage, background: true };
 	useSubAgents.setState({ agents: [background], rosters: { a: [background] } });
 	const view = await mount(composer());
 	try {

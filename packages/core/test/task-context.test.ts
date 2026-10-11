@@ -24,9 +24,9 @@ test("successive compactions retain user wording and unfinished work independent
 	const original = "修复登录并补测试；不要提交代码。";
 	const correction = "只修改 core，完成后再报告。";
 	const messages = [user(original), reply("Working"), user(correction), plan("补登录回归测试"), ...filler()];
-	const first = await compactIfNeeded(messages, model, provider, stream, 0, true);
+	const first = await compactIfNeeded({ messages, model, provider, streamFn: stream, force: true });
 	assert.ok(first?.kept !== undefined);
-	const second = await compactIfNeeded([...first.messages, ...filler()], model, provider, stream, 0, true);
+	const second = await compactIfNeeded({ messages: [...first.messages, ...filler()], model, provider, streamFn: stream, force: true });
 	assert.ok(second?.kept !== undefined);
 	assert.match(text(second.messages), /修复登录并补测试；不要提交代码。/);
 	assert.match(text(second.messages), /只修改 core，完成后再报告。/);
@@ -36,9 +36,9 @@ test("successive compactions retain user wording and unfinished work independent
 
 test("intermediate user constraints survive repeated summaries that omit them", async () => {
 	const messages = [user("修复登录"), user("不得修改数据库结构 MIDDLE_CONSTRAINT"), user("取消发布，只验证本地 CANCEL_RELEASE"), user("继续检查"), ...filler()];
-	const first = await compactIfNeeded(messages, model, provider, stream, 0, true);
+	const first = await compactIfNeeded({ messages, model, provider, streamFn: stream, force: true });
 	assert.ok(first);
-	const second = await compactIfNeeded([...first.messages, user("报告结果"), ...filler()], model, provider, stream, 0, true);
+	const second = await compactIfNeeded({ messages: [...first.messages, user("报告结果"), ...filler()], model, provider, streamFn: stream, force: true });
 	assert.ok(second);
 	assert.match(text(second.messages), /MIDDLE_CONSTRAINT/);
 	assert.match(text(second.messages), /CANCEL_RELEASE/);
@@ -46,13 +46,13 @@ test("intermediate user constraints survive repeated summaries that omit them", 
 });
 
 test("newer completed, cleared and failed plan updates cannot revive an old task", async () => {
-	const first = await compactIfNeeded([user("修复登录"), plan("旧任务"), ...filler()], model, provider, stream, 0, true);
+	const first = await compactIfNeeded({ messages: [user("修复登录"), plan("旧任务"), ...filler()], model, provider, streamFn: stream, force: true });
 	assert.ok(first);
 	const failed = { ...plan("失败更新"), isError: true };
 	assert.deepEqual(taskContextFromHistory([...first.messages, failed]).todos, [{ content: "旧任务", status: "pending" }]);
 	assert.deepEqual(taskContextFromHistory([...first.messages, plan("旧任务", "completed")]).todos, [{ content: "旧任务", status: "completed" }]);
 	const cleared: Message = { ...user("不要再做旧任务"), synthetic: true, clearsTaskPlan: true };
-	const second = await compactIfNeeded([...first.messages, cleared, user("改查配置，不修改代码"), ...filler()], model, provider, stream, 0, true);
+	const second = await compactIfNeeded({ messages: [...first.messages, cleared, user("改查配置，不修改代码"), ...filler()], model, provider, streamFn: stream, force: true });
 	assert.ok(second);
 	assert.deepEqual(taskContextFromHistory(second.messages).todos, []);
 	assert.match(text(second.messages), /改查配置，不修改代码/);
@@ -62,7 +62,7 @@ test("newer completed, cleared and failed plan updates cannot revive an old task
 test("automatic summary failure still carries the runtime task snapshot", async () => {
 	const unavailable = async function* () { yield { type: "start" as const, partial: reply("") }; throw new Error("offline"); };
 	const messages = [user("保留授权限制：只读诊断"), plan("检查调用方"), ...filler(), ...filler()];
-	const result = await compactIfNeeded(messages, model, provider, unavailable);
+	const result = await compactIfNeeded({ messages, model, provider, streamFn: unavailable });
 	assert.ok(result?.kept !== undefined);
 	assert.match(text(result.messages), /只读诊断/);
 	assert.match(text(result.messages), /\[pending\] 检查调用方/);
@@ -104,7 +104,7 @@ test("cold restore rebuilds the same snapshot; rewind drops updates after the re
 		const log = new SessionLog(store, async () => {}, meta);
 		const messages = [user("目标：修复登录；禁止推送"), plan("验证登录"), ...filler()];
 		for (const message of messages) await log.commit(message);
-		const result = await compactIfNeeded(messages, model, provider, stream, 0, true);
+		const result = await compactIfNeeded({ messages, model, provider, streamFn: stream, force: true });
 		assert.ok(result?.kept !== undefined);
 		await log.emit({ type: "compacted", before: messages.length, after: result.messages.length, summary: result.summary, kept: result.kept });
 		const before = modelHistory(log, provider, model);

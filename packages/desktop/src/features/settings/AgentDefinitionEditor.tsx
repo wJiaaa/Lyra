@@ -134,7 +134,7 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, de
 				<label className="block"><FieldLabel>{t("agentEditor.instructionsLabel")}</FieldLabel>
 					<TextArea aria-label={t("agentEditor.instructions")} placeholder={t("agentEditor.instructionsPlaceholder")} required maxLength={200000} value={draft.systemPrompt} rows={8} resizable className="min-h-16" onChange={next => patch({ systemPrompt: next })} />
 				</label>
-				{definition && <div className="text-label"><Disclosure variant="framed" title={t("agentEditor.advanced")}><p className="mb-2 text-detail text-ink-muted">{t("agentEditor.advancedNote")}</p><pre className="overflow-auto whitespace-pre-wrap break-words text-caption">{JSON.stringify({ model: definition.model, output: definition.output, schemaMode: definition.schemaMode, spawns: definition.spawns }, null, 2)}</pre></Disclosure></div>}
+				{definition && <div className="text-label"><Disclosure variant="framed" title={t("agentEditor.advanced")}><p className="mb-2 text-detail text-ink-muted">{t("agentEditor.advancedNote")}</p><pre className="overflow-auto whitespace-pre-wrap break-words text-caption">{JSON.stringify({ model: definition.model, output: definition.output, schemaMode: definition.schemaMode }, null, 2)}</pre></Disclosure></div>}
 				<p className="text-caption text-ink-muted">{t("agentEditor.draftNote")}</p>
 				{/* The hook form's footer: a rule, delete on the left, then cancel before save. */}
 				<div className="flex flex-col gap-2 border-t border-line-soft pt-4 @sm:flex-row @sm:items-center">

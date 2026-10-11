@@ -20,7 +20,7 @@ import { mount } from "../helpers/mount.ts";
 const zero = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 
 function finished(over: Partial<SubAgentSummary>): SubAgentSummary {
-	return { id: "s:sub:1", agent: "review", description: "审一遍登录", status: "done", startedAt: 1000, endedAt: 9000, toolCalls: 4, depth: 1, usage: zero, ...over };
+	return { id: "s:sub:1", agent: "review", description: "审一遍登录", status: "done", startedAt: 1000, endedAt: 9000, toolCalls: 4, usage: zero, ...over };
 }
 
 async function show(agent: SubAgentSummary) {

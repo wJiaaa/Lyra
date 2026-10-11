@@ -128,7 +128,7 @@ export function makeYieldTool(
 				 * 除非交出来的是个空壳。校验只问字段在不在、类型对不对，不问填没填，所以
 				 * `{ summary: "", files: [] }` 是合格的，而它渲染出来是一片空白。那一句「结束」
 				 * 在这里就成了让一次跑完的派生交出零——留着这一轮，是它唯一还能说点什么的机会，
-				 * `runtime/sub-agent.ts` 里 `|| prose` 那个兜底接的正是那句话。
+				 * `runtime/sub-agent-finish.ts` 里 `|| prose` 那个兜底接的正是那句话。
 				 */
 				return {
 					content: [{ type: "text", text: "结果已提交。" }],

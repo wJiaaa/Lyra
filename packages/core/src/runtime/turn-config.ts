@@ -14,7 +14,7 @@ import type { AfterToolCall, AgentRunConfig, BeforeToolCall, LiveModel, Permissi
 import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Skill } from "../skills/loader.ts";
-import { DispatchGate, normalizeMaxConcurrentSubAgents, rootDispatch } from "./dispatch-guard.ts";
+import { DispatchGate, normalizeMaxConcurrentSubAgents } from "./dispatch-guard.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type {
 	ApprovalDecision,
@@ -26,11 +26,9 @@ import type {
 	ThinkingLevel,
 	Tool,
 } from "../types.ts";
-import { plumeHome } from "../session/store.ts";
 import { compactWith } from "./compaction.ts";
 import type { ArtifactSink } from "../agent/prune.ts";
 import { textTokens, toolTokens } from "../tokens.ts";
-import { writePreview } from "./previews.ts";
 import { addressLookups, runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
 import type { DelegationWaits } from "./delegation-waits.ts";
@@ -38,8 +36,9 @@ import { compactionModel } from "../config/model-choice.ts";
 import type { TurnContext } from "./turn.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
-import { toolPolicy } from "./tool-policy.ts";
+import { inheritedToolEnv } from "./run-policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
+import type { ExtensionHost } from "../extensions/host.ts";
 
 export interface TurnConfigDeps {
 	sessionId: string;
@@ -77,9 +76,12 @@ export interface TurnConfigDeps {
 	 * 可选：不给的时候剪掉就是没了，跟以前一样。
 	 */
 	artifacts?: ArtifactSink;
+	/** 这三个由 `toolHooks` 装好（`run-policy.ts`），跟子代理同一个来源。 */
 	beforeToolCall: BeforeToolCall;
 	afterToolCall: AfterToolCall;
 	permissionRequest?: PermissionRequestHook;
+	/** 会话的扩展。这一轮的工具钩子已经带着它；这里是为了交给派出去的子代理。 */
+	extensions?: ExtensionHost;
 	onStop?: StopHook;
 	drainSteering: () => Message[];
 	/** The session's address space. Session-scoped: its handlers hold session state. */
@@ -141,18 +143,11 @@ export function buildTurnConfig(
 				registry: deps.subAgents,
 				// So a delegated run compacts through the same model call this session does.
 				summaryStream: deps.summaryStream,
-				/*
-				 * 整棵派生树共用同一个闸门和同一条链。
-				 *
-				 * 闸门传下去，是因为「最多四个」如果每一层各算各的，就成了顶层四个、
-				 * 每个下面再四个。链传下去，是因为深度和自递归都只有在链上才看得出来。
-				 */
-				gate,
 				admission: (signal) => gate.acquire(signal),
 				onRegistered: (id) => {
 					registered = id;
 				},
-				dispatch: rootDispatch(),
+				extensions: deps.extensions,
 				allowedPaths: deps.allowedPaths,
 				transcript: deps.transcript,
 				addresses: { artifacts: deps.artifacts, lookups: addressLookups(deps.state), scratchDir: deps.scratchDir },
@@ -215,24 +210,18 @@ export function buildTurnConfig(
 		tools: {
 			available: turn.tools,
 			env: {
-				cwd: deps.cwd,
-				// Decided once per turn, the same way for every kind of run; see `tool-policy.ts`.
-				...toolPolicy(deps.settings, deps.cwd),
-				allowedPaths: deps.allowedPaths,
+				// 沙箱、搜索、预览这些跟子代理同一个来源，见 `run-policy.ts`。
+				...inheritedToolEnv({
+					settings: deps.settings,
+					cwd: deps.cwd,
+					sessionId: deps.sessionId,
+					allowedPaths: deps.allowedPaths,
+					transcript: deps.transcript,
+				}),
 				spawnSubAgent,
 				untilSpokenTo: deps.delegations ? (run) => deps.delegations!.until(run) : undefined,
 				resources: deps.resources,
 				scratchDir: deps.scratchDir,
-				/*
-				 * Previews are written under the app's directory, keyed by this session.
-				 *
-				 * The workspace is the user's project; a page produced to demonstrate an idea
-				 * is not part of it and should never turn up in `git status`. Keyed by session
-				 * so it can be thrown away with the conversation that produced it.
-				 */
-				writePreview: (input) =>
-					writePreview(plumeHome(), { ...input, sessionId: deps.sessionId }),
-				transcript: deps.transcript,
 			},
 			requestApproval: (request) => deps.requestApproval(request),
 			beforeToolCall: deps.beforeToolCall,

@@ -36,15 +36,6 @@ export interface AgentDefinition {
 	 */
 	schemaMode?: "permissive" | "strict";
 	/**
-	 * Which agents this one may dispatch. Default: none.
-	 *
-	 * The opposite of omp's default, which grants it to anything holding the `task` tool. Recursive
-	 * dispatch is the most expensive switch in the system and the hardest to reason about after the
-	 * fact, so it is off unless a definition asks for it — which also means you can tell whether an
-	 * agent spawns others by reading its frontmatter instead of its prompt.
-	 */
-	spawns?: string[] | "*";
-	/**
 	 * 它的脸：`形状-颜色`，比如 `cloud-violet`。界面在设置页、提及菜单、子智能体面板里都画这一张。
 	 *
 	 * 写在定义里而不是存在界面的偏好里，是因为它是身份的一部分——定义文件拷到另一台机器上，

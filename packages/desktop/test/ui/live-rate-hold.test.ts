@@ -29,7 +29,7 @@ function CharsProbe() {
 /** 一个只有产出数字要紧的子代理记录。 */
 function subAgent(id: string, output: number, status: SubAgentSummary["status"] = "running"): SubAgentSummary {
 	return {
-		id, agent: "explore", description: id, status, startedAt: 0, toolCalls: 0, depth: 1,
+		id, agent: "explore", description: id, status, startedAt: 0, toolCalls: 0,
 		usage: { input: 0, output, cacheRead: 0, cacheWrite: 0, total: output, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
 	};
 }

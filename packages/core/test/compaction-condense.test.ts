@@ -28,7 +28,7 @@ test("condensed tool calls keep their clipped arguments for protocols that read 
 		...Array.from({ length: 30 }, (_, i) => (i % 2 ? user(`next ${"y".repeat(2000)}`) : reply([{ type: "text", text: `step ${"x".repeat(2000)}` }]))),
 	];
 	let sent: Message[] = [];
-	const result = await compactIfNeeded(messages, m, provider(m), spy((next) => { sent = next; }) as never);
+	const result = await compactIfNeeded({ messages, model: m, provider: provider(m), streamFn: spy((next) => { sent = next; }) as never });
 	assert.ok(result?.kept !== undefined, "precondition: it summarised");
 	const call = sent.flatMap((message) => (message.role === "assistant" ? message.content : [])).find((part) => part.type === "toolCall");
 	assert.ok(call && call.type === "toolCall");
@@ -52,7 +52,7 @@ test("the summary request budget is corrected by the measured token ratio", asyn
 	const scale = 190_000 / estimateTokens(history);
 	assert.ok(scale > 1.5, `precondition: the estimate runs low (${scale})`);
 	let sent: Message[] = [];
-	const result = await compactIfNeeded(history, m, provider(m), spy((next) => { sent = next; }) as never);
+	const result = await compactIfNeeded({ messages: history, model: m, provider: provider(m), streamFn: spy((next) => { sent = next; }) as never });
 	assert.ok(result?.kept !== undefined, "precondition: it summarised");
 	const weight = estimateTokens(sent) * scale;
 	assert.ok(weight <= m.contextWindow * 0.42, `summary input must fit its budget once corrected: ${Math.round(weight)}`);

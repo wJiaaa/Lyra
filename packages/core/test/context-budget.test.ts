@@ -48,22 +48,22 @@ test("first-request compaction counts prompt and schema overhead", async () => {
 	assert.ok(estimateTokens(messages) < small.contextWindow * 0.8);
 	let calls = 0;
 	const summary = async function* () { calls++; yield { type: "start" as const, partial: reply("") }; return reply("Summary"); };
-	assert.equal(await compactIfNeeded(messages, small, provider, summary), null);
-	const result = await compactIfNeeded(messages, small, provider, summary, 3000);
+	assert.equal(await compactIfNeeded({ messages, model: small, provider, streamFn: summary }), null);
+	const result = await compactIfNeeded({ messages, model: small, provider, streamFn: summary, overhead: 3000 });
 	assert.ok(result?.kept !== undefined);
 	assert.equal(calls, 1);
 });
 
 test("oversized fixed overhead does not announce a compaction that changed nothing", async () => {
 	const messages = [reply("short history")];
-	assert.equal(await compactIfNeeded(messages, model, provider, undefined, model.contextWindow), null);
+	assert.equal(await compactIfNeeded({ messages, model, provider, overhead: model.contextWindow }), null);
 });
 
 test("summary requests use their own prompt budget and ignore retired provider measurements", async () => {
 	const summarizer = { ...model, id: "small", contextWindow: 6000, maxOutputTokens: 6000 };
 	const messages = Array.from({ length: 20 }, () => ({ ...reply("history ".repeat(180)), usage: { ...emptyUsage(), input: 30_000 } }));
 	let sent = false;
-	await compactIfNeeded(messages, model, provider, async function* (_provider, active, context, config) {
+	await compactIfNeeded({ messages, model, provider, streamFn: async function* (_provider, active, context, config) {
 		sent = true;
 		assert.equal(active.id, summarizer.id);
 		// The room the pre-send check reserved: a quarter of this small summariser's window.
@@ -71,7 +71,7 @@ test("summary requests use their own prompt budget and ignore retired provider m
 		assert.ok(estimateTokens(context.messages) + textTokens(context.systemPrompt) + config!.maxTokens! + 60 <= active.contextWindow);
 		yield { type: "start" as const, partial: reply("") };
 		return reply("Summary");
-	}, 0, true, undefined, undefined, { provider, model: summarizer });
+	}, force: true, summarizer: { provider, model: summarizer } });
 	assert.ok(sent);
 });
 

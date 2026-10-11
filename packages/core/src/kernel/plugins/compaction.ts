@@ -1,4 +1,3 @@
-import { streamAssistant } from "../../ai/index.ts";
 import { compactIfNeeded } from "../../runtime/compaction.ts";
 import type { Compaction } from "../../types/compaction.ts";
 import type { Context, Plugin } from "../context.ts";
@@ -15,25 +14,15 @@ import { COMPACTION, type CompactionRequest, type CompactionStrategy } from "../
 class SummaryCompaction implements CompactionStrategy {
 	compact(request: CompactionRequest): Promise<Compaction | null> {
 		/*
-		 * Every field forwarded, none defaulted away.
+		 * The request goes over whole; the defaults live in `compactIfNeeded`.
 		 *
-		 * This used to pass the first four and let `compactIfNeeded` default the rest, which meant
-		 * that binding the built-in strategy — what the desktop does at boot — turned off the
-		 * overhead accounting, artifact storage and the `compact` model. The built-in policy
-		 * should behave the same whether or not a context is in the picture.
+		 * This used to pass the first four fields positionally and let `compactIfNeeded` default the
+		 * rest, which meant that binding the built-in strategy — what the desktop does at boot —
+		 * turned off the overhead accounting, artifact storage and the `compact` model. The built-in
+		 * policy should behave the same whether or not a context is in the picture, and handing over
+		 * the object is what leaves no field to forget.
 		 */
-		return compactIfNeeded(
-			request.messages,
-			request.model,
-			request.provider,
-			request.streamFn ?? streamAssistant,
-			request.overhead ?? 0,
-			request.force ?? false,
-			request.artifacts,
-			request.manual,
-			request.summarizer,
-			request.observer,
-		);
+		return compactIfNeeded(request);
 	}
 }
 

@@ -160,18 +160,7 @@ async function loadNativeAgents(ctx: DiscoveryContext): Promise<ProviderResult<A
 				model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
 				// 原样带着，认不认得出由界面决定——见 `AgentDefinition.avatar`。
 				avatar: typeof frontmatter.avatar === "string" && frontmatter.avatar.trim() ? frontmatter.avatar.trim() : undefined,
-				/*
-				 * Who it may dispatch — `"*"` or a list of names. Declared on the type, enforced in
-				 * `runSubAgent`, tested with definitions built in memory, and never read from a file:
-				 * no definition anyone wrote could delegate, so the tree the pane draws could not occur.
-				 */
-				spawns:
-					frontmatter.spawns === "*"
-						? "*"
-						: Array.isArray(frontmatter.spawns)
-							? (frontmatter.spawns as unknown[]).filter((t): t is string => typeof t === "string")
-							: undefined,
-				// Same story as `spawns`: the two fields that make a reply an object were never read.
+				// 让回复成为一个对象的这两个字段，从前声明在类型上、却从没从文件里读过。
 				output:
 					frontmatter.output && typeof frontmatter.output === "object" && !Array.isArray(frontmatter.output)
 						? (frontmatter.output as JsonSchema)

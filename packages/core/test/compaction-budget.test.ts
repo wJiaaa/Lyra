@@ -45,7 +45,7 @@ test("a history of many-block messages is condensed to the budget as a whole, no
 		history.push(toolResult(`c${i}`, `ok ${i}`));
 	}
 	const { requests, stream } = recorder();
-	const result = await compactIfNeeded(history, m, provider(m), stream);
+	const result = await compactIfNeeded({ messages: history, model: m, provider: provider(m), streamFn: stream });
 	assert.ok(result?.kept !== undefined, "precondition: it summarised");
 	const sent = historyTokens(requests[0]);
 	assert.ok(sent <= m.contextWindow * 0.4, `the condensed history keeps its budget: ${sent}`);
@@ -64,7 +64,7 @@ test("more messages than a per-message floor can fit drop the oldest middle, and
 		history.push(user(`继续 ${i} ${"c".repeat(300)}`));
 	}
 	const { requests, stream } = recorder();
-	const result = await compactIfNeeded(history, m, provider(m), stream);
+	const result = await compactIfNeeded({ messages: history, model: m, provider: provider(m), streamFn: stream });
 	assert.ok(result?.kept !== undefined, "precondition: it summarised");
 	const sent = requests[0].messages;
 	assert.ok(historyTokens(requests[0]) <= m.contextWindow * 0.4, `the budget holds however many messages there are: ${historyTokens(requests[0])}`);
@@ -81,7 +81,7 @@ test("the summary request is checked against the summariser's window before it i
 	const history: Message[] = [user("开始")];
 	for (let i = 0; i < 30; i++) history.push(say(`步骤 ${i} ${"x".repeat(1500)}`), user(`继续 ${"y".repeat(1500)}`));
 	const { requests, stream } = recorder();
-	await compactIfNeeded(history, m, provider(m), stream, 0, false, undefined, undefined, { model: small, provider: provider(small) });
+	await compactIfNeeded({ messages: history, model: m, provider: provider(m), streamFn: stream, summarizer: { model: small, provider: provider(small) } });
 	assert.equal(requests.length, 1, "precondition: a summary was asked for");
 	const total = requestTokens(requests[0]);
 	assert.ok(total + small.contextWindow / 4 <= small.contextWindow, `the request leaves the summary room to be written: ${total}`);
@@ -93,7 +93,7 @@ test("a request that cannot fit is not sent", async () => {
 	for (let i = 0; i < 30; i++) history.push(say(`步骤 ${i} ${"x".repeat(1500)}`), user(`继续 ${"y".repeat(1500)}`));
 	const { requests, stream } = recorder();
 	await assert.rejects(
-		compactIfNeeded(history, m, provider(m), stream, 0, true, undefined, { instructions: "重点".repeat(20_000) }),
+		compactIfNeeded({ messages: history, model: m, provider: provider(m), streamFn: stream, force: true, manual: { instructions: "重点".repeat(20_000) } }),
 		"a manual compaction says why instead of sending a request the model must refuse",
 	);
 	assert.equal(requests.length, 0);
@@ -110,7 +110,7 @@ test("cutting results the last request sent whole skips the summary once the mea
 	for (let i = 0; i < 3; i++) history.push(reply([{ type: "toolCall", id: `g${i}`, name: "grep", arguments: { pattern: `p${i}` } }]), toolResult(`g${i}`, `${i}`.repeat(12_000)));
 	history.push(say("完成", estimateTokens(history)));
 	const { requests, stream } = recorder();
-	const result = await compactIfNeeded(history, m, provider(m), stream);
+	const result = await compactIfNeeded({ messages: history, model: m, provider: provider(m), streamFn: stream });
 	assert.ok(result, "it compacted");
 	assert.equal(requests.length, 0, "without asking for a summary");
 	assert.equal(result.messages.length, history.length, "only cut");
@@ -125,7 +125,7 @@ test("a measured history the cut cannot bring under the margin is still summaris
 	for (let i = 0; i < 6; i++) history.push(say(`说明 ${"z".repeat(1200)}`), user(`继续 ${"q".repeat(1200)}`));
 	history.push(say("完成", estimateTokens(history) * 2));
 	const { requests, stream } = recorder();
-	const result = await compactIfNeeded(history, m, provider(m), stream);
+	const result = await compactIfNeeded({ messages: history, model: m, provider: provider(m), streamFn: stream });
 	assert.ok(result?.kept !== undefined, "it summarised");
 	assert.equal(requests.length, 1);
 });
@@ -143,7 +143,7 @@ test("the reply the summary request asks for is the room the pre-send check kept
 		yield { type: "start" as const, partial: say("") };
 		return say("摘要");
 	};
-	await compactIfNeeded(history, m, provider(m), stream as never);
+	await compactIfNeeded({ messages: history, model: m, provider: provider(m), streamFn: stream as never });
 	assert.equal(sent.length, 1, "precondition: a summary was asked for");
 	const input = requestTokens(sent[0].context) * 2;
 	assert.ok(input + (sent[0].maxTokens ?? m.maxOutputTokens) <= m.contextWindow, `calibrated input ${input} + reply ${sent[0].maxTokens} fits the window`);

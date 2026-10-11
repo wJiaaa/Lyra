@@ -1,6 +1,5 @@
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
-import { DISPATCH_KEY, refuseDispatch, rootDispatch, type DispatchContext } from "../runtime/dispatch-guard.ts";
 import type { SubAgentRegistry } from "../runtime/sub-agents.ts";
 import type { SubAgentAnswer, Tool, ToolResult } from "../types.ts";
 
@@ -78,7 +77,7 @@ export const taskTool: Tool<TaskArgs> = {
 		 * 续跑：它是谁由它当初被派出去时定下，不看这次的 `subagent_type`。
 		 *
 		 * 能在这里认出来就在这里拦——找不到、还在跑、上下文已经没了，都给一句能据以行动的话，
-		 * 而不是一条「Sub-agent failed」。认不出来的（嵌套在子代理里、状态图里没有登记簿），交给
+		 * 而不是一条「Sub-agent failed」。认不出来的（状态图里没有登记簿），交给
 		 * `runSubAgent` 自己认，它同样只放行自己派出去的那些。
 		 */
 		const resuming = typeof args.resume === "string" && args.resume.trim() ? args.resume.trim() : undefined;
@@ -89,20 +88,6 @@ export const taskTool: Tool<TaskArgs> = {
 			const available = agents.length > 0 ? agents.map((a) => a.name).join(", ") : "none are defined in this session";
 			return errorResult(`Unknown subagent_type "${requested}". Available: ${available}.`);
 		}
-		// 名字只在认出来的时候可信；没认出来的续跑，下面按名字的那道关卡交给 `runSubAgent`。
-		const named = !resuming || found !== undefined;
-
-		/*
-		 * 深度与自递归，在这里拦。
-		 *
-		 * 深度的主路径是把 `task` 从工具表里拿掉（见 `sub-agent.ts`）——模型不会想要一个没见过的
-		 * 工具。这里是兜底，而且是**自递归**唯一能拦的地方：`explore → reviewer → explore` 这条
-		 * 链只有在派生的那一刻才看得见，工具表看不出来。
-		 *
-		 * 没有链就是主会话——`undefined` 在这里的意思是「第 0 层」，不是「不检查」。
-		 */
-		const refusal = named ? refuseDispatch((ctx.state.get(DISPATCH_KEY) as DispatchContext | undefined) ?? rootDispatch(), requested) : null;
-		if (refusal) return errorResult(refusal);
 
 		try {
 			const answer = await ctx.spawnSubAgent({

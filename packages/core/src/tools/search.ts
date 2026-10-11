@@ -14,7 +14,7 @@
  * results are wrapped rather than pasted in as prose.
  */
 
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import { search, SearchError } from "../search/index.ts";
 import type { Tool, ToolResult } from "../types.ts";
 

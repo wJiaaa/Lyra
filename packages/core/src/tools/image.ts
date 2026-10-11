@@ -9,7 +9,7 @@
  * 看一眼，要放进项目时模型拿着结果里的路径自己复制，那一步照常走写文件的授权。
  */
 
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import { generateImages } from "../ai/images.ts";
 import { persistSessionImage, sessionMediaPath } from "../session/payload.ts";
 import type { Tool, ToolResult, UserContent } from "../types.ts";

@@ -132,7 +132,6 @@ function dispatched(drafts: Map<string, Draft>, event: Event<"subagent">, at: nu
 		}
 		return;
 	}
-	const parent = event.parentId ? drafts.get(event.parentId) : undefined;
 	drafts.set(event.id, {
 		summary: {
 			id: event.id,
@@ -141,8 +140,6 @@ function dispatched(drafts: Map<string, Draft>, event: Event<"subagent">, at: nu
 			status: "running",
 			startedAt: at,
 			toolCalls: 0,
-			...(event.parentId ? { parentId: event.parentId } : {}),
-			depth: parent ? parent.summary.depth + 1 : 1,
 			usage: emptyUsage(),
 		},
 		// A fresh dispatch's opening line rides in the `subagent` event itself, not as a message.

@@ -98,8 +98,8 @@ export interface SystemPromptInput {
 	 * try things that fail.
 	 */
 	resources?: { scheme: string; describe: string; writable: boolean }[];
-	/** How many sub-agents may run at once, and how deep dispatch may nest. */
-	dispatchLimits?: { maxConcurrent: number; maxDepth: number };
+	/** How many sub-agents may run at once. */
+	dispatchLimits?: { maxConcurrent: number };
 	/**
 	 * A replacement for the identity paragraph, from `.plume/prompts/identity.md`.
 	 *
@@ -355,8 +355,8 @@ function formatSubagents(agents: AgentDefinition[]): string {
  * changes mid-session the new one arrives as an update message, not by rewriting the head — see
  * `update.ts`.
  */
-function formatDispatchLimits(limits: { maxConcurrent: number; maxDepth: number }): string {
-	return `\n\n${concurrencyNote(limits.maxConcurrent, limits.maxDepth)}`;
+function formatDispatchLimits(limits: { maxConcurrent: number }): string {
+	return `\n\n${concurrencyNote(limits.maxConcurrent)}`;
 }
 
 function escapeXml(text: string): string {

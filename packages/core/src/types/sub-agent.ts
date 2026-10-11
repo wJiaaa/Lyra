@@ -51,15 +51,6 @@ export interface SubAgentSummary {
 	 */
 	retrying?: { attempt: number; reason: string };
 	/**
-	 * The sub-agent that dispatched this one, by registry id; absent when the main conversation did.
-	 *
-	 * Enough to draw the lineage: every record names its parent, so the tree is a fold over the
-	 * list rather than a second structure to keep in step with it.
-	 */
-	parentId?: string;
-	/** 1 for a sub-agent the main conversation dispatched; each nested dispatch adds one. */
-	depth: number;
-	/**
 	 * Tokens and cost across every request this sub-agent has made, summed as its messages arrive.
 	 *
 	 * Cost is the brake on orchestration. Fanning out eight sub-agents feels free from the

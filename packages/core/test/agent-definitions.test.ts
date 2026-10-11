@@ -36,7 +36,7 @@ test("builtin overrides preserve advanced metadata, can be copied, and removing 
 	await store.save(null, { id: builtin.id, revision: builtin.revision, scope: "user", draft: edited }, []);
 	const custom = (await store.list(null)).find(item => item.definition.name === edited.name); assert.ok(custom);
 	assert.equal(custom.customized, true); assert.equal(custom.scope, "user");
-	for (const key of ["output", "schemaMode", "spawns"] as const) assert.deepEqual(custom.definition[key], builtin.definition[key]);
+	for (const key of ["output", "schemaMode"] as const) assert.deepEqual(custom.definition[key], builtin.definition[key]);
 	await store.save(null, { copyFrom: custom.id, scope: "user", draft: { ...edited, name: "qa-copy" } }, []);
 	const copy = (await store.list(null)).find(item => item.definition.name === "qa-copy"); assert.ok(copy);
 	assert.equal(copy.definition.systemPrompt.trim(), "Custom instructions");

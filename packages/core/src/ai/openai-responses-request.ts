@@ -420,7 +420,7 @@ export function toResponsesInput(
 	 * 新的一轮。这两件事在别的端点上可能都收，在这里只收后者。
 	 *
 	 * **这是防御性的**：把生产日志翻过，这个形状目前没有真的发出去过（子 Agent 的收尾路径
-	 * `runtime/sub-agent.ts` 的 `finalDemand()`、压缩路径 `runtime/compaction.ts` 的 summarize 都已经各自
+	 * `runtime/sub-agent-run.ts` 的 `finalDemand()`、压缩路径 `runtime/compaction.ts` 的 summarize 都已经各自
 	 * 追加了一条 user 消息）。留这道闸是因为它的失败方式太隐蔽：报出来的是一句指向推理的话，谁看都不会
 	 * 想到是末项的角色不对——这一天已经为同一句谎话付过两次代价了。
 	 */

@@ -1,4 +1,4 @@
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import { buildIndex, loadIndex, saveIndex, searchIndex, type SymbolIndex } from "../index/symbols.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 

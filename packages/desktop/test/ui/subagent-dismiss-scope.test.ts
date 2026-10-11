@@ -22,7 +22,7 @@ import { click, mount, type Mounted } from "../helpers/mount.ts";
 const USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 
 function finished(id: string, description: string): SubAgentSummary {
-	return { id, agent: "explore", description, status: "done", startedAt: 1, endedAt: 2, toolCalls: 0, depth: 1, usage: USAGE };
+	return { id, agent: "explore", description, status: "done", startedAt: 1, endedAt: 2, toolCalls: 0, usage: USAGE };
 }
 
 let asked: Array<[string, string]>;

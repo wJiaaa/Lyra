@@ -11,7 +11,7 @@ import {
 	sandboxDenialMarker,
 	validateEscalationArgs,
 } from "./escalation.ts";
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import { OutputBuffer } from "./bash-output.ts";
 import { FRESH_RESULT_MAX_CHARS } from "../agent/prune.ts";
 import { authorizeCommandReads } from "./read-access.ts";

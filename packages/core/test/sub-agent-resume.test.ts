@@ -129,7 +129,7 @@ interface Harness {
 	run(
 		input: { prompt: string; resume?: string; agentType?: string; onResumable?: (id: string) => void },
 		reply: (turn: number, context: LlmContext) => AssistantMessage | Promise<AssistantMessage>,
-		options?: { dispatchId?: string; signal?: AbortSignal; admission?: (signal: AbortSignal) => Promise<() => void> },
+		options?: { signal?: AbortSignal; admission?: (signal: AbortSignal) => Promise<() => void> },
 	): ReturnType<typeof runSubAgent>;
 }
 
@@ -160,7 +160,6 @@ function harness(agents: AgentDefinition[] = [GENERAL, EXPLORE]): Harness {
 						requests.push({ messages: [...context.messages], tools: context.tools.map((one) => one.name) });
 						return reply(turn++, context);
 					},
-					...(options.dispatchId ? { dispatch: { depth: 1, chain: ["general"], id: options.dispatchId } } : {}),
 					...(options.signal ? { signal: options.signal } : {}),
 					...(options.admission ? { admission: options.admission } : {}),
 				},
@@ -389,13 +388,6 @@ test("a schema agent resumes with a fresh yield: the handoff it gave last time i
 test("resuming is refused, with a sentence to act on, when it cannot work", async () => {
 	const h = harness();
 	await assert.rejects(h.run({ prompt: "接着", resume: "s1:sub:nothere" }, () => says("x")), /找不到子代理/);
-
-	const first = await h.run({ prompt: "看" }, () => says("看完了"));
-	await assert.rejects(
-		h.run({ prompt: "接着", resume: first.id }, () => says("x"), { dispatchId: "s1:sub:someone-else" }),
-		/不是你派出去的/,
-		"only whoever dispatched it may continue it",
-	);
 
 	let resume: Promise<unknown> | undefined;
 	const gate = Promise.withResolvers<void>();

@@ -1,7 +1,7 @@
 import type { Dirent } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { errorResult } from "../agent/tool-run.ts";
+import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { authorizeRead } from "./read-access.ts";
 

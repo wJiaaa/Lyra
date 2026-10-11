@@ -20,7 +20,7 @@
 import { X } from "../../ui/icons/index.ts";
 import { useEffect, useRef } from "react";
 import type { SubAgentSummary } from "@plume/core";
-import { rosterRows } from "../../store/subAgents.ts";
+import { figuresOf, rosterOrder } from "../../store/subAgents.ts";
 import { useAgentAvatars } from "../../store/agent-avatars.ts";
 import { stateOf } from "../../lib/dispatches.ts";
 import { AgentAvatar } from "../../ui/avatar/AgentAvatar.tsx";
@@ -66,7 +66,7 @@ function useGateWidth(): number | null {
 }
 
 export function SubAgentMenu({ agents, current, sessionId, onPick }: {
-	/** 登记簿里的（包括排着的），按什么顺序都行——这里按派生树重排。 */
+	/** 登记簿里的（包括排着的），按什么顺序都行——这里按 `rosterOrder` 重排。 */
 	agents: SubAgentSummary[];
 	current: string | null;
 	/** 行尾那颗 × 要知道是哪个会话的；没有就不画。 */
@@ -75,7 +75,7 @@ export function SubAgentMenu({ agents, current, sessionId, onPick }: {
 }) {
 	const { t } = useI18n();
 	const avatarOf = useAgentAvatars();
-	const rows = rosterRows(agents);
+	const rows = rosterOrder(agents);
 	const running = agents.filter((one) => one.status === "running").length;
 	const queued = agents.filter((one) => one.status === "queued").length;
 	const width = useGateWidth();
@@ -108,19 +108,17 @@ export function SubAgentMenu({ agents, current, sessionId, onPick }: {
 				{t("subAgentMenu.heading", { n: agents.length, running })}
 				{queued > 0 && ` · ${t("subAgentBar.queued", { n: queued })}`}
 			</p>
-			{rows.map(({ agent, level, children, own, branch }) => {
-				const figures = figuresWord(children.length > 0 ? branch : own);
+			{rows.map((agent) => {
+				const figures = figuresWord(figuresOf(agent));
 				const selected = agent.id === current;
 				const state = stateLine(agent);
 				const waiting = agent.status === "queued";
 				return (
-					<div key={agent.id} data-sub-row={agent.id} data-sub-level={level} data-selected={selected || undefined} data-sub-queued={waiting || undefined} data-ly-avatar-host=""
-						className={`group/subrow relative flex items-center rounded-[10px] transition-colors duration-[var(--ly-t-quick)] ${selected ? "bg-card-hover" : "hover:bg-card-hover/70"}`}
-						style={{ paddingLeft: (level - 1) * 16 }}>
+					<div key={agent.id} data-sub-row={agent.id} data-selected={selected || undefined} data-sub-queued={waiting || undefined} data-ly-avatar-host=""
+						className={`group/subrow relative flex items-center rounded-[10px] transition-colors duration-[var(--ly-t-quick)] ${selected ? "bg-card-hover" : "hover:bg-card-hover/70"}`}>
 						<button type="button" role="menuitem" aria-current={selected || undefined} onClick={() => onPick(agent.id)}
 							data-ly-tip={`@${agent.agent} · ${agent.description}`}
 							className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pr-1 pl-2.5 text-left">
-							{level > 1 && <span aria-hidden className="-ml-1 h-4 w-2 shrink-0 rounded-bl-[4px] border-b border-l border-line" />}
 							<AgentAvatar avatar={avatarOf(agent.agent)} size={22} mood={stateOf(agent)} seed={agent.agent} host="[data-ly-avatar-host]" />
 							<span className="min-w-0 flex-1">
 								<span className="flex items-baseline gap-2">
@@ -133,8 +131,6 @@ export function SubAgentMenu({ agents, current, sessionId, onPick }: {
 										<span
 											className={`ly-fade-tail min-w-0 truncate ${agent.awaitingApproval ? "text-accent" : ""}`}
 											data-sub-figures={agent.status === "running" ? undefined : ""}
-											/* 上级那一行的花销是整个分支的；它自己用了多少放在提示里。 */
-											data-ly-tip={agent.status !== "running" && children.length > 0 ? t("roster.withDescendants", { own: figuresWord(own) ?? t("roster.none") }) : undefined}
 										>
 											· {doing(agent, figures)}
 										</span>

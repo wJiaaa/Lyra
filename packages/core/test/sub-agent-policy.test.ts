@@ -12,12 +12,19 @@
  */
 
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
+import { ExtensionHost } from "../src/extensions/host.ts";
+
 import { runSubAgent } from "../src/runtime/sub-agent.ts";
+import { inheritedToolEnv } from "../src/runtime/run-policy.ts";
 import { toolPolicy } from "../src/runtime/tool-policy.ts";
+import { buildTurnConfig } from "../src/runtime/turn-config.ts";
 import { normalizeSettings } from "../src/config/settings.ts";
-import type { AssistantMessage, ModelConfig, ProviderConfig, Settings, Tool, ToolContext } from "../src/types.ts";
+import type { AssistantMessage, LlmContext, ModelConfig, ProviderConfig, Settings, Tool, ToolContext } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
 const MODEL: ModelConfig = {
@@ -63,7 +70,7 @@ function callsProbe(): AssistantMessage {
 }
 
 /** Dispatch one sub-agent whose only tool records the context it was handed. */
-async function contextGivenTo(settings: Partial<Settings>): Promise<ToolContext> {
+async function contextGivenTo(settings: Partial<Settings>, allowedPaths?: ReadonlySet<string>): Promise<ToolContext> {
 	let seen: ToolContext | null = null;
 	const probe: Tool = {
 		name: "probe",
@@ -89,6 +96,7 @@ async function contextGivenTo(settings: Partial<Settings>): Promise<ToolContext>
 			requestApproval: async () => "allow",
 			emit: async () => {},
 			streamFn: async () => (turn++ === 0 ? callsProbe() : says("好了")),
+			allowedPaths,
 		},
 		{ description: "跑一下", prompt: "去", agentType: "general" },
 		PROVIDER,
@@ -168,6 +176,158 @@ test("configured hooks see a delegated tool call", async () => {
 	// With no hooks configured the call goes through, which is the baseline the wiring must not
 	// change; that the hooks are consulted at all is what `makeBeforeToolCall` being passed proves.
 	assert.equal(asked, "ran");
+});
+
+test("a delegated run and the main turn take the session's policy from one place", async () => {
+	/*
+	 * 两边各自构造 `AgentRunConfig`，而「沙箱、搜索、预览、允许读的路径」必须一样。按 `inheritedToolEnv`
+	 * 交出的键逐个比：以后往里加一个字段，这里不用改就会把两边都查到。
+	 */
+	const settings = { thinking: "off", hooks: [], permissionMode: "auto", searchProvider: "tavily", projects: [] } as unknown as Settings;
+	const allowedPaths = new Set(["/elsewhere/a.txt"]);
+	const main = buildTurnConfig(
+		{
+			sessionId: "s1",
+			cwd: "/tmp",
+			provider: PROVIDER,
+			model: MODEL,
+			settings,
+			state: new Map(),
+			tools: [],
+			skills: [],
+			agents: [],
+			allowedPaths,
+			requestApproval: async () => "allow",
+			emit: async () => {},
+			beforeToolCall: undefined,
+			afterToolCall: undefined,
+			drainSteering: undefined,
+		} as unknown as Parameters<typeof buildTurnConfig>[0],
+		{ systemPrompt: "", messages: [], tools: [], cwd: "/tmp" },
+		"",
+	).tools.env;
+	const delegated = await contextGivenTo(settings, allowedPaths);
+
+	const inherited = inheritedToolEnv({ settings, cwd: "/tmp", sessionId: "s1", allowedPaths, transcript: undefined });
+	for (const [field, value] of Object.entries(inherited)) {
+		const key = field as keyof typeof inherited;
+		if (typeof value === "function") assert.equal(typeof delegated[key], typeof main[key], field);
+		else assert.deepEqual(delegated[key], main[key], field);
+	}
+	assert.equal(delegated.sandboxMode, "workspace-write", "the comparison must not pass on two empty sides");
+});
+
+test("a hook that blocks a call in the main conversation blocks it one level down, and knows who asked", async () => {
+	// 钩子进程用 `node -e`，不经过 shell，Windows 上也成立。只在问的是这个会话里的 `general` 时拦。
+	const script =
+		"let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const input=JSON.parse(s);" +
+		"if(input.sessionId==='s1'&&input.agentName==='general'){process.stderr.write('子代理也不许');process.exit(2)}})";
+	const hooks = { events: { PreToolUse: [{ matcher: "probe", hooks: [{ type: "process", command: process.execPath, args: ["-e", script] }] }] } };
+	let ran = false;
+	const probe: Tool = {
+		name: "probe",
+		snippet: "does nothing",
+		description: "does nothing",
+		parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
+		summarize: () => "看了一眼",
+		async execute() {
+			ran = true;
+			return { content: [{ type: "text", text: "ok" }] };
+		},
+	};
+	const sent: LlmContext[] = [];
+	let turn = 0;
+
+	await runSubAgent(
+		{
+			sessionId: "s1",
+			cwd: "/tmp",
+			settings: { thinking: "off", hooks } as unknown as Settings,
+			tools: [probe],
+			skills: [],
+			agents: [],
+			requestApproval: async () => "allow",
+			emit: async () => {},
+			streamFn: async (context) => {
+				sent.push(structuredClone(context));
+				return turn++ === 0 ? callsProbe() : says("好了");
+			},
+		},
+		{ description: "跑一下", prompt: "去", agentType: "general" },
+		PROVIDER,
+		MODEL,
+	);
+
+	assert.equal(ran, false, "the hook should have stopped the call before the tool ran");
+	const result = sent[1]?.messages.at(-1);
+	assert.equal(result?.role, "toolResult");
+	assert.match(JSON.stringify(result), /子代理也不许/, "what the model reads back is the hook's reason");
+});
+
+test("an extension that blocks a call in the main conversation blocks it in a sub-agent the session dispatched", async () => {
+	/*
+	 * 走会话真实的那条路：`buildTurnConfig` 交给 `task` 的 `spawnSubAgent`。直接调 `runSubAgent` 证明不了
+	 * 会话有没有把扩展交下去，而漏掉的正是那一步。
+	 */
+	const dir = await mkdtemp(join(tmpdir(), "ly-sub-ext-"));
+	await writeFile(join(dir, "extension.json"), JSON.stringify({ name: "no-probe", main: "index.mjs", events: ["tool_call"], intercepts: true }), "utf8");
+	await writeFile(
+		join(dir, "index.mjs"),
+		`export default { tool_call: (payload) => payload.toolName === "probe" ? { block: { reason: "扩展说子代理也不许" } } : undefined };`,
+		"utf8",
+	);
+	const extensions = new ExtensionHost();
+	try {
+		assert.equal(await extensions.load(dir), true);
+		let ran = false;
+		const probe: Tool = {
+			name: "probe",
+			snippet: "does nothing",
+			description: "does nothing",
+			parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
+			summarize: () => "看了一眼",
+			async execute() {
+				ran = true;
+				return { content: [{ type: "text", text: "ok" }] };
+			},
+		};
+		const sent: LlmContext[] = [];
+		let turn = 0;
+		const config = buildTurnConfig(
+			{
+				sessionId: "s1",
+				cwd: "/tmp",
+				provider: PROVIDER,
+				model: MODEL,
+				settings: { thinking: "off", hooks: [], projects: [] } as unknown as Settings,
+				state: new Map(),
+				tools: [probe],
+				skills: [],
+				agents: [],
+				requestApproval: async () => "allow",
+				emit: async () => {},
+				streamFn: async (context: LlmContext) => {
+					sent.push(structuredClone(context));
+					return turn++ === 0 ? callsProbe() : says("好了");
+				},
+				extensions,
+				beforeToolCall: undefined,
+				afterToolCall: undefined,
+				drainSteering: undefined,
+			} as unknown as Parameters<typeof buildTurnConfig>[0],
+			{ systemPrompt: "", messages: [], tools: [], cwd: "/tmp" },
+			"",
+		);
+		await config.tools.env.spawnSubAgent!({ description: "跑一下", prompt: "去", agentType: "general" });
+
+		assert.equal(ran, false, "the extension should have stopped the call before the tool ran");
+		const result = sent[1]?.messages.at(-1);
+		assert.equal(result?.role, "toolResult");
+		assert.match(JSON.stringify(result), /扩展说子代理也不许/, "what the model reads back is the extension's reason");
+	} finally {
+		await extensions.dispose();
+		await rm(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
 });
 
 test("旧网络配置被丢弃，始终允许记录继续保留在配置中", () => {

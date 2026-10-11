@@ -33,7 +33,8 @@ import type {
 } from "../types.ts";
 import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction.ts";
 import { taskContextFromHistory } from "./task-context.ts";
-import { hookContextMessage, loadHookRunner, makeAfterToolCall, makeBeforeToolCall, makeOnStop, makePermissionRequest, runSessionStartHooks, runStopFailureHooks, runUserPromptSubmitHooks, type TurnHooks } from "./hooks.ts";
+import { hookContextMessage, makeOnStop, runSessionStartHooks, runStopFailureHooks, runUserPromptSubmitHooks, type TurnHooks } from "./hooks.ts";
+import { loadTurnHooks, toolHooks } from "./run-policy.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
 import type { SessionLog } from "./session-log.ts";
 import type { Boundary } from "../session/types.ts";
@@ -87,13 +88,7 @@ export interface TurnInputs {
 export async function driveTurn(input: TurnInputs): Promise<void> {
 	const { cwd, can, log } = input;
 	const onEvent = (event: AgentEvent) => recordTurnEvent(input.log, event);
-	const hooks: TurnHooks = {
-		runner: await loadHookRunner({ settings: input.settings, cwd, emit: input.emit }),
-		cwd,
-		sessionId: log.meta.id,
-		permissionMode: input.settings.permissionMode,
-		signal: input.signal,
-	};
+	const hooks = await loadTurnHooks({ settings: input.settings, cwd, sessionId: log.meta.id, signal: input.signal, emit: input.emit });
 	if (!(await runPromptHooks(input, hooks))) return;
 	// 在钩子之后：UserPromptSubmit 要查的是人刚说的那句，往回找第一条 user 消息，先注入就会查到这一条。
 	await injectMessage(input, (await input.context?.()) ?? null);
@@ -375,9 +370,8 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 			summaryStream: summaryStream(input.streamFn, { retryPolicy: () => (input.getSettings?.() ?? input.settings).retryPolicy, signal: input.signal }, compactionSpent(log)),
 			// 压缩剪掉的大块输出存进会话，占位标记里给出 `artifact://` 地址。
 			artifacts: { keep: (tool, content) => can.keepArtifact(tool, content) },
-			beforeToolCall: makeBeforeToolCall(hooks, can.extensions),
-			afterToolCall: makeAfterToolCall(hooks, can.extensions),
-			permissionRequest: makePermissionRequest(hooks),
+			...toolHooks(hooks, can.extensions),
+			extensions: can.extensions,
 			onStop: makeOnStop(hooks),
 			drainSteering: input.drainSteering,
 			onContext: (context, model) => log.captureRequest(context, model),

@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, normalizeSettings } from "../src/config/settings.ts";
 import { normalizeSubAgentProfiles, parseModelRef, resolveSubAgentModel } from "../src/config/model-choice.ts";
 import { runSubAgent } from "../src/runtime/sub-agent.ts";
 import { THINKING_LEVELS, thinkingOptionsFor } from "../src/ai/thinking-options.ts";
-import { BUILTIN_AGENTS, taskTool } from "../src/tools/task.ts";
+import { BUILTIN_AGENTS } from "../src/tools/task.ts";
 import { emptyUsage, type AssistantMessage, type ModelConfig, type ProviderConfig, type Settings } from "../src/types.ts";
 
 const model: ModelConfig = { id: "a/same", providerId: "a", modelId: "gpt-5.6-sol", name: "Same name", contextWindow: 128000, maxOutputTokens: 4096, supportsThinking: true, thinkingOptions: thinkingOptionsFor(THINKING_LEVELS), supportsImages: false, supportsTools: true };
@@ -57,21 +57,4 @@ test("real dispatch uses configured provider and thinking on the wire configurat
 		return response;
 	} }, { description: "Read", prompt: "Read", agentType: "explore" }, provider, model);
 	assert.equal(seen, true);
-});
-
-test("nested dispatch resolves updated preferences without changing the already running parent's model", async () => {
-	let current = settings;
-	let turns = 0;
-	const seen: string[] = [];
-	const boss = { ...BUILTIN_AGENTS[0], name: "boss", spawns: ["explore"] };
-	await runSubAgent({ sessionId: "nested-profile", cwd: process.cwd(), settings, getSettings: () => current, tools: [taskTool], skills: [], agents: [boss, explore], requestApproval: async () => "once", emit: () => {}, streamFn: async (_context, config) => {
-		seen.push(`${config.provider.id}:${config.thinking}`);
-		const response: AssistantMessage = { role: "assistant", content: [{ type: "text", text: "Done" }], api: config.provider.api, provider: config.provider.id, model: config.model.modelId, usage: emptyUsage(), stopReason: "stop", timestamp: ++turns };
-		if (turns === 1) {
-			current = { ...settings, subAgentProfiles: { explore: { modelId: "b/same", thinking: "ultra" }, boss: { modelId: "b/same", thinking: "high" } } };
-			return { ...response, stopReason: "toolUse", content: [{ type: "toolCall", id: "nested", name: "task", arguments: { description: "Read", prompt: "Read", subagent_type: "explore" } }] };
-		}
-		return response;
-	} }, { description: "Delegate", prompt: "Delegate", agentType: "boss" }, provider, model);
-	assert.deepEqual(seen, ["a:low", "b:ultra", "a:low"]);
 });

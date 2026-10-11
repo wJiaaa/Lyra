@@ -185,7 +185,7 @@ export function projectTrajectory(records: SessionRecord[], live = false): Entry
 			const entry = append(item, parentId);
 			if (data.type === "context") scope.context = [seq];
 			if (data.type === "subagent") {
-				Object.assign(entry, { parentId: data.parentId, startedAt: ts, status: "running", input: data.prompt, provider: data.provider, model: data.model });
+				Object.assign(entry, { startedAt: ts, status: "running", input: data.prompt, provider: data.provider, model: data.model });
 				agents.set(data.id, entry);
 			} else if (data.type === "subagent_done") {
 				entry.status = data.status === "failed" ? "error" : data.status === "aborted" ? "cancelled" : "done";

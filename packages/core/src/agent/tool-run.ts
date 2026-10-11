@@ -13,6 +13,7 @@ import { coerceArguments, resolveTool, unknownToolMessage, withParameterHint } f
 import { runTool } from "./tool-pipeline.ts";
 import { skillRefusal } from "../skills/tool.ts";
 import { translatedShellCommand, TOOL_NAMES_KEY } from "../tools/reroute.ts";
+import { errorResult } from "../tools/result.ts";
 import type {
 	ApprovalDecision,
 	ApprovalRequest,
@@ -391,10 +392,6 @@ export async function failTruncatedCalls(
 		results.push(message);
 	}
 	return results;
-}
-
-export function errorResult(text: string): ToolResult {
-	return { content: [{ type: "text", text }], isError: true };
 }
 
 export function textResult(text: string, details?: unknown): ToolResult {

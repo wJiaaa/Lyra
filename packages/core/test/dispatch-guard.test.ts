@@ -1,66 +1,19 @@
 /**
- * The three limits on delegation.
+ * The concurrency limit on delegation.
  *
- * Each of these failures is expensive and quiet: twelve parallel dispatches, a cycle, or a tree
- * that keeps going down all look like the system working hard right up until the bill.
+ * Twelve parallel dispatches look like the system working hard right up until the bill. That only
+ * the main conversation dispatches at all is pinned in `sub-agent-no-nesting.test.ts`.
  */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-	childDispatch,
 	concurrencyNote,
 	DispatchCancelled,
 	DispatchGate,
 	MAX_CONCURRENT_SUB_AGENTS,
 	normalizeMaxConcurrentSubAgents,
-	refuseDispatch,
-	rootDispatch,
-	DEFAULT_MAX_DEPTH,
 } from "../src/runtime/dispatch-guard.ts";
-
-test("the main conversation may dispatch", () => {
-	assert.equal(refuseDispatch(rootDispatch(), "explore"), undefined);
-});
-
-test("a sub-agent may dispatch once, and not past the depth limit", () => {
-	const first = childDispatch(rootDispatch(), "explore");
-	assert.equal(refuseDispatch(first, "review"), undefined, "depth 1 is still inside the default limit of 2");
-
-	const second = childDispatch(first, "review");
-	const refusal = refuseDispatch(second, "general");
-	assert.ok(refusal, "depth 2 is the limit");
-	assert.match(refusal, /上限是 2/, "the message names the limit rather than only saying no");
-	assert.match(refusal, /自己做完/, "and says what to do instead");
-});
-
-test("the depth limit is configurable", () => {
-	const one = childDispatch(rootDispatch(), "explore");
-	assert.ok(refuseDispatch(one, "review", { maxDepth: 1 }));
-	assert.equal(refuseDispatch(one, "review", { maxDepth: 3 }), undefined);
-});
-
-test("an agent cannot appear twice in one chain", () => {
-	/*
-	 * `explore → reviewer → explore` is a prompt written wrong rather than a plan, and it spends
-	 * money at a rate that makes failing loudly the kind option.
-	 */
-	const chain = childDispatch(childDispatch(rootDispatch(), "explore"), "reviewer");
-	const refusal = refuseDispatch(chain, "explore", { maxDepth: 5 });
-	assert.ok(refusal);
-	assert.match(refusal, /explore → reviewer → explore/, "the message shows the cycle it found");
-});
-
-test("a sibling of the same name at a different point in the tree is fine", () => {
-	/*
-	 * Two branches each dispatching `explore` is ordinary fan-out. Only a repeat *within one chain*
-	 * is a cycle, and a check that looked at the whole tree would forbid the common case.
-	 */
-	const left = childDispatch(rootDispatch(), "explore");
-	const right = childDispatch(rootDispatch(), "review");
-	assert.equal(refuseDispatch(right, "explore"), undefined);
-	assert.equal(left.chain.length, 1);
-});
 
 test("the gate runs up to the limit at once and queues the rest", async () => {
 	const gate = new DispatchGate(2);
@@ -105,9 +58,11 @@ test("a throw releases the slot", async () => {
 });
 
 test("the prompt note states the number, because a queue is invisible from inside", () => {
-	const note = concurrencyNote(4, DEFAULT_MAX_DEPTH);
+	const note = concurrencyNote(4);
 	assert.match(note, /最多 4 个子代理同时跑/);
 	assert.match(note, /自动排队/, "it says the queue is the gate's job, not the model's");
+	assert.match(note, /子代理自己不能再派子代理/, "the model splitting the work knows it cannot hand the splitting down");
+	assert.ok(!/嵌套/.test(note), `no depth to promise any more: ${note}`);
 });
 
 test("并发说明叫模型一起派，而不是一轮只派一个——闸门开到 1 的时候尤其", () => {
@@ -115,7 +70,7 @@ test("并发说明叫模型一起派，而不是一轮只派一个——闸门�
 	 * 从前这句是「一次派超过 N 个只会让结果更晚到」。闸门开到 1 时，模型读到的是「一次只派一个」：
 	 * 四个审查子代理被排成一串，每两个之间隔一整轮主模型的请求（2026-09-26 的真实会话）。
 	 */
-	const note = concurrencyNote(1, DEFAULT_MAX_DEPTH);
+	const note = concurrencyNote(1);
 	assert.match(note, /同一条回复里一起派/);
 	assert.match(note, /别为了等前一个的结果而一轮只派一个/);
 	assert.ok(!/更晚到|不会更快/.test(note), `不再劝它少派：${note}`);
@@ -155,98 +110,6 @@ test("名额还两次也只算一次", async () => {
 	release();
 	release();
 	assert.equal(gate.running, 1, "多还的那一次不该凭空多出一个空位");
-});
-
-test("派生里的派生：先让出自己的名额，孩子排不上时照样能被叫停", async () => {
-	const gate = new DispatchGate(1);
-	const parent = await gate.acquire();
-	const child = await gate.children().acquire();
-	assert.equal(gate.running, 1, "父亲让出来的那个位置给了孩子");
-	child();
-	assert.equal(gate.running, 1, "孩子还回去，父亲把自己的位置拿回来");
-	parent();
-	assert.equal(gate.running, 0);
-
-	// 宽度中途收窄，让出自己的那一个之后仍然超额——孩子得排队；排着被停，父亲等到有空位再拿回来，不越过宽度。
-	const wide = new DispatchGate(2);
-	const a = await wide.acquire();
-	const b = await wide.acquire();
-	wide.setLimit(1);
-	const stop = new AbortController();
-	const queued = wide.children().acquire(stop.signal);
-	assert.equal(wide.queued, 1, "孩子在排队");
-	stop.abort();
-	let settled = false;
-	const cancelled = assert.rejects(queued, DispatchCancelled).then(() => { settled = true; });
-	await new Promise((r) => setTimeout(r, 5));
-	assert.equal(settled, false, "宽度已是 1、另一个还在跑：父亲等它走");
-	b();
-	await cancelled;
-	assert.equal(wide.running, 1, "父亲那一个没有丢");
-	a();
-	assert.equal(wide.running, 0);
-});
-
-test("一个父亲并行派几个孩子，只让一次位，孩子照常排队", async () => {
-	// 按孩子让位的话，宽度 1 时四个孩子各让一次父亲的名额，全都同时进来，计数却一直是 1。
-	const gate = new DispatchGate(1);
-	const parent = await gate.acquire();
-	const kids = gate.children();
-	let started = 0;
-	const releases: (() => void)[] = [];
-	const pending = Array.from({ length: 4 }, () => kids.acquire().then((release) => { started++; releases.push(release); }));
-	await new Promise((r) => setTimeout(r, 5));
-	assert.equal(started, 1, "父亲让出的那一个位置只放进一个孩子");
-	assert.equal(gate.queued, 3, "其余的排队");
-	for (let i = 0; i < 4; i++) {
-		releases.shift()?.();
-		await new Promise((r) => setTimeout(r, 1));
-	}
-	await Promise.all(pending);
-	assert.equal(started, 4);
-	assert.equal(gate.running, 1, "孩子都走了，父亲取回自己的位置");
-	parent();
-	assert.equal(gate.running, 0);
-});
-
-test("最后一个孩子走的时候，名额先还给父亲，排队的人不会跟着同时进来", async () => {
-	const gate = new DispatchGate(1);
-	const parent = await gate.acquire();
-	const child = await gate.children().acquire();
-	let admitted = false;
-	const other = gate.acquire().then((release) => { admitted = true; return release; });
-	child();
-	await new Promise((r) => setTimeout(r, 5));
-	assert.equal(admitted, false, "父亲回来了，宽度 1 已经满了");
-	assert.equal(gate.running, 1);
-	parent();
-	(await other)();
-	assert.equal(gate.running, 0);
-});
-
-test("最后一个排队的孩子被叫停，父亲也不越过宽度取回名额", async () => {
-	// P 派 C1/C2，C1 走后空位被先排着的 Q 拿走；这时单独停掉 C2，父亲不能凭空多出一个名额。
-	const gate = new DispatchGate(1);
-	const parent = await gate.acquire();
-	const kids = gate.children();
-	const c1 = await kids.acquire();
-	const q = gate.acquire();
-	const stop = new AbortController();
-	const c2 = kids.acquire(stop.signal);
-	c1();
-	const releaseQ = await q;
-	assert.equal(gate.running, 1, "Q 拿到了 C1 空出来的位置");
-	stop.abort();
-	let settled = false;
-	const cancelled = assert.rejects(c2, DispatchCancelled).then(() => { settled = true; });
-	await new Promise((r) => setTimeout(r, 5));
-	assert.equal(gate.running, 1, "宽度 1，父亲等 Q 走");
-	assert.equal(settled, false);
-	releaseQ();
-	await cancelled;
-	assert.equal(gate.running, 1, "Q 走了，父亲拿回自己的位置");
-	parent();
-	assert.equal(gate.running, 0);
 });
 
 test("停止落在排队中的派发上：出队、不跑、不占名额", async () => {
@@ -299,17 +162,6 @@ test("已经停了的信号不进闸门；放行之后、开跑之前停下的�
 	assert.equal(gate.running, 1, "被放行又被停下的那个，名额当场还了");
 	release();
 	await first;
-	assert.equal(gate.running, 0);
-});
-
-test("嵌套派发排队时同样听停止信号，让出去的位置照样取回", async () => {
-	const gate = new DispatchGate(1);
-	await gate.run(async () => {
-		const stop = new AbortController();
-		stop.abort();
-		await assert.rejects(gate.children().run(async () => assert.fail("不该开跑"), stop.signal));
-		assert.equal(gate.running, 1, "父亲的位置原样取回");
-	});
 	assert.equal(gate.running, 0);
 });
 
@@ -387,69 +239,6 @@ test("闸门放宽时立刻放人，不用等谁跑完", async () => {
 	await Promise.all(all);
 	assert.equal(gate.running, 0, "放宽过的闸门，名额还是要一个不少地还回来");
 	assert.equal(gate.width, 3);
-});
-
-test("闸门收到 1 的时候，第二层派生照样进得来", async () => {
-	/*
-	 * 这条是拿命换来的：宽度设成 1，一个编排型子代理占着那唯一的位置去派
-	 * 孙代理，孙代理排在它后面——而它在等孙代理。界面上是一个「派发子任务」转到超时，日志里
-	 * 什么错都没有。
-	 *
-	 * 整棵派生树共用一道闸门是对的，占着位置等孩子不对。见 `DispatchGate.children`。
-	 */
-	const gate = new DispatchGate(1);
-	const done: string[] = [];
-	await gate.run(async () => {
-		done.push("父进来了");
-		await gate.children().run(async () => {
-			done.push("孩子也进来了");
-		});
-		done.push("父继续跑");
-	});
-	assert.deepEqual(done, ["父进来了", "孩子也进来了", "父继续跑"]);
-	assert.equal(gate.running, 0, "名额要一个不少地还回来");
-});
-
-test("四路各派一个孙代理，谁也不会卡住", async () => {
-	// 宽度 4、四个子代理各派一个孙：共用一道闸门，同样会占着位置等孩子。
-	const gate = new DispatchGate(4);
-	const finished: number[] = [];
-	await Promise.all(
-		Array.from({ length: 4 }, (_, i) =>
-			gate.run(async () => {
-				await gate.children().run(async () => {
-					await new Promise((r) => setTimeout(r, 5));
-				});
-				finished.push(i);
-			}),
-		),
-	);
-	assert.deepEqual(finished.sort(), [0, 1, 2, 3]);
-	assert.equal(gate.running, 0);
-	assert.equal(gate.queued, 0);
-});
-
-test("让位是暂时的，真正在跑的仍然不超过宽度", async () => {
-	const gate = new DispatchGate(2);
-	let peak = 0;
-	const release: (() => void)[] = [];
-	// 每个「真的在跑」的活都会把峰值顶上去；父在等孩子的那一段不算在跑。
-	const busy = async () => {
-		peak = Math.max(peak, gate.running);
-		await new Promise<void>((resolve) => release.push(resolve));
-	};
-	const jobs = [
-		gate.run(async () => { await busy(); await gate.children().run(busy); }),
-		gate.run(async () => { await busy(); await gate.children().run(busy); }),
-		gate.run(busy),
-	];
-	for (let i = 0; i < 6; i++) {
-		await new Promise((r) => setTimeout(r, 5));
-		release.splice(0).forEach((fn) => fn());
-	}
-	await Promise.all(jobs);
-	assert.ok(peak <= 3, `真正在跑的一度到了 ${peak} 个，宽度只有 2——让位最多允许瞬时多一个`);
-	assert.equal(gate.running, 0);
 });
 
 test("反复改宽度不会把名额算漏或算重", async () => {

@@ -215,9 +215,6 @@ export class SubAgentRegistry {
 		agent: string;
 		description: string;
 		abort: () => void;
-		parentId?: string;
-		/** Defaults to 1: dispatched by the main conversation. */
-		depth?: number;
 		/** 派出去了，但还要在闸门后面排队。轮到它时调 `admit`。 */
 		queued?: boolean;
 	}): void {
@@ -229,8 +226,6 @@ export class SubAgentRegistry {
 			status: input.queued ? "queued" : "running",
 			startedAt: Date.now(),
 			toolCalls: 0,
-			...(input.parentId ? { parentId: input.parentId } : {}),
-			depth: input.depth ?? 1,
 			usage: emptyUsage(),
 			messages: [],
 			steering: [],
@@ -292,7 +287,7 @@ export class SubAgentRegistry {
 		if (!found || !message) return true;
 		if (this.steered.has(message)) return false;
 		found.messages.push(message);
-		// Each assistant message is one request, and arrives once — see `message_end` in `runSubAgent`.
+		// Each assistant message is one request, and arrives once — see `message_end` in the sub-agent's relay (`sub-agent-run.ts`).
 		if (message.role === "assistant") found.usage = addUsage(found.usage, message.usage);
 		this.onChange();
 		return true;

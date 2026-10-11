@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_DEPTH, normalizeMaxConcurrentSubAgents } from "./dispatch-guard.ts";
+import { normalizeMaxConcurrentSubAgents } from "./dispatch-guard.ts";
 import { access } from "node:fs/promises";
 import { platform } from "node:os";
 import { basename, join } from "node:path";
@@ -84,7 +84,6 @@ export function promptCapabilities(input: PromptCapabilitiesInput) {
 		tools,
 		dispatchLimits: {
 			maxConcurrent: normalizeMaxConcurrentSubAgents(input.settings.maxConcurrentSubAgents),
-			maxDepth: DEFAULT_MAX_DEPTH,
 		},
 	};
 }
