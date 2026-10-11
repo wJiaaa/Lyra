@@ -7,10 +7,11 @@
  */
 
 import { join } from "node:path";
-import { app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, nativeImage, screen, systemPreferences } from "electron";
+import { app, BrowserWindow, desktopCapturer, globalShortcut, nativeImage, screen, systemPreferences } from "electron";
 import type { ScreenshotSettings, Settings } from "@plume/core";
 
 import { registerShortcut, type ShortcutOutcome } from "./accelerator.ts";
+import { writeClipboardImage } from "./clipboard-image.ts";
 import { hidesOverlayForSnapshot, warmupPlan } from "./screenshot-platform.ts";
 import { resolveSaveDirectory } from "./screenshot-path.ts";
 import { listWindows } from "./screenshot-windows.ts";
@@ -1479,8 +1480,7 @@ export async function finishScreenshot(dataUrl: string, settings?: ScreenshotSet
 	// 1. Copy to clipboard
 	const copyToClipboard = settings?.copyToClipboard !== false;
 	if (copyToClipboard) {
-		const img = nativeImage.createFromBuffer(buffer);
-		clipboard.writeImage(img);
+		await writeClipboardImage(nativeImage.createFromBuffer(buffer));
 	}
 
 	// 2. Save to file if saveLocation is configured
@@ -1534,7 +1534,7 @@ export async function downloadScreenshot(
 		if (settings?.copyToClipboard !== false) {
 			try {
 				const img = nativeImage.createFromBuffer(buffer);
-				if (!img.isEmpty()) clipboard.writeImage(img);
+				if (!img.isEmpty()) await writeClipboardImage(img);
 			} catch (error) {
 				console.error("[screenshot] File saved, but clipboard copy failed:", error);
 			}

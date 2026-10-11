@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { plumeHome } from "@plume/core";
 import { clipboard, ipcMain, nativeImage, shell } from "electron";
 import { documentImage } from "../avatars.ts";
+import { writeClipboardImage } from "../clipboard-image.ts";
 import { openExternalSafely } from "../window-security.ts";
 import { openTargets, openWith, type OpenTarget } from "../open-targets.ts";
 
@@ -88,7 +89,7 @@ export function registerSystemIpc(): void {
 	ipcMain.handle("clipboard:writeImage", async (_event, dataUrl: string) => {
 		const image = nativeImage.createFromDataURL(dataUrl);
 		if (image.isEmpty()) return false;
-		clipboard.writeImage(image);
+		await writeClipboardImage(image);
 		return true;
 	});
 }
