@@ -108,6 +108,8 @@ export const METHODS = {
 		approve: { channel: "agent:approve" },
 		setModel: { channel: "agent:setModel" },
 		setThinking: { channel: "agent:setThinking" },
+		setPlanMode: { channel: "agent:setPlanMode" },
+		setGoal: { channel: "agent:setGoal" },
 	},
 	subAgents: {
 		list: { channel: "subagents:list" },

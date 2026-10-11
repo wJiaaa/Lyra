@@ -6,12 +6,23 @@
  * situation this version does not know — is shown as core wrote it.
  */
 
-import type { AgentEvent, CompactCode, ConfigProblem, NoticeParams } from "@plume/core";
+import type { AgentEvent, CompactCode, ConfigProblem, GoalPauseReason, NoticeParams } from "@plume/core";
 import type { MessageKey } from "../i18n/messages/index.ts";
 import { translate } from "../i18n/translate.ts";
 
 export function noticeText(event: Extract<AgentEvent, { type: "notice" }>): string {
-	return event.code ? translate(`notice.${event.code}` satisfies MessageKey, event.params) : event.message;
+	if (!event.code) return event.message;
+	// 停下的原因 core 给的是代号（`budget`），句子里要的是人话。
+	const params = event.code === "goal-paused" ? { ...event.params, why: goalPauseText(event.params?.why) } : event.params;
+	return translate(`notice.${event.code}` satisfies MessageKey, params);
+}
+
+const PAUSE_REASONS: readonly GoalPauseReason[] = ["budget", "no-progress", "judge-failed", "stopped", "error", "user"];
+
+/** 持续目标为什么停下，说给人听。认不出的代号原样给出，好过一句空话。 */
+export function goalPauseText(why: unknown): string {
+	const known = PAUSE_REASONS.find((reason) => reason === why);
+	return known ? translate(`goal.pause.${known}` satisfies MessageKey) : String(why ?? "");
 }
 
 /** A manual `/compact`'s outcome: the line under the command, or the toast when it was refused. */

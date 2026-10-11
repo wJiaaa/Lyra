@@ -24,6 +24,15 @@ import { useI18n } from "../../i18n/index.ts";
 import { isNudge, type TurnStats } from "./grouping.ts";
 import { LiveToolCard, segments, ToolRun as ToolRunGroup } from "./runs.tsx";
 
+/*
+ * 审批卡片上的计划正文。放在这里而不是让 `ApprovalOverlay` 自己 import `Markdown`：`Markdown` 经
+ * `dock` 绕回 `conversation/index`，卡片再加这一条边就是一条新的循环依赖（`pnpm arch` 的基线只降不升）。
+ * `Conversation` 本来就经这个文件用着 `Markdown`，由它把这个函数交给卡片，不多一条边。
+ */
+export function planMarkdown(text: string) {
+  return <Markdown text={text} className="min-w-0 max-w-full break-words text-label" />;
+}
+
 /**
  * Whether this message is where the reply stopped, rather than a pause inside it.
  *

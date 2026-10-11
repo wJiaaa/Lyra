@@ -6,6 +6,7 @@
  */
 
 import type { AgentEvent } from "../agent/events.ts";
+import type { GoalState } from "../types/goal.ts";
 import type { Message, ThinkingLevel, Usage } from "../types.ts";
 
 export interface SessionMeta {
@@ -82,6 +83,15 @@ export interface SessionMeta {
 	 * Absent now only after `setThinking(null)`, which means "whatever the settings say".
 	 */
 	thinking?: ThinkingLevel;
+	/**
+	 * 这个对话正处于计划模式：先只读调查、交一份计划，批准之前改不了东西。
+	 *
+	 * 按会话而不是按权限档：计划和权限是两件事，权限又是全局的。批准计划时由运行时写回
+	 * `undefined`；人也能随时在界面上关掉。见 `runtime/plan-mode.ts`、ADR-0044。
+	 */
+	planMode?: boolean;
+	/** 持续目标：状态全在这里，每次变化落盘。见 `runtime/session-goal.ts`、ADR-0045。 */
+	goal?: GoalState;
 	/**
 	 * Someone typed this title, so nothing else gets to replace it.
 	 *

@@ -29,6 +29,7 @@ import type {
 	ProviderConfig,
 	StreamEvent,
 	ThinkingLevel,
+	Tool,
 	Usage,
 } from "../types.ts";
 import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction.ts";
@@ -44,6 +45,9 @@ import { loadPromptContext, promptCapabilities, type PromptProfile } from "./pro
 import { reconcilePrompt, type PromptContext } from "../prompt/context.ts";
 import { currentSections, diffSections, promptSections, promptUpdateMessage } from "../prompt/update.ts";
 import { buildTurnConfig } from "./turn-config.ts";
+import { PLAN_MODE_KEY, planModeTools, SUBMIT_PLAN_TOOL_NAME } from "./plan-mode.ts";
+import { submitPlanTool } from "./plan-tool.ts";
+import { recordPlanMode } from "./session-model.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
 import type { DelegationWaits } from "./delegation-waits.ts";
 
@@ -76,6 +80,10 @@ export interface TurnInputs {
 	 * 进日志、界面不画，和钩子给的上下文一样。
 	 */
 	context?: () => Promise<Message | null>;
+	/** 这一轮处于计划模式：工具表包一层只放行只读调用，加上 `submit_plan`。见 `plan-mode.ts`。 */
+	planMode?: boolean;
+	/** 持续目标的原话；提示词多一段。见 `session-goal.ts`。 */
+	goal?: string;
 }
 
 /**
@@ -235,6 +243,8 @@ async function recordTurnEvent(log: SessionLog, event: AgentEvent): Promise<void
 		});
 	}
 	if (event.type === "message_end") await log.commit(event.message);
+	// 批准计划的那条结果落盘的同时，会话的开关也写回：下一轮从日志起步，不该再进计划模式。
+	if (event.type === "message_end" && approvedPlan(event.message)) await recordPlanMode(log, false);
 	/*
 	 * 被拒收放掉的那条回复：没提交，界面上画出来的那一截也要收掉。
 	 *
@@ -246,6 +256,12 @@ async function recordTurnEvent(log: SessionLog, event: AgentEvent): Promise<void
 		return log.emit({ type: "rewound", messageCount: log.messages.length });
 	}
 	await log.emit(event);
+}
+
+/** 一条 `submit_plan` 的结果，而且是批准的那种。 */
+function approvedPlan(message: Message): boolean {
+	if (message.role !== "toolResult" || message.toolName !== SUBMIT_PLAN_TOOL_NAME || message.isError) return false;
+	return (message.details as { kind?: string } | undefined)?.kind === "plan";
 }
 
 /**
@@ -310,7 +326,15 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 	// 名单外的工具不止是不提：不在这一轮的工具表里，模型叫也叫不到。
 	const profile = input.profile;
 	const allowed = profile ? can.tools.filter((tool) => profile.tools.has(tool.name)) : can.tools;
-	const { tools, dispatchLimits } = promptCapabilities({ settings, tools: allowed });
+	const { tools: bare, dispatchLimits } = promptCapabilities({ settings, tools: allowed });
+	/*
+	 * 计划模式按每轮开始时的会话元数据定，开关写进状态图：这一轮里批准计划就是把它关掉，包着的
+	 * 工具从此放行，不用换表。`submit_plan` 只在计划模式的轮里出现——不在计划模式时它没有意义，
+	 * 而工具表在模式切换那一轮本来就会变。
+	 */
+	const planMode = input.planMode === true;
+	can.state.set(PLAN_MODE_KEY, planMode);
+	const tools = planMode ? planModeTools([...bare, submitPlanTool as unknown as Tool], can.state) : bare;
 
 	/*
 	 * Where `agent://` finds the sub-agents this session dispatched.
@@ -328,6 +352,8 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 		resources: can.resources.schemes(),
 		dispatchLimits,
 		profile: input.profile,
+		planMode,
+		goal: input.goal,
 	}));
 	const turn = await prepareTurn({
 		cwd, tools, systemPrompt: prompt.systemPrompt,

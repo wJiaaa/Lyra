@@ -55,7 +55,10 @@ import { streamAssistant } from "../ai/index.ts";
 import { SessionTitle } from "./session-title.ts";
 import { TODOS_KEY } from "../tools/todo.ts";
 import { manualCompaction, type CompactionParts } from "./manual-compaction.ts";
-import { adoptModelSwitch, recordModel, recordThinking } from "./session-model.ts";
+import { adoptModelSwitch, recordGoal, recordModel, recordPlanMode, recordThinking } from "./session-model.ts";
+import { goalActive, SessionGoal } from "./session-goal.ts";
+import type { TodoItem } from "../tools/todo.ts";
+import { PLAN_MODE_KEY } from "./plan-mode.ts";
 import { rewind, type RewindParts } from "./session-rewind.ts";
 import { changedPaths, mainChatContext, SIDE_CHAT_PROFILE, sideChangesNote, sideChatTools } from "./side-session.ts";
 
@@ -118,6 +121,10 @@ export class AgentSession {
 	 * 这个类里从此看不到「摘要跑到哪一步了」这种东西。
 	 */
 	private title: SessionTitle;
+	/** 持续目标的推进，全在 `session-goal.ts` 里。 */
+	private readonly goal: SessionGoal;
+	/** 最近一次 `agent_end` 的原因；目标只在干净收尾后才判。 */
+	private lastEnd: Extract<AgentEvent, { type: "agent_end" }>["reason"] = "done";
 	/** 谁此刻占着历史、怎么停下它。见 `session-activity.ts`。 */
 	private readonly activity = new SessionActivity();
 	/** 忙着的时候进来的话：插话或排队。见 `session-inbox.ts`。 */
@@ -200,6 +207,20 @@ export class AgentSession {
 			stream: options.titleSummaryStream,
 			// 见 `TitleDeps.stream` 那段：这两个要一起看，少看一个会在测试里真的发请求。
 			sessionStreamInjected: Boolean(options.streamFn),
+		});
+		this.goal = new SessionGoal({
+			settings: () => this.settings,
+			goal: () => this.log.meta.goal,
+			record: (goal) => recordGoal(this.log, goal),
+			messages: () => this.log.messages,
+			todos: () => (this.can.state.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
+			modelId: () => this.modelIdInEffect(),
+			stream: options.titleSummaryStream,
+			append: (record) => this.log.append(record),
+			emit: (event) => this.emit(event),
+			continueWith: (text) => this.prompt([{ type: "text", text }], { synthetic: true }),
+			idle: () => this.idle,
+			whenIdle: () => this.whenIdle(),
 		});
 		/*
 		 * 每一个出门的事件都先过这里翻牌，然后才交给宿主。
@@ -345,6 +366,7 @@ export class AgentSession {
 		 */
 		this.can.state.set(SESSIONS_KEY, sessionLookup(this.store));
 		await this.restoreSubAgents();
+		this.goal.arm();
 		/*
 		 * 扩展的 `session_start`。
 		 *
@@ -628,6 +650,27 @@ export class AgentSession {
 		await recordThinking(this.log, thinking);
 	}
 
+	/**
+	 * 进出计划模式。写进元数据，下一轮按它装工具表；状态图里的开关也同步，这样跑到一半关掉时
+	 * 包着的工具立刻放行。跑到一半打开则要等下一轮——这一轮的工具表没包过，开关对它没有作用。
+	 */
+	/**
+	 * 定一个持续目标，或取消它（`null`）。
+	 *
+	 * 目标那句话以人的名义进对话——是人说的；之后每轮收尾由裁判决定续不续，见 `session-goal.ts`。
+	 * 会话正忙时这句话插进当前这一轮，和平时说话一样。
+	 */
+	async setGoal(text: string | null): Promise<void> {
+		if (text === null || !text.trim()) { await this.goal.clear(); return; }
+		await this.goal.set(text);
+		await this.prompt([{ type: "text", text: text.trim() }]);
+	}
+
+	async setPlanMode(on: boolean): Promise<void> {
+		await recordPlanMode(this.log, on);
+		this.can.state.set(PLAN_MODE_KEY, on);
+	}
+
 	// -------------------------------------------------------------------------
 	// Running a turn
 	// -------------------------------------------------------------------------
@@ -886,6 +929,7 @@ export class AgentSession {
 				code: "no-model",
 			});
 			await this.emit({ type: "agent_end", reason: "error", error: "no_model" });
+			void this.goal.afterTurn("error");
 			return;
 		}
 
@@ -920,6 +964,8 @@ export class AgentSession {
 				delegations: this.delegations,
 				liveModel: this.liveModel,
 				profile: parent ? SIDE_CHAT_PROFILE : undefined,
+				planMode: this.log.meta.planMode === true,
+				goal: goalActive(this.log.meta.goal) ? this.log.meta.goal.text : undefined,
 				context: async () => parent ? mainChatContext(this.log.messages, parent, resolved.model) : this.takeSideChanges(),
 			});
 			this.activity.trackTurn(turn);
@@ -953,6 +999,8 @@ export class AgentSession {
 		// The queue moves the moment the workspace is free again. Skipped while draining,
 		// because that loop is already the thing calling us.
 		void this.tasks.drain();
+		// 目标在这之后才看：排着的先跑，它等会话真闲下来。见 `session-goal.ts`。
+		void this.goal.afterTurn(this.lastEnd);
 	}
 
 	abort(): void {
@@ -972,6 +1020,8 @@ export class AgentSession {
 		 */
 		this.subAgents.abortAll();
 		this.approvals.rejectAll();
+		// 停止也停目标：在等的、在判的都停下来等人。
+		this.goal.interrupt();
 		// 放了手的、攒着没送的都不再送回来；后台命令照跑，只是结束时不再叫醒会话。见 `SessionDeliveries.clear`。
 		this.delegations.forget();
 		this.deliveries.clear();
@@ -1064,6 +1114,7 @@ export class AgentSession {
 	}
 
 	private emit(event: AgentEvent): Promise<void> {
+		if (event.type === "agent_end") this.lastEnd = event.reason;
 		return this.log.emit(event);
 	}
 
@@ -1176,6 +1227,7 @@ export class AgentSession {
 	}
 
 	async dispose(reason: SessionEndReason = "other"): Promise<void> {
+		this.goal.dispose();
 		this.abort();
 		await this.end(reason).catch(() => {});
 		// A host may delete the log as soon as disposal returns; finish any title write first.

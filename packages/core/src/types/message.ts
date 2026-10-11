@@ -212,6 +212,17 @@ export interface CompactionContext {
 	/** Ordered excerpts of real user messages; rendering has its own window budget. */
 	requests?: { ordinal: number; text: string; timestamp: number }[];
 	todos?: { content: string; status: "pending" | "in_progress" | "completed" }[];
+	/** 人批准过的计划；摘要可以忘，它不能。见 `runtime/plan-mode.ts`。 */
+	plan?: ApprovedPlan;
+}
+
+/** 计划模式里交上去、被人批准的那份计划。字段和内置 `plan` 子代理的输出一致。 */
+export interface ApprovedPlan {
+	title?: string;
+	steps: { what: string; files?: string[] }[];
+	risks: string[];
+	unknowns: string[];
+	approvedAt: number;
 }
 
 export interface UserMessage {

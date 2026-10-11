@@ -173,6 +173,21 @@
 按「没人接走的插话」接着发——会话的 `drainPending`、子代理的 `runSubAgent` 都认这条路。
 
 人说了新话会结束上一个 skill 的工具限制，否则会以一个他未必记得的 skill 名义，静默拒绝他刚要求
+## 计划模式：同一张工具表，开关开着时只放行只读
+
+`SessionMeta.planMode` 开着的那一轮，`assembleTurn` 把工具表交给 `planModeTools` 包一层（`runtime/plan-mode.ts`）
+并加上 `submit_plan`。schema 一个字节不变，只有 `execute` 在开关开着时按只读名单放行、其余拒绝；`bash`
+只放 `isReadOnlyCommand` 认得的命令，并压进只读沙箱。`submit_plan` 走 `interactive` 审批卡片，批准那一刻
+把状态图里的开关关掉、把步骤写进 `TODOS_KEY`——同一轮里下一次调用就直接放行，不用换表、不用等下一轮。
+这条工具结果提交时会话把 meta 清掉（`recordTurnEvent`）。计划进 `task-context`，压缩后原样注入。
+这一轮派出去的子代理拿到的是包过的表，开关是主会话的。设计取舍见 ADR-0044。
+
+## 持续目标：循环之外的一层
+
+循环本身不知道目标。会话在 `run()` 收尾、`agent_end` 为 `done` 且 `whenIdle` 之后，交给 `runtime/session-goal.ts`
+判一次（`goal-judge.ts`，一次几千 token 的小请求），按结论以 `synthetic` 用户消息再开一轮、或睡到 `wakeAt`、
+或停下。不是 `done` 的收尾（按停、报错、步数、重复）目标跟着停，不越过循环已经做出的决定。见 ADR-0045。
+
 的工作。第一轮要把发起这次运行的那条提示也算上：状态表活得比一次运行长。
 
 ## 工具说「到此为止」

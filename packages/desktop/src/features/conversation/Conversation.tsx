@@ -24,7 +24,7 @@ import { HookTrustBanner } from "./HookTrustBanner.tsx";
 import { QuestionNav } from "./QuestionNav.tsx";
 import { QuoteMenu } from "./QuoteMenu.tsx";
 import { questionsIn, timeSeparators } from "./question-navigation.ts";
-import { MessageRow } from "./rows.tsx";
+import { MessageRow, planMarkdown } from "./rows.tsx";
 import { TurnProcess } from "./TurnProcess.tsx";
 import { DispatchFaces, useDispatches } from "./DelegationCard.tsx";
 import { useTranscriptWindow } from "./view-state.ts";
@@ -640,7 +640,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
        * scrolls above the decision instead of disappearing behind it.
        */}
       <div className="relative shrink-0" style={docked ? { marginRight: ENVIRONMENT_LANE } : undefined}>
-        <ApprovalOverlay />
+        <ApprovalOverlay renderPlan={planMarkdown} />
         {!side && <HookTrustBanner className={`${gutter} pb-1.5`} />}
         {/*
          * 只有卡片在的时候才留那道缝。清单是空的（或者做完收起了）时这一层什么都不画，

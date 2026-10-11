@@ -7,5 +7,6 @@
  */
 
 export * from "./types/message.ts";
+export * from "./types/goal.ts";
 export * from "./types/tool.ts";
 export * from "./types/provider.ts";

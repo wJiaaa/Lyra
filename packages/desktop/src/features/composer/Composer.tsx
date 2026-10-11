@@ -22,6 +22,8 @@ import { SubAgentBar } from "../subagents/index.ts";
 import { askSide, openFilePane, openScopedPanel, sideChatFor } from "../dock/index.ts";
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { ContextMeter } from "./ContextMeter.tsx";
+import { PlanModeToggle } from "./PlanModeToggle.tsx";
+import { GoalBar } from "./GoalBar.tsx";
 import { EffortTrigger } from "../models/index.ts";
 import { useRolled } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -415,7 +417,37 @@ export function Composer({ centered = false }: {
 			});
 			return;
 		}
-		if (builtin) {
+		/*
+		 * `/plan`：不带话就是开关；带话就先进计划模式、再把这句话当普通消息发出去——计划模式在下一轮开始时
+		 * 按元数据装工具表，所以先写开关、再发。没有会话时没有地方记这个开关，提示并留着草稿。
+		 */
+		if (builtin?.action === "plan") {
+			if (!activeSessionId) { useApp.getState().notify(translate("plan.needsSession"), "warn"); return; }
+			const planOn = meta?.planMode === true;
+			if (!invocation?.rest) {
+				if (attachments.length || sessionRefs.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
+				setText("");
+				setDraft(draftKey, null);
+				release();
+				await useApp.getState().setPlanMode(!planOn, activeSessionId);
+				return;
+			}
+			if (!planOn) await useApp.getState().setPlanMode(true, activeSessionId);
+		}
+		/*
+		 * `/goal 目标`：定一个持续目标，`/goal` 留空取消。这句话由主进程以人的名义发出（core 的
+		 * `setGoal`），这里不再走 `send`，否则同一句话会进对话两次。目标挂在会话上，没有会话就没处挂。
+		 */
+		if (builtin?.action === "goal") {
+			if (attachments.length || sessionRefs.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
+			if (!activeSessionId) { useApp.getState().notify(translate("goal.needsSession"), "warn"); return; }
+			setText("");
+			setDraft(draftKey, null);
+			release();
+			await useApp.getState().setGoal(invocation?.rest || null, activeSessionId);
+			return;
+		}
+		if (builtin && builtin.action !== "plan") {
 			if (attachments.length || sessionRefs.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
 			if (builtin.action === "compact" && !activeSessionId) { useApp.getState().notify(translate("composer.nothingToCompact"), "warn"); return; }
 			if (builtin.action !== "compact" && invocation?.rest) { useApp.getState().notify(translate("composer.commandNoArgs"), "warn"); return; }
@@ -435,7 +467,9 @@ export function Composer({ centered = false }: {
 		}
 
 		const referencedSessions = sessionRefs;
-		const composed = { text: trimmed, attachments, sessionRefs: referencedSessions };
+		// `/plan 要规划的事` 发出去的只是后半句：开关已经拨过了，`/plan` 留在气泡里模型会当成一条它不认识的命令。
+		const said = builtin?.action === "plan" ? invocation?.rest ?? "" : trimmed;
+		const composed = { text: said, attachments, sessionRefs: referencedSessions };
 		const built = await buildOutgoing(composed, commandCwd, () =>
 			// A disk scan must not dispatch an obsolete draft or erase edits made while it was pending.
 			draftKeyRef.current === draftKey && textRef.current === text && attachmentsRef.current === attachments && sessionRefsRef.current === sessionRefs,
@@ -443,7 +477,7 @@ export function Composer({ centered = false }: {
 		if (!built) return;
 		// 人在对话里的页面上调过的东西，跟着这句话交给模型；气泡里只有人打的字。见 `page-state.ts`。
 		const states = activeSessionId ? takePageStates(activeSessionId) : "";
-		const outgoing = states ? { ...built, content: [...built.content, { type: "text" as const, text: states }], displayText: built.displayText ?? trimmed } : built;
+		const outgoing = states ? { ...built, content: [...built.content, { type: "text" as const, text: states }], displayText: built.displayText ?? said } : built;
 
 		setText("");
 		setAttachments([]);
@@ -596,6 +630,7 @@ export function Composer({ centered = false }: {
 				 * 托盘：项目和分支坐在卡片上方露出来的那一条里。见 `composer.css` 的 `.ly-composer-tray`。
 				 */}
 				<div className="ly-composer-tray">
+					{activeSessionId && meta?.goal && <GoalBar sessionId={activeSessionId} goal={meta.goal} last={!showBottomPanel} />}
 					{/*
 					 * Where the turn will run, and what it has already changed.
 					 *
@@ -818,6 +853,7 @@ export function Composer({ centered = false }: {
 									<ChevronDown size={14} className="shrink-0" aria-hidden />
 								</span>
 							</button>
+							<PlanModeToggle sessionId={activeSessionId ?? null} on={meta?.planMode === true} />
 						</>
 					}
 					right={

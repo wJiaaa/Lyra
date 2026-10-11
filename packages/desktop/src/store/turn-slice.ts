@@ -572,5 +572,40 @@ export function turnSlice(set: Set, get: Get) {
     }
     if (settings) await get().saveSettings({ ...settings, thinking });
   },
+
+	/*
+	 * 计划模式按会话记，没有「应用默认」可退：没有会话就没有可写的地方，什么也不做，由调用方提示。
+	 * 乐观更新理由同 `setThinking`；真正的那份随后由 `sessions:changed` 送来——批准计划后 core 自己
+	 * 关掉时也走那条路，所以芯片不需要另听事件。
+	 */
+	async setPlanMode(on: boolean, sessionId?: string | null) {
+		if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
+		const activeSessionId = sessionId === null ? null : get().activeSessionId;
+		if (!activeSessionId) return;
+		const { meta } = get();
+		const optimistic = meta ? { ...meta, planMode: on ? true : undefined } : null;
+		if (optimistic) set({ meta: optimistic });
+		try {
+			await bridge.agent.setPlanMode(activeSessionId, on);
+		} catch (cause) {
+			if (get().activeSessionId === activeSessionId && get().meta === optimistic) set({ meta });
+			get().notify(translate("plan.toggleFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
+		}
+	},
+
+	/*
+	 * 定或取消持续目标。不做乐观更新：目标那句话由主进程以人的名义发出，状态随 `goal` 事件和
+	 * `sessions:changed` 回来，界面先画一份只会和随后到的那份打架。没有会话时什么也不做，由调用方提示。
+	 */
+	async setGoal(text: string | null, sessionId?: string | null) {
+		if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
+		const activeSessionId = sessionId === null ? null : get().activeSessionId;
+		if (!activeSessionId) return;
+		try {
+			await bridge.agent.setGoal(activeSessionId, text);
+		} catch (cause) {
+			get().notify(translate("goal.failed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
+		}
+	},
   };
 }

@@ -1,4 +1,5 @@
 import type { CompactionContext, Message } from "../types/message.ts";
+import { renderPlan, SUBMIT_PLAN_TOOL_NAME } from "./plan-mode.ts";
 
 const REQUEST_CHARS = 2000;
 const REQUEST_SOURCES = 20;
@@ -30,6 +31,10 @@ export function taskContextFromHistory(messages: Message[]): CompactionContext {
 			if (details?.kind === "todo" && Array.isArray(details.todos)) {
 				context.todos = details.todos.map(({ content, status }) => ({ content, status }));
 			}
+		} else if (message.role === "toolResult" && message.toolName === SUBMIT_PLAN_TOOL_NAME && !message.isError) {
+			// 只认批准的那份：打回的是反馈，不是计划。后一次批准覆盖前一次。
+			const details = message.details as { kind?: string; plan?: CompactionContext["plan"] } | undefined;
+			if (details?.kind === "plan" && details.plan && Array.isArray(details.plan.steps)) context.plan = details.plan;
 		}
 	}
 	return context;
@@ -55,6 +60,7 @@ export function formatTaskContext(context: CompactionContext, requestBudget = 60
 		context.originalRequest && context.originalRequest !== context.latestRequest ? `Original user request (historical scope):\n${context.originalRequest}` : "",
 		shown.length ? `Intermediate user requests, oldest first:\n${shown.join("\n\n")}` : "",
 		omitted ? `${omitted} earlier user request excerpts omitted from this window. Their constraints may still apply; use recall to check the original wording before assuming permission or changing scope.` : "",
+		context.plan ? `User-approved plan (execute it; re-plan only if the user says so):\n${renderPlan(context.plan)}` : "",
 		context.todos !== undefined ? `Latest recorded task list:\n${context.todos.length ? context.todos.map((todo) => `[${todo.status}] ${todo.content}`).join("\n") : "No active task list; the previous list was cleared."}` : "",
 	].filter(Boolean);
 	if (!facts.length) return "";

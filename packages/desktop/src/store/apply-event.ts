@@ -9,7 +9,7 @@
 
 import { formatList } from "../i18n/list.ts";
 import { translate } from "../i18n/translate.ts";
-import type { AgentEvent } from "@plume/core";
+import type { AgentEvent, GoalState } from "@plume/core";
 import { addTurnUsage, type TurnMeter, type CarriedTurn } from "./turn-meter.ts";
 import { nextActivity } from "@plume/core/activity";
 import { recordReadEvent } from "./read-events.ts";
@@ -58,6 +58,7 @@ const RECONNECTED = new Set<AgentEvent["type"]>([
 export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, get: Get): void {
 	const completion = completionNotice(event, get().activity[sessionId] ?? null);
   recordReadEvent(sessionId, event);
+  if (event.type === "goal") { applyGoalChange(sessionId, event.goal, set); return; }
   /*
    * 被「现在就发」停下的那一轮的收尾：转录照样落定，会话不放下——新的一轮几十毫秒后就开始。
    * 下面凡是 `agent_end` 会把会话放下的地方都看它。见 `handoff.ts`。
@@ -598,4 +599,23 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
       break;
     }
   }
+}
+
+/**
+ * 持续目标变了（`goal` 事件）。
+ *
+ * 同一份状态 core 也写进了 meta，随后经 `sessions:changed` 整份到达；这里先改，是因为状态条上的
+ * 「在判定」「在等」只持续几秒，等那一来一回就看不到了。列表、缓存、屏上那份三处一起改，分屏里
+ * 不在台上的那个对话也跟得上。
+ */
+function applyGoalChange(id: string, goal: GoalState | null, set: Set): void {
+	const next = goal ?? undefined;
+	set((state) => {
+		const cached = state.sessionCache[id];
+		return {
+			sessions: state.sessions.map((session) => session.id === id ? { ...session, goal: next } : session),
+			...(cached ? { sessionCache: { ...state.sessionCache, [id]: { ...cached, meta: { ...cached.meta, goal: next } } } } : {}),
+			...(state.activeSessionId === id && state.meta ? { meta: { ...state.meta, goal: next } } : {}),
+		};
+	});
 }

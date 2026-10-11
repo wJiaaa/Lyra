@@ -24,6 +24,7 @@ import {
 	configureHub,
 	getOrCreateSession,
 	sessions,
+	wakeWaitingGoals,
 } from "./session-hub.ts";
 import { canonicalPath } from "./canonical-path.ts";
 import { resolveInside } from "./file-ops.ts";
@@ -652,6 +653,8 @@ function bindScreenshotShortcut(): void {
 		},
 	});
 	scheduler.start();
+	// 和定时任务同一时刻：都是「没人点开也该自己动起来」的会话。见 `wakeWaitingGoals`。
+	void wakeWaitingGoals().catch(() => {});
 
 	/*
 	 * The status bar item, once there is something behind it worth opening.

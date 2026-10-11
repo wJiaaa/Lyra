@@ -37,6 +37,7 @@ import {
 	createSession,
 	abortSession,
 	promptSession,
+	setSessionGoal,
 	sessions,
 	sideSessionsOf,
 	snapshot,
@@ -445,4 +446,20 @@ export function registerSessionsIpc({
 			await store.append(meta, { type: "meta", meta: next });
 		},
 	);
+
+	// 和 setThinking 一样，还没起过 agent 的会话直接写日志，不为记一个开关去启动它。
+	ipcMain.handle("agent:setGoal", (_event, sessionId: string, text: string | null) => setSessionGoal(sessionId, text));
+
+	ipcMain.handle("agent:setPlanMode", async (_event, sessionId: string, on: boolean) => {
+		const live = sessions.get(sessionId);
+		if (live) {
+			await live.setPlanMode(on);
+			return;
+		}
+		const meta = await store.get(sessionId);
+		if (!meta || (meta.planMode === true) === on) return;
+		// 关掉写 present-and-undefined 而不是删键，理由见 core 的 `recordThinking`。
+		const next: SessionMeta = { ...meta, planMode: on ? true : undefined };
+		await store.append(meta, { type: "meta", meta: next });
+	});
 }

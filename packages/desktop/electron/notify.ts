@@ -9,7 +9,7 @@
  * the renderer's `translate` is not reachable from here.
  */
 
-import type { AgentEvent } from "@plume/core";
+import type { AgentEvent, GoalState } from "@plume/core";
 import { nativeText } from "./i18n.ts";
 
 export interface NotificationInstance {
@@ -29,9 +29,15 @@ export interface NeedAssistanceDetails {
 	kind?: "question" | "approval";
 }
 
-/** All pending decisions need attention while their conversation is out of view. */
-export function notifyAgentEvent(sessionId: string, event: AgentEvent, title?: string): void {
-	if (event.type === "agent_end" && event.reason === "done") notifyTaskDone({ sessionId, title });
+/**
+ * All pending decisions need attention while their conversation is out of view.
+ *
+ * `goal` 是这个会话此刻的持续目标。目标进行中，一轮收尾只是裁判要看的一步，不是「做完了」——
+ * 每轮都响一下，人就学会了不理它，真到终态那一声也一起被忽略。所以进行中不报每轮，只报终态。
+ */
+export function notifyAgentEvent(sessionId: string, event: AgentEvent, title?: string, goal?: GoalState): void {
+	if (event.type === "agent_end" && event.reason === "done" && !goalUnderway(goal)) notifyTaskDone({ sessionId, title });
+	if (event.type === "goal" && event.goal && ENDED.has(event.goal.status)) notifyGoalEnded(sessionId, event.goal);
 	if (event.type === "approval_request") {
 		const question = event.kind === "interactive" || event.subject === "ask_user";
 		// 后台子智能体问的，说出是谁在问——人要据此决定的，正是「这个活该不该由它来干」。
@@ -105,6 +111,28 @@ export function notifyTaskDone(details: TaskDoneDetails): void {
 		deps.sendTrayCommand(`open-session:${details.sessionId}`);
 	});
 
+	notification.show();
+}
+
+const UNDERWAY = new Set<GoalState["status"]>(["working", "judging", "waiting"]);
+const ENDED = new Set<GoalState["status"]>(["met", "impossible", "paused"]);
+
+function goalUnderway(goal: GoalState | undefined): boolean {
+	return goal !== undefined && UNDERWAY.has(goal.status);
+}
+
+/** 持续目标到了终态：达成、走不到、停下来等人。和别的通知一样，人正看着窗口就不打扰。 */
+function notifyGoalEnded(sessionId: string, goal: GoalState): void {
+	if (!deps.isSupported()) return;
+	if (isWindowActive(deps.window())) return;
+	const body = goal.status === "met"
+		? nativeText("notification.goalMet", { goal: goal.text })
+		: goal.status === "impossible"
+			? nativeText("notification.goalImpossible", { goal: goal.text })
+			: nativeText("notification.goalPaused", { goal: goal.text, why: nativeText(`notification.goalPause.${goal.pausedFor ?? "user"}`) });
+	const icon = deps.appIcon();
+	const notification = deps.createNotification({ title: "Plume", body, ...(icon ? { icon } : {}), silent: false });
+	notification.on("click", () => deps.sendTrayCommand(`open-session:${sessionId}`));
 	notification.show();
 }
 

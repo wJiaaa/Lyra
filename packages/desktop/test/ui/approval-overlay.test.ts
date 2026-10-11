@@ -295,3 +295,24 @@ test("a pending question replaces the thinking mutter with the dashed waiting li
 		assert.equal(view.all(".ly-dash").length, 1);
 	} finally { await view.unmount(); useApp.setState(prior, true); }
 });
+
+/**
+ * 计划模式交上来的计划：标题说的是「审批计划」，正文按 Markdown 画，选项和自由输入仍是业务提问那一套。
+ * 正文画成 `<pre>` 时，人读到的是一堆 `##` 和 `-`。
+ */
+test("a submitted plan is titled as a plan and its body is drawn as markdown", async () => {
+	const { planMarkdown } = await import("../../src/features/conversation/rows.tsx");
+	const previous = useApp.getState();
+	Object.defineProperty(window, "plume", { configurable: true, value: {} });
+	const detail = "## 计划\n\n1. 读登录模块\n2. 换成 OAuth\n3. 补测试";
+	useApp.setState({ activeSessionId: "owner", approvals: [{ id: "plan", kind: "interactive", subject: "submit_plan", title: "审批计划", detail, options: ["批准，开始执行", "要改"], allowCustomInput: true, selectionMode: "single", allowSkip: false }] });
+	const view = await mount(h(LayoutProvider, { children: h(ApprovalOverlay, { renderPlan: planMarkdown }) }));
+	try {
+		assert.equal(view.find("[data-approval-title]").textContent, translate("plan.approvalTitle"));
+		assert.equal(view.all("pre").length, 0, "计划不是一段原样文本");
+		assert.equal(view.find(".ly-approval-scroll h2").textContent, "计划");
+		assert.equal(view.all(".ly-approval-scroll ol li").length, 3);
+		assert.deepEqual(view.all("[data-ly-question-label]").map((label) => label.textContent), ["批准，开始执行", "要改"]);
+		assert.ok(view.find("[data-ly-question-other]"), "打回时能写一句为什么");
+	} finally { await view.unmount(); useApp.setState(previous, true); }
+});

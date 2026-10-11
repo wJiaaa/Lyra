@@ -1,3 +1,4 @@
+import type { GoalState } from "../types/goal.ts";
 import type { AutoCompactionState } from "../types/compaction.ts";
 import type { ApprovalRisk, AssistantMessage, Message, StreamEvent, ToolResult, ToolResultMessage } from "../types.ts";
 import type { SubAgentSummary } from "../types/sub-agent.ts";
@@ -83,7 +84,13 @@ export type NoticeCode =
 	/** Out of rounds with checklist items left; carrying on. Params: `n` (items left). */
 	| "continue-plan"
 	/** The automatic continuations are used up; stopped. */
-	| "continue-limit";
+	| "continue-limit"
+	/** The standing goal was judged reached. Params: `goal`, `reason`. */
+	| "goal-met"
+	/** The standing goal cannot be reached without the user. Params: `goal`, `reason`. */
+	| "goal-impossible"
+	/** The standing goal stopped short of being reached. Params: `why`, `rounds`, `goal`. */
+	| "goal-paused";
 
 /** Values a host fills into its own wording of a coded notice. */
 export type NoticeParams = Record<string, string | number>;
@@ -196,6 +203,8 @@ export type AgentEvent =
 	 * know the code shows `message`.
 	 */
 	| { type: "notice"; level: "info" | "warn" | "error"; message: string; code?: NoticeCode; params?: NoticeParams }
+	/** 持续目标的状态变了；`null` 是取消。状态本身在 `SessionMeta.goal`，这里只是让看着的人跟上。 */
+	| { type: "goal"; goal: GoalState | null }
 	/**
 	 * 磁盘上的技能或子代理定义变了，这个会话已经重新读过了。
 	 *

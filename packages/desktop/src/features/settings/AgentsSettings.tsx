@@ -186,6 +186,10 @@ export function AgentsSettings() {
 							<ModelSelect ariaLabel={t("agents.compactModel")} showIcon={false} value={agentProfile(settings, "compact").modelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} disabled={saving}
 								onChange={(modelId) => save("compact", modelId ? { modelId } : {})} />
 						</SettingRow>
+						<SettingRow name="goal" detail={t("agents.goalJudge")} profile="goal">
+							<ModelSelect ariaLabel={t("agents.goalModel")} showIcon={false} value={agentProfile(settings, "goal").modelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} disabled={saving}
+								onChange={(modelId) => save("goal", modelId ? { modelId } : {})} />
+						</SettingRow>
 						<SettingRow name={t("agents.sidechatModel")} detail={t("agents.sidechatModelDetail")}>
 							<ModelSelect ariaLabel={t("agents.sidechatModel")} showIcon={false} value={settings.sideChatModelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} inheritDetail={t("agents.sidechatModelDetail")} disabled={saving}
 								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, sideChatModelId: modelId || null }); }} />

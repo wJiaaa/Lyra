@@ -33,7 +33,7 @@ export interface PromptProfile {
  * 末尾（`session-turn.ts` 的 `settlePrompt`）。所以这里照旧每轮重读项目指令和技能：改动
  * 要被发现，只是不再改写开头。
  */
-export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "tools" | "skills" | "agents" | "modelName" | "resources" | "dispatchLimits" | "scratchDir"> & {
+export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "tools" | "skills" | "agents" | "modelName" | "resources" | "dispatchLimits" | "scratchDir" | "planMode" | "goal"> & {
 	settings: Settings;
 	recordInjection?: boolean;
 	profile?: PromptProfile;

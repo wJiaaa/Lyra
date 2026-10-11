@@ -13,8 +13,15 @@ function rowTone(on: boolean): string {
 	return `group flex w-full min-w-0 cursor-pointer gap-3 rounded-lg px-3 py-2 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${on ? "bg-accent/[0.08]" : "bg-card hover:bg-card-hover"}`;
 }
 
-export function QuestionChoices({ options = EMPTY_OPTIONS, allowCustomInput, selectionMode = "single", allowSkip = false, defaultOptionIndex, children, answer }: QuestionFields & {
+export function QuestionChoices({ options = EMPTY_OPTIONS, allowCustomInput, selectionMode = "single", allowSkip = false, defaultOptionIndex, children, tall = false, answer }: QuestionFields & {
 	children?: ReactNode;
+	/**
+	 * 正文本身就是要读的东西（一份计划），而不是一句问话：给它更高的上限，免得几步计划也得在小框里滚。
+	 * 24.5rem 是卡片的 14rem 余量加上滚动区以外那几样（标题、提示、自由输入、底栏，实测 169px）：卡片外框
+	 * 裁内容，滚动区比这个高，矮窗口里被裁掉的就是底栏的按钮。卡片余量没跟着缩，是因为 12rem 在 640 高的
+	 * 窗口里把输入框挤出了窗口底边。
+	 */
+	tall?: boolean;
 	answer(decision: ApprovalDecision): Promise<void>;
 }) {
 	const choices = options.map(option => typeof option === "string" ? { label: option } : option);
@@ -73,7 +80,7 @@ export function QuestionChoices({ options = EMPTY_OPTIONS, allowCustomInput, sel
 	return <form ref={formRef} tabIndex={-1} data-ly-question-form data-ly-choice-mode={selectionMode} className="flex min-h-0 flex-1 flex-col outline-none" aria-busy={pending}
 		onSubmit={event => { event.preventDefault(); if (canSubmit) void submit({ answer: selectionMode === "multi" ? values : values[0] }); }}
 		onKeyDown={onFormKey}>
-		<Scroller className="ly-approval-scroll min-h-0 max-h-[min(320px,36dvh)]" top="fade" bottom="fade" contentClassName="px-4 py-2">
+		<Scroller className={`ly-approval-scroll min-h-0 ${tall ? "max-h-[min(520px,calc(100dvh-24.5rem))]" : "max-h-[min(320px,36dvh)]"}`} top="fade" bottom="fade" contentClassName="px-4 py-2">
 			{children}
 			<fieldset disabled={pending} className="mt-3 flex min-w-0 flex-col gap-1.5">
 				<legend className="sr-only">{translate(selectionMode === "multi" ? "question.selectMany" : "question.selectOne")}</legend>

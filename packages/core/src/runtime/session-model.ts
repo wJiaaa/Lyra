@@ -6,6 +6,7 @@
  * through, and apply to a turn started from anywhere.
  */
 
+import type { GoalState } from "../types/goal.ts";
 import { stripStaleHandles } from "../agent/model-switch.ts";
 import type { SessionMeta } from "../session/store.ts";
 import type { ThinkingLevel } from "../types.ts";
@@ -75,6 +76,21 @@ export async function recordThinking(log: SessionLog, thinking: ThinkingLevel | 
 	 * is what was meant.
 	 */
 	const meta: SessionMeta = { ...log.meta, thinking: thinking ?? undefined };
+	log.meta = meta;
+	await log.append({ type: "meta", meta });
+}
+
+/** 进出计划模式。关掉写成 present-and-undefined，理由同 `recordThinking`。 */
+export async function recordPlanMode(log: SessionLog, on: boolean): Promise<void> {
+	if ((log.meta.planMode === true) === on) return;
+	const meta: SessionMeta = { ...log.meta, planMode: on ? true : undefined };
+	log.meta = meta;
+	await log.append({ type: "meta", meta });
+}
+
+/** 持续目标的状态写回 meta。取消写成 present-and-undefined，理由同 `recordThinking`。 */
+export async function recordGoal(log: SessionLog, goal: GoalState | undefined): Promise<void> {
+	const meta: SessionMeta = { ...log.meta, goal };
 	log.meta = meta;
 	await log.append({ type: "meta", meta });
 }
