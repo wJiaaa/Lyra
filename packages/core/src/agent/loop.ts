@@ -42,20 +42,35 @@ const EMPTY_REPLY_NUDGE = "（自动继续）上一条回复没有正文。请�
 export const SOLO_TODO_NOTE =
 	"（这一轮只调了 todo_write，没有做任何实际工作。从下一轮起，把清单更新和真正的下一步——读文件、改代码、跑命令——放在同一次回复里；单独更新清单是浪费一次往返。）";
 
-/** 清单多少轮没被碰过就提一句。写清单和提醒都把计数清零，所以两次提醒之间也至少隔这么多轮。 */
-const PLAN_REMINDER_EVERY = 10;
+/**
+ * 多少次请求没汇报进度就问一句。按请求数，和续跑上限、Goal 的轮数是同一把尺子。
+ *
+ * 20 是在本机 367 次运行上重放出来的：301 次在 20 次请求以内做完，从头到尾不会被问；原来按 10 轮
+ * 念清单的那句在同一批会话上要说 50 次，这条说 40 次。说过就重新计数，所以两次之间也至少隔这么多次。
+ */
+export const PROGRESS_EVERY = 20;
 
 /**
- * Said between rounds like `repeatHint`, so it costs no request of its own.
+ * 有清单时，汇报就是对一遍清单：只认 `todo_write`，嘴上说了不算——界面上那张清单不会因为它说了一句
+ * 而往前走。`2333f4e9` 每隔几轮就说一句，清单却从第 4 次请求停在 1/5 直到收尾。
  *
- * 不接在工具结果末尾：那一轮最后一条常常是报错，模型的注意力全在报错上，接在后面的话 2333f4e9 重放
- * 三次一次都没被读到。措辞也量过：「下一次有实际动作时顺手勾掉」是一句可以往后拖的话，五次里只照做
- * 一次；「现在就对一遍、这次回复里带上」五次全照做，四次和下一步放在同一次回复里。
+ * 和 `repeatHint` 一样夹在两轮之间，跟着下一次请求发出去，不单独占一次请求。不接在工具结果末尾：那一轮
+ * 最后一条常常是报错，模型的注意力全在报错上，接在后面的话 2333f4e9 重放三次一次都没被读到。措辞也量
+ * 过：「下一次有实际动作时顺手勾掉」是一句可以往后拖的话，五次里只照做一次；「现在就对一遍、这次回复里
+ * 带上」五次全照做，四次和下一步放在同一次回复里。
  */
 export function stalePlanNote(todos: TodoItem[]): string {
-	return `（自动提示）任务清单已经 ${PLAN_REMINDER_EVERY} 轮没更新了，当前是：\n${todos.map((todo, index) => `${index + 1}. [${todo.status}] ${todo.content}`).join("\n")}\n` +
+	return `（自动提示）任务清单已经 ${PROGRESS_EVERY} 次请求没更新了，当前是：\n${todos.map((todo, index) => `${index + 1}. [${todo.status}] ${todo.content}`).join("\n")}\n` +
 		"现在就对一遍：已经做完的勾成 completed，正在做的标 in_progress。这次回复里带上 todo_write，和你的下一步操作放在一起。";
 }
+
+/**
+ * 没有清单时，汇报就是对人说一句话。只问现状，不要它补一份计划：简单的活不需要清单，长出来的活也
+ * 不该因为跑得久就被要求先拆步骤。「接着做、不要停下来等」是必须的——只回一段正文的回复会结束这一轮。
+ */
+export const PROGRESS_NOTE =
+	`（自动提示）你已经连续 ${PROGRESS_EVERY} 次请求没有对用户说过话了。这次回复里先用一两句话说明：做完了什么、现在在做什么、下一步做什么；` +
+	"然后在同一次回复里接着调用下一步的工具，不要停下来等回复。不需要为此新建任务清单。";
 
 /** Said once when a run ends on prose while its plan still claims a step is under way. */
 export function openPlanNote(open: TodoItem[]): string {
@@ -91,8 +106,8 @@ interface Run {
 	truncations: number;
 	/** `asked`: the reply being handled answers `openPlanNote`. Once per run, then `spent`. */
 	planCheck: "unasked" | "asked" | "spent";
-	/** Tool rounds since the list was written or `stalePlanNote` was last said. */
-	sincePlan: number;
+	/** Requests since progress was last reported (see `progressCheck`) or asked for. */
+	unreported: number;
 }
 
 export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Promise<AgentRunResult> {
@@ -109,7 +124,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		nudges: 0,
 		truncations: 0,
 		planCheck: "unasked",
-		sincePlan: 0,
+		unreported: 0,
 	};
 	const maxTurns = config.control.maxTurns ?? DEFAULT_MAX_TURNS;
 	await emit({ type: "agent_start", sessionId: config.session.sessionId });
@@ -384,21 +399,23 @@ async function endWithoutTools(run: Run, assistant: AssistantMessage, turnsLeft:
 }
 
 /**
- * 清单还有没勾的项，却已经 `PLAN_REMINDER_EVERY` 轮没被碰过：把整张清单念给它听。
- *
- * 收尾时那一问是兜底，这一句才是让清单一路跟着事走的那个：`2333f4e9` 写完清单后 45 轮没再碰过它。
- * 这一轮里自己写了清单的不算——它刚碰过。
+ * 跑得久了，问它一句做到哪了。什么算「汇报过」看手上有没有没做完的清单，见 `stalePlanNote` 与
+ * `PROGRESS_NOTE`。只问不停：问过还不说的，2026-10-11 重放里唯一一次是一场改了 30 次文件的真实工作
+ * （`c3b2b5f0`），按「不汇报」叫停就是 `repetition.ts` 顶上记着的那次误伤再来一遍。
  */
-function stalePlan(run: Run, toolCalls: ToolCall[]): string | undefined {
-	if (toolCalls.some((call) => call.name === todoTool.name)) {
-		run.sincePlan = 0;
+function progressCheck(run: Run, assistant: AssistantMessage, toolCalls: ToolCall[]): string | undefined {
+	const listing = run.config.tools.available.some((tool) => tool.name === todoTool.name);
+	const todos = listing ? readTodos(run.state) : [];
+	const open = todos.some((todo) => todo.status !== "completed");
+	const spoke = assistant.content.some((part) => part.type === "text" && part.text.trim() !== "");
+	if (toolCalls.some((call) => call.name === todoTool.name) || (!open && spoke)) {
+		run.unreported = 0;
 		return undefined;
 	}
-	run.sincePlan += 1;
-	const todos = readTodos(run.state);
-	if (run.sincePlan < PLAN_REMINDER_EVERY || todos.every((todo) => todo.status === "completed")) return undefined;
-	run.sincePlan = 0;
-	return stalePlanNote(todos);
+	run.unreported += 1;
+	if (run.unreported < PROGRESS_EVERY) return undefined;
+	run.unreported = 0;
+	return open ? stalePlanNote(todos) : PROGRESS_NOTE;
 }
 
 /** Whether the reply being handled answers `openPlanNote`. Either way the question is spent. */
@@ -441,8 +458,8 @@ async function runToolTurn(run: Run, assistant: AssistantMessage, toolCalls: Too
 	}
 	const ending = await answerRepeats(run, toolCalls, toolResults);
 	if (ending) return ending;
-	const stale = stalePlan(run, toolCalls);
-	if (stale) await inject(run, synthetic(stale));
+	const progress = progressCheck(run, assistant, toolCalls);
+	if (progress) await inject(run, synthetic(progress));
 	return undefined;
 }
 

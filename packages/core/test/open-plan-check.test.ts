@@ -3,7 +3,8 @@
  *
  * 起因是 2026-10-10 的 `2333f4e9`：五步全做完，最后一条回复的思考里写着要勾清单，回复里却没有这次
  * 调用，清单停在 1/5。这里守的是：只问一次；只动清单就到此为止，不再要一段新正文；清单勾完了、
- * 没写、或者剩下的只是等着的 pending，就什么都不说。还有工作途中那一句：清单十轮没碰过就念给它听。
+ * 没写、或者剩下的只是等着的 pending，就什么都不说。还有工作途中那一句：`PROGRESS_EVERY` 次请求没汇报
+ * 就问——有清单念清单，没清单要一句现状。
  */
 
 import assert from "node:assert/strict";
@@ -11,7 +12,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { openPlanNote, runAgent, SOLO_TODO_NOTE, stalePlanNote, type AgentRunResult } from "../src/agent/loop.ts";
+import { openPlanNote, PROGRESS_EVERY, PROGRESS_NOTE, runAgent, SOLO_TODO_NOTE, stalePlanNote, type AgentRunResult } from "../src/agent/loop.ts";
 import { runConfig } from "./run-config.ts";
 import { readTool } from "../src/tools/read.ts";
 import { todoTool, type TodoItem } from "../src/tools/todo.ts";
@@ -23,7 +24,7 @@ before(async () => {
 	cwd = await mkdtemp(join(tmpdir(), "ly-open-plan-"));
 	await writeFile(join(cwd, "a.ts"), "export const a = 1;\n", "utf8");
 	// 每轮读一个不同的文件：连读同一个会被重复检测叫停，那量的就不是这里要量的事了。
-	for (let i = 0; i < 20; i++) await writeFile(join(cwd, `f${i}.ts`), `export const f${i} = ${i};\n`, "utf8");
+	for (let i = 0; i < 60; i++) await writeFile(join(cwd, `f${i}.ts`), `export const f${i} = ${i};\n`, "utf8");
 });
 after(async () => {
 	await rm(cwd, { recursive: true, force: true });
@@ -138,31 +139,63 @@ test("only pending items left means it stopped on purpose — nothing is asked",
 });
 
 const readFile = (id: string, n: number) => ({ type: "toolCall" as const, id, name: "read", arguments: { path: `f${n}.ts` }, argumentsText: "{}" });
-const reads = (n: number, from = 0) => Array.from({ length: n }, (_, i) => reply([readFile(`r${from + i}`, from + i)], "toolUse"));
+/** `n` 次只读请求；`say` 给出时每次都带一句正文。 */
+const reads = (n: number, from = 0, say?: string) =>
+	Array.from({ length: n }, (_, i) => reply([...(say ? [text(say)] : []), readFile(`r${from + i}`, from + i)], "toolUse"));
+const saidAt = (messages: Message[], note: string) =>
+	messages.flatMap((m, index) => (m.role === "user" && m.synthetic && m.content.some((c) => c.type === "text" && c.text === note) ? [index] : []));
+const progressNotes = (messages: Message[]) =>
+	messages.filter((m) => m.role === "user" && m.synthetic && m.content.some((c) => c.type === "text" && c.text.startsWith("（自动提示）") && c.text.includes(`${PROGRESS_EVERY} 次请求`)));
 
-test("ten rounds without touching the list: the list is read back once, between rounds", async () => {
+test("an open list untouched for PROGRESS_EVERY requests is read back once, between rounds — talking does not count", async () => {
 	const { result, requests } = await run([
 		reply([todoCall("t1", OPEN), readCall("r0")], "toolUse"),
-		...reads(9, 1),
-		reply([readFile("ra", 17), readFile("rb", 18)], "toolUse"),
+		...reads(PROGRESS_EVERY - 1, 1, "接着读下一个文件。"),
+		reply([readFile("ra", 40), readFile("rb", 41)], "toolUse"),
 		reply([todoCall("t2", DONE), readCall("rc")], "toolUse"),
 		reply([text("总结：a 导出了常量 1。")], "stop"),
-	], 16);
-	assert.equal(requests, 13, "the reminder goes out with the next request; it costs none of its own");
-	const said = result.messages.flatMap((m, index) => (m.role === "user" && m.synthetic && m.content.some((c) => c.type === "text" && c.text === stalePlanNote(OPEN)) ? [index] : []));
-	assert.equal(said.length, 1, "said once in ten rounds");
+	], 30);
+	assert.equal(requests, PROGRESS_EVERY + 3, "the reminder goes out with the next request; it costs none of its own");
+	const said = saidAt(result.messages, stalePlanNote(OPEN));
+	assert.equal(said.length, 1, "said once");
+	assert.equal(progressNotes(result.messages).length, 1, "and nothing else was said");
 	const before = result.messages[said[0] - 1];
-	assert.equal(before.role === "toolResult" ? before.toolCallId : "", "rb", "after the tenth round's results, before the next reply");
+	assert.equal(before.role === "toolResult" ? before.toolCallId : "", "rb", "after that request's results, before the next reply");
 });
 
 test("writing the list restarts the count", async () => {
 	const { result } = await run([
 		reply([todoCall("t1", OPEN), readCall("r0")], "toolUse"),
-		...reads(6, 1),
-		reply([todoCall("t2", OPEN), readCall("r7")], "toolUse"),
-		...reads(6, 8),
-		reply([todoCall("t3", DONE), readCall("r14")], "toolUse"),
+		...reads(PROGRESS_EVERY - 5, 1),
+		reply([todoCall("t2", OPEN), readCall("r30")], "toolUse"),
+		...reads(PROGRESS_EVERY - 5, 31),
+		reply([todoCall("t3", DONE), readCall("r59")], "toolUse"),
 		reply([text("总结：a 导出了常量 1。")], "stop"),
-	], 20);
-	assert.equal(result.messages.filter((m) => m.role === "user" && m.content.some((c) => c.type === "text" && c.text.startsWith("（自动提示）任务清单已经"))).length, 0);
+	], 60);
+	assert.equal(progressNotes(result.messages).length, 0);
+});
+
+test("no list and nothing said for PROGRESS_EVERY requests: asked for a status line, not for a plan", async () => {
+	const { result, requests } = await run([
+		...reads(PROGRESS_EVERY),
+		reply([text("读完了前 20 个，接着读剩下的。"), readFile("rx", 40)], "toolUse"),
+		reply([text("都读完了。")], "stop"),
+	], 30);
+	assert.equal(requests, PROGRESS_EVERY + 2);
+	assert.equal(result.reason, "done", "asking does not stop anything");
+	const said = saidAt(result.messages, PROGRESS_NOTE);
+	assert.equal(said.length, 1);
+	const before = result.messages[said[0] - 1];
+	assert.equal(before.role === "toolResult" ? before.toolCallId : "", `r${PROGRESS_EVERY - 1}`);
+	assert.ok(!PROGRESS_NOTE.includes("todo_write"), "a run without a list is never asked to start one");
+});
+
+test("no list, and it keeps saying what it is doing: never asked", async () => {
+	const { result } = await run([
+		...reads(PROGRESS_EVERY - 1),
+		reply([text("前面读完了，再看几个。"), readFile("ry", 40)], "toolUse"),
+		...reads(PROGRESS_EVERY - 1, 20),
+		reply([text("都读完了。")], "stop"),
+	], 60);
+	assert.equal(progressNotes(result.messages).length, 0);
 });
