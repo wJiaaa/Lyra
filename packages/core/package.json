@@ -33,13 +33,13 @@
 		"test": "node --test --import ./test/setup.ts --experimental-strip-types test/*.test.ts"
 	},
 	"dependencies": {
+		"@modelcontextprotocol/sdk": "1.32.1",
 		"@plume/registry-shared": "workspace:*",
-		"@modelcontextprotocol/sdk": "1.30.0",
 		"fflate": "^0.8.3",
+		"koffi": "^3.3.3",
 		"unpdf": "^1.8.1",
 		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-		"yaml": "2.9.0",
-		"koffi": "^3.1.6"
+		"yaml": "2.9.1"
 	},
 	"devDependencies": {
 		"@types/node": "24.13.3",
