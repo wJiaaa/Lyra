@@ -12,6 +12,7 @@ import { withoutBom } from "../utils/bom.ts";
 import { isPlaceholder, looksSecret } from "../mcp/placeholders.ts";
 import { keepSecrets, putSecrets, secret } from "./vault.ts";
 import { loadProjectLayer, mergeLayer, type ConfigProblem } from "./layers.ts";
+import { withMagpieProvider, withoutMagpieProvider, type MagpieGateway } from "./magpie.ts";
 
 /** How much the agent may do without stopping to ask. */
 export type PermissionMode =
@@ -289,6 +290,8 @@ export interface Settings {
 	/** Plume's interface language. `system` follows the operating system without storing a guess. */
 	uiLocale: UiLocale;
 	providers: ProviderConfig[];
+	/** magpie 接管模型时写的网关；读入时合成 `providers` 里 id 为 `magpie` 的一项，见 `magpie.ts`。 */
+	magpie?: MagpieGateway;
 	/**
 	 * 每个见过的供应商最后一次叫什么名字——**包括已经删掉的那些**。
 	 *
@@ -631,7 +634,8 @@ async function withKeys(settings: Settings): Promise<Settings> {
 }
 
 export async function loadSettings(): Promise<Settings> {
-	return withKeys(await readSettingsFile());
+	// magpie 的供应商在取回密钥之后才加：它的 key 就在文件里，vault 里也不该有它的一份。
+	return withMagpieProvider(await withKeys(await readSettingsFile()));
 }
 
 /**
@@ -858,6 +862,8 @@ export function saveSettings(settings: Settings): Promise<void> {
 }
 
 async function writeSettings(settings: Settings): Promise<void> {
+	// magpie 的供应商是读入时由 `magpie` 块合成的：进了 `providers` 就成了用户自己的、断开也删不掉。
+	settings = { ...settings, providers: withoutMagpieProvider(settings.providers) };
 	const keys: Record<string, string> = {};
 	for (const provider of settings.providers) keys[providerSecretId(provider.id)] = provider.apiKey ?? "";
 	/*
