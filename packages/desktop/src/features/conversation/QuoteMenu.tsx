@@ -11,20 +11,36 @@ import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { quoteInSideChat } from "../../app/side-quote.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
-import { CornerDownLeft, MessageCirclePlus } from "../../ui/icons/index.ts";
-import { MenuBody, MenuItem } from "../../ui/overlay/Menu.tsx";
 import { Popover } from "../../ui/overlay/Popover.tsx";
 import { quoteBlock, quotedIn } from "./quote.ts";
 
-const ICON = { size: 14, strokeWidth: 1.8 } as const;
+/*
+ * 一段：内衬由这里定，宽度由这一段的字定。
+ *
+ * 两段并排、中间一条通到上下沿的线：划完字，人的注意力就在那一小片选区上，两样动作该一眼看完，
+ * 而不是列成一列让人往下读。
+ *
+ * 字号取比界面字号小一号的 `caption`，不是菜单行的 `label`：这一条只有三十来像素高，贴着正文，
+ * 用菜单行的字号就成了压在上面的一块面板。
+ */
+const SEGMENT = "min-w-0 px-2.5 py-1.5 hover:bg-card-hover";
 
 interface Picked {
 	text: string;
 	range: Range;
-	/** 松开鼠标的地方，菜单从这里出来——和右键菜单一样，人的视线在那儿。 */
-	point: { x: number; y: number };
-	/** 那一刻选区的上沿。滚动时按它挪了多少，把 `point` 跟着挪多少。 */
-	top: number;
+	/**
+	 * 菜单挂在选区上，不挂鼠标：`x` 是选区的横中线，`y` 是它的上沿。
+	 *
+	 * 上面放不下时 `Popover` 会自己翻到下面去（`placement="top"`），滚动时按选区挪了多少，把这个点
+	 * 跟着挪多少。挂鼠标那一点的话，同一次划选从左往右划和从右往左划，菜单会落在两个地方。
+	 */
+	at: { x: number; y: number };
+}
+
+/** 菜单压在选区上：横向对它的中线，上沿是它的上沿。 */
+function atOf(range: Range): Picked["at"] {
+	const rect = range.getBoundingClientRect();
+	return { x: rect.left + rect.width / 2, y: rect.top };
 }
 
 export function QuoteMenu({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
@@ -40,7 +56,7 @@ export function QuoteMenu({ scrollRef }: { scrollRef: RefObject<HTMLDivElement |
 			// 双击、三击选词选段，选区要等这一下松开之后才定。
 			requestAnimationFrame(() => {
 				const quoted = quotedIn(window.getSelection(), box);
-				setPicked(quoted ? { ...quoted, point: { x: event.clientX, y: event.clientY }, top: quoted.range.getBoundingClientRect().top } : null);
+				setPicked(quoted ? { ...quoted, at: atOf(quoted.range) } : null);
 			});
 		};
 		/*
@@ -54,8 +70,8 @@ export function QuoteMenu({ scrollRef }: { scrollRef: RefObject<HTMLDivElement |
 				frame = 0;
 				setPicked((was) => {
 					if (!was) return was;
-					const top = was.range.getBoundingClientRect().top;
-					return top === was.top ? was : { ...was, point: { x: was.point.x, y: was.point.y + top - was.top }, top };
+					const now = atOf(was.range);
+					return now.x === was.at.x && now.y === was.at.y ? was : { ...was, at: now };
 				});
 			});
 		};
@@ -86,22 +102,43 @@ export function QuoteMenu({ scrollRef }: { scrollRef: RefObject<HTMLDivElement |
 	const askAside = () => quoteInSideChat(sessionId, quote);
 	const toComposer = () => useApp.getState().setComposerDraft(quote, { sessionId });
 
+	/*
+	 * 挂点是选区（见 `Picked.at`），`top` + `center`：压在选区上方、横向居中，上面不够高 `Popover`
+	 * 自己会翻到下面。
+	 *
+	 * `hug` + `w-max`：宽度跟着两段的字走。写死的宽度在中文和英文的标签之间总有一边要截断，而这条
+	 * 菜单的两段本来就该各按自己的字数排开。`w-max` 挡住窗口太窄时收缩成多行——`maxWidth` 兜底。
+	 * `panel`：整张卡都是内容，不留菜单那圈 4px 内衬，中间那条线才通到上下沿。
+	 */
 	return (
-		<Popover anchor={picked.point} onClose={close} placement="bottom" align="start" width="compact" role="menu">
-			<MenuBody>
-				{/*
-				 * 按下去不能动选区：一动，`selectionchange` 先把菜单收了，点击就落了空。
-				 * 行本身照常处理点击，点完就收。
-				 */}
-				<div onMouseDown={(event) => event.preventDefault()} onClick={close}>
-					<MenuItem icon={<MessageCirclePlus {...ICON} />} onClick={askAside}>
-						{t("conversation.quoteAskSide")}
-					</MenuItem>
-					<MenuItem icon={<CornerDownLeft {...ICON} />} onClick={toComposer}>
-						{t("conversation.quoteToComposer")}
-					</MenuItem>
-				</div>
-			</MenuBody>
+		<Popover
+			anchor={picked.at}
+			onClose={close}
+			placement="top"
+			align="center"
+			width="hug"
+			surface="panel"
+			className="w-max"
+			role="menu"
+		>
+			{/*
+			 * 按下去不能动选区：一动，`selectionchange` 先把菜单收了，点击就落了空。
+			 * 两段本身照常处理点击，点完就收。
+			 */}
+			<div
+				className="flex text-caption text-ink"
+				onMouseDown={(event) => event.preventDefault()}
+				onClick={close}
+			>
+				<button type="button" role="menuitem" className={SEGMENT} onClick={askAside}>
+					{t("conversation.quoteAskSide")}
+				</button>
+				{/* 撑满整条的一个元素，不是左边那段的右边框：hover 的底色不该盖到线上。 */}
+				<div className="w-px shrink-0 bg-line-float" aria-hidden />
+				<button type="button" role="menuitem" className={SEGMENT} onClick={toComposer}>
+					{t("conversation.quoteToComposer")}
+				</button>
+			</div>
 		</Popover>
 	);
 }

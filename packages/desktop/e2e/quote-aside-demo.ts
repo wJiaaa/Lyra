@@ -61,10 +61,25 @@ const server = createServer((req, res) => {
 	});
 });
 
-const menuNear = (at: { x: number; y: number }) =>
-	app.evaluate<{ left: number; top: number; bottom: number } | null>(
-		`(()=>{const m=document.querySelector('${MENU}');if(!m)return null;const r=m.getBoundingClientRect();return {left:r.left,top:r.top,bottom:r.bottom};})()`,
-	).then((rect) => ({ rect, near: Boolean(rect && Math.abs(rect.left - at.x) < 16 && ((rect.top >= at.y && rect.top - at.y < 24) || (rect.bottom <= at.y && at.y - rect.bottom < 24))) }));
+/**
+ * 菜单挂在选区上，不挂鼠标：横中线对齐选区的横中线，下沿在选区上沿上方 8px（`Popover` 的 `GAP`）。
+ *
+ * 挂鼠标那一点时，同一次划选从左往右划和从右往左划，菜单会落在两个地方。
+ */
+const menuPlacement = () =>
+	app.evaluate<{
+		menu: { left: number; top: number; right: number; bottom: number };
+		selection: { left: number; top: number; right: number; bottom: number };
+		centered: boolean;
+		above: boolean;
+	} | null>(
+		`(()=>{const m=document.querySelector('${MENU}');if(!m)return null;
+		 const r=m.getBoundingClientRect();const s=getSelection().getRangeAt(0).getBoundingClientRect();
+		 const mid=(x)=>x.left+x.width/2;
+		 return {menu:{left:r.left,top:r.top,right:r.right,bottom:r.bottom},
+			selection:{left:s.left,top:s.top,right:s.right,bottom:s.bottom},
+			centered:Math.abs(mid(r)-mid(s))<1,above:Math.abs(r.bottom+8-s.top)<1};})()`,
+	);
 
 async function run(): Promise<void> {
 	await mkdir(OUT_DIR, { recursive: true });
@@ -80,15 +95,30 @@ async function run(): Promise<void> {
 		await frames(app, 30);
 		await pause(800);
 
-		console.log("\n1. 划一段回复，菜单从松开鼠标的地方出来");
+		console.log("\n1. 划一段回复，菜单压在选区上方、对着它的中线");
 		const first = await textSpan(app, QUOTABLE, "隔离测试文本");
 		await dragSelect(app, first.start, first.end);
 		await until(app, `document.querySelector('${MENU}')`);
 		await frames(app, 12);
-		const placed = await menuNear(first.end);
-		check("菜单贴着松开鼠标的位置", placed.near, { mouse: first.end, menu: placed.rect });
+		const placed = await menuPlacement();
+		check("菜单压在选区上方、横向居中于选区", Boolean(placed?.centered && placed.above), placed);
 		const items = await app.evaluate<string[]>(`[...document.querySelectorAll('${MENU} [role="menuitem"]')].map(e=>e.textContent.trim())`);
 		check("菜单里是「在侧边聊天中提问」「引用到输入框」", items.join("|") === "在侧边聊天中提问|引用到输入框", items);
+		/*
+		 * 形状照 ZCode 的 `SelectionActionMenu`：两段并排、中间夹一条通高的 1px 线，字号取界面字号
+		 * 小一号的那档——所以高度是一条 30 来像素的胶囊，不是菜单行那 32px 的一行。
+		 */
+		const bar = await app.evaluate<{ heights: number[]; tops: number[]; lefts: number[]; rights: number[]; dividers: number[] }>(
+			`(()=>{const items=[...document.querySelectorAll('${MENU} [role="menuitem"]')];const r=items.map(e=>e.getBoundingClientRect());
+			 const dividers=[...document.querySelectorAll('${MENU} div')]
+				.map(e=>e.getBoundingClientRect()).filter(x=>Math.round(x.width)===1)
+				.map(x=>Math.round(x.height));
+			 return {heights:r.map(x=>Math.round(x.height)),tops:r.map(x=>Math.round(x.top)),lefts:r.map(x=>Math.round(x.left)),
+			 rights:r.map(x=>Math.round(x.right)),dividers};})()`,
+		);
+		check("菜单是横排的一条：两段同高、并列", bar.tops[0] === bar.tops[1] && bar.heights[0] === bar.heights[1] && bar.rights[0] <= bar.lefts[1], bar);
+		check("两段之间夹着一条通高的 1px 分隔线", bar.dividers.length === 1 && bar.dividers[0] === bar.heights[0], bar.dividers);
+		check("一条矮的胶囊，不是菜单行那么高", bar.heights[0] < 32, bar.heights);
 		await shot(app, `${STAMP}_01_划词后菜单在鼠标处`);
 		await pause(1000);
 

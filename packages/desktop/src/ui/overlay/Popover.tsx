@@ -56,6 +56,13 @@ const MENU_WIDTH = {
 	wide: 272,
 	/** Not a menu: a reading, a slider, a form. */
 	panel: 300,
+	/**
+	 * 内容多宽就多宽（`undefined` 就是「这一层别管宽度」）。
+	 *
+	 * 划词动作条是唯一的用处：两段的宽度各跟着自己的字走，中英两种语言的标签差着几十像素，写死一个
+	 * 数总有一边要截断。菜单默认的 `compact` 是要写死的那种默认，不是这个。
+	 */
+	hug: undefined,
 } as const;
 
 export type PopoverWidth = keyof typeof MENU_WIDTH | number;
