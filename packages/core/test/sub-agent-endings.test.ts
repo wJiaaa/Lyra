@@ -20,7 +20,8 @@ import { SUB_AGENT_CHECKPOINT_TURNS, runSubAgent } from "../src/runtime/sub-agen
 import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
 import type { AgentDefinition } from "../src/agents-builtin.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
-import type { AssistantMessage, ModelConfig, ProviderConfig, Settings, Tool } from "../src/types.ts";
+import { todoTool } from "../src/tools/todo.ts";
+import type { AssistantMessage, LlmContext, Message, ModelConfig, ProviderConfig, Settings, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
 const MODEL: ModelConfig = {
@@ -59,6 +60,10 @@ const EXPLORE: AgentDefinition = {
 	},
 };
 
+/** 没有声明输出格式：做完了用正文回答，到检查点时交 `HANDOFF_SCHEMA` 那一份。 */
+const GENERAL: AgentDefinition = { name: "general", description: "通用", systemPrompt: "general", tools: "*", source: "builtin" };
+
+let executed = 0;
 const read: Tool = {
 	name: "read",
 	snippet: "reads",
@@ -66,6 +71,7 @@ const read: Tool = {
 	parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
 	summarize: () => "读了一个文件",
 	async execute() {
+		executed += 1;
 		return { content: [{ type: "text", text: "ok" }] };
 	},
 };
@@ -100,24 +106,38 @@ function broke(message = "HTTP 502 上游服务端故障"): AssistantMessage {
 	return { ...assistant([], "error"), errorMessage: message, errorRetryable: true };
 }
 
+const textOf = (message: Message | undefined) =>
+	message && "content" in message && Array.isArray(message.content) ? message.content.map((part) => ("text" in part ? part.text : "")).join("") : "";
+
+/**
+ * 讨交接的那一轮：以「到检查点了」那句话结尾。
+ *
+ * 不能再按「工具表里只剩 `yield`」来认——工具表现在一个字都不变，那正是要守的东西。
+ */
+const pressed = (context: LlmContext) => /到检查点了/.test(textOf(context.messages.at(-1)));
+
 async function dispatch(options: {
-	/** `tools` 是这一轮桌上有什么——只剩 `yield` 的那一轮就是讨要交付的那一轮。 */
-	reply: (turn: number, tools: string[]) => AssistantMessage;
+	/** `pressed`：这一轮是不是讨要交付的那一轮。 */
+	reply: (turn: number, pressed: boolean, context: LlmContext) => AssistantMessage;
 	signal?: AbortSignal;
 	onTurn?: (turn: number, registry: SubAgentRegistry, id: string) => void;
+	agentType?: string;
+	tools?: Tool[];
 }) {
 	const registry = new SubAgentRegistry();
 	const events: AgentEvent[] = [];
+	const requests: LlmContext[] = [];
 	let turn = 0;
+	executed = 0;
 
 	const answer = await runSubAgent(
 		{
 			sessionId: "s1",
 			cwd: "/tmp",
 			settings: { thinking: "off" } as unknown as Settings,
-			tools: [read],
+			tools: options.tools ?? [read],
 			skills: [],
-			agents: [EXPLORE],
+			agents: [EXPLORE, GENERAL],
 			signal: options.signal,
 			registry,
 			requestApproval: async () => "allow",
@@ -125,17 +145,19 @@ async function dispatch(options: {
 				events.push(event);
 			},
 			streamFn: async (context) => {
+				// 拍下这一刻：`messages` 跟循环里的历史可能是同一个数组，之后还会往上接。
+				requests.push({ ...context, messages: [...context.messages], tools: [...context.tools] });
 				options.onTurn?.(turn, registry, registry.list()[0]?.id ?? "");
-				return options.reply(turn++, context.tools.map((one) => one.name));
+				return options.reply(turn++, pressed(context), context);
 			},
 		},
-		{ description: "分析后端基础与认证", prompt: "去分析", agentType: "explore" },
+		{ description: "分析后端基础与认证", prompt: "去分析", agentType: options.agentType ?? "explore" },
 		PROVIDER,
 		MODEL,
 	);
 
 	const done = events.find((event) => event.type === "subagent_done");
-	return { answer, registry, record: registry.list()[0], done, turns: turn };
+	return { answer, registry, record: registry.list()[0], done, turns: turn, requests };
 }
 
 test("a clean finish is unchanged: the report, and nothing said about it", async () => {
@@ -156,13 +178,12 @@ test("running out of rounds is asked once more for a delivery, and that delivery
 	 * came back as an empty string filed under `done` — with everything they had found still in
 	 * their heads and one `yield` call away.
 	 *
-	 * So the cap is not the end any more: the tools come off the table, `yield` stays, and it is
-	 * told to hand over what it has. Which is exactly what the fixture does when it sees a
-	 * one-tool round.
+	 * So the cap is not the end any more: only `yield` will run, and it is told to hand over what it
+	 * has. Which is exactly what the fixture does when it is pressed.
 	 */
 	const { answer, record, turns } = await dispatch({
-		reply: (turn, tools) =>
-			tools.length === 1 && tools[0] === "yield"
+		reply: (turn, pressedNow) =>
+			pressedNow
 				? yields(turn, { summary: "登录在 auth.ts:42", files: [{ path: "auth.ts", why: "入口" }] })
 				: looks(turn, `第 ${turn + 1} 轮：在看 auth.ts`),
 	});
@@ -178,18 +199,110 @@ test("running out of rounds is asked once more for a delivery, and that delivery
 	assert.equal(record.incomplete, true, "pressed for it, so the pane says so — the leading ⚠ is stripped before it reaches the screen");
 });
 
-test("the salvage round has nothing on the table but yield", async () => {
-	// 这一条是上面那条的机制：不把别的工具拿走，它会接着去读下一个文件，然后这一轮也白花。
-	const rounds: string[][] = [];
-	await dispatch({
-		reply: (turn, tools) => {
-			rounds.push(tools);
-			return tools.length === 1 ? yields(turn, { summary: "好了", files: [] }) : looks(turn, "看着");
+/** 一次请求里模型看得见的工具定义，原样序列化：名字、描述、参数，一个字节都算。 */
+const toolBytes = (context: LlmContext) => JSON.stringify(context.tools.map(({ name, description, parameters }) => ({ name, description, parameters })));
+
+for (const agentType of ["general", "explore"]) {
+	test(`讨交接那一轮的工具表跟前面干活的请求逐字节相同（${agentType}）`, async () => {
+		/*
+		 * 工具定义排在请求最前面，换一个字前缀缓存就从第 0 字节起作废。从前这一轮只放一个 `yield`：
+		 * 审计在真实会话上量到一次请求三十五万 token 整段未命中（「本地工具定义变了（28075→560 字符）」）。
+		 * `general` 是更要紧的那一个——它正常轮里从前根本没有 `yield`，追加也一样断。
+		 */
+		const { requests, answer } = await dispatch({
+			agentType,
+			reply: (turn, pressedNow) =>
+				pressedNow ? yields(turn, { summary: "登录在 auth.ts:42", remaining: "刷新没看", files: [] }) : looks(turn, "看着"),
+		});
+
+		const salvage = requests.at(-1)!;
+		assert.ok(pressed(salvage), "最后一次请求是讨交接的那一次");
+		const lastWorking = requests.at(-2)!;
+		assert.ok(!pressed(lastWorking));
+		assert.equal(toolBytes(salvage), toolBytes(lastWorking), "工具表和它前一次干活的请求逐字节相同");
+		assert.equal(toolBytes(requests[0]!), toolBytes(salvage), "从第一次请求起就是这一份");
+		assert.ok(salvage.tools.some((tool) => tool.name === "yield") && salvage.tools.some((tool) => tool.name === "read"));
+		assert.equal(salvage.systemPrompt, lastWorking.systemPrompt, "系统提示也不动");
+		assert.ok(
+			JSON.stringify(salvage.messages).startsWith(JSON.stringify(lastWorking.messages).slice(0, -1)),
+			"消息接在上一次请求后面，只多出这一轮的内容",
+		);
+		assert.match(answer.text, /登录在 auth\.ts:42/);
+	});
+}
+
+test("讨交接那一轮调别的工具只拿到一句拒绝，yield 照常交上去", async () => {
+	/*
+	 * 工具不再从桌上拿走，「它没有第二条路可走」就得由执行那一下来保证：调了 `read` 拿到的是一条
+	 * 错误，告诉它只能 `yield`；`read` 本身一次都不跑，也不会先弹一张授权卡片。
+	 */
+	let pressedTurns = 0;
+	const { answer, requests } = await dispatch({
+		agentType: "general",
+		reply: (turn, pressedNow, context) => {
+			if (!pressedNow && !pressed({ ...context, messages: context.messages.slice(0, -2) })) return looks(turn, "看着");
+			pressedTurns += 1;
+			return pressedTurns === 1 ? looks(turn) : yields(turn, { summary: "入口在 auth.ts:42", remaining: "刷新没看" });
 		},
 	});
 
-	assert.deepEqual(rounds.at(-1), ["yield"], `最后一轮只该剩 yield，实际是 ${JSON.stringify(rounds.at(-1))}`);
-	assert.ok(rounds[0].includes("read"), "而正常轮次里它照常有自己的工具");
+	const readsDuringWork = SUB_AGENT_CHECKPOINT_TURNS * 2;
+	assert.equal(executed, readsDuringWork, `讨交接那一轮的 read 没有执行（干活时 ${readsDuringWork} 次，实际 ${executed} 次）`);
+	const refused = requests.at(-1)!.messages.at(-1)!;
+	assert.equal(refused.role, "toolResult");
+	assert.equal(refused.role === "toolResult" && refused.isError, true, "拿到的是一条错误");
+	assert.match(textOf(refused), /只能调用 `yield`/, "并且说清楚现在该做什么");
+	assert.deepEqual(answer.output, { summary: "入口在 auth.ts:42", remaining: "刷新没看" }, "第二轮的 yield 照常落进 YIELD_KEY，成了答案");
+	assert.match(answer.text, /阶段性交接/);
+});
+
+test("general 中途自己交了交接，这一段就此收工，交接就是答案", async () => {
+	/*
+	 * `general` 现在从派发起就带着交接那一份 `yield`（为了讨交接那一轮工具表不变）。它的描述只让它
+	 * 在检查点上用，但模型真在中途调了，也得是一个说得通的结局：交上来的东西是答案、不再多发请求，
+	 * 也不挂「到了检查点」的警告——它没有跑到检查点。
+	 */
+	const { answer, turns, record } = await dispatch({
+		agentType: "general",
+		reply: (turn) => (turn === 0 ? yields(0, { summary: "入口在 auth.ts:42", remaining: "刷新没看", next: "读 refresh.ts" }) : says("这一轮不该存在")),
+	});
+
+	assert.equal(turns, 1, `交了就收工，实际发了 ${turns} 次`);
+	assert.ok(answer.text.startsWith("入口在 auth.ts:42"), `summary 打头：${answer.text}`);
+	assert.match(answer.text, /\*\*remaining\*\*: 刷新没看/);
+	assert.match(answer.text, /\*\*next\*\*: 读 refresh\.ts/);
+	assert.ok(!answer.text.includes("⚠"), "没有跑到检查点，不说成被截断");
+	assert.equal(record.incomplete, undefined);
+});
+
+test("讨交接那一轮不会被追问清单", async () => {
+	/*
+	 * 循环收尾时，清单里有「正在做」、工具表里又有 `todo_write`，就会追问一句清单。从前这一轮工具表里
+	 * 只有 `yield`，那一问不会出现；现在工具表原样留着，清单就得在这一轮拿开——否则它道个歉没交，
+	 * 第二轮被拿去勾一张这一轮根本勾不了的清单。
+	 */
+	const plan = [
+		{ content: "读 auth", status: "completed" },
+		{ content: "读 refresh", status: "in_progress" },
+	];
+	let salvageRequests = 0;
+	const { answer, registry, record } = await dispatch({
+		agentType: "general",
+		tools: [read, todoTool as unknown as Tool],
+		reply: (turn, pressedNow) => {
+			if (pressedNow || salvageRequests > 0) {
+				salvageRequests += 1;
+				return says("抱歉，时间不够了");
+			}
+			return turn === 0
+				? assistant([{ type: "toolCall", id: "t0", name: "todo_write", arguments: { todos: plan }, argumentsText: JSON.stringify({ todos: plan }) }])
+				: looks(turn, "看着");
+		},
+	});
+
+	assert.equal(salvageRequests, 1, `讨交接只发了一次请求，实际 ${salvageRequests} 次`);
+	assert.match(answer.text, /抱歉，时间不够了/);
+	assert.ok(registry.detail(record.id), "它还在登记簿里");
 });
 
 test("a run that will not deliver even when pressed still says what happened", async () => {
@@ -198,7 +311,7 @@ test("a run that will not deliver even when pressed still says what happened", a
 	 * 说清楚步数用尽，并把它最后说过的话交上去。
 	 */
 	const { answer, record } = await dispatch({
-		reply: (turn, tools) => (tools.length === 1 ? says("抱歉，时间不够了") : looks(turn, `第 ${turn + 1} 轮：在看 auth.ts`)),
+		reply: (turn, pressedNow) => (pressedNow ? says("抱歉，时间不够了") : looks(turn, `第 ${turn + 1} 轮：在看 auth.ts`)),
 	});
 
 	assert.ok(answer.text.includes(`这一段 ${SUB_AGENT_CHECKPOINT_TURNS} 轮`), `the cause is named: ${answer.text}`);

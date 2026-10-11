@@ -19,7 +19,7 @@ import type { SubAgentAnswer, SubAgentOptions, SubAgentRequest } from "./sub-age
 import { openingHistory, subAgentPrompt } from "./sub-agent-prompt.ts";
 import { runDispatched } from "./sub-agent-run.ts";
 
-export { HANDOFF_SCHEMA } from "./sub-agent-run.ts";
+export { HANDOFF_SCHEMA } from "./sub-agent-dispatch.ts";
 
 /**
  * 子代理每跑多少轮停下来看一眼——检查点，不是上限。

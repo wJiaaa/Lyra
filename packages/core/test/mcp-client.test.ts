@@ -17,6 +17,7 @@ import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
+import { FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../src/agent/prune.ts";
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
 import { McpManager, qualifiedToolName, type McpStdioServer } from "../src/mcp/client.ts";
 import { SessionCapabilities } from "../src/runtime/session-capabilities.ts";
@@ -419,6 +420,10 @@ test("an MCP result is capped like a built-in tool's, and says how much was cut"
 	await manager.connectAll([fx.server({ FAKE_MCP_RESULT_CHARS: "500000" }, "big")]);
 	const result = await manager.allTools()[0].execute({}, { cwd: fx.dir, sessionId: "s", state: new Map() });
 	const text = result.content.map((part) => (part.type === "text" ? part.text : "")).join("");
-	assert.ok(text.length < 41_000, `${text.length}`);
-	assert.match(text, /\[truncated: 460000 of 500000 characters omitted/);
+	const limit = FRESH_RESULT_MAX_CHARS - 2000;
+	assert.match(text, new RegExp(`\\[truncated: ${500000 - limit} of 500000 characters omitted \\(limit ${limit}\\)`));
+	// 上限高过首发剪枝线时，满额结果会在模型看到前被剪成前 4k、后 1k。
+	assert.ok(text.length <= FRESH_RESULT_MAX_CHARS, `${text.length}`);
+	const message = { role: "toolResult" as const, toolCallId: "c", toolName: "mcp", content: result.content, isError: false, timestamp: 0 };
+	assert.equal(pruneToolResults([message], FRESH_RESULT_MAX_CHARS)[0], message);
 });

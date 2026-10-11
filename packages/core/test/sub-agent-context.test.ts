@@ -119,7 +119,10 @@ test("tool schemas from an MCP server are counted as MCP tools", async () => {
 	const contexts = new SubAgentContexts();
 	for (const event of events) contexts.observe(event);
 	const seen = await contexts.get(id, unread);
-	const result = describeSubAgentContext({ detail, seen, settings, fallback: SESSION_MODEL, mcpNames: new Set(["read"]) });
-	const keys = result?.segments.map((segment) => segment.key) ?? [];
-	assert.ok(keys.includes("mcpTools") && !keys.includes("systemTools"));
+	const tokens = (mcpNames: Set<string>, key: string) =>
+		describeSubAgentContext({ detail, seen, settings, fallback: SESSION_MODEL, mcpNames })?.segments.find((segment) => segment.key === key)?.tokens ?? 0;
+	const asMcp = tokens(new Set(["read"]), "mcpTools");
+	assert.ok(asMcp > 0, "the MCP tool has a segment of its own");
+	// 每个子代理都带着 `yield`，系统工具段不会是空的；要量的是 `read` 从那一段整个挪到了 MCP 那一段。
+	assert.equal(tokens(new Set(), "systemTools") - tokens(new Set(["read"]), "systemTools"), asMcp, "and is no longer counted as a system tool");
 });

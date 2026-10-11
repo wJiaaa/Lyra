@@ -11,13 +11,43 @@ import type { ResourceRouter } from "../resources/router.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
 import { todoTool } from "../tools/todo.ts";
-import type { Message, ModelConfig, ProviderConfig, Tool } from "../types.ts";
+import type { JsonSchema, Message, ModelConfig, ProviderConfig, Tool } from "../types.ts";
 import { DispatchCancelled } from "./dispatch-guard.ts";
 import { buildRouter } from "./session-capabilities.ts";
 import { scratchDir } from "./session-facts.ts";
 import type { SubAgentAnswer, SubAgentOptions, SubAgentRequest } from "./sub-agent-options.ts";
 import type { SubAgentConversation } from "./sub-agents.ts";
 import { makeYieldTool, YIELD_KEY } from "./yield-tool.ts";
+
+/**
+ * 一个没有声明输出格式的子代理，到检查点时交的那份交接。
+ *
+ * `general` 之前在这里什么都不交：只有带 schema 的子代理有补交的那一轮，其余的交回的是「停下前
+ * 最后说的话」——一个读文件读到一半被截断的子代理，最后说的多半是「让我再看看 xxx」。
+ *
+ * 三个字段对着续跑的人要问的三件事，缺一不可：已经知道了什么（别再查一遍）、还差什么（接下来
+ * 干什么）、打算怎么干（接手的人照着走，或者改道）。
+ */
+export const HANDOFF_SCHEMA: JsonSchema = {
+	type: "object",
+	required: ["summary", "remaining"],
+	properties: {
+		summary: { type: "string", description: "已经做完了什么、查到的关键事实——带上 `path:line`，接手的人不用再查一遍。" },
+		remaining: { type: "string", description: "还没做完的部分，以及卡在哪。" },
+		next: { type: "string", description: "你打算接下来怎么做——接着跑的时候照这个走。" },
+	},
+};
+
+/**
+ * 交接用的 `yield` 怎么介绍自己。
+ *
+ * 不能用带 schema 的那一句（「做完必须调用、正文送不到」）：没有 schema 的子代理做完了就是用正文
+ * 回答，那句话会把每一次正常收尾都变成一份 summary/remaining 的交接。它从派发起就在工具表里，
+ * 只是为了讨交接那一轮的工具表不变（见 `dispatchSubAgent` 里挂上它的那一段）。
+ */
+const HANDOFF_DESCRIPTION =
+	"Hand over unfinished work to whoever dispatched you. Call this only when you are told you have reached a checkpoint; " +
+	"calling it ends your run. When you finish the task, answer in plain text instead — that is how a finished answer is delivered.";
 
 /** 面板上按停时 `abort` 带的理由，用来跟「父会话整轮被停」分开。 */
 export const STOPPED_BY_USER = "stopped-by-user";
@@ -37,7 +67,6 @@ export interface Dispatched {
 	description: string;
 	id: string;
 	chosen: ReturnType<typeof resolveSubAgentModel>;
-	yieldTool: ReturnType<typeof makeYieldTool> | undefined;
 	allowed: Tool[];
 	subState: Map<string, unknown>;
 	resources: ResourceRouter;
@@ -91,9 +120,15 @@ export async function dispatchSubAgent(
 	 *
 	 * Built per run because the tool carries the attempt counter — a fresh one each dispatch, so a
 	 * sub-agent that used up its retries does not hand a spent budget to the next one.
+	 *
+	 * 没有声明的也从这里起就带着交接那一份。不是要它中途交，是讨交接那一轮（`sub-agent-run.ts`）
+	 * 的工具表必须和前面每一轮逐字节相同：工具定义排在请求最前面，从前到检查点才把 `yield` 塞进来，
+	 * 整段前缀缓存从第 0 字节起作废，一次就是几十万 token 按原价重算。
 	 */
-	const yieldTool = definition.output ? makeYieldTool(definition.output, { mode: definition.schemaMode }) : undefined;
-	const allowed = yieldTool ? [...withoutTask, yieldTool as unknown as Tool] : withoutTask;
+	const yieldTool = definition.output
+		? makeYieldTool(definition.output, { mode: definition.schemaMode })
+		: makeYieldTool(HANDOFF_SCHEMA, { mode: "permissive", description: HANDOFF_DESCRIPTION });
+	const allowed = [...withoutTask, yieldTool as unknown as Tool];
 	/*
 	 * 续跑的用它原来那一份：清单、读过哪些文件、裁剪器都在里面。丢了它，它要改一个文件得先
 	 * 重读一遍，清单也得从头写——那正是续跑要省下的东西。
@@ -208,7 +243,7 @@ export async function dispatchSubAgent(
 	// 新派的拿到名额才有东西可留：从这里起，不管怎么停下，`finishSubAgent` 都会 `keep` 它的上下文。
 	if (!earlier && registry) input.onResumable?.(id);
 
-	return { earlier, definition, description: input.description, id, chosen, yieldTool, allowed, subState, resources, scratch, controller, detach, release, opening };
+	return { earlier, definition, description: input.description, id, chosen, allowed, subState, resources, scratch, controller, detach, release, opening };
 }
 
 /**

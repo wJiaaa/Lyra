@@ -153,15 +153,20 @@ export function batches<T>(items: readonly T[], parallel: (item: T) => boolean):
 /**
  * Resolves when the signal fires, and never otherwise.
  *
- * Never-resolving is the point: in a race with real work it is inert until the moment it matters,
- * and the listener is removed as soon as it does so a long turn does not accumulate one per call.
+ * Never-resolving is the point: in a race with real work it is inert until the moment it matters.
+ * `{ once: true }` only removes the listener when the signal fires; a call that finishes first
+ * would leave it on the turn's signal, holding its closure, one per call for the rest of the turn.
+ * So whoever races it calls `release` once the race is over, whichever side won.
  */
-function cancelled(signal: AbortSignal | undefined, result: () => ToolResult): Promise<ToolResult> {
-	if (!signal) return new Promise<ToolResult>(() => {});
-	if (signal.aborted) return Promise.resolve(result());
-	return new Promise<ToolResult>((resolve) => {
-		signal.addEventListener("abort", () => resolve(result()), { once: true });
+function cancelled(signal: AbortSignal | undefined, result: () => ToolResult): { stopped: Promise<ToolResult>; release: () => void } {
+	if (!signal) return { stopped: new Promise<ToolResult>(() => {}), release: () => {} };
+	if (signal.aborted) return { stopped: Promise.resolve(result()), release: () => {} };
+	let onAbort = () => {};
+	const stopped = new Promise<ToolResult>((resolve) => {
+		onAbort = () => resolve(result());
+		signal.addEventListener("abort", onAbort, { once: true });
 	});
+	return { stopped, release: () => signal.removeEventListener("abort", onAbort) };
 }
 
 /**
@@ -315,6 +320,7 @@ async function executeOne(
 	}
 
 	let result: ToolResult;
+	const stop = cancelled(signal, () => cancelledResult(waiting, left));
 	try {
 		/*
 		 * Stop must not depend on the tool agreeing to stop.
@@ -328,10 +334,12 @@ async function executeOne(
 		 * Racing the signal here makes the button mean what it says. Whatever the tool is doing
 		 * carries on in the background and its result is discarded; the turn is over.
 		 */
-		result = await Promise.race([runTool({ tool: runnable, args: runArgs, ctx }), cancelled(signal, () => cancelledResult(waiting, left))]);
+		result = await Promise.race([runTool({ tool: runnable, args: runArgs, ctx }), stop.stopped]);
 	} catch (error) {
 		if (signal?.aborted) return cancelledResult(waiting, left);
 		return errorResult(error instanceof Error ? error.message : String(error));
+	} finally {
+		stop.release();
 	}
 	if (rerouted) result = { ...result, content: [...result.content, { type: "text", text: `[Executed with ${rerouted}; use that tool directly next time.]` }] };
 	else result = withParameterHint(result, tool, call.arguments);

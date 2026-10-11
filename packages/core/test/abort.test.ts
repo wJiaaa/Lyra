@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
+import { runTools } from "../src/agent/tool-run.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 import { runConfig } from "./run-config.ts";
@@ -86,4 +87,44 @@ test("aborting ends the turn even when a tool never returns", async () => {
 	const result = (await run).messages.find(message => message.role === "toolResult");
 	assert.ok(result?.role === "toolResult");
 	assert.deepEqual(result.details, { cancelled: true }, "the durable result distinguishes a user stop from a tool failure");
+});
+
+/** The turn's signal, with the abort listeners currently on it counted. */
+function watched(controller: AbortController): { signal: AbortSignal; live: Set<unknown> } {
+	const { signal } = controller;
+	const live = new Set<unknown>();
+	const add = signal.addEventListener.bind(signal);
+	const remove = signal.removeEventListener.bind(signal);
+	signal.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject, options?: AddEventListenerOptions) => {
+		if (type === "abort") live.add(listener);
+		add(type, listener, options);
+	}) as typeof signal.addEventListener;
+	signal.removeEventListener = ((type: string, listener: EventListenerOrEventListenerObject, options?: EventListenerOptions) => {
+		if (type === "abort") live.delete(listener);
+		remove(type, listener, options);
+	}) as typeof signal.removeEventListener;
+	return { signal, live };
+}
+
+const call = (id: string, name: string) => ({ type: "toolCall" as const, id, name, arguments: {} });
+
+test("calls that finish before any stop leave no listener on the turn's signal", async () => {
+	const { signal, live } = watched(new AbortController());
+	const quick = { ...wedged, name: "quick", execute: async () => ({ content: [{ type: "text", text: "ok" }] }) } as unknown as Tool;
+	const tools = runConfig({ tools: { available: [quick], env: { cwd: "/tmp" } } }).tools;
+	const calls = Array.from({ length: 20 }, (_, i) => call(`c${i}`, "quick"));
+	const results = await runTools(calls, tools, { sessionId: "s", signal, state: new Map() }, async () => {});
+	assert.equal(results.length, 20);
+	assert.ok(results.every((result) => !result.isError));
+	// `{ once: true }` alone only removes a listener when the signal fires: these would stay, one per call.
+	assert.equal(live.size, 0);
+});
+
+test("a call stopped mid-run is still answered as cancelled", async () => {
+	const controller = new AbortController();
+	const tools = runConfig({ tools: { available: [wedged], env: { cwd: "/tmp" } } }).tools;
+	setTimeout(() => controller.abort(), 20);
+	const [result] = await runTools([call("c1", "wedged")], tools, { sessionId: "s", signal: controller.signal, state: new Map() }, async () => {});
+	assert.match(result.content.map((block) => ("text" in block ? block.text : "")).join(""), /Tool execution was cancelled/);
+	assert.deepEqual(result.details, { cancelled: true });
 });

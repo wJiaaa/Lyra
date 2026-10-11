@@ -124,8 +124,8 @@ const plan = (done: number, total = 4): TodoItem[] =>
 interface Harness {
 	registry: SubAgentRegistry;
 	events: AgentEvent[];
-	/** 每一次请求：发了哪些消息、桌上有哪些工具。 */
-	requests: { messages: Message[]; tools: string[] }[];
+	/** 每一次请求：发了哪些消息、桌上有哪些工具（`schemas` 是它们原样序列化的定义）。 */
+	requests: { messages: Message[]; tools: string[]; schemas: string }[];
 	run(
 		input: { prompt: string; resume?: string; agentType?: string; onResumable?: (id: string) => void },
 		reply: (turn: number, context: LlmContext) => AssistantMessage | Promise<AssistantMessage>,
@@ -157,7 +157,7 @@ function harness(agents: AgentDefinition[] = [GENERAL, EXPLORE]): Harness {
 						events.push(event);
 					},
 					streamFn: async (context) => {
-						requests.push({ messages: [...context.messages], tools: context.tools.map((one) => one.name) });
+						requests.push({ messages: [...context.messages], tools: context.tools.map((one) => one.name), schemas: JSON.stringify(context.tools) });
 						return reply(turn++, context);
 					},
 					...(options.signal ? { signal: options.signal } : {}),
@@ -171,12 +171,17 @@ function harness(agents: AgentDefinition[] = [GENERAL, EXPLORE]): Harness {
 	};
 }
 
-/** 只剩 yield 的那一轮就是讨交接的那一轮。 */
-const onlyYield = (context: LlmContext) => context.tools.length === 1 && context.tools[0]?.name === "yield";
 const text = (message: Message | undefined) =>
 	message && "content" in message && Array.isArray(message.content)
 		? message.content.map((part) => ("text" in part ? part.text : "")).join("")
 		: "";
+/**
+ * 以「到检查点了」那句话结尾的就是讨交接的那一轮。
+ *
+ * 不按工具表认：讨交接那一轮的工具表跟干活时逐字节相同，前缀缓存才接得上。
+ */
+const pressed = (messages: Message[]) => /到检查点了/.test(text(messages.at(-1)));
+const onlyYield = (context: LlmContext) => pressed(context.messages);
 
 // ---------------------------------------------------------------------------
 // 1. 检查点：清单在推进就接着跑
@@ -216,7 +221,7 @@ test("a plan that stops moving stops: two checkpoints without a tick, then a han
 		return turn === 0 ? todos(turn, plan(0)) : reads(turn);
 	});
 
-	const normal = h.requests.filter((request) => !(request.tools.length === 1 && request.tools[0] === "yield"));
+	const normal = h.requests.filter((request) => !pressed(request.messages));
 	assert.equal(normal.length, CHECKPOINT * 2, `one grace segment, then it stopped (${normal.length} requests)`);
 	assert.equal(answer.incomplete, true);
 	assert.match(answer.text, /阶段性交接/);
@@ -243,7 +248,9 @@ test("a general sub-agent stopped at a checkpoint hands over what it has, instea
 	});
 
 	const salvage = h.requests.at(-1)!;
-	assert.deepEqual(salvage.tools, ["yield"], "the handoff round has nothing else on the table");
+	assert.ok(pressed(salvage.messages), "the last request is the handoff round");
+	assert.ok(salvage.tools.includes("yield"), "with the handoff on the table");
+	assert.equal(salvage.schemas, h.requests.at(-2)!.schemas, "and the table byte for byte the one it worked with, so the cached prefix holds");
 	assert.match(text(salvage.messages.at(-1)), /到检查点了/, "and it is told what the round is for");
 	assert.match(text(salvage.messages.at(-1)), /上下文会原样留着/, "including that it may be continued, so the next step is written to be followed");
 	assert.match(answer.text, /入口在 auth\.ts:42/, "the handoff is the answer");
@@ -268,7 +275,7 @@ test("resuming continues the same conversation: the first request is the old one
 		onlyYield(context) ? yields(turn, { summary: "看了四个文件", remaining: "还没看 refresh" }) : reads(turn),
 	);
 	assert.ok(first.id, "a sub-agent with a registry is given an id it can be continued by");
-	const lastWorking = h.requests.findLast((request) => !request.tools.includes("yield") || request.tools.length > 1)!;
+	const lastWorking = h.requests.findLast((request) => !pressed(request.messages))!;
 	const before = h.requests.length;
 
 	const second = await h.run({ prompt: "接着把 refresh 那条路看完", resume: first.id }, (turn) =>

@@ -98,7 +98,7 @@ function describe(value: unknown): string {
  */
 export function makeYieldTool(
 	schema: JsonSchema,
-	options: { maxAttempts?: number; mode?: "permissive" | "strict" } = {},
+	options: { maxAttempts?: number; mode?: "permissive" | "strict"; description?: string } = {},
 ): Tool<Record<string, unknown>> {
 	const maxAttempts = options.maxAttempts ?? 3;
 	let attempts = 0;
@@ -106,8 +106,9 @@ export function makeYieldTool(
 	return {
 		name: YIELD_TOOL_NAME,
 		description:
+			options.description ??
 			"Submit your finished result when the task is done. This is the ONLY way the work reaches whoever dispatched you — " +
-			"anything you write outside this call is not delivered. Fill in every required field.",
+				"anything you write outside this call is not delivered. Fill in every required field.",
 		parameters: schema,
 		summarize: () => "Submitting result",
 

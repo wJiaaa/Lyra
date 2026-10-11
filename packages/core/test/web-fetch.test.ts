@@ -17,6 +17,7 @@ import { createServer, type Server } from "node:http";
 import { gzipSync } from "node:zlib";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
+import { FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../src/agent/prune.ts";
 import { classifyContentType, decoderFor, htmlToText, pinnedLookup, webFetchTool } from "../src/tools/web.ts";
 import type { ToolContext, ToolResult } from "../src/types.ts";
 
@@ -187,6 +188,23 @@ test("the fetched body is wrapped so it reads as data, not as instructions", asy
 	// of the conversation.
 	assert.match(textOf(result), /^<fetched url=/);
 	assert.match(textOf(result), /<\/fetched>$/);
+});
+
+test("a page clipped at the limit still reaches the model whole, not cut to head and tail", async () => {
+	respond = () => ({ status: 200, headers: { "content-type": "text/plain" }, body: "x".repeat(60_000) });
+	const result = await run(`${base}/long`);
+	const text = textOf(result);
+	assert.match(text, /… \[truncated\]\n<\/fetched>$/);
+	// 上限高过首发剪枝线时，满额结果会在模型看到前被剪成前 4k、后 1k。
+	assert.ok(text.length <= FRESH_RESULT_MAX_CHARS, `${text.length}`);
+	const message = { role: "toolResult" as const, toolCallId: "c", toolName: "web_fetch", content: result.content, isError: false, timestamp: 0 };
+	assert.equal(pruneToolResults([message], FRESH_RESULT_MAX_CHARS)[0], message);
+});
+
+test("a long address eats into the body, not past the line", async () => {
+	respond = () => ({ status: 200, headers: { "content-type": "text/plain" }, body: "x".repeat(60_000) });
+	const text = textOf(await run(`${base}/${"p".repeat(2000)}`));
+	assert.ok(text.length <= FRESH_RESULT_MAX_CHARS, `${text.length}`);
 });
 
 // ---------------------------------------------------------------------------

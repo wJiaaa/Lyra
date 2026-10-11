@@ -33,7 +33,8 @@
   `retryAttempts`），每个字段都是必填的，没有就写 `undefined`。`tools.env` 由 `ToolContext` 推导：
   给工具加一个上下文字段，主会话、子代理、侧聊三处构造都会编译失败，直到各自写明给什么。
 - **继承和覆盖按组写。** 子代理讨交接那一轮是 `{ session: { ...runConfig.session, messages }, model:
-  runConfig.model, tools: { 只剩 yield }, control: { 两轮 } }`；主会话续跑只换 `session.messages`。
+  runConfig.model, tools: { 同一张表，除 yield 外一律拒绝执行 }, control: { 两轮 } }`；主会话续跑只换
+  `session.messages`。工具表不能换：工具定义排在请求最前面，换掉它前缀缓存从第 0 字节起作废。
 - 测试不做类型检查，统一经 `packages/core/test/run-config.ts` 的 `runConfig()` 构造，没提到的字段都是
   `undefined`。
 

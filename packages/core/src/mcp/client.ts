@@ -12,6 +12,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { DEFAULT_INHERITED_ENV_VARS, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { FRESH_RESULT_MAX_CHARS } from "../agent/prune.ts";
 import { commandEnv } from "../sandbox/login-path.ts";
 import type { JsonSchema, Tool, ToolResult, UserContent } from "../types.ts";
 import { McpMissingValues, resolveServer } from "./placeholders.ts";
@@ -511,8 +512,11 @@ function normalizeContent(raw: unknown): UserContent[] {
 	return out;
 }
 
-/** 文本总量上限，与 `web_fetch` 相同：同样是外部来的数据。 */
-const MAX_RESULT_TEXT = 40_000;
+/**
+ * 文本总量上限，与 `web_fetch` 相同：同样是外部来的数据。压在 `FRESH_RESULT_MAX_CHARS` 以内，
+ * 留 2000 字符给截断说明；越线的结果会在模型看到之前被剪成前 4k、后 1k。
+ */
+const MAX_RESULT_TEXT = FRESH_RESULT_MAX_CHARS - 2000;
 /** 单张图片上限，与 `read` 相同。 */
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 

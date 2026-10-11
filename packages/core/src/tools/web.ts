@@ -8,9 +8,17 @@ import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { htmlToText } from "./html-text.ts";
 import { assessNetwork } from "./risk-network.ts";
+import { FRESH_RESULT_MAX_CHARS } from "../agent/prune.ts";
 
 const MAX_BYTES = 2 * 1024 * 1024;
-const MAX_TEXT = 40_000;
+/**
+ * 正文上限，压在 `FRESH_RESULT_MAX_CHARS` 以内，与 `bash` 同样留 2000 字符给外壳和截断标记。
+ *
+ * 超过那条线的新结果会被 `AgedToolPruner` 在模型看到之前剪成前 4k、后 1k：原先的 40,000 只高出
+ * 一点，一页 39.6k 的正文到模型那里只剩 5.3k。
+ */
+const MAX_TEXT = FRESH_RESULT_MAX_CHARS - 2000;
+const TRUNCATED = "\n\n… [truncated]";
 /** Long enough for any real URL; short enough that a megabyte of query string is not one. */
 const MAX_URL_LENGTH = 2048;
 /** Redirect hops. Three is generous for `http → https → www → canonical`; a chain longer than that is a loop or a game. */
@@ -151,10 +159,15 @@ export const webFetchTool: Tool<FetchArgs> = {
 		}
 
 		const text = args.format === "raw" || kind === "text" ? raw : htmlToText(raw);
-		const clipped = text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT)}\n\n… [truncated]` : text;
+		const open = `<fetched url="${current}" content-type="${contentType}">\n`;
+		const close = "\n</fetched>";
+		// 外壳里的 URL 和 content-type 由对方决定长短，重定向后的地址也不受 MAX_URL_LENGTH 约束；
+		// 外壳超出那 2000 的余量时从正文里扣，整条结果仍不越线。
+		const limit = Math.min(MAX_TEXT, FRESH_RESULT_MAX_CHARS - open.length - close.length - TRUNCATED.length);
+		const clipped = text.length > limit ? `${text.slice(0, limit)}${TRUNCATED}` : text;
 
 		return {
-			content: [{ type: "text", text: `<fetched url="${current}" content-type="${contentType}">\n${clipped}\n</fetched>` }],
+			content: [{ type: "text", text: `${open}${clipped}${close}` }],
 			details: { kind: "web_fetch", url: current.toString(), status, bytes: buffer.byteLength },
 		};
 	},

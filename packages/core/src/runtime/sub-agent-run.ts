@@ -12,32 +12,14 @@ import type { AgentRunResult } from "../agent/run-config.ts";
 import { runTurn } from "../agent/runner.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import type { PromptContext } from "../prompt/context.ts";
+import { errorResult } from "../tools/result.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
-import type { JsonSchema, Message, Tool } from "../types.ts";
+import type { Message, Tool } from "../types.ts";
 import { continueWhileWorkRemains, type ContinuationDeps } from "./continuation.ts";
 import type { SubAgentOptions } from "./sub-agent-options.ts";
 import { subAgentRunConfig } from "./sub-agent-config.ts";
 import type { Dispatched } from "./sub-agent-dispatch.ts";
-import { makeYieldTool, YIELD_KEY } from "./yield-tool.ts";
-
-/**
- * 一个没有声明输出格式的子代理，到检查点时交的那份交接。
- *
- * `general` 之前在这里什么都不交：只有带 schema 的子代理有补交的那一轮，其余的交回的是「停下前
- * 最后说的话」——一个读文件读到一半被截断的子代理，最后说的多半是「让我再看看 xxx」。
- *
- * 三个字段对着续跑的人要问的三件事，缺一不可：已经知道了什么（别再查一遍）、还差什么（接下来
- * 干什么）、打算怎么干（接手的人照着走，或者改道）。
- */
-export const HANDOFF_SCHEMA: JsonSchema = {
-	type: "object",
-	required: ["summary", "remaining"],
-	properties: {
-		summary: { type: "string", description: "已经做完了什么、查到的关键事实——带上 `path:line`，接手的人不用再查一遍。" },
-		remaining: { type: "string", description: "还没做完的部分，以及卡在哪。" },
-		next: { type: "string", description: "你打算接下来怎么做——接着跑的时候照这个走。" },
-	},
-};
+import { YIELD_KEY, YIELD_TOOL_NAME } from "./yield-tool.ts";
 
 /** 跑完之后交给收尾的东西。 */
 export interface SubAgentRan {
@@ -60,7 +42,7 @@ export async function runDispatched(
 		checkpoint: number;
 	},
 ): Promise<SubAgentRan> {
-	const { id, controller, subState, allowed, yieldTool, release, detach } = dispatched;
+	const { id, controller, subState, allowed, release, detach } = dispatched;
 	const { history, checkpoint } = setup;
 	const { systemPrompt, sections } = setup.prompt;
 	const registry = options.registry;
@@ -186,9 +168,9 @@ export async function runDispatched(
 		 * 没有，交回的是它停下前最后说的那句话：一个读文件读到一半被截断的子代理，最后说的多半是
 		 * 「让我再看看 xxx」。四个 explore 各跑了半小时、一份报告都没有，就是这么来的。
 		 *
-		 * 所以再给一轮，工具表里只剩 `yield`——没有 schema 的用交接那一份（做了什么、还剩什么、
-		 * 下一步）。它没有别的事可做，只能交。两轮而不是一轮：字段填错时校验会退回来，留一次改正的
-		 * 机会比让整轮白费划算。
+		 * 所以再给一轮，只有 `yield` 真的能执行——没有 schema 的用交接那一份（做了什么、还剩什么、
+		 * 下一步，派发时就挂上了）。它没有别的事可做，只能交。两轮而不是一轮：字段填错时校验会退回来，
+		 * 留一次改正的机会比让整轮白费划算。
 		 *
 		 * 交完它并没有被扔掉：上下文留着（`view` 停在这一轮之前），派它来的那一方可以续跑。
 		 *
@@ -196,39 +178,62 @@ export async function runDispatched(
 		 * 连接本身就是坏的；被人按停的那次，用户要的就是它别再花钱了。
 		 */
 		if (needsFinalYield(result.reason)) {
-			const handoff = yieldTool ?? makeYieldTool(HANDOFF_SCHEMA, { mode: "permissive" });
-			const salvage = await runTurn(
-				{
-					session: {
-						...runConfig.session,
-						// 模型眼里的那一份：压缩过就是压缩过的。从前拼的是完整原文，压缩过的子代理在这一轮又撑爆一次。
-						messages: [...view, finalDemand(checkpoint)],
-						pruner: undefined,
-						artifacts: undefined,
+			/*
+			 * 清单在这一轮先拿开，交完放回去。
+			 *
+			 * 循环在收尾时看到清单里有「正在做」、工具表里又有 `todo_write`，会追问一句清单（`openPlanNote`）。
+			 * 从前这一轮工具表里没有 `todo_write`，那一问不会出现；现在工具表原样留着，它道个歉不交，
+			 * 就会被追问去勾清单——而勾清单在这一轮是被拒的，两轮全白花。放回去是为了续跑：清单是它的记事本。
+			 */
+			const plan = subState.get(TODOS_KEY);
+			subState.delete(TODOS_KEY);
+			try {
+				const salvage = await runTurn(
+					{
+						session: {
+							...runConfig.session,
+							// 模型眼里的那一份：压缩过就是压缩过的。从前拼的是完整原文，压缩过的子代理在这一轮又撑爆一次。
+							messages: [...view, finalDemand(checkpoint)],
+							pruner: undefined,
+							artifacts: undefined,
+						},
+						// 同一个模型、同一个 cacheKey、同一份系统提示：前缀从头到 `view` 末尾都要跟上一次请求逐字节相同。
+						model: runConfig.model,
+						tools: {
+							/*
+							 * 工具表一个字都不能动，拒绝放在执行那一下。
+							 *
+							 * 工具定义在请求体里排在系统提示和消息前面（Anthropic 的缓存前缀是 tools → system →
+							 * messages，OpenAI 系也把 tools 算进前缀），换掉它等于从第 0 字节起重算。从前这里
+							 * 只放一个 `yield`，注释还写着「前缀大半相同」：审计在真实会话上量到的是这一次请求
+							 * 三十五万 token 整段未命中（「本地工具定义变了（28075→560 字符）」）。追加一个也
+							 * 不行——没有 schema 的子代理从前正常轮里根本没有 `yield`，所以它现在派发时就挂上了。
+							 *
+							 * 拿掉工具时「它就没有第二条路可走」，现在换成调了也只拿到一句「只能调用 yield」。
+							 * 多花的至多是第二轮，而那一轮的前缀是命中的。
+							 */
+							available: runConfig.tools.available.map(yieldOnly),
+							env: { ...runConfig.tools.env, spawnSubAgent: undefined },
+							requestApproval: runConfig.tools.requestApproval,
+							beforeToolCall: undefined,
+							afterToolCall: undefined,
+							permissionRequest: undefined,
+						},
+						control: {
+							signal: controller.signal,
+							drainSteering: undefined,
+							onStop: undefined,
+							repetition: undefined,
+							maxTurns: 2,
+						},
 					},
-					// 同一个模型、同一个 cacheKey：讨交接这一轮接的也是同一份 `view`，前缀大半相同。
-					model: runConfig.model,
-					tools: {
-						// 只有 yield。剩下的工具都拿走，它就没有第二条路可走了。
-						available: [handoff as unknown as Tool],
-						env: { ...runConfig.tools.env, spawnSubAgent: undefined },
-						requestApproval: runConfig.tools.requestApproval,
-						beforeToolCall: undefined,
-						afterToolCall: undefined,
-						permissionRequest: undefined,
-					},
-					control: {
-						signal: controller.signal,
-						drainSteering: undefined,
-						onStop: undefined,
-						repetition: undefined,
-						maxTurns: 2,
-					},
-				},
-				relay,
-			);
-			produced.push(...salvage.messages);
-			salvaged = subState.get(YIELD_KEY) !== undefined;
+					relay,
+				);
+				produced.push(...salvage.messages);
+				salvaged = subState.get(YIELD_KEY) !== undefined;
+			} finally {
+				if (plan !== undefined) subState.set(TODOS_KEY, plan);
+			}
 		}
 	} catch (error) {
 		/*
@@ -261,9 +266,22 @@ export async function runDispatched(
 }
 
 /**
+ * 讨交接那一轮里的工具：定义原样，只有 `yield` 会真的执行。
+ *
+ * 只换 `execute`。审批是工具自己在 `execute` 里发起的，所以被拒的调用也不会先弹一张授权卡片给人。
+ */
+function yieldOnly(tool: Tool): Tool {
+	if (tool.name === YIELD_TOOL_NAME) return tool;
+	return {
+		...tool,
+		execute: async () => errorResult(`到检查点了，这一轮不能再调用 \`${tool.name}\`。现在只能调用 \`yield\`，把目前的进展交上去。`),
+	};
+}
+
+/**
  * The message that spends the salvage round.
  *
- * Blunt, and it has to be: the round it opens has one tool on the table and one thing worth doing
+ * Blunt, and it has to be: the round it opens has one tool that will run and one thing worth doing
  * with it. "不完整也要交" is the important half — a model that has been told it is out of budget
  * will otherwise apologise for not finishing and deliver nothing, which is the failure this whole
  * round exists to prevent.
@@ -281,7 +299,7 @@ function finalDemand(rounds: number): Message {
 			{
 				type: "text",
 				text:
-					`（自动追加）到检查点了：这一段的 ${rounds} 轮已经用完，你手上只剩 \`yield\` 一个工具。` +
+					`（自动追加）到检查点了：这一段的 ${rounds} 轮已经用完，这一轮只能调用 \`yield\`，别的工具都会被拒绝。` +
 					"按它的字段把目前的进展交上去：做完了什么、查到的关键事实（带 `path:line`）、还剩什么没做、下一步打算怎么做——" +
 					"没有对应字段的写进 `summary`。不完整也要交。" +
 					"你的上下文会原样留着，派你来的人可能让你从这里接着做。不调用 `yield`，他就什么都拿不到。",

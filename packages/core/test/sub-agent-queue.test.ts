@@ -211,8 +211,9 @@ test("宽限只给一次：给过之后还是不写清单，就照常停下交�
 	const { options } = base({
 		streamFn: async (context: LlmContext) => {
 			turns += 1;
-			const tools = context.tools.map((tool) => tool.name);
-			if (tools.length === 1 && tools[0] === "yield") {
+			const last = context.messages.at(-1);
+			// 讨交接那一轮以「到检查点了」那句话结尾；工具表跟干活时一样，认不出来。
+			if (last?.role === "user" && last.content.some((part) => part.type === "text" && part.text.includes("到检查点了"))) {
 				return call("y", "yield", { summary: "读了几个文件", remaining: "还没看完" });
 			}
 			return call(`r${turns}`, "read", { at: turns });
