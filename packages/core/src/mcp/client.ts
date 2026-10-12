@@ -806,11 +806,22 @@ async function listAllTools(client: Client, timeoutMs: number): Promise<RawMcpTo
 	let cursor: string | undefined;
 	for (let page = 0; page < MAX_PAGES; page++) {
 		const listed = await client.listTools(cursor ? { cursor } : undefined, { timeout: timeoutMs });
-		tools.push(...(listed.tools as RawMcpTool[]));
+		tools.push(...(listed.tools as RawMcpTool[]).filter(offeredToModel));
 		cursor = listed.nextCursor;
 		if (!cursor) break;
 	}
 	return tools;
+}
+
+/**
+ * MCP Apps 的 `_meta.ui.visibility` 不含 `"model"`：这个工具只给服务器自己的页面调用。
+ *
+ * Plume 不托管 MCP Apps 页面，所以这类工具谁也用不上；放进工具表只是每轮白付它的说明书，还可能
+ * 被模型拿去调一个本来不该由它调的东西。没写 `visibility`（或写得不是数组）按规范缺省 `["model", "app"]`。
+ */
+function offeredToModel(tool: RawMcpTool): boolean {
+	const visibility = tool._meta?.ui?.visibility;
+	return !Array.isArray(visibility) || visibility.includes("model");
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {

@@ -27,7 +27,8 @@ import { forgetCommandPath, primeCommandPath } from "../src/sandbox/login-path.t
  *
  * It writes its pid into `FAKE_MCP_DIR` on start so a test can ask the OS whether it is still
  * alive, and its environment when `FAKE_MCP_DUMP_ENV` is set. `FAKE_MCP_INIT_DELAY` holds back the
- * answer to `initialize`; `FAKE_MCP_FAIL_LIST` makes `tools/list` an error.
+ * answer to `initialize`; `FAKE_MCP_FAIL_LIST` makes `tools/list` an error. `FAKE_MCP_TOOLS` lists tool
+ * names, or whole tool objects when a test needs `_meta`.
  */
 const SERVER = `
 const fs = require("node:fs");
@@ -54,7 +55,7 @@ process.stdin.on("data", (chunk) => {
 		} else if (message.method === "tools/list") {
 			const names = process.env.FAKE_MCP_TOOLS ? JSON.parse(process.env.FAKE_MCP_TOOLS) : ["echo"];
 			if (process.env.FAKE_MCP_FAIL_LIST) send({ id: message.id, error: { code: -32603, message: "tools/list is broken" } });
-			else send({ id: message.id, result: { tools: names.map((name) => ({ name, description: "Echo.", inputSchema: { type: "object" } })) } });
+			else send({ id: message.id, result: { tools: names.map((tool) => ({ description: "Echo.", inputSchema: { type: "object" }, ...(typeof tool === "string" ? { name: tool } : tool) })) } });
 		} else if (message.method === "tools/call") {
 			send({ id: message.id, result: { content: [{ type: "text", text: "called " + message.params.name }] } });
 		} else {
@@ -436,4 +437,18 @@ test("a tool name too long or colliding gets a stable short name, and still call
 	assert.equal(shortened.name, qualifiedToolName("srv", long), "同一个工具每次得到同一个名字");
 	const result = await shortened.execute({}, { cwd: fx.dir, sessionId: "s", state: new Map() });
 	assert.equal(result.content[0].type === "text" && result.content[0].text, `called ${long}`);
+});
+
+test("a tool only the server's own page may call is not offered to the model", async (t) => {
+	const fx = await fixture(t);
+	const manager = new McpManager();
+	t.after(() => manager.closeAll());
+	const tools = [
+		"plain",
+		{ name: "both", _meta: { ui: { visibility: ["model", "app"] } } },
+		{ name: "app_only", _meta: { ui: { resourceUri: "ui://srv/view", visibility: ["app"] } } },
+		{ name: "odd", _meta: { ui: { visibility: "app" } } },
+	];
+	await manager.connectAll([fx.server({ FAKE_MCP_TOOLS: JSON.stringify(tools) }, "srv")]);
+	assert.deepEqual(manager.allTools().map((tool) => tool.name), ["mcp__srv__both", "mcp__srv__odd", "mcp__srv__plain"]);
 });

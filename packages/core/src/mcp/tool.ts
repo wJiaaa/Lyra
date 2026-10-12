@@ -33,6 +33,8 @@ export interface RawMcpTool {
 	inputSchema?: unknown;
 	/** MCP tool annotations. The server's own word, not a guarantee; see `toAgentTool`. */
 	annotations?: { readOnlyHint?: unknown; destructiveHint?: unknown; openWorldHint?: unknown };
+	/** 只读 `ui.visibility`，见 `client.ts` 的 `offeredToModel`。 */
+	_meta?: { ui?: { visibility?: unknown } };
 }
 
 /** 进度最多这么密地推给界面：有的服务器每处理一行就报一次。 */
