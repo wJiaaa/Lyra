@@ -563,8 +563,6 @@ export interface AppState extends QueueSlice {
   setThinking(thinking: ThinkingLevel, sessionId?: string | null): Promise<void>;
   /** 进出这个对话的计划模式。没有会话时什么也不做。`sessionId` as for `setModel`. */
   setPlanMode(on: boolean, sessionId?: string | null): Promise<void>;
-  /** 定一个持续目标，`null` 取消。没有会话时什么也不做。`sessionId` as for `setModel`. */
-  setGoal(text: string | null, sessionId?: string | null): Promise<void>;
   dismissNotice(id: string): void;
   notify(message: string, level?: "info" | "warn" | "error", sessionId?: string): void;
   /**

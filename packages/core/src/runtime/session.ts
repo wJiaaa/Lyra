@@ -56,9 +56,7 @@ import { SessionTitle } from "./session-title.ts";
 import { TODOS_KEY } from "../tools/todo.ts";
 import { manualCompaction, type CompactionParts } from "./manual-compaction.ts";
 import { idleCompaction } from "./idle-compaction.ts";
-import { adoptModelSwitch, recordGoal, recordModel, recordPlanMode, recordThinking } from "./session-model.ts";
-import { goalActive, SessionGoal } from "./session-goal.ts";
-import type { TodoItem } from "../tools/todo.ts";
+import { adoptModelSwitch, recordModel, recordPlanMode, recordThinking } from "./session-model.ts";
 import { PLAN_MODE_KEY } from "./plan-mode.ts";
 import { rewind, type RewindParts } from "./session-rewind.ts";
 import { changedPaths, mainChatContext, SIDE_CHAT_PROFILE, sideChangesNote, sideChatTools } from "./side-session.ts";
@@ -136,14 +134,11 @@ export class AgentSession {
 	 * 这个类里从此看不到「摘要跑到哪一步了」这种东西。
 	 */
 	private title: SessionTitle;
-	/** 持续目标的推进，全在 `session-goal.ts` 里。 */
-	private readonly goal: SessionGoal;
 	/**
-	 * 最近一次 `agent_end` 的原因；目标只在干净收尾后才判。
+	 * 最近一次 `agent_end` 的原因；收尾后的自动压缩只在干净收尾后才做。
 	 *
 	 * 在 log 的出口上记，不在 `Session.emit` 里：循环自己的 `agent_end` 走 `recordTurnEvent` 直接进
-	 * `log.emit`，记在 `emit` 里就一次也记不到——服务商报错、被停下的那一轮都被当成 done 去问裁判，
-	 * 判「没到」就续、续了又报错，一直撞到 50 次的上限。
+	 * `log.emit`，记在 `emit` 里就一次也记不到——服务商报错、被停下的那一轮都会被当成 done。
 	 */
 	private lastEnd: Extract<AgentEvent, { type: "agent_end" }>["reason"] = "done";
 	/** 谁此刻占着历史、怎么停下它。见 `session-activity.ts`。 */
@@ -229,20 +224,6 @@ export class AgentSession {
 			stream: options.titleSummaryStream,
 			// 见 `TitleDeps.stream` 那段：这两个要一起看，少看一个会在测试里真的发请求。
 			sessionStreamInjected: Boolean(options.streamFn),
-		});
-		this.goal = new SessionGoal({
-			settings: () => this.settings,
-			goal: () => this.log.meta.goal,
-			record: (goal) => recordGoal(this.log, goal),
-			messages: () => this.log.messages,
-			todos: () => (this.can.state.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
-			modelId: () => this.modelIdInEffect(),
-			stream: options.titleSummaryStream,
-			append: (record) => this.log.append(record),
-			emit: (event) => this.emit(event),
-			continueWith: (text) => this.prompt([{ type: "text", text }], { synthetic: true }),
-			idle: () => this.idle,
-			whenIdle: () => this.whenIdle(),
 		});
 		/*
 		 * 每一个出门的事件都先过这里翻牌，然后才交给宿主。
@@ -398,7 +379,6 @@ export class AgentSession {
 		 */
 		this.can.state.set(SESSIONS_KEY, sessionLookup(this.store));
 		await this.restoreSubAgents();
-		this.goal.arm();
 		/*
 		 * 扩展的 `session_start`。
 		 *
@@ -687,18 +667,6 @@ export class AgentSession {
 	 * 进出计划模式。写进元数据，下一轮按它装工具表；状态图里的开关也同步，这样跑到一半关掉时
 	 * 包着的工具立刻放行。跑到一半打开则要等下一轮——这一轮的工具表没包过，开关对它没有作用。
 	 */
-	/**
-	 * 定一个持续目标，或取消它（`null`）。
-	 *
-	 * 目标那句话以人的名义进对话——是人说的；之后每轮收尾由裁判决定续不续，见 `session-goal.ts`。
-	 * 会话正忙时这句话插进当前这一轮，和平时说话一样。
-	 */
-	async setGoal(text: string | null): Promise<void> {
-		if (text === null || !text.trim()) { await this.goal.clear(); return; }
-		await this.goal.set(text);
-		await this.prompt([{ type: "text", text: text.trim() }]);
-	}
-
 	async setPlanMode(on: boolean): Promise<void> {
 		await recordPlanMode(this.log, on);
 		this.can.state.set(PLAN_MODE_KEY, on);
@@ -838,7 +806,7 @@ export class AgentSession {
 		 */
 		let interrupting = false;
 		if (options.deliver === "interrupt" && this.running) {
-			this.halt();
+			this.abort();
 			await this.activity.quiet();
 			interrupting = true;
 		}
@@ -962,7 +930,6 @@ export class AgentSession {
 				code: "no-model",
 			});
 			await this.emit({ type: "agent_end", reason: "error", error: "no_model" });
-			void this.goal.afterTurn("error");
 			return;
 		}
 
@@ -998,7 +965,6 @@ export class AgentSession {
 				liveModel: this.liveModel,
 				profile: parent ? SIDE_CHAT_PROFILE : undefined,
 				planMode: this.log.meta.planMode === true,
-				goal: goalActive(this.log.meta.goal) ? this.log.meta.goal.text : undefined,
 				context: async () => parent ? mainChatContext(this.log.messages, parent, resolved.model) : this.takeSideChanges(),
 			});
 			this.activity.trackTurn(turn);
@@ -1032,8 +998,6 @@ export class AgentSession {
 		// The queue moves the moment the workspace is free again. Skipped while draining,
 		// because that loop is already the thing calling us.
 		void this.tasks.drain();
-		// 目标在这之后才看：排着的先跑，它等会话真闲下来。见 `session-goal.ts`。
-		void this.goal.afterTurn(this.lastEnd);
 		// 越线的那次回复刚落地、缓存还热：趁人还没开口先压掉。也等会话真闲下来，排着的先跑。
 		if (this.compactWhenIdle && this.lastEnd === "done") void this.whenIdle().then(() => this.compactIdle());
 	}
@@ -1052,16 +1016,7 @@ export class AgentSession {
 		void this.tasks.drain();
 	}
 
-	/**
-	 * 人按了停止。持续目标跟着停下等人；会话为了让人插话、编辑重发、收摊而停下这一轮时走 `halt`，
-	 * 目标不动——前两种是人开口，那一轮收尾时再判；收摊时等着的目标要原样留到下次起来。
-	 */
 	abort(): void {
-		this.goal.interrupt();
-		this.halt();
-	}
-
-	private halt(): void {
 		void this.title.cancel();
 		// The prompt owner records a cancelled startup before resolving, so disposal cannot race
 		// an unawaited append after the caller has already finished the opening submission.
@@ -1218,7 +1173,7 @@ export class AgentSession {
 	): Promise<void> {
 		await this.title.cancel();
 		if (this.running) {
-			this.halt();
+			this.abort();
 			// Acceptance writes and follow-up draining also own the history, before/after driveTurn.
 			await (this.activity.holding("prompt") ?? this.activity.holding("resume"))?.catch(() => {});
 		}
@@ -1276,14 +1231,13 @@ export class AgentSession {
 		this.can.state.delete(SESSION_START_KEY);
 		const runner = await loadHookRunner({ settings: this.settings, cwd: this.cwd });
 		if (!runner.has("SessionEnd")) return;
-		this.halt();
+		this.abort();
 		await this.activity.quiet().catch(() => {});
 		await runSessionEndHooks({ runner, cwd: this.cwd, sessionId: this.log.meta.id, permissionMode: this.settings.permissionMode }, reason);
 	}
 
 	async dispose(reason: SessionEndReason = "other"): Promise<void> {
 		this.disposed = true;
-		this.goal.dispose();
 		this.abort();
 		// 收尾后的自动压缩不是人发起的，处置时多半还在跑：等它停下再往下走，免得宿主删了日志它还在写。
 		await this.activity.compaction?.catch(() => {});

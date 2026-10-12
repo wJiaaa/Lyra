@@ -25,7 +25,6 @@ import { askSide, openFilePane, openScopedPanel, sideChatFor } from "../dock/ind
 import { DEFAULT_SIDE_CHAT_ID } from "@plume/contract";
 import { ContextMeter } from "./ContextMeter.tsx";
 import { PlanModeToggle } from "./PlanModeToggle.tsx";
-import { GoalBar } from "./GoalBar.tsx";
 import { EffortTrigger } from "../models/index.ts";
 import { useRolled } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -444,19 +443,6 @@ export function Composer({ centered = false }: {
 			}
 			if (!planOn) await useApp.getState().setPlanMode(true, activeSessionId);
 		}
-		/*
-		 * `/goal 目标`：定一个持续目标，`/goal` 留空取消。这句话由主进程以人的名义发出（core 的
-		 * `setGoal`），这里不再走 `send`，否则同一句话会进对话两次。目标挂在会话上，没有会话就没处挂。
-		 */
-		if (builtin?.action === "goal") {
-			if (attachments.length || sessionRefs.length || quotes.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
-			if (!activeSessionId) { useApp.getState().notify(translate("goal.needsSession"), "warn"); return; }
-			setText("");
-			setDraft(draftKey, null);
-			release();
-			await useApp.getState().setGoal(invocation?.rest || null, activeSessionId);
-			return;
-		}
 		if (builtin && builtin.action !== "plan") {
 			if (attachments.length || sessionRefs.length || quotes.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
 			if (builtin.action === "compact" && !activeSessionId) { useApp.getState().notify(translate("composer.nothingToCompact"), "warn"); return; }
@@ -643,7 +629,6 @@ export function Composer({ centered = false }: {
 				 * 托盘：项目和分支坐在卡片上方露出来的那一条里。见 `composer.css` 的 `.ly-composer-tray`。
 				 */}
 				<div className="ly-composer-tray">
-					{activeSessionId && meta?.goal && <GoalBar sessionId={activeSessionId} goal={meta.goal} last={!showBottomPanel} />}
 					{/*
 					 * Where the turn will run, and what it has already changed.
 					 *

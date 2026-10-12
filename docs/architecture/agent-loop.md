@@ -184,13 +184,6 @@
 这条工具结果提交时会话把 meta 清掉（`recordTurnEvent`）。计划进 `task-context`，压缩后原样注入。
 这一轮派出去的子代理拿到的是包过的表，开关是主会话的。设计取舍见 ADR-0044。
 
-## 持续目标：循环之外的一层
-
-循环本身不知道目标。会话在 `run()` 收尾、`agent_end` 为 `done` 且 `whenIdle` 之后，交给 `runtime/session-goal.ts`
-判一次（`goal-judge.ts`，一次几千 token 的小请求），按结论以 `synthetic` 用户消息再开一轮、或睡到 `wakeAt`、
-或停下。报错、步数、重复的收尾目标跟着停，不越过循环已经做出的决定；人按的停止由 `interrupt` 当场停下
-目标，不等那一轮的 `aborted`。会话为插话、编辑重发停下的那一轮不算停止。见 ADR-0045。
-
 ## 插话与步数上限
 
 `drainSteering` 会清空队列，所以取出来的东西必须留在 `carried` 里；只读长度会把人的话丢掉，循环

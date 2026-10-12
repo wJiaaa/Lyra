@@ -421,8 +421,6 @@ export interface PlumeApi {
 		setThinking(sessionId: string, thinking: ThinkingLevel | null): Promise<void>;
 		/** 进出计划模式。批准计划后 core 自己关掉，那一次经 `sessions:changed` 送到渲染层。 */
 		setPlanMode(sessionId: string, on: boolean): Promise<void>;
-		/** 定一个持续目标（以人的名义发出这句话），`null` 取消。见 core 的 `AgentSession.setGoal`。 */
-		setGoal(sessionId: string, text: string | null): Promise<void>;
 		onEvent(handler: (payload: { sessionId: string; event: AgentEvent }) => void): () => void;
 	};
 	/**

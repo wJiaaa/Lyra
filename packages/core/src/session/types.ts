@@ -6,7 +6,6 @@
  */
 
 import type { AgentEvent } from "../agent/events.ts";
-import type { GoalState } from "../types/goal.ts";
 import type { Message, ThinkingLevel, Usage } from "../types.ts";
 
 export interface SessionMeta {
@@ -90,8 +89,6 @@ export interface SessionMeta {
 	 * `undefined`；人也能随时在界面上关掉。见 `runtime/plan-mode.ts`、ADR-0044。
 	 */
 	planMode?: boolean;
-	/** 持续目标：状态全在这里，每次变化落盘。见 `runtime/session-goal.ts`、ADR-0045。 */
-	goal?: GoalState;
 	/**
 	 * Someone typed this title, so nothing else gets to replace it.
 	 *

@@ -37,7 +37,6 @@ import {
 	createSession,
 	abortSession,
 	promptSession,
-	setSessionGoal,
 	sessions,
 	sideSessionsOf,
 	snapshot,
@@ -448,8 +447,6 @@ export function registerSessionsIpc({
 	);
 
 	// 和 setThinking 一样，还没起过 agent 的会话直接写日志，不为记一个开关去启动它。
-	ipcMain.handle("agent:setGoal", (_event, sessionId: string, text: string | null) => setSessionGoal(sessionId, text));
-
 	ipcMain.handle("agent:setPlanMode", async (_event, sessionId: string, on: boolean) => {
 		const live = sessions.get(sessionId);
 		if (live) {

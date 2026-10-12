@@ -1,7 +1,7 @@
 /**
  * 「设置 › 命令」页列出的内置命令，就是输入框 `/` 菜单里的那几条。
  *
- * 两边从前各写一份清单，菜单加了 `/plan`、`/goal`，设置页停在四条。
+ * 两边从前各写一份清单，菜单加了 `/plan`，设置页停在四条。
  */
 
 import assert from "node:assert/strict";
@@ -22,7 +22,7 @@ test("设置页和 / 菜单列出同样的内置命令", async () => {
 		const settingsPage = (await listCommands(home, DEFAULT_SETTINGS)).builtins.map((command) => command.name);
 		const menu = commandEntries([], []).filter((entry) => entry.kind === "builtin").map((entry) => entry.name);
 		assert.deepEqual(settingsPage, menu);
-		assert.ok(settingsPage.includes("plan") && settingsPage.includes("goal"), settingsPage.join(", "));
+		assert.ok(settingsPage.includes("plan"), settingsPage.join(", "));
 	} finally {
 		for (const [key, value] of Object.entries(saved)) {
 			if (value === undefined) delete process.env[key];

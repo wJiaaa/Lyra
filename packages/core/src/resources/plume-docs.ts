@@ -1,7 +1,7 @@
 /**
  * `plume://<topic>` is Plume's own documentation: one markdown file per topic in `plume-docs/`.
  *
- * The case for it: asked "how do I use /goal" or "which service does web_search use", an agent
+ * The case for it: asked "how do I use /plan" or "which service does web_search use", an agent
  * without this went on to grep the installed `app.asar` nine times, or read the app's source when
  * the session happened to sit in this repository — a dozen calls for an answer one read gives.
  * And for formats this app defines, the alternative is whatever survived in training data, which

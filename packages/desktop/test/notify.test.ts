@@ -388,29 +388,3 @@ test("a sub-agent's question names the agent, joined the way the interface langu
 	assert.deepEqual(bodiesIn("en", "zh-CN", () => notifyAgentEvent("s", asked, "Refactor")), ["“Refactor” needs your input: Review auth: Which branch?"]);
 	assert.deepEqual(bodiesIn("zh-CN", "en-US", () => notifyAgentEvent("s", asked, "Refactor")), ["「Refactor」等待回复：Review auth：Which branch?"]);
 });
-
-/*
- * 持续目标进行中，一轮收尾只是裁判要看的一步。每轮都响，人就学会了不理它，真到终态那一声也被
- * 一起忽略——所以进行中不报每轮，只报终态。
- */
-test("a standing goal silences the per-turn 'finished' and speaks once at its end", () => {
-	const goal = { text: "CI 变绿", startedAt: 1, rounds: 3, noProgress: 0, judgeFailures: 0, waits: 0 };
-	const done: AgentEvent = { type: "agent_end", reason: "done" };
-	const bodies = bodiesIn("zh-CN", "zh-CN", () => {
-		for (const status of ["working", "judging", "waiting"] as const) notifyAgentEvent("s", done, "修 CI", { ...goal, status });
-	});
-	assert.deepEqual(bodies, [], "目标进行中，每轮收尾不报");
-
-	const ended = bodiesIn("zh-CN", "zh-CN", () => {
-		notifyAgentEvent("s", done, "修 CI", { ...goal, status: "met" });
-		notifyAgentEvent("s", { type: "goal", goal: { ...goal, status: "met" } }, "修 CI");
-		notifyAgentEvent("s", { type: "goal", goal: { ...goal, status: "impossible" } }, "修 CI");
-		notifyAgentEvent("s", { type: "goal", goal: { ...goal, status: "paused", pausedFor: "no-progress" } }, "修 CI");
-		notifyAgentEvent("s", { type: "goal", goal: { ...goal, status: "judging" } }, "修 CI");
-		notifyAgentEvent("s", { type: "goal", goal: null }, "修 CI");
-	});
-	assert.deepEqual(ended, ["「修 CI」已完成", "目标已达成：CI 变绿", "目标从这里走不到：CI 变绿", "目标停下来了（连着几次没有进展）：CI 变绿"]);
-
-	const english = bodiesIn("en", "en-US", () => notifyAgentEvent("s", { type: "goal", goal: { ...goal, status: "paused", pausedFor: "budget" } }));
-	assert.deepEqual(english, ["Goal stopped (out of checks): CI 变绿"]);
-});

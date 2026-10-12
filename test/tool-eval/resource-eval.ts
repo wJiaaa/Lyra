@@ -101,13 +101,7 @@ const PROBES: Probe[] = [
 		wants: /plume:\/\/writing-skills/,
 		needle: /description/,
 	},
-	// 下面三句是真实会话里问过的原话，当时 `plume://` 里没有答案，模型转头去翻源码和 app.asar。
-	{
-		name: "问 /goal 怎么用",
-		task: "目标/goal 怎么用",
-		wants: /plume:\/\/goal/,
-		needle: /50/,
-	},
+	// 下面两句是真实会话里问过的原话，当时 `plume://` 里没有答案，模型转头去翻源码和 app.asar。
 	{
 		name: "问 web_search 用哪家",
 		task: "web_search 用的是哪个的？",

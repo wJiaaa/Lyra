@@ -123,42 +123,6 @@ export const promptSession: PlumeApi["agent"]["prompt"] = async (id, content, op
 		if (!handedOff) release();
 	}
 };
-/**
- * 定或取消持续目标。定目标要以人的名义开一轮，所以会话必须是活的，而且和 `promptSession` 一样
- * 交出去就返回：`setGoal` 等的是那一轮跑完，几分钟的事走事件，不该让 IPC 挂着。
- */
-export async function setSessionGoal(id: string, text: string | null): Promise<void> {
-	const release = holdSessionOperation(id);
-	let handedOff = false;
-	try {
-		const session = await ensureLiveSession(id);
-		if (!session) throw new Error(`Session ${id} is not open.`);
-		if (text === null || !text.trim()) { await session.setGoal(null); return; }
-		peers.personSpoke(id);
-		const turn = session.setGoal(text);
-		handedOff = true;
-		void turn.catch((error: unknown) => {
-			const message = error instanceof Error ? error.message : String(error);
-			broadcast(id, { type: "notice", level: "error", message });
-			broadcast(id, { type: "agent_end", reason: "error", error: message });
-		}).finally(release);
-	} finally {
-		if (!handedOff) release();
-	}
-}
-
-/**
- * 启动时把等着的持续目标叫醒。
- *
- * 等待靠的是会话自己的定时器（core 的 `SessionGoal.arm` 在 `initialize` 里按 `wakeAt` 重新挂上），
- * 而会话要有人打开才会起来——没人点开它，一个「CI 跑完再看」的目标就永远睡着。到点已过的会
- * 马上醒。一个起不来不拖累别的。
- */
-export async function wakeWaitingGoals(): Promise<void> {
-	const waiting = (await deps.store().listSessions()).filter((meta) => meta.goal?.status === "waiting");
-	await Promise.all(waiting.map((meta) => ensureLiveSession(meta.id).catch(() => null)));
-}
-
 /** Disposers for each session's browser tools, keyed the same way. */
 export const browsers = new Map<string, () => void>();
 /** Session operations admitted before their first await, so cleanup cannot race their startup. */
@@ -278,7 +242,7 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
 	if (event.type === "message_end") noteTranscriptFiles([event.message]);
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
 	const meta = sessions.get(sessionId)?.meta;
-	if (!side) notifyAgentEvent(sessionId, event, meta?.title, meta?.goal);
+	if (!side) notifyAgentEvent(sessionId, event, meta?.title);
 }
 
 export async function getOrCreateSession(cwd: string, _modelId: string): Promise<AgentSession> {
@@ -469,13 +433,6 @@ function sessionBusy(id: string): boolean {
 	const session = sessions.get(id);
 	if (!session) return false;
 	if (session.running || session.meta.pendingPrompt) return true;
-	/*
-	 * 进行中的持续目标占着这个会话：在等的要靠它自己的定时器醒来，回收了就再没人叫它（ADR-0045）。
-	 * 在判的也算——回收会掐断裁判，而磁盘上留着「在判」的目标，下次起来没人会接着判它。「在做」不用
-	 * 另算：那时一轮正在跑，上面 `running` 已经拦下；崩溃后留在磁盘上的「在做」也不该永久占一个名额。
-	 */
-	const goal = session.meta.goal?.status;
-	if (goal === "waiting" || goal === "judging") return true;
 	if (liveSides(id).some((side) => sessionBusy(side.meta.id))) return true;
 	if (backgroundJobs(session.can.state).list().some((job) => job.status === "running" || job.status === "stopping")) return true;
 	/*

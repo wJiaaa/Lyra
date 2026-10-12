@@ -83,8 +83,6 @@ export interface TurnInputs {
 	context?: () => Promise<Message | null>;
 	/** 这一轮处于计划模式：工具表包一层只放行只读调用，加上 `submit_plan`。见 `plan-mode.ts`。 */
 	planMode?: boolean;
-	/** 持续目标的原话；提示词多一段。见 `session-goal.ts`。 */
-	goal?: string;
 }
 
 /**
@@ -356,7 +354,6 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 		dispatchLimits,
 		profile: input.profile,
 		planMode,
-		goal: input.goal,
 	}));
 	const turn = await prepareTurn({
 		cwd, tools, systemPrompt: prompt.systemPrompt,

@@ -592,20 +592,5 @@ export function turnSlice(set: Set, get: Get) {
 			get().notify(translate("plan.toggleFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		}
 	},
-
-	/*
-	 * 定或取消持续目标。不做乐观更新：目标那句话由主进程以人的名义发出，状态随 `goal` 事件和
-	 * `sessions:changed` 回来，界面先画一份只会和随后到的那份打架。没有会话时什么也不做，由调用方提示。
-	 */
-	async setGoal(text: string | null, sessionId?: string | null) {
-		if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
-		const activeSessionId = sessionId === null ? null : get().activeSessionId;
-		if (!activeSessionId) return;
-		try {
-			await bridge.agent.setGoal(activeSessionId, text);
-		} catch (cause) {
-			get().notify(translate("goal.failed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
-		}
-	},
   };
 }

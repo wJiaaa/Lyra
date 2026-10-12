@@ -62,8 +62,6 @@ export interface SystemPromptInput {
 	tone?: string;
 	/** 计划模式开着：说明只读的规矩和 `submit_plan` 这个出口。单独一段，开关切换只增量这一段。 */
 	planMode?: boolean;
-	/** 这个会话上的持续目标；有就多一段说明。见 `runtime/session-goal.ts`。 */
-	goal?: string;
 	platform: string;
 	/**
 	 * The shell the `bash` tool runs commands in — named in the environment ("zsh", "Git Bash",
@@ -210,12 +208,6 @@ const PLAN_MODE_SECTION =
 	"(each naming the files it touches), the risks you can see, and what you could not determine from the code. The user approves it " +
 	"or asks for changes; after approval every tool is available again and the steps become your task list. Do not pad: three real " +
 	"steps beat ten vague ones. If the task is too small to need a plan, submit a one-step plan and say so.";
-const goalSection = (goal: string) =>
-	`\n\nA standing goal is set for this conversation: ${goal}\n` +
-	"After each turn an independent check decides whether it is reached, and if not you are asked to continue. So: work until it is " +
-	"reached, and end each turn by stating plainly what is done and what is not. When the next step depends on something outside your " +
-	"control (a job still running, a reply that has not arrived, a time that has not come), say exactly what you are waiting for and " +
-	"stop; you will be woken later to check. Do not pretend it is reached, and do not idle: if nothing useful can be done now, say so.";
 
 export async function buildSystemPrompt(input: SystemPromptInput): Promise<string> {
 	return (await buildPromptContext(input)).systemPrompt;
@@ -254,7 +246,6 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 	prompt.add("guidelines", `\n\nGuidelines:\n${guidelines.map((g) => `- ${g}`).join("\n")}`);
 	prompt.add("boundaries", `\n\nBoundaries:\n${BOUNDARIES.map((b) => `- ${b}`).join("\n")}`);
 	if (input.planMode) prompt.add("plan", PLAN_MODE_SECTION);
-	if (input.goal) prompt.add("goal", goalSection(input.goal));
 	/*
 	 * 界面块只对画得出它的端说。判据借 `preview`：只有桌面端加载它，而画界面块的也只有桌面端——
 	 * 命令行、评测里说了也画不出来，还每次请求都要为它付一份。
