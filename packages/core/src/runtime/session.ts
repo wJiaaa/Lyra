@@ -138,7 +138,13 @@ export class AgentSession {
 	private title: SessionTitle;
 	/** 持续目标的推进，全在 `session-goal.ts` 里。 */
 	private readonly goal: SessionGoal;
-	/** 最近一次 `agent_end` 的原因；目标只在干净收尾后才判。 */
+	/**
+	 * 最近一次 `agent_end` 的原因；目标只在干净收尾后才判。
+	 *
+	 * 在 log 的出口上记，不在 `Session.emit` 里：循环自己的 `agent_end` 走 `recordTurnEvent` 直接进
+	 * `log.emit`，记在 `emit` 里就一次也记不到——服务商报错、被停下的那一轮都被当成 done 去问裁判，
+	 * 判「没到」就续、续了又报错，一直撞到 50 次的上限。
+	 */
 	private lastEnd: Extract<AgentEvent, { type: "agent_end" }>["reason"] = "done";
 	/** 谁此刻占着历史、怎么停下它。见 `session-activity.ts`。 */
 	private readonly activity = new SessionActivity();
@@ -250,6 +256,7 @@ export class AgentSession {
 		 * 排队出队要抢的那一拍。
 		 */
 		this.log = new SessionLog(options.store, (event) => {
+			if (event.type === "agent_end") this.lastEnd = event.reason;
 			this.activity.observe(event);
 			this.subAgentContexts.observe(event);
 			return options.emit(event);
@@ -1156,7 +1163,6 @@ export class AgentSession {
 	}
 
 	private emit(event: AgentEvent): Promise<void> {
-		if (event.type === "agent_end") this.lastEnd = event.reason;
 		return this.log.emit(event);
 	}
 
