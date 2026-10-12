@@ -322,6 +322,7 @@ async function* streamResponses(
 									thinking: "",
 									signature: item.id,
 									encrypted: item.encrypted_content || undefined,
+									startedAt: Date.now(),
 								});
 								items.set(outputIndex, {
 									kind: "thinking",
@@ -489,6 +490,7 @@ async function* streamResponses(
 								if (!target.thinking && Array.isArray(item.summary)) {
 									target.thinking = item.summary.map((s: { text?: string }) => s.text ?? "").join("\n");
 								}
+								if (target.startedAt !== undefined) target.durationMs = Date.now() - target.startedAt;
 								yield { type: "thinking_end", index: outputIndex };
 							} else if (tracked.kind === "text" && target?.type === "text") {
 								if (!target.text && Array.isArray(item.content)) {

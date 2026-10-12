@@ -563,6 +563,11 @@ async function* streamChatCompletions(
 
 				let currentTextIndex = -1;
 				let currentThinkingIndex = -1;
+				/** 当前那段思考结束：把从 `startedAt` 起的时长写在块上。 */
+				const stampThinking = () => {
+					const block = partial.content[currentThinkingIndex];
+					if (block?.type === "thinking" && block.startedAt !== undefined) block.durationMs = Date.now() - block.startedAt;
+				};
 				/** 这次尝试里没能解析的帧，留一份原文，空回答时用来说明收到的到底是什么。 */
 				let unparsable = "";
 				/** 收到过 `[DONE]` 没有——和下面那个一起，用来分辨「说完了」和「线断了」。 */
@@ -644,7 +649,7 @@ async function* streamChatCompletions(
 								 * 字段名记在块上，下一轮用同一个键还回去（见 `ThinkingContent.reasoningField`
 								 * 和 `openai-chat-completions-request.ts` 里编码那一段）。
 								 */
-								partial.content.push({ type: "thinking", thinking: "", reasoningField: reasoning.field });
+								partial.content.push({ type: "thinking", thinking: "", reasoningField: reasoning.field, startedAt: Date.now() });
 								yield { type: "thinking_start", index: currentThinkingIndex };
 							}
 							const thinkingBlock = partial.content[currentThinkingIndex];
@@ -710,6 +715,7 @@ async function* streamChatCompletions(
 							const visible = cleaned && (cleaned === flushable || cleaned.trim().length > 0) ? cleaned : "";
 							if (visible) {
 								if (currentThinkingIndex !== -1) {
+									stampThinking();
 									yield { type: "thinking_end", index: currentThinkingIndex };
 									currentThinkingIndex = -1;
 								}
@@ -748,6 +754,7 @@ async function* streamChatCompletions(
 							}
 							stripBuffer = "";
 							if (currentThinkingIndex !== -1) {
+								stampThinking();
 								yield { type: "thinking_end", index: currentThinkingIndex };
 								currentThinkingIndex = -1;
 							}
@@ -897,6 +904,7 @@ async function* streamChatCompletions(
 				}
 
 				if (currentThinkingIndex !== -1) {
+					stampThinking();
 					yield { type: "thinking_end", index: currentThinkingIndex };
 				}
 				if (currentTextIndex !== -1) {

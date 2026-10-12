@@ -42,6 +42,18 @@ export interface ThinkingContent {
 	 * `reasoning_content` 处理，也就是这条链从前唯一发过的那个键——所以加这个字段不改变任何既有语义。
 	 */
 	reasoningField?: string;
+	/**
+	 * 这段推理开始的时刻（`Date.now()`），由各适配器在思考块开始时记下，结束时据此算出 `durationMs`。
+	 * 界面在推理还在写的时候拿它给这一段选一个固定的说法。
+	 */
+	startedAt?: number;
+	/**
+	 * 这段推理从开始到写完用了多久，毫秒，由各适配器在思考块结束时记下。写完之后界面读它，不再拿现在比。
+	 *
+	 * 缺省是旧会话、或者推理写到一半就断了（没等到结束事件）——那时说不出一个真的时长，界面不编一个。
+	 * 一次性把整块推理吐出来的中转上，开始和结束几乎同时到，这里就只有几毫秒：量的是看得见的那一段。
+	 */
+	durationMs?: number;
 }
 
 export interface ImageContent {

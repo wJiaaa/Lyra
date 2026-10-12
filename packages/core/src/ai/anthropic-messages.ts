@@ -500,6 +500,7 @@ async function* streamAnthropic(
 									...(typeof block.signature === "string" && block.signature ? { signature: block.signature } : {}),
 									redacted: block.type === "redacted_thinking" || undefined,
 									encrypted: typeof block.data === "string" ? block.data : undefined,
+									startedAt: Date.now(),
 								});
 								blocks.set(idx, {
 									kind: "thinking",
@@ -589,6 +590,8 @@ async function* streamAnthropic(
 							} else if (tracked.kind === "text") {
 								yield { type: "text_end", index: idx };
 							} else {
+								const target = partial.content[tracked.contentIndex];
+								if (target?.type === "thinking" && target.startedAt !== undefined) target.durationMs = Date.now() - target.startedAt;
 								yield { type: "thinking_end", index: idx };
 							}
 							break;
