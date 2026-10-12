@@ -45,6 +45,7 @@ const globals: Record<string, unknown> = {
 	HTMLButtonElement: w.HTMLButtonElement,
 	Element: w.Element,
 	Node: w.Node,
+	NodeFilter: w.NodeFilter,
 	Event: w.Event,
 	CustomEvent: w.CustomEvent,
 	KeyboardEvent: w.KeyboardEvent,

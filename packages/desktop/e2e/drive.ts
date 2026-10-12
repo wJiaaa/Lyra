@@ -343,6 +343,16 @@ export async function clickAt(page: Page, at: Point, modifiers = 0): Promise<voi
 	await frames(page, 2);
 }
 
+/** 在一个点上连点三下选中整段：`clickCount` 递增，浏览器才按段落粒度扩选区。 */
+export async function tripleClickAt(page: Page, at: Point): Promise<void> {
+	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
+	for (let count = 1; count <= 3; count++) {
+		await page.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: count });
+		await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: count });
+	}
+	await frames(page, 4);
+}
+
 /**
  * 把东西拖到一个元素上放下：从访达拖来的文件给 `files`（磁盘上的路径），应用里拖出来的给 `items`。
  *
