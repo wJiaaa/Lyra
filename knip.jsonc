@@ -47,7 +47,10 @@
     ".": {
       // Each of these is a command someone runs by hand or a hook runs for them. Nothing imports
       // them, which is the point, and without this they read as unused files.
-      "entry": ["scripts/**/*.mjs", "test/**/*.test.ts"]
+      "entry": ["scripts/**/*.mjs", "test/**/*.test.ts"],
+      // `test/tool-eval/preview-inspect.cjs` is run by the Electron binary itself, where
+      // `require("electron")` is the built-in module, not a package the root installs.
+      "ignoreDependencies": ["electron"]
     }
   },
 

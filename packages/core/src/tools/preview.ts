@@ -45,49 +45,52 @@ const MAX_CHECK_WIDTH = 1600;
  */
 export const previewTool: Tool<PreviewArgs> = {
 	name: "preview",
+	/*
+	 * Sent with every request, so it says only what the model would get wrong otherwise; the mistakes
+	 * behind the layout and checking rules are in docs/architecture/conversation-rendering.md. What a
+	 * result already says when it matters stays out: "don't describe a published page" (`shown`), and
+	 * that a page which throws is refused (`execute`).
+	 */
 	description:
-		"Show a self-contained web page inline in the conversation, above your reply; the user can also open it in the side panel. " +
-		"Use it when the answer is something to look at or use — a chart, a diagram, a table to explore, a demo or game, a layout for approval — not to show code for reading. " +
-		"Pass `html`, or `files` for several. Inline CSS and JS; libraries may come from a CDN over https. " +
-		"The page appears while you write it, before any script runs: styles in <head>, then the markup, then scripts at the end of <body>, and write as markup (text, layout, inline SVG) whatever needs no script. " +
-		"It runs sandboxed, with no access to the user's machine or the app. " +
-		"It sits in the reply at the text column's width (about 700px, narrower in split views): no background on html or body, no outer card, border or page title, " +
-		"fluid widths, fixed pixel heights for charts, never 100vh or height:100% — the frame grows to fit. " +
-		"Use the theme's CSS variables on :root, which follow light/dark live, instead of fixed colours: " +
+		"Show a self-contained web page inline in the conversation, above your reply, when the answer is something to look at or use " +
+		"(a chart, diagram, table to explore, demo, game, layout for approval), not code to read. " +
+		"Inline CSS and JS; libraries may come from a CDN over https. Sandboxed: no access to the user's machine or the app. " +
+		"It renders as you write it, before scripts run: styles in <head>, then markup, then scripts at the end of <body>; whatever needs no script (text, layout, inline SVG) is markup. " +
+		"It sits in the reply, about 700px wide: no background on html or body, no outer card, border or page title; " +
+		"fluid widths, fixed pixel heights for charts, never 100vh or height:100% (the frame grows to fit). " +
+		"Colour with the theme's CSS variables on :root, which follow light/dark live, not fixed colours: " +
 		"--background --foreground --muted --muted-foreground --card --border --primary --primary-foreground --success --warning --danger " +
 		"--code-background --code-foreground --chart-1 … --chart-6 --radius --font-sans --font-mono. " +
-		"`plume.send(text)` in a click handler sends text as the user's next message to you — put what they chose in it (\"Plan B, 12 seats, yearly\"). Only on a press, never on load, a timer or input changes. " +
-		"`plume.state` is what the page saved last (null at first); `plume.setState(value)` saves up to 16 KB of JSON. Save what the reader sets when they set it and start from `plume.state`; " +
-		"their changes reach you as <page-state> after their next message. " +
-		"For a design they may want to fine-tune, offer knobs: `plume.tweak({ label, onChange })` returns a group with `.slider(obj, key, { label, min, max, step, unit })`, " +
-		"`.color(obj, key, { label })` (#rrggbb), `.toggle(obj, key, { label })` and `.select(obj, key, { label, options })`, each binding `obj[key]` (up to 12 a group). " +
-		"A moved control sets the property and calls `onChange`, so keep `onChange` a redraw from `obj`. What they settle on comes back as <design-settings> for you to write into the page. " +
-		"When the user is to pick one of the things the page shows, put the picking in an interface block under the page, not in it. " +
-		"Check a page with `check: true` and fix it until it is right, then publish it with just its `id`. " +
-		"Never start a server or open a page with the browser tools to look at it. Don't describe a published page in your reply — the user already sees it.",
+		"`plume.send(text)` sends text as the user's next message to you, spelling out what they chose; it works only from a click, not on load, a timer or input. " +
+		"`plume.state` is the last `plume.setState(json)` (up to 16 KB; null at first): save what the reader sets as they set it and start from it; their changes reach you as <page-state> with their next message. " +
+		"For a design they may fine-tune, `plume.tweak({ label, onChange })` returns a group of up to 12 knobs: `.slider(obj, key, { label, min, max, step, unit })`, " +
+		"`.select(obj, key, { label, options })`, and `.color` (#rrggbb) and `.toggle`, each `(obj, key, { label })`. " +
+		"A moved knob sets `obj[key]` and calls `onChange`, so make `onChange` a redraw from `obj`. Settled values come back as <design-settings> for you to write into the page. " +
+		"For the user to pick one of the things the page shows, put the picking in an interface block under the page, not in it. " +
+		"Check with `check: true` and fix until it is right, then publish with just its `id`. Never start a server or use the browser tools to look at a page.",
 	parameters: {
 		type: "object",
 		properties: {
-			title: { type: "string", description: "Short label shown on the preview, e.g. 贪吃蛇." },
-			html: { type: "string", description: "A complete HTML document. Use this for the common single-file case." },
+			title: { type: "string", description: "Short label, e.g. 贪吃蛇." },
+			html: { type: "string", description: "A complete HTML document." },
 			files: {
 				type: "array",
-				description: "Several files, for when styles or scripts are worth keeping separate.",
+				description: "Several files, instead of `html`.",
 				items: {
 					type: "object",
 					properties: {
-						path: { type: "string", description: "Relative path, e.g. index.html or style.css." },
+						path: { type: "string", description: "Relative path, e.g. style.css." },
 						content: { type: "string" },
 					},
 					required: ["path", "content"],
 					additionalProperties: false,
 				},
 			},
-			path: { type: "string", description: "An .html file on disk, shown instead of `html`/`files`. A copy of that one file: call again after changing it, and keep its CSS, JS and images inline or on https." },
-			entry: { type: "string", description: "Which file to load. Defaults to index.html." },
-			check: { type: "boolean", description: "Load the page out of sight and return a screenshot, console errors and height, without publishing it." },
-			width: { type: "number", description: "With check: the width to load it at, 320–1600 — 390 for a phone, 1440 for a desktop — instead of writing variants. Defaults to the conversation's width." },
-			id: { type: "string", description: "Publish a page checked with `check: true`, by the id that call returned. Pass nothing else — not the html again." },
+			path: { type: "string", description: "An .html file on disk, shown instead. Only that file is copied: call again after changing it; its CSS, JS and images must be inline or on https." },
+			entry: { type: "string", description: "File to load; defaults to index.html." },
+			check: { type: "boolean", description: "Load the page out of sight and return a screenshot, console errors and height. Not shown to the user until published by `id`." },
+			width: { type: "number", description: "With check: the width to load at, 320–1600 (390 phone, 1440 desktop), instead of writing variant pages. Defaults to the conversation's." },
+			id: { type: "string", description: "Publish the checked page with this id. Pass nothing else, not the html again." },
 		},
 		required: [],
 		additionalProperties: false,
