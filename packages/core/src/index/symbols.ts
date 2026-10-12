@@ -17,6 +17,7 @@ import { mkdir, open, readdir, readFile, rm, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { plumeHome } from "../session/store.ts";
 import { looksBinary } from "../tools/paths.ts";
+import { gitListedFiles } from "../tools/project-files.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
 
 export interface SymbolEntry {
@@ -46,10 +47,14 @@ const MAX_FILE_BYTES = 800_000;
 const MAX_SYMBOLS = 40_000;
 /**
  * Bumped when the indexing rules change, so an index built under the old ones is rebuilt rather
- * than trusted. 2: bindings only at the top level (see `buildIndex`).
+ * than trusted. 2: bindings only at the top level (see `buildIndex`). 3: files git ignores are out.
  */
-export const INDEX_VERSION = 2;
+export const INDEX_VERSION = 3;
 
+/**
+ * Applied to git's list as well, not only to the walk outside a repository: a committed `vendor/` or
+ * `dist/` is real to grep, but its declarations would crowd the project's own out of `MAX_SYMBOLS`.
+ */
 const SKIP_DIRS = new Set([
 	"node_modules", ".git", "dist", "build", "out", ".next", ".nuxt", "target", "vendor",
 	"__pycache__", ".venv", "venv", ".turbo", ".cache", "Pods", ".gradle", ".expo", "coverage",
@@ -81,6 +86,48 @@ export async function buildIndex(cwd: string, signal?: AbortSignal): Promise<Sym
 	let fileCount = 0;
 	let skipped = 0;
 
+	const indexFile = async (full: string): Promise<void> => {
+		const dot = full.lastIndexOf(".");
+		if (dot === -1 || !CODE_EXTENSIONS.has(full.slice(dot).toLowerCase())) return;
+
+		const info = await stat(full).catch(() => null);
+		if (!info || info.size > MAX_FILE_BYTES) {
+			skipped += 1;
+			return;
+		}
+
+		const buffer = await readFile(full).catch(() => null);
+		if (!buffer || looksBinary(buffer)) {
+			skipped += 1;
+			return;
+		}
+
+		fileCount += 1;
+		const rel = relative(cwd, full).split(sep).join("/");
+		const lines = buffer.toString("utf8").split("\n");
+
+		for (let i = 0; i < lines.length && symbols.length < MAX_SYMBOLS; i++) {
+			const line = lines[i];
+			// Long minified lines are not declarations worth indexing.
+			if (line.length > 400) continue;
+			for (const { kind, re } of PATTERNS) {
+				const match = re.exec(line);
+				if (!match) continue;
+				/*
+				 * Bindings only at the top level — the same rule the `read` outline settled on. The
+				 * `const` pattern matches every local inside a function body just as happily, and on
+				 * this repository those were 36 000 of 52 000 matches: the walk hit `MAX_SYMBOLS`
+				 * halfway through the alphabet, and everything after `desktop/src/ui/icons` —
+				 * `Popover.tsx` among it — was never indexed. `symbol` then answered "not found" for
+				 * functions that plainly exist, and the agent went back to grep.
+				 */
+				if (kind === "const" && /^\s/.test(line)) break;
+				symbols.push({ name: match[1], kind, file: rel, line: i + 1, text: line.trim().slice(0, 200) });
+				break;
+			}
+		}
+	};
+
 	const walk = async (dir: string): Promise<void> => {
 		if (signal?.aborted || symbols.length >= MAX_SYMBOLS) return;
 		let entries: Dirent[];
@@ -99,51 +146,17 @@ export async function buildIndex(cwd: string, signal?: AbortSignal): Promise<Sym
 				await walk(full);
 				continue;
 			}
-			if (!entry.isFile()) continue;
-
-			const dot = entry.name.lastIndexOf(".");
-			if (dot === -1 || !CODE_EXTENSIONS.has(entry.name.slice(dot).toLowerCase())) continue;
-
-			const info = await stat(full).catch(() => null);
-			if (!info || info.size > MAX_FILE_BYTES) {
-				skipped += 1;
-				continue;
-			}
-
-			const buffer = await readFile(full).catch(() => null);
-			if (!buffer || looksBinary(buffer)) {
-				skipped += 1;
-				continue;
-			}
-
-			fileCount += 1;
-			const rel = relative(cwd, full).split(sep).join("/");
-			const lines = buffer.toString("utf8").split("\n");
-
-			for (let i = 0; i < lines.length && symbols.length < MAX_SYMBOLS; i++) {
-				const line = lines[i];
-				// Long minified lines are not declarations worth indexing.
-				if (line.length > 400) continue;
-				for (const { kind, re } of PATTERNS) {
-					const match = re.exec(line);
-					if (!match) continue;
-					/*
-					 * Bindings only at the top level — the same rule the `read` outline settled on. The
-					 * `const` pattern matches every local inside a function body just as happily, and on
-					 * this repository those were 36 000 of 52 000 matches: the walk hit `MAX_SYMBOLS`
-					 * halfway through the alphabet, and everything after `desktop/src/ui/icons` —
-					 * `Popover.tsx` among it — was never indexed. `symbol` then answered "not found" for
-					 * functions that plainly exist, and the agent went back to grep.
-					 */
-					if (kind === "const" && /^\s/.test(line)) break;
-					symbols.push({ name: match[1], kind, file: rel, line: i + 1, text: line.trim().slice(0, 200) });
-					break;
-				}
-			}
+			if (entry.isFile()) await indexFile(full);
 		}
 	};
 
-	await walk(cwd);
+	const listed = await gitListedFiles(cwd);
+	if (!listed) await walk(cwd);
+	else for (const full of listed) {
+		if (signal?.aborted || symbols.length >= MAX_SYMBOLS) break;
+		if (relative(cwd, full).split(sep).slice(0, -1).some((name) => SKIP_DIRS.has(name))) continue;
+		await indexFile(full);
+	}
 	return { cwd, builtAt: Date.now(), fileCount, symbols, skipped, version: INDEX_VERSION, truncated: symbols.length >= MAX_SYMBOLS };
 }
 

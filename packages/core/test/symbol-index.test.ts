@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { buildIndex, saveIndex } from "../src/index/symbols.ts";
+import { buildIndex, INDEX_VERSION, saveIndex } from "../src/index/symbols.ts";
 import { symbolTool } from "../src/tools/symbol.ts";
 
 async function workspace(t: TestContext): Promise<string> {
@@ -49,7 +49,7 @@ test("磁盘上旧规则建的索引不再沿用，按现在的规则重建", as
 
 test("索引没建完时，找不到要说清楚是没建到，不是不存在", async (t) => {
 	const dir = await workspace(t);
-	await saveIndex({ cwd: dir, builtAt: Date.now(), fileCount: 1, symbols: [], skipped: 0, version: 2, truncated: true });
+	await saveIndex({ cwd: dir, builtAt: Date.now(), fileCount: 1, symbols: [], skipped: 0, version: INDEX_VERSION, truncated: true });
 
 	const found = textOf(await symbolTool.execute({ name: "missing" }, { cwd: dir, sessionId: "s", state: new Map() }));
 

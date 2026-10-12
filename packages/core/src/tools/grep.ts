@@ -6,7 +6,7 @@ import type { Readable } from "node:stream";
 import { errorResult } from "./result.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
 import { globToRegExp } from "./glob.ts";
-import { gitListedFiles } from "./grep-files.ts";
+import { gitListedFiles, insideGitWorkTree } from "./project-files.ts";
 import { formatMatchWindow, formatMatchWindowAt, utf8ByteOffsetToIndex, type MatchOptions } from "./long-line.ts";
 import { looksBinary } from "./paths.ts";
 import { authorizeRead } from "./read-access.ts";
@@ -163,10 +163,12 @@ function ripgrepCommand(): string {
 
 async function runRipgrep(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal = false): Promise<ToolResult | null> {
 	const limit = Math.min(args.limit ?? MAX_MATCHES, MAX_MATCHES);
-	if (args.files_only) return runRipgrepText(args, root, base, ctx, literal, limit, true);
-	const fromJson = await runRipgrepJson(args, root, base, ctx, literal, limit);
+	// 仓库里看到的文件和 `glob`、兜底是同一份：git 列的，隐藏的也在内。见 `project-files.ts`。
+	const scope = (await insideGitWorkTree(root)) ? ["--hidden", "--glob", "!.git"] : [];
+	if (args.files_only) return runRipgrepText(args, root, base, ctx, literal, limit, true, scope);
+	const fromJson = await runRipgrepJson(args, root, base, ctx, literal, limit, scope);
 	if (fromJson) return fromJson;
-	return runRipgrepText(args, root, base, ctx, literal, limit, false);
+	return runRipgrepText(args, root, base, ctx, literal, limit, false, scope);
 }
 
 /**
@@ -174,9 +176,9 @@ async function runRipgrep(args: GrepArgs, root: string, base: string, ctx: ToolC
  * beat searching the formatted line again — a lookaround or engine mismatch
  * used to drop us back on the line head.
  */
-async function runRipgrepJson(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal: boolean, limit: number): Promise<ToolResult | null> {
+async function runRipgrepJson(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal: boolean, limit: number, scope: string[]): Promise<ToolResult | null> {
 	// `--crlf` so `$` matches before a `\r\n`: without it `foo$` never matched a line of a CRLF file.
-	const argv = ["--json", "--crlf", "--max-count", String(limit)];
+	const argv = ["--json", "--crlf", "--max-count", String(limit), ...scope];
 	if (literal) argv.push("--fixed-strings");
 	if (args.case_insensitive) argv.push("-i");
 	if (args.context) argv.push("-C", String(args.context));
@@ -214,8 +216,8 @@ async function runRipgrepJson(args: GrepArgs, root: string, base: string, ctx: T
 	return run && ripgrepResult(run, args, limit, literal, completed, capped);
 }
 
-async function runRipgrepText(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal: boolean, limit: number, filesOnly: boolean): Promise<ToolResult | null> {
-	const argv = ["--no-heading", "--with-filename", "--line-number", "--color=never", "--crlf", "--max-count", String(limit)];
+async function runRipgrepText(args: GrepArgs, root: string, base: string, ctx: ToolContext, literal: boolean, limit: number, filesOnly: boolean, scope: string[]): Promise<ToolResult | null> {
+	const argv = ["--no-heading", "--with-filename", "--line-number", "--color=never", "--crlf", "--max-count", String(limit), ...scope];
 	if (literal) argv.push("--fixed-strings");
 	if (args.case_insensitive) argv.push("-i");
 	if (filesOnly) argv.push("--files-with-matches");
@@ -338,6 +340,8 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 
 	const limit = Math.min(args.limit ?? MAX_MATCHES, MAX_MATCHES);
 	const globRegex = args.glob ? globToRegExp(args.glob) : null;
+	// ripgrep 的 `--glob` 照 gitignore 的规矩：不带 `/` 的模式比文件名，任意深度都算；带了才比整条路径。
+	const globTarget = args.glob?.includes("/") ? (rel: string) => rel : (rel: string) => rel.slice(rel.lastIndexOf("/") + 1);
 	const lines: string[] = [];
 	const contextLines = args.context ?? 0;
 
@@ -392,7 +396,7 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 			}
 			if (!entry.isFile()) continue;
 			const rel = relative(root, full).split(sep).join("/");
-			if (globRegex && !globRegex.test(rel)) continue;
+			if (globRegex && !globRegex.test(globTarget(rel))) continue;
 			await scanFile(full);
 		}
 	};
@@ -403,7 +407,7 @@ async function runFallback(args: GrepArgs, root: string, ctx: ToolContext): Prom
 		if (!listed) await walk(root);
 		else for (const full of listed) {
 			if (lines.length >= limit || ctx.signal?.aborted) break;
-			if (globRegex && !globRegex.test(relative(root, full).split(sep).join("/"))) continue;
+			if (globRegex && !globRegex.test(globTarget(relative(root, full).split(sep).join("/")))) continue;
 			await scanFile(full);
 		}
 	}

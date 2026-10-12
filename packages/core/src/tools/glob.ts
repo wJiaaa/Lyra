@@ -3,6 +3,7 @@ import { readdir, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
+import { gitListedFiles } from "./project-files.ts";
 import { authorizeRead } from "./read-access.ts";
 
 const MAX_RESULTS = 500;
@@ -12,6 +13,7 @@ const MAX_RESULTS = 500;
  * 都只基于这一部分，而结果里看不出来。
  */
 const SORT_CAP = 10_000;
+/** 不在 git 仓库里时才用这张名单；仓库里认 `.gitignore`，见 `project-files.ts`。 */
 const SKIP_DIRS = new Set([
 	"node_modules", ".git", "dist", "build", "out", ".next", ".nuxt", "target",
 	"__pycache__", ".venv", "venv", ".turbo", ".cache", "Pods", ".gradle", ".expo",
@@ -28,7 +30,7 @@ export const globTool: Tool<GlobArgs> = {
 	name: "glob",
 	description:
 		"Find files by name, newest first; to search contents, use grep. Supports `*`, `?`, `**` and `{a,b}`, e.g. `src/**/*.{ts,tsx}`. " +
-		"Build and dependency directories are skipped.",
+		"Skips files git ignores (outside a git repository: build and dependency directories).",
 	parameters: {
 		type: "object",
 		properties: {
@@ -70,6 +72,11 @@ export const globTool: Tool<GlobArgs> = {
 		const limit = Math.min(args.limit ?? MAX_RESULTS, MAX_RESULTS);
 		const found: string[] = [];
 		let total = 0;
+		const consider = (rel: string): void => {
+			if (!regex.test(rel)) return;
+			total++;
+			if (found.length < SORT_CAP) found.push(rel);
+		};
 
 		const walk = async (dir: string): Promise<void> => {
 			if (ctx.signal?.aborted) return;
@@ -89,14 +96,13 @@ export const globTool: Tool<GlobArgs> = {
 					continue;
 				}
 				if (!entry.isFile()) continue;
-				const rel = relative(root, full).split(sep).join("/");
-				if (!regex.test(rel)) continue;
-				total++;
-				if (found.length < SORT_CAP) found.push(rel);
+				consider(relative(root, full).split(sep).join("/"));
 			}
 		};
 
-		await walk(root);
+		const listed = await gitListedFiles(root);
+		if (listed) for (const full of listed) consider(relative(root, full).split(sep).join("/"));
+		else await walk(root);
 		const matches: { path: string; mtime: number }[] = [];
 		for (let at = 0; at < found.length; at += 64) {
 			const batch = found.slice(at, at + 64);
