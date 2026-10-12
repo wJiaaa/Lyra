@@ -29,6 +29,7 @@ import type {
 import { compactWith } from "./compaction.ts";
 import type { ArtifactSink } from "../agent/prune.ts";
 import { textTokens, toolTokens } from "../tokens.ts";
+import { toolTable } from "../tools/mcp-search.ts";
 import { addressLookups, runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
 import type { DelegationWaits } from "./delegation-waits.ts";
@@ -183,7 +184,8 @@ export function buildTurnConfig(
 					model,
 					provider,
 					streamFn: deps.summaryStream,
-					overhead: textTokens(systemPrompt) + toolTokens(turn.tools),
+					// 按发出去的那份工具表算：被延迟的 MCP 工具不在请求里（`tools/mcp-search.ts`）。
+					overhead: textTokens(systemPrompt) + toolTokens(toolTable(turn.tools)),
 					// 自动压缩剪掉的原文也存下来——它剪掉的量比手动压缩多得多。
 					artifacts: deps.artifacts,
 					observer,

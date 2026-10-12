@@ -1,4 +1,4 @@
-import type { DiffHunk, ToolResult } from "@plume/core";
+import type { DiffHunk, ImageContent, ToolResult } from "@plume/core";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import {
 	ArrowUpRight,
@@ -50,6 +50,7 @@ const ICONS: Record<string, typeof FileText> = {
 	skill: Sparkles,
 	web_fetch: Globe,
 	generate_image: Image,
+	mcp_search: Search,
 };
 
 interface ToolCardProps {
@@ -341,7 +342,13 @@ function resultText(result: ToolResult): string {
 const RESULT_THUMB_HEIGHT = 160;
 
 function ResultImages({ result, summary, spaced }: { result: ToolResult; summary: string; spaced: boolean }) {
-	const images = result.content.flatMap((block) => {
+	/*
+	 * 模型手上的和人眼前的可以不是同一份：MCP 工具返回的大图不塞进请求（模型拿到的是一个路径，见
+	 * `core/src/mcp/result.ts`），落在 `session-media` 里、记在 `details.images`，这里照样画出来。
+	 */
+	const parked = (result.details as { images?: unknown } | undefined)?.images;
+	const blocks = [...result.content, ...(Array.isArray(parked) ? (parked as ImageContent[]).filter((block) => block?.type === "image") : [])];
+	const images = blocks.flatMap((block) => {
 		const refs = block.type === "image" ? imageBlockSrc(block, RESULT_THUMB_HEIGHT * 2) : null;
 		return refs ? [refs] : [];
 	});

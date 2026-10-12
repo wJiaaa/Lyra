@@ -13,6 +13,7 @@ import { runTurn } from "../agent/runner.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import type { PromptContext } from "../prompt/context.ts";
 import { errorResult } from "../tools/result.ts";
+import { toolTable } from "../tools/mcp-search.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
 import type { Message, Tool } from "../types.ts";
 import { continueWhileWorkRemains, type ContinuationDeps } from "./continuation.ts";
@@ -110,10 +111,12 @@ export async function runDispatched(
 	pruner.onAdopt = (views) =>
 		void options.emit({ type: "subagent_views", id, views: views.flatMap(({ source, view }) => (source.role === "toolResult" ? [{ toolCallId: source.toolCallId, message: view }] : [])) }).catch(() => {});
 	try {
+		// 记下的是发出去的那份工具表：被延迟的不在里面，两个入口在（`tools/mcp-search.ts`）。
+		const table = toolTable(allowed);
 		await options.emit({ type: "subagent_event", id, event: {
-			type: "context", systemPrompt, tools: allowed.map(tool => tool.name),
+			type: "context", systemPrompt, tools: table.map(tool => tool.name),
 			skills: options.skills.map(skill => skill.name), sections,
-			schemas: allowed.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters })),
+			schemas: table.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters })),
 		} });
 		const runConfig = await subAgentRunConfig(options, dispatched, { systemPrompt, history, pruner, checkpoint });
 		/** 跑一段，并记下模型此刻眼里的历史。 */

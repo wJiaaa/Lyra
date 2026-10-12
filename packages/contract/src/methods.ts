@@ -167,6 +167,8 @@ export const METHODS = {
 	},
 	commands: {
 		list: { channel: "commands:list" },
+		prompts: { channel: "commands:prompts" },
+		prompt: { channel: "commands:prompt" },
 		create: { channel: "commands:create" },
 		reveal: { channel: "commands:reveal" },
 		open: { channel: "commands:open" },
@@ -184,6 +186,9 @@ export const METHODS = {
 		updateAll: { channel: "plugins:updateAll" },
 		environment: { channel: "plugins:environment" },
 		mcpStatus: { channel: "plugins:mcpStatus" },
+		mcpLogin: { channel: "plugins:mcpLogin" },
+		mcpLogout: { channel: "plugins:mcpLogout" },
+		mcpReconnect: { channel: "plugins:mcpReconnect" },
 	},
 	updates: {
 		check: { channel: "updates:check" },

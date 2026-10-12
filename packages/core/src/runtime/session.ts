@@ -31,7 +31,7 @@ import { ApprovalGate, sessionApprovalGate } from "./approvals.ts";
 import type { ContextBreakdown } from "./context.ts";
 import { describeContext, describeSession, type SessionFacts, type SessionStatus } from "./reporting.ts";
 import { CapabilityWatcher } from "./capability-watch.ts";
-import { SessionCapabilities } from "./session-capabilities.ts";
+import { mcpFailureNotice, SessionCapabilities } from "./session-capabilities.ts";
 import { scratchDir, sessionFacts } from "./session-facts.ts";
 import { SessionLog } from "./session-log.ts";
 import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
@@ -97,6 +97,11 @@ export interface AgentSessionOptions {
 	 * 只是白花的钱。
 	 */
 	compactWhenIdle?: boolean;
+	/**
+	 * 有没有人能回答 MCP 服务器中途要填的表单（elicitation）。默认有——桌面端。命令行没有人可问，
+	 * 传 false：不向服务器声明这项能力，服务器硬发来就回 decline。
+	 */
+	elicitation?: boolean;
 }
 
 export class AgentSession {
@@ -250,7 +255,16 @@ export class AgentSession {
 			return options.emit(event);
 		}, options.meta);
 		const sideTools = options.parent ? sideChatTools(options.parent, () => this.modelInEffect()) : [];
-		this.can = new SessionCapabilities([...(options.extraTools ?? []), ...sideTools]);
+		this.can = new SessionCapabilities(
+			[...(options.extraTools ?? []), ...sideTools],
+			{
+				// 表单和提问、授权在同一张卡片通道上问；没有人可问的宿主不给，MCP 那边也就不声明这项能力。
+				...(options.elicitation === false ? {} : { ask: (request, signal) => this.approvals.request(request, signal) }),
+				// 服务器在后台连，不挡会话打开；连不上的在对话里说一声，原因在设置页的那张卡片上。
+				mcpWait: 0,
+				onMcpFailure: (status) => void this.emit(mcpFailureNotice(status)).catch(() => {}),
+			},
+		);
 		this.deliveries = new SessionDeliveries({
 			activity: this.activity,
 			jobs: () => backgroundJobs(this.can.state),
@@ -507,7 +521,7 @@ export class AgentSession {
 		return describeSubAgentContext({
 			detail, seen, settings: this.settings,
 			fallback: resolveModel(this.settings, this.modelIdInEffect())?.model,
-			mcpNames: new Set(this.can.mcp.allTools().map((tool) => tool.name)),
+			mcpNames: this.can.mcpToolNames(),
 		});
 	}
 
@@ -618,6 +632,7 @@ export class AgentSession {
 		 * 并发调大，排着的那几个应该马上开跑，而不是等一个永远轮不到的「下一轮」。
 		 */
 		refreshDispatchGate(this.can.state, this.settings);
+		this.can.pinMcp(this.settings);
 		/*
 		 * 项目层重新叠一遍，不等这次调用。
 		 *

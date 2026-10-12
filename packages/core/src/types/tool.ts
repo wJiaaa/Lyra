@@ -6,6 +6,7 @@
  * one context object rather than through imports, which is what lets a host substitute any of it.
  */
 
+import type { FormField, FormValues } from "../mcp/form.ts";
 import type { SandboxMode } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
 import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
@@ -85,6 +86,11 @@ export interface ToolResult {
 }
 
 export interface ToolContext {
+	/**
+	 * 这一轮的工具，被延迟的在内。`mcp_search` 在其中被延迟的那些里搜：权限档、子代理定义筛掉的，
+	 * 这里本来就没有。
+	 */
+	tools?: readonly Tool[];
 	/** Absolute working directory for this session. */
 	cwd: string;
 	sessionId: string;
@@ -205,8 +211,14 @@ export interface QuestionFields {
 }
 
 export interface ApprovalRequest extends QuestionFields {
-	kind: "bash" | "write" | "edit" | "read" | "mcp" | "network" | "interactive";
+	/**
+	 * `interactive` 是 `ask_user` 的提问；`form` 是 MCP 服务器在工具调用中途要人填的一张表
+	 * （`elicitation/create`）。这两种问的是人，不是许可：任何权限模式下都不会被自动回答。
+	 */
+	kind: "bash" | "write" | "edit" | "read" | "mcp" | "network" | "interactive" | "form";
 	title: string;
+	/** `form` 的那几格，由 `mcp/form.ts` 从服务器的 schema 读出来。 */
+	fields?: FormField[];
 	detail: string;
 	/**
 	 * Why this is being asked, in the asker's own words.
@@ -226,10 +238,14 @@ export interface ApprovalRequest extends QuestionFields {
 	/** Command / path the approval applies to, used for "always allow" rules. */
 	subject: string;
 	/**
-	 * The asker says this action changes nothing. Only a hint for a policy to weigh — today an MCP
-	 * tool's `readOnlyHint`, which `auto` mode takes and `ask` mode does not.
+	 * The asker says this action changes nothing — today an MCP tool's `readOnlyHint`. A claim, not
+	 * a fact: a policy may let it count only together with `trusted`. See `mcp/tool.ts`.
 	 */
 	readOnly?: boolean;
+	/** The asker says this action deletes or overwrites — an MCP tool's `destructiveHint`. Only ever makes a policy more careful. */
+	destructive?: boolean;
+	/** The person has said they trust this asker's own claims (`readOnly`): an MCP server switched to 信任只读声明. */
+	trusted?: boolean;
 	/**
 	 * The wider sandbox mode this asks to run under, set only on an escalation.
 	 *
@@ -266,7 +282,11 @@ export interface ApprovalOrigin {
 	agent: string;
 	description: string;
 }
-export type ApprovalDecision = "once" | "always" | "reject" | "skip" | { answer: string | string[]; skipped?: boolean };
+/**
+ * 一张卡片的回答。表单有三种：交了（`values`）、拒绝（`reject`，对应协议的 decline）、
+ * 没回答就关掉（`cancel`）——超时、撤回、服务器自己取消了也是 `cancel`。
+ */
+export type ApprovalDecision = "once" | "always" | "reject" | "skip" | "cancel" | { answer: string | string[]; skipped?: boolean } | { values: FormValues };
 
 export interface SubAgentInput {
 	description: string;
@@ -308,6 +328,13 @@ export interface Tool<TArgs = Record<string, unknown>> extends ToolSpec {
 	 * 子代理以会话的名义给别人写信，回信却送回会话，子代理自己永远收不到。
 	 */
 	sessionOnly?: boolean;
+	/** 来自哪台 MCP 服务器、在那台上叫什么。延迟加载按它分组、搜索、写目录（`tools/mcp-search.ts`）。 */
+	mcp?: { tool: string; server(): { id: string; name: string; description?: string } };
+	/**
+	 * 这一轮被留在工具表外：MCP 工具超过阈值时会话做出的副本（`withhold`），定义上不写。内置工具不延迟，
+	 * 理由见 `docs/architecture/mcp-search.md`。
+	 */
+	deferred?: boolean;
 	execute(args: TArgs, ctx: ToolContext): Promise<ToolResult>;
 	/** One-line summary shown in the UI while the tool runs. */
 	summarize?(args: TArgs): string;

@@ -1,5 +1,6 @@
 import { errorResult } from "../tools/result.ts";
 import type { Message, Tool, ToolResult } from "../types.ts";
+import { MCP_SEARCH } from "../tools/mcp-search.ts";
 import { createHash } from "node:crypto";
 import { formatSkillInvocation, type Skill } from "./loader.ts";
 
@@ -114,7 +115,8 @@ export function clearActiveSkill(state: Map<string, unknown>): void {
 export function skillRefusal(state: Map<string, unknown>, toolName: string): string | undefined {
 	const active = state.get(ACTIVE_SKILL_KEY) as ActiveSkill | undefined;
 	if (!active?.allowedTools?.length) return undefined;
-	if (toolName === "skill" || active.allowedTools.includes(toolName)) return undefined;
+	// 搜索只是看说明书：真正的调用经 `mcp_call` 换成那个工具以后，照样按它的名字在这里查。
+	if (toolName === "skill" || toolName === MCP_SEARCH || active.allowedTools.includes(toolName)) return undefined;
 	return (
 		`技能“${active.name}”声明了它只用 ${active.allowedTools.join("、")}，所以 \`${toolName}\` 在它生效期间不可用。` +
 		`如果这一步确实需要它，先说明为什么，让用户决定。`

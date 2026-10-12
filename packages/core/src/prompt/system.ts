@@ -13,6 +13,7 @@ import { createRegistry } from "../capability/index.ts";
 import type { ContextFile } from "../capability/types.ts";
 import { plumeHome } from "../session/store.ts";
 import { concurrencyNote } from "../runtime/dispatch-guard.ts";
+import { deferredCatalog, MCP_CALL, MCP_SEARCH, type CatalogEntry } from "../tools/mcp-search.ts";
 import { parseGuidelines } from "./overrides.ts";
 import { renderTemplate } from "./template.ts";
 import type { Skill } from "../skills/loader.ts";
@@ -304,6 +305,16 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 		if (input.dispatchLimits) prompt.add("delegation", formatDispatchLimits(input.dispatchLimits));
 	}
 
+	/*
+	 * 被延迟的 MCP 工具的目录：这一轮的工具里有被延迟的才有它，所以子代理、侧边聊天跟着各自的工具走。
+	 * 一行一段（`DeferredSource`）：一台服务器连上、断开，增量里只重发那一行。
+	 */
+	const catalog = deferredCatalog(input.tools);
+	if (catalog.length > 0) {
+		prompt.add("deferred", `\n\n## MCP tools to search for\n\nThe tools of these MCP servers are not in your tool list, to keep it short. When a task needs one, call \`${MCP_SEARCH}\` with what you need to do, a tool name or a server to get its input schema, then run it with \`${MCP_CALL}\`. Search first: their arguments are not guessable.`);
+		for (const entry of catalog) prompt.add(`deferred:${entry.key}`, formatCatalogEntry(entry));
+	}
+
 	if (input.projectInstructions.length > 0) {
 		prompt.add("projectInstructions", "\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n");
 		for (const { path, content } of input.projectInstructions) {
@@ -367,6 +378,22 @@ function formatSubagents(agents: AgentDefinition[]): string {
 
 	lines.push("</available_subagents>");
 	return lines.join("\n");
+}
+
+/** 一行：名字、id、几个工具、它自己的一句介绍，再列出工具原名——名字本身就说明了它能做什么。 */
+function formatCatalogEntry(entry: CatalogEntry): string {
+	const description = entry.server.description?.replace(/\s+/g, " ").trim();
+	const about = description ? ` ${/[.!?。…]$/.test(description) ? description : `${description}.`}` : "";
+	let names = "";
+	for (const name of entry.tools) {
+		const next = names ? `${names}, ${name}` : name;
+		if (next.length > 240) {
+			names = `${names}, …`;
+			break;
+		}
+		names = next;
+	}
+	return `\n- MCP server ${entry.server.name} (\`${entry.server.id}\`, ${entry.tools.length} tools):${about} Tools: ${names}`;
 }
 
 /**

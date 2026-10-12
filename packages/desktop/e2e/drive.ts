@@ -204,6 +204,12 @@ export async function openSettings(page: Page, section: string): Promise<void> {
 	await frames(page, 20);
 }
 
+/** 从设置回到工作区：点左侧导航顶上那颗「返回工作区」。 */
+export async function closeSettings(page: Page): Promise<void> {
+	await click(page, "nav button", "返回工作区", "starts");
+	await frames(page, 20);
+}
+
 /**
  * 在侧栏点开一个会话，等它真的成了当前会话。
  *
@@ -233,6 +239,27 @@ export async function openCommandPalette(page: Page): Promise<void> {
 	await click(page, 'button[aria-label="搜索会话"]');
 	await until(page, `document.activeElement?.matches(${JSON.stringify(COMMAND_PALETTE)})`);
 	await frames(page, 30);
+}
+
+/**
+ * 对话里最后一处收起的地方一层层点开（「使用工具」分组 → 工具行 → 卡片），直到 `ready` 成立。
+ *
+ * 工具调用默认折在分组里，进度、结果图片在点开之前不在 DOM 上。只点调用链的行（`.ly-flow-row`）和
+ * 工具卡片的头：输入框那一排的项目、模型菜单也是 `aria-expanded="false"`，而且排在 DOM 最后。
+ */
+export async function expandLastTurn(page: Page, ready: string, budgetMs = 8000): Promise<void> {
+	const end = Date.now() + budgetMs;
+	while (!(await page.evaluate<boolean>(`!!(${ready})`))) {
+		if (Date.now() > end) throw new Error(`expandLastTurn: ${ready}`);
+		const found = await page.evaluate<boolean>(`(()=>{
+			document.querySelectorAll('[data-e2e-expand]').forEach(e=>e.removeAttribute('data-e2e-expand'));
+			const last=[...document.querySelectorAll('main button.ly-flow-row[aria-expanded="false"], main [data-ly-tool] > button[aria-expanded="false"]')].filter(e=>e.checkVisibility()).at(-1);
+			last?.setAttribute('data-e2e-expand','');
+			return !!last;
+		})()`);
+		if (found) await click(page, "[data-e2e-expand]");
+		await frames(page, 12);
+	}
 }
 
 /** 修饰键在 CDP 里的位：Alt 1、Ctrl 2、⌘ 4、Shift 8，可以相加。 */

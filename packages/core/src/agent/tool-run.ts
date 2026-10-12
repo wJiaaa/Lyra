@@ -14,6 +14,7 @@ import { runTool } from "./tool-pipeline.ts";
 import { skillRefusal } from "../skills/tool.ts";
 import { translatedShellCommand, TOOL_NAMES_KEY } from "../tools/reroute.ts";
 import { errorResult } from "../tools/result.ts";
+import { routeMcpCall, MCP_CALL, toolTable } from "../tools/mcp-search.ts";
 import type {
 	ApprovalDecision,
 	ApprovalRequest,
@@ -46,20 +47,31 @@ export async function runTools(
 	 */
 	note?: string,
 ): Promise<ToolResultMessage[]> {
-	const byName = new Map(tools.available.map((t) => [t.name, t]));
+	const byName = new Map(toolTable(tools.available).map((t) => [t.name, t]));
 
 	/*
 	 * Normalised before anything looks at the call — scheduling, hooks, approval and the tool all
 	 * see the same arguments, so what a person approves is what runs.
+	 *
+	 * A call through `mcp_call`, or to a withheld tool by its own name, is replaced by the tool it
+	 * names here, for the same reason: a hook guarding `mcp__github__.*`, an MCP server's destructive
+	 * annotation, `preview`'s approval and its "always allow" all belong to that tool, and seeing
+	 * only the entry would let every one of them be walked around.
 	 */
-	const planned = toolCalls.map((call) => {
-		const tool = resolveTool(byName, call.name);
+	const planned = toolCalls.map((call): { call: ToolCall; tool: Tool | undefined; refusal?: string } => {
+		const named = resolveTool(byName, call.name);
+		const routed = named && named.name !== MCP_CALL ? undefined : routeMcpCall({ name: call.name, args: call.arguments }, tools.available);
+		if (routed && "error" in routed) return { call, tool: named, refusal: routed.error };
+		const tool = routed ? routed.tool : named;
 		if (!tool) return { call, tool };
-		const args = coerceArguments(call.arguments, tool.parameters);
-		return { call: tool.name === call.name && args === call.arguments ? call : { ...call, name: tool.name, arguments: args }, tool };
+		// 经 `mcp_call` 来的，`argumentsText` 是外层 `{tool, arguments}` 的原文，跟换上去的参数对不上；
+		// 留着它，`arguments: {}` 的无参工具会被下面「JSON 没解析出来」那道检查当成截断拦掉。
+		const source = routed ? { ...call, name: tool.name, arguments: routed.args, argumentsText: call.name === MCP_CALL ? JSON.stringify(routed.args) : call.argumentsText } : call;
+		const args = coerceArguments(source.arguments, tool.parameters);
+		return { call: tool.name === source.name && args === source.arguments ? source : { ...source, name: tool.name, arguments: args }, tool };
 	});
 
-	const execute = async ({ call, tool }: (typeof planned)[number]): Promise<ToolResultMessage> => {
+	const execute = async ({ call, tool, refusal }: (typeof planned)[number]): Promise<ToolResultMessage> => {
 		const startedAt = Date.now();
 		await emit({
 			type: "tool_start",
@@ -69,7 +81,7 @@ export async function runTools(
 			summary: tool?.summarize?.(call.arguments) ?? call.name,
 		});
 
-		const result = await executeOne(tool, call, tools, scope, emit);
+		const result = refusal !== undefined ? errorResult(refusal) : await executeOne(tool, call, tools, scope, emit);
 		await emit({
 			type: "tool_end",
 			toolCallId: call.id,
@@ -192,7 +204,7 @@ async function executeOne(
 	emit: AgentEventSink,
 ): Promise<ToolResult> {
 	const { state, signal } = scope;
-	if (!tool) return errorResult(unknownToolMessage(call.name, tools.available));
+	if (!tool) return errorResult(unknownToolMessage(call.name, toolTable(tools.available)));
 
 	/*
 	 * A loaded skill's `allowed-tools`, enforced.
@@ -236,6 +248,7 @@ async function executeOne(
 	const requestApproval = tools.requestApproval;
 	const ctx: ToolContext = {
 		...tools.env,
+		tools: tools.available,
 		sessionId: scope.sessionId,
 		signal,
 		state,

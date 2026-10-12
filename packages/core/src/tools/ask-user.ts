@@ -53,7 +53,7 @@ export const askUserTool: Tool<AskUserArgs> = {
 		 * that stopped one step short and no account of why. The instruction is here rather than
 		 * in the prompt because this is the only place that knows the question went unanswered.
 		 */
-		if (typeof decision !== "object") return errorResult("The question was declined, or it expired with nobody at the keyboard. No answer was received. Whatever you do next, say so plainly in your reply — that you asked, that no answer came, and what you did instead — because the question is no longer on screen and nothing else will mention it.");
+		if (typeof decision !== "object" || !("answer" in decision)) return errorResult("The question was declined, or it expired with nobody at the keyboard. No answer was received. Whatever you do next, say so plainly in your reply — that you asked, that no answer came, and what you did instead — because the question is no longer on screen and nothing else will mention it.");
 		const answer = Array.isArray(decision.answer) ? JSON.stringify(decision.answer) : decision.answer;
 		return { content: [{ type: "text", text: decision.skipped ? `The user skipped and accepted the explicit default: ${answer}` : answer }], details: { kind: "question", answer: decision.answer, skipped: decision.skipped === true } };
 	},

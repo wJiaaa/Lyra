@@ -34,7 +34,7 @@ export function sessionFacts(input: {
 		pluginDiagnostics: can.pluginDiagnostics,
 		mcpStatuses: can.mcpStatuses,
 		agents: can.agents,
-		mcp: can.mcp,
+		mcpToolNames: can.mcpToolNames(),
 		resources: can.resources.schemes(),
 		requestContext: log.requestContext,
 		readContext: () => log.readContext(),

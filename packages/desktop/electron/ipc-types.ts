@@ -74,6 +74,7 @@ import type {
 	ConfigProblem,
 	LayerOverride,
 	McpBundle,
+	McpPromptEntry,
 	MessageAttachment,
 	Plugin,
 	NoticeParams,
@@ -110,8 +111,8 @@ import type {
 } from "./ipc-shapes.ts";
 
 export * from "./ipc-shapes.ts";
-export type { SkillEntry } from "./ipc/commands.ts";
-import type { SkillEntry } from "./ipc/commands.ts";
+export type { SkillEntry } from "./commands-service.ts";
+import type { SkillEntry } from "./commands-service.ts";
 
 /*
  * The account types, re-exported so the renderer imports one module.
@@ -673,6 +674,17 @@ export interface PlumeApi {
 			skills: SkillEntry[];
 			agents?: Array<{ id: string; name: string; description: string; avatar?: string }>;
 		}>;
+		/**
+		 * MCP 服务器提供的 prompt，给 `/` 菜单。有会话用会话手上的连接；新对话（`null`）还没有会话，
+		 * 临时连一次去问，见 `mcp-probe.ts`。和 `list` 分开，是因为设置页、`@` 提及也读 `list`，
+		 * 它们不该为此去启动服务器。
+		 */
+		prompts(sessionId: string | null): Promise<McpPromptEntry[]>;
+		/**
+		 * 取一个 MCP prompt 展开后的内容。参数在渲染进程已经对过（`bindPromptArguments`）。
+		 * 有会话就用会话的连接；新对话还没有会话，临时连那一台服务器取完就断。
+		 */
+		prompt(sessionId: string | null, name: string, args: Record<string, string>): Promise<{ ok: true; content: UserContent[] } | { ok: false; error: string }>;
 		/** Write a starter file and answer with its path, or say why it could not be written. */
 		create(
 			scope: "workspace" | "user",
@@ -777,6 +789,15 @@ export interface PlumeApi {
 		environment(names: string[]): Promise<string[]>;
 		/** 设置里每台 MCP 服务的状态和工具，不需要会话：主进程临时连一次再断开。 */
 		mcpStatus(): Promise<AgentCapabilities["mcp"]>;
+		/**
+		 * 在系统浏览器里走一遍这台远程 MCP 服务器的 OAuth 登录，等人点完（最多五分钟）。成功后
+		 * 活着的会话会重连它。
+		 */
+		mcpLogin(serverId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+		/** 清掉这台服务器的令牌（注册信息留着，下次登录不必重新注册），会话随之重连。 */
+		mcpLogout(serverId: string): Promise<{ ok: true } | { ok: false; error: string }>;
+		/** 设置页的「重新连接」：每个开着的会话都把这台服务器断开重连，探测记着的那份也丢掉。 */
+		mcpReconnect(serverId: string): Promise<void>;
 		/** 对账结果一变就推过来：自动更新完了、有新的落后了、装卸之后重新数过了。 */
 		onChanged(handler: (state: PluginUpdateState) => void): () => void;
 	};

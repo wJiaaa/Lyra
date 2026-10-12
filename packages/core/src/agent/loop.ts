@@ -23,6 +23,7 @@ import { withInterfaceNotes } from "../ui-language/notes.ts";
 import { withSteeringNote } from "../prompt/steering.ts";
 import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
 import { readTodos, todoTool, type TodoItem } from "../tools/todo.ts";
+import { toolTable } from "../tools/mcp-search.ts";
 import type { AssistantContent, AssistantMessage, LlmContext, Message, ToolResultMessage } from "../types.ts";
 import type { AgentEventSink } from "./events.ts";
 
@@ -287,7 +288,8 @@ async function requestReply(run: Run): Promise<AssistantMessage | "switched" | "
 	const context: LlmContext = {
 		systemPrompt: session.systemPrompt,
 		messages: requestMessages(run),
-		tools: tools.available.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
+		// 被延迟的不发，换成两个入口：见 `tools/mcp-search.ts`。
+		tools: toolTable(tools.available).map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
 	};
 	// The session's own map, not the run's fallback: only a session that keeps one compares prefixes.
 	const scope = { signal: control.signal, state: session.state };

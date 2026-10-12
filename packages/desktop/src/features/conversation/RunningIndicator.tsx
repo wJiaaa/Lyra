@@ -53,7 +53,7 @@ export function RunningIndicator() {
 	const retrying = useScopedRetrying();
 	const compactedAt = useScopedCompactedAt();
 	const waiting = useScopedApprovals()[0];
-	const waitingKind = !waiting ? null : waiting.kind === "interactive" ? "question" : "approval";
+	const waitingKind = !waiting ? null : waiting.kind === "interactive" || waiting.kind === "form" ? "question" : "approval";
 	const [now, setNow] = useState(() => Date.now());
 	/*
 	 * The phrase advances on its own clock, slower than the seconds.

@@ -262,3 +262,22 @@ test("每一种停法都有它自己的那句「继续」", () => {
 	// 停了就是停了，清单空不空都改不了这件事。
 	assert.equal(carryOnPrompt("user", 5), "继续，从暂停的地方接着做。");
 });
+
+test("经 mcp_call 转手的调用，重开会话时画成它真正叫的那个工具；被拦下的仍是 mcp_call", () => {
+	const call = (id: string, args: Record<string, unknown>) => ({ type: "toolCall" as const, id, name: "mcp_call", arguments: args });
+	const assistant: AssistantMessage = {
+		role: "assistant", content: [call("a", { tool: "mcp__linear__create_issue", arguments: { title: "t", team: "ENG" } }), call("b", { tool: "mcp__linear__create_issue", arguments: { title: "t" } })],
+		api: "openai-responses", provider: "p", model: "m", stopReason: "toolUse", timestamp: 1, usage: emptyUsage(),
+	};
+	const messages: Message[] = [
+		assistant,
+		{ role: "toolResult", toolCallId: "a", toolName: "mcp__linear__create_issue", content: [{ type: "text", text: "ok" }], isError: false, timestamp: 2 },
+		{ role: "toolResult", toolCallId: "b", toolName: "mcp_call", content: [{ type: "text", text: "not called" }], isError: true, timestamp: 2 },
+	];
+	const runs = rebuildToolRuns(messages);
+	assert.equal(runs.a.toolName, "mcp__linear__create_issue");
+	assert.deepEqual(runs.a.args, { title: "t", team: "ENG" });
+	assert.equal(runs.a.summary, "linear: create_issue");
+	assert.equal(runs.b.toolName, "mcp_call");
+	assert.deepEqual(runs.b.args, { tool: "mcp__linear__create_issue", arguments: { title: "t" } });
+});

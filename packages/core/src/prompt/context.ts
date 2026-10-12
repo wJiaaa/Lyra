@@ -5,7 +5,10 @@
  * 不用另外接线。同一来源的几块合成一段，所以别给经常变的内容和稳定的内容共用一个来源——变一处，
  * 增量里就要把整段重发一遍（派活说明从 `agents` 里拆成 `delegation` 就是为此）。
  */
-export type PromptSource = "identity" | "tools" | "guidelines" | "boundaries" | "interface" | "environment" | "custom" | "tone" | "userInstructions" | "userMemory" | "projectMemory" | "skills" | "agents" | "delegation" | "projectInstructions" | "workspace" | "resources" | "extension" | "plan" | "goal";
+export type PromptSource = "identity" | "tools" | "guidelines" | "boundaries" | "interface" | "environment" | "custom" | "tone" | "userInstructions" | "userMemory" | "projectMemory" | "skills" | "agents" | "delegation" | "deferred" | DeferredSource | "projectInstructions" | "workspace" | "resources" | "extension" | "plan" | "goal";
+
+/** 被延迟的 MCP 工具的目录里一行一段（一台服务器）：一台连上、断开，增量里只重发那一行。 */
+type DeferredSource = `deferred:${string}`;
 
 export interface PromptSection {
 	source: PromptSource;

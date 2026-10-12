@@ -8,6 +8,8 @@
 
 import {
 	AgentSession,
+	bindPromptArguments,
+	findPrompt,
 	listCommands,
 	parseInvocation,
 	parseSkillMention,
@@ -18,6 +20,7 @@ import {
 	type SessionStorage,
 	type Settings,
 	type Usage,
+	type UserContent,
 } from "@plume/core";
 
 type RunStatus = "done" | "aborted" | "error" | "max_turns" | "stalled";
@@ -48,6 +51,24 @@ export class SetupError extends Error {}
 
 const firstLine = (text: string) => text.split("\n").find((line) => line.trim())?.trim() ?? "";
 
+/**
+ * `/mcp__<服务器>__<prompt> 参数`：取服务器展开的那段话，作为这次的任务发出去。
+ *
+ * 不认识的名字返回 null，和桌面端一样原样发送。认识却缺参数、或服务器取不出来，是这次调用本身
+ * 有误——什么都还没发，所以是 `SetupError`，不是一次失败的运行。
+ */
+async function mcpPrompt(session: AgentSession, invocation: NonNullable<ReturnType<typeof parseInvocation>>): Promise<UserContent[] | null> {
+	const prompt = findPrompt(session.can.mcp.allPrompts(), invocation);
+	if (!prompt) return null;
+	const bound = bindPromptArguments(prompt, invocation.rest);
+	if (!bound.ok) throw new SetupError(`/${prompt.name} 缺少参数：${bound.missing.join("、")}。写法：/${prompt.name} ${prompt.arguments.map((argument) => `${argument.name}=…`).join(" ")}`);
+	try {
+		return await session.can.mcp.getPrompt(prompt.name, bound.args);
+	} catch (error) {
+		throw new SetupError(`取不到 MCP prompt /${prompt.name}：${error instanceof Error ? error.message : String(error)}`);
+	}
+}
+
 export async function runOnce(options: RunOptions): Promise<RunResult> {
 	if (!resolveModel(options.settings, options.settings.defaultModelId)) {
 		throw new SetupError("没有可用的默认模型。在 Plume 桌面端的设置里添加模型供应商并选好默认模型。");
@@ -57,10 +78,13 @@ export async function runOnce(options: RunOptions): Promise<RunResult> {
 	let text = options.prompt;
 	let promptOptions: Parameters<AgentSession["prompt"]>[1] = {};
 	const invocation = parseInvocation(text) ?? parseSkillMention(text);
+	/** 命令和 skill 都不是：可能是一个 MCP prompt，要等会话连上服务器才知道。 */
+	let unresolved = invocation;
 	if (invocation) {
 		const catalogue = await listCommands(options.cwd, options.settings, []);
 		const resolved = resolveInvocation(invocation, catalogue);
 		if (resolved) {
+			unresolved = null;
 			text = resolved.outgoing;
 			promptOptions = {
 				...(resolved.displayText !== undefined ? { displayText: resolved.displayText } : {}),
@@ -78,6 +102,8 @@ export async function runOnce(options: RunOptions): Promise<RunResult> {
 		cwd: options.cwd,
 		settings: options.settings,
 		store: options.store,
+		// 没有人可问：MCP 服务器不会被告知这边能填表，硬要问也一律回 decline。
+		elicitation: false,
 		...(options.streamFn ? { streamFn: options.streamFn } : {}),
 		emit: (event: AgentEvent) => {
 			switch (event.type) {
@@ -124,7 +150,16 @@ export async function runOnce(options: RunOptions): Promise<RunResult> {
 	try {
 		await session.initialize();
 		if (options.signal?.aborted) return { status: "aborted", answer: "", sessionId: session.meta.id, usage: session.meta.usage };
-		await session.prompt([{ type: "text", text }], promptOptions).catch((reason: unknown) => {
+		/*
+		 * 会话不等 MCP 服务器就打开了（桌面端不该为一台慢服务器卡住窗口），第一轮只等它们几秒。命令行
+		 * 没有人在对着窗口等，而评测要的是可复现：一台冷启动要一分钟的服务器，这次赶上、下次没赶上，
+		 * 同一道题就有两种工具表。所以这里等到每台都有结果（每台各自仍受连接超时约束）。
+		 */
+		await session.can.mcp.settled();
+		// 命令行开不了浏览器，登录只能去桌面端；说清楚，免得人以为是服务器挂了。工具少了它照样跑。
+		for (const server of session.can.mcpStatuses) if (server.state === "needs-login" && server.error) options.log(`! ${server.error}`);
+		const content = (unresolved && (await mcpPrompt(session, unresolved))) || [{ type: "text" as const, text }];
+		await session.prompt(content, promptOptions).catch((reason: unknown) => {
 			status = "error";
 			error = reason instanceof Error ? reason.message : String(reason);
 		});

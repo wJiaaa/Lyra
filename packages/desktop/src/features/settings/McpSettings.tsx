@@ -16,7 +16,7 @@
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import type { McpServerConfig } from "@plume/core";
 import { looksSecret } from "@plume/core/mcp-placeholders";
-import { FolderOpen, MoreHorizontal, Plus, SlidersHorizontal, Store, Trash2 } from "../../ui/icons/index.ts";
+import { FolderOpen, MoreHorizontal, Plus, RefreshCw, SlidersHorizontal, Store, Trash2 } from "../../ui/icons/index.ts";
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { AgentCapabilities } from "../../../electron/ipc-types.ts";
@@ -28,6 +28,7 @@ import { usePluginsProject } from "./usePluginsProject.ts";
 import { Card, EmptyHint, Field, Select, TextInput, Toggle } from "./controls.tsx";
 import { SecretInput } from "./inputs.tsx";
 import { ProjectOverrideNotice } from "./ProjectOverrideNotice.tsx";
+import { McpSignIn } from "./McpSignIn.tsx";
 import { McpKeys, missingOf, useEnvironment, useLocalScan, type MarketMark } from "../plugins/index.ts";
 import { bridge } from "../../services/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
@@ -62,13 +63,8 @@ export function McpSettings({ filter = "", markOf }: { filter?: string; markOf?:
 		let alive = true;
 		const timer = setTimeout(
 			async () => {
-				try {
-					const fromSession = activeSessionId ? (await bridge.sessions.capabilities(activeSessionId))?.mcp : undefined;
-					const answer = fromSession ?? (await bridge.plugins.mcpStatus());
-					if (alive) setStatuses(answer);
-				} catch {
-					// 问不到就保持原样：卡片落回「已启用」，不是一段报错。
-				}
+				const answer = await askStatuses(activeSessionId);
+				if (alive && answer) setStatuses(answer);
 			},
 			asked.current ? 600 : 0,
 		);
@@ -78,6 +74,35 @@ export function McpSettings({ filter = "", markOf }: { filter?: string; markOf?:
 			clearTimeout(timer);
 		};
 	}, [activeSessionId, settings?.mcpServers]);
+	/*
+	 * 登录、退出登录之后马上再问一次：配置没变，状态变了。等到新状态到手，登录那一行才停止转圈——
+	 * 否则中间有一瞬间又画回「需要登录」。
+	 */
+	const reread = async () => {
+		const answer = await askStatuses(activeSessionId);
+		if (answer) setStatuses(answer);
+	};
+	/*
+	 * 会话不等服务器连完就打开，重连也在后台走：状态里还有「连接中」「重连中」的，过一秒再问一次，
+	 * 直到每台都有了结果。没有这一段，卡片会一直停在「连接中」，直到人碰一下设置。
+	 */
+	const settling = statuses?.some((status) => status.state === "connecting" || status.state === "reconnecting") ?? false;
+	useEffect(() => {
+		if (!settling) return;
+		let alive = true;
+		const timer = setTimeout(async () => {
+			const answer = await askStatuses(activeSessionId);
+			if (alive && answer) setStatuses(answer);
+		}, 1000);
+		return () => {
+			alive = false;
+			clearTimeout(timer);
+		};
+	}, [settling, statuses, activeSessionId]);
+	const reconnect = async (serverId: string) => {
+		await bridge.plugins.mcpReconnect(serverId);
+		await reread();
+	};
 
 	const all = settings?.mcpServers ?? [];
 	const present = useEnvironment(all.flatMap((server) => Object.keys(server.env ?? {})));
@@ -138,6 +163,8 @@ export function McpSettings({ filter = "", markOf }: { filter?: string; markOf?:
 							key={server.id}
 							server={server}
 							status={statuses?.find((m) => m.id === server.id)}
+							onAuthChanged={reread}
+							onReconnect={() => reconnect(server.id)}
 							missing={missingOf(server, present)}
 							onUpdate={(patch) => update(server.id, patch)}
 							onRemove={() => remove(server)}
@@ -167,6 +194,16 @@ export function McpSettings({ filter = "", markOf }: { filter?: string; markOf?:
 	);
 }
 
+async function askStatuses(activeSessionId: string | null): Promise<Status[] | null> {
+	try {
+		const fromSession = activeSessionId ? (await bridge.sessions.capabilities(activeSessionId))?.mcp : undefined;
+		return fromSession ?? (await bridge.plugins.mcpStatus());
+	} catch {
+		// 问不到就保持原样：卡片落回「已启用」，不是一段报错。
+		return null;
+	}
+}
+
 function ServerCard({
 	server,
 	status,
@@ -174,11 +211,15 @@ function ServerCard({
 	onUpdate,
 	onRemove,
 	onOpenInMarket,
+	onAuthChanged,
+	onReconnect,
 	folder,
 	mark,
 }: {
 	server: McpServerConfig;
 	status: Status | undefined;
+	onAuthChanged: () => Promise<void>;
+	onReconnect: () => Promise<void>;
 	missing: string[];
 	onUpdate: (patch: Partial<McpServerConfig>) => void;
 	onRemove: () => void;
@@ -198,15 +239,28 @@ function ServerCard({
 	const [open, setOpen] = useState<"launch" | "tools" | null>(null);
 	const toggle = (which: "launch" | "tools") => setOpen((was) => (was === which ? null : which));
 	const tools = status?.tools ?? [];
+	const [reconnecting, setReconnecting] = useState(false);
+	const retry = () => {
+		setReconnecting(true);
+		void onReconnect().finally(() => setReconnecting(false));
+	};
 	const state = !server.enabled
 		? { tone: "text-ink-faint", dot: "bg-line", label: t("market.serverOff") }
 		: missing.length > 0
 			? { tone: "text-accent", dot: "bg-accent", label: t("mcpSettings.needsKeys") }
 			: status?.state === "connected"
 				? { tone: "text-ok", dot: "bg-ok", label: translate("mcpSettings.toolCount", { n: status.toolCount }) }
-				: status?.state === "failed"
-					? { tone: "text-danger", dot: "bg-danger", label: t("mcp.failed") }
-					: { tone: "text-ink-faint", dot: "bg-ink-faint/60", label: t("market.serverOn") };
+				: status?.state === "needs-login"
+					? { tone: "text-accent", dot: "bg-accent", label: t("mcpSettings.needsLogin") }
+					: status?.state === "failed"
+						? { tone: "text-danger", dot: "bg-danger", label: t("mcp.failed") }
+						: status?.state === "connecting"
+							? { tone: "text-ink-faint", dot: "bg-info", label: t("mcpSettings.connecting") }
+							: status?.state === "reconnecting"
+								? { tone: "text-accent", dot: "bg-accent", label: translate("mcpSettings.reconnecting", { n: status.attempt ?? 1 }) }
+								: { tone: "text-ink-faint", dot: "bg-ink-faint/60", label: t("market.serverOn") };
+	// 失败或正在重连的，原因和「重新连接」摊在卡片上；重连中也给按钮：人等不及退避，可以立刻再来一次。
+	const troubled = server.enabled && !status?.missing && (status?.state === "failed" || status?.state === "reconnecting") && Boolean(status.error || status.stderr);
 
 	return (
 		<Card data-mcp-server={server.id} className="group/card">
@@ -262,8 +316,32 @@ function ServerCard({
 				</div>
 			)}
 
-			{status?.state === "failed" && status.error && !status.missing && server.enabled && (
-				<p className="border-t border-line-soft px-4 py-2.5 text-detail leading-relaxed text-danger">{status.error}</p>
+			{server.enabled && <McpSignIn serverId={server.id} status={status} onChanged={onAuthChanged} />}
+
+			{troubled && (
+				<div data-mcp-trouble="" className="space-y-2 border-t border-line-soft px-4 py-2.5">
+					<div className="flex items-start gap-3">
+						<p className={`min-w-0 flex-1 text-detail leading-relaxed ${status?.state === "failed" ? "text-danger" : "text-ink-muted"}`}>{status?.error}</p>
+						<Button
+							variant="subtle"
+							size="sm"
+							loading={reconnecting}
+							onClick={retry}
+							icon={<RefreshCw size={12} strokeWidth={1.9} aria-hidden />}
+							className="shrink-0"
+						>
+							{t("mcpSettings.reconnect")}
+						</Button>
+					</div>
+					{status?.stderr && (
+						<div>
+							<p className="mb-1 text-caption text-ink-faint">{t("mcpSettings.stderr")}</p>
+							<pre data-mcp-stderr="" className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-card-hover/60 px-2.5 py-2 font-mono text-caption leading-relaxed text-ink-muted">
+								{status.stderr}
+							</pre>
+						</div>
+					)}
+				</div>
 			)}
 
 			<Collapse open={open === "launch"}>
@@ -301,6 +379,24 @@ function ServerCard({
 								</>
 							)}
 							<EnvEditor server={server} onChange={(env) => onUpdate({ env })} />
+							<div className="flex items-start gap-3">
+								<div className="min-w-0 flex-1">
+									<p className="text-label text-ink-muted">{t("mcpSettings.trustReadOnly")}</p>
+									<p className="mt-1 text-detail text-ink-faint">{t("mcpSettings.trustReadOnlyHint")}</p>
+								</div>
+								<Toggle
+									checked={server.trustReadOnly === true}
+									onChange={(trustReadOnly) => onUpdate({ trustReadOnly })}
+									ariaLabel={t("mcpSettings.trustReadOnly")}
+								/>
+							</div>
+							<div className="flex items-start gap-3">
+								<div className="min-w-0 flex-1">
+									<p className="text-label text-ink-muted">{t("mcpSettings.pinned")}</p>
+									<p className="mt-1 text-detail text-ink-faint">{t("mcpSettings.pinnedHint")}</p>
+								</div>
+								<Toggle checked={server.pinned === true} onChange={(pinned) => onUpdate({ pinned })} ariaLabel={t("mcpSettings.pinned")} />
+							</div>
 						</div>
 				</div>
 			</Collapse>
@@ -340,7 +436,18 @@ function ServerCard({
 								{t("common.openFolder")}
 							</MenuItem>
 						)}
-						{(onOpenInMarket || folder) && <MenuSeparator />}
+						{server.enabled && (
+							<MenuItem
+								icon={<RefreshCw size={13} strokeWidth={1.8} />}
+								onClick={() => {
+									menu.close();
+									retry();
+								}}
+							>
+								{t("mcpSettings.reconnect")}
+							</MenuItem>
+						)}
+						{(onOpenInMarket || folder || server.enabled) && <MenuSeparator />}
 						<MenuItem
 							danger
 							icon={<Trash2 size={13} strokeWidth={1.8} />}

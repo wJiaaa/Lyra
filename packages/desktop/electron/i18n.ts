@@ -26,6 +26,7 @@ const zhCN = {
 	// The session database would not open at startup; `reason` is what SQLite or the version check said.
 	// A side chat was asked for beside a conversation that is gone (deleted while it was being opened).
 	"sessions.sideParentGone": "这个侧边聊天挂着的会话已经没有了。",
+	"mcp.promptNotFound": "没有连着的 MCP 服务器提供 /{name}。",
 	"sessions.unavailableTitle": "Plume 打不开会话记录",
 	"sessions.unavailable": "会话库 {path} 打不开：{reason}\n\nPlume 没有动这个文件。它可能正被另一个 Plume 占用，或者是更新版本的 Plume 写的。先退出其他 Plume 再打开；仍然打不开，就把 sessions.db 连同旁边同名的 -wal、-shm 文件一起挪到别处，Plume 会新建一个。",
 	// System notifications. `detail` joins a status line to what the agent asked, so each language
@@ -158,6 +159,7 @@ export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 		"update.installFailed": "The installation did not finish: {reason}",
 		"terminal.tab": "Terminal {n}",
 		"sessions.sideParentGone": "The conversation this side chat belongs to is gone.",
+		"mcp.promptNotFound": "No connected MCP server offers /{name}.",
 		"sessions.unavailableTitle": "Plume can't open your conversations",
 		"sessions.unavailable": "The session database at {path} would not open: {reason}\n\nPlume has left the file as it is. Another copy of Plume may have it open, or a newer version of Plume may have written it. Quit any other copy and try again. If it still won't open, move sessions.db somewhere else together with the -wal and -shm files beside it, and Plume will start a new one.",
 		"notification.done": "“{title}” finished", "notification.doneUntitled": "Task finished",

@@ -1,6 +1,6 @@
 import { translate } from "../../i18n/translate.ts";
 import { builtinCommandsFor, type CommandAction } from "@plume/core/commands-builtin";
-import { parseInvocation, resolveCommand, skillCommandName, type SlashCommand } from "@plume/core/commands-view";
+import { parseInvocation, promptArgumentHint, resolveCommand, skillCommandName, type McpPromptEntry, type SlashCommand } from "@plume/core/commands-view";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
 
 export interface CommandEntry {
@@ -8,11 +8,11 @@ export interface CommandEntry {
 	description: string;
 	argumentHint?: string;
 	origin: string;
-	kind: "builtin" | "command" | "skill";
+	kind: "builtin" | "command" | "skill" | "prompt";
 	action?: CommandAction;
 }
 
-export function commandEntries(commands: SlashCommand[], skills: SkillEntry[]): CommandEntry[] {
+export function commandEntries(commands: SlashCommand[], skills: SkillEntry[], prompts: McpPromptEntry[] = []): CommandEntry[] {
 	const entries: CommandEntry[] = [
 		...builtinCommandsFor(["compact", "clear", "manage-commands", "aside", "plan", "goal"]).map((command): CommandEntry => ({ ...command, kind: "builtin", origin: translate("common.builtin") })),
 		...commands.map((command): CommandEntry => ({ ...command, kind: "command", origin: translate(
@@ -27,6 +27,11 @@ export function commandEntries(commands: SlashCommand[], skills: SkillEntry[]): 
 		...skills.map((skill): CommandEntry => ({ name: skillCommandName(skill), description: skill.description, kind: "skill",
 			origin: skill.pluginId ?? translate(skill.source === "workspace" ? "common.project" : "common.personal"),
 			argumentHint: translate("command.optionalTask") })),
+		// 最后一组：名字是 `mcp__<服务器>__<prompt>`，右边那栏写服务器在设置里的名字。
+		...prompts.map((prompt): CommandEntry => {
+			const hint = promptArgumentHint(prompt);
+			return { name: prompt.name, description: prompt.description, kind: "prompt", origin: prompt.serverName, ...(hint ? { argumentHint: hint } : {}) };
+		}),
 	];
 	const seen = new Set<string>();
 	return entries.filter((entry) => {

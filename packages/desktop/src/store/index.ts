@@ -124,6 +124,8 @@ interface PendingApproval extends QuestionFields {
   subject?: string;
   /** The wider sandbox mode an escalation asks for. Such a card offers no "always": nothing is remembered. */
   escalation?: ApprovalRequest["escalation"];
+  /** 一张 MCP 表单（`kind: "form"`）要填的那几格。 */
+  fields?: ApprovalRequest["fields"];
   /**
    * When this question gives up waiting, as an instant.
    *

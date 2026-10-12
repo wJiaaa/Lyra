@@ -39,7 +39,7 @@ export function notifyAgentEvent(sessionId: string, event: AgentEvent, title?: s
 	if (event.type === "agent_end" && event.reason === "done" && !goalUnderway(goal)) notifyTaskDone({ sessionId, title });
 	if (event.type === "goal" && event.goal && ENDED.has(event.goal.status)) notifyGoalEnded(sessionId, event.goal);
 	if (event.type === "approval_request") {
-		const question = event.kind === "interactive" || event.subject === "ask_user";
+		const question = event.kind === "interactive" || event.kind === "form" || event.subject === "ask_user";
 		// 后台子智能体问的，说出是谁在问——人要据此决定的，正是「这个活该不该由它来干」。
 		const asking = question ? event.detail || event.reason : event.title;
 		notifyNeedAssistance({ sessionId, title, kind: question ? "question" : "approval", question: event.from && asking ? nativeText("notification.asking", { agent: event.from.description, question: asking }) : asking });

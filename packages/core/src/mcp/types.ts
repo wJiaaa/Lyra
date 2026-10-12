@@ -54,6 +54,10 @@ export interface McpStdioServer {
 	needs?: McpNeed[];
 	enabled: boolean;
 	origin?: McpOrigin;
+	/** 人说过信任它对工具的只读声明：`auto` 模式下，它标了 `readOnlyHint` 的工具不再逐次确认。见 `mcp/tool.ts`。 */
+	trustReadOnly?: boolean;
+	/** 常驻：工具多到改成延迟加载时，这台的工具仍然每轮都放在工具表里。见 `tools/mcp-search.ts`。 */
+	pinned?: boolean;
 }
 
 export interface McpHttpServer {
@@ -71,6 +75,10 @@ export interface McpHttpServer {
 	needs?: McpNeed[];
 	enabled: boolean;
 	origin?: McpOrigin;
+	/** 人说过信任它对工具的只读声明：`auto` 模式下，它标了 `readOnlyHint` 的工具不再逐次确认。见 `mcp/tool.ts`。 */
+	trustReadOnly?: boolean;
+	/** 常驻：工具多到改成延迟加载时，这台的工具仍然每轮都放在工具表里。见 `tools/mcp-search.ts`。 */
+	pinned?: boolean;
 }
 
 export type McpServerConfig = McpStdioServer | McpHttpServer;

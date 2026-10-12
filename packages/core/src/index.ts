@@ -139,6 +139,9 @@ export {
 	type McpServerStatus,
 	type McpStdioServer,
 } from "./mcp/client.ts";
+/** 远程 MCP 服务器的 OAuth：后台连接用的令牌、桌面端「登录 / 退出登录」。见 `mcp/oauth.ts`。 */
+export { forgetTokens, McpNeedsLogin, usesOAuth } from "./mcp/oauth.ts";
+export { loginMcpServer, type McpLoginOptions } from "./mcp/oauth-login.ts";
 export {
 	isPlaceholder,
 	looksSecret,
@@ -256,6 +259,7 @@ export {
 export { builtinCommandsFor, BUILTIN_COMMANDS, type BuiltinCommand, type CommandAction } from "./commands/builtin.ts";
 export { listCommands, type CommandsList, type SkillEntry } from "./commands/catalogue.ts";
 export { resolveInvocation, skillCommandName, type ResolvedInvocation } from "./commands/invoke.ts";
+export { bindPromptArguments, findPrompt, promptArgumentHint, type McpPromptArgument, type McpPromptEntry } from "./commands/mcp-prompt.ts";
 export {
 	commandSources,
 	loadCommands,

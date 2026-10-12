@@ -19,6 +19,7 @@ import { runTurn } from "../agent/runner.ts";
 import { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import { TODOS_KEY, type TodoItem } from "../tools/todo.ts";
+import { toolTable } from "../tools/mcp-search.ts";
 import { continueWhileWorkRemains } from "./continuation.ts";
 import type {
 	ApprovalDecision,
@@ -323,6 +324,8 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 	const memoryEnabled = projectMemoryEnabled(settings);
 	can.state.set(PROJECT_MEMORY_ENABLED_KEY, memoryEnabled);
 
+	// 刚打开的会话里还在连的 MCP 服务器，等一小会儿再取工具表；见 `SessionCapabilities.mcpReady`。
+	await can.mcpReady();
 	// 名单外的工具不止是不提：不在这一轮的工具表里，模型叫也叫不到。
 	const profile = input.profile;
 	const allowed = profile ? can.tools.filter((tool) => profile.tools.has(tool.name)) : can.tools;
@@ -361,12 +364,14 @@ async function assembleTurn(input: TurnInputs, hooks: TurnHooks): Promise<{ conf
 	});
 	const assembled = reconcilePrompt(prompt, turn.systemPrompt);
 
+	// 记下的是发出去的那份工具表：被延迟的不在里面，两个入口在（`tools/mcp-search.ts`）。
+	const table = toolTable(turn.tools);
 	const systemPrompt = await log.recordContext(
 		turn.systemPrompt,
-		turn.tools.map((tool) => tool.name),
+		table.map((tool) => tool.name),
 		can.skills.map((skill) => skill.name),
-		turn.tools.map(({ name, description, parameters }) => ({ name, description, parameters })),
-		{ sections: assembled.sections, mcpTools: can.mcp.allTools().map(tool => tool.name) },
+		table.map(({ name, description, parameters }) => ({ name, description, parameters })),
+		{ sections: assembled.sections, mcpTools: [...can.mcpToolNames()] },
 	);
 
 	const config = buildTurnConfig(

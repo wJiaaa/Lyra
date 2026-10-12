@@ -5,7 +5,7 @@ import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { commandCompletion, commandDecoration, commandEntries, type CommandEntry } from "./command-catalog.ts";
 
-export function useCommands(text: string, cwd: string, field: React.RefObject<HTMLTextAreaElement | null>, setText: (text: string) => void) {
+export function useCommands(text: string, cwd: string, sessionId: string | null, field: React.RefObject<HTMLTextAreaElement | null>, setText: (text: string) => void) {
 	const nonce = useApp((state) => state.extensionsNonce);
 	const [catalog, setCatalog] = useState<{ cwd: string; entries: CommandEntry[] } | null>(null);
 	const [active, setActive] = useState(0);
@@ -18,13 +18,22 @@ export function useCommands(text: string, cwd: string, field: React.RefObject<HT
 	const commandMode = completion !== null;
 	useEffect(() => {
 		let alive = true;
-		void bridge.commands.list(cwd).then((result) => {
-			if (alive) setCatalog({ cwd, entries: commandEntries(result.commands, result.skills ?? []) });
+		/*
+		 * MCP prompt 和磁盘上的命令分开取：前者可能要临时连一台服务器（新对话还没有会话），慢的那一边
+		 * 不该拖住命令和技能先出现。问不到 prompt 就当没有，菜单照常。
+		 * 包一层 async：同步抛出（桥上没有这个方法）也要落进 catch，不能连带命令和技能一起挂掉。
+		 */
+		const prompts = (async () => bridge.commands.prompts(sessionId))().catch(() => []);
+		void bridge.commands.list(cwd).then(async (result) => {
+			if (!alive) return;
+			setCatalog({ cwd, entries: commandEntries(result.commands, result.skills ?? []) });
+			const found = await prompts;
+			if (alive && found.length > 0) setCatalog({ cwd, entries: commandEntries(result.commands, result.skills ?? [], found) });
 		}).catch((cause) => {
 			if (alive) useApp.getState().notify(translate("commands.readFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		});
 		return () => { alive = false; };
-	}, [cwd, nonce, commandMode]);
+	}, [cwd, nonce, commandMode, sessionId]);
 	const entries = useMemo(() => catalog?.cwd === cwd ? catalog.entries : commandEntries([], []), [catalog, cwd]);
 	const term = completion?.term ?? null;
 	const matches = useMemo(() => term === null || dismissed || !focused ? [] : rankCommands(entries, term), [entries, term, dismissed, focused]);

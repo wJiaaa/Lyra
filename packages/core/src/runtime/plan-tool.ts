@@ -65,7 +65,7 @@ export const submitPlanTool: Tool<SubmitPlanArgs> = {
 			options: [PLAN_APPROVE, PLAN_REVISE], allowCustomInput: true, selectionMode: "single", allowSkip: false,
 		});
 
-		if (typeof decision === "object" && decision.answer === PLAN_APPROVE) {
+		if (typeof decision === "object" && "answer" in decision && decision.answer === PLAN_APPROVE) {
 			const approved: ApprovedPlan = { ...plan, approvedAt: Date.now() };
 			// 开关就地关掉：这一轮剩下的调用走的是同一张工具表，包着的 `execute` 从此放行。
 			ctx.state.set(PLAN_MODE_KEY, false);
@@ -77,7 +77,8 @@ export const submitPlanTool: Tool<SubmitPlanArgs> = {
 				details: { kind: "plan", plan: approved },
 			};
 		}
-		if (typeof decision === "object") {
+		// 填表的回答（`values`）只来自 MCP 的 elicitation，这张卡片不会收到；按没有反馈处理。
+		if (typeof decision === "object" && "answer" in decision) {
 			const feedback = (Array.isArray(decision.answer) ? decision.answer.join("; ") : decision.answer).trim();
 			const said = feedback && feedback !== PLAN_REVISE ? feedback : "no reason given";
 			return {

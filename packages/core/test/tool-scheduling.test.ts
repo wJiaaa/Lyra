@@ -176,9 +176,12 @@ test("arguments encoded twice are unwrapped rather than treated as broken", () =
 	assert.equal(parseToolArguments('"just a string"'), null);
 });
 
-test("auto mode lets through an MCP tool its server marks read-only, and nothing else from MCP", () => {
+test("auto mode lets an MCP tool through only when it says read-only and the user trusts that server's word", () => {
 	const request = { kind: "mcp" as const, title: "t", detail: "", subject: "mcp__s__t" };
-	assert.equal(approvalPolicy().assess("mcp", "mcp__s__t", "/tmp", { ...request, readOnly: true }).risky, false);
+	// The annotation is the server's own claim: on its own it never waives the question.
+	assert.equal(approvalPolicy().assess("mcp", "mcp__s__t", "/tmp", { ...request, readOnly: true }).risky, true);
+	assert.equal(approvalPolicy().assess("mcp", "mcp__s__t", "/tmp", { ...request, readOnly: true, trusted: true }).risky, false);
+	assert.equal(approvalPolicy().assess("mcp", "mcp__s__t", "/tmp", { ...request, trusted: true }).risky, true);
 	assert.equal(approvalPolicy().assess("mcp", "mcp__s__t", "/tmp", request).risky, true);
 });
 

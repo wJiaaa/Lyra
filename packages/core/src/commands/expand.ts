@@ -28,7 +28,8 @@ export function parseInvocation(text: string): Invocation | null {
 	if (compact) return { name: "compact", rest: (compact[1] ?? "").trim() };
 	if (!text.startsWith("/")) return null;
 	const line = text.slice(1);
-	const match = /^([a-z0-9:-]+)(?:\s+([\s\S]*))?$/i.exec(line);
+	// `_` 是为 MCP prompt：它们照工具的规则叫 `mcp__<服务器>__<名字>`，见 `commands/mcp-prompt.ts`。
+	const match = /^([a-z0-9:_-]+)(?:\s+([\s\S]*))?$/i.exec(line);
 	if (!match) return null;
 	return { name: match[1].toLowerCase(), rest: (match[2] ?? "").trim() };
 }

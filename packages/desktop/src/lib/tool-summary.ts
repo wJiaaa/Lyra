@@ -52,6 +52,12 @@ export function summarizeToolCall(name: string, args: Record<string, unknown>): 
 			return str("description") ?? "Sub-agent task";
 		case "skill":
 			return `Skill: ${str("name") ?? ""}`.trim() || "Skill";
+		case "mcp_search":
+			// 和 core 的 `mcpSearchTool.summarize` 同一句。
+			return `Search MCP tools “${str("query") ?? ""}”`;
+		case "mcp_call":
+			// 只有参数没对上、被拦下的才以它自己的名字留下来（见 `routedMcpCall`）；同 core 的 summarize。
+			return str("tool") ?? "mcp_call";
 		case "web_fetch":
 			return `Fetch ${str("url") ?? ""}`.trim() || "Fetch URL";
 		case "generate_image": {
@@ -67,4 +73,23 @@ export function summarizeToolCall(name: string, args: Record<string, unknown>): 
 			}
 			return name;
 	}
+}
+
+/**
+ * 经 `mcp_call` 转手的调用，按它真正叫的那个工具记：直播时工具卡片收到的就是那个工具的名字和参数
+ * （`core/src/agent/tool-run.ts` 在执行前换掉），重开会话从日志重建时要画成同一张卡。
+ */
+export function routedMcpCall(name: string, args: Record<string, unknown>): { name: string; args: Record<string, unknown> } {
+	if (name !== "mcp_call" || typeof args.tool !== "string") return { name, args };
+	const inner = args.arguments;
+	return { name: args.tool, args: inner && typeof inner === "object" && !Array.isArray(inner) ? (inner as Record<string, unknown>) : {} };
+}
+
+/**
+ * 对话里画的那一张：经 `mcp_call` 转手的调用，换成它真正叫的那个工具的名字和参数，卡片、图标、
+ * 一行概述、preview 的页面都跟着它走。消息本身不改：发给模型的历史里那条就是 `mcp_call`。
+ */
+export function routedBlock<B extends { name: string; arguments: Record<string, unknown> }>(block: B): B {
+	const routed = routedMcpCall(block.name, block.arguments);
+	return routed.name === block.name ? block : { ...block, name: routed.name, arguments: routed.args };
 }

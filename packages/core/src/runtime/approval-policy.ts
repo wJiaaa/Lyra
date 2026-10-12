@@ -41,8 +41,16 @@ export const builtInApprovalPolicy: ApprovalPolicy = {
 				if (verdict.decision === "allow") return { risky: false };
 				return { risky: true, reason: verdict.reason, code: verdict.code, ...(verdict.params ? { params: verdict.params } : {}) };
 			}
-		// An MCP tool its server marks read-only; why that is enough here is in `mcp/client.ts`.
-		if (kind === "mcp") return { risky: request?.readOnly !== true };
+		/*
+		 * An MCP tool. Its annotations are the server's own word, so they only move one way on their
+		 * own: `destructiveHint` makes the call risky with a reason the card can show, while
+		 * `readOnlyHint` lets it through only when the person has said they trust this server's
+		 * claims (`trusted`). Why, at length, is in `mcp/tool.ts`.
+		 */
+		if (kind === "mcp") {
+			if (request?.destructive === true) return { risky: true, code: "mcp-destructive" };
+			return { risky: !(request?.readOnly === true && request.trusted === true) };
+		}
 		// An unfamiliar kind is one this policy was not written for, so it defers to a person.
 		return { risky: true };
 	},

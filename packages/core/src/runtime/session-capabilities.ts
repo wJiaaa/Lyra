@@ -15,6 +15,7 @@ import { ExtensionHost } from "../extensions/host.ts";
 import { plumeHome } from "../session/store.ts";
 import { CODE_INTEL_KEY, CodeIntelManager } from "../lsp/manager.ts";
 import { McpManager, type McpServerConfig, type McpServerStatus } from "../mcp/client.ts";
+import type { AskPerson } from "../mcp/elicitation.ts";
 import { BUILTIN_RESOURCES } from "../resources/handlers.ts";
 import { ResourceRouter } from "../resources/router.ts";
 import type { Settings } from "../config/settings.ts";
@@ -25,7 +26,9 @@ import { SKILLS_KEY } from "../skills/tool.ts";
 import { backgroundJobs } from "../tools/background-jobs.ts";
 import { invalidateIndex } from "../tools/index.ts";
 import { TOOL_NAMES_KEY } from "../tools/reroute.ts";
+import { planTools, MCP_CALL, MCP_SEARCH } from "../tools/mcp-search.ts";
 import { AGENTS_KEY, BUILTIN_AGENTS, type AgentDefinition } from "../tools/task.ts";
+import type { AgentEvent } from "../agent/events.ts";
 import type { Tool } from "../types.ts";
 import { loadCapabilities } from "./session-setup.ts";
 
@@ -37,13 +40,27 @@ import { loadCapabilities } from "./session-setup.ts";
  */
 const MAX_ARTIFACTS = 30;
 
+/** 一轮开始前最多等还在第一次连的 MCP 服务器多久。见 `SessionCapabilities.mcpReady`。 */
+const MCP_START_GRACE_MS = 5_000;
+
+export interface SessionCapabilitiesOptions {
+	/** MCP 服务器要人填表时怎么问到人；没有人可问的宿主不给。见 `mcp/elicitation.ts`。 */
+	ask?: AskPerson;
+	/** 一台 MCP 服务器在后台连不上、或者重连放弃了。会话据此在对话里说一声。 */
+	onMcpFailure?: (status: McpServerStatus) => void;
+	/**
+	 * `load` 等 MCP 服务器多久。不给就等到每台都有结果（测试、只要答案的宿主）；会话给 0，
+	 * 让慢的在后台连，第一轮开始前再等一小会儿（`mcpReady`）。
+	 */
+	mcpWait?: number;
+}
+
 export class SessionCapabilities {
 	tools: Tool[] = [];
 	skills: Skill[] = [];
 	skillDiagnostics: SkillDiagnostic[] = [];
 	plugins: Plugin[] = [];
 	pluginDiagnostics: PluginDiagnostic[] = [];
-	mcpStatuses: McpServerStatus[] = [];
 	agents: AgentDefinition[] = [...BUILTIN_AGENTS];
 	/**
 	 * 这次加载实际读过的目录。
@@ -80,7 +97,7 @@ export class SessionCapabilities {
 
 	/** Shared scratch space for tools that need to remember something across calls. */
 	readonly state = new Map<string, unknown>();
-	readonly mcp = new McpManager();
+	readonly mcp: McpManager;
 
 	/**
 	 * Tools that only exist on a particular host — the desktop app contributes browser automation
@@ -91,20 +108,103 @@ export class SessionCapabilities {
 	 */
 	private readonly extraTools: Tool[];
 
-	constructor(extraTools: Tool[] = []) {
+	/** 内置的和宿主给的工具；`tools` 是它们加上此刻 MCP 服务器提供的那些。 */
+	private baseTools: Tool[] = [];
+	/** 此刻全部的 MCP 工具。 */
+	private mcpTools: Tool[] = [];
+	/** MCP 工具延迟过没有：切过去就不切回来，见 `ToolPlanInput.mcpDeferred`。 */
+	private mcpDeferred = false;
+	/** 常驻的服务器：延迟加载时它们的工具照样放进工具表。 */
+	private pinnedMcp = new Set<string>();
+	private rerouting = true;
+	private readonly options: SessionCapabilitiesOptions;
+	/** 已经报过的 MCP 失败，同一台服务器同一个原因只报一次。 */
+	private readonly reported = new Set<string>();
+
+	constructor(extraTools: Tool[] = [], options: SessionCapabilitiesOptions = {}) {
 		this.extraTools = extraTools;
+		this.options = options;
+		this.mcp = new McpManager({ ask: options.ask, onChange: (status) => this.mcpChanged(status) });
+	}
+
+	/** 每台 MCP 服务器此刻的状态：连上、连接中、重连中、失败的原因。 */
+	get mcpStatuses(): McpServerStatus[] {
+		return this.mcp.statuses();
+	}
+
+	/**
+	 * 一台 MCP 服务器在后台连上、断开、重连、放弃，或者改了工具表。
+	 *
+	 * 工具表当场重算，但不会塞进正在跑的那一轮：一轮的工具表在组装时取定（`session-turn.ts`），
+	 * 系统提示和记下来的上下文都按它写。新的那份从下一轮起生效。
+	 *
+	 * 为什么不像换模型那样从下一个请求起就换（ADR-0025）：换模型是为了躲开一个坏掉的上游，晚一个
+	 * 请求都是在烧钱；工具表变了没有这种急迫——缓存前缀反正要因它失效一次，早一轮晚一轮花的是同一笔。
+	 * 而且断线重连回来、工具表一字未变的（最常见的那种），前缀根本不动：重算出来的是同一份。
+	 */
+	private mcpChanged(status: McpServerStatus): void {
+		this.composeTools();
+		if (status.state !== "failed" || status.missing) return;
+		const key = `${status.id}\0${status.error ?? ""}`;
+		if (this.reported.has(key)) return;
+		this.reported.add(key);
+		this.options.onMcpFailure?.(status);
+	}
+
+	/**
+	 * `tools` 里被延迟的是带 `deferred` 的副本（`tools/mcp-search.ts`）：它们照样经过权限档、子代理定义
+	 * 的筛选，只是不进发给服务商的工具表。
+	 */
+	private composeTools(): void {
+		this.mcpTools = this.mcp.allTools(new Set([...this.baseTools.map((tool) => tool.name), MCP_SEARCH, MCP_CALL]));
+		const plan = planTools({ tools: [...this.baseTools, ...this.mcpTools], pinnedServers: this.pinnedMcp, mcpDeferred: this.mcpDeferred });
+		this.mcpDeferred = plan.mcpDeferred;
+		this.tools = plan.tools;
+		/*
+		 * `bash` 的改道靠这个 key 知道「建议的工具在不在」。
+		 *
+		 * 开关关了就不填——`rerouteShellCommand` 见到 undefined 一律放行。用「不填」而不是
+		 * 「填个空集」：空集会让每条 `cat` 都去查一次表然后放行，而不填是一次 map miss。
+		 */
+		if (this.rerouting) this.state.set(TOOL_NAMES_KEY, new Set(this.tools.map((tool) => tool.name)));
+		else this.state.delete(TOOL_NAMES_KEY);
+	}
+
+	/**
+	 * 设置里哪几台服务器「常驻」。在设置页拨了开关，开着的会话从下一轮起照新的来：工具表在
+	 * 每轮组装时才读（`session-turn.ts`），这里只是把它算好。
+	 */
+	pinMcp(settings: Settings): void {
+		this.pinnedMcp = new Set(settings.mcpServers.filter((server) => server.pinned === true).map((server) => server.id));
+		this.composeTools();
+	}
+
+	/** 来自 MCP 服务器的工具名。上下文面板据此把工具 schema 分成内置和 MCP 两段。 */
+	mcpToolNames(): Set<string> {
+		return new Set(this.mcpTools.map((tool) => tool.name));
+	}
+
+	/**
+	 * 一轮开始前，等还在第一次连的 MCP 服务器一小会儿（`MCP_START_GRACE_MS`）。
+	 *
+	 * 会话打开时不等它们：一台要冷启动三分钟的服务器不该让窗口跟着卡三分钟。第一句话发出去时多半
+	 * 都已经连上了（30 台本地服务器实测几百毫秒）；还没连上的不再等，连上以后从下一轮起可用。
+	 */
+	async mcpReady(graceMs = MCP_START_GRACE_MS): Promise<void> {
+		await this.mcp.settled(graceMs);
 	}
 
 	/** Discover everything again. Safe to call after the settings change. */
 	async load(cwd: string, settings: Settings): Promise<void> {
-		const loaded = await loadCapabilities(cwd, settings, this.mcp, this.extraTools);
+		const loaded = await loadCapabilities(cwd, settings, this.mcp, this.extraTools, this.options.mcpWait);
 		this.plugins = loaded.plugins;
 		this.pluginDiagnostics = loaded.pluginDiagnostics;
 		this.skills = loaded.skills;
 		this.skillDiagnostics = loaded.skillDiagnostics;
 		this.agents = loaded.agents;
-		this.mcpStatuses = loaded.mcpStatuses;
-		this.tools = loaded.tools;
+		this.baseTools = loaded.tools;
+		this.rerouting = settings.rerouteShellCommands !== false;
+		this.pinMcp(settings);
 		/*
 		 * Extensions load after everything else, because they can only affect what already exists.
 		 *
@@ -116,14 +216,6 @@ export class SessionCapabilities {
 		// Two tools read these back rather than taking them as arguments.
 		this.state.set(SKILLS_KEY, this.skills);
 		this.state.set(AGENTS_KEY, this.agents);
-		/*
-		 * `bash` 的改道靠这个 key 知道「建议的工具在不在」。
-		 *
-		 * 开关关了就不填——`rerouteShellCommand` 见到 undefined 一律放行。用「不填」而不是
-		 * 「填个空集」：空集会让每条 `cat` 都去查一次表然后放行，而不填是一次 map miss。
-		 */
-		if (settings.rerouteShellCommands !== false) this.state.set(TOOL_NAMES_KEY, new Set(this.tools.map((tool) => tool.name)));
-		else this.state.delete(TOOL_NAMES_KEY);
 		this.state.set(ARTIFACTS_KEY, this.artifacts);
 		/*
 		 * `plugin://` 和 `mcp://` 的数据源。
@@ -170,17 +262,12 @@ export class SessionCapabilities {
 	 * Stop this session's connections to the servers `match` picks, and take their tools with them.
 	 *
 	 * The host calls it before an MCP bundle's files are replaced or removed — see
-	 * `McpManager.disconnect`. The tool list is built once per `load`, so without the second half the
-	 * model would go on being offered tools whose server is gone, each call failing as not connected.
+	 * `McpManager.disconnect`. Without the second half the model would go on being offered tools whose
+	 * server is gone, each call failing as not connected.
 	 */
 	async disconnectMcp(match: (server: McpServerConfig) => boolean): Promise<number> {
 		const closed = await this.mcp.disconnect(match);
-		if (closed.length === 0) return 0;
-		const gone = new Set(closed.flatMap((connection) => connection.tools));
-		const ids = new Set(closed.map((connection) => connection.config.id));
-		this.tools = this.tools.filter((tool) => !gone.has(tool));
-		this.mcpStatuses = this.mcpStatuses.filter((status) => !ids.has(status.id));
-		if (this.state.has(TOOL_NAMES_KEY)) this.state.set(TOOL_NAMES_KEY, new Set(this.tools.map((tool) => tool.name)));
+		this.composeTools();
 		return closed.length;
 	}
 
@@ -199,6 +286,16 @@ export class SessionCapabilities {
 			if (codeIntel instanceof CodeIntelManager) await codeIntel.dispose().catch(() => {});
 		}
 	}
+}
+
+/**
+ * 一台 MCP 服务器连不上时，对话里的那一句。stderr 只带一行，全文在设置页：最后一行有字的、又不是
+ * 调用栈的那行——Node、Python 崩溃时最后几行是 `at …` / `File "…", line …`，原因在它们上面。
+ */
+export function mcpFailureNotice(status: McpServerStatus): AgentEvent {
+	const last = status.stderr?.split("\n").findLast((line) => line.trim() && !/^\s+(at |File ")/.test(line));
+	const error = `${status.error ?? "unknown error"}${last ? ` — ${last.trim()}` : ""}`;
+	return { type: "notice", level: "warn", message: `MCP 服务器「${status.name}」没有连上：${error}`, code: "mcp-failed", params: { server: status.name, error } };
 }
 
 /**

@@ -17,7 +17,7 @@ import { homedir } from "node:os";
 import { createRegistry, type CapabilityRegistry } from "../capability/index.ts";
 import { pluginProvider } from "../capability/providers/plugins.ts";
 import type { Settings } from "../config/settings.ts";
-import { McpManager, type McpServerStatus } from "../mcp/client.ts";
+import type { McpManager } from "../mcp/client.ts";
 import { loadPlugins, type Plugin, type PluginDiagnostic } from "../plugins/loader.ts";
 import { type Skill, type SkillDiagnostic } from "../skills/loader.ts";
 import { registeredSkills } from "../skills/registry.ts";
@@ -32,7 +32,7 @@ export interface LoadedCapabilities {
 	skills: Skill[];
 	skillDiagnostics: SkillDiagnostic[];
 	agents: AgentDefinition[];
-	mcpStatuses: McpServerStatus[];
+	/** 内置的和宿主给的工具。MCP 的不在这里：它们随服务器连上、断开、改表而变，由 `SessionCapabilities` 合进去。 */
 	tools: Tool[];
 	/** 这次加载实际读过的目录，用来建立监听。 */
 	watched: string[];
@@ -163,6 +163,8 @@ export async function loadCapabilities(
 	settings: Settings,
 	mcp: McpManager,
 	extraTools: Tool[],
+	/** 等 MCP 服务器连上多久再返回；会话给 0，见 `McpManager.connectAll`。 */
+	mcpWait?: number,
 ): Promise<LoadedCapabilities> {
 	const loadedPlugins = await loadPlugins(
 		[
@@ -205,8 +207,8 @@ export async function loadCapabilities(
 	 * could not see the user's. Installing an MCP bundle now writes into settings, so this is one
 	 * list, and what is on the page is what the session connects to.
 	 */
-	const mcpStatuses = await mcp.connectAll(settings.mcpServers);
-	const tools = [...builtinTools(), ...extraTools, ...mcp.allTools()];
+	await mcp.connectAll(settings.mcpServers, { wait: mcpWait });
+	const tools = [...builtinTools(), ...extraTools];
 
 	/*
 	 * 实际读过的目录，交给监听器。
@@ -220,5 +222,5 @@ export async function loadCapabilities(
 	 */
 	const watched = [...new Set([...skillResult.watched, ...agentResult.watched])];
 
-	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, mcpStatuses, tools, watched };
+	return { plugins, pluginDiagnostics, skills, skillDiagnostics, agents, tools, watched };
 }

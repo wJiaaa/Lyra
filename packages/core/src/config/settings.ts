@@ -10,6 +10,7 @@ import type { ProviderConfig, ThinkingLevel } from "../types.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
 import { withoutBom } from "../utils/bom.ts";
 import { isPlaceholder, looksSecret } from "../mcp/placeholders.ts";
+import { MCP_OAUTH_PREFIX } from "../mcp/oauth.ts";
 import { keepSecrets, putSecrets, secret } from "./vault.ts";
 import { loadProjectLayer, mergeLayer, type ConfigProblem } from "./layers.ts";
 import { withMagpieProvider, withoutMagpieProvider, type MagpieGateway } from "./magpie.ts";
@@ -885,7 +886,11 @@ async function writeSettings(settings: Settings): Promise<void> {
 	});
 	await putSecrets(keys);
 	// Removed providers and servers — and a key somebody cleared — are forgotten in the same pass.
-	await keepSecrets((id) => (!id.startsWith("provider:") && !id.startsWith("mcp:")) || id in keys);
+	// 删掉的服务器，它的 OAuth 登录（`mcp/oauth.ts`）也一起忘掉；登录不经过这里写，所以按服务器在不在判断。
+	const servers = new Set(settings.mcpServers.map((server) => server.id));
+	await keepSecrets((id) =>
+		id.startsWith(MCP_OAUTH_PREFIX) ? servers.has(id.slice(MCP_OAUTH_PREFIX.length)) : (!id.startsWith("provider:") && !id.startsWith("mcp:")) || id in keys,
+	);
 
 	await mkdir(plumeHome(), { recursive: true });
 	const scrubbed: Settings = {

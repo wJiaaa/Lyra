@@ -316,7 +316,7 @@ export function Composer({ centered = false }: {
 
 
 	const commandCwd = workspace?.path ?? scratchCwd ?? "";
-	const slash = useCommands(text, commandCwd, field, setText);
+	const slash = useCommands(text, commandCwd, activeSessionId, field, setText);
 	const pickFileForMention = useCallback(async (actionId: string) => {
 		try {
 			const paths = await bridge.files.pick({ directory: actionId === "action:pick-directory", multiple: false });
@@ -419,7 +419,7 @@ export function Composer({ centered = false }: {
 			const sideId = sideChatFor(activeSessionId, false);
 			// 只打了 `/btw`：开出那一格就够了，话到那边去说。
 			if (!sideId || (!question.text && !attachments.length && !sessionRefs.length && !quotes.length)) return;
-			const built = await buildOutgoing(question, commandCwd);
+			const built = await buildOutgoing(question, commandCwd, undefined, activeSessionId);
 			if (!built) return;
 			void askSide(activeSessionId, sideId, built.content, {
 				...(built.displayText !== undefined ? { displayText: built.displayText } : {}),
@@ -483,7 +483,7 @@ export function Composer({ centered = false }: {
 		const built = await buildOutgoing(composed, commandCwd, () =>
 			// A disk scan must not dispatch an obsolete draft or erase edits made while it was pending.
 			draftKeyRef.current === draftKey && textRef.current === text && attachmentsRef.current === attachments && sessionRefsRef.current === sessionRefs && quotesRef.current === quotes,
-		);
+		activeSessionId);
 		if (!built) return;
 		// 人在对话里的页面上调过的东西，跟着这句话交给模型；气泡里只有人打的字。见 `page-state.ts`。
 		const states = activeSessionId ? takePageStates(activeSessionId) : "";

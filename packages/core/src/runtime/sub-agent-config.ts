@@ -11,6 +11,7 @@ import { RepetitionWatch } from "../agent/repetition.ts";
 import type { AgentRunConfig } from "../agent/run-config.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { textTokens, toolTokens } from "../tokens.ts";
+import { toolTable } from "../tools/mcp-search.ts";
 import type { ApprovalDecision, ApprovalRequest, Message } from "../types.ts";
 import { compactWith } from "./compaction.ts";
 import { inheritedToolEnv, loadTurnHooks, toolHooks } from "./run-policy.ts";
@@ -190,7 +191,8 @@ function compactHistory(options: SubAgentOptions, { chosen, controller, allowed 
 		provider: runProvider,
 		// 调用方给了信号（分叉请求核对前缀不符时用它在发出前作废）就和子代理自己的合起来，不能盖掉。
 		streamFn: (provider, summaryModel, context, streamOptions) => (options.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy, signal: streamOptions?.signal ? AbortSignal.any([streamOptions.signal, controller.signal]) : controller.signal }),
-		overhead: textTokens(systemPrompt) + toolTokens(allowed),
+		// 按发出去的那份工具表算：被延迟的 MCP 工具不在请求里（`tools/mcp-search.ts`）。
+		overhead: textTokens(systemPrompt) + toolTokens(toolTable(allowed)),
 		observer,
 		force: compactOptions?.force,
 		lineage: compactOptions?.lineage,

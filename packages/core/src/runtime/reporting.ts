@@ -10,7 +10,7 @@
  */
 
 import type { Settings, resolveModel } from "../config/settings.ts";
-import type { McpManager, McpServerStatus } from "../mcp/client.ts";
+import type { McpServerStatus } from "../mcp/client.ts";
 import type { Plugin, PluginDiagnostic } from "../plugins/loader.ts";
 import type { Skill, SkillDiagnostic } from "../skills/loader.ts";
 import type { SessionMeta } from "../session/store.ts";
@@ -48,7 +48,8 @@ export interface SessionFacts {
 	readonly pluginDiagnostics: PluginDiagnostic[];
 	readonly mcpStatuses: McpServerStatus[];
 	readonly agents: AgentDefinition[];
-	readonly mcp: McpManager;
+	/** 工具 schema 里算作 MCP 的那些名字，见 `SessionCapabilities.mcpToolNames`。 */
+	readonly mcpToolNames: Set<string>;
 	readonly resources: SystemPromptInput["resources"];
 	readonly requestContext: RequestContext | null;
 	readContext(): Promise<RecordedContext | null>;
@@ -93,7 +94,7 @@ export async function describeContext(session: SessionFacts, resolved: NonNullab
 			scratchDir: session.scratchDir(), recordInjection: false,
 		});
 		schemas = capabilities.tools;
-		mcpNames = new Set(session.mcp.allTools().map(tool => tool.name));
+		mcpNames = session.mcpToolNames;
 	}
 	if (request) {
 		prompt = reconcilePrompt(prompt, request.context.systemPrompt);

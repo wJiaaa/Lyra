@@ -11,12 +11,14 @@
 
 import type { MessageAttachment, UserContent } from "@plume/core";
 // Through the browser-safe door: the main barrel reaches the filesystem, and this runs in a page.
-import { parseInvocation, parseSkillMention, resolveInvocation } from "@plume/core/commands-view";
+import { bindPromptArguments, findPrompt, parseInvocation, parseSkillMention, resolveInvocation, type Invocation } from "@plume/core/commands-view";
 
 import { formatList } from "../../i18n/list.ts";
 import { attachmentBody, attachmentFolder, attachmentImageLabel, attachmentLabel, attachmentStub, placeAttachments } from "../../lib/attachment-placeholders.ts";
+import { translate } from "../../i18n/translate.ts";
 import { withQuotes } from "../../lib/quote.ts";
 import { bridge } from "../../services/index.ts";
+import { useApp } from "../../store/index.ts";
 
 /** 附件在草稿里的样子，只取这一步用得上的几项。 */
 interface OutgoingAttachment {
@@ -189,6 +191,8 @@ export async function buildOutgoing(
 	draft: OutgoingDraft,
 	commandCwd: string,
 	stillCurrent: () => boolean = () => true,
+	/** 取 MCP prompt 时借哪个会话的连接；新对话是 null，主进程临时连一次。 */
+	sessionId: string | null = null,
 ): Promise<Outgoing | null> {
 	/*
 	 * A command becomes the prompt it stands for, here, before anything is sent.
@@ -206,6 +210,8 @@ export async function buildOutgoing(
 	let displayText: string | undefined;
 	let skillRef: { name: string; path?: string; pluginId?: string } | undefined;
 	let deliver: "steer" | "followUp" | undefined;
+	/** MCP prompt 展开出来的图片：正文并进 `outgoing`，图片没法放进一段字里，接在最后。 */
+	let promptImages: UserContent[] = [];
 	/*
 	 * 行首的 `/x`，或者嵌在句中的 `/skill:x`（07 §4）。后者只在草稿不以别的命令开头时算数：
 	 * `/commit 用了 /skill:x 的产物` 是一次 `/commit`，里面那个是它的参数。
@@ -219,6 +225,15 @@ export async function buildOutgoing(
 		if (!stillCurrent()) return null;
 		const resolved = resolveInvocation(invocation, fresh);
 		if (resolved) ({ outgoing, displayText, skillRef, deliver } = resolved);
+		else if (invocation.name.startsWith("mcp__")) {
+			const expanded = await expandMcpPrompt(invocation, sessionId);
+			// 缺参数、取不到：已经说过了，草稿留着给人改。
+			if (expanded === "failed" || !stillCurrent()) return null;
+			if (expanded) {
+				outgoing = expanded.filter((part) => part.type === "text").map((part) => part.text).join("\n\n");
+				promptImages = expanded.filter((part) => part.type !== "text");
+			}
+		}
 	}
 	/*
 	 * 引文拼在展开之后：拼在前面的话，`> 引文` 打头的草稿就认不出行首那个 `/命令` 了。
@@ -252,7 +267,7 @@ export async function buildOutgoing(
 	 */
 	if (displayText === undefined && draft.attachments.length > 0) displayText = outgoing;
 
-	const content = spellDraft(outgoing, draft.attachments);
+	const content = [...spellDraft(outgoing, draft.attachments), ...promptImages];
 
 	return {
 		content,
@@ -270,6 +285,31 @@ export async function buildOutgoing(
 		...(draft.attachments.length > 0 ? { attachments: attachmentMeta(draft.attachments) } : {}),
 		...(deliver ? { deliver } : {}),
 	};
+}
+
+/**
+ * `/mcp__<服务器>__<prompt> 参数` 换成服务器展开的那几段内容。
+ *
+ * 只对 `mcp__` 开头的名字去问：MCP prompt 的名字一律这样开头（`qualifiedToolName`），而去问一次可能
+ * 要临时起一台服务器，不该为每个打错的 `/xxx` 付这个代价。不认识的名字返回 null，原样发出去，和别的
+ * 不认识的命令一样。缺参数或者服务器取不出来，返回 "failed"——这时候已经告诉过人了，不发。
+ */
+async function expandMcpPrompt(invocation: Invocation, sessionId: string | null): Promise<UserContent[] | "failed" | null> {
+	const prompt = findPrompt(await bridge.commands.prompts(sessionId).catch(() => []), invocation);
+	if (!prompt) return null;
+	const notify = useApp.getState().notify;
+	const bound = bindPromptArguments(prompt, invocation.rest);
+	if (!bound.ok) {
+		const usage = `/${prompt.name} ${prompt.arguments.map((argument) => `${argument.name}=…`).join(" ")}`;
+		notify(translate("command.promptMissingArgs", { name: prompt.name, missing: bound.missing.join(", "), usage }), "warn");
+		return "failed";
+	}
+	const got = await bridge.commands.prompt(sessionId, prompt.name, bound.args);
+	if (!got.ok) {
+		notify(translate("command.promptFailed", { name: prompt.name, reason: got.error }), "error");
+		return "failed";
+	}
+	return got.content;
 }
 
 /**

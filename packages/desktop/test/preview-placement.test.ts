@@ -78,3 +78,18 @@ test("模型先检查页面再发布：检查是过程，跟着收起来；只�
 	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "process[work(preview)]", "page(preview)", "assistant"]);
 	assert.deepEqual(describe(turnBlocks(runs([user("画个图"), check]))), ["user", "process[work(preview)]"], "检查跑着的时候也不占一行页面");
 });
+
+test("经 mcp_call 叫的 MCP 工具按真正那个工具排：名字和参数都是它自己的", () => {
+	const via: Message = {
+		role: "assistant",
+		content: [{ type: "toolCall", id: "routed-mcp", name: "mcp_call", arguments: { tool: "mcp__linear__create_issue", arguments: { title: "Bug" } } }],
+		stopReason: "toolUse",
+		timestamp: clock++,
+	} as Message;
+	const done: Message = { role: "toolResult", toolCallId: "routed-mcp", toolName: "mcp__linear__create_issue", content: [{ type: "text", text: "ok" }], isError: false, timestamp: clock++ } as Message;
+	const rows = runs([user("建个 issue"), via, done, answer("建好了。")]);
+	const tools = rows.find((row) => row.kind === "tools");
+	assert.ok(tools && tools.kind === "tools");
+	assert.equal(tools.calls[0]!.block.name, "mcp__linear__create_issue");
+	assert.deepEqual(tools.calls[0]!.block.arguments, { title: "Bug" });
+});

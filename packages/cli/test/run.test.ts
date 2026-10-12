@@ -12,6 +12,8 @@ import { after, before, test } from "node:test";
 import { promisify } from "node:util";
 import { bootHostKernel, DEFAULT_SETTINGS, emptyUsage, type AssistantMessage, type HostKernel, type LlmContext, type ModelConfig, type ProviderConfig, type Settings } from "@plume/core";
 import { runOnce, SetupError } from "../src/run.ts";
+import { startMcpHttpFixture } from "../../core/test/mcp-http-fixture.ts";
+import { startOAuthFixture } from "../../core/test/mcp-oauth-fixture.ts";
 
 const MODEL: ModelConfig = { id: "fake/model", providerId: "fake", modelId: "model", name: "Fake", contextWindow: 100_000, maxOutputTokens: 4096, supportsThinking: false, supportsImages: false, supportsTools: true };
 const PROVIDER: ProviderConfig = { id: "fake", name: "Fake", baseUrl: "http://localhost", api: "openai-responses", apiKey: "x", enabled: true, models: [MODEL] };
@@ -54,11 +56,11 @@ function latest(context: LlmContext): string {
 	return last ? JSON.stringify(last.content) : "";
 }
 
-function run(prompt: string, script: (said: string) => AssistantMessage) {
+function run(prompt: string, script: (said: string) => AssistantMessage, settings: Settings = SETTINGS) {
 	const lines: string[] = [];
 	const seen: string[] = [];
 	const result = runOnce({
-		prompt, cwd: workspace, settings: SETTINGS, store: kernel.storage, log: (line) => lines.push(line),
+		prompt, cwd: workspace, settings, store: kernel.storage, log: (line) => lines.push(line),
 		streamFn: async (context) => { const said = latest(context); seen.push(said); return script(said); },
 	});
 	return { result, lines, seen };
@@ -115,4 +117,36 @@ test("命令行：没给任务或没有模型时退出码是 2，stdout 保持�
 	const bad = await call(["--nope"]);
 	assert.equal(bad.code, 2);
 	assert.match(bad.stderr, /用法/);
+});
+
+test("MCP 服务器中途要人填表：命令行不声明这项能力，硬发来的一律回 decline", async (t) => {
+	const fixture = await startMcpHttpFixture();
+	t.after(() => fixture.close());
+	const settings: Settings = { ...SETTINGS, permissionMode: "full", mcpServers: [{ id: "fx", name: "Fixture", transport: "http", url: fixture.url, enabled: true }] };
+	const { result } = run("问问看", (said) => said.includes("问问看")
+		? says([{ type: "toolCall", id: "c3", name: "mcp__fx__ask", arguments: {} }], "toolUse")
+		: says([{ type: "text", text: "对方拒绝了。" }]), settings);
+	assert.equal((await result).status, "done");
+	assert.equal(fixture.capabilities.at(-1)?.elicitation, undefined, "没有人可问，就不说自己能问");
+	assert.deepEqual(fixture.answers, [{ action: "decline" }]);
+});
+
+test("/mcp__服务器__prompt 参数：取服务器展开的话当任务；缺参数是调用有误", async (t) => {
+	const fixture = await startMcpHttpFixture();
+	t.after(() => fixture.close());
+	const settings: Settings = { ...SETTINGS, mcpServers: [{ id: "fx", name: "Fixture", transport: "http", url: fixture.url, enabled: true }] };
+	const { result, seen } = run("/mcp__fx__review code=print(1) language=python", () => says([{ type: "text", text: "看过了。" }]), settings);
+	assert.equal((await result).answer, "看过了。");
+	assert.ok(seen.some((said) => said.includes("Review this python:") && said.includes("print(1)")), seen.join("\n"));
+	await assert.rejects(run("/mcp__fx__review", () => says([{ type: "text", text: "-" }]), settings).result, (error: Error) => error instanceof SetupError && /缺少参数：code/.test(error.message));
+});
+
+test("要 OAuth 登录的 MCP 服务器：命令行不开浏览器，日志里说去桌面端登录，任务照跑", async (t) => {
+	const fixture = await startOAuthFixture();
+	t.after(() => fixture.close());
+	const settings: Settings = { ...SETTINGS, mcpServers: [{ id: "secure", name: "Secure", transport: "http", url: fixture.url, enabled: true }] };
+	const { result, lines } = run("你好", () => says([{ type: "text", text: "在。" }]), settings);
+	assert.equal((await result).status, "done");
+	assert.ok(lines.some((line) => /^! MCP 服务器「Secure」需要登录（还没有登录过）。请在 Plume 桌面端的 设置 → MCP 里点「登录」。$/.test(line)), lines.join("\n"));
+	assert.equal(fixture.stats.registrations, 0, "命令行不替人注册");
 });

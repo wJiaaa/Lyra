@@ -12,6 +12,7 @@
  */
 
 import { isNudge } from "../../lib/spoken.ts";
+import { routedBlock } from "../../lib/tool-summary.ts";
 import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@plume/core";
 import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
@@ -609,7 +610,8 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		const own = beforeTrailingCalls(message.content);
 		const calls: Call[] = [];
 		for (const block of message.content.slice(own)) {
-			if (block.type === "toolCall") calls.push({ block, stopReason: message.stopReason });
+			// 经 `mcp_call` 转手的按真正那个工具排、画：一次 preview 照样是一页，不是折进工作里的一行。
+			if (block.type === "toolCall") calls.push({ block: routedBlock(block), stopReason: message.stopReason });
 		}
 
 		/*

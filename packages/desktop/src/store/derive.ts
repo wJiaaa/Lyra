@@ -12,7 +12,7 @@ import type { CommandRun, HookRun } from "@plume/core";
 
 import type { Message, TodoItem } from "@plume/core";
 import type { SessionMeta } from "@plume/core";
-import { summarizeToolCall } from "../lib/tool-summary.ts";
+import { routedMcpCall, summarizeToolCall } from "../lib/tool-summary.ts";
 import type { AppState } from "./index.ts";
 import type { ToolRun } from "./tool-run.ts";
 
@@ -192,15 +192,18 @@ export function todosFrom(messages: Message[]): TodoItem[] {
  */
 export function rebuildToolRuns(messages: Message[], running = false, live: Record<string, ToolRun> = {}): Record<string, ToolRun> {
   const runs: Record<string, ToolRun> = {};
+  const asCalled = new Map<string, Record<string, unknown>>();
   for (const message of messages) {
     if (message.role === "assistant") {
       for (const block of message.content) {
         if (block.type !== "toolCall") continue;
+        const routed = routedMcpCall(block.name, block.arguments);
+        if (routed.name !== block.name) asCalled.set(block.id, block.arguments);
         runs[block.id] = {
           toolCallId: block.id,
-          toolName: block.name,
-          summary: summarizeToolCall(block.name, block.arguments),
-          args: block.arguments,
+          toolName: routed.name,
+          summary: summarizeToolCall(routed.name, routed.args),
+          args: routed.args,
           status: "running",
           startedAt: message.timestamp,
         };
@@ -208,6 +211,13 @@ export function rebuildToolRuns(messages: Message[], running = false, live: Reco
     } else if (message.role === "toolResult") {
       const run = runs[message.toolCallId];
       if (run) {
+        // 结果上记的是真正跑的那个工具（名字大小写纠正过、经 `mcp_call` 换过）；参数没对上被拦下的
+        // `mcp_call` 记的还是它自己——两种都和直播时那张卡一致。
+        if (message.toolName && message.toolName !== run.toolName) {
+          run.toolName = message.toolName;
+          if (message.toolName === "mcp_call") run.args = asCalled.get(message.toolCallId) ?? run.args;
+          run.summary = summarizeToolCall(message.toolName, run.args);
+        }
         run.status = message.isError ? "error" : "done";
         run.result = {
           content: message.content,

@@ -17,7 +17,6 @@ import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../src/agent/prune.ts";
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";
 import { McpManager, qualifiedToolName, type McpStdioServer } from "../src/mcp/client.ts";
 import { SessionCapabilities } from "../src/runtime/session-capabilities.ts";
@@ -57,8 +56,7 @@ process.stdin.on("data", (chunk) => {
 			if (process.env.FAKE_MCP_FAIL_LIST) send({ id: message.id, error: { code: -32603, message: "tools/list is broken" } });
 			else send({ id: message.id, result: { tools: names.map((name) => ({ name, description: "Echo.", inputSchema: { type: "object" } })) } });
 		} else if (message.method === "tools/call") {
-			const size = Number(process.env.FAKE_MCP_RESULT_CHARS || 0);
-			send({ id: message.id, result: { content: [{ type: "text", text: size ? "r".repeat(size) : "called " + message.params.name }] } });
+			send({ id: message.id, result: { content: [{ type: "text", text: "called " + message.params.name }] } });
 		} else {
 			send({ id: message.id, error: { code: -32601, message: "no such method" } });
 		}
@@ -335,6 +333,33 @@ test("on Windows closing a server stops its whole process tree, not only cmd.exe
 	assert.equal(calls[0].options.windowsHide, true);
 });
 
+test("on Windows a manual reconnect stops the old server's whole tree before starting a new one", async (t) => {
+	const fx = await fixture(t);
+	const calls: { file: string; args: readonly string[]; options: ExecFileOptions }[] = [];
+	const manager = new McpManager();
+	t.after(() => manager.dispose());
+	await manager.connectAll([fx.server()]);
+	const [pid] = await fx.started();
+	const exec = t.mock.method(childProcess, "execFile", (
+		file: string, args: readonly string[], options: ExecFileOptions,
+		callback: (error: Error | null, stdout: string, stderr: string) => void,
+	) => {
+		calls.push({ file, args, options });
+		callback(null, "", "");
+		return new ChildProcess();
+	});
+	syncBuiltinESMExports();
+	t.after(() => {
+		exec.mock.restore();
+		syncBuiltinESMExports();
+	});
+	// 设置页的「重新连接」走的是关掉再起：关的那一下和卸载时一样，要连 cmd.exe 底下的整棵树一起结束。
+	asWindows(t);
+	await manager.reconnect("fake");
+	assert.deepEqual(calls.map(({ file, args }) => [file, args]), [["taskkill", ["/PID", String(pid), "/T", "/F"]]]);
+	assert.equal(calls[0].options.windowsHide, true);
+});
+
 test("disconnecting one bundle stops its servers and leaves the others running", async (t) => {
 	const fx = await fixture(t);
 	const manager = new McpManager();
@@ -411,19 +436,4 @@ test("a tool name too long or colliding gets a stable short name, and still call
 	assert.equal(shortened.name, qualifiedToolName("srv", long), "同一个工具每次得到同一个名字");
 	const result = await shortened.execute({}, { cwd: fx.dir, sessionId: "s", state: new Map() });
 	assert.equal(result.content[0].type === "text" && result.content[0].text, `called ${long}`);
-});
-
-test("an MCP result is capped like a built-in tool's, and says how much was cut", async (t) => {
-	const fx = await fixture(t);
-	const manager = new McpManager();
-	t.after(() => manager.closeAll());
-	await manager.connectAll([fx.server({ FAKE_MCP_RESULT_CHARS: "500000" }, "big")]);
-	const result = await manager.allTools()[0].execute({}, { cwd: fx.dir, sessionId: "s", state: new Map() });
-	const text = result.content.map((part) => (part.type === "text" ? part.text : "")).join("");
-	const limit = FRESH_RESULT_MAX_CHARS - 2000;
-	assert.match(text, new RegExp(`\\[truncated: ${500000 - limit} of 500000 characters omitted \\(limit ${limit}\\)`));
-	// 上限高过首发剪枝线时，满额结果会在模型看到前被剪成前 4k、后 1k。
-	assert.ok(text.length <= FRESH_RESULT_MAX_CHARS, `${text.length}`);
-	const message = { role: "toolResult" as const, toolCallId: "c", toolName: "mcp", content: result.content, isError: false, timestamp: 0 };
-	assert.equal(pruneToolResults([message], FRESH_RESULT_MAX_CHARS)[0], message);
 });

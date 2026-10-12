@@ -90,7 +90,9 @@ export type NoticeCode =
 	/** The standing goal cannot be reached without the user. Params: `goal`, `reason`. */
 	| "goal-impossible"
 	/** The standing goal stopped short of being reached. Params: `why`, `rounds`, `goal`. */
-	| "goal-paused";
+	| "goal-paused"
+	/** An MCP server would not connect, or gave up reconnecting. Params: `server`, `error`. */
+	| "mcp-failed";
 
 /** Values a host fills into its own wording of a coded notice. */
 export type NoticeParams = Record<string, string | number>;
@@ -175,6 +177,8 @@ export type AgentEvent =
 			selectionMode?: "single" | "multi";
 			allowSkip?: boolean;
 			defaultOptionIndex?: number;
+			/** The fields of an MCP form (`kind: "form"`). */
+			fields?: import("../types.ts").ApprovalRequest["fields"];
 			/**
 			 * The instant this question stops waiting and resolves itself into a refusal.
 			 *

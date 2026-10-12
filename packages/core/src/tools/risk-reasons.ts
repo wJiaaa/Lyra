@@ -66,6 +66,9 @@ export const RISK_REASONS = {
 	"unsupported-protocol": "不支持的协议 {protocol}",
 	"credentials-in-url": "地址里带着账号密码",
 	"method-writes": "{method} 会改动对方的数据",
+
+	// MCP — a server's own `destructiveHint`, see `mcp/tool.ts`.
+	"mcp-destructive": "服务器声明这个工具会删除或覆盖数据",
 } as const;
 
 export type RiskCode = keyof typeof RISK_REASONS;

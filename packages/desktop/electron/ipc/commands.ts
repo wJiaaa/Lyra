@@ -9,12 +9,13 @@
 import { ipcMain, shell } from "electron";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { plumeHome } from "@plume/core";
+import { plumeHome, type McpPromptEntry, type UserContent } from "@plume/core";
+import { nativeText } from "../i18n.ts";
 import { registerReferenceFiles } from "../reference-files.ts";
 import { settings } from "../app-settings.ts";
 import { listCommands, type CommandsList } from "../commands-service.ts";
-
-export type { SkillEntry } from "../commands-service.ts";
+import { probeMcp, withMcpServer } from "../mcp-probe.ts";
+import { ensureLiveSession, sessions } from "../session-hub.ts";
 
 /** Where a newly created command goes, per scope. Only ours — nothing writes into `.claude`. */
 function directoryFor(scope: "workspace" | "user", cwd: string): string {
@@ -52,6 +53,37 @@ export function registerCommandsIpc(): void {
 		await registerReferenceFiles(result.skills.flatMap(skill => skill.path ? [skill.path] : []));
 		return result;
 	});
+
+	/*
+	 * MCP prompt：会话活着就问会话手上的连接——那是 agent 真正连着的那一份，项目层改过的服务器也
+	 * 算在里面。新对话还没有会话，就按全局设置临时连一次。
+	 */
+	ipcMain.handle("commands:prompts", async (_event, sessionId: string | null): Promise<McpPromptEntry[]> => {
+		const session = sessionId ? sessions.get(sessionId) : undefined;
+		if (session) return session.can.mcp.allPrompts();
+		const statuses = await Promise.all(settings().mcpServers.filter((server) => server.enabled).map(probeMcp));
+		return statuses.flatMap((status) => status.prompts ?? []);
+	});
+
+	ipcMain.handle(
+		"commands:prompt",
+		async (_event, sessionId: string | null, name: string, args: Record<string, string>): Promise<{ ok: true; content: UserContent[] } | { ok: false; error: string }> => {
+			try {
+				// 这句话马上要发给这个会话，所以把它拉起来不算白费。
+				const session = sessionId ? await ensureLiveSession(sessionId) : null;
+				if (session) return { ok: true, content: await session.can.mcp.getPrompt(name, args) };
+				const wanted = name.toLowerCase();
+				for (const server of settings().mcpServers.filter((one) => one.enabled)) {
+					const status = await probeMcp(server);
+					if (!status.prompts?.some((prompt) => prompt.name.toLowerCase() === wanted)) continue;
+					return { ok: true, content: await withMcpServer(server, (manager) => manager.getPrompt(name, args)) };
+				}
+				return { ok: false, error: nativeText("mcp.promptNotFound", { name }) };
+			} catch (error) {
+				return { ok: false, error: error instanceof Error ? error.message : String(error) };
+			}
+		},
+	);
 
 	/**
 	 * Create the file and answer with its path, so the caller can open it for editing.

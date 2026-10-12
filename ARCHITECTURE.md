@@ -22,6 +22,8 @@ Plume 是一个 agent 运行时加桌面端与原生手机端。`packages/core` 
 缓存、骨架屏与空结果在视图切换时的约定见 [视图切换与加载](docs/architecture/view-loading.md)。
 模型请求的来源分段、固定预算和用量统计见 [上下文组装与统计](docs/architecture/context-assembly.md)。
 会话之间互相发现、发消息、等对方做完见 [会话之间的消息](docs/architecture/session-messaging.md)。
+MCP 的提示词、填表（elicitation）与 OAuth 登录见 [MCP 客户端](docs/architecture/mcp-client.md)。
+MCP 工具多了以后不进工具表、按需搜索，内置工具为什么一律常驻，见 [工具延迟加载](docs/architecture/mcp-search.md)。
 原移动端与中转曾移除，见 [ADR-0026](docs/adr/0026-remove-mobile-and-relay.md)；新的原生手机端复用逻辑、独立 UI，见 [ADR-0041](docs/adr/0041-native-mobile-shared-runtime.md)。桌面 Web 访问仍已移除，见 [ADR-0027](docs/adr/0027-web-access.md)。
 
 ## 渲染进程的 9 个目录

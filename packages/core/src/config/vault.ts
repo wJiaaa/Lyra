@@ -28,11 +28,12 @@
  * to. That is a one-line change to where `key()` gets its bytes; the format below does not care.
  */
 
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { plumeHome } from "../session/store.ts";
 import { writeFileAtomic } from "../utils/atomic-write.ts";
+import { withFileLock } from "../utils/file-lock.ts";
 
 const KEY_FILE = () => join(plumeHome(), "vault.key");
 
@@ -125,9 +126,24 @@ interface VaultFile {
 }
 
 let loaded: VaultFile | null = null;
+/** 读进 `loaded` 时那个文件是哪一版：inode、修改时间、大小。 */
+let loadedStamp = "";
+
+/**
+ * 文件现在是哪一版。每次写都是换名替换（`writeFileAtomic`），所以换一次 inode 就变一次。
+ *
+ * 不止这个进程写它：桌面端和命令行各自刷新 MCP 令牌、各自保存设置。只认第一次读到的那份的话，
+ * 一个进程永远看不见另一个刚换来的令牌，拿着已经作废的刷新令牌再去换，换来 invalid_grant。
+ */
+async function stampOf(): Promise<string> {
+	const info = await stat(FILE()).catch(() => null);
+	return info ? `${info.ino}:${info.mtimeMs}:${info.size}` : "none";
+}
 
 async function read(): Promise<VaultFile> {
-	if (loaded) return loaded;
+	const stamp = await stampOf();
+	if (loaded && stamp === loadedStamp) return loaded;
+	loadedStamp = stamp;
 	const raw = await readFile(FILE(), "utf8").catch(() => null);
 	if (!raw) return (loaded = { secrets: {} });
 	try {
@@ -146,11 +162,13 @@ async function write(file: VaultFile): Promise<void> {
 	loaded = file;
 	await mkdir(plumeHome(), { recursive: true });
 	await writeFileAtomic(FILE(), JSON.stringify(file, null, 2), { mode: 0o600 });
+	loadedStamp = await stampOf();
 }
 
 /** Forget what was read. For tests, and for anything that rewrites the file behind this. */
 export function resetVault(): void {
 	loaded = null;
+	loadedStamp = "";
 	cached = null;
 	pending = null;
 }
@@ -169,20 +187,44 @@ export async function secret(id: string): Promise<string | null> {
  * key at once — one write rather than one per provider, and no window in which half of them have
  * been saved. An empty value removes the entry rather than storing something meaningless.
  */
-export async function putSecrets(entries: Record<string, string>): Promise<void> {
-	const file = await read();
+export function putSecrets(entries: Record<string, string>): Promise<void> {
+	return serially(async () => {
+		const file = await read();
 	const secrets = { ...file.secrets };
-	for (const [id, value] of Object.entries(entries)) {
-		if (value) secrets[id] = await seal(value);
-		else delete secrets[id];
-	}
-	await write({ secrets });
+		for (const [id, value] of Object.entries(entries)) {
+			if (value) secrets[id] = await seal(value);
+			else delete secrets[id];
+		}
+		await write({ secrets });
+	});
 }
 
 /** Drop everything filed under ids this predicate rejects — used to forget removed providers. */
-export async function keepSecrets(keep: (id: string) => boolean): Promise<void> {
-	const file = await read();
-	const secrets: Record<string, string> = {};
-	for (const [id, value] of Object.entries(file.secrets)) if (keep(id)) secrets[id] = value;
-	if (Object.keys(secrets).length !== Object.keys(file.secrets).length) await write({ secrets });
+export function keepSecrets(keep: (id: string) => boolean): Promise<void> {
+	return serially(async () => {
+		const file = await read();
+		const secrets: Record<string, string> = {};
+		for (const [id, value] of Object.entries(file.secrets)) if (keep(id)) secrets[id] = value;
+		if (Object.keys(secrets).length !== Object.keys(file.secrets).length) await write({ secrets });
+	});
+}
+
+/**
+ * Writes one after another — within this process, and across processes.
+ *
+ * Each write reads the file, changes its own entries and writes the whole thing back. Settings
+ * saves were the only writer and already ran one at a time; MCP sign-in tokens are written from
+ * wherever a connection refreshes them, at any moment. Two of those side by side each wrote back
+ * a copy without the other's entry, and a token that had just been refreshed — its predecessor
+ * already spent — was lost.
+ *
+ * The desktop app and the command line are two processes writing the same file the same way, so
+ * the queue alone is not enough: the read-change-write also runs under a lock file next to it, and
+ * the read inside it goes to the disk (`read` notices the file has changed under it).
+ */
+let writing: Promise<unknown> = Promise.resolve();
+function serially(job: () => Promise<void>): Promise<void> {
+	const run = writing.then(() => withFileLock(`${FILE()}.lock`, job, { staleMs: 10_000 }));
+	writing = run.catch(() => {});
+	return run;
 }

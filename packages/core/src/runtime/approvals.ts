@@ -10,6 +10,7 @@
 import { randomUUID } from "node:crypto";
 import type { PermissionMode } from "../config/settings.ts";
 import type { ApprovalVerdict } from "../kernel/services.ts";
+import { checkFormValues } from "../mcp/form.ts";
 import { riskReason } from "../tools/risk-reasons.ts";
 import type { ApprovalDecision, ApprovalRequest, ApprovalRisk } from "../types.ts";
 import { approvalPolicy } from "./approval-policy.ts";
@@ -87,7 +88,15 @@ export class ApprovalGate {
 	resolve(requestId: string, decision: unknown): boolean {
 		const entry = this.pending.get(requestId);
 		if (!entry) return false;
-		if (entry.request.kind === "interactive") {
+		if (entry.request.kind === "form") {
+			// 交上来的值在这里再对一遍：窗口里的检查拦得住手误，拦不住一个不照着表单答的客户端。
+			if (decision === "reject" || decision === "cancel") entry.resolve(decision);
+			else if (typeof decision === "object" && decision !== null && "values" in decision) {
+				const checked = checkFormValues(entry.request.fields ?? [], decision.values);
+				if (!checked.ok) return false;
+				entry.resolve({ values: checked.values });
+			} else return false;
+		} else if (entry.request.kind === "interactive") {
 			const labels = (entry.request.options ?? []).map((option) => typeof option === "string" ? option : option.label);
 			if (decision === "reject") entry.resolve(decision);
 			else if (decision === "skip" && entry.request.allowSkip === true) {
@@ -117,11 +126,12 @@ export class ApprovalGate {
 	 * and a plugin can replace it. An escalation is never that policy's to judge, nor the allow
 	 * list's. Anything else asks.
 	 */
-	async request(request: ApprovalRequest): Promise<ApprovalDecision> {
+	async request(request: ApprovalRequest, signal?: AbortSignal): Promise<ApprovalDecision> {
 		const mode = this.options.mode();
 		const escalation = request.escalation !== undefined;
+		const question = asksPerson(request);
 		// A permission grant cannot answer a question, even in unattended/full-access mode.
-		if (request.kind !== "interactive") {
+		if (!question) {
 			if (mode === "full") return "once";
 			if (!escalation && this.allowList.has(request.subject)) return "once";
 
@@ -152,6 +162,7 @@ export class ApprovalGate {
 		}
 
 		const id = randomUUID();
+		if (signal?.aborted) return unanswered(request);
 		return new Promise<ApprovalDecision>((resolve) => {
 			/*
 			 * Nobody there is an answer too — and the answer is no.
@@ -165,16 +176,22 @@ export class ApprovalGate {
 			 * How long depends on what is being asked; see `QUESTION_TIMEOUT_MS` for why a question
 			 * gets its own, much longer wait than a permission request does.
 			 */
-			const timeoutMs = request.kind === "interactive"
+			const timeoutMs = question
 				? this.options.questionTimeoutMs ?? QUESTION_TIMEOUT_MS
 				: this.options.unattendedTimeoutMs ?? UNATTENDED_TIMEOUT_MS;
 			let timer: ReturnType<typeof setTimeout> | undefined;
+			/*
+			 * 问的那一方不等了（MCP 服务器发来 `notifications/cancelled`），卡片跟着收走——留着它，
+			 * 人填完点交，交给的是一个早就不在等的请求。
+			 */
+			const withdraw = () => entry.resolve(unanswered(request));
 			const entry: PendingApproval = {
 				id,
 				request,
 				expiresAt: Date.now() + timeoutMs,
 				resolve: (decision) => {
 					if (timer) clearTimeout(timer);
+					signal?.removeEventListener("abort", withdraw);
 					if (!this.pending.delete(id)) return;
 					this.options.settled?.(id);
 					// An escalation's "always" still covers only this call; see above.
@@ -186,7 +203,8 @@ export class ApprovalGate {
 					resolve(decision === "always" ? "once" : decision);
 				},
 			};
-			timer = setTimeout(() => entry.resolve("reject"), timeoutMs);
+			timer = setTimeout(() => entry.resolve(unanswered(request)), timeoutMs);
+			signal?.addEventListener("abort", withdraw, { once: true });
 			this.pending.set(id, entry);
 			void this.options.ask(entry);
 		});
@@ -205,8 +223,23 @@ export class ApprovalGate {
 	 */
 	rejectWhere(match: (request: ApprovalRequest) => boolean): void {
 		// 边走边删是安全的：Map 的迭代会跳过已经删掉的项，不会漏掉还没走到的。
-		for (const entry of this.pending.values()) if (match(entry.request)) entry.resolve("reject");
+		for (const entry of this.pending.values()) if (match(entry.request)) entry.resolve(unanswered(entry.request));
 	}
+}
+
+/** 问的是人而不是许可：任何权限模式、任何「总是允许」都不能替人答。 */
+function asksPerson(request: ApprovalRequest): boolean {
+	return request.kind === "interactive" || request.kind === "form";
+}
+
+/**
+ * 没人答就收场时，算作什么。
+ *
+ * 许可和提问照旧是拒绝。表单是取消：协议把「人明确说不」（decline）和「没有给出选择就关掉了」
+ * （cancel）分成两种，服务器据此决定要不要换个方式再问——超时、撤回都不是人说了不。
+ */
+function unanswered(request: ApprovalRequest): ApprovalDecision {
+	return request.kind === "form" ? "cancel" : "reject";
 }
 
 /**

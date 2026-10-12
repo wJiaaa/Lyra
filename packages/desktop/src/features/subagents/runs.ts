@@ -13,15 +13,17 @@
  */
 
 import type { Message } from "@plume/core";
-import { summarizeToolCall } from "../../lib/tool-summary.ts";
+import { routedBlock, summarizeToolCall } from "../../lib/tool-summary.ts";
 import type { ToolRun } from "../../store/index.ts";
 
 export function subAgentRuns(messages: Message[]): Record<string, ToolRun> {
 	const records: Record<string, ToolRun> = {};
 	for (const message of messages) {
 		if (message.role === "assistant") {
-			for (const block of message.content) {
-				if (block.type !== "toolCall") continue;
+			for (const raw of message.content) {
+				if (raw.type !== "toolCall") continue;
+				// 和主对话一样，经 `mcp_call` 转手的按真正那个工具记。
+				const block = routedBlock(raw);
 				records[block.id] = {
 					toolCallId: block.id,
 					toolName: block.name,
