@@ -16,7 +16,7 @@ import { goalPauseText } from "./notice-text.ts";
 export const GOAL_MAX_ROUNDS = 50;
 
 /** 在做、在判、在等是进行中；其余三种是结果，要人再开口。 */
-export function goalActive(goal: GoalState): boolean {
+function goalActive(goal: GoalState): boolean {
 	return goal.status === "working" || goal.status === "judging" || goal.status === "waiting";
 }
 
