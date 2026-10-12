@@ -1,12 +1,14 @@
 import { Collapse } from "../../ui/layout/Collapse.tsx";
 import { translate } from "../../i18n/translate.ts";
 import { Brain } from "../../ui/icons/index.ts";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { formatElapsed } from "@plume/client-runtime/running";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { FlowRow } from "./FlowRow.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { thinkingTail } from "./thinking-ticker.ts";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
+import { useRolled } from "../../ui/motion/RollingText.tsx";
 import { useTranscriptDisclosure } from "./view-state.ts";
 
 /**
@@ -16,10 +18,11 @@ import { useTranscriptDisclosure } from "./view-state.ts";
  *
  * 行上只写标题，不写推理本身。它曾经把推理一句一句打在行上、写完停在第一句：一段几分钟的推理在那一行
  * 上滚个不停，是整屏最吵的东西，而那一句半截话几乎从来不是读者要的——要看推理的人会点开。
- * 运行中是一个说「在想」的词，加上标题上扫过的那道光（和别的过程行一样）；写完是「思考了 N 秒」，一个
- * 不会动的数，却说得出这段推理有多长。点开是全文。
+ * 运行中是「一个说『在想』的词 · 这段想了几秒」，词随想的时长往下换（见 `LiveThought`）；写完是
+ * 「思考了 N 秒」，一个不会动的数，却说得出这段推理有多长。点开是全文。
  *
- * 运行中不走秒：下面那行运行指示已经有一个在走的钟，两个钟挨着跳是同一件事说两遍，差一秒时还像算错了。
+ * 运行中的秒数和下面那行运行指示的钟不是一回事：那个从这一轮开始算，跑过几个工具之后再想，它就回答
+ * 不了「这一段想了多久」。
  */
 export function ThinkingBlock({
 	text,
@@ -33,7 +36,7 @@ export function ThinkingBlock({
 	redacted: boolean;
 	/** 字还在到：后面还没有别的块。 */
 	live?: boolean;
-	/** 这段推理开始的时刻（`ThinkingContent.startedAt`），运行中拿它选那个词。 */
+	/** 这段推理开始的时刻（`ThinkingContent.startedAt`），运行中拿它走秒、选词。 */
 	startedAt?: number;
 	/** 这段推理想了多久（`ThinkingContent.durationMs`）。旧会话、中途断掉的推理没有。 */
 	durationMs?: number;
@@ -45,10 +48,14 @@ export function ThinkingBlock({
 
 	return (
 		<div data-ly-thinking="">
+			{/*
+			 * 运行中不经 `running` 上扫光：那道光挂在 `ScrollText` 装字的外层，而换词时滚进来的词带着
+			 * transform 被单独合成，外层的 `background-clip: text` 裁不到它，滚动那一下词会整个消失。
+			 * 光由 `LiveThought` 挂在词自己身上。
+			 */}
 			<FlowRow
 				icon={<Brain size={13} strokeWidth={1.8} />}
-				summary={redacted ? translate("thinking.redacted") : live ? translate(liveWord(startedAt)) : thoughtFor(durationMs)}
-				running={live === true}
+				summary={redacted ? translate("thinking.redacted") : live ? <LiveThought startedAt={startedAt} /> : thoughtFor(durationMs)}
 				open={open}
 				{...(redacted ? {} : { onToggle: () => { setOpen((v) => !v); } })}
 				label={translate("thinking.process")}
@@ -62,17 +69,100 @@ export function ThinkingBlock({
 	);
 }
 
-/** 运行中可以说的那几个词。 */
-const LIVE_WORDS = ["thinking.live", "thinking.live2", "thinking.live3", "thinking.live4", "thinking.live5", "thinking.live6"] as const;
+/**
+ * 运行中的词，按这一段已经想了多久往下走：`[从第几毫秒起, 词]`。
+ *
+ * 间隔越拉越长（8、12、20、30、40 秒）。短推理只会看到一两个词；长推理每一步都比上一步停得久，
+ * 不会变成它曾经那种每隔几秒换一次字的吵。按时长选而不是随机，重绘、切会话回来重新挂载都是同一个词。
+ */
+const LIVE_STEPS = [
+	[0, "thinking.live"],
+	[8_000, "thinking.live3"],
+	[20_000, "thinking.live2"],
+	[40_000, "thinking.live4"],
+	[70_000, "thinking.live5"],
+	[110_000, "thinking.live6"],
+] as const;
+
+/** 走完一遍以后，每隔这么久再换一个。停在最后一个词上几分钟不动，看上去和卡住了一样。 */
+const LIVE_CYCLE_MS = 45_000;
+
+function liveWord(elapsedMs: number): (typeof LIVE_STEPS)[number][1] {
+	const last = LIVE_STEPS.length - 1;
+	const lastAt = LIVE_STEPS[last][0];
+	if (elapsedMs >= lastAt) {
+		// 轮回时跳过开场的「正在思考」：想了两分钟以后再说一遍它，读着像刚开始。
+		const round = Math.floor((elapsedMs - lastAt) / LIVE_CYCLE_MS);
+		return LIVE_STEPS[1 + ((last - 1 + round) % last)][1];
+	}
+	let step = 0;
+	while (step < last && elapsedMs >= LIVE_STEPS[step + 1][0]) step++;
+	return LIVE_STEPS[step][1];
+}
 
 /**
- * 这一段推理用哪个词。
+ * 运行中那一行：「正在思考 · 5s」。
  *
- * 一段一个，从开始写到写完不换：中途轮换的话，这一行每隔几秒变一次，又回到了它曾经那种不停换字的吵。
- * 按开始时刻选而不是随机，重绘、切会话回来重新挂载都还是同一个词。不知道开始时刻时用第一个。
+ * 自己走钟，只重绘这一小块——放在 `ThinkingBlock` 里的话，每次走秒都把展开着的正文一起重绘一遍。
+ * 四分之一秒一跳，和运行指示一样，秒位不会看上去跳过一格。
+ *
+ * 换词时新词从上方落进来（`ly-roll-in`），词框的宽度跟着平滑地变，后面的秒数被推过去而不是跳过去。
+ * 秒数本身不滚：它是读数不是标签，每秒滚一次就成了眼角一直在动的东西（见 `RollingText`）。
+ *
+ * 说不出开始时刻时不报秒，词停在第一个。
  */
-function liveWord(startedAt: number | undefined): (typeof LIVE_WORDS)[number] {
-	return LIVE_WORDS[startedAt === undefined ? 0 : Math.floor(startedAt) % LIVE_WORDS.length];
+function LiveThought({ startedAt }: { startedAt: number | undefined }) {
+	const [now, setNow] = useState(() => Date.now());
+	useEffect(() => {
+		if (startedAt === undefined) return;
+		const timer = setInterval(() => setNow(Date.now()), 250);
+		return () => clearInterval(timer);
+	}, [startedAt]);
+
+	const elapsed = startedAt === undefined ? 0 : now - startedAt;
+	const word = translate(liveWord(elapsed));
+	const rolls = useRolled(word);
+	const box = useRef<HTMLSpanElement>(null);
+	const width = useRef<number | null>(null);
+
+	/*
+	 * 宽度只在换词的那一下钉成像素：量出新宽，先钉回旧宽、再设新宽，过渡走完（`onTransitionEnd`）就放回
+	 * auto。一直钉着的话，网页字体晚到、改字号之后词框还是旧的宽度，字会被截掉。
+	 */
+	useLayoutEffect(() => {
+		const element = box.current;
+		if (!element) return;
+		element.style.width = "";
+		const to = element.offsetWidth;
+		const from = width.current;
+		width.current = to;
+		if (from === null || from === to) return;
+		element.style.width = `${from}px`;
+		void element.offsetWidth;
+		element.style.width = `${to}px`;
+	}, [word]);
+
+	return (
+		<span className="inline-flex items-center">
+			<span
+				ref={box}
+				className="ly-thought-word"
+				onTransitionEnd={(event) => {
+					if (event.target === event.currentTarget) event.currentTarget.style.width = "";
+				}}
+			>
+				<span key={word} className={`inline-block ${rolls ? "ly-thought-roll" : ""}`}>
+					<span className="ly-glide">{word}</span>
+				</span>
+			</span>
+			{startedAt !== undefined && (
+				<>
+					<span className="ly-flow-dot" aria-hidden />
+					<span className="tabular-nums">{formatElapsed(elapsed)}</span>
+				</>
+			)}
+		</span>
+	);
 }
 
 /**

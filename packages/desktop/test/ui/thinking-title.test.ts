@@ -1,6 +1,6 @@
 /**
- * 思考行收起时的标题：运行中是一个说「在想」的词、一段一个、不走秒；写完「思考了 N 秒」，不满一秒或说不出
- * 时长就不报数。见 `ThinkingBlock`。
+ * 思考行收起时的标题：运行中是「词 · 这段想了几秒」，词随时长往下换；写完「思考了 N 秒」，不满一秒或
+ * 说不出时长就不报数。见 `ThinkingBlock`。
  */
 
 import assert from "node:assert/strict";
@@ -12,8 +12,6 @@ import { mount } from "../helpers/mount.ts";
 
 type Props = { live?: boolean; startedAt?: number; durationMs?: number };
 
-const ZH_LIVE = ["正在思考", "头脑风暴中", "琢磨一下", "理理思路", "掂量掂量", "想想怎么办"];
-
 async function title(locale: "zh-CN" | "en", props: Props): Promise<string> {
 	const view = await mount(h(I18nProvider, { locale, children: h(ThinkingBlock, { text: "先看目录\n再读配置", redacted: false, ...props }) }));
 	try {
@@ -23,16 +21,26 @@ async function title(locale: "zh-CN" | "en", props: Props): Promise<string> {
 	}
 }
 
-test("运行中：每段按开始时刻选一个词，同一段重新挂载还是那个词，不写秒数和推理内容", async () => {
-	const seen = new Set<string>();
-	for (let startedAt = 1_000; startedAt < 1_006; startedAt++) {
-		const word = await title("zh-CN", { live: true, startedAt });
-		assert.ok(ZH_LIVE.includes(word), `运行中是那几个词之一：${word}`);
-		assert.equal(await title("zh-CN", { live: true, startedAt }), word, "同一段推理再挂载一次，词不变");
-		seen.add(word);
-	}
-	assert.equal(seen.size, ZH_LIVE.length, "不同的段轮得到不同的词");
-	assert.equal(await title("zh-CN", { live: true }), "正在思考", "不知道开始时刻时用第一个");
+/** 已经想了这么久的一段。 */
+const thinking = (ms: number): Props => ({ live: true, startedAt: Date.now() - ms });
+
+test("运行中：词随这一段想的时长往下换，后面跟着秒数，不写推理内容", async () => {
+	assert.equal(await title("zh-CN", thinking(5_000)), "正在思考5s");
+	assert.equal(await title("zh-CN", thinking(12_000)), "琢磨一下12s");
+	assert.equal(await title("zh-CN", thinking(25_000)), "头脑风暴中25s");
+	assert.equal(await title("zh-CN", thinking(45_000)), "理理思路45s");
+	assert.equal(await title("zh-CN", thinking(80_000)), "掂量掂量1m 20s");
+	assert.equal(await title("zh-CN", thinking(115_000)), "想想怎么办1m 55s");
+	assert.equal(await title("en", thinking(5_000)), "Thinking5s");
+});
+
+test("运行中：走完一遍以后慢慢轮回去，不再说开场那个「正在思考」", async () => {
+	assert.equal(await title("zh-CN", thinking(160_000)), "琢磨一下2m 40s");
+	assert.equal(await title("zh-CN", thinking(200_000)), "头脑风暴中3m 20s");
+});
+
+test("运行中说不出开始时刻：用第一个词，不报秒", async () => {
+	assert.equal(await title("zh-CN", { live: true }), "正在思考");
 	assert.equal(await title("en", { live: true }), "Thinking");
 });
 

@@ -151,3 +151,21 @@
  *
  * 一个位置一个值。展开与否是这一块内部的事，不该改变它和邻居之间的关系。
  */
+
+/*
+ * 运行中思考行上的那个词（`ThinkingBlock` 的 `LiveThought`）。
+ *
+ * 宽度由组件在换词时钉成像素再放开，这里只给它过渡；`overflow: hidden` 让变宽的那段时间里新词不压到
+ * 后面的点上，也让落进来的词像是从一道缝里出来。
+ */
+.ly-thought-word {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: width var(--ly-t-slow) var(--ly-e-out);
+}
+
+/* 和 `.ly-roll` 同一个落下的动作，慢一档：这一行是安静的，换词不该像按钮被点了一下。 */
+.ly-thought-roll {
+  animation: ly-roll-in var(--ly-t-slow) var(--ly-e-out);
+}
