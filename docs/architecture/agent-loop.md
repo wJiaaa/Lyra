@@ -9,6 +9,7 @@
 | `stream-turn.ts` | 一个请求怎么变成一条落定的回复：重试计数、换模型放手、拒收挂起 |
 | `tool-run.ts` | 一轮里的工具怎么跑：并行/串行、审批、钩子、停止不等工具 |
 | `repetition.ts` | 这一轮有没有在原地打转（阈值的来历写在那个文件顶上） |
+| `plan-watch.ts` | 清单相关的三句话：单独调清单、跑久了问进度、收尾时清单没勾完 |
 
 代码里的注释只留「这里必须这样、改坏过的是哪种写法」。演进和论证在这里。成本与停止机制的
 实测数字见 [agent-cost-and-stopping.md](agent-cost-and-stopping.md)，模型切换的决定见
@@ -154,7 +155,7 @@
 
 - **工作途中**：按请求数计，连着 `PROGRESS_EVERY`（20）次请求没汇报进度，就在那一轮的工具结果之后插一句
   运行时的话，跟着下一次请求发出去，不单独占一次请求；说过就重新计数。什么算汇报看手上有没有没做完的
-  清单（`progressCheck`）：
+  清单（`PlanWatch.progress`）：
   - 有清单：只认 `todo_write`，嘴上说了不算，因为界面上那张清单不会因为它说了一句而往前走——`2333f4e9`
     每隔几轮就说一句，清单却从第 4 次请求停在 1/5 直到收尾。提示把整张清单念给它听（`stalePlanNote`）。
   - 没清单：对人说过话就算。提示只要一两句现状——做完了什么、在做什么、下一步做什么——并明说不必为此
@@ -174,6 +175,32 @@
   却没有这次调用，清单停在 1/5，界面显示停在第 2 步。它如果只回了一次 `todo_write`，执行完就结束，
   不再要一段新正文，因为回答已经在上面了；桌面端因此要认得「回答之后补勾」这种结尾
   （`store/turn-stop.ts` 的 `beforePlanTick`），否则会当成被中断。一次运行只问一次。
+
+## 停止与续跑总表
+
+一轮为什么停、为什么还在跑，所有的线都在这张表里。改任何一条之前先跑 `pnpm audit:sessions`，改后再跑一次对照。
+
+| 线 | 值 | 到了之后 | 在哪 |
+| --- | --- | --- | --- |
+| 一次运行的步数 | 200（子代理每段 60） | `max_turns`，交给续跑链 | `loop.ts` `DEFAULT_MAX_TURNS`、`sub-agent.ts` `SUB_AGENT_CHECKPOINT_TURNS` |
+| 续跑次数 | 10 段 | 停下，通知「已达到自动续跑次数上限」 | `continuation.ts` `MAX_CONTINUATIONS` |
+| 续跑没推进清单 | 连续 2 段一项没勾 | 停下，通知 `plan-stalled` | `continuation.ts` `STALLED_CONTINUATIONS` |
+| 撞到步数上限时清单为空或已做完 | — | 主会话停下；子代理宽限一段让它写清单 | `continuation.ts` `planless` |
+| 空回复 | 催 3 次 | `error`「模型连续返回空回复」 | `loop.ts` `MAX_NUDGES` |
+| 纯文本撞输出上限 | 续写 3 次 | 停下，通知 `output-limit` | `loop.ts` `MAX_TRUNCATED_REPLIES` |
+| 工具参数撞输出上限 | 连续 3 次 | `error`，让它拆小 | 同上 |
+| 同一调用、同一结果 | 第 3 次起纠正，第 10 次停 | `stalled` | `repetition.ts` `REPEAT_WARN` / `REPEAT_STOP` |
+| 翻页问同一个问题 / 切图测距 | 12 次 / 5 次 | 只提示，不停 | `repetition.ts` `INTENT_WARN` / `PROBE_WARN` |
+| 没汇报进度 | 20 次请求 | 只问，不停 | `plan-watch.ts` `PROGRESS_EVERY` |
+| 收尾时清单还有「正在做」 | 每次运行 1 次 | 问一次，不停 | `plan-watch.ts` `closing` |
+| Stop 钩子要求接着做 | 3 次 | 之后不再理会钩子 | `hooks.ts` `MAX_STOP_HOOK_CONTINUATIONS` |
+| 请求被拒收 / 上下文超长 | 各恢复 1 次 | 照原错误收场 | `loop.ts` `requestReply` |
+| 请求重试 | 按设置页：网络默认无限、上游默认 10 次 | `error`；不在外面整轮重来，由人点「继续」 | `ai/retry.ts`，见 [retry-policy.md](retry-policy.md) |
+| 授权卡片没人答 | 5 分钟 | 当作拒绝 | `approvals.ts` `UNATTENDED_TIMEOUT_MS` |
+| `ask_user` 没人答 | 30 分钟 | 当作没有回答，要求它在回复里说出来 | `approvals.ts` `QUESTION_TIMEOUT_MS` |
+| `yield` 交付 | — | `done`，不再问下一句 | `loop.ts` `runToolTurn` |
+
+没有按花费或「多久没说话」停的线，两种都试过并拆掉了，见 `repetition.ts` 顶上。
 
 ## 计划模式：同一张工具表，开关开着时只放行只读
 

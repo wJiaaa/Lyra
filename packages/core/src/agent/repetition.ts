@@ -248,6 +248,25 @@ export class RepetitionWatch {
 }
 
 /**
+ * One wording per line of detection: telling a call that changes `offset` every time that it used
+ * "the same arguments" is visibly false, and the model then distrusts the half that mattered.
+ */
+export function repeatHint(kind: "exact" | "intent" | "probe" | undefined, tool: string): string {
+	if (kind === "probe") {
+		return `（自动提示）你已经连续多次切图、读切片或做像素测距。` +
+			`这类探测回答不了「为什么间距是这样」——去读对应的 CSS 和组件结构，基于已有证据下结论。` +
+			`不要再写新的测距脚本，也不要再切图。`;
+	}
+	if (kind === "intent") {
+		return `（自动提示）你已经用不同的翻页参数把 \`${tool}\` 的同一个问题问了很多遍。` +
+			`翻页不会把答案翻出来——要么它本来就不在这里，要么该换个问法。` +
+			`换个工具、换个假设，或者直接说明当前卡在哪里、需要什么。`;
+	}
+	return `（自动提示）你已经用同样的参数调用 \`${tool}\` 多次，每次得到的结果都一样。` +
+		`再问一次不会有新信息。换一个思路：换个工具、换个假设，或者直接说明当前卡在哪里、需要什么。`;
+}
+
+/**
  * 第三次起替换重复结果的那句话（见 `agent/loop.ts` 用 `repeats` 的那一段）。
  *
  * 放在这里，是因为有两处要认得它：循环写它，`runtime/stale-results.ts` 要把它当成「不是原文」。
