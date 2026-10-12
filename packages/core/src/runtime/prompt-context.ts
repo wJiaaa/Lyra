@@ -11,7 +11,6 @@ import { readPromptOverride } from "../prompt/overrides.ts";
 import type { SystemPromptInput } from "../prompt/system.ts";
 import { gatherMemory } from "./memory/memory-inject.ts";
 import { projectMemoryEnabled } from "./memory/project-memory.ts";
-import { isIsolatedWorktree } from "./workspace.ts";
 
 /**
  * 不是主力的会话怎么组提示词：侧边聊天。
@@ -39,7 +38,7 @@ export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "
 	profile?: PromptProfile;
 }) {
 	const { cwd, settings, profile, ...rest } = input;
-	const [memory, projectInstructions, identityOverride, guidelinesOverride, isolatedWorktree, isGitRepo] = await Promise.all([
+	const [memory, projectInstructions, identityOverride, guidelinesOverride, isGitRepo] = await Promise.all([
 		/*
 		 * 按会话冻结记忆（见 `memory-inject.ts`）。暂存目录的最后一段就是会话 id（`scratchDir`），
 		 * 是两处调用方（组装一轮、上下文面板预估）都已经传进来的会话标识；没有它的调用方每次重读。
@@ -48,7 +47,6 @@ export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "
 		profile ? [] : loadProjectInstructions(cwd),
 		profile ? undefined : readPromptOverride(cwd, "identity"),
 		profile ? undefined : readPromptOverride(cwd, "guidelines"),
-		isIsolatedWorktree(cwd),
 		access(join(cwd, ".git")).then(() => true, () => false),
 	]);
 	return buildPromptContext({
@@ -59,7 +57,6 @@ export async function loadPromptContext(input: Pick<SystemPromptInput, "cwd" | "
 		projectInstructions,
 		identityOverride,
 		guidelinesOverride,
-		isolatedWorktree,
 		isGitRepo,
 		customInstructions: settings.personalization?.customInstructions,
 		tone: settings.personalization?.tone,

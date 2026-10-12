@@ -191,7 +191,8 @@ export const bashTool: Tool<BashArgs> = {
 		"Run a shell command. Prefer the dedicated tools: read over `cat`/`head`/`tail`, edit over `sed`, glob over `find`, grep over shell `grep`. " +
 		"Every call starts fresh in the workspace root — `cd`, variables and functions do not carry over — so chain dependent steps (`cd sub && make`). " +
 		"Quote paths that may contain spaces. Use `run_in_background: true` for dev servers and slow commands you need not wait on, and keep working; " +
-		"the result says whether its exit will be reported to you, otherwise read it with `bash_output`.",
+		"the result says whether its exit will be reported to you, otherwise read it with `bash_output`. " +
+		"Before your final answer, read what you still need from jobs you started and kill the ones nobody needs any more; leave a server running only when the user is meant to use it.",
 	parameters: {
 		type: "object",
 		properties: {
