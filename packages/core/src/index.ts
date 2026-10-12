@@ -131,6 +131,8 @@ export {
 export { resetVault, seal, secret, unseal } from "./config/vault.ts";
 /** Replacing a file whole, for the main process's own files; see `utils/atomic-write.ts`. */
 export { renameWithRetry, writeFileAtomic } from "./utils/atomic-write.ts";
+/** The HTTP client's own timeouts, installed by each host at startup; see `utils/sse.ts`. */
+export { TRANSPORT_TIMEOUT_MS } from "./utils/sse.ts";
 export {
 	McpManager,
 	type McpHttpServer,

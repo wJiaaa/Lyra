@@ -12,7 +12,8 @@
 		"test": "node --test --experimental-strip-types test/*.test.ts"
 	},
 	"dependencies": {
-		"@plume/core": "workspace:*"
+		"@plume/core": "workspace:*",
+		"undici": "7.29.0"
 	},
 	"devDependencies": {
 		"@types/node": "24.13.3",

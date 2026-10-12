@@ -91,8 +91,13 @@ export interface Failure {
 }
 
 export type FailureInput =
-	/** fetch 本身抛了：连接没建立，或者建立后断了。 */
-	| { from: "transport"; error: unknown }
+	/**
+	 * fetch 本身抛了：连接没建立，或者建立后断了。
+	 *
+	 * `sending`：异常是从发请求那一下（`fetch(...)` 本身）抛出来的，而不是读流、解码时。只有调用 fetch
+	 * 的那一处知道这件事，见 `fromTransport` 里用到它的那一段。
+	 */
+	| { from: "transport"; error: unknown; sending?: boolean }
 	/** 服务器答了，但状态码不是 2xx。 */
 	| { from: "status"; status: number; body?: string }
 	/** 连接和状态码都正常，错误写在流里面。 */
@@ -132,11 +137,29 @@ const FATAL_STATUS = new Map<number, { summary: string; hint: FailureHint }>([
 const FATAL_CAUSES = new Set([
 	"ERR_TLS_CERT_ALTNAME_INVALID",
 	"CERT_HAS_EXPIRED",
+	"CERT_NOT_YET_VALID",
 	"DEPTH_ZERO_SELF_SIGNED_CERT",
 	"UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+	// 公司代理换了根证书、自建中转只配了叶子证书：链补不全，重试一百次还是补不全。
+	"UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+	"UNABLE_TO_GET_ISSUER_CERT",
 	"SELF_SIGNED_CERT_IN_CHAIN",
+	// 用 https 连一个只开了 http 的端口（本地模型服务最常见）：对面回的不是 TLS，是地址写错了。
+	"ERR_SSL_WRONG_VERSION_NUMBER",
 	"ERR_INVALID_URL",
 ]);
+
+/** 地址本身的问题：哪个码、哪句话，给人看什么。证书类不在这里，它们统一说「证书校验失败」。 */
+const ADDRESS_CAUSES = new Map<string, string>([
+	["ERR_INVALID_URL", "接口地址无效"],
+	["ERR_SSL_WRONG_VERSION_NUMBER", "协议不匹配，检查地址是 http 还是 https"],
+]);
+
+/**
+ * undici 拒绝发出的地址，`cause` 上没有 code、只有这么一句话：`ftp://`、`htp://` 这种不认识的协议，
+ * 以及 fetch 规范禁用的端口（1、6000……）。地址不改，重试多少次都是这一句。
+ */
+const ADDRESS_REFUSALS = /^(unknown scheme|bad port)$/;
 
 /**
  * 写在错误正文里的终局理由。
@@ -157,7 +180,7 @@ const FATAL_PHRASES: {
 	/** 429 的整个正文说明这不是终局时跳过这条。 */
 	passOnRateLimit?: (body: string) => boolean;
 }[] = [
-	{ match: /insufficient[_\s-]?quota|exceeded your current quota|余额不足|额度不足|欠费/i, summary: "额度不足", hint: "check-billing", passOnRateLimit: isPerMinuteQuota },
+	{ match: /insufficient[_\s-]?(?:quota|credits|balance)|exceeded your current quota|余额不足|额度不足|欠费/i, summary: "额度不足", hint: "check-billing", passOnRateLimit: isPerMinuteQuota },
 	{ match: /invalid[_\s-]?api[_\s-]?key|incorrect api key|unauthorized|api key not valid|密钥无效/i, summary: "密钥被拒绝", hint: "check-key" },
 	{ match: /account[_\s-]?(deactivated|disabled|suspended|banned)|账号已(停用|禁用|封禁)/i, summary: "账号已停用", hint: "check-billing" },
 	// `REFUSAL_MESSAGE` 是三条链在模型拒答时自己拼的那句（Anthropic `stop_reason: refusal`、两条 OpenAI 链的 `refusal` 字段）。
@@ -293,6 +316,8 @@ export function messageFromBody(body: string | undefined): string {
 function digForMessage(value: unknown, depth: number): string {
 	if (depth > 3 || !value) return "";
 	if (typeof value === "string") return value.trim();
+	// Gemini 等有时把整个错误体包在数组里：`[{"error":{...}}]`。
+	if (Array.isArray(value)) return digForMessage(value[0], depth + 1);
 	if (typeof value !== "object") return "";
 	const record = value as Record<string, unknown>;
 	for (const key of ["message", "detail", "error_message", "msg", "reason", "description"]) {
@@ -406,7 +431,7 @@ function fingerprintOf(kind: FailureKind, key: string): string {
 export function classifyFailure(input: FailureInput): Failure {
 	switch (input.from) {
 		case "transport":
-			return fromTransport(input.error);
+			return fromTransport(input.error, input.sending === true);
 		case "status":
 			return fromStatus(input.status, input.body);
 		case "stream":
@@ -438,8 +463,9 @@ function statusFromText(text: string): number | undefined {
 	return undefined;
 }
 
-function fromTransport(error: unknown): Failure {
-	const code = (error as { cause?: { code?: string } })?.cause?.code;
+function fromTransport(error: unknown, sending: boolean): Failure {
+	const cause = (error as { cause?: { code?: string; message?: unknown } })?.cause;
+	const code = cause?.code;
 	const text = error instanceof Error ? error.message : String(error);
 
 	/*
@@ -454,12 +480,45 @@ function fromTransport(error: unknown): Failure {
 	}
 
 	if (code && FATAL_CAUSES.has(code)) {
+		const address = ADDRESS_CAUSES.get(code);
 		return {
 			kind: "fatal",
-			summary: code === "ERR_INVALID_URL" ? "接口地址无效" : "证书校验失败",
+			summary: address ?? "证书校验失败",
 			detail: truncateDetail(`${text}${code ? ` (${code})` : ""}`),
-			hint: code === "ERR_INVALID_URL" ? "check-model" : undefined,
+			hint: address ? "check-model" : undefined,
 			fingerprint: fingerprintOf("fatal", code),
+		};
+	}
+
+	if (!code && typeof cause?.message === "string" && ADDRESS_REFUSALS.test(cause.message)) {
+		return {
+			kind: "fatal",
+			summary: "接口地址无效",
+			detail: truncateDetail(`${text} (${cause.message})`),
+			hint: "check-model",
+			fingerprint: fingerprintOf("fatal", cause.message),
+		};
+	}
+
+	/*
+	 * fetch 在发出去之前就拒绝了这个请求。
+	 *
+	 * 真正的连接故障从 fetch 里出来都是 `TypeError: fetch failed`，原因挂在 `cause` 上；没有 `cause`
+	 * 的 `TypeError` 是 fetch 自己在校验参数——请求头的值不是 ByteString（密钥里混进零宽空格、全角
+	 * 字母）、请求头里有换行。这种请求一个字节都没发出去，重试一万次也发不出去，而它从前落进
+	 * `network`，默认无限重试，界面就在「重连中」里一直转。
+	 *
+	 * 只在 `sending` 时这样判：读流、解码时抛的 `TypeError`（一帧形状不对的 JSON 上取属性）也没有
+	 * `cause`，可那是这一次响应的问题，换一次响应可能就好了。
+	 */
+	if (sending && error instanceof TypeError && cause === undefined) {
+		const header = /ByteString|header/i.test(text);
+		return {
+			kind: "fatal",
+			summary: header ? "请求头含非法字符，检查密钥是否混入了空格或全角字符" : "请求无法发出",
+			detail: truncateDetail(text),
+			hint: header ? "check-key" : "check-request",
+			fingerprint: fingerprintOf("fatal", text),
 		};
 	}
 
@@ -490,11 +549,17 @@ function fromStatus(status: number, body?: string): Failure {
 		 */
 		const saysOverflow = fatal.hint === "check-request" && isOverflowText(body ?? "");
 		const overflow = saysOverflow || CONTEXT_OVERFLOW.statuses.has(status);
+		/*
+		 * 状态码只说了「不会变」，没说「去改哪儿」：Gemini 把无效密钥答成 400，中转把模型名写错也答成 400。
+		 * 正文里认得出理由的，按理由给动作；超长那条上面已经认过，这里不再让它改写动作。
+		 */
+		const named = saysOverflow ? undefined : matchFatalPhrase(said || body || "");
+		const reason = named && !named.code ? named : fatal;
 		return {
 			kind: "fatal",
-			summary: saysOverflow ? "上下文超出模型上限" : said ? `${fatal.summary}：${shorten(said)}` : fatal.summary,
+			summary: saysOverflow ? "上下文超出模型上限" : said ? `${reason.summary}：${shorten(said)}` : reason.summary,
 			detail,
-			hint: fatal.hint,
+			hint: reason.hint,
 			...(overflow ? { code: "context-overflow" as const } : {}),
 			fingerprint: fingerprintOf("fatal", `${status}:${said}`),
 		};

@@ -8,9 +8,17 @@
 
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { bootHostKernel, loadSettings, registerDefaultSearchProviders } from "@plume/core";
+import { bootHostKernel, loadSettings, registerDefaultSearchProviders, TRANSPORT_TIMEOUT_MS } from "@plume/core";
 import { loadCachedModelCatalog } from "@plume/core/model-catalog-sync";
+import { Agent, EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
 import { runOnce, SetupError } from "./run.ts";
+
+/*
+ * Node's fetch would cut a model stream after 300 quiet seconds, before the 10-minute idle gate ever
+ * could; see `TRANSPORT_TIMEOUT_MS`. Mirrors the desktop's `electron/main.ts`, proxy case included.
+ */
+const transportTimeouts = { bodyTimeout: TRANSPORT_TIMEOUT_MS, headersTimeout: TRANSPORT_TIMEOUT_MS };
+setGlobalDispatcher(process.env.NODE_USE_ENV_PROXY ? new EnvHttpProxyAgent(transportTimeouts) : new Agent(transportTimeouts));
 
 const USAGE = `用法：plume [选项] <任务>
       echo <任务> | plume [选项]

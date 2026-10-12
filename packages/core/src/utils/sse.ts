@@ -5,13 +5,28 @@ export interface SseFrame {
 	data: string;
 }
 
-async function* readSse(response: Response, signal?: AbortSignal): AsyncGenerator<SseFrame> {
+/** `onBytes`: called for every chunk read off the wire, frame or not — see `readSseWithIdleTimeout`. */
+async function* readSse(response: Response, signal?: AbortSignal, onBytes?: () => void): AsyncGenerator<SseFrame> {
 	const body = response.body;
 	if (!body) throw new Error("Response has no body");
 
 	const reader = body.getReader();
 	const decoder = new TextDecoder();
 	let buffer = "";
+	/*
+	 * A chunk ending in `\r` cannot be judged yet: it is a whole line ending on its own, or the first
+	 * half of a `\r\n` whose `\n` opens the next chunk. Normalising it early turns that `\r\n` into a
+	 * blank line and cuts one frame in two.
+	 */
+	let pendingCr = false;
+	const append = (text: string, final: boolean): void => {
+		let chunk = pendingCr ? `\r${text}` : text;
+		pendingCr = !final && chunk.endsWith("\r");
+		if (pendingCr) chunk = chunk.slice(0, -1);
+		// The SSE spec allows `\r\n`, `\n` and a lone `\r` as line endings, mixed freely within one stream.
+		buffer += chunk.replace(/\r\n?/g, "\n");
+	};
+	let finished = false;
 
 	const onAbort = () => void reader.cancel().catch(() => {});
 	signal?.addEventListener("abort", onAbort, { once: true });
@@ -20,35 +35,35 @@ async function* readSse(response: Response, signal?: AbortSignal): AsyncGenerato
 		while (true) {
 			const { done, value } = await reader.read();
 			if (done) break;
-			buffer += decoder.decode(value, { stream: true });
+			onBytes?.();
+			append(decoder.decode(value, { stream: true }), false);
 
-			// Frames are separated by a blank line. \r\n is tolerated for proxies that rewrite line endings.
 			let sep: number;
-			while ((sep = findFrameBoundary(buffer)) !== -1) {
+			while ((sep = buffer.indexOf("\n\n")) !== -1) {
 				const raw = buffer.slice(0, sep);
-				buffer = buffer.slice(sep).replace(/^(\r?\n){2}/, "");
+				buffer = buffer.slice(sep + 2);
 				const frame = parseFrame(raw);
 				if (frame) yield frame;
 			}
 		}
+		finished = true;
+		append(decoder.decode(), true);
 		const tail = parseFrame(buffer);
 		if (tail) yield tail;
 	} finally {
 		signal?.removeEventListener("abort", onAbort);
+		/*
+		 * A consumer that breaks or throws mid-stream leaves the connection open, and the provider
+		 * keeps generating — and billing — a reply nobody reads. Releasing the lock alone does not
+		 * close it; cancelling does.
+		 */
+		if (!finished) await reader.cancel().catch(() => {});
 		reader.releaseLock?.();
 	}
 }
 
-function findFrameBoundary(buffer: string): number {
-	const lf = buffer.indexOf("\n\n");
-	const crlf = buffer.indexOf("\r\n\r\n");
-	if (lf === -1) return crlf;
-	if (crlf === -1) return lf;
-	return Math.min(lf, crlf);
-}
-
 function parseFrame(raw: string): SseFrame | null {
-	const lines = raw.split(/\r?\n/);
+	const lines = raw.split("\n");
 	let event: string | undefined;
 	const dataLines: string[] = [];
 	for (const line of lines) {
@@ -64,7 +79,7 @@ function parseFrame(raw: string): SseFrame | null {
  *
  * `readSse` 只接一个 AbortSignal，没有计时器：上游把连接挂住不再发帧时，那个 `await reader.read()`
  * 就一直等下去，界面上是一个永远转着的圈，用户只能按停。计时另起一个控制器加在外面，和调用方那个
- * 信号并起来交给它，每收到一帧把计时拨回去。**默认行为一个字节都不变**——正常流里唯一多出来的事是
+ * 信号并起来交给它，每收到一块字节把计时拨回去。**默认行为一个字节都不变**——正常流里唯一多出来的事是
  * 一次 `clearTimeout` + 一次 `setTimeout`。
  *
  * 住在这里而不是某一条链里：三条链的上游都会挂住，而这个函数本来写着「它被三条链共用」的注释，却
@@ -73,8 +88,9 @@ function parseFrame(raw: string): SseFrame | null {
  *
  * 取舍两点，都记在这里：
  *
- *   - 计时是**帧级**的，不是字节级的。一个把半个帧挂在那里的上游要等到下一帧才算超时，多等一个阈值。
- *     真正的死连接两者没有区别。
+ *   - 计时是**字节级**的，不是帧级的。只按帧算时，`: keepalive`、OpenRouter 的 `: OPENROUTER PROCESSING`
+ *     这类注释行保活不产出帧、不拨计时，一条一直在发保活的长思考会被当成死流闸掉。代价是一个只滴字节
+ *     不成帧的上游闸不掉——那种上游没见过，而保活是天天在跑的。
  *   - `readSse` 收到 abort 之后走的是 `reader.cancel()`，那个生成器会**正常结束**而不是抛。所以闸掉
  *     这件事得另外写在 `state.tripped` 上让调用方看——不看的话，一条挂死的流会被当成「模型没话说」，
  *     或者更糟：一个截断了的回答被当成完整的。
@@ -98,10 +114,7 @@ export async function* readSseWithIdleTimeout(
 	};
 	try {
 		bump();
-		for await (const frame of readSse(response, signal ? AbortSignal.any([signal, idle.signal]) : idle.signal)) {
-			bump();
-			yield frame;
-		}
+		yield* readSse(response, signal ? AbortSignal.any([signal, idle.signal]) : idle.signal, bump);
 	} finally {
 		if (timer !== undefined) clearTimeout(timer);
 	}
@@ -116,6 +129,15 @@ export async function* readSseWithIdleTimeout(
  * 数字跟 oh-my-pi 给推理流留的 `BEDROCK_REASONING_STREAM_IDLE_TIMEOUT_MS = 600_000` 一致。
  */
 export const STREAM_IDLE_TIMEOUT_MS = 600_000;
+
+/**
+ * 底层 HTTP 客户端的超时，宿主进程启动时装到全局 dispatcher 上（desktop `electron/main.ts`、cli `src/main.ts`）。
+ *
+ * Node 内置 fetch（undici）默认 `bodyTimeout` / `headersTimeout` 各 300 秒，比上面这个闸短一半：一条合法
+ * 沉默五分钟的流会先被 undici 以 `terminated`（`UND_ERR_BODY_TIMEOUT`）切断，再当成断线整轮重发——闸
+ * 形同虚设，钱付两遍。所以底层必须比闸长，留一分钟让闸先落、报出能看懂的那句话。
+ */
+export const TRANSPORT_TIMEOUT_MS = STREAM_IDLE_TIMEOUT_MS + 60_000;
 
 /**
  * Parse tool-call arguments that may be truncated mid-stream.

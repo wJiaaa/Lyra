@@ -17,7 +17,9 @@ import {
 	primeCommandPath,
 	type Settings,
 	type SessionStorage,
+	TRANSPORT_TIMEOUT_MS,
 } from "@plume/core";
+import { Agent, EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
 import { projectFolders } from "@plume/core/project-folders";
 import {
 	browsers,
@@ -93,6 +95,17 @@ import { useBundledDocs } from "./plume-docs.ts";
 import { useBundledRipgrep } from "./ripgrep.ts";
 import { nativeTranslator, resolveNativeLocale, setInterfaceLocaleSource } from "./i18n.ts";
 import { lazyPty } from "./pty-loader.ts";
+
+/*
+ * Model requests go through Node's built-in fetch, whose undici defaults cut a response body after
+ * 300 seconds without bytes — half the stream idle gate. A reasoning stream legitimately quiet for
+ * five minutes was severed as `terminated` and resent whole. See `TRANSPORT_TIMEOUT_MS`.
+ *
+ * Replacing the global dispatcher drops the one Node installs for `NODE_USE_ENV_PROXY`, so that case
+ * gets the proxy-aware agent back. The same three lines live in the CLI's `main.ts`.
+ */
+const transportTimeouts = { bodyTimeout: TRANSPORT_TIMEOUT_MS, headersTimeout: TRANSPORT_TIMEOUT_MS };
+setGlobalDispatcher(process.env.NODE_USE_ENV_PROXY ? new EnvHttpProxyAgent(transportTimeouts) : new Agent(transportTimeouts));
 
 /*
  * node-pty, loaded by the first terminal rather than by this file.

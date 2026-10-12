@@ -71,6 +71,11 @@ test("正文里写着终局理由的，状态码再像临时故障也照拒", ()
 	assert.equal(quota.kind, "fatal");
 	assert.equal(quota.hint, "check-billing");
 
+	// OpenRouter 流内错误帧的原话、DeepSeek 402 的原话。
+	for (const message of ["Insufficient credits. Add more using https://openrouter.ai/credits", "Insufficient Balance"]) {
+		assert.equal(classifyFailure({ from: "stream", message }).hint, "check-billing", message);
+	}
+
 	const banned = classifyFailure({ from: "stream", message: "account_suspended: contact support" });
 	assert.equal(banned.kind, "fatal");
 
@@ -200,4 +205,27 @@ test("花过钱的失败标出来，没花的不标", () => {
 	assert.equal(classifyFailure({ from: "stream", message: "boom", spent: true }).costIncurred, true);
 	assert.equal(classifyFailure({ from: "stream", message: "boom" }).costIncurred, undefined);
 	assert.equal(transport("ECONNRESET").costIncurred, undefined);
+});
+
+test("状态码已经判了终局时，正文写明的理由决定该去改哪儿", () => {
+	// Gemini 把无效密钥答成 400，只看状态码就成了「检查请求」，人会去翻请求体。
+	const key = classifyFailure({ from: "status", status: 400, body: JSON.stringify({ error: { code: 400, message: "API key not valid. Please pass a valid API key.", status: "INVALID_ARGUMENT" } }) });
+	assert.equal(key.kind, "fatal");
+	assert.equal(key.hint, "check-key");
+	// 中转把模型名写错答成 400。
+	const model = classifyFailure({ from: "status", status: 400, body: JSON.stringify({ error: { message: "model not found: gpt-9" } }) });
+	assert.equal(model.hint, "check-model");
+	// 没说理由的，照旧按状态码。
+	assert.equal(classifyFailure({ from: "status", status: 400, body: JSON.stringify({ error: { message: "messages: field required" } }) }).hint, "check-request");
+	assert.equal(classifyFailure({ from: "status", status: 401 }).hint, "check-key");
+	// 超长的认法不受影响。
+	const overflow = classifyFailure({ from: "status", status: 400, body: JSON.stringify({ error: { message: "prompt is too long: 213462 tokens > 200000 maximum" } }) });
+	assert.equal(overflow.code, "context-overflow");
+	assert.equal(overflow.hint, "check-request");
+});
+
+test("数组包着的错误正文也挑得出那句话", () => {
+	// Gemini 等有时把错误体包在数组里：`[{"error":{...}}]`。
+	assert.equal(messageFromBody(JSON.stringify([{ error: { code: 400, message: "API key not valid." } }])), "API key not valid.");
+	assert.equal(classifyFailure({ from: "status", status: 400, body: JSON.stringify([{ error: { message: "API key not valid." } }]) }).hint, "check-key");
 });

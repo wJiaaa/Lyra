@@ -13,6 +13,13 @@ function resolvePolicy(policy: RetryPolicy | undefined, attempts: number | undef
 
 export class RetryBudget {
 	private used = { network: 0, upstream: 0 };
+	/**
+	 * 自带上限的失败（`Failure.retryLimit`）各自重试过几次，按指纹记。
+	 *
+	 * 不能和 `used[kind]` 共用：那是同一类所有失败的总账。先连着 503 重试四次，轮到空回答时总账已经是
+	 * 4，它自己一次没试就被判「用满了」。它的上限说的是「这一种重发了几次」，账得单独记。
+	 */
+	private limited = new Map<string, number>();
 	private readonly read: () => RetryPolicy | undefined;
 	private readonly attempts?: number;
 	private cache?: { from: RetryPolicy | undefined; resolved: RetryPolicy };
@@ -42,10 +49,16 @@ export class RetryBudget {
 	 */
 	available(kind: RetryFailure, failure?: Failure): boolean {
 		const { retries } = this.policy[kind];
-		const limit = retries === null ? failure?.retryLimit : Math.min(retries, failure?.retryLimit ?? retries);
-		return limit === undefined || this.used[kind] < limit;
+		if (retries !== null && this.used[kind] >= retries) return false;
+		if (failure?.retryLimit === undefined) return true;
+		return (this.limited.get(failure.fingerprint) ?? 0) < failure.retryLimit;
 	}
-	next(kind: RetryFailure): { attempt: number; delayMs: number } { this.used[kind]++; return { attempt: this.used.network + this.used.upstream, delayMs: policyDelay(this.policy[kind], this.used[kind]) }; }
+	/** 传入 `failure` 时，自带上限的那种失败另记一笔，见 `limited`。 */
+	next(kind: RetryFailure, failure?: Failure): { attempt: number; delayMs: number } {
+		this.used[kind]++;
+		if (failure?.retryLimit !== undefined) this.limited.set(failure.fingerprint, (this.limited.get(failure.fingerprint) ?? 0) + 1);
+		return { attempt: this.used.network + this.used.upstream, delayMs: policyDelay(this.policy[kind], this.used[kind]) };
+	}
 }
 
 export interface RetryOptions {
@@ -223,7 +236,7 @@ export async function fetchWithRetry(
 			}
 
 			// 配了策略：策略间隔和服务器要求取大，见 `withServerDelay`。没配：兜底曲线本来就听服务器的。
-			const planned = options.budget?.next("upstream");
+			const planned = options.budget?.next("upstream", failure);
 			const retry = planned ? { ...planned, delayMs: withServerDelay(planned.delayMs, said) } : { attempt, delayMs: retryDelay(attempt, response, body) };
 			const delay = retry.delayMs;
 			// Release each failed response before an unlimited wait can accumulate connections.
@@ -242,10 +255,14 @@ export async function fetchWithRetry(
 			 * 转下去。`retry-policy.test.ts` 整个文件挂住，一条都跑不出来。
 			 */
 			if (error instanceof FailureError) throw error;
-			const failure = failureOf(error);
+			// 这里抛的一定出自 `doFetch` 那一下，只有这里能这样告诉分类器，见 `FailureInput` 的 `sending`。
+			const failure = classifyFailure({ from: "transport", error, sending: true });
 			// A cancelled turn is not a failed one; stop immediately rather than waiting to retry.
-			if (options.signal?.aborted || !worthRetrying(failure) || (options.budget ? !options.budget.available("network", failure) : attempt === attempts)) throw error;
-			const retry = options.budget?.next("network") ?? { attempt, delayMs: retryDelay(attempt) };
+			if (options.signal?.aborted) throw error;
+			// 带着结论抛：到了 `retryStream` 那层就不知道它出自发请求那一下，会把「发不出去」重新猜成断线。
+			if (!worthRetrying(failure)) throw new FailureError(failure);
+			if (options.budget ? !options.budget.available("network", failure) : attempt === attempts) throw error;
+			const retry = options.budget?.next("network", failure) ?? { attempt, delayMs: retryDelay(attempt) };
 			const delay = retry.delayMs;
 			options.onRetry?.({ ...retry, reason: failure.summary, failure });
 			await abortableSleep(delay, options.signal, options.sleep);
@@ -343,7 +360,7 @@ export async function* retryStream<T>(
 			 * 同上：配了策略时策略间隔和服务器要求取大。流里的错误（中转塞进 error 事件的 `reset_seconds`）
 			 * 由分类器从原文里读成 `retryAfterMs`；没配策略时兜底曲线也要听它，从前这里一律忽略。
 			 */
-			const planned = options.budget?.next(rule);
+			const planned = options.budget?.next(rule, failure);
 			const retry = planned
 				? { ...planned, delayMs: withServerDelay(planned.delayMs, failure.retryAfterMs) }
 				: { attempt: number, delayMs: failure.retryAfterMs ? Math.min(failure.retryAfterMs, MAX_WAIT_MS) : retryDelay(number) };

@@ -150,6 +150,37 @@ test("空回答自己带着上限，「一直重试」也管不着它", async ()
 	assert.deepEqual(waits, Array(4).fill(5000));
 });
 
+test("空回答的上限单独记，不被前面同类的 503 重试先吃掉", async () => {
+	/*
+	 * 上游预算设成无限，前面先连着 503 重试了四次。从前空回答的上限和 503 共用一个计数，于是轮到
+	 * 空回答时已经「用满四次」，一次都不重试——而它自己一次都还没试过。
+	 */
+	const unlimited: RetryPolicy = { network: { ...DEFAULT_RETRY_RULE, retries: null }, upstream: { ...DEFAULT_RETRY_RULE, retries: null } };
+	let calls = 0;
+	const stream = retryStream(async function* () {
+		calls++;
+		if (calls > 20) { yield "上限没接上"; return; }
+		if (calls <= 4) throw new FailureError(classifyFailure({ from: "status", status: 503 }));
+		throw new FailureError(classifyFailure({ from: "empty", why: "no-content" }));
+	}, { budget: new RetryBudget(unlimited), reset: () => {}, sleep: async () => {} });
+	await assert.rejects(async () => { for await (const value of stream) assert.fail(`不该产出任何东西：${value}`); }, /空回答/);
+	assert.equal(calls, 4 + 5, "四次 503，然后空回答自己的一次加四次重试");
+});
+
+test("空回答自己的上限之外，用户给的总次数照旧算数", async () => {
+	// 上游一共只给 5 次重试：三次 503 之后，空回答只剩两次——不会因为它单独记账就绕过总数。
+	const policy: RetryPolicy = { network: { ...DEFAULT_RETRY_RULE, retries: null }, upstream: { ...DEFAULT_RETRY_RULE, retries: 5 } };
+	let calls = 0;
+	const stream = retryStream(async function* () {
+		calls++;
+		if (calls > 20) { yield "上限没接上"; return; }
+		if (calls <= 3) throw new FailureError(classifyFailure({ from: "status", status: 503 }));
+		throw new FailureError(classifyFailure({ from: "empty", why: "no-content" }));
+	}, { budget: new RetryBudget(policy), reset: () => {}, sleep: async () => {} });
+	await assert.rejects(async () => { for await (const value of stream) assert.fail(`不该产出任何东西：${value}`); });
+	assert.equal(calls, 6, "首次加五次重试");
+});
+
 test("收窄的只有空回答那一种，断线照旧无限重试", async () => {
 	// 上一条的对照。「一直重试」是用户明确要的——网络回来之前别放弃，那个语义一个字都不能改。
 	let calls = 0;
