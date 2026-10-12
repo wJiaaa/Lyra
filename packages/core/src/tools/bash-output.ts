@@ -181,6 +181,11 @@ export class OutputBuffer {
 		return this.endAt;
 	}
 
+	/** 收到过多少个字符。 */
+	get size(): number {
+		return this.total;
+	}
+
 	append(chunk: string): void {
 		if (!chunk) return;
 		this.cache = null;

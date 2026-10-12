@@ -547,6 +547,8 @@ function adoptJob(
 interface JobStream {
 	all: OutputBuffer;
 	unread: OutputBuffer;
+	/** Who is waiting in `bash_output` for this job to print or end. */
+	wake: Set<() => void>;
 }
 const streams = new WeakMap<BackgroundJob, JobStream>();
 
@@ -559,13 +561,15 @@ function track(
 	seen?: OutputBuffer,
 ): void {
 	const all = seen ?? new OutputBuffer();
-	const stream: JobStream = { all, unread: new OutputBuffer(all.end) };
+	const stream: JobStream = { all, unread: new OutputBuffer(all.end), wake: new Set() };
+	const news = () => { for (const wake of stream.wake) wake(); };
 	streams.set(job, stream);
 	Object.defineProperty(job, "output", { get: () => all.render(MAX_OUTPUT_CHARS), enumerable: true, configurable: true });
 	process.onOutput((chunk) => {
 		outputLog?.append(chunk);
 		stream.all.append(chunk);
 		stream.unread.append(chunk);
+		news();
 	});
 	process.onExit((code) => {
 		void outputLog?.close().then((details) => Object.assign(job, details));
@@ -573,6 +577,7 @@ function track(
 		job.finishedAt = Date.now();
 		job.status = code !== null && code !== 0 ? "failed" : "exited";
 		jobs.finished(job);
+		news();
 	});
 	process.onError((error) => {
 		void outputLog?.close().then((details) => Object.assign(job, details));
@@ -581,6 +586,7 @@ function track(
 		if (!job.pid) job.finishedAt = Date.now();
 		// A start failure arrives here after "Started background job" was already returned.
 		jobs.finished(job);
+		news();
 	});
 }
 
@@ -622,7 +628,9 @@ interface BashOutputArgs {
 
 export const bashOutputTool: Tool<BashOutputArgs> = {
 	name: "bash_output",
-	description: "Read a background job's new output since your last bash_output call (the first call returns everything so far), and optionally kill it.",
+	description:
+		"Read a background job's new output since your last bash_output call (the first call returns everything so far), and optionally kill it. " +
+		"If it is running and has printed nothing new, waits up to 30s for output or its end.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -639,6 +647,7 @@ export const bashOutputTool: Tool<BashOutputArgs> = {
 		const job = jobs.get(args.id);
 		if (!job) return errorResult(`No background job with id "${args.id}".`);
 		if (args.kill) jobs.stop(args.id, true);
+		else await waitForNews(job, ctx.signal);
 		jobs.observed(args.id);
 		const { status, text } = readJob(job);
 		return {
@@ -647,6 +656,31 @@ export const bashOutputTool: Tool<BashOutputArgs> = {
 		};
 	},
 };
+
+/**
+ * 任务还在跑、又没有新输出时，先等一会儿再答。
+ *
+ * 启动时已经告诉模型「结束会送达，不要轮询」，它照样会查：本机 1943 次 `bash` 里有 47 次
+ * `bash_output`，39 次拿回的是「(no new output)」，每一次都是一整轮请求。等到有输出、结束或满
+ * 30 秒，一次调用就拿到东西。按停止照样立刻返回。
+ */
+const NEWS_WAIT_MS = 30_000;
+
+function waitForNews(job: BackgroundJob, signal: AbortSignal | undefined): Promise<void> {
+	const stream = streams.get(job);
+	if (!stream || job.finishedAt !== undefined || stream.unread.size > 0 || signal?.aborted) return Promise.resolve();
+	return new Promise((resolve) => {
+		const done = () => {
+			clearTimeout(timer);
+			stream.wake.delete(done);
+			signal?.removeEventListener("abort", done);
+			resolve();
+		};
+		const timer = setTimeout(done, NEWS_WAIT_MS);
+		stream.wake.add(done);
+		signal?.addEventListener("abort", done, { once: true });
+	});
+}
 
 /**
  * 一个后台任务此刻的状态，和模型上次读过之后的输出；读完游标移到末尾。

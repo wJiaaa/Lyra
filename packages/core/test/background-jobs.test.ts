@@ -56,13 +56,14 @@ test("a signalled command keeps its missing exit code instead of reporting exit 
 
 test("bash_output returns only what arrived since the last read, while the job keeps the whole", async () => {
 	let emit: (chunk: string) => void = () => {};
-	useSandbox({ run: () => ({ onOutput(listener) { emit = listener; }, onError() {}, kill() {}, onExit() {} }) });
+	let exit: (code: number | null) => void = () => {};
+	useSandbox({ run: () => ({ onOutput(listener) { emit = listener; }, onError() {}, kill() {}, onExit(listener) { exit = listener; } }) });
 	try {
 		const ctx = { cwd: process.cwd(), sessionId: "poll-test", state: new Map<string, unknown>() };
 		const started = await bashTool.execute({ command: "dev", run_in_background: true }, ctx);
 		const id = (started.details as { id: string }).id;
-		const poll = async () => {
-			const result = await bashOutputTool.execute({ id }, ctx);
+		const poll = async (signal?: AbortSignal) => {
+			const result = await bashOutputTool.execute({ id }, { ...ctx, signal });
 			return result.content.flatMap((part) => part.type === "text" ? [part.text] : []).join("");
 		};
 		emit("first line\n");
@@ -71,8 +72,19 @@ test("bash_output returns only what arrived since the last read, while the job k
 		const second = await poll();
 		assert.match(second, /second line/);
 		assert.doesNotMatch(second, /first line/, "每次轮询都重发全部输出");
-		assert.match(await poll(), /\(no new output\)/);
-		assert.equal(backgroundJobs(ctx.state).list()[0].output, "first line\nsecond line\n", "任务本身仍保留全部输出");
+		// 没有新输出：等下一行，而不是立刻空手而回、让模型再问一轮。
+		const waitedFrom = Date.now();
+		setTimeout(() => emit("third line\n"), 50);
+		assert.match(await poll(), /third line/);
+		assert.ok(Date.now() - waitedFrom < 5_000, "returned when the line arrived, not at the limit");
+		// 按停止，等待当场结束。
+		const stop = new AbortController();
+		setTimeout(() => stop.abort(), 50);
+		assert.match(await poll(stop.signal), /\(no new output\)/);
+		assert.equal(backgroundJobs(ctx.state).list()[0].output, "first line\nsecond line\nthird line\n", "任务本身仍保留全部输出");
+		// 等的时候任务结束了：当场答它怎么结束的。
+		setTimeout(() => exit(0), 50);
+		assert.match(await poll(), /exited with code 0/);
 	} finally { useSandbox(null); }
 });
 
