@@ -65,6 +65,31 @@ const REJECTS = [
 ];
 
 /**
+ * 「消息里不许有这个推理字段」——一步退到 omit，不走中间那格。
+ *
+ * 从 DeepSeek 切到 pydantic 系的严格端点（Mistral、FastAPI 写的自建网关、开了严格校验的 vLLM）时，历史里带
+ * 着 `reasoning_content` 的助手轮会被整个请求拒掉：
+ *
+ *     {"type":"extra_forbidden","loc":["body","messages",1,"assistant","reasoning_content"],
+ *      "msg":"Extra inputs are not permitted"}
+ *
+ * Groq 说的是 `'messages.1' : property 'reasoning_content' is unsupported`。从前这几句一句都不认，于是每一轮
+ * 都是 fatal，只能新开会话。
+ *
+ * 直接到 omit：中间那格「只发带句柄的」在这里没有意义——端点拒的是**字段本身**，带不带句柄都是这个字段。
+ *
+ * 正则收紧到**点名这两个字段**：`reasoning_content` / `reasoning_text` 只会出现在消息里，单独的
+ * `reasoning` 还是 Responses 的请求参数名，所以它要求前面就是消息的位置（`messages…`）。`\b` 和后面的
+ * `(?![.\w])` 挡住 `reasoning_effort`、`reasoning.effort`——那是参数轴的事（`request-params-compat.ts`），
+ * 认到这里会把推理平白丢掉。
+ */
+const REJECTS_FIELD = [
+	/\breasoning_(?:content|text)\b[\s\S]{0,60}?(?:extra inputs are not permitted|extra_forbidden|unsupported|not supported|unrecognized|unknown|not permitted|not allowed)/i,
+	/(?:extra_forbidden|unknown field|unrecognized (?:request )?argument|unknown (?:parameter|argument|property))[\s\S]{0,80}?\breasoning_(?:content|text)\b/i,
+	/messages[^\]]{0,30}?\breasoning(?![.\w])[\s\S]{0,60}?(?:extra inputs are not permitted|extra_forbidden|unsupported|not supported|unrecognized|unknown|not permitted|not allowed)/i,
+];
+
+/**
  * 「这个端点要求把推理还回来」的说法——**这句话不可信，留着只当兜底**。
  *
  * 2026-09-11 在 `api.deepseek.com/v1/responses` 上做过一次九格对照，落盘在
@@ -120,6 +145,11 @@ export function learnReasoningReplay(providerId: string, modelId: string, error:
 		retried.add(id);
 		return true;
 	}
+	if (REJECTS_FIELD.some((pattern) => pattern.test(error))) {
+		if (now === "omit") return false;
+		learned.set(id, "omit");
+		return true;
+	}
 	if (!REJECTS.some((pattern) => pattern.test(error))) return false;
 
 	const next = LADDER[LADDER.indexOf(now) + 1];
@@ -128,10 +158,46 @@ export function learnReasoningReplay(providerId: string, modelId: string, error:
 	return true;
 }
 
+/**
+ * 学会了「没有推理的助手轮也要带一个空的 `reasoning_content`」的模型。只有 Chat Completions 那条链读它。
+ *
+ * DeepSeek 思考模式要求历史里每个助手轮（至少是调过工具的）都带着 `reasoning_content`。我们手上有思考文本的
+ * 轮次照常还回去；**没有**的那些——当时关着思考、中途换过模型、中转把推理剥了——从前什么都不发，于是 400：
+ *
+ *     The `reasoning_content` in the thinking mode must be passed back to the API.
+ *
+ * 这句话落进 `REQUIRES`，而梯子已经在顶格，只剩一次原样重试，之后 fatal——会话从此每一轮都卡在这里。
+ *
+ * 补一个空串是 oh-my-pi 对 DeepSeek 的 Tier 2（`packages/ai/src/providers/openai-completions.ts:2629-2645`：
+ * 没有任何思考可还时发 `""`，「the most honest representation of "no reasoning was captured"」）。它在那边由
+ * 端点普查表打开；我们没有表，做成**撞上之后才学会**的一档：默认一个字段都不多发，所以不认这个字段的严格
+ * 端点（见 `REJECTS_FIELD`）不受影响。
+ */
+const padded = new Set<string>();
+
+/** 这个模型的历史助手轮缺推理时，要不要补一个空的 `reasoning_content`。 */
+export function padsMissingReasoning(providerId: string, modelId: string): boolean {
+	return padded.has(key(providerId, modelId));
+}
+
+/**
+ * 撞上「必须带回来」时，先学会补空串，再轮到 `learnReasoningReplay` 那次原样重试。
+ *
+ * 只有 Chat Completions 链把它挂进 `withReasoningRetry` 的 `alsoLearn`：Responses 链不读这个结论，在那里学到
+ * 等于白白多发一次一模一样的请求。只在梯子顶格时学——不在顶格说明还有推理没发，先让梯子把它拉回来。
+ */
+export function learnReasoningPadding(providerId: string, modelId: string, error: string): boolean {
+	const id = key(providerId, modelId);
+	if (!REQUIRES.test(error) || padded.has(id) || reasoningReplay(providerId, modelId) !== "replay") return false;
+	padded.add(id);
+	return true;
+}
+
 /** 测试用：把学到的都忘掉。 */
 export function resetReasoningCompat(): void {
 	learned.clear();
 	retried.clear();
+	padded.clear();
 }
 
 /**
@@ -165,14 +231,15 @@ export async function* withReasoningRetry<T>(
 	/**
 	 * 最多重发几次。
 	 *
-	 * 推理轴走完整条梯子的步数，加上 `alsoLearn` 那边所有轴各自能学的步数之和。调用方现在挂着两个轴
-	 * （工具排列 1 步，请求参数最多 5 个字段各 1 步），给 6。
+	 * 推理轴走完整条梯子的步数，加上 `alsoLearn` 那边所有轴各自能学的步数之和。挂得最多的是 Responses
+	 * 那条链：工具排列 1 步、工具结果里的图片 1 步、请求参数最多 6 个字段各 1 步、补位推理项 1 步，给 9。
+	 * Chat Completions 那边（max_tokens 字段、参数轴、补空串）加起来不超过这个数。
 	 *
 	 * 这个数字宁可大一点：每一步都要 `learnXxx` 真的返回 true 才会走，学不到东西的循环自己就停了，所以
 	 * 上界偏大只是让「还能学」的情况有机会走完，不会凭空多发请求。反过来偏小才是真的坏——学到了结论却
 	 * 没有配额去用它，等于白学。
 	 */
-	const budget = LADDER.length + 6;
+	const budget = LADDER.length + 9;
 	for (let attempt = 0; attempt < budget; attempt++) {
 		try {
 			yield* run(reasoningReplay(providerId, modelId));

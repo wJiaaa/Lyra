@@ -40,6 +40,9 @@ export interface ThinkingContent {
 	 *
 	 * 只有 Chat Completions 这一条链写和读它；缺省（旧会话、Anthropic 和 Responses 产生的块）一律按
 	 * `reasoning_content` 处理，也就是这条链从前唯一发过的那个键——所以加这个字段不改变任何既有语义。
+	 *
+	 * 值也可能是 `"<think>"`：推理是从正文开头内联的标签里切出来的，回放时要包回 content 原样还回去，
+	 * 而不是换成某个字段。见 `ai/think-tag.ts`。
 	 */
 	reasoningField?: string;
 	/**

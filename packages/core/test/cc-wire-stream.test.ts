@@ -8,7 +8,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mapFinishReason, openaiChatCompletionsProvider, reasoningFromDelta, resetChatCompletionsCompat, stripDeepseekTokens, trailingPartialDeepseekToken } from "../src/ai/openai-chat-completions.ts";
+import { openaiChatCompletionsProvider, resetChatCompletionsCompat } from "../src/ai/openai-chat-completions.ts";
+import { mapFinishReason, reasoningFromDelta, stripDeepseekTokens, trailingPartialDeepseekToken } from "../src/ai/chat-delta.ts";
 import { resetReasoningCompat } from "../src/ai/reasoning-compat.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, StreamEvent, ThinkingContent } from "../src/types.ts";
 
@@ -201,7 +202,7 @@ test("CC：finish_reason 的映射表", () => {
 	assert.deepEqual(mapFinishReason("length"), { stopReason: "length" });
 	assert.deepEqual(mapFinishReason("tool_calls"), { stopReason: "toolUse" });
 	assert.deepEqual(mapFinishReason("function_call"), { stopReason: "toolUse" });
-	for (const bad of ["error", "network_error", "content_filter", "insufficient_system_resource", "something_new"]) {
+	for (const bad of ["error", "network_error", "content_filter", "insufficient_system_resource", "upstream_failure"]) {
 		const mapped = mapFinishReason(bad);
 		assert.equal(mapped.stopReason, undefined, bad);
 		assert.ok(mapped.error, bad);
@@ -245,14 +246,14 @@ test("CC：content_filter 是终局失败，重试一百次也是同一个策略
 	assert.equal(failed?.failure?.kind, "fatal");
 });
 
-test("CC：没见过的 finish_reason 一律当失败，原话带在错误里", async () => {
+test("CC：没见过、名字里带着出错意思的 finish_reason 当失败，原话带在错误里", async () => {
 	const { done, failed } = await run(sse(
 		chunk({ content: "半句" }),
-		chunk({}, "model_length"),
+		chunk({}, "generation_failed"),
 		"data: [DONE]",
 	));
 	assert.equal(done, null);
-	assert.match(failed?.errorMessage ?? "", /model_length/);
+	assert.match(failed?.errorMessage ?? "", /generation_failed/);
 	assert.equal(failed?.errorRetryable, true);
 });
 

@@ -4,6 +4,7 @@
 
 import type { Message, ToolCallContent, ToolResultMessage, ToolSpec } from "../types.ts";
 import type { ReasoningReplay } from "./reasoning-compat.ts";
+import { THINK_TAG_FIELD } from "./think-tag.ts";
 
 /**
  * 模型看不了图时，图片位置上留下的那句话。
@@ -107,6 +108,8 @@ export function toChatCompletionsMessages(
 	messages: Message[],
 	reasoning: ReasoningReplay = "replay",
 	model?: ChatCompletionsModelCapabilities,
+	/** 缺推理的助手轮补一个空的 `reasoning_content`。撞上过才开，见 `padsMissingReasoning`。 */
+	padMissingReasoning = false,
 ): unknown[] {
 	const sanitized = sanitizeChatCompletionsHistory(messages);
 	const out: unknown[] = [];
@@ -257,12 +260,25 @@ export function toChatCompletionsMessages(
 			 * 问题，属于失败重试那一层，不该在一个纯翻译函数里替它做主。
 			 *
 			 * **用它进来时那个键还回去**，而不是永远写 `reasoning_content`。同一件事在这条链上有三个字段
-			 * 名（见 `openai-chat-completions.ts` 的 `REASONING_FIELDS`），OpenRouter 用的是 `reasoning`。
+			 * 名（见 `chat-delta.ts` 的 `REASONING_FIELDS`），OpenRouter 用的是 `reasoning`。
 			 * 一个只认自己那个键的端点，收到另一个键等于没收到——而我们刚刚还因为只读一个键而在界面上丢
 			 * 掉了整段思考。缺省仍是 `reasoning_content`：旧会话和别的协议产生的思考块没有这个标记，它们
 			 * 的行为一字不变。
 			 */
-			if (thought && reasoning !== "omit") msg[thoughtField ?? "reasoning_content"] = thought;
+			if (thought && reasoning !== "omit") {
+				/*
+				 * 从正文开头的 `<think>` 里切出来的思考，按原样包回正文前面，不改成字段。
+				 *
+				 * MiniMax M2 要求多轮里带回含 `<think>` 的整段回答；Ollama / vLLM 上的 Qwen3、R1 的聊天模板本来就是
+				 * 从正文里认这个标签的。拆成 `reasoning_content` 发回去，前者不认，后者的模板拿不到它原来的样子。
+				 * `</think>` 后面那个空行是切的时候吃掉的分隔，这里补回来。
+				 */
+				if (thoughtField === THINK_TAG_FIELD) msg.content = `<think>${thought}</think>\n\n${text}`;
+				else msg[thoughtField ?? "reasoning_content"] = thought;
+			} else if (padMissingReasoning && reasoning === "replay") {
+				// 端点说过「推理必须带回来」而这一轮手上没有：补空串，不编一段。见 `padsMissingReasoning`。
+				msg.reasoning_content = "";
+			}
 
 			out.push(msg);
 
