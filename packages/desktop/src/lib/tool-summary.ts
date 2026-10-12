@@ -45,7 +45,8 @@ export function summarizeToolCall(name: string, args: Record<string, unknown>): 
 			return cmd || "Run bash command";
 		}
 		case "bash_output":
-			return `Check job ${str("id") ?? ""}`.trim() || "Check job";
+			// 和 core 的 `bashOutputTool.summarize` 同一句，不带任务 id：一串 uuid 人读不出东西。
+			return args.kill === true ? "Stop job" : "Check job";
 		case "todo_write":
 			return "Update task list";
 		case "task":

@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ResolvedUiLocale } from "../src/i18n/messages/index.ts";
 import { setActiveLocale } from "../src/i18n/translate.ts";
-import { describeRun } from "../src/lib/tool-kinds.ts";
+import { describeActivity, describeRun } from "../src/lib/tool-kinds.ts";
 
 const MERGE = [
 	{ toolName: "read", subject: "merge.ts" },
@@ -38,4 +38,16 @@ test("Chinese keeps its enumeration comma", () => {
 test("English joins the parts with a comma, not 「、」", () => {
 	assert.equal(describedIn("en", MERGE), "Read files merge.ts, Created files merge.test.ts");
 	assert.equal(describedIn("en", THREE), "Read files merge.ts, Created files merge.test.ts, Ran commands ×2");
+});
+
+test("reading or stopping a background job is said in the interface's language, without its uuid", () => {
+	assert.equal(describeActivity("Check job"), "查看输出");
+	assert.equal(describeActivity("Stop job"), "停止命令");
+	setActiveLocale("en");
+	try {
+		assert.equal(describeActivity("Check job"), "Read output");
+		assert.equal(describeActivity("Stop job"), "Stopped a command");
+	} finally {
+		setActiveLocale("zh-CN");
+	}
 });

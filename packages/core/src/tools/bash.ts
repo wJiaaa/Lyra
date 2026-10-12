@@ -195,7 +195,7 @@ export const bashTool: Tool<BashArgs> = {
 		type: "object",
 		properties: {
 			command: { type: "string", description: "The command to run." },
-			description: { type: "string", description: "5-10 word description shown to the user." },
+			description: { type: "string", description: "5-10 word description shown to the user, in plain words and the user's language." },
 			timeout: {
 				type: "number",
 				description:
@@ -640,7 +640,8 @@ export const bashOutputTool: Tool<BashOutputArgs> = {
 		required: ["id"],
 		additionalProperties: false,
 	},
-	summarize: (args) => `Check job ${args.id}`,
+	// No job id: a uuid tells a person nothing. The desktop's `describeActivity` says these in the interface's language.
+	summarize: (args) => (args.kill ? "Stop job" : "Check job"),
 
 	async execute(args, ctx): Promise<ToolResult> {
 		const jobs = backgroundJobs(ctx.state);

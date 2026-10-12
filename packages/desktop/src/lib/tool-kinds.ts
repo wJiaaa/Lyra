@@ -99,7 +99,15 @@ const ACTIVITY: [RegExp, string, (match: RegExpMatchArray) => string][] = [
 	[/^Generate image (.+)$/, "generate_image", (m) => m[1]],
 ];
 
+/** `bash_output` 的两句摘要：不带任务 id，一串 uuid 人读不出东西。 */
+const FIXED: Record<string, MessageKey> = {
+	"Check job": "tools.output",
+	"Stop job": "tools.stopJob",
+};
+
 export function describeActivity(summary: string): string {
+	const fixed = FIXED[summary];
+	if (fixed) return translate(fixed);
 	for (const [pattern, toolName, subject] of ACTIVITY) {
 		const match = summary.match(pattern);
 		if (match) return describeRun([{ toolName, subject: subject(match) }]);

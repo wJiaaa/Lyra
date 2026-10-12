@@ -28,4 +28,8 @@ test("summarizeToolCall handles missing and alias arguments without displaying '
 	assert.equal(summarizeToolCall("web_search", { query: "react hooks" }), "Search react hooks");
 	assert.equal(summarizeToolCall("web_search", { pattern: "react hooks" }), "Search react hooks");
 	assert.equal(summarizeToolCall("web_search", {}), "Search the web");
+
+	// bash_output: no uuid in either
+	assert.equal(summarizeToolCall("bash_output", { id: "a6f8d1fa-8c85-4ff7-b557-dc15c306b644" }), "Check job");
+	assert.equal(summarizeToolCall("bash_output", { id: "a6f8d1fa-8c85-4ff7-b557-dc15c306b644", kill: true }), "Stop job");
 });

@@ -1216,6 +1216,7 @@ export const zhCN = {
 	"tools.read": "读取文件",
 	"tools.bash": "执行命令",
 	"tools.output": "查看输出",
+	"tools.stopJob": "停止命令",
 	"tools.find": "查找文件",
 	"tools.grep": "搜索内容",
 	"tools.ls": "列出目录",

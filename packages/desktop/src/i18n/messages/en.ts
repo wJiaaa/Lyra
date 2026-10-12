@@ -1037,6 +1037,7 @@ export const en = {
 	"tools.read": "Read files",
 	"tools.bash": "Ran commands",
 	"tools.output": "Read output",
+	"tools.stopJob": "Stopped a command",
 	"tools.find": "Found files",
 	"tools.grep": "Searched contents",
 	"tools.ls": "Listed folders",
