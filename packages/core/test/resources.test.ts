@@ -242,6 +242,34 @@ test("plume:// serves its own documentation and lists its topics", async () => {
 
 	const index = await router().resolve("plume://", ctx());
 	assert.match(index.content, /- plume:\/\/writing-skills: 怎么写一个技能/, "the index shows each topic's title");
+	assert.match(index.content, /- plume:\/\/ui: 界面块/, "generated topics are listed with the files");
+});
+
+test("plume://ui is built from the component catalog, even without the docs directory", async () => {
+	const previous = process.env.PLUME_DOCS;
+	try {
+		process.env.PLUME_DOCS = join(tmpdir(), "plume-docs-missing");
+		const doc = await router().resolve("plume://ui", ctx());
+		assert.match(doc.content, /^# 界面块/);
+		assert.match(doc.content, /\n {2}Card\(/);
+	} finally {
+		if (previous === undefined) delete process.env.PLUME_DOCS;
+		else process.env.PLUME_DOCS = previous;
+	}
+});
+
+test("plume://preview holds the page API the preview tool points at, even without the docs directory", async () => {
+	const previous = process.env.PLUME_DOCS;
+	try {
+		process.env.PLUME_DOCS = join(tmpdir(), "plume-docs-missing");
+		const doc = await router().resolve("plume://preview", ctx());
+		for (const api of ["plume.send(text)", "plume.setState(value)", "plume.tweak({ label, onChange })", "<page-state>", "<design-settings>"]) {
+			assert.ok(doc.content.includes(api), `${api} 不在参考里，工具描述指过来却查不到`);
+		}
+	} finally {
+		if (previous === undefined) delete process.env.PLUME_DOCS;
+		else process.env.PLUME_DOCS = previous;
+	}
 });
 
 test("plume:// topics cannot reach outside the docs directory", async () => {
@@ -256,7 +284,7 @@ test("plume:// reads from PLUME_DOCS when the app points it at its bundled copy"
 	try {
 		await writeFile(join(dir, "only.md"), "# 只有这一篇\n\n正文");
 		process.env.PLUME_DOCS = dir;
-		assert.equal((await router().resolve("plume://", ctx())).content, "- plume://only: 只有这一篇");
+		assert.equal((await router().resolve("plume://", ctx())).content, "- plume://only: 只有这一篇\n- plume://preview: 网页预览（preview）里能调用的接口\n- plume://ui: 界面块（```ui）的写法");
 		assert.equal((await router().resolve("plume://only", ctx())).content, "# 只有这一篇\n\n正文");
 
 		process.env.PLUME_DOCS = join(dir, "missing");

@@ -19,9 +19,13 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ResourceError, type Completion, type ParsedUrl, type Resource, type ResourceHandler } from "./types.ts";
+import { previewReference } from "../tools/preview-reference.ts";
+import { interfaceReference } from "../ui-language/prompt.ts";
 
 /** A topic is a filename stem and nothing else, so `plume://../../x` cannot leave the directory. */
 const TOPIC_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+
+const GENERATED: Record<string, () => string> = { preview: previewReference, ui: interfaceReference };
 
 function docsDir(): string {
 	return process.env.PLUME_DOCS?.trim() || fileURLToPath(new URL("./plume-docs/", import.meta.url));
@@ -50,15 +54,18 @@ export const plumeResource: ResourceHandler = {
 	 * often Plume's own code — and there the code is the truth, not the user-facing docs.
 	 */
 	describe:
-		"Plume 这个应用自己的使用说明：命令、设置、权限、扩展、报错。**只在用户问的是 Plume 本身时读**（某个功能怎么用、某项设置在哪、界面上的报错什么意思）；做用户自己的任务、或修改 Plume 源码时都不要读。先 `read plume://` 看有哪些主题",
+		"Plume 这个应用自己的使用说明：命令、设置、权限、报错。只在用户问 Plume 怎么用时读；做用户的任务、改 Plume 源码时都不读。`plume://ui`、`plume://preview` 除外，写界面块、写预览页之前读。先 `read plume://` 看主题",
 
 	async resolve(url: ParsedUrl): Promise<Resource> {
 		const topic = url.segments.join("/");
-		const known = await topics();
-		if (!TOPIC_PATTERN.test(topic) || !known.includes(topic)) {
-			throw new ResourceError(`没有“${topic}”这个主题。现有的是：${known.join("、")}`);
+		const generated = Object.hasOwn(GENERATED, topic) ? GENERATED[topic]!() : undefined;
+		if (generated === undefined) {
+			const known = [...await topics(), ...Object.keys(GENERATED)].sort();
+			if (!TOPIC_PATTERN.test(topic) || !known.includes(topic)) {
+				throw new ResourceError(`没有“${topic}”这个主题。现有的是：${known.join("、")}`);
+			}
 		}
-		const content = await readFile(join(docsDir(), `${topic}.md`), "utf8");
+		const content = generated ?? await readFile(join(docsDir(), `${topic}.md`), "utf8");
 		return {
 			url: url.raw,
 			content,
@@ -70,11 +77,13 @@ export const plumeResource: ResourceHandler = {
 	},
 
 	async list(): Promise<Completion[]> {
-		return Promise.all(
+		const files = await Promise.all(
 			(await topics()).map(async (topic) => ({
 				value: `plume://${topic}`,
 				description: titleOf(await readFile(join(docsDir(), `${topic}.md`), "utf8"), topic),
 			})),
 		);
+		const generated = Object.entries(GENERATED).map(([topic, build]) => ({ value: `plume://${topic}`, description: titleOf(build(), topic) }));
+		return [...files, ...generated].sort((a, b) => a.value.localeCompare(b.value));
 	},
 };

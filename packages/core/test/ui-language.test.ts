@@ -13,6 +13,7 @@ import { checkBlock, initialState, readProps } from "../src/ui-language/check.ts
 import { COMPONENTS } from "../src/ui-language/catalog.ts";
 import { interfaceBlocks, unfencedComponents, withInterfaceNotes } from "../src/ui-language/notes.ts";
 import { buildPromptContext } from "../src/prompt/system.ts";
+import { interfaceReference } from "../src/ui-language/prompt.ts";
 import { emptyUsage, type AssistantMessage, type Message, type Tool } from "../src/types.ts";
 
 const run = (source: string, scope: Record<string, unknown> = {}) => {
@@ -170,7 +171,7 @@ test("回报：忘了 ```ui 围栏的组件被当成文字显示，下一轮告�
 	assert.deepEqual(unfencedComponents("正文提到 <Card> 组件\n<div>html</div>\n<Cardboard/>\n    <Card/>"), [], "句中、HTML 标签、不在名单上的名字、缩进代码块都不算");
 });
 
-test("提示词：只有画得出界面块的端才有这一段，组件表就是检查用的那张", async () => {
+test("提示词：只有画得出界面块的端才有这一段，组件表在 plume://ui", async () => {
 	const base = { cwd: "/fixture", tools: [], skills: [], projectInstructions: [], platform: "darwin", modelName: "Fixture", isGitRepo: false };
 	const without = await buildPromptContext(base);
 	assert.ok(!without.systemPrompt.includes("Interface blocks"));
@@ -179,7 +180,10 @@ test("提示词：只有画得出界面块的端才有这一段，组件表就�
 	const section = withIt.sections.find((part) => part.source === "interface");
 	assert.ok(section);
 	const body = withIt.systemPrompt.slice(section.start, section.end);
-	for (const name of Object.keys(COMPONENTS)) assert.match(body, new RegExp(`\\n  ${name}\\(`), name);
-	assert.ok(body.length < 3200, `每次请求都要付：${body.length} 字符`);
-	assert.deepEqual(checkBlock(/```ui\n([\s\S]*?)\n```/.exec(body)![1]!), [], "示例自己得过检查");
+	assert.match(body, /read `plume:\/\/ui`/);
+	assert.ok(body.length < 800, `每次请求都要付：${body.length} 字符`);
+
+	const reference = interfaceReference();
+	for (const name of Object.keys(COMPONENTS)) assert.match(reference, new RegExp(`\\n  ${name}\\(`), name);
+	assert.deepEqual(checkBlock(/```ui\n([\s\S]*?)\n```/.exec(reference)![1]!), [], "示例自己得过检查");
 });

@@ -127,11 +127,50 @@ test("检查带 width：按那个宽度检查，夹在 320–1600；截图没截
 	assert.match(text(phone), /截图是整页的前 2160px/);
 	await previewTool.execute({ html: "<p>ok</p>", check: true, width: 99999 }, ctx);
 	assert.equal(asked[1]?.width, 1600);
-	await previewTool.execute({ html: "<p>ok</p>", check: true }, ctx);
+	const column = await previewTool.execute({ html: "<p>ok</p>", check: true }, ctx);
 	assert.equal(asked[2]?.width, undefined, "不给就是对话的宽度，由宿主定");
+	assert.doesNotMatch(text(column), /按 \d+px 宽检查/, "宿主没报宽度时不编一个");
 	// 直接发布不截图，也就没有宽度可言。
 	await previewTool.execute({ html: "<p>ok</p>", width: 390 }, ctx);
 	assert.equal(asked[3]?.width, undefined);
+});
+
+test("不给 width 时也说按多宽检查的，免得模型去猜对话有多宽", async (t) => {
+	const ctx = await context(t);
+	usePreviewInspector(async () => ({ exceptions: [], errors: [], height: 500, limit: 720, screenshot: { data: "iVBOR", mimeType: "image/png" }, shotHeight: 500, width: 720 }));
+	t.after(() => usePreviewInspector(null));
+
+	const result = await previewTool.execute({ html: "<p>ok</p>", check: true }, ctx);
+	assert.match(text(result), /按对话的宽度 720px 检查/);
+	assert.doesNotMatch(text(result), /对话里的宽度不是这个/);
+});
+
+test("长页面：截图没截到底就给出下一段的 from；带 from 检查时说截的是哪一段", async (t) => {
+	const ctx = await context(t);
+	const asked: (Parameters<PreviewInspector>[1])[] = [];
+	usePreviewInspector(async (_preview, options) => {
+		asked.push(options);
+		const top = options?.from ?? 0;
+		const shotHeight = Math.min(5000 - top, 2160);
+		return { exceptions: [], errors: [], height: 5000, limit: 720, screenshot: { data: "iVBOR", mimeType: "image/png" }, shotHeight, ...(top ? { shotTop: top } : {}), width: 720 };
+	});
+	t.after(() => usePreviewInspector(null));
+
+	const first = await previewTool.execute({ html: "<p>ok</p>", check: true }, ctx);
+	assert.equal(asked[0]?.from, undefined);
+	assert.match(text(first), /截图是整页的前 2160px；下面还有，要看就加 from: 2160 再检查一次/);
+
+	const second = await previewTool.execute({ html: "<p>ok</p>", check: true, from: 2160 }, ctx);
+	assert.equal(asked[1]?.from, 2160);
+	assert.match(text(second), /截图是 2160–4320px 这一段（整页 5000px）；下面还有，要看就加 from: 4320/);
+
+	const last = await previewTool.execute({ html: "<p>ok</p>", check: true, from: 4320 }, ctx);
+	assert.match(text(last), /截图是 4320–5000px 这一段（整页 5000px）：/);
+	assert.doesNotMatch(text(last), /下面还有/);
+
+	// 直接发布不截图，from 没有意义，也不传给宿主。
+	await previewTool.execute({ html: "<p>ok</p>", from: 2160 }, ctx);
+	assert.equal(asked[3]?.from, undefined);
 });
 
 test("直接发布不要截图；检查时抛异常的页面，照原样发布会被拒", async (t) => {

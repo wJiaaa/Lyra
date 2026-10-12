@@ -80,7 +80,7 @@ export function withInterfaceNotes(messages: Message[]): Message[] {
 			...message,
 			content: [
 				...message.content,
-				{ type: "text", text: `<env>\n你上一条回复里的界面块有几处没按写的画出来，下次照界面块的说明写：\n${problems.map((problem) => `- ${problem}`).join("\n")}\n</env>` },
+				{ type: "text", text: `<env>\n你上一条回复里的界面块有几处没按写的画出来，下次照 \`plume://ui\` 的写法来：\n${problems.map((problem) => `- ${problem}`).join("\n")}\n</env>` },
 			],
 		};
 	}

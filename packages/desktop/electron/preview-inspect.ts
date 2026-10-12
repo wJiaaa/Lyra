@@ -48,7 +48,7 @@ function where(sourceId: string, line: number): string {
 
 export async function inspectPreview(
 	preview: { sessionId: string; id: string; entry: string; themed?: boolean },
-	options: { screenshot?: boolean; width?: number } = {},
+	options: { screenshot?: boolean; width?: number; from?: number } = {},
 ): Promise<PreviewInspection | null> {
 	const width = options.width ?? PREVIEW_CHECK_WIDTH;
 	// Loaded the way the card loads it: inline, and with the theme when the page was written for one.
@@ -98,13 +98,18 @@ export async function inspectPreview(
 			.executeJavaScript(`Math.ceil((${MEASURE_HEIGHT})()) + 2`, true)
 			.then((value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : undefined))
 			.catch(() => undefined);
-		const shot = options.screenshot ? await capture(window, width, height, () => frame) : undefined;
+		const shot = options.screenshot
+			? await capture(window, width, height, options.from ?? 0, () => frame, () => {
+					frame = null;
+				})
+			: undefined;
 		return {
 			exceptions,
 			errors,
 			...(height === undefined ? {} : { height, limit: PREVIEW_MAX_HEIGHT }),
-			...(shot ? { screenshot: shot.image, shotHeight: shot.height } : {}),
-			...(options.width === undefined ? {} : { width }),
+			...(shot ? { screenshot: shot.image, shotHeight: shot.height, ...(shot.top > 0 ? { shotTop: shot.top } : {}) } : {}),
+			// 默认宽度也报：模型不知道对话多宽，就会自己猜一个再多查几次。
+			width,
 		};
 	} catch {
 		return exceptions.length + errors.length > 0 ? { exceptions, errors } : null;
@@ -113,11 +118,30 @@ export async function inspectPreview(
 	}
 }
 
-/** The page at the width it was loaded at, its own height down to `PREVIEW_CHECK_MAX_HEIGHT`. */
-async function capture(window: BrowserWindow, width: number, height: number | undefined, latest: () => NativeImage | null): Promise<{ image: { data: string; mimeType: string }; height: number } | undefined> {
+/**
+ * The page at the width it was loaded at, from `from` down by at most `PREVIEW_CHECK_MAX_HEIGHT`.
+ *
+ * Scrolled after the resize, not before: the window starts at `PREVIEW_MAX_HEIGHT`, and a scroll into
+ * the last, shorter stretch is clamped at that height and stays clamped once the window shrinks to
+ * fit. Inline pages carry `overflow:hidden`, which stops the reader scrolling but not `scrollTo`.
+ */
+async function capture(
+	window: BrowserWindow,
+	width: number,
+	height: number | undefined,
+	from: number,
+	latest: () => NativeImage | null,
+	reset: () => void,
+): Promise<{ image: { data: string; mimeType: string }; height: number; top: number } | undefined> {
 	try {
-		const tall = Math.min(Math.max(height ?? PREVIEW_MAX_HEIGHT, 1), PREVIEW_CHECK_MAX_HEIGHT);
+		const start = height === undefined ? 0 : Math.max(0, Math.min(from, height - 1));
+		const tall = Math.min(Math.max((height ?? PREVIEW_MAX_HEIGHT) - start, 1), PREVIEW_CHECK_MAX_HEIGHT);
 		window.setContentSize(width, tall);
+		const top = start === 0 ? 0 : await window.webContents
+			.executeJavaScript(`window.scrollTo(0, ${start}); Math.round(window.scrollY)`, true)
+			.then((value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0));
+		// A frame painted before the scroll can already have the new size.
+		if (top > 0) reset();
 		window.webContents.invalidate();
 		/*
 		 * Wait for a frame of the new size. "A frame after the resize" is not enough: the resize lands
@@ -133,7 +157,13 @@ async function capture(window: BrowserWindow, width: number, height: number | un
 			await pause(50);
 			shot = latest();
 		}
-		return shot && fits(shot) ? { image: { data: shot.toPNG().toString("base64"), mimeType: "image/png" }, height: tall } : undefined;
+		/*
+		 * A scroll into the last stretch stops short of `from` — the page cannot scroll past its own end,
+		 * and `height` carries the card's pixel of slack. Then this shot does reach the bottom, and saying
+		 * it ends 2px early would send the model after a stretch that is not there.
+		 */
+		const reach = height !== undefined && top < start ? height - top : tall;
+		return shot && fits(shot) ? { image: { data: shot.toPNG().toString("base64"), mimeType: "image/png" }, height: reach, top } : undefined;
 	} catch {
 		return undefined;
 	}
