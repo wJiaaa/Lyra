@@ -1,5 +1,5 @@
 /**
- * 持续目标在真会话里怎么认这一轮是怎么收尾的：服务商报错、重试中途恢复、重试用完。
+ * 持续目标在真会话里怎么认这一轮是怎么收尾的：服务商报错、重试中途恢复、重试用完、人按停、人插话。
  *
  * 单元夹具（`session-goal.test.ts`）直接把收尾原因递给 `afterTurn`，测不到会话有没有把真实的原因
  * 递过去——循环的 `agent_end` 不经过 `Session.emit`，从前一次也没递到，报错的那一轮被当成 done 去问裁判。
@@ -136,5 +136,36 @@ test("retries that run out end the turn in error: the goal stops once, not once 
 		assert.equal(session.meta.goal?.pausedFor, "error");
 		assert.equal(hits, 1 + RETRY.upstream.retries);
 		assert.equal(judged(), 0);
+	});
+});
+
+test("stop mid-turn pauses the goal without asking the judge; an interjection yields instead", { timeout: 10_000 }, async () => {
+	let started = 0;
+	let hold = true;
+	const streamFn: AgentSessionOptions["streamFn"] = async (_context, options) => {
+		started++;
+		if (hold) await new Promise((resolve) => options.signal?.addEventListener("abort", resolve, { once: true }));
+		return options.signal?.aborted ? { ...reply(""), stopReason: "aborted" } : reply("done");
+	};
+	await withSession({ streamFn }, met, async (session, judged) => {
+		const opening = session.setGoal("CI green");
+		await until(() => started === 1, "the goal turn is running");
+		// 人插话打断：那一轮停下，目标不停，人的那一轮收尾时照常判。
+		hold = false;
+		await session.prompt([{ type: "text", text: "先看看 lint" }], { deliver: "interrupt" });
+		await opening;
+		await until(() => session.meta.goal?.status === "met", "judged after the interjection");
+		assert.equal(judged(), 1);
+
+		hold = true;
+		const second = session.setGoal("CI green again");
+		await until(() => started === 3, "the second goal turn is running");
+		session.abort();
+		await second;
+		await session.whenIdle();
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		assert.equal(session.meta.goal?.status, "paused");
+		assert.equal(session.meta.goal?.pausedFor, "stopped");
+		assert.equal(judged(), 1, "a stopped turn is not judged");
 	});
 });

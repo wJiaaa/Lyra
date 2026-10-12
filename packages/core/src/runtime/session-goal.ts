@@ -6,6 +6,9 @@
  * 最多看 `MAX_ROUNDS` 次、连着 `MAX_NO_PROGRESS` 次没进展、连着 `MAX_JUDGE_FAILURES` 次读不出结论，
  * 撞上哪条都停下来等人。被人按停、这一轮报错，同样停下——「别让循环替人做决定」。
  *
+ * 推进是一串 await（等会话闲下来、问裁判、落盘、开下一轮），人随时可能在两步之间按停止或换掉目标。
+ * 所以每一步回来都先比 `epoch`：人动过手就作废手上这次推进，不拿进来之前读到的状态接着写。
+ *
  * 状态全在 `SessionMeta.goal` 里，每次变化都落盘：进程死掉再起来，等着的目标按 `wakeAt` 接着等，
  * 跑到一半的目标留在原状态，下一轮收尾时再判。
  */
@@ -54,6 +57,13 @@ export class SessionGoal {
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private judge: AbortController | null = null;
 	private disposed = false;
+	/**
+	 * 人每停一次、换一次、取消一次就加一。推进路上每个 await 回来都比一下，变了就收手。
+	 *
+	 * 只比状态不够：停止落在「这一轮已经 done 收尾、还在等会话闲下来」的那段里时，状态还是
+	 * `working`，看不出人按过；从前就是这样把停止丢掉、接着去问裁判的。
+	 */
+	private epoch = 0;
 
 	constructor(deps: GoalDeps) {
 		this.deps = deps;
@@ -61,6 +71,7 @@ export class SessionGoal {
 
 	/** 定一个目标。已有的（不管什么状态）被这一个替掉，计数从零起。 */
 	async set(text: string): Promise<void> {
+		this.epoch += 1;
 		this.cancelWake();
 		this.judge?.abort();
 		await this.write({ text: text.trim(), startedAt: Date.now(), status: "working", rounds: 0, noProgress: 0, judgeFailures: 0, waits: 0 });
@@ -68,6 +79,7 @@ export class SessionGoal {
 
 	/** 人取消了目标：整个拿掉，不留终态。 */
 	async clear(): Promise<void> {
+		this.epoch += 1;
 		this.cancelWake();
 		this.judge?.abort();
 		if (!this.deps.goal()) return;
@@ -75,21 +87,25 @@ export class SessionGoal {
 	}
 
 	/**
-	 * 一轮收尾了。只有干净收尾的才判；被停、报错、撞上步数或重复上限的，都是循环已经替人停下的
-	 * 场合，目标跟着停，不再自己续。
+	 * 一轮收尾了。只有干净收尾的才判；报错、撞上步数或重复上限的，都是循环已经替人停下的场合，
+	 * 目标跟着停，不再自己续。
+	 *
+	 * 被停下的（`aborted`）这里不管：人按的停止在 `interrupt` 里当场就把目标停了；会话自己停下这一轮
+	 * 只为让人插话或编辑重发，那是人开口，让那一轮先跑、它收尾时再判。
 	 */
 	async afterTurn(reason: Extract<AgentEvent, { type: "agent_end" }>["reason"]): Promise<void> {
 		const goal = this.deps.goal();
-		if (!goalActive(goal) || this.disposed) return;
+		if (!goalActive(goal) || this.disposed || reason === "aborted") return;
 		if (reason !== "done") {
-			await this.pause(goal, reason === "aborted" ? "stopped" : "error");
+			await this.pause(goal, "error");
 			return;
 		}
+		const epoch = this.epoch;
 		// 排着的任务、攒着的后台结果先走；它们本来就要开一轮，判了也白判。
 		await this.deps.whenIdle();
 		const current = this.deps.goal();
-		if (this.disposed || !goalActive(current) || current.status === "judging" || !this.deps.idle()) return;
-		await this.check(current);
+		if (this.disposed || epoch !== this.epoch || !goalActive(current) || current.status === "judging" || !this.deps.idle()) return;
+		await this.check(current, epoch);
 	}
 
 	/** 从磁盘回来：等着的接着等，到点了马上看。 */
@@ -98,35 +114,46 @@ export class SessionGoal {
 		if (goal?.status === "waiting" && goal.wakeAt !== undefined) this.scheduleWake(goal.wakeAt);
 	}
 
-	/** 人按了停止：在等的、在判的都停下来等人；在跑的那一轮自己会以 aborted 收尾。 */
+	/**
+	 * 人按了停止：不管在做、在判还是在等，当场停下来等人。
+	 *
+	 * 「在做」也当场停，不等那一轮以 aborted 收尾再停：那一轮可能已经 done 收尾、正等着会话闲下来，
+	 * 这时再没有 aborted 会来，停止就丢了。处置之后不算——那是会话在收摊，不是人按的，等着的目标
+	 * 要原样留在磁盘上，下次起来接着等。
+	 */
 	interrupt(): void {
+		if (this.disposed) return;
+		this.epoch += 1;
+		this.cancelWake();
 		this.judge?.abort();
 		const goal = this.deps.goal();
-		if (goal?.status === "waiting" || goal?.status === "judging") void this.pause(goal, "stopped");
+		if (goalActive(goal)) void this.pause(goal, "stopped");
 	}
 
 	dispose(): void {
 		this.disposed = true;
+		this.epoch += 1;
 		this.cancelWake();
 		this.judge?.abort();
 	}
 
-	private async check(goal: GoalState): Promise<void> {
+	private async check(goal: GoalState, epoch: number): Promise<void> {
 		const rounds = goal.rounds + 1;
 		if (rounds > MAX_ROUNDS) {
 			await this.pause({ ...goal, rounds: goal.rounds }, "budget");
 			return;
 		}
 		await this.write({ ...goal, status: "judging", rounds, wakeAt: undefined });
+		if (epoch !== this.epoch) return;
 		const verdict = await this.ask(goal);
 		const after = this.deps.goal();
-		// 判的时候目标被换掉或取消了，结论作废。
-		if (this.disposed || !after || after.status !== "judging" || after.startedAt !== goal.startedAt) return;
+		// 判的时候人按了停、换了或取消了目标，结论作废。
+		if (this.disposed || epoch !== this.epoch || !after || after.status !== "judging") return;
 		const judged: GoalState = { ...after, verdict: verdict ?? after.verdict };
 		if (!verdict) {
 			const judgeFailures = judged.judgeFailures + 1;
 			if (judgeFailures >= MAX_JUDGE_FAILURES) { await this.pause({ ...judged, judgeFailures }, "judge-failed"); return; }
-			await this.resume({ ...judged, judgeFailures }, `Goal check could not reach a verdict this time. Keep working toward the goal: ${goal.text}`);
+			await this.resume({ ...judged, judgeFailures }, epoch, `Goal check could not reach a verdict this time. Keep working toward the goal: ${goal.text}`);
 			return;
 		}
 		switch (verdict.kind) {
@@ -137,19 +164,19 @@ export class SessionGoal {
 				await this.end({ ...judged, judgeFailures: 0 }, "impossible");
 				return;
 			case "progress":
-				await this.resume({ ...judged, judgeFailures: 0, noProgress: 0, waits: 0 }, `Goal check: not reached yet. ${verdict.reason}\nKeep working toward the goal: ${goal.text}`);
+				await this.resume({ ...judged, judgeFailures: 0, noProgress: 0, waits: 0 }, epoch, `Goal check: not reached yet. ${verdict.reason}\nKeep working toward the goal: ${goal.text}`);
 				return;
 			case "stuck": {
 				const noProgress = judged.noProgress + 1;
 				if (noProgress >= MAX_NO_PROGRESS) { await this.pause({ ...judged, judgeFailures: 0, noProgress }, "no-progress"); return; }
-				await this.resume({ ...judged, judgeFailures: 0, noProgress, waits: 0 }, `Goal check: the last turn did not move the goal forward. ${verdict.reason}\nChange approach and keep working toward the goal: ${goal.text}`);
+				await this.resume({ ...judged, judgeFailures: 0, noProgress, waits: 0 }, epoch, `Goal check: the last turn did not move the goal forward. ${verdict.reason}\nChange approach and keep working toward the goal: ${goal.text}`);
 				return;
 			}
 			case "waiting": {
 				const waits = judged.waits + 1;
 				const wakeAt = Date.now() + WAIT_BACKOFF_MS[Math.min(waits, WAIT_BACKOFF_MS.length) - 1];
 				await this.write({ ...judged, judgeFailures: 0, waits, status: "waiting", wakeAt });
-				this.scheduleWake(wakeAt);
+				if (epoch === this.epoch) this.scheduleWake(wakeAt);
 				return;
 			}
 		}
@@ -185,8 +212,9 @@ export class SessionGoal {
 		}
 	}
 
-	private async resume(goal: GoalState, text: string): Promise<void> {
+	private async resume(goal: GoalState, epoch: number, text: string): Promise<void> {
 		await this.write({ ...goal, status: "working", wakeAt: undefined });
+		if (this.disposed || epoch !== this.epoch) return;
 		await this.deps.continueWith(text);
 	}
 
@@ -209,6 +237,7 @@ export class SessionGoal {
 		const since = goal.verdict?.reason ? ` You were waiting for: ${goal.verdict.reason}` : "";
 		await this.resume(
 			goal,
+			this.epoch,
 			`Goal check: it is now ${new Date().toISOString()}.${since} Check whether it has happened and continue toward the goal: ${goal.text}\n` +
 			"If it still has not happened, say what you are waiting for and stop.",
 		);

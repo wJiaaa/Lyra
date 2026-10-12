@@ -79,7 +79,7 @@ function driver(script: string[], initial?: Partial<GoalState>) {
 		whenIdle: async () => {},
 	};
 	const sut = new SessionGoal(deps);
-	return { sut, state: () => goal, events, continued, records, asked: () => asked, set: (next: GoalState | undefined) => { goal = next; } };
+	return { sut, deps, state: () => goal, events, continued, records, asked: () => asked, set: (next: GoalState | undefined) => { goal = next; } };
 }
 
 test("progress continues at once, met ends with a notice, and every check records its usage", async () => {
@@ -152,10 +152,19 @@ test("the budget lines: rounds, consecutive no-progress, consecutive unreadable 
 });
 
 test("a turn that did not end cleanly pauses the goal instead of continuing it", async () => {
+	// 人按停：在做的目标当场停，那一轮随后以 aborted 收尾时不再动它。
 	const stopped = driver([verdictText("progress")], {});
+	stopped.sut.interrupt();
 	await stopped.sut.afterTurn("aborted");
 	assert.equal(stopped.state()?.pausedFor, "stopped");
 	assert.equal(stopped.asked(), 0);
+	await until(() => stopped.events.some((event) => event.type === "notice"), "the pause is announced");
+	assert.equal(stopped.events.filter((event) => event.type === "notice").length, 1, "paused once, not twice");
+	// 会话为让人插话或编辑重发而停下的那一轮：人开口了，目标让路，不停也不判，等那一轮收尾再判。
+	const interjected = driver([verdictText("progress")], {});
+	await interjected.sut.afterTurn("aborted");
+	assert.equal(interjected.state()?.status, "working");
+	assert.equal(interjected.asked(), 0);
 	const errored = driver([verdictText("progress")], {});
 	await errored.sut.afterTurn("error");
 	assert.equal(errored.state()?.pausedFor, "error");
@@ -239,4 +248,69 @@ test("in a real session: /goal runs a turn, the judge continues it once, then ca
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}
+});
+
+/** 让某个依赖挂起，直到测试放行。 */
+function gate() {
+	let release!: () => void;
+	const opened = new Promise<void>((resolve) => { release = resolve; });
+	return { opened, release };
+}
+
+test("a stop pressed after a done turn, while waiting for the session to go idle, is not lost", async () => {
+	const idle = gate();
+	const d = driver([verdictText("progress")], {});
+	d.deps.whenIdle = () => idle.opened;
+	const pending = d.sut.afterTurn("done");
+	// 这一轮已经 done 收尾，状态还是「在做」，正等着排着的先走。
+	assert.equal(d.state()?.status, "working");
+	d.sut.interrupt();
+	idle.release();
+	await pending;
+	assert.equal(d.state()?.status, "paused");
+	assert.equal(d.state()?.pausedFor, "stopped");
+	assert.equal(d.asked(), 0, "the judge is not asked");
+	assert.equal(d.continued.length, 0);
+});
+
+test("a stop pressed while the judge is out, or between its verdict and the next turn, wins", async () => {
+	// 裁判还没答：答回来的结论作废。
+	const answer = gate();
+	const judging = driver([verdictText("progress")], {});
+	const stream = judging.deps.stream!;
+	judging.deps.stream = (provider, model, context, options) => {
+		// oxlint-disable-next-line require-yield
+		return (async function* () { await answer.opened; return (await stream(provider, model, context, options).next()).value as AssistantMessage; })();
+	};
+	const asking = judging.sut.afterTurn("done");
+	await until(() => judging.state()?.status === "judging", "asking");
+	judging.sut.interrupt();
+	answer.release();
+	await asking;
+	assert.equal(judging.state()?.pausedFor, "stopped");
+	assert.equal(judging.continued.length, 0);
+
+	// 结论是「有进展」、正把「在做」写回磁盘：写完不再开下一轮。
+	const write = gate();
+	const resuming = driver([verdictText("progress")], {});
+	const record = resuming.deps.record;
+	resuming.deps.record = async (next) => {
+		await record(next);
+		if (next?.status === "working" && next.rounds === 1) await write.opened;
+	};
+	const continuing = resuming.sut.afterTurn("done");
+	await until(() => resuming.state()?.status === "working" && resuming.state()?.rounds === 1, "writing the continuation");
+	resuming.sut.interrupt();
+	write.release();
+	await continuing;
+	assert.equal(resuming.state()?.pausedFor, "stopped");
+	assert.equal(resuming.continued.length, 0, "the next turn is not started");
+});
+
+test("a waiting goal survives disposal: closing the session is not a stop", async () => {
+	const d = driver([], { status: "waiting", wakeAt: Date.now() + 60_000 });
+	d.sut.arm();
+	d.sut.dispose();
+	d.sut.interrupt();
+	assert.equal(d.state()?.status, "waiting", "left on disk to be re-armed on the next start");
 });

@@ -838,7 +838,7 @@ export class AgentSession {
 		 */
 		let interrupting = false;
 		if (options.deliver === "interrupt" && this.running) {
-			this.abort();
+			this.halt();
 			await this.activity.quiet();
 			interrupting = true;
 		}
@@ -1052,7 +1052,16 @@ export class AgentSession {
 		void this.tasks.drain();
 	}
 
+	/**
+	 * 人按了停止。持续目标跟着停下等人；会话为了让人插话、编辑重发、收摊而停下这一轮时走 `halt`，
+	 * 目标不动——前两种是人开口，那一轮收尾时再判；收摊时等着的目标要原样留到下次起来。
+	 */
 	abort(): void {
+		this.goal.interrupt();
+		this.halt();
+	}
+
+	private halt(): void {
 		void this.title.cancel();
 		// The prompt owner records a cancelled startup before resolving, so disposal cannot race
 		// an unawaited append after the caller has already finished the opening submission.
@@ -1069,8 +1078,6 @@ export class AgentSession {
 		 */
 		this.subAgents.abortAll();
 		this.approvals.rejectAll();
-		// 停止也停目标：在等的、在判的都停下来等人。
-		this.goal.interrupt();
 		// 放了手的、攒着没送的都不再送回来；后台命令照跑，只是结束时不再叫醒会话。见 `SessionDeliveries.clear`。
 		this.delegations.forget();
 		this.deliveries.clear();
@@ -1211,7 +1218,7 @@ export class AgentSession {
 	): Promise<void> {
 		await this.title.cancel();
 		if (this.running) {
-			this.abort();
+			this.halt();
 			// Acceptance writes and follow-up draining also own the history, before/after driveTurn.
 			await (this.activity.holding("prompt") ?? this.activity.holding("resume"))?.catch(() => {});
 		}
@@ -1269,7 +1276,7 @@ export class AgentSession {
 		this.can.state.delete(SESSION_START_KEY);
 		const runner = await loadHookRunner({ settings: this.settings, cwd: this.cwd });
 		if (!runner.has("SessionEnd")) return;
-		this.abort();
+		this.halt();
 		await this.activity.quiet().catch(() => {});
 		await runSessionEndHooks({ runner, cwd: this.cwd, sessionId: this.log.meta.id, permissionMode: this.settings.permissionMode }, reason);
 	}
