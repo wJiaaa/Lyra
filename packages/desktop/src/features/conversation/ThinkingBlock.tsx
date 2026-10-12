@@ -85,7 +85,7 @@ const LIVE_STEPS = [
 ] as const;
 
 /** 走完一遍以后，每隔这么久再换一个。停在最后一个词上几分钟不动，看上去和卡住了一样。 */
-const LIVE_CYCLE_MS = 45_000;
+const LIVE_CYCLE_MS = 20_000;
 
 function liveWord(elapsedMs: number): (typeof LIVE_STEPS)[number][1] {
 	const last = LIVE_STEPS.length - 1;

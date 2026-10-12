@@ -35,8 +35,8 @@ test("运行中：词随这一段想的时长往下换，后面跟着秒数，�
 });
 
 test("运行中：走完一遍以后慢慢轮回去，不再说开场那个「正在思考」", async () => {
-	assert.equal(await title("zh-CN", thinking(160_000)), "琢磨一下2m 40s");
-	assert.equal(await title("zh-CN", thinking(200_000)), "头脑风暴中3m 20s");
+	assert.equal(await title("zh-CN", thinking(135_000)), "琢磨一下2m 15s");
+	assert.equal(await title("zh-CN", thinking(155_000)), "头脑风暴中2m 35s");
 });
 
 test("运行中说不出开始时刻：用第一个词，不报秒", async () => {
