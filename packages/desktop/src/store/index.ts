@@ -216,6 +216,11 @@ export interface AppState extends QueueSlice {
    * opened in; put back by `stageDraft`, dropped by `newSession`.
    */
   parkedDraft: { workspace: WorkspaceInfo | null; scratchCwd: string | null } | null;
+  /**
+   * 空白对话拨开的计划模式。还没有会话可写，先记在这里，第一句话建会话时随 `sessions:create` 写进
+   * 初始 meta——第一轮按它装工具表，建完再补就晚了一轮。只有一个空白对话，所以一个布尔就够。
+   */
+  draftPlanMode: boolean;
   /** Every directory project-less conversations are stored under, so the sidebar can exclude them. */
   scratchRoots: string[];
   /**
@@ -561,7 +566,7 @@ export interface AppState extends QueueSlice {
   setModel(modelId: string, options?: { asDefault?: boolean; sessionId?: string | null }): Promise<void>;
   /** How hard this conversation asks the model to think. Falls back to the app default. `sessionId` as for `setModel`. */
   setThinking(thinking: ThinkingLevel, sessionId?: string | null): Promise<void>;
-  /** 进出这个对话的计划模式。没有会话时什么也不做。`sessionId` as for `setModel`. */
+  /** 进出这个对话的计划模式。空白对话记在 `draftPlanMode`。`sessionId` as for `setModel`. */
   setPlanMode(on: boolean, sessionId?: string | null): Promise<void>;
   dismissNotice(id: string): void;
   notify(message: string, level?: "info" | "warn" | "error", sessionId?: string): void;
@@ -593,6 +598,7 @@ export const useApp = create<AppState>((set, get) => ({
   workspace: null,
   workspaceByPath: {},
   parkedDraft: null,
+  draftPlanMode: false,
   switchingBranch: null,
   scratchRoots: [],
   scratchCwd: null,

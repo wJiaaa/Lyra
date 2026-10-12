@@ -12,16 +12,14 @@ import { useI18n } from "../../i18n/index.ts";
  */
 export function PlanModeToggle({ sessionId, on }: { sessionId: string | null; on: boolean }) {
 	const { t } = useI18n();
-	const toggle = () => { if (sessionId) void useApp.getState().setPlanMode(!on, sessionId); };
+	const toggle = () => void useApp.getState().setPlanMode(!on, sessionId);
 
 	if (!on) return (
 		<IconButton
 			size="composer"
-			label={sessionId ? t("plan.enter") : t("plan.needsSession")}
+			label={t("plan.enter")}
 			tipSide="top"
 			active={false}
-			disabled={!sessionId}
-			explainDisabled
 			onClick={toggle}
 			icon={<ListOrdered size={16} strokeWidth={1.9} />}
 		/>

@@ -8,6 +8,8 @@ export interface InitialPrompt {
 	skillRef?: { name: string; path?: string; pluginId?: string };
 	sessionRefs?: Array<{ id: string; title: string }>;
 	attachments?: MessageAttachment[];
+	/** 空白对话里先拨开的计划模式。第一轮按建出来的 meta 装工具表，所以要在这里写，不能建完再补。 */
+	planMode?: boolean;
 }
 
 /** Persist identity, title and the submitted message without starting MCP, Git or a provider. */
@@ -43,6 +45,7 @@ export async function createStoredSession(
 		meta = (await store.append(meta, { type: "meta", meta: {
 			...meta,
 			...(initial ? { pendingPrompt: true } : {}),
+			...(initial?.planMode ? { planMode: true } : {}),
 			...(settings.worktrees?.autoCreateOnNewSession ? { workspaceSetup: "worktree" } : {}),
 		} })) ?? meta;
 	}

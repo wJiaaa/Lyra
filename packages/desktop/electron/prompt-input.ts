@@ -85,9 +85,11 @@ export function initialPrompt(value: unknown): InitialPrompt | undefined {
 	if (value === undefined) return undefined;
 	if (!object(value)) throw new Error("initial must be an object");
 	if (value.synthetic !== undefined && typeof value.synthetic !== "boolean") throw new Error("synthetic must be boolean");
+	if (value.planMode !== undefined && typeof value.planMode !== "boolean") throw new Error("planMode must be boolean");
 	return {
 		content: promptContent(value.content),
 		...(value.synthetic === undefined ? {} : { synthetic: value.synthetic }),
+		...(value.planMode ? { planMode: true } : {}),
 		...presentation(value),
 	};
 }

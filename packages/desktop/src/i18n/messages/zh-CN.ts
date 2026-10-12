@@ -1957,7 +1957,6 @@ export const zhCN = {
 	"plan.chip": "计划模式",
 	"plan.enter": "进入计划模式：先调查、交一份计划，批准后再动手",
 	"plan.exit": "退出计划模式",
-	"plan.needsSession": "计划模式记在对话上，先发一句话开始这个对话。",
 	"plan.toggleFailed": "计划模式切换失败：{reason}",
 	"plan.approvalTitle": "审批计划",
 	"composer.binaryFile": "{name}（二进制文件）",

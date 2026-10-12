@@ -88,6 +88,7 @@ export function Composer({ centered = false }: {
 	// A count, not the list: a selector that builds an array hands back a new one on every store tick.
 	const unfinished = useScopedTodos().filter((todo) => todo.status !== "completed").length;
 	const activeSessionId = useScopedSessionId();
+	const draftPlanMode = useApp((s) => s.draftPlanMode);
 	useJobReveal(activeSessionId, useCallback(() => void openScopedPanel("tasks", activeSessionId ?? undefined), [activeSessionId]));
 	// "底部面板" in Settings → 常规. Saved but read by nothing until now.
 	const showBottomPanel = useApp((s) => s.settings?.editor.showBottomPanel) ?? true;
@@ -428,11 +429,10 @@ export function Composer({ centered = false }: {
 		}
 		/*
 		 * `/plan`：不带话就是开关；带话就先进计划模式、再把这句话当普通消息发出去——计划模式在下一轮开始时
-		 * 按元数据装工具表，所以先写开关、再发。没有会话时没有地方记这个开关，提示并留着草稿。
+		 * 按元数据装工具表，所以先写开关、再发。空白对话的开关记在 `draftPlanMode`，建会话时一起带过去。
 		 */
 		if (builtin?.action === "plan") {
-			if (!activeSessionId) { useApp.getState().notify(translate("plan.needsSession"), "warn"); return; }
-			const planOn = meta?.planMode === true;
+			const planOn = activeSessionId ? meta?.planMode === true : draftPlanMode;
 			if (!invocation?.rest) {
 				if (attachments.length || sessionRefs.length || quotes.length) { useApp.getState().notify(translate("composer.commandNoFiles"), "warn"); return; }
 				setText("");
@@ -852,7 +852,7 @@ export function Composer({ centered = false }: {
 									<ChevronDown size={14} className="shrink-0" aria-hidden />
 								</span>
 							</button>
-							<PlanModeToggle sessionId={activeSessionId ?? null} on={meta?.planMode === true} />
+							<PlanModeToggle sessionId={activeSessionId ?? null} on={activeSessionId ? meta?.planMode === true : draftPlanMode} />
 						</>
 					}
 					right={

@@ -1778,7 +1778,6 @@ export const en = {
 	"plan.chip": "Plan mode",
 	"plan.enter": "Plan mode: investigate and propose a plan, then act once you approve it",
 	"plan.exit": "Leave plan mode",
-	"plan.needsSession": "Plan mode belongs to a conversation. Send a message to start one first.",
 	"plan.toggleFailed": "Could not switch plan mode: {reason}",
 	"plan.approvalTitle": "Review the plan",
 	"composer.binaryFile": "{name} (binary)",

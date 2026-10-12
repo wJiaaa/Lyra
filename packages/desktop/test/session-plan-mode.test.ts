@@ -10,6 +10,7 @@ import { beforeEach, describe, it } from "node:test";
 import type { SessionMeta } from "@plume/core";
 
 const calls: Array<{ sessionId: string; on: boolean }> = [];
+const created: Array<{ planMode?: boolean } | undefined> = [];
 let failWith: Error | null = null;
 
 // 只够 store 自己的 import 用，理由见 `session-thinking.test.ts`。
@@ -24,6 +25,14 @@ let failWith: Error | null = null;
 				calls.push({ sessionId, on });
 				if (failWith) throw failWith;
 			},
+			prompt: async () => META,
+		},
+		sessions: {
+			create: async (_cwd: string, _modelId: string, initial?: { planMode?: boolean }) => {
+				created.push(initial);
+				return { meta: META, messages: [], running: true, pendingApprovals: [] };
+			},
+			capabilities: async () => null,
 		},
 	},
 };
@@ -36,8 +45,9 @@ const META = { id: "s-1", projectId: "p", modelId: "relay/a", seq: 3, updatedAt:
 describe("计划模式开关", () => {
 	beforeEach(() => {
 		calls.length = 0;
+		created.length = 0;
 		failWith = null;
-		useApp.setState({ meta: META, activeSessionId: "s-1", sessions: [META], notices: [] });
+		useApp.setState({ meta: META, activeSessionId: "s-1", sessions: [META], notices: [], draftPlanMode: false });
 	});
 
 	it("打开写到这个对话，芯片不等来回就亮", async () => {
@@ -53,10 +63,29 @@ describe("计划模式开关", () => {
 		assert.equal(useApp.getState().meta?.planMode, undefined);
 	});
 
-	it("没有对话时什么也不写", async () => {
+	it("空白对话记在窗口里，不经主进程", async () => {
 		useApp.setState({ meta: null, activeSessionId: null });
 		await useApp.getState().setPlanMode(true);
 		assert.equal(calls.length, 0);
+		assert.equal(useApp.getState().draftPlanMode, true);
+	});
+
+	/*
+	 * 第一轮按建出来的 meta 装工具表：开关得跟着 `sessions:create` 一起过去，建完再拨就晚了一轮——
+	 * 那一轮是照常跑的，full 档下可能已经改了文件。
+	 */
+	it("空白对话拨开后，第一句话建出的会话就在计划模式里", async () => {
+		useApp.setState({ meta: null, activeSessionId: null, workspace: null, scratchCwd: "/tmp/plume-plan-draft" });
+		await useApp.getState().setPlanMode(true, null);
+		await useApp.getState().send([{ type: "text", text: "先看看" }]);
+		assert.equal(created[0]?.planMode, true);
+		assert.equal(useApp.getState().draftPlanMode, false, "下一个空白对话从关着开始");
+	});
+
+	it("没拨开的空白对话照常建", async () => {
+		useApp.setState({ meta: null, activeSessionId: null, workspace: null, scratchCwd: "/tmp/plume-plan-draft" });
+		await useApp.getState().send([{ type: "text", text: "直接做" }]);
+		assert.equal(created[0]?.planMode, undefined);
 	});
 
 	it("写失败就退回原样并提示", async () => {

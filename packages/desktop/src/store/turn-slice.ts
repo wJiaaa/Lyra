@@ -188,6 +188,7 @@ export function turnSlice(set: Set, get: Get) {
 				skillRef: options.skillRef,
 				sessionRefs: options.sessionRefs,
 				attachments: options.attachments,
+				...(get().draftPlanMode ? { planMode: true } : {}),
 			});
 			creating.set(epoch, creation);
 			try {
@@ -197,6 +198,8 @@ export function turnSlice(set: Set, get: Get) {
 				const listed = snapshot.meta;
 				const messages = snapshot.messages;
 				set({
+					// 开关已经交给了这个会话；下一个空白对话从关着开始。
+					draftPlanMode: false,
 					sessions: [listed, ...get().sessions.filter((session) => session.id !== listed.id)],
 					activity: { ...get().activity, [sessionId]: "running" },
 					turns: { ...get().turns, [sessionId]: meter },
@@ -574,14 +577,14 @@ export function turnSlice(set: Set, get: Get) {
   },
 
 	/*
-	 * 计划模式按会话记，没有「应用默认」可退：没有会话就没有可写的地方，什么也不做，由调用方提示。
+	 * 计划模式按会话记，没有「应用默认」可退：空白对话记在 `draftPlanMode`，建会话时带过去，不落到全局设置。
 	 * 乐观更新理由同 `setThinking`；真正的那份随后由 `sessions:changed` 送来——批准计划后 core 自己
 	 * 关掉时也走那条路，所以芯片不需要另听事件。
 	 */
 	async setPlanMode(on: boolean, sessionId?: string | null) {
 		if (sessionId && sessionId !== get().activeSessionId && !(await onStage(sessionId))) return;
 		const activeSessionId = sessionId === null ? null : get().activeSessionId;
-		if (!activeSessionId) return;
+		if (!activeSessionId) { set({ draftPlanMode: on }); return; }
 		const { meta } = get();
 		const optimistic = meta ? { ...meta, planMode: on ? true : undefined } : null;
 		if (optimistic) set({ meta: optimistic });

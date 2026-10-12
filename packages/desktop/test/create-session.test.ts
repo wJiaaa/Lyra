@@ -155,3 +155,18 @@ test("the level a new chat started with stays when the next new chat moves the d
 		assert.equal(sessionThinking(reloaded?.meta, medium), "high", "输入框那枚标签读到的也是");
 	} finally { await rm(root, { recursive: true, force: true }); }
 });
+
+// 空白对话里先拨开的计划模式：写进建出来的那份 meta，第一轮装工具表时读到的就是开着的。
+test("a new chat opened in plan mode starts its first turn in plan mode", async () => {
+	const root = await mkdtemp(join(tmpdir(), "plume-create-plan-"));
+	try {
+		const store = new SessionStore(join(root, "sessions"));
+		const saved = await createStoredSession(store, DEFAULT_SETTINGS, root, "", initialPrompt({ content: "先规划", planMode: true }));
+		assert.equal(saved.meta.planMode, true);
+		assert.equal((await store.load(saved.meta.id))?.meta.planMode, true);
+
+		const plain = await createStoredSession(store, DEFAULT_SETTINGS, root, "", initialPrompt({ content: "直接做" }));
+		assert.equal(plain.meta.planMode, undefined);
+		assert.throws(() => initialPrompt({ content: "x", planMode: "yes" }));
+	} finally { await rm(root, { recursive: true, force: true }); }
+});
