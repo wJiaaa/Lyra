@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compactIfNeeded, compactionTriggerTokens, COMPACTION_BUFFER_TOKENS, COMPACTION_RATIO, summaryHeadroom, summaryMessages } from "../src/runtime/compaction.ts";
+import { compactIfNeeded, compactionTriggerTokens, COMPACTION_BUFFER_TOKENS, COMPACTION_RATIO, summaryHeadroom } from "../src/runtime/compaction.ts";
+import { summaryMessages } from "../src/runtime/compaction-head.ts";
 import { PRUNE_THRESHOLD_CHARS, pruneText, pruneToolResults } from "../src/agent/prune.ts";
 import { measureTotal } from "../src/tokens.ts";
 import { estimateTokens } from "../src/tokens.ts";

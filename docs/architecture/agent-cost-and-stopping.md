@@ -331,7 +331,7 @@ pnpm audit:sessions --json   # 机读，用于前后对照
 | 循环主体、`finish()` 的 5 种终止原因、溢出恢复 | [packages/core/src/agent/loop.ts](../../packages/core/src/agent/loop.ts) |
 | 重复检测（`REPEAT_WARN` / `REPEAT_STOP` / `INTENT_WARN`） | [packages/core/src/agent/repetition.ts](../../packages/core/src/agent/repetition.ts) |
 | 超大结果裁剪（`pruneToolResults` / `stripOversizedToolResults`） | [packages/core/src/agent/prune.ts](../../packages/core/src/agent/prune.ts) |
-| 压缩（`THRESHOLD` 等 5 个常量、`filesSeen`） | [packages/core/src/runtime/compaction.ts](../../packages/core/src/runtime/compaction.ts) |
+| 压缩（`THRESHOLD` 等 5 个常量）；摘要头（`filesSeen`） | [packages/core/src/runtime/compaction.ts](../../packages/core/src/runtime/compaction.ts)、[compaction-head.ts](../../packages/core/src/runtime/compaction-head.ts) |
 | 续跑（`MAX_CONTINUATIONS` / `STALLED_CONTINUATIONS`） | [packages/core/src/runtime/continuation.ts](../../packages/core/src/runtime/continuation.ts) |
 | 整条续跑链共用的那只重复计数表 | [packages/core/src/runtime/turn-config.ts](../../packages/core/src/runtime/turn-config.ts) |
 | 终止时写给用户的话 | [packages/core/src/runtime/session-turn.ts](../../packages/core/src/runtime/session-turn.ts) |
@@ -1160,7 +1160,7 @@ curl -s "https://api.github.com/repos/deepseek-ai/deepseek-harness/git/trees/mas
 ### oh-my-pi — `docs/compaction.md`
 
 已落地：压缩摘要里保留「已读文件清单」。见
-[compaction.ts](../../packages/core/src/runtime/compaction.ts) 的 `filesSeen()` 与
+[compaction-head.ts](../../packages/core/src/runtime/compaction-head.ts) 的 `filesSeen()` 与
 `<files-already-seen>` 段——分「只读过」「你改过」两类，并明说这不是禁止重读。
 
 ### oh-my-pi — `packages/agent/src/append-only-context.ts`（374 行）

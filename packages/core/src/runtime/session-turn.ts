@@ -33,7 +33,7 @@ import type {
 	Tool,
 	Usage,
 } from "../types.ts";
-import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction.ts";
+import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction-head.ts";
 import { taskContextFromHistory } from "./task-context.ts";
 import { hookContextMessage, makeOnStop, runSessionStartHooks, runStopFailureHooks, runUserPromptSubmitHooks, type TurnHooks } from "./hooks.ts";
 import { loadTurnHooks, toolHooks } from "./run-policy.ts";

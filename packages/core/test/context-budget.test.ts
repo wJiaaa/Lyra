@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { contextMaxTokens, textTokens, toolTokens } from "../src/tokens.ts";
-import { compactIfNeeded, summaryMessages } from "../src/runtime/compaction.ts";
+import { compactIfNeeded } from "../src/runtime/compaction.ts";
+import { summaryMessages } from "../src/runtime/compaction-head.ts";
 import { runAgent } from "../src/agent/loop.ts";
 import { estimateTokens } from "../src/tokens.ts";
 import { emptyUsage, type AssistantMessage, type LlmContext, type ModelConfig, type ProviderConfig } from "../src/types.ts";

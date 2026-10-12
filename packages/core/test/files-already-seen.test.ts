@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { filesSeen, summaryMessages } from "../src/runtime/compaction.ts";
+import { filesSeen, summaryMessages } from "../src/runtime/compaction-head.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
