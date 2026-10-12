@@ -68,7 +68,8 @@ export async function mobileRpc(deps: MobileRpcDeps, method: MobileMethod, args:
 		await store.setArchived(id, args[1]);
 		return;
 	}
-	if (method === "agent.prompt") return promptSession(id, promptBlocks(args[1], args[2]));
+	// 桌面端忙时先排队（Composer 的队列在渲染进程里，手机看不到），手机这边同样不插进正在跑的那一轮。
+	if (method === "agent.prompt") return promptSession(id, promptBlocks(args[1], args[2]), { deliver: "followUp" });
 	if (method === "agent.abort") return abortSession(id);
 	if (method === "agent.approve") {
 		const live = sessions.get(id);
