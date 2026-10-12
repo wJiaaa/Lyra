@@ -1,42 +1,32 @@
 /**
- * Editing a file, two ways.
+ * Editing a file by exact text replacement.
  *
- * The patch form is the one to reach for: the model names the original line numbers it wants to
- * change and writes only the replacement lines. Measured against the string-replacement form on
- * this repository's own source — 270 real calls, `docs/dev-log/01-edit-format-eval.md`:
+ * This used to be a line-number patch (`REPLACE 7-9` under a tag from `read`), with the string
+ * form kept as "legacy". The patch form made the smallest change the most expensive one: swapping
+ * one word meant retyping the whole line, and on prose stored one paragraph per line that is over a
+ * thousand characters to copy exactly — in Terminal-Bench's overfull-hbox the model wrote a script
+ * to apply its word swaps rather than do that. Every other harness we compared (pi, maka, ZCode,
+ * opencode, Claude Code) edits by text. Why the earlier measurement no longer decides it:
+ * docs/adr/0046-edit-by-text.md.
  *
- *   gemini-2.5-flash-lite   first-attempt 78% → 96%, output tokens −49%
- *   gemini-3.7-flash-high   first-attempt 96% → 100%, output tokens −74%
- *
- * The pass rate is not even the important part. Under string replacement, ten of the failures
- * were a *wrong file written successfully* — the anchor matched somewhere plausible, the tool
- * reported success, and nothing downstream knew. Under the patch form every failure was a
- * rejection the model could read and retry, because a line range can be checked against the file
- * and a byte anchor cannot. Multi-point edits are the clearest case: string replacement scored
- * 0/6 on the weak model, the patch form 6/6.
- *
- * The string form stays because sessions already in flight are full of it, and because a
- * single trivially-unique replacement is a shape it handles fine.
+ * What kept the line form safe still holds here: the file must have been read and must not have
+ * changed since, the match must be exact and unique, and the text replaced must sit in what the
+ * model was shown.
  */
 
 import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { withTextFile } from "./file-write.ts";
 import { computeDiff, formatDiff, type FileDiff } from "./diff.ts";
-import { applyHunks, parsePatch, PATCH_SYNTAX, PatchError, snapshotTag, type Hunk } from "./hunk.ts";
 import { formatCharWindow, indexToLineCol, MAX_LINE_CHARS } from "./long-line.ts";
 import { displayPath, resolveWorkspacePath } from "./paths.ts";
-import { markEdited, markReadRanges, readRecord, readVersion, wasShown, wasShownChars } from "./read-state.ts";
-import { decodeInput, decodeText, encodeText, type TextLayout } from "./text-layout.ts";
+import { markEdited, markReadRanges, readRecord, readVersion, wasShownChars, type ReadRecord } from "./read-state.ts";
+import { decodeInput, decodeText, encodeText } from "./text-layout.ts";
 
 interface EditArgs {
 	path: string;
-	/** Patch form. */
-	tag?: string;
-	patch?: string;
-	/** String-replacement form. */
-	old_string?: string;
-	new_string?: string;
+	old_string: string;
+	new_string: string;
 	replace_all?: boolean;
 }
 
@@ -44,27 +34,19 @@ export const editTool: Tool<EditArgs> = {
 	name: "edit",
 	approvalKind: "edit",
 	description:
-		"Edit a file. Preferred: `patch`, always with the `tag` from read's header, naming ORIGINAL line numbers and giving only the replacement lines. " +
-		"Only edit lines you have seen — read a range folded as `⋯` first. If the file changed since you read it the edit is rejected; re-read and redo it.\n\n" +
-		PATCH_SYNTAX +
-		"\n\nLegacy: `old_string` + `new_string` replaces one exact, unique match. Prefer the patch form.",
+		"Replace exact text in a file. `old_string` must match the file exactly, whitespace and indentation included, and be unique unless `replace_all` is set. " +
+		"Keep `old_string` as small as possible while still unique: when only a word changes, a few words around it are enough, even on a long line. " +
+		"Read the file before editing it; if it changed since, the edit is refused — re-read and redo it. " +
+		"For several separate changes, send several edit calls in one response.",
 	parameters: {
 		type: "object",
 		properties: {
 			path: { type: "string", description: "File path, absolute or relative to the workspace root." },
-			tag: {
-				type: "string",
-				// No example value here on purpose. With `e.g. A1B2` in this description,
-				// gemini-2.5-flash-lite copied that literal string in instead of reading the header.
-				description: "Copy the 4-character tag from the `[path#TAG]` header of the read output. Do not invent it.",
-			},
-			// 语法只在工具描述里写一遍；这里再放一份是每轮多发 1300 字符。
-			patch: { type: "string", description: "Line-anchored patch in the syntax given in the tool description." },
-			old_string: { type: "string", description: "Legacy form: exact text to replace." },
-			new_string: { type: "string", description: "Legacy form: replacement text." },
-			replace_all: { type: "boolean", description: "Legacy form: replace every occurrence instead of requiring uniqueness." },
+			old_string: { type: "string", description: "The exact text to replace." },
+			new_string: { type: "string", description: "The text to put in its place." },
+			replace_all: { type: "boolean", description: "Replace every occurrence instead of requiring a unique match." },
 		},
-		required: ["path"],
+		required: ["path", "old_string", "new_string"],
 		additionalProperties: false,
 	},
 	mutating: true,
@@ -73,13 +55,8 @@ export const editTool: Tool<EditArgs> = {
 
 	async execute(args, ctx): Promise<ToolResult> {
 		// 不吃 `ctx.allowedPaths`，理由见 `write.ts` 里同一处的注释：附件是「给你看」，不是「可以改」。
-		const usesPatch = typeof args.patch === "string" && args.patch.trim() !== "";
-		const usesStrings = typeof args.old_string === "string" || typeof args.new_string === "string";
-		if (usesPatch && usesStrings) {
-			return errorResult("Use either `patch` or `old_string`/`new_string`, not both.");
-		}
-		if (!usesPatch && !usesStrings) {
-			return errorResult("Nothing to do: supply `tag` + `patch`, or `old_string` + `new_string`.");
+		if (typeof args.old_string !== "string" || typeof args.new_string !== "string") {
+			return errorResult("`old_string` and `new_string` must both be strings.");
 		}
 		try {
 			return await withTextFile(ctx, args.path, async ({ path: absolute, before: raw, write }) => {
@@ -87,14 +64,28 @@ export const editTool: Tool<EditArgs> = {
 				if (!record?.version) return errorResult(`Read ${args.path} as text before editing it.`);
 				if (raw === null) return errorResult(`File not found: ${args.path}`);
 				const { text: before, layout } = decodeText(raw);
-				if (record.version !== readVersion(before)) return errorResult(`The file changed since you read it (it is now ${snapshotTag(before)}). Re-read ${args.path} before editing.`);
+				if (record.version !== readVersion(before)) return errorResult(`The file changed since you read it. Re-read ${args.path} before editing.`);
 
-				const outcome = usesPatch ? applyPatchForm(args, before, ctx, absolute) : applyStringForm(args, before, layout, ctx, absolute);
-				if ("error" in outcome) return errorResult(outcome.error);
-				const { after, summary, hunks } = outcome;
+				if (args.old_string === "") return errorResult("`old_string` is empty. To fill an empty file or replace a whole file, use `write`.");
+				const oldString = decodeInput(args.old_string, layout);
+				const newString = decodeInput(args.new_string, layout);
+				if (oldString === newString) return errorResult("`old_string` and `new_string` are identical, so this edit would do nothing.");
 
-				if (after === before) return errorResult("That edit would leave the file unchanged.");
+				const occurrences = countOccurrences(before, oldString, Boolean(args.replace_all));
+				if (occurrences === 0) {
+					return errorResult(
+						`\`old_string\` was not found in ${args.path}. It must match exactly, including whitespace and indentation — copy it from what read showed, without the line-number prefix.`,
+					);
+				}
+				if (occurrences > 1 && !args.replace_all) {
+					return errorResult(`\`old_string\` appears ${occurrences} times in ${args.path}. Include more of the surrounding text to make it unique, or set replace_all: true.`);
+				}
+				if (!spanShown(record, before, oldString, Boolean(args.replace_all))) {
+					return errorResult(revealUnread(record, before, oldString, args.path));
+				}
 
+				const after = args.replace_all ? before.split(oldString).join(newString) : before.replace(oldString, () => newString);
+				const count = args.replace_all ? occurrences : 1;
 				const diff = computeDiff(before, after);
 				const shown = displayPath(ctx.cwd, resolveWorkspacePath(ctx.cwd, args.path));
 
@@ -109,8 +100,8 @@ export const editTool: Tool<EditArgs> = {
 				}
 
 				const changeId = await write(encodeText(after, layout));
-				markEdited(ctx, absolute, before, after, hunks);
-				// One line of context, not the preview's three: every line shown becomes editable, so show only what anchors the change.
+				markEdited(ctx, absolute, before, after);
+				// One line of context, not the preview's three: the echo is there to spare a re-read, not to review the change.
 				const view = changedView(computeDiff(before, after, 1), after);
 				markReadRanges(ctx, absolute, after, view.ranges);
 
@@ -118,8 +109,7 @@ export const editTool: Tool<EditArgs> = {
 					content: [
 						{
 							type: "text",
-							// The new tag is the one the model needs if it edits this file again this turn.
-							text: `Edited ${shown}: ${summary}, +${diff.added} -${diff.removed}. New tag: ${snapshotTag(after)}${view.text}`,
+							text: `Edited ${shown}: ${count} replacement${count === 1 ? "" : "s"}, +${diff.added} -${diff.removed}.${view.text}`,
 						},
 					],
 					details: {
@@ -142,15 +132,14 @@ export const editTool: Tool<EditArgs> = {
 const MAX_ECHO_LINES = 60;
 
 /**
- * The changed regions as they now read, under their new line numbers.
+ * The changed regions as they now read.
  *
- * Without this the model re-read the file after almost every edit: line numbers shift with the
- * change, and the next patch has to name the new ones. In the session history 71 of 154
- * successful edits were followed straight away by a read of the same file — a round trip each,
+ * Without an echo the model re-read the file after almost every edit: in the session history 71 of
+ * 154 successful edits were followed straight away by a read of the same file — a round trip each,
  * resending the whole conversation, to learn what this result already knows.
  *
- * The lines shown are marked as read, so the next patch may name them. A line too long to show
- * whole is windowed like `read` does and left unmarked: editing it still needs `char_offset`.
+ * A line too long to show whole is windowed like `read` does and left unmarked: replacing text
+ * outside the window still needs `char_offset`.
  */
 function changedView(diff: FileDiff, after: string): { text: string; ranges: [number, number][] } {
 	const lines = after.endsWith("\n") ? after.slice(0, -1).split("\n") : after.split("\n");
@@ -159,7 +148,7 @@ function changedView(diff: FileDiff, after: string): { text: string; ranges: [nu
 	if (total === 0) return { text: "", ranges: [] };
 	if (total > MAX_ECHO_LINES) {
 		const spans = blocks.filter((block) => block.length).map((block) => `${block[0]}-${block.at(-1)}`);
-		return { text: `\nChanged regions now at lines ${spans.join(", ")}; read them before patching there again.`, ranges: [] };
+		return { text: `\nChanged regions now at lines ${spans.join(", ")}.`, ranges: [] };
 	}
 	const width = String(Math.max(...blocks.flat())).length;
 	const ranges: [number, number][] = [];
@@ -172,125 +161,46 @@ function changedView(diff: FileDiff, after: string): { text: string; ranges: [nu
 			})
 			.join("\n"),
 	);
-	return { text: `\nNow reads, with the new line numbers:\n${rendered.join("\n     ⋯\n")}`, ranges };
+	return { text: `\nNow reads:\n${rendered.join("\n     ⋯\n")}`, ranges };
 }
 
-type Outcome = { after: string; summary: string; hunks?: Hunk[] } | { error: string };
-
-function applyPatchForm(args: EditArgs, before: string, ctx: Parameters<typeof readRecord>[0], absolute: string): Outcome {
-	const actual = snapshotTag(before);
-	if (typeof args.tag !== "string" || args.tag.trim() === "") {
-		return { error: `\`tag\` is required. Copy it from the \`[path#TAG]\` header of the read output — this file is currently ${actual}.` };
-	}
-	if (args.tag.trim().toUpperCase() !== actual) {
-		return {
-			error:
-				`The file changed since you read it (you quoted ${args.tag.trim().toUpperCase()}, it is now ${actual}). ` +
-				`Re-read ${args.path} and redo the edit against the new line numbers.`,
-		};
-	}
-
-	let parsed: ReturnType<typeof parsePatch>;
-	try {
-		parsed = parsePatch(args.patch!);
-	} catch (error) {
-		return { error: error instanceof PatchError ? error.message : String(error) };
-	}
-
-	/*
-	 * Refuse to touch lines that were never displayed.
-	 *
-	 * The stored version proves the file has not moved; it says nothing about whether the model has seen the
-	 * region it is editing. After a paged read of lines 1-200, line 700 is a guess.
-	 *
-	 * Out-of-range is checked first, and deliberately: "you have not read line 9" sends the model
-	 * off to read a line that does not exist, while "the file has 5 lines" ends the confusion.
-	 * Both errors were true; only one is useful.
-	 */
-	const totalLines = before === "" ? 0 : before.endsWith("\n") ? before.slice(0, -1).split("\n").length : before.split("\n").length;
-	for (const hunk of parsed.hunks) {
-		const highest = hunk.op === "insert" ? hunk.after : hunk.end;
-		if (highest > totalLines) {
-			return { error: `Line ${highest} is past the end of ${args.path}: the file has ${totalLines} lines.` };
-		}
-	}
-
-	const record = readRecord(ctx, absolute);
-	if (record) {
-		const lines = before.endsWith("\n") ? before.slice(0, -1).split("\n") : before.split("\n");
-		for (const hunk of parsed.hunks) {
-			const from = hunk.op === "insert" ? Math.max(1, hunk.after) : hunk.start;
-			const to = hunk.op === "insert" ? Math.max(1, hunk.after) : hunk.end;
-			if (totalLines > 0 && !wasShown(record, from, to)) {
-				return { error: `Lines ${from}-${to} were not in what you read. Read that part of ${args.path} before editing it.` };
-			}
-			if (hunk.op === "insert") continue;
-			for (let line = from; line <= to; line++) {
-				const length = lines[line - 1]?.length ?? 0;
-				if (!wasShownChars(record, line, 1, Math.max(1, length))) {
-					return { error: `Line ${line} is ${length} characters; read it with char_offset before editing it.` };
-				}
-			}
-		}
-	}
-
-	try {
-		const after = applyHunks(parsed.hunks, before);
-		const ops = parsed.hunks.length;
-		return { after, summary: `${ops} operation${ops === 1 ? "" : "s"}`, hunks: parsed.hunks };
-	} catch (error) {
-		return { error: error instanceof PatchError ? error.message : String(error) };
-	}
-}
-
-function applyStringForm(args: EditArgs, before: string, layout: TextLayout, ctx: Parameters<typeof readRecord>[0], absolute: string): Outcome {
-	const path = args.path;
-	if (typeof args.old_string !== "string" || typeof args.new_string !== "string") {
-		return { error: "`old_string` and `new_string` must both be strings." };
-	}
-	const oldString = decodeInput(args.old_string, layout);
-	const newString = decodeInput(args.new_string, layout);
-	if (oldString === newString) {
-		return { error: "`old_string` and `new_string` are identical, so this edit would do nothing." };
-	}
-
-	const occurrences = countOccurrences(before, oldString, !!args.replace_all);
-	if (occurrences === 0) {
-		return {
-			error:
-				`\`old_string\` was not found in ${path}. It must match exactly, including whitespace and indentation. ` +
-				`Consider the \`patch\` form instead — it anchors on line numbers rather than bytes.`,
-		};
-	}
-	if (occurrences > 1 && !args.replace_all) {
-		return {
-			error:
-				`\`old_string\` appears ${occurrences} times in ${path}. Set replace_all: true, or use the \`patch\` form, ` +
-				`which names the exact line and has no ambiguity.`,
-		};
-	}
-
-	const record = readRecord(ctx, absolute);
-	if (record && !stringSpanShown(record, before, oldString, Boolean(args.replace_all))) {
-		return { error: `\`old_string\` sits in a part of ${path} you have not read. Read that span with char_offset before replacing it.` };
-	}
-	const after = args.replace_all ? before.split(oldString).join(newString) : before.replace(oldString, () => newString);
-	const count = args.replace_all ? occurrences : 1;
-	return { after, summary: `${count} replacement${count === 1 ? "" : "s"}` };
-}
-
-function stringSpanShown(record: NonNullable<ReturnType<typeof readRecord>>, before: string, needle: string, all: boolean): boolean {
+function matchesOf(haystack: string, needle: string): number[] {
 	const hits: number[] = [];
-	let index = before.indexOf(needle);
-	while (index !== -1) {
-		hits.push(index);
-		index = before.indexOf(needle, index + needle.length);
-	}
+	for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + needle.length)) hits.push(at);
+	return hits;
+}
+
+/** A unique replacement needs its one match shown; `replace_all` needs every match shown. */
+function spanShown(record: ReadRecord, before: string, needle: string, all: boolean): boolean {
 	const shown = (at: number) => {
 		const { line, col } = indexToLineCol(before, at);
 		return wasShownChars(record, line, col, col + needle.length - 1);
 	};
+	const hits = matchesOf(before, needle);
 	return all ? hits.every(shown) : hits.some(shown);
+}
+
+const MAX_REVEAL_LINES = 40;
+
+/**
+ * Text the model never saw — inside a folded outline body, say — is shown in the rejection and
+ * counted as seen, so the retry is the same call instead of a read and then the call.
+ */
+function revealUnread(record: ReadRecord, before: string, needle: string, path: string): string {
+	const lines = before.split("\n");
+	const spans: number[] = [];
+	for (const at of matchesOf(before, needle)) {
+		const first = indexToLineCol(before, at).line;
+		const last = indexToLineCol(before, at + needle.length - 1).line;
+		for (let line = first; line <= last; line++) if (!spans.includes(line)) spans.push(line);
+	}
+	if (spans.length > MAX_REVEAL_LINES || spans.some((line) => (lines[line - 1] ?? "").length > MAX_LINE_CHARS)) {
+		return `\`old_string\` sits in a part of ${path} you have not read. Read that span with char_offset before replacing it.`;
+	}
+	for (const line of spans) record.ranges.push([line, line]);
+	const width = String(spans.at(-1)).length;
+	const shown = spans.map((line) => `${String(line).padStart(width, " ")}→${lines[line - 1]}`).join("\n");
+	return `\`old_string\` sits in lines of ${path} you have not read. They read:\n${shown}\nIf that is the text you meant to replace, send the same edit again.`;
 }
 
 function countOccurrences(haystack: string, needle: string, replaceAll: boolean): number {

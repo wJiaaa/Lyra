@@ -2,7 +2,6 @@ import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { withTextFile } from "./file-write.ts";
 import { computeDiff, formatDiff } from "./diff.ts";
-import { snapshotTag } from "./hunk.ts";
 import { displayPath, resolveWorkspacePath } from "./paths.ts";
 import { markRead, readRecord, readVersion } from "./read-state.ts";
 import { decodeInput, decodeText, encodeText } from "./text-layout.ts";
@@ -100,8 +99,7 @@ export const writeTool: Tool<WriteArgs> = {
 					content: [
 						{
 							type: "text",
-							// 带上标签，接着 `edit` 的补丁形式才有得填；没有它，模型只能填个 UNKNOWN 被拒，再读一遍。
-							text: `${alreadyExists ? "Updated" : "Created"} ${shown} (${lines} lines). Tag: ${snapshotTag(after)}`,
+							text: `${alreadyExists ? "Updated" : "Created"} ${shown} (${lines} lines).`,
 						},
 					],
 					details: {

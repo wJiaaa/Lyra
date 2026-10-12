@@ -44,10 +44,10 @@ const TASKS: Task[] = [
 	{
 		// The target sits inside a folded body: this is the case that costs an extra read.
 		id: "inside-folded-body",
-		source: "packages/core/src/tools/hunk.ts",
-		instruction: "在 applyHunks 里，把 `Range ${hunk.start}-${hunk.end} is inverted.` 这条错误信息改成 `Range ${hunk.start}-${hunk.end} is inverted: start must not be greater than end.`",
-		expect: (c) => c.includes("start must not be greater than end"),
-		intact: (c) => c.includes("export function applyHunks") && c.includes("export function parsePatch"),
+		source: "packages/core/src/tools/edit.ts",
+		instruction: "在 revealUnread 里，把 `Read that span with char_offset before replacing it.` 这句改成 `Read that span with char_offset first.`",
+		expect: (c) => c.includes("Read that span with char_offset first."),
+		intact: (c) => c.includes("export const editTool") && c.includes("function revealUnread"),
 	},
 	{
 		id: "two-places",

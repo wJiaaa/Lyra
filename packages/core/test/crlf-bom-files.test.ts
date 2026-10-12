@@ -44,12 +44,10 @@ async function fixture(t: TestContext, content: string): Promise<{ file: string;
 
 const textOf = (res: ToolResult) => res.content.map((part) => (part.type === "text" ? part.text : "")).join("");
 
-async function read(ctx: ToolContext, file: string): Promise<{ text: string; tag: string }> {
+async function read(ctx: ToolContext, file: string): Promise<{ text: string }> {
 	const res = await readTool.execute({ path: file }, ctx);
-	return { text: textOf(res), tag: (res.details as { tag: string }).tag };
+	return { text: textOf(res) };
 }
-
-const newTag = (res: ToolResult) => /New tag: ([0-9A-F]{4})/.exec(textOf(res))?.[1] ?? "";
 
 test("read 交给模型的行不带 \\r，BOM 也不算第一行的字", async (t) => {
 	const { file, ctx } = await fixture(t, BOM + CRLF);
@@ -60,27 +58,18 @@ test("read 交给模型的行不带 \\r，BOM 也不算第一行的字", async (
 	assert.match(text, /3→charlie$/);
 });
 
-test("patch 改 CRLF 文件的一行，其余每一行的字节原样不动", async (t) => {
+test("改 CRLF 文件的一行，其余每一行的字节原样不动", async (t) => {
 	const { file, ctx } = await fixture(t, CRLF);
-	const { tag } = await read(ctx, file);
-	const res = await editTool.execute({ path: file, tag, patch: "REPLACE 2-2\n+BRAVO" }, ctx);
+	await read(ctx, file);
+	const res = await editTool.execute({ path: file, old_string: "bravo", new_string: "BRAVO" }, ctx);
 	assert.equal(res.isError, undefined, textOf(res));
 	assert.equal(await readFile(file, "utf8"), "alpha\r\nBRAVO\r\ncharlie\r\n", "改出来的那一行也得是 CRLF，文件里不能混进 LF");
 });
 
-test("patch 在 CRLF 文件上照样认得出「-原行」这种 diff 写法", async (t) => {
-	const { file, ctx } = await fixture(t, CRLF);
-	const { tag } = await read(ctx, file);
-	const res = await editTool.execute({ path: file, tag, patch: "REPLACE 2-2\n+-bravo\n+BRAVO" }, ctx);
-	assert.equal(res.isError, true, "带 - 的原行是 diff 的删除标记，写进去就是一行源码");
-	assert.match(textOf(res), /not a unified diff/);
-	assert.equal(await readFile(file, "utf8"), CRLF);
-});
-
-test("BOM 文件：patch 改第 1 行，BOM 还在", async (t) => {
+test("BOM 文件：改第 1 行，BOM 还在", async (t) => {
 	const { file, ctx } = await fixture(t, BOM + CRLF);
-	const { tag } = await read(ctx, file);
-	const res = await editTool.execute({ path: file, tag, patch: "REPLACE 1-1\n+ALPHA" }, ctx);
+	await read(ctx, file);
+	const res = await editTool.execute({ path: file, old_string: "alpha", new_string: "ALPHA" }, ctx);
 	assert.equal(res.isError, undefined, textOf(res));
 	assert.equal(await readFile(file, "utf8"), `${BOM}ALPHA\r\nbravo\r\ncharlie\r\n`);
 });
@@ -123,8 +112,8 @@ test("换行混用的文件不做规范化：没编辑的行一个字节都不�
 	// Normalizing a mixed file would rewrite every line of the minority kind — lines nobody edited.
 	const mixed = "alpha\r\nbravo\ncharlie\r\ndelta\n";
 	const { file, ctx } = await fixture(t, mixed);
-	const { tag } = await read(ctx, file);
-	const res = await editTool.execute({ path: file, tag, patch: "REPLACE 4-4\n+DELTA" }, ctx);
+	await read(ctx, file);
+	const res = await editTool.execute({ path: file, old_string: "delta", new_string: "DELTA" }, ctx);
 	assert.equal(res.isError, undefined, textOf(res));
 	assert.equal(await readFile(file, "utf8"), "alpha\r\nbravo\ncharlie\r\nDELTA\n");
 
@@ -133,27 +122,15 @@ test("换行混用的文件不做规范化：没编辑的行一个字节都不�
 	assert.equal(await readFile(file, "utf8"), "x\r\ny\nz\n", "混用的文件整篇重写时原样写入，不去猜该用哪种");
 });
 
-test("换行混用的文件上，「-原行」这种 diff 写法同样被认出来", async (t) => {
-	// Patched as stored, so line 1 is still `alpha\r` when the guard compares it with `-alpha`.
-	const mixed = "alpha\r\nbravo\ncharlie\r\n";
-	const { file, ctx } = await fixture(t, mixed);
-	const { tag } = await read(ctx, file);
-	const res = await editTool.execute({ path: file, tag, patch: "REPLACE 1-1\n+-alpha\n+ALPHA" }, ctx);
-	assert.equal(res.isError, true);
-	assert.match(textOf(res), /not a unified diff/);
-	assert.equal(await readFile(file, "utf8"), mixed);
-});
-
-test("同一轮里连着改、改完再读：指纹、行数、已读范围处处对得上，不会被自己误拒", async (t) => {
+test("同一轮里连着改、改完再读：版本、行数、已读范围处处对得上，不会被自己误拒", async (t) => {
 	const { file, ctx } = await fixture(t, BOM + CRLF);
-	const first = await read(ctx, file);
-	const a = await editTool.execute({ path: file, tag: first.tag, patch: "REPLACE 1-1\n+ALPHA" }, ctx);
+	await read(ctx, file);
+	const a = await editTool.execute({ path: file, old_string: "alpha", new_string: "ALPHA" }, ctx);
 	assert.equal(a.isError, undefined, textOf(a));
-	const b = await editTool.execute({ path: file, tag: newTag(a), patch: "INSERT AFTER 3\n+delta" }, ctx);
+	const b = await editTool.execute({ path: file, old_string: "charlie", new_string: "charlie\ndelta" }, ctx);
 	assert.equal(b.isError, undefined, textOf(b));
 
-	const again = await read(ctx, file);
-	assert.equal(again.tag, newTag(b), "编辑结果里报的新指纹，要和重新 read 看到的一致");
+	await read(ctx, file);
 	const c = await editTool.execute({ path: file, old_string: "bravo\ncharlie", new_string: "BRAVO\nCHARLIE" }, ctx);
 	assert.equal(c.isError, undefined, textOf(c));
 
@@ -161,7 +138,8 @@ test("同一轮里连着改、改完再读：指纹、行数、已读范围处�
 	assert.equal(d.isError, undefined, textOf(d));
 	const e = await editTool.execute({ path: file, old_string: "two", new_string: "TWO" }, ctx);
 	assert.equal(e.isError, undefined, `write 之后直接改，不该要求重读：${textOf(e)}`);
-	const f = await editTool.execute({ path: file, tag: (await read(ctx, file)).tag, patch: "REPLACE 1-1\n+ONE" }, ctx);
+	await read(ctx, file);
+	const f = await editTool.execute({ path: file, old_string: "one", new_string: "ONE" }, ctx);
 	assert.equal(f.isError, undefined, textOf(f));
 	assert.equal(await readFile(file, "utf8"), `${BOM}ONE\r\nTWO\r\n`);
 });
@@ -169,8 +147,8 @@ test("同一轮里连着改、改完再读：指纹、行数、已读范围处�
 test("撤销按字节还原：CRLF + BOM 文件改完再撤销，一个字节不差", async (t) => {
 	const original = BOM + CRLF;
 	const { file, ctx } = await fixture(t, original);
-	const { tag } = await read(ctx, file);
-	const res = await editTool.execute({ path: file, tag, patch: "REPLACE 2-2\n+BRAVO" }, ctx);
+	await read(ctx, file);
+	const res = await editTool.execute({ path: file, old_string: "bravo", new_string: "BRAVO" }, ctx);
 	const id = (res.details as { changeId?: string }).changeId;
 	assert.ok(id, "有 scratchDir 时要记下这次改动");
 	await undoFileChanges(ctx.cwd, [await readFileChange(ctx.sessionId, id)]);

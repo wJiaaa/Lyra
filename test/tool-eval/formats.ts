@@ -389,33 +389,20 @@ export const FORMATS: Record<string, EditFormat> = {
 // ---------------------------------------------------------------------------
 // D · production
 //
-// The same evaluation, run against the code that actually ships: the tool spec from
-// `editTool` and the applier from `tools/hunk.ts`. The three formats above are standalone
-// re-implementations, which is what made them comparable — but a number measured on a copy
-// proves nothing about the product. This one closes that gap.
+// The same evaluation, run against the code that actually ships: the tool spec from `editTool`.
+// Since ADR-0046 the shipped edit is exact text replacement, so the applier is str-replace's.
 // ---------------------------------------------------------------------------
 
 import { editTool } from "../../packages/core/src/tools/edit.ts";
-import { applyHunks as prodApply, parsePatch as prodParse, PatchError as ProdPatchError } from "../../packages/core/src/tools/hunk.ts";
 
 export const production: EditFormat = {
 	id: "production" as FormatId,
 	spec: { name: "edit", description: editTool.description, parameters: editTool.parameters },
-	renderFile(path, content, tag) {
+	renderFile(path, content) {
 		// Byte-identical to what readTool now emits.
-		return `[${path}#${tag}]\n${numberedLines(content)}`;
+		return `[${path}]\n${numberedLines(content)}`;
 	},
-	apply(args, current, tag) {
-		if (typeof args.tag !== "string") return { ok: false, error: "tag is required" };
-		if (args.tag.trim().toUpperCase() !== tag) return { ok: false, error: `stale tag ${args.tag}: the file is now ${tag}.` };
-		if (typeof args.patch !== "string") return { ok: false, error: "patch must be a string" };
-		try {
-			const parsed = prodParse(args.patch);
-			return { ok: true, content: prodApply(parsed.hunks, current) };
-		} catch (error) {
-			return { ok: false, error: error instanceof ProdPatchError ? error.message : String(error) };
-		}
-	},
+	apply: strReplace.apply,
 };
 
 FORMATS["production" as FormatId] = production;

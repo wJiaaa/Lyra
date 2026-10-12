@@ -2,7 +2,6 @@ import type { Stats } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { errorResult } from "./result.ts";
 import type { Tool, ToolContext, ToolResult } from "../types.ts";
-import { snapshotTag } from "./hunk.ts";
 import { charWindow, formatCharWindow, longLineFooter, MAX_LINE_CHARS } from "./long-line.ts";
 import { outline, outlineFooter } from "./outline.ts";
 import { displayPath, imageMimeType, looksBinary } from "./paths.ts";
@@ -36,7 +35,7 @@ export const readTool: Tool<ReadArgs> = {
 	name: "read",
 	approvalKind: "read",
 	description:
-		"Read a file. Text comes back with a `[path#TAG]` header — quote that TAG when you edit — and 1-indexed lines as `NNNN→content`. " +
+		"Read a file. Text comes back under a `[path]` header as 1-indexed lines, `NNNN→content`; the `NNNN→` prefix is not part of the file. " +
 		"A long source file read without `offset`/`limit` comes back as its STRUCTURE: declarations and doc comments, each body folded to " +
 		"`⋯ N lines (from-to)`. Read that range to see a body — never guess at it. Short files, data files and `offset`/`limit` windows are verbatim. " +
 		"A line over 2000 characters comes back as a window; continue it with `char_offset`. Images come back as images.",
@@ -156,13 +155,12 @@ export const readTool: Tool<ReadArgs> = {
 			return errorResult(`${args.path} looks like a binary file (${info.size} bytes) and cannot be read as text.`);
 		}
 
-		// Decoded, as edit and write decode it: the tag and the line numbers below must match theirs.
+		// Decoded, as edit and write decode it: the version recorded below must match theirs.
 		const { text } = decodeText(buffer.toString("utf8"));
 		const allLines = text.split("\n");
 		// A trailing newline produces a final empty element that is not a real line.
 		if (allLines.length > 1 && allLines[allLines.length - 1] === "") allLines.pop();
 
-		const tag = snapshotTag(text);
 		const askedWindow = args.offset !== undefined || args.limit !== undefined || charOffset > 1;
 
 		/*
@@ -182,11 +180,10 @@ export const readTool: Tool<ReadArgs> = {
 					markReadChars(ctx, absolute, entry.line, entry.shownFrom, entry.shownTo, entry.length);
 				}
 				return {
-					content: [{ type: "text", text: `[${shownPath}#${tag}]\n${shape.text}${outlineFooter(shownPath, shape, allLines.length)}` }],
+					content: [{ type: "text", text: `[${shownPath}]\n${shape.text}${outlineFooter(shownPath, shape, allLines.length)}` }],
 					details: {
 						kind: "text",
 						path: shownPath,
-						tag,
 						totalLines: allLines.length,
 						outlined: true,
 						shownLines: shape.shownLines,
@@ -204,21 +201,18 @@ export const readTool: Tool<ReadArgs> = {
 		const { body, shownEnd, long, footer } = shown;
 
 		/*
-		 * The header carries the fingerprint the model quotes back when it edits.
-		 *
-		 * It names the whole file, not the slice: line numbers are absolute either way, and an
-		 * edit has to be rejected when *any* part of the file moved, not only the part on screen.
+		 * The version recorded is the whole file's, not the slice's: an edit has to be rejected when
+		 * *any* part of the file moved, not only the part on screen.
 		 */
 		markRead(ctx, absolute, text, offset, shownEnd);
 		for (const entry of long) {
 			markReadChars(ctx, absolute, entry.line, entry.shownFrom, entry.shownTo, entry.length);
 		}
 		return {
-			content: [{ type: "text", text: `[${shownPath}#${tag}]\n${body}${footer}` }],
+			content: [{ type: "text", text: `[${shownPath}]\n${body}${footer}` }],
 			details: {
 				kind: "text",
 				path: shownPath,
-				tag,
 				totalLines: allLines.length,
 				shownFrom: offset,
 				shownTo: shownEnd,

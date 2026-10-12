@@ -12,7 +12,6 @@
 import { readFile } from "node:fs/promises";
 import { streamAssistant } from "../../packages/core/src/ai/index.ts";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
-import { snapshotTag } from "../../packages/core/src/tools/hunk.ts";
 import { outline, outlineFooter } from "../../packages/core/src/tools/outline.ts";
 import type { AssistantMessage, Message, ToolSpec } from "../../packages/core/src/types.ts";
 
@@ -55,7 +54,7 @@ interface Probe {
 const PROBES: Probe[] = [
 	{
 		id: "structure-exports",
-		file: "packages/core/src/tools/hunk.ts",
+		file: "packages/core/src/tools/read-state.ts",
 		kind: "structure",
 		question: "这个文件导出了哪些函数？只列名字。",
 	},
@@ -74,11 +73,11 @@ const PROBES: Probe[] = [
 	 * numbers rather than English words, because the model answers in the user's language.
 	 */
 	{
-		id: "body-sort-key",
-		file: "packages/core/src/tools/hunk.ts",
+		id: "body-diff-context",
+		file: "packages/core/src/tools/read-state.ts",
 		kind: "body",
-		question: "applyHunks 里排序用的 anchorOf，对 insert 操作返回的表达式里加了一个什么数？只回答那个数。",
-		needle: "0.5",
+		question: "originsFromDiff 调 computeDiff 时，第三个参数传的是什么？只回答那个表达式。",
+		needle: "MAX_SAFE_INTEGER",
 	},
 	{
 		id: "body-counter",
@@ -121,7 +120,7 @@ async function main(): Promise<void> {
 			continue;
 		}
 
-		const rendered = `[${probe.file}#${snapshotTag(content)}]\n${shape.text}${outlineFooter(probe.file, shape, lines.length)}`;
+		const rendered = `[${probe.file}]\n${shape.text}${outlineFooter(probe.file, shape, lines.length)}`;
 		const messages: Message[] = [
 			{ role: "user", content: [{ type: "text", text: `${rendered}\n\n${probe.question}` }], timestamp: Date.now() },
 		];

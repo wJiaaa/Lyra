@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import type { ToolContext } from "../types.ts";
-import { snapshotTag, type Hunk } from "./hunk.ts";
+import { computeDiff } from "./diff.ts";
 import { coversChars, mergeCharRanges } from "./long-line.ts";
 
 export interface ReadRecord {
-	tag: string;
-	/** The short model-facing tag is not enough to detect collisions or bind an edit to a read. */
+	/** Hash of the text that was read. An edit is refused once the file no longer matches it. */
 	version?: string;
+	/** Lines whose content the model has seen; they follow their text when an edit shifts them. */
 	ranges: [number, number][];
 	chars?: Map<number, [number, number][]>;
 }
@@ -32,7 +32,6 @@ export function markReadRanges(ctx: ToolContext, path: string, content: string |
 	const version = content === undefined ? undefined : readVersion(content);
 	// Extracted documents and images deliberately carry no editable text version.
 	readState(ctx).set(path, {
-		tag: content === undefined ? "" : snapshotTag(content),
 		version,
 		ranges: version && previous?.version === version ? [...previous.ranges, ...added] : [...added],
 		chars: version && previous?.version === version ? previous.chars : undefined,
@@ -59,7 +58,7 @@ export function hasRead(ctx: ToolContext, path: string): boolean {
 	return readState(ctx).has(path);
 }
 
-export function wasShown(record: ReadRecord, from: number, to: number): boolean {
+export function wasShown(record: Pick<ReadRecord, "ranges">, from: number, to: number): boolean {
 	for (let line = from; line <= to; line++) {
 		if (!record.ranges.some(([a, b]) => line >= a && line <= b)) return false;
 	}
@@ -72,33 +71,34 @@ export function wasShownChars(record: ReadRecord, line: number, from: number, to
 	return !windows || coversChars(windows, from, to);
 }
 
-/** Move visibility along with the original lines; only supplied replacement lines become visible. */
-export function markEdited(ctx: ToolContext, path: string, before: string, after: string, hunks?: Hunk[]): void {
+/** Visibility follows surviving lines to their new numbers; lines the edit wrote count as seen, since the model wrote them. */
+export function markEdited(ctx: ToolContext, path: string, before: string, after: string): void {
 	const record = readRecord(ctx, path)!;
-	const count = before === "" ? 0 : before.split("\n").length - Number(before.endsWith("\n"));
-	const known = Array.from({ length: count }, (_, i) => wasShown(record, i + 1, i + 1));
-	const windows = Array.from({ length: count }, (_, i) => record.chars?.get(i + 1));
-	if (!hunks) {
-		// A legacy replacement has no line map. A partial reader must re-read before using line patches.
-		markRead(ctx, path, after, 1, known.every(Boolean) ? after.split("\n").length : undefined);
-		return;
-	}
-	const anchor = (h: Hunk) => h.op === "insert" ? h.after + 0.5 : h.start;
-	for (const h of [...hunks].sort((a, b) => anchor(b) - anchor(a))) {
-		const start = h.op === "insert" ? h.after : h.start - 1;
-		const removed = h.op === "insert" ? 0 : h.end - h.start + 1;
-		known.splice(start, removed, ...Array<boolean>(h.op === "delete" ? 0 : h.lines.length).fill(true));
-		windows.splice(start, removed, ...Array<[number, number][] | undefined>(h.op === "delete" ? 0 : h.lines.length).fill(undefined));
-	}
 	const ranges: [number, number][] = [];
 	const chars = new Map<number, [number, number][]>();
-	for (let i = 0; i < known.length; i++) {
-		if (!known[i]) continue;
-		const window = windows[i];
+	originsFromDiff(before, after).forEach((origin, i) => {
+		if (origin && !wasShown(record, origin, origin)) return;
+		const window = record.chars?.get(origin);
 		if (window) chars.set(i + 1, window);
-		const last = ranges.at(-1);
-		if (last && last[1] === i) last[1] = i + 1;
-		else ranges.push([i + 1, i + 1]);
+		append(ranges, i + 1);
+	});
+	readState(ctx).set(path, { version: readVersion(after), ranges, chars });
+}
+
+/** Index = line in the new text, value = its line in the old text; 0 for a line the edit wrote. */
+function originsFromDiff(before: string, after: string): number[] {
+	const count = after === "" ? 0 : after.split("\n").length - Number(after.endsWith("\n"));
+	const origins = Array<number>(count).fill(0);
+	for (const hunk of computeDiff(before, after, Number.MAX_SAFE_INTEGER).hunks) {
+		for (const line of hunk.lines) {
+			if (line.type === "context" && line.newLine && line.oldLine) origins[line.newLine - 1] = line.oldLine;
+		}
 	}
-	readState(ctx).set(path, { tag: snapshotTag(after), version: readVersion(after), ranges, chars });
+	return origins;
+}
+
+function append(ranges: [number, number][], line: number): void {
+	const last = ranges.at(-1);
+	if (last && last[1] === line - 1) last[1] = line;
+	else ranges.push([line, line]);
 }

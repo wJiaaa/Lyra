@@ -17,7 +17,7 @@ const literal = "$& $$ $` $'";
 const expected = `${literal}\r\ninserted\r\nbeta\r\ngamma\r\nend-delta`;
 const results: { tool_use_id: string; is_error?: boolean; content: unknown }[] = [];
 const checks: { what: string; ok: boolean; saw: unknown }[] = [];
-let step = 0, tag = "", project = "";
+let step = 0, project = "";
 let app: RunningApp | undefined;
 
 function check(what: string, ok: boolean, saw: unknown) {
@@ -42,19 +42,15 @@ const server = createServer((req, res) => {
 		const body = JSON.parse(raw);
 		if (!body.tools?.length) { answer(res, -1); return; }
 		const last = body.messages?.at(-1)?.content;
-		if (Array.isArray(last)) for (const result of last.filter((part: { type: string }) => part.type === "tool_result")) {
-			results.push(result);
-			const match = /(?:#|New tag: )([0-9A-F]{4})/.exec(JSON.stringify(result.content));
-			if (match) tag = match[1];
-		}
+		if (Array.isArray(last)) for (const result of last.filter((part: { type: string }) => part.type === "tool_result")) results.push(result);
 		const script = [
 			{ name: "read", input: { path: "sample.txt", offset: 1, limit: 2 } },
-			{ name: "edit", input: { path: "sample.txt", tag, patch: "REPLACE 1-2\n+bad\nINSERT AFTER 1\n+lost" } },
-			{ name: "edit", input: { path: "sample.txt", tag, patch: "INSERT AFTER 1\n+inserted" } },
-			{ name: "edit", input: { path: "sample.txt", tag, patch: "REPLACE 4-4\n+unseen" } },
+			{ name: "edit", input: { path: "sample.txt", old_string: "a", new_string: "bad" } },
+			{ name: "edit", input: { path: "sample.txt", old_string: "alpha\n", new_string: "alpha\ninserted\n" } },
+			{ name: "edit", input: { path: "sample.txt", old_string: "delta", new_string: "unseen" } },
 			{ name: "read", input: { path: "sample.txt" } },
 			{ name: "edit", input: { path: "sample.txt", old_string: "alpha", new_string: literal } },
-			{ name: "edit", input: { path: "sample.txt", tag, patch: "REPLACE 5-5\n+end-delta" } },
+			{ name: "edit", input: { path: "sample.txt", old_string: "delta", new_string: "end-delta" } },
 		];
 		const index = step++;
 		setTimeout(() => answer(res, index, script[index]), 1100);
@@ -105,8 +101,8 @@ try {
 	await d.until("document.querySelector('[data-turn-delivery]') && document.body.innerText.includes('编辑验证完成')", 60000);
 	await pause(1200);
 	check("工具调用真实完成", results.length === 7, results.length);
-	check("重叠操作被拒绝", results[1]?.is_error === true && /overlap|inside/i.test(JSON.stringify(results[1].content)), results[1]);
-	check("编辑后仍拒绝未读行", results[3]?.is_error === true && /not in what you read/.test(JSON.stringify(results[3].content)), results[3]);
+	check("有歧义的原文被拒绝", results[1]?.is_error === true && /appears \d+ times/.test(JSON.stringify(results[1].content)), results[1]);
+	check("编辑后仍拒绝未读的行", results[3]?.is_error === true && /not read/.test(JSON.stringify(results[3].content)), results[3]);
 	check("合法编辑和重读成功", [0, 2, 4, 5, 6].every((i) => results[i] && !results[i].is_error), results.map((r) => !!r.is_error));
 	const actual = await readFile(join(project, "sample.txt"), "utf8");
 	check("美元字符、CRLF 和无末尾换行保持准确", actual === expected, { actual, bytes: Buffer.byteLength(actual) });

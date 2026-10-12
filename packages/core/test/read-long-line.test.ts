@@ -9,7 +9,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { editTool } from "../src/tools/edit.ts";
-import { snapshotTag } from "../src/tools/hunk.ts";
 import { readTool } from "../src/tools/read.ts";
 import type { ToolContext } from "../src/types.ts";
 
@@ -56,15 +55,6 @@ test("a mid-line name in a one-line model catalogue is reachable via char_offset
 	assert.ok(window.includes(NAME), "the named window must include the name");
 	assert.ok(window.includes("qwen3-livetranslate-flash-realtime"));
 	assert.ok(window.length < 8_000);
-});
-
-test("a patch of a long line is refused until the whole line has been seen", async () => {
-	const content = `${"a".repeat(80_000)}KEEP${"b".repeat(80_000)}`;
-	const { file, ctx } = await workspace(content, "blob.txt");
-	await readTool.execute({ path: file } as never, ctx);
-	const patch = await editTool.execute({ path: file, tag: snapshotTag(content), patch: "REPLACE 1-1\n+changed" }, ctx);
-	assert.equal(patch.isError, true);
-	assert.match(textOf(patch), /char_offset|old_string/);
 });
 
 test("a string replace of a span that was on screen is allowed", async () => {

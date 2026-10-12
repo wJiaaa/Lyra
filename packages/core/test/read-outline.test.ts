@@ -6,12 +6,11 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { editTool } from "../src/tools/edit.ts";
-import { snapshotTag } from "../src/tools/hunk.ts";
 import { outline, outlineFooter } from "../src/tools/outline.ts";
 import { readTool } from "../src/tools/read.ts";
 import type { ToolContext } from "../src/types.ts";
@@ -138,9 +137,11 @@ test("after an outline, editing a folded body is refused", async () => {
 	assert.ok(fold, "the fixture must produce at least one fold");
 	const insideFold = Number(fold[1]);
 
-	const edit = await editTool.execute({ path: file, tag: snapshotTag(content), patch: `REPLACE ${insideFold}-${insideFold}\n+\tconst tampered = 1;` }, ctx);
+	const folded = linesOf(content)[insideFold - 1];
+	const edit = await editTool.execute({ path: file, old_string: folded, new_string: "\tconst tampered = 1;" }, ctx);
 	assert.equal(edit.isError, true);
-	assert.match(textOf(edit), /were not in what you read/);
+	assert.match(textOf(edit), new RegExp(`not read[\\s\\S]*^${insideFold}→`, "m"), "折叠掉的行先给模型看，再让它决定");
+	assert.equal(await readFile(file, "utf8"), content);
 });
 
 test("after an outline, editing a line that was shown works", async () => {
@@ -154,7 +155,7 @@ test("after an outline, editing a line that was shown works", async () => {
 	const line = Number(shown[1]);
 
 	const edit = await editTool.execute(
-		{ path: file, tag: snapshotTag(content), patch: `REPLACE ${line}-${line}\n+export function thing0(input: string, extra = 0): number {` },
+		{ path: file, old_string: linesOf(content)[line - 1], new_string: "export function thing0(input: string, extra = 0): number {" },
 		ctx,
 	);
 	assert.equal(edit.isError, undefined, textOf(edit));
@@ -169,12 +170,13 @@ test("reading a range after an outline widens what may be edited", async () => {
 	const to = Number(fold![2]);
 
 	// Refused before the range is read...
-	const before = await editTool.execute({ path: file, tag: snapshotTag(content), patch: `REPLACE ${from}-${from}\n+\tconst ok = 1;` }, ctx);
+	const target = linesOf(content)[from - 1];
+	const before = await editTool.execute({ path: file, old_string: target, new_string: "\tconst ok = 1;" }, ctx);
 	assert.equal(before.isError, true);
 
 	// ...and allowed after.
 	await readTool.execute({ path: file, offset: from, limit: to - from + 1 } as never, ctx);
-	const after = await editTool.execute({ path: file, tag: snapshotTag(content), patch: `REPLACE ${from}-${from}\n+\tconst ok = 1;` }, ctx);
+	const after = await editTool.execute({ path: file, old_string: target, new_string: "\tconst ok = 1;" }, ctx);
 	assert.equal(after.isError, undefined, textOf(after));
 });
 

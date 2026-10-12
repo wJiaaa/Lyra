@@ -7,7 +7,6 @@ import { strToU8, zipSync } from "fflate";
 import { editTool } from "../src/tools/edit.ts";
 import { readTool } from "../src/tools/read.ts";
 import { writeTool } from "../src/tools/write.ts";
-import { snapshotTag } from "../src/tools/hunk.ts";
 import type { ToolContext, ToolResult } from "../src/types.ts";
 
 const text = (result: ToolResult) => result.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
@@ -20,67 +19,47 @@ async function fixture(t: { after(fn: () => Promise<void>): void }, content = "a
 	return { cwd, path, ctx };
 }
 
-test("an insertion inside a replaced range is rejected without touching the file", async (t) => {
-	const { path, ctx } = await fixture(t);
-	await readTool.execute({ path }, ctx);
-	const result = await editTool.execute({ path, tag: snapshotTag("a\nb\nc\nd\n"), patch: "REPLACE 2-3\n+B\nINSERT AFTER 2\n+X" }, ctx);
-	assert.equal(result.isError, true);
-	assert.match(text(result), /overlap|inside/i);
-	assert.equal(await readFile(path, "utf8"), "a\nb\nc\nd\n");
-});
-
 test("partial reads retain their boundaries after edits shift line numbers", async (t) => {
-	const original = "a\nb\nc\nd\n";
-	const { path, ctx } = await fixture(t, original);
+	const { path, ctx } = await fixture(t, "a\nb\nc\nd\n");
 	await readTool.execute({ path, offset: 1, limit: 2 }, ctx);
-	const first = await editTool.execute({ path, tag: snapshotTag(original), patch: "INSERT AFTER 1\n+inserted" }, ctx);
-	assert.notEqual(first.isError, true);
-	const tag = /New tag: ([0-9A-F]{4})/.exec(text(first))![1];
-	const unseen = await editTool.execute({ path, tag, patch: "REPLACE 4-4\n+bad" }, ctx);
-	assert.equal(unseen.isError, true);
-	const seen = await editTool.execute({ path, tag, patch: "REPLACE 3-3\n+B" }, ctx);
-	assert.notEqual(seen.isError, true);
+	assert.notEqual((await editTool.execute({ path, old_string: "a\n", new_string: "a\ninserted\n" }, ctx)).isError, true);
+	// c、d 从没显示过，往下挪了一行也不算看过。
+	assert.match(text(await editTool.execute({ path, old_string: "c\nd", new_string: "C\nD" }, ctx)), /not read/);
+	assert.notEqual((await editTool.execute({ path, old_string: "b\n", new_string: "B\n" }, ctx)).isError, true);
 	assert.equal(await readFile(path, "utf8"), "a\ninserted\nB\nc\nd\n");
 });
 
-test("编辑结果带着改动处的新行号，下一次 patch 不用先重读", async (t) => {
+test("编辑结果带回改动处现在的样子，下一次编辑不用先重读", async (t) => {
 	const original = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
 	const { path, ctx } = await fixture(t, original);
 	await readTool.execute({ path }, ctx);
-	const first = await editTool.execute({ path, tag: snapshotTag(original), patch: "INSERT AFTER 3\n+x1\n+x2\nREPLACE 15-15\n+fifteen" }, ctx);
-	const shown = text(first);
-	// 改动处加上下各一行；15 行往下挪了两行，成了 17。
-	assert.match(shown, /^ 3→line 3\n 4→x1\n 5→x2\n 6→line 4$/m);
-	assert.match(shown, /^16→line 14\n17→fifteen\n18→line 16$/m);
+	const shown = text(await editTool.execute({ path, old_string: "line 3\n", new_string: "line 3\nx1\nx2\n" }, ctx));
+	// 改动处加上下各一行。
+	assert.match(shown, /^3→line 3\n4→x1\n5→x2\n6→line 4$/m);
 	assert.doesNotMatch(shown, /line 10/, "离改动远的行不回显");
-
-	const tag = /New tag: ([0-9A-F]{4})/.exec(shown)![1];
-	assert.notEqual((await editTool.execute({ path, tag, patch: "REPLACE 17-17\n+FIFTEEN" }, ctx)).isError, true);
-	assert.match(await readFile(path, "utf8"), /line 14\nFIFTEEN\nline 16/);
 });
 
 test("改动太大时只给新行号范围，不把整段回显", async (t) => {
 	const { path, ctx } = await fixture(t, "a\nb\n");
 	await readTool.execute({ path }, ctx);
-	const payload = Array.from({ length: 80 }, (_, i) => `+n${i}`).join("\n");
-	const shown = text(await editTool.execute({ path, tag: snapshotTag("a\nb\n"), patch: `INSERT AFTER 1\n${payload}` }, ctx));
+	const payload = Array.from({ length: 80 }, (_, i) => `n${i}\n`).join("");
+	const shown = text(await editTool.execute({ path, old_string: "a\n", new_string: `a\n${payload}` }, ctx));
 	assert.match(shown, /Changed regions now at lines 1-82/);
 	assert.doesNotMatch(shown, /n40/);
 });
 
-test("copying the current tag cannot bypass a stale read record", async (t) => {
+test("a stale read record refuses the edit until the file is read again", async (t) => {
 	const { path, ctx } = await fixture(t);
 	await readTool.execute({ path }, ctx);
 	const changed = "USER\na\nb\nc\nd\n";
 	await writeFile(path, changed);
-	const result = await editTool.execute({ path, tag: snapshotTag(changed), patch: "REPLACE 1-1\n+bad" }, ctx);
-	assert.equal(result.isError, true);
+	assert.equal((await editTool.execute({ path, old_string: "USER", new_string: "bad" }, ctx)).isError, true);
 	assert.equal(await readFile(path, "utf8"), changed);
 	await readTool.execute({ path }, ctx);
-	assert.notEqual((await editTool.execute({ path, tag: snapshotTag(changed), patch: "REPLACE 2-2\n+A" }, ctx)).isError, true);
+	assert.notEqual((await editTool.execute({ path, old_string: "a\n", new_string: "A\n" }, ctx)).isError, true);
 });
 
-test("legacy replacements preserve dollar expressions literally", async (t) => {
+test("replacements preserve dollar expressions literally", async (t) => {
 	const { path, ctx } = await fixture(t, "OLD");
 	await readTool.execute({ path }, ctx);
 	const replacement = "$& $$ $` $'";
@@ -97,21 +76,10 @@ test("overlapping text matches are ambiguous unless replace_all is explicit", as
 	assert.equal(await readFile(path, "utf8"), "Xa");
 });
 
-test("inserts at a range boundary work, while duplicate anchors are rejected", async (t) => {
-	const { path, ctx } = await fixture(t);
+test("edits keep CRLF and a missing final newline", async (t) => {
+	const { path, ctx } = await fixture(t, "a\r\nb\r\nc");
 	await readTool.execute({ path }, ctx);
-	const tag = snapshotTag("a\nb\nc\nd\n");
-	assert.equal((await editTool.execute({ path, tag, patch: "INSERT AFTER 2\n+X\nINSERT AFTER 2\n+Y" }, ctx)).isError, true);
-	assert.equal(await readFile(path, "utf8"), "a\nb\nc\nd\n");
-	assert.notEqual((await editTool.execute({ path, tag, patch: "REPLACE 1-2\n+AB\nINSERT AFTER 2\n+X" }, ctx)).isError, true);
-	assert.equal(await readFile(path, "utf8"), "AB\nX\nc\nd\n");
-});
-
-test("patch edits keep CRLF and a missing final newline", async (t) => {
-	const original = "a\r\nb\r\nc";
-	const { path, ctx } = await fixture(t, original);
-	await readTool.execute({ path }, ctx);
-	assert.notEqual((await editTool.execute({ path, tag: snapshotTag(original.replaceAll("\r\n", "\n")), patch: "REPLACE 2-2\n+B\nINSERT AFTER 3\n+D" }, ctx)).isError, true);
+	assert.notEqual((await editTool.execute({ path, old_string: "b\nc", new_string: "B\nc\nD" }, ctx)).isError, true);
 	assert.equal(await readFile(path, "utf8"), "a\r\nB\r\nc\r\nD");
 });
 
@@ -228,30 +196,22 @@ test("rejection and cancellation leave bytes intact and release the queue", asyn
 	assert.notEqual((await editTool.execute({ path, old_string: "a", new_string: "A" }, ctx)).isError, true);
 });
 
-test("an empty file can be inserted into and deleting all lines leaves zero bytes", async (t) => {
-	const { path, ctx } = await fixture(t, "");
+test("an empty old_string points at write, and replacing everything with nothing leaves zero bytes", async (t) => {
+	const { path, ctx } = await fixture(t, "first\nsecond");
 	await readTool.execute({ path }, ctx);
-	assert.notEqual((await editTool.execute({ path, tag: snapshotTag(""), patch: "INSERT AFTER 0\n+first\n+second" }, ctx)).isError, true);
-	assert.equal(await readFile(path, "utf8"), "first\nsecond");
-	assert.notEqual((await editTool.execute({ path, tag: snapshotTag("first\nsecond"), patch: "DELETE 1-2" }, ctx)).isError, true);
+	assert.match(text(await editTool.execute({ path, old_string: "", new_string: "x" }, ctx)), /use `write`/);
+	assert.notEqual((await editTool.execute({ path, old_string: "first\nsecond", new_string: "" }, ctx)).isError, true);
 	assert.equal((await stat(path)).size, 0);
 });
 
-test("short tag collisions cannot authorize edits or retain old visible ranges", async (t) => {
-	const candidates = new Map<string, string>();
-	let first = "", second = "";
-	for (let n = 0; n <= 65536; n++) {
-		second = `line ${n}\nunseen\n`;
-		const tag = snapshotTag(second), previous = candidates.get(tag);
-		if (previous) { first = previous; break; }
-		candidates.set(tag, second);
-	}
-	assert.ok(first); assert.equal(snapshotTag(first), snapshotTag(second));
-	const { path, ctx } = await fixture(t, first);
-	await readTool.execute({ path, offset: 2, limit: 1 }, ctx);
-	await writeFile(path, second);
-	assert.equal((await editTool.execute({ path, tag: snapshotTag(second), patch: "REPLACE 2-2\n+bad" }, ctx)).isError, true);
-	await readTool.execute({ path, offset: 1, limit: 1 }, ctx);
-	assert.equal((await editTool.execute({ path, tag: snapshotTag(second), patch: "REPLACE 2-2\n+bad" }, ctx)).isError, true);
-	assert.equal(await readFile(path, "utf8"), second);
+test("字符串替换落在没读过的地方，报错带上那几行，原样重发即可", async (t) => {
+	const original = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
+	const { path, ctx } = await fixture(t, original);
+	await readTool.execute({ path, offset: 1, limit: 5 }, ctx);
+	const first = await editTool.execute({ path, old_string: "line 20\n", new_string: "twenty\n" }, ctx);
+	assert.equal(first.isError, true);
+	assert.match(text(first), /^20→line 20$/m);
+	assert.equal(await readFile(path, "utf8"), original);
+	assert.notEqual((await editTool.execute({ path, old_string: "line 20\n", new_string: "twenty\n" }, ctx)).isError, true);
+	assert.match(await readFile(path, "utf8"), /line 19\ntwenty\nline 21/);
 });
