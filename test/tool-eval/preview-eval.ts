@@ -8,7 +8,8 @@
  *
  * 工具表、系统提示词、循环都是产品的。preview 真的写页面，检查交给 `preview-inspect.cjs`（离屏 Electron，
  * 和产品的检查同一种做法）；read/write/edit/ls/glob/grep 在临时目录里真跑；其余工具只记录、回一句 ok。
- * 判通过：页面发布出去了、发布的那版没有抛异常、含任务点名的内容。
+ * 判通过：页面发布出去了、发布的那版没有抛异常、含任务点名的内容。「界面块」一列看回复里让人挑的那块
+ * 有没有写在 ```ui 围栏里：漏了围栏，桌面端会把它原样显示成一段文字。
  *
  * 模型用 Plume 设置里已经配好的，不读出任何密钥。
  */
@@ -24,6 +25,7 @@ import { loadSettings, resolveModel } from "../../packages/core/src/config/setti
 import { buildSystemPrompt } from "../../packages/core/src/prompt/system.ts";
 import { writePreview } from "../../packages/core/src/runtime/previews.ts";
 import { builtinToolGroups } from "../../packages/core/src/tools/groups.ts";
+import { interfaceBlocks, unfencedComponents } from "../../packages/core/src/ui-language/notes.ts";
 import { usePreviewInspector as bindInspector, type PreviewInspection } from "../../packages/core/src/tools/preview.ts";
 import type { AssistantMessage, Message, Tool, ToolResult } from "../../packages/core/src/types.ts";
 import { requestUsage } from "../../packages/core/src/types.ts";
@@ -48,6 +50,8 @@ const TASKS: Task[] = [
 	{ id: "bar-chart", prompt: "Draw a bar chart of monthly sales with a value label on every bar: Jan 120, Feb 95, Mar 140, Apr 180, May 160, Jun 210.", check: has("210", "95", "Jun") },
 	{ id: "pricing", prompt: "Show three pricing plans side by side — Free $0, Pro $12/month, Team $30/month — and make sure it still reads well on a phone.", check: has("$0", "$12", "$30") },
 	{ id: "tabs", prompt: "Build a tabbed product card with three tabs, Overview, Specs and Reviews, that switch the content when clicked. Show it to me.", check: has("Overview", "Specs", "Reviews", /<script/i) },
+	// 10-12 那次漏了界面块围栏的会话，原话。
+	{ id: "pick", prompt: "我想做一个待办清单。你给我几个好看的模板 我选择一下", check: has(/<body/i) },
 ];
 
 const SYSTEM_SUFFIX = "\n\nThis is an evaluation: the tools are real from your point of view. Do the task with the tools you have, then stop. Do not ask the user questions.";
@@ -139,6 +143,7 @@ async function runOnce(task: Task, schema: Pick<Tool, "description" | "parameter
 	const shown = [...previews].reverse().find((p) => p.published);
 	const shownHtml = !shown ? "" : shown.args.id !== undefined ? await readFile(join(dirs.get(String(shown.args.id))!, "index.html"), "utf8").catch(() => "") : htmlOf(shown);
 	const failed = replies.find((m) => m.stopReason === "error");
+	const said = replies.flatMap((m) => m.content.flatMap((c) => (c.type === "text" ? [c.text] : []))).join("\n");
 	return {
 		pass: Boolean(shown) && task.check(shownHtml),
 		used: previews.length > 0,
@@ -147,6 +152,7 @@ async function runOnce(task: Task, schema: Pick<Tool, "description" | "parameter
 		revised,
 		refused: previews.filter((p) => p.isError).length,
 		published: Boolean(shown),
+		ui: interfaceBlocks(said).length > 0 ? "围栏" : unfencedComponents(said).length > 0 ? "漏围栏" : "无",
 		server: other.some((line) => /http\.server|npx serve|live-server|open .*\.html/.test(line)),
 		other: other.length,
 		requests: replies.length,
@@ -174,15 +180,15 @@ async function main(): Promise<void> {
 	const variants: [string, Pick<Tool, "description" | "parameters"> | null][] = old ? [["old", old], ["new", null]] : [["new", null]];
 	for (const modelId of models) {
 		say(`\npreview 自检 · ${modelId} · 每题 ${runs} 次\n`);
-		say(`${"任务".padEnd(10)} 版本 结果 用了 检查 宽度 改过 退回 发布 起服务 其他工具 请求 输入`);
+		say(`${"任务".padEnd(10)} 版本 结果 用了 检查 宽度 改过 退回 发布 界面块 起服务 其他工具 请求 输入`);
 		const totals: Record<string, Row[]> = {};
 		for (const task of tasks) {
 			for (const [name, schema] of variants) {
 				for (let i = 0; i < runs; i++) {
-					const r: Row = await runOnce(task, schema, modelId).catch((error: unknown) => ({ pass: false, used: false, checks: 0, widths: 0, revised: false, refused: 0, published: false, server: false, other: 0, requests: 0, input: 0, error: String(error), last: undefined }));
+					const r: Row = await runOnce(task, schema, modelId).catch((error: unknown) => ({ pass: false, used: false, checks: 0, widths: 0, revised: false, refused: 0, published: false, ui: "无", server: false, other: 0, requests: 0, input: 0, error: String(error), last: undefined }));
 					(totals[name] ??= []).push(r);
 					const yn = (v: boolean) => (v ? "是" : "否");
-					say(`${task.id.padEnd(10)} ${name.padEnd(4)} ${r.pass ? "通过" : "失败"} ${yn(r.used)}   ${r.checks}    ${r.widths}    ${yn(r.revised)}   ${r.refused}    ${yn(r.published)}   ${yn(r.server)}     ${String(r.other).padEnd(8)} ${String(r.requests).padEnd(4)} ${r.input}${r.error ? `  ${r.error.slice(0, 100)}` : ""}${!r.pass && r.last ? `  最后一句：${r.last}` : ""}`);
+					say(`${task.id.padEnd(10)} ${name.padEnd(4)} ${r.pass ? "通过" : "失败"} ${yn(r.used)}   ${r.checks}    ${r.widths}    ${yn(r.revised)}   ${r.refused}    ${yn(r.published)}   ${r.ui.padEnd(4)} ${yn(r.server)}     ${String(r.other).padEnd(8)} ${String(r.requests).padEnd(4)} ${r.input}${r.error ? `  ${r.error.slice(0, 100)}` : ""}${!r.pass && r.last ? `  最后一句：${r.last}` : ""}`);
 				}
 			}
 		}
@@ -190,7 +196,7 @@ async function main(): Promise<void> {
 			const n = rows.length;
 			const count = (f: (r: Row) => boolean) => rows.filter(f).length;
 			const checked = rows.filter((r) => r.checks > 0);
-			say(`${name.padEnd(4)} 通过 ${count((r) => r.pass)}/${n} · 用了 preview ${count((r) => r.used)}/${n} · 先检查 ${checked.length}/${n} · 检查后改过 ${count((r) => r.revised)}/${checked.length} · 检查了没发布 ${count((r) => r.checks > 0 && !r.published)} · 起服务 ${count((r) => r.server)} · 平均请求 ${(rows.reduce((s, r) => s + r.requests, 0) / n).toFixed(2)} · 平均输入 ${Math.round(rows.reduce((s, r) => s + r.input, 0) / n)}`);
+			say(`${name.padEnd(4)} 通过 ${count((r) => r.pass)}/${n} · 用了 preview ${count((r) => r.used)}/${n} · 先检查 ${checked.length}/${n} · 检查后改过 ${count((r) => r.revised)}/${checked.length} · 检查了没发布 ${count((r) => r.checks > 0 && !r.published)} · 界面块漏围栏 ${count((r) => r.ui === "漏围栏")}/${count((r) => r.ui !== "无")} · 起服务 ${count((r) => r.server)} · 平均请求 ${(rows.reduce((s, r) => s + r.requests, 0) / n).toFixed(2)} · 平均输入 ${Math.round(rows.reduce((s, r) => s + r.input, 0) / n)}`);
 		}
 	}
 }
