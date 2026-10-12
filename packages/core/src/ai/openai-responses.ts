@@ -28,8 +28,8 @@ import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { learnToolPairing, toolPairing } from "./tool-pairing-compat.ts";
 import { learnToolResultImages, toolResultImages } from "./tool-result-images-compat.ts";
-import { droppedParams, learnDroppedParam, refusesReasoningNone } from "./request-params-compat.ts";
-import { compatScope } from "./compat-key.ts";
+import { droppedParams, learnDroppedParam, openaiRefusesReasoningNone, refusesReasoningNone } from "./request-params-compat.ts";
+import { compatKey, compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
 import { cacheRouting, sessionHeaders } from "./cache-routing.ts";
 
@@ -37,6 +37,17 @@ export const openaiResponsesProvider: Provider = {
 	api: "openai-responses",
 	stream: streamResponses,
 };
+
+/**
+ * 撞出来「助手轮要以推理项开头」的模型，见 `ResponsesHome.leadingReasoning`。
+ *
+ * 先验只认得 DeepSeek（地址或模型名里带着它）。中转给它起了别名时认不出来，就靠它那句话学：
+ * `The \`reasoning_text\` in the thinking mode must be passed back to the API.` 这句话在那个端点上什么都
+ * 说（工具排错了、末项是助手的话，见 `reasoning-compat.ts` 的 `REQUIRES`），所以只学一次：补位打开之后
+ * 再撞上它，就交回推理梯子按原来的规矩处理。记在内存里，理由同另外几个轴。
+ */
+const leadsWithReasoning = new Set<string>();
+const MUST_PASS_BACK = /reasoning_text.{0,40}must be passed back/i;
 
 async function* streamResponses(
 	provider: ProviderConfig,
@@ -61,6 +72,9 @@ async function* streamResponses(
 	const modelId = (model.modelId || model.id || "").toLowerCase();
 	/** 学和查都用这一对 id，见 `compat-key.ts`。排列这一轴曾经查用 `modelId`、学用 `id`，学到的永远查不到。 */
 	const scope = compatScope(provider, model);
+	/** 发往 DeepSeek：它要求每个助手轮以推理项开头。别的端点不补，见 `ResponsesHome.leadingReasoning`。 */
+	const deepseek = /deepseek/i.test(provider.baseUrl) || modelId.includes("deepseek");
+	const leadingReasoning = (): boolean => deepseek || leadsWithReasoning.has(compatKey(scope.providerId, scope.modelId));
 
 	/*
 	 * 每次尝试重新编一遍，因为**形状可能在两次之间变掉**。
@@ -79,7 +93,13 @@ async function* streamResponses(
 			// than replayed to one that will reject it. See `fromHome`.
 			input: toResponsesInput(
 				sanitizeToolPairing(context.messages),
-				{ provider: provider.id, model: model.modelId, supportsImages: model.supportsImages, toolImages: toolResultImages(scope.providerId, scope.modelId) },
+				{
+					provider: provider.id,
+					model: model.modelId,
+					supportsImages: model.supportsImages,
+					toolImages: toolResultImages(scope.providerId, scope.modelId),
+					leadingReasoning: leadingReasoning(),
+				},
 				replay,
 				toolPairing(scope.providerId, scope.modelId),
 			),
@@ -109,13 +129,11 @@ async function* streamResponses(
 			...(model.supportsThinking
 				? thinkingEnabled && reasoningEffort
 					? {
-							reasoning: {
-								effort: reasoningEffort,
-								summary: "auto",
-							},
+							// 摘要要组织验证过才给，没验证的账号整个请求 400——撞过就只撤它，effort 照发。
+							reasoning: dropped.has("reasoning-summary") ? { effort: reasoningEffort } : { effort: reasoningEffort, summary: "auto" },
 							...(dropped.has("include-encrypted") ? {} : { include: ["reasoning.encrypted_content"] }),
 						}
-					: refusesReasoningNone(modelId) || dropped.has("reasoning-off")
+					: refusesReasoningNone(modelId) || openaiRefusesReasoningNone(modelId) || dropped.has("reasoning-off")
 						? {}
 						: { reasoning: { effort: "none" } }
 				: {}),
@@ -135,6 +153,12 @@ async function* streamResponses(
 		};
 	};
 	let body = buildBody(reasoningReplay(scope.providerId, scope.modelId));
+	/** 补位还没开、而端点说了那句话：开，重发一次。已经开着就不认，交给推理梯子。 */
+	const learnLeadingReasoning = (providerId: string, modelId: string, said: string): boolean => {
+		if (leadingReasoning() || !MUST_PASS_BACK.test(said)) return false;
+		leadsWithReasoning.add(compatKey(providerId, modelId));
+		return true;
+	};
 
 	options.onPayload?.(body);
 
@@ -150,8 +174,12 @@ async function* streamResponses(
 			kind: "text" | "thinking" | "toolCall";
 			contentIndex: number;
 			raw: string;
+			/** The provider's item id, so `response.completed`'s output can be matched back to it. */
+			id?: string;
 			/** `output_item.done` arrived: the arguments are the provider's final ones, not a cut-off buffer. */
 			done?: boolean;
+			/** `function_call_arguments.done` arrived: `raw` is complete even if `output_item.done` never does. */
+			argsDone?: boolean;
 		}
 	>();
 	/*
@@ -233,6 +261,128 @@ async function* streamResponses(
 		firstTokenTime = null;
 	};
 
+	/** 一个输出项类型在这里落成哪种块；认不出的是 `undefined`。 */
+	const kindOf = (type: unknown): "text" | "thinking" | "toolCall" | undefined =>
+		type === "function_call" ? "toolCall" : type === "reasoning" ? "thinking" : type === "message" ? "text" : undefined;
+
+	/**
+	 * 把流里没开过的块放到它该在的位置：按槽号排，不按到达先后。
+	 *
+	 * 只发 `done` 的中转按到达顺序补，那就是槽号顺序，等于追加。`response.completed` 补回中间缺的那一项时
+	 * 不是：缺的推理项追加到调用后面，回放时推理就跑到了它引出的那个调用之后。
+	 */
+	const place = (slot: number, block: AssistantMessage["content"][number]): number => {
+		let at = partial.content.length;
+		for (const [other, tracked] of items) if (other > slot && tracked.contentIndex < at) at = tracked.contentIndex;
+		for (const tracked of items.values()) if (tracked.contentIndex >= at) tracked.contentIndex++;
+		partial.content.splice(at, 0, block);
+		return at;
+	};
+
+	/** 一项写完了：`output_item.done`，或者 `response.completed` 的 output 里补回来的那一项。 */
+	function* finish(slot: number, item: Record<string, any>): Generator<StreamEvent> {
+		/*
+		 * 没见过 `added` 就来了 `done`——现补一个块，不要把这一项扔掉。
+		 *
+		 * 这里原本是 `if (!tracked) break;`：没有开过的块就整项丢弃，文本、推理、工具调用
+		 * 一视同仁。对守规矩的端点那行永远不会触发，所以它一直看起来没问题；对**只发
+		 * `done` 不发 `added`** 的中转（把 Responses 翻译成别的协议时很常见，oh-my-pi 管
+		 * 这类叫 lossy proxy），它意味着整个回复静默消失。
+		 *
+		 * 文本和推理丢了还看得见——界面空白，用户会来报。工具调用丢了最阴险：`agent/loop.ts`
+		 * 按 content 里的 toolCall 决定执行什么，item 没了工具就**静默不跑**，而模型下一轮
+		 * 以为自己调过了，于是原地打转。
+		 *
+		 * `done` 事件里带着这一项的全部内容，补一个块出来所需的东西它都有。
+		 */
+		let tracked = items.get(slot);
+		if (!tracked) {
+			const kind = kindOf(item.type);
+			if (!kind) {
+				if (item.type) unsupported.add(String(item.type));
+				return;
+			}
+			const contentIndex = place(
+				slot,
+				kind === "toolCall"
+					? { type: "toolCall", id: toolCallId(item.call_id ?? item.id, slot, inventedIds), name: item.name ?? "", arguments: {} }
+					: kind === "thinking"
+						? { type: "thinking", thinking: "", signature: item.id, encrypted: item.encrypted_content || undefined }
+						: { type: "text", text: "" },
+			);
+			tracked = { kind, contentIndex, raw: "", id: item.id };
+			items.set(slot, tracked);
+			framesSeen++;
+		}
+		tracked.done = true;
+		const target = partial.content[tracked.contentIndex];
+
+		if (tracked.kind === "toolCall" && target?.type === "toolCall") {
+			/*
+			 * 收尾的那个 item 里带的参数说了算，字符串还是对象都认。
+			 *
+			 * 原本只认字符串，非字符串一律退回流里攒的 `tracked.raw`。对于一次性给完整对象、
+			 * 一个 delta 都不发的宿主，那个缓冲区是空的——参数就这么没了，还不报错。
+			 */
+			const complete = argumentFragment(item.arguments);
+			const raw = complete || tracked.raw;
+			target.argumentsText = raw;
+			target.arguments = parseToolArguments(raw) ?? {};
+			yield {
+				type: "toolcall_end",
+				index: slot,
+				partial: { ...partial },
+			};
+		} else if (tracked.kind === "thinking" && target?.type === "thinking") {
+			if (item.encrypted_content) target.encrypted = item.encrypted_content;
+			// Non-streaming summaries only arrive on the completed item.
+			if (!target.thinking && Array.isArray(item.summary)) {
+				target.thinking = item.summary.map((s: { text?: string }) => s.text ?? "").join("\n");
+			}
+			if (target.startedAt !== undefined) target.durationMs = Date.now() - target.startedAt;
+			yield { type: "thinking_end", index: slot };
+		} else if (tracked.kind === "text" && target?.type === "text") {
+			if (!target.text && Array.isArray(item.content)) {
+				target.text = item.content.map((c: { text?: string }) => c.text ?? "").join("");
+			}
+			// 没流式发 `refusal.delta` 的端点，拒答只在完成的 message 里。
+			if (!refusal && Array.isArray(item.content)) {
+				refusal = item.content.map((c: { type?: string; refusal?: string }) => (c.type === "refusal" ? c.refusal ?? "" : "")).join("");
+			}
+			yield { type: "text_end", index: slot };
+		}
+	}
+
+	/*
+	 * `response.completed` 带着这次回复完整的一份 `response.output`。流里缺了的、没收尾的项从这里补。
+	 *
+	 * 原来只从这个事件里取用量和 id。守规矩的端点上这没有区别——每一项都有自己的 `added` / `done`；有损的
+	 * 中转上这份 output 是唯一完整的东西：只发 `output_text.delta` 的，deltas 找不到块被扔掉，判成空回答；
+	 * 只发 `function_call_arguments.done` 的，判「工具调用没有收尾」反复重试；流里一个字没提的调用，静默
+	 * 丢掉、以 `stop` 收场，工具不跑。
+	 *
+	 * 按 item id 对回已经流出来的块，没有 id 的按位置（`output_index` 就是它在 output 里的下标），类型对不上
+	 * 的另开一个槽。已经收尾的项一个字不动：文本和推理只在块是空的时候才从这里填，不会和流里的内容叠在一起。
+	 */
+	function* backfill(output: unknown): Generator<StreamEvent> {
+		const list: Record<string, any>[] = Array.isArray(output) ? output : [];
+		for (let at = 0; at < list.length; at++) {
+			const item = list[at] ?? {};
+			const id = typeof item.id === "string" ? item.id : undefined;
+			let slot = id === undefined ? undefined : slotsById.get(id);
+			if (slot === undefined) {
+				const there = items.get(at);
+				const same = !there || (there.kind === kindOf(item.type) && (id === undefined || there.id === undefined || there.id === id));
+				slot = same ? at : nextSlot;
+			}
+			nextSlot = Math.max(nextSlot, slot + 1);
+			if (items.get(slot)?.done) continue;
+			yield* finish(slot, item);
+		}
+		// output 里没列出来、但参数已经说过写完了的调用。
+		for (const [slot, tracked] of items) if (tracked.kind === "toolCall" && tracked.argsDone && !tracked.done) yield* finish(slot, { type: "function_call" });
+	}
+
 	const retryBudget = new RetryBudget(options.retryPolicy, options.retryAttempts);
 	try {
 		/*
@@ -247,7 +397,8 @@ async function* streamResponses(
 			learnToolPairing(providerId, modelId, said) ||
 			learnToolResultImages(providerId, modelId, said) ||
 			// 告诉参数轴这次到底发没发 `effort: "none"`，见 `learnDroppedParam` 的 `sent`。
-			learnDroppedParam(providerId, modelId, said, { reasoningOff: (body.reasoning as { effort?: string } | undefined)?.effort === "none" }), async function* (replay) {
+			learnDroppedParam(providerId, modelId, said, { reasoningOff: (body.reasoning as { effort?: string } | undefined)?.effort === "none" }) ||
+			learnLeadingReasoning(providerId, modelId, said), async function* (replay) {
 			body = buildBody(replay);
 			options.onPayload?.(body);
 			yield* retryStream(
@@ -314,6 +465,7 @@ async function* streamResponses(
 									kind: "text",
 									contentIndex: partial.content.length - 1,
 									raw: "",
+									id: item.id,
 								});
 								yield { type: "text_start", index: outputIndex };
 							} else if (item.type === "reasoning") {
@@ -328,6 +480,7 @@ async function* streamResponses(
 									kind: "thinking",
 									contentIndex: partial.content.length - 1,
 									raw: "",
+									id: item.id,
 								});
 								yield { type: "thinking_start", index: outputIndex };
 							} else if (item.type === "function_call") {
@@ -344,6 +497,7 @@ async function* streamResponses(
 									kind: "toolCall",
 									contentIndex: partial.content.length - 1,
 									raw: "",
+									id: item.id,
 								});
 								yield {
 									type: "toolcall_start",
@@ -425,83 +579,23 @@ async function* streamResponses(
 							break;
 						}
 
-						case "response.output_item.done": {
-							const item = event.item ?? {};
-							/*
-							 * 没见过 `added` 就来了 `done`——现补一个块，不要把这一项扔掉。
-							 *
-							 * 这里原本是 `if (!tracked) break;`：没有开过的块就整项丢弃，文本、推理、工具调用
-							 * 一视同仁。对守规矩的端点那行永远不会触发，所以它一直看起来没问题；对**只发
-							 * `done` 不发 `added`** 的中转（把 Responses 翻译成别的协议时很常见，oh-my-pi 管
-							 * 这类叫 lossy proxy），它意味着整个回复静默消失。
-							 *
-							 * 文本和推理丢了还看得见——界面空白，用户会来报。工具调用丢了最阴险：`agent/loop.ts`
-							 * 按 content 里的 toolCall 决定执行什么，item 没了工具就**静默不跑**，而模型下一轮
-							 * 以为自己调过了，于是原地打转。
-							 *
-							 * `done` 事件里带着这一项的全部内容，补一个块出来所需的东西它都有。
-							 */
-							let tracked = items.get(outputIndex);
-							if (!tracked) {
-								const kind =
-									item.type === "function_call" ? "toolCall" : item.type === "reasoning" ? "thinking" : item.type === "message" ? "text" : undefined;
-								if (!kind) {
-									if (item.type) unsupported.add(String(item.type));
-									break;
-								}
-								if (kind === "toolCall") {
-									partial.content.push({
-										type: "toolCall",
-										id: toolCallId(item.call_id ?? item.id, outputIndex, inventedIds),
-										name: item.name ?? "",
-										arguments: {},
-									});
-								} else if (kind === "thinking") {
-									partial.content.push({ type: "thinking", thinking: "", signature: item.id, encrypted: item.encrypted_content || undefined });
-								} else {
-									partial.content.push({ type: "text", text: "" });
-								}
-								tracked = { kind, contentIndex: partial.content.length - 1, raw: "" };
-								items.set(outputIndex, tracked);
-								framesSeen++;
-							}
-							tracked.done = true;
+						/*
+						 * 参数到这里就是完整的了，哪怕后面的 `output_item.done` 没来（有的中转只转这一个）。
+						 * 只记下，不在这里收尾：`output_item.done` 照常来的话由它收，没来的由 `response.completed` 收。
+						 */
+						case "response.function_call_arguments.done": {
+							const tracked = items.get(outputIndex);
+							if (tracked?.kind !== "toolCall") break;
+							const complete = argumentFragment(event.arguments);
+							if (complete) tracked.raw = complete;
+							tracked.argsDone = true;
 							const target = partial.content[tracked.contentIndex];
+							if (target?.type === "toolCall") target.argumentsText = tracked.raw;
+							break;
+						}
 
-							if (tracked.kind === "toolCall" && target?.type === "toolCall") {
-								/*
-							 * 收尾的那个 item 里带的参数说了算，字符串还是对象都认。
-							 *
-							 * 原本只认字符串，非字符串一律退回流里攒的 `tracked.raw`。对于一次性给完整对象、
-							 * 一个 delta 都不发的宿主，那个缓冲区是空的——参数就这么没了，还不报错。
-							 */
-							const complete = argumentFragment(item.arguments);
-							const raw = complete || tracked.raw;
-								target.argumentsText = raw;
-								target.arguments = parseToolArguments(raw) ?? {};
-								yield {
-									type: "toolcall_end",
-									index: outputIndex,
-									partial: { ...partial },
-								};
-							} else if (tracked.kind === "thinking" && target?.type === "thinking") {
-								if (item.encrypted_content) target.encrypted = item.encrypted_content;
-								// Non-streaming summaries only arrive on the completed item.
-								if (!target.thinking && Array.isArray(item.summary)) {
-									target.thinking = item.summary.map((s: { text?: string }) => s.text ?? "").join("\n");
-								}
-								if (target.startedAt !== undefined) target.durationMs = Date.now() - target.startedAt;
-								yield { type: "thinking_end", index: outputIndex };
-							} else if (tracked.kind === "text" && target?.type === "text") {
-								if (!target.text && Array.isArray(item.content)) {
-									target.text = item.content.map((c: { text?: string }) => c.text ?? "").join("");
-								}
-								// 没流式发 `refusal.delta` 的端点，拒答只在完成的 message 里。
-								if (!refusal && Array.isArray(item.content)) {
-									refusal = item.content.map((c: { type?: string; refusal?: string }) => (c.type === "refusal" ? c.refusal ?? "" : "")).join("");
-								}
-								yield { type: "text_end", index: outputIndex };
-							}
+						case "response.output_item.done": {
+							yield* finish(outputIndex, event.item ?? {});
 							break;
 						}
 
@@ -510,6 +604,8 @@ async function* streamResponses(
 							applyUsage("openai-responses", partial.usage, event.response?.usage);
 							partial.responseId = event.response?.id;
 							incompleteReason = event.response?.incomplete_details?.reason;
+							// 只在正常完成时补：被截断的那份 output 里，没写完的项本来就不该被当成写完了。
+							if (type === "response.completed") yield* backfill(event.response?.output);
 							settled = true;
 							break;
 						}

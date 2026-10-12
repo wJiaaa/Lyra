@@ -32,6 +32,14 @@ export interface ResponsesHome {
 	supportsImages?: boolean;
 	/** Where a tool result's image goes; see `tool-result-images-compat.ts`. Omitted means inline. */
 	toolImages?: ToolResultImages;
+	/**
+	 * 这个端点要不要每个助手轮都以推理项开头（没有就补一个合成的，见 `toResponsesInput` 的补位分支）。
+	 * 省略按「要」算。
+	 *
+	 * 省略等于要，理由同 `supportsImages`：不知道的调用点维持原来的形状。适配器知道发往哪里，由它说
+	 * 「不要」——补出来的那一项在官方 OpenAI 上是一次必然的 400（`maximum length 0`）。
+	 */
+	leadingReasoning?: boolean;
 }
 
 /**
@@ -98,6 +106,24 @@ function liftedImages(lifted: unknown[] | undefined): unknown[] {
  */
 function usableId(handle: string | undefined): string | undefined {
 	return handle !== undefined && /^[A-Za-z0-9_-]+$/.test(handle) ? handle : undefined;
+}
+
+/**
+ * 被打断的那一轮里没写完的推理块：最后一块，而且它是推理。
+ *
+ * 推理项的 id 在 `output_item.added` 时就记下了，`encrypted_content` 要到 `output_item.done` 才来。中途按停止
+ * 或者断流，留在历史里的就是一个有 id、没密文的块；`store: false` 下回放这个 id，OpenAI 回
+ * `Item with id 'rs_…' not found`，而且之后每一轮都是这句——会话就此报废。带着摘要文本的话还会多一样：
+ * `content` 在官方端点上只能是空的，`maximum length 0` 让推理梯子一路往下退，整个进程里这个模型都受牵连。
+ *
+ * 认「最后一块」而不是认「没有密文」：没有密文的块也可能是写完了的（中转只给签名不给密文，那正是
+ * 下面 `content` 分支要服务的），而被打断时还在写的只可能是最后那一块。前面已经写完的推理照常回放。
+ * 同 `anthropic-messages-request.ts` 的 `untrustedSignatures`。
+ */
+function unfinishedReasoning(message: AssistantMessage): unknown {
+	if (message.stopReason !== "aborted" && message.stopReason !== "error") return undefined;
+	const last = message.content[message.content.length - 1];
+	return last?.type === "thinking" ? last : undefined;
 }
 
 /**
@@ -202,6 +228,7 @@ export function toResponsesInput(
 			const own = fromHome(message, home);
 			/** 这一轮的项从哪儿开始——轮排完之后要回头看它有没有以推理项开头。 */
 			const turnAt = input.length;
+			const unfinished = unfinishedReasoning(message);
 
 			for (const c of message.content) {
 				if (c.type === "thinking") {
@@ -213,6 +240,8 @@ export function toResponsesInput(
 					 * 这个结论是撞出来的，怎么撞的见 `reasoning-compat.ts`。
 					 */
 					if (reasoning === "omit") continue;
+					// 被打断时还没写完的那一块，整块不发，见 `unfinishedReasoning`。
+					if (c === unfinished) continue;
 					/*
 					 * Someone else's reasoning does not go back at all.
 					 *
@@ -239,6 +268,16 @@ export function toResponsesInput(
 					 */
 					const handle = usableId(c.signature);
 					if (handle) {
+						/*
+						 * 只有 id、既没密文也没文本的不发。
+						 *
+						 * 上面说 id 是供应商接回自己思维链的那个句柄——那要它那边存着东西。我们发的是 `store: false`，
+						 * 没有密文时这个 id 什么也指不到，OpenAI 回 `Item with id 'rs_…' not found`，每一轮都是。
+						 * 它出现在模型推理了而请求里没要密文的时候：`supportsThinking: false` 却是推理模型、学到
+						 * `reasoning-off` 后模型按默认档推理、学到 `include-encrypted`（且没有摘要）。没有文本，
+						 * 下面那条「只给签名的中转要 `content`」的路也用不上——两样都没有，发它换不来任何东西。
+						 */
+						if (!c.encrypted && !c.thinking) continue;
 						input.push({
 							type: "reasoning",
 							id: handle,
@@ -381,10 +420,14 @@ export function toResponsesInput(
 			 * 只在顶格（`replay`）补。`omit` 那档的端点一个推理项都不收，`handled` 那档只收带得动句柄的，
 			 * 而补出来的这个两样都不是——在那两档补等于拿一个必被拒的请求去换另一个。
 			 *
+			 * 也只在要它的端点上补（`home.leadingReasoning`）。这条原来是全局默认，官方 OpenAI 为此每个进程、
+			 * 每个模型都先吃一次 `maximum length 0` 的 400，退一格再重发；不认得这种项的端点换个说法拒，就直接
+			 * 判死。补位是 DeepSeek 一家的规矩，不该让所有端点替它付钱——哪些端点要，由适配器判断。
+			 *
 			 * 文本是合成的，而且说明了自己是合成的。它会进模型的上下文，所以只说「这一轮没有留下推理记录」
 			 * 这件事实，不替它编一段想法——凭空写一段“它当时在想什么”，比缺这一项更糟。
 			 */
-			if (reasoning === "replay" && input.length > turnAt && !input.slice(turnAt).some((item) => (item as { type?: string }).type === "reasoning")) {
+			if (reasoning === "replay" && home?.leadingReasoning !== false && input.length > turnAt && !input.slice(turnAt).some((item) => (item as { type?: string }).type === "reasoning")) {
 				input.splice(turnAt, 0, {
 					type: "reasoning",
 					summary: [],

@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { droppedParams, learnDroppedParam, resetRequestParamsCompat } from "../src/ai/request-params-compat.ts";
+import { droppedParams, learnDroppedParam, openaiRefusesReasoningNone, refusesReasoningNone, resetRequestParamsCompat } from "../src/ai/request-params-compat.ts";
 
 test("默认一个参数都不省", () => {
 	resetRequestParamsCompat();
@@ -106,4 +106,46 @@ test("结论按模型记，不串到别的模型上", () => {
 	assert.ok(droppedParams("qa", "picky").has("reasoning-off"));
 	assert.equal(droppedParams("qa", "other").size, 0);
 	assert.equal(droppedParams("other-provider", "picky").size, 0);
+});
+
+test("o 系列拒 none 的两种说法都认，Chat 链的 reasoning_effort 也一样", () => {
+	for (const said of [
+		"Unsupported value: 'reasoning.effort' does not support 'none' with this model. Supported values are: 'low', 'medium', and 'high'.",
+		"Unsupported value: 'reasoning_effort' does not support 'none' with this model.",
+		"Unsupported value: 'none' is not supported with the 'o3' model. Supported values are: 'low', 'medium', and 'high'.",
+	]) {
+		resetRequestParamsCompat();
+		assert.equal(learnDroppedParam("qa", "m", said, { reasoningOff: true }), true, said);
+		assert.ok(droppedParams("qa", "m").has("reasoning-off"));
+	}
+	// 没发 none 时同一句话说的是别的档位，不认。
+	resetRequestParamsCompat();
+	assert.equal(learnDroppedParam("qa", "m", "Unsupported value: 'reasoning.effort' does not support 'none' with this model.", { reasoningOff: false }), false);
+});
+
+test("拒 xhigh 的说法不算拒 none", () => {
+	resetRequestParamsCompat();
+	assert.equal(learnDroppedParam("qa", "m", "Unsupported value: 'reasoning.effort' does not support 'xhigh' with this model. Supported values are: 'none', 'low'.", { reasoningOff: true }), false);
+});
+
+test("组织没验证、不给推理摘要：只撤 summary", () => {
+	resetRequestParamsCompat();
+	const said = "Your organization must be verified to generate reasoning summaries. Please go to: https://platform.openai.com/settings/organization/general and click on Verify Organization.";
+	assert.equal(learnDroppedParam("qa", "m", said), true);
+	assert.deepEqual([...droppedParams("qa", "m")], ["reasoning-summary"]);
+	assert.equal(learnDroppedParam("qa", "m", said), false, "撤过还被拒，不再重发");
+	resetRequestParamsCompat();
+	assert.equal(learnDroppedParam("qa", "m", `{"error":{"message":"Unsupported value.","param":"reasoning.summary","code":"unsupported_value"}}`), true);
+	assert.ok(droppedParams("qa", "m").has("reasoning-summary"));
+});
+
+test("OpenAI 自家不收 none 的：o 系列和 gpt-5（5.1 起才有 none）", () => {
+	for (const id of ["o1", "o3", "O3-mini", "o4-mini", "openai/o3-pro", "gpt-5", "gpt-5-mini", "gpt-5-codex", "gpt-5-2025-08-07"]) {
+		assert.equal(openaiRefusesReasoningNone(id), true, id);
+	}
+	for (const id of ["gpt-5.1", "gpt-5.2-codex", "gpt-4o", "deepseek-v4-flash", "gpt-4o1-relay", "claude-opus-4", "gemini-2.5-flash"]) {
+		assert.equal(openaiRefusesReasoningNone(id), false, id);
+	}
+	// 共用的那条不跟着变：Chat 链靠它，而那条链的行为这次不动。
+	assert.equal(refusesReasoningNone("o3"), false);
 });
