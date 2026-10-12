@@ -10,7 +10,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { agentProfile, compactionModel, withAgentProfile, parseModelRef, resolveModelRef } from "../src/config/model-choice.ts";
+import { agentProfile, withAgentProfile, parseModelRef, resolveModelRef } from "../src/config/model-choice.ts";
 import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import type { ModelConfig, ProviderConfig } from "../src/types.ts";
 
@@ -92,12 +92,6 @@ test("the thinking suffix survives resolution", () => {
 	const resolved = resolveModelRef(settings({}), "p/big:high", FALLBACK);
 	assert.equal(resolved.model.id, "p/big");
 	assert.equal(resolved.thinking, "high");
-});
-
-test("compaction uses the compact row, or the caller's model when it is unset or gone", () => {
-	assert.equal(compactionModel(settings({ compact: "p/small" }), FALLBACK).model.id, "p/small");
-	assert.equal(compactionModel(settings({}), FALLBACK).model.id, "p/session");
-	assert.equal(compactionModel(settings({ compact: "p/deleted" }), FALLBACK).model.id, "p/session");
 });
 
 // ---------------------------------------------------------------------------

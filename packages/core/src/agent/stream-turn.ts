@@ -10,6 +10,7 @@ import type { AgentEventSink } from "./events.ts";
 import type { AgentModelContext } from "./run-config.ts";
 import { streamAssistant } from "../ai/index.ts";
 import { comparePrefix, payloadSegments, type PrefixSegment } from "../ai/prefix-fingerprint.ts";
+import { lastSegments, recordSegments, recordSent } from "./lineage.ts";
 import { contextMaxTokens, requestPrompt } from "../tokens.ts";
 import type { AssistantMessage, LlmContext } from "../types.ts";
 
@@ -50,10 +51,18 @@ export interface StreamScope {
 
 export async function streamTurn(modelConfig: AgentModelContext, context: LlmContext, scope: StreamScope, emit: AgentEventSink): Promise<TurnResult> {
 	modelConfig.onContext?.(context, modelConfig.model);
+	const requested = modelConfig.maxTokens;
 	// Recalculate after compaction, model switches and payload recovery, for injected streams too.
 	modelConfig = { ...modelConfig, maxTokens: contextMaxTokens(modelConfig.model, context, modelConfig.maxTokens) };
 	const { state } = scope;
 	await emit({ type: "request", provider: modelConfig.provider.id, model: modelConfig.model.modelId, thinking: modelConfig.thinking, messageCount: context.messages.length });
+	// 压缩从这一次分叉：记下请求头，折算前的输出上限（分叉时按同一算法再折一次），见 `lineage.ts`。
+	if (state) recordSent(state, {
+		providerId: modelConfig.provider.id, modelId: modelConfig.model.id,
+		systemPrompt: context.systemPrompt, tools: context.tools,
+		thinking: modelConfig.thinking, temperature: modelConfig.temperature, maxTokens: requested,
+		cacheKey: modelConfig.cacheKey, at: Date.now(),
+	});
 
 	/*
 	 * A model switch has its own controller: it means "redo with someone else", not "stop", so it
@@ -106,9 +115,9 @@ export async function streamTurn(modelConfig: AgentModelContext, context: LlmCon
 	let prefix: AssistantMessage["prefix"] | null = null;
 	const stamp = (message: AssistantMessage): AssistantMessage => {
 		if (prefix === null && sent && state) {
-			const previous = state.get(PREFIX_KEY) as PrefixSegment[] | undefined;
+			const previous = lastSegments(state);
 			prefix = previous ? comparePrefix(previous, sent) : undefined;
-			if (requestPrompt(message) > 0) state.set(PREFIX_KEY, sent);
+			if (requestPrompt(message) > 0) recordSegments(state, sent);
 		}
 		if (prefix) message.prefix = prefix;
 		return message;
@@ -225,9 +234,6 @@ export async function streamTurn(modelConfig: AgentModelContext, context: LlmCon
 		unsubscribe?.();
 	}
 }
-
-/** The previous request's segments in session state; see `stamp` in `streamTurn`. */
-const PREFIX_KEY = "requestPrefix";
 
 /** Run the closing messages (in `done`/`error` events and the return value) through `stamp`. */
 async function* stamped(

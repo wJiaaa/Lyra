@@ -55,6 +55,7 @@ import { streamAssistant } from "../ai/index.ts";
 import { SessionTitle } from "./session-title.ts";
 import { TODOS_KEY } from "../tools/todo.ts";
 import { manualCompaction, type CompactionParts } from "./manual-compaction.ts";
+import { idleCompaction } from "./idle-compaction.ts";
 import { adoptModelSwitch, recordGoal, recordModel, recordPlanMode, recordThinking } from "./session-model.ts";
 import { goalActive, SessionGoal } from "./session-goal.ts";
 import type { TodoItem } from "../tools/todo.ts";
@@ -89,6 +90,13 @@ export interface AgentSessionOptions {
 	 * 是活的对象而不是 id：工具要能当场让父会话停下、排活。宿主保证父会话比它活得久。
 	 */
 	parent?: AgentSession;
+	/**
+	 * 一轮收尾后、缓存还热时，把越过触发线的历史先压掉（`idle-compaction.ts`）。
+	 *
+	 * 要宿主点名打开：人多半还会接着说的对话才值得——命令行跑完一个任务就退出，评测里提前压的那一次
+	 * 只是白花的钱。
+	 */
+	compactWhenIdle?: boolean;
 }
 
 export class AgentSession {
@@ -98,6 +106,8 @@ export class AgentSession {
 	cwd: string;
 	/** 侧边聊天挂在哪个会话旁边；普通会话是 null。见 `AgentSessionOptions.parent`。 */
 	readonly parent: AgentSession | null;
+	private readonly compactWhenIdle: boolean;
+	private disposed = false;
 
 	private settings: Settings;
 	/**
@@ -194,6 +204,7 @@ export class AgentSession {
 	constructor(options: AgentSessionOptions) {
 		this.cwd = options.cwd;
 		this.parent = options.parent ?? null;
+		this.compactWhenIdle = options.compactWhenIdle === true;
 		this.settings = options.settings;
 		this.globalSettings = options.settings;
 		this.store = options.store;
@@ -1001,6 +1012,22 @@ export class AgentSession {
 		void this.tasks.drain();
 		// 目标在这之后才看：排着的先跑，它等会话真闲下来。见 `session-goal.ts`。
 		void this.goal.afterTurn(this.lastEnd);
+		// 越线的那次回复刚落地、缓存还热：趁人还没开口先压掉。也等会话真闲下来，排着的先跑。
+		if (this.compactWhenIdle && this.lastEnd === "done") void this.whenIdle().then(() => this.compactIdle());
+	}
+
+	/** 见 `idle-compaction.ts`。和手动压缩同一把锁；有人先一步占住了会话就算了，下一轮开头照常会看。 */
+	private async compactIdle(): Promise<void> {
+		if (this.disposed || !this.idle || this.activity.compaction) return;
+		let task: Promise<CompactOutcome>;
+		try {
+			task = this.activity.compact(async (signal) => ({ ok: await idleCompaction(this.compactionParts(), signal) }));
+		} catch {
+			return;
+		}
+		await task.catch(() => {});
+		void this.watcher?.resume();
+		void this.tasks.drain();
 	}
 
 	abort(): void {
@@ -1227,8 +1254,11 @@ export class AgentSession {
 	}
 
 	async dispose(reason: SessionEndReason = "other"): Promise<void> {
+		this.disposed = true;
 		this.goal.dispose();
 		this.abort();
+		// 收尾后的自动压缩不是人发起的，处置时多半还在跑：等它停下再往下走，免得宿主删了日志它还在写。
+		await this.activity.compaction?.catch(() => {});
 		await this.end(reason).catch(() => {});
 		// A host may delete the log as soon as disposal returns; finish any title write first.
 		await this.title.pending();

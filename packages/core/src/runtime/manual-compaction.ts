@@ -9,8 +9,9 @@
 import { randomUUID } from "node:crypto";
 import type { AgentEventSink, CommandRun } from "../agent/events.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
+import { lineageFrom } from "../agent/lineage.ts";
+import { requestView } from "../agent/loop.ts";
 import type { StreamFn } from "../agent/run-config.ts";
-import { compactionModel } from "../config/model-choice.ts";
 import { resolveModel, type Settings } from "../config/settings.ts";
 import { compactWith } from "./compaction.ts";
 import type { CompactOutcome } from "./session-activity.ts";
@@ -62,7 +63,12 @@ async function compactHistory(parts: CompactionParts, instructions: string, sign
 	const history = modelHistory(log, resolved.provider, resolved.model);
 	if (history.length <= 6) return { ok: false, reason: "对话还太短，没什么可压缩的。", code: "too-short" };
 
-	const summarizer = compactionModel(parts.settings(), resolved);
+	const artifacts = { keep: (tool: string, content: string) => can.keepArtifact(tool, content) };
+	/*
+	 * 从上一轮最后一次请求分叉：消息照循环下一次要发的那份算（剪枝器记下的视图、日期块），缓存还热时
+	 * `/compact` 基本只付摘要输出的钱。算出来和上一次对不上，发出前的前缀核对会拦下、改走独立请求。
+	 */
+	const lineage = lineageFrom(can.state, requestView(sessionPruner(can.state).prepare(history, artifacts), true));
 	/*
 	 * Through the seam, not around it.
 	 *
@@ -78,9 +84,9 @@ async function compactHistory(parts: CompactionParts, instructions: string, sign
 		streamFn: summaryStream(parts.streamFn, { retryPolicy: () => parts.settings().retryPolicy, signal }, compactionSpent(log)),
 		force: true,
 		// The trimmed originals are kept; the placeholders point at them with an `artifact://` address.
-		artifacts: { keep: (tool, content) => can.keepArtifact(tool, content) },
+		artifacts,
 		manual: { instructions, signal },
-		summarizer,
+		lineage,
 	});
 	/*
 	 * Two different outcomes, and they used to say the same thing.
@@ -116,6 +122,8 @@ async function compactHistory(parts: CompactionParts, instructions: string, sign
 		after: compaction.messages.length,
 		summary: compaction.summary,
 		kept: compaction.kept,
+		...(compaction.via ? { via: compaction.via } : {}),
+		...(compaction.prefix ? { prefix: compaction.prefix } : {}),
 	});
 	adopt();
 	return { ok: true, before: history.length, after: compaction.messages.length };

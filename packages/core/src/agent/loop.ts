@@ -9,6 +9,7 @@
  */
 
 import { compactStep } from "./compact-step.ts";
+import { lineageFrom } from "./lineage.ts";
 import { originalInView, REPEAT_WARN, repeatNotice, RepetitionWatch } from "./repetition.ts";
 import type { AgentModelContext, AgentRunConfig, AgentRunResult } from "./run-config.ts";
 import { rejectedContent, streamTurn, type TurnResult } from "./stream-turn.ts";
@@ -200,7 +201,17 @@ function adoptCompaction(run: Run, messages: Message[]): void {
 }
 
 function requestMessages(run: Run): Message[] {
-	return withInterfaceNotes(withSteeringNote(run.config.session.environment ? withEnvironment(run.messages) : run.messages));
+	return requestView(run.messages, run.config.session.environment);
+}
+
+/**
+ * 历史在发出去时的样子：日期块、插话说明、界面提示都在这里接上。
+ *
+ * 导出是因为循环外的压缩（`/compact`、一轮收尾后的压缩）也要从上一次请求分叉，消息必须和循环
+ * 下一次要发的逐字节相同——照这一个函数算，而不是各自再拼一遍。
+ */
+export function requestView(messages: Message[], environment: boolean): Message[] {
+	return withInterfaceNotes(withSteeringNote(environment ? withEnvironment(messages) : messages));
 }
 
 /** Written by the person, as opposed to the runtime speaking in the user role. */
@@ -254,7 +265,9 @@ async function prepareHistory(run: Run): Promise<boolean> {
 	replaceHistory(run, run.pruner.prepare(run.messages, session.artifacts));
 
 	if (session.compact) {
-		const compaction = await compactStep(session, control.signal, run.messages, run.active.model, run.emit, { provider: run.active.provider });
+		// 摘要请求从上一次请求分叉，消息就是下一次要发的那份（`requestMessages`），见 `lineage.ts`。
+		const lineage = lineageFrom(session.state, requestMessages(run));
+		const compaction = await compactStep(session, control.signal, run.messages, run.active.model, run.emit, { provider: run.active.provider, lineage });
 		if (control.signal?.aborted) return false;
 		if (compaction) adoptCompaction(run, compaction.messages);
 	}

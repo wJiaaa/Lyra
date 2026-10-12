@@ -10,7 +10,6 @@ import type { CompactHistory } from "../agent/compact-step.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
 import type { AgentRunConfig } from "../agent/run-config.ts";
 import { streamAssistant } from "../ai/index.ts";
-import { compactionModel } from "../config/model-choice.ts";
 import { textTokens, toolTokens } from "../tokens.ts";
 import type { ApprovalDecision, ApprovalRequest, Message } from "../types.ts";
 import { compactWith } from "./compaction.ts";
@@ -185,18 +184,16 @@ function approvalFrom(options: SubAgentOptions, { id, definition, description }:
  */
 function compactHistory(options: SubAgentOptions, { chosen, controller, allowed }: Dispatched, systemPrompt: string): CompactHistory {
 	const runProvider = chosen.provider;
-	return (messages, model, observer, compactOptions) => {
-		const summarizer = compactionModel(options.settings, { provider: runProvider, model });
-		return compactWith({
-			messages,
-			model,
-			provider: runProvider,
-			streamFn: (provider, summaryModel, context, streamOptions) => (options.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy, signal: controller.signal }),
-			overhead: textTokens(systemPrompt) + toolTokens(allowed),
-			summarizer,
-			observer,
-			force: compactOptions?.force,
-			artifacts: options.addresses?.artifacts,
-		});
-	};
+	return (messages, model, observer, compactOptions) => compactWith({
+		messages,
+		model,
+		provider: runProvider,
+		// 调用方给了信号（分叉请求核对前缀不符时用它在发出前作废）就和子代理自己的合起来，不能盖掉。
+		streamFn: (provider, summaryModel, context, streamOptions) => (options.summaryStream ?? streamAssistant)(provider, summaryModel, context, { ...streamOptions, retryPolicy: () => (options.getSettings?.() ?? options.settings).retryPolicy, signal: streamOptions?.signal ? AbortSignal.any([streamOptions.signal, controller.signal]) : controller.signal }),
+		overhead: textTokens(systemPrompt) + toolTokens(allowed),
+		observer,
+		force: compactOptions?.force,
+		lineage: compactOptions?.lineage,
+		artifacts: options.addresses?.artifacts,
+	});
 }

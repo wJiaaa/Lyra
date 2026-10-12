@@ -182,10 +182,6 @@ export function AgentsSettings() {
 				{settings && <section className="mt-8">
 					<GroupHeader title={t("common.session")} />
 					<AgentList>
-						<SettingRow name="compact" detail={t("agents.compactContext")} profile="compact">
-							<ModelSelect ariaLabel={t("agents.compactModel")} showIcon={false} value={agentProfile(settings, "compact").modelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} disabled={saving}
-								onChange={(modelId) => save("compact", modelId ? { modelId } : {})} />
-						</SettingRow>
 						<SettingRow name="goal" detail={t("agents.goalJudge")} profile="goal">
 							<ModelSelect ariaLabel={t("agents.goalModel")} showIcon={false} value={agentProfile(settings, "goal").modelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} disabled={saving}
 								onChange={(modelId) => save("goal", modelId ? { modelId } : {})} />

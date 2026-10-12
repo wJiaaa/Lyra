@@ -436,8 +436,10 @@ export interface Settings {
 	 */
 	maxConcurrentSubAgents: number;
 	/**
-	 * Per-agent model and thinking overrides, by agent name. `compact` is the compaction model — see
-	 * `compactionModel` in `model-choice.ts`.
+	 * Per-agent model and thinking overrides, by agent name.
+	 *
+	 * 没有 `compact`：摘要请求从主请求分叉才吃得到缓存，换一个模型就从零读起（`runtime/compaction-fork.ts`），
+	 * 所以压缩总用会话自己的模型。旧配置里留着的 `compact` 不再有人读。
 	 */
 	subAgentProfiles?: Record<string, SubAgentProfile>;
 	/**

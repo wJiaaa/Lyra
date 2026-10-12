@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compactIfNeeded, compactionTriggerTokens, COMPACTION_BUFFER_TOKENS, COMPACTION_RATIO, summaryMessages } from "../src/runtime/compaction.ts";
+import { compactIfNeeded, compactionTriggerTokens, COMPACTION_BUFFER_TOKENS, COMPACTION_RATIO, summaryHeadroom, summaryMessages } from "../src/runtime/compaction.ts";
 import { PRUNE_THRESHOLD_CHARS, pruneText, pruneToolResults } from "../src/agent/prune.ts";
 import { measureTotal } from "../src/tokens.ts";
 import { estimateTokens } from "../src/tokens.ts";
@@ -403,7 +403,7 @@ test("compaction goes by what the provider measured, not by our guess at it", as
 	 * a real conversation whose *estimate* is low relative to what the provider charged, which is
 	 * what CJK and dense tool output do.
 	 */
-	const body = (n: number) => `第${n}轮的内容`.repeat(60);
+	const body = (n: number) => `第${n}轮的内容`.repeat(80);
 	const messages: Message[] = [
 		user(body(1)),
 		reply(body(2)),
@@ -436,12 +436,21 @@ test("compaction goes by what the provider measured, not by our guess at it", as
  * window is tight. So this runs first.
  */
 
-test("compaction keeps the 80% ratio instead of a 20k leftover buffer", () => {
-	assert.equal(compactionTriggerTokens(200_000), 160_000);
-	assert.equal(compactionTriggerTokens(32_000), 25_600);
-	assert.ok(200_000 - COMPACTION_BUFFER_TOKENS > compactionTriggerTokens(200_000), "buffer would wait longer on a large window");
+test("compaction keeps the 90% ratio instead of a 20k leftover buffer", () => {
+	assert.equal(compactionTriggerTokens(200_000), 180_000);
+	assert.ok(1_000_000 - COMPACTION_BUFFER_TOKENS > compactionTriggerTokens(1_000_000), "buffer would wait longer on a large window");
 	assert.ok(32_000 - COMPACTION_BUFFER_TOKENS < compactionTriggerTokens(32_000), "buffer would fire too early on a small window");
-	assert.equal(COMPACTION_RATIO, 0.8);
+	assert.equal(COMPACTION_RATIO, 0.9);
+});
+
+test("on a small window the line leaves room for the summary a fork request has to write", () => {
+	// 32k 的 90% 只剩 3.2k，放不下一份 8k 的摘要；线往前挪到正好放得下（摘要 8k + 指令与余量 1.6k）。
+	assert.equal(compactionTriggerTokens(32_000), 22_400);
+	for (const window of [16_000, 32_000, 64_000, 128_000, 200_000, 1_000_000]) {
+		assert.ok(window - compactionTriggerTokens(window) >= summaryHeadroom(window), `${window}: room for the summary above the line`);
+		assert.ok(compactionTriggerTokens(window) <= window * COMPACTION_RATIO, `${window}: never later than the ratio`);
+	}
+	assert.equal(compactionTriggerTokens(1_000_000), 900_000, "a large window keeps the ratio, not window minus a fixed reserve");
 });
 
 test("an oversized result keeps its head and its tail, and says what went", () => {
@@ -759,32 +768,4 @@ test("trimming a little off a large history is not a compaction", async () => {
 		result.length < withOne.length,
 		`by summarising, not by trimming one result (${withOne.length} → ${result.length})`,
 	);
-});
-
-test("compaction uses custom summarizer model when provided", async () => {
-	const messages = conversation(20, 900);
-	const customModel: ModelConfig = { ...MODEL, id: "p/custom-compact", modelId: "custom-compact" };
-	const customProvider: ProviderConfig = { ...PROVIDER, id: "p-custom", name: "Custom Provider" };
-
-	let calledWithModel: ModelConfig | undefined;
-	let calledWithProvider: ProviderConfig | undefined;
-
-	const spyStream: typeof streamAssistant = (provider, model) => {
-		calledWithModel = model;
-		calledWithProvider = provider;
-		return fakeStream("自定义模型摘要")();
-	};
-
-	const result = await compactIfNeeded({
-		messages,
-		model: MODEL,
-		provider: PROVIDER,
-		streamFn: spyStream,
-		summarizer: { provider: customProvider, model: customModel },
-	});
-
-	assert.ok(result, "compaction should succeed");
-	assert.equal(calledWithModel?.id, "p/custom-compact");
-	assert.equal(calledWithProvider?.id, "p-custom");
-	assert.match(result.summary, /自定义模型摘要/);
 });

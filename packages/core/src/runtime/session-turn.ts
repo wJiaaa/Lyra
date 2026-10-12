@@ -489,7 +489,8 @@ function unmetered(
 		// whole message. The generator shape is the adaptor; there is nothing to yield along the way.
 		// oxlint-disable-next-line require-yield
 		async function* once(): AsyncGenerator<StreamEvent, AssistantMessage> {
-			return call({ ...context }, { provider, model, thinking: options?.thinking, maxTokens: options?.maxTokens, signal: options?.signal ?? scope.signal });
+			// 缓存键和温度也照带：分叉的摘要请求要和主请求落在同一份缓存上（`compaction-fork.ts`）。
+			return call({ ...context }, { provider, model, thinking: options?.thinking, maxTokens: options?.maxTokens, temperature: options?.temperature, cacheKey: options?.cacheKey, signal: options?.signal ?? scope.signal });
 		}
 		return once();
 	};

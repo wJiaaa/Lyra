@@ -113,6 +113,17 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
   if (event.type === "agent_end" && event.reason === "done") {
     queueMicrotask(() => void get().flushQueue(sessionId));
   }
+  /*
+   * 一轮收尾后的自动压缩（`automatic.idle`）期间排的话，等的是它：外面没有轮，不会再来 `agent_end`。
+   * 压成了是 `compacted`，没压成是 `failed`——没压成也照发，下一轮开头会照原来的办法再压。被停下的
+   * （`cancelled`）不发，理由同上。
+   */
+  if (
+    (event.type === "compacted" && event.command?.automatic?.idle) ||
+    (event.type === "command_status" && event.command.automatic?.idle && event.command.status === "failed")
+  ) {
+    queueMicrotask(() => void get().flushQueue(sessionId));
+  }
 
   /*
    * 这一轮收尾了：输入框上方那一行据此收起。在这之前结束的子智能体，结果已经进了这一轮，那一行
@@ -518,9 +529,12 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
 			set({ hookRuns: [...get().hookRuns.filter((run) => run.id !== event.run.id), event.run] });
 			break;
 
-		case "command_status":
-			set({ ...(event.command.automatic ? {} : { running: event.command.status === "running" }), commandRuns: [...get().commandRuns.filter((run) => run.id !== event.command.id), event.command] });
+		case "command_status": {
+			// 一轮里的自动压缩跟着那一轮亮灭；一轮收尾后的那种（`automatic.idle`）外面没有轮，和手动压缩一样自己亮灭。
+			const own = !event.command.automatic || event.command.automatic.idle === true;
+			set({ ...(own ? { running: event.command.status === "running" } : {}), commandRuns: [...get().commandRuns.filter((run) => run.id !== event.command.id), event.command] });
 			break;
+		}
 
     case "compacted":
       /*
@@ -532,6 +546,8 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        */
       set({
         ...(event.command ? { commandRuns: [...get().commandRuns.filter(run => run.id !== event.commandId), event.command] } : {}),
+        // 自动压缩的结局只有这一条，没有收尾的 `command_status`：收尾后的那种在这里熄灭「进行中」。
+        ...(event.command?.automatic?.idle ? { running: false } : {}),
         compactions: [
           ...get().compactions,
           { at: get().messages.length, before: event.before, after: event.after },

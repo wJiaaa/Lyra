@@ -1,6 +1,6 @@
 import type { GoalState } from "../types/goal.ts";
-import type { AutoCompactionState } from "../types/compaction.ts";
-import type { ApprovalRisk, AssistantMessage, Message, StreamEvent, ToolResult, ToolResultMessage } from "../types.ts";
+import type { AutoCompactionState, CompactionVia } from "../types/compaction.ts";
+import type { ApprovalRisk, AssistantMessage, Message, RequestPrefix, StreamEvent, ToolResult, ToolResultMessage } from "../types.ts";
 import type { SubAgentSummary } from "../types/sub-agent.ts";
 import type { Failure } from "../ai/failure.ts";
 
@@ -292,8 +292,10 @@ export type AgentEvent =
 	 * `kept` counts the real messages that survived, newest-first, so the boundary can be resolved
 	 * against the log rather than against the loop's array — the two are not the same once a run
 	 * has compacted, and an index into one is meaningless in the other.
+	 *
+	 * `via` 和 `prefix` 只为事后验收：摘要请求有没有吃到缓存，要按它走的哪条路分开看（`Compaction.via`）。
 	 */
-	| { type: "compacted"; before: number; after: number; summary?: string; kept?: number; commandId?: string; command?: CommandRun }
+	| { type: "compacted"; before: number; after: number; summary?: string; kept?: number; commandId?: string; command?: CommandRun; via?: CompactionVia; prefix?: RequestPrefix }
 	/**
 	 * The connection dropped and the turn is being retried.
 	 *

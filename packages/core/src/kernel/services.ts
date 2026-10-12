@@ -1,4 +1,4 @@
-import type { CompactionObserver } from "../types/compaction.ts";
+import type { CompactionLineage, CompactionObserver } from "../types/compaction.ts";
 import type { streamAssistant } from "../ai/index.ts";
 import type { QueuedTask } from "../agent/events.ts";
 import type { Compaction } from "../types/compaction.ts";
@@ -183,8 +183,8 @@ export const COMPACTION = "compaction";
  * dropped five of them the moment a host bound a strategy — and the desktop binds one. What the
  * desktop lost was not cosmetic: `overhead` is the system prompt and the tool schemas, and a
  * budget computed without them lands over the line it was aiming for and then compacts on every
- * single turn; `artifacts` is what makes the `artifact://` address in a pruned placeholder real;
- * `summarizer` is the model chosen for `compact`. Three features were off on the only host that ships.
+ * single turn; `artifacts` is what makes the `artifact://` address in a pruned placeholder real.
+ * Both were off on the only host that ships.
  *
  * A field added here now reaches every implementation or fails to compile.
  */
@@ -218,7 +218,7 @@ export interface CompactionRequest {
 	 *
 	 * Someone who has just finished one piece of work and is about to start another knows something
 	 * the threshold cannot: that the last two hours are done with, and carrying them into the next
-	 * thing is what will make it drift. Waiting for 80% would summarise the new work along with the old.
+	 * thing is what will make it drift. Waiting for the automatic line would summarise the new work along with the old.
 	 */
 	force?: boolean;
 	/**
@@ -231,8 +231,11 @@ export interface CompactionRequest {
 	artifacts?: ArtifactSink;
 	/** `/compact <instructions>`, and the signal that cancels it. */
 	manual?: { instructions?: string; signal?: AbortSignal };
-	/** Selects the summarizer without changing the active model's threshold or tail budget. */
-	summarizer?: { provider: ProviderConfig; model: ModelConfig };
+	/**
+	 * 从哪一次请求分叉出摘要请求（`runtime/compaction-fork.ts`）。不给就只有独立的摘要请求——
+	 * 超长恢复不给，因为完整历史本来就放不下。
+	 */
+	lineage?: CompactionLineage;
 }
 
 export interface CompactionStrategy {

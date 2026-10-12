@@ -81,11 +81,6 @@ export function resolveModelRef(
 	return { ...fallback, via: "会话当前的模型" };
 }
 
-/** The model that writes compaction summaries: the `compact` row in settings, else the caller's. */
-export function compactionModel(settings: Settings, fallback: { provider: ProviderConfig; model: ModelConfig }): ModelResolution {
-	return resolveModelRef(settings, agentProfile(settings, "compact").modelId, fallback);
-}
-
 /** Explicit local choices outrank portable definitions, including in recursively spawned runs. */
 export function resolveSubAgentModel(
 	settings: Settings,

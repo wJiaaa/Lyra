@@ -60,18 +60,18 @@ test("oversized fixed overhead does not announce a compaction that changed nothi
 });
 
 test("summary requests use their own prompt budget and ignore retired provider measurements", async () => {
-	const summarizer = { ...model, id: "small", contextWindow: 6000, maxOutputTokens: 6000 };
+	const small = { ...model, id: "small", contextWindow: 6000, maxOutputTokens: 6000 };
 	const messages = Array.from({ length: 20 }, () => ({ ...reply("history ".repeat(180)), usage: { ...emptyUsage(), input: 30_000 } }));
 	let sent = false;
-	await compactIfNeeded({ messages, model, provider, streamFn: async function* (_provider, active, context, config) {
+	await compactIfNeeded({ messages, model: small, provider, streamFn: async function* (_provider, active, context, config) {
 		sent = true;
-		assert.equal(active.id, summarizer.id);
-		// The room the pre-send check reserved: a quarter of this small summariser's window.
+		assert.equal(active.id, small.id);
+		// The room the pre-send check reserved: a quarter of this small window.
 		assert.equal(config?.maxTokens, 1500);
 		assert.ok(estimateTokens(context.messages) + textTokens(context.systemPrompt) + config!.maxTokens! + 60 <= active.contextWindow);
 		yield { type: "start" as const, partial: reply("") };
 		return reply("Summary");
-	}, force: true, summarizer: { provider, model: summarizer } });
+	}, force: true });
 	assert.ok(sent);
 });
 

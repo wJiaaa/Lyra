@@ -196,3 +196,31 @@ test("pendingUserMessage matches its own session and does not clear on events fr
 	// Now pendingUserMessage is successfully cleared
 	assert.equal(state.pendingUserMessage, null);
 });
+
+test("a compaction that starts after the turn has ended lights the window's running state itself, and puts it out", async () => {
+	const meta = { id: "watching" } as SessionMeta;
+	const command: CommandRun = { id: "idle", name: "compact", input: "", at: 4, timestamp: 2, status: "running", detail: "", automatic: { phase: "summarizing", retries: 0, idle: true } };
+	const done: CommandRun = { ...command, status: "done", automatic: { ...command.automatic!, outcome: "summary" } };
+	for (const ending of [
+		{ type: "compacted", before: 24, after: 8, summary: "saved", kept: 6, commandId: command.id, command: done },
+		{ type: "command_status", command: { ...command, status: "failed" } },
+		{ type: "command_status", command: { ...command, status: "cancelled" } },
+	] as AgentEvent[]) {
+		let cached = cachedEvent({ meta, messages: [said("first"), reply], toolRuns: {} }, { type: "agent_end", reason: "done" });
+		const flushed: string[] = [];
+		const state = { activity: {}, turns: {}, sessions: [], activeSessionId: "watching", messages: [], toolRuns: {}, commandRuns: [], compactions: [], sessionCache: {}, running: false, flushQueue: async (id: string) => { flushed.push(id); } } as Record<string, unknown>;
+		const apply = (event: AgentEvent) => {
+			cached = cachedEvent(cached, event);
+			applyAgentEvent("watching", event, partial => Object.assign(state, typeof partial === "function" ? partial(state as never) : partial), () => state as never);
+		};
+		apply({ type: "command_status", command });
+		assert.equal(state.running, true, "the window shows it is busy, so a message sent now reads as queued");
+		assert.equal(cached.state?.running, true, "and so does the parked copy");
+		apply(ending);
+		assert.equal(state.running, false, `${ending.type} ends it`);
+		assert.equal(cached.state?.running, false);
+		await Promise.resolve();
+		const stopped = ending.type === "command_status" && ending.command.status === "cancelled";
+		assert.deepEqual(flushed, stopped ? [] : ["watching"], "what was queued meanwhile goes out, unless the person stopped it");
+	}
+});

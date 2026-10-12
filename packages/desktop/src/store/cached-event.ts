@@ -59,12 +59,15 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 		case "hook_run":
 			state = { ...state, hookRuns: [...(state.hookRuns ?? []).filter((run) => run.id !== event.run.id), event.run] };
 			break;
-		case "command_status":
-			state = { ...state, ...(event.command.automatic ? {} : { running: event.command.status === "running" }), commandRuns: [...(state.commandRuns ?? []).filter((run) => run.id !== event.command.id), event.command] };
+		case "command_status": {
+			// 收尾后的自动压缩自己亮灭「进行中」，见 `apply-event.ts` 里的同一个分支。
+			const own = !event.command.automatic || event.command.automatic.idle === true;
+			state = { ...state, ...(own ? { running: event.command.status === "running" } : {}), commandRuns: [...(state.commandRuns ?? []).filter((run) => run.id !== event.command.id), event.command] };
 			break;
+		}
 		case "compacted":
 			// When, as well as where: the running line under this conversation's screen mentions it for a moment.
-			state = { ...state, ...(event.command ? { commandRuns: [...(state.commandRuns ?? []).filter(run => run.id !== event.commandId), event.command] } : {}), compactions: [...state.compactions, { at: messages.length, before: event.before, after: event.after }], compactedAt: Date.now() };
+			state = { ...state, ...(event.command ? { commandRuns: [...(state.commandRuns ?? []).filter(run => run.id !== event.commandId), event.command] } : {}), ...(event.command?.automatic?.idle ? { running: false } : {}), compactions: [...state.compactions, { at: messages.length, before: event.before, after: event.after }], compactedAt: Date.now() };
 			break;
 		case "retry":
 			state = { ...state, running: state.running || event.resume === true, retrying: { attempt: event.attempt, until: Date.now() + event.delayMs, reason: event.reason, resume: event.resume === true }, hiccups: foldRetry(state.hiccups ?? [], event, Date.now(), messages.length) };

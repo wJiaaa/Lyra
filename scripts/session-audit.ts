@@ -103,6 +103,20 @@ interface Session {
 	fileEdits: Map<string, number>;
 	/** 结束了的压缩，从开始到写下结局的墙钟时间。 */
 	compactions: Compaction[];
+	/** 每次写下边界的压缩，和它之前那些摘要请求的计费（`usage` 记录，`source: "compaction"`）。 */
+	compactionRequests: CompactionRequest[];
+}
+
+interface CompactionRequest {
+	/** `compacted` 事件上的 `via`；改动前的日志没有，记 `unrecorded`。 */
+	via: string;
+	/** 分叉请求发出前核对过、和上一次请求对不上（被拦下改走独立请求）。 */
+	prefixChanged: boolean;
+	input: number;
+	cacheRead: number;
+	cacheWrite: number;
+	output: number;
+	cost: number;
 }
 
 interface Compaction {
@@ -141,6 +155,9 @@ function loadSessions(): Session[] {
 		};
 		let round = 0;
 		const compactions = new Map<string, Compaction>();
+		const compactionRequests: CompactionRequest[] = [];
+		// 摘要请求先计费、后写边界；分叉没成再走独立请求时，两次的账都记在这一次压缩名下。
+		let billed = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0, cost: 0 };
 		for (const line of lines) {
 			let entry: {
 				type?: string;
@@ -161,6 +178,24 @@ function loadSessions(): Session[] {
 				continue;
 			}
 			if (entry.type === "event" && entry.event?.type === "agent_end" && entry.event.reason) runtimeStops.push(entry.event.reason);
+			if (entry.type === "usage" && (entry as { source?: string }).source === "compaction") {
+				const u = ((entry as { usage?: Record<string, unknown> }).usage ?? {}) as Record<string, number | { total?: number }>;
+				billed = {
+					input: billed.input + Number(u.input ?? 0),
+					cacheRead: billed.cacheRead + Number(u.cacheRead ?? 0),
+					cacheWrite: billed.cacheWrite + Number(u.cacheWrite ?? 0),
+					output: billed.output + Number(u.output ?? 0),
+					cost: billed.cost + Number((u.cost as { total?: number } | undefined)?.total ?? 0),
+				};
+			}
+			const compacted = entry.type === "event"
+				? entry.event?.type === "compacted" ? entry.event : entry.event?.type === "subagent_event" && entry.event.event?.type === "compacted" ? entry.event.event : undefined
+				: undefined;
+			if (compacted && (compacted as { kept?: number }).kept !== undefined) {
+				const { via, prefix } = compacted as { via?: string; prefix?: { change?: unknown } };
+				compactionRequests.push({ via: via ?? "unrecorded", prefixChanged: prefix?.change !== undefined, ...billed });
+				billed = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0, cost: 0 };
+			}
 			// 记录写下的时刻减去命令开始的时刻；同一条命令最后一次的结局算数。
 			const command = entry.type === "event" && (entry.event?.type === "command_status" || entry.event?.type === "compacted") ? entry.event.command : undefined;
 			if (command?.name === "compact" && command.status !== "running" && entry.ts)
@@ -232,6 +267,7 @@ function loadSessions(): Session[] {
 				finalTodos,
 				fileEdits,
 				compactions: [...compactions.values()],
+				compactionRequests,
 			});
 	}
 	db.close();
@@ -619,6 +655,15 @@ const worstUnknown = cacheDiagnoses
 const tools = [...byTool.entries()].sort((a, b) => b[1].carried - a[1].carried);
 
 const compactionRuns = sessions.flatMap((s) => s.compactions);
+const compactionRequests = sessions.flatMap((s) => s.compactionRequests);
+const VIA_ORDER = ["fork", "independent", "fallback", "dropped", "unrecorded"];
+const byVia = VIA_ORDER.map((via) => {
+	const runs = compactionRequests.filter((run) => run.via === via);
+	const sum = (key: "input" | "cacheRead" | "cacheWrite" | "output" | "cost") => runs.reduce((total, run) => total + run[key], 0);
+	const inputSide = sum("input") + sum("cacheRead") + sum("cacheWrite");
+	return { via, count: runs.length, inputSide, cacheRead: sum("cacheRead"), cacheReadShare: share(sum("cacheRead"), inputSide), output: sum("output"), cost: +sum("cost").toFixed(4) };
+}).filter((row) => row.count > 0);
+const forkMismatches = compactionRequests.filter((run) => run.prefixChanged).length;
 const compactionStats = (automatic: boolean) => {
 	const runs = compactionRuns.filter((run) => run.automatic === automatic && run.status === "done");
 	const ms = runs.map((run) => run.ms).sort((a, b) => a - b);
@@ -700,6 +745,7 @@ if (asJson) {
 					classification: "Uncalibrated keyword proxy, not a task-success metric",
 				},
 				compactions: { automatic: blockingCompactions, manual: manualCompactions },
+				compactionRequests: { byVia, forkMismatches },
 				cacheMisses: {
 					streams: cacheStreamCount,
 					requests: cacheSummary.requests,
@@ -868,3 +914,16 @@ for (const [label, v] of [["一轮里自动触发（这一轮停下来等它）"
 	console.log(`  ${label}：完成 ${v.count} 次，p50 ${seconds(v.p50Ms)}，p90 ${seconds(v.p90Ms)}，最长 ${seconds(v.maxMs)}，合计 ${seconds(v.totalMs)}；没完成 ${v.unfinished} 次`);
 }
 console.log("  ⚠ 只有一轮里自动触发的那种在挡路。p90 只有几秒、次数又少，提前在后台做省不下多少等待。");
+
+console.log("\n── 12. 压缩请求本身吃没吃到缓存（分叉摘要验收看这里） ──");
+if (byVia.length === 0) console.log("  没有写下过边界的压缩。");
+else {
+	console.log("  路径          次数   输入侧 token   cacheRead 占比   输出 token      花销");
+	const VIA_LABELS: Record<string, string> = { fork: "分叉", independent: "独立请求", fallback: "本地兜底", dropped: "按条丢弃", unrecorded: "未记录路径" };
+	for (const row of byVia)
+		console.log(`  ${VIA_LABELS[row.via].padEnd(10)} ${pad(row.count, 6)} ${pad(row.inputSide.toLocaleString(), 14)} ${pad(row.cacheReadShare, 15)} ${pad(row.output.toLocaleString(), 10)} ${pad(`$${row.cost.toFixed(4)}`, 10)}`);
+}
+console.log(`  分叉发出前被前缀核对拦下：${forkMismatches} 次`);
+console.log("  ⚠ 分叉那一行的 cacheRead 占比应接近 100%（只有新接上的几条和指令没命中）；独立请求接近 0。");
+console.log("    被拦下的每一次都说明本地拼出的请求和上一次对不上，要查——窗口太紧、thinking 预算被压缩时也会这样。");
+console.log("    「未记录路径」是改动前的日志，只能看总的 cacheRead 占比。");

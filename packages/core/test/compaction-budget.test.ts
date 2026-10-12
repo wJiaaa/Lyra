@@ -75,18 +75,6 @@ test("more messages than a per-message floor can fit drop the oldest middle, and
 	assert.ok(sent.some((message) => text(message).startsWith(text(history[older - 1]).slice(0, 12))), "the newest summarised step is kept");
 });
 
-test("the summary request is checked against the summariser's window before it is sent", async () => {
-	const m = model(10_000);
-	const small = model(2_000, "fake/small");
-	const history: Message[] = [user("开始")];
-	for (let i = 0; i < 30; i++) history.push(say(`步骤 ${i} ${"x".repeat(1500)}`), user(`继续 ${"y".repeat(1500)}`));
-	const { requests, stream } = recorder();
-	await compactIfNeeded({ messages: history, model: m, provider: provider(m), streamFn: stream, summarizer: { model: small, provider: provider(small) } });
-	assert.equal(requests.length, 1, "precondition: a summary was asked for");
-	const total = requestTokens(requests[0]);
-	assert.ok(total + small.contextWindow / 4 <= small.contextWindow, `the request leaves the summary room to be written: ${total}`);
-});
-
 test("a request that cannot fit is not sent", async () => {
 	const m = model(10_000);
 	const history: Message[] = [user("开始")];

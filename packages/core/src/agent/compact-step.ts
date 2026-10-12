@@ -1,13 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { Compaction } from "../types/compaction.ts";
-import type { CompactionObserver } from "../types/compaction.ts";
+import type { Compaction, CompactionLineage, CompactionObserver } from "../types/compaction.ts";
 import type { AgentEventSink, CommandRun } from "./events.ts";
 import type { Message, ModelConfig, ProviderConfig } from "../types.ts";
 import { completedCompaction, interruptedCompaction } from "./compaction-lifecycle.ts";
 import type { AgentSessionContext } from "./run-config.ts";
 
 /**
- * `force`：不看 80% 线，现在就压——模型已经以「上下文超长」拒收了这次请求（`loop.ts` 的超长恢复）。
+ * `force`：不看触发线，现在就压——模型已经以「上下文超长」拒收了这次请求（`loop.ts` 的超长恢复）。
  * 实现方原样交给 `compactWith` 的同名字段。
  *
  * `provider`：`model` 所属的那个供应商。一轮中途换了模型时它跟着换，实现方不能用开轮时捕获的那个，
@@ -16,6 +15,10 @@ import type { AgentSessionContext } from "./run-config.ts";
 export interface CompactOptions {
 	force?: boolean;
 	provider?: ProviderConfig;
+	/** 摘要请求从哪一次请求分叉，见 `CompactionRequest.lineage`。 */
+	lineage?: CompactionLineage;
+	/** 一轮收尾之后才压的，见 `AutoCompactionState.idle`。 */
+	idle?: boolean;
 }
 export type CompactHistory = (messages: Message[], model: ModelConfig, observer?: CompactionObserver, options?: CompactOptions) => Promise<Compaction | null>;
 
@@ -32,7 +35,7 @@ export async function compactStep(session: Pick<AgentSessionContext, "compact" |
 		result = await session.compact(messages, model, {
 			signal,
 			progress: async (progress) => {
-				command ??= { id: randomUUID(), name: "compact", timestamp: Date.now(), at: messages.length, input: "", status: "running", detail: "", automatic: { phase: "summarizing", retries: 0 } };
+				command ??= { id: randomUUID(), name: "compact", timestamp: Date.now(), at: messages.length, input: "", status: "running", detail: "", automatic: { phase: "summarizing", retries: 0, ...(options?.idle ? { idle: true as const } : {}) } };
 				const automatic = { ...command.automatic!, ...progress };
 				if (progress.phase === "retrying") automatic.retries++;
 				await report({ ...command, automatic, detail: progress.phase === "summarizing" ? "正在自动压缩上下文…" : progress.phase === "retrying" ? `自动压缩遇到故障，等待第 ${automatic.retries} 次重试…` : "摘要生成失败，正在尝试本地兜底整理…" });
@@ -52,6 +55,7 @@ export async function compactStep(session: Pick<AgentSessionContext, "compact" |
 	}
 	await emit({
 		type: "compacted", before: messages.length, after: result.messages.length, summary: result.summary, kept: result.kept,
+		...(result.via ? { via: result.via } : {}), ...(result.prefix ? { prefix: result.prefix } : {}),
 		...(command ? { commandId: command.id, command: completedCompaction(command, messages.length, result.messages.length) } : {}),
 	});
 	/*

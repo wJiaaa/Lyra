@@ -5,9 +5,8 @@
  * strategy. The desktop binds one at boot, so on the only host that ships, automatic compaction
  * ran with no overhead accounting (the threshold ignored the system prompt and every tool schema,
  * which is the case the code's own comment says lands over the line and then compacts on every
- * turn), no artifact sink (so a pruned placeholder advertised an `artifact://` address that had
- * nothing behind it) and no summarizer (so the `compact` model was ignored). All three
- * type-checked. None of it was visible.
+ * turn) and no artifact sink (so a pruned placeholder advertised an `artifact://` address that had
+ * nothing behind it). Both type-checked. Neither was visible.
  *
  * These tests fail against that shape and are cheap to keep, which is the point: the request is
  * one object now, and a field added to it either reaches the strategy or fails to compile.
@@ -34,8 +33,6 @@ const MODEL: ModelConfig = {
 	supportsTools: true,
 };
 
-const SUMMARY_MODEL: ModelConfig = { ...MODEL, id: "fake/cheap", modelId: "cheap", name: "Cheap" };
-
 const PROVIDER: ProviderConfig = {
 	id: "fake",
 	name: "Fake",
@@ -43,7 +40,7 @@ const PROVIDER: ProviderConfig = {
 	api: "openai-responses",
 	apiKey: "x",
 	enabled: true,
-	models: [MODEL, SUMMARY_MODEL],
+	models: [MODEL],
 };
 
 const reply = (text: string): AssistantMessage => ({
@@ -92,7 +89,6 @@ test("a bound strategy receives the whole request, not the first four arguments"
 			force: true,
 			artifacts,
 			manual: { instructions: "focus on the migration", signal },
-			summarizer: { provider: PROVIDER, model: SUMMARY_MODEL },
 		});
 	} finally {
 		useCompaction(null);
@@ -105,7 +101,6 @@ test("a bound strategy receives the whole request, not the first four arguments"
 	assert.equal(request.artifacts, artifacts, "the artifact sink reached the strategy");
 	assert.equal(request.manual?.instructions, "focus on the migration");
 	assert.equal(request.manual?.signal, signal);
-	assert.equal(request.summarizer?.model.modelId, "cheap", "the @compact summarizer reached the strategy");
 	assert.equal(request.streamFn, stream as never, "the model seam reached the strategy");
 });
 

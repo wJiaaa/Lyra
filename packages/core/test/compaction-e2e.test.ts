@@ -244,7 +244,7 @@ test("reopening a compacted session does not hand the model its whole history ba
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}
 });
-test("session.compact() uses @compact model when configured", async () => {
+test("a compact row left in old settings does not pull compaction off the session model", async () => {
 	const root = await mkdtemp(join(tmpdir(), "ly-compact-role-"));
 	// Keep automatic pressure out of a test for explicit model routing, including prompt/schema overhead.
 	const manualModel = { ...MODEL, contextWindow: 200_000 };
@@ -285,7 +285,8 @@ test("session.compact() uses @compact model when configured", async () => {
 
 		const res = await session.compact();
 		assert.ok(res.ok, `session compact should succeed: ${JSON.stringify(res)}`);
-		assert.equal(calledConfig?.model, "compact-model", "compact() should ask the @compact model");
+		// 换一个模型就读不到主请求的缓存，所以这一行不再有人读（见 `Settings.subAgentProfiles`）。
+		assert.equal(calledConfig?.model, "model", "compact() stays on the session's model");
 		assert.equal(calledConfig?.provider, "fake");
 	} finally {
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
@@ -333,9 +334,12 @@ async function usageRecords(root: string): Promise<Array<{ source: string; model
 }
 
 /** A summary request carries no tools; a conversation turn always does. */
-function billedSummary(): (context: { tools: unknown[] }) => Promise<AssistantMessage> {
+function billedSummary(): (context: { messages: Message[] }) => Promise<AssistantMessage> {
 	return async (context) => {
-		if (context.tools.length > 0) return reply("回复".repeat(400));
+		// 认指令而不是认「有没有工具」：分叉的摘要请求照带主请求的工具。
+		const last = context.messages.at(-1);
+		const asksForSummary = last?.role === "user" && last.content.some((part) => part.type === "text" && part.text.includes("## Goal & Original User Intent"));
+		if (!asksForSummary) return reply("回复".repeat(400));
 		return { ...reply("这是摘要"), usage: { ...emptyUsage(), input: 1_234, output: 56, total: 1_290 } };
 	};
 }

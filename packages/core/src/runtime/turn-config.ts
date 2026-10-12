@@ -32,7 +32,6 @@ import { textTokens, toolTokens } from "../tokens.ts";
 import { addressLookups, runSubAgent } from "./sub-agent.ts";
 import type { SubAgentRegistry } from "./sub-agents.ts";
 import type { DelegationWaits } from "./delegation-waits.ts";
-import { compactionModel } from "../config/model-choice.ts";
 import type { TurnContext } from "./turn.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
@@ -179,7 +178,6 @@ export function buildTurnConfig(
 			compact: (messages, model, observer, options) => {
 				// 一轮中途换过模型的，供应商跟着 loop 此刻的走，见 `CompactOptions.provider`。
 				const provider = options?.provider ?? deps.provider;
-				const summarizer = compactionModel(deps.settings, { provider, model });
 				return compactWith({
 					messages,
 					model,
@@ -188,9 +186,9 @@ export function buildTurnConfig(
 					overhead: textTokens(systemPrompt) + toolTokens(turn.tools),
 					// 自动压缩剪掉的原文也存下来——它剪掉的量比手动压缩多得多。
 					artifacts: deps.artifacts,
-					summarizer,
 					observer,
 					force: options?.force,
+					lineage: options?.lineage,
 				});
 			},
 			pruner: sessionPruner(deps.state),

@@ -68,11 +68,11 @@ async function section(name: "常规" | "模型设置" | "智能体"): Promise<v
 	await click(`[...document.querySelectorAll("nav button")].find((button) => button.innerText.trim() === ${JSON.stringify(name)})`);
 }
 const titleRow = `[...document.querySelectorAll('div')].find((element) => element.innerText === "智能标题总结")?.closest('[class~="@container"]')`;
-// 压缩模型挪到了「智能体」页的「会话」那一段，控件标签跟着 `agents.compactModel` 变成了
-// 「compact 模型」——`@compact · 上下文压缩 用哪个模型` 是它在「模型设置」里那会儿的名字。
-const compactButton = `document.querySelector('[aria-label="compact 模型"]')`;
+// 「智能体」页「会话」那一段里按智能体名存的一行。原来验的是 compact 那行，压缩模型删掉以后换成
+// 同一种写法的 goal：都走 `withAgentProfile`，写进 `subAgentProfiles[name]`。
+const goalButton = `document.querySelector('[aria-label="持续目标裁判模型"]')`;
 
-async function verifyRow(kind: "title" | "compact"): Promise<void> {
+async function verifyRow(kind: "title" | "goal"): Promise<void> {
 	for (const theme of ["light", "dark"]) {
 		await app.evaluate(`(async () => {
 			const settings = await window.plume.settings.get();
@@ -82,8 +82,8 @@ async function verifyRow(kind: "title" | "compact"): Promise<void> {
 		for (const width of [1440, 760]) {
 			await resize(width);
 			const metrics = await app.evaluate<{ rowWidth: number; overflow: number; overlaps: boolean; controlWidth: number; visible: boolean; text: string }>(`(() => {
-				// compact 那一行搬到「智能体」页之后，外面不再套 @container 那层；它自己带着标识，直接认。
-				const row = ${kind === "title" ? titleRow : `document.querySelector('[data-agent-profile="compact"]')`};
+				// 「智能体」页的这一行外面不套 @container 那层；它自己带着标识，直接认。
+				const row = ${kind === "title" ? titleRow : `document.querySelector('[data-agent-profile="goal"]')`};
 				if (!row) throw new Error("Settings row missing");
 				row.scrollIntoView({ block: "center", behavior: "instant" });
 				const text = row.firstElementChild.firstElementChild;
@@ -123,23 +123,23 @@ test("title summary is enabled initially and its switch persists without row ove
 	await verifyRow("title");
 });
 
-test("compact model persists and clearing it returns to the session model", async () => {
+test("a per-agent model persists and clearing it returns to the session model", async () => {
 	await section("智能体");
-	await waitFor(`Boolean(${compactButton})`);
+	await waitFor(`Boolean(${goalButton})`);
 	// 没设过的时候，控件显示的是继承来的那个模型，底下一行标着来源——「同会话模型」是它单行
 	// 那会儿的写法。
-	assert.match(await app.evaluate<string>(`(${compactButton}).innerText.trim()`), /随主会话/);
-	await click(compactButton);
+	assert.match(await app.evaluate<string>(`(${goalButton}).innerText.trim()`), /随主会话/);
+	await click(goalButton);
 	await waitFor('Boolean(document.querySelector("[role=menuitem]"))');
 	await click('[...document.querySelectorAll("[role=menuitem]")].find((item) => item.innerText.includes("Summary model"))');
-	await waitFor(`(${compactButton}).innerText.includes("Summary model")`);
+	await waitFor(`(${goalButton}).innerText.includes("Summary model")`);
 	// 这一页走 `withAgentProfile`：写进 `subAgentProfiles[name]`。见 `core/src/config/model-choice.ts`。
 	const saved = async () => JSON.parse(await readFile(join(app.home, "settings.json"), "utf8")) as { subAgentProfiles?: Record<string, { modelId?: string }> };
-	assert.equal((await saved()).subAgentProfiles?.compact?.modelId, "fixture/summary");
-	await click(compactButton);
+	assert.equal((await saved()).subAgentProfiles?.goal?.modelId, "fixture/summary");
+	await click(goalButton);
 	await waitFor('Boolean(document.querySelector("[role=menuitem]"))');
 	await click('[...document.querySelectorAll("[role=menuitem]")].find((item) => item.innerText.includes("跟随主会话"))');
-	await waitFor(`(${compactButton}).innerText.includes("随主会话")`);
-	assert.equal((await saved()).subAgentProfiles?.compact, undefined);
-	await verifyRow("compact");
+	await waitFor(`(${goalButton}).innerText.includes("随主会话")`);
+	assert.equal((await saved()).subAgentProfiles?.goal, undefined);
+	await verifyRow("goal");
 });
