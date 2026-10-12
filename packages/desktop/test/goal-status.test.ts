@@ -8,7 +8,7 @@ import type { GoalState } from "@plume/core";
 import { MAX_ROUNDS } from "../../core/src/runtime/session-goal.ts";
 import { GOAL_MAX_ROUNDS, goalCountdown, goalStatusText, goalTone } from "../src/lib/goal-status.ts";
 import { noticeText } from "../src/lib/notice-text.ts";
-import { translate } from "../src/i18n/translate.ts";
+import { setActiveLocale, translate } from "../src/i18n/translate.ts";
 
 const goal = (patch: Partial<GoalState>): GoalState => ({ text: "CI 变绿", startedAt: 1, status: "working", rounds: 0, noProgress: 0, judgeFailures: 0, waits: 0, ...patch });
 
@@ -43,4 +43,15 @@ test("goal-paused 通知把原因代号换成人话", () => {
 	const text = noticeText({ type: "notice", level: "warn", message: "Goal paused (budget)", code: "goal-paused", params: { why: "budget", rounds: 50, goal: "CI 变绿" } });
 	assert.ok(text.includes(translate("goal.pause.budget")) && text.includes("50") && text.includes("CI 变绿"), text);
 	assert.ok(!text.includes("budget"), text);
+});
+
+test("goal-paused 通知的英文按判定次数选单复数：判定一次就停，不说 1 times", () => {
+	setActiveLocale("en");
+	try {
+		const paused = (rounds: number) => noticeText({ type: "notice", level: "warn", message: "Goal paused (stopped)", code: "goal-paused", params: { why: "stopped", rounds, goal: "CI" } });
+		assert.match(paused(1), /Checked 1 time\./);
+		assert.match(paused(3), /Checked 3 times\./);
+	} finally {
+		setActiveLocale("zh-CN");
+	}
 });

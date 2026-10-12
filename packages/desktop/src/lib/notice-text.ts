@@ -12,8 +12,8 @@ import { translate } from "../i18n/translate.ts";
 
 export function noticeText(event: Extract<AgentEvent, { type: "notice" }>): string {
 	if (!event.code) return event.message;
-	// 停下的原因 core 给的是代号（`budget`），句子里要的是人话。
-	const params = event.code === "goal-paused" ? { ...event.params, why: goalPauseText(event.params?.why) } : event.params;
+	// 停下的原因 core 给的是代号（`budget`），句子里要的是人话；单复数只按 `n` 选，判定次数照它的名字传进去。
+	const params = event.code === "goal-paused" ? { ...event.params, why: goalPauseText(event.params?.why), n: event.params?.rounds ?? "" } : event.params;
 	return translate(`notice.${event.code}` satisfies MessageKey, params);
 }
 

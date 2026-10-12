@@ -63,7 +63,7 @@ export const zhCN = {
 	"notice.continue-limit": "已达到自动续跑次数上限，已停下。执行记录已保留，需要时可继续。",
 	"notice.goal-met": "目标已达成：{goal}",
 	"notice.goal-impossible": "目标「{goal}」从这里走不到：{reason}",
-	"notice.goal-paused": "目标停下来了，{why}。判定过 {rounds} 次。目标：{goal}",
+	"notice.goal-paused": "目标停下来了，{why}。判定过 {n} 次。目标：{goal}",
 	"compactNote.running": "正在压缩会话…",
 	"compactNote.done": "已压缩上下文：{before} 条消息整理为 {after} 条，完整对话仍可查看。",
 	"compactNote.busy": "对话正在进行中，等它结束再压缩。",

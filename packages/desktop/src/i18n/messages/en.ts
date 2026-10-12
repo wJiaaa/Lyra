@@ -65,7 +65,7 @@ export const en = {
 	"notice.continue-limit": "Stopped: the automatic continuations are used up. Everything so far is kept; you can continue from here.",
 	"notice.goal-met": "Goal reached: {goal}",
 	"notice.goal-impossible": "The goal \"{goal}\" can't be reached from here: {reason}",
-	"notice.goal-paused": "The goal stopped: {why}. Checked {rounds} times. Goal: {goal}",
+	"notice.goal-paused": { one: "The goal stopped: {why}. Checked {n} time. Goal: {goal}", other: "The goal stopped: {why}. Checked {n} times. Goal: {goal}" },
 	"compactNote.running": "Compacting the conversation…",
 	"compactNote.done": "Compacted. Messages: {before} → {after}. The full conversation is still there to read.",
 	"compactNote.busy": "The conversation is still running. Compact it once it finishes.",
