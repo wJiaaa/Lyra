@@ -31,8 +31,11 @@ test("built-in profiles are configurable before a session exists and while a col
 				assert.ok(view.host.querySelector(`[data-agent-profile="${name}"]`), `${sessionId}: ${name}`);
 				assert.ok(view.host.querySelector(`[aria-label="${name} 模型"]`));
 			}
-			assert.ok(view.host.querySelector('[aria-label="compact 模型"]'));
-			assert.equal(view.host.querySelector('[aria-label="compact 思考等级"]'), null);
+			// 会话级的那几行不靠 capabilities 也在：现在是持续目标的裁判。压缩模型那一行已经删了——压缩从
+			// 主请求分叉才吃得到缓存，换模型就读不到（c9fcf77e），不该再出现。
+			assert.ok(view.host.querySelector('[data-agent-profile="goal"] [aria-label="持续目标裁判模型"]'), `${sessionId}: goal`);
+			assert.equal(view.host.querySelector('[data-agent-profile="goal"] [aria-label="goal 思考等级"]'), null);
+			assert.equal(view.host.querySelector('[data-agent-profile="compact"]'), null);
 		} finally { await view.unmount(); }
 	}
 });
