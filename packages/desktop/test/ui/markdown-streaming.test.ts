@@ -11,7 +11,6 @@ import { act, createElement as h } from "react";
 import type { AssistantMessage } from "@plume/core";
 import { Markdown } from "../../src/features/conversation/Markdown.tsx";
 import { MessageRow } from "../../src/features/conversation/rows.tsx";
-import { ThinkingBlock } from "../../src/features/conversation/ThinkingBlock.tsx";
 import { I18nProvider } from "../../src/i18n/index.ts";
 import { mount } from "../helpers/mount.ts";
 
@@ -142,20 +141,6 @@ test("输出中的代码块，新来的字也淡入；写完之后是原样的�
 		await frames(1500);
 		assert.equal(view.all(".ly-fade-char").length, 0, "淡完之后是纯文本");
 		assert.equal(view.find(".ly-code-block pre").textContent, code.slice(code.indexOf("const a"), code.lastIndexOf("\n```")));
-	} finally {
-		await view.unmount();
-	}
-});
-
-test("思考行写出来的字淡入，淡完并回纯文本", async () => {
-	const view = await mount(h(I18nProvider, { locale: "zh-CN", children: h(ThinkingBlock, { text: "先看看", redacted: false, live: true }) }));
-	try {
-		await view.rerender(h(I18nProvider, { locale: "zh-CN", children: h(ThinkingBlock, { text: "先看看这个文件里写了什么", redacted: false, live: true }) }));
-		await frames(80);
-		assert.ok(view.all("[data-ly-thinking] .ly-fade-char").length > 0, "新写的字应该是淡入的");
-		await frames(1500);
-		assert.equal(view.all("[data-ly-thinking] .ly-fade-char").length, 0, "淡完之后并回纯文本");
-		assert.ok(view.text().includes("先看看这个文件里写了什么"));
 	} finally {
 		await view.unmount();
 	}

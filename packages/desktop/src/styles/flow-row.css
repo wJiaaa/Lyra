@@ -71,9 +71,8 @@
  * 它一度是 `flex: 1 1 auto`，于是尾部那个「+12 -0」被顶到行的最右端，孤零零地飘在一片空白之后
  * ——它是在补充这一行说的事，就该紧跟在那句话后面。行尾留给箭头，那个才是属于整行的控件。
  *
- * 装不下的时候怎么收尾，不在这里说了：停下来的那一句交给 `ScrollText`（见 `FlowRow`），虚化
- * 加悬停自读，和侧边栏的标题同一种东西。下面这条 `text-overflow` 只剩 `data-follow-end` 那一
- * 支在用——正在写的那一句不换成滚动的壳，它的字尾另有去处。
+ * 装不下的时候怎么收尾，不在这里说了：交给 `ScrollText`（见 `FlowRow`），虚化加悬停自读，和侧边栏
+ * 的标题同一种东西。
  */
 .ly-flow-summary {
   min-width: 0;
@@ -81,55 +80,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* 正在写的那一句要占满，字尾才有得可顶——见下面的 `data-follow-end`。 */
-.ly-flow-summary[data-follow-end] {
-  flex: 1 1 auto;
-}
-
-/*
- * 正在写的那一句，字尾顶在右边。
- *
- * 左对齐的话，超出行宽之后看到的永远是开头——而开头早读完了。要看的是刚落下的那几个字。
- * 内容取 `max-content` 且至少和行一样宽，靠 flex-end 推到右边，行把左边裁掉。
- */
-.ly-flow-summary[data-follow-end] {
-  display: flex;
-  justify-content: flex-end;
-  text-overflow: clip;
-}
-
-.ly-flow-summary[data-follow-end] > * {
-  flex: 0 0 auto;
-  width: max-content;
-  min-width: 100%;
-  text-align: start;
-}
-
-/*
- * 两头化开，不要一刀切。
- *
- * 这一行的字在往左走：新的字从右边冒出来，旧的字从左边退出去。两边都是硬边界时，右边是字凭空
- * 出现，左边是字被从中间剁断——一个正在流动的东西，两端却像是被裁纸刀切的，那种生硬正是它看起来
- * 不如别人家顺的原因。
- *
- * 遮罩本身借 `.ly-fade-edge`（见 marquee.css）——那边已经把「一条遮罩、两个长度」这件事解决过一次，
- * 包括把两个长度注册成可插值的自定义属性，所以化开和收回是渐变的而不是跳的。这里只说自己两侧各有
- * 多深：左边宽一点（20px），那是要离开的字，糊掉不影响读；右边窄一点（12px），那是刚落下的字，
- * 化太多就该看的看不清了。
- *
- * `data-clipped` 是量出来才加的，不是常驻：短句子根本不溢出，它从容器左边开始写，这时候加一层左
- * 渐隐等于平白把开头几个字抹淡。谁溢出谁才化，由 `ThinkingBlock` 那个帧循环顺手量一下。
- */
-.ly-flow-summary[data-follow-end] {
-  --ly-fade-left: 0;
-  --ly-fade-right: 0;
-}
-
-.ly-flow-summary[data-follow-end][data-clipped] {
-  --ly-fade-left: 20px;
-  --ly-fade-right: 12px;
 }
 
 /* 尾部附注紧跟摘要，且和这一行的字垂直居中。 */

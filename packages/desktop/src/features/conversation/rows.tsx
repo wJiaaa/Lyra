@@ -19,7 +19,7 @@ import { DeliveryRow } from "./DeliveryRow.tsx";
 import { PeerLetterRow } from "./PeerLetterRow.tsx";
 import { conversationTime } from "./question-navigation.ts";
 import { UserMessage } from "./UserMessage.tsx";
-import { useScopedRunning, useScopedSessionId } from "../../app/session-scope.tsx";
+import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { isNudge, type TurnStats } from "./grouping.ts";
 import { LiveToolCard, segments, ToolRun as ToolRunGroup } from "./runs.tsx";
@@ -57,7 +57,6 @@ export const MessageRow = memo(function MessageRow({
   upTo,
   from,
   lead,
-  newest,
   continued,
   turnStats,
   viewKey,
@@ -88,8 +87,6 @@ export const MessageRow = memo(function MessageRow({
    * to the second one. Without this they were drawn under both, so a turn came back stamped twice.
    */
   lead?: boolean;
-  /** The newest reply in the transcript: the only one whose reasoning can still be arriving. */
-  newest?: boolean;
   /** The runtime told it to keep going, so this is a pause rather than a finish. */
   continued?: boolean;
   /** Accumulated statistics for the turn this message concludes. */
@@ -133,7 +130,7 @@ export const MessageRow = memo(function MessageRow({
   if (message.role === "toolResult") return null;
 
   return (
-    <AssistantRow message={message} index={index} upTo={upTo} from={from} lead={lead} newest={newest} continued={continued} turnStats={turnStats} viewKey={viewKey} />
+    <AssistantRow message={message} index={index} upTo={upTo} from={from} lead={lead} continued={continued} turnStats={turnStats} viewKey={viewKey} />
   );
 });
 
@@ -159,7 +156,6 @@ function AssistantRow({
   upTo,
   from = 0,
   lead,
-  newest,
   continued,
   turnStats,
   viewKey,
@@ -169,13 +165,10 @@ function AssistantRow({
   upTo: number;
   from?: number;
   lead?: boolean;
-  newest?: boolean;
   continued?: boolean;
   turnStats?: TurnStats;
   viewKey?: string;
 }) {
-  // This transcript's turn: the focused screen's set reasoning cut short here typing itself out again.
-  const running = useScopedRunning();
   const sessionId = useScopedSessionId();
   /*
    * 这条回复是不是看着它写完的：挂上的时候还在写。只有这种，底下那行操作在写完时展开出来——
@@ -208,24 +201,16 @@ function AssistantRow({
           // `segments` numbers what it was handed; `from` puts that back on the message's own scale.
           const at = from + index;
           if (block.type === "thinking") {
-            /*
-             * Typing itself out while it is the reasoning still being written.
-             *
-             * Not `stopReason === "pending"`, which is the reply's state and answers a different
-             * question. A provider that batches hands over the reasoning and the call after it in
-             * one breath, so the reply has already settled by the first render — and that is the
-             * case the typing exists for, not the one it should skip. What matters is that this is
-             * the newest reasoning in a transcript that is still moving; `grouping.ts` says which.
-             */
             return (
               <ThinkingBlock
                 key={at}
                 stateKey={viewKey ? `${viewKey}:thinking:${at}` : undefined}
                 text={block.thinking}
                 redacted={block.redacted === true}
-                live={newest === true && at === upTo - 1 && (running || message.stopReason === "pending")}
+                startedAt={block.startedAt}
+                durationMs={block.durationMs}
                 // 字还在到：后面没有别的块了。接着说话、调工具之后它就写完了，哪怕这一轮还要跑很久。
-                writing={message.stopReason === "pending" && at === message.content.length - 1}
+                live={message.stopReason === "pending" && at === message.content.length - 1}
               />
             );
           }

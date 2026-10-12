@@ -128,6 +128,8 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 											key={at}
 											text={block.thinking}
 											redacted={block.redacted === true}
+											startedAt={block.startedAt}
+											durationMs={block.durationMs}
 											live={message.stopReason === "pending" && at === message.content.length - 1}
 										/>
 									);

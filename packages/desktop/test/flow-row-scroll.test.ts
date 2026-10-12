@@ -5,8 +5,7 @@
  * 了」，却不说截掉的是什么；一张是侧边栏一个十三个字、盒子明明装得下的标题，鼠标一放上去少掉最后
  * 一个字，断口齐得像裁纸刀裁的。
  *
- * 真实行为由三支探针在真窗口里量（`sidebar-title-scroll-probe`、`flow-summary-scroll-probe`、
- * `thinking-ticker-probe`）。这里守的是那几条容易在重构里悄悄消失的约定——上一次它们消失时，钉着
+ * 真实行为由两支探针在真窗口里量（`sidebar-title-scroll-probe`、`flow-summary-scroll-probe`）。这里守的是那几条容易在重构里悄悄消失的约定——上一次它们消失时，钉着
  * 它们的探针因为选择器过时变成了哑弹，一串 ✓ 印了很久，功能早就没了。
  */
 
@@ -57,19 +56,12 @@ test("左边那道虚化只给会滚的壳", async () => {
 test("过程行停下来之后也是虚化加悬停自读", async () => {
 	const source = await read("src/features/conversation/FlowRow.tsx");
 	assert.match(source, /ui\/scroll\/ScrollText/);
-	// 正在写的那一句不换壳：字尾顶右另有一套，而且它是帧循环直接写进 DOM 的。
-	assert.match(source, /\{followEnd \? summary : <ScrollText text=\{summary\} textClassName=\{running \? "ly-glide" : ""\} \/>\}/);
 	// 扫光挂在装字的那一层，不挂在外层：外层的 `background-clip: text` 裁不到悬停滚动时被单独合成的字，整句会消失。
-	assert.match(source, /running && followEnd \? "ly-glide" : ""/);
+	assert.match(source, /<ScrollText text=\{summary\} textClassName=\{running \? "ly-glide" : ""\} \/>/);
+	assert.match(source, /<span className="ly-flow-summary">/);
 	const scroll = await read("src/ui/scroll/ScrollText.tsx");
 	assert.match(scroll, /<span ref=\{body\} className=\{`inline-block \$\{textClassName\}`\}>/);
 	assert.match(scroll, /className=\{`absolute top-0 inline-block invisible \$\{textClassName\}`\}/);
 	// 悬停自读的钩子属于整行。
 	assert.match(source, /const shell = `ly-flow-row ly-scroll /);
-});
-
-test("正在写的那一句，深浅仍由 flow-row 自己说了算", async () => {
-	const css = await read("src/styles/flow-row.css");
-	assert.match(css, /\.ly-flow-summary\[data-follow-end\]\s*\{\s*--ly-fade-left:\s*0;\s*--ly-fade-right:\s*0;/);
-	assert.match(css, /\.ly-flow-summary\[data-follow-end\]\[data-clipped\]\s*\{\s*--ly-fade-left:\s*20px;\s*--ly-fade-right:\s*12px;/);
 });

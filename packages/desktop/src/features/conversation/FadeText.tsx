@@ -16,7 +16,7 @@
 import { type CSSProperties, useRef } from "react";
 
 /** 一个字淡入要多久。和 `markdown.css` 里 `.ly-fade-char` 的时长是同一个数，改一处要跟着改另一处。 */
-export const FADE = 180;
+const FADE = 180;
 /** 相邻两个字最多错开多久。再慢，字就追不上屏幕上正在放出来的速度了。 */
 const MAX_PACE = 18;
 /** 两批字之间的间隔按这个范围算：太短没意义，太长（上游停过一阵）不该让下一批慢慢挤出来。 */

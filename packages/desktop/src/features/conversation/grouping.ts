@@ -57,7 +57,7 @@ export type Run =
 	 * here it is derived from the messages alone, which is what it is a fact about, and its
 	 * identity changes exactly when the transcript does.
 	 */
-	| { kind: "message"; message: Message; index: number; upTo: number; from?: number; lead?: boolean; newest?: boolean; turnStats?: TurnStats; key?: string }
+	| { kind: "message"; message: Message; index: number; upTo: number; from?: number; lead?: boolean; turnStats?: TurnStats; key?: string }
 	/**
 	 * A stretch of tool work, and whether it is the stretch being worked on right now.
 	 *
@@ -638,16 +638,6 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 				 * reasoning is exactly that case, and it is the one where the failure has to show.
 				 */
 				lead: own > think || undefined,
-				/*
-				 * The newest reasoning in the transcript, which is the only one that can be arriving.
-				 *
-				 * `stopReason` cannot answer this on its own. A provider that batches — a relay
-				 * flushing a whole block at once — delivers the reasoning and the call that follows
-				 * it in the same breath, so the message has already settled by the first render and
-				 * a line with four hundred characters in it appears fully written. That is the case
-				 * the typing exists for, and the case the reply's own state cannot see.
-				 */
-				newest: index === live || undefined,
 				// Its own identity, distinct from the prose row of the same message. See `runKey`.
 				key: `thinking-${message.timestamp}-${index}`,
 			});

@@ -27,7 +27,6 @@ export function FlowRow({
 	summary,
 	trailing,
 	running,
-	followEnd,
 	open,
 	onToggle,
 	label,
@@ -43,13 +42,6 @@ export function FlowRow({
 	/** 靠右的附注，比如改动行数。 */
 	trailing?: ReactNode;
 	running?: boolean;
-	/**
-	 * 摘要正在被一个字一个字写出来时，把字尾顶在右边。
-	 *
-	 * 一句正在生长的话如果左对齐，超出行宽之后看到的永远是它的开头——而开头早就读完了。要看的是
-	 * 刚写出来的那几个字，所以让内容右对齐、宽度取 `max-content`，行把左边裁掉。
-	 */
-	followEnd?: boolean;
 	/** 省略即为不可展开：不可展开的行不换 chevron，也没有指针手势。 */
 	open?: boolean;
 	onToggle?: () => void;
@@ -64,37 +56,22 @@ export function FlowRow({
 			{title && <span className="ly-flow-title font-medium text-ink-faint">{title}</span>}
 			{title && summary ? <span className="ly-flow-dot" aria-hidden /> : null}
 			{/*
-			 * 扫光挂在外层，字挂在内层，而且 key 在内层——这一条是踩出来的。
+			 * 扫光挂在装字的那一层，不挂在外层——这一条是踩出来的。
 			 *
 			 * `animation` 是一个属性，第二个类不会叠加而是替换，所以扫光和入场淡入不能共用一个 span。
-			 * key 放外层的话，句子每多一个从句（「读取文件 8 个」变成 9 个）React 就换掉正在扫光的那个
-			 * 元素，光就跳回起点——一次忙碌的运行里每秒好几次，那是闪烁不是扫过。光属于这一行（它和
-			 * 这段活一样长命），淡入属于那些字（变的是它们）。
-			 *
-			 * 不逐字写的时候，光交给 `ScrollText` 里装字的那两个 span（同样不随句子重建）。挂在这一层的话，
-			 * 悬停一滚，滚动的那层被单独合成，这里的 `background-clip: text` 裁不到它的字，整句就没了。
-			 */}
-			{/*
-			 * 正在逐字写的那一句借 `ly-fade-edge` 的遮罩：两头化开，深浅由 flow-row.css 说了算。
-			 * 不写的时候不挂——那条规则会给 `position: fixed` 的后代造出一个包含块（见 portal.ts）。
+			 * 光交给 `ScrollText` 里装字的那两个 span（它们不随句子重建：句子每多一个从句就换掉正在扫光的
+			 * 元素，光会跳回起点）。挂在外层的话，悬停一滚，滚动的那层被单独合成，外层的
+			 * `background-clip: text` 裁不到它的字，整句就没了。
 			 */}
 			{summary !== undefined && summary !== null && summary !== "" && (
-				<span
-					className={`ly-flow-summary ${running && followEnd ? "ly-glide" : ""} ${followEnd ? "ly-fade-edge" : ""}`}
-					data-follow-end={followEnd ? "" : undefined}
-				>
+				<span className="ly-flow-summary">
 					{/*
-					 * 停下来之后，这一句和侧边栏的标题是同一种东西：虚化代替省略号，鼠标放上去自己读出来。
+					 * 这一句和侧边栏的标题是同一种东西：虚化代替省略号，鼠标放上去自己读出来。
 					 *
-					 * 从前它是 `text-overflow: ellipsis`，于是一行推理被剁在「…」上——那三个点报告了
-					 * 「这里被截了」，却不说截掉的是什么，而想知道的恰恰是那半句。点开能看全文，但那是
-					 * 另一件事：为了读完一行摘要而展开整段推理，代价比那半句话大得多。
-					 *
-					 * 正在写的时候不换。那会儿字尾顶在右边、两头的虚化另有深浅（见 flow-row.css），
-					 * 而且那一句是帧循环直接写进 DOM 的——`ScrollText` 会把它复制一份做无缝循环，复制件
-					 * 拿不到那支 ref，一行字就此分叉成两句。
+					 * 从前它是 `text-overflow: ellipsis`，于是一行摘要被剁在「…」上——那三个点报告了
+					 * 「这里被截了」，却不说截掉的是什么，而想知道的恰恰是那半句。
 					 */}
-					{followEnd ? summary : <ScrollText text={summary} textClassName={running ? "ly-glide" : ""} />}
+					<ScrollText text={summary} textClassName={running ? "ly-glide" : ""} />
 				</span>
 			)}
 			{trailing && <span className="ly-flow-trail">{trailing}</span>}
