@@ -18,7 +18,7 @@ export const broadcast = (id, event) => broadcasts.push({ id, event });
 const unused = () => { throw new Error("not part of this test"); };
 export const editSessionMessage = unused, revertSessionMessage = unused, deleteSessions = unused, disposeSession = unused,
 	ensureLiveSession = unused, createSession = unused, abortSession = unused, promptSession = unused, sideSessionsOf = unused, snapshot = unused,
-	touchSession = unused;
+	setSessionGoal = unused, touchSession = unused;
 `)}`;
 const source = new URL("../electron/ipc/sessions.ts", import.meta.url).href;
 const hooks = registerHooks({
