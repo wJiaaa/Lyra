@@ -1,6 +1,6 @@
 import { BUILTIN_AGENTS } from "@plume/core/agents-builtin";
 import type { Settings } from "@plume/core";
-import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@plume/core/model-choice";
+import { agentProfile, withAgentProfile, availableModels, resolveModelRef, GOAL_JUDGE_PROFILE, type SubAgentProfile } from "@plume/core/model-choice";
 import { resolveModelThinkingOptions, resolveThinkingOption } from "@plume/core/thinking-options";
 import { AlertCircle, Brain, Plus, Copy, RefreshCw, RotateCcw, Trash2 } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -182,9 +182,9 @@ export function AgentsSettings() {
 				{settings && <section className="mt-8">
 					<GroupHeader title={t("common.session")} />
 					<AgentList>
-						<SettingRow name="goal" detail={t("agents.goalJudge")} profile="goal">
-							<ModelSelect ariaLabel={t("agents.goalModel")} showIcon={false} value={agentProfile(settings, "goal").modelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} disabled={saving}
-								onChange={(modelId) => save("goal", modelId ? { modelId } : {})} />
+						<SettingRow name={GOAL_JUDGE_PROFILE} detail={t("agents.goalJudge")} profile={GOAL_JUDGE_PROFILE}>
+							<ModelSelect ariaLabel={t("agents.goalModel")} showIcon={false} value={agentProfile(settings, GOAL_JUDGE_PROFILE).modelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} disabled={saving}
+								onChange={(modelId) => save(GOAL_JUDGE_PROFILE, modelId ? { modelId } : {})} />
 						</SettingRow>
 						<SettingRow name={t("agents.sidechatModel")} detail={t("agents.sidechatModelDetail")}>
 							<ModelSelect ariaLabel={t("agents.sidechatModel")} showIcon={false} value={settings.sideChatModelId ?? ""} inheritLabel={t("agents.followMain")} inheritedModelId={mainModelId ?? settings.defaultModelId ?? undefined} inheritedSource={t("agents.followMainShort")} inheritDetail={t("agents.sidechatModelDetail")} disabled={saving}

@@ -21,6 +21,12 @@ import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-pro
 export { availableModels } from "./models.ts";
 export { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
 
+/**
+ * 持续目标的裁判在 `subAgentProfiles` 里那一行的名字。core 按它读、设置页按它写，放在这个浏览器安全的
+ * 子入口里，两边才是同一个字符串。
+ */
+export const GOAL_JUDGE_PROFILE = "goal";
+
 /** What this machine chose for one agent, or for `compact`. */
 export function agentProfile(settings: Settings, name: string): SubAgentProfile {
 	return normalizeSubAgentProfiles(settings.subAgentProfiles)[name] ?? {};

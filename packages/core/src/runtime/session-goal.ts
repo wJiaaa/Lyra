@@ -12,7 +12,7 @@
 
 import type { AgentEvent } from "../agent/events.ts";
 import { streamAssistant } from "../ai/index.ts";
-import { agentProfile, resolveModelRef } from "../config/model-choice.ts";
+import { agentProfile, GOAL_JUDGE_PROFILE, resolveModelRef } from "../config/model-choice.ts";
 import { resolveModel } from "../config/settings.ts";
 import type { Settings } from "../config/settings.ts";
 import type { SessionRecordInput } from "../session/types.ts";
@@ -26,9 +26,6 @@ export const MAX_NO_PROGRESS = 5;
 export const MAX_JUDGE_FAILURES = 3;
 /** 连着在等时每次睡多久；超过名单长度按最后一档。 */
 export const WAIT_BACKOFF_MS = [30_000, 60_000, 120_000, 300_000, 600_000, 1_800_000];
-
-/** 设置页里裁判模型那一行的名字，和 `compact` 一样走 `subAgentProfiles`。 */
-export const GOAL_JUDGE_PROFILE = "goal";
 
 export interface GoalDeps {
 	settings(): Settings;
