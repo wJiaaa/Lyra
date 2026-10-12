@@ -69,7 +69,7 @@ test("workspace-write refuses a write outside the project, and nothing is create
 	const result = await run(ws, "workspace-write", shellFor("workspace-write").write(outside));
 	assert.equal(existsSync(outside), false, "the file must not exist — this is the whole point");
 	// And the model is told it was a policy decision rather than a broken command.
-	assert.match(textOf(result), /sandbox: 文件写入被拒/);
+	assert.match(textOf(result), /sandbox: 被沙箱拒绝/);
 	assert.match(textOf(result), /可以申请/);
 	assert.equal((result.details as { denied?: boolean }).denied, true);
 });

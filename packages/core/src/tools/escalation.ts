@@ -48,7 +48,9 @@ const MODE_LABEL: Record<SandboxMode, string> = {
  * things to learn, and it would learn neither reliably.
  */
 export function sandboxDenialMarker(mode: SandboxMode): string {
-	return `[sandbox: 文件写入被拒（当前模式：${MODE_LABEL[mode]}）——这是策略拒绝，不是命令本身出错，换个写法重试没有用]`;
+	// Not only writes: a setuid program (`top`, `sudo`) cannot start under Seatbelt, and says the same
+	// "Operation not permitted" a refused write does.
+	return `[sandbox: 被沙箱拒绝（当前模式：${MODE_LABEL[mode]}；写文件、运行 top、sudo 这类 setuid 程序都会被拒）——这是策略拒绝，不是命令本身出错，换个写法重试没有用]`;
 }
 
 /**
