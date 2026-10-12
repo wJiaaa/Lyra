@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import { promisify } from "node:util";
 import { after, before, test } from "node:test";
 import {
@@ -18,6 +18,7 @@ import {
 	resolveWorktreesRoot,
 } from "../electron/git-worktrees.ts";
 import { listWorktrees } from "../electron/git-repos.ts";
+import { canonicalPath } from "../electron/path-key.ts";
 import { DEFAULT_SETTINGS } from "@plume/core";
 
 const exec = promisify(execFile);
@@ -25,6 +26,11 @@ const exec = promisify(execFile);
 let dir: string;
 let origin: string;
 let root: string;
+
+/** Every worktree these tests make lives under the temporary root, never in the user's `~/.plume`. */
+function at(name: string): { targetDir: string } {
+	return { targetDir: join(root, "trees", name) };
+}
 
 async function git(args: string[], cwd = dir): Promise<string> {
 	const { stdout } = await exec("git", args, { cwd });
@@ -62,7 +68,7 @@ test("resolveWorktreesRoot handles default and custom paths", () => {
 });
 
 test("createWorktree creates a linked worktree and listWorktrees lists it", async () => {
-	const res = await createWorktree(dir, "feature/wt-1");
+	const res = await createWorktree(dir, "feature/wt-1", at("feature-wt-1"));
 	assert.equal(res.ok, true);
 	assert.ok(res.path && existsSync(res.path));
 	assert.equal(res.branch, "feature/wt-1");
@@ -76,7 +82,7 @@ test("createWorktree creates a linked worktree and listWorktrees lists it", asyn
 });
 
 test("removeWorktree removes a linked worktree and cleans it up", async () => {
-	const created = await createWorktree(dir, "feature/wt-to-remove");
+	const created = await createWorktree(dir, "feature/wt-to-remove", at("feature-wt-to-remove"));
 	assert.equal(created.ok, true);
 	assert.ok(created.path && existsSync(created.path));
 
@@ -114,11 +120,33 @@ test("autoCreateSessionWorktree creates dedicated worktree when enabled in setti
 	assert.equal(resDisabled.cwd, dir);
 });
 
+/*
+ * 根目录留空时，工作树建在 `resolveWorktreesRoot()` 下——也就是 Git 面板的守卫放行的那一处。
+ *
+ * 从前留空是建在仓库旁边，而守卫只认 `~/.plume/worktrees`：这些会话里暂存、提交、推送全部报
+ * 「该目录不在已打开的项目内」。两边读同一个函数，这条测试守的就是它们不再分开。
+ */
+test("留空的根目录下，自动建的工作树落在守卫放行的目录里", async () => {
+	const previous = process.env.PLUME_HOME;
+	process.env.PLUME_HOME = join(root, "plume-home");
+	try {
+		const settings = { ...DEFAULT_SETTINGS, worktrees: { autoCreateOnNewSession: true, rootDir: "" } };
+		const res = await autoCreateSessionWorktree(dir, settings, "blankroot-1234");
+		assert.equal(res.worktreeCreated, true);
+		// 守卫比较前两边都取规范写法，这里照做：macOS 上临时目录一边是 /var，一边是 /private/var。
+		const allowed = canonicalPath(resolveWorktreesRoot(""));
+		assert.equal(relative(allowed, canonicalPath(res.cwd)), basename(res.cwd), `${res.cwd} 不在 ${allowed} 里`);
+	} finally {
+		if (previous === undefined) delete process.env.PLUME_HOME;
+		else process.env.PLUME_HOME = previous;
+	}
+});
+
 test("cleanOldWorktrees prunes excess worktrees above keepLimit while protecting active ones", async () => {
 	// Create multiple worktrees
-	const wt1 = await createWorktree(dir, "cleanup/wt-1");
-	const wt2 = await createWorktree(dir, "cleanup/wt-2");
-	const wt3 = await createWorktree(dir, "cleanup/wt-3");
+	const wt1 = await createWorktree(dir, "cleanup/wt-1", at("cleanup-wt-1"));
+	const wt2 = await createWorktree(dir, "cleanup/wt-2", at("cleanup-wt-2"));
+	const wt3 = await createWorktree(dir, "cleanup/wt-3", at("cleanup-wt-3"));
 
 	assert.ok(wt1.path && wt2.path && wt3.path);
 
@@ -146,9 +174,9 @@ test("cleanOldWorktrees prunes excess worktrees above keepLimit while protecting
  * spelling below is the one git would have produced; the assertion is that it is still recognised.
  */
 test("a worktree in use is protected however its path is spelled", async () => {
-	const keep = await createWorktree(dir, "spelling/in-use");
-	const doomed = await createWorktree(dir, "spelling/idle-1");
-	const alsoDoomed = await createWorktree(dir, "spelling/idle-2");
+	const keep = await createWorktree(dir, "spelling/in-use", at("spelling-in-use"));
+	const doomed = await createWorktree(dir, "spelling/idle-1", at("spelling-idle-1"));
+	const alsoDoomed = await createWorktree(dir, "spelling/idle-2", at("spelling-idle-2"));
 	assert.ok(keep.path && doomed.path && alsoDoomed.path);
 
 	const settings = { ...DEFAULT_SETTINGS, worktrees: { autoCleanOld: true, keepLimit: 1 } };
@@ -193,7 +221,7 @@ test("不是工作树的目录，删不掉", async () => {
 
 test("真的工作树照样删得掉", async () => {
 	// 上面那条守卫如果写死了，这条会红：它证明收紧的是「不是工作树」而不是「删不了了」。
-	const made = await createWorktree(dir, "wt-removable", DEFAULT_SETTINGS);
+	const made = await createWorktree(dir, "wt-removable", at("wt-removable"));
 	assert.equal(made.ok, true, made.error);
 	assert.ok(made.path);
 

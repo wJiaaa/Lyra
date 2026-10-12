@@ -15,8 +15,13 @@ import { isGitRepo } from "./git.ts";
 import { canonicalPath, pathKey } from "./path-key.ts";
 
 export interface WorktreeCreateOptions {
-	/** Custom target directory, if not default */
-	targetDir?: string;
+	/**
+	 * Where the worktree goes. Required: the location is the caller's decision, made from settings
+	 * through `resolveWorktreesRoot`, because the IPC guard admits exactly that directory and
+	 * nothing beside the repository. A default here once put worktrees next to the repo, where
+	 * every write from the Git panel was then refused as outside any opened project.
+	 */
+	targetDir: string;
 	/** Whether to fetch upstream before creating */
 	fetchUpstream?: boolean;
 	/** Base ref/commit/branch to start from, e.g. "HEAD" or "main" */
@@ -32,7 +37,8 @@ export interface WorktreeResult {
 
 /**
  * Resolves the configured root directory for worktrees.
- * Supports "~" expansion and defaults to "~/.plume/worktrees" or project sibling.
+ * Supports "~" expansion and defaults to "~/.plume/worktrees". Creation and the IPC guard in
+ * `main.ts` both read it, so a worktree always lands where the Git panel is allowed to write.
  */
 export function resolveWorktreesRoot(customRootDir?: string): string {
 	if (customRootDir && customRootDir.trim()) {
@@ -57,16 +63,12 @@ async function fetchUpstreamQuietly(cwd: string): Promise<void> {
 }
 
 /**
- * Creates a git worktree for a specific repository.
- *
- * If targetDir is not supplied, places worktree in:
- * 1. settings.worktrees.rootDir / <repo-name>-<branch> (if configured)
- * 2. or sibling of repo: <repo-parent>/<repo-name>-<branch>
+ * Creates a git worktree for a specific repository at `options.targetDir`.
  */
 export async function createWorktree(
 	cwd: string,
 	branch: string,
-	options: WorktreeCreateOptions = {},
+	options: WorktreeCreateOptions,
 ): Promise<WorktreeResult> {
 	if (!(await isGitRepo(cwd))) return { ok: false, error: "当前项目不是 Git 仓库" };
 
@@ -77,17 +79,7 @@ export async function createWorktree(
 		await fetchUpstreamQuietly(cwd);
 	}
 
-	const root = await git(cwd, ["rev-parse", "--show-toplevel"])
-		.then((out) => out.trim())
-		.catch(() => cwd);
-
-	const repoName = basename(root) || "repo";
-	const branchFolder = safe.replace(/\//g, "-");
-
-	let target = options.targetDir;
-	if (!target) {
-		target = join(root, "..", `${repoName}-${branchFolder}`);
-	}
+	const target = options.targetDir;
 
 	try {
 		// Ensure parent directory exists
@@ -101,7 +93,7 @@ export async function createWorktree(
 		/*
 		 * The canonical spelling, not the one that was passed in.
 		 *
-		 * `target` is built with `join(root, "..", name)`, so it carries whatever separators, `..`
+		 * `target` is whatever the caller joined together, so it carries whatever separators, `..`
 		 * segments and short names came in with it. Callers keep this path and later compare it
 		 * against `git worktree list`, which prints the resolved long form — and a comparison that
 		 * cannot match is what let the cleanup delete a worktree that was in use.
@@ -194,13 +186,7 @@ export async function autoCreateSessionWorktree(
 		.catch(() => projectCwd);
 	const repoName = basename(root) || "repo";
 
-	let targetDir: string;
-	if (settings.worktrees.rootDir && settings.worktrees.rootDir.trim()) {
-		const baseDir = resolveWorktreesRoot(settings.worktrees.rootDir);
-		targetDir = join(baseDir, `${repoName}-${sessionId.slice(0, 8)}`);
-	} else {
-		targetDir = join(root, "..", `${repoName}-${sessionId.slice(0, 8)}`);
-	}
+	const targetDir = join(resolveWorktreesRoot(settings.worktrees.rootDir), `${repoName}-${sessionId.slice(0, 8)}`);
 
 	const result = await createWorktree(projectCwd, branchName, {
 		targetDir,

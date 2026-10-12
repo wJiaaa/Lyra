@@ -2,6 +2,7 @@ import { translate } from "../../i18n/translate.ts";
 import { builtinCommandsFor, type CommandAction } from "@plume/core/commands-builtin";
 import { parseInvocation, promptArgumentHint, resolveCommand, skillCommandName, type McpPromptEntry, type SlashCommand } from "@plume/core/commands-view";
 import type { SkillEntry } from "../../../electron/ipc-types.ts";
+import { DESKTOP_COMMAND_ACTIONS } from "../../../shared/command-actions.ts";
 
 export interface CommandEntry {
 	name: string;
@@ -14,7 +15,7 @@ export interface CommandEntry {
 
 export function commandEntries(commands: SlashCommand[], skills: SkillEntry[], prompts: McpPromptEntry[] = []): CommandEntry[] {
 	const entries: CommandEntry[] = [
-		...builtinCommandsFor(["compact", "clear", "manage-commands", "aside", "plan", "goal"]).map((command): CommandEntry => ({ ...command, kind: "builtin", origin: translate("common.builtin") })),
+		...builtinCommandsFor(DESKTOP_COMMAND_ACTIONS).map((command): CommandEntry => ({ ...command, kind: "builtin", origin: translate("common.builtin") })),
 		...commands.map((command): CommandEntry => ({ ...command, kind: "command", origin: translate(
 				command.origin === "claude"
 					? command.scope === "workspace"

@@ -59,7 +59,7 @@ const app = await startApp({
 				defaultModelId: null, permissionMode: "auto", thinking: "medium", retryAttempts: 3,
 				hooks: [], scheduledTasks: [], disabledPlugins: [], pluginRegistries: [], skillRegistries: [],
 				alwaysAllow: [],
-				personalization: { customInstructions: "", enableMemory: true, enableProjectMemory: true, enableToolAssistedMemory: true, tone: "friendly" },
+				personalization: { customInstructions: "", enableMemory: true, enableProjectMemory: true, tone: "friendly" },
 			}),
 		);
 	},

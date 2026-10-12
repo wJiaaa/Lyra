@@ -336,7 +336,7 @@ export interface Settings {
 	sessionOrder?: Record<string, string[]>;
 	/** Worktrees configuration and auto-cleanup preferences. */
 	worktrees?: {
-		/** Managed worktrees root directory. Defaults to ~/.plume/worktrees or sibling directory if empty. */
+		/** Managed worktrees root directory. Defaults to ~/.plume/worktrees if empty. */
 		rootDir?: string;
 		/** Automatically create a dedicated worktree when starting a new session. */
 		autoCreateOnNewSession?: boolean;
@@ -511,8 +511,6 @@ export interface Settings {
 		enableMemory?: boolean;
 		/** Read and record this repository's lessons independently of personal preferences. */
 		enableProjectMemory?: boolean;
-		/** Whether memory extraction considers MCP tools and search conversations. */
-		enableToolAssistedMemory?: boolean;
 		/** Tone/personality preference for agent replies. */
 		tone?: "friendly" | "professional" | "concise" | "candid" | "humorous";
 	};
@@ -569,7 +567,6 @@ export const DEFAULT_SETTINGS: Settings = {
 	personalization: {
 		customInstructions: "",
 		enableMemory: true,
-		enableToolAssistedMemory: true,
 		tone: "friendly",
 	},
 };

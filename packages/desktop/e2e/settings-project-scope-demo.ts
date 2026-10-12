@@ -77,7 +77,7 @@ async function seed(home: string): Promise<void> {
 			],
 			defaultModelId: null, permissionMode: "auto", thinking: "medium", retryAttempts: 3,
 			hooks: [], scheduledTasks: [], disabledPlugins: [], pluginRegistries: [], skillRegistries: [], alwaysAllow: [],
-			personalization: { customInstructions: "", enableMemory: true, enableProjectMemory: true, enableToolAssistedMemory: true, tone: "friendly" },
+			personalization: { customInstructions: "", enableMemory: true, enableProjectMemory: true, tone: "friendly" },
 		}),
 	);
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1280, height: 860 }));

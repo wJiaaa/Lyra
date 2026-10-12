@@ -23,7 +23,6 @@ export function PersonalizationSettings() {
 	const personalization = settings?.personalization ?? {
 		customInstructions: "",
 		enableMemory: true,
-		enableToolAssistedMemory: true,
 		tone: "friendly",
 	};
 
@@ -130,21 +129,10 @@ export function PersonalizationSettings() {
 		});
 	};
 
-	const handleToggleToolMemory = async (checked: boolean) => {
-		if (!settings) return;
-		await saveSettings({
-			...settings,
-			personalization: {
-				...personalization,
-				enableToolAssistedMemory: checked,
-			},
-		});
-	};
-
 	/*
-	 * 后台抽取的开关，跟上面两个不是一回事。
+	 * 后台抽取的开关，跟上面那个不是一回事。
 	 *
-	 * 上面两个管的是「这台电脑上的个人偏好」，存在本地、也只在本地用；这个管的是「读这个项目的
+	 * 上面那个管的是「这台电脑上的个人偏好」，存在本地、也只在本地用；这个管的是「读这个项目的
 	 * 历史会话、把内容发给模型」，所以它默认是关的，而且第一次触发时会先问。
 	 *
 	 * 在这里动一下，也算回答过那次征询——写下的是 `true`/`false`，不再是「没问过」。
@@ -269,20 +257,10 @@ export function PersonalizationSettings() {
 							/>
 						}
 					/>
-					<Row
-						title={t("memory.fromTools")}
-						detail={t("memory.fromToolsDetail")}
-						control={
-							<Toggle
-								checked={personalization.enableToolAssistedMemory !== false}
-								onChange={handleToggleToolMemory}
-							/>
-						}
-					/>
 					{/*
-					 * 说清楚代价，因为这一条跟上面两条不同：它要把对话内容发出去。
+					 * 说清楚代价，因为这一条跟上面那条不同：它要把对话内容发出去。
 					 *
-					 * 上面两条都只在本机沉淀偏好；这一条是空闲时读最近几次会话、交给模型提炼这个仓库的
+					 * 上面那条只在本机沉淀偏好；这一条是空闲时读最近几次会话、交给模型提炼这个仓库的
 					 * 约定。一个默认只在本地跑的工具，在这件事上必须把话说在开关旁边，而不是只在
 					 * 第一次弹窗里说一次。
 					 */}
