@@ -90,8 +90,6 @@ export function beforePack(context) {
 	fetchRipgrep(`${context.electronPlatformName}-${arch}`);
 }
 
-export default beforePack;
-
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 	const keys = process.argv.slice(2);
 	for (const key of keys.length ? keys : [`${process.platform}-${process.arch}`]) console.log(`[ripgrep] ${fetchRipgrep(key)}`);
