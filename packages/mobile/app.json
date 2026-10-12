@@ -2,7 +2,7 @@
   "expo": {
     "name": "Plume",
     "slug": "plume-mobile",
-    "version": "0.9.26",
+    "version": "0.9.27",
     "scheme": "plume",
     "orientation": "default",
     "userInterfaceStyle": "automatic",

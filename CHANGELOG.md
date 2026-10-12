@@ -2,6 +2,137 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.27](https://github.com/wJiaaa/Plume/releases/tag/v0.9.27) - 2026-10-12
+
+<!-- plume:notes en -->
+
+### New
+
+- **Plan mode.** Turn it on with `/plan` or the "Plan mode" chip on the input box. The agent then only reads and investigates: edits are refused, and shell commands are limited to read-only ones in a read-only sandbox. It hands you a plan as an approval card; once you approve it, the plan becomes the task list and stays there through compaction. You can switch it on in a new conversation before sending anything, so the first message doesn't run as a normal turn first.
+- **Select text in a reply to ask about it.** A small menu appears above the selection: "Ask in side chat" or "Quote in message". Quotes sit above the input box as "2 quotes" instead of filling it with `> …` lines; hover to read them and remove them one at a time. `/btw <question>` asks in a new side chat and leaves nothing in the main conversation.
+- **Side chat can edit files and run commands.** It is now a conversation attached to the main one, with its own short prompt and 13 tools. Before each question it is told what's new in the main conversation, and when it changes files, the main conversation hears about it at the start of its next turn. Side chats saved in `~/.plume/sidechats` by earlier versions are not carried over.
+- **An Environment card in the title bar** collects what used to be scattered: how the conversation is opened, background jobs, subagents, the pull request for this branch, side chats, a running summary, and the images and files that came into the conversation. Each row opens the panel or viewer that already exists. In wide windows the conversation moves 324px to the left so the card doesn't cover it. The summary model is set under Settings › Subagents and follows the conversation's model by default.
+- **Pages the agent makes can be copied as an image**, as you left them after clicking around. The whole page is copied, including the part folded below 720px or scrolled out of view.
+- **Those pages remember what you set.** Values you change with a page's controls are kept when you reopen the conversation, and the model gets them with your next message. Design pages can offer sliders, colors, switches and menus under "Adjust design": dragging updates the page without asking the model, and "Apply these settings" sends only the values you changed.
+- **The thinking row says "Thought for 12s"** instead of printing the reasoning word by word. While it runs it shows one label such as "Brainstorming". Under a second, or when a relay sends all the reasoning at once, it says "Thought for a while".
+- **Switching models draws a line in the conversation** saying which model it switched from and to. It goes by which model actually answered, so changing the menu without sending anything leaves no line. Older conversations show it too.
+- **The conversation hover card leads with what it cost**: main conversation, subagents and side chats added together, "Unpriced" when the model has no price instead of $0. A second row splits the tokens between those three. Side chats and subagent panels now have their own context meter.
+- **Files can be dropped anywhere on the conversation**, not only on the input box. A dropped folder becomes an attachment chip instead of a long `@"/var/folders/…"` path, and chips use the file tree's icons for each file type.
+- **MCP servers that need a sign-in can connect**, such as the official GitHub, Linear and Notion servers; Plume handles the OAuth flow and keeps the tokens in its vault. Server prompts show up in the `/` menu, and a server can ask you to fill in a form partway through a task.
+- **Many MCP servers no longer crowd the context.** When their tool descriptions add up to more than 3,000 tokens, the model gets a catalog and two tools to search and call them. With 30 servers, that is 9.8k tokens instead of 38.7k. A server that hangs no longer holds up the conversation for 32 seconds; the first turn waits at most 5.
+- **`lsp` works for Python, Go, Rust and C/C++** when basedpyright or pyright, gopls, rust-analyzer or clangd is on your PATH. If the server isn't installed, the result says which one to install instead of quietly falling back to text search.
+- **ripgrep comes with the installer.** Started from the Dock or the Start menu, Plume couldn't see your own `rg`, and every search used the slow fallback: 1,789ms against 46ms on this repository.
+- **Questions about Plume itself are answered from its own help.** "How do I add an MCP server", or a pasted error message, is answered from 21 bundled pages on commands, settings, permissions, extensions and common errors. Before, the model searched through the app's files.
+- **Two new hook events: `StopFailure` and `SessionEnd`.** `StopFailure` runs when a turn ends with an error, is stopped, or hits a limit; `SessionEnd` when a conversation is deleted, archived, moved or the app quits. Dashboards like Vibe Island no longer show a session as working forever.
+- Hooks run inside a subagent show up in that subagent's panel, and hook input now includes `agent_id`, so two subagents of the same type can be told apart.
+- After 20 requests without reporting back, the model is asked where things stand: the task list is read back to it if there is one, otherwise it is asked for a sentence or two. It is never stopped for this. In 367 past runs, 301 finished within 20 requests and would never have been asked.
+- Magpie can manage Plume's models; new conversations go through its gateway.
+
+### Cheaper
+
+- **A new conversation starts 24% lighter.** Before you type anything, the context meter reads 10.6k instead of 14.1k, with the same tools.
+- **Compaction reads from the cache.** The summary request is the previous request sent again with one instruction added, so the conversation before it costs cache price instead of full price. If a turn ends past the line, compaction runs right away while the cache is still warm; anything you send in the meantime goes out after it.
+- After an edit, the result shows the changed lines with their new line numbers. In past conversations, 71 of 154 edits were followed by reading the same file again.
+- Files under 300 lines are read in full instead of being folded into an outline, which the model then read back piece by piece. The symbol index now covers the whole project; on this repository it used to stop halfway.
+- Checking a background job that has no new output waits up to 30 seconds for output or for the job to end. Before, 39 of 47 checks came back with "(no new output)", each one a full request.
+- Web pages and MCP results close to 40,000 characters were cut to their first 4k and last 1k before the model saw them. They now arrive whole.
+
+### Changes
+
+- Subagents no longer start subagents of their own; splitting work is left to the main conversation. An extension that blocks a call in the main conversation now blocks the same call in a subagent.
+
+### Fixes
+
+- **In "Auto approve" mode, a `PreToolUse` hook that asks for confirmation now gets it.** The approval policy answered in its place, and the call ran without asking.
+- **`git checkout .`, `git restore .`, `git push origin +main`, `--mirror`, `git stash clear` and `git worktree remove --force` ask first.** They used to run without asking. Switching branches and unstaging still don't ask.
+- Messages sent from the phone while a task is running wait for the turn to finish instead of cutting into it.
+- **Chats outside a project each get their own folder.** They all shared `~/.plume/workspaces/general`, so a new chat could find files from older ones; one took a landing page made in another chat as your design preference. Existing chats keep their folder.
+- With "Create a worktree for every new conversation" on and no root set, worktrees were made next to the repository, and staging, committing and pushing in them failed with "not inside an open project". They now go in `~/.plume/worktrees`. Existing worktrees are not moved.
+- Settings › Commands was missing `/plan`. Several settings descriptions now say what actually happens: for example, "Ask for approval" said it asks before going online, but web search and web fetch never ask. The hook matcher placeholder reads `Write|Edit|Bash`; the comma-separated version it showed before matched nothing.
+- **`glob`, `grep` and the symbol index see the same files git does.** Ignored build output is skipped, a committed folder that happens to be called `build/` is not, and hidden files such as `.github/workflows/package.yml` are found. Without ripgrep, a search across this repository dropped from 1.8s to 0.2s, and matches close together no longer print the same context twice.
+- When the macOS sandbox blocks `top` or `sudo`, the model is told the sandbox refused it, not that a file write was denied, so it stops trying other ways to write a file.
+- When the model writes an interface block without the ` ```ui ` fence, it shows up as text. The model is now told so on the next turn.
+- Checking or stopping a background job shows "Read output" or "Stopped a command", not a job uuid.
+- A file name in a reply that matches several files in the project opens a menu of their folders instead of "Cannot read this file".
+- A long page title no longer pushes a right-column tab's close button out of view. Titles stop at 160px.
+- Going back to a conversation with a panel open no longer moves what you were reading about 270px down.
+- The "Chats" heading in the sidebar stays at the top while you scroll through it, like project names do.
+- Running conversations in the sidebar show the breathing dot again instead of a column of spinning rings.
+- The hover card no longer says "1 steps", or calls 12.3k cached tokens "12.3k cache reads".
+- MCP tools meant only for a server's own web page are no longer given to the model.
+
+### Removed
+
+- **The compaction model setting.** A different model can't read the main conversation's cache, so compaction always uses the conversation's own model.
+- The switch for building local memory from tool-assisted chat. Nothing ever read it.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **计划模式。** 用 `/plan` 或输入框上的「计划模式」芯片打开。打开后 agent 只读、只调查：改文件会被拒，命令只放只读的，跑在只读沙箱里。调查完交一份计划，以审批卡片的形式给你；批准后计划变成任务清单，压缩之后也还在。新对话还没发第一句话时就能打开，不必先让第一句话按普通模式跑完一轮。
+- **对话里划一段文字，可以直接拿去问。** 选区上方出现一枚小菜单：「在侧边聊天中提问」或「引用到输入框」。引文不再以 `> …` 塞满输入框，而是在框上方显示成「2 条对话引用」，指上去看原文，可以逐条删。`/btw 问题` 会新开一格侧边聊天去问，主对话里什么也不留。
+- **侧边聊天能改文件、跑命令了。** 它现在是挂在主会话旁边的一段对话，有自己的一份简短提示词和 13 件工具。每次提问前，它会收到主会话里的新进展；它改了文件，主会话下一轮开头会知道。旧版本存在 `~/.plume/sidechats` 里的侧边聊天不迁移。
+- **标题栏多了一张「环境」卡片**，把原来散在各处的东西收在一起：会话用什么打开、后台任务、子智能体、这个分支的拉取请求、侧边聊天、会话摘要，以及进过这段对话的图片和文件。每一行都是入口，点了去已有的面板或查看器。窗口够宽时对话整体往左让 324px，卡片不盖字。摘要用的模型在「设置 › 智能体」里选，默认跟随会话模型。
+- **agent 做的页面能复制成图片**，复制的是你点过之后的样子，而且是整页：折在 720px 以下的、滚出对话的部分都在。
+- **这些页面记得你调过的值。** 用页面上的控件改过的值，重开对话还在，下一句话会一起交给模型。设计稿可以在「调整设计」里放滑块、颜色、开关、下拉：拖一下页面当场变，不经过模型；点「按这组设置修改」，模型只收到改过的那几项。
+- **思考行写「思考了 12 秒」**，不再逐字滚动推理。运行中只显示一个说法，比如「头脑风暴中」。不满一秒，或者中转把整段推理一次吐出来时，写「思考了一会儿」。
+- **换了模型，对话里会画一条线**，写着从哪个换到哪个。按实际回答的模型来认：只在菜单里换一下、一句没发，不会画线。旧对话也能看到。
+- **会话悬停卡片先写这段对话花了多少钱**：主会话、子智能体、侧边聊天加在一起；模型没有单价时写「未定价」，不写 0 美元。第二行把 token 按这三处拆开。侧边聊天和子智能体面板也有了自己的上下文表。
+- **文件拖到对话的任何位置都能添加**，不必瞄准输入框。拖进来的文件夹变成一枚附件标记，不再是一长串 `@"/var/folders/…"`；附件标记按文件类型用文件树里的图标。
+- **需要登录的 MCP 服务器能连上了**，比如 GitHub、Linear、Notion 的官方 MCP。OAuth 由 Plume 走完，令牌存进它的保险库。服务器带的提示词出现在 `/` 菜单里；服务器也能在任务中途弹一张表单让你填。
+- **接很多 MCP 服务器时不再挤占上下文。** 工具说明合计超过 3,000 token 时，模型拿到的是一份目录和两件工具，用来搜索和调用。接 30 台服务器时，这部分从 38.7k 降到 9.8k token。一台服务器卡住不再拖住会话 32 秒，首轮最多等 5 秒。
+- **`lsp` 支持 Python、Go、Rust 和 C/C++**，前提是 PATH 上有 basedpyright 或 pyright、gopls、rust-analyzer、clangd。没装语言服务器时，结果会写明要装哪个，不再一声不吭地退回文本搜索。
+- **安装包自带 ripgrep。** 从程序坞或开始菜单启动时，Plume 找不到你自己装的 `rg`，每次搜索都走慢的兜底：在本仓库上是 1789ms 对 46ms。
+- **问 Plume 自己的事，它查自带的说明。** 「怎么加 MCP 服务器」，或者贴一句界面报错，模型会从随包带的 21 篇说明里找答案，涵盖命令、设置、权限、扩展和常见报错。以前它会去翻应用自己的文件。
+- **钩子新增 `StopFailure` 和 `SessionEnd` 两个事件。** 一轮出错、被停下或撞上上限时跑 `StopFailure`；会话被删除、归档、移走或退出应用时跑 `SessionEnd`。Vibe Island 这类看板不会再让一个会话永远停在「工作中」。
+- 子智能体里跑的钩子显示在它自己的面板上。钩子输入里多了 `agent_id`，同类型的两个子智能体能分得清。
+- 连着 20 次请求都没汇报时，模型会被问一句进度：有任务清单就把清单念给它，没有就让它用一两句话说说现状。只问，不会因此停下。在过去 367 次真实运行里，301 次在 20 次以内就做完了，一次都不会被问。
+- Magpie 能接管 Plume 的模型，新会话走它的网关。
+
+### 更省
+
+- **新对话一开始就轻了 24%。** 还没打字时，上下文表从 14.1k 降到 10.6k，工具一件没少。
+- **压缩能吃到缓存了。** 写摘要的请求是把上一次请求原样再发一遍、末尾加一句指令，于是前面那一大段按缓存价计，不再按原价重读。一轮结束时已经过线，就趁缓存还热当场压掉；这期间你发的话排在压缩后面发出。
+- 改完文件，结果里直接带上改动那几行和新行号。以前的会话里，154 次改动有 71 次紧接着又把同一个文件读一遍。
+- 300 行以下的文件整份读出，不再先折叠成结构视图、再被模型一段段读回来。符号索引覆盖整个项目，以前在本仓库上只覆盖到一半。
+- 查看一个没有新输出的后台任务时，最多等 30 秒，等到有输出或任务结束再回答。以前 47 次查看里有 39 次拿回的是「(no new output)」，每次都是一整次请求。
+- 接近 40,000 字的网页和 MCP 结果，以前在模型看到之前就被剪成前 4k、后 1k，现在完整送到。
+
+### 变化
+
+- 子智能体不再派自己的子智能体，拆活交给主会话。扩展在主会话里拦下的调用，在子智能体里也一样拦得住。
+
+### 修复
+
+- **「帮我批准」模式下，`PreToolUse` 钩子要求确认的调用会先问你。** 以前审批策略替你答了，调用一声不响地跑了。
+- **`git checkout .`、`git restore .`、`git push origin +main`、`--mirror`、`git stash clear`、`git worktree remove --force` 会先问一句。** 以前直接执行。切分支、取消暂存照常不问。
+- 任务跑着时从手机发的消息，排到这一轮结束之后，不再插进正在跑的那一轮。
+- **不在项目里的聊天各用各的目录。** 以前它们共用 `~/.plume/workspaces/general`，新对话会翻到旧对话留下的文件：有一次模型把另一段聊天做的宣传页当成了你的设计偏好。已有的聊天保留原目录。
+- 打开「新建会话时自动创建独立工作树」、根目录又留空时，工作树建在了仓库旁边，在里面暂存、提交、推送都报「该目录不在已打开的项目内」。现在放在 `~/.plume/worktrees`。已经建好的不迁移。
+- 「设置 › 命令」里漏了 `/plan`。几处设置说明改成和实际一致：比如「请求批准」说访问网络时会问，其实网页搜索和抓取从来不问。钩子匹配器的占位改成 `Write|Edit|Bash`，以前那种逗号分隔的写法什么也匹配不上。
+- **`glob`、`grep` 和符号索引看到的文件和 git 一致。** 被忽略的构建产物不再搜，提交进仓库、只是恰好叫 `build/` 的目录不再被跳过，`.github/workflows/package.yml` 这种隐藏文件也搜得到。没有 ripgrep 时，全库搜一次从 1.8 秒降到 0.2 秒；挨得近的命中不再把同一段上下文印两遍。
+- macOS 沙箱拦下 `top`、`sudo` 时，模型收到的是「被沙箱拒绝」，不再是「文件写入被拒」，不会再换着法子去写文件。
+- 模型写界面块时漏了 ` ```ui ` 围栏，界面上会显示成一段文字；现在下一轮会告诉它。
+- 查看或停止后台任务时，活动行写「查看输出」「停止命令」，不再是一串任务 uuid。
+- 回复里的文件名在项目里有好几份时，点开会弹一个菜单列出各自的目录，不再弹「读不到」。
+- 右栏标签的网页标题太长时，关闭按钮不再被挤出视野。标题截到 160px。
+- 切回一个开着面板的会话时，正在读的那一段不再往下跳约 270px。
+- 侧栏滚进「聊天」那一节时，「聊天」标题和项目名一样钉在顶上。
+- 侧栏里正在跑的会话改回呼吸灯，不再是一列各自转圈的环。
+- 英文界面的悬停卡片不再写「1 steps」，也不再把 12.3k 缓存 token 写成「12.3k cache reads」，读起来像读了一万多次缓存。
+- 只给 MCP 服务器自己页面用的工具，不再交给模型。
+
+### 移除
+
+- **压缩模型设置。** 换一个模型就读不到主会话的缓存，所以压缩一律用会话自己的模型。
+- 「允许基于工具辅助聊天生成本地记忆」开关。从加上起就没有代码读过它。
+
+</details>
+
 ## [0.9.26](https://github.com/wJiaaa/Plume/releases/tag/v0.9.26) - 2026-10-10
 <!-- plume:notes en -->
 
