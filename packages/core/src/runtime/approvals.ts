@@ -124,7 +124,7 @@ export class ApprovalGate {
 	 * For permissions, `full` never asks; `auto` asks only about what cannot be taken back, judged by the
 	 * approval policy rather than here — that judgement is a matter of where the agent is running,
 	 * and a plugin can replace it. An escalation is never that policy's to judge, nor the allow
-	 * list's. Anything else asks.
+	 * list's; a PreToolUse hook's "ask" (`byHook`) is not the policy's either. Anything else asks.
 	 */
 	async request(request: ApprovalRequest, signal?: AbortSignal): Promise<ApprovalDecision> {
 		const mode = this.options.mode();
@@ -148,7 +148,7 @@ export class ApprovalGate {
 			 * is loaded. The allow-list is skipped for the same reason `approveEscalation` keeps a
 			 * grant to one call.
 			 */
-			if (mode === "auto" && !escalation) {
+			if (mode === "auto" && !escalation && request.byHook !== true) {
 				const verdict = approvalPolicy().assess(request.kind, request.subject, this.options.cwd(), request);
 				if (!verdict.risky) return "once";
 				/*

@@ -34,6 +34,7 @@ const SEARCH_TIMEOUT_MS = 30_000;
 
 export const webSearchTool: Tool<SearchArgs> = {
 	name: "web_search",
+	approvalKind: "network",
 	description:
 		"Search the web for pages: titles, snippets and URLs. Read one with web_fetch.",
 	parameters: {

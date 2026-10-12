@@ -214,6 +214,17 @@ test("auto 模式下提权请求一律问人，「总是允许」也只管这一
 	assert.equal(await second, "reject");
 });
 
+test("auto 模式下 PreToolUse 钩子要求确认的调用送到人面前，不由策略放行", async () => {
+	/*
+	 * 钩子卡片的 subject 是工具名。策略把 `bash` 当成一条命令来判，判出「不危险」，于是钩子明说
+	 * 要问人的那次调用，在 auto 下一声不响地放行了。
+	 */
+	const { instance, asked } = gate();
+	const decision = await instance.request({ kind: "bash", title: "bash", detail: "{}", subject: "bash", byHook: true });
+	assert.equal(asked.length, 1, "策略替人答了钩子要的确认");
+	assert.equal(decision, "reject");
+});
+
 test("每一张卡怎么收场都说一声；收回时只收该收的那几张", async () => {
 	const settled: string[] = [];
 	const asked: string[] = [];

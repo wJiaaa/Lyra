@@ -42,6 +42,7 @@ interface EditArgs {
 
 export const editTool: Tool<EditArgs> = {
 	name: "edit",
+	approvalKind: "edit",
 	description:
 		"Edit a file. Preferred: `patch`, always with the `tag` from read's header, naming ORIGINAL line numbers and giving only the replacement lines. " +
 		"Only edit lines you have seen — read a range folded as `⋯` first. If the file changed since you read it the edit is rejected; re-read and redo it.\n\n" +

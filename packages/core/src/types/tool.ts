@@ -255,6 +255,11 @@ export interface ApprovalRequest extends QuestionFields {
 	 */
 	escalation?: SandboxMode;
 	/**
+	 * PreToolUse 钩子要求确认的这一次：钩子明说要问人，`auto` 下的审批策略不能替人答。
+	 * 策略拿到的 `subject` 只是工具名，按它判出的「不危险」是在判一个不存在的命令。
+	 */
+	byHook?: boolean;
+	/**
 	 * 是哪个子代理在问。主会话自己问的没有这一项。
 	 *
 	 * 子代理的授权一直送到主窗口的同一张卡片上，只是卡片说不出是谁在要——而后台可能同时有四个
@@ -321,6 +326,11 @@ export interface Tool<TArgs = Record<string, unknown>> extends ToolSpec {
 	executionModeFor?(args: TArgs): "parallel" | "sequential";
 	/** Tools that mutate the workspace go through the approval flow. */
 	mutating?: boolean;
+	/**
+	 * PreToolUse 钩子要求确认这次调用时，卡片按哪一类来写。工具自己要授权时各自填 `kind`，用不到这里。
+	 * 不写的按 MCP 工具算。
+	 */
+	approvalKind?: Exclude<ApprovalRequest["kind"], "interactive" | "form">;
 	/**
 	 * 只给会话本身，派出去的子代理拿不到。
 	 *

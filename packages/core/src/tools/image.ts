@@ -29,6 +29,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export const generateImageTool: Tool<ImageArgs> = {
 	name: "generate_image",
+	approvalKind: "network",
 	description:
 		"Generate an image with the image model chosen in settings. It is shown to the user in the conversation and returned to you with its saved path; " +
 		"copy the file into the project when they want it there, and otherwise don't link it or repeat the path — they are already looking at it. " +

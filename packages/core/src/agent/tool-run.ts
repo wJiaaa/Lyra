@@ -289,7 +289,7 @@ async function executeOne(
 			}
 			if (decision?.approval === "allow") preApproved = true;
 			if (decision?.approval === "ask" && requestApproval) {
-				const answer = await awaitingPerson(() => requestApproval(hookApprovalRequest(call.name, call.arguments, decision.approvalReason)));
+				const answer = await awaitingPerson(() => requestApproval(hookApprovalRequest(tool, call.arguments, decision.approvalReason)));
 				if (!approved(answer)) return errorResult(`The user declined "${call.name}".`);
 				preApproved = true;
 			}
@@ -426,21 +426,15 @@ export function appendHookContexts(result: ToolResult, contexts: readonly string
 	return { result: { ...result, content: [...result.content, { type: "text" as const, text: `\n${text}` }] } };
 }
 
-/** PreToolUse 说「要问」时，替它向人要一次确认。 */
-function hookApprovalRequest(toolName: string, args: Record<string, unknown>, reason?: string): ApprovalRequest {
-	const kind: ApprovalRequest["kind"] =
-		toolName === "bash" ? "bash"
-		: toolName === "write" ? "write"
-		: toolName === "edit" ? "edit"
-		: ["read", "ls", "grep", "glob"].includes(toolName) ? "read"
-		: toolName === "web_fetch" || toolName === "web_search" || toolName === "generate_image" ? "network"
-		: "mcp";
+/** PreToolUse 说「要问」时，替它向人要一次确认。`byHook`：审批策略的猜测不能替人答，见 `ApprovalGate.request`。 */
+function hookApprovalRequest(tool: Tool, args: Record<string, unknown>, reason?: string): ApprovalRequest {
 	return {
-		kind,
-		title: toolName,
+		kind: tool.approvalKind ?? "mcp",
+		title: tool.name,
 		detail: JSON.stringify(args, null, 2).slice(0, 4000),
 		reason: reason ?? "PreToolUse 钩子要求确认这次调用",
-		subject: toolName,
+		subject: tool.name,
+		byHook: true,
 	};
 }
 

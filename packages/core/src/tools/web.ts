@@ -57,6 +57,7 @@ interface FetchArgs {
  */
 export const webFetchTool: Tool<FetchArgs> = {
 	name: "web_fetch",
+	approvalKind: "network",
 	description:
 		"Fetch a URL as readable text. Public, private and local addresses work; a redirect to another origin is refused, so fetch that address yourself.",
 	parameters: {

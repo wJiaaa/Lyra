@@ -69,6 +69,7 @@ interface GrepArgs {
 
 export const grepTool: Tool<GrepArgs> = {
 	name: "grep",
+	approvalKind: "read",
 	description:
 		"Search file contents with a regular expression. A matching line over 2000 characters comes back as a window around the hit, " +
 		"with the `char_offset` that lets `read` open more of it.",

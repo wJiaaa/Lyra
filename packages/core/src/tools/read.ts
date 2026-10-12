@@ -34,6 +34,7 @@ function extensionOf(path: string): string {
 
 export const readTool: Tool<ReadArgs> = {
 	name: "read",
+	approvalKind: "read",
 	description:
 		"Read a file. Text comes back with a `[path#TAG]` header — quote that TAG when you edit — and 1-indexed lines as `NNNN→content`. " +
 		"A long source file read without `offset`/`limit` comes back as its STRUCTURE: declarations and doc comments, each body folded to " +

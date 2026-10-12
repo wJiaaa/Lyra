@@ -14,6 +14,7 @@ interface WriteArgs {
 
 export const writeTool: Tool<WriteArgs> = {
 	name: "write",
+	approvalKind: "write",
 	description:
 		"Write a whole file, creating parent directories. To change part of an existing file use `edit`; read an existing file before overwriting it.",
 	parameters: {

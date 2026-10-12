@@ -180,6 +180,7 @@ function gitConfigReads(args: string[]): boolean {
 
 export const bashTool: Tool<BashArgs> = {
 	name: "bash",
+	approvalKind: "bash",
 	/*
 	 * What the model has to know about the shell itself is not here: it depends on the session's
 	 * permission mode (a confined command on Windows runs in PowerShell — see `commandShell`), which
