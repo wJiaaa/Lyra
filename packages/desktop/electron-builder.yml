@@ -44,6 +44,12 @@ extraResources:
     to: build/tray
     filter:
       - "*.png"
+  # The `plume://` docs, which core reads by path (`electron/plume-docs.ts`). core itself is bundled
+  # into `out/main`, so the markdown beside its sources would otherwise never reach the package.
+  - from: ../core/src/resources/plume-docs
+    to: plume-docs
+    filter:
+      - "*.md"
 
 # ripgrep, which core's `grep` tool runs and the main process points it at (`electron/ripgrep.ts`).
 # Without one the tool falls back to a JavaScript scan tens of times slower, and a GUI launch's

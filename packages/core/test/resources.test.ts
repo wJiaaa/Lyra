@@ -12,6 +12,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { BUILTIN_RESOURCES } from "../src/resources/handlers.ts";
 import { parseResourceUrl, ResourceRouter, resolveInside } from "../src/resources/router.ts";
 import type { ResourceContext } from "../src/resources/types.ts";
@@ -240,7 +241,40 @@ test("plume:// serves its own documentation and lists its topics", async () => {
 	assert.equal(doc.immutable, true);
 
 	const index = await router().resolve("plume://", ctx());
-	assert.match(index.content, /writing-skills/);
+	assert.match(index.content, /- plume:\/\/writing-skills: 怎么写一个技能/, "the index shows each topic's title");
+});
+
+test("plume:// topics cannot reach outside the docs directory", async () => {
+	for (const url of ["plume://../handlers.ts", "plume://..%2Fhandlers", "plume://a/b", "plume://nope"]) {
+		await assert.rejects(() => router().resolve(url, ctx()), /没有“.*”这个主题。现有的是：.*addresses/, url);
+	}
+});
+
+test("plume:// reads from PLUME_DOCS when the app points it at its bundled copy", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "plume-docs-"));
+	const previous = process.env.PLUME_DOCS;
+	try {
+		await writeFile(join(dir, "only.md"), "# 只有这一篇\n\n正文");
+		process.env.PLUME_DOCS = dir;
+		assert.equal((await router().resolve("plume://", ctx())).content, "- plume://only: 只有这一篇");
+		assert.equal((await router().resolve("plume://only", ctx())).content, "# 只有这一篇\n\n正文");
+
+		process.env.PLUME_DOCS = join(dir, "missing");
+		await assert.rejects(() => router().resolve("plume://only", ctx()), /没有带上 Plume 的使用说明/);
+	} finally {
+		if (previous === undefined) delete process.env.PLUME_DOCS;
+		else process.env.PLUME_DOCS = previous;
+		await rm(dir, { recursive: true, force: true });
+	}
+});
+
+test("every plume:// doc opens with the title its index entry shows", async () => {
+	const { readdir, readFile } = await import("node:fs/promises");
+	const dir = fileURLToPath(new URL("../src/resources/plume-docs/", import.meta.url));
+	for (const name of await readdir(dir)) {
+		assert.match(name, /^[a-z0-9][a-z0-9-]*\.md$/, `${name} cannot be addressed as plume://<topic>`);
+		assert.match(await readFile(join(dir, name), "utf8"), /^# \S/, `${name} must start with "# <title>"`);
+	}
 });
 
 // ---------------------------------------------------------------------------

@@ -90,6 +90,7 @@ import { configureNotify } from "./notify.ts";
 import { sessionFromUrl } from "./deep-link.ts";
 import { applicationMenuTemplate } from "./app-menu.ts";
 import { shortcutFailureKey } from "./accelerator.ts";
+import { useBundledDocs } from "./plume-docs.ts";
 import { useBundledRipgrep } from "./ripgrep.ts";
 import { nativeTranslator, resolveNativeLocale, setInterfaceLocaleSource } from "./i18n.ts";
 import { lazyPty } from "./pty-loader.ts";
@@ -441,6 +442,7 @@ app.whenReady().then(async () => {
 	 */
 	void primeCommandPath({ always: true });
 	useBundledRipgrep({ platform: process.platform, arch: process.arch, packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath ?? "" });
+	useBundledDocs({ packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath ?? "" });
 
 	// Before any window exists, so none is ever built with the default menu's reload and DevTools
 	// keys. Packaged builds only; see `app-menu.ts` for what is kept and why.

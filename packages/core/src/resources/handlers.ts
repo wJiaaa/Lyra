@@ -11,6 +11,7 @@ import { dirname } from "node:path";
 import { expandSkillPaths, type Skill } from "../skills/loader.ts";
 import { SKILLS_KEY } from "../skills/tool.ts";
 import { artifactResource, mcpResource, pluginResource, sessionResource } from "./more-handlers.ts";
+import { plumeResource } from "./plume-docs.ts";
 import { resolveInside, stillInside } from "./router.ts";
 import { ResourceError, type Completion, type ParsedUrl, type Resource, type ResourceContext, type ResourceHandler } from "./types.ts";
 
@@ -143,103 +144,6 @@ async function scratchTarget(url: ParsedUrl, ctx: ResourceContext): Promise<stri
 	if (!(await stillInside(ctx.scratchDir, target))) throw new ResourceError(`\`${url.raw}\` 经过软链后指到了临时目录外面。`);
 	return target;
 }
-
-/**
- * `plume://<topic>` is Plume's own documentation.
- *
- * The case for it: when someone says "write me a skill that handles PDFs", the agent's alternative
- * to reading this is whatever impression of the format survived in its training data — which for a
- * format this app defines is a guess with the shape of a fact. One read produces a skill that
- * actually loads.
- *
- * The prompt has to say **only read this when the question is about Plume**, or the model will
- * consult it in the middle of unrelated work.
- */
-const TOPICS: Record<string, { title: string; body: string }> = {
-	"writing-skills": {
-		title: "怎么写一个技能",
-		body: [
-			"技能是一个目录，里面有一个 `SKILL.md`。放在 `<项目>/.plume/skills/<名字>/` 或 `~/.plume/skills/<名字>/`。",
-			"",
-			"```markdown",
-			"---",
-			"name: pdf-extract           # 小写、连字符分隔，必须和目录名一致的话更好认",
-			"description: 从 PDF 里抽取文本与表格。用户提到 PDF、扫描件、发票时用这个。",
-			"allowed-tools: [read, bash] # 可选。省略表示不限制",
-			"disable-model-invocation: false  # 可选。true 表示只能由人手动触发",
-			"---",
-			"",
-			"正文就是给模型的指令。写清楚步骤，不要写背景介绍。",
-			"技能目录里的其他文件可以用 `skill://pdf-extract/<文件名>` 读到。",
-			"```",
-			"",
-			"**`description` 是最重要的一行**——模型是靠读它来决定用不用这个技能的。",
-			"写「什么时候该用它」，不要写「它是什么」。",
-			"",
-			"同名时优先级：项目 > 用户 > 插件包 > 代码里注册的。",
-		].join("\n"),
-	},
-	"editing-files": {
-		title: "编辑文件的格式",
-		body: [
-			"`edit` 用行锚定的补丁，不是 `old_string`/`new_string`。",
-			"",
-			"先 `read` 拿到文件头上的 `[路径#TAG]`，编辑时把那个 tag 带上：",
-			"",
-			"```",
-			"REPLACE 12-14",
-			"+新的第一行",
-			"+新的第二行",
-			"",
-			"INSERT AFTER 40",
-			"+插在第 40 行后面",
-			"",
-			"DELETE 7-9",
-			"```",
-			"",
-			"tag 对不上就说明文件在你读完之后被改过了，这时编辑会被拒绝而不是覆盖。",
-			"重新 `read` 再按新的行号来。",
-		].join("\n"),
-	},
-	addresses: {
-		title: "地址空间",
-		body: [
-			"这些地址在 `read` 里跟普通路径一样用：",
-			"",
-			"- `skill://<名字>` 技能正文；`skill://<名字>/<路径>` 技能目录里的文件",
-			"- `scratch://<路径>` 本次会话的临时目录，**可写**，会话结束后消失",
-			"- `plume://<主题>` 这份文档本身",
-			"",
-			"末尾可以跟行范围：`read skill://pdf:10-40`。",
-			"只给 scheme（`read skill://`）会列出这个命名空间里有什么。",
-		].join("\n"),
-	},
-};
-
-const plumeResource: ResourceHandler = {
-	scheme: "plume",
-	describe: "Plume 自己的文档。**只在用户问 Plume 本身时读**",
-
-	async resolve(url: ParsedUrl): Promise<Resource> {
-		const topic = url.segments.join("/");
-		const found = TOPICS[topic];
-		if (!found) {
-			throw new ResourceError(`没有“${topic}”这个主题。现有的是：${Object.keys(TOPICS).join("、")}`);
-		}
-		return {
-			url: url.raw,
-			content: `# ${found.title}\n\n${found.body}`,
-			contentType: "text/markdown",
-			immutable: true,
-			label: `Plume 文档：${found.title}（完整）`,
-			meta: { topic },
-		};
-	},
-
-	async list(): Promise<Completion[]> {
-		return Object.entries(TOPICS).map(([key, value]) => ({ value: `plume://${key}`, description: value.title }));
-	},
-};
 
 /**
  * `agent://<id>` is a sub-agent's structured result; `agent://<id>/<path>` is one field of it.

@@ -35,7 +35,12 @@ interface Probe {
 	name: string;
 	task: string;
 	/** The call that means the model used the address space. */
-	wants: RegExp;
+	wants?: RegExp;
+	/**
+	 * A call that must not happen. `plume://` is for questions about Plume; a model that consults it
+	 * in the middle of someone's own task is spending their turns on the wrong thing.
+	 */
+	avoid?: RegExp;
 	/** A call that means it went the long way round instead. Not a failure, but worth counting. */
 	detour?: RegExp;
 	/** Something that must appear in the final answer, proving it read rather than guessed. */
@@ -95,6 +100,35 @@ const PROBES: Probe[] = [
 		task: "我想给这个项目写一个技能，教它怎么发版。技能文件的 frontmatter 该怎么写？先查 Plume 自己的文档，别凭印象答。",
 		wants: /plume:\/\/writing-skills/,
 		needle: /description/,
+	},
+	// 下面三句是真实会话里问过的原话，当时 `plume://` 里没有答案，模型转头去翻源码和 app.asar。
+	{
+		name: "问 /goal 怎么用",
+		task: "目标/goal 怎么用",
+		wants: /plume:\/\/goal/,
+		needle: /50/,
+	},
+	{
+		name: "问 web_search 用哪家",
+		task: "web_search 用的是哪个的？",
+		wants: /plume:\/\/web-search/,
+		needle: /DuckDuckGo/,
+	},
+	{
+		name: "问界面报错",
+		task: "Plume 界面报了一个错误，帮我查清原因并给出可执行的解决办法。\n\n错误信息：\n该目录不在已打开的项目内",
+		wants: /plume:\/\/troubleshooting/,
+		needle: /工作树根目录|编辑项目/,
+	},
+	{
+		name: "无关任务不读文档",
+		task: "写一个 TypeScript 函数 formatDuration(seconds)，返回 mm:ss。直接把代码贴在回复里，不用建文件。",
+		avoid: /plume:\/\//,
+	},
+	{
+		name: "项目里的活不读文档",
+		task: "在项目根目录新建 notes.md，写一行：今天修登录页。",
+		avoid: /plume:\/\//,
 	},
 	{
 		name: "改不了技能",
@@ -248,8 +282,9 @@ async function main(): Promise<void> {
 			 * correct refusal as "never used an address" — which it did, for a boundary that was
 			 * working exactly as designed.
 			 */
-			? calls.some((call) => probe.wants.test(call))
-			: addressCalls.some(({ args, ok }) => ok && probe.wants.test(args));
+			? calls.some((call) => probe.wants?.test(call))
+			: addressCalls.some(({ args, ok }) => ok && probe.wants?.test(args));
+		const strayed = probe.avoid ? calls.some((call) => probe.avoid!.test(call)) : false;
 		const tookDetour = probe.detour ? calls.some((call) => probe.detour!.test(call)) : false;
 		const contentOk = probe.verify
 			? await probe.verify({ cwd, scratchDir })
@@ -261,15 +296,17 @@ async function main(): Promise<void> {
 				: errors.some((e) => /只读/.test(e))
 			: probe.needle
 				? probe.needle.test(answer)
-				: usedAddress;
+				: probe.avoid
+					? true
+					: usedAddress;
 		/*
 		 * In the control run there are no addresses to use, so scoring on `usedAddress` would score
 		 * every row zero and prove nothing. What both runs share is whether the answer was right.
 		 */
-		const correct = withoutAddresses ? contentOk : usedAddress && contentOk;
+		const correct = probe.avoid ? !strayed && contentOk : withoutAddresses ? contentOk : usedAddress && contentOk;
 		if (correct) ok += 1;
 
-		const usedLabel = usedAddress ? "是" : tookDetour ? "绕开了" : "否";
+		const usedLabel = probe.avoid ? (strayed ? "读了不该读的" : "没读，对") : usedAddress ? "是" : tookDetour ? "绕开了" : "否";
 		console.log(
 			`${probe.name.padEnd(22)} ${usedLabel.padEnd(11)} ${(contentOk ? "是" : "否").padEnd(9)} ${correct ? `${GREEN}✓${OFF}` : `${RED}✗${OFF}`}`,
 		);
