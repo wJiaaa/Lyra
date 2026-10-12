@@ -5,7 +5,8 @@
 | 文件 | 回答的问题 |
 | --- | --- |
 | `run-config.ts` | 一次运行拿到什么、交回什么（`AgentRunConfig` 的四组 / `AgentRunResult` / `LiveModel`） |
-| `loop.ts` | 还要不要再来一轮：插话、模型切换、压缩、恢复、收尾判断 |
+| `loop.ts` | 一轮怎么走：插话、模型切换、压缩、恢复，再按收尾规则表问下去 |
+| `turn-checks.ts` | 一条回复处理完以后还要不要再来一轮：续写、催促、Stop 钩子、清单、重复、`yield`，按优先级排成两张表 |
 | `stream-turn.ts` | 一个请求怎么变成一条落定的回复：重试计数、换模型放手、拒收挂起 |
 | `tool-run.ts` | 一轮里的工具怎么跑：并行/串行、审批、钩子、停止不等工具 |
 | `repetition.ts` | 这一轮有没有在原地打转（阈值的来历写在那个文件顶上） |
@@ -47,8 +48,11 @@
 2. `prepareHistory`：换模型 → 剪枝 → 压缩。
 3. `requestReply`：发请求；被拒收或超长时各恢复一次。
 4. 回复出错或中断：`closeUnansweredCalls` 后收场。
-5. 没有工具调用：`endWithoutTools` 决定收场还是再来一轮。
-6. 有工具调用：`runToolTurn` 跑工具，再由 `answerRepeats` 处理重复。
+5. 没有工具调用：`endWithoutTools` 先收插话，再按 `afterProse` 表问下去，第一条有意见的规则说了算。
+6. 有工具调用：`runToolTurn` 跑工具，再按 `afterTools` 表问下去：`end` 立刻收场，`say` 照说、后面的照问。
+
+两张表在 `turn-checks.ts`，表里的顺序就是规则之间的优先级。加一条收尾规则是写一个函数、在 `turnChecks` 里登记一行，
+不用改 `loop.ts`；改了顺序要说清楚理由，`turn-checks.test.ts` 守着写明了理由的那几条。
 
 凡是运行时以用户角色说的话（续写、催促、重复提示）都走 `inject(synthetic(...))`：用户角色是
 模型唯一会当作指令接收的角色，而 `synthetic` 让界面不把它画进人的气泡——画进去，转录里就是人
@@ -186,8 +190,8 @@
 | 续跑次数 | 10 段 | 停下，通知「已达到自动续跑次数上限」 | `continuation.ts` `MAX_CONTINUATIONS` |
 | 续跑没推进清单 | 连续 2 段一项没勾 | 停下，通知 `plan-stalled` | `continuation.ts` `STALLED_CONTINUATIONS` |
 | 撞到步数上限时清单为空或已做完 | — | 主会话停下；子代理宽限一段让它写清单 | `continuation.ts` `planless` |
-| 空回复 | 催 3 次 | `error`「模型连续返回空回复」 | `loop.ts` `MAX_NUDGES` |
-| 纯文本撞输出上限 | 续写 3 次 | 停下，通知 `output-limit` | `loop.ts` `MAX_TRUNCATED_REPLIES` |
+| 空回复 | 催 3 次 | `error`「模型连续返回空回复」 | `turn-checks.ts` `MAX_NUDGES` |
+| 纯文本撞输出上限 | 续写 3 次 | 停下，通知 `output-limit` | `turn-checks.ts` `MAX_TRUNCATED_REPLIES` |
 | 工具参数撞输出上限 | 连续 3 次 | `error`，让它拆小 | 同上 |
 | 同一调用、同一结果 | 第 3 次起纠正，第 10 次停 | `stalled` | `repetition.ts` `REPEAT_WARN` / `REPEAT_STOP` |
 | 翻页问同一个问题 / 切图测距 | 12 次 / 5 次 | 只提示，不停 | `repetition.ts` `INTENT_WARN` / `PROBE_WARN` |
@@ -198,7 +202,7 @@
 | 请求重试 | 按设置页：网络默认无限、上游默认 10 次 | `error`；不在外面整轮重来，由人点「继续」 | `ai/retry.ts`，见 [retry-policy.md](retry-policy.md) |
 | 授权卡片没人答 | 5 分钟 | 当作拒绝 | `approvals.ts` `UNATTENDED_TIMEOUT_MS` |
 | `ask_user` 没人答 | 30 分钟 | 当作没有回答，要求它在回复里说出来 | `approvals.ts` `QUESTION_TIMEOUT_MS` |
-| `yield` 交付 | — | `done`，不再问下一句 | `loop.ts` `runToolTurn` |
+| `yield` 交付 | — | `done`，不再问下一句 | `turn-checks.ts` `delivered` |
 
 没有按花费或「多久没说话」停的线，两种都试过并拆掉了，见 `repetition.ts` 顶上。
 

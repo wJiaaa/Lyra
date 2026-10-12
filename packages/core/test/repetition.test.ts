@@ -70,7 +70,7 @@ test("alternating between two useless probes is still stuck", () => {
 	 * 两个都攒够了纠正线——按「连续」计数会在每次交替时清零，什么也发现不了。
 	 *
 	 * 攒够之后不再停这一轮（那条路 2026-09-16 去掉了），而是让调用方把那份一模一样的结果换成一句
-	 * 「这是第 N 次」。见 `agent/loop.ts` 里用 `repeats` 的那一段。
+	 * 「这是第 N 次」。见 `agent/turn-checks.ts` 的 `repeats`。
 	 */
 	const a = watch.observe(call("bash", { command: "check a" }), [result("same")]);
 	assert.ok(a.repeats[0] > REPEAT_WARN, `第 ${a.repeats[0]} 次，早该纠正了`);

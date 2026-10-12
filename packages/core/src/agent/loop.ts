@@ -10,11 +10,12 @@
 
 import { compactStep } from "./compact-step.ts";
 import { lineageFrom } from "./lineage.ts";
-import { originalInView, REPEAT_WARN, repeatHint, repeatNotice, RepetitionWatch } from "./repetition.ts";
+import { RepetitionWatch } from "./repetition.ts";
 import { PlanWatch } from "./plan-watch.ts";
 import type { AgentModelContext, AgentRunConfig, AgentRunResult } from "./run-config.ts";
 import { rejectedContent, streamTurn, type TurnResult } from "./stream-turn.ts";
 import { failTruncatedCalls, runTools } from "./tool-run.ts";
+import { askAfterProse, askAfterTools, turnChecks, type Ending, type TurnChecks } from "./turn-checks.ts";
 import { isContextOverflow } from "../ai/failure.ts";
 import { stripOversizedToolResults } from "./prune.ts";
 import { AgedToolPruner } from "./aged-prune.ts";
@@ -24,24 +25,17 @@ import { withInterfaceNotes } from "../ui-language/notes.ts";
 import { withSteeringNote } from "../prompt/steering.ts";
 import { clearActiveSkill, syncSkillContext } from "../skills/tool.ts";
 import { toolTable } from "../tools/mcp-search.ts";
-import type { AssistantContent, AssistantMessage, LlmContext, Message, ToolResultMessage } from "../types.ts";
+import type { AssistantContent, AssistantMessage, LlmContext, Message } from "../types.ts";
 import type { AgentEventSink } from "./events.ts";
 
 export type { AgentRunConfig, AgentRunResult, LiveModel, StreamRequest } from "./run-config.ts";
 
 const DEFAULT_MAX_TURNS = 200;
-/** Empty-response retries per run; tool calls must not replenish this budget. */
-const MAX_NUDGES = 3;
-/** Consecutive replies cut off by the output limit before the run stops and says so. */
-const MAX_TRUNCATED_REPLIES = 3;
 const TRUNCATED_CALL_REASON =
 	"the response hit the output token limit before this call's arguments were complete. Re-issue it with less in one call: " +
 	"write a large file in parts (create it with the first part, then add the rest with edit), and send fewer calls per reply";
-const CONTINUE_AFTER_LENGTH = "（自动继续）上一条回复达到了输出长度上限，在中途被截断。请从断开的地方直接接着写，不要重复已经写出的内容。";
-const EMPTY_REPLY_NUDGE = "（自动继续）上一条回复没有正文。请给出回答；如果需要用户补充信息，请直接提问并等待回复。";
 
 type ToolCall = Extract<AssistantContent, { type: "toolCall" }>;
-type Ending = { reason: AgentRunResult["reason"]; error?: string };
 
 /** What one run carries from turn to turn. */
 interface Run {
@@ -61,29 +55,28 @@ interface Run {
 	 * empties the queue, so what it returned must be held here or the person's message is lost.
 	 */
 	carried: Message[];
-	/** Empty-response retries spent in this run. */
-	nudges: number;
-	/** Consecutive replies that hit the output limit; reset by one that did not. */
-	truncations: number;
 	/** 清单相关的三句话：单独调清单、跑久了问进度、收尾时清单没勾完。 */
 	readonly plan: PlanWatch;
+	/** 回复处理完以后还要不要再来一轮，按顺序问的两张表。 */
+	readonly checks: TurnChecks;
 }
 
 export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Promise<AgentRunResult> {
 	const state = config.session.state ?? new Map<string, unknown>();
+	const repetition = config.control.repetition ?? new RepetitionWatch();
+	const plan = new PlanWatch(state, config.tools.available);
 	const run: Run = {
 		config,
 		emit,
 		messages: [...config.session.messages],
 		produced: [],
 		state,
-		repetition: config.control.repetition ?? new RepetitionWatch(),
+		repetition,
 		pruner: config.session.pruner ?? new AgedToolPruner(),
 		active: config.model,
 		carried: [],
-		nudges: 0,
-		truncations: 0,
-		plan: new PlanWatch(state, config.tools.available),
+		plan,
+		checks: turnChecks(config.control, emit, plan, repetition),
 	};
 	const maxTurns = config.control.maxTurns ?? DEFAULT_MAX_TURNS;
 	await emit({ type: "agent_start", sessionId: config.session.sessionId });
@@ -136,14 +129,6 @@ async function inject(run: Run, message: Message): Promise<void> {
 function keep(run: Run, ...messages: Message[]): void {
 	run.messages.push(...messages);
 	run.produced.push(...messages);
-}
-
-/**
- * The runtime speaking in the user role — the only role a model takes instructions in — marked so
- * the window does not draw it in the person's bubble as something they typed.
- */
-function synthetic(text: string): Message {
-	return { role: "user", content: [{ type: "text", text }], timestamp: Date.now(), synthetic: true };
 }
 
 function replaceHistory(run: Run, next: Message[]): void {
@@ -321,95 +306,19 @@ async function endWithoutTools(run: Run, assistant: AssistantMessage, turnsLeft:
 	run.carried = turnsLeft ? control.drainSteering?.() ?? [] : [];
 	if (run.carried.length > 0) return undefined;
 
-	// Cut off by the output limit is not finished: let it continue from the break, a bounded number of times.
-	if (assistant.stopReason === "length") {
-		run.truncations += 1;
-		if (run.truncations <= MAX_TRUNCATED_REPLIES && turnsLeft) {
-			await inject(run, synthetic(CONTINUE_AFTER_LENGTH));
-			return undefined;
-		}
-		await emit({ type: "notice", level: "warn", message: "回复连续多次达到输出长度上限，已停下。最后一段回答可能不完整。", code: "output-limit" });
-	} else run.truncations = 0;
-
-	// A checklist cannot tell a question from abandoned work. Text yields to the person; only an
-	// actually empty response earns a bounded retry.
-	const saidNothing = assistant.content.every((part) => part.type !== "text" || !part.text.trim());
-	if (saidNothing) {
-		if (run.nudges >= MAX_NUDGES) return { reason: "error", error: "模型连续返回空回复，请重试或更换模型。" };
-		run.nudges += 1;
-		await inject(run, synthetic(EMPTY_REPLY_NUDGE));
-		return undefined;
-	}
-
-	if (control.onStop && !control.signal?.aborted) {
-		const responseText = assistant.content.filter((part) => part.type === "text").map((part) => part.text).join("");
-		const toolCallCount = run.produced.filter((message) => message.role === "toolResult").length;
-		const resume = await control.onStop({ responseText, toolCallCount }).catch(() => undefined);
-		if (resume && !control.signal?.aborted) {
-			await inject(run, resume);
-			return undefined;
-		}
-	}
-
-	// 清单还说某一步「正在做」：问一次。排在 Stop 钩子后面，钩子看到的是真正的回答。
-	const closing = run.plan.closing(turnsLeft);
-	if (closing) {
-		await inject(run, synthetic(closing));
-		return undefined;
-	}
-	return { reason: "done" };
+	return askAfterProse(run.checks, { assistant, turnsLeft, produced: run.produced }, (message) => inject(run, message));
 }
 
 /** Run the calls a reply asked for, then decide whether the run can go on. */
 async function runToolTurn(run: Run, assistant: AssistantMessage, toolCalls: ToolCall[]): Promise<Ending | undefined> {
 	const { config: { session, tools, control }, state, emit } = run;
 	syncSkillContext(state, run.messages);
-	const truncated = assistant.stopReason === "length";
-	run.truncations = truncated ? run.truncations + 1 : 0;
 	const note = run.plan.beforeTools(toolCalls);
-	const toolResults = truncated
+	const toolResults = assistant.stopReason === "length"
 		? await failTruncatedCalls(toolCalls, emit, TRUNCATED_CALL_REASON)
 		: await runTools(toolCalls, tools, { sessionId: session.sessionId, signal: control.signal, state }, emit, note);
 	keep(run, ...toolResults);
 	await emit({ type: "turn_end", message: assistant, toolResults });
 
-	/*
-	 * A tool said "that's it" (`yield`): the result is already in `state`, and nobody reads another
-	 * reply. Asking anyway once retried an empty answer 222 times over 34 minutes.
-	 */
-	if (toolResults.some((result) => result.terminate === true)) return { reason: "done" };
-
-	if (run.plan.settled(toolCalls, toolResults)) return { reason: "done" };
-
-	if (truncated && run.truncations > MAX_TRUNCATED_REPLIES) {
-		return { reason: "error", error: "回复连续多次在工具参数写到一半时达到输出长度上限，已停下。可以让它把内容拆小，或换一个输出上限更大的模型。" };
-	}
-	const ending = await answerRepeats(run, toolCalls, toolResults);
-	if (ending) return ending;
-	const progress = run.plan.progress(assistant, toolCalls);
-	if (progress) await inject(run, synthetic(progress));
-	return undefined;
-}
-
-/**
- * Same call, same arguments, same answer — again. Correct first, stop only when correction failed.
- *
- * From the third identical answer on, the model sees "this is the Nth time" instead of the same
- * text again. Replaced after commit, so the log keeps the original; the cost is one prefix break
- * after a restart. See docs/architecture/agent-loop.md.
- */
-async function answerRepeats(run: Run, toolCalls: ToolCall[], toolResults: ToolResultMessage[]): Promise<Ending | undefined> {
-	const { warn: repeated, kind, repeats } = run.repetition.observe(toolCalls, toolResults);
-	if (run.repetition.exhausted()) return { reason: "stalled" };
-
-	for (const [index, seen] of repeats.entries()) {
-		if (seen < REPEAT_WARN) continue;
-		const result = toolResults[index];
-		if (!result) continue;
-		// Pruning may have replaced the earlier copies with pointers; then this one is the original.
-		if (!originalInView(run.messages, toolCalls[index], result)) continue;
-		result.content = [{ type: "text", text: repeatNotice(seen, toolCalls[index].name) }];
-	}
-	if (repeated) await inject(run, synthetic(repeatHint(kind, repeated)));
-	return undefined;
+	return askAfterTools(run.checks, { assistant, toolCalls, toolResults, messages: run.messages }, (message) => inject(run, message));
 }
