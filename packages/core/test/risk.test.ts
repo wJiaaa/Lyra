@@ -48,12 +48,38 @@ test("history rewriting and force pushing ask first", () => {
 	risky("git push --force-with-lease");
 });
 
+test("git commands that discard work through their arguments ask first", () => {
+	risky("git checkout .");
+	risky("git checkout -f main");
+	risky("git checkout -- src/a.ts");
+	risky("git checkout HEAD -- src/a.ts");
+	risky("git restore .");
+	risky("git restore src/a.ts");
+	risky("git restore --staged --worktree src/a.ts");
+	risky("git push origin +main");
+	risky("git push --mirror backup");
+	risky("git stash clear");
+	risky("git stash drop stash@{0}");
+	risky("git worktree remove --force ../wt");
+	risky("git -C repo checkout .");
+});
+
 test("git operations that take nothing away are allowed", () => {
 	safe("git checkout -b feature/x");
 	safe("git restore --staged src/a.ts");
 	safe("git status");
 	safe("git diff HEAD~1");
 	safe("git stash list");
+	// Switching branch refuses to clobber local edits by itself — it must not ask every time.
+	safe("git checkout main");
+	safe("git checkout -");
+	safe("git checkout -b feature/x origin/main");
+	safe("git restore -S src/a.ts");
+	safe("git push origin main");
+	safe("git push -u origin feature/x");
+	safe("git stash");
+	safe("git stash pop");
+	safe("git worktree remove ../wt");
 });
 
 test("privilege escalation and system changes ask first", () => {

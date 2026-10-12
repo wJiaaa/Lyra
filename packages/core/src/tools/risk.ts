@@ -1,5 +1,6 @@
 import { isAbsolute } from "node:path";
 import { commandDialects, withinOrIs } from "../platform.ts";
+import type { RiskCode } from "./risk-reasons.ts";
 import { SAFE, risky, scratchRoots, underScratchRoot, wipesScratchRoot, type RiskVerdict } from "./risk-shared.ts";
 import {
 	COMMAND_PREFIXES,
@@ -120,7 +121,7 @@ function wrappedCommand(command: string, dialect: Dialect = "posix"): string | n
  * global is present — and `git -c protocol.ext.allow=always push --force` is a force push whose
  * "subcommand" read as `-c`. Every git rule below then declined to apply.
  */
-function gitSubcommand(words: string[]): string {
+function gitSubcommand(words: string[]): { sub: string; args: string[] } {
 	const TAKES_VALUE = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"]);
 	let i = 1;
 	while (i < words.length) {
@@ -133,9 +134,37 @@ function gitSubcommand(words: string[]): string {
 			i += 1;
 			continue;
 		}
-		return word;
+		return { sub: word, args: words.slice(i + 1) };
 	}
-	return "";
+	return { sub: "", args: [] };
+}
+
+/** Pathspecs that mean the whole tree — `git checkout .` throws away every unstaged change. */
+const WHOLE_TREE = new Set([".", "./", ":/"]);
+
+/**
+ * Git subcommands whose danger is in their arguments rather than their name.
+ *
+ * `checkout` and `restore` sat in `RISKY_SUBCOMMANDS` without a rule that ever consulted the
+ * table, so `git checkout .` and `git restore .` went through unasked. The line that matters is
+ * `git checkout <branch>`: it is how anyone changes branch and refuses to clobber local edits on
+ * its own, so only `-f`, a whole-tree pathspec or paths after `--` count.
+ */
+function gitArgumentRisk(sub: string, args: string[]): RiskCode | undefined {
+	const has = (...flags: string[]) => args.some((arg) => flags.includes(arg));
+	const operands = args.filter((arg) => !arg.startsWith("-"));
+	if (sub === "checkout") {
+		const afterDashes = args.indexOf("--");
+		const paths = afterDashes >= 0 && afterDashes < args.length - 1;
+		if (has("-f", "--force") || paths || operands.some((arg) => WHOLE_TREE.has(arg))) return "overwrite-changes";
+	}
+	// Restoring the index alone keeps the edits; anything that touches the worktree drops them.
+	if (sub === "restore" && (!has("-S", "--staged") || has("-W", "--worktree"))) return "discard-changes";
+	// `+main` is `--force` for that one ref; `--mirror` makes the remote match, deletions included.
+	if (sub === "push" && (has("--mirror") || operands.slice(1).some((arg) => arg.startsWith("+")))) return "force-push";
+	if (sub === "stash" && (operands[0] === "clear" || operands[0] === "drop")) return "discard-changes";
+	if (sub === "worktree" && operands[0] === "remove" && has("-f", "--force")) return "discard-changes";
+	return undefined;
 }
 
 /**
@@ -246,16 +275,15 @@ function judgeSingle(command: string, contained = false, cwd?: string, dialect: 
 	}
 
 	if (head === "git") {
-		const sub = gitSubcommand(splitWords(command, dialect));
+		const { sub, args } = gitSubcommand(splitWords(command, dialect));
 		// A force push replaces what other people have; a plain push does not.
 		// `--force-with-lease` is the careful form, but it still replaces the remote branch.
 		if (sub === "push" && /(--force|(^|\s)-f(\s|$))/.test(command)) return risky("force-push");
 		if (sub === "reset" && /--hard/.test(command)) return risky("hard-reset");
+		const argumentRisk = gitArgumentRisk(sub, args);
+		if (argumentRisk) return risky(argumentRisk);
 		const table = RISKY_SUBCOMMANDS.get("git");
 		const code = table?.get(sub);
-		// `git checkout -b` and `git restore --staged` take nothing away.
-		if (sub === "checkout" && /\s-b(\s|$)/.test(command)) return SAFE;
-		if (sub === "restore" && /--staged/.test(command) && !/--worktree/.test(command)) return SAFE;
 		if (sub === "reset" || sub === "clean") return code ? risky(code) : SAFE;
 		if (code && (sub === "rebase" || sub === "filter-branch")) return risky(code);
 		return SAFE;
