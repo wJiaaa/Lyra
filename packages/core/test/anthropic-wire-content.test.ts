@@ -268,3 +268,50 @@ test("只有空白的文本块不上线：工具调用前的换行、空白的�
 	const empty = toAnthropicMessages([user("读"), assistantWithCall("toolu_01B"), result("toolu_01B", [])]);
 	assert.deepEqual(blocksOf(empty).find((b) => b.type === "tool_result")?.content, []);
 });
+
+// ---------------------------------------------------------------------------
+// 工具调用 id：合规且整段对话唯一
+// ---------------------------------------------------------------------------
+
+/** 一段每轮都把工具调用叫 `id` 的历史：调用、结果，重复 `turns` 轮。 */
+function everyTurnCalled(id: string, turns: number): Message[] {
+	const history: Message[] = [user("跑三次")];
+	for (let turn = 0; turn < turns; turn++) {
+		history.push(assistantWithCall(id, "bash"), result(id, [{ type: "text", text: `第 ${turn + 1} 次` }]));
+	}
+	return history;
+}
+
+test("每轮都从 bash:0 编号的中转，三轮换成三个不同的 id，结果各自找回自己那次调用", () => {
+	// 复现：按原始 id 建表的那一版输出 ['bash_0','bash_0','bash_0']，一段对话里 id 重复，照样 400。
+	const blocks = blocksOf(toAnthropicMessages(everyTurnCalled("bash:0", 3)));
+	const uses = blocks.filter((b) => b.type === "tool_use").map((b) => b.id);
+	const results = blocks.filter((b) => b.type === "tool_result").map((b) => b.tool_use_id);
+	assert.deepEqual(uses, ["bash_0", "bash_0_2", "bash_0_3"]);
+	assert.deepEqual(results, uses, "每一轮的结果跟着它那一轮的调用换");
+});
+
+test("合法但每轮重复的 id 也消歧", () => {
+	const blocks = blocksOf(toAnthropicMessages(everyTurnCalled("call_0", 2)));
+	assert.deepEqual(blocks.filter((b) => b.type === "tool_use").map((b) => b.id), ["call_0", "call_0_2"]);
+	assert.deepEqual(blocks.filter((b) => b.type === "tool_result").map((b) => b.tool_use_id), ["call_0", "call_0_2"]);
+});
+
+test("后来出现的合法 id 撞上前面的替身时，改名的是后来那个——前面发过的字节不变", () => {
+	// 先把所有合法 id 收进 `taken` 再分配的话，第二轮一出现 `bash_0`，第一轮的替身就从 `bash_0` 变成
+	// `bash_0_2`：历史里早就发过的那段变了，之后的提示缓存全部作废。
+	const before = [user("跑"), assistantWithCall("bash:0", "bash"), result("bash:0", [{ type: "text", text: "甲" }])];
+	const after = [...before, assistantWithCall("bash_0", "bash"), result("bash_0", [{ type: "text", text: "乙" }])];
+	const first = toAnthropicMessages(before);
+	const second = toAnthropicMessages(after);
+	assert.deepEqual(second.slice(0, first.length), first, "前面那段一个字节没变");
+	const uses = blocksOf(second).filter((b) => b.type === "tool_use").map((b) => b.id);
+	assert.deepEqual(uses, ["bash_0", "bash_0_2"]);
+	assert.deepEqual(blocksOf(second).filter((b) => b.type === "tool_result").map((b) => b.tool_use_id), uses);
+});
+
+test("Anthropic 自己起的 id 一个都不动", () => {
+	const history = [user("读"), assistantWithCall("toolu_01A"), result("toolu_01A", [{ type: "text", text: "内容" }]), assistantWithCall("toolu_01B"), result("toolu_01B", [{ type: "text", text: "内容" }])];
+	const blocks = blocksOf(toAnthropicMessages(history));
+	assert.deepEqual(blocks.filter((b) => b.type === "tool_use").map((b) => b.id), ["toolu_01A", "toolu_01B"]);
+});

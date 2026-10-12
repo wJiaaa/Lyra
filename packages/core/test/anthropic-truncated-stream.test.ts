@@ -109,3 +109,49 @@ test("什么内容都没有的流仍然走空回答，原因说的是空回答",
 	assert.equal(message.stopReason, "error");
 	assert.ok(!/一半/.test(String(message.errorMessage)), `空回答被说成了截断: ${message.errorMessage}`);
 });
+
+// ---------------------------------------------------------------------------
+// 省掉 content_block_stop 的中转：工具参数在流结束时定稿
+// ---------------------------------------------------------------------------
+
+/** 开了一个工具调用块、拼完参数，然后不发这个块的收尾帧，直接 `message_delta stop_reason: tool_use`。 */
+const toolCallWithoutStop = (partialJson: string[]) => [
+	frame("message_start", { message: { id: "msg_03", usage: { input_tokens: 31, output_tokens: 1 } } }),
+	frame("content_block_start", { index: 0, content_block: { type: "tool_use", id: "toolu_01", name: "read", input: {} } }),
+	...partialJson.map((json) => frame("content_block_delta", { index: 0, delta: { type: "input_json_delta", partial_json: json } })),
+	frame("message_delta", { delta: { stop_reason: "tool_use" }, usage: { output_tokens: 9 } }),
+	frame("message_stop"),
+];
+
+async function runEvents(frames: string[]) {
+	const events: string[] = [];
+	let last: AssistantMessage | undefined;
+	const stream = anthropicMessagesProvider.stream(provider, model, { messages: [{ role: "user", content: [{ type: "text", text: "读一下" }], timestamp: 1 }], tools: [] }, {
+		retryAttempts: 1,
+		fetch: async () => sse(frames),
+	});
+	for await (const event of stream) {
+		events.push(event.type);
+		if (event.type === "done" || event.type === "error") last = event.message;
+	}
+	return { message: last!, events };
+}
+
+test("没有 content_block_stop 的工具调用，参数照样从拼好的原文里解析出来", async () => {
+	// 复现：从前参数只在收尾帧那里解析，这种流里工具带着 `{}` 执行。
+	const { message, events } = await runEvents(toolCallWithoutStop(['{"path":', '"a.ts"}']));
+	assert.equal(message.stopReason, "toolUse");
+	const call = message.content[0];
+	assert.equal(call.type, "toolCall");
+	assert.deepEqual(call.type === "toolCall" && call.arguments, { path: "a.ts" });
+	assert.ok(events.includes("toolcall_end"), "块没收尾也要告诉界面这次调用定稿了");
+});
+
+test("参数没写完的，按截断处理：arguments 空、原文留着，交给 tool-run 拒绝执行", async () => {
+	const { message } = await runEvents(toolCallWithoutStop(['{"path":"a.']));
+	const call = message.content[0];
+	assert.equal(call.type, "toolCall");
+	if (call.type !== "toolCall") return;
+	assert.deepEqual(call.arguments, {});
+	assert.equal(call.argumentsText, '{"path":"a.', "`tool-run.ts` 看到非空原文配空参数，会拒绝执行并让模型重发");
+});

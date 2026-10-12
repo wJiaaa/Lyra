@@ -58,6 +58,15 @@ test("Anthropic uses the same clamp and an explicit budget for custom levels; in
 	const closable = { ...custom, thinkingOptions: [{ id: "off", label: "关闭", detail: "" }, ...custom.thinkingOptions] };
 	assert.equal((await payload(anthropicMessagesProvider, closable, "off")).thinking, undefined);
 	for (const budgetTokens of [undefined, 100, Number.NaN]) {
-		await assert.rejects(payload(anthropicMessagesProvider, { ...custom, thinkingOptions: [{ ...custom.thinkingOptions[0], budgetTokens }] }, "adaptive"), /requires budgetTokens/);
+		const config = { ...custom, thinkingOptions: [{ ...custom.thinkingOptions[0], budgetTokens }] };
+		const provider: ProviderConfig = { id: "qa", name: "QA", api: "anthropic-messages", apiKey: "test", baseUrl: "https://example.invalid", enabled: true, models: [config] };
+		let fetched = false;
+		let failed: string | undefined;
+		const stream = anthropicMessagesProvider.stream(provider, config, context, { thinking: "adaptive", retryAttempts: 1,
+			fetch: async () => { fetched = true; return new Response("{}", { status: 500 }); },
+		});
+		for await (const event of stream) { if (event.type === "error") failed = String(event.message.errorMessage); }
+		assert.equal(fetched, false, `budgetTokens=${budgetTokens}`);
+		assert.match(String(failed), /budgetTokens/);
 	}
 });

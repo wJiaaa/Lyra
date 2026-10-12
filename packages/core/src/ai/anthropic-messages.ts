@@ -63,19 +63,32 @@ export const anthropicMessagesProvider: Provider = {
  * 撞了就往下走一格：`unsigned → signed-only → none`。往下走是安全方向——少发一点推理最多让模型接不回
  * 自己那条思维链，多发一格是整个请求被拒。
  *
- * 但这张表是**进程级、按模型记**的，而触发降级的常常只是某一个会话里的一段坏历史（换过模型的签名、
- * 半截的块）。只降不升的话，一次降到底就等于这个模型在所有会话里都再也不回放推理——对「要求把推理
- * 带回来」的非签名端点，那是每一轮都 400、重启进程之前无法恢复。所以有两条回头路：
+ * 撞一次能说明的事分两种，作用域差得很远：
  *
- *   - 端点明说「推理要带回来」（`REQUIRES_THINKING`）时回到默认那一格；
- *   - 这次请求里降过一格、降完还是失败了，就把这一格撤掉（`restoreThinkingReplay`）——降级没换来
- *     成功，就不该变成所有会话的结论。
+ *   - **端点就是不认**（验签的中转、轮换上游账号的网关）：每个会话都会撞，值得记成这个模型的结论。
+ *   - **这段历史里有个签名坏了**（换过模型、半截的块）：只是这一个会话的事。
+ *
+ * 一次 400 分不出是哪一种。从前一律写进进程级的表，而且重发成功后不撤——一个会话自己历史里的坏签名，
+ * 让同一个模型在所有会话里都不再回放推理，直到重启。所以现在分三层：
+ *
+ *   - 降级先只作用于**这一次请求**的重发（`streamAnthropic` 里的 `replayNow`），失败了什么都不留；
+ *   - 重发成功，记到**这个会话**（`cacheKey`）上，这个会话往后的每一轮不必再撞一次；
+ *   - **两个不同的会话**各自撞过、各自靠降级才成功，才写进进程级的表——那说明问题跟着端点走，不跟着
+ *     某段历史走。代价是一个真不认签名的端点上，前两个会话各多一次 400（被拒的请求不计 token）。
+ *
+ * 端点明说「推理要带回来」（`REQUIRES_THINKING`）时往回走到默认那一格，成功后把两层记下的降级都撤掉。
  *
  * 记在内存里，不落盘，理由和 `reasoning-compat.ts` 里那一段一样。
  */
 
-/** 学到的结论：`${providerId} ${modelId}` → 无签名思考块该怎么发。 */
+/** 学到的结论：`${providerId} ${modelId}` → 无签名思考块该怎么发。进程级，只放被两个会话印证过的。 */
 const learnedThinkingReplay = new Map<string, ThinkingReplay>();
+/** 单个会话学到的：`${providerId} ${modelId} ${cacheKey}` → 档位。 */
+const sessionThinkingReplay = new Map<string, ThinkingReplay>();
+/** 会话那张表的上限。桌面端一个进程会开很多会话，旧的留着没用，按插入顺序扔最早的。 */
+const SESSION_REPLAY_LIMIT = 256;
+/** 还差一个会话印证的降级：模型 → 第一个靠降级成功的会话和它降到的档位。 */
+const pendingThinkingReplay = new Map<string, { session: string; level: ThinkingReplay }>();
 /** 梯子，从发得最多到发得最少。 */
 const THINKING_LADDER: ThinkingReplay[] = ["unsigned", "signed-only", "none"];
 
@@ -114,10 +127,23 @@ function defaultThinkingReplay(provider: ProviderConfig, model: ModelConfig): Th
 	return model.supportsThinking ? "unsigned" : "signed-only";
 }
 
-/** 这个模型现在该发哪一档。 */
-export function thinkingReplay(provider: ProviderConfig, model: ModelConfig): ThinkingReplay {
+/** 这个模型现在该发哪一档。给了会话（`cacheKey`）时，那个会话自己学到的优先。 */
+export function thinkingReplay(provider: ProviderConfig, model: ModelConfig, session?: string): ThinkingReplay {
 	const { providerId, modelId } = compatScope(provider, model);
-	return learnedThinkingReplay.get(replayKey(providerId, modelId)) ?? defaultThinkingReplay(provider, model);
+	const id = replayKey(providerId, modelId);
+	return (session === undefined ? undefined : sessionThinkingReplay.get(`${id} ${session}`)) ?? learnedThinkingReplay.get(id) ?? defaultThinkingReplay(provider, model);
+}
+
+/**
+ * 从 `now` 这一格，按这句错误该走到哪一格。不认领就是 undefined。
+ *
+ * 「推理要带回来」：降过的回到默认那一格。没降过就不认领——那时这句话说的不是回放档位（DeepSeek 在
+ * 工具排列不对时也这么说，见 `reasoning-compat.ts` 的 `REQUIRES`），交给后面的轴。
+ */
+function stepThinkingReplay(now: ThinkingReplay, fallback: ThinkingReplay, error: string): ThinkingReplay | undefined {
+	if (REQUIRES_THINKING.test(error)) return now === fallback ? undefined : fallback;
+	if (!INVALID_THINKING_SIGNATURE.test(error) && !MISSING_THINKING_SIGNATURE.test(error)) return undefined;
+	return THINKING_LADDER[THINKING_LADDER.indexOf(now) + 1];
 }
 
 /**
@@ -132,23 +158,15 @@ export function thinkingReplay(provider: ProviderConfig, model: ModelConfig): Th
  * 换行去捞另一件事的 `required`。
  *
  * 只认这两条。多认一条的代价是把别的原因造成的 400 误判成签名问题，然后拿一个改坏了的请求去重发。
+ *
+ * 这一个直接改进程级的表，流里不走它——流里的降级先只算这一次请求，见文件这一段开头。
  */
 export function learnThinkingReplay(providerId: string, modelId: string, error: string, from: ThinkingReplay = "unsigned"): boolean {
 	const id = replayKey(providerId, modelId);
-	/*
-	 * 「推理要带回来」：降过的回到默认那一格，重发。没降过就不认领——那时这句话说的不是回放档位
-	 * （DeepSeek 在工具排列不对时也这么说，见 `reasoning-compat.ts` 的 `REQUIRES`），交给后面的轴。
-	 */
-	if (REQUIRES_THINKING.test(error)) {
-		if (!learnedThinkingReplay.has(id) || learnedThinkingReplay.get(id) === from) return false;
-		learnedThinkingReplay.delete(id);
-		return true;
-	}
-	if (!INVALID_THINKING_SIGNATURE.test(error) && !MISSING_THINKING_SIGNATURE.test(error)) return false;
-	const now = learnedThinkingReplay.get(id) ?? from;
-	const next = THINKING_LADDER[THINKING_LADDER.indexOf(now) + 1];
+	const next = stepThinkingReplay(learnedThinkingReplay.get(id) ?? from, from, error);
 	if (!next) return false;
-	learnedThinkingReplay.set(id, next);
+	if (next === from) learnedThinkingReplay.delete(id);
+	else learnedThinkingReplay.set(id, next);
 	return true;
 }
 
@@ -158,20 +176,44 @@ const MISSING_THINKING_SIGNATURE = /thinking\.signature\b[^"\n]{0,32}\brequired\
 const REQUIRES_THINKING = /(?:reasoning(?:_content|_text)?|thinking)\b.{0,40}must be passed back/i;
 
 /**
- * 把这个模型的档位放回某次请求开始时的样子。`to` 为 undefined 表示那时还没学过。
+ * 一次请求换了档位并且成功了，把结论记到该记的地方。理由见文件这一段开头。
  *
- * 给「降了一格、重发还是失败」用，理由见文件这一段开头。
+ * 降级在 `session` 为 undefined（调用方没给 `cacheKey`）时什么都不记：分不出是不是同一个会话，就既
+ * 不能记到会话上，也不能拿它去印证进程级的结论。
  */
-function restoreThinkingReplay(providerId: string, modelId: string, to: ThinkingReplay | undefined): void {
-	const id = replayKey(providerId, modelId);
-	if (to === undefined) learnedThinkingReplay.delete(id);
-	else learnedThinkingReplay.set(id, to);
+function settleThinkingReplay(id: string, session: string | undefined, level: ThinkingReplay, direction: "down" | "up"): void {
+	if (direction === "up") {
+		// 端点说推理要带回来，而且带回来成功了：之前那些降级（不管记在哪一层）都是错的。
+		if (session !== undefined) sessionThinkingReplay.delete(`${id} ${session}`);
+		learnedThinkingReplay.delete(id);
+		pendingThinkingReplay.delete(id);
+		return;
+	}
+	if (session === undefined) return;
+	const key = `${id} ${session}`;
+	sessionThinkingReplay.delete(key);
+	sessionThinkingReplay.set(key, level);
+	if (sessionThinkingReplay.size > SESSION_REPLAY_LIMIT) sessionThinkingReplay.delete(sessionThinkingReplay.keys().next().value!);
+
+	const pending = pendingThinkingReplay.get(id);
+	if (!pending || pending.session === session) {
+		pendingThinkingReplay.set(id, { session, level });
+		return;
+	}
+	// 两个会话降到的格子可能不一样深，取浅的那一格：那是两个都证明过「上面那一格不行」的位置。
+	const agreed = THINKING_LADDER[Math.min(THINKING_LADDER.indexOf(pending.level), THINKING_LADDER.indexOf(level))];
+	const current = learnedThinkingReplay.get(id);
+	if (current === undefined || THINKING_LADDER.indexOf(agreed) > THINKING_LADDER.indexOf(current)) learnedThinkingReplay.set(id, agreed);
+	pendingThinkingReplay.delete(id);
 }
 
 /** 测试用：把学到的都忘掉。 */
 export function resetThinkingReplay(): void {
 	learnedThinkingReplay.clear();
+	sessionThinkingReplay.clear();
+	pendingThinkingReplay.clear();
 	learnedAdaptiveThinking.clear();
+	refusedInterleavedThinking.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -220,6 +262,39 @@ function learnAdaptiveThinking(providerId: string, modelId: string, error: strin
 	const id = compatKey(providerId, modelId);
 	if (learnedAdaptiveThinking.has(id)) return false;
 	learnedAdaptiveThinking.add(id);
+	return true;
+}
+
+// ---------------------------------------------------------------------------
+// budget_tokens 写法下的交错思考
+// ---------------------------------------------------------------------------
+
+/*
+ * `{type: "enabled", budget_tokens}` 写法下，Claude 4 系列只在一轮的开头想一次：工具结果回来之后的
+ * 续写不再思考，除非请求带着 `anthropic-beta: interleaved-thinking-2025-05-14`。adaptive 写法自己就是
+ * 交错的，不需要也不带。这条链从前一个 beta 头都不带，于是开着思考跑工具的每一轮，第二步起都是不想
+ * 就答。
+ *
+ * 风险在第三方中转：有的会拒绝它不认识的 beta（官方对未知值也是 400）。没有现成的「头被拒后不带」的
+ * 机制可复用——`request-params-compat.ts` 管的是请求体字段，而且是三条链共用的文件——所以和
+ * adaptive 写法一样在这个文件里学：被点名拒了就记下这个模型不带，重发。认的说法是**推断**，没有实测
+ * 样本：只认点名 `anthropic-beta` / `interleaved-thinking` 或者说 `beta flag` 的，而且只在这次确实带了
+ * 这个头时才认。
+ */
+
+const INTERLEAVED_THINKING_BETA = "interleaved-thinking-2025-05-14";
+
+/** 学到拒绝这个 beta 头的模型。 */
+const refusedInterleavedThinking = new Set<string>();
+
+const BETA_REFUSED = /anthropic[-_]beta|interleaved[-_]thinking|\bbeta[ _-]?flag/i;
+
+/** 从一次失败里学：端点不认这个 beta 头。返回「结论变了，值得不带它重发」。 */
+function learnInterleavedRefused(providerId: string, modelId: string, error: string): boolean {
+	if (!BETA_REFUSED.test(error)) return false;
+	const id = compatKey(providerId, modelId);
+	if (refusedInterleavedThinking.has(id)) return false;
+	refusedInterleavedThinking.add(id);
 	return true;
 }
 
@@ -289,9 +364,12 @@ async function* streamAnthropic(
 	const scope = compatScope(provider, model);
 	const maxTokens = options.maxTokens ?? model.maxOutputTokens;
 	const budget = effort ? model.thinkingOptions?.find((option) => option.id === effort)?.budgetTokens ?? THINKING_BUDGET[effort] : undefined;
-	if (thinkingEnabled && (!Number.isInteger(budget) || budget === undefined || budget < 1024 || maxTokens <= 1024)) {
-		throw new Error(`Model ${model.modelId}: thinking level "${effort}" requires budgetTokens >= 1024 and maxOutputTokens > 1024.`);
-	}
+	/*
+	 * budget_tokens 写法发不出去的配置。只拦用这种写法的那一次——学到 adaptive 的模型根本不发 budget，
+	 * 拦它等于把一个能用的配置判死。而且不在这里直接抛：抛在 try 外面，调用方拿不到 error 事件和失败
+	 * 消息，另两条链没有这种出口。在每次尝试发出之前查，走下面那条统一的失败出口。
+	 */
+	const budgetInvalid = thinkingEnabled && (!Number.isInteger(budget) || budget === undefined || budget < 1024 || maxTokens <= 1024);
 
 	/*
 	 * 每次尝试重新编一遍，因为**形状可能在两次之间变掉**：无签名的思考块该怎么发是撞出来的，不是配出
@@ -328,7 +406,16 @@ async function* streamAnthropic(
 		...anthropicMetadata(options.cacheKey),
 	});
 
-	let body = buildBody(thinkingReplay(provider, model));
+	/*
+	 * 思考回放这一次请求从哪一格开始、现在在哪一格。降级先只算这一次请求，成功了再按作用域记下来，
+	 * 见 `learnThinkingReplay` 上面那段。
+	 */
+	const replayId = replayKey(scope.providerId, scope.modelId);
+	const replayDefault = defaultThinkingReplay(provider, model);
+	const replayAtStart = thinkingReplay(provider, model, options.cacheKey);
+	let replayNow = replayAtStart;
+
+	let body = buildBody(replayNow);
 
 	options.onPayload?.(body);
 
@@ -348,8 +435,16 @@ async function* streamAnthropic(
 			raw: string;
 			/** `content_block_start` 自己带着的工具参数；后面没有 `input_json_delta` 时就是它。 */
 			input?: Record<string, unknown>;
+			/** 工具调用的参数定稿了没有。见流末尾那一段。 */
+			closed?: boolean;
 		}
 	>();
+	/** 一个工具调用块的参数定稿：拼出来的原文优先，没有就用开头那一帧自带的。 */
+	const settleToolCall = (tracked: { contentIndex: number; raw: string; input?: Record<string, unknown>; closed?: boolean }): void => {
+		tracked.closed = true;
+		const target = partial.content[tracked.contentIndex];
+		if (target?.type === "toolCall") target.arguments = tracked.raw ? parseToolArguments(tracked.raw) ?? {} : tracked.input ?? {};
+	};
 	let stopReason: string | undefined;
 	/** 见过 `message_stop` 没有。这条流是正常收的尾，还是断在半路——见流末尾那一段。 */
 	let sawMessageStop = false;
@@ -381,19 +476,21 @@ async function* streamAnthropic(
 	};
 
 	/*
-	 * 思考回放这一轴在这次请求里往哪边动过。见 `learnThinkingReplay` 上面那段：降了一格还是失败，就把
-	 * 这一格撤掉；同一次请求里也不来回拉扯——端点先嫌签名、再嫌推理没带回来，说明这段历史两头都过不去，
-	 * 在两格之间反复重发只是烧钱。
+	 * 思考回放这一轴在这次请求里往哪边动过。同一次请求里不来回拉扯——端点先嫌签名、再嫌推理没带回来，
+	 * 说明这段历史两头都过不去，在两格之间反复重发只是烧钱。
 	 */
-	const replayAtStart = learnedThinkingReplay.get(replayKey(scope.providerId, scope.modelId));
 	let replayMoved: "down" | "up" | undefined;
-	const learnReplay = (providerId: string, modelId: string, said: string): boolean => {
+	const learnReplay = (said: string): boolean => {
 		const direction = REQUIRES_THINKING.test(said) ? "up" : "down";
 		if (replayMoved && replayMoved !== direction) return false;
-		const moved = learnThinkingReplay(providerId, modelId, said, defaultThinkingReplay(provider, model));
-		if (moved) replayMoved = direction;
-		return moved;
+		const next = stepThinkingReplay(replayNow, replayDefault, said);
+		if (!next) return false;
+		replayNow = next;
+		replayMoved = direction;
+		return true;
 	};
+	/** 这一次尝试带没带交错思考的 beta 头。没带就不认「beta 被拒」，免得替别的头背锅。 */
+	let sentInterleaved = false;
 
 	const retryBudget = new RetryBudget(options.retryPolicy, options.retryAttempts);
 	try {
@@ -416,9 +513,22 @@ async function* streamAnthropic(
 			 * 思考写法那条排在回放档位前面：它只认点名 `budget_tokens` / `thinking.type` 的话，和签名那两句
 			 * 不会抢同一句。只在开着思考时问它——关着思考时请求里没有 `thinking`，学到了也换不出新形状。
 			 */
-			(providerId, modelId, said) => (thinkingEnabled && learnAdaptiveThinking(providerId, modelId, said)) || learnReplay(providerId, modelId, said),
+			(providerId, modelId, said) =>
+				(thinkingEnabled && learnAdaptiveThinking(providerId, modelId, said)) ||
+				(sentInterleaved && learnInterleavedRefused(providerId, modelId, said)) ||
+				learnReplay(said),
 			async function* () {
-				body = buildBody(thinkingReplay(provider, model));
+				const adaptive = usesAdaptiveThinking(scope.providerId, scope.modelId);
+				sentInterleaved = thinkingEnabled && !adaptive && !refusedInterleavedThinking.has(compatKey(scope.providerId, scope.modelId));
+				if (budgetInvalid && !adaptive) {
+					throw new FailureError({
+						kind: "fatal",
+						summary: `模型 ${model.modelId} 的思考档位「${effort}」需要 budgetTokens ≥ 1024，且最大输出 > 1024`,
+						hint: "check-model",
+						fingerprint: "fatal:thinking-budget",
+					});
+				}
+				body = buildBody(replayNow);
 				options.onPayload?.(body);
 				// The whole exchange, not just the connection — see the same wrapper in the Responses
 				// adapter for why a stream that dies part way through is worth asking for again.
@@ -439,6 +549,8 @@ async function* streamAnthropic(
 							 * 不需要这个头。
 							 */
 							...requiredHeaders,
+							// 只在 budget_tokens 写法下带，见 `INTERLEAVED_THINKING_BETA` 上面那段。
+							...(sentInterleaved ? { "anthropic-beta": INTERLEAVED_THINKING_BETA } : {}),
 						},
 						body: JSON.stringify(body),
 						signal: options.signal,
@@ -578,10 +690,8 @@ async function* streamAnthropic(
 							const tracked = blocks.get(idx);
 							if (!tracked) break;
 							if (tracked.kind === "toolCall") {
-								const target = partial.content[tracked.contentIndex];
-								if (target?.type === "toolCall") {
-									target.arguments = tracked.raw ? parseToolArguments(tracked.raw) ?? {} : tracked.input ?? {};
-								}
+								if (tracked.closed) break;
+								settleToolCall(tracked);
 								yield {
 									type: "toolcall_end",
 									index: idx,
@@ -692,6 +802,18 @@ async function* streamAnthropic(
 					);
 				}
 
+				/*
+				 * 没等到 `content_block_stop` 的工具调用，在这里定稿。有的中转省掉块的收尾帧，只发
+				 * `message_delta stop_reason: tool_use`；从前参数只在收尾帧那里解析，于是这种流里工具一律
+				 * 带着 `{}` 执行。解析不了的照收尾帧那条的老规矩：`arguments` 空、`argumentsText` 留着原文，
+				 * `tool-run.ts` 认得出这是没写完的参数，拒绝执行并让模型重发。
+				 */
+				for (const [idx, tracked] of blocks) {
+					if (tracked.kind !== "toolCall" || tracked.closed) continue;
+					settleToolCall(tracked);
+					yield { type: "toolcall_end", index: idx, partial: { ...partial } };
+				}
+
 				// 空回答也是失败，不是「模型没话说」——见 Responses 适配器里同一段的说明。
 				if (partial.content.length === 0) {
 					throw new FailureError(
@@ -713,8 +835,6 @@ async function* streamAnthropic(
 			},
 		);
 	} catch (error) {
-		// 降了一格还是没成，这一格不该留给别的会话。见 `learnThinkingReplay` 上面那段。
-		if (replayMoved === "down" && !options.signal?.aborted) restoreThinkingReplay(scope.providerId, scope.modelId, replayAtStart);
 		// 失败时这条消息长什么样，三条链一致——见 `failedStreamEvent`。
 		yield failedStreamEvent(partial, {
 			error,
@@ -726,6 +846,9 @@ async function* streamAnthropic(
 		});
 		return partial;
 	}
+
+	// 换了一格才成功的，按作用域记下来；失败的什么都不留。见 `learnThinkingReplay` 上面那段。
+	if (replayMoved && replayNow !== replayAtStart) settleThinkingReplay(replayId, options.cacheKey, replayNow, replayMoved);
 
 	partial.durationMs = Math.max(1, Date.now() - startTime);
 	if (firstTokenTime !== null) {

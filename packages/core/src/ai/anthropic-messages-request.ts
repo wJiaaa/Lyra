@@ -75,6 +75,8 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 	const vision = options.supportsImages ?? true;
 	const out: AnthropicMessage[] = [];
 	const ids = safeToolIds(messages);
+	/** 当前这一轮的 id 替身。工具结果跟在它那次调用的助手消息后面，查的是这一张。 */
+	let turnIds: ReadonlyMap<string, string> = NO_RENAMES;
 	const ordered = orderResultsByCall(messages);
 	/** 最后一条助手消息的位置——Anthropic 对「它自己最近那条回复」有一条额外的规矩。见 `untrustedSignatures`。 */
 	let latestAssistant = -1;
@@ -108,6 +110,7 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 
 		if (message.role === "assistant") {
 			closeRun();
+			turnIds = ids.byTurn.get(message) ?? NO_RENAMES;
 			const untrusted = untrustedSignatures(message, at === latestAssistant);
 			const blocks: AnthropicBlock[] = [];
 			for (let i = 0; i < message.content.length; i++) {
@@ -128,7 +131,7 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 				} else {
 					blocks.push({
 						type: "tool_use",
-						id: ids.get(c.id) ?? c.id,
+						id: turnIds.get(c.id) ?? c.id,
 						name: c.name,
 						// 模型自己就会在工具参数 JSON 里吐孤立代理项——流出来时没事，回放时被严格 UTF-8
 						// 校验 400。`wellFormedDeep` 保身份，没问题的参数一个字节都不动，缓存前缀不受影响。
@@ -140,7 +143,7 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 			continue;
 		}
 
-		const block = toToolResultBlock(message, ids, vision, runHoist);
+		const block = toToolResultBlock(message, turnIds.get(message.toolCallId) ?? ids.latest.get(message.toolCallId) ?? message.toolCallId, vision, runHoist);
 		if (run) run.content.push(block);
 		else {
 			run = { role: "user", content: [block] };
@@ -205,7 +208,7 @@ export function normalizeImageMediaType(mimeType: string): string | undefined {
  * 截图」两样都是模型需要的。MCP 明确支持 `isError: true` 配图片块（`mcp/client.ts:257-261`），所以这
  * 条路是走得到的。
  */
-function toToolResultBlock(message: ToolResultMessage, ids: Map<string, string>, vision: boolean, hoist: AnthropicBlock[]): AnthropicBlock {
+function toToolResultBlock(message: ToolResultMessage, toolUseId: string, vision: boolean, hoist: AnthropicBlock[]): AnthropicBlock {
 	let content = toContentBlocks(message.content, vision);
 	if (message.isError && content.some((b) => b.type === "image")) {
 		for (const b of content) if (b.type === "image") hoist.push(b);
@@ -217,7 +220,7 @@ function toToolResultBlock(message: ToolResultMessage, ids: Map<string, string>,
 	return {
 		type: "tool_result",
 		// 和上面那个 `tool_use` 走同一张表。改了一头不改另一头，配对就断了，换来的是另一个 400。
-		tool_use_id: ids.get(message.toolCallId) ?? message.toolCallId,
+		tool_use_id: toolUseId,
 		content,
 		...(message.isError ? { is_error: true } : {}),
 	};
@@ -317,7 +320,7 @@ export function wellFormedDeep(value: unknown): unknown {
 }
 
 /**
- * 会话里每个不合规的工具调用 id，配一个合规的替身。
+ * 会话里每个不合规、或者和前面撞了名的工具调用 id，配一个合规且唯一的替身。
  *
  * Anthropic 对 `tool_use.id` 有个硬性的字符集要求，实测把它逼出来过：
  *
@@ -328,29 +331,46 @@ export function wellFormedDeep(value: unknown): unknown {
  * 因为它是工具结果找回自己那次调用的唯一钥匙。于是这样一段历史换到任何 Anthropic 格式的供应商之后，
  * 每一轮都 400，退不回去也重试不好。
  *
- * 做成一张一次算好的表，而不是每处用到时各自转换一次，是因为一次调用和它的结果必须换成**同一个**新
- * id。分别转换在多数情况下碰巧一致，碰撞消歧时就不一致了，那时坏掉的是配对——换来另一个 400，而且更难查。
+ * 同一批中转还**每一轮都从 0 编号**：第一轮是 `bash:0`，第二轮还是 `bash:0`。所以表是**按轮**的，
+ * 而不是按原始 id——按原始 id 的那一版把三轮都换成了同一个 `bash_0`，一段对话里 id 重复，照样 400。
+ * 合法的 id 一样要过唯一性检查：每轮都叫 `call_0` 的中转，字符集没毛病，重复也没毛病不了。
  *
- * 转换本身是确定的：同样的历史每一轮都算出同样的 id，否则每轮请求都长得不一样，后面所有的提示缓存全部作废。
+ * 一次调用和它的结果必须换成**同一个**新 id，所以结果查的是它前面那条助手消息的那一张表，见
+ * `toAnthropicMessages` 里的 `turnIds`。
+ *
+ * 按出现顺序先到先得，而不是先把全部合法 id 收进 `taken` 再分配：那样的话，第五轮出现一个合法的
+ * `bash_0`，会让第一轮 `bash:0` 的替身从 `bash_0` 变成 `bash_0_2`——历史里早就发过的那段请求字节变了，
+ * 那之后的提示缓存全部作废。按顺序分配时，每个 id 只取决于它前面的历史，往后追加不会改动前面；撞名时
+ * 让后来的那个改名，唯一性一样成立。
  */
-function safeToolIds(messages: Message[]): Map<string, string> {
-	const map = new Map<string, string>();
+function safeToolIds(messages: Message[]): { byTurn: Map<AssistantMessage, Map<string, string>>; latest: Map<string, string> } {
+	const byTurn = new Map<AssistantMessage, Map<string, string>>();
+	/** 原始 id → 最近一次分到的替身。只给前面找不到自己那次调用的孤儿结果兜底。 */
+	const latest = new Map<string, string>();
 	const taken = new Set<string>();
 	for (const message of messages) {
 		if (message.role !== "assistant" || !Array.isArray(message.content)) continue;
+		const turn = new Map<string, string>();
+		const seen = new Set<string>();
 		for (const c of message.content) {
-			if (c.type !== "toolCall" || map.has(c.id)) continue;
-			if (/^[a-zA-Z0-9_-]+$/.test(c.id)) { taken.add(c.id); continue; }
+			if (c.type !== "toolCall" || seen.has(c.id)) continue;
+			seen.add(c.id);
 			// 逐字符替换，保住原名里还认得出来的那部分——排查问题时 `bash_0` 比一串哈希有用得多。
-			const base = c.id.replace(/[^a-zA-Z0-9_-]/g, "_") || "tool";
+			const base = /^[a-zA-Z0-9_-]+$/.test(c.id) ? c.id : c.id.replace(/[^a-zA-Z0-9_-]/g, "_") || "tool";
 			let safe = base;
 			for (let n = 2; taken.has(safe); n++) safe = `${base}_${n}`;
 			taken.add(safe);
-			map.set(c.id, safe);
+			latest.set(c.id, safe);
+			// 没改名的也记上：结果先查这一轮，查不到才去 `latest`——不记的话，合法 id 在后面某轮被改过名，
+			// 这一轮的结果会被 `latest` 指到那一轮去。
+			turn.set(c.id, safe);
 		}
+		if (turn.size > 0) byTurn.set(message, turn);
 	}
-	return map;
+	return { byTurn, latest };
 }
+
+const NO_RENAMES: ReadonlyMap<string, string> = new Map();
 
 /**
  * The same history, with each run of tool results in the order its calls were made.
