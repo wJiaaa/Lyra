@@ -15,7 +15,7 @@ import { test } from "node:test";
 import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { AgentSession } from "../src/runtime/session.ts";
-import { deliveryMessage } from "../src/runtime/delegation-waits.ts";
+import { deliveryMessage } from "../src/runtime/sub-agent/delegation-waits.ts";
 import { SessionInbox } from "../src/runtime/session-inbox.ts";
 import { AgedToolPruner } from "../src/agent/aged-prune.ts";
 import { FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../src/agent/prune.ts";

@@ -124,7 +124,7 @@ input + cacheRead + cacheWrite 之和，没按缓存折价）：
 - **maka 的做法**（搜到的工具激活进工具表、轮末撤掉）：工具表在前缀最前面，每一轮用到延迟工具就
   加一次、撤一次，整段前缀重算两次——真实会话里这一段是 15–45k token。这里一次搜索只往末尾追加
   约 1k token。它的好处是参数由服务商按 schema 约束；这边用执行前校验补上。
-- 压缩的摘要请求从上一次主请求分叉（`runtime/compaction-fork.ts`），工具段原样取自发出去的那一次
+- 压缩的摘要请求从上一次主请求分叉（`runtime/compaction/compaction-fork.ts`），工具段原样取自发出去的那一次
   （`stream-turn.ts` 记下的 `toolTable` 结果），两个入口照样在、被延迟的照样不在，前缀对得上；退回
   独立请求时发 `tools: []`。
 

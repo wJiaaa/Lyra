@@ -24,7 +24,7 @@ import { runAgent } from "../../packages/core/src/agent/loop.ts";
 import { runConfig } from "../../packages/core/test/run-config.ts";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
 import { buildSystemPrompt } from "../../packages/core/src/prompt/system.ts";
-import { formatProjectMemory, readLessons } from "../../packages/core/src/runtime/project-memory.ts";
+import { formatProjectMemory, readLessons } from "../../packages/core/src/runtime/memory/project-memory.ts";
 import { bashTool } from "../../packages/core/src/tools/bash.ts";
 import { learnTool } from "../../packages/core/src/tools/learn.ts";
 import { readTool } from "../../packages/core/src/tools/read.ts";
@@ -150,7 +150,7 @@ async function main(): Promise<void> {
 
 	for (const withMemory of [false, true]) {
 		if (withMemory) {
-			const { recordLesson } = await import("../../packages/core/src/runtime/project-memory.ts");
+			const { recordLesson } = await import("../../packages/core/src/runtime/memory/project-memory.ts");
 			await recordLesson(cwd, { text: "这个仓库一律用 pnpm，绝对不要用 npm——npm 会把 lockfile 搞坏。" });
 		}
 

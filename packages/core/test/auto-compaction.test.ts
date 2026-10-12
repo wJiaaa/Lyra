@@ -7,7 +7,7 @@ import { compactStep } from "../src/agent/compact-step.ts";
 import { runAgent } from "../src/agent/loop.ts";
 import type { AgentModelContext, AgentRunConfig, AgentSessionContext } from "../src/agent/run-config.ts";
 import type { AgentEvent, CommandRun } from "../src/agent/events.ts";
-import { compactionTriggerTokens, compactWith } from "../src/runtime/compaction.ts";
+import { compactionTriggerTokens, compactWith } from "../src/runtime/compaction/compaction.ts";
 import { estimateTokens } from "../src/tokens.ts";
 import { completedCompaction } from "../src/agent/compaction-lifecycle.ts";
 import { SessionLog } from "../src/runtime/session-log.ts";

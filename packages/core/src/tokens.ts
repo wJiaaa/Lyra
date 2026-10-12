@@ -1,7 +1,7 @@
 /**
  * Token estimation, kept free of any runtime the browser does not have.
  *
- * Its own module rather than part of `runtime/compaction.ts`, and reachable as
+ * Its own module rather than part of `runtime/compaction/compaction.ts`, and reachable as
  * `@plume/core/tokens`, because both sides of the app need it: the runtime to decide when
  * to compact, and the renderer to show how full the context window is. Importing it from the
  * package root would drag in the whole kernel — the bash tool, settings, the plugin loader —

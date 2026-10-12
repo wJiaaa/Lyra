@@ -235,7 +235,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 		// Tab-indented, nested four levels. Reproducing this by hand is where whitespace drift
 		// shows up.
 		id: "07-indent-sensitive",
-		origin: "packages/core/src/runtime/sub-agents.ts",
+		origin: "packages/core/src/runtime/sub-agent/sub-agents.ts",
 		scenario: "indent",
 		path: "src/sub-agents.ts",
 		before: `	private retire(): void {

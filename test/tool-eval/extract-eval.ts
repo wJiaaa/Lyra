@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { streamAssistant } from "../../packages/core/src/ai/index.ts";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
-import { extractMemory } from "../../packages/core/src/runtime/memory-extract.ts";
+import { extractMemory } from "../../packages/core/src/runtime/memory/memory-extract.ts";
 import type { AssistantMessage, Message } from "../../packages/core/src/types.ts";
 
 const say = (line = "") => process.stderr.write(`${line}\n`);

@@ -1,4 +1,4 @@
-import { normalizeMaxConcurrentSubAgents } from "./dispatch-guard.ts";
+import { normalizeMaxConcurrentSubAgents } from "./sub-agent/dispatch-guard.ts";
 import { access } from "node:fs/promises";
 import { platform } from "node:os";
 import { basename, join } from "node:path";
@@ -9,8 +9,8 @@ import { sandboxModeFor } from "../sandbox/mode-for.ts";
 import { buildPromptContext, loadProjectInstructions } from "../prompt/system.ts";
 import { readPromptOverride } from "../prompt/overrides.ts";
 import type { SystemPromptInput } from "../prompt/system.ts";
-import { gatherMemory } from "./memory-inject.ts";
-import { projectMemoryEnabled } from "./project-memory.ts";
+import { gatherMemory } from "./memory/memory-inject.ts";
+import { projectMemoryEnabled } from "./memory/project-memory.ts";
 import { isIsolatedWorktree } from "./workspace.ts";
 
 /**

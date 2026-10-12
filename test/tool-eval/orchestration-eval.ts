@@ -15,7 +15,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
-import { runSubAgent } from "../../packages/core/src/runtime/sub-agent.ts";
+import { runSubAgent } from "../../packages/core/src/runtime/sub-agent/sub-agent.ts";
 import { globTool } from "../../packages/core/src/tools/glob.ts";
 import { grepTool } from "../../packages/core/src/tools/grep.ts";
 import { lsTool } from "../../packages/core/src/tools/ls.ts";

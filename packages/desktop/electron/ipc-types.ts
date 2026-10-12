@@ -443,7 +443,7 @@ export interface PlumeApi {
 		 * Spliced between its turns, so it finishes the step it is on and carries on with its
 		 * context intact. False when it has already finished — there is no loop left to read it.
 		 */
-		/** 一段字，或者一串内容块——操控框现在也能附图，见 `core/runtime/sub-agents.ts`。 */
+		/** 一段字，或者一串内容块——操控框现在也能附图，见 `core/runtime/sub-agent/sub-agents.ts`。 */
 		steer(sessionId: string, id: string, said: string | UserContent[], display?: { displayText?: string; attachments?: MessageAttachment[] }): Promise<boolean>;
 		/** Stop one. The parent and its siblings carry on. */
 		abort(sessionId: string, id: string): Promise<boolean>;

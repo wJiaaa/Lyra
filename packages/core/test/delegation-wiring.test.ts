@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import { AgentSession } from "../src/runtime/session.ts";
-import { DispatchGate } from "../src/runtime/dispatch-guard.ts";
+import { DispatchGate } from "../src/runtime/sub-agent/dispatch-guard.ts";
 import { SessionStore } from "../src/session/store.ts";
 import { currentSections } from "../src/prompt/update.ts";
 import { emptyUsage, type AssistantMessage, type ModelConfig, type ProviderConfig, type ThinkingLevel } from "../src/types.ts";

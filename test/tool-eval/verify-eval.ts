@@ -13,8 +13,8 @@ import { execSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
-import { runSubAgent } from "../../packages/core/src/runtime/sub-agent.ts";
-import { SubAgentRegistry } from "../../packages/core/src/runtime/sub-agents.ts";
+import { runSubAgent } from "../../packages/core/src/runtime/sub-agent/sub-agent.ts";
+import { SubAgentRegistry } from "../../packages/core/src/runtime/sub-agent/sub-agents.ts";
 import { BUILTIN_AGENTS } from "../../packages/core/src/tools/task.ts";
 import { builtinTools } from "../../packages/core/src/tools/index.ts";
 

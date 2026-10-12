@@ -8,10 +8,10 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { runSubAgent } from "../src/runtime/sub-agent.ts";
-import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
+import { runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
+import { SubAgentRegistry } from "../src/runtime/sub-agent/sub-agents.ts";
 import { BUILTIN_AGENTS } from "../src/tools/task.ts";
-import { YIELD_TOOL_NAME } from "../src/runtime/yield-tool.ts";
+import { YIELD_TOOL_NAME } from "../src/runtime/sub-agent/yield-tool.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, Settings, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 

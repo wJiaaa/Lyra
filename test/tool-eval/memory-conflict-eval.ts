@@ -18,7 +18,7 @@ import { runAgent } from "../../packages/core/src/agent/loop.ts";
 import { runConfig } from "../../packages/core/test/run-config.ts";
 import { loadSettings, resolveModel } from "../../packages/core/src/config/settings.ts";
 import { buildSystemPrompt } from "../../packages/core/src/prompt/system.ts";
-import { formatProjectMemory } from "../../packages/core/src/runtime/project-memory.ts";
+import { formatProjectMemory } from "../../packages/core/src/runtime/memory/project-memory.ts";
 import { readTool } from "../../packages/core/src/tools/read.ts";
 import type { AgentEvent } from "../../packages/core/src/agent/events.ts";
 import type { Message, Tool } from "../../packages/core/src/types.ts";

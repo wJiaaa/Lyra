@@ -269,7 +269,7 @@ test("it says the work survived, because that is the question being asked", () =
 		`the resume line never promised the work was safe:\n  ${story.join("\n  ")}`,
 	);
 	/*
-	 * 「从中断处继续」这句界面上从来没有过——它只在 `runtime/sidechat-controls.ts` 里，是写给
+	 * 「从中断处继续」这句界面上从来没有过——它只在 `runtime/side-chat/sidechat-controls.ts` 里，是写给
 	 * 模型看的工具说明。这条断言等的是一句不存在的话。
 	 *
 	 * 换成此刻真正该守住的：等的这一阵子，这一行不许出现任何把这一轮说死的字眼。人盯着它就是

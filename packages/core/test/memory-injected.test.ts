@@ -14,10 +14,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { gatherMemory } from "../src/runtime/memory-inject.ts";
-import { annotateInjected, EXTRACTED_KEY, markInjected, projectInjectedPath, readInjected, userInjectedPath } from "../src/runtime/memory-injected.ts";
-import { addMemoryEntry, loadMemory, memoryPath } from "../src/runtime/memory.ts";
-import { projectMemoryDir, recordLesson } from "../src/runtime/project-memory.ts";
+import { gatherMemory } from "../src/runtime/memory/memory-inject.ts";
+import { annotateInjected, EXTRACTED_KEY, markInjected, projectInjectedPath, readInjected, userInjectedPath } from "../src/runtime/memory/memory-injected.ts";
+import { addMemoryEntry, loadMemory, memoryPath } from "../src/runtime/memory/memory.ts";
+import { projectMemoryDir, recordLesson } from "../src/runtime/memory/project-memory.ts";
 
 let home: string;
 let project: string;

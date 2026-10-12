@@ -18,9 +18,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { useCompaction } from "../src/runtime/compaction.ts";
-import { runSubAgent } from "../src/runtime/sub-agent.ts";
-import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
+import { useCompaction } from "../src/runtime/compaction/compaction.ts";
+import { runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
+import { SubAgentRegistry } from "../src/runtime/sub-agent/sub-agents.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig, Settings, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 

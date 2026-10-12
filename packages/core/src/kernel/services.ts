@@ -232,7 +232,7 @@ export interface CompactionRequest {
 	/** `/compact <instructions>`, and the signal that cancels it. */
 	manual?: { instructions?: string; signal?: AbortSignal };
 	/**
-	 * 从哪一次请求分叉出摘要请求（`runtime/compaction-fork.ts`）。不给就只有独立的摘要请求——
+	 * 从哪一次请求分叉出摘要请求（`runtime/compaction/compaction-fork.ts`）。不给就只有独立的摘要请求——
 	 * 超长恢复不给，因为完整历史本来就放不下。
 	 */
 	lineage?: CompactionLineage;

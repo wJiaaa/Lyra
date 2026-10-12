@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { formatMemoryForPrompt, type MemoryEntry } from "../src/runtime/memory.ts";
+import { formatMemoryForPrompt, type MemoryEntry } from "../src/runtime/memory/memory.ts";
 import { buildSystemPrompt } from "../src/prompt/system.ts";
 
 test("formats memory correctly for prompt injection", () => {

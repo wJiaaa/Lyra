@@ -14,7 +14,7 @@ import type { AfterToolCall, AgentRunConfig, BeforeToolCall, LiveModel, Permissi
 import type { streamAssistant } from "../ai/index.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Skill } from "../skills/loader.ts";
-import { DispatchGate, normalizeMaxConcurrentSubAgents } from "./dispatch-guard.ts";
+import { DispatchGate, normalizeMaxConcurrentSubAgents } from "./sub-agent/dispatch-guard.ts";
 import type { AgentDefinition } from "../tools/task.ts";
 import type {
 	ApprovalDecision,
@@ -26,13 +26,13 @@ import type {
 	ThinkingLevel,
 	Tool,
 } from "../types.ts";
-import { compactWith } from "./compaction.ts";
+import { compactWith } from "./compaction/compaction.ts";
 import type { ArtifactSink } from "../agent/prune.ts";
 import { textTokens, toolTokens } from "../tokens.ts";
 import { toolTable } from "../tools/mcp-search.ts";
-import { addressLookups, runSubAgent } from "./sub-agent.ts";
-import type { SubAgentRegistry } from "./sub-agents.ts";
-import type { DelegationWaits } from "./delegation-waits.ts";
+import { addressLookups, runSubAgent } from "./sub-agent/sub-agent.ts";
+import type { SubAgentRegistry } from "./sub-agent/sub-agents.ts";
+import type { DelegationWaits } from "./sub-agent/delegation-waits.ts";
 import type { TurnContext } from "./turn.ts";
 import { RepetitionWatch } from "../agent/repetition.ts";
 import { sessionPruner } from "../agent/aged-prune.ts";
@@ -56,7 +56,7 @@ export interface TurnConfigDeps {
 	 * Where dispatched sub-agents register, so they can be watched and steered while they run.
 	 *
 	 * Optional throughout: a host that only wants the answer passes nothing and delegation behaves
-	 * exactly as before. See `runtime/sub-agents.ts`.
+	 * exactly as before. See `runtime/sub-agent/sub-agents.ts`.
 	 */
 	subAgents?: SubAgentRegistry;
 	/**

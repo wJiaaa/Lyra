@@ -13,7 +13,7 @@
 
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { projectMemoryDir, redactSecrets } from "./project-memory.ts";
+import { projectMemoryDir, redactSecrets } from "./memory/project-memory.ts";
 
 /** 待确认的候选放这儿；批准之后才搬进 `skills/`。 */
 export function pendingSkillsDir(cwd: string): string {

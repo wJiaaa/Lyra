@@ -199,8 +199,8 @@ export {
 	saveMemory,
 	type MemoryEntry,
 	type MemoryStore,
-} from "./runtime/memory.ts";
-export { compactIfNeeded, compactWith, useCompaction } from "./runtime/compaction.ts";
+} from "./runtime/memory/memory.ts";
+export { compactIfNeeded, compactWith, useCompaction } from "./runtime/compaction/compaction.ts";
 export type { ContextBreakdown, ContextSegment, ContextSegmentKey, MemoryFileItem } from "./runtime/context.ts";
 export { estimateTokens } from "./tokens.ts";
 export { computeCost, costAtRates, selectPricingRates, type SelectedPricingRates } from "./utils/pricing.ts";
@@ -359,7 +359,7 @@ export {
 	type PreviewRecord,
 } from "./runtime/previews.ts";
 
-export type { SubAgentDetail } from "./runtime/sub-agents.ts";
+export type { SubAgentDetail } from "./runtime/sub-agent/sub-agents.ts";
 export type { SubAgentStatus, SubAgentSummary } from "./types/sub-agent.ts";
 export { collectAgents, collectSkills, disabledSkillMatcher } from "./runtime/session-setup.ts";
 export {
@@ -378,16 +378,16 @@ export {
 	DEFAULT_THINKING_OPTIONS,
 	THINKING_LEVELS,
 } from "./ai/thinking-options.ts";
-export { lastPassAt, PASS_INTERVAL_MS, runMemoryPass, shouldRunPass } from "./runtime/memory-pass.ts";
+export { lastPassAt, PASS_INTERVAL_MS, runMemoryPass, shouldRunPass } from "./runtime/memory/memory-pass.ts";
 export { parseModelRef, resolveModelRef } from "./config/model-choice.ts";
 export { layerOverrides, loadProjectLayer, projectConfigPath, type ConfigProblem, type LayerOverride } from "./config/layers.ts";
 export { extensionDirs } from "./runtime/session-capabilities.ts";
 export { validateManifest, type ExtensionDiagnostic, type ExtensionEventStats, type ExtensionStats } from "./extensions/types.ts";
-export { annotateInjected, EXTRACTED_KEY, projectInjectedPath, readInjected, userInjectedPath } from "./runtime/memory-injected.ts";
-export { readLessons } from "./runtime/project-memory.ts";
-export { forgetAllLessons, forgetExtractedMemory, forgetLesson, writeLessons } from "./runtime/project-memory.ts";
-export { readExtractedMemory } from "./runtime/memory-extract.ts";
-export { projectMemoryDir } from "./runtime/project-memory.ts";
+export { annotateInjected, EXTRACTED_KEY, projectInjectedPath, readInjected, userInjectedPath } from "./runtime/memory/memory-injected.ts";
+export { readLessons } from "./runtime/memory/project-memory.ts";
+export { forgetAllLessons, forgetExtractedMemory, forgetLesson, writeLessons } from "./runtime/memory/project-memory.ts";
+export { readExtractedMemory } from "./runtime/memory/memory-extract.ts";
+export { projectMemoryDir } from "./runtime/memory/project-memory.ts";
 export { computeDiff } from "./tools/diff.ts";
 
 export { readFileChange, undoFileChanges, undoFileChangeBatches, type RecordedChange } from "./tools/file-changes.ts";

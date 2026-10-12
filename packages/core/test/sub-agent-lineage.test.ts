@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
+import { SubAgentRegistry } from "../src/runtime/sub-agent/sub-agents.ts";
 import type { AssistantMessage, Message } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 

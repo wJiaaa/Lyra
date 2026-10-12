@@ -287,7 +287,7 @@ export class SessionStore implements SessionStorage {
 
 	/**
 	 * What the session's sub-agents left in the log, in order: enough to list them again and to
-	 * continue one after the process that ran them is gone (`runtime/sub-agent-restore.ts`).
+	 * continue one after the process that ran them is gone (`runtime/sub-agent/sub-agent-restore.ts`).
 	 *
 	 * Of their nested events only the three that shape their history — where they compacted, which
 	 * calls started, and what a call left behind — and the hooks they ran, for their pane. The rest

@@ -13,7 +13,7 @@ import type { Settings } from "../config/settings.ts";
 import { loadCapabilityPlugins } from "../plugins/capability.ts";
 import { loadPlugins } from "../plugins/loader.ts";
 import { useApprovalPolicy } from "../runtime/approval-policy.ts";
-import { useCompaction } from "../runtime/compaction.ts";
+import { useCompaction } from "../runtime/compaction/compaction.ts";
 import { useScheduler } from "../runtime/scheduling.ts";
 import { useTurnPipeline } from "../runtime/turn.ts";
 import { useSandbox } from "../sandbox/index.ts";

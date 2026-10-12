@@ -33,8 +33,8 @@ Plume 内置七种子智能体：`general`、`explore`、`review`、`verify`、`
 
 同时运行的子智能体最多 4 个，超出的排队而不是被拒绝；配置文件里的 `maxConcurrentSubAgents`
 可调，范围 1–8，写盘后下一轮即用新值。只有主对话能派：子智能体拿不到 `task` 工具，不能再派
-子智能体，agent 定义里写的 `spawns` 不再生效。见 `runtime/dispatch-guard.ts`、
-`runtime/sub-agent-dispatch.ts`。
+子智能体，agent 定义里写的 `spawns` 不再生效。见 `runtime/sub-agent/dispatch-guard.ts`、
+`runtime/sub-agent/sub-agent-dispatch.ts`。
 
 ## 计划模式
 

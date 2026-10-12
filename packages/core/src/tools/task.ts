@@ -1,6 +1,6 @@
 import { errorResult } from "./result.ts";
 import { SUBAGENTS_KEY } from "../resources/handlers.ts";
-import type { SubAgentRegistry } from "../runtime/sub-agents.ts";
+import type { SubAgentRegistry } from "../runtime/sub-agent/sub-agents.ts";
 import type { SubAgentAnswer, Tool, ToolResult } from "../types.ts";
 
 export { BUILTIN_AGENTS, type AgentDefinition } from "../agents-builtin.ts";

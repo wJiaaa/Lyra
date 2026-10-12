@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { createRegistry } from "../src/capability/index.ts";
 import { approveSkill, managedSkillsDir, pendingSkills, pendingSkillsDir, proposeSkill, rejectSkill } from "../src/runtime/managed-skills.ts";
-import { parseSkillProposal } from "../src/runtime/memory-extract.ts";
+import { parseSkillProposal } from "../src/runtime/memory/memory-extract.ts";
 import type { Skill } from "../src/skills/loader.ts";
 
 let home: string;

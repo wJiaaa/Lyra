@@ -24,7 +24,7 @@
 ## 决定
 
 侧聊是一个带 `parentId` 的 `AgentSession`，和主会话共用循环、审批、记录、压缩、持久化。
-它和主会话的差别只有这几样（`runtime/side-session.ts`）：
+它和主会话的差别只有这几样（`runtime/side-chat/side-session.ts`）：
 
 - 每次提问前附上主会话自上次以来的新增（`<main-session>`，写进侧聊自己的记录，前缀稳定）；
   主会话被撤回时整段重读。更早的用 `read_main_chat` 查。

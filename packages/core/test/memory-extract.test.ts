@@ -21,8 +21,8 @@ import {
 	MIN_AGE_MS,
 	readExtractedMemory,
 	renderSessions,
-} from "../src/runtime/memory-extract.ts";
-import { formatProjectMemory, projectMemoryDir, readLessons, recordLesson } from "../src/runtime/project-memory.ts";
+} from "../src/runtime/memory/memory-extract.ts";
+import { formatProjectMemory, projectMemoryDir, readLessons, recordLesson } from "../src/runtime/memory/project-memory.ts";
 import type { AssistantMessage, Message } from "../src/types.ts";
 
 let home: string;

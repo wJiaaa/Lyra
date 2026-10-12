@@ -10,8 +10,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
 import { runConfig } from "./run-config.ts";
-import { runSubAgent } from "../src/runtime/sub-agent.ts";
-import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
+import { runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
+import { SubAgentRegistry } from "../src/runtime/sub-agent/sub-agents.ts";
 import type { AgentDefinition } from "../src/tools/task.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig, type Settings, type Tool } from "../src/types.ts";
 

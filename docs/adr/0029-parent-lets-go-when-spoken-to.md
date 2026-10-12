@@ -3,7 +3,7 @@
 - 状态：已采纳
 - 日期：2026-09-26
 - 修订：[ADR-0024](0024-sub-agents-stop-at-checkpoints.md) 第 2 条（没写清单的子代理到检查点再给一段）
-- 相关：`packages/core/src/runtime/delegation-waits.ts`、`runtime/session.ts`（`submit`、`flushDeliveries`）、`runtime/turn-config.ts`（`spawnSubAgent`、`refreshDispatchGate`）、`runtime/sub-agent.ts`（`admission`、`workingNote`、`planDemand`）、`runtime/sub-agents.ts`（`queued`、`background`、`awaitingApproval`）、`runtime/dispatch-guard.ts`（`acquire`、`concurrencyNote`）、`runtime/continuation.ts`（`planless`）、`runtime/approvals.ts`（`approval_settled`、`rejectWhere`）、`tools/task.ts`；desktop `store/apply-event.ts`、`store/subAgents.ts`（`awaitingSubAgents`、`settled`）、`features/subagents/SubAgentBar.tsx`、`features/conversation/DeliveryRow.tsx`、`features/conversation/ApprovalOverlay.tsx`、`app/session-scope.tsx`（`useScopedWorking`）
+- 相关：`packages/core/src/runtime/sub-agent/delegation-waits.ts`、`runtime/session.ts`（`submit`、`flushDeliveries`）、`runtime/turn-config.ts`（`spawnSubAgent`、`refreshDispatchGate`）、`runtime/sub-agent/sub-agent.ts`（`admission`、`workingNote`、`planDemand`）、`runtime/sub-agent/sub-agents.ts`（`queued`、`background`、`awaitingApproval`）、`runtime/sub-agent/dispatch-guard.ts`（`acquire`、`concurrencyNote`）、`runtime/continuation.ts`（`planless`）、`runtime/approvals.ts`（`approval_settled`、`rejectWhere`）、`tools/task.ts`；desktop `store/apply-event.ts`、`store/subAgents.ts`（`awaitingSubAgents`、`settled`）、`features/subagents/SubAgentBar.tsx`、`features/conversation/DeliveryRow.tsx`、`features/conversation/ApprovalOverlay.tsx`、`app/session-scope.tsx`（`useScopedWorking`）
 
 ## 背景
 

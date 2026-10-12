@@ -11,9 +11,9 @@ import { lineageFrom } from "../src/agent/lineage.ts";
 import { runAgent } from "../src/agent/loop.ts";
 import { streamTurn } from "../src/agent/stream-turn.ts";
 import { streamAssistant } from "../src/ai/index.ts";
-import { compactIfNeeded, compactWith } from "../src/runtime/compaction.ts";
-import { FORK_HOT_MS } from "../src/runtime/compaction-fork.ts";
-import { SUMMARY_SYSTEM } from "../src/runtime/compaction-prompts.ts";
+import { compactIfNeeded, compactWith } from "../src/runtime/compaction/compaction.ts";
+import { FORK_HOT_MS } from "../src/runtime/compaction/compaction-fork.ts";
+import { SUMMARY_SYSTEM } from "../src/runtime/compaction/compaction-prompts.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
 import { runConfig } from "./run-config.ts";
 

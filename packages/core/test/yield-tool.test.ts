@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { makeYieldTool, renderYield, validateAgainstSchema, yieldInstruction, YIELD_KEY, type YieldOutcome } from "../src/runtime/yield-tool.ts";
+import { makeYieldTool, renderYield, validateAgainstSchema, yieldInstruction, YIELD_KEY, type YieldOutcome } from "../src/runtime/sub-agent/yield-tool.ts";
 import type { JsonSchema, ToolContext } from "../src/types.ts";
 
 const SCHEMA: JsonSchema = {

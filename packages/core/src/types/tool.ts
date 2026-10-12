@@ -27,7 +27,7 @@ export interface SubAgentAnswer {
 	stoppedByUser?: boolean;
 	/**
 	 * 父会话没等它跑完就放手了：人插了话，父会话先去回应。它在后台接着跑，跑完后结果由运行时
-	 * 作为一条消息送回——见 `runtime/delegation-waits.ts`。这时 `text` 说的是「它还在跑」，不是结论。
+	 * 作为一条消息送回——见 `runtime/sub-agent/delegation-waits.ts`。这时 `text` 说的是「它还在跑」，不是结论。
 	 */
 	detached?: boolean;
 }

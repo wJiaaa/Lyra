@@ -9,10 +9,10 @@
 
 import type { AgentEventSink } from "../agent/events.ts";
 import { TODOS_KEY, todosFromLog } from "../tools/todo.ts";
-import type { DelegationWaits } from "./delegation-waits.ts";
+import type { DelegationWaits } from "./sub-agent/delegation-waits.ts";
 import type { SessionDeliveries } from "./session-deliveries.ts";
 import type { SessionLog } from "./session-log.ts";
-import type { SubAgentRegistry } from "./sub-agents.ts";
+import type { SubAgentRegistry } from "./sub-agent/sub-agents.ts";
 
 export interface RewindParts {
 	log: SessionLog;

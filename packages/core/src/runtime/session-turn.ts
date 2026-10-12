@@ -10,7 +10,7 @@
  * something you can reason about after the fact rather than only watch happen.
  */
 
-import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./project-memory.ts";
+import { PROJECT_MEMORY_ENABLED_KEY, projectMemoryEnabled } from "./memory/project-memory.ts";
 import { isAbsolute, resolve } from "node:path";
 import type { AgentEvent } from "../agent/events.ts";
 import type { AgentRunConfig, LiveModel, StreamFn } from "../agent/run-config.ts";
@@ -33,8 +33,8 @@ import type {
 	Tool,
 	Usage,
 } from "../types.ts";
-import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction-head.ts";
-import { taskContextFromHistory } from "./task-context.ts";
+import { droppedMessage, filesSeen, lastRequest, summaryMessages } from "./compaction/compaction-head.ts";
+import { taskContextFromHistory } from "./compaction/task-context.ts";
 import { hookContextMessage, makeOnStop, runSessionStartHooks, runStopFailureHooks, runUserPromptSubmitHooks, type TurnHooks } from "./hooks.ts";
 import { loadTurnHooks, toolHooks } from "./run-policy.ts";
 import type { SessionCapabilities } from "./session-capabilities.ts";
@@ -49,8 +49,8 @@ import { buildTurnConfig } from "./turn-config.ts";
 import { PLAN_MODE_KEY, planModeTools, SUBMIT_PLAN_TOOL_NAME } from "./plan-mode.ts";
 import { submitPlanTool } from "./plan-tool.ts";
 import { recordPlanMode } from "./session-model.ts";
-import type { SubAgentRegistry } from "./sub-agents.ts";
-import type { DelegationWaits } from "./delegation-waits.ts";
+import type { SubAgentRegistry } from "./sub-agent/sub-agents.ts";
+import type { DelegationWaits } from "./sub-agent/delegation-waits.ts";
 
 export interface TurnInputs {
 	cwd: string;
@@ -68,7 +68,7 @@ export interface TurnInputs {
 	requestApproval: (request: ApprovalRequest) => Promise<ApprovalDecision>;
 	emit: (event: AgentEvent) => Promise<void>;
 	drainSteering: () => Message[];
-	/** Where sub-agents dispatched by this turn register — see `runtime/sub-agents.ts`. */
+	/** Where sub-agents dispatched by this turn register — see `runtime/sub-agent/sub-agents.ts`. */
 	subAgents?: SubAgentRegistry;
 	/** 这一轮在等的派发，人一开口就放手——见 `delegation-waits.ts`。 */
 	delegations?: DelegationWaits;

@@ -61,7 +61,7 @@ const PROBES: Probe[] = [
 	},
 	{
 		id: "structure-purpose",
-		file: "packages/core/src/runtime/sub-agents.ts",
+		file: "packages/core/src/runtime/sub-agent/sub-agents.ts",
 		kind: "structure",
 		question: "SubAgentRegistry 的 dismiss 方法有几种返回值？",
 	},

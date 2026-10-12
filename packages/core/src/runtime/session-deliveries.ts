@@ -10,7 +10,7 @@
  * know whether a stop happened meanwhile.
  */
 
-import { deliveryMessage, type FinishedJob, type SettledDispatch } from "./delegation-waits.ts";
+import { deliveryMessage, type FinishedJob, type SettledDispatch } from "./sub-agent/delegation-waits.ts";
 import type { SessionActivity } from "./session-activity.ts";
 import type { SubAgentSummary } from "../types/sub-agent.ts";
 import type { BackgroundJob, BackgroundJobs } from "../tools/background-jobs.ts";

@@ -12,7 +12,7 @@ import { homedir } from "node:os";
 import { createRegistry } from "../capability/index.ts";
 import type { ContextFile } from "../capability/types.ts";
 import { plumeHome } from "../session/store.ts";
-import { concurrencyNote } from "../runtime/dispatch-guard.ts";
+import { concurrencyNote } from "../runtime/sub-agent/dispatch-guard.ts";
 import { deferredCatalog, MCP_CALL, MCP_SEARCH, type CatalogEntry } from "../tools/mcp-search.ts";
 import { parseGuidelines } from "./overrides.ts";
 import { renderTemplate } from "./template.ts";
@@ -115,7 +115,7 @@ export interface SystemPromptInput {
 	identityOverride?: string;
 	/**
 	 * 子代理的身份：它定义里的那段话，原样放在最前面，取代 Plume 的身份段。侧边聊天也走这里
-	 * （`runtime/side-session.ts` 的 `SIDE_CHAT_PROFILE`），理由相同。
+	 * （`runtime/side-chat/side-session.ts` 的 `SIDE_CHAT_PROFILE`），理由相同。
 	 *
 	 * 不走 `identityOverride`：那是项目文件，按模板渲染；子代理定义可能来自用户写的 markdown，
 	 * 里面的 `{{` 只是正文。以前子代理没有这一项，于是开头读到的是「You are Plume」，自己的角色
@@ -124,7 +124,7 @@ export interface SystemPromptInput {
 	identity?: string;
 	/**
 	 * 换掉内置准则的整份清单，和 `identity` 一起用：侧边聊天的准则是它自己的，主会话那十几条是写给
-	 * 接一整件任务的 agent 的。见 `runtime/side-session.ts`。
+	 * 接一整件任务的 agent 的。见 `runtime/side-chat/side-session.ts`。
 	 */
 	guidelines?: string[];
 	/**

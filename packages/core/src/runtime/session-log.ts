@@ -11,7 +11,7 @@
  */
 
 import { completedCompaction, interruptedCompaction } from "../agent/compaction-lifecycle.ts";
-import { refreshMemorySnapshot } from "./memory-inject.ts";
+import { refreshMemorySnapshot } from "./memory/memory-inject.ts";
 import type { PromptContext } from "../prompt/context.ts";
 import { promptBase } from "../prompt/update.ts";
 import type { AgentEvent, AgentEventSink, CommandRun, HookRun } from "../agent/events.ts";

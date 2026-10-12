@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AgentSession } from "../src/runtime/session.ts";
-import { mainChatExcerpt, mainMessageText, readMainChatTool as bind } from "../src/runtime/sidechat-history.ts";
+import { mainChatExcerpt, mainMessageText, readMainChatTool as bind } from "../src/runtime/side-chat/sidechat-history.ts";
 import { emptyUsage, type Message, type ModelConfig, type ToolResult } from "../src/types.ts";
 
 const model: ModelConfig = { id: "test/model", providerId: "test", modelId: "model", name: "Test", contextWindow: 128000, maxOutputTokens: 4096, supportsThinking: true, supportsTools: true, supportsImages: true };

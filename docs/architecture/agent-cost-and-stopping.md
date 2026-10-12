@@ -331,7 +331,7 @@ pnpm audit:sessions --json   # 机读，用于前后对照
 | 循环主体、`finish()` 的 5 种终止原因、溢出恢复 | [packages/core/src/agent/loop.ts](../../packages/core/src/agent/loop.ts) |
 | 重复检测（`REPEAT_WARN` / `REPEAT_STOP` / `INTENT_WARN`） | [packages/core/src/agent/repetition.ts](../../packages/core/src/agent/repetition.ts) |
 | 超大结果裁剪（`pruneToolResults` / `stripOversizedToolResults`） | [packages/core/src/agent/prune.ts](../../packages/core/src/agent/prune.ts) |
-| 压缩（`THRESHOLD` 等 5 个常量）；摘要头（`filesSeen`） | [packages/core/src/runtime/compaction.ts](../../packages/core/src/runtime/compaction.ts)、[compaction-head.ts](../../packages/core/src/runtime/compaction-head.ts) |
+| 压缩（`THRESHOLD` 等 5 个常量）；摘要头（`filesSeen`） | [packages/core/src/runtime/compaction/compaction.ts](../../packages/core/src/runtime/compaction/compaction.ts)、[compaction-head.ts](../../packages/core/src/runtime/compaction/compaction-head.ts) |
 | 续跑（`MAX_CONTINUATIONS` / `STALLED_CONTINUATIONS`） | [packages/core/src/runtime/continuation.ts](../../packages/core/src/runtime/continuation.ts) |
 | 整条续跑链共用的那只重复计数表 | [packages/core/src/runtime/turn-config.ts](../../packages/core/src/runtime/turn-config.ts) |
 | 终止时写给用户的话 | [packages/core/src/runtime/session-turn.ts](../../packages/core/src/runtime/session-turn.ts) |
@@ -519,7 +519,7 @@ A1 省 50.6% 的携带量，换算成钱约 25%。
 - [ ] **A1. 把超大结果的裁剪从「压缩时」提前到「产生 N 轮后」** ← 单条收益最大
       **现状**：[prune.ts](../../packages/core/src/agent/prune.ts) 的 `pruneToolResults` 已经存在且
       参数合理（`PRUNE_THRESHOLD_CHARS = 8192` → 头 4096 + 尾 1024）。问题**纯粹是时机**：它只在
-      [compaction.ts:310](../../packages/core/src/runtime/compaction.ts) 的压缩流程里跑，而压缩要等上
+      [compaction.ts:310](../../packages/core/src/runtime/compaction/compaction.ts) 的压缩流程里跑，而压缩要等上
       下文用到 `THRESHOLD = 0.8`。在那之前，那条 495K token 的结果每一轮都全额重发。
       **证据**：`pnpm audit:sessions` 第 1、2、5 节。第 5 节直接把每条超大结果交给**生产的**
       `pruneToolResults` 裁一遍，量出裁剪后的真实大小，再按不同延迟算总账——
@@ -627,7 +627,7 @@ A1 省 50.6% 的携带量，换算成钱约 25%。
 - [x] **A5. 压缩触发阈值：比例 vs 固定缓冲（先实测，别急着改）**
       **2026-10-12 裁决**：比例提到 0.9，小窗口取 `min(0.9 窗口, 窗口 − 摘要空间)`。推导见文首
       「压缩请求从主请求分叉」一节；下面是当时的讨论。
-      **现状**：[compaction.ts:285](../../packages/core/src/runtime/compaction.ts)
+      **现状**：[compaction.ts:285](../../packages/core/src/runtime/compaction/compaction.ts)
       `used < model.contextWindow * THRESHOLD`，`THRESHOLD = 0.8`。
       **两个参考项目分成两派，不要以为我们是错的**：
       - opencode `overflow.ts`：**预留固定缓冲**，`usable = limit.input − min(20_000, maxOutputTokens)`。
@@ -1136,7 +1136,7 @@ curl -s "https://api.github.com/repos/deepseek-ai/deepseek-harness/git/trees/mas
 > 同一个 meter 重新计量；**若压力已降至安全水平则跳过模型调用**，否则从已剪枝表层选择范围并
 > 生成摘要。」
 
-对应我们 [compaction.ts:310-326](../../packages/core/src/runtime/compaction.ts)：先 `pruneToolResults`，
+对应我们 [compaction.ts:310-326](../../packages/core/src/runtime/compaction/compaction.ts)：先 `pruneToolResults`，
 够了就直接返回、不调模型。**这块是对齐的。**
 
 默认值：阈值比例 **`0.8`**（和我们相同）、保留历史 `0.16`、摘要 `maxTokens: 8192`、
@@ -1160,7 +1160,7 @@ curl -s "https://api.github.com/repos/deepseek-ai/deepseek-harness/git/trees/mas
 ### oh-my-pi — `docs/compaction.md`
 
 已落地：压缩摘要里保留「已读文件清单」。见
-[compaction-head.ts](../../packages/core/src/runtime/compaction-head.ts) 的 `filesSeen()` 与
+[compaction-head.ts](../../packages/core/src/runtime/compaction/compaction-head.ts) 的 `filesSeen()` 与
 `<files-already-seen>` 段——分「只读过」「你改过」两类，并明说这不是禁止重读。
 
 ### oh-my-pi — `packages/agent/src/append-only-context.ts`（374 行）
@@ -1200,7 +1200,7 @@ isOverflow = (tokens.total || input + output + cache.read + cache.write) >= usab
 
 两点差别：
 
-1. **预留固定缓冲，不是百分比。** 我们是 [compaction.ts:285](../../packages/core/src/runtime/compaction.ts)
+1. **预留固定缓冲，不是百分比。** 我们是 [compaction.ts:285](../../packages/core/src/runtime/compaction/compaction.ts)
    的 `used < model.contextWindow * THRESHOLD`（`THRESHOLD = 0.8`）。对 200K 上下文的模型两者
    接近；对 1M 上下文的模型，百分比法会白白空出 200K 而 opencode 只留输出需要的量。
    **上下文窗口越大，我们越吃亏**——空出来的地方本可以装历史，压缩因此触发得更频繁，而每次

@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { runSubAgent } from "../src/runtime/sub-agent.ts";
+import { runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
 import { buildTurnConfig } from "../src/runtime/turn-config.ts";
 import { taskTool, type AgentDefinition } from "../src/tools/task.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, Settings, Tool, ToolContext } from "../src/types.ts";

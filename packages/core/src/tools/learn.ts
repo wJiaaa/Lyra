@@ -12,7 +12,7 @@
  */
 
 import { errorResult } from "./result.ts";
-import { MAX_LESSON_CHARS, PROJECT_MEMORY_ENABLED_KEY, recordLesson } from "../runtime/project-memory.ts";
+import { MAX_LESSON_CHARS, PROJECT_MEMORY_ENABLED_KEY, recordLesson } from "../runtime/memory/project-memory.ts";
 import type { Tool, ToolResult } from "../types.ts";
 
 interface LearnArgs {

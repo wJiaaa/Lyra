@@ -14,7 +14,7 @@ import { CHARS_PER_TOKEN, pushSample, rateFrom, trustworthy, type RateSample } f
  * 自己一个字都不产，而屏幕上那个 0.9 tok/s 与此同时有四个子代理正在飞快地写。那不是「慢」，是
  * 「没在看真正在写的那个」。
  *
- * 子代理只能按 token 折算：它的消息要等 `message_end` 才整条过来（见 `runtime/sub-agent.ts` 的
+ * 子代理只能按 token 折算：它的消息要等 `message_end` 才整条过来（见 `runtime/sub-agent/sub-agent.ts` 的
  * relay），中途没有字符可数。于是曲线在它们身上是一跳一跳的，被 4 秒的窗口抹平之后，仍然比停在
  * 0.9 诚实得多。
  *

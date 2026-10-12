@@ -1,4 +1,4 @@
-import { compactIfNeeded } from "../../runtime/compaction.ts";
+import { compactIfNeeded } from "../../runtime/compaction/compaction.ts";
 import type { Compaction } from "../../types/compaction.ts";
 import type { Context, Plugin } from "../context.ts";
 import { COMPACTION, type CompactionRequest, type CompactionStrategy } from "../services.ts";

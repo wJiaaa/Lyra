@@ -36,7 +36,7 @@ function heading(n: number, title: string): void {
 async function demoOutline(): Promise<void> {
 	heading(1, "read：长文件返回结构，不是一堵字节墙");
 
-	const target = "packages/core/src/runtime/sub-agents.ts";
+	const target = "packages/core/src/runtime/sub-agent/sub-agents.ts";
 	const content = await readFile(target, "utf8");
 	const lines = content.split("\n");
 	if (lines.at(-1) === "") lines.pop();

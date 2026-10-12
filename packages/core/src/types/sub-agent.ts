@@ -1,6 +1,6 @@
 /**
  * What a dispatched sub-agent looks like from outside: the roster row the window draws and the
- * `subagents` event carries. The registry that keeps these is `runtime/sub-agents.ts`.
+ * `subagents` event carries. The registry that keeps these is `runtime/sub-agent/sub-agents.ts`.
  */
 
 import type { Usage } from "./message.ts";

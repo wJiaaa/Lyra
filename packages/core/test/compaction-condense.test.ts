@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { toAnthropicMessages } from "../src/ai/anthropic-messages-request.ts";
-import { compactIfNeeded } from "../src/runtime/compaction.ts";
+import { compactIfNeeded } from "../src/runtime/compaction/compaction.ts";
 import { estimateTokens } from "../src/tokens.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
 

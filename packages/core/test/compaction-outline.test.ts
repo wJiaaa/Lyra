@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
-import { compactWith } from "../src/runtime/compaction.ts";
+import { compactWith } from "../src/runtime/compaction/compaction.ts";
 import { readTool } from "../src/tools/read.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";

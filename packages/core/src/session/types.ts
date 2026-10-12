@@ -102,7 +102,7 @@ export interface SessionMeta {
 	 * 这是哪个会话的侧边聊天。
 	 *
 	 * 侧边聊天是一个完整的会话——同样的循环、工具、审批和记录——只是挂在另一个会话旁边：不进
-	 * 会话列表，跟着父会话删除，提问时读得到父会话。见 `runtime/side-session.ts`。
+	 * 会话列表，跟着父会话删除，提问时读得到父会话。见 `runtime/side-chat/side-session.ts`。
 	 */
 	parentId?: string;
 	/**

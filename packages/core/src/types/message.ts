@@ -271,7 +271,7 @@ export interface UserMessage {
 	 * 侧边聊天每次提问前附上的主会话进展，读到了哪里。
 	 *
 	 * 只附上次之后新增的那一段，所以下一次要知道从哪接着读；`lastAt` 是读到的最后一条的时间戳，
-	 * 主会话被撤回、同一位置换成了别的消息时对不上，就整段重读。见 `runtime/side-session.ts`。
+	 * 主会话被撤回、同一位置换成了别的消息时对不上，就整段重读。见 `runtime/side-chat/side-session.ts`。
 	 */
 	mainChat?: { seen: number; lastAt: number };
 	/** Clean user input text for UI display, excluding injected skill or session instructions. */
@@ -292,7 +292,7 @@ export interface UserMessage {
 	 * 后台子代理送回来的结果、或后台命令结束的消息——这条消息是运行时替它们递过来的，不是人说的话。
 	 *
 	 * 人在主会话等子代理的时候插了话，父会话先去回应人，子代理留在后台接着跑；它们跑完之后，结果
-	 * 作为这样一条消息回到主会话（见 `runtime/delegation-waits.ts`）。`content` 是给模型读的报告
+	 * 作为这样一条消息回到主会话（见 `runtime/sub-agent/delegation-waits.ts`）。`content` 是给模型读的报告
 	 * 原文；这一项给界面画成一行「谁的结果到了」，而不是一个人发的气泡——那不是人说的话，而报告
 	 * 本身在派发卡片和子智能体面板里都看得到。
 	 */

@@ -269,7 +269,7 @@ export function repeatHint(kind: "exact" | "intent" | "probe" | undefined, tool:
 /**
  * 第三次起替换重复结果的那句话（见 `agent/loop.ts` 用 `repeats` 的那一段）。
  *
- * 放在这里，是因为有两处要认得它：循环写它，`runtime/stale-results.ts` 要把它当成「不是原文」。
+ * 放在这里，是因为有两处要认得它：循环写它，`runtime/compaction/stale-results.ts` 要把它当成「不是原文」。
  */
 export function repeatNotice(seen: number, tool: string): string {
 	return (

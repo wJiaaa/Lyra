@@ -39,7 +39,7 @@ export interface SessionStorage extends PartialSink, CallSink {
 	get(sessionId: string): Promise<SessionMeta | null>;
 	read(sessionId: string, sinceSeq?: number, options?: { display?: boolean }): AsyncGenerator<SessionRecord>;
 	messages(sessionId: string): Promise<Message[]>;
-	/** The records a session's sub-agents left, in order — see `runtime/sub-agent-restore.ts`. */
+	/** The records a session's sub-agents left, in order — see `runtime/sub-agent/sub-agent-restore.ts`. */
 	subAgentRecords(sessionId: string): Promise<SessionRecord[]>;
 	load(
 		sessionId: string,

@@ -1,0 +1,511 @@
+/**
+ * Every sub-agent this session has dispatched, and the handle to the ones still running.
+ *
+ * Delegated work used to be write-only: `runSubAgent` emitted "started" and "finished" and threw
+ * the rest away, so a sub-agent reading forty files was three words on a notice line and then a
+ * paragraph of answer. Which is exactly the shape of the problem — the context isolation that makes
+ * delegation worth doing is the same thing that makes it opaque, and an agent you cannot see is one
+ * you cannot correct.
+ *
+ * So the registry keeps three things a viewer needs and a live one can act on:
+ *
+ *   - the transcript, message by message, as it happens;
+ *   - enough of a reading (elapsed, tool calls, last activity) to answer "is this stuck?";
+ *   - a way in — `steer` puts a message into a running sub-agent, `abort` ends one.
+ *
+ * `steer` is the same mechanism the main session already uses for a message typed mid-turn: the
+ * message is spliced in between the sub-agent's turns, so it reads it with its context intact and
+ * carries on rather than starting over. It is deliberately not a second conversation running
+ * alongside — one agent, one thread, one thing being asked of it at a time.
+ *
+ * What this is *not*: a scheduler. `runSubAgent` still owns running the thing, and the parent's
+ * `task` call still waits for the answer. This only makes what happens in between visible and
+ * reachable.
+ *
+ * 登记从派出去的那一刻开始，不是从开跑的那一刻：闸门后面排着的那几个也在名单上（`queued`）。
+ * 从前它们要等轮到自己才登记，于是一次派四个、闸门只放一个的时候，名单上只有一个——界面只好
+ * 从对话里的工具调用倒推「还有三个在排队」，而那条推算在人插话、父会话不再等它们之后就断了。
+ */
+
+import type { HookRun } from "../../agent/events.ts";
+import { addUsage, emptyUsage, type Message, type MessageAttachment, type UserContent } from "../../types/message.ts";
+import type { SubAgentStatus, SubAgentSummary } from "../../types/sub-agent.ts";
+
+
+/** 还没完：排着或者在跑。停它、清名单、挤掉旧记录时，这两种是一样的。 */
+function isActive(status: SubAgentStatus): boolean {
+	return status === "queued" || status === "running";
+}
+
+/** 操控框里说的那句话，给人看的那一份——见 `SubAgentRegistry.steer`。 */
+export interface SteerDisplay {
+	displayText?: string;
+	attachments?: MessageAttachment[];
+}
+
+
+/**
+ * 续跑一个子代理需要的全部东西。
+ *
+ * `view` 是模型最后一次看到的历史（压缩、裁剪之后），`state` 是它自己的状态图——清单、读过哪些
+ * 文件、裁剪器。两样都原样留着：续跑时往 `view` 后面接一句话，前缀跟它上一次请求逐字相同，
+ * 缓存接得上；`state` 在，它不用为了改一个文件先把它重读一遍。
+ *
+ * 不进 `list`／`detail`：这是运行时的东西，状态图里甚至有不能序列化的对象，界面用不着它。
+ */
+export interface SubAgentConversation {
+	/** 它当初被派出去时用的定义名；续跑时不能换人。 */
+	agent: string;
+	view: Message[];
+	state: Map<string, unknown>;
+	/** `view` 里那条日期块写的是哪一天；隔了天续跑要补一条新的。 */
+	envDate: string;
+	/** `view` 是哪个模型说出来的（`ModelConfig.id`）；续跑时换了人，要先摘掉旧供应商的句柄。 */
+	model: string;
+}
+
+/** A summary plus everything it said, for the pane showing one of them. */
+export interface SubAgentDetail extends SubAgentSummary {
+	messages: Message[];
+	/** 它跑过的钩子，`at` 是它自己转录里的位置；面板据此归到它的那一段。没跑过就没有。 */
+	hookRuns?: HookRun[];
+}
+
+/**
+ * One sub-agent's record, and the levers the run itself installs.
+ *
+ * `steering` and `abort` are set by `runSubAgent` while it is running and cleared when it is not —
+ * which is what makes "can this be steered?" a property of the record rather than a guess from
+ * `status`.
+ */
+interface SubAgentRecord extends SubAgentDetail {
+	/** Drained by the running loop between turns; see `drainSteering` in `agent/loop.ts`. */
+	steering: Message[];
+	/** 停下时留下的上下文，续跑用。跑着的时候没有——那一份在它自己的循环里。 */
+	conversation?: SubAgentConversation;
+	abort?: () => void;
+}
+
+/**
+ * How many finished sub-agents are kept.
+ *
+ * They are worth keeping — the point of the pane is being able to read what a delegated run
+ * actually did, and that question is usually asked after it finished. Bounded because a long
+ * session can dispatch dozens and each carries its whole transcript; the oldest finished one goes
+ * first, and a running one is never retired.
+ */
+const MAX_KEPT = 24;
+
+export class SubAgentRegistry {
+	private readonly records = new Map<string, SubAgentRecord>();
+	/** Messages `steer` already wrote into a transcript; see `record`. */
+	private readonly steered = new WeakSet<Message>();
+	private readonly onChange: () => void;
+	private readonly onFinish: (id: string) => void;
+
+	/**
+	 * `onChange` is how the host learns to re-broadcast; the registry does no IPC of its own.
+	 *
+	 * `onFinish` 在一个子代理停下时叫一次——宿主要收回它还挂着的授权，见 `AgentSession.subAgents`。
+	 */
+	constructor(onChange: () => void = () => {}, onFinish: (id: string) => void = () => {}) {
+		this.onChange = onChange;
+		this.onFinish = onFinish;
+	}
+
+	/** Newest last, which is the order a tab strip reads in. */
+	list(): SubAgentSummary[] {
+		return [...this.records.values()].map(({ messages: _messages, hookRuns: _hookRuns, steering: _steering, abort: _abort, conversation, ...rest }) => ({
+			...rest,
+			...(conversation && !isActive(rest.status) ? { resumable: true } : {}),
+		}));
+	}
+
+	detail(id: string): SubAgentDetail | null {
+		const record = this.records.get(id);
+		if (!record) return null;
+		const { steering: _steering, abort: _abort, conversation, ...rest } = record;
+		return { ...rest, ...(conversation && !isActive(rest.status) ? { resumable: true } : {}) };
+	}
+
+	/**
+	 * 找一个能续跑的。
+	 *
+	 * 认全名，也认冒号后面那一截（`sub:1a2b3c4d` 或 `1a2b3c4d`）——模型抄一串四十几个字符的 id
+	 * 容易抄错，而同一个会话里短的那截已经足够唯一。认不出来、不唯一、还在跑、上下文已经不在了，
+	 * 各给一句能据以行动的话，而不是一个笼统的「失败」。
+	 */
+	lookupResumable(wanted: string): { id: string; summary: SubAgentSummary; conversation: SubAgentConversation } | { refusal: string } {
+		const key = wanted.trim();
+		let found = this.records.get(key);
+		if (!found && key) {
+			const tail = key.replace(/^.*?(sub:)?([^:]+)$/, "$2");
+			const matches = [...this.records.values()].filter((record) => record.id.endsWith(`:sub:${tail}`) || record.id.endsWith(`:${tail}`));
+			if (matches.length > 1) return { refusal: `\`${wanted}\` 对得上不止一个子代理，请用完整的 id。` };
+			found = matches[0];
+		}
+		if (!found) {
+			return {
+				refusal:
+					`找不到子代理 \`${wanted}\`：它可能已经被从名单里清掉，或者这个会话只保留最近 ${MAX_KEPT} 个。` +
+					"要继续那件事，只能重新派一个——在 prompt 里把它之前交回来的结论带上，别让新的从零查起。",
+			};
+		}
+		if (isActive(found.status)) {
+			return {
+				refusal: found.background
+					? `子代理 \`${found.id}\` 还在后台跑，跑完后结果会自动送到你这里，不需要续跑。`
+					: `子代理 \`${found.id}\` 还在跑，不需要续跑。等它交回结果，或者在面板里直接对它说话。`,
+			};
+		}
+		if (!found.conversation) {
+			return { refusal: `子代理 \`${found.id}\` 的上下文已经不在了（应用重启过，或它没能留下），没法续跑。要继续，重新派一个并把它交回的结论带上。` };
+		}
+		const { messages: _messages, steering: _steering, abort: _abort, conversation, ...summary } = found;
+		return { id: found.id, summary, conversation };
+	}
+
+	/**
+	 * 跑完之后把上下文留下来，续跑用。
+	 *
+	 * 放在 `finish` 之后单独调用而不是塞进它的参数：`finish` 说的是「它怎么结束的」，这里说的是
+	 * 「它还能不能接着来」，被按停的、正常做完的、跑到检查点的都可以有这一份。
+	 */
+	keep(id: string, conversation: SubAgentConversation): void {
+		const found = this.records.get(id);
+		if (!found || isActive(found.status)) return;
+		found.conversation = conversation;
+		this.onChange();
+	}
+
+	/**
+	 * 把一个停下的子代理重新打开，用的还是原来那个 id。
+	 *
+	 * 名单上还是那一行、转录接着往下长——对看着面板的人来说，这是同一个子代理干的同一件事，
+	 * 不是又派了一个。上一段的结论、错误、「没做完」的标记都清掉：它们说的是上一段怎么停的，
+	 * 这一段还没停。
+	 */
+	reopen(id: string, input: { abort: () => void; queued?: boolean }): boolean {
+		const found = this.records.get(id);
+		if (!found || isActive(found.status)) return false;
+		found.status = input.queued ? "queued" : "running";
+		found.background = undefined;
+		found.awaitingApproval = undefined;
+		found.endedAt = undefined;
+		found.answer = undefined;
+		found.output = undefined;
+		found.warnings = undefined;
+		found.error = undefined;
+		found.incomplete = undefined;
+		found.retrying = undefined;
+		found.conversation = undefined;
+		found.steering = [];
+		found.abort = input.abort;
+		found.resumes = (found.resumes ?? 0) + 1;
+		this.onChange();
+		return true;
+	}
+
+	get running(): number {
+		let count = 0;
+		for (const record of this.records.values()) if (record.status === "running") count += 1;
+		return count;
+	}
+
+	/** Called by `runSubAgent` as it starts one — or, with `queued`, as it gets in line for a slot. */
+	start(input: {
+		id: string;
+		agent: string;
+		description: string;
+		abort: () => void;
+		/** 派出去了，但还要在闸门后面排队。轮到它时调 `admit`。 */
+		queued?: boolean;
+	}): void {
+		this.retire();
+		this.records.set(input.id, {
+			id: input.id,
+			agent: input.agent,
+			description: input.description,
+			status: input.queued ? "queued" : "running",
+			startedAt: Date.now(),
+			toolCalls: 0,
+			usage: emptyUsage(),
+			messages: [],
+			steering: [],
+			abort: input.abort,
+		});
+		this.onChange();
+	}
+
+	/**
+	 * 轮到它了：排着的那一个开跑。
+	 *
+	 * 起跑时刻从这里算，不从派出去那一刻算——界面上那只表说的是「它干了多久」，在队里站着的
+	 * 那几分钟不是它干的活。
+	 */
+	admit(id: string): void {
+		const found = this.records.get(id);
+		if (!found || found.status !== "queued") return;
+		found.status = "running";
+		found.startedAt = Date.now();
+		this.onChange();
+	}
+
+	/** 父会话不再等它了——见 `SubAgentSummary.background`。 */
+	background(id: string): void {
+		const found = this.records.get(id);
+		if (!found || found.background || !isActive(found.status)) return;
+		found.background = true;
+		this.onChange();
+	}
+
+	/** 它在等一次授权，或者等到了。 */
+	awaitingApproval(id: string, waiting: boolean): void {
+		const found = this.records.get(id);
+		if (!found || Boolean(found.awaitingApproval) === waiting) return;
+		found.awaitingApproval = waiting || undefined;
+		this.onChange();
+	}
+
+	/**
+	 * Everything the sub-agent said, as it says it.
+	 *
+	 * False for a message `steer` already wrote and announced: the loop's `message_end` for it
+	 * arrives a turn later, and recording it again showed the same bubble twice in the pane.
+	 */
+	record(id: string, message: Message): boolean {
+		const found = this.records.get(id);
+		/*
+		 * Nothing to record is not the same as a message, and the order here used to decide which.
+		 *
+		 * The push came first and the `role` read below second, so anything empty arriving went into
+		 * the transcript *and then* threw — leaving a hole in an array that outlives the throw, in a
+		 * list nothing else validates. The window reads this array straight through `subAgents.detail`
+		 * and walks it whole, so the hole surfaced later and somewhere else entirely, as the
+		 * `undefined.role` that takes the interface down.
+		 *
+		 * Every other transcript in the codebase checks before it appends — `SessionLog.commit` does
+		 * it with a WeakSet. This one now does too.
+		 */
+		if (!found || !message) return true;
+		if (this.steered.has(message)) return false;
+		found.messages.push(message);
+		// Each assistant message is one request, and arrives once — see `message_end` in the sub-agent's relay (`sub-agent-run.ts`).
+		if (message.role === "assistant") found.usage = addUsage(found.usage, message.usage);
+		this.onChange();
+		return true;
+	}
+
+	/**
+	 * 一次钩子运行，盖上它在这个子代理转录里的位置再交回去。
+	 *
+	 * 同一条钩子先报「开始」再报结局，按 id 替换，位置以第一次为准——和 `SessionLog` 给主会话盖的
+	 * 是同一个规矩，只是数的是它自己的转录：主会话那边的位置对它的面板没有意义。
+	 */
+	hookRun(id: string, run: HookRun): HookRun {
+		const found = this.records.get(id);
+		if (!found) return run;
+		const runs = (found.hookRuns ??= []);
+		const at = runs.findIndex((known) => known.id === run.id);
+		const stamped = { ...run, at: at >= 0 ? runs[at].at : found.messages.length };
+		if (at < 0) runs.push(stamped);
+		else runs[at] = stamped;
+		return stamped;
+	}
+
+	/** One tool call, for the reading a viewer uses to judge progress. */
+	activity(id: string, summary: string): void {
+		const found = this.records.get(id);
+		if (!found) return;
+		found.toolCalls += 1;
+		found.lastActivity = summary;
+		/*
+		 * 又动起来了，就不再是「正在等」。
+		 *
+		 * 正常路径上 `retry_settled` 会先把它清掉，这一行是兜底：转发漏了一次、或者哪个适配器没
+		 * 发这个事件，界面上都不该留着一个永远在重连的子代理——它明明已经在读下一个文件了。
+		 */
+		found.retrying = undefined;
+		this.onChange();
+	}
+
+	/**
+	 * 它正在等一次重连，或者等完了。
+	 *
+	 * 不走 `activity`：那个会把 `toolCalls` 加一，而重连不是它做的事。一个重试了 47 次的子代理
+	 * 在界面上显示「47 次调用」，是把一次故障说成了工作量。
+	 */
+	retrying(id: string, info: { attempt: number; reason: string } | undefined): void {
+		const found = this.records.get(id);
+		if (!found) return;
+		found.retrying = info;
+		this.onChange();
+	}
+
+	finish(
+		id: string,
+		outcome: {
+			status: Exclude<SubAgentStatus, "queued" | "running">;
+			answer?: string;
+			error?: string;
+			output?: Record<string, unknown>;
+			warnings?: string[];
+			incomplete?: boolean;
+		},
+	): void {
+		const found = this.records.get(id);
+		if (!found) return;
+		found.status = outcome.status;
+		found.endedAt = Date.now();
+		found.answer = outcome.answer;
+		found.output = outcome.output;
+		found.warnings = outcome.warnings;
+		found.error = outcome.error;
+		found.incomplete = outcome.incomplete;
+		// 停下来的那一刻，「正在重连」就成了过去时——被按停的那次尤其，它正是在重连里被按停的。
+		found.retrying = undefined;
+		found.awaitingApproval = undefined;
+		// The levers go with the run: a finished sub-agent must not look steerable.
+		found.steering.length = 0;
+		found.abort = undefined;
+		this.onChange();
+		this.onFinish(id);
+	}
+
+	/**
+	 * Put a message into a running sub-agent.
+	 *
+	 * Queued rather than delivered: the loop drains this between turns, so the sub-agent finishes
+	 * the step it is on, reads the message with its context intact, and carries on. Interrupting
+	 * mid-tool-call would mean abandoning a write half-done, which is a worse answer to "you are
+	 * going the wrong way" than arriving one step late.
+	 *
+	 * Recorded in the transcript on the way past, so the pane shows what was said to it rather than
+	 * a reply appearing out of nowhere.
+	 */
+	steer(id: string, said: string | UserContent[], display?: SteerDisplay): Message | null {
+		const found = this.records.get(id);
+		if (!found || found.status !== "running") return null;
+		/*
+		 * 一串内容块，不只是一段字。
+		 *
+		 * `steering` 里放的本来就是完整的 `Message`，图片块从来都装得下——只是这个入口的签名卡在
+		 * `string` 上，于是操控框里附的图在发出去之前就没了：界面收得下、缩略图画得出、送到这里
+		 * 只剩文本附件被拼进正文。字符串那一种仍然认，旧的调用点还在用。
+		 */
+		const content: UserContent[] = typeof said === "string" ? [{ type: "text", text: said }] : said;
+		// 全是空白的一条只会让子代理白转一轮。`every` 对空数组返回 true，空的那一种也在里面。
+		if (content.every((part) => part.type === "text" && !part.text.trim())) return null;
+		/*
+		 * 给人看的那一份也带上：人打的字（标记留着）和附件的名字门类，和主会话的消息同一组字段。
+		 * 不带的话，面板只能把内容块拼起来画——附一份文件，气泡里就是整篇正文。
+		 */
+		const message: Message = {
+			role: "user",
+			content,
+			timestamp: Date.now(),
+			...(display?.displayText !== undefined ? { displayText: display.displayText } : {}),
+			...(display?.attachments?.length ? { attachments: display.attachments } : {}),
+		};
+		found.steering.push(message);
+		found.messages.push(message);
+		this.steered.add(message);
+		this.onChange();
+		/*
+		 * Returned, not just recorded, because `onChange` carries the roster and the roster has no
+		 * transcripts in it — a window watching this sub-agent would not learn of the message until
+		 * it happened to re-read the whole thing. The caller emits it; see `AgentSession.steerSubAgent`.
+		 */
+		return message;
+	}
+
+	/** 还有没送进去的话。只看不取——取的只能是循环，它取的时候会把话写进转录。 */
+	hasSteering(id: string): boolean {
+		return (this.records.get(id)?.steering.length ?? 0) > 0;
+	}
+
+	/** Emptied by the running loop between turns — see `drainSteering`. */
+	drainSteering(id: string): Message[] {
+		const found = this.records.get(id);
+		if (!found) return [];
+		return found.steering.splice(0, found.steering.length);
+	}
+
+	/**
+	 * Stop one.
+	 *
+	 * The run's own `finally` is what marks it aborted; this only pulls the trigger, so a sub-agent
+	 * that was already finishing is not recorded as killed.
+	 */
+	abort(id: string): boolean {
+		const found = this.records.get(id);
+		if (!found || !isActive(found.status) || !found.abort) return false;
+		found.abort();
+		return true;
+	}
+
+	/**
+	 * Take one off the roster.
+	 *
+	 * Stopping first is not a convenience, it is the whole of what makes this safe: the record is
+	 * the only handle there is. Dropping a running sub-agent would leave it running with nothing
+	 * able to reach it — not steerable, not stoppable, still spending tokens and still holding the
+	 * parent's `task` call open. So dismissing one that is running stops it, and the row stays until
+	 * the run's own teardown files it as aborted; the second dismiss is what removes it.
+	 *
+	 * Returns what it did, because the two outcomes need different words on screen.
+	 */
+	dismiss(id: string): "removed" | "stopping" | "unknown" {
+		const found = this.records.get(id);
+		if (!found) return "unknown";
+		if (isActive(found.status)) {
+			found.abort?.();
+			return "stopping";
+		}
+		this.records.delete(id);
+		this.onChange();
+		return "removed";
+	}
+
+	/** Everything still running, for a session being torn down. */
+	abortAll(): void {
+		for (const record of this.records.values()) {
+			if (isActive(record.status)) record.abort?.();
+		}
+	}
+
+	/**
+	 * 进程换过之后，把日志里读回来的放回名单（`sub-agent-restore.ts`）。
+	 *
+	 * 只放名单上还没有的：同一个进程里已经在跑、已经登记过的那一份是真的，读回来的那份只是近似。
+	 * 放回来的都已经停下，没有拉杆可拉；有上下文的，`resume` 照样认。
+	 */
+	restore(entries: readonly { summary: SubAgentSummary; messages: Message[]; hookRuns?: HookRun[]; conversation?: SubAgentConversation }[]): void {
+		let added = false;
+		for (const entry of entries.slice(-MAX_KEPT)) {
+			if (this.records.has(entry.summary.id)) continue;
+			this.records.set(entry.summary.id, {
+				...entry.summary,
+				messages: entry.messages,
+				...(entry.hookRuns?.length ? { hookRuns: entry.hookRuns } : {}),
+				steering: [],
+				...(entry.conversation ? { conversation: entry.conversation } : {}),
+			});
+			added = true;
+		}
+		if (added) this.onChange();
+	}
+
+	/** Make room, oldest finished first. A running sub-agent is never retired. */
+	private retire(): void {
+		while (this.records.size >= MAX_KEPT) {
+			let oldest: SubAgentRecord | null = null;
+			for (const record of this.records.values()) {
+				if (isActive(record.status)) continue;
+				if (!oldest || (record.endedAt ?? record.startedAt) < (oldest.endedAt ?? oldest.startedAt)) oldest = record;
+			}
+			if (!oldest) return;
+			this.records.delete(oldest.id);
+		}
+	}
+}

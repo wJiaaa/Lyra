@@ -2,7 +2,7 @@
 
 - 状态：已采纳；第 2 条由 [ADR-0029](0029-parent-lets-go-when-spoken-to.md) 修订——没写清单就撞上检查点的，再给一段让它列出剩下的步骤
 - 日期：2026-09-24
-- 相关：`packages/core/src/runtime/sub-agent.ts`、`runtime/sub-agents.ts`、`runtime/continuation.ts`、`tools/task.ts`、`agent/run-config.ts`（`AgentRunResult.view`）、`agents-builtin.ts`（`maxTurns`）、`capability/providers/native.ts`、desktop `features/subagents/SubAgentPanel.tsx`、`features/subagents/way-back.ts`
+- 相关：`packages/core/src/runtime/sub-agent/sub-agent.ts`、`runtime/sub-agent/sub-agents.ts`、`runtime/continuation.ts`、`tools/task.ts`、`agent/run-config.ts`（`AgentRunResult.view`）、`agents-builtin.ts`（`maxTurns`）、`capability/providers/native.ts`、desktop `features/subagents/SubAgentPanel.tsx`、`features/subagents/way-back.ts`
 
 ## 背景
 
@@ -68,7 +68,7 @@
 - **不从面板直接续跑。** 一个工作区一个执行者；续跑的结论要回到父模型那里才有用。和「重新派发」
   同一个间接法：落成输入框里的草稿，人读过再发。
 - **跨重启续跑：2026-10-03 补上了。** 起初没做，登记簿在内存里，重启后名单是空的。补的做法：
-  - 会话 `initialize` 时从日志读回子代理（`store.subAgentRecords` → `runtime/sub-agent-restore.ts`）。没有
+  - 会话 `initialize` 时从日志读回子代理（`store.subAgentRecords` → `runtime/sub-agent/sub-agent-restore.ts`）。没有
     `subagent_done` 的记成「已停止」。上下文由转录、压缩边界（子代理的 `compacted`）和日期块拼出；
     用户插话放回它被读到的位置，进程死时没返回的调用补成「已中断」。清单从最后一次 `todo_write`
     恢复；读过哪些文件不恢复，因为进程换过，文件可能也变了。

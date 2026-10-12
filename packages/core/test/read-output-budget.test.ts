@@ -29,7 +29,7 @@ test("a large read is cut by the tool itself and marks only the lines it returne
 });
 
 test("compaction does not cut a result the model has not seen yet when it is within the fresh cap", async () => {
-	const { compactIfNeeded } = await import("../src/runtime/compaction.ts");
+	const { compactIfNeeded } = await import("../src/runtime/compaction/compaction.ts");
 	const { emptyUsage } = await import("../src/types.ts");
 	const model = { id: "m", modelId: "m", providerId: "p", name: "m", contextWindow: 10_000, maxOutputTokens: 100, supportsThinking: false, supportsImages: false, supportsTools: true };
 	const provider = { id: "p", name: "p", api: "openai-responses" as const, baseUrl: "http://localhost", apiKey: "", enabled: true, models: [model] };

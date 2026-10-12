@@ -13,8 +13,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { addressLookups, runSubAgent } from "../src/runtime/sub-agent.ts";
-import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
+import { addressLookups, runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
+import { SubAgentRegistry } from "../src/runtime/sub-agent/sub-agents.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, Settings, Tool } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";

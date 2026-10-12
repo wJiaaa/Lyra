@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createContext } from "../src/kernel/index.ts";
 import { COMPACTION, type CompactionRequest, type CompactionStrategy } from "../src/kernel/services.ts";
-import { compactWith, useCompaction } from "../src/runtime/compaction.ts";
+import { compactWith, useCompaction } from "../src/runtime/compaction/compaction.ts";
 import { estimateTokens } from "../src/tokens.ts";
 import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";

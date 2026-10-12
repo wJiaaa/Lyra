@@ -23,7 +23,7 @@ import {
 	redactSecrets,
 	similar,
 	writeLessons,
-} from "../src/runtime/project-memory.ts";
+} from "../src/runtime/memory/project-memory.ts";
 
 let home: string;
 let project: string;
@@ -203,7 +203,7 @@ test("each lesson carries the date it was written — age is what lets a model d
 
 test("disabling project memory gates learn before it can touch the repository store", async () => {
 	const { learnTool } = await import("../src/tools/learn.ts");
-	const { PROJECT_MEMORY_ENABLED_KEY } = await import("../src/runtime/project-memory.ts");
+	const { PROJECT_MEMORY_ENABLED_KEY } = await import("../src/runtime/memory/project-memory.ts");
 	const file = join(projectMemoryDir(project), "learned.md");
 	const before = await readFile(file, "utf8");
 	const state = new Map([[PROJECT_MEMORY_ENABLED_KEY, false]]);

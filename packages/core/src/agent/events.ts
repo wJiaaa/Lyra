@@ -269,7 +269,7 @@ export type AgentEvent =
 	 * The session's own cut results are kept the same way (`views` records, `AgedToolPruner`).
 	 */
 	| { type: "subagent_views"; id: string; views: { toolCallId: string; message: Message }[] }
-	/** Taken off the roster by hand. Stays off after a restart (`runtime/sub-agent-restore.ts`). */
+	/** Taken off the roster by hand. Stays off after a restart (`runtime/sub-agent/sub-agent-restore.ts`). */
 	| { type: "subagent_dismissed"; id: string }
 	/**
 	 * History was summarised to fit the window.

@@ -16,7 +16,7 @@ import { AgentSession } from "../src/runtime/session.ts";
 import { SessionStore, type SessionRecord } from "../src/session/store.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
-import { controlMainTool } from "../src/runtime/sidechat-controls.ts";
+import { controlMainTool } from "../src/runtime/side-chat/sidechat-controls.ts";
 import { TODOS_KEY } from "../src/tools/todo.ts";
 
 const MODEL: ModelConfig = {

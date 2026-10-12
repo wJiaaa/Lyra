@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { PRUNE_THRESHOLD_CHARS, pruneToolResults } from "../src/agent/prune.ts";
-import { dropStaleResults } from "../src/runtime/stale-results.ts";
+import { dropStaleResults } from "../src/runtime/compaction/stale-results.ts";
 import { AgedToolPruner } from "../src/agent/aged-prune.ts";
 import { emptyUsage, type Message, type ToolResultMessage } from "../src/types.ts";
 

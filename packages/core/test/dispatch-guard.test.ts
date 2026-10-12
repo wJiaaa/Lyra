@@ -13,7 +13,7 @@ import {
 	DispatchGate,
 	MAX_CONCURRENT_SUB_AGENTS,
 	normalizeMaxConcurrentSubAgents,
-} from "../src/runtime/dispatch-guard.ts";
+} from "../src/runtime/sub-agent/dispatch-guard.ts";
 
 test("the gate runs up to the limit at once and queues the rest", async () => {
 	const gate = new DispatchGate(2);

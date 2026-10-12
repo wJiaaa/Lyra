@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { ExtensionHost } from "../src/extensions/host.ts";
 
-import { runSubAgent } from "../src/runtime/sub-agent.ts";
+import { runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
 import { inheritedToolEnv } from "../src/runtime/run-policy.ts";
 import { toolPolicy } from "../src/runtime/tool-policy.ts";
 import { buildTurnConfig } from "../src/runtime/turn-config.ts";

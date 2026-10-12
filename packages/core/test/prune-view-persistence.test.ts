@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
 import { runConfig } from "./run-config.ts";
 import { AgedToolPruner } from "../src/agent/aged-prune.ts";
-import { compactIfNeeded } from "../src/runtime/compaction.ts";
+import { compactIfNeeded } from "../src/runtime/compaction/compaction.ts";
 import { emptyUsage, type AssistantMessage, type LlmContext, type Message, type ModelConfig, type ProviderConfig } from "../src/types.ts";
 
 const model: ModelConfig = { id: "m", modelId: "m", providerId: "p", name: "m", contextWindow: 20_000, maxOutputTokens: 1000, supportsThinking: false, supportsImages: false, supportsTools: true };

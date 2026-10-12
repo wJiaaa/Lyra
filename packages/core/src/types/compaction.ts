@@ -72,7 +72,7 @@ export interface AutoCompactionState {
 	fault?: CompactionFault;
 	outcome?: "summary" | "fallback";
 	/**
-	 * 一轮收尾之后才开始的（`runtime/idle-compaction.ts`）。一轮里的自动压缩跟着那一轮亮灭，这一种外面
+	 * 一轮收尾之后才开始的（`runtime/compaction/idle-compaction.ts`）。一轮里的自动压缩跟着那一轮亮灭，这一种外面
 	 * 没有轮，界面要像手动压缩一样自己显示「进行中」，期间发的消息才看得出在排队。
 	 */
 	idle?: true;

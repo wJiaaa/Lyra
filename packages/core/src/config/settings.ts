@@ -1,5 +1,5 @@
 import { DEFAULT_RETRY_POLICY, normalizeRetryPolicy, type RetryPolicy } from "./retry-policy.ts";
-import { normalizeMaxConcurrentSubAgents } from "../runtime/dispatch-guard.ts";
+import { normalizeMaxConcurrentSubAgents } from "../runtime/sub-agent/dispatch-guard.ts";
 import { normalizeSubAgentProfiles, type SubAgentProfile } from "./sub-agent-profiles.ts";
 import { constants, copyFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -433,13 +433,13 @@ export interface Settings {
 	 * calls. The number reaches the prompt too: a queue is invisible from the inside, and a model
 	 * that reads the wait as slowness responds by dispatching more.
 	 *
-	 * 设置页不再展示它，只在配置文件里可调。见 `runtime/dispatch-guard.ts`。
+	 * 设置页不再展示它，只在配置文件里可调。见 `runtime/sub-agent/dispatch-guard.ts`。
 	 */
 	maxConcurrentSubAgents: number;
 	/**
 	 * Per-agent model and thinking overrides, by agent name.
 	 *
-	 * 没有 `compact`：摘要请求从主请求分叉才吃得到缓存，换一个模型就从零读起（`runtime/compaction-fork.ts`），
+	 * 没有 `compact`：摘要请求从主请求分叉才吃得到缓存，换一个模型就从零读起（`runtime/compaction/compaction-fork.ts`），
 	 * 所以压缩总用会话自己的模型。旧配置里留着的 `compact` 不再有人读。
 	 */
 	subAgentProfiles?: Record<string, SubAgentProfile>;

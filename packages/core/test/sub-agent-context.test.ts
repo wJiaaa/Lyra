@@ -5,9 +5,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { runSubAgent } from "../src/runtime/sub-agent.ts";
-import { describeSubAgentContext, SubAgentContexts } from "../src/runtime/sub-agent-context.ts";
-import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
+import { runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
+import { describeSubAgentContext, SubAgentContexts } from "../src/runtime/sub-agent/sub-agent-context.ts";
+import { SubAgentRegistry } from "../src/runtime/sub-agent/sub-agents.ts";
 import type { AgentDefinition } from "../src/agents-builtin.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import type { SessionRecord } from "../src/session/types.ts";

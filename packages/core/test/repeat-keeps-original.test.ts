@@ -11,7 +11,7 @@ import { test } from "node:test";
 import { runAgent } from "../src/agent/loop.ts";
 import { runConfig } from "./run-config.ts";
 import { isRepeatNotice, originalInView, repeatNotice } from "../src/agent/repetition.ts";
-import { dropStaleResults } from "../src/runtime/stale-results.ts";
+import { dropStaleResults } from "../src/runtime/compaction/stale-results.ts";
 import { emptyUsage, type AssistantMessage, type Message, type ModelConfig, type Tool, type ToolResultMessage } from "../src/types.ts";
 
 const ORIGINAL = "export const answer = 42;\n".repeat(40);

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_SETTINGS, normalizeSettings } from "../src/config/settings.ts";
 import { normalizeSubAgentProfiles, parseModelRef, resolveSubAgentModel } from "../src/config/model-choice.ts";
-import { runSubAgent } from "../src/runtime/sub-agent.ts";
+import { runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
 import { THINKING_LEVELS, thinkingOptionsFor } from "../src/ai/thinking-options.ts";
 import { BUILTIN_AGENTS } from "../src/tools/task.ts";
 import { emptyUsage, type AssistantMessage, type ModelConfig, type ProviderConfig, type Settings } from "../src/types.ts";

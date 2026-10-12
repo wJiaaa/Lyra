@@ -7,7 +7,7 @@ import { buildPromptContext, buildSystemPrompt } from "../src/prompt/system.ts";
 import { reconcilePrompt } from "../src/prompt/context.ts";
 import { INSTRUCTION_BYTE_LIMIT } from "../src/prompt/budget.ts";
 import { formatSkills } from "../src/prompt/skills.ts";
-import { formatProjectMemorySources } from "../src/runtime/project-memory.ts";
+import { formatProjectMemorySources } from "../src/runtime/memory/project-memory.ts";
 import { buildContextBreakdown } from "../src/runtime/context.ts";
 import { textTokens, toolTokens } from "../src/tokens.ts";
 import { DEFAULT_SETTINGS } from "../src/config/settings.ts";

@@ -3,8 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import { gatherMemory } from "../src/runtime/memory-inject.ts";
-import { forgetLesson, readLessons, recordLesson } from "../src/runtime/project-memory.ts";
+import { gatherMemory } from "../src/runtime/memory/memory-inject.ts";
+import { forgetLesson, readLessons, recordLesson } from "../src/runtime/memory/project-memory.ts";
 import { SessionLog } from "../src/runtime/session-log.ts";
 import { SessionStore } from "../src/session/store.ts";
 

@@ -16,8 +16,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { SUB_AGENT_CHECKPOINT_TURNS, runSubAgent } from "../src/runtime/sub-agent.ts";
-import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
+import { SUB_AGENT_CHECKPOINT_TURNS, runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
+import { SubAgentRegistry } from "../src/runtime/sub-agent/sub-agents.ts";
 import type { AgentDefinition } from "../src/agents-builtin.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
 import { todoTool } from "../src/tools/todo.ts";

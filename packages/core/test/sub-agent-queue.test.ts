@@ -8,9 +8,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { runSubAgent } from "../src/runtime/sub-agent.ts";
-import { SubAgentRegistry } from "../src/runtime/sub-agents.ts";
-import { DispatchGate } from "../src/runtime/dispatch-guard.ts";
+import { runSubAgent } from "../src/runtime/sub-agent/sub-agent.ts";
+import { SubAgentRegistry } from "../src/runtime/sub-agent/sub-agents.ts";
+import { DispatchGate } from "../src/runtime/sub-agent/dispatch-guard.ts";
 import { todoTool } from "../src/tools/todo.ts";
 import type { AgentDefinition } from "../src/agents-builtin.ts";
 import type { AgentEvent } from "../src/agent/events.ts";
