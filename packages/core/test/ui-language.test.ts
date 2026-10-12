@@ -11,7 +11,7 @@ import { evaluate, parseExpression, text } from "../src/ui-language/expression.t
 import { parseBlock, type UiElement } from "../src/ui-language/parse.ts";
 import { checkBlock, initialState, readProps } from "../src/ui-language/check.ts";
 import { COMPONENTS } from "../src/ui-language/catalog.ts";
-import { interfaceBlocks, withInterfaceNotes } from "../src/ui-language/notes.ts";
+import { interfaceBlocks, unfencedComponents, withInterfaceNotes } from "../src/ui-language/notes.ts";
 import { buildPromptContext } from "../src/prompt/system.ts";
 import { emptyUsage, type AssistantMessage, type Message, type Tool } from "../src/types.ts";
 
@@ -159,6 +159,15 @@ test("回报：问题接在下一句人话后面，同一份历史每次一样�
 	const clean = [user("画"), assistant("```ui\n<Text>好</Text>\n```"), user("嗯")];
 	assert.equal(withInterfaceNotes(clean), clean);
 	assert.deepEqual(interfaceBlocks("````ui\na\n```\nb\n````\n```ts\nx\n```"), ["a\n```\nb"]);
+});
+
+test("回报：忘了 ```ui 围栏的组件被当成文字显示，下一轮告诉模型", () => {
+	// 10-12 一次真实回复的形状：整块写在正文里，前后都没有围栏。
+	const bare = assistant('挑一个：\n\n<Card title="选一个方向">\n  <Choice name="pick" options={["A","B"]}/>\n  <Row gap="sm">\n    <Button send="用 {pick}">就这个</Button>\n  </Row>\n</Card>');
+	const out = withInterfaceNotes([user("给几个模板"), bare, user("嗯")]);
+	assert.match(textOf(out[2]), /- <Card> <Choice> <Row>: outside a ```ui fence, shown as plain text/);
+	assert.deepEqual(unfencedComponents("```tsx\n<Card title=\"x\"/>\n```\n~~~\n<Row/>\n~~~"), [], "代码围栏里引用的写法不算");
+	assert.deepEqual(unfencedComponents("正文提到 <Card> 组件\n<div>html</div>\n<Cardboard/>\n    <Card/>"), [], "句中、HTML 标签、不在名单上的名字、缩进代码块都不算");
 });
 
 test("提示词：只有画得出界面块的端才有这一段，组件表就是检查用的那张", async () => {

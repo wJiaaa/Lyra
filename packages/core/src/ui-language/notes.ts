@@ -12,6 +12,7 @@
  */
 
 import type { Message } from "../types.ts";
+import { COMPONENTS } from "./catalog.ts";
 import { checkBlock } from "./check.ts";
 
 /** The ```ui blocks in a piece of Markdown, closing fence or not. */
@@ -29,6 +30,28 @@ export function interfaceBlocks(markdown: string): string[] {
 	return blocks;
 }
 
+/**
+ * Components written straight into the prose, outside any fence: the reply shows them as text.
+ *
+ * Told to the model rather than drawn anyway — a reply quoting `<Card>` while explaining it would
+ * otherwise turn into a control. Only a line that opens with a catalog component counts.
+ */
+export function unfencedComponents(markdown: string): string[] {
+	const names = new Set<string>();
+	const lines = markdown.split("\n");
+	for (let at = 0; at < lines.length; at++) {
+		const fence = /^\s*(`{3,}|~{3,})/.exec(lines[at]!);
+		if (fence) {
+			const close = new RegExp(`^\\s*${fence[1]![0] === "`" ? "`" : "~"}{${fence[1]!.length},}\\s*$`);
+			for (at++; at < lines.length && !close.test(lines[at]!); at++);
+			continue;
+		}
+		const tag = /^ {0,3}<([A-Z]\w*)[\s/>]/.exec(lines[at]!);
+		if (tag && Object.hasOwn(COMPONENTS, tag[1]!)) names.add(tag[1]!);
+	}
+	return [...names];
+}
+
 function problemsIn(messages: Message[]): string[] {
 	const problems: string[] = [];
 	for (const message of messages) {
@@ -36,6 +59,8 @@ function problemsIn(messages: Message[]): string[] {
 		for (const block of message.content) {
 			if (block.type !== "text") continue;
 			for (const source of interfaceBlocks(block.text)) problems.push(...checkBlock(source));
+			const bare = unfencedComponents(block.text);
+			if (bare.length) problems.push(`${bare.map((name) => `<${name}>`).join(" ")}: outside a \`\`\`ui fence, shown as plain text`);
 		}
 	}
 	return [...new Set(problems)];
