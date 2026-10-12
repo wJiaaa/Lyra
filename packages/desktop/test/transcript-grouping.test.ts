@@ -113,7 +113,7 @@ test("a manual command remains before resumed tool work even when the continuati
  */
 
 function hiccup(id: string, at: number, outcome: "waiting" | "recovered" | "gave_up" = "recovered") {
-	return { id, at, attempts: 2, until: 0, summary: "连接断了", kind: "network" as const, fingerprint: id, repeated: 1, outcome, resume: false };
+	return { id, at, attempts: 2, until: 0, summary: "连接断了", kind: "network" as const, fingerprint: id, repeated: 1, outcome };
 }
 
 test("一次断线留在它发生的那一段旁边，后面来的消息不会把它挤到末尾", () => {

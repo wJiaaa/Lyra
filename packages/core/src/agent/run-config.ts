@@ -243,11 +243,4 @@ export interface AgentRunResult {
 	view?: Message[];
 	reason: "done" | "aborted" | "error" | "max_turns" | "stalled";
 	error?: string;
-	/**
-	 * The run died on the connection, not on anything it asked for.
-	 *
-	 * Only meaningful with `reason: "error"`. It is what tells a caller whether going back is worth
-	 * anything: a dropped socket will likely be gone in ten seconds, a rejected key will not.
-	 */
-	retryable?: boolean;
 }

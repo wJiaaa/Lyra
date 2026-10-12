@@ -360,12 +360,8 @@ export interface AppState extends QueueSlice {
    * `until` is an instant rather than the delay it was born as: the countdown on screen needs to
    * know when the wait ends, and a duration measured from an event that has already been
    * delivered, queued and rendered is stale by the time anything can read it.
-   *
-   * `resume` is the turn being picked back up rather than a request being sent again — a longer
-   * wait, and one that says something different, because by then the turn has already ended and
-   * what is being promised is that the work survived it.
    */
-  retrying: { attempt: number; until: number; reason: string; resume: boolean } | null;
+  retrying: { attempt: number; until: number; reason: string } | null;
   /**
    * 这一轮里连接出过的岔子，以及每一次最后怎么了。
    *

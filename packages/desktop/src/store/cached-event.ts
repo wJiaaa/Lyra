@@ -70,7 +70,7 @@ export function cachedEvent(cached: Cache[string], event: AgentEvent): Cache[str
 			state = { ...state, ...(event.command ? { commandRuns: [...(state.commandRuns ?? []).filter(run => run.id !== event.commandId), event.command] } : {}), ...(event.command?.automatic?.idle ? { running: false } : {}), compactions: [...state.compactions, { at: messages.length, before: event.before, after: event.after }], compactedAt: Date.now() };
 			break;
 		case "retry":
-			state = { ...state, running: state.running || event.resume === true, retrying: { attempt: event.attempt, until: Date.now() + event.delayMs, reason: event.reason, resume: event.resume === true }, hiccups: foldRetry(state.hiccups ?? [], event, Date.now(), messages.length) };
+			state = { ...state, retrying: { attempt: event.attempt, until: Date.now() + event.delayMs, reason: event.reason }, hiccups: foldRetry(state.hiccups ?? [], event, Date.now(), messages.length) };
 			break;
 		// 后台那个会话抖过什么、最后怎么了，切回去时得还在——见 `apply-event.ts` 里的同一对分支。
 		case "retry_settled":

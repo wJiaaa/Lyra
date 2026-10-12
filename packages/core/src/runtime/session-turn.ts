@@ -126,23 +126,6 @@ export async function driveTurn(input: TurnInputs): Promise<void> {
 		todos: () => (input.can.state.get(TODOS_KEY) as TodoItem[] | undefined) ?? [],
 		aborted: () => input.signal.aborted,
 		notify: (notice) => input.emit({ type: "notice", level: "info", ...notice }),
-		// The running line, not a toast: this wait outlives one by an order of magnitude.
-		resuming: (info) => input.emit({ type: "retry", ...info, resume: true }),
-		// So that pressing stop during a minute-long wait is felt immediately.
-		signal: input.signal,
-		/*
-		 * 无条件为真，也就是说 `continueWhileWorkRemains` 里那半段「连接断了就整轮重来」在这里
-		 * 从来不会执行。这是有意的，值得写下来，因为光读那个文件会以为它在工作。
-		 *
-		 * 会话永远带着一份重试策略——`normalizeRetryPolicy` 在没有配置时也会给出默认值——所以请求
-		 * 那一层总是受设置管着，而且现在覆盖了每一种失败（见 `failure.ts`）。再让外面这层加码，
-		 * 「重试 10 次」就会变成 10 次请求重试 × 3 轮 resume 一共四十次，跟设置页上写的数字对不上。
-		 * 设成无限重试时它更是永远轮不到：请求那层根本不会放弃。
-		 *
-		 * 那半段代码留着是因为 `continueWhileWorkRemains` 本身是通用的，`resume.test.ts` 也仍然
-		 * 覆盖着它；换个不带重试预算的调用者就该打开。
-		 */
-		requestRetriesHandled: true,
 	}).catch(failed);
 	if (final.reason !== "done") await runStopFailureHooks(hooks, final).catch(() => {});
 

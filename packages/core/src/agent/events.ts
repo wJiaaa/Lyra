@@ -298,15 +298,8 @@ export type AgentEvent =
 	 * — the same class of fact as "thinking" or "running a tool" — and belongs beside the turn
 	 * rather than in the corner of the window with things that outlive it. It also expires on its
 	 * own: once the turn is over, whether it was retried is history nobody needs.
-	 *
-	 * `resume` marks the far rarer kind: not a request being sent again, but a turn being picked
-	 * back up after every retry inside it was already spent. The difference is worth carrying
-	 * because it is the difference the person waiting cares about — one is a hiccup measured in
-	 * seconds, the other means the turn ended and the work is being resumed from the transcript.
-	 * It also arrives *after* `agent_end`, which is the one thing a client must not read as "so
-	 * nothing is running".
 	 */
-	| { type: "retry"; attempt: number; delayMs: number; reason: string; resume?: boolean; failure?: Failure }
+	| { type: "retry"; attempt: number; delayMs: number; reason: string; failure?: Failure }
 	/**
 	 * 那次中断最后怎么了。
 	 *

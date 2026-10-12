@@ -82,7 +82,7 @@ export function openPlanNote(open: TodoItem[]): string {
 }
 
 type ToolCall = Extract<AssistantContent, { type: "toolCall" }>;
-type Ending = { reason: AgentRunResult["reason"]; error?: string; retryable?: boolean };
+type Ending = { reason: AgentRunResult["reason"]; error?: string };
 
 /** What one run carries from turn to turn. */
 interface Run {
@@ -152,7 +152,7 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 		if (assistant.stopReason === "aborted" || assistant.stopReason === "error") {
 			await closeUnansweredCalls(run, assistant);
 			if (assistant.stopReason === "aborted") return finish(run, { reason: "aborted" });
-			return finish(run, { reason: "error", error: assistant.errorMessage, retryable: assistant.errorRetryable });
+			return finish(run, { reason: "error", error: assistant.errorMessage });
 		}
 
 		const toolCalls = assistant.content.filter((c) => c.type === "toolCall");
@@ -163,9 +163,9 @@ export async function runAgent(config: AgentRunConfig, emit: AgentEventSink): Pr
 	}
 }
 
-async function finish(run: Run, { reason, error, retryable }: Ending): Promise<AgentRunResult> {
+async function finish(run: Run, { reason, error }: Ending): Promise<AgentRunResult> {
 	await run.emit({ type: "agent_end", reason, error });
-	return { messages: run.produced, view: [...run.messages], reason, error, ...(retryable ? { retryable } : {}) };
+	return { messages: run.produced, view: [...run.messages], reason, error };
 }
 
 /** Add a message the window has not seen yet: the runtime or the person speaking between replies. */

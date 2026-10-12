@@ -217,18 +217,6 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
        * 和用户消息不带用量，数进来只会重复。
        */
       if (meter) next = addTurnUsage(meter, event.message.usage);
-    } else if (event.type === "retry" && event.resume) {
-      /*
-       * A turn being picked back up after the connection died, which arrives *after* `agent_end`
-       * has already stood the clock down. Start it again rather than leaving the line blank for
-       * the whole wait — the same reading the running row takes of `resume`.
-       *
-       * `carried` is what makes it the same turn rather than a new one: `agent_end` has just frozen
-       * this meter, and relighting from the frozen copy carries the minutes and the tokens the turn
-       * had already spent before the socket died. Without it a turn that dropped twice reported the
-       * length of whichever leg happened to be last.
-       */
-      next = meter ?? relight(get().carried[sessionId], Date.now());
     } else if (event.type === "agent_end" && !handoff) {
       next = undefined;
       /*
@@ -495,22 +483,10 @@ export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, 
           attempt: event.attempt,
           until: Date.now() + event.delayMs,
           reason: event.reason,
-          resume: event.resume === true,
         },
         // 同一次中断折进同一条记录，次数往上加；见 `hiccup.ts`。位置是转录此刻的末尾——断线
         // 发生在这儿，记录也该留在这儿，而不是一路跟到这一轮的最下面。
         hiccups: foldRetry(get().hiccups, event, Date.now(), get().messages.length),
-        /*
-         * A resume arrives after `agent_end`, which has already stood the window down.
-         *
-         * Leaving it down would give a minute of blank, idle-looking window between a turn that
-         * visibly failed and one that silently starts again — the exact stretch during which the
-         * user concludes it is dead and starts over by hand. The turn is not over; put the line
-         * back and let it count.
-         */
-        ...(event.resume
-          ? { running: true, turnStartedAt: get().turnStartedAt ?? Date.now() }
-          : {}),
       });
       break;
 

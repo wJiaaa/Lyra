@@ -262,7 +262,7 @@ test("a warm visit restores session status before its background refresh", async
 	useApp.setState({
 		stopped: "interrupt",
 		compactions: [{ at: 1, before: 100, after: 10 }],
-		retrying: { attempt: 2, until: 500, reason: "retry", resume: false },
+		retrying: { attempt: 2, until: 500, reason: "retry" },
 	});
 	const original = useApp.getState().messages;
 	await useApp.getState().openSession(meta("b"));

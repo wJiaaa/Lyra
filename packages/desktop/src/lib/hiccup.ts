@@ -47,8 +47,6 @@ export interface Hiccup {
 	outcome: HiccupOutcome;
 	/** 界面据此给下一步：查密钥、换模型、看账单。 */
 	hint?: string;
-	/** 不是「再发一次请求」，而是「这一轮被重新捡起来」。 */
-	resume: boolean;
 	/**
 	 * 人在它重试的时候换了模型，换成了谁。
 	 *
@@ -65,7 +63,7 @@ export interface Hiccup {
  */
 export function foldRetry(
 	hiccups: Hiccup[],
-	event: { attempt: number; delayMs: number; reason: string; resume?: boolean; failure?: HiccupFailure },
+	event: { attempt: number; delayMs: number; reason: string; failure?: HiccupFailure },
 	now: number,
 	/** 转录当下有多少条消息——这一条记录就落在那儿。见 `Hiccup.at`。 */
 	at: number,
@@ -93,7 +91,6 @@ export function foldRetry(
 		repeated: last?.outcome === "waiting" && last.fingerprint === fingerprint ? last.repeated + 1 : 1,
 		outcome: "waiting",
 		hint: failure?.hint,
-		resume: event.resume === true,
 	};
 	return last?.outcome === "waiting" ? [...hiccups.slice(0, -1), next] : [...hiccups, next];
 }
@@ -137,7 +134,6 @@ export function settleHiccups(
 				repeated: 1,
 				outcome: "gave_up",
 				hint: event.failure.hint,
-				resume: false,
 			},
 		];
 	}
@@ -185,10 +181,6 @@ export function describeHiccup(hiccup: Hiccup, now: number): string {
 	 * 什么也没说，还占掉了倒计时的位置。具体原因不会丢：它在悬停里，也在展开里。
 	 */
 	const what = translate(hiccup.kind === "network" ? "hiccup.dropped" : "hiccup.serverFault");
-	if (hiccup.resume) {
-		const state = left > 0 ? translate("hiccup.continueIn", { n: left }) : translate("hiccup.continuing");
-		return translate("hiccup.progressKept", { what, state });
-	}
 	/*
 	 * 一直是同一个错误的时候，次数比原因重要。
 	 *

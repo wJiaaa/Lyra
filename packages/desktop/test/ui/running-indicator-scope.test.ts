@@ -88,7 +88,7 @@ test("the line under a screen without focus tells that screen's turn, not the fo
  * unsaid (the countdown is the news), so a case holding both would only ever test the first.
  */
 test("a reconnecting focused conversation says so under its own screen only", async () => {
-	await act(async () => useApp.setState({ retrying: { attempt: 1, until: now + 8_000, reason: "连接中断", resume: false } }));
+	await act(async () => useApp.setState({ retrying: { attempt: 1, until: now + 8_000, reason: "连接中断" } }));
 	view = await lineUnder("b");
 	assert.equal(read(view).mood, "composing", "said it was reconnecting while its own stream was arriving");
 });
@@ -100,7 +100,7 @@ test("a just-summarised focused conversation says so under its own screen only",
 });
 
 test("a screen's own reconnect is told under it while another holds the live slot", async () => {
-	await act(async () => useApp.setState({ sessionCache: { b: { ...beside(), state: { ...beside().state!, retrying: { attempt: 1, until: now + 8_000, reason: "连接中断", resume: false } } } } }));
+	await act(async () => useApp.setState({ sessionCache: { b: { ...beside(), state: { ...beside().state!, retrying: { attempt: 1, until: now + 8_000, reason: "连接中断" } } } } }));
 	view = await lineUnder("b");
 	assert.equal(read(view).mood, "connecting", "missed that this conversation is reconnecting");
 });

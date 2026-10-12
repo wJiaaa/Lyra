@@ -21,7 +21,7 @@ import { click, mount, type Mounted } from "../helpers/mount.ts";
 
 /** A request that failed and was given up on, with nothing to fix in settings: the row offers 「继续」. */
 const GAVE_UP: Hiccup = {
-	id: "hiccup-1", at: 2, attempts: 1, until: 0, summary: "服务端异常", kind: "upstream", fingerprint: "500", repeated: 1, outcome: "gave_up", resume: false,
+	id: "hiccup-1", at: 2, attempts: 1, until: 0, summary: "服务端异常", kind: "upstream", fingerprint: "500", repeated: 1, outcome: "gave_up",
 };
 
 let previous: AppState;

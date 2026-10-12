@@ -14,7 +14,7 @@ import { click, mount, type Mounted } from "../helpers/mount.ts";
 
 const RECOVERED: Hiccup = {
 	id: "hiccup-1", at: 2, attempts: 2, until: 0, summary: "连接中断", detail: "connection reset by peer after 12384 bytes",
-	kind: "network", fingerprint: "reset", repeated: 1, outcome: "recovered", resume: false,
+	kind: "network", fingerprint: "reset", repeated: 1, outcome: "recovered",
 };
 
 let view: Mounted | undefined;

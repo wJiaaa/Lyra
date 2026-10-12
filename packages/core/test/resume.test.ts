@@ -1,9 +1,9 @@
 /**
- * Picking the work back up after the connection goes.
+ * Picking the work back up when a turn stops before the work does.
  *
- * Two halves, and the second only works because of the first. `continueWhileWorkRemains` starts
- * another turn over the history it already has — and that history is only usable if a reply cut off
- * mid-stream did not leave an opened tool call unanswered in it.
+ * Two halves. `continueWhileWorkRemains` starts another turn over the history it already has when
+ * the rounds run out — and a turn cut off mid-stream must leave a history that is still sendable,
+ * so the person's 继续 has something to resume from.
  */
 
 import assert from "node:assert/strict";
@@ -14,7 +14,7 @@ import { runConfig } from "./run-config.ts";
 import { continueWhileWorkRemains } from "../src/runtime/continuation.ts";
 import { toAnthropicMessages } from "../src/ai/anthropic-messages-request.ts";
 import { TODOS_KEY, type TodoItem } from "../src/tools/todo.ts";
-import type { AssistantMessage, Message, ModelConfig, ProviderConfig } from "../src/types.ts";
+import type { AssistantMessage, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 
 const MODEL: ModelConfig = {
@@ -53,204 +53,37 @@ function base(): Omit<AssistantMessage, "content"> {
 
 const result = (over: Partial<AgentRunResult>): AgentRunResult => ({ messages: [], reason: "done", ...over });
 
-/** What a lost socket looks like by the time the continuation sees it. */
-const dropped = result({ reason: "error", error: "fetch failed (UND_ERR_SOCKET)", retryable: true });
-
 interface Recorded {
 	runs: number;
 	notices: string[];
-	waited: number[];
-	resumes: { attempt: number; delayMs: number; reason: string }[];
 }
 
 function deps(script: AgentRunResult[], over: Partial<Parameters<typeof continueWhileWorkRemains>[1]> = {}) {
-	const seen: Recorded = { runs: 0, notices: [], waited: [], resumes: [] };
+	const seen: Recorded = { runs: 0, notices: [] };
 	const full: Parameters<typeof continueWhileWorkRemains>[1] = {
 		run: async () => script[Math.min(seen.runs++, script.length - 1)],
 		messages: () => [],
 		todos: () => [],
 		aborted: () => false,
 		notify: (notice) => void seen.notices.push(notice.message),
-		resuming: (info) => void seen.resumes.push(info),
-		sleep: async (ms) => void seen.waited.push(ms),
 		...over,
 	};
 	return { seen, full };
 }
 
-// ---------------------------------------------------------------------------
-// Resuming after the connection dies
-// ---------------------------------------------------------------------------
-
-test("a turn killed by the connection is picked back up rather than abandoned", async () => {
-	const { seen, full } = deps([result({ reason: "done" })]);
+/*
+ * 断线不整轮重来：请求那一层已经按设置页的次数重试过了，重试用完就交给人点「继续」。
+ * 有清单、清单没做完也一样——那是步数上限的判据，不是断线的。
+ */
+test("a turn the connection killed is left for the person, not picked back up", async () => {
+	const dropped = result({ reason: "error", error: "fetch failed (UND_ERR_SOCKET)" });
+	const unfinished: TodoItem[] = [{ content: "step", status: "pending" }];
+	const { seen, full } = deps([result({ reason: "done" })], { todos: () => unfinished });
 	const final = await continueWhileWorkRemains(dropped, full);
 
-	assert.equal(seen.runs, 1, "it went back for the work");
-	assert.equal(final.reason, "done");
-});
-
-test("what it resumes from is the history, which is where the finished work already is", async () => {
-	const history: Message[] = [
-		{ role: "user", content: [{ type: "text", text: "do the work" }], timestamp: 1 },
-		{ ...base(), content: [{ type: "text", text: "step one done" }] },
-	];
-	let sent: Message[] = [];
-	const { full } = deps([result({ reason: "done" })], {
-		messages: () => history,
-		run: async (messages) => {
-			sent = messages;
-			return result({ reason: "done" });
-		},
-	});
-	await continueWhileWorkRemains(dropped, full);
-
-	assert.deepEqual(sent, history, "the second turn starts from everything the first one got through");
-});
-
-test("no plan is not a reason to give up, because the network chose where to interrupt", async () => {
-	// Unlike running out of rounds, which does consult the plan — a turn can drop before the model
-	// has written one at all.
-	const { seen, full } = deps([result({ reason: "done" })], { todos: () => [] });
-	await continueWhileWorkRemains(dropped, full);
-
-	assert.equal(seen.runs, 1);
-});
-
-test("an error that is not the connection is left alone", async () => {
-	const rejected = result({ reason: "error", error: "HTTP 401: invalid api key" });
-	const { seen, full } = deps([result({ reason: "done" })]);
-	const final = await continueWhileWorkRemains(rejected, full);
-
-	assert.equal(seen.runs, 0, "asking again would be told the same thing");
-	assert.equal(final.error, "HTTP 401: invalid api key", "and the reason survives to be shown");
-});
-
-test("a network that stays down is given up on, not retried forever", async () => {
-	const { seen, full } = deps([dropped]);
-	const final = await continueWhileWorkRemains(dropped, full);
-
-	assert.equal(seen.runs, 3, "bounded by MAX_RESUMES");
-	assert.equal(final.reason, "error", "and the last failure is what is reported");
-});
-
-test("the waits grow, because the short ones were already spent inside the request", async () => {
-	const { seen, full } = deps([dropped]);
-	await continueWhileWorkRemains(dropped, full);
-
-	assert.deepEqual(seen.waited, [5_000, 20_000, 60_000]);
-	assert.ok(
-		seen.waited.every((ms, i) => i === 0 || ms > seen.waited[i - 1]),
-		"each wait is longer than the last",
-	);
-});
-
-test("the wait is announced before it starts, not after it ends", async () => {
-	const order: string[] = [];
-	const { full } = deps([result({ reason: "done" })], {
-		resuming: () => void order.push("announced"),
-		sleep: async () => void order.push("waited"),
-		run: async () => {
-			order.push("ran");
-			return result({ reason: "done" });
-		},
-	});
-	await continueWhileWorkRemains(dropped, full);
-
-	assert.deepEqual(order, ["announced", "waited", "ran"], "a silent minute is the thing being avoided");
-});
-
-test("the announcement carries what the running line needs to count down", async () => {
-	const { seen, full } = deps([dropped]);
-	await continueWhileWorkRemains(dropped, full);
-
-	assert.deepEqual(
-		seen.resumes.map((r) => r.attempt),
-		[1, 2, 3],
-		"numbered against a budget, so 3/3 is visibly the last one",
-	);
-	assert.deepEqual(
-		seen.resumes.map((r) => r.delayMs),
-		[5_000, 20_000, 60_000],
-		"the delay is what it will actually wait",
-	);
-	assert.match(seen.resumes[0].reason, /UND_ERR_SOCKET/, "and it carries what went wrong");
-});
-
-test("a resume is not also a toast, because a toast expires long before the wait does", async () => {
-	const { seen, full } = deps([result({ reason: "done" })]);
-	await continueWhileWorkRemains(dropped, full);
-
+	assert.equal(seen.runs, 0);
+	assert.equal(final, dropped, "and the failure is what gets reported");
 	assert.deepEqual(seen.notices, []);
-});
-
-test("an alternating connection burns the budget rather than resetting it", async () => {
-	// Dies, recovers for one turn, dies again: a network that is not working, and a streak counter
-	// would let this run forever.
-	const { seen, full } = deps([dropped, dropped, dropped, dropped, dropped]);
-	await continueWhileWorkRemains(dropped, full);
-
-	assert.equal(seen.runs, 3);
-});
-
-test("stopping during the wait ends the turn rather than leaving it counting down", async () => {
-	/*
-	 * The one case where continuing anyway is right. The countdown is on the running line, which is
-	 * where it has to be to survive a minute — so breaking out silently would leave it there for
-	 * good, promising a resume that will never come. A run against an aborted signal sends nothing
-	 * and ends immediately, and it is that ending the window is waiting to hear.
-	 */
-	let stopped = false;
-	const { seen, full } = deps([result({ reason: "aborted" })], {
-		aborted: () => stopped,
-		sleep: async () => {
-			stopped = true;
-		},
-	});
-	const final = await continueWhileWorkRemains(dropped, full);
-
-	assert.equal(seen.runs, 1, "so that something ends the turn properly");
-	assert.equal(final.reason, "aborted");
-});
-
-test("stopping is not the start of another resume", async () => {
-	let stopped = false;
-	const { seen, full } = deps([dropped], {
-		aborted: () => stopped,
-		sleep: async () => {
-			stopped = true;
-		},
-	});
-	await continueWhileWorkRemains(dropped, full);
-
-	// Even though that run came back as a dropped connection too, the loop stops at the top.
-	assert.equal(seen.resumes.length, 1, "one wait was announced, and no more after the stop");
-	assert.equal(seen.runs, 1);
-});
-
-test("the wait can be cut short, so stop is felt at once rather than in a minute", async () => {
-	// The default sleep, with a signal — the path a real turn takes.
-	const controller = new AbortController();
-	const { seen, full } = deps([result({ reason: "aborted" })], {
-		aborted: () => controller.signal.aborted,
-		signal: controller.signal,
-		sleep: undefined,
-	});
-	const started = process.hrtime.bigint();
-	const waiting = continueWhileWorkRemains(dropped, full);
-	/*
-	 * Let the wait actually begin. Aborting before it starts takes the already-stopped short
-	 * circuit, which passes this test while proving nothing about interrupting a timer that is
-	 * running — the case the user is in when they press stop.
-	 */
-	await new Promise((resolve) => setTimeout(resolve, 25));
-	assert.equal(seen.runs, 0, "still waiting at this point, not running");
-	controller.abort();
-	await waiting;
-	const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
-
-	assert.ok(elapsedMs < 1_000, `the 5s wait was abandoned, not served (took ${Math.round(elapsedMs)}ms)`);
-	assert.equal(seen.runs, 1);
 });
 
 test("running out of rounds still behaves as it did", async () => {
@@ -260,7 +93,6 @@ test("running out of rounds still behaves as it did", async () => {
 	await continueWhileWorkRemains(capped, full);
 
 	assert.equal(seen.runs, 1);
-	assert.deepEqual(seen.waited, [], "and it does not wait, because nothing is broken");
 	assert.match(seen.notices[0], /步数用尽/);
 });
 
@@ -333,7 +165,7 @@ test("rounds that keep finishing things keep going", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// The history it resumes from has to be one the provider will accept
+// A cut-off turn must leave a history the provider will accept, or 继续 has nothing to send
 // ---------------------------------------------------------------------------
 
 const interrupted = (stopReason: "error" | "aborted"): AssistantMessage => ({
@@ -370,7 +202,7 @@ for (const stopReason of ["error", "aborted"] as const) {
 	test(`the ${stopReason} history is one Anthropic will accept`, async () => {
 		/*
 		 * The reason this matters at all: an unanswered `tool_use` is a 400 on every later request,
-		 * so one dropped socket would take the whole conversation with it — including the resume.
+		 * so one dropped socket would take the whole conversation with it — including the 继续 after it.
 		 */
 		const run = await runInterrupted(stopReason);
 		const wire = toAnthropicMessages(run.messages);
@@ -400,25 +232,4 @@ test("an interrupted call is failed rather than run, since its arguments never f
 
 	assert.match(text, /was not executed/);
 	assert.match(text, /connection dropped/, "and it says why, so the model can decide to re-issue it");
-});
-
-test("a dropped connection is reported as one worth going back for", async () => {
-	const run = await runInterrupted("error");
-
-	assert.equal(run.reason, "error");
-	assert.equal(run.retryable, true, "which is what lets the continuation tell it from a rejected key");
-});
-
-test("a turn the user stopped is not something to resume", async () => {
-	const run = await runInterrupted("aborted");
-
-	assert.equal(run.reason, "aborted");
-	assert.equal(run.retryable, undefined);
-});
-
-test("a configured request budget cannot be restarted by outer continuation", async () => {
-	const { seen, full } = deps([result({ reason: "done" })], { requestRetriesHandled: true });
-	const final = await continueWhileWorkRemains(dropped, full);
-	assert.equal(final, dropped);
-	assert.equal(seen.runs, 0); assert.deepEqual(seen.waited, []);
 });

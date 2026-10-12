@@ -256,19 +256,16 @@ test("the line counts down, rather than repeating one number for the whole wait"
 /*
  * 断线的那阵子，这一行不能让人以为这一轮已经死了。
  *
- * 原来要求每一行都写着「进度已保留」。那句话出自 `hiccup.progressKept`，而它只在
- * `hiccup.resume` 为真时才说——按 `agent/events.ts` 的定义，那标的是「这一轮结束了，正从转录
- * 里被接着做」这种更少见的情况，由 `runtime/session-turn.ts` 发出。半个工具调用把连接打断的
- * 这个场景现在不再走到那儿：`agent/loop.ts` 自己把同一个请求重发一遍，这一轮压根没结束，于是
- * 行文是「连接中断，5 秒后重试（第 1 次）」。
+ * 原来要求每一行都写着「进度已保留」。那句话属于「整轮结束后自动从转录接着做」，那条路已经删掉
+ * （断线重试只在请求那一层做，用完就停下等人点「继续」）。半个工具调用把连接打断时，`agent/loop.ts`
+ * 自己把同一个请求重发一遍，这一轮压根没结束，于是行文是「连接中断，5 秒后重试（第 1 次）」。
  *
  * 所以这里问的换成一个此刻真正成立的问题：等待期间每一行都在说「它自己在接」，而不是留下一个
- * 停住的句子。至于要不要让重试这一路也把「进度已保留」说出口——用户在断线时最想知道的确实是
- * 这个——那是产品上的取舍，不该由一条断言替它定。
+ * 停住的句子。
  */
 test("it says the work survived, because that is the question being asked", () => {
 	assert.ok(
-		story.every((line) => /重试|继续|进度已保留/.test(line)),
+		story.every((line) => /重试|继续/.test(line)),
 		`the resume line never promised the work was safe:\n  ${story.join("\n  ")}`,
 	);
 	/*

@@ -145,10 +145,6 @@ export async function runDispatched(
 			notify: (notice: Parameters<ContinuationDeps["notify"]>[0]) => options.emit({ type: "subagent_event", id, event: { type: "notice", level: "info", ...notice } }),
 			// 没写清单就撞上检查点的，再给一段——见 `ContinuationDeps.planless`。
 			planless: () => planDemand(checkpoint),
-			resuming: () => {},
-			signal: controller.signal,
-			// 请求那一层已经按设置重试过了，外面这层不再加码——理由见 `session-turn.ts` 同一处。
-			requestRetriesHandled: true,
 		};
 		result = await continueWhileWorkRemains(await segment(history), checkpoints);
 		/*

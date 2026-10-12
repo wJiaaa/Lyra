@@ -1,24 +1,18 @@
 /**
- * Carrying on when a turn stops before the work does.
+ * Carrying on when a turn runs out of rounds before the work does.
  *
- * Two different endings, one answer. A turn is capped so that one runaway cannot spin forever, and
- * a big piece of work legitimately exceeds that cap — a full-stack project reaches it around the
- * point the frontend starts. And a turn can lose its connection outright, after twenty minutes of
- * reading files and running tools.
- *
- * What used to happen in both cases was that the run stopped and waited for someone to press
- * "continue", which is exactly the human intervention an unattended run exists to avoid. The
- * connection case was worse than the cap: `retryPolicy` covers the request, so once those are
- * spent the turn is over — and the work it had done, being already in the transcript, was thrown
- * away not because it was lost but because nobody asked for it back.
+ * A turn is capped so that one runaway cannot spin forever, and a big piece of work legitimately
+ * exceeds that cap — a full-stack project reaches it around the point the frontend starts. What
+ * used to happen was that the run stopped and waited for someone to press "continue", which is
+ * exactly the human intervention an unattended run exists to avoid.
  *
  * So it starts another turn. That is all "continuing from where it stopped" needs to be: the
  * history is the progress, every finished reply and tool result is already committed to it, and a
  * fresh turn over that history resumes at the next step rather than the first one. Nothing is
  * replayed and nothing is re-run.
  *
- * Bounded in both cases. Bounded tightly for the connection, because nothing here can tell a
- * network blip from an outage except by trying.
+ * 断线不在这里接：请求那一层已经按设置页的重试策略重试过（`failure.ts` 覆盖每一种失败），再在外面
+ * 整轮重来只会把「重试 10 次」放大成几十次。重试用完还没接上，就停下来让人点「继续」。
  *
  * The cap used to be bounded loosely, on the reasoning that the two ways a run can be genuinely
  * stuck are caught elsewhere: repetition ends a turn with `stalled`, and a model that has stopped
@@ -75,55 +69,13 @@ const STALLED_CONTINUATIONS = 1;
 /** 清单上打了勾的有几项。 */
 const completed = (todos: TodoItem[]): number => todos.filter((todo) => todo.status === "completed").length;
 
-/**
- * How many times a lost connection may be picked back up.
- *
- * Tight where the round cap is loose, and for the opposite reason. Running out of rounds is
- * evidence of progress — the turn did two hundred things — so continuing is nearly free. A
- * connection that has already exhausted every retry inside the request is evidence of the reverse,
- * and each attempt here costs a full context window to send. Three is enough to ride out a laptop
- * changing networks or a relay restarting; past that it is an outage, and the work is safe on disk
- * either way.
- */
-const MAX_RESUMES = 3;
-
-/**
- * How long to wait before picking the work back up, per attempt.
- *
- * Longer than the in-request backoff by an order of magnitude, because it starts where that one
- * gave up: every short wait has already been tried and failed. These are the intervals at which a
- * network is plausibly *different* — long enough for a VPN to reconnect or a relay to come back,
- * short enough that someone watching has not yet walked away.
- */
-const RESUME_DELAYS_MS = [5_000, 20_000, 60_000];
-
 export interface ContinuationDeps {
-	/**
-	 * A configured request budget must not be restarted by the outer turn continuation.
-	 *
-	 * 注意这在桌面会话里恒为真——`session-turn.ts` 无条件传 `true`，那里写了为什么——所以下面那段
-	 * 连接恢复的逻辑在真实运行中不会执行。读到这里不必困惑：它没有被遗忘，是被请求那一层接管了，
-	 * 而那一层受设置页管着。
-	 */
-	requestRetriesHandled?: boolean;
 	/** Start another turn with the accumulated history. */
 	run(messages: Message[]): Promise<AgentRunResult>;
 	messages(): Message[];
 	todos(): TodoItem[];
 	aborted(): boolean;
 	notify(notice: { message: string; code: NoticeCode; params?: NoticeParams }): Promise<void> | void;
-	/**
-	 * About to wait, then go back for the work.
-	 *
-	 * Separate from `notify` because the two have different lifetimes and the difference is the
-	 * whole point. A notice is a toast: it says its piece and clears itself in a few seconds. This
-	 * wait can be a minute long, and a minute of an idle window after a turn visibly ended is
-	 * indistinguishable from a turn that failed — which is exactly the reading this exists to
-	 * prevent. So it goes to the running line, where it can count down for as long as it takes.
-	 */
-	resuming(info: { attempt: number; delayMs: number; reason: string }): Promise<void> | void;
-	/** Cuts the wait short when the turn is stopped; see `waitOrStop`. */
-	signal?: AbortSignal;
 	/**
 	 * 步数用尽、手上又没有清单时，再给一段，并用这句话开头。
 	 *
@@ -136,24 +88,13 @@ export interface ContinuationDeps {
 	 * 只给一次。给过之后还是没有清单，就照常停下交接。
 	 */
 	planless?: () => Message;
-	/** Injected in tests so they do not sleep. */
-	sleep?(ms: number): Promise<void>;
 }
 
 export async function continueWhileWorkRemains(
 	first: AgentRunResult,
 	deps: ContinuationDeps,
 ): Promise<AgentRunResult> {
-	const sleep = deps.sleep ?? ((ms: number) => waitOrStop(ms, deps.signal));
 	let result = first;
-	/*
-	 * Counted separately from the loop, and never reset.
-	 *
-	 * A run that alternates — connection dies, one turn succeeds, connection dies again — is on a
-	 * network that is not working, and resetting on each success would let it do that forever. The
-	 * budget is for the run, not for the current streak.
-	 */
-	let resumes = 0;
 	/*
 	 * 打了勾的项数，和「连着几轮一项都没打上」。
 	 *
@@ -167,103 +108,50 @@ export async function continueWhileWorkRemains(
 
 	let extra = 0;
 	for (; extra < MAX_CONTINUATIONS; extra++) {
-		if (deps.aborted()) break;
+		if (deps.aborted() || result.reason !== "max_turns") break;
 
-		if (result.reason === "max_turns") {
-			const todos = deps.todos();
-			const unfinished = todos.filter((todo) => todo.status !== "completed");
-			if (unfinished.length === 0) {
-				/*
-				 * 清单是空的，和清单做完了，是两件事。
-				 *
-				 * 做完了还撞上限，说明它在清单之外还在忙——停下是对的。一份清单都没写过，只说明
-				 * 它没记账，不说明它没事可做；给了宽限的调用方（子代理）在这里再跑一段。
-				 */
-				if (todos.length === 0 && deps.planless && !graced) {
-					graced = true;
-					await deps.notify({ message: "这一段的轮数用完了，还没写清单——让它把剩下的步骤列出来，接着做。", code: "continue-planless" });
-					result = await deps.run([...deps.messages(), deps.planless()]);
-					continue;
-				}
-				await deps.notify({ message: "本轮已达到步数上限，已停下。执行记录已保留，需要时可继续。", code: "step-limit" });
-				break;
-			}
-
+		const todos = deps.todos();
+		const unfinished = todos.filter((todo) => todo.status !== "completed");
+		if (unfinished.length === 0) {
 			/*
-			 * 这一轮把清单往前推了没有。
+			 * 清单是空的，和清单做完了，是两件事。
 			 *
-			 * 只看打勾数变多没有，不看它怎么变的：模型重写整张清单时打勾数会掉回去，那按「没推进」
-			 * 算——一个把自己的计划推翻重来的回合，正是最不该无条件再给它两百步的那种。
+			 * 做完了还撞上限，说明它在清单之外还在忙——停下是对的。一份清单都没写过，只说明
+			 * 它没记账，不说明它没事可做；给了宽限的调用方（子代理）在这里再跑一段。
 			 */
-			const nowDone = completed(todos);
-			stalled = nowDone > done ? 0 : stalled + 1;
-			done = nowDone;
-			if (stalled > STALLED_CONTINUATIONS) {
-				await deps.notify({
-					message: `连着 ${stalled} 轮步数用尽，清单里的 ${unfinished.length} 项一项都没完成——先停下来，做过的都在记录里。`,
-					code: "plan-stalled",
-					params: { rounds: stalled, n: unfinished.length },
-				});
-				break;
+			if (todos.length === 0 && deps.planless && !graced) {
+				graced = true;
+				await deps.notify({ message: "这一段的轮数用完了，还没写清单——让它把剩下的步骤列出来，接着做。", code: "continue-planless" });
+				result = await deps.run([...deps.messages(), deps.planless()]);
+				continue;
 			}
-
-			await deps.notify({ message: `本轮步数用尽，清单里还有 ${unfinished.length} 项，继续执行。`, code: "continue-plan", params: { n: unfinished.length } });
-			result = await deps.run(deps.messages());
-			continue;
+			await deps.notify({ message: "本轮已达到步数上限，已停下。执行记录已保留，需要时可继续。", code: "step-limit" });
+			break;
 		}
 
 		/*
-		 * The connection went, and the work did not.
+		 * 这一轮把清单往前推了没有。
 		 *
-		 * Only `retryable` errors: a dropped socket or a relay that fell over is worth waiting out,
-		 * while a rejected key or a model that does not exist would fail the same way three more
-		 * times and say the same thing three minutes later.
-		 *
-		 * No check on the plan here, unlike the round cap. A turn is interrupted wherever the
-		 * network chose, which is often before the model has written a plan down at all, and
-		 * "there is no list" is not evidence that there is nothing left to do.
+		 * 只看打勾数变多没有，不看它怎么变的：模型重写整张清单时打勾数会掉回去，那按「没推进」
+		 * 算——一个把自己的计划推翻重来的回合，正是最不该无条件再给它两百步的那种。
 		 */
-		if (deps.requestRetriesHandled || result.reason !== "error" || !result.retryable || resumes >= MAX_RESUMES) break;
+		const nowDone = completed(todos);
+		stalled = nowDone > done ? 0 : stalled + 1;
+		done = nowDone;
+		if (stalled > STALLED_CONTINUATIONS) {
+			await deps.notify({
+				message: `连着 ${stalled} 轮步数用尽，清单里的 ${unfinished.length} 项一项都没完成——先停下来，做过的都在记录里。`,
+				code: "plan-stalled",
+				params: { rounds: stalled, n: unfinished.length },
+			});
+			break;
+		}
 
-		const delay = RESUME_DELAYS_MS[Math.min(resumes, RESUME_DELAYS_MS.length - 1)];
-		resumes += 1;
-		await deps.resuming({ attempt: resumes, delayMs: delay, reason: result.error ?? "连接中断" });
-		await sleep(delay);
-		/*
-		 * Started even when the turn was stopped mid-wait, and that is deliberate.
-		 *
-		 * The wait was announced, and the announcement is still on screen counting down — it is on
-		 * the running line rather than in a toast precisely so that it stays. Breaking out here
-		 * would leave it there permanently: nothing further runs, so nothing further is emitted,
-		 * and the last thing the window heard was "continuing in 60 seconds". A run started against
-		 * an aborted signal sends no request and does no work; it ends, properly, and ending is
-		 * what takes the line down. The loop stops on the check at the top.
-		 */
+		await deps.notify({ message: `本轮步数用尽，清单里还有 ${unfinished.length} 项，继续执行。`, code: "continue-plan", params: { n: unfinished.length } });
 		result = await deps.run(deps.messages());
 	}
 	if (extra === MAX_CONTINUATIONS && result.reason === "max_turns" && !deps.aborted()) {
 		await deps.notify({ message: "已达到自动续跑次数上限，已停下。执行记录已保留，需要时可继续。", code: "continue-limit" });
 	}
 	return result;
-}
-
-/**
- * Wait, unless the turn is stopped first.
- *
- * A plain `setTimeout` cannot be interrupted, which would mean pressing stop during a sixty-second
- * resume did nothing visible for the best part of a minute — the one interaction that must always
- * feel immediate, on the one screen that is already asking for patience.
- */
-function waitOrStop(ms: number, signal?: AbortSignal): Promise<void> {
-	if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
-	if (signal.aborted) return Promise.resolve();
-	return new Promise((resolve) => {
-		const done = () => {
-			clearTimeout(timer);
-			signal.removeEventListener("abort", done);
-			resolve();
-		};
-		const timer = setTimeout(done, ms);
-		signal.addEventListener("abort", done, { once: true });
-	});
 }
