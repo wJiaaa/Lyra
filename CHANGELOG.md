@@ -2,6 +2,89 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.28](https://github.com/wJiaaa/Plume/releases/tag/v0.9.28) - 2026-10-13
+
+<!-- plume:notes en -->
+
+### New
+
+- **The image tool works the way upstream's does**, under the name `image_generate`. It calls the provider's Images API first and falls back to the chat endpoint when that provider has none, remembering which one it is. Aspect ratio, quality, count and background are translated into each family's own spelling by Plume — the model used to guess, and relays that only draw through the chat endpoint didn't work at all.
+- **Changing a picture** uses `#1`, `#2` to name the ones in the conversation, newest first. Each picture gets three attempts; a spent quota or a key that isn't allowed that model is not retried — the card says which, and about when the quota comes back.
+- **Image models are their own kind.** Turn on "Image model" for a provider's model in Models: conversation pickers no longer offer them (picking gpt-image-1 there failed every turn), and an image model's "Test by drawing one small picture" really draws one, billed.
+- **The card in the conversation** holds the shape it will fill while the picture is drawn, with the stage on its top line and an estimate in the corner, "Connection hiccup — retrying" when it retries, a picture that goes from blurred to sharp without the frame moving, and the model and size once it's done. Hovering gives Edit and Download.
+- **Viewing a picture:** the zoom no longer starts as a 0.4 ghost with the backdrop black on its first frame, and the annotation canvas sits over the picture instead of replacing it, so Edit goes straight into annotating. Annotating a picture in the conversation and pressing Done puts the annotated copy into that conversation's composer.
+- **The fetch-models dialog removes as well as adds.** Models you have are checked, ones the endpoint didn't list are marked as such, unchecking removes, and typing an id and pressing Enter adds one it didn't list. The model list can delete several at once; before it was one at a time, each with its own confirmation.
+- **Long pages are checked in parts.** When a page is taller than 2160px, the result says where the next part starts, and passing that back photographs that part. The model used to split the page into p1~p5.html and check each one — a dozen extra calls for one landing page. The result also always says which width it was checked at.
+- **The thinking row counts seconds.** While it runs it shows how long this stretch has been going (from the start of this thinking, not of the turn) beside the word, and the word changes as the thinking gets longer, dropping into place while the seconds after it slide over rather than jump.
+- **Edits replace the text you can see again.** Changing one word no longer means retyping the whole line; where one line is a thousand characters (LaTeX, a Markdown paragraph), models wrote a script to batch the change rather than edit the file. The model now gives the passage and what it becomes, with the same safety as before: the file was read, hasn't changed since, and the passage is unique in it. A passage that doesn't match gets the familiar deviations tried first — curly quotes, a line-number prefix, escaping — and the edit goes through only when one reading fits.
+
+### Cheaper
+
+- The preview tool's 5,300-character description no longer rides along with every request. Ten of 142 real conversations used it, and none of the 27 pages used the page API; the page API is read from `plume://preview` and the interface-block syntax from `plume://ui`, both just before they are needed.
+- A web page cut off by `web_fetch` goes into the conversation's scratch directory, with the path and the full length in the result. A 130,000-character source file arrived as its first 35,000, and the model downloaded it again with bash.
+
+### Changes
+
+- The agent verifies before handing something over — runs the tests, runs the build, pastes a failure as it came — instead of stopping at types that line up.
+- Describing a problem or asking a question gets you a judgement, not an edit; asking for a change gets the change rather than a plan.
+- Changes in your project that the agent didn't make are treated as yours: unrelated ones are left alone, related ones are built on, and neither is thrown away with checkout, reset or stash.
+
+### Fixes
+
+- **Relays and gateways.** Mistral's array content no longer becomes `[object Object]`; OpenRouter's in-stream errors are no longer swallowed as "upstream failed", so an exhausted quota and an over-long context are recognised; TGI's and Mistral's `finish_reason` aliases no longer throw away a whole good answer and retry; Kimi's usage under `choices[0]` is read, so the cost isn't recorded as 0; MiniMax's resent reasoning snapshot no longer adds a second thinking block; tool arguments that arrive again or split across objects no longer lose keys; a host that doesn't close the connection after `finish_reason` no longer makes Plume wait out the idle gate and resend an answer it already had.
+- **How failures are classified.** A 200 that isn't SSE (an error written as JSON, a URL pointing at a web page, one non-streaming JSON body), an error frame with no `error`, and reasoning that used up the output limit all used to land as "empty answer", be resent four times, and have the original thrown away. A certificate error now looks at the innermost cause, a 407 from a proxy no longer counts as a dropped connection to retry forever, and a server's stated wait is honoured up to five minutes instead of one.
+- **Thinking is turned off the way each vendor documents it.** Gemini and the o-series reject "off", newer Claude wants adaptive, DeepSeek and GLM-5.2+ take `output_config.effort` instead of `budget_tokens`, and GLM-5.3 and Kimi K3 can't turn thinking off at all, so the setting no longer offers it. These rules were spread across three adapters, which is how turning thinking off on Gemini failed on the chat link entirely.
+- **Stopping a turn on Responses no longer wrecks the conversation.** A reasoning item gets its id when it starts but its encrypted content only when it finishes; stopping mid-reasoning replayed an item with just an id, the server couldn't find it, and every turn after that failed. An unfinished reasoning item from an interrupted or failed turn is no longer replayed.
+- **One rejected signature no longer turns off Anthropic reasoning replay for the whole process.** The downgrade was written to a process-wide table and never undone when a retry succeeded, so a problem in one conversation's own history left every conversation on that model without replayed thinking blocks until a restart. It now applies to that one retry, and, once that works, to that conversation.
+- **Errors raised before the request goes out are not retried forever.** A zero-width character in a key, https against a local server that only speaks http, an untrusted certificate — all of these were classified as network errors, and network errors retry without limit, so the window just said "Connection dropped" and kept reconnecting. They now end the turn and say what happened.
+- **A long reasoning stream is no longer cut off at five minutes.** The idle gate says ten minutes, but Node's built-in fetch cuts the body after 300 seconds with no bytes, so a legal five-minute silence was treated as a dropped connection and resent from the start, billed again. The clock now resets on bytes that arrive.
+- A call to a tool that takes no arguments, with its arguments written as `null`, is no longer refused as unfinished JSON: `null` is complete, legal JSON and means the same as `{}`.
+- **A batch of interface problems fixed upstream after the v0.9.22 fork**, which this code has too: overlays and dialogs that vanished without playing their exit when a button or the caller dismissed them; a dialog that jumped back to full opacity before fading when Esc was pressed during its entrance; the projects menu landing on the button for a frame when there are many projects; a sidebar title flashing back to the old one when it is rewritten twice in a row; the screenshot magnifier appearing as an empty black box the first time; the "running" row disappearing in a single frame when a turn ends with no text (tools only, stopped, or an error); a picture dropped into the composer being deleted by the next keystroke and the attachment tray vanishing for a frame; Done on a picture annotated inside a sent message doing nothing, because the canvas was tainted by `ly-media://` and the failed export was silent; and a preview card stuck at 440px while the machine was busy.
+- Two high-severity dependency advisories cleared: undici to 7.30.0 and linkify-it to 5.0.2.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **画图的工具改成上游的做法**，名字也改成 `image_generate`。先请求服务商的 Images 接口，这家没有这个接口时改走对话接口出图，并记住它属于哪种。比例、清晰度、张数、背景由 Plume 按模型家族换算成各家的写法——以前模型得自己猜，只能经对话接口出图的中转干脆用不了。
+- **改图时用 `#1`、`#2` 指对话里的图**，按新到旧数。每张最多试 3 次；额度用完、密钥没开这个模型就不重试，卡片上直接写是哪种，以及额度大约什么时候恢复。
+- **生图模型单算一类。** 在「模型设置」里给供应商的模型打开「生图模型」：对话模型的列表里不再出现它们（以前在那里选中 gpt-image-1，每一轮都失败），生图模型自己的「画一张小图测试」是真画一张，会计费。
+- **对话里的卡片**按要的比例先把地方占住，上面一行写进行到哪一步，角上是估计的进度；重试时写「连接不稳，正在重试」；图到了从模糊变清晰、框不动；画完写用的是哪个模型、多大尺寸，指上去有「编辑」和「下载」。
+- **看图**：放大不再从 0.4 的淡影起步、遮罩第一帧也不再全黑；标注画布叠在图上而不是替换它，从「编辑」直接进标注。对话里的图标注完按「完成」，带标注的副本进这一屏的输入框。
+- **拉取模型的弹窗现在能删也能加。** 已经添加的默认勾着，这次端点没列出的标出来，取消勾选就是移除，敲一个模型名回车能加一个没列出的。模型列表可以勾选后一次删掉多个，以前只能一个一个删、每个确认一次。
+- **长页面分几段检查。** 页面比 2160px 高时，结果会给出下一段的起点，带上它再检查一次就截那一段。以前模型只能自己把页面切成 p1~p5.html 逐个检查，一个宣传页多花十几次调用。结果也总会写明按多宽检查。
+- **思考行会走秒。** 运行中的思考行除了那个词，还写这一段已经想了多久（从这一段思考开始算，不是整轮），词也随想的时间往下换；换词时新词落入，后面的秒数被推过去而不是跳。
+- **改文件改回按原文替换。** 改一个词不用再把整行原样重打——一段一行的文本（LaTeX、Markdown 段落）一行上千字，模型宁可写脚本批量套改动也不直接改文件。现在它给出一段原文和要替换成什么，安全照旧：那个文件读过、读完之后没有被改过、原文在文件里唯一。原文对不上时先试弯引号、行号前缀、转义这些常见偏差，只有一种解释对得上才替换。
+
+### 更省
+
+- preview 那 5,300 字符的工具说明不再跟着每次请求走。142 个真实会话里只有 10 个用到它，27 个页面没有一个用过页面里那组接口；现在页面接口从 `plume://preview` 读、界面块的写法从 `plume://ui` 读，都在要用之前才读。
+- `web_fetch` 截断的正文存进会话的临时目录，结果里给出路径和完整长度。一份 13 万字的源码以前只给前 3.5 万，模型只好用 bash 再下一遍。
+
+### 变化
+
+- agent 交东西之前会先跑起来验证：跑测试、跑构建，失败贴原文，不再停在类型对得上。
+- 你在描述问题、问它问题的时候，它给的是判断，不会顺手改；要它改的时候也不停在方案上。
+- 项目里不是你做的改动，它当成你的：无关的不碰，有关的接着改，不用 checkout、reset、stash 丢掉。
+
+### 修复
+
+- **中转和网关。** Mistral 把 content 写成数组时不再变成 `[object Object]`；OpenRouter 的流内错误不再被吞成「上游失败」，额度不足和上下文超长都认得出；TGI、Mistral 的 `finish_reason` 别名不再把整段回答作废重试；Kimi 放在 `choices[0]` 里的 usage 读得到，花费不再记成 0；MiniMax 重发的推理快照不再多出一个思考块；工具参数被重发或按对象分片时不再丢键；收到 `finish_reason` 之后不关连接的宿主，不再让 Plume 干等满空闲闸、把已经答好的回答丢掉重发。
+- **失败怎么分类。** 200 却不是 SSE 的（错误写成 JSON、地址指到了网页、整份非流式 JSON）、不写 `error` 的错误帧、推理把输出上限用完的空回答，从前都落成「空回答」、重发四次、原文丢掉。证书不受信任现在看 cause 链最里层，代理的 407 不再当断线无限重试，服务端给的等待时间最多认到 5 分钟而不是 1 分钟。
+- **思考按各家文档的写法关。** Gemini 和 o 系列拒绝「关闭」，新 Claude 要 adaptive，DeepSeek 与 GLM-5.2+ 改发 `output_config.effort` 而不是 `budget_tokens`，GLM-5.3 和 Kimi K3 根本关不掉，所以界面上不再给这一档。这些判断原来散在三个适配器里，Gemini 上关思考在对话链上全挂就是这么来的。
+- **在 Responses 上按停止，会话不再报废。** 推理块的 id 在项开始时就有了、密文要到结束才有；推理到一半按停止，下一轮会回放一个只有 id 的推理项，服务端找不到它，之后每一轮都失败。中断或出错那一轮没写完的推理块现在不回放。
+- **一次签名被拒，不再让整个进程关掉 Anthropic 的思考回放。** 降级原来写进进程级的表，重发成功了也不撤销，于是一个会话自己历史里的问题，让同模型的所有会话都不再回放思考块，直到重启。现在降级只用于这次重发，成功了记在这个会话上。
+- **请求发出之前就失败的错误不再无限重连。** 密钥里混进零宽字符、用 https 连了只开 http 的本地服务、证书不受信任——这些在请求发出前就抛的错误从前一律判成网络问题，而网络问题不限次数重试，界面上只看见「连接中断」一直转。现在判终局，并说明是怎么回事。
+- **长推理流不再五分钟被切断。** 空闲闸写的是十分钟，但 Node 内置的 fetch 默认 300 秒没有字节就切断响应体，一条合法沉默五分钟的推理流会被当成断线、从头重发、重新计费。空闲计时改成按收到的字节重置。
+- 不带参数的工具，参数被写成 `null` 时不再当成没写完的 JSON 拒绝：`null` 是完整合法的 JSON，意思和 `{}` 一样。
+- **一批上游在 v0.9.22 分叉之后修过、我们也有同样毛病的界面问题**：浮层和对话框点按钮或由调用方关掉时直接消失，不播退场；对话框入场途中按 Esc，会先跳回不透明再淡；项目多的时候「项目」菜单打开的第一帧盖在按钮上；侧栏标题连着改两次会先闪回旧标题；截图放大镜第一次出现是一个空的黑框；一轮没有正文就结束（只调了工具、被停、出错）时「运行中」那一行一帧就没了；递到输入框里的图一打字就被删、附件托盘收起时一帧消失；已发消息里的图标注完按「完成」没反应，因为画布被 `ly-media://` 污染、导出失败又没出声；预览卡片在机器忙的时候锁死在 440px。
+- 依赖里两条 high 清掉：undici 升到 7.30.0，linkify-it 升到 5.0.2。
+
+</details>
+
 ## [0.9.27](https://github.com/wJiaaa/Plume/releases/tag/v0.9.27) - 2026-10-12
 
 <!-- plume:notes en -->
