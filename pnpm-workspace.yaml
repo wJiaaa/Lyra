@@ -46,6 +46,27 @@ overrides:
   qs: ">=6.15.4"
   uuid: ">=11.1.1"
   lodash-es: ">=4.17.24"
+  # 手机端 Markdown 用的 markdown-it@10 只认 linkify-it ^2，而两条二次复杂度的 DoS（GHSA-22p9-wv53-3rq4、
+  # GHSA-v245-v573-v5vm）到 5.0.2 才修。markdown-it@10 只用 LinkifyIt 的构造、test/match/pretest，
+  # 这几个在 5.x 里签名没变；不跨到 6，6 起只发 ESM，require 不进来。
+  "markdown-it@10>linkify-it": "^5.0.2"
+
+# 没有修复版可升的 advisory，按编号逐条忽略。
+#
+# 两条的最新发布版就是受影响的那一版：GitHub 上没有 patched version，`pnpm audit` 打出来的
+# `>=x.y.z` 只是受影响范围的补集。刷 lockfile、加 override 都没有可去的版本，剩下的办法只有不用
+# Expo。两者都不会在用户机器上加载：
+# - GHSA-86w9-cpqp-85rv，node-forge <=1.4.0，接受伪造的 RSA PKCS#1 v1.5 签名。只在 `@expo/cli`
+#   底下，那是手机端的构建和开发服务器工具，不进应用包，应用也不校验任何更新签名。
+# - GHSA-vfj7-8cjw-p6xm，braces <=3.0.3，嵌套很深的花括号模式会耗尽栈。在 metro 和 stylelint 等
+#   构建、检查工具底下，展开的是本仓库自己配置里的 glob。
+#
+# 一个编号只藏那一条，同一个包再出新的照样报。有了修复版就删掉对应的行：
+# `pnpm view node-forge version` 过了 1.4.0、`pnpm view braces version` 过了 3.0.3。
+auditConfig:
+  ignoreGhsas:
+    - GHSA-86w9-cpqp-85rv
+    - GHSA-vfj7-8cjw-p6xm
 
 minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@5.20260818.1'
