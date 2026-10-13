@@ -8,6 +8,7 @@ import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { htmlToText } from "./html-text.ts";
 import { assessNetwork } from "./risk-network.ts";
+import { createOutputLog } from "./output-log.ts";
 import { FRESH_RESULT_MAX_CHARS } from "../agent/prune.ts";
 
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -162,17 +163,37 @@ export const webFetchTool: Tool<FetchArgs> = {
 		const text = args.format === "raw" || kind === "text" ? raw : htmlToText(raw);
 		const open = `<fetched url="${current}" content-type="${contentType}">\n`;
 		const close = "\n</fetched>";
+		/*
+		 * 截掉的部分存进 scratch，告诉模型在哪，和 bash 的完整日志一样。以前截了就扔：一份 130k 字的
+		 * 源码只给前 35k，模型只好用 bash 再下一遍，而那 35k 在这一轮之后的每次调用里都带着。
+		 * 提示放在 `</fetched>` 外面：外壳里是对方的数据，这句话是工具说的。
+		 */
 		// 外壳里的 URL 和 content-type 由对方决定长短，重定向后的地址也不受 MAX_URL_LENGTH 约束；
 		// 外壳超出那 2000 的余量时从正文里扣，整条结果仍不越线。
-		const limit = Math.min(MAX_TEXT, FRESH_RESULT_MAX_CHARS - open.length - close.length - TRUNCATED.length);
+		const room = Math.min(MAX_TEXT, FRESH_RESULT_MAX_CHARS - open.length - close.length - TRUNCATED.length);
+		const saved = text.length > room ? await saveFull(text, ctx.scratchDir) : undefined;
+		const hint = saved ? `\n\n[full text: ${saved} (${text.length} characters) — read or grep it for the part after the cut]` : "";
+		const limit = room - hint.length;
 		const clipped = text.length > limit ? `${text.slice(0, limit)}${TRUNCATED}` : text;
 
 		return {
-			content: [{ type: "text", text: `${open}${clipped}${close}` }],
-			details: { kind: "web_fetch", url: current.toString(), status, bytes: buffer.byteLength },
+			content: [{ type: "text", text: `${open}${clipped}${close}${hint}` }],
+			details: { kind: "web_fetch", url: current.toString(), status, bytes: buffer.byteLength, ...(saved ? { outputPath: saved } : {}) },
 		};
 	},
 };
+
+/** 写不进去（没有 scratch、磁盘满）就当没存：结果照样返回，只是少一句提示。 */
+async function saveFull(text: string, scratchDir: string | undefined): Promise<string | undefined> {
+	try {
+		const log = await createOutputLog(scratchDir);
+		if (!log) return undefined;
+		log.append(text);
+		return (await log.close()).outputComplete ? log.path : undefined;
+	} catch {
+		return undefined;
+	}
+}
 
 /**
  * Validate the URL, then resolve once so the connection uses this hop's addresses.

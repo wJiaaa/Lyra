@@ -13,7 +13,10 @@
 import assert from "node:assert/strict";
 import dns from "node:dns";
 import { syncBuiltinESMExports } from "node:module";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
@@ -199,6 +202,39 @@ test("a page clipped at the limit still reaches the model whole, not cut to head
 	assert.ok(text.length <= FRESH_RESULT_MAX_CHARS, `${text.length}`);
 	const message = { role: "toolResult" as const, toolCallId: "c", toolName: "web_fetch", content: result.content, isError: false, timestamp: 0 };
 	assert.equal(pruneToolResults([message], FRESH_RESULT_MAX_CHARS)[0], message);
+});
+
+test("a clipped page is kept whole in scratch, and the result says where", async () => {
+	const body = `${"x".repeat(60_000)}TAIL_AFTER_THE_CUT`;
+	respond = () => ({ status: 200, headers: { "content-type": "text/plain" }, body });
+	const scratchDir = await mkdtemp(join(tmpdir(), "plume-web-fetch-"));
+	try {
+		const result = (await webFetchTool.execute({ url: `${base}/long` }, { ...ctx(), scratchDir })) as ToolResult;
+		const text = textOf(result);
+		const path = /\[full text: (\S+) \(60018 characters\)/.exec(text)?.[1];
+		assert.ok(path, text.slice(-300));
+		assert.equal(await readFile(path, "utf8"), body);
+		assert.equal(result.details?.outputPath, path);
+		// 提示是工具说的话，不在对方数据的外壳里。
+		assert.ok(text.indexOf("</fetched>") < text.indexOf("[full text:"));
+		assert.ok(!text.includes("TAIL_AFTER_THE_CUT"));
+		assert.ok(text.length <= FRESH_RESULT_MAX_CHARS, `${text.length}`);
+	} finally {
+		await rm(scratchDir, { recursive: true, force: true });
+	}
+});
+
+test("a page that fits is not written anywhere", async () => {
+	respond = () => ({ status: 200, headers: { "content-type": "text/plain" }, body: "short page" });
+	const scratchDir = await mkdtemp(join(tmpdir(), "plume-web-fetch-"));
+	try {
+		const result = (await webFetchTool.execute({ url: `${base}/short` }, { ...ctx(), scratchDir })) as ToolResult;
+		assert.ok(!textOf(result).includes("[full text:"));
+		assert.equal(result.details?.outputPath, undefined);
+		assert.deepEqual(await readdir(scratchDir), []);
+	} finally {
+		await rm(scratchDir, { recursive: true, force: true });
+	}
 });
 
 test("a long address eats into the body, not past the line", async () => {
