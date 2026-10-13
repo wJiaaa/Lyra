@@ -110,7 +110,7 @@ export function Composer({ centered = false }: {
 	 */
 	const waitingOnSession = awaitingSession(useScopedToolRuns());
 	const parked = (awaitingSubAgents(useScopedSubAgents()) || waitingOnSession) && running;
-	const { compact } = useLayout();
+	const { compact, dismissNav } = useLayout();
 	const column = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
 		const el = column.current;
@@ -694,6 +694,12 @@ export function Composer({ centered = false }: {
 								projectMenu.toggle(event);
 							}}
 							active={projectMenu.open}
+							onClear={workspace ? () => {
+								if (activeSessionId !== useApp.getState().activeSessionId) focusScreenOf(activeSessionId);
+								void useApp.getState().clearWorkspace();
+								projectMenu.close();
+								dismissNav();
+							} : undefined}
 						/>
 						{workspace?.branch && (
 							/*
@@ -930,12 +936,14 @@ function Chip({
 	icon,
 	label,
 	onClick,
+	onClear,
 	active,
 	busy,
 }: {
 	icon: React.ReactNode;
 	label: string;
 	onClick: (event: React.MouseEvent<HTMLElement>) => void;
+	onClear?: () => void;
 	active?: boolean;
 	/** Something is being changed about what this names; the label is held until it lands. */
 	busy?: boolean;
@@ -943,7 +951,7 @@ function Chip({
 	const { t } = useI18n();
 	const rolls = useRolled(label);
 
-	return (
+	const chip = (
 		<button
 			type="button"
 			data-ly-tip={busy ? t("composer.switchingBranch") : label}
@@ -954,14 +962,23 @@ function Chip({
 			/* Dimmed while it is being changed, so the name reads as "still this, for now". */
 			className={`ly-composer-control ly-scroll flex min-w-0 items-center gap-1 rounded-lg pr-2 pl-3 text-label transition-[color,background-color,opacity] duration-[var(--ly-t-quick)] ${
 				busy ? "opacity-60" : ""
-			} text-ink ${active ? "bg-card-hover" : "hover:bg-card-hover"}`}
+			} text-ink ${active ? "bg-card-hover" : onClear ? "group-hover/chip:bg-card-hover" : "hover:bg-card-hover"}`}
 		>
 			<span className="shrink-0 text-ink-muted">{icon}</span>
 			{/* Keyed on the label so switching project or branch rolls the new one in. `ScrollText`
 			    cannot take `RollingText` as a child — it measures the string to decide whether the
 			    chip scrolls on hover — so the remount happens around it instead, on the same terms. */}
 			<ScrollText key={label} text={label} className={`min-w-0 ${rolls ? "ly-roll" : ""}`} />
-			<ChevronDown size={14} className="shrink-0 text-ink-muted" aria-hidden />
+			<ChevronDown size={14} className={`shrink-0 text-ink-muted ${onClear ? "group-hover/chip:opacity-0 group-focus-within/chip:opacity-0" : ""}`} aria-hidden />
 		</button>
+	);
+	if (!onClear) return chip;
+	return (
+		<div className="group/chip relative flex min-w-0">
+			{chip}
+			<span className="pointer-events-none absolute inset-y-0 right-1 flex items-center opacity-0 group-hover/chip:pointer-events-auto group-hover/chip:opacity-100 group-focus-within/chip:pointer-events-auto group-focus-within/chip:opacity-100">
+				<IconButton size="sm" label={t("project.without")} icon={<X size={14} />} onClick={onClear} />
+			</span>
+		</div>
 	);
 }

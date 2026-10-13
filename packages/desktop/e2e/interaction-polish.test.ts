@@ -1,12 +1,38 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { startApp, type RunningApp } from "./app.ts";
-import { click, frames, shot, until } from "./drive.ts";
+import { click, frames, hover, openSession, shot, until } from "./drive.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 
 let app: RunningApp;
 before(async () => { app = await startApp({ port: 9601, seed: seedInteractions }); });
 after(async () => { await app?.stop(); });
+
+test("项目关闭图标悬停时保留整块项目背景，并显示独立按钮背景", async (t) => {
+	await openSession(app, "qa-short");
+	const project = '.ly-composer-tray button[aria-haspopup="menu"]';
+	const close = '.ly-composer-tray button[aria-label="不在项目中工作"]';
+	const background = (selector: string) => app.evaluate<string>(`getComputedStyle([...document.querySelectorAll(${JSON.stringify(selector)})].find(e=>e.checkVisibility({visibilityProperty:true}))).backgroundColor`);
+	await hover(app, "textarea");
+	await frames(app);
+	const idle = await background(project);
+	await hover(app, project);
+	await frames(app);
+	const onName = await background(project);
+	assert.notEqual(onName, idle, "名称悬停应有背景，不能拿两次透明当作保持一致");
+	await hover(app, close);
+	await frames(app);
+	const onClose = await background(project);
+	const icon = await background(close);
+	t.diagnostic(JSON.stringify({ idle, onName, onClose, icon }));
+	const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+	await shot(app, `${stamp}_项目关闭悬停_${onClose === onName ? "1of1" : "0of1"}`);
+	assert.equal(onClose, onName, "从名称移到关闭图标，项目背景不能消失");
+	assert.notEqual(icon, idle, "关闭图标也应有独立的悬停底色");
+	await hover(app, "textarea");
+	await frames(app);
+	assert.equal(await background(project), idle, "移出后恢复默认背景");
+});
 
 test("question navigation is mouse reachable and jumps to an unmounted historical question without a moving first frame", async (t) => {
 	await click(app, '[data-ly-row="qa-long"] > button');

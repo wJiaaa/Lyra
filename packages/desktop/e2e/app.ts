@@ -161,6 +161,9 @@ export interface RunningApp {
 	 * window, and the layout's breakpoints are driven by `window.innerWidth` — so without
 	 * `Emulation.setDeviceMetricsOverride` the narrow layout is simply not reachable from a test,
 	 * which would leave the half of the dock that only exists below 760px unverified.
+	 *
+	 * The override lasts only as long as the session that set it, so these calls share one
+	 * connection kept open until `stop()` (see `heldCall`).
 	 */
 	send<T>(method: string, params?: Record<string, unknown>): Promise<T>;
 	/**
@@ -370,7 +373,7 @@ export async function startApp({
 	return {
 		home,
 		evaluate,
-		send: <T>(method: string, params?: Record<string, unknown>) => call<T>(target, method, params ?? {}),
+		send: <T>(method: string, params?: Record<string, unknown>) => heldCall<T>(target, method, params ?? {}),
 		windows: () => listAppWindows(port),
 		main: async <T>(expression: string) => {
 			if (inspectPort === undefined) throw new Error("main() needs startApp({ inspectPort })");
@@ -379,6 +382,7 @@ export async function startApp({
 			return evaluateRenderer<T>(await waitForMainProcess(inspectPort, output), expression);
 		},
 		stop: async () => {
+			await releaseHeld(port);
 			await stopProcessGroup(app);
 			// 借来的 profile 不归这一趟处理：借它的人还要再起一次，或者自己收拾。
 			if (!reuseHome) await rm(home, { recursive: true, force: true }).catch(() => {});
@@ -413,7 +417,7 @@ async function listAppWindows(port: number): Promise<AppWindow[]> {
 		found.push({
 			boot,
 			evaluate: <T>(expression: string) => evaluateRenderer<T>(url, expression),
-			send: <T>(method: string, params?: Record<string, unknown>) => call<T>(url, method, params ?? {}),
+			send: <T>(method: string, params?: Record<string, unknown>) => heldCall<T>(url, method, params ?? {}),
 		});
 	}
 	return found;
@@ -515,54 +519,91 @@ export function call<T>(target: string, method: string, params: Record<string, u
 	return withConnection(target, (send) => send<T>(method, params));
 }
 
+type Send = <R>(method: string, params: Record<string, unknown>) => Promise<R>;
+
 /** One operation, one socket: remote handles belong to the session that created them. */
-async function withConnection<T>(target: string, operation: (send: <R>(method: string, params: Record<string, unknown>) => Promise<R>) => Promise<T>): Promise<T> {
-	const socket = new WebSocket(target);
+async function withConnection<T>(target: string, operation: (send: Send) => Promise<T>): Promise<T> {
+	const connection = await connect(target);
 	try {
-		await new Promise<void>((resolve, reject) => {
-			const timer = setTimeout(() => {
-				socket.close();
-				reject(new Error("CDP connection open timed out"));
-			}, 10_000);
-			socket.addEventListener(
-				"open",
-				() => {
-					clearTimeout(timer);
-					resolve();
-				},
-				{ once: true },
-			);
-			socket.addEventListener(
-				"error",
-				() => {
-					clearTimeout(timer);
-					reject(new Error("CDP connection socket error"));
-				},
-				{ once: true },
-			);
-		});
-		let nextId = 0;
-		return await operation(<R>(method: string, params: Record<string, unknown>) => {
-			const id = ++nextId;
-			return new Promise<R>((resolve, reject) => {
-				const onMessage = (event: MessageEvent) => {
-					const message = JSON.parse(String(event.data));
-					if (message.id !== id) return;
-					clearTimeout(timer);
-					socket.removeEventListener("message", onMessage);
-					if (message.error) reject(new Error(`${method}: ${message.error.message}`));
-					else resolve(message.result as R);
-				};
-				// A toast-lifetime assertion intentionally awaits ten seconds in one evaluation.
-				const timer = setTimeout(() => {
-					socket.removeEventListener("message", onMessage);
-					reject(new Error(`${method} timed out`));
-				}, 40_000);
-				socket.addEventListener("message", onMessage);
-				socket.send(JSON.stringify({ id, method, params }));
-			});
-		});
+		return await operation(connection.send);
 	} finally {
-		socket.close();
+		connection.close();
 	}
+}
+
+/*
+ * `send` 走一条常驻连接，不像 `call` 那样一次一开一关。
+ *
+ * Emulation 这类覆盖属于设置它的那条 DevTools 会话，会话一断就撤回。原来 `send` 每次一开一关，
+ * `Emulation.setDeviceMetricsOverride` 设完当下量是 380×440，几帧后又回到 980×680——靠它测窄屏
+ * 的用例，量到的其实是默认窗口，而且照样报通过。连接到 `stop()` 才关，窗口自己关掉时随之作废。
+ */
+const held = new Map<string, Promise<{ send: Send; close: () => void }>>();
+
+function heldCall<T>(target: string, method: string, params: Record<string, unknown>): Promise<T> {
+	let connection = held.get(target);
+	if (!connection) {
+		connection = connect(target, () => held.delete(target));
+		held.set(target, connection);
+		connection.catch(() => held.delete(target));
+	}
+	return connection.then(({ send }) => send<T>(method, params));
+}
+
+/** 只关这个调试端口上的：同一进程里可能还开着别的应用。 */
+async function releaseHeld(port: number): Promise<void> {
+	for (const [target, connection] of held) {
+		if (new URL(target).port !== String(port)) continue;
+		held.delete(target);
+		await connection.then(({ close }) => close(), () => {});
+	}
+}
+
+async function connect(target: string, onClose?: () => void): Promise<{ send: Send; close: () => void }> {
+	const socket = new WebSocket(target);
+	await new Promise<void>((resolve, reject) => {
+		const timer = setTimeout(() => {
+			socket.close();
+			reject(new Error("CDP connection open timed out"));
+		}, 10_000);
+		socket.addEventListener(
+			"open",
+			() => {
+				clearTimeout(timer);
+				resolve();
+			},
+			{ once: true },
+		);
+		socket.addEventListener(
+			"error",
+			() => {
+				clearTimeout(timer);
+				reject(new Error("CDP connection socket error"));
+			},
+			{ once: true },
+		);
+	});
+	if (onClose) socket.addEventListener("close", onClose, { once: true });
+	let nextId = 0;
+	const send: Send = <R>(method: string, params: Record<string, unknown>) => {
+		const id = ++nextId;
+		return new Promise<R>((resolve, reject) => {
+			const onMessage = (event: MessageEvent) => {
+				const message = JSON.parse(String(event.data));
+				if (message.id !== id) return;
+				clearTimeout(timer);
+				socket.removeEventListener("message", onMessage);
+				if (message.error) reject(new Error(`${method}: ${message.error.message}`));
+				else resolve(message.result as R);
+			};
+			// A toast-lifetime assertion intentionally awaits ten seconds in one evaluation.
+			const timer = setTimeout(() => {
+				socket.removeEventListener("message", onMessage);
+				reject(new Error(`${method} timed out`));
+			}, 40_000);
+			socket.addEventListener("message", onMessage);
+			socket.send(JSON.stringify({ id, method, params }));
+		});
+	};
+	return { send, close: () => socket.close() };
 }

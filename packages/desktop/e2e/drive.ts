@@ -28,6 +28,17 @@ export async function frames(page: Evaluate, count = 20): Promise<void> {
 	await page.evaluate(`new Promise(r=>{let n=${count};const f=()=>--n?requestAnimationFrame(f):r();requestAnimationFrame(f);})`);
 }
 
+/**
+ * 把 CSS 视口设成 `width`×`height`，等页面真的量到这个尺寸再返回。
+ *
+ * 断点看的是 `innerWidth`，而 `window.resizeTo` 对普通 Electron 窗口无效，只能走 Emulation。等到量出来
+ * 才返回，是因为这一步没生效时后面的断言照样能过：曾有一次窄屏验证报了三条通过，截图里窗口根本没变窄。
+ */
+export async function resize(page: Page, width: number, height: number): Promise<void> {
+	await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+	await until(page, `innerWidth===${width}&&innerHeight===${height}`);
+}
+
 /** 页面里一句找元素的表达式：第一个看得见的匹配项；给了 `name` 就再按人会叫它的名字筛一遍。 */
 function finder(selector: string, name?: string, mode: NamedMode = "exact"): string {
 	const match = name === undefined ? "" : `&&${named(name, mode)}`;
@@ -83,11 +94,27 @@ export async function hold(page: Page, selector: string, name?: string, ms = 600
 	await frames(page, 2);
 }
 
+/**
+ * 等目标出现。按名字找而没等到时，报出这个选择器下实际看得见的名字。
+ *
+ * 只报「这句表达式没成立」，名字写错了就得再起一次窗口专门把按钮打印出来——有一次验证就因为
+ * 猜的「交互验证」其实叫 `project`，多开了一轮 Electron。
+ */
+async function located(page: Evaluate, selector: string, name: string | undefined, mode: NamedMode): Promise<void> {
+	try {
+		await until(page, finder(selector, name, mode));
+	} catch (error) {
+		if (name === undefined) throw error;
+		const seen = await page.evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(selector)})].filter(e=>e.checkVisibility({visibilityProperty:true})).slice(0,20).map(e=>[(e.textContent||"").trim().slice(0,40),e.getAttribute("aria-label")||"",e.dataset.lyTip||""].filter(Boolean).join(" / "))`);
+		throw new Error(`${selector} "${name}" never appeared. Visible ${selector}: ${seen.length ? seen.map((one) => JSON.stringify(one)).join(", ") : "none"}`, { cause: error });
+	}
+}
+
 /** 等目标停稳并确实在指针下，返回按下去的坐标。 */
 async function settle(page: Page, selector: string, name: string | undefined, mode: NamedMode): Promise<Point> {
 	const find = finder(selector, name, mode);
 	const label = JSON.stringify(name === undefined ? selector : `${selector} "${name}"`);
-	await until(page, find);
+	await located(page, selector, name, mode);
 	const near = await page.evaluate<Point>(`(()=>{const e=${find};e.scrollIntoView({block:'nearest',behavior:'instant'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...near });
 	return page.evaluate<Point>(`(async()=>{
@@ -119,7 +146,7 @@ async function settle(page: Page, selector: string, name: string | undefined, mo
 export async function hover(page: Page, selector: string, name?: string, mode: NamedMode = "exact"): Promise<void> {
 	const find = finder(selector, name, mode);
 	const label = JSON.stringify(name === undefined ? selector : `${selector} "${name}"`);
-	await until(page, find);
+	await located(page, selector, name, mode);
 	const at = await page.evaluate<Point>(`(()=>{const r=${find}.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
 	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
 	const landed = await page.evaluate<boolean>(`(async()=>{
@@ -138,7 +165,7 @@ export async function hover(page: Page, selector: string, name?: string, mode: N
 /** 为键盘用例放置起始焦点，后续仍用真实 Tab 或方向键移动。 */
 export async function focus(page: Evaluate, selector: string, name?: string, mode: NamedMode = "exact"): Promise<void> {
 	const find = finder(selector, name, mode);
-	await until(page, find);
+	await located(page, selector, name, mode);
 	await page.evaluate(`${find}.focus()`);
 }
 

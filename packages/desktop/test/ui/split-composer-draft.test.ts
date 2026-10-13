@@ -188,3 +188,33 @@ test("a region picked in the browser keeps its picture once something is typed a
 	assert.ok(fieldOf("b").startsWith("把这个按钮改成蓝色"), fieldOf("b"));
 	assert.equal(useApp.getState().drafts.b?.attachments?.length, 1);
 });
+
+test("项目快捷关闭先聚焦所属分屏，不展开菜单，也不丢失旁边的会话", async () => {
+	view = await mount(split());
+	const close = view.find<HTMLButtonElement>(`[data-screen="blank"] button[aria-label="${zhCN["project.without"]}"]`);
+	assert.equal(close.closest("button button"), null, "关闭按钮不嵌套在菜单按钮里");
+	await click(close);
+	await act(async () => {});
+	assert.equal(useApp.getState().workspace, null);
+	assert.equal(useApp.getState().scratchCwd, "/scratch");
+	assert.equal(useSplit.getState().focused, null);
+	assert.equal(useSplit.getState().tree.type, "split");
+	assert.deepEqual(useApp.getState().sessionCache.b?.messages, bMessages);
+	assert.equal(document.querySelector(`[aria-label="${zhCN["project.switch"]}"]`), null);
+	assert.equal(view.all(`[data-screen="blank"] button[aria-label="${zhCN["project.without"]}"]`).length, 0, "Chat 状态不显示关闭入口");
+	assert.equal(view.all(`[data-screen="b"] button[aria-label="${zhCN["project.without"]}"]`).length, 1, "旁边的项目仍可关闭");
+});
+
+test("项目名称仍然打开选择菜单，关闭入口不影响分支按钮", async () => {
+	view = await mount(only("b"));
+	const project = view!.all<HTMLButtonElement>('[data-screen="b"] button').find((button) => button.textContent === BETA.name);
+	assert.ok(project);
+	assert.equal(view.all(`[data-screen="b"] button[aria-label="${zhCN["project.without"]}"]`).length, 1);
+	await click(project);
+	assert.ok(document.querySelector(`[aria-label="${zhCN["project.switch"]}"]`));
+	assert.equal(useApp.getState().workspace?.path, BETA.path);
+	const branch = view!.all<HTMLButtonElement>('[data-screen="b"] button').find((button) => button.textContent === BETA.branch);
+	assert.ok(branch);
+	assert.ok(branch.querySelector("svg"));
+	assert.equal(branch.getAttribute("aria-haspopup"), "menu");
+});
