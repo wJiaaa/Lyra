@@ -55,11 +55,15 @@ export const previewTool: Tool<PreviewArgs> = {
 	 * What moved out is only the page-side `plume` API, to `plume://preview` (see `preview-reference.ts`):
 	 * 10 of 142 real sessions used this tool, and none of their 27 pages called `plume.tweak`. That cut
 	 * went in without rerunning the A/B above; run it when touching the checking rules themselves.
+	 *
+	 * Charts are handed to interface blocks by name. Both this text and theirs claimed "a chart", and
+	 * this one — a tool, many times longer — won: "…给我个图表看看" over data already in hand became a page.
 	 */
 	description:
 		"Show a self-contained web page inline in the conversation, above your reply; the user can also open it in the side panel. " +
-		"Use it when the answer is something to look at or interact with — a chart, a diagram, a table to explore, a demo or game, a layout put up for approval — " +
+		"Use it when the answer is something to look at or interact with — a diagram, a table to explore, a demo or game, a layout put up for approval — " +
 		"not to display code for reading, where a fenced block is better. " +
+		"A chart or figures from data you already have go in an interface block (```ui) in your reply instead: it needs no script, and it is drawn as you write it. " +
 		"Pass `html` for a single file, or `files` for several (the entry defaults to index.html). Inline your CSS and JS; libraries may be loaded from a CDN over https. " +
 		"The user watches the page appear while you write it, before any script runs: write it in order — styles in <head>, then the markup, then scripts at the end of <body> — and write as markup (text, layout, inline SVG) whatever does not need a script to exist. " +
 		"The page runs sandboxed, with no access to the user's machine or the app. " +
