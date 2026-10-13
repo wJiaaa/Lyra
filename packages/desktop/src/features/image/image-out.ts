@@ -31,9 +31,18 @@ export async function copyImage(src: string): Promise<void> {
 		if (!(await bridge.clipboard.writeImage(await asPng(src)))) throw new Error("nothing decoded");
 		useApp.getState().notify(translate("viewer.copied"));
 	} catch {
-		void saveImage(src);
-		useApp.getState().notify(translate("viewer.clipboardUnavailable"), "warn");
+		if (await saveImage(src)) useApp.getState().notify(translate("viewer.clipboardUnavailable"), "warn");
 	}
+}
+
+/**
+ * Said out loud when a picture could not be had.
+ *
+ * Every route here runs inside a click, and a failure there used to be swallowed: the button was
+ * pressed and nothing happened, which reads as the app not having heard the click.
+ */
+export function notifyExportFailed(): void {
+	useApp.getState().notify(translate("viewer.exportFailed"), "error");
 }
 
 /**
@@ -42,14 +51,18 @@ export async function copyImage(src: string): Promise<void> {
  * Always through a `data:` URL. `download` is ignored on a cross-origin link, so an anchor straight
  * to `ly-media://` navigated the whole window to the bare picture instead of saving it.
  */
-export async function saveImage(src: string): Promise<void> {
+export async function saveImage(src: string): Promise<boolean> {
 	const dataUrl = await imageDataUrl(src);
-	if (!dataUrl) return;
+	if (!dataUrl) {
+		notifyExportFailed();
+		return false;
+	}
 	const subtype = /^data:image\/([\w.+-]+)/.exec(dataUrl)?.[1] ?? "png";
 	const link = document.createElement("a");
 	link.href = dataUrl;
 	link.download = `image-${Date.now()}.${subtype === "jpeg" ? "jpg" : subtype}`;
 	link.click();
+	return true;
 }
 
 /**

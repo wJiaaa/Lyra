@@ -34,6 +34,7 @@ import {
 	type Shape,
 	type Tool,
 } from "./annotate.ts";
+import { imageDataUrl } from "./image-out.ts";
 import { strokeFor, TEXT_SCALE } from "./paint.ts";
 
 export const COLOURS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#111827"];
@@ -83,7 +84,7 @@ export interface Annotator {
 	selected: number | null;
 	setSelected: (index: number | null) => void;
 	removeSelected: () => void;
-	/** The annotated image as a PNG data URL, or null before the source has decoded. */
+	/** The annotated image as a PNG data URL, or null before the source has decoded or when it cannot be read back. */
 	render: () => string | null;
 	/**
 	 * Commit the caption being typed right now, if there is one. Returns whether there was.
@@ -302,8 +303,29 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 
 		const img = new Image();
 		img.onload = () => accept({ source: img, width: img.naturalWidth, height: img.naturalHeight });
-		img.src = src;
+		let live = true;
+		/*
+		 * A media-scheme picture comes in as bytes, not by its URL.
+		 *
+		 * `ly-media` is a standard scheme, so to this page it is another origin: a canvas that draws it
+		 * is tainted and `toDataURL` throws. That is how 保存副本 on a picture already in a message did
+		 * nothing at all. The bytes come over `files.media`, the same channel 另存为 uses; where they
+		 * cannot be had the URL still draws, and only reading the marked-up copy back is lost.
+		 */
+		if (src.startsWith("ly-media:")) {
+			void imageDataUrl(src).then(
+				(data) => {
+					if (live) img.src = data ?? src;
+				},
+				() => {
+					if (live) img.src = src;
+				},
+			);
+		} else {
+			img.src = src;
+		}
 		return () => {
+			live = false;
 			img.onload = null;
 		};
 		// `session` carries no data — it is here so a second capture of an unchanged screen, whose
@@ -464,7 +486,14 @@ export function useAnnotator(src: string | RawPixels | null, options?: Annotator
 			});
 			setSelected(null);
 		}, [selected]),
-		render: useCallback(() => canvas.current?.toDataURL("image/png") ?? null, []),
+		render: useCallback(() => {
+			// A canvas that still drew something from another origin throws here; the caller says so.
+			try {
+				return canvas.current?.toDataURL("image/png") ?? null;
+			} catch {
+				return null;
+			}
+		}, []),
 		flushText: useCallback(() => {
 			const commit = pendingText.current;
 			if (!commit) return false;

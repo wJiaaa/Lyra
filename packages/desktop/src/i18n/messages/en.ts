@@ -1646,6 +1646,7 @@ export const en = {
 	"viewer.next": "Next (→)",
 	"viewer.copied": "Copied — paste it anywhere",
 	"viewer.clipboardUnavailable": "The clipboard is unavailable — downloaded instead",
+	"viewer.exportFailed": "Couldn't read this picture back, so nothing was exported",
 	"imageMenu.openInTab": "Open image in a new tab",
 	"imageMenu.addToChat": "Add to chat",
 	"imageMenu.copy": "Copy image",

@@ -30,7 +30,7 @@ import { AnnotateToolbar } from "./AnnotateToolbar.tsx";
 import { useLayout } from "../../app/layout.tsx";
 import { EASING } from "../../ui/motion/tokens.ts";
 import { closeViewer, stepViewer, useViewer, type ViewerImage } from "./viewer-store.ts";
-import { copyImage, saveImage } from "./image-out.ts";
+import { copyImage, notifyExportFailed, saveImage } from "./image-out.ts";
 import { portal } from "../../ui/overlay/portal.ts";
 
 /**
@@ -711,7 +711,10 @@ export function ImageViewer() {
 						 */
 						const save = () => {
 							const dataUrl = annotator.render();
-							if (!dataUrl) return;
+							if (!dataUrl) {
+								notifyExportFailed();
+								return;
+							}
 							if (image.onReplace) {
 								image.onReplace(dataUrl);
 							}

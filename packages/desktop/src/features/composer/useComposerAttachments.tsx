@@ -14,7 +14,7 @@
  * `ensureThere` 那段。所以「打开」由调用方给；不给的话，点标记就只做预览和「在访达中显示」。
  */
 
-import { useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
+import { useLayoutEffect, useRef, useState, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
 
 import { useI18n } from "../../i18n/index.ts";
 import { scanPlaceholders } from "../../lib/attachment-placeholders.ts";
@@ -135,10 +135,25 @@ export function useComposerAttachments<T extends DraftAttachment>({
 			};
 		});
 
-	const stripNode =
-		strip.length > 0 ? (
+	/*
+	 * 这一排最后一次有图时的样子，托盘收起的那段时间里还画着它。
+	 *
+	 * 发送、或者删掉最后一张图，会在同一次提交里清空这一排、关上托盘——收起过渡无物可收，托盘一帧
+	 * 就没了，输入框上沿跳下 76px。现在原来那几张图陪托盘一起收（惰性，它们已经不属于这个输入框），
+	 * 收起后藏在关着的托盘里，直到有新的一排要画。托盘因为别的东西（引用、会话）还开着时，它们不该
+	 * 留在眼前，那一条在 composer.css 的 `[data-ly-strip-leaving]`。
+	 */
+	const lastStrip = useRef<StripFile[]>([]);
+	useLayoutEffect(() => {
+		if (strip.length > 0) lastStrip.current = strip;
+	});
+	const leaving = strip.length === 0 && lastStrip.current.length > 0;
+	const shownStrip = leaving ? lastStrip.current : strip;
+
+	const images =
+		shownStrip.length > 0 ? (
 			<AttachmentStrip
-				files={strip}
+				files={shownStrip}
 				/*
 				 * 独占一行，多了横着滚。这一块地方是拿来打字的：一排附件换到第三行时，被挤出屏幕的是
 				 * 输入框自己。
@@ -168,6 +183,12 @@ export function useComposerAttachments<T extends DraftAttachment>({
 				}
 			/>
 		) : null;
+	// 有图就始终包着这一层，离场时这一排才不会被卸载重建、滚动位置回到开头。
+	const stripNode = images && (
+		<div inert={leaving} aria-hidden={leaving || undefined} {...(leaving ? { "data-ly-strip-leaving": "" } : {})}>
+			{images}
+		</div>
+	);
 
 	const onAttachmentClick = (index: number, rect?: DOMRect) => {
 		const hit = scanPlaceholders(text, attachments)[index];

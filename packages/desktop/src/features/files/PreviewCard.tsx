@@ -46,7 +46,7 @@ const THEMED_MIN_HEIGHT = 40;
 const MAX_HEIGHT = PREVIEW_MAX_HEIGHT;
 /** Used while measuring, and if the page never reports anything. */
 const DEFAULT_HEIGHT = 440;
-/** If the reporter never runs — blocked, broken, or a page with no head — stop waiting. */
+/** If the reporter never runs — blocked, broken, or a page with no head — stop waiting. Counted from the page's load. */
 const PROBE_TIMEOUT_MS = 1500;
 /** How long to keep collecting measurements before committing to one. */
 const PROBE_SETTLE_MS = 400;
@@ -119,6 +119,8 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 	const [nonce, setNonce] = useState(0);
 	const [tall, setTall] = useState(false);
 	const [ready, setReady] = useState(false);
+	/** Loaded, and nothing heard for a while: shown at the default height, still listening. */
+	const [gaveUp, setGaveUp] = useState(false);
 	/** The page wants more room than a card in a transcript is allowed to take. */
 	const [overflowing, setOverflowing] = useState(false);
 	/**
@@ -339,20 +341,34 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 			});
 		}
 		window.addEventListener("message", onMessage);
-		// Nothing arrived, so nothing is coming; settle on something sensible rather than waiting.
-		const giveUp = setTimeout(() => {
-			if (!state.settled) commit(DEFAULT_HEIGHT);
-		}, PROBE_TIMEOUT_MS);
-		return () => {
-			window.removeEventListener("message", onMessage);
-			clearTimeout(giveUp);
-		};
+		return () => window.removeEventListener("message", onMessage);
 	}, [preview]);
+
+	/*
+	 * Loaded, and nothing heard for a while: show the page at the default height, and keep listening.
+	 *
+	 * Counted from the load, not from the mount. The frame runs in a process of its own, and on a
+	 * busy machine starting it took longer than the whole wait: the clock ran out before the page
+	 * existed, the default was committed as if measured — settled and remembered, over a height
+	 * recalled or handed over by the draft — and the real height that came a moment later could only
+	 * make the card taller (`followHeight`). Those previews stayed at 440. Nor is the default a
+	 * measurement now: nothing is settled or remembered, and the first report that does arrive is
+	 * still taken as the first, free to make the card shorter.
+	 */
+	useEffect(() => {
+		if (!ready) return;
+		const state = survey.current;
+		const giveUp = setTimeout(() => {
+			// A report in hand settles within PROBE_SETTLE_MS; showing the default first would only add a jump.
+			if (!state.settled && state.timer === null) setGaveUp(true);
+		}, PROBE_TIMEOUT_MS);
+		return () => clearTimeout(giveUp);
+	}, [ready]);
 
 	// Asking for more space is a decision the page does not get to overrule.
 	const height = full ? full.height : tall ? MAX_HEIGHT : (measured ?? DEFAULT_HEIGHT);
-	// Held back until it has been measured, so the probe height is never a frame anyone sees.
-	const visible = ready && measured !== null;
+	// Held back until it has been measured, or until it is clear nothing is coming, so the probe height is never a frame anyone sees.
+	const visible = ready && (measured !== null || gaveUp);
 	const shown = useRef(onShown);
 	shown.current = onShown;
 	useEffect(() => {
@@ -380,8 +396,16 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 			 *
 			 * Square while copying: the page moves through the card a slice at a time
 			 * (`usePreviewCopy`), and round corners would cut into every slice.
+			 *
+			 * The height is the page's, the border on top of it (`box-content`). Inside the border, the
+			 * 2px of slack the page adds to what it asks for went to the border, and a page sized to
+			 * exactly its own height sat exactly at the frame's edge — where filling the frame and merely
+			 * fitting it look the same to the measurement (`MEASURE_HEIGHT`): a `height: 360px` page
+			 * reopened at its remembered 362 measured 256, and dipped before coming back. A themed page
+			 * has no border; nor does a draft hand its height to one that has: a draft is drawn only for a
+			 * page written in the call, and only a file from disk is shown unthemed.
 			 */
-			className={`ly-enter relative my-2.5 overflow-hidden ${themed ? "" : `border border-line-soft ${capturing ? "" : "rounded-[12px]"}`} ${
+			className={`ly-enter relative my-2.5 overflow-hidden ${themed ? "" : `box-content border border-line-soft ${capturing ? "" : "rounded-[12px]"}`} ${
 				measured === null ? "" : "transition-[height] duration-[var(--ly-t-slow)]"
 			}`}
 		>
@@ -517,6 +541,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 						setOverflowing(false);
 						setFull(null);
 						setReady(false);
+						setGaveUp(false);
 						setNonce((value) => value + 1);
 					}}
 				/>

@@ -1825,6 +1825,7 @@ export const zhCN = {
 	"viewer.next": "下一张 →",
 	"viewer.copied": "已复制到剪贴板，可以直接粘贴",
 	"viewer.clipboardUnavailable": "剪贴板不可用，已改为下载",
+	"viewer.exportFailed": "这张图读不出来，没能导出",
 	"imageMenu.openInTab": "在新标签页中打开图片",
 	"imageMenu.addToChat": "添加到聊天",
 	"imageMenu.copy": "复制图片",

@@ -241,10 +241,10 @@ export function SideComposer({
 					 * 文件，输入框上沿平白高出一道空的内衬。
 					 */
 					<div className="ly-reveal" data-open={kit.strip.length > 0 || quotes.length > 0 ? "true" : "false"}>
-						<div className="ly-composer-attachments">
+						<div><div className="ly-composer-attachments">
 							{quotes.length > 0 && <QuoteChip quotes={quotes} onRemove={(id) => setQuotes((was) => was.filter((quote) => quote.id !== id))} />}
 							{kit.stripNode}
-						</div>
+						</div></div>
 					</div>
 				}
 				left={

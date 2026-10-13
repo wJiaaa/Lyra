@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Message, UserMessage } from "@plume/core";
-import { attachmentBody } from "../src/lib/attachment-placeholders.ts";
+import { attachmentBody, unmarkedIn } from "../src/lib/attachment-placeholders.ts";
 import { draftFromUserMessage, lastUserMessageIndex } from "../src/lib/revert-draft.ts";
 
 test("lastUserMessageIndex skips synthetic notes", () => {
@@ -53,4 +53,36 @@ test("draftFromUserMessage keeps the file name of an image parked in session-med
 	const [image] = draftFromUserMessage(message).attachments;
 	assert.equal(image.data, undefined);
 	assert.equal(image.media, "5448dd02.png");
+});
+
+test("a restored draft already names its files, so none of them is marked again", () => {
+	// 发出去的那句话就是 displayText，标记在里面。撤回/分叉递回输入框时再补一枚，同一份附件就提了两遍。
+	const message = {
+		role: "user",
+		content: [
+			{ type: "image", mimeType: "image/png", data: "abc" },
+			{ type: "text", text: attachmentBody("notes.md", "body") },
+			{ type: "text", text: "照着 【图片 1】 改，参考 【notes.md】" },
+		],
+		displayText: "照着 【图片 1】 改，参考 【notes.md】",
+		attachments: [
+			{ name: "image.png", kind: "image", mimeType: "image/png", label: "图片 1" },
+			{ name: "notes.md", kind: "text", mimeType: "text/markdown", label: "notes.md" },
+		],
+		timestamp: 1,
+	} as UserMessage;
+	const draft = draftFromUserMessage(message);
+	assert.deepEqual(unmarkedIn(draft.text, draft.attachments), []);
+});
+
+test("files the text does not mention are the ones still to be marked", () => {
+	const shot = { name: "标注图.png", label: "标注图.png" };
+	const notes = { name: "notes.md" };
+	const twin = { name: "notes.md" };
+	// 什么都没写：生成图「添加到对话」、查看器里标注完，都是这样递进来的。
+	assert.deepEqual(unmarkedIn("", [shot]), [shot]);
+	// 按名字加次序配对：一枚【notes.md】只认得第一份，同名的第二份还没有标记。
+	assert.deepEqual(unmarkedIn("看 【notes.md】", [shot, notes, twin]), [shot, twin]);
+	// 普通的中文方括号不是标记。
+	assert.deepEqual(unmarkedIn("这个【重要】", [notes]), [notes]);
 });

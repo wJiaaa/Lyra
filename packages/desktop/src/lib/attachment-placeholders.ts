@@ -172,6 +172,18 @@ export function placeholderAt<File extends { name: string; label?: string }>(
 }
 
 /**
+ * 正文里还没有标记的那几份附件。
+ *
+ * 递进输入框的附件分两种。撤回、分叉还原出来的，正文就是当初发出去的那句话，标记本来就在里面；
+ * 标注完的图、生成图「添加到对话」、浏览器的区域截图，正文里什么也没有。后者要补一枚标记，否则
+ * 下一次改字就被当成孤儿卸掉；前者再补一枚，就是同一份附件在句子里出现两次。
+ */
+export function unmarkedIn<File extends { name: string; label?: string }>(text: string, files: File[]): File[] {
+	const marked = new Set(scanPlaceholders(text, files).map((hit) => hit.file));
+	return files.filter((file) => !marked.has(file));
+}
+
+/**
  * 把一段选区推到标记外面。
  *
  * 标记是一个整体，光标不该停在它中间——停进去之后，方向键一格一格地穿过它，打一个字它就废了（配

@@ -643,8 +643,28 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 			});
 		}
 
-		if (own > think) {
-			out.push({ kind: "message", message, index, upTo: own, from: think, turnStats: snapshot(clock) });
+		/*
+		 * A page made before the reply's last words gets its row all the same.
+		 *
+		 * A call followed by more reasoning is not trailing, so it stays in the reply's own row — and a
+		 * row of nothing else but reasoning is process (`thinkingOnly`), so the page was drawn inside it
+		 * and folded away with it. Cut out here, it is the same row it was while it was the last block
+		 * (`tools-<id>`), so the reasoning arriving after it does not move it into another row and load
+		 * the page a second time. The pieces in front of it lead into the reply, which is the last piece.
+		 */
+		let from = think;
+		for (let at = think; at < own; at++) {
+			const block = message.content[at];
+			if (block.type !== "toolCall") continue;
+			const call: Call = { block: routedBlock(block), stopReason: message.stopReason };
+			if (!shows(call)) continue;
+			if (at > from) out.push({ kind: "message", message, index, upTo: at, from, lead: true, key: `part-${at}-${message.timestamp}-${index}` });
+			work([call], index);
+			from = at + 1;
+		}
+		// `own` never ends on a call, so the reply keeps a piece of its own after the last page.
+		if (own > from) {
+			out.push({ kind: "message", message, index, upTo: own, from, turnStats: snapshot(clock) });
 		} else if (think === 0 && calls.length === 0 && message.stopReason !== "pending") {
 			/*
 			 * Nothing thought, nothing said, nothing done, and the turn is over: a failure with no
@@ -727,8 +747,11 @@ function isProcess(run: Run): boolean {
 	 * 切成两行。叫醒会话的那一种开了一轮（`opensTurn`），留在外面；另一个会话的来信有正文要读，也留在外面。
 	 */
 	if (run.message.role === "user") return Boolean(run.message.delivery) && !run.message.peer && !opensTurn(run.message);
-	// `lead` 的那一条是开头的推理被单独拆出来的行，见 `leadingThinking`。
-	return run.lead === true || thinkingOnly(run);
+	/*
+	 * `lead` 的行不因为是 `lead` 就算过程：开头单独拆出来的推理（见 `leadingThinking`）本来就只有推理；
+	 * 拆在页面前面的那一段（见 `runs` 里切页面那一步）可能有话，话不收。
+	 */
+	return thinkingOnly(run);
 }
 
 /**

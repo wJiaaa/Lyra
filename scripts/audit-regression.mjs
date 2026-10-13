@@ -11,6 +11,8 @@
  * 用法：
  *   node scripts/audit-regression.mjs          单测与门禁，约一分钟，不弹窗口
  *   node scripts/audit-regression.mjs --window  再加上要真窗口的那几条（会抢焦点几分钟）
+ *   node scripts/audit-regression.mjs --window --only=PREVIEW-height-window
+ *                                              只跑点名的那几条——验一处修复，不必让每个探针都抢一遍焦点
  *
  * 真窗口那几条默认不跑，理由是它们会把窗口摆到屏幕上抢焦点，而其中依赖真实指针位置的探针在
  * 人正在用电脑时结果不可信（`screenshot-probe` 实测在 1 到 11 个问题之间跳，基线同样跳）。
@@ -22,6 +24,7 @@ import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const withWindow = process.argv.includes("--window");
+const only = process.argv.find((arg) => arg.startsWith("--only="))?.slice("--only=".length).split(",");
 
 /**
  * 一条修复，和证明它还在的那个东西。
@@ -181,6 +184,21 @@ const CHECKS = [
 		run: ["pnpm", ["lint"]],
 	},
 	{
+		id: "PREVIEW-fold",
+		what: "调用 preview 之后同一条回复里接着想，页面留在只有推理的那一行里，跟着过程一起收进折叠，跑完要点开思考才看得到",
+		run: ["pnpm", ["--filter", "@plume/desktop", "exec", "node", "--test", "--import", "./test/setup.ts", "--experimental-strip-types", "test/preview-placement.test.ts", "test/turn-blocks.test.ts"]],
+	},
+	{
+		id: "PREVIEW-height",
+		what: "预览卡片在机器忙时锁死在 440：等待从挂上算起，超时把默认值当成量好的高度记下来，之后只许变高；固定高度的页面先报 256 再报 362，卡片缩过头又长回来，重开也弹一下",
+		run: ["pnpm", ["--filter", "@plume/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/preview-height.test.ts", "test/preview-height-reporter.test.ts"]],
+	},
+	{
+		id: "POPOVER-first-frame",
+		what: "项目多的时候，项目菜单每次打开先盖在按钮上闪一帧，再跳到按钮上方",
+		run: ["pnpm", ["--filter", "@plume/desktop", "exec", "node", "--import", "tsx", "--import", "./test/helpers/dom.ts", "--import", "./test/helpers/assets.mjs", "--test", "test/ui/popover-first-frame.test.ts"]],
+	},
+	{
 		id: "knip",
 		what: "191 个未用导出，而 CI 里那条检查永远不会红",
 		run: ["pnpm", ["knip"]],
@@ -247,6 +265,18 @@ const CHECKS = [
 		window: true,
 		run: ["pnpm", ["--filter", "@plume/desktop", "exec", "node", "--experimental-strip-types", "--test", "--test-timeout=180000", "e2e/sidebar-slide.test.ts"]],
 	},
+	{
+		id: "PREVIEW-height-window",
+		what: "跑起来的桌面端里，固定高度的页面逐帧只朝一个方向收到页面高度；页面晚两秒才报高度，卡片照样跟着页面而不是锁在 440；重新载入后卡片停在记下的高度一帧不动；接着想的那条回复里，页面在折叠行外面",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/preview-height-probe.ts", "fixed,slow,fold,reopen", "回归"]],
+	},
+	{
+		id: "POPOVER-first-frame-window",
+		what: "跑起来的桌面端里，十五个项目的菜单连开五次，每次第一帧就没压住按钮、之后不再挪",
+		window: true,
+		run: ["node", ["--experimental-strip-types", "packages/desktop/e2e/popover-first-frame-probe.ts", "回归", "/tmp/regression-popover"]],
+	},
 ];
 
 const pass = [];
@@ -254,6 +284,7 @@ const fail = [];
 const skipped = [];
 
 for (const check of CHECKS) {
+	if (only && !only.includes(check.id)) continue;
 	if (check.window && !withWindow) {
 		skipped.push(check);
 		continue;

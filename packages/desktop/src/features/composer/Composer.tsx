@@ -10,6 +10,7 @@ import { QueuedMessages } from "./QueuedMessages.tsx";
 import { buildOutgoing, queuePreview, queueThumbnail } from "./outgoing.ts";
 import { QuoteChip } from "./QuoteChip.tsx";
 import type { DraftQuote } from "../../lib/quote.ts";
+import { unmarkedIn } from "../../lib/attachment-placeholders.ts";
 import type { QueuedMessage } from "../../store/queue-slice.ts";
 import { MentionMenu } from "./MentionMenu.tsx";
 import { useMention } from "./useMention.ts";
@@ -220,12 +221,6 @@ export function Composer({ centered = false }: {
 	 */
 	const draft = useApp((s) => s.composerDraft);
 	const browserAttachment = useApp((s) => s.browserAttachment);
-	useEffect(() => {
-		if (!browserAttachment || browserAttachment.draftKey !== draftKey) return;
-		setText((current) => current.trim() ? `${current.trimEnd()}\n\n${browserAttachment.text}` : browserAttachment.text);
-		setAttachments((current) => [...current, { id: crypto.randomUUID(), name: translate("composer.regionShot"), mimeType: "image/png", isText: false, data: browserAttachment.dataUrl.split(",")[1] }]);
-		useApp.setState({ browserAttachment: null });
-	}, [browserAttachment, draftKey]);
 	const field = useRef<HTMLTextAreaElement>(null);
 	/*
 	 * 标记、上下文用量里列出的文件，都开进右边的文件面板——这个组件本来就引着 dock，那件事在这里做。
@@ -247,6 +242,21 @@ export function Composer({ centered = false }: {
 		openFile,
 	});
 	const { marks } = kit;
+	const { attach } = marks;
+	/*
+	 * A region of a page, picked in the browser panel, with what was said about it.
+	 *
+	 * Taken in through `attach`, the way a dropped or pasted picture comes in, so it gets its mark in
+	 * the sentence. Appended straight onto the list it had none, and the first key pressed after it
+	 * reconciled the marks against the text and unloaded it as an orphan: the picture was on screen
+	 * until you typed a word, and then it was gone from the message.
+	 */
+	useEffect(() => {
+		if (!browserAttachment || browserAttachment.draftKey !== draftKey) return;
+		setText((current) => current.trim() ? `${current.trimEnd()}\n\n${browserAttachment.text}` : browserAttachment.text);
+		attach([{ id: crypto.randomUUID(), name: translate("composer.regionShot"), mimeType: "image/png", isText: false, data: browserAttachment.dataUrl.split(",")[1] }], Number.MAX_SAFE_INTEGER);
+		useApp.setState({ browserAttachment: null });
+	}, [browserAttachment, draftKey, attach]);
 	/*
 	 * 往回翻自己说过的话。
 	 *
@@ -282,7 +292,21 @@ export function Composer({ centered = false }: {
 				draft.replace || !current.trim() ? draft.text : `${current.trimEnd()}\n\n${draft.text}`,
 			);
 		}
-		if (files.length) setAttachments((current) => [...current, ...files as Attachment[]]);
+		if (files.length) {
+			/*
+			 * Every file gets a mark in the sentence, or the next key unloads it as an orphan — that is
+			 * how a marked-up picture handed over from the viewer vanished on the first word typed.
+			 * A draft restored by 撤回 or 分叉 already carries its marks in its text, so only the files
+			 * it does not mention go through `attach`; marking those again would name each one twice.
+			 *
+			 * `attach` sets the list from what it last saw rather than as an update, so it goes first
+			 * and the files already marked are appended after it.
+			 */
+			const bare = unmarkedIn(draft.text ?? "", files as Attachment[]);
+			const marked = (files as Attachment[]).filter((file) => !bare.includes(file));
+			attach(bare, Number.MAX_SAFE_INTEGER);
+			if (marked.length) setAttachments((current) => [...current, ...marked]);
+		}
 		if (refs.length) {
 			setSessionRefs((current) => [...new Map([...current, ...refs].map((ref) => [ref.id, ref])).values()]);
 		}
@@ -312,7 +336,7 @@ export function Composer({ centered = false }: {
 		void shell.offsetWidth;
 		shell.classList.add("ly-composer-catch");
 		shell.addEventListener("animationend", () => shell.classList.remove("ly-composer-catch"), { once: true });
-	}, [draft, activeSessionId]);
+	}, [draft, activeSessionId, attach]);
 
 
 	const commandCwd = workspace?.path ?? scratchCwd ?? "";
@@ -782,14 +806,16 @@ export function Composer({ centered = false }: {
 						 * 高出 12px，里面什么都没有。
 						 */
 						<div className="ly-reveal" data-open={kit.strip.length > 0 || sessionRefs.length > 0 || quotes.length > 0 ? "true" : "false"} data-ly-composer-attachments="">
-							<div className="ly-composer-attachments">
-								{quotes.length > 0 && <QuoteChip quotes={quotes} onRemove={(id) => setQuotes((was) => was.filter((quote) => quote.id !== id))} />}
-								{sessionRefs.length > 0 && (
-									<div className="flex flex-wrap gap-2">
-										{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex h-8 max-w-[240px] items-center gap-1.5 rounded-[10px] border border-line-soft bg-card pr-1.5 pl-2 text-caption text-ink-muted transition-colors hover:text-ink"><MessageSquare size={12} className="shrink-0" /><span className="min-w-0 truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
-									</div>
-								)}
-								{kit.stripNode}
+							<div>
+								<div className="ly-composer-attachments">
+									{quotes.length > 0 && <QuoteChip quotes={quotes} onRemove={(id) => setQuotes((was) => was.filter((quote) => quote.id !== id))} />}
+									{sessionRefs.length > 0 && (
+										<div className="flex flex-wrap gap-2">
+											{sessionRefs.map((session) => <button key={session.id} type="button" aria-label={translate("composer.removeSessionRef", { title: session.title })} onClick={() => setSessionRefs((refs) => refs.filter((ref) => ref.id !== session.id))} className="flex h-8 max-w-[240px] items-center gap-1.5 rounded-[10px] border border-line-soft bg-card pr-1.5 pl-2 text-caption text-ink-muted transition-colors hover:text-ink"><MessageSquare size={12} className="shrink-0" /><span className="min-w-0 truncate">{session.title}</span><X size={12} className="shrink-0" /></button>)}
+										</div>
+									)}
+									{kit.stripNode}
+								</div>
 							</div>
 						</div>
 					}

@@ -155,6 +155,20 @@ export async function type(page: Page, selector: string, text: string): Promise<
 	await frames(page, 2);
 }
 
+/**
+ * 接着输入框里已有的字往后打，不替换。
+ *
+ * 和 `type` 分开：输入框里先有了东西（递进来的附件标记、一段草稿），人接下来是在它后面补一句，
+ * 而全选再打会把那枚标记连同附件一起抹掉，量到的就是另一件事。
+ */
+export async function typeAtEnd(page: Page, selector: string, text: string): Promise<void> {
+	await until(page, finder(selector));
+	await page.evaluate(`(()=>{const e=${finder(selector)};e.focus();e.setSelectionRange(e.value.length,e.value.length);})()`);
+	await frames(page, 2);
+	await page.send("Input.insertText", { text });
+	await frames(page, 2);
+}
+
 /** 按一个键。回车要带 `text`，否则输入框收到的是 keydown 而没有换行或提交。 */
 export async function press(page: Page, key: string, code: number, modifiers = 0): Promise<void> {
 	await page.send("Input.dispatchKeyEvent", { type: "keyDown", key, windowsVirtualKeyCode: code, modifiers, ...(key === "Enter" ? { text: "\r" } : {}) });

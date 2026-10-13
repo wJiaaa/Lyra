@@ -7,7 +7,7 @@ import { Composer } from "../composer/index.ts";
 import { ResumeRow } from "./ResumeRow.tsx";
 import { HiccupRow } from "./HiccupTrace.tsx";
 import { ModelSwitchRow } from "./ModelSwitchRow.tsx";
-import { RunningIndicator } from "./RunningIndicator.tsx";
+import { RunningRow } from "./RunningRow.tsx";
 import { TaskList } from "../task/index.ts";
 import { environmentCard, useEnvironmentCard } from "../../store/environment-card.ts";
 import { clearTranscriptJump, useTranscriptJump } from "../../store/transcript-jump.ts";
@@ -587,16 +587,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
            * 位置。慢慢收的话，贴着底部的转录先被新的一行整段顶上去，再随着这一行变矮一帧帧往下漂，
            * 读起来是字从底下蹦上来、把它顶走了。展开（回答停住之后它回来）照旧是动画。
            */}
-          <div
-            className="ly-reveal"
-            data-open={running && !answering && !compacting}
-            aria-hidden={!running || answering || compacting}
-            style={answering ? { transition: "none" } : undefined}
-          >
-            <div>
-              <div>{running && !compacting && <RunningIndicator />}</div>
-            </div>
-          </div>
+          <RunningRow running={running} answering={answering} compacting={compacting} />
           {/* Where the running indicator would have been, saying why it is not there. */}
           {!side && <ResumeRow />}
           {/*

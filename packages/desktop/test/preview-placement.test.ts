@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Message } from "@plume/core";
 
-import { runs, turnBlocks, type Run, type TurnBlock } from "../src/features/conversation/grouping.ts";
+import { runKey, runs, turnBlocks, type Run, type TurnBlock } from "../src/features/conversation/grouping.ts";
 
 let clock = 1000;
 const user = (text: string): Message => ({ role: "user", content: [{ type: "text", text }], timestamp: clock++ }) as Message;
@@ -92,4 +92,52 @@ test("经 mcp_call 叫的 MCP 工具按真正那个工具排：名字和参数�
 	assert.ok(tools && tools.kind === "tools");
 	assert.equal(tools.calls[0]!.block.name, "mcp__linear__create_issue");
 	assert.deepEqual(tools.calls[0]!.block.arguments, { title: "Bug" });
+});
+
+/*
+ * A reply that calls preview and then goes back to reasoning, in the same message.
+ *
+ * The call is not trailing (`beforeTrailingCalls`), so it stayed in the reply's own row — a row of
+ * nothing but reasoning, which is process (`thinkingOnly`). The page was drawn inside that row
+ * (`segments` → `PreviewCard`) and folded away with it.
+ */
+const mixed = (...blocks: string[]): Message =>
+	({
+		role: "assistant",
+		content: blocks.map((block) =>
+			block.startsWith("think:") ? { type: "thinking", thinking: block.slice(6) } : block.startsWith("say:") ? { type: "text", text: block.slice(4) } : { type: "toolCall", id: `${block}-${clock}`, name: block, arguments: {} },
+		),
+		stopReason: "toolUse",
+		timestamp: clock++,
+	}) as Message;
+
+test("调用 preview 之后同一条回复里接着想：页面仍然自成一行，不在过程里", () => {
+	const reply = mixed("think:先想想", "preview", "think:再看看", "read");
+	const messages = [user("画一只小狗"), reply, result(reply, 1), result(reply, 3), answer("画好了。")];
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "process[assistant]", "page(preview)", "process[assistant work(read)]", "assistant"]);
+});
+
+test("调用 preview 之后接着想、这条回复就此结束：页面也不收进过程", () => {
+	const reply = { ...mixed("think:先想想", "preview", "think:好了"), stopReason: "stop" } as Message;
+	const messages = [user("画一只小狗"), reply, result(reply, 1)];
+	const blocks = turnBlocks(runs(messages));
+	assert.deepEqual(describe(blocks), ["user", "process[assistant]", "page(preview)", "process[assistant]"]);
+	// 回复自己的那一行（时间、交付卡片挂在它下面）还是最后那一段，不是被拆到前面的推理。
+	const last = blocks.at(-1)!.runs[0];
+	assert.ok(last.kind === "message" && !last.lead && last.from === 2 && last.upTo === 3);
+});
+
+test("页面前面说过的话照样在外面，不因为拆开而被当成过程收起", () => {
+	const reply = mixed("say:我先画一版。", "preview", "think:看看效果", "read");
+	const messages = [user("画一只小狗"), reply, result(reply, 1), result(reply, 3), answer("画好了。")];
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "assistant", "page(preview)", "process[assistant work(read)]", "assistant"]);
+});
+
+test("回复里的页面接着写下去时，它那一行的身份不变，页面不会重新挂一遍", () => {
+	const writing = { ...mixed("think:先想想", "preview"), stopReason: "pending" } as Message;
+	const before = runs([user("画一只小狗"), writing]);
+	const after = runs([user("画一只小狗"), { ...writing, content: [...writing.content, { type: "thinking", thinking: "再看看" }] } as Message]);
+	const page = (rows: Run[]) => rows.filter((row) => row.kind === "tools" && row.shown).map(runKey);
+	assert.equal(page(before).length, 1);
+	assert.deepEqual(page(after), page(before));
 });

@@ -7,7 +7,7 @@ import { useApp } from "../../store/index.ts";
 import { useDockScope } from "../../app/session-scope.tsx";
 import { openFileInScreen } from "../../app/file-opener.ts";
 import { useRevealLabel } from "../../store/open-targets.ts";
-import { copyImage, imageDataUrl, saveImage } from "../image/index.ts";
+import { copyImage, imageDataUrl, notifyExportFailed, saveImage } from "../image/index.ts";
 
 const ICON = { size: 13, strokeWidth: 1.8 } as const;
 
@@ -32,7 +32,7 @@ export function GeneratedImageMenu({ anchor, image, onClose }: { anchor: { x: nu
 
 	const addToChat = async () => {
 		const parsed = /^data:([^;,]+);base64,(.*)$/s.exec((await imageDataUrl(image.src)) ?? "");
-		if (!parsed) return;
+		if (!parsed) return notifyExportFailed();
 		const { activeSessionId, setComposerDraft } = useApp.getState();
 		setComposerDraft("", {
 			sessionId: activeSessionId,

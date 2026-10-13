@@ -122,7 +122,7 @@ export function UpdateDialog({
 					)
 				) : undefined
 			}
-			actions={(
+			actions={(dismiss) => (
 				<>
 					{controls.cancel ? (
 						<DialogAction onClick={() => void bridge.updates.cancel()}>
@@ -130,7 +130,7 @@ export function UpdateDialog({
 						</DialogAction>
 					) : null}
 					<div className="flex-1" />
-					<DialogAction onClick={onClose}>{t("common.close")}</DialogAction>
+					<DialogAction onClick={() => dismiss()}>{t("common.close")}</DialogAction>
 					{info.asset ? (
 						<DialogAction tone="primary" disabled={controls.confirmDisabled} onClick={() => void confirm()}>
 							{confirmLabel(phase)}
@@ -140,7 +140,7 @@ export function UpdateDialog({
 							tone="primary"
 							onClick={() => {
 								void bridge.updates.open(info.url);
-								onClose();
+								dismiss();
 							}}
 						>
 							<ExternalLink size={13} strokeWidth={2} aria-hidden />
