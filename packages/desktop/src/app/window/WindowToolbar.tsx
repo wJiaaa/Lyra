@@ -106,11 +106,11 @@ export function WindowHeader({
  * The panels that get a button of their own, in the order they sit in.
  *
  * A shortlist, not the whole registry. These are the ones you reach for while working — a side
- * chat, a shell, a page, the diff — and reaching for them through two clicks of a menu is two
- * clicks too many. Everything else, including anything a plugin contributes, is in the menu beside
- * them, which is also where these appear when they cannot be opened.
+ * chat, a shell, the diff — and reaching for them through two clicks of a menu is two clicks too
+ * many. Everything else, including the browser and anything a plugin contributes, is in the menu
+ * beside them, which is also where these appear when they cannot be opened.
  */
-const QUICK: PanelKind[] = ["chat", "terminal", "browser", "review"];
+const QUICK: PanelKind[] = ["chat", "terminal", "review"];
 
 /**
  * Which panels this conversation has open: a few buttons and a menu.

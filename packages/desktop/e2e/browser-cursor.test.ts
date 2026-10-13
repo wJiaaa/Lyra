@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
+import { openPane } from "./drive.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
 import { landsOn } from "./lands-on.ts";
 
@@ -53,9 +54,7 @@ before(async () => {
 	 * it loads into the conversation's current page, which is this one, so once is enough below.
 	 */
 	await app.evaluate(`new Promise((resolve,reject)=>{let n=1800;const f=()=>{if(document.querySelector('textarea[aria-label="消息"]'))resolve();else if(--n)requestAnimationFrame(f);else reject(new Error('conversation did not open'));};f();})`);
-	const toggle = await app.evaluate<{x:number;y:number}>(`(()=>{const el=document.querySelector('[data-ly-panel-quick] button[aria-label^="浏览器"]'),r=el.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;${landsOn('[data-ly-panel-quick] button[aria-label^="浏览器"]')}return {x,y}})()`);
-	await app.send("Input.dispatchMouseEvent", {type:"mousePressed",button:"left",clickCount:1,...toggle});
-	await app.send("Input.dispatchMouseEvent", {type:"mouseReleased",button:"left",clickCount:1,...toggle});
+	await openPane(app, "浏览器");
 	await app.evaluate(`new Promise((resolve,reject)=>{let n=600;const f=()=>{const pane=document.querySelector('[data-dock-pane^="browser:"]:not([inert])');if(pane)resolve();else if(--n)requestAnimationFrame(f);else reject(new Error('browser panel did not open'));};f();})`);
 });
 after(async () => { await cleanupFixture(() => app?.stop(), () => closeListeningServer(server)); });

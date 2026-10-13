@@ -6,7 +6,7 @@ import { after, afterEach, before, test } from "node:test";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
 import { cleanupFixture } from "./fixture-cleanup.ts";
 import { seedInteractions } from "./interaction-fixture.ts";
-import { click, closeTab, until } from "./drive.ts";
+import { click, closeTab, openPane, until } from "./drive.ts";
 import { landsOn } from "./lands-on.ts";
 
 let app: RunningApp;
@@ -209,8 +209,8 @@ test("fullscreen keeps the native browser page and form state, with one viewport
 test("one navigation row, a compact menu and a icon empty state at wide and 375px widths", async (t) => {
 	await app.evaluate(`window.plume.browser.state().then(async s=>{for(const tab of s.tabs)await window.plume.browser.command({type:'close',id:tab.id})})`);
 	await until(app, `!document.querySelector('[data-dock-pane^="browser:"]')`, 1800);
-	// 网页全关了，标签也就都没了；工具栏的「浏览器」开一页空白的。
-	await click(app, '[data-ly-panel-quick] button[aria-label^="浏览器"]');
+	// 网页全关了，标签也就都没了；「面板」菜单里的「浏览器」开一页空白的。
+	await openPane(app, "浏览器");
 	await until(app, `document.querySelector('[data-dock-pane]:not([inert]) [data-browser-empty]')`, 1800);
 	for (const theme of ["light", "dark"]) for (const width of [1200, 375]) {
 		await app.evaluate(`window.plume.settings.get().then(s=>window.plume.settings.save({...s,appearance:{...s.appearance,theme:${JSON.stringify(theme)}}}))`);
