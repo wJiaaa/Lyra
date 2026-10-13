@@ -28,6 +28,8 @@
     "check": "pnpm lint && pnpm check:links && pnpm style && pnpm i18n && pnpm typecheck && pnpm arch && pnpm test",
     "prepare": "lefthook install",
     "test:e2e": "pnpm --filter @plume/desktop test:e2e",
+    "bench": "node --experimental-strip-types bench/run.ts",
+    "bench:summary": "node --experimental-strip-types bench/summary.ts",
     "audit:sessions": "node --experimental-strip-types scripts/session-audit.ts",
     "audit:prune": "node --experimental-strip-types scripts/session-prune-audit.ts",
     "audit:interface": "node --experimental-strip-types scripts/interface-audit.ts",
