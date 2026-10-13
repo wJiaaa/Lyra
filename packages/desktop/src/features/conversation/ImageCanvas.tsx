@@ -233,6 +233,9 @@ function DrawFailed({ error, model }: { error: NonNullable<ImageGenerateDetails[
 	} else if (error.hint === "check-key") {
 		title = translate("imageGen.notAllowed", { model });
 		note = translate("imageGen.notAllowedHint");
+	} else if (error.hint === "blocked") {
+		title = translate("imageGen.refused");
+		note = translate("imageGen.refusedHint");
 	}
 	return (
 		<div data-ly-image-card="error" className="flex w-fit max-w-[420px] items-start gap-2.5 rounded-xl border border-line bg-card/30 px-3 py-2.5 text-label">

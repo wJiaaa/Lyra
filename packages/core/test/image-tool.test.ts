@@ -151,6 +151,16 @@ test("a refused request reports the provider's own words and is not retried", as
 	assert.equal(seen.length, 1);
 });
 
+test("a refusal on content comes back final: the card says refused, the model is told not to retry it unchanged", async () => {
+	const seen = stubFetch([Response.json({ error: { message: "Your request was rejected as a result of our safety system", code: "moderation_blocked" } }, { status: 400 })]);
+	const result = await imageTool.execute({ prompt: "something it refuses" }, ctx([provider]));
+	assert.equal(result.isError, true);
+	assert.match(text(result), /refused this request under its content policy/);
+	assert.match(text(result), /don't retry it unchanged/);
+	assert.equal((result.details as { error?: { hint?: string } }).error?.hint, "blocked");
+	assert.equal(seen.length, 1);
+});
+
 test("a spent quota is reported with when it resets, without waiting on it", async () => {
 	const seen = stubFetch([new Response(JSON.stringify({ error: { message: "Your quota will reset after 1h52m45s." } }), { status: 429 })]);
 	const result = await imageTool.execute({ prompt: "a fox" }, ctx([provider]));

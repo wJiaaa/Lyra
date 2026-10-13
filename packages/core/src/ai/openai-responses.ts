@@ -21,7 +21,7 @@ import type {
 	StreamEvent,
 } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";
-import { classifyFailure, FailureError, REFUSAL_MESSAGE } from "./failure.ts";
+import { classifyFailure, FailureError, REFUSAL_MESSAGE, spokenSoFar } from "./failure.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { argumentFragment, parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { USER_AGENT, failedStreamEvent, joinUrl, priceAttempt, settleUsage } from "./endpoint.ts";
@@ -633,6 +633,7 @@ async function* streamResponses(
 									raw: JSON.stringify(event).slice(0, 4000),
 									// 流已经吐过字，这次的 token 服务商已经收过钱了。
 									spent: partial.usage.output > 0 || partial.content.length > 0,
+									streamed: spokenSoFar(partial.content),
 								}),
 							);
 						}
@@ -722,6 +723,7 @@ async function* streamResponses(
 							from: "stream",
 							message: "回复没有收尾就断了（没有收到 response.completed）",
 							spent: partial.usage.output > 0 || partial.content.length > 0,
+							streamed: spokenSoFar(partial.content),
 						}),
 					);
 				}
@@ -745,6 +747,7 @@ async function* streamResponses(
 									? "这次回复被内容策略拦下了（content_filter）"
 									: `回复没有正常结束：${incompleteReason}`,
 							spent: partial.usage.output > 0 || partial.content.length > 0,
+							streamed: spokenSoFar(partial.content),
 						}),
 					);
 				}

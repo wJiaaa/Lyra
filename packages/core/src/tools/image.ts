@@ -140,6 +140,12 @@ function failureText(model: string, error: unknown): { text: string; error: NonN
 		const when = failure.retryAfterMs ? ` It resets in about ${wait(failure.retryAfterMs)}.` : "";
 		return { error: recorded, text: `${model} has no quota left.${when} Tell the user; trying again now will fail the same way.` };
 	}
+	if (failure.hint === "blocked") {
+		return {
+			error: recorded,
+			text: `The provider refused this request under its content policy (${detail.slice(0, 300)}). Tell the user it was refused; the same request will be refused the same way, so don't retry it unchanged.`,
+		};
+	}
 	if (failure.hint === "check-key") {
 		return { error: recorded, text: `The provider refused ${model} for this key (${detail.slice(0, 300)}). The user may need to allow the model for the key, or use a provider address whose group includes it. Don't retry.` };
 	}

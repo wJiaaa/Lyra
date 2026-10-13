@@ -100,8 +100,13 @@ export type FailureInput =
 	| { from: "transport"; error: unknown; sending?: boolean }
 	/** 服务器答了，但状态码不是 2xx。 */
 	| { from: "status"; status: number; body?: string }
-	/** 连接和状态码都正常，错误写在流里面。 */
-	| { from: "stream"; message?: string; raw?: string; spent?: boolean }
+	/**
+	 * 连接和状态码都正常，错误写在流里面。
+	 *
+	 * `streamed`：出错之前已经流到窗口里的正文（`spokenSoFar`）。服务商有时把拒绝当成回答写出来，再由中转
+	 * 补一个泛泛的错误收尾，单看那个错误像是一次抖动——见 `refusalIn`。
+	 */
+	| { from: "stream"; message?: string; raw?: string; spent?: boolean; streamed?: string }
 	/**
 	 * 流正常结束，但一个字都没有——见 `fromEmpty`。
 	 *
@@ -211,7 +216,11 @@ const FATAL_PHRASES: {
 	{ match: /invalid[_\s-]?api[_\s-]?key|incorrect api key|unauthorized|api key not valid|密钥无效/i, summary: "密钥被拒绝", hint: "check-key" },
 	{ match: /account[_\s-]?(deactivated|disabled|suspended|banned)|账号已(停用|禁用|封禁)/i, summary: "账号已停用", hint: "check-billing" },
 	// `REFUSAL_MESSAGE` 是三条链在模型拒答时自己拼的那句（Anthropic `stop_reason: refusal`、两条 OpenAI 链的 `refusal` 字段）。
-	{ match: /content[_\s-]?filter|content[_\s-]?policy|safety|违反.{0,6}政策|内容审核|stop_reason:\s*refusal|模型拒绝回答/i, summary: "内容被安全策略拒绝", hint: "blocked" },
+	{
+		match: /content[_\s-]?filter|content[_\s-]?policy|safety|prohibited[_\s-]?(use|content)|sensitive words|moderation[_\s-]?blocked|违反.{0,6}政策|内容审核|stop_reason:\s*refusal|模型拒绝回答/i,
+		summary: "内容被安全策略拒绝",
+		hint: "blocked",
+	},
 	{ match: /model[_\s-]?not[_\s-]?found|does not exist|no such model|模型不存在/i, summary: "模型或地址不存在", hint: "check-model" },
 	// 上下文超长也是这张表的一条，原话多、还在长，单独放在 `CONTEXT_OVERFLOW`。
 	{ match: { test: isOverflowText }, summary: "上下文超出模型上限", hint: "check-request", code: "context-overflow", notOnRateLimit: true },
@@ -462,7 +471,7 @@ export function classifyFailure(input: FailureInput): Failure {
 		case "status":
 			return fromStatus(input.status, input.body);
 		case "stream":
-			return fromStream(input.message, input.raw, input.spent === true);
+			return fromStream(input.message, input.raw, input.spent === true, input.streamed);
 		case "empty":
 			return fromEmpty(input.why, input.body, input.output);
 	}
@@ -636,7 +645,7 @@ function fromStatus(status: number, body?: string): Failure {
 	};
 }
 
-function fromStream(message: string | undefined, raw: string | undefined, spent: boolean): Failure {
+function fromStream(message: string | undefined, raw: string | undefined, spent: boolean, streamed?: string): Failure {
 	const said = (message ?? "").trim() || messageFromBody(raw);
 	/*
 	 * 超长另看整帧原文，同 `fromStatus`：只在 `error.code` 里写 `context_length_exceeded` 的错误帧，挑出来的
@@ -651,6 +660,24 @@ function fromStream(message: string | undefined, raw: string | undefined, spent:
 			hint: phrase.hint,
 			...(phrase.code ? { code: phrase.code } : {}),
 			fingerprint: fingerprintOf("fatal", phrase.summary),
+			costIncurred: spent || undefined,
+		};
+	}
+
+	/*
+	 * 错误本身什么也没说，但它前面流出来的是服务商的拒绝。
+	 *
+	 * Gemini 经中转时把拒绝当成回答流出来——「The prompt could not be submitted … violate Google's
+	 * Generative AI Prohibited Use policy」——中转再补一个泛泛的 `internal_server_error`。只看错误就是一次
+	 * 抖动，于是每 5 秒重试一次，每次再流一遍同一段拒绝，直到有人按停。
+	 */
+	if (refusalIn(streamed)) {
+		return {
+			kind: "fatal",
+			summary: "内容被安全策略拒绝",
+			detail: truncateDetail([streamed?.trim(), raw ?? said].filter(Boolean).join("\n\n")),
+			hint: "blocked",
+			fingerprint: fingerprintOf("fatal", "streamed-refusal"),
 			costIncurred: spent || undefined,
 		};
 	}
@@ -755,6 +782,26 @@ function fromEmpty(why: "no-content" | "no-frames" | "unparsable" | "not-stream"
  * 它的人要先读过「重发的是同一个请求体」这句。
  */
 const EMPTY_REPLY_RETRIES = 4;
+
+/**
+ * 服务商自己的拒绝句式，以回答的形式到达时的样子。
+ *
+ * 刻意比 `FATAL_PHRASES` 窄：那张表读的是报错正文，那里的 safety 就是拒绝；这里读的是模型写的字，
+ * safety 也可能是在讲线程安全。所以只认固定句式，而且只在短回答里认——拒绝就一两句话，不会是一篇
+ * 长回答的结尾恰好引用了一句。
+ */
+const STREAMED_REFUSALS = [/Generative AI Prohibited Use policy/i, /The prompt could not be submitted/i, /prompt contains sensitive words/i];
+const REFUSAL_MAX_CHARS = 600;
+
+function refusalIn(streamed: string | undefined): boolean {
+	const text = streamed?.trim() ?? "";
+	return text.length > 0 && text.length <= REFUSAL_MAX_CHARS && STREAMED_REFUSALS.some((pattern) => pattern.test(text));
+}
+
+/** 进行中的回复里已经显示出来的正文——人已经看到的那部分，不含思考。 */
+export function spokenSoFar(content: readonly { type: string; text?: string }[]): string {
+	return content.flatMap((part) => (part.type === "text" && typeof part.text === "string" ? [part.text] : [])).join("");
+}
 
 /** 只看整段原文认出的超长，和 `FATAL_PHRASES` 里那条给一样的结论。 */
 const OVERFLOW_REASON = { summary: "上下文超出模型上限", hint: "check-request", code: "context-overflow" } as const;

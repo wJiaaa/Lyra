@@ -31,6 +31,12 @@ fetch 在发出请求之前就拒绝的也不重试：请求头含非 ByteString
 （`: keepalive`）也算活着。Node 内置 fetch 默认 300 秒无字节就切断响应体，比闸短，所以桌面端主进程与 CLI
 启动时用 undici 的 `setGlobalDispatcher` 把 `bodyTimeout`/`headersTimeout` 设成 `TRANSPORT_TIMEOUT_MS`（闸加一分钟）。
 
+服务商有时把拒绝写成回答本身流出来，再由中转补一个泛泛的流内错误收尾（2026-10-13：Gemini 经中转流出
+「The prompt could not be submitted … Prohibited Use policy」，随后 `internal_server_error`，被当成上游故障每
+5 秒重试一次，每次再流一遍同一段话）。适配器在流内错误和半截断流时把已流出的可见文字交给分类器
+（`streamed`），只认服务商固定的拒绝句式、且整段不超过 600 字时判为「内容被安全策略拒绝」——模型正文里
+随便出现的 safety 不算。生图走 chat 路由时只回文字的，按同样的规则判。被拒的那一轮输入框不给「继续」。
+
 三个模型适配器在每次请求开始时创建 `RetryBudget`，连接和流共享其中的两类计数，不能嵌套倍增。
 流失败仅重建尚未执行工具的回复，沿用现有 partial 替换机制。完整工具结果不重放。
 会话外层 continuation 不再在请求预算用完后发起另一组错误重试；步数耗尽的正常续跑保留。

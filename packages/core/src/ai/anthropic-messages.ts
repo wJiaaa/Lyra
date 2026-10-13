@@ -20,7 +20,7 @@ import type {
 	StreamEvent,
 } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";
-import { classifyFailure, FailureError, REFUSAL_MESSAGE } from "./failure.ts";
+import { classifyFailure, FailureError, REFUSAL_MESSAGE, spokenSoFar } from "./failure.ts";
 import { thinkingDialect } from "./vendors/index.ts";
 import { anthropicThinkingFields, anthropicThinkingOn } from "./vendors/thinking.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
@@ -734,6 +734,7 @@ async function* streamAnthropic(
 									message: typeof said === "string" ? said : undefined,
 									raw: JSON.stringify(event).slice(0, 4000),
 									spent: partial.usage.output > 0 || partial.content.length > 0,
+									streamed: spokenSoFar(partial.content),
 								}),
 							);
 						}
@@ -800,6 +801,7 @@ async function* streamAnthropic(
 							from: "stream",
 							message: "回答只传了一半，连接就断了",
 							spent: true,
+							streamed: spokenSoFar(partial.content),
 						}),
 					);
 				}
