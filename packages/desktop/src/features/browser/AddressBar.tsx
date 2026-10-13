@@ -32,8 +32,8 @@ export function AddressBar({ url, bookmarks, search, onOpen, onOutside, inputRef
 	bookmarks: { url: string; title: string }[];
 	search: BrowserSearchSettings | undefined;
 	onOpen: (url: string) => void;
-	/** Hand the page to the system's browser; absent while there is no page to hand over. */
-	onOutside?: () => void;
+	/** Hand to the system's browser what Enter would open, or with nothing typed (`null`) the page on screen. */
+	onOutside?: (typed: string | null) => void;
 	inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
 	const settled = url === "about:blank" ? "" : url;
@@ -85,6 +85,7 @@ export function AddressBar({ url, bookmarks, search, onOpen, onOutside, inputRef
 	}, [typed, value, target, bookmarks, engine, search]);
 
 	const open = focused && choices.length > 0;
+	const draft = typed && target ? target.url : null;
 	// Clamped rather than reset, so typing another letter keeps the row the arrow keys landed on.
 	const index = Math.min(active, choices.length - 1);
 
@@ -136,9 +137,13 @@ export function AddressBar({ url, bookmarks, search, onOpen, onOutside, inputRef
 			}}
 			className="h-[26px] w-full rounded-md border border-line bg-input pl-7 pr-7 text-detail text-ink placeholder:text-ink-faint focus:border-ink-faint"
 		/>
-		{/* Always there, disabled on an empty tab: a button that comes and goes with the page reads as one that was removed. */}
-		<span className="absolute right-[3px] top-1/2 -translate-y-1/2">
-			<IconButton size="xs" label={translate("address.openOutside")} icon={<ArrowUpRight size={12} />} disabled={!onOutside} onClick={() => onOutside?.()}
+		{/*
+		  * Always there, disabled with nothing typed on an empty tab: a button that comes and goes with the page reads as
+		  * one that was removed. Pressing it keeps the focus in the field — a blur first put the page's address back over
+		  * what had been typed, so a path pasted into an empty tab was gone before the click arrived.
+		  */}
+		<span className="absolute right-[3px] top-1/2 -translate-y-1/2" onMouseDown={(event) => event.preventDefault()}>
+			<IconButton size="xs" label={translate("address.openOutside")} icon={<ArrowUpRight size={12} />} disabled={!onOutside || (!draft && !settled)} onClick={() => onOutside?.(draft)}
 				data-omnibox-outside className="text-ink-faint hover:bg-card-hover hover:text-ink" />
 		</span>
 		{open && <div

@@ -41,8 +41,10 @@ test("本地 HTML：地址栏和 IPC 认出来交给主进程拷贝，网页本�
 	for (const text of ["example.com", "https://a.com/page.html", "localhost:3000", "天气", "ly-preview://s/p/index.html", "~", "~user/a.html"]) assert.equal(browserLocalPage(text), false, text);
 	// 从终端复制出来的路径：曾被当成搜索词送去必应。
 	assert.equal(browserOmnibox("~/Desktop/待办清单/原型.html").kind, "open");
-	// 在外部浏览器打开只带标签 id：打开什么由主进程按标签决定，渲染进程给不了 file: 地址。
-	assert.deepEqual(parseBrowserCommand({ type: "external", id: "tab", url: "file:///etc/passwd" }), { type: "external", id: "tab" });
+	// 在外部浏览器打开：标签的由主进程按标签决定；地址栏里打的和打开一样过一遍，本地路径到主进程只开 .html。
+	assert.deepEqual(parseBrowserCommand({ type: "external", id: "tab" }), { type: "external", id: "tab" });
+	assert.deepEqual(parseBrowserCommand({ type: "external", url: " ~/Desktop/原型.html " }), { type: "external", url: "~/Desktop/原型.html" });
+	assert.throws(() => parseBrowserCommand({ type: "external", url: "javascript:alert(1)" }));
 	assert.deepEqual(browserOmnibox(" /Users/a/page.html "), { kind: "open", url: "/Users/a/page.html", query: "/Users/a/page.html" });
 	assert.equal(parseBrowserCommand({ type: "open", url: "file:///Users/a/page.html", sessionId: null }).type, "open");
 	assert.deepEqual(parseBrowserCommand({ type: "navigate", id: "tab", url: "/Users/a/page.html" }), { type: "navigate", id: "tab", url: "/Users/a/page.html" });

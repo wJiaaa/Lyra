@@ -102,17 +102,29 @@ test("a page that navigates mid-word does not take the word away, and Escape giv
 	} finally { await view.unmount(); }
 });
 
-test("the page goes to the system's browser from a button that stays put, disabled with no page", async () => {
+test("the system's browser gets what is typed, else the page, from a button that keeps the typing and stays put", async () => {
 	const inputRef = createRef<HTMLInputElement>();
-	const view = await mount(h(AddressBar, { url: "about:blank", bookmarks: [], search: undefined, inputRef, onOpen: () => {} }));
+	const asked: (string | null)[] = [];
+	const props = { bookmarks: [], search: undefined, inputRef, onOpen: () => {}, onOutside: (typed: string | null) => { asked.push(typed); } };
+	const view = await mount(h(AddressBar, { url: "about:blank", ...props }));
 	try {
 		const button = () => view.find<HTMLButtonElement>("[data-omnibox-outside]");
+		const field = view.find<HTMLInputElement>("input");
 		assert.equal(button().disabled, true);
 		assert.equal(button().getAttribute("aria-label"), "在外部浏览器中打开");
-		let asked = 0;
-		await view.rerender(h(AddressBar, { url: "https://example.com/", bookmarks: [], search: undefined, inputRef, onOpen: () => {}, onOutside: () => { asked++; } }));
+		// 空白标签上贴一条路径，不回车直接点：曾经按下那一刻输入框失焦、被清空，按钮也是灰的。
+		await type(field, "~/Desktop/待办清单/原型.html");
 		assert.equal(button().disabled, false);
+		const down = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+		await fire(button(), down);
+		assert.equal(down.defaultPrevented, true);
 		await fire(button(), new MouseEvent("click", { bubbles: true }));
-		assert.equal(asked, 1);
+		assert.deepEqual(asked, ["~/Desktop/待办清单/原型.html"]);
+		assert.equal(field.value, "~/Desktop/待办清单/原型.html");
+		// 没打字时交出去的是屏幕上那一页，由面板按标签去取。
+		await fire(field, new Event("focusout", { bubbles: true }));
+		await view.rerender(h(AddressBar, { url: "https://example.com/", ...props }));
+		await fire(button(), new MouseEvent("click", { bubbles: true }));
+		assert.deepEqual(asked, ["~/Desktop/待办清单/原型.html", null]);
 	} finally { await view.unmount(); }
 });

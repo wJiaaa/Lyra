@@ -315,6 +315,7 @@ export async function browserCommand(command: BrowserCommand): Promise<BrowserSt
 		await openBrowser(url, command.sessionId, command.newTab);
 		return browserState();
 	}
+	if (command.type === "external" && "url" in command) { await openOutside([command.url]); return browserState(); }
 	if (command.type === "close") { closeBrowser(command.id); return browserState(); }
 	const tab = tabs.get(command.id);
 	// A ResizeObserver notification may arrive after the user closed its guest.

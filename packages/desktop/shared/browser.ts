@@ -58,6 +58,8 @@ export type BrowserCommand =
 	| { type: "open"; url: string; sessionId: string | null; newTab?: boolean }
 	| { type: "navigate"; id: string; url: string }
 	| { type: "select" | "close" | "back" | "forward" | "reload" | "devtools" | "external"; id: string }
+	/** What the address bar holds but has not opened yet, for the system's browser. */
+	| { type: "external"; url: string }
 	| { type: "zoom"; id: string; factor: number }
 	| { type: "resize"; id: string; width: number; height: number }
 	| { type: "viewport"; id: string; viewport: BrowserViewport | null };
@@ -198,6 +200,8 @@ export function parseBrowserCommand(value: unknown): BrowserCommand {
 		if (!("url" in value) || typeof value.url !== "string" || !("sessionId" in value) || (value.sessionId !== null && typeof value.sessionId !== "string") || ("newTab" in value && typeof value.newTab !== "boolean")) throw new Error("无效的打开请求");
 		return { type: "open", url: browserTarget(value.url), sessionId: value.sessionId, newTab: "newTab" in value && value.newTab === true };
 	}
+	// 地址栏里打了还没回车的那一行。和打开一样只认网页地址和本地路径，本地路径只开 `.html`，见 `openOutside`。
+	if (value.type === "external" && "url" in value && typeof value.url === "string") return { type: "external", url: browserTarget(value.url) };
 	if (!("id" in value) || typeof value.id !== "string") throw new Error("需要标签 ID");
 	const id = value.id;
 	switch (value.type) {

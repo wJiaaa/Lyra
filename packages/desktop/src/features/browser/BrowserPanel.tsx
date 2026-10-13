@@ -87,7 +87,7 @@ export function BrowserPanel() {
 			<IconButton size="sm" label={t("browser.back")} icon={<ArrowLeft size={13} />} disabled={!tab?.canGoBack} onClick={() => command("back")} />
 			<IconButton size="sm" label={t("browser.forward")} icon={<ArrowRight size={13} />} disabled={!tab?.canGoForward} onClick={() => command("forward")} />
 			<IconButton size="sm" label={t("common.refresh")} icon={<RotateCw size={13} className={tab?.loading ? "ly-pulse" : ""} />} disabled={!tab} onClick={() => command("reload")} />
-			<AddressBar url={tab?.url ?? "about:blank"} bookmarks={settings?.browser?.bookmarks ?? []} search={settings?.browser} onOpen={go} onOutside={blank || !tab ? undefined : () => void commandBrowser({ type: "external", id: tab.id })} inputRef={addressInput} />
+			<AddressBar url={tab?.url ?? "about:blank"} bookmarks={settings?.browser?.bookmarks ?? []} search={settings?.browser} onOpen={go} onOutside={(typed) => { if (typed) void commandBrowser({ type: "external", url: typed }); else if (tab && !blank) void commandBrowser({ type: "external", id: tab.id }); }} inputRef={addressInput} />
 			<IconButton label={t("browser.menu")} menu={options.open} data-inspecting={inspecting ? "" : undefined} onClick={(event) => { setMenu("actions"); options.toggle(event); }}
 				className="aria-expanded:bg-card-hover aria-expanded:text-ink data-[inspecting]:bg-card-hover data-[inspecting]:text-ink" icon={<Ellipsis size={16} />} />
 		</div>
