@@ -73,6 +73,16 @@ test("标记：写完的画、没写完的扣着", () => {
 	assert.equal(parseBlock("<Text>a</Te").problems.length, 0);
 });
 
+test("标记：写到一半的标签报出名字和它将来的父元素，好让画的一边先占位", () => {
+	const inCard = parseBlock('<Card title="A"><Stat label="x"/><Chart data={[{a: 1}');
+	assert.equal(inCard.pending?.name, "Chart");
+	assert.equal(inCard.pending?.within, inCard.nodes[0], "挂在 Card 里，不是顶层");
+	assert.deepEqual(parseBlock("<Text>a</Text><Table rows=").pending, { name: "Table", within: null }, "顶层的 within 是 null");
+	assert.equal(parseBlock("<Text>a</Text><Ch").pending, undefined, "名字还没写完：<Ch 可能是 <Chart，也可能不是");
+	assert.equal(parseBlock("<Text>a</Te").pending, undefined, "写到一半的闭合标签不算");
+	assert.equal(parseBlock("<Text>a</Text>").pending, undefined);
+});
+
 test("标记：属性、文字和闭合", () => {
 	const card = only(`<Card title="周报" subtitle='第 3 周'>
 		<Toggle name="on" checked/>

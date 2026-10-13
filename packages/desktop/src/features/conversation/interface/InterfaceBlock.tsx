@@ -6,8 +6,9 @@
  * the three things the drawing owns:
  *
  * - **It grows as it is written.** Each finished tag appears as it arrives (`parseBlock` holds back
- *   the one being written); the block is inert until its closing fence is in, so nothing is pressed
- *   while its options are still arriving under the cursor.
+ *   the one being written, and dots hold its place meanwhile — see `arrive.ts`); the block is inert
+ *   until its closing fence is in, so nothing is pressed while its options are still arriving under
+ *   the cursor.
  * - **It remembers.** What the reader set, and the tab they had open, is kept per block across
  *   reloads (`interface-state.ts`).
  * - **It answers.** A `send` button says its words in the reader's name, and the model gets the
@@ -21,6 +22,7 @@ import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type 
 import { initialState, parseBlock } from "@plume/core/ui-language";
 import { useScopedSessionId } from "../../../app/session-scope.tsx";
 import { sayFor } from "../../../store/say.ts";
+import { useArrivals } from "./arrive.ts";
 import { recall, remember, stateKey, type BlockState } from "./interface-state.ts";
 import { renderNodes, type Scope } from "./render.tsx";
 
@@ -84,6 +86,12 @@ export function InterfaceBlock({ source, writing, fallback }: { source: string; 
 	const parsed = useMemo(() => parseBlock(source), [source]);
 	const initial = useMemo(() => initialState(parsed.nodes), [parsed]);
 	const key = stateKey(sessionId, source);
+	const drawing = useRef<HTMLDivElement>(null);
+	const layer = useRef<HTMLDivElement>(null);
+	const pending = writing ? parsed.pending : undefined;
+	const shown = parsed.nodes.length > 0 || pending !== undefined;
+	// Not before it is shown: a block starts out empty and draws nothing, so there is nothing to watch yet.
+	useArrivals(drawing, layer, writing && shown);
 	// Only a finished block has a key worth remembering under: while it is written the text changes every frame.
 	const fresh = (): BlockState & { key: string } => ({ key, ...(writing ? { values: {} } : recall(key)) });
 	const [own, setOwn] = useState(fresh);
@@ -96,6 +104,7 @@ export function InterfaceBlock({ source, writing, fallback }: { source: string; 
 	const scope: Scope = {
 		values,
 		depth: 0,
+		pending,
 		set: (next) => setOwn((was) => ({ ...was, values: { ...was.values, ...next } })),
 		send: (words) => {
 			if (sessionId) sayFor(sessionId, words, spoken(words, values));
@@ -114,12 +123,15 @@ export function InterfaceBlock({ source, writing, fallback }: { source: string; 
 			set: (id, title) => setOwn((was) => ({ ...was, tabs: { ...was.tabs, [id]: title } })),
 		},
 	};
-	if (!parsed.nodes.length) return null;
+	if (!shown) return null;
 	return (
 		<Boundary source={source} fallback={fallback}>
 			<Growing active={writing}>
-				<div className="ly-ui" data-ly-interface={writing ? "writing" : "ready"} aria-busy={writing || undefined} inert={writing || undefined}>
-					{renderNodes(parsed.nodes, scope)}
+				<div className="relative">
+					<div ref={drawing} className="ly-ui" data-ly-interface={writing ? "writing" : "ready"} aria-busy={writing || undefined} inert={writing || undefined}>
+						{renderNodes(parsed.nodes, scope)}
+					</div>
+					<div ref={layer} aria-hidden className="pointer-events-none absolute inset-0" />
 				</div>
 			</Growing>
 		</Boundary>

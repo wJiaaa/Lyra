@@ -44,6 +44,12 @@ export interface ParsedBlock {
 	nodes: UiNode[];
 	/** What could not be read, in the words the model will be shown. */
 	problems: string[];
+	/**
+	 * The tag being written when the source ran out: its name is in, its `>` is not. It is held back
+	 * like any half tag — this says only what is coming and where, so a drawing can keep its place.
+	 * `within` is the element it will be a child of, null at the top.
+	 */
+	pending?: { name: string; within: UiElement | null };
 }
 
 /** The index just past the `}` that closes the `{` at `start`, or -1 if it has not been written yet. */
@@ -175,6 +181,7 @@ export function parseBlock(source: string): ParsedBlock {
 	const problems: string[] = [];
 	const root: UiElement = { kind: "element", name: "", props: {}, children: [], open: true };
 	const stack: UiElement[] = [root];
+	let pending: ParsedBlock["pending"];
 	let at = 0;
 	const flushText = (raw: string) => {
 		const parts = textParts(raw, problems);
@@ -233,12 +240,16 @@ export function parseBlock(source: string): ParsedBlock {
 			continue;
 		}
 		const tag = readTag(source, next + 1 + name[0].length);
-		if (!tag) break;
+		if (!tag) {
+			// Only once the name is whole: `<Ch` may yet be `<Chart`.
+			if (next + 1 + name[0].length < source.length) pending = { name: name[0], within: stack.length > 1 ? stack.at(-1)! : null };
+			break;
+		}
 		problems.push(...tag.problems);
 		const element: UiElement = { kind: "element", name: name[0], props: tag.props, children: [], open: !tag.selfClosing };
 		stack.at(-1)!.children.push(element);
 		if (!tag.selfClosing) stack.push(element);
 		at = tag.end;
 	}
-	return { nodes: root.children, problems };
+	return pending ? { nodes: root.children, problems, pending } : { nodes: root.children, problems };
 }

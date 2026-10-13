@@ -63,4 +63,89 @@
     font-size: var(--text-caption);
     font-variant-numeric: tabular-nums;
   }
+
+  /*
+   * A tag still being written (`render.tsx`) is held its place as a building site (`site.ts`): dots,
+   * a probe lighting them, dotted guides and corner handles. Its size is by name — the attributes are
+   * not in yet — so the block does not sit empty while a long tag, a chart's data, arrives. When it
+   * arrives a chart or a table is traced and uncovered (`trace.ts`), anything else only uncovered (`arrive.ts`).
+   * Every colour is the ink at some strength, so the drawing sits on a card and on the page alike.
+   */
+  .ly-ui-pending,
+  .ly-ui-trace,
+  .ly-ui-fade {
+    --ly-ui-dot: color-mix(in srgb, var(--color-ink) 26%, transparent);
+    --ly-ui-dot-lit: color-mix(in srgb, var(--color-ink) 80%, transparent);
+    --ly-ui-wire: color-mix(in srgb, var(--color-ink) 50%, transparent);
+  }
+  .ly-ui-pending {
+    position: relative;
+    height: 2.25rem;
+  }
+  .ly-ui-pending > canvas,
+  .ly-ui-pending > svg,
+  .ly-ui-trace > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .ly-ui-pending[data-ly-ui-pending="Chart"] {
+    height: 200px; /* `md`, the size a chart is unless it says otherwise */
+  }
+  .ly-ui-pending[data-ly-ui-pending="Table"] {
+    height: 5.25rem;
+  }
+  .ly-ui-pending:is([data-ly-ui-pending="Stat"], [data-ly-ui-pending="Callout"]) {
+    height: 3rem;
+  }
+  .ly-ui-pending:is([data-ly-ui-pending="Heading"], [data-ly-ui-pending="Text"], [data-ly-ui-pending="Badge"], [data-ly-ui-pending="Progress"]) {
+    height: 1.25rem;
+  }
+  .ly-ui-pending[data-ly-ui-pending="Button"] {
+    width: 6rem;
+    height: 2rem;
+  }
+
+  .ly-ui-guide {
+    stroke: var(--ly-ui-wire);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-dasharray: 0 5;
+  }
+  .ly-ui-handle {
+    fill: none;
+    stroke: var(--ly-ui-dot-lit);
+    stroke-width: 1;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  /* Drawn as round dots: `trace.ts` writes a dash array of zero-length dashes as the line grows. */
+  .ly-ui-wire {
+    fill: none;
+    stroke: var(--ly-ui-wire);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0;
+  }
+  .ly-ui-tip {
+    fill: var(--ly-ui-dot-lit);
+  }
+
+  /* The field the trace is drawn over, and the dots a small element is uncovered from: the placeholder's grid. */
+  .ly-ui-trace,
+  .ly-ui-fade {
+    position: absolute;
+    background: radial-gradient(circle, var(--ly-ui-dot) 1.1px, transparent 1.4px) center / 15px 15px;
+  }
+  /* The edge between what has arrived and the drawing still waiting under it. */
+  .ly-ui-scan {
+    position: absolute;
+    left: 0;
+    height: 1px;
+    width: 100%;
+    background: linear-gradient(90deg, transparent, var(--ly-ui-dot-lit) 20%, var(--ly-ui-dot-lit) 80%, transparent);
+  }
 }

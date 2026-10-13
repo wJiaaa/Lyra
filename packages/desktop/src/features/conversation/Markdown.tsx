@@ -158,10 +158,23 @@ export const Markdown = memo(function Markdown({
 
 	return (
 		<Doc.Provider value={doc}>
-			<div className={`prose-dw min-w-0 ${className}`}>{blocks}</div>
+			<Writing.Provider value={active || streaming}>
+				<div className={`prose-dw min-w-0 ${className}`}>{blocks}</div>
+			</Writing.Provider>
 		</Doc.Provider>
 	);
 });
+
+/**
+ * 这条回复还在写（字还在来，或者还没演完）。和 `fade` 分开，因为减弱动效时 `fade` 不亮，而界面块
+ * 写完之前不给点这件事不能跟着动效一起关：从前减弱动效时选项还在长，就已经点得动了。
+ */
+const Writing = createContext(false);
+
+function WrittenInterface({ code, open, fallback }: { code: string; open: boolean; fallback: ReactNode }) {
+	const writing = useContext(Writing);
+	return <InterfaceBlock source={code} writing={open && writing} fallback={fallback} />;
+}
 
 /**
  * 一个顶层块，原文没变就不重画。
@@ -227,7 +240,7 @@ function renderBlock(block: Block, preview = false, fade = false): ReactNode {
 			 * 它的选项还在一个一个长出来。画不出来时退回代码，理由同上。
 			 */
 			if (isInterface(block.lang)) {
-				return <InterfaceBlock source={block.code} writing={Boolean(block.open) && fade} fallback={<CodeBlock lang={block.lang} code={block.code} fade={fade} />} />;
+				return <WrittenInterface code={block.code} open={Boolean(block.open)} fallback={<CodeBlock lang={block.lang} code={block.code} fade={fade} />} />;
 			}
 			return <CodeBlock lang={block.lang} code={block.code} fade={fade} />;
 		case "rule":

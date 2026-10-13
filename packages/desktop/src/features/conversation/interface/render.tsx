@@ -6,11 +6,12 @@
  * them has to defend itself — what was wrong is reported to the model instead (`checkBlock`).
  */
 
-import { Fragment, type ReactNode } from "react";
-import { COMPONENTS, evaluate, readProps, text, type UiElement, type UiNode } from "@plume/core/ui-language";
+import { Fragment, type ReactNode, useLayoutEffect, useRef } from "react";
+import { COMPONENTS, evaluate, readProps, text, type ParsedBlock, type UiElement, type UiNode } from "@plume/core/ui-language";
 import { Callout, Card, Divider, Grid, Heading, Progress, Row, Stack, Stat, Table, Tabs, type Tone, Words } from "./content.tsx";
 import { Chart } from "./Chart.tsx";
 import { ActionButton, ChoiceField, InputField, SelectField, SliderField, ToggleField } from "./controls.tsx";
+import { buildSite } from "./site.ts";
 
 export interface Scope {
 	/** State, and inside an `Each` the item it is repeating for. */
@@ -23,7 +24,15 @@ export interface Scope {
 	tabs: { get: (id: string) => string | undefined; set: (id: string, title: string) => void };
 	/** How many cards this is inside: a card in a card has no frame of its own. */
 	depth: number;
+	/** The tag being written, while the block is: it gets a placeholder where it will stand. */
+	pending?: ParsedBlock["pending"];
 }
+
+/**
+ * No placeholder for these. A container's opening tag is short and its children bring their own; a
+ * divider is a line, and dots standing in for a line read as something else arriving.
+ */
+const UNHELD = new Set(["Stack", "Row", "Grid", "Card", "Tabs", "Tab", "Each", "Divider"]);
 
 /** More rows than a reply should hold; past this an `Each` is a list for a table or a chart. */
 const MAX_REPEAT = 200;
@@ -34,15 +43,28 @@ function wordsOf(nodes: UiNode[], values: Readonly<Record<string, unknown>>): st
 		.join("");
 }
 
-export function renderNodes(nodes: UiNode[], scope: Scope): ReactNode[] {
-	return nodes.map((node, index) => (node.kind === "text" ? <Fragment key={index}>{wordsOf([node], scope.values)}</Fragment> : <Fragment key={index}>{renderElement(node, scope)}</Fragment>));
+/** `within` is the element these are the children of, null at the top — where a pending tag is placed. */
+export function renderNodes(nodes: UiNode[], scope: Scope, within: UiElement | null = null): ReactNode[] {
+	const drawn = nodes.map((node, index) => (node.kind === "text" ? <Fragment key={index}>{wordsOf([node], scope.values)}</Fragment> : <Fragment key={index}>{renderElement(node, scope)}</Fragment>));
+	const coming = scope.pending;
+	// Keyed by where it stands, so the next tag's placeholder is a new one and ripples out afresh.
+	if (coming && coming.within === within && COMPONENTS[coming.name] && !UNHELD.has(coming.name)) drawn.push(<Placeholder key={`pending:${nodes.length}`} name={coming.name} />);
+	return drawn;
+}
+
+/** Its size is by name alone (`interface.css`): the attributes are not in yet, and are not read. */
+function Placeholder({ name }: { name: string }) {
+	const host = useRef<HTMLDivElement>(null);
+	// Before the first paint, so it never shows as an empty box.
+	useLayoutEffect(() => (host.current ? buildSite(host.current) : undefined), []);
+	return <div ref={host} aria-hidden className="ly-ui-pending" data-ly-ui-pending={name} />;
 }
 
 function renderElement(element: UiElement, scope: Scope): ReactNode {
 	if (!COMPONENTS[element.name]) return null;
 	const props = readProps(element, scope.values);
 	if ("when" in element.props && !props.when) return null;
-	const inner = (next: Scope = scope) => renderNodes(element.children, next);
+	const inner = (next: Scope = scope) => renderNodes(element.children, next, element);
 	const words = () => wordsOf(element.children, scope.values);
 	const tone = props.tone as Tone | undefined;
 	const field = (name: string) => ({ value: scope.values[name], onChange: (value: unknown) => scope.set({ [name]: value }) });
@@ -69,7 +91,7 @@ function renderElement(element: UiElement, scope: Scope): ReactNode {
 					titles={titles}
 					value={name ? String(scope.values[name] ?? "") : scope.tabs.get(id)}
 					onChange={name ? (title) => scope.set({ [name]: title }) : (title) => scope.tabs.set(id, title)}
-					render={(at) => renderNodes(tabs[at]?.children ?? [], scope)}
+					render={(at) => renderNodes(tabs[at]?.children ?? [], scope, tabs[at] ?? null)}
 				/>
 			);
 		}
