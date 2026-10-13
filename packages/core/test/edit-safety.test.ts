@@ -19,14 +19,12 @@ async function fixture(t: { after(fn: () => Promise<void>): void }, content = "a
 	return { cwd, path, ctx };
 }
 
-test("partial reads retain their boundaries after edits shift line numbers", async (t) => {
+test("a window the model asked for lets it edit outside that window", async (t) => {
 	const { path, ctx } = await fixture(t, "a\nb\nc\nd\n");
 	await readTool.execute({ path, offset: 1, limit: 2 }, ctx);
-	assert.notEqual((await editTool.execute({ path, old_string: "a\n", new_string: "a\ninserted\n" }, ctx)).isError, true);
-	// c、d 从没显示过，往下挪了一行也不算看过。
-	assert.match(text(await editTool.execute({ path, old_string: "c\nd", new_string: "C\nD" }, ctx)), /not read/);
-	assert.notEqual((await editTool.execute({ path, old_string: "b\n", new_string: "B\n" }, ctx)).isError, true);
-	assert.equal(await readFile(path, "utf8"), "a\ninserted\nB\nc\nd\n");
+	// 同 ZCode：不记哪几行显示过，只看最近一次读是不是没要求就被截短了。
+	assert.notEqual((await editTool.execute({ path, old_string: "c\nd", new_string: "C\nD" }, ctx)).isError, true);
+	assert.equal(await readFile(path, "utf8"), "a\nb\nC\nD\n");
 });
 
 test("编辑结果带回改动处现在的样子，下一次编辑不用先重读", async (t) => {
@@ -202,16 +200,4 @@ test("an empty old_string points at write, and replacing everything with nothing
 	assert.match(text(await editTool.execute({ path, old_string: "", new_string: "x" }, ctx)), /use `write`/);
 	assert.notEqual((await editTool.execute({ path, old_string: "first\nsecond", new_string: "" }, ctx)).isError, true);
 	assert.equal((await stat(path)).size, 0);
-});
-
-test("字符串替换落在没读过的地方，报错带上那几行，原样重发即可", async (t) => {
-	const original = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
-	const { path, ctx } = await fixture(t, original);
-	await readTool.execute({ path, offset: 1, limit: 5 }, ctx);
-	const first = await editTool.execute({ path, old_string: "line 20\n", new_string: "twenty\n" }, ctx);
-	assert.equal(first.isError, true);
-	assert.match(text(first), /^20→line 20$/m);
-	assert.equal(await readFile(path, "utf8"), original);
-	assert.notEqual((await editTool.execute({ path, old_string: "line 20\n", new_string: "twenty\n" }, ctx)).isError, true);
-	assert.match(await readFile(path, "utf8"), /line 19\ntwenty\nline 21/);
 });

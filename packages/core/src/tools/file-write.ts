@@ -5,12 +5,16 @@ import { dirname } from "node:path";
 import type { ToolContext } from "../types.ts";
 import { recordFileChange } from "./file-changes.ts";
 import { resolveFilePath } from "./paths.ts";
+import type { FileStamp } from "./read-state.ts";
 
 const writes = new Map<string, Promise<unknown>>();
 interface TextFile {
 	path: string;
 	before: string | null;
-	write(content: string): Promise<string | undefined>;
+	/** Modification time and size of `before`; null when the file does not exist yet. */
+	stamp: FileStamp | null;
+	/** Resolves to the change id and the file's stamp right after the write. */
+	write(content: string): Promise<{ changeId: string | undefined; stamp: FileStamp }>;
 }
 
 /** Read, approve and write under the same process-wide file queue, shared by edit and write. */
@@ -29,6 +33,7 @@ export async function withTextFile<T>(ctx: ToolContext, input: string, action: (
 		const changed = () => new Error("The file changed before writing. Read it again before editing.");
 		try {
 			let before: string | null = null;
+			let stamp: FileStamp | null = null;
 			if (initial) {
 				if (!initial.isFile()) throw new Error("Only regular UTF-8 text files can be edited.");
 				handle = await open(path, constants.O_RDWR | (process.platform === "win32" ? 0 : constants.O_NOFOLLOW));
@@ -37,8 +42,9 @@ export async function withTextFile<T>(ctx: ToolContext, input: string, action: (
 				const bytes = await handle.readFile();
 				if (!isUtf8(bytes) || bytes.includes(0)) throw new Error("Only UTF-8 text files can be edited; this file contains binary data.");
 				before = bytes.toString("utf8");
+				stamp = { mtimeMs: current.mtimeMs, size: current.size };
 			}
-			return await action({ path, before, write: async (content) => {
+			return await action({ path, before, stamp, write: async (content) => {
 				ctx.signal?.throwIfAborted();
 				const changeId = await recordFileChange(ctx, path, before, content);
 				// Revalidate after approval and recording, before the first destructive operation.
@@ -70,7 +76,7 @@ export async function withTextFile<T>(ctx: ToolContext, input: string, action: (
 				if (visible.isSymbolicLink() || visible.dev !== written.dev || visible.ino !== written.ino) {
 					throw new Error("The file path changed during writing; the visible result is unknown. Read it again.");
 				}
-				return changeId;
+				return { changeId, stamp: { mtimeMs: written.mtimeMs, size: written.size } };
 			} });
 		} finally { await handle?.close(); }
 	});

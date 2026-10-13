@@ -101,39 +101,6 @@ function matchIndex(text: string, pattern: string | undefined, options?: MatchOp
 	}
 }
 
-/** 1-indexed line and column of a UTF-16 offset in `text`. */
-export function indexToLineCol(text: string, index: number): { line: number; col: number } {
-	let line = 1;
-	let start = 0;
-	for (let i = 0; i < index && i < text.length; i++) {
-		if (text[i] === "\n") {
-			line += 1;
-			start = i + 1;
-		}
-	}
-	return { line, col: index - start + 1 };
-}
-
-export function coversChars(ranges: [number, number][], from: number, to: number): boolean {
-	for (let pos = from; pos <= to; pos++) {
-		if (!ranges.some(([a, b]) => pos >= a && pos <= b)) return false;
-	}
-	return true;
-}
-
-export function mergeCharRanges(ranges: [number, number][]): [number, number][] {
-	if (ranges.length <= 1) return ranges;
-	const sorted = [...ranges].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-	const merged: [number, number][] = [sorted[0]];
-	for (let i = 1; i < sorted.length; i++) {
-		const last = merged[merged.length - 1];
-		const next = sorted[i];
-		if (next[0] <= last[1] + 1) last[1] = Math.max(last[1], next[1]);
-		else merged.push([next[0], next[1]]);
-	}
-	return merged;
-}
-
 export function longLineFooter(entries: { line: number; length: number; shownFrom: number; shownTo: number }[]): string {
 	if (entries.length === 0) return "";
 	if (entries.length === 1) {

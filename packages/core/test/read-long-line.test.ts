@@ -57,15 +57,14 @@ test("a mid-line name in a one-line model catalogue is reachable via char_offset
 	assert.ok(window.length < 8_000);
 });
 
-test("a string replace of a span that was on screen is allowed", async () => {
+test("a char_offset read is a window the model asked for, so the whole line can be edited", async () => {
 	const needle = "SWAP-ME";
 	const content = `HEAD-UNIQUE${"a".repeat(80_000)}${needle}${"b".repeat(80_000)}`;
 	const { file, ctx } = await workspace(content, "blob.txt");
 	const at = content.indexOf(needle);
 	await readTool.execute({ path: file, char_offset: at + 1 } as never, ctx);
-	const unseen = await editTool.execute({ path: file, old_string: "HEAD-UNIQUE", new_string: "xxx" }, ctx);
-	assert.equal(unseen.isError, true);
-	assert.match(textOf(unseen), /have not read|char_offset/);
+	const head = await editTool.execute({ path: file, old_string: "HEAD-UNIQUE", new_string: "xxx" }, ctx);
+	assert.equal(head.isError, undefined, textOf(head));
 
 	const seen = await editTool.execute({ path: file, old_string: needle, new_string: "SWAPPED" }, ctx);
 	assert.equal(seen.isError, undefined, textOf(seen));

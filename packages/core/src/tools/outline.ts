@@ -42,15 +42,7 @@ export interface Outline {
 	shownLines: number;
 	/** Lines replaced by markers. */
 	foldedLines: number;
-	/**
-	 * Inclusive 1-indexed ranges actually displayed, merged where contiguous.
-	 *
-	 * `edit` checks against these, so an edit to a folded body is refused rather than applied
-	 * against lines the model never saw. That refusal is the outline's safety net: without it,
-	 * folding would quietly widen what the model is willing to guess at.
-	 */
-	shownRanges: [number, number][];
-	/** Long lines that were windowed, so `read` can record what was actually on screen. */
+	/** Long lines that were windowed; the footer then points at char_offset. */
 	longLines: { line: number; length: number; shownFrom: number; shownTo: number }[];
 }
 
@@ -188,15 +180,7 @@ export function outline(path: string, content: string, lines: string[]): Outline
 
 	if (folded / lines.length < MIN_SAVING) return null;
 
-	// Merge the displayed line numbers into ranges so `edit`'s check stays cheap.
-	const shownRanges: [number, number][] = [];
-	for (const line of displayed) {
-		const last = shownRanges[shownRanges.length - 1];
-		if (last && line === last[1] + 1) last[1] = line;
-		else shownRanges.push([line, line]);
-	}
-
-	return { text: out.join("\n"), shownLines: displayed.length, foldedLines: folded, shownRanges, longLines };
+	return { text: out.join("\n"), shownLines: displayed.length, foldedLines: folded, longLines };
 }
 
 /**

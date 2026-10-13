@@ -2,7 +2,8 @@
  * The outline view of `read`.
  *
  * The behaviour that matters most is the last group: folding must not widen what the model is
- * allowed to edit. An outline the model treats as the whole file is worse than no outline.
+ * allowed to edit. An outline the model treats as the whole file is worse than no outline, so after
+ * one nothing in the file is editable until a read that names its window.
  */
 
 import assert from "node:assert/strict";
@@ -140,16 +141,15 @@ test("after an outline, editing a folded body is refused", async () => {
 	const folded = linesOf(content)[insideFold - 1];
 	const edit = await editTool.execute({ path: file, old_string: folded, new_string: "\tconst tampered = 1;" }, ctx);
 	assert.equal(edit.isError, true);
-	assert.match(textOf(edit), new RegExp(`not read[\\s\\S]*^${insideFold}→`, "m"), "折叠掉的行先给模型看，再让它决定");
+	assert.match(textOf(edit), /did not show the whole file[\s\S]*offset and limit/);
 	assert.equal(await readFile(file, "utf8"), content);
 });
 
-test("after an outline, editing a line that was shown works", async () => {
+test("after an outline, even a line that was shown waits for a windowed read", async () => {
 	const content = sourceFile();
 	const { file, ctx } = await fixture("mod.ts", content);
 	const text = textOf(await readTool.execute({ path: file } as never, ctx));
 
-	// Pick a displayed declaration line straight out of the rendered outline.
 	const shown = /^\s*(\d+)→export function thing0/m.exec(text);
 	assert.ok(shown, "the outline must show the declaration");
 	const line = Number(shown[1]);
@@ -158,7 +158,8 @@ test("after an outline, editing a line that was shown works", async () => {
 		{ path: file, old_string: linesOf(content)[line - 1], new_string: "export function thing0(input: string, extra = 0): number {" },
 		ctx,
 	);
-	assert.equal(edit.isError, undefined, textOf(edit));
+	assert.equal(edit.isError, true);
+	assert.equal(await readFile(file, "utf8"), content);
 });
 
 test("reading a range after an outline widens what may be edited", async () => {
@@ -184,21 +185,10 @@ test("reading a range after an outline widens what may be edited", async () => {
 // The outline itself
 // ---------------------------------------------------------------------------
 
-test("outline reports ranges that cover exactly the displayed lines", () => {
+test("outline accounts for every line as shown or folded", () => {
 	const content = sourceFile();
 	const lines = linesOf(content);
 	const result = outline("mod.ts", content, lines);
 	assert.ok(result);
-	const covered = result.shownRanges.reduce((sum, [a, b]) => sum + (b - a + 1), 0);
-	assert.equal(covered, result.shownLines);
 	assert.equal(result.shownLines + result.foldedLines, lines.length);
-});
-
-test("outline never claims a line the file does not have", () => {
-	const content = sourceFile();
-	const lines = linesOf(content);
-	const result = outline("mod.ts", content, lines)!;
-	for (const [a, b] of result.shownRanges) {
-		assert.ok(a >= 1 && b <= lines.length, `range ${a}-${b} escapes a ${lines.length}-line file`);
-	}
 });

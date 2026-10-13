@@ -3,7 +3,7 @@ import type { Tool, ToolResult } from "../types.ts";
 import { withTextFile } from "./file-write.ts";
 import { computeDiff, formatDiff } from "./diff.ts";
 import { displayPath, resolveWorkspacePath } from "./paths.ts";
-import { markRead, readRecord, readVersion } from "./read-state.ts";
+import { changedSince, markRead, readRecord } from "./read-state.ts";
 import { decodeInput, decodeText, encodeText } from "./text-layout.ts";
 
 interface WriteArgs {
@@ -68,10 +68,11 @@ export const writeTool: Tool<WriteArgs> = {
 		 * 读那一侧留着（`read.ts`、`ls.ts`），那是附件本来的用途。
 		 */
 		try {
-			return await withTextFile(ctx, args.path, async ({ path: absolute, before, write }) => {
+			return await withTextFile(ctx, args.path, async ({ path: absolute, before, stamp, write }) => {
 				const alreadyExists = before !== null;
 				const previous = alreadyExists ? decodeText(before) : null;
-				if (previous && readRecord(ctx, absolute)?.version !== readVersion(previous.text)) {
+				const record = readRecord(ctx, absolute);
+				if (stamp && (!record || changedSince(record, stamp) || record.partial)) {
 					return errorResult(`Read the current text of ${args.path} before overwriting it.`);
 				}
 				const content = previous ? decodeInput(args.content.replace(/^\uFEFF/, ""), previous.layout) : args.content;
@@ -90,10 +91,9 @@ export const writeTool: Tool<WriteArgs> = {
 					if (decision !== "once" && decision !== "always") return errorResult("The user rejected this write.");
 				}
 
-				const changeId = await write(written);
+				const { changeId, stamp: writtenStamp } = await write(written);
 				const lines = after === "" ? 0 : after.split("\n").length;
-				if (lines > 0) markRead(ctx, absolute, after, 1, lines);
-				else markRead(ctx, absolute, after);
+				markRead(ctx, absolute, writtenStamp);
 
 				return {
 					content: [

@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdtemp, realpath, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { AgedToolPruner } from "../src/agent/aged-prune.ts";
 import { readTool } from "../src/tools/read.ts";
-import { readRecord, wasShown } from "../src/tools/read-state.ts";
+import { editTool } from "../src/tools/edit.ts";
+import { writeTool } from "../src/tools/write.ts";
 import type { Message, ToolContext } from "../src/types.ts";
 
-test("a large read is cut by the tool itself and marks only the lines it returned", async () => {
+test("a large read is cut by the tool itself, and the file waits for a windowed read before an edit", async () => {
 	const dir = await mkdtemp(join(tmpdir(), "plume-read-budget-"));
 	const file = join(dir, "data.txt");
 	await writeFile(file, Array.from({ length: 2000 }, (_, i) => `line ${i + 1} ${"x".repeat(100)}`).join("\n"), "utf8");
@@ -23,9 +24,13 @@ test("a large read is cut by the tool itself and marks only the lines it returne
 	const message: Message = { role: "toolResult", toolCallId: "r", toolName: "read", isError: false, content: result.content, timestamp: 0 };
 	assert.equal(new AgedToolPruner().prepare([message])[0], message, "the fresh result reaches the model whole");
 
-	const record = readRecord(ctx, await realpath(file))!;
-	assert.ok(wasShown(record, 1, shown));
-	assert.equal(wasShown(record, shown + 1, shown + 1), false, "lines past the cap were never shown");
+	// 同 ZCode 的 partial view：模型没要求窗口却只拿到一截，改之前得按窗口再读一次。
+	const blocked = await editTool.execute({ path: file, old_string: "line 2000 ", new_string: "last " }, ctx);
+	assert.equal(blocked.isError, true);
+	assert.equal((await writeTool.execute({ path: file, content: "gone\n" }, ctx)).isError, true, "write 同样不认被截短的读");
+	await readTool.execute({ path: file, offset: shown + 1 } as never, ctx);
+	const edited = await editTool.execute({ path: file, old_string: "line 2000 ", new_string: "last " }, ctx);
+	assert.equal(edited.isError, undefined);
 });
 
 test("compaction does not cut a result the model has not seen yet when it is within the fresh cap", async () => {

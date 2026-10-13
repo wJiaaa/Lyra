@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { charWindow, coversChars, formatCharWindow, indexToLineCol, matchWindow, mergeCharRanges, utf8ByteOffsetToIndex } from "../src/tools/long-line.ts";
+import { charWindow, formatCharWindow, matchWindow, utf8ByteOffsetToIndex } from "../src/tools/long-line.ts";
 import { clipOutput } from "../src/tools/bash-output.ts";
 
 test("a window starting past the first 2000 characters still contains the needle", () => {
@@ -19,11 +19,6 @@ test("a match window prefers the hit over the line head", () => {
 	assert.ok(window.text.includes(needle));
 	assert.ok(window.start > 0, "must not be the line head");
 	assert.match(formatCharWindow(text, window.start), /char_offset=/);
-});
-
-test("indexToLineCol maps a mid-line offset to line 1", () => {
-	assert.deepEqual(indexToLineCol("abc", 2), { line: 1, col: 3 });
-	assert.deepEqual(indexToLineCol("ab\ncd", 4), { line: 2, col: 2 });
 });
 
 test("utf8 byte offsets land on the same character as JS indexOf for ASCII and CJK", () => {
@@ -49,11 +44,4 @@ test("clipOutput keeps a failing assertion that sat in the omitted middle", () =
 	assert.match(clipped, /AssertionError/);
 	assert.match(clipped, /lsp-idle/);
 	assert.ok(clipped.length <= 60_000, `clipped to ${clipped.length}`);
-});
-
-test("coversChars and mergeCharRanges join adjacent spans", () => {
-	const merged = mergeCharRanges([[1, 10], [11, 20], [40, 50]]);
-	assert.deepEqual(merged, [[1, 20], [40, 50]]);
-	assert.equal(coversChars(merged, 5, 15), true);
-	assert.equal(coversChars(merged, 15, 25), false);
 });

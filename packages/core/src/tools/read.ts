@@ -6,7 +6,7 @@ import { charWindow, formatCharWindow, longLineFooter, MAX_LINE_CHARS } from "./
 import { outline, outlineFooter } from "./outline.ts";
 import { displayPath, imageMimeType, looksBinary } from "./paths.ts";
 import { authorizeRead, toAbsolute } from "./read-access.ts";
-import { markRead, markReadChars, markReadRanges } from "./read-state.ts";
+import { markRead } from "./read-state.ts";
 export { hasRead, markRead } from "./read-state.ts";
 import { decodeText } from "./text-layout.ts";
 import { EXTRACTABLE, extractDocumentText } from "../files/document-text.ts";
@@ -155,7 +155,6 @@ export const readTool: Tool<ReadArgs> = {
 			return errorResult(`${args.path} looks like a binary file (${info.size} bytes) and cannot be read as text.`);
 		}
 
-		// Decoded, as edit and write decode it: the version recorded below must match theirs.
 		const { text } = decodeText(buffer.toString("utf8"));
 		const allLines = text.split("\n");
 		// A trailing newline produces a final empty element that is not a real line.
@@ -175,10 +174,7 @@ export const readTool: Tool<ReadArgs> = {
 			const shape = outline(shownPath, text, allLines);
 			// 大纲本身超出单条结果的上限时会被剪成头尾，而它已把显示的范围记成读过——改走下面按字数截断的窗口。
 			if (shape && shape.text.length <= OUTPUT_BUDGET) {
-				markReadRanges(ctx, absolute, text, shape.shownRanges);
-				for (const entry of shape.longLines) {
-					markReadChars(ctx, absolute, entry.line, entry.shownFrom, entry.shownTo, entry.length);
-				}
+				markRead(ctx, absolute, info, true);
 				return {
 					content: [{ type: "text", text: `[${shownPath}]\n${shape.text}${outlineFooter(shownPath, shape, allLines.length)}` }],
 					details: {
@@ -201,13 +197,11 @@ export const readTool: Tool<ReadArgs> = {
 		const { body, shownEnd, long, footer } = shown;
 
 		/*
-		 * The version recorded is the whole file's, not the slice's: an edit has to be rejected when
-		 * *any* part of the file moved, not only the part on screen.
+		 * The stamp recorded is the whole file's, not the slice's: an edit has to be rejected when
+		 * *any* part of the file moved, not only the part on screen. A window the model asked for is
+		 * one it knows the edges of; a bare read that stopped short is not.
 		 */
-		markRead(ctx, absolute, text, offset, shownEnd);
-		for (const entry of long) {
-			markReadChars(ctx, absolute, entry.line, entry.shownFrom, entry.shownTo, entry.length);
-		}
+		markRead(ctx, absolute, info, !askedWindow && shownEnd < allLines.length);
 		return {
 			content: [{ type: "text", text: `[${shownPath}]\n${body}${footer}` }],
 			details: {
@@ -245,11 +239,11 @@ function renderLines(allLines: string[], offset: number, limit: number, charStar
 	const long: LineWindow["long"] = [];
 	const width = String(offset + slice.length - 1).length;
 	/*
-	 * 按字数截断，只把真正放进结果的行记成读过。
+	 * 按字数截断。
 	 *
 	 * 两千行不设字数上限时，一次读能有几十万字；循环会在模型看到之前把它剪成前 4k 加后 1k，
-	 * 而这里已经把两千行全记成读过，`edit` 于是放行模型从没见过的中段。截在剪枝不碰新结果的
-	 * 上限以内，再告诉它从哪一行接着读——比给一个剪过的头尾加 `artifact://` 地址更省，也更准。
+	 * 模型却当自己读到了整篇。截在剪枝不碰新结果的上限以内，再告诉它从哪一行接着读——比给一个
+	 * 剪过的头尾加 `artifact://` 地址更省，也更准。
 	 */
 	const rendered: string[] = [];
 	let used = 0;

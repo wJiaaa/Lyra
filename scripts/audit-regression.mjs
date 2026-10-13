@@ -40,7 +40,7 @@ const CHECKS = [
 	},
 	{
 		id: "edit-safety",
-		what: "重叠操作吞内容、编辑开放未读行、过期版本绕过、文本保真与并发写入保护",
+		what: "重叠操作吞内容、过期版本绕过、文本保真与并发写入保护",
 		run: ["node", ["--experimental-strip-types", "--test", "packages/core/test/edit-safety.test.ts"]],
 	},
 	{
