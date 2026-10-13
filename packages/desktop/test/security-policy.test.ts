@@ -119,9 +119,15 @@ test("权限：自己的页面只拿到三项", () => {
 	}
 });
 
-test("权限：客人页面一项都没有", () => {
-	for (const permission of ["fullscreen", "clipboard-sanitized-write", "local-fonts", "media", "notifications", "geolocation"]) {
+test("权限：客人页面只有全屏和写剪贴板", () => {
+	// 网页视频要能全屏、站点的「复制」按钮要能用；两项都不碰机器，Chrome 也不问就给。
+	for (const permission of ["fullscreen", "clipboard-sanitized-write"]) {
+		assert.equal(isPermissionGranted("https://example.com", permission), true, `客人应该拿到 ${permission}`);
+	}
+	for (const permission of ["local-fonts", "media", "notifications", "geolocation", "midi", "clipboard-read", "openExternal"]) {
 		assert.equal(isPermissionGranted("https://example.com", permission), false, `客人不该拿到 ${permission}`);
+	}
+	for (const permission of ["fullscreen", "clipboard-sanitized-write", "media"]) {
 		assert.equal(isPermissionGranted("", permission), false, "没有 URL 时一律拒绝");
 	}
 });

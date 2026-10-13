@@ -25,6 +25,8 @@ function answer(res: ServerResponse, tool?: { name: string; input: object }) {
 }
 before(async () => {
 	server = createServer((req, res) => {
+		// 一个永远不回第一个响应的站点：被墙、代理不通、服务器挂住，在 `<webview>` 看来都是这样。
+		if (req.method === "GET" && req.url === "/never") return;
 		if (req.method === "GET") {
 			// Controlled web fixture, exercised inside the real app's browser component.
 			res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -96,6 +98,11 @@ test("agent drives the user's actual browser: native input, click, viewport and 
 	assert.deepEqual(actual, { value: "测试输入", count: "3", width: 390, height: 844, cursor: false });
 	assert.equal(await app.evaluate(`document.querySelectorAll('[data-browser-cursor]').length`), 1);
 	assert.equal(results.some((item) => typeof item === "object" && item !== null && "is_error" in item && item.is_error), false, JSON.stringify(results));
+	// 截图按点出，不按物理像素：Retina 上两倍像素的图，模型那头贵四倍。
+	const shot = results.flatMap((item) => (item as { content?: { type: string; source?: { data: string } }[] }).content ?? []).find((part) => part.type === "image")?.source?.data;
+	assert.ok(shot, "browser_screenshot returned an image");
+	const pageWidth = await app.evaluate<number>("document.querySelector('webview').getBoundingClientRect().width");
+	assert.ok(Math.abs(Buffer.from(shot, "base64").readUInt32BE(16) - pageWidth) <= 1, `screenshot ${Buffer.from(shot, "base64").readUInt32BE(16)}px wide for a ${pageWidth}px page`);
 	/*
 	 * `browser_open` brought the page up in the panel, where the person watched the rest happen (see
 	 * `openBrowser`); the conversation keeps a one-line card for it, without a picture (`BrowserCard`).
@@ -256,4 +263,16 @@ test("one navigation row, a compact menu and a icon empty state at wide and 375p
 	await until(app, `${browserTabs} === 1`, 1800);
 	await menu("关闭标签页");
 	await until(app, `!document.querySelector('webview')`, 1800);
+});
+
+test("a site that never answers still opens at once: the tab waits at its address, with no error", async () => {
+	const started = Date.now();
+	// 从前要等站点回到 `dom-ready` 才算面板就绪，30 秒后报「浏览器面板没有在 30 秒内就绪」。
+	const outcome = await app.evaluate<string>(`window.plume.browser.command({type:'open',url:'http://127.0.0.1:${port}/never',sessionId:'qa-short',newTab:true}).then(()=>'ok',e=>e.message)`);
+	assert.equal(outcome, "ok");
+	assert.ok(Date.now() - started < 5_000, `opening took ${Date.now() - started}ms`);
+	const tab = await app.evaluate<{ id: string; url: string; loading: boolean }>("window.plume.browser.state().then(s=>s.tabs.find(t=>t.id===s.activeId))");
+	assert.equal(tab.url, `http://127.0.0.1:${port}/never`, "the address bar keeps the page it is waiting for");
+	assert.equal(tab.loading, true);
+	await app.evaluate(`window.plume.browser.command({type:'close',id:${JSON.stringify(tab.id)}})`);
 });

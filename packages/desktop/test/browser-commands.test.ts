@@ -37,8 +37,12 @@ test("a query goes to the configured engine, and a broken custom template falls 
 });
 
 test("本地 HTML：地址栏和 IPC 认出来交给主进程拷贝，网页本身仍然打不开 file:", () => {
-	for (const text of ["file:///Users/a/page.html", "/Users/a/飞机.html", "C:\\Users\\a\\page.html", "c:/a/page.html"]) assert.equal(browserLocalPage(text), true, text);
-	for (const text of ["example.com", "https://a.com/page.html", "localhost:3000", "天气", "ly-preview://s/p/index.html"]) assert.equal(browserLocalPage(text), false, text);
+	for (const text of ["file:///Users/a/page.html", "/Users/a/飞机.html", "~/Desktop/待办清单/原型.html", "C:\\Users\\a\\page.html", "c:/a/page.html"]) assert.equal(browserLocalPage(text), true, text);
+	for (const text of ["example.com", "https://a.com/page.html", "localhost:3000", "天气", "ly-preview://s/p/index.html", "~", "~user/a.html"]) assert.equal(browserLocalPage(text), false, text);
+	// 从终端复制出来的路径：曾被当成搜索词送去必应。
+	assert.equal(browserOmnibox("~/Desktop/待办清单/原型.html").kind, "open");
+	// 在外部浏览器打开只带标签 id：打开什么由主进程按标签决定，渲染进程给不了 file: 地址。
+	assert.deepEqual(parseBrowserCommand({ type: "external", id: "tab", url: "file:///etc/passwd" }), { type: "external", id: "tab" });
 	assert.deepEqual(browserOmnibox(" /Users/a/page.html "), { kind: "open", url: "/Users/a/page.html", query: "/Users/a/page.html" });
 	assert.equal(parseBrowserCommand({ type: "open", url: "file:///Users/a/page.html", sessionId: null }).type, "open");
 	assert.deepEqual(parseBrowserCommand({ type: "navigate", id: "tab", url: "/Users/a/page.html" }), { type: "navigate", id: "tab", url: "/Users/a/page.html" });

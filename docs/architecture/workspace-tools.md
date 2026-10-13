@@ -15,6 +15,25 @@ turn 在跑时它的页面始终挂载，主进程通过 `awakeBrowser` 标记 `
 睡掉的页面（Agent 的每个 `browser_*` 调用都先经过它）。`reveal` 只对当前会话生效，后台会话
 开页面不会把面板推到用户面前。
 
+「面板就绪」和「页面加载完」是两件事。`<webview>` 一挂上（`did-attach`）就向主进程报到，不等站点
+回第一个响应——从前等 `dom-ready`，站点 30 秒不回，开页就报「浏览器面板没有在 30 秒内就绪」。
+Agent 要读、要点的是文档，`loadedBrowser` 在每个 `browser_*` 调用前等文档就绪，最多 30 秒，超时
+报「页面没有加载出来」，标签留着。
+
+页面在 Agent 调用期间弹出的 alert、confirm、离开页面提示由 `browser-dialogs.ts` 应答：alert 确定，
+confirm 与离开提示默认取消、调用带 `dialog: "accept"` 才确认，结果附在工具结果末尾。两次调用之间弹出
+的照旧是系统对话框，下一次调用开始时收起它并代为应答。人自己浏览时不接管。分岔点在 Electron 自己弹
+系统对话框的 `-run-dialog` 监听上，而不是 CDP：CDP 应答后那个系统对话框仍留在窗口上。
+
+`read` 给每个可操作元素一个 ref（`e12`），记在隔离 world 里，编号按标签接续、换文档也不从头编，
+旧页的 ref 只会报失效、不会点到新页的别的元素。点击、悬停、输入前 `browser-locate.ts` 确认元素可见、
+未禁用、位置稳定、落点没被遮挡，最多等 3 秒，否则报出是哪一条。`wait` 在主进程里逐轮问页面，跨跳转也成立。
+
+页面没加载出来、或页面进程停了，写进 `BrowserTab.failure`，面板在页面区域上盖一层原因和「重新加载」，
+不插在页面上方——插一行字会把页面挤矮，而对已崩溃的 guest 调设备仿真会让主进程段错误、整个应用退出
+（Electron 44.7 实测，`applyView` 因此跳过崩溃的页面）。页面进程第一次没了自动重新加载，15 秒内再没了就停在
+盖层上等人；agent 的调用此时直接报错，`reload` 照人点刷新处理。`browser_open` 打不开站点时报出原因，不交回空的错误页。
+
 `browser_open`、`browser_tabs`、`browser_act`、`browser_viewport`、`browser_screenshot`
 由当前可信运行上下文取得 sessionId，不能指定其他会话来绕过所有权。浏览器 IPC 仅接受主窗口
 的主 frame；guest 必须确实归属于发送 attach 的窗口。主进程同时校验 URL、命令、缩放和尺寸。

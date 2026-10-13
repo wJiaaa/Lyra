@@ -43,15 +43,22 @@ test("the address bar says which of the two it will do, and does that one", asyn
 		await type(field, "example.com/a");
 		assert.equal(kind(view), "open");
 		// The row shows the address that will actually be opened, scheme and all.
-		assert.deepEqual(choices(view), ["open:https://example.com/a打开网址"]);
+		assert.deepEqual(choices(view), ["open:https://example.com/a打开网址", "search:example.com/a用必应搜索"]);
 		await press(field, "Enter");
 		assert.deepEqual(opened, ["https://example.com/a"]);
+
+		// 本地文件：打开排第一，搜索仍在第二行，选它就真的去搜。
+		await type(field, "~/Desktop/原型.html");
+		assert.deepEqual(choices(view), ["open:~/Desktop/原型.html打开本地文件", "search:~/Desktop/原型.html用必应搜索"]);
+		await press(field, "ArrowDown");
+		await press(field, "Enter");
+		assert.match(opened[1] ?? "", /^https:\/\/www\.bing\.com\/search\?q=~/);
 
 		await type(field, "天气 预报");
 		assert.equal(kind(view), "search");
 		assert.match(choices(view)[0] ?? "", /^search:天气 预报用必应搜索$/);
 		await press(field, "Enter");
-		assert.equal(opened[1], "https://www.bing.com/search?q=%E5%A4%A9%E6%B0%94%20%E9%A2%84%E6%8A%A5");
+		assert.equal(opened[2], "https://www.bing.com/search?q=%E5%A4%A9%E6%B0%94%20%E9%A2%84%E6%8A%A5");
 	} finally { await view.unmount(); }
 });
 
@@ -92,5 +99,20 @@ test("a page that navigates mid-word does not take the word away, and Escape giv
 		await press(view.find("input"), "Escape");
 		assert.equal(view.find<HTMLInputElement>("input").value, "https://example.com/redirected");
 		assert.equal(view.all("[data-omnibox-list]").length, 0);
+	} finally { await view.unmount(); }
+});
+
+test("the page goes to the system's browser from a button that stays put, disabled with no page", async () => {
+	const inputRef = createRef<HTMLInputElement>();
+	const view = await mount(h(AddressBar, { url: "about:blank", bookmarks: [], search: undefined, inputRef, onOpen: () => {} }));
+	try {
+		const button = () => view.find<HTMLButtonElement>("[data-omnibox-outside]");
+		assert.equal(button().disabled, true);
+		assert.equal(button().getAttribute("aria-label"), "在外部浏览器中打开");
+		let asked = 0;
+		await view.rerender(h(AddressBar, { url: "https://example.com/", bookmarks: [], search: undefined, inputRef, onOpen: () => {}, onOutside: () => { asked++; } }));
+		assert.equal(button().disabled, false);
+		await fire(button(), new MouseEvent("click", { bubbles: true }));
+		assert.equal(asked, 1);
 	} finally { await view.unmount(); }
 });

@@ -8,11 +8,12 @@
  */
 
 import { translate } from "../../i18n/translate.ts";
-import { Bookmark, CornerDownLeft, Globe, Search } from "../../ui/icons/index.ts";
+import { ArrowUpRight, Bookmark, CornerDownLeft, Globe, Search } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { browserOmnibox, browserSearchLabel, type BrowserSearchSettings } from "../../../shared/browser.ts";
+import { browserLocalPage, browserOmnibox, browserSearchLabel, browserSearchUrl, type BrowserSearchSettings } from "../../../shared/browser.ts";
 import { useApp } from "../../store/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 
 interface Choice { kind: "open" | "search" | "bookmark"; url: string; label: string; detail?: string }
 
@@ -25,12 +26,14 @@ function matchingBookmarks(query: string, bookmarks: { url: string; title: strin
 		.map((entry) => ({ kind: "bookmark" as const, url: entry.url, label: entry.title || entry.url, detail: entry.url }));
 }
 
-export function AddressBar({ url, bookmarks, search, onOpen, inputRef }: {
+export function AddressBar({ url, bookmarks, search, onOpen, onOutside, inputRef }: {
 	/** The address of the page on screen; `about:blank` shows as an empty field. */
 	url: string;
 	bookmarks: { url: string; title: string }[];
 	search: BrowserSearchSettings | undefined;
 	onOpen: (url: string) => void;
+	/** Hand the page to the system's browser; absent while there is no page to hand over. */
+	onOutside?: () => void;
 	inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
 	const settled = url === "about:blank" ? "" : url;
@@ -69,13 +72,17 @@ export function AddressBar({ url, bookmarks, search, onOpen, inputRef }: {
 	const engine = browserSearchLabel(search);
 	const choices = useMemo<Choice[]>(() => {
 		if (!typed || !value.trim()) return [];
-		const head: Choice[] = target
-			? [target.kind === "search"
-				? { kind: "search", url: target.url, label: target.query, detail: translate("address.searchWith", { engine }) }
-				: { kind: "open", url: target.url, label: target.url, detail: translate("address.openUrl") }]
-			: [];
+		const searching = (query: string): Choice => ({ kind: "search", url: browserSearchUrl(query, search), label: query, detail: translate("address.searchWith", { engine }) });
+		/*
+		 * Searching stays on offer under an address or a path, so a wrong guess still leaves a way out.
+		 * With one row either way, a guess the other way round left nothing: `~/a.html`, before it was
+		 * recognised, could only be searched for.
+		 */
+		const head: Choice[] = !target ? [] : target.kind === "search"
+			? [searching(target.query)]
+			: [{ kind: "open", url: target.url, label: target.url, detail: translate(browserLocalPage(target.url) ? "address.openFile" : "address.openUrl") }, searching(target.query)];
 		return [...head, ...matchingBookmarks(value.trim(), bookmarks, head[0]?.url ?? "")];
-	}, [typed, value, target, bookmarks, engine]);
+	}, [typed, value, target, bookmarks, engine, search]);
 
 	const open = focused && choices.length > 0;
 	// Clamped rather than reset, so typing another letter keeps the row the arrow keys landed on.
@@ -93,7 +100,7 @@ export function AddressBar({ url, bookmarks, search, onOpen, inputRef }: {
 	};
 	const submit = () => {
 		const choice = open ? choices[index] : undefined;
-		go(choice ? (choice.kind === "search" ? choice.label : choice.url) : value);
+		go(choice ? choice.url : value);
 	};
 
 	return <div className="relative min-w-0 flex-1" data-browser-omnibox>
@@ -127,8 +134,13 @@ export function AddressBar({ url, bookmarks, search, onOpen, inputRef }: {
 				// Escape hands the field back to the page rather than leaving a half-typed address.
 				if (event.key === "Escape") { setValue(settled); setTyped(false); inputRef.current?.blur(); }
 			}}
-			className="h-[26px] w-full rounded-md border border-line bg-input pl-7 pr-2.5 text-detail text-ink placeholder:text-ink-faint focus:border-ink-faint"
+			className="h-[26px] w-full rounded-md border border-line bg-input pl-7 pr-7 text-detail text-ink placeholder:text-ink-faint focus:border-ink-faint"
 		/>
+		{/* Always there, disabled on an empty tab: a button that comes and goes with the page reads as one that was removed. */}
+		<span className="absolute right-[3px] top-1/2 -translate-y-1/2">
+			<IconButton size="xs" label={translate("address.openOutside")} icon={<ArrowUpRight size={12} />} disabled={!onOutside} onClick={() => onOutside?.()}
+				data-omnibox-outside className="text-ink-faint hover:bg-card-hover hover:text-ink" />
+		</span>
 		{open && <div
 			id={listId}
 			role="listbox"
@@ -153,7 +165,7 @@ export function AddressBar({ url, bookmarks, search, onOpen, inputRef }: {
 				// Keeps the focus in the field: a blur first would unmount this row before its click.
 				onMouseDown={(event) => event.preventDefault()}
 				onMouseEnter={() => setActive(position)}
-				onClick={() => { const next = choice.kind === "search" ? choice.label : choice.url; setValue(next); go(next); }}
+				onClick={() => { setValue(choice.label); go(choice.url); }}
 				className={`flex cursor-default items-center gap-2 px-2.5 py-1.5 ${position === index ? "bg-card-hover" : ""}`}
 			>
 				<span className="shrink-0 text-ink-faint">

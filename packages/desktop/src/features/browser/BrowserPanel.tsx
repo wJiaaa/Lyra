@@ -1,6 +1,6 @@
 import { commitDraft, isLegalDraft } from "../../lib/number-draft.ts";
 import { useI18n } from "../../i18n/index.ts";
-import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Minus, MousePointer2, Plus, RotateCw, Scan, X } from "../../ui/icons/index.ts";
+import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, CodeXml, Ellipsis, Globe, Minus, MousePointer2, Plus, RotateCw, Scan, TriangleAlert, WifiOff, X } from "../../ui/icons/index.ts";
 import { useEffect, useRef, useState } from "react";
 import { useDockScope, usePanelKind, useScopedSessionId } from "../../app/session-scope.tsx";
 import type { BrowserCommand, BrowserSelection } from "../../../shared/browser.ts";
@@ -8,6 +8,7 @@ import { bridge } from "../../services/index.ts";
 import { useApp } from "../../store/index.ts";
 import { Input } from "../../ui/inputs/NativeField.tsx";
 import { PanelEmpty } from "../../ui/layout/PanelEmpty.tsx";
+import { Button } from "../../ui/primitives/Button.tsx";
 import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { Popover, MenuBody, MenuItem, MenuSeparator, usePopover } from "../../ui/overlay/Popover.tsx";
 import { AddressBar } from "./AddressBar.tsx";
@@ -86,7 +87,7 @@ export function BrowserPanel() {
 			<IconButton size="sm" label={t("browser.back")} icon={<ArrowLeft size={13} />} disabled={!tab?.canGoBack} onClick={() => command("back")} />
 			<IconButton size="sm" label={t("browser.forward")} icon={<ArrowRight size={13} />} disabled={!tab?.canGoForward} onClick={() => command("forward")} />
 			<IconButton size="sm" label={t("common.refresh")} icon={<RotateCw size={13} className={tab?.loading ? "ly-pulse" : ""} />} disabled={!tab} onClick={() => command("reload")} />
-			<AddressBar url={tab?.url ?? "about:blank"} bookmarks={settings?.browser?.bookmarks ?? []} search={settings?.browser} onOpen={go} inputRef={addressInput} />
+			<AddressBar url={tab?.url ?? "about:blank"} bookmarks={settings?.browser?.bookmarks ?? []} search={settings?.browser} onOpen={go} onOutside={blank || !tab ? undefined : () => void commandBrowser({ type: "external", id: tab.id })} inputRef={addressInput} />
 			<IconButton label={t("browser.menu")} menu={options.open} data-inspecting={inspecting ? "" : undefined} onClick={(event) => { setMenu("actions"); options.toggle(event); }}
 				className="aria-expanded:bg-card-hover aria-expanded:text-ink data-[inspecting]:bg-card-hover data-[inspecting]:text-ink" icon={<Ellipsis size={16} />} />
 		</div>
@@ -98,6 +99,13 @@ export function BrowserPanel() {
 			{tab && hosted && <BrowserPage tab={tab} />}
 			{/* 标题就够了：地址栏就在正上方，说明它怎么用的那一句和那枚跳过去的按钮都是在解释一个不需要解释的东西。 */}
 			{blank && <div className="absolute inset-0 flex flex-col bg-shell" data-browser-empty><PanelEmpty icon={Globe} title={t("browser.openPage")} /></div>}
+			{/* 盖在页面上而不是插在它上面：插一行字会把页面挤矮，页面进程已经停了的时候，那次改尺寸曾带走整个应用。 */}
+			{tab?.failure && <div className="absolute inset-0 flex flex-col bg-shell" data-browser-failure={tab.failure.kind}>
+				<PanelEmpty icon={tab.failure.kind === "crash" ? TriangleAlert : WifiOff} title={t(tab.failure.kind === "crash" ? "browser.pageStopped" : "browser.loadFailed")}>
+					<span className="block break-all">{tab.failure.detail}</span>
+					<span className="mt-4 block"><Button icon={<RotateCw size={13} />} onClick={() => command("reload")}>{t("browser.reloadPage")}</Button></span>
+				</PanelEmpty>
+			</div>}
 		</div>
 		{selection && <BrowserSelectionCard selection={selection} onClose={() => setSelection(null)} />}
 		{options.open && <Popover anchor={options.anchor} onClose={options.close} placement="bottom" width="default" maxHeight={340} label={t("browser.menu")}

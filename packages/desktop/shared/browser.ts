@@ -7,6 +7,14 @@ export interface BrowserTab {
 	title: string;
 	loading: boolean;
 	error?: string;
+	/**
+	 * This page did not load, or its process stopped and will not come back by itself: what is in the
+	 * tab is not the page. Cleared when the tab starts loading a document again.
+	 *
+	 * Apart from `error`, which is a remark beside a page that still works (a popup it was not allowed
+	 * to open), because only this one covers the page.
+	 */
+	failure?: { kind: "load" | "crash"; detail: string };
 	canGoBack: boolean;
 	canGoForward: boolean;
 	zoom: number;
@@ -49,7 +57,7 @@ export interface BrowserSelection {
 export type BrowserCommand =
 	| { type: "open"; url: string; sessionId: string | null; newTab?: boolean }
 	| { type: "navigate"; id: string; url: string }
-	| { type: "select" | "close" | "back" | "forward" | "reload" | "devtools"; id: string }
+	| { type: "select" | "close" | "back" | "forward" | "reload" | "devtools" | "external"; id: string }
 	| { type: "zoom"; id: string; factor: number }
 	| { type: "resize"; id: string; width: number; height: number }
 	| { type: "viewport"; id: string; viewport: BrowserViewport | null };
@@ -63,7 +71,10 @@ export function browserUrl(raw: string): string {
 }
 
 /**
- * A page on this disk: `file://…`, or a path spelled from the root (`/…`, `C:\…`).
+ * A page on this disk: `file://…`, or a path spelled from the root (`/…`, `C:\…`) or from home (`~/…`).
+ *
+ * `~/` counts because it is how a path gets copied out of a terminal; left out, it read as a search and
+ * the address bar sent `~/Desktop/a.html` to Bing. The main process expands it (`localPagePath`).
  *
  * Never handed to a page as it is — `browserUrl` still refuses `file:`, because a guest that can
  * load `file:///` can read the disk. The main process turns it into a copy under the previews
@@ -72,7 +83,7 @@ export function browserUrl(raw: string): string {
  */
 export function browserLocalPage(raw: string): boolean {
 	const text = raw.trim();
-	return /^file:\/\//i.test(text) || text.startsWith("/") || /^[a-z]:[\\/]/i.test(text);
+	return /^file:\/\//i.test(text) || text.startsWith("/") || /^~[\\/]/.test(text) || /^[a-z]:[\\/]/i.test(text);
 }
 
 export type BrowserSearchEngine = "bing" | "google" | "baidu" | "duckduckgo" | "custom";
@@ -141,7 +152,7 @@ function browserSearchTemplate(settings?: BrowserSearchSettings): string {
 	return (custom?.includes("%s") ? custom : preset) ?? BROWSER_SEARCH_ENGINES[0]!.template;
 }
 
-function browserSearchUrl(query: string, settings?: BrowserSearchSettings): string {
+export function browserSearchUrl(query: string, settings?: BrowserSearchSettings): string {
 	return browserUrl(browserSearchTemplate(settings).replaceAll("%s", encodeURIComponent(query)));
 }
 
@@ -191,7 +202,7 @@ export function parseBrowserCommand(value: unknown): BrowserCommand {
 	const id = value.id;
 	switch (value.type) {
 		case "navigate": if (!("url" in value) || typeof value.url !== "string") throw new Error("需要网址"); return { type: "navigate", id, url: browserTarget(value.url) };
-		case "select": case "close": case "back": case "forward": case "reload": case "devtools": return { type: value.type, id };
+		case "select": case "close": case "back": case "forward": case "reload": case "devtools": case "external": return { type: value.type, id };
 		case "zoom": if (!("factor" in value) || typeof value.factor !== "number") throw new Error("需要缩放比例"); return { type: "zoom", id, factor: browserZoom(value.factor) };
 		case "resize": if (!("width" in value) || typeof value.width !== "number" || !("height" in value) || typeof value.height !== "number") throw new Error("需要页面尺寸"); return { type: "resize", id, width: value.width, height: value.height };
 		case "viewport": {

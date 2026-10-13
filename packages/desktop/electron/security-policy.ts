@@ -74,15 +74,21 @@ export function isWebviewSourceAllowed(src: string): boolean {
  * other people's pages in a panel, where a site can simply ask for the camera and have it.
  *
  * Our own renderer needs almost nothing: everything it does with the machine goes through IPC,
- * where it can be reasoned about. Guests get nothing.
+ * where it can be reasoned about. Guests get only `GUEST_GRANTED`.
  *
  * `local-fonts` lets the code font menu list installed faces. Refused, `queryLocalFonts` does not
  * fail — it returns an empty list, and the menu silently shrinks to its presets.
  */
 const GRANTED = new Set(["clipboard-sanitized-write", "fullscreen", "local-fonts"]);
+/**
+ * 网页也给的两项：都不碰机器上的东西，Chrome 也不问就给，而且都要人刚在页面里点过才能用。
+ * 拒掉的代价是网页里的视频全屏不了、站点的「复制」按钮静默失灵。摄像头、定位这类照旧一项不给。
+ */
+const GUEST_GRANTED = new Set(["clipboard-sanitized-write", "fullscreen"]);
 
 export function isPermissionGranted(url: string, permission: string, devServer?: string): boolean {
-	return isOurPage(url, devServer) && GRANTED.has(permission);
+	if (!url) return false;
+	return isOurPage(url, devServer) ? GRANTED.has(permission) : GUEST_GRANTED.has(permission);
 }
 
 /** The preferences a guest gets, whatever its tag asked for. */

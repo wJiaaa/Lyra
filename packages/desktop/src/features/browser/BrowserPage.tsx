@@ -23,9 +23,24 @@ export function BrowserPage({ tab }: { tab: BrowserTab }) {
 		const page = ref.current;
 		if (!page) return;
 		let live = true;
+		let retry: number | undefined;
+		let tries = 0;
+		/*
+		 * 挂上就报到，不等 `dom-ready`：那要等网站回第一个响应，站点 30 秒不回，开页就报「面板没有就绪」。
+		 * `did-attach` 时 guest 的 id 有时还读不到（`getWebContentsId` 会抛），隔 50ms 再读，读满 2 秒
+		 * 交给 `dom-ready`。同一页重复报到，主进程认得是同一个，见 `attachBrowser`。
+		 */
 		const attach = () => {
-			void bridge.browser.attach(tab.id, page.getWebContentsId()).catch((error: unknown) => { if (live) useApp.getState().notify(String(error), "error"); });
+			window.clearTimeout(retry);
+			if (!live) return;
+			let contentsId: number;
+			try { contentsId = page.getWebContentsId(); } catch {
+				if (++tries < 40) retry = window.setTimeout(attach, 50);
+				return;
+			}
+			void bridge.browser.attach(tab.id, contentsId).catch((error: unknown) => { if (live) useApp.getState().notify(String(error), "error"); });
 		};
+		page.addEventListener("did-attach", attach);
 		page.addEventListener("dom-ready", attach);
 		const observer = new ResizeObserver(([entry]) => {
 			if (!entry || entry.contentRect.width <= 0 || entry.contentRect.height <= 0) return;
@@ -33,7 +48,7 @@ export function BrowserPage({ tab }: { tab: BrowserTab }) {
 			void bridge.browser.command({ type: "resize", id: tab.id, width: entry.contentRect.width, height: entry.contentRect.height }).catch((error: unknown) => { if (live) useApp.getState().notify(String(error), "error"); });
 		});
 		observer.observe(page);
-		return () => { live = false; observer.disconnect(); page.removeEventListener("dom-ready", attach); };
+		return () => { live = false; window.clearTimeout(retry); observer.disconnect(); page.removeEventListener("did-attach", attach); page.removeEventListener("dom-ready", attach); };
 	}, [tab.id]);
 	const scale = tab.viewport ? Math.min(1, size.width / tab.viewport.width, size.height / tab.viewport.height) : 1;
 	const x = Math.max(0, Math.min(size.width - 1, (pointer?.x ?? 0) * tab.zoom * scale));
