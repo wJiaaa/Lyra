@@ -18,7 +18,7 @@
  * unambiguous vendors are asked first.
  */
 
-export type Brand = "openai" | "claude" | "deepseek" | "gemini" | "qwen" | "grok" | "mistral" | "hunyuan" | "kimi" | "minimax" | "stepfun" | "baichuan" | "doubao" | "yi";
+export type Brand = "openai" | "claude" | "deepseek" | "gemini" | "qwen" | "grok" | "mistral" | "hunyuan" | "kimi" | "minimax" | "stepfun" | "baichuan" | "doubao" | "yi" | "glm";
 
 const RULES: { brand: Brand; test: RegExp }[] = [
 	{ brand: "deepseek", test: /deepseek/ },
@@ -36,6 +36,8 @@ const RULES: { brand: Brand; test: RegExp }[] = [
 	{ brand: "grok", test: /\bgrok\b|\bxai\b/ },
 	{ brand: "mistral", test: /mistral|mixtral|codestral|devstral|magistral|ministral|pixtral/ },
 	{ brand: "hunyuan", test: /hunyuan|混元/ },
+	// `chatglm` spelled out because the boundary before `glm` never fires inside one word.
+	{ brand: "glm", test: /\bglm|chatglm|zhipu|智谱/ },
 	// Last, and the only one needing whole-word care: `o3`/`o4` are two characters that turn up
 	// inside plenty of ids that are not OpenAI's.
 	{ brand: "openai", test: /openai|chatgpt|\bgpt|codex|davinci|\bo[1345](?:-[a-z]+)*\b/ },
@@ -74,6 +76,7 @@ const HOUSE_WORDS: Record<Brand, readonly string[]> = {
 	baichuan: ["baichuan"],
 	doubao: ["doubao"],
 	yi: ["yi"],
+	glm: ["zhipu", "zai"],
 };
 
 /** The words a house goes by, for matching a search like "google" against `gemini-…` ids. */
@@ -102,6 +105,7 @@ const BRAND_NAMES: Record<Brand, string> = {
 	baichuan: "Baichuan",
 	doubao: "Doubao",
 	yi: "Yi",
+	glm: "GLM",
 };
 
 export function brandName(brand: Brand): string {

@@ -53,6 +53,14 @@ test("a Volcengine endpoint id is Doubao, a StepFun model that merely contains `
 	assert.equal(brandOf("stepfun/step-3"), "stepfun");
 });
 
+test("GLM is recognised behind a relay prefix and under its older ChatGLM name", () => {
+	assert.equal(brandOf("glm-4.6"), "glm");
+	assert.equal(brandOf("opencode-go/glm-5.3-flash"), "glm");
+	assert.equal(brandOf("zai-org/GLM-4.5-Air"), "glm");
+	assert.equal(brandOf("chatglm3-6b"), "glm");
+	assert.equal(brandOf("fast", "智谱 GLM"), "glm");
+});
+
 test("an unambiguous vendor wins over a version that looks like an alias", () => {
 	assert.equal(brandOf("deepseek-v3"), "deepseek");
 	assert.equal(brandOf("deepseek-r1-0528"), "deepseek");

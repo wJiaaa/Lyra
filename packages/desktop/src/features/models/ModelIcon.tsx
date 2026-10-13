@@ -21,7 +21,7 @@ import { brandOf, type Brand } from "../../lib/model-brand.ts";
  * worse than no logo: it is recognisably wrong, and it is their trademark being got wrong.
  *
  * Colour comes from the brand where the brand has one. Where the official mark is monochrome
- * (OpenAI, xAI) it takes full ink instead — their owners draw them black on white and white on
+ * (OpenAI, xAI, Z.ai) it takes full ink instead — their owners draw them black on white and white on
  * black, and `currentColor` alone would have inherited whatever muted grey the row is set in,
  * leaving those two visibly weaker than the coloured marks beside them in the same list.
  *
@@ -200,6 +200,19 @@ const MARKS: Record<Brand, { box: string; mono?: true; draw: (gradientId: string
 					</clipPath>
 				</defs>
 				<image href={yi} width="64" height="64" clipPath={`url(#${clipId})`} />
+			</>
+		),
+	},
+	// https://z-cdn.chatglm.cn/z-ai/static/logo.svg — z.ai's favicon, the same Z bigmodel.cn wears. Drawn
+	// white on a dark plate there; without the plate it is a monochrome mark like OpenAI's.
+	glm: {
+		box: "5.7 5.7 18.6 18.6",
+		mono: true,
+		draw: () => (
+			<>
+				<path d="M15.47,7.1l-1.3,1.85c-0.2,0.29-0.54,0.47-0.9,0.47h-7.1V7.09C6.16,7.1,15.47,7.1,15.47,7.1z" fill="currentColor" />
+				<polygon points="24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1" fill="currentColor" />
+				<path d="M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z" fill="currentColor" />
 			</>
 		),
 	},
