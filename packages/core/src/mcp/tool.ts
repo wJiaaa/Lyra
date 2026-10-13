@@ -8,8 +8,9 @@
 
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ErrorCode, McpError, type Progress } from "@modelcontextprotocol/sdk/types.js";
-import type { JsonSchema, Tool, ToolResult } from "../types.ts";
+import type { Tool, ToolResult } from "../types.ts";
 import { toToolResult } from "./result.ts";
+import { normalizeInputSchema } from "./schema.ts";
 import type { McpServerConfig } from "./types.ts";
 
 /** 一个工具找它的服务器要东西的地方。由 `client.ts` 里每台服务器的那一格实现。 */
@@ -63,7 +64,7 @@ export function toAgentTool(handle: McpToolHandle, raw: RawMcpTool, qualifiedNam
 	return {
 		name: qualifiedName,
 		description,
-		parameters: normalizeSchema(raw.inputSchema),
+		parameters: normalizeInputSchema(raw.inputSchema),
 		mutating: !readOnly,
 		executionMode: readOnly ? "parallel" : "sequential",
 		summarize: () => `${handle.config().name}: ${raw.name}`,
@@ -148,10 +149,4 @@ function failed(text: string): ToolResult {
 
 function message(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
-}
-
-/** MCP servers may omit the schema or send a non-object; the providers require an object schema. */
-function normalizeSchema(schema: unknown): JsonSchema {
-	if (schema && typeof schema === "object" && (schema as JsonSchema).type === "object") return schema as JsonSchema;
-	return { type: "object", properties: {}, additionalProperties: true };
 }
