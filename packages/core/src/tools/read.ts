@@ -7,6 +7,7 @@ import { outline, outlineFooter } from "./outline.ts";
 import { displayPath, imageMimeType, looksBinary } from "./paths.ts";
 import { authorizeRead, toAbsolute } from "./read-access.ts";
 import { markRead } from "./read-state.ts";
+import { scratchFile } from "./scratch-file.ts";
 export { hasRead, markRead } from "./read-state.ts";
 import { decodeText } from "./text-layout.ts";
 import { EXTRACTABLE, extractDocumentText } from "../files/document-text.ts";
@@ -79,13 +80,15 @@ export const readTool: Tool<ReadArgs> = {
 		 * which is the truth. Claiming every `://` would answer a typo in a path with an error about
 		 * address spaces, for someone who never meant to use one.
 		 */
-		const resourceResult = await tryResource(path, ctx, { offset: args.offset, limit: args.limit, charOffset });
+		// A scratch file is read as the file, so `edit` finds the read it requires; a refusal is the address handler's to word.
+		const scratch = await scratchFile(ctx, path).catch(() => null);
+		const resourceResult = scratch ? null : await tryResource(path, ctx, { offset: args.offset, limit: args.limit, charOffset });
 		if (resourceResult) return resourceResult;
-		const shownPath = displayPath(ctx.cwd, toAbsolute(ctx.cwd, path));
+		const shownPath = scratch ? path : displayPath(ctx.cwd, toAbsolute(ctx.cwd, path));
 
 		let absolute: string;
 		try {
-			absolute = await realpath(toAbsolute(ctx.cwd, path));
+			absolute = await realpath(scratch ?? toAbsolute(ctx.cwd, path));
 		} catch {
 			return errorResult(`File not found: ${path}`);
 		}

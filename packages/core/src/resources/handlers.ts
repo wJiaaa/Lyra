@@ -107,7 +107,7 @@ const skillResource: ResourceHandler = {
  */
 const scratchResource: ResourceHandler = {
 	scheme: "scratch",
-	describe: "本次会话的临时目录，可读可写，会话结束后消失",
+	describe: "本次会话的临时目录，可读可写（write、edit 都能用），随会话删除一起清掉",
 
 	async resolve(url: ParsedUrl, ctx: ResourceContext): Promise<Resource> {
 		const target = await scratchTarget(url, ctx);
@@ -137,7 +137,7 @@ const scratchResource: ResourceHandler = {
  * 这是唯一可写的 scheme，读写都不经过文件授权：目录里一条指向外面的软链，就能让 `write` 覆盖或新建
  * 用户的任何文件、`read` 读走任何文件，而审批一次都不会被问到。
  */
-async function scratchTarget(url: ParsedUrl, ctx: ResourceContext): Promise<string> {
+export async function scratchTarget(url: ParsedUrl, ctx: ResourceContext): Promise<string> {
 	if (!ctx.scratchDir) throw new ResourceError("这个会话没有临时目录。");
 	const target = resolveInside(ctx.scratchDir, url.segments.join("/"));
 	if (!target) throw new ResourceError(`\`${url.raw}\` 指到了临时目录外面。`);

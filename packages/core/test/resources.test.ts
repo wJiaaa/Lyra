@@ -8,7 +8,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, test } from "node:test";
@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { BUILTIN_RESOURCES } from "../src/resources/handlers.ts";
 import { parseResourceUrl, ResourceRouter, resolveInside } from "../src/resources/router.ts";
 import type { ResourceContext } from "../src/resources/types.ts";
+import { editTool } from "../src/tools/edit.ts";
 import { readTool } from "../src/tools/read.ts";
 import { writeTool } from "../src/tools/write.ts";
 import type { ToolContext } from "../src/types.ts";
@@ -330,6 +331,22 @@ test("write goes to scratch through the tool, and is refused for a skill", async
 	const refused = await writeTool.execute({ path: "skill://pdf", content: "把技能改掉" } as never, toolCtx());
 	assert.ok(refused.isError);
 	assert.match(textOf(refused), /只读/);
+});
+
+test("edit takes a scratch address after write or read of the same address", async () => {
+	const c = toolCtx();
+	await writeTool.execute({ path: "scratch://probe.ts", content: "const size = 1;\n" } as never, c);
+	const afterWrite = await editTool.execute({ path: "scratch://probe.ts", old_string: "1", new_string: "2" } as never, c);
+	assert.equal(afterWrite.isError, undefined, textOf(afterWrite));
+
+	// Made by a command rather than `write`: nothing has been seen yet, and a read of the address is what fixes that.
+	await writeFile(join(scratchDir, "made-by-bash.ts"), "let x = 1;\n");
+	const unread = await editTool.execute({ path: "scratch://made-by-bash.ts", old_string: "1", new_string: "2" } as never, c);
+	assert.ok(unread.isError);
+	await readTool.execute({ path: "scratch://made-by-bash.ts" } as never, c);
+	const afterRead = await editTool.execute({ path: "scratch://made-by-bash.ts", old_string: "1", new_string: "2" } as never, c);
+	assert.equal(afterRead.isError, undefined, textOf(afterRead));
+	assert.equal(await readFile(join(scratchDir, "made-by-bash.ts"), "utf8"), "let x = 2;\n");
 });
 
 test("a session with no router reads addresses as ordinary paths", async () => {

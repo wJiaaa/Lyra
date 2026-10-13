@@ -24,6 +24,7 @@ import { formatCharWindow, MAX_LINE_CHARS } from "./long-line.ts";
 import { displayPath, resolveWorkspacePath } from "./paths.ts";
 import { findEditMatch, replacementFor } from "./edit-match.ts";
 import { changedSince, markRead, readRecord } from "./read-state.ts";
+import { scratchFile } from "./scratch-file.ts";
 import { decodeInput, decodeText, encodeText } from "./text-layout.ts";
 
 interface EditArgs {
@@ -63,7 +64,8 @@ export const editTool: Tool<EditArgs> = {
 			return errorResult("`old_string` and `new_string` must both be strings.");
 		}
 		try {
-			return await withTextFile(ctx, args.path, async ({ path: absolute, before: raw, stamp, write }) => {
+			const file = await scratchFile(ctx, args.path);
+			return await withTextFile(ctx, file ?? args.path, async ({ path: absolute, before: raw, stamp, write }) => {
 				const record = readRecord(ctx, absolute);
 				if (!record?.stamp) return errorResult(`Read ${args.path} as text before editing it.`);
 				if (record.partial) {
@@ -100,7 +102,7 @@ export const editTool: Tool<EditArgs> = {
 				const after = args.replace_all ? before.split(target).join(replacement) : before.replace(target, () => replacement);
 				const count = args.replace_all ? occurrences : 1;
 				const diff = computeDiff(before, after);
-				const shown = displayPath(ctx.cwd, resolveWorkspacePath(ctx.cwd, args.path));
+				const shown = displayPath(ctx.cwd, resolveWorkspacePath(ctx.cwd, file ?? args.path));
 
 				if (ctx.requestApproval) {
 					const decision = await ctx.requestApproval({
@@ -121,7 +123,7 @@ export const editTool: Tool<EditArgs> = {
 					content: [
 						{
 							type: "text",
-							text: `Edited ${shown}: ${count} replacement${count === 1 ? "" : "s"}, +${diff.added} -${diff.removed}.${echo}`,
+							text: `Edited ${file ? args.path : shown}: ${count} replacement${count === 1 ? "" : "s"}, +${diff.added} -${diff.removed}.${echo}`,
 						},
 					],
 					details: {

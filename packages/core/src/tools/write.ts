@@ -1,9 +1,11 @@
+import { realpath, stat } from "node:fs/promises";
 import { errorResult } from "./result.ts";
 import type { Tool, ToolResult } from "../types.ts";
 import { withTextFile } from "./file-write.ts";
 import { computeDiff, formatDiff } from "./diff.ts";
 import { displayPath, resolveWorkspacePath } from "./paths.ts";
 import { changedSince, markRead, readRecord } from "./read-state.ts";
+import { scratchFile } from "./scratch-file.ts";
 import { decodeInput, decodeText, encodeText } from "./text-layout.ts";
 
 interface WriteArgs {
@@ -49,6 +51,9 @@ export const writeTool: Tool<WriteArgs> = {
 					state: ctx.state,
 					signal: ctx.signal,
 				});
+				// What it just wrote, it has seen: an `edit` of the same address right after must not ask for a read.
+				const file = await scratchFile(ctx, args.path);
+				if (file) markRead(ctx, await realpath(file), await stat(file));
 				return {
 					content: [{ type: "text", text: `Wrote ${args.path} (${args.content.length} characters).` }],
 					details: { kind: "resource", url: args.path },
