@@ -4,6 +4,15 @@ import { browserLocalPage, browserUrl, browserViewport, browserZoom, type Browse
 import { eachAppWindow } from "./window.ts";
 import { openLocalPage } from "./local-page.ts";
 
+/**
+ * The tab a command was for is gone — closed before it arrived, or while it waited for the page.
+ *
+ * A type of its own so the IPC boundary can tell it apart: for a person the close was the answer
+ * already, while an agent still has to hear that its tab went away. See `ipc/browser.ts`.
+ */
+export class BrowserTabClosed extends Error {
+	constructor() { super("浏览器标签已关闭"); }
+}
 interface Tab { size?: {width: number; height: number}; scale?: number; state: BrowserTab; contents?: WebContents; ready: Promise<WebContents>; resolve: (contents: WebContents) => void; reject: (error: Error) => void }
 const tabs = new Map<string, Tab>();
 let activeId: string | null = null;
@@ -37,7 +46,7 @@ function publish(reveal = false): void {
 }
 export function browserContents(id: string, sessionId?: string): WebContents {
 	const tab = tabs.get(id);
-	if (!tab || !tab.contents || tab.contents.isDestroyed()) throw new Error("浏览器标签已关闭");
+	if (!tab || !tab.contents || tab.contents.isDestroyed()) throw new BrowserTabClosed();
 	if (sessionId !== undefined && tab.state.sessionId !== sessionId) throw new Error("这个浏览器标签属于其他会话");
 	return tab.contents;
 }
@@ -52,7 +61,7 @@ export function browserContents(id: string, sessionId?: string): WebContents {
  */
 export async function awakeBrowser(id: string, sessionId?: string): Promise<WebContents> {
 	const tab = tabs.get(id);
-	if (!tab) throw new Error("浏览器标签已关闭");
+	if (!tab) throw new BrowserTabClosed();
 	if (sessionId !== undefined && tab.state.sessionId !== sessionId) throw new Error("这个浏览器标签属于其他会话");
 	if (tab.contents && !tab.contents.isDestroyed()) return tab.contents;
 	tab.state.wanted = true;
@@ -178,7 +187,7 @@ export async function browserCommand(command: BrowserCommand): Promise<BrowserSt
 	const tab = tabs.get(command.id);
 	// A ResizeObserver notification may arrive after the user closed its guest.
 	if (!tab && command.type === "resize") return browserState();
-	if (!tab) throw new Error("浏览器标签已关闭");
+	if (!tab) throw new BrowserTabClosed();
 	// 地址栏是某一个网页的：右栏里每个网页一个标签，「这个会话当前那一页」不一定是正在打字的这一页。
 	if (command.type === "navigate") {
 		const url = browserLocalPage(command.url) ? await openLocalPage(command.url, tab.state.sessionId) : command.url;
@@ -222,7 +231,7 @@ export async function browserCommand(command: BrowserCommand): Promise<BrowserSt
  */
 export async function selectBrowser(id: string, reveal: boolean): Promise<void> {
 	const tab = tabs.get(id);
-	if (!tab) throw new Error("浏览器标签已关闭");
+	if (!tab) throw new BrowserTabClosed();
 	const contents = await awakeBrowser(id);
 	selectTab(tab);
 	// Chromium shares zoom by origin; restore this tab's preference when bringing it forward.
@@ -234,7 +243,7 @@ export async function selectBrowser(id: string, reveal: boolean): Promise<void> 
 /** Pointer coordinates belong to the tab, so navigation and page top layers cannot erase them. */
 export function pointBrowser(id: string, point: Omit<BrowserPointer, "sequence">): void {
 	const tab = tabs.get(id);
-	if (!tab) throw new Error("浏览器标签已关闭");
+	if (!tab) throw new BrowserTabClosed();
 	tab.state.pointer = { ...point, sequence: (tab.state.pointer?.sequence ?? 0) + 1 };
 	publish();
 }
@@ -251,7 +260,7 @@ function closeBrowser(id: string): void {
 	}
 	if (activeId === id) activeId = [...tabs.keys()].at(-1) ?? null;
 	if (tab.contents && !tab.contents.isDestroyed()) tab.contents.close();
-	else tab.reject(new Error("浏览器标签已关闭"));
+	else tab.reject(new BrowserTabClosed());
 	publish();
 }
 export function closeSessionBrowser(sessionId: string): void {

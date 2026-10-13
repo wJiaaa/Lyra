@@ -182,6 +182,8 @@ test("bookmarks persist, default zoom applies to new tabs and invalid commands l
 	await app.evaluate(`window.plume.browser.command({type:'close',id:${JSON.stringify(id)}})`);
 	assert.equal(await app.evaluate(`window.plume.browser.state().then(s=>s.tabs.some(t=>t.id===${JSON.stringify(id)}))`),false);
 	await app.evaluate(`window.plume.browser.command({type:'resize',id:${JSON.stringify(id)},width:400,height:600})`);
+	// 人点在刚关掉的标签上：关就是答案，交回现状，不再弹「浏览器标签已关闭」。
+	assert.equal(await app.evaluate<string>(`window.plume.browser.command({type:'reload',id:${JSON.stringify(id)}}).then(()=>'ok',e=>e.message)`),'ok');
 	const original=await app.evaluate<string>(`window.plume.browser.state().then(s=>s.tabs[0].id)`);
 	await app.evaluate(`window.plume.browser.command({type:'select',id:${JSON.stringify(original)}})`);
 	assert.equal(await app.evaluate(`document.querySelector('[data-browser-page="${original}"]').executeJavaScript('innerWidth')`),390);
