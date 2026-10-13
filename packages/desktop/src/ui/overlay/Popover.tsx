@@ -123,6 +123,15 @@ export interface PopoverProps {
 	header?: React.ReactNode;
 	/** Pinned below it, for an action that stays reachable however long the list gets. */
 	footer?: React.ReactNode;
+	/**
+	 * Pinned beside it on the left — the model picker's rail of houses.
+	 *
+	 * A slot for the same reason as the other two: a filter that scrolls away with the list it
+	 * filters is one you scroll back up to change. It cannot live in `children` as a sticky column
+	 * either, because the scroller's content box clips sideways overflow, and any `overflow` on an
+	 * ancestor makes `sticky` stick to that ancestor instead of to the view.
+	 */
+	aside?: React.ReactNode;
 	/** Ceiling for a surface that would otherwise grow to fill the window — see `MENU_MAX_HEIGHT`. */
 	maxHeight?: number;
 	/**
@@ -249,6 +258,7 @@ export function Popover({
 	width,
 	header,
 	footer,
+	aside,
 	maxHeight,
 	role = "menu",
 	label,
@@ -702,28 +712,31 @@ export function Popover({
 					<div className="shrink-0 border-b border-line-float">{header}</div>
 				)}
 
-				{/*
-				 * The app's own scroller, not `overflow: auto` — so a menu that outgrows the gap it was
-				 * placed in gets the same overlaid bar and softened edge as every other list in the
-				 * window. Three menus used to reach for `Scroller` themselves and the rest scrolled with
-				 * a native bar; making it the surface's job is what makes the answer the same everywhere.
-				 */}
-				<Scroller
-					className={`${kind === "menu" ? "ly-menu-scroll " : ""}min-h-0 flex-auto`}
-					contentClassName={`overflow-x-hidden ${bodyClassName}`}
-					/*
-					 * A panel ends where the card ends.
-					 *
-					 * The fade says "the list carries on past this edge", which is true of a menu and
-					 * false of a diff: its own bottom rows and its sideways scrollbar were dissolving
-					 * into a card that stops right there, and a scrollbar you can half-see reads as a
-					 * rendering fault rather than as a boundary. The rounded clip is the boundary.
-					 */
-					top={kind === "menu" ? "fade" : "none"}
-					bottom={kind === "menu" ? "fade" : "none"}
-				>
-					{children}
-				</Scroller>
+				<div className={aside ? "flex min-h-0 flex-auto" : "contents"}>
+					{aside && <div className="flex shrink-0 flex-col border-r border-line-float">{aside}</div>}
+					{/*
+					 * The app's own scroller, not `overflow: auto` — so a menu that outgrows the gap it was
+					 * placed in gets the same overlaid bar and softened edge as every other list in the
+					 * window. Three menus used to reach for `Scroller` themselves and the rest scrolled with
+					 * a native bar; making it the surface's job is what makes the answer the same everywhere.
+					 */}
+					<Scroller
+						className={`${kind === "menu" ? "ly-menu-scroll " : ""}min-h-0 min-w-0 flex-auto`}
+						contentClassName={`overflow-x-hidden ${bodyClassName}`}
+						/*
+						 * A panel ends where the card ends.
+						 *
+						 * The fade says "the list carries on past this edge", which is true of a menu and
+						 * false of a diff: its own bottom rows and its sideways scrollbar were dissolving
+						 * into a card that stops right there, and a scrollbar you can half-see reads as a
+						 * rendering fault rather than as a boundary. The rounded clip is the boundary.
+						 */
+						top={kind === "menu" ? "fade" : "none"}
+						bottom={kind === "menu" ? "fade" : "none"}
+					>
+						{children}
+					</Scroller>
+				</div>
 
 				{footer && (
 					<div className="shrink-0 border-t border-line-float">{footer}</div>

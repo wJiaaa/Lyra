@@ -559,13 +559,13 @@ export interface AppState extends QueueSlice {
   /**
    * Run this conversation on a different model.
    *
-   * `asDefault` additionally makes it what new conversations start on — a separate decision, and
-   * one that used to be taken silently on every pick. See the note in `turn-slice`.
+   * It does not change what new conversations start on — that is set in the model settings. See
+   * the note in `turn-slice`.
    *
    * `sessionId` names the conversation, the way `send` does: a conversation on another screen is
    * brought on stage first, `null` is the blank screen, and leaving it out means the live one.
    */
-  setModel(modelId: string, options?: { asDefault?: boolean; sessionId?: string | null }): Promise<void>;
+  setModel(modelId: string, options?: { sessionId?: string | null }): Promise<void>;
   /** How hard this conversation asks the model to think. Falls back to the app default. `sessionId` as for `setModel`. */
   setThinking(thinking: ThinkingLevel, sessionId?: string | null): Promise<void>;
   /** 进出这个对话的计划模式。空白对话记在 `draftPlanMode`。`sessionId` as for `setModel`. */

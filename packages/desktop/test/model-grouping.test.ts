@@ -13,8 +13,10 @@ import {
 	ambiguousNames,
 	favouriteRows,
 	filterGroups,
+	filterHouse,
 	flattenGroups,
 	groupModels,
+	housesOf,
 	modelIdentity,
 	modelTooltip,
 	toggleFavourite,
@@ -224,5 +226,35 @@ describe("toggleFavourite", () => {
 		const before = ["a"];
 		toggleFavourite(before, "b");
 		assert.deepEqual(before, ["a"]);
+	});
+});
+
+describe("housesOf", () => {
+	it("lists each maker once, in the order they first appear, with the unrecognised last", () => {
+		const groups = groupModels([
+			provider("a", "A", [model("a", "my-finetune", "Mine"), model("a", "grok-4.6", "grok-4.6"), model("a", "claude-opus-5", "Opus")]),
+			provider("b", "B", [model("b", "grok-4.6-fast", "Grok fast"), model("b", "deepseek-v4", "DeepSeek V4")]),
+		]);
+		assert.deepEqual(housesOf(groups), ["grok", "claude", "deepseek", "other"]);
+	});
+
+	it("is empty when there is nothing to choose from", () => {
+		assert.deepEqual(housesOf([]), []);
+	});
+});
+
+describe("filterHouse", () => {
+	it("keeps one maker's models under every provider that serves them, and drops the rest", () => {
+		const groups = groupModels([BIG, DEER, RELAY]);
+		const grok = filterHouse(groups, "grok");
+		assert.deepEqual(
+			grok.map((g) => [g.provider.id, g.models.map((m) => m.id)]),
+			[["deer", ["deer/grok-4.6"]], ["relay", ["relay/grok-4.6"]]],
+		);
+	});
+
+	it("gathers the models no brand claims under 「other」", () => {
+		const groups = groupModels([BIG, DEER]);
+		assert.deepEqual(flattenGroups(filterHouse(groups, "other")).map((r) => r.model.id), ["big/glm-5.3", "big/glm-5-turbo"]);
 	});
 });

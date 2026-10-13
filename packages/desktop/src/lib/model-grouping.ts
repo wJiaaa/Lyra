@@ -12,6 +12,7 @@
 
 import { isImageModel } from "@plume/core/image-models";
 import { translate } from "../i18n/translate.ts";
+import { brandOf, type Brand } from "./model-brand.ts";
 import type { ModelConfig, ProviderConfig, Settings } from "@plume/core";
 
 export interface ModelGroup {
@@ -99,6 +100,38 @@ export function filterGroups(groups: ModelGroup[], query: string): ModelGroup[] 
 				? group.models
 				: group.models.filter((model) => hit(model.name) || hit(model.modelId)),
 		}))
+		.filter((group) => group.models.length > 0);
+}
+
+/** Who made a model, as the picker's rail sorts them: a known brand, or everything no brand claimed. */
+export type House = Brand | "other";
+
+export function houseOf(model: ModelConfig): House {
+	return brandOf(model.modelId, model.name) ?? "other";
+}
+
+/**
+ * The houses present, for the rail — in the order they first appear, with 「other」 last.
+ *
+ * First appearance rather than by count, for the reason `groupModels` does not sort: a rail whose
+ * marks swap places when a relay adds two models is one you have to read again every time.
+ */
+export function housesOf(groups: ModelGroup[]): House[] {
+	const seen = new Set<House>();
+	for (const row of flattenGroups(groups)) seen.add(houseOf(row.model));
+	const houses = [...seen].filter((house) => house !== "other");
+	return seen.has("other") ? [...houses, "other"] : houses;
+}
+
+/**
+ * Only one house's models, still under the providers that serve them.
+ *
+ * Kept grouped by provider because that is the choice still left to make once the house is
+ * settled: the same Claude through two relays is two keys and two bills.
+ */
+export function filterHouse(groups: ModelGroup[], house: House): ModelGroup[] {
+	return groups
+		.map((group) => ({ provider: group.provider, models: group.models.filter((model) => houseOf(model) === house) }))
 		.filter((group) => group.models.length > 0);
 }
 

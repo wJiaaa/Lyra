@@ -504,7 +504,7 @@ export function turnSlice(set: Set, get: Get) {
    * is lost is the earlier reasoning context, which the warning below says plainly — the visible
    * transcript, and everything the new model reads, is unchanged.
    */
-  async setModel(modelId: string, options: { asDefault?: boolean; sessionId?: string | null } = {}) {
+  async setModel(modelId: string, options: { sessionId?: string | null } = {}) {
     // A conversation on another screen is brought on stage first; see `onStage`.
     if (options.sessionId && options.sessionId !== get().activeSessionId && !(await onStage(options.sessionId))) return;
     const { settings, meta } = get();
@@ -536,14 +536,15 @@ export function turnSlice(set: Set, get: Get) {
       }
     }
     /*
-     * The app default is a separate decision, and used to be made for you.
+     * The app default is a separate decision (the model settings make it), and used to be made
+     * for you.
      *
      * Every pick wrote `defaultModelId`, so trying a cheaper model on one question silently
      * re-aimed every conversation started afterwards. A conversation with no session yet is the
      * exception: there is nothing else for the choice to land on, and it is about to become the
      * model the new session is created with.
      */
-    if (settings && (options.asDefault || !activeSessionId))
+    if (settings && !activeSessionId)
       await get().saveSettings({ ...settings, defaultModelId: modelId });
 
   },

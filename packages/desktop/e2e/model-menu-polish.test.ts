@@ -122,23 +122,20 @@ test("starring a model pins it to the top and persists", async () => {
 });
 
 test("the model menu has a fixed ceiling and internal scrolling", async () => {
-	const box = await ui<{ height: number; scrollable: boolean; searchVisible: boolean; footerVisible: boolean }>(`
+	const box = await ui<{ height: number; scrollable: boolean; searchVisible: boolean }>(`
 		await openModelMenu();
 		const surface = menu();
 		const rect = surface.getBoundingClientRect();
 		const scroller = [...surface.querySelectorAll("*")].find((element) => element.scrollHeight > element.clientHeight + 4);
 		const search = surface.querySelector("input");
-		const footer = [...surface.querySelectorAll('[role=menuitem]')].find((row) => label(row).startsWith("管理供应商与模型"));
 		return {
 			height: Math.round(rect.height),
 			scrollable: Boolean(scroller),
 			searchVisible: Boolean(search) && search.getBoundingClientRect().height > 0,
-			footerVisible: Boolean(footer) && footer.getBoundingClientRect().height > 0,
 		};
 	`);
 
 	assert.ok(box.height <= 420, JSON.stringify(box));
 	assert.ok(box.scrollable);
 	assert.ok(box.searchVisible);
-	assert.ok(box.footerVisible);
 });

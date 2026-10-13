@@ -130,6 +130,24 @@
 }
 
 /*
+ * 可搜索的清单里，方向键和指针共用一个高亮（`data-active`），和命令面板一样。
+ *
+ * 只认 `data-active`、不再认 `:hover`：指针停在一行上、方向键走到另一行时，两行同时亮着就看不出回车
+ * 会选哪个。指针一动，那一行自己会变成 active，所以用鼠标的人看到的和以前一样。选中行的色块不受影响。
+ */
+.ly-item.ly-model-row[data-nav]:hover:not([data-active="true"]):not([data-selected="true"]) {
+  background: transparent;
+}
+
+.ly-item.ly-model-row[data-active="true"]:not([data-selected="true"]) {
+  background: var(--color-card-hover);
+}
+
+.ly-item.ly-model-row[data-active="true"][data-selected="true"] {
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+/*
  * 一格两用：不指着的时候是上下文窗口，指上去换成收藏的星星。
  *
  * 两样东西叠在同一个位置，所以谁都不能改这一格的宽度——星星是绝对定位的，宽度由窗口那几个字定，

@@ -238,6 +238,16 @@ export async function openEffortMenu(page: Page, within = "main"): Promise<void>
 	await frames(page, 60);
 }
 
+/** 输入框那一行的模型弹窗。按钮和弹窗都叫「选择模型」，按钮带 `aria-haspopup`，弹窗不带。 */
+export const MODEL_MENU = '[role="menu"][aria-label="选择模型"]';
+
+/** 点开输入框那一行的模型弹窗，等它挂上再走完过渡。`within` 同 `openEffortMenu`。 */
+export async function openModelMenu(page: Page, within = "main"): Promise<void> {
+	await click(page, `${within} button[aria-haspopup="menu"][aria-label="选择模型"]`);
+	await until(page, `document.querySelector(${JSON.stringify(MODEL_MENU)})`);
+	await frames(page, 60);
+}
+
 /** 打开设置并切到某一页（按左侧导航里写的名字，比如「外观」），再等它画完。 */
 export async function openSettings(page: Page, section: string): Promise<void> {
 	await click(page, "[data-ly-open-settings]");

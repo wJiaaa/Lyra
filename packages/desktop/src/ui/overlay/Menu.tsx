@@ -54,7 +54,7 @@ export function MenuBody({
 }
 
 /**
- * Rows under a menu's divider: 新建项目 under the project list, the fast-mode switch under the models.
+ * Rows under a menu's divider: 新建项目 under the project list.
  *
  * The popover's footer slot has no gutter of its own, because not everything put there is a row —
  * the file dropdown's full-width strip, the browser's viewport form. Rows need the list's gutter and
@@ -213,11 +213,14 @@ export function MenuSearch({
 	onChange,
 	placeholder,
 	autoFocus = true,
+	onKeyDown,
 }: {
 	value: string;
 	onChange: (value: string) => void;
 	placeholder?: string;
 	autoFocus?: boolean;
+	/** For a menu that moves a highlight from the field — arrows and Enter — while focus stays in it. */
+	onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
 }) {
 	return (
 		<div className="flex h-[34px] items-center gap-2 px-3">
@@ -227,6 +230,7 @@ export function MenuSearch({
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
 				onKeyDown={(event) => {
+					onKeyDown?.(event);
 					if (event.key !== "Escape" || !value) return;
 					event.stopPropagation();
 					onChange("");

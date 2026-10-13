@@ -215,18 +215,21 @@ const MARKS: Record<Brand, { box: string; mono?: true; draw: (gradientId: string
 export function ModelIcon({
 	model,
 	name,
+	brand: known,
 	size = 13,
 	className = "",
 }: {
-	model: string | null | undefined;
+	model?: string | null;
 	/** The display name, when it is not the same string as the id. */
 	name?: string | null;
+	/** The house itself, for a mark that stands for a house rather than for one model (the picker's rail). */
+	brand?: Brand | null;
 	size?: number;
 	className?: string;
 }) {
 	// Stable per mounted icon, so two Geminis on one screen do not share one gradient id.
 	const gradientId = useId();
-	const brand = brandOf(model, name);
+	const brand = known !== undefined ? known : brandOf(model, name);
 	const mark = brand ? MARKS[brand] : null;
 
 	if (!mark)

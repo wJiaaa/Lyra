@@ -80,3 +80,30 @@ const HOUSE_WORDS: Record<Brand, readonly string[]> = {
 export function houseWords(brand: Brand): readonly string[] {
 	return [brand, ...HOUSE_WORDS[brand]];
 }
+
+/**
+ * What a house is called on screen, for the picker's rail where the mark stands alone.
+ *
+ * Proper nouns, so one spelling for every language — the same way the marks themselves are not
+ * translated.
+ */
+const BRAND_NAMES: Record<Brand, string> = {
+	openai: "OpenAI",
+	claude: "Claude",
+	deepseek: "DeepSeek",
+	gemini: "Gemini",
+	qwen: "Qwen",
+	grok: "Grok",
+	mistral: "Mistral",
+	hunyuan: "Hunyuan",
+	kimi: "Kimi",
+	minimax: "MiniMax",
+	stepfun: "StepFun",
+	baichuan: "Baichuan",
+	doubao: "Doubao",
+	yi: "Yi",
+};
+
+export function brandName(brand: Brand): string {
+	return BRAND_NAMES[brand];
+}

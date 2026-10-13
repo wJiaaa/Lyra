@@ -136,11 +136,6 @@ describe("where a change is written", () => {
 		assert.equal(useApp.getState().settings?.defaultModelId, "relay/a", "the blank conversation uses the app default");
 	});
 
-	it("asking for it explicitly does set the default", async () => {
-		await useApp.getState().setModel("relay/b", { asDefault: true });
-		assert.equal(saved.at(-1)?.defaultModelId, "relay/b");
-	});
-
 	it("on a blank conversation the pick is the default, because there is nowhere else for it", async () => {
 		useApp.setState({ meta: null, activeSessionId: null });
 		await useApp.getState().setModel("relay/c");

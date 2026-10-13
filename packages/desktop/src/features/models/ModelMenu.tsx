@@ -1,21 +1,22 @@
 import { Box, ChevronRight, Star } from "../../ui/icons/index.ts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { isImageModel } from "@plume/core/image-models";
 import { ModelIcon } from "./ModelIcon.tsx";
-import { RollingText } from "../../ui/motion/RollingText.tsx";
+import { ModelRail, type RailPick } from "./ModelRail.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
-import { MenuBody, MenuFooter, MenuItem, MenuSearch, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
+import { MenuBody, MenuItem, MenuSearch, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useI18n } from "../../i18n/index.ts";
 import { useApp } from "../../store/index.ts";
 import { useScopedFromMessages, useScopedMeta, useScopedSessionId } from "../../app/session-scope.tsx";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
-import { sessionThinking } from "../../lib/thinking.ts";
 import {
 	ambiguousNames,
 	favouriteRows,
 	filterGroups,
+	filterHouse,
 	flattenGroups,
 	groupModels,
+	housesOf,
 	toggleFavourite,
 	type ModelRow,
 } from "../../lib/model-grouping.ts";
@@ -32,11 +33,18 @@ const SHORTCUTS = 4;
 /**
  * How tall this menu may get.
  *
- * Deliberately its own number rather than the shared `MENU_MAX_HEIGHT`: with a search field pinned
- * above the list and two switches pinned below it, 340 leaves five rows visible. This leaves about
- * nine, which is enough to recognise a list rather than only to scroll one.
+ * Deliberately its own number rather than the shared `MENU_MAX_HEIGHT`: beside the rail of houses,
+ * 340 under a search field cut the rail off after the eighth mark and left the list a slot. This
+ * holds a rail of eleven and about eleven rows.
  */
 const MODEL_MENU_MAX_HEIGHT = 420;
+
+/**
+ * Wider once the rail of houses takes its 44px: the list beside it keeps about what it had at
+ * `wide`, plus the room names were already short of — `claude-sonnet-4-5-20250929` and its
+ * neighbour differ only in the part that used to fade out.
+ */
+const MODEL_MENU_RAIL_WIDTH = 380;
 
 /**
  * Past this the list is something you search rather than something you read, and the field earns
@@ -95,19 +103,33 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 	const said = useScopedFromMessages((messages) => messages.length > 0);
 	const setModel = useApp((s) => s.setModel);
 	const confirmer = useConfirmer();
-	const setThinking = useApp((s) => s.setThinking);
 	const saveSettings = useApp((s) => s.saveSettings);
 	const setView = useApp((s) => s.setView);
 	const setSection = useApp((s) => s.setSettingsSection);
 	const [query, setQuery] = useState("");
 	const [error, setError] = useState("");
 	const [collapsed, setCollapsed] = useState<string[]>(storedCollapsed);
+	const [pick, setPick] = useState<RailPick>("all");
+	/** The row arrows move and Enter takes — one highlight shared with the pointer, as in the command palette. */
+	const [active, setActive] = useState(0);
+	/** Set by an arrow key, so only the keyboard scrolls the highlight into view; a hover must not pull rows. */
+	const keyed = useRef(false);
+	/*
+	 * Where the pointer last really moved. Chromium fires a `mousemove` without any movement when
+	 * the list scrolls under a resting pointer — after an arrow key brings a row into view, say —
+	 * and taken at face value it handed the highlight to whatever row had just slid under it.
+	 */
+	const pointer = useRef({ x: -1, y: -1 });
+	const hover = (index: number, event: React.MouseEvent) => {
+		if (event.clientX === pointer.current.x && event.clientY === pointer.current.y) return;
+		pointer.current = { x: event.clientX, y: event.clientY };
+		setActive(index);
+	};
 
 	const current = selection ? selection.value : meta?.modelId ?? settings?.defaultModelId ?? null;
 	const favourites = settings?.favoriteModelIds;
 	const kind = selection?.kind ?? "chat";
 	const groups = useMemo(() => groupModels(settings?.providers, kind), [settings?.providers, kind]);
-	const shown = useMemo(() => filterGroups(groups, query), [groups, query]);
 	/*
 	 * Which names need their house said out loud.
 	 *
@@ -130,8 +152,21 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 	 * the menu telling you about a key that does something else entirely.
 	 */
 	const searchable = total >= SEARCH_FROM;
-	const fastMode = sessionThinking(meta, settings) === "off";
-	const isDefault = settings?.defaultModelId === current;
+
+	/*
+	 * The rail, where there is a choice of house to make: a long list from one maker is narrowed by
+	 * searching, and a rail holding one mark would only repeat the heading beside it.
+	 */
+	const houses = useMemo(() => housesOf(groups), [groups]);
+	const hasStarred = useMemo(() => favouriteRows(groups, favourites).length > 0, [groups, favourites]);
+	const railed = searchable && houses.length >= 2;
+	// A pick that stopped existing — the last star taken off, a provider switched off — falls back to everything.
+	const view: RailPick =
+		!railed || (pick === "favourites" ? !hasStarred : pick !== "all" && !houses.includes(pick)) ? "all" : pick;
+	const shown = useMemo(
+		() => filterGroups(view === "all" || view === "favourites" ? groups : filterHouse(groups, view), query),
+		[groups, view, query],
+	);
 
 	/*
 	 * The shortlist, then the houses.
@@ -141,9 +176,13 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 	 * around as you star things, which is the opposite of what a shortlist is for.
 	 */
 	const sections = useMemo<Section[]>(() => {
-		const starred = query ? [] : favouriteRows(groups, favourites);
+		const shortlist = (rows: ModelRow[]): Section[] =>
+			rows.length > 0 ? [{ key: "__favourites__", title: t("modelMenu.favourite"), rows, foldable: false }] : [];
+		// On its own tab the shortlist is the whole list, so a query narrows it rather than hiding it.
+		if (view === "favourites") return shortlist(favouriteRows(shown, favourites));
+		const starred = query || view !== "all" ? [] : favouriteRows(groups, favourites);
 		return [
-			...(starred.length > 0 ? [{ key: "__favourites__", title: t("modelMenu.favourite"), rows: starred, foldable: false }] : []),
+			...shortlist(starred),
 			...shown.map((group) => ({
 				key: group.provider.id,
 				title: group.provider.name,
@@ -151,13 +190,23 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 				foldable: true,
 			})),
 		];
-	}, [groups, favourites, shown, query, t]);
+	}, [groups, favourites, shown, query, view, t]);
 
-	/** The rows a number key can reach: what is on screen, in the order it is drawn. */
-	const reachable = useMemo(
-		() => sections.filter((section) => (!section.foldable || Boolean(query) || !collapsed.includes(section.key))).flatMap((section) => section.rows),
-		[sections, collapsed, query],
-	);
+	const opened = (section: Section) => !section.foldable || Boolean(query) || !collapsed.includes(section.key);
+
+	/** The rows a number key or an arrow can reach: what is on screen, in the order it is drawn. */
+	const reachable = sections.filter(opened).flatMap((section) => section.rows);
+	/** Where each open section's rows begin in `reachable`, so a starred model drawn twice is two positions. */
+	const starts = new Map<string, number>();
+	sections.filter(opened).reduce((offset, section) => (starts.set(section.key, offset), offset + section.rows.length), 0);
+
+	const at = Math.min(active, reachable.length - 1);
+
+	useLayoutEffect(() => {
+		if (!keyed.current) return;
+		keyed.current = false;
+		document.querySelector('[data-model][data-active="true"]')?.scrollIntoView({ block: "nearest" });
+	}, [at]);
 
 	/*
 	 * A switch that does not go through has to say so.
@@ -167,15 +216,15 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 	 * having pressed anything. It was `void`ed here, so the rejection was an unhandled one in the
 	 * console and nothing else.
 	 */
-	const apply = (modelId: string, options?: { asDefault?: boolean }) => {
-		void setModel(modelId, { ...options, sessionId }).catch((cause: unknown) => {
+	const apply = (modelId: string) => {
+		void setModel(modelId, { sessionId }).catch((cause: unknown) => {
 			useApp
 				.getState()
 				.notify(t("modelMenu.switchFailed", { reason: cause instanceof Error ? cause.message : String(cause) }), "error");
 		});
 	};
 
-	const choose = (modelId: string, options?: { asDefault?: boolean }) => {
+	const choose = (modelId: string) => {
 		if (selection) {
 			selection.onChange(modelId);
 			onClose();
@@ -200,13 +249,13 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 				cancelLabel: t("common.cancel"),
 				tone: "danger",
 				onConfirm: () => {
-					apply(modelId, options);
+					apply(modelId);
 					onClose();
 				},
 			});
 			return;
 		}
-		apply(modelId, options);
+		apply(modelId);
 		onClose();
 	};
 
@@ -232,6 +281,25 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 		},
 		[saveSettings],
 	);
+
+	/*
+	 * Arrows and Enter from the search field, which keeps focus throughout: type a few letters and
+	 * Enter takes the top match, which is most of what finding a model in a long list should cost.
+	 */
+	const onSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
+		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+			if (reachable.length === 0) return;
+			event.preventDefault();
+			keyed.current = true;
+			setActive((at + (event.key === "ArrowDown" ? 1 : reachable.length - 1)) % reachable.length);
+			return;
+		}
+		// Not while an input method is still composing: that Enter commits the characters, not a model.
+		if (event.key === "Enter" && !event.nativeEvent.isComposing && reachable[at]) {
+			event.preventDefault();
+			choose(reachable[at].model.id);
+		}
+	};
 
 	// Number keys pick from the first rows, matching the digits drawn on them.
 	useEffect(() => {
@@ -269,71 +337,53 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 			onClose={onClose}
 			placement={selection ? "bottom" : "top"}
 			align={selection ? "end" : "start"}
-			width="wide"
+			width={railed ? MODEL_MENU_RAIL_WIDTH : "wide"}
 			label={t("modelMenu.pick")}
 			/*
-			 * A ceiling, so a relay with thirty models does not draw a menu from the composer to the
-			 * top of the screen. The body scrolls inside it; the search field above and the switches
-			 * below stay put, which is the whole reason they are in the other two slots.
+			 * A list long enough to search keeps one height while it is filtered.
 			 *
-			 * Higher than `MENU_MAX_HEIGHT`, and only here: this is the one menu with all three
-			 * slots filled, so the shared 340 would leave about five rows between a search field
-			 * and two switches — a list you can only read through a slot.
+			 * Opened upwards the card is pinned by its bottom edge, so a list that shrank as you
+			 * typed pulled the field you were typing into — and the rail beside it — down the screen
+			 * under the pointer. At eight models and up the natural height is at the ceiling anyway.
+			 */
+			className={searchable ? "h-[420px]" : ""}
+			aside={
+				railed ? (
+					<ModelRail
+						houses={houses}
+						favourites={hasStarred}
+						value={view}
+						onChange={(next) => {
+							setPick(next);
+							setActive(0);
+						}}
+					/>
+				) : undefined
+			}
+			/*
+			 * A ceiling, so a relay with thirty models does not draw a menu from the composer to the
+			 * top of the screen. The body scrolls inside it; the search field above stays put.
 			 */
 			maxHeight={MODEL_MENU_MAX_HEIGHT}
 			header={
 				searchable ? (
-					<MenuSearch value={query} onChange={setQuery} placeholder={t("modelMenu.search")} />
+					<MenuSearch
+						value={query}
+						onChange={(next) => {
+							setQuery(next);
+							setActive(0);
+						}}
+						onKeyDown={onSearchKey}
+						placeholder={t("modelMenu.search")}
+					/>
 				) : undefined
-			}
-			footer={selection ? undefined :
-				<MenuFooter>
-					<MenuItem
-						detail={meta ? t("modelMenu.noThinkingSession") : t("modelMenu.noThinkingFaster")}
-						trailing={
-							/*
-							 * Indicator, not a control: the whole row is the switch. A real Toggle here
-							 * would be a button inside a button — invalid markup, and the click would
-							 * fire both handlers and cancel itself out.
-							 */
-							<span
-								aria-hidden
-								className={`mt-[3px] relative h-[20px] w-[34px] shrink-0 rounded-full transition-colors duration-[var(--ly-t-base)] ${
-									fastMode ? "bg-info" : "bg-line"
-								}`}
-							>
-								<span
-									className="absolute top-[3px] h-[14px] w-[14px] rounded-full bg-white shadow-sm transition-[left] duration-[var(--ly-t-base)]"
-									style={{ left: fastMode ? 17 : 3 }}
-								/>
-							</span>
-						}
-						onClick={() => {
-							if (!settings) return;
-							// Per conversation, like the level itself; `lastThinking` is what it restores.
-							void setThinking(fastMode ? (settings.lastThinking ?? "medium") : "off", sessionId);
-						}}
-					>
-						{t("modelMenu.noThinking")}
-					</MenuItem>
-					<MenuItem
-						trailing={<ChevronRight size={13} strokeWidth={2} className="shrink-0 text-ink-faint" />}
-						onClick={() => {
-							setView("settings");
-							setSection("models");
-							onClose();
-						}}
-					>
-						<RollingText>{t("modelMenu.manageProviders")}</RollingText>
-					</MenuItem>
-				</MenuFooter>
 			}
 		>
 			<MenuBody>
 				{error && <p role="alert" className="px-2 py-1 text-detail text-danger">{error}</p>}
 				{/* Filled, not ticked, like the model rows under it: it is one of the choices in this
 				    list, and a list that marks its rows two ways is a list you have to read twice. */}
-				{selection && !query && <>
+				{selection && !query && view === "all" && <>
 					<MenuItem icon={<Box size={14} />} selected={!current} className="ly-model-row"
 						detail={selection.inheritDetail ? <ScrollText text={selection.inheritDetail} /> : undefined}
 						onClick={() => choose("")}>{selection.inheritLabel}</MenuItem>
@@ -356,7 +406,7 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 				)}
 
 				{sections.map((section) => {
-					const folded = section.foldable && !query && collapsed.includes(section.key);
+					const folded = !opened(section);
 					return (
 						<div key={section.key}>
 							<SectionHead
@@ -371,8 +421,8 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 							    rather than as a stripe painted across a solid block of list. */}
 							{!folded && (
 								<div className="flex flex-col gap-0.5">
-									{section.rows.map((row) => {
-										const at = reachable.findIndex((each) => each.model.id === row.model.id);
+									{section.rows.map((row, i) => {
+										const index = (starts.get(section.key) ?? 0) + i;
 										return (
 											<ModelItem
 												key={`${section.key}:${row.model.id}`}
@@ -383,7 +433,10 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 												showProvider={clashes.has(row.model.name.trim().toLowerCase())}
 												// Drawn only where the key it names actually does this; see `searchable`.
 												numbered={!searchable && !query}
-												shortcut={at >= 0 && at < SHORTCUTS ? at + 1 : null}
+												shortcut={index < SHORTCUTS ? index + 1 : null}
+												// Only where a key can act on it; see `onSearchKey`.
+												active={searchable ? index === at : undefined}
+												onHover={(event) => hover(index, event)}
 												onChoose={() => choose(row.model.id)}
 												onStar={() => star(row.model.id)}
 											/>
@@ -395,29 +448,6 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 					);
 				})}
 
-				{!selection && current && (
-					<>
-						<MenuSeparator />
-						{/*
-						 * Making this the model new conversations start on, which picking one no
-						 * longer does on its own.
-						 *
-						 * It used to be silent and automatic: trying a cheap model on one question
-						 * re-aimed every conversation started afterwards, and nothing said so. Now
-						 * it is a row you press, and it says what it already is.
-						 */}
-						<MenuItem
-							icon={<Star size={13} strokeWidth={1.8} className={isDefault ? "fill-current" : ""} />}
-							disabled={isDefault}
-							onClick={() => {
-								void choose(current, { asDefault: true });
-								onClose();
-							}}
-						>
-							{isDefault ? t("modelMenu.isDefault") : t("modelMenu.makeDefault")}
-						</MenuItem>
-					</>
-				)}
 			</MenuBody>
 		</Popover>
 		{confirmer.element}
@@ -487,6 +517,8 @@ function ModelItem({
 	showProvider,
 	numbered,
 	shortcut,
+	active,
+	onHover,
 	onChoose,
 	onStar,
 }: {
@@ -505,6 +537,12 @@ function ModelItem({
 	 */
 	numbered: boolean;
 	shortcut: number | null;
+	/**
+	 * Whether arrows and Enter are on this row. Left undefined in a list with no search field,
+	 * where no key acts on a highlight and drawing one would promise something.
+	 */
+	active: boolean | undefined;
+	onHover: (event: React.MouseEvent) => void;
 	onChoose: () => void;
 	onStar: () => void;
 }) {
@@ -526,6 +564,9 @@ function ModelItem({
 		<div
 			data-model={model.id}
 			data-selected={selected ? "true" : undefined}
+			data-nav={active === undefined ? undefined : ""}
+			data-active={active ? "true" : undefined}
+			onMouseMove={active === undefined ? undefined : onHover}
 			className="ly-scroll ly-item ly-model-row flex h-[var(--ly-menu-row)] items-center"
 		>
 			<button
