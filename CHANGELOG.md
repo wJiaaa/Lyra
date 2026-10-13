@@ -2,6 +2,57 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
+## [0.9.29](https://github.com/wJiaaa/Lyra/releases/tag/v0.9.29) - 2026-10-13
+
+<!-- plume:notes en -->
+
+### New
+
+- **A gallery of every picture you have drawn, from every conversation.** It sits in the sidebar under Plugins. Pictures are laid out like an album — grouped by day (Today, Yesterday, then the date), newest first, each one at its own aspect ratio rather than cropped into a square. Hovering brings up what you asked for and which conversation it came from, and a picture that took several steps wears a "3 steps" chip in its corner. The search box looks through what you asked, the prompts the model wrote and conversation titles. Clicking one opens it over the gallery, ← → move through the rest, Esc closes; the conversation's title takes you back to that conversation, and "Show in conversation" jumps to the picture where it sits in the transcript, opening the conversation first if it wasn't open.
+- **How each picture was made.** Next to the picture is the chain that led to it, one thumbnail per step, top to bottom, each step labelled with what you said at the time plus "Drawn" or "Edited" and when. A picture you attached yourself says so; a copy you marked up says so; a step that can no longer be traced back says "original not found" rather than guessing. Clicking any step switches to that picture.
+- **Change a picture without going back to find it.** Under the picture there is a pencil to annotate it, a box to say what should change, and the same send button the composer uses: Enter sends that picture back into the conversation it came from, attached as it is, so the new one is linked to the old. Marks without a word don't send anything — they open that conversation with the marked copy in the composer and wait for you to say what should change. When the new picture lands, the gallery settles on it (it waits up to ten minutes, and won't pull you away if you've moved on to another picture).
+- **Projects close on hover.** Hovering the project chip next to the composer brings out a ✕ on its right; clicking it leaves the project without opening the switch-project menu first. The highlight stays on the whole chip while the pointer moves over to the ✕, and in a split view it focuses that pane and leaves the other one's conversation and draft alone.
+
+### Changes
+
+- The title bar keeps side chat, terminal and diff; the browser moved into the "⋮" panel menu with the other panels. Its shortcut is unchanged.
+- After 20 requests without a word to you, the automatic nudge no longer asks the agent what it has finished — that asked for a conclusion before the evidence was in, and one was wrong. It now asks what it's doing and what's next, and says not to state unverified findings as fact.
+
+### Fixes
+
+- **A refusal written as an answer is no longer retried every 5 seconds.** When a provider refuses a request, some relays deliver the refusal as ordinary reply text ("The prompt could not be submitted … Generative AI Prohibited Use policy") and then a generic in-stream error; Plume read only the error, called it a server fault, said "server error, retrying in a few seconds" and resent every five seconds, streaming the same refusal again, until you stopped it by hand. The refusal is now recognised — a short piece of visible text (under 600 characters) matching what providers actually write when they refuse — and the turn ends saying it was refused under the content policy, with the request not worth sending again unchanged. For image models on the chat route the card says the same thing. A long answer that merely mentions safety still retries as before.
+- **An MCP tool whose array parameter has no element type no longer breaks every turn.** `{"type": "array"}` is legal JSON Schema and common in MCP servers, but relays that send the tool list as protobuf reject the whole request over it ("parameters.properties[machineIds].items: missing field"), so every turn failed for old and new conversations alike, and there was nothing to connect it to the MCP server you had installed. Arrays without an element type are now filled in as accepting anything, which changes nothing for providers that took the bare array.
+- **Closing a browser tab no longer raises "browser tab closed".** Clicking ✕ while a page was still loading, or refreshing just as the agent closed the tab, surfaced the internal timing error with its `Error invoking remote method` prefix. The panel just puts that cell away now; the agent's own browser tool still learns its tab is gone.
+- **`edit` works on `scratch://` addresses.** It used to read `scratch://x` as the relative path `<project>/scratch:/x`, so the read-before-edit record never matched and every edit to a temporary file was refused with "read it first" — and rereading it, as the error suggested, didn't help; one session spent four rounds going around this. Read, write and edit now resolve the same address to the same file on disk.
+- **The plan mode switch doesn't shift its icon 2px.** Off and on were two different buttons — 6px from the left edge and 8px — so toggling rebuilt it and the icon jumped sideways, with the background snapping instead of fading. It's one button in both states now.
+
+<!-- plume:notes zh-CN -->
+
+<details>
+<summary>中文（简体）</summary>
+
+### 新功能
+
+- **画廊：所有对话里画过的图，收在一处。** 入口在侧栏「插件」下面。图按相册排：按天分组（今天、昨天，再往前是月日和星期），最新的在最上面，每张按自己的原始比例排而不是裁成方块。指上去浮出你当时说的那句话和它来自哪个对话，要经过好几步才画成的图，角上有一枚「3 步」的胶囊。顶上的搜索框会翻你说过的话、模型写的提示词和会话标题。点开一张就盖在画廊上，← → 翻下一张，Esc 关掉；右边的会话标题点一下回到那个对话，「在对话中查看」跳到转录里那张图的位置，对话没开着就先打开它。
+- **每张图是怎么来的。** 图旁边是它的生成链路，一步一张缩略图，从上到下，每一步写的是你当时说的那句话，配「生成」或「修改」和当时的时间。你自己附进去的图、在图上标注过的副本都标出来是哪一步；倒推不出来的那一步写「原图找不到了」，不猜。点链路里任意一步就切到那张图。
+- **改图不用再回对话里把图翻出来。** 图下面一条编辑栏：左边一支笔用来在图上标注，中间写想怎么改，右边是和对话里同一颗发送按钮——回车就把这张图带着发回它所在的对话，字节原样回去，所以新图和原图连着。只标注、没写字时不自动发，而是打开那个对话、把标注图放进输入框，等你说要改什么。新图画好之后画廊自己停到那张上（最多等十分钟，你已经翻到别的图就不会被拉走）。
+- **悬停就能关掉项目。** 输入框旁边的项目芯片指上去，右边浮出一颗 ✕，点它直接不在这个项目里工作，不用先打开「切换项目」菜单。鼠标从名称移到 ✕ 上的过程中整块高亮不消失；分屏里点它会先聚焦那一屏，另一屏的会话和草稿都不动。
+
+### 变化
+
+- 标题栏常驻的只剩侧聊、终端和 diff，浏览器按钮并进「⋮」面板菜单里和其他面板一起。快捷键照旧。
+- 连续 20 次请求没对你说过话时的自动提示，不再要它讲「做完了什么」——那是在证据没齐时要阶段性结论，出过错。现在只问在做什么、下一步做什么，并明说没核实的发现别说成定论。
+
+### 修复
+
+- **被拒不再每 5 秒重试一次。** 服务商拒绝某个请求时，有的中转让这段拒绝从回答正文里流出来（`The prompt could not be submitted … Generative AI Prohibited Use policy`），随后再补一个泛泛的流内错误；Plume 只认了那个错误，判成服务端故障，界面上写「服务端故障，几秒后重试」，每 5 秒把同一段拒绝再流一遍，直到手动按停。现在认得出这是被拒：只有一小段可见文字（600 字符以内）命中服务商真在用的拒绝句式才算，这一轮到此为止，并写明是按内容策略被拒、原样再发还是会被拒。生图走对话接口时卡片上也这么写。长回答里顺口提到 safety 的情况和以前一样照常重试。
+- **MCP 工具的数组参数没写元素类型，不再让每一轮都失败。** `{"type": "array"}` 是合法的 JSON Schema，MCP 服务器里很常见，但把工具列表按 protobuf 发出去的中转会因此拒掉整个请求（`parameters.properties[machineIds].items: missing field`），新旧会话一律失败，而且人不会把它和自己装的那台 MCP 服务器联系起来。现在这种数组按「元素任意」补全，本来就接受裸数组的服务商不受影响。
+- **关掉网页标签后不再弹「浏览器标签已关闭」。** 页面还在加载时点 ✕，或者 agent 刚关掉标签、人正好在刷新，会把主进程内部这个时间差连 `Error invoking remote method` 前缀一起弹成报错。现在面板把那一格收掉就算了；agent 自己的浏览器工具照样知道标签没了。
+- **`edit` 能直接改 `scratch://` 里的文件。** 以前它把 `scratch://x` 当成相对路径读成 `<项目>/scratch:/x`，「先读再改」的记录永远对不上，每次编辑临时文件都报「先读再改」，照着报错重读一遍也没用——有一个会话为此多花了 4 轮。read、write、edit 现在把同一个地址解析到磁盘上同一个文件。
+- **点计划模式开关，图标不再横移 2px。** 关着和开着原本是两颗不同的按钮，离左沿分别是 6px 和 8px，一点开关就重建元素、图标跟着横跳，背景也跟着硬切而不是渐变。现在两种状态是同一颗按钮。
+
+</details>
+
 ## [0.9.28](https://github.com/wJiaaa/Lyra/releases/tag/v0.9.28) - 2026-10-13
 
 <!-- plume:notes en -->
