@@ -15,6 +15,7 @@ import { skillRefusal } from "../skills/tool.ts";
 import { translatedShellCommand, TOOL_NAMES_KEY } from "../tools/reroute.ts";
 import { errorResult } from "../tools/result.ts";
 import { routeMcpCall, MCP_CALL, toolTable } from "../tools/mcp-search.ts";
+import { parseToolArguments } from "../utils/sse.ts";
 import type {
 	ApprovalDecision,
 	ApprovalRequest,
@@ -216,8 +217,11 @@ async function executeOne(
 	const refusal = skillRefusal(state, call.name);
 	if (refusal) return errorResult(refusal);
 
-	// A tool call whose JSON never parsed would silently run with no arguments.
-	if (call.argumentsText && Object.keys(call.arguments).length === 0 && call.argumentsText.trim() !== "{}") {
+	// A tool call whose JSON never parsed would silently run with no arguments. Asked of the parser
+	// itself rather than compared with "{}": `null` and a double-encoded `"{}"` say "no arguments" too.
+	// Whitespace alone is not one of those — the stream was cut before any JSON arrived.
+	const text = call.argumentsText;
+	if (text && Object.keys(call.arguments).length === 0 && (!text.trim() || parseToolArguments(text) === null)) {
 		return errorResult(
 			`Arguments for "${call.name}" were not valid JSON, so the call was not executed. Re-issue it with complete arguments.`,
 		);

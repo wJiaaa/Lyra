@@ -176,6 +176,20 @@ test("arguments encoded twice are unwrapped rather than treated as broken", () =
 	assert.equal(parseToolArguments('"just a string"'), null);
 });
 
+test("无参工具发来 `null` 当参数：当成没有参数照常执行，不算非法 JSON", async () => {
+	assert.deepEqual(parseToolArguments("null"), {});
+	const log: string[] = [];
+	const [ran] = await runTools([{ ...call("1", "read"), argumentsText: "null" }], toolGroup([timed("read", log)]), scope(), async () => {});
+	assert.notEqual(ran.isError, true, text(ran));
+	assert.deepEqual(log, ["start:read", "end:read"]);
+	// 真写坏了的照旧拒绝。
+	const [broken] = await runTools([{ ...call("2", "read"), argumentsText: '{"n": ' }], toolGroup([timed("read", [])]), scope(), async () => {});
+	assert.match(text(broken), /not valid JSON/);
+	// 只有空白：流在 JSON 来之前就断了，不是「没有参数」。
+	const [blank] = await runTools([{ ...call("3", "read"), argumentsText: "  \n" }], toolGroup([timed("read", [])]), scope(), async () => {});
+	assert.match(text(blank), /not valid JSON/);
+});
+
 test("auto mode lets an MCP tool through only when it says read-only and the user trusts that server's word", () => {
 	const request = { kind: "mcp" as const, title: "t", detail: "", subject: "mcp__s__t" };
 	// The annotation is the server's own claim: on its own it never waives the question.

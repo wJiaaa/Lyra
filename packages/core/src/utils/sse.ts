@@ -182,6 +182,9 @@ export function parseToolArguments(text: string): Record<string, unknown> | null
 		// Encoded twice — `"{\"path\":…}"` — by some relays and weaker models. The object inside is
 		// what was meant; treating it as broken JSON would refuse a call that said everything.
 		if (typeof parsed === "string") parsed = JSON.parse(parsed);
+		// `null` is what some models send for a tool that takes no arguments. It is complete, valid
+		// JSON that says "nothing" — the same as `{}`, not a call cut off mid-way.
+		if (parsed === null) return {};
 		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
 			? (parsed as Record<string, unknown>)
 			: null;
