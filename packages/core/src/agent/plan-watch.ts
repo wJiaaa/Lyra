@@ -44,10 +44,13 @@ export function stalePlanNote(todos: TodoItem[]): string {
 /**
  * 没有清单时，汇报就是对人说一句话。只问现状，不要它补一份计划：简单的活不需要清单，长出来的活也
  * 不该因为跑得久就被要求先拆步骤。「接着做、不要停下来等」是必须的——只回一段正文的回复会结束这一轮。
+ *
+ * 只问在做什么，不问做完了什么：后者等于要一份阶段性结论，而这时证据多半还没收齐。`9db78fc1` 排查一半
+ * 被问到，答了一句「没有真文件夹，全是软链接」，错的，得用户打断来纠正。
  */
 export const PROGRESS_NOTE =
-	`（自动提示）你已经连续 ${PROGRESS_EVERY} 次请求没有对用户说过话了。这次回复里先用一两句话说明：做完了什么、现在在做什么、下一步做什么；` +
-	"然后在同一次回复里接着调用下一步的工具，不要停下来等回复。不需要为此新建任务清单。";
+	`（自动提示）你已经连续 ${PROGRESS_EVERY} 次请求没有对用户说过话了。这次回复里先用一两句话说明现在在做什么、下一步做什么；` +
+	"不要给阶段性结论，没核实的发现别说成定论。然后在同一次回复里接着调用下一步的工具，不要停下来等回复。不需要为此新建任务清单。";
 
 /** Said once when a run ends on prose while its plan still claims a step is under way. */
 export function openPlanNote(open: TodoItem[]): string {
