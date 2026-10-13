@@ -5,7 +5,7 @@
 <h1 align="center">Plume</h1>
 
 <p align="center">
-  <a href="https://github.com/wJiaaa/Plume/actions/workflows/ci.yml"><img src="https://github.com/wJiaaa/Plume/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/wJiaaa/Lyra/actions/workflows/ci.yml"><img src="https://github.com/wJiaaa/Lyra/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href=".nvmrc"><img src="https://img.shields.io/badge/node-%E2%89%A524-brightgreen.svg" alt="Node ≥ 24"></a>
 </p>

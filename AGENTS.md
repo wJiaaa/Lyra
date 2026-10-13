@@ -217,9 +217,8 @@ lockfile。依赖已经装好时，每轮都跑一遍什么也确认不了，只
 
 仓库没有自动检查 CI。打 tag 就是发版：推 `v*` 触发 `.github/workflows/package.yml`，在各自的
 runner 上打 Windows x64、macOS（arm64 与 x64 的 dmg、zip）和 Android APK，汇总后加一份
-`SHA256SUMS`，**直接发布到公开仓库 `wJiaaa/Lyra` 的 Release**——代码仓库是私有的，应用内更新
-（`electron/ipc/updates.ts` 的 `REPO`）只能从那里读。发布要用 Actions secret
-`LYRA_RELEASE_TOKEN`（对 `wJiaaa/Lyra` 有 Contents 读写权限的 token），没配就只在最后一步红。
+`SHA256SUMS`，**发布到本仓库 `wJiaaa/Lyra` 的 Release**，应用内更新（`electron/ipc/updates.ts`
+的 `REPO`）从那里读。发布用 workflow 自带的 `GITHUB_TOKEN`，不用另配 token。
 macOS 包用自签证书 `Plume Code Signing` 签名（secrets `MAC_CERTIFICATE_P12`、
 `MAC_CERTIFICATE_PASSWORD`，由 `.github/scripts/prepare-signing.sh` 导入），发版时缺证书或签成
 ad-hoc 直接失败——ad-hoc 包会让每台机器更新后丢掉屏幕录制等授权。

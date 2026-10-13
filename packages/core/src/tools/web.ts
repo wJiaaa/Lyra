@@ -246,7 +246,7 @@ function get(url: URL, addresses: readonly string[], signal: AbortSignal | undef
 			agent: false,
 			signal,
 			headers: {
-				"user-agent": "Plume/0.1 (+https://github.com/wJiaaa/Plume)",
+				"user-agent": "Plume/0.1 (+https://github.com/wJiaaa/Lyra)",
 				accept: "text/html,text/plain,*/*",
 				"accept-encoding": "gzip, deflate, br",
 			},

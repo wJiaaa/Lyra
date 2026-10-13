@@ -35,16 +35,13 @@ pnpm dev         # 桌面端
 `.github/workflows/package.yml` 做两件事：
 
 - **推 `v*` tag 时**（`pnpm release` 的最后一步）：Windows、macOS、Android 都打，再连同
-  `SHA256SUMS` 发布到公开仓库 [`wJiaaa/Lyra`](https://github.com/wJiaaa/Lyra/releases) 的
-  Release，正文取 CHANGELOG 里这个版本的说明。应用内更新从那里检查和下载。
+  `SHA256SUMS` 发布到本仓库 [`wJiaaa/Lyra`](https://github.com/wJiaaa/Lyra/releases) 的
+  Release，正文取 CHANGELOG 里这个版本的说明。应用内更新从那里检查和下载。发布用 workflow
+  自带的 `GITHUB_TOKEN`，不用另配 token。
 - **手动运行时**：在 **Actions** 页面选择 **安装包** → **Run workflow**，选分支和平台（`all`、
-  `windows`、`macos`、`android`），只打包、上传 Artifacts，不发布。私有仓库里 macOS runner
-  按 10 倍计分钟，只要一个平台时单独选它。
+  `windows`、`macos`、`android`），只打包、上传 Artifacts，不发布。只要一个平台时单独选它。
 
-发布前要配一次 secret：建一个只授权 `wJiaaa/Lyra`、Contents 读写的 fine-grained token，存为
-本仓库的 Actions secret `LYRA_RELEASE_TOKEN`。默认的 `GITHUB_TOKEN` 写不了别的仓库。
-
-手动运行的产物在该次运行页面的 **Artifacts** 下载，保留 14 天：
+手动运行的产物在该次运行页面的 **Artifacts** 下载，保留 1 天：
 
 | Artifact | 内容 |
 | --- | --- |

@@ -2,7 +2,7 @@
 
 这个文件由 `pnpm release` 生成，条目来自提交信息。写得含糊的提交在这里也含糊，所以值得在提交时就写清楚。
 
-## [0.9.28](https://github.com/wJiaaa/Plume/releases/tag/v0.9.28) - 2026-10-13
+## [0.9.28](https://github.com/wJiaaa/Lyra/releases/tag/v0.9.28) - 2026-10-13
 
 <!-- plume:notes en -->
 
@@ -85,7 +85,7 @@
 
 </details>
 
-## [0.9.27](https://github.com/wJiaaa/Plume/releases/tag/v0.9.27) - 2026-10-12
+## [0.9.27](https://github.com/wJiaaa/Lyra/releases/tag/v0.9.27) - 2026-10-12
 
 <!-- plume:notes en -->
 
@@ -216,7 +216,7 @@
 
 </details>
 
-## [0.9.26](https://github.com/wJiaaa/Plume/releases/tag/v0.9.26) - 2026-10-10
+## [0.9.26](https://github.com/wJiaaa/Lyra/releases/tag/v0.9.26) - 2026-10-10
 <!-- plume:notes en -->
 
 ### New
@@ -290,7 +290,7 @@
 
 </details>
 
-## [0.9.25](https://github.com/wJiaaa/Plume/releases/tag/v0.9.25) - 2026-10-09
+## [0.9.25](https://github.com/wJiaaa/Lyra/releases/tag/v0.9.25) - 2026-10-09
 <!-- plume:notes en -->
 
 ### Before you update
@@ -316,7 +316,7 @@
 
 </details>
 
-## [0.9.24](https://github.com/wJiaaa/Plume/releases/tag/v0.9.24) - 2026-10-09
+## [0.9.24](https://github.com/wJiaaa/Lyra/releases/tag/v0.9.24) - 2026-10-09
 <!-- plume:notes en -->
 
 ### Before you update
@@ -404,7 +404,7 @@
 
 </details>
 
-## [0.9.23](https://github.com/wJiaaa/Plume/releases/tag/v0.9.23) - 2026-10-04
+## [0.9.23](https://github.com/wJiaaa/Lyra/releases/tag/v0.9.23) - 2026-10-04
 <!-- plume:notes en -->
 
 ### Before you update
@@ -482,7 +482,7 @@
 
 </details>
 
-## [0.9.22](https://github.com/wJiaaa/Plume/releases/tag/v0.9.22) - 2026-09-29
+## [0.9.22](https://github.com/wJiaaa/Lyra/releases/tag/v0.9.22) - 2026-09-29
 <!-- plume:notes en -->
 
 ### Lyra is now Plume
