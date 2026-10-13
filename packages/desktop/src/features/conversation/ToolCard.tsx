@@ -49,7 +49,7 @@ const ICONS: Record<string, typeof FileText> = {
 	task: Users,
 	skill: Sparkles,
 	web_fetch: Globe,
-	generate_image: Image,
+	image_generate: Image,
 	mcp_search: Search,
 };
 
@@ -105,6 +105,8 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 	const failed = status === "error" && !stopped;
 	const { command: _command, ...rest } = args as Record<string, unknown>;
 	const output = result ? resultText(result) : "";
+	// 进度里只有 `details`、没有内容的（`image_generate` 开跑时报的形状），对这张卡还什么都不是。
+	const shown = running && result?.content.length === 0 ? undefined : result;
 
 	// A visible timer is the honest signal that a long command is still going.
 	const mountedAt = useRef(Date.now());
@@ -150,12 +152,12 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 			 * with a command and no output section looks like a card that has lost its
 			 * output. Saying so is the difference between waiting and wondering.
 			 */}
-			{!result && running && (
+			{!shown && running && (
 				<Section title={t("toolCard.outputRunning")} mono>
 					<span className="text-ink-faint">{t("toolCard.waiting")}</span>
 				</Section>
 			)}
-			{result && (
+			{shown && (
 				<Section
 					title={stopped ? t("toolCard.stopped") : failed ? t("common.error") : running ? t("toolCard.outputRunning") : t("common.result")}
 					mono={output !== ""}
@@ -166,7 +168,7 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 							{output}
 						</Scroller>
 					)}
-					<ResultImages result={result} summary={summary} spaced={output !== ""} />
+					<ResultImages result={shown} summary={summary} spaced={output !== ""} />
 				</Section>
 			)}
 		</>

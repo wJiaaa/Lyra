@@ -14,7 +14,7 @@
  * 照规矩放在桌面上，回复里链过去，点开却只有「读不到这个文件」。这一类 core 那边没有对应：它不让模型多读
  * 任何东西，只让人点得开模型指给他看的那一个文件——同样精确到文件、同样只读，点不点由人决定。
  *
- * 还有一类是生成图落盘的那一份：`generate_image` 的结果在 `details.paths` 里记着它在 `session-media` 下的
+ * 还有一类是生成图落盘的那一份：`image_generate` 的结果在 `details.paths` 里记着它在 `session-media` 下的
  * 位置，卡片右键「在新标签页中打开」交给面板的就是这个路径。一样精确到文件、一样只读——放行的是这次画
  * 出来的那几张，不是整个 `session-media`。
  *
@@ -52,7 +52,7 @@ export function noteTranscriptFiles(messages: readonly Message[]): void {
 			for (const block of message.content) {
 				if (block?.type === "text" && typeof block.text === "string") for (const path of linkedPaths(block.text)) noteAttachmentPath(path);
 			}
-		} else if (message?.role === "toolResult" && message.toolName === "generate_image") {
+		} else if (message?.role === "toolResult" && message.toolName === "image_generate") {
 			const paths = (message.details as { paths?: unknown } | undefined)?.paths;
 			if (Array.isArray(paths)) for (const path of paths) noteAttachmentPath(path);
 		}

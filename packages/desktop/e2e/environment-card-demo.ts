@@ -157,8 +157,8 @@ async function seed(home: string, modelPort: number): Promise<void> {
 		result("r1", "read", [{ type: "text", text: "# 登录页改版" }]),
 		assistant([{ type: "text", text: "入口清楚了。" }]),
 		user("先出一个应用图标"),
-		assistant([{ type: "toolCall", id: "g1", name: "generate_image", arguments: { prompt: "a blue app icon" } }], "toolUse"),
-		result("g1", "generate_image", [{ type: "text", text: "已生成 1 张图" }], { paths: [join(cwd, "assets", "icon.png")] }),
+		assistant([{ type: "toolCall", id: "g1", name: "image_generate", arguments: { prompt: "a blue app icon" } }], "toolUse"),
+		result("g1", "image_generate", [{ type: "text", text: "已生成 1 张图" }], { paths: [join(cwd, "assets", "icon.png")] }),
 		assistant([{ type: "text", text: "图标放在 assets/icon.png。" }]),
 		user("新建登录页组件，顺便把 README 改一下"),
 		assistant([

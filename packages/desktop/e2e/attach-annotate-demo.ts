@@ -1,10 +1,10 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * 生成图标注后「保存副本」、递进输入框的图打字后还在、发送时托盘收起——边验边录。
+ * 生成图标注后按「完成」、递进输入框的图打字后还在、发送时托盘收起——边验边录。
  *
- * 一张 `generate_image` 画出来的图，记录里停进了 session-media，窗口里是 `ly-media://m/…`。那是另一个
- * 源：直接画进画布，画布被污染、`toDataURL` 抛错，标注完点「保存副本」什么也不发生。导出的那张从系统
- * 剪贴板读回来量尺寸、数红色像素，不信页面自己的说法。会覆盖本机剪贴板（文字内容跑完放回去）。
+ * 一张 `image_generate` 画出来的图，记录里停进了 session-media，窗口里是 `ly-media://m/…`。那是另一个
+ * 源：直接画进画布，画布被污染、`toDataURL` 抛错，标注完按「完成」什么也不发生。带标注的副本进了输入框
+ * 之后，从托盘里那张缩略图的像素量尺寸、数红色像素，不信页面自己的说法。
  *
  * 同一张图右键「添加到聊天」：正文是空的，附件没有标记的话，打第一个字就被当孤儿卸掉。发送时托盘的
  * 高度逐帧采样，一帧收没就是那一跳。
@@ -13,10 +13,9 @@
  */
 
 import { createServer, type ServerResponse } from "node:http";
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { deflateSync, crc32 } from "node:zlib";
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
@@ -32,6 +31,8 @@ const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).
 const WIDTH = 360;
 const HEIGHT = 240;
 const NAME = "雪地狐狸.png";
+/** 「完成」交给输入框的那张的名字（`annotate.attachmentName`）。 */
+const ANNOTATED = "标注图.png";
 
 /** 一张蓝绿渐变加噪点的 PNG：没有一个像素是红的，数到红色就只能是标注画上去的。不压缩，保证停进 session-media。 */
 function picturePng(): Buffer {
@@ -86,8 +87,8 @@ async function seed(home: string, modelPort: number): Promise<void> {
 	const at = () => (clock += 60_000);
 	const messages = [
 		{ role: "user", content: [{ type: "text", text: "画一只站在雪地里的狐狸" }], timestamp: at() },
-		{ role: "assistant", content: [{ type: "toolCall", id: "g1", name: "generate_image", arguments: { prompt: "a fox in the snow", size: "1536x1024" } }], api: "anthropic-messages", provider: "qa", model: "model", usage, stopReason: "toolUse", timestamp: at() },
-		{ role: "toolResult", toolCallId: "g1", toolName: "generate_image", content: [{ type: "text", text: "已生成 1 张图" }, { type: "image", data: png.toString("base64"), mimeType: "image/png" }], isError: false, details: { paths: [join(cwd, NAME)] }, timestamp: at() },
+		{ role: "assistant", content: [{ type: "toolCall", id: "g1", name: "image_generate", arguments: { prompt: "a fox in the snow", aspect_ratio: "3:2" } }], api: "anthropic-messages", provider: "qa", model: "model", usage, stopReason: "toolUse", timestamp: at() },
+		{ role: "toolResult", toolCallId: "g1", toolName: "image_generate", content: [{ type: "text", text: "已生成 1 张图" }, { type: "image", data: png.toString("base64"), mimeType: "image/png" }], isError: false, details: { paths: [join(cwd, NAME)] }, timestamp: at() },
 		{ role: "assistant", content: [{ type: "text", text: "画好了。" }], api: "anthropic-messages", provider: "qa", model: "model", usage, stopReason: "stop", timestamp: at() },
 	];
 	const meta = { id: SESSION, title: "雪地狐狸", cwd, projectId, projectName: "project", createdAt: base, updatedAt: clock, modelId: "qa/model", messageCount: messages.length, usage, seq: 0 };
@@ -116,22 +117,6 @@ function check(what: string, ok: boolean, saw: unknown) {
 	console.log(`   ${ok ? "✅" : "❌"} ${what}${ok ? "" : `  —— 看到的是：${JSON.stringify(saw)}`}`);
 }
 
-/** 剪贴板里那张 PNG，从系统那一侧读出来；不是 PNG 就是 null。 */
-function clipboardPng(): Buffer | null {
-	const file = join(tmpdir(), `plume-attach-annotate-${process.pid}.png`);
-	try {
-		execFileSync("osascript", ["-e", `set png to the clipboard as «class PNGf»
-set f to open for access POSIX file "${file}" with write permission
-set eof f to 0
-write png to f
-close access f`], { stdio: "ignore" });
-		return execFileSync("cat", [file]);
-	} catch {
-		return null;
-	} finally {
-		execFileSync("rm", ["-f", file]);
-	}
-}
 
 const SHOT = 'main [data-ly-canvas="done"]';
 const VIEWER = '[role="dialog"][aria-label="图片预览"]';
@@ -145,18 +130,12 @@ const camera = { rolling: true };
 let filming: Promise<void> | undefined;
 let grab: Awaited<ReturnType<typeof frameGrabber>> | undefined;
 let shot = 0;
-let clipboardText: string | null = null;
 
 try {
 	await mkdir(OUT_DIR, { recursive: true });
 	await new Promise<void>((resolve) => model.listen(0, "127.0.0.1", resolve));
 	const address = model.address();
 	if (!address || typeof address === "string") throw new Error("model server has no port");
-	try {
-		clipboardText = execFileSync("pbpaste", { encoding: "utf8" });
-	} catch {
-		clipboardText = null;
-	}
 	app = await startApp({ port: PORT, seed: (home) => seed(home, address.port) });
 	const page = app;
 	await page.send("Page.bringToFront");
@@ -177,7 +156,7 @@ try {
 	await until(page, `document.querySelector('${SHOT} img')?.complete`, 1200);
 	await pause(800);
 
-	// ---- 一、标注生成的图，保存副本 ----
+	// ---- 一、标注生成的图，按「完成」 ----
 	const src = await page.evaluate<string>(`document.querySelector('${SHOT} img').src`);
 	check("生成图在窗口里是 ly-media://m/ 地址（停进了 session-media）", src.startsWith("ly-media://m/"), src.slice(0, 40));
 	const tainted = await page.evaluate<string>(`new Promise((resolve) => {
@@ -205,33 +184,29 @@ try {
 	await dragSelect(page, { x: box.x + box.w * 0.25, y: box.y + box.h * 0.25 }, { x: box.x + box.w * 0.75, y: box.y + box.h * 0.75 }, 16);
 	await pause(700);
 	await capture("画了一个矩形");
-	execFileSync("osascript", ["-e", 'set the clipboard to "plume-before"']);
-	await click(page, "button", "保存副本");
-	await until(page, `${TOAST("已复制到剪贴板")} || ${TOAST("没能导出")}`, 300).catch(() => {});
+	await click(page, "button", "完成");
+	await until(page, `${TILES} === 1 || ${TOAST("没能导出")}`, 300).catch(() => {});
 	await pause(900);
-	await capture("点了保存副本");
-	const copied = await page.evaluate<boolean>(`Boolean(${TOAST("已复制到剪贴板")})`);
-	check("点「保存副本」有回应：提示已复制到剪贴板", copied, await page.evaluate<string>(`document.querySelector("[data-ly-toaster]")?.innerText ?? ""`));
-	const png = clipboardPng();
-	const exported = png
-		? await page.evaluate<{ width: number; height: number; red: number }>(`new Promise((resolve) => {
-			const img = new Image();
-			img.onload = () => {
-				const canvas = document.createElement("canvas");
-				canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-				const context = canvas.getContext("2d");
-				context.drawImage(img, 0, 0);
-				const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
-				let red = 0;
-				for (let i = 0; i < data.length; i += 4) if (data[i] > 180 && data[i + 1] < 120 && data[i + 2] < 120) red++;
-				resolve({ width: img.naturalWidth, height: img.naturalHeight, red });
-			};
-			img.onerror = () => resolve({ width: 0, height: 0, red: 0 });
-			img.src = "data:image/png;base64,${png.toString("base64")}";
-		})`)
-		: null;
-	check(`系统剪贴板里是 ${WIDTH}×${HEIGHT} 的 PNG`, exported?.width === WIDTH && exported?.height === HEIGHT, exported);
-	check("导出的图里有标注：红色像素超过 300 个（原图一个红像素也没有）", (exported?.red ?? 0) > 300, exported?.red);
+	await capture("按了完成");
+	const marked = await page.evaluate<string>(`document.querySelector("main textarea").value`);
+	check("按「完成」有回应：带标注的副本进了输入框，句子里有它的标记", (await page.evaluate<number>(TILES)) === 1 && marked.includes(`【${ANNOTATED}】`), marked);
+	const exported = await page.evaluate<{ width: number; height: number; red: number }>(`new Promise((resolve) => {
+		const img = new Image();
+		img.onload = () => {
+			const canvas = document.createElement("canvas");
+			canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+			const context = canvas.getContext("2d");
+			context.drawImage(img, 0, 0);
+			const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+			let red = 0;
+			for (let i = 0; i < data.length; i += 4) if (data[i] > 180 && data[i + 1] < 120 && data[i + 2] < 120) red++;
+			resolve({ width: img.naturalWidth, height: img.naturalHeight, red });
+		};
+		img.onerror = () => resolve({ width: 0, height: 0, red: 0 });
+		img.src = document.querySelector("main [data-ly-composer-attachments] [data-ly-attachment] img")?.src ?? "";
+	})`);
+	check(`输入框里那张是 ${WIDTH}×${HEIGHT}`, exported.width === WIDTH && exported.height === HEIGHT, exported);
+	check("那张图里有标注：红色像素超过 300 个（原图一个红像素也没有）", exported.red > 300, exported.red);
 	// 保存没成功时查看器还停在标注里：Esc 先退出标注，再关查看器。
 	for (let tries = 0; tries < 4 && (await page.evaluate<boolean>(`Boolean(document.querySelector('${VIEWER}'))`)); tries++) {
 		await press(page, "Escape", 27);
@@ -244,7 +219,7 @@ try {
 	await contextClick(page, SHOT);
 	await pause(500);
 	await click(page, '[role="menuitem"]', "添加到聊天");
-	await until(page, `${TILES} === 1`, 600).catch(() => {});
+	await until(page, `${TILES} === 2`, 600).catch(() => {});
 	await pause(900);
 	const handed = await page.evaluate<string>(`document.querySelector("main textarea").value`);
 	check("递进来的图在句子里落了标记", handed.includes(`【${NAME}】`), handed);
@@ -252,7 +227,7 @@ try {
 	await typeAtEnd(page, "main textarea", "照这个改成黄昏");
 	await pause(900);
 	const typed = await page.evaluate<{ text: string; tiles: number }>(`({ text: document.querySelector("main textarea").value, tiles: ${TILES} })`);
-	check("打了字以后图还在托盘里", typed.tiles === 1, typed);
+	check("打了字以后两张图都还在托盘里", typed.tiles === 2, typed);
 	check("正文是标记加上打的字", typed.text.includes(`【${NAME}】`) && typed.text.endsWith("照这个改成黄昏"), typed.text);
 	await capture("打字之后图还在");
 
@@ -270,7 +245,7 @@ try {
 			names: (last.attachments ?? []).map((file) => file.name),
 		};
 	})()`);
-	check("发出去的消息带着那张图", sent.images === 1 && sent.names.includes(NAME), sent);
+	check("发出去的消息带着那两张图：标注过的和原图", sent.images === 2 && sent.names.includes(NAME) && sent.names.includes(ANNOTATED), sent);
 	await capture("发送之后");
 	await pause(800);
 
@@ -322,7 +297,6 @@ try {
 	grab?.close();
 	await app?.stop();
 	await closeListeningServer(model);
-	if (clipboardText !== null) execFileSync("pbcopy", { input: clipboardText });
 }
 
 const passed = checks.filter((c) => c.ok).length;

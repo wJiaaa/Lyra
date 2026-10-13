@@ -60,9 +60,16 @@ export async function saveImage(src: string): Promise<boolean> {
 	const subtype = /^data:image\/([\w.+-]+)/.exec(dataUrl)?.[1] ?? "png";
 	const link = document.createElement("a");
 	link.href = dataUrl;
-	link.download = `image-${Date.now()}.${subtype === "jpeg" ? "jpg" : subtype}`;
+	link.download = imageFileName(subtype === "jpeg" ? "jpg" : subtype);
 	link.click();
 	return true;
+}
+
+/** `plume-image-2026-10-13-11-58-03.png`，本地时间：存下来的图在下载文件夹里认得出是哪天的，毫秒时间戳认不出。 */
+export function imageFileName(extension: string, at = new Date()): string {
+	const two = (value: number) => String(value).padStart(2, "0");
+	const stamp = `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}-${two(at.getHours())}-${two(at.getMinutes())}-${two(at.getSeconds())}`;
+	return `plume-image-${stamp}.${extension}`;
 }
 
 /**

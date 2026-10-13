@@ -159,7 +159,13 @@ export function RunningIndicator() {
 	 * Dropped rather than given a pool of its own: the countdown on the right says what is happening
 	 * and how long it will take, and anything here would be the same fact in fewer words.
 	 */
-	const phrase = retrying ? null : phraseFor(mood, tick, elapsed);
+	/*
+	 * Nor while a picture is being drawn: the card above already says 「Generate image …」 over its
+	 * field of dots, and `composing`'s pool is about writing — 「Laying down code」 under a picture
+	 * in progress would be the same moment told twice, one of them wrongly.
+	 */
+	const drawing = fresh && !finishedAt && toolName === "image_generate";
+	const phrase = retrying || drawing ? null : phraseFor(mood, tick, elapsed);
 
 	if (waitingKind) {
 		return (

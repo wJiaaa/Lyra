@@ -64,7 +64,7 @@ const KIND: Record<string, MessageKey> = {
 	web_search: "tools.webSearch",
 	task: "tools.delegate",
 	preview: "tools.preview",
-	generate_image: "tools.generateImage",
+	image_generate: "tools.generateImage",
 	symbol: "tools.symbol",
 	/*
 	 * 技能、学习、回忆、语言服务、问一句——这五个从前不在表里，一律落到「使用 …」。
@@ -96,7 +96,7 @@ const ACTIVITY: [RegExp, string, (match: RegExpMatchArray) => string][] = [
 	[/^Find (.+)$/, "glob", (m) => m[1]],
 	[/^Search "(.+)"$/, "grep", (m) => m[1]],
 	[/^Fetch (.+)$/, "web_fetch", (m) => m[1]],
-	[/^Generate image (.+)$/, "generate_image", (m) => m[1]],
+	[/^Generate image (.+)$/, "image_generate", (m) => m[1]],
 ];
 
 /** `bash_output` 的两句摘要：不带任务 id，一串 uuid 人读不出东西。 */

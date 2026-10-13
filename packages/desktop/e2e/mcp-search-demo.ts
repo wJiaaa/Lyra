@@ -38,7 +38,7 @@ const SERVER = join(import.meta.dirname, "mcp-defer-server.ts");
 const ISSUE = { title: "Login fails on Safari", team: "ENG", priority: 2 };
 const PAGE = `<div style="display:flex;gap:12px;align-items:flex-end;height:120px">${[["Q1", 120], ["Q2", 150], ["Q3", 90], ["Q4", 180]].map(([q, v]) => `<div style="flex:1;text-align:center"><div style="height:${Number(v) / 2}px;background:var(--chart-1);border-radius:4px"></div><small>${q} ${v}</small></div>`).join("")}</div>`;
 /** 曾经试过延迟、现在一律常驻的那几件内置工具（`docs/architecture/mcp-search.md`）。 */
-const RESIDENT_BUILTINS = ["preview", "generate_image", "learn", "list_sessions", "send_message", "wait_for_session"];
+const RESIDENT_BUILTINS = ["preview", "image_generate", "learn", "list_sessions", "send_message", "wait_for_session"];
 const BROWSER = ["browser_open", "browser_act", "browser_tabs", "browser_viewport", "browser_screenshot"];
 
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];

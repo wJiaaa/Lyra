@@ -2,7 +2,7 @@
 /**
  * 会话里生成图的右键菜单——边验边录。顺带守住「运行中的工具行，鼠标移入时文字消失」。
  *
- * 假服务照搬 generate-image-demo：对话模型按剧本调 `generate_image`，出图端点回一张 PNG。
+ * 假服务照搬 generate-image-demo：对话模型按剧本调 `image_generate`，出图端点回一张 PNG。
  * 出图那几秒里展开过程、把鼠标移到那一行上，拍下前后两张；画完重启，让图走 `ly-media://m/`，
  * 再对它右键把菜单每一项点一遍。剪贴板从 macOS 那一侧读回来量尺寸，会覆盖本机剪贴板；
  * 「下载副本」拦下 `<a>` 的点击只量它要下载什么，不弹保存框；「在访达中显示」只验它在菜单里。
@@ -53,7 +53,7 @@ function gradientPng(): Buffer {
 
 type Block = { tool: string; args: Record<string, unknown> } | { text: string };
 const SCRIPT: Block[][] = [
-	[{ text: "好，我来画。" }, { tool: "generate_image", args: { prompt: PROMPT, size: "1024x1024" } }],
+	[{ text: "好，我来画。" }, { tool: "image_generate", args: { prompt: PROMPT, aspect_ratio: "1:1" } }],
 	[{ text: "画好了，图在上面。" }],
 ];
 
@@ -280,7 +280,7 @@ try {
 	await choose(app, "下载副本");
 	await until(app, `window.__download`, 300);
 	const download = await app.evaluate<{ href: string; name: string } | null>(`window.__download`);
-	check("下载副本：交给下载的是 PNG 的 data URL，文件名 image-<时间>.png，窗口没被导航走", download?.href === "data:image/png;base64," && /^image-\d+\.png$/.test(download.name) && (await app.evaluate<boolean>(`location.protocol === "file:"`)), download);
+	check(`下载副本：交给下载的是 PNG 的 data URL，文件名带存的日期时间（${download?.name}），窗口没被导航走`, download?.href === "data:image/png;base64," && /^plume-image-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.png$/.test(download.name) && (await app.evaluate<boolean>(`location.protocol === "file:"`)), download);
 
 	await openMenu(app);
 	await choose(app, "添加到聊天");

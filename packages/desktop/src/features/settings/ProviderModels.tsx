@@ -6,9 +6,13 @@
  * fill them in, and the part you come back to later.
  */
 
-import { CircleAlert, CloudDownload, Image, Lightbulb, MoreHorizontal, Pencil, Play, Plus, Star, Trash2, Wrench } from "../../ui/icons/index.ts";
+import { CheckSquare, CircleAlert, CloudDownload, Image, Lightbulb, MoreHorizontal, Palette, Pencil, Play, Plus, Star, Trash2, Wrench } from "../../ui/icons/index.ts";
+import { useState } from "react";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
+import { ChoiceMark } from "../../ui/primitives/ChoiceMark.tsx";
 import type { ModelConfig } from "@plume/core";
+import { isImageModel } from "@plume/core/image-models";
+import { useApp } from "../../store/index.ts";
 import type { ProviderTestResult } from "../../../electron/ipc-types.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
 import { MenuBody, MenuItem, MenuSeparator, Popover, usePopover } from "../../ui/overlay/Popover.tsx";
@@ -34,6 +38,7 @@ export function ProviderModels({
 	onTestModel,
 	onEdit,
 	onRemove,
+	onRemoveMany,
 	onSetDefault,
 }: {
 	models: ModelConfig[];
@@ -49,37 +54,107 @@ export function ProviderModels({
 	/** `null` adds a new one. */
 	onEdit: (model: ModelConfig | null) => void;
 	onRemove: (modelId: string) => void;
+	onRemoveMany: (modelIds: string[]) => void;
 	onSetDefault: (modelId: string) => void;
 }) {
 	const { t } = useI18n();
+	/*
+	 * An image model's "default" is a different setting from a chat model's: the model `image_generate`
+	 * draws with. A pointer and nothing else, so it is written straight away rather than with the
+	 * provider being edited — a model not saved yet is simply not found, and the first one is used.
+	 */
+	const imageModelId = useApp((state) => state.settings?.imageModelId ?? null);
+	const setDefaultImage = (modelId: string) => {
+		const current = useApp.getState().settings;
+		if (current) void useApp.getState().saveSettings({ ...current, imageModelId: modelId });
+	};
+	const confirm = useConfirmer();
+	/*
+	 * 批量删除：先进「选择」，勾好再一次删。
+	 *
+	 * 不在平时就给每行挂一个勾选框——这一页大多数时候是来改一个模型、测一个模型的，一列常驻的勾选框
+	 * 只是让每一行多一样要读的东西。选择模式里整行都是勾选的落点，行尾的测试和菜单收起来，免得一次
+	 * 点击既像在选又像在测。
+	 */
+	const [selecting, setSelecting] = useState(false);
+	const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set());
+	// 列表在选择期间变了（别处删了一个）：只认还在的。
+	const picked = models.filter((model) => chosen.has(model.id));
+	const allPicked = models.length > 0 && picked.length === models.length;
+	const stopSelecting = () => {
+		setSelecting(false);
+		setChosen(new Set());
+	};
+	const toggle = (id: string) =>
+		setChosen((current) => {
+			const next = new Set(current);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+	const removePicked = () => {
+		const ids = picked.map((model) => model.id);
+		// 生图默认删了会自动改用第一个生图模型，不用另选；要提醒的只有对话默认。
+		const hasDefault = picked.some((model) => model.id === defaultModelId);
+		confirm.ask({
+			title: t("providerModels.deleteManyConfirm", { n: ids.length }),
+			detail: hasDefault ? t("providerModels.deleteManyDefaultDetail") : undefined,
+			confirmLabel: t("common.delete"),
+			onConfirm: () => {
+				onRemoveMany(ids);
+				stopSelecting();
+			},
+		});
+	};
 	return (
 		<section className="pt-7">
-			{/* `SectionTitle`'s size and spacing, with room on the line for the two actions. */}
+			{/* `SectionTitle`'s size and spacing, with room on the line for its actions. */}
 			<div className="mb-3 flex h-7 items-center gap-1">
 				<Text as="h2" size="title" weight="semibold">{t("providerModels.list")}</Text>
 				{models.length > 0 && <span className="ml-1 text-caption text-ink-faint tabular-nums">{models.length}</span>}
 				<span className="flex-1" />
-				{/*
-				 * 两颗都带字，都不画框：`subtle` 就是为这种成排的动作留的。字补上是因为云朵下载这个图标
-				 * 猜不到是「拉取模型」；tooltip 只留那句图标和标题都说不完的说明。
-				 */}
-				{onFetchModels && (
-					<Button
-						variant="subtle"
-						size="sm"
-						onClick={onFetchModels}
-						disabled={fetchingModels || testing}
-						label={t("providerModels.fetchDetail")}
-						icon={fetchingModels
-							? <ActionSpinner size={13} className="text-accent" />
-							: <CloudDownload size={13.5} strokeWidth={1.8} aria-hidden />}
-					>
-						{fetchingModels ? t("providerModels.fetching") : t("providerModels.fetch")}
-					</Button>
+				{selecting ? (
+					<>
+						<Button variant="subtle" size="sm" onClick={() => setChosen(allPicked ? new Set() : new Set(models.map((model) => model.id)))} data-ly-model-select-all="">
+							{allPicked ? t("common.deselectAll") : t("common.selectAll")}
+						</Button>
+						<Button variant="danger" size="sm" disabled={picked.length === 0} onClick={removePicked} icon={<Trash2 size={13} strokeWidth={1.8} aria-hidden />} data-ly-model-delete-selected="">
+							{t("providerModels.deleteSelected", { n: picked.length })}
+						</Button>
+						<Button variant="subtle" size="sm" onClick={stopSelecting} data-ly-model-select-done="">
+							{t("common.done")}
+						</Button>
+					</>
+				) : (
+					<>
+						{/*
+						 * 这几颗都带字、都不画框：`subtle` 就是为这种成排的动作留的。字补上是因为云朵下载这个图标
+						 * 猜不到是「拉取模型」；tooltip 只留那句图标和标题都说不完的说明。
+						 */}
+						{onFetchModels && (
+							<Button
+								variant="subtle"
+								size="sm"
+								onClick={onFetchModels}
+								disabled={fetchingModels || testing}
+								label={t("providerModels.fetchDetail")}
+								icon={fetchingModels
+									? <ActionSpinner size={13} className="text-accent" />
+									: <CloudDownload size={13.5} strokeWidth={1.8} aria-hidden />}
+							>
+								{fetchingModels ? t("providerModels.fetching") : t("providerModels.fetch")}
+							</Button>
+						)}
+						<Button variant="subtle" size="sm" onClick={() => onEdit(null)} icon={<Plus size={13.5} strokeWidth={1.9} aria-hidden />} data-ly-add-model="">
+							{t("providerModels.add")}
+						</Button>
+						{models.length > 1 && (
+							<Button variant="subtle" size="sm" onClick={() => setSelecting(true)} icon={<CheckSquare size={13.5} strokeWidth={1.8} aria-hidden />} data-ly-model-select="">
+								{t("providerModels.select")}
+							</Button>
+						)}
+					</>
 				)}
-				<Button variant="subtle" size="sm" onClick={() => onEdit(null)} icon={<Plus size={13.5} strokeWidth={1.9} aria-hidden />} data-ly-add-model="">
-					{t("providerModels.add")}
-				</Button>
 			</div>
 
 			{fetchModelsError && (
@@ -95,19 +170,21 @@ export function ProviderModels({
 						<ModelRow
 							key={model.id}
 							model={model}
-							isDefault={defaultModelId === model.id}
+							isDefault={isImageModel(model) ? imageModelId === model.id : defaultModelId === model.id}
 							testing={testingModelId === model.id}
 							testResult={modelTestResults?.[model.id]}
 							onTest={() => onTestModel?.(model.id)}
 							onEdit={() => onEdit(model)}
 							onRemove={() => onRemove(model.id)}
-							onSetDefault={() => onSetDefault(model.id)}
+							onSetDefault={() => (isImageModel(model) ? setDefaultImage(model.id) : onSetDefault(model.id))}
+							selection={selecting ? { checked: chosen.has(model.id), onToggle: () => toggle(model.id) } : undefined}
 						/>
 					))
 				) : (
 					<p className="px-4 py-6 text-center text-label text-ink-muted">{t("providerModels.empty")}</p>
 				)}
 			</Card>
+			{confirm.element}
 		</section>
 	);
 }
@@ -117,9 +194,11 @@ export function ProviderModels({
  * up down the list whichever of them a row has.
  */
 const CAPABILITIES: { has: (model: ModelConfig) => boolean; label: MessageKey; Icon: typeof Lightbulb; tone: string }[] = [
-	{ has: (m) => m.supportsThinking, label: "modelEditor.thinking", Icon: Lightbulb, tone: "bg-violet/12 text-violet" },
+	// First, because it changes what the row is: a model that draws is not offered for conversations.
+	{ has: (m) => isImageModel(m), label: "modelEditor.imageOutput", Icon: Palette, tone: "bg-accent/12 text-accent" },
+	{ has: (m) => m.supportsThinking && !isImageModel(m), label: "modelEditor.thinking", Icon: Lightbulb, tone: "bg-violet/12 text-violet" },
 	{ has: (m) => m.supportsImages, label: "modelEditor.images", Icon: Image, tone: "bg-ok/12 text-ok" },
-	{ has: (m) => m.supportsTools, label: "modelEditor.toolCalls", Icon: Wrench, tone: "bg-info/12 text-info" },
+	{ has: (m) => m.supportsTools && !isImageModel(m), label: "modelEditor.toolCalls", Icon: Wrench, tone: "bg-info/12 text-info" },
 ];
 
 function ModelRow({
@@ -131,6 +210,7 @@ function ModelRow({
 	onEdit,
 	onRemove,
 	onSetDefault,
+	selection,
 }: {
 	model: ModelConfig;
 	isDefault: boolean;
@@ -140,6 +220,8 @@ function ModelRow({
 	onEdit: () => void;
 	onRemove: () => void;
 	onSetDefault: () => void;
+	/** 选择模式：整行点下去是勾选，不是编辑。 */
+	selection?: { checked: boolean; onToggle: () => void };
 }) {
 	const { t } = useI18n();
 	const confirm = useConfirmer();
@@ -151,7 +233,18 @@ function ModelRow({
 		<div className="group/row border-b border-line-soft transition-colors last:border-b-0 hover:bg-card-hover">
 			<div className="flex h-12 items-center gap-3 pr-2 pl-4">
 				{/* The whole name is the way in to editing; the two buttons at the end are the only other doors. */}
-				<button type="button" onClick={onEdit} className="flex min-w-0 flex-1 items-center gap-3 text-left" data-ly-model-row={model.modelId}>
+				<button
+					type="button"
+					onClick={selection ? selection.onToggle : onEdit}
+					className="flex min-w-0 flex-1 items-center gap-3 text-left"
+					data-ly-model-row={model.modelId}
+					{...(selection ? { role: "checkbox", "aria-checked": selection.checked } : {})}
+				>
+					{selection && (
+						<span className="shrink-0 text-ink-muted">
+							<ChoiceMark kind="checkbox" checked={selection.checked} />
+						</span>
+					)}
 					<span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-card">
 						<ModelIcon model={model.modelId} name={model.name} size={13} />
 					</span>
@@ -180,13 +273,14 @@ function ModelRow({
 					))}
 				</span>
 
-				<span className="grid h-5 w-[46px] shrink-0 place-items-center rounded-[5px] bg-card font-mono text-caption text-ink-muted tabular-nums">
-					{formatWindow(model.contextWindow)}
+				<span className={`grid h-5 w-[46px] shrink-0 place-items-center rounded-[5px] font-mono text-caption text-ink-muted tabular-nums ${isImageModel(model) ? "" : "bg-card"}`}>
+					{/* Held empty for a model that draws: a context window is not a thing it has, and the column keeps the rows aligned. */}
+					{isImageModel(model) ? "" : formatWindow(model.contextWindow)}
 				</span>
 
-				<span className="flex shrink-0 items-center">
+				<span className={`flex shrink-0 items-center ${selection ? "invisible" : ""}`}>
 					<IconButton
-						label={testing ? t("providerModels.connecting") : t("providerModels.testOne")}
+						label={testing ? t("providerModels.connecting") : isImageModel(model) ? t("providerModels.testDraw") : t("providerModels.testOne")}
 						disabled={testing}
 						explainDisabled
 						onClick={onTest}
@@ -221,7 +315,7 @@ function ModelRow({
 								onSetDefault();
 							}}
 						>
-							{t("providerModels.makeDefault")}
+							{isImageModel(model) ? t("providerModels.makeDefaultImage") : t("providerModels.makeDefault")}
 						</MenuItem>
 						<MenuItem
 							icon={<Pencil size={13} strokeWidth={1.8} />}

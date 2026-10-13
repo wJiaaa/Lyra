@@ -11,3 +11,5 @@ export { openFromEvent, openViewer } from "./viewer-store.ts";
 export { ImageViewer } from "./ImageViewer.tsx";
 /* 一张图离开应用的几条路：预览器的按钮和会话里生成图的右键菜单走的是同一份。 */
 export { copyImage, imageDataUrl, notifyExportFailed, saveImage } from "./image-out.ts";
+/* 对话里的图标注完按「完成」，交给那个对话的输入框——谁的图谁来指名，分屏下不串到别的屏。 */
+export { attachToComposer } from "./hand-off.ts";

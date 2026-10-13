@@ -58,6 +58,8 @@ const BY_TOOL: Record<string, Mood> = {
 	web_fetch: "connecting",
 	web_search: "connecting",
 	browser_act: "connecting",
+	// 造一个新东西，和 `write` 同一种；配的那句话在桌面端的运行行里不说（见 `RunningIndicator`）。
+	image_generate: "composing",
 };
 
 /** 不管从哪个工具进来，其实是一轮测试的命令。 */

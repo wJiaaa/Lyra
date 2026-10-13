@@ -10,10 +10,17 @@
 
 import type { ModelConfig, ProviderConfig } from "@plume/core";
 import { catalogFill, catalogModelFor, DEFAULT_MODEL_LIMITS, type CatalogFill } from "@plume/core/model-catalog";
+import { isImageModelId } from "@plume/core/image-models";
 
 type Endpoint = Pick<ProviderConfig, "id" | "baseUrl">;
 
 function initialValues(provider: Pick<ProviderConfig, "baseUrl">, modelId: string): CatalogFill {
+	/*
+	 * An image model is none of the three: it draws from a prompt and the pictures it is given, and
+	 * that is all. The catalogue never lists one (it keeps text models only), so without this it would
+	 * arrive claiming to think and call tools — two marks on its row that mean nothing.
+	 */
+	if (isImageModelId(modelId)) return { ...DEFAULT_MODEL_LIMITS, supportsThinking: false, supportsImages: true, supportsTools: false };
 	const found = catalogModelFor(provider, modelId);
 	return found ? catalogFill(found.model, provider) : DEFAULT_MODEL_LIMITS;
 }

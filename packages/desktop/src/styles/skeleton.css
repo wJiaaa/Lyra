@@ -47,7 +47,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * 画布：`generate_image` 等图时的那块底板
+ * 画布：`image_generate` 等图时的那块底板
  *
  * 两层同一套网格的点阵。底下一层淡，透过两团柔边的光斑露出来，光斑在板上游；上面一层更亮、
  * 点更大，只在一条斜向光带里看得见，光带从左上扫到右下——扫过的那一片点亮起来又暗下去，点阵
@@ -127,6 +127,44 @@
 .ly-canvas[data-ly-canvas="done"]::after {
   opacity: 0;
   animation: none;
+}
+
+/*
+ * 看着它画的那张图落地：从模糊变清晰，而不是从无到有。占位的点阵本来就是图的形状，从里面「显影」
+ * 出来读起来是同一件事做完了，而不是换了一样东西上来。
+ */
+@keyframes ly-image-reveal {
+  from {
+    opacity: 0;
+    filter: blur(14px) saturate(0.7);
+    transform: scale(1.025);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
+.ly-image-reveal {
+  animation: ly-image-reveal 650ms var(--ly-e-out) both;
+}
+
+/* 图上的悬停按钮：压在图上的一层玻璃，白底贴纸和夜空上都读得出。没有描边和阴影，玻璃就是边。 */
+.ly-image-action {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.42);
+  color: rgb(255 255 255 / 0.96);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  transition: background-color var(--ly-t-quick) var(--ly-e-out);
+}
+
+.ly-image-action:hover {
+  background: rgb(0 0 0 / 0.58);
 }
 
 @keyframes ly-canvas-sweep {

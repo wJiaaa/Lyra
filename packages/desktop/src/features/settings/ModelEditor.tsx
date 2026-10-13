@@ -1,6 +1,7 @@
 import type { ModelConfig, ModelPricing, ProviderConfig, ThinkingLevel, ThinkingOption } from "@plume/core";
 import { catalogFill, catalogModelFor, DEFAULT_MODEL_LIMITS, type CatalogModel } from "@plume/core/model-catalog";
 import { DEFAULT_THINKING_OPTIONS, THINKING_LEVELS, thinkingOptionsFor } from "@plume/core/thinking-options";
+import { isImageModel, isImageModelId } from "@plume/core/image-models";
 import { ModelCatalog } from "./ModelCatalog.tsx";
 import { Box } from "../../ui/icons/index.ts";
 import { useState } from "react";
@@ -43,6 +44,14 @@ export function ModelEditor({
 	const [thinkingOptions, setThinkingOptions] = useState(model?.thinkingOptions);
 	const [supportsImages, setSupportsImages] = useState(initial.supportsImages);
 	const [supportsTools, setSupportsTools] = useState(initial.supportsTools);
+	/*
+	 * Whether this model draws. Follows the id until somebody flips it: `gemini-3.1-flash-image` is an
+	 * image model by name, and a house's own name for one (`house-artist`) is not — that is what the
+	 * switch is for. Stored only when it disagrees with the name, so a model nobody overrode keeps
+	 * following the rule as the rule improves.
+	 */
+	const [imageOutput, setImageOutput] = useState(model ? isImageModel(model) : false);
+	const [imageTouched, setImageTouched] = useState(model?.imageOutput !== undefined);
 	const [prices, setPrices] = useState(() => pricesOf(model?.pricing));
 	/*
 	 * 表单里这组价格对应的完整价格记录——从目录填入的（带长上下文阶梯和来源），或者已保存的。改了任何
@@ -88,6 +97,7 @@ export function ModelEditor({
 	function changeModelId(value: string) {
 		// 显示名称还跟着模型 ID 走（没人改过）时一起变。
 		if (!name.trim() || name === modelId) setName(value);
+		if (!imageTouched) setImageOutput(isImageModelId(value));
 		setModelId(value);
 	}
 
@@ -95,8 +105,8 @@ export function ModelEditor({
 		if (!valid) return;
 		const [parsedIn, parsedOut, parsedCacheRead, parsedCacheWrite] = parsed;
 		// 档位以表单为准：从一个不支持思考的目录条目填过值后，原来的档位不该留下来。
-		const { thinkingOptions: _replaced, ...base } = model ?? {};
-		onSave({
+		const { thinkingOptions: _replaced, imageOutput: _judged, ...base } = model ?? {};
+		const next: ModelConfig = {
 			...base,
 			id: `${provider.id}/${trimmedId}`,
 			providerId: provider.id,
@@ -112,7 +122,10 @@ export function ModelEditor({
 				?? (parsedIn !== null && parsedOut !== null
 					? { input: parsedIn, output: parsedOut, cacheRead: parsedCacheRead ?? undefined, cacheWrite: parsedCacheWrite ?? undefined, source: "manual" }
 					: undefined),
-		});
+		};
+		// Kept only where it disagrees with the name; agreeing again removes an override saved earlier.
+		if (imageOutput !== isImageModelId(trimmedId)) next.imageOutput = imageOutput;
+		onSave(next);
 	}
 
 	const priceField = (key: PriceKey, label: string) => (
@@ -150,20 +163,30 @@ export function ModelEditor({
 
 						<ModelCatalog suggestion={suggestion} onPick={fill} />
 
-						<div className="grid grid-cols-2 gap-3">
+						{/* A model that draws has no context window or output cap worth setting; hidden, not cleared. */}
+						{!imageOutput && <div className="grid grid-cols-2 gap-3">
 							<Field label={t("modelEditor.context")}>
 								<TextInput value={contextWindow} onChange={(value) => { if (isLegalDraft(value, CONTEXT)) setContextWindow(value); }} mono inputMode="numeric" />
 							</Field>
 							<Field label={t("modelEditor.maxOutput")}>
 								<TextInput value={maxOutput} onChange={(value) => { if (isLegalDraft(value, OUTPUT)) setMaxOutput(value); }} mono inputMode="numeric" />
 							</Field>
-						</div>
+						</div>}
 
 						<div className="space-y-3 rounded-[10px] border border-line px-3.5 py-3">
-							<Capability label={t("modelEditor.thinking")} checked={supportsThinking} onChange={setSupportsThinking} />
-							{supportsThinking && <ThinkingLevels options={thinkingOptions} onChange={setThinkingOptions} />}
+							<Capability
+								label={t("modelEditor.imageOutput")}
+								hint={t("modelEditor.imageOutputDetail")}
+								checked={imageOutput}
+								onChange={(value) => {
+									setImageTouched(true);
+									setImageOutput(value);
+								}}
+							/>
+							{!imageOutput && <Capability label={t("modelEditor.thinking")} checked={supportsThinking} onChange={setSupportsThinking} />}
+							{!imageOutput && supportsThinking && <ThinkingLevels options={thinkingOptions} onChange={setThinkingOptions} />}
 							<Capability label={t("modelEditor.images")} checked={supportsImages} onChange={setSupportsImages} />
-							<Capability label={t("modelEditor.toolCalls")} checked={supportsTools} onChange={setSupportsTools} />
+							{!imageOutput && <Capability label={t("modelEditor.toolCalls")} checked={supportsTools} onChange={setSupportsTools} />}
 						</div>
 
 						<div className="grid grid-cols-2 gap-3">
@@ -228,10 +251,13 @@ function ThinkingLevels({ options, onChange }: { options: ThinkingOption[] | und
 	);
 }
 
-function Capability({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+function Capability({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (checked: boolean) => void }) {
 	return (
-		<label className="flex items-center justify-between">
-			<span className="text-label text-ink">{label}</span>
+		<label className="flex items-center justify-between gap-4">
+			<span className="min-w-0">
+				<span className="block text-label text-ink">{label}</span>
+				{hint && <span className="mt-0.5 block text-detail text-ink-faint">{hint}</span>}
+			</span>
 			<Toggle checked={checked} onChange={onChange} />
 		</label>
 	);

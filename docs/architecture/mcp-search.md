@@ -64,7 +64,7 @@ MCP 收尾。会话照 `session-turn.ts` 拼：提示词第一轮冻结，目录
 
 ## 内置工具为什么不延迟
 
-2026-10-12 把 `preview`、`generate_image`、`learn`、跨会话三件、浏览器五件做成可延迟，走同一套
+2026-10-12 把 `preview`、`image_generate`、`learn`、跨会话三件、浏览器五件做成可延迟，走同一套
 `mcp_search` / `mcp_call`，量完以后全部撤回。
 
 **省得太少。** 本机会话（`toolTokens` 的 3.5 字符估，Anthropic 编码）：
@@ -72,7 +72,7 @@ MCP 收尾。会话照 `session-turn.ts` 拼：提示词第一轮冻结，目录
 | | token |
 | --- | --- |
 | 桌面端全部 28 件工具 | 7,403 |
-| 6 件（`preview` 1,149、`generate_image` 376、`learn` 285、跨会话三件 608）合计 S | 2,363 |
+| 6 件（`preview` 1,149、`image_generate` 376、`learn` 285、跨会话三件 608）合计 S | 2,363 |
 | 两个入口 + 目录行 + 「去 `mcp_search` 拿」的提示，开销 O | 655 |
 | 每次请求净省 S − O | 1,708 |
 

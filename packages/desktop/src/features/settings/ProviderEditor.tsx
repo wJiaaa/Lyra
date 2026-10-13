@@ -51,6 +51,7 @@ export function ProviderEditor({
 	onRemove,
 	onEditModel,
 	onRemoveModel,
+	onRemoveModels,
 	onSetDefault,
 }: {
 	provider: ProviderConfig;
@@ -68,6 +69,7 @@ export function ProviderEditor({
 	onRemove: () => void;
 	onEditModel: (model: ModelConfig | null) => void;
 	onRemoveModel: (modelId: string) => void;
+	onRemoveModels: (modelIds: string[]) => void;
 	onSetDefault: (modelId: string) => void;
 }) {
 	const { t } = useI18n();
@@ -147,6 +149,7 @@ export function ProviderEditor({
 					onTestModel={onTestModel}
 					onEdit={onEditModel}
 					onRemove={onRemoveModel}
+					onRemoveMany={onRemoveModels}
 					onSetDefault={onSetDefault}
 				/>
 			</div>

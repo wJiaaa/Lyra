@@ -4,13 +4,13 @@ import type {
   UserMessage as UserMessageType,
 } from "@plume/core";
 import { MessageSquarePlus, Pencil, Boxes, MessagesSquare, Split, Undo2 } from "../../ui/icons/index.ts";
-import { openFromEvent, openViewer } from "../image/index.ts";
+import { attachToComposer, openFromEvent, openViewer } from "../image/index.ts";
 import { AttachmentMenu, AttachmentStrip, displayName, KIND_LABEL, previewableInPanel, sentKind, type FileKind, type StripFile } from "../composer/index.ts";
 import { useAttachmentActions } from "../composer/index.ts";
 import { TokenGlyph, tokenLook } from "../../ui/fileIcon.tsx";
 import { openFilePane } from "../dock/index.ts";
 import { isAttachmentBody } from "../../lib/attachment-placeholders.ts";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { BubbleText } from "./BubbleText.tsx";
 import { jumpToSession } from "./jump-to-session.ts";
 import { Markdown } from "./Markdown.tsx";
@@ -191,15 +191,19 @@ export function UserMessage({
 	const lastUser = useScopedFromMessages(lastUserMessageIndex);
 	const confirm = useConfirmer();
   const attachmentActions = useAttachmentActions();
+  /** 这条消息自己的元素：分屏时另一屏同一序号的消息也在文档里。 */
+  const root = useRef<HTMLDivElement>(null);
   /** 从句子里那枚标记打开查看器。起点取气泡外那一排里对应的格子，没有就从点击/右键的位置长。 */
   const previewImage = (src: string, originRect?: DOMRect) => {
     const pictures = files.filter((file) => file.kind === "image" && (file.full || file.src));
     const imgIndex = pictures.findIndex((file) => file.full === src || file.src === src);
     if (imgIndex < 0) return;
-    const tile = document.querySelectorAll<HTMLElement>(`[data-question-index="${index}"] .ly-attachment-body`)[imgIndex] ?? null;
+    // 只在这条消息里找：分屏下按序号全文档查，会先找到另一屏的格子，图从那边起飞、把那边的缩略图藏起来。
+    const tile = root.current?.querySelectorAll<HTMLElement>(".ly-attachment-body")[imgIndex] ?? null;
     const origin = originRect ?? tile?.getBoundingClientRect() ?? new DOMRect(markMenu?.point.x ?? 0, markMenu?.point.y ?? 0, 1, 1);
     openViewer(
-      pictures.map((file) => ({ src: file.full ?? file.src! })),
+      // 标注完按「完成」，带标注的副本回到这个对话的输入框。
+      pictures.map((file) => ({ src: file.full ?? file.src!, onAttach: attachToComposer(sessionId) })),
       imgIndex,
       origin,
       tile,
@@ -360,7 +364,7 @@ export function UserMessage({
 
   if (editing) {
     return (
-      <div data-question-index={index} className="ly-enter flex justify-end">
+      <div ref={root} data-question-index={index} className="ly-enter flex justify-end">
         <MessageEditor
           value={draft}
           onChange={setDraft}
@@ -377,7 +381,7 @@ export function UserMessage({
   }
 
   return (
-    <div data-question-index={index} data-ly-quote="user" className="group/msg ly-enter flex flex-col items-end">
+    <div ref={root} data-question-index={index} data-ly-quote="user" className="group/msg ly-enter flex flex-col items-end">
       {/*
        * Always visible, not folded into the hover row below.
        *
@@ -422,7 +426,7 @@ export function UserMessage({
             onOpen={(index, event) =>
               openFromEvent(
                 event,
-                shown.map((file) => ({ src: file.full ?? file.src! })),
+                shown.map((file) => ({ src: file.full ?? file.src!, onAttach: attachToComposer(sessionId) })),
                 index,
               )
             }

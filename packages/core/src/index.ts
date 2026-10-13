@@ -382,6 +382,10 @@ export {
 } from "./ai/thinking-options.ts";
 export { lastPassAt, PASS_INTERVAL_MS, runMemoryPass, shouldRunPass } from "./runtime/memory/memory-pass.ts";
 export { parseModelRef, resolveModelRef } from "./config/model-choice.ts";
+export { imageModelRows, isImageModel, isImageModelId, resolveImageModel, type ImageModelRow } from "./config/image-models.ts";
+export { generateImages } from "./images/generate.ts";
+export { imageDimensions } from "./images/dimensions.ts";
+export type { ImageGenerateDetails } from "./images/types.ts";
 export { layerOverrides, loadProjectLayer, projectConfigPath, type ConfigProblem, type LayerOverride } from "./config/layers.ts";
 export { extensionDirs } from "./runtime/session-capabilities.ts";
 export { validateManifest, type ExtensionDiagnostic, type ExtensionEventStats, type ExtensionStats } from "./extensions/types.ts";

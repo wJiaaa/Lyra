@@ -11,7 +11,7 @@ import type { SandboxMode } from "../sandbox/policy.ts";
 import type { ResourceRouter } from "../resources/router.ts";
 import type { RiskCode, RiskParams } from "../tools/risk-reasons.ts";
 import type { Message, UserContent } from "./message.ts";
-import type { ModelConfig, ProviderConfig } from "./provider.ts";
+import type { ProviderConfig } from "./provider.ts";
 
 export type { RiskCode, RiskParams };
 
@@ -125,12 +125,12 @@ export interface ToolContext {
 	 */
 	searchProviderId?: string | null;
 	/**
-	 * 设置里选的图片生成模型，连同它的供应商，带给 `generate_image`。
+	 * 配好的供应商和设置里的默认生图模型，带给 `image_generate`，由它按 `resolveImageModel` 挑。
 	 *
-	 * 和搜索服务一样是人的决定：工具读不到设置，模型也不该替人挑花谁的钱。`null` 是没选或选的
-	 * 那个已被删掉、停用，工具据此告诉人去哪里选。
+	 * 和搜索服务一样是人的决定：工具读不到设置，模型也不该替人挑花谁的钱——它只在人点了名时
+	 * 传 `model`。带的是整张表而不是挑好的那一个，因为点名要在这张表里找。
 	 */
-	imageModel?: { provider: ProviderConfig; model: ModelConfig } | null;
+	imageModels?: { providers: readonly ProviderConfig[]; preferred: string | null } | null;
 	/**
 	 * Specific files outside the workspace explicitly granted to this turn
 	 * (e.g. user-attached files from messages in this session).

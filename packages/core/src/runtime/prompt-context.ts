@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import { platform } from "node:os";
 import { basename, join } from "node:path";
 import type { Settings } from "../config/settings.ts";
+import { imageModelRows } from "../config/image-models.ts";
 import { projectRootsFor } from "../config/project-roots.ts";
 import { commandShell } from "../platform.ts";
 import { sandboxModeFor } from "../sandbox/mode-for.ts";
@@ -76,7 +77,12 @@ interface PromptCapabilitiesInput {
 }
 
 export function promptCapabilities(input: PromptCapabilitiesInput) {
-	const tools = input.tools.filter(tool => tool.name !== "learn" || projectMemoryEnabled(input.settings));
+	/*
+	 * `image_generate` only once there is something to draw with: a tool that can only answer "no image
+	 * model" costs a turn to find that out, and every call is billed to a provider the user configured.
+	 */
+	const drawing = imageModelRows(input.settings.providers).length > 0;
+	const tools = input.tools.filter(tool => (tool.name !== "learn" || projectMemoryEnabled(input.settings)) && (tool.name !== "image_generate" || drawing));
 	return {
 		tools,
 		dispatchLimits: {

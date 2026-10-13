@@ -94,7 +94,8 @@ Windows 安装包同样没有代码签名。第一次运行会撞上 SmartScreen
 
 Plume 不自带模型，所以第一次打开是发不出消息的。到「设置 → 模型设置」添加供应商：填 Base URL、
 选 API 格式（**Responses**、**Anthropic Messages** 或 **Chat Completions**，按供应商文档选）、填 API Key，
-再添加至少一个模型。
+再手动添加或「拉取模型」至少一个模型，每个模型那一行的测试按钮能试通不通。拉取弹窗里取消勾选就是移除；
+端点没列出的模型，在它的搜索框里敲 ID、按回车就能加——很多中转的 `/v1/models` 不列生图模型，多半就这么加。
 
 ## 能力
 
@@ -103,7 +104,7 @@ Plume 不自带模型，所以第一次打开是发不出消息的。到「设�
   - 文件与代码：`read` `write` `edit` `ls` `glob` `grep` `symbol` `lsp`
   - 执行命令：`bash` `bash_output`
   - 会话与记忆：`todo_write` `task` `skill` `recall` `learn` `ask_user`
-  - 网络与预览：`web_fetch` `web_search` `preview` `generate_image`
+  - 网络与预览：`web_fetch` `web_search` `preview` `image_generate`
 - **Skill**：`SKILL.md` + YAML frontmatter。只有名称和描述进系统提示，正文在模型调用 `skill` 工具时才注入。装几十个技能也不烧上下文。
 - **MCP**：stdio / Streamable HTTP / SSE 三种传输，工具以 `mcp__<服务>__<工具>` 命名注入，不会和内置工具撞名。
 - **子智能体**：`task` 工具把工作交给拥有独立上下文窗口的子 agent，只把结论带回主对话。内置七个：`general` `explore` `review` `verify` `plan` `simple` `reason`，可用 `.plume/agents/*.md` 扩展。

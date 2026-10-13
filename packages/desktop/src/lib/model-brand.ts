@@ -52,3 +52,31 @@ export function brandOf(modelId: string | null | undefined, displayName?: string
 	if (!haystack.trim()) return null;
 	return RULES.find((rule) => rule.test.test(haystack))?.brand ?? null;
 }
+
+/**
+ * The words a house goes by besides its brand key: `google` for Gemini, `moonshot` for Kimi.
+ *
+ * Only the house's name, never a family inside it — `sonnet` would match far more than a search
+ * for "Anthropic" means.
+ */
+const HOUSE_WORDS: Record<Brand, readonly string[]> = {
+	openai: ["openai", "chatgpt"],
+	claude: ["claude", "anthropic"],
+	deepseek: ["deepseek"],
+	gemini: ["gemini", "google"],
+	qwen: ["qwen", "tongyi"],
+	grok: ["grok", "xai"],
+	mistral: ["mistral"],
+	hunyuan: ["hunyuan", "tencent"],
+	kimi: ["kimi", "moonshot"],
+	minimax: ["minimax"],
+	stepfun: ["stepfun"],
+	baichuan: ["baichuan"],
+	doubao: ["doubao"],
+	yi: ["yi"],
+};
+
+/** The words a house goes by, for matching a search like "google" against `gemini-…` ids. */
+export function houseWords(brand: Brand): readonly string[] {
+	return [brand, ...HOUSE_WORDS[brand]];
+}

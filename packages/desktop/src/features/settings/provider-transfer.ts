@@ -13,6 +13,7 @@
  */
 
 import type { ApiFormat, ModelConfig, ModelPricing, ModelPricingTier, ProviderConfig } from "@plume/core";
+import { isImageModel } from "@plume/core/image-models";
 
 /** Identifies the file as ours before anything reads what is in it. */
 const BUNDLE_KIND = "plume.providers";
@@ -196,7 +197,8 @@ export function applyImport(
 	const stillThere = providers.some((provider) => provider.models.some((model) => model.id === defaultModelId));
 	return {
 		providers,
-		defaultModelId: stillThere ? defaultModelId : (providers[0]?.models[0]?.id ?? null),
+		// The first model that can hold a conversation; an image model as the default would fail every turn.
+		defaultModelId: stillThere ? defaultModelId : (providers.flatMap((provider) => provider.models).find((model) => !isImageModel(model))?.id ?? null),
 	};
 }
 
@@ -260,6 +262,8 @@ function readModel(raw: unknown, providerId: string): ModelConfig | null {
 		...(pricing ? { pricing } : {}),
 		...(Array.isArray(raw.thinkingOptions) ? { thinkingOptions: raw.thinkingOptions as ModelConfig["thinkingOptions"] } : {}),
 		...(isRecord(raw.samplingParams) ? { samplingParams: raw.samplingParams } : {}),
+		// Only when said: absent means "judge by the name" (`isImageModel`), which is what a hand-written file wants.
+		...(typeof raw.imageOutput === "boolean" ? { imageOutput: raw.imageOutput } : {}),
 	};
 }
 

@@ -1,5 +1,6 @@
 import { Box, ChevronRight, Star } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { isImageModel } from "@plume/core/image-models";
 import { ModelIcon } from "./ModelIcon.tsx";
 import { RollingText } from "../../ui/motion/RollingText.tsx";
 import { ScrollText } from "../../ui/scroll/ScrollText.tsx";
@@ -74,6 +75,8 @@ export interface ModelSelection {
 	onChange: (modelId: string) => void;
 	inheritLabel: string;
 	inheritDetail?: string;
+	/** Which models are offered: conversation models (the default), or the ones that draw. */
+	kind?: "chat" | "image";
 }
 
 export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onClose: () => void; selection?: ModelSelection }) {
@@ -102,7 +105,8 @@ export function ModelMenu({ anchor, onClose, selection }: { anchor: Anchor; onCl
 
 	const current = selection ? selection.value : meta?.modelId ?? settings?.defaultModelId ?? null;
 	const favourites = settings?.favoriteModelIds;
-	const groups = useMemo(() => groupModels(settings?.providers), [settings?.providers]);
+	const kind = selection?.kind ?? "chat";
+	const groups = useMemo(() => groupModels(settings?.providers, kind), [settings?.providers, kind]);
 	const shown = useMemo(() => filterGroups(groups, query), [groups, query]);
 	/*
 	 * Which names need their house said out loud.
@@ -574,7 +578,8 @@ function ModelItem({
 			    「200K」 run together into one word at the point where the name fades out. */}
 			<span className="relative flex h-full shrink-0 items-center justify-end pl-2.5 pr-3 text-caption">
 				<span className="ly-model-window font-mono text-ink-faint">
-					{formatWindow(model.contextWindow)}
+					{/* A context window means nothing for a model that draws; the column stays for alignment. */}
+					{isImageModel(model) ? "" : formatWindow(model.contextWindow)}
 				</span>
 				<button
 					type="button"

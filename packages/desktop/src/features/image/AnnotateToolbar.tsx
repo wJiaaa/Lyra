@@ -197,6 +197,7 @@ export function AnnotateToolbar({
 	grabbing = false,
 	size = "compact",
 	canReplace,
+	delivers = false,
 	saveLabel,
 	cancelLabel,
 	requireDirty = true,
@@ -246,6 +247,14 @@ export function AnnotateToolbar({
 	propertiesSide?: "above" | "below";
 	/** Whether saving can replace the original, or only produce a copy. */
 	canReplace: boolean;
+	/**
+	 * Whether the copy is handed on to be used rather than exported.
+	 *
+	 * A picture in a conversation is marked up to be drawn again, so its copy goes to that
+	 * conversation's composer: the button is 完成 with a tick, not a download arrow that promises a
+	 * file nobody asked for.
+	 */
+	delivers?: boolean;
 	/** Overrides what the save button says. Left off, it says what `canReplace` implies. */
 	saveLabel?: string;
 	cancelLabel?: string;
@@ -505,18 +514,18 @@ export function AnnotateToolbar({
 			</button>
 			<button
 				type="button"
-				data-ly-tip={saveLabel ?? translate(canReplace ? "annotate.saveOver" : "annotate.saveCopyTip")}
+				data-ly-tip={saveLabel ?? translate(canReplace ? "annotate.saveOver" : delivers ? "annotate.doneTip" : "annotate.saveCopyTip")}
 				data-ly-tip-side="top"
 				disabled={requireDirty && !annotator.dirty}
 				onClick={onSave}
 				// `whitespace-nowrap` because the label is four characters and the button is sized by
 				// its padding: without it "保存副本" wrapped to two lines and took the whole bar's
 				// height with it.
-				aria-label={saveLabel ?? translate(canReplace ? "common.save" : "annotate.saveCopy")}
+				aria-label={saveLabel ?? translate(canReplace ? "common.save" : delivers ? "common.done" : "annotate.saveCopy")}
 				className={`grid cursor-pointer place-items-center rounded-lg bg-white text-[#1c1c1e] transition-opacity duration-[var(--ly-t-quick)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35 ${metrics.confirm}`}
 			>
 				{/* A separate download button owns file saving; confirming a capture must not promise another download. */}
-				{canReplace || onDownload ? <Check size={metrics.icon - 1} strokeWidth={2.4} aria-hidden /> : <Download size={metrics.icon - 1} strokeWidth={2} aria-hidden />}
+				{canReplace || onDownload || delivers ? <Check size={metrics.icon - 1} strokeWidth={2.4} aria-hidden /> : <Download size={metrics.icon - 1} strokeWidth={2} aria-hidden />}
 			</button>
 		</div>
 	);
@@ -598,7 +607,9 @@ function ToolProperties({
 			className={`absolute left-0 flex cursor-default animate-[ly-tool-in_var(--ly-t-base)_ease-out] items-center border border-white/12 bg-[#1c1c1e]/95 shadow-[0_6px_20px_rgba(0,0,0,0.4)] backdrop-blur-xl ${metrics.bubble} ${
 				side === "below" ? "top-full mt-2" : "bottom-full mb-2"
 			}`}
-			style={{ left: anchor, transform: "translateX(-50%)" }}
+			// 居中用 `translate` 而不是 `transform`：进场关键帧 `ly-tool-in` 写的是 transform，会把
+			// 居中盖掉，气泡进场时偏右半个身位，动画一结束再跳回来。
+			style={{ left: anchor, translate: "-50% 0" }}
 		>
 			{/*
 			 * 「细中粗」三个字换成三个大小不同的点。

@@ -16,6 +16,7 @@
 		"./commands-view": "./src/commands-view.ts",
 		"./schedule": "./src/config/schedule.ts",
 		"./model-choice": "./src/config/model-choice.ts",
+		"./image-models": "./src/config/image-models.ts",
 		"./project-folders": "./src/config/project-folders.ts",
 		"./retry-policy": "./src/config/retry-policy.ts",
 		"./agents-builtin": "./src/agents-builtin.ts",

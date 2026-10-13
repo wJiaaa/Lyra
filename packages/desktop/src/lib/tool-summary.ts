@@ -61,8 +61,8 @@ export function summarizeToolCall(name: string, args: Record<string, unknown>): 
 			return str("tool") ?? "mcp_call";
 		case "web_fetch":
 			return `Fetch ${str("url") ?? ""}`.trim() || "Fetch URL";
-		case "generate_image": {
-			// 和 core 的 `generateImageTool.summarize` 同一句，`describeActivity` 认的是它。
+		case "image_generate": {
+			// 和 core 的 `imageTool.summarize` 同一句，`describeActivity` 认的是它。
 			const prompt = str("prompt")?.trim().split("\n")[0];
 			return prompt ? `Generate image ${prompt.slice(0, 80)}` : "Generate image";
 		}

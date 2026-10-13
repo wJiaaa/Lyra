@@ -20,7 +20,7 @@ import { PLAN_MODE_KEY, planModeTools } from "../src/runtime/plan-mode.ts";
 import { SessionCapabilities } from "../src/runtime/session-capabilities.ts";
 import { ACTIVE_SKILL_KEY } from "../src/skills/tool.ts";
 import { builtinToolGroups } from "../src/tools/groups.ts";
-import { generateImageTool } from "../src/tools/image.ts";
+import { imageTool } from "../src/tools/image.ts";
 import { learnTool } from "../src/tools/learn.ts";
 import { previewTool } from "../src/tools/preview.ts";
 import { readTool } from "../src/tools/read.ts";
@@ -98,14 +98,14 @@ test("会话：重组多少次，工具表都是同一份；两个入口是同�
 const promptFor = (tools: Tool[]) => buildPromptContext({ cwd: "/w", tools, skills: [], projectInstructions: [], platform: "darwin", isGitRepo: false, scratchDir: "/s" });
 
 test("目录：MCP 一台一行，没有内置工具；preview 照常直接点名", async () => {
-	const tools = plan([readTool, previewTool, generateImageTool, learnTool, ...fixtureTools()] as Tool[]).tools;
+	const tools = plan([readTool, previewTool, imageTool, learnTool, ...fixtureTools()] as Tool[]).tools;
 	const prompt = await promptFor(tools);
 	const sources = prompt.sections.map((section) => section.source).filter((source) => source.startsWith("deferred"));
 	assert.deepEqual(sources, ["deferred", ...[...FIXTURE_SERVERS].map((server) => `deferred:mcp:${server.id}`).sort()]);
 	assert.match(prompt.systemPrompt, /## MCP tools to search for[\s\S]*`mcp_search`[\s\S]*`mcp_call`/);
 	assert.match(prompt.systemPrompt, /- MCP server Linear \(`linear`, 10 tools\): Issues, projects, cycles and teams in Linear\. Tools: create_comment, create_issue/);
 	assert.match(prompt.systemPrompt, /use `preview` instead of writing files/);
-	assert.doesNotMatch(prompt.systemPrompt, /`preview`[^\n]*mcp_search|- `(preview|learn|generate_image)`/);
+	assert.doesNotMatch(prompt.systemPrompt, /`preview`[^\n]*mcp_search|- `(preview|learn|image_generate)`/);
 
 	const none = await promptFor([readTool, previewTool] as Tool[]);
 	assert.doesNotMatch(none.systemPrompt, /tools to search for/i, "没有被延迟的就没有目录");

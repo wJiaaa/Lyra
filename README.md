@@ -74,7 +74,7 @@ The installed app is always named `Plume.exe` and is a couple of hundred MB. If 
 
 ## Add a model first
 
-Plume does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model. The API format is **Responses**, **Anthropic Messages** or **Chat Completions**, whichever the provider documents.
+Plume does not ship a model, so the first launch cannot send a message. Open Settings → Models, add a provider (Base URL, API format, API Key), then add at least one model, by hand or with Fetch models; the test button on each model's row checks that it answers. The API format is **Responses**, **Anthropic Messages** or **Chat Completions**, whichever the provider documents. Fetch models also removes what you uncheck, and takes a model id the endpoint does not list: type it into the search box and press Enter. Many relays leave image models out of `/v1/models`, so that is usually how one gets added.
 
 ## What it does
 
@@ -83,7 +83,7 @@ Plume does not ship a model, so the first launch cannot send a message. Open Set
   - Files and code: `read` `write` `edit` `ls` `glob` `grep` `symbol` `lsp`
   - Commands: `bash` `bash_output`
   - Session and memory: `todo_write` `task` `skill` `recall` `learn` `ask_user`
-  - Network and preview: `web_fetch` `web_search` `preview` `generate_image`
+  - Network and preview: `web_fetch` `web_search` `preview` `image_generate`
 - **Skills.** `SKILL.md` plus YAML frontmatter. Only the name and description enter the system prompt. The body is injected when the model calls `skill`, so dozens of skills do not burn the context window.
 - **MCP.** stdio, Streamable HTTP, and SSE. Tools are named `mcp__<server>__<tool>`, so they never collide with built-ins.
 - **Sub-agents.** `task` hands work to an agent with its own context window and brings back the conclusion. Seven built-ins: `general` `explore` `review` `verify` `plan` `simple` `reason`. Add more with `.plume/agents/*.md`.

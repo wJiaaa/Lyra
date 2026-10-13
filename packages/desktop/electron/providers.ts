@@ -6,7 +6,7 @@
  */
 
 import type { ProviderTestResult } from "./ipc-types.ts";
-import { USER_AGENT, sessionHeaders, streamAssistant, type AssistantMessage, type Settings, type StreamEvent, type ThinkingLevel } from "@plume/core";
+import { USER_AGENT, generateImages, imageDimensions, isImageModel, sessionHeaders, streamAssistant, type AssistantMessage, type ModelConfig, type Settings, type StreamEvent, type ThinkingLevel } from "@plume/core";
 import { nativeText } from "./i18n.ts";
 
 type Provider = Settings["providers"][number];
@@ -67,9 +67,11 @@ export async function testProvider(
 		}
 	}
 
+	// The provider as a whole is asked the way a conversation would ask it; a drawing is only for a model
+	// picked to test, since it is billed.
 	const model = targetModelId
 		? provider.models.find((m) => m.id === targetModelId || m.modelId === targetModelId)
-		: provider.models[0];
+		: (provider.models.find((m) => !isImageModel(m)) ?? provider.models[0]);
 
 	if (!model) {
 		if (targetModelId) {
@@ -80,10 +82,43 @@ export async function testProvider(
 			: { ok: false, latencyMs: Date.now() - started, message: nativeText("provider.needModel") };
 	}
 
+	if (isImageModel(model)) return drawOnce(provider, model);
+
 	const reply = await firstToken(provider, model, thinking);
 	return reply.ok
 		? { ok: true, latencyMs: reply.latencyMs, message: nativeText("provider.responded", { model: model.name || model.modelId }), models }
 		: { ok: false, latencyMs: reply.latencyMs, message: reply.message, models };
+}
+
+/** How long the test drawing may take; a picture is slower than a first token. */
+const DRAW_TIMEOUT_MS = 180_000;
+
+/**
+ * The same question for a model that draws: draw one small picture.
+ *
+ * A chat request is the wrong test here — the relays refuse an image model on chat outright — and the
+ * Images API has no free way to ask "would this work". So it is one real drawing at the model's
+ * defaults; the button says it is billed, and nothing is kept.
+ */
+async function drawOnce(provider: Provider, model: ModelConfig): Promise<ProviderTestResult> {
+	const started = Date.now();
+	try {
+		// 最低画质、只试一次：这是一次按张计费的测试，能不能画通看一次就够。
+		const result = await generateImages(
+			provider,
+			model,
+			{ prompt: "A single small red dot on a plain white background.", quality: "low" },
+			{ retryAttempts: 1, signal: AbortSignal.timeout(DRAW_TIMEOUT_MS) },
+		);
+		const bytes = Buffer.from(result.images[0]?.data ?? "", "base64");
+		const dims = imageDimensions(bytes);
+		const size = dims ? `${dims.width}×${dims.height}` : `${Math.max(1, Math.round(bytes.length / 1024))} KB`;
+		return { ok: true, latencyMs: Date.now() - started, message: nativeText("provider.drew", { model: model.name || model.modelId, size }) };
+	} catch (error) {
+		const failure = (error as { failure?: { summary?: string; detail?: string } }).failure;
+		const message = failure ? [failure.summary, failure.detail?.slice(0, 300)].filter(Boolean).join(" · ") : error instanceof Error ? error.message : String(error);
+		return { ok: false, latencyMs: Date.now() - started, message };
+	}
 }
 
 /** What counts as the endpoint having started to answer. Reasoning counts: it is a thinking model's first output. */

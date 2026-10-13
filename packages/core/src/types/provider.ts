@@ -73,6 +73,12 @@ export interface ModelConfig {
 	thinkingOptions?: ThinkingOption[];
 	/** Extra sampling parameters merged verbatim into the request body. */
 	samplingParams?: Record<string, unknown>;
+	/**
+	 * Whether this model draws rather than converses. Only stored when it disagrees with the name —
+	 * absent means `isImageModelId` decides (`config/image-models.ts`), so a model nobody overrode
+	 * keeps following the rule as the rule improves.
+	 */
+	imageOutput?: boolean;
 }
 
 export interface ProviderConfig {

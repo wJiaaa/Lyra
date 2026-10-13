@@ -235,6 +235,7 @@ export function ModelSettings() {
 								onRemoveModel={(modelId) =>
 									void p.removeModel(p.selected!.id, modelId)
 								}
+								onRemoveModels={(modelIds) => void p.removeModels(p.selected!.id, modelIds)}
 								onSetDefault={(modelId) => void p.setDefaultModel(modelId)}
 							/>
 						)}
@@ -262,12 +263,11 @@ export function ModelSettings() {
 
 			{p.discoveredModels && (
 				<FetchModelsModal
-					open={Boolean(p.discoveredModels)}
 					provider={p.selected ?? { baseUrl: "" }}
-					models={p.discoveredModels}
-					existingModelIds={new Set(p.selected?.models.map((m) => m.modelId) ?? [])}
+					listed={p.discoveredModels}
+					models={p.selected?.models ?? []}
 					onClose={p.closeDiscoveredModal}
-					onImport={(selectedIds) => void p.importDiscoveredModels(selectedIds)}
+					onApply={(change) => void p.applyDiscoveredChange(change)}
 				/>
 			)}
 

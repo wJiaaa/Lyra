@@ -2,7 +2,7 @@
 /**
  * 拿用户贴的图改图、带图分叉、中转塞服务端工具时的报错——三件事在真窗口里各走一遍。
  *
- * 一、贴一张图说「改成水墨风」：模型用 `recent_images` 调 `generate_image`，出图端点收到的是
+ * 一、贴一张图说「改成水墨风」：模型用 `#1` 调 `image_generate`，出图端点收到的是
  *    `/v1/images/edits`，里面就是那张图。
  * 二、对那条消息「从这里分叉」：大图在日志里只剩 session-media 的文件名，分叉后的输入框里要有那张
  *    缩略图，发出去模型要真看到像素，而不是一行「contents not included」。
@@ -26,11 +26,11 @@ const PORT = 9495;
 const MODEL_PORT = 9595;
 const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 
-function png(size: number, tint: number): Buffer {
+function png(width: number, height: number, tint: number): Buffer {
 	const rows: number[] = [];
-	for (let y = 0; y < size; y++) {
+	for (let y = 0; y < height; y++) {
 		rows.push(0);
-		for (let x = 0; x < size; x++) rows.push(Math.round((x / size) * 255), tint, Math.round((y / size) * 255));
+		for (let x = 0; x < width; x++) rows.push(Math.round((x / width) * 255), tint, Math.round((y / height) * 255));
 	}
 	const chunk = (type: string, data: Buffer) => {
 		const head = Buffer.alloc(8);
@@ -41,19 +41,20 @@ function png(size: number, tint: number): Buffer {
 		return Buffer.concat([head, data, crc]);
 	};
 	const ihdr = Buffer.alloc(13);
-	ihdr.writeUInt32BE(size, 0);
-	ihdr.writeUInt32BE(size, 4);
+	ihdr.writeUInt32BE(width, 0);
+	ihdr.writeUInt32BE(height, 4);
 	ihdr.set([8, 2, 0, 0, 0], 8);
 	// 不压缩：要比内联上限大，日志才会把它挪进 session-media——分叉丢图就出在那一种图上。
 	return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(Buffer.from(rows), { level: 0 })), chunk("IEND", Buffer.alloc(0))]);
 }
 
-const PHOTO = png(160, 40);
-const RESULT = png(256, 200);
+// 横图：改图没说比例时，画布要按它的 16:9 占位，而不是先占一个正方形、图到了再跳成横条。
+const PHOTO = png(320, 180, 40);
+const RESULT = png(384, 216, 200);
 
 type Block = { tool: string; args: Record<string, unknown> } | { text: string };
 const SCRIPT: Block[][] = [
-	[{ text: "好，参考这张图来改。" }, { tool: "generate_image", args: { prompt: "保留人物，改成水墨风，站在竹林里", recent_images: 1 } }],
+	[{ text: "好，参考这张图来改。" }, { tool: "image_generate", args: { prompt: "保留人物，改成水墨风，站在竹林里", images: ["#1"] } }],
 	[{ text: "改好了。" }],
 	[{ text: "看到这张图了。" }],
 ];
@@ -205,13 +206,21 @@ try {
 	// 缩略图先出来，文件内容是异步读进草稿的；同 attachments-demo，读完再发。
 	await pause(2500);
 	await d.submit();
+	const CANVAS = (state: string) => `(() => { const el = document.querySelector('main [data-ly-canvas="${state}"]'); if (!el) return null; const r = el.getBoundingClientRect(); return { width: Math.round(r.width), height: Math.round(r.height) }; })()`;
+	await until(app, `${CANVAS("pending")} !== null`, 30000);
+	await pause(300);
+	const holding = await app.evaluate<{ width: number; height: number } | null>(CANVAS("pending"));
+	await capture("改图中_按原图比例占位");
 	await d.settled(60000);
 	await pause(1000);
 	await capture("贴图改图_结果");
+	const landed = await app.evaluate<{ width: number; height: number } | null>(CANVAS("done"));
+	check("改图没说比例，画图时按贴的那张 16:9 占成 427×240", holding?.width === 427 && holding.height === 240, holding);
+	check("图到了还是那块位置，没有跳", landed?.width === holding?.width && landed?.height === holding?.height, { holding, landed });
 
 	const edit = editRequests[0];
 	check("出图端点收到的是 /v1/images/edits，一次", editRequests.length === 1, editRequests.length);
-	check("编辑请求里带着用户贴的那张图（字节一致）", Boolean(edit && edit.includes(Buffer.from('name="image[]"')) && edit.includes(PHOTO)), edit?.length);
+	check("编辑请求里带着用户贴的那张图（字节一致）", Boolean(edit && edit.includes(Buffer.from('name="image"')) && edit.includes(PHOTO)), edit?.length);
 	// 一轮只有一次工具调用时折成一行摘要，不带 `data-ly-tool`；从看得见的字取证。
 	const generated = await app.evaluate<string>(`document.querySelector("main")?.innerText ?? ""`);
 	check("会话里有一行「生成图片」", generated.includes("生成图片"), generated.slice(0, 200));
@@ -225,7 +234,7 @@ try {
 	await pause(800);
 	const strip = await app.evaluate<{ count: number; natural: number; data: boolean }>(`(() => { const imgs = ${STRIP_IMAGES}; return { count: imgs.length, natural: imgs[0]?.naturalWidth ?? 0, data: (imgs[0]?.src ?? "").startsWith("data:image") }; })()`);
 	await capture("分叉后_输入框里的图");
-	check("分叉后的输入框里有那张图，像素宽度 160", strip.count === 1 && strip.natural === 160 && strip.data, strip);
+	check("分叉后的输入框里有那张图，像素宽度 320", strip.count === 1 && strip.natural === 320 && strip.data, strip);
 	await d.submit();
 	await d.settled(60000);
 	await pause(1000);

@@ -2,6 +2,7 @@ import type { MobileMethod } from "@plume/contract";
 import type { Bootstrap } from "@plume/client-runtime";
 import type { SessionStorage, Settings } from "@plume/core";
 import { resolveModelThinkingOptions } from "@plume/core/thinking-options";
+import { isImageModel } from "@plume/core/image-models";
 import { resolveSessionApproval } from "./approval-response.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { promptBlocks } from "./mobile-prompt.ts";
@@ -20,7 +21,8 @@ function text(value: unknown, max = 256): string {
 }
 
 function mobileModels(settings: Settings): Bootstrap["models"] {
-	return settings.providers.filter((provider) => provider.enabled).flatMap((provider) => provider.models.map((model) => ({
+	// Conversation models only: an image model picked for a new chat would fail on its first request.
+	return settings.providers.filter((provider) => provider.enabled).flatMap((provider) => provider.models.filter((model) => !isImageModel(model)).map((model) => ({
 		id: model.id, name: model.name, provider: provider.name, images: model.supportsImages,
 		thinkingOptions: resolveModelThinkingOptions(model).map((option) => ({ value: option.id, label: option.label })),
 	})));

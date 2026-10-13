@@ -18,6 +18,7 @@ import { parseGuidelines } from "./overrides.ts";
 import { renderTemplate } from "./template.ts";
 import type { Skill } from "../skills/loader.ts";
 import type { AgentDefinition } from "../tools/task.ts";
+import { IMAGE_GUIDELINES } from "../tools/image.ts";
 import { shellGuidance } from "../tools/shell-guidance.ts";
 import type { CommandShell } from "../platform.ts";
 import type { Tool } from "../types.ts";
@@ -201,6 +202,8 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 	 * Shell 的写法是环境的一部分，不是可以被项目准则换掉的偏好；只在 `bash` 加载时才说。
 	 */
 	const shellRules = input.shell && input.tools.some((tool) => tool.name === "bash") ? shellGuidance(input.shell) : [];
+	// 工具自己的用法约束，同样只在工具在场时说，也不随项目准则被换掉。
+	const toolRules = input.tools.some((tool) => tool.name === "image_generate") ? IMAGE_GUIDELINES : [];
 
 	/*
 	 * A project's own identity, when it has one.
@@ -216,7 +219,7 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 
 	const prompt = new PromptBuilder();
 	prompt.add("identity", identity);
-	prompt.add("guidelines", `\n\nGuidelines:\n${guidelines.map((g) => `- ${g}`).join("\n")}`);
+	prompt.add("guidelines", `\n\nGuidelines:\n${[...guidelines, ...toolRules].map((g) => `- ${g}`).join("\n")}`);
 	prompt.add("boundaries", `\n\nBoundaries:\n${BOUNDARIES.map((b) => `- ${b}`).join("\n")}`);
 	if (input.planMode) prompt.add("plan", PLAN_MODE_SECTION);
 	/*

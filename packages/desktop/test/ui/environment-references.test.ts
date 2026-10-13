@@ -60,8 +60,8 @@ test("人放进来的图片、文件和带引号的 @ 引用都收，按出现�
 test("agent 生成的图和新建的文件收，改写已有文件、失败的调用不收", () => {
 	const messages: Message[] = [
 		user("画一张图，再写个测试"),
-		call("g", "generate_image", { prompt: "猫" }),
-		result("g", "generate_image", { kind: "generate_image", paths: ["/home/.plume/session-media/abc.png"] }, [PNG]),
+		call("g", "image_generate", { prompt: "猫" }),
+		result("g", "image_generate", { kind: "image_generate", paths: ["/home/.plume/session-media/abc.png"] }, [PNG]),
 		call("w1", "write", { path: "test/new.test.ts" }),
 		result("w1", "write", { kind: "write", path: "test/new.test.ts", created: true }),
 		call("w2", "write", { path: "src/old.ts" }),

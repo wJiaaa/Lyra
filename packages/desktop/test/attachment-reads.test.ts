@@ -102,8 +102,8 @@ test("生成图落盘的那几张，面板读得到；同一工具名以外的�
 	const result = (toolName: string, paths: unknown) => ({ role: "toolResult", toolCallId: "c1", toolName, content: [], details: { kind: toolName, paths }, isError: false, timestamp: 1 }) as unknown as Message;
 	noteTranscriptFiles([result("bash", [file])]);
 	assert.equal(await attachmentFile(file), null, "别的工具在 details 里写的路径不放行");
-	noteTranscriptFiles([result("generate_image", "not-an-array")]);
-	noteTranscriptFiles([result("generate_image", [file])]);
+	noteTranscriptFiles([result("image_generate", "not-an-array")]);
+	noteTranscriptFiles([result("image_generate", [file])]);
 	const bytes = (await call("files:bytes", file)) as Uint8Array | null;
 	assert.equal(bytes && Buffer.from(bytes).toString("utf8"), "png-bytes");
 	assert.equal(await attachmentFile(sibling), null, "只放行画出来的那一张");

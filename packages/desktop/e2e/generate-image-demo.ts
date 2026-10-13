@@ -1,6 +1,6 @@
 /* oxlint-disable no-console -- probe CLI that prints what the real window did */
 /**
- * `generate_image` 从设置到卡片走一遍——边验边录。
+ * `image_generate` 从设置到卡片走一遍——边验边录。
  *
  * 一个本地假服务同时扮两个角色：按剧本吐 SSE 的对话模型（Anthropic 接口），和 OpenAI 兼容的
  * `/v1/images/generations`（回一张渐变 PNG 的 b64_json）。设置里选的图片模型挂在后者上。
@@ -51,7 +51,7 @@ function gradientPng(): Buffer {
 
 type Block = { tool: string; args: Record<string, unknown> } | { text: string };
 const SCRIPT: Block[][] = [
-	[{ text: "好，我来画。" }, { tool: "generate_image", args: { prompt: PROMPT, size: "1024x1024" } }],
+	[{ text: "好，我来画。" }, { tool: "image_generate", args: { prompt: PROMPT, aspect_ratio: "1:1" } }],
 	[{ text: "画好了，图在上面。" }],
 ];
 
@@ -205,6 +205,9 @@ try {
 			const mask = () => app!.evaluate<string>(`getComputedStyle(${PENDING}, "::before").maskPosition`);
 			const box = await app.evaluate<{ width: number; height: number }>(`(() => { const r = ${PENDING}.getBoundingClientRect(); return { width: Math.round(r.width), height: Math.round(r.height) }; })()`);
 			check("画布按 1024x1024 占成 240×240", box.width === 240 && box.height === 240, box);
+			// 卡片已经写着「生成图片」，运行行只留小球和计时，不再念「Thinking…」。
+			const row = await app.evaluate<{ mood: string | null; text: string } | null>(`(() => { const el = document.querySelector("main [data-ly-running]"); return el ? { mood: el.getAttribute("data-ly-mood"), text: el.textContent ?? "" } : null; })()`);
+			check("画图时运行行是 composing，不配一句话", row?.mood === "composing" && !row.text.includes("…"), row);
 			const sweep = () => app!.evaluate<string>(`getComputedStyle(${PENDING}, "::after").maskPosition`);
 			const first = await mask();
 			const band = await sweep();
@@ -246,7 +249,7 @@ try {
 		check("图片落在 session-media 里", saved.some((name) => name.endsWith(".png")), saved);
 		const second = modelBodies[1] ?? "";
 		check("下一次请求里，模型看得到这张图", /"tool_result"/.test(second) && /"type":"image"/.test(second), second.length);
-		check("下一次请求里，工具结果叫模型别再贴图片链接", second.includes("不要再附图片链接或路径"), second.length);
+		check("下一次请求里，工具结果叫模型别再贴图片链接", second.includes("Don't link the picture"), second.length);
 
 		if (live.images.length > 0) {
 			await click(app, `main [data-ly-canvas] img`);
@@ -260,19 +263,19 @@ try {
 		}
 
 		await openSettings(app, "智能体");
-		const SELECT = `button[aria-label="图片生成模型"]`;
+		const SELECT = `button[aria-label="生图模型"]`;
 		await until(app, `document.querySelector('${SELECT}')`);
 		await app.evaluate(`document.querySelector('${SELECT}').scrollIntoView({ block: "center" })`);
 		await frames(app, 30);
 		await pause(1000);
 		const label = await app.evaluate<string>(`document.querySelector('${SELECT}').innerText.trim()`);
-		check("设置页「图片生成模型」显示选中的 GPT Image 1", label === "GPT Image 1", label);
-		await capture("设置_智能体_图片生成模型");
+		check("设置页「生图模型」显示选中的 GPT Image 1", label === "GPT Image 1", label);
+		await capture("设置_智能体_生图模型");
 		await click(app, SELECT);
-		await until(app, `[...document.querySelectorAll('[role="menuitem"]')].some((e) => e.innerText.trim().startsWith("未设置"))`);
+		await until(app, `[...document.querySelectorAll('[role="menuitem"]')].some((e) => e.innerText.trim().startsWith("自动（第一个生图模型）"))`);
 		await pause(1000);
-		await capture("设置_图片生成模型_菜单");
-		check("菜单里有「未设置」可以清掉", true, null);
+		await capture("设置_生图模型_菜单");
+		check("菜单里有「自动（第一个生图模型）」可以清掉", true, null);
 		await press(app, "Escape", 27);
 		await pause(800);
 		await stop();

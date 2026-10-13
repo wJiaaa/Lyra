@@ -1,6 +1,7 @@
 import { BUILTIN_AGENTS } from "@plume/core/agents-builtin";
 import type { Settings } from "@plume/core";
 import { agentProfile, withAgentProfile, availableModels, resolveModelRef, type SubAgentProfile } from "@plume/core/model-choice";
+import { imageModelRows } from "@plume/core/image-models";
 import { resolveModelThinkingOptions, resolveThinkingOption } from "@plume/core/thinking-options";
 import { AlertCircle, Brain, Plus, Copy, RefreshCw, RotateCcw, Trash2 } from "../../ui/icons/index.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -46,6 +47,7 @@ export function AgentsSettings() {
 	const confirm = useConfirmer();
 	const activeSessionId = useApp((s) => s.activeSessionId);
 	const settings = useApp((s) => s.settings);
+	const imageModels = useMemo(() => imageModelRows(settings?.providers), [settings?.providers]);
 	const mainModelId = useApp((s) => s.meta?.modelId);
 	const sharedCapabilities = useApp((s) => s.capabilities);
 	const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(null);
@@ -199,9 +201,12 @@ export function AgentsSettings() {
 							<ModelSelect ariaLabel={t("agents.memoryModel")} showIcon={false} value={settings.memoryModelId ?? ""} inheritLabel={t("agents.followDefaultModel")} inheritedModelId={settings.defaultModelId ?? undefined} inheritedSource={t("common.default")} inheritDetail={t("agents.memoryModelDetail")} disabled={saving}
 								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, memoryModelId: modelId || null }); }} />
 						</SettingRow>
-						{/* 出图没有「跟随」可言：对话模型画不了图，不选就是不能用。 */}
-						<SettingRow name={t("agents.imageModel")} detail={t("agents.imageModelDetail")}>
-							<ModelSelect ariaLabel={t("agents.imageModel")} showIcon={false} value={settings.imageModelId ?? ""} inheritLabel={t("agents.imageModelNone")} inheritDetail={t("agents.imageModelDetail")} disabled={saving}
+						{/*
+						  * 出图不跟随对话模型——对话模型画不了图。不选就是第一个生图模型，加一个就能画；
+						  * 一个都没有时这一行说去哪里加，而不是给一个空菜单。
+						  */}
+						<SettingRow name={t("agents.imageModel")} detail={imageModels[0] ? t("agents.imageModelDetail") : t("agents.imageModelNone")}>
+							<ModelSelect kind="image" ariaLabel={t("agents.imageModel")} showIcon={false} value={settings.imageModelId ?? ""} inheritLabel={t("agents.imageModelAuto")} inheritedModelId={imageModels[0]?.model.id} inheritedSource={t("agents.imageModelAutoShort")} inheritDetail={t("agents.imageModelDetail")} disabled={saving || !imageModels[0]}
 								onChange={(modelId) => { const current = useApp.getState().settings; if (current) void persist({ ...current, imageModelId: modelId || null }); }} />
 						</SettingRow>
 					</AgentList>

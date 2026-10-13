@@ -4,7 +4,7 @@
  * 只从转录里汇总，不另存。收哪些是定过的：
  *
  * - 人放进来的：粘贴、拖进来的图片和文件（`attachments` 配上 image 块），@ 引用的文件；
- * - agent 产出的：`generate_image` 生成的图，`write` **新建**的文件（`details.created`）。
+ * - agent 产出的：`image_generate` 生成的图，`write` **新建**的文件（`details.created`）。
  *
  * 不收的同样是定过的：改过的已有文件（输入框上方的变更栏里已经有）；读过的文件和预览截图
  * （一个长会话能有上百个，全是噪音）；命令产出的文件——命令前后的对比只记仓库里 2MB 以内的文本，
@@ -89,7 +89,7 @@ export function referencesIn(messages: readonly Message[]): References {
 		}
 		if (message.isError) continue;
 		const details = message.details as Record<string, unknown> | undefined;
-		if (message.toolName === "generate_image") {
+		if (message.toolName === "image_generate") {
 			const paths = Array.isArray(details?.paths) ? details.paths.filter((path): path is string => typeof path === "string") : [];
 			const blocks = message.content.filter((block): block is ImageContent => block.type === "image");
 			const count = Math.max(paths.length, blocks.length);
