@@ -208,6 +208,24 @@ test("#N picks conversation images newest first, parked ones included, and goes 
 	assert.equal((result.details as { references: number }).references, 2);
 });
 
+test("an edit records what went in by session-media name, so the gallery can draw where it started", async () => {
+	stubFetch([drawn()]);
+	const fresh = await imageTool.execute({ prompt: "a boat" }, ctx([provider]));
+	assert.equal((fresh.details as { sources?: string[] }).sources, undefined, "a drawing from words alone has no sources");
+
+	// #2 已经在 session-media 里，#1 是内联附件，路径是工作区文件——后两张按哈希存进 session-media。
+	const badge = Buffer.from(PNG, "base64");
+	badge.writeUInt32BE(2, 16);
+	writeFileSync(join(workspace, "badge.png"), badge);
+	stubFetch([drawn()]);
+	const edit = await imageTool.execute({ prompt: "put the badge on", images: ["#2", "#1", "badge.png"] }, ctx([provider], null, conversationWithImages()));
+	const sources = (edit.details as { sources?: string[] }).sources ?? [];
+	assert.equal(sources.length, 3);
+	assert.equal(sources[0], `${"a".repeat(40)}.png`);
+	for (const name of sources) assert.ok(existsSync(sessionMediaPath(name)), `${name} is a file the gallery can show`);
+	assert.notEqual(sources[1], sources[2], "two different pictures are two names");
+});
+
 test("#N past the end says how many there are and sends nothing", async () => {
 	const seen = stubFetch([]);
 	const result = await imageTool.execute({ prompt: "x", images: ["#3"] }, ctx([provider], null, conversationWithImages()));
@@ -266,8 +284,9 @@ test("before anything arrives, the window is told the shape to hold: as asked, o
 	const edit = await run({ prompt: "make it night", images: ["wide.png"], count: 2 });
 	assert.equal(edit.progress.length, 1);
 	assert.deepEqual(edit.progress[0].content, []);
-	const { startedAt, ...first } = edit.progress[0].details as { startedAt: number };
+	const { startedAt, sources, ...first } = edit.progress[0].details as { startedAt: number; sources?: string[] };
 	assert.ok(startedAt > 0);
+	assert.equal(sources?.length, 1);
 	assert.deepEqual(first, { kind: "image_generate", model: model.id, modelName: "GPT Image 1", aspectRatio: undefined, quality: undefined, count: 2, edit: true, shapeHint: 3 });
 
 	const asked = await run({ prompt: "make it night", images: ["wide.png"], aspect_ratio: "1:1" });

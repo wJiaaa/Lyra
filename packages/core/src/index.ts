@@ -386,6 +386,8 @@ export { imageModelRows, isImageModel, isImageModelId, resolveImageModel, type I
 export { generateImages } from "./images/generate.ts";
 export { imageDimensions } from "./images/dimensions.ts";
 export type { ImageGenerateDetails } from "./images/types.ts";
+export { GalleryReader, type Gallery, type GalleryInput, type GalleryPicture, type GallerySession } from "./images/gallery.ts";
+export type { Ask as GalleryAsk } from "./images/lineage.ts";
 export { layerOverrides, loadProjectLayer, projectConfigPath, type ConfigProblem, type LayerOverride } from "./config/layers.ts";
 export { extensionDirs } from "./runtime/session-capabilities.ts";
 export { validateManifest, type ExtensionDiagnostic, type ExtensionEventStats, type ExtensionStats } from "./extensions/types.ts";

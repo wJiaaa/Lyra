@@ -72,11 +72,17 @@ async function picturesOf(ctx: ToolContext): Promise<ImagePointer[]> {
 	return conversationPictures(messages, (ctx.state.get(RECENT_IMAGES_KEY) as ImagePointer[] | undefined) ?? []);
 }
 
-/** `#1`、`#2` 或路径；第一个取不到的，回一句给模型看的话。 */
-async function inputsFor(refs: string[], ctx: ToolContext): Promise<ImageInput[] | string> {
+/**
+ * `#1`、`#2` 或路径；第一个取不到的，回一句给模型看的话。
+ *
+ * 每张输入另外按 `session-media` 名记一份，结果里存成 `sources`，画廊据此画出改图的链路。还不在
+ * `session-media` 里的图（工作区文件、小的内联附件）按哈希存进去，文件以后改了，链路的起点照样画得出。
+ */
+async function inputsFor(refs: string[], ctx: ToolContext): Promise<{ inputs: ImageInput[]; sources: string[] } | string> {
 	if (refs.length > MAX_INPUTS) return `At most ${MAX_INPUTS} images can go into one call; ${refs.length} were given.`;
 	let pictures: ImagePointer[] | null = null;
 	const inputs: ImageInput[] = [];
+	const sources: string[] = [];
 	for (const raw of refs) {
 		const ref = raw.trim();
 		const numbered = /^#\s*(\d+)$/.exec(ref);
@@ -91,6 +97,7 @@ async function inputsFor(refs: string[], ctx: ToolContext): Promise<ImageInput[]
 					: `"${ref}" is out of range: this conversation has ${pictures.length} image${pictures.length === 1 ? "" : "s"} (#1 is the newest).`;
 			}
 			inputs.push(loaded);
+			sources.push(safeMediaName(picture?.media ?? "") || persistSessionImage(loaded.data, loaded.mimeType));
 			continue;
 		}
 		const absolute = toAbsolute(ctx.cwd, ref);
@@ -104,9 +111,11 @@ async function inputsFor(refs: string[], ctx: ToolContext): Promise<ImageInput[]
 		if (bytes.length > MAX_INPUT_BYTES) return `${ref} is ${Math.round(bytes.length / 1048576)}MB; images over 20MB cannot be sent.`;
 		const mimeType = sniffImageType(bytes);
 		if (!mimeType) return `${ref} is not a PNG, JPEG or WebP image.`;
-		inputs.push({ data: bytes.toString("base64"), mimeType, name: absolute.split(/[/\\]/).pop() });
+		const data = bytes.toString("base64");
+		inputs.push({ data, mimeType, name: absolute.split(/[/\\]/).pop() });
+		sources.push(media ?? persistSessionImage(data, mimeType));
 	}
-	return inputs;
+	return { inputs, sources };
 }
 
 function seconds(ms: number): string {
@@ -213,8 +222,9 @@ export const imageTool: Tool<ImageArgs> = {
 			return errorResult(`${model.name} is on a provider that speaks the Anthropic API, which cannot draw. Tell the user to pick an image model under an OpenAI-compatible provider in Settings → Models.`);
 		}
 
-		const inputs = await inputsFor(Array.isArray(args.images) ? args.images.filter((ref): ref is string => typeof ref === "string" && ref.trim() !== "") : [], ctx);
-		if (typeof inputs === "string") return errorResult(inputs);
+		const given = await inputsFor(Array.isArray(args.images) ? args.images.filter((ref): ref is string => typeof ref === "string" && ref.trim() !== "") : [], ctx);
+		if (typeof given === "string") return errorResult(given);
+		const { inputs, sources } = given;
 
 		const ratio = args.aspect_ratio && args.aspect_ratio !== "auto" ? args.aspect_ratio : undefined;
 		const quality = (QUALITIES as readonly string[]).includes(args.quality ?? "") ? (args.quality as ImageRequest["quality"]) : undefined;
@@ -231,6 +241,7 @@ export const imageTool: Tool<ImageArgs> = {
 			quality,
 			count,
 			edit: inputs.length > 0,
+			...(sources.length ? { sources } : {}),
 			startedAt,
 			...(ratio ? {} : { shapeHint: shapeOf(inputs[0]) }),
 		};
