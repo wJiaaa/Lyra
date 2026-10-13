@@ -45,6 +45,8 @@ export interface DraftAttachment {
 	 * 和 `name` 分开：一张粘贴进来的图的 `name` 是剪贴板给的 `image.png`，而屏幕上它是「图片 1」。
 	 */
 	label?: string;
+	/** 这是哪张画出来的图的标注副本，按 `session-media` 名记：见 `ImageContent.from`。 */
+	markedFrom?: string;
 }
 
 /**

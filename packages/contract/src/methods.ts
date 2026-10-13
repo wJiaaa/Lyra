@@ -71,6 +71,9 @@ export const METHODS = {
 		storage: { channel: "usage:storage" },
 		clear: { channel: "usage:clear" },
 	},
+	gallery: {
+		list: { channel: "gallery:list" },
+	},
 	workspace: {
 		pick: { channel: "workspace:pick" },
 		info: { channel: "workspace:info" },

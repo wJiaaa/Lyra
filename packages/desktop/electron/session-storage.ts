@@ -76,5 +76,6 @@ export function observeSessionStorage(store: SessionStorage, changed: (change: S
 		storeId: () => store.storeId(),
 		activeDays: () => store.activeDays(),
 		sizes: () => store.sizes(),
+		sessionsWithResultOf: (toolName) => store.sessionsWithResultOf(toolName),
 	};
 }

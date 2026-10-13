@@ -413,3 +413,28 @@ export async function dropOn(
 	}
 	await frames(page, 2);
 }
+
+/**
+ * 元素中心那一点，在原生窗口看来是拖窗口的地方还是能点的地方。
+ *
+ * CDP 发的鼠标事件直接进渲染进程，不经过原生窗口按 `-webkit-app-region` 做的那次判定，所以落在拖拽区
+ * 里的按钮用 `click` 照样点得中，而人的鼠标在那儿只会拖动窗口。这里照 Electron 合成拖拽区的办法算：
+ * 按文档顺序，`drag` 的矩形并进来，`no-drag` 的矩形挖出去，看最后那一点在不在里面。
+ */
+export async function dragRegionAt(page: Evaluate, selector: string, name?: string, mode: NamedMode = "exact"): Promise<"drag" | "clickable"> {
+	return page.evaluate(`(()=>{
+		const target=${finder(selector, name, mode)};
+		if(!target) throw new Error("dragRegionAt: nothing matches " + ${JSON.stringify(selector)});
+		const box=target.getBoundingClientRect();
+		const x=box.x+box.width/2, y=box.y+box.height/2;
+		let drag=false;
+		for(const el of document.querySelectorAll("*")){
+			const region=getComputedStyle(el).getPropertyValue("-webkit-app-region").trim()||getComputedStyle(el).webkitAppRegion;
+			if(region!=="drag"&&region!=="no-drag") continue;
+			const r=el.getBoundingClientRect();
+			if(r.width===0||r.height===0||x<r.left||x>=r.right||y<r.top||y>=r.bottom) continue;
+			drag=region==="drag";
+		}
+		return drag?"drag":"clickable";
+	})()`);
+}

@@ -38,7 +38,7 @@ export function GeneratedImages({ calls }: { calls: string[] }) {
 function GeneratedImage({ callId }: { callId: string }) {
 	const run = useScopedFromToolRuns((toolRuns) => toolRuns[callId]);
 	if (!run) return null;
-	return <ImageCanvas args={run.args} result={run.result} running={run.status === "running"} startedAt={run.startedAt} summary={describeActivity(run.summary)} />;
+	return <ImageCanvas callId={callId} args={run.args} result={run.result} running={run.status === "running"} startedAt={run.startedAt} summary={describeActivity(run.summary)} />;
 }
 
 const HEIGHT = 240;
@@ -54,7 +54,7 @@ function useNow(active: boolean): number {
 	return active ? now : Date.now();
 }
 
-function ImageCanvas({ args, result, running, startedAt, summary }: { args: Record<string, unknown>; result?: ToolResult; running: boolean; startedAt: number; summary: string }) {
+function ImageCanvas({ callId, args, result, running, startedAt, summary }: { callId: string; args: Record<string, unknown>; result?: ToolResult; running: boolean; startedAt: number; summary: string }) {
 	const images = (result?.content ?? []).flatMap((block) => {
 		const refs = block.type === "image" ? imageBlockSrc(block, HEIGHT * 2) : null;
 		return refs ? [refs] : [];
@@ -105,8 +105,8 @@ function ImageCanvas({ args, result, running, startedAt, summary }: { args: Reco
 		);
 	}
 
-	// 标注完按「完成」，带标注的副本进这一屏对话的输入框，不是焦点所在的那一屏。
-	const gallery = images.map((image, index) => ({ src: image.full, alt: translate("toolCard.image", { summary, n: index + 1 }), onAttach: attachToComposer(sessionId) }));
+	// 标注完按「完成」，带标注的副本进这一屏对话的输入框，不是焦点所在的那一屏；记下是从哪张图标的，画廊的链路靠它接上。
+	const gallery = images.map((image, index) => ({ src: image.full, alt: translate("toolCard.image", { summary, n: index + 1 }), onAttach: attachToComposer(sessionId, details?.images?.[index]?.media) }));
 	// 工具在 details 里记下每张图落盘的位置，顺序和图一致；老记录没有这一项。
 	const paths = details?.paths;
 	const first = details?.images?.[0];
@@ -117,7 +117,8 @@ function ImageCanvas({ args, result, running, startedAt, summary }: { args: Reco
 		missing > 0 ? translate("imageGen.partial", { n: missing }) : undefined,
 	].filter(Boolean).join(" · ");
 	return (
-		<figure data-ly-image-card="done" className="m-0 flex flex-col gap-2">
+		// `data-ly-image-call` 是画廊请对话滚过去的目标（`reveal.ts`）。
+		<figure data-ly-image-card="done" data-ly-image-call={callId} className="m-0 flex flex-col gap-2">
 			{caption && <Caption text={caption} />}
 			<div className="flex flex-wrap gap-2">
 				{images.map((image, index) => (

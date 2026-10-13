@@ -33,6 +33,8 @@ interface OutgoingAttachment {
 	path?: string;
 	/** 界面上叫什么。正文里那枚标记写的是它，附件要按标记的位置排就得靠它配对。 */
 	label?: string;
+	/** 标注副本是从哪张图上标的；跟着它的图片块走（`ImageContent.from`）。 */
+	markedFrom?: string;
 }
 
 export interface OutgoingDraft {
@@ -150,7 +152,7 @@ export function spellDraft(text: string, attachments: OutgoingAttachment[]): Use
 			 */
 			flush();
 			content.push({ type: "text", text: attachmentImageLabel(file.name, label) });
-			content.push({ type: "image", data: file.data, mimeType: file.mimeType });
+			content.push({ type: "image", data: file.data, mimeType: file.mimeType, ...(file.markedFrom ? { from: file.markedFrom } : {}) });
 			return;
 		}
 		if (file.kind === "folder" && file.path) {

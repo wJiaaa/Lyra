@@ -319,11 +319,11 @@ tag 说明和 GitHub Release 正文都由 `scripts/changelog-section.mjs` 从这
 | `packages/cli/` | 非交互命令行，评测用：一个任务进、回答出，见 ADR-0031 |
 | `packages/desktop/electron/` | 主进程：IPC、窗口、Git |
 | `packages/desktop/src/` | 渲染进程。9 个目录，见 ARCHITECTURE.md |
-| `packages/desktop/src/features/` | 24 个功能域，跨域只经对方的 index |
+| `packages/desktop/src/features/` | 25 个功能域，跨域只经对方的 index |
 | `packages/desktop/src/ui/` | 基础组件，不读 store 不调 service |
 | `packages/desktop/src/lib/` | 纯逻辑，没有 React |
 | `packages/desktop/src/services/` | 跟主进程说话的唯一出口 |
-| `packages/contract/` | 渲染进程与主进程之间那条线，224 个方法写在一处 |
+| `packages/contract/` | 渲染进程与主进程之间那条线，225 个方法写在一处 |
 | `packages/desktop/shared/` | 两个进程共有的判断，谁也不依赖 |
 
 ## 提交

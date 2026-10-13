@@ -151,6 +151,7 @@ export { HandIcon as Hand } from "./animated/hand.tsx";
 export { HardDriveIcon as HardDrive } from "./animated/hard-drive.tsx";
 export { HashIcon as Hash } from "./animated/hash.tsx";
 export { ImageIcon as Image } from "./animated/image.tsx";
+export { ImagesIcon as Images } from "./animated/images.tsx";
 export { InfoIcon as Info } from "./animated/info.tsx";
 export { KeyRoundIcon as KeyRound } from "./animated/key-round.tsx";
 export { LanguagesIcon as Languages } from "./animated/languages.tsx";
@@ -185,6 +186,7 @@ export { PanelRightOpenIcon as PanelRightOpen } from "./animated/panel-right-ope
 export { PaperclipIcon as Paperclip } from "./animated/paperclip.tsx";
 export { PauseIcon as Pause } from "./animated/pause.tsx";
 export { PenLineIcon as Edit3 } from "./animated/pen-line.tsx";
+export { PenLineIcon as PenLine } from "./animated/pen-line.tsx";
 export { PencilIcon as Pencil } from "./animated/pencil.tsx";
 export { PencilLineIcon as PencilLine } from "./animated/pencil-line.tsx";
 export { PinIcon as Pin } from "./animated/pin.tsx";

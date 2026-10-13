@@ -218,3 +218,31 @@ test("项目名称仍然打开选择菜单，关闭入口不影响分支按钮",
 	assert.ok(branch.querySelector("svg"));
 	assert.equal(branch.getAttribute("aria-haspopup"), "menu");
 });
+
+test("a draft that asks to be sent goes out with its picture, once it is in an empty composer", async () => {
+	// What the gallery's edit field does: the words and the picture, sent the way Enter would send them.
+	const sent: unknown[][] = [];
+	useApp.setState({ send: (async (...args: unknown[]) => (sent.push(args), true)) as AppState["send"] });
+	view = await mount(only("b"));
+	await act(async () => useApp.getState().setComposerDraft("把帽子换成红色", { sessionId: "b", attachments: [{ ...picture, name: "image.png" }], send: true }));
+	await act(async () => {});
+	await act(async () => {});
+	assert.equal(sent.length, 1, "the draft was not sent");
+	const content = sent[0][0] as { type: string; text?: string; data?: string }[];
+	assert.ok(content.some((part) => part.type === "text" && part.text?.includes("把帽子换成红色")));
+	assert.ok(content.some((part) => part.type === "image" && part.data === picture.data), "the picture did not go with it");
+	assert.equal(fieldOf("b"), "", "sent, so the composer is empty again");
+});
+
+test("a draft that asks to be sent only lands when someone has already been typing there", async () => {
+	const sent: unknown[][] = [];
+	useApp.setState({ send: (async (...args: unknown[]) => (sent.push(args), true)) as AppState["send"] });
+	view = await mount(only("b"));
+	await typeInto("b", "我自己还没写完的");
+	await act(async () => useApp.getState().setComposerDraft("把帽子换成红色", { sessionId: "b", attachments: [{ ...picture, name: "image.png" }], send: true }));
+	await act(async () => {});
+	await act(async () => {});
+	assert.equal(sent.length, 0, "a half-written message was sent along with the draft");
+	assert.ok(fieldOf("b").startsWith("我自己还没写完的"), fieldOf("b"));
+	assert.ok(fieldOf("b").includes("把帽子换成红色"));
+});

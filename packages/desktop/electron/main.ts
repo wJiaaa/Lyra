@@ -72,6 +72,7 @@ import { inspectPreview, registerPreviewThemeIpc } from "./preview-inspect.ts";
 import { guardWebviews, installPermissionHandlers } from "./window-security.ts";
 import { registerGitIpc } from "./ipc/git.ts";
 import { registerUsageIpc } from "./ipc/usage.ts";
+import { registerGalleryIpc } from "./ipc/gallery.ts";
 import { registerSkillsIpc } from "./ipc/skills.ts";
 import { registerAgentDefinitionsIpc } from "./ipc/agent-definitions.ts";
 import { registerCapabilitiesIpc } from "./ipc/capabilities.ts";
@@ -891,6 +892,7 @@ function registerIpc(): void {
 
 	registerGitIpc({ insideAProject });
 	registerUsageIpc({ store: () => store });
+	registerGalleryIpc({ store: () => store });
 	registerSkillsIpc();
 	registerAgentDefinitionsIpc();
 	registerCapabilitiesIpc();

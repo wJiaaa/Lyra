@@ -13,6 +13,8 @@ type RestoredAttachment = {
 	isText: boolean;
 	path?: string;
 	label?: string;
+	/** 撤回的标注副本仍然记得它是从哪张图上标的（`ImageContent.from`）。 */
+	markedFrom?: string;
 };
 
 export type RestoredDraft = {
@@ -81,6 +83,7 @@ export function draftFromUserMessage(message: UserMessage): RestoredDraft {
 			...(body ? { text: bodyText(body.text) } : {}),
 			...(file.path ? { path: file.path } : {}),
 			...(file.label ? { label: file.label } : {}),
+			...(image?.from ? { markedFrom: image.from } : {}),
 		});
 	}
 	for (; imageAt < images.length; imageAt++) {
@@ -91,6 +94,7 @@ export function draftFromUserMessage(message: UserMessage): RestoredDraft {
 			kind: "image",
 			...pixelsOf(images[imageAt]),
 			isText: false,
+			...(images[imageAt].from ? { markedFrom: images[imageAt].from } : {}),
 		});
 	}
 	return {

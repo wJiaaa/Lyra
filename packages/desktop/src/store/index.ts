@@ -65,7 +65,7 @@ export function useSideChatRunningKey(ids: readonly string[]): string {
  * servers a bundle brought with it, where its directory is. Sending the sidebar's 插件 straight
  * to a settings pane made the first question unanswerable from anywhere.
  */
-type View = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins";
+type View = "chat" | "settings" | "pull-requests" | "scheduled" | "plugins" | "gallery";
 
 export type SettingsSection =
   | "general"
@@ -106,9 +106,15 @@ interface ComposerDraft {
   sessionId: string | null;
   text: string;
   replace: boolean;
-  attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string }>;
+  attachments?: Array<{ id: string; name: string; mimeType: string; kind?: string; data?: string; text?: string; isText: boolean; path?: string; label?: string; markedFrom?: string }>;
   sessionRefs?: Array<{ id: string; title: string }>;
   quotes?: DraftQuote[];
+  /**
+   * Send it as soon as it lands, as though Enter had been pressed — what the gallery's edit field asks
+   * for. Only into an empty composer: a draft someone left there is theirs, and sending it along with
+   * this one would put words in their mouth. When it is not empty this lands like any other draft.
+   */
+  send?: boolean;
 }
 
 interface PendingApproval extends QuestionFields {
@@ -248,7 +254,7 @@ export interface AppState extends QueueSlice {
   browserAttachment: { text: string; dataUrl: string; draftKey: string } | null;
   setComposerDraft(
     text: string,
-    options: Pick<ComposerDraft, "sessionId" | "attachments" | "sessionRefs" | "quotes"> & { replace?: boolean },
+    options: Pick<ComposerDraft, "sessionId" | "attachments" | "sessionRefs" | "quotes" | "send"> & { replace?: boolean },
   ): void;
 
   /**
@@ -731,8 +737,8 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   setView: (view) => set({ view }),
-  setComposerDraft: (text, { sessionId, replace = false, attachments = [], sessionRefs = [], quotes = [] }) =>
-    set({ composerDraft: { sessionId, text, replace, attachments, sessionRefs, quotes } }),
+  setComposerDraft: (text, { sessionId, replace = false, attachments = [], sessionRefs = [], quotes = [], send }) =>
+    set({ composerDraft: { sessionId, text, replace, attachments, sessionRefs, quotes, ...(send ? { send } : {}) } }),
   setDraft: (key, draft) =>
     set((state) => {
       if (!draft || (!draft.text.trim() && (!draft.attachments || draft.attachments.length === 0) && !draft.sessionRefs?.length && !draft.quotes?.length)) {

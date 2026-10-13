@@ -10,7 +10,7 @@
 
 import type { SessionChange } from "./ipc-shapes.ts";
 import type { FilePanelState, FilePanelVersion } from "../shared/file-panel-state.ts";
-import type { TrajectoryEntry, TrajectoryChanges, AgentDefinitionRecord, AgentDefinitionSave } from "@plume/core";
+import type { TrajectoryEntry, TrajectoryChanges, AgentDefinitionRecord, AgentDefinitionSave, Gallery } from "@plume/core";
 import type { ForgeAccount, ForgeKind, ForgeKindInfo } from "./forge/types.ts";
 import type {
 	BranchList,
@@ -334,6 +334,14 @@ export interface PlumeApi {
 		 * 正在写东西的 agent，也不假装它被删掉了。**没有回收站**，调用方负责在此之前问过。
 		 */
 		clear(range: ClearRange): Promise<ClearResult>;
+	};
+	gallery: {
+		/**
+		 * Every picture `image_generate` drew, in every conversation, with what each was drawn from.
+		 *
+		 * A conversation is read again only after it has been written to, so asking twice is cheap.
+		 */
+		list(): Promise<Gallery>;
 	};
 	workspace: {
 		/** Show the project directory in the OS file manager. */

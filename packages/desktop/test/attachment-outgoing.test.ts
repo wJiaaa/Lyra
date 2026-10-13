@@ -131,3 +131,13 @@ test("文件夹送过去的是它的完整路径，编辑已发出的消息时�
 	assert.ok(first.type === "text" && first.text.startsWith("\n\n[Attachment 1 of 2, folder: pi — folder at"));
 	assert.ok(first.type === "text" && isAttachmentBody(first.text));
 });
+
+test("标注过的图带着它是从哪张图标注来的，别的图不带", async () => {
+	const from = `${"a".repeat(40)}.jpg`;
+	const outgoing = await buildOutgoing(draft("照标注改", [{ ...png, name: "标注图.png", markedFrom: from }, png]), "/tmp");
+	const images = outgoing?.content.filter((block) => block.type === "image") ?? [];
+	assert.deepEqual(
+		images.map((block) => (block as { from?: string }).from),
+		[from, undefined],
+	);
+});

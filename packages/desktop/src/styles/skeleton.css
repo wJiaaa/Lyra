@@ -193,3 +193,25 @@
       100% 100%;
   }
 }
+
+/*
+ * 画廊跳过来的那张图：框外起一圈光，再淡掉，只一次。
+ *
+ * 跳转本身是瞬间的，一页图里落在中间的那张不见得一眼就认得出是要找的。光圈画在框外，不盖在图上，
+ * 看的时候图不会被冲淡；延迟一点，让视图先切完。
+ */
+@keyframes ly-image-flash {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+  25% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+}
+
+[data-ly-image-card][data-ly-flash] .ly-canvas {
+  animation: ly-image-flash 1600ms var(--ly-e-out) 180ms both;
+}

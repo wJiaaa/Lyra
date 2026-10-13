@@ -1,14 +1,14 @@
 /**
- * The three places in the app that are not a conversation.
+ * The places in the app that are not a conversation.
  *
  * Inside the scroller rather than above it, and that is the point of them being here at all: they
- * are visited a few times a day, and as fixed rows they cost three of a narrow column's rows
+ * are visited a few times a day, and as fixed rows they cost four of a narrow column's rows
  * permanently — which meant the conversations, the reason the pane exists, started a third of the
  * way down and never got that space back however far you scrolled. Starting a conversation earns a
  * permanent row. A destination can be scrolled to.
  */
 
-import { AtSign, Clock, GitPullRequest } from "../../ui/icons/index.ts";
+import { AtSign, Clock, GitPullRequest, Images } from "../../ui/icons/index.ts";
 import { useApp } from "../../store/index.ts";
 import { NavItem } from "./NavItem.tsx";
 import { useI18n } from "../../i18n/index.ts";
@@ -62,6 +62,7 @@ export function DestinationNav({ onNavigate }: { onNavigate: () => void }) {
 				badge={waiting}
 				badgeLabel={t("sidebar.pluginUpdates", { n: waiting })}
 			/>
+			<NavItem active={view === "gallery"} icon={<Images size={16} />} label={t("gallery.title")} onClick={go("gallery")} />
 		</div>
 	);
 }
