@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { droppedParams, learnDroppedParam, openaiRefusesReasoningNone, refusesReasoningNone, resetRequestParamsCompat } from "../src/ai/request-params-compat.ts";
+import { droppedParams, learnDroppedParam, resetRequestParamsCompat } from "../src/ai/request-params-compat.ts";
 
 test("默认一个参数都不省", () => {
 	resetRequestParamsCompat();
@@ -67,7 +67,7 @@ test("a thinking_level complaint about another value, or Gemini 2.5's sentence t
 	resetRequestParamsCompat();
 	// Dropping `reasoning_effort: "none"` cannot fix a rejected "minimal": the resend would fail the same way.
 	assert.equal(learnDroppedParam("qa", "m", `Invalid value at 'request.generation_config.thinking_config.thinking_level' (…ThinkingLevel), "minimal"`), false);
-	// What gemini-2.5-flash answers on the same relay. `refusesReasoningNone` covers it; learning cannot.
+	// What gemini-2.5-flash answers on the same relay. `vendors/google.ts` covers it; learning cannot.
 	assert.equal(learnDroppedParam("qa", "m", "Request contains an invalid argument."), false);
 	assert.equal(droppedParams("qa", "m").size, 0);
 });
@@ -137,15 +137,4 @@ test("组织没验证、不给推理摘要：只撤 summary", () => {
 	resetRequestParamsCompat();
 	assert.equal(learnDroppedParam("qa", "m", `{"error":{"message":"Unsupported value.","param":"reasoning.summary","code":"unsupported_value"}}`), true);
 	assert.ok(droppedParams("qa", "m").has("reasoning-summary"));
-});
-
-test("OpenAI 自家不收 none 的：o 系列和 gpt-5（5.1 起才有 none）", () => {
-	for (const id of ["o1", "o3", "O3-mini", "o4-mini", "openai/o3-pro", "gpt-5", "gpt-5-mini", "gpt-5-codex", "gpt-5-2025-08-07"]) {
-		assert.equal(openaiRefusesReasoningNone(id), true, id);
-	}
-	for (const id of ["gpt-5.1", "gpt-5.2-codex", "gpt-4o", "deepseek-v4-flash", "gpt-4o1-relay", "claude-opus-4", "gemini-2.5-flash"]) {
-		assert.equal(openaiRefusesReasoningNone(id), false, id);
-	}
-	// 共用的那条不跟着变：Chat 链靠它，而那条链的行为这次不动。
-	assert.equal(refusesReasoningNone("o3"), false);
 });

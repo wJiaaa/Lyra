@@ -214,6 +214,17 @@ export function contentOfDelta(content: unknown): { text: string; thinking: stri
 // ---------------------------------------------------------------------------
 
 /**
+ * 顶层 `code` 是不是在报错：只认 HTTP 的错误码（400–599，数字或数字字符串）。
+ *
+ * 反过来列「成功码」列不全：中转的成功、心跳码有 `0`、`200`、`"0000"`、`"000000"`、`10000`……漏一个，一条
+ * 健康的流就被判成失败。认错误码这一侧，最坏是一个写法古怪的错误帧落成空回答，照样会重试。
+ */
+const isErrorCode = (code: unknown): boolean => {
+	const value = typeof code === "number" ? code : typeof code === "string" && /^\s*\d+\s*$/.test(code) ? Number(code) : Number.NaN;
+	return value >= 400 && value <= 599;
+};
+
+/**
  * 这一帧是不是一个错误，是的话它说了什么。
  *
  * 从前只认 `error` 且**没有** `choices` 的帧。OpenRouter 的流内错误偏偏两样都带：顶层
@@ -223,15 +234,27 @@ export function contentOfDelta(content: unknown): { text: string; thinking: stri
  *
  * 所以：`error` 带着一句话（字符串，或对象上的 `message`）就是错误，不看 `choices`；什么都没说的
  * `error` 只在没有可读的 `choices` 时才算——那是这里原来的判据，不收紧。
+ *
+ * 不写 `error` 的错误帧也有好几种，从前都落成空回答：SSE 自己的 `event: error`（`frameEvent`）、国内中转
+ * 爱用的 `{code: 500, msg}` 和 `{success: false}`。后两种只在没有 `choices` 时才算：正常帧也有带着 `code: 0` 的，而真正的错误帧
+ * 不会再带一份回答；`code` 还得是个错误码，见 `isErrorCode`。没给原话的返回 `{}`，分类器会从整帧原文里自己找。
  */
-export function streamErrorOf(event: Record<string, unknown>): { message?: string } | undefined {
+export function streamErrorOf(event: Record<string, unknown>, frameEvent?: string): { message?: string } | undefined {
 	const error = event.error;
-	if (!error) return undefined;
-	if (typeof error === "string") return { message: error };
-	const said = typeof error === "object" ? (error as { message?: unknown }).message : undefined;
-	if (typeof said === "string" && said.trim()) return { message: said };
 	const choices = event.choices;
-	return Array.isArray(choices) && choices.length > 0 ? undefined : {};
+	const answers = Array.isArray(choices) && choices.length > 0;
+	if (error) {
+		if (typeof error === "string") return { message: error };
+		const said = typeof error === "object" ? (error as { message?: unknown }).message : undefined;
+		if (typeof said === "string" && said.trim()) return { message: said };
+		return answers ? undefined : {};
+	}
+	if (frameEvent === "error") return {};
+	if (answers) return undefined;
+	const said = [event.message, event.msg].find((value): value is string => typeof value === "string" && value.trim().length > 0);
+	if (event.success === false) return { message: said };
+	if (said && isErrorCode(event.code)) return { message: said };
+	return undefined;
 }
 
 // ---------------------------------------------------------------------------

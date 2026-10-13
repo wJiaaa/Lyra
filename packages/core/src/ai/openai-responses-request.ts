@@ -11,6 +11,8 @@ import { replayArguments } from "./openai-chat-completions-request.ts";
 import type { ReasoningReplay } from "./reasoning-compat.ts";
 import type { ToolPairing } from "./tool-pairing-compat.ts";
 import type { ToolResultImages } from "./tool-result-images-compat.ts";
+import { toolNameForReplay } from "./tool-names.ts";
+import { hoistLocalRefs } from "./tool-schema.ts";
 
 /**
  * Who this request is going to, so a handle from someone else can be told apart from our own.
@@ -382,7 +384,7 @@ export function toResponsesInput(
 					input.push({
 						type: "function_call",
 						call_id: c.id,
-						name: c.name,
+						name: toolNameForReplay(c.name),
 						arguments: replayArguments(c),
 					});
 					const answer = answers.get(c.id);
@@ -484,7 +486,7 @@ export function toResponsesTools(tools: ToolSpec[]): unknown[] {
 		type: "function",
 		name: tool.name,
 		description: tool.description,
-		parameters: tool.parameters,
+		parameters: hoistLocalRefs(tool.parameters),
 		strict: false,
 	}));
 }

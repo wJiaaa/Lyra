@@ -1,4 +1,5 @@
 import type { ModelConfig, ThinkingLevel, ThinkingOption } from "../types/provider.ts";
+import { thinkingDialect } from "./vendors/index.ts";
 
 /** 标准档位，从浅到深。选中的档位模型没有时，按这个顺序就近找。 */
 export const THINKING_LEVELS: readonly ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
@@ -34,10 +35,19 @@ export function thinkingOptionsFor(levels: readonly ThinkingLevel[], preferredDe
  */
 export const DEFAULT_THINKING_OPTIONS: ThinkingOption[] = thinkingOptionsFor(["off", "low", "medium", "high"]);
 
-/** 模型可选的档位：配置了就用配置的，否则用默认那一组；不支持思考的模型一档都没有。 */
+/**
+ * 模型可选的档位：配置了就用配置的，否则用默认那一组；不支持思考的模型一档都没有。
+ *
+ * 关不掉思考的模型（`vendors/` 的 `alwaysOn`）不给「关闭」：适配器对它们什么都不发，选了「关闭」照样思考、
+ * 照样计费，界面却显示已关。`catalogFill` 填配置时已经去掉，但没配档位的（默认那一组带 `off`）、在那之前
+ * 保存的配置都还带着，所以在这里统一再收一次。这里只有模型名、没有端点，只按模型名的规则判。
+ */
 export function resolveModelThinkingOptions(model?: ModelConfig | null): ThinkingOption[] {
 	if (!model || model.supportsThinking === false) return [];
-	return model.thinkingOptions ?? DEFAULT_THINKING_OPTIONS;
+	const options = model.thinkingOptions ?? DEFAULT_THINKING_OPTIONS;
+	if (!thinkingDialect("", model.modelId).alwaysOn) return options;
+	const thinking = options.filter((option) => option.id !== "off");
+	return thinking.length > 0 ? thinking : options;
 }
 
 /**

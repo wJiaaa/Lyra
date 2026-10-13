@@ -14,6 +14,7 @@
 
 import snapshotJson from "./catalog/model-catalog.json" with { type: "json" };
 import { thinkingOptionsFor } from "./ai/thinking-options.ts";
+import { thinkingDialect } from "./ai/vendors/index.ts";
 import { parseModelCatalog, type CatalogModel, type CatalogProvider, type ModelCatalogDocument } from "./model-catalog-format.ts";
 import type { ModelConfig, ModelPricing, ProviderConfig } from "./types/provider.ts";
 
@@ -196,13 +197,21 @@ export function catalogPricing(model: CatalogModel): ModelPricing | undefined {
 	};
 }
 
-/** 一个目录条目要填进模型配置的值。输出上限不超过窗口；全零价格的订阅制条目不填价格。 */
-export function catalogFill(model: CatalogModel): CatalogFill {
+/**
+ * 一个目录条目要填进模型配置的值。输出上限不超过窗口；全零价格的订阅制条目不填价格。
+ *
+ * 关不掉思考的模型（`vendors/` 的 `alwaysOn`）不给「关闭」这一档：目录里的档位不一定知道这一点，而界面上
+ * 多一个点了没用的「关闭」，用户以为省了钱。给了端点就连端点一起看，规则可以按端点写。
+ */
+export function catalogFill(model: CatalogModel, provider?: Pick<ProviderConfig, "baseUrl">): CatalogFill {
+	const levels = model.thinkingLevels && thinkingDialect(provider?.baseUrl ?? "", model.id).alwaysOn
+		? model.thinkingLevels.filter((level) => level !== "off")
+		: model.thinkingLevels;
 	return {
 		contextWindow: model.contextWindow,
 		maxOutputTokens: Math.min(model.maxOutputTokens, model.contextWindow),
 		supportsThinking: model.supportsThinking,
-		...(model.supportsThinking && model.thinkingLevels ? { thinkingOptions: thinkingOptionsFor(model.thinkingLevels) } : {}),
+		...(model.supportsThinking && levels ? { thinkingOptions: thinkingOptionsFor(levels) } : {}),
 		supportsImages: model.supportsImages,
 		// pi 的目录只收编码代理用的对话模型，都能调工具，所以没有这一项。
 		supportsTools: true,

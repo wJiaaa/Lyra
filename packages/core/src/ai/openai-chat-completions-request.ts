@@ -5,6 +5,8 @@
 import type { Message, ToolCallContent, ToolResultMessage, ToolSpec } from "../types.ts";
 import type { ReasoningReplay } from "./reasoning-compat.ts";
 import { THINK_TAG_FIELD } from "./think-tag.ts";
+import { toolNameForReplay } from "./tool-names.ts";
+import { hoistLocalRefs } from "./tool-schema.ts";
 
 /**
  * 模型看不了图时，图片位置上留下的那句话。
@@ -26,7 +28,7 @@ export function toChatCompletionsTools(tools: ToolSpec[]): unknown[] {
 		function: {
 			name: tool.name,
 			description: tool.description,
-			parameters: tool.parameters,
+			parameters: hoistLocalRefs(tool.parameters),
 		},
 	}));
 }
@@ -205,7 +207,7 @@ export function toChatCompletionsMessages(
 						id: c.id,
 						type: "function",
 						function: {
-							name: c.name,
+							name: toolNameForReplay(c.name),
 							arguments: replayArguments(c),
 						},
 					});

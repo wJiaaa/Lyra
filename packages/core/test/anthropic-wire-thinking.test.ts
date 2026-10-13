@@ -253,11 +253,14 @@ test("中断的一轮：只有最后一个块的签名不可信，前面那个�
 	 * 必然发生在下一个块开始之前——所以流停在半路时，只有当时正在流的那个块（永远是最后一个）可能拿到
 	 * 半截签名。一起剥掉是白扔一条能回放的思维链，而且换来的是另一个
 	 * `400 Invalid \`signature\` in \`thinking\` block`。
+	 *
+	 * 中间夹一段正文：只剩思考块的截断轮整条不回放（见 `anthropic-thinking-truncated.test.ts`），轮不到这条规则。
 	 */
 	const history: Message[] = [
 		unsigned[0],
 		assistant([
 			{ type: "thinking", thinking: "第一段想完了，签名是完整的。", signature: OTHER_SIGNATURE },
+			{ type: "text", text: "先看调用点。" },
 			{ type: "thinking", thinking: "第二段正在流的时候被按停", signature: SIGNATURE },
 		], "aborted"),
 		{ role: "user", content: [{ type: "text", text: "接着说" }], timestamp: 4 },
@@ -270,7 +273,7 @@ test("中断的一轮：只有最后一个块的签名不可信，前面那个�
 test("中断的一轮，最后那个块在非签名端点上还回得去——只是不带签名", () => {
 	const history: Message[] = [
 		unsigned[0],
-		assistant([{ type: "thinking", thinking: "被按停时正在想的那段", signature: SIGNATURE }], "aborted"),
+		assistant([{ type: "text", text: "先看调用点。" }, { type: "thinking", thinking: "被按停时正在想的那段", signature: SIGNATURE }], "aborted"),
 		{ role: "user", content: [{ type: "text", text: "接着说" }], timestamp: 4 },
 	];
 	const blocks = thinkingBlocks(history, { thinkingReplay: "unsigned" });
@@ -279,7 +282,7 @@ test("中断的一轮，最后那个块在非签名端点上还回得去——�
 });
 
 test("出错结束的一轮跟按停的一轮同样处理", () => {
-	const history: Message[] = [unsigned[0], assistant([{ type: "thinking", thinking: "想到一半连接断了", signature: SIGNATURE }], "error"), unsigned[2]];
+	const history: Message[] = [unsigned[0], assistant([{ type: "text", text: "先看调用点。" }, { type: "thinking", thinking: "想到一半连接断了", signature: SIGNATURE }], "error"), unsigned[2]];
 	assert.deepEqual(thinkingBlocks(history, { thinkingReplay: "signed-only" }), []);
 });
 
@@ -332,7 +335,7 @@ test("中断的最新一轮不给例外——那个半截签名留着是必然�
 
 test("正常结束、没有工具调用的一轮，签名一个都不剥", () => {
 	for (const stopReason of ["stop", "length", "toolUse"] as const) {
-		const history: Message[] = [unsigned[0], assistant([{ type: "thinking", thinking: "想过", signature: SIGNATURE }], stopReason), unsigned[2]];
+		const history: Message[] = [unsigned[0], assistant([{ type: "thinking", thinking: "想过", signature: SIGNATURE }, { type: "text", text: "好" }], stopReason), unsigned[2]];
 		assert.equal(thinkingBlocks(history, { thinkingReplay: "signed-only" })[0]?.signature, SIGNATURE, stopReason);
 	}
 });

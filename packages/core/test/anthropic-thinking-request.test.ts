@@ -5,11 +5,14 @@
  *     结果之后的续写不再思考；adaptive 写法自己就是交错的，不带。
  *   - budget 不合法时走统一的失败出口（error 事件 + 失败消息），而不是在 try 外面抛；已经学到 adaptive
  *     的模型不发 budget，不该被这条拦。
+ *   - DeepSeek 的 Anthropic 端点忽略 budget_tokens、思考默认开着：档位走 `output_config.effort`，关思考
+ *     明说 `disabled`。
  */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { anthropicMessagesProvider, resetThinkingReplay } from "../src/ai/anthropic-messages.ts";
+import { thinkingOptionsFor } from "../src/ai/thinking-options.ts";
 import type { AssistantMessage, ModelConfig, ProviderConfig, RequestOptions } from "../src/types.ts";
 
 const model: ModelConfig = {
@@ -34,12 +37,12 @@ const ok = () =>
 const error400 = (message: string) => new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message } }), { status: 400 });
 
 /** 跑一次，`replies` 依次回给每次 fetch。返回每次的请求头、请求体、事件类型和最后那条消息。 */
-async function run(config: ModelConfig, options: Partial<RequestOptions>, replies: Array<() => Response>) {
+async function run(config: ModelConfig, options: Partial<RequestOptions>, replies: Array<() => Response>, endpoint: ProviderConfig = provider) {
 	const headers: Record<string, string>[] = [];
 	const bodies: Record<string, any>[] = [];
 	const events: string[] = [];
 	let last: AssistantMessage | undefined;
-	const stream = anthropicMessagesProvider.stream(provider, config, { messages: [{ role: "user", content: [{ type: "text", text: "问" }], timestamp: 1 }], tools: [] }, {
+	const stream = anthropicMessagesProvider.stream(endpoint, config, { messages: [{ role: "user", content: [{ type: "text", text: "问" }], timestamp: 1 }], tools: [] }, {
 		retryAttempts: 1,
 		...options,
 		fetch: async (_input, init) => {
@@ -125,4 +128,35 @@ test("已经学到 adaptive 的模型不发 budget，也就不被 budget 的检�
 	assert.equal(message.stopReason, "stop");
 	assert.deepEqual(bodies[0].thinking, { type: "adaptive" });
 	resetThinkingReplay();
+});
+
+const deepseekModel: ModelConfig = { ...model, id: "ds/deepseek-v4-pro", providerId: "ds", modelId: "deepseek-v4-pro", thinkingOptions: thinkingOptionsFor(["off", "low", "high", "max"]) };
+const deepseek: ProviderConfig = { ...provider, id: "ds", baseUrl: "https://api.deepseek.com/anthropic", models: [deepseekModel] };
+
+test("DeepSeek 的档位走 output_config.effort，不发它会忽略的 budget_tokens", async () => {
+	// 从前三个档位发的都是 budget_tokens：DeepSeek 不报错、只是忽略，于是 low 和 max 都按默认的 high 跑。
+	for (const level of ["low", "high", "max"]) {
+		const { headers, bodies } = await run(deepseekModel, { thinking: level }, [ok], deepseek);
+		assert.deepEqual(bodies[0].thinking, { type: "enabled" }, level);
+		assert.deepEqual(bodies[0].output_config, { effort: level }, level);
+		assert.equal(headers[0]["anthropic-beta"], undefined, "交错思考的头只属于 budget 写法");
+	}
+});
+
+test("DeepSeek 关思考要明说 disabled：它默认开着", async () => {
+	const { bodies } = await run(deepseekModel, { thinking: "off" }, [ok], deepseek);
+	assert.deepEqual(bodies[0].thinking, { type: "disabled" });
+	assert.equal("output_config" in bodies[0], false);
+	// 别的端点也一样明说：协议里有这个值，而很多兼容端点默认开着思考，不发就关不掉。
+	const other = await run({ ...model, thinkingOptions: thinkingOptionsFor(["off", "high"]) }, { thinking: "off" }, [ok]);
+	assert.deepEqual(other.bodies[0].thinking, { type: "disabled" });
+});
+
+test("转发 DeepSeek 的中转按模型名认；不发 budget 也就不被 budget 的检查拦下", async () => {
+	const relay: ProviderConfig = { ...provider, id: "relay", baseUrl: "https://relay.example.com" };
+	const config = { ...deepseekModel, providerId: "relay", modelId: "deepseek/deepseek-v4-pro", maxOutputTokens: 1024 };
+	const { bodies, message } = await run(config, { thinking: "max" }, [ok], relay);
+	assert.equal(message.stopReason, "stop");
+	assert.deepEqual(bodies[0].thinking, { type: "enabled" });
+	assert.deepEqual(bodies[0].output_config, { effort: "max" });
 });

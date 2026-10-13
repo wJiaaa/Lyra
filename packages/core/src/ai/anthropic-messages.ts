@@ -7,6 +7,7 @@
 
 import { toAnthropicMessages, toAnthropicTools, type ThinkingReplay } from "./anthropic-messages-request.ts";
 import { sanitizeToolPairing } from "./sanitize-history.ts";
+import { toolNameFromStream } from "./tool-names.ts";
 import { withReasoningRetry } from "./reasoning-compat.ts";
 import type {
 	AssistantContent,
@@ -20,6 +21,8 @@ import type {
 } from "../types.ts";
 import { addUsage, emptyUsage } from "../types.ts";
 import { classifyFailure, FailureError, REFUSAL_MESSAGE } from "./failure.ts";
+import { thinkingDialect } from "./vendors/index.ts";
+import { anthropicThinkingFields, anthropicThinkingOn } from "./vendors/thinking.ts";
 import { RetryBudget, fetchWithRetry, retryStream, toolCallId } from "./retry.ts";
 import { parseToolArguments, readSseWithIdleTimeout, STREAM_IDLE_TIMEOUT_MS } from "../utils/sse.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
@@ -142,22 +145,26 @@ export function thinkingReplay(provider: ProviderConfig, model: ModelConfig, ses
  */
 function stepThinkingReplay(now: ThinkingReplay, fallback: ThinkingReplay, error: string): ThinkingReplay | undefined {
 	if (REQUIRES_THINKING.test(error)) return now === fallback ? undefined : fallback;
-	if (!INVALID_THINKING_SIGNATURE.test(error) && !MISSING_THINKING_SIGNATURE.test(error)) return undefined;
+	if (!THINKING_SIGNATURE_REJECTED.some((pattern) => pattern.test(error))) return undefined;
 	return THINKING_LADDER[THINKING_LADDER.indexOf(now) + 1];
 }
 
 /**
- * 「你这个签名我不认」的两种说法——往下走一格。返回「结论变了，值得换个形状重发」。
+ * 「你这个签名我不认」的三种说法——往下走一格。返回「结论变了，值得换个形状重发」。
  *
- * 两条都来自 oh-my-pi `anthropic.ts:1862-1863`，它注明了各自的出处：第一条是官方 Anthropic 和挡在它
+ * 前两条来自 oh-my-pi `anthropic.ts:1862-1863`，它注明了各自的出处：第一条是官方 Anthropic 和挡在它
  * 前面的中转的原话（`400 Invalid \`signature\` in \`thinking\` block`）；第二条是 Bedrock 系中转的
  * ——空串在它那边先过不了 schema 校验，于是报成
- * `messages.N.content.M.thinking.signature: Field required`。
+ * `messages.N.content.M.thinking.signature: Field required`。第三条是官方对「最新那条助手消息里的思考块
+ * 和它当初返回的不一样」的原话（`` `thinking` or `redacted_thinking` blocks in the latest assistant message
+ * cannot be modified ``，oh-my-pi `anthropic-thinking-only-length-truncated.test.ts` 记着它），ZCode
+ * `reasoning-history-normalization.ts:85-91` 也把它和验签失败归在一起。
  *
  * `[^"\n]{0,32}` 这一段是刻意收紧的：这样它只匹配同一条错误信息里紧挨着的那句，不会跨过一个引号或者
  * 换行去捞另一件事的 `required`。
  *
- * 只认这两条。多认一条的代价是把别的原因造成的 400 误判成签名问题，然后拿一个改坏了的请求去重发。
+ * 只认这三条。多认一条的代价是把别的原因造成的 400 误判成签名问题，然后拿一个改坏了的请求去重发。第三条
+ * 加得进来，是因为它点名的就是思考块，而补救方向一致：思考块发得越少越不会撞上它。
  *
  * 这一个直接改进程级的表，流里不走它——流里的降级先只算这一次请求，见文件这一段开头。
  */
@@ -170,8 +177,12 @@ export function learnThinkingReplay(providerId: string, modelId: string, error: 
 	return true;
 }
 
-const INVALID_THINKING_SIGNATURE = /invalid\s+`?signature`?\s+in\s+`?thinking`?(?:\s+block)?/i;
-const MISSING_THINKING_SIGNATURE = /thinking\.signature\b[^"\n]{0,32}\brequired\b/i;
+const THINKING_SIGNATURE_REJECTED = [
+	/invalid\s+`?signature`?\s+in\s+`?thinking`?(?:\s+block)?/i,
+	/thinking\.signature\b[^"\n]{0,32}\brequired\b/i,
+	// 不跨句：只认同一句里点名了思考块的那个 `cannot be modified`。
+	/thinking`?\s+blocks?\b[^.\n]{0,80}\bcannot be modified/i,
+];
 /** 和 `reasoning-compat.ts` 的 `REQUIRES` 同一句话，多认一个 `thinking` 的说法。 */
 const REQUIRES_THINKING = /(?:reasoning(?:_content|_text)?|thinking)\b.{0,40}must be passed back/i;
 
@@ -299,31 +310,6 @@ function learnInterleavedRefused(providerId: string, modelId: string, error: str
 }
 
 /**
- * 我们的档位 → 协议的 `output_config.effort`。协议只认 `low/medium/high/xhigh/max`。
- *
- * `minimal` 和 `ultra` 是别家的档位，就近落到两端；表里没有的（模型自定义的档位名）不发
- * `output_config`，由端点用它自己的默认——发一个协议外的值只会换来一个 400。
- */
-const ADAPTIVE_EFFORT: Record<string, string> = {
-	minimal: "low",
-	low: "low",
-	medium: "medium",
-	high: "high",
-	xhigh: "xhigh",
-	max: "max",
-	ultra: "max",
-};
-
-/** 开思考时请求体里那一段。 */
-function thinkingParams(adaptive: boolean, effort: string, budget: number | undefined, maxTokens: number): Record<string, unknown> {
-	if (!adaptive) {
-		return { thinking: { type: "enabled", budget_tokens: budget === undefined ? undefined : Math.min(budget, maxTokens - 1) } };
-	}
-	const mapped = ADAPTIVE_EFFORT[effort];
-	return { thinking: { type: "adaptive" }, ...(mapped ? { output_config: { effort: mapped } } : {}) };
-}
-
-/**
  * 开着思考时发不出去的采样参数。
  *
  * `options.temperature` 本来就被挡在思考关闭那条分支里，但紧接着两个 `...samplingParams` 又把它放了
@@ -370,6 +356,9 @@ async function* streamAnthropic(
 	 * 消息，另两条链没有这种出口。在每次尝试发出之前查，走下面那条统一的失败出口。
 	 */
 	const budgetInvalid = thinkingEnabled && (!Number.isInteger(budget) || budget === undefined || budget < 1024 || maxTokens <= 1024);
+	/** 这个模型族的思考开关怎么写，见 `vendors/`。adaptive 是半路学到的，所以每次尝试重新问。 */
+	const dialect = thinkingDialect(provider.baseUrl, model.modelId || model.id);
+	const learnedAdaptive = (): boolean => usesAdaptiveThinking(scope.providerId, scope.modelId);
 
 	/*
 	 * 每次尝试重新编一遍，因为**形状可能在两次之间变掉**：无签名的思考块该怎么发是撞出来的，不是配出
@@ -399,8 +388,8 @@ async function* streamAnthropic(
 				}
 			: {}),
 		...(context.tools.length > 0 ? { tools: toAnthropicTools(context.tools) } : {}),
-		// 写法是学出来的，见 `learnAdaptiveThinking`。
-		...(thinkingEnabled && effort ? thinkingParams(usesAdaptiveThinking(scope.providerId, scope.modelId), effort, budget, maxTokens) : {}),
+		// 开关怎么写见 `vendors/thinking.ts`；关着时也可能要明说，很多兼容端点默认开着思考。
+		...anthropicThinkingFields(dialect, { effort: thinkingEnabled ? effort : undefined, supportsThinking: model.supportsThinking, budget, maxTokens, learnedAdaptive: learnedAdaptive() }),
 		...samplingFor(thinkingEnabled, model, options),
 		// 缓存路由键，见 `cache-routing.ts`。
 		...anthropicMetadata(options.cacheKey),
@@ -437,6 +426,8 @@ async function* streamAnthropic(
 			input?: Record<string, unknown>;
 			/** 工具调用的参数定稿了没有。见流末尾那一段。 */
 			closed?: boolean;
+			/** 思考块现在的签名是 `content_block_start` 自带的，还没被 `signature_delta` 换掉。 */
+			signedAtStart?: boolean;
 		}
 	>();
 	/** 一个工具调用块的参数定稿：拼出来的原文优先，没有就用开头那一帧自带的。 */
@@ -514,13 +505,14 @@ async function* streamAnthropic(
 			 * 不会抢同一句。只在开着思考时问它——关着思考时请求里没有 `thinking`，学到了也换不出新形状。
 			 */
 			(providerId, modelId, said) =>
-				(thinkingEnabled && learnAdaptiveThinking(providerId, modelId, said)) ||
+				// 只有写法本来是 budget 时学 adaptive 才换得出新形状；别的写法是 `vendors/` 定的。
+				(thinkingEnabled && dialect.anthropic === "budget" && learnAdaptiveThinking(providerId, modelId, said)) ||
 				(sentInterleaved && learnInterleavedRefused(providerId, modelId, said)) ||
 				learnReplay(said),
 			async function* () {
-				const adaptive = usesAdaptiveThinking(scope.providerId, scope.modelId);
-				sentInterleaved = thinkingEnabled && !adaptive && !refusedInterleavedThinking.has(compatKey(scope.providerId, scope.modelId));
-				if (budgetInvalid && !adaptive) {
+				const budgetShape = anthropicThinkingOn(dialect, learnedAdaptive()) === "budget";
+				sentInterleaved = thinkingEnabled && budgetShape && !refusedInterleavedThinking.has(compatKey(scope.providerId, scope.modelId));
+				if (budgetShape && budgetInvalid) {
 					throw new FailureError({
 						kind: "fatal",
 						summary: `模型 ${model.modelId} 的思考档位「${effort}」需要 budgetTokens ≥ 1024，且最大输出 > 1024`,
@@ -559,6 +551,7 @@ async function* streamAnthropic(
 						budget: retryBudget,
 						signal: options.signal,
 						onRetry: options.onRetry,
+						stream: true,
 					},
 				);
 
@@ -584,7 +577,8 @@ async function* streamAnthropic(
 					}
 					framesSeen += 1;
 
-					switch (event.type) {
+					// 只写了 SSE 的 `event: error`、数据里没有 `type` 的错误帧，也走下面那个 `error`。
+					switch (frame.event === "error" ? "error" : event.type) {
 						case "message_start": {
 							applyUsage("anthropic-messages", partial.usage, event.message?.usage);
 							break;
@@ -618,6 +612,7 @@ async function* streamAnthropic(
 									kind: "thinking",
 									contentIndex: partial.content.length - 1,
 									raw: "",
+									signedAtStart: typeof block.signature === "string" && block.signature !== "",
 								});
 								yield { type: "thinking_start", index: idx };
 							} else if (block.type === "tool_use") {
@@ -626,7 +621,7 @@ async function* streamAnthropic(
 								partial.content.push({
 									type: "toolCall",
 									id: toolCallId(block.id, idx, inventedIds),
-									name: String(block.name ?? ""),
+									name: toolNameFromStream(block.name),
 									arguments: input ?? {},
 									argumentsText: input ? JSON.stringify(input) : "",
 								});
@@ -640,7 +635,7 @@ async function* streamAnthropic(
 									type: "toolcall_start",
 									index: idx,
 									id: toolCallId(block.id, idx, inventedIds),
-									name: String(block.name ?? ""),
+									name: toolNameFromStream(block.name),
 								};
 							}
 							break;
@@ -671,7 +666,14 @@ async function* streamAnthropic(
 									partial: { ...partial },
 								};
 							} else if (delta.type === "signature_delta" && target?.type === "thinking") {
-								target.signature = (target.signature ?? "") + (delta.signature ?? "");
+								/*
+								 * 有的兼容端点在 start 里放了最终签名，又用 delta 再发一遍。delta 是协议里签名的正路，所以它一来
+								 * 就换掉 start 那份，之后的分段照常接上——一律 `+=` 会拼出两份，下一轮验签必 400。
+								 * 出处：ZCode `anthropic-stream-compat.ts:290-321`。
+								 */
+								const base = tracked.signedAtStart ? "" : (target.signature ?? "");
+								tracked.signedAtStart = false;
+								target.signature = base + (delta.signature ?? "");
 							} else if (delta.type === "input_json_delta" && target?.type === "toolCall") {
 								tracked.raw += delta.partial_json ?? "";
 								target.argumentsText = tracked.raw;
@@ -821,6 +823,7 @@ async function* streamAnthropic(
 							from: "empty",
 							why: unparsable ? "unparsable" : framesSeen === 0 ? "no-frames" : "no-content",
 							body: unparsable || undefined,
+							output: { truncated: stopReason === "max_tokens" },
 						}),
 					);
 				}

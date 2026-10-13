@@ -97,6 +97,14 @@ test("off without an off level means the model cannot stop thinking: it gets the
 	assert.equal(resolveReasoningEffort(undefined, model("gpt-5.6")), undefined);
 });
 
+test("a model whose thinking cannot be switched off is never offered off, even from the default set or an old config", () => {
+	// GLM-5.3 is `alwaysOn` in `vendors/`: the adapters send nothing for off, so offering it would lie.
+	assert.deepEqual(ids(model("glm-5.3")), ["low", "medium", "high"]);
+	assert.deepEqual(ids(model("glm-5.3", ["off", "low", "high"])), ["low", "high"]);
+	assert.equal(resolveReasoningEffort("off", model("glm-5.3")), "low");
+	assert.deepEqual(ids(model("glm-5.2")), ["off", "low", "medium", "high"]);
+});
+
 test("a model that cannot think is offered nothing and sends nothing", () => {
 	assert.deepEqual(resolveModelThinkingOptions({ ...model("x"), supportsThinking: false }), []);
 	assert.deepEqual(resolveModelThinkingOptions(null), []);

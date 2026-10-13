@@ -9,6 +9,8 @@
  */
 
 import type { AssistantMessage, Message, ToolResultMessage, ToolSpec, UserContent } from "../types.ts";
+import { toolNameForReplay } from "./tool-names.ts";
+import { hoistLocalRefs, isPlainObject } from "./tool-schema.ts";
 
 /**
  * One block of content, in the wire shape.
@@ -78,9 +80,15 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 	/** 当前这一轮的 id 替身。工具结果跟在它那次调用的助手消息后面，查的是这一张。 */
 	let turnIds: ReadonlyMap<string, string> = NO_RENAMES;
 	const ordered = orderResultsByCall(messages);
-	/** 最后一条助手消息的位置——Anthropic 对「它自己最近那条回复」有一条额外的规矩。见 `untrustedSignatures`。 */
+	/**
+	 * 最后一条会发出去的助手消息的位置——Anthropic 对「它自己最近那条回复」有一条额外的规矩。见
+	 * `untrustedSignatures`。被 `truncatedThoughtOnly` 丢掉的不算，否则例外落在一条根本不发的消息上。
+	 */
 	let latestAssistant = -1;
-	for (let at = 0; at < ordered.length; at++) if (ordered[at].role === "assistant") latestAssistant = at;
+	for (let at = 0; at < ordered.length; at++) {
+		const message = ordered[at];
+		if (message.role === "assistant" && !truncatedThoughtOnly(message)) latestAssistant = at;
+	}
 
 	/*
 	 * 当前这一串 `tool_result` 落在哪条消息里，以及要跟在它后面的图片。
@@ -110,6 +118,7 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 
 		if (message.role === "assistant") {
 			closeRun();
+			if (truncatedThoughtOnly(message)) continue;
 			turnIds = ids.byTurn.get(message) ?? NO_RENAMES;
 			const untrusted = untrustedSignatures(message, at === latestAssistant);
 			const blocks: AnthropicBlock[] = [];
@@ -132,7 +141,7 @@ export function toAnthropicMessages(messages: Message[], options: AnthropicEncod
 					blocks.push({
 						type: "tool_use",
 						id: turnIds.get(c.id) ?? c.id,
-						name: c.name,
+						name: toolNameForReplay(c.name),
 						// 模型自己就会在工具参数 JSON 里吐孤立代理项——流出来时没事，回放时被严格 UTF-8
 						// 校验 400。`wellFormedDeep` 保身份，没问题的参数一个字节都不动，缓存前缀不受影响。
 						input: wellFormedDeep(c.arguments) as Record<string, unknown>,
@@ -249,6 +258,22 @@ function untrustedSignatures(message: AssistantMessage, isLatest: boolean): "non
 	if (message.stopReason === "toolUse") return "none";
 	if (!message.content.some((c) => c.type === "toolCall")) return "none";
 	return isLatest ? "none" : "all";
+}
+
+/**
+ * 想到一半就断了、手上只剩思考块的一轮：`length` / `error` / `aborted` 结束，没有正文，也没有工具调用。
+ *
+ * 不回放。它没有给下一轮留下任何能接上的东西，而留着它，等下一条助手回复落地后就可能是两条相邻的助手
+ * 消息，官方的原话是 `` `thinking` or `redacted_thinking` blocks in the latest assistant message cannot be
+ * modified ``。正常结束（`stop`）的纯思考轮不在此列，那是推理回放本身。没有工具调用，所以丢掉它碰不到
+ * `tool_use` / `tool_result` 的配对。
+ *
+ * 出处：oh-my-pi `transform-messages.ts:446-449, 1333-1348`（同一个判断）；ZCode
+ * `reasoning-history-normalization.ts:145-170` 丢得更宽（不看结束原因），这里跟窄的那个。
+ */
+function truncatedThoughtOnly(message: AssistantMessage): boolean {
+	if (message.stopReason !== "length" && message.stopReason !== "error" && message.stopReason !== "aborted") return false;
+	return !message.content.some((c) => c.type === "toolCall" || (c.type === "text" && c.text.trim() !== ""));
 }
 
 /**
@@ -421,7 +446,8 @@ export function toAnthropicTools(tools: ToolSpec[]): unknown[] {
 	return tools.map((tool, index) => ({
 		name: tool.name,
 		description: tool.description,
-		input_schema: normalizeToolSchema(tool.parameters),
+		// 先搬引用再按白名单规整：指针要对着原来的结构解析，规整会把 `oneOf` 这类键挪进描述。
+		input_schema: normalizeToolSchema(hoistLocalRefs(tool.parameters)),
 		// Cache the tool list too — it is stable for the whole session.
 		...(index === tools.length - 1 ? { cache_control: { type: "ephemeral" } } : {}),
 	}));
@@ -459,8 +485,6 @@ const SCHEMA_KEEP_STRING = new Set(["format"]);
 const SCHEMA_STRING_FORMATS = new Set(["date-time", "time", "date", "duration", "email", "hostname", "uri", "ipv4", "ipv6", "uuid"]);
 /** `oneOf` **不在**白名单里，所以它整块降级进描述——递归只需要走留下来的这两个。 */
 const COMBINATORS = ["anyOf", "allOf"] as const;
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 
 /** 一个 schema 节点的有效类型。没写 `type` 时按有没有 `properties`/`items` 猜。 */
 function effectiveType(schema: Record<string, unknown>): string | undefined {

@@ -56,7 +56,7 @@ test("Anthropic uses the same clamp and an explicit budget for custom levels; in
 	assert.deepEqual((await payload(anthropicMessagesProvider, custom, "adaptive")).thinking, { type: "enabled", budget_tokens: 2048 });
 	assert.deepEqual((await payload(anthropicMessagesProvider, custom, "off")).thinking, { type: "enabled", budget_tokens: 2048 }, "没有「关闭」就关不掉");
 	const closable = { ...custom, thinkingOptions: [{ id: "off", label: "关闭", detail: "" }, ...custom.thinkingOptions] };
-	assert.equal((await payload(anthropicMessagesProvider, closable, "off")).thinking, undefined);
+	assert.deepEqual((await payload(anthropicMessagesProvider, closable, "off")).thinking, { type: "disabled" }, "关要明说，见 vendors/");
 	for (const budgetTokens of [undefined, 100, Number.NaN]) {
 		const config = { ...custom, thinkingOptions: [{ ...custom.thinkingOptions[0], budgetTokens }] };
 		const provider: ProviderConfig = { id: "qa", name: "QA", api: "anthropic-messages", apiKey: "test", baseUrl: "https://example.invalid", enabled: true, models: [config] };

@@ -44,6 +44,15 @@ export function normalizeRetryPolicy(value: unknown): RetryPolicy {
 	};
 }
 
-export function policyDelay(policy: RetryRule, retry: number): number {
-	return policy.strategy === "fixed" ? policy.intervalMs : Math.min(policy.maxIntervalMs, policy.intervalMs * Math.max(1, retry));
+/**
+ * How long this wait is. A fixed interval carries ±20% jitter; on average it is still the setting.
+ *
+ * It was deliberately exact once, so that "every 5 seconds" meant exactly that. The cost: when a relay
+ * hiccups, every client on it drops at the same instant and comes back in lockstep every 5 seconds,
+ * knocking the recovering end over on the same beat each time. A second either way makes no
+ * difference to the person waiting. `random` is injected only by tests.
+ */
+export function policyDelay(policy: RetryRule, retry: number, random: () => number = Math.random): number {
+	if (policy.strategy === "fixed") return Math.round(policy.intervalMs * (0.8 + random() * 0.4));
+	return Math.min(policy.maxIntervalMs, policy.intervalMs * Math.max(1, retry));
 }

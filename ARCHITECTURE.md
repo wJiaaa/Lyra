@@ -102,6 +102,7 @@ pre-push 里都是必过项：
 | 加一个内置工具 | `core/src/tools/`，经 `useToolRegistry` 那条缝 |
 | 加一个右侧面板 | `src/panels/registry.ts` 注册一条记录 |
 | 维护模型价格、能力和中转别名 | `core/src/model-catalog.ts` 与 `scripts/update-model-catalog.mjs`；`pnpm catalog:update` 更新离线数据 |
+| 某家模型的思考开关特例 | `core/src/ai/vendors/index.ts` 的 `RULES`，只收撞到过、学习表认领不了的；端点会报错并点名原因的，走 `ai/*-compat.ts` 那几张学习表 |
 | 宿主启动时装配内核 | `core/src/kernel/host.ts` 的 `bootHostKernel`；桌面端与终端共用，加一条缝只改这里 |
 | 斜杠命令、skill 的解析与展开 | `core/src/commands/invoke.ts`（`@plume/core/commands-view`）；桌面端输入框和命令行都走它 |
 | 默认子智能体定义 | `core/src/agents-builtin.ts`；运行时与设置页共用，浏览器从 `@plume/core/agents-builtin` 导入 |

@@ -103,8 +103,8 @@ test("a 429 is retried, and the caller is told each time", async () => {
 	);
 	assert.equal(calls, 2);
 	assert.equal(response.status, 200);
-	// 说的是给人看的话，不是状态码——这一行最后会出现在界面上。
-	assert.deepEqual(notices, ["被限流"]);
+	// 说的是给人看的话，不是状态码——这一行最后会出现在界面上。服务器的原话接在后面：限的是什么只有它知道。
+	assert.deepEqual(notices, ["被限流：slow down"]);
 });
 
 test("an aborted turn during backoff wait stops immediately without waiting", async () => {
@@ -171,9 +171,13 @@ test("attempts of 1 disables retrying", async () => {
 test("the server's own Retry-After wins over the backoff curve", () => {
 	const response = new Response("", { status: 429, headers: { "retry-after": "2" } });
 	assert.equal(retryDelay(1, response), 2000);
-	// Capped, so one unlucky header cannot stall a turn for ten minutes.
-	const long = new Response("", { status: 429, headers: { "retry-after": "600" } });
-	assert.equal(retryDelay(1, long), 60_000);
+	// Capped, so one unlucky header cannot stall a turn for an hour. Five minutes, not one: a relay
+	// that says "four minutes" means it, and cutting it short only spends a retry against the same wall.
+	const long = new Response("", { status: 429, headers: { "retry-after": "3600" } });
+	assert.equal(retryDelay(1, long), 300_000);
+	assert.equal(retryDelay(1, new Response("", { status: 429, headers: { "retry-after": "240" } })), 240_000);
+	// The server also said not to retry: its wait is not ours to honour, so the curve decides.
+	assert.ok(retryDelay(1, new Response("", { status: 429, headers: { "retry-after": "240", "x-should-retry": "false" } })) <= 2500);
 	// Without a header the curve grows, and stays inside its ceiling.
 	assert.ok(retryDelay(1) < retryDelay(3));
 	assert.ok(retryDelay(9) <= 60_000);
@@ -270,7 +274,64 @@ test("retry-after-ms wins, and OpenAI's x-ratelimit-reset-* counts only for the 
 			},
 		});
 	assert.equal(retryDelay(1, headers("12", "0")), 1500, "tokens ran out: wait for tokens, not for the request window to refill");
-	assert.equal(retryDelay(1, headers("0", "900")), 60_000, "requests ran out: six minutes, capped");
+	assert.equal(retryDelay(1, headers("0", "900")), 300_000, "requests ran out: six minutes, capped at five");
 	const neither = retryDelay(1, headers("12", "900"));
 	assert.ok(neither >= 1500 && neither <= 2500, "neither is used up: the curve decides");
+});
+
+test("标成 application/json 的 SSE：只看开头就交回流，不等整条回答读完", async () => {
+	// 第一帧之后流一直不结束：整条读完再判的话，这里会一直挂着。
+	let source!: ReadableStreamDefaultController<Uint8Array>;
+	const body = new ReadableStream<Uint8Array>({
+		start(controller) {
+			source = controller;
+			controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"好"}}]}\n\n'));
+		},
+	});
+	const fake = async () => new Response(body, { status: 200, headers: { "content-type": "application/json" } });
+	const response = await fetchWithRetry(fake as typeof fetch, "https://relay.example/v1", {}, { stream: true });
+	const reader = response.body!.getReader();
+	const first = await reader.read();
+	assert.match(new TextDecoder().decode(first.value), /^data: /);
+	source.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+	source.close();
+	assert.match(new TextDecoder().decode((await reader.read()).value), /\[DONE\]/);
+	assert.equal((await reader.read()).done, true);
+});
+
+test("x-should-retry: false 时正文里的等待时间也不作数", async () => {
+	const seen: { delayMs: number; retryAfterMs?: number }[] = [];
+	const fake = async () => new Response(JSON.stringify({ error: { message: "busy" }, reset_seconds: 240 }), { status: 503, headers: { "x-should-retry": "false" } });
+	await assert.rejects(
+		fetchWithRetry(fake as typeof fetch, "https://relay.example/v1", {}, { attempts: 2, sleep: noSleep, onRetry: ({ delayMs, failure }) => seen.push({ delayMs, retryAfterMs: failure?.retryAfterMs }) }),
+	);
+	assert.equal(seen.length, 1);
+	assert.equal(seen[0].retryAfterMs, undefined);
+	assert.ok(seen[0].delayMs <= 2500, "曲线定，不是正文说的 240 秒");
+});
+
+/** 标成 JSON、读开头那段时出错的响应。 */
+const brokenJson = (error: () => unknown) =>
+	new Response(new ReadableStream<Uint8Array>({ pull: (controller) => controller.error(error()) }), { status: 200, headers: { "content-type": "application/json" } });
+
+test("标成 JSON 的响应读到一半断线：按连接问题重试，不说收到了一整份 JSON", async () => {
+	const kinds: string[] = [];
+	const fake = async () => brokenJson(() => Object.assign(new TypeError("terminated"), { cause: { code: "UND_ERR_SOCKET" } }));
+	await assert.rejects(fetchWithRetry(fake as typeof fetch, "https://relay.example/v1", {}, { stream: true, attempts: 2, sleep: noSleep, onRetry: ({ failure }) => kinds.push(failure!.kind) }));
+	assert.deepEqual(kinds, ["network"]);
+});
+
+test("标成 JSON 的响应读开头时按了停止：直接退出，不闪一次重试", async () => {
+	const controller = new AbortController();
+	let retried = 0;
+	const fake = async () =>
+		brokenJson(() => {
+			controller.abort();
+			return new DOMException("This operation was aborted", "AbortError");
+		});
+	await assert.rejects(
+		fetchWithRetry(fake as typeof fetch, "https://relay.example/v1", { signal: controller.signal }, { stream: true, signal: controller.signal, attempts: 3, sleep: noSleep, onRetry: () => retried++ }),
+		{ name: "AbortError" },
+	);
+	assert.equal(retried, 0);
 });

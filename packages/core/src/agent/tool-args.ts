@@ -13,12 +13,14 @@ import type { JsonSchema, Tool, ToolResult } from "../types.ts";
  * The tool a call names, forgiving case.
  *
  * Models trained on other harnesses call `Read` and `Bash`. A unique case-insensitive match is the
- * tool they meant; two matches would be a guess, so that stays unresolved.
+ * tool they meant; two matches would be a guess, so that stays unresolved. Surrounding whitespace
+ * is never part of a tool's name, and calls recorded before the adapters trimmed still carry it.
  */
 export function resolveTool(byName: ReadonlyMap<string, Tool>, name: string): Tool | undefined {
-	const exact = byName.get(name);
+	const key = name.trim();
+	const exact = byName.get(key);
 	if (exact) return exact;
-	const lower = name.toLowerCase();
+	const lower = key.toLowerCase();
 	const matches = [...byName.values()].filter((tool) => tool.name.toLowerCase() === lower);
 	return matches.length === 1 ? matches[0] : undefined;
 }

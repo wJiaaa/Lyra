@@ -5,6 +5,11 @@ import { normalizeSettings } from "../src/config/settings.ts";
 import { RetryBudget, fetchWithRetry, retryStream, isRetryableError } from "../src/ai/retry.ts";
 import { FailureError, classifyFailure } from "../src/ai/failure.ts";
 const socket = () => new Error("fetch failed");
+/** 固定间隔带 ±20% 的抖动，所以比的是区间，不是相等。 */
+const around = (waits: number[], expected: number[]) => {
+	assert.equal(waits.length, expected.length, `等了 ${waits.length} 次`);
+	waits.forEach((wait, index) => assert.ok(Math.abs(wait - expected[index]) <= expected[index] * 0.2, `第 ${index + 1} 次等了 ${wait}，应在 ${expected[index]} ±20%`));
+};
 
 test("normalizeSettings clamps concurrent sub-agents to 1–8", () => {
 	assert.equal(normalizeSettings({ maxConcurrentSubAgents: -12 }).maxConcurrentSubAgents, 4);
@@ -12,12 +17,12 @@ test("normalizeSettings clamps concurrent sub-agents to 1–8", () => {
 	assert.equal(normalizeSettings({ maxConcurrentSubAgents: 3 }).maxConcurrentSubAgents, 3);
 });
 
-test("defaults mean ten retries after the first request, always five seconds", async () => {
+test("defaults mean ten retries after the first request, about five seconds each", async () => {
 	assert.deepEqual(normalizeSettings({}).retryPolicy, DEFAULT_RETRY_POLICY);
 	assert.equal(new RetryBudget().policy.network.retries, null);
 	let calls = 0; const waits: number[] = [];
 	await assert.rejects(fetchWithRetry(async () => { calls++; throw socket(); }, "https://example.test", {}, { budget: new RetryBudget({ ...DEFAULT_RETRY_POLICY, network: DEFAULT_RETRY_RULE }), sleep: async ms => { waits.push(ms); } }), /fetch failed/);
-	assert.equal(calls, 11); assert.deepEqual(waits, Array(10).fill(5000));
+	assert.equal(calls, 11); around(waits, Array(10).fill(5000));
 });
 
 test("linear delays reach the configured ceiling; the server's wait is honoured but never shortens the policy", async () => {
@@ -28,21 +33,26 @@ test("linear delays reach the configured ceiling; the server's wait is honoured 
 	 * 预算用尽之后抛出来，而不是把那个 503 交回去——见 `fetchWithRetry` 的说明。
 	 *
 	 * 服务器说等 60 秒，就等 60 秒：从前配了策略就无视它，默认预算在服务器明说「一分钟内别来」的
-	 * 时候几十秒内撞光。取大值、服务器那一侧封顶 60 秒，见 `withServerDelay`。
+	 * 时候几十秒内撞光。取大值、服务器那一侧封顶五分钟，见 `withServerDelay`。
 	 */
 	let waits: number[] = []; let calls = 0;
 	await assert.rejects(fetchWithRetry(async () => { calls++; return new Response("busy", { status: 503, headers: { "retry-after": "60" } }); }, "https://example.test", {}, { budget: budget(), sleep: async ms => { waits.push(ms); } }));
 	assert.equal(calls, 3); assert.deepEqual(waits, [60_000, 60_000]);
 
-	// 服务器要的比用户配的短：用户配的是下限，照旧 5 秒。
+	// 服务器要的比用户配的短：用户配的是下限，照旧 5 秒上下。
 	waits = [];
 	await assert.rejects(fetchWithRetry(async () => new Response("busy", { status: 429, headers: { "retry-after": "2" } }), "https://example.test", {}, { budget: budget(), sleep: async ms => { waits.push(ms); } }));
-	assert.deepEqual(waits, [5000, 5000]);
+	around(waits, [5000, 5000]);
 
-	// 要求等十分钟的中转封顶一分钟；只写在正文里的 `reset_seconds` 也认。
+	// 要求等十分钟的中转封顶五分钟；只写在正文里的 `reset_seconds` 也认。
 	waits = [];
 	await assert.rejects(fetchWithRetry(async () => new Response(JSON.stringify({ error: { reset_seconds: 600 } }), { status: 503 }), "https://example.test", {}, { budget: budget(), sleep: async ms => { waits.push(ms); } }));
-	assert.deepEqual(waits, [60_000, 60_000]);
+	assert.deepEqual(waits, [300_000, 300_000]);
+
+	// 服务器说了等多久、又说「别重试」（`x-should-retry: false`）：那个时间不作数，按自己的间隔、自己的判断。
+	waits = []; calls = 0;
+	await assert.rejects(fetchWithRetry(async () => { calls++; return new Response("busy", { status: 429, headers: { "retry-after": "240", "x-should-retry": "false" } }); }, "https://example.test", {}, { budget: budget(), sleep: async ms => { waits.push(ms); } }));
+	assert.equal(calls, 3); around(waits, [5000, 5000]);
 });
 
 test("a wait the server wrote into a stream error is honoured by the stream retry too", async () => {
@@ -79,6 +89,15 @@ test("unlimited retry remains abortable during a real wait and never starts anot
 	assert.equal(calls, 1); assert.ok(Date.now() - start < 1000);
 });
 
+test("固定间隔带 ±20% 的抖动：一群一起断线的客户端不会踩着同一拍回来", () => {
+	assert.equal(policyDelay(DEFAULT_RETRY_RULE, 1, () => 0), 4000);
+	assert.equal(policyDelay(DEFAULT_RETRY_RULE, 1, () => 0.5), 5000);
+	assert.ok(policyDelay(DEFAULT_RETRY_RULE, 1, () => 0.999_999) <= 6000);
+	const samples = Array.from({ length: 50 }, () => policyDelay(DEFAULT_RETRY_RULE, 1));
+	assert.ok(samples.every((ms) => ms >= 4000 && ms <= 6000), "都在区间里");
+	assert.ok(new Set(samples).size > 1, "而且不是每次一样");
+});
+
 test("a missing policy takes the defaults, and invalid numbers cannot create tight loops", () => {
 	assert.deepEqual(normalizeRetryPolicy(undefined), DEFAULT_RETRY_POLICY);
 	assert.deepEqual(normalizeRetryPolicy({ upstream: { retries: Infinity, intervalMs: -1, maxIntervalMs: NaN, strategy: "unknown" } }).upstream, { retries: 10, intervalMs: 1000, maxIntervalMs: 30000, strategy: "fixed" });
@@ -105,7 +124,7 @@ test("a policy edited mid-request applies from the next retry, and tightening th
 	}, "https://example.test", {}, { budget, sleep: async ms => { waits.push(ms); } }), /fetch failed/);
 	// The first wait was quoted before the edit; every one after it is the new interval, and the
 	// three retries the new rule allows are counted from the start rather than from the edit.
-	assert.deepEqual(waits, [5000, 1000, 1000]); assert.equal(calls, 4);
+	around(waits, [5000, 1000, 1000]); assert.equal(calls, 4);
 });
 
 test("an explicit low-level attempt count still bounds both categories, whatever the settings say", () => {
@@ -121,7 +140,7 @@ test("fault categories keep independent limits, and certificate errors are not t
 	const budget = new RetryBudget(policy); let calls = 0; const waits: number[] = [];
 	// 两类交替耗着各自的额度，各用各的间隔；upstream 先见底，于是最后那个 503 带着分类结果抛出来。
 	await assert.rejects(fetchWithRetry(async () => { calls++; if (calls === 1 || calls === 3) throw socket(); return new Response("busy", { status: 503 }); }, "https://example.test", {}, { budget, sleep: async ms => { waits.push(ms); } }));
-	assert.equal(calls, 4); assert.deepEqual(waits, [1000, 3000, 1000]);
+	assert.equal(calls, 4); around(waits, [1000, 3000, 1000]);
 	assert.equal(isRetryableError(new Error("fetch failed", { cause: { code: "CERT_HAS_EXPIRED" } })), false);
 	assert.equal(isRetryableError(new Error("fetch failed", { cause: { code: "ENETUNREACH" } })), true);
 });
@@ -147,7 +166,7 @@ test("空回答自己带着上限，「一直重试」也管不着它", async ()
 	});
 	await assert.rejects(async () => { for await (const value of stream) assert.fail(`不该产出任何东西：${value}`); }, /空回答/);
 	assert.equal(calls, 5, "第一次，加四次重试，然后放弃");
-	assert.deepEqual(waits, Array(4).fill(5000));
+	around(waits, Array(4).fill(5000));
 });
 
 test("空回答的上限单独记，不被前面同类的 503 重试先吃掉", async () => {

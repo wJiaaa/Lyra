@@ -389,7 +389,7 @@ test("sidechat model selection and its default use their actual providers and su
 });
 
 
-test("retry settings apply without a save button and fixed waits last five seconds", async t => {
+test("retry settings apply without a save button and fixed waits last about five seconds", async t => {
 	await click(app, 'button:has(svg.lucide-settings)'); await click(app, "nav button", "常规", "starts");
 	await until(app, `document.querySelector('[data-retry-settings]')`, 900);
 	/*
@@ -433,13 +433,14 @@ test("retry settings apply without a save button and fixed waits last five secon
 	 * 底下那句 `assert` 断言的还是「继续推进当前任务」，一句早就被 `CARRY_ON_PROMPTS` 换掉的旧
 	 * 文案。整段等的是一套不存在的行为。
 	 *
-	 * 这一段真正要证明的是间隔：固定策略下两次请求之间隔了 5 秒。所以就等那第二次请求。
+	 * 这一段真正要证明的是间隔：固定策略下两次请求之间隔了 5 秒上下（带 ±20% 抖动，见 `policyDelay`）。
+	 * 所以就等那第二次请求。
 	 */
 	await send("RETRY_POLICY_PROBE", '[data-dock-pane="conversation"]');
 	const sent = () => requests.filter(request => JSON.stringify(request.body).includes("RETRY_POLICY_PROBE"));
 	for (let i = 0; i < 150 && sent().length < 2; i++) await new Promise(resolve => setTimeout(resolve, 100));
 	const probes = sent(); assert.equal(probes.length, 2, `重试没有发出第二次请求：${probes.length}`);
-	const delay = probes[1].at - probes[0].at; assert.ok(delay >= 4900 && delay < 8000, String(delay)); t.diagnostic(JSON.stringify({ fixedRetryMs: delay }));
+	const delay = probes[1].at - probes[0].at; assert.ok(delay >= 3900 && delay < 8000, String(delay)); t.diagnostic(JSON.stringify({ fixedRetryMs: delay }));
 	await shot(app, "composer-continue");
 	await click(app, 'button:has(svg.lucide-settings)'); await click(app, "nav button", "常规", "starts");
 	await openRetryRule("上游故障"); await click(app, '[aria-label="上游故障不限次数"]'); await frames(app);

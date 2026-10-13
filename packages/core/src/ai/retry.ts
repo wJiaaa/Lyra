@@ -70,6 +70,12 @@ export interface RetryOptions {
 	onRetry?: (info: { attempt: number; delayMs: number; reason: string; failure?: Failure }) => void;
 	/** Injected in tests so they do not sleep. */
 	sleep?: (ms: number) => Promise<void>;
+	/**
+	 * 这个请求要的是 SSE。200 而正文明摆着不是（见 `streamOrFailure`）的，当失败判，不交给流解析。
+	 *
+	 * 要调用方开口说，因为不是每个经过这里的请求都要流：一次性的 JSON 请求，200 加 JSON 就是成功。
+	 */
+	stream?: boolean;
 }
 
 /**
@@ -87,13 +93,17 @@ export function isRetryableStatus(status: number, body?: string): boolean {
 }
 
 /**
- * The longest wait worth sitting through inside one turn.
+ * The longest wait for the server's own number worth sitting through inside one turn.
  *
- * A relay asking for ten minutes is not something to do silently. A minute is: it is shorter than
- * the turn that is already in flight, and the alternative — giving up — throws away everything the
- * turn has assembled so far.
+ * A relay asking for an hour is not something to do silently. Five minutes is: the wait is shown
+ * (`onRetry`), stop cuts it short, and the alternative — giving up, or coming back after one minute
+ * to a server that said four — throws away the turn or spends a retry against the same wall. It was
+ * one minute until a coding plan's rate window was measured at several; ZCode caps at five too.
  */
-const MAX_WAIT_MS = 60_000;
+const MAX_SERVER_WAIT_MS = 5 * 60_000;
+
+/** The ceiling of our own curve, for servers that say nothing: 2s, 5s, 12.5s, 31s, then a minute. */
+const CURVE_MAX_MS = 60_000;
 
 /**
  * How long the server itself said to wait, in milliseconds, or null if it did not say.
@@ -113,6 +123,9 @@ export function serverDelay(header: string | null, body?: string): number | null
 	return serverDelayMs(header, body) ?? null;
 }
 
+/** `x-should-retry: false`，见 `headerDelay` 里那段。 */
+const saysDoNotRetry = (response: Response): boolean => /^(?:false|0)$/i.test(response.headers.get("x-should-retry")?.trim() ?? "");
+
 /**
  * 响应头里服务器说的等待时间：标准的 `Retry-After`，和 OpenAI 系额外发的毫秒版 `retry-after-ms`。
  *
@@ -121,6 +134,12 @@ export function serverDelay(header: string | null, body?: string): number | null
  * 不是这一次要等多久，拿它来等会白等几分钟。正文里写了等待时间的，正文优先。
  */
 function headerDelay(response: Response, body?: string): number | null {
+	/*
+	 * `x-should-retry: false`：服务器给了等待时间，又说别再来。来不来由分类器判——终局的本来就不重试，
+	 * 而中转在临时故障上也会顺手带这个头——但它给的时间不拿来等：那是「别来」，不是「过多久再来」。
+	 * 照 ZCode `failure-inspection.ts` 的 `parseRetryAfterMs`。
+	 */
+	if (saysDoNotRetry(response)) return null;
 	const ms = Number(response.headers.get("retry-after-ms"));
 	if (Number.isFinite(ms) && ms > 0) return ms;
 	const said = serverDelay(response.headers.get("retry-after"), body);
@@ -142,12 +161,12 @@ function headerDelay(response: Response, body?: string): number | null {
  * 这一轮就此失败——而服务器明明说了再等几秒就好。取大值不会让等待比用户配的更短，只是不在服务器
  * 明说「还没好」的时候提前回去：用户配的是「最少等多久」，服务器说的是「最早什么时候有用」，两个都守。
  *
- * 服务器的数照旧封顶 `MAX_WAIT_MS`，一个要求等十分钟的中转不该让这一轮静默挂住；比封顶更长的用户
+ * 服务器的数照旧封顶 `MAX_SERVER_WAIT_MS`，一个要求等一小时的中转不该让这一轮静默挂住；比封顶更长的用户
  * 间隔原样生效，那是用户自己的选择。等待仍走 `abortableSleep`，按停止立即醒。
  */
 function withServerDelay(policyMs: number, serverMs: number | null | undefined): number {
 	if (serverMs === null || serverMs === undefined || !(serverMs > 0)) return policyMs;
-	return Math.max(policyMs, Math.min(serverMs, MAX_WAIT_MS));
+	return Math.max(policyMs, Math.min(serverMs, MAX_SERVER_WAIT_MS));
 }
 
 /**
@@ -161,12 +180,12 @@ function withServerDelay(policyMs: number, serverMs: number | null | undefined):
  */
 export function retryDelay(attempt: number, response?: Response, body?: string): number {
 	const said = response ? headerDelay(response, body) : serverDelay(null, body);
-	if (said !== null) return Math.min(said, MAX_WAIT_MS);
+	if (said !== null) return Math.min(said, MAX_SERVER_WAIT_MS);
 	// 2s, 5s, 12.5s, 31s, 60s — with jitter, so a fleet of clients does not return in lockstep.
 	// The ceiling is applied *after* the jitter: capping first lets the ±25% push the result
 	// back over the limit, which is what the test caught.
 	const base = 2000 * 2.5 ** (attempt - 1);
-	return Math.min(base * (0.75 + Math.random() * 0.5), MAX_WAIT_MS);
+	return Math.min(base * (0.75 + Math.random() * 0.5), CURVE_MAX_MS);
 }
 
 /**
@@ -209,23 +228,34 @@ export async function fetchWithRetry(
 
 	for (let attempt = 1; attempt <= attempts; attempt++) {
 		if (options.signal?.aborted) break;
+		// 响应头到了以后再抛的（`streamOrFailure` 读开头那段时断线），不是「发不出去」，见 `FailureInput` 的 `sending`。
+		let sent = false;
 		try {
 			const response = await doFetch(url, init);
-			if (response.ok) return response;
-
-			/*
-			 * The body is read, off a clone, purely to find out what happened and how long to wait.
-			 *
-			 * 从前这一行写的是 `options.budget ? undefined : await response.clone().text()`——也就是
-			 * 说下面这段讲「不读正文会把重试预算在几秒内烧光」的道理，只在没配重试策略的时候才作数，
-			 * 而配了策略的人反而拿不到服务器自己说的等待时间。The relay puts `reset_seconds` in there
-			 * and no `Retry-After` header. 用克隆读，调用方可能还要用的那个响应一个字节不动。
-			 */
-			const body = await response.clone().text().catch(() => undefined);
-			const failure = classifyFailure({ from: "status", status: response.status, body });
+			sent = true;
+			let failure: Failure;
+			let body: string | undefined;
+			if (response.ok) {
+				const checked = options.stream ? await streamOrFailure(response) : response;
+				if (checked instanceof Response) return checked;
+				failure = checked;
+			} else {
+				/*
+				 * The body is read, off a clone, purely to find out what happened and how long to wait.
+				 *
+				 * 从前这一行写的是 `options.budget ? undefined : await response.clone().text()`——也就是
+				 * 说下面这段讲「不读正文会把重试预算在几秒内烧光」的道理，只在没配重试策略的时候才作数，
+				 * 而配了策略的人反而拿不到服务器自己说的等待时间。The relay puts `reset_seconds` in there
+				 * and no `Retry-After` header. 用克隆读，调用方可能还要用的那个响应一个字节不动。
+				 */
+				body = await response.clone().text().catch(() => undefined);
+				failure = classifyFailure({ from: "status", status: response.status, body });
+			}
 			// 头里说的等待时间分类器看不见（它只拿到正文），在这里补上，界面和下面的等待都用它。
 			const said = headerDelay(response, body);
 			if (said !== null) failure.retryAfterMs = said;
+			// 正文里的等待时间是分类器读的，同样不作数；留着它，界面照样报出那个数，`retryStream` 也照它去等。
+			else if (saysDoNotRetry(response)) delete failure.retryAfterMs;
 			const canRetry = options.budget ? options.budget.available("upstream", failure) : attempt < attempts;
 
 			if (!worthRetrying(failure) || !canRetry) {
@@ -255,8 +285,8 @@ export async function fetchWithRetry(
 			 * 转下去。`retry-policy.test.ts` 整个文件挂住，一条都跑不出来。
 			 */
 			if (error instanceof FailureError) throw error;
-			// 这里抛的一定出自 `doFetch` 那一下，只有这里能这样告诉分类器，见 `FailureInput` 的 `sending`。
-			const failure = classifyFailure({ from: "transport", error, sending: true });
+			// 出自 `doFetch` 那一下的，只有这里能这样告诉分类器，见 `FailureInput` 的 `sending`。
+			const failure = classifyFailure({ from: "transport", error, sending: !sent });
 			// A cancelled turn is not a failed one; stop immediately rather than waiting to retry.
 			if (options.signal?.aborted) throw error;
 			// 带着结论抛：到了 `retryStream` 那层就不知道它出自发请求那一下，会把「发不出去」重新猜成断线。
@@ -283,6 +313,72 @@ export async function fetchWithRetry(
 		lastError.message = `${lastError.message}（已重试 ${attempts} 次）`;
 	}
 	throw lastError ?? new Error("请求已取消");
+}
+
+/** 明说是 JSON（含 `application/problem+json` 这类）或网页的 content-type。 */
+const NOT_STREAM_TYPE = /^\s*(?:application\/(?:[\w.-]+\+)?json|text\/html)\b/i;
+
+/**
+ * 200 的响应是不是一条 SSE；不是的话，它是什么失败。
+ *
+ * 从前一律交给流解析：JSON 错误体、一页 HTML、一整份非流式的回答都解析不出一帧，落成「空回答」，
+ * 同一个请求重发四次，原文丢掉——额度用完、地址填错，界面上都是同一句「服务商返回了空回答」。
+ *
+ * 只认 content-type **明说**是 JSON 或网页的。不能反过来凭「不是 event-stream」就拦：有的中转把 SSE
+ * 标成 `text/plain`，甚至 `application/json`。
+ *
+ * 只看开头：读到能判断是不是 SSE 为止（一个 `data:` 或 `{` 就够）。是 SSE 的，读过的那几块原样放回去，
+ * 后面照常一块一块交给流解析——那里有空闲闸看着，回答也是逐字出来的。整个读完再判，那条流就绕过了空闲闸，
+ * 中途卡住时一直挂着，正常时也要等整条回答到齐才出字。开头这一小段没有空闲闸，但 undici 的 `bodyTimeout`
+ * （`TRANSPORT_TIMEOUT_MS`）和停止信号都管得到它。不是 SSE 的那份是错误体或整份 JSON，有尽头，读完交给分类器。
+ */
+async function streamOrFailure(response: Response): Promise<Response | Failure> {
+	if (!NOT_STREAM_TYPE.test(response.headers.get("content-type") ?? "") || !response.body) return response;
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+	const head: Uint8Array[] = [];
+	let text = "";
+	let ended = false;
+	try {
+		while (!/[:{[<\n]/.test(text.trimStart())) {
+			const { done, value } = await reader.read();
+			if (done) {
+				ended = true;
+				break;
+			}
+			head.push(value);
+			text += decoder.decode(value, { stream: true });
+		}
+		if (!ended && /^\s*(?:data|event|id|retry)?:/.test(text)) {
+			const body = new ReadableStream<Uint8Array>({
+				start(controller) {
+					for (const chunk of head) controller.enqueue(chunk);
+				},
+				async pull(controller) {
+					const { done, value } = await reader.read();
+					if (done) controller.close();
+					else controller.enqueue(value);
+				},
+				cancel: (reason) => reader.cancel(reason),
+			});
+			return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+		}
+		while (!ended) {
+			const { done, value } = await reader.read();
+			if (done) ended = true;
+			else text += decoder.decode(value, { stream: true });
+		}
+		text += decoder.decode();
+	} catch (error) {
+		/*
+		 * 读到一半断了，或者按了停止：往上抛，由 `fetchWithRetry` 当连接问题判、按停止退出。从前在这里吞掉，
+		 * 把读到的半截当成「不是流」去分类——停止后先闪一句「收到的是一整份 JSON」的重试，断线扣的是 upstream 预算。
+		 */
+		await reader.cancel().catch(() => undefined);
+		throw error;
+	}
+	if (/^\s*(?:data|event|id|retry)?:/.test(text)) return new Response(text, { status: response.status, statusText: response.statusText, headers: response.headers });
+	return classifyFailure({ from: "empty", why: "not-stream", body: text });
 }
 
 /**
@@ -363,7 +459,7 @@ export async function* retryStream<T>(
 			const planned = options.budget?.next(rule, failure);
 			const retry = planned
 				? { ...planned, delayMs: withServerDelay(planned.delayMs, failure.retryAfterMs) }
-				: { attempt: number, delayMs: failure.retryAfterMs ? Math.min(failure.retryAfterMs, MAX_WAIT_MS) : retryDelay(number) };
+				: { attempt: number, delayMs: failure.retryAfterMs ? Math.min(failure.retryAfterMs, MAX_SERVER_WAIT_MS) : retryDelay(number) };
 			const delayMs = retry.delayMs;
 			options.onRetry?.({ ...retry, delayMs, reason: failure.summary, failure });
 			await abortableSleep(delayMs, options.signal, options.sleep);

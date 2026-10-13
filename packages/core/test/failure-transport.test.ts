@@ -97,6 +97,29 @@ test("证书链缺一环、链里有自签：证书问题，不重试", () => {
 	}
 });
 
+test("证书和 TLS 的码藏在 cause 链里层、或是名单外的新名字，照样不重试", () => {
+	const nested = (code: string) => new TypeError("fetch failed", { cause: Object.assign(new Error("socket error"), { cause: Object.assign(new Error(code), { code }) }) });
+	const flat = (code: string) => new TypeError("fetch failed", { cause: Object.assign(new Error(code), { code }) });
+	for (const error of [nested("CERT_HAS_EXPIRED"), flat("CERT_REVOKED"), flat("ERR_TLS_CERT_SIGNATURE_ALGORITHM_UNSUPPORTED"), flat("ERR_SSL_SSLV3_ALERT_CERTIFICATE_UNKNOWN")]) {
+		const failure = classifyFailure({ from: "transport", error });
+		assert.equal(failure.kind, "fatal", String((error as Error & { cause: Error }).cause.message));
+		assert.equal(failure.summary, "证书校验失败");
+	}
+	// 握手超时、握手时的临时告警是网络在抖，不是证书坏了。
+	for (const code of ["ERR_TLS_HANDSHAKE_TIMEOUT", "ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR", "ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE", "ERR_SSL_DECRYPTION_FAILED_OR_BAD_RECORD_MAC"]) {
+		assert.equal(classifyFailure({ from: "transport", error: flat(code) }).kind, "network", code);
+	}
+});
+
+test("代理要认证（407）不重试，提示去看代理；代理别的状态照旧当断线", () => {
+	const proxy = (status: number) =>
+		new TypeError("fetch failed", { cause: Object.assign(new Error(`Proxy response (${status}) !== 200 when HTTP Tunneling`), { code: "UND_ERR_ABORTED" }) });
+	const failure = classifyFailure({ from: "transport", error: proxy(407), sending: true });
+	assert.equal(failure.kind, "fatal");
+	assert.match(failure.summary, /代理/);
+	assert.equal(classifyFailure({ from: "transport", error: proxy(502), sending: true }).kind, "network");
+});
+
 test("真正的断线照旧是 network、照旧重试", () => {
 	const cases: unknown[] = [
 		new TypeError("fetch failed", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) }),
@@ -157,4 +180,11 @@ test("请求发不出去的结论穿过 retryStream 不会被重新猜成断线"
 	});
 	assert.equal(sent, 1);
 	assert.equal(attempts, 1);
+});
+
+test("undici 拒收地址的原话包在第二层 cause 里也认得出：不当断线重试", () => {
+	const error = new TypeError("fetch failed", { cause: new Error("socket wrapper", { cause: new Error("bad port") }) });
+	const failure = classifyFailure({ from: "transport", error });
+	assert.equal(failure.kind, "fatal");
+	assert.equal(failure.summary, "接口地址无效");
 });

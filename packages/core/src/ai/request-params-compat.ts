@@ -13,10 +13,8 @@
  * `catalog/src/compat/axes.ts` 有 `reasoning-disable-mode`、`supports-tool-choice`、
  * `supports-sampling-params` 等轴），我们没有那份普查数据——但错误串自带诊断，撞一次就够了。
  *
- * 已知的先验仍然写死，不靠学：Gemini 系拒 `effort: "none"` 是早就量到过的（错误原话
- * `none is not a valid ThinkingLevel enum value`），那条是下面的 `refusesReasoningNone`，两条 OpenAI 链
- * 共用，让 Gemini 用户第一次就对，而不是先失败一次。OpenAI 自家的 o 系列和 gpt-5 也不收（`none` 从
- * GPT-5.1 才有），那条是 `openaiRefusesReasoningNone`。这里的机制是给**没见过的端点**兜底的。
+ * 已知的先验不靠学，写在 `vendors/`：Gemini 系、OpenAI 的 o 系列和旧 gpt-5 拒 `effort: "none"`。这里的
+ * 机制是给**没见过的端点**兜底的。
  *
  * 记在内存里，不落盘，理由同另外两个轴。
  */
@@ -111,36 +109,6 @@ const SIGNALS: { pattern: RegExp; drop: DroppedParam; source: string }[] = [
 		drop: "cache-key",
 		source: "严格端点拒未知字段时的错误串会点名字段；这个名字是唯一的",
 	},];
-
-/**
- * Model families known to refuse an explicit `"none"` reasoning effort. Both OpenAI adapters leave the
- * field out for them when thinking is off, instead of failing the first request and learning from it.
- *
- * Gemini is the family measured, on both wires. Behind one Chat Completions relay, Gemini 3.x on Vertex
- * names the field in its 400 (the third signal above), while Gemini 2.5 only says `Request contains an
- * invalid argument.` — a sentence no signal can safely claim, so for 2.5 this prior is all there is.
- * It lives here rather than in an adapter because that is how it broke: the Responses adapter had the
- * rule and the Chat Completions adapter did not, so with thinking off every Gemini request failed there.
- */
-export function refusesReasoningNone(modelId: string): boolean {
-	const id = modelId.toLowerCase();
-	return id.includes("gemini") || id.includes("gemma");
-}
-
-/**
- * OpenAI 自家不收 `none` 的：o1 / o3 / o4-mini 系（只有 low/medium/high），以及 GPT-5.1 之前的 gpt-5
- * （最低一档是 `minimal`）。o3 的原话见上面 `reasoning-off` 那条信号。
- *
- * 锚在开头或 `/` 之后，免得 `gpt-4o1-relay` 这种名字顺带命中；`gpt-5` 后面只接 `-` 或结尾，`gpt-5.1`
- * 起支持 `none`，不在此列。
- *
- * 和 `refusesReasoningNone` 分开、暂时只有 Responses 链在用：Chat Completions 链的测试拿 `o3` 当一个普通
- * 模型名来验「关思考要明说 none」（那组数据是在 DeepSeek 上量的），并进去会改变那条链的现有行为。那边
- * 要用，直接在它关思考那处并上这一条即可。
- */
-export function openaiRefusesReasoningNone(modelId: string): boolean {
-	return /(?:^|\/)(?:o[134]|gpt-5)(?:-|$)/.test(modelId.toLowerCase());
-}
 
 /** 学到的结论：`${providerId} ${modelId}` → 这些参数别再发了。 */
 const learned = new Map<string, Set<DroppedParam>>();

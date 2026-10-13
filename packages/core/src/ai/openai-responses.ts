@@ -10,6 +10,7 @@
 
 import { toResponsesInput, toResponsesTools } from "./openai-responses-request.ts";
 import { sanitizeToolPairing } from "./sanitize-history.ts";
+import { toolNameFromStream } from "./tool-names.ts";
 import type {
 	AssistantMessage,
 	LlmContext,
@@ -28,7 +29,9 @@ import { resolveReasoningEffort } from "./thinking-options.ts";
 import { reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
 import { learnToolPairing, toolPairing } from "./tool-pairing-compat.ts";
 import { learnToolResultImages, toolResultImages } from "./tool-result-images-compat.ts";
-import { droppedParams, learnDroppedParam, openaiRefusesReasoningNone, refusesReasoningNone } from "./request-params-compat.ts";
+import { droppedParams, learnDroppedParam } from "./request-params-compat.ts";
+import { thinkingDialect } from "./vendors/index.ts";
+import { responsesThinkingFields } from "./vendors/thinking.ts";
 import { compatKey, compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
 import { cacheRouting, sessionHeaders } from "./cache-routing.ts";
@@ -69,12 +72,12 @@ async function* streamResponses(
 
 	const reasoningEffort = resolveReasoningEffort(options.thinking, model);
 	const thinkingEnabled = reasoningEffort !== undefined;
-	const modelId = (model.modelId || model.id || "").toLowerCase();
 	/** 学和查都用这一对 id，见 `compat-key.ts`。排列这一轴曾经查用 `modelId`、学用 `id`，学到的永远查不到。 */
 	const scope = compatScope(provider, model);
-	/** 发往 DeepSeek：它要求每个助手轮以推理项开头。别的端点不补，见 `ResponsesHome.leadingReasoning`。 */
-	const deepseek = /deepseek/i.test(provider.baseUrl) || modelId.includes("deepseek");
-	const leadingReasoning = (): boolean => deepseek || leadsWithReasoning.has(compatKey(scope.providerId, scope.modelId));
+	/** 这个模型族的思考开关怎么写、要不要补位推理项，见 `vendors/`。 */
+	const dialect = thinkingDialect(provider.baseUrl, model.modelId || model.id);
+	/** DeepSeek 要求每个助手轮以推理项开头，别的端点撞过那句话才补。见 `ResponsesHome.leadingReasoning`。 */
+	const leadingReasoning = (): boolean => dialect.leadingReasoning || leadsWithReasoning.has(compatKey(scope.providerId, scope.modelId));
 
 	/*
 	 * 每次尝试重新编一遍，因为**形状可能在两次之间变掉**。
@@ -121,22 +124,11 @@ async function* streamResponses(
 					}
 				: {}),
 			// Omitting `reasoning` does not disable thinking — several providers still reason by
-			// default, so "off" has to say so explicitly. `effort: "none"` is the documented way.
-			// Google Gemini/Vertex API rejects `effort: "none"` with HTTP 400 (none is not a valid
-			// ThinkingLevel enum value); Gemini models omit the property when thinking is off.
-			// 别的端点也可能不认 `none`——那条实测记录就是 `request-params-compat.ts` 认得的第一条信号，
-			// 撞上之后走的是和 Gemini 同一条路：整个 `reasoning` 不发。
-			...(model.supportsThinking
-				? thinkingEnabled && reasoningEffort
-					? {
-							// 摘要要组织验证过才给，没验证的账号整个请求 400——撞过就只撤它，effort 照发。
-							reasoning: dropped.has("reasoning-summary") ? { effort: reasoningEffort } : { effort: reasoningEffort, summary: "auto" },
-							...(dropped.has("include-encrypted") ? {} : { include: ["reasoning.encrypted_content"] }),
-						}
-					: refusesReasoningNone(modelId) || openaiRefusesReasoningNone(modelId) || dropped.has("reasoning-off")
-						? {}
-						: { reasoning: { effort: "none" } }
-				: {}),
+			// default, so "off" has to say so explicitly. `effort: "none"` is the documented way. Families
+			// that refuse it (Gemini, OpenAI's o-series and pre-5.1 gpt-5) are in `vendors/`; an unknown
+			// endpoint that refuses it is learnt by `request-params-compat.ts`, and either way the whole
+			// `reasoning` is left out.
+			...responsesThinkingFields(dialect, { effort: thinkingEnabled ? reasoningEffort : undefined, supportsThinking: model.supportsThinking, dropped }),
 			...(options.temperature !== undefined && !thinkingEnabled && !dropped.has("sampling")
 				? { temperature: options.temperature }
 				: {}),
@@ -305,7 +297,7 @@ async function* streamResponses(
 			const contentIndex = place(
 				slot,
 				kind === "toolCall"
-					? { type: "toolCall", id: toolCallId(item.call_id ?? item.id, slot, inventedIds), name: item.name ?? "", arguments: {} }
+					? { type: "toolCall", id: toolCallId(item.call_id ?? item.id, slot, inventedIds), name: toolNameFromStream(item.name), arguments: {} }
 					: kind === "thinking"
 						? { type: "thinking", thinking: "", signature: item.id, encrypted: item.encrypted_content || undefined }
 						: { type: "text", text: "" },
@@ -328,6 +320,8 @@ async function* streamResponses(
 			const raw = complete || tracked.raw;
 			target.argumentsText = raw;
 			target.arguments = parseToolArguments(raw) ?? {};
+			// 名字同理：有的端点 `added` 里给空名、到 `done` 才给全。空名留在历史里，回放时只能发占位名。
+			if (!target.name) target.name = toolNameFromStream(item.name);
 			yield {
 				type: "toolcall_end",
 				index: slot,
@@ -422,6 +416,7 @@ async function* streamResponses(
 						budget: retryBudget,
 						signal: options.signal,
 						onRetry: options.onRetry,
+						stream: true,
 					},
 				);
 
@@ -488,7 +483,7 @@ async function* streamResponses(
 									type: "toolCall",
 									// call_id is the handle the API expects back on function_call_output.
 									id: toolCallId(item.call_id ?? item.id, outputIndex, inventedIds),
-									name: String(item.name ?? ""),
+									name: toolNameFromStream(item.name),
 									arguments: {},
 									argumentsText: "",
 									signature: item.id,
@@ -503,7 +498,7 @@ async function* streamResponses(
 									type: "toolcall_start",
 									index: outputIndex,
 									id: toolCallId(item.call_id ?? item.id, outputIndex, inventedIds),
-									name: String(item.name ?? ""),
+									name: toolNameFromStream(item.name),
 								};
 							}
 							break;
@@ -691,13 +686,17 @@ async function* streamResponses(
 				 * 把错误写成 JSON 却回 200 的中转、一个空流、一串非法 JSON。它们和真正的空回答在结局
 				 * 上完全无法区分，而后者本来就不该发生：模型即使无话可说也会给出 `response.completed`
 				 * 和至少一个 item。
+				 *
+				 * `max_output_tokens` 截断的空也走这里：从前它被放过去当成一条 `length` 的空回答，loop 让它「接着写」，
+				 * 而它从头再想一遍、再把上限用完。分类器把它判成「输出上限被推理用完」，不重试，和另两条链一样。
 				 */
-				if (partial.content.length === 0 && !incompleteReason) {
+				if (partial.content.length === 0 && (!incompleteReason || incompleteReason === "max_output_tokens")) {
 					throw new FailureError(
 						classifyFailure({
 							from: "empty",
 							why: unparsable ? "unparsable" : framesSeen === 0 ? "no-frames" : "no-content",
 							body: unparsable || undefined,
+							output: { truncated: incompleteReason === "max_output_tokens" },
 						}),
 					);
 				}

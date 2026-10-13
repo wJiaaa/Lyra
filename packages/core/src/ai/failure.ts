@@ -102,8 +102,16 @@ export type FailureInput =
 	| { from: "status"; status: number; body?: string }
 	/** 连接和状态码都正常，错误写在流里面。 */
 	| { from: "stream"; message?: string; raw?: string; spent?: boolean }
-	/** 流正常结束，但一个字都没有——见 `emptyReply`。 */
-	| { from: "empty"; why: "no-content" | "no-frames" | "unparsable"; body?: string };
+	/**
+	 * 流正常结束，但一个字都没有——见 `fromEmpty`。
+	 *
+	 * `not-stream`：状态码 200、content-type 却明说是 JSON 或网页，正文根本不是 SSE（见 `retry.ts` 的
+	 * `streamOrFailure`）。`output.truncated`：是不是撞了输出上限——撞上限的空不是故障。
+	 */
+	| { from: "empty"; why: "no-content" | "no-frames" | "unparsable" | "not-stream"; body?: string; output?: SpentOutput };
+
+/** 空回答那一次，是不是撞了输出上限。 */
+type SpentOutput = { truncated: boolean };
 
 // ---------------------------------------------------------------------------
 // 黑名单：唯一需要维护的名单
@@ -130,30 +138,49 @@ const FATAL_STATUS = new Map<number, { summary: string; hint: FailureHint }>([
 /**
  * 证书出问题不是网络抖动。
  *
- * 一张过期的证书、一个对不上的域名，重试一百次还是同一张证书。这几个码是从旧的
- * `isRetryableError` 原样搬过来的——那里它们是白名单里的例外，在这里它们回到了自己该在的位置：
- * 黑名单本身。
+ * 一张过期的证书、一个对不上的域名，重试一百次还是同一张证书——公司代理换了根证书、自建中转只配了
+ * 叶子证书，链补不全，重试一百次还是补不全。
+ *
+ * 认名字的规律而不是一张名单：OpenSSL 和 Node 的证书、TLS 错误码有几十个（`CERT_REVOKED`、
+ * `ERR_SSL_SSLV3_ALERT_CERTIFICATE_UNKNOWN`……），从前的名单列了九个，漏掉的落进 network、默认无限重试。
+ * 只认名字里带 `CERT` 的：`ERR_SSL_*` / `ERR_TLS_*` 里还有握手超时、`TLSV1_ALERT_INTERNAL_ERROR`、
+ * `BAD_RECORD_MAC` 这类代理和边缘节点上偶发的告警，换一次连接就好，判成证书错误会停在一次抖动上，还让人
+ * 去查一张没问题的证书。
  */
-const FATAL_CAUSES = new Set([
-	"ERR_TLS_CERT_ALTNAME_INVALID",
-	"CERT_HAS_EXPIRED",
-	"CERT_NOT_YET_VALID",
-	"DEPTH_ZERO_SELF_SIGNED_CERT",
-	"UNABLE_TO_VERIFY_LEAF_SIGNATURE",
-	// 公司代理换了根证书、自建中转只配了叶子证书：链补不全，重试一百次还是补不全。
-	"UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
-	"UNABLE_TO_GET_ISSUER_CERT",
-	"SELF_SIGNED_CERT_IN_CHAIN",
-	// 用 https 连一个只开了 http 的端口（本地模型服务最常见）：对面回的不是 TLS，是地址写错了。
-	"ERR_SSL_WRONG_VERSION_NUMBER",
-	"ERR_INVALID_URL",
-]);
+const isCertificateCause = (code: string): boolean => /CERT/.test(code) || code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE";
 
-/** 地址本身的问题：哪个码、哪句话，给人看什么。证书类不在这里，它们统一说「证书校验失败」。 */
+/** 地址本身的问题：哪个码、哪句话，给人看什么。排在证书之前认，证书类统一说「证书校验失败」。 */
 const ADDRESS_CAUSES = new Map<string, string>([
 	["ERR_INVALID_URL", "接口地址无效"],
+	// 用 https 连一个只开了 http 的端口（本地模型服务最常见）：对面回的不是 TLS，是地址写错了。
 	["ERR_SSL_WRONG_VERSION_NUMBER", "协议不匹配，检查地址是 http 还是 https"],
 ]);
+
+/**
+ * 走 HTTP 代理时代理答的不是 200。undici 的原话 `Proxy response (407) !== 200 when HTTP Tunneling`，
+ * code 是 `UND_ERR_ABORTED`——按码看是一次普通的中止，会被当断线无限重试。407 是代理要认证，凭据不改
+ * 永远是 407；代理答的别的码（502、503）是代理自己在抖，照旧重试。
+ */
+const PROXY_STATUS = /Proxy response \((\d{3})\)/;
+
+/**
+ * cause 链最里层的错误码和一路上的原话。
+ *
+ * undici 把真正的原因包在一两层 `cause` 里：外层是 `fetch failed`，中间可能是一个只说「socket 出错」
+ * 的包装，证书码在最里面。只看第一层会把证书问题认成断线。
+ */
+function causeChain(error: unknown): { code?: string; messages: string[] } {
+	let code: string | undefined;
+	const messages: string[] = [];
+	let current: unknown = error;
+	for (let depth = 0; depth < 6 && current && typeof current === "object"; depth++) {
+		const link = current as { code?: unknown; message?: unknown; cause?: unknown };
+		if (typeof link.code === "string" && link.code) code = link.code;
+		if (typeof link.message === "string") messages.push(link.message);
+		current = link.cause;
+	}
+	return { code, messages };
+}
 
 /**
  * undici 拒绝发出的地址，`cause` 上没有 code、只有这么一句话：`ftp://`、`htp://` 这种不认识的协议，
@@ -437,7 +464,7 @@ export function classifyFailure(input: FailureInput): Failure {
 		case "stream":
 			return fromStream(input.message, input.raw, input.spent === true);
 		case "empty":
-			return fromEmpty(input.why, input.body);
+			return fromEmpty(input.why, input.body, input.output);
 	}
 }
 
@@ -465,7 +492,8 @@ function statusFromText(text: string): number | undefined {
 
 function fromTransport(error: unknown, sending: boolean): Failure {
 	const cause = (error as { cause?: { code?: string; message?: unknown } })?.cause;
-	const code = cause?.code;
+	const chain = causeChain(error);
+	const code = chain.code;
 	const text = error instanceof Error ? error.message : String(error);
 
 	/*
@@ -479,7 +507,7 @@ function fromTransport(error: unknown, sending: boolean): Failure {
 		if (status !== undefined) return fromStatus(status, text);
 	}
 
-	if (code && FATAL_CAUSES.has(code)) {
+	if (code && (ADDRESS_CAUSES.has(code) || isCertificateCause(code))) {
 		const address = ADDRESS_CAUSES.get(code);
 		return {
 			kind: "fatal",
@@ -490,13 +518,25 @@ function fromTransport(error: unknown, sending: boolean): Failure {
 		};
 	}
 
-	if (!code && typeof cause?.message === "string" && ADDRESS_REFUSALS.test(cause.message)) {
+	const proxy = chain.messages.map((message) => message.match(PROXY_STATUS)?.[1]).find(Boolean);
+	if (proxy === "407") {
+		return {
+			kind: "fatal",
+			summary: "代理要求认证，检查代理设置里的账号密码",
+			detail: truncateDetail(chain.messages.join(" ← ")),
+			fingerprint: fingerprintOf("fatal", "proxy-407"),
+		};
+	}
+
+	// 和码一样看整条 cause 链：这句原话包在第二层时，只看第一层会认成断线、一直重试。
+	const refusal = code ? undefined : chain.messages.find((message) => ADDRESS_REFUSALS.test(message));
+	if (refusal) {
 		return {
 			kind: "fatal",
 			summary: "接口地址无效",
-			detail: truncateDetail(`${text} (${cause.message})`),
+			detail: truncateDetail(`${text} (${refusal})`),
 			hint: "check-model",
-			fingerprint: fingerprintOf("fatal", cause.message),
+			fingerprint: fingerprintOf("fatal", refusal),
 		};
 	}
 
@@ -585,7 +625,11 @@ function fromStatus(status: number, body?: string): Failure {
 	const words = STATUS_WORDS.get(status);
 	return {
 		kind: "upstream",
-		summary: words ? words : said ? shorten(said) : `服务端返回 ${status}`,
+		/*
+		 * 固定说法比原文好读，但 429 是例外：「被限流」谁都会说，限的是什么（每分钟 token、并发、某个模型）
+		 * 只有原话里有，而那决定人是该等一等还是该换个模型。
+		 */
+		summary: status === 429 && said ? `被限流：${shorten(said)}` : words ? words : said ? shorten(said) : `服务端返回 ${status}`,
 		detail,
 		retryAfterMs: serverDelayMs(undefined, body),
 		fingerprint: fingerprintOf("upstream", `${status}:${said}`),
@@ -594,7 +638,11 @@ function fromStatus(status: number, body?: string): Failure {
 
 function fromStream(message: string | undefined, raw: string | undefined, spent: boolean): Failure {
 	const said = (message ?? "").trim() || messageFromBody(raw);
-	const phrase = matchFatalPhrase(said || raw || "");
+	/*
+	 * 超长另看整帧原文，同 `fromStatus`：只在 `error.code` 里写 `context_length_exceeded` 的错误帧，挑出来的
+	 * 那句话不带它，不认就当临时故障重试，轮不到压缩。
+	 */
+	const phrase = matchFatalPhrase(said || raw || "") ?? (raw && isOverflowText(raw) ? OVERFLOW_REASON : undefined);
 	if (phrase) {
 		return {
 			kind: "fatal",
@@ -625,8 +673,16 @@ function fromStream(message: string | undefined, raw: string | undefined, spent:
 	};
 }
 
-function fromEmpty(why: "no-content" | "no-frames" | "unparsable", body?: string): Failure {
+function fromEmpty(why: "no-content" | "no-frames" | "unparsable" | "not-stream", body?: string, output?: SpentOutput): Failure {
 	const said = messageFromBody(body);
+	/*
+	 * 不是流、却说了一句话：那是一个写成 JSON 的错误，和流里的错误帧是同一件事，照那一路判。重试上限照空回答：
+	 * 200 加一句认不出的错误，多半是配置或网关的问题，重发的又是同一个请求体，不该吃满整份 upstream 预算。
+	 */
+	if (why === "not-stream" && said) {
+		const failure = fromStream(said, body, false);
+		return failure.kind === "fatal" ? failure : { ...failure, retryLimit: EMPTY_REPLY_RETRIES };
+	}
 	const phrase = matchFatalPhrase(said || body || "");
 	if (phrase) {
 		return {
@@ -639,21 +695,47 @@ function fromEmpty(why: "no-content" | "no-frames" | "unparsable", body?: string
 		};
 	}
 	/*
+	 * 一个字都没有，推理把输出上限用完了。
+	 *
+	 * 这不是故障。从前它落进下面的空回答，同一个请求重发四次，每次都把上限用完、每次都付钱。重发不会变，
+	 * 能变的是人：调高最大输出，或者降低思考档位。
+	 *
+	 * 只认撞了上限的。正常结束、推理花了 token 却没给回答的不在这里：那是偶发的，重发一次常常就好，照旧走
+	 * 下面的空回答重试。
+	 */
+	if (output?.truncated) {
+		return {
+			kind: "fatal",
+			summary: "输出上限被推理用完，调高最大输出或降低思考档位",
+			detail: truncateDetail(body ?? ""),
+			hint: "check-model",
+			fingerprint: fingerprintOf("fatal", "empty:output-exhausted"),
+			costIncurred: true,
+		};
+	}
+	/*
 	 * 空回复也是失败。
 	 *
 	 * 从前不是：流正常结束、一个字都没有，会以 `stopReason: "stop"` 收场，屏幕上留下一条空白的
 	 * 回答，既不报错也不重试。真值表里有三种故障长这样——一个把错误写成 JSON 却回 200 的中转、
 	 * 一个空流、一串非法 JSON——它们和「模型确实没话说」在结局上完全无法区分。
 	 */
+	// 地址填到了控制台、官网首页上，回来的是 200 加一页 HTML。
+	const webPage = why === "not-stream" && looksLikeMarkup(body ?? "");
 	const summary = said
 		? shorten(said)
 		: why === "unparsable"
 			? "返回的内容无法解析"
-			: "服务商返回了空回答";
+			: webPage
+				? "接口返回了网页而不是回答，检查接口地址"
+				: why === "not-stream" && body?.trim()
+					? "接口没有按流式返回，收到的是一整份 JSON"
+					: "服务商返回了空回答";
 	return {
 		kind: "upstream",
 		summary,
 		detail: truncateDetail(body ?? ""),
+		...(webPage ? { hint: "check-model" as const } : {}),
 		fingerprint: fingerprintOf("upstream", `empty:${why}:${said}`),
 		/*
 		 * 空回答仍然是失败，仍然重试——只是不会重试到地老天荒。见 `Failure.retryLimit`。
@@ -673,6 +755,9 @@ function fromEmpty(why: "no-content" | "no-frames" | "unparsable", body?: string
  * 它的人要先读过「重发的是同一个请求体」这句。
  */
 const EMPTY_REPLY_RETRIES = 4;
+
+/** 只看整段原文认出的超长，和 `FATAL_PHRASES` 里那条给一样的结论。 */
+const OVERFLOW_REASON = { summary: "上下文超出模型上限", hint: "check-request", code: "context-overflow" } as const;
 
 /** `rateLimitedBody`：状态码是 429 时的整个正文，只有 429 才给。 */
 function matchFatalPhrase(text: string, rateLimitedBody?: string): { summary: string; hint: FailureHint; code?: FailureCode } | undefined {

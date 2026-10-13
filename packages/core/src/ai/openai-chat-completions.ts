@@ -4,6 +4,7 @@
 
 import { toChatCompletionsMessages, toChatCompletionsTools } from "./openai-chat-completions-request.ts";
 import { sanitizeToolPairing } from "./sanitize-history.ts";
+import { toolNameFromStream } from "./tool-names.ts";
 import type {
 	AssistantMessage,
 	LlmContext,
@@ -33,7 +34,9 @@ import { THINK_TAG_FIELD, ThinkTagSplitter } from "./think-tag.ts";
 import { USER_AGENT, failedStreamEvent, joinUrl, priceAttempt, settleUsage } from "./endpoint.ts";
 import { resolveReasoningEffort } from "./thinking-options.ts";
 import { learnReasoningPadding, padsMissingReasoning, reasoningReplay, withReasoningRetry, type ReasoningReplay } from "./reasoning-compat.ts";
-import { droppedParams, learnDroppedParam, refusesReasoningNone, type SentParams } from "./request-params-compat.ts";
+import { droppedParams, learnDroppedParam, type SentParams } from "./request-params-compat.ts";
+import { thinkingDialect } from "./vendors/index.ts";
+import { chatThinkingFields } from "./vendors/thinking.ts";
 import { compatKey, compatScope } from "./compat-key.ts";
 import { applyUsage } from "./usage-fields.ts";
 import { cacheRouting, sessionHeaders } from "./cache-routing.ts";
@@ -216,6 +219,8 @@ async function* streamChatCompletions(
 	const thinkingEnabled = reasoningEffort !== undefined;
 	/** 学和查都用这一对 id，见 `compat-key.ts`。 */
 	const scope = compatScope(provider, model);
+	/** 这个模型族的思考开关怎么写，见 `vendors/`。 */
+	const dialect = thinkingDialect(provider.baseUrl, model.modelId || model.id);
 
 	/*
 	 * 每次尝试重新编一遍，因为**推理形状可能在两次之间变掉**。
@@ -333,17 +338,10 @@ async function* streamChatCompletions(
 			 * 所以它挂在可学的轴下面：撞上就退回「什么都不发」，也就是这条链原来的行为。两条 OpenAI 链现在
 			 * 用的是同一条轴、同一个信号。
 			 *
-			 * Gemini is not left to learn it: it is a known refuser (`refusesReasoningNone`), and Gemini 2.5
-			 * behind a relay rejects `"none"` with a 400 that names nothing, so there would be nothing to
-			 * learn from — every request with thinking off simply failed.
+			 * Gemini is not left to learn it: Gemini 2.5 behind a relay rejects `"none"` with a 400 that names
+			 * nothing, so there would be nothing to learn from. That prior lives in `vendors/`.
 			 */
-			...(model.supportsThinking
-				? thinkingEnabled && reasoningEffort
-					? { reasoning_effort: reasoningEffort }
-					: refusesReasoningNone(model.modelId || model.id || "") || dropped.has("reasoning-off")
-						? {}
-						: { reasoning_effort: "none" }
-				: {}),
+			...chatThinkingFields(dialect, { effort: thinkingEnabled ? reasoningEffort : undefined, supportsThinking: model.supportsThinking, dropped }),
 			...(options.temperature !== undefined && !thinkingEnabled && !dropped.has("sampling")
 				? { temperature: options.temperature }
 				: {}),
@@ -435,6 +433,7 @@ async function* streamChatCompletions(
 						budget: retryBudget,
 						signal: options.signal,
 						onRetry: options.onRetry,
+						stream: true,
 					},
 				);
 
@@ -641,7 +640,7 @@ async function* streamChatCompletions(
 					 * 这个适配器面对的多半是中转，而中转最爱的一种答法就是 200 加一个 `{"error":{…}}` 帧。认哪些
 					 * 形状见 `streamErrorOf`；原话交给 `classifyFailure`，额度、上下文超长都靠它来认。
 					 */
-					const inBand = streamErrorOf(event);
+					const inBand = streamErrorOf(event, frame.event);
 					if (inBand) {
 						throw new FailureError(
 							classifyFailure({
@@ -700,7 +699,7 @@ async function* streamChatCompletions(
 									const toolCallIndex = partial.content.length;
 									// 编号按块在 content 里的位置记，不按 `tc.index`——后者可能缺，也可能被几个调用共用。
 									const id = toolCallId(tc.id, toolCallIndex, inventedIds);
-									const name = tc.function?.name || "";
+									const name = toolNameFromStream(tc.function?.name);
 									const newBlock: ToolCallContent = { type: "toolCall", id, name, arguments: {}, argumentsText: "" };
 									partial.content.push(newBlock);
 									call = { block: newBlock, index: typeof tc.index === "number" ? tc.index : undefined, id: typeof tc.id === "string" && tc.id ? tc.id : undefined };
@@ -709,9 +708,7 @@ async function* streamChatCompletions(
 								}
 								const block = call.block;
 
-								if (tc.function?.name && !block.name) {
-									block.name = tc.function.name;
-								}
+								if (!block.name) block.name = toolNameFromStream(tc.function?.name);
 
 								if (tc.function?.arguments) {
 									// 字符串分片、重发的整串、对象分片各怎么接，见 `nextArguments`。
@@ -860,6 +857,7 @@ async function* streamChatCompletions(
 							from: "empty",
 							why: unparsable ? "unparsable" : framesSeen === 0 ? "no-frames" : "no-content",
 							body: unparsable || undefined,
+							output: { truncated: partial.stopReason === "length" },
 						}),
 					);
 				}

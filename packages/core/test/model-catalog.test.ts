@@ -109,7 +109,8 @@ describe("catalogue matching", () => {
 		assert.equal(catalogModelFor(provider("https://OPENCODE.ai/zen/go/v1/"), "glm-5.3")?.match, "exact");
 		const { pricing, thinkingOptions, ...values } = filled(go, "glm-5.3")!;
 		assert.deepEqual(values, { contextWindow: 1_000_000, maxOutputTokens: 131_072, supportsThinking: true, supportsImages: false, supportsTools: true });
-		assert.deepEqual(thinkingOptions?.map((option) => option.id), ["off", "minimal", "low", "medium", "high"]);
+		// GLM-5.3 关不掉思考（`vendors/`），目录里的「关闭」不往下填。
+		assert.deepEqual(thinkingOptions?.map((option) => option.id), ["minimal", "low", "medium", "high"]);
 		assert.equal(thinkingOptions?.find((option) => option.isDefault)?.id, "medium");
 		assert.equal(pricing, undefined, "an all-zero subscription price is unpriced, not free");
 	});
