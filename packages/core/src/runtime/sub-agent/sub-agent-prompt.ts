@@ -16,6 +16,7 @@ import { sandboxModeFor } from "../../sandbox/mode-for.ts";
 import type { Message } from "../../types.ts";
 import type { SubAgentOptions } from "./sub-agent-options.ts";
 import type { Dispatched } from "./sub-agent-dispatch.ts";
+import { isIsolatedWorktree } from "../workspace.ts";
 import { yieldInstruction } from "./yield-tool.ts";
 
 async function pathExists(path: string): Promise<boolean> {
@@ -53,6 +54,7 @@ export async function subAgentPrompt(options: SubAgentOptions, dispatched: Dispa
 		resources: resources.schemes(),
 		scratchDir: scratch,
 		isGitRepo: await pathExists(join(options.cwd, ".git")),
+		isolatedWorktree: await isIsolatedWorktree(options.cwd),
 		appendSystemPrompt: [workingNote(checkpoint), definition.output ? yieldInstruction(definition.output).trim() : ""]
 			.filter(Boolean)
 			.join("\n"),
