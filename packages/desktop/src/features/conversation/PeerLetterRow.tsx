@@ -4,14 +4,16 @@
  * 那条消息是写给模型的：正文外面套着 `<session-message>` 和一段「这不是用户说的话」的说明。
  * 原样画在人那一侧，读的人会看见一大段自己没说过的话；什么都不画，这个会话又像是自己突然动了
  * 起来。所以画成过程行：谁写来的、开头一句，点开读全文，旁边一下跳到那个会话。
+ *
+ * 跳转放在这一行上，不放在展开的正文底下：要去那个会话的人不必先把整封信读完才找得到入口。
  */
 
 import { useState, type ReactNode } from "react";
 import type { PeerLetter } from "@plume/core";
 import { useI18n } from "../../i18n/index.ts";
-import { MessagesSquare } from "../../ui/icons/index.ts";
+import { ArrowUpRight, MessagesSquare } from "../../ui/icons/index.ts";
 import { Collapse } from "../../ui/layout/Collapse.tsx";
-import { Button } from "../../ui/primitives/Button.tsx";
+import { IconButton } from "../../ui/primitives/IconButton.tsx";
 import { useApp } from "../../store/index.ts";
 import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { FlowRow } from "./FlowRow.tsx";
@@ -41,18 +43,21 @@ function Letter({ letter, renderText }: { letter: PeerLetter; renderText: (text:
 	const text = letter.text;
 	return (
 		<div data-peer-letter="">
-			<FlowRow
-				icon={<MessagesSquare size={13} strokeWidth={1.8} />}
-				title={t("peers.from", { name: nameOf(letter.from) })}
-				summary={text.split("\n").find((line) => line.trim()) ?? ""}
-				open={open}
-				onToggle={() => setOpen((value) => !value)}
-				label={t("peers.letter")}
-				data-ly-tip={letter.from}
-			/>
+			<div className="flex min-w-0 items-center gap-1">
+				<FlowRow
+					icon={<MessagesSquare size={13} strokeWidth={1.8} />}
+					/* 别的过程行标题是「思考」这种两三个字的词，加粗读作标签；这里装的是会话名，整段加粗就成了一行粗字。 */
+					title={<span className="font-normal">{t("peers.from", { name: nameOf(letter.from) })}</span>}
+					summary={text.split("\n").find((line) => line.trim()) ?? ""}
+					open={open}
+					onToggle={() => setOpen((value) => !value)}
+					label={t("peers.letter")}
+					data-ly-tip={letter.from}
+				/>
+				<IconButton size="xs" icon={<ArrowUpRight size={12} strokeWidth={1.8} />} label={t("peers.open")} onClick={jump} tipSide="top" data-peer-open="" />
+			</div>
 			<Collapse open={open} bodyClassName="mt-1.5 border-l-2 border-line pl-3">
 				{renderText(text)}
-				<Button variant="subtle" size="xs" onClick={jump} className="mt-1.5" data-peer-open="">{t("peers.open")}</Button>
 			</Collapse>
 		</div>
 	);
