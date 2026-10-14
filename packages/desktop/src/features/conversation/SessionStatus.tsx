@@ -70,6 +70,9 @@ export function SessionStatus({ activity, unread = false, worktree }: { activity
 				/*
 				 * One 7px disc, four paints. Switching a finished conversation in used to swap a
 				 * 7px fill for a 6px ring, which is the hop the eye reports as the row jumping.
+				 *
+				 * The idle ring is `line-float`, not `line`: `line` steps off the page, and on a dark
+				 * sidebar that lands 1.09:1 against the row — a ring you cannot see.
 				 */
 				<span
 					data-ly-status-mark={activity ?? (unread ? "unread" : "idle")}
@@ -82,7 +85,7 @@ export function SessionStatus({ activity, unread = false, worktree }: { activity
 									? "bg-danger"
 									: unread
 										? "bg-info"
-										: "border border-line"
+										: "border border-line-float"
 					}`}
 				/>
 			)}
