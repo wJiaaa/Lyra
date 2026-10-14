@@ -42,10 +42,14 @@
  * Semantic colours are deliberately left alone. `--color-accent`, `--color-ok` and
  * `--color-danger` mean "selected", "added" and "wrong" — they are not part of a palette that a
  * syntax theme gets to reassign, and a diff whose additions stopped being green would be lying.
+ *
+ * The second terminal or file onwards is `terminal:<id>` / `file:<id>` (see `panel-instance.ts`),
+ * so those match by prefix. Exact-only left every later one in the app's colours around a
+ * code-themed xterm — invisible on the default dark theme, where the two surfaces coincide.
  */
-.ly-dock-pane[data-pane="file"] :is(.ly-dock-card, .ly-dock-chrome),
+.ly-dock-pane:is([data-pane="file"], [data-pane^="file:"]) :is(.ly-dock-card, .ly-dock-chrome),
 .ly-dock-pane[data-pane="files"] :is(.ly-dock-card, .ly-dock-chrome),
-.ly-dock-pane[data-pane="terminal"] :is(.ly-dock-card, .ly-dock-chrome),
+.ly-dock-pane:is([data-pane="terminal"], [data-pane^="terminal:"]) :is(.ly-dock-card, .ly-dock-chrome),
 .ly-dock-pane[data-pane="review"] :is(.ly-dock-card, .ly-dock-chrome) {
   --color-shell: var(--ly-code-bg, var(--color-shell));
   --color-card: color-mix(in srgb, var(--ly-code-fg) 4%, var(--ly-code-bg));
