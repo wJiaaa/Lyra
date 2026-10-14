@@ -73,16 +73,6 @@ export function applyAppearance(input: AppearanceSettings): void {
 	const rule = (step: number) =>
 		toHex(mix(background, foreground, Math.min(0.9, step * strength * (dark ? 1 : RULE_ON_LIGHT))));
 	const text = (weight: number) => toHex(mix(background, foreground, Math.min(1, weight)));
-	/*
-	 * The two text greys sit closer to the ink where the type is drawn thin.
-	 *
-	 * The interface is set at 500, and on a Mac that is PingFang Medium. YaHei has no Medium, so on
-	 * Windows the same text is its Regular, rendered with Windows' antialiasing, and a grey chosen
-	 * on the Mac washed out: the faint one measured 2.5:1 on white — 「还没有会话」, the composer's
-	 * placeholder, the off switch's 关. Only light themes: on a dark page the same thin stroke is a
-	 * light line on dark and does not fade the same way.
-	 */
-	const thinType = !dark && document.documentElement.dataset.lyPlatform === "win32";
 	/** A wash of the foreground at a given opacity — reads against any backdrop, including none. */
 	const veil = (alpha: number) => `color-mix(in srgb, ${toHex(foreground)} ${(alpha * 100).toFixed(1)}%, transparent)`;
 
@@ -167,11 +157,19 @@ export function applyAppearance(input: AppearanceSettings): void {
 		 */
 		"--color-line-float": veil(0.1),
 		"--color-ink": toHex(foreground),
-		// 次要文字：正文色的 60%。最浅那档浅色 40%、深色 50%——
-		// 深色用 30% 时，深色底上的过程行（思考、工具）读不清。
-		// Windows 浅色主题再往正文色靠一步：雅黑在那里画得更细，40% 的灰对白底只有 2.5:1。
-		"--color-ink-muted": text(thinType ? 0.68 : 0.6),
-		"--color-ink-faint": text(thinType || dark ? 0.5 : 0.4),
+		/*
+		 * 次要文字正文色的 70%，最浅那档浅色 52%、深色 56%。
+		 *
+		 * 下限按它坐着的最浅那张面算，不按页面算：muted 在每一种表面上 ≥4.5:1，faint ≥3:1。之前是
+		 * 60% / 40%（深色 50%），在页面上刚够，到了深色的菜单上 muted 只剩 3.9:1，浅色的 faint 只有
+		 * 2.3:1——一屏次要信息都浮在底色上，读起来灰、发飘。浅色 faint 是 52% 而不是整 50%：差的那两
+		 * 档正好是侧栏和 `card` 上的 3:1（`.ly-field` 的占位符就画在 `card` 上）。
+		 *
+		 * Windows 浅色曾单独往正文色多靠一步（雅黑没有 Medium，同样的灰在那里画得更细，40% 对白底
+		 * 2.5:1）。现在所有平台都在那一步之上，特判没有了。
+		 */
+		"--color-ink-muted": text(0.7),
+		"--color-ink-faint": text(dark ? 0.56 : 0.52),
 		"--color-accent": accent,
 		"--color-info": accent,
 		"--ly-ui-font": appearance.uiFont,
