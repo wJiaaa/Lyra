@@ -13,6 +13,18 @@ export interface Queued {
 	thinking?: ThinkingLevel;
 }
 
+/**
+ * 有人在找这个会话：人说的话，或另一个会话插进来的信。父会话据此不再干等它派出去的子代理。
+ *
+ * 信也算，是因为它和人插话一样在等这边读到——发信的那一方常常正卡在 `wait_for_session` 上；
+ * 只认人的时候，一封插进来的信要压到子代理全部跑完才被读到（实测等一次子代理平均七分多钟）。
+ * 后台结果的送达不算：它是在交差，不是在找人；算上的话，一个放了手的子代理跑完，会把其余还在
+ * 等的也一并放掉。
+ */
+export function addressed(message: Message): boolean {
+	return message.role === "user" && (!message.synthetic || message.peer !== undefined);
+}
+
 export class SessionInbox {
 	private steering: Message[] = [];
 	private readonly queued: Queued[] = [];
@@ -40,14 +52,14 @@ export class SessionInbox {
 	}
 
 	/**
-	 * 有人说的话排着，循环还没取走。
+	 * 有人找这个会话的话排着，循环还没取走。
 	 *
-	 * 等派发的地方据此不再干等（`delegation-waits.ts`）。只在人开口那一刻放手是不够的：话常常是在
+	 * 等派发的地方据此不再干等（`delegation-waits.ts`）。只在开口那一刻放手是不够的：话常常是在
 	 * 模型还在写回复时说的，那段回复写完才派出子代理，开口那一刻手上没有等待可放，接下来的等待就把
-	 * 这句话一直压到子代理全部跑完。人是不是在说话，判断和循环清技能限制时用的同一条（`fromPerson`）。
+	 * 这句话一直压到子代理全部跑完。谁算「有人找」见 `addressed`。
 	 */
 	get spoken(): boolean {
-		return this.steering.some((message) => message.role === "user" && !message.synthetic);
+		return this.steering.some(addressed);
 	}
 
 	get empty(): boolean {

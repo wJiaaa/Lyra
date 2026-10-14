@@ -46,7 +46,7 @@ import { DelegationWaits } from "./sub-agent/delegation-waits.ts";
 import { backgroundJobs } from "../tools/background-jobs.ts";
 import { SessionActivity, type CompactOutcome } from "./session-activity.ts";
 import { SessionDeliveries } from "./session-deliveries.ts";
-import { SessionInbox } from "./session-inbox.ts";
+import { addressed, SessionInbox } from "./session-inbox.ts";
 import { sessionLookup } from "./session-lookup.ts";
 import { refreshDispatchGate } from "./turn-config.ts";
 import { sessionTaskQueue, type TaskQueue } from "./task-queue.ts";
@@ -347,8 +347,8 @@ export class AgentSession {
 	 * 另一个会话发来的一条消息。
 	 *
 	 * 和后台结果走同一条路：攒一小会儿，闲着就开一轮。忙着时 `followUp` 排到这一轮做完之后，
-	 * `steer` 插进这一轮。不是人开口，所以不放开正在等的子代理，也不清技能限制——见 `submit` 的
-	 * `fromPerson`。
+	 * `steer` 插进这一轮，并且和人插话一样放开正在等的子代理（`addressed`）。不是人开口，所以
+	 * 不清技能限制——见 `submit` 的 `fromPerson`。
 	 */
 	receive(letter: PeerLetter, deliver: "steer" | "followUp" = "steer"): void {
 		this.deliveries.letter(letter, deliver);
@@ -863,9 +863,9 @@ export class AgentSession {
 	/**
 	 * 一条消息进会话：忙着就插话或排队，闲着就开一个回合。
 	 *
-	 * 人说的话和运行时替后台子代理递回来的结果都走这里，差别只有一处：`fromPerson`。人开口时，
-	 * 父会话不再干等它派出去的子代理（见 `delegation-waits.ts`）；送达的结果不是人在说话，它只是
-	 * 排进去，不打断任何人。
+	 * 人说的话和运行时替后台子代理递回来的结果都走这里，差别在 `fromPerson`。人开口、或另一个
+	 * 会话的信插进来时，父会话不再干等它派出去的子代理（见 `delegation-waits.ts`）；后台结果的
+	 * 送达不是在找人，它只是排进去，不打断任何人。
 	 */
 	private async submit(
 		message: Message,
@@ -875,13 +875,13 @@ export class AgentSession {
 			const went = this.inbox.accept({ message, thinking: options.thinking }, options.deliver, this.activity.steerable);
 			if (went === "steer") {
 				/*
-				 * 人开口了，父会话别再干等子代理。
+				 * 有人找它了（人开口，或另一个会话插进来一封信），父会话别再干等子代理。
 				 *
 				 * 插话只在两轮之间才有人取，而父会话正卡在一个 `task` 上的时候，「两轮之间」要等到
 				 * 子代理全部跑完——十几分钟。放手之后这一轮当场往下走，下一个回合开头就读到这句话；
-				 * 子代理留在后台接着跑，跑完的结果另外送回来。
+				 * 子代理留在后台接着跑，跑完的结果另外送回来。谁算「有人找」见 `addressed`。
 				 */
-				if (options.fromPerson) this.delegations.release();
+				if (options.fromPerson || addressed(message)) this.delegations.release();
 			}
 			return;
 		}

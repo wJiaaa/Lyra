@@ -17,6 +17,7 @@ import type { AgentEvent } from "../src/agent/events.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { deliveryMessage } from "../src/runtime/sub-agent/delegation-waits.ts";
 import { SessionInbox } from "../src/runtime/session-inbox.ts";
+import { peerMessage } from "../src/runtime/peer-letters.ts";
 import { AgedToolPruner } from "../src/agent/aged-prune.ts";
 import { FRESH_RESULT_MAX_CHARS, pruneToolResults } from "../src/agent/prune.ts";
 import { SessionStore } from "../src/session/store.ts";
@@ -203,6 +204,37 @@ test("排着的只有运行时的消息时照旧等：送达不是人在说话",
 	assert.equal(inbox.spoken, true);
 	inbox.takeSteering();
 	assert.equal(inbox.spoken, false, "取走之后就没有没读到的话了");
+	inbox.accept({ message: peerMessage([{ sessionId: "s-b", from: "测试 B [b2b2b2]", text: "构建好了吗" }]) }, "steer", true);
+	assert.equal(inbox.spoken, true, "另一个会话插进来的信也是在找人，虽然它和送达一样是运行时写的");
+});
+
+// 有上限：放手没接上时 `await first` 会一直等那个永不交差的子代理，整个文件挂住，看不出是哪条坏了。
+test("另一个会话的信插进来，父会话同样不再干等子代理；排队的信不打断", { timeout: 10_000 }, async () => {
+	const h = await harness();
+	try {
+		const first = h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
+		await until(() => h.session.subAgents.list()[0]?.status === "running", "子代理开跑");
+
+		// 排队的信说的是「这一轮做完再看」：照旧等子代理交差。
+		h.session.receive({ sessionId: "s-b", from: "测试 B [b2b2b2]", text: "不急，做完再看" }, "followUp");
+		await new Promise((resolve) => setTimeout(resolve, 600));
+		assert.equal(h.main.length, 1, "排队的信没有把等待放掉");
+
+		h.session.receive({ sessionId: "s-b", from: "测试 B [b2b2b2]", text: "构建好了吗" }, "steer");
+		await first;
+
+		// `prompt` 连排在这一轮之后的也一起等完：第二次请求是放手后接着走的这一轮，第三次是那封排队的信。
+		assert.equal(h.main.length, 3);
+		const detached = h.main[1].messages.find((message) => message.role === "toolResult");
+		assert.match(detached ? textOf(detached) : "", /转到后台继续跑/, "插进来的信放开了等待，这一轮当场往下走");
+		const said = (context: LlmContext, text: string) => context.messages.some((message) => message.role === "user" && textOf(message).includes(text));
+		assert.ok(said(h.main[1], "构建好了吗"), "下一轮开头就读到了插进来的那封信");
+		assert.ok(!said(h.main[1], "不急，做完再看"), "排队的信不插进这一轮");
+		assert.ok(said(h.main[2], "不急，做完再看"), "这一轮做完才轮到它");
+		assert.equal(h.session.subAgents.list()[0]?.status, "running", "子代理没被打扰");
+	} finally {
+		await h.cleanup();
+	}
 });
 
 test("放手之后人按了停止：后台那个也停，停下的结果不再把主会话叫醒", async () => {
