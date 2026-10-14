@@ -143,6 +143,21 @@ test("只读的 shell 命令和读、搜是同一段探索，跑别的命令另�
 	assert.deepEqual(items(blocks[1]), ["step(read,bash,grep)", "step(bash)"]);
 });
 
+test("命令还在生成的 bash 先不画，到齐后直接落进它那一段，不在底下先冒一行", () => {
+	// 生成中：`arguments` 还是空的，只有 `argumentsText` 在长。
+	const streaming = (args: Record<string, unknown>): Run => ({
+		kind: "tools",
+		calls: [{ block: { type: "toolCall", id: "c-streaming", name: "bash", arguments: args, argumentsText: '{"command":"sed -n 1' }, stopReason: "pending" }],
+	} as Run);
+	const read = work(["read"]);
+	const during = turnBlocks([ask("看看", 0), read, streaming({})]);
+	const after = turnBlocks([ask("看看", 0), read, streaming({ command: "sed -n 1,3p a.ts" })]);
+	assert.deepEqual(items(during[1]), ["step(read)"], "命令没到齐，转录上还没有它");
+	assert.deepEqual(items(after[1]), ["step(read,bash)"], "到齐了就在探索那一段里");
+	assert.equal(during[1].items[0].key, after[1].items[0].key, "那一段还是原来那一行，没有换");
+	assert.deepEqual(items(turnBlocks([ask("看看", 0), read, { ...streaming({}), calls: [{ ...(streaming({}) as { calls: { block: object }[] }).calls[0], stopReason: "aborted" }] } as Run])[1]), ["step(read)", "step(bash)"], "这一轮停在半路：照旧画出来");
+});
+
 test("关掉的那一类每次调用自成一行，开关管不着的几类照旧合", () => {
 	const list = [ask("改一下", 0), work(["read", "grep"]), work(["edit", "write"]), shell("pnpm build"), shell("pnpm test"), work(["browser_open", "browser_act"])];
 	const off = { groupExplore: false, groupTerminal: false, groupChanges: false };

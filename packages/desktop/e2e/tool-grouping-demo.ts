@@ -98,6 +98,8 @@ async function seed(home: string): Promise<void> {
 		defaultModelId: "local/scripted",
 		permissionMode: "full",
 		thinking: "off",
+		// 这段要验的是「思考 N 次」怎么写进那一行，推理得画出来。
+		showThinking: true,
 		retryAttempts: 1,
 		hooks: [],
 		scheduledTasks: [],

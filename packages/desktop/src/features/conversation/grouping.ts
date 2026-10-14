@@ -900,6 +900,18 @@ export function turnBlocks(list: Run[], grouping: ToolGrouping = MERGE_ALL): Tur
 	return out;
 }
 
+/**
+ * 一条 bash 的命令还在生成：先不画，命令到齐时直接出现在它该在的那一段里。
+ *
+ * 归哪一类要看命令（`toolCategory`），而参数没生成完时 `arguments` 是空的，只有 `argumentsText` 在长（见各家
+ * provider 的 `toolcall_end`）。按空参数先算终端，一条 `sed -n` 会先在底下冒一行、几百毫秒后再并进上面的探索；
+ * 按写了一半的命令算也不行：`se` 还不是 `sed`，`cat > f <<EOF` 写到 `>` 之前像是在读。ZCode 也是这么做的。
+ * 代价是生成一条长命令（大段 heredoc）的那几秒里，这条调用还不在转录上，锚的计时照走。
+ */
+function unclassified(call: Call): boolean {
+	return call.block.name === "bash" && call.stopReason === "pending" && typeof call.block.arguments?.command !== "string";
+}
+
 function itemsOf(body: Run[], grouping: ToolGrouping): TurnItem[] {
 	// 最后一次过程之后的都是回答。
 	let last = -1;
@@ -920,6 +932,7 @@ function itemsOf(body: Run[], grouping: ToolGrouping): TurnItem[] {
 		if (run.kind === "compaction") return;
 		if (run.kind === "tools" && !run.shown) {
 			for (const call of run.calls) {
+				if (unclassified(call)) continue;
 				const category = toolCategory(call.block.name, call.block.arguments);
 				const before = thoughts.map(({ run: thought }) => ({ kind: "thinking" as const, run: thought }));
 				thoughts = [];
