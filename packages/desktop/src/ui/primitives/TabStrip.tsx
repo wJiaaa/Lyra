@@ -93,13 +93,13 @@ export function TabStrip<T extends string>({
 			// Not a tab stop of its own — focus lands on the chosen tab — but the arrow keys bubble here.
 			tabIndex={-1}
 			onKeyDown={onKeyDown}
-			className={`ly-tabs relative flex max-w-full items-center overflow-x-auto rounded-full p-[3px] [scrollbar-width:none] ${className}`}
+			className={`ly-tabs relative flex max-w-full items-center overflow-x-auto rounded-lg p-[3px] [scrollbar-width:none] ${className}`}
 		>
 			{knob && (
 				<span
 					aria-hidden
 					data-ready={ready || undefined}
-					className="ly-tabs-knob pointer-events-none absolute inset-y-[3px] left-0 rounded-full data-[ready]:transition-[transform,width] data-[ready]:duration-[var(--ly-t-base)] data-[ready]:ease-[var(--ly-e-out)]"
+					className="ly-tabs-knob pointer-events-none absolute inset-y-[3px] left-0 rounded-md data-[ready]:transition-[transform,width] data-[ready]:duration-[var(--ly-t-base)] data-[ready]:ease-[var(--ly-e-out)]"
 					style={{ width: knob.width, transform: `translateX(${knob.left}px)` }}
 				/>
 			)}
@@ -114,7 +114,7 @@ export function TabStrip<T extends string>({
 						aria-selected={current}
 						tabIndex={current ? 0 : -1}
 						onClick={() => onChange(item.id)}
-						className={`relative z-10 flex h-[28px] shrink-0 items-center gap-1.5 rounded-full px-3.5 text-label whitespace-nowrap transition-[color,transform] duration-[var(--ly-t-quick)] active:scale-[0.97] ${
+						className={`relative z-10 flex h-[28px] shrink-0 items-center gap-1.5 rounded-md px-3.5 text-label whitespace-nowrap transition-[color,transform] duration-[var(--ly-t-quick)] active:scale-[0.97] ${
 							current ? "font-medium text-ink" : "text-ink-muted hover:text-ink"
 						}`}
 					>

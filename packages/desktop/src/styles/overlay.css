@@ -400,15 +400,11 @@ div.ly-field {
  * 只在这几处：别处（输入区、侧栏）的控件仍是 `--radius-field` 的胶囊，所以不改那个 token，
  * 在这里覆盖。设置页按整页算而不是只算卡片：页头的「新建」、卡片外的搜索框也在这一页上，
  * 只收卡片里的，它们就成了同一页上唯一的胶囊。
- * 分段选择里滑动的底和每一格比外框小一圈内边距（2px），是 6px，内外两道圆弧才同心。
+ * 分段控件不在这里：它在哪儿都是小圆角，写在组件自己身上（`Segmented`、`TabStrip`）。
  */
-:is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) :is(.ly-field, .ly-dialog-action, [data-segmented], .ly-textarea-shell),
+:is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) :is(.ly-field, .ly-dialog-action, .ly-textarea-shell),
 :is([data-ly-popover], [data-ly-popover-ghost]) .ly-field {
 	border-radius: var(--radius-lg);
-}
-
-:is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) [data-segmented] :is([data-segment], [data-segment-rail]) {
-	border-radius: var(--radius-md);
 }
 
 .ly-field.ly-field-invalid,

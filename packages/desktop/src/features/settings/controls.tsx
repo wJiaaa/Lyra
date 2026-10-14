@@ -74,6 +74,9 @@ export function Toggle({
  * 位置是量出来的，不是按等分算的：「费用」和「Token」不一样宽，任何按份数算的写法在第一个中英
  * 混排的标签上就错了。量在 layout effect 里，赶在这一帧画出来之前——晚一帧的话，第一次渲染就
  * 能看见那块底从左上角飞过来。
+ *
+ * 圆角在哪儿都是外框 8px、滑块和每一格 6px：内衬 2px，两道圆弧才同心。和 `TabStrip` 是同一种控件，
+ * 一个是胶囊、一个是小圆角时，同一页上看着像两套东西。
  */
 export function Segmented<T extends string>({
 	value,
@@ -101,13 +104,13 @@ export function Segmented<T extends string>({
 	}, [value, options]);
 
 	return (
-		<div ref={box} data-segmented="" className="relative flex gap-0.5 rounded-full bg-card p-0.5">
+		<div ref={box} data-segmented="" className="relative flex gap-0.5 rounded-lg bg-card p-0.5">
 			{/* 量到之前不画。它一出现就已经在正确的位置上，不需要一段从零滑过来的开场。 */}
 			{rail && (
 				<span
 					aria-hidden
 					data-segment-rail=""
-					className="absolute top-0.5 bottom-0.5 left-0 rounded-full bg-elevated transition-[transform,width] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
+					className="absolute top-0.5 bottom-0.5 left-0 rounded-md bg-elevated transition-[transform,width] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)]"
 					style={{ width: rail.width, transform: `translateX(${rail.left}px)` }}
 				/>
 			)}
@@ -121,7 +124,7 @@ export function Segmented<T extends string>({
 					aria-pressed={value === option.value}
 					onClick={() => onChange(option.value)}
 					// `relative` 把字提到那块底上面；没有它，滑过去的底会盖住它正要标出的那个词。
-					className={`relative h-[26px] rounded-full text-label transition-[color,transform] duration-[var(--ly-t-quick)] active:scale-[0.97] ${
+					className={`relative h-[26px] rounded-md text-label transition-[color,transform] duration-[var(--ly-t-quick)] active:scale-[0.97] ${
 						// A glyph wants a square; a word wants room either side of it.
 						option.icon ? "grid w-[30px] place-items-center" : "px-3"
 					} ${value === option.value ? "text-ink" : "text-ink-muted hover:text-ink"}`}

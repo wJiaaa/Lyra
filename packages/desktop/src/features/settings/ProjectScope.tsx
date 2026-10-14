@@ -48,7 +48,7 @@ export function ProjectScope({
 				data-ly-project-scope=""
 				aria-haspopup="menu"
 				aria-expanded={menu.open}
-				className="flex h-[34px] max-w-[180px] shrink-0 items-center gap-1.5 rounded-full px-3.5 text-label text-ink ring-1 ring-inset ring-line transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover aria-expanded:bg-card-hover"
+				className="flex h-[34px] max-w-[180px] shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-label text-ink ring-1 ring-inset ring-line transition-colors duration-[var(--ly-t-quick)] hover:bg-card-hover aria-expanded:bg-card-hover"
 			>
 				{iconOf(value)}
 				<span className="min-w-0 truncate">{value?.name ?? t("common.user")}</span>
