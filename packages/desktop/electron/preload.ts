@@ -159,6 +159,11 @@ const extras = {
 			ipcRenderer.on("sessions:changed", listener);
 			return () => ipcRenderer.removeListener("sessions:changed", listener);
 		},
+		onSummaryChanged: (handler) => {
+			const listener = (_event: Electron.IpcRendererEvent, update: Parameters<typeof handler>[0]) => handler(update);
+			ipcRenderer.on("sessions:summaryChanged", listener);
+			return () => ipcRenderer.removeListener("sessions:summaryChanged", listener);
+		},
 	},
 	browser: {
 		onChanged: (handler) => {

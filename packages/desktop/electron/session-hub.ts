@@ -19,7 +19,7 @@ import type { SessionSnapshot, PlumeApi } from "./ipc-types.ts";
 import { createStoredSession, type InitialPrompt } from "./create-session.ts";
 import { initialPrompt, promptContent, promptOptions } from "./prompt-input.ts";
 import { ensureSessionWorkspace, ownWorkspace } from "./scratch.ts";
-import { removeSummary } from "./session-summary.ts";
+import { removeSummary, summarize, summarizeAfterTurn, type SummaryUpdate } from "./session-summary.ts";
 import { nativeText } from "./i18n.ts";
 import { notifyAgentEvent } from "./notify.ts";
 import { slimSnapshot } from "./display-transcript.ts";
@@ -81,6 +81,20 @@ const archives = archiveAfterTurn({
 	busy: (id) => sessions.get(id)?.running ?? false,
 	archived: async (id) => (await deps.store().listSessions()).some((one) => one.id === id && one.archived === true),
 	dispose: (id) => disposeSession(id, "archived"),
+});
+/** 环境卡片里那段摘要：一轮结束、静下来一分钟后在后台生成，推给开着的窗口。 */
+const summaries = summarizeAfterTurn({
+	busy: (id) => sessions.get(id)?.running ?? false,
+	run: async (id) => {
+		const publish = (update: SummaryUpdate) => eachAppWindow((win) => win.webContents.send("sessions:summaryChanged", update));
+		publish({ sessionId: id, pending: true });
+		try {
+			publish({ sessionId: id, pending: false, ...(await summarize(id, { store: deps.store(), settings: deps.settings(), liveMessages: sessions.get(id)?.messages })) });
+		} catch (error) {
+			publish({ sessionId: id, pending: false, error: String(error) });
+			throw error;
+		}
+	},
 });
 /** 和 `peerTools` 一样每个会话共用一份：工具本身不带状态，是谁调的看 `ctx.sessionId`。 */
 const sessionOps = createSessionOpsTools({ archiveAfterTurn: (id) => archives.request(id) });
@@ -251,6 +265,8 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
 	// 侧边聊天是开着面板、人正看着问的，不发系统通知；手机端也不认识这种会话。
 	const side = Boolean(sessions.get(sessionId)?.parent);
 	if (!side) deps.remoteEvent?.({ type: "agent_event", sessionId, event });
+	// 侧边聊天没有环境卡片，也就没有摘要。
+	if (!side) summaries.observe(sessionId, event);
 	// 活会话的回复不经过快照：这一轮刚交付、链着验证截图的那条，正是人马上要点的。
 	if (event.type === "message_end") noteTranscriptFiles([event.message]);
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));

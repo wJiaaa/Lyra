@@ -56,7 +56,7 @@ import type { ClearRange, ClearResult, StorageUse } from "./session-cleanup.ts";
 import type { UsageScan } from "./usage-scan.ts";
 export type { OpenTarget } from "./open-targets.ts";
 import type { OpenTarget } from "./open-targets.ts";
-import type { StoredSummary, SummarizeResult } from "./session-summary.ts";
+import type { StoredSummary, SummarizeResult, SummaryUpdate } from "./session-summary.ts";
 
 export type UpdatePhase = DownloadPhase;
 
@@ -352,6 +352,8 @@ export interface PlumeApi {
 	};
 	sessions: {
 		onChanged(handler: (change: SessionChange) => void): () => void;
+		/** 后台生成摘要开始和结束时各推一次（一轮结束、静下来一分钟后）。 */
+		onSummaryChanged(handler: (update: SummaryUpdate) => void): () => void;
 		list(): Promise<SessionMeta[]>;
 		/**
 		 * `initial.worktree`: this conversation in a worktree of its own, or not; absent follows the setting.

@@ -1,5 +1,9 @@
 /**
- * 会话摘要：存在哪、怎么生成。环境卡片开着、这一轮结束空闲一会儿后由渲染层来要。
+ * 会话摘要：存在哪、怎么生成、什么时候生成。
+ *
+ * 一轮结束、一分钟里没有下一轮，就在后台生成（`summarizeAfterTurn`），不管卡片开没开。原先由
+ * 卡片开着时渲染层来要，于是点开一个早就停下的旧会话也会立刻花一次，而真在干活的会话不点开就一直
+ * 没有。现在花钱只跟「这个会话刚干完一段活」走，翻旧会话只读存着的那份。
  *
  * 存成旁挂文件 `~/.plume/summaries/<会话>.json`，不写进会话记录。写进记录有两处要出事：
  * 记一笔用量会把会话的 `updatedAt` 改成现在，每生成一次摘要它就被顶到侧栏最上面；而正在跑的
@@ -19,6 +23,7 @@ import {
 	streamAssistant,
 	summarizeSession,
 	writeFileAtomic,
+	type AgentEvent,
 	type Message,
 	type SessionStorage,
 	type Settings,
@@ -32,6 +37,12 @@ export interface StoredSummary {
 }
 
 export type SummarizeResult = { summary: StoredSummary | null; error?: string };
+
+/** 推给窗口的那一份：后台开始生成时 `pending` 为真，生成完带着结果再推一次。 */
+export type SummaryUpdate = { sessionId: string; pending: boolean; summary?: StoredSummary | null; error?: string };
+
+/** 一轮结束后静多久才生成：一问一答连着来的时候，不为每一轮各花一次。 */
+const AFTER_TURN_IDLE_MS = 60_000;
 
 function fileFor(sessionId: string): string {
 	if (!sessionId || /[\\/\0:]/.test(sessionId) || sessionId === "." || sessionId === "..") throw new Error("Invalid session id");
@@ -96,4 +107,31 @@ async function run(sessionId: string, { store, settings, liveMessages }: { store
 	await mkdir(join(plumeHome(), "summaries"), { recursive: true });
 	await writeFileAtomic(fileFor(sessionId), JSON.stringify(stored));
 	return { summary: stored };
+}
+
+/**
+ * 每轮结束后排一次，下一轮开始就撤掉；到点时这个会话还在跑（排队的下一轮已经接上）也不要。
+ * 有没有新的话由 `summarize` 判断，没有就不发请求，所以一轮只跑了工具不说话也不会白花。
+ */
+export function summarizeAfterTurn(deps: { busy(sessionId: string): boolean; run(sessionId: string): Promise<void>; idleMs?: number }) {
+	const timers = new Map<string, ReturnType<typeof setTimeout>>();
+	const cancel = (sessionId: string) => {
+		clearTimeout(timers.get(sessionId));
+		timers.delete(sessionId);
+	};
+	return {
+		observe(sessionId: string, event: AgentEvent): void {
+			if (event.type === "agent_start") cancel(sessionId);
+			if (event.type !== "agent_end") return;
+			cancel(sessionId);
+			const timer = setTimeout(() => {
+				timers.delete(sessionId);
+				if (deps.busy(sessionId)) return;
+				void deps.run(sessionId).catch((error: unknown) => console.error("[session-summary] background summary failed", error));
+			}, deps.idleMs ?? AFTER_TURN_IDLE_MS);
+			// 退出应用不等它：没生成的那份，下一轮结束时会连同新的话一起补上。
+			timer.unref?.();
+			timers.set(sessionId, timer);
+		},
+	};
 }

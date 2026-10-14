@@ -1,15 +1,11 @@
 /**
  * 一段话的会话摘要。
  *
- * 什么时候去要一份新的，照 Synara 的 recap 定，三条都为了不白花钱：
+ * 这里不决定什么时候生成：主进程在每轮结束、静下来一分钟后自己去要（`electron/session-summary.ts`
+ * 的 `summarizeAfterTurn`），卡片只读存着的那份、听它推来的新一份。原先由这里掐表去要，点开一个
+ * 早就停下的旧会话就立刻花一次。
  *
- * - 卡片开着才要。这一节挂在卡片里，卡片关着它不存在，也就不会去要。
- * - 这一轮还在跑时不要：答到一半的话概括出来，下一秒就过期。
- * - 静下来一会儿再要：第一次等 12 秒，之后每次等 35 秒，从最后一条消息算起。一个早就停下的会话，
- *   打开卡片立刻就要；聊得正热的会话不会每一句都触发一次。
- *
- * 要不要发请求最后由主进程判断（`summaryMaterial`：上一份之后有没有新的话），这里只管时机。失败了
- * 不自动重试同一段材料，留一个「重试」给人点。
+ * 还没有摘要时整节不占位，只在后台真在生成的那几秒画骨架。失败了留一个「重试」给人点。
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -21,9 +17,6 @@ import { SkeletonBar } from "../../ui/primitives/Skeleton.tsx";
 import { exactTime, shortRelativeTime } from "../../lib/relative-time.ts";
 import type { StoredSummary } from "../../../electron/session-summary.ts";
 import { Section, SectionLabel } from "./rows.tsx";
-
-const FIRST_IDLE_MS = 12_000;
-const REFRESH_IDLE_MS = 35_000;
 
 /** 最后一条人或 agent 说出来的话是什么时候——只有它会让摘要过期，工具调用不会。 */
 function lastSpoken(messages: readonly Message[]): number | null {
@@ -52,54 +45,47 @@ function UpdatedAt({ at }: { at: number }) {
 	);
 }
 
-type State = { sessionId: string; summary: StoredSummary | null; loaded: boolean; pending: boolean; error: string | null; failedAt: number | null };
+type State = { sessionId: string; summary: StoredSummary | null; pending: boolean; error: string | null };
+
+/** 留更新的那份：读盘的那一下可能比后台推来的新一份还晚回来。 */
+const newer = (held: StoredSummary | null, next: StoredSummary | null | undefined) =>
+	next && (!held || next.updatedAt >= held.updatedAt) ? next : held;
 
 export function SummarySection({ sessionId }: { sessionId: string }) {
 	const { t } = useI18n();
 	const messages = useScopedMessages();
 	const running = useScopedRunning();
 	const latest = useMemo(() => lastSpoken(messages), [messages]);
-	const [state, setState] = useState<State>({ sessionId, summary: null, loaded: false, pending: false, error: null, failedAt: null });
-	const current = state.sessionId === sessionId ? state : { sessionId, summary: null, loaded: false, pending: false, error: null, failedAt: null };
+	const [state, setState] = useState<State>({ sessionId, summary: null, pending: false, error: null });
+	const current = state.sessionId === sessionId ? state : { sessionId, summary: null, pending: false, error: null };
 
 	useEffect(() => {
 		let live = true;
-		setState({ sessionId, summary: null, loaded: false, pending: false, error: null, failedAt: null });
+		setState({ sessionId, summary: null, pending: false, error: null });
 		void bridge.sessions.summary(sessionId).then(
-			(summary) => live && setState((now) => (now.sessionId === sessionId ? { ...now, summary, loaded: true } : now)),
-			() => live && setState((now) => (now.sessionId === sessionId ? { ...now, loaded: true } : now)),
+			(summary) => live && setState((now) => (now.sessionId === sessionId ? { ...now, summary: newer(now.summary, summary) } : now)),
+			() => {},
 		);
+		const off = bridge.sessions.onSummaryChanged((update) => {
+			if (update.sessionId !== sessionId) return;
+			setState((now) => (now.sessionId !== sessionId ? now : { ...now, pending: update.pending, summary: newer(now.summary, update.summary), error: update.pending ? null : (update.error ?? null) }));
+		});
 		return () => {
 			live = false;
+			off();
 		};
 	}, [sessionId]);
 
-	const stale = latest !== null && (!current.summary || latest > current.summary.upto);
-	const generate = () => {
+	const stale = latest !== null && current.summary !== null && latest > current.summary.upto;
+	const retry = () => {
 		setState((now) => ({ ...now, pending: true, error: null }));
 		void bridge.sessions.summarize(sessionId).then(
-			(result) =>
-				setState((now) =>
-					now.sessionId !== sessionId
-						? now
-						: { ...now, pending: false, summary: result.summary ?? now.summary, error: result.error ?? null, failedAt: result.error ? latest : null },
-				),
-			(error: unknown) => setState((now) => (now.sessionId !== sessionId ? now : { ...now, pending: false, error: String(error), failedAt: latest })),
+			(result) => setState((now) => (now.sessionId !== sessionId ? now : { ...now, pending: false, summary: newer(now.summary, result.summary), error: result.error ?? null })),
+			(error: unknown) => setState((now) => (now.sessionId !== sessionId ? now : { ...now, pending: false, error: String(error) })),
 		);
 	};
 
-	const due = current.loaded && stale && !running && !current.pending && current.failedAt !== latest;
-	useEffect(() => {
-		if (!due || latest === null) return;
-		const idle = current.summary ? REFRESH_IDLE_MS : FIRST_IDLE_MS;
-		const timer = window.setTimeout(generate, Math.max(0, latest + idle - Date.now()));
-		return () => window.clearTimeout(timer);
-		// `generate` 每次渲染都是新的，时机只由这几样决定。
-		// oxlint-disable-next-line exhaustive-deps
-	}, [due, latest, sessionId, Boolean(current.summary)]);
-
-	// 一句话都还没说过：没有可概括的，整节不占位置。
-	if (latest === null && !current.summary) return null;
+	if (!current.summary && !current.pending && !current.error) return null;
 
 	return (
 		<Section name="summary">
@@ -118,11 +104,11 @@ export function SummarySection({ sessionId }: { sessionId: string }) {
 					{current.error ? (
 						<>
 							<span className="min-w-0 truncate" data-ly-tip={current.error}>{t("environment.summaryFailed")}</span>
-							<button type="button" className="shrink-0 text-accent hover:underline" onClick={generate}>
+							<button type="button" className="shrink-0 text-accent hover:underline" onClick={retry}>
 								{t("common.retry")}
 							</button>
 						</>
-					) : stale && current.summary ? (
+					) : current.summary && stale && (running || current.pending) ? (
 						<>
 							<span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
 							<span className="truncate">{running ? t("environment.summaryAfterTurn") : t("environment.summaryUpdating")}</span>

@@ -3,6 +3,9 @@
  * 环境卡片，在真窗口里从头点一遍：标题栏开关、让位、用什么打开、后台任务、子 Agent、侧边聊天、
  * 摘要（含设置里选的摘要模型）、引用（缩略图、文件、跳回那一轮）、逐节开关。
  *
+ * 摘要由主进程在一轮结束、静下来一分钟后生成，卡片只读：种进去一份存好的，打开卡片不该花钱；跑完
+ * 一轮等那一分钟，它自己更新。三天前的旧会话点开也不花钱；人只说了一句的新会话也不要，说到第三句才要。
+ *
  * 模型是本地一个假的 Anthropic 端点：摘要请求按系统提示认出来，回一段固定的话，并记下它点的是
  * 哪个模型；主会话收到 ENV_GO 时派一个后台命令和一个子 Agent，子 Agent 每一步慢几秒，好让「在跑」
  * 停得够久。拉取请求那一节要 GitHub 账号，这里不验。
@@ -20,7 +23,7 @@ import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 
 import { closeListeningServer, startApp, type RunningApp } from "./app.ts";
-import { click, frames, openSession, openSettings, until } from "./drive.ts";
+import { click, frames, openSession, openSettings, press, type, until } from "./drive.ts";
 import { seedSessions, sideSession, type FixtureRecord } from "./session-fixture.ts";
 import { encode, frameGrabber, pause, type Frame } from "./record.ts";
 
@@ -28,8 +31,10 @@ const out = process.argv[2] ?? join(homedir(), "Desktop", "Plume环境面板测�
 const stamp = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).replace(/[: ]/g, "-").slice(0, 16);
 const PORT = 9827;
 const SESSION = "env-demo";
-const SUMMARY_ONE = "在给登录页做改版：已收下设计稿和需求文档，新建了 src/new-page.tsx，生成了一张图标；接下来对接接口。";
-const SUMMARY_TWO = "登录页改版进行中：设计稿、需求文档已收，新页面和图标已出；开发服务器在后台跑，子 Agent 查到登录入口在 src/auth.ts。";
+const OLD_SESSION = "env-old";
+const SUMMARY_SEEDED = "在给登录页做改版：已收下设计稿和需求文档，新建了 src/new-page.tsx，生成了一张图标；接下来对接接口。";
+const SUMMARY_NEXT = "登录页改版进行中：设计稿、需求文档已收，新页面和图标已出；开发服务器在后台跑，子 Agent 查到登录入口在 src/auth.ts。";
+const SUMMARY_FRESH = "新会话：问了建议新会话是怎么个流程，已经答完。";
 const checks: { name: string; ok: boolean; measured: unknown }[] = [];
 const check = (name: string, ok: boolean, measured: unknown) => {
 	checks.push({ name, ok, measured });
@@ -89,7 +94,12 @@ const server = createServer((req, res) => {
 		const text = JSON.stringify(body.messages);
 		if (JSON.stringify(body.system ?? "").includes("实时摘要")) {
 			seen.summaries.push({ model: body.model, prompt: text });
-			reply(res, { text: seen.summaries.length === 1 ? SUMMARY_ONE : SUMMARY_TWO });
+			// 新会话那份慢一点：骨架只在请求发出去的这几秒出现，要停得够久才看得见。
+			if (text.includes("SLOW_GO")) {
+				setTimeout(() => reply(res, { text: SUMMARY_FRESH }), 2500);
+				return;
+			}
+			reply(res, { text: SUMMARY_NEXT });
 			return;
 		}
 		// 只看最近那句 ENV_GO 之后的：种进去的历史里本来就有工具结果，不能当成这一轮已经派过了。
@@ -103,6 +113,11 @@ const server = createServer((req, res) => {
 				] });
 			} else if (text.includes("src/auth.ts")) reply(res, { text: "子 Agent 查到了：登录入口在 `src/auth.ts`。开发服务器在后台跑着。" });
 			else reply(res, { text: "等子 Agent 回来。" });
+			return;
+		}
+		if (text.includes("SLOW_GO")) {
+			// 第一轮要跑得够久，才看得出「跑着时摘要那一节不占位」。
+			setTimeout(() => reply(res, { text: "慢慢答完了。" }), 6000);
 			return;
 		}
 		if (text.includes("SUB_TASK")) {
@@ -179,7 +194,19 @@ async function seed(home: string, modelPort: number): Promise<void> {
 		{ role: "user", content: [{ type: "text", text: "第三方登录按钮放上面还是下面？" }], timestamp: base + 30 * 60_000 },
 		{ role: "assistant", content: [{ type: "text", text: "放在表单下面，和设计稿一致。" }], api: "anthropic-messages", provider: "qa", model: "model", usage, stopReason: "stop", timestamp: base + 31 * 60_000 },
 	] as never, { createdAt: base + 30 * 60_000, updatedAt: base + 31 * 60_000 });
-	seedSessions(home, [{ meta: meta as never, records }, side]);
+	// 三天前停下、从没要过摘要的旧会话：点开它不该花钱。
+	const long = Date.now() - 3 * 86_400_000;
+	const oldMessages = [
+		{ role: "user", content: [{ type: "text", text: "旧会话里问过的一句" }], timestamp: long },
+		{ role: "assistant", content: [{ type: "text", text: "旧会话里答过的一句。" }], api: "anthropic-messages", provider: "qa", model: "model", usage, stopReason: "stop", timestamp: long + 60_000 },
+	];
+	const oldMeta = { id: OLD_SESSION, title: "三天前的旧会话", cwd, projectId, projectName: "登录页改版", createdAt: long, updatedAt: long + 60_000, modelId: "qa/model", messageCount: oldMessages.length, usage, seq: 0 };
+	const oldRecords: FixtureRecord[] = [{ type: "meta", meta: oldMeta, seq: 0, ts: long } as FixtureRecord, ...oldMessages.map((message) => ({ type: "message", message, ts: message.timestamp }) as FixtureRecord)];
+	seedSessions(home, [{ meta: meta as never, records }, side, { meta: oldMeta as never, records: oldRecords }]);
+	// 早些时候后台生成过的那份，概括到最后六轮之前：之后人又说了六句，下一轮结束时够门槛（人又说了两句）再要。
+	const coveredUpTo = (messages[messages.length - 13] as { timestamp: number }).timestamp;
+	await mkdir(join(home, "summaries"), { recursive: true });
+	await writeFile(join(home, "summaries", `${SESSION}.json`), JSON.stringify({ text: SUMMARY_SEEDED, upto: coveredUpTo, updatedAt: coveredUpTo + 60_000 }));
 
 	const model = (id: string, name: string) => ({ id: `qa/${id}`, providerId: "qa", modelId: id, name, contextWindow: 128000, maxOutputTokens: 4096, supportsImages: true, supportsTools: true, supportsThinking: false });
 	await writeFile(join(home, "window.json"), JSON.stringify({ width: 1440, height: 900, x: 40, y: 40 }));
@@ -272,7 +299,7 @@ try {
 	check("卡片宽 300px，输入框右沿在卡片左沿之左（让位，不重叠）", lane.card.width === 300 && lane.composer.right > 0 && lane.composer.right <= lane.card.left, lane);
 
 	// 3. 各节都在、顺序对
-	await waitFor(`document.querySelector("[data-ly-environment-section=sideChats]")`);
+	await waitFor(`document.querySelector("[data-ly-environment-section=sideChats]") && document.querySelector("[data-ly-environment-section=summary]")`);
 	const order = await sections();
 	check("各节按顺序出现：打开 → 侧边聊天 → 摘要 → 引用（还没有后台任务和子 Agent，那两节不占位）", JSON.stringify(order) === JSON.stringify(["openIn", "sideChats", "summary", "references"]), order);
 
@@ -287,16 +314,13 @@ try {
 	check("点箭头展开目标菜单，至少列出一个目标", targets.length >= 1, targets);
 	await escape();
 
-	// 5. 摘要：卡片一开、会话早就静下来了，立刻去要；用的是设置里选的摘要模型
-	await waitFor(`document.querySelector("[data-ly-environment-summary]")`, 20_000);
-	await pause(800);
+	// 5. 摘要：存着的那份直接显示，打开卡片不发请求
+	await waitFor(`document.querySelector("[data-ly-environment-summary]")`, 10_000);
+	await pause(2500);
 	const summary = await $<{ text: string; foot: string }>(`(()=>{const p=document.querySelector("[data-ly-environment-summary]");return {text:p.innerText.trim(),foot:p.nextElementSibling?.innerText.trim()??""};})()`);
-	check("摘要显示出来，是模型给的那段话", summary.text === SUMMARY_ONE, summary.text);
-	check("刚生成的摘要底下写「刚刚更新」", summary.foot === "刚刚更新", summary.foot);
-	check("摘要请求打到了设置里选的摘要模型（qa/summary），不是会话模型", seen.summaries.length === 1 && seen.summaries[0]!.model === "summary", seen.summaries.map((s) => s.model));
-	check("第一次摘要的材料里没有上一份", seen.summaries[0]?.prompt.includes("（没有）") === true, seen.summaries[0]?.prompt.slice(0, 80));
-	const stored = JSON.parse(await readFile(join(page.home, "summaries", `${SESSION}.json`), "utf8")) as { text: string };
-	check("摘要落在旁挂文件 summaries/<会话>.json", stored.text === SUMMARY_ONE, stored);
+	check("存着的摘要直接显示出来", summary.text === SUMMARY_SEEDED, summary.text);
+	check("底下写着它是什么时候更新的", /^\d+ ?\S+前更新$/.test(summary.foot), summary.foot);
+	check("打开卡片不发摘要请求", seen.summaries.length === 0, seen.summaries.length);
 	await shot("03_卡片全貌_摘要和引用");
 
 	// 6. 引用：两张图（附件、生成的），三个文件（附件、@ 引用、新建），改过的 README 和读过的不算
@@ -386,10 +410,12 @@ try {
 	await waitFor(`!document.querySelector("[data-ly-environment-job]")`, 15_000);
 	check("悬停点停止，那一行从卡片上消失", true, "gone");
 
-	// 9. 这一轮结束、静下来 35 秒后摘要自己更新，材料带着上一份
-	await waitFor(`document.querySelector("[data-ly-environment-summary]")?.innerText.trim() === ${JSON.stringify(SUMMARY_TWO)}`, 70_000);
+	// 9. 这一轮结束、静下来一分钟后，主进程自己更新摘要，材料带着上一份
+	await waitFor(`document.querySelector("[data-ly-environment-summary]")?.innerText.trim() === ${JSON.stringify(SUMMARY_NEXT)}`, 120_000);
 	await pause(800);
-	check("一轮结束后摘要在上一份上更新了", seen.summaries.length === 2 && seen.summaries[1]!.prompt.includes(SUMMARY_ONE.slice(0, 12)), seen.summaries.map((s) => s.prompt.slice(0, 60)));
+	check("一轮结束后摘要在后台、在上一份上更新了，打到摘要模型", seen.summaries.length === 1 && seen.summaries[0]!.model === "summary" && seen.summaries[0]!.prompt.includes(SUMMARY_SEEDED.slice(0, 12)), seen.summaries.map((one) => [one.model, one.prompt.slice(0, 60)]));
+	const stored = JSON.parse(await readFile(join(page.home, "summaries", `${SESSION}.json`), "utf8")) as { text: string };
+	check("新的一份写回旁挂文件 summaries/<会话>.json", stored.text === SUMMARY_NEXT, stored);
 	await shot("11_摘要更新后");
 
 	// 10. 齿轮里逐节开关
@@ -419,13 +445,62 @@ try {
 	await until(page, `document.querySelector('[data-ly-chat-surface="conversation"]')`);
 	await pause(800);
 
-	// 12. 关掉卡片：对话收回让出的位置
+	// 12. 三天前的旧会话：没存过摘要，点开它不去要，这一节也不占位
+	const asked = seen.summaries.length;
+	await openSession(page, OLD_SESSION);
+	await waitFor(`document.querySelector("main")?.innerText.includes("旧会话里答过的一句")`);
+	await pause(4000);
+	// 切过来以后前一个会话的视图还留在 DOM 里（藏着），只数看得见的那张卡片。
+	const old = await $<string[]>(`[...document.querySelectorAll("[data-ly-environment]")].filter((card)=>card.checkVisibility()).flatMap((card)=>[...card.querySelectorAll("[data-ly-environment-section]")].map((s)=>s.getAttribute("data-ly-environment-section")))`);
+	await shot("15_三天前的旧会话");
+	check("点开三天前的旧会话：不发摘要请求，摘要那一节不占位", seen.summaries.length === asked && !old.includes("summary"), { asked: seen.summaries.length - asked, sections: old });
+
+	// 13. 新会话：跑着时不占位；只说了一句，静够一分钟也不要；说到第三句，静够一分钟才要，请求发出去才出骨架
+	const answers = () => $<number>(`(document.querySelector("main")?.innerText.match(/慢慢答完了。/g) ?? []).length`);
+	const ask = async (text: string, nth: number) => {
+		await type(page, "main textarea", text);
+		await pause(400);
+		await press(page, "Enter", 13);
+		await waitFor(`document.querySelectorAll('.ly-user-bubble').length===${nth} && document.querySelector("[data-ly-environment]")`);
+	};
+	await click(page, "button:has(svg.ly-new-chat-icon)");
+	await until(page, `document.querySelectorAll('.ly-user-bubble').length===0`);
+	await pause(600);
+	// 空白页没有会话，卡片在第一句发出去、会话建起来以后才出现。
+	await ask("SLOW_GO 想尝试一下 我们的建议新会话是怎么个流程", 1);
+	await pause(2500);
+	const asking = await sections();
+	await shot("16_新会话第一轮跑着");
+	check("新会话第一轮跑着：摘要那一节不占位（不再挂一块等不来的骨架）", !asking.includes("summary"), asking);
+	await waitFor(`(document.querySelector("main")?.innerText.match(/慢慢答完了。/g) ?? []).length === 1`, 20_000);
+	await pause(65_000);
+	const single = await sections();
+	await shot("17_只说了一句静够一分钟");
+	check("只说了一句：静够一分钟也不发摘要请求，这一节不占位", !single.includes("summary") && seen.summaries.every((one) => !one.prompt.includes("SLOW_GO")), { sections: single, asked: seen.summaries.filter((one) => one.prompt.includes("SLOW_GO")).length });
+	for (const [nth, text] of [[2, "那建议卡片点了以后呢"], [3, "好，先这样"]] as const) {
+		const before = await answers();
+		await ask(text, nth);
+		await waitFor(`(document.querySelector("main")?.innerText.match(/慢慢答完了。/g) ?? []).length > ${before}`, 20_000);
+	}
+	await pause(1500);
+	const third = await sections();
+	check("说到第三句、刚结束：还没静够一分钟，仍然不占位", !third.includes("summary"), third);
+	await waitFor(`document.querySelector("[data-ly-environment-section=summary]")`, 80_000);
+	const waiting = await $<{ skeleton: boolean; text: boolean }>(`(()=>{const s=document.querySelector("[data-ly-environment-section=summary]");return {skeleton:Boolean(s.querySelector(".ly-skeleton")),text:Boolean(s.querySelector("[data-ly-environment-summary]"))};})()`);
+	await shot("18_新会话摘要请求发出去");
+	check("静够了、请求发出去：这一节出现，先是骨架", waiting.skeleton && !waiting.text, waiting);
+	await waitFor(`document.querySelector("[data-ly-environment-summary]")?.innerText.trim() === ${JSON.stringify(SUMMARY_FRESH)}`, 10_000);
+	await pause(1000);
+	await shot("19_新会话摘要出来");
+	check("骨架之后是模型给的那段摘要，这个会话只要了一次", seen.summaries.filter((one) => one.prompt.includes("SLOW_GO")).length === 1, seen.summaries.length);
+
+	// 14. 关掉卡片：对话收回让出的位置
 	await click(page, toggle);
 	await waitFor(`!document.querySelector("[data-ly-environment]")`);
 	await pause(800);
 	const closed = await $<{ pressed: string | null; margin: boolean }>(`({pressed:document.querySelector(${JSON.stringify(toggle)}).getAttribute("aria-pressed"),margin:[...document.querySelectorAll("main [style]")].some((e)=>e.style.marginRight==="324px")})`);
 	check("再点开关：卡片收起，按钮熄灭，对话不再让位", closed.pressed === "false" && !closed.margin, closed);
-	await shot("14_关掉之后");
+	await shot("20_关掉之后");
 } catch (error) {
 	if (app) {
 		const picture = await app.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
