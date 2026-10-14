@@ -44,7 +44,7 @@ export function AvatarPicker({ value, owners, onChange }: {
 						<button key={shape} type="button" role="radio" aria-checked={selected} aria-disabled={taken || undefined}
 							aria-label={t(shapeName(shape))} data-ly-tip={tip(face, t(shapeName(shape)))} data-avatar-shape={shape}
 							onClick={() => { if (!taken) onChange(face); }}
-							className={`grid h-9 w-9 place-items-center rounded-[10px] transition-[background-color,opacity] duration-[var(--ly-t-quick)] ${
+							className={`grid h-9 w-9 place-items-center rounded-lg transition-[background-color,opacity] duration-[var(--ly-t-quick)] ${
 								selected ? "bg-card-hover" : taken ? "cursor-not-allowed opacity-30" : "hover:bg-card-hover"
 							}`}>
 							<AgentAvatar avatar={face} size={24} seed={shape} interactive={!taken} />

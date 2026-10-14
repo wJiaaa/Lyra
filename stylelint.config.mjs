@@ -72,6 +72,15 @@ export default {
 			// reduce-motion switch. Only a real duration typed by hand is the problem.
 			"/^transition-duration$/": ["/\\b[1-9]\\d*m?s\\b/"],
 			"/^transition-timing-function$/": ["/cubic-bezier/"],
+			/*
+			 * 阴影和圆角从 token 来：`--shadow-*` 与 `--radius-*`（Tailwind 的刻度加 tokens.css 里的几档）。
+			 *
+			 * 阴影拦的是颜色字面量——一层投影只要写出了 `rgb(`，就是在 token 之外自己定了一档。用变量
+			 * 着色的描边环（头像那圈 `var(--color-shell)`）不受影响。圆角拦的是像素值，只放过
+			 * 胶囊的 999 / 9999：有过 22 种手写圆角，10、11、13、14 并排出现，没有一个是有意不同的。
+			 */
+			"/^box-shadow$/": ["/rgba?\\(/"],
+			"/^border(-[a-z]+)*-radius$/": ["/\\b(?!9{3,4}px\\b)[0-9]+(\\.[0-9]+)?px\\b/"],
 		},
 
 		/*
@@ -107,7 +116,7 @@ export default {
 			"^(ly-[a-z0-9-]+|is-[a-z-]+|dark|light|cm-.*|xterm.*|katex.*|docx.*|prose-dw|group|hover|truncate|drag-region|no-drag|group\\/[a-z-]+)$",
 			{ resolveNestedSelectors: true },
 		],
-		"custom-property-pattern": "^(ly|color|font|text|radius|sheet|tw)-",
+		"custom-property-pattern": "^(ly|color|font|text|radius|shadow|sheet|tw)-",
 
 		// Formatting is `.editorconfig`'s job. These only produce noise in a review.
 		/*

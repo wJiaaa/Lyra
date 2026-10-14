@@ -169,7 +169,7 @@
   }
   33% {
     transform: scale(0.62);
-    background: var(--color-info);
+    background: var(--color-accent);
   }
   66% {
     transform: scale(0.6);
@@ -183,7 +183,7 @@
     border-color: var(--color-accent);
   }
   33% {
-    border-color: var(--color-info);
+    border-color: var(--color-accent);
   }
   66% {
     border-color: var(--color-violet);

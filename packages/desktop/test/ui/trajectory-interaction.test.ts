@@ -106,19 +106,19 @@ test("opening and reopening paint the current theme at device resolution and det
 		disconnect() { observers.delete(this.callback); }
 		takeRecords() { return []; }
 	});
-	const previous = document.documentElement.style.getPropertyValue("--color-info");
-	t.after(() => { if (previous) document.documentElement.style.setProperty("--color-info", previous); else document.documentElement.style.removeProperty("--color-info"); });
-	document.documentElement.style.setProperty("--color-info", "rgb(10, 20, 30)");
+	const previous = document.documentElement.style.getPropertyValue("--color-accent");
+	t.after(() => { if (previous) document.documentElement.style.setProperty("--color-accent", previous); else document.documentElement.style.removeProperty("--color-accent"); });
+	document.documentElement.style.setProperty("--color-accent", "rgb(10, 20, 30)");
 	const { toggle } = await timeline(t, {}, { dpr: 2, context });
 	assert.ok(paints.length > 0);
 	assert.equal(canvas().width, 200); assert.equal(canvas().height, 96);
 	assert.equal(paints.at(-1), "rgb(10, 20, 30)"); assert.ok(scales.every(value => value === 2));
-	document.documentElement.style.setProperty("--color-info", "rgb(40, 50, 60)");
+	document.documentElement.style.setProperty("--color-accent", "rgb(40, 50, 60)");
 	for (const paint of observers) paint();
 	assert.equal(paints.at(-1), "rgb(40, 50, 60)");
 	await toggle(); assert.equal(observers.size, 0, "closing detaches the old canvas theme observer");
 	const closedCount = paints.length;
-	document.documentElement.style.setProperty("--color-info", "rgb(70, 80, 90)");
+	document.documentElement.style.setProperty("--color-accent", "rgb(70, 80, 90)");
 	for (const paint of observers) paint();
 	assert.equal(paints.length, closedCount);
 	await toggle(); assert.equal(paints.at(-1), "rgb(70, 80, 90)"); assert.equal(observers.size, 1);

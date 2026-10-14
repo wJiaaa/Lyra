@@ -46,7 +46,7 @@ function Piece({ token, query, offset }: { token: Token; query: string; offset: 
 	for (const [index, range] of ranges.entries()) {
 		if (range.start > at) parts.push(token.text.slice(at, range.start));
 		parts.push(
-			<mark key={`${offset}-${index}`} className="rounded-[2px] bg-accent/25 text-inherit">
+			<mark key={`${offset}-${index}`} className="rounded-xs bg-accent/25 text-inherit">
 				{token.text.slice(range.start, range.end)}
 			</mark>,
 		);

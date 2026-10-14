@@ -108,7 +108,7 @@
    * Every mounted row needs its real height: an intrinsic guess changes scroll range
    * during a wheel gesture and invalidates saved reading positions. */
   ::selection {
-    background: color-mix(in srgb, var(--color-info) 35%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 35%, transparent);
   }
 
   input,

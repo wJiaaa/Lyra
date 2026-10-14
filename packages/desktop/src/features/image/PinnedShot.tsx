@@ -161,7 +161,7 @@ export function PinnedShot() {
 				 * over a white document has no edge — it reads as part of what is underneath. An inset
 				 * line costs the outermost pixel of the image and works the same on all three.
 				 */
-				className="block h-full w-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)]"
+				className="block h-full w-full ring-1 ring-inset ring-white/16"
 				style={{ cursor: dragging ? "grabbing" : "grab" }}
 				/*
 				 * The picture is the window's title bar.
@@ -194,7 +194,7 @@ export function PinnedShot() {
 				aria-label={translate("pinnedShot.close")}
 				onPointerDown={(event) => event.stopPropagation()}
 				onClick={() => bridge.pinnedShot?.close?.()}
-				className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white shadow-[0_2px_10px_rgba(0,0,0,0.45)] backdrop-blur-md transition-[opacity,transform] duration-[var(--ly-t-quick)] hover:bg-black/85"
+				className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white shadow-overlay backdrop-blur-md transition-[opacity,transform] duration-[var(--ly-t-quick)] hover:bg-black/85"
 				style={{
 					opacity: hovered ? 1 : 0,
 					transform: hovered ? "scale(1)" : "scale(0.9)",

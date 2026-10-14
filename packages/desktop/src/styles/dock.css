@@ -48,7 +48,6 @@
 .ly-dock-pane[data-pane="terminal"] :is(.ly-dock-card, .ly-dock-chrome),
 .ly-dock-pane[data-pane="review"] :is(.ly-dock-card, .ly-dock-chrome) {
   --color-shell: var(--ly-code-bg, var(--color-shell));
-  --color-panel: var(--ly-code-bg, var(--color-shell));
   --color-card: color-mix(in srgb, var(--ly-code-fg) 4%, var(--ly-code-bg));
   --color-card-hover: color-mix(in srgb, var(--ly-code-fg) 9%, var(--ly-code-bg));
   --color-input: color-mix(in srgb, var(--ly-code-fg) 4%, var(--ly-code-bg));

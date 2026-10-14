@@ -57,7 +57,7 @@ export function MessageEditor({
 	}, [value, maxHeight]);
 
 	return (
-		<div className="ly-composer ly-composer-edit w-full rounded-[18px] border border-line-soft bg-transparent">
+		<div className="ly-composer ly-composer-edit w-full rounded-2xl border border-line-soft bg-transparent">
 			<div ref={scroller} className="ly-scroll-host relative">
 				<Textarea
 					ref={box}

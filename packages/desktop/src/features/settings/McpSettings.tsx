@@ -255,7 +255,7 @@ function ServerCard({
 					: status?.state === "failed"
 						? { tone: "text-danger", dot: "bg-danger", label: t("mcp.failed") }
 						: status?.state === "connecting"
-							? { tone: "text-ink-faint", dot: "bg-info", label: t("mcpSettings.connecting") }
+							? { tone: "text-ink-faint", dot: "bg-accent", label: t("mcpSettings.connecting") }
 							: status?.state === "reconnecting"
 								? { tone: "text-accent", dot: "bg-accent", label: translate("mcpSettings.reconnecting", { n: status.attempt ?? 1 }) }
 								: { tone: "text-ink-faint", dot: "bg-ink-faint/60", label: t("market.serverOn") };

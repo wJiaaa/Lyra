@@ -361,7 +361,7 @@ function Severity({ value }: { value: string }) {
 	const tone = level <= 2 ? "bg-danger/12 text-danger" : level <= 4 ? "bg-ink/10 text-ink" : "bg-ink/6 text-ink-muted";
 	const known = SEVERITY_LABELS[value.toLowerCase()];
 	return (
-		<span data-item-severity={value} className={`inline-flex h-[18px] shrink-0 items-center rounded-[5px] px-1.5 text-caption font-medium leading-none ${tone}`}>
+		<span data-item-severity={value} className={`inline-flex h-[18px] shrink-0 items-center rounded-sm px-1.5 text-caption font-medium leading-none ${tone}`}>
 			{known ? translate(known) : value}
 		</span>
 	);
@@ -384,7 +384,7 @@ function Token({ token }: { token: Inline }): ReactNode {
 		case "text":
 			return token.text;
 		case "code":
-			return <code className="rounded-[4px] bg-card-hover px-1 py-px font-mono text-[0.9em] text-ink">{token.text}</code>;
+			return <code className="rounded-sm bg-card-hover px-1 py-px font-mono text-[0.9em] text-ink">{token.text}</code>;
 		case "strong":
 			return <strong className="font-semibold text-ink">{children(token.children)}</strong>;
 		case "em":

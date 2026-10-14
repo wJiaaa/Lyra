@@ -80,14 +80,14 @@ export function editorTheme(): Extension {
 		},
 		".cm-activeLine": { backgroundColor: "color-mix(in srgb, var(--ly-code-fg) 5%, transparent)" },
 		".cm-selectionBackground, ::selection": {
-			backgroundColor: "color-mix(in srgb, var(--color-info) 22%, transparent) !important",
+			backgroundColor: "color-mix(in srgb, var(--color-accent) 22%, transparent) !important",
 		},
 		".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--color-ink)" },
 		".cm-matchingBracket": {
-			backgroundColor: "color-mix(in srgb, var(--color-info) 18%, transparent)",
+			backgroundColor: "color-mix(in srgb, var(--color-accent) 18%, transparent)",
 			outline: "none",
 		},
-		".cm-selectionMatch": { backgroundColor: "color-mix(in srgb, var(--color-info) 12%, transparent)" },
+		".cm-selectionMatch": { backgroundColor: "color-mix(in srgb, var(--color-accent) 12%, transparent)" },
 		/*
 		 * The find panel, restyled to the app's controls.
 		 *
@@ -141,7 +141,7 @@ export function editorTheme(): Extension {
 			transformOrigin: "top right",
 			width: "440px",
 			maxWidth: "100%",
-			borderRadius: "10px",
+			borderRadius: "var(--radius-lg)",
 			border: "1px solid var(--color-line)",
 			padding: "6px 26px 6px 7px",
 			display: "flex",
@@ -174,7 +174,7 @@ export function editorTheme(): Extension {
 			backgroundColor: "var(--color-input)",
 			color: "var(--color-ink)",
 			border: "1px solid var(--color-line)",
-			borderRadius: "7px",
+			borderRadius: "var(--radius-md)",
 			padding: "0 8px",
 			height: "24px",
 			fontSize: "var(--text-detail)",
@@ -209,7 +209,7 @@ export function editorTheme(): Extension {
 			height: "20px",
 			padding: 0,
 			border: "none",
-			borderRadius: "6px",
+			borderRadius: "var(--radius-md)",
 			background: "transparent",
 			fontSize: 0,
 			color: "var(--color-ink-faint)",
@@ -233,7 +233,7 @@ export function editorTheme(): Extension {
 			justifyContent: "center",
 			width: "20px",
 			height: "20px",
-			borderRadius: "6px",
+			borderRadius: "var(--radius-md)",
 			fontSize: 0,
 			color: "var(--color-ink-faint)",
 			transition: "background-color 140ms ease, color 140ms ease",
@@ -254,7 +254,7 @@ export function editorTheme(): Extension {
 			backgroundImage: "none",
 			color: "var(--color-ink-muted)",
 			border: "1px solid var(--color-line)",
-			borderRadius: "7px",
+			borderRadius: "var(--radius-md)",
 			padding: "0 9px",
 			height: "26px",
 			fontSize: "var(--text-detail)",
@@ -281,7 +281,7 @@ export function editorTheme(): Extension {
 			background: "transparent",
 			padding: 0,
 		},
-		".cm-panel.cm-search button[name=close]:hover": { background: "var(--color-card-hover)", borderRadius: "5px" },
+		".cm-panel.cm-search button[name=close]:hover": { background: "var(--color-card-hover)", borderRadius: "var(--radius-sm)" },
 		/* Booleans, nulls and numbers in YAML, marked by the plugin in highlight.ts. */
 		/*
 		 * The decoration wraps the syntax span rather than the other way round, so colouring only
@@ -289,7 +289,7 @@ export function editorTheme(): Extension {
 		 * colour — to win. Both, and the value takes the mark's colour either way.
 		 */
 		".ly-yaml-atom, .ly-yaml-atom span": { color: ATOM },
-		".cm-searchMatch": { backgroundColor: "color-mix(in srgb, var(--color-info) 24%, transparent)" },
+		".cm-searchMatch": { backgroundColor: "color-mix(in srgb, var(--color-accent) 24%, transparent)" },
 		".cm-searchMatch.cm-searchMatch-selected": {
 			backgroundColor: "color-mix(in srgb, var(--color-accent) 42%, transparent)",
 		},
@@ -298,7 +298,7 @@ export function editorTheme(): Extension {
 			border: "none",
 			color: "var(--color-ink-muted)",
 			padding: "0 6px",
-			borderRadius: "4px",
+			borderRadius: "var(--radius-sm)",
 		},
 	});
 }

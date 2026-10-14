@@ -166,7 +166,7 @@ function GallerySkeleton({ compact }: { compact: boolean }) {
 			{[0, 1].map((row) => (
 				<div key={row} className="mb-2 flex gap-2">
 					{widths.map((width, index) => (
-						<span key={index} className="ly-skeleton block rounded-[10px]" style={{ width, height: compact ? 140 : 200, flex: `${width} 1 0` }} />
+						<span key={index} className="ly-skeleton block rounded-lg" style={{ width, height: compact ? 140 : 200, flex: `${width} 1 0` }} />
 					))}
 				</div>
 			))}

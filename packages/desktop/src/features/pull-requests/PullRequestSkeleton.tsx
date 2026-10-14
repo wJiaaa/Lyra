@@ -24,7 +24,7 @@ export function ListSkeleton() {
 		<div className="ly-defer-in ly-pulse flex flex-col px-1 pt-1" aria-busy>
 			<div className="mb-1 ml-2 h-[11px] w-[68px] rounded bg-card" />
 			{rows.map((width, index) => (
-				<div key={index} className="flex items-center gap-2.5 rounded-[10px] px-2 py-[6px]">
+				<div key={index} className="flex items-center gap-2.5 rounded-lg px-2 py-[6px]">
 					<div className="h-[18px] w-[18px] shrink-0 rounded-full bg-card" />
 					<div className="flex min-w-0 flex-1 flex-col gap-[5px]">
 						<div className="h-[13px] rounded bg-card" style={{ width: `${width}%` }} />

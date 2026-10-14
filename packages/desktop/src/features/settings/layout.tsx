@@ -27,7 +27,7 @@ export function SectionTitle({ children }: { children: React.ReactNode }) {
  * 换，见 `overlay.css` 的 `.ly-settings-card`。
  */
 export function Card({ children, className = "", ...rest }: React.ComponentProps<"div">) {
-	return <div {...rest} className={`ly-settings-card overflow-hidden rounded-[12px] border border-line-float bg-float ${className}`}>{children}</div>;
+	return <div {...rest} className={`ly-settings-card overflow-hidden rounded-xl border border-line-float bg-float ${className}`}>{children}</div>;
 }
 
 /** One labelled row inside a card, with the control right-aligned. */

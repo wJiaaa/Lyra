@@ -99,7 +99,7 @@ export function AppearanceSettings() {
 						 */
 						aria-pressed={appearance.theme === theme}
 						onClick={() => patch({ theme })}
-						className={`rounded-[12px] border p-1.5 text-center transition-all duration-[var(--ly-t-base)] ${
+						className={`rounded-xl border p-1.5 text-center transition-all duration-[var(--ly-t-base)] ${
 							appearance.theme === theme
 								? "border-ink ring-1 ring-ink"
 								: "border-line hover:border-ink-faint"

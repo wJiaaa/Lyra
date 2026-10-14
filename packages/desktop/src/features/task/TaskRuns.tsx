@@ -102,7 +102,7 @@ export function TaskRuns({ runs, scrollRef, query = "" }: { runs: ToolRun[]; que
 				<DetailCard enter={false} open={open} onToggle={() => { setOpenId(open ? null : run.toolCallId); setOpenHeight(0); }}
 					summary={<ScrollText text={run.summary} className="ly-fade-tail min-w-0 flex-1 text-detail" />}
 					trailing={<>
-						<span className={`h-[6px] w-[6px] shrink-0 rounded-full ${run.status === "running" ? "ly-pulse bg-info" : run.status === "error" ? "bg-danger" : "bg-ok/70"}`} />
+						<span className={`h-[6px] w-[6px] shrink-0 rounded-full ${run.status === "running" ? "ly-pulse bg-accent" : run.status === "error" ? "bg-danger" : "bg-ok/70"}`} />
 						<Text size="caption" tone="faint" numeric className="shrink-0">{run.finishedAt ? formatSpan(run.finishedAt - run.startedAt) : translate("common.inProgress")}</Text>
 					</>}>
 					<RunDetail run={run} query={query} />

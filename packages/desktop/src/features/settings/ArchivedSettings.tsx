@@ -99,7 +99,7 @@ export function ArchivedSettings() {
 			</header>
 
 			{archived.length === 0 ? (
-				<div className="flex flex-col items-center rounded-[12px] border border-dashed border-line py-14">
+				<div className="flex flex-col items-center rounded-xl border border-dashed border-line py-14">
 					<Archive size={26} strokeWidth={1.5} className="text-ink-faint" />
 					<p className="mt-3 text-label text-ink-muted">{t("archived.empty")}</p>
 					<p className="mt-1 text-detail text-ink-faint">{t("archived.emptyDetail")}</p>
@@ -154,7 +154,7 @@ export function ArchivedSettings() {
 
 								<div className="ly-reveal" data-open={open} aria-hidden={!open}>
 									<div>
-										<div className="overflow-hidden rounded-[12px] border border-line">
+										<div className="overflow-hidden rounded-xl border border-line">
 											{group.sessions.map((session, index) => (
 												<Row
 													key={session.id}

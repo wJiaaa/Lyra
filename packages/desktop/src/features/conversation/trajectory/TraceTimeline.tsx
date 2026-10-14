@@ -89,7 +89,7 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 				const left = x(entry.startedAt ?? entry.ts), right = Math.max(left + 2, x(entry.finishedAt ?? entry.startedAt ?? entry.ts));
 				if (right < 0 || left > width) continue;
 				const lane = timelineLane(entry), y = lane * LANE_HEIGHT + 3;
-				ctx.fillStyle = entry.status === "error" ? color("danger") : lane === 1 ? color("ok") : lane === 2 ? color("violet") : color("info");
+				ctx.fillStyle = entry.status === "error" ? color("danger") : lane === 1 ? color("ok") : lane === 2 ? color("violet") : color("accent");
 				ctx.globalAlpha = matches && !matches.has(entryKey(entry)) ? 0.2 : brush && ((entry.finishedAt ?? entry.startedAt ?? entry.ts) < brush.start || (entry.startedAt ?? entry.ts) > brush.end) ? 0.18 : 0.65;
 				ctx.fillRect(Math.max(0, left), y, Math.min(width, right) - Math.max(0, left), 10);
 				if (entryKey(entry) === (preview ?? selected) || entry === hover) {
@@ -99,7 +99,7 @@ export const TraceTimeline = memo(function TraceTimeline({ entries, range, selec
 			}
 			if (brush) {
 				const left = Math.max(0, x(brush.start)), right = Math.min(width, x(brush.end));
-				ctx.globalAlpha = 0.12; ctx.fillStyle = color("info"); ctx.fillRect(left, 0, right - left, HEIGHT);
+				ctx.globalAlpha = 0.12; ctx.fillStyle = color("accent"); ctx.fillRect(left, 0, right - left, HEIGHT);
 				ctx.globalAlpha = 0.9; ctx.fillRect(left, 0, 1.5, HEIGHT); ctx.fillRect(right - 1.5, 0, 1.5, HEIGHT);
 			}
 		};

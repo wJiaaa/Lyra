@@ -104,7 +104,7 @@
  */
 .ly-textarea-shell {
   border: 1px solid var(--color-line-soft);
-  border-radius: 14px;
+  border-radius: var(--radius-xl);
   background: var(--color-card);
   color: var(--color-ink);
   transition: border-color var(--ly-t-base) var(--ly-e-out);

@@ -89,8 +89,8 @@ export function TaskList({ placement }: { placement: "floating" | "inline" }) {
 			data-ly-task-list={placement}
 			className={
 				placement === "floating"
-					? "ly-glass pointer-events-auto w-full overflow-hidden rounded-[11px] border border-line-soft shadow-lg shadow-black/[0.06]"
-					: "ly-enter overflow-hidden rounded-[11px] border border-line-soft bg-card/40"
+					? "ly-glass pointer-events-auto w-full overflow-hidden rounded-xl border border-line-soft shadow-lg shadow-black/[0.06]"
+					: "ly-enter overflow-hidden rounded-xl border border-line-soft bg-card/40"
 			}
 		>
 			<button

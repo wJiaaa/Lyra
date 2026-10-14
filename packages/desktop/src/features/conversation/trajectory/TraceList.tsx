@@ -75,8 +75,8 @@ export const TraceList = memo(function TraceList({ entries, selected, onSelect, 
 								button?.focus({ preventScroll: true }); button?.scrollIntoView({ block: "nearest" });
 							});
 						}} onFocus={() => setFocused(row.id)} onBlur={() => setFocused(null)}
-						className={`ly-scroll flex h-full w-full items-center gap-2 rounded-md px-1.5 text-left text-caption ${selected === row.id ? "bg-card-hover text-ink" : timeFocus?.has(row.id) ? "bg-info/10 text-ink" : "text-ink-muted hover:bg-card-hover/50"}`} style={{ paddingLeft: row.entry.parentId ? 18 : undefined }}>
-						<span className={`flex shrink-0 items-center ${row.entry.status === "running" ? "ly-pulse text-info" : row.entry.status === "error" ? "text-danger" : "text-ink-faint"}`} data-ly-tip={row.entry.status ? STATUS_LABEL[row.entry.status] : SOURCE_LABEL[row.entry.source]}><SourceIcon source={row.entry.source} /></span>
+						className={`ly-scroll flex h-full w-full items-center gap-2 rounded-md px-1.5 text-left text-caption ${selected === row.id ? "bg-card-hover text-ink" : timeFocus?.has(row.id) ? "bg-accent/10 text-ink" : "text-ink-muted hover:bg-card-hover/50"}`} style={{ paddingLeft: row.entry.parentId ? 18 : undefined }}>
+						<span className={`flex shrink-0 items-center ${row.entry.status === "running" ? "ly-pulse text-accent" : row.entry.status === "error" ? "text-danger" : "text-ink-faint"}`} data-ly-tip={row.entry.status ? STATUS_LABEL[row.entry.status] : SOURCE_LABEL[row.entry.source]}><SourceIcon source={row.entry.source} /></span>
 						<ScrollText text={row.entry.summary} className="min-w-0 flex-1" />
 						<span className="shrink-0 text-ink-faint tabular-nums" data-ly-tip={translate("traceList.step", {
 							step: row.entry.step ?? "—",

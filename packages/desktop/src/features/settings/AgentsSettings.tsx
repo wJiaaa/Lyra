@@ -218,7 +218,7 @@ export function AgentsSettings() {
 }
 
 function Banner({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
-	return <div role="alert" className="mt-5 flex items-center justify-between gap-3 rounded-[10px] border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger"><span className="min-w-0">{children}</span>{action}</div>;
+	return <div role="alert" className="mt-5 flex items-center justify-between gap-3 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger"><span className="min-w-0">{children}</span>{action}</div>;
 }
 
 function GroupHeader({ title, count, children }: { title: string; count?: number; children?: React.ReactNode }) {
@@ -253,7 +253,7 @@ function AgentRow({ agent, record, avatarOf, saved, disabled, controls, edit, co
 	const highlighted = saved !== null;
 	return (
 		<div data-agent-profile={name} data-agent-saved={highlighted || undefined} data-ly-avatar-host="" data-row-actions=""
-			className={`relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 transition-colors duration-[var(--ly-t-quick)] @2xl:grid-cols-[auto_minmax(0,1fr)_auto] ${edit && !disabled ? "hover:bg-card-hover" : ""} ${highlighted ? "bg-info/5" : ""}`}>
+			className={`relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 transition-colors duration-[var(--ly-t-quick)] @2xl:grid-cols-[auto_minmax(0,1fr)_auto] ${edit && !disabled ? "hover:bg-card-hover" : ""} ${highlighted ? "bg-accent/5" : ""}`}>
 			{/*
 			 * 整行是编辑入口；但行里还有下拉和按钮，按钮套按钮不成立，所以用一层垫在
 			 * 最底下的按钮铺满整行（同 `ListRow`），上面的控件各自先接住自己的点击。

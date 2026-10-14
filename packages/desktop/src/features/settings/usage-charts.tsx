@@ -410,7 +410,7 @@ function TrendTip({ anchor, content }: { anchor: Hover; content: TipContent }) {
 			ref={ref}
 			role="tooltip"
 			data-chart-tip=""
-			className="ly-chart-tip ly-glass-solid pointer-events-none fixed z-[200] min-w-[148px] max-w-[280px] rounded-[10px] border border-line-soft px-2.5 py-2"
+			className="ly-chart-tip ly-glass-solid pointer-events-none fixed z-[200] min-w-[148px] max-w-[280px] rounded-lg border border-line-soft px-2.5 py-2"
 			style={{ left: 0, top: 0, visibility: "hidden" }}
 		>
 			<div className="text-detail font-medium text-ink tabular-nums">{content.title}</div>

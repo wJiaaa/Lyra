@@ -42,8 +42,8 @@ function Mark({ status, paused, failed, idle }: { status: TodoItem["status"]; pa
 		// Two bars: stopped where it stands, rather than finished or failed.
 		return (
 			<span className="flex h-[13px] w-[13px] shrink-0 items-center justify-center gap-[2px]" aria-label={translate("mark.paused")}>
-				<span className="block h-[8px] w-[2px] rounded-[1px] bg-ink-faint" />
-				<span className="block h-[8px] w-[2px] rounded-[1px] bg-ink-faint" />
+				<span className="block h-[8px] w-[2px] rounded-full bg-ink-faint" />
+				<span className="block h-[8px] w-[2px] rounded-full bg-ink-faint" />
 			</span>
 		);
 	}

@@ -157,7 +157,7 @@
 
 .ly-readme mark {
 	padding: 0 0.2em;
-	border-radius: 4px;
+	border-radius: var(--radius-sm);
 	background: color-mix(in srgb, var(--ly-rm-warn) 20%, transparent);
 	color: inherit;
 }
@@ -171,7 +171,7 @@
 .ly-readme kbd {
 	margin: 0 1px;
 	padding: 0.05em 0.4em;
-	border-radius: 5px;
+	border-radius: var(--radius-sm);
 	box-shadow: inset 0 -1px 0 var(--color-line), inset 0 0 0 1px var(--color-line-soft);
 	font-family: var(--font-mono);
 	font-size: 0.82em;
@@ -239,7 +239,7 @@
 	justify-content: center;
 	width: 16px;
 	height: 16px;
-	border-radius: 5px;
+	border-radius: var(--radius-sm);
 	box-shadow: inset 0 0 0 1.5px var(--ly-rm-strong-line);
 	color: rgb(255 255 255);
 }
@@ -251,7 +251,7 @@
 
 .ly-readme :not(pre) > code {
 	padding: 0.14em 0.42em;
-	border-radius: 6px;
+	border-radius: var(--radius-md);
 	background: var(--color-card);
 	color: var(--color-ink);
 	font-family: var(--font-mono);
@@ -272,7 +272,7 @@
 .ly-rm-code pre {
 	margin: 0;
 	padding: 14px 16px;
-	border-radius: 10px;
+	border-radius: var(--radius-lg);
 	background: var(--ly-rm-sunken);
 	box-shadow: inset 0 0 0 1px var(--color-line-soft);
 	color: var(--color-ink);
@@ -299,7 +299,7 @@
 	--ly-rm-alert: var(--color-accent);
 	margin: 0 0 1.1em;
 	padding: 11px 16px 12px;
-	border-radius: 10px;
+	border-radius: var(--radius-lg);
 	background: color-mix(in srgb, var(--ly-rm-alert) 7%, transparent);
 	box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ly-rm-alert) 70%, transparent);
 }
@@ -345,7 +345,7 @@
 	display: inline-block;
 	max-width: 100%;
 	height: auto;
-	border-radius: 6px;
+	border-radius: var(--radius-md);
 	vertical-align: middle;
 	opacity: 0;
 	transition: opacity var(--ly-t-slow) var(--ly-e-out);
@@ -359,7 +359,7 @@
 	width: auto;
 	height: 20px;
 	max-height: 22px;
-	border-radius: 3px;
+	border-radius: var(--radius-xs);
 }
 
 .ly-rm-img-round {
@@ -405,7 +405,7 @@
 .ly-rm-table {
 	margin: 0 0 1.2em;
 	overflow-x: auto;
-	border-radius: 10px;
+	border-radius: var(--radius-lg);
 	box-shadow: inset 0 0 0 1px var(--color-line);
 }
 
@@ -432,11 +432,11 @@
 }
 
 .ly-rm-table thead th:first-child {
-	border-top-left-radius: 10px;
+	border-top-left-radius: var(--radius-lg);
 }
 
 .ly-rm-table thead th:last-child {
-	border-top-right-radius: 10px;
+	border-top-right-radius: var(--radius-lg);
 }
 
 .ly-rm-table tbody td,
@@ -488,7 +488,7 @@
 /* A fold: a quiet row until it is opened, and a short fall into place when it is. */
 .ly-rm-details {
 	margin: 0 0 1em;
-	border-radius: 10px;
+	border-radius: var(--radius-lg);
 	background: color-mix(in srgb, var(--color-card) 55%, transparent);
 	box-shadow: inset 0 0 0 1px var(--color-line-soft);
 }
@@ -498,7 +498,7 @@
 	align-items: center;
 	gap: 8px;
 	padding: 9px 14px;
-	border-radius: 10px;
+	border-radius: var(--radius-lg);
 	color: var(--color-ink);
 	font-weight: 500;
 	list-style: none;

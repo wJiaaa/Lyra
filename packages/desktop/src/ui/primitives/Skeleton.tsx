@@ -53,7 +53,7 @@ function SkeletonCard({ index = 0 }: { index?: number }) {
 
 	return (
 		<div className="flex items-start gap-3 p-3" aria-hidden>
-			<span className="ly-skeleton block shrink-0 rounded-[10px]" style={{ width: 36, height: 36 }} />
+			<span className="ly-skeleton block shrink-0 rounded-lg" style={{ width: 36, height: 36 }} />
 			<div className="min-w-0 flex-1 pt-0.5">
 				<SkeletonBar width={`${title}px`} height={11} />
 				<SkeletonBar width="100%" height={9} className="mt-2.5" />
@@ -71,7 +71,7 @@ function SkeletonRow({ index = 0 }: { index?: number }) {
 
 	return (
 		<div className="flex items-center gap-3 py-3.5" aria-hidden>
-			<span className="ly-skeleton block shrink-0 rounded-[9px]" style={{ width: 32, height: 32 }} />
+			<span className="ly-skeleton block shrink-0 rounded-lg" style={{ width: 32, height: 32 }} />
 			<div className="min-w-0 flex-1">
 				<SkeletonBar width={`${title}px`} height={11} />
 				<SkeletonBar width={`${detail}%`} height={9} className="mt-2" />

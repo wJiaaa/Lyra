@@ -27,7 +27,7 @@ function routes(status: MobileAccessStatus): string[] {
 	return [...(status.relay.url ? [status.relay.url] : []), ...status.addresses, loopback(status.port)];
 }
 
-const RELAY_DOT = { off: "bg-ink-faint", connecting: "bg-info", online: "bg-ok", paired: "bg-ok" } as const;
+const RELAY_DOT = { off: "bg-ink-faint", connecting: "bg-accent", online: "bg-ok", paired: "bg-ok" } as const;
 const RELAY_TEXT = { off: "mobile.relayOff", connecting: "mobile.relayConnecting", online: "mobile.relayOnline", paired: "mobile.relayPaired" } as const;
 
 export function MobileSettings() {
@@ -106,7 +106,7 @@ export function MobileSettings() {
 			<Card className="mb-8">
 				<div className="flex flex-wrap items-center gap-8 p-6">
 					{/* 二维码永远画在白底上：深色主题下直接把黑白码放在深色卡片里，有的手机相机认不出来。 */}
-					<div className="shrink-0 rounded-[14px] bg-white p-3.5">
+					<div className="shrink-0 rounded-xl bg-white p-3.5">
 						{qr ? <img src={qr} alt={t("mobile.qr")} width={180} height={180} className="block" /> : <div className="size-[180px]" />}
 					</div>
 					<ol className="min-w-[220px] flex-1 space-y-4">

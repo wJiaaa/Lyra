@@ -58,7 +58,7 @@ export function CommandMenu({ commands, active, keyboardSelection, onPick, onHov
 		else if (box.bottom > view.bottom - 48) viewport.scrollTop += box.bottom - view.bottom + 48;
 	}, [active, commands, open, keyboardSelection]);
 	return <div ref={panel} id={id} role={open ? "listbox" : undefined} aria-label={t("command.slash")} aria-hidden={!open} inert={!open}
-		data-open={open} className="ly-command-menu ly-glass-solid absolute bottom-full left-0 right-0 z-40 mb-2 overflow-hidden rounded-[18px] border border-line-soft">
+		data-open={open} className="ly-command-menu ly-glass-solid absolute bottom-full left-0 right-0 z-40 mb-2 overflow-hidden rounded-2xl border border-line-soft">
 		<div style={{ maxHeight: height }} className="flex flex-col">
 			<Scroller scrollRef={list} className="ly-menu-scroll min-h-0" contentClassName="p-1.5">
 				{shown.map((command, index) => {
@@ -74,7 +74,7 @@ export function CommandMenu({ commands, active, keyboardSelection, onPick, onHov
 								pointer.current = { x: event.clientX, y: event.clientY };
 								onHover(index);
 							}}
-							className={`ly-scroll ly-command-option flex h-9 w-full items-center gap-2 rounded-[12px] px-3 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${index === shownActive ? "bg-card-hover" : ""}`}>
+							className={`ly-scroll ly-command-option flex h-9 w-full items-center gap-2 rounded-xl px-3 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${index === shownActive ? "bg-card-hover" : ""}`}>
 							<Icon size={16} strokeWidth={1.8} className="shrink-0 text-ink-muted" />
 							<ScrollText text={command.name} className="min-w-0 max-w-[42%] shrink-0 text-ink" />
 							<ScrollText text={command.description} className="min-w-0 flex-1 text-ink-muted" />

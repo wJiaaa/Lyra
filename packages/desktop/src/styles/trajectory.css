@@ -81,7 +81,7 @@
 
 .ly-trace-pan::-webkit-slider-runnable-track {
   height: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--color-line);
 }
 

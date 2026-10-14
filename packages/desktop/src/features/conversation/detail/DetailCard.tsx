@@ -35,7 +35,7 @@
 import { ChevronRight } from "../../../ui/icons/index.ts";
 
 /** Kept equal on the row's top corners and the body's bottom ones. */
-const RADIUS = "9px";
+const RADIUS = "var(--radius-lg)";
 
 export function DetailCard({
 	open,

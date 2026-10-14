@@ -115,7 +115,7 @@ export function SubAgentMenu({ agents, current, sessionId, onPick }: {
 				const waiting = agent.status === "queued";
 				return (
 					<div key={agent.id} data-sub-row={agent.id} data-selected={selected || undefined} data-sub-queued={waiting || undefined} data-ly-avatar-host=""
-						className={`group/subrow relative flex items-center rounded-[10px] transition-colors duration-[var(--ly-t-quick)] ${selected ? "bg-card-hover" : "hover:bg-card-hover/70"}`}>
+						className={`group/subrow relative flex items-center rounded-lg transition-colors duration-[var(--ly-t-quick)] ${selected ? "bg-card-hover" : "hover:bg-card-hover/70"}`}>
 						<button type="button" role="menuitem" aria-current={selected || undefined} onClick={() => onPick(agent.id)}
 							data-ly-tip={`@${agent.agent} · ${agent.description}`}
 							className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pr-1 pl-2.5 text-left">

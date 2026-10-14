@@ -81,16 +81,16 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, de
 		<h1 className="mt-4 text-display leading-tight font-semibold tracking-tight text-ink">{title}</h1>
 		<p className="mt-2 text-label text-ink-muted">{record?.scope === "builtin" && !copy ? t("agentEditor.saveAsCustom") : t("agentEditor.intro")}</p>
 		<div className="@container mt-6 space-y-4">
-			{leaving && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-line px-3.5 py-2.5 text-detail text-ink">
+			{leaving && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line px-3.5 py-2.5 text-detail text-ink">
 				{t("agentEditor.unsaved")}
 				<div className="flex items-center gap-2">
 					<Button variant="subtle" size="sm" onClick={() => setLeaving(false)}>{t("agentEditor.keepEditing")}</Button>
 					<Button variant="danger" size="sm" onClick={discard}>{t("agentEditor.discard")}</Button>
 				</div>
 			</div>}
-			{error && <div role="alert" className="rounded-[10px] border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger">{error}</div>}
+			{error && <div role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger">{error}</div>}
 			{/* The settings card the hook form sits in, so its fields are the same fields. */}
-			<fieldset disabled={busy} className="ly-settings-card m-0 min-w-0 space-y-4 rounded-[12px] border border-line-float bg-float p-4 disabled:opacity-60">
+			<fieldset disabled={busy} className="ly-settings-card m-0 min-w-0 space-y-4 rounded-xl border border-line-float bg-float p-4 disabled:opacity-60">
 				<div className="flex justify-end">
 					<div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
 						<span className="shrink-0 text-label text-ink-muted">{t("agentEditor.scopeLabel")}</span>
@@ -102,9 +102,9 @@ export function AgentDefinitionEditor({ record, copy, projectId, projectName, de
 					 * 脸是一块能点的底：点它挑，角上那颗骰子直接换一张没人用的。两颗按钮叠在一块底上而不是
 					 * 套在一起——按钮里不能再有按钮。
 					 */}
-					<div className="relative grid h-[56px] w-[56px] shrink-0 place-items-center rounded-[16px] border border-[var(--ly-agent-line)] bg-float transition-colors duration-[var(--ly-t-quick)] hover:bg-[var(--ly-agent-hover)]" data-ly-avatar-host="">
+					<div className="relative grid h-[56px] w-[56px] shrink-0 place-items-center rounded-2xl border border-[var(--ly-agent-line)] bg-float transition-colors duration-[var(--ly-t-quick)] hover:bg-[var(--ly-agent-hover)]" data-ly-avatar-host="">
 						<button type="button" aria-label={t("agentEditor.pickAvatar")} data-ly-tip={`${t("agentEditor.pickAvatar")} · ${avatarName(face, t)}`} aria-haspopup="dialog" aria-expanded={picker.open}
-							data-agent-avatar={formatAvatar(face)} onClick={picker.toggle} className="absolute inset-0 rounded-[16px]" />
+							data-agent-avatar={formatAvatar(face)} onClick={picker.toggle} className="absolute inset-0 rounded-2xl" />
 						<AgentAvatar avatar={face} size={38} seed={draft.name || "new"} host="[data-ly-avatar-host]" cheer={rolls || null} className="pointer-events-none" />
 						<IconButton size="sm" label={t("agentEditor.shuffleAvatar")} data-agent-shuffle=""
 							onClick={() => { patch({ avatar: formatAvatar(freshAvatar([...taken.map(other => other.avatar), face])) }); setRolls(n => n + 1); }}

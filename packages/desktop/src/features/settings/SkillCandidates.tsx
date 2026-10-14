@@ -43,7 +43,7 @@ export function SkillCandidates({
 	const first = candidates.slice(0, SHOWN);
 	const rest = candidates.slice(SHOWN);
 	return (
-		<section className="ly-swap-in mb-6 overflow-hidden rounded-[12px] bg-accent/6" data-skill-candidates="">
+		<section className="ly-swap-in mb-6 overflow-hidden rounded-xl bg-accent/6" data-skill-candidates="">
 			<header className="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
 				<span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent">
 					<Sparkles size={14} strokeWidth={1.9} aria-hidden />

@@ -47,7 +47,7 @@ export function EnvironmentCard() {
 	return (
 		<div
 			data-ly-environment
-			className="ly-glass pointer-events-auto flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-[11px] border border-line-soft shadow-lg shadow-black/[0.06]"
+			className="ly-glass pointer-events-auto flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-line-soft shadow-lg shadow-black/[0.06]"
 		>
 			<div className="flex h-9 shrink-0 items-center gap-2 pr-1.5 pl-3.5">
 				<span className="min-w-0 flex-1 truncate text-label text-ink-muted">{t("environment.title")}</span>

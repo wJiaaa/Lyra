@@ -262,7 +262,7 @@ function Row({
 }) {
 	return (
 		<div className="flex items-center gap-2 rounded px-1 py-0.5 text-detail">
-			<span className="h-[8px] w-[8px] shrink-0 rounded-[2px]" style={{ background: swatch }} />
+			<span className="h-[8px] w-[8px] shrink-0 rounded-xs" style={{ background: swatch }} />
 			<span className="min-w-0 flex-1 truncate text-ink-muted">{label}</span>
 			<span className="shrink-0 tabular-nums text-ink-muted">{formatTokens(tokens)}</span>
 			<span className="w-[44px] shrink-0 text-right tabular-nums text-ink-faint">{(share * 100).toFixed(1)}%</span>

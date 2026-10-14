@@ -36,7 +36,7 @@ export function ChoiceMark({
 			aria-hidden
 			data-ly-choice={indeterminate ? "mixed" : on ? "on" : "off"}
 			data-ly-choice-kind="checkbox"
-			className={`grid size-4 shrink-0 place-items-center rounded-[4px] border transition-colors duration-[var(--ly-t-quick)] ${on ? "border-accent bg-accent text-shell" : "border-ink-faint/55 bg-card group-hover:border-ink-muted"} ${className}`}
+			className={`grid size-4 shrink-0 place-items-center rounded-sm border transition-colors duration-[var(--ly-t-quick)] ${on ? "border-accent bg-accent text-shell" : "border-ink-faint/55 bg-card group-hover:border-ink-muted"} ${className}`}
 		>
 			{indeterminate ? <span className="h-0.5 w-2 rounded-full bg-shell" /> : <Check size={11} strokeWidth={2.6} className={`transition-opacity duration-[var(--ly-t-quick)] ${checked ? "opacity-100" : "opacity-0"}`} />}
 		</span>

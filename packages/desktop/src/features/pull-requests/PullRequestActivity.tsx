@@ -101,7 +101,7 @@ function ProseRow({
 	const empty = !entry.body.trim();
 
 	return (
-		<article className="overflow-hidden rounded-[10px] border border-line-soft">
+		<article className="overflow-hidden rounded-lg border border-line-soft">
 			<button
 				type="button"
 				disabled={empty}

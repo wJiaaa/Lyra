@@ -26,19 +26,16 @@
   /*
    * A hairline and a short drop, which is most of what makes this read as lifted rather than as a
    * differently-coloured rectangle. On light the fill is near-white on near-white, so without an
-   * edge the knob has no shape at all.
+   * edge the knob has no shape at all. The drop is the switch knob's (`--shadow-knob`); the edge is
+   * an outline rather than a ring in the shadow so it can be dropped on its own below.
    */
-  box-shadow:
-    0 0 0 0.5px rgb(0 0 0 / 0.06),
-    0 1px 2px rgb(0 0 0 / 0.09),
-    0 2px 5px -2px rgb(0 0 0 / 0.06);
+  box-shadow: var(--shadow-knob);
+  outline: 0.5px solid rgb(0 0 0 / 0.06);
 }
 
 /* Dark themes carry it with the shadow alone: an outline over a dark page reads as a seam. */
 :root.dark .ly-tabs-knob {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.35),
-    0 2px 6px -2px rgb(0 0 0 / 0.3);
+  outline: none;
 }
 
 .ly-shell {
@@ -200,7 +197,7 @@
    */
   overflow-wrap: anywhere;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   /*
@@ -222,7 +219,7 @@
   border: 1px solid var(--color-line-float);
   background: var(--color-float);
   color: var(--color-ink);
-  box-shadow: 0 4px 14px -4px rgb(0 0 0 / 0.3);
+  box-shadow: var(--shadow-tip);
   /*
    * Two animations, because leaving is not entering played backwards.
    *
@@ -265,7 +262,7 @@
 .ly-knob {
   background: #fff;
   border-color: rgb(0 0 0 / 0.14);
-  box-shadow: 0 1px 2.5px rgb(0 0 0 / 0.16);
+  box-shadow: var(--shadow-knob);
 }
 
 /*
@@ -279,7 +276,6 @@
 :root.dark .ly-knob {
   background: #fff;
   border-color: rgb(0 0 0 / 0.32);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.55);
 }
 
 /*

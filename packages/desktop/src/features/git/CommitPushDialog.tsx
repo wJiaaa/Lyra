@@ -342,7 +342,7 @@ export function CommitPushDialog({
 					 */}
 					<div
 						data-ly-commit-field
-						className="rounded-[18px] border border-line-soft transition-colors duration-[var(--ly-t-base)] focus-within:border-ink-faint/60"
+						className="rounded-2xl border border-line-soft transition-colors duration-[var(--ly-t-base)] focus-within:border-ink-faint/60"
 					>
 						{/*
 						 * 三行装不下的时候，它自己会滚——那就得有滑块，也得有两头的渐隐。
@@ -441,7 +441,7 @@ export function CommitPushDialog({
 								 */}
 								<span
 									aria-hidden
-									className={`flex size-[15px] shrink-0 items-center justify-center rounded-[4px] border transition-colors ${
+									className={`flex size-[15px] shrink-0 items-center justify-center rounded-sm border transition-colors ${
 										includeUnstaged ? "border-accent bg-accent text-white" : "border-line bg-card text-transparent"
 									}`}
 								>

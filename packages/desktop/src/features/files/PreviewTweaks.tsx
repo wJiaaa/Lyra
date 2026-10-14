@@ -87,7 +87,7 @@ export function PreviewTweaks({ groups, current, changed, sent, onSet, onReset, 
 	};
 	const titled = groups.length > 1 || Boolean(groups[0]?.label);
 	return (
-		<section aria-label={translate("preview.tweak")} data-ly-preview-tweaks="" className="ly-enter mb-2.5 flex flex-col gap-4 rounded-[12px] border border-line-soft px-4 py-3">
+		<section aria-label={translate("preview.tweak")} data-ly-preview-tweaks="" className="ly-enter mb-2.5 flex flex-col gap-4 rounded-xl border border-line-soft px-4 py-3">
 			{groups.map((group, index) => (
 				<div key={index} className="flex flex-col gap-2.5">
 					{titled && <h4 className="text-label font-medium text-ink">{group.label}</h4>}

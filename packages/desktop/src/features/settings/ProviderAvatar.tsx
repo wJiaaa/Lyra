@@ -16,7 +16,7 @@ export function ProviderAvatar({ name, size, className = "" }: { name: string; s
 		<span
 			aria-hidden
 			className={`grid shrink-0 place-items-center font-semibold ${
-				size === "sm" ? "h-5 w-5 rounded-[6px] text-[11px]" : "h-9 w-9 rounded-[10px] text-title"
+				size === "sm" ? "h-5 w-5 rounded-md text-[11px]" : "h-9 w-9 rounded-lg text-title"
 			} ${className}`}
 			style={{
 				background: `hsl(${hue} 65% 52% / 0.14)`,

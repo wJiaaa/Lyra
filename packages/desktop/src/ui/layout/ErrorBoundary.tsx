@@ -58,7 +58,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 					 * Whoever is looking at this is about to paste it somewhere — an issue, a chat, a
 					 * search box — and a paraphrase would be the one thing that cannot be pasted.
 					 */}
-					<pre className="mt-4 max-h-[180px] overflow-auto rounded-[10px] border border-danger/35 bg-danger/6 px-3 py-2.5 font-mono text-detail leading-relaxed whitespace-pre-wrap text-danger select-text">
+					<pre className="mt-4 max-h-[180px] overflow-auto rounded-lg border border-danger/35 bg-danger/6 px-3 py-2.5 font-mono text-detail leading-relaxed whitespace-pre-wrap text-danger select-text">
 						{error.message || String(error)}
 					</pre>
 
@@ -77,7 +77,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 							<Disclosure variant="compact" title={translate("errorBoundary.errorStack")} defaultOpen>
 								<div className="group/copy relative mt-1">
 									<CopyMark text={error.stack.trim()} side="left" />
-									<pre className="max-h-[220px] overflow-auto rounded-[10px] border border-line bg-card/40 py-2.5 pr-3 pl-9 font-mono text-caption leading-relaxed whitespace-pre-wrap text-ink-muted select-text">
+									<pre className="max-h-[220px] overflow-auto rounded-lg border border-line bg-card/40 py-2.5 pr-3 pl-9 font-mono text-caption leading-relaxed whitespace-pre-wrap text-ink-muted select-text">
 										{error.stack.trim()}
 									</pre>
 								</div>
@@ -96,7 +96,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 								 */}
 								<div className="group/copy relative mt-1">
 									<CopyMark text={componentStack.trim()} side="left" />
-									<pre className="max-h-[220px] overflow-auto rounded-[10px] border border-line bg-card/40 py-2.5 pr-3 pl-9 font-mono text-caption leading-relaxed whitespace-pre-wrap text-ink-muted select-text">
+									<pre className="max-h-[220px] overflow-auto rounded-lg border border-line bg-card/40 py-2.5 pr-3 pl-9 font-mono text-caption leading-relaxed whitespace-pre-wrap text-ink-muted select-text">
 										{componentStack.trim()}
 									</pre>
 								</div>

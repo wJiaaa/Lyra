@@ -149,7 +149,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 								return null;
 							})}
 							{message.stopReason === "error" && message.errorMessage && (
-								<div className="rounded-[9px] border border-danger/35 bg-danger/8 px-3 py-2 text-detail text-danger">
+								<div className="rounded-lg border border-danger/35 bg-danger/8 px-3 py-2 text-detail text-danger">
 									{message.errorMessage}
 								</div>
 							)}

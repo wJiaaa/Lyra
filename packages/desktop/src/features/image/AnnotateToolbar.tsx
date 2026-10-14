@@ -185,7 +185,7 @@ const HOLD_SLOP = 4;
  * own list and is unaffected either way.
  */
 export const FLOATING_BAR =
-	"pointer-events-auto fixed bottom-6 left-1/2 z-[120] flex items-center border border-white/12 bg-[#1c1c1e]/92 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out";
+	"pointer-events-auto fixed bottom-6 left-1/2 z-[120] flex items-center border border-white/12 bg-[#1c1c1e]/92 shadow-overlay backdrop-blur-xl transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out";
 
 export function AnnotateToolbar({
 	annotator,
@@ -604,7 +604,7 @@ function ToolProperties({
 			 * 空白（按钮之间那几个像素）如果也算数，调粗细时手一沉整条工具栏就跟着走了。
 			 */
 			data-toolbar-bubble
-			className={`absolute left-0 flex cursor-default animate-[ly-tool-in_var(--ly-t-base)_ease-out] items-center border border-white/12 bg-[#1c1c1e]/95 shadow-[0_6px_20px_rgba(0,0,0,0.4)] backdrop-blur-xl ${metrics.bubble} ${
+			className={`absolute left-0 flex cursor-default animate-[ly-tool-in_var(--ly-t-base)_ease-out] items-center border border-white/12 bg-[#1c1c1e]/95 shadow-overlay backdrop-blur-xl ${metrics.bubble} ${
 				side === "below" ? "top-full mt-2" : "bottom-full mb-2"
 			}`}
 			// 居中用 `translate` 而不是 `transform`：进场关键帧 `ly-tool-in` 写的是 transform，会把
@@ -667,7 +667,7 @@ function ToolProperties({
 						aria-pressed={annotator.backdrop === value}
 						onClick={() => annotator.setBackdrop(value)}
 						style={value ? { background: value } : undefined}
-						className={`shrink-0 cursor-pointer rounded-[4px] transition-transform duration-[var(--ly-t-quick)] ${metrics.swatch} ${
+						className={`shrink-0 cursor-pointer rounded-sm transition-transform duration-[var(--ly-t-quick)] ${metrics.swatch} ${
 							value ? "" : "ly-checker-xs"
 						} ${
 							annotator.backdrop === value

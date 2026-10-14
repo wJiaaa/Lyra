@@ -807,7 +807,7 @@ export function ScreenshotOverlay() {
 			{selection && (
 				<div
 					data-selection
-					className="pointer-events-none absolute border border-[var(--color-accent)] shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
+					className="pointer-events-none absolute border border-[var(--color-accent)] ring-1 ring-black/35"
 					style={{
 						left: selection.x,
 						top: selection.y,
@@ -925,7 +925,7 @@ export function ScreenshotOverlay() {
 						propertiesSide={toolbarAt?.side === "below" ? "below" : "above"}
 						// Position, background and shadow only: spacing comes from `size`, or the two
 						// would drift the first time either was changed. See `AnnotateToolbar`.
-						className="pointer-events-auto relative flex items-center border border-white/12 bg-[#1c1c1e]/92 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out"
+						className="pointer-events-auto relative flex items-center border border-white/12 bg-[#1c1c1e]/92 shadow-overlay backdrop-blur-xl transition-[opacity,transform] duration-[var(--ly-t-base)] ease-out"
 					/>
 				</div>
 			)}
@@ -953,7 +953,7 @@ export function ScreenshotOverlay() {
 						transition: `opacity ${TOAST_FADE_MS}ms ease-out`,
 					}}
 				>
-					<div className={`flex animate-[ly-tool-in_var(--ly-t-base)_ease-out] flex-col items-center gap-2 rounded-2xl bg-black/75 text-white shadow-[0_10px_40px_rgba(0,0,0,0.45)] backdrop-blur-md ${toast.failed ? "max-w-[min(80vw,640px)] px-9 py-7" : "size-36 shrink-0 justify-center p-4"}`}>
+					<div className={`flex animate-[ly-tool-in_var(--ly-t-base)_ease-out] flex-col items-center gap-2 rounded-2xl bg-black/75 text-white shadow-overlay backdrop-blur-md ${toast.failed ? "max-w-[min(80vw,640px)] px-9 py-7" : "size-36 shrink-0 justify-center p-4"}`}>
 						{toast.failed ? <TriangleAlert size={44} strokeWidth={2.2} /> : <Check size={44} strokeWidth={2.2} />}
 						<span className="text-center text-label">{toast.text}</span>
 						{toast.detail && <span className="break-all text-center text-caption">{toast.detail}</span>}

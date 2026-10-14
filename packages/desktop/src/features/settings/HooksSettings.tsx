@@ -137,17 +137,17 @@ export function HooksSettings() {
 			</div>
 
 			{untrusted && view?.projectPath && (
-				<div className="mt-5 flex items-start gap-2 rounded-[10px] border border-accent/35 bg-accent/6 px-3.5 py-2.5 text-detail text-ink-muted">
+				<div className="mt-5 flex items-start gap-2 rounded-lg border border-accent/35 bg-accent/6 px-3.5 py-2.5 text-detail text-ink-muted">
 					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-accent" aria-hidden />
 					<span>{t("hooks.trustNotice", { path: view.projectPath })}</span>
 				</div>
 			)}
 			{scope === "project" && view?.projectError && (
-				<p className="mt-5 rounded-[10px] border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger">
+				<p className="mt-5 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger">
 					{t("hooks.projectError", { error: view.projectError })}
 				</p>
 			)}
-			{error && <p className="mt-5 rounded-[10px] border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger">{error}</p>}
+			{error && <p className="mt-5 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-detail text-danger">{error}</p>}
 
 			<section className="mt-6">
 				<div className="mb-4 flex items-center justify-between gap-3">

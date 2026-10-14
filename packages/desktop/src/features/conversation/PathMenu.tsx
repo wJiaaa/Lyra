@@ -53,7 +53,7 @@ export function usePathMenu(root: string | null) {
 
 /** An installed application's own icon, at the size the menu's icon column is made for. */
 function appIcon(target: OpenTarget, fallback: ReactNode): ReactNode {
-	return target.icon ? <img src={target.icon} alt="" className="h-[18px] w-[18px] shrink-0 rounded-[4px]" /> : fallback;
+	return target.icon ? <img src={target.icon} alt="" className="h-[18px] w-[18px] shrink-0 rounded-sm" /> : fallback;
 }
 
 function PathMenu({

@@ -5,7 +5,8 @@ const LANE_COLOURS = [
   "var(--color-accent)",
   "var(--color-ok)",
   "var(--color-violet)",
-  "var(--color-info)",
+  // 曾是 `--color-info`，运行时恒等于强调色，和第一条泳道同色。
+  "var(--ly-chart-3)",
   "var(--color-danger)",
   "var(--color-ink-muted)",
 ];

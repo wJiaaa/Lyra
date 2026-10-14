@@ -198,7 +198,7 @@ const CAPABILITIES: { has: (model: ModelConfig) => boolean; label: MessageKey; I
 	{ has: (m) => isImageModel(m), label: "modelEditor.imageOutput", Icon: Palette, tone: "bg-accent/12 text-accent" },
 	{ has: (m) => m.supportsThinking && !isImageModel(m), label: "modelEditor.thinking", Icon: Lightbulb, tone: "bg-violet/12 text-violet" },
 	{ has: (m) => m.supportsImages, label: "modelEditor.images", Icon: Image, tone: "bg-ok/12 text-ok" },
-	{ has: (m) => m.supportsTools && !isImageModel(m), label: "modelEditor.toolCalls", Icon: Wrench, tone: "bg-info/12 text-info" },
+	{ has: (m) => m.supportsTools && !isImageModel(m), label: "modelEditor.toolCalls", Icon: Wrench, tone: "bg-accent/12 text-accent" },
 ];
 
 function ModelRow({
@@ -267,13 +267,13 @@ function ModelRow({
 
 				<span className="hidden w-[68px] shrink-0 justify-end gap-1 @md:flex">
 					{CAPABILITIES.filter((capability) => capability.has(model)).map(({ label, Icon, tone }) => (
-						<span key={label} role="img" aria-label={t(label)} data-ly-tip={t(label)} className={`grid h-5 w-5 place-items-center rounded-[5px] ${tone}`}>
+						<span key={label} role="img" aria-label={t(label)} data-ly-tip={t(label)} className={`grid h-5 w-5 place-items-center rounded-sm ${tone}`}>
 							<Icon size={11} strokeWidth={2} />
 						</span>
 					))}
 				</span>
 
-				<span className={`grid h-5 w-[46px] shrink-0 place-items-center rounded-[5px] font-mono text-caption text-ink-muted tabular-nums ${isImageModel(model) ? "" : "bg-card"}`}>
+				<span className={`grid h-5 w-[46px] shrink-0 place-items-center rounded-sm font-mono text-caption text-ink-muted tabular-nums ${isImageModel(model) ? "" : "bg-card"}`}>
 					{/* Held empty for a model that draws: a context window is not a thing it has, and the column keeps the rows aligned. */}
 					{isImageModel(model) ? "" : formatWindow(model.contextWindow)}
 				</span>

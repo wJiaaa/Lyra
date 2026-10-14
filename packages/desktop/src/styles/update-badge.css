@@ -37,8 +37,8 @@
  * pair that hold up in both.
  */
 .ly-update-dot {
-  background: color-mix(in srgb, var(--color-info) 16%, transparent);
-  color: var(--color-info);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent);
   /*
    * Width is not in the list, deliberately.
    *
@@ -54,7 +54,7 @@
 /* Hover deepens the wash rather than fading the whole control: this is the one moment the badge is
    being addressed, and a control that dims when pressed towards reads as going away. */
 .ly-update-dot:hover {
-  background: color-mix(in srgb, var(--color-info) 28%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
 }
 
 /* Paused: still there, plainly not working. Reads as a state rather than as an announcement. */
@@ -132,8 +132,8 @@
  */
 .ly-update-dot[data-phase="downloading"],
 .ly-update-dot[data-phase="preparing"] {
-  background-color: color-mix(in srgb, var(--color-info) 22%, transparent);
-  color: var(--color-info);
+  background-color: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  color: var(--color-accent);
 }
 
 .ly-update-dot[data-phase="paused"] {

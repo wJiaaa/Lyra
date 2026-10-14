@@ -69,9 +69,9 @@ export function AboutSettings() {
 				</p>
 			</div>
 
-			<section className="ly-about-hero ly-swap-in relative overflow-hidden rounded-[12px] px-6 pt-6 pb-5" data-ly-about="">
+			<section className="ly-about-hero ly-swap-in relative overflow-hidden rounded-xl px-6 pt-6 pb-5" data-ly-about="">
 				<div className="flex flex-wrap items-center gap-5">
-					<img src={icon} alt="" width={68} height={68} draggable={false} className="ly-about-icon shrink-0 rounded-[18px]" />
+					<img src={icon} alt="" width={68} height={68} draggable={false} className="ly-about-icon shrink-0 rounded-2xl" />
 					<div className="min-w-0 flex-1">
 						<div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
 							<h2 className="text-display leading-tight font-semibold tracking-tight text-ink">Plume</h2>

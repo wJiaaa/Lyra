@@ -290,7 +290,7 @@ function Dashboard({
 				</Card>
 			</div>
 
-			<div aria-label={t("usage.metrics")} className="mt-3 grid grid-cols-2 overflow-hidden rounded-[12px] border border-line bg-card/40 @2xl:grid-cols-5">
+			<div aria-label={t("usage.metrics")} className="mt-3 grid grid-cols-2 overflow-hidden rounded-xl border border-line bg-card/40 @2xl:grid-cols-5">
 				<Metric label={t("usage.tokensProcessed")} value={totals.tokens} format={formatCompact} sub={t("usage.perActiveDay", { n: formatCompact(totals.activeDays > 0 ? totals.tokens / totals.activeDays : 0) })} />
 				<Metric label={t("usage.cacheHit")} value={totals.cacheRead} format={formatCompact} sub={t("usage.ofInput", { percent: percent(totals.cacheRead, totals.input + totals.cacheRead + totals.cacheWrite) })} />
 				<Metric label={t("usage.uncachedInput")} value={totals.input} format={formatCompact} sub={t("usage.cacheWrites", { n: formatCompact(totals.cacheWrite) })} />
@@ -603,10 +603,10 @@ function UsageSkeleton({ failed }: { failed: boolean }) {
 function Heatmap({ grid, busiest }: { grid: DayUsage[][]; busiest: number }) {
 	const { t } = useI18n();
 	const labels = monthLabels(grid);
-	return <div className="flex w-full overflow-x-auto [justify-content:safe_center]" dir="rtl"><div dir="ltr" className="inline-block py-1"><div className="relative mb-1 h-[14px]">{labels.map((label) => <span key={label.column} className="absolute top-0 text-detail text-ink-faint" style={{ left: label.column * 14 }}>{label.text}</span>)}</div><div className="flex gap-[3px]">{grid.map((week) => <div key={week[0]?.key} className="flex flex-col gap-[3px]">{week.map((day) => { const future = day.date.getTime() > Date.now(); return <span key={day.key} data-ly-tip={future ? undefined : heatTip(day)} data-ly-tip-side="top" className={`h-[11px] w-[11px] rounded-[3px] transition-colors duration-[var(--ly-t-quick)] ${future ? "opacity-40" : ""} ${SHADES[heatLevel(day.tokens, busiest)]}`} />; })}</div>)}</div><div className="mt-2.5 flex items-center justify-end gap-1 text-detail text-ink-faint"><span className="mr-1">{t("usage.less")}</span>{SHADES.map((shade, index) => <span key={shade} className={`h-[11px] w-[11px] rounded-[3px] ${shade}`} aria-label={t("usage.bucket", { index })} />)}<span className="ml-1">{t("usage.more")}</span></div></div></div>;
+	return <div className="flex w-full overflow-x-auto [justify-content:safe_center]" dir="rtl"><div dir="ltr" className="inline-block py-1"><div className="relative mb-1 h-[14px]">{labels.map((label) => <span key={label.column} className="absolute top-0 text-detail text-ink-faint" style={{ left: label.column * 14 }}>{label.text}</span>)}</div><div className="flex gap-[3px]">{grid.map((week) => <div key={week[0]?.key} className="flex flex-col gap-[3px]">{week.map((day) => { const future = day.date.getTime() > Date.now(); return <span key={day.key} data-ly-tip={future ? undefined : heatTip(day)} data-ly-tip-side="top" className={`h-[11px] w-[11px] rounded-xs transition-colors duration-[var(--ly-t-quick)] ${future ? "opacity-40" : ""} ${SHADES[heatLevel(day.tokens, busiest)]}`} />; })}</div>)}</div><div className="mt-2.5 flex items-center justify-end gap-1 text-detail text-ink-faint"><span className="mr-1">{t("usage.less")}</span>{SHADES.map((shade, index) => <span key={shade} className={`h-[11px] w-[11px] rounded-xs ${shade}`} aria-label={t("usage.bucket", { index })} />)}<span className="ml-1">{t("usage.more")}</span></div></div></div>;
 }
 
-const SHADES = ["bg-ink/[0.06]", "bg-info/25", "bg-info/45", "bg-info/70", "bg-info"] as const;
+const SHADES = ["bg-ink/[0.06]", "bg-accent/25", "bg-accent/45", "bg-accent/70", "bg-accent"] as const;
 
 function heatTip(day: DayUsage): string {
 	const date = translate("usage.monthDay", { month: day.date.getMonth() + 1, day: day.date.getDate() });

@@ -98,7 +98,7 @@ export function NameEditor({
 			// Clicking inside the field must not reach the row underneath, which would select or open it.
 			onClick={(event) => event.stopPropagation()}
 			onDoubleClick={(event) => event.stopPropagation()}
-			className={`ly-name-input min-w-0 flex-1 rounded-[4px] border bg-input px-1 py-px text-detail text-ink outline-none ${
+			className={`ly-name-input min-w-0 flex-1 rounded-sm border bg-input px-1 py-px text-detail text-ink outline-none ${
 				problem ? "border-danger" : "border-accent"
 			}`}
 		/>

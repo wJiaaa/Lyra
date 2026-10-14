@@ -405,7 +405,7 @@ export function PreviewCard({ preview, startHeight, onShown }: {
 			 * has no border; nor does a draft hand its height to one that has: a draft is drawn only for a
 			 * page written in the call, and only a file from disk is shown unthemed.
 			 */
-			className={`ly-enter relative my-2.5 overflow-hidden ${themed ? "" : `box-content border border-line-soft ${capturing ? "" : "rounded-[12px]"}`} ${
+			className={`ly-enter relative my-2.5 overflow-hidden ${themed ? "" : `box-content border border-line-soft ${capturing ? "" : "rounded-xl"}`} ${
 				measured === null ? "" : "transition-[height] duration-[var(--ly-t-slow)]"
 			}`}
 		>

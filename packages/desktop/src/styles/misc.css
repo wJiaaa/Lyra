@@ -61,7 +61,7 @@
  * identically — and so a row with a non-standard shape can still pick up the same states.
  */
 .ly-item {
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--color-ink);
   transition:
     background-color var(--ly-t-quick) var(--ly-e-out),
@@ -230,19 +230,13 @@
 .ly-menu-card {
   border-radius: var(--radius-menu);
   background: var(--color-float);
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 0.1),
-    0 2px 4px -2px rgb(0 0 0 / 0.1);
+  box-shadow: var(--shadow-menu);
 }
 
 .ly-glass,
 .ly-glass-solid {
-  box-shadow:
-    /* A hairline along the top edge, as if the panel had thickness — enough to read as glass,
-       not so much that it becomes a stripe. */
-    inset 0 1px 0 rgb(255 255 255 / 0.4),
-    0 6px 20px -6px rgb(0 0 0 / 0.13),
-    0 1px 5px -2px rgb(0 0 0 / 0.09);
+  /* A hairline along the top edge, as if the panel had thickness — see `--shadow-glass`. */
+  box-shadow: var(--shadow-glass);
 }
 
 .ly-glass {
@@ -274,14 +268,6 @@
  */
 .ly-glass-solid {
   background: var(--color-float);
-}
-
-:root.dark .ly-glass,
-:root.dark .ly-glass-solid {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.07),
-    0 8px 24px -6px rgb(0 0 0 / 0.5),
-    0 1px 6px -2px rgb(0 0 0 / 0.38);
 }
 
 :root.dark .ly-glass {
@@ -554,7 +540,7 @@ textarea.ly-composer-text[data-highlighted="true"] {
 .ly-command-token {
 	color: var(--color-accent);
 	background: color-mix(in srgb, var(--color-accent) 9%, transparent);
-	border-radius: 4px;
+	border-radius: var(--radius-sm);
 	box-decoration-break: clone;
 }
 
@@ -562,7 +548,7 @@ textarea.ly-composer-text[data-highlighted="true"] {
 .ly-mention-token {
 	color: var(--color-accent);
 	background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-	border-radius: 4px;
+	border-radius: var(--radius-sm);
 	text-decoration: underline;
 	text-decoration-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
 	text-underline-offset: 2px;
@@ -620,7 +606,7 @@ textarea.ly-composer-text[data-highlighted="true"] {
   left: var(--ly-token-before);
   padding: 2px calc(var(--ly-token-shift) + var(--ly-token-end)) 2px 0;
   margin: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--color-ink-faint) 13%, transparent);
   /* 换行时两截各自带圆角，而不是中间被切开一刀。 */
   box-decoration-break: clone;
@@ -651,7 +637,7 @@ textarea.ly-composer-text[data-highlighted="true"] {
 .ly-user-bubble .ly-attachment-token {
   padding: 2px 6px;
   margin: 0 1px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--color-ink-faint) 13%, transparent);
   box-decoration-break: clone;
   transition: background-color var(--ly-t-quick) var(--ly-e-soft);
@@ -881,7 +867,6 @@ textarea.ly-composer-text[data-highlighted="true"] {
 
 /* 图标本身是一张满幅的圆角方块；一道极细的描边和一点下沉，让它在浅色底上也有轮廓。 */
 .ly-about-icon {
-	box-shadow:
-		0 0 0 0.5px rgb(0 0 0 / 0.08),
-		0 6px 16px -6px color-mix(in srgb, var(--color-accent) 45%, transparent);
+	/* stylelint-disable-next-line declaration-property-value-disallowed-list -- 应用图标底下那道强调色的光晕，只此一处，不是一档阴影 */
+	box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.08), 0 6px 16px -6px color-mix(in srgb, var(--color-accent) 45%, transparent);
 }

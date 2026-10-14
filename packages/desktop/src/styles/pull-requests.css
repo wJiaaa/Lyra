@@ -172,6 +172,6 @@
 }
 
 .ly-docx-host .docx {
-  box-shadow: 0 2px 14px rgb(0 0 0 / 28%);
-  border-radius: 2px;
+  box-shadow: var(--shadow-dialog);
+  border-radius: var(--radius-xs);
 }

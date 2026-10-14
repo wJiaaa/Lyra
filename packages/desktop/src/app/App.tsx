@@ -314,7 +314,7 @@ function GalleryFallback() {
 			{[0, 1].map((row) => (
 				<div key={row} className="mb-2 flex gap-2">
 					{widths.map((width, index) => (
-						<span key={index} className="ly-skeleton block rounded-[10px]" style={{ width, height: compact ? 140 : 200, flex: `${width} 1 0` }} />
+						<span key={index} className="ly-skeleton block rounded-lg" style={{ width, height: compact ? 140 : 200, flex: `${width} 1 0` }} />
 					))}
 				</div>
 			))}
@@ -350,7 +350,7 @@ function PullRequestsFallback() {
 			<div className="flex w-[300px] shrink-0 flex-col border-r border-line-soft">
 				<div className="h-11 shrink-0" />
 				<div className="px-3 pt-1 pb-2">
-					<span className="ly-skeleton block h-8 rounded-[9px]" />
+					<span className="ly-skeleton block h-8 rounded-lg" />
 				</div>
 				{[72, 58, 84, 66, 78, 52].map((width, index) => (
 					<div key={index} className="px-5 py-3">

@@ -116,7 +116,7 @@ const Tile = memo(function Tile({
 			data-ly-gallery-tile={entry.media}
 			aria-label={words}
 			onClick={(event) => onOpen(entry.media, event.currentTarget)}
-			className="ly-gallery-tile group/tile relative shrink-0 overflow-hidden rounded-[10px] bg-card"
+			className="ly-gallery-tile group/tile relative shrink-0 overflow-hidden rounded-lg bg-card"
 			style={{ width, height }}
 		>
 			<img

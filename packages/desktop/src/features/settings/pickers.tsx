@@ -112,7 +112,7 @@ export function Slider({
 			{/* Track, and the part of it behind the handle. */}
 			<div className="absolute top-1/2 h-[3px] w-full -translate-y-1/2 overflow-hidden rounded-full bg-line">
 				<div
-					className="h-full rounded-full bg-info"
+					className="h-full rounded-full bg-accent"
 					style={{ width: `${ratio * 100}%`, transition: `width ${glide}` }}
 				/>
 			</div>
@@ -278,7 +278,7 @@ function Stepper({
 			aria-label={label}
 			disabled={disabled}
 			onClick={onClick}
-			className="flex h-[11px] w-[16px] items-center justify-center rounded-[3px] text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+			className="flex h-[11px] w-[16px] items-center justify-center rounded-xs text-ink-faint transition-colors hover:bg-card-hover hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
 		>
 			{children}
 		</button>

@@ -140,7 +140,7 @@ export function ThemePreview({ variant, accent }: { variant: "system" | "light" 
 	 * corners of the card are crossed, so neither theme can be mistaken for the whole picture.
 	 */
 	return (
-		<svg viewBox="0 0 120 80" className="w-full rounded-[7px]" aria-hidden>
+		<svg viewBox="0 0 120 80" className="w-full rounded-md" aria-hidden>
 			<defs>
 				<clipPath id={`ly-half-${variant}`}>
 					<polygon points="0,0 120,0 0,80" />

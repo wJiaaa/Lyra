@@ -68,7 +68,7 @@ export function Lineage({ current, index, onSelect }: { current: string; index: 
 							aria-current={active ? "step" : undefined}
 							data-ly-tip={words}
 							onClick={() => onSelect(node.id)}
-							className={`ly-lineage-step flex h-full w-full items-center gap-3 rounded-[10px] pr-3 text-left transition-colors duration-[var(--ly-t-quick)] ${
+							className={`ly-lineage-step flex h-full w-full items-center gap-3 rounded-lg pr-3 text-left transition-colors duration-[var(--ly-t-quick)] ${
 								active ? "bg-card-hover" : "hover:bg-card-hover/60"
 							}`}
 							style={{ paddingLeft: INSET }}
@@ -77,7 +77,7 @@ export function Lineage({ current, index, onSelect }: { current: string; index: 
 								src={sessionMediaUrl(node.id, SESSION_THUMB_EDGE)}
 								alt=""
 								draggable={false}
-								className={`shrink-0 rounded-[8px] bg-card object-cover ${active ? "ly-lineage-current" : ""}`}
+								className={`shrink-0 rounded-lg bg-card object-cover ${active ? "ly-lineage-current" : ""}`}
 								style={{ width: THUMB, height: THUMB }}
 							/>
 							<span className="min-w-0 flex-1">

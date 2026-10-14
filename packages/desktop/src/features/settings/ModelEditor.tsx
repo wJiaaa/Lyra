@@ -173,7 +173,7 @@ export function ModelEditor({
 							</Field>
 						</div>}
 
-						<div className="space-y-3 rounded-[10px] border border-line px-3.5 py-3">
+						<div className="space-y-3 rounded-lg border border-line px-3.5 py-3">
 							<Capability
 								label={t("modelEditor.imageOutput")}
 								hint={t("modelEditor.imageOutputDetail")}
@@ -231,14 +231,14 @@ function ThinkingLevels({ options, onChange }: { options: ThinkingOption[] | und
 	return (
 		<div className="space-y-1.5">
 			<span className="text-label text-ink">{t("modelEditor.thinkingLevels")}</span>
-			<div className="flex flex-wrap gap-0.5 rounded-[10px] bg-card p-0.5">
+			<div className="flex flex-wrap gap-0.5 rounded-lg bg-card p-0.5">
 				{THINKING_LEVELS.map((level) => (
 					<button
 						key={level}
 						type="button"
 						aria-pressed={selected.includes(level)}
 						onClick={() => toggle(level)}
-						className={`h-[26px] rounded-[8px] px-3 text-label transition-colors duration-[var(--ly-t-quick)] ${
+						className={`h-[26px] rounded-lg px-3 text-label transition-colors duration-[var(--ly-t-quick)] ${
 							selected.includes(level) ? "bg-elevated text-ink" : "text-ink-faint hover:text-ink"
 						}`}
 					>

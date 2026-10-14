@@ -185,8 +185,8 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 			<div
 				data-ly-avatar-host={mark ? "" : undefined}
 				data-ly-tool={status}
-				className={`ly-enter overflow-hidden rounded-[10px] border transition-colors duration-[var(--ly-t-base)] ${
-					live ? "ly-rail border-info/30 bg-card/60" : "border-line-soft bg-card/45"
+				className={`ly-enter overflow-hidden rounded-lg border transition-colors duration-[var(--ly-t-base)] ${
+					live ? "ly-rail border-accent/30 bg-card/60" : "border-line-soft bg-card/45"
 				}`}
 			>
 				<button
@@ -205,7 +205,7 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 
 					{running && pending && <span className="shrink-0 text-caption text-ink-faint">{pending}</span>}
 					{live && (
-						<span className="flex shrink-0 items-center gap-1.5 text-caption text-info/80">
+						<span className="flex shrink-0 items-center gap-1.5 text-caption text-accent/80">
 							{elapsed > 0 && <span className="tabular-nums">{elapsed}s</span>}
 							<StatusSpinner size={12} />
 						</span>
@@ -283,7 +283,7 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 
 			{!onOpen && (
 				<Collapse open={open} bodyClassName="pt-1.5 pl-[22px]">
-					<div className="overflow-hidden rounded-[10px] border border-line-soft bg-card/45">{body}</div>
+					<div className="overflow-hidden rounded-lg border border-line-soft bg-card/45">{body}</div>
 				</Collapse>
 			)}
 		</div>
@@ -313,7 +313,7 @@ function ToolMark({ mark, Icon, running, size = 13 }: { mark: McpMark | null; Ic
 				alt=""
 				width={size}
 				height={size}
-				className={`shrink-0 rounded-[3px] object-cover transition-opacity duration-[var(--ly-t-base)] ${running ? "ly-pulse" : "opacity-90"}`}
+				className={`shrink-0 rounded-xs object-cover transition-opacity duration-[var(--ly-t-base)] ${running ? "ly-pulse" : "opacity-90"}`}
 			/>
 		);
 	}
@@ -326,7 +326,7 @@ function ToolMark({ mark, Icon, running, size = 13 }: { mark: McpMark | null; Ic
 			// A server that declared a colour and shipped no picture is still told apart from the next
 			// one. Only while idle: the running state is the app speaking, and it owns that colour.
 			style={tint && !running ? { color: tint } : undefined}
-			className={card ? `shrink-0 transition-colors duration-[var(--ly-t-base)] ${running ? "ly-pulse text-info" : "text-ink-faint"}` : "shrink-0"}
+			className={card ? `shrink-0 transition-colors duration-[var(--ly-t-base)] ${running ? "ly-pulse text-accent" : "text-ink-faint"}` : "shrink-0"}
 		/>
 	);
 }

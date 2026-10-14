@@ -308,7 +308,7 @@
 }
 
 .ly-dialog-surface {
-	box-shadow: 0 18px 60px rgb(0 0 0 / 0.16), 0 2px 8px rgb(0 0 0 / 0.06);
+	box-shadow: var(--shadow-dialog);
 }
 
 .ly-dialog-action {
@@ -404,11 +404,11 @@ div.ly-field {
  */
 :is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) :is(.ly-field, .ly-dialog-action, [data-segmented], .ly-textarea-shell),
 :is([data-ly-popover], [data-ly-popover-ghost]) .ly-field {
-	border-radius: 8px;
+	border-radius: var(--radius-lg);
 }
 
 :is([data-ly-settings] main, .ly-settings-card, [data-ly-modal]) [data-segmented] :is([data-segment], [data-segment-rail]) {
-	border-radius: 6px;
+	border-radius: var(--radius-md);
 }
 
 .ly-field.ly-field-invalid,

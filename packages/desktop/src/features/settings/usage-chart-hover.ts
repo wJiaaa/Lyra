@@ -45,7 +45,8 @@ export function plotHeightFor(viewHeight: number): number {
 	return viewHeight - CHART.top - CHART.bottom;
 }
 
-const COLORS = ["var(--color-accent)", "var(--color-violet)", "var(--color-ok)", "var(--color-info)"];
+// 第四色曾是 `--color-info`，而它在运行时恒等于强调色——第四条线和第一条同色，分不出来。
+const COLORS = ["var(--color-accent)", "var(--color-violet)", "var(--color-ok)", "var(--ly-chart-3)"];
 
 export function trendColor(index: number): string {
 	return COLORS[index % COLORS.length];

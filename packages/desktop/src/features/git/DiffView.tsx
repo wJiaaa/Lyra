@@ -63,7 +63,7 @@ export function DiffView({
 					{hunks.map((hunk, hunkIndex) => (
 						<div key={hunkIndex} className="border-b border-line-soft last:border-b-0">
 							{hunkIndex > 0 && (
-								<div className="sticky left-0 w-max bg-panel/60 px-3 py-0.5 text-caption text-ink-faint">
+								<div className="sticky left-0 w-max bg-shell/60 px-3 py-0.5 text-caption text-ink-faint">
 									@@ -{hunk.oldStart} +{hunk.newStart} @@
 								</div>
 							)}

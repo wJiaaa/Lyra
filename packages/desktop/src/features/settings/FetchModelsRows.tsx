@@ -108,7 +108,7 @@ export function ModelRow({ provider, row, checked, onToggle }: { provider: Pick<
 					{row.modelId}
 				</span>
 				{image && (
-					<span role="img" aria-label={t("modelEditor.imageOutput")} data-ly-tip={t("modelEditor.imageOutput")} className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] bg-accent/12 text-accent">
+					<span role="img" aria-label={t("modelEditor.imageOutput")} data-ly-tip={t("modelEditor.imageOutput")} className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-sm bg-accent/12 text-accent">
 						<Palette size={10.5} strokeWidth={2} />
 					</span>
 				)}

@@ -155,7 +155,7 @@ export function AddressBar({ url, bookmarks, search, onOpen, onOutside, inputRef
 			 * Opaque, not frosted: the thing underneath is a `<webview>`, which composites outside
 			 * this document, so `backdrop-filter` would sample an empty backdrop and blur nothing.
 			 */
-			className="ly-glass-solid absolute left-0 right-0 top-[30px] z-50 overflow-hidden rounded-[10px] border border-line py-1"
+			className="ly-glass-solid absolute left-0 right-0 top-[30px] z-50 overflow-hidden rounded-lg border border-line py-1"
 		>
 			{choices.map((choice, position) => <div
 				key={`${choice.kind}-${choice.url}`}

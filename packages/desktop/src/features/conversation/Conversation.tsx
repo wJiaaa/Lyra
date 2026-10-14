@@ -720,7 +720,7 @@ export function ConversationSkeleton() {
       >
         <div className="mx-auto w-full max-w-[var(--ly-content)] py-5">
           <div className="ly-pulse flex flex-col gap-3">
-            <div className="ml-auto h-[38px] w-[45%] rounded-[16px] rounded-br-[6px] bg-card" />
+            <div className="ml-auto h-[38px] w-[45%] rounded-2xl rounded-br-md bg-card" />
             {rows.map((width, index) => (
               <div
                 key={index}
@@ -728,7 +728,7 @@ export function ConversationSkeleton() {
                 style={{ width: `${width}%` }}
               />
             ))}
-            <div className="mt-2 h-[38px] w-full rounded-[11px] bg-card" />
+            <div className="mt-2 h-[38px] w-full rounded-xl bg-card" />
           </div>
         </div>
       </div>

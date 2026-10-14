@@ -660,7 +660,7 @@ export function ImageViewer() {
 				 * Bottom left, clear of the annotation toolbar in the middle. Present in both modes:
 				 * zooming in to place a mark precisely is the same need as zooming in to read one.
 				 */}
-				<div className="pointer-events-auto absolute bottom-6 left-6 flex items-center gap-0.5 rounded-xl border border-white/12 bg-[#1c1c1e]/92 px-1.5 py-1 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+				<div className="pointer-events-auto absolute bottom-6 left-6 flex items-center gap-0.5 rounded-xl border border-white/12 bg-[#1c1c1e]/92 px-1.5 py-1 shadow-overlay backdrop-blur-xl">
 					<ViewerButton label={t("viewer.zoomOut")} small disabled={zoom <= ZOOM_MIN} onClick={() => zoomTo(zoom / ZOOM_STEP)}>
 						<Minus size={14} strokeWidth={2} />
 					</ViewerButton>

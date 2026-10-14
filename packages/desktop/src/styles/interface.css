@@ -43,7 +43,7 @@
   }
 
   .ly-ui-tone-info {
-    --ly-ui-tone: var(--color-info);
+    --ly-ui-tone: var(--color-accent);
   }
   .ly-ui-tone-ok {
     --ly-ui-tone: var(--color-ok);

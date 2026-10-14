@@ -37,7 +37,7 @@ export function ModelCatalog({ suggestion, onPick }: { suggestion: Entry | null;
 		</button>
 	);
 	return (
-		<div className="space-y-2 rounded-[10px] border border-line px-3.5 py-3">
+		<div className="space-y-2 rounded-lg border border-line px-3.5 py-3">
 			<div className="text-label font-medium text-ink">{t("catalog.fill")}</div>
 			<p className="text-detail text-ink-faint">{t("catalog.fillDetail")}</p>
 			<TextInput value={query} onChange={setQuery} aria-label={t("catalog.search")} placeholder={t("catalog.searchPlaceholder")} />

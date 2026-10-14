@@ -143,7 +143,7 @@ export function GeneralSettings() {
                   <img
                     src={target.icon}
                     alt=""
-                    className="h-[18px] w-[18px] shrink-0 rounded-[4px]"
+                    className="h-[18px] w-[18px] shrink-0 rounded-sm"
                   />
                 ) : target.id === "reveal" ? (
                   // Not an application, so there is no icon to borrow — and a single row without

@@ -203,7 +203,7 @@ export function Toaster() {
 						 * It is also what makes this legible in both themes — an opaque surface built
 						 * from the theme's own tokens rather than a tint over whatever is behind.
 						 */
-						className={`ly-glass-solid pointer-events-auto flex max-w-[min(560px,calc(100vw-3rem))] items-start gap-2 rounded-[13px] border py-1.5 pr-1.5 pl-2.5 text-detail text-ink ${
+						className={`ly-glass-solid pointer-events-auto flex max-w-[min(560px,calc(100vw-3rem))] items-start gap-2 rounded-xl border py-1.5 pr-1.5 pl-2.5 text-detail text-ink ${
 							leaving.includes(group.key) ? "ly-toast-out" : "ly-toast-in"
 						} ${tone.edge}`}
 					>

@@ -49,7 +49,7 @@ const LOOK = {
 		body: "pl-3.5",
 	},
 	framed: {
-		root: "overflow-hidden rounded-[10px] border border-line-soft",
+		root: "overflow-hidden rounded-lg border border-line-soft",
 		head: "pr-3",
 		button: "py-2 pl-3",
 		/*

@@ -5,7 +5,6 @@
 @theme {
   --color-shell: #171717;
   --color-sidebar: #1c1c1c;
-  --color-panel: #202020;
   --color-card: #242424;
   --color-card-hover: #2a2a2a;
   --color-input: #1f1f1f;
@@ -32,7 +31,6 @@
   /* Overwritten from Settings at boot; this is only what the first frame paints with. */
   --color-accent: #339cff;
   --color-ok: #3ecf8e;
-  --color-info: #5aa2f5;
   --color-violet: #b18cf5;
   --color-danger: #f2555a;
 
@@ -122,6 +120,29 @@
    */
   --ly-frame-pad: 2px;
   --ly-pane-chrome: 5px;
+
+  /*
+   * 阴影按用途分档，不按大小。Tailwind 自带的 `shadow-sm`…`shadow-2xl` 也是刻度，组件里可以直接用；
+   * 这几档是那套刻度说不出来的：贴得很淡的、带内高光的、分深浅的、压在照片上的。手写的
+   * `box-shadow` 字面量由 stylelint 拦（`stylelint.config.mjs`），tsx 里的 `shadow-[…]` 由
+   * `test/design-tokens.test.ts` 拦。
+   *
+   * 深色下要加重的几档在文件末尾的 `:root.dark` 里覆盖。
+   */
+  /* 贴在页面上的卡片：主输入框，或它外面的托盘——两者只投一层。Tailwind `shadow-xl` 压到 5%。 */
+  --shadow-rest: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+  /* 菜单与浮层卡片。就是 Tailwind 的 `shadow-md`，深浅同一组。 */
+  --shadow-menu: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-tip: 0 4px 14px -4px rgb(0 0 0 / 0.3);
+  /* 对话框，以及预览里浮在底上的一页纸。 */
+  --shadow-dialog: 0 18px 60px rgb(0 0 0 / 0.16), 0 2px 8px rgb(0 0 0 / 0.06);
+  /* 压在照片和截图上的深色浮条：看图、标注、截图工具条，拖动时的标签。底下是什么都不知道，所以重。 */
+  --shadow-overlay: 0 8px 32px rgb(0 0 0 / 0.45);
+  /* 开关和分段控件的旋钮。 */
+  --shadow-knob: 0 1px 2.5px rgb(0 0 0 / 0.16);
+  /* 半透明浮层：顶边一道内高光，像玻璃有厚度。 */
+  --shadow-glass:
+    inset 0 1px 0 rgb(255 255 255 / 0.4), 0 6px 20px -6px rgb(0 0 0 / 0.13), 0 1px 5px -2px rgb(0 0 0 / 0.09);
 
   /*
    * 不打包字体：界面用系统字体，代码用系统等宽。
@@ -244,4 +265,9 @@
   --ly-chart-5: #fb7185;
   --ly-chart-6: #a3e635;
   --ly-warning: #fbbf24;
+
+  /* 深底上同样的投影看不见，旋钮会像贴在轨道上；玻璃的内高光要压暗，否则是一道亮线。 */
+  --shadow-knob: 0 1px 3px rgb(0 0 0 / 0.55);
+  --shadow-glass:
+    inset 0 1px 0 rgb(255 255 255 / 0.07), 0 8px 24px -6px rgb(0 0 0 / 0.5), 0 1px 6px -2px rgb(0 0 0 / 0.38);
 }

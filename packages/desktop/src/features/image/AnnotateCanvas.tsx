@@ -729,7 +729,7 @@ export function AnnotateCanvas({
 			 */}
 			{tool === "mosaic" && brushAt && (
 				<span
-					className="pointer-events-none absolute rounded-full border border-white/80 bg-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
+					className="pointer-events-none absolute rounded-full border border-white/80 bg-white/15 ring-1 ring-black/35"
 					style={{
 						left: (brushAt.x - mosaicBrush(width) * weight / 2) * display,
 						top: (brushAt.y - mosaicBrush(width) * weight / 2) * display,
@@ -754,7 +754,7 @@ export function AnnotateCanvas({
 				 * press would make the thing it points at the one thing you cannot grab.
 				 */
 				<span
-					className="pointer-events-none absolute rounded-[3px] border border-sky-400 border-dashed bg-sky-400/10"
+					className="pointer-events-none absolute rounded-xs border border-sky-400 border-dashed bg-sky-400/10"
 					style={{
 						left: box.x * display,
 						top: box.y * display,

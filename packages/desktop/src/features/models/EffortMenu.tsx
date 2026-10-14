@@ -91,7 +91,7 @@ export function EffortMenu({ anchor, onClose, selection }: { anchor: Anchor; onC
 			<div className="px-3 py-2.5">
 				<div className="flex items-center gap-1.5">
 					<span className="text-label text-ink-muted">{t("thinking.title")}</span>
-					<span className="text-label font-medium" style={{ color: atMax ? "var(--color-violet)" : "var(--color-info)" }}>
+					<span className="text-label font-medium" style={{ color: atMax ? "var(--color-violet)" : "var(--color-accent)" }}>
 						<RollingText>{supported && current ? current.label : t("thinking.unsupported")}</RollingText>
 					</span>
 					<div className="flex-1" />
@@ -226,7 +226,7 @@ function DotSlider({
 
 	return (
 		<div className={`relative h-[24px] ${disabled ? "opacity-40" : ""}`}>
-			<div className="absolute inset-0 flex items-center gap-px overflow-hidden rounded-[7px] bg-card px-[6px]">
+			<div className="absolute inset-0 flex items-center gap-px overflow-hidden rounded-md bg-card px-[6px]">
 				{Array.from({ length: COLUMNS }, (_, column) => {
 					const lit = column < litColumns;
 					// Ramp so the right-hand end of the lit run is brightest.
@@ -236,11 +236,11 @@ function DotSlider({
 							{Array.from({ length: ROWS }, (_, row) => (
 								<span
 									key={row}
-									className={`h-[3px] w-[3px] rounded-[0.5px] transition-[background-color,opacity] ${
+									className={`h-[3px] w-[3px] rounded-none transition-[background-color,opacity] ${
 										lit && atMax ? "ly-thrust" : ""
 									}`}
 									style={{
-										background: lit ? (atMax ? "var(--color-violet)" : "var(--color-info)") : "var(--color-ink-faint)",
+										background: lit ? (atMax ? "var(--color-violet)" : "var(--color-accent)") : "var(--color-ink-faint)",
 										opacity: lit ? intensity : 0.3,
 										transitionDuration: "var(--ly-t-base)",
 										transitionTimingFunction: "var(--ly-e-out)",
@@ -261,7 +261,7 @@ function DotSlider({
 
 			{/* Handle sits on the boundary between lit and unlit columns. */}
 			<div
-				className="ly-knob pointer-events-none absolute top-1/2 h-[15px] w-[15px] -translate-x-1/2 -translate-y-1/2 rounded-[5px] border"
+				className="ly-knob pointer-events-none absolute top-1/2 h-[15px] w-[15px] -translate-x-1/2 -translate-y-1/2 rounded-sm border"
 				style={{
 					left: `calc(8px + ${ratio} * (100% - 16px))`,
 					transition: "left var(--ly-t-base) var(--ly-e-out)",

@@ -80,7 +80,7 @@ export function PluginsSettings({ filter = "", markOf }: { filter?: string; mark
 			<ProjectOverrideNotice keys={["disabledPlugins"]} cwd={cwd} />
 			{/* The notices are the commands page's, so a failure reads the same on every definition page. */}
 			{diagnostics.length > 0 && (
-				<div className="mb-5 flex items-start gap-2 rounded-[10px] border border-accent/35 bg-accent/6 px-3.5 py-2.5 text-detail text-ink-muted">
+				<div className="mb-5 flex items-start gap-2 rounded-lg border border-accent/35 bg-accent/6 px-3.5 py-2.5 text-detail text-ink-muted">
 					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-accent" aria-hidden />
 					<div className="min-w-0">
 						<div className="text-accent">{t("pluginsSettings.problems", { n: diagnostics.length })}</div>
@@ -95,7 +95,7 @@ export function PluginsSettings({ filter = "", markOf }: { filter?: string; mark
 			)}
 
 			{warnings.length > 0 && (
-				<div className="mb-5 flex items-start gap-2 rounded-[10px] border border-line px-3.5 py-2.5 text-detail text-ink-faint">
+				<div className="mb-5 flex items-start gap-2 rounded-lg border border-line px-3.5 py-2.5 text-detail text-ink-faint">
 					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden />
 					<div className="min-w-0">
 						<div className="text-ink-muted">{t("pluginsSettings.warnings", { n: warned })}</div>
@@ -113,7 +113,7 @@ export function PluginsSettings({ filter = "", markOf }: { filter?: string; mark
 			 * visible reason — indistinguishable from having switched each one off.
 			 */}
 			{allOff && plugins.length > 0 && (
-				<p className="mb-5 rounded-[10px] border border-line px-3.5 py-2.5 text-detail leading-relaxed text-ink-muted">
+				<p className="mb-5 rounded-lg border border-line px-3.5 py-2.5 text-detail leading-relaxed text-ink-muted">
 					{t("plugins.settingsSays")} <code className="font-mono">disabledPlugins: ["*"]</code>
 					{t("plugins.allOffDetail")}
 				</p>

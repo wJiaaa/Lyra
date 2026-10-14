@@ -17,7 +17,7 @@ import type { OpenTarget } from "../../../electron/ipc-types.ts";
 import { ROW, Section } from "./rows.tsx";
 
 function TargetIcon({ target }: { target: OpenTarget }) {
-	if (target.icon) return <img src={target.icon} alt="" className="h-4 w-4 shrink-0 rounded-[4px]" />;
+	if (target.icon) return <img src={target.icon} alt="" className="h-4 w-4 shrink-0 rounded-sm" />;
 	return <FolderOpen size={14} strokeWidth={1.8} className="shrink-0 text-ink-muted" />;
 }
 

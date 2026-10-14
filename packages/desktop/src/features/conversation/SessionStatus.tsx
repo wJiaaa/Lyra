@@ -84,7 +84,7 @@ export function SessionStatus({ activity, unread = false, worktree }: { activity
 								: activity === "failed"
 									? "bg-danger"
 									: unread
-										? "bg-info"
+										? "bg-accent"
 										: "border border-line-float"
 					}`}
 				/>

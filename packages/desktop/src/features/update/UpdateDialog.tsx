@@ -51,7 +51,7 @@ function ProgressStatus({ phase, fraction }: { phase: Phase; fraction: number | 
 			<div className="mt-2 h-1 overflow-hidden rounded-full bg-ink/10">
 				<div
 					className={`h-full rounded-full transition-[width,background-color] duration-[var(--ly-t-base)] ease-[var(--ly-e-out)] ${
-						phase.at === "paused" ? "bg-ink-faint" : "bg-info"
+						phase.at === "paused" ? "bg-ink-faint" : "bg-accent"
 					}`}
 					style={{ width: `${Math.max(2, (fraction ?? 0) * 100)}%` }}
 				/>

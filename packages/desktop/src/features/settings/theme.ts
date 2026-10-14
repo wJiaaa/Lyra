@@ -134,7 +134,6 @@ export function applyAppearance(input: AppearanceSettings): void {
 	const tokens: Record<string, string> = {
 		"--color-shell": toHex(background),
 		"--color-sidebar": surface(0.042),
-		"--color-panel": surface(0.04),
 		"--color-card": surface(0.06),
 		"--color-card-hover": veil(dark ? 0.062 : 0.05),
 		"--color-input": paper,
@@ -171,7 +170,6 @@ export function applyAppearance(input: AppearanceSettings): void {
 		"--color-ink-muted": text(0.7),
 		"--color-ink-faint": text(dark ? 0.56 : 0.52),
 		"--color-accent": accent,
-		"--color-info": accent,
 		"--ly-ui-font": appearance.uiFont,
 		"--ly-code-font": appearance.codeFont,
 		"--ly-ui-size": `${appearance.uiFontSize}px`,

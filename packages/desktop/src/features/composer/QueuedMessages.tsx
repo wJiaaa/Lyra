@@ -256,7 +256,7 @@ function Rows({
 		 * `overflow-hidden` 是为了圆角：行的高亮要在角上被切住。它也顺手圈住了拖动——被拖的那行
 		 * 位移在下面按队伍长度夹过，甩不出这张卡片。
 		 */
-		<div ref={list} role="list" aria-label={label} data-composer-queue data-empty={rows.every(row => row.leaving) || undefined} className="ly-composer-queue overflow-hidden rounded-[14px] border border-line-soft bg-card/40">
+		<div ref={list} role="list" aria-label={label} data-composer-queue data-empty={rows.every(row => row.leaving) || undefined} className="ly-composer-queue overflow-hidden rounded-xl border border-line-soft bg-card/40">
 			{rows.map((row, index) => (
 				<Row
 					key={row.entry.id}
@@ -371,7 +371,7 @@ function Row({
 						<img
 							src={`data:${entry.thumbnail.mimeType};base64,${entry.thumbnail.data}`}
 							alt=""
-							className="h-5 w-7 shrink-0 rounded-[3px] border border-line object-cover"
+							className="h-5 w-7 shrink-0 rounded-xs border border-line object-cover"
 						/>
 					)}
 

@@ -515,7 +515,7 @@ function ServerRow({
 					: { tone: "text-ink-faint", label: t("market.serverOn") };
 	return (
 		<div className="flex items-start gap-3 py-2.5">
-			<Cable size={14} strokeWidth={1.8} className="mt-0.5 shrink-0 text-info" />
+			<Cable size={14} strokeWidth={1.8} className="mt-0.5 shrink-0 text-accent" />
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">
 					<span className="text-label text-ink">{server.name}</span>

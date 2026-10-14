@@ -186,7 +186,7 @@ function TaskCard({
 		<div
 			ref={card.ref}
 			data-scheduled-task={task.id}
-			className={`ly-enter overflow-hidden rounded-[10px] border bg-card/40 transition-colors duration-[var(--ly-t-slow)] ${card.lit ? "border-accent" : "border-line"}`}
+			className={`ly-enter overflow-hidden rounded-lg border bg-card/40 transition-colors duration-[var(--ly-t-slow)] ${card.lit ? "border-accent" : "border-line"}`}
 		>
 			<div className="flex items-center gap-2.5 border-b border-line-soft px-4 py-2.5">
 				<Clock size={14} strokeWidth={1.8} className="shrink-0 text-ink-muted" />

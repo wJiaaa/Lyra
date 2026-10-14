@@ -90,7 +90,7 @@ export function MentionMenu({
 			aria-hidden={!open}
 			inert={!open}
 			data-open={open}
-			className="ly-mention-menu ly-glass-solid absolute bottom-full left-0 right-0 z-40 mb-2 overflow-hidden rounded-[18px] border border-line-soft"
+			className="ly-mention-menu ly-glass-solid absolute bottom-full left-0 right-0 z-40 mb-2 overflow-hidden rounded-2xl border border-line-soft"
 		>
 			<div style={{ maxHeight: height }} className="flex flex-col">
 				<Scroller scrollRef={list} className="ly-menu-scroll min-h-0" contentClassName="p-1.5">
@@ -137,7 +137,7 @@ export function MentionMenu({
 										pointer.current = { x: event.clientX, y: event.clientY };
 										onHover(index);
 									}}
-									className={`ly-scroll ly-mention-option flex h-9 w-full items-center gap-2 rounded-[12px] px-3 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${
+									className={`ly-scroll ly-mention-option flex h-9 w-full items-center gap-2 rounded-xl px-3 text-left text-label transition-colors duration-[var(--ly-t-quick)] ${
 										index === shownActive ? "bg-card-hover" : ""
 									}`}
 								>

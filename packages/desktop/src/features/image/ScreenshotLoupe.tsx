@@ -91,7 +91,7 @@ export function ScreenshotLoupe({
 	return (
 		<div
 			data-loupe
-			className="pointer-events-none absolute overflow-hidden rounded-lg border border-white/25 bg-black/80 shadow-[0_8px_24px_rgba(0,0,0,0.5)] backdrop-blur-sm"
+			className="pointer-events-none absolute overflow-hidden rounded-lg border border-white/25 bg-black/80 shadow-overlay backdrop-blur-sm"
 			style={{ left, top, width: boxW }}
 		>
 			<div className="relative" style={{ height: SIZE }}>
@@ -125,7 +125,7 @@ export function ScreenshotLoupe({
 					<span className="text-white/50">{translate("screenshot.colour")}</span>
 					<span className="flex items-center gap-1">
 						<span
-							className="inline-block size-2.5 rounded-[2px] border border-white/30"
+							className="inline-block size-2.5 rounded-xs border border-white/30"
 							style={{ background: reading?.hex ?? "transparent" }}
 						/>
 						{reading?.hex ?? "—"}

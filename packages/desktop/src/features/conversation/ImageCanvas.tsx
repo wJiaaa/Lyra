@@ -86,7 +86,7 @@ function ImageCanvas({ callId, args, result, running, startedAt, summary }: { ca
 							role="img"
 							aria-label={translate("toolCard.generatingImage")}
 							data-ly-canvas="pending"
-							className="ly-canvas max-w-full rounded-[14px]"
+							className="ly-canvas max-w-full rounded-xl"
 							style={{ width: HEIGHT * ratio, aspectRatio: ratio }}
 						>
 							{/*
@@ -94,7 +94,7 @@ function ImageCanvas({ callId, args, result, running, startedAt, summary }: { ca
 							 * 那片点上读不出字；`z-[1]` 是因为亮的那层点阵是 `::after`，画在子元素上面。
 							 */}
 							{index === count - 1 && (
-								<span data-ly-image-progress className="pointer-events-none absolute right-2.5 bottom-2.5 z-[1] rounded-full bg-float px-2.5 py-0.5 text-caption font-medium text-ink tabular-nums shadow-[0_2px_10px_rgba(0,0,0,0.12)]">
+								<span data-ly-image-progress className="pointer-events-none absolute right-2.5 bottom-2.5 z-[1] rounded-full bg-float px-2.5 py-0.5 text-caption font-medium text-ink tabular-nums shadow-md">
 									{Math.round(progress * 100)}%
 								</span>
 							)}
@@ -184,7 +184,7 @@ function Shot({
 		<div
 			data-ly-canvas={loaded ? "done" : "pending"}
 			onContextMenu={onMenu}
-			className={`group/shot ly-canvas relative max-w-full overflow-hidden rounded-[14px] ${glide ? "transition-[width] duration-[var(--ly-t-slow)]" : ""}`}
+			className={`group/shot ly-canvas relative max-w-full overflow-hidden rounded-xl ${glide ? "transition-[width] duration-[var(--ly-t-slow)]" : ""}`}
 			style={{ width: HEIGHT * aspect, aspectRatio: aspect }}
 		>
 			<button type="button" aria-label={alt} onClick={(event) => onOpen(frameOf(event))} className="absolute inset-0 block cursor-zoom-in">

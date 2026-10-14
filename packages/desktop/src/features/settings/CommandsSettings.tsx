@@ -137,7 +137,7 @@ function SlashCommands() {
 			</div>
 
 			{diagnostics.length > 0 && (
-				<div className="mt-5 flex items-start gap-2 rounded-[10px] border border-accent/35 bg-accent/6 px-3.5 py-2.5 text-detail text-ink-muted">
+				<div className="mt-5 flex items-start gap-2 rounded-lg border border-accent/35 bg-accent/6 px-3.5 py-2.5 text-detail text-ink-muted">
 					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-accent" aria-hidden />
 					<div className="min-w-0">
 						<div className="text-accent">{t("commandsSettings.failedToLoad", { n: failed })}</div>
@@ -152,7 +152,7 @@ function SlashCommands() {
 			)}
 
 			{warnings.length > 0 && (
-				<div className="mt-5 flex items-start gap-2 rounded-[10px] border border-line px-3.5 py-2.5 text-detail text-ink-faint">
+				<div className="mt-5 flex items-start gap-2 rounded-lg border border-line px-3.5 py-2.5 text-detail text-ink-faint">
 					<TriangleAlert size={14} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden />
 					<div className="min-w-0">
 						<div className="text-ink-muted">{t("commandsSettings.warnings", { n: warned })}</div>

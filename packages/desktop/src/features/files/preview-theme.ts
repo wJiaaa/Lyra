@@ -74,7 +74,7 @@ export function previewTheme(host: Element | null): PreviewTheme {
 		"--accent": accent,
 		"--accent-foreground": readableOn(accent),
 		"--success": read("--color-ok"),
-		"--info": read("--color-info"),
+		"--info": accent,
 		// Hues the app keeps for charts and warnings, per scheme, in `tokens.css` — interface blocks wear the same.
 		"--warning": read("--ly-warning"),
 		"--danger": danger,

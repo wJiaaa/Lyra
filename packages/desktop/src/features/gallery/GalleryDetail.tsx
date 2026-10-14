@@ -32,7 +32,8 @@ import { drawingFor, type Entry, type GalleryIndex } from "./model.ts";
 import { awaitEdit, openPicture } from "./store.ts";
 
 const RADIUS = 12;
-const TILE_RADIUS = 10;
+/** 飞行动画从方块的圆角起步，必须等于 `GalleryGrid` 方块的 `rounded-lg`，否则第一帧跳一下。 */
+const TILE_RADIUS = 8;
 
 /** The largest box of this shape that fits, no bigger than the picture itself. */
 function contain(space: { width: number; height: number }, aspect: number, natural?: { width?: number; height?: number }): { width: number; height: number } {
