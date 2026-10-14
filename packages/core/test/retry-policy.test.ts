@@ -19,10 +19,20 @@ test("normalizeSettings clamps concurrent sub-agents to 1–8", () => {
 
 test("defaults mean ten retries after the first request, about five seconds each", async () => {
 	assert.deepEqual(normalizeSettings({}).retryPolicy, DEFAULT_RETRY_POLICY);
-	assert.equal(new RetryBudget().policy.network.retries, null);
 	let calls = 0; const waits: number[] = [];
-	await assert.rejects(fetchWithRetry(async () => { calls++; throw socket(); }, "https://example.test", {}, { budget: new RetryBudget({ ...DEFAULT_RETRY_POLICY, network: DEFAULT_RETRY_RULE }), sleep: async ms => { waits.push(ms); } }), /fetch failed/);
+	await assert.rejects(fetchWithRetry(async () => { calls++; return new Response("busy", { status: 503 }); }, "https://example.test", {}, { budget: new RetryBudget(), sleep: async ms => { waits.push(ms); } }));
 	assert.equal(calls, 11); around(waits, Array(10).fill(5000));
+});
+
+test("断网默认也有上限：十次，5 秒起递增到 30 秒，一共约四分钟后报错，而不是一直挂着", async () => {
+	// 曾经默认无限：一次连不上中转的运行重发了 646 次、挂了 54 分钟，直到人按停。
+	assert.equal(new RetryBudget().policy.network.retries, 10);
+	let calls = 0; const waits: number[] = [];
+	await assert.rejects(fetchWithRetry(async () => { calls++; throw socket(); }, "https://example.test", {}, { budget: new RetryBudget(), sleep: async ms => { waits.push(ms); } }), /fetch failed/);
+	assert.equal(calls, 11);
+	assert.deepEqual(waits, [5000, 10000, 15000, 20000, 25000, 30000, 30000, 30000, 30000, 30000]);
+	// 设置里没写间隔方式的，用这一类自己的默认，不落回固定间隔。
+	assert.equal(normalizeRetryPolicy({ network: { retries: 3 } }).network.strategy, "linear");
 });
 
 test("linear delays reach the configured ceiling; the server's wait is honoured but never shortens the policy", async () => {
@@ -132,7 +142,8 @@ test("an explicit low-level attempt count still bounds both categories, whatever
 	assert.equal(bounded.upstream.retries, 2); assert.equal(bounded.network.retries, 2);
 	// A live source that has nothing to say falls back to the same bounded lifetime.
 	assert.equal(new RetryBudget(() => undefined, 3).policy.network.retries, 2);
-	assert.equal(new RetryBudget(() => DEFAULT_RETRY_POLICY, 3).policy.network.retries, null);
+	const unlimited: RetryPolicy = { ...DEFAULT_RETRY_POLICY, network: { ...DEFAULT_RETRY_RULE, retries: null } };
+	assert.equal(new RetryBudget(() => unlimited, 3).policy.network.retries, null);
 });
 
 test("fault categories keep independent limits, and certificate errors are not transient network outages", async () => {
@@ -202,12 +213,13 @@ test("空回答自己的上限之外，用户给的总次数照旧算数", async
 
 test("收窄的只有空回答那一种，断线照旧无限重试", async () => {
 	// 上一条的对照。「一直重试」是用户明确要的——网络回来之前别放弃，那个语义一个字都不能改。
+	const unlimited: RetryPolicy = { ...DEFAULT_RETRY_POLICY, network: { ...DEFAULT_RETRY_RULE, retries: null } };
 	let calls = 0;
-	const stream = retryStream(async function* () { calls++; if (calls < 9) throw socket(); yield "ok"; }, {
-		budget: new RetryBudget(DEFAULT_RETRY_POLICY), reset: () => {}, sleep: async () => {},
+	const stream = retryStream(async function* () { calls++; if (calls < 30) throw socket(); yield "ok"; }, {
+		budget: new RetryBudget(unlimited), reset: () => {}, sleep: async () => {},
 	});
 	const seen: string[] = [];
 	for await (const value of stream) seen.push(value);
 	assert.deepEqual(seen, ["ok"]);
-	assert.equal(calls, 9, "远超空回答那四次，因为断线根本不归那条规则管");
+	assert.equal(calls, 30, "远超空回答那四次，也远超默认的十次：选了「无限重试」就是无限");
 });

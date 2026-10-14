@@ -10,7 +10,7 @@ import { DEFAULT_RETRY_POLICY } from "../src/config/retry-policy.ts";
 /*
  * 发请求之前就注定失败的那些。
  *
- * 它们从 fetch 里抛出来，于是被当成「没见过的连接问题」归到 network——而 network 默认是无限重试。
+ * 它们从 fetch 里抛出来，于是被当成「没见过的连接问题」归到 network——而 network 可以设成无限重试。
  * 密钥里混进一个零宽字符，界面就在「重连中」里一直转下去，可这个请求连发都没发出去。
  */
 

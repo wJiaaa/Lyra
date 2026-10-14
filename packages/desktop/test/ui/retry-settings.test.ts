@@ -60,7 +60,7 @@ test("两条规则同时在屏幕上，各自的默认写在自己那一行", as
 	const view = await show();
 
 	// 这是整个改动的要点：不用切换、不用记忆，两者的差别一眼读得到。
-	assert.equal(summary(view, "network"), "无限重试 · 每 5 秒");
+	assert.equal(summary(view, "network"), "重试 10 次 · 5 秒起递增，最长 30 秒");
 	assert.equal(summary(view, "upstream"), "重试 10 次 · 每 5 秒");
 	assert.match(view.text(), /网络中断.*连接失败、超时、传输中断/);
 	assert.match(view.text(), /上游故障.*限流、服务过载、暂时不可用/);
@@ -91,12 +91,12 @@ test("开关改完立刻落盘，没有保存按钮可按", async () => {
 
 	await click(view.find('[aria-label="网络中断不限次数"]'));
 	assert.equal(saved.length, 1);
-	assert.equal(policyOf(saved[0]!).network.retries, 10);
+	assert.equal(policyOf(saved[0]!).network.retries, null);
 	// 另一条不能被顺手改掉。
 	assert.deepEqual(policyOf(saved[0]!).upstream, policyOf(DEFAULT_SETTINGS).upstream);
 
 	await refresh(view);
-	assert.equal(summary(view, "network"), "重试 10 次 · 每 5 秒");
+	assert.equal(summary(view, "network"), "无限重试 · 5 秒起递增，最长 30 秒");
 	await view.unmount();
 });
 
@@ -150,7 +150,7 @@ test("两条规则先后改动，后一次不会把前一次盖回去", async ()
 
 	const latest = policyOf(saved.at(-1)!);
 	assert.equal(latest.upstream.retries, null);
-	assert.equal(latest.network.retries, 10, "第一次修改必须还在");
+	assert.equal(latest.network.retries, null, "第一次修改必须还在");
 	await view.unmount();
 });
 
@@ -159,7 +159,7 @@ test("递增才有最长间隔，摘要把递增说清楚", async () => {
 		settings: {
 			...DEFAULT_SETTINGS,
 			retryPolicy: {
-				...policyOf(DEFAULT_SETTINGS),
+				network: { retries: null, strategy: "fixed", intervalMs: 5000, maxIntervalMs: 30_000 },
 				upstream: { retries: 10, strategy: "linear", intervalMs: 5000, maxIntervalMs: 30_000 },
 			},
 		},
@@ -184,7 +184,7 @@ test("初始间隔越过上限时，上限跟着抬高而不是留下一个矛�
 		settings: {
 			...DEFAULT_SETTINGS,
 			retryPolicy: {
-				...policyOf(DEFAULT_SETTINGS),
+				network: { retries: null, strategy: "fixed", intervalMs: 5000, maxIntervalMs: 30_000 },
 				upstream: { retries: 10, strategy: "linear", intervalMs: 5000, maxIntervalMs: 30_000 },
 			},
 		},
