@@ -62,6 +62,8 @@ export function applyRecord(base: SessionMeta, payload: SessionRecordInput, now:
 		next.cwd = payload.cwd;
 		next.projectId = payload.projectId;
 		next.projectName = payload.projectName;
+		// Moved to another project it no longer runs in its worktree, and the sidebar must stop filing it under the project it left.
+		delete next.worktree;
 	}
 	if (payload.type === "meta") {
 		// A meta record carries caller-side changes such as the selected model.

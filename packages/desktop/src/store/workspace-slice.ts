@@ -15,6 +15,7 @@ import { moveBeforeOrAfter, orderedSessions, type SessionSortKey } from "../lib/
 import { sessionUnderProject } from "../lib/project-scope.ts";
 import { baseName } from "../lib/paths.ts";
 import { projectFolders } from "@plume/core/project-folders";
+import { sessionWorkspace } from "./session-workspace.ts";
 import { sessionHome } from "../lib/session-home.ts";
 
 type Get = () => AppState;
@@ -108,7 +109,9 @@ export function workspaceSlice(set: Set, get: Get) {
   async refreshWorkspace(path?: string) {
     const target = path ?? get().workspace?.path;
     if (!target) return;
-    const workspace = await bridge.workspace.info(target);
+    // The open conversation's own worktree is read as one: named for its project (`sessionWorkspace`).
+    const meta = get().meta;
+    const workspace = meta?.worktree && meta.cwd === target ? await sessionWorkspace(meta) : await bridge.workspace.info(target);
     if (!workspace) return;
     if (get().workspace?.path === target) set({ workspace });
     /*

@@ -224,6 +224,9 @@
 worktree 只改变执行目录，不改变已创建的会话 ID 和日志归属。要不要 worktree 按会话定：输入框上的开关随首条消息
 传下去（`initial.worktree`），设置里的开关只是它的默认值；建好之后 `SessionMeta.worktree` 记下它出自哪个项目，
 侧栏、归档、项目菜单都按这个项目归组（`sessionHome`），从它开的新会话回到这个项目。见 ADR-0048。
+删除、归档会话时收走它干净的工作树目录（分支全在基分支里就一起删），取消归档或再用起来时在原路径检出回来；输入框上
+工作树会话的 chip 说领先落后，点开能合回基分支、从基分支同步（`electron/worktree-lifecycle.ts`、`worktree-merge.ts`）。
+建不成工作树的原因记在 `SessionMeta.worktreeError` 上，输入框上一直有个提醒。见 ADR-0050。
 
 ## 页面保留
 

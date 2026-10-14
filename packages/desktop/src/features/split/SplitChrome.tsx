@@ -19,7 +19,7 @@ import { WINDOW_HEADER_HEIGHT } from "../../../shared/window-chrome.ts";
 import { useI18n } from "../../i18n/index.ts";
 import { sessionTitle } from "../../lib/session-title.ts";
 import { useApp } from "../../store/index.ts";
-import { SessionMenu } from "../modals/index.ts";
+import { SessionMenu, deleteSessionQuestion } from "../modals/index.ts";
 import { EnvironmentToggle } from "../environment/index.ts";
 import { openScopedPanel } from "../dock/index.ts";
 import { useConfirmer } from "../../ui/overlay/Confirm.tsx";
@@ -114,14 +114,7 @@ function ScreenTitle({ sessionId, screen }: { sessionId: string | null; screen: 
 					onClose={menu.close}
 					// 这条会话就在这一屏上，直接在这一屏的停靠区里开，不用像侧边栏那样先打开再等。
 					onShowTrajectory={() => openScopedPanel("trajectory", paneKey(sessionId))}
-					onRequestDelete={() =>
-						confirm.ask({
-							title: t("sidebarList.deleteConfirm"),
-							detail: t("sidebarList.deleteDetail", { title: meta.title, n: meta.messageCount }),
-							confirmLabel: t("common.delete"),
-							onConfirm: () => void deleteSession(meta),
-						})
-					}
+					onRequestDelete={() => void deleteSessionQuestion(meta, () => void deleteSession(meta)).then(confirm.ask)}
 				/>
 			)}
 			{confirm.element}

@@ -152,7 +152,6 @@ const zhCN = {
 	"browser.notOpened": "页面没有打开：{detail}（{url}）；标签还留着，可以稍后再试",
 	"browser.badRef": "ref 是 read 给出的 e 加数字，比如 e12",
 	"browser.nothingOutside": "这一页没有能在外部浏览器里打开的地址",
-	"worktree.notCreated": "没能给这个会话建出自己的工作树，这次就在项目目录里改。原因：{reason}",
 } as const;
 
 export type NativeMessageKey = keyof typeof zhCN;
@@ -285,7 +284,6 @@ export const NATIVE_CATALOGS: Record<NativeLocale, NativeCatalog> = {
 		"browser.notOpened": "The page did not open: {detail} ({url}); the tab is still there to retry later",
 		"browser.badRef": "A ref is e followed by a number from read, such as e12",
 		"browser.nothingOutside": "This page has no address another browser could open",
-		"worktree.notCreated": "Couldn't make a worktree for this conversation, so it is working in the project folder itself. Reason: {reason}",
 	},
 };
 

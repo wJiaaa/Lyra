@@ -28,6 +28,7 @@ import { eachAppWindow } from "./window.ts";
 import { createPeerRouter } from "./session-peers.ts";
 import { createPeerTools } from "./peer-tools.ts";
 import { archiveAfterTurn, createSessionOpsTools } from "./session-ops.ts";
+import { bringBackWorktree, reclaimWorktree } from "./worktree-lifecycle.ts";
 
 export interface HubDeps {
 	store(): SessionStorage;
@@ -76,7 +77,8 @@ const peerTools = createPeerTools(peers);
 /** 要求归档自己的会话，在那一轮结束后归档——见 `session-ops.ts`。 */
 const archives = archiveAfterTurn({
 	archive: async (id) => {
-		await deps.store().setArchived(id, true);
+		const meta = await deps.store().setArchived(id, true);
+		if (meta) await worktreeFollowsArchive(meta);
 	},
 	busy: (id) => sessions.get(id)?.running ?? false,
 	archived: async (id) => (await deps.store().listSessions()).some((one) => one.id === id && one.archived === true),
@@ -290,7 +292,7 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 	 * `autoCreateSessionWorktree`, which only makes what it is asked for: a conversation's own choice
 	 * reaches it through `workspaceSetup`, and must not be overruled by the setting on the way.
 	 */
-	const worktreeResult: { cwd: string; worktreeCreated: boolean; branch?: string } = appSettings.worktrees?.autoCreateOnNewSession
+	const worktreeResult: { cwd: string; worktreeCreated: boolean; branch?: string; base?: string } = appSettings.worktrees?.autoCreateOnNewSession
 		? await autoCreateSessionWorktree(cwd, appSettings, tempId).catch(() => ({ cwd, worktreeCreated: false }))
 		: { cwd, worktreeCreated: false };
 	const sessionCwd = worktreeResult.cwd;
@@ -311,7 +313,7 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 	await session.initialize();
 	// Filed under the project it ran for, not under a folder of its own (`SessionMeta.worktree`).
 	if (worktreeResult.worktreeCreated && worktreeResult.branch) {
-		await session.log.append({ type: "meta", meta: { ...session.meta, worktree: { project: cwd, branch: worktreeResult.branch } } });
+		await session.log.append({ type: "meta", meta: { ...session.meta, worktree: { project: cwd, branch: worktreeResult.branch, ...(worktreeResult.base ? { base: worktreeResult.base } : {}) } } });
 	}
 	sessions.set(session.meta.id, session);
 	ready.add(session.meta.id);
@@ -319,8 +321,11 @@ export async function getOrCreateSession(cwd: string, _modelId: string): Promise
 
 	// Trigger async cleanup if enabled in settings
 	if (appSettings.worktrees?.autoCleanOld) {
-		const liveCwds = new Set(Array.from(sessions.values()).map((s) => s.cwd));
-		void cleanOldWorktrees(cwd, appSettings, liveCwds).catch(() => {});
+		// Every conversation that may come back to its worktree, not only the ones running now.
+		void deps.store().listSessions().then((all) => {
+			const inUse = new Set([...Array.from(sessions.values()).map((s) => s.cwd), ...all.filter((meta) => !meta.archived).map((meta) => meta.cwd)]);
+			return cleanOldWorktrees(cwd, appSettings, inUse);
+		}).catch(() => {});
 	}
 
 	return session;
@@ -428,19 +433,32 @@ async function startStoredSession(sessionId: string): Promise<AgentSession | nul
 			const project = session.cwd;
 			const prepared = await autoCreateSessionWorktree(project, deps.settings(), sessionId);
 			session.cwd = prepared.cwd;
-			// Execution may move; project identity and all metadata edits remain on the same log.
+			/*
+			 * Execution may move; project identity and all metadata edits remain on the same log.
+			 *
+			 * Not made, the reason is kept on the conversation, because it asked for a copy and is about to
+			 * change the original. This used to fall back without a word — the person who chose a separate
+			 * worktree found out from `git status` in their own checkout — and then with a toast, which is
+			 * the wrong place for anything that matters later (`worktreeError`).
+			 */
 			await session.log.append({ type: "meta", meta: {
 				...session.meta,
 				cwd: prepared.cwd,
 				workspaceSetup: undefined,
-				...(prepared.worktreeCreated && prepared.branch ? { worktree: { project, branch: prepared.branch } } : {}),
+				...(prepared.worktreeCreated && prepared.branch
+					? { worktree: { project, branch: prepared.branch, ...(prepared.base ? { base: prepared.base } : {}) }, worktreeError: undefined }
+					: { worktreeError: prepared.error || "git worktree add" }),
 			} });
+		} else {
 			/*
-			 * Said in the conversation, because it asked for a copy and is about to change the original.
-			 * This used to fall back without a word: the person who chose a separate worktree found out
-			 * from `git status` in their own checkout.
+			 * Its worktree was taken back — archived, or cleaned up — and it is in use again
+			 * (`bringBackWorktree`).
 			 */
-			if (!prepared.worktreeCreated) broadcast(sessionId, { type: "notice", level: "warn", message: nativeText("worktree.notCreated", { reason: prepared.error ?? "" }) });
+			const fallback = await bringBackWorktree(session.meta);
+			if (fallback) {
+				session.cwd = fallback.cwd;
+				await session.log.append({ type: "meta", meta: { ...session.meta, ...fallback } });
+			}
 		}
 		if (retiring.has(sessionId)) return null;
 		await session.initialize();
@@ -512,13 +530,39 @@ export async function deleteSessions(requested: string[]): Promise<void> {
 	const ids = [...requested, ...(await sideSessionsOf(requested)).map((meta) => meta.id)];
 	for (const id of ids) deleting.add(id);
 	try {
+		// Read before the rows go: the meta is the only record of where each worktree is.
+		const owned = (await Promise.all(requested.map((id) => deps.store().get(id)))).filter((meta) => meta?.worktree);
 		await Promise.all(ids.map((id) => disposeSession(id, "deleted")));
 		await deps.store().deleteMany(ids);
 		// The rows are the conversation; what is left is litter, and failing to sweep it is no reason to report the delete as failed.
 		await Promise.all(ids.flatMap((id) => [removeSessionArtifacts(plumeHome(), id), removeSummary(id)].map((done) => done.catch(() => {}))));
+		/*
+		 * Its worktree goes with it, and its branch too once everything on it is in the base. One holding
+		 * uncommitted changes stays where it is: deleting a conversation is not a decision about work it
+		 * never committed, and the delete dialog says where that work is kept (ADR-0050).
+		 */
+		for (const meta of owned) if (meta) void reclaimWorktree(meta, { dropMergedBranch: true }).catch(() => {});
 	} finally {
 		for (const id of ids) deleting.delete(id);
 	}
+}
+
+/**
+ * What archiving or bringing back a conversation does to its worktree, after the store has recorded it.
+ * Every way of archiving comes through here — the window, the phone, a conversation archiving itself.
+ *
+ * Archived: the folder goes when everything in it is committed, and the branch with it once everything
+ * on it is in the base; one with uncommitted changes is kept as it is. Brought back: checked out again
+ * where it was — or, when it cannot be, the conversation goes on in the project and says why (ADR-0050).
+ */
+export async function worktreeFollowsArchive(meta: SessionMeta): Promise<void> {
+	if (!meta.worktree) return;
+	if (meta.archived) {
+		void reclaimWorktree(meta, { dropMergedBranch: true }).catch(() => {});
+		return;
+	}
+	const fallback = await bringBackWorktree(meta).catch(() => null);
+	if (fallback) await deps.store().append(meta, { type: "meta", meta: { ...meta, ...fallback } });
 }
 
 /** As `deleteSessions`, for those of `ids` with nothing in flight; answers which. A clear by date must not stop work. */

@@ -25,7 +25,6 @@ import { exportTrajectory, type TrajectoryExportFormat } from "../trajectory-exp
 import { readTrajectoryChanges } from "../trajectory-changes.ts";
 import { ipcMain } from "electron";
 import { resolveSessionApproval } from "../approval-response.ts";
-import { cleanOldWorktrees } from "../git-worktrees.ts";
 import type { AgentCapabilities, PlumeApi } from "../ipc-types.ts";
 import {
 	editSessionMessage,
@@ -41,6 +40,7 @@ import {
 	sideSessionsOf,
 	snapshot,
 	touchSession,
+	worktreeFollowsArchive,
 } from "../session-hub.ts";
 import { slimSnapshot } from "../display-transcript.ts";
 import { readSummary, summarize } from "../session-summary.ts";
@@ -169,15 +169,7 @@ export function registerSessionsIpc({
 	ipcMain.handle(
 		"sessions:remove",
 		async (_event, sessionId: string) => {
-			const sessionMeta = await store.get(sessionId);
 			await deleteSessions([sessionId]);
-
-			// If session was running in a dedicated worktree and autoCleanOld is enabled, clean it up
-			const appSettings = readSettings();
-			if (sessionMeta?.cwd && appSettings.worktrees?.autoCleanOld) {
-				const liveCwds = new Set(Array.from(sessions.values()).map((s) => s.cwd));
-				void cleanOldWorktrees(sessionMeta.cwd, appSettings, liveCwds).catch(() => {});
-			}
 		},
 	);
 
@@ -234,7 +226,8 @@ export function registerSessionsIpc({
 		async (_event, sessionId: string, archived: boolean) => {
 			// An archived session has no reason to keep its MCP servers and browser alive.
 			if (archived) await disposeSession(sessionId, "archived");
-			await store.setArchived(sessionId, archived);
+			const meta = await store.setArchived(sessionId, archived);
+			if (meta) await worktreeFollowsArchive(meta);
 			return store.listSessions();
 		},
 	);

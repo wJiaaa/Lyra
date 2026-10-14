@@ -106,6 +106,7 @@ test("autoCreateSessionWorktree creates dedicated worktree under a configured ro
 	const res = await autoCreateSessionWorktree(dir, customSettings, "session-12345678");
 	assert.equal(res.worktreeCreated, true);
 	assert.equal(res.branch, "plume/session-session-");
+	assert.equal(res.base, "main", "the branch it was cut from, for merging back into");
 	assert.ok(res.cwd.includes("session-worktrees"));
 	assert.ok(existsSync(res.cwd));
 });
@@ -172,9 +173,9 @@ test("留空的根目录下，自动建的工作树落在守卫放行的目录�
 
 test("cleanOldWorktrees prunes excess worktrees above keepLimit while protecting active ones", async () => {
 	// Create multiple worktrees
-	const wt1 = await createWorktree(dir, "cleanup/wt-1", at("cleanup-wt-1"));
-	const wt2 = await createWorktree(dir, "cleanup/wt-2", at("cleanup-wt-2"));
-	const wt3 = await createWorktree(dir, "cleanup/wt-3", at("cleanup-wt-3"));
+	const wt1 = await createWorktree(dir, "plume/session-wt1", at("cleanup-wt1"));
+	const wt2 = await createWorktree(dir, "plume/session-wt2", at("cleanup-wt2"));
+	const wt3 = await createWorktree(dir, "plume/session-wt3", at("cleanup-wt3"));
 
 	assert.ok(wt1.path && wt2.path && wt3.path);
 
@@ -202,9 +203,9 @@ test("cleanOldWorktrees prunes excess worktrees above keepLimit while protecting
  * spelling below is the one git would have produced; the assertion is that it is still recognised.
  */
 test("a worktree in use is protected however its path is spelled", async () => {
-	const keep = await createWorktree(dir, "spelling/in-use", at("spelling-in-use"));
-	const doomed = await createWorktree(dir, "spelling/idle-1", at("spelling-idle-1"));
-	const alsoDoomed = await createWorktree(dir, "spelling/idle-2", at("spelling-idle-2"));
+	const keep = await createWorktree(dir, "plume/session-inuse", at("cleanup-inuse"));
+	const doomed = await createWorktree(dir, "plume/session-idle1", at("cleanup-idle1"));
+	const alsoDoomed = await createWorktree(dir, "plume/session-idle2", at("cleanup-idle2"));
 	assert.ok(keep.path && doomed.path && alsoDoomed.path);
 
 	const settings = { ...DEFAULT_SETTINGS, worktrees: { autoCleanOld: true, keepLimit: 1 } };
@@ -256,4 +257,27 @@ test("真的工作树照样删得掉", async () => {
 	const result = await removeWorktree(dir, made.path);
 	assert.equal(result.ok, true, result.error);
 	assert.equal(existsSync(made.path), false);
+});
+
+/*
+ * 自动清理只收 Plume 自己建的、没人在用、也没有没提交改动的工作树，而且分支留着。
+ *
+ * 从前它数的是所有链接工作树，人自己建的也算；只躲开内存里还活着的会话；还带 --force——一棵有人
+ * 正手动在里面改东西的工作树，连同没提交的改动一起会被删掉。
+ */
+test("自动清理：不碰人自己建的、不碰有没提交改动的；收掉的分支还在", async () => {
+	const settings = { ...DEFAULT_SETTINGS, worktrees: { autoCleanOld: true, keepLimit: 1 } };
+	const mine = await createWorktree(dir, "feature/by-hand", at("feature-by-hand"));
+	const dirty = await createWorktree(dir, "plume/session-dirty01", at("plume-session-dirty01"));
+	const idle = await createWorktree(dir, "plume/session-idle01", at("plume-session-idle01"));
+	const idle2 = await createWorktree(dir, "plume/session-idle02", at("plume-session-idle02"));
+	assert.ok(mine.path && dirty.path && idle.path && idle2.path);
+	await writeFile(join(dirty.path, "draft.txt"), "not committed\n");
+	const cleaned = await cleanOldWorktrees(dir, settings, new Set());
+	assert.ok(cleaned >= 1);
+	assert.equal(existsSync(mine.path), true, "a worktree a person made is not Plume's to clean");
+	assert.equal(existsSync(dirty.path), true, "uncommitted changes are never cleaned away");
+	assert.ok(!existsSync(idle.path) || !existsSync(idle2.path), "an idle, clean one of Plume's goes");
+	assert.ok((await git(["branch", "--list", "plume/session-idle01"])).includes("plume/session-idle01"), "its branch stays");
+	for (const tree of [mine, dirty, idle, idle2]) await removeWorktree(dir, tree.path!, true).catch(() => {});
 });

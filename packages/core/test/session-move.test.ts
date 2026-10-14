@@ -114,3 +114,15 @@ test("对着一条已经不在了的会话点移动，答 null 而不是抛异�
 		assert.equal(await store.move("没有这个 id", "/tmp/project-b", "B 项目"), null);
 	});
 });
+
+// 工作树会话被手动移去别的项目，就不再在它的工作树里跑；字段留着，侧栏会继续把它归在原项目下。
+test("工作树会话移去别的项目：worktree 字段跟着清掉，重开也不回来", async () => {
+	await withStore(async (store, root) => {
+		const meta = await store.create("/tmp/repo-1234abcd", "fake/model", "工作树里的对话");
+		await store.append(meta, { type: "meta", meta: { ...meta, worktree: { project: "/tmp/repo", branch: "plume/session-1234abcd", base: "main" } } });
+		await store.move(meta.id, "/tmp/project-b", "project-b");
+		const reopened = (await new SessionStore(root).listSessions()).find((one) => one.id === meta.id);
+		assert.equal(reopened?.cwd, "/tmp/project-b");
+		assert.equal(reopened?.worktree, undefined);
+	});
+});

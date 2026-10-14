@@ -7,7 +7,7 @@ import { resolveSessionApproval } from "./approval-response.ts";
 import { slimSnapshot } from "./display-transcript.ts";
 import { promptBlocks } from "./mobile-prompt.ts";
 import { generalScratchDir } from "./scratch.ts";
-import { abortSession, broadcast, createSession, disposeSession, ensureLiveSession, promptSession, sessions, snapshot, touchSession } from "./session-hub.ts";
+import { abortSession, broadcast, createSession, disposeSession, ensureLiveSession, promptSession, sessions, snapshot, touchSession, worktreeFollowsArchive } from "./session-hub.ts";
 
 export interface MobileRpcDeps {
 	store(): SessionStorage;
@@ -67,7 +67,8 @@ export async function mobileRpc(deps: MobileRpcDeps, method: MobileMethod, args:
 		if (typeof args[1] !== "boolean") throw new Error("Invalid archive flag");
 		if (sessions.get(id)?.running) throw new Error("Stop the session before archiving");
 		if (args[1]) await disposeSession(id, "archived");
-		await store.setArchived(id, args[1]);
+		const filed = await store.setArchived(id, args[1]);
+		if (filed) await worktreeFollowsArchive(filed);
 		return;
 	}
 	// 桌面端忙时先排队（Composer 的队列在渲染进程里，手机看不到），手机这边同样不插进正在跑的那一轮。

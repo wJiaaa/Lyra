@@ -58,8 +58,18 @@ export interface SessionMeta {
 	 * no registered project — so each conversation run in one opened a group of its own, under the
 	 * project's name again, and moved there the moment its worktree was made. Whatever asks which
 	 * project a conversation is in asks this first (`sessionHome` on the desktop).
+	 *
+	 * `base` is the branch the worktree was cut from — what "merge back" merges into and "sync" brings
+	 * in. Absent on a worktree made before it was recorded, or cut from a detached HEAD; those use the
+	 * repository's default branch.
 	 */
-	worktree?: { project: string; branch: string };
+	worktree?: { project: string; branch: string; base?: string };
+	/**
+	 * Why this conversation runs in the project although it asked for a worktree of its own — the one
+	 * it asked for could not be made, or one taken back could not be checked out again. Said where the
+	 * worktree's chip would be (`WorktreeChip`), not in a toast; kept so it still says so tomorrow.
+	 */
+	worktreeError?: string;
 	/**
 	 * How many messages were already written when the model was last changed mid-conversation.
 	 *

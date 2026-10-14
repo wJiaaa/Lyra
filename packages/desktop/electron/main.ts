@@ -74,6 +74,7 @@ import { registerGitIpc } from "./ipc/git.ts";
 import { registerUsageIpc } from "./ipc/usage.ts";
 import { registerGalleryIpc } from "./ipc/gallery.ts";
 import { registerSkillsIpc } from "./ipc/skills.ts";
+import { registerWorktreeIpc } from "./ipc/worktree.ts";
 import { registerAgentDefinitionsIpc } from "./ipc/agent-definitions.ts";
 import { registerCapabilitiesIpc } from "./ipc/capabilities.ts";
 import { registerExtensionsIpc } from "./ipc/extensions.ts";
@@ -894,6 +895,7 @@ function registerIpc(): void {
 	registerUsageIpc({ store: () => store });
 	registerGalleryIpc({ store: () => store });
 	registerSkillsIpc();
+	registerWorktreeIpc({ store: () => store });
 	registerAgentDefinitionsIpc();
 	registerCapabilitiesIpc();
 	registerExtensionsIpc();

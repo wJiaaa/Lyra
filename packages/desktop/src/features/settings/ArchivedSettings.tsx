@@ -15,6 +15,7 @@ import { sessionTitle } from "../../lib/session-title.ts";
 import { hourStyle } from "../../lib/hour-style.ts";
 import { useI18n, type ResolvedUiLocale } from "../../i18n/index.ts";
 import { sessionHome } from "../../lib/session-home.ts";
+import { deleteSessionQuestion } from "../modals/index.ts";
 
 /**
  * The archive: everything filed away from the sidebar, grouped by project.
@@ -217,14 +218,8 @@ function Row({
 					tone="danger"
 					label={t("archived.deleteNamed", { title: session.title })}
 					icon={<Trash2 size={14} strokeWidth={1.8} />}
-					onClick={() =>
-						confirm.ask({
-							title: t("archived.deleteOneConfirm"),
-							detail: t("archived.deleteOneDetail", { title: session.title, n: session.messageCount }),
-							confirmLabel: t("common.delete"),
-							onConfirm: onDelete,
-						})
-					}
+					// The same question as everywhere else, so a conversation with a worktree says what it leaves behind.
+					onClick={() => void deleteSessionQuestion(session, onDelete).then(confirm.ask)}
 				/>
 				<DialogAction onClick={onRestore}>{t("common.unarchive")}</DialogAction>
 			</div>

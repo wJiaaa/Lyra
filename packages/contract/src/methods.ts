@@ -74,6 +74,12 @@ export const METHODS = {
 	gallery: {
 		list: { channel: "gallery:list" },
 	},
+	worktree: {
+		state: { channel: "worktree:state" },
+		merge: { channel: "worktree:merge" },
+		sync: { channel: "worktree:sync" },
+		abortSync: { channel: "worktree:abortSync" },
+	},
 	workspace: {
 		pick: { channel: "workspace:pick" },
 		info: { channel: "workspace:info" },

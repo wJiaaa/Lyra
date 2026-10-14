@@ -19,7 +19,7 @@ import {
 	Trash2,
 	X,
 } from "../../ui/icons/index.ts";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SessionMeta } from "@plume/core";
 import { MenuBody, MenuItem, MenuSeparator, Popover, type Anchor } from "../../ui/overlay/Popover.tsx";
 import { useI18n } from "../../i18n/index.ts";
@@ -29,6 +29,7 @@ import { useRevealLabel } from "../../store/open-targets.ts";
 import { canOfferSplit, canSplit, contains, openInNewWindow, SplitMoveItems, splitWith, useSplit } from "../split/index.ts";
 import { Button } from "../../ui/primitives/Button.tsx";
 import { sessionHome } from "../../lib/session-home.ts";
+import { prefetchDeleteQuestion } from "./delete-session.tsx";
 
 export function SessionMenu({
 	anchor,
@@ -72,6 +73,11 @@ export function SessionMenu({
 	const moveSessionProject = useApp((s) => s.moveSessionProject);
 	const notify = useApp((s) => s.notify);
 	const reveal = useRevealLabel();
+	// 删除 is offered on an archived conversation; what its worktree would leave behind is read now.
+	useEffect(() => {
+		if (session.archived) prefetchDeleteQuestion(session);
+		// oxlint-disable-next-line react-hooks/exhaustive-deps -- once per opening of the menu
+	}, []);
 
 	const [mode, setMode] = useState<"menu" | "rename" | "projects">("menu");
 	const [openIn, setOpenIn] = useState(false);
