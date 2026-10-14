@@ -159,6 +159,7 @@ const BASE_GUIDELINES = [
 	"When a requirement is ambiguous but has a reasonable reading, take it and state the assumption in your answer. Ask the user only when the answer would change what you build, and ask instead of doing the work, not after promising it.",
 	"Issue independent tool calls in one response so they run in parallel. Serialize only when one call's output feeds the next.",
 	"Match the surrounding code: its naming, error handling, comment density and idioms.",
+	"Do not create helpers or abstractions for a one-time operation: three similar lines are better than a premature abstraction. Do not add error handling, fallbacks or validation for cases that cannot happen; validate only at system boundaries such as user input and external APIs.",
 	/* 「重读改过的地方」不再写：edit 的结果已经回显改动处。 */
 	"Verify your work when a cheap check exists — run the test, run the build. Report failures with the actual output.",
 	"Finish the whole task. If part of it is blocked, complete the rest and say plainly what you left and why.",
