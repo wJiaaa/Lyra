@@ -162,20 +162,21 @@ test("read and edit work cleanly on explicitly allowed paths outside workspace",
 	assert.equal(readRes.isError, undefined);
 
 	/*
-	 * 但改不了——这条原来断言的是相反的事。
+	 * 改它要先问人——附件不替人答这一问。
 	 *
 	 * 那份集合是用户拖进输入框的附件（`runtime/session-turn.ts` 的 `collectAllowedPaths`），拖进来
 	 * 的意思是让模型看它。原来 `write`/`edit` 也吃同一份许可，于是一次「你看看我的 ~/.zshrc」就换来
-	 * 了对它的写权限，在完全访问模式下全程不再问第二次；而 `MessageAttachment.path` 自己的类型注释
-	 * 写着它只是展示用元数据，从没按权限凭证设计过。
+	 * 了对它的写权限，不再问第二次；而 `MessageAttachment.path` 自己的类型注释写着它只是展示用元数据，
+	 * 从没按权限凭证设计过。
 	 */
+	const asked: string[] = [];
 	const editRes = await editTool.execute(
 		{ path: externalFile, old_string: "bravo", new_string: "BRAVO_EXTERNAL" },
-		ctxWithAllowed,
+		{ ...ctxWithAllowed, requestApproval: async (request) => (asked.push(request.subject), "reject") },
 	);
-	assert.equal(editRes.isError, true, "附件给的是读的许可，不该连写一起给");
-	assert.match(editRes.content[0].type === "text" ? editRes.content[0].text : "", /escapes the workspace root/);
-	assert.equal(await readFile(externalFile, "utf8"), FIVE, "文件一个字都不该被动过");
+	assert.equal(asked.length, 1, "附件给的是读的许可，改它照样要问");
+	assert.equal(editRes.isError, true);
+	assert.equal(await readFile(externalFile, "utf8"), FIVE, "人拒绝了，文件一个字都不该被动过");
 });
 
 test("an attachment does not become a licence to overwrite the file either", async () => {
@@ -184,14 +185,52 @@ test("an attachment does not become a licence to overwrite the file either", asy
 	const externalFile = join(externalDir, "external.txt");
 	await writeFile(externalFile, FIVE, "utf8");
 	const workspaceDir = await mkdtemp(join(tmpdir(), "plume-ws-"));
-	const ctx: ToolContext = { cwd: workspaceDir, sessionId: "t3", state: new Map(), allowedPaths: new Set([externalFile]) };
+	const asked: string[] = [];
+	const ctx: ToolContext = {
+		cwd: workspaceDir,
+		sessionId: "t3",
+		state: new Map(),
+		allowedPaths: new Set([externalFile]),
+		requestApproval: async (request) => (asked.push(request.subject), "reject"),
+	};
 
 	// 先读一遍：`write` 对已存在的文件要求先读过，绕开这一步会撞上另一条规则而不是边界本身。
 	await readTool.execute({ path: externalFile } as never, ctx);
 	const written = await writeTool.execute({ path: externalFile, content: "OVERWRITTEN" } as never, ctx);
 
-	assert.equal(written.isError, true, "附件给的是读的许可，不该连覆写一起给");
-	assert.equal(await readFile(externalFile, "utf8"), FIVE, "文件一个字都不该被动过");
+	assert.equal(asked.length, 1, "附件给的是读的许可，覆写它照样要问");
+	assert.equal(written.isError, true);
+	assert.equal(await readFile(externalFile, "utf8"), FIVE, "人拒绝了，文件一个字都不该被动过");
+});
+
+/*
+ * 用户说「存到桌面上」，以前 `write` 直接报越界，模型转身用 `cat > … <<EOF` 写了过去——没有 diff、
+ * 没有审批卡上的内容。现在走的是同一张卡，人点了允许就写到那里。
+ */
+test("a write outside the workspace asks, and lands there once allowed", async (t) => {
+	const externalDir = await mkdtemp(join(homedir(), ".plume-external-"));
+	t.after(() => rm(externalDir, { recursive: true, force: true }));
+	const target = join(externalDir, "notes", "summary.md");
+	const workspaceDir = await mkdtemp(join(tmpdir(), "plume-ws-"));
+	const requests: { kind: string; title: string; detail?: string }[] = [];
+	const ctx: ToolContext = {
+		cwd: workspaceDir,
+		sessionId: "t4",
+		state: new Map(),
+		requestApproval: async (request) => (requests.push(request), "once"),
+	};
+
+	const written = await writeTool.execute({ path: target, content: "hello\n" } as never, ctx);
+	assert.equal(written.isError, undefined, JSON.stringify(written.content));
+	assert.equal(await readFile(target, "utf8"), "hello\n");
+	assert.equal(requests.length, 1);
+	assert.equal(requests[0].title, `Create ${target}`, "卡片上要写出完整的外部路径，不是一个相对名字");
+	assert.match(requests[0].detail ?? "", /\+hello/, "卡片上要有 diff");
+
+	const edited = await editTool.execute({ path: target, old_string: "hello", new_string: "bye" } as never, ctx);
+	assert.equal(edited.isError, undefined, JSON.stringify(edited.content));
+	assert.equal(await readFile(target, "utf8"), "bye\n");
+	assert.equal(requests.length, 2);
 });
 
 test("a file just written can be edited in the same turn without a dummy read", async () => {

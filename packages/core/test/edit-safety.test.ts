@@ -144,7 +144,10 @@ test("file aliases share read records and writes refuse symlink escapes", { skip
 	assert.notEqual((await editTool.execute({ path: inside, old_string: "before", new_string: "after" }, ctx)).isError, true);
 	await symlink(path, join(project, "escape.txt"));
 	await readTool.execute({ path: "escape.txt" }, ctx);
-	assert.equal((await editTool.execute({ path: "escape.txt", old_string: "a", new_string: "bad" }, ctx)).isError, true);
+	// 工作区外本身可以写（要问），但借一个看起来在工作区里的名字写出去不行：审批卡上只会写着这个名字。
+	const escaped = await editTool.execute({ path: "escape.txt", old_string: "a", new_string: "bad" }, ctx);
+	assert.equal(escaped.isError, true);
+	assert.match(escaped.content[0].type === "text" ? escaped.content[0].text : "", /is a link to .*outside the workspace/);
 	assert.equal(await readFile(path, "utf8"), "a\nb\nc\nd\n");
 });
 

@@ -165,9 +165,9 @@ const BASE_GUIDELINES = [
 	"Do not invent file paths, APIs or command output. If you have not verified something, say so.",
 	"Leave nothing in the user's project that they did not ask for: no scratch scripts, sample data, documentation, README or example files.",
 	/*
-	 * 越界读要经过用户，这件事模型必须知道，否则它只看见一个莫名其妙的失败，然后换 `cat` 去绕。
+	 * 越界读写都要经过用户，这件事模型必须知道，否则它只看见一个莫名其妙的失败，然后换 `cat`、`cat > … <<EOF` 去绕。
 	 */
-	"Reading outside the workspace asks the user for approval — that is a rule, not a malfunction. Read the path with the file tools, and never route around a refusal with shell commands.",
+	"Reading or writing outside the workspace asks the user for approval — that is a rule, not a malfunction. Use the file tools for it, and never route around a refusal with shell commands.",
 ];
 
 /**
@@ -333,14 +333,13 @@ export async function buildPromptContext(input: SystemPromptInput): Promise<Prom
 		/*
 		 * Says what changes *and* what does not.
 		 *
-		 * `write` and `edit` refuse anything outside the working directory outright — not an
-		 * approval, a refusal (`tools/paths.ts`). Left unsaid, the model would meet that as the
-		 * failure the read rule was written to stop it reacting to: try, get refused, reach for
-		 * `sed` in a shell. Naming the asymmetry up front is cheaper than the detour.
+		 * Reading there is free; writing there still asks, like any path outside the working
+		 * directory (`tools/paths.ts`). Left unsaid, the model would take "as much a part of it" to
+		 * cover writes too, and meet the first approval card as a surprise.
 		 */
 		prompt.add("workspace", `\n\nThis project also covers these folders, and they are as much a part of it as the working directory — read, search and list them without asking:\n${otherRoots
 			.map((root) => `- ${root}`)
-			.join("\n")}\nUse absolute paths there; a relative path resolves against the working directory. These folders are readable, not writable: \`write\` and \`edit\` only work inside the working directory, and that is a rule rather than a fault. If a change is needed in one of them, say so instead of reaching for a shell.`);
+			.join("\n")}\nUse absolute paths there; a relative path resolves against the working directory. Writing there is not free: \`write\` and \`edit\` ask the user first, as they do for any path outside the working directory, and that is a rule rather than a fault.`);
 	}
 	if (input.scratchDir) {
 		const demo = input.tools.some((tool) => tool.name === "preview") ? " When a demo is itself the answer, use `preview` instead of writing files." : "";
