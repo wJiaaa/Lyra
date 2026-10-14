@@ -17,6 +17,7 @@ import { safeMediaName, sessionMediaHome, sessionMediaPath } from "@plume/core";
 import { cachedThumb, parkedThumb } from "./media-thumbs.ts";
 import { HEIGHT_MESSAGE, INLINE_KEY, MAX_PAGE_STATE, MAX_TWEAK_CONTROLS, MAX_TWEAK_GROUPS, OPEN_MESSAGE, PREVIEW_THEMED_BASE, SEND_MESSAGE, STATE_KEY, STATE_MESSAGE, THEME_KEY, THEME_MESSAGE, TWEAK_SET_MESSAGE, TWEAKS_MESSAGE, WIDTH_KEY } from "../shared/preview.ts";
 import { attachmentFile } from "./attachment-reads.ts";
+import { serveRanged } from "./ranged-file.ts";
 
 export const MEDIA_SCHEME = "ly-media";
 export const PREVIEW_SCHEME = "ly-preview";
@@ -400,6 +401,9 @@ export function registerPreviewProtocols(options: {
 		 */
 		const allowed = target ? ((await resolveMedia(target)) ?? (await attachmentFile(target))) : null;
 		if (!allowed) return new Response("forbidden", { status: 403 });
+		// Audio and video by range, or the file pane's player cannot seek (`ranged-file.ts`).
+		const type = contentTypeFor(allowed);
+		if (type.startsWith("video/") || type.startsWith("audio/")) return serveRanged(allowed, request, type);
 		return net.fetch(pathToFileURL(allowed).toString(), { headers: request.headers, method: request.method });
 	});
 
