@@ -2,25 +2,45 @@
  * Dialogs, coming and going.
  *
  * The scrim and the card are animated separately: the scrim only fades, because a dimming that also
- * moves reads as the window itself shifting, while the card rises a little and settles. Leaving is
- * faster than arriving and does not overshoot — an exit that bounces is asking to be watched.
+ * moves reads as the window itself shifting. The card grows out of where it will sit rather than
+ * rising into it — a 6px rise on a card centred in the window read as the dialog drifting in from
+ * somewhere, and it never came from anywhere. Leaving is faster than arriving and does not
+ * overshoot — an exit that bounces is asking to be watched.
+ *
+ * The scrim only dims. A shadcn/ui-style backdrop blur was tried at 4px and 2px and dropped: it
+ * turned the window behind to fog, and that is the window you are about to go back to.
  */
-.ly-scrim-in {
+.ly-scrim-in,
+.ly-scrim-out {
   background: rgb(0 0 0 / 0.22);
-  animation: ly-scrim-in 160ms ease-out;
+}
+
+.ly-scrim-in {
+  animation: ly-scrim-in 150ms ease-out;
 }
 
 .ly-scrim-out {
-  background: rgb(0 0 0 / 0.22);
-  animation: ly-scrim-out 130ms ease-in forwards;
+  animation: ly-scrim-out 100ms ease-in forwards;
 }
 
+/*
+ * `will-change` keeps the card on its own layer after the entrance, not just during it.
+ *
+ * Centred on a window of any height, the card usually lands between pixels (y = 342.75 on an 860px
+ * window). While it animates it is a layer and its text is rasterised there; when the animation
+ * ended the layer was dropped and the text redrawn onto the pixel grid — the lines under the title
+ * moved by a quarter of a device pixel a beat after the dialog had settled, which reads as the text
+ * twitching. Staying a layer means the text drawn in the last frame is the text that stays.
+ * `opacity` rather than `transform`, which would make the card the containing block of anything
+ * `position: fixed` inside it.
+ */
 .ly-dialog-in {
-  animation: ly-dialog-in 180ms var(--ly-e-out);
+  animation: ly-dialog-in 150ms var(--ly-e-out);
+  will-change: opacity;
 }
 
 .ly-dialog-out {
-  animation: ly-dialog-out 130ms ease-in forwards;
+  animation: ly-dialog-out 100ms ease-in forwards;
 }
 
 @keyframes ly-scrim-in {
@@ -46,7 +66,7 @@
 @keyframes ly-dialog-in {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.985);
+    transform: scale(0.95);
   }
   to {
     opacity: 1;
@@ -57,7 +77,7 @@
 @keyframes ly-dialog-out {
   to {
     opacity: 0;
-    transform: translateY(6px) scale(0.985);
+    transform: scale(0.95);
   }
 }
 
