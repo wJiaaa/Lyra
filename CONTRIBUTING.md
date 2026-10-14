@@ -35,7 +35,7 @@ pnpm dev         # 桌面端
 `.github/workflows/package.yml` 做两件事：
 
 - **推 `v*` tag 时**（`pnpm release` 的最后一步）：Windows、macOS、Android 都打，再连同
-  `SHA256SUMS` 发布到本仓库 [`wJiaaa/Lyra`](https://github.com/wJiaaa/Lyra/releases) 的
+  `SHA256SUMS` 发布到本仓库 [`wJiaaa/Plume`](https://github.com/wJiaaa/Plume/releases) 的
   Release，正文取 CHANGELOG 里这个版本的说明。应用内更新从那里检查和下载。发布用 workflow
   自带的 `GITHUB_TOKEN`，不用另配 token。
 - **手动运行时**：在 **Actions** 页面选择 **安装包** → **Run workflow**，选分支和平台（`all`、

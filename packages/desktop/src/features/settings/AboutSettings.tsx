@@ -13,7 +13,7 @@ import { UpdateDialog, check, labelFor, notesForLocale, useUpdate } from "../upd
 import { Card, InlineSelect, Row, SectionTitle } from "./controls.tsx";
 
 /** 安装包发布在这个公开仓库，代码仓库是私有的，见 `electron/ipc/updates.ts` 的 `REPO`。 */
-const RELEASES = "https://github.com/wJiaaa/Lyra/releases";
+const RELEASES = "https://github.com/wJiaaa/Plume/releases";
 
 /**
  * 关于 Plume.

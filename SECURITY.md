@@ -3,7 +3,7 @@
 ## 报告漏洞
 
 不要开公开 issue。请用 GitHub 的
-[私密漏洞报告](https://github.com/wJiaaa/Lyra/security/advisories/new)。
+[私密漏洞报告](https://github.com/wJiaaa/Plume/security/advisories/new)。
 
 ## 这个项目的攻击面
 

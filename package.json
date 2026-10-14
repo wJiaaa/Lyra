@@ -59,7 +59,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wJiaaa/Lyra.git"
+    "url": "git+https://github.com/wJiaaa/Plume.git"
   },
   "pnpm": {
     "ignoredBuiltDependencies": [

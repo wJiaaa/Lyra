@@ -18,7 +18,7 @@
 
 ## 从哪手动下载
 
-- 发布页：<https://github.com/wJiaaa/Lyra/releases>。「设置 › 关于」的「版本发布」按钮和更新窗口里的「查看发布页」都通往这里。
+- 发布页：<https://github.com/wJiaaa/Plume/releases>。「设置 › 关于」的「版本发布」按钮和更新窗口里的「查看发布页」都通往这里。
 - 每个版本附带：Windows x64 安装包，macOS 的 Apple 芯片（arm64）与 Intel（x64）两种 dmg 和 zip，Android 手机 App 的 APK，以及校验文件 `SHA256SUMS`。
 
 ## 更新失败时

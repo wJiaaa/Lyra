@@ -1,6 +1,6 @@
 name: 安装包
 
-# 推 `v*` tag（`pnpm release` 的最后一步）：三个平台都打，再发布到本仓库（wJiaaa/Lyra）的 Release，
+# 推 `v*` tag（`pnpm release` 的最后一步）：三个平台都打，再发布到本仓库（wJiaaa/Plume）的 Release，
 # 应用内更新从那里读。手动运行只打包、上传 Artifacts，不发布。
 on:
   push:

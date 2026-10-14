@@ -50,7 +50,7 @@ import { isNewer } from "../../src/features/update/version.ts";
  * releases is a 404 — indistinguishable from "no releases yet". The public fork it came from holds
  * the installers instead; `.github/workflows/package.yml` publishes there on every tag.
  */
-const REPO = "wJiaaa/Lyra";
+const REPO = "wJiaaa/Plume";
 /** GitHub answers in a second or so; anything longer means it is not going to. */
 const TIMEOUT_MS = 8000;
 /** Checked at most this often, however many times the window asks. */

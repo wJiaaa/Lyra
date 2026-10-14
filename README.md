@@ -5,7 +5,7 @@
 <h1 align="center">Plume</h1>
 
 <p align="center">
-  <a href="https://github.com/wJiaaa/Lyra/actions/workflows/ci.yml"><img src="https://github.com/wJiaaa/Lyra/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/wJiaaa/Plume/actions/workflows/ci.yml"><img src="https://github.com/wJiaaa/Plume/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href=".nvmrc"><img src="https://img.shields.io/badge/node-%E2%89%A524-brightgreen.svg" alt="Node ≥ 24"></a>
 </p>
@@ -20,7 +20,7 @@ This is not a shell around Claude Code or Codex. The agent loop, tools, skills, 
 
 ## Download
 
-Installers live on [Releases](https://github.com/wJiaaa/Lyra/releases/latest). Pick the file for this machine:
+Installers live on [Releases](https://github.com/wJiaaa/Plume/releases/latest). Pick the file for this machine:
 
 | OS | Architecture | File |
 | --- | --- | --- |

@@ -2,7 +2,7 @@
 	"name": "@plume/desktop",
 	"desktopName": "Plume.desktop",
 	"version": "0.9.30",
-	"homepage": "https://github.com/wJiaaa/Lyra",
+	"homepage": "https://github.com/wJiaaa/Plume",
 	"author": {
 		"name": "kittors",
 		"email": "kittors@users.noreply.github.com"

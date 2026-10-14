@@ -1,6 +1,6 @@
 # ADR-0010：更新包核对摘要，验不了就不装
 
-- 状态：已采纳（应用内更新曾一度移除，现已恢复；安装包发布在 `wJiaaa/Lyra`）
+- 状态：已采纳（应用内更新曾一度移除，现已恢复；安装包发布在 `wJiaaa/Plume`）
 - 日期：2026-09-03
 - 相关：`packages/desktop/electron/update-checksum.ts`、`.github/workflows/package.yml`
 
