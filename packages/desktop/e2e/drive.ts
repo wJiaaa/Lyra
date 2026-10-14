@@ -396,8 +396,18 @@ export async function clickAt(page: Page, at: Point, modifiers = 0): Promise<voi
 
 /** 在一个点上连点三下选中整段：`clickCount` 递增，浏览器才按段落粒度扩选区。 */
 export async function tripleClickAt(page: Page, at: Point): Promise<void> {
+	await clicksAt(page, at, 3);
+}
+
+/**
+ * 在一个点上连点 `times` 下，每两下之间隔 `gapMs`。
+ *
+ * 人手连点，两下之间有一两百毫秒；页面上「双击之后等不等第三下」这类判断，只有隔开了才量得出来。
+ */
+export async function clicksAt(page: Page, at: Point, times: number, gapMs = 0): Promise<void> {
 	await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...at });
-	for (let count = 1; count <= 3; count++) {
+	for (let count = 1; count <= times; count++) {
+		if (count > 1 && gapMs) await new Promise((resolve) => setTimeout(resolve, gapMs));
 		await page.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: count });
 		await page.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: count });
 	}

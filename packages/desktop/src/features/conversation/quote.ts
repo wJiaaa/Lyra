@@ -13,7 +13,8 @@ export function quotedIn(selection: Selection | null, within: HTMLElement): { te
 	const start = holder(range.startContainer);
 	if (!start || start !== holder(range.endContainer) || !within.contains(start)) return null;
 	const text = selection.toString().trim();
-	if (!text) return null;
+	// 单个字拿去问说明不了什么，多半是点字时手抖带出来的选区，不值得弹一条菜单盖在正文上。按码位数，emoji 算一个。
+	if ([...text].length < 2) return null;
 	// 两处挂点各自写明是谁的话：`rows.tsx` 是回复，`UserMessage.tsx` 是人问的。
 	return { text, range: selectedText(range), from: start.getAttribute("data-ly-quote") === "user" ? "user" : "assistant" };
 }

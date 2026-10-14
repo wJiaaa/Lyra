@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { selectedText } from "../../src/features/conversation/quote.ts";
+import { quotedIn, selectedText } from "../../src/features/conversation/quote.ts";
 
 /** 范围两端落在哪段字的第几个字上；比字符串而不是节点，断言失败时不去打印整棵 DOM。 */
 function ends(range: Range): string {
@@ -42,4 +42,26 @@ test("段内拖选原样保留", () => {
 	range.setStart(para, 2);
 	range.setEnd(para, 5);
 	assert.equal(ends(selectedText(range)), "在 tty 里实测：@2 → 在 tty 里实测：@5");
+});
+
+/** 在这一段里从 `from` 选到 `to`，交给 `quotedIn` 认。 */
+function pick(from: number, to: number) {
+	const { para } = reply();
+	const range = document.createRange();
+	range.setStart(para, from);
+	range.setEnd(para, to);
+	const selection = window.getSelection()!;
+	selection.removeAllRanges();
+	selection.addRange(range);
+	return quotedIn(selection, document.body);
+}
+
+test("只选中一个字不算一段引文，菜单不弹；带上旁边的空格也还是一个字", () => {
+	assert.equal(pick(0, 1), null);
+	assert.equal(pick(0, 2), null);
+});
+
+test("两个字起就认", () => {
+	assert.equal(pick(6, 8)?.text, "里实");
+	assert.equal(pick(2, 5)?.text, "tty");
 });

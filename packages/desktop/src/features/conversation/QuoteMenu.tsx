@@ -27,6 +27,9 @@ import { quotedIn } from "./quote.ts";
  */
 const SEGMENT = "min-w-0 px-2.5 py-1.5 hover:bg-card-hover";
 
+/** 双击之后等第三下的时间：macOS 默认的双击间隔上下。浏览器读不到系统的实际设置。 */
+const DOUBLE_CLICK_WAIT = 400;
+
 interface Picked {
 	text: string;
 	from: DraftQuote["from"];
@@ -54,13 +57,24 @@ export function QuoteMenu({ scrollRef }: { scrollRef: RefObject<HTMLDivElement |
 	useEffect(() => {
 		const box = scrollRef.current;
 		if (!box) return;
+		/*
+		 * 双击松开时还不知道人要的是这个词，还是接着点第三下选整段。立刻弹的话，第三下按下去先把菜单
+		 * 收了、松开又在整段上弹一次，一次三击闪两回。所以双击先等一个双击间隔，期间再按下就作废，由
+		 * 那一下的松开来定。只靠双击选词的人，菜单晚出现这么一会儿。
+		 */
+		let waiting = 0;
+		const onDown = () => window.clearTimeout(waiting);
 		const onUp = (event: MouseEvent) => {
 			if (event.button !== 0) return;
+			window.clearTimeout(waiting);
 			// 双击、三击选词选段，选区要等这一下松开之后才定。
-			requestAnimationFrame(() => {
-				const quoted = quotedIn(window.getSelection(), box);
-				setPicked(quoted ? { ...quoted, at: atOf(quoted.range) } : null);
-			});
+			const pick = () =>
+				requestAnimationFrame(() => {
+					const quoted = quotedIn(window.getSelection(), box);
+					setPicked(quoted ? { ...quoted, at: atOf(quoted.range) } : null);
+				});
+			if (event.detail === 2) waiting = window.setTimeout(pick, DOUBLE_CLICK_WAIT);
+			else pick();
 		};
 		/*
 		 * 跟着字走，不是滚一下就收。贴着底部时回复每长一截转录就滚一次，滚就收的话，菜单在正在写的
@@ -78,10 +92,13 @@ export function QuoteMenu({ scrollRef }: { scrollRef: RefObject<HTMLDivElement |
 				});
 			});
 		};
+		box.addEventListener("mousedown", onDown);
 		box.addEventListener("mouseup", onUp);
 		box.addEventListener("scroll", onScroll, { passive: true });
 		return () => {
 			cancelAnimationFrame(frame);
+			window.clearTimeout(waiting);
+			box.removeEventListener("mousedown", onDown);
 			box.removeEventListener("mouseup", onUp);
 			box.removeEventListener("scroll", onScroll);
 		};
