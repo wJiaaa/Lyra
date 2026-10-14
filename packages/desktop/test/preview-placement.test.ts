@@ -74,12 +74,78 @@ test("没展示出来的预览（页面抛异常被拒）是普通的活，跟�
 	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~work(preview)", "page(preview)", "assistant"]);
 });
 
-test("模型先检查页面再发布：检查是过程，跟着收起来；只有发布的那次是页面", () => {
-	const check = calls("preview?");
-	const publish = calls("preview");
-	const messages = [user("画个图"), check, result(check, 0), publish, result(publish, 0), answer("好了。")];
-	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~work(preview)", "page(preview)", "assistant"]);
-	assert.deepEqual(describe(turnBlocks(runs([user("画个图"), check]))), ["user", "~work(preview)"], "检查跑着的时候也不占一行页面");
+/*
+ * 先检查、再按 id 发布：检查那一次从写到发布都是页面那一格，发布那一次是过程里的一行。规则在 `preview-pages.ts`。
+ */
+const preview = (args: Record<string, unknown>, extra: Partial<{ argumentsText: string; stopReason: string }> = {}): Message =>
+	({
+		role: "assistant",
+		content: [{ type: "toolCall", id: `preview-${clock}`, name: "preview", arguments: args, ...(extra.argumentsText !== undefined ? { argumentsText: extra.argumentsText } : {}) }],
+		stopReason: extra.stopReason ?? "toolUse",
+		timestamp: clock++,
+	}) as Message;
+const checked = (call: Message, page: string, isError = false): Message => ({ ...result(call, 0, isError), details: { kind: "preview-check", id: page } }) as Message;
+const pageOf = (rows: Run[]) => rows.flatMap((row) => (row.kind === "tools" ? row.calls.map((call) => `${call.block.id}:${call.page ? Object.keys(call.page)[0] : "-"}`) : []));
+
+test("同一轮里检查再发布：页面站在检查那一次上，发布那一次收进过程", () => {
+	const check = preview({ check: true, html: "<p>1</p>" });
+	const publish = preview({ id: "p1" });
+	const messages = [user("画个图"), check, checked(check, "p1"), publish, result(publish, 0), answer("好了。")];
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "page(preview)", "~work(preview)", "assistant"]);
+	const ids = (message: Message) => (message.content[0] as { id: string }).id;
+	assert.deepEqual(pageOf(runs(messages)), [`${ids(check)}:publishedBy`, `${ids(publish)}:publishing`]);
+});
+
+test("检查完、模型还在想：页面一直占着那一格，等着发布", () => {
+	const check = preview({ check: true, html: "<p>1</p>" });
+	assert.deepEqual(describe(turnBlocks(runs([user("画个图"), check]))), ["user", "page(preview)"], "检查跑着");
+	// 一开始就是有锚的一轮：发布那一次进过程时，页面不换父元素、不重新挂。
+	assert.equal(turnBlocks(runs([user("画个图"), check])).at(-1)!.kind, "work");
+	assert.deepEqual(describe(turnBlocks(runs([user("画个图"), check, checked(check, "p1")]))), ["user", "page(preview)"], "检查完，下一条回复还没来");
+	const thinking = { ...mixed("think:看看截图"), stopReason: "pending" } as Message;
+	assert.deepEqual(describe(turnBlocks(runs([user("画个图"), check, checked(check, "p1"), thinking]))), ["user", "page(preview)", "~assistant"], "模型在想");
+	assert.deepEqual(pageOf(runs([user("画个图"), check, checked(check, "p1"), thinking])), [`${(check.content[0] as { id: string }).id}:waiting`]);
+});
+
+test("写着的检查：参数还只是原文时也认得出来，页面从第一笔起就在那一格", () => {
+	const writing = preview({}, { argumentsText: '{"title": "待办", "check": true, "html": "<!doctype html><p>正', stopReason: "pending" });
+	assert.deepEqual(describe(turnBlocks(runs([user("画个图"), writing]))), ["user", "page(preview)"]);
+	assert.deepEqual(pageOf(runs([user("画个图"), writing])), [`${(writing.content[0] as { id: string }).id}:waiting`]);
+});
+
+test("发布那一次的 id 还没写完：先当它是发布，不在页面那一格里冒出来", () => {
+	const check = preview({ check: true, html: "<p>1</p>" });
+	const publishing = preview({}, { argumentsText: '{"id": "p', stopReason: "pending" });
+	const rows = runs([user("画个图"), check, checked(check, "p1"), publishing]);
+	assert.deepEqual(describe(turnBlocks(rows)), ["user", "page(preview)", "~work(preview)"]);
+	assert.deepEqual(pageOf(rows), [`${(check.content[0] as { id: string }).id}:waiting`, `${(publishing.content[0] as { id: string }).id}:publishing`]);
+});
+
+test("这一轮结束了还没发布：检查是过程，跟着收起来", () => {
+	const check = preview({ check: true, html: "<p>1</p>" });
+	const messages = [user("画个图"), check, checked(check, "p1"), answer("你先看看截图。")];
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~work(preview)", "assistant"]);
+});
+
+test("又检查了一版：旧的那一版收进过程，新的那一版占那一格", () => {
+	const first = preview({ check: true, html: "<p>1</p>" });
+	const second = preview({ check: true, html: "<p>2</p>" });
+	const messages = [user("画个图"), first, checked(first, "p1"), second];
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~work(preview)", "page(preview)"]);
+});
+
+test("发布失败：那一页不再等，检查和发布都收进过程", () => {
+	const check = preview({ check: true, html: "<p>1</p>" });
+	const publish = preview({ id: "p1" });
+	const messages = [user("画个图"), check, checked(check, "p1"), publish, result(publish, 0, true), answer("页面有错，我改一下。")];
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~work(preview,preview)", "assistant"]);
+});
+
+test("隔了一轮才发布：页面画在发布那一次上，不画回上一轮", () => {
+	const check = preview({ check: true, html: "<p>1</p>" });
+	const publish = preview({ id: "p1" });
+	const messages = [user("画个图"), check, checked(check, "p1"), answer("你看看截图。"), user("发吧"), publish, result(publish, 0), answer("发了。")];
+	assert.deepEqual(describe(turnBlocks(runs(messages))), ["user", "~work(preview)", "assistant", "user", "page(preview)", "assistant"]);
 });
 
 test("经 mcp_call 叫的 MCP 工具按真正那个工具排：名字和参数都是它自己的", () => {

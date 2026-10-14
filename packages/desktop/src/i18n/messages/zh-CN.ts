@@ -2396,6 +2396,7 @@ export const zhCN = {
 	"preview.draft.markup": "正在写页面",
 	"preview.draft.script": "正在写脚本",
 	"preview.draft.checking": "写好了，正在检查",
+	"preview.draft.waiting": "检查过了，还没发布",
 	"branchRow.current": "当前",
 	"branchRow.compare": "与当前分支比较",
 	"branchRow.delete": "删除分支",

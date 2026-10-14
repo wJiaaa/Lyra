@@ -16,6 +16,7 @@ import { useScopedFromToolRuns, useScopedRunning } from "../../app/session-scope
 import type { Dispatch } from "../../lib/dispatches.ts";
 import { toolCardFallback } from "./tool-status.ts";
 import { sameRun, type Call } from "./grouping.ts";
+import type { PageState } from "./preview-pages.ts";
 import { describeCalls, diffOf, subjectOf } from "./call-words.ts";
 import { describeCall } from "../../lib/tool-kinds.ts";
 
@@ -77,9 +78,12 @@ export function LiveToolCard({
   dispatch,
   thinking,
   extra,
+  page,
 }: {
   block: Extract<AssistantContent, { type: "toolCall" }>;
   stopReason: AssistantMessage["stopReason"];
+  /** A preview's part in checking and publishing a page — see `preview-pages.ts`. */
+  page?: PageState;
   /**
    * Where to read this call's record, for a transcript that is not the main session's.
    *
@@ -110,7 +114,7 @@ export function LiveToolCard({
    */
   const turnRunning = useScopedRunning();
   if (block.name === "task") return <DelegationCard block={block} run={run} stopReason={stopReason} dispatch={dispatch} detached={Boolean(runs)} thinking={thinking} extra={extra} />;
-  return <PlainToolCard block={block} run={run} stopReason={stopReason} runs={runs} turnRunning={turnRunning} thinking={thinking} extra={extra} />;
+  return <PlainToolCard block={block} run={run} stopReason={stopReason} runs={runs} turnRunning={turnRunning} thinking={thinking} extra={extra} page={page} />;
 }
 
 /** 一次派发：它的脸、派给了谁、在排队还是在跑——见 `DelegationCard.tsx`。 */
@@ -118,7 +122,7 @@ function DelegationCard({ thinking, extra, ...props }: Parameters<typeof useDele
   return <ToolCard {...useDelegation(props)} thinking={thinking} extra={extra} />;
 }
 
-function PlainToolCard({ block, run, stopReason, runs, turnRunning, thinking, extra }: {
+function PlainToolCard({ block, run, stopReason, runs, turnRunning, thinking, extra, page }: {
   block: Extract<AssistantContent, { type: "toolCall" }>;
   run?: ToolRunState;
   stopReason: AssistantMessage["stopReason"];
@@ -126,7 +130,12 @@ function PlainToolCard({ block, run, stopReason, runs, turnRunning, thinking, ex
   turnRunning: boolean;
   thinking?: React.ReactNode;
   extra?: React.ReactNode;
+  page?: PageState;
 }) {
+  // A checked page is drawn by its check, from the call that published it.
+  const publishedBy = page && "publishedBy" in page ? page.publishedBy : undefined;
+  const stored = useScopedFromToolRuns((toolRuns) => (publishedBy ? toolRuns[publishedBy] : undefined));
+  const publisher = publishedBy ? (runs ? runs[publishedBy] : stored) : undefined;
   const status = run?.status ?? toolCardFallback(stopReason, runs ? false : turnRunning);
   // `title`: a preview's, read from its arguments while they are still being written — see `PreviewCall`.
   const card = (title?: string) => (
@@ -150,9 +159,11 @@ function PlainToolCard({ block, run, stopReason, runs, turnRunning, thinking, ex
    * The card would say "预览已生成" above the thing itself, which is a caption nobody needs —
    * the page is right there, and it is the result.
    */
-  if (block.name !== "preview") return card();
-  const preview = (run?.result?.details as { preview?: PreviewInfo } | undefined)?.preview;
-  return <PreviewCall block={block} served={Boolean(preview)} page={(handover) => preview && <PreviewCard preview={preview} {...handover} />} live={status === "running"} written={Boolean(run)} fallback={card} />;
+  if (block.name !== "preview" || (page && "publishing" in page)) return card();
+  const preview = ((publishedBy ? publisher : run)?.result?.details as { preview?: PreviewInfo } | undefined)?.preview;
+  // Checked and not yet on screen as itself: the draft stays until it is published or the turn ends.
+  const waiting = turnRunning && !runs && !preview && Boolean(page && ("waiting" in page || publishedBy));
+  return <PreviewCall block={block} served={Boolean(preview)} page={(handover) => preview && <PreviewCard preview={preview} {...handover} />} live={status === "running"} written={Boolean(run)} waiting={waiting} fallback={card} />;
 }
 
 
@@ -228,8 +239,8 @@ const ToolRunGroup = function ToolRun({
   const dispatches = useDispatches(calls.map(({ block }) => block), runs);
   const byCall = new Map(dispatches.map((one) => [one.callId, one]));
 
-  const cards = calls.map(({ block, stopReason }) => (
-    <LiveToolCard key={block.id} block={block} stopReason={stopReason} runs={runs} dispatch={byCall.get(block.id)} />
+  const cards = calls.map(({ block, stopReason, page }) => (
+    <LiveToolCard key={block.id} block={block} stopReason={stopReason} runs={runs} dispatch={byCall.get(block.id)} page={page} />
   ));
 
   if (shown) return <>{cards}</>;

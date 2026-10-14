@@ -534,7 +534,7 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
               />
             );
             if (block.kind === "plain") return draw(block.runs[0]);
-            const drawCall: DrawCall = ({ block: call, stopReason }, line) => <LiveToolCard block={call} stopReason={stopReason} thinking={line?.thinking} extra={line?.extra} />;
+            const drawCall: DrawCall = ({ block: call, stopReason, page }, line) => <LiveToolCard block={call} stopReason={stopReason} page={page} thinking={line?.thinking} extra={line?.extra} />;
             /*
              * 不再有 `as Exclude<Run, { kind: "compaction" }>`。
              *

@@ -39,12 +39,14 @@ const REDRAW_MS = 120;
 /** The frame's own document. Its styles are filled in by the app; the page goes into its body. */
 const SHELL = '<!doctype html><html><head><meta charset="utf-8"><style id="ly-base"></style><style id="ly-page"></style></head><body></body></html>';
 
-export function PreviewDraft({ document: page, placeholder, complete, onHeight }: {
+export function PreviewDraft({ document: page, placeholder, complete, checked, onHeight }: {
 	document: DraftDocument;
 	/** What stands for the call until the page has something to show: its tool row. */
 	placeholder: ReactNode;
 	/** The arguments are all in: what remains is the app checking the page before it is shown. */
 	complete: boolean;
+	/** Checked, and waiting for the model to publish it. */
+	checked?: boolean;
 	/** The height the draft got to, so the finished page can start there rather than jump. */
 	onHeight?: (height: number) => void;
 }) {
@@ -110,7 +112,7 @@ export function PreviewDraft({ document: page, placeholder, complete, onHeight }
 
 	useEffect(() => onHeight?.(height), [height, onHeight]);
 
-	const phase = complete ? "checking" : draftPhase(page.html);
+	const phase = checked ? "waiting" : complete ? "checking" : draftPhase(page.html);
 	const status = `${translate(`preview.draft.${phase}`)} · ${draftSize(page)}`;
 	return (
 		<div ref={host} data-ly-preview-draft={shown ? "page" : "placeholder"} aria-busy="true" className="relative">

@@ -2211,6 +2211,7 @@ export const en = {
 	"preview.draft.markup": "Writing the page",
 	"preview.draft.script": "Writing scripts",
 	"preview.draft.checking": "Written, checking it",
+	"preview.draft.waiting": "Checked, not published yet",
 	"branchRow.current": "Current",
 	"branchRow.compare": "Compare with the current branch",
 	"branchRow.delete": "Delete the branch",

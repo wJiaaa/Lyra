@@ -18,11 +18,15 @@ import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
 import { intact } from "../../lib/transcript.ts";
 import { toolCategory } from "../../lib/tool-kinds.ts";
+import { previewPages, samePage, type PageState } from "./preview-pages.ts";
 
 type ToolCallBlock = Extract<AssistantContent, { type: "toolCall" }>;
 
-/** A call together with the state of the message that made it: a call is live only while its turn is. */
-export type Call = { block: ToolCallBlock; stopReason: AssistantMessage["stopReason"] };
+/**
+ * A call together with the state of the message that made it: a call is live only while its turn is.
+ * `page`: how a checked page and its publishing stand — see `preview-pages.ts`.
+ */
+export type Call = { block: ToolCallBlock; stopReason: AssistantMessage["stopReason"]; page?: PageState };
 
 export type Run =
 	/**
@@ -455,7 +459,7 @@ export function sameRun(
 	if (before.runs !== after.runs) return false;
 	if (before.calls.length !== after.calls.length) return false;
 	return before.calls.every(
-		(call, i) => call.block.id === after.calls[i].block.id && call.stopReason === after.calls[i].stopReason,
+		(call, i) => call.block.id === after.calls[i].block.id && call.stopReason === after.calls[i].stopReason && samePage(call.page, after.calls[i].page),
 	);
 }
 
@@ -501,11 +505,18 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 	/*
 	 * A preview whose call failed showed nothing — the host refuses a page that throws — so it is work
 	 * like any other call and folds with it. Still running counts as shown: it is about to be a page.
-	 * A `check` never shows anything — it is the model looking at its page before the reader does.
+	 * A `check` is a page while it is waiting to be published and once it has been, and the call that
+	 * publishes it is then one of the turn's steps — see `preview-pages.ts`. A check the turn ended
+	 * without publishing is the model looking at its page, and folds with the work.
 	 */
 	const failed = new Set<string>();
 	for (const message of messages) if (message.role === "toolResult" && message.isError) failed.add(message.toolCallId);
-	const shows = (call: Call) => call.block.name === "preview" && !failed.has(call.block.id) && call.block.arguments?.check !== true;
+	const pages = previewPages(messages, (at) => opensTurn(messages[at]) && !resumesTurn(messages, at));
+	const shows = (call: Call) => {
+		if (call.block.name !== "preview" || failed.has(call.block.id)) return false;
+		if (call.page) return !("publishing" in call.page);
+		return call.block.arguments?.check !== true;
+	};
 
 	/** Extend the run this lands in, or start one. Empty batches leave the transcript alone. */
 	const work = (calls: Call[], from: number) => {
@@ -612,7 +623,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		const calls: Call[] = [];
 		for (const block of message.content.slice(own)) {
 			// 经 `mcp_call` 转手的按真正那个工具排、画：一次 preview 照样是一页，不是折进工作里的一行。
-			if (block.type === "toolCall") calls.push({ block: routedBlock(block), stopReason: message.stopReason });
+			if (block.type === "toolCall") calls.push({ block: routedBlock(block), stopReason: message.stopReason, page: pages.get(block.id) });
 		}
 
 		/*
@@ -657,7 +668,7 @@ export function runs(rawMessages: Message[], compactions: { at: number }[] = [],
 		for (let at = think; at < own; at++) {
 			const block = message.content[at];
 			if (block.type !== "toolCall") continue;
-			const call: Call = { block: routedBlock(block), stopReason: message.stopReason };
+			const call: Call = { block: routedBlock(block), stopReason: message.stopReason, page: pages.get(block.id) };
 			if (!shows(call)) continue;
 			if (at > from) out.push({ kind: "message", message, index, upTo: at, from, lead: true, key: `part-${at}-${message.timestamp}-${index}` });
 			work([call], index);
@@ -831,8 +842,11 @@ export function turnBlocks(list: Run[]): TurnBlock[] {
 		const body = list.slice(at, end);
 		/*
 		 * 只有重连、压缩这类标记、没有一次推理或工具的一轮，不值得一行「已工作」——原样摊开。
+		 *
+		 * 检查的那一页从写第一笔起就算：它后面要么是一次发布、要么是它自己收进过程，这一轮早晚是有过程的。
+		 * 等到那时才换成有锚的一轮，页面就换了一个父元素，重新挂一遍、闪一下。
 		 */
-		if (body.some((run) => isProcess(run) && (run.kind === "tools" || reasoning(run)))) {
+		if (body.some((run) => (isProcess(run) && (run.kind === "tools" || reasoning(run))) || (run.kind === "tools" && run.calls.some((call) => call.page)))) {
 			out.push({ kind: "work", runs: body, items: itemsOf(body), turn });
 		} else for (const run of body) plain(run);
 		at = end;
