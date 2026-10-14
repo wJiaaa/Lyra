@@ -12,7 +12,7 @@ import { ModelMenu } from "../../src/features/models/ModelMenu.tsx";
 import { useApp } from "../../src/store/index.ts";
 import { click, fire, mount, press } from "../helpers/mount.ts";
 
-const names = ["claude-opus-5", "claude-sonnet-5", "gpt-6", "gpt-6-mini", "deepseek-v4", "deepseek-v4-flash", "my-finetune", "glm-5"];
+const names = ["claude-opus-5", "claude-sonnet-5", "gpt-6", "gpt-6-mini", "deepseek-v4", "deepseek-v4-flash", "my-finetune", "local-llama"];
 const models = names.map((name) => ({ id: `qa/${name}`, modelId: name, providerId: "qa", name, supportsThinking: true, supportsImages: false, supportsTools: true, contextWindow: 128000, maxOutputTokens: 8192 }));
 const settings: Settings = { ...DEFAULT_SETTINGS, providers: [{ id: "qa", name: "QA", api: "openai-responses", apiKey: "test", baseUrl: "http://localhost", enabled: true, models }], defaultModelId: "qa/gpt-6", favoriteModelIds: [] };
 
@@ -40,7 +40,7 @@ test("the rail narrows the list to one maker and back", async () => {
 		assert.deepEqual(drawn(menu), ["qa/deepseek-v4", "qa/deepseek-v4-flash"]);
 
 		await click(rail.querySelector('[aria-label="其他"]')!);
-		assert.deepEqual(drawn(menu), ["qa/my-finetune", "qa/glm-5"]);
+		assert.deepEqual(drawn(menu), ["qa/my-finetune", "qa/local-llama"]);
 
 		await click(rail.querySelector('[aria-label="全部模型"]')!);
 		assert.equal(drawn(menu).length, names.length);
@@ -80,7 +80,7 @@ test("设默认模型不在这里：是不是默认，菜单里都没有那一�
 	const anchor = document.createElement("button");
 	document.body.append(anchor);
 	try {
-		for (const modelId of ["qa/gpt-6", "qa/glm-5"]) {
+		for (const modelId of ["qa/gpt-6", "qa/local-llama"]) {
 			useApp.setState({ settings, meta: session(modelId), activeSessionId: "s1", messages: [] });
 			const view = await mount(h(ModelMenu, { anchor, onClose: () => {} }));
 			const text = document.querySelector('[aria-label="选择模型"]')?.textContent ?? "";

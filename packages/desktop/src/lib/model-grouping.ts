@@ -106,7 +106,7 @@ export function filterGroups(groups: ModelGroup[], query: string): ModelGroup[] 
 /** Who made a model, as the picker's rail sorts them: a known brand, or everything no brand claimed. */
 export type House = Brand | "other";
 
-export function houseOf(model: ModelConfig): House {
+function houseOf(model: ModelConfig): House {
 	return brandOf(model.modelId, model.name) ?? "other";
 }
 

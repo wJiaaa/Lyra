@@ -254,7 +254,9 @@ describe("filterHouse", () => {
 	});
 
 	it("gathers the models no brand claims under 「other」", () => {
-		const groups = groupModels([BIG, DEER]);
-		assert.deepEqual(flattenGroups(filterHouse(groups, "other")).map((r) => r.model.id), ["big/glm-5.3", "big/glm-5-turbo"]);
+		// Not `BIG`: its glm ids belong to 智谱 now that the brand table knows them.
+		const unbranded = provider("big", "BigModel", [model("big", "my-finetune", "Mine"), model("big", "local-llama", "Local")]);
+		const groups = groupModels([unbranded, DEER]);
+		assert.deepEqual(flattenGroups(filterHouse(groups, "other")).map((r) => r.model.id), ["big/my-finetune", "big/local-llama"]);
 	});
 });
