@@ -124,6 +124,8 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 	}, [running, since]);
 
 	const live = running && !pending;
+	// ly-pop 说的是「刚刚跑完」。挂载时就已结束的卡片（历史记录、第一次展开的分组）不弹，否则每次展开 +N -M 都跳一下。
+	const pop = useRef(running).current ? "ly-pop " : "";
 	const chain = useCallChain();
 
 	// What opens under the call, in either layout.
@@ -210,16 +212,16 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 							<StatusSpinner size={12} />
 						</span>
 					)}
-					{status === "done" && <CircleCheck size={13} strokeWidth={1.9} className="ly-pop shrink-0 text-ok/75" />}
-					{failed && <CircleX size={13} strokeWidth={1.9} className="ly-pop shrink-0 text-danger/85" />}
+					{status === "done" && <CircleCheck size={13} strokeWidth={1.9} className={`${pop}shrink-0 text-ok/75`} />}
+					{failed && <CircleX size={13} strokeWidth={1.9} className={`${pop}shrink-0 text-danger/85`} />}
 					{stopped && (
-						<span data-ly-tip={t("toolCard.stopped")} aria-label={t("toolCard.stopped")} className="ly-pop flex shrink-0 text-ink-faint">
+						<span data-ly-tip={t("toolCard.stopped")} aria-label={t("toolCard.stopped")} className={`${pop}flex shrink-0 text-ink-faint`}>
 							<Ban size={13} strokeWidth={1.9} aria-hidden />
 						</span>
 					)}
 
 					{hasDiff && (
-						<span className="ly-pop shrink-0 font-mono text-caption">
+						<span className={`${pop}shrink-0 font-mono text-caption`}>
 							<span className="text-ok">+{String(details?.added ?? 0)}</span>{" "}
 							<span className="text-danger">-{String(details?.removed ?? 0)}</span>
 						</span>
@@ -246,14 +248,14 @@ export function ToolCard({ toolName, summary, args, status, result, stateKey, st
 		aside ? <Fragment key="aside">{aside}</Fragment> : null,
 		running && pending ? <span key="pending" className="text-caption text-ink-faint">{pending}</span> : null,
 		live && elapsed > 0 ? <span key="elapsed" className="tabular-nums text-caption">{elapsed}s</span> : null,
-		failed ? <CircleX key="failed" size={13} strokeWidth={1.9} className="ly-pop text-danger/85" /> : null,
+		failed ? <CircleX key="failed" size={13} strokeWidth={1.9} className={`${pop}text-danger/85`} /> : null,
 		stopped ? (
-			<span key="stopped" data-ly-tip={t("toolCard.stopped")} aria-label={t("toolCard.stopped")} className="ly-pop flex">
+			<span key="stopped" data-ly-tip={t("toolCard.stopped")} aria-label={t("toolCard.stopped")} className={`${pop}flex`}>
 				<Ban size={13} strokeWidth={1.9} aria-hidden />
 			</span>
 		) : null,
 		hasDiff ? (
-			<span key="diff" className="ly-pop font-mono text-caption">
+			<span key="diff" className={`${pop}font-mono text-caption`}>
 				<span className="text-ok">+{String(details?.added ?? 0)}</span> <span className="text-danger">-{String(details?.removed ?? 0)}</span>
 			</span>
 		) : null,
