@@ -21,6 +21,7 @@ import { conversationTime } from "./question-navigation.ts";
 import { UserMessage } from "./UserMessage.tsx";
 import { useScopedSessionId } from "../../app/session-scope.tsx";
 import { useI18n } from "../../i18n/index.ts";
+import { useApp } from "../../store/index.ts";
 import { isNudge, type TurnStats } from "./grouping.ts";
 import { LiveToolCard, segments, ToolRun as ToolRunGroup } from "./runs.tsx";
 
@@ -170,6 +171,7 @@ function AssistantRow({
   viewKey?: string;
 }) {
   const sessionId = useScopedSessionId();
+  const showThinking = useApp((s) => s.settings?.showThinking === true);
   /*
    * 这条回复是不是看着它写完的：挂上的时候还在写。只有这种，底下那行操作在写完时展开出来——
    * 一下子多出一行，贴着底部的转录会整段往上跳。打开一段历史时它们本来就在，不演。
@@ -201,6 +203,8 @@ function AssistantRow({
           // `segments` numbers what it was handed; `from` puts that back on the message's own scale.
           const at = from + index;
           if (block.type === "thinking") {
+            // 只有推理的行在分组时就拿掉了（`withoutThinking`）；这里是夹在一条回复的话中间的那几段。
+            if (!showThinking) return null;
             return (
               <ThinkingBlock
                 key={at}

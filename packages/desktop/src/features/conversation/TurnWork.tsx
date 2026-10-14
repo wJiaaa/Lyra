@@ -20,7 +20,7 @@ import { useTranscriptDisclosure } from "./view-state.ts";
  * 一遍，展开着的东西也会合上。各自一层，变的只是它跟不跟着收。收起之后过程里的东西不留在 DOM 里
  * （`Collapse` 收完就放掉），一轮四百次调用收起来不花钱。
  */
-export function TurnWork({ running, durationMs, stateKey, entries, trailing }: {
+export function TurnWork({ running, durationMs, stateKey, entries, trailing, bare = false }: {
 	/** 这一轮还在跑：锚不能点。 */
 	running: boolean;
 	/** 这一轮跑了多久，墙上的钟——见 `TurnStats.durationMs`。 */
@@ -30,16 +30,21 @@ export function TurnWork({ running, durationMs, stateKey, entries, trailing }: {
 	entries: { key: string; fold: boolean; node: ReactNode }[];
 	/** 锚的行尾：这一轮派出去的子智能体的脸。 */
 	trailing?: ReactNode;
+	/**
+	 * 不要锚：后台结果叫醒的一轮（见 `TurnBlock.woken`），标题是上面那行送达。过程一直摊开，第一行贴着
+	 * 送达行，和它引出的那句回答同一个距离。
+	 */
+	bare?: boolean;
 }) {
 	// 记的是「收起来了」：默认摊开，`useTranscriptDisclosure` 记下的是和默认不一样的那个选择。
 	const [folded, setFolded] = useTranscriptDisclosure(stateKey && `${stateKey}:folded`);
 	const open = !folded;
-	const shown = running || open;
+	const shown = bare || running || open;
 
 	return (
 		<div data-ly-turn-process={running ? "running" : "done"} data-ly-turn-open={shown ? "" : undefined}>
 			{/* 跑着和跑完是同一个元素：换元素就是卸掉重建，变形那一刻锚会闪一下。 */}
-			<button
+			{!bare && <button
 				type="button"
 				disabled={running}
 				onClick={() => setFolded((value) => !value)}
@@ -51,9 +56,9 @@ export function TurnWork({ running, durationMs, stateKey, entries, trailing }: {
 				{running ? <LiveWorked /> : <span>{worked(durationMs)}</span>}
 				<FlowTrail>{trailing}</FlowTrail>
 				{!running && <ChevronRight size={12} strokeWidth={2} className="ly-flow-chevron" aria-hidden />}
-			</button>
-			{entries.map((entry) => (
-				<Collapse key={entry.key} open={shown || !entry.fold} bodyClassName="pt-2.5">
+			</button>}
+			{entries.map((entry, index) => (
+				<Collapse key={entry.key} open={shown || !entry.fold} bodyClassName={bare && index === 0 ? undefined : "pt-2.5"}>
 					{entry.node}
 				</Collapse>
 			))}

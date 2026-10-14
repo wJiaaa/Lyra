@@ -738,6 +738,13 @@ export interface TurnBlock {
 	 * 流式输出就判错了。
 	 */
 	turn: number;
+	/**
+	 * 这一轮是后台结果叫醒的：子智能体或后台命令跑完，送达把空闲的会话叫醒了。
+	 *
+	 * 这种轮没有锚。送达那一行就是它的标题，再挂一行「已工作 N 秒」是同一件事说两遍，两颗箭头去的
+	 * 还不是一个地方；而它多半只是就着结果说一两句，收起来没什么可收的。过程平铺在送达行下面。
+	 */
+	woken?: boolean;
 }
 
 /**
@@ -806,6 +813,25 @@ function thinkingOnly(run: Extract<Run, { kind: "message" }>): boolean {
 	return own.some((block) => block.type === "thinking") && !own.some((block) => block.type === "text" && block.text.trim());
 }
 
+/**
+ * 不显示推理（`showThinking` 关着）时的转录：只有推理的行拿掉。
+ *
+ * 在 Run 这一层拿，不在画的时候藏：藏起来的行仍然会让一轮长出「已工作」的锚、让一段活读成「思考 2 次 ·
+ * 读取文件」，锚下面却什么也没有。拿掉之后，只想不做的一轮就是一句回答；被推理隔开的两段同类的活照旧
+ * 合成一行（`itemsOf` 的 `step` 跨 Run 接着长）。
+ *
+ * 一轮停在一段推理上——想到一半被停下、或者想完没说话——那一行是这一轮的最后一行，交付卡片挂在它上面，
+ * 所以留个壳：推理切掉，行还在。模型正在想的时候，底部的运行指示照旧说它在想（`RunningIndicator`）。
+ */
+export function withoutThinking<R extends Run>(list: R[]): R[] {
+	const out: R[] = [];
+	for (const run of list) {
+		if (run.kind !== "message" || !thinkingOnly(run)) out.push(run);
+		else if (!run.lead && run.message.role === "assistant" && run.message.stopReason !== "pending" && run.message.stopReason !== "toolUse") out.push({ ...run, from: run.upTo });
+	}
+	return out;
+}
+
 /** 过程里的一次推理。同在过程里的送达不是。 */
 function reasoning(run: Run): run is Extract<Run, { kind: "message" }> {
 	return run.kind === "message" && run.message.role === "assistant" && thinkingOnly(run);
@@ -814,6 +840,11 @@ function reasoning(run: Run): run is Extract<Run, { kind: "message" }> {
 /** 一条 run 是不是「人开的口」——新一轮从这里开始。 */
 function opensBlock(run: Run): boolean {
 	return run.kind === "command" || (run.kind === "message" && opensTurn(run.message));
+}
+
+/** 开这一轮的是一条送达。另一个会话的来信不算：它有正文要读，回它的那一轮和回人一样。 */
+function wokenBy(run: Run): boolean {
+	return run.kind === "message" && run.message.role === "user" && Boolean(run.message.delivery) && !run.message.peer;
 }
 
 /**
@@ -841,11 +872,13 @@ function merges(category: string, grouping: ToolGrouping): boolean {
 export function turnBlocks(list: Run[], grouping: ToolGrouping = MERGE_ALL): TurnBlock[] {
 	const out: TurnBlock[] = [];
 	let turn = 0;
+	let woken = false;
 	const plain = (run: Run) => out.push({ kind: "plain", runs: [run], items: [], turn });
 
 	let at = 0;
 	while (at < list.length) {
 		if (opensBlock(list[at])) {
+			woken = wokenBy(list[at]);
 			turn++;
 			plain(list[at++]);
 			continue;
@@ -860,7 +893,7 @@ export function turnBlocks(list: Run[], grouping: ToolGrouping = MERGE_ALL): Tur
 		 * 等到那时才换成有锚的一轮，页面就换了一个父元素，重新挂一遍、闪一下。
 		 */
 		if (body.some((run) => (isProcess(run) && (run.kind === "tools" || reasoning(run))) || (run.kind === "tools" && run.calls.some((call) => call.page)))) {
-			out.push({ kind: "work", runs: body, items: itemsOf(body, grouping), turn });
+			out.push({ kind: "work", runs: body, items: itemsOf(body, grouping), turn, ...(woken ? { woken } : {}) });
 		} else for (const run of body) plain(run);
 		at = end;
 	}

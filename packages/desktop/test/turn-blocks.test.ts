@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Message } from "@plume/core";
 
-import { turnBlocks, turnEnd, type Run, type TurnBlock } from "../src/features/conversation/grouping.ts";
+import { turnBlocks, turnEnd, withoutThinking, type Run, type TurnBlock } from "../src/features/conversation/grouping.ts";
 
 const ask = (text: string, index: number): Run => ({
 	kind: "message",
@@ -168,6 +168,54 @@ test("连着两轮各自成块，不会串到一起", () => {
 	]);
 	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "work", "plain", "work"]);
 	assert.notEqual(blocks[1].turn, blocks[3].turn, "两轮各归各的，否则旧的那段会跟着新的一起摊开");
+});
+
+/** 后台结果送回来、把会话叫醒的那条消息；`peer` 时是另一个会话的来信，也一起送到。 */
+const delivered = (index: number, peer = false): Run => ({
+	kind: "message",
+	message: {
+		role: "user",
+		content: [{ type: "text", text: "<report>" }],
+		synthetic: true,
+		delivery: [{ id: `d${index}`, agent: "general", description: "长任务", status: "done" }],
+		...(peer ? { peer: [{ from: "别的会话", text: "看一下" }] } : {}),
+		timestamp: 1,
+	} as Message,
+	index,
+	upTo: 1,
+});
+
+test("送达叫醒的一轮不要锚，人开的那一轮照旧有", () => {
+	const blocks = turnBlocks([ask("派两个出去", 0), think(1), say("派出去了。", 2), delivered(3), think(4), work(1), say("B 回来了。", 6)]);
+	assert.deepEqual(blocks.map((b) => [b.kind, b.woken ?? false]), [["plain", false], ["work", false], ["plain", false], ["work", true]]);
+});
+
+test("和来信一起到的送达，回它的那一轮照旧有锚", () => {
+	const blocks = turnBlocks([delivered(0, true), think(1), say("看了。", 2)]);
+	assert.equal(blocks[1].woken, undefined);
+});
+
+test("不显示推理时，推理行拿掉；被它隔开的同类活合成一行", () => {
+	const blocks = turnBlocks(withoutThinking([ask("看看", 0), think(1), work(1), thinkingOnly(2), work(1), say("看完了。", 3)]));
+	assert.deepEqual(blocks.map((b) => b.kind), ["plain", "work"]);
+	assert.deepEqual(items(blocks[1]), ["step(read,read)", "assistant"]);
+});
+
+test("不显示推理时，只想不做的一轮没有锚，就是一句回答", () => {
+	assert.deepEqual(shape(withoutThinking([ask("在吗", 0), think(1), say("在。", 1)])), ["plain", "plain"]);
+});
+
+test("不显示推理时，停在推理上的那一行留个壳：推理切掉，行还在", () => {
+	const stopped: Run = {
+		kind: "message",
+		message: { role: "assistant", content: [{ type: "thinking", thinking: "想到一半" }], stopReason: "aborted" } as Message,
+		index: 1,
+		upTo: 1,
+	};
+	const kept = withoutThinking([ask("改一下", 0), stopped]);
+	assert.equal(kept.length, 2);
+	assert.deepEqual(kept[1].kind === "message" && [kept[1].from, kept[1].upTo], [1, 1]);
+	assert.deepEqual(shape(kept), ["plain", "plain"], "空壳不算推理，不该长出锚");
 });
 
 test("turnEnd 是下一句人话的前一条，没有下一句就是末尾", () => {

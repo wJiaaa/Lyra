@@ -255,6 +255,18 @@ export async function openSettings(page: Page, section: string): Promise<void> {
 	await frames(page, 20);
 }
 
+/**
+ * 设置页里点一行的开关，按那一行的标题找。开关自己没有名字，名字是同一行左边那句标题：从开关往上找到
+ * 第一个以这句标题开头、且只装着这一个开关的祖先，那就是它那一行。点完等它真的翻过去。
+ */
+export async function toggleSetting(page: Page, title: string): Promise<void> {
+	const find = `[...document.querySelectorAll('[role="switch"]')].find((s)=>{for(let row=s.parentElement;row;row=row.parentElement){if(row.querySelectorAll('[role="switch"]').length>1)return false;if(row.innerText.trim().startsWith(${JSON.stringify(title)}))return true;}return false;})`;
+	const before = await page.evaluate<{ x: number; y: number; checked: string } | null>(`(()=>{const s=${find};if(!s)return null;const r=s.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,checked:s.getAttribute("aria-checked")};})()`);
+	if (!before) throw new Error(`no settings switch titled ${title}`);
+	await clickAt(page, before);
+	await until(page, `${find}?.getAttribute("aria-checked") !== ${JSON.stringify(before.checked)}`);
+}
+
 /** 从设置回到工作区：点左侧导航顶上那颗「返回工作区」。 */
 export async function closeSettings(page: Page): Promise<void> {
 	await click(page, "nav button", "返回工作区", "starts");

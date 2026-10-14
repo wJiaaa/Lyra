@@ -176,6 +176,16 @@ export function GeneralSettings() {
           }
         />
         <Row
+          title={t("general.showThinking")}
+          detail={t("general.showThinkingDetail")}
+          control={
+            <Toggle
+              checked={settings.showThinking === true}
+              onChange={(showThinking) => patch({ showThinking })}
+            />
+          }
+        />
+        <Row
           title={t("general.autoSummarizeTitle")}
           detail={t("general.autoSummarizeTitleDetail")}
           control={

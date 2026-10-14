@@ -16,7 +16,8 @@ import { translate } from "../../i18n/translate.ts";
 import { CornerRightDown } from "../../ui/icons/index.ts";
 import { Fragment, memo, useMemo, useState } from "react";
 import type { HookRun, Message, UserMessage } from "@plume/core";
-import { HookRunsButton, MessageActions, ModelSwitchRow, runs, runKey, segments, SpokenBubble, spokenText, ToolRun } from "../conversation/index.ts";
+import { HookRunsButton, MessageActions, ModelSwitchRow, runs, runKey, segments, SpokenBubble, spokenText, ToolRun, withoutThinking } from "../conversation/index.ts";
+import { useApp } from "../../store/index.ts";
 import { Markdown } from "../conversation/index.ts";
 import { ThinkingBlock } from "../conversation/index.ts";
 import { subAgentRuns } from "./runs.ts";
@@ -49,7 +50,9 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 	 */
 	echo?: string;
 }) {
-	const transcriptRuns = useMemo(() => runs(messages), [messages]);
+	// 和主会话同一个开关，见 `withoutThinking`。
+	const showThinking = useApp((s) => s.settings?.showThinking === true);
+	const transcriptRuns = useMemo(() => (showThinking ? runs(messages) : withoutThinking(runs(messages))), [messages, showThinking]);
 	const toolRuns = useMemo(() => subAgentRuns(messages), [messages]);
 	const lastReply = isLive || !echo ? -1 : messages.findLastIndex((message) => message.role === "assistant");
 	/*
@@ -123,6 +126,7 @@ export const SubAgentTranscript = memo(function SubAgentTranscript({
 								const { block, index } = segment;
 								const at = from + index;
 								if (block.type === "thinking") {
+									if (!showThinking) return null;
 									return (
 										<ThinkingBlock
 											key={at}

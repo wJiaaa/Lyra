@@ -341,6 +341,8 @@ export const zhCN = {
 	"sidebar.manual": "手动排序",
 	"general.autoSummarizeTitle": "智能标题总结",
 	"general.autoSummarizeTitleDetail": "自动精简长消息标题，模型在设置 → 智能体里选，会产生模型用量。",
+	"general.showThinking": "显示思考过程",
+	"general.showThinkingDetail": "在对话里显示模型的推理，点开能看全文。关闭时只在底部看到它正在思考。",
 	"general.nextPromptSuggestions": "下一步建议",
 	"general.nextPromptSuggestionsDetail": "每轮回复后，在输入框里用灰字猜你下一句要说什么，按 Tab 填入。每轮多一次请求，会产生模型用量。",
 	"general.hideEmptiedProjects": "归档后收起项目",

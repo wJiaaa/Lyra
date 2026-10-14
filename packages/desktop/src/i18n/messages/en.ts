@@ -156,6 +156,8 @@ export const en = {
 	"sidebar.manual": "Manual order",
 	"general.autoSummarizeTitle": "Automatic chat titles",
 	"general.autoSummarizeTitleDetail": "Shorten long message titles. Pick the model in Settings → Subagents. Uses model tokens.",
+	"general.showThinking": "Show reasoning",
+	"general.showThinkingDetail": "Show the model's reasoning in the conversation, expandable to the full text. When off, you only see that it is thinking at the bottom of the chat.",
 	"general.nextPromptSuggestions": "Next-step suggestions",
 	"general.nextPromptSuggestionsDetail": "After each reply, show a guess at what you'll say next in the message box. Press Tab to use it. Adds one request per turn, which uses model tokens.",
 	"general.hideEmptiedProjects": "Fold away emptied projects",

@@ -441,6 +441,11 @@ export interface Settings {
 	 */
 	nextPromptSuggestions?: boolean;
 	/**
+	 * 对话里画不画模型的推理。默认不画：推理是写给模型自己的草稿，摊在转录里比回答还长；正在想的时候
+	 * 底部的运行指示照旧会说它在想。只管桌面端的转录，不影响发给模型的内容。
+	 */
+	showThinking?: boolean;
+	/**
 	 * How many sub-agents may run at once. Beyond this they queue.
 	 *
 	 * A limit rather than a refusal, because wanting to look at eight things is a reasonable thought
@@ -565,6 +570,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	rerouteShellCommands: true,
 	autoSummarizeTitle: true,
 	nextPromptSuggestions: false,
+	showThinking: false,
 	hideEmptiedProjects: false,
 	maxConcurrentSubAgents: 4,
 	/*
@@ -800,6 +806,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			rerouteShellCommands: parsed.rerouteShellCommands !== false,
 			autoSummarizeTitle: parsed.autoSummarizeTitle !== false,
 			nextPromptSuggestions: parsed.nextPromptSuggestions === true,
+			showThinking: parsed.showThinking === true,
 			// Off unless asked for: a project disappearing from the sidebar is the worse surprise.
 			hideEmptiedProjects: parsed.hideEmptiedProjects === true,
 			maxConcurrentSubAgents: normalizeMaxConcurrentSubAgents(parsed.maxConcurrentSubAgents),

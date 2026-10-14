@@ -17,7 +17,7 @@ import { SessionSuggestionNotes } from "./SessionSuggestionNote.tsx";
 import { Scroller } from "../../ui/scroll/Scroller.tsx";
 import { ActionSpinner } from "../../ui/motion/loaders.tsx";
 import { useAnswering } from "./useAnswering.ts";
-import { computeTurnStats, isNudge, runs, runKey, turnBlocks, turnEnd, type Run } from "./grouping.ts";
+import { computeTurnStats, isNudge, runs, runKey, turnBlocks, turnEnd, withoutThinking, type Run } from "./grouping.ts";
 import { intact } from "../../lib/transcript.ts";
 import { LiveToolCard, ToolRun as ToolRunGroup, WINDOW_TURNS } from "./runs.tsx";
 import { CommandRunRow } from "./CommandRunRow.tsx";
@@ -132,7 +132,12 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
   }, [toolRuns]);
   const activeSessionId = useScopedSessionId();
   const loadingSession = useScopedLoading();
-  const allRuns = useMemo(() => runs(messages, compactions, commandRuns, hiccups), [messages, compactions, commandRuns, hiccups]);
+  // 推理默认不画，见 `withoutThinking`。
+  const showThinking = useApp((s) => s.settings?.showThinking === true);
+  const allRuns = useMemo(() => {
+    const list = runs(messages, compactions, commandRuns, hiccups);
+    return showThinking ? list : withoutThinking(list);
+  }, [messages, compactions, commandRuns, hiccups, showThinking]);
   const separators = useMemo(() => timeSeparators(messages), [messages]);
   const questions = useMemo(() => questionsIn(messages), [messages]);
   /*
@@ -572,9 +577,10 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
               <Fragment key={key}>
                 <TurnWork
                   running={live}
-                  durationMs={live ? undefined : computeTurnStats(messages, turnEnd(allBlocks, range.start + at, messages.length)).durationMs}
+                  durationMs={live || block.woken ? undefined : computeTurnStats(messages, turnEnd(allBlocks, range.start + at, messages.length)).durationMs}
                   stateKey={key}
                   trailing={delegated.length > 0 ? <TurnFaces calls={delegated} /> : undefined}
+                  bare={block.woken}
                   entries={block.items.map((item) => ({
                     key: `${activeSessionId}:${item.key}`,
                     fold: item.kind === "step" || item.fold,

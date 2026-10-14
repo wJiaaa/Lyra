@@ -15,7 +15,7 @@ export { formatTokens } from "../../lib/format-tokens.ts";
 export { SessionStatus } from "./SessionStatus.tsx";
 export { ThinkingBlock } from "./ThinkingBlock.tsx";
 export { DetailCard } from "./detail/DetailCard.tsx";
-export { runs, runKey } from "./grouping.ts";
+export { runs, runKey, withoutThinking } from "./grouping.ts";
 export { ModelSwitchRow } from "./ModelSwitchRow.tsx";
 export { ToolRun, segments } from "./runs.tsx";
 /* 人说的一句话画成气泡——侧边聊天和子智能体面板共用，见 `SpokenBubble`。 */
