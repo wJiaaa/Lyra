@@ -23,6 +23,13 @@ const DELTA_MESSAGES = 4;
 const MESSAGE_CHARS = 600;
 const MATERIAL_CHARS = 4_000;
 const FILES = 6;
+/**
+ * 人说过几句才第一次概括、之后每多说几句才再概括一次，照 Claude Code / Qwen Code 的 recap。
+ * 本机 187 个会话里一半只说过一句：那种会话标题已经说清了在做什么，每轮结束各要一份是白花。
+ * 加上这两条，同样的会话从 315 次降到 82 次。
+ */
+const MIN_HUMAN_TURNS = 3;
+const MIN_HUMAN_TURNS_SINCE = 2;
 /** 卡片里三四行的长度，模型偶尔超一点，在这里截住。 */
 export const SUMMARY_MAX_CHARS = 240;
 
@@ -66,13 +73,21 @@ function spoken(message: Message): string {
  * 这一次要交给模型的材料；没有新东西时是 null，调用方就不必花这一次。
  *
  * 「新东西」只算人和 agent 说出来的话：一轮里跑了三十个工具、最后什么也没说，摘要也没什么可改的。
+ * 人说的话还要够数（`MIN_HUMAN_TURNS`）：子 Agent 结果、来信这些运行时插进来的不算人说的。
  */
 export function summaryMaterial(messages: readonly Message[], previous?: SessionSummary | null): SummaryMaterial | null {
 	const said: { message: Message; text: string }[] = [];
 	const files: string[] = [];
+	let humans = 0;
+	let humansSince = 0;
 	for (const message of messages) {
 		if (!message || typeof message.role !== "string") continue;
-		if (previous && message.timestamp <= previous.upto) continue;
+		const earlier = previous !== undefined && previous !== null && message.timestamp <= previous.upto;
+		if (message.role === "user" && !message.synthetic && spoken(message).trim()) {
+			humans++;
+			if (!earlier) humansSince++;
+		}
+		if (earlier) continue;
 		if (message.role === "assistant") {
 			for (const block of message.content) {
 				if (block.type !== "toolCall" || (block.name !== "write" && block.name !== "edit")) continue;
@@ -84,7 +99,7 @@ export function summaryMaterial(messages: readonly Message[], previous?: Session
 		const text = spoken(message).trim();
 		if (text) said.push({ message, text });
 	}
-	if (!said.length) return null;
+	if (!said.length || humans < MIN_HUMAN_TURNS || humansSince < MIN_HUMAN_TURNS_SINCE) return null;
 	const picked = said.slice(-(previous ? DELTA_MESSAGES : FIRST_MESSAGES));
 	const lines = picked.map(({ message, text }) => `[${message.role === "user" ? "用户" : "agent"}] ${compact(text, MESSAGE_CHARS)}`);
 	let material = lines.join("\n");

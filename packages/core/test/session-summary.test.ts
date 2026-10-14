@@ -14,6 +14,8 @@ const assistant = (timestamp: number, content: AssistantMessage["content"]): Ass
 
 test("第一次给最近几条人和 agent 说的话，工具调用里只捡出改动过的文件", () => {
 	const messages: Message[] = [
+		user(-2, "先看看列表"),
+		user(-1, "再看看详情"),
 		user(1, "修一下滚动位置"),
 		assistant(2, [{ type: "toolCall", id: "a", name: "edit", arguments: { path: "src/scroll.ts" } }, { type: "toolCall", id: "b", name: "read", arguments: { path: "src/other.ts" } }]),
 		{ role: "toolResult", toolCallId: "a", toolName: "edit", content: [{ type: "text", text: "工具输出不该进材料" }], isError: false, timestamp: 3 },
@@ -30,15 +32,28 @@ test("第一次给最近几条人和 agent 说的话，工具调用里只捡出�
 });
 
 test("有上一份时只给它之后的消息；之后没人再说话就不用再要", () => {
-	const messages: Message[] = [user(1, "旧问题"), assistant(2, [{ type: "text", text: "旧回答" }]), user(3, "新问题")];
+	const messages: Message[] = [user(1, "旧问题"), assistant(2, [{ type: "text", text: "旧回答" }]), user(3, "新问题"), user(4, "再补一句")];
 	const previous = { text: "在修旧问题。", upto: 2 };
 	const material = summaryMaterial(messages, previous);
 	assert.ok(material);
-	assert.equal(material.upto, 3);
+	assert.equal(material.upto, 4);
 	assert.match(material.prompt, /上一份摘要：\n在修旧问题。/);
 	assert.doesNotMatch(material.prompt, /旧问题\n|旧回答/);
-	assert.equal(summaryMaterial(messages, { text: "x", upto: 3 }), null);
+	assert.equal(summaryMaterial(messages, { text: "x", upto: 4 }), null);
 	assert.equal(summaryMaterial([]), null);
+});
+
+test("人说得不够多就不要：第一次要人说过三句，之后每次要人又说了两句；运行时插进来的不算", () => {
+	const reply = (at: number) => assistant(at, [{ type: "text", text: "好" }]);
+	const two: Message[] = [user(1, "一"), reply(2), user(3, "二"), reply(4)];
+	assert.equal(summaryMaterial(two), null);
+	assert.equal(summaryMaterial([...two, user(5, "子 Agent 的结果", { synthetic: true }), reply(6)]), null);
+	const three: Message[] = [...two, user(5, "三"), reply(6)];
+	assert.ok(summaryMaterial(three));
+
+	const previous = { text: "x", upto: 6 };
+	assert.equal(summaryMaterial([...three, user(7, "四"), reply(8)], previous), null);
+	assert.ok(summaryMaterial([...three, user(7, "四"), reply(8), user(9, "五"), reply(10)], previous));
 });
 
 test("清掉前缀、引号、换行，超长的截到卡片放得下", () => {
@@ -59,7 +74,7 @@ test("一次请求：拿到的文字成为新摘要，出错时不覆盖，没�
 			return message;
 		})();
 	}) as never;
-	const messages = [user(1, "修滚动"), assistant(2, [{ type: "text", text: "修好了" }])];
+	const messages = [user(-1, "看看"), user(0, "还有这里"), user(1, "修滚动"), assistant(2, [{ type: "text", text: "修好了" }])];
 
 	const ok = await summarizeSession({ messages, provider: PROVIDER, model: MODEL, stream: stream("在修滚动，已修好。") });
 	assert.deepEqual(ok?.summary, { text: "在修滚动，已修好。", upto: 2 });
