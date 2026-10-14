@@ -52,6 +52,34 @@ export function forkable(
 	return now - lineage.sent.at <= FORK_HOT_MS;
 }
 
+/** 分叉出去的那份请求：上一次的系统提示词、工具和消息原样，末尾接一条指令。 */
+export function forkContext(lineage: CompactionLineage, instruction: string): LlmContext {
+	const message: Message = { role: "user", content: [{ type: "text", text: instruction }], timestamp: Date.now(), synthetic: true };
+	return { systemPrompt: lineage.sent.systemPrompt, tools: lineage.sent.tools, messages: [...lineage.messages, message] };
+}
+
+/**
+ * 发出前的前缀核对：请求体切段后和上一次比，对不上就中止。没有上一次的指纹时不核对。
+ *
+ * `prefix()` 在请求结束（或抛出）之后读：核对发生在 `onPayload` 里，也就是请求出门之前。
+ */
+export function prefixGuard(lineage: CompactionLineage, outer?: AbortSignal): {
+	signal: AbortSignal;
+	onPayload: ((body: unknown) => void) | undefined;
+	prefix: () => RequestPrefix | undefined;
+} {
+	const mismatch = new AbortController();
+	let prefix: RequestPrefix | undefined;
+	const onPayload = lineage.segments
+		? (body: unknown) => {
+			prefix = comparePrefix(lineage.segments!, payloadSegments(body));
+			// 在发出之前：fetch 拿到一个已经中止的信号就不会出门。
+			if (prefix.change) mismatch.abort();
+		}
+		: undefined;
+	return { signal: outer ? AbortSignal.any([outer, mismatch.signal]) : mismatch.signal, onPayload, prefix: () => prefix };
+}
+
 export async function forkSummary(
 	lineage: CompactionLineage,
 	provider: ProviderConfig,
@@ -60,13 +88,7 @@ export async function forkSummary(
 	options: { instructions?: string; signal?: AbortSignal; observer?: CompactionObserver },
 ): Promise<ForkOutcome> {
 	const { sent } = lineage;
-	const instruction: Message = {
-		role: "user",
-		content: [{ type: "text", text: forkInstruction(hasSummary(lineage.messages), options.instructions) }],
-		timestamp: Date.now(),
-		synthetic: true,
-	};
-	const context: LlmContext = { systemPrompt: sent.systemPrompt, tools: sent.tools, messages: [...lineage.messages, instruction] };
+	const context = forkContext(lineage, forkInstruction(hasSummary(lineage.messages), options.instructions));
 
 	/*
 	 * 摘要要的位置和独立请求一样多（`summarize` 的 `reply`）。不够就不发：发出去要么被拒、要么摘要
@@ -79,16 +101,8 @@ export async function forkSummary(
 
 	// 输出上限照主循环的算法折算（`streamTurn`）：thinking 的预算跟着它走，算法不同前缀就不同。
 	const maxTokens = contextMaxTokens(model, context, sent.maxTokens);
-	const mismatch = new AbortController();
-	let prefix: RequestPrefix | undefined;
-	const onPayload = lineage.segments
-		? (body: unknown) => {
-			prefix = comparePrefix(lineage.segments!, payloadSegments(body));
-			// 在发出之前：fetch 拿到一个已经中止的信号就不会出门。
-			if (prefix.change) mismatch.abort();
-		}
-		: undefined;
-	const signal = options.signal ? AbortSignal.any([options.signal, mismatch.signal]) : mismatch.signal;
+	const guard = prefixGuard(lineage, options.signal);
+	const { signal, onPayload } = guard;
 	const observer = options.observer;
 	let pending = Promise.resolve();
 	let recordError: unknown;
@@ -106,6 +120,7 @@ export async function forkSummary(
 		do { next = await stream.next(); } while (!next.done);
 		message = next.value;
 	} catch (cause) {
+		const prefix = guard.prefix();
 		await pending;
 		if (recordError) throw recordError;
 		if (options.signal?.aborted || prefix?.change) return { summary: null, prefix };
@@ -115,6 +130,7 @@ export async function forkSummary(
 	await pending;
 	if (recordError) throw recordError;
 
+	const prefix = guard.prefix();
 	if (options.signal?.aborted || prefix?.change) return { summary: null, prefix };
 	if (message.stopReason === "error" || message.stopReason === "aborted") {
 		const failure = message.failure ?? classifyFailure({ from: "stream", message: message.errorMessage });

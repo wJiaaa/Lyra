@@ -13,6 +13,7 @@ import type { AgentEvent } from "@plume/core";
 import { addTurnUsage, type TurnMeter, type CarriedTurn } from "./turn-meter.ts";
 import { nextActivity } from "@plume/core/activity";
 import { recordReadEvent } from "./read-events.ts";
+import { noteNextPrompt } from "./next-prompt.ts";
 import { cachedEvent } from "./cached-event.ts";
 import { messageEvent } from "./message-event.ts";
 import { coalesce, flushCoalesced } from "./coalesce.ts";
@@ -58,6 +59,7 @@ const RECONNECTED = new Set<AgentEvent["type"]>([
 export function applyAgentEvent(sessionId: string, event: AgentEvent, set: Set, get: Get): void {
 	const completion = completionNotice(event, get().activity[sessionId] ?? null);
   recordReadEvent(sessionId, event);
+  noteNextPrompt(sessionId, event);
   /*
    * 被「现在就发」停下的那一轮的收尾：转录照样落定，会话不放下——新的一轮几十毫秒后就开始。
    * 下面凡是 `agent_end` 会把会话放下的地方都看它。见 `handoff.ts`。

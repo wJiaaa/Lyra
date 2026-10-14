@@ -431,6 +431,13 @@ export interface Settings {
 	 */
 	autoSummarizeTitle?: boolean;
 	/**
+	 * 一轮做完后猜人下一句要说什么，灰字放在输入框里，Tab 填入。默认关。
+	 *
+	 * 每轮多一次从主请求分叉的请求：缓存读整段上下文，外加几十到几百个输出 token（开着推理的模型还有
+	 * 推理那部分）。见 `runtime/next-prompt.ts`。
+	 */
+	nextPromptSuggestions?: boolean;
+	/**
 	 * How many sub-agents may run at once. Beyond this they queue.
 	 *
 	 * A limit rather than a refusal, because wanting to look at eight things is a reasonable thought
@@ -554,6 +561,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	capabilityPreferences: {},
 	rerouteShellCommands: true,
 	autoSummarizeTitle: true,
+	nextPromptSuggestions: false,
 	hideEmptiedProjects: false,
 	maxConcurrentSubAgents: 4,
 	/*
@@ -786,6 +794,7 @@ export function normalizeSettings(parsed: Partial<Settings>): Settings {
 			capabilityPreferences: parsed.capabilityPreferences ?? {},
 			rerouteShellCommands: parsed.rerouteShellCommands !== false,
 			autoSummarizeTitle: parsed.autoSummarizeTitle !== false,
+			nextPromptSuggestions: parsed.nextPromptSuggestions === true,
 			// Off unless asked for: a project disappearing from the sidebar is the worse surprise.
 			hideEmptiedProjects: parsed.hideEmptiedProjects === true,
 			maxConcurrentSubAgents: normalizeMaxConcurrentSubAgents(parsed.maxConcurrentSubAgents),

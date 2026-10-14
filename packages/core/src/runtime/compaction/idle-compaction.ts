@@ -23,12 +23,16 @@ import { forkable } from "./compaction-fork.ts";
 import type { CompactionParts } from "./manual-compaction.ts";
 import { compactionSpent, modelHistory, summaryStream } from "../session-turn.ts";
 
-/** 越线且能热分叉时压一次。返回是否真的写下了一条边界。 */
-export async function idleCompaction(parts: CompactionParts, signal: AbortSignal): Promise<boolean> {
+/**
+ * 一轮收尾后能热分叉的起点：下一轮开头循环要发的同一份消息，接在上一次请求头后面。
+ *
+ * 换了模型、缓存已凉、没发过请求时没有。下一步建议（`next-prompt.ts`）也从这里分叉。
+ */
+export async function hotFork(parts: CompactionParts) {
 	const { log, can } = parts;
 	const settings = parts.settings();
 	const resolved = resolveModel(settings, log.meta.modelId || settings.defaultModelId);
-	if (!resolved) return false;
+	if (!resolved) return null;
 	const { provider, model } = resolved;
 	await parts.preparePruner();
 	const pruner = sessionPruner(can.state);
@@ -36,7 +40,16 @@ export async function idleCompaction(parts: CompactionParts, signal: AbortSignal
 	// 和下一轮开头循环要发的同一份：剪枝器记下的视图，再接上日期块。
 	const messages = pruner.prepare(modelHistory(log, provider, model), artifacts);
 	const lineage = lineageFrom(can.state, requestView(messages, true));
-	if (!forkable(lineage, provider, model)) return false;
+	if (!forkable(lineage, provider, model)) return null;
+	return { provider, model, pruner, artifacts, messages, lineage };
+}
+
+/** 越线且能热分叉时压一次。返回是否真的写下了一条边界。 */
+export async function idleCompaction(parts: CompactionParts, signal: AbortSignal): Promise<boolean> {
+	const fork = await hotFork(parts);
+	if (!fork) return false;
+	const { log } = parts;
+	const { provider, model, pruner, artifacts, messages, lineage } = fork;
 
 	const result = await compactStep(
 		{

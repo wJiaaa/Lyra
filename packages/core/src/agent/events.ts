@@ -323,6 +323,12 @@ export type AgentEvent =
 	 */
 	| { type: "title"; title: string }
 	/**
+	 * 一轮做完后猜的、人下一句可能要说的话（`runtime/next-prompt.ts`）。
+	 *
+	 * 不进日志：它只对刚收尾的这一刻成立，重开对话时早已过时。下一轮开始、历史被改写时，窗口自己丢掉它。
+	 */
+	| { type: "next_prompt"; text: string }
+	/**
 	 * History was rewritten: keep the first `messageCount` messages and drop the rest.
 	 *
 	 * Sent when a message is edited. Clients cannot infer this from the messages that follow —

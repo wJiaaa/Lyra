@@ -156,6 +156,8 @@ export const en = {
 	"sidebar.manual": "Manual order",
 	"general.autoSummarizeTitle": "Automatic chat titles",
 	"general.autoSummarizeTitleDetail": "Shorten long message titles. Pick the model in Settings → Subagents. Uses model tokens.",
+	"general.nextPromptSuggestions": "Next-step suggestions",
+	"general.nextPromptSuggestionsDetail": "After each reply, show a guess at what you'll say next in the message box. Press Tab to use it. Adds one request per turn, which uses model tokens.",
 	"general.hideEmptiedProjects": "Fold away emptied projects",
 	"general.hideEmptiedProjectsDetail": "Once every conversation in a project is archived, hide the project too. A project that never had a conversation always keeps its row.",
 	"common.copy": "Copy",

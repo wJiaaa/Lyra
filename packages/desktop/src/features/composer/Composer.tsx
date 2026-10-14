@@ -40,6 +40,7 @@ import { useLayout } from "../../app/layout.tsx";
 import type { DraftAttachment } from "./attachments/read.ts";
 import { useComposerAttachments } from "./useComposerAttachments.tsx";
 import { useApp } from "../../store/index.ts";
+import { useNextPrompt } from "../../store/next-prompt.ts";
 import {
 	focusScreenOf,
 	useScopedMessages,
@@ -90,6 +91,8 @@ export function Composer({ centered = false }: {
 	// A count, not the list: a selector that builds an array hands back a new one on every store tick.
 	const unfinished = useScopedTodos().filter((todo) => todo.status !== "completed").length;
 	const activeSessionId = useScopedSessionId();
+	/** 上一轮收尾后猜的下一句；输入框空着时当灰字，Tab 填入。见 `store/next-prompt.ts`。 */
+	const nextPrompt = useNextPrompt((s) => (activeSessionId ? s.bySession[activeSessionId] : undefined));
 	const draftPlanMode = useApp((s) => s.draftPlanMode);
 	useJobReveal(activeSessionId, useCallback(() => void openScopedPanel("tasks", activeSessionId ?? undefined), [activeSessionId]));
 	// "底部面板" in Settings → 常规. Saved but read by nothing until now.
@@ -829,9 +832,15 @@ export function Composer({ centered = false }: {
 						slash.keyDown(event, () => void submit());
 						// 命令单接下了这个键就到此为止：它是拿 preventDefault 说这话的，见 ComposerShell。
 						if (event.defaultPrevented) return;
+						// 只在框里一个字也没有时接管 Tab：有字的时候灰字本来就不显示，按了填进去的是看不见的东西。
+						if (event.key === "Tab" && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey && nextPrompt && !text) {
+							event.preventDefault();
+							setText(nextPrompt);
+							return;
+						}
 						history.keyDown(event);
 					}}
-					placeholder={t("composer.placeholder")}
+					placeholder={nextPrompt ?? t("composer.placeholder")}
 					onFiles={(picked) => void kit.addFiles(picked)}
 					attachments={
 						/*

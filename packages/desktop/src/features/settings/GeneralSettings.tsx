@@ -186,6 +186,16 @@ export function GeneralSettings() {
           }
         />
         <Row
+          title={t("general.nextPromptSuggestions")}
+          detail={t("general.nextPromptSuggestionsDetail")}
+          control={
+            <Toggle
+              checked={settings.nextPromptSuggestions === true}
+              onChange={(nextPromptSuggestions) => patch({ nextPromptSuggestions })}
+            />
+          }
+        />
+        <Row
           title={t("general.hideEmptiedProjects")}
           detail={t("general.hideEmptiedProjectsDetail")}
           control={
