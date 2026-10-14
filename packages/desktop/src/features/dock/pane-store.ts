@@ -93,21 +93,28 @@ const isBare = (tree: DockNode | null | undefined): boolean => !tree || (tree.ty
  *
  * 单独拿出来，是因为 `DockView` 换到这一屏的那次渲染就要用它，等不到 `hydrate`——见那边的说明。
  */
-export function storedTree(scope: string, allowed: PaneKind[], trees: Record<string, DockNode>, options?: { draftFrom?: string }): DockNode | null {
+export function storedTree(scope: string, allowed: PaneKind[]): DockNode | null {
 	const stored = readTree(paneStorageKey(scope), allowed);
-	if (!isBare(stored)) return stored;
-	/*
-	 * 空白对话发出第一条消息、拿到 id 的那一下。
-	 *
-	 * 人常在开口之前先把面板摆好——那正是准备干活的时候。这时新 id 名下什么都没有，读新钥匙
-	 * 只会读到空，刚摆好的布局就被扔了。只在调用方明说「这是刚从空白对话变来的」时才搬：
-	 * 点开一个本来就存在、只是没存过布局的会话，看起来一模一样，却不该继承草稿的面板。
-	 */
-	if (options?.draftFrom) {
-		const draft = trees[options.draftFrom] ?? readTree(paneStorageKey(options.draftFrom), allowed);
-		if (!isBare(draft)) return draft;
-	}
-	return null;
+	return isBare(stored) ? null : stored;
+}
+
+/*
+ * 空白对话发出第一条消息、拿到 id 的那一下：把它摆好的布局交给新会话。
+ *
+ * 人常在开口之前先把面板摆好——那正是准备干活的时候。这时新 id 名下什么都没有，读新钥匙只会读到空，
+ * 刚摆好的布局就被扔了。只在调用方明说「这是刚从空白对话变来的」时才搬：点开一个本来就存在、只是没存过
+ * 布局的会话，看起来一模一样，却不该继承草稿的面板。
+ *
+ * 是挪，不是抄。从前抄一份、空白对话那份留在盘上，于是在空白对话里开过一次终端，之后每个「新对话」都
+ * 自带终端，每个从它发出去的会话也跟着继承。
+ */
+function takeDraft(draft: string, allowed: PaneKind[]): DockNode | null {
+	const dock = usePaneDock.getState();
+	const tree = dock.trees[draft] ?? readTree(paneStorageKey(draft), allowed);
+	if (isBare(tree)) return null;
+	dropTree(paneStorageKey(draft));
+	dock.forget(draft);
+	return tree;
 }
 
 export const usePaneDock = create<PaneDockState>((set, get) => {
@@ -146,7 +153,7 @@ export const usePaneDock = create<PaneDockState>((set, get) => {
 		hydrate(scope, allowed, options) {
 			// Memory is newer than disk: a screen that remounts keeps what it had.
 			if (get().trees[scope]) return;
-			const tree = storedTree(scope, allowed, get().trees, options);
+			const tree = storedTree(scope, allowed) ?? (options?.draftFrom ? takeDraft(options.draftFrom, allowed) : null);
 			if (!tree) return;
 			set({ trees: { ...get().trees, [scope]: tree } });
 			persist(scope, tree);

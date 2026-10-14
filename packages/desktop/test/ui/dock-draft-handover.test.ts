@@ -14,6 +14,7 @@ import { Terminal } from "lucide-react";
 import { DockView } from "../../src/features/dock/DockView.tsx";
 import { LayoutProvider } from "../../src/app/layout.tsx";
 import { usePaneDock } from "../../src/features/dock/pane-store.ts";
+import { flushTree, paneStorageKey } from "../../src/features/dock/persist.ts";
 import { registerPanels } from "../../src/features/dock/panels/registry.ts";
 import { kinds } from "../../src/features/dock/tree.ts";
 import { useApp } from "../../src/store/index.ts";
@@ -84,6 +85,42 @@ test("a draft that became some other conversation does not leak into this one", 
 		await view.rerender(screen("s-old"));
 
 		assert.deepEqual(kinds(usePaneDock.getState().tree("s-old")), ["conversation"]);
+	} finally {
+		await view.unmount();
+	}
+});
+
+test("the panels move to the sent conversation; the next blank one starts with none", async () => {
+	const view = await mount(screen("@draft"));
+	try {
+		await act(async () => { usePaneDock.getState().open("@draft", "terminal"); });
+		useApp.setState({ draftBecame: "s-sent" });
+		await view.rerender(screen("s-sent"));
+		flushTree();
+
+		assert.equal(window.localStorage.getItem(paneStorageKey("@draft")), null, "the draft kept a copy on disk");
+		await view.rerender(screen("@draft"));
+		assert.deepEqual(kinds(usePaneDock.getState().tree("@draft")), ["conversation"]);
+		assert.equal(view.all('[data-dock-panes="@draft"] [data-dock-pane="terminal"]').length, 0, "a new blank conversation came with a terminal");
+	} finally {
+		await view.unmount();
+	}
+});
+
+test("going back to a sent conversation later is not another send", async () => {
+	const view = await mount(screen("@draft"));
+	try {
+		await act(async () => { usePaneDock.getState().open("@draft", "terminal"); });
+		useApp.setState({ draftBecame: "s-sent" });
+		await view.rerender(screen("s-sent"));
+		await act(async () => { usePaneDock.getState().close("s-sent", "terminal"); });
+
+		// A new blank conversation, a terminal in it, then back to the one sent earlier without sending.
+		await view.rerender(screen("@draft"));
+		await act(async () => { usePaneDock.getState().open("@draft", "terminal"); });
+		await view.rerender(screen("s-sent"));
+
+		assert.deepEqual(kinds(usePaneDock.getState().tree("s-sent")), ["conversation"], "the closed terminal came back from the draft");
 	} finally {
 		await view.unmount();
 	}

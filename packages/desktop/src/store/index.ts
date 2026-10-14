@@ -282,7 +282,8 @@ export interface AppState extends QueueSlice {
    *
    * 屏幕上那一格从 `@draft` 变成这个 id 的时候，它摆好的面板要跟过去——人常在开口之前先把终端、
    * 浏览器摆好。这里明说一句「是发出去变来的」，而不是让面板那边去猜：点开一个本来就存在、只是
-   * 没存过布局的会话，在界面上看起来和它一模一样，却不该继承草稿的面板。
+   * 没存过布局的会话，在界面上看起来和它一模一样，却不该继承草稿的面板。那一格读到它就清掉（`DockView`），
+   * 只算这一次。
    */
   draftBecame: string | null;
   meta: SessionMeta | null;

@@ -189,7 +189,7 @@ export function DockView({
 	 *
 	 * 不带 `draftFrom`：刚发出去的新对话没有要恢复的位置，草稿的面板晚一次提交搬过来没有影响。
 	 */
-	const stored = useMemo(() => storedTree(scope, allowed.current, {}), [scope]);
+	const stored = useMemo(() => storedTree(scope, allowed.current), [scope]);
 	const tree = held ?? stored ?? emptyDockTree;
 	const previousScope = useRef<string | null>(null);
 	useLayoutEffect(() => {
@@ -199,6 +199,8 @@ export function DockView({
 		// Only a blank conversation that has just been *sent* keeps its panes under the new id — see
 		// `draftBecame`. Clicking an existing conversation from a blank one looks the same here.
 		const sent = from === "@draft" && scope !== "@draft" && useApp.getState().draftBecame === scope;
+		// Spent on first use. Left set, every later return to it from a blank one counted as the send.
+		if (sent) useApp.setState({ draftBecame: null });
 		usePaneDock.getState().hydrate(scope, allowed.current, sent ? { draftFrom: "@draft" } : undefined);
 		const frame = requestAnimationFrame(() => {
 			requestAnimationFrame(settled);
