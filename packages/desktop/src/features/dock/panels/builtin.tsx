@@ -155,7 +155,8 @@ function DeliveryPanel() {
 	};
 
 	return <>
-		<Scroller>
+		{/* No top fade: a file's header is always pinned at the top once scrolled, so the fade would only dissolve the header itself. */}
+		<Scroller top="none">
 			{files.map((file) => (
 				<section key={file.path} data-delivery-diff={file.path} className="mb-1">
 					<div className="ly-pin sticky top-0 z-10">
