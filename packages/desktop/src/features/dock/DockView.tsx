@@ -133,6 +133,7 @@ export function DockView({
 	scope,
 	header,
 	foldable = false,
+	floating = false,
 	insets = NO_INSETS,
 	children,
 }: {
@@ -149,6 +150,8 @@ export function DockView({
 	 * fold them all.
 	 */
 	foldable?: boolean;
+	/** 分屏中的一屏：对话铺在屏卡上，标签栏整体是浮在里面的一块卡，见 `Tile`。 */
+	floating?: boolean;
 	insets?: ScreenInsets;
 	/** The transcript and composer. */
 	children: ReactNode;
@@ -390,6 +393,7 @@ export function DockView({
 								 * `column-slide.ts` 从右边滑进、淡入，这里再起一段淡入会盖过它——CSS 过渡在层叠里
 								 * 比 WAAPI 动画优先；滑不了的时候照旧淡入。
 								 */
+								tile={floating ? (conversation ? "base" : "float") : undefined}
 								quietEntrance={!conversation && (panels.length > 1 || slides !== null)}
 								actions={conversation ? undefined : renderPanelActions(kind as PanelKind)}
 								after={kind === tab ? foldButton : undefined}

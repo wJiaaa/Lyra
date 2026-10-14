@@ -10,9 +10,26 @@
 import { PaneHeader } from "./PaneHeader.tsx";
 import { PaneSurface } from "./PaneSurface.tsx";
 import { pct } from "./css.ts";
-import { cardRoom, HEADER_HEIGHT, PANE_INSET, panePaintMinWidth } from "./geometry.ts";
+import { cardRoom, EPSILON, HEADER_HEIGHT, PANE_INSET, PANEL_FLOAT, panePaintMinWidth } from "./geometry.ts";
 import type { Box } from "./layout.ts";
 import type { PaneKind } from "./tree.ts";
+
+/**
+ * 分屏时一格怎么画。`base`：对话铺在这一屏的卡片上，自己不再是一张卡（屏卡见 dock.css）；
+ * `float`：标签栏是浮在屏卡里的一块。单屏不给，每格照旧各是一张卡。
+ */
+export type Tile = "base" | "float";
+
+/** 浮卡离四边多远：挨着屏卡边缘的留满，挨着对话的留一半——对话没有自己的卡片边。 */
+function floatMargin(box: Box): string {
+	const side = (edge: boolean) => `${edge ? PANEL_FLOAT : PANEL_FLOAT / 2}px`;
+	return [
+		side(box.top < EPSILON),
+		side(box.left + box.width > 1 - EPSILON),
+		side(box.top + box.height > 1 - EPSILON),
+		side(box.left < EPSILON),
+	].join(" ");
+}
 
 export function DockPane({
 	kind,
@@ -30,6 +47,7 @@ export function DockPane({
 	onToggleMaximized,
 	onPopOut,
 	onFocus,
+	tile,
 	chrome = true,
 	customHeader,
 	after,
@@ -64,6 +82,7 @@ export function DockPane({
 	/** Leave this dock for a real window. */
 	onPopOut?: () => void;
 	onFocus: () => void;
+	tile?: Tile;
 	/**
 	 * Conversation tiles are independent screens. When more than one is showing, each paints
 	 * its own title bar, and this shared dock chrome would sit above them as a fifth strip.
@@ -74,8 +93,9 @@ export function DockPane({
 	after?: React.ReactNode;
 	children: React.ReactNode;
 }) {
-	/** Where the card's inside starts within the pane's box: its inset and its border. */
-	const edge = PANE_INSET + 1;
+	const margin = tile === "base" ? "0px" : tile === "float" ? floatMargin(box) : `${PANE_INSET}px`;
+	/** Where the card's inside starts within the pane's box: its margin and its border. */
+	const edge = tile === "base" ? "0px" : margin.split(" ").map((side) => `${parseFloat(side) + 1}px`).join(" ");
 	const edgeRoom = (room?: number) => (room ? cardRoom(room) : room);
 	const paintMinWidth = panePaintMinWidth(kind, box.width, maximized);
 
@@ -156,8 +176,12 @@ export function DockPane({
 			 *
 			 * `overflow-hidden` is what makes a card's radius real: without it a scroller inside paints
 			 * its own square corners straight over the rounded ones.
+			 *
+			 * On a split screen the screen is the card instead, and the panel column floats in it —
+			 * otherwise the gap between a conversation and its own terminal is the same 4px as the gap
+			 * between two screens, and two screens read as four equal columns. See `Tile`.
 			 */}
-			<div className="ly-dock-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ margin: PANE_INSET }}>
+			<div data-tile={tile} className="ly-dock-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ margin }}>
 			{/* Controls keep their endpoint geometry while this retained surface composites its resize. */}
 			{chrome && <div aria-hidden className="shrink-0" style={{ height: HEADER_HEIGHT }} />}
 			<div data-dock-content={kind} className="relative flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>

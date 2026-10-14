@@ -22,8 +22,11 @@ export async function startDevRenderer(): Promise<{ url: string; close: () => Pr
 	const resolved = await resolveConfig({ root: ROOT, logLevel: "warn" }, "serve", "development");
 	const renderer = resolved.config?.renderer;
 	if (!renderer) throw new Error("electron.vite.config.ts has no renderer config");
-	// 端口让出来：跑用例的人多半自己还开着 `pnpm dev`，占着 5173。
-	const server = await createServer({ ...renderer, server: { ...renderer.server, port: 0 } });
+	/*
+	 * 端口让出来：跑用例的人多半自己还开着 `pnpm dev`，占着 5173。依赖预构建的缓存也分开：两个服务器
+	 * 共用 `node_modules/.vite`，这边一发现新依赖就重写那份缓存，那边的窗口跟着整页重载。
+	 */
+	const server = await createServer({ ...renderer, cacheDir: join(ROOT, "node_modules", ".vite-e2e"), server: { ...renderer.server, port: 0 } });
 	await server.listen();
 	const url = server.resolvedUrls?.local[0];
 	if (!url) {

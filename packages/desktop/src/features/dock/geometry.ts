@@ -128,6 +128,13 @@ export const HEADER_PAD = 10;
  */
 export const SPLITTER_HIT = 9;
 
+/**
+ * 分屏时标签栏浮在这一屏的卡片里，离屏卡边缘多远。
+ *
+ * 挨着对话的那一边只留一半：对话没有自己的卡片边，留满了只是一道看不出来源的空白。
+ */
+export const PANEL_FLOAT = 6;
+
 /** Keyboard resizing, per press, as a share. Shift multiplies it. */
 export const SPLITTER_STEP = 0.02;
 

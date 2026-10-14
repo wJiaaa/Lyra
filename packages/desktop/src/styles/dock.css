@@ -75,6 +75,39 @@
   border-radius: var(--radius-panel);
 }
 
+/*
+ * 分屏时一屏是一张卡。
+ *
+ * 单屏时对话、面板各是一张卡，彼此隔 4px。分屏时屏与屏之间也是这 4px，两屏各带一个终端就成了四列
+ * 一样的卡片，看不出哪两张是一组。所以分屏时卡片画在整屏上（这一屏的 `.ly-dock`），对话直接铺在
+ * 上面（`data-tile="base"`），标签栏整体是浮在里面的一块，有自己的描边（`data-tile="float"`，离屏卡
+ * 边缘的距离见 `PANEL_FLOAT`）。
+ */
+[data-ly-split-root]:not([data-ly-split-count="1"]) > [data-ly-split-pane] > .ly-dock {
+  margin: 2px;
+  background: var(--color-shell);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+
+.ly-dock-card[data-tile="base"] {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+}
+
+/*
+ * 浮卡和屏卡同色时只靠描边分层，不投影：同色表面之间的投影读不出深度，只刷出一道脏灰边
+ * （2026-08 那次就是因此撤掉的浮起面板，见 commit 599a7223）。底色往墨色偏一点点，描边比屏卡深一档。
+ * 代码类面板（终端、文件、改动）用代码主题的底色，那条规则更具体，照旧生效。
+ */
+.ly-dock-card[data-tile="float"] {
+  background: color-mix(in srgb, var(--color-ink) 2.5%, var(--color-shell));
+  border-color: color-mix(in srgb, var(--color-ink) 13%, transparent);
+  border-radius: var(--radius-lg);
+}
+
 .ly-dock-pane {
   opacity: 1;
   transform-origin: top left;
@@ -181,6 +214,36 @@
   background: color-mix(in oklab, var(--color-shell) 55%, transparent);
   border-color: color-mix(in oklab, var(--color-ink) 18%, transparent);
   border-style: dashed;
+}
+
+/*
+ * 分屏时哪一屏有焦点。
+ *
+ * 模型、快捷键、面板开关都作用在焦点屏上，而屏与屏之间只隔一道和屏内卡片一样宽的缝，焦点屏
+ * 原来没有任何标记，人分不出自己在哪个会话下面。非焦点屏整体淡一档，焦点屏保持原样；不用强调色
+ * 描边，那会在终端这类深色卡片上跳出来。淡的是内容不是卡片，底色和描边不变，屏的轮廓照旧。
+ * 单屏不受影响。
+ */
+[data-ly-split-root]:not([data-ly-split-count="1"]) > [data-ly-split-pane]:not([data-ly-split-focused]) [data-dock-content] {
+	opacity: 0.62;
+}
+
+/* 叠在内容那一层上，合起来约 0.45：输入框是最容易被当成「正在打字的地方」的一块。 */
+[data-ly-split-root]:not([data-ly-split-count="1"]) > [data-ly-split-pane]:not([data-ly-split-focused]) [data-dock-content] .ly-composer-dock {
+	opacity: 0.72;
+}
+
+[data-ly-split-root]:not([data-ly-split-count="1"]) > [data-ly-split-pane]:not([data-ly-split-focused]) [data-ly-screen-title] {
+	color: var(--color-ink-muted);
+}
+
+[data-ly-split-root] [data-dock-content],
+[data-ly-split-root] [data-dock-content] .ly-composer-dock {
+	transition: opacity var(--ly-t-quick) var(--ly-e-soft);
+}
+
+[data-ly-split-root] [data-ly-screen-title] {
+	transition: color var(--ly-t-quick) var(--ly-e-soft);
 }
 
 /* The narrow layout's pane picker, above the one pane on show. */

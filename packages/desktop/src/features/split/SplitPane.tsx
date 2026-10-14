@@ -82,6 +82,7 @@ const SplitScreen = memo(function SplitScreen({
 				insets={{ start: inset, end: insetEnd }}
 				header={(room: ScreenInsets, after?: ReactNode) => <SplitChrome sessionId={sessionId} screen={screen} inset={room.start} insetEnd={room.end} after={after} />}
 				foldable={lone}
+				floating={screen}
 			>
 				{body}
 			</DockView>
@@ -138,8 +139,9 @@ export const SplitPane = memo(function SplitPane({
 				height: pct(pane.height),
 			}}
 			/*
-			 * Screens are told apart by the gap between their cards — each screen's panes are cards of
-			 * their own (see `DockPane`) — so the section adds no fill and no dividing line.
+			 * The section adds no fill and no dividing line. With one screen its panes are cards of their
+			 * own (see `DockPane`); with several, the screen's dock is the card and its panel column floats in it
+			 * — see "分屏时一屏是一张卡" in dock.css.
 			 */
 			className="ly-freeze absolute flex min-h-0 min-w-0 flex-col overflow-hidden contain-layout"
 		>
