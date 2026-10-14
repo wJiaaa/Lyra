@@ -272,8 +272,9 @@ export function broadcast(sessionId: string, event: AgentEvent): void {
 	// 活会话的回复不经过快照：这一轮刚交付、链着验证截图的那条，正是人马上要点的。
 	if (event.type === "message_end") noteTranscriptFiles([event.message]);
 	eachAppWindow((win) => win.webContents.send("agent:event", { sessionId, event }));
-	const meta = sessions.get(sessionId)?.meta;
-	if (!side) notifyAgentEvent(sessionId, event, meta?.title);
+	const session = sessions.get(sessionId);
+	const working = session?.subAgents.list().some((one) => one.background && (one.status === "running" || one.status === "queued")) ?? false;
+	if (!side) notifyAgentEvent(sessionId, event, session?.meta.title, working);
 	// After the windows have the event: they hear the turn end before they hear it was archived.
 	archives.observe(sessionId, event);
 }

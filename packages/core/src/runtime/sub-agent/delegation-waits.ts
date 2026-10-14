@@ -1,24 +1,19 @@
 /**
- * 父会话在等的那些派发——人一开口，就放手。
+ * 主会话派出去的子代理：派出即放手，跑完一个送回一个。
  *
- * `task` 是一个同步的工具调用：派出去的子代理跑多久，父会话这一轮就卡多久，而插话只在两轮之间
- * 才有人取（`drainSteering`）。于是主会话在等四个子代理的那十几分钟里，人说的每一句话都排在它们
- * 后面——界面上消息发出去了，主智能体一声不吭，直到最后一个子代理交差（2026-09-26 的真实会话：
- * 一句插话等了两分多钟才被读到）。
+ * `task` 当场交回一句「已经派出去了」，这一轮接着走——手上还有不依赖它的事就做，没有就把这一轮
+ * 收掉。子代理在后台跑完，结果由运行时作为一条消息送回主会话（`SessionDeliveries`：忙着就插进
+ * 这一轮，闲着就开一个新回合），主智能体就这一份说清它带来了什么、还在等谁；全部回来之后再合并。
  *
- * 所以人一开口，父会话就不再干等：还在等的那几个 `task` 当场交回一句「它转到后台了」，这一轮
- * 接着往下走，下一个回合开头就读到人刚说的话。话说出口之后、被读到之前才开始的等待也一样当场
- * 放手（`spoken`）：话常常是在模型还在写回复时说的，那段回复里派出的子代理晚于这句话。子代理不受打扰，照样跑完；跑完之后，结果由运行时
- * 作为一条消息送回主会话（`Session` 那边决定是插进正在跑的那一轮，还是开一个新回合）。
+ * 从前是反过来的：`task` 同步等到子代理交差，只有人插话时才放手（理由是「平时的路一步都不多」）。
+ * 换掉它是一次明确的取舍——人要的是每回来一路就看到一路的结论、等的时候能直接跟主智能体说话，
+ * 代价是每次送达多一轮请求、多读一遍前缀。攒送达的那 400ms 会把前后脚回来的几份合成一轮。
+ * 取舍见 docs/adr/0051-sub-agents-report-one-by-one.md。
  *
- * 为什么不是「一直都在后台跑」：大多数时候父会话就是要等结果才能往下做，让它每次都派完就走、
- * 再靠送达消息续上，是把一件本来一轮能做完的事拆成两轮——多一次请求，多一段要重读的前缀。只在
- * 真有人要说话的时候放手，平时的路一步都不多。
+ * 「这个会话闲了没有」因此要把还在后台跑的算进去（`outstanding`，见 `AgentSession.idle`）：
+ * 派完那一轮收尾时，活其实刚开始。
  *
- * 「有人」也包括另一个会话插进来的信（`steer`）：它和人插话一样在等这边读到。谁算见 `session-inbox.ts`
- * 的 `addressed`。
- *
- * 只管主会话派出去的那一层。子代理自己派的孩子不在这里：人说话的对象是主会话，不是它们。
+ * 只管主会话派出去的那一层：子代理手里没有 `task`（见 `dispatch-guard.ts`）。
  */
 
 import type { DeliveredReport, Message, SubAgentAnswer } from "../../types.ts";
@@ -33,16 +28,16 @@ export interface SettledDispatch {
 }
 
 export interface DelegationWaitHooks {
-	/** 人说的话已经排着、还没被读到：这时开始的等待当场放手。 */
+	/** 人说的话已经排着、还没被读到：这时开始的等待（`until`）当场放手。 */
 	spoken(): boolean;
-	/** 放手了：登记簿上标一下它转到后台了。 */
+	/** 放手了：登记簿上标一下它在后台。 */
 	detached(id: string): void;
 	/** 放了手的那个跑完了：把结果送回主会话。 */
 	settled(report: SettledDispatch): void;
 }
 
 export class DelegationWaits {
-	/** 父会话正等着的派发，每个对应一个「放手」的办法。 */
+	/** 父会话正等着的事（`until`），每个对应一个「放手」的办法。 */
 	private readonly held = new Set<() => void>();
 	/** 放了手、还在后台跑的，按登记 id。跑完了要送回去的就是这些。 */
 	private readonly detached = new Set<string>();
@@ -52,54 +47,38 @@ export class DelegationWaits {
 		this.hooks = hooks;
 	}
 
-	/** 父会话此刻正卡在几个派发上。 */
-	get waiting(): number {
-		return this.held.size;
+	/** 还在后台跑、跑完要送回来的有几个。 */
+	get outstanding(): number {
+		return this.detached.size;
 	}
 
 	/**
-	 * 等一个派发，但随时可以放手。
+	 * 派出去，当场放手：交回一句「已派出」，结果跑完后经 `settled` 送回。
 	 *
-	 * `id` 是现问的：登记发生在 `runSubAgent` 里、这个 Promise 交过来之后，而放手可能发生在
-	 * 登记之前的那一瞬（几乎不会，但没有登记就没有 id，也就没法送回去——那种情况下放手交回的
-	 * 话里不带 id，结果照常丢不了：它会在登记之后照样跑完，只是不再有人等它）。
+	 * `runSubAgent` 在第一个 await 之前就登记了，所以这时 `id()` 已经有了。没有的，是还没上名单
+	 * 就被拒了（不认识的类型、续跑不了的 id）——那就照旧等它，拒绝的理由当场作为工具错误交回，
+	 * 而不是晚一轮才送到。
 	 */
-	hold(run: Promise<SubAgentAnswer>, id: () => string | undefined): Promise<SubAgentAnswer> {
-		return new Promise<SubAgentAnswer>((resolve, reject) => {
-			let released: string | undefined;
-			const release = () => {
-				if (!this.held.delete(release)) return;
-				released = id();
-				if (released) {
-					this.detached.add(released);
-					this.hooks.detached(released);
-				}
-				resolve(detachedAnswer(released));
-			};
-			this.held.add(release);
-			const settle = (report: Omit<SettledDispatch, "id">) => {
-				// 放手之后会话被停过（`forget`），就不再送：那时候人要的是它们都停下。
-				if (released && this.detached.delete(released)) this.hooks.settled({ id: released, ...report });
-			};
-			run.then(
-				(answer) => {
-					if (this.held.delete(release)) resolve(answer);
-					else settle({ answer });
-				},
-				(error: unknown) => {
-					if (this.held.delete(release)) reject(error);
-					else settle({ error: error instanceof Error ? error.message : String(error) });
-				},
-			);
-			// `runSubAgent` 在第一个 await 之前就登记了，所以这时 `id()` 已经有了，放手的结果照样送得回来。
-			if (this.hooks.spoken()) release();
-		});
+	dispatch(run: Promise<SubAgentAnswer>, id: () => string | undefined): Promise<SubAgentAnswer> {
+		const dispatched = id();
+		if (!dispatched) return run;
+		this.detached.add(dispatched);
+		this.hooks.detached(dispatched);
+		const settle = (report: Omit<SettledDispatch, "id">) => {
+			// 放手之后会话被停过（`forget`）或派发被撤回了（`forgetUnless`），就不再送。
+			if (this.detached.delete(dispatched)) this.hooks.settled({ id: dispatched, ...report });
+		};
+		run.then(
+			(answer) => settle({ answer }),
+			(error: unknown) => settle({ error: error instanceof Error ? error.message : String(error) }),
+		);
+		return Promise.resolve(dispatchedAnswer(dispatched));
 	}
 
 	/**
 	 * 等一件不是派发的事（宿主的工具在等另一个会话做完），同样人一开口就放手：交回 `null`。
 	 *
-	 * 和 `hold` 的差别是放手之后没有东西要送回来——那件事不归这个会话管，要不要再等由模型决定。
+	 * 和 `dispatch` 的差别是放手之后没有东西要送回来——那件事不归这个会话管，要不要再等由模型决定。
 	 */
 	until<T>(run: Promise<T>): Promise<T | null> {
 		return new Promise<T | null>((resolve, reject) => {
@@ -140,18 +119,18 @@ export class DelegationWaits {
 }
 
 /**
- * 放手时交给父会话的那句话。
+ * 派出去时交给父会话的那句话。
  *
- * 写给模型的，所以三件事都要说到：它还在跑（不是失败，也不是结论）；先去回应人；结果会自己
- * 回来——不用 `resume`，更不要重派。最后一条最要紧：模型只知道「这个任务没拿到结果」时，最顺手
- * 的一步就是再派一个，而那个新派的会把后台那个正在读的东西从头再读一遍。
+ * 写给模型的，所以三件事都要说到：它在后台跑（不是失败，也不是结论）；结果会自己回来——不用等、
+ * 不用查、不用 `resume`，更不要重派或自己把它的活做一遍；这一轮接下来该怎么收。最要紧的是第二条：
+ * 模型只知道「这个任务还没拿到结果」时，最顺手的一步是再派一个、或者自己去读同一批文件。
  */
-function detachedAnswer(id: string | undefined): SubAgentAnswer {
+function dispatchedAnswer(id: string): SubAgentAnswer {
 	return {
 		text:
-			"（用户在你等它的时候插了话，这个子代理转到后台继续跑——先回应用户。" +
-			"它跑完后，结果会作为一条消息自动送到你这里；不用 resume 它，也不要重派同样的活。）",
-		...(id ? { id } : {}),
+			"（已派出，在后台跑。它跑完后，结果会作为一条消息自动送到你这里——不用等它、不用查它的进度、不用 resume，" +
+			"也不要重派或自己去做它正在做的事。手上还有不依赖它结果的事就接着做；没有的话，用一两句话告诉用户派出去做什么，结束这一轮。）",
+		id,
 		detached: true,
 	};
 }
@@ -183,14 +162,16 @@ export interface DeliveryItem {
 /**
  * 后台子代理的结果，作为一条消息回到主会话。
  *
- * 给模型读的那一份是结果原文，外面套一层标签说清是谁、干的什么、怎么收场的——和 `task` 当场交回
- * 的结果读起来是同一种东西，只是晚到了。末尾那句话和 `task` 的指引是同一个意思：这是材料，不是
- * 成品。多个子代理的结果一起到的时候，模型最顺手的回答是按人头逐个转述（「子智能体 2 做了什么」），
- * 那是把它自己该做的合并工作推给了读的人。
+ * 给模型读的那一份是结果原文，外面套一层标签说清是谁、干的什么、怎么收场的。末尾那句话分两种：
+ *
+ * - 还有没回来的（`pending`）：只就这几份说清带来了什么、还在等谁，不写最终回答。点名还在等的是
+ *   谁，模型才不会把「第一份到了」当成「都到了」去收尾，也不会自己动手去补还没回来的那一份。
+ * - 都回来了：这是材料，不是成品——合并成一份按问题组织的回答。几份一起到时，模型最顺手的写法是
+ *   按人头逐个转述（「子智能体 2 做了什么」），那是把它自己该做的合并推给了读的人。
  *
  * `delivery` 给界面：画成一行「谁的结果到了」，不是一个人发的气泡。
  */
-export function deliveryMessage(items: DeliveryItem[], jobs: FinishedJob[] = []): Message {
+export function deliveryMessage(items: DeliveryItem[], jobs: FinishedJob[] = [], pending: Pick<SubAgentSummary, "agent" | "description">[] = []): Message {
 	const blocks = items.map(({ report, summary }) => {
 		const status = report.error ? "failed" : (summary?.status ?? "done");
 		const body = report.error ? `它没能跑完：${report.error}` : report.answer?.text || "（它跑完了，但什么都没交回来。）";
@@ -222,9 +203,12 @@ export function deliveryMessage(items: DeliveryItem[], jobs: FinishedJob[] = [])
 		items.length === 0
 			? []
 			: [
-					"（运行时送达）你之前派出去、在用户插话时转到后台的子代理跑完了：",
+					"（运行时送达）你之前派出去的子代理有结果了：",
 					...blocks,
-					"这些是交给你的材料，不是给用户的成品：结合用户后来说的话接着做。需要回答用户时，把结论合并成一份按问题组织的回答——去重、核对关键结论，不要逐个转述「某个子代理做了什么」。",
+					pending.length > 0
+						? `还有 ${pending.length} 个没回来：${pending.map((one) => `${one.agent}（${one.description}）`).join("、")}。它们跑完也会这样送到。` +
+							"现在只就上面这几份用一两句话告诉用户：带来了什么结论、还在等哪几个——不要写最终回答，也不要自己去做它们正在做的事。"
+						: "派出去的都回来了。这些是交给你的材料，不是给用户的成品：结合之前送到的和用户后来说的话接着做。需要回答用户时，把结论合并成一份按问题组织的回答——去重、核对关键结论，不要逐个转述「某个子代理做了什么」。",
 				];
 	const jobParts =
 		jobs.length === 0

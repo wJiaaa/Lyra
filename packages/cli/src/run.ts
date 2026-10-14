@@ -163,6 +163,9 @@ export async function runOnce(options: RunOptions): Promise<RunResult> {
 			status = "error";
 			error = reason instanceof Error ? reason.message : String(reason);
 		});
+		// 派了子代理的话，第一轮在派完时就收了尾：结果一个个送回来、各开一轮，最后那一轮说的才是回答。
+		// 出错或被停的会话手上没有这些东西，当场就闲。
+		await session.whenIdle();
 		return { status, answer: answer || lastSaid, ...(error ? { error } : {}), sessionId: session.meta.id, usage: session.meta.usage };
 	} finally {
 		options.signal?.removeEventListener("abort", stop);

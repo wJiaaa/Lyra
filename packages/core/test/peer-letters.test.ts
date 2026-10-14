@@ -286,7 +286,7 @@ test("sessionOnly 的工具不下发给子代理", async () => {
 	}, [peerTool]);
 	try {
 		await h.session.prompt([{ type: "text", text: "派一个出去" }]);
-		await until(() => !h.session.running, "收尾");
+		await h.session.whenIdle();
 		const main = h.requests.filter((context) => context.tools.some((tool) => tool.name === "task"));
 		const sub = h.requests.filter((context) => !context.tools.some((tool) => tool.name === "task") && context.tools.length > 0);
 		assert.ok(main.length > 0 && sub.length > 0, "主会话和子代理都发过请求");

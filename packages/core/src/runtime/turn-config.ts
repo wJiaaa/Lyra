@@ -60,8 +60,8 @@ export interface TurnConfigDeps {
 	 */
 	subAgents?: SubAgentRegistry;
 	/**
-	 * 父会话在等的派发，人一开口就放手——见 `delegation-waits.ts`。会话给，CLI 和测试可以不给：
-	 * 不给就是从前的样子，`task` 等到子代理跑完为止。
+	 * 派出即放手、跑完送回——见 `delegation-waits.ts`。会话给；直接拼这一轮的测试可以不给，
+	 * 不给就是 `task` 当场等到子代理跑完为止。
 	 */
 	delegations?: DelegationWaits;
 	signal?: AbortSignal;
@@ -121,7 +121,7 @@ export function buildTurnConfig(
 	 * model does not read the queue as slowness and try harder.
 	 *
 	 * 排队发生在 `runSubAgent` 里面（`admission`）：它先上名单、说出自己在排队，再等名额。
-	 * 外面再包一层 `delegations.hold`——父会话等它，但人一开口就放手，见 `delegation-waits.ts`。
+	 * 外面再包一层 `delegations.dispatch`——派出即放手，跑完了结果送回来，见 `delegation-waits.ts`。
 	 */
 	const spawnSubAgent: ToolEnvironment["spawnSubAgent"] = (input) => {
 		let registered: string | undefined;
@@ -157,7 +157,7 @@ export function buildTurnConfig(
 			deps.liveModel?.current()?.provider ?? deps.provider,
 			deps.liveModel?.current()?.model ?? deps.model,
 		);
-		return deps.delegations ? deps.delegations.hold(run, () => registered) : run;
+		return deps.delegations ? deps.delegations.dispatch(run, () => registered) : run;
 	};
 	return {
 		session: {

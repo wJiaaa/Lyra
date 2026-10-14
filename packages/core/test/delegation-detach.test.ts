@@ -1,10 +1,8 @@
 /**
- * 人在主会话等子代理的时候开口：父会话放手、先回应人，子代理在后台跑完，结果自己送回来。
+ * 主会话派出子代理就放手：这一轮当场往下走，子代理在后台跑完，结果一个一个作为消息送回来。
  *
- * 2026-09-26 的真实会话：主会话派了四个审查子代理，人中途发了一句话，那句话等了两分多钟——
- * 插话只在两轮之间有人取，而 `task` 让这一轮卡到最后一个子代理交差为止。这里从 `AgentSession`
- * 这一头验整条路：放手、先答人、后台跑完、送达、开一个新回合把结论接上；以及停下之后什么都
- * 不再送回来。
+ * 从 `AgentSession` 这一头验整条路：派出、收尾、后台跑完、送达、开一个新回合把结论接上；还没
+ * 回来的在送达里点名；会话在它们都回来之前不算闲；停下或撤回之后什么都不再送回来。
  */
 
 import assert from "node:assert/strict";
@@ -79,8 +77,8 @@ async function until(check: () => boolean, what: string, ms = 5000) {
 /**
  * 一个会派活的主会话，和一个要等测试放行才交差的子代理。
  *
- * 主会话的每一轮按它看到的东西决定说什么：还没派过就派；看到送达就合并。子代理的请求认得出来——
- * 它手里没有 `task`。
+ * 主会话的每一轮按它看到的东西决定说什么：还没派过就派；看到送达就合并；派过了就说一句收尾。
+ * 子代理的请求认得出来——它手里没有 `task`。
  */
 async function harness(options: { firstReply?: Promise<void> } = {}) {
 	const root = await mkdtemp(join(tmpdir(), "ly-detach-"));
@@ -116,7 +114,7 @@ async function harness(options: { firstReply?: Promise<void> } = {}) {
 					"toolUse",
 				);
 			}
-			return says("先回答你：1+1=2。审查还在后台跑。");
+			return says("派出去审查 a.ts 了，结果回来再说。");
 		},
 	});
 	await session.initialize();
@@ -135,26 +133,25 @@ async function harness(options: { firstReply?: Promise<void> } = {}) {
 	};
 }
 
-test("人一开口，父会话就不再干等：先回应人，子代理在后台跑完，结果自己送回来", async () => {
+test("派出即放手：这一轮当场收尾，子代理在后台跑完，结果作为一条消息送回来、开一轮接上", async () => {
 	const h = await harness();
 	try {
-		const first = h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
-		await until(() => h.session.subAgents.list()[0]?.status === "running", "子代理开跑");
+		await h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
 
-		// 人插了一句话——子代理还在跑。
-		await h.session.prompt([{ type: "text", text: "先告诉我 1+1 等于几" }]);
-		await first;
-
-		assert.equal(h.main.length, 2, "放手之后这一轮当场往下走，而不是等子代理交差");
-		const second = h.main[1];
-		const detached = second.messages.find((message) => message.role === "toolResult");
-		assert.match(detached ? textOf(detached) : "", /转到后台继续跑/, "父会话拿到的是「它在后台」，不是结论");
-		assert.ok(second.messages.some((message) => message.role === "user" && textOf(message).includes("1+1")), "下一轮开头就读到了人说的话");
+		assert.equal(h.main.length, 2, "派完这一轮当场往下走，而不是等子代理交差");
+		const dispatched = h.main[1].messages.find((message) => message.role === "toolResult");
+		assert.match(dispatched ? textOf(dispatched) : "", /已派出，在后台跑/, "父会话拿到的是「已派出」，不是结论");
+		assert.match(dispatched ? textOf(dispatched) : "", /不要重派或自己去做/);
 		assert.equal(h.session.subAgents.list()[0]?.background, true, "名单上标着它在后台");
-		assert.equal(h.session.subAgents.list()[0]?.status, "running", "子代理没被打扰");
-		assert.equal(h.session.running, false, "主会话回应完人就收尾了，不挂着");
+		assert.equal(h.session.subAgents.list()[0]?.status, "running");
+		assert.equal(h.session.running, false, "主会话这一轮收了尾，不挂着");
+		assert.equal(h.session.idle, false, "可活还没完：子代理回来还要接着做");
 
-		// 子代理跑完：结果送回来，主会话开一个新回合接上。
+		let idle = false;
+		void h.session.whenIdle().then(() => (idle = true));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		assert.equal(idle, false, "等「闲了」的人不会在子代理还在跑时被放走");
+
 		h.finish.resolve();
 		await until(() => h.main.length === 3 && !h.session.running, "送达之后开新回合");
 		const delivered = h.session.messages.find((message) => message.role === "user" && message.delivery);
@@ -165,29 +162,87 @@ test("人一开口，父会话就不再干等：先回应人，子代理在后�
 			[{ agent: "general", description: "审查 a.ts", status: "done" }],
 		);
 		assert.match(textOf(delivered!), /<subagent_result [^>]*agent="general"[^>]*>\n报告：src\/a\.ts:12/);
-		assert.match(textOf(delivered!), /合并成一份/, "末尾那句话叫它合并，不要逐个转述");
+		assert.match(textOf(delivered!), /派出去的都回来了[\s\S]*合并成一份/, "都回来了：叫它合并，不要逐个转述");
 		const reply = h.session.messages.at(-1);
-		assert.equal(reply?.role, "assistant");
 		assert.match(reply ? textOf(reply) : "", /合并后的结论/);
+		await until(() => idle, "都回来、接着做完之后才算闲");
 	} finally {
 		await h.cleanup();
 	}
 });
 
-test("人在派活的那段回复还在流时开口：之后才开始的等待也当场放手，不把那句话压到子代理跑完", async () => {
+test("派了两个、先后回来：一个一份送达，先到的那份点名还在等谁、不叫它收尾", async () => {
+	const root = await mkdtemp(join(tmpdir(), "ly-detach-two-"));
+	process.env.PLUME_HOME = join(root, "home");
+	await mkdir(process.env.PLUME_HOME, { recursive: true });
+	const gates = { 甲: deferred(), 乙: deferred() };
+	const deliveries: Message[] = [];
+	const session = new AgentSession({
+		cwd: root,
+		settings: SETTINGS,
+		store: new SessionStore(join(root, "sessions")),
+		emit: () => {},
+		streamFn: async (context) => {
+			if (!context.tools.some((tool) => tool.name === "task")) {
+				if (context.tools.length === 0) return says("{}");
+				const name = context.messages.some((message) => message.role === "user" && textOf(message).includes("看甲")) ? "甲" : "乙";
+				await gates[name].promise;
+				return says(`${name}的报告`);
+			}
+			const last = context.messages.findLast((message) => message.role === "user" && message.delivery);
+			if (last && !deliveries.includes(last)) {
+				deliveries.push(last);
+				return says(`收到第 ${deliveries.length} 份`);
+			}
+			if (!context.messages.some((message) => message.role === "toolResult")) {
+				return assistant(
+					["甲", "乙"].map((name, i) => ({ type: "toolCall" as const, id: `t${i}`, name: "task", arguments: { description: `审查${name}`, prompt: `看${name}`, subagent_type: "general" }, argumentsText: "{}" })),
+					"toolUse",
+				);
+			}
+			return says("两个都派出去了。");
+		},
+	});
+	try {
+		await session.initialize();
+		await session.prompt([{ type: "text", text: "派两个" }]);
+		assert.equal(session.running, false);
+
+		gates.甲.resolve();
+		await until(() => deliveries.length === 1 && !session.running, "第一份送达");
+		const first = textOf(deliveries[0]);
+		assert.match(first, /甲的报告/);
+		assert.doesNotMatch(first, /乙的报告/);
+		assert.match(first, /还有 1 个没回来：general（审查乙）/, "点名还在等的那个");
+		assert.match(first, /不要写最终回答/);
+		assert.doesNotMatch(first, /合并成一份/);
+		assert.equal(session.idle, false, "乙还在跑");
+
+		gates.乙.resolve();
+		await until(() => deliveries.length === 2 && !session.running, "第二份送达");
+		assert.match(textOf(deliveries[1]), /乙的报告/);
+		assert.match(textOf(deliveries[1]), /派出去的都回来了/);
+		await session.whenIdle();
+	} finally {
+		gates.甲.resolve();
+		gates.乙.resolve();
+		session.abort();
+		delete process.env.PLUME_HOME;
+		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+	}
+});
+
+test("人在派活的那段回复还在流时开口：派完这一轮接着走，下一轮开头就读到那句话", async () => {
 	const reply = deferred();
 	const h = await harness({ firstReply: reply.promise });
 	try {
 		const first = h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
 		await until(() => h.main.length === 1, "派活的那段回复在流");
-		// 这时手上还没有等待可放：话排进去，等这段回复写完才会被读到。
 		await h.session.prompt([{ type: "text", text: "算了 不用了" }]);
 		reply.resolve();
 		await first;
 
 		assert.equal(h.main.length, 2, "子代理没交差，这一轮已经往下走了");
-		const detached = h.main[1].messages.find((message) => message.role === "toolResult");
-		assert.match(detached ? textOf(detached) : "", /转到后台继续跑/);
 		// 发给模型时插话前后各套着一句说明（`prompt/steering.ts`），原话在里面。
 		assert.ok(h.main[1].messages.some((message) => message.role === "user" && textOf(message).includes("算了 不用了")), "下一轮开头就读到了那句话");
 		assert.equal(h.session.subAgents.list()[0]?.status, "running", "子代理照样在后台跑");
@@ -208,42 +263,11 @@ test("排着的只有运行时的消息时照旧等：送达不是人在说话",
 	assert.equal(inbox.spoken, true, "另一个会话插进来的信也是在找人，虽然它和送达一样是运行时写的");
 });
 
-// 有上限：放手没接上时 `await first` 会一直等那个永不交差的子代理，整个文件挂住，看不出是哪条坏了。
-test("另一个会话的信插进来，父会话同样不再干等子代理；排队的信不打断", { timeout: 10_000 }, async () => {
+test("派出之后人按了停止：后台那个也停，停下的结果不再把主会话叫醒", async () => {
 	const h = await harness();
 	try {
-		const first = h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
+		await h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
 		await until(() => h.session.subAgents.list()[0]?.status === "running", "子代理开跑");
-
-		// 排队的信说的是「这一轮做完再看」：照旧等子代理交差。
-		h.session.receive({ sessionId: "s-b", from: "测试 B [b2b2b2]", text: "不急，做完再看" }, "followUp");
-		await new Promise((resolve) => setTimeout(resolve, 600));
-		assert.equal(h.main.length, 1, "排队的信没有把等待放掉");
-
-		h.session.receive({ sessionId: "s-b", from: "测试 B [b2b2b2]", text: "构建好了吗" }, "steer");
-		await first;
-
-		// `prompt` 连排在这一轮之后的也一起等完：第二次请求是放手后接着走的这一轮，第三次是那封排队的信。
-		assert.equal(h.main.length, 3);
-		const detached = h.main[1].messages.find((message) => message.role === "toolResult");
-		assert.match(detached ? textOf(detached) : "", /转到后台继续跑/, "插进来的信放开了等待，这一轮当场往下走");
-		const said = (context: LlmContext, text: string) => context.messages.some((message) => message.role === "user" && textOf(message).includes(text));
-		assert.ok(said(h.main[1], "构建好了吗"), "下一轮开头就读到了插进来的那封信");
-		assert.ok(!said(h.main[1], "不急，做完再看"), "排队的信不插进这一轮");
-		assert.ok(said(h.main[2], "不急，做完再看"), "这一轮做完才轮到它");
-		assert.equal(h.session.subAgents.list()[0]?.status, "running", "子代理没被打扰");
-	} finally {
-		await h.cleanup();
-	}
-});
-
-test("放手之后人按了停止：后台那个也停，停下的结果不再把主会话叫醒", async () => {
-	const h = await harness();
-	try {
-		const first = h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
-		await until(() => h.session.subAgents.list()[0]?.status === "running", "子代理开跑");
-		await h.session.prompt([{ type: "text", text: "先告诉我 1+1 等于几" }]);
-		await first;
 		assert.equal(h.main.length, 2);
 
 		h.session.abort();
@@ -253,23 +277,7 @@ test("放手之后人按了停止：后台那个也停，停下的结果不再�
 		assert.equal(h.session.subAgents.list()[0]?.status, "aborted");
 		assert.equal(h.main.length, 2, "没有为一份被腰斩的结果再开一轮");
 		assert.ok(!h.session.messages.some((message) => message.role === "user" && message.delivery), "也没有送达消息");
-	} finally {
-		await h.cleanup();
-	}
-});
-
-test("没人插话的时候，一步都不多：父会话照旧等到结果", async () => {
-	const h = await harness();
-	try {
-		const first = h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
-		await until(() => h.session.subAgents.list()[0]?.status === "running", "子代理开跑");
-		h.finish.resolve();
-		await first;
-		assert.equal(h.main.length, 2, "派一次、收一次，没有送达那一轮");
-		const result = h.main[1].messages.find((message) => message.role === "toolResult");
-		assert.match(result ? textOf(result) : "", /报告：src\/a\.ts:12/, "结论当场交回");
-		assert.ok(!h.session.messages.some((message) => message.role === "user" && message.delivery));
-		assert.equal(h.session.subAgents.list()[0]?.background, undefined);
+		assert.equal(h.session.idle, true, "停下之后不再有要等的");
 	} finally {
 		await h.cleanup();
 	}
@@ -299,15 +307,24 @@ test("主会话的请求都带着同一个缓存键，子代理带它自己的",
 	try {
 		await session.initialize();
 		await session.prompt([{ type: "text", text: "派一个" }]);
+		await session.whenIdle();
 		const mains = keys.filter((one) => !one.sub).map((one) => one.key);
 		const subs = keys.filter((one) => one.sub).map((one) => one.key);
-		assert.deepEqual(mains, [session.meta.id, session.meta.id], "主会话每个请求都是会话 id");
+		// 派、收尾、送达后接着做：三次请求。
+		assert.deepEqual(mains, [session.meta.id, session.meta.id, session.meta.id], "主会话每个请求都是会话 id");
 		assert.deepEqual(subs, [session.subAgents.list()[0]?.id], "子代理用它自己的登记 id");
 	} finally {
 		session.abort();
 		delete process.env.PLUME_HOME;
 		await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
 	}
+});
+
+test("送达消息：还有没回来的就点名，只叫它说这几份带来了什么", () => {
+	const text = textOf(deliveryMessage([{ report: { id: "s:sub:1", answer: { text: "A 的结论" } }, summary: { agent: "review", description: "审查前端", status: "done" } }], [], [{ agent: "explore", description: "找入口" }]));
+	assert.match(text, /还有 1 个没回来：explore（找入口）/);
+	assert.match(text, /不要写最终回答/);
+	assert.doesNotMatch(text, /合并成一份/);
 });
 
 test("送达消息：几个结果一条消息，失败的说出原因，给界面的那一份不带报告正文", () => {
@@ -363,6 +380,7 @@ test("设置里把并发调大，排着的当场开跑——不等一个永远�
 
 		finish.resolve();
 		await turn;
+		await session.whenIdle();
 		assert.deepEqual(session.subAgents.list().map((one) => one.status), ["done", "done"]);
 	} finally {
 		finish.resolve();
@@ -407,10 +425,9 @@ test("闲着时撤回到派发之前：后台那个停下，结果不再送回�
 	for (const cutDispatch of [true, false]) {
 		const h = await harness();
 		try {
-			const first = h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
+			await h.session.prompt([{ type: "text", text: "派一个去审查 a.ts" }]);
 			await until(() => h.session.subAgents.list()[0]?.status === "running", "子代理开跑");
 			await h.session.prompt([{ type: "text", text: "先告诉我 1+1 等于几" }]);
-			await first;
 			assert.equal(h.session.running, false);
 
 			// 撤回第一句（派发在它后面）或者第二句（派发留在历史里）。
@@ -421,10 +438,11 @@ test("闲着时撤回到派发之前：后台那个停下，结果不再送回�
 				await until(() => h.session.subAgents.list()[0]?.status !== "running", "子代理停下");
 				await new Promise((resolve) => setTimeout(resolve, 600));
 				assert.equal(h.session.subAgents.list()[0]?.status, "aborted");
-				assert.equal(h.main.length, 2, "没有为被撤掉的派发再开一轮");
+				assert.equal(h.main.length, 3, "没有为被撤掉的派发再开一轮");
+				await h.session.whenIdle();
 				assert.ok(!h.session.messages.some((message) => message.role === "user" && message.delivery));
 			} else {
-				await until(() => h.main.length === 3 && !h.session.running, "送达之后开新回合");
+				await until(() => h.main.length === 4 && !h.session.running, "送达之后开新回合");
 				assert.ok(h.session.messages.some((message) => message.role === "user" && message.delivery));
 			}
 		} finally {

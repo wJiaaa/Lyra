@@ -297,6 +297,17 @@ test("the session event boundary notifies both ordinary approvals and interactiv
 	assert.equal(bodies.length, 2, "only normal completion is a completion notification");
 });
 
+test("一轮收了尾、派出去的子代理还在后台跑：不报完成，最后一个回来的那一轮收尾才报", () => {
+	let shown = 0;
+	configureNotify({ isSupported: () => true, window: () => mockWindow({ isFocused: () => false }),
+		createNotification: () => ({ on: () => {}, show: () => { shown++; } }),
+	});
+	notifyAgentEvent("session-a", { type: "agent_end", reason: "done" }, "梳理登录", true);
+	assert.equal(shown, 0, "派完那一轮、中间每一次送达的那一轮都不算做完");
+	notifyAgentEvent("session-a", { type: "agent_end", reason: "done" }, "梳理登录", false);
+	assert.equal(shown, 1);
+});
+
 for (const [name, window] of [
 	["closed", () => null],
 	["hidden", () => mockWindow({ isVisible: () => false })],

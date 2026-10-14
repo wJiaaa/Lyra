@@ -337,3 +337,9 @@ test("旧网络配置被丢弃，始终允许记录继续保留在配置中", ()
 	assert.ok(!("denyCommandNetwork" in settings));
 	assert.deepEqual(settings.alwaysAllow, stored.alwaysAllow);
 });
+
+test("删掉的调用链排法开关不随外观设置留下来", () => {
+	const settings = normalizeSettings({ appearance: { callChain: "expanded", errorDetail: "full" } } as never);
+	assert.ok(!("callChain" in settings.appearance));
+	assert.equal(settings.appearance.errorDetail, "full", "同一组里别的外观设置照旧读进来");
+});

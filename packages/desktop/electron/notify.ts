@@ -29,9 +29,14 @@ export interface NeedAssistanceDetails {
 	kind?: "question" | "approval";
 }
 
-/** All pending decisions need attention while their conversation is out of view. */
-export function notifyAgentEvent(sessionId: string, event: AgentEvent, title?: string): void {
-	if (event.type === "agent_end" && event.reason === "done") notifyTaskDone({ sessionId, title });
+/**
+ * All pending decisions need attention while their conversation is out of view.
+ *
+ * `working`：这一轮收了尾，可它派出去的子代理还在后台跑——结果回来还要接着做，这时说「做完了」
+ * 是假的，等最后一个回来、那一轮收尾时才说。
+ */
+export function notifyAgentEvent(sessionId: string, event: AgentEvent, title?: string, working = false): void {
+	if (event.type === "agent_end" && event.reason === "done" && !working) notifyTaskDone({ sessionId, title });
 	if (event.type === "approval_request") {
 		const question = event.kind === "interactive" || event.kind === "form" || event.subject === "ask_user";
 		// 后台子智能体问的，说出是谁在问——人要据此决定的，正是「这个活该不该由它来干」。

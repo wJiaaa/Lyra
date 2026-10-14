@@ -14,7 +14,7 @@ import { test } from "node:test";
 import { DEFAULT_SETTINGS, type Settings } from "../src/config/settings.ts";
 import { AgentSession } from "../src/runtime/session.ts";
 import { SessionStore, type SessionRecord } from "../src/session/store.ts";
-import type { AssistantMessage, ModelConfig, ProviderConfig } from "../src/types.ts";
+import type { AssistantMessage, LlmContext, ModelConfig, ProviderConfig } from "../src/types.ts";
 import { emptyUsage } from "../src/types.ts";
 import { controlMainTool } from "../src/runtime/side-chat/sidechat-controls.ts";
 import { TODOS_KEY } from "../src/tools/todo.ts";
@@ -62,7 +62,7 @@ function reply(text: string): AssistantMessage {
 	};
 }
 
-async function harness(script?: (turn: number) => AssistantMessage | Promise<AssistantMessage>) {
+async function harness(script?: (turn: number, context: LlmContext) => AssistantMessage | Promise<AssistantMessage>) {
 	const root = await mkdtemp(join(tmpdir(), "ly-log-"));
 	/*
 	 * A home of its own, so the assertions are about this test and not about this machine.
@@ -85,7 +85,7 @@ async function harness(script?: (turn: number) => AssistantMessage | Promise<Ass
 		settings: SETTINGS,
 		store,
 		emit: () => {},
-		streamFn: async () => script?.(turn++) ?? reply("ok"),
+		streamFn: async (context) => script?.(turn++, context) ?? reply("ok"),
 	});
 	await session.initialize();
 
@@ -176,10 +176,11 @@ test("a changed context is written again", async () => {
 });
 
 test("a delegated turn is written down: what it was sent, what it did, what it said", async () => {
-	const h = await harness((turn) => {
-		// Turn 0 is the parent delegating; turn 1 is the sub-agent answering; turn 2 the parent
-		// closing out. Only the first needs to be a tool call for the rest to follow.
-		if (turn > 0) return reply(turn === 1 ? "the cache is cold on every build" : "done");
+	const h = await harness((turn, context) => {
+		// Turn 0 is the parent delegating. The sub-agent it dispatched runs alongside the parent closing
+		// out, so which request is whose is told by the tools, not the order: only the parent has `task`.
+		if (!context.tools.some((tool) => tool.name === "task")) return reply("the cache is cold on every build");
+		if (turn > 0) return reply("done");
 		return {
 			...reply(""),
 			content: [
@@ -196,6 +197,7 @@ test("a delegated turn is written down: what it was sent, what it did, what it s
 
 	try {
 		await h.session.prompt([{ type: "text", text: "why is the build slow" }]);
+		await h.session.whenIdle();
 		const records = await h.records();
 
 		const start = records.find((r) => r.type === "event" && r.event.type === "subagent");

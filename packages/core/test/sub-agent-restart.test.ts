@@ -74,7 +74,7 @@ test("a sub-agent running when the app quit is back on the roster after reopenin
 				return new Promise<AssistantMessage>(() => {});
 			}
 			if (!context.messages.some((message) => message.role === "toolResult")) return calls("task", { description: "梳理登录入口", prompt: "读 a.ts，说出登录入口在哪", subagent_type: "general" });
-			return says("不该走到这里");
+			return says("派出去梳理登录入口了。");
 		},
 	});
 	await first.initialize();
@@ -92,11 +92,12 @@ test("a sub-agent running when the app quit is back on the roster after reopenin
 	try {
 		const loaded = await after.load(sessionId);
 		assert.ok(loaded);
-		const interrupted = loaded.messages.at(-1)!;
-		assert.equal(interrupted.role, "toolResult");
-		assert.match(textOf(interrupted), /Plume exited while this call was running/, "the call is still said to have been cut off by the exit");
-		assert.match(textOf(interrupted), new RegExp(`resume: "${subId}"`), "and now says which sub-agent to resume");
-		assert.equal((interrupted as { details?: { subAgentId?: string } }).details?.subAgentId, subId);
+		// 派出即放手：那次调用当场就交回了「已派出」，退出时它不在半路上。
+		const dispatched = loaded.messages.findLast((message) => message.role === "toolResult")!;
+		assert.match(textOf(dispatched), /已派出，在后台跑/);
+		const details = (dispatched as { details?: { subAgentId?: string; detached?: boolean } }).details;
+		assert.equal(details?.subAgentId, subId);
+		assert.equal(details?.detached, true);
 
 		const second = new AgentSession({
 			cwd: root,
@@ -110,9 +111,11 @@ test("a sub-agent running when the app quit is back on the roster after reopenin
 					return says("SUB-DONE 登录入口是 a.ts 里的 LOGIN_ENTRY。");
 				}
 				mainRequests.push(context);
-				const results = context.messages.filter((message) => message.role === "toolResult").map(textOf);
-				if (results.some((text) => text.includes("SUB-DONE"))) return says("MAIN-DONE");
-				const id = results.join("\n").match(/resume: "([^"]+)"/)?.[1];
+				const deliveries = context.messages.filter((message) => message.role === "user" && message.delivery).map(textOf);
+				if (deliveries.some((text) => text.includes("SUB-DONE"))) return says("MAIN-DONE");
+				// 续跑出去了（第二条「已派出」）：这一轮收尾，等它回来。
+				if (context.messages.filter((message) => message.role === "toolResult" && textOf(message).includes("已派出")).length > 1) return says("接着跑了，等它回来。");
+				const id = deliveries.join("\n").match(/resume: "([^"]+)"/)?.[1];
 				if (id) return calls("task", { description: "接着梳理", prompt: "接着说出登录入口", resume: id });
 				dispatchedAgain += 1;
 				return calls("task", { description: "梳理登录入口", prompt: "读 a.ts，说出登录入口在哪", subagent_type: "general" });
@@ -126,6 +129,10 @@ test("a sub-agent running when the app quit is back on the roster after reopenin
 		assert.deepEqual({ id: row!.id, status: row!.status, resumable: row!.resumable }, { id: subId, status: "aborted", resumable: true }, "stopped by the exit, and resumable");
 
 		await second.prompt([{ type: "text", text: "继续" }]);
+		const told = mainRequests[0]!.messages.find((message) => message.role === "user" && message.delivery);
+		assert.ok(told, "人开口的这一轮，主会话先读到它被退出打断了");
+		assert.match(textOf(told!), new RegExp(`Plume 退出时它还在跑[\\s\\S]*resume: "${subId}"`), "并且知道该续跑哪一个");
+		await second.whenIdle();
 
 		assert.equal(dispatchedAgain, 0, "the main session resumed rather than dispatching the same work again");
 		assert.equal(second.subAgents.list().length, 1, "still one row");

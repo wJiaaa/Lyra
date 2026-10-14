@@ -34,6 +34,8 @@ export interface RestoredSubAgent {
 	hookRuns: HookRun[];
 	/** Absent when there is no model to rebuild a compacted history against. */
 	conversation?: SubAgentConversation;
+	/** 没有 `subagent_done`：它跑着的时候进程没了，不是谁按停的。 */
+	cutByExit?: boolean;
 }
 
 /**
@@ -110,12 +112,19 @@ export function restoreSubAgents(records: readonly SessionRecord[], rebuild?: Re
 
 	return [...drafts.values()].filter((draft) => !dismissed.has(draft.summary.id)).map((draft) => {
 		// No `subagent_done`: the process went away while it ran. Stopped, as far as anyone can tell now.
-		if (draft.summary.status === "running" || draft.summary.status === "queued") {
+		const cutByExit = draft.summary.status === "running" || draft.summary.status === "queued";
+		if (cutByExit) {
 			draft.summary.status = "aborted";
 			draft.summary.endedAt = draft.lastSeen;
 		}
 		const target = rebuild?.(draft.ran);
-		return { summary: draft.summary, messages: draft.messages, hookRuns: [...draft.hookRuns.values()], ...(target ? { conversation: conversationOf(draft, target) } : {}) };
+		return {
+			summary: draft.summary,
+			messages: draft.messages,
+			hookRuns: [...draft.hookRuns.values()],
+			...(target ? { conversation: conversationOf(draft, target) } : {}),
+			...(cutByExit ? { cutByExit: true } : {}),
+		};
 	});
 }
 

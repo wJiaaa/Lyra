@@ -1,5 +1,5 @@
 /**
- * 后台子智能体的结果送回来的那一行，和子智能体要授权时那张卡。
+ * 子智能体的结果送回来的那一行，和子智能体要授权时那张卡。
  *
  * 两样都是「说清楚是谁」：送达那条消息是写给模型的，原样画出来会是一大段人自己没说过的话；授权卡
  * 从前说不出是谁在要——而后台可能同时有四个在跑。
@@ -16,12 +16,14 @@ import { useApp } from "../../src/store/index.ts";
 import { useSubAgents } from "../../src/store/subAgents.ts";
 import { mount } from "../helpers/mount.ts";
 
-test("一个的结果回来：一行，写着它的名字，点一下面板翻到它", async () => {
+test("一个的结果回来：一行题注「消息来自 @谁」，带着它的任务，点一下面板翻到它", async () => {
 	useApp.setState({ activeSessionId: "s" });
 	const view = await mount(h(DeliveryRow, { delivery: [{ id: "s:sub:1", agent: "review", description: "审查登录模块", status: "done" }] }));
 	try {
 		const row = view.find<HTMLButtonElement>("[data-delivery-row] button");
-		assert.match(row.textContent ?? "", /「审查登录模块」的结果已交回/);
+		assert.match(row.textContent ?? "", /消息来自 @review/);
+		assert.match(row.textContent ?? "", /审查登录模块/);
+		assert.doesNotMatch(row.textContent ?? "", /出错/, "做完的不标");
 		assert.equal(view.all("[data-delivery-row] .ly-avatar").length, 1, "它的脸");
 		await act(async () => {
 			row.click();
@@ -44,7 +46,8 @@ test("几个一起回来：一行说几个，出错的另外标出来，逐个�
 	);
 	try {
 		const row = view.find<HTMLButtonElement>("[data-delivery-row] button");
-		assert.match(row.textContent ?? "", /3 个子 Agent 的结果已交回/);
+		assert.match(row.textContent ?? "", /消息来自 3 个子 Agent/);
+		assert.match(row.textContent ?? "", /@review · @explore · @plan/);
 		assert.match(row.textContent ?? "", /1 个出错/);
 		const tip = row.getAttribute("data-ly-tip") ?? "";
 		assert.match(tip, /审查前端（@review）— 完成/);

@@ -29,13 +29,15 @@ interface TaskArgs {
 export const taskTool: Tool<TaskArgs> = {
 	name: "task",
 	description:
-		"Run a sub-agent in its own context window; only its final answer comes back. It starts from nothing — your `prompt` is all it knows, and it cannot ask you questions. " +
+		"Run a sub-agent in its own context window, in the background. The call returns at once; when the sub-agent finishes, its final answer arrives as a message of its own, one per sub-agent. " +
+		"It starts from nothing — your `prompt` is all it knows, and it cannot ask you questions. " +
 		"Two kinds of work are worth delegating: work whose intermediate output is large and whose conclusion is all you need (sweeping dozens of files for one answer, running something with long output for its failures), " +
 		"and a sizeable piece of work that does not depend on what you are doing. " +
 		"Do everything else yourself: a change of a step or two, part of what you are writing now (such as tests for the function you just wrote), " +
 		"or work you could only hand off after spelling out its interfaces and conventions — spelling those out costs as much as doing it. " +
 		"Agents with write tools edit files directly; their risky actions are asked of the user here, like yours. " +
-		"Calls in one reply run in parallel (extra ones queue), so dispatch independent pieces together; have each skip builds, lints and tests, and verify once yourself at the end. " +
+		"Calls in one reply run in parallel (extra ones queue), so dispatch independent pieces together; have each skip builds, lints and tests, and verify once yourself after they have all reported. " +
+		"While they run, do not wait, poll or redo their work: carry on with anything that does not depend on them, or tell the user in a sentence what you dispatched and end your turn. " +
 		"Pieces that need a shared interface which does not exist yet are not independent — write the interface first, or do not split.",
 	parameters: {
 		type: "object",

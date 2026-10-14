@@ -70,7 +70,7 @@ export interface TurnInputs {
 	drainSteering: () => Message[];
 	/** Where sub-agents dispatched by this turn register — see `runtime/sub-agent/sub-agents.ts`. */
 	subAgents?: SubAgentRegistry;
-	/** 这一轮在等的派发，人一开口就放手——见 `delegation-waits.ts`。 */
+	/** 这一轮派出去的子代理：派出即放手、跑完送回——见 `delegation-waits.ts`。 */
 	delegations?: DelegationWaits;
 	/** 这场对话此刻设定的模型——一轮之内也会变。见 `AgentModelContext.liveModel`。 */
 	liveModel?: LiveModel;

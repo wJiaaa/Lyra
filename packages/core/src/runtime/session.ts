@@ -39,6 +39,7 @@ import { sessionPruner } from "../agent/aged-prune.ts";
 import { driveTurn, historyFrom, modelHistory, SESSION_START_KEY } from "./session-turn.ts";
 import { loadHookRunner, runSessionEndHooks } from "./hooks.ts";
 import { restoreSubAgents, type Rebuild } from "./sub-agent/sub-agent-restore.ts";
+import { exitCutDelivery } from "./sub-agent/exit-cut.ts";
 import { rehydrateMessages } from "../session/payload.ts";
 import { SubAgentRegistry, type SteerDisplay } from "./sub-agent/sub-agents.ts";
 import { describeSubAgentContext, SubAgentContexts } from "./sub-agent/sub-agent-context.ts";
@@ -176,9 +177,7 @@ export class AgentSession {
 	);
 	/** 子代理最近一次发出去的系统提示词和工具表，它的上下文用量按这个算。 */
 	private readonly subAgentContexts = new SubAgentContexts();
-	/**
-	 * 主会话在等的派发：人一开口就放手，放了手的跑完后结果送回来。见 `delegation-waits.ts`。
-	 */
+	/** 主会话派出去的子代理：派出即放手，跑完一个送回一个。见 `delegation-waits.ts`。 */
 	private readonly delegations = new DelegationWaits({
 		spoken: () => this.inbox.spoken,
 		detached: (id) => this.subAgents.background(id),
@@ -188,6 +187,8 @@ export class AgentSession {
 	private readonly deliveries: SessionDeliveries;
 	/** 剪枝器最后一次从日志放回视图时对着的那份历史；见 `preparePruner`。 */
 	private viewsSeededFor: Message[] | null = null;
+	/** 上一个进程退出时还在后台跑的子代理，等人下一次开口时一起告诉主会话。见 `exit-cut.ts`。 */
+	private exitCut: Message | null = null;
 	/** Whether the previous process's sub-agents are back on the roster; see `restoreSubAgents`. */
 	private subAgentsRestored = false;
 	/** 等着这个会话闲下来的人；见 `whenIdle`。 */
@@ -276,6 +277,7 @@ export class AgentSession {
 			activity: this.activity,
 			jobs: () => backgroundJobs(this.can.state),
 			detail: (id) => this.subAgents.detail(id),
+			outstanding: () => this.subAgents.list().filter((one) => one.background && (one.status === "running" || one.status === "queued")),
 			submit: (message, deliver) => this.submit(message, { fromPerson: false, deliver }),
 			settled: () => this.checkIdle(),
 		});
@@ -326,13 +328,19 @@ export class AgentSession {
 	}
 
 	/**
-	 * 手上什么都没有了：不在跑、没有攒着待送的结果、任务队列里没有等着的。
+	 * 手上什么都没有了：不在跑、没有在后台跑的子代理、没有攒着待送的结果、任务队列里没有等着的。
 	 *
 	 * 比 `running` 宽。一轮刚收尾时 `running` 已经为假，可排队的任务马上就要开下一轮，攒着的
 	 * 后台结果四百毫秒后也要开一轮——那时候告诉别人「它闲了」，对方接过手去，两边就同时在动。
+	 * 派完子代理的那一轮收尾时更是这样：活才刚开始，结果回来还要一轮一轮地接着做。
 	 */
 	get idle(): boolean {
-		return !this.running && this.deliveries.empty && !this.tasks.list().some((task) => task.status === "queued" || task.status === "running");
+		return (
+			!this.running &&
+			this.delegations.outstanding === 0 &&
+			this.deliveries.empty &&
+			!this.tasks.list().some((task) => task.status === "queued" || task.status === "running")
+		);
 	}
 
 	/** 下一次 `idle` 成立时兑现；此刻就闲着则立刻兑现。会话被处置时随之兑现，等的人自己再看它还在不在。 */
@@ -614,7 +622,9 @@ export class AgentSession {
 			const using = provider && model ? { provider, model } : fallback;
 			return using ? { model: provider && model ? model.id : "", history: (messages, boundary) => historyFrom(messages, boundary, using.provider, using.model) } : undefined;
 		};
-		this.subAgents.restore(restoreSubAgents(readable, rebuild));
+		const restored = restoreSubAgents(readable, rebuild);
+		this.subAgents.restore(restored);
+		this.exitCut = exitCutDelivery(restored, this.log.messages);
 	}
 
 	/** Drop the cached symbol index so the next `symbol` lookup re-reads it from disk. */
@@ -888,11 +898,16 @@ export class AgentSession {
 
 		// Reserve the turn before the first disk write; another submission must queue during it.
 		const mark = this.activity.mark();
+		// 上一个进程没送回来的那几个，排在人这句话前面，同一轮里读到。见 `exit-cut.ts`。
+		const cut = options.fromPerson ? this.exitCut : null;
+		if (cut) this.exitCut = null;
 		const accept = async () => {
 			await this.cancelPendingPrompt();
-			await this.log.commit(message);
-			await this.emit({ type: "message_start", message });
-			await this.emit({ type: "message_end", message });
+			for (const one of cut ? [cut, message] : [message]) {
+				await this.log.commit(one);
+				await this.emit({ type: "message_start", message: one });
+				await this.emit({ type: "message_end", message: one });
+			}
 			await options.title?.();
 
 			if (this.activity.stoppedSince(mark)) { await this.emit({ type: "agent_end", reason: "aborted" }); return; }
@@ -1226,6 +1241,8 @@ export class AgentSession {
 		}
 		await this.title.cancel();
 		await rewind(this.rewindParts(), messageIndex);
+		// 撤掉的派发不再送回来，等着它们的人这时才可能等到「闲了」。
+		this.checkIdle();
 	}
 
 	private rewindParts(): RewindParts {

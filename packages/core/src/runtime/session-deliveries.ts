@@ -33,6 +33,8 @@ export interface DeliveryDeps {
 	activity: SessionActivity;
 	jobs: () => BackgroundJobs;
 	detail: (id: string) => SubAgentSummary | null;
+	/** 还在后台跑、没回来的子代理：送达消息里点名，模型才知道还在等谁。 */
+	outstanding: () => SubAgentSummary[];
 	/** `followUp`：会话忙着时排到这一轮之后，而不是插进去。 */
 	submit: (message: Message, deliver?: "followUp") => Promise<void>;
 	/** 一次送达收了尾（送了或丢了）；会话据此重新看一眼自己是不是空闲了。 */
@@ -146,7 +148,7 @@ export class SessionDeliveries {
 		 */
 		if (activity.stoppedSince(mark)) return;
 		if (reports.length + jobs.length + letters.length > 0) {
-			await this.deps.submit(combined(reports.length + jobs.length > 0 ? deliveryMessage(reports, jobs) : null, letters));
+			await this.deps.submit(combined(reports.length + jobs.length > 0 ? deliveryMessage(reports, jobs, reports.length > 0 ? this.deps.outstanding() : []) : null, letters));
 		}
 		// 会话闲着时这一条照样开一轮；忙着（或上面那条刚开了一轮）就排到那一轮之后。
 		if (queued.length > 0) await this.deps.submit(peerMessage(queued), "followUp");
