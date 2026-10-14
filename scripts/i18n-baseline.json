@@ -1,9 +1,9 @@
 {
-	"electron/browser-actions.ts": 9,
+	"electron/browser-actions.ts": 6,
 	"electron/browser-inspect.ts": 2,
 	"electron/browser-skill.ts": 2,
 	"electron/browser-tools.ts": 10,
-	"electron/browser-workspace.ts": 16,
+	"electron/browser-workspace.ts": 14,
 	"electron/create-session.ts": 1,
 	"electron/definition-trash.ts": 4,
 	"electron/delivery-record.ts": 15,
