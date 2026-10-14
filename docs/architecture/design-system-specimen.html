@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>Plume 设计体系样张</title>
+<!--
+	design-system.md 的样张。色板照 packages/desktop/src/features/settings/theme.ts 的 applyAppearance
+	重算，其余数值抄自 styles/tokens.css 与 ui/primitives——2026-10-14 的快照，不随代码更新。
+	两边对不上时以代码为准。
+-->
+<style>
+	:root {
+		--font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+		--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "PingFang SC", monospace;
+		--ly-ui-size: 14px;
+		--ly-t-quick: 150ms;
+		--ly-t-base: 220ms;
+		--ly-t-slow: 340ms;
+		--ly-e-out: cubic-bezier(0.22, 1, 0.36, 1);
+		--ly-e-in: cubic-bezier(0.55, 0, 1, 0.45);
+		--ly-e-soft: cubic-bezier(0.4, 0, 0.2, 1);
+		--color-ok: #3ecf8e;
+		--color-violet: #b18cf5;
+		--color-danger: #f2555a;
+		--ly-chart-2: #0d9488; --ly-chart-3: #d97706; --ly-chart-4: #9333ea; --ly-chart-5: #e11d48; --ly-chart-6: #65a30d;
+		--ly-warning: #d97706;
+	}
+	:root.dark {
+		--ly-chart-2: #2dd4bf; --ly-chart-3: #fbbf24; --ly-chart-4: #c084fc; --ly-chart-5: #fb7185; --ly-chart-6: #a3e635;
+		--ly-warning: #fbbf24;
+	}
+	* { box-sizing: border-box; border-color: var(--color-line); }
+	body {
+		margin: 0;
+		background: var(--color-shell);
+		color: var(--color-ink);
+		font: var(--ly-ui-size) / 1.6 var(--font-sans);
+		font-variant-numeric: tabular-nums;
+		-webkit-font-smoothing: antialiased;
+	}
+	button, input, select { font: inherit; color: inherit; }
+	button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+	::selection { background: color-mix(in srgb, var(--color-accent) 35%, transparent); }
+
+	/* 字阶：tokens.css 的七级，全部 calc 自 --ly-ui-size。 */
+	.t-display { font-size: calc(var(--ly-ui-size) + 16px); line-height: 1.2; letter-spacing: -0.022em; font-weight: 600; }
+	.t-heading { font-size: calc(var(--ly-ui-size) + 7px); line-height: 1.3; letter-spacing: -0.015em; font-weight: 600; }
+	.t-title { font-size: calc(var(--ly-ui-size) + 3px); line-height: 1.4; letter-spacing: -0.01em; font-weight: 500; }
+	.t-body { font-size: calc(var(--ly-ui-size) + 1px); line-height: 1.7; }
+	.t-label { font-size: var(--ly-ui-size); line-height: 1.5; }
+	.t-detail { font-size: calc(var(--ly-ui-size) - 1px); line-height: 1.5; }
+	.t-caption { font-size: calc(var(--ly-ui-size) - 2px); line-height: 1.45; }
+	.t-code { font: 12px / 1.6 var(--font-mono); }
+	.muted { color: var(--color-ink-muted); }
+	.faint { color: var(--color-ink-faint); }
+
+	/* 版面：侧栏铺在窗口底上，内容是一张张卡片，彼此隔 4px（ADR-0038 第 7 条）。 */
+	.frame { display: grid; grid-template-columns: 260px 1fr; gap: 4px; padding: 4px; min-height: 100vh; background: var(--color-sidebar); }
+	.side { padding: 16px 14px; position: sticky; top: 4px; align-self: start; max-height: calc(100vh - 8px); overflow: auto; }
+	/* .ly-dock-card：shell 底、前景 10% 描边、12px 圆角、不投影 */
+	.page { background: var(--color-shell); border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent); border-radius: 12px; padding: 32px 40px 80px; min-width: 0; }
+	section { margin-top: 44px; }
+	section > h2 { margin: 0 0 4px; }
+	section > p { margin: 0 0 16px; max-width: 46em; }
+	.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+	.grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+
+	.field-label { display: block; margin: 14px 0 6px; }
+	.ctl { display: flex; align-items: center; gap: 8px; }
+	.ctl input[type="color"] { width: 34px; height: 26px; border: 1px solid var(--color-line); border-radius: 6px; padding: 0; background: none; }
+	.ctl input[type="range"] { flex: 1; accent-color: var(--color-accent); }
+	.ctl code { font: 12px var(--font-mono); color: var(--color-ink-muted); }
+
+	/* 色块 */
+	.swatch { border: 1px solid var(--color-line-soft); border-radius: 8px; overflow: hidden; background: var(--color-shell); }
+	.swatch .chip { height: 56px; }
+	.swatch .meta { padding: 6px 8px; background: var(--color-card); }
+	.swatch .meta b { display: block; font-weight: 500; }
+
+	/* 表面叠层 */
+	.stack { background: var(--color-sidebar); border: 1px solid var(--color-line); border-radius: 12px; padding: 4px; display: grid; grid-template-columns: 180px 1fr; gap: 4px; }
+	.stack .sb { padding: 10px; }
+	.stack .cd { background: var(--color-shell); border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent); border-radius: 12px; padding: 14px; display: grid; gap: 10px; }
+	.stack .inner { background: var(--color-card); border-radius: 8px; padding: 10px 12px; }
+	.hover-row { padding: 4px 8px; border-radius: 6px; }
+	.hover-row:hover { background: var(--color-card-hover); }
+	.hover-row.on { background: var(--color-elevated); }
+
+	/* Button：四种变体、三种高度（Button.tsx） */
+	.btn { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; white-space: nowrap; cursor: pointer;
+		border: 1px solid transparent; background: none; transition: background-color var(--ly-t-quick), border-color var(--ly-t-quick), opacity var(--ly-t-quick); }
+	.btn.md { height: 32px; border-radius: 8px; }
+	.btn.sm { height: 26px; border-radius: 8px; }
+	.btn.xs { height: 20px; border-radius: 6px; padding: 0 6px; gap: 4px; font-size: calc(var(--ly-ui-size) - 2px); }
+	.btn.primary { background: var(--color-ink); color: var(--color-shell); font-weight: 500; }
+	.btn.primary:hover { opacity: 0.9; }
+	.btn.ghost { border-color: var(--color-line); }
+	.btn.ghost:hover, .btn.ghost[aria-pressed="true"] { border-color: var(--color-ink-faint); background: var(--color-card-hover); }
+	.btn.subtle { color: var(--color-ink-muted); }
+	.btn.subtle:hover { background: var(--color-card-hover); color: var(--color-ink); }
+	.btn.danger { border-color: var(--color-line); color: var(--color-danger); }
+	.btn.danger:hover { border-color: color-mix(in srgb, var(--color-danger) 50%, transparent); background: color-mix(in srgb, var(--color-danger) 10%, transparent); }
+	.btn:disabled { opacity: 0.45; cursor: default; }
+	.btn.primary:disabled { opacity: 0.4; }
+
+	/* IconButton：xs 20 / sm 22 / md 26 / composer 28 */
+	.ib { display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; cursor: pointer;
+		color: var(--color-ink-faint); border-radius: 8px; transition: color var(--ly-t-quick), background-color var(--ly-t-quick); }
+	.ib:hover { background: var(--color-card-hover); color: var(--color-ink); }
+	.ib:active { background: var(--color-elevated); }
+	.ib.emph { color: var(--color-ink); }
+	.ib.xs { width: 20px; height: 20px; border-radius: 6px; }
+	.ib.sm { width: 22px; height: 22px; }
+	.ib.md { width: 26px; height: 26px; }
+	.ib.cp { width: 28px; height: 28px; }
+	.ib svg { width: 15px; height: 15px; }
+	.ib.xs svg { width: 13px; height: 13px; }
+
+	/* 字段：34px 胶囊 */
+	/* .ly-field：和对话框动作同一个胶囊，card 底、无描边 */
+	.field { height: 34px; border-radius: 999px; border: 0; background: var(--color-card); padding: 0 16px; min-width: 220px; outline: none;
+		transition: background-color var(--ly-t-quick); }
+	.field:hover, .field:focus { background: var(--color-card-hover); }
+	.field::placeholder { color: var(--color-ink-faint); }
+
+	/* 开关：轨道 28×16，白旋钮 */
+	.switch { position: relative; width: 28px; height: 16px; border-radius: 999px; border: 0; padding: 0; background: var(--color-line); cursor: pointer; transition: background-color var(--ly-t-base); }
+	.switch[aria-checked="true"] { background: var(--color-accent); }
+	.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 999px; background: #fff;
+		border: 1px solid rgb(0 0 0 / 0.14); box-shadow: 0 1px 2.5px rgb(0 0 0 / 0.16); box-sizing: border-box;
+		transition: transform var(--ly-t-base) var(--ly-e-out); }
+	.dark .switch::after { border-color: rgb(0 0 0 / 0.32); box-shadow: 0 1px 3px rgb(0 0 0 / 0.55); }
+	.switch[aria-checked="true"]::after { transform: translateX(12px); }
+
+	/* 浮层：菜单、tooltip、对话框 */
+	.menu { width: 240px; background: var(--color-float); border: 1px solid var(--color-line-float); border-radius: 8px; padding: 4px;
+		box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+	.menu .item { height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-radius: 6px; cursor: default; }
+	.menu .item:hover { background: var(--color-card-hover); }
+	.menu .item .k { margin-left: auto; color: var(--color-ink-faint); font-size: calc(var(--ly-ui-size) - 1px); }
+	.menu .sep { height: 1px; background: var(--color-line-float); margin: 4px 0; }
+	.menu .head { padding: 6px 12px 4px; color: var(--color-ink-faint); font-weight: 500; }
+	.tip { display: inline-block; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--color-line-float); background: var(--color-float);
+		box-shadow: 0 4px 14px -4px rgb(0 0 0 / 0.3); font-size: calc(var(--ly-ui-size) - 1px); }
+	.dialog { width: 400px; background: var(--color-float); border: 1px solid var(--color-line-float); border-radius: 16px;
+		box-shadow: 0 18px 60px rgb(0 0 0 / 0.16), 0 2px 8px rgb(0 0 0 / 0.06); }
+	.dialog .hd { padding: 20px 20px 0; font-weight: 500; }
+	.dialog .bd { padding: 12px 20px 0; color: var(--color-ink-muted); }
+	.dialog .ft { padding: 20px; display: flex; gap: 8px; justify-content: flex-end; }
+	/* .ly-dialog-action：无描边胶囊，secondary / primary / danger */
+	.dialog .act { height: 34px; padding: 0 16px; border-radius: 999px; border: 0; cursor: pointer; background: var(--color-card); color: var(--color-ink-muted);
+		transition: background-color var(--ly-t-quick), color var(--ly-t-quick); }
+	.dialog .act:hover { background: var(--color-card-hover); color: var(--color-ink); }
+	.dialog .act.primary { background: var(--color-ink); color: var(--color-shell); }
+	.dialog .act.danger { background: color-mix(in srgb, var(--color-danger) 10%, transparent); color: var(--color-danger); }
+	.dialog .act.danger:hover { background: color-mix(in srgb, var(--color-danger) 18%, transparent); }
+
+	/* 主输入框：卡片 + 两层很淡的投影，内衬读 composer 变量 */
+	.composer { max-width: 620px; border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent); border-radius: 16px; background: var(--color-input);
+		box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05); transition: border-color var(--ly-t-quick) var(--ly-e-soft); }
+	.composer:hover, .composer:focus-within { border-color: color-mix(in srgb, var(--color-ink) 15%, transparent); }
+	.composer textarea { display: block; width: 100%; border: 0; outline: none; resize: none; background: none; color: inherit;
+		font: calc(var(--ly-ui-size) + 1px) / 1.7 var(--font-sans); padding: 12px 16px 0; min-height: 60px; }
+	.composer textarea::placeholder { color: var(--color-ink-faint); }
+	.composer .bar { display: flex; align-items: center; gap: 4px; padding: 4px 12px 12px; }
+	.composer .send { margin-left: auto; width: 28px; height: 28px; border-radius: 8px; border: 0; background: var(--color-ink); color: var(--color-shell); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+
+	/* 动效演示 */
+	.lane { position: relative; height: 34px; border-radius: 8px; background: var(--color-shell); border: 1px solid var(--color-line-soft); }
+	.lane .dot { position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 6px; background: var(--color-accent); }
+	.lanes.go .lane .dot { left: calc(100% - 28px); }
+	table { border-collapse: collapse; width: 100%; }
+	td, th { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--color-line-soft); vertical-align: baseline; }
+	th { font-weight: 500; color: var(--color-ink-muted); }
+	code { font-family: var(--font-mono); font-size: 0.92em; }
+	.inline-code { background: color-mix(in srgb, var(--color-ink) 6%, transparent); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="frame">
+	<aside class="side">
+		<div class="t-title">Plume 设计体系</div>
+		<div class="t-caption faint">样张 · 2026-10-14 快照</div>
+
+		<label class="field-label t-detail muted">主题</label>
+		<div class="row">
+			<button class="btn sm ghost" data-theme="light">浅色</button>
+			<button class="btn sm ghost" data-theme="dark">深色</button>
+		</div>
+
+		<label class="field-label t-detail muted">背景</label>
+		<div class="ctl"><input type="color" id="bg" /><code id="bg-v"></code></div>
+		<label class="field-label t-detail muted">前景</label>
+		<div class="ctl"><input type="color" id="fg" /><code id="fg-v"></code></div>
+		<label class="field-label t-detail muted">强调色</label>
+		<div class="ctl"><input type="color" id="accent" value="#339cff" /><code id="accent-v"></code></div>
+		<label class="field-label t-detail muted">对比度</label>
+		<div class="ctl"><input type="range" id="contrast" min="0" max="100" value="60" /><code id="contrast-v"></code></div>
+		<label class="field-label t-detail muted">界面字号</label>
+		<div class="ctl"><input type="range" id="size" min="12" max="18" value="14" /><code id="size-v"></code></div>
+
+		<div style="margin-top: 20px" class="row">
+			<button class="btn sm subtle" id="reset">恢复出厂</button>
+		</div>
+		<p class="t-caption faint" style="margin-top: 20px">
+			只暴露三个颜色，其余按对比度派生。规范见 design-system.md。
+		</p>
+	</aside>
+
+	<main class="page">
+		<div class="t-display">设计体系</div>
+		<p class="t-body muted" style="max-width: 40em">
+			一个强调色、三个状态色，七级字阶，三档动效。所有表面从背景往前景混出来，所以换任何背景都读得清。
+		</p>
+
+		<section>
+			<h2 class="t-heading">表面</h2>
+			<p class="t-label muted">从下往上叠。浅色主题上输入框和浮层往白走，比页面亮。</p>
+			<div class="grid" id="surfaces"></div>
+		</section>
+
+		<section>
+			<h2 class="t-heading">线与墨色</h2>
+			<div class="grid" id="inks"></div>
+		</section>
+
+		<section>
+			<h2 class="t-heading">状态与图表</h2>
+			<p class="t-label muted">整套调色只有这些。不为一个新功能引第五种颜色。</p>
+			<div class="grid" id="states"></div>
+		</section>
+
+		<section>
+			<h2 class="t-heading">叠在一起</h2>
+			<p class="t-label muted">窗口底层是 sidebar，侧栏直接铺在上面；内容是 shell 底的卡片，靠 4px 缝里露出的底色分层，不投影。悬停行用前景的薄纱，按下再深一档。</p>
+			<div class="stack">
+				<div class="sb">
+					<div class="hover-row t-label">新对话</div>
+					<div class="hover-row t-label on">选中的会话</div>
+					<div class="hover-row t-label muted">另一个会话</div>
+					<div class="hover-row t-label muted">再一个</div>
+				</div>
+				<div class="cd">
+					<div class="t-title">卡片标题</div>
+					<div class="t-body">正文读 <span class="inline-code">ink</span>，次要读 <span class="muted">ink-muted</span>，最淡读 <span class="faint">ink-faint</span>。</div>
+					<div class="inner t-detail muted">卡片里的一块 card</div>
+					<input class="field" placeholder=".ly-field：card 底的胶囊" />
+				</div>
+			</div>
+		</section>
+
+		<section>
+			<h2 class="t-heading">字阶</h2>
+			<p class="t-label muted">全部 calc 自界面字号，拖左边的滑条整套一起动。层级靠大小和字重两根轴。</p>
+			<table id="type"></table>
+		</section>
+
+		<section>
+			<h2 class="t-heading">按钮</h2>
+			<p class="t-label muted">四种变体、三种高度：32 / 26 / 20。primary 是墨底，不引入颜色；danger 只在悬停时变红。</p>
+			<div id="buttons" style="display: grid; gap: 12px"></div>
+			<div class="row" style="margin-top: 20px">
+				<span class="t-detail muted" style="width: 90px">IconButton</span>
+				<button class="ib xs" title="xs 20">＋</button>
+				<button class="ib sm" title="sm 22">＋</button>
+				<button class="ib md" title="md 26">＋</button>
+				<button class="ib cp" title="composer 28">＋</button>
+				<button class="ib md emph" title="emphasis">＋</button>
+				<span class="t-caption faint">按下不缩放，底色深一档</span>
+			</div>
+			<div class="row" style="margin-top: 14px">
+				<span class="t-detail muted" style="width: 90px">字段 · 开关</span>
+				<input class="field" placeholder="34px 胶囊" />
+				<button class="switch" role="switch" aria-checked="true" onclick="this.setAttribute('aria-checked', this.getAttribute('aria-checked') !== 'true')"></button>
+				<button class="switch" role="switch" aria-checked="false" onclick="this.setAttribute('aria-checked', this.getAttribute('aria-checked') !== 'true')"></button>
+			</div>
+		</section>
+
+		<section>
+			<h2 class="t-heading">浮层</h2>
+			<p class="t-label muted">float 底、line-float 边。菜单行高 32、圆角 6、四边内衬 4；对话框 16px 圆角，底部是 34px 无描边胶囊。</p>
+			<div class="row" style="align-items: flex-start; gap: 28px">
+				<div class="menu">
+					<div class="head t-label">会话</div>
+					<div class="item t-label">重命名<span class="k">⌘R</span></div>
+					<div class="item t-label">复制链接</div>
+					<div class="sep"></div>
+					<div class="item t-label">显示子智能体<span class="k"><button class="switch" role="switch" aria-checked="true" style="vertical-align: middle"></button></span></div>
+					<div class="sep"></div>
+					<div class="item t-label" style="color: var(--color-danger)">删除</div>
+				</div>
+				<div style="display: grid; gap: 18px">
+					<div class="dialog">
+						<div class="hd t-label">删除这个会话？</div>
+						<div class="bd t-label">删除后无法恢复，工作树一起收回。</div>
+						<div class="ft">
+							<button class="act t-label">取消</button>
+							<button class="act danger t-label">删除</button>
+						</div>
+					</div>
+					<div><span class="tip">tooltip 不反色，跟着主题的浮层底</span></div>
+				</div>
+			</div>
+		</section>
+
+		<section>
+			<h2 class="t-heading">主输入框</h2>
+			<p class="t-label muted">内衬读 --ly-composer-in 12 / --ly-composer-x 16，工具条按钮 28。描边 10%，悬停和聚焦 15%。</p>
+			<div class="composer">
+				<textarea placeholder="让 Plume 做点什么"></textarea>
+				<div class="bar">
+					<button class="ib cp" title="附件">＋</button>
+					<button class="btn sm subtle t-detail" style="height: 28px">Opus 5.5</button>
+					<button class="send" title="发送">↑</button>
+				</div>
+			</div>
+		</section>
+
+		<section>
+			<h2 class="t-heading">动效</h2>
+			<p class="t-label muted">时长按「什么在动」分：状态 150、位移 220、到来 340。曲线按方向分：out 进场减速落定，in 离场。</p>
+			<div class="row" style="margin-bottom: 12px">
+				<button class="btn sm ghost" id="play">播放</button>
+				<span class="t-caption faint">再按一次是离场，用 in 曲线</span>
+			</div>
+			<div class="lanes" id="lanes" style="display: grid; gap: 8px"></div>
+		</section>
+	</main>
+</div>
+
+<script>
+	// 与 theme.ts 的 applyAppearance 同一套公式；只取样张要用的那部分。
+	const FACTORY = {
+		light: { bg: "#f8f8f8", fg: "#262626" },
+		dark: { bg: "#171717", fg: "#d4d4d4" },
+		accent: "#339cff",
+		contrast: 60,
+		size: 14,
+	};
+	const state = {
+		dark: matchMedia("(prefers-color-scheme: dark)").matches,
+		accent: FACTORY.accent,
+		contrast: FACTORY.contrast,
+		size: FACTORY.size,
+		lightPair: { ...FACTORY.light },
+		darkPair: { ...FACTORY.dark },
+	};
+
+	const parse = (h) => { const v = h.replace("#", ""); return { r: parseInt(v.slice(0, 2), 16), g: parseInt(v.slice(2, 4), 16), b: parseInt(v.slice(4, 6), 16) }; };
+	const mix = (a, b, t) => { t = Math.max(0, Math.min(1, t)); return { r: Math.round(a.r + (b.r - a.r) * t), g: Math.round(a.g + (b.g - a.g) * t), b: Math.round(a.b + (b.b - a.b) * t) }; };
+	const hex = ({ r, g, b }) => "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
+	const WHITE = { r: 255, g: 255, b: 255 };
+
+	function tokens() {
+		const dark = state.dark;
+		const pair = dark ? state.darkPair : state.lightPair;
+		const bg = parse(pair.bg), fg = parse(pair.fg);
+		const s = 0.5 + state.contrast / 100;
+		const surface = (st) => hex(mix(bg, fg, Math.min(0.9, st * s * (dark ? 1 : 0.45))));
+		const rule = (st) => hex(mix(bg, fg, Math.min(0.9, st * s * (dark ? 1 : 1.7))));
+		const text = (w) => hex(mix(bg, fg, Math.min(1, w)));
+		const veil = (a) => `color-mix(in srgb, ${hex(fg)} ${(a * 100).toFixed(1)}%, transparent)`;
+		return {
+			"--color-shell": [hex(bg), "背景本身"],
+			"--color-sidebar": [surface(0.042), "surface(0.042)"],
+			"--color-card": [surface(0.06), "surface(0.06)"],
+			"--color-card-hover": [veil(dark ? 0.062 : 0.05), dark ? "前景 6.2%" : "前景 5%"],
+			"--color-elevated": [veil(dark ? 0.1 : 0.085), dark ? "前景 10%" : "前景 8.5%"],
+			"--color-input": [dark ? surface(0.035) : hex(mix(bg, WHITE, 0.65)), dark ? "surface(0.035)" : "往白混 65%"],
+			"--color-float": [dark ? surface(0.1) : hex(mix(bg, WHITE, 0.8)), dark ? "surface(0.1)" : "往白混 80%"],
+			"--color-line": [rule(0.075), "rule(0.075)"],
+			"--color-line-soft": [rule(0.05), "rule(0.05)"],
+			"--color-line-float": [veil(0.1), "前景 10%"],
+			"--color-ink": [hex(fg), "前景本身"],
+			"--color-ink-muted": [text(0.7), "前景 70%"],
+			"--color-ink-faint": [text(dark ? 0.56 : 0.52), dark ? "前景 56%" : "前景 52%"],
+			"--color-accent": [state.accent, "设置"],
+		};
+	}
+
+	const SURFACES = ["shell", "sidebar", "card", "card-hover", "elevated", "input", "float"];
+	const INKS = ["line", "line-soft", "line-float", "ink", "ink-muted", "ink-faint"];
+	const STATES = [
+		["accent", "var(--color-accent)", "设置"], ["ok", "var(--color-ok)", "#3ecf8e"], ["danger", "var(--color-danger)", "#f2555a"],
+		["violet", "var(--color-violet)", "#b18cf5"], ["warning", "var(--ly-warning)", "分深浅"],
+		...[2, 3, 4, 5, 6].map((n) => [`chart-${n}`, `var(--ly-chart-${n})`, "分深浅"]),
+	];
+
+	function swatch(name, paint, value, how) {
+		return `<div class="swatch"><div class="chip" style="background:${paint}"></div><div class="meta"><b class="t-label">${name}</b><span class="t-caption faint">${how}</span><br><code class="t-caption muted">${value}</code></div></div>`;
+	}
+
+	function render() {
+		const root = document.documentElement;
+		root.classList.toggle("dark", state.dark);
+		root.style.colorScheme = state.dark ? "dark" : "light";
+		root.style.setProperty("--ly-ui-size", `${state.size}px`);
+		const t = tokens();
+		for (const [k, [v]] of Object.entries(t)) root.style.setProperty(k, v);
+		const short = (v) => (v.startsWith("color-mix") ? "薄纱" : v);
+		document.getElementById("surfaces").innerHTML = SURFACES.map((n) => swatch(n, `var(--color-${n})`, short(t[`--color-${n}`][0]), t[`--color-${n}`][1])).join("");
+		document.getElementById("inks").innerHTML = INKS.map((n) => swatch(n, `var(--color-${n})`, short(t[`--color-${n}`][0]), t[`--color-${n}`][1])).join("");
+		document.getElementById("states").innerHTML = STATES.map(([n, p, h]) => swatch(n, p, "", h)).join("");
+
+		const pair = state.dark ? state.darkPair : state.lightPair;
+		document.getElementById("bg").value = pair.bg;
+		document.getElementById("fg").value = pair.fg;
+		document.getElementById("accent").value = state.accent;
+		document.getElementById("contrast").value = state.contrast;
+		document.getElementById("size").value = state.size;
+		document.getElementById("bg-v").textContent = pair.bg;
+		document.getElementById("fg-v").textContent = pair.fg;
+		document.getElementById("accent-v").textContent = state.accent;
+		document.getElementById("contrast-v").textContent = `${state.contrast} → ×${(0.5 + state.contrast / 100).toFixed(2)}`;
+		document.getElementById("size-v").textContent = `${state.size}px`;
+		for (const b of document.querySelectorAll("[data-theme]")) b.setAttribute("aria-pressed", (b.dataset.theme === "dark") === state.dark);
+		renderType();
+	}
+
+	const TYPE = [
+		["display", 16, "1.2", "-0.022em", 600, "每屏一个的页标题"],
+		["heading", 7, "1.3", "-0.015em", 600, "一屏的大分区"],
+		["title", 3, "1.4", "-0.01em", 500, "段落、卡片标题"],
+		["body", 1, "1.7", "—", 400, "消息、说明"],
+		["label", 0, "1.5", "—", 400, "行、控件、表格"],
+		["detail", -1, "1.5", "—", 400, "标签下面那行补充"],
+		["caption", -2, "1.45", "—", 400, "时间、计数、角标"],
+	];
+	function renderType() {
+		document.getElementById("type").innerHTML =
+			`<tr class="t-detail"><th>步</th><th>大小</th><th>行高</th><th>字距</th><th>字重</th><th>样子</th></tr>` +
+			TYPE.map(([n, d, lh, ls, w, use]) => `<tr><td class="t-detail muted">${n}</td><td class="t-detail"><code>${state.size + d}px</code></td><td class="t-detail">${lh}</td><td class="t-detail">${ls}</td><td class="t-detail">${w}</td><td><div class="t-${n}">${use}</div></td></tr>`).join("") +
+			`<tr><td class="t-detail muted">code</td><td class="t-detail"><code>12px</code></td><td class="t-detail">1.6</td><td class="t-detail">0</td><td class="t-detail">400</td><td><div class="t-code">const answer = await session.run(task)</div></td></tr>`;
+	}
+
+	document.getElementById("buttons").innerHTML = ["md", "sm", "xs"].map((size) =>
+		`<div class="row"><span class="t-detail muted" style="width:90px">${size} · ${{ md: 32, sm: 26, xs: 20 }[size]}px</span>` +
+		["primary", "ghost", "subtle", "danger"].map((v) => `<button class="btn ${size} ${v}">${{ primary: "提交", ghost: "取消", subtle: "更多", danger: "删除" }[v]}</button>`).join("") +
+		`<button class="btn ${size} ghost" aria-pressed="true">选中</button><button class="btn ${size} ghost" disabled>不可用</button></div>`).join("");
+
+	const LANES = [["quick 150 · 状态", "--ly-t-quick"], ["base 220 · 位移", "--ly-t-base"], ["slow 340 · 到来", "--ly-t-slow"]];
+	document.getElementById("lanes").innerHTML = LANES.map(([label, t]) =>
+		`<div class="row" style="flex-wrap:nowrap"><span class="t-detail muted" style="width:120px;flex:none">${label}</span><div class="lane" style="flex:1"><div class="dot" data-t="${t}"></div></div></div>`).join("");
+	document.getElementById("play").onclick = () => {
+		const lanes = document.getElementById("lanes");
+		const going = !lanes.classList.contains("go");
+		for (const dot of lanes.querySelectorAll(".dot")) dot.style.transition = `left var(${dot.dataset.t}) var(${going ? "--ly-e-out" : "--ly-e-in"})`;
+		lanes.classList.toggle("go", going);
+	};
+
+	const pair = () => (state.dark ? state.darkPair : state.lightPair);
+	for (const b of document.querySelectorAll("[data-theme]")) b.onclick = () => { state.dark = b.dataset.theme === "dark"; render(); };
+	document.getElementById("bg").oninput = (e) => { pair().bg = e.target.value; render(); };
+	document.getElementById("fg").oninput = (e) => { pair().fg = e.target.value; render(); };
+	document.getElementById("accent").oninput = (e) => { state.accent = e.target.value; render(); };
+	document.getElementById("contrast").oninput = (e) => { state.contrast = Number(e.target.value); render(); };
+	document.getElementById("size").oninput = (e) => { state.size = Number(e.target.value); render(); };
+	document.getElementById("reset").onclick = () => {
+		Object.assign(state, { accent: FACTORY.accent, contrast: FACTORY.contrast, size: FACTORY.size, lightPair: { ...FACTORY.light }, darkPair: { ...FACTORY.dark } });
+		render();
+	};
+	render();
+</script>
+</body>
+</html>
