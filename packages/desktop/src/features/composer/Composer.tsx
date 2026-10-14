@@ -4,7 +4,7 @@ import { parseInvocation, parseSkillMention } from "@plume/core/commands-view";
 import { Camera, ChevronDown, CircleAlert, Folder, GitBranch, GitFork, MessageSquare, Plus, X } from "../../ui/icons/index.ts";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motionReduced } from "../../ui/motion/reduced.ts";
-import { ChangeBar } from "../git/index.ts";
+import { ChangeBar, useUpstreamDistance } from "../git/index.ts";
 import { CommandMenu } from "./CommandMenu.tsx";
 import { QueuedMessages } from "./QueuedMessages.tsx";
 import { buildOutgoing, queuePreview, queueThumbnail } from "./outgoing.ts";
@@ -406,6 +406,7 @@ export function Composer({ centered = false }: {
 	const worktreeMenu = usePopover();
 	const worktreeFailed = usePopover();
 	const worktree = useWorktreeState(meta, running);
+	const upstream = useUpstreamDistance(workspace?.isGitRepo && !meta?.worktree ? workspace.path : null, workspace?.branch ?? null, running);
 
 	/** No project behind this conversation, and that was the choice — not a step left undone. */
 	const chatting = !workspace && Boolean(scratchCwd);
@@ -744,7 +745,7 @@ export function Composer({ centered = false }: {
 								icon={<GitFork size={16} strokeWidth={1.8} />}
 								label={meta.worktree.branch}
 								tip={t("worktreeChip.tip", { branch: meta.worktree.branch })}
-								marks={<WorktreeMarks ahead={worktree.state?.ahead ?? 0} behind={worktree.state?.behind ?? 0} conflicted={Boolean(worktree.state?.merging)} />}
+								marks={<DistanceMarks ahead={worktree.state?.ahead ?? 0} behind={worktree.state?.behind ?? 0} conflicted={Boolean(worktree.state?.merging)} />}
 								dimmed={worktree.state?.present === false}
 								onClick={worktreeMenu.toggle}
 								active={worktreeMenu.open}
@@ -761,6 +762,15 @@ export function Composer({ centered = false }: {
 							<Chip
 								icon={<GitBranch size={16} strokeWidth={1.8} className={switchingBranch ? "ly-pulse" : undefined} />}
 								label={workspace.branch}
+								// Against its upstream, as of the last fetch: what a push would send, what a pull would bring.
+								tip={
+									!upstream
+										? undefined
+										: upstream.ahead || upstream.behind
+											? t("composer.branchUpstream", { branch: workspace.branch, upstream: upstream.upstream, ahead: upstream.ahead, behind: upstream.behind })
+											: t("composer.branchLevel", { branch: workspace.branch, upstream: upstream.upstream })
+								}
+								marks={upstream && <DistanceMarks ahead={upstream.ahead} behind={upstream.behind} />}
 								busy={Boolean(switchingBranch)}
 								onClick={branchMenu.toggle}
 								active={branchMenu.open}
@@ -1073,13 +1083,14 @@ function Chip({
 }
 
 /**
- * `↑3 ↓1`: commits waiting to be merged back, commits on the base since. Nothing when there is nothing
- * to say, and a mark of its own while a sync waits on conflicts.
+ * `↑3 ↓1`: commits this side has that the other lacks, and the reverse — a worktree against its base, a
+ * branch against its upstream. Nothing when there is nothing to say, and a mark of its own while a
+ * worktree's sync waits on conflicts.
  */
-function WorktreeMarks({ ahead, behind, conflicted }: { ahead: number; behind: number; conflicted: boolean }) {
+function DistanceMarks({ ahead, behind, conflicted = false }: { ahead: number; behind: number; conflicted?: boolean }) {
 	if (!ahead && !behind && !conflicted) return null;
 	return (
-		<span data-ly-worktree-marks="" className="flex shrink-0 items-center gap-1 text-caption text-ink-faint tabular-nums">
+		<span data-ly-distance-marks="" className="flex shrink-0 items-center gap-1 text-caption text-ink-faint tabular-nums">
 			{ahead > 0 && <span>↑{ahead}</span>}
 			{behind > 0 && <span>↓{behind}</span>}
 			{conflicted && <CircleAlert size={12} strokeWidth={2} className="text-amber-500" aria-hidden />}

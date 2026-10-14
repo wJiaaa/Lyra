@@ -136,7 +136,7 @@ test("工作树会话的 chip 说分支和领先落后，不再是能切分支�
 	const view = await composer();
 	const chip = chipOf(view);
 	assert.ok(chip, `no worktree chip: ${view.text().slice(0, 300)}`);
-	assert.equal(chip.querySelector("[data-ly-worktree-marks]")?.textContent, "↑2↓1");
+	assert.equal(chip.querySelector("[data-ly-distance-marks]")?.textContent, "↑2↓1");
 	assert.equal(chip.getAttribute("data-ly-tip"), "这个对话的工作树：plume/session-1a2b3c4d");
 	await openMenu(view);
 	assert.ok(!document.querySelector("[aria-label='切换分支']"), "the branch switcher opened instead");
@@ -192,7 +192,7 @@ test("有没提交的改动、对话在运行：合并点不了，并说为什�
 test("同步卡在冲突上：列出文件，交给这个对话解决，或者放弃这次同步", async () => {
 	current = state({ merging: true, conflicted: ["README.md"] });
 	const view = await composer();
-	assert.ok(chipOf(view)?.querySelector("[data-ly-worktree-marks] svg"), "the chip carries no conflict mark");
+	assert.ok(chipOf(view)?.querySelector("[data-ly-distance-marks] svg"), "the chip carries no conflict mark");
 	await openMenu(view);
 	assert.match(menuText(), /同步 main 时有冲突/);
 	assert.equal(document.querySelector("[data-ly-worktree-conflicts]")?.textContent, "README.md");

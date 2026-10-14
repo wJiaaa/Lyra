@@ -36,6 +36,7 @@ import {
 	switchBranch,
 	discardPaths,
 	unstagePaths,
+	upstreamDistance,
 	workspaceStat,
 	getReleaseInfo,
 	bumpVersionFiles,
@@ -142,6 +143,7 @@ export function registerGitIpc({ insideAProject }: GitIpcDeps): void {
 	});
 
 	ipcMain.handle("git:stat", async (_event, cwd: string) => workspaceStat(cwd));
+	ipcMain.handle("git:upstream", async (_event, cwd: string) => upstreamDistance(cwd));
 
 	ipcMain.handle("git:repos", async (_event, root: string) => listRepos(root));
 

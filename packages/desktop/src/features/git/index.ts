@@ -11,3 +11,4 @@ export { ChangeBar } from "./ChangeBar.tsx";
 export { DiffView } from "./DiffView.tsx";
 export { FileDiffList } from "./FileDiffList.tsx";
 export { GitPanel } from "./GitPanel.tsx";
+export { useUpstreamDistance } from "./upstream-distance.ts";

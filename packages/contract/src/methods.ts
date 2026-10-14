@@ -294,6 +294,7 @@ export const METHODS = {
 		switchBranch: { channel: "git:switchBranch" },
 		removeWorktree: { channel: "git:removeWorktree" },
 		stat: { channel: "git:stat" },
+		upstream: { channel: "git:upstream" },
 		status: { channel: "git:status" },
 		repos: { channel: "git:repos" },
 		worktrees: { channel: "git:worktrees" },

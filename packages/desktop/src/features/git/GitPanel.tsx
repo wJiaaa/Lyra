@@ -23,6 +23,7 @@ import { PipelinesView } from "./PipelinesView.tsx";
 
 import { RepoPicker } from "./RepoPicker.tsx";
 import { sameStatus } from "./sameStatus.ts";
+import { noteUpstream } from "./upstream-distance.ts";
 import { SkeletonList, useSlowLoad } from "../../ui/primitives/Skeleton.tsx";
 import { CountUp } from "../../ui/primitives/CountUp.tsx";
 import { useNarrow } from "../../ui/hooks/useNarrow.ts";
@@ -317,6 +318,8 @@ export function GitPanel() {
     }
     const next = await bridge.git.status(cwd);
     setStatus((current) => (sameStatus(current, next) ? current : next));
+    // The composer's branch chip shows the same distance; after a push or fetch here it is this read that knows first.
+    noteUpstream(cwd, next.branch, next.upstream ? { upstream: next.upstream, ahead: next.ahead, behind: next.behind } : null);
   }, [cwd]);
 
   /*

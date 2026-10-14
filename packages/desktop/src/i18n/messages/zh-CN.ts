@@ -266,6 +266,8 @@ export const zhCN = {
 	"composer.permissionAuto": "帮我批准",
 	"composer.permissionFull": "完全访问",
 	"composer.thinking": "推理强度：{level}",
+	"composer.branchUpstream": "{branch}：比 {upstream} 领先 {ahead}、落后 {behind}（以上次获取为准）",
+	"composer.branchLevel": "{branch}：和 {upstream} 一致（以上次获取为准）",
 	"composer.switchingBranch": "正在切换分支…",
 	"composer.worktree": "工作树",
 	"composer.worktreeOff": "在新工作树里开始",

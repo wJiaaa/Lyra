@@ -46,8 +46,8 @@ const CHIP = `(() => {
 	const chip = [...document.querySelectorAll(".ly-composer-tray button")].find((b) => (b.getAttribute("data-ly-tip") ?? "").startsWith("这个对话的工作树"));
 	return {
 		tip: chip ? chip.getAttribute("data-ly-tip") : null,
-		marks: chip ? (chip.querySelector("[data-ly-worktree-marks]")?.textContent ?? "") : null,
-		conflict: Boolean(chip && chip.querySelector("[data-ly-worktree-marks] svg")),
+		marks: chip ? (chip.querySelector("[data-ly-distance-marks]")?.textContent ?? "") : null,
+		conflict: Boolean(chip && chip.querySelector("[data-ly-distance-marks] svg")),
 		dimmed: Boolean(chip && chip.className.includes("text-ink-muted")),
 		failed: Boolean(document.querySelector("[data-ly-worktree-failed]")),
 	};

@@ -97,6 +97,23 @@ export async function workspaceStat(
  * those is a different git plumbing call.
  * ------------------------------------------------------------------------- */
 
+/**
+ * How far the checked-out branch is from its upstream, for the branch chip under the composer.
+ *
+ * Two calls rather than `gitStatus`: that one walks the working tree, and this is read every time a
+ * turn ends. Against the remote-tracking ref as of the last fetch — nothing here fetches. Null when
+ * the branch tracks nothing (never pushed, or a detached HEAD): there is no distance to show.
+ */
+export async function upstreamDistance(cwd: string): Promise<{ upstream: string; ahead: number; behind: number } | null> {
+	const [upstream, counts] = await Promise.all([
+		git(cwd, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]).then((out) => out.trim(), () => ""),
+		git(cwd, ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"]).catch(() => ""),
+	]);
+	const [ahead, behind] = counts.trim().split(/\s+/).map((n) => Number.parseInt(n, 10));
+	if (!upstream || !Number.isFinite(ahead) || !Number.isFinite(behind)) return null;
+	return { upstream, ahead, behind };
+}
+
 /** The empty tree, so the first commit in a repository can be diffed against something. */
 export const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 

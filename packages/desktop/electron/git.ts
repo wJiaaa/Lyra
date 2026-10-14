@@ -16,6 +16,7 @@ export {
 	gitStatus,
 	stagePaths,
 	unstagePaths,
+	upstreamDistance,
 	workspaceStat,
 	type GitCommit,
 	type GitStatus,

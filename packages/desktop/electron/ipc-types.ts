@@ -1206,6 +1206,8 @@ export interface PlumeApi {
 		 * session and re-runs after every turn, so it counts without building any diffs.
 		 */
 		stat(cwd: string): Promise<{ branch: string | null; added: number; removed: number; files: number }>;
+		/** Commits the checked-out branch has that its upstream lacks, and the reverse; null with no upstream. */
+		upstream(cwd: string): Promise<{ upstream: string; ahead: number; behind: number } | null>;
 
 		/* The Git panel's surface. Reading first, then the operations that write. */
 
