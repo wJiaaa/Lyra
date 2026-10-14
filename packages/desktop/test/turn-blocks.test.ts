@@ -132,6 +132,30 @@ test("挂在一段活后面的推理就是那一段的，换了一类也不跟�
 	assert.deepEqual(items(blocks[1]), ["step(read,think)", "step(bash)"]);
 });
 
+/** 一次 bash：分到哪一类看命令本身。 */
+const shell = (command: string): Run => ({
+	kind: "tools",
+	calls: [{ block: { type: "toolCall", id: `c${id++}`, name: "bash", arguments: { command } }, stopReason: "toolUse" }],
+} as Run);
+
+test("只读的 shell 命令和读、搜是同一段探索，跑别的命令另起一行", () => {
+	const blocks = turnBlocks([ask("查一下", 0), work(["read"]), shell("rg -n 'a|b' src | head -20"), work(["grep"]), shell("pnpm test | tail -5")]);
+	assert.deepEqual(items(blocks[1]), ["step(read,bash,grep)", "step(bash)"]);
+});
+
+test("关掉的那一类每次调用自成一行，开关管不着的几类照旧合", () => {
+	const list = [ask("改一下", 0), work(["read", "grep"]), work(["edit", "write"]), shell("pnpm build"), shell("pnpm test"), work(["browser_open", "browser_act"])];
+	const off = { groupExplore: false, groupTerminal: false, groupChanges: false };
+	assert.deepEqual(items(turnBlocks(list, off)[1]), ["step(read)", "step(grep)", "step(edit)", "step(write)", "step(bash)", "step(bash)", "step(browser_open,browser_act)"]);
+	assert.deepEqual(
+		items(turnBlocks(list, { groupExplore: true, groupTerminal: true, groupChanges: false })[1]),
+		["step(read,grep)", "step(edit)", "step(write)", "step(bash,bash)", "step(browser_open,browser_act)"],
+		"默认：文件更改一处一行",
+	);
+	const keys = turnBlocks(list, off)[1].items.map((item) => item.key);
+	assert.equal(new Set(keys).size, keys.length, "拆开的每一行各有自己的 key");
+});
+
 test("只想不做的一轮，锚下面只有那段推理", () => {
 	const blocks = turnBlocks([ask("想想这个", 0), think(1), say("我的看法是……", 2)]);
 	assert.deepEqual(items(blocks[1]), ["~assistant", "assistant"]);
@@ -191,5 +215,5 @@ test("the transcript window pages by block, not by run", async () => {
 	assert.match(source, /useTranscriptWindow\([^)]*allBlocks\.length\)/, "窗口的总数要按块算");
 	assert.match(source, /allBlocks\.slice\(range\.start, range\.end\)/, "切的要是块");
 	assert.ok(!/allRuns\.slice\(range/.test(source), "切 Run 就是那个「点了没反应」的写法");
-	assert.match(source, /turnBlocks\(allRuns\)/, "要先分块再开窗，顺序反过来等于没改");
+	assert.match(source, /turnBlocks\(allRuns[,)]/, "要先分块再开窗，顺序反过来等于没改");
 });

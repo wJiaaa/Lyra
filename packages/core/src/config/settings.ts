@@ -140,6 +140,15 @@ export interface AppearanceSettings {
 	 */
 	errorDetail: "full" | "compact";
 	/**
+	 * 转录里哪几类工具调用连着做时合成一行：探索（读、搜、只读的 shell 命令）、终端（其余 shell
+	 * 命令）、文件更改（写、改）。见桌面端 `grouping.ts` 的 `Step`。
+	 *
+	 * 文件更改默认不合：每一次都带着自己的 diff，合起来要多点一下才看得到改了什么。
+	 */
+	groupExplore: boolean;
+	groupTerminal: boolean;
+	groupChanges: boolean;
+	/**
 	 * macOS 主窗口的毛玻璃：窗口底层和侧栏透出系统材质。
 	 *
 	 * 关掉时回到不透明的主题色——材质叠在桌面上，颜色跟着壁纸走，有人要的是一块颜色确定的底。
@@ -202,6 +211,9 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 	diffMarkers: "color",
 	// Compact by default: the common failure is transient, and its wording is JSON.
 	errorDetail: "compact",
+	groupExplore: true,
+	groupTerminal: true,
+	groupChanges: false,
 	// 不设 `-webkit-font-smoothing`，字按系统默认的粗细画。
 	fontSmoothing: false,
 	vibrancy: true,

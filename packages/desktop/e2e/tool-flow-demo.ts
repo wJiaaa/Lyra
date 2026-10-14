@@ -28,13 +28,16 @@ const STAMP = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Shanghai" }).
 
 type Block = { tool: string; args: Record<string, unknown> } | { text: string } | { thinking: string };
 
+// 要的是一条真正执行的命令。`cat` 这类只读命令在转录里和读文件归成同一段探索（`isShellRead`）。
+const READ_BACK = "node -e \"process.stdout.write(require('fs').readFileSync('src/one.ts', 'utf8'))\"";
+
 const SCRIPT: Block[][] = [
 	[{ thinking: "先看看项目有多大。" }, { tool: "ls", args: { path: "." } }, { tool: "glob", args: { pattern: "**/*.ts" } }],
 	[{ thinking: "目录很小，入口应该就是 src/one.ts，读一下再搜引用。" }, { tool: "read", args: { path: "src/one.ts" } }, { tool: "grep", args: { pattern: "one" } }],
 	[{ text: "找到了，常量在 `src/one.ts` 里，改一下。" }, { tool: "edit", args: { path: "src/one.ts", old_string: "export const one = 1", new_string: "export const one = 2" } }],
-	[{ thinking: "改完跑一下确认。" }, { tool: "bash", args: { command: "sleep 2 && echo toolcheck-complete" } }, { tool: "bash", args: { command: "cat src/one.ts" } }],
+	[{ thinking: "改完跑一下确认。" }, { tool: "bash", args: { command: "sleep 2 && echo toolcheck-complete" } }, { tool: "bash", args: { command: READ_BACK } }],
 	[{ text: "改好了：`src/one.ts` 里的常量从 1 改成了 2，" }, { text: "命令也跑通了。" }],
-	[{ thinking: "再读一遍文件确认。" }, { tool: "bash", args: { command: "cat src/one.ts" } }],
+	[{ thinking: "再读一遍文件确认。" }, { tool: "bash", args: { command: READ_BACK } }],
 	[{ text: "确认过了，现在是 2。" }],
 ];
 const BLOCK_DELAY_MS = 900;

@@ -10,6 +10,7 @@ import { formatList } from "../i18n/list.ts";
 import { translate } from "../i18n/translate.ts";
 import type { MessageKey } from "../i18n/messages/index.ts";
 import { baseName } from "./paths.ts";
+import { isShellRead } from "./shell-reads.ts";
 
 /**
  * What a run of calls did, in the words someone would use to describe it afterwards.
@@ -141,9 +142,17 @@ export function describeCall(toolName: string, summary: string | undefined, subj
  *
  * 分的是「从外面看在干同一件事」：读、搜、列目录都是在看代码；写和改都是在动文件；浏览器那几个都是
  * 在用同一个页面。表里没有的工具自成一类，连着调同一个工具才合在一起。
+ *
+ * `bash` 看命令本身：`rg`、`sed -n`、`git log` 和 read、grep 是同一件事，归探索（`isShellRead`）。
+ * 命令还在流进来时按已经到了的那部分判，所以一条 `rg x > out` 会在 `>` 到的那一刻从探索换到终端——
+ * 只有这一次，而且就在它自己生成的那一两百毫秒里。
  */
-export function toolCategory(toolName: string): string {
+export function toolCategory(toolName: string, args?: unknown): string {
 	if (toolName.startsWith("browser_")) return "browser";
+	if (toolName === "bash") {
+		const command = (args as { command?: unknown } | undefined)?.command;
+		return typeof command === "string" && isShellRead(command) ? "explore" : "terminal";
+	}
 	return CATEGORY[toolName] ?? toolName;
 }
 
@@ -156,7 +165,6 @@ const CATEGORY: Record<string, string> = {
 	grep: "explore",
 	symbol: "explore",
 	lsp: "explore",
-	bash: "terminal",
 	bash_output: "terminal",
 	web_fetch: "web",
 	web_search: "web",

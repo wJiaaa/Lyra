@@ -145,7 +145,14 @@ export const Conversation = memo(function Conversation({ sessionId: _sessionId, 
    * 按块开窗之后，翻一次必然多出整轮——必然看得见。收起的轮次不花钱（`TurnWork` 收起时不渲染
    * 里面的东西），所以一次多带几轮也不再是负担。
    */
-  const allBlocks = useMemo(() => turnBlocks(allRuns), [allRuns]);
+  // 三个布尔各取一次：取 `appearance` 整个对象的话，改字号也会把整段转录重新分一遍。
+  const groupExplore = useApp((s) => s.settings?.appearance.groupExplore !== false);
+  const groupTerminal = useApp((s) => s.settings?.appearance.groupTerminal !== false);
+  const groupChanges = useApp((s) => s.settings?.appearance.groupChanges === true);
+  const allBlocks = useMemo(
+    () => turnBlocks(allRuns, { groupExplore, groupTerminal, groupChanges }),
+    [allRuns, groupExplore, groupTerminal, groupChanges],
+  );
   const range = useTranscriptWindow(activeSessionId, WINDOW_TURNS, allBlocks.length);
   /*
    * 窗口挂上目标之后要滚到哪：问题导航点的那一问，或画廊要看的那张图。`lead` 是目标上方留的空，

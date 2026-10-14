@@ -453,6 +453,25 @@ export function AppearanceSettings() {
 				</div>
 			</Card>
 
+			<SectionTitle>{t("appearance.toolGrouping")}</SectionTitle>
+			<Card className="mb-8">
+				<Row
+					title={t("appearance.groupExplore")}
+					detail={t("appearance.groupExploreDetail")}
+					control={<Toggle checked={appearance.groupExplore} onChange={(groupExplore) => patch({ groupExplore })} />}
+				/>
+				<Row
+					title={t("appearance.groupTerminal")}
+					detail={t("appearance.groupTerminalDetail")}
+					control={<Toggle checked={appearance.groupTerminal} onChange={(groupTerminal) => patch({ groupTerminal })} />}
+				/>
+				<Row
+					title={t("appearance.groupChanges")}
+					detail={t("appearance.groupChangesDetail")}
+					control={<Toggle checked={appearance.groupChanges} onChange={(groupChanges) => patch({ groupChanges })} />}
+				/>
+			</Card>
+
 			<SectionTitle>{t("appearance.preferences")}</SectionTitle>
 			<Card>
 				<Row

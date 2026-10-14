@@ -13,7 +13,7 @@
 
 import { isNudge } from "../../lib/spoken.ts";
 import { routedBlock } from "../../lib/tool-summary.ts";
-import type { AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@plume/core";
+import type { AppearanceSettings, AssistantContent, AssistantMessage, CommandRun, Message, UserContent } from "@plume/core";
 import { CARRY_ON_PROMPTS, todosFrom } from "../../store/derive.ts";
 import type { Hiccup } from "../../lib/hiccup.ts";
 import { intact } from "../../lib/transcript.ts";
@@ -825,7 +825,20 @@ export function thinkingLive(run: Extract<Run, { kind: "message" }>): boolean {
 	return run.message.role === "assistant" && run.message.stopReason === "pending" && run.upTo === run.message.content.length;
 }
 
-export function turnBlocks(list: Run[]): TurnBlock[] {
+/** 哪几类连着做时合成一行，见 `AppearanceSettings` 的 `groupExplore`。不传就是都合。 */
+export type ToolGrouping = Pick<AppearanceSettings, "groupExplore" | "groupTerminal" | "groupChanges">;
+
+const MERGE_ALL: ToolGrouping = { groupExplore: true, groupTerminal: true, groupChanges: true };
+
+/** 关掉的那一类每一次调用自成一段；开关管不着的几类（浏览器、网页……）照旧合。 */
+function merges(category: string, grouping: ToolGrouping): boolean {
+	if (category === "explore") return grouping.groupExplore;
+	if (category === "terminal") return grouping.groupTerminal;
+	if (category === "files") return grouping.groupChanges;
+	return true;
+}
+
+export function turnBlocks(list: Run[], grouping: ToolGrouping = MERGE_ALL): TurnBlock[] {
 	const out: TurnBlock[] = [];
 	let turn = 0;
 	const plain = (run: Run) => out.push({ kind: "plain", runs: [run], items: [], turn });
@@ -847,14 +860,14 @@ export function turnBlocks(list: Run[]): TurnBlock[] {
 		 * 等到那时才换成有锚的一轮，页面就换了一个父元素，重新挂一遍、闪一下。
 		 */
 		if (body.some((run) => (isProcess(run) && (run.kind === "tools" || reasoning(run))) || (run.kind === "tools" && run.calls.some((call) => call.page)))) {
-			out.push({ kind: "work", runs: body, items: itemsOf(body), turn });
+			out.push({ kind: "work", runs: body, items: itemsOf(body, grouping), turn });
 		} else for (const run of body) plain(run);
 		at = end;
 	}
 	return out;
 }
 
-function itemsOf(body: Run[]): TurnItem[] {
+function itemsOf(body: Run[], grouping: ToolGrouping): TurnItem[] {
 	// 最后一次过程之后的都是回答。
 	let last = -1;
 	body.forEach((run, index) => {
@@ -874,10 +887,10 @@ function itemsOf(body: Run[]): TurnItem[] {
 		if (run.kind === "compaction") return;
 		if (run.kind === "tools" && !run.shown) {
 			for (const call of run.calls) {
-				const category = toolCategory(call.block.name);
+				const category = toolCategory(call.block.name, call.block.arguments);
 				const before = thoughts.map(({ run: thought }) => ({ kind: "thinking" as const, run: thought }));
 				thoughts = [];
-				if (step?.category === category) {
+				if (step?.category === category && merges(category, grouping)) {
 					step.calls.push(call);
 					step.members.push(...before, { kind: "call", call });
 					continue;
